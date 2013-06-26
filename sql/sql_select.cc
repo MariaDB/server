@@ -1002,6 +1002,7 @@ err:
   DBUG_RETURN(res);				/* purecov: inspected */
 }
 
+void join_save_qpf(JOIN *join);
 
 int JOIN::optimize()
 {
@@ -1020,7 +1021,10 @@ int JOIN::optimize()
         return 0, even though we never had a query plan.
   */
   if (was_optimized != optimized && !res && have_query_plan != QEP_DELETED)
+  {
     have_query_plan= QEP_AVAILABLE;
+    join_save_qpf(this);
+  }
   return res;
 }
 
@@ -1611,8 +1615,10 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
     JOIN_TAB *tab= &join_tab[const_tables];
     bool all_order_fields_used;
     if (order)
+    {
       skip_sort_order= test_if_skip_sort_order(tab, order, select_limit, 1, 
         &tab->table->keys_in_use_for_order_by);
+    }
     if ((group_list=create_distinct_group(thd, select_lex->ref_pointer_array,
                                           order, fields_list, all_fields,
 				          &all_order_fields_used)))
@@ -2289,10 +2295,47 @@ JOIN::save_join_tab()
 }
 
 
+void join_save_qpf(JOIN *join)
+{
+  THD *thd= join->thd;
+//TODO: why not call st_select_lex::save_qpf here?
+
+  if (join->select_lex->select_number != UINT_MAX && 
+      join->select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
+      join->have_query_plan != JOIN::QEP_NOT_PRESENT_YET && 
+      join->have_query_plan != JOIN::QEP_DELETED &&  // this happens when there was no QEP ever, but then
+                                         //cleanup() is called multiple times
+
+      thd->lex->query_plan_footprint && // for "SET" command in SPs.
+      !thd->lex->query_plan_footprint->get_select(join->select_lex->select_number))
+  {
+    const char *message= NULL;
+
+    if (!join->table_count || !join->tables_list || join->zero_result_cause)
+    {
+      /* It's a degenerate join */
+      message= join->zero_result_cause ? join->zero_result_cause : "No tables used";
+    }
+
+    join->save_qpf(thd->lex->query_plan_footprint,
+             join->need_tmp, // need_tmp_table
+             !join->skip_sort_order && !join->no_order &&
+             (join->order || join->group_list), // bool need_order
+             join->select_distinct, // bool distinct
+             message); // message
+  }
+}
+
+
 void JOIN::exec()
 {
   /*
     Enable SHOW EXPLAIN only if we're in the top-level query.
+  */
+  
+  /*
+    psergey: we can produce SHOW explain at this point. This means, we're ready
+    to save the query plan.
   */
   thd->apc_target.enable();
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_start", 
@@ -11109,6 +11152,7 @@ void JOIN::cleanup(bool full)
   if (full)
   {
     //
+#if 0    
     if (select_lex->select_number != UINT_MAX && 
         select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
         have_query_plan != QEP_NOT_PRESENT_YET && 
@@ -11133,7 +11177,7 @@ void JOIN::cleanup(bool full)
                select_distinct, // bool distinct
                message); // message
     }
-
+#endif
     //
 
     have_query_plan= QEP_DELETED; //psergey: this is a problem!
@@ -22352,589 +22396,6 @@ void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res)
 }
 
 
-/**
-  EXPLAIN handling.
-
-  Produce lines explaining execution of *this* select (not including children
-  selects)
-  @param on_the_fly TRUE <=> we're being executed on-the-fly, so don't make 
-                    modifications to any select's data structures
-
-  psergey-todo: should this produce a data structure with a query plan? Or, the
-  data structure with the query plan should be produced in any way?
-*/
-#if 0
-int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
-                         bool on_the_fly,
-                         bool need_tmp_table, bool need_order,
-                         bool distinct, const char *message)
-{
-  List<Item> field_list;
-  List<Item> item_list;
-  JOIN *join= this; /* Legacy: this code used to be a non-member function */
-  THD *thd=join->thd;
-  Item *item_null= new Item_null();
-  CHARSET_INFO *cs= system_charset_info;
-  int quick_type;
-  int error= 0;
-  DBUG_ENTER("JOIN::print_explain");
-  DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
-		      (ulong)join->select_lex, join->select_lex->type,
-		      message ? message : "NULL"));
-  DBUG_ASSERT(on_the_fly? have_query_plan == QEP_AVAILABLE: TRUE);
-  /* Don't log this into the slow query log */
-
-  if (!on_the_fly)
-  {
-    thd->server_status&= ~(SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED);
-    join->unit->offset_limit_cnt= 0;
-  }
-
-  /* 
-    NOTE: the number/types of items pushed into item_list must be in sync with
-    EXPLAIN column types as they're "defined" in THD::send_explain_fields()
-  */
-  if (message)
-  {
-    if (on_the_fly)
-      join->select_lex->set_explain_type(on_the_fly);
-
-    if (print_explain_message_line(result, explain_flags,
-                                   join->select_lex->select_number,
-                                   join->select_lex->type, message))
-      error= 1;
-
-  }
-  else if (join->select_lex == join->unit->fake_select_lex)
-  {
-    if (print_fake_select_lex_join(result, on_the_fly, 
-                                   join->select_lex, 
-                                   explain_flags))
-      error= 1;
-  }
-  else if (!join->select_lex->master_unit()->derived ||
-           join->select_lex->master_unit()->derived->is_materialized_derived())
-  {
-    table_map used_tables=0;
-
-    if (on_the_fly)
-      join->select_lex->set_explain_type(on_the_fly);
-
-    bool printing_materialize_nest= FALSE;
-    uint select_id= join->select_lex->select_number;
-
-    JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
-
-    for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
-         tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
-    {
-      if (tab->bush_root_tab)
-      {
-        JOIN_TAB *first_sibling= tab->bush_root_tab->bush_children->start;
-        select_id= first_sibling->emb_sj_nest->sj_subq_pred->get_identifier();
-        printing_materialize_nest= TRUE;
-      }
-      
-      TABLE *table=tab->table;
-      TABLE_LIST *table_list= tab->table->pos_in_table_list;
-      char buff[512]; 
-      char buff1[512], buff2[512], buff3[512], buff4[512];
-      char keylen_str_buf[64];
-      my_bool key_read;
-      String extra(buff, sizeof(buff),cs);
-      char table_name_buffer[SAFE_NAME_LEN];
-      String tmp1(buff1,sizeof(buff1),cs);
-      String tmp2(buff2,sizeof(buff2),cs);
-      String tmp3(buff3,sizeof(buff3),cs);
-      String tmp4(buff4,sizeof(buff4),cs);
-      char hash_key_prefix[]= "#hash#";
-      KEY *key_info= 0;
-      uint key_len= 0;
-      bool is_hj= tab->type == JT_HASH || tab->type ==JT_HASH_NEXT;
-
-      extra.length(0);
-      tmp1.length(0);
-      tmp2.length(0);
-      tmp3.length(0);
-      tmp4.length(0);
-      quick_type= -1;
-      QUICK_SELECT_I *quick= NULL;
-      JOIN_TAB *saved_join_tab= NULL;
-
-      /* Don't show eliminated tables */
-      if (table->map & join->eliminated_tables)
-      {
-        used_tables|=table->map;
-        continue;
-      }
-
-      if (join->table_access_tabs == join->join_tab &&
-          tab == (first_top_tab + join->const_tables) && pre_sort_join_tab)
-      {
-        saved_join_tab= tab;
-        tab= pre_sort_join_tab;
-      }
-
-      item_list.empty();
-      /* id */
-      item_list.push_back(new Item_uint((uint32)select_id));
-      /* select_type */
-      const char* stype= printing_materialize_nest? "MATERIALIZED" : 
-                                                    join->select_lex->type;
-      item_list.push_back(new Item_string(stype, strlen(stype), cs));
-      
-      enum join_type tab_type= tab->type;
-      if ((tab->type == JT_ALL || tab->type == JT_HASH) &&
-           tab->select && tab->select->quick && tab->use_quick != 2)
-      {
-        quick= tab->select->quick;
-        quick_type= tab->select->quick->get_type();
-        if ((quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE) ||
-            (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
-            (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT) ||
-            (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION))
-          tab_type= tab->type == JT_ALL ? JT_INDEX_MERGE : JT_HASH_INDEX_MERGE;
-        else
-	  tab_type= tab->type == JT_ALL ? JT_RANGE : JT_HASH_RANGE;
-      }
-
-      /* table */
-      if (table->derived_select_number)
-      {
-	/* Derived table name generation */
-	int len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
-			     "<derived%u>",
-			     table->derived_select_number);
-	item_list.push_back(new Item_string(table_name_buffer, len, cs));
-      }
-      else if (tab->bush_children)
-      {
-        JOIN_TAB *ctab= tab->bush_children->start;
-        /* table */
-        int len= my_snprintf(table_name_buffer, 
-                             sizeof(table_name_buffer)-1,
-                             "<subquery%d>", 
-                             ctab->emb_sj_nest->sj_subq_pred->get_identifier());
-	item_list.push_back(new Item_string(table_name_buffer, len, cs));
-      }
-      else
-      {
-        TABLE_LIST *real_table= table->pos_in_table_list;
-	item_list.push_back(new Item_string(real_table->alias,
-                                            strlen(real_table->alias), cs));
-      }
-      /* "partitions" column */
-      if (explain_flags & DESCRIBE_PARTITIONS)
-      {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-        partition_info *part_info;
-        if (!table->derived_select_number && 
-            (part_info= table->part_info))
-        {          
-          Item_string *item_str= new Item_string(cs);
-          make_used_partitions_str(part_info, &item_str->str_value);
-          item_list.push_back(item_str);
-        }
-        else
-          item_list.push_back(item_null);
-#else
-        /* just produce empty column if partitioning is not compiled in */
-        item_list.push_back(item_null); 
-#endif
-      }
-      /* "type" column */
-      item_list.push_back(new Item_string(join_type_str[tab_type],
-					  strlen(join_type_str[tab_type]),
-					  cs));
-      /* Build "possible_keys" value and add it to item_list */
-      if (!tab->keys.is_clear_all())
-      {
-        uint j;
-        for (j=0 ; j < table->s->keys ; j++)
-        {
-          if (tab->keys.is_set(j))
-          {
-            if (tmp1.length())
-              tmp1.append(',');
-            tmp1.append(table->key_info[j].name, 
-			strlen(table->key_info[j].name),
-			system_charset_info);
-          }
-        }
-      }
-      if (tmp1.length())
-	item_list.push_back(new Item_string(tmp1.ptr(),tmp1.length(),cs));
-      else
-	item_list.push_back(item_null);
-
-      /* Build "key", "key_len", and "ref" values and add them to item_list */
-      if (tab_type == JT_NEXT)
-      {
-	key_info= table->key_info+tab->index;
-        key_len= key_info->key_length;
-      }
-      else if (tab->ref.key_parts)
-      {
-	key_info= tab->get_keyinfo_by_key_no(tab->ref.key);
-        key_len= tab->ref.key_length;
-      }
-      if (key_info)
-      {
-        register uint length;
-        if (is_hj)
-          tmp2.append(hash_key_prefix, strlen(hash_key_prefix), cs);
-        tmp2.append(key_info->name,  strlen(key_info->name), cs);
-        length= (longlong10_to_str(key_len, keylen_str_buf, 10) - 
-                 keylen_str_buf);
-        tmp3.append(keylen_str_buf, length, cs);
-        if (tab->ref.key_parts && tab_type != JT_FT)
-	{
-          store_key **ref=tab->ref.key_copy;
-          for (uint kp= 0; kp < tab->ref.key_parts; kp++)
-	  {
-	    if (tmp4.length())
-	      tmp4.append(',');
-
-            if ((key_part_map(1) << kp) & tab->ref.const_ref_part_map)
-              tmp4.append("const");
-            else
-            {
-              tmp4.append((*ref)->name(), strlen((*ref)->name()), cs);
-              ref++;
-            }
-          }
-        }
-      }
-      if (is_hj && tab_type != JT_HASH)
-      {
-        tmp2.append(':');
-        tmp3.append(':');
-      }
-      if (tab_type == JT_HASH_NEXT)
-      {
-        register uint length;
-	key_info= table->key_info+tab->index;
-        key_len= key_info->key_length;
-        tmp2.append(key_info->name,  strlen(key_info->name), cs);
-        length= (longlong10_to_str(key_len, keylen_str_buf, 10) - 
-                 keylen_str_buf);
-        tmp3.append(keylen_str_buf, length, cs);
-      }         
-      if (tab->type != JT_CONST && tab->select && quick)
-        tab->select->quick->add_keys_and_lengths(&tmp2, &tmp3);
-      if (key_info || (tab->select && quick))
-      {
-        if (tmp2.length())
-          item_list.push_back(new Item_string(tmp2.ptr(),tmp2.length(),cs));
-        else
-          item_list.push_back(item_null);
-        if (tmp3.length())
-          item_list.push_back(new Item_string(tmp3.ptr(),tmp3.length(),cs));
-        else
-          item_list.push_back(item_null);
-        if (key_info && tab_type != JT_NEXT)
-          item_list.push_back(new Item_string(tmp4.ptr(),tmp4.length(),cs));
-        else
-          item_list.push_back(item_null);
-      }
-      else
-      {
-        if (table_list && /* SJM bushes don't have table_list */
-            table_list->schema_table &&
-            table_list->schema_table->i_s_requested_object & OPTIMIZE_I_S_TABLE)
-        {
-          const char *tmp_buff;
-          int f_idx;
-          if (table_list->has_db_lookup_value)
-          {
-            f_idx= table_list->schema_table->idx_field1;
-            tmp_buff= table_list->schema_table->fields_info[f_idx].field_name;
-            tmp2.append(tmp_buff, strlen(tmp_buff), cs);
-          }          
-          if (table_list->has_table_lookup_value)
-          {
-            if (table_list->has_db_lookup_value)
-              tmp2.append(',');
-            f_idx= table_list->schema_table->idx_field2;
-            tmp_buff= table_list->schema_table->fields_info[f_idx].field_name;
-            tmp2.append(tmp_buff, strlen(tmp_buff), cs);
-          }
-          if (tmp2.length())
-            item_list.push_back(new Item_string(tmp2.ptr(),tmp2.length(),cs));
-          else
-            item_list.push_back(item_null);
-        }
-        else
-          item_list.push_back(item_null);
-	item_list.push_back(item_null);
-	item_list.push_back(item_null);
-      }
-      
-      /* Add "rows" field to item_list. */
-      if (table_list /* SJM bushes don't have table_list */ &&
-          table_list->schema_table)
-      {
-        /* in_rows */
-        if (explain_flags & DESCRIBE_EXTENDED)
-          item_list.push_back(item_null);
-        /* rows */
-        item_list.push_back(item_null);
-      }
-      else
-      {
-        ha_rows examined_rows= tab->get_examined_rows();
-
-        item_list.push_back(new Item_int((longlong) (ulonglong) examined_rows, 
-                                         MY_INT64_NUM_DECIMAL_DIGITS));
-
-        /* Add "filtered" field to item_list. */
-        if (explain_flags & DESCRIBE_EXTENDED)
-        {
-          float f= 0.0; 
-          if (examined_rows)
-	  {
-            double pushdown_cond_selectivity= tab->cond_selectivity;	      
-            if (pushdown_cond_selectivity == 1.0)
-              f= (float) (100.0 * tab->records_read / examined_rows);
-            else
-              f= (float) (100.0 * pushdown_cond_selectivity);
-          }
- 	  set_if_smaller(f, 100.0);
-          item_list.push_back(new Item_float(f, 2));
-        }
-      }
-
-      /* Build "Extra" field and add it to item_list. */
-      key_read=table->key_read;
-      if ((tab_type == JT_NEXT || tab_type == JT_CONST) &&
-          table->covering_keys.is_set(tab->index))
-	key_read=1;
-      if (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT &&
-          !((QUICK_ROR_INTERSECT_SELECT*)quick)->need_to_fetch_row)
-        key_read=1;
-        
-      if (tab->info)
-      {
-        const char *reason;
-        switch (tab->info) {
-          case ET_CONST_ROW_NOT_FOUND:
-            reason= "const row not found";
-            break;
-          case ET_UNIQUE_ROW_NOT_FOUND:
-            reason=  "unique row not found";
-            break;
-          case ET_IMPOSSIBLE_ON_CONDITION:
-            reason= "Impossible ON condition";
-            break;
-          default:
-            DBUG_ASSERT(0);
-        }
-	item_list.push_back(new Item_string(reason,strlen(reason),cs));
-      }
-      else if (tab->packed_info & TAB_INFO_HAVE_VALUE)
-      {
-        if (tab->packed_info & TAB_INFO_USING_INDEX)
-          extra.append(STRING_WITH_LEN("; Using index"));
-        if (tab->packed_info & TAB_INFO_USING_WHERE)
-          extra.append(STRING_WITH_LEN("; Using where"));
-        if (tab->packed_info & TAB_INFO_FULL_SCAN_ON_NULL)
-          extra.append(STRING_WITH_LEN("; Full scan on NULL key"));
-        /* Skip initial "; "*/
-        const char *str= extra.ptr();
-        uint32 len= extra.length();
-        if (len)
-        {
-          str += 2;
-          len -= 2;
-        }
-	item_list.push_back(new Item_string(str, len, cs));
-      }
-      else
-      {
-        uint keyno= MAX_KEY;
-        if (tab->ref.key_parts)
-          keyno= tab->ref.key;
-        else if (tab->select && quick)
-          keyno = quick->index;
-
-        if (keyno != MAX_KEY && keyno == table->file->pushed_idx_cond_keyno &&
-            table->file->pushed_idx_cond)
-          extra.append(STRING_WITH_LEN("; Using index condition"));
-        else if (tab->cache_idx_cond)
-          extra.append(STRING_WITH_LEN("; Using index condition(BKA)"));
-
-        if (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
-            quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT ||
-            quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
-            quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE)
-        {
-          extra.append(STRING_WITH_LEN("; Using "));
-          tab->select->quick->add_info_string(&extra);
-        }
-	if (tab->select)
-	{
-	  if (tab->use_quick == 2)
-	  {
-            /* 4 bits per 1 hex digit + terminating '\0' */
-            char buf[MAX_KEY / 4 + 1];
-            extra.append(STRING_WITH_LEN("; Range checked for each "
-                                         "record (index map: 0x"));
-            extra.append(tab->keys.print(buf));
-            extra.append(')');
-	  }
-	  else if (tab->select->cond)
-          {
-            const COND *pushed_cond= tab->table->file->pushed_cond;
-
-            if (((thd->variables.optimizer_switch &
-                 OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-                 (tab->table->file->ha_table_flags() &
-                  HA_MUST_USE_TABLE_CONDITION_PUSHDOWN)) &&
-                pushed_cond)
-            {
-              extra.append(STRING_WITH_LEN("; Using where with pushed "
-                                           "condition"));
-              if (explain_flags & DESCRIBE_EXTENDED)
-              {
-                extra.append(STRING_WITH_LEN(": "));
-                ((COND *)pushed_cond)->print(&extra, QT_ORDINARY);
-              }
-            }
-            else
-              extra.append(STRING_WITH_LEN("; Using where"));
-          }
-	}
-        if (table_list /* SJM bushes don't have table_list */ &&
-            table_list->schema_table &&
-            table_list->schema_table->i_s_requested_object & OPTIMIZE_I_S_TABLE)
-        {
-          if (!table_list->table_open_method)
-            extra.append(STRING_WITH_LEN("; Skip_open_table"));
-          else if (table_list->table_open_method == OPEN_FRM_ONLY)
-            extra.append(STRING_WITH_LEN("; Open_frm_only"));
-          else
-            extra.append(STRING_WITH_LEN("; Open_full_table"));
-          if (table_list->has_db_lookup_value &&
-              table_list->has_table_lookup_value)
-            extra.append(STRING_WITH_LEN("; Scanned 0 databases"));
-          else if (table_list->has_db_lookup_value ||
-                   table_list->has_table_lookup_value)
-            extra.append(STRING_WITH_LEN("; Scanned 1 database"));
-          else
-            extra.append(STRING_WITH_LEN("; Scanned all databases"));
-        }
-	if (key_read)
-        {
-          if (quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
-          {
-            QUICK_GROUP_MIN_MAX_SELECT *qgs= 
-              (QUICK_GROUP_MIN_MAX_SELECT *) tab->select->quick;
-            extra.append(STRING_WITH_LEN("; Using index for group-by"));
-            qgs->append_loose_scan_type(&extra);
-          }
-          else
-            extra.append(STRING_WITH_LEN("; Using index"));
-        }
-	if (table->reginfo.not_exists_optimize)
-	  extra.append(STRING_WITH_LEN("; Not exists"));
-
-        /*
-        if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE &&
-            !(((QUICK_RANGE_SELECT*)(tab->select->quick))->mrr_flags &
-             HA_MRR_USE_DEFAULT_IMPL))
-        {
-	  extra.append(STRING_WITH_LEN("; Using MRR"));
-        }
-        */
-        if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE)
-        {
-          explain_append_mrr_info((QUICK_RANGE_SELECT*)(tab->select->quick),
-                                  &extra);
-        }
-
-	if (need_tmp_table)
-	{
-	  need_tmp_table=0;
-	  extra.append(STRING_WITH_LEN("; Using temporary"));
-	}
-	if (need_order)
-	{
-	  need_order=0;
-	  extra.append(STRING_WITH_LEN("; Using filesort"));
-	}
-	if (distinct & test_all_bits(used_tables,
-                                     join->select_list_used_tables))
-	  extra.append(STRING_WITH_LEN("; Distinct"));
-        if (tab->loosescan_match_tab)
-        {
-          extra.append(STRING_WITH_LEN("; LooseScan"));
-        }
-
-        if (tab->first_weedout_table)
-          extra.append(STRING_WITH_LEN("; Start temporary"));
-        if (tab->check_weed_out_table)
-          extra.append(STRING_WITH_LEN("; End temporary"));
-        else if (tab->do_firstmatch)
-        {
-          if (tab->do_firstmatch == /*join->join_tab*/ first_top_tab - 1)
-            extra.append(STRING_WITH_LEN("; FirstMatch"));
-          else
-          {
-            extra.append(STRING_WITH_LEN("; FirstMatch("));
-            TABLE *prev_table=tab->do_firstmatch->table;
-            if (prev_table->derived_select_number)
-            {
-              char namebuf[NAME_LEN];
-              /* Derived table name generation */
-              int len= my_snprintf(namebuf, sizeof(namebuf)-1,
-                                   "<derived%u>",
-                                   prev_table->derived_select_number);
-              extra.append(namebuf, len);
-            }
-            else
-              extra.append(prev_table->pos_in_table_list->alias);
-            extra.append(STRING_WITH_LEN(")"));
-          }
-        }
-
-        for (uint part= 0; part < tab->ref.key_parts; part++)
-        {
-          if (tab->ref.cond_guards[part])
-          {
-            extra.append(STRING_WITH_LEN("; Full scan on NULL key"));
-            break;
-          }
-        }
-
-        if (tab->cache)
-	{
-          extra.append(STRING_WITH_LEN("; Using join buffer"));
-          tab->cache->print_explain_comment(&extra);
-        }
-        
-        /* Skip initial "; "*/
-        const char *str= extra.ptr();
-        uint32 len= extra.length();
-        if (len)
-        {
-          str += 2;
-          len -= 2;
-        }
-	item_list.push_back(new Item_string(str, len, cs));
-      }
-      
-      if (saved_join_tab)
-        tab= saved_join_tab;
-
-      // For next iteration
-      used_tables|=table->map;
-      if (result->send_data(item_list))
-	error= 1;
-    }
-  }
-  DBUG_RETURN(error);
-}
-#endif
 /////////////////////////////////////////////////////////////////////////////////////////////////
 void QPF_table_access::push_extra(enum Extra_tag extra_tag)
 {
@@ -23001,6 +22462,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   }
   else if (join->select_lex == join->unit->fake_select_lex)
   {
+#if 0
     select_lex->set_explain_type(on_the_fly);
     QPF_union *qp_union= new (output->mem_root) QPF_union;
     qp_node= qp_union;
@@ -23017,6 +22479,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
       test(select_lex->master_unit()->global_parameters->order_list.first);
 
     output->add_node(qp_union);
+#endif    
   }
   else if (!join->select_lex->master_unit()->derived ||
            join->select_lex->master_unit()->derived->is_materialized_derived())
@@ -23555,16 +23018,21 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
   THD *thd=join->thd;
   select_result *result=join->result;
   DBUG_ENTER("select_describe");
-#if 0
-  join->error= join->print_explain(result, thd->lex->describe, 
-                                   FALSE, /* Not on-the-fly */
-                                   need_tmp_table, need_order, distinct, 
-                                   message);
-#endif  
-  //psergey-todo: save QPF here, too.
+  
+  // Update the QPF:
+  QPF_select *qp;
+  if ((qp= thd->lex->query_plan_footprint->get_select(join->select_lex->select_number)))
+  {
+    qp->using_temporary= need_tmp_table;
+    qp->using_filesort= need_order;
+  }
+
+/*
+  WE DONT NEED THIS here anymore:
+
   join->save_qpf(thd->lex->query_plan_footprint, need_tmp_table, need_order, 
                  distinct, message);
-
+*/
   for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
        unit;
        unit= unit->next_unit())

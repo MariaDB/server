@@ -733,6 +733,8 @@ public:
   List<Item> *get_unit_column_types();
 
   int save_qpf(QPF_query *output);
+  int save_union_qpf(QPF_query *output);
+  int save_union_qpf_part2(QPF_query *output);
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
