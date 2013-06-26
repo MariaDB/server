@@ -1553,6 +1553,115 @@ private:
 };
 
 
+/*
+  Class to facilitate the commit of one transactions waiting for the commit of
+  another transaction to complete first.
+
+  This is used during (parallel) replication, to allow different transactions
+  to be applied in parallel, but still commit in order.
+
+  The transaction that wants to wait for a prior commit must first register
+  to wait with register_wait_for_prior_commit(waitee). Such registration
+  must be done holding the waitee->LOCK_wait_commit, to prevent the other
+  THD from disappearing during the registration.
+
+  Then during commit, if a THD is registered to wait, it will call
+  wait_for_prior_commit() as part of ha_commit_trans(). If no wait is
+  registered, or if the waitee for has already completed commit, then
+  wait_for_prior_commit() returns immediately.
+
+  And when a THD that may be waited for has completed commit (more precisely
+  commit_ordered()), then it must call wakeup_subsequent_commits() to wake
+  up any waiters. Note that this must be done at a point that is guaranteed
+  to be later than any waiters registering themselves. It is safe to call
+  wakeup_subsequent_commits() multiple times, as waiters are removed from
+  registration as part of the wakeup.
+
+  The reason for separate register and wait calls is that this allows to
+  register the wait early, at a point where the waited-for THD is known to
+  exist. And then the actual wait can be done much later, where the
+  waited-for THD may have been long gone. By registering early, the waitee
+  can signal before disappearing.
+*/
+struct wait_for_commit
+{
+  /*
+    The LOCK_wait_commit protects the fields subsequent_commits_list and
+    wakeup_subsequent_commits_running (for a waitee), and the flag
+    waiting_for_commit and associated COND_wait_commit (for a waiter).
+  */
+  mysql_mutex_t LOCK_wait_commit;
+  mysql_cond_t COND_wait_commit;
+  /* List of threads that did register_wait_for_prior_commit() on us. */
+  wait_for_commit *subsequent_commits_list;
+  /* Link field for entries in subsequent_commits_list. */
+  wait_for_commit *next_subsequent_commit;
+  /* Our waitee, if we did register_wait_for_prior_commit(), else NULL. */
+  wait_for_commit *waitee;
+  /*
+    Generic pointer for use by the transaction coordinator to optimise the
+    waiting for improved group commit.
+
+    Currently used by binlog TC to signal that a waiter is ready to commit, so
+    that the waitee can grab it and group commit it directly. It is free to be
+    used by another transaction coordinator for similar purposes.
+  */
+  void *opaque_pointer;
+  /*
+    The waiting_for_commit flag is cleared when a waiter has been woken
+    up. The COND_wait_commit condition is signalled when this has been
+    cleared.
+  */
+  bool waiting_for_commit;
+  /*
+    Flag set when wakeup_subsequent_commits_running() is active, see commonts
+    on that function for details.
+  */
+  bool wakeup_subsequent_commits_running;
+
+  void register_wait_for_prior_commit(wait_for_commit *waitee);
+  void wait_for_prior_commit()
+  {
+    /*
+      Quick inline check, to avoid function call and locking in the common case
+      where no wakeup is registered, or a registered wait was already signalled.
+    */
+    if (waiting_for_commit)
+      wait_for_prior_commit2();
+  }
+  void wakeup_subsequent_commits()
+  {
+    /*
+      Do the check inline, so only the wakeup case takes the cost of a function
+      call for every commmit.
+
+      Note that the check is done without locking. It is the responsibility of
+      the user of the wakeup facility to ensure that no waiters can register
+      themselves after the last call to wakeup_subsequent_commits().
+
+      This avoids having to take another lock for every commit, which would be
+      pointless anyway - even if we check under lock, there is nothing to
+      prevent a waiter from arriving just after releasing the lock.
+    */
+    if (subsequent_commits_list)
+      wakeup_subsequent_commits2();
+  }
+  void unregister_wait_for_prior_commit()
+  {
+    if (waiting_for_commit)
+      unregister_wait_for_prior_commit2();
+  }
+
+  void wakeup();
+
+  void wait_for_prior_commit2();
+  void wakeup_subsequent_commits2();
+  void unregister_wait_for_prior_commit2();
+
+  wait_for_commit();
+};
+
+
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
 class THD;
@@ -3194,6 +3303,19 @@ public:
   void wait_for_wakeup_ready();
   /* Wake this thread up from wait_for_wakeup_ready(). */
   void signal_wakeup_ready();
+
+  wait_for_commit *wait_for_commit_ptr;
+  void wait_for_prior_commit()
+  {
+    if (wait_for_commit_ptr)
+      wait_for_commit_ptr->wait_for_prior_commit();
+  }
+  void wakeup_subsequent_commits()
+  {
+    if (wait_for_commit_ptr)
+      wait_for_commit_ptr->wakeup_subsequent_commits();
+  }
+
 private:
 
   /** The current internal error handler for this thread, or NULL. */

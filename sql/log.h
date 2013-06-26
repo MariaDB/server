@@ -45,6 +45,15 @@ class TC_LOG
 
   virtual int open(const char *opt_name)=0;
   virtual void close()=0;
+  /*
+    Transaction coordinator 2-phase commit.
+
+    Must invoke the run_prepare_ordered and run_commit_ordered methods, as
+    described below for these methods.
+
+    In addition, must invoke THD::wait_for_prior_commit(), or equivalent
+    wait, to ensure that one commit waits for another if registered to do so.
+  */
   virtual int log_and_order(THD *thd, my_xid xid, bool all,
                             bool need_prepare_ordered,
                             bool need_commit_ordered) = 0;
@@ -397,6 +406,7 @@ private:
 
 class binlog_cache_mngr;
 struct rpl_gtid;
+class wait_for_commit;
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 {
  private:
@@ -445,6 +455,8 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
       group commit, only used when opt_optimize_thread_scheduling is not set.
     */
     bool check_purge;
+    /* Flag used to optimise around wait_for_prior_commit. */
+    bool queued_by_other;
     ulong binlog_id;
   };
 
@@ -526,6 +538,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   void do_checkpoint_request(ulong binlog_id);
   void purge();
   int write_transaction_or_stmt(group_commit_entry *entry, uint64 commit_id);
+  bool queue_for_group_commit(group_commit_entry *entry, wait_for_commit *wfc);
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
   bool is_xidlist_idle_nolock();
