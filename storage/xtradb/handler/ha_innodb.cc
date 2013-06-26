@@ -3585,6 +3585,11 @@ innobase_commit(
 		/* We were instructed to commit the whole transaction, or
 		this is an SQL statement end and autocommit is on */
 
+		/* At this point commit order is fixed and transaction is
+		visible to others. So we can wakeup other commits waiting for
+		this one, to allow then to group commit with us. */
+		thd_wakeup_subsequent_commits(thd);
+
 		/* We did the first part already in innobase_commit_ordered(),
 		Now finish by doing a write + flush of logs. */
 		trx_commit_complete_for_mysql(trx);

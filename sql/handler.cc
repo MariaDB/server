@@ -1455,6 +1455,8 @@ int ha_commit_one_phase(THD *thd, bool all)
   */
   bool is_real_trans=all || thd->transaction.all.ha_list == 0;
   DBUG_ENTER("ha_commit_one_phase");
+  if (is_real_trans)
+    thd->wait_for_prior_commit();
   int res= commit_one_phase_2(thd, all, trans, is_real_trans);
   DBUG_RETURN(res);
 }
@@ -1494,7 +1496,10 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   }
   /* Free resources and perform other cleanup even for 'empty' transactions. */
   if (is_real_trans)
+  {
+    thd->wakeup_subsequent_commits();
     thd->transaction.cleanup();
+  }
 
   DBUG_RETURN(error);
 }
@@ -1569,7 +1574,10 @@ int ha_rollback_trans(THD *thd, bool all)
   }
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
+  {
+    thd->wakeup_subsequent_commits();
     thd->transaction.cleanup();
+  }
   if (all)
     thd->transaction_rollback_request= FALSE;
 
