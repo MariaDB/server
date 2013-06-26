@@ -3440,7 +3440,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   fnc= GetFuncID(fncn);
   sep= topt->separator;
   spc= (!sep || !strcmp(sep, "\\t")) ? '\t' : *sep;
-  qch= topt->qchar ? *topt->qchar : topt->quoted >= 0 ? '"' : 0;
+  qch= topt->qchar ? *topt->qchar : (signed)topt->quoted >= 0 ? '"' : 0;
   hdr= (int)topt->header;
   tbl= topt->tablist;
   col= topt->colist;
