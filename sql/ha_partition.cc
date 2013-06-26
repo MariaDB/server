@@ -3674,27 +3674,31 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
 }
 
 
-/*
+/**
   Get number of lock objects returned in store_lock
 
-  SYNOPSIS
-    lock_count()
+  @returns Number of locks returned in call to store_lock
 
-  RETURN VALUE
-    Number of locks returned in call to store_lock
-
-  DESCRIPTION
+  @desc
     Returns the number of store locks needed in call to store lock.
-    We return number of partitions since we call store_lock on each
-    underlying handler. Assists the above functions in allocating
+    We return number of partitions we will lock multiplied with number of
+    locks needed by each partition. Assists the above functions in allocating
     sufficient space for lock structures.
 */
 
 uint ha_partition::lock_count() const
 {
   DBUG_ENTER("ha_partition::lock_count");
-  DBUG_PRINT("info", ("m_num_locks %d", m_num_locks));
-  DBUG_RETURN(m_num_locks);
+  /*
+    The caller want to know the upper bound, to allocate enough memory.
+    There is no performance lost if we simply return maximum number locks
+    needed, only some minor over allocation of memory in get_lock_data().
+
+    Also notice that this may be called for another thread != table->in_use,
+    when mysql_lock_abort_for_thread() is called. So this is more safe, then
+    using number of partitions after pruning.
+  */
+  DBUG_RETURN(m_tot_parts * m_num_locks);
 }
 
 
@@ -5785,7 +5789,7 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
     */
     queue_set_max_at_top(&m_queue, reverse_order);
     queue_set_cmp_arg(&m_queue, (void*)m_curr_key_info);
-    m_queue.elements= j;
+    m_queue.elements= j - queue_first_element(&m_queue);
     queue_fix(&m_queue);
     return_top_record(buf);
     table->status= 0;

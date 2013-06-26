@@ -1359,6 +1359,9 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
                                       share->db_type())))
     goto err;
 
+  if (handler_file->set_ha_share_ref(&share->ha_share))
+    goto err;
+
   record= share->default_values-1;              /* Fieldstart = 1 */
   null_bits_are_used= share->null_fields != 0;
   if (share->null_field_first)
@@ -2361,6 +2364,9 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
   {
     if (!(outparam->file= get_new_handler(share, &outparam->mem_root,
                                           share->db_type())))
+      goto err;
+
+    if (outparam->file->set_ha_share_ref(&share->ha_share))
       goto err;
   }
   else
