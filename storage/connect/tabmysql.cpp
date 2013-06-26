@@ -767,11 +767,6 @@ int TDBMYSQL::BindColumns(PGLOBAL g)
     } // endif prep
 #endif   // MYSQL_PREPARED_STATEMENTS
 
-  for (PMYCOL colp = (PMYCOL)Columns; colp; colp = (PMYCOL)colp->Next)
-    if (colp->Buf_Type == TYPE_DATE)
-      // Format must match DATETIME MySQL type
-      ((DTVAL*)colp->GetValue())->SetFormat(g, "YYYY-MM-DD hh:mm:ss", 19);
-
   return RC_OK;
   } // end of BindColumns
 
@@ -800,6 +795,14 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
       return true;
 
     } // endif Connected
+
+  /*********************************************************************/
+  /*  Take care of DATE columns.                                       */
+  /*********************************************************************/
+  for (PMYCOL colp = (PMYCOL)Columns; colp; colp = (PMYCOL)colp->Next)
+    if (colp->Buf_Type == TYPE_DATE)
+      // Format must match DATETIME MySQL type
+      ((DTVAL*)colp->GetValue())->SetFormat(g, "YYYY-MM-DD hh:mm:ss", 19);
 
   /*********************************************************************/
   /*  Allocate whatever is used for getting results.                   */
@@ -1191,10 +1194,6 @@ void MYSQLCOL::InitBind(PGLOBAL g)
   memset(Bind, 0, sizeof(MYSQL_BIND));
 
   if (Buf_Type == TYPE_DATE) {
-    // Default format must match DATETIME MySQL type
-//  if (!((DTVAL*)Value)->IsFormatted())
-      ((DTVAL*)Value)->SetFormat(g, "YYYY-MM-DD hh:mm:ss", 19);
-
     Bind->buffer_type = PLGtoMYSQL(TYPE_STRING, false);
     Bind->buffer = (char *)PlugSubAlloc(g,NULL, 20);
     Bind->buffer_length = 20;
@@ -1257,7 +1256,7 @@ void MYSQLCOL::WriteColumn(PGLOBAL g)
 #if defined(MYSQL_PREPARED_STATEMENTS)
   if (((PTDBMY)To_Tdb)->Prep) {
     if (Buf_Type == TYPE_DATE) {
-      Value->ShowValue((char *)Bind->buffer, (int)*Bind->length);
+      Value->ShowValue((char *)Bind->buffer, (int)Bind->buffer_length);
       Slen = strlen((char *)Bind->buffer);
     } else if (IsTypeChar(Buf_Type))
       Slen = strlen(Value->GetCharValue());
