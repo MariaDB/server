@@ -626,6 +626,9 @@ bool st_select_lex_unit::exec()
   
   saved_error= optimize();
 
+
+  save_union_qpf(thd->lex->query_plan_footprint);
+
   if (uncacheable || !item || !item->assigned() || describe)
   {
     for (SELECT_LEX *sl= select_cursor; sl; sl= sl->next_select())
@@ -772,6 +775,9 @@ bool st_select_lex_unit::exec()
         */
         if (!fake_select_lex->ref_pointer_array)
           fake_select_lex->n_child_sum_items+= global_parameters->n_sum_items;
+        
+        
+        save_union_qpf_part2(thd->lex->query_plan_footprint);
 
         saved_error= mysql_select(thd, &fake_select_lex->ref_pointer_array,
                               &result_table_list,

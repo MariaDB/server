@@ -4172,29 +4172,32 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
   return all_merged;
 }
 
+/* 
+  This is used by SHOW EXPLAIN. It assuses query plan has been already 
+  collected into QPF structures and we only need to print it out.
+*/
 
 int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
-                       bool *printed_anything)
+                       bool *printed_anything) //TODO: remove printed_anything
 {
- /* if (upd_del_plan)
+  int res;
+  if (query_plan_footprint)
   {
-    upd_del_plan->print_explain(output, explain_flags, printed_anything);
-    return 0;
-  }*/
-  //int res= unit.print_explain(output, explain_flags, printed_anything);
-
-  //psergey-todo: here, we should make Query Plan Footprint, and then produce
-  // an EXPLAIN output from it.
-  /*
-    The new, QueryPlanFootprint way:
-  */ 
-  QPF_query qpf;
-  unit.save_qpf(&qpf);
-  //return res;
-  return 0;
+    res= query_plan_footprint->print_explain(output, explain_flags);
+    *printed_anything= true;
+  }
+  else
+  {
+    res= 0;
+    *printed_anything= false;
+  }
+  return res;
 }
 
 
+/*
+  
+*/
 void st_select_lex::save_qpf(QPF_query *output)
 {
   int res;
@@ -4261,92 +4264,12 @@ err:
   return ;//res;
 }
 
-#if 0
-int st_select_lex::print_explain(select_result_sink *output, 
-                                 uint8 explain_flags,
-                                 bool *printed_anything)
+
+int st_select_lex_unit::save_union_qpf(QPF_query *output)
 {
-  int res;
-  if (join && join->have_query_plan == JOIN::QEP_AVAILABLE)
-  {
-    /*
-      There is a number of reasons join can be marked as degenerate, so all
-      three conditions below can happen simultaneously, or individually:
-    */
-    *printed_anything= TRUE;
-    if (!join->table_count || !join->tables_list || join->zero_result_cause)
-    {
-      /* It's a degenerate join */
-      const char *cause= join->zero_result_cause ? join-> zero_result_cause : 
-                                                   "No tables used";
-      res= join->print_explain(output, explain_flags, TRUE, FALSE, FALSE, 
-                               FALSE, cause);
-    }
-    else
-    {
-      res= join->print_explain(output, explain_flags, TRUE,
-                               join->need_tmp, // need_tmp_table
-                               !join->skip_sort_order && !join->no_order &&
-                               (join->order || join->group_list), // bool need_order
-                               join->select_distinct, // bool distinct
-                               NULL); //const char *message
-    }
-    if (res)
-      goto err;
-
-    for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
-         unit;
-         unit= unit->next_unit())
-    {
-      /* 
-        Display subqueries only if they are not parts of eliminated WHERE/ON
-        clauses.
-      */
-      if (!(unit->item && unit->item->eliminated))
-      {
-        if ((res= unit->print_explain(output, explain_flags, printed_anything)))
-          goto err;
-      }
-    }
-  }
-  else
-  {
-    const char *msg;
-    if (!join)
-      DBUG_ASSERT(0); /* Seems not to be possible */
-
-    /* Not printing anything useful, don't touch *printed_anything here */
-    if (join->have_query_plan == JOIN::QEP_NOT_PRESENT_YET)
-      msg= "Not yet optimized";
-    else
-    {
-      DBUG_ASSERT(join->have_query_plan == JOIN::QEP_DELETED);
-      msg= "Query plan already deleted";
-    }
-    set_explain_type(TRUE/* on_the_fly */);
-    res= print_explain_message_line(output, 0/*options*/, select_number, type,
-                                    msg);
-  }
-err:
-  return res;
-}
-#endif
-
-
-int st_select_lex_unit::save_qpf(QPF_query *output)
-{
-  //int res= 0;
   SELECT_LEX *first= first_select();
-
-  if (!first->next_select())
-  {
-    /* This is a 1-way UNION, i.e. not really a UNION */
-    if (!output->get_select(first->select_number))
-      first->save_qpf(output);
-    return 0;
-  }
-  
   QPF_union *qpfu= new (output->mem_root) QPF_union;
+
   /*
     TODO: The following code should be eliminated. If we have a capability to
     save Query Plan Footprints, we should just save them, and never need to 
@@ -4380,53 +4303,48 @@ int st_select_lex_unit::save_qpf(QPF_query *output)
   // Save the UNION node
   output->add_node(qpfu);
 
-#if 0
-  /* Note: fake_select_lex->join may be NULL or non-NULL at this point */
-  if (fake_select_lex)
-  {
-    res= print_fake_select_lex_join(output, TRUE /* on the fly */,
-                                    fake_select_lex, explain_flags);
-  }
-  return res;
-#endif 
+  qpfu->fake_select_type= "UNION RESULT";
+  qpfu->using_filesort= test(global_parameters->order_list.first);
   return 0;
 }
 
-#if 0
-int st_select_lex_unit::print_explain(select_result_sink *output, 
-                                      uint8 explain_flags, bool *printed_anything)
+
+int st_select_lex_unit::save_union_qpf_part2(QPF_query *output)
 {
-  int res= 0;
-  SELECT_LEX *first= first_select();
-  
-  if (first && !first->next_select() && !first->join)
-  {
-    /*
-      If there is only one child, 'first', and it has join==NULL, emit "not in
-      EXPLAIN state" error.
-    */
-    const char *msg="Query plan already deleted";
-    first->set_explain_type(TRUE/* on_the_fly */);
-    res= print_explain_message_line(output, 0/*options*/, first->select_number,
-                                    first->type, msg);
-    return res;
-  }
-
-  for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
-  {
-    if ((res= sl->print_explain(output, explain_flags, printed_anything)))
-      break;
-  }
-
-  /* Note: fake_select_lex->join may be NULL or non-NULL at this point */
+  QPF_union *qpfu= output->get_union(first_select()->select_number);
   if (fake_select_lex)
   {
-    res= print_fake_select_lex_join(output, TRUE /* on the fly */,
-                                    fake_select_lex, explain_flags);
+    for (SELECT_LEX_UNIT *unit= fake_select_lex->first_inner_unit(); 
+         unit; unit= unit->next_unit())
+    {
+      if (!(unit->item && unit->item->eliminated))
+      {
+        qpfu->add_child(unit->first_select()->select_number);
+      }
+    }
   }
-  return res;
+  return 0;
 }
-#endif
+
+
+int st_select_lex_unit::save_qpf(QPF_query *output)
+{
+  //int res= 0;
+  SELECT_LEX *first= first_select();
+
+  if (!first->next_select())
+  {
+    /* This is a 1-way UNION, i.e. not really a UNION */
+    if (!output->get_select(first->select_number))
+      first->save_qpf(output);
+    return 0;
+  }
+
+  save_union_qpf(output);
+  
+  return 0;
+}
+
 
 /**
   A routine used by the parser to decide whether we are specifying a full

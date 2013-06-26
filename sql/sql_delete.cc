@@ -159,7 +159,9 @@ void Update_plan::save_query_plan_footprint_intern(QPF_query *query, QPF_update 
       qpf->add_child(unit->first_select()->select_number);
     
     //TODO: temporary?:
-    unit->save_qpf(query);
+    //  A: yes. optimizing children subqueries has caused them to save QPFs,
+    //  automatically.
+    //unit->save_qpf(query);
   }
 }
 
