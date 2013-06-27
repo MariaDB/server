@@ -732,7 +732,6 @@ public:
 
   List<Item> *get_unit_column_types();
 
-  int save_qpf(QPF_query *output);
   int save_union_qpf(QPF_query *output);
   int save_union_qpf_part2(QPF_query *output);
 };
@@ -1053,11 +1052,7 @@ public:
   bool save_prep_leaf_tables(THD *thd);
 
   bool is_merged_child_of(st_select_lex *ancestor);
-#if 0
-  int print_explain(select_result_sink *output, uint8 explain_flags, 
-                    bool *printed_anything);
-#endif
-  void save_qpf(QPF_query *output);
+
   /*
     For MODE_ONLY_FULL_GROUP_BY we need to maintain two flags:
      - Non-aggregated fields are used in this select.

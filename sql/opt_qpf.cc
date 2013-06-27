@@ -339,7 +339,6 @@ int QPF_table_access::print_explain(select_result_sink *output, uint8 explain_fl
   push_str(&item_list, join_type_str[type]);
 
   /* `possible_keys` column */
-  //push_str(item_list, "TODO");
   if (possible_keys_str.length() > 0)
     push_string(&item_list, &possible_keys_str);
   else
