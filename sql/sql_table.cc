@@ -2072,15 +2072,13 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
         (void) delete_statistics_for_table(thd, &db_name, &table_name);
     }
   }
-  
-  mysql_ha_rm_tables(thd, tables);
 
   if (!drop_temporary)
   {
     if (!thd->locked_tables_mode)
     {
-      if (lock_table_names(thd, tables, NULL, thd->variables.lock_wait_timeout,
-                           MYSQL_OPEN_SKIP_TEMPORARY))
+      if (lock_table_names(thd, tables, NULL,
+                           thd->variables.lock_wait_timeout, 0))
         DBUG_RETURN(true);
       for (table= tables; table; table= table->next_local)
       {
@@ -2205,6 +2203,9 @@ static uint32 comment_length(THD *thd, uint32 comment_pos,
 
   @note This function assumes that metadata locks have already been taken.
         It is also assumed that the tables have been removed from TDC.
+
+  @note This function assumes that temporary tables to be dropped have
+        been pre-opened using corresponding table list elements.
 
   @todo When logging to the binary log, we should log
         tmp_tables and transactional tables as separate statements if we
@@ -5060,6 +5061,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table, TABLE_LIST* src_table,
         String query(buf, sizeof(buf), system_charset_info);
         query.length(0);  // Have to zero it since constructor doesn't
         Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
+        bool new_table= FALSE; // Whether newly created table is open.
 
         /*
           The condition avoids a crash as described in BUG#48506. Other
@@ -5068,14 +5070,21 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table, TABLE_LIST* src_table,
         */
         if (!table->view)
         {
-          /*
-            Here we open the destination table, on which we already have
-            exclusive metadata lock. This is needed for store_create_info()
-            to work. The table will be closed by close_thread_table() at
-            the end of this branch.
-          */
-          if (open_table(thd, table, thd->mem_root, &ot_ctx))
-            goto err;
+          if (!table->table)
+          {
+
+            /*
+              In order for store_create_info() to work we need to open
+              destination table if it is not already open (i.e. if it
+              has not existed before). We don't need acquire metadata
+              lock in order to do this as we already hold exclusive
+              lock on this table. The table will be closed by
+              close_thread_table() at the end of this branch.
+            */
+            if (open_table(thd, table, thd->mem_root, &ot_ctx))
+              goto err;
+            new_table= TRUE;
+          }
 
           int result __attribute__((unused))=
             store_create_info(thd, table, &query,
@@ -5085,13 +5094,16 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table, TABLE_LIST* src_table,
           if (write_bin_log(thd, TRUE, query.ptr(), query.length()))
             goto err;
 
-          DBUG_ASSERT(thd->open_tables == table->table);
-          /*
-            When opening the table, we ignored the locked tables
-            (MYSQL_OPEN_GET_NEW_TABLE). Now we can close the table without
-            risking to close some locked table.
-          */
-          close_thread_table(thd, &thd->open_tables);
+          if (new_table)
+          {
+            DBUG_ASSERT(thd->open_tables == table->table);
+            /*
+              When opening the table, we ignored the locked tables
+              (MYSQL_OPEN_GET_NEW_TABLE). Now we can close the table
+              without risking to close some locked table.
+            */
+            close_thread_table(thd, &thd->open_tables);
+          }
         }
       }
       else                                      // Case 1
@@ -8821,11 +8833,6 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
       if (! thd->in_sub_stmt)
         trans_rollback_stmt(thd);
       close_thread_tables(thd);
-      /*
-        Don't release metadata locks, this will be done at
-        statement end.
-      */
-      table->table=0;				// For query cache
     }
     if (protocol->write())
       goto err;
