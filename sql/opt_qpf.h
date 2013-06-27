@@ -223,6 +223,8 @@ private:
   Dynamic_array<QPF_select*> selects;
   //QPF_union *unions[MAX_TABLES];
   //QPF_select *selects[MAX_TABLES];
+
+  longlong operations;
 };
 
 

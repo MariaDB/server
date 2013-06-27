@@ -2552,7 +2552,8 @@ void Query_tables_list::destroy_query_tables_list()
 */
 
 LEX::LEX()
-  :result(0), option_type(OPT_DEFAULT), is_lex_started(0),
+  : query_plan_footprint(NULL),
+    result(0), option_type(OPT_DEFAULT), is_lex_started(0),
    limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 

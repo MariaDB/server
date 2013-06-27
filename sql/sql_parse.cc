@@ -4750,8 +4750,14 @@ finish:
     ha_maria::implicit_commit(thd, FALSE);
 #endif
   }
-
   lex->unit.cleanup();
+  //psergey-todo: print EXPLAIN here? After the above JOIN::cleanup calls?
+  // how do we print EXPLAIN extended, then?
+  if (lex->describe)
+  {
+    DBUG_ASSERT(lex->query_plan_footprint);
+    ///..
+  }
   /* Free tables */
   thd_proc_info(thd, "closing tables");
   close_thread_tables(thd);
