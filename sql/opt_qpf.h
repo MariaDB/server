@@ -50,18 +50,19 @@ class QPF_table_access;
   Query Plan Footprint of a SELECT.
   
   A select can be:
-  - a degenerate case. In this case, message!=NULL, and it contains a 
-    description of what kind of degenerate case it is (e.g. "Impossible 
-    WHERE").
-  - a join. Here join_tabs has an array of JOIN_TAB query plan footprints.
+  1. A degenerate case. In this case, message!=NULL, and it contains a 
+     description of what kind of degenerate case it is (e.g. "Impossible 
+     WHERE").
+  2. a non-degenrate join. In this case, join_tabs describes the join.
 
   In the non-degenerate case, a SELECT may have a GROUP BY/ORDER BY operation.
-  In both cases, a select may have children selects (see QPF_node)
+
+  In both cases, the select may have children nodes. class QPF_node provides
+  a way get node's children.
 */
 
 class QPF_select : public QPF_node
 {
-  /*Construction interface */ 
 public:
   enum qpf_node_type get_type() { return QPF_SELECT; }
 
@@ -107,10 +108,6 @@ public:
   bool using_temporary;
   bool using_filesort;
   
-  void print_tabular(select_result_sink *output, uint8 explain_flags//, 
-                     //bool *printed_anything
-                    );
-
   int print_explain(QPF_query *query, select_result_sink *output, 
                     uint8 explain_flags);
 };
@@ -223,9 +220,13 @@ public:
 private:
   Dynamic_array<QPF_union*> unions;
   Dynamic_array<QPF_select*> selects;
-  //QPF_union *unions[MAX_TABLES];
-  //QPF_select *selects[MAX_TABLES];
-
+  
+  /* 
+    Debugging aid: count how many times add_node() was called. Ideally, it
+    should be one, we currently allow O(1) query plan saves for each
+    select or union.  The goal is not to have O(#rows_in_some_table), which 
+    is unacceptable.
+  */
   longlong operations;
 };
 
@@ -303,9 +304,6 @@ public:
   uint key_no;
   uint key_length;
 
-  Dynamic_array<enum Extra_tag> extra_tags;
-
-  //temporary:
   bool key_set; /* not set means 'NULL' should be printed */
   StringBuffer<64> key;
 
@@ -315,15 +313,18 @@ public:
   bool ref_set; /* not set means 'NULL' should be printed */
   StringBuffer<64> ref;
 
-  bool rows_set;
+  bool rows_set; /* not set means 'NULL' should be printed */
   ha_rows rows;
 
-  bool filtered_set;
+  bool filtered_set; /* not set means 'NULL' should be printed */
   double filtered;
 
-  /* Various stuff for 'Extra' column*/
-  uint join_cache_level;
-  
+  /* 
+    Contents of the 'Extra' column. Some are converted into strings, some have
+    parameters, values for which are stored below.
+  */
+  Dynamic_array<enum Extra_tag> extra_tags;
+
   // Valid if ET_USING tag is present
   StringBuffer<64> quick_info;
 
@@ -351,7 +352,10 @@ private:
 
 
 /*
-  Query Plan Footprint for an UPDATE statement
+  Query Plan Footprint for single-table UPDATE. 
+  
+  This is similar to QPF_table_access, except that it is more restrictive.
+  Also, it can have UPDATE operation options, but currently there aren't any.
 */
 
 class QPF_update : public QPF_node
@@ -382,12 +386,16 @@ public:
 
 
 /* 
-  Query Plan Footprint for a DELETE statement
+  Query Plan Footprint for a single-table DELETE.
 */
 
 class QPF_delete: public QPF_update
 {
 public:
+  /*
+    TRUE means we're going to call handler->delete_all_rows() and not read any
+    rows.
+  */
   bool deleting_all_rows;
 
   virtual enum qpf_node_type get_type() { return QPF_DELETE; }
