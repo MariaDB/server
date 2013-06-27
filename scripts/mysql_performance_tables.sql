@@ -497,10 +497,9 @@ SET @cmd="CREATE TABLE performance_schema.host_cache("
   ")ENGINE=PERFORMANCE_SCHEMA;";
 
 SET @str = IF(@have_pfs = 1, @cmd, 'SET @dummy = 0');
-# Host cache is disable until host cache code is merged from 5.6
-#PREPARE stmt FROM @str;
-#EXECUTE stmt;
-#DROP PREPARE stmt;
+PREPARE stmt FROM @str;
+EXECUTE stmt;
+DROP PREPARE stmt;
 
 --
 -- TABLE MUTEX_INSTANCES

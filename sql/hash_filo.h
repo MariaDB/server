@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2011, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -47,8 +47,11 @@ private:
 
 class hash_filo
 {
-  const uint size, key_offset, key_length;
+private:
+  const uint key_offset, key_length;
   const my_hash_get_key get_key;
+  /** Size of this hash table. */
+  uint m_size;
   my_hash_free_key free_element;
   bool init;
   CHARSET_INFO *hash_charset;
@@ -61,9 +64,12 @@ public:
   hash_filo(uint size_arg, uint key_offset_arg , uint key_length_arg,
 	    my_hash_get_key get_key_arg, my_hash_free_key free_element_arg,
 	    CHARSET_INFO *hash_charset_arg)
-    :size(size_arg), key_offset(key_offset_arg), key_length(key_length_arg),
-    get_key(get_key_arg), free_element(free_element_arg),init(0),
-    hash_charset(hash_charset_arg)
+    :key_offset(key_offset_arg), key_length(key_length_arg),
+    get_key(get_key_arg), m_size(size_arg),
+    free_element(free_element_arg),init(0),
+    hash_charset(hash_charset_arg),
+    first_link(NULL),
+    last_link(NULL)
   {
     bzero((char*) &cache,sizeof(cache));
   }
@@ -86,32 +92,61 @@ public:
     }
     if (!locked)
       mysql_mutex_lock(&lock);
+    first_link= NULL;
+    last_link= NULL;
     (void) my_hash_free(&cache);
-    (void) my_hash_init(&cache,hash_charset,size,key_offset, 
+    (void) my_hash_init(&cache,hash_charset,m_size,key_offset, 
     		     key_length, get_key, free_element,0);
     if (!locked)
       mysql_mutex_unlock(&lock);
-    first_link=last_link=0;
+  }
+
+  hash_filo_element *first()
+  {
+    mysql_mutex_assert_owner(&lock);
+    return first_link;
+  }
+
+  hash_filo_element *last()
+  {
+    mysql_mutex_assert_owner(&lock);
+    return last_link;
   }
 
   hash_filo_element *search(uchar* key, size_t length)
   {
+    mysql_mutex_assert_owner(&lock);
+
     hash_filo_element *entry=(hash_filo_element*)
       my_hash_search(&cache,(uchar*) key,length);
     if (entry)
     {						// Found; link it first
+      DBUG_ASSERT(first_link != NULL);
+      DBUG_ASSERT(last_link != NULL);
       if (entry != first_link)
       {						// Relink used-chain
 	if (entry == last_link)
-	  last_link=entry->prev_used;
+        {
+	  last_link= last_link->prev_used;
+          /*
+            The list must have at least 2 elements,
+            otherwise entry would be equal to first_link.
+          */
+          DBUG_ASSERT(last_link != NULL);
+          last_link->next_used= NULL;
+        }
 	else
 	{
+          DBUG_ASSERT(entry->next_used != NULL);
+          DBUG_ASSERT(entry->prev_used != NULL);
 	  entry->next_used->prev_used = entry->prev_used;
 	  entry->prev_used->next_used = entry->next_used;
 	}
-	if ((entry->next_used= first_link))
-	  first_link->prev_used=entry;
-	first_link=entry;
+        entry->prev_used= NULL;
+        entry->next_used= first_link;
+
+        first_link->prev_used= entry;
+        first_link=entry;
       }
     }
     return entry;
@@ -119,10 +154,20 @@ public:
 
   bool add(hash_filo_element *entry)
   {
-    if (cache.records == size)
+    if (!m_size) return 1;
+    if (cache.records == m_size)
     {
       hash_filo_element *tmp=last_link;
-      last_link=last_link->prev_used;
+      last_link= last_link->prev_used;
+      if (last_link != NULL)
+      {
+        last_link->next_used= NULL;
+      }
+      else
+      {
+        /* Pathological case, m_size == 1 */
+        first_link= NULL;
+      }
       my_hash_delete(&cache,(uchar*) tmp);
     }
     if (my_hash_insert(&cache,(uchar*) entry))
@@ -131,12 +176,26 @@ public:
 	(*free_element)(entry);		// This should never happen
       return 1;
     }
-    if ((entry->next_used=first_link))
-      first_link->prev_used=entry;
+    entry->prev_used= NULL;
+    entry->next_used= first_link;
+    if (first_link != NULL)
+      first_link->prev_used= entry;
     else
-      last_link=entry;
-    first_link=entry;
+      last_link= entry;
+    first_link= entry;
+
     return 0;
+  }
+
+  uint size()
+  { return m_size; }
+
+  void resize(uint new_size)
+  {
+    mysql_mutex_lock(&lock);
+    m_size= new_size;
+    clear(true);
+    mysql_mutex_unlock(&lock);
   }
 };
 

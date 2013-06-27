@@ -1829,6 +1829,13 @@ bool acl_check_host(const char *host, const char *ip)
     }
   }
   mysql_mutex_unlock(&acl_cache->lock);
+  if (ip != NULL)
+  {
+    /* Increment HOST_CACHE.COUNT_HOST_ACL_ERRORS. */
+    Host_errors errors;
+    errors.m_host_acl= 1;
+    inc_host_errors(ip, &errors);
+  }
   return 1;					// Host is not allowed
 }
 
@@ -8354,7 +8361,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   DBUG_ASSERT(net->read_pos[pkt_len] == 0);
 
   if (mpvio->connect_errors)
-    reset_host_errors(thd->main_security_ctx.ip);
+    reset_host_connect_errors(thd->main_security_ctx.ip);
 
   ulong client_capabilities= uint2korr(net->read_pos);
   if (client_capabilities & CLIENT_PROTOCOL_41)
@@ -8731,7 +8738,6 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
 err:
   if (mpvio->status == MPVIO_EXT::FAILURE)
   {
-    inc_host_errors(mpvio->thd->security_ctx->ip);
     if (!mpvio->thd->is_error())
     {
       if (mpvio->make_it_fail)
@@ -8891,6 +8897,9 @@ static int do_auth_once(THD *thd, const LEX_STRING *auth_plugin_name,
   else
   {
     /* Server cannot load the required plugin. */
+    Host_errors errors;
+    errors.m_no_auth_plugin= 1;
+    inc_host_errors(mpvio->thd->security_ctx->ip, &errors);
     my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), auth_plugin_name->str);
     res= CR_ERROR;
   }
@@ -9018,8 +9027,26 @@ bool acl_authenticate(THD *thd, uint connect_errors,
 
   if (res > CR_OK && mpvio.status != MPVIO_EXT::SUCCESS)
   {
+    Host_errors errors;
     DBUG_ASSERT(mpvio.status == MPVIO_EXT::FAILURE);
-
+    switch (res)
+    {
+    case CR_AUTH_PLUGIN_ERROR:
+      errors.m_auth_plugin= 1;
+      break;
+    case CR_AUTH_HANDSHAKE:
+      errors.m_handshake= 1;
+      break;
+    case CR_AUTH_USER_CREDENTIALS:
+      errors.m_authentication= 1;
+      break;
+    case CR_ERROR:
+    default:
+      /* Unknown of unspecified auth plugin error. */
+      errors.m_auth_plugin= 1;
+      break;
+    }
+    inc_host_errors(mpvio.thd->security_ctx->ip, &errors);
     if (!thd->is_error())
       login_failed_error(thd);
     DBUG_RETURN(1);
@@ -9207,7 +9234,7 @@ static int native_password_authenticate(MYSQL_PLUGIN_VIO *vio,
     create_random_string(thd->scramble, SCRAMBLE_LENGTH, &thd->rand);
     /* and send it to the client */
     if (mpvio->write_packet(mpvio, (uchar*)thd->scramble, SCRAMBLE_LENGTH + 1))
-      DBUG_RETURN(CR_ERROR);
+      DBUG_RETURN(CR_AUTH_HANDSHAKE);
   }
 
   /* reply and authenticate */
@@ -9249,7 +9276,7 @@ static int native_password_authenticate(MYSQL_PLUGIN_VIO *vio,
 
   /* read the reply with the encrypted password */
   if ((pkt_len= mpvio->read_packet(mpvio, &pkt)) < 0)
-    DBUG_RETURN(CR_ERROR);
+    DBUG_RETURN(CR_AUTH_HANDSHAKE);
   DBUG_PRINT("info", ("reply read : pkt_len=%d", pkt_len));
 
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
@@ -9257,23 +9284,22 @@ static int native_password_authenticate(MYSQL_PLUGIN_VIO *vio,
 #endif
 
   if (pkt_len == 0) /* no password */
-    DBUG_RETURN(info->auth_string[0] ? CR_ERROR : CR_OK);
+    DBUG_RETURN(mpvio->acl_user->salt_len != 0 ? CR_AUTH_USER_CREDENTIALS : CR_OK);
 
   info->password_used= PASSWORD_USED_YES;
   if (pkt_len == SCRAMBLE_LENGTH)
   {
     if (!mpvio->acl_user->salt_len)
-      DBUG_RETURN(CR_ERROR);
+      DBUG_RETURN(CR_AUTH_USER_CREDENTIALS);
 
     if (check_scramble(pkt, thd->scramble, mpvio->acl_user->salt))
-      DBUG_RETURN(CR_ERROR);
+      DBUG_RETURN(CR_AUTH_USER_CREDENTIALS);
     else
       DBUG_RETURN(CR_OK);
   }
 
-  inc_host_errors(mpvio->thd->security_ctx->ip);
   my_error(ER_HANDSHAKE_ERROR, MYF(0));
-  DBUG_RETURN(CR_ERROR);
+  DBUG_RETURN(CR_AUTH_HANDSHAKE);
 }
 
 static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio, 
@@ -9290,12 +9316,12 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
     create_random_string(thd->scramble, SCRAMBLE_LENGTH, &thd->rand);
     /* and send it to the client */
     if (mpvio->write_packet(mpvio, (uchar*)thd->scramble, SCRAMBLE_LENGTH + 1))
-      return CR_ERROR;
+      return CR_AUTH_HANDSHAKE;
   }
 
   /* read the reply and authenticate */
   if ((pkt_len= mpvio->read_packet(mpvio, &pkt)) < 0)
-    return CR_ERROR;
+    return CR_AUTH_HANDSHAKE;
 
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
   return CR_OK;
@@ -9310,26 +9336,25 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
     pkt_len= strnlen((char*)pkt, pkt_len);
 
   if (pkt_len == 0) /* no password */
-    return info->auth_string[0] ? CR_ERROR : CR_OK;
+    return info->auth_string[0] ? CR_AUTH_USER_CREDENTIALS : CR_OK;
 
   if (secure_auth(thd))
-    return CR_ERROR;
+    return CR_AUTH_HANDSHAKE;
 
   info->password_used= PASSWORD_USED_YES;
 
   if (pkt_len == SCRAMBLE_LENGTH_323)
   {
     if (!mpvio->acl_user->salt_len)
-      return CR_ERROR;
+      return CR_AUTH_USER_CREDENTIALS;
 
     return check_scramble_323(pkt, thd->scramble,
                              (ulong *) mpvio->acl_user->salt) ? 
-                             CR_ERROR : CR_OK;
+                             CR_AUTH_USER_CREDENTIALS : CR_OK;
   }
 
-  inc_host_errors(mpvio->thd->security_ctx->ip);
   my_error(ER_HANDSHAKE_ERROR, MYF(0));
-  return CR_ERROR;
+  return CR_AUTH_HANDSHAKE;
 }
 
 static struct st_mysql_auth native_password_handler=
