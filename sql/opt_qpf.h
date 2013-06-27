@@ -272,6 +272,15 @@ enum Extra_tag
 };
 
 
+typedef struct st_qpf_bka_type
+{
+  bool incremental;
+  const char *join_alg;
+  StringBuffer<64> mrr_type;
+
+} QPF_BKA_TYPE;
+
+
 /*
   Query Plan Footprint for a JOIN_TAB.
 */
@@ -329,7 +338,7 @@ public:
   StringBuffer<64> quick_info;
 
   // Valid if ET_USING_INDEX_FOR_GROUP_BY is present
-  StringBuffer<64> loose_scan_type;
+  bool loose_scan_is_scanning;
   
   // valid with ET_RANGE_CHECKED_FOR_EACH_RECORD
   key_map range_checked_map;
@@ -338,7 +347,8 @@ public:
   StringBuffer<64> mrr_type;
 
   // valid with ET_USING_JOIN_BUFFER
-  StringBuffer<64> join_buffer_type;
+  //StringBuffer<64> join_buffer_type;
+  QPF_BKA_TYPE bka_type;
   
   //TABLE *firstmatch_table;
   StringBuffer<64> firstmatch_table_name;

@@ -22907,7 +22907,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
             QUICK_GROUP_MIN_MAX_SELECT *qgs= 
               (QUICK_GROUP_MIN_MAX_SELECT *) tab->select->quick;
             qpt->push_extra(ET_USING_INDEX_FOR_GROUP_BY);
-            qgs->append_loose_scan_type(&qpt->loose_scan_type);
+            qpt->loose_scan_is_scanning= qgs->loose_scan_is_scanning();
           }
           else
             qpt->push_extra(ET_USING_INDEX);
@@ -22979,9 +22979,8 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
         if (tab->cache)
 	{
           qpt->push_extra(ET_USING_JOIN_BUFFER);
-          tab->cache->print_explain_comment(&qpt->join_buffer_type);
+          tab->cache->save_qpf(&qpt->bka_type);
         }
-        
       }
       
       if (saved_join_tab)
