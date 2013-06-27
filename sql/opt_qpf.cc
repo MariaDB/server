@@ -489,7 +489,17 @@ void QPF_table_access::append_tag_name(String *str, enum Extra_tag tag)
     case ET_USING_JOIN_BUFFER:
     {
       str->append(extra_tag_text[tag]);
-      str->append(join_buffer_type);
+
+      str->append(STRING_WITH_LEN(" ("));
+      const char *buffer_type= bka_type.incremental ? "incremental" : "flat";
+      str->append(buffer_type);
+      str->append(STRING_WITH_LEN(", "));
+      str->append(bka_type.join_alg);
+      str->append(STRING_WITH_LEN(" join"));
+      str->append(STRING_WITH_LEN(")"));
+      if (bka_type.mrr_type.length())
+        str->append(bka_type.mrr_type);
+
       break;
     }
     case ET_FIRST_MATCH:
@@ -507,7 +517,8 @@ void QPF_table_access::append_tag_name(String *str, enum Extra_tag tag)
     case ET_USING_INDEX_FOR_GROUP_BY:
     {
       str->append(extra_tag_text[tag]);
-      str->append(loose_scan_type);
+      if (loose_scan_is_scanning)
+        str->append(" (scanning)");
       break;
     }
     default:
