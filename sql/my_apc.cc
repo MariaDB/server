@@ -70,6 +70,7 @@ void Apc_target::enable()
 void Apc_target::disable()
 {
   bool process= FALSE;
+  DBUG_ASSERT(enabled);
   mysql_mutex_lock(LOCK_thd_data_ptr);
   if (!(--enabled))
     process= TRUE;

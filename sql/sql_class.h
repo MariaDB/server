@@ -3401,6 +3401,11 @@ public:
   void begin_dataset() {}
 #endif
   virtual void update_used_tables() {}
+
+  void reset_offset_limit()
+  {
+    unit->offset_limit_cnt= 0;
+  }
 };
 
 

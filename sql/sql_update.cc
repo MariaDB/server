@@ -260,7 +260,7 @@ int mysql_update(THD *thd,
   bool		can_compare_record;
   int           res;
   int		error, loc_error;
-  uint          used_index, dup_key_found;
+  uint          dup_key_found;
   bool          need_sort= TRUE;
   bool          reverse= FALSE;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -270,12 +270,16 @@ int mysql_update(THD *thd,
   ha_rows	updated, found;
   key_map	old_covering_keys;
   TABLE		*table;
-  SQL_SELECT	*select;
+  SQL_SELECT	*select= NULL;
   READ_RECORD	info;
   SELECT_LEX    *select_lex= &thd->lex->select_lex;
   ulonglong     id;
   List<Item> all_fields;
   killed_state killed_status= NOT_KILLED;
+  Update_plan query_plan;
+  query_plan.index= MAX_KEY;
+  query_plan.using_filesort= FALSE;
+  bool apc_target_enabled= false; // means was enabled *by code this function*
   DBUG_ENTER("mysql_update");
 
   if (open_tables(thd, &table_list, &table_count, 0))
@@ -310,10 +314,16 @@ int mysql_update(THD *thd,
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
     DBUG_RETURN(1);
   }
+  
+  //psergey-todo: Ugly, discuss with Sanja
+  query_plan.updating_a_view= test(table_list->view);
+  
   /* Calculate "table->covering_keys" based on the WHERE */
   table->covering_keys= table->s->keys_in_use;
   table->quick_keys.clear_all();
 
+  query_plan.select_lex= &thd->lex->select_lex;
+  query_plan.table= table;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* Force privilege re-checking for views after they have been opened. */
   want_privilege= (table_list->view ? UPDATE_ACL :
@@ -370,7 +380,12 @@ int mysql_update(THD *thd,
     Item::cond_result cond_value;
     conds= remove_eq_conds(thd, conds, &cond_value);
     if (cond_value == Item::COND_FALSE)
+    {
       limit= 0;                                   // Impossible WHERE
+      query_plan.set_impossible_where();
+      if (thd->lex->describe)
+        goto exit_without_my_ok;
+    }
   }
 
   /*
@@ -400,6 +415,10 @@ int mysql_update(THD *thd,
   if (error || !limit || thd->is_error() ||
       (select && select->check_quick(thd, safe_update, limit)))
   {
+    query_plan.set_impossible_where();
+    if (thd->lex->describe)
+      goto exit_without_my_ok;
+
     delete select;
     free_underlaid_joins(thd, select_lex);
     /*
@@ -438,16 +457,16 @@ int mysql_update(THD *thd,
   if (select && select->quick && select->quick->unique_key_range())
   { // Single row select (always "ordered"): Ok to use with key field UPDATE
     need_sort= FALSE;
-    used_index= MAX_KEY;
+    query_plan.index= MAX_KEY;
     used_key_is_modified= FALSE;
   }
   else
   {
-    used_index= get_index_for_order(order, table, select, limit,
-                                    &need_sort, &reverse);
+    query_plan.index= get_index_for_order(order, table, select, limit,
+                                          &need_sort, &reverse);
     if (select && select->quick)
     {
-      DBUG_ASSERT(need_sort || used_index == select->quick->index);
+      DBUG_ASSERT(need_sort || query_plan.index == select->quick->index);
       used_key_is_modified= (!select->quick->unique_key_range() &&
                              select->quick->is_keys_used(table->write_set));
     }
@@ -455,14 +474,38 @@ int mysql_update(THD *thd,
     {
       if (need_sort)
       { // Assign table scan index to check below for modified key fields:
-        used_index= table->file->key_used_on_scan;
+        query_plan.index= table->file->key_used_on_scan;
       }
-      if (used_index != MAX_KEY)
+      if (query_plan.index != MAX_KEY)
       { // Check if we are modifying a key that we are used to search with:
-        used_key_is_modified= is_key_used(table, used_index, table->write_set);
+        used_key_is_modified= is_key_used(table, query_plan.index, table->write_set);
       }
     }
   }
+  
+  /* 
+    Query optimization is finished at this point.
+     - Save the decisions in the query plan
+     - if we're running EXPLAIN UPDATE, get out
+  */
+  query_plan.select= select;
+  query_plan.possible_keys= table->quick_keys;
+  query_plan.table_rows= table->file->stats.records;
+  
+  /*
+    Ok, we have generated a query plan for the UPDATE.
+     - if we're running EXPLAIN UPDATE, goto produce explain output 
+     - otherwise, execute the query plan
+  */
+  if (thd->lex->describe)
+    goto exit_without_my_ok;
+
+  query_plan.save_query_plan_footprint(thd->lex->query_plan_footprint);
+  thd->apc_target.enable();
+  apc_target_enabled= true;
+  DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
+                  dbug_serve_apcs(thd, 1););
+
 
   if (used_key_is_modified || order ||
       partition_key_modified(table, table->write_set))
@@ -476,8 +519,8 @@ int mysql_update(THD *thd,
     DBUG_ASSERT(table->read_set == &table->def_read_set);
     DBUG_ASSERT(table->write_set == &table->def_write_set);
 
-    if (used_index < MAX_KEY && old_covering_keys.is_set(used_index))
-      table->add_read_columns_used_by_index(used_index);
+    if (query_plan.index < MAX_KEY && old_covering_keys.is_set(query_plan.index))
+      table->add_read_columns_used_by_index(query_plan.index);
     else
       table->use_all_columns();
 
@@ -534,22 +577,22 @@ int mysql_update(THD *thd,
 
       /*
         When we get here, we have one of the following options:
-        A. used_index == MAX_KEY
+        A. query_plan.index == MAX_KEY
            This means we should use full table scan, and start it with
            init_read_record call
-        B. used_index != MAX_KEY
+        B. query_plan.index != MAX_KEY
            B.1 quick select is used, start the scan with init_read_record
            B.2 quick select is not used, this is full index scan (with LIMIT)
                Full index scan must be started with init_read_record_idx
       */
 
-      if (used_index == MAX_KEY || (select && select->quick))
+      if (query_plan.index == MAX_KEY || (select && select->quick))
       {
         if (init_read_record(&info, thd, table, select, 0, 1, FALSE))
           goto err;
       }
       else
-        init_read_record_idx(&info, thd, table, 1, used_index, reverse);
+        init_read_record_idx(&info, thd, table, 1, query_plan.index, reverse);
 
       thd_proc_info(thd, "Searching rows for update");
       ha_rows tmp_limit= limit;
@@ -610,6 +653,7 @@ int mysql_update(THD *thd,
 	select= new SQL_SELECT;
 	select->head=table;
       }
+      //psergey-todo: disable SHOW EXPLAIN because the plan was deleted? 
       if (reinit_io_cache(&tempfile,READ_CACHE,0L,0,0))
 	error=1; /* purecov: inspected */
       select->file=tempfile;			// Read row ptrs from this file
@@ -884,6 +928,8 @@ int mysql_update(THD *thd,
   if (!transactional_table && updated > 0)
     thd->transaction.stmt.modified_non_trans_table= TRUE;
 
+  thd->apc_target.disable(); //psergey-todo.
+  apc_target_enabled= false;
   end_read_record(&info);
   delete select;
   thd_proc_info(thd, "end");
@@ -957,11 +1003,36 @@ int mysql_update(THD *thd,
   DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
 
 err:
+  if (apc_target_enabled)
+    thd->apc_target.disable();
+
   delete select;
   free_underlaid_joins(thd, select_lex);
   table->disable_keyread();
   thd->abort_on_warning= 0;
   DBUG_RETURN(1);
+
+exit_without_my_ok:
+  DBUG_ASSERT(!apc_target_enabled);
+  query_plan.save_query_plan_footprint(thd->lex->query_plan_footprint);
+  
+  select_send *result;
+  //bool printed_anything;
+  if (!(result= new select_send()))
+    return 1;                               /* purecov: inspected */
+  List<Item> dummy; /* note: looked in 5.6 and they too use a dummy list like this */
+  result->prepare(dummy, &thd->lex->unit);
+  thd->send_explain_fields(result);
+  int err2= thd->lex->query_plan_footprint->print_explain(result, 0 /* explain flags*/);
+
+  if (err2)
+    result->abort_result_set();
+  else
+    result->send_eof();
+
+  delete select;
+  free_underlaid_joins(thd, select_lex);
+  DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
 }
 
 /*
@@ -1381,20 +1452,37 @@ bool mysql_multi_update(THD *thd,
                         multi_update **result)
 {
   bool res;
+  select_result *output;
+  bool explain= test(thd->lex->describe);
   DBUG_ENTER("mysql_multi_update");
-
-  if (!(*result= new multi_update(table_list,
-				 &thd->lex->select_lex.leaf_tables,
-				 fields, values,
-				 handle_duplicates, ignore)))
+  
+  if (explain)
   {
-    DBUG_RETURN(TRUE);
+    /* Handle EXPLAIN UPDATE */
+    if (!(output= new select_send()) ||
+        thd->send_explain_fields(output))
+    {
+      delete output;
+      DBUG_RETURN(TRUE);
+    }
+    select_lex->set_explain_type(FALSE);
+    *result= NULL; /* no multi_update object */
+  }
+  else
+  {
+    if (!(*result= new multi_update(table_list,
+                                   &thd->lex->select_lex.leaf_tables,
+                                   fields, values,
+                                   handle_duplicates, ignore)))
+    {
+      DBUG_RETURN(TRUE);
+    }
+    output= *result;
   }
 
   thd->abort_on_warning= test(thd->variables.sql_mode &
                               (MODE_STRICT_TRANS_TABLES |
                                MODE_STRICT_ALL_TABLES));
-
   List<Item> total_list;
 
   res= mysql_select(thd, &select_lex->ref_pointer_array,
@@ -1404,12 +1492,21 @@ bool mysql_multi_update(THD *thd,
                     (ORDER *)NULL,
                     options | SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
                     OPTION_SETUP_TABLES_DONE,
-                    *result, unit, select_lex);
+                    output, unit, select_lex);
 
   DBUG_PRINT("info",("res: %d  report_error: %d", res, (int) thd->is_error()));
   res|= thd->is_error();
   if (unlikely(res))
     (*result)->abort_result_set();
+  else
+  {
+    if (explain)
+    {
+      thd->lex->query_plan_footprint->print_explain(output, 0);
+      output->send_eof(); 
+      delete output;
+    }
+  }
   thd->abort_on_warning= 0;
   DBUG_RETURN(res);
 }

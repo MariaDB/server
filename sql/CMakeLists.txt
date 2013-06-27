@@ -80,6 +80,7 @@ SET (SQL_SOURCE
                sql_reload.cc
 
                # added in MariaDB:
+               opt_qpf.h opt_qpf.cc
                sql_lifo_buffer.h sql_join_cache.h sql_join_cache.cc
                create_options.cc multi_range_read.cc
                opt_index_cond_pushdown.cc opt_subselect.cc

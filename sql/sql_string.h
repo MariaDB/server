@@ -510,6 +510,38 @@ public:
   }
 };
 
+
+// The following class is a backport from MySQL 5.6:
+/**
+  String class wrapper with a preallocated buffer of size buff_sz
+
+  This class allows to replace sequences of:
+     char buff[12345];
+     String str(buff, sizeof(buff));
+     str.length(0);
+  with a simple equivalent declaration:
+     StringBuffer<12345> str;
+*/
+
+template<size_t buff_sz>
+class StringBuffer : public String
+{
+  char buff[buff_sz];
+
+public:
+  StringBuffer() : String(buff, buff_sz, &my_charset_bin) { length(0); }
+  explicit StringBuffer(const CHARSET_INFO *cs) : String(buff, buff_sz, cs)
+  {
+    length(0);
+  }
+  StringBuffer(const char *str, size_t length, const CHARSET_INFO *cs)
+    : String(buff, buff_sz, cs)
+  {
+    set(str, length, cs);
+  }
+};
+
+
 static inline bool check_if_only_end_space(CHARSET_INFO *cs,
                                            const char *str, 
                                            const char *end)

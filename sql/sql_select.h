@@ -198,6 +198,12 @@ int rr_sequential(READ_RECORD *info);
 int rr_sequential_and_unpack(READ_RECORD *info);
 
 
+#include "opt_qpf.h"
+
+/**************************************************************************************
+ * New EXPLAIN structures END
+ *************************************************************************************/
+
 class JOIN_CACHE;
 class SJ_TMP_TABLE;
 class JOIN_TAB_RANGE;
@@ -252,7 +258,9 @@ typedef struct st_join_table {
   JOIN_TAB_RANGE *bush_children;
   
   /* Special content for EXPLAIN 'Extra' column or NULL if none */
-  const char	*info;
+  enum Extra_tag info;
+  //const char	*info;
+
   /* 
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
     column, or 0 if there is no info.
@@ -1328,7 +1336,10 @@ public:
     pre_sort_join_tab= NULL;
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
+
+    exec_qpf_saved= false;
   }
+  bool exec_qpf_saved;
 
   int prepare(Item ***rref_pointer_array, TABLE_LIST *tables, uint wind_num,
 	      COND *conds, uint og_num, ORDER *order, ORDER *group,
@@ -1454,11 +1465,8 @@ public:
   {
     return (unit->item && unit->item->is_in_predicate());
   }
-
-  int print_explain(select_result_sink *result, uint8 explain_flags,
-                     bool on_the_fly,
-                     bool need_tmp_table, bool need_order,
-                     bool distinct,const char *message);
+  int save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
+               bool distinct, const char *message);
 private:
   /**
     TRUE if the query contains an aggregate function but has no GROUP
@@ -1827,6 +1835,28 @@ void eliminate_tables(JOIN *join);
 void push_index_cond(JOIN_TAB *tab, uint keyno);
 
 #define OPT_LINK_EQUAL_FIELDS    1
+
+/* EXPLAIN-related utility functions */
+int print_explain_message_line(select_result_sink *result, 
+                               uint8 options,
+                               uint select_number,
+                               const char *select_type,
+                               const char *message);
+void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res);
+int print_explain_row(select_result_sink *result,
+                      uint8 options,
+                      uint select_number,
+                      const char *select_type,
+                      const char *table_name,
+                      //const char *partitions, (todo)
+                      enum join_type jtype,
+                      const char *possible_keys,
+                      const char *index,
+                      const char *key_len,
+                      const char *ref,
+                      ha_rows rows,
+                      const char *extra);
+void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line);
 
 /****************************************************************************
   Temporary table support for SQL Runtime

@@ -165,7 +165,11 @@ set @show_explain_probe_select_id=1;
 set debug_dbug='+d,show_explain_probe_join_exec_end';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 show explain for $thr2;
-ERROR HY000: Target is not running an EXPLAINable command
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
 a	(select max(a) from t0 b where b.a+a.a<10)
 0	9
 set debug_dbug=@old_debug;
@@ -186,22 +190,38 @@ set @show_explain_probe_select_id=2;
 set debug_dbug='+d,show_explain_probe_join_exec_start';
 update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 show explain for $thr2;
-ERROR HY000: Target is not running an EXPLAINable command
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1003	update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3
 show explain for $thr2;
-ERROR HY000: Target is not running an EXPLAINable command
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1003	update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3
 drop table t2;
 set debug_dbug=@old_debug;
 #
-# Attempt SHOW EXPLAIN for a DELETE
+# Attempt SHOW EXPLAIN for a DELETE (UPD: now works)
 # 
 create table t2 as select a as a, a as dummy from t0 limit 2;
 set @show_explain_probe_select_id=2;
 set debug_dbug='+d,show_explain_probe_join_exec_start';
 delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 show explain for $thr2;
-ERROR HY000: Target is not running an EXPLAINable command
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1003	delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3
 show explain for $thr2;
-ERROR HY000: Target is not running an EXPLAINable command
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1003	delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3
 drop table t2;
 set debug_dbug=@old_debug;
 #
@@ -220,13 +240,13 @@ Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 a	SUBQ
@@ -327,7 +347,11 @@ SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
 # FIXED by "conservative assumptions about when QEP is available" fix:
 #    NOTE: current code will not show "Using join buffer": 
 show explain for $thr2;
-ERROR HY000: Target is not running an EXPLAINable command
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a
 a
 1
 2
@@ -412,7 +436,10 @@ set @show_explain_probe_select_id=1;
 set debug_dbug='+d,show_explain_probe_join_exec_end';
 select * from t0 where 1>10;
 show explain for $thr2;
-ERROR HY000: Target is not running an EXPLAINable command
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1003	select * from t0 where 1>10
 a
 set debug_dbug=@old_debug;
 #
@@ -424,7 +451,10 @@ set @show_explain_probe_select_id=1;
 set debug_dbug='+d,show_explain_probe_join_exec_end';
 select * from t0,t3 where t3.a=112233;
 show explain for $thr2;
-ERROR HY000: Target is not running an EXPLAINable command
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+Warnings:
+Note	1003	select * from t0,t3 where t3.a=112233
 a	a
 set debug_dbug=@old_debug;
 drop table t3;
@@ -529,7 +559,12 @@ set @show_explain_probe_select_id=1;
 set debug_dbug='+d,show_explain_probe_join_exec_end';
 SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
 show explain for $thr2;
-ERROR HY000: Target is not running an EXPLAINable command
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	const	distinct_key	distinct_key	8	const,const	1	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+2	MATERIALIZED	t2	index	NULL	a1	4	NULL	20	Using index
+Warnings:
+Note	1003	SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`)
 pk	a1
 set debug_dbug=@old_debug;
 DROP TABLE t2;
@@ -635,7 +670,7 @@ SELECT a + 1 FROM v1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
 Warnings:
 Note	1003	SELECT a + 1 FROM v1
 a + 1
@@ -1045,7 +1080,7 @@ show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	14	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	
-3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
+3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	20	Using where
 Warnings:
 Note	1003	SELECT max(a+b+c) FROM t1 AS alias1, ( SELECT * FROM t2 ) AS alias 
 WHERE EXISTS ( SELECT * FROM t3 WHERE b = c )  OR a <= 10
