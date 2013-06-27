@@ -22464,7 +22464,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   const CHARSET_INFO *cs= system_charset_info;
   int quick_type;
   int error= 0;
-  DBUG_ENTER("JOIN::print_explain");
+  DBUG_ENTER("JOIN::save_qpf");
   DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
 		      (ulong)join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));
@@ -22920,14 +22920,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
 	if (table->reginfo.not_exists_optimize)
           qpt->push_extra(ET_NOT_EXISTS);
 
-        /*
-        if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE &&
-            !(((QUICK_RANGE_SELECT*)(tab->select->quick))->mrr_flags &
-             HA_MRR_USE_DEFAULT_IMPL))
-        {
-	  extra.append(STRING_WITH_LEN("; Using MRR"));
-        }
-        */
         if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE)
         {
           explain_append_mrr_info((QUICK_RANGE_SELECT*)(tab->select->quick),
@@ -22940,13 +22932,11 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
 	{
 	  need_tmp_table=0;
           qp_sel->using_temporary= true;
-	  ///extra.append(STRING_WITH_LEN("; Using temporary"));
 	}
 	if (need_order)
 	{
 	  need_order=0;
           qp_sel->using_filesort= true;
-	  ///extra.append(STRING_WITH_LEN("; Using filesort"));
 	}
 	if (distinct & test_all_bits(used_tables,
                                      join->select_list_used_tables))
@@ -22968,11 +22958,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
           {
             qpt->push_extra(ET_FIRST_MATCH);
             TABLE *prev_table=tab->do_firstmatch->table;
-            /*
-              TODO: qpt->firstmatch_table...
-              This must be a reference to another QPF element. Or, its index.
-            */
-            // extra.append(STRING_WITH_LEN("; FirstMatch("));
             if (prev_table->derived_select_number)
             {
               char namebuf[NAME_LEN];
@@ -22984,7 +22969,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
             }
             else
               qpt->firstmatch_table_name.append(prev_table->pos_in_table_list->alias);
-            //extra.append(STRING_WITH_LEN(")"));
           }
         }
 
@@ -23033,11 +23017,21 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   DBUG_RETURN(error);
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////
-
 
 /*
-  See st_select_lex::print_explain() for the SHOW EXPLAIN counterpart
+  This function servers as "shortcut point" for EXPLAIN queries.
+
+  For UNIONs and JOINs, EXPLAIN statement executes just like its SELECT
+  statement would execute, except that JOIN::exec() will call select_describe()
+  instead of actually executing the query.
+
+  The purpose of select_describe() is:
+  - update the query plan with info about last-minute choices made at the start
+    of JOIN::exec
+  - Invoke "pseudo-execution" for the children subqueries.
+
+  Overall, select_describe() is a legacy of old EXPLAIN implementation and
+  should be removed.
 */ 
 
 static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
@@ -23055,12 +23049,6 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
     qp->using_filesort= need_order;
   }
 
-/*
-  WE DONT NEED THIS here anymore:
-
-  join->save_qpf(thd->lex->query_plan_footprint, need_tmp_table, need_order, 
-                 distinct, message);
-*/
   for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
        unit;
        unit= unit->next_unit())

@@ -4191,7 +4191,7 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
 */
 
 int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
-                       bool *printed_anything) //TODO: remove printed_anything
+                       bool *printed_anything)
 {
   int res;
   if (query_plan_footprint && query_plan_footprint->have_query_plan())
@@ -4209,74 +4209,20 @@ int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
 
 
 /*
-  
+  Save query plan of a UNION. The only variable member is whether the union has
+  "Using filesort".
+
+  There is also save_union_qpf_part2() function, which is called before we read
+  UNION's output.
+
+  The reason for it is examples like this:
+
+     SELECT col1 FROM t1 UNION SELECT col2 FROM t2 ORDER BY (select ... from t3 ...)
+
+  Here, the (select ... from t3 ...) subquery must be a child of UNION's
+  st_select_lex. However, it is not connected as child until a very late 
+  stage in execution.
 */
-void st_select_lex::save_qpf(QPF_query *output)
-{
-  int res;
-  if (join && join->have_query_plan == JOIN::QEP_AVAILABLE)
-  {
-    /*
-      There is a number of reasons join can be marked as degenerate, so all
-      three conditions below can happen simultaneously, or individually:
-    */
-    if (!join->table_count || !join->tables_list || join->zero_result_cause)
-    {
-      /* It's a degenerate join */
-      const char *cause= join->zero_result_cause ? join-> zero_result_cause : 
-                                                   "No tables used";
-      res= join->save_qpf(output, FALSE, FALSE, FALSE, cause);
-    }
-    else
-    {
-      join->save_qpf(output, join->need_tmp, // need_tmp_table
-                     !join->skip_sort_order && !join->no_order &&
-                     (join->order || join->group_list), // bool need_order
-                     join->select_distinct, // bool distinct
-                     NULL); //const char *message
-    }
-    if (res)
-      goto err;
-
-    for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
-         unit;
-         unit= unit->next_unit())
-    {
-      /* 
-        Display subqueries only if they are not parts of eliminated WHERE/ON
-        clauses.
-      */
-      if (!(unit->item && unit->item->eliminated))
-      {
-        unit->save_qpf(output);
-      }
-    }
-  }
-  else
-  {
-    const char *msg;
-    if (!join)
-      DBUG_ASSERT(0); /* Seems not to be possible */
-
-    /* Not printing anything useful, don't touch *printed_anything here */
-    if (join->have_query_plan == JOIN::QEP_NOT_PRESENT_YET)
-      msg= "Not yet optimized";
-    else
-    {
-      DBUG_ASSERT(join->have_query_plan == JOIN::QEP_DELETED);
-      msg= "Query plan already deleted";
-    }
-    set_explain_type(TRUE/* on_the_fly */);
-    QPF_select *qp_sel= new (output->mem_root) QPF_select;
-    qp_sel->select_id= select_number;
-    qp_sel->select_type= type;
-    qp_sel->message= msg;
-    output->add_node(qp_sel);
-  }
-err:
-  return ;//res;
-}
-
 
 int st_select_lex_unit::save_union_qpf(QPF_query *output)
 {
@@ -4307,11 +4253,7 @@ int st_select_lex_unit::save_union_qpf(QPF_query *output)
   }
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
-  {
-    if (!output->get_select(sl->select_number))
-      sl->save_qpf(output);
     qpfu->add_select(sl->select_number);
-  }
 
   // Save the UNION node
   output->add_node(qpfu);
@@ -4336,25 +4278,6 @@ int st_select_lex_unit::save_union_qpf_part2(QPF_query *output)
       }
     }
   }
-  return 0;
-}
-
-
-int st_select_lex_unit::save_qpf(QPF_query *output)
-{
-  //int res= 0;
-  SELECT_LEX *first= first_select();
-
-  if (!first->next_select())
-  {
-    /* This is a 1-way UNION, i.e. not really a UNION */
-    if (!output->get_select(first->select_number))
-      first->save_qpf(output);
-    return 0;
-  }
-
-  save_union_qpf(output);
-  
   return 0;
 }
 

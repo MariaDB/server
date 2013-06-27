@@ -1023,7 +1023,6 @@ exit_without_my_ok:
   List<Item> dummy; /* note: looked in 5.6 and they too use a dummy list like this */
   result->prepare(dummy, &thd->lex->unit);
   thd->send_explain_fields(result);
-  //int err2= thd->lex->print_explain(result, 0 /* explain flags*/, &printed_anything);
   int err2= thd->lex->query_plan_footprint->print_explain(result, 0 /* explain flags*/);
 
   if (err2)
