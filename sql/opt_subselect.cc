@@ -3972,6 +3972,12 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   if (!table->file)
     goto err;
 
+  if (table->file->set_ha_share_ref(&share->ha_share))
+  {
+    delete table->file;
+    goto err;
+  }
+
   null_count=1;
   
   null_pack_length= 1;

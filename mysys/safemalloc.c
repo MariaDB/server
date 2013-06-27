@@ -280,7 +280,9 @@ static void free_memory(void *ptr)
 static void warn(const char *format,...)
 {
   va_list args;
+  DBUG_PRINT("error", ("%s", format));
   va_start(args,format);
+  fflush(stderr);
   vfprintf(stderr, format, args);
   va_end(args);
 

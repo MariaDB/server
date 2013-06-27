@@ -1532,7 +1532,6 @@ THD::~THD()
   mysql_audit_release(this);
   plugin_thdvar_cleanup(this);
 
-  DBUG_PRINT("info", ("freeing security context"));
   main_security_ctx.destroy();
   my_free(db);
   db= NULL;
@@ -3801,6 +3800,7 @@ void Security_context::init()
 
 void Security_context::destroy()
 {
+  DBUG_PRINT("info", ("freeing security context"));
   // If not pointer to constant
   if (host != my_localhost)
   {

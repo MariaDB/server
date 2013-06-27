@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab
+   Copyright (c) 2009-2013, Monty Program Ab & SkySQL Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -465,6 +465,8 @@ class Time_zone;
 
 #define THD_CHECK_SENTRY(thd) DBUG_ASSERT(thd->dbug_sentry == THD_SENTRY_MAGIC)
 
+typedef ulonglong sql_mode_t;
+
 typedef struct system_variables
 {
   /*
@@ -488,7 +490,7 @@ typedef struct system_variables
   ulonglong tmp_table_size;
   ulonglong long_query_time;
   ulonglong optimizer_switch;
-  ulonglong sql_mode; ///< which non-standard SQL behaviour should be enabled
+  sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
   ulonglong option_bits; ///< OPTION_xxx constants, e.g. OPTION_PROFILING
   ulonglong join_buff_space_limit;
   ulonglong log_slow_filter; 
@@ -2618,8 +2620,8 @@ public:
 
   inline bool is_strict_mode() const
   {
-    return variables.sql_mode & (MODE_STRICT_TRANS_TABLES |
-                                 MODE_STRICT_ALL_TABLES);
+    return (bool) (variables.sql_mode & (MODE_STRICT_TRANS_TABLES |
+                                         MODE_STRICT_ALL_TABLES));
   }
   inline my_time_t query_start() { query_start_used=1; return start_time; }
   inline ulong query_start_sec_part()
@@ -3417,7 +3419,7 @@ my_eof(THD *thd)
 
 const my_bool strict_date_checking= 0;
 
-inline ulonglong sql_mode_for_dates(THD *thd)
+inline sql_mode_t sql_mode_for_dates(THD *thd)
 {
   if (strict_date_checking)
     return (thd->variables.sql_mode &
@@ -3426,7 +3428,7 @@ inline ulonglong sql_mode_for_dates(THD *thd)
   return (thd->variables.sql_mode & MODE_INVALID_DATES);
 }
 
-inline ulonglong sql_mode_for_dates()
+inline sql_mode_t sql_mode_for_dates()
 {
   return sql_mode_for_dates(current_thd);
 }
