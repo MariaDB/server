@@ -8656,13 +8656,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
  RETURN
     Like mysql_alter_table().
 */
+
 bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list)
 {
   HA_CREATE_INFO create_info;
   Alter_info alter_info;
-
   DBUG_ENTER("mysql_recreate_table");
   DBUG_ASSERT(!table_list->next_global);
+
   /* Set lock type which is appropriate for ALTER TABLE. */
   table_list->lock_type= TL_READ_NO_INSERT;
   /* Same applies to MDL request. */

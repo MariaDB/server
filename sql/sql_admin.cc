@@ -42,6 +42,15 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list)
   trans_rollback(thd);
   close_thread_tables(thd);
   thd->mdl_context.release_transactional_locks();
+
+  /*
+    table_list->table has been closed and freed. Do not reference
+    uninitialized data. open_tables() could fail.
+  */
+  table_list->table= NULL;
+  /* Same applies to MDL ticket. */
+  table_list->mdl_request.ticket= NULL;
+
   DEBUG_SYNC(thd, "ha_admin_try_alter");
   tmp_disable_binlog(thd); // binlogging is done by caller if wanted
   result_code= (open_temporary_tables(thd, table_list) ||
@@ -830,43 +839,61 @@ send_result_message:
 
     case HA_ADMIN_TRY_ALTER:
     {
-      /*
-        This is currently used only by InnoDB. ha_innobase::optimize() answers
-        "try with alter", so here we close the table, do an ALTER TABLE,
-        reopen the table and do ha_innobase::analyze() on it.
-        We have to end the row, so analyze could return more rows.
-      */
+      Alter_info *alter_info= &lex->alter_info;
+
       protocol->store(STRING_WITH_LEN("note"), system_charset_info);
-      protocol->store(STRING_WITH_LEN(
-          "Table does not support optimize, doing recreate + analyze instead"),
-                      system_charset_info);
+      if (alter_info->flags & Alter_info::ALTER_ADMIN_PARTITION)
+      {
+        protocol->store(STRING_WITH_LEN(
+        "Table does not support optimize on partitions. All partitions "
+        "will be rebuilt and analyzed."),system_charset_info);
+      }
+      else
+      {
+        protocol->store(STRING_WITH_LEN(
+        "Table does not support optimize, doing recreate + analyze instead"),
+        system_charset_info);
+      }
       if (protocol->write())
         goto err;
+
       DBUG_PRINT("info", ("HA_ADMIN_TRY_ALTER, trying analyze..."));
       TABLE_LIST *save_next_local= table->next_local,
                  *save_next_global= table->next_global;
       table->next_local= table->next_global= 0;
-      result_code= admin_recreate_table(thd, table);
 
+      tmp_disable_binlog(thd); // binlogging is done by caller if wanted
+      result_code= admin_recreate_table(thd, table);
+      reenable_binlog(thd);
       trans_commit_stmt(thd);
       trans_commit(thd);
       close_thread_tables(thd);
       thd->mdl_context.release_transactional_locks();
+      /* Clear references to TABLE and MDL_ticket after releasing them. */
+      table->mdl_request.ticket= NULL;
 
       if (!result_code) // recreation went ok
       {
-        /* Clear the ticket released above. */
-        table->mdl_request.ticket= NULL;
         DEBUG_SYNC(thd, "ha_admin_open_ltable");
         table->mdl_request.set_type(MDL_SHARED_WRITE);
-        if (open_temporary_tables(thd, table) ||
+        if (!open_temporary_tables(thd, table) &&
             (table->table= open_ltable(thd, table, lock_type, 0)))
         {
+          uint save_flags;
+          /* Store the original value of alter_info->flags */
+          save_flags= alter_info->flags;
+
+          /*
+           Reset the ALTER_ADMIN_PARTITION bit in alter_info->flags
+           to force analyze on all partitions.
+          */
+          alter_info->flags &= ~(Alter_info::ALTER_ADMIN_PARTITION);
           result_code= table->table->file->ha_analyze(thd, check_opt);
           if (result_code == HA_ADMIN_ALREADY_DONE)
             result_code= HA_ADMIN_OK;
           else if (result_code)  // analyze failed
             table->table->file->print_error(result_code, MYF(0));
+          alter_info->flags= save_flags;
         }
         else
           result_code= -1; // open failed
@@ -899,6 +926,9 @@ send_result_message:
           }
           thd->clear_error();
         }
+        /* Make sure this table instance is not reused after the operation. */
+        if (table->table)
+          table->table->m_needs_reopen= true;
       }
       result_code= result_code ? HA_ADMIN_FAILED : HA_ADMIN_OK;
       table->next_local= save_next_local;
@@ -997,14 +1027,15 @@ send_result_message:
 
 err:
   /* Make sure this table instance is not reused after the failure. */
-  if (table && table->table)
-    table->table->m_needs_reopen= true;
   trans_rollback_stmt(thd);
   trans_rollback(thd);
+  if (table && table->table)
+  {
+    table->table->m_needs_reopen= true;
+    table->table= 0;
+  }
   close_thread_tables(thd);			// Shouldn't be needed
   thd->mdl_context.release_transactional_locks();
-  if (table)
-    table->table=0;
   DBUG_RETURN(TRUE);
 }
 

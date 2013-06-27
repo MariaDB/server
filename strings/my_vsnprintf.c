@@ -735,7 +735,7 @@ int my_vfprintf(FILE *stream, const char* format, va_list args)
   char cvtbuf[1024];
   int alloc= 0;
   char *p= cvtbuf;
-  size_t cur_len= sizeof(cvtbuf);
+  size_t cur_len= sizeof(cvtbuf), actual;
   int ret;
 
   /*
@@ -746,7 +746,7 @@ int my_vfprintf(FILE *stream, const char* format, va_list args)
   for (;;)
   {
     size_t new_len;
-    size_t actual= my_vsnprintf(p, cur_len, format, args);
+    actual= my_vsnprintf(p, cur_len, format, args);
     if (actual < cur_len - 1)
       break;
     /*
@@ -766,7 +766,9 @@ int my_vfprintf(FILE *stream, const char* format, va_list args)
     if (!p)
       return 0;
   }
-  ret= fprintf(stream, "%s", p);
+  ret= (int) actual;
+  if (fputs(p, stream) < 0)
+    ret= -1;
   if (alloc)
     (*my_str_free)(p);
   return ret;

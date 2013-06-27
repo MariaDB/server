@@ -16,19 +16,12 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 
-#ifdef MYSQL_CLIENT
-
 #include "sql_priv.h"
 
-#else
-
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
+#ifndef MYSQL_CLIENT
+#include "my_global.h" // REQUIRED by log_event.h > m_string.h > my_bitmap.h
 #include "sql_priv.h"
 #include "unireg.h"
-#include "my_global.h" // REQUIRED by log_event.h > m_string.h > my_bitmap.h
 #include "log_event.h"
 #include "sql_base.h"                           // close_thread_tables
 #include "sql_cache.h"                       // QUERY_CACHE_FLAGS_SIZE
@@ -54,6 +47,7 @@
 #include <my_bitmap.h>
 #include "rpl_utility.h"
 
+#define my_b_write_string(A, B) my_b_write((A), (B), (uint) (sizeof(B) - 1))
 
 /**
   BINLOG_CHECKSUM variable.
@@ -335,24 +329,24 @@ uint debug_not_change_ts_if_art_event= 1; // bug#29309 simulation
 static void pretty_print_str(IO_CACHE* cache, const char* str, int len)
 {
   const char* end = str + len;
-  my_b_printf(cache, "\'");
+  my_b_write(cache, "\'", 2);
   while (str < end)
   {
     char c;
     switch ((c=*str++)) {
-    case '\n': my_b_printf(cache, "\\n"); break;
-    case '\r': my_b_printf(cache, "\\r"); break;
-    case '\\': my_b_printf(cache, "\\\\"); break;
-    case '\b': my_b_printf(cache, "\\b"); break;
-    case '\t': my_b_printf(cache, "\\t"); break;
-    case '\'': my_b_printf(cache, "\\'"); break;
-    case 0   : my_b_printf(cache, "\\0"); break;
+    case '\n': my_b_write(cache, "\\n", 2); break;
+    case '\r': my_b_write(cache, "\\r", 2); break;
+    case '\\': my_b_write(cache, "\\\\", 2); break;
+    case '\b': my_b_write(cache, "\\b", 2); break;
+    case '\t': my_b_write(cache, "\\t", 2); break;
+    case '\'': my_b_write(cache, "\\'", 2); break;
+    case 0   : my_b_write(cache, "\\0", 2); break;
     default:
-      my_b_printf(cache, "%c", c);
+      my_b_write_byte(cache, c);
       break;
     }
   }
-  my_b_printf(cache, "\'");
+  my_b_write(cache, "\'", 2);
 }
 #endif /* MYSQL_CLIENT */
 
@@ -704,7 +698,7 @@ static void print_set_option(IO_CACHE* file, uint32 bits_changed,
   if (bits_changed & option)
   {
     if (*need_comma)
-      my_b_printf(file,", ");
+      my_b_write(file, ", ", 2);
     my_b_printf(file,"%s=%d", name, test(flags & option));
     *need_comma= 1;
   }
@@ -1699,7 +1693,7 @@ void Log_event::print_header(IO_CACHE* file,
   my_off_t hexdump_from= print_event_info->hexdump_from;
   DBUG_ENTER("Log_event::print_header");
 
-  my_b_printf(file, "#");
+  my_b_write_byte(file, '#');
   print_timestamp(file);
   my_b_printf(file, " server id %lu  end_log_pos %s ", (ulong) server_id,
               llstr(log_pos,llbuff));
@@ -1719,7 +1713,7 @@ void Log_event::print_header(IO_CACHE* file,
   /* mysqlbinlog --hexdump */
   if (print_event_info->hexdump_from)
   {
-    my_b_printf(file, "\n");
+    my_b_write_byte(file, '\n');
     uchar *ptr= (uchar*)temp_buf;
     my_off_t size=
       uint4korr(ptr + EVENT_LEN_OFFSET) - LOG_EVENT_MINIMAL_HEADER_LEN;
@@ -1819,11 +1813,15 @@ static void
 my_b_write_quoted(IO_CACHE *file, const uchar *ptr, uint length)
 {
   const uchar *s;
-  my_b_printf(file, "'");
+  my_b_write_byte(file, '\'');
   for (s= ptr; length > 0 ; s++, length--)
   {
     if (*s > 0x1F)
-      my_b_write(file, s, 1);
+      my_b_write_byte(file, *s);
+    else if (*s == '\'')
+      my_b_write(file, "\\'", 2);
+    else if (*s == '\\')
+      my_b_write(file, "\\\\", 2);
     else
     {
       uchar hex[10];
@@ -1831,7 +1829,7 @@ my_b_write_quoted(IO_CACHE *file, const uchar *ptr, uint length)
       my_b_write(file, hex, len);
     }
   }
-  my_b_printf(file, "'");
+  my_b_write_byte(file, '\'');
 }
 
 
@@ -1846,13 +1844,13 @@ static void
 my_b_write_bit(IO_CACHE *file, const uchar *ptr, uint nbits)
 {
   uint bitnum, nbits8= ((nbits + 7) / 8) * 8, skip_bits= nbits8 - nbits;
-  my_b_printf(file, "b'");
+  my_b_write(file, "b'", 2);
   for (bitnum= skip_bits ; bitnum < nbits8; bitnum++)
   {
     int is_set= (ptr[(bitnum) / 8] >> (7 - bitnum % 8))  & 0x01;
-    my_b_write(file, (const uchar*) (is_set ? "1" : "0"), 1);
+    my_b_write_byte(file, (is_set ? '1' : '0'));
   }
-  my_b_printf(file, "'");
+  my_b_write_byte(file, '\'');
 }
 
 
@@ -1947,7 +1945,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       int32 si= sint4korr(ptr);
       uint32 ui= uint4korr(ptr);
       my_b_write_sint32_and_uint32(file, si, ui);
-      my_snprintf(typestr, typestr_length, "INT");
+      strmake(typestr, "INT", typestr_length);
       return 4;
     }
 
@@ -1955,7 +1953,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
     {
       my_b_write_sint32_and_uint32(file, (int) (signed char) *ptr,
                                   (uint) (unsigned char) *ptr);
-      my_snprintf(typestr, typestr_length, "TINYINT");
+      strmake(typestr, "TINYINT", typestr_length);
       return 1;
     }
 
@@ -1964,7 +1962,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       int32 si= (int32) sint2korr(ptr);
       uint32 ui= (uint32) uint2korr(ptr);
       my_b_write_sint32_and_uint32(file, si, ui);
-      my_snprintf(typestr, typestr_length, "SHORTINT");
+      strmake(typestr, "SHORTINT", typestr_length);
       return 2;
     }
   
@@ -1973,23 +1971,24 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       int32 si= sint3korr(ptr);
       uint32 ui= uint3korr(ptr);
       my_b_write_sint32_and_uint32(file, si, ui);
-      my_snprintf(typestr, typestr_length, "MEDIUMINT");
+      strmake(typestr, "MEDIUMINT", typestr_length);
       return 3;
     }
 
   case MYSQL_TYPE_LONGLONG:
     {
       char tmp[64];
+      size_t length;
       longlong si= sint8korr(ptr);
-      longlong10_to_str(si, tmp, -10);
-      my_b_printf(file, "%s", tmp);
+      length= (longlong10_to_str(si, tmp, -10) - tmp);
+      my_b_write(file, tmp, length);
       if (si < 0)
       {
         ulonglong ui= uint8korr(ptr);
         longlong10_to_str((longlong) ui, tmp, 10);
         my_b_printf(file, " (%s)", tmp);        
       }
-      my_snprintf(typestr, typestr_length, "LONGINT");
+      strmake(typestr, "LONGINT", typestr_length);
       return 8;
     }
 
@@ -1998,6 +1997,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       uint precision= meta >> 8;
       uint decimals= meta & 0xFF;
       uint bin_size= my_decimal_get_binary_size(precision, decimals);
+      uint length;
       my_decimal dec;
       binary2my_decimal(E_DEC_FATAL_ERROR, (uchar*) ptr, &dec,
                         precision, decimals);
@@ -2009,7 +2009,8 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       for (i=0; i < end; i++)
         pos+= sprintf(pos, "%09d.", dec.buf[i]);
       pos+= sprintf(pos, "%09d", dec.buf[i]);
-      my_b_printf(file, "%s", buff);
+      length= (uint) (pos - buff);
+      my_b_write(file, buff, length);
       my_snprintf(typestr, typestr_length, "DECIMAL(%d,%d)",
                   precision, decimals);
       return bin_size;
@@ -2022,7 +2023,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       char tmp[320];
       sprintf(tmp, "%-20g", (double) fl);
       my_b_printf(file, "%s", tmp); /* my_snprintf doesn't support %-20g */
-      my_snprintf(typestr, typestr_length, "FLOAT");
+      strmake(typestr, "FLOAT", typestr_length);
       return 4;
     }
 
@@ -2031,8 +2032,8 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       double dbl;
       float8get(dbl, ptr);
       char tmp[320];
-      sprintf(tmp, "%-.20g", dbl); /* my_snprintf doesn't support %-20g */
-      my_b_printf(file, "%s", tmp);
+      sprintf(tmp, "%-.20g", dbl); /* strmake doesn't support %-20g */
+      my_b_printf(file, tmp, "%s");
       strcpy(typestr, "DOUBLE");
       return 8;
     }
@@ -2051,7 +2052,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
     {
       uint32 i32= uint4korr(ptr);
       my_b_printf(file, "%d", i32);
-      my_snprintf(typestr, typestr_length, "TIMESTAMP");
+      strmake(typestr, "TIMESTAMP", typestr_length);
       return 4;
     }
 
@@ -2065,7 +2066,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       my_b_printf(file, "%04d-%02d-%02d %02d:%02d:%02d",
                   (int) (d / 10000), (int) (d % 10000) / 100, (int) (d % 100),
                   (int) (t / 10000), (int) (t % 10000) / 100, (int) t % 100);
-      my_snprintf(typestr, typestr_length, "DATETIME");
+      strmake(typestr, "DATETIME", typestr_length);
       return 8;
     }
 
@@ -2074,7 +2075,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       uint32 i32= uint3korr(ptr);
       my_b_printf(file, "'%02d:%02d:%02d'",
                   i32 / 10000, (i32 % 10000) / 100, i32 % 100);
-      my_snprintf(typestr,  typestr_length, "TIME");
+      strmake(typestr, "TIME",  typestr_length);
       return 3;
     }
     
@@ -2101,7 +2102,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       *pos--= (char) ('0'+part%10); part/=10;
       *pos=   (char) ('0'+part);
       my_b_printf(file , "'%s'", buf);
-      my_snprintf(typestr, typestr_length, "DATE");
+      strmake(typestr, "DATE", typestr_length);
       return 3;
     }
     
@@ -2111,7 +2112,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       my_b_printf(file , "'%04d:%02d:%02d'",
                   (int)(i32 / (16L * 32L)), (int)(i32 / 32L % 16L),
                   (int)(i32 % 32L));
-      my_snprintf(typestr, typestr_length, "DATE");
+      strmake(typestr, "DATE", typestr_length);
       return 3;
     }
   
@@ -2119,7 +2120,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
     {
       uint32 i32= *ptr;
       my_b_printf(file, "%04d", i32+ 1900);
-      my_snprintf(typestr, typestr_length, "YEAR");
+      strmake(typestr, "YEAR", typestr_length);
       return 1;
     }
   
@@ -2127,13 +2128,13 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
     switch (meta & 0xFF) {
     case 1:
       my_b_printf(file, "%d", (int) *ptr);
-      my_snprintf(typestr, typestr_length, "ENUM(1 byte)");
+      strmake(typestr, "ENUM(1 byte)", typestr_length);
       return 1;
     case 2:
       {
         int32 i32= uint2korr(ptr);
         my_b_printf(file, "%d", i32);
-        my_snprintf(typestr, typestr_length, "ENUM(2 bytes)");
+        strmake(typestr, "ENUM(2 bytes)", typestr_length);
         return 2;
       }
     default:
@@ -2152,22 +2153,22 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
     case 1:
       length= *ptr;
       my_b_write_quoted(file, ptr + 1, length);
-      my_snprintf(typestr, typestr_length, "TINYBLOB/TINYTEXT");
+      strmake(typestr, "TINYBLOB/TINYTEXT", typestr_length);
       return length + 1;
     case 2:
       length= uint2korr(ptr);
       my_b_write_quoted(file, ptr + 2, length);
-      my_snprintf(typestr, typestr_length, "BLOB/TEXT");
+      strmake(typestr, "BLOB/TEXT", typestr_length);
       return length + 2;
     case 3:
       length= uint3korr(ptr);
       my_b_write_quoted(file, ptr + 3, length);
-      my_snprintf(typestr, typestr_length, "MEDIUMBLOB/MEDIUMTEXT");
+      strmake(typestr, "MEDIUMBLOB/MEDIUMTEXT", typestr_length);
       return length + 3;
     case 4:
       length= uint4korr(ptr);
       my_b_write_quoted(file, ptr + 4, length);
-      my_snprintf(typestr, typestr_length, "LONGBLOB/LONGTEXT");
+      strmake(typestr, "LONGBLOB/LONGTEXT", typestr_length);
       return length + 4;
     default:
       my_b_printf(file, "!! Unknown BLOB packlen=%d", length);
@@ -2254,7 +2255,7 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
 
     if (print_event_info->verbose > 1)
     {
-      my_b_printf(file, " /* ");
+      my_b_write(file, " /* ", 4);
 
       if (typestr[0])
         my_b_printf(file, "%s ", typestr);
@@ -2264,10 +2265,10 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
       my_b_printf(file, "meta=%d nullable=%d is_null=%d ",
                   td->field_metadata(i),
                   td->maybe_null(i), is_null);
-      my_b_printf(file, "*/");
+      my_b_write(file, "*/", 2);
     }
     
-    my_b_printf(file, "\n");
+    my_b_write_byte(file, '\n');
     
     null_bit_index++;
   }
@@ -2321,7 +2322,7 @@ void Rows_log_event::print_verbose(IO_CACHE *file,
   /* If the write rows event contained no values for the AI */
   if (((type_code == WRITE_ROWS_EVENT) && (m_rows_buf==m_rows_end)))
   {
-    my_b_printf(file, "### INSERT INTO `%s`.`%s` VALUES ()\n", 
+    my_b_printf(file, "### INSERT INTO %`s.%`s VALUES ()\n", 
                       map->get_db_name(), map->get_table_name());
     goto end;
   }
@@ -2329,7 +2330,7 @@ void Rows_log_event::print_verbose(IO_CACHE *file,
   for (const uchar *value= m_rows_buf; value < m_rows_end; )
   {
     size_t length;
-    my_b_printf(file, "### %s '%s'.'%s'\n",
+    my_b_printf(file, "### %s %`s.%`s\n",
                       sql_command,
                       map->get_db_name(), map->get_table_name());
     /* Print the first image */
@@ -2383,7 +2384,7 @@ void Log_event::print_base64(IO_CACHE* file,
   if (print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS)
   {
     if (my_b_tell(file) == 0)
-      my_b_printf(file, "\nBINLOG '\n");
+      my_b_write_string(file, "\nBINLOG '\n");
 
     my_b_printf(file, "%s\n", tmp_str);
 
@@ -3478,7 +3479,7 @@ void Query_log_event::print_query_header(IO_CACHE* file,
     if (different_db)
       memcpy(print_event_info->db, db, db_len + 1);
     if (db[0] && different_db) 
-      my_b_printf(file, "use %s%s\n", db, print_event_info->delimiter);
+      my_b_printf(file, "use %`s%s\n", db, print_event_info->delimiter);
   }
 
   end=int10_to_str((long) when, strmov(buff,"SET TIMESTAMP="),10);
@@ -3522,7 +3523,7 @@ void Query_log_event::print_query_header(IO_CACHE* file,
     if (unlikely(tmp)) /* some bits have changed */
     {
       bool need_comma= 0;
-      my_b_printf(file, "SET ");
+      my_b_write_string(file, "SET ");
       print_set_option(file, tmp, OPTION_NO_FOREIGN_KEY_CHECKS, ~flags2,
                        "@@session.foreign_key_checks", &need_comma);
       print_set_option(file, tmp, OPTION_AUTO_IS_NULL, flags2,
@@ -5313,7 +5314,7 @@ void Load_log_event::print(FILE* file_arg, PRINT_EVENT_INFO* print_event_info,
   }
   
   if (db && db[0] && different_db)
-    my_b_printf(&cache, "%suse %s%s\n",
+    my_b_printf(&cache, "%suse %`s%s\n",
             commented ? "# " : "",
             db, print_event_info->delimiter);
 
@@ -5324,33 +5325,33 @@ void Load_log_event::print(FILE* file_arg, PRINT_EVENT_INFO* print_event_info,
   my_b_printf(&cache, "%sLOAD DATA ",
               commented ? "# " : "");
   if (check_fname_outside_temp_buf())
-    my_b_printf(&cache, "LOCAL ");
+    my_b_write_string(&cache, "LOCAL ");
   my_b_printf(&cache, "INFILE '%-*s' ", fname_len, fname);
 
   if (sql_ex.opt_flags & REPLACE_FLAG)
-    my_b_printf(&cache,"REPLACE ");
+    my_b_write_string(&cache, "REPLACE ");
   else if (sql_ex.opt_flags & IGNORE_FLAG)
-    my_b_printf(&cache,"IGNORE ");
+    my_b_write_string(&cache, "IGNORE ");
   
   my_b_printf(&cache, "INTO TABLE `%s`", table_name);
-  my_b_printf(&cache, " FIELDS TERMINATED BY ");
+  my_b_write_string(&cache, " FIELDS TERMINATED BY ");
   pretty_print_str(&cache, sql_ex.field_term, sql_ex.field_term_len);
 
   if (sql_ex.opt_flags & OPT_ENCLOSED_FLAG)
-    my_b_printf(&cache," OPTIONALLY ");
-  my_b_printf(&cache, " ENCLOSED BY ");
+    my_b_write_string(&cache, " OPTIONALLY ");
+  my_b_write_string(&cache, " ENCLOSED BY ");
   pretty_print_str(&cache, sql_ex.enclosed, sql_ex.enclosed_len);
      
-  my_b_printf(&cache, " ESCAPED BY ");
+  my_b_write_string(&cache, " ESCAPED BY ");
   pretty_print_str(&cache, sql_ex.escaped, sql_ex.escaped_len);
      
-  my_b_printf(&cache," LINES TERMINATED BY ");
+  my_b_write_string(&cache, " LINES TERMINATED BY ");
   pretty_print_str(&cache, sql_ex.line_term, sql_ex.line_term_len);
 
 
   if (sql_ex.line_start)
   {
-    my_b_printf(&cache," STARTING BY ");
+    my_b_write_string(&cache," STARTING BY ");
     pretty_print_str(&cache, sql_ex.line_start, sql_ex.line_start_len);
   }
   if ((long) skip_lines > 0)
@@ -5360,16 +5361,16 @@ void Load_log_event::print(FILE* file_arg, PRINT_EVENT_INFO* print_event_info,
   {
     uint i;
     const char* field = fields;
-    my_b_printf(&cache, " (");
+    my_b_write_string(&cache, " (");
     for (i = 0; i < num_fields; i++)
     {
       if (i)
-        my_b_printf(&cache, ",");
-      my_b_printf(&cache, "%s", field);
+        my_b_write_byte(&cache, ',');
+      my_b_printf(&cache, "%`s", field);
 
       field += field_lens[i]  + 1;
     }
-    my_b_printf(&cache, ")");
+    my_b_write_byte(&cache, ')');
   }
 
   my_b_printf(&cache, "%s\n", print_event_info->delimiter);
@@ -5743,7 +5744,7 @@ void Rotate_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   if (print_event_info->short_form)
     return;
   print_header(&cache, print_event_info, FALSE);
-  my_b_printf(&cache, "\tRotate to ");
+  my_b_write_string(&cache, "\tRotate to ");
   if (new_log_ident)
     my_b_write(&cache, (uchar*) new_log_ident, (uint)ident_len);
   my_b_printf(&cache, "  pos: %s\n", llstr(pos, buf));
@@ -5947,9 +5948,9 @@ void Binlog_checkpoint_log_event::print(FILE *file,
   if (print_event_info->short_form)
     return;
   print_header(&cache, print_event_info, FALSE);
-  my_b_printf(&cache, "\tBinlog checkpoint ");
+  my_b_write_string(&cache, "\tBinlog checkpoint ");
   my_b_write(&cache, (uchar*)binlog_file_name, binlog_file_len);
-  my_b_printf(&cache, "\n");
+  my_b_write_byte(&cache, '\n');
 }
 #endif  /* MYSQL_CLIENT */
 
@@ -6088,7 +6089,7 @@ void Intvar_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   if (!print_event_info->short_form)
   {
     print_header(&cache, print_event_info, FALSE);
-    my_b_printf(&cache, "\tIntvar\n");
+    my_b_write_string(&cache, "\tIntvar\n");
   }
 
   my_b_printf(&cache, "SET ");
@@ -6215,7 +6216,7 @@ void Rand_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   if (!print_event_info->short_form)
   {
     print_header(&cache, print_event_info, FALSE);
-    my_b_printf(&cache, "\tRand\n");
+    my_b_write_string(&cache, "\tRand\n");
   }
   my_b_printf(&cache, "SET @@RAND_SEED1=%s, @@RAND_SEED2=%s%s\n",
               llstr(seed1, llbuff),llstr(seed2, llbuff2),
@@ -6689,10 +6690,10 @@ void User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   if (!print_event_info->short_form)
   {
     print_header(&cache, print_event_info, FALSE);
-    my_b_printf(&cache, "\tUser_var\n");
+    my_b_write_string(&cache, "\tUser_var\n");
   }
 
-  my_b_printf(&cache, "SET @");
+  my_b_write_string(&cache, "SET @");
   my_b_write_backtick_quote(&cache, name, name_len);
 
   if (is_null)
@@ -7080,7 +7081,7 @@ void Stop_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
     return;
 
   print_header(&cache, print_event_info, FALSE);
-  my_b_printf(&cache, "\tStop\n");
+  my_b_write_string(&cache, "\tStop\n");
 }
 #endif /* MYSQL_CLIENT */
 
@@ -7280,7 +7281,7 @@ void Create_file_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info
       That one is for "file_id: etc" below: in mysqlbinlog we want the #, in
       SHOW BINLOG EVENTS we don't.
      */
-    my_b_printf(&cache, "#");
+    my_b_write_byte(&cache, '#');
   }
 
   my_b_printf(&cache, " file_id: %d  block_len: %d\n", file_id, block_len);
@@ -7977,12 +7978,12 @@ void Execute_load_query_log_event::print(FILE* file,
   if (local_fname)
   {
     my_b_write(&cache, (uchar*) query, fn_pos_start);
-    my_b_printf(&cache, " LOCAL INFILE \'");
+    my_b_write_string(&cache, " LOCAL INFILE \'");
     my_b_printf(&cache, "%s", local_fname);
-    my_b_printf(&cache, "\'");
+    my_b_write_string(&cache, "\'");
     if (dup_handling == LOAD_DUP_REPLACE)
-      my_b_printf(&cache, " REPLACE");
-    my_b_printf(&cache, " INTO");
+      my_b_write_string(&cache, " REPLACE");
+    my_b_write_string(&cache, " INTO");
     my_b_write(&cache, (uchar*) query + fn_pos_end, q_len-fn_pos_end);
     my_b_printf(&cache, "\n%s\n", print_event_info->delimiter);
   }
@@ -9848,7 +9849,7 @@ void Table_map_log_event::print(FILE *, PRINT_EVENT_INFO *print_event_info)
   {
     print_header(&print_event_info->head_cache, print_event_info, TRUE);
     my_b_printf(&print_event_info->head_cache,
-                "\tTable_map: '%s'.'%s' mapped to number %lu\n",
+                "\tTable_map: %`s.%`s mapped to number %lu\n",
                 m_dbnam, m_tblnam, (ulong) m_table_id);
     print_base64(&print_event_info->body_cache, print_event_info, TRUE);
   }
