@@ -22448,9 +22448,9 @@ void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
 
 /*
   Save Query Plan Footprint
-    push_extra
 
-    P
+  @note
+    Currently, this function may be called multiple times
 */
 
 int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
@@ -22471,11 +22471,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   DBUG_ASSERT(have_query_plan == QEP_AVAILABLE);
   /* Don't log this into the slow query log */
 
-
-  /* 
-    NOTE: the number/types of items pushed into item_list must be in sync with
-    EXPLAIN column types as they're "defined" in THD::send_explain_fields()
-  */
   if (message)
   {
     QPF_select *qp_sel;
@@ -22998,8 +22993,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
     output->add_node(qp_sel);
   }
 
-  //TODO: can a UNION have subquery children that are not union members? yes,
-  //perhaps...
   for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
        unit;
        unit= unit->next_unit())
