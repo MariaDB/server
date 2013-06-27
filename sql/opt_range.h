@@ -944,11 +944,7 @@ public:
   void dbug_dump(int indent, bool verbose);
 #endif
   bool is_agg_distinct() { return have_agg_distinct; }
-  virtual void append_loose_scan_type(String *str) 
-  {
-    if (is_index_scan)
-      str->append(STRING_WITH_LEN(" (scanning)"));
-  }
+  bool loose_scan_is_scanning() { return is_index_scan; }
 };
 
 
