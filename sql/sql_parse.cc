@@ -1148,7 +1148,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 #endif
   case COM_CHANGE_USER:
   {
-    bool rc;
+    int auth_rc;
     status_var_increment(thd->status_var.com_other);
 
     thd->change_user();
@@ -1179,13 +1179,13 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     if (thd->failed_com_change_user >= 3)
     {
       my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
-      rc= 1;
+      auth_rc= 1;
     }
     else
-      rc= acl_authenticate(thd, 0, packet_length);
+      auth_rc= acl_authenticate(thd, 0, packet_length);
 
     MYSQL_AUDIT_NOTIFY_CONNECTION_CHANGE_USER(thd);
-    if (rc)
+    if (auth_rc)
     {
       /* Free user if allocated by acl_authenticate */
       my_free(thd->security_ctx->user);

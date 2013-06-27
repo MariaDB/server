@@ -105,9 +105,7 @@ static PFS_engine_table_share *all_shares[]=
   &table_file_instances::m_share,
   &table_file_summary_by_event_name::m_share,
   &table_file_summary_by_instance::m_share,
-#ifdef QQ_NOT_YET
   &table_host_cache::m_share,
-#endif
   &table_mutex_instances::m_share,
   &table_os_global_by_type::m_share,
   &table_performance_timers::m_share,
@@ -164,7 +162,7 @@ void PFS_engine_table_share::check_all_tables(THD *thd)
   DBUG_EXECUTE_IF("tampered_perfschema_table1",
                   {
                     /* Hack SETUP_INSTRUMENT, incompatible change. */
-                    all_shares[19]->m_field_def->count++;
+                    all_shares[20]->m_field_def->count++;
                   });
 
   for (current= &all_shares[0]; (*current) != NULL; current++)
@@ -1412,11 +1410,7 @@ bool pfs_show_status(handlerton *hton, THD *thd,
         - no host_cache.memory
       */
       name= "host_cache.size";
-#ifdef NOT_YET_IMPLEMENTED
       size= sizeof(Host_entry);
-#else
-      size= 0;
-#endif
       break;
 
     /*

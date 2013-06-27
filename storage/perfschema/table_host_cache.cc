@@ -23,8 +23,6 @@
 #include "table_host_cache.h"
 #include "hostname.h"
 
-#ifdef NOT_YET_PORTED
-
 THR_LOCK table_host_cache::m_table_lock;
 
 static const TABLE_FIELD_TYPE field_types[]=
@@ -478,4 +476,3 @@ int table_host_cache::read_row_values(TABLE *table,
   return 0;
 }
 
-#endif /* NOT_YET_PORTED */

@@ -213,6 +213,12 @@ extern int bootstrap_error;
 extern I_List<THD> threads;
 extern char err_shared_dir[];
 extern TYPELIB thread_handling_typelib;
+extern ulong connection_errors_select;
+extern ulong connection_errors_accept;
+extern ulong connection_errors_tcpwrap;
+extern ulong connection_errors_internal;
+extern ulong connection_errors_max_connection;
+extern ulong connection_errors_peer_addr;
 extern ulong log_warnings;
 
 /*
