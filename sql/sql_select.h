@@ -1336,7 +1336,10 @@ public:
     pre_sort_join_tab= NULL;
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
+
+    exec_qpf_saved= false;
   }
+  bool exec_qpf_saved;
 
   int prepare(Item ***rref_pointer_array, TABLE_LIST *tables, uint wind_num,
 	      COND *conds, uint og_num, ORDER *order, ORDER *group,

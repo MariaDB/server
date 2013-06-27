@@ -3584,7 +3584,7 @@ View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` FORCE INDEX (PRIMARY) FORCE INDEX (`b`) order by `t1`.`a`	latin1	latin1_swedish_ci
 EXPLAIN SELECT * FROM v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	15	
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	15	
 CREATE VIEW v2 AS SELECT * FROM t1 USE KEY () ORDER BY a;
 SHOW CREATE VIEW v2;
 View	Create View	character_set_client	collation_connection

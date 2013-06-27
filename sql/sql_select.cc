@@ -2347,6 +2347,36 @@ void JOIN::exec()
 
   exec_inner();
 
+  if (!exec_qpf_saved)
+  {
+    if (select_lex->select_number != UINT_MAX && 
+        select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
+        have_query_plan != QEP_NOT_PRESENT_YET && 
+        have_query_plan != QEP_DELETED &&  // this happens when there was no QEP ever, but then
+                                           //cleanup() is called multiple times
+
+        thd->lex->query_plan_footprint //&& // for "SET" command in SPs.
+        /*!thd->lex->query_plan_footprint->get_select(select_lex->select_number)*/)
+    {
+      const char *message= NULL;
+
+      if (!table_count || !tables_list || zero_result_cause)
+      {
+        /* It's a degenerate join */
+        message= zero_result_cause ? zero_result_cause : "No tables used";
+      }
+
+      save_qpf(thd->lex->query_plan_footprint,
+               need_tmp, // need_tmp_table
+         //      !skip_sort_order && !no_order &&
+         //      (order || group_list), // bool need_order
+               order != 0 && !skip_sort_order,
+               select_distinct, // bool distinct
+               message); // message
+    }
+    exec_qpf_saved= true;
+  }
+
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
                   if (dbug_user_var_equals_int(thd, 
                                                "show_explain_probe_select_id", 
@@ -11151,7 +11181,7 @@ void JOIN::cleanup(bool full)
   
   if (full)
   {
-    //
+    /* Save it again */
 #if 0    
     if (select_lex->select_number != UINT_MAX && 
         select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
@@ -11159,8 +11189,8 @@ void JOIN::cleanup(bool full)
         have_query_plan != QEP_DELETED &&  // this happens when there was no QEP ever, but then
                                            //cleanup() is called multiple times
 
-        thd->lex->query_plan_footprint && // for "SET" command in SPs.
-        !thd->lex->query_plan_footprint->get_select(select_lex->select_number))
+        thd->lex->query_plan_footprint //&& // for "SET" command in SPs.
+        /*!thd->lex->query_plan_footprint->get_select(select_lex->select_number)*/)
     {
       const char *message= NULL;
 
@@ -11178,8 +11208,6 @@ void JOIN::cleanup(bool full)
                message); // message
     }
 #endif
-    //
-
     have_query_plan= QEP_DELETED; //psergey: this is a problem!
   }
 
