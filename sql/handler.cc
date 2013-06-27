@@ -2237,6 +2237,7 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
 handler *handler::clone(const char *name, MEM_ROOT *mem_root)
 {
   handler *new_handler= get_new_handler(table->s, mem_root, ht);
+
   if (!new_handler)
     return NULL;
   if (new_handler->set_ha_share_ref(ha_share))
@@ -5047,14 +5048,7 @@ int handler::read_range_first(const key_range *start_key,
   DBUG_ENTER("handler::read_range_first");
 
   eq_range= eq_range_arg;
-  end_range= 0;
-  if (end_key)
-  {
-    end_range= &save_end_range;
-    save_end_range= *end_key;
-    key_compare_result_on_equal= ((end_key->flag == HA_READ_BEFORE_KEY) ? 1 :
-				  (end_key->flag == HA_READ_AFTER_KEY) ? -1 : 0);
-  }
+  set_end_range(end_key);
   range_key_part= table->key_info[active_index].key_part;
 
   if (!start_key)			// Read first record
@@ -5130,12 +5124,26 @@ int handler::read_range_next()
 }
 
 
+void handler::set_end_range(const key_range *end_key)
+{
+  end_range= 0;
+  if (end_key)
+  {
+    end_range= &save_end_range;
+    save_end_range= *end_key;
+    key_compare_result_on_equal=
+      ((end_key->flag == HA_READ_BEFORE_KEY) ? 1 :
+       (end_key->flag == HA_READ_AFTER_KEY) ? -1 : 0);
+  }
+}
+
+
 /**
   Compare if found key (in row) is over max-value.
 
   @param range		range to compare to row. May be 0 for no range
 
-  @seealso
+  @see also
     key.cc::key_cmp()
 
   @return
