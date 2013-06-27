@@ -3495,6 +3495,18 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
         is_correlated_unit|= sl->is_correlated;
         inner_join->select_options= save_options;
         un->thd->lex->current_select= save_select;
+        /// psergey:
+        QPF_query *qpf;
+        if ((qpf= inner_join->thd->lex->query_plan_footprint))
+        {
+          QPF_select *qp_sel;
+          if ((qp_sel= qpf->get_select(inner_join->select_lex->select_number)))
+          {
+            sl->set_explain_type(TRUE);
+            qp_sel->select_type= sl->type;
+          }
+        }
+        ///
         if (empty_union_result)
         {
           /*
@@ -4182,7 +4194,7 @@ int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
                        bool *printed_anything) //TODO: remove printed_anything
 {
   int res;
-  if (query_plan_footprint)
+  if (query_plan_footprint && query_plan_footprint->have_query_plan())
   {
     res= query_plan_footprint->print_explain(output, explain_flags);
     *printed_anything= true;
