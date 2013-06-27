@@ -4643,6 +4643,7 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
         Note that during creation of temporary table we still need to check
         if user has CREATE_TMP_ACL.
       */
+      tl->grant.privilege|= TMP_TABLE_ACLS;
       tl->grant.want_privilege= 0;
       continue;
     }

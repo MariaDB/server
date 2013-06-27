@@ -2276,13 +2276,14 @@ TABLE *find_temporary_table(THD *thd,
 
 int drop_temporary_table(THD *thd, TABLE_LIST *table_list, bool *is_trans)
 {
-  TABLE *table;
   DBUG_ENTER("drop_temporary_table");
   DBUG_PRINT("tmptable", ("closing table: '%s'.'%s'",
                           table_list->db, table_list->table_name));
 
-  if (!(table= find_temporary_table(thd, table_list)))
+  if (!is_temporary_table(table_list))
     DBUG_RETURN(1);
+
+  TABLE *table= table_list->table;
 
   /* Table might be in use by some outer statement. */
   if (table->query_id && table->query_id != thd->query_id)
@@ -2291,8 +2292,7 @@ int drop_temporary_table(THD *thd, TABLE_LIST *table_list, bool *is_trans)
     DBUG_RETURN(-1);
   }
 
-  if (is_trans != NULL)
-    *is_trans= table->file->has_transactions();
+  *is_trans= table->file->has_transactions();
 
   /*
     If LOCK TABLES list is not empty and contains this table,
@@ -2300,6 +2300,7 @@ int drop_temporary_table(THD *thd, TABLE_LIST *table_list, bool *is_trans)
   */
   mysql_lock_remove(thd, thd->lock, table);
   close_temporary_table(thd, table, 1, 1);
+  table_list->table= NULL;
   DBUG_RETURN(0);
 }
 
@@ -4238,8 +4239,7 @@ recover_from_failed_open(THD *thd)
     case OT_DISCOVER:
       {
         if ((result= lock_table_names(thd, m_failed_table, NULL,
-                                      get_timeout(),
-                                      MYSQL_OPEN_SKIP_TEMPORARY)))
+                                      get_timeout(), 0)))
           break;
 
         tdc_remove_table(thd, TDC_RT_REMOVE_ALL, m_failed_table->db,
@@ -4255,8 +4255,7 @@ recover_from_failed_open(THD *thd)
     case OT_REPAIR:
       {
         if ((result= lock_table_names(thd, m_failed_table, NULL,
-                                      get_timeout(),
-                                      MYSQL_OPEN_SKIP_TEMPORARY)))
+                                      get_timeout(), 0)))
           break;
 
         tdc_remove_table(thd, TDC_RT_REMOVE_ALL, m_failed_table->db,
