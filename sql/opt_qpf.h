@@ -216,7 +216,9 @@ public:
 
   /* Produce a tabular EXPLAIN output */
   int print_explain(select_result_sink *output, uint8 explain_flags);
-
+  
+  /* If true, at least part of EXPLAIN can be printed */
+  bool have_query_plan() { return upd_del_plan!= NULL || get_node(1) != NULL; }
   MEM_ROOT *mem_root;
 private:
   Dynamic_array<QPF_union*> unions;

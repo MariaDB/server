@@ -202,7 +202,6 @@ set debug_dbug='+d,show_explain_probe_join_exec_end';
 send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -349,7 +348,7 @@ connection default;
 --source include/wait_condition.inc
 --echo # FIXED by "conservative assumptions about when QEP is available" fix:
 --echo #    NOTE: current code will not show "Using join buffer": 
---error ER_TARGET_NOT_EXPLAINABLE
+#--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -428,7 +427,7 @@ set debug_dbug='+d,show_explain_probe_join_exec_end';
 send select * from t0 where 1>10;
 connection default;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+#--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -444,7 +443,7 @@ set debug_dbug='+d,show_explain_probe_join_exec_end';
 send select * from t0,t3 where t3.a=112233;
 connection default;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+# --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -540,7 +539,7 @@ send
   SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
 connection default;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+# --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
