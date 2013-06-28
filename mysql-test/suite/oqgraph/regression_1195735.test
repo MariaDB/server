@@ -1,0 +1,44 @@
+# Regression test for https://bugs.launchpad.net/oqgraph/+bug/1195735
+#--reproduce bug where select * from graph after delete from graph_base hangs the server
+--disable_warnings
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+# Create the backing store
+CREATE TABLE graph_base (
+    from_id INT UNSIGNED NOT NULL,
+    to_id INT UNSIGNED NOT NULL,
+    PRIMARY KEY (from_id,to_id),
+    INDEX (to_id)
+  ) ENGINE=MyISAM;
+
+
+CREATE TABLE graph (
+    latch   VARCHAR(32) NULL,
+    origid  BIGINT    UNSIGNED NULL,
+    destid  BIGINT    UNSIGNED NULL,
+    weight  DOUBLE    NULL,
+    seq     BIGINT    UNSIGNED NULL,
+    linkid  BIGINT    UNSIGNED NULL,
+    KEY (latch, origid, destid) USING HASH,
+    KEY (latch, destid, origid) USING HASH
+  ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+
+
+INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
+
+--echo One select of any clauses at all on graph here caused a hang on the select after the DELETE FROM
+#-- even this if it is the only one - but it doesnt hang here ... SELECT * FROM graph;
+SELECT * FROM graph WHERE destid=2 and origid=1;
+
+DELETE FROM graph_base;
+#-- Bug 1195735 hangs on the next line
+SELECT * from graph;
+FLUSH TABLES;
+TRUNCATE TABLE graph_base;
+DROP TABLE graph_base;
+--error S42S02
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=1 AND destid=6;
+DROP TABLE graph;
+
