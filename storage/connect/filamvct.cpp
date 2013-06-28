@@ -10,15 +10,15 @@
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
 /*  This program are the VCT file access method classes.               */
-/*  Added in version 2:      F                                          */
+/*  Added in version 2:      F                                         */
 /*  - Split Vec format.                                                */
 /*  - Partial delete.                                                  */
-/*  - Use of tempfile for update.                                       */
+/*  - Use of tempfile for update.                                      */
 /*                                                                     */
 /***********************************************************************/
 
 /***********************************************************************/
-/*  Include relevant MariaDB header file.                  */
+/*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
 #if defined(WIN32)
@@ -1823,7 +1823,7 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
   {
   char    opmode[4];
   int     i;
-  bool    b;
+  bool    b= false;
   PCOLDEF cdp;
   PVCTCOL cp;
   MODE    mode = Tdbp->GetMode();

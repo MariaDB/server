@@ -360,6 +360,9 @@ static int connect_init_func(void *p)
     trace= xtrace;
   } // endif xtrace
 
+#if !defined(WIN32)
+  PROFILE_Close(connectini);
+#endif   // !WIN32
 
   init_connect_psi_keys();
 
@@ -395,7 +398,7 @@ static int connect_done_func(void *p)
 #endif   // LIBXML2_SUPPORT
 
 #if !defined(WIN32)
-  PROFILE_Close(connectini);
+  PROFILE_End();
 #endif   // !WIN32
 
   for (pc= user_connect::to_users; pc; pc= pn) {
@@ -903,6 +906,7 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
     case MYSQL_TYPE_VARCHAR:
     case MYSQL_TYPE_VAR_STRING:
       pcf->Flags |= U_VAR;
+      /* no break */
     case MYSQL_TYPE_STRING:
       pcf->Type= TYPE_STRING;
 
@@ -966,6 +970,7 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
       break;
     default:
       pcf->Type=TYPE_ERROR;
+      break;
     } // endswitch type
 
   // This is used to skip null bit
@@ -1327,6 +1332,7 @@ int ha_connect::MakeRecord(char *buf)
                 break;
               default:
                 fmt= "%Y-%m-%d %H:%M:%S";
+                break;
               } // endswitch type
       
             // Get date in the format required by MySQL fields
@@ -1340,6 +1346,7 @@ int ha_connect::MakeRecord(char *buf)
             // Passthru
           default:
             p= value->GetCharString(val);
+            break;
           } // endswitch Type
 
         if (p) {
@@ -1459,6 +1466,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
                                     attribute.charset(), charset, &cnv_errors);
             value->SetValue_psz(data_charset_value.c_ptr_safe());
           }
+          break;
         } // endswitch Type
 
 #ifdef NEWCHANGE
@@ -1566,6 +1574,7 @@ const char *ha_connect::GetValStr(OPVAL vop, bool neg)
       break;
     default:
       val= " ? ";
+      break;
     } /* endswitch */
 
   return val;
@@ -2168,6 +2177,7 @@ int ha_connect::ReadIndexed(uchar *buf, OPVAL op, const uchar *key, uint key_len
       DBUG_PRINT("ReadIndexed", ("%s", xp->g->Message));
       printf("ReadIndexed: %s\n", xp->g->Message);
       rc= HA_ERR_INTERNAL_ERROR;
+      break;
     } // endswitch RC
 
   if (xtrace > 1)
@@ -2210,7 +2220,7 @@ int ha_connect::index_read(uchar * buf, const uchar * key, uint key_len,
     case HA_READ_KEY_EXACT:   op= OP_EQ; break;
     case HA_READ_AFTER_KEY:   op= OP_GT; break;
     case HA_READ_KEY_OR_NEXT: op= OP_GE; break;
-    default: DBUG_RETURN(-1);
+    default: DBUG_RETURN(-1);			 break;
     } // endswitch find_flag
 
   if (xtrace > 1)
@@ -2833,6 +2843,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     case F_UNLCK:
     default:
       newmode= MODE_ANY;
+      break;
     } // endswitch mode
 
   if (newmode == MODE_ANY) {
@@ -2990,6 +3001,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
         printf("Unsupported sql_command=%d", thd_sql_command(thd));
         sprintf(g->Message, "Unsupported sql_command=%d", thd_sql_command(thd));
         DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+        break;
       } // endswitch newmode
 
   } else if (newmode == MODE_READ) {
@@ -3027,6 +3039,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
         printf("Unsupported sql_command=%d", thd_sql_command(thd));
         sprintf(g->Message, "Unsupported sql_command=%d", thd_sql_command(thd));
         DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+        break;
       } // endswitch newmode
 
   } // endif's newmode
@@ -3583,6 +3596,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       break;
     default:
       sprintf(g->Message, "Cannot get column info for table type %s", topt->type);
+      break;
     } // endif ttp
 
   // Check for supported catalog function
@@ -3643,6 +3657,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
             break;
           default:
             sprintf(g->Message, "invalid catfunc %s", fncn);
+            break;
         } // endswitch info
 
         break;
@@ -3979,7 +3994,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         } // endif tabname
 
       default: /* do nothing */;
-      } // endswitch ttp
+        break;
+     } // endswitch ttp
 
   if (type == TAB_XML) {
     bool  dom;                  // True: MS-DOM, False libxml2
@@ -4001,6 +4017,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         break;
       default:
         dom= false;
+        break;
       } // endswitch xsup
 
 #if !defined(DOMDOC_SUPPORT)
@@ -4086,6 +4103,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
                         "Unsupported type for column '%s'",
                         MYF(0), fp->field_name);
         DBUG_RETURN(rc);
+        break;
       } // endswitch type
 
     if ((fp)->real_maybe_null() && !IsTypeNullable(type)) {
