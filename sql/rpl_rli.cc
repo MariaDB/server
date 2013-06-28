@@ -59,7 +59,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    abort_pos_wait(0), slave_run_id(0), sql_thd(0),
    inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
-   gtid_sub_id(0), tables_to_lock(0), tables_to_lock_count(0),
+   group_info(0), tables_to_lock(0), tables_to_lock_count(0),
    last_event_start_time(0), deferred_events(NULL),m_flags(0),
    row_stmt_start_timestamp(0), long_find_row_note_printed(false),
    m_annotate_event(0)
@@ -113,6 +113,8 @@ Relay_log_info::~Relay_log_info()
   mysql_cond_destroy(&sleep_cond);
   relay_log.cleanup();
   free_annotate_event();
+  if (group_info)
+    my_free(group_info);
   DBUG_VOID_RETURN;
 }
 

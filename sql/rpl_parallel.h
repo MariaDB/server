@@ -23,7 +23,7 @@ struct rpl_parallel_thread {
   struct queued_event {
     queued_event *next;
     Log_event *ev;
-    Relay_log_info *rli;
+    struct rpl_group_info *rgi;
   } *event_queue, *last_in_queue;
   rpl_parallel_thread *wait_for; /* ToDo: change this ... */
 };

@@ -44,6 +44,7 @@
 
 void mysql_client_binlog_statement(THD* thd)
 {
+  struct rpl_group_info *rgi;
   DBUG_ENTER("mysql_client_binlog_statement");
   DBUG_PRINT("info",("binlog base64: '%*s'",
                      (int) (thd->lex->comment.length < 2048 ?
@@ -196,6 +197,17 @@ void mysql_client_binlog_statement(THD* thd)
         }
       }
 
+      if (!(rgi= rli->group_info))
+      {
+        if (!(rgi= rli->group_info= (struct rpl_group_info *)
+              my_malloc(sizeof(*rgi), MYF(0))))
+        {
+          my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*rgi));
+          goto end;
+        }
+        bzero(rgi, sizeof(*rgi));
+      }
+      rgi->rli= rli;
       ev= Log_event::read_log_event(bufptr, event_len, &error,
                                     rli->relay_log.description_event_for_exec,
                                     0);
@@ -232,7 +244,7 @@ void mysql_client_binlog_statement(THD* thd)
         (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ?
          OPTION_SKIP_REPLICATION : 0);
 
-      err= ev->apply_event(rli);
+      err= ev->apply_event(rgi);
 
       thd->variables.option_bits=
         (thd->variables.option_bits & ~OPTION_SKIP_REPLICATION) |

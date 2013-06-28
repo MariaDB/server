@@ -275,7 +275,7 @@ public:
   /* queue for exection at Query-log-event time prior the Query */
   int add(Log_event *ev);
   bool is_empty();
-  bool execute(Relay_log_info *rli);
+  bool execute(struct rpl_group_info *rgi);
   void rewind();
   bool is_last(Log_event *ev) { return ev == last_added; };
 };

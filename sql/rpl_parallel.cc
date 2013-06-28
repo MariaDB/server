@@ -13,15 +13,18 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
                  struct rpl_parallel_thread *rpt)
 {
   int err;
-  Relay_log_info *rli= qev->rli;
+  struct rpl_group_info *rgi= qev->rgi;
+  Relay_log_info *rli= rgi->rli;
 
   thd->rli_slave= rli;
   thd->rpl_filter = rli->mi->rpl_filter;
   /* ToDo: Access to thd, and what about rli, split out a parallel part? */
   mysql_mutex_lock(&rli->data_lock);
-  err= apply_event_and_update_pos(qev->ev, thd, rli, rpt);
+  err= apply_event_and_update_pos(qev->ev, thd, rgi, rpt);
   /* ToDo: error handling. */
   /* ToDo: also free qev->ev, or hold on to it for a bit if necessary. */
+  my_free(rgi);
+  rgi= NULL;
 }
 
 
@@ -398,7 +401,8 @@ rpl_parallel::do_event(Relay_log_info *rli, Log_event *ev, THD *parent_thd)
     return true;
   }
   qev->ev= ev;
-  qev->rli= rli;
+  qev->rgi= rli->group_info;
+  rli->group_info= NULL;  /* Avoid conflict with groups applied in parallel */
   qev->next= NULL;
 
   if (ev->get_type_code() == GTID_EVENT)
