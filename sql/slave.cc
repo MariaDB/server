@@ -3018,10 +3018,12 @@ static int has_temporary_error(THD *thd)
   @retval 2 No error calling ev->apply_event(), but error calling
   ev->update_pos().
 */
-int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli,
+int apply_event_and_update_pos(Log_event* ev, THD* thd,
+                               struct rpl_group_info *rgi,
                                rpl_parallel_thread *rpt)
 {
   int exec_res= 0;
+  Relay_log_info* rli= rgi->rli;
 
   DBUG_ENTER("apply_event_and_update_pos");
 
@@ -3080,7 +3082,7 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli,
   }
   mysql_mutex_unlock(&rli->data_lock);
   if (reason == Log_event::EVENT_SKIP_NOT)
-    exec_res= ev->apply_event(rli);
+    exec_res= ev->apply_event(rgi);
 
 #ifndef DBUG_OFF
   /*
@@ -3244,7 +3246,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli)
     if (opt_slave_parallel_threads > 0)
       DBUG_RETURN(rli->parallel.do_event(rli, ev, thd));
 
-    exec_res= apply_event_and_update_pos(ev, thd, rli, NULL);
+    exec_res= apply_event_and_update_pos(ev, thd, rli->group_info, NULL);
 
     switch (ev->get_type_code()) {
       case FORMAT_DESCRIPTION_EVENT:
@@ -5734,6 +5736,7 @@ static Log_event* next_event(Relay_log_info* rli)
   mysql_mutex_t *log_lock = rli->relay_log.get_log_lock();
   const char* errmsg=0;
   THD* thd = rli->sql_thd;
+  struct rpl_group_info *rgi;
   DBUG_ENTER("next_event");
 
   DBUG_ASSERT(thd != 0);
@@ -5821,6 +5824,19 @@ static Log_event* next_event(Relay_log_info* rli)
                                        opt_slave_sql_verify_checksum)))
 
     {
+      if (!(rgi= rli->group_info))
+      {
+        if (!(rgi= rli->group_info= (struct rpl_group_info *)
+              my_malloc(sizeof(*rgi), MYF(0))))
+        {
+          errmsg = "slave SQL thread aborted because of out-of-memory error";
+          if (hot_log)
+            mysql_mutex_unlock(log_lock);
+          goto err;
+        }
+        bzero(rgi, sizeof(*rgi));
+      }
+      rgi->rli= rli;
       DBUG_ASSERT(thd==rli->sql_thd);
       /*
         read it while we have a lock, to avoid a mutex lock in
@@ -5842,10 +5858,10 @@ static Log_event* next_event(Relay_log_info* rli)
             mysql_mutex_unlock(log_lock);
           goto err;
         }
-        rli->gtid_sub_id= sub_id;
-        rli->current_gtid.server_id= gev->server_id;
-        rli->current_gtid.domain_id= gev->domain_id;
-        rli->current_gtid.seq_no= gev->seq_no;
+        rgi->gtid_sub_id= sub_id;
+        rgi->current_gtid.server_id= gev->server_id;
+        rgi->current_gtid.domain_id= gev->domain_id;
+        rgi->current_gtid.seq_no= gev->seq_no;
       }
 
       if (hot_log)

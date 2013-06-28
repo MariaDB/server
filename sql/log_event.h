@@ -1317,9 +1317,9 @@ public:
 
      @see do_apply_event
    */
-  int apply_event(Relay_log_info const *rli)
+  int apply_event(struct rpl_group_info *rgi)
   {
-    return do_apply_event(rli);
+    return do_apply_event(rgi);
   }
 
 
@@ -1412,7 +1412,7 @@ protected:
     @retval 0     Event applied successfully
     @retval errno Error code if event application failed
   */
-  virtual int do_apply_event(Relay_log_info const *rli)
+  virtual int do_apply_event(struct rpl_group_info *rgi)
   {
     return 0;                /* Default implementation does nothing */
   }
@@ -1966,10 +1966,10 @@ public:
 public:        /* !!! Public in this patch to allow old usage */
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
   virtual int do_update_pos(Relay_log_info *rli);
 
-  int do_apply_event(Relay_log_info const *rli,
+  int do_apply_event(struct rpl_group_info *rgi,
                        const char *query_arg,
                        uint32 q_len_arg);
   static bool peek_is_commit_rollback(const char *event_start,
@@ -2083,7 +2083,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const* rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
 #endif
 };
 
@@ -2396,12 +2396,12 @@ public:
 
 public:        /* !!! Public in this patch to allow old usage */
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const* rli)
+  virtual int do_apply_event(struct rpl_group_info *rgi)
   {
-    return do_apply_event(thd->slave_net,rli,0);
+    return do_apply_event(thd->slave_net,rgi,0);
   }
 
-  int do_apply_event(NET *net, Relay_log_info const *rli,
+  int do_apply_event(NET *net, struct rpl_group_info *rgi,
                      bool use_rli_only_for_errors);
 #endif
 };
@@ -2480,7 +2480,7 @@ public:
 
 protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(Relay_log_info*)
   {
     /*
@@ -2576,7 +2576,7 @@ public:
   static bool is_version_before_checksum(const master_version_split *version_split);
 protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
   virtual int do_update_pos(Relay_log_info *rli);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
@@ -2655,7 +2655,7 @@ Intvar_log_event(THD* thd_arg,uchar type_arg, ulonglong val_arg,
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
   virtual int do_update_pos(Relay_log_info *rli);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
@@ -2734,7 +2734,7 @@ class Rand_log_event: public Log_event
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
   virtual int do_update_pos(Relay_log_info *rli);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
@@ -2783,7 +2783,7 @@ class Xid_log_event: public Log_event
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
   enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
 };
@@ -2850,7 +2850,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
   virtual int do_update_pos(Relay_log_info *rli);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
@@ -3099,7 +3099,7 @@ public:
                  uint16 flags, bool is_transactional, uint64 commit_id);
 #ifdef HAVE_REPLICATION
   void pack_info(THD *thd, Protocol *protocol);
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
   virtual int do_update_pos(Relay_log_info *rli);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
@@ -3229,7 +3229,7 @@ public:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   bool to_packet(String *packet);
   bool write(IO_CACHE *file);
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
 #endif
   static bool peek(const char *event_start, uint32 event_len,
                    uint8 checksum_alg,
@@ -3308,7 +3308,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
 #endif
 };
 
@@ -3363,7 +3363,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
 #endif
 };
 
@@ -3404,7 +3404,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
 #endif
 };
 
@@ -3444,7 +3444,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
 #endif
 };
 
@@ -3543,7 +3543,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
 #endif
 };
 
@@ -3615,7 +3615,7 @@ public:
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 private:
-  virtual int do_apply_event(Relay_log_info const*);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
   virtual int do_update_pos(Relay_log_info*);
   virtual enum_skip_reason do_shall_skip(Relay_log_info*);
 #endif
@@ -4030,7 +4030,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
   virtual int do_update_pos(Relay_log_info *rli);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
@@ -4258,7 +4258,7 @@ protected:
 private:
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
   virtual int do_update_pos(Relay_log_info *rli);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 
@@ -4592,7 +4592,7 @@ public:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
 #endif
 
   virtual bool write_data_header(IO_CACHE *file);

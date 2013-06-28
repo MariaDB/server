@@ -53,6 +53,8 @@ class Master_info;
 
 *****************************************************************************/
 
+struct rpl_group_info;
+
 class Relay_log_info : public Slave_reporting_capability
 {
 public:
@@ -312,13 +314,8 @@ public:
   char slave_patternload_file[FN_REFLEN]; 
   size_t slave_patternload_file_size;  
 
-  /*
-    Current GTID being processed.
-    The sub_id gives the binlog order within one domain_id. A zero sub_id
-    means that there is no active GTID.
-  */
-  uint64 gtid_sub_id;
-  rpl_gtid current_gtid;
+  /* Various data related to the currently executing event group. */
+  struct rpl_group_info *group_info;
   rpl_parallel parallel;
 
   Relay_log_info(bool is_slave_recovery);
@@ -593,6 +590,26 @@ private:
   bool long_find_row_note_printed;
 
   Annotate_rows_log_event *m_annotate_event;
+};
+
+
+/*
+  This is data for various state needed to be kept for the processing of
+  one event group in the SQL thread.
+
+  For single-threaded replication it is linked from the RLI, for parallel
+  replication it is linked into each event group being executed in parallel.
+*/
+struct rpl_group_info
+{
+  Relay_log_info *rli;
+  /*
+    Current GTID being processed.
+    The sub_id gives the binlog order within one domain_id. A zero sub_id
+    means that there is no active GTID.
+  */
+  uint64 gtid_sub_id;
+  rpl_gtid current_gtid;
 };
 
 

@@ -3755,9 +3755,9 @@ void Query_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 
-int Query_log_event::do_apply_event(Relay_log_info const *rli)
+int Query_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
-  return do_apply_event(rli, query, q_len);
+  return do_apply_event(rgi, query, q_len);
 }
 
 /**
@@ -3806,7 +3806,7 @@ bool test_if_equal_repl_errors(int expected_error, int actual_error)
   mismatch. This mismatch could be implemented with a new ER_ code, and
   to ignore it you would use --slave-skip-errors...
 */
-int Query_log_event::do_apply_event(Relay_log_info const *rli,
+int Query_log_event::do_apply_event(struct rpl_group_info *rgi,
                                       const char *query_arg, uint32 q_len_arg)
 {
   LEX_STRING new_db;
@@ -3814,6 +3814,7 @@ int Query_log_event::do_apply_event(Relay_log_info const *rli,
   HA_CREATE_INFO db_options;
   uint64 sub_id= 0;
   rpl_gtid gtid;
+  Relay_log_info const *rli= rgi->rli;
   Rpl_filter *rpl_filter= rli->mi->rpl_filter;
   DBUG_ENTER("Query_log_event::do_apply_event");
 
@@ -4006,12 +4007,12 @@ int Query_log_event::do_apply_event(Relay_log_info const *rli,
         Record any GTID in the same transaction, so slave state is
         transactionally consistent.
       */
-      if (strcmp("COMMIT", query) == 0 && (sub_id= rli->gtid_sub_id))
+      if (strcmp("COMMIT", query) == 0 && (sub_id= rgi->gtid_sub_id))
       {
         /* Clear the GTID from the RLI so we don't accidentally reuse it. */
-        const_cast<Relay_log_info*>(rli)->gtid_sub_id= 0;
+        rgi->gtid_sub_id= 0;
 
-        gtid= rli->current_gtid;
+        gtid= rgi->current_gtid;
         if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false))
         {
           rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
@@ -4458,10 +4459,12 @@ bool Start_log_event_v3::write(IO_CACHE* file)
     other words, no deadlock problem.
 */
 
-int Start_log_event_v3::do_apply_event(Relay_log_info const *rli)
+int Start_log_event_v3::do_apply_event(struct rpl_group_info *rgi)
 {
   DBUG_ENTER("Start_log_event_v3::do_apply_event");
   int error= 0;
+  Relay_log_info const *rli= rgi->rli;
+
   switch (binlog_version)
   {
   case 3:
@@ -4805,9 +4808,10 @@ bool Format_description_log_event::write(IO_CACHE* file)
 #endif
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-int Format_description_log_event::do_apply_event(Relay_log_info const *rli)
+int Format_description_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
   int ret= 0;
+  Relay_log_info const *rli= rgi->rli;
   DBUG_ENTER("Format_description_log_event::do_apply_event");
 
   /*
@@ -4848,7 +4852,7 @@ int Format_description_log_event::do_apply_event(Relay_log_info const *rli)
       0, then 96, then jump to first really asked event (which is
       >96). So this is ok.
     */
-    ret= Start_log_event_v3::do_apply_event(rli);
+    ret= Start_log_event_v3::do_apply_event(rgi);
   }
 
   if (!ret)
@@ -5509,10 +5513,11 @@ void Load_log_event::set_fields(const char* affected_db,
     1           Failure
 */
 
-int Load_log_event::do_apply_event(NET* net, Relay_log_info const *rli,
+int Load_log_event::do_apply_event(NET* net, struct rpl_group_info *rgi,
                                    bool use_rli_only_for_errors)
 {
   LEX_STRING new_db;
+  Relay_log_info const *rli= rgi->rli;
   Rpl_filter *rpl_filter= rli->mi->rpl_filter;
   DBUG_ENTER("Load_log_event::do_apply_event");
 
@@ -5776,7 +5781,7 @@ Error '%s' running LOAD DATA INFILE on table '%s'. Default database: '%s'",
     DBUG_RETURN(1);
   }
 
-  DBUG_RETURN( use_rli_only_for_errors ? 0 : Log_event::do_apply_event(rli) ); 
+  DBUG_RETURN( use_rli_only_for_errors ? 0 : Log_event::do_apply_event(rgi) );
 }
 #endif
 
@@ -6245,7 +6250,7 @@ Gtid_log_event::pack_info(THD *thd, Protocol *protocol)
 static char gtid_begin_string[] = "BEGIN";
 
 int
-Gtid_log_event::do_apply_event(Relay_log_info const *rli)
+Gtid_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
   thd->variables.server_id= this->server_id;
   thd->variables.gtid_domain_id= this->domain_id;
@@ -6467,9 +6472,10 @@ Gtid_list_log_event::write(IO_CACHE *file)
 
 
 int
-Gtid_list_log_event::do_apply_event(Relay_log_info const *rli)
+Gtid_list_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
-  int ret= Log_event::do_apply_event(rli);
+  Relay_log_info const *rli= rgi->rli;
+  int ret= Log_event::do_apply_event(rgi);
   if (rli->until_condition == Relay_log_info::UNTIL_GTID &&
       (gl_flags & FLAG_UNTIL_REACHED))
   {
@@ -6696,13 +6702,14 @@ void Intvar_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   Intvar_log_event::do_apply_event()
 */
 
-int Intvar_log_event::do_apply_event(Relay_log_info const *rli)
+int Intvar_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   /*
     We are now in a statement until the associated query log event has
     been processed.
    */
-  const_cast<Relay_log_info*>(rli)->set_flag(Relay_log_info::IN_STMT);
+  rli->set_flag(Relay_log_info::IN_STMT);
 
   if (rli->deferred_events_collecting)
     return rli->deferred_events->add(this);
@@ -6805,8 +6812,9 @@ void Rand_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-int Rand_log_event::do_apply_event(Relay_log_info const *rli)
+int Rand_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
+  Relay_log_info const *rli= rgi->rli;
   /*
     We are now in a statement until the associated query log event has
     been processed.
@@ -6860,7 +6868,7 @@ bool slave_execute_deferred_events(THD *thd)
   if (!rli->deferred_events_collecting || rli->deferred_events->is_empty())
     return res;
 
-  res= rli->deferred_events->execute(rli);
+  res= rli->deferred_events->execute(rli->group_info);
 
   return res;
 }
@@ -6935,23 +6943,24 @@ void Xid_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-int Xid_log_event::do_apply_event(Relay_log_info const *rli)
+int Xid_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
   bool res;
   int err;
   rpl_gtid gtid;
   uint64 sub_id;
+  Relay_log_info const *rli= rgi->rli;
 
   /*
     Record any GTID in the same transaction, so slave state is transactionally
     consistent.
   */
-  if ((sub_id= rli->gtid_sub_id))
+  if ((sub_id= rgi->gtid_sub_id))
   {
     /* Clear the GTID from the RLI so we don't accidentally reuse it. */
-    const_cast<Relay_log_info*>(rli)->gtid_sub_id= 0;
+    rgi->gtid_sub_id= 0;
 
-    gtid= rli->current_gtid;
+    gtid= rgi->current_gtid;
     err= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false);
     if (err)
     {
@@ -7400,10 +7409,11 @@ void User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-int User_var_log_event::do_apply_event(Relay_log_info const *rli)
+int User_var_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
   Item *it= 0;
   CHARSET_INFO *charset;
+  Relay_log_info const *rli= rgi->rli;
   DBUG_ENTER("User_var_log_event::do_apply_event");
 
   if (rli->deferred_events_collecting)
@@ -7664,7 +7674,7 @@ Slave_log_event::Slave_log_event(const char* buf,
 
 
 #ifndef MYSQL_CLIENT
-int Slave_log_event::do_apply_event(Relay_log_info const *rli)
+int Slave_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
   if (mysql_bin_log.is_open())
     return mysql_bin_log.write(this);
@@ -7939,13 +7949,14 @@ void Create_file_log_event::pack_info(THD *thd, Protocol *protocol)
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-int Create_file_log_event::do_apply_event(Relay_log_info const *rli)
+int Create_file_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
   char proc_info[17+FN_REFLEN+10], *fname_buf;
   char *ext;
   int fd = -1;
   IO_CACHE file;
   int error = 1;
+  Relay_log_info const *rli= rgi->rli;
 
   bzero((char*)&file, sizeof(file));
   fname_buf= strmov(proc_info, "Making temp file ");
@@ -8120,11 +8131,12 @@ int Append_block_log_event::get_create_or_append() const
   Append_block_log_event::do_apply_event()
 */
 
-int Append_block_log_event::do_apply_event(Relay_log_info const *rli)
+int Append_block_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
   char proc_info[17+FN_REFLEN+10], *fname= proc_info+17;
   int fd;
   int error = 1;
+  Relay_log_info const *rli= rgi->rli;
   DBUG_ENTER("Append_block_log_event::do_apply_event");
 
   fname= strmov(proc_info, "Making temp file ");
@@ -8270,9 +8282,10 @@ void Delete_file_log_event::pack_info(THD *thd, Protocol *protocol)
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-int Delete_file_log_event::do_apply_event(Relay_log_info const *rli)
+int Delete_file_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
   char fname[FN_REFLEN+10];
+  Relay_log_info const *rli= rgi->rli;
   char *ext= slave_load_file_stem(fname, file_id, server_id, ".data",
                                   &rli->mi->cmp_connection_name);
   mysql_file_delete(key_file_log_event_data, fname, MYF(MY_WME));
@@ -8369,7 +8382,7 @@ void Execute_load_log_event::pack_info(THD *thd, Protocol *protocol)
   Execute_load_log_event::do_apply_event()
 */
 
-int Execute_load_log_event::do_apply_event(Relay_log_info const *rli)
+int Execute_load_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
   char fname[FN_REFLEN+10];
   char *ext;
@@ -8377,6 +8390,7 @@ int Execute_load_log_event::do_apply_event(Relay_log_info const *rli)
   int error= 1;
   IO_CACHE file;
   Load_log_event *lev= 0;
+  Relay_log_info const *rli= rgi->rli;
 
   ext= slave_load_file_stem(fname, file_id, server_id, ".info",
                             &rli->mi->cmp_connection_name);
@@ -8412,7 +8426,7 @@ int Execute_load_log_event::do_apply_event(Relay_log_info const *rli)
   */
 
   const_cast<Relay_log_info*>(rli)->future_group_master_log_pos= log_pos;
-  if (lev->do_apply_event(0,rli,1)) 
+  if (lev->do_apply_event(0,rgi,1)) 
   {
     /*
       We want to indicate the name of the file that could not be loaded
@@ -8641,13 +8655,14 @@ void Execute_load_query_log_event::pack_info(THD *thd, Protocol *protocol)
 
 
 int
-Execute_load_query_log_event::do_apply_event(Relay_log_info const *rli)
+Execute_load_query_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
   char *p;
   char *buf;
   char *fname;
   char *fname_end;
   int error;
+  Relay_log_info const *rli= rgi->rli;
 
   buf= (char*) my_malloc(q_len + 1 - (fn_pos_end - fn_pos_start) +
                          (FN_REFLEN + 10) + 10 + 8 + 5, MYF(MY_WME));
@@ -8684,7 +8699,7 @@ Execute_load_query_log_event::do_apply_event(Relay_log_info const *rli)
   p= strmake(p, STRING_WITH_LEN(" INTO "));
   p= strmake(p, query+fn_pos_end, q_len-fn_pos_end);
 
-  error= Query_log_event::do_apply_event(rli, buf, p-buf);
+  error= Query_log_event::do_apply_event(rgi, buf, p-buf);
 
   /* Forging file name for deletion in same buffer */
   *fname_end= 0;
@@ -9048,8 +9063,9 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-int Rows_log_event::do_apply_event(Relay_log_info const *rli)
+int Rows_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
+  Relay_log_info const *rli= rgi->rli;
   DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
   int error= 0;
   /*
@@ -9751,7 +9767,7 @@ void Annotate_rows_log_event::print(FILE *file, PRINT_EVENT_INFO *pinfo)
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-int Annotate_rows_log_event::do_apply_event(Relay_log_info const *rli)
+int Annotate_rows_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
   m_save_thd_query_txt= thd->query();
   m_save_thd_query_len= thd->query_length();
@@ -10269,13 +10285,14 @@ check_table_map(Relay_log_info const *rli, RPL_TABLE_LIST *table_list)
   DBUG_RETURN(res);
 }
 
-int Table_map_log_event::do_apply_event(Relay_log_info const *rli)
+int Table_map_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
   RPL_TABLE_LIST *table_list;
   char *db_mem, *tname_mem;
   size_t dummy_len;
   void *memory;
   Rpl_filter *filter;
+  Relay_log_info const *rli= rgi->rli;
   DBUG_ENTER("Table_map_log_event::do_apply_event(Relay_log_info*)");
   DBUG_ASSERT(rli->sql_thd == thd);
 
@@ -11818,8 +11835,9 @@ Incident_log_event::print(FILE *file,
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 int
-Incident_log_event::do_apply_event(Relay_log_info const *rli)
+Incident_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
+  Relay_log_info const *rli= rgi->rli;
   DBUG_ENTER("Incident_log_event::do_apply_event");
   rli->report(ERROR_LEVEL, ER_SLAVE_INCIDENT,
               ER(ER_SLAVE_INCIDENT),
