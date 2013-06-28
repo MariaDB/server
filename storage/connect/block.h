@@ -52,9 +52,6 @@ if (debug != NULL)
   // Avoid warning C4291 by defining a matching dummy delete operator
   void operator delete(void *, PGLOBAL, void *) {}
 #endif
-
- protected:
-  ~BLOCK(void) {}
   }; // end of class BLOCK
 
 #endif   // !BLOCK_DEFINED

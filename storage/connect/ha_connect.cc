@@ -394,6 +394,10 @@ static int connect_done_func(void *p)
   XmlCleanupParserLib();
 #endif   // LIBXML2_SUPPORT
 
+#if !defined(WIN32)
+  PROFILE_Close(connectini);
+#endif   // !WIN32
+
   for (pc= user_connect::to_users; pc; pc= pn) {
     if (pc->g)
       PlugCleanup(pc->g, true);
