@@ -632,6 +632,14 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     free_table_share(share);
     return -1;
   }
+  
+  // Make sure origid column != destid column
+  if (strcmp( origid->field_name, destid->field_name)==0) {
+    fprint_error("Invalid OQGRAPH backing store ('%s'.destid attribute set to same column as origid attribute)", p, options->table_name);
+    closefrm(edges, 0);
+    free_table_share(share);
+    return -1;
+  }
 
   for (Field **field= edges->field; options->weight && *field; ++field)
   {
