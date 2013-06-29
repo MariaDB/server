@@ -856,10 +856,10 @@ namespace open_query
           }
         }
         break;
-#if 0
-
       case BREADTH_FIRST | HAVE_DEST:
+#ifdef FIXME
       case DIJKSTRAS | HAVE_DEST:
+#endif      
         if ((cursor= new (std::nothrow) stack_cursor(share)) && (orig || dest))
         {
           boost::unordered_map<Vertex, Vertex> p;
@@ -870,6 +870,7 @@ namespace open_query
           d[ *dest ] = EdgeWeight();
           switch (ALGORITHM & op)
           {
+#ifdef FIXME
           case DIJKSTRAS:
             dijkstra_shortest_paths_no_init(share->g, *dest,
                 make_lazy_property_map(p, identity_initializer<Vertex>()),
@@ -891,6 +892,7 @@ namespace open_query
                 ),
                 make_two_bit_judy_map(get(vertex_index, share->g)));
             break;
+#endif
           case BREADTH_FIRST:
             breadth_first_visit(share->g, *dest, Q,
                 make_bfs_visitor(
@@ -918,7 +920,6 @@ namespace open_query
           }
         }
         break;
-#endif
       default:
         break;
       }
