@@ -11,14 +11,14 @@ CREATE TABLE rsb (
 ) ENGINE=MyISAM;
 
 CREATE TABLE rsb_graph (
-  latch SMALLINT UNSIGNED DEFAULT NULL,
-  origid BIGINT UNSIGNED DEFAULT NULL,
-  destid BIGINT UNSIGNED DEFAULT NULL,
-  weight DOUBLE DEFAULT NULL,
-  seq BIGINT UNSIGNED DEFAULT NULL,
-  linkid BIGINT UNSIGNED DEFAULT NULL,
-  KEY (latch,origid,destid) USING HASH,
-  KEY (latch,destid,origid) USING HASH
+  latch   VARCHAR(32) NULL,
+  origid  BIGINT    UNSIGNED NULL,
+  destid  BIGINT    UNSIGNED NULL,
+  weight  DOUBLE    NULL,
+  seq     BIGINT    UNSIGNED NULL,
+  linkid  BIGINT    UNSIGNED NULL,
+  KEY (latch, origid, destid) USING HASH,
+  KEY (latch, destid, origid) USING HASH
 ) ENGINE=OQGRAPH data_table='rsb' origid='f' destid='t' weight='weight';
 
 
@@ -90,31 +90,33 @@ DELIMITER ;|
 CALL randgraphproc(10000,5,2,3);
 
 # some random paths
-SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=1 AND destid=20;
-SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=1595 AND destid=8358;
-SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=1 AND destid=9999;
-SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=6841 AND destid=615;
-SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=369 AND destid=1845;
-SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=73 AND destid=914;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1 AND destid=20;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1 AND destid=77;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1 AND destid=203;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1595 AND destid=8358;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1 AND destid=9999;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=6841 AND destid=615;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=369 AND destid=1845;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=73 AND destid=914;
 
 # nonexistent origin
-SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=12345 AND destid=500;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=12345 AND destid=500;
 
 # noexistent destination
-SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=300 AND destid=54321;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=300 AND destid=54321;
 
 # how many possible destinations from here
-SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND origid=1;
-SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND origid=8365;
-SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND origid=976;
-SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND origid=74;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND origid=1;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND origid=8365;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND origid=976;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND origid=74;
 
 # how many possible sources to here
 # this doesn't appear to work right now in v3 ? #if 0 in code. check with Antony
-SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND destid=1;
-SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND destid=9999;
-SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND destid=52;
-SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND destid=6483;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND destid=1;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND destid=9999;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND destid=52;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND destid=6483;
 
 # breadth first
 # other algorithms
