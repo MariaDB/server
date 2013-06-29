@@ -131,6 +131,7 @@ SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 
 #-- We include 'origid' in the set of reachable nodes i.e. as a 'loop', with weight 0
 #-- 'seq' is the counted distance of the search, thus, the loop link will always have seq 1
 #--       if there are two reachable neighbours, they will have seq 2,3 and so on
+#-- linkid is the other end
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 1;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 3;
@@ -500,6 +501,37 @@ SELECT * FROM graph WHERE latch='1' AND origid=11 AND destid=10;
 SELECT * FROM graph WHERE latch='1' AND origid=11 AND destid=12;
 SELECT * FROM graph WHERE latch='1' AND origid=12 AND destid=10;
 SELECT * FROM graph WHERE latch='1' AND origid=12 AND destid=11;
+SELECT * FROM graph WHERE latch='1' AND origid=1;
+SELECT * FROM graph WHERE latch='1' AND origid=2;
+SELECT * FROM graph WHERE latch='1' AND origid=3;
+SELECT * FROM graph WHERE latch='1' AND origid=4;
+SELECT * FROM graph WHERE latch='1' AND origid=5;
+SELECT * FROM graph WHERE latch='1' AND origid=6;
+SELECT * FROM graph WHERE latch='1' AND origid=7;
+#-- FIXME This is returning one result set, suspect this is a bug...?
+#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
+SELECT * FROM graph WHERE latch='1' AND origid=8;
+SELECT * FROM graph WHERE latch='1' AND origid=9;
+SELECT * FROM graph WHERE latch='1' AND origid=10;
+SELECT * FROM graph WHERE latch='1' AND origid=11;
+SELECT * FROM graph WHERE latch='1' AND origid=12;
+#-- FIXME This is returning one result set, suspect this is a bug...?
+#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
+SELECT * FROM graph WHERE latch='1' AND origid=666;
+SELECT * FROM graph WHERE latch='1' AND destid=1;
+SELECT * FROM graph WHERE latch='1' AND destid=2;
+SELECT * FROM graph WHERE latch='1' AND destid=3;
+SELECT * FROM graph WHERE latch='1' AND destid=4;
+SELECT * FROM graph WHERE latch='1' AND destid=5;
+SELECT * FROM graph WHERE latch='1' AND destid=6;
+SELECT * FROM graph WHERE latch='1' AND destid=7;
+#-- FIXME This is returning one result set, suspect this is a bug...?
+#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
+SELECT * FROM graph WHERE latch='1' AND destid=8;
+SELECT * FROM graph WHERE latch='1' AND destid=9;
+SELECT * FROM graph WHERE latch='1' AND destid=10;
+SELECT * FROM graph WHERE latch='1' AND destid=11;
+SELECT * FROM graph WHERE latch='1' AND destid=12;
 
 #-- What if we add two equally valid two-hop paths?
 #--
@@ -525,10 +557,7 @@ INSERT INTO graph_base(from_id, to_id) VALUES (10,11);
 #-- We note is _appears_ to use the lowered valued node id if there are two equal paths
 SELECT * FROM graph WHERE latch='dijkstras' AND origid=10 AND destid=13;
 
-#-- Unspecified arguments:
-#-- If destid unspecified, it returns all possible destinations
-#-- Destinations further away are returned first
-#-- Note also, weight==0 (as opposed to 1 or NULL in all other cases)
+#-- add some extra and check
 SELECT * FROM graph WHERE latch='dijkstras' AND origid=1;
 INSERT INTO graph_base(from_id, to_id) VALUES (21,22);
 SELECT * FROM graph WHERE latch='dijkstras' AND origid=21;
@@ -539,7 +568,6 @@ INSERT INTO graph_base(from_id, to_id) VALUES (4,16);
 SELECT * FROM graph WHERE latch='dijkstras' AND origid=1;
 INSERT INTO graph_base(from_id, to_id) VALUES (17,18);
 SELECT * FROM graph WHERE latch='dijkstras' AND origid=1;
-#-- If origid unspecified, it returns no result - i.e. origid is mandatory
 SELECT * FROM graph WHERE latch='dijkstras' AND destid=1;
 
 --echo # Now we add a connection from 4->6 
