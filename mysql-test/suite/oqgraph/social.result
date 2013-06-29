@@ -1,0 +1,111 @@
+DROP TABLE IF EXISTS rsb, rsb_graph;
+CREATE TABLE rsb (
+f INT UNSIGNED NOT NULL,
+t INT UNSIGNED NOT NULL,
+weight FLOAT NOT NULL,
+PRIMARY KEY (`f`,`t`),
+KEY `t` (`t`)
+) ENGINE=MyISAM;
+CREATE TABLE rsb_graph (
+latch   VARCHAR(32) NULL,
+origid  BIGINT    UNSIGNED NULL,
+destid  BIGINT    UNSIGNED NULL,
+weight  DOUBLE    NULL,
+seq     BIGINT    UNSIGNED NULL,
+linkid  BIGINT    UNSIGNED NULL,
+KEY (latch, origid, destid) USING HASH,
+KEY (latch, destid, origid) USING HASH
+) ENGINE=OQGRAPH data_table='rsb' origid='f' destid='t' weight='weight';
+DROP PROCEDURE IF EXISTS randnotx|
+CREATE PROCEDURE randnotx (INOUT rseed INT, IN items INT, IN x INT, OUT rval INT) DETERMINISTIC
+BEGIN
+REPEAT
+# Simple LCG (BSD)
+SET rseed = (rseed * 1103515245 + 12345) & 2147483647;
+SET rval = ((rseed >> 16) & 32767) MOD items;
+UNTIL rval <> x
+END REPEAT;
+END;|
+DROP PROCEDURE IF EXISTS randgraphproc|
+CREATE PROCEDURE randgraphproc (IN items INT, IN friends INT, IN fanof INT, IN maxweight INT) DETERMINISTIC
+BEGIN
+DECLARE i,j,weight,rseed,rval INT;
+SET rseed = items;
+SET i = 0;
+WHILE i < items DO
+SET j = 0;
+WHILE j < (friends + fanof) DO
+CALL randnotx(rseed,items,i,rval);
+IF (maxweight > 0) THEN
+CALL randnotx(rseed,items,-1,weight);
+SET weight = weight MOD maxweight;
+ELSE
+SET weight = 0;
+END IF;
+INSERT IGNORE rsb VALUES (i,rval,weight);
+IF (j < friends) THEN
+INSERT IGNORE rsb VALUES (rval,i,weight);
+END IF;
+SET j = j + 1;
+END WHILE;
+SET i = i + 1;
+END WHILE;
+END;|
+CALL randgraphproc(10000,5,2,3);
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1 AND destid=20;
+GROUP_CONCAT(linkid ORDER BY seq)
+1,5378,9993,8029,5613,9338,3730,7694,3546,9658,2825,6157,6461,1246,8678,8811,20
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1 AND destid=77;
+GROUP_CONCAT(linkid ORDER BY seq)
+1,5378,9993,8029,5613,9338,3730,7694,3546,2367,9994,3130,9577,7992,7995,53,8735,8654,9850,587,177,6509,8447,6927,6690,5454,1277,77
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1 AND destid=203;
+GROUP_CONCAT(linkid ORDER BY seq)
+1,5378,9993,8597,6078,2632,8846,6514,3189,8336,3327,4653,203
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1595 AND destid=8358;
+GROUP_CONCAT(linkid ORDER BY seq)
+1595,6255,7652,394,1532,3451,5615,9737,5886,8214,7462,6984,5822,5711,6363,2743,8584,7759,8683,7525,1874,212,5923,2399,3138,740,932,8358
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1 AND destid=9999;
+GROUP_CONCAT(linkid ORDER BY seq)
+1,5378,9993,8597,6078,2632,7381,6403,9177,1637,9762,2610,319,1310,3579,9999
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=6841 AND destid=615;
+GROUP_CONCAT(linkid ORDER BY seq)
+6841,2979,9109,8306,7777,620,9982,8535,8151,6118,8654,9428,611,9696,3082,7219,9868,615
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=369 AND destid=1845;
+GROUP_CONCAT(linkid ORDER BY seq)
+369,4586,6078,8597,9993,8029,5613,2993,1637,9177,3451,5615,9104,4004,2818,8311,8996,9023,9975,3847,4988,4480,6739,7520,6040,4585,7632,3956,1319,2427,6606,3443,9114,2907,1130,2389,8613,1534,4856,6961,6636,9136,7504,2777,8273,8215,7681,8859,1480,7167,663,3433,4719,3773,1845
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=73 AND destid=914;
+GROUP_CONCAT(linkid ORDER BY seq)
+73,4247,9061,9994,3130,8274,9298,8790,8465,712,9028,646,1255,7384,6554,3193,914
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=12345 AND destid=500;
+GROUP_CONCAT(linkid ORDER BY seq)
+NULL
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=300 AND destid=54321;
+GROUP_CONCAT(linkid ORDER BY seq)
+NULL
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND origid=1;
+COUNT(*)
+10000
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND origid=8365;
+COUNT(*)
+10000
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND origid=976;
+COUNT(*)
+10000
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND origid=74;
+COUNT(*)
+10000
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND destid=1;
+COUNT(*)
+10000
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND destid=9999;
+COUNT(*)
+10000
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND destid=52;
+COUNT(*)
+10000
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND destid=6483;
+COUNT(*)
+10000
+DROP TABLE rsb_graph, rsb;
+DROP PROCEDURE randgraphproc;
+DROP PROCEDURE randnotx;
