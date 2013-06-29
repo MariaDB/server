@@ -34,51 +34,19 @@ INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
 INSERT INTO graph_base(from_id, to_id) VALUES (1,3), (3,1);
 INSERT INTO graph_base(from_id, to_id) VALUES (3,4), (4,3);
 INSERT INTO graph_base(from_id, to_id) VALUES (5,6), (6,5);
-# No Search/0 - result should return same rows as inserted for origid,destid,weight
-# FIXME - THIS CODE IS CURRENTLY BROKEN - see https://bugs.launchpad.net/oqgraph/+bug/1195778
-SELECT * FROM graph WHERE latch='no_search';
-latch	origid	destid	weight	seq	linkid
-no_search	NULL	NULL	NULL	NULL	1
-no_search	NULL	NULL	NULL	NULL	2
-no_search	NULL	NULL	NULL	NULL	3
-no_search	NULL	NULL	NULL	NULL	4
-no_search	NULL	NULL	NULL	NULL	5
-no_search	NULL	NULL	NULL	NULL	6
-SELECT * FROM graph WHERE latch='no_search' and destid=2 and origid=1;
-latch	origid	destid	weight	seq	linkid
-no_search	1	2	1	3	1
-no_search	1	2	1	2	3
-no_search	1	2	1	1	2
-SELECT * FROM graph WHERE latch='no_search' and origid=1;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch='no_search' and destid=1;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch='no_search' and origid=666;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch='no_search' and origid=NULL;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch='0' ;
-latch	origid	destid	weight	seq	linkid
-0	NULL	NULL	NULL	NULL	1
-0	NULL	NULL	NULL	NULL	2
-0	NULL	NULL	NULL	NULL	3
-0	NULL	NULL	NULL	NULL	4
-0	NULL	NULL	NULL	NULL	5
-0	NULL	NULL	NULL	NULL	6
-SELECT * FROM graph WHERE latch='0' and destid=2 and origid=1;
-latch	origid	destid	weight	seq	linkid
-0	1	2	1	3	1
-0	1	2	1	2	3
-0	1	2	1	1	2
-SELECT * FROM graph WHERE latch='0' and origid=1;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch='0' and destid=1;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch='0' and origid=666;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch='0' and origid=NULL;
-latch	origid	destid	weight	seq	linkid
 # Expect no result, because of autocast
+SELECT * FROM graph WHERE latch=0 ;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch=0 and destid=2 and origid=1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch=0 and origid=1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch=0 and destid=1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch=0 and origid=666;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch=0 and origid=NULL;
+latch	origid	destid	weight	seq	linkid
 SELECT * FROM graph WHERE latch=1 ;
 latch	origid	destid	weight	seq	linkid
 SELECT * FROM graph WHERE latch=1 and destid=2 and origid=1;
@@ -187,59 +155,6 @@ latch	origid	destid	weight	seq	linkid
 Warnings:
 Warning	1210	Incorrect arguments to OQGRAPH latch
 SELECT * FROM graph WHERE latch='Ω Ohms Tennis Ball 〄' and origid=NULL;
-latch	origid	destid	weight	seq	linkid
-# Expect no result, because of autocast and deprecated syntax
-# Allows 0 and NULL to have same effect
-SELECT * FROM graph WHERE latch=0;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch=0 and destid=2 and origid=1;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch=0 and origid=1;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch=0 and destid=1;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch=0 and origid=666;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch=0 and origid=NULL;
-latch	origid	destid	weight	seq	linkid
-# Expect no result, because of NULL latch
-SELECT * FROM graph WHERE latch=NULL;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch=NULL and destid=2 and origid=1;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch=NULL and origid=1;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch=NULL and destid=1;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch=NULL and origid=666;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE latch=NULL and origid=NULL;
-latch	origid	destid	weight	seq	linkid
-# With no latch, original data in origid and destid columns
-SELECT * FROM graph;
-latch	origid	destid	weight	seq	linkid
-NULL	1	2	1	NULL	NULL
-NULL	2	1	1	NULL	NULL
-NULL	1	3	1	NULL	NULL
-NULL	3	1	1	NULL	NULL
-NULL	3	4	1	NULL	NULL
-NULL	4	3	1	NULL	NULL
-NULL	5	6	1	NULL	NULL
-NULL	6	5	1	NULL	NULL
-SELECT * FROM graph WHERE destid=2 and origid=1;
-latch	origid	destid	weight	seq	linkid
-NULL	1	2	1	NULL	NULL
-SELECT * FROM graph WHERE origid=1;
-latch	origid	destid	weight	seq	linkid
-NULL	1	2	1	NULL	NULL
-NULL	1	3	1	NULL	NULL
-SELECT * FROM graph WHERE destid=1;
-latch	origid	destid	weight	seq	linkid
-NULL	2	1	1	NULL	NULL
-NULL	3	1	1	NULL	NULL
-SELECT * FROM graph WHERE origid=666;
-latch	origid	destid	weight	seq	linkid
-SELECT * FROM graph WHERE origid=NULL;
 latch	origid	destid	weight	seq	linkid
 INSERT INTO graph_base(from_id, to_id) VALUES (1,2);
 ERROR 23000: Duplicate entry '1-2' for key 'PRIMARY'
