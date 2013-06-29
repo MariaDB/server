@@ -48,6 +48,11 @@ CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, dest
 DESCRIBE oqtable;
 ERROR 42S02: Table 'test.bogus' doesn't exist
 DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='not_backing';
+# Expect 'Invalid OQGRAPH backing store (unspecified or empty origid attribute)'
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store (unspecified or empty origid attribute)' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
 CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing', DESTID='id2';
 # Expect 'Invalid OQGRAPH backing store (unspecified or empty origid attribute)'
 DESCRIBE oqtable;

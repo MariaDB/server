@@ -81,7 +81,7 @@ static MYSQL_SYSVAR_BOOL(allow_create_integer_latch, g_allow_create_integer_latc
 // In the future this needs to be refactactored to live somewhere else
 struct oqgraph_latch_op_table { const char *key; int latch; };
 static const oqgraph_latch_op_table latch_ops_table[] = {
-  { "no_search", oqgraph::NO_SEARCH } , 
+  { "", oqgraph::NO_SEARCH } ,  // suggested by Arjen, use empty string instead of no_search
   { "dijkstras", oqgraph::DIJKSTRAS } ,
   { "breadth_first", oqgraph::BREADTH_FIRST } , 
   { NULL, -1 }  
@@ -786,7 +786,7 @@ static int parse_latch_string_to_legacy_int(const String& value, int &latch)
   char *eptr;
   unsigned long int v = strtoul( latchValue.c_ptr_safe(), &eptr, 10);
   if (!*eptr) {
-    // we had an unsigned number; remember 0 is valid too (nosearch))
+    // we had an unsigned number; remember 0 is valid too ('vertices' aka 'no_search'))
     if (v >= 0 && v < oqgraph::NUM_SEARCH_OP) {
       latch = v;
       return true;
@@ -996,7 +996,7 @@ int ha_oqgraph::rnd_next(byte *buf)
 {
   int res;
   open_query::row row;
-  if (!(res= graph->fetch_row(row)))
+  if (!(res= graph->fetch_row(row))) // FIXME - this called after DELETE FROM graph_base; hangs...
     res= fill_record(buf, row);
   table->status= res ? STATUS_NOT_FOUND: 0;
   return error_code(res);

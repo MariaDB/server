@@ -69,36 +69,59 @@ SELECT count(*) FROM graph;
 
 # FIXME - this is currently returning empty instead of all edges
 #--echo # Return all edges - in v2, NULL latch should do this, but v3 now returns nothing...
+#--https://bugs.launchpad.net/oqgraph/+bug/1196021
 #SELECT * FROM graph where latch=NULL;
 
 --echo # Return all vertices, and subsets of vertices
-SELECT * FROM graph where latch='no_search';
+SELECT * FROM graph where latch='';
 --echo # Currently count should be 11
-SELECT count(*) FROM graph where latch='no_search';
+SELECT count(*) FROM graph where latch='';
 #-- get a subset of vertices
-SELECT * FROM graph where latch='no_search' and linkid = 2;
-SELECT * FROM graph where latch='no_search' and (linkid > 2 and linkid < 6);
+SELECT * FROM graph where latch='' and linkid = 2;
+SELECT * FROM graph where latch='' and (linkid > 2 and linkid < 6);
+SELECT * FROM graph where latch='' and linkid = NULL;
+SELECT * FROM graph where latch='' and linkid = 666;
 
 #-- Query out-edges for vertex (no_search AND origid=N)
-SELECT origid as `from`, linkid as `to` FROM graph where latch='no_search' and origid = 1;
-SELECT origid as `from`, linkid as `to` FROM graph where latch='no_search' and origid = 2;
-SELECT origid as `from`, linkid as `to` FROM graph where latch='no_search' and origid = 4;
-SELECT origid as `from`, linkid as `to` FROM graph where latch='no_search' and origid = 9;
-SELECT origid as `from`, linkid as `to` FROM graph where latch='no_search' and origid = 10;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = 1;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = 2;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = 4;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = 9;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = 10;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = NULL;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = 666;
 
 #-- Query in-edges for vertex (no_search AND destid=N)
 #-- linkid will have the other end
-SELECT linkid as `from`, destid as `to` FROM graph where latch='no_search' and destid = 1;
-SELECT linkid as `from`, destid as `to` FROM graph where latch='no_search' and destid = 2;
-SELECT linkid as `from`, destid as `to` FROM graph where latch='no_search' and destid = 4;
-SELECT linkid as `from`, destid as `to` FROM graph where latch='no_search' and destid = 9;
-SELECT linkid as `from`, destid as `to` FROM graph where latch='no_search' and destid = 10;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = 1;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = 2;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = 4;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = 9;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = 10;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = NULL;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = 666;
 
 # The following returns a result that makes no sense...
 #-- what happens when we combined orig and dest?
-#SELECT * FROM graph where latch='no_search' and origid = 1;
-#SELECT * FROM graph where latch='no_search' and destid = 2;
-#SELECT * FROM graph where latch='no_search' and origid=1 and destid = 2;
+#-- Bug https://bugs.launchpad.net/oqgraph/+bug/1195778
+#SELECT * FROM graph where latch='' and origid = 1;
+#SELECT * FROM graph where latch='' and destid = 2;
+#SELECT * FROM graph where latch='' and origid=1 and destid = 2;
+
+SELECT * FROM graph where latch='0';
+SELECT count(*) FROM graph where latch='0';
+SELECT * FROM graph where latch='0' and linkid = 2;
+SELECT * FROM graph where latch='0' and (linkid > 2 and linkid < 6);
+SELECT origid as `from`, linkid as `to` FROM graph where latch='0' and origid = 1;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='0' and origid = 2;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='0' and origid = 4;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='0' and origid = 9;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='0' and origid = 10;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 1;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 2;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 4;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 9;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 10;
 
 --echo # Breadth-first search tests
 #-- We are asking "Is there a path from node 'origid' to (all) other nodes?"
@@ -116,12 +139,14 @@ SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 5;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 6;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 7;
 #-- FIXME This is returning one result set, suspect this is a bug...?
+#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 9;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 10;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 12;
 #-- FIXME This is returning one result set, suspect this is a bug...?
+#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 666;
 #-- The above results can then be filtered by weight, so the results should be a subset for the corresponding origid above
 #-- so effectively, `AND weight=1` returns the neighbours of origid in linkid
@@ -165,7 +190,6 @@ SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 9 AND weight = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 10 AND weight = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11 AND weight = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 12 AND weight = 2;
-
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 1 AND weight = 3;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 2 AND weight = 3;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 3 AND weight = 3;
@@ -192,9 +216,61 @@ SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 10 AND (weight = 
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11 AND (weight = 1 or weight = 2);
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 12 AND (weight = 1 or weight = 2);
 
-#-- These return empty sets - origid must be specified and non null to get a result set
-SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = NULL;
+#-- now do it in reverse - using destid find originating vertices
+#-- FIXME - currently these are returning NULL which is incorrect
+#-- https://bugs.launchpad.net/oqgraph/+bug/1196027
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 4;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 5;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 6;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 7;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 9;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 10;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 11;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 12;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 1 and weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 2 and weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 3 and weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 4 and weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 5 and weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 6 and weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 7 and weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8 and weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 9 and weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 10 and weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 11 and weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 12 and weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 1 and weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 2 and weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 3 and weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 4 and weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 5 and weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 6 and weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 7 and weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8 and weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 9 and weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 10 and weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 11 and weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 12 and weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 1 and weight = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 2 and weight = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 3 and weight = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 4 and weight = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 5 and weight = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 6 and weight = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 7 and weight = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8 and weight = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 9 and weight = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 10 and weight = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 11 and weight = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 12 and weight = 3;
+
+#-- These return empty sets - origid or destid must be specified and non null to get a result set
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = NULL;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = NULL;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND weight = 1;
 SELECT * FROM graph WHERE latch = 'breadth_first';
 
@@ -207,12 +283,14 @@ SELECT * FROM graph WHERE latch = '2' AND origid = 5;
 SELECT * FROM graph WHERE latch = '2' AND origid = 6;
 SELECT * FROM graph WHERE latch = '2' AND origid = 7;
 #-- FIXME This is returning one result set, suspect this is a bug...?
+#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
 SELECT * FROM graph WHERE latch = '2' AND origid = 8;
 SELECT * FROM graph WHERE latch = '2' AND origid = 9;
 SELECT * FROM graph WHERE latch = '2' AND origid = 10;
 SELECT * FROM graph WHERE latch = '2' AND origid = 11;
 SELECT * FROM graph WHERE latch = '2' AND origid = 12;
 #-- FIXME This is returning one result set, suspect this is a bug...?
+#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
 SELECT * FROM graph WHERE latch = '2' AND origid = 666;
 SELECT * FROM graph WHERE latch = '2' AND origid = 1 AND weight = 1;
 SELECT * FROM graph WHERE latch = '2' AND origid = 2 AND weight = 1;
