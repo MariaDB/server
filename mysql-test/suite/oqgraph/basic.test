@@ -61,6 +61,45 @@ INSERT INTO graph_base(from_id, to_id) VALUES (10,11);
 INSERT INTO graph_base(from_id, to_id) VALUES (11,12);
 INSERT INTO graph_base(from_id, to_id) VALUES (12,10);
 
+--echo # Return all edges
+#-- we note that when weight is NULL it defaults to 1
+SELECT * FROM graph;
+--echo # Currently count should be 13
+SELECT count(*) FROM graph;
+
+# FIXME - this is currently returning empty instead of all edges
+#--echo # Return all edges - in v2, NULL latch should do this, but v3 now returns nothing...
+#SELECT * FROM graph where latch=NULL;
+
+--echo # Return all vertices, and subsets of vertices
+SELECT * FROM graph where latch='no_search';
+--echo # Currently count should be 11
+SELECT count(*) FROM graph where latch='no_search';
+#-- get a subset of vertices
+SELECT * FROM graph where latch='no_search' and linkid = 2;
+SELECT * FROM graph where latch='no_search' and (linkid > 2 and linkid < 6);
+
+#-- Query out-edges for vertex (no_search AND origid=N)
+SELECT origid as `from`, linkid as `to` FROM graph where latch='no_search' and origid = 1;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='no_search' and origid = 2;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='no_search' and origid = 4;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='no_search' and origid = 9;
+SELECT origid as `from`, linkid as `to` FROM graph where latch='no_search' and origid = 10;
+
+#-- Query in-edges for vertex (no_search AND destid=N)
+#-- linkid will have the other end
+SELECT linkid as `from`, destid as `to` FROM graph where latch='no_search' and destid = 1;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='no_search' and destid = 2;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='no_search' and destid = 4;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='no_search' and destid = 9;
+SELECT linkid as `from`, destid as `to` FROM graph where latch='no_search' and destid = 10;
+
+# The following returns a result that makes no sense...
+#-- what happens when we combined orig and dest?
+#SELECT * FROM graph where latch='no_search' and origid = 1;
+#SELECT * FROM graph where latch='no_search' and destid = 2;
+#SELECT * FROM graph where latch='no_search' and origid=1 and destid = 2;
+
 --echo # Breadth-first search tests
 #-- We are asking "Is there a path from node 'origid' to (all) other nodes?"
 #-- We return a row for each other node that is reachable, with its id in 'linkid'
