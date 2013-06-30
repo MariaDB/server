@@ -327,7 +327,7 @@ BINCOL::BINCOL(BINCOL *col1, PTDB tdbp) : DOSCOL(col1, tdbp)
 /***********************************************************************/
 void BINCOL::ReadColumn(PGLOBAL g)
   {
-  char   *p;
+  char   *p = NULL;
   int     rc;
   PTDBFIX tdbp = (PTDBFIX)To_Tdb;
 
