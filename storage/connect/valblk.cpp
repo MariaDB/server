@@ -654,8 +654,11 @@ void CHRBLK::SetValues(PVBLK pv, int k, int n)
 /***********************************************************************/
 void CHRBLK::Move(int i, int j)
   {
-  memcpy(Chrp + j * Long, Chrp + i * Long, Long);
-  MoveNull(i, j);
+  if (i != j) {
+    memcpy(Chrp + j * Long, Chrp + i * Long, Long);
+    MoveNull(i, j);
+    } // endif i
+
   } // end of Move
 
 /***********************************************************************/
