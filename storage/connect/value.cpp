@@ -1034,7 +1034,6 @@ void TYPVAL<PSZ>::SetValue(char c)
 void TYPVAL<PSZ>::SetBinValue(void *p)
   {
   SetValue_char((char *)p, Len);
-  Null = false;
   } // end of SetBinValue
 
 /***********************************************************************/

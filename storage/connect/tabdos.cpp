@@ -1047,7 +1047,7 @@ bool DOSCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
 /***********************************************************************/
 void DOSCOL::ReadColumn(PGLOBAL g)
   {
-  char   *p;
+  char   *p = NULL;
   int     i, rc;
   int     field;
   double  dval;
