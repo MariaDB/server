@@ -452,6 +452,9 @@ Diagnostics_area::set_error_status(uint sql_errno)
   @param message          SQL-condition message
   @param sqlstate         SQL-condition state
   @param error_condition  SQL-condition object representing the error state
+
+  @note Note, that error_condition may be NULL. It happens if a) OOM error is
+  being reported; or b) when Warning_info is full.
 */
 
 void
