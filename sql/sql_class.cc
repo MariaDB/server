@@ -1203,6 +1203,13 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   if (handle_condition(sql_errno, sqlstate, level, msg, &cond))
     DBUG_RETURN(cond);
 
+  /* When simulating OOM, skip writing to error log to avoid mtr errors. */
+  cond= DBUG_EVALUATE_IF(
+    "simulate_out_of_memory",
+    NULL,
+    da->push_warning(this, sql_errno, sqlstate, level, msg));
+
+
   if (level == Sql_condition::WARN_LEVEL_ERROR)
   {
     is_slave_error=  1; // needed to catch query errors during replication
@@ -1216,10 +1223,6 @@ Sql_condition* THD::raise_condition(uint sql_errno,
 
   query_cache_abort(&query_cache_tls);
 
-  /* When simulating OOM, skip writing to error log to avoid mtr errors */
-  DBUG_EXECUTE_IF("simulate_out_of_memory", DBUG_RETURN(NULL););
-
-  da->push_warning(this, sql_errno, sqlstate, level, msg);
   DBUG_RETURN(cond);
 }
 
