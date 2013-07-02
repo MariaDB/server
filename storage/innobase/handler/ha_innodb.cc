@@ -11225,7 +11225,7 @@ ha_innobase::info_low(
 
                         KEY *key_info= table->key_info+i; 
                         key_part_map ext_key_part_map=
-                                             key_info->ext_key_part_map;                               
+                                             key_info->ext_key_part_map;
 
                         if (key_info->user_defined_key_parts !=
                             key_info->ext_key_parts)

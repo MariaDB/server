@@ -1872,6 +1872,8 @@ MDL_context::find_ticket(MDL_request *mdl_request,
       if (mdl_request->key.is_equal(&ticket->m_lock->key) &&
           ticket->has_stronger_or_equal_type(mdl_request->type))
       {
+        DBUG_PRINT("info", ("Adding mdl lock %d to %d",
+                            mdl_request->type, ticket->m_type));
         *result_duration= duration;
         return ticket;
       }
@@ -2168,6 +2170,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, ulong lock_wait_timeout)
   struct timespec abs_timeout;
   MDL_wait::enum_wait_status wait_status;
   DBUG_ENTER("MDL_context::acquire_lock");
+  DBUG_PRINT("enter", ("lock_type: %d", mdl_request->type));
 
   /* Do some work outside the critical section. */
   set_timespec(abs_timeout, lock_wait_timeout);
@@ -2182,6 +2185,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, ulong lock_wait_timeout)
       MDL_lock, MDL_context and MDL_request were updated
       accordingly, so we can simply return success.
     */
+    DBUG_PRINT("info", ("Got lock without waiting"));
     DBUG_RETURN(FALSE);
   }
 
@@ -2393,8 +2397,9 @@ MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
   MDL_request mdl_xlock_request;
   MDL_savepoint mdl_svp= mdl_savepoint();
   bool is_new_ticket;
-
   DBUG_ENTER("MDL_context::upgrade_shared_lock");
+  DBUG_PRINT("enter",("new_type: %d  lock_wait_timeout: %lu", new_type,
+                      lock_wait_timeout));
   DEBUG_SYNC(get_thd(), "mdl_upgrade_lock");
 
   /*
@@ -2701,8 +2706,8 @@ void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket)
 {
   MDL_lock *lock= ticket->m_lock;
   DBUG_ENTER("MDL_context::release_lock");
-  DBUG_PRINT("enter", ("db=%s name=%s", lock->key.db_name(),
-                                        lock->key.name()));
+  DBUG_PRINT("enter", ("db: '%s' name: '%s'",
+                       lock->key.db_name(), lock->key.name()));
 
   DBUG_ASSERT(this == ticket->get_ctx());
   mysql_mutex_assert_not_owner(&LOCK_open);
