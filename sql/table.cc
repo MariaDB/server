@@ -998,10 +998,15 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
       }
       key_part->store_length=key_part->length;
     }
+
+    /*
+      Add primary key to end of extended keys for non unique keys for
+      storage engines that supports it.
+    */
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     keyinfo->ext_key_flags= keyinfo->flags;
     keyinfo->ext_key_part_map= 0;
-    if (share->use_ext_keys && i)
+    if (share->use_ext_keys && i && !(keyinfo->flags & HA_NOSAME))
     {
       keyinfo->ext_key_part_map= 0;
       for (j= 0; 

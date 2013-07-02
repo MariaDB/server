@@ -2221,9 +2221,10 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool dont_log_query)
 {
   TABLE_LIST *table;
-  char path[FN_REFLEN + 1], *alias= NULL;
+  char path[FN_REFLEN + 1], wrong_tables_buff[160], *alias= NULL;
+  String wrong_tables(wrong_tables_buff, sizeof(wrong_tables_buff)-1,
+                      system_charset_info);
   uint path_length= 0;
-  String wrong_tables;
   int error= 0;
   int non_temp_tables_count= 0;
   bool foreign_key_error=0;
@@ -2234,6 +2235,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   String built_trans_tmp_query, built_non_trans_tmp_query;
   DBUG_ENTER("mysql_rm_table_no_locks");
 
+  wrong_tables.length(0);
   /*
     Prepares the drop statements that will be written into the binary
     log as follows:
@@ -2453,9 +2455,17 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           . ./sql/datadict.cc +32 /Alfranio - TODO: We need to test this.
       */
       if (if_exists)
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-			    ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR),
-			    table->table_name);
+      {
+        char buff[FN_REFLEN];
+        String tbl_name(buff, sizeof(buff), system_charset_info);
+        tbl_name.length(0);
+        tbl_name.append(db);
+        tbl_name.append('.');
+        tbl_name.append(table->table_name);
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR),
+                            tbl_name.c_ptr_safe());
+      }
       else
       {
         non_tmp_error = (drop_temporary ? non_tmp_error : TRUE);
@@ -2513,7 +2523,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     {
       if (wrong_tables.length())
 	wrong_tables.append(',');
-      wrong_tables.append(String(table->table_name,system_charset_info));
+      wrong_tables.append(db);
+      wrong_tables.append('.');
+      wrong_tables.append(table->table_name);
     }
     DBUG_PRINT("table", ("table: 0x%lx  s: 0x%lx", (long) table->table,
                          table->table ? (long) table->table->s : (long) -1));
