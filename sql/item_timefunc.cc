@@ -415,8 +415,10 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
       l_time->minute > 59 || l_time->second > 59)
     goto err;
 
-  if ((fuzzy_date & TIME_NO_ZERO_DATE) &&
-       (l_time->year == 0 || l_time->month == 0 || l_time->day == 0))
+  if (((fuzzy_date & TIME_NO_ZERO_IN_DATE) &&
+       (l_time->year == 0 || l_time->month == 0 || l_time->day == 0)) ||
+      (fuzzy_date & TIME_NO_ZERO_DATE) &&
+      (l_time->year == 0 && l_time->month == 0 && l_time->day == 0))
     goto err;
 
   if (val != val_end)

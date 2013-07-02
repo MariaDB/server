@@ -3417,7 +3417,7 @@ my_eof(THD *thd)
   checking for all date handling.
 */
 
-const my_bool strict_date_checking= 0;
+const my_bool strict_date_checking= 1;
 
 inline sql_mode_t sql_mode_for_dates(THD *thd)
 {
