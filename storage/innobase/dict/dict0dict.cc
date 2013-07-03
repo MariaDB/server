@@ -6022,7 +6022,7 @@ dict_fs2utf8(
 	db[db_len] = '\0';
 
 	strconvert(
-		&my_charset_filename, db,
+                &my_charset_filename, db, db_len,
 		system_charset_info, db_utf8, db_utf8_size,
 		&errors);
 
@@ -6049,7 +6049,7 @@ dict_fs2utf8(
 
 	errors = 0;
 	strconvert(
-		&my_charset_filename, buf,
+                &my_charset_filename, buf, (uint) (buf_p - buf),
 		system_charset_info, table_utf8, table_utf8_size,
 		&errors);
 

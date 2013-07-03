@@ -643,7 +643,10 @@ public:
 
 private:
   my_bool reg_query_cache_dependant_table(THD *thd,
-                                          char *key, uint key_len, uint8 type,
+                                          char *engine_key,
+                                          uint engine_key_len,
+                                          char *query_key, uint query_key_len,
+                                          uint8 type,
                                           Query_cache *cache,
                                           Query_cache_block_table
                                           **block_table,
