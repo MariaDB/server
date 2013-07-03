@@ -109,7 +109,8 @@ static char* add_identifier(THD* thd, char *to_p, const char * end_p,
     tmp_name[name_len]= 0;
     conv_name= tmp_name;
   }
-  res= strconvert(&my_charset_filename, conv_name, system_charset_info,
+  res= strconvert(&my_charset_filename, conv_name, name_len,
+                  system_charset_info,
                   conv_string, FN_REFLEN, &errors);
   if (!res || errors)
   {
@@ -407,7 +408,7 @@ uint filename_to_tablename(const char *from, char *to, uint to_length
   }
   else
   {
-    res= strconvert(&my_charset_filename, from,
+    res= strconvert(&my_charset_filename, from, FN_REFLEN,
                     system_charset_info,  to, to_length, &errors);
     if (errors) // Old 5.0 name
     {
@@ -508,7 +509,7 @@ uint tablename_to_filename(const char *from, char *to, uint to_length)
     }
     DBUG_RETURN(length);
   }
-  length= strconvert(system_charset_info, from,
+  length= strconvert(system_charset_info, from, FN_REFLEN,
                      &my_charset_filename, to, to_length, &errors);
   if (check_if_legal_tablename(to) &&
       length + 4 < to_length)
@@ -564,7 +565,7 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
                        db, table_name, ext, flags));
 
   if (flags & FN_IS_TMP) // FN_FROM_IS_TMP | FN_TO_IS_TMP
-    strnmov(tbbuff, table_name, sizeof(tbbuff));
+    strmake(tbbuff, table_name, sizeof(tbbuff)-1);
   else
     (void) tablename_to_filename(table_name, tbbuff, sizeof(tbbuff));
 
@@ -579,8 +580,11 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
     pos= strnmov(pos, FN_ROOTDIR, end - pos);
   pos= strxnmov(pos, end - pos, dbbuff, FN_ROOTDIR, NullS);
 #ifdef USE_SYMDIR
-  unpack_dirname(buff, buff);
-  pos= strend(buff);
+  if (!(flags & SKIP_SYMDIR_ACCESS))
+  {
+    unpack_dirname(buff, buff);
+    pos= strend(buff);
+  }
 #endif
   pos= strxnmov(pos, end - pos, tbbuff, ext, NullS);
 
@@ -687,14 +691,14 @@ mysql_mutex_t LOCK_gdl;
 #define DDL_LOG_NAME_LEN_POS 4
 #define DDL_LOG_IO_SIZE_POS 8
 
-/*
-  Read one entry from ddl log file
-  SYNOPSIS
-    read_ddl_log_file_entry()
-    entry_no                     Entry number to read
-  RETURN VALUES
-    TRUE                         Error
-    FALSE                        Success
+/**
+  Read one entry from ddl log file.
+
+  @param entry_no                     Entry number to read
+
+  @return Operation status
+    @retval true   Error
+    @retval false  Success
 */
 
 static bool read_ddl_log_file_entry(uint entry_no)
@@ -713,14 +717,14 @@ static bool read_ddl_log_file_entry(uint entry_no)
 }
 
 
-/*
-  Write one entry from ddl log file
-  SYNOPSIS
-    write_ddl_log_file_entry()
-    entry_no                     Entry number to write
-  RETURN VALUES
-    TRUE                         Error
-    FALSE                        Success
+/**
+  Write one entry to ddl log file.
+
+  @param entry_no                     Entry number to write
+
+  @return Operation status
+    @retval true   Error
+    @retval false  Success
 */
 
 static bool write_ddl_log_file_entry(uint entry_no)
@@ -731,7 +735,7 @@ static bool write_ddl_log_file_entry(uint entry_no)
   DBUG_ENTER("write_ddl_log_file_entry");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
-  if (mysql_file_pwrite(file_id, (uchar*)file_entry_buf,
+  if (mysql_file_pwrite(file_id, file_entry_buf,
                         IO_SIZE, IO_SIZE * entry_no, MYF(MY_WME)) != IO_SIZE)
     error= TRUE;
   DBUG_RETURN(error);
@@ -769,7 +773,7 @@ static bool write_ddl_log_header()
 
   int4store(&global_ddl_log.file_entry_buf[DDL_LOG_NUM_ENTRY_POS],
             global_ddl_log.num_entries);
-  const_var= FN_LEN;
+  const_var= FN_REFLEN;
   int4store(&global_ddl_log.file_entry_buf[DDL_LOG_NAME_LEN_POS],
             (ulong) const_var);
   const_var= IO_SIZE;
@@ -784,13 +788,9 @@ static bool write_ddl_log_header()
 }
 
 
-/*
-  Create ddl log file name
-  SYNOPSIS
-    create_ddl_log_file_name()
-    file_name                   Filename setup
-  RETURN VALUES
-    NONE
+/**
+  Create ddl log file name.
+  @param file_name                   Filename setup
 */
 
 static inline void create_ddl_log_file_name(char *file_name)
@@ -799,17 +799,14 @@ static inline void create_ddl_log_file_name(char *file_name)
 }
 
 
-/*
-  Read header of ddl log file
-  SYNOPSIS
-    read_ddl_log_header()
-  RETURN VALUES
-    > 0                  Last entry in ddl log
-    0                    No entries in ddl log
-  DESCRIPTION
-    When we read the ddl log header we get information about maximum sizes
-    of names in the ddl log and we also get information about the number
-    of entries in the ddl log.
+/**
+  Read header of ddl log file.
+
+  When we read the ddl log header we get information about maximum sizes
+  of names in the ddl log and we also get information about the number
+  of entries in the ddl log.
+
+  @return Last entry in ddl log (0 if no entries)
 */
 
 static uint read_ddl_log_header()
@@ -820,6 +817,8 @@ static uint read_ddl_log_header()
   bool successful_open= FALSE;
   DBUG_ENTER("read_ddl_log_header");
 
+  mysql_mutex_init(key_LOCK_gdl, &LOCK_gdl, MY_MUTEX_INIT_SLOW);
+  mysql_mutex_lock(&LOCK_gdl);
   create_ddl_log_file_name(file_name);
   if ((global_ddl_log.file_id= mysql_file_open(key_file_global_ddl_log,
                                                file_name,
@@ -848,36 +847,72 @@ static uint read_ddl_log_header()
   global_ddl_log.first_free= NULL;
   global_ddl_log.first_used= NULL;
   global_ddl_log.num_entries= 0;
-  mysql_mutex_init(key_LOCK_gdl, &LOCK_gdl, MY_MUTEX_INIT_FAST);
   global_ddl_log.do_release= true;
+  mysql_mutex_unlock(&LOCK_gdl);
   DBUG_RETURN(entry_no);
 }
 
 
-/*
-  Read a ddl log entry
-  SYNOPSIS
-    read_ddl_log_entry()
-    read_entry               Number of entry to read
-    out:entry_info           Information from entry
-  RETURN VALUES
-    TRUE                     Error
-    FALSE                    Success
-  DESCRIPTION
-    Read a specified entry in the ddl log
+/**
+  Convert from ddl_log_entry struct to file_entry_buf binary blob.
+
+  @param ddl_log_entry   filled in ddl_log_entry struct.
 */
 
-bool read_ddl_log_entry(uint read_entry, DDL_LOG_ENTRY *ddl_log_entry)
+static void set_global_from_ddl_log_entry(const DDL_LOG_ENTRY *ddl_log_entry)
 {
-  char *file_entry_buf= (char*)&global_ddl_log.file_entry_buf;
+  mysql_mutex_assert_owner(&LOCK_gdl);
+  global_ddl_log.file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]=
+                                    (char)DDL_LOG_ENTRY_CODE;
+  global_ddl_log.file_entry_buf[DDL_LOG_ACTION_TYPE_POS]=
+                                    (char)ddl_log_entry->action_type;
+  global_ddl_log.file_entry_buf[DDL_LOG_PHASE_POS]= 0;
+  int4store(&global_ddl_log.file_entry_buf[DDL_LOG_NEXT_ENTRY_POS],
+            ddl_log_entry->next_entry);
+  DBUG_ASSERT(strlen(ddl_log_entry->name) < FN_REFLEN);
+  strmake(&global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS],
+          ddl_log_entry->name, FN_REFLEN - 1);
+  if (ddl_log_entry->action_type == DDL_LOG_RENAME_ACTION ||
+      ddl_log_entry->action_type == DDL_LOG_REPLACE_ACTION ||
+      ddl_log_entry->action_type == DDL_LOG_EXCHANGE_ACTION)
+  {
+    DBUG_ASSERT(strlen(ddl_log_entry->from_name) < FN_REFLEN);
+    strmake(&global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS + FN_REFLEN],
+          ddl_log_entry->from_name, FN_REFLEN - 1);
+  }
+  else
+    global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS + FN_REFLEN]= 0;
+  DBUG_ASSERT(strlen(ddl_log_entry->handler_name) < FN_REFLEN);
+  strmake(&global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS + (2*FN_REFLEN)],
+          ddl_log_entry->handler_name, FN_REFLEN - 1);
+  if (ddl_log_entry->action_type == DDL_LOG_EXCHANGE_ACTION)
+  {
+    DBUG_ASSERT(strlen(ddl_log_entry->tmp_name) < FN_REFLEN);
+    strmake(&global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS + (3*FN_REFLEN)],
+          ddl_log_entry->tmp_name, FN_REFLEN - 1);
+  }
+  else
+    global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS + (3*FN_REFLEN)]= 0;
+}
+
+
+/**
+  Convert from file_entry_buf binary blob to ddl_log_entry struct.
+
+  @param[out] ddl_log_entry   struct to fill in.
+
+  @note Strings (names) are pointing to the global_ddl_log structure,
+  so LOCK_gdl needs to be hold until they are read or copied.
+*/
+
+static void set_ddl_log_entry_from_global(DDL_LOG_ENTRY *ddl_log_entry,
+                                          const uint read_entry)
+{
+  char *file_entry_buf= (char*) global_ddl_log.file_entry_buf;
   uint inx;
   uchar single_char;
-  DBUG_ENTER("read_ddl_log_entry");
 
-  if (read_ddl_log_file_entry(read_entry))
-  {
-    DBUG_RETURN(TRUE);
-  }
+  mysql_mutex_assert_owner(&LOCK_gdl);
   ddl_log_entry->entry_pos= read_entry;
   single_char= file_entry_buf[DDL_LOG_ENTRY_TYPE_POS];
   ddl_log_entry->entry_type= (enum ddl_log_entry_code)single_char;
@@ -890,22 +925,51 @@ bool read_ddl_log_entry(uint read_entry, DDL_LOG_ENTRY *ddl_log_entry)
   ddl_log_entry->from_name= &file_entry_buf[inx];
   inx+= global_ddl_log.name_len;
   ddl_log_entry->handler_name= &file_entry_buf[inx];
+  if (ddl_log_entry->action_type == DDL_LOG_EXCHANGE_ACTION)
+  {
+    inx+= global_ddl_log.name_len;
+    ddl_log_entry->tmp_name= &file_entry_buf[inx];
+  }
+  else
+    ddl_log_entry->tmp_name= NULL;
+}
+
+
+/**
+  Read a ddl log entry.
+
+  Read a specified entry in the ddl log.
+
+  @param read_entry               Number of entry to read
+  @param[out] entry_info          Information from entry
+
+  @return Operation status
+    @retval TRUE                     Error
+    @retval FALSE                    Success
+*/
+
+static bool read_ddl_log_entry(uint read_entry, DDL_LOG_ENTRY *ddl_log_entry)
+{
+  DBUG_ENTER("read_ddl_log_entry");
+
+  if (read_ddl_log_file_entry(read_entry))
+  {
+    DBUG_RETURN(TRUE);
+  }
+  set_ddl_log_entry_from_global(ddl_log_entry, read_entry);
   DBUG_RETURN(FALSE);
 }
 
 
-/*
-  Initialise ddl log
-  SYNOPSIS
-    init_ddl_log()
+/**
+  Initialise ddl log.
 
-  DESCRIPTION
-    Write the header of the ddl log file and length of names. Also set
-    number of entries to zero.
+  Write the header of the ddl log file and length of names. Also set
+  number of entries to zero.
 
-  RETURN VALUES
-    TRUE                     Error
-    FALSE                    Success
+  @return Operation status
+    @retval TRUE                     Error
+    @retval FALSE                    Success
 */
 
 static bool init_ddl_log()
@@ -917,7 +981,7 @@ static bool init_ddl_log()
     goto end;
 
   global_ddl_log.io_size= IO_SIZE;
-  global_ddl_log.name_len= FN_LEN;
+  global_ddl_log.name_len= FN_REFLEN;
   create_ddl_log_file_name(file_name);
   if ((global_ddl_log.file_id= mysql_file_create(key_file_global_ddl_log,
                                                  file_name, CREATE_MODE,
@@ -1043,14 +1107,14 @@ static bool deactivate_ddl_log_entry_no_lock(uint entry_no)
 }
 
 
-/*
+/**
   Execute one action in a ddl log entry
-  SYNOPSIS
-    execute_ddl_log_action()
-    ddl_log_entry              Information in action entry to execute
-  RETURN VALUES
-    TRUE                       Error
-    FALSE                      Success
+
+  @param ddl_log_entry              Information in action entry to execute
+
+  @return Operation status
+    @retval TRUE                       Error
+    @retval FALSE                      Success
 */
 
 static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
@@ -1068,6 +1132,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
   handlerton *hton;
   DBUG_ENTER("execute_ddl_log_action");
 
+  mysql_mutex_assert_owner(&LOCK_gdl);
   if (ddl_log_entry->entry_type == DDL_IGNORE_LOG_ENTRY_CODE)
   {
     DBUG_RETURN(FALSE);
@@ -1132,7 +1197,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
         }
         if ((deactivate_ddl_log_entry_no_lock(ddl_log_entry->entry_pos)))
           break;
-        (void) sync_ddl_log();
+        (void) sync_ddl_log_no_lock();
         error= FALSE;
         if (ddl_log_entry->action_type == DDL_LOG_DELETE_ACTION)
           break;
@@ -1165,9 +1230,9 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
                                   ddl_log_entry->name))
           break;
       }
-      if ((deactivate_ddl_log_entry(ddl_log_entry->entry_pos)))
+      if ((deactivate_ddl_log_entry_no_lock(ddl_log_entry->entry_pos)))
         break;
-      (void) sync_ddl_log();
+      (void) sync_ddl_log_no_lock();
       error= FALSE;
       break;
     }
@@ -1234,14 +1299,14 @@ error:
 }
 
 
-/*
+/**
   Get a free entry in the ddl log
-  SYNOPSIS
-    get_free_ddl_log_entry()
-    out:active_entry                A ddl log memory entry returned
-  RETURN VALUES
-    TRUE                       Error
-    FALSE                      Success
+
+  @param[out] active_entry     A ddl log memory entry returned
+
+  @return Operation status
+    @retval TRUE               Error
+    @retval FALSE              Success
 */
 
 static bool get_free_ddl_log_entry(DDL_LOG_MEMORY_ENTRY **active_entry,
@@ -1284,314 +1349,25 @@ static bool get_free_ddl_log_entry(DDL_LOG_MEMORY_ENTRY **active_entry,
 }
 
 
-/*
-  External interface methods for the DDL log Module
-  ---------------------------------------------------
+/**
+  Execute one entry in the ddl log.
+  
+  Executing an entry means executing a linked list of actions.
+
+  @param first_entry           Reference to first action in entry
+
+  @return Operation status
+    @retval TRUE               Error
+    @retval FALSE              Success
 */
 
-/*
-  SYNOPSIS
-    write_ddl_log_entry()
-    ddl_log_entry         Information about log entry
-    out:entry_written     Entry information written into   
-
-  RETURN VALUES
-    TRUE                      Error
-    FALSE                     Success
-
-  DESCRIPTION
-    A careful write of the ddl log is performed to ensure that we can
-    handle crashes occurring during CREATE and ALTER TABLE processing.
-*/
-
-bool write_ddl_log_entry(DDL_LOG_ENTRY *ddl_log_entry,
-                         DDL_LOG_MEMORY_ENTRY **active_entry)
-{
-  bool error, write_header;
-  DBUG_ENTER("write_ddl_log_entry");
-
-  if (init_ddl_log())
-  {
-    DBUG_RETURN(TRUE);
-  }
-  global_ddl_log.file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]=
-                                    (char)DDL_LOG_ENTRY_CODE;
-  global_ddl_log.file_entry_buf[DDL_LOG_ACTION_TYPE_POS]=
-                                    (char)ddl_log_entry->action_type;
-  global_ddl_log.file_entry_buf[DDL_LOG_PHASE_POS]= 0;
-  int4store(&global_ddl_log.file_entry_buf[DDL_LOG_NEXT_ENTRY_POS],
-            ddl_log_entry->next_entry);
-  DBUG_ASSERT(strlen(ddl_log_entry->name) < FN_LEN);
-  strmake(&global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS],
-          ddl_log_entry->name, FN_LEN - 1);
-  if (ddl_log_entry->action_type == DDL_LOG_RENAME_ACTION ||
-      ddl_log_entry->action_type == DDL_LOG_REPLACE_ACTION)
-  {
-    DBUG_ASSERT(strlen(ddl_log_entry->from_name) < FN_LEN);
-    strmake(&global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS + FN_LEN],
-          ddl_log_entry->from_name, FN_LEN - 1);
-  }
-  else
-    global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS + FN_LEN]= 0;
-  DBUG_ASSERT(strlen(ddl_log_entry->handler_name) < FN_LEN);
-  strmake(&global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS + (2*FN_LEN)],
-          ddl_log_entry->handler_name, FN_LEN - 1);
-  if (get_free_ddl_log_entry(active_entry, &write_header))
-  {
-    DBUG_RETURN(TRUE);
-  }
-  error= FALSE;
-  DBUG_PRINT("ddl_log",
-             ("write type %c next %u name '%s' from_name '%s' handler '%s'",
-             (char) global_ddl_log.file_entry_buf[DDL_LOG_ACTION_TYPE_POS],
-             ddl_log_entry->next_entry,
-             (char*) &global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS],
-             (char*) &global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS
-                                                    + FN_LEN],
-             (char*) &global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS
-                                                    + (2*FN_LEN)]));
-  if (write_ddl_log_file_entry((*active_entry)->entry_pos))
-  {
-    error= TRUE;
-    sql_print_error("Failed to write entry_no = %u",
-                    (*active_entry)->entry_pos);
-  }
-  if (write_header && !error)
-  {
-    (void) sync_ddl_log();
-    if (write_ddl_log_header())
-      error= TRUE;
-  }
-  if (error)
-    release_ddl_log_memory_entry(*active_entry);
-  DBUG_RETURN(error);
-}
-
-
-/*
-  Write final entry in the ddl log
-  SYNOPSIS
-    write_execute_ddl_log_entry()
-    first_entry                    First entry in linked list of entries
-                                   to execute, if 0 = NULL it means that
-                                   the entry is removed and the entries
-                                   are put into the free list.
-    complete                       Flag indicating we are simply writing
-                                   info about that entry has been completed
-    in:out:active_entry            Entry to execute, 0 = NULL if the entry
-                                   is written first time and needs to be
-                                   returned. In this case the entry written
-                                   is returned in this parameter
-  RETURN VALUES
-    TRUE                           Error
-    FALSE                          Success
-
-  DESCRIPTION
-    This is the last write in the ddl log. The previous log entries have
-    already been written but not yet synched to disk.
-    We write a couple of log entries that describes action to perform.
-    This entries are set-up in a linked list, however only when a first
-    execute entry is put as the first entry these will be executed.
-    This routine writes this first 
-*/ 
-
-bool write_execute_ddl_log_entry(uint first_entry,
-                                 bool complete,
-                                 DDL_LOG_MEMORY_ENTRY **active_entry)
-{
-  bool write_header= FALSE;
-  char *file_entry_buf= (char*)global_ddl_log.file_entry_buf;
-  DBUG_ENTER("write_execute_ddl_log_entry");
-
-  if (init_ddl_log())
-  {
-    DBUG_RETURN(TRUE);
-  }
-  if (!complete)
-  {
-    /*
-      We haven't synched the log entries yet, we synch them now before
-      writing the execute entry. If complete is true we haven't written
-      any log entries before, we are only here to write the execute
-      entry to indicate it is done.
-    */
-    (void) sync_ddl_log();
-    file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= (char)DDL_LOG_EXECUTE_CODE;
-  }
-  else
-    file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= (char)DDL_IGNORE_LOG_ENTRY_CODE;
-  file_entry_buf[DDL_LOG_ACTION_TYPE_POS]= 0; /* Ignored for execute entries */
-  file_entry_buf[DDL_LOG_PHASE_POS]= 0;
-  int4store(&file_entry_buf[DDL_LOG_NEXT_ENTRY_POS], first_entry);
-  file_entry_buf[DDL_LOG_NAME_POS]= 0;
-  file_entry_buf[DDL_LOG_NAME_POS + FN_LEN]= 0;
-  file_entry_buf[DDL_LOG_NAME_POS + 2*FN_LEN]= 0;
-  if (!(*active_entry))
-  {
-    if (get_free_ddl_log_entry(active_entry, &write_header))
-    {
-      DBUG_RETURN(TRUE);
-    }
-  }
-  if (write_ddl_log_file_entry((*active_entry)->entry_pos))
-  {
-    sql_print_error("Error writing execute entry in ddl log");
-    release_ddl_log_memory_entry(*active_entry);
-    DBUG_RETURN(TRUE);
-  }
-  (void) sync_ddl_log();
-  if (write_header)
-  {
-    if (write_ddl_log_header())
-    {
-      release_ddl_log_memory_entry(*active_entry);
-      DBUG_RETURN(TRUE);
-    }
-  }
-  DBUG_RETURN(FALSE);
-}
-
-
-/*
-  For complex rename operations we need to deactivate individual entries.
-  SYNOPSIS
-    deactivate_ddl_log_entry()
-    entry_no                      Entry position of record to change
-  RETURN VALUES
-    TRUE                         Error
-    FALSE                        Success
-  DESCRIPTION
-    During replace operations where we start with an existing table called
-    t1 and a replacement table called t1#temp or something else and where
-    we want to delete t1 and rename t1#temp to t1 this is not possible to
-    do in a safe manner unless the ddl log is informed of the phases in
-    the change.
-
-    Delete actions are 1-phase actions that can be ignored immediately after
-    being executed.
-    Rename actions from x to y is also a 1-phase action since there is no
-    interaction with any other handlers named x and y.
-    Replace action where drop y and x -> y happens needs to be a two-phase
-    action. Thus the first phase will drop y and the second phase will
-    rename x -> y.
-*/
-
-bool deactivate_ddl_log_entry(uint entry_no)
-{
-  char *file_entry_buf= (char*)global_ddl_log.file_entry_buf;
-  DBUG_ENTER("deactivate_ddl_log_entry");
-
-  if (!read_ddl_log_file_entry(entry_no))
-  {
-    if (file_entry_buf[DDL_LOG_ENTRY_TYPE_POS] == DDL_LOG_ENTRY_CODE)
-    {
-      if (file_entry_buf[DDL_LOG_ACTION_TYPE_POS] == DDL_LOG_DELETE_ACTION ||
-          file_entry_buf[DDL_LOG_ACTION_TYPE_POS] == DDL_LOG_RENAME_ACTION ||
-          (file_entry_buf[DDL_LOG_ACTION_TYPE_POS] == DDL_LOG_REPLACE_ACTION &&
-           file_entry_buf[DDL_LOG_PHASE_POS] == 1))
-        file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= DDL_IGNORE_LOG_ENTRY_CODE;
-      else if (file_entry_buf[DDL_LOG_ACTION_TYPE_POS] == DDL_LOG_REPLACE_ACTION)
-      {
-        DBUG_ASSERT(file_entry_buf[DDL_LOG_PHASE_POS] == 0);
-        file_entry_buf[DDL_LOG_PHASE_POS]= 1;
-      }
-      else
-      {
-        DBUG_ASSERT(0);
-      }
-      if (write_ddl_log_file_entry(entry_no))
-      {
-        sql_print_error("Error in deactivating log entry. Position = %u",
-                        entry_no);
-        DBUG_RETURN(TRUE);
-      }
-    }
-  }
-  else
-  {
-    sql_print_error("Failed in reading entry before deactivating it");
-    DBUG_RETURN(TRUE);
-  }
-  DBUG_RETURN(FALSE);
-}
-
-
-/*
-  Sync ddl log file
-  SYNOPSIS
-    sync_ddl_log()
-  RETURN VALUES
-    TRUE                      Error
-    FALSE                     Success
-*/
-
-bool sync_ddl_log()
-{
-  bool error= FALSE;
-  DBUG_ENTER("sync_ddl_log");
-
-  if ((!global_ddl_log.recovery_phase) &&
-      init_ddl_log())
-  {
-    DBUG_RETURN(TRUE);
-  }
-  if (mysql_file_sync(global_ddl_log.file_id, MYF(0)))
-  {
-    /* Write to error log */
-    sql_print_error("Failed to sync ddl log");
-    error= TRUE;
-  }
-  DBUG_RETURN(error);
-}
-
-
-/*
-  Release a log memory entry
-  SYNOPSIS
-    release_ddl_log_memory_entry()
-    log_memory_entry                Log memory entry to release
-  RETURN VALUES
-    NONE
-*/
-
-void release_ddl_log_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry)
-{
-  DDL_LOG_MEMORY_ENTRY *first_free= global_ddl_log.first_free;
-  DDL_LOG_MEMORY_ENTRY *next_log_entry= log_entry->next_log_entry;
-  DDL_LOG_MEMORY_ENTRY *prev_log_entry= log_entry->prev_log_entry;
-  DBUG_ENTER("release_ddl_log_memory_entry");
-
-  global_ddl_log.first_free= log_entry;
-  log_entry->next_log_entry= first_free;
-
-  if (prev_log_entry)
-    prev_log_entry->next_log_entry= next_log_entry;
-  else
-    global_ddl_log.first_used= next_log_entry;
-  if (next_log_entry)
-    next_log_entry->prev_log_entry= prev_log_entry;
-  DBUG_VOID_RETURN;
-}
-
-
-/*
-  Execute one entry in the ddl log. Executing an entry means executing
-  a linked list of actions.
-  SYNOPSIS
-    execute_ddl_log_entry()
-    first_entry                Reference to first action in entry
-  RETURN VALUES
-    TRUE                       Error
-    FALSE                      Success
-*/
-
-bool execute_ddl_log_entry(THD *thd, uint first_entry)
+static bool execute_ddl_log_entry_no_lock(THD *thd, uint first_entry)
 {
   DDL_LOG_ENTRY ddl_log_entry;
   uint read_entry= first_entry;
-  DBUG_ENTER("execute_ddl_log_entry");
+  DBUG_ENTER("execute_ddl_log_entry_no_lock");
 
-  mysql_mutex_lock(&LOCK_gdl);
+  mysql_mutex_assert_owner(&LOCK_gdl);
   do
   {
     if (read_ddl_log_entry(read_entry, &ddl_log_entry))
@@ -1613,17 +1389,258 @@ bool execute_ddl_log_entry(THD *thd, uint first_entry)
     }
     read_entry= ddl_log_entry.next_entry;
   } while (read_entry);
-  mysql_mutex_unlock(&LOCK_gdl);
   DBUG_RETURN(FALSE);
 }
 
 
 /*
-  Close the ddl log
-  SYNOPSIS
-    close_ddl_log()
-  RETURN VALUES
-    NONE
+  External interface methods for the DDL log Module
+  ---------------------------------------------------
+*/
+
+/**
+  Write a ddl log entry.
+
+  A careful write of the ddl log is performed to ensure that we can
+  handle crashes occurring during CREATE and ALTER TABLE processing.
+
+  @param ddl_log_entry         Information about log entry
+  @param[out] entry_written    Entry information written into   
+
+  @return Operation status
+    @retval TRUE               Error
+    @retval FALSE              Success
+*/
+
+bool write_ddl_log_entry(DDL_LOG_ENTRY *ddl_log_entry,
+                         DDL_LOG_MEMORY_ENTRY **active_entry)
+{
+  bool error, write_header;
+  DBUG_ENTER("write_ddl_log_entry");
+
+  mysql_mutex_assert_owner(&LOCK_gdl);
+  if (init_ddl_log())
+  {
+    DBUG_RETURN(TRUE);
+  }
+  set_global_from_ddl_log_entry(ddl_log_entry);
+  if (get_free_ddl_log_entry(active_entry, &write_header))
+  {
+    DBUG_RETURN(TRUE);
+  }
+  error= FALSE;
+  DBUG_PRINT("ddl_log",
+             ("write type %c next %u name '%s' from_name '%s' handler '%s'"
+              " tmp_name '%s'",
+             (char) global_ddl_log.file_entry_buf[DDL_LOG_ACTION_TYPE_POS],
+             ddl_log_entry->next_entry,
+             (char*) &global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS],
+             (char*) &global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS
+                                                    + FN_REFLEN],
+             (char*) &global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS
+                                                    + (2*FN_REFLEN)],
+             (char*) &global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS
+                                                    + (3*FN_REFLEN)]));
+  if (write_ddl_log_file_entry((*active_entry)->entry_pos))
+  {
+    error= TRUE;
+    sql_print_error("Failed to write entry_no = %u",
+                    (*active_entry)->entry_pos);
+  }
+  if (write_header && !error)
+  {
+    (void) sync_ddl_log_no_lock();
+    if (write_ddl_log_header())
+      error= TRUE;
+  }
+  if (error)
+    release_ddl_log_memory_entry(*active_entry);
+  DBUG_RETURN(error);
+}
+
+
+/**
+  @brief Write final entry in the ddl log.
+
+  @details This is the last write in the ddl log. The previous log entries
+  have already been written but not yet synched to disk.
+  We write a couple of log entries that describes action to perform.
+  This entries are set-up in a linked list, however only when a first
+  execute entry is put as the first entry these will be executed.
+  This routine writes this first.
+
+  @param first_entry               First entry in linked list of entries
+                                   to execute, if 0 = NULL it means that
+                                   the entry is removed and the entries
+                                   are put into the free list.
+  @param complete                  Flag indicating we are simply writing
+                                   info about that entry has been completed
+  @param[in,out] active_entry      Entry to execute, 0 = NULL if the entry
+                                   is written first time and needs to be
+                                   returned. In this case the entry written
+                                   is returned in this parameter
+
+  @return Operation status
+    @retval TRUE                   Error
+    @retval FALSE                  Success
+*/ 
+
+bool write_execute_ddl_log_entry(uint first_entry,
+                                 bool complete,
+                                 DDL_LOG_MEMORY_ENTRY **active_entry)
+{
+  bool write_header= FALSE;
+  char *file_entry_buf= (char*)global_ddl_log.file_entry_buf;
+  DBUG_ENTER("write_execute_ddl_log_entry");
+
+  mysql_mutex_assert_owner(&LOCK_gdl);
+  if (init_ddl_log())
+  {
+    DBUG_RETURN(TRUE);
+  }
+  if (!complete)
+  {
+    /*
+      We haven't synched the log entries yet, we synch them now before
+      writing the execute entry. If complete is true we haven't written
+      any log entries before, we are only here to write the execute
+      entry to indicate it is done.
+    */
+    (void) sync_ddl_log_no_lock();
+    file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= (char)DDL_LOG_EXECUTE_CODE;
+  }
+  else
+    file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= (char)DDL_IGNORE_LOG_ENTRY_CODE;
+  file_entry_buf[DDL_LOG_ACTION_TYPE_POS]= 0; /* Ignored for execute entries */
+  file_entry_buf[DDL_LOG_PHASE_POS]= 0;
+  int4store(&file_entry_buf[DDL_LOG_NEXT_ENTRY_POS], first_entry);
+  file_entry_buf[DDL_LOG_NAME_POS]= 0;
+  file_entry_buf[DDL_LOG_NAME_POS + FN_REFLEN]= 0;
+  file_entry_buf[DDL_LOG_NAME_POS + 2*FN_REFLEN]= 0;
+  if (!(*active_entry))
+  {
+    if (get_free_ddl_log_entry(active_entry, &write_header))
+    {
+      DBUG_RETURN(TRUE);
+    }
+    write_header= TRUE;
+  }
+  if (write_ddl_log_file_entry((*active_entry)->entry_pos))
+  {
+    sql_print_error("Error writing execute entry in ddl log");
+    release_ddl_log_memory_entry(*active_entry);
+    DBUG_RETURN(TRUE);
+  }
+  (void) sync_ddl_log_no_lock();
+  if (write_header)
+  {
+    if (write_ddl_log_header())
+    {
+      release_ddl_log_memory_entry(*active_entry);
+      DBUG_RETURN(TRUE);
+    }
+  }
+  DBUG_RETURN(FALSE);
+}
+
+
+/**
+  Deactivate an individual entry.
+
+  @details see deactivate_ddl_log_entry_no_lock.
+
+  @param entry_no     Entry position of record to change
+
+  @return Operation status
+    @retval TRUE      Error
+    @retval FALSE     Success
+*/
+
+bool deactivate_ddl_log_entry(uint entry_no)
+{
+  bool error;
+  DBUG_ENTER("deactivate_ddl_log_entry");
+
+  mysql_mutex_lock(&LOCK_gdl);
+  error= deactivate_ddl_log_entry_no_lock(entry_no);
+  mysql_mutex_unlock(&LOCK_gdl);
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Sync ddl log file.
+
+  @return Operation status
+    @retval TRUE        Error
+    @retval FALSE       Success
+*/
+
+bool sync_ddl_log()
+{
+  bool error;
+  DBUG_ENTER("sync_ddl_log");
+
+  mysql_mutex_lock(&LOCK_gdl);
+  error= sync_ddl_log_no_lock();
+  mysql_mutex_unlock(&LOCK_gdl);
+
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Release a log memory entry.
+  @param log_memory_entry                Log memory entry to release
+*/
+
+void release_ddl_log_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry)
+{
+  DDL_LOG_MEMORY_ENTRY *first_free= global_ddl_log.first_free;
+  DDL_LOG_MEMORY_ENTRY *next_log_entry= log_entry->next_log_entry;
+  DDL_LOG_MEMORY_ENTRY *prev_log_entry= log_entry->prev_log_entry;
+  DBUG_ENTER("release_ddl_log_memory_entry");
+
+  mysql_mutex_assert_owner(&LOCK_gdl);
+  global_ddl_log.first_free= log_entry;
+  log_entry->next_log_entry= first_free;
+
+  if (prev_log_entry)
+    prev_log_entry->next_log_entry= next_log_entry;
+  else
+    global_ddl_log.first_used= next_log_entry;
+  if (next_log_entry)
+    next_log_entry->prev_log_entry= prev_log_entry;
+  DBUG_VOID_RETURN;
+}
+
+
+/**
+  Execute one entry in the ddl log.
+  
+  Executing an entry means executing a linked list of actions.
+
+  @param first_entry           Reference to first action in entry
+
+  @return Operation status
+    @retval TRUE               Error
+    @retval FALSE              Success
+*/
+
+bool execute_ddl_log_entry(THD *thd, uint first_entry)
+{
+  bool error;
+  DBUG_ENTER("execute_ddl_log_entry");
+
+  mysql_mutex_lock(&LOCK_gdl);
+  error= execute_ddl_log_entry_no_lock(thd, first_entry);
+  mysql_mutex_unlock(&LOCK_gdl);
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Close the ddl log.
 */
 
 static void close_ddl_log()
@@ -1638,12 +1655,8 @@ static void close_ddl_log()
 }
 
 
-/*
-  Execute the ddl log at recovery of MySQL Server
-  SYNOPSIS
-    execute_ddl_log_recovery()
-  RETURN VALUES
-    NONE
+/**
+  Execute the ddl log at recovery of MySQL Server.
 */
 
 void execute_ddl_log_recovery()
@@ -1676,6 +1689,7 @@ void execute_ddl_log_recovery()
 
   /* this also initialize LOCK_gdl */
   num_entries= read_ddl_log_header();
+  mysql_mutex_lock(&LOCK_gdl);
   for (i= 1; i < num_entries + 1; i++)
   {
     if (read_ddl_log_entry(i, &ddl_log_entry))
@@ -1686,7 +1700,7 @@ void execute_ddl_log_recovery()
     }
     if (ddl_log_entry.entry_type == DDL_LOG_EXECUTE_CODE)
     {
-      if (execute_ddl_log_entry(thd, ddl_log_entry.next_entry))
+      if (execute_ddl_log_entry_no_lock(thd, ddl_log_entry.next_entry))
       {
         /* Real unpleasant scenario but we continue anyways.  */
         continue;
@@ -1697,6 +1711,7 @@ void execute_ddl_log_recovery()
   create_ddl_log_file_name(file_name);
   (void) mysql_file_delete(key_file_global_ddl_log, file_name, MYF(0));
   global_ddl_log.recovery_phase= FALSE;
+  mysql_mutex_unlock(&LOCK_gdl);
   delete thd;
   /* Remember that we don't have a THD */
   set_current_thd(0);
@@ -1704,24 +1719,22 @@ void execute_ddl_log_recovery()
 }
 
 
-/*
-  Release all memory allocated to the ddl log
-  SYNOPSIS
-    release_ddl_log()
-  RETURN VALUES
-    NONE
+/**
+  Release all memory allocated to the ddl log.
 */
 
 void release_ddl_log()
 {
-  DDL_LOG_MEMORY_ENTRY *free_list= global_ddl_log.first_free;
-  DDL_LOG_MEMORY_ENTRY *used_list= global_ddl_log.first_used;
+  DDL_LOG_MEMORY_ENTRY *free_list;
+  DDL_LOG_MEMORY_ENTRY *used_list;
   DBUG_ENTER("release_ddl_log");
 
   if (!global_ddl_log.do_release)
     DBUG_VOID_RETURN;
 
   mysql_mutex_lock(&LOCK_gdl);
+  free_list= global_ddl_log.first_free;
+  used_list= global_ddl_log.first_used;
   while (used_list)
   {
     DDL_LOG_MEMORY_ENTRY *tmp= used_list->next_log_entry;

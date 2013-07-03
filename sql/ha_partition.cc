@@ -2304,26 +2304,27 @@ uint ha_partition::count_query_cache_dependant_tables(uint8 *tables_type)
   DBUG_RETURN(type == HA_CACHE_TBL_ASKTRANSACT ? m_tot_parts : 0);
 }
 
-my_bool ha_partition::reg_query_cache_dependant_table(THD *thd,
-                                          char *key, uint key_len,
-                                          uint8 type,
-                                          Query_cache *cache,
-                                          Query_cache_block_table **block_table,
-                                          handler *file,
-                                          uint *n)
+my_bool ha_partition::
+reg_query_cache_dependant_table(THD *thd,
+                                char *engine_key, uint engine_key_len,
+                                char *cache_key, uint cache_key_len,
+                                uint8 type,
+                                Query_cache *cache,
+                                Query_cache_block_table **block_table,
+                                handler *file,
+                                uint *n)
 {
   DBUG_ENTER("ha_partition::reg_query_cache_dependant_table");
   qc_engine_callback engine_callback;
   ulonglong engine_data;
   /* ask undelying engine */
-  if (!file->register_query_cache_table(thd, key,
-                                        key_len,
+  if (!file->register_query_cache_table(thd, engine_key,
+                                        engine_key_len,
                                         &engine_callback,
                                         &engine_data))
   {
-    DBUG_PRINT("qcache", ("Handler does not allow caching for %s.%s",
-                          key,
-                          key + table_share->db.length + 1));
+    DBUG_PRINT("qcache", ("Handler does not allow caching for %.*s",
+                          engine_key_len, engine_key));
     /*
       As this can change from call to call, don't reset set
       thd->lex->safe_to_cache_query
@@ -2332,9 +2333,11 @@ my_bool ha_partition::reg_query_cache_dependant_table(THD *thd,
     DBUG_RETURN(TRUE);
   }
   (++(*block_table))->n= ++(*n);
-  if (!cache->insert_table(key_len,
-                           key, (*block_table),
+  if (!cache->insert_table(cache_key_len,
+                           cache_key, (*block_table),
                            table_share->db.length,
+                           (uint8) (cache_key_len -
+                                    table_share->table_cache_key.length),
                            type,
                            engine_callback, engine_data,
                            FALSE))
@@ -2343,19 +2346,19 @@ my_bool ha_partition::reg_query_cache_dependant_table(THD *thd,
 }
 
 
-my_bool ha_partition::register_query_cache_dependant_tables(THD *thd,
-                                          Query_cache *cache,
-                                          Query_cache_block_table **block_table,
-                                          uint *n)
+my_bool ha_partition::
+register_query_cache_dependant_tables(THD *thd,
+                                      Query_cache *cache,
+                                      Query_cache_block_table **block_table,
+                                      uint *n)
 {
-  char *name;
-  uint prefix_length= table_share->table_cache_key.length + 3;
+  char *engine_key_end, *query_cache_key_end;
+  uint i;
   uint num_parts= m_part_info->num_parts;
   uint num_subparts= m_part_info->num_subparts;
-  uint i= 0;
+  int diff_length;
   List_iterator<partition_element> part_it(m_part_info->partitions);
-  char key[FN_REFLEN];
-
+  char engine_key[FN_REFLEN], query_cache_key[FN_REFLEN];
   DBUG_ENTER("ha_partition::register_query_cache_dependant_tables");
 
   /* see ha_partition::count_query_cache_dependant_tables */
@@ -2363,36 +2366,51 @@ my_bool ha_partition::register_query_cache_dependant_tables(THD *thd,
     DBUG_RETURN(FALSE); // nothing to register
 
   /* prepare static part of the key */
-  memmove(key, table_share->table_cache_key.str,
-          table_share->table_cache_key.length);
+  memcpy(engine_key, table_share->normalized_path.str,
+         table_share->normalized_path.length);
+  memcpy(query_cache_key, table_share->table_cache_key.str,
+         table_share->table_cache_key.length);
 
-  name= key + table_share->table_cache_key.length - 1;
-  name[0]= name[2]= '#';
-  name[1]= 'P';
-  name+= 3;
+  diff_length= ((int) table_share->table_cache_key.length -
+                (int) table_share->normalized_path.length -1);
 
+  engine_key_end= engine_key + table_share->normalized_path.length;
+  query_cache_key_end= query_cache_key + table_share->table_cache_key.length -1;
+
+  engine_key_end[0]= engine_key_end[2]= query_cache_key_end[0]=
+    query_cache_key_end[2]= '#';
+  query_cache_key_end[1]= engine_key_end[1]= 'P';
+  engine_key_end+= 3;
+  query_cache_key_end+= 3;
+
+  i= 0;
   do
   {
     partition_element *part_elem= part_it++;
-    uint part_len= strmov(name, part_elem->partition_name) - name;
+    char *engine_pos= strmov(engine_key_end, part_elem->partition_name);
     if (m_is_sub_partitioned)
     {
       List_iterator<partition_element> subpart_it(part_elem->subpartitions);
       partition_element *sub_elem;
-      char *sname= name + part_len;
       uint j= 0, part;
-      sname[0]= sname[3]= '#';
-      sname[1]= 'S';
-      sname[2]= 'P';
-      sname += 4;
+      engine_pos[0]= engine_pos[3]= '#';
+      engine_pos[1]= 'S';
+      engine_pos[2]= 'P';
+      engine_pos += 4;
       do
       {
+        char *end;
+        uint length;
         sub_elem= subpart_it++;
         part= i * num_subparts + j;
-        uint spart_len= strmov(sname, sub_elem->partition_name) - name + 1;
-        if (reg_query_cache_dependant_table(thd, key,
-                                            prefix_length + part_len + 4 +
-                                            spart_len,
+        /* we store the end \0 as part of the key */
+        end= strmov(engine_pos, sub_elem->partition_name);
+        length= end - engine_key;
+        /* Copy the suffix also to query cache key */
+        memcpy(query_cache_key_end, engine_key_end, (end - engine_key_end));
+        if (reg_query_cache_dependant_table(thd, engine_key, length,
+                                            query_cache_key,
+                                            length + diff_length,
                                             m_file[part]->table_cache_type(),
                                             cache,
                                             block_table, m_file[part],
@@ -2402,8 +2420,13 @@ my_bool ha_partition::register_query_cache_dependant_tables(THD *thd,
     }
     else
     {
-      if (reg_query_cache_dependant_table(thd, key,
-                                          prefix_length + part_len + 1,
+      char *end= engine_pos+1;                  // copy end \0
+      uint length= end - engine_key;
+      /* Copy the suffix also to query cache key */
+      memcpy(query_cache_key_end, engine_key_end, (end - engine_key_end));
+      if (reg_query_cache_dependant_table(thd, engine_key, length,
+                                          query_cache_key,
+                                          length + diff_length,
                                           m_file[i]->table_cache_type(),
                                           cache,
                                           block_table, m_file[i],
