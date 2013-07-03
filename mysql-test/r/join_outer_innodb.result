@@ -4,12 +4,6 @@ CREATE TABLE t2 (id int(11) NOT NULL PRIMARY KEY, fkey int(11),
 FOREIGN KEY (fkey) REFERENCES t2(id)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1,'A1'),(2,'A2'),(3,'B');
 INSERT INTO t2 VALUES (1,1),(2,2),(3,2),(4,3),(5,3);
-ANALYZE TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	OK
-ANALYZE TABLE t2;
-Table	Op	Msg_type	Msg_text
-test.t2	analyze	status	OK
 EXPLAIN
 SELECT COUNT(*) FROM t2 LEFT JOIN t1 ON t2.fkey = t1.id 
 WHERE t1.name LIKE 'A%';
