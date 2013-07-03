@@ -62,16 +62,15 @@ rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid)
 
 
 int
-rpl_slave_state::record_and_update_gtid(THD *thd, Relay_log_info *rli)
+rpl_slave_state::record_and_update_gtid(THD *thd, struct rpl_group_info *rgi)
 {
   uint64 sub_id;
-  struct rpl_group_info *rgi;
 
   /*
     Update the GTID position, if we have it and did not already update
     it in a GTID transaction.
   */
-  if ((rgi= rli->group_info) && (sub_id= rgi->gtid_sub_id))
+  if ((sub_id= rgi->gtid_sub_id))
   {
     rgi->gtid_sub_id= 0;
     if (record_gtid(thd, &rgi->current_gtid, sub_id, false, false))

@@ -458,7 +458,8 @@ public:
     the <code>Seconds_behind_master</code> field.
   */
   void stmt_done(my_off_t event_log_pos,
-                 time_t event_creation_time, THD *thd);
+                 time_t event_creation_time, THD *thd,
+                 struct rpl_group_info *rgi);
 
 
   /**

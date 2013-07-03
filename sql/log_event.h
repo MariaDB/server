@@ -1331,9 +1331,9 @@ public:
 
      @see do_update_pos
    */
-  int update_pos(Relay_log_info *rli)
+  int update_pos(struct rpl_group_info *rgi)
   {
-    return do_update_pos(rli);
+    return do_update_pos(rgi);
   }
 
   /**
@@ -1461,7 +1461,7 @@ protected:
                    1). Observe that handler errors are returned by the
                    do_apply_event() function, and not by this one.
    */
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual int do_update_pos(struct rpl_group_info *rgi);
 
 
   /**
@@ -1987,7 +1987,7 @@ public:        /* !!! Public in this patch to allow old usage */
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
   virtual int do_apply_event(struct rpl_group_info *rgi);
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual int do_update_pos(struct rpl_group_info *rgi);
 
   int do_apply_event(struct rpl_group_info *rgi,
                        const char *query_arg,
@@ -2597,7 +2597,7 @@ public:
 protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(struct rpl_group_info *rgi);
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual int do_update_pos(struct rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
 };
@@ -2676,7 +2676,7 @@ Intvar_log_event(THD* thd_arg,uchar type_arg, ulonglong val_arg,
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(struct rpl_group_info *rgi);
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual int do_update_pos(struct rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
 };
@@ -2755,7 +2755,7 @@ class Rand_log_event: public Log_event
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(struct rpl_group_info *rgi);
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual int do_update_pos(struct rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
 };
@@ -2871,7 +2871,7 @@ public:
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(struct rpl_group_info *rgi);
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual int do_update_pos(struct rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
 };
@@ -2905,7 +2905,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual int do_update_pos(struct rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli)
   {
     /*
@@ -3007,7 +3007,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual int do_update_pos(struct rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
 };
@@ -3120,7 +3120,7 @@ public:
 #ifdef HAVE_REPLICATION
   void pack_info(THD *thd, Protocol *protocol);
   virtual int do_apply_event(struct rpl_group_info *rgi);
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual int do_update_pos(struct rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
 #else
@@ -3636,7 +3636,7 @@ public:
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 private:
   virtual int do_apply_event(struct rpl_group_info *rgi);
-  virtual int do_update_pos(Relay_log_info*);
+  virtual int do_update_pos(struct rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(Relay_log_info*);
 #endif
 
@@ -4051,7 +4051,7 @@ public:
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(struct rpl_group_info *rgi);
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual int do_update_pos(struct rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 #endif
 
@@ -4279,7 +4279,7 @@ private:
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(struct rpl_group_info *rgi);
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual int do_update_pos(struct rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 
   /*
