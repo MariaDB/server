@@ -30,7 +30,7 @@ extern char version[];
 extern int  trace;
 } //   "C"
 
-#if defined(_DEBUG)
+#if defined(MEMORY_TRACE)
 static xmlFreeFunc Free; 
 static xmlMallocFunc Malloc;
 static xmlMallocFunc MallocA; 
@@ -75,7 +75,7 @@ char *xmlMyStrdup(const char *str)
     htrc("Duplicating      to %p from %p %s\n", p, str, str);
   return p;
 } // end of xmlMyStrdup
-#endif   // _DEBUG
+#endif   // MEMORY_TRACE
 
 /******************************************************************/
 /*  Return a LIBXMLDOC as a XMLDOC.                               */
@@ -91,7 +91,7 @@ PXDOC GetLibxmlDoc(PGLOBAL g, char *nsl, char *nsdf,
 /******************************************************************/
 void XmlInitParserLib(void)
   {
-#if defined(_DEBUG)
+#if defined(MEMORY_TRACE)
 int	rc = xmlGcMemGet(&Free, &Malloc, &MallocA, &Realloc, &Strdup);
 
 if (!rc)
@@ -101,7 +101,7 @@ if (!rc)
                      xmlMyRealloc,
                      xmlMyStrdup); 
 
-#endif   // _DEBUG
+#endif   // MEMORY_TRACE
   xmlInitParser();
   } // end of XmlInitParserLib
 
