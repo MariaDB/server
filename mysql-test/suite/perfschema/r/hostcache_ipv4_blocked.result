@@ -6,7 +6,7 @@ select @@global.debug;
 
 select @@global.max_connect_errors;
 @@global.max_connect_errors
-10
+100
 select @@global.max_connect_errors into @saved_max_connect_errors;
 set global max_connect_errors = 2;
 grant select on test.* to 'root'@'santa.claus.ipv4.example.com';

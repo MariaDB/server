@@ -49,9 +49,8 @@ connect (con3,"::1",plug,plug_dest,test,$MASTER_MYPORT,,,auth_test_plugin);
 --connection default
 --source ../include/hostcache_dump.inc
 
-#--replace_result $PLUGIN_AUTH PLUGIN_AUTH
-#eval install plugin test_plugin_server soname '$PLUGIN_AUTH';
-install plugin test_plugin_server soname 'auth_test_plugin';
+--replace_result $AUTH_TEST_PLUGIN_SO PLUGIN_AUTH
+eval install plugin test_plugin_server soname '$AUTH_TEST_PLUGIN_SO';
 
 --disable_query_log
 --error ER_ACCESS_DENIED_ERROR
