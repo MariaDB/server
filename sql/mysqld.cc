@@ -772,7 +772,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_PARTITION_LOCK_auto_inc;
 PSI_mutex_key key_RELAYLOG_LOCK_index;
 PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
-  key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool;
+  key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_LOCK_parallel_entry;
 
 PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
@@ -850,7 +850,8 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_slave_state, "LOCK_slave_state", 0},
   { &key_LOCK_binlog_state, "LOCK_binlog_state", 0},
   { &key_LOCK_rpl_thread, "LOCK_rpl_thread", 0},
-  { &key_LOCK_rpl_thread_pool, "LOCK_rpl_thread_pool", 0}
+  { &key_LOCK_rpl_thread_pool, "LOCK_rpl_thread_pool", 0},
+  { &key_LOCK_parallel_entry, "LOCK_parallel_entry", 0}
 };
 
 PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,

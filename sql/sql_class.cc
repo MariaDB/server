@@ -5602,6 +5602,13 @@ wait_for_commit::wait_for_commit()
 }
 
 
+wait_for_commit::~wait_for_commit()
+{
+  mysql_mutex_destroy(&LOCK_wait_commit);
+  mysql_cond_destroy(&COND_wait_commit);
+}
+
+
 void
 wait_for_commit::wakeup()
 {

@@ -113,8 +113,6 @@ Relay_log_info::~Relay_log_info()
   mysql_cond_destroy(&sleep_cond);
   relay_log.cleanup();
   free_annotate_event();
-  if (group_info)
-    my_free(group_info);
   DBUG_VOID_RETURN;
 }
 
@@ -1530,6 +1528,30 @@ end:
   }
   my_hash_free(&hash);
   DBUG_RETURN(err);
+}
+
+
+rpl_group_info::rpl_group_info(Relay_log_info *rli_)
+  : rli(rli_), gtid_sub_id(0), wait_commit_sub_id(0), wait_commit_group_info(0),
+    parallel_entry(0)
+{
+  bzero(&current_gtid, sizeof(current_gtid));
+}
+
+
+int
+event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
+{
+  uint64 sub_id= rpl_global_gtid_slave_state.next_subid(gev->domain_id);
+  if (!sub_id)
+  {
+    return 1;
+  }
+  rgi->gtid_sub_id= sub_id;
+  rgi->current_gtid.server_id= gev->server_id;
+  rgi->current_gtid.domain_id= gev->domain_id;
+  rgi->current_gtid.seq_no= gev->seq_no;
+  return 0;
 }
 
 #endif

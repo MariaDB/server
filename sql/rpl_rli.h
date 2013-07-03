@@ -314,7 +314,7 @@ public:
   char slave_patternload_file[FN_REFLEN]; 
   size_t slave_patternload_file_size;  
 
-  /* Various data related to the currently executing event group. */
+  /* ToDo: We need to remove this, always use the per-transaction one to work with parallel replication. */
   struct rpl_group_info *group_info;
   rpl_parallel parallel;
 
@@ -610,6 +610,30 @@ struct rpl_group_info
   */
   uint64 gtid_sub_id;
   rpl_gtid current_gtid;
+  /*
+    This is used to keep transaction commit order.
+    We will signal this when we commit, and can register it to wait for the
+    commit_orderer of the previous commit to signal us.
+  */
+  wait_for_commit commit_orderer;
+  /*
+    If non-zero, the sub_id of a prior event group whose commit we have to wait
+    for before committing ourselves. Then wait_commit_group_info points to the
+    event group to wait for.
+
+    Before using this, rpl_parallel_entry::last_committed_sub_id should be
+    compared against wait_commit_sub_id. Only if last_committed_sub_id is
+    smaller than wait_commit_sub_id must the wait be done (otherwise the
+    waited-for transaction is already committed, so we would otherwise wait
+    for the wrong commit).
+  */
+  uint64 wait_commit_sub_id;
+  struct rpl_group_info *wait_commit_group_info;
+
+  struct rpl_parallel_entry *parallel_entry;
+
+  rpl_group_info(Relay_log_info *rli);
+  ~rpl_group_info() { };
 };
 
 
@@ -620,5 +644,6 @@ int init_relay_log_info(Relay_log_info* rli, const char* info_fname);
 extern struct rpl_slave_state rpl_global_gtid_slave_state;
 
 int rpl_load_gtid_slave_state(THD *thd);
+int event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev);
 
 #endif /* RPL_RLI_H */
