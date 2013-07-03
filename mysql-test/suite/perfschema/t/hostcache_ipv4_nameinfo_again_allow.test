@@ -27,7 +27,7 @@ select current_user();
 disconnect con1;
 
 --connection default
-set global debug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_error_again";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_error_again";
 
 connect (con2,"127.0.0.1",root,,test,$MASTER_MYPORT,);
 select "Con2 is alive";
@@ -45,7 +45,7 @@ disconnect con3;
 --connection default
 --source ../include/hostcache_dump.inc
 
-set global debug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
 
 connect (con4,"127.0.0.1",root,,test,$MASTER_MYPORT,);
 select "Con4 is alive";
@@ -68,5 +68,5 @@ revoke select on test.* from 'root'@'santa.claus.ipv4.example.com';
 drop user 'root'@'192.0.2.4';
 drop user 'root'@'santa.claus.ipv4.example.com';
 
-set global debug= default;
+set global debug_dbug= default;
 

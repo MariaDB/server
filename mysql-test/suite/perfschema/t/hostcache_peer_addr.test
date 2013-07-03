@@ -20,7 +20,7 @@ select current_user();
 disconnect con1;
 
 --connection default
-set global debug= "+d,vio_peer_addr_error";
+set global debug_dbug= "+d,vio_peer_addr_error";
 
 --disable_query_log
 --error ER_BAD_HOST_ERROR
@@ -40,7 +40,7 @@ connect (con3,"127.0.0.1",root,,test,$MASTER_MYPORT,);
 show global status like "connection_errors_%";
 --source ../include/hostcache_dump.inc
 
-set global debug= default;
+set global debug_dbug= default;
 
 flush status;
 show global status like "connection_errors_%";

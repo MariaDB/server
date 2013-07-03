@@ -28,7 +28,7 @@ select current_user();
 disconnect con1;
 
 --connection default
-set global debug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_bad_ipv4";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_bad_ipv4";
 
 connect (con2,"127.0.0.1",root,,test,$MASTER_MYPORT,);
 select "Con2 is alive";
@@ -49,5 +49,5 @@ disconnect con3;
 revoke select on test.* from 'root'@'192.0.2.4';
 drop user 'root'@'192.0.2.4';
 
-set global debug= default;
+set global debug_dbug= default;
 

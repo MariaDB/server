@@ -30,7 +30,7 @@ select current_user();
 disconnect con1;
 
 --connection default
-set global debug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6,native_password_bad_reply";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6,native_password_bad_reply";
 
 --disable_query_log
 --error ER_ACCESS_DENIED_ERROR
@@ -87,5 +87,5 @@ revoke select on test.* from 'root'@'santa.claus.ipv6.example.com';
 drop user 'root'@'santa.claus.ipv6.example.com';
 
 set global max_connect_errors = @saved_max_connect_errors;
-set global debug= default;
+set global debug_dbug= default;
 

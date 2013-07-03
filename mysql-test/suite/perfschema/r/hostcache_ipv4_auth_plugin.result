@@ -14,7 +14,7 @@ Con1 is alive
 select current_user();
 current_user()
 root@localhost
-set global debug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
 uninstall plugin test_plugin_server;
 ERROR HY000: Plugin 'test_plugin_server' is not loaded
 "Dumping performance_schema.host_cache"
@@ -177,4 +177,4 @@ REVOKE PROXY ON 'plug_dest'@'santa.claus.ipv4.example.com'
   FROM 'plug'@'santa.claus.ipv4.example.com';
 DROP USER 'plug'@'santa.claus.ipv4.example.com';
 DROP USER 'plug_dest'@'santa.claus.ipv4.example.com';
-set global debug= default;
+set global debug_dbug= default;
