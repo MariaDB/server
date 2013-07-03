@@ -1194,13 +1194,15 @@ bool Relay_log_info::cached_charset_compare(char *charset) const
 
 
 void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
-                               time_t event_creation_time, THD *thd)
+                               time_t event_creation_time, THD *thd,
+                               struct rpl_group_info *rgi)
 {
 #ifndef DBUG_OFF
   extern uint debug_not_change_ts_if_art_event;
 #endif
   clear_flag(IN_STMT);
 
+  DBUG_ASSERT(rgi->rli == this);
   /*
     If in a transaction, and if the slave supports transactions, just
     inc_event_relay_log_pos(). We only have to check for OPTION_BEGIN
@@ -1229,7 +1231,7 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
   else
   {
     inc_group_relay_log_pos(event_master_log_pos);
-    if (rpl_global_gtid_slave_state.record_and_update_gtid(thd, this))
+    if (rpl_global_gtid_slave_state.record_and_update_gtid(thd, rgi))
     {
       report(WARNING_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
              "Failed to update GTID state in %s.%s, slave state may become "

@@ -214,8 +214,8 @@ protected:
 private:
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual int do_apply_event(struct rpl_group_info *rgi);
+  virtual int do_update_pos(struct rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
 
   /*
@@ -275,7 +275,7 @@ private:
   
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 
-  int do_apply_event(Old_rows_log_event*,const Relay_log_info*);
+  int do_apply_event(Old_rows_log_event*, struct rpl_group_info *rgi);
 
   /*
     Primitive to prepare for a sequence of row executions.
@@ -403,8 +403,8 @@ private:
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   // use old definition of do_apply_event()
-  virtual int do_apply_event(const Relay_log_info *rli)
-  { return Old_rows_log_event::do_apply_event(this,rli); }
+  virtual int do_apply_event(struct rpl_group_info *rgi)
+  { return Old_rows_log_event::do_apply_event(this, rgi); }
 
   // primitives for old version of do_apply_event()
   virtual int do_before_row_operations(TABLE *table);
@@ -481,8 +481,8 @@ private:
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   // use old definition of do_apply_event()
-  virtual int do_apply_event(const Relay_log_info *rli)
-  { return Old_rows_log_event::do_apply_event(this,rli); }
+  virtual int do_apply_event(struct rpl_group_info *rgi)
+  { return Old_rows_log_event::do_apply_event(this, rgi); }
 
   // primitives for old version of do_apply_event()
   virtual int do_before_row_operations(TABLE *table);
@@ -556,8 +556,8 @@ private:
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   // use old definition of do_apply_event()
-  virtual int do_apply_event(const Relay_log_info *rli)
-  { return Old_rows_log_event::do_apply_event(this,rli); }
+  virtual int do_apply_event(struct rpl_group_info *rgi)
+  { return Old_rows_log_event::do_apply_event(this, rgi); }
 
   // primitives for old version of do_apply_event()
   virtual int do_before_row_operations(TABLE *table);

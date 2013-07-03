@@ -36,12 +36,13 @@
 
 // Old implementation of do_apply_event()
 int 
-Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, const Relay_log_info *rli)
+Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, struct rpl_group_info *rgi)
 {
   DBUG_ENTER("Old_rows_log_event::do_apply_event(st_relay_log_info*)");
   int error= 0;
   THD *ev_thd= ev->thd;
   uchar const *row_start= ev->m_rows_buf;
+  const Relay_log_info *rli= rgi->rli;
 
   /*
     If m_table_id == ~0UL, then we have a dummy event that does not
@@ -1450,10 +1451,11 @@ int Old_rows_log_event::do_add_row_data(uchar *row_data, size_t length)
 
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-int Old_rows_log_event::do_apply_event(Relay_log_info const *rli)
+int Old_rows_log_event::do_apply_event(struct rpl_group_info *rgi)
 {
   DBUG_ENTER("Old_rows_log_event::do_apply_event(Relay_log_info*)");
   int error= 0;
+  Relay_log_info const *rli= rgi->rli;
 
   /*
     If m_table_id == ~0UL, then we have a dummy event that does not
@@ -1832,8 +1834,9 @@ Old_rows_log_event::do_shall_skip(Relay_log_info *rli)
 }
 
 int
-Old_rows_log_event::do_update_pos(Relay_log_info *rli)
+Old_rows_log_event::do_update_pos(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Old_rows_log_event::do_update_pos");
   int error= 0;
 
@@ -1847,7 +1850,7 @@ Old_rows_log_event::do_update_pos(Relay_log_info *rli)
       Step the group log position if we are not in a transaction,
       otherwise increase the event log position.
      */
-    rli->stmt_done(log_pos, when, thd);
+    rli->stmt_done(log_pos, when, thd, rgi);
     /*
       Clear any errors in thd->net.last_err*. It is not known if this is
       needed or not. It is believed that any errors that may exist in

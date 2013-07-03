@@ -3108,7 +3108,7 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
   DBUG_PRINT("info", ("apply_event error = %d", exec_res));
   if (exec_res == 0)
   {
-    int error= ev->update_pos(rli);
+    int error= ev->update_pos(rgi);
 #ifdef HAVE_valgrind
     if (!rli->is_fake)
 #endif
@@ -3262,7 +3262,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       DBUG_RETURN(1);
     }
 
-    exec_res= apply_event_and_update_pos(ev, thd, rli->group_info, NULL);
+    exec_res= apply_event_and_update_pos(ev, thd, serial_rgi, NULL);
 
     switch (typ) {
       case FORMAT_DESCRIPTION_EVENT:

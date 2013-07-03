@@ -937,8 +937,9 @@ Log_event::Log_event(const char* buf,
 #ifndef MYSQL_CLIENT
 #ifdef HAVE_REPLICATION
 
-int Log_event::do_update_pos(Relay_log_info *rli)
+int Log_event::do_update_pos(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   /*
     rli is null when (as far as I (Guilhem) know) the caller is
     Load_log_event::do_apply_event *and* that one is called from
@@ -967,7 +968,7 @@ int Log_event::do_update_pos(Relay_log_info *rli)
                    (is_artificial_event() &&
                     IF_DBUG(debug_not_change_ts_if_art_event > 0, 1) ?
                     0 : when),
-                   thd);
+                   thd, rgi);
     DBUG_EXECUTE_IF("let_first_flush_log_change_timestamp",
                     if (debug_not_change_ts_if_art_event == 0)
                       debug_not_change_ts_if_art_event= 2; );
@@ -4243,8 +4244,9 @@ end:
   DBUG_RETURN(thd->is_slave_error);
 }
 
-int Query_log_event::do_update_pos(Relay_log_info *rli)
+int Query_log_event::do_update_pos(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   /*
     Note that we will not increment group* positions if we are just
     after a SET ONE_SHOT, because SET ONE_SHOT should not be separated
@@ -4256,7 +4258,7 @@ int Query_log_event::do_update_pos(Relay_log_info *rli)
     return 0;
   }
   else
-    return Log_event::do_update_pos(rli);
+    return Log_event::do_update_pos(rgi);
 }
 
 
@@ -4865,8 +4867,9 @@ int Format_description_log_event::do_apply_event(struct rpl_group_info *rgi)
   DBUG_RETURN(ret);
 }
 
-int Format_description_log_event::do_update_pos(Relay_log_info *rli)
+int Format_description_log_event::do_update_pos(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   if (server_id == (uint32) global_system_variables.server_id)
   {
     /*
@@ -4887,7 +4890,7 @@ int Format_description_log_event::do_update_pos(Relay_log_info *rli)
   }
   else
   {
-    return Log_event::do_update_pos(rli);
+    return Log_event::do_update_pos(rgi);
   }
 }
 
@@ -5916,8 +5919,9 @@ bool Rotate_log_event::write(IO_CACHE* file)
   @retval
     0	ok
 */
-int Rotate_log_event::do_update_pos(Relay_log_info *rli)
+int Rotate_log_event::do_update_pos(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Rotate_log_event::do_update_pos");
 #ifndef DBUG_OFF
   char buf[32];
@@ -5962,7 +5966,7 @@ int Rotate_log_event::do_update_pos(Relay_log_info *rli)
                         rli->group_master_log_name,
                         (ulong) rli->group_master_log_pos));
     mysql_mutex_unlock(&rli->data_lock);
-    rpl_global_gtid_slave_state.record_and_update_gtid(thd, rli);
+    rpl_global_gtid_slave_state.record_and_update_gtid(thd, rgi);
     flush_relay_log_info(rli);
     
     /*
@@ -6291,8 +6295,9 @@ Gtid_log_event::do_apply_event(struct rpl_group_info *rgi)
 
 
 int
-Gtid_log_event::do_update_pos(Relay_log_info *rli)
+Gtid_log_event::do_update_pos(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   rli->inc_event_relay_log_pos();
   return 0;
 }
@@ -6726,8 +6731,9 @@ int Intvar_log_event::do_apply_event(struct rpl_group_info *rgi)
   return 0;
 }
 
-int Intvar_log_event::do_update_pos(Relay_log_info *rli)
+int Intvar_log_event::do_update_pos(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   rli->inc_event_relay_log_pos();
   return 0;
 }
@@ -6829,8 +6835,9 @@ int Rand_log_event::do_apply_event(struct rpl_group_info *rgi)
   return 0;
 }
 
-int Rand_log_event::do_update_pos(Relay_log_info *rli)
+int Rand_log_event::do_update_pos(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   rli->inc_event_relay_log_pos();
   return 0;
 }
@@ -7498,8 +7505,9 @@ int User_var_log_event::do_apply_event(struct rpl_group_info *rgi)
   DBUG_RETURN(0);
 }
 
-int User_var_log_event::do_update_pos(Relay_log_info *rli)
+int User_var_log_event::do_update_pos(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   rli->inc_event_relay_log_pos();
   return 0;
 }
@@ -7718,8 +7726,9 @@ void Stop_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   Start_log_event_v3::do_apply_event(), not here. Because if we come
   here, the master was sane.
 */
-int Stop_log_event::do_update_pos(Relay_log_info *rli)
+int Stop_log_event::do_update_pos(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   /*
     We do not want to update master_log pos because we get a rotate event
     before stop, so by now group_master_log_name is set to the next log.
@@ -7731,7 +7740,7 @@ int Stop_log_event::do_update_pos(Relay_log_info *rli)
     rli->inc_event_relay_log_pos();
   else
   {
-    rpl_global_gtid_slave_state.record_and_update_gtid(thd, rli);
+    rpl_global_gtid_slave_state.record_and_update_gtid(thd, rgi);
     rli->inc_group_relay_log_pos(0);
     flush_relay_log_info(rli);
   }
@@ -9529,8 +9538,9 @@ static int rows_event_stmt_cleanup(Relay_log_info const *rli, THD * thd)
    @retval non-zero  Error in the statement commit
  */
 int
-Rows_log_event::do_update_pos(Relay_log_info *rli)
+Rows_log_event::do_update_pos(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Rows_log_event::do_update_pos");
   int error= 0;
 
@@ -9544,7 +9554,7 @@ Rows_log_event::do_update_pos(Relay_log_info *rli)
       Step the group log position if we are not in a transaction,
       otherwise increase the event log position.
     */
-    rli->stmt_done(log_pos, when, thd);
+    rli->stmt_done(log_pos, when, thd, rgi);
     /*
       Clear any errors in thd->net.last_err*. It is not known if this is
       needed or not. It is believed that any errors that may exist in
@@ -9777,8 +9787,9 @@ int Annotate_rows_log_event::do_apply_event(struct rpl_group_info *rgi)
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-int Annotate_rows_log_event::do_update_pos(Relay_log_info *rli)
+int Annotate_rows_log_event::do_update_pos(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   rli->inc_event_relay_log_pos();
   return 0;
 }
@@ -10404,8 +10415,9 @@ Table_map_log_event::do_shall_skip(Relay_log_info *rli)
   return continue_group(rli);
 }
 
-int Table_map_log_event::do_update_pos(Relay_log_info *rli)
+int Table_map_log_event::do_update_pos(struct rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   rli->inc_event_relay_log_pos();
   return 0;
 }
