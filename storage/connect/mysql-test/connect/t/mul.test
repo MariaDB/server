@@ -19,7 +19,7 @@ CREATE TABLE `t_all` (
   `a` char(10) DEFAULT NULL,
   `b` char(10) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `table_type`=CSV `file_name`='t*.csv' `sep_char`=';' `multiple`=1;
-SELECT * FROM t_all;
+SELECT * FROM t_all order by `a`;
 
 --echo #
 --echo # Testing multiple 2
