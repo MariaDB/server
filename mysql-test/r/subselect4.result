@@ -2174,7 +2174,7 @@ FROM t1 AS alias1
 ) IS NOT NULL;
 ERROR 21000: Subquery returns more than 1 row
 DROP TABLE t2;
-ERROR 42S02: Unknown table 't2'
+ERROR 42S02: Unknown table 'test.t2'
 DROP TABLE t1;
 #
 # LP BUG#1000649 EXPLAIN shows incorrectly a non-correlated constant IN subquery is correlated
