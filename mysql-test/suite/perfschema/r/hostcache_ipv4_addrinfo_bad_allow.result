@@ -11,7 +11,7 @@ Con1 is alive
 select current_user();
 current_user()
 root@localhost
-set global debug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_bad_ipv4";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_bad_ipv4";
 select "Con2 is alive";
 Con2 is alive
 Con2 is alive
@@ -82,4 +82,4 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 revoke select on test.* from 'root'@'192.0.2.4';
 drop user 'root'@'192.0.2.4';
-set global debug= default;
+set global debug_dbug= default;

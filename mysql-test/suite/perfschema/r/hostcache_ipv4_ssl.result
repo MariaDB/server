@@ -19,7 +19,7 @@ Con1 is alive
 select current_user();
 current_user()
 root@localhost
-set global debug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
 ERROR 28000: Access denied for user 'user_ssl'@'santa.claus.ipv4.example.com' (using password: NO)
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
@@ -138,4 +138,4 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 drop user 'user_ssl'@'santa.claus.ipv4.example.com';
 drop user 'user_ssl_x509'@'santa.claus.ipv4.example.com';
-set global debug= default;
+set global debug_dbug= default;

@@ -9071,6 +9071,9 @@ bool acl_authenticate(THD *thd, uint connect_errors,
       /* we need to find the proxy user, but there was none */
       if (!proxy_user)
       {
+        Host_errors errors;
+        errors.m_proxy_user= 1;
+        inc_host_errors(mpvio.thd->security_ctx->ip, &errors);
         if (!thd->is_error())
           login_failed_error(thd);
         DBUG_RETURN(1);
@@ -9087,6 +9090,9 @@ bool acl_authenticate(THD *thd, uint connect_errors,
                                     mpvio.auth_info.authenticated_as, TRUE);
       if (!acl_proxy_user)
       {
+        Host_errors errors;
+        errors.m_proxy_user_acl= 1;
+        inc_host_errors(mpvio.thd->security_ctx->ip, &errors);
         if (!thd->is_error())
           login_failed_error(thd);
         mysql_mutex_unlock(&acl_cache->lock);
@@ -9115,6 +9121,9 @@ bool acl_authenticate(THD *thd, uint connect_errors,
     */
     if (acl_check_ssl(thd, acl_user))
     {
+      Host_errors errors;
+      errors.m_ssl= 1;
+      inc_host_errors(mpvio.thd->security_ctx->ip, &errors);
       login_failed_error(thd);
       DBUG_RETURN(1);
     }

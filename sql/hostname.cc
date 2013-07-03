@@ -282,7 +282,7 @@ static void add_hostname(const char *ip_key, const char *hostname,
   if (specialflag & SPECIAL_NO_HOST_CACHE)
     return;
 
-  ulonglong now= my_time();
+  ulonglong now= my_hrtime().val;
 
   mysql_mutex_lock(&hostname_cache->lock);
 
@@ -298,7 +298,7 @@ void inc_host_errors(const char *ip_string, Host_errors *errors)
   if (!ip_string)
     return;
 
-  ulonglong now= my_time();
+  ulonglong now= my_hrtime().val;
   char ip_key[HOST_ENTRY_KEY_SIZE];
   prepare_hostname_cache_key(ip_string, ip_key);
 
@@ -448,7 +448,7 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
 
   if (!(specialflag & SPECIAL_NO_HOST_CACHE))
   {
-    ulonglong now= my_time();
+    ulonglong now= my_hrtime().val;
 
     mysql_mutex_lock(&hostname_cache->lock);
 

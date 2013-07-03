@@ -30,7 +30,7 @@ select current_user();
 disconnect con1;
 
 --connection default
-set global debug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6";
 uninstall plugin test_plugin_server;
 
 --disable_query_log
@@ -87,5 +87,5 @@ REVOKE PROXY ON 'plug_dest'@'santa.claus.ipv6.example.com'
 DROP USER 'plug'@'santa.claus.ipv6.example.com';
 DROP USER 'plug_dest'@'santa.claus.ipv6.example.com';
 
-set global debug= default;
+set global debug_dbug= default;
 

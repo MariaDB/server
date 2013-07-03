@@ -1,2 +1,1 @@
---bind-addr=::
 --max-user-connections=1024

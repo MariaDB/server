@@ -6,7 +6,7 @@ select @@global.debug;
 
 select @@global.max_connect_errors;
 @@global.max_connect_errors
-10
+100
 select @@global.max_connect_errors into @saved_max_connect_errors;
 set global max_connect_errors = 2;
 grant select on test.* to 'root'@'santa.claus.ipv6.example.com';
@@ -16,7 +16,7 @@ Con1 is alive
 select current_user();
 current_user()
 root@localhost
-set global debug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6,native_password_bad_reply";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6,native_password_bad_reply";
 ERROR 28000: Access denied for user 'quota'@'santa.claus.ipv6.example.com' (using password: NO)
 "Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
@@ -195,4 +195,4 @@ LAST_ERROR_SEEN	set
 revoke select on test.* from 'root'@'santa.claus.ipv6.example.com';
 drop user 'root'@'santa.claus.ipv6.example.com';
 set global max_connect_errors = @saved_max_connect_errors;
-set global debug= default;
+set global debug_dbug= default;
