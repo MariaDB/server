@@ -8114,23 +8114,33 @@ uint8 ha_ndbcluster::table_cache_type()
 }
 
 
-uint ndb_get_commitcount(THD *thd, char *dbname, char *tabname,
+/**
+   Retrieve the commit count for the table object.
+
+   @param thd              Thread context.
+   @param norm_name        Normalized path to the table.
+   @param[out] commit_count Commit count for the table.
+
+   @return 0 on success.
+   @return 1 if an error occured.
+*/
+
+uint ndb_get_commitcount(THD *thd, char *norm_name,
                          Uint64 *commit_count)
 {
-  char name[FN_REFLEN + 1];
+  char dbname[NAME_LEN + 1];
   NDB_SHARE *share;
   DBUG_ENTER("ndb_get_commitcount");
 
-  build_table_filename(name, sizeof(name) - 1,
-                       dbname, tabname, "", 0);
-  DBUG_PRINT("enter", ("name: %s", name));
-  mysql_mutex_lock(&ndbcluster_mutex);
+  DBUG_PRINT("enter", ("name: %s", norm_name));
+  pthread_mutex_lock(&ndbcluster_mutex);
   if (!(share=(NDB_SHARE*) my_hash_search(&ndbcluster_open_tables,
-                                          (uchar*) name,
-                                          strlen(name))))
+                                          (const uchar*) norm_name,
+                                          strlen(norm_name))))
   {
-    mysql_mutex_unlock(&ndbcluster_mutex);
-    DBUG_PRINT("info", ("Table %s not found in ndbcluster_open_tables", name));
+    pthread_mutex_unlock(&ndbcluster_mutex);
+    DBUG_PRINT("info", ("Table %s not found in ndbcluster_open_tables",
+                         norm_name));
     DBUG_RETURN(1);
   }
   /* ndb_share reference temporary, free below */
@@ -8162,6 +8172,8 @@ uint ndb_get_commitcount(THD *thd, char *dbname, char *tabname,
   Ndb *ndb;
   if (!(ndb= check_ndb_in_thd(thd)))
     DBUG_RETURN(1);
+
+  ha_ndbcluster::set_dbname(norm_name, dbname);
   if (ndb->setDatabaseName(dbname))
   {
     ERR_RETURN(ndb->getNdbError());
@@ -8171,7 +8183,9 @@ uint ndb_get_commitcount(THD *thd, char *dbname, char *tabname,
 
   struct Ndb_statistics stat;
   {
-    Ndb_table_guard ndbtab_g(ndb->getDictionary(), tabname);
+    char tblname[NAME_LEN + 1];
+    ha_ndbcluster::set_tabname(norm_name, tblname);
+    Ndb_table_guard ndbtab_g(ndb->getDictionary(), tblname);
     if (ndbtab_g.get_table() == 0
         || ndb_get_table_statistics(NULL, FALSE, ndb, ndbtab_g.get_table(), &stat))
     {
@@ -8221,10 +8235,9 @@ uint ndb_get_commitcount(THD *thd, char *dbname, char *tabname,
 
 
   @param thd            thread handle
-  @param full_name      concatenation of database name,
-                        the null character '\\0', and the table name
-  @param full_name_len  length of the full name,
-                        i.e. len(dbname) + len(tablename) + 1
+  @param full_name      normalized path to the table in the canonical
+                        format.
+  @param full_name_len  length of the normalized path to the table.
   @param engine_data    parameter retrieved when query was first inserted into
                         the cache. If the value of engine_data is changed,
                         all queries for this table should be invalidated.
@@ -8243,11 +8256,15 @@ ndbcluster_cache_retrieval_allowed(THD *thd,
                                    ulonglong *engine_data)
 {
   Uint64 commit_count;
-  char *dbname= full_name;
-  char *tabname= dbname+strlen(dbname)+1;
+  char dbname[NAME_LEN + 1];
+  char tabname[NAME_LEN + 1];
 #ifndef DBUG_OFF
   char buff[22], buff2[22];
 #endif
+
+  ha_ndbcluster::set_dbname(full_name, dbname);
+  ha_ndbcluster::set_tabname(full_name, tabname);
+
   DBUG_ENTER("ndbcluster_cache_retrieval_allowed");
   DBUG_PRINT("enter", ("dbname: %s, tabname: %s", dbname, tabname));
 
@@ -8257,7 +8274,7 @@ ndbcluster_cache_retrieval_allowed(THD *thd,
     DBUG_RETURN(FALSE);
   }
 
-  if (ndb_get_commitcount(thd, dbname, tabname, &commit_count))
+  if (ndb_get_commitcount(thd, full_name, &commit_count))
   {
     *engine_data= 0; /* invalidate */
     DBUG_PRINT("exit", ("No, could not retrieve commit_count"));
@@ -8292,10 +8309,9 @@ ndbcluster_cache_retrieval_allowed(THD *thd,
   the cached query is reused.
 
   @param thd            thread handle
-  @param full_name      concatenation of database name,
-                        the null character '\\0', and the table name
-  @param full_name_len  length of the full name,
-                        i.e. len(dbname) + len(tablename) + 1
+  @param full_name      normalized path to the table in the 
+                        canonical format.
+  @param full_name_len  length of the normalized path to the table.
   @param engine_callback  function to be called before using cache on
                           this table
   @param[out] engine_data    commit_count for this table
@@ -8325,7 +8341,7 @@ ha_ndbcluster::register_query_cache_table(THD *thd,
     DBUG_RETURN(FALSE);
   }
 
-  if (ndb_get_commitcount(thd, m_dbname, m_tabname, &commit_count))
+  if (ndb_get_commitcount(thd, full_name, &commit_count))
   {
     *engine_data= 0;
     DBUG_PRINT("exit", ("Error, could not get commitcount"));

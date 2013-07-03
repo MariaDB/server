@@ -190,6 +190,7 @@ struct Query_cache_table
   Query_cache_table() {}                      /* Remove gcc warning */
   char *tbl;
   uint32 key_len;
+  uint8 suffix_len;                          /* For partitioned tables */
   uint8 table_type;
   /* unique for every engine reference */
   qc_engine_callback callback_func;
@@ -210,6 +211,8 @@ struct Query_cache_table
   inline void table(char *table_arg)	     { tbl= table_arg; }
   inline uint32 key_length()                 { return key_len; }
   inline void key_length(uint32 len)         { key_len= len; }
+  inline uint8 suffix_length()               { return suffix_len; }
+  inline void suffix_length(uint8 len)       { suffix_len= len; }
   inline uint8 type()                        { return table_type; }
   inline void type(uint8 t)                  { table_type= t; }
   inline qc_engine_callback callback()       { return callback_func; }
@@ -490,7 +493,8 @@ protected:
               unsigned pkt_nr);
   my_bool insert_table(uint key_len, char *key,
 		       Query_cache_block_table *node,
-		       uint32 db_length, uint8 cache_type,
+		       uint32 db_length, uint8 suffix_length_arg,
+                       uint8 cache_type,
 		       qc_engine_callback callback,
 		       ulonglong engine_data,
                        my_bool hash);
