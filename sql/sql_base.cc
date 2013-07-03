@@ -4575,9 +4575,24 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
                         tables->db, tables->table_name, tables)); //psergey: invalid read of size 1 here
   (*counter)++;
 
-  /* Not a placeholder: must be a base table or a view. Let us open it. */
-  DBUG_ASSERT(!tables->table);
+  /* Check if we are trying to create a temporary table */
+  if (tables->open_type == OT_TEMPORARY_ONLY)
+  {
+    /*
+      OT_TEMPORARY_ONLY means that we are in CREATE TEMPORARY TABLE statement.
+      Also such table list element can't correspond to prelocking placeholder
+      or to underlying table of merge table.
+      So existing temporary table should have been preopened by this moment
+      and we can simply continue without trying to open temporary or base
+      table.
+    */
+    DBUG_ASSERT(tables->open_strategy);
+    DBUG_ASSERT(!tables->prelocking_placeholder);
+    DBUG_ASSERT(!tables->parent_l);
+    DBUG_RETURN(0);
+  }
 
+  /* Not a placeholder: must be a base table or a view. Let us open it. */
   if (tables->prelocking_placeholder)
   {
     /*

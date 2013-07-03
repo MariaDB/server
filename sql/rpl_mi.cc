@@ -687,15 +687,15 @@ void create_logfile_name_with_suffix(char *res_file_name, uint length,
   {
     const char *info_file_end= info_file + (p - res_file_name);
     const char *ext= append ? info_file_end : fn_ext2(info_file);
-    size_t res_length, ext_pos;
+    size_t res_length, ext_pos, from_length;
     uint errors;
 
     /* Create null terminated string */
-    strmake(buff, suffix->str, suffix->length);
+    from_length= strmake(buff, suffix->str, suffix->length) - buff;
     /* Convert to lower case */
     my_casedn_str(system_charset_info, buff);
     /* Convert to characters usable in a file name */
-    res_length= strconvert(system_charset_info, buff,
+    res_length= strconvert(system_charset_info, buff, from_length,
                            &my_charset_filename, res, sizeof(res), &errors);
     
     ext_pos= (size_t) (ext - info_file);

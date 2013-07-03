@@ -1672,7 +1672,7 @@ my_bool ha_myisammrg::register_query_cache_dependant_tables(THD *thd
       There are not callback function for for MyISAM, and engine data
     */
     if (!cache->insert_table(key_length, key, (*block_table),
-                             db_length,
+                             db_length, 0,
                              table_cache_type(),
                              0, 0, TRUE))
       DBUG_RETURN(TRUE);

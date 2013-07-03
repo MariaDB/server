@@ -1592,7 +1592,7 @@ innobase_convert_from_table_id(
 {
 	uint	errors;
 
-	strconvert(cs, from, &my_charset_filename, to, (uint) len, &errors);
+	strconvert(cs, from, FN_REFLEN, &my_charset_filename, to, (uint) len, &errors);
 }
 
 /******************************************************************//**
@@ -1608,7 +1608,7 @@ innobase_convert_from_id(
 {
 	uint	errors;
 
-	strconvert(cs, from, system_charset_info, to, (uint) len, &errors);
+	strconvert(cs, from, FN_REFLEN, system_charset_info, to, (uint) len, &errors);
 }
 
 /******************************************************************//**
