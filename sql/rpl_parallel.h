@@ -25,7 +25,6 @@ struct rpl_parallel_thread {
     Log_event *ev;
     struct rpl_group_info *rgi;
   } *event_queue, *last_in_queue;
-  rpl_parallel_thread *wait_for; /* ToDo: change this ... */
 };
 
 
@@ -52,6 +51,14 @@ struct rpl_parallel_entry {
   uint64 last_commit_id;
   bool active;
   rpl_parallel_thread *rpl_thread;
+  /*
+    The sub_id of the last transaction to commit within this domain_id.
+    Must be accessed under LOCK_parallel_entry protection.
+  */
+  uint64 last_committed_sub_id;
+  mysql_mutex_t LOCK_parallel_entry;
+  uint64 current_sub_id;
+  struct rpl_group_info *current_group_info;
 };
 struct rpl_parallel {
   HASH domain_hash;
@@ -60,7 +67,7 @@ struct rpl_parallel {
   rpl_parallel();
   ~rpl_parallel();
   rpl_parallel_entry *find(uint32 domain_id);
-  bool do_event(Relay_log_info *rli, Log_event *ev, THD *thd);
+  bool do_event(struct rpl_group_info *serial_rgi, Log_event *ev, THD *thd);
 };
 
 

@@ -1659,6 +1659,7 @@ struct wait_for_commit
   void unregister_wait_for_prior_commit2();
 
   wait_for_commit();
+  ~wait_for_commit();
 };
 
 

@@ -3177,7 +3177,8 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
 
   @retval 1 The event was not applied.
 */
-static int exec_relay_log_event(THD* thd, Relay_log_info* rli)
+static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
+                                rpl_group_info *serial_rgi)
 {
   DBUG_ENTER("exec_relay_log_event");
 
@@ -3201,6 +3202,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli)
   if (ev)
   {
     int exec_res;
+    Log_event_type typ= ev->get_type_code();
 
     /*
       This tests if the position of the beginning of the current event
@@ -3230,8 +3232,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli)
          read hanging if the realy log does not have any more events.
       */
       DBUG_EXECUTE_IF("incomplete_group_in_relay_log",
-                      if ((ev->get_type_code() == XID_EVENT) ||
-                          ((ev->get_type_code() == QUERY_EVENT) &&
+                      if ((typ == XID_EVENT) ||
+                          ((typ == QUERY_EVENT) &&
                            strcmp("COMMIT", ((Query_log_event *) ev)->query) == 0))
                       {
                         DBUG_ASSERT(thd->transaction.all.modified_non_trans_table);
@@ -3244,11 +3246,25 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli)
     }
 
     if (opt_slave_parallel_threads > 0)
-      DBUG_RETURN(rli->parallel.do_event(rli, ev, thd));
+      DBUG_RETURN(rli->parallel.do_event(serial_rgi, ev, thd));
+
+    /*
+      For GTID, allocate a new sub_id for the given domain_id.
+      The sub_id must be allocated in increasing order of binlog order.
+    */
+    if (typ == GTID_EVENT &&
+        event_group_new_gtid(serial_rgi, static_cast<Gtid_log_event *>(ev)))
+    {
+      sql_print_error("Error reading relay log event: %s",
+                      "slave SQL thread aborted because of out-of-memory error");
+      mysql_mutex_unlock(&rli->data_lock);
+      delete ev;
+      DBUG_RETURN(1);
+    }
 
     exec_res= apply_event_and_update_pos(ev, thd, rli->group_info, NULL);
 
-    switch (ev->get_type_code()) {
+    switch (typ) {
       case FORMAT_DESCRIPTION_EVENT:
         /*
           Format_description_log_event should not be deleted because it
@@ -4001,6 +4017,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   Master_info *mi= ((Master_info*)arg);
   Relay_log_info* rli = &mi->rli;
   const char *errmsg;
+  rpl_group_info serial_rgi(rli);
 
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
@@ -4205,6 +4222,13 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
   }
   mysql_mutex_unlock(&rli->data_lock);
 
+  /*
+    ToDo: Get rid of this, all accesses to rpl_group_info must be made
+    per-worker-thread to work with parallel replication.
+  */
+  if (opt_slave_parallel_threads <= 0)
+    rli->group_info= &serial_rgi;
+
   /* Read queries from the IO/THREAD until this thread is killed */
 
   while (!sql_slave_killed(thd,rli))
@@ -4227,7 +4251,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
       saved_skip= 0;
     }
     
-    if (exec_relay_log_event(thd,rli))
+    if (exec_relay_log_event(thd, rli, &serial_rgi))
     {
       DBUG_PRINT("info", ("exec_relay_log_event() failed"));
       // do not scare the user if SQL thread was simply killed or stopped
@@ -5736,7 +5760,6 @@ static Log_event* next_event(Relay_log_info* rli)
   mysql_mutex_t *log_lock = rli->relay_log.get_log_lock();
   const char* errmsg=0;
   THD* thd = rli->sql_thd;
-  struct rpl_group_info *rgi;
   DBUG_ENTER("next_event");
 
   DBUG_ASSERT(thd != 0);
@@ -5824,45 +5847,12 @@ static Log_event* next_event(Relay_log_info* rli)
                                        opt_slave_sql_verify_checksum)))
 
     {
-      if (!(rgi= rli->group_info))
-      {
-        if (!(rgi= rli->group_info= (struct rpl_group_info *)
-              my_malloc(sizeof(*rgi), MYF(0))))
-        {
-          errmsg = "slave SQL thread aborted because of out-of-memory error";
-          if (hot_log)
-            mysql_mutex_unlock(log_lock);
-          goto err;
-        }
-        bzero(rgi, sizeof(*rgi));
-      }
-      rgi->rli= rli;
       DBUG_ASSERT(thd==rli->sql_thd);
       /*
         read it while we have a lock, to avoid a mutex lock in
         inc_event_relay_log_pos()
       */
       rli->future_event_relay_log_pos= my_b_tell(cur_log);
-      /*
-        For GTID, allocate a new sub_id for the given domain_id.
-        The sub_id must be allocated in increasing order of binlog order.
-      */
-      if (ev->get_type_code() == GTID_EVENT)
-      {
-        Gtid_log_event *gev= static_cast<Gtid_log_event *>(ev);
-        uint64 sub_id= rpl_global_gtid_slave_state.next_subid(gev->domain_id);
-        if (!sub_id)
-        {
-          errmsg = "slave SQL thread aborted because of out-of-memory error";
-          if (hot_log)
-            mysql_mutex_unlock(log_lock);
-          goto err;
-        }
-        rgi->gtid_sub_id= sub_id;
-        rgi->current_gtid.server_id= gev->server_id;
-        rgi->current_gtid.domain_id= gev->domain_id;
-        rgi->current_gtid.seq_no= gev->seq_no;
-      }
 
       if (hot_log)
         mysql_mutex_unlock(log_lock);

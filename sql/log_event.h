@@ -1376,6 +1376,26 @@ public:
     }
   }
 
+  static bool is_group_event(enum Log_event_type ev_type)
+  {
+    switch (ev_type)
+    {
+    case START_EVENT_V3:
+    case STOP_EVENT:
+    case ROTATE_EVENT:
+    case SLAVE_EVENT:
+    case FORMAT_DESCRIPTION_EVENT:
+    case INCIDENT_EVENT:
+    case HEARTBEAT_LOG_EVENT:
+    case BINLOG_CHECKPOINT_EVENT:
+    case GTID_LIST_EVENT:
+      return false;
+
+    default:
+      return true;
+    }
+  }
+  
 protected:
 
   /**
