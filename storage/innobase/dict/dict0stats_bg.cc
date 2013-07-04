@@ -78,6 +78,16 @@ dict_stats_recalc_pool_deinit()
 	ut_ad(!srv_read_only_mode);
 
 	recalc_pool.clear();
+        /*
+          recalc_pool may still have its buffer allocated. It will free it when
+          its destructor is called.
+          The problem is, memory leak detector is run before the recalc_pool's
+          destructor is invoked, and will report recalc_pool's buffer as leaked
+          memory.  To avoid that, we force recalc_pool to surrender its buffer
+          to empty_pool object, which will free it when leaving this function:
+        */
+        recalc_pool_t empty_pool;
+        recalc_pool.swap(empty_pool);
 }
 
 /*****************************************************************//**
