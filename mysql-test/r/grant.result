@@ -55,6 +55,7 @@ max_connections	0
 max_user_connections	0
 plugin	
 authentication_string	
+password_expired	N
 show grants for mysqltest_1@localhost;
 Grants for mysqltest_1@localhost
 GRANT USAGE ON *.* TO 'mysqltest_1'@'localhost' REQUIRE CIPHER 'EDH-RSA-DES-CBC3-SHA'
@@ -126,6 +127,7 @@ max_connections	0
 max_user_connections	0
 plugin	
 authentication_string	
+password_expired	N
 show grants for mysqltest_1@localhost;
 Grants for mysqltest_1@localhost
 GRANT USAGE ON *.* TO 'mysqltest_1'@'localhost' WITH MAX_QUERIES_PER_HOUR 10
@@ -173,6 +175,7 @@ max_connections	30
 max_user_connections	0
 plugin	
 authentication_string	
+password_expired	N
 show grants for mysqltest_1@localhost;
 Grants for mysqltest_1@localhost
 GRANT USAGE ON *.* TO 'mysqltest_1'@'localhost' WITH MAX_QUERIES_PER_HOUR 10 MAX_UPDATES_PER_HOUR 20 MAX_CONNECTIONS_PER_HOUR 30
@@ -1353,7 +1356,7 @@ FLUSH PRIVILEGES;
 DROP TABLE mysql.user;
 drop table if exists test;
 Warnings:
-Note	1051	Unknown table 'test'
+Note	1051	Unknown table 'test.test'
 drop function if exists test_function;
 Warnings:
 Note	1305	FUNCTION test.test_function does not exist
