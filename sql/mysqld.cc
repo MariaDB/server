@@ -894,7 +894,8 @@ PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
   key_COND_wait_commit;
 PSI_cond_key key_RELAYLOG_COND_queue_busy;
 PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
-PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool;
+PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool,
+  key_COND_parallel_entry;
 
 static PSI_cond_info all_server_conds[]=
 {
@@ -938,7 +939,8 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_thread_cache, "COND_thread_cache", PSI_FLAG_GLOBAL},
   { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL},
   { &key_COND_rpl_thread, "COND_rpl_thread", 0},
-  { &key_COND_rpl_thread_pool, "COND_rpl_thread_pool", 0}
+  { &key_COND_rpl_thread_pool, "COND_rpl_thread_pool", 0},
+  { &key_COND_parallel_entry, "COND_parallel_entry", 0}
 };
 
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
