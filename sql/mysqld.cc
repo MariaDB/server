@@ -544,6 +544,8 @@ ulong rpl_recovery_rank=0;
 ulong stored_program_cache_size= 0;
 
 ulong opt_slave_parallel_threads= 0;
+ulong opt_binlog_commit_wait_count= 0;
+ulong opt_binlog_commit_wait_usec= 0;
 
 const double log_10[] = {
   1e000, 1e001, 1e002, 1e003, 1e004, 1e005, 1e006, 1e007, 1e008, 1e009,
@@ -895,7 +897,7 @@ PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
 PSI_cond_key key_RELAYLOG_COND_queue_busy;
 PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool,
-  key_COND_parallel_entry;
+  key_COND_parallel_entry, key_COND_prepare_ordered;
 
 static PSI_cond_info all_server_conds[]=
 {
@@ -940,7 +942,8 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL},
   { &key_COND_rpl_thread, "COND_rpl_thread", 0},
   { &key_COND_rpl_thread_pool, "COND_rpl_thread_pool", 0},
-  { &key_COND_parallel_entry, "COND_parallel_entry", 0}
+  { &key_COND_parallel_entry, "COND_parallel_entry", 0},
+  { &key_COND_prepare_ordered, "COND_prepare_ordered", 0}
 };
 
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
@@ -2017,6 +2020,7 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_server_started);
   mysql_cond_destroy(&COND_server_started);
   mysql_mutex_destroy(&LOCK_prepare_ordered);
+  mysql_cond_destroy(&COND_prepare_ordered);
   mysql_mutex_destroy(&LOCK_commit_ordered);
   DBUG_VOID_RETURN;
 }
@@ -4117,6 +4121,7 @@ static int init_thread_environment()
                    &LOCK_rpl_gtid_state, MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_prepare_ordered, &LOCK_prepare_ordered,
                    MY_MUTEX_INIT_SLOW);
+  mysql_cond_init(key_COND_prepare_ordered, &COND_prepare_ordered, NULL);
   mysql_mutex_init(key_LOCK_commit_ordered, &LOCK_commit_ordered,
                    MY_MUTEX_INIT_SLOW);
 
