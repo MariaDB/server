@@ -895,6 +895,9 @@ bool Log_to_csv_event_handler::
   if (table->field[10]->store(sql_text, sql_text_len, client_cs) < 0)
     goto err;
 
+  if (table->field[11]->store((longlong) thd->thread_id, TRUE))
+    goto err;
+
   /* log table entries are not replicated */
   if (table->file->ha_write_row(table->record[0]))
     goto err;
