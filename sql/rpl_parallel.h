@@ -50,6 +50,7 @@ struct rpl_parallel_entry {
   uint64 last_seq_no;
   uint64 last_commit_id;
   bool active;
+  bool need_signal;
   rpl_parallel_thread *rpl_thread;
   /*
     The sub_id of the last transaction to commit within this domain_id.
@@ -57,6 +58,7 @@ struct rpl_parallel_entry {
   */
   uint64 last_committed_sub_id;
   mysql_mutex_t LOCK_parallel_entry;
+  mysql_cond_t COND_parallel_entry;
   uint64 current_sub_id;
   struct rpl_group_info *current_group_info;
 };
@@ -67,6 +69,7 @@ struct rpl_parallel {
   rpl_parallel();
   ~rpl_parallel();
   rpl_parallel_entry *find(uint32 domain_id);
+  void wait_for_done();
   bool do_event(struct rpl_group_info *serial_rgi, Log_event *ev, THD *thd);
 };
 

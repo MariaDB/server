@@ -283,7 +283,8 @@ extern PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
   key_COND_wait_commit;
 extern PSI_cond_key key_RELAYLOG_COND_queue_busy;
 extern PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
-extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool;
+extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool,
+  key_COND_parallel_entry;
 
 extern PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_kill_server, key_thread_main,

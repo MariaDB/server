@@ -44,10 +44,9 @@ query_vertical SHOW SLAVE STATUS;
 
 --source include/start_slave.inc
 SELECT * FROM t1;
---sleep 1
-SELECT * FROM t1;
 
 --source include/stop_slave.inc
+SELECT * FROM t1;
 
 --connection s1
 SET sql_log_bin=0;

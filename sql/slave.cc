@@ -4342,6 +4342,9 @@ the slave SQL thread with \"SLAVE START\". We stopped at log \
     rli->executed_entries++;
   }
 
+  if (opt_slave_parallel_threads > 0)
+    rli->parallel.wait_for_done();
+
   /* Thread stopped. Print the current replication position to the log */
   {
     String tmp;

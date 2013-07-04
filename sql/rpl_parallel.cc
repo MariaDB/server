@@ -21,6 +21,9 @@
      the logic in sql_slave_killed() that waits for current event group to
      complete needs to be extended appropriately...
 
+   - Audit the use of Relay_log_info::data_lock. Make sure it is held
+     correctly in all needed places also when using parallel replication.
+
    - We need some user-configurable limit on how far ahead the SQL thread will
      fetch and queue events for parallel execution (otherwise if slave gets
      behind we will fill up memory with pending malloc()'ed events).
@@ -194,7 +197,11 @@ handle_rpl_parallel_thread(void *arg)
           */
           mysql_mutex_lock(&entry->LOCK_parallel_entry);
           if (entry->last_committed_sub_id < rgi->gtid_sub_id)
+          {
             entry->last_committed_sub_id= rgi->gtid_sub_id;
+            if (entry->need_signal)
+              mysql_cond_broadcast(&entry->COND_parallel_entry);
+          }
           mysql_mutex_unlock(&entry->LOCK_parallel_entry);
 
           rgi->commit_orderer.wakeup_subsequent_commits();
@@ -463,9 +470,27 @@ rpl_parallel::find(uint32 domain_id)
     }
     mysql_mutex_init(key_LOCK_parallel_entry, &e->LOCK_parallel_entry,
                      MY_MUTEX_INIT_FAST);
+    mysql_cond_init(key_COND_parallel_entry, &e->COND_parallel_entry, NULL);
   }
 
   return e;
+}
+
+
+void
+rpl_parallel::wait_for_done()
+{
+  struct rpl_parallel_entry *e;
+  uint32 i;
+
+  for (i= 0; i < domain_hash.records; ++i)
+  {
+    e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);
+    mysql_mutex_lock(&e->LOCK_parallel_entry);
+    while (e->current_sub_id > e->last_commit_id)
+      mysql_cond_wait(&e->COND_parallel_entry, &e->LOCK_parallel_entry);
+    mysql_mutex_unlock(&e->LOCK_parallel_entry);
+  }
 }
 
 
