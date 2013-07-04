@@ -982,6 +982,8 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
     pcf->Flags |= U_VIRTUAL;
 
   pcf->Key= 0;   // Not used when called from MySQL
+
+  // To make valgring happy
   pcf->Remark= (fp->comment.str && fp->comment.length) ?
                 fp->comment.str : NULL;
   return fldp;
