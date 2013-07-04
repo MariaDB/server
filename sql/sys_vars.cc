@@ -1483,6 +1483,26 @@ static Sys_var_ulong Sys_slave_parallel_threads(
 #endif
 
 
+static Sys_var_ulong Sys_binlog_commit_wait_count(
+       "binlog_commit_wait_count",
+       "If non-zero, binlog write will wait at most binlog_commit_wait_usec "
+       "microseconds for at least this many commits to queue up for group "
+       "commit to the binlog. This can reduce I/O on the binlog and provide "
+       "increased opportunity for parallel apply on the slave, but too high "
+       "a value will decrease commit throughput.",
+       GLOBAL_VAR(opt_binlog_commit_wait_count), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+
+static Sys_var_ulong Sys_binlog_commit_wait_usec(
+       "binlog_commit_wait_usec",
+       "Maximum time, in microseconds, to wait for more commits to queue up "
+       " for binlog group commit. Only takes effect if the value of "
+       "binlog_commit_wait_count is non-zero.",
+       GLOBAL_VAR(opt_binlog_commit_wait_usec), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(100000), BLOCK_SIZE(1));
+
+
 static bool fix_max_join_size(sys_var *self, THD *thd, enum_var_type type)
 {
   SV *sv= type == OPT_GLOBAL ? &global_system_variables : &thd->variables;

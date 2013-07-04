@@ -210,8 +210,7 @@ handle_rpl_parallel_thread(void *arg)
         if (entry->last_committed_sub_id < event_gtid_sub_id)
         {
           entry->last_committed_sub_id= event_gtid_sub_id;
-          if (entry->need_signal)
-            mysql_cond_broadcast(&entry->COND_parallel_entry);
+          mysql_cond_broadcast(&entry->COND_parallel_entry);
         }
         mysql_mutex_unlock(&entry->LOCK_parallel_entry);
 

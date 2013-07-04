@@ -85,9 +85,11 @@ protected:
   prepare_ordered() or commit_ordered() methods.
 */
 extern mysql_mutex_t LOCK_prepare_ordered;
+extern mysql_cond_t COND_prepare_ordered;
 extern mysql_mutex_t LOCK_commit_ordered;
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
+extern PSI_cond_key key_COND_prepare_ordered;
 #endif
 
 class TC_LOG_DUMMY: public TC_LOG // use it to disable the logging
@@ -685,6 +687,7 @@ public:
   }
   void set_max_size(ulong max_size_arg);
   void signal_update();
+  void wait_for_sufficient_commits();
   void wait_for_update_relay_log(THD* thd);
   int  wait_for_update_bin_log(THD* thd, const struct timespec * timeout);
   void init(ulong max_size);

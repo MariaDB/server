@@ -177,6 +177,8 @@ extern ulong opt_binlog_rows_event_max_size;
 extern ulong rpl_recovery_rank, thread_cache_size;
 extern ulong stored_program_cache_size;
 extern ulong opt_slave_parallel_threads;
+extern ulong opt_binlog_commit_wait_count;
+extern ulong opt_binlog_commit_wait_usec;
 extern ulong back_log;
 extern ulong executed_events;
 extern char language[FN_REFLEN];

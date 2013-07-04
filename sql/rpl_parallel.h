@@ -50,7 +50,6 @@ struct rpl_parallel_entry {
   uint64 last_seq_no;
   uint64 last_commit_id;
   bool active;
-  bool need_signal;
   rpl_parallel_thread *rpl_thread;
   /*
     The sub_id of the last transaction to commit within this domain_id.

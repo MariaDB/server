@@ -88,6 +88,7 @@ ulong opt_binlog_dbug_fsync_sleep= 0;
 #endif
 
 mysql_mutex_t LOCK_prepare_ordered;
+mysql_cond_t COND_prepare_ordered;
 mysql_mutex_t LOCK_commit_ordered;
 
 static ulonglong binlog_status_var_num_commits;
@@ -6679,6 +6680,8 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry,
     }
   }
 
+  if (opt_binlog_commit_wait_count > 0)
+    mysql_cond_signal(&COND_prepare_ordered);
   mysql_mutex_unlock(&LOCK_prepare_ordered);
   DEBUG_SYNC(entry->thd, "commit_after_release_LOCK_prepare_ordered");
 
@@ -6840,6 +6843,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     binlog_id= current_binlog_id;
 
     mysql_mutex_lock(&LOCK_prepare_ordered);
+    if (opt_binlog_commit_wait_count)
+      wait_for_sufficient_commits();
     current= group_commit_queue;
     group_commit_queue= NULL;
     mysql_mutex_unlock(&LOCK_prepare_ordered);
@@ -7134,6 +7139,48 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
 
   return 0;
 }
+
+
+void
+MYSQL_BIN_LOG::wait_for_sufficient_commits()
+{
+  size_t count;
+  group_commit_entry *e;
+  group_commit_entry *last_head;
+  struct timespec wait_until;
+
+  mysql_mutex_assert_owner(&LOCK_log);
+  mysql_mutex_assert_owner(&LOCK_prepare_ordered);
+
+  count= 0;
+  for (e= last_head= group_commit_queue; e; e= e->next)
+    ++count;
+  if (count >= opt_binlog_commit_wait_count)
+    return;
+
+  mysql_mutex_unlock(&LOCK_log);
+  set_timespec_nsec(wait_until, (ulonglong)1000*opt_binlog_commit_wait_usec);
+
+  for (;;)
+  {
+    int err;
+    group_commit_entry *head;
+
+    err= mysql_cond_timedwait(&COND_prepare_ordered, &LOCK_prepare_ordered,
+                              &wait_until);
+    if (err == ETIMEDOUT)
+      break;
+    head= group_commit_queue;
+    for (e= head; e && e != last_head; e= e->next)
+      ++count;
+    if (count >= opt_binlog_commit_wait_count)
+      break;
+    last_head= head;
+  }
+
+  mysql_mutex_lock(&LOCK_log);
+}
+
 
 /**
   Wait until we get a signal that the relay log has been updated.
