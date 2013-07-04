@@ -3264,41 +3264,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 
     exec_res= apply_event_and_update_pos(ev, thd, serial_rgi, NULL);
 
-    switch (typ) {
-      case FORMAT_DESCRIPTION_EVENT:
-        /*
-          Format_description_log_event should not be deleted because it
-          will be used to read info about the relay log's format;
-          it will be deleted when the SQL thread does not need it,
-          i.e. when this thread terminates.
-        */
-        break;
-      case ANNOTATE_ROWS_EVENT:
-        /*
-          Annotate_rows event should not be deleted because after it has
-          been applied, thd->query points to the string inside this event.
-          The thd->query will be used to generate new Annotate_rows event
-          during applying the subsequent Rows events.
-        */
-        rli->set_annotate_event((Annotate_rows_log_event*) ev);
-        break;
-      case DELETE_ROWS_EVENT:
-      case UPDATE_ROWS_EVENT:
-      case WRITE_ROWS_EVENT:
-        /*
-          After the last Rows event has been applied, the saved Annotate_rows
-          event (if any) is not needed anymore and can be deleted.
-        */
-        if (((Rows_log_event*)ev)->get_flags(Rows_log_event::STMT_END_F))
-          rli->free_annotate_event();
-        /* fall through */
-      default:
-        DBUG_PRINT("info", ("Deleting the event after it has been executed"));
-        if (!rli->is_deferred_event(ev))
-          delete ev;
-        break;
-    }
-
+    delete_or_keep_event_post_apply(rli, typ, ev);
 
     /*
       update_log_pos failed: this should not happen, so we don't
@@ -4362,6 +4328,14 @@ the slave SQL thread with \"SLAVE START\". We stopped at log \
   }
 
  err:
+
+  /*
+    Once again, in case we aborted with an error and skipped the first one.
+    (We want the first one to be before the printout of stop position to
+    get the correct position printed.)
+  */
+  if (opt_slave_parallel_threads > 0)
+    rli->parallel.wait_for_done();
 
   /*
     Some events set some playgrounds, which won't be cleared because thread

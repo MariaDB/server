@@ -1556,4 +1556,50 @@ event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
   return 0;
 }
 
+
+void
+delete_or_keep_event_post_apply(Relay_log_info *rli,
+                                Log_event_type typ, Log_event *ev)
+{
+  /*
+    ToDo: This needs to work on rpl_group_info, not Relay_log_info, to be
+    thread-safe for parallel replication.
+  */
+
+  switch (typ) {
+  case FORMAT_DESCRIPTION_EVENT:
+    /*
+      Format_description_log_event should not be deleted because it
+      will be used to read info about the relay log's format;
+      it will be deleted when the SQL thread does not need it,
+      i.e. when this thread terminates.
+    */
+    break;
+  case ANNOTATE_ROWS_EVENT:
+    /*
+      Annotate_rows event should not be deleted because after it has
+      been applied, thd->query points to the string inside this event.
+      The thd->query will be used to generate new Annotate_rows event
+      during applying the subsequent Rows events.
+    */
+    rli->set_annotate_event((Annotate_rows_log_event*) ev);
+    break;
+  case DELETE_ROWS_EVENT:
+  case UPDATE_ROWS_EVENT:
+  case WRITE_ROWS_EVENT:
+    /*
+      After the last Rows event has been applied, the saved Annotate_rows
+      event (if any) is not needed anymore and can be deleted.
+    */
+    if (((Rows_log_event*)ev)->get_flags(Rows_log_event::STMT_END_F))
+      rli->free_annotate_event();
+    /* fall through */
+  default:
+    DBUG_PRINT("info", ("Deleting the event after it has been executed"));
+    if (!rli->is_deferred_event(ev))
+      delete ev;
+    break;
+  }
+}
+
 #endif
