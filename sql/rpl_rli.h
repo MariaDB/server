@@ -646,5 +646,7 @@ extern struct rpl_slave_state rpl_global_gtid_slave_state;
 
 int rpl_load_gtid_slave_state(THD *thd);
 int event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev);
+void delete_or_keep_event_post_apply(Relay_log_info *rli,
+                                     Log_event_type typ, Log_event *ev);
 
 #endif /* RPL_RLI_H */

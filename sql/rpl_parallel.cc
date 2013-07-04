@@ -16,6 +16,7 @@
    - Error handling. If we fail in one of multiple parallel executions, we
      need to make a best effort to complete prior transactions and roll back
      following transactions, so slave binlog position will be correct.
+     And all the retry logic for temporary errors like deadlock.
 
    - Stopping the slave needs to handle stopping all parallel executions. And
      the logic in sql_slave_killed() that waits for current event group to
@@ -73,7 +74,6 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   mysql_mutex_lock(&rli->data_lock);
   err= apply_event_and_update_pos(qev->ev, thd, rgi, rpt);
   /* ToDo: error handling. */
-  /* ToDo: also free qev->ev, or hold on to it for a bit if necessary. */
 }
 
 
@@ -85,6 +85,7 @@ handle_rpl_parallel_thread(void *arg)
   struct rpl_parallel_thread::queued_event *events;
   bool group_standalone= true;
   bool in_event_group= false;
+  uint64 event_gtid_sub_id= 0;
 
   struct rpl_parallel_thread *rpt= (struct rpl_parallel_thread *)arg;
 
@@ -142,6 +143,7 @@ handle_rpl_parallel_thread(void *arg)
       rpl_group_info *rgi= events->rgi;
       rpl_parallel_entry *entry= rgi->parallel_entry;
       uint64 wait_for_sub_id;
+      bool end_of_group;
 
       if (event_type == GTID_EVENT)
       {
@@ -149,6 +151,9 @@ handle_rpl_parallel_thread(void *arg)
         group_standalone=
           (0 != (static_cast<Gtid_log_event *>(events->ev)->flags2 &
                  Gtid_log_event::FL_STANDALONE));
+
+        /* Save this, as it gets cleared once event group commits. */
+        event_gtid_sub_id= rgi->gtid_sub_id;
 
         /*
           Register ourself to wait for the previous commit, if we need to do
@@ -173,43 +178,47 @@ handle_rpl_parallel_thread(void *arg)
 
       rpt_handle_event(events, thd, rpt);
 
-      if (in_event_group)
+      end_of_group=
+        in_event_group &&
+        ((group_standalone && !Log_event::is_part_of_group(event_type)) ||
+         event_type == XID_EVENT ||
+         (event_type == QUERY_EVENT &&
+          (!strcmp("COMMIT", ((Query_log_event *)events->ev)->query) ||
+           !strcmp("ROLLBACK", ((Query_log_event *)events->ev)->query))));
+
+      /* ToDo: must use rgi here, not rli, for thread safety. */
+      delete_or_keep_event_post_apply(rgi->rli, event_type, events->ev);
+      my_free(events);
+
+      if (end_of_group)
       {
-        if ((group_standalone && !Log_event::is_part_of_group(event_type)) ||
-            event_type == XID_EVENT ||
-            (event_type == QUERY_EVENT &&
-             (!strcmp("COMMIT", ((Query_log_event *)events->ev)->query) ||
-              !strcmp("ROLLBACK", ((Query_log_event *)events->ev)->query))))
+        in_event_group= false;
+
+        rgi->commit_orderer.unregister_wait_for_prior_commit();
+        thd->wait_for_commit_ptr= NULL;
+
+        /*
+          Record that we have finished, so other event groups will no
+          longer attempt to wait for us to commit.
+
+          We can race here with the next transactions, but that is fine, as
+          long as we check that we do not decrease last_committed_sub_id. If
+          this commit is done, then any prior commits will also have been
+          done and also no longer need waiting for.
+        */
+        mysql_mutex_lock(&entry->LOCK_parallel_entry);
+        if (entry->last_committed_sub_id < event_gtid_sub_id)
         {
-          in_event_group= false;
-
-          rgi->commit_orderer.unregister_wait_for_prior_commit();
-          thd->wait_for_commit_ptr= NULL;
-
-          /*
-            Record that we have finished, so other event groups will no
-            longer attempt to wait for us to commit.
-
-            We can race here with the next transactions, but that is fine, as
-            long as we check that we do not decrease last_committed_sub_id. If
-            this commit is done, then any prior commits will also have been
-            done and also no longer need waiting for.
-          */
-          mysql_mutex_lock(&entry->LOCK_parallel_entry);
-          if (entry->last_committed_sub_id < rgi->gtid_sub_id)
-          {
-            entry->last_committed_sub_id= rgi->gtid_sub_id;
-            if (entry->need_signal)
-              mysql_cond_broadcast(&entry->COND_parallel_entry);
-          }
-          mysql_mutex_unlock(&entry->LOCK_parallel_entry);
-
-          rgi->commit_orderer.wakeup_subsequent_commits();
-          delete rgi;
+          entry->last_committed_sub_id= event_gtid_sub_id;
+          if (entry->need_signal)
+            mysql_cond_broadcast(&entry->COND_parallel_entry);
         }
+        mysql_mutex_unlock(&entry->LOCK_parallel_entry);
+
+        rgi->commit_orderer.wakeup_subsequent_commits();
+        delete rgi;
       }
 
-      my_free(events);
       events= next;
     }
 
@@ -487,7 +496,7 @@ rpl_parallel::wait_for_done()
   {
     e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);
     mysql_mutex_lock(&e->LOCK_parallel_entry);
-    while (e->current_sub_id > e->last_commit_id)
+    while (e->current_sub_id > e->last_committed_sub_id)
       mysql_cond_wait(&e->COND_parallel_entry, &e->LOCK_parallel_entry);
     mysql_mutex_unlock(&e->LOCK_parallel_entry);
   }
@@ -605,6 +614,8 @@ rpl_parallel::do_event(struct rpl_group_info *serial_rgi, Log_event *ev,
     */
     qev->rgi= serial_rgi;
     rpt_handle_event(qev, parent_thd, NULL);
+    delete_or_keep_event_post_apply(rli, typ, qev->ev);
+
     return false;
   }
   else
