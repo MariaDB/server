@@ -547,6 +547,7 @@ bool TDBXML::Initialize(PGLOBAL g)
     else
       Nlist = TabNode->GetChildElements(g);
 
+    Docp->SetNofree(true);       // For libxml2
 #if defined(WIN32)
   } catch(_com_error e) {
     // We come here if a DOM command threw an error

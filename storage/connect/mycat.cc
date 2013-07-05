@@ -470,7 +470,7 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 			} // endswitch tc
 
 		do {
-			field= Hc->GetColumnOption(field, pcf);
+			field= Hc->GetColumnOption(g, field, pcf);
 			} while (field && (*pcf->Name =='*' /*|| pcf->Flags & U_VIRTUAL*/));
 
 		if (tc == TAB_DBF && pcf->Type == TYPE_DATE && !pcf->Datefmt) {

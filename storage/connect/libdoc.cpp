@@ -146,6 +146,8 @@ LIBXMLDOC::LIBXMLDOC(char *nsl, char *nsdf, char *enc, PFBLOCK fp)
   Nlist = NULL;
   Ctxp = NULL;
   Xop = NULL;
+  Buf = NULL;
+  Nofreelist = false;
   } // end of LIBXMLDOC constructor
 
 /******************************************************************/
@@ -347,6 +349,9 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
     htrc("CloseDoc: xp=%p count=%d\n", xp, (xp) ? xp->Count : 0);
 
   if (xp && xp->Count == 1) {
+    if (Nlist)
+      xmlXPathFreeNodeSet(Nlist);
+
     if (Xop)
       xmlXPathFreeObject(Xop);
 
@@ -410,8 +415,13 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
     if (trace)
       htrc("Calling xmlXPathFreeNodeSetList Xop=%p\n", Xop);
 
-    xmlXPathFreeObject(Xop);
-//  xmlXPathFreeNodeSetList(Xop);         // Caused memory leak
+    if (Nofreelist) {
+      // Making Nlist that must not be freed yet
+      xmlXPathFreeNodeSetList(Xop);       // Caused memory leak
+      Nofreelist = false;
+    } else
+      xmlXPathFreeObject(Xop);            // Caused node not found
+
   } // endif Ctxp
 
   // Set the context to the calling node

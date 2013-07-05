@@ -851,7 +851,7 @@ PFOS ha_connect::GetFieldOptionStruct(Field *fdp)
 /****************************************************************************/
 /*  Returns the column description structure used to make the column.       */
 /****************************************************************************/
-void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
+void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 {
   const char *cp;
   ha_field_option_struct *fop;
@@ -983,9 +983,14 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
 
   pcf->Key= 0;   // Not used when called from MySQL
 
-  // To make valgring happy
-  pcf->Remark= (fp->comment.str && fp->comment.length) ?
-                fp->comment.str : NULL;
+  // Get the comment if any
+  if (fp->comment.str && fp->comment.length) {
+    pcf->Remark= (char*)PlugSubAlloc(g, NULL, fp->comment.length + 1);
+    memcpy(pcf->Remark, fp->comment.str, fp->comment.length);
+    pcf->Remark[fp->comment.length] = 0;
+  } else
+    pcf->Remark= NULL;
+
   return fldp;
 } // end of GetColumnOption
 
