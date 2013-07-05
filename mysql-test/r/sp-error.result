@@ -466,7 +466,7 @@ drop table t5;
 end|
 create table t5 (x int)|
 call bug3294()|
-ERROR 42S02: Unknown table 't5'
+ERROR 42S02: Unknown table 'test.t5'
 drop procedure bug3294|
 drop procedure if exists bug8776_1|
 drop procedure if exists bug8776_2|
@@ -1344,8 +1344,6 @@ set @in_func := 0;
 select func_20713_a();
 func_20713_a()
 NULL
-Warnings:
-Error	1146	Table 'test.bogus_table_20713' doesn't exist
 select @in_func;
 @in_func
 2
@@ -1353,8 +1351,6 @@ set @in_func := 0;
 select func_20713_b();
 func_20713_b()
 NULL
-Warnings:
-Error	1146	Table 'test.bogus_table_20713' doesn't exist
 select @in_func;
 @in_func
 2
@@ -1567,7 +1563,7 @@ f2()
 1
 drop function f2;
 drop table t2;
-ERROR 42S02: Unknown table 't2'
+ERROR 42S02: Unknown table 'test.t2'
 End of 5.1 tests
 drop procedure if exists proc_33983_a;
 drop procedure if exists proc_33983_b;
@@ -1821,11 +1817,8 @@ CAST('10 ' as unsigned integer)
 c
 3
 @@warning_count
-1
+0
 Level	Code	Message
-Warning	1292	Truncated incorrect INTEGER value: '10 '
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '10 '
 CALL p6();
 CAST('10 ' as unsigned integer)
 10
@@ -1833,8 +1826,6 @@ Level	Code	Message
 Warning	1292	Truncated incorrect INTEGER value: '10 '
 c
 1
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '10 '
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP PROCEDURE p3;
@@ -1885,9 +1876,6 @@ END|
 CALL p1();
 exception
 exception
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '10 '
-Error	1048	Column 'b' cannot be null
 DROP TABLE t1;
 DROP PROCEDURE p1;
 #
@@ -1931,11 +1919,8 @@ CALL p1();
 NULL
 warning caught (expected)
 warning caught (expected)
-Warnings:
-Warning	1365	Division by 0
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1365	Division by 0
 CALL p2();
 5 / 0
 NULL
