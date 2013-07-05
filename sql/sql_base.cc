@@ -4603,7 +4603,35 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     */
     No_such_table_error_handler no_such_table_handler;
     thd->push_internal_handler(&no_such_table_handler);
-    error= open_table(thd, tables, new_frm_mem, ot_ctx);
+
+    /*
+      We're opening a table from the prelocking list.
+
+      Since this table list element might have been added after pre-opening
+      of temporary tables we have to try to open temporary table for it.
+
+      We can't simply skip this table list element and postpone opening of
+      temporary tabletill the execution of substatement for several reasons:
+      - Temporary table can be a MERGE table with base underlying tables,
+        so its underlying tables has to be properly open and locked at
+        prelocking stage.
+      - Temporary table can be a MERGE table and we might be in PREPARE
+        phase for a prepared statement. In this case it is important to call
+        HA_ATTACH_CHILDREN for all merge children.
+        This is necessary because merge children remember "TABLE_SHARE ref type"
+        and "TABLE_SHARE def version" in the HA_ATTACH_CHILDREN operation.
+        If HA_ATTACH_CHILDREN is not called, these attributes are not set.
+        Then, during the first EXECUTE, those attributes need to be updated.
+        That would cause statement re-preparing (because changing those
+        attributes during EXECUTE is caught by THD::m_reprepare_observers).
+        The problem is that since those attributes are not set in merge
+        children, another round of PREPARE will not help.
+    */
+    error= open_temporary_table(thd, tables);
+
+    if (!error && !tables->table)
+      error= open_table(thd, tables, new_frm_mem, ot_ctx);
+
     thd->pop_internal_handler();
     safe_to_ignore_table= no_such_table_handler.safely_trapped_errors();
   }
@@ -4617,12 +4645,29 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     */
     Repair_mrg_table_error_handler repair_mrg_table_handler;
     thd->push_internal_handler(&repair_mrg_table_handler);
-    error= open_table(thd, tables, new_frm_mem, ot_ctx);
+
+    error= open_temporary_table(thd, tables);
+    if (!error && !tables->table)
+      error= open_table(thd, tables, new_frm_mem, ot_ctx);
+
     thd->pop_internal_handler();
     safe_to_ignore_table= repair_mrg_table_handler.safely_trapped_errors();
   }
   else
-    error= open_table(thd, tables, new_frm_mem, ot_ctx);
+  {
+    if (tables->parent_l)
+    {
+      /*
+        Even if we are opening table not from the prelocking list we
+        still might need to look for a temporary table if this table
+        list element corresponds to underlying table of a merge table.
+      */
+      error= open_temporary_table(thd, tables);
+    }
+
+    if (!error && !tables->table)
+      error= open_table(thd, tables, new_frm_mem, ot_ctx);
+  }
 
   free_root(new_frm_mem, MYF(MY_KEEP_PREALLOC));
 
