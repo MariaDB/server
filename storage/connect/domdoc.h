@@ -35,6 +35,7 @@ class DOMDOC : public XMLDOCUMENT {
   // Properties
   virtual short  GetDocType(void) {return TYPE_FB_XML;}
   virtual void  *GetDocPtr(void) {return Docp;}
+  virtual void   SetNofree(bool b) {}   // Only libxml2
 
   // Methods
   virtual bool    Initialize(PGLOBAL g);

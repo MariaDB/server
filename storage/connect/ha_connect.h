@@ -154,7 +154,7 @@ public:
   int      GetIntegerOption(char *opname);
   bool     SetIntegerOption(char *opname, int n);
   PFOS     GetFieldOptionStruct(Field *fp);
-  void    *GetColumnOption(void *field, PCOLINFO pcf);
+  void    *GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf);
   PIXDEF   GetIndexInfo(void);
   const char *GetDBName(const char *name);
   const char *GetTableName(void);

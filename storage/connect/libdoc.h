@@ -37,6 +37,7 @@ class LIBXMLDOC : public XMLDOCUMENT {
   // Properties
   virtual short  GetDocType(void) {return TYPE_FB_XML2;}
   virtual void  *GetDocPtr(void) {return Docp;}
+  virtual void   SetNofree(bool b) {Nofreelist = b;}
 
   // Methods
   virtual bool    Initialize(PGLOBAL g);
@@ -64,6 +65,7 @@ class LIBXMLDOC : public XMLDOCUMENT {
   xmlXPathContextPtr Ctxp;
   xmlXPathObjectPtr  Xop;
   char              *Buf;                  // Temporary
+  bool               Nofreelist;
 }; // end of class LIBXMLDOC
 
 /******************************************************************/
