@@ -77,6 +77,8 @@ MACRO (MYSQL_CHECK_SSL)
   IF(NOT WITH_SSL)
    IF(WIN32)
      CHANGE_SSL_SETTINGS("bundled")
+   ELSE()
+     SET(WITH_SSL "yes")
    ENDIF()
   ENDIF()
 
