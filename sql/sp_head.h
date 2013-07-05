@@ -364,12 +364,12 @@ public:
 
   /// Put the instruction on the backpatch list, associated with the label.
   int
-  push_backpatch(sp_instr *, struct sp_label *);
+  push_backpatch(sp_instr *, sp_label *);
 
   /// Update all instruction with this label in the backpatch list to
   /// the current position.
   void
-  backpatch(struct sp_label *);
+  backpatch(sp_label *);
 
   /// Start a new cont. backpatch level. If 'i' is NULL, the level is just incr.
   int
@@ -505,7 +505,7 @@ private:
   DYNAMIC_ARRAY m_instr;	///< The "instructions"
   typedef struct
   {
-    struct sp_label *lab;
+    sp_label *lab;
     sp_instr *instr;
   } bp_t;
   List<bp_t> m_backpatch;	///< Instructions needing backpatching
