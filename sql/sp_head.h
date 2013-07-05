@@ -1277,7 +1277,7 @@ public:
 
   virtual void print(String *str);
 
-  void add_to_varlist(struct sp_variable *var)
+  void add_to_varlist(sp_variable *var)
   {
     m_varlist.push_back(var);
   }
@@ -1285,7 +1285,7 @@ public:
 private:
 
   uint m_cursor;
-  List<struct sp_variable> m_varlist;
+  List<sp_variable> m_varlist;
 
 }; // class sp_instr_cfetch : public sp_instr
 
