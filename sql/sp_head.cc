@@ -975,7 +975,7 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
   thd->query_name_consts= 0;
 
   for (Item_splocal **splocal= sp_vars_uses.front(); 
-       splocal < sp_vars_uses.back(); splocal++)
+       splocal <= sp_vars_uses.back(); splocal++)
   {
     Item *val;
 
