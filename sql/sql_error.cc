@@ -347,7 +347,7 @@ Diagnostics_area::reset_diagnostics_area()
 {
   DBUG_ENTER("reset_diagnostics_area");
 #ifdef DBUG_OFF
-  can_overwrite_status= FALSE;
+  m_can_overwrite_status= FALSE;
   /** Don't take chances in production */
   m_message[0]= '\0';
   m_sql_errno= 0;

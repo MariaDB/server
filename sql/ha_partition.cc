@@ -2975,7 +2975,7 @@ bool ha_partition::setup_engine_array(MEM_ROOT *mem_root)
     }
   }
 
-  my_afree((gptr) engine_array);
+  my_afree((void*) engine_array);
     
   if (create_handlers(mem_root))
   {
@@ -2986,7 +2986,7 @@ bool ha_partition::setup_engine_array(MEM_ROOT *mem_root)
   DBUG_RETURN(false);
 
 err:
-  my_afree((gptr) engine_array);
+  my_afree((void*) engine_array);
   DBUG_RETURN(true);
 }
 
