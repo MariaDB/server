@@ -205,7 +205,7 @@ ERROR 42S02: Unknown table 'v100'
 drop view t1;
 ERROR HY000: 'test.t1' is not VIEW
 drop table v1;
-ERROR 42S02: Unknown table 'v1'
+ERROR 42S02: Unknown table 'test.v1'
 drop view v1,v2;
 drop table t1;
 create table t1 (a int);
@@ -3951,8 +3951,6 @@ create view a as select 1;
 end|
 call p();
 call p();
-Warnings:
-Error	1050	Table 'a' already exists
 drop view a;
 drop procedure p;
 #
