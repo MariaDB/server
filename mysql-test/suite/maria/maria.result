@@ -653,7 +653,7 @@ t1	1	a	1	a	A	1000	NULL	NULL	YES	BTREE
 alter table t1 engine=heap;
 alter table t1 disable keys;
 Warnings:
-Note	1031	Table storage engine for 't1' doesn't have this option
+Note	1031	Storage engine MEMORY of the table `test`.`t1` doesn't have this option
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	1	a	1	a	NULL	500	NULL	NULL	YES	HASH		
