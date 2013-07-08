@@ -68,6 +68,8 @@
 #include "tabdos.h"      // TDBDOS and DOSCOL class dcls
 #include "tabmul.h"      // TDBMUL and MULCOL classes dcls
 
+extern "C" int   trace;
+
 /* ------------------------- Class TDBMUL ---------------------------- */
 
 /***********************************************************************/
@@ -122,14 +124,24 @@ PTDB TDBMUL::Duplicate(PGLOBAL g)
 /***********************************************************************/
 bool TDBMUL::InitFileNames(PGLOBAL g)
   {
-#define PFNZ  8192
-  char *pfn[PFNZ], filename[_MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT];
+#define PFNZ  4096
+#define FNSZ  _MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT
+  char *pfn[PFNZ];
+  char *filename;
   int   rc, n = 0;
+
+  if (trace)
+    htrc("in InitFileName: fn[]=%d\n", FNSZ);
+
+  filename = (char*)PlugSubAlloc(g, NULL, FNSZ);
 
   // The sub table may need to refer to the Table original block
   Tdbp->SetTable(To_Table);         // Was not set at construction
 
   PlugSetPath(filename, Tdbp->GetFile(g), Tdbp->GetPath());
+
+  if (trace)
+    htrc("InitFileName: fn='%s'\n", filename);
 
   if (Mul == 1) {
     /*******************************************************************/
@@ -194,14 +206,27 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
     _splitpath(filename, NULL, direc, pattern, ftype);
     strcat(pattern, ftype);
 
+    if (trace)
+      htrc("direc=%s pattern=%s ftype=%s\n", direc, pattern, ftype);
+
     // Start searching files in the target directory.
     if (!(dir = opendir(direc))) {
       sprintf(g->Message, MSG(BAD_DIRECTORY), direc, strerror(errno));
+
+      if (trace)
+        htrc("%s\n", g->Message);
+
       return true;
       } // endif dir
 
+    if (trace)
+      htrc("dir opened: reading files\n");
+
     while ((entry = readdir(dir)) && n < PFNZ) {
       strcat(strcpy(fn, direc), entry->d_name);
+
+      if (trace)
+        htrc("%s read\n", fn);
 
       if (lstat(fn, &fileinfo) < 0) {
         sprintf(g->Message, "%s: %s", fn, strerror(errno));
@@ -218,6 +243,10 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
       strcat(strcpy(filename, direc), entry->d_name);
       pfn[n] = (char*)PlugSubAlloc(g, NULL, strlen(filename) + 1);
       strcpy(pfn[n++], filename);
+
+      if (trace)
+        htrc("Adding pfn[%d] %s\n", n, filename);
+
       } // endwhile readdir
 
     // Close the dir handle.
@@ -235,7 +264,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
       return true;
 
     while (n < PFNZ) {
-      if (!fgets(filename, sizeof(filename), stream)) {
+      if (!fgets(filename, FNSZ, stream)) {
         fclose(stream);
         break;
         } // endif fgets
@@ -364,9 +393,12 @@ int TDBMUL::Cardinality(PGLOBAL g)
 int TDBMUL::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
-    int  i;
+    int i;
     int mxsz;
 
+    if (trace)
+      htrc("TDBMUL::GetMaxSize: Filenames=%p\n", Filenames);
+    
     if (!Filenames && InitFileNames(g))
       return -1;
 
@@ -420,10 +452,9 @@ int TDBMUL::RowNumber(PGLOBAL g, bool b)
 /***********************************************************************/
 bool TDBMUL::OpenDB(PGLOBAL g)
   {
-#ifdef DEBTRACE
- htrc("MUL OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d\n",
-  this, Tdb_No, Use, To_Key_Col, Mode);
-#endif
+  if (trace)
+    htrc("MUL OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d\n",
+      this, Tdb_No, Use, To_Key_Col, Mode);
 
   if (Use == USE_OPEN) {
     /*******************************************************************/
@@ -451,7 +482,7 @@ bool TDBMUL::OpenDB(PGLOBAL g)
   /*********************************************************************/
   /*  Open the first table file of the list.                           */
   /*********************************************************************/
-//if (!Filenames && InitFileNames(g))     done in GetMaxSize
+//if (!Filenames && InitFileNames(g))     // was done in GetMaxSize
 //  return true;
 
   if (Filenames[iFile = 0]) {
@@ -735,10 +766,9 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
 /***********************************************************************/
 bool TDBDIR::OpenDB(PGLOBAL g)
   {
-#ifdef DEBTRACE
- htrc("DIR OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
-  this, Tdb_No, Use, Mode);
-#endif
+  if (trace)
+    htrc("DIR OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
+      this, Tdb_No, Use, Mode);
 
   if (Use == USE_OPEN) {
     /*******************************************************************/
@@ -898,11 +928,9 @@ void DIRCOL::ReadColumn(PGLOBAL g)
   {
   PTDBDIR tdbp = (PTDBDIR)To_Tdb;
 
-#ifdef DEBTRACE
- fprintf(debug,
-   "DIR ReadColumn: col %s R%d use=%.4X status=%.4X type=%d N=%d\n",
-  Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type, N);
-#endif
+  if (trace)
+    htrc("DIR ReadColumn: col %s R%d use=%.4X status=%.4X type=%d N=%d\n",
+      Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type, N);
 
   /*********************************************************************/
   /*  Retrieve the information corresponding to the column number.     */
@@ -1304,10 +1332,9 @@ int TDBDHR::GetMaxSize(PGLOBAL g)
 /***********************************************************************/
 bool TDBDHR::OpenDB(PGLOBAL g)
   {
-#ifdef DEBTRACE
- htrc("DHR OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
-  this, Tdb_No, Use, Mode);
-#endif
+  if (trace)
+    htrc("DHR OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
+      this, Tdb_No, Use, Mode);
 
   if (Use == USE_OPEN) {
     /*******************************************************************/
@@ -1442,11 +1469,9 @@ void DHRCOL::ReadColumn(PGLOBAL g)
   int     rc;
   PTDBDHR tdbp = (PTDBDHR)To_Tdb;
 
-#ifdef DEBTRACE
- fprintf(debug,
-   "DHR ReadColumn: col %s R%d use=%.4X status=%.4X type=%d N=%d\n",
-  Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type, N);
-#endif
+  if (trace)
+    htrc("DHR ReadColumn: col %s R%d use=%.4X status=%.4X type=%d N=%d\n",
+      Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type, N);
 
   /*********************************************************************/
   /*  Retrieve the information corresponding to the column number.     */

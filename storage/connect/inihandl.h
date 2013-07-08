@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 void PROFILE_Close(LPCSTR filename);
+void PROFILE_End(void);
 
 int GetPrivateProfileString(
   LPCTSTR lpAppName,        // section name

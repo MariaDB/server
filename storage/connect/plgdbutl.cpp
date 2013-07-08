@@ -127,7 +127,7 @@ void CloseXMLFile(PGLOBAL, PFBLOCK, bool);
 #endif   // DOMDOC_SUPPORT
 
 #ifdef LIBXML2_SUPPORT
-void CloseXML2File(PGLOBAL, PFBLOCK, bool);
+#include "libdoc.h"
 #endif   // LIBXML2_SUPPORT
 
 
@@ -222,7 +222,7 @@ int global_open(GLOBAL *g, int msgid, const char *path, int flags, int mode)
 /**************************************************************************/
 /*  Utility for external callers (such as XDB)                            */
 /**************************************************************************/
-DllExport char *GetIni(int n = 0)
+DllExport char *GetIni(int n)
   {
   switch (n) {
     case 1: return plgxini; break;
