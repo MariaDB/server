@@ -24,6 +24,9 @@
 #define __STDC__ 1
 #endif
 #include <stdio.h>
+#ifndef defined(WIN32)
+#include <unistd.h>
+#endif
 
 
 /* cfront 1.2 defines "c_plusplus" instead of "__cplusplus" */
@@ -392,7 +395,6 @@ char *yytext;
 #include <string.h>
 #include "preparse.h"
 
-#define isatty _isatty
 #define fileno _fileno
 #undef  YY_DECL
 #define YY_DECL int yylex YY_PROTO((PDTP ppp))
