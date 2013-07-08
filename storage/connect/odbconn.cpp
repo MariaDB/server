@@ -1673,8 +1673,10 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         // Attempt to set rowset size.
         // In case of failure reset it to 0 to use Fetch.
         if (m_Catver == 3)          // ODBC Ver 3
-          rc = SQLSetStmtAttr(hstmt, SQL_ATTR_ROW_ARRAY_SIZE,
-                                    (SQLPOINTER)m_RowsetSize, 0);
+        {
+          SQLULEN tmp= m_RowsetSize;
+          rc = SQLSetStmtAttr(hstmt, SQL_ATTR_ROW_ARRAY_SIZE, &tmp, 0);
+        }
         else
           rc = SQLSetStmtOption(hstmt, SQL_ROWSET_SIZE, m_RowsetSize);
 
