@@ -202,11 +202,6 @@ BOOL MessageBeep(uint i)
   return TRUE;
   } /* end of MessageBeep */
 
-int _isatty(int fileNo) 
-  {
-  return isatty(fileNo);
-  }  /* end of _isatty */
-
 #if 0
 /* This function is ridiculous and should be revisited */
 DWORD FormatMessage(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId,
