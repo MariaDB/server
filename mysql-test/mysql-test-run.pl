@@ -377,7 +377,7 @@ sub main {
   # directly before it executes them, like "make test-force-pl" in RPM builds.
   mtr_report("Logging: $0 ", join(" ", @ARGV));
 
-  $DEFAULT_SUITES.=",sequence,sql_discovery,spider,spider/bg" if $source_dist;
+  $DEFAULT_SUITES.=",sequence,sql_discovery,connect,spider,spider/bg" if $source_dist;
 
   command_line_setup();
 
