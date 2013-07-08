@@ -223,12 +223,13 @@ bool TDBINI::OpenDB(PGLOBAL g)
   PINICOL colp;
 
   if (Use == USE_OPEN) {
+#if 0
     if (To_Kindex)
       /*****************************************************************/
       /*  Table is to be accessed through a sorted index table.        */
       /*****************************************************************/
       To_Kindex->Reset();
-
+#endif // 0
     Section = NULL;
     N = 0;
     return false;
@@ -262,6 +263,7 @@ int TDBINI::ReadDB(PGLOBAL g)
   /*********************************************************************/
   /*  Now start the pseudo reading process.                            */
   /*********************************************************************/
+#if 0                // INI tables are not indexable
   if (To_Kindex) {
     /*******************************************************************/
     /*  Reading is by an index table.                                  */
@@ -276,10 +278,11 @@ int TDBINI::ReadDB(PGLOBAL g)
       case -3:           // Same record as last non null one
         return RC_OK;
       default:
-        Section = (char*)recpos;
+        Section = (char*)recpos;    // No good on 64 bit machines
       } // endswitch recpos
 
   } else {
+#endif // 0
     if (!Section)
       Section = Seclist;
     else
@@ -289,7 +292,7 @@ int TDBINI::ReadDB(PGLOBAL g)
       htrc("INI ReadDB: section=%s N=%d\n", Section, N);
 
     N++;
-  } // endif To_Kindex
+//} // endif To_Kindex
 
   return (*Section) ? RC_OK : RC_EF;
   } // end of ReadDB
@@ -655,6 +658,7 @@ int TDBXIN::ReadDB(PGLOBAL g)
   /*********************************************************************/
   /*  Now start the pseudo reading process.                            */
   /*********************************************************************/
+#if 0               // XIN tables are not indexable
   if (To_Kindex) {
     /*******************************************************************/
     /*  Reading is by an index table.                                  */
@@ -673,6 +677,7 @@ int TDBXIN::ReadDB(PGLOBAL g)
       } // endswitch recpos
 
   } else {
+#endif // 0
     do {
       if (!Keycur || !*Keycur) {
         if (!Section)
@@ -691,7 +696,7 @@ int TDBXIN::ReadDB(PGLOBAL g)
       } while (!*Keycur);
 
     N++;
-  } // endif To_Kindex
+//} // endif To_Kindex
 
   return RC_OK;
   } // end of ReadDB
