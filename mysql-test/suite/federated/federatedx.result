@@ -1508,7 +1508,7 @@ id	name
 1	Monty
 2	David
 ALTER TABLE federated.alter_me MODIFY COLUMN id int(16) NOT NULL;
-ERROR HY000: Table storage engine for 'alter_me' doesn't have this option
+ERROR HY000: Storage engine FEDERATED of the table `federated`.`alter_me` doesn't have this option
 SELECT * FROM federated.alter_me;
 id	name
 1	Monty
