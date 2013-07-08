@@ -110,7 +110,7 @@ bool partition_info::add_named_partition(const char *part_name,
                                             length);
   if (!part_def)
   {
-//  my_error(ER_UNKNOWN_PARTITION, MYF(0), part_name, table->alias);
+    my_error(ER_UNKNOWN_PARTITION, MYF(0), part_name, table->alias.c_ptr());
     DBUG_RETURN(true);
   }
 
