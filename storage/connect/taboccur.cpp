@@ -56,7 +56,7 @@ extern "C" int trace;
 /***********************************************************************/
 /*  Prepare and count columns in the column list.                      */
 /***********************************************************************/
-int PrepareColist(char *colist)
+static int PrepareColist(char *colist)
 	{
 	char *p, *pn;
 	int   n = 0;
