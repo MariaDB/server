@@ -604,6 +604,7 @@ private:
 struct rpl_group_info
 {
   Relay_log_info *rli;
+  THD *thd;
   /*
     Current GTID being processed.
     The sub_id gives the binlog order within one domain_id. A zero sub_id
@@ -630,10 +631,19 @@ struct rpl_group_info
   */
   uint64 wait_commit_sub_id;
   struct rpl_group_info *wait_commit_group_info;
+  /*
+    If non-zero, the event group must wait for this sub_id to be committed
+    before the execution of the event group is allowed to start.
+
+    (When we execute in parallel the transactions that group committed
+    together on the master, we still need to wait for any prior transactions
+    to have commtted).
+  */
+  uint64 wait_start_sub_id;
 
   struct rpl_parallel_entry *parallel_entry;
 
-  rpl_group_info(Relay_log_info *rli);
+  rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info() { };
 };
 

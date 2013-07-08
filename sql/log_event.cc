@@ -9101,7 +9101,7 @@ int Rows_log_event::do_apply_event(struct rpl_group_info *rgi)
     do_apply_event(). We still check here to prevent future coding
     errors.
   */
-  DBUG_ASSERT(rli->sql_thd == thd);
+  DBUG_ASSERT(rgi->thd == thd);
 
   /*
     If there is no locks taken, this is the first binrow event seen
