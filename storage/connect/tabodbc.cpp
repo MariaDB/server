@@ -324,7 +324,7 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   {
   char   *colist, *tabname, *sql, buf[64];
   LPCSTR  ownp = NULL, qualp = NULL;
-  int     rc, len, ncol = 0;
+  int     len, ncol = 0;
   bool    first = true;
   PTABLE  tablep = To_Table;
   PCOL    colp;
@@ -341,7 +341,7 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
       for (colp = Columns; colp; colp = colp->GetNext())
         if (!colp->IsSpecial()) {
           // Column name can be in UTF-8 encoding
-          rc= Decode(colp->GetName(), buf, sizeof(buf));
+          /*rc=*/ Decode(colp->GetName(), buf, sizeof(buf));
 
           if (Quote) {
             if (first) {
@@ -376,7 +376,7 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   } // endif cnt
 
   // Table name can be encoded in UTF-8
-  rc = Decode(TableName, buf, sizeof(buf));
+  /*rc = */Decode(TableName, buf, sizeof(buf));
 
   // Put table name between identifier quotes in case in contains blanks
   tabname = (char*)PlugSubAlloc(g, NULL, strlen(buf) + 3);

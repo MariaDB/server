@@ -954,17 +954,17 @@ int ODBConn::Open(PSZ ConnectString, DWORD options)
 
   // Allocate the HDBC and make connection
   try {
-    PSZ ver;
+    /*PSZ ver;*/
 
     AllocConnect(options);
-    ver = GetStringInfo(SQL_ODBC_VER);
+    /*ver = GetStringInfo(SQL_ODBC_VER);*/
 
     if (Connect(options)) {
       strcpy(g->Message, MSG(CONNECT_CANCEL));
       return 0;
       } // endif
 
-    ver = GetStringInfo(SQL_DRIVER_ODBC_VER);
+    /*ver = GetStringInfo(SQL_DRIVER_ODBC_VER);*/
   } catch(DBX *xp) {
 //    strcpy(g->Message, xp->m_ErrMsg[0]);
     strcpy(g->Message, xp->GetErrorMessage(0));
@@ -1213,13 +1213,13 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
     b = false;
 
     if (m_hstmt) {
-      RETCODE  rc;
+      /*RETCODE  rc;*/
 
 //    All this did not seems to make sense and was been commented out
 //    if (IsOpen())
 //      Close(SQL_CLOSE);
 
-      rc = SQLFreeStmt(m_hstmt, SQL_CLOSE);
+      /*rc =*/ SQLFreeStmt(m_hstmt, SQL_CLOSE);
       hstmt = m_hstmt;
       m_hstmt = NULL;
       ThrowDBX(MSG(SEQUENCE_ERROR));
@@ -1831,7 +1831,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 /***********************************************************************/
 void ODBConn::Close()
   {
-  RETCODE rc;
+  /*RETCODE rc;*/
 
 #if 0
   // Close any open recordsets
@@ -1856,13 +1856,13 @@ void ODBConn::Close()
 
   if (m_hstmt) {
     // Is required for multiple tables
-    rc = SQLFreeStmt(m_hstmt, SQL_DROP);
+    /*rc =*/ SQLFreeStmt(m_hstmt, SQL_DROP);
     m_hstmt = NULL;
     } // endif m_hstmt
 
   if (m_hdbc != SQL_NULL_HDBC) {
-    rc = SQLDisconnect(m_hdbc);
-    rc = SQLFreeConnect(m_hdbc);
+    /*rc =*/ SQLDisconnect(m_hdbc);
+    /*rc =*/ SQLFreeConnect(m_hdbc);
     m_hdbc = SQL_NULL_HDBC;
 
 //  AfxLockGlobals(CRIT_ODBC);
