@@ -24,7 +24,7 @@
 #define __STDC__ 1
 #endif
 #include <stdio.h>
-#ifndef defined(WIN32)
+#ifndef WIN32
 #include <unistd.h>
 #endif
 
