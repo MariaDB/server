@@ -127,7 +127,7 @@ void CloseXMLFile(PGLOBAL, PFBLOCK, bool);
 #endif   // DOMDOC_SUPPORT
 
 #ifdef LIBXML2_SUPPORT
-void CloseXML2File(PGLOBAL, PFBLOCK, bool);
+#include "libdoc.h"
 #endif   // LIBXML2_SUPPORT
 
 

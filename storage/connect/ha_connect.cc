@@ -146,8 +146,7 @@
 #define my_stricmp(a,b) my_strcasecmp(default_charset_info, (a), (b))
 
 #ifdef LIBXML2_SUPPORT
-void XmlInitParserLib(void);
-void XmlCleanupParserLib(void);
+#include "libdoc.h"
 #endif   // LIBXML2_SUPPORT
 
 /***********************************************************************/
