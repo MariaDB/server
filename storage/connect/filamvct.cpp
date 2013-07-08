@@ -35,7 +35,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
-//#define strerror(X) _strerror(X)
 #define NO_ERROR 0
 #else   // !UNIX
 #include <io.h>
