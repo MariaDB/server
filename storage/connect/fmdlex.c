@@ -406,6 +406,8 @@ char *yytext;
 #undef  yywrap
 #define yywrap  ddwrap
 #endif   /* UNIX */
+int yywrap(void);
+
 static PDTP pp;
 static void MakeParm(int n);
 static void MakeMMDD(int n);
