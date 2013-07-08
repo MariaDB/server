@@ -163,3 +163,6 @@ class DllExport TDBTBM : public TDBTBL {
   int   Nrc;                  // Number of remote connections
   int   Nlc;                  // Number of local connections
   }; // end of class TDBTBM
+
+
+pthread_handler_t ThreadOpen(void *p);

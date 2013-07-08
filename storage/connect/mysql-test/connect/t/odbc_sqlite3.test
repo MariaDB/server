@@ -3,21 +3,40 @@
 #
 # To run this test, install SQLite3 ODBC Driver from
 # http://www.ch-werner.de/sqliteodbc/
-# The installer file is sqliteodbc.exe
+#
+# Note, the test does not need a DSN to be created
+# (only the driver is required)
+#
+#
+# On Windows:
+# -----------
+# Download and run the installer file sqliteodbc.exe
 # Version sqliteodbc-0.991 is known to Work.
+# After running the installer the test should start working automatically.
 #
-# On Windows the test should start working automatically
+# On Linux:
+# --------
+# 1. Download the source tarball, e.g.: sqliteodbc-0.993.tar.gz
+# 2. Unpack the sources:
+#    tar -zxf sqliteodbc-0.993.tar.gz
+# 3. Compile the source and install:
+#    cd sqliteodbc-0.993
+#    ./configure --prefix=/opt/sqliteodbc
+#    make
+#    sudo make install
 #
-# On Linux add these lines into /etc/odbcinst.ini
+#    (you can use a different --prefix, according to your preferences)
+#
+# 4. Add these lines into /etc/odbcinst.ini
 #
 #[SQLite3 ODBC Driver]
 #Description=SQLite3 ODBC Driver
 #Driver=/opt/sqliteodbc/libsqlite3odbc.so
 #Setup=/opt/sqliteodbc/libsqlite3odbc.so
 #
-# (adjust the directory "/opt/sqliteodbc/" according to your OS settings)
+# Adjust the directory "/opt/sqliteodbc/" according to --prefix
+# that you chose on step #3.
 #
-# Note, the test does not need a DSN to be created.
 #
 
 SET NAMES utf8;

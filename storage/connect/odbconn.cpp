@@ -304,6 +304,9 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
   } else
     qrp = NULL;
 
+  /* Cleanup */
+  ocp->Close();
+
   /************************************************************************/
   /*  Return the result pointer for use by GetData routines.              */
   /************************************************************************/
@@ -954,17 +957,17 @@ int ODBConn::Open(PSZ ConnectString, DWORD options)
 
   // Allocate the HDBC and make connection
   try {
-    PSZ ver;
+    /*PSZ ver;*/
 
     AllocConnect(options);
-    ver = GetStringInfo(SQL_ODBC_VER);
+    /*ver = GetStringInfo(SQL_ODBC_VER);*/
 
     if (Connect(options)) {
       strcpy(g->Message, MSG(CONNECT_CANCEL));
       return 0;
       } // endif
 
-    ver = GetStringInfo(SQL_DRIVER_ODBC_VER);
+    /*ver = GetStringInfo(SQL_DRIVER_ODBC_VER);*/
   } catch(DBX *xp) {
 //    strcpy(g->Message, xp->m_ErrMsg[0]);
     strcpy(g->Message, xp->GetErrorMessage(0));
@@ -1213,13 +1216,13 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
     b = false;
 
     if (m_hstmt) {
-      RETCODE  rc;
+      /*RETCODE  rc;*/
 
 //    All this did not seems to make sense and was been commented out
 //    if (IsOpen())
 //      Close(SQL_CLOSE);
 
-      rc = SQLFreeStmt(m_hstmt, SQL_CLOSE);
+      /*rc =*/ SQLFreeStmt(m_hstmt, SQL_CLOSE);
       hstmt = m_hstmt;
       m_hstmt = NULL;
       ThrowDBX(MSG(SEQUENCE_ERROR));
@@ -1673,8 +1676,10 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         // Attempt to set rowset size.
         // In case of failure reset it to 0 to use Fetch.
         if (m_Catver == 3)          // ODBC Ver 3
-          rc = SQLSetStmtAttr(hstmt, SQL_ATTR_ROW_ARRAY_SIZE,
-                                    (SQLPOINTER)m_RowsetSize, 0);
+        {
+          SQLULEN tmp= m_RowsetSize;
+          rc = SQLSetStmtAttr(hstmt, SQL_ATTR_ROW_ARRAY_SIZE, &tmp, 0);
+        }
         else
           rc = SQLSetStmtOption(hstmt, SQL_ROWSET_SIZE, m_RowsetSize);
 
@@ -1831,7 +1836,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 /***********************************************************************/
 void ODBConn::Close()
   {
-  RETCODE rc;
+  /*RETCODE rc;*/
 
 #if 0
   // Close any open recordsets
@@ -1856,13 +1861,13 @@ void ODBConn::Close()
 
   if (m_hstmt) {
     // Is required for multiple tables
-    rc = SQLFreeStmt(m_hstmt, SQL_DROP);
+    /*rc =*/ SQLFreeStmt(m_hstmt, SQL_DROP);
     m_hstmt = NULL;
     } // endif m_hstmt
 
   if (m_hdbc != SQL_NULL_HDBC) {
-    rc = SQLDisconnect(m_hdbc);
-    rc = SQLFreeConnect(m_hdbc);
+    /*rc =*/ SQLDisconnect(m_hdbc);
+    /*rc =*/ SQLFreeConnect(m_hdbc);
     m_hdbc = SQL_NULL_HDBC;
 
 //  AfxLockGlobals(CRIT_ODBC);

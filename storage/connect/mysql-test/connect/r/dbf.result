@@ -394,22 +394,22 @@ CREATE TABLE t1
 (
 a BLOB
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-ERROR HY000: Unsupported type for column 'a'
+ERROR HY000: Unsupported type for column a
 CREATE TABLE t1
 (
 a TINYBLOB
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-ERROR HY000: Unsupported type for column 'a'
+ERROR HY000: Unsupported type for column a
 CREATE TABLE t1
 (
 a MEDIUMBLOB
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-ERROR HY000: Unsupported type for column 'a'
+ERROR HY000: Unsupported type for column a
 CREATE TABLE t1
 (
 a LONGBLOB
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-ERROR HY000: Unsupported type for column 'a'
+ERROR HY000: Unsupported type for column a
 #
 # Testing DATE
 #

@@ -592,7 +592,7 @@ void CHRBLK::SetValue(char *sp, uint len, int n)
 #endif
 
   if (sp)
-    memcpy(p, sp, len);
+    memcpy(p, sp, Long);
 
   if (Blanks) {
     // Suppress eventual ending zero and right fill with blanks
@@ -654,8 +654,11 @@ void CHRBLK::SetValues(PVBLK pv, int k, int n)
 /***********************************************************************/
 void CHRBLK::Move(int i, int j)
   {
-  memcpy(Chrp + j * Long, Chrp + i * Long, Long);
-  MoveNull(i, j);
+  if (i != j) {
+    memcpy(Chrp + j * Long, Chrp + i * Long, Long);
+    MoveNull(i, j);
+    } // endif i
+
   } // end of Move
 
 /***********************************************************************/

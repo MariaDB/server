@@ -23,6 +23,7 @@
 #include "plgdbsem.h"
 //#include "value.h"
 //#include "valblk.h"
+#include "myutil.h"
 #define  DLL_EXPORT            // Items are exported from this DLL
 
 /************************************************************************/

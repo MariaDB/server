@@ -311,6 +311,8 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
                             const char *user, const char *pwd,
                             int pt)
   {
+  uint cto = 60, nrt = 120;
+
   m_DB = mysql_init(NULL);
 
   if (!m_DB) {
@@ -318,11 +320,12 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
     return RC_FX;
     } // endif m_DB
 
-  // Notice that the client and server use separate group names.
-  // This is critical, because the server will not accept the
-  // client's options, and vice versa.
-  mysql_options(m_DB, MYSQL_READ_DEFAULT_GROUP, "PlugDB_CLIENT");
+  // Removed to do like FEDERATED do
+//mysql_options(m_DB, MYSQL_READ_DEFAULT_GROUP, "client-mariadb");
   mysql_options(m_DB, MYSQL_OPT_USE_REMOTE_CONNECTION, NULL);
+  mysql_options(m_DB, MYSQL_OPT_CONNECT_TIMEOUT, &cto);
+  mysql_options(m_DB, MYSQL_OPT_READ_TIMEOUT, &nrt);
+//mysql_options(m_DB, MYSQL_OPT_WRITE_TIMEOUT, ...);
 
 #if 0
   if (pwd && !strcmp(pwd, "*")) {
