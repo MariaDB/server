@@ -202,14 +202,6 @@ BOOL MessageBeep(uint i)
   return TRUE;
   } /* end of MessageBeep */
 
-LPSTR _strerror(int errn) 
-  {
-  static char buff[256];
-
-  sprintf(buff,"error: %d", errn);
-  return buff;
-  }  /* end of _strerror */
-
 int _isatty(int fileNo) 
   {
   return isatty(fileNo);
