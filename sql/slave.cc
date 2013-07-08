@@ -3246,7 +3246,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     }
 
     if (opt_slave_parallel_threads > 0)
-      DBUG_RETURN(rli->parallel.do_event(serial_rgi, ev, thd));
+      DBUG_RETURN(rli->parallel.do_event(serial_rgi, ev));
 
     /*
       For GTID, allocate a new sub_id for the given domain_id.
@@ -3995,6 +3995,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   thd = new THD; // note that contructor of THD uses DBUG_ !
   thd->thread_stack = (char*)&thd; // remember where our stack is
   thd->rpl_filter = mi->rpl_filter;
+  serial_rgi.thd= thd;
 
   DBUG_ASSERT(rli->inited);
   DBUG_ASSERT(rli->mi == mi);

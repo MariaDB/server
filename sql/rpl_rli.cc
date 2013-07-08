@@ -1226,7 +1226,7 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
     middle of the "transaction". START SLAVE will resume at BEGIN
     while the MyISAM table has already been updated.
   */
-  if ((sql_thd->variables.option_bits & OPTION_BEGIN) && opt_using_transactions)
+  if ((rgi->thd->variables.option_bits & OPTION_BEGIN) && opt_using_transactions)
     inc_event_relay_log_pos();
   else
   {
@@ -1267,7 +1267,7 @@ void Relay_log_info::cleanup_context(THD *thd, bool error)
 {
   DBUG_ENTER("Relay_log_info::cleanup_context");
 
-  DBUG_ASSERT(sql_thd == thd);
+  DBUG_ASSERT(opt_slave_parallel_threads > 0 || sql_thd == thd);
   /*
     1) Instances of Table_map_log_event, if ::do_apply_event() was called on them,
     may have opened tables, which we cannot be sure have been closed (because
@@ -1534,8 +1534,8 @@ end:
 
 
 rpl_group_info::rpl_group_info(Relay_log_info *rli_)
-  : rli(rli_), gtid_sub_id(0), wait_commit_sub_id(0), wait_commit_group_info(0),
-    parallel_entry(0)
+  : rli(rli_), thd(0), gtid_sub_id(0), wait_commit_sub_id(0),
+    wait_commit_group_info(0), wait_start_sub_id(0), parallel_entry(0)
 {
   bzero(&current_gtid, sizeof(current_gtid));
 }

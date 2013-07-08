@@ -60,6 +60,15 @@ struct rpl_parallel_entry {
   mysql_cond_t COND_parallel_entry;
   uint64 current_sub_id;
   struct rpl_group_info *current_group_info;
+  /*
+    The sub_id of the last event group in the previous batch of group-committed
+    transactions.
+
+    When we spawn parallel worker threads for the next group-committed batch,
+    they first need to wait for this sub_id to be committed before it is safe
+    to start executing them.
+  */
+  uint64 prev_groupcommit_sub_id;
 };
 struct rpl_parallel {
   HASH domain_hash;
@@ -69,7 +78,7 @@ struct rpl_parallel {
   ~rpl_parallel();
   rpl_parallel_entry *find(uint32 domain_id);
   void wait_for_done();
-  bool do_event(struct rpl_group_info *serial_rgi, Log_event *ev, THD *thd);
+  bool do_event(struct rpl_group_info *serial_rgi, Log_event *ev);
 };
 
 

@@ -408,7 +408,7 @@ private:
 
 class binlog_cache_mngr;
 struct rpl_gtid;
-class wait_for_commit;
+struct wait_for_commit;
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 {
  private:
