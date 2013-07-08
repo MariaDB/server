@@ -222,7 +222,7 @@ int global_open(GLOBAL *g, int msgid, const char *path, int flags, int mode)
 /**************************************************************************/
 /*  Utility for external callers (such as XDB)                            */
 /**************************************************************************/
-DllExport char *GetIni(int n = 0)
+DllExport char *GetIni(int n)
   {
   switch (n) {
     case 1: return plgxini; break;
