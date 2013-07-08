@@ -1097,8 +1097,10 @@ int ha_prepare(THD *thd)
       else
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_ILLEGAL_HA, ER(ER_ILLEGAL_HA),
+                            ER_GET_ERRNO, ER(ER_GET_ERRNO),
+                            HA_ERR_WRONG_COMMAND,
                             ha_resolve_storage_engine_name(ht));
+
       }
     }
   }
@@ -3313,7 +3315,9 @@ void handler::print_error(int error, myf errflag)
     textno=ER_OUT_OF_RESOURCES;
     break;
   case HA_ERR_WRONG_COMMAND:
-    textno=ER_ILLEGAL_HA;
+    my_error(ER_ILLEGAL_HA, MYF(0), table_type(), table_share->db.str,
+             table_share->table_name.str);
+    DBUG_VOID_RETURN;
     break;
   case HA_ERR_OLD_FILE:
     textno=ER_OLD_KEYFILE;

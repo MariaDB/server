@@ -93,7 +93,7 @@ extern HASH open_cache;
 
 static int lock_external(THD *thd, TABLE **table,uint count);
 static int unlock_external(THD *thd, TABLE **table,uint count);
-static void print_lock_error(int error, const char *);
+static void print_lock_error(int error, TABLE *table);
 
 /* Map the return value of thr_lock to an error from errmsg.txt */
 static int thr_lock_errno_to_mysql[]=
@@ -356,7 +356,7 @@ static int lock_external(THD *thd, TABLE **tables, uint count)
 
     if ((error=(*tables)->file->ha_external_lock(thd,lock_type)))
     {
-      print_lock_error(error, (*tables)->file->table_type());
+      print_lock_error(error, *tables);
       while (--i)
       {
         tables--;
@@ -671,7 +671,7 @@ static int unlock_external(THD *thd, TABLE **table,uint count)
       if ((error=(*table)->file->ha_external_lock(thd, F_UNLCK)))
       {
 	error_code=error;
-	print_lock_error(error_code, (*table)->file->table_type());
+	print_lock_error(error_code, *table);
       }
     }
     table++;
@@ -893,8 +893,7 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
   return FALSE;
 }
 
-
-static void print_lock_error(int error, const char *table)
+static void print_lock_error(int error, TABLE *table)
 {
   int textno;
   DBUG_ENTER("print_lock_error");
@@ -910,17 +909,16 @@ static void print_lock_error(int error, const char *table)
     textno=ER_LOCK_DEADLOCK;
     break;
   case HA_ERR_WRONG_COMMAND:
-    textno=ER_ILLEGAL_HA;
+    my_error(ER_ILLEGAL_HA, MYF(0), table->file->table_type(),
+             table->s->db.str, table->s->table_name.str);
+    DBUG_VOID_RETURN;
     break;
   default:
     textno=ER_CANT_LOCK;
     break;
   }
 
-  if ( textno == ER_ILLEGAL_HA )
-    my_error(textno, MYF(ME_BELL+ME_OLDWIN+ME_WAITTANG), table);
-  else
-    my_error(textno, MYF(ME_BELL+ME_OLDWIN+ME_WAITTANG), error);
+  my_error(textno, MYF(0), error);
 
   DBUG_VOID_RETURN;
 }
