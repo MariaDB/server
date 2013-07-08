@@ -565,7 +565,8 @@ DllExport void    PlgDBfree(MBLOCK&);
 //lExport int     GetIniSize(char *, char *, char *, char *);
 //lExport bool    WritePrivateProfileInt(LPCSTR, LPCSTR, int, LPCSTR);
 DllExport void    NewPointer(PTABS, void *, void *);
-
+DllExport char    *GetIni(int n= 0);
+DllExport void    SetTrc(void);
 
 #define MSGID_NONE                         0
 #define MSGID_CANNOT_OPEN                  1
