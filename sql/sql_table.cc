@@ -1156,7 +1156,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
     plugin_ref plugin= ha_resolve_by_name(thd, &handler_name);
     if (!plugin)
     {
-      my_error(ER_ILLEGAL_HA, MYF(0), ddl_log_entry->handler_name);
+      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), ddl_log_entry->handler_name);
       goto error;
     }
     hton= plugin_data(plugin, handlerton*);
@@ -5965,7 +5965,9 @@ bool alter_table_manage_keys(TABLE *table, int indexes_were_disabled,
   {
     push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_ILLEGAL_HA, ER(ER_ILLEGAL_HA),
-                        table->s->table_name.str);
+                        table->file->table_type(),
+                        table->s->db.str, table->s->table_name.str);
+
     error= 0;
   } else if (error)
     table->file->print_error(error, MYF(0));
