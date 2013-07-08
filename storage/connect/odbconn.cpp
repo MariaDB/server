@@ -304,6 +304,9 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
   } else
     qrp = NULL;
 
+  /* Cleanup */
+  ocp->Close();
+
   /************************************************************************/
   /*  Return the result pointer for use by GetData routines.              */
   /************************************************************************/
