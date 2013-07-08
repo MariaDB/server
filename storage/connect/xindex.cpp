@@ -2368,7 +2368,6 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   } // endif Mode
 
 #else   // UNIX
-  int    rc = 0;
   int    oflag = O_LARGEFILE;         // Enable file size > 2G
   mode_t pmod = 0;
 
@@ -2394,7 +2393,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   Hfile= global_open(g, MSGID_OPEN_ERROR_AND_STRERROR, filename, oflag, pmod);
 
   if (Hfile == INVALID_HANDLE_VALUE) {
-    rc = errno;
+    /*rc = errno;*/
 #if defined(TRACE)
     printf("Open: %s\n", g->Message);
 #endif   // TRACE

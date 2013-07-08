@@ -786,10 +786,10 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
       /*  for compatibility with Text files and other OS's.            */
       /*****************************************************************/
       char filename[_MAX_PATH];
-      int  h, rc;                           // File handle, return code
+      int  h;                           // File handle, return code
 
       PlugSetPath(filename, To_File, Tdbp->GetPath());
-      rc = PlugCloseFile(g, To_Fb);
+      /*rc=*/ PlugCloseFile(g, To_Fb);
 
       if ((h= global_open(g, MSGID_OPEN_STRERROR, filename, O_WRONLY)) <= 0)
         return RC_FX;
