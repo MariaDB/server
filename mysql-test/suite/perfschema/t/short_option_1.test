@@ -14,4 +14,6 @@ show variables like 'character_set_system';
 show variables like 'log';
 show variables like 'general_log';
 
+show variables like 'new';
+
 show variables like 'log_warnings';

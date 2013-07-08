@@ -298,7 +298,7 @@ static void check_unused(THD *thd)
       }
       /* extra() may assume that in_use is set */
       entry->in_use= thd;
-      DBUG_ASSERT(! entry->file->extra(HA_EXTRA_IS_ATTACHED_CHILDREN));
+      DBUG_ASSERT(!thd || ! entry->file->extra(HA_EXTRA_IS_ATTACHED_CHILDREN));
       entry->in_use= 0;
 
       count--;

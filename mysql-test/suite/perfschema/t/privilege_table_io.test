@@ -14,7 +14,13 @@
 # Therefore we suppress the query_log here.
 --echo # We are forced to suppress here the server response.
 --disable_result_log
+optimize table mysql.host;
+optimize table mysql.user;
 optimize table mysql.db;
+optimize table mysql.proxies_priv;
+optimize table mysql.tables_priv;
+optimize table mysql.procs_priv;
+optimize table mysql.servers;
 --enable_result_log
 
 # Start recording events
