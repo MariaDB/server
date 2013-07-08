@@ -149,6 +149,10 @@
 #include "libdoc.h"
 #endif   // LIBXML2_SUPPORT
 
+#include "taboccur.h"
+#include "tabpivot.h"
+
+
 /***********************************************************************/
 /*  DB static variables.                                               */
 /***********************************************************************/
@@ -165,16 +169,6 @@ extern "C" {
 #endif
        int  trace= 0;              // The general trace value
 } // extern "C"
-
-bool OcrColumns(PGLOBAL g, PQRYRES qrp, const char *col, 
-                       const char *ocr, const char *rank);
-bool OcrSrcCols(PGLOBAL g, PQRYRES qrp, const char *col, 
-                       const char *ocr, const char *rank);
-PQRYRES PivotColumns(PGLOBAL g, const char *tab,   const char *src, 
-                                const char *picol, const char *fncol,
-                                const char *host,  const char *db,
-                                const char *user,  const char *pwd,
-                                int port);
 
 /****************************************************************************/
 /*  Initialize the ha_connect static members.                               */
