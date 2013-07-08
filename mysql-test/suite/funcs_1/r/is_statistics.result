@@ -114,7 +114,6 @@ def	mysql	index_stats	mysql	PRIMARY
 def	mysql	index_stats	mysql	PRIMARY
 def	mysql	index_stats	mysql	PRIMARY
 def	mysql	index_stats	mysql	PRIMARY
-def	mysql	ndb_binlog_index	mysql	PRIMARY
 def	mysql	plugin	mysql	PRIMARY
 def	mysql	proc	mysql	PRIMARY
 def	mysql	proc	mysql	PRIMARY
@@ -131,10 +130,6 @@ def	mysql	proxies_priv	mysql	PRIMARY
 def	mysql	proxies_priv	mysql	PRIMARY
 def	mysql	proxies_priv	mysql	Grantor
 def	mysql	servers	mysql	PRIMARY
-def	mysql	slave_master_info	mysql	PRIMARY
-def	mysql	slave_relay_log_info	mysql	PRIMARY
-def	mysql	slave_worker_info	mysql	PRIMARY
-def	mysql	slave_worker_info	mysql	PRIMARY
 def	mysql	table_stats	mysql	PRIMARY
 def	mysql	table_stats	mysql	PRIMARY
 def	mysql	tables_priv	mysql	PRIMARY
