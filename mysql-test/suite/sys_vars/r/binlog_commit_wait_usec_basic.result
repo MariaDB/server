@@ -1,0 +1,13 @@
+SET @save_binlog_commit_wait_usec= @@GLOBAL.binlog_commit_wait_usec;
+SELECT @@GLOBAL.binlog_commit_wait_usec as 'check default';
+check default
+100000
+SELECT @@SESSION.binlog_commit_wait_usec  as 'no session var';
+ERROR HY000: Variable 'binlog_commit_wait_usec' is a GLOBAL variable
+SET GLOBAL binlog_commit_wait_usec= 0;
+SET GLOBAL binlog_commit_wait_usec= DEFAULT;
+SET GLOBAL binlog_commit_wait_usec= 10000;
+SELECT @@GLOBAL.binlog_commit_wait_usec;
+@@GLOBAL.binlog_commit_wait_usec
+10000
+SET GLOBAL binlog_commit_wait_usec = @save_binlog_commit_wait_usec;

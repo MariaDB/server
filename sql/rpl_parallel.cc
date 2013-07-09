@@ -248,7 +248,7 @@ handle_rpl_parallel_thread(void *arg)
     if (!in_event_group)
     {
       rpt->current_entry= NULL;
-      if (!rpt->free)
+      if (!rpt->stop && !rpt->free)
       {
         mysql_mutex_lock(&rpt->pool->LOCK_rpl_thread_pool);
         list= rpt->pool->free_list;
@@ -262,8 +262,26 @@ handle_rpl_parallel_thread(void *arg)
     }
   }
 
-  rpt->running= false;
+  rpt->thd= NULL;
   mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
+
+  thd->clear_error();
+  thd->catalog= 0;
+  thd->reset_query();
+  thd->reset_db(NULL, 0);
+  thd_proc_info(thd, "Slave worker thread exiting");
+  thd->temporary_tables= 0;
+  mysql_mutex_lock(&LOCK_thread_count);
+  THD_CHECK_SENTRY(thd);
+  delete thd;
+  mysql_mutex_unlock(&LOCK_thread_count);
+
+  mysql_mutex_lock(&rpt->LOCK_rpl_thread);
+  rpt->running= false;
+  mysql_cond_signal(&rpt->COND_rpl_thread);
+  mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
+
+  my_thread_end();
 
   return NULL;
 }
@@ -344,6 +362,7 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
   {
     rpl_parallel_thread *rpt= pool->get_thread(NULL);
     rpt->stop= true;
+    mysql_cond_signal(&rpt->COND_rpl_thread);
     mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
   }
 
@@ -354,7 +373,9 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
     while (rpt->running)
       mysql_cond_wait(&rpt->COND_rpl_thread, &rpt->LOCK_rpl_thread);
     mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
-    delete rpt;
+    mysql_mutex_destroy(&rpt->LOCK_rpl_thread);
+    mysql_cond_destroy(&rpt->COND_rpl_thread);
+    my_free(rpt);
   }
 
   my_free(pool->threads);
@@ -386,6 +407,7 @@ err:
       mysql_mutex_lock(&new_free_list->LOCK_rpl_thread);
       new_free_list->delay_start= false;
       new_free_list->stop= true;
+      mysql_cond_signal(&new_free_list->COND_rpl_thread);
       while (!new_free_list->running)
         mysql_cond_wait(&new_free_list->COND_rpl_thread,
                         &new_free_list->LOCK_rpl_thread);

@@ -61,6 +61,7 @@ wait/synch/mutex/sql/LOCK_prepared_stmt_count
 wait/synch/mutex/sql/LOCK_prepare_ordered
 wait/synch/mutex/sql/LOCK_rpl_gtid_state
 wait/synch/mutex/sql/LOCK_rpl_status
+wait/synch/mutex/sql/LOCK_rpl_thread_pool
 wait/synch/mutex/sql/LOCK_server_started
 wait/synch/mutex/sql/LOCK_slave_list
 wait/synch/mutex/sql/LOCK_slave_state
@@ -122,8 +123,10 @@ wait/synch/cond/mysys/COND_alarm
 wait/synch/cond/mysys/my_thread_var::suspend
 wait/synch/cond/mysys/THR_COND_threads
 wait/synch/cond/sql/COND_flush_thread_cache
+wait/synch/cond/sql/COND_prepare_ordered
 wait/synch/cond/sql/COND_queue_state
 wait/synch/cond/sql/COND_rpl_status
+wait/synch/cond/sql/COND_rpl_thread_pool
 wait/synch/cond/sql/COND_server_started
 wait/synch/cond/sql/COND_thread_cache
 wait/synch/cond/sql/COND_thread_count

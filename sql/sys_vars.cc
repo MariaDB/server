@@ -1442,11 +1442,9 @@ check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
 {
   bool running;
 
-  mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   running= master_info_index->give_error_if_slave_running();
   mysql_mutex_unlock(&LOCK_active_mi);
-  mysql_mutex_lock(&LOCK_global_system_variables);
   if (running)
     return true;
 
@@ -1457,17 +1455,18 @@ static bool
 fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
 {
   bool running;
+  bool err= false;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   running= master_info_index->give_error_if_slave_running();
   mysql_mutex_unlock(&LOCK_active_mi);
-  mysql_mutex_lock(&LOCK_global_system_variables);
   if (running || rpl_parallel_change_thread_count(&global_rpl_thread_pool,
                                                   opt_slave_parallel_threads))
-    return true;
+    err= true;
+  mysql_mutex_lock(&LOCK_global_system_variables);
 
-  return false;
+  return err;
 }
 
 
@@ -1497,7 +1496,7 @@ static Sys_var_ulong Sys_binlog_commit_wait_count(
 static Sys_var_ulong Sys_binlog_commit_wait_usec(
        "binlog_commit_wait_usec",
        "Maximum time, in microseconds, to wait for more commits to queue up "
-       " for binlog group commit. Only takes effect if the value of "
+       "for binlog group commit. Only takes effect if the value of "
        "binlog_commit_wait_count is non-zero.",
        GLOBAL_VAR(opt_binlog_commit_wait_usec), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, ULONG_MAX), DEFAULT(100000), BLOCK_SIZE(1));
