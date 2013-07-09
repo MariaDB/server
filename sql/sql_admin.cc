@@ -352,6 +352,14 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
   mysql_ha_rm_tables(thd, tables);
 
+  /*
+    Close all temporary tables which were pre-open to simplify
+    privilege checking. Clear all references to closed tables.
+  */
+  close_thread_tables(thd);
+  for (table= tables; table; table= table->next_local)
+    table->table= NULL;
+
   for (table= tables; table; table= table->next_local)
   {
     char table_name[SAFE_NAME_LEN*2+2];
