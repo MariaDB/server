@@ -17340,11 +17340,10 @@ static void test_wl4166_3()
   rc= mysql_stmt_execute(stmt);
   check_execute(stmt, rc);
   /*
-    Sic: only one warning, instead of two. The warning
-    about data truncation when assigning a parameter is lost.
+    The warning about data truncation when assigning a parameter is lost.
     This is a bug.
   */
-  my_process_warnings(mysql, 1);
+  my_process_warnings(mysql, 0);
 
   verify_col_data("t1", "year", "0000-00-00 00:00:00");
 
