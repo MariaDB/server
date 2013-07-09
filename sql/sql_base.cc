@@ -4514,7 +4514,6 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
   bool safe_to_ignore_table= FALSE;
   DBUG_ENTER("open_and_process_table");
   DEBUG_SYNC(thd, "open_and_process_table");
-  DBUG_ASSERT(!tables->table);
 
   /*
     Ignore placeholders for derived tables. After derived tables
@@ -5213,14 +5212,6 @@ restart:
     for (tables= *table_to_open; tables;
          table_to_open= &tables->next_global, tables= tables->next_global)
     {
-      /* Ignore temporary tables, as these has already been opened */
-      if (tables->table)
-      {
-        DBUG_ASSERT(is_temporary_table(tables));
-        /* We have to increment the counter for lock_tables */
-        (*counter)++;
-        continue;
-      }
       error= open_and_process_table(thd, thd->lex, tables, counter,
                                     flags, prelocking_strategy,
                                     has_prelocking_list, &ot_ctx,
