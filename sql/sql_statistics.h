@@ -93,6 +93,17 @@ void set_statistics_for_table(THD *thd, TABLE *table);
 class Columns_statistics;
 class Index_statistics;
 
+static inline
+int rename_table_in_stat_tables(THD *thd, const char *db, const char *tab,
+                                const char *new_db, const char *new_tab)
+{
+  LEX_STRING od= { const_cast<char*>(db), strlen(db) };
+  LEX_STRING ot= { const_cast<char*>(tab), strlen(tab) };
+  LEX_STRING nd= { const_cast<char*>(new_db), strlen(new_db) };
+  LEX_STRING nt= { const_cast<char*>(new_tab), strlen(new_tab) };
+  return rename_table_in_stat_tables(thd, &od, &ot, &nd, &nt);
+}
+
 
 /* Statistical data on a table */
 

@@ -1072,9 +1072,19 @@ test	t2	idx4	4	1.0000
 ALTER TABLE t2 CHANGE COLUMN b b varchar(32);
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t2	PRIMARY	1	1.0000
+test	t2	PRIMARY	2	1.0000
 test	t2	idx2	1	7.0000
 test	t2	idx2	2	2.3846
+test	t2	idx2	3	1.0000
+test	t2	idx2	4	1.0000
 test	t2	idx3	1	8.5000
+test	t2	idx3	2	1.0000
+test	t2	idx3	3	1.0000
+test	t2	idx4	1	6.2000
+test	t2	idx4	2	1.7222
+test	t2	idx4	3	1.1154
+test	t2	idx4	4	1.0000
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	OK
@@ -1131,13 +1141,13 @@ test	t2	f	1	5	0.2000	1.0000	6.4000
 SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t2	idx3	1	8.5000
-test	t2	idx3	2	1.0000
-test	t2	idx2	3	1.0000
 test	t2	idx2	1	7.0000
 test	t2	idx2	2	2.3846
-test	t2	idx4	3	1.0000
+test	t2	idx2	3	1.0000
 test	t2	idx4	1	6.2000
 test	t2	idx4	2	2.2308
+test	t2	idx4	3	1.0000
+test	t2	idx3	2	1.0000
 test	t2	PRIMARY	1	1.0000
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -1157,17 +1167,17 @@ test	t1	f	1	5	0.2000	1.0000	6.4000
 test	t1	b	NULL	NULL	0.2000	17.1250	NULL
 SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
-test	t2	idx3	1	8.5000
-test	t2	idx3	2	1.0000
-test	t2	idx2	3	1.0000
-test	t2	idx2	1	7.0000
-test	t2	idx2	2	2.3846
 test	t1	idx2	1	7.0000
+test	t2	idx3	1	8.5000
 test	t1	idx3	1	8.5000
 test	t1	PRIMARY	1	1.0000
-test	t2	idx4	3	1.0000
+test	t2	idx2	1	7.0000
+test	t2	idx2	2	2.3846
+test	t2	idx2	3	1.0000
 test	t2	idx4	1	6.2000
 test	t2	idx4	2	2.2308
+test	t2	idx4	3	1.0000
+test	t2	idx3	2	1.0000
 test	t2	PRIMARY	1	1.0000
 test	t1	idx2	2	2.3846
 test	t1	idx1	1	NULL

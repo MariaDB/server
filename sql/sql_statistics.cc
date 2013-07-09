@@ -2990,7 +2990,10 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
   int rc= 0;
 
   DBUG_ENTER("rename_column_in_stat_tables");
-   
+  
+  if (tab->s->tmp_table != NO_TMP_TABLE)
+    DBUG_RETURN(0);
+
   if (open_single_stat_table(thd, &tables, &stat_table_name[1],
                              &open_tables_backup, TRUE))
   {
