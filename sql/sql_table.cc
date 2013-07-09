@@ -5432,6 +5432,27 @@ static bool fill_alter_inplace_info(THD *thd,
       case IS_EQUAL_NO:
         /* New column type is incompatible with old one. */
         ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_TYPE;
+        if (table->s->tmp_table == NO_TMP_TABLE)
+        {
+          delete_statistics_for_column(thd, table, field);
+          KEY *key_info= table->key_info; 
+          for (uint i=0; i < table->s->keys; i++, key_info++)
+          {
+            if (field->part_of_key.is_set(i))
+            {
+              uint key_parts= table->actual_n_key_parts(key_info);
+              for (uint j= 0; j < key_parts; j++)
+              {
+                if (key_info->key_part[j].fieldnr-1 == field->field_index)
+                {
+                  delete_statistics_for_index(thd, table, key_info,
+                                       j >= key_info->user_defined_key_parts);
+                  break;
+                }
+              }           
+            }
+          }      
+        }
         break;
       case IS_EQUAL_YES:
         /*
@@ -5464,6 +5485,8 @@ static bool fill_alter_inplace_info(THD *thd,
       {
         field->flags|= FIELD_IS_RENAMED;
         ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_NAME;
+        rename_column_in_stat_tables(thd, table, field,
+                                     new_field->field_name);
       }
 
       /* Check that NULL behavior is same for old and new fields */
@@ -6352,6 +6375,8 @@ static bool mysql_inplace_alter_table(THD *thd,
                                 alter_ctx->db, alter_ctx->alias, 0);
       DBUG_RETURN(true);
     }
+    rename_table_in_stat_tables(thd, alter_ctx->db,alter_ctx->alias,
+                                alter_ctx->new_db, alter_ctx->new_alias);
   }
 
   DBUG_RETURN(false);
@@ -8205,21 +8230,25 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   }
 
   // Check if we renamed the table and if so update trigger files.
-  if (alter_ctx.is_table_renamed() &&
-      Table_triggers_list::change_table_name(thd,
-                                             alter_ctx.db,
-                                             alter_ctx.alias,
-                                             alter_ctx.table_name,
-                                             alter_ctx.new_db,
-                                             alter_ctx.new_alias))
+  if (alter_ctx.is_table_renamed())
   {
-    // Rename succeeded, delete the new table.
-    (void) quick_rm_table(thd, new_db_type,
-                          alter_ctx.new_db, alter_ctx.new_alias, 0);
-    // Restore the backup of the original table to the old name.
-    (void) mysql_rename_table(old_db_type, alter_ctx.db, backup_name,
-                              alter_ctx.db, alter_ctx.alias, FN_FROM_IS_TMP);
-    goto err_with_mdl;
+    if (Table_triggers_list::change_table_name(thd,
+                                               alter_ctx.db,
+                                               alter_ctx.alias,
+                                               alter_ctx.table_name,
+                                               alter_ctx.new_db,
+                                               alter_ctx.new_alias))
+    {
+      // Rename succeeded, delete the new table.
+      (void) quick_rm_table(thd, new_db_type,
+                            alter_ctx.new_db, alter_ctx.new_alias, 0);
+      // Restore the backup of the original table to the old name.
+      (void) mysql_rename_table(old_db_type, alter_ctx.db, backup_name,
+                                alter_ctx.db, alter_ctx.alias, FN_FROM_IS_TMP);
+      goto err_with_mdl;
+    }
+    rename_table_in_stat_tables(thd, alter_ctx.db,alter_ctx.alias,
+                                alter_ctx.new_db, alter_ctx.new_alias);
   }
 
   // ALTER TABLE succeeded, delete the backup of the old table.
