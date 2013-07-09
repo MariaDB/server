@@ -7,7 +7,7 @@
 ##
 
 set sql_mode=no_engine_substitution;
-eval set storage_engine = $engine_type;
+eval set default_storage_engine = $engine_type;
 set autocommit=1;
 
 --disable_warnings
@@ -757,7 +757,7 @@ call p_verify_status_increment(2, 0, 4, 4);
 alter table t3 add column (b int);
 call p_verify_status_increment(2, 0, 2, 0);
 alter table t3 rename t4;
-call p_verify_status_increment(2, 0, 2, 0);
+call p_verify_status_increment(0, 0, 0, 0);
 rename table t4 to t3;
 call p_verify_status_increment(0, 0, 0, 0);
 truncate table t3;
