@@ -1,0 +1,14 @@
+--source include/not_embedded.inc
+
+SET @save_binlog_commit_wait_usec= @@GLOBAL.binlog_commit_wait_usec;
+
+SELECT @@GLOBAL.binlog_commit_wait_usec as 'check default';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.binlog_commit_wait_usec  as 'no session var';
+
+SET GLOBAL binlog_commit_wait_usec= 0;
+SET GLOBAL binlog_commit_wait_usec= DEFAULT;
+SET GLOBAL binlog_commit_wait_usec= 10000;
+SELECT @@GLOBAL.binlog_commit_wait_usec;
+
+SET GLOBAL binlog_commit_wait_usec = @save_binlog_commit_wait_usec;
