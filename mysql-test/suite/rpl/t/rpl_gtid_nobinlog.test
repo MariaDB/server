@@ -22,16 +22,20 @@ SELECT * FROM t1 ORDER BY a;
 
 --source include/stop_slave.inc
 
+--connection server_1
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SLAVE_MYPORT,
+     master_user = 'root', master_use_gtid = current_pos;
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+
+--connection server_2
 INSERT INTO t1 VALUES (3, 2);
 INSERT INTO t1 VALUES (4, 2);
 
 --source include/show_binlog_events.inc
 
 --connection server_1
---replace_result $SLAVE_MYPORT SLAVE_PORT
-eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SLAVE_MYPORT,
-     master_user = 'root', master_use_gtid = current_pos;
-START SLAVE;
 --let $wait_condition= SELECT COUNT(*) = 4 FROM t1
 --source include/wait_condition.inc
 

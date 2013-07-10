@@ -17,6 +17,10 @@ a	b
 1	1
 2	1
 include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SLAVE_PORT,
+master_user = 'root', master_use_gtid = current_pos;
+START SLAVE;
+include/wait_for_slave_to_start.inc
 INSERT INTO t1 VALUES (3, 2);
 INSERT INTO t1 VALUES (4, 2);
 show binlog events from <binlog_start>;
@@ -27,9 +31,6 @@ slave-bin.000001	#	Query	#	#	COMMIT
 slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (4, 2)
 slave-bin.000001	#	Query	#	#	COMMIT
-CHANGE MASTER TO master_host = '127.0.0.1', master_port = SLAVE_PORT,
-master_user = 'root', master_use_gtid = current_pos;
-START SLAVE;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	1
