@@ -35,11 +35,9 @@ ulong convert_period_to_month(ulong period);
 ulong convert_month_to_period(ulong month);
 bool get_date_from_daynr(long daynr,uint *year, uint *month, uint *day);
 my_time_t TIME_to_timestamp(THD *thd, const MYSQL_TIME *t, uint *error_code);
-bool str_to_time_with_warn(CHARSET_INFO *cs, const char *str, uint length,
-                           MYSQL_TIME *l_time, ulonglong fuzzydate);
-timestamp_type str_to_datetime_with_warn(CHARSET_INFO *cs, const char *str,
-                                         uint length, MYSQL_TIME *l_time,
-                                         ulonglong flags);
+bool str_to_datetime_with_warn(CHARSET_INFO *cs, const char *str,
+                               uint length, MYSQL_TIME *l_time,
+                               ulonglong flags);
 bool double_to_datetime_with_warn(double value, MYSQL_TIME *ltime,
                                   ulonglong fuzzydate,
                                   const char *name);
@@ -76,7 +74,7 @@ bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
                        INTERVAL interval);
 bool calc_time_diff(MYSQL_TIME *l_time1, MYSQL_TIME *l_time2, int l_sign,
                     longlong *seconds_out, long *microseconds_out);
-int my_time_compare(MYSQL_TIME *a, MYSQL_TIME *b);
+int my_time_compare(const MYSQL_TIME *a, const MYSQL_TIME *b);
 void localtime_to_TIME(MYSQL_TIME *to, struct tm *from);
 void calc_time_from_sec(MYSQL_TIME *to, long seconds, long microseconds);
 uint calc_week(MYSQL_TIME *l_time, uint week_behaviour, uint *year);
@@ -86,12 +84,14 @@ bool parse_date_time_format(timestamp_type format_type,
                             const char *format, uint format_length,
                             DATE_TIME_FORMAT *date_time_format);
 /* Character set-aware version of str_to_time() */
-timestamp_type str_to_time(CHARSET_INFO *cs, const char *str,uint length,
-                 MYSQL_TIME *l_time, ulonglong fuzzydate, int *warning);
+bool str_to_time(CHARSET_INFO *cs, const char *str,uint length,
+                 MYSQL_TIME *l_time, ulonglong fuzzydate,
+                 MYSQL_TIME_STATUS *status);
 /* Character set-aware version of str_to_datetime() */
-timestamp_type str_to_datetime(CHARSET_INFO *cs,
-                               const char *str, uint length,
-                               MYSQL_TIME *l_time, ulonglong flags, int *was_cut);
+bool str_to_datetime(CHARSET_INFO *cs,
+                     const char *str, uint length,
+                     MYSQL_TIME *l_time, ulonglong flags,
+                     MYSQL_TIME_STATUS *status);
 
 /* convenience wrapper */
 inline bool parse_date_time_format(timestamp_type format_type, 
@@ -109,5 +109,19 @@ extern DATE_TIME_FORMAT global_datetime_format;
 extern DATE_TIME_FORMAT global_time_format;
 extern KNOWN_DATE_TIME_FORMAT known_date_time_formats[];
 extern LEX_STRING interval_type_to_name[];
+
+
+static inline bool
+non_zero_date(const MYSQL_TIME *ltime)
+{
+  return ltime->year || ltime->month || ltime->day;
+}
+static inline bool
+check_date(const MYSQL_TIME *ltime, ulonglong flags, int *was_cut)
+{
+ return check_date(ltime, non_zero_date(ltime), flags, was_cut);
+}
+bool check_date_with_warn(const MYSQL_TIME *ltime, ulonglong fuzzy_date,
+                          timestamp_type ts_type);
 
 #endif /* SQL_TIME_INCLUDED */
