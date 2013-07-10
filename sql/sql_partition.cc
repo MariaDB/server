@@ -1563,7 +1563,7 @@ bool field_is_partition_charset(Field *field)
       !(field->type() == MYSQL_TYPE_VARCHAR))
     return FALSE;
   {
-    CHARSET_INFO *cs= ((Field_str*)field)->charset();
+    CHARSET_INFO *cs= field->charset();
     if (!(field->type() == MYSQL_TYPE_STRING) ||
         !(cs->state & MY_CS_BINSORT))
       return TRUE;
@@ -1606,7 +1606,7 @@ bool check_part_func_fields(Field **ptr, bool ok_with_charsets)
     */
     if (field_is_partition_charset(field))
     {
-      CHARSET_INFO *cs= ((Field_str*)field)->charset();
+      CHARSET_INFO *cs= field->charset();
       if (!ok_with_charsets ||
           cs->mbmaxlen > 1 ||
           cs->strxfrm_multiply > 1)
@@ -2090,6 +2090,8 @@ static int check_part_field(enum_field_types sql_type,
     case MYSQL_TYPE_DATE:
     case MYSQL_TYPE_TIME:
     case MYSQL_TYPE_DATETIME:
+    case MYSQL_TYPE_TIME2:
+    case MYSQL_TYPE_DATETIME2:
       *result_type= STRING_RESULT;
       *need_cs_check= TRUE;
       return FALSE;
@@ -2102,6 +2104,7 @@ static int check_part_field(enum_field_types sql_type,
     case MYSQL_TYPE_NEWDECIMAL:
     case MYSQL_TYPE_DECIMAL:
     case MYSQL_TYPE_TIMESTAMP:
+    case MYSQL_TYPE_TIMESTAMP2:
     case MYSQL_TYPE_NULL:
     case MYSQL_TYPE_FLOAT:
     case MYSQL_TYPE_DOUBLE:
@@ -2974,7 +2977,7 @@ static void copy_to_part_field_buffers(Field **ptr,
     restore_ptr++;
     if (!field->maybe_null() || !field->is_null())
     {
-      CHARSET_INFO *cs= ((Field_str*)field)->charset();
+      CHARSET_INFO *cs= field->charset();
       uint max_len= field->pack_length();
       uint data_len= field->data_length();
       uchar *field_buf= *field_bufs;

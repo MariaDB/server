@@ -37,7 +37,7 @@ IF(SSL_DEFINES)
 ENDIF()
 
 SET (SQL_SOURCE
-              ../sql-common/client.c derror.cc des_key_file.cc
+              ../sql-common/client.c compat56.cc derror.cc des_key_file.cc
                discover.cc ../libmysql/errmsg.c field.cc  field_conv.cc 
                filesort_utils.cc
                filesort.cc gstream.cc sha2.cc

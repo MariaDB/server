@@ -87,6 +87,7 @@ const char field_separator=',';
 #define FIELDTYPE_NUM (FIELDTYPE_TEAR_FROM + (255 - FIELDTYPE_TEAR_TO))
 static inline int field_type2index (enum_field_types field_type)
 {
+  field_type= real_type_to_type(field_type);
   return (field_type < FIELDTYPE_TEAR_FROM ?
           field_type :
           ((int)FIELDTYPE_TEAR_FROM) + (field_type - FIELDTYPE_TEAR_TO) - 1);
@@ -947,8 +948,10 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
 enum_field_types Field::field_type_merge(enum_field_types a,
                                          enum_field_types b)
 {
-  DBUG_ASSERT(a < FIELDTYPE_TEAR_FROM || a > FIELDTYPE_TEAR_TO);
-  DBUG_ASSERT(b < FIELDTYPE_TEAR_FROM || b > FIELDTYPE_TEAR_TO);
+  DBUG_ASSERT(real_type_to_type(a) < FIELDTYPE_TEAR_FROM ||
+              real_type_to_type(a) > FIELDTYPE_TEAR_TO);
+  DBUG_ASSERT(real_type_to_type(b) < FIELDTYPE_TEAR_FROM ||
+              real_type_to_type(b) > FIELDTYPE_TEAR_TO);
   return field_types_merge_rules[field_type2index(a)]
                                 [field_type2index(b)];
 }
@@ -1042,8 +1045,8 @@ CPP_UNNAMED_NS_END
 
 Item_result Field::result_merge_type(enum_field_types field_type)
 {
-  DBUG_ASSERT(field_type < FIELDTYPE_TEAR_FROM || field_type
-              > FIELDTYPE_TEAR_TO);
+  DBUG_ASSERT(real_type_to_type(field_type) < FIELDTYPE_TEAR_FROM ||
+              real_type_to_type(field_type) > FIELDTYPE_TEAR_TO);
   return field_types_result_type[field_type2index(field_type)];
 }
 
@@ -1126,6 +1129,111 @@ void Field::make_sort_key(uchar *buff,uint length)
     *buff++= 1;
   }
   sort_string(buff, length);
+}
+
+
+/**
+  @brief
+  Determine the relative position of the field value in a numeric interval
+
+  @details
+  The function returns a double number between 0.0 and 1.0 as the relative
+  position of the value of the this field in the numeric interval of [min,max].
+  If the value is not in the interval the the function returns 0.0 when
+  the value is less than min, and, 1.0 when the value is greater than max.
+
+  @param  min  value of the left end of the interval
+  @param  max  value of the right end of the interval
+
+  @return
+  relative position of the field value in the numeric interval [min,max] 
+*/
+
+double Field::pos_in_interval_val_real(Field *min, Field *max)
+{
+  double n, d;
+  n= val_real() - min->val_real();
+  if (n < 0)
+    return 0.0;
+  d= max->val_real() - min->val_real();
+  if (d <= 0)
+    return 1.0;
+  return min(n/d, 1.0);
+}
+
+
+static
+inline ulonglong char_prefix_to_ulonglong(uchar *src)
+{
+  uint sz= sizeof(ulonglong);
+  for (uint i= 0; i < sz/2; i++)
+  {
+    uchar tmp= src[i];
+    src[i]= src[sz-1-i];
+    src[sz-1-i]= tmp;
+  }
+  return uint8korr(src); 
+}
+
+
+/**
+  @brief
+  Determine the relative position of the field value in a string interval
+
+  @details
+  The function returns a double number between 0.0 and 1.0 as the relative
+  position of the value of the this field in the string interval of [min,max].
+  If the value is not in the interval the the function returns 0.0 when
+  the value is less than min, and, 1.0 when the value is greater than max.
+
+  @note
+  To calculate the relative position of the string value v in the interval
+  [min, max] the function first converts the beginning of these three
+  strings v, min, max into the strings that are used for byte comparison.
+  For each string not more sizeof(ulonglong) first bytes are taken
+  from the result of conversion. Then these bytes are interpreted as the
+  big-endian representation of an ulonglong integer. The values of these
+  integer numbers obtained for the strings v, min, max are used to calculate
+  the position of v in [min,max] in the same way is it's done for numeric
+  fields (see Field::pos_in_interval_val_real).
+
+  @todo
+  Improve the procedure for the case when min and max have the same
+  beginning
+     
+  @param  min  value of the left end of the interval
+  @param  max  value of the right end of the interval
+
+  @return
+  relative position of the field value in the string interval [min,max] 
+*/
+
+double Field::pos_in_interval_val_str(Field *min, Field *max, uint data_offset)
+{
+  uchar mp_prefix[sizeof(ulonglong)];
+  uchar minp_prefix[sizeof(ulonglong)];
+  uchar maxp_prefix[sizeof(ulonglong)];
+  ulonglong mp, minp, maxp;
+  my_strnxfrm(charset(), mp_prefix, sizeof(mp),
+              ptr + data_offset,
+              data_length());
+  my_strnxfrm(charset(), minp_prefix, sizeof(minp),
+              min->ptr + data_offset,
+              min->data_length());
+  my_strnxfrm(charset(), maxp_prefix, sizeof(maxp),
+              max->ptr + data_offset,
+              max->data_length());
+  mp= char_prefix_to_ulonglong(mp_prefix);
+  minp= char_prefix_to_ulonglong(minp_prefix);
+  maxp= char_prefix_to_ulonglong(maxp_prefix);
+  double n, d;
+  n= mp - minp;
+  if (n < 0)
+    return 0.0;
+  d= maxp - minp;
+  if (d <= 0)
+    return 1.0;
+  return min(n/d, 1.0);
 }
 
 
@@ -1271,36 +1379,6 @@ bool Field_num::get_int(CHARSET_INFO *cs, const char *from, uint len,
 out_of_range:
   set_warning(MYSQL_ERROR::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE, 1);
   return 1;
-}
-
-
-/**
-  @brief
-  Determine the relative position of the field value in a numeric interval
-
-  @details
-  The function returns a double number between 0.0 and 1.0 as the relative
-  position of the value of the this field in the numeric interval of [min,max].
-  If the value is not in the interval the the function returns 0.0 when
-  the value is less than min, and, 1.0 when the value is greater than max.
-
-  @param  min  value of the left end of the interval
-  @param  max  value of the right end of the interval
-
-  @return
-  relative position of the field value in the numeric interval [min,max] 
-*/
-
-double Field_num::pos_in_interval(Field *min, Field *max)
-{
-  double n, d;
-  n= val_real() - min->val_real();
-  if (n < 0)
-    return 0.0;
-  d= max->val_real() - min->val_real();
-  if (d <= 0)
-    return 1.0;
-  return min(n/d, 1.0);
 }
 
 
@@ -4485,13 +4563,12 @@ Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
                                  uchar *null_ptr_arg, uchar null_bit_arg,
 				 enum utype unireg_check_arg,
 				 const char *field_name_arg,
-				 TABLE_SHARE *share,
-				 CHARSET_INFO *cs)
-  :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	     unireg_check_arg, field_name_arg, cs)
+				 TABLE_SHARE *share)
+  :Field_temporal(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+                  unireg_check_arg, field_name_arg)
 {
   /* For 4.0 MYD and 4.0 InnoDB compatibility */
-  flags|= UNSIGNED_FLAG | BINARY_FLAG;
+  flags|= UNSIGNED_FLAG;
   if (unireg_check != NONE)
   {
     /*
@@ -4636,6 +4713,7 @@ String *Field_timestamp::val_str(String *val_buffer, String *val_ptr)
 {
   MYSQL_TIME ltime;
   uint32 temp, temp2;
+  uint dec;
   char *to;
 
   val_buffer->alloc(field_length+1);
@@ -4690,6 +4768,16 @@ String *Field_timestamp::val_str(String *val_buffer, String *val_ptr)
   *to++= (char) ('0'+(char) (temp));
   *to= 0;
   val_buffer->set_charset(&my_charset_numeric);
+
+  if ((dec= decimals()))
+  {
+    ulong sec_part= (ulong) sec_part_shift(ltime.second_part, dec);
+    char *buf= const_cast<char*>(val_buffer->ptr() + MAX_DATETIME_WIDTH);
+    for (int i= dec; i > 0; i--, sec_part/= 10)
+    buf[i]= (char)(sec_part % 10) + '0';
+    buf[0]= '.';
+    buf[dec + 1]= 0;
+  }
   return val_buffer;
 }
 
@@ -4743,7 +4831,14 @@ void Field_timestamp::sort_string(uchar *to,uint length __attribute__((unused)))
 
 void Field_timestamp::sql_type(String &res) const
 {
-  res.set_ascii(STRING_WITH_LEN("timestamp"));
+  if (!decimals())
+  {
+    res.set_ascii(STRING_WITH_LEN("timestamp"));
+    return;
+  }
+  CHARSET_INFO *cs=res.charset();
+  res.length(cs->cset->snprintf(cs, (char*) res.ptr(), res.alloced_length(),
+                                "timestamp(%u)", decimals()));
 }
 
 
@@ -4781,13 +4876,6 @@ void Field_timestamp::set_explicit_default(Item *value)
        (!maybe_null() && value->is_null())))
     return;
   set_has_explicit_value();
-}
-
-void Field_timestamp_hires::sql_type(String &res) const
-{
-  CHARSET_INFO *cs=res.charset();
-  res.length(cs->cset->snprintf(cs, (char*) res.ptr(), res.alloced_length(),
-                                "timestamp(%u)", dec));
 }
 
 #ifdef NOT_USED
@@ -4883,7 +4971,7 @@ my_time_t Field_timestamp_hires::get_timestamp(ulong *sec_part) const
   return mi_uint4korr(ptr);
 }
 
-double Field_timestamp_hires::val_real(void)
+double Field_timestamp_with_dec::val_real(void)
 {
   MYSQL_TIME ltime;
   if (get_date(&ltime, TIME_NO_ZERO_DATE))
@@ -4894,31 +4982,14 @@ double Field_timestamp_hires::val_real(void)
          ltime.minute * 1e2 + ltime.second + ltime.second_part*1e-6;
 }
 
-String *Field_timestamp_hires::val_str(String *val_buffer, String *val_ptr)
-{
-  String *tmp= Field_timestamp::val_str(val_buffer, val_ptr);
-  ulong sec_part= (ulong)read_bigendian(ptr+4, sec_part_bytes[dec]);
-  
-  if (tmp->ptr() == zero_timestamp)
-    return tmp;
-
-  char *buf= const_cast<char*>(tmp->ptr() + MAX_DATETIME_WIDTH);
-  for (int i=dec; i>0; i--, sec_part/=10)
-    buf[i]= (char)(sec_part % 10) + '0';
-  buf[0]= '.';
-  buf[dec+1]= 0;
-  return tmp;
-}
-
-
-my_decimal *Field_timestamp_hires::val_decimal(my_decimal *d)
+my_decimal *Field_timestamp_with_dec::val_decimal(my_decimal *d)
 {
   MYSQL_TIME ltime;
   get_date(&ltime, 0);
   return TIME_to_my_decimal(&ltime, d);
 }
  
-int Field_timestamp_hires::store_decimal(const my_decimal *d)
+int Field_timestamp::store_decimal(const my_decimal *d)
 {
   ulonglong nr;
   ulong sec_part;
@@ -4941,7 +5012,7 @@ int Field_timestamp_hires::store_decimal(const my_decimal *d)
   return store_TIME_with_warning(thd, &ltime, &str, error, tmp != -1);
 }
 
-int Field_timestamp_hires::set_time()
+int Field_timestamp_with_dec::set_time()
 {
   THD *thd= get_thd();
   set_notnull();
@@ -4949,7 +5020,7 @@ int Field_timestamp_hires::set_time()
   return 0;
 }
 
-bool Field_timestamp_hires::send_binary(Protocol *protocol)
+bool Field_timestamp_with_dec::send_binary(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   Field_timestamp::get_date(&ltime, 0);
@@ -4970,71 +5041,53 @@ int Field_timestamp_hires::cmp(const uchar *a_ptr, const uchar *b_ptr)
 }
 
 
-void Field_timestamp_hires::sort_string(uchar *to,uint length)
-{
-  DBUG_ASSERT(length == Field_timestamp_hires::pack_length());
-  memcpy(to, ptr, length);
-}
-
 uint32 Field_timestamp_hires::pack_length() const
 {
   return 4 + sec_part_bytes[dec];
 }
 
-void Field_timestamp_hires::make_field(Send_field *field)
+void Field_timestamp_with_dec::make_field(Send_field *field)
 {
   Field::make_field(field);
   field->decimals= dec;
 }
 
-/*
-  Store string into a date/time field
 
-  RETURN
-    0  ok
-    1  Value was cut during conversion
-    2  value was out of range
-    3  Datetime value that was cut (warning level NOTE)
-       This is used by opt_range.cc:get_mm_leaf().
-*/
-int Field_temporal::store_TIME_with_warning(MYSQL_TIME *ltime,
-                                            const ErrConv *str,
-                                            int was_cut, int have_smth_to_conv)
+/*************************************************************
+** MySQL-5.6 compatible TIMESTAMP(N)
+**************************************************************/
+
+void Field_timestampf::store_TIME(my_time_t timestamp, ulong sec_part)
 {
-  MYSQL_ERROR::enum_warning_level trunc_level= MYSQL_ERROR::WARN_LEVEL_WARN;
-  int ret= 2;
-  
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  struct timeval tm;
+  tm.tv_sec= timestamp;
+  tm.tv_usec= sec_part;
+  my_timeval_trunc(&tm, dec);
+  my_timestamp_to_binary(&tm, ptr, dec);
+}
 
-  if (was_cut == 0 &&
-      have_smth_to_conv == 0 &&
-      mysql_type_to_time_type(type()) != MYSQL_TIMESTAMP_TIME) // special case: zero date
-    was_cut= MYSQL_TIME_WARN_OUT_OF_RANGE;
-  else
-  if (!have_smth_to_conv)
-  {
-    bzero(ltime, sizeof(*ltime));
-    was_cut=  MYSQL_TIME_WARN_TRUNCATED;
-    ret= 1;
-  }
-  else if (!(was_cut & MYSQL_TIME_WARN_TRUNCATED) &&
-           mysql_type_to_time_type(type()) == MYSQL_TIMESTAMP_DATE &&
-           (ltime->hour || ltime->minute || ltime->second || ltime->second_part))
-  {
-    trunc_level= MYSQL_ERROR::WARN_LEVEL_NOTE;
-    was_cut|=  MYSQL_TIME_WARN_TRUNCATED;
-    ret= 3;
-  }
-  else if (!(was_cut & MYSQL_TIME_WARN_TRUNCATED) &&
-           mysql_type_to_time_type(type()) == MYSQL_TIMESTAMP_TIME &&
-           (ltime->year || ltime->month))
-  {
-    ltime->year= ltime->month= ltime->day= 0;
-    trunc_level= MYSQL_ERROR::WARN_LEVEL_NOTE;
-    was_cut|=  MYSQL_TIME_WARN_TRUNCATED;
-    ret= 3;
-  }
 
+my_time_t Field_timestampf::get_timestamp(ulong *sec_part) const
+{
+  struct timeval tm;
+  my_timestamp_from_binary(&tm, ptr, dec);
+  *sec_part= tm.tv_usec;
+  return tm.tv_sec;
+}
+
+
+/*************************************************************/
+uint Field_temporal::is_equal(Create_field *new_field)
+{
+  return new_field->sql_type == real_type() &&
+         new_field->length == max_display_length();
+}
+
+
+void Field_temporal::set_warnings(MYSQL_ERROR::enum_warning_level trunc_level,
+                                  const ErrConv *str, int was_cut,
+                                  timestamp_type ts_type)
+{
   /*
     error code logic:
     MYSQL_TIME_WARN_TRUNCATED means that the value was not a date/time at all.
@@ -5051,13 +5104,54 @@ int Field_temporal::store_TIME_with_warning(MYSQL_TIME *ltime,
   if (was_cut & MYSQL_TIME_WARN_OUT_OF_RANGE)
     set_datetime_warning(MYSQL_ERROR::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE,
                          str, mysql_type_to_time_type(type()), 1);
+}
 
+
+/*
+  Store string into a date/time field
+
+  RETURN
+    0  ok
+    1  Value was cut during conversion
+    2  value was out of range
+    3  Datetime value that was cut (warning level NOTE)
+       This is used by opt_range.cc:get_mm_leaf().
+*/
+int Field_temporal_with_date::store_TIME_with_warning(MYSQL_TIME *ltime,
+                                                      const ErrConv *str,
+                                                      int was_cut,
+                                                      int have_smth_to_conv)
+{
+  MYSQL_ERROR::enum_warning_level trunc_level= MYSQL_ERROR::WARN_LEVEL_WARN;
+  int ret= 2;
+  
+  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+
+  if (was_cut == 0 && have_smth_to_conv == 0) // special case: zero date
+  {
+    was_cut= MYSQL_TIME_WARN_OUT_OF_RANGE;
+  }
+  else if (!have_smth_to_conv)
+  {
+    bzero(ltime, sizeof(*ltime));
+    was_cut=  MYSQL_TIME_WARN_TRUNCATED;
+    ret= 1;
+  }
+  else if (!(was_cut & MYSQL_TIME_WARN_TRUNCATED) &&
+           mysql_type_to_time_type(type()) == MYSQL_TIMESTAMP_DATE &&
+           (ltime->hour || ltime->minute || ltime->second || ltime->second_part))
+  {
+    trunc_level= MYSQL_ERROR::WARN_LEVEL_NOTE;
+    was_cut|=  MYSQL_TIME_WARN_TRUNCATED;
+    ret= 3;
+  }
+  set_warnings(trunc_level, str, was_cut, mysql_type_to_time_type(type()));
   store_TIME(ltime);
   return was_cut ? ret : 0;
 }
 
 
-int Field_temporal::store(const char *from,uint len,CHARSET_INFO *cs)
+int Field_temporal_with_date::store(const char *from, uint len, CHARSET_INFO *cs)
 {
   MYSQL_TIME ltime;
   int error;
@@ -5075,7 +5169,7 @@ int Field_temporal::store(const char *from,uint len,CHARSET_INFO *cs)
 }
 
 
-int Field_temporal::store(double nr)
+int Field_temporal_with_date::store(double nr)
 {
   int error= 0;
   MYSQL_TIME ltime;
@@ -5092,7 +5186,7 @@ int Field_temporal::store(double nr)
 }
 
 
-int Field_temporal::store(longlong nr, bool unsigned_val)
+int Field_temporal_with_date::store(longlong nr, bool unsigned_val)
 {
   int error;
   MYSQL_TIME ltime;
@@ -5110,7 +5204,7 @@ int Field_temporal::store(longlong nr, bool unsigned_val)
 }
 
 
-int Field_temporal::store_time_dec(MYSQL_TIME *ltime, uint dec)
+int Field_temporal_with_date::store_time_dec(MYSQL_TIME *ltime, uint dec)
 {
   int error = 0, have_smth_to_conv= 1;
   MYSQL_TIME l_time= *ltime;
@@ -5144,6 +5238,35 @@ my_decimal *Field_temporal::val_decimal(my_decimal *d)
 ** In number context: HHMMSS
 ** Stored as a 3 byte unsigned int
 ****************************************************************************/
+int Field_time::store_TIME_with_warning(MYSQL_TIME *ltime,
+                                        const ErrConv *str,
+                                        int was_cut,
+                                        int have_smth_to_conv)
+{
+  MYSQL_ERROR::enum_warning_level trunc_level= MYSQL_ERROR::WARN_LEVEL_WARN;
+  int ret= 2;
+  
+  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+
+  if (!have_smth_to_conv)
+  {
+    bzero(ltime, sizeof(*ltime));
+    was_cut= MYSQL_TIME_WARN_TRUNCATED;
+    ret= 1;
+  }
+  else if (!(was_cut & MYSQL_TIME_WARN_TRUNCATED) &&
+           (ltime->year || ltime->month))
+  {
+    ltime->year= ltime->month= ltime->day= 0;
+    trunc_level= MYSQL_ERROR::WARN_LEVEL_NOTE;
+    was_cut|=  MYSQL_TIME_WARN_TRUNCATED;
+    ret= 3;
+  }
+  set_warnings(trunc_level, str, was_cut, MYSQL_TIMESTAMP_TIME);
+  store_TIME(ltime);
+  return was_cut ? ret : 0;
+}
+
 
 void Field_time::store_TIME(MYSQL_TIME *ltime)
 {
@@ -5229,32 +5352,16 @@ longlong Field_time::val_int(void)
   my_charset_bin
 */
 
-String *Field_time::val_str(String *val_buffer,
-			    String *val_ptr __attribute__((unused)))
+String *Field_time::val_str(String *str,
+			    String *unused __attribute__((unused)))
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   MYSQL_TIME ltime;
-  long tmp=(long) sint3korr(ptr);
-  ltime.neg= 0;
-  if (tmp < 0)
-  {
-    tmp= -tmp;
-    ltime.neg= 1;
-  }
-  ltime.year= ltime.month= 0;
-  ltime.day= (uint) 0;
-  ltime.hour= (uint) (tmp/10000);
-  ltime.minute= (uint) (tmp/100 % 100);
-  ltime.second= (uint) (tmp % 100);
-  ltime.second_part= 0;
-
-  val_buffer->alloc(MAX_DATE_STRING_REP_LENGTH);
-  uint length= (uint) my_time_to_str(&ltime,
-                                     const_cast<char*>(val_buffer->ptr()), 0);
-  val_buffer->length(length);
-  val_buffer->set_charset(&my_charset_numeric);
-
-  return val_buffer;
+  get_date(&ltime, TIME_TIME_ONLY);
+  str->alloc(field_length + 1);
+  str->length(my_time_to_str(&ltime, const_cast<char*>(str->ptr()), decimals()));
+  str->set_charset(&my_charset_numeric);
+  return str;
 }
 
 
@@ -5297,8 +5404,8 @@ bool Field_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 bool Field_time::send_binary(Protocol *protocol)
 {
   MYSQL_TIME ltime;
-  Field_time::get_date(&ltime, TIME_TIME_ONLY);
-  return protocol->store_time(&ltime, 0);
+  get_date(&ltime, TIME_TIME_ONLY);
+  return protocol->store_time(&ltime, decimals());
 }
 
 
@@ -5319,7 +5426,14 @@ void Field_time::sort_string(uchar *to,uint length __attribute__((unused)))
 
 void Field_time::sql_type(String &res) const
 {
-  res.set_ascii(STRING_WITH_LEN("time"));
+  if (decimals() == 0)
+  {
+    res.set_ascii(STRING_WITH_LEN("time"));
+    return;
+  }
+  const CHARSET_INFO *cs= res.charset();
+  res.length(cs->cset->snprintf(cs, (char*) res.ptr(), res.alloced_length(),
+                               "time(%d)", decimals()));
 }
 
 int Field_time_hires::reset()
@@ -5335,7 +5449,7 @@ void Field_time_hires::store_TIME(MYSQL_TIME *ltime)
   store_bigendian(packed, ptr, Field_time_hires::pack_length());
 }
 
-int Field_time_hires::store_decimal(const my_decimal *d)
+int Field_time::store_decimal(const my_decimal *d)
 {
   ulonglong nr;
   ulong sec_part;
@@ -5354,33 +5468,21 @@ uint32 Field_time_hires::pack_length() const
   return time_hires_bytes[dec];
 }
 
-longlong Field_time_hires::val_int(void)
+longlong Field_time_with_dec::val_int(void)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   MYSQL_TIME ltime;
-  Field_time_hires::get_date(&ltime, TIME_TIME_ONLY);
+  get_date(&ltime, TIME_TIME_ONLY);
   longlong val= TIME_to_ulonglong_time(&ltime);
   return ltime.neg ? -val : val;
 }
 
-double Field_time_hires::val_real(void)
+double Field_time_with_dec::val_real(void)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   MYSQL_TIME ltime;
-  Field_time_hires::get_date(&ltime, TIME_TIME_ONLY);
+  get_date(&ltime, TIME_TIME_ONLY);
   return TIME_to_double(&ltime);
-}
-
-String *Field_time_hires::val_str(String *str,
-                                  String *unused __attribute__((unused)))
-{
-  ASSERT_COLUMN_MARKED_FOR_READ;
-  MYSQL_TIME ltime;
-  Field_time_hires::get_date(&ltime, TIME_TIME_ONLY);
-  str->alloc(field_length+1);
-  str->length(my_time_to_str(&ltime, (char*) str->ptr(), dec));
-  str->set_charset(&my_charset_bin);
-  return str;
 }
 
 bool Field_time_hires::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
@@ -5402,14 +5504,6 @@ bool Field_time_hires::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 }
 
 
-bool Field_time_hires::send_binary(Protocol *protocol)
-{
-  MYSQL_TIME ltime;
-  Field_time_hires::get_date(&ltime, TIME_TIME_ONLY);
-  return protocol->store_time(&ltime, dec);
-}
-
-
 int Field_time_hires::cmp(const uchar *a_ptr, const uchar *b_ptr)
 {
   ulonglong a=read_bigendian(a_ptr, Field_time_hires::pack_length());
@@ -5424,17 +5518,36 @@ void Field_time_hires::sort_string(uchar *to,uint length __attribute__((unused))
   to[0]^= 128;
 }
 
-void Field_time_hires::sql_type(String &res) const
-{
-  CHARSET_INFO *cs=res.charset();
-  res.length(cs->cset->snprintf(cs, (char*) res.ptr(), res.alloced_length(),
-                                "time(%u)", dec));
-}
-
-void Field_time_hires::make_field(Send_field *field)
+void Field_time_with_dec::make_field(Send_field *field)
 {
   Field::make_field(field);
   field->decimals= dec;
+}
+
+/****************************************************************************
+** time type with fsp (MySQL-5.6 version)
+** In string context: HH:MM:SS.FFFFFF
+** In number context: HHMMSS.FFFFFF
+****************************************************************************/
+
+int Field_timef::reset()
+{
+  my_time_packed_to_binary(0, ptr, dec);
+  return 0;
+}
+
+void Field_timef::store_TIME(MYSQL_TIME *ltime)
+{
+  my_time_trunc(ltime, decimals());
+  longlong tmp= TIME_to_longlong_time_packed(ltime);
+  my_time_packed_to_binary(tmp, ptr, dec);
+}
+
+bool Field_timef::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  longlong tmp= my_time_packed_from_binary(ptr, dec);
+  TIME_from_longlong_time_packed(ltime, tmp);
+  return false;
 }
 
 /****************************************************************************
@@ -5792,8 +5905,8 @@ bool Field_datetime::send_binary(Protocol *protocol)
   Field_datetime::get_date(&tm, TIME_FUZZY_DATE);
   return protocol->store(&tm, 0);
 }
-  
-  
+
+
 double Field_datetime::val_real(void)
 {
   return (double) Field_datetime::val_int();
@@ -5901,7 +6014,14 @@ void Field_datetime::sort_string(uchar *to,uint length __attribute__((unused)))
 
 void Field_datetime::sql_type(String &res) const
 {
-  res.set_ascii(STRING_WITH_LEN("datetime"));
+  if (decimals() == 0)
+  {
+    res.set_ascii(STRING_WITH_LEN("datetime"));
+    return;
+  }
+  CHARSET_INFO *cs= res.charset();
+  res.length(cs->cset->snprintf(cs, (char*) res.ptr(), res.alloced_length(),
+                                "datetime(%u)", decimals()));
 }
 
 
@@ -5924,7 +6044,7 @@ void Field_datetime_hires::store_TIME(MYSQL_TIME *ltime)
   store_bigendian(packed, ptr, Field_datetime_hires::pack_length());
 }
 
-int Field_datetime_hires::store_decimal(const my_decimal *d)
+int Field_temporal_with_date::store_decimal(const my_decimal *d)
 {
   ulonglong nr;
   ulong sec_part;
@@ -5949,38 +6069,38 @@ int Field_datetime_hires::store_decimal(const my_decimal *d)
   return store_TIME_with_warning(&ltime, &str, error, tmp != -1);
 }
 
-bool Field_datetime_hires::send_binary(Protocol *protocol)
+bool Field_datetime_with_dec::send_binary(Protocol *protocol)
 {
   MYSQL_TIME ltime;
-  Field_datetime_hires::get_date(&ltime, TIME_FUZZY_DATE);
+  get_date(&ltime, TIME_FUZZY_DATE);
   return protocol->store(&ltime, dec);
 }
 
 
-double Field_datetime_hires::val_real(void)
+double Field_datetime_with_dec::val_real(void)
 {
   MYSQL_TIME ltime;
-  Field_datetime_hires::get_date(&ltime, TIME_FUZZY_DATE);
+  get_date(&ltime, TIME_FUZZY_DATE);
   return TIME_to_double(&ltime);
 }
 
-longlong Field_datetime_hires::val_int(void)
+longlong Field_datetime_with_dec::val_int(void)
 {
   MYSQL_TIME ltime;
-  Field_datetime_hires::get_date(&ltime, TIME_FUZZY_DATE);
+  get_date(&ltime, TIME_FUZZY_DATE);
   return TIME_to_ulonglong_datetime(&ltime);
 }
 
 
-String *Field_datetime_hires::val_str(String *str,
-                                      String *unused __attribute__((unused)))
+String *Field_datetime_with_dec::val_str(String *str,
+                                         String *unused __attribute__((unused)))
 {
   MYSQL_TIME ltime;
-  Field_datetime_hires::get_date(&ltime, TIME_FUZZY_DATE);
+  get_date(&ltime, TIME_FUZZY_DATE);
   str->alloc(field_length+1);
   str->length(field_length);
   my_datetime_to_str(&ltime, (char*) str->ptr(), dec);
-  str->set_charset(&my_charset_bin);
+  str->set_charset(&my_charset_numeric);
   return str;
 }
 
@@ -6007,26 +6127,41 @@ int Field_datetime_hires::cmp(const uchar *a_ptr, const uchar *b_ptr)
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-void Field_datetime_hires::sort_string(uchar *to,
-                                       uint length __attribute__((unused)))
-{
-  DBUG_ASSERT(length == Field_datetime_hires::pack_length());
-  memcpy(to, ptr, length);
-}
-
-
-void Field_datetime_hires::sql_type(String &res) const
-{
-  CHARSET_INFO *cs=res.charset();
-  res.length(cs->cset->snprintf(cs, (char*) res.ptr(), res.alloced_length(),
-                                "datetime(%u)", dec));
-}
-
-void Field_datetime_hires::make_field(Send_field *field)
+void Field_datetime_with_dec::make_field(Send_field *field)
 {
   Field::make_field(field);
   field->decimals= dec;
 }
+
+
+/****************************************************************************
+** MySQL-5.6 compatible DATETIME(N)
+**
+****************************************************************************/
+int Field_datetimef::reset()
+{
+  my_datetime_packed_to_binary(0, ptr, dec);
+  return 0;
+}
+
+void Field_datetimef::store_TIME(MYSQL_TIME *ltime)
+{
+  my_time_trunc(ltime, decimals());
+  longlong tmp= TIME_to_longlong_datetime_packed(ltime);
+  my_datetime_packed_to_binary(tmp, ptr, dec);
+}
+
+bool Field_datetimef::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  longlong tmp= my_datetime_packed_from_binary(ptr, dec);
+  TIME_from_longlong_datetime_packed(ltime, tmp);
+  if (!tmp)
+    return fuzzydate & TIME_NO_ZERO_DATE;
+  if (!ltime->month || !ltime->day)
+    return !(fuzzydate & TIME_FUZZY_DATE);
+  return false;
+}
+
 
 /****************************************************************************
 ** string type
@@ -6197,80 +6332,6 @@ int Field_str::store(double nr)
   }
   return store(buff, length, &my_charset_numeric);
 }
-
-static
-inline ulonglong char_prefix_to_ulonglong(uchar *src)
-{
-  uint sz= sizeof(ulonglong);
-  for (uint i= 0; i < sz/2; i++)
-  {
-    uchar tmp= src[i];
-    src[i]= src[sz-1-i];
-    src[sz-1-i]= tmp;
-  }
-  return uint8korr(src); 
-}
-
-/**
-  @brief
-  Determine the relative position of the field value in a string interval
-
-  @details
-  The function returns a double number between 0.0 and 1.0 as the relative
-  position of the value of the this field in the string interval of [min,max].
-  If the value is not in the interval the the function returns 0.0 when
-  the value is less than min, and, 1.0 when the value is greater than max.
-
-  @note
-  To calculate the relative position of the string value v in the interval
-  [min, max] the function first converts the beginning of these three
-  strings v, min, max into the strings that are used for byte comparison.
-  For each string not more sizeof(ulonglong) first bytes are taken
-  from the result of conversion. Then these bytes are interpreted as the
-  big-endian representation of an ulonglong integer. The values of these
-  integer numbers obtained for the strings v, min, max are used to calculate
-  the position of v in [min,max] in the same way is it's done for numeric
-  fields (see Field_num::pos_in_interval).
-
-  @todo
-  Improve the procedure for the case when min and max have the same
-  beginning
-     
-  @param  min  value of the left end of the interval
-  @param  max  value of the right end of the interval
-
-  @return
-  relative position of the field value in the string interval [min,max] 
-*/
-
-double Field_str::pos_in_interval(Field *min, Field *max)
-{
-  uchar mp_prefix[sizeof(ulonglong)];
-  uchar minp_prefix[sizeof(ulonglong)];
-  uchar maxp_prefix[sizeof(ulonglong)];
-  ulonglong mp, minp, maxp;
-  my_strnxfrm(charset(), mp_prefix, sizeof(mp),
-              ptr + length_size(),
-              data_length());
-  my_strnxfrm(charset(), minp_prefix, sizeof(minp),
-              min->ptr + length_size(),
-              min->data_length());
-  my_strnxfrm(charset(), maxp_prefix, sizeof(maxp),
-              max->ptr + length_size(),
-              max->data_length());
-  mp= char_prefix_to_ulonglong(mp_prefix);
-  minp= char_prefix_to_ulonglong(minp_prefix);
-  maxp= char_prefix_to_ulonglong(maxp_prefix);
-  double n, d;
-  n= mp - minp;
-  if (n < 0)
-    return 0.0;
-  d= maxp - minp;
-  if (d <= 0)
-    return 1.0;
-  return min(n/d, 1.0);
-}
-
 
 uint Field::is_equal(Create_field *new_field)
 {
@@ -8482,36 +8543,6 @@ my_decimal *Field_bit::val_decimal(my_decimal *deciaml_value)
 }
 
 
-/**
-  @brief
-  Determine the relative position of the field value in a bit interval
-
-  @details
-  The function returns a double number between 0.0 and 1.0 as the relative
-  position of the value of the this field in the bit interval of [min,max].
-  If the value is not in the interval the the function returns 0.0 when
-  the value is less than min, and, 1.0 when the value is greater than max.
-
-  @param  min  value of the left end of the interval
-  @param  max  value of the right end of the interval
-
-  @return
-  relative position of the field value in the bit interval [min,max] 
-*/
-
-double Field_bit::pos_in_interval(Field *min, Field *max)
-{
-  double n, d;
-  n= val_real() - min->val_real();
-  if (n < 0)
-    return 0.0;
-  d= max->val_real() - min->val_real();
-  if (d <= 0)
-    return 1.0;
-  return min(n/d, 1.0);
-}
-
-
 /*
   Compare two bit fields using pointers within the record.
   SYNOPSIS
@@ -9144,7 +9175,7 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
     it is NOT NULL, not an AUTO_INCREMENT field and not a TIMESTAMP.
   */
   if (!fld_default_value && !(fld_type_modifier & AUTO_INCREMENT_FLAG) &&
-      (fld_type_modifier & NOT_NULL_FLAG) && fld_type != MYSQL_TYPE_TIMESTAMP)
+      (fld_type_modifier & NOT_NULL_FLAG) && !is_timestamp_type(fld_type))
     flags|= NO_DEFAULT_VALUE_FLAG;
 
   if (fld_length != NULL)
@@ -9306,6 +9337,7 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
     }
     break;
   case MYSQL_TYPE_TIMESTAMP:
+  case MYSQL_TYPE_TIMESTAMP2:
     if (length > MAX_DATETIME_PRECISION)
     {
       my_error(ER_TOO_BIG_PRECISION, MYF(0), length, fld_name,
@@ -9323,6 +9355,7 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
     length= MAX_DATE_WIDTH;
     break;
   case MYSQL_TYPE_TIME:
+  case MYSQL_TYPE_TIME2:
     if (length > MAX_DATETIME_PRECISION)
     {
       my_error(ER_TOO_BIG_PRECISION, MYF(0), length, fld_name,
@@ -9332,6 +9365,7 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
     length+= MIN_TIME_WIDTH + (length ? 1 : 0);
     break;
   case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_DATETIME2:
     if (length > MAX_DATETIME_PRECISION)
     {
       my_error(ER_TOO_BIG_PRECISION, MYF(0), length, fld_name,
@@ -9413,17 +9447,6 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
     DBUG_RETURN(TRUE);
   }
 
-  switch (fld_type) {
-  case MYSQL_TYPE_DATE:
-  case MYSQL_TYPE_NEWDATE:
-  case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_TIMESTAMP:
-    charset= &my_charset_numeric;
-    flags|= BINARY_FLAG;
-  default: break;
-  }
-
   DBUG_RETURN(FALSE); /* success */
 }
 
@@ -9462,10 +9485,16 @@ uint32 calc_pack_length(enum_field_types type,uint32 length)
   case MYSQL_TYPE_TIME:   return length > MIN_TIME_WIDTH
                             ? time_hires_bytes[length - 1 - MIN_TIME_WIDTH]
                             : 3;
+  case MYSQL_TYPE_TIME2:
+    return length > MIN_TIME_WIDTH ?
+           my_time_binary_length(length - MIN_TIME_WIDTH - 1) : 3;
   case MYSQL_TYPE_TIMESTAMP:
                           return length > MAX_DATETIME_WIDTH
                             ? 4 + sec_part_bytes[length - 1 - MAX_DATETIME_WIDTH]
                             : 4;
+  case MYSQL_TYPE_TIMESTAMP2:
+    return length > MAX_DATETIME_WIDTH ?
+           my_timestamp_binary_length(length - MAX_DATETIME_WIDTH - 1) : 4;
   case MYSQL_TYPE_DATE:
   case MYSQL_TYPE_LONG	: return 4;
   case MYSQL_TYPE_FLOAT : return sizeof(float);
@@ -9474,6 +9503,9 @@ uint32 calc_pack_length(enum_field_types type,uint32 length)
                           return length > MAX_DATETIME_WIDTH
                             ? datetime_hires_bytes[length - 1 - MAX_DATETIME_WIDTH]
                             : 8;
+  case MYSQL_TYPE_DATETIME2:
+    return length > MAX_DATETIME_WIDTH ?
+           my_datetime_binary_length(length - MAX_DATETIME_WIDTH - 1) : 5;
   case MYSQL_TYPE_LONGLONG: return 8;	/* Don't crash if no longlong */
   case MYSQL_TYPE_NULL	: return 0;
   case MYSQL_TYPE_TINY_BLOB:	return 1+portable_sizeof_char_ptr;
@@ -9536,16 +9568,6 @@ Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
   else
   {
     null_bit= ((uchar) 1) << null_bit;
-  }
-
-  switch (field_type) {
-  case MYSQL_TYPE_DATE:
-  case MYSQL_TYPE_NEWDATE:
-  case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_TIMESTAMP:
-    field_charset= &my_charset_numeric;
-  default: break;
   }
 
   DBUG_PRINT("debug", ("field_type: %d, field_length: %u, interval: %p, pack_flag: %s%s%s%s%s",
@@ -9661,30 +9683,51 @@ Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
     uint dec= field_length > MAX_DATETIME_WIDTH ?
                        field_length - MAX_DATETIME_WIDTH - 1: 0;
     return new_Field_timestamp(ptr, null_pos, null_bit, unireg_check,
-                               field_name, share, dec, field_charset);
+                               field_name, share, dec);
+  }
+  case MYSQL_TYPE_TIMESTAMP2:
+  {
+    uint dec= field_length > MAX_DATETIME_WIDTH ?
+                       field_length - MAX_DATETIME_WIDTH - 1: 0;
+    return new Field_timestampf(ptr, null_pos, null_bit, unireg_check,
+                                field_name, share, dec);
   }
   case MYSQL_TYPE_YEAR:
     return new Field_year(ptr,field_length,null_pos,null_bit,
 			  unireg_check, field_name);
   case MYSQL_TYPE_DATE:
     return new Field_date(ptr,null_pos,null_bit,
-			  unireg_check, field_name, field_charset);
+                          unireg_check, field_name);
   case MYSQL_TYPE_NEWDATE:
     return new Field_newdate(ptr,null_pos,null_bit,
-			     unireg_check, field_name, field_charset);
+                             unireg_check, field_name);
   case MYSQL_TYPE_TIME:
   {
     uint dec= field_length > MIN_TIME_WIDTH ?
                        field_length - MIN_TIME_WIDTH - 1: 0;
     return new_Field_time(ptr, null_pos, null_bit, unireg_check,
-                              field_name, dec, field_charset);
+                          field_name, dec);
+  }
+  case MYSQL_TYPE_TIME2:
+  {
+    uint dec= field_length > MIN_TIME_WIDTH ?
+                       field_length - MIN_TIME_WIDTH - 1: 0;
+    return new Field_timef(ptr, null_pos, null_bit, unireg_check,
+                           field_name, dec);
   }
   case MYSQL_TYPE_DATETIME:
   {
     uint dec= field_length > MAX_DATETIME_WIDTH ?
                        field_length - MAX_DATETIME_WIDTH - 1: 0;
     return new_Field_datetime(ptr, null_pos, null_bit, unireg_check,
-                              field_name, dec, field_charset);
+                              field_name, dec);
+  }
+  case MYSQL_TYPE_DATETIME2:
+  {
+    uint dec= field_length > MAX_DATETIME_WIDTH ?
+                       field_length - MAX_DATETIME_WIDTH - 1: 0;
+    return new Field_datetimef(ptr, null_pos, null_bit, unireg_check,
+                              field_name, dec);
   }
   case MYSQL_TYPE_NULL:
     return new Field_null(ptr, field_length, unireg_check, field_name,

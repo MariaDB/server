@@ -1427,7 +1427,7 @@ bool Protocol_binary::store(MYSQL_TIME *tm, int decimals)
   DBUG_ASSERT(decimals == AUTO_SEC_PART_DIGITS ||
               (decimals >= 0 && decimals <= TIME_SECOND_PART_DIGITS));
   if (decimals != AUTO_SEC_PART_DIGITS)
-    tm->second_part= sec_part_truncate(tm->second_part, decimals);
+    my_time_trunc(tm, decimals);
   int4store(pos+7, tm->second_part);
   if (tm->second_part)
     length=11;
@@ -1469,7 +1469,7 @@ bool Protocol_binary::store_time(MYSQL_TIME *tm, int decimals)
   DBUG_ASSERT(decimals == AUTO_SEC_PART_DIGITS ||
               (decimals >= 0 && decimals <= TIME_SECOND_PART_DIGITS));
   if (decimals != AUTO_SEC_PART_DIGITS)
-    tm->second_part= sec_part_truncate(tm->second_part, decimals);
+    my_time_trunc(tm, decimals);
   int4store(pos+8, tm->second_part);
   if (tm->second_part)
     length=12;

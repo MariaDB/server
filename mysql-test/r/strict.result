@@ -1135,7 +1135,7 @@ create table t1 (col1 date, col2 datetime, col3 timestamp);
 insert into t1 values (0,0,0);
 ERROR 22007: Incorrect date value: '0' for column 'col1' at row 1
 insert into t1 values (0.0,0.0,0.0);
-ERROR 22007: Incorrect date value: '0' for column 'col1' at row 1
+ERROR 22007: Incorrect date value: '0.0' for column 'col1' at row 1
 insert into t1 (col1) values (convert('0000-00-00',date));
 ERROR 22007: Incorrect datetime value: '0000-00-00'
 insert into t1 (col1) values (cast('0000-00-00' as date));

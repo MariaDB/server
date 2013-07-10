@@ -220,7 +220,7 @@ db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	his
 test	t1	a	0	49	0.0000	1.0000	4	SINGLE_PREC_HB	2E62A1D0
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	4	SINGLE_PREC_HB	003FBFFF
 test	t1	c	aaaa	dddddddd	0.1250	7.0000	4	SINGLE_PREC_HB	0055AAFF
-test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	4	SINGLE_PREC_HB	009393FF
+test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	4	SINGLE_PREC_HB	001919FF
 test	t1	e	0.01	0.112	0.2250	6.2000	4	SINGLE_PREC_HB	000564E1
 test	t1	f	1	5	0.2000	6.4000	4	SINGLE_PREC_HB	3F7FBFBF
 DELETE FROM mysql.column_stats;
@@ -238,7 +238,7 @@ db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	his
 test	t1	a	0	49	0.0000	1.0000	8	DOUBLE_PREC_HB	052F4363F4A1F9D0
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	8	DOUBLE_PREC_HB	0000FF3FFFBFFFFF
 test	t1	c	aaaa	dddddddd	0.1250	7.0000	8	DOUBLE_PREC_HB	00005555AAAAFFFF
-test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	8	DOUBLE_PREC_HB	000026942694FFFF
+test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	8	DOUBLE_PREC_HB	0000031A031AFFFF
 test	t1	e	0.01	0.112	0.2250	6.2000	8	DOUBLE_PREC_HB	000005056464E1E1
 test	t1	f	1	5	0.2000	6.4000	8	DOUBLE_PREC_HB	FF3FFF7FFFBFFFBF
 DELETE FROM mysql.column_stats;
