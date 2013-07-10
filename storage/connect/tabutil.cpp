@@ -133,7 +133,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
   int          i, n, ncol = sizeof(buftyp) / sizeof(int);
   int          len, type, prec;
   bool         mysql;
-  TABLE_SHARE *s;
+  TABLE_SHARE *s = NULL;
   Field*      *field;
   Field       *fp;
   PQRYRES      qrp;
@@ -243,7 +243,9 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
   /**********************************************************************/
   /*  Return the result pointer for use by GetData routines.            */
   /**********************************************************************/
-  free_table_share(s);
+  if (s)
+	  free_table_share(s);
+	  
   return qrp;
   } // end of TabColumns
 
@@ -315,12 +317,12 @@ TDBPRX::TDBPRX(PPRXDEF tdp) : TDBASE(tdp)
 /***********************************************************************/
 PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
   {
-  const char  *sp;
+  const char  *sp = NULL;
   char        *db, *name;
   bool         mysql = true;
   PTDB         tdbp = NULL;
   TABLE_SHARE *s = NULL;
-  Field*      *fp;
+  Field*      *fp = NULL;
   PCATLG       cat = To_Def->GetCat();
   PHC          hc = ((MYCAT*)cat)->GetHandler();
   LPCSTR       cdb, curdb = hc->GetDBName(NULL);
