@@ -816,7 +816,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
           p+= valp->GetClen();
     
-          if (len[i] == p - kp) {
+          if (len[i] == (unsigned)(p - kp)) {
             n++;
             break;
           } else if (len[i] < (unsigned)(p - kp)) {

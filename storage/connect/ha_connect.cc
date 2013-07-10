@@ -3433,7 +3433,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool        bif, ok= false, dbf= false;
   TABTYPE     ttp= TAB_UNDEF;
-  PQRYRES     qrp;
+  PQRYRES     qrp= NULL;
   PCOLRES     crp;
   PGLOBAL     g= GetPlug(thd, NULL);
   PTOS        topt= table_s->option_struct;
@@ -3709,7 +3709,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
     if (fnc != FNC_NO || src || ttp == TAB_PIVOT) {
       // Catalog like table
-      for (crp=qrp->Colresp; !b && crp; crp= crp->Next) {
+      for (crp= qrp->Colresp; !b && crp; crp= crp->Next) {
         cnm= encode(g, crp->Name);
         type= PLGtoMYSQLtype(crp->Type, dbf);
         len= crp->Length;
@@ -3726,6 +3726,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         rem= NULL;
         typ= len= dec= 0;
         tm= NOT_NULL_FLAG;
+        cnm= (char*)"noname";
 
         for (crp= qrp->Colresp; crp; crp= crp->Next)
           switch (crp->Fld) {

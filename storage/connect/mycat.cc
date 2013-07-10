@@ -383,7 +383,7 @@ int MYCAT::GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size)
 /***********************************************************************/
 char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 	{
-	char *sval, *s= Hc->GetStringOption(what, sdef);
+	char *sval= NULL, *s= Hc->GetStringOption(what, sdef);
 	
 	if (s) {
 		sval= (char*)PlugSubAlloc(g, NULL, strlen(s) + 1);
@@ -408,8 +408,7 @@ char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 
       } // endif FileType
 
-  } else
-		sval = NULL;
+  } // endif s
 
 	return sval;
 	}	// end of GetStringCatInfo

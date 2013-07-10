@@ -242,7 +242,7 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
   int      maxres;
   PQRYRES  qrp;
   CATPARM *cap;
-  ODBConn *ocp;
+  ODBConn *ocp = NULL;
 
   /************************************************************************/
   /*  Do an evaluation of the result size.                                */
@@ -497,7 +497,7 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
   int     maxres;
   PQRYRES  qrp;
   CATPARM *cap;
-  ODBConn *ocp;
+  ODBConn *ocp = NULL;
 
   /************************************************************************/
   /*  Do an evaluation of the result size.                                */
@@ -1654,7 +1654,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   PCOLRES  crp;
   RETCODE  rc;
   HSTMT    hstmt = NULL;
-  SQLLEN  *vl, *vlen;
+  SQLLEN  *vl, *vlen = NULL;
   PVAL    *pval = NULL;
 
   try {

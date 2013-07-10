@@ -181,7 +181,7 @@ char *_fullpath(char *absPath, const char *relPath, size_t maxLength)
   }  else {
     char buff[2*_MAX_PATH];
 
-    getcwd(buff, _MAX_PATH);
+    assert(getcwd(buff, _MAX_PATH) != NULL);
     strcat(buff,"/");
     strcat(buff, relPath);
     strncpy(absPath, buff, maxLength);
