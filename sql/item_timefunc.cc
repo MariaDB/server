@@ -1053,7 +1053,7 @@ longlong Item_func_week::val_int()
   DBUG_ASSERT(fixed == 1);
   uint year;
   MYSQL_TIME ltime;
-  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE))
+  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
     return 0;
   return (longlong) calc_week(&ltime,
 			      week_mode((uint) args[1]->val_int()),
@@ -1066,7 +1066,7 @@ longlong Item_func_yearweek::val_int()
   DBUG_ASSERT(fixed == 1);
   uint year,week;
   MYSQL_TIME ltime;
-  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE))
+  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
     return 0;
   week= calc_week(&ltime, 
 		  (week_mode((uint) args[1]->val_int()) | WEEK_YEAR),
@@ -1080,7 +1080,7 @@ longlong Item_func_weekday::val_int()
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
   
-  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE))
+  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
     return 0;
 
   return (longlong) calc_weekday(calc_daynr(ltime.year, ltime.month,
