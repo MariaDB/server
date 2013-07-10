@@ -2790,6 +2790,8 @@ int prepare_create_field(Create_field *sql_field,
   case MYSQL_TYPE_NEWDATE:
   case MYSQL_TYPE_TIME:
   case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_TIME2:
+  case MYSQL_TYPE_DATETIME2:
   case MYSQL_TYPE_NULL:
     sql_field->pack_flag=f_settype((uint) sql_field->sql_type);
     break;
@@ -2808,6 +2810,7 @@ int prepare_create_field(Create_field *sql_field,
                           (sql_field->decimals << FIELDFLAG_DEC_SHIFT));
     break;
   case MYSQL_TYPE_TIMESTAMP:
+  case MYSQL_TYPE_TIMESTAMP2:
     /* fall-through */
   default:
     sql_field->pack_flag=(FIELDFLAG_NUMBER |
@@ -2893,7 +2896,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
 
   while ((column_definition= it++) != NULL)
   {
-    if (column_definition->sql_type == MYSQL_TYPE_TIMESTAMP ||      // TIMESTAMP
+    if (is_timestamp_type(column_definition->sql_type) ||              // TIMESTAMP
         column_definition->unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
     {
       if ((column_definition->flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
@@ -3854,7 +3857,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
     if (thd->variables.sql_mode & MODE_NO_ZERO_DATE &&
         !sql_field->def &&
-        sql_field->sql_type == MYSQL_TYPE_TIMESTAMP &&
+        is_timestamp_type(sql_field->sql_type) &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (type == Field::NONE || type == Field::TIMESTAMP_UN_FIELD))
     {
@@ -5950,7 +5953,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     */
     if ((def->sql_type == MYSQL_TYPE_DATE ||
          def->sql_type == MYSQL_TYPE_NEWDATE ||
-         def->sql_type == MYSQL_TYPE_DATETIME) &&
+         def->sql_type == MYSQL_TYPE_DATETIME ||
+         def->sql_type == MYSQL_TYPE_DATETIME2) &&
          !alter_info->datetime_field &&
          !(~def->flags & (NO_DEFAULT_VALUE_FLAG | NOT_NULL_FLAG)) &&
          thd->variables.sql_mode & MODE_NO_ZERO_DATE)
@@ -7582,6 +7586,7 @@ err:
         t_type= MYSQL_TIMESTAMP_DATE;
         break;
       case MYSQL_TYPE_DATETIME:
+      case MYSQL_TYPE_DATETIME2:
         f_val= "0000-00-00 00:00:00";
         t_type= MYSQL_TIMESTAMP_DATETIME;
         break;

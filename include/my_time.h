@@ -111,6 +111,8 @@ longlong pack_time(MYSQL_TIME *my_time);
 MYSQL_TIME *unpack_time(longlong packed, MYSQL_TIME *my_time);
 
 int check_time_range(struct st_mysql_time *my_time, uint dec, int *warning);
+my_bool check_datetime_range(const MYSQL_TIME *ltime);
+
 
 long calc_daynr(uint year,uint month,uint day);
 uint calc_days_in_year(uint year);
@@ -163,6 +165,8 @@ int my_date_to_str(const MYSQL_TIME *l_time, char *to);
 int my_datetime_to_str(const MYSQL_TIME *l_time, char *to, uint digits);
 int my_TIME_to_str(const MYSQL_TIME *l_time, char *to, uint digits);
 
+int my_timeval_to_str(const struct timeval *tm, char *to, uint dec);
+
 static inline longlong sec_part_shift(longlong second_part, uint digits)
 {
   return second_part / (longlong)log_10_int[TIME_SECOND_PART_DIGITS - digits];
@@ -171,11 +175,22 @@ static inline longlong sec_part_unshift(longlong second_part, uint digits)
 {
   return second_part * (longlong)log_10_int[TIME_SECOND_PART_DIGITS - digits];
 }
-static inline ulong sec_part_truncate(ulong second_part, uint digits)
+
+/* Date/time rounding and truncation functions */
+static inline long my_time_fraction_remainder(long nr, uint decimals)
 {
-  /* the cast here should be unnecessary! */
-  return second_part - second_part % (ulong)log_10_int[TIME_SECOND_PART_DIGITS - digits];
+  DBUG_ASSERT(decimals <= TIME_SECOND_PART_DIGITS);
+  return nr % (long) log_10_int[TIME_SECOND_PART_DIGITS - decimals];
 }
+static inline void my_time_trunc(MYSQL_TIME *ltime, uint decimals)
+{
+  ltime->second_part-= my_time_fraction_remainder(ltime->second_part, decimals);
+}
+static inline void my_timeval_trunc(struct timeval *tv, uint decimals)
+{
+  tv->tv_usec-= my_time_fraction_remainder(tv->tv_usec, decimals);
+}
+
 
 #define hrtime_to_my_time(X) ((my_time_t)hrtime_to_time(X))
 

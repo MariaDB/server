@@ -4307,7 +4307,7 @@ add_key_field(JOIN *join,
       {
         if ((*value)->cmp_type() != STRING_RESULT)
             return;
-        if (((Field_str*)field)->charset() != cond->compare_collation())
+        if (field->charset() != cond->compare_collation())
           return;
       }
     }
@@ -11857,7 +11857,7 @@ static bool check_simple_equality(Item *left_item, Item *right_item,
 
       if (field_item->cmp_type() == STRING_RESULT)
       {
-        CHARSET_INFO *cs= ((Field_str*) field_item->field)->charset();
+        CHARSET_INFO *cs= field_item->field->charset();
         if (!item)
         {
           Item_func_eq *eq_item;

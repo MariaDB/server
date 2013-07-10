@@ -1307,16 +1307,16 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table,
   switch (args[0]->field_type()) {
   case MYSQL_TYPE_DATE:
     field= new Field_newdate(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE,
-                             name, collation.collation);
+                             name);
     break;
   case MYSQL_TYPE_TIME:
     field= new_Field_time(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE,
-                          name, decimals, collation.collation);
+                          name, decimals);
     break;
   case MYSQL_TYPE_TIMESTAMP:
   case MYSQL_TYPE_DATETIME:
     field= new_Field_datetime(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE,
-                              name, decimals, collation.collation);
+                              name, decimals);
     break;
   default:
     return Item_sum::create_tmp_field(group, table, convert_blob_length);

@@ -4409,7 +4409,7 @@ bool Protocol_local::store(const char *str, size_t length,
 bool Protocol_local::store(MYSQL_TIME *time, int decimals)
 {
   if (decimals != AUTO_SEC_PART_DIGITS)
-    time->second_part= sec_part_truncate(time->second_part, decimals);
+    my_time_trunc(time, decimals);
   return store_column(time, sizeof(MYSQL_TIME));
 }
 
@@ -4427,7 +4427,7 @@ bool Protocol_local::store_date(MYSQL_TIME *time)
 bool Protocol_local::store_time(MYSQL_TIME *time, int decimals)
 {
   if (decimals != AUTO_SEC_PART_DIGITS)
-    time->second_part= sec_part_truncate(time->second_part, decimals);
+    my_time_trunc(time, decimals);
   return store_column(time, sizeof(MYSQL_TIME));
 }
 

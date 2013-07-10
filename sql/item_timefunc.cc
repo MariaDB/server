@@ -1574,7 +1574,7 @@ static void set_sec_part(ulong sec_part, MYSQL_TIME *ltime, Item *item)
   {
     ltime->second_part= sec_part;
     if (item->decimals < TIME_SECOND_PART_DIGITS)
-      ltime->second_part= sec_part_truncate(ltime->second_part, item->decimals);
+      my_time_trunc(ltime, item->decimals);
   }
 }
 
@@ -2411,7 +2411,7 @@ bool Item_time_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   if (get_arg0_time(ltime))
     return 1;
   if (decimals < TIME_SECOND_PART_DIGITS)
-    ltime->second_part= sec_part_truncate(ltime->second_part, decimals);
+    my_time_trunc(ltime, decimals);
   /*
     MYSQL_TIMESTAMP_TIME value can have non-zero day part,
     which we should not lose.
@@ -2450,8 +2450,7 @@ bool Item_datetime_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     return 1;
 
   if (decimals < TIME_SECOND_PART_DIGITS)
-    ltime->second_part= sec_part_truncate(ltime->second_part, decimals);
-
+    my_time_trunc(ltime, decimals);
 
   /*
     ltime is valid MYSQL_TYPE_TIME (according to fuzzy_date).

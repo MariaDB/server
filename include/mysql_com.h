@@ -400,6 +400,16 @@ enum enum_field_types { MYSQL_TYPE_DECIMAL, MYSQL_TYPE_TINY,
 			MYSQL_TYPE_DATETIME, MYSQL_TYPE_YEAR,
 			MYSQL_TYPE_NEWDATE, MYSQL_TYPE_VARCHAR,
 			MYSQL_TYPE_BIT,
+                        /*
+                          mysql-5.6 compatibility temporal types.
+                          They're only used internally for reading RBR
+                          mysql-5.6 binary log events and mysql-5.6 frm files.
+                          They're never sent to the client.
+                        */
+                        MYSQL_TYPE_TIMESTAMP2,
+                        MYSQL_TYPE_DATETIME2,
+                        MYSQL_TYPE_TIME2,
+                        
                         MYSQL_TYPE_NEWDECIMAL=246,
 			MYSQL_TYPE_ENUM=247,
 			MYSQL_TYPE_SET=248,

@@ -203,6 +203,29 @@ static uint skip_digits(const char **str, const char *end)
   return s - start;
 }
 
+
+/**
+  Check datetime, date, or normalized time (i.e. time without days) range.
+  @param ltime   Datetime value.
+  @returns
+  @retval   FALSE on success
+  @retval   TRUE  on error
+*/
+my_bool check_datetime_range(const MYSQL_TIME *ltime)
+{
+  /*
+    In case of MYSQL_TIMESTAMP_TIME hour value can be up to TIME_MAX_HOUR.
+    In case of MYSQL_TIMESTAMP_DATETIME it cannot be bigger than 23.
+  */
+  return
+    ltime->year > 9999 || ltime->month > 12  || ltime->day > 31 || 
+    ltime->minute > 59 || ltime->second > 59 ||
+    ltime->second_part > TIME_MAX_SECOND_PART ||
+    (ltime->hour >
+     (ltime->time_type == MYSQL_TIMESTAMP_TIME ? TIME_MAX_HOUR : 23));
+}
+
+
 /*
   Convert a timestamp string to a MYSQL_TIME value.
 
@@ -332,9 +355,14 @@ str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
     uint second_part;
     const char *start= ++str;
     *was_cut= get_digits(&second_part, &number_of_fields, &str, end, 6);
-    if (str - start < 6)
-      second_part*= log_10_int[6 - (str - start)];
-    l_time->second_part= second_part;
+    if (number_of_fields == 7)
+    {
+      if (str - start < 6)
+        second_part*= log_10_int[6 - (str - start)];
+      l_time->second_part= second_part;
+    }
+    else
+      l_time->second_part= 0;
     if (skip_digits(&str, end))
       *was_cut= 1;
   }
@@ -1098,6 +1126,27 @@ int my_TIME_to_str(const MYSQL_TIME *l_time, char *to, uint digits)
     DBUG_ASSERT(0);
     return 0;
   }
+}
+
+
+/**
+  Print a timestamp with an optional fractional part: XXXXX[.YYYYY]
+
+  @param      tm  The timestamp value to print.
+  @param  OUT to  The string pointer to print at. 
+  @param      dec Precision, in the range 0..6.
+  @return         The length of the result string.
+*/
+int my_timeval_to_str(const struct timeval *tm, char *to, uint dec)
+{
+  char *pos= longlong10_to_str((longlong) tm->tv_sec, to, 10);
+  if (dec)
+  {
+    *pos++= '.';
+    pos= fmt_number((uint) sec_part_shift(tm->tv_usec, dec), pos, dec);
+  }
+  *pos= '\0';
+  return (int) (pos - to);
 }
 
 

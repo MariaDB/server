@@ -3972,7 +3972,9 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
         type= DYN_COL_NULL;
         break;
       case MYSQL_TYPE_TIMESTAMP:
+      case MYSQL_TYPE_TIMESTAMP2:
       case MYSQL_TYPE_DATETIME:
+      case MYSQL_TYPE_DATETIME2:
         type= DYN_COL_DATETIME;
 	break;
       case MYSQL_TYPE_DATE:
@@ -3980,6 +3982,7 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
         type= DYN_COL_DATE;
         break;
       case MYSQL_TYPE_TIME:
+      case MYSQL_TYPE_TIME2:
         type= DYN_COL_TIME;
         break;
       case MYSQL_TYPE_VARCHAR:

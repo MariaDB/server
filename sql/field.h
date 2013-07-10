@@ -30,6 +30,7 @@
 #include "sql_string.h"                         /* String */
 #include "my_decimal.h"                         /* my_decimal */
 #include "sql_error.h"                          /* MYSQL_ERROR */
+#include "compat56.h"
 
 class Send_field;
 class Protocol;
@@ -88,6 +89,42 @@ inline uint get_set_pack_length(int elements)
   uint len= (elements + 7) / 8;
   return len > 4 ? 8 : len;
 }
+
+
+/**
+   Recognizer for concrete data type (called real_type for some reason),
+   returning true if it is one of the TIMESTAMP types.
+*/
+inline bool is_timestamp_type(enum_field_types type)
+{
+  return type == MYSQL_TYPE_TIMESTAMP || type == MYSQL_TYPE_TIMESTAMP2;
+}
+
+
+/**
+  Convert temporal real types as retuned by field->real_type()
+  to field type as returned by field->type().
+  
+  @param real_type  Real type.
+  @retval           Field type.
+*/
+inline enum_field_types real_type_to_type(enum_field_types real_type)
+{
+  switch (real_type)
+  {
+  case MYSQL_TYPE_TIME2:
+    return MYSQL_TYPE_TIME;
+  case MYSQL_TYPE_DATETIME2:
+    return MYSQL_TYPE_DATETIME;
+  case MYSQL_TYPE_TIMESTAMP2:
+    return MYSQL_TYPE_TIMESTAMP;
+  case MYSQL_TYPE_NEWDATE:
+    return MYSQL_TYPE_DATE;
+  /* Note: NEWDECIMAL is a type, not only a real_type */
+  default: return real_type;
+  }
+}
+
 
 /*
   Virtual_column_info is the class to contain additional
@@ -428,6 +465,54 @@ public:
   virtual uint32 key_length() const { return pack_length(); }
   virtual enum_field_types type() const =0;
   virtual enum_field_types real_type() const { return type(); }
+  virtual enum_field_types binlog_type() const
+  {
+    /*
+      Binlog stores field->type() as type code by default. For example,
+      it puts MYSQL_TYPE_STRING in case of CHAR, VARCHAR, SET and ENUM,
+      with extra data type details put into metadata.
+
+      Binlog behaviour slightly differs between various MySQL and MariaDB
+      versions for the temporal data types TIME, DATETIME and TIMESTAMP.
+
+      MySQL prior to 5.6 uses MYSQL_TYPE_TIME, MYSQL_TYPE_DATETIME 
+      and MYSQL_TYPE_TIMESTAMP type codes in binlog and stores no 
+      additional metadata.
+
+      MariaDB-5.3 implements new versions for TIME, DATATIME, TIMESTAMP
+      with fractional second precision, but uses the old format for the
+      types TIME(0), DATETIME(0), TIMESTAMP(0), and it still stores
+      MYSQL_TYPE_TIME, MYSQL_TYPE_DATETIME and MYSQL_TYPE_TIMESTAMP in binlog,
+      with no additional metadata.
+      So row-based replication between temporal data types of
+      different precision is not possible in MariaDB.
+
+      MySQL-5.6 also implements a new version of TIME, DATETIME, TIMESTAMP
+      which support fractional second precision 0..6, and use the new
+      format even for the types TIME(0), DATETIME(0), TIMESTAMP(0).
+      For these new data types, MySQL-5.6 stores new type codes 
+      MYSQL_TYPE_TIME2, MYSQL_TYPE_DATETIME2, MYSQL_TYPE_TIMESTAMP2 in binlog,
+      with fractional precision 0..6 put into metadata.
+      This makes it in theory possible to do row-based replication between
+      columns of different fractional precision (e.g. from TIME(1) on master
+      to TIME(6) on slave). However, it's not currently fully implemented yet.
+      MySQL-5.6 can only do row-based replication from the old types
+      TIME, DATETIME, TIMESTAMP (represented by MYSQL_TYPE_TIME,
+      MYSQL_TYPE_DATETIME and MYSQL_TYPE_TIMESTAMP type codes in binlog)
+      to the new corresponding types TIME(0), DATETIME(0), TIMESTAMP(0).
+
+      Note: MariaDB starting from the version 10.0 understands the new
+      MySQL-5.6 type codes MYSQL_TYPE_TIME2, MYSQL_TYPE_DATETIME2,
+      MYSQL_TYPE_TIMESTAMP2. When started over MySQL-5.6 tables both on
+      master and on slave, MariaDB-10.0 can also do row-based replication
+      from the old types TIME, DATETIME, TIMESTAMP to the new MySQL-5.6
+      types TIME(0), DATETIME(0), TIMESTAMP(0).
+
+      Note: perhaps binlog should eventually be modified to store
+      real_type() instead of type() for all column types.
+    */
+    return type();
+  }
   inline  int cmp(const uchar *str) { return cmp(ptr,str); }
   virtual int cmp_max(const uchar *a, const uchar *b, uint max_len)
     { return cmp(a, b); }
@@ -661,6 +746,16 @@ public:
   { return binary() ? &my_charset_bin : charset(); }
   virtual CHARSET_INFO *sort_charset(void) const { return charset(); }
   virtual bool has_charset(void) const { return FALSE; }
+  /*
+    match_collation_to_optimize_range() is to distinguish in
+    range optimizer (see opt_range.cc) between real string types:
+      CHAR, VARCHAR, TEXT
+    and the other string-alike types with result_type() == STRING_RESULT:
+      DATE, TIME, DATETIME, TIMESTAMP
+    We need it to decide whether to test if collation of the operation
+    matches collation of the field (needed only for real string types).
+  */
+  virtual bool match_collation_to_optimize_range() const { return false; }
   virtual void set_charset(CHARSET_INFO *charset_arg) { }
   virtual enum Derivation derivation(void) const
   { return DERIVATION_IMPLICIT; }
@@ -808,7 +903,8 @@ protected:
   {
     return (flags & (BINCMP_FLAG | BINARY_FLAG)) != 0;
   }
-
+  double pos_in_interval_val_real(Field *min, Field *max);
+  double pos_in_interval_val_str(Field *min, Field *max, uint data_offset);
 };
 
 
@@ -847,7 +943,10 @@ public:
   bool get_int(CHARSET_INFO *cs, const char *from, uint len, 
                longlong *rnd, ulonglong unsigned_max, 
                longlong signed_min, longlong signed_max);
-  double pos_in_interval(Field *min, Field *max);
+  double pos_in_interval(Field *min, Field *max)
+  {
+    return pos_in_interval_val_real(min, max);
+  }
 };
 
 
@@ -860,23 +959,11 @@ public:
 	    uchar null_bit_arg, utype unireg_check_arg,
 	    const char *field_name_arg, CHARSET_INFO *charset);
   Item_result result_type () const { return STRING_RESULT; }
-  /*
-    match_collation_to_optimize_range() is to distinguish in
-    range optimizer (see opt_range.cc) between real string types:
-      CHAR, VARCHAR, TEXT
-    and the other string-alike types with result_type() == STRING_RESULT:
-      DATE, TIME, DATETIME, TIMESTAMP
-    We need it to decide whether to test if collation of the operation
-    matches collation of the field (needed only for real string types).
-    QQ: shouldn't DATE/TIME types have their own XXX_RESULT types eventually?
-  */
-  virtual bool match_collation_to_optimize_range() const=0;
   uint decimals() const { return NOT_FIXED_DEC; }
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val)=0;
   int  store_decimal(const my_decimal *);
   int  store(const char *to,uint length,CHARSET_INFO *cs)=0;
-  uint size_of() const { return sizeof(*this); }
   uint repertoire(void) const
   {
     return my_charset_repertoire(field_charset);
@@ -894,7 +981,10 @@ public:
   uint is_equal(Create_field *new_field);
   bool eq_cmp_as_binary() { return test(flags & BINARY_FLAG); }
   virtual uint length_size() { return 0; }
-  double pos_in_interval(Field *min, Field *max);
+  double pos_in_interval(Field *min, Field *max)
+  {
+    return pos_in_interval_val_str(min, max, length_size());
+  }
 };
 
 /* base class for Field_string, Field_varstring and Field_blob */
@@ -914,6 +1004,7 @@ public:
 
   int store_decimal(const my_decimal *d);
   uint32 max_data_length() const;
+  bool match_collation_to_optimize_range() const { return true; }
 };
 
 /* base class for float and double and decimal (old one) */
@@ -1323,7 +1414,6 @@ public:
 	       unireg_check_arg, field_name_arg, cs)
     {}
   enum_field_types type() const { return MYSQL_TYPE_NULL;}
-  bool match_collation_to_optimize_range() const { return FALSE; }
   int  store(const char *to, uint length, CHARSET_INFO *cs)
   { null[0]=1; return 0; }
   int store(double nr)   { null[0]=1; return 0; }
@@ -1345,7 +1435,67 @@ public:
 };
 
 
-class Field_timestamp :public Field_str {
+class Field_temporal: public Field {
+public:
+  Field_temporal(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
+                 uchar null_bit_arg, utype unireg_check_arg,
+                 const char *field_name_arg)
+    :Field(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
+               field_name_arg)
+    { flags|= BINARY_FLAG; }
+  Item_result result_type () const { return STRING_RESULT; }   
+  uint32 max_display_length() { return field_length; }
+  bool str_needs_quotes() { return TRUE; }
+  enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
+  uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
+  CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
+  const CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
+  bool binary() const { return true; }
+  enum Item_result cmp_type () const { return TIME_RESULT; }
+  uint is_equal(Create_field *new_field);
+  bool eq_def(Field *field)
+  {
+    return (Field::eq_def(field) && decimals() == field->decimals());
+  }
+  my_decimal *val_decimal(my_decimal*);
+  void set_warnings(MYSQL_ERROR::enum_warning_level trunc_level,
+                    const ErrConv *str, int was_cut, timestamp_type ts_type);
+  double pos_in_interval(Field *min, Field *max)
+  {
+    return pos_in_interval_val_real(min, max);
+  }
+};
+
+
+/**
+  Abstract class for:
+  - DATE
+  - DATETIME
+  - DATETIME(1..6)
+  - DATETIME(0..6) - MySQL56 version
+*/
+class Field_temporal_with_date: public Field_temporal {
+protected:
+  int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
+                              int was_cut, int have_smth_to_conv);
+  virtual void store_TIME(MYSQL_TIME *ltime) = 0;
+public:
+  Field_temporal_with_date(uchar *ptr_arg, uint32 len_arg,
+                           uchar *null_ptr_arg, uchar null_bit_arg,
+                           utype unireg_check_arg,
+                           const char *field_name_arg)
+    :Field_temporal(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+                    unireg_check_arg, field_name_arg)
+    {}
+  int  store(const char *to, uint length, CHARSET_INFO *charset);
+  int  store(double nr);
+  int  store(longlong nr, bool unsigned_val);
+  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_decimal(const my_decimal *);
+};
+
+
+class Field_timestamp :public Field_temporal {
 protected:
   int store_TIME_with_warning(THD *, MYSQL_TIME *, const ErrConv *,
                               bool, bool);
@@ -1353,21 +1503,14 @@ public:
   Field_timestamp(uchar *ptr_arg, uint32 len_arg,
                   uchar *null_ptr_arg, uchar null_bit_arg,
 		  enum utype unireg_check_arg, const char *field_name_arg,
-		  TABLE_SHARE *share, CHARSET_INFO *cs);
-  Field_timestamp(bool maybe_null_arg, const char *field_name_arg,
-		  CHARSET_INFO *cs);
+		  TABLE_SHARE *share);
   enum_field_types type() const { return MYSQL_TYPE_TIMESTAMP;}
-  bool match_collation_to_optimize_range() const { return FALSE; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
-  enum Item_result cmp_type () const { return TIME_RESULT; }
-  enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
-  uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
-  CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
-  bool binary() const { return 1; }
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
   int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_decimal(const my_decimal *);
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
@@ -1377,7 +1520,6 @@ public:
   uint32 pack_length() const { return 4; }
   void sql_type(String &str) const;
   bool zero_pack() const { return 0; }
-  uint decimals() const { return 0; }
   virtual int set_time();
   virtual void set_default()
   {
@@ -1418,46 +1560,109 @@ public:
   {
     return unpack_int32(to, from, from_end);
   }
+  uint size_of() const { return sizeof(*this); }
 };
 
 
-class Field_timestamp_hires :public Field_timestamp {
+/**
+  Abstract class for:
+  - TIMESTAMP(1..6)
+  - TIMESTAMP(0..6) - MySQL56 version
+*/
+class Field_timestamp_with_dec :public Field_timestamp {
+protected:
   uint dec;
 public:
-  Field_timestamp_hires(uchar *ptr_arg,
-                  uchar *null_ptr_arg, uchar null_bit_arg,
-                  enum utype unireg_check_arg, const char *field_name_arg,
-                  TABLE_SHARE *share, uint dec_arg, CHARSET_INFO *cs) :
-  Field_timestamp(ptr_arg, MAX_DATETIME_WIDTH + dec_arg + 1, null_ptr_arg,
-                  null_bit_arg, unireg_check_arg, field_name_arg, share, cs),
+  Field_timestamp_with_dec(uchar *ptr_arg,
+                           uchar *null_ptr_arg, uchar null_bit_arg,
+                           enum utype unireg_check_arg,
+                           const char *field_name_arg,
+                           TABLE_SHARE *share, uint dec_arg) :
+  Field_timestamp(ptr_arg,
+                  MAX_DATETIME_WIDTH + dec_arg + test(dec_arg), null_ptr_arg,
+                  null_bit_arg, unireg_check_arg, field_name_arg, share),
   dec(dec_arg)
   {
-    DBUG_ASSERT(dec);
     DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
   }
-  void sql_type(String &str) const;
-  my_time_t get_timestamp(ulong *sec_part) const;
-  void store_TIME(my_time_t timestamp, ulong sec_part);
-  int store_decimal(const my_decimal *d);
-  double val_real(void);
-  String *val_str(String*,String *);
-  my_decimal* val_decimal(my_decimal*);
-  bool send_binary(Protocol *protocol);
-  int cmp(const uchar *,const uchar *);
-  void sort_string(uchar *buff,uint length);
   uint decimals() const { return dec; }
-  int set_time();
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
-  void make_field(Send_field *field);
-  uint32 pack_length() const;
   uchar *pack(uchar *to, const uchar *from, uint max_length)
   { return Field::pack(to, from, max_length); }
   const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end,
                       uint param_data)
   { return Field::unpack(to, from, from_end, param_data); }
+  void make_field(Send_field *field);
+  void sort_string(uchar *to, uint length)
+  {
+    DBUG_ASSERT(length == pack_length());
+    memcpy(to, ptr, length);
+  }
+  bool send_binary(Protocol *protocol);
+  double val_real(void);
+  my_decimal* val_decimal(my_decimal*);
+  int set_time();
+};
+
+
+class Field_timestamp_hires :public Field_timestamp_with_dec {
+public:
+  Field_timestamp_hires(uchar *ptr_arg,
+                        uchar *null_ptr_arg, uchar null_bit_arg,
+                        enum utype unireg_check_arg,
+                        const char *field_name_arg,
+                        TABLE_SHARE *share, uint dec_arg) :
+  Field_timestamp_with_dec(ptr_arg, null_ptr_arg, null_bit_arg,
+                           unireg_check_arg, field_name_arg, share, dec_arg)
+  {
+    DBUG_ASSERT(dec);
+  }
+  my_time_t get_timestamp(ulong *sec_part) const;
+  void store_TIME(my_time_t timestamp, ulong sec_part);
+  int cmp(const uchar *,const uchar *);
+  uint32 pack_length() const;
   uint size_of() const { return sizeof(*this); }
-  bool eq_def(Field *field)
-  { return Field_str::eq_def(field) && dec == field->decimals(); }
+};
+
+
+/**
+  TIMESTAMP(0..6) - MySQL56 version
+*/
+class Field_timestampf :public Field_timestamp_with_dec {
+  int do_save_field_metadata(uchar *metadata_ptr)
+  {
+    *metadata_ptr= decimals();
+    return 1;
+  }
+public:
+  Field_timestampf(uchar *ptr_arg,
+                   uchar *null_ptr_arg, uchar null_bit_arg,
+                   enum utype unireg_check_arg,
+                   const char *field_name_arg,
+                   TABLE_SHARE *share, uint dec_arg) :
+    Field_timestamp_with_dec(ptr_arg, null_ptr_arg, null_bit_arg,
+                             unireg_check_arg, field_name_arg, share, dec_arg)
+    {}
+  enum_field_types real_type() const { return MYSQL_TYPE_TIMESTAMP2; }
+  enum_field_types binlog_type() const { return MYSQL_TYPE_TIMESTAMP2; }
+  uint32 pack_length() const
+  {
+    return my_timestamp_binary_length(dec);
+  }
+  uint row_pack_length() { return pack_length(); }
+  uint pack_length_from_metadata(uint field_metadata)
+  {
+    DBUG_ENTER("Field_timestampf::pack_length_from_metadata");
+    uint tmp= my_timestamp_binary_length(field_metadata);
+    DBUG_RETURN(tmp);
+  }
+  int cmp(const uchar *a_ptr,const uchar *b_ptr)
+  {
+    return memcmp(a_ptr, b_ptr, pack_length());
+  }
+  void store_TIME(my_time_t timestamp, ulong sec_part);
+  my_time_t get_timestamp(ulong *sec_part) const;
+  uint size_of() const { return sizeof(*this); }
 };
 
 
@@ -1484,56 +1689,24 @@ public:
 };
 
 
-class Field_temporal: public Field_str {
-protected:
-  int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
-                              int was_cut, int have_smth_to_conv);
-  virtual void store_TIME(MYSQL_TIME *ltime) = 0;
-public:
-  Field_temporal(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
-                 uchar null_bit_arg, utype unireg_check_arg,
-                 const char *field_name_arg, CHARSET_INFO *charset_arg)
-    :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
-               field_name_arg, charset_arg)
-    { flags|= BINARY_FLAG; }
-  enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
-  uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
-  CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
-  bool binary() const { return 1; }
-  bool match_collation_to_optimize_range() const { return FALSE; }
-  enum Item_result cmp_type () const { return TIME_RESULT; }
-  int  store(const char *to,uint length,CHARSET_INFO *charset);
-  int  store(double nr);
-  int  store(longlong nr, bool unsigned_val);
-  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
-  my_decimal *val_decimal(my_decimal*);
-  bool eq_def(Field *field)
-  {
-    return (Field_str::eq_def(field) && decimals() == field->decimals());
-  }
-};
-
-class Field_date :public Field_temporal {
+class Field_date :public Field_temporal_with_date {
   void store_TIME(MYSQL_TIME *ltime);
 public:
   Field_date(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
-	     enum utype unireg_check_arg, const char *field_name_arg,
-	     CHARSET_INFO *cs)
-    :Field_temporal(ptr_arg, MAX_DATE_WIDTH, null_ptr_arg, null_bit_arg,
-                    unireg_check_arg, field_name_arg, cs) {}
+	     enum utype unireg_check_arg, const char *field_name_arg)
+    :Field_temporal_with_date(ptr_arg, MAX_DATE_WIDTH, null_ptr_arg, null_bit_arg,
+                              unireg_check_arg, field_name_arg) {}
   enum_field_types type() const { return MYSQL_TYPE_DATE;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
   int reset(void) { ptr[0]=ptr[1]=ptr[2]=ptr[3]=0; return 0; }
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
-  uint decimals() const { return 0; }
   bool send_binary(Protocol *protocol);
   int cmp(const uchar *,const uchar *);
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 4; }
   void sql_type(String &str) const;
-  bool zero_pack() const { return 1; }
   uchar *pack(uchar* to, const uchar *from,
               uint max_length __attribute__((unused)))
   {
@@ -1544,23 +1717,22 @@ public:
   {
     return unpack_int32(to, from, from_end);
   }
+  uint size_of() const { return sizeof(*this); }
 };
 
 
-class Field_newdate :public Field_temporal {
+class Field_newdate :public Field_temporal_with_date {
   void store_TIME(MYSQL_TIME *ltime);
 public:
   Field_newdate(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
-		enum utype unireg_check_arg, const char *field_name_arg,
-		CHARSET_INFO *cs)
-    :Field_temporal(ptr_arg, MAX_DATE_WIDTH, null_ptr_arg, null_bit_arg,
-                    unireg_check_arg, field_name_arg, cs)
+		enum utype unireg_check_arg, const char *field_name_arg)
+    :Field_temporal_with_date(ptr_arg, MAX_DATE_WIDTH, null_ptr_arg, null_bit_arg,
+                              unireg_check_arg, field_name_arg)
     {}
   enum_field_types type() const { return MYSQL_TYPE_DATE;}
   enum_field_types real_type() const { return MYSQL_TYPE_NEWDATE; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_UINT24; }
   int reset(void) { ptr[0]=ptr[1]=ptr[2]=0; return 0; }
-  uint decimals() const { return 0; }
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
@@ -1569,19 +1741,22 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 3; }
   void sql_type(String &str) const;
-  bool zero_pack() const { return 1; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  uint size_of() const { return sizeof(*this); }
 };
 
 
 class Field_time :public Field_temporal {
-  void store_TIME(MYSQL_TIME *ltime);
+protected:
+  virtual void store_TIME(MYSQL_TIME *ltime);
+  int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
+                              int was_cut, int have_smth_to_conv);
 public:
   Field_time(uchar *ptr_arg, uint length_arg, uchar *null_ptr_arg,
              uchar null_bit_arg, enum utype unireg_check_arg,
-             const char *field_name_arg, CHARSET_INFO *cs)
+             const char *field_name_arg)
     :Field_temporal(ptr_arg, length_arg, null_ptr_arg, null_bit_arg,
-                    unireg_check_arg, field_name_arg, cs)
+                    unireg_check_arg, field_name_arg)
     {}
   enum_field_types type() const { return MYSQL_TYPE_TIME;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_INT24; }
@@ -1589,7 +1764,7 @@ public:
   int store(const char *to,uint length,CHARSET_INFO *charset);
   int store(double nr);
   int store(longlong nr, bool unsigned_val);
-  uint decimals() const { return 0; }
+  int  store_decimal(const my_decimal *);
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
@@ -1599,55 +1774,122 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 3; }
   void sql_type(String &str) const;
-  bool zero_pack() const { return 1; }
+  uint size_of() const { return sizeof(*this); }
 };
 
-class Field_time_hires :public Field_time {
+
+/**
+  Abstract class for:
+  - TIME(1..6)
+  - TIME(0..6) - MySQL56 version
+*/
+class Field_time_with_dec :public Field_time {
+protected:
   uint dec;
+public:
+  Field_time_with_dec(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
+                      enum utype unireg_check_arg, const char *field_name_arg,
+                      uint dec_arg)
+    :Field_time(ptr_arg, MIN_TIME_WIDTH + dec_arg + test(dec_arg), null_ptr_arg,
+                null_bit_arg, unireg_check_arg, field_name_arg),
+     dec(dec_arg)
+  {
+    DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
+  }
+  uint decimals() const { return dec; }
+  enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
+  longlong val_int(void);
+  double val_real(void);
+  void make_field(Send_field *);
+};
+
+
+/**
+  TIME(1..6)
+*/
+class Field_time_hires :public Field_time_with_dec {
   longlong zero_point;
   void store_TIME(MYSQL_TIME *ltime);
 public:
   Field_time_hires(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
              enum utype unireg_check_arg, const char *field_name_arg,
-             uint dec_arg, CHARSET_INFO *cs)
-    :Field_time(ptr_arg, MIN_TIME_WIDTH + dec_arg + 1, null_ptr_arg,
-                null_bit_arg, unireg_check_arg, field_name_arg, cs),
-     dec(dec_arg)
+             uint dec_arg)
+    :Field_time_with_dec(ptr_arg, null_ptr_arg,
+                         null_bit_arg, unireg_check_arg, field_name_arg,
+                         dec_arg)
   {
     DBUG_ASSERT(dec);
-    DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
     zero_point= sec_part_shift(
                    ((TIME_MAX_VALUE_SECONDS+1LL)*TIME_SECOND_PART_FACTOR), dec);
   }
-  enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
-  uint decimals() const { return dec; }
-  int store_decimal(const my_decimal *d);
-  longlong val_int(void);
-  double val_real(void);
-  String *val_str(String*,String *);
   int reset(void);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  bool send_binary(Protocol *protocol);
   int cmp(const uchar *,const uchar *);
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const;
-  void sql_type(String &str) const;
-  void make_field(Send_field *);
   uint size_of() const { return sizeof(*this); }
 };
 
-class Field_datetime :public Field_temporal {
+
+/**
+  TIME(0..6) - MySQL56 version
+*/
+class Field_timef :public Field_time_with_dec {
+  void store_TIME(MYSQL_TIME *ltime);
+  int do_save_field_metadata(uchar *metadata_ptr)
+  {
+    *metadata_ptr= decimals();
+    return 1;
+  }
+public:
+  Field_timef(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
+             enum utype unireg_check_arg, const char *field_name_arg,
+             uint dec_arg)
+    :Field_time_with_dec(ptr_arg, null_ptr_arg,
+                         null_bit_arg, unireg_check_arg, field_name_arg,
+                         dec_arg)
+  {
+    DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
+  }
+  enum_field_types real_type() const { return MYSQL_TYPE_TIME2; }
+  enum_field_types binlog_type() const { return MYSQL_TYPE_TIME2; }
+  uint32 pack_length() const
+  {
+    return my_time_binary_length(dec);
+  }
+  uint row_pack_length() { return pack_length(); }
+  uint pack_length_from_metadata(uint field_metadata)
+  {
+    DBUG_ENTER("Field_timef::pack_length_from_metadata");
+    uint tmp= my_time_binary_length(field_metadata);
+    DBUG_RETURN(tmp);
+  }
+  void sort_string(uchar *to, uint length)
+  {
+    DBUG_ASSERT(length == Field_timef::pack_length());
+    memcpy(to, ptr, length);
+  }
+  int cmp(const uchar *a_ptr, const uchar *b_ptr)
+  {
+    return memcmp(a_ptr, b_ptr, pack_length());
+  }
+  int reset();
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  uint size_of() const { return sizeof(*this); }
+};
+
+
+class Field_datetime :public Field_temporal_with_date {
   void store_TIME(MYSQL_TIME *ltime);
 public:
   Field_datetime(uchar *ptr_arg, uint length_arg, uchar *null_ptr_arg,
                  uchar null_bit_arg, enum utype unireg_check_arg,
-                 const char *field_name_arg, CHARSET_INFO *cs)
-    :Field_temporal(ptr_arg, length_arg, null_ptr_arg, null_bit_arg,
-                    unireg_check_arg, field_name_arg, cs)
+                 const char *field_name_arg)
+    :Field_temporal_with_date(ptr_arg, length_arg, null_ptr_arg, null_bit_arg,
+                              unireg_check_arg, field_name_arg)
     {}
   enum_field_types type() const { return MYSQL_TYPE_DATETIME;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONGLONG; }
-  uint decimals() const { return 0; }
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
@@ -1656,7 +1898,6 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 8; }
   void sql_type(String &str) const;
-  bool zero_pack() const { return 1; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   virtual int set_time();
   virtual void set_default()
@@ -1690,85 +1931,149 @@ public:
   {
     return unpack_int64(to, from, from_end);
   }
+  uint size_of() const { return sizeof(*this); }
 };
 
 
-class Field_datetime_hires :public Field_datetime {
-  void store_TIME(MYSQL_TIME *ltime);
+/**
+  Abstract class for:
+  - DATETIME(1..6)
+  - DATETIME(0..6) - MySQL56 version
+*/
+class Field_datetime_with_dec :public Field_datetime {
+protected:
   uint dec;
 public:
-  Field_datetime_hires(uchar *ptr_arg, uchar *null_ptr_arg,
-                       uchar null_bit_arg, enum utype unireg_check_arg,
-                       const char *field_name_arg, uint dec_arg,
-                       CHARSET_INFO *cs)
-    :Field_datetime(ptr_arg, MAX_DATETIME_WIDTH + dec_arg + 1,
+  Field_datetime_with_dec(uchar *ptr_arg, uchar *null_ptr_arg,
+                          uchar null_bit_arg, enum utype unireg_check_arg,
+                          const char *field_name_arg, uint dec_arg)
+    :Field_datetime(ptr_arg, MAX_DATETIME_WIDTH + dec_arg + test(dec_arg),
                     null_ptr_arg, null_bit_arg, unireg_check_arg,
-                    field_name_arg, cs), dec(dec_arg)
+                    field_name_arg), dec(dec_arg)
   {
-    DBUG_ASSERT(dec);
     DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
   }
-  enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
   uint decimals() const { return dec; }
+  enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
   void make_field(Send_field *field);
-  int store_decimal(const my_decimal *d);
-  double val_real(void);
-  longlong val_int(void);
-  String *val_str(String*,String *);
   bool send_binary(Protocol *protocol);
-  int cmp(const uchar *,const uchar *);
-  void sort_string(uchar *buff,uint length);
-  uint32 pack_length() const;
-  void sql_type(String &str) const;
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   uchar *pack(uchar *to, const uchar *from, uint max_length)
   { return Field::pack(to, from, max_length); }
   const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end,
                       uint param_data)
   { return Field::unpack(to, from, from_end, param_data); }
+  void sort_string(uchar *to, uint length)
+  {
+    DBUG_ASSERT(length == pack_length());
+    memcpy(to, ptr, length);
+  }
+  double val_real(void);
+  longlong val_int(void);
+  String *val_str(String*,String *);
+};
+
+
+/**
+  DATETIME(1..6)
+*/
+class Field_datetime_hires :public Field_datetime_with_dec {
+  void store_TIME(MYSQL_TIME *ltime);
+public:
+  Field_datetime_hires(uchar *ptr_arg, uchar *null_ptr_arg,
+                       uchar null_bit_arg, enum utype unireg_check_arg,
+                       const char *field_name_arg, uint dec_arg)
+    :Field_datetime_with_dec(ptr_arg, null_ptr_arg, null_bit_arg,
+                             unireg_check_arg, field_name_arg, dec_arg)
+  {
+    DBUG_ASSERT(dec);
+  }
+  int cmp(const uchar *,const uchar *);
+  uint32 pack_length() const;
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   uint size_of() const { return sizeof(*this); }
 };
+
+
+/**
+  DATETIME(0..6) - MySQL56 version
+*/
+class Field_datetimef :public Field_datetime_with_dec {
+  void store_TIME(MYSQL_TIME *ltime);
+  int do_save_field_metadata(uchar *metadata_ptr)
+  {
+    *metadata_ptr= decimals();
+    return 1;
+  }
+public:
+  Field_datetimef(uchar *ptr_arg, uchar *null_ptr_arg,
+                  uchar null_bit_arg, enum utype unireg_check_arg,
+                  const char *field_name_arg, uint dec_arg)
+    :Field_datetime_with_dec(ptr_arg, null_ptr_arg, null_bit_arg,
+                             unireg_check_arg, field_name_arg, dec_arg)
+  {}
+  enum_field_types real_type() const { return MYSQL_TYPE_DATETIME2; }
+  enum_field_types binlog_type() const { return MYSQL_TYPE_DATETIME2; }
+  uint32 pack_length() const
+  {
+    return my_datetime_binary_length(dec);
+  }
+  uint row_pack_length() { return pack_length(); }
+  uint pack_length_from_metadata(uint field_metadata)
+  {
+    DBUG_ENTER("Field_datetimef::pack_length_from_metadata");
+    uint tmp= my_datetime_binary_length(field_metadata);
+    DBUG_RETURN(tmp);
+  }
+  int cmp(const uchar *a_ptr, const uchar *b_ptr)
+  {
+    return memcmp(a_ptr, b_ptr, pack_length());
+  }
+  int reset();
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  uint size_of() const { return sizeof(*this); }
+};
+
 
 static inline Field_timestamp *
 new_Field_timestamp(uchar *ptr, uchar *null_ptr, uchar null_bit,
                     enum Field::utype unireg_check, const char *field_name,
-                    TABLE_SHARE *share, uint dec, CHARSET_INFO *cs)
+                    TABLE_SHARE *share, uint dec)
 {
   if (dec==0)
     return new Field_timestamp(ptr, MAX_DATETIME_WIDTH, null_ptr, null_bit,
-                                unireg_check, field_name, share, cs);
+                                unireg_check, field_name, share);
   if (dec == NOT_FIXED_DEC)
     dec= MAX_DATETIME_PRECISION;
   return new Field_timestamp_hires(ptr, null_ptr, null_bit, unireg_check,
-                                   field_name, share, dec, cs);
+                                   field_name, share, dec);
 }
 
 static inline Field_time *
 new_Field_time(uchar *ptr, uchar *null_ptr, uchar null_bit,
                enum Field::utype unireg_check, const char *field_name,
-               uint dec, CHARSET_INFO *cs)
+               uint dec)
 {
   if (dec == 0)
     return new Field_time(ptr, MIN_TIME_WIDTH, null_ptr, null_bit,
-                          unireg_check, field_name, cs);
+                          unireg_check, field_name);
   if (dec == NOT_FIXED_DEC)
     dec= MAX_DATETIME_PRECISION;
   return new Field_time_hires(ptr, null_ptr, null_bit,
-                                  unireg_check, field_name, dec, cs);
+                                  unireg_check, field_name, dec);
 }
 
 static inline Field_datetime *
 new_Field_datetime(uchar *ptr, uchar *null_ptr, uchar null_bit,
                    enum Field::utype unireg_check,
-                   const char *field_name, uint dec, CHARSET_INFO *cs)
+                   const char *field_name, uint dec)
 {
   if (dec == 0)
     return new Field_datetime(ptr, MAX_DATETIME_WIDTH, null_ptr, null_bit,
-                              unireg_check, field_name, cs);
+                              unireg_check, field_name);
   if (dec == NOT_FIXED_DEC)
     dec= MAX_DATETIME_PRECISION;
   return new Field_datetime_hires(ptr, null_ptr, null_bit,
-                                  unireg_check, field_name, dec, cs);
+                                  unireg_check, field_name, dec);
 }
 
 class Field_string :public Field_longstr {
@@ -1795,7 +2100,6 @@ public:
             orig_table->s->frm_version < FRM_VER_TRUE_VARCHAR ?
 	    MYSQL_TYPE_VAR_STRING : MYSQL_TYPE_STRING);
   }
-  bool match_collation_to_optimize_range() const { return TRUE; }
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_BINARY : HA_KEYTYPE_TEXT; }
   bool zero_pack() const { return 0; }
@@ -1876,7 +2180,6 @@ public:
   }
 
   enum_field_types type() const { return MYSQL_TYPE_VARCHAR; }
-  bool match_collation_to_optimize_range() const { return TRUE; }
   enum ha_base_keytype key_type() const;
   uint row_pack_length() { return field_length; }
   bool zero_pack() const { return 0; }
@@ -1972,7 +2275,6 @@ public:
     :Field_longstr((uchar*) 0, 0, (uchar*) "", 0, NONE, "temp", system_charset_info),
     packlength(packlength_arg) {}
   enum_field_types type() const { return MYSQL_TYPE_BLOB;}
-  bool match_collation_to_optimize_range() const { return TRUE; }
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2; }
   int  store(const char *to,uint length,CHARSET_INFO *charset);
@@ -2118,7 +2420,7 @@ public:
   { geom_type= geom_type_arg; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_VARBINARY2; }
   enum_field_types type() const { return MYSQL_TYPE_GEOMETRY; }
-  bool match_collation_to_optimize_range() const { return FALSE; }
+  bool match_collation_to_optimize_range() const { return false; }
   void sql_type(String &str) const;
   int  store(const char *to, uint length, CHARSET_INFO *charset);
   int  store(double nr);
@@ -2156,7 +2458,6 @@ public:
   }
   Field *new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   enum_field_types type() const { return MYSQL_TYPE_STRING; }
-  bool match_collation_to_optimize_range() const { return FALSE; }
   enum Item_result cmp_type () const { return INT_RESULT; }
   enum ha_base_keytype key_type() const;
   int  store(const char *to,uint length,CHARSET_INFO *charset);
@@ -2309,7 +2610,10 @@ public:
   {
     store(*((longlong *)val), TRUE);
   }
-  double pos_in_interval(Field *min, Field *max);
+  double pos_in_interval(Field *min, Field *max)
+  {
+    return pos_in_interval_val_real(min, max);
+  }
   void get_image(uchar *buff, uint length, CHARSET_INFO *cs)
   { get_key_image(buff, length, itRAW); }   
   void set_image(const uchar *buff,uint length, CHARSET_INFO *cs)

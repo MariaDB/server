@@ -1482,7 +1482,7 @@ void check_equality(Dep_analysis_context *ctx, Dep_module_expr **eq_mod,
           collation of the operation differ from the field collation.
         */
         if (field->cmp_type() == STRING_RESULT &&
-            ((Field_str*)field)->charset() != cond->compare_collation())
+            field->charset() != cond->compare_collation())
           return;
       }
     }

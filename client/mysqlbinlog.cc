@@ -37,6 +37,7 @@
 /* That one is necessary for defines of OPTION_NO_FOREIGN_KEY_CHECKS etc */
 #include "sql_priv.h"
 #include "log_event.h"
+#include "compat56.h"
 #include "sql_common.h"
 #include "my_dir.h"
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
@@ -2562,3 +2563,4 @@ void *sql_alloc(size_t size)
 #include "sql_string.cc"
 #include "sql_list.cc"
 #include "rpl_filter.cc"
+#include "compat56.cc"

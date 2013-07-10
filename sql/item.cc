@@ -651,9 +651,12 @@ Item_result Item::cmp_type() const
   case MYSQL_TYPE_GEOMETRY:
                            return STRING_RESULT;
   case MYSQL_TYPE_TIMESTAMP:
+  case MYSQL_TYPE_TIMESTAMP2:
   case MYSQL_TYPE_DATE:
   case MYSQL_TYPE_TIME:
+  case MYSQL_TYPE_TIME2:
   case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_DATETIME2:
   case MYSQL_TYPE_NEWDATE:
                            return TIME_RESULT;
   };
@@ -3218,11 +3221,7 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
   value.time= *tm;
   value.time.time_type= time_type;
 
-  if (value.time.year > 9999 || value.time.month > 12 ||
-      value.time.day > 31 ||
-      (time_type != MYSQL_TIMESTAMP_TIME && value.time.hour > 23) ||
-      value.time.minute > 59 || value.time.second > 59 ||
-      value.time.second_part > TIME_MAX_SECOND_PART)
+  if (check_datetime_range(&value.time))
   {
     ErrConvTime str(&value.time);
     make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
@@ -5678,19 +5677,17 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
     break;
   case MYSQL_TYPE_NEWDATE:
   case MYSQL_TYPE_DATE:
-    field= new Field_newdate(0, null_ptr, 0, Field::NONE, name, &my_charset_bin);
+    field= new Field_newdate(0, null_ptr, 0, Field::NONE, name);
     break;
   case MYSQL_TYPE_TIME:
-    field= new_Field_time(0, null_ptr, 0, Field::NONE, name,
-                              decimals, &my_charset_bin);
+    field= new_Field_time(0, null_ptr, 0, Field::NONE, name, decimals);
     break;
   case MYSQL_TYPE_TIMESTAMP:
     field= new_Field_timestamp(0, null_ptr, 0,
-                               Field::NONE, name, 0, decimals, &my_charset_bin);
+                               Field::NONE, name, 0, decimals);
     break;
   case MYSQL_TYPE_DATETIME:
-    field= new_Field_datetime(0, null_ptr, 0, Field::NONE, name,
-                              decimals, &my_charset_bin);
+    field= new_Field_datetime(0, null_ptr, 0, Field::NONE, name, decimals);
     break;
   case MYSQL_TYPE_YEAR:
     field= new Field_year((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
