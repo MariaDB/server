@@ -13,3 +13,4 @@ show status like "%performance_schema%";
 # Note that this output is very dependent on the platform.
 
 show engine performance_schema status;
+
