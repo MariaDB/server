@@ -1042,8 +1042,8 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
       */
       if (!delete_list)
       {
-        if ((delete_list= (rpl_gtid **)my_malloc(sizeof(*delete_list),
-                                                 MYF(MY_WME))))
+        if (!(delete_list= (rpl_gtid **)
+              my_malloc(sizeof(*delete_list) * st->hash.records, MYF(MY_WME))))
         {
           *errormsg= "Out of memory while checking slave start position";
           err= ER_OUT_OF_RESOURCES;
