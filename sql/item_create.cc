@@ -32,6 +32,7 @@
 #include "set_var.h"
 #include "sp_head.h"
 #include "sp.h"
+#include "sql_time.h"
 
 /*
 =============================================================================
@@ -5818,6 +5819,70 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
   }
   }
   return res;
+}
+
+
+/**
+  Builder for datetime literals:
+    TIME'00:00:00', DATE'2001-01-01', TIMESTAMP'2001-01-01 00:00:00'.
+  @param thd          The current thread
+  @param str          Character literal
+  @param length       Length of str
+  @param type         Type of literal (TIME, DATE or DATETIME)
+  @param send_error   Whether to generate an error on failure
+*/
+
+Item *create_temporal_literal(THD *thd,
+                              const char *str, uint length,
+                              CHARSET_INFO *cs,
+                              enum_field_types type,
+                              bool send_error)
+{
+  MYSQL_TIME_STATUS status;
+  MYSQL_TIME ltime;
+  Item *item= NULL;
+  ulonglong datetime_flags= thd->variables.sql_mode &
+                            (MODE_NO_ZERO_IN_DATE |
+                             MODE_NO_ZERO_DATE |
+                             MODE_INVALID_DATES);
+  ulonglong flags= TIME_FUZZY_DATE | datetime_flags;
+
+  switch(type)
+  {
+  case MYSQL_TYPE_DATE:
+  case MYSQL_TYPE_NEWDATE:
+    if (!str_to_datetime(cs, str, length, &ltime, flags, &status) &&
+        ltime.time_type == MYSQL_TIMESTAMP_DATE && !status.warnings)
+      item= new (thd->mem_root) Item_date_literal(&ltime);
+    break;
+  case MYSQL_TYPE_DATETIME:
+    if (!str_to_datetime(cs, str, length, &ltime, flags, &status) &&
+        ltime.time_type == MYSQL_TIMESTAMP_DATETIME && !status.warnings)
+      item= new (thd->mem_root) Item_datetime_literal(&ltime,
+                                                      status.precision);
+    break;
+  case MYSQL_TYPE_TIME:
+    if (!str_to_time(cs, str, length, &ltime, 0, &status) &&
+        ltime.time_type == MYSQL_TIMESTAMP_TIME && !status.warnings)
+      item= new (thd->mem_root) Item_time_literal(&ltime,
+                                                  status.precision);
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+
+  if (item)
+    return item;
+
+  if (send_error)
+  {
+    const char *typestr=
+      (type == MYSQL_TYPE_DATE) ? "DATE" :
+      (type == MYSQL_TYPE_TIME) ? "TIME" : "DATETIME";
+    ErrConvString err(str, length, thd->variables.character_set_client);
+    my_error(ER_WRONG_VALUE, MYF(0), typestr, err.ptr());
+  }
+  return NULL;
 }
 
 

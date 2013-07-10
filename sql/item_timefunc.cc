@@ -2430,17 +2430,8 @@ bool Item_date_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
   ltime->hour= ltime->minute= ltime->second= ltime->second_part= 0;
   ltime->time_type= MYSQL_TIMESTAMP_DATE;
-
-  int unused;
-  if (check_date(ltime, ltime->year || ltime->month || ltime->day,
-                 fuzzy_date, &unused))
-  {
-    ErrConvTime str(ltime);
-    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-                                 &str, MYSQL_TIMESTAMP_DATE, 0);
-    return (null_value= 1);
-  }
-  return (null_value= 0);
+  return (null_value= check_date_with_warn(ltime, fuzzy_date,
+                                           MYSQL_TIMESTAMP_DATE));
 }
 
 

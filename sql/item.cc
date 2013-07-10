@@ -377,6 +377,27 @@ my_decimal *Item::val_decimal_from_time(my_decimal *decimal_value)
 }
 
 
+longlong Item::val_int_from_date()
+{
+  DBUG_ASSERT(fixed == 1);
+  MYSQL_TIME ltime;
+  if (get_date(&ltime, TIME_FUZZY_DATE))
+    return 0;
+  longlong v= TIME_to_ulonglong(&ltime);
+  return ltime.neg ? -v : v;
+}
+
+
+double Item::val_real_from_date()
+{
+  DBUG_ASSERT(fixed == 1);
+  MYSQL_TIME ltime;
+  if (get_date(&ltime, TIME_FUZZY_DATE))
+    return 0;
+  return TIME_to_double(&ltime);
+}
+
+
 double Item::val_real_from_decimal()
 {
   /* Note that fix_fields may not be called for Item_avg_field items */
@@ -1269,7 +1290,7 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
     String tmp(buff,sizeof(buff), &my_charset_bin),*res;
     if (!(res=val_str(&tmp)) ||
         str_to_datetime_with_warn(res->charset(), res->ptr(), res->length(),
-                                  ltime, fuzzydate) <= MYSQL_TIMESTAMP_ERROR)
+                                  ltime, fuzzydate))
       goto err;
     break;
   }
@@ -6284,6 +6305,76 @@ Item_bin_string::Item_bin_string(const char *str, uint str_length)
   collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
   fixed= 1;
 }
+
+
+bool Item_temporal_literal::eq(const Item *item, bool binary_cmp) const
+{
+  return
+    item->basic_const_item() && type() == item->type() &&
+    field_type() == ((Item_temporal_literal *) item)->field_type() &&
+    !my_time_compare(&cached_time,
+                     &((Item_temporal_literal *) item)->cached_time);
+}
+
+
+void Item_date_literal::print(String *str, enum_query_type query_type)
+{
+  str->append("DATE'");
+  char buf[MAX_DATE_STRING_REP_LENGTH];
+  my_date_to_str(&cached_time, buf);
+  str->append(buf);
+  str->append('\'');
+}
+
+
+bool Item_date_literal::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+{
+  DBUG_ASSERT(fixed);
+  *ltime= cached_time;
+  return (null_value= check_date_with_warn(ltime, fuzzy_date,
+                                           MYSQL_TIMESTAMP_ERROR));
+}
+
+
+void Item_datetime_literal::print(String *str, enum_query_type query_type)
+{
+  str->append("TIMESTAMP'");
+  char buf[MAX_DATE_STRING_REP_LENGTH];
+  my_datetime_to_str(&cached_time, buf, decimals);
+  str->append(buf);
+  str->append('\'');
+}
+
+
+bool Item_datetime_literal::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+{
+  DBUG_ASSERT(fixed);
+  *ltime= cached_time;
+  return (null_value= check_date_with_warn(ltime, fuzzy_date,
+                                           MYSQL_TIMESTAMP_ERROR));
+}
+
+
+void Item_time_literal::print(String *str, enum_query_type query_type)
+{
+  str->append("TIME'");
+  char buf[MAX_DATE_STRING_REP_LENGTH];
+  my_time_to_str(&cached_time, buf, decimals);
+  str->append(buf);
+  str->append('\'');
+}
+
+
+bool Item_time_literal::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+{
+  DBUG_ASSERT(fixed);
+  *ltime= cached_time;
+  if (fuzzy_date & TIME_TIME_ONLY)
+    return (null_value= false);
+  return (null_value= check_date_with_warn(ltime, fuzzy_date,
+                                           MYSQL_TIMESTAMP_ERROR));
+}
+
 
 
 /**

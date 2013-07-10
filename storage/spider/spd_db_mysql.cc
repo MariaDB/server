@@ -567,7 +567,7 @@ int spider_db_mysql_result::fetch_table_status(
 #else
   my_bool not_used_my_bool;
 #endif
-  int not_used_int;
+  MYSQL_TIME_STATUS time_status;
   long not_used_long;
   DBUG_ENTER("spider_db_mysql_result::fetch_table_status");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -628,8 +628,9 @@ int spider_db_mysql_result::fetch_table_status(
       ("spider auto_increment_value=%lld", auto_increment_value));
     if (mysql_row[11])
     {
+      my_time_status_init(&time_status);
       str_to_datetime(mysql_row[11], strlen(mysql_row[11]), &mysql_time, 0,
-        &not_used_int);
+        &time_status);
 #ifdef MARIADB_BASE_VERSION
       create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -650,8 +651,9 @@ int spider_db_mysql_result::fetch_table_status(
 #endif
     if (mysql_row[12])
     {
+      my_time_status_init(&time_status);
       str_to_datetime(mysql_row[12], strlen(mysql_row[12]), &mysql_time, 0,
-        &not_used_int);
+        &time_status);
 #ifdef MARIADB_BASE_VERSION
       update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -672,8 +674,9 @@ int spider_db_mysql_result::fetch_table_status(
 #endif
     if (mysql_row[13])
     {
+      my_time_status_init(&time_status);
       str_to_datetime(mysql_row[13], strlen(mysql_row[13]), &mysql_time, 0,
-        &not_used_int);
+        &time_status);
 #ifdef MARIADB_BASE_VERSION
       check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -737,8 +740,9 @@ int spider_db_mysql_result::fetch_table_status(
       ("spider auto_increment_value=%lld", auto_increment_value));
     if (mysql_row[6])
     {
+      my_time_status_init(&time_status);
       str_to_datetime(mysql_row[6], strlen(mysql_row[6]), &mysql_time, 0,
-        &not_used_int);
+        &time_status);
 #ifdef MARIADB_BASE_VERSION
       create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -759,8 +763,9 @@ int spider_db_mysql_result::fetch_table_status(
 #endif
     if (mysql_row[7])
     {
+      my_time_status_init(&time_status);
       str_to_datetime(mysql_row[7], strlen(mysql_row[7]), &mysql_time, 0,
-        &not_used_int);
+        &time_status);
 #ifdef MARIADB_BASE_VERSION
       update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -781,8 +786,9 @@ int spider_db_mysql_result::fetch_table_status(
 #endif
     if (mysql_row[8])
     {
+      my_time_status_init(&time_status);
       str_to_datetime(mysql_row[8], strlen(mysql_row[8]), &mysql_time, 0,
-        &not_used_int);
+        &time_status);
 #ifdef MARIADB_BASE_VERSION
       check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);

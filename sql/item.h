@@ -599,7 +599,8 @@ public:
              SUBSELECT_ITEM, ROW_ITEM, CACHE_ITEM, TYPE_HOLDER,
              PARAM_ITEM, TRIGGER_FIELD_ITEM, DECIMAL_ITEM,
              XPATH_NODESET, XPATH_NODESET_CMP,
-             VIEW_FIXER_ITEM, EXPR_CACHE_ITEM};
+             VIEW_FIXER_ITEM, EXPR_CACHE_ITEM,
+             DATE_ITEM};
 
   enum cond_result { COND_UNDEF,COND_OK,COND_TRUE,COND_FALSE };
 
@@ -956,7 +957,9 @@ public:
   my_decimal *val_decimal_from_date(my_decimal *decimal_value);
   my_decimal *val_decimal_from_time(my_decimal *decimal_value);
   longlong val_int_from_decimal();
+  longlong val_int_from_date();
   double val_real_from_decimal();
+  double val_real_from_date();
 
   int save_time_in_field(Field *field);
   int save_date_in_field(Field *field);
@@ -1113,8 +1116,8 @@ public:
   */
   virtual CHARSET_INFO *charset_for_protocol(void) const
   {
-    return result_type() == STRING_RESULT ? collation.collation :
-                                            &my_charset_bin;
+    return cmp_type() == STRING_RESULT ? collation.collation :
+                                         &my_charset_bin;
   };
 
   virtual bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
@@ -2876,6 +2879,110 @@ class Item_bin_string: public Item_hex_hybrid
 public:
   Item_bin_string(const char *str,uint str_length);
 };
+
+
+class Item_temporal_literal :public Item_basic_constant
+{
+    //sql_mode= current_thd->variables.sql_mode &
+    //               (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
+protected:
+  MYSQL_TIME cached_time;
+public:
+  /**
+    Constructor for Item_date_literal.
+    @param ltime  DATE value.
+  */
+  Item_temporal_literal(MYSQL_TIME *ltime) :Item_basic_constant()
+  {
+    collation.set(&my_charset_numeric, DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
+    decimals= 0;
+    cached_time= *ltime;
+  }
+  Item_temporal_literal(MYSQL_TIME *ltime, uint dec_arg) :Item_basic_constant()
+  {
+    collation.set(&my_charset_numeric, DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
+    decimals= dec_arg;
+    cached_time= *ltime;
+  }
+  bool basic_const_item() const { return true; }
+  bool const_item() const { return true; }
+  enum Type type() const { return DATE_ITEM; }
+  bool eq(const Item *item, bool binary_cmp) const;
+  enum Item_result result_type () const { return STRING_RESULT; }
+  Item_result cmp_type() const { return TIME_RESULT; }
+
+  bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
+
+  String *val_str(String *str)
+  { return val_string_from_date(str); }
+  longlong val_int()
+  { return val_int_from_date(); }
+  double val_real()
+  { return val_real_from_date(); }
+  my_decimal *val_decimal(my_decimal *decimal_value)
+  { return  val_decimal_from_date(decimal_value); }
+  Field *tmp_table_field(TABLE *table)
+  { return tmp_table_field_from_field_type(table, 0); }
+  int save_in_field(Field *field, bool no_conversions)
+  { return save_date_in_field(field); }
+};
+
+
+/**
+  DATE'2010-01-01'
+*/
+class Item_date_literal: public Item_temporal_literal
+{
+public:
+  Item_date_literal(MYSQL_TIME *ltime)
+    :Item_temporal_literal(ltime)
+  {
+    max_length= MAX_DATE_WIDTH;
+    fixed= 1;
+  }
+  enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  void print(String *str, enum_query_type query_type);
+  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+};
+
+
+/**
+  TIME'10:10:10'
+*/
+class Item_time_literal: public Item_temporal_literal
+{
+public:
+  Item_time_literal(MYSQL_TIME *ltime, uint dec_arg)
+    :Item_temporal_literal(ltime, dec_arg)
+  {
+    max_length= MIN_TIME_WIDTH + (decimals ? decimals + 1 : 0);
+    fixed= 1;
+  }
+  enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  void print(String *str, enum_query_type query_type);
+  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+};
+
+
+/**
+  TIMESTAMP'2001-01-01 10:20:30'
+*/
+class Item_datetime_literal: public Item_temporal_literal
+{
+public:
+  Item_datetime_literal(MYSQL_TIME *ltime, uint dec_arg)
+    :Item_temporal_literal(ltime, dec_arg)
+  {
+    max_length= MAX_DATETIME_WIDTH + (decimals ? decimals + 1 : 0);
+    fixed= 1;
+  }
+  enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  void print(String *str, enum_query_type query_type);
+  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+};
+
+
 
 class Item_result_field :public Item	/* Item with result field */
 {
