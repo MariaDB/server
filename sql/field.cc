@@ -1822,7 +1822,7 @@ bool Field::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
   String tmp(buff,sizeof(buff),&my_charset_bin),*res;
   if (!(res=val_str(&tmp)) ||
       str_to_datetime_with_warn(res->charset(), res->ptr(), res->length(),
-                                ltime, fuzzydate) <= MYSQL_TIMESTAMP_ERROR)
+                                ltime, fuzzydate))
     return 1;
   return 0;
 }
@@ -4570,18 +4570,18 @@ int Field_timestamp::store_time_dec(MYSQL_TIME *ltime, uint dec)
 int Field_timestamp::store(const char *from,uint len,CHARSET_INFO *cs)
 {
   MYSQL_TIME l_time;
-  int error;
-  int have_smth_to_conv;
+  MYSQL_TIME_STATUS status;
+  bool have_smth_to_conv;
   ErrConvString str(from, len, cs);
   THD *thd= get_thd();
 
   /* We don't want to store invalid or fuzzy datetime values in TIMESTAMP */
-  have_smth_to_conv= (str_to_datetime(cs, from, len, &l_time,
+  have_smth_to_conv= !str_to_datetime(cs, from, len, &l_time,
                                       (thd->variables.sql_mode &
                                        MODE_NO_ZERO_DATE) |
-                                       MODE_NO_ZERO_IN_DATE, &error) >
-                      MYSQL_TIMESTAMP_ERROR);
-  return store_TIME_with_warning(thd, &l_time, &str, error, have_smth_to_conv);
+                                       MODE_NO_ZERO_IN_DATE, &status);
+  return store_TIME_with_warning(thd, &l_time, &str,
+                                 status.warnings, have_smth_to_conv);
 }
 
 
@@ -5060,18 +5060,16 @@ int Field_temporal::store_TIME_with_warning(MYSQL_TIME *ltime,
 int Field_temporal::store(const char *from,uint len,CHARSET_INFO *cs)
 {
   MYSQL_TIME ltime;
-  int error;
-  enum enum_mysql_timestamp_type func_res;
+  MYSQL_TIME_STATUS status;
   THD *thd= get_thd();
   ErrConvString str(from, len, cs);
-
-  func_res= str_to_datetime(cs, from, len, &ltime,
-                            (TIME_FUZZY_DATE |
-                             (thd->variables.sql_mode &
-                              (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE |
-                               MODE_INVALID_DATES))),
-                            &error);
-  return store_TIME_with_warning(&ltime, &str, error, func_res > MYSQL_TIMESTAMP_ERROR);
+  bool func_res= !str_to_datetime(cs, from, len, &ltime,
+                                  (TIME_FUZZY_DATE |
+                                   (thd->variables.sql_mode &
+                                   (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE |
+                                   MODE_INVALID_DATES))),
+                                  &status);
+  return store_TIME_with_warning(&ltime, &str, status.warnings, func_res);
 }
 
 
@@ -5157,16 +5155,17 @@ void Field_time::store_TIME(MYSQL_TIME *ltime)
 int Field_time::store(const char *from,uint len,CHARSET_INFO *cs)
 {
   MYSQL_TIME ltime;
+  MYSQL_TIME_STATUS status;
   ErrConvString str(from, len, cs);
-  int was_cut;
-  int have_smth_to_conv=
-    str_to_time(cs, from, len, &ltime,
+  bool have_smth_to_conv= 
+   !str_to_time(cs, from, len, &ltime,
                 get_thd()->variables.sql_mode &
                 (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE |
                  MODE_INVALID_DATES),
-                &was_cut) > MYSQL_TIMESTAMP_ERROR;
+                &status);
 
-  return store_TIME_with_warning(&ltime, &str, was_cut, have_smth_to_conv);
+  return store_TIME_with_warning(&ltime, &str,
+                                 status.warnings, have_smth_to_conv);
 }
 
 

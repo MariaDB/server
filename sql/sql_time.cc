@@ -214,6 +214,22 @@ ulong convert_month_to_period(ulong month)
 }
 
 
+bool
+check_date_with_warn(const MYSQL_TIME *ltime, ulonglong fuzzy_date,
+                     timestamp_type ts_type)
+{
+  int unused;
+  if (check_date(ltime, fuzzy_date, &unused))
+  {
+    ErrConvTime str(ltime);
+    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                                 &str, ts_type, 0);
+    return true;
+  }
+  return false;
+}
+
+
 /*
   Convert a string to 8-bit representation,
   for use in str_to_time/str_to_date/str_to_date.
@@ -249,9 +265,9 @@ to_ascii(CHARSET_INFO *cs,
 
 
 /* Character set-aware version of str_to_time() */
-timestamp_type
+bool
 str_to_time(CHARSET_INFO *cs, const char *str,uint length,
-                 MYSQL_TIME *l_time, ulonglong fuzzydate, int *warning)
+                 MYSQL_TIME *l_time, ulonglong fuzzydate, MYSQL_TIME_STATUS *status)
 {
   char cnv[32];
   if ((cs->state & MY_CS_NONASCII) != 0)
@@ -259,14 +275,14 @@ str_to_time(CHARSET_INFO *cs, const char *str,uint length,
     length= to_ascii(cs, str, length, cnv, sizeof(cnv));
     str= cnv;
   }
-  return str_to_time(str, length, l_time, fuzzydate, warning);
+  return str_to_time(str, length, l_time, fuzzydate, status);
 }
 
 
 /* Character set-aware version of str_to_datetime() */
-timestamp_type str_to_datetime(CHARSET_INFO *cs,
-                               const char *str, uint length,
-                               MYSQL_TIME *l_time, ulonglong flags, int *was_cut)
+bool str_to_datetime(CHARSET_INFO *cs, const char *str, uint length,
+                     MYSQL_TIME *l_time, ulonglong flags,
+                     MYSQL_TIME_STATUS *status)
 {
   char cnv[32];
   if ((cs->state & MY_CS_NONASCII) != 0)
@@ -274,7 +290,7 @@ timestamp_type str_to_datetime(CHARSET_INFO *cs,
     length= to_ascii(cs, str, length, cnv, sizeof(cnv));
     str= cnv;
   }
-  return str_to_datetime(str, length, l_time, flags, was_cut);
+  return str_to_datetime(str, length, l_time, flags, status);
 }
 
 
@@ -286,26 +302,24 @@ timestamp_type str_to_datetime(CHARSET_INFO *cs,
     See description of str_to_datetime() for more information.
 */
 
-timestamp_type
+bool
 str_to_datetime_with_warn(CHARSET_INFO *cs,
                           const char *str, uint length, MYSQL_TIME *l_time,
                           ulonglong flags)
 {
-  int was_cut;
+  MYSQL_TIME_STATUS status;
   THD *thd= current_thd;
-  timestamp_type ts_type;
-  
-  ts_type= str_to_datetime(cs, str, length, l_time,
+  bool ret_val= str_to_datetime(cs, str, length, l_time,
                            (flags | (sql_mode_for_dates(thd))),
-                           &was_cut);
-  if (was_cut || ts_type <= MYSQL_TIMESTAMP_ERROR)
+                           &status);
+  if (ret_val || status.warnings)
     make_truncated_value_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
                                  str, length, flags & TIME_TIME_ONLY ?
-                                 MYSQL_TIMESTAMP_TIME : ts_type, NullS);
+                                 MYSQL_TIMESTAMP_TIME : l_time->time_type, NullS);
   DBUG_EXECUTE_IF("str_to_datetime_warn",
                   push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
                                ER_YES, str););
-  return ts_type;
+  return ret_val;
 }
 
 
@@ -1055,7 +1069,7 @@ calc_time_diff(MYSQL_TIME *l_time1, MYSQL_TIME *l_time2, int l_sign, longlong *s
 
 */
 
-int my_time_compare(MYSQL_TIME *a, MYSQL_TIME *b)
+int my_time_compare(const MYSQL_TIME *a, const MYSQL_TIME *b)
 {
   ulonglong a_t= pack_time(a);
   ulonglong b_t= pack_time(b);

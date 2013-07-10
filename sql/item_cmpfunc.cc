@@ -721,31 +721,31 @@ bool get_mysql_time_from_str(THD *thd, String *str, timestamp_type warn_type,
                              const char *warn_name, MYSQL_TIME *l_time)
 {
   bool value;
-  int error;
-  enum_mysql_timestamp_type timestamp_type;
+  MYSQL_TIME_STATUS status;
   int flags= TIME_FUZZY_DATE | MODE_INVALID_DATES;
   ErrConvString err(str);
 
-  if (warn_type == MYSQL_TIMESTAMP_TIME)
-    flags|= TIME_TIME_ONLY;
+  DBUG_ASSERT(warn_type != MYSQL_TIMESTAMP_TIME);
 
-  timestamp_type= 
-    str_to_datetime(str->charset(), str->ptr(), str->length(),
-                    l_time, flags, &error);
-
-  if (timestamp_type > MYSQL_TIMESTAMP_ERROR)
+  if (!str_to_datetime(str->charset(), str->ptr(), str->length(),
+                       l_time, flags, &status))
+  {
+     DBUG_ASSERT(l_time->time_type == MYSQL_TIMESTAMP_DATETIME || 
+                 l_time->time_type == MYSQL_TIMESTAMP_DATE);
     /*
       Do not return yet, we may still want to throw a "trailing garbage"
       warning.
     */
     value= FALSE;
+  }
   else
   {
+    DBUG_ASSERT(l_time->time_type != MYSQL_TIMESTAMP_TIME);
+    DBUG_ASSERT(status.warnings != 0); // Must be set by set_to_datetime()
     value= TRUE;
-    error= 1;                                   /* force warning */
   }
 
-  if (error > 0)
+  if (status.warnings > 0)
     make_truncated_value_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
                                  &err, warn_type, warn_name);
 

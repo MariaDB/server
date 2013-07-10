@@ -4722,7 +4722,7 @@ bool Item_dyncol_get::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     if (str_to_datetime_with_warn(&my_charset_numeric,
                                   val.x.string.value.str,
                                   val.x.string.value.length,
-                                  ltime, fuzzy_date) <= MYSQL_TIMESTAMP_ERROR)
+                                  ltime, fuzzy_date))
       goto null;
     return 0;
   case DYN_COL_DATETIME:

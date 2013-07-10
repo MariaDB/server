@@ -78,14 +78,27 @@ extern uchar days_in_month[];
 #define TIME_MAX_VALUE_SECONDS (TIME_MAX_HOUR * 3600L + \
                                 TIME_MAX_MINUTE * 60L + TIME_MAX_SECOND)
 
+/*
+  Structure to return status from
+    str_to_datetime(), str_to_time().
+*/
+typedef struct st_mysql_time_status
+{
+  int warnings;
+  uint precision;
+} MYSQL_TIME_STATUS;
+
+static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
+{
+  status->warnings= status->precision= 0;
+}
+
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
                    ulonglong flags, int *was_cut);
-enum enum_mysql_timestamp_type
-str_to_time(const char *str, uint length, MYSQL_TIME *l_time, 
-            ulonglong flag, int *warning);
-enum enum_mysql_timestamp_type
-str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
-                ulonglong flags, int *was_cut);
+my_bool str_to_time(const char *str, uint length, MYSQL_TIME *l_time, 
+                    ulonglong flag, MYSQL_TIME_STATUS *status);
+my_bool str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
+                        ulonglong flags, MYSQL_TIME_STATUS *status);
 longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
                             ulonglong flags, int *was_cut);
 
@@ -107,7 +120,7 @@ ulonglong TIME_to_ulonglong_time(const MYSQL_TIME *);
 ulonglong TIME_to_ulonglong(const MYSQL_TIME *);
 double TIME_to_double(const MYSQL_TIME *my_time);
 
-longlong pack_time(MYSQL_TIME *my_time);
+longlong pack_time(const MYSQL_TIME *my_time);
 MYSQL_TIME *unpack_time(longlong packed, MYSQL_TIME *my_time);
 
 int check_time_range(struct st_mysql_time *my_time, uint dec, int *warning);
