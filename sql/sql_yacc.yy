@@ -6878,41 +6878,40 @@ string_list:
 */
 
 alter:
-          ALTER alter_options TABLE_SYM table_ident
+          ALTER
           {
-            THD *thd= YYTHD;
-            LEX *lex= thd->lex;
-            lex->name.str= 0;
-            lex->name.length= 0;
-            lex->sql_command= SQLCOM_ALTER_TABLE;
-            lex->duplicates= DUP_ERROR; 
-            if (!lex->select_lex.add_table_to_list(thd, $4, NULL,
+            Lex->name.str= 0;
+            Lex->name.length= 0;
+            Lex->sql_command= SQLCOM_ALTER_TABLE;
+            Lex->duplicates= DUP_ERROR; 
+            Lex->col_list.empty();
+            Lex->select_lex.init_order();
+            bzero(&Lex->create_info, sizeof(Lex->create_info));
+            Lex->create_info.db_type= 0;
+            Lex->create_info.default_table_charset= NULL;
+            Lex->create_info.row_type= ROW_TYPE_NOT_USED;
+            Lex->alter_info.reset();
+            Lex->no_write_to_binlog= 0;
+            Lex->create_info.storage_media= HA_SM_DEFAULT;
+            DBUG_ASSERT(!Lex->m_sql_cmd);
+          }
+          alter_options TABLE_SYM table_ident
+          {
+            if (!Lex->select_lex.add_table_to_list(YYTHD, $5, NULL,
                                                    TL_OPTION_UPDATING,
                                                    TL_READ_NO_INSERT,
                                                    MDL_SHARED_UPGRADABLE))
               MYSQL_YYABORT;
-            lex->col_list.empty();
-            lex->select_lex.init_order();
-            lex->select_lex.db= (lex->select_lex.table_list.first)->db;
-            bzero((char*) &lex->create_info,sizeof(lex->create_info));
-            lex->create_info.db_type= 0;
-            lex->create_info.default_table_charset= NULL;
-            lex->create_info.row_type= ROW_TYPE_NOT_USED;
-            lex->alter_info.reset();
-            lex->no_write_to_binlog= 0;
-            lex->create_info.storage_media= HA_SM_DEFAULT;
-            lex->create_last_non_select_table= lex->last_table();
-            DBUG_ASSERT(!lex->m_sql_cmd);
+            Lex->select_lex.db= (Lex->select_lex.table_list.first)->db;
+            Lex->create_last_non_select_table= Lex->last_table();
           }
           alter_commands
           {
-            THD *thd= YYTHD;
-            LEX *lex= thd->lex;
-            if (!lex->m_sql_cmd)
+            if (!Lex->m_sql_cmd)
             {
               /* Create a generic ALTER TABLE statment. */
-              lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table();
-              if (lex->m_sql_cmd == NULL)
+              Lex->m_sql_cmd= new (YYTHD->mem_root) Sql_cmd_alter_table();
+              if (Lex->m_sql_cmd == NULL)
                 MYSQL_YYABORT;
             }
           }
@@ -7586,7 +7585,7 @@ opt_ignore:
         ;
 
 alter_options:
-        { Lex->ignore= Lex->online= 0;} alter_options_part2
+        { Lex->ignore= 0;} alter_options_part2
 	;
 	
 alter_options_part2:
@@ -7601,7 +7600,11 @@ alter_option_list:
 
 alter_option:
 	  IGNORE_SYM { Lex->ignore= 1;}
-        | ONLINE_SYM { Lex->online= 1;}
+        | ONLINE_SYM
+          {
+            Lex->alter_info.requested_algorithm=
+              Alter_info::ALTER_TABLE_ALGORITHM_INPLACE;
+          }
 
 
 opt_restrict:

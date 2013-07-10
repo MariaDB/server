@@ -1616,14 +1616,15 @@ void ha_myisammrg::append_create_info(String *packet)
 }
 
 
-bool ha_myisammrg::check_if_incompatible_data(HA_CREATE_INFO *info,
-					      uint table_changes)
+enum_alter_inplace_result
+ha_myisammrg::check_if_supported_inplace_alter(TABLE *altered_table,
+                                               Alter_inplace_info *ha_alter_info)
 {
   /*
-    For myisammrg, we should always re-generate the mapping file as this
-    is trivial to do
+    We always support inplace ALTER in the new API, because old
+    HA_NO_COPY_ON_ALTER table_flags() hack prevents non-inplace ALTER anyway.
   */
-  return COMPATIBLE_DATA_NO;
+  return HA_ALTER_INPLACE_EXCLUSIVE_LOCK;
 }
 
 

@@ -145,7 +145,8 @@ public:
   void append_create_info(String *packet);
   MYRG_INFO *myrg_info() { return file; }
   TABLE *table_ptr() { return table; }
-  bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes);
+  enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *,
+                                                Alter_inplace_info *);
   int check(THD* thd, HA_CHECK_OPT* check_opt);
   ha_rows records();
   virtual uint count_query_cache_dependant_tables(uint8 *tables_type);
