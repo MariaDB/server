@@ -2422,12 +2422,6 @@ mysql_execute_command(THD *thd)
     my_error(ER_NOT_SUPPORTED_YET, MYF(0), "embedded server");
     break;
 #endif
-  case SQLCOM_SHOW_STATUS_PROC:
-  case SQLCOM_SHOW_STATUS_FUNC:
-    if (lock_tables_precheck(thd, all_tables))
-      goto error;
-    res= execute_sqlcom_select(thd, all_tables);
-    break;
   case SQLCOM_SHOW_STATUS:
   {
     execute_show_status(thd, all_tables);
@@ -2460,6 +2454,8 @@ mysql_execute_command(THD *thd)
     }
     /* no break; fall through */
   }
+  case SQLCOM_SHOW_STATUS_PROC:
+  case SQLCOM_SHOW_STATUS_FUNC:
   case SQLCOM_SHOW_DATABASES:
   case SQLCOM_SHOW_TABLES:
   case SQLCOM_SHOW_TRIGGERS:
