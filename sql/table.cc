@@ -429,6 +429,12 @@ void TABLE_SHARE::destroy()
   DBUG_ENTER("TABLE_SHARE::destroy");
   DBUG_PRINT("info", ("db: %s table: %s", db.str, table_name.str));
 
+  if (ha_share)
+  {
+    delete ha_share;
+    ha_share= NULL;                             // Safety
+  }
+
   free_root(&stats_cb.mem_root, MYF(0));
   stats_cb.stats_can_be_read= FALSE;
   stats_cb.stats_is_read= FALSE;
@@ -451,12 +457,6 @@ void TABLE_SHARE::destroy()
       info_it->flags= 0;
     }
   }
-  if (ha_share)
-  {
-    delete ha_share;
-    ha_share= NULL;                             // Safety
-  }
-
 #ifdef HAVE_PSI_TABLE_INTERFACE
   PSI_TABLE_CALL(release_table_share)(m_psi);
 #endif
