@@ -31,7 +31,8 @@ extern "C" {
 
 #include <queues.h>
 
-#define MYRG_NAME_EXT	".MRG"
+#define MYRG_NAME_EXT    ".MRG"
+#define MYRG_NAME_TMPEXT ".MRG_TMP"
 
 /* In which table to INSERT rows */
 #define MERGE_INSERT_DISABLED	0

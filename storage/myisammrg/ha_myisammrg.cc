@@ -135,7 +135,7 @@ ha_myisammrg::~ha_myisammrg(void)
 
 
 static const char *ha_myisammrg_exts[] = {
-  ".MRG",
+  MYRG_NAME_EXT,
   NullS
 };
 extern int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
@@ -1504,15 +1504,14 @@ err:
 }
 
 
-int ha_myisammrg::create(const char *name, register TABLE *form,
-			 HA_CREATE_INFO *create_info)
+int ha_myisammrg::create_mrg(const char *name, HA_CREATE_INFO *create_info)
 {
   char buff[FN_REFLEN];
   const char **table_names, **pos;
   TABLE_LIST *tables= create_info->merge_list.first;
   THD *thd= current_thd;
   size_t dirlgt= dirname_length(name);
-  DBUG_ENTER("ha_myisammrg::create");
+  DBUG_ENTER("ha_myisammrg::create_mrg");
 
   /* Allocate a table_names array in thread mem_root. */
   if (!(table_names= (const char**)
@@ -1560,12 +1559,19 @@ int ha_myisammrg::create(const char *name, register TABLE *form,
   *pos=0;
 
   /* Create a MERGE meta file from the table_names array. */
-  DBUG_RETURN(myrg_create(fn_format(buff,name,"","",
-                                    MY_RESOLVE_SYMLINKS|
-                                    MY_UNPACK_FILENAME|MY_APPEND_EXT),
-			  table_names,
-                          create_info->merge_insert_method,
-                          (my_bool) 0));
+  int res= myrg_create(name, table_names, create_info->merge_insert_method, 0);
+  DBUG_RETURN(res);
+}
+
+
+int ha_myisammrg::create(const char *name, register TABLE *form,
+			 HA_CREATE_INFO *create_info)
+{
+  char buff[FN_REFLEN];
+  DBUG_ENTER("ha_myisammrg::create");
+  fn_format(buff, name, "", MYRG_NAME_EXT, MY_UNPACK_FILENAME | MY_APPEND_EXT);
+  int res= create_mrg(buff, create_info);
+  DBUG_RETURN(res);
 }
 
 
@@ -1627,6 +1633,29 @@ ha_myisammrg::check_if_supported_inplace_alter(TABLE *altered_table,
   return HA_ALTER_INPLACE_EXCLUSIVE_LOCK;
 }
 
+
+bool ha_myisammrg::inplace_alter_table(TABLE *altered_table,
+                                       Alter_inplace_info *ha_alter_info)
+{
+  char tmp_path[FN_REFLEN];
+  char *name= table->s->normalized_path.str;
+  DBUG_ENTER("ha_myisammrg::inplace_alter_table");
+  fn_format(tmp_path, name, "", MYRG_NAME_TMPEXT, MY_UNPACK_FILENAME | MY_APPEND_EXT);
+  int res= create_mrg(tmp_path, ha_alter_info->create_info);
+  if (res)
+    mysql_file_delete(rg_key_file_MRG, tmp_path, MYF(0));
+  else
+  {
+    char path[FN_REFLEN];
+    fn_format(path, name, "", MYRG_NAME_EXT, MY_UNPACK_FILENAME | MY_APPEND_EXT);
+    if (mysql_file_rename(rg_key_file_MRG, tmp_path, path, MYF(0)))
+    {
+      res= my_errno;
+      mysql_file_delete(rg_key_file_MRG, tmp_path, MYF(0));
+    }
+  }
+  DBUG_RETURN(res);
+}
 
 int ha_myisammrg::check(THD* thd, HA_CHECK_OPT* check_opt)
 {
