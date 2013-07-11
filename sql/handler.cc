@@ -5383,6 +5383,7 @@ static bool check_table_binlog_row_based(THD *thd, TABLE *table)
   if (table->s->cached_row_logging_check == -1)
   {
     int const check(table->s->tmp_table == NO_TMP_TABLE &&
+                    ! table->no_replicate &&
                     binlog_filter->db_ok(table->s->db.str));
     table->s->cached_row_logging_check= check;
   }
@@ -5490,8 +5491,6 @@ static int binlog_log_row(TABLE* table,
                           const uchar *after_record,
                           Log_func *log_func)
 {
-  if (table->no_replicate)
-    return 0;
   bool error= 0;
   THD *const thd= table->in_use;
 

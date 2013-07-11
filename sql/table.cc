@@ -2698,9 +2698,22 @@ partititon_err:
   bzero((char*) bitmaps, bitmap_size*3);
 #endif
 
-  outparam->no_replicate= outparam->file &&
-                          test(outparam->file->ha_table_flags() &
-                               HA_HAS_OWN_BINLOGGING);
+  if (share->table_category == TABLE_CATEGORY_LOG)
+  {
+    outparam->no_replicate= TRUE;
+  }
+  else if (outparam->file)
+  {
+    handler::Table_flags flags= outparam->file->ha_table_flags();
+    outparam->no_replicate= ! test(flags & (HA_BINLOG_STMT_CAPABLE
+                                            | HA_BINLOG_ROW_CAPABLE))
+                            || test(flags & HA_HAS_OWN_BINLOGGING);
+  }
+  else
+  {
+    outparam->no_replicate= FALSE;
+  }
+
   thd->status_var.opened_tables++;
 
   thd->lex->context_analysis_only= save_context_analysis_only;

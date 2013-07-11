@@ -1147,6 +1147,9 @@ public:
    */
   bool key_read;
   bool no_keyread;
+  /**
+    If set, indicate that the table is not replicated by the server.
+  */
   bool locked_by_logger;
   bool no_replicate;
   bool locked_by_name;
