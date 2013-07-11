@@ -510,7 +510,7 @@ bool Sql_cmd_resignal::execute(THD *thd)
                    signaled->level,
                    signaled->message);
 
-  if (m_cond == NULL)
+  if (m_cond)
   {
     query_cache_abort(&thd->query_cache_tls);
 
