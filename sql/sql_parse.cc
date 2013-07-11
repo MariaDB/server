@@ -5875,7 +5875,6 @@ void THD::reset_for_next_command(bool calculate_userstat)
   DBUG_ENTER("mysql_reset_thd_for_next_command");
   DBUG_ASSERT(!thd->spcont); /* not for substatements of routines */
   DBUG_ASSERT(! thd->in_sub_stmt);
-  DBUG_ASSERT(thd->transaction.on);
   thd->free_list= 0;
   thd->select_number= 1;
   /*
