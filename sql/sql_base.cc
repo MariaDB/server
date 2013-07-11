@@ -4574,8 +4574,19 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
                         tables->db, tables->table_name, tables)); //psergey: invalid read of size 1 here
   (*counter)++;
 
-  /* Check if we are trying to create a temporary table */
-  if (tables->open_type == OT_TEMPORARY_ONLY)
+  /*
+    Not a placeholder: must be a base/temporary table or a view. Let us open it.
+  */
+  if (tables->table)
+  {
+    /*
+      If this TABLE_LIST object has an associated open TABLE object
+      (TABLE_LIST::table is not NULL), that TABLE object must be a pre-opened
+      temporary table.
+    */
+    DBUG_ASSERT(is_temporary_table(tables));
+  }
+  else if (tables->open_type == OT_TEMPORARY_ONLY)
   {
     /*
       OT_TEMPORARY_ONLY means that we are in CREATE TEMPORARY TABLE statement.
