@@ -3593,7 +3593,12 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     case TAB_TBL:
     case TAB_XCL:
     case TAB_OCCUR:
-      ok= true;
+      if (!stricmp(tab, create_info->alias) &&
+         (!db || !stricmp(db, table_s->db.str)))
+        sprintf(g->Message, "A %s table cannot refer to itself", topt->type);
+      else
+        ok= true;
+
       break;
     default:
       sprintf(g->Message, "Cannot get column info for table type %s", topt->type);
@@ -3976,6 +3981,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     switch (type) {
       case TAB_PRX:
       case TAB_XCL:
+      case TAB_PIVOT:
       case TAB_OCCUR:
         if (options->srcdef) {
           strcpy(g->Message, "Cannot check looping reference");
