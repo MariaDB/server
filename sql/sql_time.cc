@@ -295,9 +295,7 @@ str_to_datetime_with_warn(CHARSET_INFO *cs,
   THD *thd= current_thd;
   timestamp_type ts_type;
   
-  ts_type= str_to_datetime(cs, str, length, l_time,
-                           (flags | (sql_mode_for_dates(thd))),
-                           &was_cut);
+  ts_type= str_to_datetime(cs, str, length, l_time, flags, &was_cut);
   if (was_cut || ts_type <= MYSQL_TIMESTAMP_ERROR)
     make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                                  str, length, flags & TIME_TIME_ONLY ?
