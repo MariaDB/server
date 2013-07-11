@@ -1574,14 +1574,13 @@ flush tables;
 --remove_file $MYSQLD_DATADIR/test/t@002d1.MYI
 --remove_file $MYSQLD_DATADIR/test/t@002d1.frm
 show tables;
---error ER_TABLE_EXISTS_ERROR
 create table `t-1` (a int);
 create table t1 (a int);
 --error ER_TABLE_EXISTS_ERROR
 alter table t1 rename `t-1`;
 --error ER_TABLE_EXISTS_ERROR
 rename table t1 to `t-1`;
-drop table `#mysql50#t-1`, t1;
+drop table `#mysql50#t-1`, t1, `t-1`;
 
 --echo
 --echo End of 5.1 tests
