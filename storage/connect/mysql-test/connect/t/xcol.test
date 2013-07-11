@@ -16,7 +16,8 @@ INSERT INTO chlist VALUES('Janet','Arthur,Sandra,Peter,John');
 SELECT * FROM chlist;
 
 --replace_result $PORT PORT
---eval CREATE TABLE child ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=chlist OPTION_LIST='colname=children,port=$PORT'
+#-eval CREATE TABLE child ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=chlist OPTION_LIST='colname=children,port=$PORT'
+--eval CREATE TABLE child (mother varchar(12) NOT NULL, children varchar(30)) ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=chlist OPTION_LIST='colname=children,port=$PORT'
 SELECT * FROM child;
 SELECT * FROM child ORDER BY mother;
 SELECT * FROM child ORDER BY children;
