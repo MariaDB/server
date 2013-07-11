@@ -7278,11 +7278,14 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
   TABLE *table= table_list->table;
   MDL_ticket *mdl_ticket= table->mdl_ticket;
   int error= 0;
+  enum ha_extra_function extra_func= thd->locked_tables_mode
+                                       ? HA_EXTRA_NOT_USED
+                                       : HA_EXTRA_FORCE_REOPEN;
   DBUG_ENTER("simple_rename_or_index_change");
 
   if (keys_onoff != Alter_info::LEAVE_AS_IS)
   {
-    if (wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
+    if (wait_while_table_is_used(thd, table, extra_func))
       DBUG_RETURN(true);
 
     // It's now safe to take the table level lock.
@@ -7325,7 +7328,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
       simple rename did nothing and therefore we can safely return
       without additional clean-up.
     */
-    if (wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
+    if (wait_while_table_is_used(thd, table, extra_func))
       DBUG_RETURN(true);
     close_all_tables_for_name(thd, table->s, HA_EXTRA_PREPARE_FOR_RENAME, NULL);
 
