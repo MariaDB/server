@@ -60,7 +60,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
    group_info(0), tables_to_lock(0), tables_to_lock_count(0),
-   last_event_start_time(0), deferred_events(NULL),m_flags(0),
+   last_event_start_time(0), m_flags(0),
    row_stmt_start_timestamp(0), long_find_row_note_printed(false),
    m_annotate_event(0)
 {
@@ -1535,7 +1535,8 @@ end:
 
 rpl_group_info::rpl_group_info(Relay_log_info *rli_)
   : rli(rli_), thd(0), gtid_sub_id(0), wait_commit_sub_id(0),
-    wait_commit_group_info(0), wait_start_sub_id(0), parallel_entry(0)
+    wait_commit_group_info(0), wait_start_sub_id(0), parallel_entry(0),
+    deferred_events(NULL)
 {
   bzero(&current_gtid, sizeof(current_gtid));
 }
@@ -1596,7 +1597,7 @@ delete_or_keep_event_post_apply(Relay_log_info *rli,
     /* fall through */
   default:
     DBUG_PRINT("info", ("Deleting the event after it has been executed"));
-    if (!rli->is_deferred_event(ev))
+    if (!rli->group_info->is_deferred_event(ev))
       delete ev;
     break;
   }

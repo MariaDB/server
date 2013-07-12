@@ -4025,10 +4025,10 @@ pthread_handler_t handle_slave_sql(void *arg)
     goto err_during_init;
   }
   thd->init_for_queries();
-  thd->rli_slave= rli;
-  if ((rli->deferred_events_collecting= mi->rpl_filter->is_on()))
+  thd->rgi_slave= &serial_rgi;
+  if ((serial_rgi.deferred_events_collecting= mi->rpl_filter->is_on()))
   {
-    rli->deferred_events= new Deferred_log_events(rli);
+    serial_rgi.deferred_events= new Deferred_log_events(rli);
   }
 
   thd->temporary_tables = rli->save_temporary_tables; // restore temp tables
@@ -6302,10 +6302,10 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
  */
 bool rpl_master_erroneous_autoinc(THD *thd)
 {
-  if (thd->rli_slave)
+  if (thd->rgi_slave)
   {
     DBUG_EXECUTE_IF("simulate_bug33029", return TRUE;);
-    return rpl_master_has_bug(thd->rli_slave, 33029, FALSE, NULL, NULL);
+    return rpl_master_has_bug(thd->rgi_slave->rli, 33029, FALSE, NULL, NULL);
   }
   return FALSE;
 }

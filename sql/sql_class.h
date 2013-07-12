@@ -47,6 +47,7 @@
 
 class Reprepare_observer;
 class Relay_log_info;
+struct rpl_group_info;
 class Rpl_filter;
 
 class Query_log_event;
@@ -1697,8 +1698,9 @@ public:
 
   /* Used to execute base64 coded binlog events in MySQL server */
   Relay_log_info* rli_fake;
+  rpl_group_info* rgi_fake;
   /* Slave applier execution context */
-  Relay_log_info* rli_slave;
+  rpl_group_info* rgi_slave;
 
   /* Used to SLAVE SQL thread */
   Rpl_filter* rpl_filter;
