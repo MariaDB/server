@@ -68,8 +68,6 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
 
   thd->rgi_slave= rgi;
   thd->rpl_filter = rli->mi->rpl_filter;
-  /* ToDo: Get rid of rli->group_info, it is not thread safe. */
-  rli->group_info= rgi;
 
   /* ToDo: Access to thd, and what about rli, split out a parallel part? */
   mysql_mutex_lock(&rli->data_lock);
@@ -203,7 +201,7 @@ handle_rpl_parallel_thread(void *arg)
            !strcmp("ROLLBACK", ((Query_log_event *)events->ev)->query))));
 
       /* ToDo: must use rgi here, not rli, for thread safety. */
-      delete_or_keep_event_post_apply(rgi->rli, event_type, events->ev);
+      delete_or_keep_event_post_apply(rgi, event_type, events->ev);
       my_free(events);
 
       if (end_of_group)
@@ -661,7 +659,7 @@ rpl_parallel::do_event(struct rpl_group_info *serial_rgi, Log_event *ev)
     */
     qev->rgi= serial_rgi;
     rpt_handle_event(qev, NULL);
-    delete_or_keep_event_post_apply(rli, typ, qev->ev);
+    delete_or_keep_event_post_apply(serial_rgi, typ, qev->ev);
 
     return false;
   }

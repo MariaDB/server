@@ -3264,7 +3264,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 
     exec_res= apply_event_and_update_pos(ev, thd, serial_rgi, NULL);
 
-    delete_or_keep_event_post_apply(rli, typ, ev);
+    delete_or_keep_event_post_apply(serial_rgi, typ, ev);
 
     /*
       update_log_pos failed: this should not happen, so we don't
@@ -4188,13 +4188,6 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
     goto err;
   }
   mysql_mutex_unlock(&rli->data_lock);
-
-  /*
-    ToDo: Get rid of this, all accesses to rpl_group_info must be made
-    per-worker-thread to work with parallel replication.
-  */
-  if (opt_slave_parallel_threads <= 0)
-    rli->group_info= &serial_rgi;
 
   /* Read queries from the IO/THREAD until this thread is killed */
 

@@ -59,7 +59,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    abort_pos_wait(0), slave_run_id(0), sql_thd(0),
    inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
-   group_info(0), tables_to_lock(0), tables_to_lock_count(0),
+   tables_to_lock(0), tables_to_lock_count(0),
    last_event_start_time(0), m_flags(0),
    row_stmt_start_timestamp(0), long_find_row_note_printed(false),
    m_annotate_event(0)
@@ -1559,7 +1559,7 @@ event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
 
 
 void
-delete_or_keep_event_post_apply(Relay_log_info *rli,
+delete_or_keep_event_post_apply(rpl_group_info *rgi,
                                 Log_event_type typ, Log_event *ev)
 {
   /*
@@ -1583,7 +1583,7 @@ delete_or_keep_event_post_apply(Relay_log_info *rli,
       The thd->query will be used to generate new Annotate_rows event
       during applying the subsequent Rows events.
     */
-    rli->set_annotate_event((Annotate_rows_log_event*) ev);
+    rgi->rli->set_annotate_event((Annotate_rows_log_event*) ev);
     break;
   case DELETE_ROWS_EVENT:
   case UPDATE_ROWS_EVENT:
@@ -1593,11 +1593,11 @@ delete_or_keep_event_post_apply(Relay_log_info *rli,
       event (if any) is not needed anymore and can be deleted.
     */
     if (((Rows_log_event*)ev)->get_flags(Rows_log_event::STMT_END_F))
-      rli->free_annotate_event();
+      rgi->rli->free_annotate_event();
     /* fall through */
   default:
     DBUG_PRINT("info", ("Deleting the event after it has been executed"));
-    if (!rli->group_info->is_deferred_event(ev))
+    if (!rgi->is_deferred_event(ev))
       delete ev;
     break;
   }
