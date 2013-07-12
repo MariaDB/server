@@ -472,43 +472,6 @@ public:
       (m_flags & (1UL << IN_STMT));
   }
 
-  /**
-    Save pointer to Annotate_rows event and switch on the
-    binlog_annotate_row_events for this sql thread.
-    To be called when sql thread recieves an Annotate_rows event.
-  */
-  inline void set_annotate_event(Annotate_rows_log_event *event)
-  {
-    free_annotate_event();
-    m_annotate_event= event;
-    sql_thd->variables.binlog_annotate_row_events= 1;
-  }
-
-  /**
-    Returns pointer to the saved Annotate_rows event or NULL if there is
-    no saved event.
-  */
-  inline Annotate_rows_log_event* get_annotate_event()
-  {
-    return m_annotate_event;
-  }
-
-  /**
-    Delete saved Annotate_rows event (if any) and switch off the
-    binlog_annotate_row_events for this sql thread.
-    To be called when sql thread has applied the last (i.e. with
-    STMT_END_F flag) rbr event.
-  */
-  inline void free_annotate_event()
-  {
-    if (m_annotate_event)
-    {
-      sql_thd->variables.binlog_annotate_row_events= 0;
-      delete m_annotate_event;
-      m_annotate_event= 0;
-    }
-  }
-
   time_t get_row_stmt_start_timestamp()
   {
     return row_stmt_start_timestamp;
@@ -553,8 +516,6 @@ private:
    */
   time_t row_stmt_start_timestamp;
   bool long_find_row_note_printed;
-
-  Annotate_rows_log_event *m_annotate_event;
 };
 
 
@@ -607,9 +568,6 @@ struct rpl_group_info
 
   struct rpl_parallel_entry *parallel_entry;
 
-  rpl_group_info(Relay_log_info *rli_);
-  ~rpl_group_info() { };
-
   /*
     A container to hold on Intvar-, Rand-, Uservar- log-events in case
     the slave is configured with table filtering rules.
@@ -623,6 +581,11 @@ struct rpl_group_info
     false does for execution, either deferred or direct.
   */
   bool deferred_events_collecting;
+
+  Annotate_rows_log_event *m_annotate_event;
+
+  rpl_group_info(Relay_log_info *rli_);
+  ~rpl_group_info();
 
   /* 
      Returns true if the argument event resides in the containter;
@@ -644,6 +607,44 @@ struct rpl_group_info
     if (deferred_events)
       delete deferred_events;
   };
+
+  /**
+    Save pointer to Annotate_rows event and switch on the
+    binlog_annotate_row_events for this sql thread.
+    To be called when sql thread recieves an Annotate_rows event.
+  */
+  inline void set_annotate_event(Annotate_rows_log_event *event)
+  {
+    free_annotate_event();
+    m_annotate_event= event;
+    this->thd->variables.binlog_annotate_row_events= 1;
+  }
+
+  /**
+    Returns pointer to the saved Annotate_rows event or NULL if there is
+    no saved event.
+  */
+  inline Annotate_rows_log_event* get_annotate_event()
+  {
+    return m_annotate_event;
+  }
+
+  /**
+    Delete saved Annotate_rows event (if any) and switch off the
+    binlog_annotate_row_events for this sql thread.
+    To be called when sql thread has applied the last (i.e. with
+    STMT_END_F flag) rbr event.
+  */
+  inline void free_annotate_event()
+  {
+    if (m_annotate_event)
+    {
+      this->thd->variables.binlog_annotate_row_events= 0;
+      delete m_annotate_event;
+      m_annotate_event= 0;
+    }
+  }
+
 };
 
 
