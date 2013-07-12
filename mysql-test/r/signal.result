@@ -1450,7 +1450,6 @@ after RESIGNAL
 after RESIGNAL
 Warnings:
 Warning	1012	Raising a warning
-Warning	1012	Raising a warning
 drop procedure test_resignal $$
 create procedure test_resignal()
 begin
@@ -1504,7 +1503,6 @@ before RESIGNAL
 after RESIGNAL
 after RESIGNAL
 Warnings:
-Warning	1264	Out of range value for column 'a' at row 1
 Warning	1264	Out of range value for column 'a' at row 1
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1562,7 +1560,6 @@ before RESIGNAL
 after RESIGNAL
 after RESIGNAL
 Warnings:
-Warning	1012	Raising a warning
 Warning	5555	RESIGNAL of a warning
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1623,7 +1620,6 @@ before RESIGNAL
 after RESIGNAL
 after RESIGNAL
 Warnings:
-Warning	1264	Out of range value for column 'a' at row 1
 Warning	5555	RESIGNAL of a warning
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1685,6 +1681,7 @@ before RESIGNAL
 after RESIGNAL
 after RESIGNAL
 Warnings:
+Warning	1012	Raising a warning
 Warning	5555	RESIGNAL to warning
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1708,6 +1705,7 @@ before RESIGNAL
 ERROR 02222: RESIGNAL to not found
 show warnings $$
 Level	Code	Message
+Warning	1012	Raising a warning
 Error	5555	RESIGNAL to not found
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1731,6 +1729,7 @@ before RESIGNAL
 ERROR 33333: RESIGNAL to error
 show warnings $$
 Level	Code	Message
+Warning	1012	Raising a warning
 Error	5555	RESIGNAL to error
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1754,6 +1753,7 @@ before RESIGNAL
 after RESIGNAL
 after RESIGNAL
 Warnings:
+Error	1012	Raising a not found
 Warning	5555	RESIGNAL to warning
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1777,6 +1777,7 @@ before RESIGNAL
 ERROR 02222: RESIGNAL to not found
 show warnings $$
 Level	Code	Message
+Error	1012	Raising a not found
 Error	5555	RESIGNAL to not found
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1800,6 +1801,7 @@ before RESIGNAL
 ERROR 33333: RESIGNAL to error
 show warnings $$
 Level	Code	Message
+Error	1012	Raising a not found
 Error	5555	RESIGNAL to error
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1823,6 +1825,7 @@ before RESIGNAL
 after RESIGNAL
 after RESIGNAL
 Warnings:
+Error	1012	Raising an error
 Warning	5555	RESIGNAL to warning
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1846,6 +1849,7 @@ before RESIGNAL
 ERROR 02222: RESIGNAL to not found
 show warnings $$
 Level	Code	Message
+Error	1012	Raising an error
 Error	5555	RESIGNAL to not found
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1869,6 +1873,7 @@ before RESIGNAL
 ERROR 33333: RESIGNAL to error
 show warnings $$
 Level	Code	Message
+Error	1012	Raising an error
 Error	5555	RESIGNAL to error
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1889,6 +1894,7 @@ before RESIGNAL
 after RESIGNAL
 after RESIGNAL
 Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
 Warning	5555	RESIGNAL to a warning
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1909,6 +1915,7 @@ before RESIGNAL
 ERROR 02444: RESIGNAL to a not found
 show warnings $$
 Level	Code	Message
+Warning	1264	Out of range value for column 'a' at row 1
 Error	5555	RESIGNAL to a not found
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1929,6 +1936,7 @@ before RESIGNAL
 ERROR 44444: RESIGNAL to an error
 show warnings $$
 Level	Code	Message
+Warning	1264	Out of range value for column 'a' at row 1
 Error	5555	RESIGNAL to an error
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1953,6 +1961,7 @@ before RESIGNAL
 after RESIGNAL
 after RESIGNAL
 Warnings:
+Error	1329	No data - zero rows fetched, selected, or processed
 Warning	5555	RESIGNAL to a warning
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -1977,6 +1986,7 @@ before RESIGNAL
 ERROR 02444: RESIGNAL to a not found
 show warnings $$
 Level	Code	Message
+Error	1329	No data - zero rows fetched, selected, or processed
 Error	5555	RESIGNAL to a not found
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -2001,6 +2011,7 @@ before RESIGNAL
 ERROR 44444: RESIGNAL to an error
 show warnings $$
 Level	Code	Message
+Error	1329	No data - zero rows fetched, selected, or processed
 Error	5555	RESIGNAL to an error
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -2021,6 +2032,7 @@ before RESIGNAL
 after RESIGNAL
 after RESIGNAL
 Warnings:
+Error	1051	Unknown table 'test.no_such_table'
 Warning	5555	RESIGNAL to a warning
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -2041,6 +2053,7 @@ before RESIGNAL
 ERROR 02444: RESIGNAL to a not found
 show warnings $$
 Level	Code	Message
+Error	1051	Unknown table 'test.no_such_table'
 Error	5555	RESIGNAL to a not found
 drop procedure test_resignal $$
 create procedure test_resignal()
@@ -2061,6 +2074,7 @@ before RESIGNAL
 ERROR 44444: RESIGNAL to an error
 show warnings $$
 Level	Code	Message
+Error	1051	Unknown table 'test.no_such_table'
 Error	5555	RESIGNAL to an error
 drop procedure test_resignal $$
 #
@@ -2107,9 +2121,6 @@ CALL peter_p2() $$
 ERROR 42000: Hi, I am a useless error message
 show warnings $$
 Level	Code	Message
-Error	1231	Variable 'sql_mode' can't be set to the value of 'NULL'
-Error	1231	Variable 'sql_mode' can't be set to the value of 'NULL'
-Error	9999	Variable 'sql_mode' can't be set to the value of 'NULL'
 Error	9999	Hi, I am a useless error message
 drop procedure peter_p1 $$
 drop procedure peter_p2 $$
@@ -2163,10 +2174,15 @@ Error	1232	Variable 'sql_mode' can't be set to the value of 'NULL'
 3
 3
 Level	Code	Message
+Error	1231	Variable 'sql_mode' can't be set to the value of 'NULL'
+Error	1232	Variable 'sql_mode' can't be set to the value of 'NULL'
 Error	9999	Variable 'sql_mode' can't be set to the value of 'NULL'
 ERROR 42000: Hi, I am a useless error message
 show warnings $$
 Level	Code	Message
+Error	1231	Variable 'sql_mode' can't be set to the value of 'NULL'
+Error	1232	Variable 'sql_mode' can't be set to the value of 'NULL'
+Error	9999	Variable 'sql_mode' can't be set to the value of 'NULL'
 Error	9999	Hi, I am a useless error message
 drop procedure peter_p1 $$
 drop procedure peter_p2 $$
@@ -2183,6 +2199,7 @@ call peter_p3() $$
 ERROR 99002: Original
 show warnings $$
 Level	Code	Message
+Error	1	Original
 Error	2	Original
 drop procedure peter_p3 $$
 drop table t_warn;
