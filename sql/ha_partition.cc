@@ -1465,6 +1465,7 @@ int ha_partition::prepare_new_partition(TABLE *tbl,
   if ((error= set_up_table_before_create(tbl, part_name, create_info, p_elem)))
     goto error_create;
 
+  tbl->s->connect_string = p_elem->connect_string;
   if ((error= file->ha_create(part_name, tbl, create_info)))
   {
     /*
@@ -3421,9 +3422,11 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
    {
       create_partition_name(name_buff, name, name_buffer_ptr, NORMAL_PART_NAME,
                             FALSE);
+      table->s->connect_string = m_connect_string[(uint)(file-m_file)];
       if ((error= (*file)->ha_open(table, name_buff, mode,
                                    test_if_locked | HA_OPEN_NO_PSI_CALL)))
         goto err_handler;
+      bzero(&table->s->connect_string, sizeof(LEX_STRING));
       if (m_file == file)
         m_num_locks= (*file)->lock_count();
       DBUG_ASSERT(m_num_locks == (*file)->lock_count());
