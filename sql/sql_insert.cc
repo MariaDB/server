@@ -810,10 +810,10 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   table->next_number_field=table->found_next_number_field;
 
 #ifdef HAVE_REPLICATION
-  if (thd->rli_slave &&
+  if (thd->rgi_slave &&
       (info.handle_duplicates == DUP_UPDATE) &&
       (table->next_number_field != NULL) &&
-      rpl_master_has_bug(thd->rli_slave, 24432, TRUE, NULL, NULL))
+      rpl_master_has_bug(thd->rgi_slave->rli, 24432, TRUE, NULL, NULL))
     goto abort;
 #endif
 
@@ -3464,10 +3464,10 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   table->next_number_field=table->found_next_number_field;
 
 #ifdef HAVE_REPLICATION
-  if (thd->rli_slave &&
+  if (thd->rgi_slave &&
       (info.handle_duplicates == DUP_UPDATE) &&
       (table->next_number_field != NULL) &&
-      rpl_master_has_bug(thd->rli_slave, 24432, TRUE, NULL, NULL))
+      rpl_master_has_bug(thd->rgi_slave->rli, 24432, TRUE, NULL, NULL))
     DBUG_RETURN(1);
 #endif
 

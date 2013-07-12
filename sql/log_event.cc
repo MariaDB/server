@@ -6716,8 +6716,8 @@ int Intvar_log_event::do_apply_event(struct rpl_group_info *rgi)
    */
   rli->set_flag(Relay_log_info::IN_STMT);
 
-  if (rli->deferred_events_collecting)
-    return rli->deferred_events->add(this);
+  if (rgi->deferred_events_collecting)
+    return rgi->deferred_events->add(this);
 
   switch (type) {
   case LAST_INSERT_ID_EVENT:
@@ -6827,8 +6827,8 @@ int Rand_log_event::do_apply_event(struct rpl_group_info *rgi)
    */
   const_cast<Relay_log_info*>(rli)->set_flag(Relay_log_info::IN_STMT);
 
-  if (rli->deferred_events_collecting)
-    return rli->deferred_events->add(this);
+  if (rgi->deferred_events_collecting)
+    return rgi->deferred_events->add(this);
 
   thd->rand.seed1= (ulong) seed1;
   thd->rand.seed2= (ulong) seed2;
@@ -6868,14 +6868,14 @@ Rand_log_event::do_shall_skip(Relay_log_info *rli)
 bool slave_execute_deferred_events(THD *thd)
 {
   bool res= false;
-  Relay_log_info *rli= thd->rli_slave;
+  rpl_group_info *rgi= thd->rgi_slave;
 
-  DBUG_ASSERT(rli && (!rli->deferred_events_collecting || rli->deferred_events));
+  DBUG_ASSERT(rgi && (!rgi->deferred_events_collecting || rgi->deferred_events));
 
-  if (!rli->deferred_events_collecting || rli->deferred_events->is_empty())
+  if (!rgi->deferred_events_collecting || rgi->deferred_events->is_empty())
     return res;
 
-  res= rli->deferred_events->execute(rli->group_info);
+  res= rgi->deferred_events->execute(rgi);
 
   return res;
 }
@@ -7423,10 +7423,10 @@ int User_var_log_event::do_apply_event(struct rpl_group_info *rgi)
   Relay_log_info const *rli= rgi->rli;
   DBUG_ENTER("User_var_log_event::do_apply_event");
 
-  if (rli->deferred_events_collecting)
+  if (rgi->deferred_events_collecting)
   {
     set_deferred();
-    DBUG_RETURN(rli->deferred_events->add(this));
+    DBUG_RETURN(rgi->deferred_events->add(this));
   }
 
   if (!(charset= get_charset(charset_number, MYF(MY_WME))))

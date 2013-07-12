@@ -66,7 +66,7 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   Relay_log_info *rli= rgi->rli;
   THD *thd= rgi->thd;
 
-  thd->rli_slave= rli;
+  thd->rgi_slave= rgi;
   thd->rpl_filter = rli->mi->rpl_filter;
   /* ToDo: Get rid of rli->group_info, it is not thread safe. */
   rli->group_info= rgi;
@@ -574,6 +574,8 @@ rpl_parallel::do_event(struct rpl_group_info *serial_rgi, Log_event *ev)
       my_error(ER_OUT_OF_RESOURCES, MYF(MY_WME));
       return true;
     }
+    if ((rgi->deferred_events_collecting= rli->mi->rpl_filter->is_on()))
+      rgi->deferred_events= new Deferred_log_events(rli);
 
     if ((gtid_ev->flags2 & Gtid_log_event::FL_GROUP_COMMIT_ID) &&
         e->last_commit_id == gtid_ev->commit_id)

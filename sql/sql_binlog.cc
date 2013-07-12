@@ -80,6 +80,8 @@ void mysql_client_binlog_statement(THD* thd)
   my_bool have_fd_event= TRUE;
   int err;
   Relay_log_info *rli;
+  struct rpl_group_info *rgi;
+
   rli= thd->rli_fake;
   if (!rli)
   {
@@ -95,11 +97,12 @@ void mysql_client_binlog_statement(THD* thd)
       new Format_description_log_event(4);
     have_fd_event= FALSE;
   }
+  if (!(rgi= thd->rgi_fake))
+    rgi= thd->rgi_fake= new rpl_group_info(rli);
 
   const char *error= 0;
   char *buf= (char *) my_malloc(decoded_len, MYF(MY_WME));
   Log_event *ev = 0;
-  struct rpl_group_info rgi(rli);
 
   /*
     Out of memory check
@@ -197,8 +200,8 @@ void mysql_client_binlog_statement(THD* thd)
         }
       }
 
-      rgi.rli= rli;
-      rgi.thd= thd;
+      rgi->rli= rli;
+      rgi->thd= thd;
       ev= Log_event::read_log_event(bufptr, event_len, &error,
                                     rli->relay_log.description_event_for_exec,
                                     0);
@@ -235,7 +238,7 @@ void mysql_client_binlog_statement(THD* thd)
         (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ?
          OPTION_SKIP_REPLICATION : 0);
 
-      err= ev->apply_event(&rgi);
+      err= ev->apply_event(rgi);
 
       thd->variables.option_bits=
         (thd->variables.option_bits & ~OPTION_SKIP_REPLICATION) |
