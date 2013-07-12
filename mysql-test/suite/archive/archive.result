@@ -6257,7 +6257,7 @@ auto	fld1	companynr	fld3	fld4	fld5	fld6
 3	011402	37	Romans	scholastics	jarring	
 4	011403	37	intercepted	audiology	tinily	
 DELETE FROM t2;
-ERROR HY000: Table storage engine for 't2' doesn't have this option
+ERROR HY000: Storage engine ARCHIVE of the table `test`.`t2` doesn't have this option
 SELECT * FROM t2;
 auto	fld1	companynr	fld3	fld4	fld5	fld6
 1	000001	00	Omaha	teethe	neat	
@@ -8689,7 +8689,7 @@ auto	fld1	companynr	fld3	fld4	fld5	fld6
 3	011402	37	Romans	scholastics	jarring	
 4	011403	37	intercepted	audiology	tinily	
 TRUNCATE TABLE t2;
-ERROR HY000: Table storage engine for 't2' doesn't have this option
+ERROR HY000: Storage engine ARCHIVE of the table `test`.`t2` doesn't have this option
 SELECT * FROM t2;
 auto	fld1	companynr	fld3	fld4	fld5	fld6
 1	000001	00	Omaha	teethe	neat	
@@ -12731,15 +12731,6 @@ id	id	name	name
 DROP TABLE t1,t2;
 flush tables;
 SHOW CREATE TABLE t1;
-ERROR HY000: Table upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
-SELECT * FROM t1;
-ERROR HY000: Table upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
-INSERT INTO t1 (col1, col2) VALUES (1, "value");
-ERROR HY000: Table upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
-REPAIR TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	repair	status	OK
-SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `col1` int(11) DEFAULT NULL,
@@ -12747,6 +12738,10 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
 SELECT * FROM t1;
 col1	col2
+INSERT INTO t1 (col1, col2) VALUES (1, "value");
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	error	Corrupt
 DROP TABLE t1;
 #
 # BUG#48757 - missing .ARZ file causes server crash
@@ -12756,14 +12751,14 @@ FLUSH TABLE t1;
 SELECT * FROM t1;
 ERROR HY000: Can't find file: 't1' (errno: 2 "No such file or directory")
 DROP TABLE t1;
-ERROR 42S02: Unknown table 't1'
+ERROR 42S02: Unknown table 'test.t1'
 #
 # Ensure that TRUNCATE fails for non-empty archive tables.
 #
 CREATE TABLE t1 (a INT) ENGINE=ARCHIVE;
 INSERT INTO t1 VALUES (1);
 TRUNCATE TABLE t1;
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Storage engine ARCHIVE of the table `test`.`t1` doesn't have this option
 DROP TABLE t1;
 #
 # BUG#46565 - repair of partition fail for archive engine
@@ -12851,6 +12846,14 @@ OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 DROP TABLE t1;
+#
+# Bug#13907676: HA_ARCHIVE::INFO
+#
+CREATE TABLE t1 (a INT) ENGINE=ARCHIVE;
+CREATE TABLE t2 SELECT * FROM t1;
+SELECT * FROM t2;
+a
+DROP TABLE t1, t2;
 #
 # BUG#917689 Using wrong archive table causes crash
 #
