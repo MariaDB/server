@@ -61,8 +61,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    until_log_pos(0), retried_trans(0), executed_entries(0),
    tables_to_lock(0), tables_to_lock_count(0),
    last_event_start_time(0), m_flags(0),
-   row_stmt_start_timestamp(0), long_find_row_note_printed(false),
-   m_annotate_event(0)
+   row_stmt_start_timestamp(0), long_find_row_note_printed(false)
 {
   DBUG_ENTER("Relay_log_info::Relay_log_info");
 
@@ -112,7 +111,6 @@ Relay_log_info::~Relay_log_info()
   mysql_cond_destroy(&log_space_cond);
   mysql_cond_destroy(&sleep_cond);
   relay_log.cleanup();
-  free_annotate_event();
   DBUG_VOID_RETURN;
 }
 
@@ -1536,9 +1534,15 @@ end:
 rpl_group_info::rpl_group_info(Relay_log_info *rli_)
   : rli(rli_), thd(0), gtid_sub_id(0), wait_commit_sub_id(0),
     wait_commit_group_info(0), wait_start_sub_id(0), parallel_entry(0),
-    deferred_events(NULL)
+    deferred_events(NULL), m_annotate_event(0)
 {
   bzero(&current_gtid, sizeof(current_gtid));
+}
+
+
+rpl_group_info::~rpl_group_info()
+{
+  free_annotate_event();
 }
 
 
@@ -1583,7 +1587,7 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
       The thd->query will be used to generate new Annotate_rows event
       during applying the subsequent Rows events.
     */
-    rgi->rli->set_annotate_event((Annotate_rows_log_event*) ev);
+    rgi->set_annotate_event((Annotate_rows_log_event*) ev);
     break;
   case DELETE_ROWS_EVENT:
   case UPDATE_ROWS_EVENT:
@@ -1593,7 +1597,7 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
       event (if any) is not needed anymore and can be deleted.
     */
     if (((Rows_log_event*)ev)->get_flags(Rows_log_event::STMT_END_F))
-      rgi->rli->free_annotate_event();
+      rgi->free_annotate_event();
     /* fall through */
   default:
     DBUG_PRINT("info", ("Deleting the event after it has been executed"));
