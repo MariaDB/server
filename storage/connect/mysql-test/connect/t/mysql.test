@@ -55,10 +55,9 @@ SELECT * FROM t1;
 #SHOW CREATE TABLE t2;
 
 # Bad column name
-#--replace_result $PORT PORT
-#--eval CREATE TABLE t2 (x int, y char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 --eval CREATE TABLE t2 (a int, y char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--replace_result $PORT PORT
 SHOW CREATE TABLE t2;
 --error ER_GET_ERRMSG
 SELECT * FROM t2;
@@ -68,7 +67,6 @@ DROP TABLE t2;
 --replace_result $PORT PORT
 --eval CREATE TABLE t2 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 ALTER TABLE t1 RENAME t1backup;
-#--error ER_NO_SUCH_TABLE
 --error ER_GET_ERRMSG
 SELECT * FROM t2;
 ALTER TABLE t1backup RENAME t1;
