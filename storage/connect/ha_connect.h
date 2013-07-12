@@ -310,6 +310,21 @@ const char *GetValStr(OPVAL vop, bool neg);
  */
  virtual ha_rows records();
 
+ /** 
+   Type of table for caching query
+   CONNECT should not use caching because its tables are external
+   data prone to me modified out of MariaDB
+ */
+ virtual uint8 table_cache_type(void)
+ {
+#if defined(MEMORY_TRACE)
+   // Temporary until bug MDEV-4771 is fixed
+   return HA_CACHE_TBL_NONTRANSACT;
+#else
+   return HA_CACHE_TBL_NOCACHE;
+#endif
+ }
+
  /** @brief
     We implement this in ha_connect.cc; it's a required method.
   */
