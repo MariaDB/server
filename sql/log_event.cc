@@ -329,7 +329,7 @@ uint debug_not_change_ts_if_art_event= 1; // bug#29309 simulation
 static void pretty_print_str(IO_CACHE* cache, const char* str, int len)
 {
   const char* end = str + len;
-  my_b_write(cache, "\'", 2);
+  my_b_write_byte(cache, '\'');
   while (str < end)
   {
     char c;
@@ -346,7 +346,7 @@ static void pretty_print_str(IO_CACHE* cache, const char* str, int len)
       break;
     }
   }
-  my_b_write(cache, "\'", 2);
+  my_b_write_byte(cache, '\'');
 }
 #endif /* MYSQL_CLIENT */
 
