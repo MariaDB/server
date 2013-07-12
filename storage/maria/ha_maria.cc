@@ -2954,9 +2954,12 @@ void ha_maria::update_create_info(HA_CREATE_INFO *create_info)
   }
   create_info->data_file_name= data_file_name;
   create_info->index_file_name= index_file_name;
-  /* We need to restore the row type as Maria can change it */
+  /*
+    Keep user-specified row_type for ALTER,
+    but show the actually used one in SHOW
+  */
   if (create_info->row_type != ROW_TYPE_DEFAULT &&
-      !(create_info->used_fields & HA_CREATE_USED_ROW_FORMAT))
+      !(thd_sql_command(ha_thd()) == SQLCOM_ALTER_TABLE))
     create_info->row_type= get_row_type();
   /*
     Show always page checksums, as this can be forced with
@@ -3211,6 +3214,8 @@ bool ha_maria::check_if_incompatible_data(HA_CREATE_INFO *create_info,
   if (create_info->auto_increment_value != stats.auto_increment_value ||
       create_info->data_file_name != data_file_name ||
       create_info->index_file_name != index_file_name ||
+      create_info->page_checksum != table->s->page_checksum ||
+      create_info->transactional != table->s->transactional ||
       (maria_row_type(create_info) != data_file_type &&
        create_info->row_type != ROW_TYPE_DEFAULT) ||
       table_changes == IS_EQUAL_NO ||
