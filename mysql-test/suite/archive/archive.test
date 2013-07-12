@@ -1654,18 +1654,13 @@ copy_file std_data/bug47012.frm $MYSQLD_DATADIR/test/t1.frm;
 copy_file std_data/bug47012.ARZ $MYSQLD_DATADIR/test/t1.ARZ;
 copy_file std_data/bug47012.ARM $MYSQLD_DATADIR/test/t1.ARM;
 
---error ER_TABLE_NEEDS_UPGRADE
 SHOW CREATE TABLE t1;
 
---error ER_TABLE_NEEDS_UPGRADE
 SELECT * FROM t1;
 
---error ER_TABLE_NEEDS_UPGRADE
 INSERT INTO t1 (col1, col2) VALUES (1, "value");
 
 REPAIR TABLE t1;
-SHOW CREATE TABLE t1;
-SELECT * FROM t1;
 DROP TABLE t1;
 remove_file $MYSQLD_DATADIR/test/t1.ARM;
 
@@ -1712,6 +1707,7 @@ REPAIR TABLE t1 EXTENDED;
 SELECT * FROM t1;
 DROP TABLE t1;
 
+
 --echo #
 --echo # Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
 --echo #
@@ -1724,7 +1720,6 @@ CREATE TABLE t1 (a int) ENGINE=ARCHIVE;
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (1);
 OPTIMIZE TABLE t1;
-let $MYSQLD_DATADIR= `select @@datadir`;
 remove_file $MYSQLD_DATADIR/test/t1.frm;
 FLUSH TABLES;
 INSERT INTO t1 VALUES (2);
@@ -1755,7 +1750,6 @@ SELECT * FROM t1 ORDER BY f LIMIT 1;
 DROP TABLE t1;
 SET sort_buffer_size=DEFAULT;
 
-
 --echo #
 --echo # BUG#11758979 - 51252: ARCHIVE TABLES STILL FAIL UNDER STRESS
 --echo #                TESTS: CRASH, CORRUPTION, 4G MEMOR
@@ -1769,6 +1763,14 @@ CHECKSUM TABLE t1 EXTENDED;
 FLUSH TABLE t1;
 OPTIMIZE TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # Bug#13907676: HA_ARCHIVE::INFO
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=ARCHIVE;
+CREATE TABLE t2 SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t1, t2;
 
 --echo #
 --echo # BUG#917689 Using wrong archive table causes crash
