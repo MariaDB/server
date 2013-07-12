@@ -1652,6 +1652,9 @@ public:
   // Partition operation with ALL keyword
   static const HA_ALTER_FLAGS ALTER_ALL_PARTITION        = 1L << 28;
 
+  // Partition operation with ALL keyword
+  static const HA_ALTER_FLAGS ALTER_COLUMN_VCOL          = 1L << 29;
+
   /**
     Create options (like MAX_ROWS) for the new version of table.
 
