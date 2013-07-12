@@ -3460,6 +3460,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (key->type == Key::FOREIGN_KEY)
     {
       fk_key_count++;
+      if (((Foreign_key *)key)->validate(alter_info->create_list))
+        DBUG_RETURN(TRUE);
       Foreign_key *fk_key= (Foreign_key*) key;
       if (fk_key->ref_columns.elements &&
 	  fk_key->ref_columns.elements != fk_key->columns.elements)
@@ -5406,10 +5408,6 @@ static bool fill_alter_inplace_info(THD *thd,
   */
   for (f_ptr= table->field; (field= *f_ptr); f_ptr++)
   {
-    /* Clear marker for renamed or dropped field
-    which we are going to set later. */
-    field->flags&= ~(FIELD_IS_RENAMED | FIELD_IS_DROPPED);
-
     /* Use transformed info to evaluate flags for storage engine. */
     uint new_field_index= 0;
     new_field_it.init(alter_info->create_list);
@@ -5482,11 +5480,22 @@ static bool fill_alter_inplace_info(THD *thd,
         ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_TYPE;
       }
 
+      /*
+        Check if the altered column is computed and either
+        is stored or is used in the partitioning expression.
+        TODO: Mark such a column with an alter flag only if
+        the defining expression has changed.
+      */
+      if (field->vcol_info && 
+          (field->stored_in_db || field->vcol_info->is_in_partitioning_expr()))
+      {
+        ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
+      }
+
       /* Check if field was renamed */
       if (my_strcasecmp(system_charset_info, field->field_name,
                         new_field->field_name))
       {
-        field->flags|= FIELD_IS_RENAMED;
         ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_NAME;
         rename_column_in_stat_tables(thd, table, field,
                                      new_field->field_name);
@@ -5532,11 +5541,9 @@ static bool fill_alter_inplace_info(THD *thd,
         Corresponding storage engine flag should be already set.
       */
       DBUG_ASSERT(ha_alter_info->handler_flags & Alter_inplace_info::DROP_COLUMN);
-      field->flags|= FIELD_IS_DROPPED;
     }
   }
 
-#ifndef DBUG_OFF
   new_field_it.init(alter_info->create_list);
   while ((new_field= new_field_it++))
   {
@@ -5547,10 +5554,15 @@ static bool fill_alter_inplace_info(THD *thd,
         Again corresponding storage engine flag should be already set.
       */
       DBUG_ASSERT(ha_alter_info->handler_flags & Alter_inplace_info::ADD_COLUMN);
+
+      if (new_field->vcol_info && 
+          (new_field->stored_in_db || new_field->vcol_info->is_in_partitioning_expr()))
+      {
+        ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
+      }
       break;
     }
   }
-#endif /* DBUG_OFF */
 
   /*
     Go through keys and check if the original ones are compatible
