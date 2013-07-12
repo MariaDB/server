@@ -5422,6 +5422,9 @@ static bool fill_alter_inplace_info(THD *thd,
 
     if (new_field)
     {
+      ha_alter_info->create_info->fields_option_struct[f_ptr - table->field]=
+        new_field->option_struct;
+
       /* Field is not dropped. Evaluate changes bitmap for it. */
 
       /*
@@ -5661,6 +5664,9 @@ static bool fill_alter_inplace_info(THD *thd,
         new_key - ha_alter_info->key_info_buffer;
       DBUG_PRINT("info", ("index added: '%s'", new_key->name));
     }
+    else
+      ha_alter_info->create_info->indexes_option_struct[table_key - table->key_info]=
+        new_key->option_struct;
   }
 
   /*
@@ -6535,8 +6541,15 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
   restore_record(table, s->default_values);     // Empty record for DEFAULT
 
+  if ((create_info->fields_option_struct= (ha_field_option_struct**)
+         thd->calloc(sizeof(void*) * table->s->fields)) == NULL ||
+      (create_info->indexes_option_struct= (ha_index_option_struct**)
+         thd->calloc(sizeof(void*) * table->s->keys)) == NULL)
+    DBUG_RETURN(1);
+
   create_info->option_list= merge_engine_table_options(table->s->option_list,
                                         create_info->option_list, thd->mem_root);
+
   /*
     First collect all fields from table which isn't in drop_list
   */

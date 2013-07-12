@@ -899,6 +899,89 @@ int ha_example::create(const char *name, TABLE *table_arg,
 }
 
 
+/**
+  check_if_incompatible_data() called if ALTER TABLE can't detect otherwise
+  if new and old definition are compatible
+
+  @details If there are no other explicit signs like changed number of
+  fields this function will be called by compare_tables()
+  (sql/sql_tables.cc) to decide should we rewrite whole table or only .frm
+  file.
+
+*/
+
+bool ha_example::check_if_incompatible_data(HA_CREATE_INFO *info,
+                                            uint table_changes)
+{
+  ha_table_option_struct *param_old, *param_new;
+  DBUG_ENTER("ha_example::check_if_incompatible_data");
+  /*
+    This example shows how custom engine specific table and field
+    options can be accessed from this function to be compared.
+  */
+  param_new= info->option_struct;
+  DBUG_PRINT("info", ("new strparam: '%-.64s'  ullparam: %llu  enumparam: %u  "
+                      "boolparam: %u",
+                      (param_new->strparam ? param_new->strparam : "<NULL>"),
+                      param_new->ullparam, param_new->enumparam,
+                      param_new->boolparam));
+
+  param_old= table->s->option_struct;
+  DBUG_PRINT("info", ("old strparam: '%-.64s'  ullparam: %llu  enumparam: %u  "
+                      "boolparam: %u",
+                      (param_old->strparam ? param_old->strparam : "<NULL>"),
+                      param_old->ullparam, param_old->enumparam,
+                      param_old->boolparam));
+
+  /*
+    check important parameters:
+    for this example engine, we'll assume that changing ullparam or
+    boolparam requires a table to be rebuilt, while changing strparam
+    or enumparam - does not.
+
+    For debugging purposes we'll announce this to the client
+    (don't do it in your engine!)
+
+  */
+  if (param_new->ullparam != param_old->ullparam)
+  {
+    push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
+                        ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: ULL %llu -> %llu",
+                        param_old->ullparam, param_new->ullparam);
+    DBUG_RETURN(COMPATIBLE_DATA_NO);
+  }
+
+  if (param_new->boolparam != param_old->boolparam)
+  {
+    push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
+                        ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: YESNO %u -> %u",
+                        param_old->boolparam, param_new->boolparam);
+    DBUG_RETURN(COMPATIBLE_DATA_NO);
+  }
+
+#ifndef DBUG_OFF
+  for (uint i= 0; i < table->s->fields; i++)
+  {
+    ha_field_option_struct *f_old, *f_new;
+    f_old= table->s->field[i]->option_struct;
+    DBUG_ASSERT(f_old);
+    if (info->fields_option_struct[i])
+    {
+      f_new= info->fields_option_struct[i];
+      push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
+                          ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: Field %`s COMPLEX '%s' -> '%s'",
+                          table->s->field[i]->field_name,
+                          f_old->complex_param_to_parse_it_in_engine,
+                          f_new->complex_param_to_parse_it_in_engine);
+    }
+    else
+      DBUG_PRINT("info", ("old field %i did not changed", i));
+  }
+#endif
+
+  DBUG_RETURN(COMPATIBLE_DATA_YES);
+}
+
 
 struct st_mysql_storage_engine example_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
