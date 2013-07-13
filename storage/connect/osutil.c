@@ -142,10 +142,12 @@ my_bool CloseFileHandle(HANDLE h)
   return (close(h)) ? TRUE : FALSE;
   }  /* end of CloseFileHandle */
 
+#if 0
 void Sleep(DWORD time) 
   {
   //FIXME: TODO
   }  /* end of Sleep */
+#endif
 
 int GetLastError() 
   {
@@ -179,7 +181,7 @@ char *_fullpath(char *absPath, const char *relPath, size_t maxLength)
   }  else {
     char buff[2*_MAX_PATH];
 
-    getcwd(buff, _MAX_PATH);
+    assert(getcwd(buff, _MAX_PATH) != NULL);
     strcat(buff,"/");
     strcat(buff, relPath);
     strncpy(absPath, buff, maxLength);
@@ -200,19 +202,7 @@ BOOL MessageBeep(uint i)
   return TRUE;
   } /* end of MessageBeep */
 
-LPSTR _strerror(int errn) 
-  {
-  static char buff[256];
-
-  sprintf(buff,"error: %d", errn);
-  return buff;
-  }  /* end of _strerror */
-
-int _isatty(int fileNo) 
-  {
-  return isatty(fileNo);
-  }  /* end of _isatty */
-
+#if 0
 /* This function is ridiculous and should be revisited */
 DWORD FormatMessage(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId,
                     DWORD dwLanguageId, LPSTR lpBuffer, DWORD nSize, ...)
@@ -227,5 +217,6 @@ DWORD FormatMessage(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId,
   strncpy(lpBuffer, buff, nSize);
   return min(n, nSize);
   }  /* end of FormatMessage */
+#endif
 
 #endif  // UNIX

@@ -425,9 +425,9 @@ int FIXFAM::DeleteRecords(PGLOBAL g, int irc)
       /*  for compatibility with Text files and other OS's.            */
       /*****************************************************************/
       char filename[_MAX_PATH];
-      int  rc, h;
+      int  h;
 
-      rc = PlugCloseFile(g, To_Fb);
+      /*rc= */PlugCloseFile(g, To_Fb);
       PlugSetPath(filename, To_File, Tdbp->GetPath());
 
       if ((h= global_open(g, MSGID_OPEN_STRERROR, filename, O_WRONLY)) <= 0)

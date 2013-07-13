@@ -44,6 +44,7 @@ RCODE CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all);
 bool  CntInfo(PGLOBAL g, PTDB tdbp, PXF info);
 int   CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
                     bool *incl, key_part_map *kmap);
+PGLOBAL CntExit(PGLOBAL g);
 
 /***********************************************************************/
 /*  Definition of classes XCOLCRT, XIXDEF, XKPDEF, DOXDEF, TDBDOX      */

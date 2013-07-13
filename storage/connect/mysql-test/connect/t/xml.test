@@ -16,11 +16,6 @@ DROP TABLE t1;
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
-let $TABLE_OPTIONS=TABLE_TYPE=XML OPTION_LIST='xmlsup=libxml2,rownode=row';
-let $FILE_EXT=XML;
---source grant.inc
-
-
 SET NAMES utf8;
 
 --vertical_results
@@ -132,7 +127,8 @@ INSERT INTO t1 (ISBN, LANG, SUBJECT, AUTHOR, TITLE, PUBLISHEr, DATEPUB)
 VALUES('9782212090529','fr','général','Alain Michard',
 'XML, Langage et Applications','Eyrolles Paris',1998);
 SELECT * FROM t1;
-SELECT LOAD_FILE('test/xsample2.xml');
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+--eval SELECT LOAD_FILE('$MYSQLD_DATADIR/test/xsample2.xml') AS xml
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/xsample2.xml
 
@@ -289,7 +285,8 @@ INSERT INTO t1 VALUES (_latin1 0xC0C1C2C3);
 SELECT node, hex(node) FROM t1;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/t1.xml
-SET @a=LOAD_FILE('test/t1.xml');
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+--eval SET @a=LOAD_FILE('$MYSQLD_DATADIR/test/t1.xml')
 SELECT LEFT(@a,38);
 SELECT HEX(EXTRACTVALUE(@a,'/t1/line/node'));
 --remove_file $MYSQLD_DATADIR/test/t1.xml
@@ -302,7 +299,8 @@ INSERT INTO t1 VALUES (_latin1 0xC0C1C2C3);
 SELECT node, hex(node) FROM t1;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/t1.xml
-SET @a=LOAD_FILE('test/t1.xml');
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+--eval SET @a=LOAD_FILE('$MYSQLD_DATADIR/test/t1.xml')
 SELECT LEFT(@a,43);
 SELECT HEX(EXTRACTVALUE(@a,'/t1/line/node'));
 --remove_file $MYSQLD_DATADIR/test/t1.xml
@@ -321,7 +319,8 @@ INSERT INTO t1 VALUES ('&<>"\'');
 SELECT node, hex(node) FROM t1;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/t1.xml
-SET @a=LOAD_FILE('test/t1.xml');
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+--eval SET @a=LOAD_FILE('$MYSQLD_DATADIR/test/t1.xml')
 SELECT CAST(@a AS CHAR CHARACTER SET latin1);
 --remove_file $MYSQLD_DATADIR/test/t1.xml
 

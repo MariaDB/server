@@ -1,8 +1,8 @@
 #ifndef SQL_ITEM_INCLUDED
 #define SQL_ITEM_INCLUDED
 
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013 Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2013 Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -384,6 +384,12 @@ struct Name_resolution_context: Sql_alloc
   {
     (*error_processor)(thd, error_processor_data);
   }
+  st_select_lex *outer_select()
+  {
+    return (outer_context ?
+            outer_context->select_lex :
+            NULL);
+  }
 };
 
 
@@ -593,7 +599,8 @@ public:
              SUBSELECT_ITEM, ROW_ITEM, CACHE_ITEM, TYPE_HOLDER,
              PARAM_ITEM, TRIGGER_FIELD_ITEM, DECIMAL_ITEM,
              XPATH_NODESET, XPATH_NODESET_CMP,
-             VIEW_FIXER_ITEM, EXPR_CACHE_ITEM};
+             VIEW_FIXER_ITEM, EXPR_CACHE_ITEM,
+             DATE_ITEM};
 
   enum cond_result { COND_UNDEF,COND_OK,COND_TRUE,COND_FALSE };
 
@@ -950,7 +957,9 @@ public:
   my_decimal *val_decimal_from_date(my_decimal *decimal_value);
   my_decimal *val_decimal_from_time(my_decimal *decimal_value);
   longlong val_int_from_decimal();
+  longlong val_int_from_date();
   double val_real_from_decimal();
+  double val_real_from_date();
 
   int save_time_in_field(Field *field);
   int save_date_in_field(Field *field);
@@ -1107,8 +1116,8 @@ public:
   */
   virtual CHARSET_INFO *charset_for_protocol(void) const
   {
-    return result_type() == STRING_RESULT ? collation.collation :
-                                            &my_charset_bin;
+    return cmp_type() == STRING_RESULT ? collation.collation :
+                                         &my_charset_bin;
   };
 
   virtual bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
@@ -1466,6 +1475,12 @@ public:
     Return TRUE if the item points to a column of an outer-joined table.
   */
   virtual bool is_outer_field() const { DBUG_ASSERT(fixed); return FALSE; }
+
+  /**
+    Checks if this item or any of its decendents contains a subquery.
+  */
+  virtual bool has_subquery() const { return with_subselect; }
+
   Item* set_expr_cache(THD *thd);
 
   virtual Item_equal *get_item_equal() { return NULL; }
@@ -2754,40 +2769,220 @@ public:
 };
 
 
-class Item_hex_string: public Item_basic_constant
+/**
+  Item_hex_constant -- a common class for hex literals: X'HHHH' and 0xHHHH
+*/
+class Item_hex_constant: public Item_basic_constant
 {
+private:
+  void hex_string_init(const char *str, uint str_length);
 public:
-  Item_hex_string();
-  Item_hex_string(const char *str,uint str_length);
-  enum Type type() const { return VARBIN_ITEM; }
-  double val_real()
-  { 
-    DBUG_ASSERT(fixed == 1); 
-    return (double) (ulonglong) Item_hex_string::val_int();
+  Item_hex_constant()
+  {
+    hex_string_init("", 0);
   }
-  longlong val_int();
-  bool basic_const_item() const { return 1; }
-  String *val_str(String*) { DBUG_ASSERT(fixed == 1); return &str_value; }
-  my_decimal *val_decimal(my_decimal *);
-  int save_in_field(Field *field, bool no_conversions);
+  Item_hex_constant(const char *str, uint str_length)
+  {
+    hex_string_init(str, str_length);
+  }
+  enum Type type() const { return VARBIN_ITEM; }
   enum Item_result result_type () const { return STRING_RESULT; }
-  enum Item_result cast_to_int_type() const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
-  virtual void print(String *str, enum_query_type query_type);
-  bool eq(const Item *item, bool binary_cmp) const;
   virtual Item *safe_charset_converter(CHARSET_INFO *tocs);
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
   bool check_vcol_func_processor(uchar *arg) { return FALSE;}
-private:
-  void hex_string_init(const char *str, uint str_length);
+  bool basic_const_item() const { return 1; }
+  bool eq(const Item *item, bool binary_cmp) const;
+  String *val_str(String*) { DBUG_ASSERT(fixed == 1); return &str_value; }
 };
 
 
-class Item_bin_string: public Item_hex_string
+/**
+  Item_hex_hybrid -- is a class implementing 0xHHHH literals, e.g.:
+    SELECT 0x3132;
+  They can behave as numbers and as strings depending on context.
+*/
+class Item_hex_hybrid: public Item_hex_constant
+{
+public:
+  Item_hex_hybrid(): Item_hex_constant() {}
+  Item_hex_hybrid(const char *str, uint str_length):
+    Item_hex_constant(str, str_length) {}
+  double val_real()
+  { 
+    DBUG_ASSERT(fixed == 1); 
+    return (double) (ulonglong) Item_hex_hybrid::val_int();
+  }
+  longlong val_int();
+  my_decimal *val_decimal(my_decimal *decimal_value)
+  {
+    // following assert is redundant, because fixed=1 assigned in constructor
+    DBUG_ASSERT(fixed == 1);
+    ulonglong value= (ulonglong) Item_hex_hybrid::val_int();
+    int2my_decimal(E_DEC_FATAL_ERROR, value, TRUE, decimal_value);
+    return decimal_value;
+  }
+  int save_in_field(Field *field, bool no_conversions);
+  enum Item_result cast_to_int_type() const { return INT_RESULT; }
+  void print(String *str, enum_query_type query_type);
+};
+
+
+/**
+  Item_hex_string -- is a class implementing X'HHHH' literals, e.g.:
+    SELECT X'3132';
+  Unlike Item_hex_hybrid, X'HHHH' literals behave as strings in all contexts.
+  X'HHHH' are also used in replication of string constants in case of
+  "dangerous" charsets (sjis, cp932, big5, gbk) who can have backslash (0x5C)
+  as the second byte of a multi-byte character, so using '\' escaping for
+  these charsets is not desirable.
+*/
+class Item_hex_string: public Item_hex_constant
+{
+public:
+  Item_hex_string(): Item_hex_constant() {}
+  Item_hex_string(const char *str, uint str_length):
+    Item_hex_constant(str, str_length) {}
+  longlong val_int()
+  {
+    DBUG_ASSERT(fixed == 1);
+    return longlong_from_string_with_check(str_value.charset(),
+                                           str_value.ptr(),
+                                           str_value.ptr()+
+                                           str_value.length());
+  }
+  double val_real()
+  { 
+    DBUG_ASSERT(fixed == 1);
+    return double_from_string_with_check(str_value.charset(),
+                                         str_value.ptr(), 
+                                         str_value.ptr() +
+                                         str_value.length());
+  }
+  my_decimal *val_decimal(my_decimal *decimal_value)
+  {
+    return val_decimal_from_string(decimal_value);
+  }
+  int save_in_field(Field *field, bool no_conversions)
+  {
+    field->set_notnull();
+    return field->store(str_value.ptr(), str_value.length(), 
+                        collation.collation);
+  }
+  enum Item_result cast_to_int_type() const { return STRING_RESULT; }
+  void print(String *str, enum_query_type query_type);
+};
+
+
+class Item_bin_string: public Item_hex_hybrid
 {
 public:
   Item_bin_string(const char *str,uint str_length);
 };
+
+
+class Item_temporal_literal :public Item_basic_constant
+{
+    //sql_mode= current_thd->variables.sql_mode &
+    //               (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
+protected:
+  MYSQL_TIME cached_time;
+public:
+  /**
+    Constructor for Item_date_literal.
+    @param ltime  DATE value.
+  */
+  Item_temporal_literal(MYSQL_TIME *ltime) :Item_basic_constant()
+  {
+    collation.set(&my_charset_numeric, DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
+    decimals= 0;
+    cached_time= *ltime;
+  }
+  Item_temporal_literal(MYSQL_TIME *ltime, uint dec_arg) :Item_basic_constant()
+  {
+    collation.set(&my_charset_numeric, DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
+    decimals= dec_arg;
+    cached_time= *ltime;
+  }
+  bool basic_const_item() const { return true; }
+  bool const_item() const { return true; }
+  enum Type type() const { return DATE_ITEM; }
+  bool eq(const Item *item, bool binary_cmp) const;
+  enum Item_result result_type () const { return STRING_RESULT; }
+  Item_result cmp_type() const { return TIME_RESULT; }
+
+  bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
+
+  String *val_str(String *str)
+  { return val_string_from_date(str); }
+  longlong val_int()
+  { return val_int_from_date(); }
+  double val_real()
+  { return val_real_from_date(); }
+  my_decimal *val_decimal(my_decimal *decimal_value)
+  { return  val_decimal_from_date(decimal_value); }
+  Field *tmp_table_field(TABLE *table)
+  { return tmp_table_field_from_field_type(table, 0); }
+  int save_in_field(Field *field, bool no_conversions)
+  { return save_date_in_field(field); }
+};
+
+
+/**
+  DATE'2010-01-01'
+*/
+class Item_date_literal: public Item_temporal_literal
+{
+public:
+  Item_date_literal(MYSQL_TIME *ltime)
+    :Item_temporal_literal(ltime)
+  {
+    max_length= MAX_DATE_WIDTH;
+    fixed= 1;
+  }
+  enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  void print(String *str, enum_query_type query_type);
+  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+};
+
+
+/**
+  TIME'10:10:10'
+*/
+class Item_time_literal: public Item_temporal_literal
+{
+public:
+  Item_time_literal(MYSQL_TIME *ltime, uint dec_arg)
+    :Item_temporal_literal(ltime, dec_arg)
+  {
+    max_length= MIN_TIME_WIDTH + (decimals ? decimals + 1 : 0);
+    fixed= 1;
+  }
+  enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  void print(String *str, enum_query_type query_type);
+  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+};
+
+
+/**
+  TIMESTAMP'2001-01-01 10:20:30'
+*/
+class Item_datetime_literal: public Item_temporal_literal
+{
+public:
+  Item_datetime_literal(MYSQL_TIME *ltime, uint dec_arg)
+    :Item_temporal_literal(ltime, dec_arg)
+  {
+    max_length= MAX_DATETIME_WIDTH + (decimals ? decimals + 1 : 0);
+    fixed= 1;
+  }
+  enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  void print(String *str, enum_query_type query_type);
+  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+};
+
+
 
 class Item_result_field :public Item	/* Item with result field */
 {
@@ -2986,6 +3181,14 @@ public:
     DBUG_ASSERT(fixed);
     DBUG_ASSERT(ref);
     return (*ref)->is_outer_field();
+  }
+
+  /**
+    Checks if the item tree that ref points to contains a subquery.
+  */
+  virtual bool has_subquery() const 
+  { 
+    return (*ref)->has_subquery();
   }
 };
 

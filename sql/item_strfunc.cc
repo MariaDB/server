@@ -62,6 +62,8 @@ C_MODE_END
 #include <sql_repl.h>
 #include "sql_statistics.h"
 
+size_t username_char_length= 16;
+
 /**
    @todo Remove this. It is not safe to use a shared String object.
  */
@@ -3970,7 +3972,9 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
         type= DYN_COL_NULL;
         break;
       case MYSQL_TYPE_TIMESTAMP:
+      case MYSQL_TYPE_TIMESTAMP2:
       case MYSQL_TYPE_DATETIME:
+      case MYSQL_TYPE_DATETIME2:
         type= DYN_COL_DATETIME;
 	break;
       case MYSQL_TYPE_DATE:
@@ -3978,6 +3982,7 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
         type= DYN_COL_DATE;
         break;
       case MYSQL_TYPE_TIME:
+      case MYSQL_TYPE_TIME2:
         type= DYN_COL_TIME;
         break;
       case MYSQL_TYPE_VARCHAR:
@@ -4720,7 +4725,7 @@ bool Item_dyncol_get::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     if (str_to_datetime_with_warn(&my_charset_numeric,
                                   val.x.string.value.str,
                                   val.x.string.value.length,
-                                  ltime, fuzzy_date) <= MYSQL_TIMESTAMP_ERROR)
+                                  ltime, fuzzy_date))
       goto null;
     return 0;
   case DYN_COL_DATETIME:

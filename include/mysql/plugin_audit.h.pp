@@ -1,4 +1,5 @@
 #include "plugin.h"
+typedef char my_bool;
 #include <mysql/services.h>
 #include <mysql/service_my_snprintf.h>
 extern struct my_snprintf_service_st {
@@ -85,6 +86,27 @@ extern struct kill_statement_service_st {
   enum thd_kill_levels (*thd_kill_level_func)(const void*);
 } *thd_kill_statement_service;
 enum thd_kill_levels thd_kill_level(const void*);
+#include <mysql/service_thd_timezone.h>
+#include "mysql_time.h"
+typedef long my_time_t;
+enum enum_mysql_timestamp_type
+{
+  MYSQL_TIMESTAMP_NONE= -2, MYSQL_TIMESTAMP_ERROR= -1,
+  MYSQL_TIMESTAMP_DATE= 0, MYSQL_TIMESTAMP_DATETIME= 1, MYSQL_TIMESTAMP_TIME= 2
+};
+typedef struct st_mysql_time
+{
+  unsigned int year, month, day, hour, minute, second;
+  unsigned long second_part;
+  my_bool neg;
+  enum enum_mysql_timestamp_type time_type;
+} MYSQL_TIME;
+extern struct thd_timezone_service_st {
+  my_time_t (*thd_TIME_to_gmt_sec)(void* thd, const MYSQL_TIME *ltime, unsigned int *errcode);
+  void (*thd_gmt_sec_to_TIME)(void* thd, MYSQL_TIME *ltime, my_time_t t);
+} *thd_timezone_service;
+my_time_t thd_TIME_to_gmt_sec(void* thd, const MYSQL_TIME *ltime, unsigned int *errcode);
+void thd_gmt_sec_to_TIME(void* thd, MYSQL_TIME *ltime, my_time_t t);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;
@@ -271,6 +293,27 @@ struct mysql_event_connection
   unsigned int ip_length;
   const char *database;
   unsigned int database_length;
+};
+struct mysql_event_table
+{
+  unsigned int event_subclass;
+  unsigned long thread_id;
+  const char *user;
+  const char *priv_user;
+  const char *priv_host;
+  const char *external_user;
+  const char *proxy_user;
+  const char *host;
+  const char *ip;
+  const char *database;
+  unsigned int database_length;
+  const char *table;
+  unsigned int table_length;
+  int read_only;
+  const char *new_database;
+  unsigned int new_database_length;
+  const char *new_table;
+  unsigned int new_table_length;
 };
 struct st_mysql_audit
 {

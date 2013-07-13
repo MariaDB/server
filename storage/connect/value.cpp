@@ -88,12 +88,13 @@ PSZ strlwr(PSZ s);
 }
 #endif   // !WIN32
 
+#ifdef NOT_USED
 /***********************************************************************/
 /*  Returns the bitmap representing the conditions that must not be    */
 /*  met when returning from TestValue for a given operator.            */
 /*  Bit one is EQ, bit 2 is LT, and bit 3 is GT.                       */
 /***********************************************************************/
-BYTE OpBmp(PGLOBAL g, OPVAL opc)
+static BYTE OpBmp(PGLOBAL g, OPVAL opc)
   {
   BYTE bt;
 
@@ -113,6 +114,7 @@ BYTE OpBmp(PGLOBAL g, OPVAL opc)
 
   return bt;
   } // end of OpBmp
+#endif
 
 /***********************************************************************/
 /*  GetTypeName: returns the PlugDB internal type name.                */
@@ -153,46 +155,6 @@ int GetTypeSize(int type, int len)
 
   return len;
   } // end of GetTypeSize
-
-/***********************************************************************/
-/*  GetPLGType: returns the PlugDB type corresponding to a DB type.    */
-/***********************************************************************/
-int GetPLGType(int type)
-  {
-  int tp;
-
-  switch (type) {
-    case DB_CHAR:
-    case DB_STRING: tp = TYPE_STRING; break;
-    case DB_SHORT:  tp = TYPE_SHORT;  break;
-    case DB_INT:    tp = TYPE_INT;   break;
-    case DB_DOUBLE: tp = TYPE_FLOAT;  break;
-    case DB_DATE:   tp = TYPE_DATE;   break;
-    default:        tp = TYPE_ERROR;
-    } // endswitch type
-
-  return tp;
-  } // end of GetPLGType
-
-/***********************************************************************/
-/*  GetDBType: returns the DB type corresponding to a PlugDB type.     */
-/***********************************************************************/
-int GetDBType(int type)
-  {
-  int tp;
-
-  switch (type) {
-    case TYPE_STRING: tp = DB_CHAR;   break;
-    case TYPE_SHORT:  tp = DB_SHORT;  break;
-    case TYPE_INT:    tp = DB_INT;    break;
-    case TYPE_BIGINT:
-    case TYPE_FLOAT:  tp = DB_DOUBLE; break;
-    case TYPE_DATE:   tp = DB_DATE;   break;
-    default:          tp = DB_ERROR;
-    } // endswitch type
-
-  return tp;
-  } // end of GetPLGType
 
 /***********************************************************************/
 /*  GetFormatType: returns the FORMAT character(s) according to type.  */
@@ -606,7 +568,7 @@ void TYPVAL<TYPE>::SetValue_char(char *p, int n)
   if (minus && Tval)
     Tval = - Tval;
 
-  if (trace)
+  if (trace > 1)
     htrc(strcat(strcat(strcpy(buf, " setting %s to: "), Fmt), "\n"),
                               GetTypeName(Type), Tval);
 
@@ -616,19 +578,25 @@ void TYPVAL<TYPE>::SetValue_char(char *p, int n)
 template <>
 void TYPVAL<double>::SetValue_char(char *p, int n)
   {
-  char *p2, buf[32];
+  if (p) {
+    char *p2, buf[32];
 
-  for (p2 = p + n; p < p2 && *p == ' '; p++) ;
+    for (p2 = p + n; p < p2 && *p == ' '; p++) ;
 
-  n = min(p2 - p, 31);
-  memcpy(buf, p, n);
-  buf[n] = '\0';
-  Tval = atof(buf);
+    n = min(p2 - p, 31);
+    memcpy(buf, p, n);
+    buf[n] = '\0';
+    Tval = atof(buf);
 
-  if (trace)
-    htrc(" setting double: '%s' -> %lf\n", buf, Tval);
+    if (trace > 1)
+      htrc(" setting double: '%s' -> %lf\n", buf, Tval);
 
-  Null = false;
+    Null = false;
+  } else {
+    Reset();
+    Null = Nullable;
+  } // endif p
+
   } // end of SetValue
 
 /***********************************************************************/
@@ -637,8 +605,14 @@ void TYPVAL<double>::SetValue_char(char *p, int n)
 template <class TYPE>
 void TYPVAL<TYPE>::SetValue_psz(PSZ s)
   {
-  Tval = GetTypedValue(s);
-  Null = false;
+  if (s) {
+    Tval = GetTypedValue(s);
+    Null = false;
+  } else {
+    Reset();
+    Null = Nullable;
+  } // endif p
+
   } // end of SetValue
 
 template <>
@@ -933,17 +907,23 @@ bool TYPVAL<PSZ>::SetValue_pval(PVAL valp, bool chktype)
 /***********************************************************************/
 void TYPVAL<PSZ>::SetValue_char(char *p, int n)
   {
-  n = min(n, Len);
-  strncpy(Strp, p, n);
+  if (p) {
+    n = min(n, Len);
+    strncpy(Strp, p, n);
 
-  for (p = Strp + n - 1; (*p == ' ' || *p == '\0') && p >= Strp; p--) ;
+    for (p = Strp + n - 1; (*p == ' ' || *p == '\0') && p >= Strp; p--) ;
 
-  *(++p) = '\0';
+    *(++p) = '\0';
 
-  if (trace)
-    htrc(" Setting string to: '%s'\n", Strp);
+    if (trace > 1)
+      htrc(" Setting string to: '%s'\n", Strp);
 
-  Null = false;
+    Null = false;
+  } else {
+    Reset();
+    Null = Nullable;
+  } // endif p
+
   } // end of SetValue_char
 
 /***********************************************************************/
@@ -951,8 +931,14 @@ void TYPVAL<PSZ>::SetValue_char(char *p, int n)
 /***********************************************************************/
 void TYPVAL<PSZ>::SetValue_psz(PSZ s)
   {
-  strncpy(Strp, s, Len);
-  Null = false;
+  if (s) {
+    strncpy(Strp, s, Len);
+    Null = false;
+  } else {
+    Reset();
+    Null = Nullable;
+  } // endif s
+
   } // end of SetValue_psz
 
 /***********************************************************************/
@@ -1048,7 +1034,6 @@ void TYPVAL<PSZ>::SetValue(char c)
 void TYPVAL<PSZ>::SetBinValue(void *p)
   {
   SetValue_char((char *)p, Len);
-  Null = false;
   } // end of SetBinValue
 
 /***********************************************************************/
@@ -1143,10 +1128,13 @@ bool TYPVAL<PSZ>::IsEqual(PVAL vp, bool chktype)
     return false;
   else if (Null || vp->IsNull())
     return false;
-  else if (Ci || vp->IsCi())
-    return !stricmp(Strp, vp->GetCharValue());
+
+  char buf[32];
+
+  if (Ci || vp->IsCi())
+    return !stricmp(Strp, vp->GetCharString(buf));
   else // (!Ci)
-    return !strcmp(Strp, vp->GetCharValue());
+    return !strcmp(Strp, vp->GetCharString(buf));
 
   } // end of IsEqual
 
@@ -1261,9 +1249,6 @@ void DTVAL::SetTimeShift(void)
 /*  though the gmtime C function. The purpose of this function is to   */
 /*  extend the range of valid dates by accepting negative time values. */
 /***********************************************************************/
-#define MYSQL_SERVER 1
-#include "tztime.h"
-#include "sql_priv.h"
 #include "sql_class.h"
 #include "sql_time.h"
 
@@ -1282,15 +1267,14 @@ static void TIME_to_localtime(struct tm *tm, const MYSQL_TIME *ltime)
 static struct tm *gmtime_mysql(const time_t *timep, struct tm *tm)
 {
   MYSQL_TIME ltime;
-  current_thd->variables.time_zone->gmt_sec_to_TIME(&ltime, (my_time_t) *timep);
+  thd_gmt_sec_to_TIME(current_thd, &ltime, (my_time_t) *timep);
   TIME_to_localtime(tm, &ltime);
   return tm;
 }
 
 
-struct tm *DTVAL::GetGmTime(void)
+struct tm *DTVAL::GetGmTime(struct tm *tm_buffer)
   {
-  static struct tm tm_static; /* TODO: Move as a parameter to GetGmTime() */
   struct tm *datm;
   time_t t = (time_t)Tval;
 
@@ -1300,13 +1284,13 @@ struct tm *DTVAL::GetGmTime(void)
     for (n = 0; t < 0; n += 4)
       t += FOURYEARS;
 
-    datm = gmtime_mysql(&t, &tm_static);
+    datm = gmtime_mysql(&t, tm_buffer);
 
     if (datm)
       datm->tm_year -= n;
 
   } else
-    datm = gmtime_mysql(&t, &tm_static);
+    datm = gmtime_mysql(&t, tm_buffer);
 
   return datm;
   } // end of GetGmTime
@@ -1332,7 +1316,7 @@ bool DTVAL::MakeTime(struct tm *ptm)
   int    n, y = ptm->tm_year;
   time_t t = mktime_mysql(ptm);
 
-  if (trace)
+  if (trace > 1)
     htrc("MakeTime from (%d,%d,%d,%d,%d,%d)\n", 
           ptm->tm_year, ptm->tm_mon, ptm->tm_mday,
           ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
@@ -1355,7 +1339,7 @@ bool DTVAL::MakeTime(struct tm *ptm)
   }
   Tval= (int) t;
 
-  if (trace)
+  if (trace > 1)
     htrc("MakeTime Ival=%d\n", Tval); 
 
   return false;
@@ -1375,7 +1359,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
   datm.tm_mon=0;
   datm.tm_year=70;
 
-  if (trace)
+  if (trace > 1)
     htrc("MakeDate from(%d,%d,%d,%d,%d,%d) nval=%d\n",
     val[0], val[1], val[2], val[3], val[4], val[5], nval);
 
@@ -1439,7 +1423,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
 
     } // endfor i
 
-  if (trace)
+  if (trace > 1)
     htrc("MakeDate datm=(%d,%d,%d,%d,%d,%d)\n", 
     datm.tm_year, datm.tm_mon, datm.tm_mday,
     datm.tm_hour, datm.tm_min, datm.tm_sec);
@@ -1500,7 +1484,7 @@ void DTVAL::SetValue_char(char *p, int n)
     ndv = ExtractDate(Sdate, Pdtp, DefYear, dval);
     MakeDate(NULL, dval, ndv);
 
-    if (trace)
+    if (trace > 1)
       htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
 
     Null = false;
@@ -1524,7 +1508,7 @@ void DTVAL::SetValue_psz(PSZ p)
     ndv = ExtractDate(Sdate, Pdtp, DefYear, dval);
     MakeDate(NULL, dval, ndv);
 
-    if (trace)
+    if (trace > 1)
       htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
 
     Null = false;
@@ -1556,7 +1540,7 @@ char *DTVAL::GetCharString(char *p)
   {
   if (Pdtp) {
     size_t n = 0;
-    struct tm *ptm = GetGmTime();
+    struct tm tm, *ptm= GetGmTime(&tm);
 
     if (ptm)
       n = strftime(Sdate, Len + 1, Pdtp->OutFmt, ptm);
@@ -1582,7 +1566,7 @@ char *DTVAL::ShowValue(char *buf, int len)
   if (Pdtp) {
     char  *p;
     size_t m, n = 0;
-    struct tm *ptm = GetGmTime();
+    struct tm tm, *ptm = GetGmTime(&tm);
 
     if (Len < len) {
       p = buf;
@@ -1612,7 +1596,7 @@ char *DTVAL::ShowValue(char *buf, int len)
 bool DTVAL::GetTmMember(OPVAL op, int& mval)
   {
   bool       rc = false;
-  struct tm *ptm = GetGmTime();
+  struct tm tm, *ptm = GetGmTime(&tm);
 
   switch (op) {
     case OP_MDAY:  mval = ptm->tm_mday;        break;
@@ -1640,7 +1624,7 @@ bool DTVAL::WeekNum(PGLOBAL g, int& nval)
   {
   // w is the start of the week SUN=0, MON=1, etc.
   int        m, n, w = nval % 7;
-  struct tm *ptm = GetGmTime();
+  struct tm tm, *ptm = GetGmTime(&tm);
 
   // Which day is January 4th of this year?
   m = (367 + ptm->tm_wday - ptm->tm_yday) % 7;
@@ -1664,7 +1648,7 @@ bool DTVAL::WeekNum(PGLOBAL g, int& nval)
 bool DTVAL::FormatValue(PVAL vp, char *fmt)
   {
   char      *buf = (char*)vp->GetTo_Val();       // Should be big enough
-  struct tm *ptm = GetGmTime();
+  struct tm tm, *ptm = GetGmTime(&tm);
 
   if (trace)
     htrc("FormatValue: ptm=%p len=%d\n", ptm, vp->GetValLen());

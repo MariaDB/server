@@ -35,6 +35,7 @@
 #include "sql_cache.h"                          // query_cache_abort
 #include "sql_base.h"                           // close_thread_tables
 #include "sql_time.h"                         // date_time_format_copy
+#include "tztime.h"                           // MYSQL_TIME <-> my_time_t
 #include "sql_acl.h"                          // NO_ACCESS,
                                               // acl_getroot_no_password
 #include "sql_base.h"                         // close_temporary_tables
@@ -1412,10 +1413,16 @@ MYSQL_ERROR* THD::raise_condition(uint sql_errno,
 
   query_cache_abort(&query_cache_tls);
 
-  /* When simulating OOM, skip writing to error log to avoid mtr errors */
-  DBUG_EXECUTE_IF("simulate_out_of_memory", DBUG_RETURN(NULL););
-
-  cond= warning_info->push_warning(this, sql_errno, sqlstate, level, msg);
+  /* 
+     Avoid pushing a condition for fatal out of memory errors as this will 
+     require memory allocation and therefore might fail. Non fatal out of 
+     memory errors can occur if raised by SIGNAL/RESIGNAL statement.
+  */
+  if (!(is_fatal_error && (sql_errno == EE_OUTOFMEMORY ||
+                           sql_errno == ER_OUTOFMEMORY)))
+  {
+    cond= warning_info->push_warning(this, sql_errno, sqlstate, level, msg);
+  }
   DBUG_RETURN(cond);
 }
 
@@ -1463,6 +1470,26 @@ void thd_get_xid(const MYSQL_THD thd, MYSQL_XID *xid)
 {
   *xid = *(MYSQL_XID *) &thd->transaction.xid_state.xid;
 }
+
+
+extern "C"
+my_time_t thd_TIME_to_gmt_sec(MYSQL_THD thd, const MYSQL_TIME *ltime,
+                              unsigned int *errcode)
+{
+  Time_zone *tz= thd ? thd->variables.time_zone :
+                       global_system_variables.time_zone;
+  return tz->TIME_to_gmt_sec(ltime, errcode);
+}
+
+
+extern "C"
+void thd_gmt_sec_to_TIME(MYSQL_THD thd, MYSQL_TIME *ltime, my_time_t t)
+{
+  Time_zone *tz= thd ? thd->variables.time_zone :
+                       global_system_variables.time_zone;
+  tz->gmt_sec_to_TIME(ltime, t);
+}
+
 
 #ifdef _WIN32
 extern "C"   THD *_current_thd_noinline(void)
@@ -2358,7 +2385,7 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, long key_length)
 				      key_length + 1);
   if (!new_table)
   {
-    my_error(EE_OUTOFMEMORY, MYF(ME_BELL),
+    my_error(EE_OUTOFMEMORY, MYF(ME_BELL+ME_FATALERROR),
              ALIGN_SIZE(sizeof(TABLE_LIST)) + key_length + 1);
     killed= KILL_CONNECTION;
     return 0;
@@ -2831,7 +2858,7 @@ select_export::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
   bool string_results= FALSE, non_string_results= FALSE;
   unit= u;
   if ((uint) strlen(exchange->file_name) + NAME_LEN >= FN_REFLEN)
-    strmake(path,exchange->file_name,FN_REFLEN-1);
+    strmake_buf(path,exchange->file_name);
 
   write_cs= exchange->cs ? exchange->cs : &my_charset_bin;
 
@@ -2969,7 +2996,7 @@ int select_export::send_data(List<Item> &items)
       set_if_smaller(estimated_bytes, UINT_MAX32);
       if (cvt_str.realloc((uint32) estimated_bytes))
       {
-        my_error(ER_OUTOFMEMORY, MYF(0), (uint32) estimated_bytes);
+        my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), (uint32) estimated_bytes);
         goto err;
       }
 

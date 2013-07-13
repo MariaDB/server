@@ -69,6 +69,7 @@ class XMLDOCUMENT : public BLOCK {
   // Properties
   virtual short   GetDocType(void) = 0;
   virtual void   *GetDocPtr(void) = 0;
+  virtual void    SetNofree(bool b) = 0;
 
   // Methods
   virtual bool    Initialize(PGLOBAL) = 0;

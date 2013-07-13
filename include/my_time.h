@@ -29,16 +29,6 @@ C_MODE_START
 extern ulonglong log_10_int[20];
 extern uchar days_in_month[];
 
-/*
-  Portable time_t replacement.
-  Should be signed and hold seconds for 1902 -- 2038-01-19 range
-  i.e at least a 32bit variable
-
-  Using the system built in time_t is not an option as
-  we rely on the above requirements in the time functions
-*/
-typedef long my_time_t;
-
 #define MY_TIME_T_MAX LONG_MAX
 #define MY_TIME_T_MIN LONG_MIN
 
@@ -88,14 +78,27 @@ typedef long my_time_t;
 #define TIME_MAX_VALUE_SECONDS (TIME_MAX_HOUR * 3600L + \
                                 TIME_MAX_MINUTE * 60L + TIME_MAX_SECOND)
 
+/*
+  Structure to return status from
+    str_to_datetime(), str_to_time().
+*/
+typedef struct st_mysql_time_status
+{
+  int warnings;
+  uint precision;
+} MYSQL_TIME_STATUS;
+
+static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
+{
+  status->warnings= status->precision= 0;
+}
+
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
                    ulonglong flags, int *was_cut);
-enum enum_mysql_timestamp_type
-str_to_time(const char *str, uint length, MYSQL_TIME *l_time, 
-            ulonglong flag, int *warning);
-enum enum_mysql_timestamp_type
-str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
-                ulonglong flags, int *was_cut);
+my_bool str_to_time(const char *str, uint length, MYSQL_TIME *l_time, 
+                    ulonglong flag, MYSQL_TIME_STATUS *status);
+my_bool str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
+                        ulonglong flags, MYSQL_TIME_STATUS *status);
 longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
                             ulonglong flags, int *was_cut);
 
@@ -117,10 +120,12 @@ ulonglong TIME_to_ulonglong_time(const MYSQL_TIME *);
 ulonglong TIME_to_ulonglong(const MYSQL_TIME *);
 double TIME_to_double(const MYSQL_TIME *my_time);
 
-longlong pack_time(MYSQL_TIME *my_time);
+longlong pack_time(const MYSQL_TIME *my_time);
 MYSQL_TIME *unpack_time(longlong packed, MYSQL_TIME *my_time);
 
 int check_time_range(struct st_mysql_time *my_time, uint dec, int *warning);
+my_bool check_datetime_range(const MYSQL_TIME *ltime);
+
 
 long calc_daynr(uint year,uint month,uint day);
 uint calc_days_in_year(uint year);
@@ -173,6 +178,8 @@ int my_date_to_str(const MYSQL_TIME *l_time, char *to);
 int my_datetime_to_str(const MYSQL_TIME *l_time, char *to, uint digits);
 int my_TIME_to_str(const MYSQL_TIME *l_time, char *to, uint digits);
 
+int my_timeval_to_str(const struct timeval *tm, char *to, uint dec);
+
 static inline longlong sec_part_shift(longlong second_part, uint digits)
 {
   return second_part / (longlong)log_10_int[TIME_SECOND_PART_DIGITS - digits];
@@ -181,11 +188,22 @@ static inline longlong sec_part_unshift(longlong second_part, uint digits)
 {
   return second_part * (longlong)log_10_int[TIME_SECOND_PART_DIGITS - digits];
 }
-static inline ulong sec_part_truncate(ulong second_part, uint digits)
+
+/* Date/time rounding and truncation functions */
+static inline long my_time_fraction_remainder(long nr, uint decimals)
 {
-  /* the cast here should be unnecessary! */
-  return second_part - second_part % (ulong)log_10_int[TIME_SECOND_PART_DIGITS - digits];
+  DBUG_ASSERT(decimals <= TIME_SECOND_PART_DIGITS);
+  return nr % (long) log_10_int[TIME_SECOND_PART_DIGITS - decimals];
 }
+static inline void my_time_trunc(MYSQL_TIME *ltime, uint decimals)
+{
+  ltime->second_part-= my_time_fraction_remainder(ltime->second_part, decimals);
+}
+static inline void my_timeval_trunc(struct timeval *tv, uint decimals)
+{
+  tv->tv_usec-= my_time_fraction_remainder(tv->tv_usec, decimals);
+}
+
 
 #define hrtime_to_my_time(X) ((my_time_t)hrtime_to_time(X))
 

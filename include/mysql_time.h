@@ -1,4 +1,5 @@
-/* Copyright (C) 2004 MySQL AB
+/* Copyright (c) 2004, 2006 MySQL AB
+   Use is subject to license terms
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -15,6 +16,17 @@
 
 #ifndef _mysql_time_h_
 #define _mysql_time_h_
+
+/*
+  Portable time_t replacement.
+  Should be signed and hold seconds for 1902 -- 2038-01-19 range
+  i.e at least a 32bit variable
+
+  Using the system built in time_t is not an option as
+  we rely on the above requirements in the time functions   
+*/
+typedef long my_time_t;
+
 
 /*
   Time declarations shared between the server and client API:

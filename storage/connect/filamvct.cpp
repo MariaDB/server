@@ -10,15 +10,15 @@
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
 /*  This program are the VCT file access method classes.               */
-/*  Added in version 2:      F                                          */
+/*  Added in version 2:      F                                         */
 /*  - Split Vec format.                                                */
 /*  - Partial delete.                                                  */
-/*  - Use of tempfile for update.                                       */
+/*  - Use of tempfile for update.                                      */
 /*                                                                     */
 /***********************************************************************/
 
 /***********************************************************************/
-/*  Include relevant MariaDB header file.                  */
+/*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
 #if defined(WIN32)
@@ -35,7 +35,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
-//#define strerror(X) _strerror(X)
 #define NO_ERROR 0
 #else   // !UNIX
 #include <io.h>
@@ -204,7 +203,6 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
   {
   char      filename[_MAX_PATH];
   bool      rc = false;
-  int       k;
   size_t    n;
   VECHEADER vh;
   FILE     *s;
@@ -216,7 +214,7 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
       s = Stream;
 
       if (Header == 1)
-        k = fseek(s, 0, SEEK_SET);
+        /*k =*/ fseek(s, 0, SEEK_SET);
 
     } else
       s= global_fopen(g, MSGID_CANNOT_OPEN, filename, "r+b");
@@ -230,7 +228,7 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
     sprintf(g->Message, "Error opening header file %s", filename);
     return true;
   } else if (Header == 3)
-    k = fseek(s, -(int)sizeof(VECHEADER), SEEK_END);
+    /*k =*/ fseek(s, -(int)sizeof(VECHEADER), SEEK_END);
 
   vh.MaxRec = MaxBlk * Bsize;
   vh.NumRec = (Block - 1) * Nrec + Last;
@@ -775,10 +773,10 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
         /*  checked for compatibility with Text files and other OS's.  */
         /***************************************************************/
         char filename[_MAX_PATH];
-        int rc, h;
+        int h;
 
-        rc = CleanUnusedSpace(g);           // Clean last block
-        rc = PlugCloseFile(g, To_Fb);
+        /*rc =*/ CleanUnusedSpace(g);           // Clean last block
+        /*rc =*/ PlugCloseFile(g, To_Fb);
         Stream = NULL;                      // For SetBlockInfo
         PlugSetPath(filename, To_File, Tdbp->GetPath());
 
@@ -1705,7 +1703,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 void VCMFAM::CloseTableFile(PGLOBAL g)
   {
-  int  rc = 0, wrc = RC_OK;
+  int  wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
 
   if (mode == MODE_INSERT) {
@@ -1728,7 +1726,7 @@ void VCMFAM::CloseTableFile(PGLOBAL g)
     PlugCloseFile(g, To_Fb);
 
     if (wrc != RC_FX)
-      rc = ResetTableSize(g, Block, Last);
+      /*rc =*/ ResetTableSize(g, Block, Last);
 
   } else if (mode != MODE_DELETE)
     PlugCloseFile(g, To_Fb);
@@ -1823,7 +1821,7 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
   {
   char    opmode[4];
   int     i;
-  bool    b;
+  bool    b= false;
   PCOLDEF cdp;
   PVCTCOL cp;
   MODE    mode = Tdbp->GetMode();
@@ -2205,11 +2203,11 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
       /* for compatibility with other OS's.                            */
       /*****************************************************************/
       char filename[_MAX_PATH];
-      int  h, rc;                            // File handle, return code
+      int  h;                            // File handle, return code
 
       for (int i = 0; i < Ncol; i++) {
         sprintf(filename, Colfn, i + 1);
-        rc = PlugCloseFile(g, To_Fbs[i]);
+        /*rc =*/ PlugCloseFile(g, To_Fbs[i]);
 
         if ((h= global_open(g, MSGID_OPEN_STRERROR, filename, O_WRONLY)) <= 0)
           return RC_FX;
@@ -3118,7 +3116,6 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
   {
   char      filename[_MAX_PATH];
   int       n;
-  bool      b;
   VECHEADER vh;
   HANDLE    h;
 
@@ -3162,7 +3159,7 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
 
     return n;
   } else if (Header == 3) 
-    b =  BigSeek(g, h, -(BIGINT)sizeof(vh), true);
+    /*b = */ BigSeek(g, h, -(BIGINT)sizeof(vh), true);
     
   if (BigRead(g, h, &vh, sizeof(vh))) {
     sprintf(g->Message, "Error reading header file %s", filename);
@@ -3190,7 +3187,7 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
 bool BGVFAM::SetBlockInfo(PGLOBAL g)
   {
   char      filename[_MAX_PATH];
-  bool      bk, b = false, rc = false;
+  bool      b = false, rc = false;
   VECHEADER vh;
   HANDLE    h = INVALID_HANDLE_VALUE;
 
@@ -3201,7 +3198,7 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
       h = Hfile;
 
       if (Header == 1)
-        bk = BigSeek(g, h, (BIGINT)0);
+        /*bk =*/ BigSeek(g, h, (BIGINT)0);
 
     } else
       b = true;
@@ -3230,7 +3227,7 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
     } // endif h
 
   if (Header == 3)
-    bk = BigSeek(g, h, -(BIGINT)sizeof(vh), true);
+    /*bk =*/ BigSeek(g, h, -(BIGINT)sizeof(vh), true);
 
   vh.MaxRec = MaxBlk * Bsize;
   vh.NumRec = (Block - 1) * Nrec + Last;

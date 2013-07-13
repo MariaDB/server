@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2011 Monty Program Ab
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2011, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@
 #define YYTHD ((THD *)yythd)
 #define YYLIP (& YYTHD->m_parser_state->m_lip)
 #define YYPS (& YYTHD->m_parser_state->m_yacc)
+#define YYCSCL  YYTHD->variables.character_set_client
 
 #define MYSQL_YACC
 #define YYINITDEPTH 100
@@ -899,10 +900,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %pure_parser                                    /* We have threads */
 /*
-  Currently there are 170 shift/reduce conflicts.
+  Currently there are 167 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 170
+%expect 167
 
 /*
    Comments for TOKENS.
@@ -1133,6 +1134,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  HAVING                        /* SQL-2003-R */
 %token  HELP_SYM
 %token  HEX_NUM
+%token  HEX_STRING
 %token  HIGH_PRIORITY
 %token  HOST_SYM
 %token  HOSTS_SYM
@@ -1566,7 +1568,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %left  INTERVAL_SYM
 
 %type <lex_str>
-        IDENT IDENT_QUOTED TEXT_STRING DECIMAL_NUM FLOAT_NUM NUM LONG_NUM HEX_NUM
+        IDENT IDENT_QUOTED TEXT_STRING DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
+        HEX_NUM HEX_STRING hex_num_or_string
         LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident ident_or_text
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         NCHAR_STRING opt_component key_cache_name
@@ -1626,7 +1629,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         replace_lock_option opt_low_priority insert_lock_option load_data_lock
 
 %type <item>
-        literal text_literal insert_ident order_ident
+        literal text_literal insert_ident order_ident temporal_literal
         simple_ident expr opt_expr opt_else sum_expr in_sum_expr
         variable variable_aux bool_pri
         predicate bit_expr
@@ -4591,7 +4594,7 @@ partition:
         ;
 
 part_type_def:
-          opt_linear KEY_SYM '(' part_field_list ')'
+          opt_linear KEY_SYM opt_key_algo '(' part_field_list ')'
           {
             partition_info *part_info= Lex->part_info;
             part_info->list_of_part_fields= TRUE;
@@ -4615,6 +4618,25 @@ opt_linear:
           /* empty */ {}
         | LINEAR_SYM
           { Lex->part_info->linear_hash_ind= TRUE;}
+        ;
+
+opt_key_algo:
+          /* empty */
+          { Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_NONE;}
+        | ALGORITHM_SYM EQ real_ulong_num
+          {
+            switch ($3) {
+            case 1:
+              Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_51;
+              break;
+            case 2:
+              Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_55;
+              break;
+            default:
+              my_parse_error(ER(ER_SYNTAX_ERROR));
+              MYSQL_YYABORT;
+            }
+          }
         ;
 
 part_field_list:
@@ -4698,7 +4720,7 @@ opt_sub_part:
         | SUBPARTITION_SYM BY opt_linear HASH_SYM sub_part_func
           { Lex->part_info->subpart_type= HASH_PARTITION; }
           opt_num_subparts {}
-        | SUBPARTITION_SYM BY opt_linear KEY_SYM
+        | SUBPARTITION_SYM BY opt_linear KEY_SYM opt_key_algo
           '(' sub_part_field_list ')'
           {
             partition_info *part_info= Lex->part_info;
@@ -6157,6 +6179,11 @@ now_or_signed_literal:
           }
         | signed_literal
           { $$=$1; }
+        ;
+
+hex_num_or_string:
+          HEX_NUM {}
+        | HEX_STRING {}
         ;
 
 charset:
@@ -8715,7 +8742,48 @@ simple_expr:
               MYSQL_YYABORT;
           }
         | '{' ident expr '}'
-          { $$= $3; }
+          {
+            Item_string *item;
+            $$= NULL;
+            /*
+              If "expr" is reasonably short pure ASCII string literal,
+              try to parse known ODBC style date, time or timestamp literals,
+              e.g:
+              SELECT {d'2001-01-01'};
+              SELECT {t'10:20:30'};
+              SELECT {ts'2001-01-01 10:20:30'};
+            */
+            if ($3->type() == Item::STRING_ITEM &&
+               (item= (Item_string *) $3) &&
+                item->collation.repertoire == MY_REPERTOIRE_ASCII &&
+                item->str_value.length() < MAX_DATE_STRING_REP_LENGTH * 4)
+            {
+              enum_field_types type= MYSQL_TYPE_STRING;
+              LEX_STRING *ls= &$2;
+              if (ls->length == 1)
+              {
+                if (ls->str[0] == 'd')  /* {d'2001-01-01'} */
+                  type= MYSQL_TYPE_DATE;
+                else if (ls->str[0] == 't') /* {t'10:20:30'} */
+                  type= MYSQL_TYPE_TIME;
+              }
+              else if (ls->length == 2) /* {ts'2001-01-01 10:20:30'} */
+              {
+                if (ls->str[0] == 't' && ls->str[1] == 's')
+                  type= MYSQL_TYPE_DATETIME;
+              }
+              if (type != MYSQL_TYPE_STRING)
+              {
+                $$= create_temporal_literal(YYTHD,
+                                            item->str_value.ptr(),
+                                            item->str_value.length(),
+                                            item->str_value.charset(),
+                                            type, false);
+              }
+            }
+            if ($$ == NULL)
+              $$= $3;
+          }
         | MATCH ident_list_arg AGAINST '(' bit_expr fulltext_options ')'
           {
             $2->push_front($5);
@@ -12638,13 +12706,21 @@ text_string:
           }
         | HEX_NUM
           {
-            Item *tmp= new (YYTHD->mem_root) Item_hex_string($1.str, $1.length);
+            Item *tmp= new (YYTHD->mem_root) Item_hex_hybrid($1.str, $1.length);
             if (tmp == NULL)
               MYSQL_YYABORT;
             /*
               it is OK only emulate fix_fields, because we need only
               value of constant
             */
+            tmp->quick_fix_field();
+            $$= tmp->val_str((String*) 0);
+          }
+        | HEX_STRING
+          {
+            Item *tmp= new (YYTHD->mem_root) Item_hex_string($1.str, $1.length);
+            if (tmp == NULL)
+              MYSQL_YYABORT;
             tmp->quick_fix_field();
             $$= tmp->val_str((String*) 0);
           }
@@ -12696,6 +12772,7 @@ signed_literal:
 literal:
           text_literal { $$ = $1; }
         | NUM_literal { $$ = $1; }
+        | temporal_literal { $$= $1; }
         | NULL_SYM
           {
             $$ = new (YYTHD->mem_root) Item_null();
@@ -12717,6 +12794,12 @@ literal:
           }
         | HEX_NUM
           {
+            $$ = new (YYTHD->mem_root) Item_hex_hybrid($1.str, $1.length);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | HEX_STRING
+          {
             $$ = new (YYTHD->mem_root) Item_hex_string($1.str, $1.length);
             if ($$ == NULL)
               MYSQL_YYABORT;
@@ -12727,7 +12810,7 @@ literal:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | UNDERSCORE_CHARSET HEX_NUM
+        | UNDERSCORE_CHARSET hex_num_or_string
           {
             Item *tmp= new (YYTHD->mem_root) Item_hex_string($2.str, $2.length);
             if (tmp == NULL)
@@ -12784,9 +12867,6 @@ literal:
 
             $$= item_str;
           }
-        | DATE_SYM text_literal { $$ = $2; }
-        | TIME_SYM text_literal { $$ = $2; }
-        | TIMESTAMP text_literal { $$ = $2; }
         ;
 
 NUM_literal:
@@ -12834,6 +12914,31 @@ NUM_literal:
             }
           }
         ;
+
+
+temporal_literal:
+        DATE_SYM TEXT_STRING
+          {
+            if (!($$= create_temporal_literal(YYTHD, $2.str, $2.length, YYCSCL,
+                                              MYSQL_TYPE_DATE, true)))
+              MYSQL_YYABORT;
+          }
+        | TIME_SYM TEXT_STRING
+          {
+            if (!($$= create_temporal_literal(YYTHD, $2.str, $2.length, YYCSCL,
+                                              MYSQL_TYPE_TIME, true)))
+              MYSQL_YYABORT;
+          }
+        | TIMESTAMP TEXT_STRING
+          {
+            if (!($$= create_temporal_literal(YYTHD, $2.str, $2.length, YYCSCL,
+                                              MYSQL_TYPE_DATETIME, true)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+
+
 
 /**********************************************************************
 ** Creating different items.
@@ -13283,7 +13388,7 @@ user:
             $$->auth= empty_lex_str;
 
             if (check_string_char_length(&$$->user, ER(ER_USERNAME),
-                                         USERNAME_CHAR_LENGTH,
+                                         username_char_length,
                                          system_charset_info, 0))
               MYSQL_YYABORT;
           }
@@ -13298,7 +13403,7 @@ user:
             $$->auth= empty_lex_str;
 
             if (check_string_char_length(&$$->user, ER(ER_USERNAME),
-                                         USERNAME_CHAR_LENGTH,
+                                         username_char_length,
                                          system_charset_info, 0) ||
                 check_host_name(&$$->host))
               MYSQL_YYABORT;

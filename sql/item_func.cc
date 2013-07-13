@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -25,7 +25,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "sql_plugin.h"
 #include "sql_priv.h"
 /*
   It is necessary to include set_var.h instead of item.h because there
@@ -52,8 +52,6 @@
 #include "sp.h"
 #include "set_var.h"
 #include "debug_sync.h"
-#include <mysql/plugin.h>
-#include <mysql/service_thd_wait.h>
 
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
 #define sp_restore_security_context(A,B) while (0) {}
@@ -225,7 +223,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
       with_field= with_field || item->with_field;
       used_tables_cache|=     item->used_tables();
       const_item_cache&=      item->const_item();
-      with_subselect|=        item->with_subselect;
+      with_subselect|=        item->has_subquery();
     }
   }
   fix_length_and_dec();
@@ -5478,7 +5476,7 @@ enum Item_result Item_func_get_user_var::result_type() const
 void Item_func_get_user_var::print(String *str, enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("(@"));
-  str->append(name.str,name.length);
+  append_identifier(current_thd, str, name.str, name.length);
   str->append(')');
 }
 

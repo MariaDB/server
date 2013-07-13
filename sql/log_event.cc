@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -48,6 +48,7 @@
 #include <my_dir.h>
 #include "sql_show.h"    // append_identifier
 #include <strfunc.h>
+#include "compat56.h"
 
 #if WITH_WSREP
 #include "wsrep_mysqld.h"
@@ -675,16 +676,18 @@ static inline int read_str(const char **buf, const char *buf_end,
 
 
 /**
-  Transforms a string into "" or its expression in 0x... form.
+  Transforms a string into "" or its expression in X'HHHH' form.
 */
 
 char *str_to_hex(char *to, const char *from, uint len)
 {
   if (len)
   {
-    *to++= '0';
-    *to++= 'x';
+    *to++= 'X';
+    *to++= '\'';
     to= octet2hex(to, from, len);
+    *to++= '\'';
+    *to= '\0';
   }
   else
     to= strmov(to, "\"\"");
@@ -705,7 +708,7 @@ append_query_string(THD *thd, CHARSET_INFO *csinfo,
 {
   char *beg, *ptr;
   uint32 const orig_len= to->length();
-  if (to->reserve(orig_len + from->length()*2+3))
+  if (to->reserve(orig_len + from->length() * 2 + 4))
     return 1;
 
   beg= (char*) to->ptr() + to->length();
@@ -1273,7 +1276,9 @@ bool Log_event::write_header(IO_CACHE* file, ulong event_data_length)
 
 int Log_event::read_log_event(IO_CACHE* file, String* packet,
                               mysql_mutex_t* log_lock,
-                              uint8 checksum_alg_arg)
+                              uint8 checksum_alg_arg,
+                              const char *log_file_name_arg,
+                              bool* is_binlog_active)
 {
   ulong data_len;
   int result=0;
@@ -1283,6 +1288,10 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
 
   if (log_lock)
     mysql_mutex_lock(log_lock);
+
+  if (log_file_name_arg)
+    *is_binlog_active= mysql_bin_log.is_active(log_file_name_arg);
+
   if (my_b_read(file, (uchar*) buf, sizeof(buf)))
   {
     /*
@@ -2123,6 +2132,17 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       return 4;
     }
 
+  case MYSQL_TYPE_TIMESTAMP2:
+    {
+      char buf[MAX_DATE_STRING_REP_LENGTH];
+      struct timeval tm;
+      my_timestamp_from_binary(&tm, ptr, meta);
+      int buflen= my_timeval_to_str(&tm, buf, meta);
+      my_b_write(file, buf, buflen);
+      my_snprintf(typestr, typestr_length, "TIMESTAMP(%d)", meta);
+      return my_timestamp_binary_length(meta);
+    }
+
   case MYSQL_TYPE_DATETIME:
     {
       ulong d, t;
@@ -2137,15 +2157,41 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       return 8;
     }
 
+  case MYSQL_TYPE_DATETIME2:
+    {
+      char buf[MAX_DATE_STRING_REP_LENGTH];
+      MYSQL_TIME ltime;
+      longlong packed= my_datetime_packed_from_binary(ptr, meta);
+      TIME_from_longlong_datetime_packed(&ltime, packed);
+      int buflen= my_datetime_to_str(&ltime, buf, meta);
+      my_b_write_quoted(file, (uchar *) buf, buflen);
+      my_snprintf(typestr, typestr_length, "DATETIME(%d)", meta);
+      return my_datetime_binary_length(meta);
+    }
+
   case MYSQL_TYPE_TIME:
     {
-      uint32 i32= uint3korr(ptr);
-      my_b_printf(file, "'%02d:%02d:%02d'",
-                  i32 / 10000, (i32 % 10000) / 100, i32 % 100);
+      int32 tmp= sint3korr(ptr);
+      int32 i32= tmp >= 0 ? tmp : - tmp;
+      const char *sign= tmp < 0 ? "-" : "";
+      my_b_printf(file, "'%s%02d:%02d:%02d'",
+                  sign, i32 / 10000, (i32 % 10000) / 100, i32 % 100, i32);
       my_snprintf(typestr,  typestr_length, "TIME");
       return 3;
     }
-    
+
+  case MYSQL_TYPE_TIME2:
+    {
+      char buf[MAX_DATE_STRING_REP_LENGTH];
+      MYSQL_TIME ltime;
+      longlong packed= my_time_packed_from_binary(ptr, meta);
+      TIME_from_longlong_time_packed(&ltime, packed);
+      int buflen= my_time_to_str(&ltime, buf, meta);
+      my_b_write_quoted(file, (uchar *) buf, buflen);
+      my_snprintf(typestr, typestr_length, "TIME(%d)", meta);
+      return my_time_binary_length(meta);
+    }
+
   case MYSQL_TYPE_NEWDATE:
     {
       uint32 tmp= uint3korr(ptr);
@@ -7053,7 +7099,7 @@ void User_var_log_event::pack_info(THD *thd, Protocol* protocol)
             buf.append(" "))
           return;
         old_len= buf.length();
-        if (buf.reserve(old_len + val_len*2 + 2 + sizeof(" COLLATE ") +
+        if (buf.reserve(old_len + val_len * 2 + 3 + sizeof(" COLLATE ") +
                         MY_CS_NAME_SIZE))
           return;
         beg= const_cast<char *>(buf.ptr()) + old_len;
@@ -7096,10 +7142,9 @@ User_var_log_event(const char* buf, uint event_len,
   /*
     We don't know yet is_null value, so we must assume that name_len
     may have the bigger value possible, is_null= True and there is no
-    payload for val.
+    payload for val, or even that name_len is 0.
   */
-  if (0 == name_len ||
-      !valid_buffer_range<uint>(name_len, buf_start, name,
+  if (!valid_buffer_range<uint>(name_len, buf_start, name,
                                 event_len - UV_VAL_IS_NULL))
   {
     error= true;
@@ -7322,7 +7367,8 @@ void User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       char *hex_str;
       CHARSET_INFO *cs;
 
-      hex_str= (char *)my_malloc(2*val_len+1+2,MYF(MY_WME)); // 2 hex digits / byte
+      // 2 hex digits / byte
+      hex_str= (char *) my_malloc(2 * val_len + 1 + 3, MYF(MY_WME));
       if (!hex_str)
         return;
       str_to_hex(hex_str, val, val_len);
@@ -9868,7 +9914,7 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
   {
     m_coltype= reinterpret_cast<uchar*>(m_memory);
     for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
-      m_coltype[i]= m_table->field[i]->type();
+      m_coltype[i]= m_table->field[i]->binlog_type();
   }
 
   /*
@@ -10272,6 +10318,7 @@ int Table_map_log_event::do_apply_event(Relay_log_info const *rli)
 
   table_list->table_id= DBUG_EVALUATE_IF("inject_tblmap_same_id_maps_diff_table", 0, m_table_id);
   table_list->updating= 1;
+  table_list->required_type= FRMTYPE_TABLE;
   DBUG_PRINT("debug", ("table: %s is mapped to %u", table_list->table_name, table_list->table_id));
   enum_tbl_map_status tblmap_status= check_table_map(rli, table_list);
   if (tblmap_status == OK_TO_PROCESS)

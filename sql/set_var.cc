@@ -1,5 +1,5 @@
-/* Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+/* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 
 /* variable declarations are in sys_vars.cc now !!! */
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "sql_plugin.h"
 #include "sql_class.h"                   // set_var.h: session_var_ptr
 #include "set_var.h"
 #include "sql_priv.h"
@@ -251,16 +251,14 @@ uchar *sys_var::value_ptr(THD *thd, enum_var_type type, LEX_STRING *base)
     return session_value_ptr(thd, base);
 }
 
-bool sys_var::set_default(THD *thd, enum_var_type type)
+bool sys_var::set_default(THD *thd, set_var* var)
 {
-  set_var var(type, this, &null_lex_str, 0);
-
-  if (type == OPT_GLOBAL || scope() == GLOBAL)
-    global_save_default(thd, &var);
+  if (var->type == OPT_GLOBAL || scope() == GLOBAL)
+    global_save_default(thd, var);
   else
-    session_save_default(thd, &var);
+    session_save_default(thd, var);
 
-  return check(thd, &var) || update(thd, &var);
+  return check(thd, var) || update(thd, var);
 }
 
 
@@ -771,7 +769,7 @@ int set_var::light_check(THD *thd)
 */
 int set_var::update(THD *thd)
 {
-  return value ? var->update(thd, this) : var->set_default(thd, type);
+  return value ? var->update(thd, this) : var->set_default(thd, this);
 }
 
 

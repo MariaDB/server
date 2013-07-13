@@ -49,6 +49,9 @@ enum enum_field_types { MYSQL_TYPE_DECIMAL, MYSQL_TYPE_TINY,
    MYSQL_TYPE_DATETIME, MYSQL_TYPE_YEAR,
    MYSQL_TYPE_NEWDATE, MYSQL_TYPE_VARCHAR,
    MYSQL_TYPE_BIT,
+   MYSQL_TYPE_TIMESTAMP2,
+   MYSQL_TYPE_DATETIME2,
+   MYSQL_TYPE_TIME2,
                         MYSQL_TYPE_NEWDECIMAL=246,
    MYSQL_TYPE_ENUM=247,
    MYSQL_TYPE_SET=248,
@@ -143,6 +146,7 @@ const char *mysql_errno_to_sqlstate(unsigned int mysql_errno);
 my_bool my_thread_init(void);
 void my_thread_end(void);
 #include "mysql_time.h"
+typedef long my_time_t;
 enum enum_mysql_timestamp_type
 {
   MYSQL_TIMESTAMP_NONE= -2, MYSQL_TIMESTAMP_ERROR= -1,

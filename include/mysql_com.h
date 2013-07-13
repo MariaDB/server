@@ -24,7 +24,7 @@
 #define HOSTNAME_LENGTH 60
 #define SYSTEM_CHARSET_MBMAXLEN 3
 #define NAME_CHAR_LEN	64              /* Field/table name length */
-#define USERNAME_CHAR_LENGTH 16
+#define USERNAME_CHAR_LENGTH 128
 #define NAME_LEN                (NAME_CHAR_LEN*SYSTEM_CHARSET_MBMAXLEN)
 #define USERNAME_LENGTH         (USERNAME_CHAR_LENGTH*SYSTEM_CHARSET_MBMAXLEN)
 
@@ -400,6 +400,16 @@ enum enum_field_types { MYSQL_TYPE_DECIMAL, MYSQL_TYPE_TINY,
 			MYSQL_TYPE_DATETIME, MYSQL_TYPE_YEAR,
 			MYSQL_TYPE_NEWDATE, MYSQL_TYPE_VARCHAR,
 			MYSQL_TYPE_BIT,
+                        /*
+                          mysql-5.6 compatibility temporal types.
+                          They're only used internally for reading RBR
+                          mysql-5.6 binary log events and mysql-5.6 frm files.
+                          They're never sent to the client.
+                        */
+                        MYSQL_TYPE_TIMESTAMP2,
+                        MYSQL_TYPE_DATETIME2,
+                        MYSQL_TYPE_TIME2,
+                        
                         MYSQL_TYPE_NEWDECIMAL=246,
 			MYSQL_TYPE_ENUM=247,
 			MYSQL_TYPE_SET=248,

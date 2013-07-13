@@ -1308,8 +1308,9 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
 
   old_proc_info= thd_proc_info(thd, "Checking status");
   thd_progress_init(thd, 3);
-  (void) maria_chk_status(&param, file);                // Not fatal
-  error= maria_chk_size(&param, file);
+  error= maria_chk_status(&param, file);                // Not fatal
+  if (maria_chk_size(&param, file))
+    error= 1;
   if (!error)
     error|= maria_chk_del(&param, file, param.testflag);
   thd_proc_info(thd, "Checking keys");
@@ -1673,6 +1674,11 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
     }
   }
   thd_proc_info(thd, "Saving state");
+  if (optimize_done && !error && !(param->testflag & T_NO_CREATE_RENAME_LSN))
+  {
+    /* Set trid (needed if the table was moved from another system) */
+    share->state.create_trid= trnman_get_min_safe_trid();
+  }
   mysql_mutex_lock(&share->intern_lock);
   if (!error)
   {
@@ -1688,6 +1694,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
     */
     if (file->state != &share->state.state)
       *file->state= share->state.state;
+
     if (share->base.auto_key)
       _ma_update_auto_increment_key(param, file, 1);
     if (optimize_done)
@@ -1695,6 +1702,9 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
                                      UPDATE_TIME | UPDATE_OPEN_COUNT |
                                      (local_testflag &
                                       T_STATISTICS ? UPDATE_STAT : 0));
+    /* File is repaired; Mark the file as moved to this system */
+    (void) _ma_set_uuid(share, 0);
+
     info(HA_STATUS_NO_LOCK | HA_STATUS_TIME | HA_STATUS_VARIABLE |
          HA_STATUS_CONST);
     if (rows != file->state->records && !(param->testflag & T_VERY_SILENT))
@@ -2415,7 +2425,9 @@ int ha_maria::remember_rnd_pos()
 
 int ha_maria::restart_rnd_next(uchar *buf)
 {
-  (*file->s->scan_restore_pos)(file, remember_pos);
+  int error;
+  if ((error= (*file->s->scan_restore_pos)(file, remember_pos)))
+    return error;
   return rnd_next(buf);
 }
 
@@ -2648,23 +2660,6 @@ int ha_maria::external_lock(THD *thd, int lock_type)
     /* Transactional table */
     if (lock_type != F_UNLCK)
     {
-      if (!file->s->lock_key_trees)             // If we don't use versioning
-      {
-        /*
-          We come here in the following cases:
-           - The table is a temporary table
-           - It's a table which is crash safe but not yet versioned, for
-             example a table with fulltext or rtree keys
-
-          Set the current state to point to save_state so that the
-          block_format code don't count the same record twice.
-          Copy also the current state. This may have been wrong if the
-          same file was used several times in the last statement
-        */
-        file->state=  file->state_start;
-        *file->state= file->s->state.state;
-      }
-
       if (file->trn)
       {
         /* This can only happen with tables created with clone() */

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2013, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -23,8 +23,9 @@
 
 /** True when the performance schema is initialized. */
 extern bool pfs_initialized;
+
 /** Total memory allocated by the performance schema, in bytes. */
-extern ulonglong pfs_allocated_memory;
+extern size_t pfs_allocated_memory;
 
 void *pfs_malloc(size_t size, myf flags);
 

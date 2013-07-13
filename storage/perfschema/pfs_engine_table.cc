@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2013, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -514,7 +514,7 @@ void PFS_engine_table::set_field_enum(Field *f, ulonglong value)
 
 void PFS_engine_table::set_field_timestamp(Field *f, ulonglong value)
 {
-  DBUG_ASSERT(f->real_type() == MYSQL_TYPE_TIMESTAMP);
+  DBUG_ASSERT(is_timestamp_type(f->real_type()));
   Field_timestamp *f2= (Field_timestamp*) f;
   f2->store_TIME((long)(value / 1000000), (value % 1000000));
 }
@@ -715,7 +715,7 @@ bool pfs_show_status(handlerton *hton, THD *thd,
   uint buflen;
   const char *name;
   int i;
-  uint size;
+  size_t size;
 
   DBUG_ENTER("pfs_show_status");
 
@@ -729,7 +729,7 @@ bool pfs_show_status(handlerton *hton, THD *thd,
   if (stat != HA_ENGINE_STATUS)
     DBUG_RETURN(false);
 
-  uint total_memory= 0;
+  size_t total_memory= 0;
 
   for (i=0; /* empty */; i++)
   {
@@ -1345,7 +1345,7 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       break;
     }
 
-    buflen= int10_to_str(size, buf, 10) - buf;
+    buflen= longlong10_to_str(size, buf, 10) - buf;
     if (print(thd,
               PERFORMANCE_SCHEMA_str.str, PERFORMANCE_SCHEMA_str.length,
               name, strlen(name),

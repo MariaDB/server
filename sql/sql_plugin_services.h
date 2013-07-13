@@ -54,6 +54,11 @@ static struct kill_statement_service_st thd_kill_statement_handler= {
   thd_kill_level
 };
 
+static struct thd_timezone_service_st thd_timezone_handler= {
+  thd_TIME_to_gmt_sec,
+  thd_gmt_sec_to_TIME
+};
+
 static struct st_service_ref list_of_services[]=
 {
   { "my_snprintf_service",         VERSION_my_snprintf,         &my_snprintf_handler },
@@ -61,6 +66,7 @@ static struct st_service_ref list_of_services[]=
   { "thd_wait_service",            VERSION_thd_wait,            &thd_wait_handler },
   { "progress_report_service",     VERSION_progress_report,     &progress_report_handler },
   { "debug_sync_service",          VERSION_debug_sync,          0 }, // updated in plugin_init()
-  { "thd_kill_statement_service",  VERSION_kill_statement,      &thd_kill_statement_handler }
+  { "thd_kill_statement_service",  VERSION_kill_statement,      &thd_kill_statement_handler },
+  { "thd_timezone_service",        VERSION_thd_timezone,        &thd_timezone_handler },
 };
 

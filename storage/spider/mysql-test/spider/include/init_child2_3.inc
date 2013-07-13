@@ -1,0 +1,14 @@
+--let $TEST_ENGINE_TYPE= $CHILD2_3_ENGINE_TYPE
+--source ../include/init_engine.inc
+--let $INIT_CHILD2_3_ENGINE= $INIT_TEST_ENGINE
+let $CHILD2_3_DROP_TABLES=
+  DROP TABLE IF EXISTS ta_r4;
+let $CHILD2_3_CREATE_TABLES=
+  CREATE TABLE ta_r4 (
+    a INT DEFAULT 10,
+    b CHAR(1) DEFAULT 'c',
+    c DATETIME DEFAULT '1999-10-10 10:10:10',
+    PRIMARY KEY(a)
+  ) $CHILD2_3_ENGINE $CHILD2_3_CHARSET;
+let $CHILD2_3_SELECT_TABLES=
+  SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r4 ORDER BY a;

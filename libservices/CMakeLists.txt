@@ -19,6 +19,7 @@ SET(MYSQLSERVICES_SOURCES
   my_snprintf_service.c
   thd_alloc_service.c
   thd_wait_service.c
+  thd_timezone_service.c
   progress_report_service.c
   debug_sync_service.c
   kill_statement_service.c)
