@@ -5306,8 +5306,6 @@ sub mysqld_arguments ($$$) {
   mtr_add_arg($args, "--loose-debug-sync-timeout=%s",
               $opt_debug_sync_timeout) unless $opt_user_args;
 
-  # MariaDB 10.0: disable innodb persistent statistics
-  mtr_add_arg($args, "--loose-skip-innodb-stats-persistent");
   return $args;
 }
 
