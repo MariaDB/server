@@ -6,6 +6,9 @@
 source include/not_embedded.inc;
 
 --disable_query_log
+call mtr.add_suppression("InnoDB: New log files created");
+call mtr.add_suppression("InnoDB: Creating foreign key constraint system tables");
+
 let $innodb_index_stats = query_get_value(show create table mysql.innodb_index_stats, Create Table, 1);
 let $innodb_table_stats = query_get_value(show create table mysql.innodb_table_stats, Create Table, 1);
 let $database=`select database()`;
