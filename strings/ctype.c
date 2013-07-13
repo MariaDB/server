@@ -447,9 +447,9 @@ my_charset_is_ascii_compatible(CHARSET_INFO *cs)
 
 static uint32
 my_convert_internal(char *to, uint32 to_length,
-                    const CHARSET_INFO *to_cs,
+                    CHARSET_INFO *to_cs,
                     const char *from, uint32 from_length,
-                    const CHARSET_INFO *from_cs, uint *errors)
+                    CHARSET_INFO *from_cs, uint *errors)
 {
   int         cnvres;
   my_wc_t     wc;
@@ -517,9 +517,9 @@ outp:
 */
 
 uint32
-my_convert(char *to, uint32 to_length, const CHARSET_INFO *to_cs,
+my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
            const char *from, uint32 from_length,
-           const CHARSET_INFO *from_cs, uint *errors)
+           CHARSET_INFO *from_cs, uint *errors)
 {
   uint32 length, length2;
   /*
