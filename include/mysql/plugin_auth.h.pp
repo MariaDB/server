@@ -93,6 +93,13 @@ extern struct kill_statement_service_st {
   enum thd_kill_levels (*thd_kill_level_func)(const void*);
 } *thd_kill_statement_service;
 enum thd_kill_levels thd_kill_level(const void*);
+#include <mysql/service_sha1.h>
+extern struct my_sha1_service_st {
+  void (*my_sha1_type)(unsigned char*, const char*, size_t);
+  void (*my_sha1_multi_type)(unsigned char*, ...);
+} *my_sha1_service;
+void my_sha1(unsigned char*, const char*, size_t);
+void my_sha1_multi(unsigned char*, ...);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;
