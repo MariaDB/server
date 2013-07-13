@@ -24,6 +24,7 @@
 
 #include <my_global.h>
 #include <sha1.h>
+#include <stdarg.h>
 
 #if defined(HAVE_YASSL)
 #include "sha.hpp"
@@ -56,12 +57,15 @@ void mysql_sha1_yassl(uint8 *digest, const char *buf, int len)
 
   @return              void
 */
-void mysql_sha1_multi_yassl(uint8 *digest, const char *buf1, int len1,
-                            const char *buf2, int len2)
+void mysql_sha1_multi_yassl(uint8 *digest, va_list args)
 {
+  const char *str;
   TaoCrypt::SHA hasher;
-  hasher.Update((const TaoCrypt::byte *) buf1, len1);
-  hasher.Update((const TaoCrypt::byte *) buf2, len2);
+
+  for (str= va_arg(args, const char*); str; str= va_arg(args, const char*))
+  {
+    hasher.Update((const TaoCrypt::byte *) str, va_arg(args, size_t));
+  }
   hasher.Final((TaoCrypt::byte *) digest);
 }
 
@@ -98,7 +102,7 @@ int mysql_sha1_result(SHA_CTX *context,
 
   @return              void
 */
-void compute_sha1_hash(uint8 *digest, const char *buf, int len)
+void my_sha1(uint8 *digest, const char *buf, size_t len)
 {
 #if defined(HAVE_YASSL)
   mysql_sha1_yassl(digest, buf, len);
@@ -124,18 +128,24 @@ void compute_sha1_hash(uint8 *digest, const char *buf, int len)
 
   @return              void
 */
-void compute_sha1_hash_multi(uint8 *digest, const char *buf1, int len1,
-                             const char *buf2, int len2)
+void my_sha1_multi(uint8 *digest, ...)
 {
+  va_list args;
+  va_start(args, digest);
+
 #if defined(HAVE_YASSL)
-  mysql_sha1_multi_yassl(digest, buf1, len1, buf2, len2);
+  mysql_sha1_multi_yassl(digest, args);
 #elif defined(HAVE_OPENSSL)
   SHA_CTX sha1_context;
+  const char *str;
 
   mysql_sha1_reset(&sha1_context);
-  mysql_sha1_input(&sha1_context, (const uint8 *) buf1, len1);
-  mysql_sha1_input(&sha1_context, (const uint8 *) buf2, len2);
+  for (str= va_arg(args, const char*); str; str= va_arg(args, const char*))
+  {
+    mysql_sha1_input(&sha1_context, (const uint8 *) str, va_arg(args, size_t));
+  }
   mysql_sha1_result(&sha1_context, digest);
 #endif /* HAVE_YASSL */
+  va_end(args);
 }
 

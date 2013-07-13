@@ -58,6 +58,11 @@ static struct kill_statement_service_st thd_kill_statement_handler= {
   thd_kill_level
 };
 
+static struct my_sha1_service_st my_sha1_handler = {
+  my_sha1,
+  my_sha1_multi
+};
+
 static struct st_service_ref list_of_services[]=
 {
   { "my_snprintf_service",         VERSION_my_snprintf,         &my_snprintf_handler },
@@ -66,6 +71,7 @@ static struct st_service_ref list_of_services[]=
   { "my_thread_scheduler_service", VERSION_my_thread_scheduler, &my_thread_scheduler_handler },
   { "progress_report_service",     VERSION_progress_report,     &progress_report_handler },
   { "debug_sync_service",          VERSION_debug_sync,          0 }, // updated in plugin_init()
-  { "thd_kill_statement_service",  VERSION_kill_statement,      &thd_kill_statement_handler }
+  { "thd_kill_statement_service",  VERSION_kill_statement,      &thd_kill_statement_handler },
+  { "my_sha1_service",             VERSION_my_sha1,             &my_sha1_handler}
 };
 

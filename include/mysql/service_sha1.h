@@ -1,5 +1,5 @@
-#ifndef MYSQL_SERVICES_INCLUDED
-/* Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
+#ifndef MYSQL_SERVICE_SHA1_INCLUDED
+/* Copyright (c) 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,23 +14,44 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
+/**
+  @file
+  my sha1 service
+
+  Functions to calculate SHA1 hash from a memory buffer
+*/
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <mysql/service_my_snprintf.h>
-#include <mysql/service_thd_alloc.h>
-#include <mysql/service_thd_wait.h>
-#include <mysql/service_thread_scheduler.h>
-#include <mysql/service_progress_report.h>
-#include <mysql/service_debug_sync.h>
-#include <mysql/service_kill_statement.h>
-#include <mysql/service_sha1.h>
+#ifndef MYSQL_ABI_CHECK
+#include <stdlib.h>
+#endif
+
+#define MY_SHA1_HASH_SIZE 20 /* Hash size in bytes */
+
+extern struct my_sha1_service_st {
+  void (*my_sha1_type)(unsigned char*, const char*, size_t);
+  void (*my_sha1_multi_type)(unsigned char*, ...);
+} *my_sha1_service;
+
+#ifdef MYSQL_DYNAMIC_PLUGIN
+
+#define my_sha1(A,B,C) my_sha1_service->my_sha1_type(A,B,C)
+#define my_sha1_multi my_sha1_service->my_sha1_multi_type
+
+#else
+
+void my_sha1(unsigned char*, const char*, size_t);
+void my_sha1_multi(unsigned char*, ...);
+
+#endif
 
 #ifdef __cplusplus
 }
 #endif
 
-#define MYSQL_SERVICES_INCLUDED
+#define MYSQL_SERVICE_SHA1_INCLUDED
 #endif
 
