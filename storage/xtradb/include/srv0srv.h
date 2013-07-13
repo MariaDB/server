@@ -166,6 +166,10 @@ extern ulint	srv_log_buffer_size;
 extern char	srv_use_global_flush_log_at_trx_commit;
 extern char	srv_adaptive_flushing;
 
+#ifdef WITH_INNODB_DISALLOW_WRITES
+/* When this event is reset we do not allow any file writes to take place. */
+extern os_event_t	srv_allow_writes_event;
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 /* If this flag is TRUE, then we will load the indexes' (and tables') metadata
 even if they are marked as "corrupted". Mostly it is for DBA to process
 corrupted index and table */
@@ -643,6 +647,14 @@ srv_conc_enter_innodb(
 /*==================*/
 	trx_t*	trx);	/*!< in: transaction object associated with the
 			thread */
+#ifdef WITH_WSREP
+UNIV_INTERN
+void
+wsrep_srv_conc_cancel_wait(
+/*==================*/
+	trx_t*	trx);	/*!< in: transaction object associated with the
+			thread */
+#endif /* WITH_WSREP */
 /*********************************************************************//**
 This lets a thread enter InnoDB regardless of the number of threads inside
 InnoDB. This must be called when a thread ends a lock wait. */

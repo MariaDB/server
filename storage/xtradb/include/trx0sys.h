@@ -41,6 +41,9 @@ Created 3/26/1996 Heikki Tuuri
 #include "ut0bh.h"
 #include "read0types.h"
 #include "page0types.h"
+#ifdef WITH_WSREP
+#include "trx0xa.h"
+#endif /* WITH_WSREP */
 
 /** In a MySQL replication slave, in crash recovery we store the master log
 file name and position here. */
@@ -341,6 +344,17 @@ UNIV_INTERN
 void
 trx_sys_print_mysql_binlog_offset(void);
 /*===================================*/
+#ifdef WITH_WSREP
+/** Update WSREP checkpoint XID in sys header. */
+void
+trx_sys_update_wsrep_checkpoint(
+        const XID*      xid,  /*!< in: WSREP XID */
+        mtr_t*          mtr); /*!< in: mtr       */
+void
+/** Read WSREP checkpoint XID from sys header. */
+trx_sys_read_wsrep_checkpoint(
+        XID* xid); /*!< out: WSREP XID */
+#endif /* WITH_WSREP */
 /*****************************************************************//**
 Prints to stderr the MySQL master log offset info in the trx system header
 COMMIT set of fields if the magic number shows it valid and stores it
@@ -563,6 +577,22 @@ crash recovery rollbacks a PREPAREd transaction, they are copied back. */
 #define TRX_SYS_MYSQL_LOG_OFFSET_LOW	8	/*!< low 4 bytes of the offset
 						within that file */
 #define TRX_SYS_MYSQL_LOG_NAME		12	/*!< MySQL log file name */
+
+#ifdef WITH_WSREP
+/* We hijack TRX_SYS_MYSQL_MASTER_LOG_INFO, it seems to be completely unused
+   otherwise (see comments for MySQL bug #34058). */
+/** */
+#define TRX_SYS_WSREP_XID_INFO TRX_SYS_MYSQL_MASTER_LOG_INFO
+#define TRX_SYS_WSREP_XID_MAGIC_N_FLD 0
+#define TRX_SYS_WSREP_XID_MAGIC_N 0x77737265
+
+/* XID field: formatID, gtrid_len, bqual_len, xid_data */
+#define TRX_SYS_WSREP_XID_LEN        (4 + 4 + 4 + XIDDATASIZE)
+#define TRX_SYS_WSREP_XID_FORMAT     4
+#define TRX_SYS_WSREP_XID_GTRID_LEN  8
+#define TRX_SYS_WSREP_XID_BQUAL_LEN 12
+#define TRX_SYS_WSREP_XID_DATA      16
+#endif /* WITH_WSREP*/
 
 /** Doublewrite buffer */
 /* @{ */

@@ -2452,3 +2452,55 @@ bool load_table_name_for_trigger(THD *thd,
 
   DBUG_RETURN(FALSE);
 }
+#ifdef WITH_WSREP
+int wsrep_create_trigger_query(THD *thd, uchar** buf, uint* buf_len)
+{
+  LEX *lex= thd->lex;
+  String stmt_query;
+
+  LEX_STRING definer_user;
+  LEX_STRING definer_host;
+
+  if (!lex->definer)
+  {
+    if (!thd->slave_thread)
+    {
+      if (!(lex->definer= create_default_definer(thd)))
+        return 1;
+    }
+  }
+
+  if (lex->definer)
+  {
+    /* SUID trigger. */
+
+    definer_user= lex->definer->user;
+    definer_host= lex->definer->host;
+  }
+  else
+  {
+    /* non-SUID trigger. */
+
+    definer_user.str= 0;
+    definer_user.length= 0;
+
+    definer_host.str= 0;
+    definer_host.length= 0;
+  }
+
+  stmt_query.append(STRING_WITH_LEN("CREATE "));
+
+  append_definer(thd, &stmt_query, &definer_user, &definer_host);
+
+  LEX_STRING stmt_definition;
+  stmt_definition.str= (char*) thd->lex->stmt_definition_begin;
+  stmt_definition.length= thd->lex->stmt_definition_end
+    - thd->lex->stmt_definition_begin;
+  trim_whitespace(thd->charset(), & stmt_definition);
+
+  stmt_query.append(stmt_definition.str, stmt_definition.length);
+
+  return wsrep_to_buf_helper(thd, stmt_query.c_ptr(), stmt_query.length(), 
+			     buf, buf_len);
+}
+#endif /* WITH_WSREP */

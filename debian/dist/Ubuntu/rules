@@ -190,15 +190,13 @@ install: build
 
 	# lintian overrides
 	mkdir -p $(TMP)/usr/share/lintian/overrides/
-	cp debian/mysql-common.lintian-overrides      $(TMP)/usr/share/lintian/overrides/mysql-common
-	cp debian/mariadb-server-10.0.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-server-10.0
-	cp debian/mariadb-client-10.0.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-client-10.0
+	cp debian/mariadb-galera-server-10.0.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-server-10.0
 
 	# For 5.0 -> 10.0 transition
 	d=$(TMP)/usr/share/mysql-common/internal-use-only/; \
 	mkdir -p $$d; \
-	cp debian/mariadb-server-10.0.mysql.init $$d/_etc_init.d_mysql; \
-	cp debian/mariadb-server-10.0.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
+	cp debian/mariadb-galera-server-10.0.mysql.init $$d/_etc_init.d_mysql; \
+	cp debian/mariadb-galera-server-10.0.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
 	cp debian/additions/debian-start $$d/_etc_mysql_debian-start;
 
 	# install AppArmor profile

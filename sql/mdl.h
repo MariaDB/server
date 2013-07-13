@@ -504,6 +504,9 @@ public:
   MDL_ticket *next_in_lock;
   MDL_ticket **prev_in_lock;
 public:
+#ifdef WITH_WSREP
+  void wsrep_report(bool debug);
+#endif /* WITH_WSREP */
   bool has_pending_conflicting_lock() const;
 
   MDL_context *get_ctx() const { return m_ctx; }

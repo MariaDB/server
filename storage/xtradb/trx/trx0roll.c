@@ -42,6 +42,9 @@ Created 3/26/1996 Heikki Tuuri
 #include "row0mysql.h"
 #include "lock0lock.h"
 #include "pars0pars.h"
+#ifdef WITH_WSREP
+#include "ha_prototypes.h"
+#endif /* WITH_WSREP */
 
 /** This many pages must be undone before a truncate is tried within
 rollback */
@@ -147,6 +150,12 @@ trx_rollback_for_mysql(
 
 	trx->op_info = "";
 
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) && 
+	    trx->was_chosen_as_deadlock_victim) {
+		trx->was_chosen_as_deadlock_victim = FALSE;
+	}
+#endif
 	return(err);
 }
 
@@ -174,6 +183,12 @@ trx_rollback_last_sql_stat_for_mysql(
 
 	trx->op_info = "";
 
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) &&
+	    trx->was_chosen_as_deadlock_victim) {
+		trx->was_chosen_as_deadlock_victim = FALSE;
+	}
+#endif
 	return(err);
 }
 
@@ -1123,6 +1138,12 @@ trx_rollback(
 		srv_que_task_enqueue_low(thr);
 		/*		srv_que_task_enqueue_low(thr2); */
 	}
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) &&
+	    trx->was_chosen_as_deadlock_victim) {
+		trx->was_chosen_as_deadlock_victim = FALSE;
+	}
+#endif
 }
 
 /****************************************************************//**
@@ -1281,6 +1302,12 @@ trx_finish_rollback_off_kernel(
 
 		sig = next_sig;
 	}
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) &&
+	    trx->was_chosen_as_deadlock_victim) {
+		trx->was_chosen_as_deadlock_victim = FALSE;
+	}
+#endif
 }
 
 /*********************************************************************//**

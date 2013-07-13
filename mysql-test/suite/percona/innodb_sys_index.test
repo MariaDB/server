@@ -5,6 +5,7 @@ drop table if exists t1;
 #
 # test for bug LP#875797 "Using 'innodb_sys_indexes' causes core dump"
 #
+--replace_regex /wsrep_[0-9\.Xr]+/wsrep_<version>/
 select @@version_comment limit 1 ;
 --disable_result_log
 SELECT COUNT(*) FROM `information_schema`.`INNODB_SYS_INDEXES` ;
@@ -19,3 +20,4 @@ SELECT COUNT(*) FROM `information_schema`.`INNODB_SYS_INDEXES` ;
 drop table test.t1;
 SHOW TABLE STATUS FROM `information_schema` LIKE 'INNODB\_SYS\_INDEXES%' ;
 --enable_result_log
+

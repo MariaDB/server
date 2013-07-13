@@ -970,6 +970,8 @@ support-files/mysql.server
 support-files/mysql.spec
 support-files/mysqld_multi.server
 support-files/ndb-config-2-node.ini
+support-files/wsrep.cnf
+support-files/wsrep_notify
 TAGS
 test/ndbapi/bank/bankCreator
 test/ndbapi/bank/bankMakeGL
@@ -1093,6 +1095,9 @@ sql/share/slovak
 sql/share/spanish
 sql/share/swedish
 sql/share/ukrainian
+scripts/wsrep_sst_mysqldump
+scripts/wsrep_sst_rsync
+scripts/wsrep_sst_xtrabackup
 CPackConfig.cmake
 CPackSourceConfig.cmake
 Docs/INFO_BIN

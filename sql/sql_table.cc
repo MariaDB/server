@@ -6621,6 +6621,9 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       }
     }
 
+#ifdef WITH_WSREP
+    bool do_log_write(true);
+#endif /* WITH_WSREP */
     if (error == HA_ERR_WRONG_COMMAND)
     {
       error= 0;
@@ -6628,6 +6631,9 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 			  ER_ILLEGAL_HA, ER(ER_ILLEGAL_HA),
                           table->file->table_type(),
                           table->s->db.str, table->s->table_name.str);
+#ifdef WITH_WSREP
+      WSREP_DEBUG("ignoring DDL failure: %d %s", error, thd->query());
+#endif /* WITH_WSREP */
     }
 
     if (!error)

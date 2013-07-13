@@ -23,11 +23,9 @@ SET(CPACK_COMPONENT_SHAREDLIBRARIES_GROUP "shared")
 SET(CPACK_COMPONENT_COMMON_GROUP "common")
 SET(CPACK_COMPONENT_COMPAT_GROUP "compat")
 SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
-                                SupportFiles Development ManPagesDevelopment
-                                ManPagesTest Readme ManPagesClient Test 
-                                Common Client SharedLibraries)
+                         SupportFiles Readme)
 
-SET(CPACK_RPM_PACKAGE_NAME "MariaDB")
+SET(CPACK_RPM_PACKAGE_NAME "MariaDB-Galera")
 SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
 
 SET(CPACK_RPM_PACKAGE_RELEASE 1) # FIX: add distribution name here
@@ -123,32 +121,6 @@ SET(CPACK_RPM_test_PACKAGE_PROVIDES "MariaDB-test MySQL-test mysql-test")
 
 # workaround for lots of perl dependencies added by rpmbuild
 SET(CPACK_RPM_test_PACKAGE_PROVIDES "${CPACK_RPM_test_PACKAGE_PROVIDES} perl(lib::mtr_gcov.pl) perl(lib::mtr_gprof.pl) perl(lib::mtr_io.pl) perl(lib::mtr_misc.pl) perl(lib::mtr_process.pl) perl(lib::v1/mtr_cases.pl) perl(lib::v1/mtr_gcov.pl) perl(lib::v1/mtr_gprof.pl) perl(lib::v1/mtr_im.pl) perl(lib::v1/mtr_io.pl) perl(lib::v1/mtr_match.pl) perl(lib::v1/mtr_misc.pl) perl(lib::v1/mtr_process.pl) perl(lib::v1/mtr_report.pl) perl(lib::v1/mtr_stress.pl) perl(lib::v1/mtr_timer.pl) perl(lib::v1/mtr_unique.pl) perl(mtr_cases) perl(mtr_io.pl) perl(mtr_match) perl(mtr_misc.pl) perl(mtr_report) perl(mtr_results) perl(mtr_unique)")
-
-# If we want to build build MariaDB-shared-compat,
-# extract compat libraries from MariaDB-shared-5.3 rpm
-FILE(GLOB compat_rpm RELATIVE ${CMAKE_SOURCE_DIR}
-    "${CMAKE_SOURCE_DIR}/../MariaDB-shared-5.3.*.rpm")
-IF (compat_rpm)
-  MESSAGE("Using ${compat_rpm} to build MariaDB-compat")
-  INSTALL(CODE "EXECUTE_PROCESS(
-                 COMMAND rpm2cpio ${CMAKE_SOURCE_DIR}/${compat_rpm}
-                 COMMAND cpio --extract --make-directories */libmysqlclient*.so.* -
-                 WORKING_DIRECTORY \$ENV{DESTDIR})
-                EXECUTE_PROCESS(
-                 COMMAND chmod -R a+rX .
-                 WORKING_DIRECTORY \$ENV{DESTDIR})"
-                 COMPONENT Compat)
-  SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} Compat)
-
-  # RHEL6/CentOS6 install Postfix by default, and it requires
-  # libmysqlclient.so.16 that pulls in mysql-libs-5.1.x
-  # And the latter conflicts with our rpms.
-  # Make sure that for these distribuions all our rpms require
-  # MariaDB-compat, that will replace mysql-libs-5.1
-  IF(RPM MATCHES "(rhel|centos)6")
-    SET(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-compat")
-  ENDIF()
-ENDIF(compat_rpm)
 
 SET(CPACK_RPM_compat_PACKAGE_REQUIRES "/bin/sh") # to mask CPACK_RPM_PACKAGE_REQUIRES
 SET(CPACK_RPM_compat_PACKAGE_PROVIDES "mysql-libs = 5.3.5") # exact version doesn't matter as long as it greater than 5.1

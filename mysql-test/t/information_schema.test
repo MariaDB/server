@@ -1336,28 +1336,8 @@ explain select count(*) from information_schema.views;
 #
 # Bug#39955 SELECT on INFORMATION_SCHEMA.GLOBAL_VARIABLES takes too long
 #
-set global init_connect="drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;\
-drop table if exists t1;drop table if exists t1;";
-select * from information_schema.global_variables where variable_name='init_connect';
+set global init_connect=repeat("drop table if exists t1;", 100);
+select length(@@global.init_connect), length(variable_value) from information_schema.global_variables where variable_name='init_connect';
 set global init_connect="";
 
 #

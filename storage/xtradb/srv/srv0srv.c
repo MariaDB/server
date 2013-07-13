@@ -99,6 +99,10 @@ ulong		innobase_thd_get_thread_id(const void* thd);
 /* prototypes for new functions added to ha_innodb.cc */
 ibool	innobase_get_slow_log();
 
+#ifdef WITH_WSREP
+extern int wsrep_debug;
+extern int wsrep_trx_is_aborting(void *thd_ptr);
+#endif
 /* The following counter is incremented whenever there is some user activity
 in the server */
 UNIV_INTERN ulint	srv_activity_count	= 0;
@@ -231,6 +235,10 @@ acquisition attempts exceeds maximum allowed value. If so,
 srv_printf_innodb_monitor() will request mutex acquisition
 with mutex_enter(), which will wait until it gets the mutex. */
 #define MUTEX_NOWAIT(mutex_skipped)	((mutex_skipped) < MAX_MUTEX_NOWAIT)
+
+#ifdef WITH_INNODB_DISALLOW_WRITES
+UNIV_INTERN os_event_t	srv_allow_writes_event;
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 /** The sort order table of the MySQL latin1_swedish_ci character set
 collation */
@@ -376,6 +384,9 @@ struct srv_conc_slot_struct{
 							free to proceed; but
 							reserved may still be
 							TRUE at that point */
+#ifdef WITH_WSREP
+	void				*thd;		/*!< to see priority */
+#endif
 	UT_LIST_NODE_T(srv_conc_slot_t)	srv_conc_queue;	/*!< queue node */
 };
 
@@ -1183,7 +1194,19 @@ srv_init(void)
 		conc_slot->reserved = FALSE;
 		conc_slot->event = os_event_create(NULL);
 		ut_a(conc_slot->event);
+#ifdef WITH_WSREP
+		conc_slot->thd = NULL;
+#endif /* WITH_WSREP */
 	}
+
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	/* Writes have to be enabled on init or else we hang. Thus, we
+	always set the event here regardless of innobase_disallow_writes.
+	That flag will always be 0 at this point because it isn't settable
+	via my.cnf or command line arg. */
+	srv_allow_writes_event = os_event_create(NULL);
+	os_event_set(srv_allow_writes_event);
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 	/* Initialize some INFORMATION SCHEMA internal structures */
 	trx_i_s_cache_init(trx_i_s_cache);
@@ -1233,6 +1256,23 @@ srv_general_init(void)
 /* Maximum allowable purge history length.  <=0 means 'infinite'. */
 UNIV_INTERN ulong	srv_max_purge_lag		= 0;
 
+#ifdef WITH_WSREP
+UNIV_INTERN
+void
+wsrep_srv_conc_cancel_wait(
+/*==================*/
+	trx_t*	trx)	/*!< in: transaction object associated with the
+			thread */
+{
+	os_fast_mutex_lock(&srv_conc_mutex);
+	if (trx->wsrep_event) {
+		if (wsrep_debug) 
+			fprintf(stderr, "WSREP: conc slot cancel\n");
+		os_event_set(trx->wsrep_event);
+	}
+	os_fast_mutex_unlock(&srv_conc_mutex);
+}
+#endif /* WITH_WSREP */
 /*********************************************************************//**
 Puts an OS thread to wait if there are too many concurrent threads
 (>= srv_thread_concurrency) inside InnoDB. The threads wait in a FIFO queue. */
@@ -1350,6 +1390,18 @@ srv_conc_enter_innodb(
 	}
 #endif
 
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) && 
+	    wsrep_thd_is_brute_force(trx->mysql_thd)) {
+		srv_conc_force_enter_innodb(trx);
+		return;
+	}
+	if (wsrep_on(trx->mysql_thd) && 
+	    wsrep_trx_is_aborting(trx->mysql_thd)) {
+		srv_conc_force_enter_innodb(trx);
+		return;
+	}
+#endif
 	os_fast_mutex_lock(&srv_conc_mutex);
 retry:
 	if (trx->declared_to_be_inside_innodb) {
@@ -1443,6 +1495,9 @@ retry:
 	/* Add to the queue */
 	slot->reserved = TRUE;
 	slot->wait_ended = FALSE;
+#ifdef WITH_WSREP
+	slot->thd = trx->mysql_thd;
+#endif
 
 	UT_LIST_ADD_LAST(srv_conc_queue, srv_conc_queue, slot);
 
@@ -1450,6 +1505,19 @@ retry:
 
 	srv_conc_n_waiting_threads++;
 
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) && 
+	    wsrep_trx_is_aborting(trx->mysql_thd)) {
+		srv_conc_n_waiting_threads--;
+		os_fast_mutex_unlock(&srv_conc_mutex);
+		if (wsrep_debug)
+			fprintf(stderr, "srv_conc_enter due to MUST_ABORT");
+		trx->declared_to_be_inside_innodb = TRUE;
+		trx->n_tickets_to_enter_innodb = SRV_FREE_TICKETS_TO_ENTER;
+		return;
+	}
+	trx->wsrep_event = slot->event;
+#endif /* WITH_WSREP */
 	os_fast_mutex_unlock(&srv_conc_mutex);
 
 	/* Go to wait for the event; when a thread leaves InnoDB it will
@@ -1472,6 +1540,9 @@ retry:
 	thd_wait_begin(trx->mysql_thd, THD_WAIT_USER_LOCK);
 	os_event_wait(slot->event);
 	thd_wait_end(trx->mysql_thd);
+#ifdef WITH_WSREP
+	trx->wsrep_event = NULL;
+#endif /* WITH_WSREP */
 
 	trx->op_info = "";
 
@@ -1489,6 +1560,9 @@ retry:
 	incremented the thread counter on behalf of this thread */
 
 	slot->reserved = FALSE;
+#ifdef WITH_WSREP
+	slot->thd = NULL;
+#endif
 
 	UT_LIST_REMOVE(srv_conc_queue, srv_conc_queue, slot);
 
@@ -1574,6 +1648,9 @@ srv_conc_force_exit_innodb(
 	trx->n_tickets_to_enter_innodb = 0;
 
 	if (srv_conc_n_threads < (lint)srv_thread_concurrency) {
+#ifdef WITH_WSREP
+		srv_conc_slot_t*  wsrep_slot;
+#endif
 		/* Look for a slot where a thread is waiting and no other
 		thread has yet released the thread */
 
@@ -1583,6 +1660,19 @@ srv_conc_force_exit_innodb(
 			slot = UT_LIST_GET_NEXT(srv_conc_queue, slot);
 		}
 
+#ifdef WITH_WSREP
+		/* look for aborting trx, they must be released asap */
+		wsrep_slot= slot;
+		while (wsrep_slot && (wsrep_slot->wait_ended == TRUE || 
+		    !wsrep_trx_is_aborting(wsrep_slot->thd))) {
+			wsrep_slot = UT_LIST_GET_NEXT(srv_conc_queue, wsrep_slot);
+		}
+		if (wsrep_slot) {
+			slot = wsrep_slot;
+			if (wsrep_debug)
+			    fprintf(stderr, "WSREP: releasing aborting thd\n");
+		}
+#endif
 		if (slot != NULL) {
 			slot->wait_ended = TRUE;
 
@@ -1959,7 +2049,20 @@ srv_suspend_mysql_thread(
 	if (lock_wait_timeout < 100000000
 	    && wait_time > (double) lock_wait_timeout) {
 
+#ifdef WITH_WSREP
+		if (wsrep_on(trx->mysql_thd) &&
+		    wsrep_thd_is_brute_force(trx->mysql_thd)) {
+			fprintf(stderr, 
+				"WSREP: BF long lock wait ended after %.f sec\n",
+				wait_time);
+			srv_print_innodb_monitor 	= FALSE;
+			srv_print_innodb_lock_monitor 	= FALSE;
+		} else {
+#endif
 		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
+#ifdef WITH_WSREP
+		}
+#endif
 	}
 
 	if (trx_is_interrupted(trx)) {
@@ -2720,6 +2823,27 @@ exit_func:
 	OS_THREAD_DUMMY_RETURN;
 }
 
+#ifdef WITH_WSREP
+/*********************************************************************//**
+check if lock timeout was for priority thread, 
+as a side effect trigger lock monitor
+@return	false for regular lock timeout */
+static ibool
+wsrep_is_BF_lock_timeout(
+/*====================*/
+	 srv_slot_t*	slot) /* in: lock slot to check for lock priority */
+{
+	if (wsrep_on(thr_get_trx(slot->thr)->mysql_thd) &&
+	    wsrep_thd_is_brute_force((thr_get_trx(slot->thr))->mysql_thd)) {
+		fprintf(stderr, "WSREP: BF lock wait long\n");
+		srv_print_innodb_monitor 	= TRUE;
+		srv_print_innodb_lock_monitor 	= TRUE;
+		os_event_set(srv_lock_timeout_thread_event);
+		return TRUE;
+	}
+	return FALSE;
+ }
+#endif /* WITH_WSREP */
 /*********************************************************************//**
 A thread which wakes up threads whose lock wait may have lasted too long.
 @return	a dummy parameter */
@@ -2788,8 +2912,14 @@ loop:
 				granted: in that case do nothing */
 
 				if (trx->wait_lock) {
+#ifdef WITH_WSREP
+					if (!wsrep_is_BF_lock_timeout(slot)) {
+#endif
 					lock_cancel_waiting_and_release(
 						trx->wait_lock);
+#ifdef WITH_WSREP
+					}
+#endif
 				}
 			}
 		}
@@ -2906,7 +3036,20 @@ loop:
 
 	if (sync_array_print_long_waits(&waiter, &sema)
 	    && sema == old_sema && os_thread_eq(waiter, old_waiter)) {
+#if defined(WITH_WSREP) && defined(WITH_INNODB_DISALLOW_WRITES)
+	  if (srv_allow_writes_event->is_set) {
+#endif /* WITH_WSREP */
 		fatal_cnt++;
+#if defined(WITH_WSREP) && defined(WITH_INNODB_DISALLOW_WRITES)
+	  } else {
+		fprintf(stderr,
+			"WSREP: avoiding InnoDB self crash due to long "
+			"semaphore wait of  > %lu seconds\n"
+			"Server is processing SST donor operation, "
+			"fatal_cnt now: %lu",
+			(ulong) srv_fatal_semaphore_wait_threshold, fatal_cnt);
+	  }
+#endif /* WITH_WSREP */
 		if (fatal_cnt > 10) {
 
 			fprintf(stderr,

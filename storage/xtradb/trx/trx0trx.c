@@ -211,6 +211,9 @@ trx_create(
 	/* Remember to free the vector explicitly. */
 	trx->autoinc_locks = ib_vector_create(
 		mem_heap_create(sizeof(ib_vector_t) + sizeof(void*) * 4), 4);
+#ifdef WITH_WSREP
+	trx->wsrep_event = NULL;
+#endif /* WITH_WSREP */
 
 	return(trx);
 }
@@ -755,6 +758,11 @@ trx_start_low(
 
 	trx->id = trx_sys_get_new_trx_id();
 
+#ifdef WITH_WSREP
+        memset(&trx->xid, 0, sizeof(trx->xid));
+        trx->xid.formatID = -1;
+#endif /* WITH_WSREP */
+
 	/* The initial value for trx->no: IB_ULONGLONG_MAX is used in
 	read_view_open_now: */
 
@@ -908,6 +916,14 @@ trx_write_serialisation_history(
 	}
 
 	mutex_exit(&rseg->mutex);
+
+#ifdef WITH_WSREP
+        /* Update latest MySQL wsrep XID in trx sys header. */
+        if (wsrep_is_wsrep_xid(&trx->xid))
+        {
+            trx_sys_update_wsrep_checkpoint(&trx->xid, &mtr);
+        }
+#endif /* WITH_WSREP */
 
 	/* Update the latest MySQL binlog name and offset info
 	in trx sys header if MySQL binlogging is on or the database
@@ -1139,6 +1155,12 @@ trx_commit_off_kernel(
 	ut_ad(UT_LIST_GET_LEN(trx->wait_thrs) == 0);
 	ut_ad(UT_LIST_GET_LEN(trx->trx_locks) == 0);
 
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) &&
+	    trx->was_chosen_as_deadlock_victim) {
+		trx->was_chosen_as_deadlock_victim = FALSE;
+	}
+#endif
 	UT_LIST_REMOVE(trx_list, trx_sys->trx_list, trx);
 
 	trx->error_state = DB_SUCCESS;

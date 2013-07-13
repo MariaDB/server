@@ -866,9 +866,7 @@ lock_trx_has_sys_table_locks(
 				record */
 #define LOCK_CONV_BY_OTHER 4096 /*!< this bit is set when the lock is created
 				by other transaction */
-#if (LOCK_WAIT|LOCK_GAP|LOCK_REC_NOT_GAP|LOCK_INSERT_INTENTION|LOCK_CONV_BY_OTHER)&LOCK_MODE_MASK
-# error
-#endif
+#define WSREP_BF		8192
 #if (LOCK_WAIT|LOCK_GAP|LOCK_REC_NOT_GAP|LOCK_INSERT_INTENTION|LOCK_CONV_BY_OTHER)&LOCK_TYPE_MASK
 # error
 #endif
@@ -951,6 +949,16 @@ extern	ib_int64_t	srv_n_lock_wait_time;
 extern	ulint		srv_n_lock_max_wait_time;
 extern	os_event_t	srv_lock_timeout_thread_event;
 
+#ifdef WITH_WSREP
+/*********************************************************************//**
+Cancels a waiting lock request and releases possible other transactions
+waiting behind it. */
+UNIV_INTERN
+void
+lock_cancel_waiting_and_release(
+/*============================*/
+	lock_t*	lock);	/*!< in/out: waiting lock request */
+#endif /* WITH_WSREP */
 #ifndef UNIV_NONINL
 #include "lock0lock.ic"
 #endif

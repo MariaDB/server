@@ -313,6 +313,9 @@ IF(WIN32)
     INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/${file}.pl COMPONENT Server_Scripts)
   ENDFOREACH()
 ELSE()
+  IF(WITH_WSREP)
+    SET(WSREP_BINARIES wsrep_sst_common wsrep_sst_mysqldump wsrep_sst_rsync wsrep_sst_xtrabackup)
+  ENDIF()
   # On Unix, most of the files end up in the bin directory
   SET(BIN_SCRIPTS
     msql2mysql
@@ -329,6 +332,7 @@ ELSE()
     mysqldumpslow
     mysqld_multi
     mysqld_safe
+    ${WSREP_BINARIES}
   )
   FOREACH(file ${BIN_SCRIPTS})
     IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh)

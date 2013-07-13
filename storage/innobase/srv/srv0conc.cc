@@ -43,6 +43,10 @@ Created 2011/04/18 Sunny Bains
 #include "ha_prototypes.h"
 
 #include "mysql/plugin.h"
+#ifdef WITH_WSREP
+extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
+extern my_bool wsrep_debug;
+#endif
 
 /** Number of times a thread is allowed to enter InnoDB within the same
 SQL query after it has once got the ticket. */
@@ -89,6 +93,9 @@ struct srv_conc_slot_struct{
 					reserved may still be TRUE at that
 					point */
 	srv_conc_node_t	srv_conc_queue;	/*!< queue node */
+#ifdef WITH_WSREP
+	void				*thd;		/*!< to see priority */
+#endif
 };
 
 /** Queue of threads waiting to get in */
@@ -150,6 +157,9 @@ srv_conc_init(void)
 
 		conc_slot->event = os_event_create(NULL);
 		ut_a(conc_slot->event);
+#ifdef WITH_WSREP
+		conc_slot->thd = NULL;
+#endif /* WITH_WSREP */
 	}
 #endif /* !HAVE_ATOMIC_BUILTINS */
 }
@@ -250,6 +260,21 @@ srv_conc_enter_innodb_with_atomics(
 			(void) os_atomic_decrement_lint(
 				&srv_conc.n_active, 1);
 		}
+#ifdef WITH_WSREP
+		if (wsrep_on(trx->mysql_thd) && 
+		  	wsrep_thd_is_brute_force(trx->mysql_thd)) {
+			srv_conc_force_enter_innodb(trx);
+			return;
+		}
+		if (wsrep_on(trx->mysql_thd) && 
+		    wsrep_trx_is_aborting(trx->mysql_thd)) {
+			if (wsrep_debug)
+			  	fprintf(stderr, 
+					"srv_conc_enter due to MUST_ABORT");
+			srv_conc_force_enter_innodb(trx);
+			return;
+		}
+#endif
 
 		if (!notified_mysql) {
 			(void) os_atomic_increment_lint(
@@ -328,6 +353,9 @@ srv_conc_exit_innodb_without_atomics(
 	slot = NULL;
 
 	if (srv_conc.n_active < (lint) srv_thread_concurrency) {
+#ifdef WITH_WSREP
+		srv_conc_slot_t*  wsrep_slot;
+#endif
 		/* Look for a slot where a thread is waiting and no other
 		thread has yet released the thread */
 
@@ -338,6 +366,19 @@ srv_conc_exit_innodb_without_atomics(
 			/* No op */
 		}
 
+#ifdef WITH_WSREP
+		/* look for aborting trx, they must be released asap */
+		wsrep_slot= slot;
+		while (wsrep_slot && (wsrep_slot->wait_ended == TRUE || 
+		    !wsrep_trx_is_aborting(wsrep_slot->thd))) {
+			wsrep_slot = UT_LIST_GET_NEXT(srv_conc_queue, wsrep_slot);
+		}
+		if (wsrep_slot) {
+			slot = wsrep_slot;
+			if (wsrep_debug)
+			    fprintf(stderr, "WSREP: releasing aborting thd\n");
+		}
+#endif
 		if (slot != NULL) {
 			slot->wait_ended = TRUE;
 
@@ -393,6 +434,18 @@ retry:
 
 		return;
 	}
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) && 
+	    wsrep_thd_is_brute_force(trx->mysql_thd)) {
+		srv_conc_force_enter_innodb(trx);
+		return;
+	}
+	if (wsrep_on(trx->mysql_thd) && 
+	    wsrep_trx_is_aborting(trx->mysql_thd)) {
+		srv_conc_force_enter_innodb(trx);
+		return;
+	}
+#endif
 
 	/* If the transaction is not holding resources, let it sleep
 	for srv_thread_sleep_delay microseconds, and try again then */
@@ -459,6 +512,9 @@ retry:
 	/* Add to the queue */
 	slot->reserved = TRUE;
 	slot->wait_ended = FALSE;
+#ifdef WITH_WSREP
+	slot->thd = trx->mysql_thd;
+#endif
 
 	UT_LIST_ADD_LAST(srv_conc_queue, srv_conc_queue, slot);
 
@@ -466,6 +522,19 @@ retry:
 
 	srv_conc.n_waiting++;
 
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) && 
+	    wsrep_trx_is_aborting(trx->mysql_thd)) {
+		srv_conc_n_waiting_threads--;
+		os_fast_mutex_unlock(&srv_conc_mutex);
+		if (wsrep_debug)
+			fprintf(stderr, "srv_conc_enter due to MUST_ABORT");
+		trx->declared_to_be_inside_innodb = TRUE;
+		trx->n_tickets_to_enter_innodb = SRV_FREE_TICKETS_TO_ENTER;
+		return;
+	}
+	trx->wsrep_event = slot->event;
+#endif /* WITH_WSREP */
 	os_fast_mutex_unlock(&srv_conc_mutex);
 
 	/* Go to wait for the event; when a thread leaves InnoDB it will
@@ -480,6 +549,9 @@ retry:
 	thd_wait_begin(static_cast<THD*>(trx->mysql_thd), THD_WAIT_USER_LOCK);
 
 	os_event_wait(slot->event);
+#ifdef WITH_WSREP
+	trx->wsrep_event = NULL;
+#endif /* WITH_WSREP */
 	thd_wait_end(static_cast<THD*>(trx->mysql_thd));
 
 	trx->op_info = "";
@@ -492,6 +564,9 @@ retry:
 	incremented the thread counter on behalf of this thread */
 
 	slot->reserved = FALSE;
+#ifdef WITH_WSREP
+	slot->thd = NULL;
+#endif
 
 	UT_LIST_REMOVE(srv_conc_queue, srv_conc_queue, slot);
 
@@ -501,6 +576,39 @@ retry:
 	os_fast_mutex_unlock(&srv_conc_mutex);
 }
 #endif /* HAVE_ATOMIC_BUILTINS */
+#ifdef WITH_WSREP
+#ifdef HAVE_ATOMIC_BUILTINS
+UNIV_INTERN
+void
+wsrep_srv_conc_cancel_wait(
+/*==================*/
+	trx_t*	trx)	/*!< in: transaction object associated with the
+			thread */
+{
+	if (trx->wsrep_event) {
+		if (wsrep_debug) 
+			fprintf(stderr, "WSREP: conc slot cancel\n");
+		os_event_set(trx->wsrep_event);
+	}
+}
+#else
+UNIV_INTERN
+void
+wsrep_srv_conc_cancel_wait(
+/*==================*/
+	trx_t*	trx)	/*!< in: transaction object associated with the
+			thread */
+{
+	os_fast_mutex_lock(&srv_conc_mutex);
+	if (trx->wsrep_event) {
+		if (wsrep_debug) 
+			fprintf(stderr, "WSREP: conc slot cancel\n");
+		os_event_set(trx->wsrep_event);
+	}
+	os_fast_mutex_unlock(&srv_conc_mutex);
+}
+#endif /* HAVE_ATOMIC_BUILTINS */
+#endif /* WITH_WSREP */
 
 /*********************************************************************//**
 Puts an OS thread to wait if there are too many concurrent threads

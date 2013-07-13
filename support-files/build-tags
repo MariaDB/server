@@ -1,12 +1,17 @@
 #! /bin/sh
 
 rm -f TAGS
-filter='\.cc$\|\.c$\|\.h$\|\.yy$'
+filter='\.cc$\|\.c$\|\.h$\|\.yy\|\.ic\|.ih$'
 
-list="find . -type f"
+#list="find . -type f"
 bzr root >/dev/null 2>/dev/null && list="bzr ls --from-root -R --kind=file --versioned"
 
 $list |grep $filter |while read f; 
 do
 	 etags -o TAGS --append $f
 done
+
+(cd storage/galera && svn ls -R) | grep $filter | while read f; 
+do
+	etags -o TAGS --append storage/galera/$f
+done 

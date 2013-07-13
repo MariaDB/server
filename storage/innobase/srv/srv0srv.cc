@@ -72,6 +72,10 @@ Created 10/8/1995 Heikki Tuuri
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
 
+#ifdef WITH_WSREP
+extern int wsrep_debug;
+extern int wsrep_trx_is_aborting(void *thd_ptr);
+#endif
 /* The following counter is incremented whenever there is some user activity
 in the server */
 UNIV_INTERN ulint	srv_activity_count	= 0;
@@ -197,6 +201,10 @@ acquisition attempts exceeds maximum allowed value. If so,
 srv_printf_innodb_monitor() will request mutex acquisition
 with mutex_enter(), which will wait until it gets the mutex. */
 #define MUTEX_NOWAIT(mutex_skipped)	((mutex_skipped) < MAX_MUTEX_NOWAIT)
+
+#ifdef WITH_INNODB_DISALLOW_WRITES
+UNIV_INTERN os_event_t	srv_allow_writes_event;
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 /** The sort order table of the MySQL latin1_swedish_ci character set
 collation */
@@ -971,6 +979,14 @@ srv_init(void)
 	dict_ind_init();
 
 	srv_conc_init();
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	/* Writes have to be enabled on init or else we hang. Thus, we
+	always set the event here regardless of innobase_disallow_writes.
+	That flag will always be 0 at this point because it isn't settable
+	via my.cnf or command line arg. */
+	srv_allow_writes_event = os_event_create(NULL);
+	os_event_set(srv_allow_writes_event);
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 	/* Initialize some INFORMATION SCHEMA internal structures */
 	trx_i_s_cache_init(trx_i_s_cache);
@@ -1655,7 +1671,20 @@ loop:
 
 	if (sync_array_print_long_waits(&waiter, &sema)
 	    && sema == old_sema && os_thread_eq(waiter, old_waiter)) {
+#if defined(WITH_WSREP) && defined(WITH_INNODB_DISALLOW_WRITES)
+	  if (srv_allow_writes_event->is_set) {
+#endif /* WITH_WSREP */
 		fatal_cnt++;
+#if defined(WITH_WSREP) && defined(WITH_INNODB_DISALLOW_WRITES)
+	  } else {
+		fprintf(stderr,
+			"WSREP: avoiding InnoDB self crash due to long "
+			"semaphore wait of  > %lu seconds\n"
+			"Server is processing SST donor operation, "
+			"fatal_cnt now: %lu",
+			(ulong) srv_fatal_semaphore_wait_threshold, fatal_cnt);
+	  }
+#endif /* WITH_WSREP */
 		if (fatal_cnt > 10) {
 
 			fprintf(stderr,
@@ -2199,6 +2228,27 @@ srv_master_sleep(void)
 	srv_main_thread_op_info = "";
 }
 
+#ifdef WITH_WSREP
+/*********************************************************************//**
+check if lock timeout was for priority thread, 
+as a side effect trigger lock monitor
+@return	false for regular lock timeout */
+static ibool
+wsrep_is_BF_lock_timeout(
+/*====================*/
+	 srv_slot_t*	slot) /* in: lock slot to check for lock priority */
+{
+	if (wsrep_on(thr_get_trx(slot->thr)->mysql_thd) &&
+	    wsrep_thd_is_brute_force((thr_get_trx(slot->thr))->mysql_thd)) {
+		fprintf(stderr, "WSREP: BF lock wait long\n");
+		srv_print_innodb_monitor 	= TRUE;
+		srv_print_innodb_lock_monitor 	= TRUE;
+		os_event_set(srv_lock_timeout_thread_event);
+		return TRUE;
+	}
+	return FALSE;
+ }
+#endif /* WITH_WSREP */
 /*********************************************************************//**
 The master thread controlling the server.
 @return	a dummy parameter */
@@ -2277,6 +2327,27 @@ suspend_thread:
 	OS_THREAD_DUMMY_RETURN;	/* Not reached, avoid compiler warning */
 }
 
+#ifdef WITH_WSREP_TODO
+/*********************************************************************//**
+check if lock timeout was for priority thread, 
+as a side effect trigger lock monitor
+@return	false for regular lock timeout */
+static ibool
+wsrep_is_BF_lock_timeout(
+/*====================*/
+	 srv_slot_t*	slot) /* in: lock slot to check for lock priority */
+{
+	if (wsrep_on(thr_get_trx(slot->thr)->mysql_thd) &&
+	    wsrep_thd_is_brute_force((thr_get_trx(slot->thr))->mysql_thd)) {
+		fprintf(stderr, "WSREP: BF lock wait long\n");
+		srv_print_innodb_monitor 	= TRUE;
+		srv_print_innodb_lock_monitor 	= TRUE;
+		os_event_set(srv_lock_timeout_thread_event);
+		return TRUE;
+	}
+	return FALSE;
+ }
+#endif /* WITH_WSREP */
 /*********************************************************************//**
 Check if purge should stop.
 @return true if it should shutdown. */

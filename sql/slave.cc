@@ -53,6 +53,9 @@
                                                 // Create_file_log_event,
                                                 // Format_description_log_event
 
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 #ifdef HAVE_REPLICATION
 
 #include "rpl_tblmap.h"
@@ -3026,6 +3029,23 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli)
   ev->thd = thd; // because up to this point, ev->thd == 0
 
   int reason= ev->shall_skip(rli);
+#ifdef WITH_WSREP
+  if (WSREP_ON && (ev->get_type_code() == XID_EVENT ||
+      (ev->get_type_code() == QUERY_EVENT && thd->wsrep_mysql_replicated > 0 &&
+       (!strncasecmp(((Query_log_event*)ev)->query , "BEGIN", 5) ||
+        !strncasecmp(((Query_log_event*)ev)->query , "COMMIT", 6) ))))
+  {
+    if (++thd->wsrep_mysql_replicated < (int)wsrep_mysql_replication_bundle)
+    {
+      WSREP_DEBUG("skipping wsrep commit %d", thd->wsrep_mysql_replicated);
+      reason = Log_event::EVENT_SKIP_IGNORE;
+    }
+    else
+    {
+      thd->wsrep_mysql_replicated = 0;
+    }
+  }
+#endif
   if (reason == Log_event::EVENT_SKIP_COUNT)
   {
     DBUG_ASSERT(rli->slave_skip_counter > 0);
@@ -4004,6 +4024,11 @@ pthread_handler_t handle_slave_sql(void *arg)
 #endif
   DBUG_ASSERT(rli->sql_thd == thd);
 
+#ifdef WITH_WSREP
+  thd->wsrep_exec_mode= LOCAL_STATE;
+  /* synchronize with wsrep replication */
+  if (WSREP_ON) wsrep_ready_wait();
+#endif
   DBUG_PRINT("master_info",("log_file_name: %s  position: %s",
                             rli->group_master_log_name,
                             llstr(rli->group_master_log_pos,llbuff)));

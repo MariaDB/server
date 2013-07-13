@@ -1156,7 +1156,19 @@ end:
   close_mysql_tables(thd);
   DBUG_RETURN(ret);
 }
+#ifdef WITH_WSREP
+int wsrep_create_event_query(THD *thd, uchar** buf, uint* buf_len)
+{
+  String log_query;
 
+  if (create_query_string(thd, &log_query))
+  {
+    WSREP_WARN("events create string failed: %s", thd->query());
+    return 1;
+  }
+  return wsrep_to_buf_helper(thd, log_query.ptr(), log_query.length(), buf, buf_len);
+}
+#endif /* WITH_WSREP */
 /**
   @} (End of group Event_Scheduler)
 */

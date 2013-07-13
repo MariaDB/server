@@ -746,6 +746,9 @@ struct trx_struct{
 	/*------------------------------*/
 	char detailed_error[256];	/*!< detailed error message for last
 					error, or empty. */
+#ifdef WITH_WSREP
+	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
+#endif /* WITH_WSREP */
 	/*------------------------------*/
 	ulint		io_reads;
 	ib_uint64_t	io_read;

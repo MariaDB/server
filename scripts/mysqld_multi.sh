@@ -38,7 +38,7 @@ use Getopt::Long;
 use POSIX qw(strftime getcwd);
 
 $|=1;
-$VER="2.16";
+$VER="2.20";
 
 my @defaults_options;   #  Leading --no-defaults, --defaults-file, etc.
 
@@ -138,6 +138,7 @@ sub main
     print "will be disabled\nand some will be enabled.\n\n";
   }
 
+  init_log() if (!defined($opt_log));
   $groupids = $ARGV[1];
   if ($opt_version)
   {
@@ -163,7 +164,6 @@ sub main
 	       !($ARGV[0] =~ m/^stop$/i) &&
 	       !($ARGV[0] =~ m/^report$/i)));
 
-  init_log() if (!defined($opt_log));
   if (!$opt_no_log)
   {
     w2log("$my_progname log file version $VER; run: ",
@@ -206,9 +206,9 @@ sub main
   }
 }
 
-#
-# Quote word for shell
-#
+####
+#### Quote word for shell
+####
 
 sub quote_shell_word
 {
@@ -217,6 +217,10 @@ sub quote_shell_word
   $option =~ s!([^\w=./-])!\\$1!g;
   return $option;
 }
+
+####
+#### get options for a group
+####
 
 sub defaults_for_group
 {
@@ -319,8 +323,12 @@ sub report_mysqlds
 
 sub start_mysqlds()
 {
-  my (@groups, $com, $tmp, $i, @options, $j, $mysqld_found, $info_sent);
+  my (@groups, $com, $com2, $tmp, $i, @options, $j, $mysqld_found,
+      $info_sent, $curdir, $mysql_install_db, $srcdir, $basedir,
+      $datadir);
 
+  $mysql_install_db= undef();
+  $srcdir= undef();
   if (!$opt_no_log)
   {
     w2log("\nStarting MySQL servers\n","$opt_log",0,0);
@@ -334,8 +342,9 @@ sub start_mysqlds()
   {
     @options = defaults_for_group($groups[$i]);
 
-    $basedir_found= 0; # The default
-    $mysqld_found= 1; # The default
+    my $basedir_found= 0; # The default
+    my $datadir_found= 0; # The default
+    my $mysqld_found= 1; # The default
     $mysqld_found= 0 if (!length($mysqld));
     $com= "$mysqld";
     for ($j = 0, $tmp= ""; defined($options[$j]); $j++)
@@ -349,6 +358,47 @@ sub start_mysqlds()
 	$options[$j]=~ s/\-\-mysqld\=//;
 	$com= $options[$j];
         $mysqld_found= 1;
+      }
+      elsif ("--mysql-install-db=" eq substr($options[$j], 0, 19))
+      {
+	# mysql_install_db related option
+
+	$options[$j]=~ s/\-\-mysql\-install\-db\=//;
+	$mysql_install_db= $options[$j];
+      }
+      elsif ("--srcdir=" eq substr($options[$j], 0, 9))
+      {
+	# mysql_install_db related option
+
+	$options[$j]=~ s/\-\-srcdir\=//;
+	$srcdir= $options[$j];
+      }
+      elsif ("--include-config=" eq substr($options[$j], 0, 17))
+      {
+	$options[$j]=~ s/\-\-include\-config\=//;
+	$com2= "my_print_defaults --config-file=$options[$j] $groups[$i]";
+
+	# we need to reorder the array so that options in extra config file
+	# come in the middle. Needed if someone wants to overwrite an option
+
+	my ($k, @tmp_array);
+	for ($k= $j + 1; defined($options[$k]); $k++)
+	{
+	  push (@tmp_array, $options[$k]);
+	  undef($options[$k]);
+	}
+	pop(@options); # pop out last null array element
+	push (@options, `$com2`);
+	chomp(@options); # new lines away
+	push (@options, @tmp_array);
+      }
+      elsif ("--datadir=" eq substr($options[$j], 0, 10))
+      {
+        $datadir= $options[$j];
+        $datadir =~ s/^--datadir=//;
+        $datadir_found= 1;
+        $options[$j]= quote_shell_word($options[$j]);
+        $tmp.= " $options[$j]";
       }
       elsif ("--basedir=" eq substr($options[$j], 0, 10))
       {
@@ -372,6 +422,25 @@ sub start_mysqlds()
       print "ledir (library executable directory) should be the path to the ";
       print "wanted mysqld binary.\n\n";
       $info_sent= 1;
+    }
+    if (defined($mysql_install_db))
+    {
+      $com2= "$mysql_install_db";
+      $com2.= " --srcdir=$srcdir" if (defined($srcdir));
+      $com2.= " --datadir=$datadir" if ($datadir_found);
+
+      if (-d "$datadir/mysql")
+      {
+	my $wstr= "WARNING: $datadir/mysql already exists. Not going to\n";
+	$wstr.= "run $mysql_install_db on $datadir\n";
+	print $wstr if ($opt_verbose);
+	w2log($wstr, 0, 0);
+      }
+      else
+      {
+	w2log("Installing databases on $datadir..\n", 0, 0);
+	`$com2`;
+      }
     }
     $com.= $tmp;
     $com.= " >> $opt_log 2>&1" if (!$opt_no_log);
@@ -442,7 +511,7 @@ sub stop_mysqlds()
 sub get_mysqladmin_options
 {
   my ($i, @groups)= @_;
-  my ($mysqladmin_found, $com, $tmp, $j);
+  my ($mysqladmin_found, $com, $com2, $tmp, $j);
 
   @options = defaults_for_group($groups[$i]);
 
@@ -465,6 +534,25 @@ sub get_mysqladmin_options
       $com= $options[$j];
       $mysqladmin_found= 1;
     }
+    elsif ("--include-config=" eq substr($options[$j], 0, 17))
+    {
+      $options[$j]=~ s/\-\-include\-config\=//;
+      $com2= "my_print_defaults --config-file=$options[$j] $groups[$i]";
+      
+      # we need to reorder the array so that options in extra config file
+      # come in the middle. Needed if someone wants to overwrite an option
+      
+      my ($k, @tmp_array);
+      for ($k= $j + 1; defined($options[$k]); $k++)
+      {
+	push (@tmp_array, $options[$k]);
+	undef($options[$k]);
+      }
+      pop(@options); # pop out last null array element
+      push (@options, `$com2`);
+      chomp(@options); # new lines away
+      push (@options, @tmp_array);
+    }
     elsif ((($options[$j] =~ m/^(\-\-socket\=)(.*)$/) && !$opt_tcp_ip) ||
 	   ($options[$j] =~ m/^(\-\-port\=)(.*)$/))
     {
@@ -484,8 +572,11 @@ sub get_mysqladmin_options
   return $com;
 }
 
-# Return a list of option files which can be opened.  Similar, but not
-# identical, to behavior of my_search_option_files()
+####
+#### Return a list of option files which can be opened.  Similar, but not
+#### identical, to behavior of my_search_option_files()
+####
+
 sub list_defaults_files
 {
   my %opt;
@@ -507,9 +598,11 @@ sub list_defaults_files
                ($ENV{HOME} ? "$ENV{HOME}/.my.cnf" : undef));
 }
 
+####
+#### Takes a specification of GNRs (see --help), and returns a list of matching
+#### groups which actually are mentioned in a relevant config file
+####
 
-# Takes a specification of GNRs (see --help), and returns a list of matching
-# groups which actually are mentioned in a relevant config file
 sub find_groups
 {
   my ($raw_gids) = @_;
@@ -824,6 +917,17 @@ Using:  @{[join ' ', @defaults_options]}
                    question. This will be recognised as a special option and
                    will not be passed to the mysqld. This will allow one to
                    start different mysqld versions with mysqld_multi.
+--include-config=  An optional config file inside a group [mysqld#] which
+                   the program is currently reading. It will read any extra
+                   options of that group from additional file and insert them
+                   where this option was found. Note that the group name
+                   [mysqld#] must be the same in order for options to be found.
+--mysql-install-db=...
+                   mysql_install_db script to be used for creating internal
+                   databases. Used when installing datadir for the first time.
+                   This option will be skipped with info in the log file if
+                   'mysql' database already exists in the given datadir.
+--srcdir=...       srcdir argument for mysql_install_db script. Optional.
 --no-log           Print to stdout instead of the log file. By default the log
                    file is turned on.
 --password=...     Password for mysqladmin user.

@@ -54,7 +54,11 @@ typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
                                            some places */
 /* Function prototypes */
 void kill_mysql(void);
+#ifdef WITH_WSREP
+void close_connection(THD *thd, uint sql_errno= 0, bool lock=1);
+#else
 void close_connection(THD *thd, uint sql_errno= 0);
+#endif
 void handle_connection_in_main_thread(THD *thd);
 void create_thread_to_handle_connection(THD *thd);
 void delete_running_thd(THD *thd);
@@ -224,6 +228,10 @@ extern pthread_key(MEM_ROOT**,THR_MALLOC);
 #ifdef HAVE_MMAP
 extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
        key_LOCK_pool, key_LOCK_pending_checkpoint;
+#endif /* HAVE_MMAP */
+#ifdef WITH_WSREP
+extern PSI_mutex_key key_LOCK_wsrep_thd;
+extern PSI_cond_key  key_COND_wsrep_thd;
 #endif /* HAVE_MMAP */
 
 #ifdef HAVE_OPENSSL
@@ -557,6 +565,14 @@ enum options_mysqld
   OPT_SSL_KEY,
   OPT_UPDATE_LOG,
   OPT_WANT_CORE,
+#ifdef WITH_WSREP
+  OPT_WSREP_PROVIDER,
+  OPT_WSREP_PROVIDER_OPTIONS,
+  OPT_WSREP_CLUSTER_ADDRESS,
+  OPT_WSREP_START_POSITION,
+  OPT_WSREP_SST_AUTH,
+  OPT_WSREP_RECOVER,
+#endif
   OPT_which_is_always_the_last
 };
 #endif
@@ -699,5 +715,6 @@ extern uint internal_tmp_table_max_key_segments;
 
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;
+
 
 #endif /* MYSQLD_INCLUDED */

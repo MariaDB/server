@@ -111,6 +111,10 @@ class ha_innobase: public handler
 	dict_index_t* innobase_get_index(uint keynr);
 	int info_low(uint flag, dict_stats_upd_option_t stats_upd_option);
 
+#ifdef WITH_WSREP
+	int wsrep_append_keys(THD *thd, bool shared,
+			      const uchar* record0, const uchar* record1);
+#endif
 	/* Init values for the class: */
  public:
 	ha_innobase(handlerton *hton, TABLE_SHARE *table_arg);
@@ -371,6 +375,40 @@ bool thd_sqlcom_can_generate_row_events(const MYSQL_THD thd);
  */
 extern void mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file);
 
+#ifdef WITH_WSREP
+#include <wsrep_mysqld.h>
+//extern "C" int wsrep_trx_order_before(void *thd1, void *thd2);
+
+extern "C" bool wsrep_thd_is_wsrep_on(THD *thd);
+
+extern "C" enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd);
+extern "C" enum wsrep_conflict_state wsrep_thd_conflict_state(THD *thd);
+extern "C" enum wsrep_query_state wsrep_thd_query_state(THD *thd);
+extern "C" const char * wsrep_thd_exec_mode_str(THD *thd);
+extern "C" const char * wsrep_thd_conflict_state_str(THD *thd);
+extern "C" const char * wsrep_thd_query_state_str(THD *thd);
+extern "C" wsrep_trx_handle_t* wsrep_thd_trx_handle(THD *thd);
+
+extern "C" void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode);
+extern "C" void wsrep_thd_set_query_state(
+	THD *thd, enum wsrep_query_state state);
+extern "C" void wsrep_thd_set_conflict_state(
+	THD *thd, enum wsrep_conflict_state state);
+
+extern "C" void wsrep_thd_set_trx_to_replay(THD *thd, uint64 trx_id);
+
+extern "C"void wsrep_thd_LOCK(THD *thd);
+extern "C"void wsrep_thd_UNLOCK(THD *thd);
+extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
+extern "C" time_t wsrep_thd_query_start(THD *thd);
+extern "C" my_thread_id wsrep_thd_thread_id(THD *thd);
+extern "C" int64_t wsrep_thd_trx_seqno(THD *thd);
+extern "C" query_id_t wsrep_thd_query_id(THD *thd);
+extern "C" char * wsrep_thd_query(THD *thd);
+extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
+extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
+extern "C" void wsrep_thd_awake(THD* bf_thd, THD *thd, my_bool signal);
+#endif
 typedef struct trx_struct trx_t;
 
 extern const struct _ft_vft ft_vft_result;
@@ -417,6 +455,9 @@ innobase_index_name_is_reserved(
 	const KEY*	key_info,	/*!< in: Indexes to be created */
 	ulint		num_of_keys);	/*!< in: Number of indexes to
 					be created. */
+#ifdef WITH_WSREP
+extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
+#endif
 /*********************************************************************//**
 Retrieve the FTS Relevance Ranking result for doc with doc_id
 of prebuilt->fts_doc_id

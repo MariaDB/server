@@ -873,6 +873,14 @@ row_ins_invalidate_query_cache(
 	innobase_invalidate_query_cache(thr_get_trx(thr), buf, len);
 	mem_free(buf);
 }
+#ifdef WITH_WSREP
+ulint wsrep_append_foreign_key(trx_t *trx,  
+			       dict_foreign_t*	foreign,
+			       const rec_t*	clust_rec,
+			       dict_index_t*	clust_index,
+			       ibool		referenced,
+			       ibool            shared);
+#endif /* WITH_WSREP */
 
 /*********************************************************************//**
 Perform referential actions or checks when a parent row is deleted or updated
@@ -1227,6 +1235,16 @@ row_ins_foreign_check_on_constraint(
 	err = row_update_cascade_for_mysql(thr, cascade,
 					   foreign->foreign_table);
 
+#ifdef WITH_WSREP
+	if (err == DB_SUCCESS) {
+		err = wsrep_append_foreign_key(
+			thr_get_trx(thr),
+			foreign,
+			clust_rec, 
+			clust_index,
+			FALSE, FALSE);
+	}
+#endif /* WITH_WSREP */
 	if (foreign->foreign_table->n_foreign_key_checks_running == 0) {
 		fprintf(stderr,
 			"InnoDB: error: table %s has the counter 0"
@@ -1551,7 +1569,14 @@ run_again:
 
 				if (check_ref) {
 					err = DB_SUCCESS;
-
+#ifdef WITH_WSREP
+					err = wsrep_append_foreign_key(
+						thr_get_trx(thr),
+						foreign,
+						rec, 
+						check_index, 
+						check_ref, TRUE);
+#endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
 					/* There is an ON UPDATE or ON DELETE
@@ -1802,6 +1827,9 @@ row_ins_scan_sec_index_for_duplicate(
 	dtuple_t*	entry,	/*!< in: index entry */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
+#ifdef WITH_WSREP
+	trx_t*		trx = thr_get_trx(thr);
+#endif
 	ulint		n_unique;
 	ulint		i;
 	int		cmp;
@@ -1855,7 +1883,14 @@ row_ins_scan_sec_index_for_duplicate(
 		offsets = rec_get_offsets(rec, index, offsets,
 					  ULINT_UNDEFINED, &heap);
 
+#ifdef WITH_WSREP
+		/* slave applier must not get duplicate error */
+		if (allow_duplicates ||
+		    (wsrep_on(trx->mysql_thd) &&
+		     wsrep_thd_is_brute_force(trx->mysql_thd))) {
+#else
 		if (allow_duplicates) {
+#endif
 
 			/* If the SQL-query will update or replace
 			duplicate key we will take X-lock for
@@ -1973,7 +2008,13 @@ row_ins_duplicate_error_in_clust(
 			sure that in roll-forward we get the same duplicate
 			errors as in original execution */
 
+#ifdef WITH_WSREP
+			if (trx->duplicates ||
+			    (wsrep_on(trx->mysql_thd) && 
+			     wsrep_thd_is_brute_force(trx->mysql_thd))) {
+#else
 			if (trx->duplicates) {
+#endif
 
 				/* If the SQL-query will update or replace
 				duplicate key we will take X-lock for
@@ -2017,7 +2058,13 @@ row_ins_duplicate_error_in_clust(
 			offsets = rec_get_offsets(rec, cursor->index, offsets,
 						  ULINT_UNDEFINED, &heap);
 
+#ifdef WITH_WSREP
+			if (trx->duplicates ||
+			    (wsrep_on(trx->mysql_thd) && 
+			     wsrep_thd_is_brute_force(trx->mysql_thd))) {
+#else
 			if (trx->duplicates) {
+#endif
 
 				/* If the SQL-query will update or replace
 				duplicate key we will take X-lock for

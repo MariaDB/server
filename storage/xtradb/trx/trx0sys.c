@@ -44,6 +44,10 @@ Created 3/26/1996 Heikki Tuuri
 #include "os0file.h"
 #include "read0read.h"
 
+#ifdef WITH_WSREP
+#include "ha_prototypes.h" /* wsrep_is_wsrep_xid() */
+#endif /* */
+
 /** The file format tag structure with id and name. */
 struct file_format_struct {
 	ulint		id;		/*!< id of the file format */
@@ -957,6 +961,89 @@ trx_sys_print_mysql_binlog_offset(void)
 
 	mtr_commit(&mtr);
 }
+
+#ifdef WITH_WSREP
+
+void
+trx_sys_update_wsrep_checkpoint(
+        const XID*      xid,  /*!< in: transaction XID */
+        mtr_t*          mtr)  /*!< in: mtr */
+{
+        trx_sysf_t*     sys_header;
+
+        ut_ad(xid && mtr);
+        ut_a(xid->formatID == -1 || wsrep_is_wsrep_xid(xid));
+
+        sys_header = trx_sysf_get(mtr);
+        if (mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
+                             + TRX_SYS_WSREP_XID_MAGIC_N_FLD)
+            != TRX_SYS_WSREP_XID_MAGIC_N) {
+                mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
+                                 + TRX_SYS_WSREP_XID_MAGIC_N_FLD,
+                                 TRX_SYS_WSREP_XID_MAGIC_N,
+                                 MLOG_4BYTES, mtr);
+        }
+
+        mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
+                         + TRX_SYS_WSREP_XID_FORMAT,
+                         (int)xid->formatID,
+                         MLOG_4BYTES, mtr);
+        mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
+                         + TRX_SYS_WSREP_XID_GTRID_LEN,
+                         (int)xid->gtrid_length,
+                         MLOG_4BYTES, mtr);
+        mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
+                         + TRX_SYS_WSREP_XID_BQUAL_LEN,
+                         (int)xid->bqual_length,
+                         MLOG_4BYTES, mtr);
+        mlog_write_string(sys_header + TRX_SYS_WSREP_XID_INFO
+                          + TRX_SYS_WSREP_XID_DATA,
+                          (const unsigned char*) xid->data,
+                          XIDDATASIZE, mtr);
+
+}
+
+void
+trx_sys_read_wsrep_checkpoint(XID* xid)
+/*===================================*/
+{
+        trx_sysf_t* sys_header;
+	mtr_t	    mtr;
+        ulint       magic;
+
+        ut_ad(xid);
+
+	mtr_start(&mtr);
+
+	sys_header = trx_sysf_get(&mtr);
+
+        if ((magic = mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
+                                      + TRX_SYS_WSREP_XID_MAGIC_N_FLD))
+            != TRX_SYS_WSREP_XID_MAGIC_N) {
+                memset(xid, 0, sizeof(*xid));
+                xid->formatID = -1;
+                trx_sys_update_wsrep_checkpoint(xid, &mtr);
+                mtr_commit(&mtr);
+                return;
+        }
+
+        xid->formatID     = (int)mach_read_from_4(
+                sys_header
+                + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_FORMAT);
+        xid->gtrid_length = (int)mach_read_from_4(
+                sys_header
+                + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_GTRID_LEN);
+        xid->bqual_length = (int)mach_read_from_4(
+                sys_header
+                + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_BQUAL_LEN);
+        ut_memcpy(xid->data,
+                  sys_header + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_DATA,
+                  XIDDATASIZE);
+
+	mtr_commit(&mtr);
+}
+
+#endif /* WITH_WSREP */
 
 /*****************************************************************//**
 Reads the log coordinates at the given offset in the trx sys header. */
