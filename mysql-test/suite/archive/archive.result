@@ -12862,6 +12862,5 @@ select * from t1;
 ERROR HY000: Table 't1' is marked as crashed and should be repaired
 show warnings;
 Level	Code	Message
-Warning	127	Got error 127 when reading table `test`.`t1`
 Error	1194	Table 't1' is marked as crashed and should be repaired
 drop table t1;

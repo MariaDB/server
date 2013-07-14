@@ -16631,13 +16631,8 @@ int report_error(TABLE *table, int error)
   */
   if (error != HA_ERR_LOCK_DEADLOCK && error != HA_ERR_LOCK_WAIT_TIMEOUT
       && !table->in_use->killed)
-  {
-    push_warning_printf(table->in_use, Sql_condition::WARN_LEVEL_WARN, error,
-                        "Got error %d when reading table %`s.%`s",
-                        error, table->s->db.str, table->s->table_name.str);
     sql_print_error("Got error %d when reading table '%s'",
 		    error, table->s->path.str);
-  }
   table->file->print_error(error,MYF(0));
   return 1;
 }
