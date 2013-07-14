@@ -6138,7 +6138,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
   {
     LEX *lex= thd->lex;
 
-    bool err= parse_sql(thd, parser_state, NULL);
+    bool err= parse_sql(thd, parser_state, NULL, true);
 
     if (!err)
     {
@@ -6246,7 +6246,7 @@ bool mysql_test_parse_for_slave(THD *thd, char *rawbuf, uint length)
     lex_start(thd);
     mysql_reset_thd_for_next_command(thd, opt_userstat_running);
 
-    if (!parse_sql(thd, & parser_state, NULL) &&
+    if (!parse_sql(thd, & parser_state, NULL, true) &&
         all_tables_not_ok(thd, lex->select_lex.table_list.first))
       error= 1;                  /* Ignore question */
     thd->end_statement();
@@ -8119,9 +8119,8 @@ extern int MYSQLparse(void *thd); // from sql_yacc.cc
     @retval TRUE on parsing error.
 */
 
-bool parse_sql(THD *thd,
-               Parser_state *parser_state,
-               Object_creation_ctx *creation_ctx)
+bool parse_sql(THD *thd, Parser_state *parser_state,
+               Object_creation_ctx *creation_ctx, bool do_pfs_digest)
 {
   bool ret_value;
   DBUG_ENTER("parse_sql");
@@ -8143,7 +8142,7 @@ bool parse_sql(THD *thd,
 #ifdef HAVE_PSI_STATEMENT_DIGEST_INTERFACE
   /* Start Digest */
   thd->m_parser_state->m_lip.m_digest_psi=
-    MYSQL_DIGEST_START(thd->m_statement_psi);
+    MYSQL_DIGEST_START(do_pfs_digest ? thd->m_statement_psi : NULL);
 #endif
 
   /* Parse the query. */

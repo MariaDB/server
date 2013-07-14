@@ -46,9 +46,8 @@ bool insert_precheck(THD *thd, TABLE_LIST *tables);
 bool create_table_precheck(THD *thd, TABLE_LIST *tables,
                            TABLE_LIST *create_table);
 
-bool parse_sql(THD *thd,
-               Parser_state *parser_state,
-               Object_creation_ctx *creation_ctx);
+bool parse_sql(THD *thd, Parser_state *parser_state,
+               Object_creation_ctx *creation_ctx, bool do_pfs_digest=false);
 
 void free_items(Item *item);
 void cleanup_items(Item *item);
