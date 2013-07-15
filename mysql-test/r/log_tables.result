@@ -53,7 +53,7 @@ ERROR HY000: You can't use locks with log tables.
 show create table mysql.general_log;
 Table	Create Table
 general_log	CREATE TABLE `general_log` (
-  `event_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `event_time` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   `user_host` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
@@ -62,7 +62,7 @@ general_log	CREATE TABLE `general_log` (
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log'
 show fields from mysql.general_log;
 Field	Type	Null	Key	Default	Extra
-event_time	timestamp	NO		CURRENT_TIMESTAMP	on update CURRENT_TIMESTAMP
+event_time	timestamp(6)	NO		CURRENT_TIMESTAMP(6)	on update CURRENT_TIMESTAMP
 user_host	mediumtext	NO		NULL	
 thread_id	bigint(21) unsigned	NO		NULL	
 server_id	int(10) unsigned	NO		NULL	
@@ -166,7 +166,7 @@ set global slow_query_log='OFF';
 show create table mysql.general_log;
 Table	Create Table
 general_log	CREATE TABLE `general_log` (
-  `event_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `event_time` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   `user_host` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
@@ -194,7 +194,7 @@ alter table mysql.slow_log engine=myisam;
 show create table mysql.general_log;
 Table	Create Table
 general_log	CREATE TABLE `general_log` (
-  `event_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `event_time` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   `user_host` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
@@ -265,7 +265,7 @@ drop table mysql.slow_log;
 ERROR 42S02: Unknown table 'mysql.slow_log'
 use mysql;
 CREATE TABLE `general_log` (
-`event_time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP 
+`event_time` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP 
 ON UPDATE CURRENT_TIMESTAMP,
 `user_host` mediumtext NOT NULL,
 `thread_id` BIGINT(21) UNSIGNED NOT NULL,
