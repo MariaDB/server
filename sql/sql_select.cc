@@ -14436,7 +14436,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, tmpname, tmpname);
   share->blob_field= blob_field;
-  share->blob_ptr_size= portable_sizeof_char_ptr;
   share->table_charset= param->table_charset;
   share->primary_key= MAX_KEY;               // Indicate no primary key
   share->keys_for_keyread.init();
@@ -15163,7 +15162,6 @@ TABLE *create_virtual_tmp_table(THD *thd, List<Create_field> &field_list)
   table->temp_pool_slot= MY_BIT_NONE;
   share->blob_field= blob_field;
   share->fields= field_count;
-  share->blob_ptr_size= portable_sizeof_char_ptr;
   setup_tmp_table_column_bitmaps(table, bitmaps);
 
   /* Create all fields and calculate the total length of record */
@@ -15371,7 +15369,8 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 	seg->type=
 	((keyinfo->key_part[i].key_type & FIELDFLAG_BINARY) ?
 	 HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2);
-	seg->bit_start= (uint8)(field->pack_length() - share->blob_ptr_size);
+	seg->bit_start= (uint8)(field->pack_length() -
+                                portable_sizeof_char_ptr);
 	seg->flag= HA_BLOB_PART;
 	seg->length=0;			// Whole blob in unique constraint
       }
@@ -15533,7 +15532,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 	seg->type=
 	((keyinfo->key_part[i].key_type & FIELDFLAG_BINARY) ?
 	 HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2);
-	seg->bit_start= (uint8)(field->pack_length() - share->blob_ptr_size);
+	seg->bit_start= (uint8)(field->pack_length() - portable_sizeof_char_ptr);
 	seg->flag= HA_BLOB_PART;
 	seg->length=0;			// Whole blob in unique constraint
       }

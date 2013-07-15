@@ -5673,10 +5673,6 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
     field= new Field_double((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
 			    name, decimals, 0, unsigned_flag);
     break;
-  case MYSQL_TYPE_NULL:
-    field= new Field_null((uchar*) 0, max_length, Field::NONE,
-			  name, &my_charset_bin);
-    break;
   case MYSQL_TYPE_INT24:
     field= new Field_medium((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
 			    name, 0, unsigned_flag);
@@ -5709,6 +5705,7 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
     /* This case should never be chosen */
     DBUG_ASSERT(0);
     /* If something goes awfully wrong, it's better to get a string than die */
+  case MYSQL_TYPE_NULL:
   case MYSQL_TYPE_STRING:
     if (fixed_length && !too_big_for_varchar())
     {

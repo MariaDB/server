@@ -167,6 +167,15 @@ USE test;
 --echo End of 5.1 tests
 
 --echo #
+--echo # BUG#13489996 valgrind:conditional jump or move depends on
+--echo # uninitialised values-field_blob
+--echo #
+
+CREATE FUNCTION sf() RETURNS BLOB RETURN "";
+SELECT sf();
+DROP FUNCTION sf;
+
+--echo #
 --echo # Bug#11763507 - 56224: FUNCTION NAME IS CASE-SENSITIVE
 --echo #
 SET @@SQL_MODE = '';
@@ -228,3 +237,4 @@ DROP PROCEDURE testp_bug11763507;
 DROP FUNCTION testf_bug11763507;
 
 --echo #END OF BUG#11763507 test.
+

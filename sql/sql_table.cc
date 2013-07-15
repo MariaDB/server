@@ -5410,6 +5410,10 @@ static bool fill_alter_inplace_info(THD *thd,
   */
   for (f_ptr= table->field; (field= *f_ptr); f_ptr++)
   {
+    /* Clear marker for renamed or dropped field
+    which we are going to set later. */
+    field->flags&= ~(FIELD_IS_RENAMED | FIELD_IS_DROPPED);
+
     /* Use transformed info to evaluate flags for storage engine. */
     uint new_field_index= 0;
     new_field_it.init(alter_info->create_list);
@@ -5498,6 +5502,7 @@ static bool fill_alter_inplace_info(THD *thd,
       if (my_strcasecmp(system_charset_info, field->field_name,
                         new_field->field_name))
       {
+        field->flags|= FIELD_IS_RENAMED;
         ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_NAME;
         rename_column_in_stat_tables(thd, table, field,
                                      new_field->field_name);
@@ -5543,6 +5548,7 @@ static bool fill_alter_inplace_info(THD *thd,
         Corresponding storage engine flag should be already set.
       */
       DBUG_ASSERT(ha_alter_info->handler_flags & Alter_inplace_info::DROP_COLUMN);
+      field->flags|= FIELD_IS_DROPPED;
     }
   }
 
@@ -6895,8 +6901,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (key->type == Key::FOREIGN_KEY &&
           ((Foreign_key *)key)->validate(new_create_list))
         goto err;
-      if (key->type != Key::FOREIGN_KEY)
-        new_key_list.push_back(key);
+      new_key_list.push_back(key);
       if (key->name.str &&
 	  !my_strcasecmp(system_charset_info, key->name.str, primary_key_name))
       {

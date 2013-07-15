@@ -1986,6 +1986,7 @@ public:
   Field_blob(uint32 packlength_arg)
     :Field_longstr((uchar*) 0, 0, (uchar*) "", 0, NONE, "temp", system_charset_info),
     packlength(packlength_arg) {}
+  /* Note that the default copy constructor is used, in clone() */
   enum_field_types type() const { return MYSQL_TYPE_BLOB;}
   bool match_collation_to_optimize_range() const { return TRUE; }
   enum ha_base_keytype key_type() const
@@ -2011,7 +2012,7 @@ public:
   uint32 key_length() const { return 0; }
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const
-  { return (uint32) (packlength+table->s->blob_ptr_size); }
+  { return (uint32) (packlength + portable_sizeof_char_ptr); }
 
   /**
      Return the packed length without the pointer size added. 
@@ -2486,9 +2487,6 @@ public:
   {
     return 255 - FRM_VCOL_HEADER_SIZE(interval != NULL);
   }
-
-private:
-  const String empty_set_string;
 };
 
 

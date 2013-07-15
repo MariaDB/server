@@ -5,11 +5,12 @@
 #               main testing code t/innodb_mysql.test -> include/mix1.inc
 #
 
-# Slow test, don't run during staging part
--- source include/not_staging.inc
--- source include/have_innodb.inc
--- source include/have_query_cache.inc
+#Want to skip this test from daily Valgrind execution.
+--source include/no_valgrind_without_big.inc
+# Adding big test option for this test.
+--source include/big_test.inc
 
+-- source include/have_innodb.inc
 let $engine_type= InnoDB;
 let $other_engine_type= MEMORY;
 # InnoDB does support FOREIGN KEYFOREIGN KEYs
@@ -21,21 +22,21 @@ set session innodb_support_xa=default;
 --disable_warnings
 drop table if exists t1, t2, t3;
 --enable_warnings
-#
-# BUG#35850: Performance regression in 5.1.23/5.1.24
-#
+--echo #
+--echo # BUG#35850: Performance regression in 5.1.23/5.1.24
+--echo #
 create table t1(a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t2 (a int, b int, pk int, key(a,b), primary key(pk)) engine=innodb;
 insert into t2 select @a:=A.a+10*(B.a + 10*C.a),@a, @a from t1 A, t1 B, t1 C;
---echo this must use key 'a', not PRIMARY:
+--echo # this must use key 'a', not PRIMARY:
 --replace_column 9 #
 explain select a from t2 where a=b;
 drop table t1, t2;
 
-#
-# Bug #40360: Binlog related errors with binlog off
-#
+--echo #
+--echo # Bug #40360: Binlog related errors with binlog off
+--echo #
 # This bug is triggered when the binlog format is STATEMENT and the
 # binary log is turned off. In this case, no error should be shown for
 # the statement since there are no replication issues.
@@ -47,9 +48,9 @@ CREATE TABLE t1 ( a INT ) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
 DROP TABLE t1;
 
-#
-# Bug#37284 Crash in Field_string::type()
-#
+--echo #
+--echo # Bug#37284 Crash in Field_string::type()
+--echo #
 --disable_warnings
 DROP TABLE IF EXISTS t1;
 --enable_warnings
@@ -58,10 +59,10 @@ CREATE INDEX i1 on t1 (a(3));
 SELECT * FROM t1 WHERE a = 'abcde';
 DROP TABLE t1;
 
-#
-# Bug #37742: HA_EXTRA_KEYREAD flag is set when key contains only prefix of
-# requested column
-#
+--echo #
+--echo # Bug #37742: HA_EXTRA_KEYREAD flag is set when key contains only prefix of
+--echo # requested column
+--echo #
 
 CREATE TABLE foo (a int, b int, c char(10),
                   PRIMARY KEY (c(3)),
@@ -85,6 +86,12 @@ INSERT INTO foo VALUES
 INSERT INTO bar SELECT * FROM foo;
 INSERT INTO foo2 SELECT * FROM foo;
 
+-- disable_result_log
+ANALYZE TABLE bar;
+ANALYZE TABLE foo;
+ANALYZE TABLE foo2;
+-- enable_result_log
+
 --query_vertical EXPLAIN SELECT c FROM bar WHERE b>2;
 --query_vertical EXPLAIN SELECT c FROM foo WHERE b>2;
 --query_vertical EXPLAIN SELECT c FROM foo2 WHERE b>2;
@@ -96,9 +103,9 @@ INSERT INTO foo2 SELECT * FROM foo;
 DROP TABLE foo, bar, foo2;
 
 
-#
-# Bug#41348: INSERT INTO tbl SELECT * FROM temp_tbl overwrites locking type of temp table
-#
+--echo #
+--echo # Bug#41348: INSERT INTO tbl SELECT * FROM temp_tbl overwrites locking type of temp table
+--echo #
 
 --disable_warnings
 DROP TABLE IF EXISTS t1,t3,t2;
@@ -137,9 +144,9 @@ DEALLOCATE PREPARE stmt3;
 DROP TABLE t1,t3,t2;
 DROP FUNCTION f1;
 
-#
-# Bug#37016: TRUNCATE TABLE removes some rows but not all
-#
+--echo #
+--echo # Bug#37016: TRUNCATE TABLE removes some rows but not all
+--echo #
 
 --disable_warnings
 DROP TABLE IF EXISTS t1,t2;
@@ -337,9 +344,9 @@ DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
 
-#
-# Bug#43580: Issue with Innodb on multi-table update
-#
+--echo #
+--echo # Bug#43580: Issue with Innodb on multi-table update
+--echo #
 CREATE TABLE t1 (a INT, b INT, KEY (a)) ENGINE = INNODB;
 CREATE TABLE t2 (a INT KEY, b INT, KEY (b)) ENGINE = INNODB;
 
@@ -460,8 +467,14 @@ INSERT INTO t1 (b,c,d,e) SELECT RAND()*10000, RAND()*10000, d, e FROM t1;
 INSERT INTO t1 (b,c,d,e) SELECT RAND()*10000, RAND()*10000, d, e FROM t1;
 INSERT INTO t1 (b,c,d,e) SELECT RAND()*10000, RAND()*10000, d, e FROM t1;
 INSERT INTO t1 (b,c,d,e) SELECT RAND()*10000, RAND()*10000, d, e FROM t1;
+-- disable_result_log
+ANALYZE TABLE t1;
+-- enable_result_log
 EXPLAIN SELECT * FROM t1 WHERE b=1 AND c=1 ORDER BY a;
 EXPLAIN SELECT * FROM t1 FORCE INDEX(i2) WHERE b=1 and c=1 ORDER BY a;
+# With 4k pages, the 'rows' column in the output below is either 120 or 138,
+# not 128 as it is with 8k and 16k. Bug#12602606
+--replace_result 128 {checked} 120 {checked} 138 {checked}
 EXPLAIN SELECT * FROM t1 FORCE INDEX(PRIMARY) WHERE b=1 AND c=1 ORDER BY a;
 
 DROP TABLE t1;
@@ -505,11 +518,7 @@ INSERT INTO t2 VALUES (),();
 CREATE OR REPLACE VIEW v1 AS SELECT 1 FROM t2 
   WHERE b =(SELECT a FROM t1 LIMIT 1);
 
---disable_query_log
---disable_result_log
 CONNECT (con1, localhost, root,,);
---enable_query_log
---enable_result_log
 CONNECTION default;
 
 DELIMITER |;
@@ -546,7 +555,7 @@ DROP TABLE t1,t2;
 --echo # Bug #49324: more valgrind errors in test_if_skip_sort_order
 --echo #
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=innodb ;
---echo #should not cause valgrind warnings
+--echo # should not cause valgrind warnings
 SELECT 1 FROM t1 JOIN t1 a USING(a) GROUP BY t1.a,t1.a;
 DROP TABLE t1;
 
@@ -558,6 +567,10 @@ create table t1(f1 int not null primary key, f2 int) engine=innodb;
 create table t2(f1 int not null, key (f1)) engine=innodb;
 insert into t1 values (1,1),(2,2),(3,3);
 insert into t2 values (1),(2),(3);
+-- disable_result_log
+analyze table t1;
+analyze table t2;
+-- enable_result_log
 explain select t1.* from t1 left join t2 using(f1) group by t1.f1;
 drop table t1,t2;
 --echo #
@@ -575,6 +588,8 @@ INSERT INTO t1 VALUES (1,1,1,1,1,1), (2,2,2,2,2,2), (3,3,3,3,3,3),
                       (4,4,4,4,4,4), (5,5,5,5,5,5), (6,6,6,6,6,6),
 		      (7,7,7,7,7,7), (8,8,8,8,8,8), (9,9,9,9,9,9),
 		      (11,11,11,11,11,11);
+
+ANALYZE TABLE t1;
 
 --query_vertical EXPLAIN SELECT COUNT(*) FROM t1
 
@@ -594,36 +609,6 @@ ALTER TABLE t1 DROP INDEX k, ADD UNIQUE INDEX k (a,b);
 
 DROP TABLE t1;
 
---echo #
---echo # Bug #53334: wrong result for outer join with impossible ON condition
---echo # (see the same test case for MyISAM in join.test)
---echo #
-
-create table t1 (id int primary key);
-create table t2 (id int);
-
-insert into t1 values (75);
-insert into t1 values (79);
-insert into t1 values (78);
-insert into t1 values (77);
-replace into t1 values (76);
-replace into t1 values (76);
-insert into t1 values (104);
-insert into t1 values (103);
-insert into t1 values (102);
-insert into t1 values (101);
-insert into t1 values (105);
-insert into t1 values (106);
-insert into t1 values (107);
-
-insert into t2 values (107),(75),(1000);
-
-select t1.id,t2.id from t2 left join t1 on t1.id>=74 and t1.id<=0
-  where t2.id=75 and t1.id is null;
-explain select t1.id,t2.id from t2 left join t1 on t1.id>=74 and t1.id<=0
-  where t2.id=75 and t1.id is null;
-
-drop table t1,t2;
 
 --echo #
 --echo # Bug #47453: InnoDB incorrectly changes TIMESTAMP columns when 
@@ -635,7 +620,7 @@ CREATE TABLE t2 (a INT, b INT,
   c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB;
 
---echo set up our data elements
+--echo # set up our data elements
 INSERT INTO t1 (d) VALUES (1);
 INSERT INTO t2 (a,b) VALUES (1,1);
 SELECT SECOND(c) INTO @bug47453 FROM t2;
@@ -648,7 +633,7 @@ SELECT SLEEP(1);
 
 UPDATE t1 JOIN t2 ON d=a SET b=1 WHERE a=1;
 
---echo #should be 0
+--echo # should be 0
 SELECT SECOND(c)-@bug47453 FROM t1 JOIN t2 ON d=a;
 
 DROP TABLE t1, t2;
@@ -728,6 +713,10 @@ CREATE TABLE t1 (
 
 LOAD DATA INFILE '../../std_data/intersect-bug50389.tsv' INTO TABLE t1;
 
+-- disable_result_log
+ANALYZE TABLE t1;
+-- enable_result_log
+
 SELECT * FROM t1 WHERE f1 IN
 (3305028,3353871,3772880,3346860,4228206,3336022,
  3470988,3305175,3329875,3817277,3856380,3796193,
@@ -754,7 +743,7 @@ CREATE TABLE t1 (
   PRIMARY KEY (f1),
   UNIQUE KEY (f2, f3),
   KEY (f4)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB STATS_PERSISTENT=0;
 
 INSERT INTO t1 VALUES
 (1,1,991,1), (2,1,992,1), (3,1,993,1), (4,1,994,1), (5,1,995,1),
@@ -786,64 +775,11 @@ UNLOCK TABLES;
 DROP TABLE t1;
 
 --echo #
---echo # Bug#55826: create table .. select crashes with when KILL_BAD_DATA 
---echo #  is returned
---echo #
-CREATE TABLE t1(a INT) ENGINE=innodb;
-INSERT INTO t1 VALUES (0);
-SET SQL_MODE='STRICT_ALL_TABLES';
---error ER_TRUNCATED_WRONG_VALUE
-CREATE TABLE t2 
-  SELECT LEAST((SELECT '' FROM t1),NOW()) FROM `t1`;
-DROP TABLE t1;  
-SET SQL_MODE=DEFAULT;
-
-
-
---echo #
---echo # Bug#55580: segfault in read_view_sees_trx_id
---echo #
-CREATE TABLE t1 (a INT) ENGINE=Innodb;
-CREATE TABLE t2 (a INT) ENGINE=Innodb;
-INSERT INTO t1 VALUES (1),(2);
-INSERT INTO t2 VALUES (1),(2);
-
-connect (con1,localhost,root,,test);
-connect (con2,localhost,root,,test);
-
-connection con1;
-START TRANSACTION;
-SELECT * FROM t2 LOCK IN SHARE MODE;
-
-connection con2;
-START TRANSACTION;
-SELECT * FROM t1 LOCK IN SHARE MODE;
-
-connection con1;
-let $conn_id= `SELECT CONNECTION_ID()`;
---send SELECT * FROM t1 FOR UPDATE
-
-connection con2;
-let $wait_timeout= 2;
-let $wait_condition= SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST
-WHERE ID=$conn_id AND STATE='Sending data';
---source include/wait_condition.inc
---echo # should not crash
---error ER_LOCK_DEADLOCK
-SELECT * FROM t1 GROUP BY (SELECT a FROM t2 LIMIT 1 FOR UPDATE) + t1.a;
-
-connection default;
-disconnect con1;
-disconnect con2;
-
-DROP TABLE t1,t2;
-
---echo #
 --echo # Bug#55656: mysqldump can be slower after bug #39653 fix
 --echo #
 
 CREATE TABLE t1 (a INT , b INT, c INT, d INT,
-  KEY (b), PRIMARY KEY (a,b)) ENGINE=INNODB;
+  KEY (b), PRIMARY KEY (a,b)) ENGINE=INNODB STATS_PERSISTENT=0;
 INSERT INTO t1 VALUES (1,1,1,1), (2,2,2,2), (3,3,3,3);
 --query_vertical EXPLAIN SELECT COUNT(*) FROM t1
 
@@ -862,63 +798,6 @@ CREATE INDEX b ON t1(a,b,c,d);
 DROP TABLE t1;
 
 --echo #
---echo # Bug#56862 Execution of a query that uses index merge returns a wrong result
---echo #
-
-CREATE TABLE t1 (
-  pk int NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  a int,
-  b int,
-  INDEX idx(a))
-ENGINE=INNODB;
-
-INSERT INTO t1(a,b) VALUES
-  (11, 1100), (2, 200), (1, 100), (14, 1400), (5, 500),
-  (3, 300), (17, 1700), (4, 400), (12, 1200), (8, 800),
-  (6, 600), (18, 1800), (9, 900), (10, 1000), (7, 700),
-  (13, 1300), (15, 1500), (19, 1900), (16, 1600), (20, 2000);
-INSERT INTO t1(a,b) SELECT a+20, b+2000 FROM t1;
-INSERT INTO t1(a,b) SELECT a+40, b+4000 FROM t1;
-INSERT INTO t1(a,b) SELECT a+80, b+8000 FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1 VALUES (1000000, 0, 0);
-
-SET SESSION sort_buffer_size = 1024*36;
-
-EXPLAIN
-SELECT COUNT(*) FROM
-  (SELECT * FROM t1 FORCE INDEX (idx,PRIMARY)
-     WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
-
-SELECT COUNT(*) FROM
-  (SELECT * FROM t1 FORCE INDEX (idx,PRIMARY)
-     WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
-
-SET SESSION sort_buffer_size = DEFAULT;
-
-DROP TABLE t1;
-
---echo #
---echo # ALTER TABLE IGNORE didn't ignore duplicates for unique add index
---echo #
-
-create table t1 (a int primary key, b int) engine = innodb;
-insert into t1 values (1,1),(2,1);
-alter ignore table t1 add unique `main` (b);
-select * from t1;
-drop table t1;
-
---echo End of 5.1 tests
---echo #
-
---echo #
 --echo # Bug#55826: create table .. select crashes with when KILL_BAD_DATA 
 --echo #  is returned
 --echo #
@@ -933,49 +812,8 @@ DROP TABLE t1;
 SET SQL_MODE=DEFAULT;
 
 --echo #
---echo # Bug#56862 Execution of a query that uses index merge returns a wrong result
+--echo # Bug#56862 Moved to innodb_16k.test
 --echo #
-
-CREATE TABLE t1 (
-  pk int NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  a int,
-  b int,
-  INDEX idx(a))
-ENGINE=INNODB;
-
-INSERT INTO t1(a,b) VALUES
-  (11, 1100), (2, 200), (1, 100), (14, 1400), (5, 500),
-  (3, 300), (17, 1700), (4, 400), (12, 1200), (8, 800),
-  (6, 600), (18, 1800), (9, 900), (10, 1000), (7, 700),
-  (13, 1300), (15, 1500), (19, 1900), (16, 1600), (20, 2000);
-INSERT INTO t1(a,b) SELECT a+20, b+2000 FROM t1;
-INSERT INTO t1(a,b) SELECT a+40, b+4000 FROM t1;
-INSERT INTO t1(a,b) SELECT a+80, b+8000 FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1(a,b) SELECT a,b FROM t1;
-INSERT INTO t1 VALUES (1000000, 0, 0);
-
-SET SESSION sort_buffer_size = 1024*36;
-
-EXPLAIN
-SELECT COUNT(*) FROM
-  (SELECT * FROM t1 FORCE INDEX (idx,PRIMARY)
-     WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
-
-SELECT COUNT(*) FROM
-  (SELECT * FROM t1 FORCE INDEX (idx,PRIMARY)
-     WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
-
-SET SESSION sort_buffer_size = DEFAULT;
-
-DROP TABLE t1;
-
 --echo #
 --echo # Test for bug #39932 "create table fails if column for FK is in different
 --echo #                      case than in corr index".
@@ -984,122 +822,15 @@ DROP TABLE t1;
 drop tables if exists t1, t2;
 --enable_warnings
 create table t1 (pk int primary key) engine=InnoDB;
---echo # Even although the below statement uses uppercased field names in
---echo # foreign key definition it still should be able to find explicitly
---echo # created supporting index. So it should succeed and should not
---echo # create any additional supporting indexes.
+# Even although the below statement uses uppercased field names in
+# foreign key definition it still should be able to find explicitly
+# created supporting index. So it should succeed and should not
+# create any additional supporting indexes.
 create table t2 (fk int, key x (fk),
                  constraint x foreign key (FK) references t1 (PK)) engine=InnoDB;
 show create table t2;
 drop table t2, t1;
 
---echo #
---echo # Bug #663818: wrong result when BNLH is used 
---echo #
-
-CREATE TABLE t1(pk int NOT NULL PRIMARY KEY) ENGINE=InnoDB;
-INSERT INTO t1 VALUES 
-  (1), (2), (11), (12), (13), (14),
-  (15), (16), (17), (18), (19);
-CREATE TABLE t2(pk int NOT NULL PRIMARY KEY) ENGINE=InnoDB;
-INSERT INTO t2 VALUES 
-  (1), (10), (11), (12), (13), (14),
-  (15), (16), (17), (18), (19), (20), (21);
-
-SET SESSION join_buffer_size=10000;
-
-SET SESSION join_cache_level=3;
-EXPLAIN
-SELECT t1.pk FROM t1,t2 
-  WHERE t1.pk = t2.pk AND t2.pk <> 8;
-SELECT t1.pk FROM t1,t2 
-  WHERE t1.pk = t2.pk AND t2.pk <> 8;
-
-SET SESSION join_cache_level=1;
-EXPLAIN
-SELECT t1.pk FROM t1,t2 
-  WHERE t1.pk = t2.pk AND t2.pk <> 8;
-SELECT t1.pk FROM t1,t2 
-  WHERE t1.pk = t2.pk AND t2.pk <> 8;
-
-DROP TABLE t1,t2;
-
-SET SESSION join_cache_level=DEFAULT;
-SET SESSION join_buffer_size=DEFAULT;
-
---echo #
---echo # Bug#668644: HAVING + ORDER BY
---echo #
-
-CREATE TABLE t1 (
-  pk int  NOT NULL PRIMARY KEY, i int DEFAULT NULL,
-  INDEX idx (i)
-) ENGINE=INNODB;
-INSERT INTO t1 VALUES
-  (6,-1636630528),(2,-1097924608),(1,6),(3,6),(4,1148715008),(5,1541734400);
-
-CREATE TABLE t2 (
-  i int DEFAULT NULL,
-  pk int NOT NULL PRIMARY KEY,
-  INDEX idx (i)
-) ENGINE= INNODB;
-INSERT INTO t2 VALUES
-  (-1993998336,20),(-1036582912,1),(-733413376,5),(-538247168,16),
-  (-514260992,4),(-249561088,9),(1,2),(1,6),(2,10),(2,19),(4,17),
-  (5,14),(5,15),(6,8),(7,13),(8,18),(9,11),(9,12),(257425408,7),
-  (576061440,3);
-
-EXPLAIN
-SELECT t1 .i AS f FROM t1, t2
-  WHERE t2.i = t1.pk AND t1.pk BETWEEN 0 AND 224
-  HAVING f > 7
-  ORDER BY f;
-SELECT t1 .i AS f FROM t1, t2
-  WHERE t2.i = t1.pk AND t1.pk BETWEEN 0 AND 224
-  HAVING f > 7
-  ORDER BY f;
-
-DROP TABLE t1, t2;
-
---echo #
---echo # Test for bug #56619 - Assertion failed during
---echo # ALTER TABLE RENAME, DISABLE KEYS
---echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
-CREATE TABLE t1 (a INT, INDEX(a)) engine=innodb;
---disable_warnings
-ALTER TABLE t1 RENAME TO t2, DISABLE KEYS;
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
-
---echo #
---echo # Bug#702322: HAVING with two ANDed predicates + ORDER BY
---echo #
-
-CREATE TABLE t1 (pk int PRIMARY KEY, a int, KEY (a)) ENGINE=InnoDB;
-CREATE TABLE t2 (a int, KEY (a)) ENGINE=InnoDB;
-
-INSERT INTO t1 VALUES
-  (18,0),(9,10),(8,11),(2,15),(7,19),(1,20);
-
-SET SESSION join_cache_level = 0;
-
-# vanilla InnoDB doesn't do ICP
---replace_result "Using where" "Using index condition"
-EXPLAIN 
-SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.pk = t2.a 
-  WHERE t1.pk >= 6 HAVING t1.a<> 0 AND t1.a <> 11
-  ORDER BY t1.a;
-SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.pk = t2.a 
-  WHERE t1.pk >= 6 HAVING t1.a<> 0 AND t1.a <> 11
-  ORDER BY t1.a;
-  
-DROP TABLE t1,t2;
-
---echo End of 5.3 tests
 
 --echo #
 --echo # Test for bug #11762012 - "54553: INNODB ASSERTS IN HA_INNOBASE::
@@ -1120,7 +851,41 @@ UPDATE t1 SET c = 5;
 UNLOCK TABLES;
 DROP TEMPORARY TABLE t1;
 
---echo End of 5.1 tests
+--echo # End of 5.1 tests
+
+
+--echo #
+--echo # Bug#49604 "6.0 processing compound WHERE clause incorrectly 
+--echo #            with Innodb - extra rows"
+--echo #
+
+CREATE TABLE t1 (
+  c1 INT NOT NULL,
+  c2 INT,
+  PRIMARY KEY (c1),
+  KEY k1 (c2)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (12,1);
+INSERT INTO t1 VALUES (15,1);
+INSERT INTO t1 VALUES (16,1);
+INSERT INTO t1 VALUES (22,1);
+INSERT INTO t1 VALUES (20,2);
+
+CREATE TABLE t2 (
+  c1 INT NOT NULL,
+  c2 INT,
+  PRIMARY KEY (c1)
+) ENGINE=InnoDB;
+
+INSERT INTO t2 VALUES (1,2);
+INSERT INTO t2 VALUES (2,9);
+
+SELECT STRAIGHT_JOIN t2.c2, t1.c2, t2.c1
+FROM t1 JOIN t2 ON t1.c2 = t2.c1  
+WHERE t2.c1 IN (2, 1, 6) OR t2.c1 NOT IN (1);
+
+DROP TABLE t1, t2;
 
 
 --echo #
@@ -1160,11 +925,63 @@ connection default;
 COMMIT;
 DROP TABLE t1;
 DROP FUNCTION f1;
+--echo #
+--echo # Bug#42744: Crash when using a join buffer to join a table with a blob
+--echo # column and an additional column used for duplicate elimination.
+--echo #
+
+CREATE TABLE t1 (a tinyblob) ENGINE=InnoDB;
+CREATE TABLE t2 (a int PRIMARY KEY,  b tinyblob) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('1'), (NULL);
+INSERT INTO t2 VALUES (1, '1');
+ 
+EXPLAIN
+SELECT t2.b FROM t1,t2 WHERE t1.a IN (SELECT 1 FROM t2);
+
+SELECT t2.b FROM t1,t2 WHERE t1.a IN (SELECT 1 FROM t2);
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Bug#48093: 6.0 Server not processing equivalent IN clauses properly 
+--echo #            with Innodb tables
+--echo #
+
+CREATE TABLE t1 (
+  i int(11) DEFAULT NULL,
+  v1 varchar(1) DEFAULT NULL,
+  v2 varchar(20) DEFAULT NULL,
+  KEY i (i),
+  KEY v (v1,i)
+) ENGINE=innodb;
+
+INSERT INTO t1 VALUES (1,'f','no');
+INSERT INTO t1 VALUES (2,'u','yes-u');
+INSERT INTO t1 VALUES (2,'h','yes-h');
+INSERT INTO t1 VALUES (3,'d','no');
+
+--echo
+SELECT v2  
+FROM t1
+WHERE v1  IN  ('f', 'd', 'h', 'u' ) AND i  =  2;
+
+--echo
+--echo # Should not use index_merge
+EXPLAIN
+SELECT v2  
+FROM t1
+WHERE v1  IN  ('f', 'd', 'h', 'u' ) AND i  =  2;
+
+DROP TABLE t1;
 
 --echo #
 --echo # Bug#54606 innodb fast alter table + pack_keys=0 
 --echo #           prevents adding new indexes
 --echo #
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
 
 CREATE TABLE t1 (a INT, b CHAR(9), c INT, key(b)) 
   ENGINE=InnoDB 
@@ -1174,4 +991,38 @@ CREATE INDEX c on t1 (c);
 
 DROP TABLE t1;
 
---echo End of 5.1 tests
+
+--echo #
+--echo # Additional coverage for refactoring which is made as part
+--echo # of fix for Bug#27480 "Extend CREATE TEMPORARY TABLES privilege
+--echo # to allow temp table operations".
+--echo #
+--echo # Check that OPTIMIZE table works for temporary InnoDB tables.
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+CREATE TEMPORARY TABLE t1 (a INT) ENGINE=InnoDB;
+OPTIMIZE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Bug#11762345 54927: DROPPING AND ADDING AN INDEX IN ONE
+--echo #              COMMAND CAN FAIL IN INNODB PLUGIN 1.0
+--echo #
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (id int, a  int, b  int, PRIMARY KEY (id),
+                 INDEX a (a)) ENGINE=innodb;
+
+ALTER TABLE t1 DROP INDEX a, ADD INDEX a (b, a);
+# This used to fail
+ALTER TABLE t1 DROP INDEX a, ADD INDEX (a, b);
+
+DROP TABLE t1;
+
+
+--echo End of 6.0 tests
