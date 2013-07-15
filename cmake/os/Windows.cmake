@@ -80,10 +80,6 @@ IF(MSVC)
    STRING(REPLACE "/MD"  "/MT" "${flag}" "${${flag}}")
   ENDFOREACH()
   
-  # Remove support for exceptions
-  FOREACH(flag CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_INIT)
-   STRING(REPLACE "/EHsc" ""   "${flag}" "${${flag}}") 
-  ENDFOREACH()
  
   # Fix CMake's predefined huge stack size
   FOREACH(type EXE SHARED MODULE)
