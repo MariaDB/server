@@ -829,7 +829,7 @@ Copy_field::get_copy_func(Field *to,Field *from)
 int field_conv(Field *to,Field *from)
 {
   if (to->real_type() == from->real_type() &&
-      !(to->type() == MYSQL_TYPE_BLOB && to->table->copy_blobs))
+      !(to->flags & BLOB_FLAG && to->table->copy_blobs))
   {
     if (to->pack_length() == from->pack_length() &&
         !(to->flags & UNSIGNED_FLAG && !(from->flags & UNSIGNED_FLAG)) &&
@@ -858,7 +858,7 @@ int field_conv(Field *to,Field *from)
       return 0;
     }
   }
-  if (to->type() == MYSQL_TYPE_BLOB)
+  if (to->flags & BLOB_FLAG)
   {						// Be sure the value is stored
     Field_blob *blob=(Field_blob*) to;
     from->val_str(&blob->value);

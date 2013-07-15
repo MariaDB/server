@@ -2847,7 +2847,7 @@ int prepare_create_field(Create_field *sql_field,
 			 longlong table_flags)
 {
   unsigned int dup_val_count;
-  DBUG_ENTER("prepare_field");
+  DBUG_ENTER("prepare_create_field");
 
   /*
     This code came from mysql_prepare_create_table.
