@@ -4631,7 +4631,9 @@ bool create_table_impl(THD *thd,
   }
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 
+#ifdef HAVE_READLINK
   if (thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE)
+#endif
   {
     if (create_info->data_file_name)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
