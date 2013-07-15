@@ -655,7 +655,6 @@ struct TABLE_SHARE
   enum ha_choice page_checksum;
 
   uint ref_count;                       /* How many TABLE objects uses this */
-  uint blob_ptr_size;			/* 4 or 8 */
   uint key_block_size;			/* create key_block_size, if used */
   uint stats_sample_pages;		/* number of pages to sample during
 					stats estimation, if used, otherwise 0. */

@@ -1759,7 +1759,7 @@ uint Field::fill_cache_field(CACHE_FIELD *copy)
   if (flags & BLOB_FLAG)
   {
     copy->type= CACHE_BLOB;
-    copy->length-= table->s->blob_ptr_size;
+    copy->length-= portable_sizeof_char_ptr;
     return copy->length;
   }
   else if (!zero_pack() &&
@@ -9571,11 +9571,6 @@ Create_field::Create_field(Field *old_field,Field *orig_field)
   stored_in_db= old_field->stored_in_db;
   option_list= old_field->option_list;
   option_struct= old_field->option_struct;
-
-  /* Fix if the original table had 4 byte pointer blobs */
-  if (flags & BLOB_FLAG)
-    pack_length= (pack_length- old_field->table->s->blob_ptr_size +
-		  portable_sizeof_char_ptr);
 
   switch (sql_type) {
   case MYSQL_TYPE_BLOB:

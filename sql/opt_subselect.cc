@@ -3919,7 +3919,6 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, tmpname, tmpname);
   share->blob_field= blob_field;
-  share->blob_ptr_size= portable_sizeof_char_ptr;
   share->table_charset= NULL;
   share->primary_key= MAX_KEY;               // Indicate no primary key
   share->keys_for_keyread.init();
