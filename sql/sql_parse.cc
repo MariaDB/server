@@ -1489,7 +1489,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     lex_start(thd);
     
     status_var_increment(thd->status_var.com_stat[SQLCOM_FLUSH]);
-    ulong options= (ulong) (uchar) packet[0];
+    ulonglong options= (ulonglong) (uchar) packet[0];
     if (trans_commit_implicit(thd))
       break;
     thd->mdl_context.release_transactional_locks();

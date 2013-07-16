@@ -153,39 +153,39 @@ enum enum_server_command
 #define HAS_EXPLICIT_VALUE (1 << 26)    /* An INSERT/UPDATE operation supplied
                                           an explicit default value */
 
-#define REFRESH_GRANT           (1UL << 0)  /* Refresh grant tables */
-#define REFRESH_LOG             (1UL << 1)  /* Start on new log file */
-#define REFRESH_TABLES          (1UL << 2)  /* close all tables */
-#define REFRESH_HOSTS           (1UL << 3)  /* Flush host cache */
-#define REFRESH_STATUS          (1UL << 4)  /* Flush status variables */
-#define REFRESH_THREADS         (1UL << 5)  /* Flush thread cache */
-#define REFRESH_SLAVE           (1UL << 6)  /* Reset master info and restart slave
+#define REFRESH_GRANT           (1ULL << 0)  /* Refresh grant tables */
+#define REFRESH_LOG             (1ULL << 1)  /* Start on new log file */
+#define REFRESH_TABLES          (1ULL << 2)  /* close all tables */
+#define REFRESH_HOSTS           (1ULL << 3)  /* Flush host cache */
+#define REFRESH_STATUS          (1ULL << 4)  /* Flush status variables */
+#define REFRESH_THREADS         (1ULL << 5)  /* Flush thread cache */
+#define REFRESH_SLAVE           (1ULL << 6)  /* Reset master info and restart slave
                                              thread */
-#define REFRESH_MASTER          (1UL << 7)  /* Remove all bin logs in the index
+#define REFRESH_MASTER          (1ULL << 7)  /* Remove all bin logs in the index
                                              and truncate the index */
 
 /* The following can't be set with mysql_refresh() */
-#define REFRESH_ERROR_LOG       (1UL << 8)  /* Rotate only the erorr log */
-#define REFRESH_ENGINE_LOG      (1UL << 9)  /* Flush all storage engine logs */
-#define REFRESH_BINARY_LOG      (1UL << 10) /* Flush the binary log */
-#define REFRESH_RELAY_LOG       (1UL << 11) /* Flush the relay log */
-#define REFRESH_GENERAL_LOG     (1UL << 12) /* Flush the general log */
-#define REFRESH_SLOW_LOG        (1UL << 13) /* Flush the slow query log */
+#define REFRESH_ERROR_LOG       (1ULL << 8)  /* Rotate only the erorr log */
+#define REFRESH_ENGINE_LOG      (1ULL << 9)  /* Flush all storage engine logs */
+#define REFRESH_BINARY_LOG      (1ULL << 10) /* Flush the binary log */
+#define REFRESH_RELAY_LOG       (1ULL << 11) /* Flush the relay log */
+#define REFRESH_GENERAL_LOG     (1ULL << 12) /* Flush the general log */
+#define REFRESH_SLOW_LOG        (1ULL << 13) /* Flush the slow query log */
 
-#define REFRESH_READ_LOCK       (1UL << 14) /* Lock tables for read */
-#define REFRESH_CHECKPOINT      (1UL << 15) /* With REFRESH_READ_LOCK: block checkpoints too */
+#define REFRESH_READ_LOCK       (1ULL << 14) /* Lock tables for read */
+#define REFRESH_CHECKPOINT      (1ULL << 15) /* With REFRESH_READ_LOCK: block checkpoints too */
 
-#define REFRESH_QUERY_CACHE     (1UL << 16) /* clear the query cache */
-#define REFRESH_QUERY_CACHE_FREE (1UL << 17) /* pack query cache */
-#define REFRESH_DES_KEY_FILE    (1UL << 18)
-#define REFRESH_USER_RESOURCES  (1UL << 19)
+#define REFRESH_QUERY_CACHE     (1ULL << 16) /* clear the query cache */
+#define REFRESH_QUERY_CACHE_FREE (1ULL << 17) /* pack query cache */
+#define REFRESH_DES_KEY_FILE    (1ULL << 18)
+#define REFRESH_USER_RESOURCES  (1ULL << 19)
 
-#define REFRESH_TABLE_STATS     (1UL << 20) /* Refresh table stats hash table */
-#define REFRESH_INDEX_STATS     (1UL << 21) /* Refresh index stats hash table */
-#define REFRESH_USER_STATS      (1UL << 22) /* Refresh user stats hash table */
-#define REFRESH_CLIENT_STATS    (1UL << 23) /* Refresh client stats hash table */
+#define REFRESH_TABLE_STATS     (1ULL << 20) /* Refresh table stats hash table */
+#define REFRESH_INDEX_STATS     (1ULL << 21) /* Refresh index stats hash table */
+#define REFRESH_USER_STATS      (1ULL << 22) /* Refresh user stats hash table */
+#define REFRESH_CLIENT_STATS    (1ULL << 23) /* Refresh client stats hash table */
 
-#define REFRESH_FAST            (1UL << 31) /* Intern flag */
+#define REFRESH_FAST            (1ULL << 31) /* Intern flag */
 
 #define CLIENT_LONG_PASSWORD	1	/* new more secure passwords */
 #define CLIENT_FOUND_ROWS	2	/* Found instead of affected rows */
