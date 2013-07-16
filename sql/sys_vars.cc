@@ -2245,6 +2245,11 @@ static bool fix_query_cache_size(sys_var *self, THD *thd, enum_var_type type)
   query_cache_size= new_cache_size;
   return false;
 }
+static bool fix_query_cache_limit(sys_var *self, THD *thd, enum_var_type type)
+{
+  query_cache.result_size_limit(query_cache_limit);
+  return false;
+}
 static Sys_var_ulonglong Sys_query_cache_size(
        "query_cache_size",
        "The memory allocated to store results from old queries",
@@ -2256,8 +2261,10 @@ static Sys_var_ulonglong Sys_query_cache_size(
 static Sys_var_ulong Sys_query_cache_limit(
        "query_cache_limit",
        "Don't cache results that are bigger than this",
-       GLOBAL_VAR(query_cache.query_cache_limit), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(1024*1024), BLOCK_SIZE(1));
+       GLOBAL_VAR(query_cache_limit), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(1024*1024), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
+       ON_UPDATE(fix_query_cache_limit));
 
 static bool fix_qcache_min_res_unit(sys_var *self, THD *thd, enum_var_type type)
 {
