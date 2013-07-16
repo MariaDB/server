@@ -53,7 +53,7 @@ static void disable_checkpoints(THD *thd);
     @retval !=0  Error; thd->killed is set or thd->is_error() is true
 */
 
-bool reload_acl_and_cache(THD *thd, unsigned long options,
+bool reload_acl_and_cache(THD *thd, unsigned long long options,
                           TABLE_LIST *tables, int *write_to_binlog)
 {
   bool result=0;
