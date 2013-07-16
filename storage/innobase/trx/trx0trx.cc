@@ -874,7 +874,7 @@ trx_write_serialisation_history(
         /* Update latest MySQL wsrep XID in trx sys header. */
         if (wsrep_is_wsrep_xid(&trx->xid))
         {
-            trx_sys_update_wsrep_checkpoint(&trx->xid, &mtr);
+	  //trx_sys_update_wsrep_checkpoint(&trx->xid, &mtr);
         }
 #endif /* WITH_WSREP */
 
@@ -1289,10 +1289,6 @@ trx_commit_or_rollback_prepare(
 
 	switch (trx->state) {
 	case TRX_STATE_NOT_STARTED:
-#ifdef WITH_WSREP
-		ut_d(trx->start_file = __FILE__);
-		ut_d(trx->start_line = __LINE__);
-#endif /* WITH_WSREP */
 		trx_start_low(trx);
 		/* fall through */
 	case TRX_STATE_ACTIVE:
@@ -2067,10 +2063,6 @@ trx_start_if_not_started_xa(
 		transaction, doesn't. */
 		trx->support_xa = thd_supports_xa(trx->mysql_thd);
 
-#ifdef WITH_WSREP
-		ut_d(trx->start_file = __FILE__);
-		ut_d(trx->start_line = __LINE__);
-#endif /* WITH_WSREP */
 		trx_start_low(trx);
 		/* fall through */
 	case TRX_STATE_ACTIVE:
@@ -2093,10 +2085,6 @@ trx_start_if_not_started(
 {
 	switch (trx->state) {
 	case TRX_STATE_NOT_STARTED:
-#ifdef WITH_WSREP
-		ut_d(trx->start_file = __FILE__);
-		ut_d(trx->start_line = __LINE__);
-#endif /* WITH_WSREP */
 		trx_start_low(trx);
 		/* fall through */
 	case TRX_STATE_ACTIVE:

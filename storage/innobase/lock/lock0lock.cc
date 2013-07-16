@@ -4325,7 +4325,6 @@ lock_table_create(
 	ut_ad(table->n_ref_count > 0 || !table->can_be_evicted);
 
 	UT_LIST_ADD_LAST(trx_locks, trx->lock.trx_locks, lock);
-	UT_LIST_ADD_LAST(un_member.tab_lock.locks, table->locks, lock);
 #ifdef WITH_WSREP
 	if (c_lock && wsrep_thd_is_brute_force(trx->mysql_thd)) {
         	UT_LIST_INSERT_AFTER(

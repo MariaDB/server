@@ -8771,6 +8771,15 @@ wsrep_status_t wsrep_commit_cb(void*         const ctx,
 Relay_log_info* wsrep_relay_log_init(const char* log_fname)
 {
   Relay_log_info* rli= new Relay_log_info(false);
+  LEX_STRING conn = {"wsrep",5};
+  
+  /* 
+   * problem is that mariaDB requires master info for rli, and wsrep replication
+   * really should not have it. Allocating empty mi here just for the sake of
+   * getting rpl_filter pointer initialized for mi, rpl_filter will be needed in
+   * several places
+   */
+  rli->mi= new Master_info(&conn, false);
 
   rli->no_storage= true;
   if (!rli->relay_log.description_event_for_exec)
