@@ -411,6 +411,6 @@ int main(int argc, char **argv)
   MY_INIT(argv[0]);
   do_all_tests();
   my_end(0);
-  return 0;
+  return exit_status();
 }
 
