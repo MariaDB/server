@@ -1,6 +1,16 @@
 -- source include/have_innodb.inc
 
 
+--disable_warnings
+DROP DATABASE IF EXISTS mysqltest_innodb_zip;
+--enable_warnings
+
+CREATE DATABASE mysqltest_innodb_zip;
+USE mysqltest_innodb_zip;
+SELECT table_name, row_format, data_length, index_length
+  FROM information_schema.tables
+  WHERE table_schema='mysqltest_innodb_zip';
+
 let $per_table=`select @@innodb_file_per_table`;
 let $format=`select @@innodb_file_format`;
 let $innodb_strict_mode_orig=`select @@session.innodb_strict_mode`;
@@ -40,19 +50,19 @@ row_format=compressed;
 create table t14(a int primary key) engine=innodb key_block_size=9;
 
 SELECT table_schema, table_name, row_format, data_length, index_length
-FROM information_schema.tables WHERE engine='innodb';
+FROM information_schema.tables WHERE table_schema='mysqltest_innodb_zip';
 
 drop table t0,t00,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14;
 alter table t1 key_block_size=0;
 alter table t1 row_format=dynamic;
 SELECT table_schema, table_name, row_format, data_length, index_length
-FROM information_schema.tables WHERE engine='innodb';
+FROM information_schema.tables WHERE table_schema='mysqltest_innodb_zip';
 alter table t1 row_format=compact;
 SELECT table_schema, table_name, row_format, data_length, index_length
-FROM information_schema.tables WHERE engine='innodb';
+FROM information_schema.tables WHERE table_schema='mysqltest_innodb_zip';
 alter table t1 row_format=redundant;
 SELECT table_schema, table_name, row_format, data_length, index_length
-FROM information_schema.tables WHERE engine='innodb';
+FROM information_schema.tables WHERE table_schema='mysqltest_innodb_zip';
 drop table t1;
 
 create table t1(a int not null, b text, index(b(10))) engine=innodb
@@ -64,8 +74,8 @@ insert into t2 values(concat('1abcdefghijklmnopqrstuvwxyz', repeat('A',5000)));
 insert into t1 select 1, b from t2;
 commit;
 
-connect (a,localhost,root,,);
-connect (b,localhost,root,,);
+connect (a,localhost,root,,mysqltest_innodb_zip);
+connect (b,localhost,root,,mysqltest_innodb_zip);
 
 connection a;
 begin;
@@ -85,7 +95,7 @@ disconnect a;
 disconnect b;
 
 SELECT table_schema, table_name, row_format, data_length, index_length
-FROM information_schema.tables WHERE engine='innodb';
+FROM information_schema.tables WHERE table_schema='mysqltest_innodb_zip';
 drop table t1,t2;
 
 # The following should fail in non-strict mode too.
@@ -198,7 +208,7 @@ create table t10(id int primary key) engine = innodb row_format = compact;
 create table t11(id int primary key) engine = innodb row_format = redundant;
 
 SELECT table_schema, table_name, row_format, data_length, index_length
-FROM information_schema.tables WHERE engine='innodb';
+FROM information_schema.tables WHERE table_schema='mysqltest_innodb_zip';
 drop table t1, t3, t4, t5, t6, t7, t8, t9, t10, t11;
 
 #test different values of ROW_FORMAT with KEY_BLOCK_SIZE
@@ -230,7 +240,7 @@ create table t5 (id int primary key) engine = innodb
 key_block_size = 8 row_format = default;
 
 SELECT table_schema, table_name, row_format, data_length, index_length
-FROM information_schema.tables WHERE engine='innodb';
+FROM information_schema.tables WHERE table_schema='mysqltest_innodb_zip';
 drop table t1, t5;
 
 #test multiple errors
@@ -256,7 +266,7 @@ key_block_size = 9 row_format = dynamic;
 show warnings;
 
 SELECT table_schema, table_name, row_format, data_length, index_length
-FROM information_schema.tables WHERE engine='innodb';
+FROM information_schema.tables WHERE table_schema='mysqltest_innodb_zip';
 
 #test valid values with innodb_file_per_table unset
 set global innodb_file_per_table = off;
@@ -300,7 +310,7 @@ create table t8 (id int primary key) engine = innodb row_format = compact;
 create table t9 (id int primary key) engine = innodb row_format = redundant;
 
 SELECT table_schema, table_name, row_format, data_length, index_length
-FROM information_schema.tables WHERE engine='innodb';
+FROM information_schema.tables WHERE table_schema='mysqltest_innodb_zip';
 drop table t8, t9;
 
 #test valid values with innodb_file_format unset
@@ -346,7 +356,7 @@ create table t8 (id int primary key) engine = innodb row_format = compact;
 create table t9 (id int primary key) engine = innodb row_format = redundant;
 
 SELECT table_schema, table_name, row_format, data_length, index_length
-FROM information_schema.tables WHERE engine='innodb';
+FROM information_schema.tables WHERE table_schema='mysqltest_innodb_zip';
 drop table t8, t9;
 
 eval set global innodb_file_per_table=$per_table;
@@ -383,3 +393,6 @@ drop table normal_table, zip_table;
 eval set global innodb_file_format=$format;
 eval set global innodb_file_per_table=$per_table;
 eval set session innodb_strict_mode=$innodb_strict_mode_orig;
+
+USE test;
+DROP DATABASE mysqltest_innodb_zip;
