@@ -112,6 +112,6 @@ int main(int, char **)
   MY_INIT("pfs_account-oom-t");
   do_all_tests();
   my_end(0);
-  return 0;
+  return exit_status();
 }
 
