@@ -31,6 +31,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY,b	b	67	NULL	18	Using where; Using index
 DROP TABLE t1;
 #
+# Bug#13007154: Crash in keys_to_use_for_scanning with ORDER BY
+#               and PARTITIONING
+#
+CREATE TABLE t1 (a INT, KEY(a))
+ENGINE = InnoDB
+PARTITION BY KEY (a) PARTITIONS 1;
+SELECT 1 FROM t1 WHERE a > (SELECT LAST_INSERT_ID() FROM t1 LIMIT 0)
+ORDER BY a;
+1
+DROP TABLE t1;
+#
 # Bug#56287: crash when using Partition datetime in sub in query
 #
 CREATE TABLE t1
@@ -60,7 +71,7 @@ DROP TABLE t1;
 # Bug#54747: Deadlock between REORGANIZE PARTITION and
 #            SELECT is not detected
 #
-SET @old_innodb_thread_concurrency:= @@innodb_thread_concurrency;
+SET @old_innodb_thread_concurrency := @@innodb_thread_concurrency;
 SET @old_innodb_thread_sleep_delay := @@innodb_thread_sleep_delay;
 SET GLOBAL innodb_thread_concurrency = 1;
 CREATE TABLE t1
