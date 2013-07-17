@@ -7090,7 +7090,7 @@ User_var_log_event(const char* buf, uint event_len,
                    const Format_description_log_event* description_event)
   :Log_event(buf, description_event)
 #ifndef MYSQL_CLIENT
-  , deferred(false)
+  , deferred(false), query_id(0)
 #endif
 {
   bool error= false;
@@ -7374,11 +7374,17 @@ int User_var_log_event::do_apply_event(Relay_log_info const *rli)
   Item *it= 0;
   CHARSET_INFO *charset;
   DBUG_ENTER("User_var_log_event::do_apply_event");
+  query_id_t sav_query_id= 0; /* memorize orig id when deferred applying */
 
   if (rli->deferred_events_collecting)
   {
-    set_deferred();
+    set_deferred(current_thd->query_id);
     DBUG_RETURN(rli->deferred_events->add(this));
+  }
+  else if (is_deferred())
+  {
+    sav_query_id= current_thd->query_id;
+    current_thd->query_id= query_id; /* recreating original time context */
   }
 
   if (!(charset= get_charset(charset_number, MYF(MY_WME))))
@@ -7453,6 +7459,8 @@ int User_var_log_event::do_apply_event(Relay_log_info const *rli)
                  (flags & User_var_log_event::UNSIGNED_F));
   if (!is_deferred())
     free_root(thd->mem_root, 0);
+  else
+    current_thd->query_id= sav_query_id; /* restore current query's context */
 
   DBUG_RETURN(0);
 }
@@ -8134,7 +8142,7 @@ int Append_block_log_event::do_apply_event(Relay_log_info const *rli)
 
   DBUG_EXECUTE_IF("remove_slave_load_file_before_write",
                   {
-                    my_delete_allow_opened(fname, MYF(0));
+                    my_delete(fname, MYF(0));
                   });
 
   if (mysql_file_write(fd, (uchar*) block, block_len, MYF(MY_WME+MY_NABP)))
@@ -10868,6 +10876,8 @@ Write_rows_log_event::do_exec_row(const Relay_log_info *const rli)
 #ifdef MYSQL_CLIENT
 void Write_rows_log_event::print(FILE *file, PRINT_EVENT_INFO* print_event_info)
 {
+  DBUG_EXECUTE_IF("simulate_cache_read_error",
+                  {DBUG_SET("+d,simulate_my_b_fill_error");});
   Rows_log_event::print_helper(file, print_event_info, "Write_rows");
 }
 #endif

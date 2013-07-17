@@ -930,6 +930,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   thd->enable_slow_log= TRUE;
   thd->query_plan_flags= QPLAN_INIT;
   thd->lex->sql_command= SQLCOM_END; /* to avoid confusing VIEW detectors */
+
+  DEBUG_SYNC(thd,"dispatch_command_before_set_time");
+
   thd->set_time();
   if (!(server_command_flags[command] & CF_SKIP_QUERY_ID))
     thd->set_query_id(next_query_id());
@@ -1106,6 +1109,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       thd->update_server_status();
       thd->protocol->end_statement();
       query_cache_end_of_result(thd);
+
+      mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
+                          thd->stmt_da->is_error() ? thd->stmt_da->sql_errno()
+                          : 0, command_name[command].str);
+
       ulong length= (ulong)(packet_end - beginning_of_next_stmt);
 
       log_slow_statement(thd);
@@ -1486,6 +1494,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   thd->reset_query();
   thd->examined_row_count= 0;                   // For processlist
   thd->command=COM_SLEEP;
+  thd->set_time();
   dec_thread_running();
   thd_proc_info(thd, 0);
   thd->packet.shrink(thd->variables.net_buffer_length);	// Reclaim some memory
@@ -6477,6 +6486,8 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
   for (uint i=0; i < 2; i++)
   {
     TABLE_LIST *table= join_list->pop();
+    if (!table)
+      DBUG_RETURN(NULL);
     table->join_list= embedded_list;
     table->embedding= ptr;
     embedded_list->push_back(table);

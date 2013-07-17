@@ -135,6 +135,7 @@ typedef unsigned long long my_ulonglong;
 
 /* backward compatibility define - to be removed eventually */
 #define ER_WARN_DATA_TRUNCATED WARN_DATA_TRUNCATED
+#define WARN_PLUGIN_DELETE_BUILTIN ER_PLUGIN_DELETE_BUILTIN
 
 typedef struct st_mysql_rows {
   struct st_mysql_rows *next;		/* list of rows */
@@ -168,8 +169,10 @@ enum mysql_option
   MYSQL_OPT_GUESS_CONNECTION, MYSQL_SET_CLIENT_IP, MYSQL_SECURE_AUTH,
   MYSQL_REPORT_DATA_TRUNCATION, MYSQL_OPT_RECONNECT,
   MYSQL_OPT_SSL_VERIFY_SERVER_CERT, MYSQL_PLUGIN_DIR, MYSQL_DEFAULT_AUTH,
-  MYSQL_PROGRESS_CALLBACK,
+  MYSQL_ENABLE_CLEARTEXT_PLUGIN,
+
   /* MariaDB options */
+  MYSQL_PROGRESS_CALLBACK=5999,
   MYSQL_OPT_NONBLOCK=6000, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY
 };
 

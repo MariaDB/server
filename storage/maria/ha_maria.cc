@@ -2134,7 +2134,9 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
     else if (!file->bulk_insert &&
              (!rows || rows >= MARIA_MIN_ROWS_TO_USE_BULK_INSERT))
     {
-      maria_init_bulk_insert(file, thd->variables.bulk_insert_buff_size, rows);
+      maria_init_bulk_insert(file,
+                             (size_t) thd->variables.bulk_insert_buff_size,
+                             rows);
     }
   }
   DBUG_VOID_RETURN;
@@ -3475,7 +3477,7 @@ static int ha_maria_init(void *p)
 
   maria_hton= (handlerton *)p;
   maria_hton->state= SHOW_OPTION_YES;
-  maria_hton->db_type= DB_TYPE_UNKNOWN;
+  maria_hton->db_type= DB_TYPE_ARIA;
   maria_hton->create= maria_create_handler;
   maria_hton->panic= maria_hton_panic;
   maria_hton->tablefile_extensions= ha_maria_exts;
@@ -3802,6 +3804,25 @@ int ha_maria::multi_range_read_explain_info(uint mrr_mode, char *str,
 
 Item *ha_maria::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
 {
+  /*
+    Check if the key contains a blob field. If it does then MyISAM
+    should not accept the pushed index condition since MyISAM will not
+    read the blob field from the index entry during evaluation of the
+    pushed index condition and the BLOB field might be part of the
+    range evaluation done by the ICP code.
+  */
+  const KEY *key= &table_share->key_info[keyno_arg];
+
+  for (uint k= 0; k < key->key_parts; ++k)
+  {
+    const KEY_PART_INFO *key_part= &key->key_part[k];
+    if (key_part->key_part_flag & HA_BLOB_PART)
+    {
+      /* Let the server handle the index condition */
+      return idx_cond_arg;
+    }
+  }
+
   pushed_idx_cond_keyno= keyno_arg;
   pushed_idx_cond= idx_cond_arg;
   in_range_check_pushed_down= TRUE;

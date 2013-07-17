@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 #ifndef SQL_CLASS_INCLUDED
@@ -1642,6 +1642,7 @@ public:
     Protects THD data accessed from other threads:
     - thd->query and thd->query_length (used by SHOW ENGINE
       INNODB STATUS and SHOW PROCESSLIST
+    - thd->db and thd->db_length (used in SHOW PROCESSLIST)
     - thd->mysys_var (used by KILL statement and shutdown).
     Is locked when THD is deleted.
   */
@@ -2945,6 +2946,7 @@ public:
   */
   bool set_db(const char *new_db, size_t new_db_len)
   {
+    mysql_mutex_lock(&LOCK_thd_data);
     /* Do not reallocate memory if current chunk is big enough. */
     if (db && new_db && db_length >= new_db_len)
       memcpy(db, new_db, new_db_len+1);
@@ -2957,6 +2959,7 @@ public:
         db= NULL;
     }
     db_length= db ? new_db_len : 0;
+    mysql_mutex_unlock(&LOCK_thd_data);
     return new_db && !db;
   }
 
@@ -2973,8 +2976,13 @@ public:
   */
   void reset_db(char *new_db, size_t new_db_len)
   {
-    db= new_db;
-    db_length= new_db_len;
+    if (new_db != db || new_db_len != db_length)
+    {
+      mysql_mutex_lock(&LOCK_thd_data);
+      db= new_db;
+      db_length= new_db_len;
+      mysql_mutex_unlock(&LOCK_thd_data);
+    }
   }
   /*
     Copy the current database to the argument. Use the current arena to
@@ -4326,6 +4334,11 @@ inline bool add_value_to_list(THD *thd, Item *value)
 inline bool add_order_to_list(THD *thd, Item *item, bool asc)
 {
   return thd->lex->current_select->add_order_to_list(thd, item, asc);
+}
+
+inline bool add_gorder_to_list(THD *thd, Item *item, bool asc)
+{
+  return thd->lex->current_select->add_gorder_to_list(thd, item, asc);
 }
 
 inline bool add_group_to_list(THD *thd, Item *item, bool asc)

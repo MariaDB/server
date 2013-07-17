@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /**
@@ -3808,7 +3808,7 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
 
   for (;;)
   {
-    if ((error= my_delete_allow_opened(linfo.log_file_name, MYF(0))) != 0)
+    if ((error= my_delete(linfo.log_file_name, MYF(0))) != 0)
     {
       if (my_errno == ENOENT) 
       {
@@ -3844,7 +3844,7 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
 
   /* Start logging with a new file */
   close(LOG_CLOSE_INDEX | LOG_CLOSE_TO_BE_OPENED);
-  if ((error= my_delete_allow_opened(index_file_name, MYF(0))))	// Reset (open will update)
+  if ((error= my_delete(index_file_name, MYF(0))))	// Reset (open will update)
   {
     if (my_errno == ENOENT) 
     {

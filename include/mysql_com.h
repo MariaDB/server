@@ -27,6 +27,8 @@
 #define USERNAME_CHAR_LENGTH 128
 #define NAME_LEN                (NAME_CHAR_LEN*SYSTEM_CHARSET_MBMAXLEN)
 #define USERNAME_LENGTH         (USERNAME_CHAR_LENGTH*SYSTEM_CHARSET_MBMAXLEN)
+#define DEFINER_CHAR_LENGTH     (USERNAME_CHAR_LENGTH + HOSTNAME_LENGTH + 1)
+#define DEFINER_LENGTH          (USERNAME_LENGTH + HOSTNAME_LENGTH + 1)
 
 #define MYSQL_AUTODETECT_CHARSET_NAME "auto"
 
@@ -52,12 +54,8 @@
   pluggable authentication, so any version starting from "5.5.5-" and
   claiming to support pluggable auth, must be using this fake prefix.
 */
-#ifdef EMBEDDED_LIBRARY
-#define RPL_VERSION_HACK ""
-#else
 /* this version must be the one that *does not* support pluggable auth */
 #define RPL_VERSION_HACK "5.5.5-"
-#endif
 
 #define SERVER_VERSION_LENGTH 60
 #define SQLSTATE_LENGTH 5
