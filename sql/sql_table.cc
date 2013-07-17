@@ -196,7 +196,6 @@ uint explain_filename(THD* thd,
                       uint to_length,
                       enum_explain_filename_mode explain_mode)
 {
-  uint res= 0;
   char *to_p= to;
   char *end_p= to_p + to_length;
   const char *db_name= NULL;
@@ -207,7 +206,8 @@ uint explain_filename(THD* thd,
   int  part_name_len= 0;
   const char *subpart_name= NULL;
   int  subpart_name_len= 0;
-  uint name_variant= NORMAL_PART_NAME;
+  uint part_type= NORMAL_PART_NAME;
+
   const char *tmp_p;
   DBUG_ENTER("explain_filename");
   DBUG_PRINT("enter", ("from '%s'", from));
@@ -226,17 +226,18 @@ uint explain_filename(THD* thd,
     table_name= tmp_p;
   }
   tmp_p= table_name;
-  while (!res && (tmp_p= strchr(tmp_p, '#')))
+  /* Look if there are partition tokens in the table name. */
+  while ((tmp_p= strchr(tmp_p, '#')))
   {
     tmp_p++;
     switch (tmp_p[0]) {
     case 'P':
     case 'p':
       if (tmp_p[1] == '#')
+      {
         part_name= tmp_p + 2;
-      else
-        res= 1;
-      tmp_p+= 2;
+        tmp_p+= 2;
+      }
       break;
     case 'S':
     case 's':
@@ -246,47 +247,31 @@ uint explain_filename(THD* thd,
         subpart_name= tmp_p + 3;
 	tmp_p+= 3;
       }
-      else if ((tmp_p[1] == 'Q' || tmp_p[1] == 'q') &&
-               (tmp_p[2] == 'L' || tmp_p[2] == 'l') &&
-                tmp_p[3] == '-')
-      {
-        tmp_p+= 4; /* sql- prefix found */
-      }
-      else
-        res= 2;
       break;
     case 'T':
     case 't':
       if ((tmp_p[1] == 'M' || tmp_p[1] == 'm') &&
           (tmp_p[2] == 'P' || tmp_p[2] == 'p') &&
           tmp_p[3] == '#' && !tmp_p[4])
-        name_variant= TEMP_PART_NAME;
-      else
-        res= 3;
-      tmp_p+= 4;
+      {
+        part_type= TEMP_PART_NAME;
+        tmp_p+= 4;
+      }
       break;
     case 'R':
     case 'r':
       if ((tmp_p[1] == 'E' || tmp_p[1] == 'e') &&
           (tmp_p[2] == 'N' || tmp_p[2] == 'n') &&
           tmp_p[3] == '#' && !tmp_p[4])
-        name_variant= RENAMED_PART_NAME;
-      else
-        res= 4;
-      tmp_p+= 4;
+      {
+        part_type= RENAMED_PART_NAME;
+        tmp_p+= 4;
+      }
       break;
     default:
-      res= 5;
+      /* Not partition name part. */
+      ;
     }
-  }
-  if (res)
-  {
-    /* Better to give something back if we fail parsing, than nothing at all */
-    DBUG_PRINT("info", ("Error in explain_filename: %u", res));
-    sql_print_warning("Invalid (old?) table or database name '%s'", from);
-    DBUG_RETURN(my_snprintf(to, to_length,
-                            "<result %u when explaining filename '%s'>",
-                            res, from));
   }
   if (part_name)
   {
@@ -295,7 +280,7 @@ uint explain_filename(THD* thd,
       subpart_name_len= strlen(subpart_name);
     else
       part_name_len= strlen(part_name);
-    if (name_variant != NORMAL_PART_NAME)
+    if (part_type != NORMAL_PART_NAME)
     {
       if (subpart_name)
         subpart_name_len-= 5;
@@ -337,9 +322,9 @@ uint explain_filename(THD* thd,
       to_p= strnmov(to_p, " ", end_p - to_p);
     else
       to_p= strnmov(to_p, ", ", end_p - to_p);
-    if (name_variant != NORMAL_PART_NAME)
+    if (part_type != NORMAL_PART_NAME)
     {
-      if (name_variant == TEMP_PART_NAME)
+      if (part_type == TEMP_PART_NAME)
         to_p= strnmov(to_p, ER_THD_OR_DEFAULT(thd, ER_TEMPORARY_NAME),
                       end_p - to_p);
       else
@@ -6306,13 +6291,16 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
   mysql_ha_rm_tables(thd, table_list);
 
-  mysql_audit_alter_table(thd, table_list);
-
   /* DISCARD/IMPORT TABLESPACE is always alone in an ALTER TABLE */
   if (alter_info->tablespace_op != NO_TABLESPACE_OP)
+  {
+    mysql_audit_alter_table(thd, table_list);
+
     /* Conditionally writes to binlog. */
-    DBUG_RETURN(mysql_discard_or_import_tablespace(thd,table_list,
-						   alter_info->tablespace_op));
+    bool ret= mysql_discard_or_import_tablespace(thd,table_list,
+                                                 alter_info->tablespace_op);
+    DBUG_RETURN(ret);
+  }
 
   /*
     Code below can handle only base tables so ensure that we won't open a view.
@@ -6510,6 +6498,9 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
              new_db, new_name);
     goto err;
   }
+
+  if (table->s->tmp_table == NO_TMP_TABLE)
+    mysql_audit_alter_table(thd, table_list);
   
   thd_proc_info(thd, "setup");
   if (!(alter_info->flags & ~(ALTER_RENAME | ALTER_KEYS_ONOFF)) &&

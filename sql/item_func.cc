@@ -41,6 +41,7 @@
 #include "sql_acl.h"                            // EXECUTE_ACL
 #include "mysqld.h"                             // LOCK_short_uuid_generator
 #include "rpl_mi.h"
+#include "sql_time.h"
 #include <m_ctype.h>
 #include <hash.h>
 #include <time.h>
@@ -2779,6 +2780,12 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
       min_max= res;
   }
   unpack_time(min_max, ltime);
+
+  if (!(fuzzy_date & TIME_TIME_ONLY) &&
+      ((null_value= check_date_with_warn(ltime, fuzzy_date,
+                                         MYSQL_TIMESTAMP_ERROR))))
+    return true;
+
   if (compare_as_dates->field_type() == MYSQL_TYPE_DATE)
   {
     ltime->time_type= MYSQL_TIMESTAMP_DATE;
@@ -2842,7 +2849,7 @@ double Item_func_min_max::val_real()
   if (compare_as_dates)
   {
     MYSQL_TIME ltime;
-    if (get_date(&ltime, TIME_FUZZY_DATE))
+    if (get_date(&ltime, 0))
       return 0;
 
     return TIME_to_double(&ltime);
@@ -2871,7 +2878,7 @@ longlong Item_func_min_max::val_int()
   if (compare_as_dates)
   {
     MYSQL_TIME ltime;
-    if (get_date(&ltime, TIME_FUZZY_DATE))
+    if (get_date(&ltime, 0))
       return 0;
 
     return TIME_to_ulonglong(&ltime);
@@ -2901,7 +2908,7 @@ my_decimal *Item_func_min_max::val_decimal(my_decimal *dec)
   if (compare_as_dates)
   {
     MYSQL_TIME ltime;
-    if (get_date(&ltime, TIME_FUZZY_DATE))
+    if (get_date(&ltime, 0))
       return 0;
 
     return date2my_decimal(&ltime, dec);
@@ -6080,6 +6087,13 @@ bool Item_func_match::fix_index()
   Item_field *item;
   uint ft_to_key[MAX_KEY], ft_cnt[MAX_KEY], fts=0, keynr;
   uint max_cnt=0, mkeys=0, i;
+
+  /*
+    We will skip execution if the item is not fixed
+    with fix_field
+  */
+  if (!fixed)
+    return false;
 
   if (key == NO_SUCH_KEY)
     return 0;

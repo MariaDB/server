@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /**
   @file
@@ -159,7 +159,7 @@ static COND *optimize_cond(JOIN *join, COND *conds,
 bool const_expression_in_where(COND *conds,Item *item, Item **comp_item);
 static bool create_internal_tmp_table_from_heap2(THD *, TABLE *,
                                      ENGINE_COLUMNDEF *, ENGINE_COLUMNDEF **, 
-                                     int, bool, handlerton *, const char *);
+                                     int, bool, handlerton *, const char *, bool *);
 static int do_select(JOIN *join,List<Item> *fields,TABLE *tmp_table,
 		     Procedure *proc);
 
@@ -8610,6 +8610,7 @@ JOIN::make_simple_join(JOIN *parent, TABLE *temp_table)
   join_tab->ref.key = -1;
   join_tab->read_first_record= join_init_read_record;
   join_tab->join= this;
+  join_tab->ref.key_parts= 0;
   bzero((char*) &join_tab->read_record,sizeof(join_tab->read_record));
   temp_table->status=0;
   temp_table->null_row=0;
@@ -9935,7 +9936,7 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
       if (table->file->is_fatal_error(error, HA_CHECK_DUP) &&
           create_internal_tmp_table_from_heap(thd, table,
                                               sjm->sjm_table_param.start_recinfo, 
-                                              &sjm->sjm_table_param.recinfo, error, 1))
+                                              &sjm->sjm_table_param.recinfo, error, 1, NULL))
         DBUG_RETURN(NESTED_LOOP_ERROR); /* purecov: inspected */
     }
   }
@@ -10505,10 +10506,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
                                 join_read_system :join_read_const;
       if (table->covering_keys.is_set(tab->ref.key) &&
           !table->no_keyread)
-      {
-        table->key_read=1;
-        table->file->extra(HA_EXTRA_KEYREAD);
-      }
+        table->enable_keyread();
       else if ((!jcl || jcl > 4) && !tab->ref.is_access_triggered())
         push_index_cond(tab, tab->ref.key);
       break;
@@ -10517,10 +10515,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       /* fall through */
       if (table->covering_keys.is_set(tab->ref.key) &&
 	  !table->no_keyread)
-      {
-	table->key_read=1;
-	table->file->extra(HA_EXTRA_KEYREAD);
-      }
+        table->enable_keyread();
       else if ((!jcl || jcl > 4) && !tab->ref.is_access_triggered())
         push_index_cond(tab, tab->ref.key);
       break;
@@ -11127,11 +11122,27 @@ void JOIN::cleanup(bool full)
         else
           clean_pre_sort_join_tab();
       }
+      /*
+        Call cleanup() on join tabs used by the join optimization
+        (join->join_tab may now be pointing to result of make_simple_join
+         reading from the temporary table)
 
-      for (tab= first_linear_tab(this, WITH_CONST_TABLES); tab; 
-           tab= next_linear_tab(this, tab, WITH_BUSH_ROOTS))
+        We also need to check table_count to handle various degenerate joins
+        w/o tables: they don't have some members initialized and
+        WALK_OPTIMIZATION_TABS may not work correctly for them.
+      */
+      enum enum_exec_or_opt tabs_kind;
+      if (first_breadth_first_tab(this, WALK_OPTIMIZATION_TABS))
+        tabs_kind= WALK_OPTIMIZATION_TABS;
+      else
+        tabs_kind= WALK_EXECUTION_TABS;
+      if (table_count)
       {
-	tab->cleanup();
+        for (tab= first_breadth_first_tab(this, tabs_kind); tab; 
+             tab= next_breadth_first_tab(this, tabs_kind, tab))
+        {
+          tab->cleanup();
+        }
       }
       cleaned= true;
     }
@@ -11142,8 +11153,10 @@ void JOIN::cleanup(bool full)
       {
 	if (tab->table)
         {
-          DBUG_PRINT("info", ("close index: %s.%s", tab->table->s->db.str,
-                              tab->table->s->table_name.str));
+          DBUG_PRINT("info", ("close index: %s.%s  alias: %s",
+                              tab->table->s->db.str,
+                              tab->table->s->table_name.str,
+                              tab->table->alias.c_ptr()));
           tab->table->file->ha_index_or_rnd_end();
         }
       }
@@ -14491,7 +14504,7 @@ static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
   if (new_field)
     new_field->init(table);
     
-  if (copy_func && item->is_result_field())
+  if (copy_func && item->real_item()->is_result_field())
     *((*copy_func)++) = item;			// Save for copy_funcs
   if (modify_item)
     item->set_result_field(new_field);
@@ -15599,8 +15612,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     if (share->db_type() == TMP_ENGINE_HTON)
     {
       if (create_internal_tmp_table(table, param->keyinfo, param->start_recinfo,
-                                    &param->recinfo, select_options,
-                                    thd->variables.big_tables))
+                                    &param->recinfo, select_options))
         goto err;
     }
     if (open_tmp_table(table))
@@ -15819,7 +15831,7 @@ bool open_tmp_table(TABLE *table)
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
                                ENGINE_COLUMNDEF *start_recinfo,
                                ENGINE_COLUMNDEF **recinfo, 
-                               ulonglong options, my_bool big_tables)
+                               ulonglong options)
 {
   int error;
   MARIA_KEYDEF keydef;
@@ -15912,7 +15924,8 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   }
   bzero((char*) &create_info,sizeof(create_info));
 
-  if (big_tables && !(options & SELECT_SMALL_RESULT))
+  /* Use long data format, to ensure we never get a 'table is full' error */
+  if (!(options & SELECT_SMALL_RESULT))
     create_info.data_file_length= ~(ulonglong) 0;
 
   /*
@@ -15956,13 +15969,15 @@ bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
                                          ENGINE_COLUMNDEF *start_recinfo,
                                          ENGINE_COLUMNDEF **recinfo, 
                                          int error,
-                                         bool ignore_last_dupp_key_error)
+                                         bool ignore_last_dupp_key_error,
+                                         bool *is_duplicate)
 {
   return create_internal_tmp_table_from_heap2(thd, table, 
                                               start_recinfo, recinfo, error,
                                               ignore_last_dupp_key_error,
                                               maria_hton,
-                                              "converting HEAP to Aria");
+                                              "converting HEAP to Aria",
+                                              is_duplicate);
 }
 
 #else
@@ -16002,7 +16017,7 @@ bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
                                ENGINE_COLUMNDEF *start_recinfo,
                                ENGINE_COLUMNDEF **recinfo,
-                               ulonglong options, my_bool big_tables)
+                               ulonglong options)
 {
   int error;
   MI_KEYDEF keydef;
@@ -16089,7 +16104,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   MI_CREATE_INFO create_info;
   bzero((char*) &create_info,sizeof(create_info));
 
-  if (big_tables && !(options & SELECT_SMALL_RESULT))
+  if (!(options & SELECT_SMALL_RESULT))
     create_info.data_file_length= ~(ulonglong) 0;
 
   if ((error=mi_create(share->table_name.str, share->keys, &keydef,
@@ -16121,13 +16136,15 @@ bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
                                          ENGINE_COLUMNDEF *start_recinfo,
                                          ENGINE_COLUMNDEF **recinfo, 
                                          int error,
-                                         bool ignore_last_dupp_key_error)
+                                         bool ignore_last_dupp_key_error,
+                                         bool *is_duplicate)
 {
   return create_internal_tmp_table_from_heap2(thd, table, 
                                               start_recinfo, recinfo, error,
                                               ignore_last_dupp_key_error,
                                               myisam_hton,
-                                              "converting HEAP to MyISAM");
+                                              "converting HEAP to MyISAM",
+                                              is_duplicate);
 }
 
 #endif /* WITH_MARIA_STORAGE_ENGINE */
@@ -16146,7 +16163,8 @@ create_internal_tmp_table_from_heap2(THD *thd, TABLE *table,
                                      int error,
                                      bool ignore_last_dupp_key_error,
                                      handlerton *hton,
-                                     const char *proc_info)
+                                     const char *proc_info,
+                                     bool *is_duplicate)
 {
   TABLE new_table;
   TABLE_SHARE share;
@@ -16179,8 +16197,7 @@ create_internal_tmp_table_from_heap2(THD *thd, TABLE *table,
   if (create_internal_tmp_table(&new_table, table->key_info, start_recinfo,
                                 recinfo,
                                 thd->lex->select_lex.options | 
-			        thd->variables.option_bits,
-                                thd->variables.big_tables))
+			        thd->variables.option_bits))
     goto err2;
   if (open_tmp_table(&new_table))
     goto err1;
@@ -16224,6 +16241,13 @@ create_internal_tmp_table_from_heap2(THD *thd, TABLE *table,
     if (new_table.file->is_fatal_error(write_err, HA_CHECK_DUP) ||
 	!ignore_last_dupp_key_error)
       goto err;
+    if (is_duplicate)
+      *is_duplicate= TRUE;
+  }
+  else
+  {
+    if (is_duplicate)
+      *is_duplicate= FALSE;
   }
 
   /* remove heap table and change to use myisam table */
@@ -16808,7 +16832,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   if (rc != NESTED_LOOP_NO_MORE_ROWS)
   {
     error= (*join_tab->read_first_record)(join_tab);
-    if (join_tab->keep_current_rowid)
+    if (!error && join_tab->keep_current_rowid)
       join_tab->table->file->position(join_tab->table->record[0]);    
     rc= evaluate_join_record(join, join_tab, error);
   }
@@ -17725,6 +17749,8 @@ join_read_first(JOIN_TAB *tab)
 {
   int error= 0;
   TABLE *table=tab->table;
+  DBUG_ENTER("join_read_first");
+
   if (table->covering_keys.is_set(tab->index) && !table->no_keyread &&
       !table->key_read)
     table->enable_keyread();
@@ -17741,9 +17767,9 @@ join_read_first(JOIN_TAB *tab)
   {
     if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       report_error(table, error);
-    return -1;
+    DBUG_RETURN(-1);
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
@@ -17763,6 +17789,8 @@ join_read_last(JOIN_TAB *tab)
 {
   TABLE *table=tab->table;
   int error= 0;
+  DBUG_ENTER("join_read_first");
+
   if (table->covering_keys.is_set(tab->index) && !table->no_keyread &&
       !table->key_read)
     table->enable_keyread();
@@ -17776,9 +17804,9 @@ join_read_last(JOIN_TAB *tab)
   if (!error)
     error= table->file->prepare_index_scan();
   if (error || (error= tab->table->file->ha_index_last(tab->table->record[0])))
-    return report_error(table, error);
+    DBUG_RETURN(report_error(table, error));
 
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
@@ -17892,7 +17920,13 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   if (!end_of_records)
   {
     if (join->table_count &&
-        join->join_tab->is_using_loose_index_scan())
+        (join->join_tab->is_using_loose_index_scan() ||
+         /*
+           When order by used a loose scan as its input, the quick select may
+           be attached to pre_sort_join_tab.
+         */
+         (join->pre_sort_join_tab &&
+          join->pre_sort_join_tab->is_using_loose_index_scan())))
     {
       /* Copy non-aggregated fields when loose index scan is used. */
       copy_fields(&join->tmp_table_param);
@@ -18133,11 +18167,14 @@ end_write(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
       {
         if (!table->file->is_fatal_error(error, HA_CHECK_DUP))
 	  goto end;
+        bool is_duplicate;
 	if (create_internal_tmp_table_from_heap(join->thd, table, 
                                                 join->tmp_table_param.start_recinfo,
                                                 &join->tmp_table_param.recinfo,
-                                                error,1))
+                                                error, 1, &is_duplicate))
 	  DBUG_RETURN(NESTED_LOOP_ERROR);        // Not a table_is_full error
+        if (is_duplicate)
+          goto end;
 	table->s->uniques=0;			// To ensure rows are the same
       }
       if (++join->send_records >= join->tmp_table_param.end_write_records &&
@@ -18222,7 +18259,7 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     if (create_internal_tmp_table_from_heap(join->thd, table,
                                             join->tmp_table_param.start_recinfo,
                                             &join->tmp_table_param.recinfo,
-                                            error, 0))
+                                            error, 0, NULL))
       DBUG_RETURN(NESTED_LOOP_ERROR);            // Not a table_is_full error
     /* Change method to update rows */
     if ((error= table->file->ha_index_init(0, 0)))
@@ -18327,7 +18364,7 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
               create_internal_tmp_table_from_heap(join->thd, table,
                                                   join->tmp_table_param.start_recinfo,
                                                   &join->tmp_table_param.recinfo,
-                                                  error, 0))
+                                                  error, 0, NULL))
 	    DBUG_RETURN(NESTED_LOOP_ERROR);
         }
         if (join->rollup.state != ROLLUP::STATE_NONE)
@@ -19733,6 +19770,9 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
                                                  MY_THREAD_SPECIFIC));
   table->status=0;				// May be wrong if quick_select
 
+  if (!tab->preread_init_done && tab->preread_init())
+    goto err;
+
   // If table has a range, move it to select
   if (select && !select->quick && tab->ref.key >= 0)
   {
@@ -19769,8 +19809,6 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
       get_schema_tables_result(join, PROCESSED_BY_CREATE_SORT_INDEX))
     goto err;
 
-  if (!tab->preread_init_done && tab->preread_init())
-    goto err;
   if (table->s->tmp_table)
     table->file->info(HA_STATUS_VARIABLE);	// Get record count
   filesort_retval= filesort(thd, table, join->sortorder, length,
@@ -22082,7 +22120,7 @@ int JOIN::rollup_write_data(uint idx, TABLE *table_arg)
 	if (create_internal_tmp_table_from_heap(thd, table_arg, 
                                                 tmp_table_param.start_recinfo,
                                                 &tmp_table_param.recinfo,
-                                                write_error, 0))
+                                                write_error, 0, NULL))
 	  return 1;		     
       }
     }

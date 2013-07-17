@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -63,8 +63,9 @@
 #define SIGNAL_FMT "signal %d"
 #endif
 
+#include <my_context.h>
 static my_bool non_blocking_api_enabled= 0;
-#if !defined(EMBEDDED_LIBRARY)
+#if !defined(EMBEDDED_LIBRARY) && !defined(MY_CONTEXT_DISABLE)
 #define WRAP_NONBLOCK_ENABLED non_blocking_api_enabled
 #include "../tests/nonblock-wrappers.h"
 #endif
@@ -3590,7 +3591,7 @@ void do_remove_file(struct st_command *command)
                      ' ');
 
   DBUG_PRINT("info", ("removing file: %s", ds_filename.str));
-  error= my_delete_allow_opened(ds_filename.str, MYF(disable_warnings ? 0 : MY_WME)) != 0;
+  error= my_delete(ds_filename.str, MYF(disable_warnings ? 0 : MY_WME)) != 0;
   handle_command_error(command, error, my_errno);
   dynstr_free(&ds_filename);
   DBUG_VOID_RETURN;
@@ -5950,8 +5951,10 @@ void do_connect(struct st_command *command)
   if (opt_connect_timeout)
     mysql_options(con_slot->mysql, MYSQL_OPT_CONNECT_TIMEOUT,
                   (void *) &opt_connect_timeout);
-
-  mysql_options(con_slot->mysql, MYSQL_OPT_NONBLOCK, 0);
+#ifndef MY_CONTEXT_DISABLE
+  if (mysql_options(con_slot->mysql, MYSQL_OPT_NONBLOCK, 0))
+    die("Failed to initialise non-blocking API");
+#endif
   if (opt_compress || con_compress)
     mysql_options(con_slot->mysql, MYSQL_OPT_COMPRESS, NullS);
   mysql_options(con_slot->mysql, MYSQL_OPT_LOCAL_INFILE, 0);

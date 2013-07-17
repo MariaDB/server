@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 #ifndef _my_sys_h
 #define _my_sys_h
@@ -625,13 +625,6 @@ extern int      my_access(const char *path, int amode);
 
 extern int check_if_legal_filename(const char *path);
 extern int check_if_legal_tablename(const char *path);
-
-#ifdef _WIN32
-extern int nt_share_delete(const char *name,myf MyFlags);
-#define my_delete_allow_opened(fname,flags)  nt_share_delete((fname),(flags))
-#else
-#define my_delete_allow_opened(fname,flags)  my_delete((fname),(flags))
-#endif
 
 #ifdef _WIN32
 /* Windows-only functions (CRT equivalents)*/

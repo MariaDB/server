@@ -1429,7 +1429,7 @@ inline int READ_INFO::terminator(char *ptr,uint length)
   uint i;
   for (i=1 ; i < length ; i++)
   {
-    if ((chr=GET) != *++ptr)
+    if ((chr=GET) != *(uchar*)++ptr)
     {
       break;
     }
