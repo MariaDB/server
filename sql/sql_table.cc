@@ -6613,6 +6613,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     if (def)
     {						// Field is changed
       def->field=field;
+      /*
+        Add column being updated to the list of new columns.
+        Note that columns with AFTER clauses are added to the end
+        of the list for now. Their positions will be corrected later.
+      */
+      new_create_list.push_back(def);
       if (field->stored_in_db != def->stored_in_db)
       {
         my_error(ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN, MYF(0));
@@ -6620,7 +6626,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       if (!def->after)
       {
-	new_create_list.push_back(def);
+        /*
+          If this ALTER TABLE doesn't have an AFTER clause for the modified
+          column then remove this column from the list of columns to be
+          processed. So later we can iterate over the columns remaining
+          in this list and process modified columns with AFTER clause or
+          add new columns.
+        */
 	def_it.remove();
       }
     }
