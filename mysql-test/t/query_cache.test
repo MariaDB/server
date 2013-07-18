@@ -1628,6 +1628,28 @@ DROP TABLE t1;
 SET GLOBAL query_cache_size= @qc;
 --echo #
 
+--echo End of 5.5 tests
+
+--echo #
+--echo # MDEV-617 LP:671189 - Query cache is not used for tables or
+--echo # databases with dots in their names
+--echo #
+CREATE DATABASE `foo.bar`;
+use `foo.bar`;
+flush status;
+CREATE TABLE moocow (a int);
+INSERT INTO moocow VALUES (1), (2), (3);
+SHOW STATUS LIKE 'Qcache_inserts';
+SELECT * FROM moocow;
+SHOW STATUS LIKE 'Qcache_inserts';
+SHOW STATUS LIKE 'Qcache_hits';
+SELECT * FROM moocow;
+SHOW STATUS LIKE 'Qcache_hits';
+use test;
+drop database `foo.bar`;
+
+--echo End of 10.0 tests
+
 --echo restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size= default;
