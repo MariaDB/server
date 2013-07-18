@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -30,8 +30,9 @@
   and use poll()/select() to wait for them to complete. This way we can get
   a good coverage testing of the non-blocking API as well.
 */
+#include <my_context.h>
 static my_bool non_blocking_api_enabled= 0;
-#if !defined(EMBEDDED_LIBRARY)
+#if !defined(EMBEDDED_LIBRARY) && !defined(MY_CONTEXT_DISABLE)
 #define WRAP_NONBLOCK_ENABLED non_blocking_api_enabled
 #include "nonblock-wrappers.h"
 #endif

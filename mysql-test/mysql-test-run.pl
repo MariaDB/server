@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # -*- cperl -*-
 
-# Copyright (c) 2004, 2012, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2012, Monty Program Ab
+# Copyright (c) 2004, 2013, Oracle and/or its affiliates.
+# Copyright (c) 2009, 2013, Monty Program Ab
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -377,7 +377,13 @@ sub main {
   # directly before it executes them, like "make test-force-pl" in RPM builds.
   mtr_report("Logging: $0 ", join(" ", @ARGV));
 
-  $DEFAULT_SUITES.=",sequence,sql_discovery,spider,spider/bg" if $source_dist;
+ $DEFAULT_SUITES.= ',' . join(',', qw(
+    query_response_time
+    sequence
+    spider
+    spider/bg
+    sql_discovery
+  )) if $source_dist;
 
   command_line_setup();
 
@@ -691,7 +697,7 @@ sub run_test_server ($$$) {
 			   mtr_report(" - found '$core_name'",
 				      "($num_saved_cores/$opt_max_save_core)");
 
-			   My::CoreDump->show($core_file, $exe_mysqld);
+			   My::CoreDump->show($core_file, $exe_mysqld, $opt_parallel);
 
 			   if ($num_saved_cores >= $opt_max_save_core) {
 			     mtr_report(" - deleting it, already saved",

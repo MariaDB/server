@@ -1387,9 +1387,11 @@ rpl_load_gtid_slave_state(THD *thd)
   TABLE *table;
   bool table_opened= false;
   bool table_scanned= false;
+  bool array_inited= false;
   struct local_element { uint64 sub_id; rpl_gtid gtid; };
-  struct local_element *entry;
+  struct local_element tmp_entry, *entry;
   HASH hash;
+  DYNAMIC_ARRAY array;
   int err= 0;
   uint32 i;
   DBUG_ENTER("rpl_load_gtid_slave_state");
@@ -1403,6 +1405,9 @@ rpl_load_gtid_slave_state(THD *thd)
   my_hash_init(&hash, &my_charset_bin, 32,
                offsetof(local_element, gtid) + offsetof(rpl_gtid, domain_id),
                sizeof(uint32), NULL, my_free, HASH_UNIQUE);
+  if ((err= my_init_dynamic_array(&array, sizeof(local_element), 0, 0, MYF(0))))
+    goto end;
+  array_inited= true;
 
   mysql_reset_thd_for_next_command(thd, 0);
 
@@ -1451,6 +1456,16 @@ rpl_load_gtid_slave_state(THD *thd)
                         (unsigned)domain_id, (unsigned)server_id,
                         (ulong)seq_no, (ulong)sub_id));
 
+    tmp_entry.sub_id= sub_id;
+    tmp_entry.gtid.domain_id= domain_id;
+    tmp_entry.gtid.server_id= server_id;
+    tmp_entry.gtid.seq_no= seq_no;
+    if ((err= insert_dynamic(&array, (uchar *)&tmp_entry)))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      goto end;
+    }
+
     if ((rec= my_hash_search(&hash, (const uchar *)&domain_id, 0)))
     {
       entry= (struct local_element *)rec;
@@ -1489,18 +1504,24 @@ rpl_load_gtid_slave_state(THD *thd)
     rpl_global_gtid_slave_state.unlock();
     goto end;
   }
-  for (i= 0; i < hash.records; ++i)
+
+  for (i= 0; i < array.elements; ++i)
   {
-    entry= (struct local_element *)my_hash_element(&hash, i);
-    if ((err= rpl_global_gtid_slave_state.update(entry->gtid.domain_id,
-                                                 entry->gtid.server_id,
-                                                 entry->sub_id,
-                                                 entry->gtid.seq_no)))
+    get_dynamic(&array, (uchar *)&tmp_entry, i);
+    if ((err= rpl_global_gtid_slave_state.update(tmp_entry.gtid.domain_id,
+                                                 tmp_entry.gtid.server_id,
+                                                 tmp_entry.sub_id,
+                                                 tmp_entry.gtid.seq_no)))
     {
       rpl_global_gtid_slave_state.unlock();
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto end;
     }
+  }
+
+  for (i= 0; i < hash.records; ++i)
+  {
+    entry= (struct local_element *)my_hash_element(&hash, i);
     if (opt_bin_log &&
         mysql_bin_log.bump_seq_no_counter_if_needed(entry->gtid.domain_id,
                                                     entry->gtid.seq_no))
@@ -1510,6 +1531,7 @@ rpl_load_gtid_slave_state(THD *thd)
       goto end;
     }
   }
+
   rpl_global_gtid_slave_state.loaded= true;
   rpl_global_gtid_slave_state.unlock();
 
@@ -1527,6 +1549,8 @@ end:
     close_thread_tables(thd);
     thd->mdl_context.release_transactional_locks();
   }
+  if (array_inited)
+    delete_dynamic(&array);
   my_hash_free(&hash);
   DBUG_RETURN(err);
 }

@@ -46,6 +46,38 @@ static bool pack_fields(uchar *, List<Create_field> &, ulong);
 static size_t packed_fields_length(List<Create_field> &);
 static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint, ulong);
 
+static uchar *extra2_write_len(uchar *pos, size_t len)
+{
+  if (len < 255)
+    *pos++= len;
+  else
+  {
+    /*
+      At the moment we support options_len up to 64K.
+      We can easily extend it in the future, if the need arises.
+    */
+    DBUG_ASSERT(len <= 65535);
+    int2store(pos + 1, len);
+    pos+= 3;
+  }
+  return pos;
+}
+
+static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
+                           LEX_STRING *str)
+{
+  *pos++ = type;
+  pos= extra2_write_len(pos, str->length);
+  memcpy(pos, str->str, str->length);
+  return pos + str->length;
+}
+
+static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
+                           LEX_CUSTRING *str)
+{
+  return extra2_write(pos, type, reinterpret_cast<LEX_STRING *>(str));
+}
+
 /**
   Create a frm (table definition) file
 
@@ -72,9 +104,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   ulong filepos, data_offset;
   uint options_len;
   uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_info *part_info= thd->work_part_info;
-#endif
+  const partition_info *part_info= IF_PARTITIONING(thd->work_part_info, 0);
   int error;
   uchar *frm_ptr, *pos;
   LEX_CUSTRING frm= {0,0};
@@ -106,12 +136,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
       => Total 6 byte
   */
   create_info->extra_size+= 6;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (part_info)
-  {
     create_info->extra_size+= part_info->part_info_len;
-  }
-#endif
 
   for (i= 0; i < keys; i++)
   {
@@ -205,6 +231,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (options_len)
     extra2_size+= 1 + (options_len > 255 ? 3 : 1) + options_len;
 
+  if (part_info)
+    extra2_size+= 1 + 1 + hton_name(part_info->default_engine_type)->length;
+
   key_buff_length= uint4korr(fileinfo+47);
 
   frm.length= FRM_HEADER_SIZE;                  // fileinfo;
@@ -228,27 +257,17 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   /* write the extra2 segment */
   pos = frm_ptr + 64;
   compile_time_assert(EXTRA2_TABLEDEF_VERSION != '/');
-  *pos++ = EXTRA2_TABLEDEF_VERSION;     // old servers write '/' here
-  *pos++ = create_info->tabledef_version.length;
-  memcpy(pos, create_info->tabledef_version.str,
-              create_info->tabledef_version.length);
-  pos+= create_info->tabledef_version.length;
+  pos= extra2_write(pos, EXTRA2_TABLEDEF_VERSION,
+                    &create_info->tabledef_version);
+
+  if (part_info)
+    pos= extra2_write(pos, EXTRA2_DEFAULT_PART_ENGINE,
+                      hton_name(part_info->default_engine_type));
 
   if (options_len)
   {
     *pos++= EXTRA2_ENGINE_TABLEOPTS;
-    if (options_len < 255)
-      *pos++= options_len;
-    else
-    {
-      /*
-        At the moment we support options_len up to 64K.
-        We can easily extend it in the future, if the need arises.
-      */
-      DBUG_ASSERT(options_len <= 65535);
-      int2store(pos + 1, options_len);
-      pos+= 3;
-    }
+    pos= extra2_write_len(pos, options_len);
     pos= engine_table_options_frm_image(pos, create_info->option_list,
                                         create_fields, keys, key_info);
   }
@@ -265,13 +284,12 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 			     (create_info->min_rows == 1) && (keys == 0));
   int2store(fileinfo+28,key_info_length);
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (part_info)
   {
     fileinfo[61]= (uchar) ha_legacy_type(part_info->default_engine_type);
     DBUG_PRINT("info", ("part_db_type = %d", fileinfo[61]));
   }
-#endif
+
   int2store(fileinfo+59,db_file->extra_rec_buf_length());
 
   memcpy(frm_ptr, fileinfo, FRM_HEADER_SIZE);
@@ -291,7 +309,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   memcpy(pos, str_db_type.str, str_db_type.length);
   pos+= str_db_type.length;
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (part_info)
   {
     char auto_partitioned= part_info->is_auto_partitioned ? 1 : 0;
@@ -302,7 +319,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     *pos++= auto_partitioned;
   }
   else
-#endif
   {
     pos+= 6;
   }

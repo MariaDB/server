@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /* This is the include file that should be included 'first' in every C file. */
 
@@ -94,6 +94,12 @@
 #define IF_EMBEDDED(A,B) A
 #else
 #define IF_EMBEDDED(A,B) B
+#endif
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+#define IF_PARTITIONING(A,B) A
+#else
+#define IF_PARTITIONING(A,B) B
 #endif
 
 #if defined (_WIN32)

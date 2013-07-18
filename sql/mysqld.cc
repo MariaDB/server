@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 #include "sql_plugin.h"
 #include "sql_priv.h"
@@ -1906,7 +1906,7 @@ static void mysqld_exit(int exit_code)
   clean_up_error_log_mutex();
   my_end((opt_endinfo ? MY_CHECK_ERROR | MY_GIVE_INFO : 0));
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
-  shutdown_performance_schema();
+  shutdown_performance_schema();        // we do it as late as possible
 #endif
   DBUG_LEAVE;
   exit(exit_code); /* purecov: inspected */
@@ -1943,8 +1943,8 @@ void clean_up(bool print_message)
   my_tz_free();
   my_dboptions_cache_free();
   ignore_db_dirs_free();
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   servers_free(1);
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
   acl_free(1);
   grant_free();
 #endif
@@ -3603,6 +3603,7 @@ SHOW_VAR com_status_vars[]= {
   {"show_user_statistics",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_USER_STATS]), SHOW_LONG_STATUS},
   {"show_variables",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_VARIABLES]), SHOW_LONG_STATUS},
   {"show_warnings",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_WARNS]), SHOW_LONG_STATUS},
+  {"shutdown",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHUTDOWN]), SHOW_LONG_STATUS},
   {"start_all_slaves",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_ALL_START]), SHOW_LONG_STATUS},
   {"start_slave",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_START]), SHOW_LONG_STATUS},
   {"stmt_close",           (char*) offsetof(STATUS_VAR, com_stmt_close), SHOW_LONG_STATUS},
@@ -4745,7 +4746,7 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   plugin_ref plugin;
   handlerton *hton;
   if ((plugin= ha_resolve_by_name(0, &name)))
-    hton= plugin_data(plugin, handlerton*);
+    hton= plugin_hton(plugin);
   else
   {
     sql_print_error("Unknown/unsupported storage engine: %s",
@@ -4845,6 +4846,8 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   init_update_queries();
   init_global_user_stats();
   init_global_client_stats();
+  if (!opt_bootstrap)
+    servers_init(0);
   DBUG_RETURN(0);
 }
 
@@ -5262,9 +5265,6 @@ int mysqld_main(int argc, char **argv)
 
   if (!opt_noacl)
     (void) grant_init();
-
-  if (!opt_bootstrap)
-    servers_init(0);
 
   if (!opt_noacl)
   {

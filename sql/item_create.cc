@@ -5841,11 +5841,10 @@ Item *create_temporal_literal(THD *thd,
   MYSQL_TIME_STATUS status;
   MYSQL_TIME ltime;
   Item *item= NULL;
-  ulonglong datetime_flags= thd->variables.sql_mode &
+  ulonglong flags= thd->variables.sql_mode &
                             (MODE_NO_ZERO_IN_DATE |
                              MODE_NO_ZERO_DATE |
                              MODE_INVALID_DATES);
-  ulonglong flags= TIME_FUZZY_DATE | datetime_flags;
 
   switch(type)
   {

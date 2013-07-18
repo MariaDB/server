@@ -196,7 +196,6 @@ uint explain_filename(THD* thd,
                       uint to_length,
                       enum_explain_filename_mode explain_mode)
 {
-  uint res= 0;
   char *to_p= to;
   char *end_p= to_p + to_length;
   const char *db_name= NULL;
@@ -207,7 +206,8 @@ uint explain_filename(THD* thd,
   int  part_name_len= 0;
   const char *subpart_name= NULL;
   int  subpart_name_len= 0;
-  uint name_variant= NORMAL_PART_NAME;
+  uint part_type= NORMAL_PART_NAME;
+
   const char *tmp_p;
   DBUG_ENTER("explain_filename");
   DBUG_PRINT("enter", ("from '%s'", from));
@@ -226,17 +226,18 @@ uint explain_filename(THD* thd,
     table_name= tmp_p;
   }
   tmp_p= table_name;
-  while (!res && (tmp_p= strchr(tmp_p, '#')))
+  /* Look if there are partition tokens in the table name. */
+  while ((tmp_p= strchr(tmp_p, '#')))
   {
     tmp_p++;
     switch (tmp_p[0]) {
     case 'P':
     case 'p':
       if (tmp_p[1] == '#')
+      {
         part_name= tmp_p + 2;
-      else
-        res= 1;
-      tmp_p+= 2;
+        tmp_p+= 2;
+      }
       break;
     case 'S':
     case 's':
@@ -246,47 +247,31 @@ uint explain_filename(THD* thd,
         subpart_name= tmp_p + 3;
 	tmp_p+= 3;
       }
-      else if ((tmp_p[1] == 'Q' || tmp_p[1] == 'q') &&
-               (tmp_p[2] == 'L' || tmp_p[2] == 'l') &&
-                tmp_p[3] == '-')
-      {
-        tmp_p+= 4; /* sql- prefix found */
-      }
-      else
-        res= 2;
       break;
     case 'T':
     case 't':
       if ((tmp_p[1] == 'M' || tmp_p[1] == 'm') &&
           (tmp_p[2] == 'P' || tmp_p[2] == 'p') &&
           tmp_p[3] == '#' && !tmp_p[4])
-        name_variant= TEMP_PART_NAME;
-      else
-        res= 3;
-      tmp_p+= 4;
+      {
+        part_type= TEMP_PART_NAME;
+        tmp_p+= 4;
+      }
       break;
     case 'R':
     case 'r':
       if ((tmp_p[1] == 'E' || tmp_p[1] == 'e') &&
           (tmp_p[2] == 'N' || tmp_p[2] == 'n') &&
           tmp_p[3] == '#' && !tmp_p[4])
-        name_variant= RENAMED_PART_NAME;
-      else
-        res= 4;
-      tmp_p+= 4;
+      {
+        part_type= RENAMED_PART_NAME;
+        tmp_p+= 4;
+      }
       break;
     default:
-      res= 5;
+      /* Not partition name part. */
+      ;
     }
-  }
-  if (res)
-  {
-    /* Better to give something back if we fail parsing, than nothing at all */
-    DBUG_PRINT("info", ("Error in explain_filename: %u", res));
-    sql_print_warning("Invalid (old?) table or database name '%s'", from);
-    DBUG_RETURN(my_snprintf(to, to_length,
-                            "<result %u when explaining filename '%s'>",
-                            res, from));
   }
   if (part_name)
   {
@@ -295,7 +280,7 @@ uint explain_filename(THD* thd,
       subpart_name_len= strlen(subpart_name);
     else
       part_name_len= strlen(part_name);
-    if (name_variant != NORMAL_PART_NAME)
+    if (part_type != NORMAL_PART_NAME)
     {
       if (subpart_name)
         subpart_name_len-= 5;
@@ -337,9 +322,9 @@ uint explain_filename(THD* thd,
       to_p= strnmov(to_p, " ", end_p - to_p);
     else
       to_p= strnmov(to_p, ", ", end_p - to_p);
-    if (name_variant != NORMAL_PART_NAME)
+    if (part_type != NORMAL_PART_NAME)
     {
-      if (name_variant == TEMP_PART_NAME)
+      if (part_type == TEMP_PART_NAME)
         to_p= strnmov(to_p, ER_THD_OR_DEFAULT(thd, ER_TEMPORARY_NAME),
                       end_p - to_p);
       else
@@ -391,31 +376,14 @@ uint filename_to_tablename(const char *from, char *to, uint to_length
   DBUG_ENTER("filename_to_tablename");
   DBUG_PRINT("enter", ("from '%s'", from));
 
-  if (!strncmp(from, tmp_file_prefix, tmp_file_prefix_length))
+  res= strconvert(&my_charset_filename, from,
+                  system_charset_info,  to, to_length, &errors);
+  if (errors) // Old 5.0 name
   {
-    /* Temporary table name. */
-    res= (strnmov(to, from, to_length) - to);
-  }
-  else
-  {
-    res= strconvert(&my_charset_filename, from,
-                    system_charset_info,  to, to_length, &errors);
-    if (errors) // Old 5.0 name
-    {
-      res= (strxnmov(to, to_length, MYSQL50_TABLE_NAME_PREFIX,  from, NullS) -
-            to);
-#ifndef DBUG_OFF
-      if (!stay_quiet) {
-#endif /* DBUG_OFF */
-        sql_print_error("Invalid (old?) table or database name '%s'", from);
-#ifndef DBUG_OFF
-      }
-#endif /* DBUG_OFF */
-      /*
-        TODO: add a stored procedure for fix table and database names,
-        and mention its name in error log.
-      */
-    }
+    res= (strxnmov(to, to_length, MYSQL50_TABLE_NAME_PREFIX,  from, NullS) -
+          to);
+    if (IF_DBUG(!stay_quiet,0))
+      sql_print_error("Invalid (old?) table or database name '%s'", from);
   }
 
   DBUG_PRINT("exit", ("to '%s'", to));
@@ -967,7 +935,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
       my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), ddl_log_entry->handler_name);
       goto error;
     }
-    hton= plugin_data(plugin, handlerton*);
+    hton= plugin_hton(plugin);
     file= get_new_handler((TABLE_SHARE*)0, &mem_root, hton);
     if (!file)
     {
@@ -2234,9 +2202,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       alias= (lower_case_table_names == 2) ? table->alias : table->table_name;
       /* remove .frm file and engine files */
       path_length= build_table_filename(path, sizeof(path) - 1, db, alias,
-                                        reg_ext,
-                                        table->internal_tmp_table ?
-                                        FN_IS_TMP : 0);
+                                        reg_ext, 0);
 
       /*
         This handles the case where a "DROP" was executed and a regular
@@ -2270,8 +2236,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
     error= 0;
-    if (!table->internal_tmp_table &&
-        (drop_temporary || !ha_table_exists(thd, db, alias, &table_type) ||
+    if ((drop_temporary || !ha_table_exists(thd, db, alias, &table_type) ||
          (!drop_view && table_type == view_pseudo_hton)))
     {
       /*
@@ -2280,10 +2245,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           . "DROP" but table was not found on disk and table can't be
             created from engine.
           . ./sql/datadict.cc +32 /Alfranio - TODO: We need to test this.
-
-        Table->internal_tmp_table is set when one of the #sql-xxx files
-        was left in the datadir after a crash during ALTER TABLE.
-        See Bug#30152.
       */
       if (if_exists)
 	push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
@@ -2298,7 +2259,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     else
     {
       char *end;
-
       /*
         It could happen that table's share in the table_def_cache
         is the only thing that keeps the engine plugin loaded
@@ -2379,8 +2339,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     else
     {
-      PSI_CALL_drop_table_share(table->internal_tmp_table,
-                                table->db, table->db_length,
+      PSI_CALL_drop_table_share(false, table->db, table->db_length,
                                 table->table_name, table->table_name_length);
       mysql_audit_drop_table(thd, table);
     }
@@ -2523,8 +2482,10 @@ bool quick_rm_table(handlerton *base,const char *db,
     error|= ha_delete_table(current_thd, base, path, db, table_name, 0);
 
   if (likely(error == 0))
+  {
     PSI_CALL_drop_table_share(flags & FN_IS_TMP, db, strlen(db),
                               table_name, strlen(table_name));
+  }
 
   DBUG_RETURN(error);
 }
@@ -6366,13 +6327,16 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
   mysql_ha_rm_tables(thd, table_list);
 
-  mysql_audit_alter_table(thd, table_list);
-
   /* DISCARD/IMPORT TABLESPACE is always alone in an ALTER TABLE */
   if (alter_info->tablespace_op != NO_TABLESPACE_OP)
+  {
+    mysql_audit_alter_table(thd, table_list);
+
     /* Conditionally writes to binlog. */
-    DBUG_RETURN(mysql_discard_or_import_tablespace(thd,table_list,
-						   alter_info->tablespace_op));
+    bool ret= mysql_discard_or_import_tablespace(thd,table_list,
+                                                 alter_info->tablespace_op);
+    DBUG_RETURN(ret);
+  }
 
   /*
     Code below can handle only base tables so ensure that we won't open a view.
@@ -6570,6 +6534,9 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
              new_db, new_name);
     goto err;
   }
+
+  if (table->s->tmp_table == NO_TMP_TABLE)
+    mysql_audit_alter_table(thd, table_list);
   
   THD_STAGE_INFO(thd, stage_setup);
   if (!(alter_info->flags & ~(ALTER_RENAME | ALTER_KEYS_ONOFF)) &&

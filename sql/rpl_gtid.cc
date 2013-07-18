@@ -311,6 +311,18 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   ulonglong thd_saved_option= thd->variables.option_bits;
   Query_tables_list lex_backup;
 
+  if (unlikely(!loaded))
+  {
+    /*
+      Probably the mysql.gtid_slave_pos table is missing (eg. upgrade) or
+      corrupt.
+
+      We already complained loudly about this, but we can try to continue
+      until the DBA fixes it.
+    */
+    return 0;
+  }
+
   if (!in_statement)
     mysql_reset_thd_for_next_command(thd, 0);
 
@@ -351,6 +363,14 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     goto end;
   }
 
+  if(opt_bin_log &&
+     (err= mysql_bin_log.bump_seq_no_counter_if_needed(gtid->domain_id,
+                                                       gtid->seq_no)))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    goto end;
+  }
+
   lock();
   if ((elem= get_element(gtid->domain_id)) == NULL)
   {
@@ -359,7 +379,30 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     err= 1;
     goto end;
   }
-  elist= elem->grab_list();
+  if ((elist= elem->grab_list()) != NULL)
+  {
+    /* Delete any old stuff, but keep around the most recent one. */
+    list_element *cur= elist;
+    uint64 best_sub_id= cur->sub_id;
+    list_element **best_ptr_ptr= &elist;
+    while ((next= cur->next))
+    {
+      if (next->sub_id > best_sub_id)
+      {
+        best_sub_id= next->sub_id;
+        best_ptr_ptr= &cur->next;
+      }
+      cur= next;
+    }
+    /*
+      Delete the highest sub_id element from the old list, and put it back as
+      the single-element new list.
+    */
+    cur= *best_ptr_ptr;
+    *best_ptr_ptr= cur->next;
+    cur->next= NULL;
+    elem->list= cur;
+  }
   unlock();
 
   if (!elist)
@@ -381,7 +424,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     DBUG_EXECUTE_IF("gtid_slave_pos_simulate_failed_delete",
                     { err= ENOENT;
                       table->file->print_error(err, MYF(0));
-                      /* `break' does not work in DBUG_EXECUTE_IF */
+                      /* `break' does not work inside DBUG_EXECUTE_IF */
                       goto dbug_break; });
 
     next= elist->next;
@@ -407,11 +450,6 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   }
 IF_DBUG(dbug_break:, )
   table->file->ha_index_end();
-
-  if(!err && opt_bin_log &&
-     (err= mysql_bin_log.bump_seq_no_counter_if_needed(gtid->domain_id,
-                                                       gtid->seq_no)))
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
 
 end:
 
@@ -450,9 +488,9 @@ end:
 
 
 uint64
-rpl_slave_state::next_subid(uint32 domain_id)
+rpl_slave_state::next_sub_id(uint32 domain_id)
 {
-  uint32 sub_id= 0;
+  uint64 sub_id= 0;
   element *elem;
 
   lock();
@@ -710,7 +748,7 @@ rpl_slave_state::load(THD *thd, char *state_from_master, size_t len,
     uint64 sub_id;
 
     if (gtid_parser_helper(&state_from_master, end, &gtid) ||
-        !(sub_id= next_subid(gtid.domain_id)) ||
+        !(sub_id= next_sub_id(gtid.domain_id)) ||
         record_gtid(thd, &gtid, sub_id, false, in_statement) ||
         update(gtid.domain_id, gtid.server_id, sub_id, gtid.seq_no))
       return 1;

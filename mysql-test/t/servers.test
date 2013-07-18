@@ -1,0 +1,8 @@
+# Generic tests for servers (do not require FEDERATED)
+
+--echo #
+--echo # MDEV-4594 - CREATE SERVER crashes embedded
+--echo #
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(HOST 'localhost');
+SELECT * FROM mysql.servers;
+DROP SERVER s1;

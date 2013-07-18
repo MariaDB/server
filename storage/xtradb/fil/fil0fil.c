@@ -681,7 +681,7 @@ fil_node_open_file(
 	fil_system_t*	system,	/*!< in: tablespace memory cache */
 	fil_space_t*	space)	/*!< in: space */
 {
-	ib_uint64_t	size_bytes;
+	ib_int64_t	size_bytes;
 	ulint		size_low;
 	ulint		size_high;
 	ibool		ret;
@@ -723,8 +723,8 @@ fil_node_open_file(
 
 		os_file_get_size(node->handle, &size_low, &size_high);
 
-		size_bytes = (((ib_uint64_t)size_high) << 32)
-			+ (ib_uint64_t)size_low;
+		size_bytes = (((ib_int64_t)size_high) << 32)
+			+ (ib_int64_t)size_low;
 #ifdef UNIV_HOTBACKUP
 		if (trx_sys_sys_space(space->id)) {
 			node->size = (ulint) (size_bytes / UNIV_PAGE_SIZE);
@@ -735,7 +735,7 @@ fil_node_open_file(
 		ut_a(space->purpose != FIL_LOG);
 		ut_a(!trx_sys_sys_space(space->id));
 
-		if (size_bytes < FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE) {
+		if (size_bytes < FIL_IBD_FILE_INITIAL_SIZE * (lint)UNIV_PAGE_SIZE) {
 			fprintf(stderr,
 				"InnoDB: Error: the size of single-table"
 				" tablespace file %s\n"
@@ -4136,7 +4136,7 @@ fil_load_single_table_tablespace(
 	ulint		flags;
 	ulint		size_low;
 	ulint		size_high;
-	ib_uint64_t	size;
+	ib_int64_t	size;
 #ifdef UNIV_HOTBACKUP
 	fil_space_t*	space;
 #endif
@@ -4257,9 +4257,9 @@ fil_load_single_table_tablespace(
 	/* Every .ibd file is created >= 4 pages in size. Smaller files
 	cannot be ok. */
 
-	size = (((ib_uint64_t)size_high) << 32) + (ib_uint64_t)size_low;
+	size = (((ib_int64_t)size_high) << 32) + (ib_int64_t)size_low;
 #ifndef UNIV_HOTBACKUP
-	if (size < (ib_uint64_t)FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE) {
+	if (size < FIL_IBD_FILE_INITIAL_SIZE * (lint)UNIV_PAGE_SIZE) {
 		fprintf(stderr,
 			"InnoDB: Error: the size of single-table tablespace"
 			" file %s\n"
@@ -4279,7 +4279,8 @@ fil_load_single_table_tablespace(
 	/* Align the memory for file i/o if we might have O_DIRECT set */
 	page = ut_align(buf2, UNIV_PAGE_SIZE);
 
-	if (size >= FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE) {
+	if (size >= FIL_IBD_FILE_INITIAL_SIZE * (lint)UNIV_PAGE_SIZE) {
+
 		success = os_file_read(file, page, 0, 0, UNIV_PAGE_SIZE);
 
 		/* We have to read the tablespace id from the file */
@@ -4863,12 +4864,14 @@ fil_extend_space_to_desired_size(
 
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
-		offset_high = size_after_extend * page_size / (4ULL*1024*1024*1024);
-		offset_low = size_after_extend * page_size % (4ULL*1024*1024*1024);
+		offset_high = (size_after_extend - file_start_page_no)
+			* page_size / (4ULL * 1024 * 1024 * 1024);
+		offset_low = (size_after_extend - file_start_page_no)
+			* page_size % (4ULL * 1024 * 1024 * 1024);
 
 		mutex_exit(&fil_system->mutex);
 		success = os_file_set_size(node->name, node->handle,
-				offset_low, offset_high);
+					   offset_low, offset_high);
 		mutex_enter(&fil_system->mutex);
 		if (success) {
 			node->size += (size_after_extend - start_page_no);
@@ -4935,11 +4938,11 @@ fil_extend_space_to_desired_size(
 
 	mem_free(buf2);
 
+	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
+
 #ifdef HAVE_POSIX_FALLOCATE
 complete_io:
 #endif
-
-	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
 
 	*actual_size = space->size;
 

@@ -672,8 +672,7 @@ struct TABLE_SHARE
   inline handlerton *db_type() const	/* table_type for handler */
   { 
     return is_view   ? view_pseudo_hton :
-           db_plugin ? plugin_data(db_plugin, handlerton*)
-                     : NULL;
+           db_plugin ? plugin_hton(db_plugin) : NULL;
   }
   enum row_type row_type;		/* How rows are stored */
   enum tmp_table_type tmp_table;
@@ -742,7 +741,7 @@ struct TABLE_SHARE
   char *partition_info_str;
   uint  partition_info_str_len;
   uint  partition_info_buffer_size;
-  handlerton *default_part_db_type;
+  plugin_ref default_part_plugin;
 #endif
 
   /**
@@ -1983,7 +1982,6 @@ struct TABLE_LIST
   /* For transactional locking. */
   int           lock_timeout;           /* NOWAIT or WAIT [X]               */
   bool          lock_transactional;     /* If transactional lock requested. */
-  bool          internal_tmp_table;
   /** TRUE if an alias for this table was specified in the SQL. */
   bool          is_alias;
   /** TRUE if the table is referred to in the statement using a fully
@@ -2497,7 +2495,8 @@ enum get_table_share_flags {
   GTS_TABLE                = 1,
   GTS_VIEW                 = 2,
   GTS_NOLOCK               = 4,
-  GTS_FORCE_DISCOVERY      = 8
+  GTS_USE_DISCOVERY        = 8,
+  GTS_FORCE_DISCOVERY      = 16
 };
 
 size_t max_row_length(TABLE *table, const uchar *data);

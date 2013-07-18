@@ -121,7 +121,7 @@ handlerton *ha_default_handlerton(THD *thd)
 {
   plugin_ref plugin= ha_default_plugin(thd);
   DBUG_ASSERT(plugin);
-  handlerton *hton= plugin_data(plugin, handlerton*);
+  handlerton *hton= plugin_hton(plugin);
   DBUG_ASSERT(hton);
   return hton;
 }
@@ -152,7 +152,7 @@ redo:
 
   if ((plugin= my_plugin_lock_by_name(thd, name, MYSQL_STORAGE_ENGINE_PLUGIN)))
   {
-    handlerton *hton= plugin_data(plugin, handlerton *);
+    handlerton *hton= plugin_hton(plugin);
     if (hton && !(hton->flags & HTON_NOT_USER_SELECTABLE))
       return plugin;
       
@@ -200,7 +200,7 @@ handlerton *ha_resolve_by_legacy_type(THD *thd, enum legacy_db_type db_type)
   default:
     if (db_type > DB_TYPE_UNKNOWN && db_type < DB_TYPE_DEFAULT &&
         (plugin= ha_lock_engine(thd, installed_htons[db_type])))
-      return plugin_data(plugin, handlerton*);
+      return plugin_hton(plugin);
     /* fall through */
   case DB_TYPE_UNKNOWN:
     return NULL;
@@ -660,7 +660,7 @@ int ha_end()
 static my_bool dropdb_handlerton(THD *unused1, plugin_ref plugin,
                                  void *path)
 {
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   if (hton->state == SHOW_OPTION_YES && hton->drop_database)
     hton->drop_database(hton, (char *)path);
   return FALSE;
@@ -676,7 +676,7 @@ void ha_drop_database(char* path)
 static my_bool checkpoint_state_handlerton(THD *unused1, plugin_ref plugin,
                                            void *disable)
 {
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   if (hton->state == SHOW_OPTION_YES && hton->checkpoint_state)
     hton->checkpoint_state(hton, (int) *(bool*) disable);
   return FALSE;
@@ -698,7 +698,7 @@ static my_bool commit_checkpoint_request_handlerton(THD *unused1, plugin_ref plu
                                            void *data)
 {
   st_commit_checkpoint_request *st= (st_commit_checkpoint_request *)data;
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   if (hton->state == SHOW_OPTION_YES && hton->commit_checkpoint_request)
   {
     void *cookie= st->cookie;
@@ -730,7 +730,7 @@ ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *))
 static my_bool closecon_handlerton(THD *thd, plugin_ref plugin,
                                    void *unused)
 {
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   /*
     there's no need to rollback here as all transactions must
     be rolled back already
@@ -757,7 +757,7 @@ void ha_close_connection(THD* thd)
 static my_bool kill_handlerton(THD *thd, plugin_ref plugin,
                                void *level)
 {
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
 
   if (hton->state == SHOW_OPTION_YES && hton->kill_query &&
       thd_get_ha_data(thd, hton))
@@ -1610,7 +1610,7 @@ struct xahton_st {
 static my_bool xacommit_handlerton(THD *unused1, plugin_ref plugin,
                                    void *arg)
 {
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   if (hton->state == SHOW_OPTION_YES && hton->recover)
   {
     hton->commit_by_xid(hton, ((struct xahton_st *)arg)->xid);
@@ -1622,7 +1622,7 @@ static my_bool xacommit_handlerton(THD *unused1, plugin_ref plugin,
 static my_bool xarollback_handlerton(THD *unused1, plugin_ref plugin,
                                      void *arg)
 {
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   if (hton->state == SHOW_OPTION_YES && hton->recover)
   {
     hton->rollback_by_xid(hton, ((struct xahton_st *)arg)->xid);
@@ -1728,7 +1728,7 @@ struct xarecover_st
 static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
                                     void *arg)
 {
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   struct xarecover_st *info= (struct xarecover_st *) arg;
   int got;
 
@@ -2057,7 +2057,7 @@ int ha_release_savepoint(THD *thd, SAVEPOINT *sv)
 static my_bool snapshot_handlerton(THD *thd, plugin_ref plugin,
                                    void *arg)
 {
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   if (hton->state == SHOW_OPTION_YES &&
       hton->start_consistent_snapshot)
   {
@@ -2097,7 +2097,7 @@ int ha_start_consistent_snapshot(THD *thd)
 static my_bool flush_handlerton(THD *thd, plugin_ref plugin,
                                 void *arg)
 {
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   if (hton->state == SHOW_OPTION_YES && hton->flush_logs && 
       hton->flush_logs(hton))
     return TRUE;
@@ -3030,6 +3030,7 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
   {
     /* This should never happen, assert in debug, and fail in release build */
     DBUG_ASSERT(0);
+    (void) extra(HA_EXTRA_NO_KEYREAD);
     *first_value= ULONGLONG_MAX;
     return;
   }
@@ -4495,7 +4496,7 @@ static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
                                    void *arg)
 {
   TABLE_SHARE *share= (TABLE_SHARE *)arg;
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   if (hton->state == SHOW_OPTION_YES && hton->discover_table)
   {
     share->db_plugin= plugin;
@@ -4504,8 +4505,13 @@ static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
     {
       if (error)
       {
-        DBUG_ASSERT(share->error); // MUST be always set for get_cached_table_share to work
-        my_error(ER_GET_ERRNO, MYF(0), error, plugin_name(plugin)->str);
+        DBUG_ASSERT(share->error); // get_cached_table_share needs that
+        /*
+          report an error, unless it is "generic" and a more
+          specific one was already reported
+        */
+        if (error != HA_ERR_GENERIC || !thd->is_error())
+          my_error(ER_GET_ERRNO, MYF(0), error, plugin_name(plugin)->str);
         share->db_plugin= 0;
       }
       else
@@ -4558,7 +4564,7 @@ static my_bool discover_existence(THD *thd, plugin_ref plugin,
                                   void *arg)
 {
   st_discover_existence_args *args= (st_discover_existence_args*)arg;
-  handlerton *ht= plugin_data(plugin, handlerton *);
+  handlerton *ht= plugin_hton(plugin);
   if (ht->state != SHOW_OPTION_YES || !ht->discover_table_existence)
     return FALSE;
 
@@ -4782,7 +4788,7 @@ static my_bool discover_names(THD *thd, plugin_ref plugin,
                               void *arg)
 {
   st_discover_names_args *args= (st_discover_names_args *)arg;
-  handlerton *ht= plugin_data(plugin, handlerton *);
+  handlerton *ht= plugin_hton(plugin);
 
   if (ht->state == SHOW_OPTION_YES && ht->discover_table_names)
   {
@@ -4802,12 +4808,12 @@ static my_bool discover_names(THD *thd, plugin_ref plugin,
 }
 
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
-                            Discovered_table_list *result)
+                            Discovered_table_list *result, bool reusable)
 {
   int error;
   DBUG_ENTER("ha_discover_table_names");
 
-  if (engines_with_discover_table_names == 0)
+  if (engines_with_discover_table_names == 0 && !reusable)
   {
     error= ext_table_discovery_simple(dirp, result);
     result->sort();
@@ -4859,7 +4865,7 @@ struct binlog_func_st
 static my_bool binlog_func_list(THD *thd, plugin_ref plugin, void *arg)
 {
   hton_list_st *hton_list= (hton_list_st *)arg;
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   if (hton->state == SHOW_OPTION_YES && hton->binlog_func)
   {
     uint sz= hton_list->sz;
@@ -4949,7 +4955,7 @@ static my_bool binlog_log_query_handlerton(THD *thd,
                                            plugin_ref plugin,
                                            void *args)
 {
-  return binlog_log_query_handlerton2(thd, plugin_data(plugin, handlerton *), args);
+  return binlog_log_query_handlerton2(thd, plugin_hton(plugin), args);
 }
 
 void ha_binlog_log_query(THD *thd, handlerton *hton,
@@ -5180,7 +5186,7 @@ static my_bool exts_handlerton(THD *unused, plugin_ref plugin,
                                void *arg)
 {
   List<char> *found_exts= (List<char> *) arg;
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   List_iterator_fast<char> it(*found_exts);
   const char **ext, *old_ext;
 
@@ -5249,7 +5255,7 @@ static my_bool showstat_handlerton(THD *thd, plugin_ref plugin,
                                    void *arg)
 {
   enum ha_stat_type stat= *(enum ha_stat_type *) arg;
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   if (hton->state == SHOW_OPTION_YES && hton->show_status &&
       hton->show_status(hton, thd, stat_print, stat))
     return TRUE;

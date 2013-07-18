@@ -72,8 +72,6 @@ drop table t1;
 select * from t0;
 remove_file $mysqld_datadir/test/t0.ARZ;
 flush tables;
---error ER_NO_SUCH_TABLE
-select * from t1;
 drop table t0;
 --list_files $mysqld_datadir/test
 show status like 'Handler_discover';
@@ -101,4 +99,22 @@ create table `a/../`(a int) engine=archive;
 select * from `a/../`; flush tables;
 remove_file $mysqld_datadir/test/a@002f@002e@002e@002f.frm;
 drop table `a/../`;
+
+#
+# MDEV-4441 DROP DATABASE with a newly created ARCHIVE table does not work
+#
+create database test1;
+create table test1.t1 (i int) engine=archive;
+drop database test1;
+
+#
+# MDEV-4456 Reverse discovery of ARCHIVE table on SELECT after disappearance of ARZ file
+#
+create table t1 (a int) engine=archive;
+select * from t1;
+flush tables;
+remove_file $mysqld_datadir/test/t1.ARZ;
+--error ER_NO_SUCH_TABLE
+select * from t1;
+--list_files $mysqld_datadir/test
 
