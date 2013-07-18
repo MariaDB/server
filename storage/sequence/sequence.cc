@@ -45,7 +45,8 @@ private:
 public:
   ha_seq(handlerton *hton, TABLE_SHARE *table_arg)
     : handler(hton, table_arg), seqs(0) { }
-  ulonglong table_flags() const { return 0; }
+  ulonglong table_flags() const
+  { return HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE; }
 
   /* open/close/locking */
   int create(const char *name, TABLE *table_arg,
@@ -255,16 +256,26 @@ static handler *create_handler(handlerton *hton, TABLE_SHARE *table,
   return new (mem_root) ha_seq(hton, table);
 }
 
+
+static bool parse_table_name(const char *name, size_t name_length,
+                             ulonglong *from, ulonglong *to, ulonglong *step)
+{
+  uint n1= 0, n2= 0;
+  *step= 1;
+
+  // the table is discovered if its name matches the pattern of seq_1_to_10 or 
+  // seq_1_to_10_step_3
+  sscanf(name, "seq_%llu_to_%llu%n_step_%llu%n",
+         from, to, &n1, step, &n2);
+  return n1 != name_length && n2 != name_length;
+}
+
+
 static int discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 {
-  // the table is discovered if it has the pattern of seq_1_to_10 or 
-  // seq_1_to_10_step_3
-  ulonglong from, to, step= 1;
-  uint n1= 0, n2= 0;
-  bool reverse;
-  sscanf(share->table_name.str, "seq_%llu_to_%llu%n_step_%llu%n",
-         &from, &to, &n1, &step, &n2);
-  if (n1 != share->table_name.length && n2 != share->table_name.length)
+  ulonglong from, to, step;
+  if (parse_table_name(share->table_name.str, share->table_name.length,
+                       &from, &to, &step))
     return HA_ERR_NO_SUCH_TABLE;
 
   if (step == 0)
@@ -275,6 +286,7 @@ static int discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
   if (res)
     return res;
 
+  bool reverse;
   if ((reverse = from > to))
   {
     if (step > from - to)
@@ -303,15 +315,21 @@ static int discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 }
 
 
+static int discover_table_existence(handlerton *hton, const char *db,
+                                    const char *table_name)
+{
+  ulonglong from, to, step;
+  return !parse_table_name(table_name, strlen(table_name), &from, &to, &step);
+}
+
 static int dummy_ret_int() { return 0; }
 
 static int init(void *p)
 {
-  handlerton *hton = (handlerton *)p;
-  hton->create = create_handler;
-  hton->discover_table = discover_table;
-  hton->discover_table_existence =
-    (int (*)(handlerton *, const char *, const char *)) &dummy_ret_int;
+  handlerton *hton= (handlerton *)p;
+  hton->create= create_handler;
+  hton->discover_table= discover_table;
+  hton->discover_table_existence= discover_table_existence;
   hton->commit= hton->rollback= hton->prepare=
    (int (*)(handlerton *, THD *, bool)) &dummy_ret_int;
   hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=

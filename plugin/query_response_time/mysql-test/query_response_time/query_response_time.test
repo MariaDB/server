@@ -1,0 +1,28 @@
+--source include/have_debug.inc
+
+# The file with expected results fits only to a run without
+# ps-protocol/sp-protocol/cursor-protocol/view-protocol.
+if (`SELECT $PS_PROTOCOL + $SP_PROTOCOL + $CURSOR_PROTOCOL
+            + $VIEW_PROTOCOL > 0`)
+{
+   --skip Test requires: ps-protocol/sp-protocol/cursor-protocol/view-protocol disabled
+}
+
+
+--let base=1
+--source query_response_time.inc
+--let base=2
+--source query_response_time.inc
+--let base=10
+--source query_response_time.inc
+--let base=7
+--source query_response_time.inc
+--let base=156
+--source query_response_time.inc
+--let base=1000
+--source query_response_time.inc
+--let base=1001
+--source query_response_time.inc
+
+SET GLOBAL QUERY_RESPONSE_TIME_RANGE_BASE=default;
+SET GLOBAL QUERY_RESPONSE_TIME_STATS=default;

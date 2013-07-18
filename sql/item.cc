@@ -297,7 +297,7 @@ String *Item::val_string_from_decimal(String *str)
 String *Item::val_string_from_date(String *str)
 {
   MYSQL_TIME ltime;
-  if (get_date(&ltime, TIME_FUZZY_DATE) ||
+  if (get_date(&ltime, 0) ||
       str->alloc(MAX_DATE_STRING_REP_LENGTH))
   {
     null_value= 1;
@@ -354,7 +354,7 @@ my_decimal *Item::val_decimal_from_date(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
-  if (get_date(&ltime, TIME_FUZZY_DATE))
+  if (get_date(&ltime, 0))
   {
     my_decimal_set_zero(decimal_value);
     null_value= 1;                               // set NULL, stop processing
@@ -381,7 +381,7 @@ longlong Item::val_int_from_date()
 {
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
-  if (get_date(&ltime, TIME_FUZZY_DATE))
+  if (get_date(&ltime, 0))
     return 0;
   longlong v= TIME_to_ulonglong(&ltime);
   return ltime.neg ? -v : v;
@@ -392,7 +392,7 @@ double Item::val_real_from_date()
 {
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
-  if (get_date(&ltime, TIME_FUZZY_DATE))
+  if (get_date(&ltime, 0))
     return 0;
   return TIME_to_double(&ltime);
 }
@@ -434,10 +434,9 @@ int Item::save_time_in_field(Field *field)
 int Item::save_date_in_field(Field *field)
 {
   MYSQL_TIME ltime;
-  if (get_date(&ltime, TIME_FUZZY_DATE |
-                       (current_thd->variables.sql_mode &
-                          (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE |
-                             MODE_INVALID_DATES))))
+  if (get_date(&ltime, (current_thd->variables.sql_mode &
+                        (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE |
+                         MODE_INVALID_DATES))))
     return set_field_to_null_with_conversions(field, 0);
   field->set_notnull();
   return field->store_time_dec(&ltime, decimals);
@@ -1309,7 +1308,7 @@ err:
     if allowed, otherwise - null.
   */
   bzero((char*) ltime,sizeof(*ltime));
-  return null_value|= (fuzzydate & (TIME_NO_ZERO_DATE|TIME_NO_ZERO_IN_DATE));
+  return null_value|= !(fuzzydate & TIME_FUZZY_DATES);
 }
 
 bool Item::get_seconds(ulonglong *sec, ulong *sec_part)
@@ -3697,7 +3696,9 @@ bool Item_param::convert_str_value(THD *thd)
     /* Here str_value is guaranteed to be in final_character_set_of_str_value */
 
     max_length= str_value.numchars() * str_value.charset()->mbmaxlen;
-    decimals= 0;
+
+    /* For the strings converted to numeric form within some functions */
+    decimals= NOT_FIXED_DEC;
     /*
       str_value_ptr is returned from val_str(). It must be not alloced
       to prevent it's modification by val_str() invoker.
@@ -6475,7 +6476,7 @@ bool Item::send(Protocol *protocol, String *buffer)
   case MYSQL_TYPE_TIMESTAMP:
   {
     MYSQL_TIME tm;
-    get_date(&tm, TIME_FUZZY_DATE | sql_mode_for_dates());
+    get_date(&tm, sql_mode_for_dates());
     if (!null_value)
     {
       if (f_type == MYSQL_TYPE_DATE)
@@ -8707,8 +8708,8 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
     }
     else
     {
-      field->get_date(&field_time, TIME_FUZZY_DATE | TIME_INVALID_DATES);
-      item->get_date(&item_time, TIME_FUZZY_DATE | TIME_INVALID_DATES);
+      field->get_date(&field_time, TIME_INVALID_DATES);
+      item->get_date(&item_time, TIME_INVALID_DATES);
     }
     return my_time_compare(&field_time, &item_time);
   }
@@ -8890,7 +8891,7 @@ bool  Item_cache_temporal::cache_value()
   value_cached= true;
  
   MYSQL_TIME ltime;
-  if (example->get_date_result(&ltime, TIME_FUZZY_DATE))
+  if (example->get_date_result(&ltime, 0))
     value=0;
   else
     value= pack_time(&ltime);

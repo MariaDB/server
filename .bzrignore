@@ -1153,3 +1153,4 @@ storage/perfschema/pfs_lex_token.h
 *.OLD
 mysql-test/collections/default.release.done
 sql/sql_yacc.hh
+packaging/solaris/postinstall-solaris

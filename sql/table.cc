@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /* Some general useful functions */
@@ -454,6 +454,7 @@ void TABLE_SHARE::destroy()
     ha_data_destroy= NULL;
   }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
+  plugin_unlock(NULL, default_part_plugin);
   if (ha_part_data_destroy)
   {
     ha_part_data_destroy(ha_part_data);
@@ -605,10 +606,19 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   share->error= OPEN_FRM_OPEN_ERROR;
 
   strxmov(path, share->normalized_path.str, reg_ext, NullS);
-  file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0));
+  if (flags & GTS_FORCE_DISCOVERY)
+  {
+    DBUG_ASSERT(flags & GTS_TABLE);
+    DBUG_ASSERT(flags & GTS_USE_DISCOVERY);
+    mysql_file_delete_with_symlink(key_file_frm, path, MYF(0));
+    file= -1;
+  }
+  else
+    file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0));
+
   if (file < 0)
   {
-    if ((flags & GTS_TABLE) && (flags & GTS_FORCE_DISCOVERY))
+    if ((flags & GTS_TABLE) && (flags & GTS_USE_DISCOVERY))
     {
       ha_discover_table(thd, share);
       error_given= true;
@@ -798,6 +808,16 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         options= extra2;
         options_len= length;
         break;
+      case EXTRA2_DEFAULT_PART_ENGINE:
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+        {
+          LEX_STRING name= { (char*)extra2, length };
+          share->default_part_plugin= ha_resolve_by_name(NULL, &name);
+          if (!share->default_part_plugin)
+            goto err;
+        }
+#endif
+        break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
         if (type >= EXTRA2_ENGINE_IMPORTANT)
@@ -828,11 +848,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     share->frm_version= FRM_VER_TRUE_VARCHAR;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (frm_image[61] &&
-      !(share->default_part_db_type= 
-        ha_checktype(thd, (enum legacy_db_type) (uint) frm_image[61], 1, 0)))
-    goto err;
-  DBUG_PRINT("info", ("default_part_db_type = %u", frm_image[61]));
+  if (frm_image[61] && !share->default_part_plugin)
+  {
+    enum legacy_db_type db_type= (enum legacy_db_type) (uint) frm_image[61];
+    share->default_part_plugin=
+                ha_lock_engine(NULL, ha_checktype(thd, db_type, 1, 0));
+    if (!share->default_part_plugin)
+      goto err;
+  }
 #endif
   legacy_db_type= (enum legacy_db_type) (uint) frm_image[3];
   /*
@@ -1333,7 +1356,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
  /* Allocate handler */
   if (!(handler_file= get_new_handler(share, thd->mem_root,
-                                      plugin_data(se_plugin, handlerton *))))
+                                      plugin_hton(se_plugin))))
     goto err;
 
   record= share->default_values-1;              /* Fieldstart = 1 */
@@ -2071,17 +2094,11 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 
   lex_start(thd);
 
-  if ((error= parse_sql(thd, & parser_state, NULL)))
+  if ((error= parse_sql(thd, & parser_state, NULL) || 
+              sql_unusable_for_discovery(thd, sql_copy)))
     goto ret;
 
-  if (sql_unusable_for_discovery(thd, sql_copy))
-  {
-    my_error(ER_SQL_DISCOVER_ERROR, MYF(0), plugin_name(db_plugin)->str,
-             db.str, table_name.str, sql_copy);
-    goto ret;
-  }
-
-  thd->lex->create_info.db_type= plugin_data(db_plugin, handlerton *);
+  thd->lex->create_info.db_type= plugin_hton(db_plugin);
 
   if (tabledef_version.str)
     thd->lex->create_info.tabledef_version= tabledef_version;
@@ -2111,8 +2128,10 @@ ret:
   if (thd->is_error() || error)
   {
     thd->clear_error();
-    my_error(ER_NO_SUCH_TABLE, MYF(0), db.str, table_name.str);
-    DBUG_RETURN(HA_ERR_NOT_A_TABLE);
+    my_error(ER_SQL_DISCOVER_ERROR, MYF(0),
+             plugin_name(db_plugin)->str, db.str, table_name.str,
+             sql_copy);
+    DBUG_RETURN(HA_ERR_GENERIC);
   }
   DBUG_RETURN(0);
 }
@@ -2125,7 +2144,7 @@ bool TABLE_SHARE::write_frm_image(const uchar *frm, size_t len)
 
 bool TABLE_SHARE::read_frm_image(const uchar **frm, size_t *len)
 {
-  if (partition_info_str)               // cannot discover a partition
+  if (IF_PARTITIONING(partition_info_str, 0))   // cannot discover a partition
   {
     DBUG_ASSERT(db_type()->discover_table == 0);
     return 1;
@@ -2697,7 +2716,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     tmp= mysql_unpack_partition(thd, share->partition_info_str,
                                 share->partition_info_str_len,
                                 outparam, is_create_table,
-                                share->default_part_db_type,
+                                plugin_hton(share->default_part_plugin),
                                 &work_part_info_used);
     if (tmp)
     {
@@ -2793,8 +2812,22 @@ partititon_err:
                        !(ha_open_flags & HA_OPEN_FOR_REPAIR));
       outparam->file->print_error(ha_err, MYF(0));
       error_reported= TRUE;
+
       if (ha_err == HA_ERR_TABLE_DEF_CHANGED)
         error= OPEN_FRM_DISCOVER;
+
+      /*
+        We're here, because .frm file was successfully opened.
+
+        But if the table doesn't exist in the engine and the engine
+        supports discovery, we force rediscover to discover
+        the fact that table doesn't in fact exist and remove
+        the stray .frm file.
+      */
+      if (share->db_type()->discover_table &&
+          (ha_err == ENOENT || ha_err == HA_ERR_NO_SUCH_TABLE))
+        error= OPEN_FRM_DISCOVER;
+          
       goto err;
     }
   }
@@ -4155,6 +4188,7 @@ bool TABLE_LIST::prep_where(THD *thd, Item **conds,
                                bool no_where_clause)
 {
   DBUG_ENTER("TABLE_LIST::prep_where");
+  bool res= FALSE;
 
   for (TABLE_LIST *tbl= merge_underlying_list; tbl; tbl= tbl->next_local)
   {
@@ -4203,10 +4237,11 @@ bool TABLE_LIST::prep_where(THD *thd, Item **conds,
       if (tbl == 0)
       {
         if (*conds && !(*conds)->fixed)
-	  (*conds)->fix_fields(thd, conds);
-        *conds= and_conds(*conds, where->copy_andor_structure(thd));
-        if (*conds && !(*conds)->fixed)
-          (*conds)->fix_fields(thd, conds);        
+          res= (*conds)->fix_fields(thd, conds);
+        if (!res)
+          *conds= and_conds(*conds, where->copy_andor_structure(thd));
+        if (*conds && !(*conds)->fixed && !res)
+          res= (*conds)->fix_fields(thd, conds);
       }
       if (arena)
         thd->restore_active_arena(arena, &backup);
@@ -4214,7 +4249,7 @@ bool TABLE_LIST::prep_where(THD *thd, Item **conds,
     }
   }
 
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(res);
 }
 
 /**

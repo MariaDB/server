@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 #include "my_global.h"                          /* ulonglong */
@@ -181,6 +181,7 @@
 */
 enum extra2_frm_value_type {
   EXTRA2_TABLEDEF_VERSION=0,
+  EXTRA2_DEFAULT_PART_ENGINE=1,
 
 #define EXTRA2_ENGINE_IMPORTANT 128
 

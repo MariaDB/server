@@ -370,9 +370,9 @@ enum legacy_db_type
   DB_TYPE_PARTITION_DB=20,
   DB_TYPE_BINLOG=21,
   DB_TYPE_PBXT=23,
-  DB_TYPE_MARIA=27,
   DB_TYPE_PERFORMANCE_SCHEMA=28,
-  DB_TYPE_FIRST_DYNAMIC=42,
+  DB_TYPE_ARIA=42,
+  DB_TYPE_FIRST_DYNAMIC=43,
   DB_TYPE_DEFAULT=127 // Must be last
 };
 /*
@@ -1225,6 +1225,11 @@ struct handlerton
 static inline LEX_STRING *hton_name(const handlerton *hton)
 {
   return &(hton2plugin[hton->slot]->name);
+}
+
+static inline handlerton *plugin_hton(plugin_ref plugin)
+{
+  return plugin_data(plugin, handlerton *);
 }
 
 static inline sys_var *find_hton_sysvar(handlerton *hton, st_mysql_sys_var *var)
@@ -2859,7 +2864,33 @@ public:
    Pops the top if condition stack, if stack is not empty.
  */
  virtual void cond_pop() { return; };
+
+ /**
+   Push down an index condition to the handler.
+
+   The server will use this method to push down a condition it wants
+   the handler to evaluate when retrieving records using a specified
+   index. The pushed index condition will only refer to fields from
+   this handler that is contained in the index (but it may also refer
+   to fields in other handlers). Before the handler evaluates the
+   condition it must read the content of the index entry into the 
+   record buffer.
+
+   The handler is free to decide if and how much of the condition it
+   will take responsibility for evaluating. Based on this evaluation
+   it should return the part of the condition it will not evaluate.
+   If it decides to evaluate the entire condition it should return
+   NULL. If it decides not to evaluate any part of the condition it
+   should return a pointer to the same condition as given as argument.
+
+   @param keyno    the index number to evaluate the condition on
+   @param idx_cond the condition to be evaluated by the handler
+
+   @return The part of the pushed condition that the handler decides
+           not to evaluate
+ */
  virtual Item *idx_cond_push(uint keyno, Item* idx_cond) { return idx_cond; }
+
  /** Reset information about pushed index conditions */
  virtual void cancel_pushed_idx_cond()
  {
@@ -3238,7 +3269,7 @@ public:
 
 int ha_discover_table(THD *thd, TABLE_SHARE *share);
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
-                            Discovered_table_list *result);
+                            Discovered_table_list *result, bool reusable);
 bool ha_table_exists(THD *thd, const char *db, const char *table_name,
                      handlerton **hton= 0);
 #endif

@@ -894,7 +894,8 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
 static int
 check_slave_start_position(THD *thd, slave_connection_state *st,
                            const char **errormsg, rpl_gtid *error_gtid,
-                           slave_connection_state *until_gtid_state)
+                           slave_connection_state *until_gtid_state,
+                           HASH *fake_gtid_hash)
 {
   uint32 i;
   int err;
@@ -998,11 +999,30 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
                                            &start_gtid) &&
         start_gtid.seq_no > slave_gtid->seq_no)
     {
+      rpl_gtid *fake_gtid;
       /*
         Start replication within this domain at the first GTID that we logged
         ourselves after becoming a master.
+
+        Remember that this starting point is in fact a "fake" GTID which may
+        not exists in the binlog, so that we do not complain about it in
+        --gtid-strict-mode.
       */
       slave_gtid->server_id= global_system_variables.server_id;
+      if (!(fake_gtid= (rpl_gtid *)my_malloc(sizeof(*fake_gtid), MYF(0))))
+      {
+        *errormsg= "Out of memory while checking slave start position";
+        err= ER_OUT_OF_RESOURCES;
+        goto end;
+      }
+      *fake_gtid= *slave_gtid;
+      if (my_hash_insert(fake_gtid_hash, (uchar *)fake_gtid))
+      {
+        my_free(fake_gtid);
+        *errormsg= "Out of memory while checking slave start position";
+        err= ER_OUT_OF_RESOURCES;
+        goto end;
+      }
     }
     else if (mysql_bin_log.lookup_domain_in_binlog_state(slave_gtid->domain_id,
                                                          &start_gtid))
@@ -1022,8 +1042,8 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
       */
       if (!delete_list)
       {
-        if ((delete_list= (rpl_gtid **)my_malloc(sizeof(*delete_list),
-                                                 MYF(MY_WME))))
+        if (!(delete_list= (rpl_gtid **)
+              my_malloc(sizeof(*delete_list) * st->hash.records, MYF(MY_WME))))
         {
           *errormsg= "Out of memory while checking slave start position";
           err= ER_OUT_OF_RESOURCES;
@@ -1461,7 +1481,8 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                     slave_connection_state *until_gtid_state,
                     enum_gtid_until_state *gtid_until_group,
                     rpl_binlog_state *until_binlog_state,
-                    bool slave_gtid_strict_mode, rpl_gtid *error_gtid)
+                    bool slave_gtid_strict_mode, rpl_gtid *error_gtid,
+                    bool *send_fake_gtid_list, HASH *fake_gtid_hash)
 {
   my_off_t pos;
   size_t len= packet->length();
@@ -1541,7 +1562,9 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
           if (event_gtid.server_id == gtid->server_id &&
               event_gtid.seq_no >= gtid->seq_no)
           {
-            if (event_gtid.seq_no > gtid->seq_no)
+            if (slave_gtid_strict_mode && event_gtid.seq_no > gtid->seq_no &&
+                !my_hash_search(fake_gtid_hash,
+                                (const uchar *)&event_gtid.domain_id, 0))
             {
               /*
                 In strict mode, it is an error if the slave requests to start
@@ -1549,24 +1572,21 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                 exist, even though both the prior and subsequent seq_no exists
                 for same domain_id and server_id.
               */
-              if (slave_gtid_strict_mode)
-              {
-                my_errno= ER_GTID_START_FROM_BINLOG_HOLE;
-                *error_gtid= *gtid;
-                return "The binlog on the master is missing the GTID requested "
-                  "by the slave (even though both a prior and a subsequent "
-                  "sequence number does exist), and GTID strict mode is enabled.";
-              }
+              my_errno= ER_GTID_START_FROM_BINLOG_HOLE;
+              *error_gtid= *gtid;
+              return "The binlog on the master is missing the GTID requested "
+                "by the slave (even though both a prior and a subsequent "
+                "sequence number does exist), and GTID strict mode is enabled.";
             }
-            else
-            {
-              /*
-                Send a fake Gtid_list event to the slave.
-                This allows the slave to update its current binlog position
-                so MASTER_POS_WAIT() and MASTER_GTID_WAIT() can work.
-              */
-//              send_fake_gtid_list_event(until_binlog_state);
-            }
+
+            /*
+              Send a fake Gtid_list event to the slave.
+              This allows the slave to update its current binlog position
+              so MASTER_POS_WAIT() and MASTER_GTID_WAIT() can work.
+              The fake event will be sent at the end of this event group.
+            */
+            *send_fake_gtid_list= true;
+
             /*
               Delete this entry if we have reached slave start position (so we
               will not skip subsequent events and won't have to look them up
@@ -1817,7 +1837,9 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   enum_gtid_skip_type gtid_skip_group= GTID_SKIP_NOT;
   enum_gtid_until_state gtid_until_group= GTID_UNTIL_NOT_DONE;
   rpl_binlog_state until_binlog_state;
-  bool slave_gtid_strict_mode;
+  bool slave_gtid_strict_mode= false;
+  bool send_fake_gtid_list= false;
+  HASH fake_gtid_hash;
 
   uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
@@ -1831,6 +1853,9 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   bzero((char*) &log,sizeof(log));
   bzero(&error_gtid, sizeof(error_gtid));
+  my_hash_init(&fake_gtid_hash, &my_charset_bin, 32,
+               offsetof(rpl_gtid, domain_id), sizeof(uint32), NULL, my_free,
+               HASH_UNIQUE);
   /* 
      heartbeat_period from @master_heartbeat_period user variable
   */
@@ -1930,7 +1955,8 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
       goto err;
     }
     if ((error= check_slave_start_position(thd, &gtid_state, &errmsg,
-                                           &error_gtid, until_gtid_state)))
+                                           &error_gtid, until_gtid_state,
+                                           &fake_gtid_hash)))
     {
       my_errno= error;
       goto err;
@@ -2234,10 +2260,24 @@ impossible position";
                                         &gtid_state, &gtid_skip_group,
                                         until_gtid_state, &gtid_until_group,
                                         &until_binlog_state,
-                                        slave_gtid_strict_mode, &error_gtid)))
+                                        slave_gtid_strict_mode, &error_gtid,
+                                        &send_fake_gtid_list, &fake_gtid_hash)))
       {
         errmsg= tmp_msg;
         goto err;
+      }
+      if (unlikely(send_fake_gtid_list) && gtid_skip_group == GTID_SKIP_NOT)
+      {
+        Gtid_list_log_event glev(&until_binlog_state, 0);
+
+        if (reset_transmit_packet(thd, flags, &ev_offset, &errmsg) ||
+            fake_gtid_list_event(net, packet, &glev, &errmsg,
+                                 current_checksum_alg, my_b_tell(&log)))
+        {
+          my_errno= ER_UNKNOWN_ERROR;
+          goto err;
+        }
+        send_fake_gtid_list= false;
       }
       if (until_gtid_state &&
           is_until_reached(thd, net, packet, &ev_offset, gtid_until_group,
@@ -2426,13 +2466,27 @@ impossible position";
                                             using_gtid_state, &gtid_state,
                                             &gtid_skip_group, until_gtid_state,
                                             &gtid_until_group, &until_binlog_state,
-                                            slave_gtid_strict_mode, &error_gtid)))
+                                            slave_gtid_strict_mode, &error_gtid,
+                                            &send_fake_gtid_list,
+                                            &fake_gtid_hash)))
           {
             errmsg= tmp_msg;
             goto err;
           }
-          if (
-              until_gtid_state &&
+          if (unlikely(send_fake_gtid_list) && gtid_skip_group == GTID_SKIP_NOT)
+          {
+            Gtid_list_log_event glev(&until_binlog_state, 0);
+
+            if (reset_transmit_packet(thd, flags, &ev_offset, &errmsg) ||
+                fake_gtid_list_event(net, packet, &glev, &errmsg,
+                                     current_checksum_alg, my_b_tell(&log)))
+            {
+              my_errno= ER_UNKNOWN_ERROR;
+              goto err;
+            }
+            send_fake_gtid_list= false;
+          }
+          if (until_gtid_state &&
               is_until_reached(thd, net, packet, &ev_offset, gtid_until_group,
                                event_type, current_checksum_alg, flags, &errmsg,
                                &until_binlog_state, my_b_tell(&log)))
@@ -2504,6 +2558,7 @@ impossible position";
 end:
   end_io_cache(&log);
   mysql_file_close(file, MYF(MY_WME));
+  my_hash_free(&fake_gtid_hash);
 
   RUN_HOOK(binlog_transmit, transmit_stop, (thd, flags));
   my_eof(thd);
@@ -2574,6 +2629,7 @@ err:
   mysql_mutex_unlock(&LOCK_thread_count);
   if (file >= 0)
     mysql_file_close(file, MYF(MY_WME));
+  my_hash_free(&fake_gtid_hash);
   thd->variables.max_allowed_packet= old_max_allowed_packet;
 
   my_message(my_errno, error_text, MYF(0));
@@ -3297,16 +3353,6 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
       ret= TRUE;
       goto err;
     }
-
-    if (mi->using_gtid != Master_info::USE_GTID_NO)
-    {
-      /*
-        Clear the position in the master binlogs, so that we request the
-        correct GTID position.
-      */
-      mi->master_log_name[0]= 0;
-      mi->master_log_pos= 0;
-    }
   }
   else
   {
@@ -3722,6 +3768,8 @@ bool show_binlogs(THD* thd)
     if (protocol->write())
       goto err;
   }
+  if(index_file->error == -1)
+    goto err;
   mysql_bin_log.unlock_index();
   my_eof(thd);
   DBUG_RETURN(FALSE);
