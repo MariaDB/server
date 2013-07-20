@@ -3382,7 +3382,7 @@ static bool add_field(String *sql, const char *field_name, const char *type,
     error|= sql->append('(');
     error|= sql->append_ulonglong(len);
 
-    if (dec || !strcmp(type, "DOUBLE")) {
+    if (/*dec || */!strcmp(type, "DOUBLE")) {
       error|= sql->append(',');
       error|= sql->append_ulonglong(dec);
       } // endif dec
