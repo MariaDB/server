@@ -7834,9 +7834,11 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
   handle_if_exists_options(thd, table, alter_info);
 
-  /* Look if we have to do anything at all. */
-  /* Normally ALTER can become NOOP only after handling */
-  /* the IF (NOT) EXISTS options. */
+  /*
+    Look if we have to do anything at all.
+    Normally ALTER can become NOOP only after handling
+    the IF (NOT) EXISTS options.
+  */
   if (alter_info->flags == 0)
   {
     my_snprintf(alter_ctx.tmp_name, sizeof(alter_ctx.tmp_name),
@@ -8238,25 +8240,22 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   if (lock_tables(thd, table_list, alter_ctx.tables_opened, 0))
     goto err_new_table_cleanup;
 
+  if (ha_create_table(thd, alter_ctx.get_tmp_path(),
+                      alter_ctx.new_db, alter_ctx.tmp_name,
+                      create_info, &frm))
+    goto err_new_table_cleanup;
+
+  /* Mark that we have created table in storage engine. */
+  no_ha_table= false;
+
+  if (create_info->tmp_table())
   {
-    if (ha_create_table(thd, alter_ctx.get_tmp_path(),
-                        alter_ctx.new_db, alter_ctx.tmp_name,
-                        create_info, &frm))
+    if (!open_table_uncached(thd, new_db_type,
+                             alter_ctx.get_tmp_path(),
+                             alter_ctx.new_db, alter_ctx.tmp_name,
+                             true, true))
       goto err_new_table_cleanup;
-
-    /* Mark that we have created table in storage engine. */
-    no_ha_table= false;
-
-    if (create_info->tmp_table())
-    {
-      if (!open_table_uncached(thd, new_db_type,
-                               alter_ctx.get_tmp_path(),
-                               alter_ctx.new_db, alter_ctx.tmp_name,
-                               true, true))
-        goto err_new_table_cleanup;
-    }
   }
-
 
   /* Open the table since we need to copy the data. */
   if (table->s->tmp_table != NO_TMP_TABLE)
