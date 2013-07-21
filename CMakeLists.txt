@@ -139,7 +139,9 @@ INCLUDE(cpack_rpm)
 
 # Add macros
 INCLUDE(character_sets)
+INCLUDE(cpu_info)
 INCLUDE(zlib)
+INCLUDE(libevent)
 INCLUDE(ssl)
 INCLUDE(readline)
 INCLUDE(libutils)
@@ -204,7 +206,7 @@ ENDFOREACH()
 
 # Add safemutex for debug configurations, except on Windows
 # (safemutex has never worked on Windows)
-IF(NOT WIN32)
+IF(NOT WIN32 AND NOT WITH_INNODB_MEMCACHED)
   FOREACH(LANG C CXX)
       SET(CMAKE_${LANG}_FLAGS_DEBUG "${CMAKE_${LANG}_FLAGS_DEBUG} -DSAFE_MUTEX")
   ENDFOREACH()
@@ -256,10 +258,12 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include)
 
 # Add bundled or system zlib.
 MYSQL_CHECK_ZLIB_WITH_COMPRESS()
-# Optionally add bundled yassl/taocrypt or system openssl.
+# Add bundled yassl/taocrypt or system openssl.
 MYSQL_CHECK_SSL()
 # Add readline or libedit.
 MYSQL_CHECK_READLINE()
+# Add libevent
+MYSQL_CHECK_LIBEVENT()
 
 #
 # Setup maintainer mode options. Platform checks are
@@ -297,6 +301,7 @@ ADD_SUBDIRECTORY(strings)
 ADD_SUBDIRECTORY(vio)
 ADD_SUBDIRECTORY(regex)
 ADD_SUBDIRECTORY(mysys)
+ADD_SUBDIRECTORY(mysys_ssl)
 ADD_SUBDIRECTORY(libmysql)
 ADD_SUBDIRECTORY(client)
 ADD_SUBDIRECTORY(extra)

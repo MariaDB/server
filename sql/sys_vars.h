@@ -224,6 +224,8 @@ typedef Sys_var_integer<uint, GET_UINT, SHOW_UINT> Sys_var_uint;
 typedef Sys_var_integer<ulong, GET_ULONG, SHOW_ULONG> Sys_var_ulong;
 typedef Sys_var_integer<ha_rows, GET_HA_ROWS, SHOW_HA_ROWS> Sys_var_harows;
 typedef Sys_var_integer<ulonglong, GET_ULL, SHOW_ULONGLONG> Sys_var_ulonglong;
+typedef Sys_var_integer<long, GET_LONG, SHOW_LONG> Sys_var_long;
+
 
 /**
   Helper class for variables that take values from a TYPELIB

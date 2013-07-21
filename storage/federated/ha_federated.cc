@@ -584,7 +584,7 @@ static int parse_url_error(FEDERATED_SHARE *share, TABLE *table, int error_num)
   size_t buf_len;
   DBUG_ENTER("ha_federated parse_url_error");
 
-  buf_len= min(table->s->connect_string.length,
+  buf_len= MY_MIN(table->s->connect_string.length,
                FEDERATED_QUERY_BUFFER_SIZE-1);
   strmake(buf, table->s->connect_string.str, buf_len);
   my_error(error_num, MYF(0), buf, 14);
@@ -1317,7 +1317,7 @@ bool ha_federated::create_where_from_key(String *to,
     }
 
     for (key_part= key_info->key_part,
-         remainder= key_info->key_parts,
+         remainder= key_info->user_defined_key_parts,
          length= ranges[i]->length,
          ptr= ranges[i]->key; ;
          remainder--,
@@ -1325,7 +1325,7 @@ bool ha_federated::create_where_from_key(String *to,
     {
       Field *field= key_part->field;
       uint store_length= key_part->store_length;
-      uint part_length= min(store_length, length);
+      uint part_length= MY_MIN(store_length, length);
       needs_quotes= field->str_needs_quotes();
       DBUG_DUMP("key, start of loop", ptr, length);
 

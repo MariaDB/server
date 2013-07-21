@@ -73,20 +73,6 @@ UNIV_INTERN mysql_pfs_key_t	purge_sys_bh_mutex_key;
 UNIV_INTERN my_bool		srv_purge_view_update_only_debug;
 #endif /* UNIV_DEBUG */
 
-/********************************************************************//**
-Fetches the next undo log record from the history list to purge. It must be
-released with the corresponding release function.
-@return copy of an undo log record or pointer to trx_purge_dummy_rec,
-if the whole undo log can skipped in purge; NULL if none left */
-static
-trx_undo_rec_t*
-trx_purge_fetch_next_rec(
-/*=====================*/
-	roll_ptr_t*	roll_ptr,	/*!< out: roll pointer to undo record */
-	ulint*		n_pages_handled,/*!< in/out: number of UNDO log pages
-					handled */
-	mem_heap_t*	heap);		/*!< in: memory heap where copied */
-
 /****************************************************************//**
 Builds a purge 'query' graph. The actual purge is performed by executing
 this query graph.
@@ -133,7 +119,7 @@ trx_purge_sys_create(
 	purge_sys = static_cast<trx_purge_t*>(mem_zalloc(sizeof(*purge_sys)));
 
 	purge_sys->state = PURGE_STATE_INIT;
-	purge_sys->event = os_event_create("purge");
+	purge_sys->event = os_event_create();
 
 	/* Take ownership of ib_bh, we are responsible for freeing it. */
 	purge_sys->ib_bh = ib_bh;
@@ -543,7 +529,6 @@ trx_purge_truncate_history(
 	}
 }
 
-
 /***********************************************************************//**
 Updates the last not yet purged history log info in rseg when we have purged
 a whole undo log. Advances also purge_sys->purge_trx_no past the purged log. */
@@ -707,7 +692,7 @@ trx_purge_get_rseg_with_min_trx_id(
 
 	/* We assume in purge of externally stored fields that space id is
 	in the range of UNDO tablespace space ids */
-	ut_a(purge_sys->rseg->space <= srv_undo_tablespaces);
+	ut_a(purge_sys->rseg->space <= srv_undo_tablespaces_open);
 
 	zip_size = purge_sys->rseg->zip_size;
 
@@ -928,7 +913,7 @@ Fetches the next undo log record from the history list to purge. It must be
 released with the corresponding release function.
 @return copy of an undo log record or pointer to trx_purge_dummy_rec,
 if the whole undo log can skipped in purge; NULL if none left */
-static
+static __attribute__((warn_unused_result, nonnull))
 trx_undo_rec_t*
 trx_purge_fetch_next_rec(
 /*=====================*/
@@ -1270,6 +1255,14 @@ run_synchronously:
 
 	ut_a(purge_sys->n_submitted == purge_sys->n_completed);
 
+#ifdef UNIV_DEBUG
+	if (purge_sys->limit.trx_no == 0) {
+		purge_sys->done = purge_sys->iter;
+	} else {
+		purge_sys->done = purge_sys->limit;
+	}
+#endif /* UNIV_DEBUG */
+
 	if (truncate) {
 		trx_purge_truncate();
 	}
@@ -1315,14 +1308,14 @@ trx_purge_stop(void)
 
 	ut_a(purge_sys->state != PURGE_STATE_INIT);
 	ut_a(purge_sys->state != PURGE_STATE_EXIT);
+	ut_a(purge_sys->state != PURGE_STATE_DISABLED);
 
 	++purge_sys->n_stop;
 
 	state = purge_sys->state;
 
 	if (state == PURGE_STATE_RUN) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr, " InnoDB: Stopping purge.\n");
+		ib_logf(IB_LOG_LEVEL_INFO, "Stopping purge");
 
 		/* We need to wakeup the purge thread in case it is suspended,
 		so that it can acknowledge the state change. */
@@ -1339,6 +1332,28 @@ trx_purge_stop(void)
 		/* Wait for purge coordinator to signal that it
 		is suspended. */
 		os_event_wait_low(purge_sys->event, sig_count);
+	} else { 
+		bool	once = true; 
+
+		rw_lock_x_lock(&purge_sys->latch);
+
+		/* Wait for purge to signal that it has actually stopped. */ 
+		while (purge_sys->running) { 
+
+			if (once) { 
+				ib_logf(IB_LOG_LEVEL_INFO,
+					"Waiting for purge to stop");
+				once = false; 
+			}
+
+			rw_lock_x_unlock(&purge_sys->latch);
+
+			os_thread_sleep(10000); 
+
+			rw_lock_x_lock(&purge_sys->latch);
+		} 
+
+		rw_lock_x_unlock(&purge_sys->latch);
 	}
 
 	MONITOR_INC_VALUE(MONITOR_PURGE_STOP_COUNT, 1);
@@ -1353,8 +1368,16 @@ trx_purge_run(void)
 {
 	rw_lock_x_lock(&purge_sys->latch);
 
-	ut_a(purge_sys->state != PURGE_STATE_INIT);
-	ut_a(purge_sys->state != PURGE_STATE_EXIT);
+	switch(purge_sys->state) {
+	case PURGE_STATE_INIT:
+	case PURGE_STATE_EXIT:
+	case PURGE_STATE_DISABLED:
+		ut_error;
+
+	case PURGE_STATE_RUN:
+	case PURGE_STATE_STOP:
+		break;
+	}
 
 	if (purge_sys->n_stop > 0) {
 
@@ -1364,8 +1387,7 @@ trx_purge_run(void)
 
 		if (purge_sys->n_stop == 0) {
 
-			ut_print_timestamp(stderr);
-			fprintf(stderr, " InnoDB: Resuming purge.\n");
+			ib_logf(IB_LOG_LEVEL_INFO, "Resuming purge");
 
 			purge_sys->state = PURGE_STATE_RUN;
 		}

@@ -106,6 +106,7 @@ When one supplies long data for a placeholder:
 #include "sp_head.h"
 #include "sp.h"
 #include "sp_cache.h"
+#include "sql_handler.h"  // mysql_ha_rm_tables
 #include "probes_mysql.h"
 #ifdef EMBEDDED_LIBRARY
 /* include MYSQL_BIND headers */
@@ -343,7 +344,7 @@ static bool send_prep_stmt(Prepared_statement *stmt, uint columns)
   int2store(buff+5, columns);
   int2store(buff+7, stmt->param_count);
   buff[9]= 0;                                   // Guard against a 4.1 client
-  tmp= min(stmt->thd->warning_info->statement_warn_count(), 65535);
+  tmp= MY_MIN(stmt->thd->get_stmt_da()->current_statement_warn_count(), 65535);
   int2store(buff+10, tmp);
 
   /*
@@ -360,7 +361,7 @@ static bool send_prep_stmt(Prepared_statement *stmt, uint columns)
 
   if (!error)
     /* Flag that a response has already been sent */
-    thd->stmt_da->disable_status();
+    thd->get_stmt_da()->disable_status();
 
   DBUG_RETURN(error);
 }
@@ -373,7 +374,7 @@ static bool send_prep_stmt(Prepared_statement *stmt,
   thd->client_stmt_id= stmt->id;
   thd->client_param_count= stmt->param_count;
   thd->clear_error();
-  thd->stmt_da->disable_status();
+  thd->get_stmt_da()->disable_status();
 
   return 0;
 }
@@ -1253,6 +1254,17 @@ static bool mysql_test_insert(Prepared_statement *stmt,
   List_item *values;
   DBUG_ENTER("mysql_test_insert");
 
+  /*
+    Since INSERT DELAYED doesn't support temporary tables, we could
+    not pre-open temporary tables for SQLCOM_INSERT / SQLCOM_REPLACE.
+    Open them here instead.
+  */
+  if (table_list->lock_type != TL_WRITE_DELAYED)
+  {
+    if (open_temporary_tables(thd, table_list))
+      goto error;
+  }
+
   if (insert_precheck(thd, table_list))
     goto error;
 
@@ -1820,6 +1832,13 @@ static bool mysql_test_create_view(Prepared_statement *stmt)
   if (create_view_precheck(thd, tables, view, lex->create_view_mode))
     goto err;
 
+  /*
+    Since we can't pre-open temporary tables for SQLCOM_CREATE_VIEW,
+    (see mysql_create_view) we have to do it here instead.
+  */
+  if (open_temporary_tables(thd, tables))
+    goto err;
+
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
                                      DT_PREPARE))
     goto err;
@@ -2055,7 +2074,20 @@ static bool check_prepared_statement(Prepared_statement *stmt)
 
   /* Reset warning count for each query that uses tables */
   if (tables)
-    thd->warning_info->opt_clear_warning_info(thd->query_id);
+    thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
+
+  if (sql_command_flags[sql_command] & CF_HA_CLOSE)
+    mysql_ha_rm_tables(thd, tables);
+
+  /*
+    Open temporary tables that are known now. Temporary tables added by
+    prelocking will be opened afterwards (during open_tables()).
+  */
+  if (sql_command_flags[sql_command] & CF_PREOPEN_TMP_TABLES)
+  {
+    if (open_temporary_tables(thd, tables))
+      goto error;
+  }
 
   switch (sql_command) {
   case SQLCOM_REPLACE:
@@ -2859,7 +2891,7 @@ void mysqld_stmt_close(THD *thd, char *packet)
   Prepared_statement *stmt;
   DBUG_ENTER("mysqld_stmt_close");
 
-  thd->stmt_da->disable_status();
+  thd->get_stmt_da()->disable_status();
 
   if (!(stmt= find_prepared_statement(thd, stmt_id)))
     DBUG_VOID_RETURN;
@@ -2935,7 +2967,7 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
 
   status_var_increment(thd->status_var.com_stmt_send_long_data);
 
-  thd->stmt_da->disable_status();
+  thd->get_stmt_da()->disable_status();
 #ifndef EMBEDDED_LIBRARY
   /* Minimal size of long data packet is 6 bytes */
   if (packet_length < MYSQL_LONG_DATA_HEADER)
@@ -2964,26 +2996,23 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
 
   param= stmt->param_array[param_number];
 
-  Diagnostics_area new_stmt_da, *save_stmt_da= thd->stmt_da;
-  Warning_info new_warnning_info(thd->query_id, false);
-  Warning_info *save_warinig_info= thd->warning_info;
+  Diagnostics_area new_stmt_da(thd->query_id, false, true);
+  Diagnostics_area *save_stmt_da= thd->get_stmt_da();
 
-  thd->stmt_da= &new_stmt_da;
-  thd->warning_info= &new_warnning_info;
+  thd->set_stmt_da(&new_stmt_da);
 
 #ifndef EMBEDDED_LIBRARY
   param->set_longdata(packet, (ulong) (packet_end - packet));
 #else
   param->set_longdata(thd->extra_data, thd->extra_length);
 #endif
-  if (thd->stmt_da->is_error())
+  if (thd->get_stmt_da()->is_error())
   {
     stmt->state= Query_arena::STMT_ERROR;
-    stmt->last_errno= thd->stmt_da->sql_errno();
-    strncpy(stmt->last_error, thd->stmt_da->message(), MYSQL_ERRMSG_SIZE);
+    stmt->last_errno= thd->get_stmt_da()->sql_errno();
+    strncpy(stmt->last_error, thd->get_stmt_da()->message(), MYSQL_ERRMSG_SIZE);
   }
-  thd->stmt_da= save_stmt_da;
-  thd->warning_info= save_warinig_info;
+  thd->set_stmt_da(save_stmt_da);
 
   general_log_print(thd, thd->get_command(), NullS);
 
@@ -3059,8 +3088,7 @@ Reprepare_observer::report_error(THD *thd)
     that this thread execution stops and returns to the caller,
     backtracking all the way to Prepared_statement::execute_loop().
   */
-  thd->stmt_da->set_error_status(thd, ER_NEED_REPREPARE,
-                                 ER(ER_NEED_REPREPARE), "HY000");
+  thd->get_stmt_da()->set_error_status(ER_NEED_REPREPARE);
   m_invalidated= TRUE;
 
   return TRUE;
@@ -3526,7 +3554,6 @@ Prepared_statement::execute_loop(String *expanded_query,
   Reprepare_observer reprepare_observer;
   bool error;
   int reprepare_attempt= 0;
-  bool need_set_parameters= true;
 
   /* Check if we got an error when sending long data */
   if (state == Query_arena::STMT_ERROR)
@@ -3535,20 +3562,19 @@ Prepared_statement::execute_loop(String *expanded_query,
     return TRUE;
   }
 
-reexecute:
-  if (need_set_parameters &&
-      set_parameters(expanded_query, packet, packet_end))
+  if (set_parameters(expanded_query, packet, packet_end))
     return TRUE;
 
-  /*
-    if set_parameters() has generated warnings,
-    we need to repeat it when reexecuting, to recreate these
-    warnings.
-  */
-  need_set_parameters= thd->warning_info->statement_warn_count();
+#ifdef NOT_YET_FROM_MYSQL_5_6
+  if (unlikely(thd->security_ctx->password_expired && 
+               !lex->is_change_password))
+  {
+    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
+    return true;
+  }
+#endif
 
-  reprepare_observer.reset_reprepare_observer();
-
+reexecute:
   /*
     If the free_list is not empty, we'll wrongly free some externally
     allocated items when cleaning up after validation of the prepared
@@ -3562,22 +3588,24 @@ reexecute:
     the observer method will be invoked to push an error into
     the error stack.
   */
-  if (sql_command_flags[lex->sql_command] &
-      CF_REEXECUTION_FRAGILE)
+
+  if (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE)
   {
+    reprepare_observer.reset_reprepare_observer();
     DBUG_ASSERT(thd->m_reprepare_observer == NULL);
-    thd->m_reprepare_observer = &reprepare_observer;
+    thd->m_reprepare_observer= &reprepare_observer;
   }
 
   error= execute(expanded_query, open_cursor) || thd->is_error();
 
   thd->m_reprepare_observer= NULL;
 
-  if (error && !thd->is_fatal_error && !thd->killed &&
+  if ((sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
+      error && !thd->is_fatal_error && !thd->killed &&
       reprepare_observer.is_invalidated() &&
       reprepare_attempt++ < MAX_REPREPARE_ATTEMPTS)
   {
-    DBUG_ASSERT(thd->stmt_da->sql_errno() == ER_NEED_REPREPARE);
+    DBUG_ASSERT(thd->get_stmt_da()->sql_errno() == ER_NEED_REPREPARE);
     thd->clear_error();
 
     error= reprepare();
@@ -3679,7 +3707,7 @@ Prepared_statement::reprepare()
       Sic: we can't simply silence warnings during reprepare, because if
       it's failed, we need to return all the warnings to the user.
     */
-    thd->warning_info->clear_warning_info(thd->query_id);
+    thd->get_stmt_da()->clear_warning_info(thd->query_id);
   }
   return error;
 }
@@ -4041,7 +4069,7 @@ Ed_result_set::Ed_result_set(List<Ed_row> *rows_arg,
 */
 
 Ed_connection::Ed_connection(THD *thd)
-  :m_warning_info(thd->query_id, false, true),
+  :m_diagnostics_area(thd->query_id, false, true),
   m_thd(thd),
   m_rsets(0),
   m_current_rset(0)
@@ -4067,7 +4095,7 @@ Ed_connection::free_old_result()
   }
   m_current_rset= m_rsets;
   m_diagnostics_area.reset_diagnostics_area();
-  m_warning_info.clear_warning_info(m_thd->query_id);
+  m_diagnostics_area.clear_warning_info(m_thd->query_id);
 }
 
 
@@ -4104,23 +4132,20 @@ bool Ed_connection::execute_direct(Server_runnable *server_runnable)
   Protocol_local protocol_local(m_thd, this);
   Prepared_statement stmt(m_thd);
   Protocol *save_protocol= m_thd->protocol;
-  Diagnostics_area *save_diagnostics_area= m_thd->stmt_da;
-  Warning_info *save_warning_info= m_thd->warning_info;
+  Diagnostics_area *save_diagnostics_area= m_thd->get_stmt_da();
 
   DBUG_ENTER("Ed_connection::execute_direct");
 
   free_old_result(); /* Delete all data from previous execution, if any */
 
   m_thd->protocol= &protocol_local;
-  m_thd->stmt_da= &m_diagnostics_area;
-  m_thd->warning_info= &m_warning_info;
+  m_thd->set_stmt_da(&m_diagnostics_area);
 
   rc= stmt.execute_server_runnable(server_runnable);
   m_thd->protocol->end_statement();
 
   m_thd->protocol= save_protocol;
-  m_thd->stmt_da= save_diagnostics_area;
-  m_thd->warning_info= save_warning_info;
+  m_thd->set_stmt_da(save_diagnostics_area);
   /*
     Protocol_local makes use of m_current_rset to keep
     track of the last result set, while adding result sets to the end.

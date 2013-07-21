@@ -132,6 +132,10 @@
   The flag means that I_S table uses optimization algorithm.
 */
 #define OPTIMIZE_I_S_TABLE     OPEN_VIEW_FULL*2
+/**
+  This flag is used to instruct tdc_open_view() to check metadata version.
+*/
+#define CHECK_METADATA_VERSION OPEN_TRIGGER_ONLY*2
 
 /*
   The flag means that we need to process trigger files only.
@@ -190,7 +194,8 @@ enum extra2_frm_value_type {
 
 int rea_create_table(THD *thd, LEX_CUSTRING *frm,
                      const char *path, const char *db, const char *table_name,
-                     HA_CREATE_INFO *create_info, handler *file);
+                     HA_CREATE_INFO *create_info, handler *file,
+                     bool no_ha_create_table);
 LEX_CUSTRING build_frm_image(THD *thd, const char *table,
                              HA_CREATE_INFO *create_info,
                              List<Create_field> &create_fields,

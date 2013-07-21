@@ -6,10 +6,8 @@
 -- source include/have_innodb.inc
 -- source include/have_innodb_16k.inc
 
-#
-# This test will not work if we don't do full shutdown of innodb
-#
-set @@global.innodb_fast_shutdown=0;
+call mtr.add_suppression('InnoDB: Error: Table "mysql"."innodb_(table|index)_stats" not found');
+call mtr.add_suppression('InnoDB: Error: Fetch of persistent statistics requested');
 
 -- disable_query_log
 let $create1 = query_get_value(SHOW CREATE TABLE mysql.innodb_table_stats, Create Table, 1);
@@ -18,7 +16,7 @@ DROP TABLE mysql.innodb_index_stats;
 DROP TABLE mysql.innodb_table_stats;
 -- enable_query_log
 
-CREATE TABLE t(a INT)ENGINE=InnoDB;
+CREATE TABLE t(a INT)ENGINE=InnoDB STATS_PERSISTENT=0;
 RENAME TABLE t TO u;
 DROP TABLE u;
 SELECT @@innodb_fast_shutdown;

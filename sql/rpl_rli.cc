@@ -256,7 +256,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     {
       sql_print_error("Failed to create a new relay log info file (\
 file '%s', errno %d)", fname, my_errno);
-      msg= current_thd->stmt_da->message();
+      msg= current_thd->get_stmt_da()->message();
       goto err;
     }
     if (init_io_cache(&rli->info_file, info_fd, IO_SIZE*2, READ_CACHE, 0L,0,
@@ -264,7 +264,7 @@ file '%s', errno %d)", fname, my_errno);
     {
       sql_print_error("Failed to create a cache on relay log info file '%s'",
                       fname);
-      msg= current_thd->stmt_da->message();
+      msg= current_thd->get_stmt_da()->message();
       goto err;
     }
 
@@ -741,7 +741,7 @@ int Relay_log_info::wait_for_pos(THD* thd, String* log_name,
   ulong log_name_extension;
   char log_name_tmp[FN_REFLEN]; //make a char[] from String
 
-  strmake(log_name_tmp, log_name->ptr(), min(log_name->length(), FN_REFLEN-1));
+  strmake(log_name_tmp, log_name->ptr(), MY_MIN(log_name->length(), FN_REFLEN-1));
 
   char *p= fn_ext(log_name_tmp);
   char *p_end;
@@ -751,7 +751,7 @@ int Relay_log_info::wait_for_pos(THD* thd, String* log_name,
     goto err;
   }
   // Convert 0-3 to 4
-  log_pos= max(log_pos, BIN_LOG_HEADER_SIZE);
+  log_pos= MY_MAX(log_pos, BIN_LOG_HEADER_SIZE);
   /* p points to '.' */
   log_name_extension= strtoul(++p, &p_end, 10);
   /*
@@ -1236,7 +1236,7 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
              "Failed to update GTID state in %s.%s, slave state may become "
              "inconsistent: %d: %s",
              "mysql", rpl_gtid_slave_state_table_name.str,
-             thd->stmt_da->sql_errno(), thd->stmt_da->message());
+             thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
       /*
         At this point we are not in a transaction (for example after DDL),
         so we can not roll back. Anyway, normally updates to the slave
@@ -1355,9 +1355,9 @@ void Relay_log_info::clear_tables_to_lock()
 void Relay_log_info::slave_close_thread_tables(THD *thd)
 {
   DBUG_ENTER("Relay_log_info::slave_close_thread_tables(THD *thd)");
-  thd->stmt_da->can_overwrite_status= TRUE;
+  thd->get_stmt_da()->set_overwrite_status(true);
   thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
-  thd->stmt_da->can_overwrite_status= FALSE;
+  thd->get_stmt_da()->set_overwrite_status(false);
 
   close_thread_tables(thd);
   /*

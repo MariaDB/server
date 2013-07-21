@@ -686,7 +686,7 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
       for (i=0;
            (old= (struct st_maria_plugin *)(ptr + i * sizeof_st_plugin))->info;
            i++)
-        memcpy(cur + i, old, min(sizeof(cur[i]), sizeof_st_plugin));
+        memcpy(cur + i, old, MY_MIN(sizeof(cur[i]), sizeof_st_plugin));
 
       sym= cur;
       plugin_dl->allocated= true;
@@ -2009,7 +2009,7 @@ static bool finalize_install(THD *thd, TABLE *table, const LEX_STRING *name)
   if (tmp->state == PLUGIN_IS_DISABLED)
   {
     if (global_system_variables.log_warnings)
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_CANT_INITIALIZE_UDF, ER(ER_CANT_INITIALIZE_UDF),
                           name->str, "Plugin is disabled");
   }
@@ -2170,7 +2170,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_STRING *name)
 
   plugin->state= PLUGIN_IS_DELETED;
   if (plugin->ref_count)
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  WARN_PLUGIN_BUSY, ER(WARN_PLUGIN_BUSY));
   else
     reap_needed= true;

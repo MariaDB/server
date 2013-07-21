@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2012, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -82,6 +82,10 @@ uint statement_stack_max;
 ulong locker_lost= 0;
 /** Number of statement lost. @sa STATEMENT_STACK_SIZE. */
 ulong statement_lost= 0;
+/** Size of connection attribute storage per thread */
+ulong session_connect_attrs_size_per_thread;
+/** Number of connection attributes lost */
+ulong session_connect_attrs_lost= 0;
 
 /**
   Mutex instrumentation instances array.
@@ -140,11 +144,10 @@ PFS_table *table_array= NULL;
 */
 PFS_socket *socket_array= NULL;
 
-PFS_single_stat *global_instr_class_waits_array= NULL;
 PFS_stage_stat *global_instr_class_stages_array= NULL;
 PFS_statement_stat *global_instr_class_statements_array= NULL;
 
-static volatile uint32 thread_internal_id_counter= 0;
+static volatile uint64 thread_internal_id_counter= 0;
 
 static uint thread_instr_class_waits_sizing;
 static uint thread_instr_class_stages_sizing;
@@ -157,9 +160,10 @@ static PFS_events_waits *thread_waits_history_array= NULL;
 static PFS_events_stages *thread_stages_history_array= NULL;
 static PFS_events_statements *thread_statements_history_array= NULL;
 static PFS_events_statements *thread_statements_stack_array= NULL;
+static char *thread_session_connect_attrs_array= NULL;
 
 /** Hash table for instrumented files. */
-static LF_HASH filename_hash;
+LF_HASH filename_hash;
 /** True if filename_hash is initialized. */
 static bool filename_hash_inited= false;
 
@@ -174,6 +178,7 @@ int init_instruments(const PFS_global_param *param)
   uint thread_stages_history_sizing;
   uint thread_statements_history_sizing;
   uint thread_statements_stack_sizing;
+  uint thread_session_connect_attrs_sizing;
   uint index;
   DBUG_ENTER("init_instruments");
 
@@ -220,6 +225,11 @@ int init_instruments(const PFS_global_param *param)
 
   thread_instr_class_statements_sizing= param->m_thread_sizing
     * param->m_statement_class_sizing;
+
+  session_connect_attrs_size_per_thread= param->m_session_connect_attrs_sizing;
+  thread_session_connect_attrs_sizing= param->m_thread_sizing
+    * session_connect_attrs_size_per_thread;
+  session_connect_attrs_lost= 0;
 
   mutex_array= NULL;
   rwlock_array= NULL;
@@ -366,6 +376,14 @@ int init_instruments(const PFS_global_param *param)
       thread_instr_class_statements_array[index].reset();
   }
 
+  if (thread_session_connect_attrs_sizing > 0)
+  {
+    thread_session_connect_attrs_array=
+      (char *)pfs_malloc(thread_session_connect_attrs_sizing, MYF(MY_ZEROFILL));
+    if (unlikely(thread_session_connect_attrs_array == NULL))
+      return 1;
+  }
+
   for (index= 0; index < thread_max; index++)
   {
     thread_array[index].m_waits_history=
@@ -382,18 +400,8 @@ int init_instruments(const PFS_global_param *param)
       &thread_statements_stack_array[index * statement_stack_max];
     thread_array[index].m_instr_class_statements_stats=
       &thread_instr_class_statements_array[index * statement_class_max];
-  }
-
-  if (wait_class_max > 0)
-  {
-    global_instr_class_waits_array=
-      PFS_MALLOC_ARRAY(wait_class_max,
-                       PFS_single_stat, MYF(MY_ZEROFILL));
-    if (unlikely(global_instr_class_waits_array == NULL))
-      DBUG_RETURN(1);
-
-    for (index= 0; index < wait_class_max; index++)
-      global_instr_class_waits_array[index].reset();
+    thread_array[index].m_session_connect_attrs=
+      &thread_session_connect_attrs_array[index * session_connect_attrs_size_per_thread];
   }
 
   if (stage_class_max > 0)
@@ -461,8 +469,6 @@ void cleanup_instruments(void)
   thread_statements_stack_array= NULL;
   pfs_free(thread_instr_class_waits_array);
   thread_instr_class_waits_array= NULL;
-  pfs_free(global_instr_class_waits_array);
-  global_instr_class_waits_array= NULL;
   pfs_free(global_instr_class_stages_array);
   global_instr_class_stages_array= NULL;
   pfs_free(global_instr_class_statements_array);
@@ -471,6 +477,9 @@ void cleanup_instruments(void)
   thread_instr_class_statements_array= NULL;
   pfs_free(thread_instr_class_stages_array);
   thread_instr_class_stages_array= NULL;
+  pfs_free(thread_session_connect_attrs_array);
+  thread_session_connect_attrs_array=NULL;
+
   DBUG_VOID_RETURN;
 }
 
@@ -502,10 +511,11 @@ int init_file_hash(void)
 {
   DBUG_ENTER("init_file_hash");
 
-  if (! filename_hash_inited)
+  if ((! filename_hash_inited) && (file_max > 0))
   {
     lf_hash_init(&filename_hash, sizeof(PFS_file*), LF_HASH_UNIQUE,
                  0, 0, filename_hash_get_key, &my_charset_bin);
+    /* filename_hash.size= file_max; */
     filename_hash_inited= true;
   }
   DBUG_RETURN(0);
@@ -604,7 +614,7 @@ void PFS_scan::init(uint random, uint max_size)
 */
 PFS_mutex* create_mutex(PFS_mutex_class *klass, const void *identity)
 {
-  static uint mutex_monotonic_index= 0;
+  static uint PFS_ALIGNED mutex_monotonic_index= 0;
   uint index;
   uint attempts= 0;
   PFS_mutex *pfs;
@@ -642,8 +652,7 @@ PFS_mutex* create_mutex(PFS_mutex_class *klass, const void *identity)
         pfs->m_class= klass;
         pfs->m_enabled= klass->m_enabled && flag_global_instrumentation;
         pfs->m_timed= klass->m_timed;
-        pfs->m_wait_stat.reset();
-        pfs->m_lock_stat.reset();
+        pfs->m_mutex_stat.reset();
         pfs->m_owner= NULL;
         pfs->m_last_locked= 0;
         pfs->m_lock.dirty_to_allocated();
@@ -667,10 +676,9 @@ void destroy_mutex(PFS_mutex *pfs)
   DBUG_ENTER("destroy_mutex");
   DBUG_ASSERT(pfs != NULL);
   PFS_mutex_class *klass= pfs->m_class;
-  /* Aggregate to EVENTS_WAITS_SUMMARY_BY_EVENT_NAME */
-  uint index= klass->m_event_name_index;
-  global_instr_class_waits_array[index].aggregate(& pfs->m_wait_stat);
-  pfs->m_wait_stat.reset();
+  /* Aggregate to EVENTS_WAITS_SUMMARY_GLOBAL_BY_EVENT_NAME */
+  klass->m_mutex_stat.aggregate(& pfs->m_mutex_stat);
+  pfs->m_mutex_stat.reset();
   if (klass->is_singleton())
     klass->m_singleton= NULL;
   pfs->m_lock.allocated_to_free();
@@ -685,7 +693,7 @@ void destroy_mutex(PFS_mutex *pfs)
 */
 PFS_rwlock* create_rwlock(PFS_rwlock_class *klass, const void *identity)
 {
-  static uint rwlock_monotonic_index= 0;
+  static uint PFS_ALIGNED rwlock_monotonic_index= 0;
   uint index;
   uint attempts= 0;
   PFS_rwlock *pfs;
@@ -705,10 +713,8 @@ PFS_rwlock* create_rwlock(PFS_rwlock_class *klass, const void *identity)
         pfs->m_class= klass;
         pfs->m_enabled= klass->m_enabled && flag_global_instrumentation;
         pfs->m_timed= klass->m_timed;
-        pfs->m_wait_stat.reset();
+        pfs->m_rwlock_stat.reset();
         pfs->m_lock.dirty_to_allocated();
-        pfs->m_read_lock_stat.reset();
-        pfs->m_write_lock_stat.reset();
         pfs->m_writer= NULL;
         pfs->m_readers= 0;
         pfs->m_last_written= 0;
@@ -733,10 +739,9 @@ void destroy_rwlock(PFS_rwlock *pfs)
   DBUG_ENTER("destroy_rwlock");
   DBUG_ASSERT(pfs != NULL);
   PFS_rwlock_class *klass= pfs->m_class;
-  /* Aggregate to EVENTS_WAITS_SUMMARY_BY_EVENT_NAME */
-  uint index= klass->m_event_name_index;
-  global_instr_class_waits_array[index].aggregate(& pfs->m_wait_stat);
-  pfs->m_wait_stat.reset();
+  /* Aggregate to EVENTS_WAITS_SUMMARY_GLOBAL_BY_EVENT_NAME */
+  klass->m_rwlock_stat.aggregate(& pfs->m_rwlock_stat);
+  pfs->m_rwlock_stat.reset();
   if (klass->is_singleton())
     klass->m_singleton= NULL;
   pfs->m_lock.allocated_to_free();
@@ -751,7 +756,7 @@ void destroy_rwlock(PFS_rwlock *pfs)
 */
 PFS_cond* create_cond(PFS_cond_class *klass, const void *identity)
 {
-  static uint cond_monotonic_index= 0;
+  static uint PFS_ALIGNED cond_monotonic_index= 0;
   uint index;
   uint attempts= 0;
   PFS_cond *pfs;
@@ -792,13 +797,12 @@ PFS_cond* create_cond(PFS_cond_class *klass, const void *identity)
 */
 void destroy_cond(PFS_cond *pfs)
 {
-  DBUG_ENTER("destroy_thread");
+  DBUG_ENTER("destroy_cond");
 
   DBUG_ASSERT(pfs != NULL);
   PFS_cond_class *klass= pfs->m_class;
-  /* Aggregate to EVENTS_WAITS_SUMMARY_BY_EVENT_NAME */
-  uint index= klass->m_event_name_index;
-  global_instr_class_waits_array[index].aggregate(& pfs->m_wait_stat);
+  /* Aggregate to EVENTS_WAITS_SUMMARY_GLOBAL_BY_EVENT_NAME */
+  klass->m_cond_stat.aggregate(& pfs->m_cond_stat);
   pfs->m_wait_stat.reset();
   if (klass->is_singleton())
     klass->m_singleton= NULL;
@@ -812,19 +816,32 @@ PFS_thread* PFS_thread::get_current_thread()
   return pfs;
 }
 
+void PFS_thread::reset_session_connect_attrs()
+{
+  m_session_connect_attrs_length= 0;
+  m_session_connect_attrs_cs= NULL;
+
+  if ((m_session_connect_attrs != NULL) &&
+      (session_connect_attrs_size_per_thread > 0) )
+  {
+    /* Do not keep user data */
+    memset(m_session_connect_attrs, 0, session_connect_attrs_size_per_thread);
+  }
+}
+
 /**
   Create instrumentation for a thread instance.
   @param klass                        the thread class
   @param identity                     the thread address,
     or a value characteristic of this thread
-  @param thread_id                    the PROCESSLIST thread id,
+  @param processlist_id               the PROCESSLIST id,
     or 0 if unknown
   @return a thread instance, or NULL
 */
 PFS_thread* create_thread(PFS_thread_class *klass, const void *identity,
-                          ulong thread_id)
+                          ulonglong processlist_id)
 {
-  static uint thread_monotonic_index= 0;
+  static uint PFS_ALIGNED thread_monotonic_index= 0;
   uint index;
   uint attempts= 0;
   PFS_thread *pfs;
@@ -841,9 +858,9 @@ PFS_thread* create_thread(PFS_thread_class *klass, const void *identity,
       if (pfs->m_lock.free_to_dirty())
       {
         pfs->m_thread_internal_id=
-          PFS_atomic::add_u32(&thread_internal_id_counter, 1);
+          PFS_atomic::add_u64(&thread_internal_id_counter, 1);
         pfs->m_parent_thread_internal_id= 0;
-        pfs->m_thread_id= thread_id;
+        pfs->m_processlist_id= processlist_id;
         pfs->m_event_id= 1;
         pfs->m_enabled= true;
         pfs->m_class= klass;
@@ -856,6 +873,7 @@ PFS_thread* create_thread(PFS_thread_class *klass, const void *identity,
         pfs->m_statements_history_index= 0;
 
         pfs->reset_stats();
+        pfs->reset_session_connect_attrs();
 
         pfs->m_filename_hash_pins= NULL;
         pfs->m_table_share_hash_pins= NULL;
@@ -871,8 +889,11 @@ PFS_thread* create_thread(PFS_thread_class *klass, const void *identity,
         pfs->m_dbname_length= 0;
         pfs->m_command= 0;
         pfs->m_start_time= 0;
+        pfs->m_processlist_state_ptr= NULL;
         pfs->m_processlist_state_length= 0;
+        pfs->m_processlist_info_ptr= NULL;
         pfs->m_processlist_info_length= 0;
+        pfs->m_processlist_lock.set_allocated();
 
         pfs->m_host= NULL;
         pfs->m_user= NULL;
@@ -999,6 +1020,7 @@ PFS_socket *sanitize_socket(PFS_socket *unsafe)
 void destroy_thread(PFS_thread *pfs)
 {
   DBUG_ASSERT(pfs != NULL);
+  pfs->reset_session_connect_attrs();
   if (pfs->m_account != NULL)
   {
     pfs->m_account->release();
@@ -1084,17 +1106,20 @@ LF_PINS* get_filename_hash_pins(PFS_thread *thread)
   @param klass                        the file class
   @param filename                     the file name
   @param len                          the length in bytes of filename
+  @param create                       create a file instance if none found
   @return a file instance, or NULL
 */
 PFS_file*
 find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
-                    const char *filename, uint len)
+                    const char *filename, uint len, bool create)
 {
   PFS_file *pfs;
   LF_PINS *pins;
   char safe_buffer[FN_REFLEN];
   const char *safe_filename;
   DBUG_ENTER("find_or_create_file");
+
+  DBUG_ASSERT(klass != NULL || ! create);
 
   pins= get_filename_hash_pins(thread);
   if (unlikely(pins == NULL))
@@ -1171,7 +1196,7 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
   /* Append the unresolved file name to the resolved path */
   char *ptr= buffer + strlen(buffer);
   char *buf_end= &buffer[sizeof(buffer)-1];
-  if (buf_end > ptr)
+  if ((buf_end > ptr) && (*(ptr-1) != FN_LIBCHAR))
     *ptr++= FN_LIBCHAR;
   if (buf_end > ptr)
     strncpy(ptr, safe_filename + dirlen, buf_end - ptr);
@@ -1183,7 +1208,7 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
   PFS_file **entry;
   uint retry_count= 0;
   const uint retry_max= 3;
-  static uint file_monotonic_index= 0;
+  static uint PFS_ALIGNED file_monotonic_index= 0;
   uint index;
   uint attempts= 0;
 
@@ -1202,6 +1227,12 @@ search:
 
   lf_hash_search_unpin(pins);
 
+  if (! create)
+  {
+    /* No lost counter, just looking for the file existence. */
+    DBUG_RETURN(NULL);
+  }
+
   while (++attempts <= file_max)
   {
     /* See create_mutex() */
@@ -1218,7 +1249,6 @@ search:
         strncpy(pfs->m_filename, normalized_filename, normalized_length);
         pfs->m_filename[normalized_length]= '\0';
         pfs->m_filename_length= normalized_length;
-        pfs->m_wait_stat.reset();
         pfs->m_file_stat.m_open_count= 1;
         pfs->m_file_stat.m_io_stat.reset();
         pfs->m_identity= (const void *)pfs;
@@ -1250,7 +1280,7 @@ search:
 
         /* OOM in lf_hash_insert */
         file_lost++;
-        return NULL;
+        DBUG_RETURN(NULL);
       }
     }
   }
@@ -1285,14 +1315,9 @@ void destroy_file(PFS_thread *thread, PFS_file *pfs)
   DBUG_ASSERT(pfs != NULL);
   PFS_file_class *klass= pfs->m_class;
 
-  /* Aggregate to EVENTS_WAITS_SUMMARY_BY_EVENT_NAME */
-  uint index= klass->m_event_name_index;
-  global_instr_class_waits_array[index].aggregate(& pfs->m_wait_stat);
-  pfs->m_wait_stat.reset();
-
   /* Aggregate to FILE_SUMMARY_BY_EVENT_NAME */
-  klass->m_file_stat.m_io_stat.aggregate(& pfs->m_file_stat.m_io_stat);
-  pfs->m_file_stat.m_io_stat.reset();
+  klass->m_file_stat.aggregate(& pfs->m_file_stat);
+  pfs->m_file_stat.reset();
 
   if (klass->is_singleton())
     klass->m_singleton= NULL;
@@ -1318,7 +1343,7 @@ void destroy_file(PFS_thread *thread, PFS_file *pfs)
 PFS_table* create_table(PFS_table_share *share, PFS_thread *opening_thread,
                         const void *identity)
 {
-  static uint table_monotonic_index= 0;
+  static uint PFS_ALIGNED table_monotonic_index= 0;
   uint index;
   uint attempts= 0;
   PFS_table *pfs;
@@ -1364,23 +1389,33 @@ void PFS_table::sanitized_aggregate(void)
     and not own the table handle.
   */
   PFS_table_share *safe_share= sanitize_table_share(m_share);
-  PFS_thread *safe_thread= sanitize_thread(m_thread_owner);
-  if ((safe_share != NULL && safe_thread != NULL) &&
-      (m_has_io_stats || m_has_lock_stats))
+  if (safe_share != NULL)
   {
-    safe_aggregate(& m_table_stat, safe_share, safe_thread);
-    m_has_io_stats= false;
-    m_has_lock_stats= false;
+    if (m_has_io_stats && m_has_lock_stats)
+    {
+      safe_aggregate(& m_table_stat, safe_share);
+      m_has_io_stats= false;
+      m_has_lock_stats= false;
+    }
+    else if (m_has_io_stats)
+    {
+      safe_aggregate_io(& m_table_stat, safe_share);
+      m_has_io_stats= false;
+    }
+    else if (m_has_lock_stats)
+    {
+      safe_aggregate_lock(& m_table_stat, safe_share);
+      m_has_lock_stats= false;
+    }
   }
 }
 
 void PFS_table::sanitized_aggregate_io(void)
 {
   PFS_table_share *safe_share= sanitize_table_share(m_share);
-  PFS_thread *safe_thread= sanitize_thread(m_thread_owner);
-  if (safe_share != NULL && safe_thread != NULL && m_has_io_stats)
+  if (safe_share != NULL && m_has_io_stats)
   {
-    safe_aggregate_io(& m_table_stat, safe_share, safe_thread);
+    safe_aggregate_io(& m_table_stat, safe_share);
     m_has_io_stats= false;
   }
 }
@@ -1388,96 +1423,44 @@ void PFS_table::sanitized_aggregate_io(void)
 void PFS_table::sanitized_aggregate_lock(void)
 {
   PFS_table_share *safe_share= sanitize_table_share(m_share);
-  PFS_thread *safe_thread= sanitize_thread(m_thread_owner);
-  if (safe_share != NULL && safe_thread != NULL && m_has_lock_stats)
+  if (safe_share != NULL && m_has_lock_stats)
   {
-    safe_aggregate_lock(& m_table_stat, safe_share, safe_thread);
+    safe_aggregate_lock(& m_table_stat, safe_share);
     m_has_lock_stats= false;
   }
 }
 
 void PFS_table::safe_aggregate(PFS_table_stat *table_stat,
-                               PFS_table_share *table_share,
-                               PFS_thread *thread)
+                               PFS_table_share *table_share)
 {
   DBUG_ASSERT(table_stat != NULL);
   DBUG_ASSERT(table_share != NULL);
-  DBUG_ASSERT(thread != NULL);
 
-  if (flag_thread_instrumentation && thread->m_enabled)
-  {
-    PFS_single_stat *event_name_array;
-    uint index;
-    event_name_array= thread->m_instr_class_waits_stats;
-
-    /*
-      Aggregate to EVENTS_WAITS_SUMMARY_BY_THREAD_BY_EVENT_NAME
-      (for wait/io/table/sql/handler)
-    */
-    index= global_table_io_class.m_event_name_index;
-    table_stat->sum_io(& event_name_array[index]);
-
-    /*
-      Aggregate to EVENTS_WAITS_SUMMARY_BY_THREAD_BY_EVENT_NAME
-      (for wait/lock/table/sql/handler)
-    */
-    index= global_table_lock_class.m_event_name_index;
-    table_stat->sum_lock(& event_name_array[index]);
-  }
+  uint key_count= sanitize_index_count(table_share->m_key_count);
 
   /* Aggregate to TABLE_IO_SUMMARY, TABLE_LOCK_SUMMARY */
-  table_share->m_table_stat.aggregate(table_stat);
+  table_share->m_table_stat.aggregate(table_stat, key_count);
   table_stat->fast_reset();
 }
 
 void PFS_table::safe_aggregate_io(PFS_table_stat *table_stat,
-                                  PFS_table_share *table_share,
-                                  PFS_thread *thread)
+                                  PFS_table_share *table_share)
 {
   DBUG_ASSERT(table_stat != NULL);
   DBUG_ASSERT(table_share != NULL);
-  DBUG_ASSERT(thread != NULL);
 
-  if (flag_thread_instrumentation && thread->m_enabled)
-  {
-    PFS_single_stat *event_name_array;
-    uint index;
-    event_name_array= thread->m_instr_class_waits_stats;
-
-    /*
-      Aggregate to EVENTS_WAITS_SUMMARY_BY_THREAD_BY_EVENT_NAME
-      (for wait/io/table/sql/handler)
-    */
-    index= global_table_io_class.m_event_name_index;
-    table_stat->sum_io(& event_name_array[index]);
-  }
+  uint key_count= sanitize_index_count(table_share->m_key_count);
 
   /* Aggregate to TABLE_IO_SUMMARY */
-  table_share->m_table_stat.aggregate_io(table_stat);
+  table_share->m_table_stat.aggregate_io(table_stat, key_count);
   table_stat->fast_reset_io();
 }
 
 void PFS_table::safe_aggregate_lock(PFS_table_stat *table_stat,
-                                    PFS_table_share *table_share,
-                                    PFS_thread *thread)
+                                    PFS_table_share *table_share)
 {
   DBUG_ASSERT(table_stat != NULL);
   DBUG_ASSERT(table_share != NULL);
-  DBUG_ASSERT(thread != NULL);
-
-  if (flag_thread_instrumentation && thread->m_enabled)
-  {
-    PFS_single_stat *event_name_array;
-    uint index;
-    event_name_array= thread->m_instr_class_waits_stats;
-
-    /*
-      Aggregate to EVENTS_WAITS_SUMMARY_BY_THREAD_BY_EVENT_NAME
-      (for wait/lock/table/sql/handler)
-    */
-    index= global_table_lock_class.m_event_name_index;
-    table_stat->sum_lock(& event_name_array[index]);
-  }
 
   /* Aggregate to TABLE_LOCK_SUMMARY */
   table_share->m_table_stat.aggregate_lock(table_stat);
@@ -1504,47 +1487,59 @@ void destroy_table(PFS_table *pfs)
   @param identity                     the socket descriptor
   @return a socket instance, or NULL
 */
-PFS_socket* create_socket(PFS_socket_class *klass, const void *identity)
+PFS_socket* create_socket(PFS_socket_class *klass, const my_socket *fd,
+                          const struct sockaddr *addr, socklen_t addr_len)
 {
-  PFS_scan scan;
+  static uint PFS_ALIGNED socket_monotonic_index= 0;
+  uint index;
+  uint attempts= 0;
+  PFS_socket *pfs;
   DBUG_ENTER("create_socket");
 
-  /**
-    Unlike other instrumented objects, there is no socket 'object' to use as a
-    unique identifier. Instead, a pointer to the PFS_socket object will be used
-    to identify this socket instance. The socket descriptor will be used to
-    seed the the random index assignment.
-    */
-  my_socket fd= likely(identity != NULL) ?
-                *(reinterpret_cast<const my_socket*>(identity)) : 0;
-  my_ptrdiff_t ptr= fd;
-  uint random= randomized_index((const void *)ptr, socket_max);
+  uint fd_used= 0;
+  uint addr_len_used= addr_len;
 
-  for (scan.init(random, socket_max);
-       scan.has_pass();
-       scan.next_pass())
+  if (fd != NULL)
+    fd_used= *fd;
+
+  if (addr_len_used > sizeof(sockaddr_storage))
+    addr_len_used= sizeof(sockaddr_storage);
+
+  while (++attempts <= socket_max)
   {
-    PFS_socket *pfs= socket_array + scan.first();
-    PFS_socket *pfs_last= socket_array + scan.last();
-    for ( ; pfs < pfs_last; pfs++)
+    index= PFS_atomic::add_u32(& socket_monotonic_index, 1) % socket_max;
+    pfs= socket_array + index;
+
+    if (pfs->m_lock.is_free())
     {
-      if (pfs->m_lock.is_free())
+      if (pfs->m_lock.free_to_dirty())
       {
-        if (pfs->m_lock.free_to_dirty())
+        pfs->m_fd= fd_used;
+        /* There is no socket object, so we use the instrumentation. */
+        pfs->m_identity= pfs;
+        pfs->m_class= klass;
+        pfs->m_enabled= klass->m_enabled && flag_global_instrumentation;
+        pfs->m_timed= klass->m_timed;
+        pfs->m_idle= false;
+        pfs->m_socket_stat.reset();
+        pfs->m_thread_owner= NULL;
+
+        pfs->m_addr_len= addr_len_used;
+        if ((addr != NULL) && (addr_len_used > 0))
         {
-          pfs->m_fd= fd;
-          pfs->m_identity= pfs;
-          pfs->m_class= klass;
-          pfs->m_enabled= klass->m_enabled && flag_global_instrumentation;
-          pfs->m_timed= klass->m_timed;
-          pfs->m_idle= false;
-          pfs->m_socket_stat.reset();
-          pfs->m_lock.dirty_to_allocated();
-          pfs->m_thread_owner= NULL;
-          if (klass->is_singleton())
-            klass->m_singleton= pfs;
-          DBUG_RETURN(pfs);
+          pfs->m_addr_len= addr_len_used;
+          memcpy(&pfs->m_sock_addr, addr, addr_len_used);
         }
+        else
+        {
+          pfs->m_addr_len= 0;
+        }
+
+        pfs->m_lock.dirty_to_allocated();
+
+        if (klass->is_singleton())
+          klass->m_singleton= pfs;
+        DBUG_RETURN(pfs);
       }
     }
   }
@@ -1598,7 +1593,7 @@ static void reset_mutex_waits_by_instance(void)
   DBUG_ENTER("reset_mutex_waits_by_instance");
 
   for ( ; pfs < pfs_last; pfs++)
-    pfs->m_wait_stat.reset();
+    pfs->m_mutex_stat.reset();
   DBUG_VOID_RETURN;
 }
 
@@ -1609,7 +1604,7 @@ static void reset_rwlock_waits_by_instance(void)
   DBUG_ENTER("reset_rwlock_waits_by_instance");
 
   for ( ; pfs < pfs_last; pfs++)
-    pfs->m_wait_stat.reset();
+    pfs->m_rwlock_stat.reset();
   DBUG_VOID_RETURN;
 }
 
@@ -1620,7 +1615,7 @@ static void reset_cond_waits_by_instance(void)
   DBUG_ENTER("reset_cond_waits_by_instance");
 
   for ( ; pfs < pfs_last; pfs++)
-    pfs->m_wait_stat.reset();
+    pfs->m_cond_stat.reset();
   DBUG_VOID_RETURN;
 }
 
@@ -1676,15 +1671,6 @@ void reset_socket_instance_io(void)
   for ( ; pfs < pfs_last; pfs++)
     pfs->m_socket_stat.m_io_stat.reset();
   DBUG_VOID_RETURN;
-}
-
-void reset_global_wait_stat()
-{
-  PFS_single_stat *stat= global_instr_class_waits_array;
-  PFS_single_stat *stat_last= global_instr_class_waits_array + wait_class_max;
-
-  for ( ; stat < stat_last; stat++)
-    stat->reset();
 }
 
 void aggregate_all_event_names(PFS_single_stat *from_array,

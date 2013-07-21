@@ -585,7 +585,7 @@ static int extract_variable_from_show(DYNAMIC_STRING* ds, char* value)
   if ((value_end= strchr(value_start, '\n')) == NULL)
     return 1; /* Unexpected result */
 
-  len= (size_t) min(FN_REFLEN, value_end-value_start);
+  len= (size_t) MY_MIN(FN_REFLEN, value_end-value_start);
   strncpy(value, value_start, len);
   value[len]= '\0';
   return 0;

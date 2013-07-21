@@ -875,7 +875,7 @@ TrID trnman_get_min_safe_trid()
 {
   TrID trid;
   mysql_mutex_lock(&LOCK_trn_list);
-  trid= min(active_list_min.next->min_read_from,
+  trid= MY_MIN(active_list_min.next->min_read_from,
             global_trid_generator);
   mysql_mutex_unlock(&LOCK_trn_list);
   return trid;

@@ -762,7 +762,7 @@ dbcontext::cmd_find_internal(dbcallback_i& cb, const prep_stmt& pst,
     return cb.dbcb_resp_short(2, "idxnum");
   }
   KEY& kinfo = table->key_info[pst.get_idxnum()];
-  if (args.kvalslen > kinfo.key_parts) {
+  if (args.kvalslen > kinfo.user_defined_key_parts) {
     return cb.dbcb_resp_short(2, "kpnum");
   }
   uchar *const key_buf = DENA_ALLOCA_ALLOCATE(uchar, kinfo.key_length);

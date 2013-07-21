@@ -773,7 +773,7 @@ sp_head::~sp_head()
   for (uint ip = 0 ; (i = get_instr(ip)) ; ip++)
     delete i;
   delete_dynamic(&m_instr);
-  m_pcont->destroy();
+  delete m_pcont;
   free_items();
 
   /*
@@ -976,7 +976,7 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
   thd->query_name_consts= 0;
 
   for (Item_splocal **splocal= sp_vars_uses.front(); 
-       splocal < sp_vars_uses.back(); splocal++)
+       splocal <= sp_vars_uses.back(); splocal++)
   {
     Item *val;
 
@@ -1079,105 +1079,6 @@ void sp_head::recursion_level_error(THD *thd)
 }
 
 
-/**
-  Find an SQL handler for any condition (warning or error) after execution
-  of a stored routine instruction. Basically, this function looks for an
-  appropriate SQL handler in RT-contexts. If an SQL handler is found, it is
-  remembered in the RT-context for future activation (the context can be
-  inactive at the moment).
-
-  If there is no pending condition, the function just returns.
-
-  If there was an error during the execution, an SQL handler for it will be
-  searched within the current and outer scopes.
-
-  There might be several errors in the Warning Info (that's possible by using
-  SIGNAL/RESIGNAL in nested scopes) -- the function is looking for an SQL
-  handler for the latest (current) error only.
-
-  If there was a warning during the execution, an SQL handler for it will be
-  searched within the current scope only.
-
-  If several warnings were thrown during the execution and there are different
-  SQL handlers for them, it is not determined which SQL handler will be chosen.
-  Only one SQL handler will be executed.
-
-  If warnings and errors were thrown during the execution, the error takes
-  precedence. I.e. error handler will be executed. If there is no handler
-  for that error, condition will remain unhandled.
-
-  Once a warning or an error has been handled it is not removed from
-  Warning Info.
-
-  According to The Standard (quoting PeterG):
-
-    An SQL procedure statement works like this ...
-    SQL/Foundation 13.5 <SQL procedure statement>
-    (General Rules) (greatly summarized) says:
-    (1) Empty diagnostics area, thus clearing the condition.
-    (2) Execute statement.
-        During execution, if Exception Condition occurs,
-        set Condition Area = Exception Condition and stop
-        statement.
-        During execution, if No Data occurs,
-        set Condition Area = No Data Condition and continue
-        statement.
-        During execution, if Warning occurs,
-        and Condition Area is not already full due to
-        an earlier No Data condition, set Condition Area
-        = Warning and continue statement.
-    (3) Finish statement.
-        At end of execution, if Condition Area is not
-        already full due to an earlier No Data or Warning,
-        set Condition Area = Successful Completion.
-        In effect, this system means there is a precedence:
-        Exception trumps No Data, No Data trumps Warning,
-        Warning trumps Successful Completion.
-
-    NB: "Procedure statements" include any DDL or DML or
-    control statements. So CREATE and DELETE and WHILE
-    and CALL and RETURN are procedure statements. But
-    DECLARE and END are not procedure statements.
-
-  @param thd thread handle
-  @param ctx runtime context of the stored routine
-*/
-
-static void
-find_handler_after_execution(THD *thd, sp_rcontext *ctx)
-{
-  if (thd->is_error())
-  {
-    ctx->find_handler(thd,
-                      thd->stmt_da->sql_errno(),
-                      thd->stmt_da->get_sqlstate(),
-                      MYSQL_ERROR::WARN_LEVEL_ERROR,
-                      thd->stmt_da->message());
-  }
-  else if (thd->warning_info->statement_warn_count())
-  {
-    List_iterator<MYSQL_ERROR> it(thd->warning_info->warn_list());
-    MYSQL_ERROR *err;
-    while ((err= it++))
-    {
-      if ((err->get_level() != MYSQL_ERROR::WARN_LEVEL_WARN &&
-           err->get_level() != MYSQL_ERROR::WARN_LEVEL_NOTE) ||
-          err->handled())
-        continue;
-
-      if (ctx->find_handler(thd,
-                            err->get_sql_errno(),
-                            err->get_sqlstate(),
-                            err->get_level(),
-                            err->get_message_text()))
-      {
-        err->mark_handled();
-        break;
-      }
-    }
-  }
-}
-
 
 /**
   Execute the routine. The main instruction jump loop is there.
@@ -1224,8 +1125,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   String old_packet;
   Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
   Object_creation_ctx *saved_creation_ctx;
-  Warning_info *saved_warning_info;
-  Warning_info warning_info(thd->warning_info->warn_id(), false);
+  Diagnostics_area *da= thd->get_stmt_da();
+  Warning_info sp_wi(da->warning_info_id(), false, true);
 
   /*
     Just reporting a stack overrun error
@@ -1296,9 +1197,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   old_arena= thd->stmt_arena;
 
   /* Push a new warning information area. */
-  warning_info.append_warning_info(thd, thd->warning_info);
-  saved_warning_info= thd->warning_info;
-  thd->warning_info= &warning_info;
+  da->copy_sql_conditions_to_wi(thd, &sp_wi);
+  da->push_warning_info(&sp_wi);
 
   /*
     Switch query context. This has to be done early as this is sometimes
@@ -1398,7 +1298,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     }
 
     /* Reset number of warnings for this query. */
-    thd->warning_info->reset_for_next_command();
+    thd->get_stmt_da()->reset_for_next_command();
 
     DBUG_PRINT("execute", ("Instruction %u", ip));
 
@@ -1449,19 +1349,10 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       errors are not catchable by SQL handlers) or the connection has been
       killed during execution.
     */
-    if (!thd->is_fatal_error && !thd->killed_errno())
+    if (!thd->is_fatal_error && !thd->killed_errno() &&
+        ctx->handle_sql_condition(thd, &ip, i))
     {
-      /*
-        Find SQL handler in the appropriate RT-contexts:
-          - warnings can be handled by SQL handlers within
-            the current scope only;
-          - errors can be handled by any SQL handler from outer scope.
-      */
-      find_handler_after_execution(thd, ctx);
-
-      /* If found, activate handler for the current scope. */
-      if (ctx->activate_handler(thd, &ip, i, &execute_arena, &backup_arena))
-        err_status= FALSE;
+      err_status= FALSE;
     }
 
     /* Reset sp_rcontext::end_partial_result_set flag. */
@@ -1506,9 +1397,40 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       - if there was an exception during execution, warning info should be
         propagated to the caller in any case.
   */
+  da->pop_warning_info();
+
   if (err_status || merge_da_on_success)
-    saved_warning_info->merge_with_routine_info(thd, thd->warning_info);
-  thd->warning_info= saved_warning_info;
+  {
+    /*
+      If a routine body is empty or if a routine did not generate any warnings,
+      do not duplicate our own contents by appending the contents of the called
+      routine. We know that the called routine did not change its warning info.
+
+      On the other hand, if the routine body is not empty and some statement in
+      the routine generates a warning or uses tables, warning info is guaranteed
+      to have changed. In this case we know that the routine warning info
+      contains only new warnings, and thus we perform a copy.
+    */
+    if (da->warning_info_changed(&sp_wi))
+    {
+      /*
+        If the invocation of the routine was a standalone statement,
+        rather than a sub-statement, in other words, if it's a CALL
+        of a procedure, rather than invocation of a function or a
+        trigger, we need to clear the current contents of the caller's
+        warning info.
+
+        This is per MySQL rules: if a statement generates a warning,
+        warnings from the previous statement are flushed.  Normally
+        it's done in push_warning(). However, here we don't use
+        push_warning() to avoid invocation of condition handlers or
+        escalation of warnings to errors.
+      */
+      da->opt_clear_warning_info(thd->query_id);
+      da->copy_sql_conditions_from_wi(thd, &sp_wi);
+      da->remove_marked_sql_conditions();
+    }
+  }
 
  done:
   DBUG_PRINT("info", ("err_status: %d  killed: %d  is_slave_error: %d  report_error: %d",
@@ -1716,8 +1638,7 @@ sp_head::execute_trigger(THD *thd,
   init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
-  if (!(nctx= new sp_rcontext(m_pcont, 0, octx)) ||
-      nctx->init(thd))
+  if (!(nctx= sp_rcontext::create(thd, m_pcont, NULL)))
   {
     err_status= TRUE;
     goto err_with_cleanup;
@@ -1833,8 +1754,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
-  if (!(nctx= new sp_rcontext(m_pcont, return_value_fld, octx)) ||
-      nctx->init(thd))
+  if (!(nctx= sp_rcontext::create(thd, m_pcont, return_value_fld)))
   {
     thd->restore_active_arena(&call_arena, &backup_arena);
     err_status= TRUE;
@@ -1962,7 +1882,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       if (mysql_bin_log.write(&qinfo) &&
           thd->binlog_evt_union.unioned_events_trans)
       {
-        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
                      "Invoked ROUTINE modified a transactional table but MySQL "
                      "failed to reflect this change in the binary log");
         err_status= TRUE;
@@ -2051,9 +1971,9 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   if (! octx)
   {
     /* Create a temporary old context. */
-    if (!(octx= new sp_rcontext(m_pcont, NULL, octx)) || octx->init(thd))
+    if (!(octx= sp_rcontext::create(thd, m_pcont, NULL)))
     {
-      delete octx; /* Delete octx if it was init() that failed. */
+      DBUG_PRINT("error", ("Could not create octx"));
       DBUG_RETURN(TRUE);
     }
 
@@ -2066,8 +1986,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     thd->spcont->callers_arena= thd;
   }
 
-  if (!(nctx= new sp_rcontext(m_pcont, NULL, octx)) ||
-      nctx->init(thd))
+  if (!(nctx= sp_rcontext::create(thd, m_pcont, NULL)))
   {
     delete nctx; /* Delete nctx if it was init() that failed. */
     thd->spcont= save_spcont;
@@ -2090,12 +2009,12 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       if (!arg_item)
         break;
 
-      sp_variable_t *spvar= m_pcont->find_variable(i);
+      sp_variable *spvar= m_pcont->find_variable(i);
 
       if (!spvar)
         continue;
 
-      if (spvar->mode != sp_param_in)
+      if (spvar->mode != sp_variable::MODE_IN)
       {
         Settable_routine_parameter *srp=
           arg_item->get_settable_routine_parameter();
@@ -2107,10 +2026,10 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
           break;
         }
 
-        srp->set_required_privilege(spvar->mode == sp_param_inout);
+        srp->set_required_privilege(spvar->mode == sp_variable::MODE_INOUT);
       }
 
-      if (spvar->mode == sp_param_out)
+      if (spvar->mode == sp_variable::MODE_OUT)
       {
         Item_null *null_item= new Item_null();
         Item *tmp_item= null_item;
@@ -2118,6 +2037,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
         if (!null_item ||
             nctx->set_variable(thd, i, &tmp_item))
         {
+          DBUG_PRINT("error", ("set variable failed"));
           err_status= TRUE;
           break;
         }
@@ -2126,6 +2046,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       {
         if (nctx->set_variable(thd, i, it_args.ref()))
         {
+          DBUG_PRINT("error", ("set variable 2 failed"));
           err_status= TRUE;
           break;
         }
@@ -2141,9 +2062,9 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
     if (!thd->in_sub_stmt)
     {
-      thd->stmt_da->can_overwrite_status= TRUE;
+      thd->get_stmt_da()->set_overwrite_status(true);
       thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
-      thd->stmt_da->can_overwrite_status= FALSE;
+      thd->get_stmt_da()->set_overwrite_status(false);
     }
 
     thd_proc_info(thd, "closing tables");
@@ -2182,7 +2103,10 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 #endif
 
   if (!err_status)
+  {
     err_status= execute(thd, TRUE);
+    DBUG_PRINT("info", ("execute returned %d", (int) err_status));
+  }
 
   if (save_log_general)
     thd->variables.option_bits &= ~OPTION_LOG_OFF;
@@ -2210,9 +2134,9 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       if (!arg_item)
         break;
 
-      sp_variable_t *spvar= m_pcont->find_variable(i);
+      sp_variable *spvar= m_pcont->find_variable(i);
 
-      if (spvar->mode == sp_param_in)
+      if (spvar->mode == sp_variable::MODE_IN)
         continue;
 
       Settable_routine_parameter *srp=
@@ -2222,6 +2146,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
       if (srp->set_value(thd, octx, nctx->get_item_addr(i)))
       {
+        DBUG_PRINT("error", ("set value failed"));
         err_status= TRUE;
         break;
       }
@@ -2372,7 +2297,7 @@ sp_head::restore_lex(THD *thd)
   Put the instruction on the backpatch list, associated with the label.
 */
 int
-sp_head::push_backpatch(sp_instr *i, sp_label_t *lab)
+sp_head::push_backpatch(sp_instr *i, sp_label *lab)
 {
   bp_t *bp= (bp_t *)sql_alloc(sizeof(bp_t));
 
@@ -2388,7 +2313,7 @@ sp_head::push_backpatch(sp_instr *i, sp_label_t *lab)
   the current position.
 */
 void
-sp_head::backpatch(sp_label_t *lab)
+sp_head::backpatch(sp_label *lab)
 {
   bp_t *bp;
   uint dest= instructions();
@@ -2400,7 +2325,7 @@ sp_head::backpatch(sp_label_t *lab)
     if (bp->lab == lab)
     {
       DBUG_PRINT("info", ("backpatch: (m_ip %d, label 0x%lx <%s>) to dest %d",
-                          bp->instr->m_ip, (ulong) lab, lab->name, dest));
+                          bp->instr->m_ip, (ulong) lab, lab->name.str, dest));
       bp->instr->backpatch(dest, lab->ctx);
     }
   }
@@ -2667,7 +2592,7 @@ sp_head::show_create_routine(THD *thd, int type)
 
     Item_empty_string *stmt_fld=
       new Item_empty_string(col3_caption,
-                            max(m_defstr.length, 1024));
+                            MY_MAX(m_defstr.length, 1024));
 
     stmt_fld->maybe_null= TRUE;
 
@@ -2867,7 +2792,7 @@ sp_head::show_routine_code(THD *thd)
   field_list.push_back(new Item_uint("Pos", 9));
   // 1024 is for not to confuse old clients
   field_list.push_back(new Item_empty_string("Instruction",
-                                             max(buffer.length(), 1024)));
+                                             MY_MAX(buffer.length(), 1024)));
   if (protocol->send_result_set_metadata(&field_list, Protocol::SEND_NUM_ROWS |
                                          Protocol::SEND_EOF))
     DBUG_RETURN(1);
@@ -2888,7 +2813,7 @@ sp_head::show_routine_code(THD *thd)
         Since this is for debugging purposes only, we don't bother to
         introduce a special error code for it.
       */
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, tmp);
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, tmp);
     }
     protocol->prepare_for_resend();
     protocol->store((longlong)ip);
@@ -2995,9 +2920,9 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     /* Here we also commit or rollback the current statement. */
     if (! thd->in_sub_stmt)
     {
-      thd->stmt_da->can_overwrite_status= TRUE;
+      thd->get_stmt_da()->set_overwrite_status(true);
       thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
-      thd->stmt_da->can_overwrite_status= FALSE;
+      thd->get_stmt_da()->set_overwrite_status(false);
     }
     thd_proc_info(thd, "closing tables");
     close_thread_tables(thd);
@@ -3031,10 +2956,10 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     open_tables stage.
   */
   if (!res || !thd->is_error() ||
-      (thd->stmt_da->sql_errno() != ER_CANT_REOPEN_TABLE &&
-       thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE &&
-       thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE_IN_ENGINE &&
-       thd->stmt_da->sql_errno() != ER_UPDATE_TABLE_USED))
+      (thd->get_stmt_da()->sql_errno() != ER_CANT_REOPEN_TABLE &&
+       thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE &&
+       thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE_IN_ENGINE &&
+       thd->get_stmt_da()->sql_errno() != ER_UPDATE_TABLE_USED))
     thd->stmt_arena->state= Query_arena::STMT_EXECUTED;
 
   /*
@@ -3067,7 +2992,8 @@ int sp_instr::exec_open_and_lock_tables(THD *thd, TABLE_LIST *tables)
     Check whenever we have access to tables for this statement
     and open and lock them before executing instructions core function.
   */
-  if (check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE)
+  if (open_temporary_tables(thd, tables) ||
+      check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE)
       || open_and_lock_tables(thd, tables, TRUE, 0))
     result= -1;
   else
@@ -3079,7 +3005,7 @@ int sp_instr::exec_open_and_lock_tables(THD *thd, TABLE_LIST *tables)
   return result;
 }
 
-uint sp_instr::get_cont_dest()
+uint sp_instr::get_cont_dest() const
 {
   return (m_ip+1);
 }
@@ -3121,7 +3047,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
     {
       res= m_lex_keeper.reset_lex_and_exec_core(thd, nextp, FALSE, this);
 
-      if (thd->stmt_da->is_eof())
+      if (thd->get_stmt_da()->is_eof())
       {
         /* Finalize server status flags after executing a statement. */
         thd->update_server_status();
@@ -3132,7 +3058,8 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       query_cache_end_of_result(thd);
 
       mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
-                         thd->stmt_da->is_error() ? thd->stmt_da->sql_errno() : 0,
+                         thd->get_stmt_da()->is_error() ?
+                                thd->get_stmt_da()->sql_errno() : 0,
                          command_name[COM_QUERY].str);
 
       if (!res && unlikely(thd->enable_slow_log))
@@ -3144,7 +3071,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
     thd->query_name_consts= 0;
 
     if (!thd->is_error())
-      thd->stmt_da->reset_diagnostics_area();
+      thd->get_stmt_da()->reset_diagnostics_area();
   }
   DBUG_RETURN(res || thd->is_error());
 }
@@ -3237,7 +3164,7 @@ sp_instr_set::print(String *str)
 {
   /* set name@offset ... */
   int rsrv = SP_INSTR_UINT_MAXLEN+6;
-  sp_variable_t *var = m_ctx->find_variable(m_offset);
+  sp_variable *var = m_ctx->find_variable(m_offset);
 
   /* 'var' should always be non-null, but just in case... */
   if (var)
@@ -3290,7 +3217,7 @@ sp_instr_set_trigger_field::print(String *str)
   sp_instr_opt_meta
 */
 
-uint sp_instr_opt_meta::get_cont_dest()
+uint sp_instr_opt_meta::get_cont_dest() const
 {
   return m_cont_dest;
 }
@@ -3471,6 +3398,14 @@ int
 sp_instr_freturn::exec_core(THD *thd, uint *nextp)
 {
   /*
+    RETURN is a "procedure statement" (in terms of the SQL standard).
+    That means, Diagnostics Area should be clean before its execution.
+  */
+
+  Diagnostics_area *da= thd->get_stmt_da();
+  da->clear_warning_info(da->warning_info_id());
+
+  /*
     Change <next instruction pointer>, so that this will be the last
     instruction in the stored function.
   */
@@ -3508,14 +3443,12 @@ int
 sp_instr_hpush_jump::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_hpush_jump::execute");
-  List_iterator_fast<sp_cond_type_t> li(m_cond);
-  sp_cond_type_t *p;
 
-  while ((p= li++))
-    thd->spcont->push_handler(p, m_ip+1, m_type);
+  int ret= thd->spcont->push_handler(m_handler, m_ip + 1);
 
   *nextp= m_dest;
-  DBUG_RETURN(0);
+
+  DBUG_RETURN(ret);
 }
 
 
@@ -3525,27 +3458,22 @@ sp_instr_hpush_jump::print(String *str)
   /* hpush_jump dest fsize type */
   if (str->reserve(SP_INSTR_UINT_MAXLEN*2 + 21))
     return;
+
   str->qs_append(STRING_WITH_LEN("hpush_jump "));
   str->qs_append(m_dest);
   str->qs_append(' ');
   str->qs_append(m_frame);
-  switch (m_type) {
-  case SP_HANDLER_NONE:
-    str->qs_append(STRING_WITH_LEN(" NONE")); // This would be a bug
-    break;
-  case SP_HANDLER_EXIT:
+
+  switch (m_handler->type) {
+  case sp_handler::EXIT:
     str->qs_append(STRING_WITH_LEN(" EXIT"));
     break;
-  case SP_HANDLER_CONTINUE:
+  case sp_handler::CONTINUE:
     str->qs_append(STRING_WITH_LEN(" CONTINUE"));
     break;
-  case SP_HANDLER_UNDO:
-    str->qs_append(STRING_WITH_LEN(" UNDO"));
-    break;
   default:
-    // This would be a bug as well
-    str->qs_append(STRING_WITH_LEN(" UNKNOWN:"));
-    str->qs_append(m_type);
+    // The handler type must be either CONTINUE or EXIT.
+    DBUG_ASSERT(0);
   }
 }
 
@@ -3573,7 +3501,7 @@ sp_instr_hpush_jump::opt_mark(sp_head *sp, List<sp_instr> *leads)
     above, so we start on m_dest+1 here.
     m_opt_hpop is the hpop marking the end of the handler scope.
   */
-  if (m_type == SP_HANDLER_CONTINUE)
+  if (m_handler->type == sp_handler::CONTINUE)
   {
     for (uint scope_ip= m_dest+1; scope_ip <= m_opt_hpop; scope_ip++)
       sp->add_mark_lead(scope_ip, leads);
@@ -3615,13 +3543,11 @@ int
 sp_instr_hreturn::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_hreturn::execute");
-  if (m_dest)
-    *nextp= m_dest;
-  else
-  {
-    *nextp= thd->spcont->pop_hstack();
-  }
-  thd->spcont->exit_handler();
+
+  uint continue_ip= thd->spcont->exit_handler(thd->get_stmt_da());
+
+  *nextp= m_dest ? m_dest : continue_ip;
+
   DBUG_RETURN(0);
 }
 
@@ -3633,11 +3559,16 @@ sp_instr_hreturn::print(String *str)
   if (str->reserve(SP_INSTR_UINT_MAXLEN*2 + 9))
     return;
   str->qs_append(STRING_WITH_LEN("hreturn "));
-  str->qs_append(m_frame);
   if (m_dest)
   {
-    str->qs_append(' ');
+    // NOTE: this is legacy: hreturn instruction for EXIT handler
+    // should print out 0 as frame index.
+    str->qs_append(STRING_WITH_LEN("0 "));
     str->qs_append(m_dest);
+  }
+  else
+  {
+    str->qs_append(m_frame);
   }
 }
 
@@ -3670,41 +3601,32 @@ sp_instr_hreturn::opt_mark(sp_head *sp, List<sp_instr> *leads)
 int
 sp_instr_cpush::execute(THD *thd, uint *nextp)
 {
-  Query_arena backup_arena;
   DBUG_ENTER("sp_instr_cpush::execute");
 
-  /*
-    We should create cursors in the callers arena, as
-    it could be (and usually is) used in several instructions.
-  */
-  thd->set_n_backup_active_arena(thd->spcont->callers_arena, &backup_arena);
-
-  thd->spcont->push_cursor(&m_lex_keeper, this);
-
-  thd->restore_active_arena(thd->spcont->callers_arena, &backup_arena);
+  int ret= thd->spcont->push_cursor(&m_lex_keeper, this);
 
   *nextp= m_ip+1;
 
-  DBUG_RETURN(0);
+  DBUG_RETURN(ret);
 }
 
 
 void
 sp_instr_cpush::print(String *str)
 {
-  LEX_STRING n;
-  my_bool found= m_ctx->find_cursor(m_cursor, &n);
+  const LEX_STRING *cursor_name= m_ctx->find_cursor(m_cursor);
+
   /* cpush name@offset */
   uint rsrv= SP_INSTR_UINT_MAXLEN+7;
 
-  if (found)
-    rsrv+= n.length;
+  if (cursor_name)
+    rsrv+= cursor_name->length;
   if (str->reserve(rsrv))
     return;
   str->qs_append(STRING_WITH_LEN("cpush "));
-  if (found)
+  if (cursor_name)
   {
-    str->qs_append(n.str, n.length);
+    str->qs_append(cursor_name->str, cursor_name->length);
     str->qs_append('@');
   }
   str->qs_append(m_cursor);
@@ -3792,19 +3714,19 @@ sp_instr_copen::exec_core(THD *thd, uint *nextp)
 void
 sp_instr_copen::print(String *str)
 {
-  LEX_STRING n;
-  my_bool found= m_ctx->find_cursor(m_cursor, &n);
+  const LEX_STRING *cursor_name= m_ctx->find_cursor(m_cursor);
+
   /* copen name@offset */
   uint rsrv= SP_INSTR_UINT_MAXLEN+7;
 
-  if (found)
-    rsrv+= n.length;
+  if (cursor_name)
+    rsrv+= cursor_name->length;
   if (str->reserve(rsrv))
     return;
   str->qs_append(STRING_WITH_LEN("copen "));
-  if (found)
+  if (cursor_name)
   {
-    str->qs_append(n.str, n.length);
+    str->qs_append(cursor_name->str, cursor_name->length);
     str->qs_append('@');
   }
   str->qs_append(m_cursor);
@@ -3834,19 +3756,19 @@ sp_instr_cclose::execute(THD *thd, uint *nextp)
 void
 sp_instr_cclose::print(String *str)
 {
-  LEX_STRING n;
-  my_bool found= m_ctx->find_cursor(m_cursor, &n);
+  const LEX_STRING *cursor_name= m_ctx->find_cursor(m_cursor);
+
   /* cclose name@offset */
   uint rsrv= SP_INSTR_UINT_MAXLEN+8;
 
-  if (found)
-    rsrv+= n.length;
+  if (cursor_name)
+    rsrv+= cursor_name->length;
   if (str->reserve(rsrv))
     return;
   str->qs_append(STRING_WITH_LEN("cclose "));
-  if (found)
+  if (cursor_name)
   {
-    str->qs_append(n.str, n.length);
+    str->qs_append(cursor_name->str, cursor_name->length);
     str->qs_append('@');
   }
   str->qs_append(m_cursor);
@@ -3875,21 +3797,21 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
 void
 sp_instr_cfetch::print(String *str)
 {
-  List_iterator_fast<struct sp_variable> li(m_varlist);
-  sp_variable_t *pv;
-  LEX_STRING n;
-  my_bool found= m_ctx->find_cursor(m_cursor, &n);
+  List_iterator_fast<sp_variable> li(m_varlist);
+  sp_variable *pv;
+  const LEX_STRING *cursor_name= m_ctx->find_cursor(m_cursor);
+
   /* cfetch name@offset vars... */
   uint rsrv= SP_INSTR_UINT_MAXLEN+8;
 
-  if (found)
-    rsrv+= n.length;
+  if (cursor_name)
+    rsrv+= cursor_name->length;
   if (str->reserve(rsrv))
     return;
   str->qs_append(STRING_WITH_LEN("cfetch "));
-  if (found)
+  if (cursor_name)
   {
-    str->qs_append(n.str, n.length);
+    str->qs_append(cursor_name->str, cursor_name->length);
     str->qs_append('@');
   }
   str->qs_append(m_cursor);

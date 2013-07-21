@@ -134,7 +134,7 @@ void mysql_audit_general(THD *thd, uint event_subtype,
       query= thd->query_string;
       user= user_buff;
       userlen= make_user_name(thd, user_buff);
-      rows= thd->warning_info->current_row_for_warning();
+      rows= thd->get_stmt_da()->current_row_for_warning();
     }
     else
     {
@@ -155,9 +155,10 @@ void mysql_audit_notify_connection_connect(THD *thd)
   if (mysql_audit_connection_enabled())
   {
     const Security_context *sctx= thd->security_ctx;
+    Diagnostics_area *da= thd->get_stmt_da();
     mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS,
                        MYSQL_AUDIT_CONNECTION_CONNECT,
-                       thd->stmt_da->is_error() ? thd->stmt_da->sql_errno() : 0,
+                       da->is_error() ? da->sql_errno() : 0,
                        thd->thread_id,
                        sctx->user, sctx->user ? strlen(sctx->user) : 0,
                        sctx->priv_user, strlen(sctx->priv_user),
@@ -188,9 +189,10 @@ void mysql_audit_notify_connection_change_user(THD *thd)
   if (mysql_audit_connection_enabled())
   {
     const Security_context *sctx= thd->security_ctx;
+    Diagnostics_area *da= thd->get_stmt_da();
     mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS,
                        MYSQL_AUDIT_CONNECTION_CHANGE_USER,
-                       thd->stmt_da->is_error() ? thd->stmt_da->sql_errno() : 0,
+                       da->is_error() ? da->sql_errno() : 0,
                        thd->thread_id,
                        sctx->user, sctx->user ? strlen(sctx->user) : 0,
                        sctx->priv_user, strlen(sctx->priv_user),

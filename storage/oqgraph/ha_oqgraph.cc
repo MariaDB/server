@@ -261,7 +261,7 @@ static int oqgraph_check_table_structure (TABLE *table_arg)
     if (!(field[0] == key->key_part[0].field &&
           HA_KEY_ALG_HASH == key->algorithm))
       DBUG_RETURN(-1);
-    if (key->key_parts == 3)
+    if (key->user_defined_key_parts == 3)
     {
       /* KEY (latch, origid, destid) USING HASH */
       /* KEY (latch, destid, origid) USING HASH */
@@ -349,7 +349,7 @@ void ha_oqgraph::update_key_stats()
     if (key->algorithm != HA_KEY_ALG_BTREE)
     {
       if (key->flags & HA_NOSAME)
-        key->rec_per_key[key->key_parts-1]= 1;
+        key->rec_per_key[key->user_defined_key_parts-1]= 1;
       else
       {
         unsigned vertices= graph->vertices_count();
@@ -357,7 +357,7 @@ void ha_oqgraph::update_key_stats()
         uint no_records= vertices ? 2 * (edges + vertices) / vertices : 2;
         if (no_records < 2)
           no_records= 2;
-        key->rec_per_key[key->key_parts-1]= no_records;
+        key->rec_per_key[key->user_defined_key_parts-1]= no_records;
       }
     }
   }
@@ -874,7 +874,7 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
 
   /* Assert that info() did run. We need current statistics here. */
   DBUG_ASSERT(key_stat_version == share->key_stat_version);
-  ha_rows result= key->rec_per_key[key->key_parts-1];
+  ha_rows result= key->rec_per_key[key->user_defined_key_parts-1];
 
   return result;
 }

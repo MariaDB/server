@@ -78,7 +78,7 @@ CREATE TABLE index_stats (db_name varchar(64) NOT NULL, table_name varchar(64) N
 -- disable_query_log
 
 # Drop all tables created by this test
-DROP TABLE db, host, user, func, plugin, tables_priv, columns_priv, procs_priv, gtid_slave_pos, servers, help_category, help_keyword, help_relation, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, general_log, slow_log, event, ndb_binlog_index, proxies_priv, slave_master_info, slave_relay_log_info, innodb_index_stats, innodb_table_stats, slave_worker_info, table_stats, column_stats, index_stats;
+DROP TABLE db, host, user, func, plugin, tables_priv, columns_priv, procs_priv, servers, help_category, help_keyword, help_relation, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, general_log, slow_log, event, proxies_priv, innodb_index_stats, innodb_table_stats, table_stats, column_stats, index_stats;
 
 -- enable_query_log
 

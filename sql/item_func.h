@@ -561,8 +561,8 @@ public:
   longlong val_int_from_str(int *error);
   void fix_length_and_dec()
   {
-    fix_char_length(min(args[0]->max_char_length(),
-                        MY_INT64_NUM_DECIMAL_DIGITS));
+    fix_char_length(MY_MIN(args[0]->max_char_length(),
+                           MY_INT64_NUM_DECIMAL_DIGITS));
   }
   virtual void print(String *str, enum_query_type query_type);
   uint decimal_precision() const { return args[0]->decimal_precision(); }

@@ -312,8 +312,8 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
   thd_proc_info(thd, "Table lock");
 
   /* Copy the lock data array. thr_multi_lock() reorders its contents. */
-  memcpy(sql_lock->locks + sql_lock->lock_count, sql_lock->locks,
-         sql_lock->lock_count * sizeof(*sql_lock->locks));
+  memmove(sql_lock->locks + sql_lock->lock_count, sql_lock->locks,
+          sql_lock->lock_count * sizeof(*sql_lock->locks));
   /* Lock on the copied half of the lock data array. */
   rc= thr_lock_errno_to_mysql[(int) thr_multi_lock(sql_lock->locks +
                                                    sql_lock->lock_count,
@@ -692,7 +692,7 @@ static int unlock_external(THD *thd, TABLE **table,uint count)
 
 MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
 {
-  uint i,tables,lock_count;
+  uint i,lock_count,table_count;
   MYSQL_LOCK *sql_lock;
   THR_LOCK_DATA **locks, **locks_buf;
   TABLE **to, **table_buf;
@@ -701,16 +701,15 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
   DBUG_ASSERT((flags == GET_LOCK_UNLOCK) || (flags == GET_LOCK_STORE_LOCKS));
   DBUG_PRINT("info", ("count %d", count));
 
-  for (i=tables=lock_count=0 ; i < count ; i++)
+  for (i=lock_count=table_count=0 ; i < count ; i++)
   {
     TABLE *t= table_ptr[i];
-    
     
     if (t->s->tmp_table != NON_TRANSACTIONAL_TMP_TABLE && 
         t->s->tmp_table != INTERNAL_TMP_TABLE)
     {
-      tables+= t->file->lock_count();
-      lock_count++;
+      lock_count+= t->file->lock_count();
+      table_count++;
     }
   }
 
@@ -722,13 +721,13 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
   */
   if (!(sql_lock= (MYSQL_LOCK*)
 	my_malloc(sizeof(*sql_lock) +
-		  sizeof(THR_LOCK_DATA*) * tables * 2 +
-                  sizeof(table_ptr) * lock_count,
+		  sizeof(THR_LOCK_DATA*) * lock_count * 2 +
+                  sizeof(table_ptr) * table_count,
 		  MYF(0))))
     DBUG_RETURN(0);
   locks= locks_buf= sql_lock->locks= (THR_LOCK_DATA**) (sql_lock + 1);
-  to= table_buf= sql_lock->table= (TABLE**) (locks + tables * 2);
-  sql_lock->table_count=lock_count;
+  to= table_buf= sql_lock->table= (TABLE**) (locks + lock_count * 2);
+  sql_lock->table_count= table_count;
 
   for (i=0 ; i < count ; i++)
   {
@@ -764,7 +763,7 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
     }
   }
   /*
-    We do not use 'tables', because there are cases where store_lock()
+    We do not use 'lock_count', because there are cases where store_lock()
     returns less locks than lock_count() claimed. This can happen when
     a FLUSH TABLES tries to abort locks from a MERGE table of another
     thread. When that thread has just opened the table, but not yet
@@ -778,6 +777,7 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
     And in the FLUSH case, the memory is released quickly anyway.
   */
   sql_lock->lock_count= locks - locks_buf;
+  DBUG_ASSERT(sql_lock->lock_count <= lock_count);
   DBUG_PRINT("info", ("sql_lock->table_count %d sql_lock->lock_count %d",
                       sql_lock->table_count, sql_lock->lock_count));
   DBUG_RETURN(sql_lock);
