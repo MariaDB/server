@@ -86,7 +86,7 @@ flush tables;
 drop table t0;
 show status like 'Handler_discover';
 Variable_name	Value
-Handler_discover	7
+Handler_discover	6
 #
 # Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
 #

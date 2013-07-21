@@ -430,9 +430,9 @@ My own slow query	sleep(2)
 My own slow query	0
 SELECT * FROM mysql.slow_log WHERE seq >= 2 LIMIT 3;
 start_time	user_host	query_time	lock_time	rows_sent	rows_examined	db	last_insert_id	insert_id	server_id	sql_text	thread_id	seq
-START_TIME	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	test	0	0	1	SELECT "My own slow query", sleep(2)	2	2
-START_TIME	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	test	0	0	1	SELECT "My own slow query", sleep(2)	2	3
-START_TIME	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	test	0	0	1	SELECT "My own slow query", sleep(2)	2	4
+START_TIME	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	test	0	0	1	SELECT "My own slow query", sleep(2)	3	2
+START_TIME	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	test	0	0	1	SELECT "My own slow query", sleep(2)	3	3
+START_TIME	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	test	0	0	1	SELECT "My own slow query", sleep(2)	3	4
 SET GLOBAL slow_query_log = 0;
 SET SESSION long_query_time =@saved_long_query_time;
 FLUSH LOGS;
