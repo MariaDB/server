@@ -156,7 +156,7 @@ my_error_innodb(
 		ut_error;
 #endif /* UNIV_DEBUG */
 	default:
-		my_error(ER_GET_ERRNO, MYF(0), error);
+		my_error(ER_GET_ERRNO, MYF(0), error, "InnoDB");
 		break;
 	}
 }

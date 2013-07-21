@@ -3,7 +3,6 @@
 #
 # Basic log tables test
 #
-
 # check that CSV engine was compiled in
 --source include/have_csv.inc
 

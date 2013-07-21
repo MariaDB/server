@@ -944,8 +944,8 @@ bool ha_example::check_if_incompatible_data(HA_CREATE_INFO *info,
     boolparam requires a table to be rebuilt, while changing strparam
     or enumparam - does not.
 
-    For debugging purposes we'll announce this to the client
-    (don't do it in your engine!)
+    For debugging purposes we'll announce this to the user
+    (don't do it in production!)
 
   */
   if (param_new->ullparam != param_old->ullparam)

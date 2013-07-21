@@ -1804,13 +1804,13 @@ engine=MEMORY
 partition by key (a);
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	status	OK
+test.t1	repair	note	The storage engine for the table doesn't support repair
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	note	The storage engine for the table doesn't support optimize
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	status	OK
+test.t1	check	note	The storage engine for the table doesn't support check
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	note	The storage engine for the table doesn't support analyze

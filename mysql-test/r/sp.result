@@ -7788,8 +7788,6 @@ message
 You should see this message and the warning that generated this
 Level	Code	Message
 Warning	1329	No data - zero rows fetched, selected, or processed
-Warnings:
-Warning	1329	No data - zero rows fetched, selected, or processed
 drop procedure p1;
 drop procedure p0;
 drop table t1;

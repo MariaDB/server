@@ -484,6 +484,9 @@ Archive_share *ha_archive::get_share(const char *table_name, int *rc)
     share= tmp_share;
     if (archive_tmp.version == 1)
       share->read_v1_metafile();
+    else if (frm_compare(&archive_tmp))
+      *rc= HA_ERR_TABLE_DEF_CHANGED;
+
     azclose(&archive_tmp);
 
     set_ha_share_ptr(static_cast<Handler_share*>(tmp_share));
@@ -741,7 +744,7 @@ int ha_archive::create(const char *name, TABLE *table_arg,
 
       if (!(field->flags & AUTO_INCREMENT_FLAG))
       {
-        error= -1;
+        error= HA_WRONG_CREATE_OPTION;
         DBUG_PRINT("ha_archive", ("Index error in creating archive table"));
         goto error;
       }
@@ -1847,17 +1850,17 @@ void ha_archive::destroy_record_buffer(archive_record_buffer *r)
   DBUG_VOID_RETURN;
 }
 
+/*
+  In archive *any* ALTER should cause a table to be rebuilt,
+  no ALTER can be frm-only.
+  Because after any change to the frm file archive must update the
+  frm image in the ARZ file. And this cannot be done in-place, it
+  requires ARZ file to be recreated from scratch
+*/
 bool ha_archive::check_if_incompatible_data(HA_CREATE_INFO *info,
                                             uint table_changes)
 {
-  if (info->auto_increment_value != stats.auto_increment_value ||
-      (info->used_fields & HA_CREATE_USED_DATADIR) ||
-      info->data_file_name ||
-      (info->used_fields & HA_CREATE_USED_COMMENT) ||
-      table_changes != IS_EQUAL_YES)
-    return COMPATIBLE_DATA_NO;
-
-  return COMPATIBLE_DATA_YES;
+  return COMPATIBLE_DATA_NO;
 }
 
 

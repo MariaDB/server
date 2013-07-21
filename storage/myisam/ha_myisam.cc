@@ -2001,7 +2001,7 @@ int ha_myisam::create(const char *name, register TABLE *table_arg,
   create_info.language= share->table_charset->number;
 
   if (ha_create_info->tmp_table())
-    create_flags|= HA_CREATE_TMP_TABLE;
+    create_flags|= HA_CREATE_TMP_TABLE | HA_CREATE_DELAY_KEY_WRITE;
   if (ha_create_info->options & HA_CREATE_KEEP_FILES)
     create_flags|= HA_CREATE_KEEP_FILES;
   if (options & HA_OPTION_PACK_RECORD)

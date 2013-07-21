@@ -2,7 +2,7 @@ include/master-slave.inc
 [connection master]
 drop table if exists t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 CREATE TABLE t1 (pr_id int(10) unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY, pr_page int(11) NOT NULL, pr_type varbinary(60) NOT NULL, test int, UNIQUE KEY pr_pagetype (pr_page,pr_type)) ENGINE=myisam AUTO_INCREMENT=136;
 insert into t1 (pr_page, pr_type, test) values(1,"one",0),(2,"two",0);
 select * from t1;

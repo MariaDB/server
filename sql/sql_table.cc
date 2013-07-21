@@ -4008,9 +4008,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
   }
 
-  if (create_info->tmp_table())
-    create_info->options|=HA_CREATE_DELAY_KEY_WRITE;
-
   /* Give warnings for not supported table options */
 #if defined(WITH_ARIA_STORAGE_ENGINE)
   extern handlerton *maria_hton;
@@ -8469,10 +8466,6 @@ end_inplace:
   THD_STAGE_INFO(thd, stage_end);
 
   DEBUG_SYNC(thd, "alter_table_before_main_binlog");
-
-  ha_binlog_log_query(thd, create_info->db_type, LOGCOM_ALTER_TABLE,
-                      thd->query(), thd->query_length(),
-                      alter_ctx.db, alter_ctx.table_name);
 
   DBUG_ASSERT(!(mysql_bin_log.is_open() &&
                 thd->is_current_stmt_binlog_format_row() &&

@@ -12837,7 +12837,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
 alter table t1 add column b varchar(10);
 select * from t1;
 a	b
@@ -12849,5 +12849,5 @@ Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
 drop table t1;

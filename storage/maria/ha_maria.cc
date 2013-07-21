@@ -3053,7 +3053,7 @@ int ha_maria::create(const char *name, register TABLE *table_arg,
 
   if (ha_create_info->tmp_table())
   {
-    create_flags|= HA_CREATE_TMP_TABLE;
+    create_flags|= HA_CREATE_TMP_TABLE | HA_CREATE_DELAY_KEY_WRITE;
     create_info.transactional= 0;
   }
   if (ha_create_info->options & HA_CREATE_KEEP_FILES)
