@@ -678,7 +678,7 @@ int ha_partition::create(const char *name, TABLE *table_arg,
   DBUG_ASSERT(*fn_rext((char*)name) == '\0');
 
   /* Not allowed to create temporary partitioned tables */
-  if (create_info && create_info->options & HA_LEX_CREATE_TMP_TABLE)
+  if (create_info && create_info->tmp_table())
   {
     my_error(ER_PARTITION_NO_TEMPORARY, MYF(0));
     DBUG_RETURN(TRUE);

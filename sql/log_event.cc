@@ -3015,7 +3015,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
     case SQLCOM_CREATE_TABLE:
       trx_cache= (lex->select_lex.item_list.elements &&
                   thd->is_current_stmt_binlog_format_row());
-      use_cache= ((lex->create_info.options & HA_LEX_CREATE_TMP_TABLE) &&
+      use_cache= (lex->create_info.tmp_table() &&
                    thd->in_multi_stmt_transaction_mode()) || trx_cache;
       break;
     case SQLCOM_SET_OPTION:

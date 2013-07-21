@@ -211,7 +211,7 @@ static bool stmt_causes_implicit_commit(THD *thd, uint mask)
   case SQLCOM_ALTER_TABLE:
   case SQLCOM_CREATE_TABLE:
     /* If CREATE TABLE of non-temporary table, do implicit commit */
-    skip= (lex->create_info.options & HA_LEX_CREATE_TMP_TABLE);
+    skip= lex->create_info.tmp_table();
     break;
   case SQLCOM_SET_OPTION:
     skip= lex->autocommit ? FALSE : TRUE;
@@ -1029,7 +1029,7 @@ static my_bool deny_updates_if_read_only_option(THD *thd,
 
   const my_bool create_temp_tables= 
     (lex->sql_command == SQLCOM_CREATE_TABLE) &&
-    (lex->create_info.options & HA_LEX_CREATE_TMP_TABLE);
+    lex->create_info.tmp_table();
 
   const my_bool drop_temp_tables= 
     (lex->sql_command == SQLCOM_DROP_TABLE) &&
@@ -2927,7 +2927,7 @@ case SQLCOM_PREPARE:
         lex->unlink_first_table(&link_to_local);
 
         /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
-        if (create_info.options & HA_LEX_CREATE_TMP_TABLE)
+        if (create_info.tmp_table())
           thd->variables.option_bits|= OPTION_KEEP_LOG;
 
         /*
@@ -2956,7 +2956,7 @@ case SQLCOM_PREPARE:
     else
     {
       /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
-      if (create_info.options & HA_LEX_CREATE_TMP_TABLE)
+      if (create_info.tmp_table())
         thd->variables.option_bits|= OPTION_KEEP_LOG;
       /* regular create */
       if (create_info.options & HA_LEX_CREATE_TABLE_LIKE)
@@ -7771,7 +7771,7 @@ void create_table_set_open_action_and_adjust_tables(LEX *lex)
 {
   TABLE_LIST *create_table= lex->query_tables;
 
-  if (lex->create_info.options & HA_LEX_CREATE_TMP_TABLE)
+  if (lex->create_info.tmp_table())
     create_table->open_type= OT_TEMPORARY_ONLY;
   else
     create_table->open_type= OT_BASE_ONLY;
@@ -7817,8 +7817,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
     CREATE TABLE ... SELECT, also require INSERT.
   */
 
-  want_priv= (lex->create_info.options & HA_LEX_CREATE_TMP_TABLE) ?
-             CREATE_TMP_ACL :
+  want_priv= lex->create_info.tmp_table() ?  CREATE_TMP_ACL :
              (CREATE_ACL | (select_lex->item_list.elements ? INSERT_ACL : 0));
 
   if (check_access(thd, want_priv, create_table->db,

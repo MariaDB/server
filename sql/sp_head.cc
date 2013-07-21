@@ -260,7 +260,7 @@ sp_get_flags_for_command(LEX *lex)
     flags= sp_head::CONTAINS_DYNAMIC_SQL;
     break;
   case SQLCOM_CREATE_TABLE:
-    if (lex->create_info.options & HA_LEX_CREATE_TMP_TABLE)
+    if (lex->create_info.tmp_table())
       flags= 0;
     else
       flags= sp_head::HAS_COMMIT_OR_ROLLBACK;
@@ -4056,7 +4056,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
           return FALSE;
         if (lex_for_tmp_check->sql_command == SQLCOM_CREATE_TABLE &&
             lex_for_tmp_check->query_tables == table &&
-            lex_for_tmp_check->create_info.options & HA_LEX_CREATE_TMP_TABLE)
+            lex_for_tmp_check->create_info.tmp_table())
         {
           tab->temp= TRUE;
           tab->qname.length= temp_table_key_length;

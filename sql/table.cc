@@ -2029,7 +2029,7 @@ static bool sql_unusable_for_discovery(THD *thd, const char *sql)
   if (lex->select_lex.item_list.elements)
     return 1;
   // ... temporary
-  if (create_info->options & HA_LEX_CREATE_TMP_TABLE)
+  if (create_info->tmp_table())
     return 1;
   // ... if exists
   if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)

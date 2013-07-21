@@ -3051,7 +3051,7 @@ int ha_maria::create(const char *name, register TABLE *table_arg,
   create_info.transactional= (row_type == BLOCK_RECORD &&
                               ha_create_info->transactional != HA_CHOICE_NO);
 
-  if (ha_create_info->options & HA_LEX_CREATE_TMP_TABLE)
+  if (ha_create_info->tmp_table())
   {
     create_flags|= HA_CREATE_TMP_TABLE;
     create_info.transactional= 0;

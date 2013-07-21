@@ -3895,7 +3895,7 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
     {
       DEBUG_SYNC(thd,"create_table_select_before_open");
 
-      if (!(create_info->options & HA_LEX_CREATE_TMP_TABLE))
+      if (!create_info->tmp_table())
       {
         Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
         /*
@@ -4040,7 +4040,7 @@ select_create::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     row-based replication for the statement.  If we are creating a
     temporary table, we need to start a statement transaction.
   */
-  if ((thd->lex->create_info.options & HA_LEX_CREATE_TMP_TABLE) == 0 &&
+  if (!thd->lex->create_info.tmp_table() &&
       thd->is_current_stmt_binlog_format_row() &&
       mysql_bin_log.is_open())
   {
@@ -4061,7 +4061,7 @@ select_create::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   {
     DBUG_ASSERT(m_plock == NULL);
 
-    if (create_info->options & HA_LEX_CREATE_TMP_TABLE)
+    if (create_info->tmp_table())
       m_plock= &m_lock;
     else
       m_plock= &thd->extra_lock;
