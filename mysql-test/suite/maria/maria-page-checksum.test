@@ -19,7 +19,7 @@ select @@global.aria_page_checksum;
 # (first value of aria_page_checksum) x (clauses in CREATE TABLE) x
 # (second value of aria_page_checksum) x (clauses in ALTER TABLE).
 
---echo # iteration 1
+--echo # iteration 1a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -48,7 +48,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 2
+--echo # iteration 2a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -77,7 +77,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 3
+--echo # iteration 3a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -106,7 +106,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 4
+--echo # iteration 4a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -135,7 +135,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 5
+--echo # iteration 5a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -164,7 +164,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 6
+--echo # iteration 6a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -193,7 +193,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 7
+--echo # iteration 7a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -222,7 +222,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 8
+--echo # iteration 8a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -251,7 +251,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 9
+--echo # iteration 9a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -280,7 +280,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 10
+--echo # iteration 10a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -309,7 +309,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 11
+--echo # iteration 11a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -338,7 +338,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 12
+--echo # iteration 12a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -367,7 +367,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 13
+--echo # iteration 13a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -396,7 +396,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 14
+--echo # iteration 14a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -425,7 +425,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 15
+--echo # iteration 15a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -454,7 +454,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 16
+--echo # iteration 16a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -483,7 +483,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 17
+--echo # iteration 17a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -512,7 +512,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 18
+--echo # iteration 18a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -541,7 +541,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 19
+--echo # iteration 19a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -570,7 +570,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 20
+--echo # iteration 20a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -599,7 +599,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 21
+--echo # iteration 21a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -628,7 +628,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 22
+--echo # iteration 22a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -657,7 +657,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 23
+--echo # iteration 23a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -686,7 +686,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 24
+--echo # iteration 24a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -715,7 +715,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 25
+--echo # iteration 25a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -744,7 +744,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 26
+--echo # iteration 26a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -773,7 +773,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 27
+--echo # iteration 27a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -802,7 +802,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 28
+--echo # iteration 28a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -831,7 +831,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 29
+--echo # iteration 29a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -860,7 +860,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 30
+--echo # iteration 30a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -889,7 +889,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 31
+--echo # iteration 31a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -918,7 +918,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 32
+--echo # iteration 32a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -947,7 +947,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 33
+--echo # iteration 33a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -976,7 +976,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 34
+--echo # iteration 34a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -1005,7 +1005,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 35
+--echo # iteration 35a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -1034,7 +1034,7 @@ perl;
 EOF
 drop table t1;
 
---echo # iteration 36
+--echo # iteration 36a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -1071,7 +1071,7 @@ drop table t1;
 # we scan through combinations in the cartesian product of
 # (clauses in CREATE TABLE) x (clauses in ALTER TABLE).
 
---echo # iteration 1
+--echo # iteration 1b
 create table t1(a int) engine=aria  ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1098,7 +1098,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 2
+--echo # iteration 2b
 create table t1(a int) engine=aria  ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1125,7 +1125,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 3
+--echo # iteration 3b
 create table t1(a int) engine=aria  ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1152,7 +1152,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 4
+--echo # iteration 4b
 create table t1(a int) engine=aria  ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1179,7 +1179,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 5
+--echo # iteration 5b
 create table t1(a int) engine=aria  ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1206,7 +1206,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 6
+--echo # iteration 6b
 create table t1(a int) engine=aria  ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1233,7 +1233,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 7
+--echo # iteration 7b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1260,7 +1260,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 8
+--echo # iteration 8b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1287,7 +1287,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 9
+--echo # iteration 9b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1314,7 +1314,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 10
+--echo # iteration 10b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1341,7 +1341,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 11
+--echo # iteration 11b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1368,7 +1368,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 12
+--echo # iteration 12b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1395,7 +1395,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 13
+--echo # iteration 13b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1422,7 +1422,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 14
+--echo # iteration 14b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1449,7 +1449,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 15
+--echo # iteration 15b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1476,7 +1476,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 16
+--echo # iteration 16b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1503,7 +1503,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 17
+--echo # iteration 17b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
@@ -1530,7 +1530,7 @@ EOF
 drop table t1;
 
 
---echo # iteration 18
+--echo # iteration 18b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
 --exec $MARIA_CHK -dv $MYSQLD_DATADIR/test/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt

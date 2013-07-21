@@ -815,7 +815,7 @@ table_def::compatible_with(THD *thd, Relay_log_info *rli,
   /*
     We only check the initial columns for the tables.
   */
-  uint const cols_to_check= min(table->s->fields, size());
+  uint const cols_to_check= MY_MIN(table->s->fields, size());
   TABLE *tmp_table= NULL;
 
   for (uint col= 0 ; col < cols_to_check ; ++col)
@@ -916,10 +916,10 @@ TABLE *table_def::create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *
   List<Create_field> field_list;
   /*
     At slave, columns may differ. So we should create
-    min(columns@master, columns@slave) columns in the
+    MY_MIN(columns@master, columns@slave) columns in the
     conversion table.
   */
-  uint const cols_to_create= min(target_table->s->fields, size());
+  uint const cols_to_create= MY_MIN(target_table->s->fields, size());
   for (uint col= 0 ; col < cols_to_create; ++col)
   {
     Create_field *field_def=

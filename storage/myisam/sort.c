@@ -132,7 +132,7 @@ int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages,
   sort_keys= (uchar **) NULL; error= 1;
   maxbuffer=1;
 
-  memavl= max(sortbuff_size, MIN_SORT_BUFFER);
+  memavl= MY_MAX(sortbuff_size, MIN_SORT_BUFFER);
   records=	info->sort_info->max_records;
   sort_length=	info->key_length;
   LINT_INIT(keys);
@@ -153,7 +153,7 @@ int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages,
         will be allocated when needed.
       */
       keys= memavl / (sort_length+sizeof(char*));
-      maxbuffer= (uint) min((ulonglong) 1000, (records / keys)+1);
+      maxbuffer= (uint) MY_MIN((ulonglong) 1000, (records / keys)+1);
     }
     else
     {
@@ -185,7 +185,7 @@ int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages,
 				       HA_FT_MAXBYTELEN, MYF(0))))
     {
       if (my_init_dynamic_array(&buffpek, sizeof(BUFFPEK), maxbuffer,
-                                min(maxbuffer/2, 1000), MYF(0)))
+                                MY_MIN(maxbuffer/2, 1000), MYF(0)))
       {
 	my_free(sort_keys);
         sort_keys= 0;
@@ -380,7 +380,7 @@ pthread_handler_t thr_find_all_keys(void *arg)
     sort_keys= (uchar **) NULL;
 
     sortbuff_size= sort_param->sortbuff_size;
-    memavl=       max(sortbuff_size, MIN_SORT_BUFFER);
+    memavl=       MY_MAX(sortbuff_size, MIN_SORT_BUFFER);
     idx=          (ha_keys) sort_param->sort_info->max_records;
     sort_length=  sort_param->key_length;
     maxbuffer=    1;
@@ -400,7 +400,7 @@ pthread_handler_t thr_find_all_keys(void *arg)
           will be allocated when needed.
         */
         keys= memavl / (sort_length+sizeof(char*));
-        maxbuffer= (uint) min((ulonglong) 1000, (idx / keys)+1);
+        maxbuffer= (uint) MY_MIN((ulonglong) 1000, (idx / keys)+1);
       }
       else
       {
@@ -427,7 +427,7 @@ pthread_handler_t thr_find_all_keys(void *arg)
                       HA_FT_MAXBYTELEN : 0), MYF(0))))
       {
         if (my_init_dynamic_array(&sort_param->buffpek, sizeof(BUFFPEK),
-                                  maxbuffer, min(maxbuffer/2, 1000), MYF(0)))
+                                  maxbuffer, MY_MIN(maxbuffer/2, 1000), MYF(0)))
         {
           my_free(sort_keys);
           sort_keys= (uchar **) NULL; /* for err: label */
@@ -877,7 +877,7 @@ static my_off_t read_to_buffer(IO_CACHE *fromfile, BUFFPEK *buffpek,
   register ha_keys count;
   my_off_t length;
 
-  if ((count= (ha_keys) min((ha_rows) buffpek->max_keys,buffpek->count)))
+  if ((count= (ha_keys) MY_MIN((ha_rows) buffpek->max_keys,buffpek->count)))
   {
     if (mysql_file_pread(fromfile->file, (uchar*) buffpek->base,
                          (length= sort_length * count),
@@ -900,7 +900,7 @@ static my_off_t read_to_buffer_varlen(IO_CACHE *fromfile, BUFFPEK *buffpek,
   uint idx;
   uchar *buffp;
 
-  if ((count= (ha_keys) min((ha_rows) buffpek->max_keys,buffpek->count)))
+  if ((count= (ha_keys) MY_MIN((ha_rows) buffpek->max_keys,buffpek->count)))
   {
     buffp = buffpek->base;
 

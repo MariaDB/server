@@ -92,6 +92,8 @@ private:
 
 /*
   A typesafe wrapper around DYNAMIC_ARRAY
+
+  TODO: Change creator to take a THREAD_SPECIFIC option.
 */
 
 template <class Elem> class Dynamic_array
@@ -100,28 +102,64 @@ template <class Elem> class Dynamic_array
 public:
   Dynamic_array(uint prealloc=16, uint increment=16)
   {
-    my_init_dynamic_array(&array, sizeof(Elem), prealloc, increment,
-                          MYF(MY_THREAD_SPECIFIC));
+    init(prealloc, increment);
   }
 
+  void init(uint prealloc=16, uint increment=16)
+  {
+    my_init_dynamic_array(&array, sizeof(Elem), prealloc, increment,
+                          MYF(0));
+  }
+
+  /**
+     @note Though formally this could be declared "const" it would be
+     misleading at it returns a non-const pointer to array's data.
+  */
   Elem& at(size_t idx)
   {
     return *(((Elem*)array.buffer) + idx);
   }
+  /// Const variant of at(), which cannot change data
+  const Elem& at(size_t idx) const
+  {
+    return *(((Elem*)array.buffer) + idx);
+  }
 
+  /// @returns pointer to first element; undefined behaviour if array is empty
   Elem *front()
   {
+    DBUG_ASSERT(array.elements >= 1);
     return (Elem*)array.buffer;
   }
 
-  Elem *back()
+  /// @returns pointer to first element; undefined behaviour if array is empty
+  const Elem *front() const
   {
-    return ((Elem*)array.buffer) + array.elements;
+    DBUG_ASSERT(array.elements >= 1);
+    return (const Elem*)array.buffer;
   }
 
-  bool append(Elem &el)
+  /// @returns pointer to last element; undefined behaviour if array is empty.
+  Elem *back()
   {
-    return (insert_dynamic(&array, (uchar*)&el));
+    DBUG_ASSERT(array.elements >= 1);
+    return ((Elem*)array.buffer) + (array.elements - 1);
+  }
+
+  /// @returns pointer to last element; undefined behaviour if array is empty.
+  const Elem *back() const
+  {
+    DBUG_ASSERT(array.elements >= 1);
+    return ((const Elem*)array.buffer) + (array.elements - 1);
+  }
+
+  /**
+     @retval false ok
+     @retval true  OOM, @c my_error() has been called.
+  */
+  bool append(const Elem &el)
+  {
+    return insert_dynamic(&array, &el);
   }
 
   bool append_val(Elem el)
@@ -129,14 +167,36 @@ public:
     return (insert_dynamic(&array, (uchar*)&el));
   }
 
-  size_t elements()
+  /// Pops the last element. Does nothing if array is empty.
+  Elem& pop()
+  {
+    return *((Elem*)pop_dynamic(&array));
+  }
+
+  void del(uint idx)
+  {
+    delete_dynamic_element(&array, idx);
+  }
+
+  size_t elements() const
   {
     return array.elements;
   }
 
-  void set_elements(size_t n)
+  void elements(size_t num_elements)
   {
-    array.elements= n;
+    DBUG_ASSERT(num_elements <= array.max_element);
+    array.elements= num_elements;
+  }
+
+  void clear()
+  {
+    elements(0);
+  }
+
+  void set(uint idx, const Elem &el)
+  {
+    set_dynamic(&array, &el, idx);
   }
 
   ~Dynamic_array()
@@ -149,76 +209,6 @@ public:
   void sort(CMP_FUNC cmp_func)
   {
     my_qsort(array.buffer, array.elements, sizeof(Elem), (qsort_cmp)cmp_func);
-  }
-};
-
-/* 
-  Array of pointers to Elem that uses memory from MEM_ROOT
-
-  MEM_ROOT has no realloc() so this is supposed to be used for cases when
-  reallocations are rare.
-*/
-
-template <class Elem> class Array
-{
-  enum {alloc_increment = 16};
-  Elem **buffer;
-  uint n_elements, max_element;
-public:
-  Array(MEM_ROOT *mem_root, uint prealloc=16)
-  {
-    buffer= (Elem**)alloc_root(mem_root, prealloc * sizeof(Elem**));
-    max_element = buffer? prealloc : 0;
-    n_elements= 0;
-  }
-
-  Elem& at(int idx)
-  {
-    return *(((Elem*)buffer) + idx);
-  }
-
-  Elem **front()
-  {
-    return buffer;
-  }
-
-  Elem **back()
-  {
-    return buffer + n_elements;
-  }
-
-  bool append(MEM_ROOT *mem_root, Elem *el)
-  {
-    if (n_elements == max_element)
-    {
-      Elem **newbuf;
-      if (!(newbuf= (Elem**)alloc_root(mem_root, (n_elements + alloc_increment)*
-                                                  sizeof(Elem**))))
-      {
-        return FALSE;
-      }
-      memcpy(newbuf, buffer, n_elements*sizeof(Elem*));
-      buffer= newbuf;
-    }
-    buffer[n_elements++]= el;
-    return FALSE;
-  }
-
-  int elements()
-  {
-    return n_elements;
-  }
-
-  void clear()
-  {
-    n_elements= 0;
-  }
-
-  typedef int (*CMP_FUNC)(Elem * const *el1, Elem *const *el2);
-
-  void sort(CMP_FUNC cmp_func)
-  {
-    my_qsort(buffer, n_elements, sizeof(Elem*), (qsort_cmp)cmp_func);
   }
 };
 

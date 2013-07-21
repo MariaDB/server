@@ -180,7 +180,7 @@ drop table bug16905;
 truncate table mysql.slow_log;
 set session long_query_time=1;
 select sleep(2);
---replace_column 1 TIMESTAMP 2 USER_HOST 3 QUERY_TIME
+--replace_column 1 TIMESTAMP 2 USER_HOST 3 QUERY_TIME 12 THREAD_ID
 select * from mysql.slow_log;
 set @@session.long_query_time = @saved_long_query_time;
 
@@ -290,10 +290,10 @@ drop table mysql.slow_log;
 use mysql;
 
 CREATE TABLE `general_log` (
-  `event_time` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `event_time` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP 
                          ON UPDATE CURRENT_TIMESTAMP,
   `user_host` mediumtext NOT NULL,
-  `thread_id` int(11) NOT NULL,
+  `thread_id` BIGINT(21) UNSIGNED NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `command_type` varchar(64) NOT NULL,
   `argument` mediumtext NOT NULL
@@ -311,7 +311,8 @@ CREATE TABLE `slow_log` (
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
-  `sql_text` mediumtext NOT NULL
+  `sql_text` mediumtext NOT NULL,
+  `thread_id` BIGINT(21) UNSIGNED NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log';
 
 set global general_log='ON';
@@ -746,6 +747,7 @@ BEGIN
   DECLARE start_time, query_time, lock_time CHAR(28);
   DECLARE user_host MEDIUMTEXT;
   DECLARE rows_set, rows_examined, last_insert_id, insert_id, server_id INT;
+  DECLARE thread_id BIGINT UNSIGNED;
   DECLARE dbname MEDIUMTEXT;
   DECLARE sql_text BLOB;
   DECLARE done INT DEFAULT 0;
@@ -763,7 +765,7 @@ BEGIN
         FETCH cur1 INTO
            start_time, user_host, query_time, lock_time,
            rows_set, rows_examined, dbname, last_insert_id,
-           insert_id, server_id, sql_text;
+           insert_id, server_id, sql_text, thread_id;
       END;
 
       IF NOT done THEN
@@ -771,7 +773,7 @@ BEGIN
           INSERT INTO
             `db_17876.slow_log_data`
             VALUES(start_time, user_host, query_time, lock_time, rows_set, rows_examined,
-                   dbname, last_insert_id,  insert_id, server_id, sql_text);
+                   dbname, last_insert_id,  insert_id, server_id, sql_text, thread_id);
         END;
       END IF;
     END;

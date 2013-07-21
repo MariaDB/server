@@ -12,11 +12,7 @@
 
 # Enforce a clean state
 --source ../include/wait_for_pfs_thread_count.inc
-
-flush status;
-flush hosts;
-flush user_resources;
-select @@global.debug;
+--source ../include/hostcache_set_state.inc
 
 create user 'user_without'@'santa.claus.ipv6.example.com';
 create user 'user_with'@'santa.claus.ipv6.example.com'
@@ -30,7 +26,7 @@ select current_user();
 disconnect con1;
 
 --connection default
-set global debug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6";
 
 --disable_query_log
 --error ER_ACCESS_DENIED_ERROR
@@ -83,5 +79,5 @@ connect (con2f,"::1",user_with,wrong_password,test,$MASTER_MYPORT,);
 drop user 'user_with'@'santa.claus.ipv6.example.com';
 drop user 'user_without'@'santa.claus.ipv6.example.com';
 
-set global debug= default;
+set global debug_dbug= default;
 

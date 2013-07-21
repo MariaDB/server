@@ -614,6 +614,19 @@ const char *in_left_expr_name= "<left expr>";
 const char *in_additional_cond= "<IN COND>";
 const char *in_having_cond= "<IN HAVING>";
 
+/** Number of connection errors when selecting on the listening port */
+ulong connection_errors_select= 0;
+/** Number of connection errors when accepting sockets in the listening port. */
+ulong connection_errors_accept= 0;
+/** Number of connection errors from TCP wrappers. */
+ulong connection_errors_tcpwrap= 0;
+/** Number of connection errors from internal server errors. */
+ulong connection_errors_internal= 0;
+/** Number of connection errors from the server max_connection limit. */
+ulong connection_errors_max_connection= 0;
+/** Number of errors when reading the peer address. */
+ulong connection_errors_peer_addr= 0;
+
 /* classes for comparation parsing/processing */
 Eq_creator eq_creator;
 Ne_creator ne_creator;
@@ -811,8 +824,6 @@ static struct my_option pfs_early_options[] __attribute__((unused)) =
     GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0}
 };
 
-
-
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
 PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active, key_LOCK_pool,
@@ -854,6 +865,7 @@ PSI_mutex_key key_LOCK_stats,
 PSI_mutex_key key_LOCK_rpl_gtid_state;
 
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
+PSI_mutex_key key_TABLE_SHARE_LOCK_share;
 
 static PSI_mutex_info all_server_mutexes[]=
 {
@@ -911,6 +923,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_relay_log_info_sleep_lock, "Relay_log_info::sleep_lock", 0},
   { &key_structure_guard_mutex, "Query_cache::structure_guard_mutex", 0},
   { &key_TABLE_SHARE_LOCK_ha_data, "TABLE_SHARE::LOCK_ha_data", 0},
+  { &key_TABLE_SHARE_LOCK_share, "TABLE_SHARE::LOCK_share", 0},
   { &key_LOCK_error_messages, "LOCK_error_messages", PSI_FLAG_GLOBAL},
   { &key_LOCK_prepare_ordered, "LOCK_prepare_ordered", PSI_FLAG_GLOBAL},
   { &key_LOCK_commit_ordered, "LOCK_commit_ordered", PSI_FLAG_GLOBAL},
@@ -1102,7 +1115,8 @@ void net_after_header_psi(struct st_net *net, void *user_data, size_t /* unused:
     {
       thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                                   stmt_info_new_packet.m_key,
-                                                  thd->db, thd->db_length);
+                                                  thd->db, thd->db_length,
+                                                  thd->charset());
 
       THD_STAGE_INFO(thd, stage_init);
     }
@@ -1134,12 +1148,6 @@ void init_net_server_extension(THD *thd)
 }
 #endif /* EMBEDDED_LIBRARY */
 
-/*
-  Since buffered_option_error_reporter is only used currently
-  for parsing performance schema options, this code is not needed
-  when the performance schema is not compiled in.
-*/
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 /**
   A log message for the error log, buffered in memory.
   Log messages are temporarily buffered when generated before the error log
@@ -1275,13 +1283,16 @@ void Buffered_logs::print()
 /** Logs reported before a logger is available. */
 static Buffered_logs buffered_logs;
 
+static MYSQL_SOCKET unix_sock, base_ip_sock, extra_ip_sock;
+struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
+
 #ifndef EMBEDDED_LIBRARY
 /**
   Error reporter that buffer log messages.
   @param level          log message level
   @param format         log message format string
 */
-C_MODE_START
+
 static void buffered_option_error_reporter(enum loglevel level,
                                            const char *format, ...)
 {
@@ -1293,14 +1304,7 @@ static void buffered_option_error_reporter(enum loglevel level,
   va_end(args);
   buffered_logs.buffer(level, buffer);
 }
-C_MODE_END
-#endif /* !EMBEDDED_LIBRARY */
-#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
-static MYSQL_SOCKET unix_sock, base_ip_sock, extra_ip_sock;
-struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
-
-#ifndef EMBEDDED_LIBRARY
 struct passwd *user_info;
 static pthread_t select_thread;
 #endif
@@ -2710,7 +2714,7 @@ static bool cache_thread()
       Delete the instrumentation for the job that just completed,
       before parking this pthread in the cache (blocked on COND_thread_cache).
     */
-    PSI_CALL(delete_current_thread)();
+    PSI_THREAD_CALL(delete_current_thread)();
 #endif
 
     while (!abort_loop && ! wake_thread && ! kill_cached_threads)
@@ -2733,9 +2737,9 @@ static bool cache_thread()
         Create new instrumentation for the new THD job,
         and attach it to this running pthread.
       */
-      PSI_thread *psi= PSI_CALL(new_thread)(key_thread_one_connection,
-                                            thd, thd->thread_id);
-      PSI_CALL(set_thread)(psi);
+      PSI_thread *psi= PSI_THREAD_CALL(new_thread)(key_thread_one_connection,
+                                                   thd, thd->thread_id);
+      PSI_THREAD_CALL(set_thread)(psi);
 #endif
 
       /*
@@ -3264,7 +3268,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
 	abort_loop=1;				// mark abort for threads
 #ifdef HAVE_PSI_THREAD_INTERFACE
         /* Delete the instrumentation for the signal thread */
-        PSI_CALL(delete_current_thread)();
+        PSI_THREAD_CALL(delete_current_thread)();
 #endif
 #ifdef USE_ONE_SIGNAL_HAND
 	pthread_t tmp;
@@ -3334,7 +3338,7 @@ extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 void my_message_sql(uint error, const char *str, myf MyFlags)
 {
   THD *thd= current_thd;
-  MYSQL_ERROR::enum_warning_level level;
+  Sql_condition::enum_warning_level level;
   sql_print_message_func func;
   DBUG_ENTER("my_message_sql");
   DBUG_PRINT("error", ("error: %u  message: '%s'  Flag: %lu", error, str,
@@ -3346,17 +3350,17 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_ERROR, error, str);
   if (MyFlags & ME_JUST_INFO)
   {
-    level= MYSQL_ERROR::WARN_LEVEL_NOTE;
+    level= Sql_condition::WARN_LEVEL_NOTE;
     func= sql_print_information;
   }
   else if (MyFlags & ME_JUST_WARNING)
   {
-    level= MYSQL_ERROR::WARN_LEVEL_WARN;
+    level= Sql_condition::WARN_LEVEL_WARN;
     func= sql_print_warning;
   }
   else
   {
-    level= MYSQL_ERROR::WARN_LEVEL_ERROR;
+    level= Sql_condition::WARN_LEVEL_ERROR;
     func= sql_print_error;
   }
 
@@ -3520,6 +3524,7 @@ SHOW_VAR com_status_vars[]= {
   {"empty_query",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_EMPTY_QUERY]), SHOW_LONG_STATUS},
   {"execute_sql",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_EXECUTE]), SHOW_LONG_STATUS},
   {"flush",                (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_FLUSH]), SHOW_LONG_STATUS},
+  {"get_diagnostics",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_GET_DIAGNOSTICS]), SHOW_LONG_STATUS},
   {"grant",                (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_GRANT]), SHOW_LONG_STATUS},
   {"ha_close",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_HA_CLOSE]), SHOW_LONG_STATUS},
   {"ha_open",              (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_HA_OPEN]), SHOW_LONG_STATUS},
@@ -3725,13 +3730,17 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
         However, this should never happen, so better to assert and
         fix this.
       */
+#ifdef ENABLE_BEFORE_END_OF_MERGE_QQ
       DBUG_ASSERT(thd);
+#endif
       if (thd)
       {
         DBUG_PRINT("info", ("memory_used: %lld  size: %lld",
                             (longlong) thd->status_var.memory_used, size));
         thd->status_var.memory_used+= size;
+#ifdef ENABLE_BEFORE_END_OF_MERGE_QQ
         DBUG_ASSERT((longlong) thd->status_var.memory_used >= 0);
+#endif
       }
     }
   }
@@ -3745,6 +3754,12 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 static int init_common_variables()
 {
   umask(((~my_umask) & 0666));
+  connection_errors_select= 0;
+  connection_errors_accept= 0;
+  connection_errors_tcpwrap= 0;
+  connection_errors_internal= 0;
+  connection_errors_max_connection= 0;
+  connection_errors_peer_addr= 0;
   my_decimal_set_zero(&decimal_zero); // set decimal_zero constant;
 
   if (pthread_key_create(&THR_THD,NULL) ||
@@ -4008,7 +4023,7 @@ static int init_common_variables()
       can't get max_connections*5 but still got no less than was
       requested (value of wanted_files).
     */
-    max_open_files= max(max(wanted_files,
+    max_open_files= MY_MAX(MY_MAX(wanted_files,
                             (max_connections + extra_max_connections)*5),
                         open_files_limit);
     files= my_set_max_open_files(max_open_files);
@@ -4021,15 +4036,15 @@ static int init_common_variables()
           If we have requested too much file handles than we bring
           max_connections in supported bounds.
         */
-        max_connections= (ulong) min(files-10-TABLE_OPEN_CACHE_MIN*2,
+        max_connections= (ulong) MY_MIN(files-10-TABLE_OPEN_CACHE_MIN*2,
                                      max_connections);
         /*
           Decrease table_cache_size according to max_connections, but
-          not below TABLE_OPEN_CACHE_MIN.  Outer min() ensures that we
+          not below TABLE_OPEN_CACHE_MIN.  Outer MY_MIN() ensures that we
           never increase table_cache_size automatically (that could
           happen if max_connections is decreased above).
         */
-        table_cache_size= (ulong) min(max((files-10-max_connections)/2,
+        table_cache_size= (ulong) MY_MIN(MY_MAX((files-10-max_connections)/2,
                                           TABLE_OPEN_CACHE_MIN),
                                       table_cache_size);
 	DBUG_PRINT("warning",
@@ -5023,7 +5038,6 @@ int mysqld_main(int argc, char **argv)
 
   sys_var_init();
 
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
     The performance schema needs to be initialized as early as possible,
     before to-be-instrumented objects of the server are initialized.
@@ -5051,22 +5065,30 @@ int mysqld_main(int argc, char **argv)
   my_charset_error_reporter= buffered_option_error_reporter;
   pfs_param.m_pfs_instrument= const_cast<char*>("");
 
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
     Initialize the array of performance schema instrument configurations.
   */
   init_pfs_instrument_array();
+#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
   ho_error= handle_options(&remaining_argc, &remaining_argv,
                            (my_option*)(all_early_options.buffer),
                            mysqld_get_one_option);
   delete_dynamic(&all_early_options);
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   if (ho_error == 0)
   {
     /* Add back the program name handle_options removes */
     remaining_argc++;
     remaining_argv--;
-    if (pfs_param.m_enabled)
+    if (pfs_param.m_enabled  && !opt_help && !opt_bootstrap)
     {
+      /* Add sizing hints from the server sizing parameters. */
+      pfs_param.m_hints.m_table_definition_cache= table_def_size;
+      pfs_param.m_hints.m_table_open_cache= table_cache_size;
+      pfs_param.m_hints.m_max_connections= max_connections;
+      pfs_param.m_hints.m_open_files_limit= open_files_limit;
       PSI_hook= initialize_performance_schema(&pfs_param);
       if (PSI_hook == NULL)
       {
@@ -5107,8 +5129,8 @@ int mysqld_main(int argc, char **argv)
       */
       init_server_psi_keys();
       /* Instrument the main thread */
-      PSI_thread *psi= PSI_CALL(new_thread)(key_thread_main, NULL, 0);
-      PSI_CALL(set_thread)(psi);
+      PSI_thread *psi= PSI_THREAD_CALL(new_thread)(key_thread_main, NULL, 0);
+      PSI_THREAD_CALL(set_thread)(psi);
 
       /*
         Now that some instrumentation is in place,
@@ -5387,7 +5409,7 @@ int mysqld_main(int argc, char **argv)
     Disable the main thread instrumentation,
     to avoid recording events during the shutdown.
   */
-  PSI_CALL(delete_current_thread)();
+  PSI_THREAD_CALL(delete_current_thread)();
 #endif
 
   /* Wait until cleanup is done */
@@ -5769,6 +5791,7 @@ void create_thread_to_handle_connection(THD *thd)
     mysql_mutex_unlock(&LOCK_connection_count);
 
     statistic_increment(aborted_connects,&LOCK_status);
+    statistic_increment(connection_errors_internal, &LOCK_status);
     /* Can't use my_error() since store_globals has not been called. */
     my_snprintf(error_message_buff, sizeof(error_message_buff),
                 ER_THD(thd, ER_CANT_CREATE_THREAD), error);
@@ -5822,6 +5845,7 @@ static void create_new_thread(THD *thd)
     close_connection(thd, ER_CON_COUNT_ERROR);
     statistic_increment(denied_connections, &LOCK_status);
     delete thd;
+    statistic_increment(connection_errors_max_connection, &LOCK_status);
     DBUG_VOID_RETURN;
   }
 
@@ -5934,6 +5958,12 @@ void handle_connections_sockets()
     {
       if (socket_errno != SOCKET_EINTR)
       {
+        /*
+          select(2)/poll(2) failed on the listening port.
+          There is not much details to report about the client,
+          increment the server global status variable.
+        */
+        statistic_increment(connection_errors_accept, &LOCK_status);
 	if (!select_errors++ && !abort_loop)	/* purecov: inspected */
 	  sql_print_error("mysqld: Got error %d from select",socket_errno); /* purecov: inspected */
       }
@@ -6014,6 +6044,12 @@ void handle_connections_sockets()
 #endif
     if (mysql_socket_getfd(new_sock) == INVALID_SOCKET)
     {
+      /*
+        accept(2) failed on the listening port, after many retries.
+        There is not much details to report about the client,
+        increment the server global status variable.
+      */
+      statistic_increment(connection_errors_accept, &LOCK_status);
       if ((error_count++ & 255) == 0)		// This can happen often
 	sql_perror("Error in accept");
       MAYBE_BROKEN_SYSCALL;
@@ -6053,6 +6089,11 @@ void handle_connections_sockets()
 
 	  (void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
 	  (void) mysql_socket_close(new_sock);
+          /*
+            The connection was refused by TCP wrappers.
+            There are no details (by client IP) available to update the host_cache.
+          */
+          statistic_increment(connection_tcpwrap_errors, &LOCK_status);
 	  continue;
 	}
       }
@@ -6068,6 +6109,7 @@ void handle_connections_sockets()
     {
       (void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
       (void) mysql_socket_close(new_sock);
+      statistic_increment(connection_errors_internal, &LOCK_status);
       continue;
     }
     /* Set to get io buffers to be part of THD */
@@ -6096,6 +6138,7 @@ void handle_connections_sockets()
       }
       delete thd;
       set_current_thd(0);
+      statistic_increment(connection_errors_internal, &LOCK_status);
       continue;
     }
 
@@ -6960,7 +7003,7 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
-                    MYSQL_ERROR::WARN_LEVEL_NOTE);
+                    Sql_condition::WARN_LEVEL_NOTE);
   if (mi)
     tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_CONNECT &&
                     mi->rli.slave_running);
@@ -6986,7 +7029,7 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
-                    MYSQL_ERROR::WARN_LEVEL_NOTE);
+                    Sql_condition::WARN_LEVEL_NOTE);
   if (mi)
     tmp= mi->received_heartbeats;
   mysql_mutex_unlock(&LOCK_active_mi);
@@ -7011,7 +7054,7 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
-                    MYSQL_ERROR::WARN_LEVEL_NOTE);
+                    Sql_condition::WARN_LEVEL_NOTE);
   if (mi)
     tmp= mi->heartbeat_period;
   mysql_mutex_unlock(&LOCK_active_mi);
@@ -7483,6 +7526,12 @@ SHOW_VAR status_vars[]= {
   {"Com",                      (char*) com_status_vars, SHOW_ARRAY},
   {"Compression",              (char*) &show_net_compression, SHOW_SIMPLE_FUNC},
   {"Connections",              (char*) &thread_id,              SHOW_LONG_NOFLUSH},
+  {"Connection_errors_accept", (char*) &connection_errors_accept, SHOW_LONG},
+  {"Connection_errors_internal", (char*) &connection_errors_internal, SHOW_LONG},
+  {"Connection_errors_max_connections", (char*) &connection_errors_max_connection, SHOW_LONG},
+  {"Connection_errors_peer_address", (char*) &connection_errors_peer_addr, SHOW_LONG},
+  {"Connection_errors_select", (char*) &connection_errors_select, SHOW_LONG},
+  {"Connection_errors_tcpwrap", (char*) &connection_errors_tcpwrap, SHOW_LONG},
   {"Cpu_time",                 (char*) offsetof(STATUS_VAR, cpu_time), SHOW_DOUBLE_STATUS},
   {"Created_tmp_disk_tables",  (char*) offsetof(STATUS_VAR, created_tmp_disk_tables_), SHOW_LONG_STATUS},
   {"Created_tmp_files",	       (char*) &my_tmp_file_created,	SHOW_LONG},
@@ -9030,6 +9079,9 @@ static PSI_file_info all_server_files[]=
 
 PSI_stage_info stage_after_create= { 0, "After create", 0};
 PSI_stage_info stage_allocating_local_table= { 0, "allocating local table", 0};
+PSI_stage_info stage_alter_inplace_prepare= { 0, "preparing for alter table", 0};
+PSI_stage_info stage_alter_inplace= { 0, "altering table", 0};
+PSI_stage_info stage_alter_inplace_commit= { 0, "committing alter table to storage engine", 0};
 PSI_stage_info stage_changing_master= { 0, "Changing master", 0};
 PSI_stage_info stage_checking_master_version= { 0, "Checking master version", 0};
 PSI_stage_info stage_checking_permissions= { 0, "checking permissions", 0};

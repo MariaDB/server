@@ -1190,8 +1190,6 @@ select'a'; insert into t1 values (200); end;|
 call t1();
 a
 a
-Warnings:
-Error	1264	Out of range value for column 'col1' at row 1
 select * from t1;
 col1
 drop procedure t1;
@@ -1501,3 +1499,30 @@ count(*)
 0
 drop table t1;
 End of 5.0 tests
+#
+# Start of 5.6 tests
+#
+#
+# WL#946 TIME/TIMESTAMP/DATETIME with fractional seconds: CAST to DATETIME
+#
+#
+# STR_TO_DATE with NO_ZERO_DATE did not return NULL (with warning)
+# in get_date(). Only did in val_str() and val_int().
+SET sql_mode='NO_ZERO_DATE';
+SELECT STR_TO_DATE('2001','%Y'),CONCAT(STR_TO_DATE('2001','%Y')), STR_TO_DATE('2001','%Y')+1, STR_TO_DATE('0','%Y')+1, STR_TO_DATE('0000','%Y')+1;
+STR_TO_DATE('2001','%Y')	CONCAT(STR_TO_DATE('2001','%Y'))	STR_TO_DATE('2001','%Y')+1	STR_TO_DATE('0','%Y')+1	STR_TO_DATE('0000','%Y')+1
+2001-00-00	2001-00-00	20010001	20000001	NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '0000' for function str_to_date
+SET sql_mode='NO_ZERO_IN_DATE';
+SELECT STR_TO_DATE('2001','%Y'),CONCAT(STR_TO_DATE('2001','%Y')), STR_TO_DATE('2001','%Y')+1, STR_TO_DATE('0000','%Y')+1;
+STR_TO_DATE('2001','%Y')	CONCAT(STR_TO_DATE('2001','%Y'))	STR_TO_DATE('2001','%Y')+1	STR_TO_DATE('0000','%Y')+1
+NULL	NULL	NULL	NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2001' for function str_to_date
+Warning	1411	Incorrect datetime value: '2001' for function str_to_date
+Warning	1411	Incorrect datetime value: '2001' for function str_to_date
+Warning	1411	Incorrect datetime value: '0000' for function str_to_date
+#
+# End of 5.6 tests
+#

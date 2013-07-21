@@ -17,7 +17,9 @@
 #ifndef _my_getopt_h
 #define _my_getopt_h
 
-#include "my_sys.h"                             /* loglevel */
+#include "my_sys.h"             /* loglevel */
+/* my_getopt and my_default are almost always used together */
+#include <my_default.h>
 
 C_MODE_START
 
@@ -84,7 +86,6 @@ struct my_option
   long       block_size;                /**< Value should be a mult. of this (for numbers) */
   void       *app_type;                 /**< To be used by an application */
 };
-
 
 typedef my_bool (*my_get_one_option)(int, const struct my_option *, char *);
 

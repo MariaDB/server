@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -39,6 +40,7 @@ Created 11/26/1995 Heikki Tuuri
 #define MTR_LOG_ALL		21	/* default mode: log all operations
 					modifying disk-based data */
 #define	MTR_LOG_NONE		22	/* log no operations */
+#define	MTR_LOG_NO_REDO		23	/* Don't generate REDO */
 /*#define	MTR_LOG_SPACE	23 */	/* log only operations modifying
 					file space page allocation data
 					(operations in fsp0fsp.* ) */
@@ -180,7 +182,11 @@ For 1 - 8 bytes, the flag value must give the length also! @{ */
 #define MLOG_ZIP_WRITE_HEADER	((byte)50)	/*!< write to compressed page
 						header */
 #define MLOG_ZIP_PAGE_COMPRESS	((byte)51)	/*!< compress an index page */
-#define MLOG_BIGGEST_TYPE	((byte)51)	/*!< biggest value (used in
+#define MLOG_ZIP_PAGE_COMPRESS_NO_DATA	((byte)52)/*!< compress an index page
+						without logging it's image */
+#define MLOG_ZIP_PAGE_REORGANIZE ((byte)53)	/*!< reorganize a compressed
+						page */
+#define MLOG_BIGGEST_TYPE	((byte)53)	/*!< biggest value (used in
 						assertions) */
 /* @} */
 
@@ -358,15 +364,14 @@ mtr_memo_push(
 	void*	object,	/*!< in: object */
 	ulint	type);	/*!< in: object type: MTR_MEMO_S_LOCK, ... */
 
-/* Type definition of a mini-transaction memo stack slot. */
-typedef	struct mtr_memo_slot_struct	mtr_memo_slot_t;
-struct mtr_memo_slot_struct{
+/** Mini-transaction memo stack slot. */
+struct mtr_memo_slot_t{
 	ulint	type;	/*!< type of the stored object (MTR_MEMO_S_LOCK, ...) */
 	void*	object;	/*!< pointer to the object */
 };
 
 /* Mini-transaction handle and buffer */
-struct mtr_struct{
+struct mtr_t{
 #ifdef UNIV_DEBUG
 	ulint		state;	/*!< MTR_ACTIVE, MTR_COMMITTING, MTR_COMMITTED */
 #endif

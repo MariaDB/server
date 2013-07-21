@@ -24,6 +24,7 @@
 #include "mysql/psi/mysql_file.h"          /* MYSQL_FILE */
 #include "sql_list.h"                      /* I_List */
 #include "sql_cmd.h"
+#include <my_rnd.h>
 
 class THD;
 struct handlerton;
@@ -213,6 +214,12 @@ extern int bootstrap_error;
 extern I_List<THD> threads;
 extern char err_shared_dir[];
 extern TYPELIB thread_handling_typelib;
+extern ulong connection_errors_select;
+extern ulong connection_errors_accept;
+extern ulong connection_errors_tcpwrap;
+extern ulong connection_errors_internal;
+extern ulong connection_errors_max_connection;
+extern ulong connection_errors_peer_addr;
 extern ulong log_warnings;
 
 /*
@@ -252,7 +259,7 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
 extern PSI_mutex_key key_RELAYLOG_LOCK_index;
 extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state;
 
-extern PSI_mutex_key key_LOCK_stats,
+extern PSI_mutex_key key_TABLE_SHARE_LOCK_share, key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
   key_LOCK_global_index_stats, key_LOCK_wakeup_ready;
 
@@ -310,6 +317,9 @@ void init_server_psi_keys();
 */
 extern PSI_stage_info stage_after_create;
 extern PSI_stage_info stage_allocating_local_table;
+extern PSI_stage_info stage_alter_inplace_prepare;
+extern PSI_stage_info stage_alter_inplace;
+extern PSI_stage_info stage_alter_inplace_commit;
 extern PSI_stage_info stage_changing_master;
 extern PSI_stage_info stage_checking_master_version;
 extern PSI_stage_info stage_checking_permissions;

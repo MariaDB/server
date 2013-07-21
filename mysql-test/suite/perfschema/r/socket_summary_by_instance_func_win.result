@@ -59,7 +59,7 @@ ERROR 42S02: Table 'mysqltest.does_not_exist' doesn't exist
 #     The statement has the same length like in 3.2 but the error
 #     message is now different and much longer.
 SELECT col2 FROM does_not_exist WHERE col1 A 0;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'A 0' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'A 0' at line 1
 # 3.4 SELECT ending with server sending an error message.
 #     Statement and error message are a bit longer than in 3.1
 #     because the table name is longer.

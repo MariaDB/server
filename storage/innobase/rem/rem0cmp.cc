@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,6 +30,7 @@ Created 7/1/1994 Heikki Tuuri
 #endif
 
 #include "ha_prototypes.h"
+#include "handler0alter.h"
 #include "srv0srv.h"
 
 /*		ALPHABETICAL ORDER
@@ -69,10 +70,12 @@ cmp_debug_dtuple_rec_with_match(
 				has an equal number or more fields than
 				dtuple */
 	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint*		matched_fields);/*!< in/out: number of already
+	ulint		n_cmp,	/*!< in: number of fields to compare */
+	ulint*		matched_fields)/*!< in/out: number of already
 				completely  matched fields; when function
 				returns, contains the value for current
 				comparison */
+	__attribute__((nonnull, warn_unused_result));
 #endif /* UNIV_DEBUG */
 /*************************************************************//**
 This function is used to compare two data fields for which the data type
@@ -621,14 +624,15 @@ respectively, when only the common first fields are compared, or until
 the first externally stored field in rec */
 UNIV_INTERN
 int
-cmp_dtuple_rec_with_match(
-/*======================*/
+cmp_dtuple_rec_with_match_low(
+/*==========================*/
 	const dtuple_t*	dtuple,	/*!< in: data tuple */
 	const rec_t*	rec,	/*!< in: physical record which differs from
 				dtuple in some of the common fields, or which
 				has an equal number or more fields than
 				dtuple */
 	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	ulint		n_cmp,	/*!< in: number of fields to compare */
 	ulint*		matched_fields, /*!< in/out: number of already completely
 				matched fields; when function returns,
 				contains the value for current comparison */
@@ -652,7 +656,7 @@ cmp_dtuple_rec_with_match(
 	ulint		cur_field;	/* current field number */
 	ulint		cur_bytes;	/* number of already matched bytes
 					in current field */
-	int		ret = 3333;	/* return value */
+	int		ret;		/* return value */
 
 	ut_ad(dtuple && rec && matched_fields && matched_bytes);
 	ut_ad(dtuple_check_typed(dtuple));
@@ -661,7 +665,9 @@ cmp_dtuple_rec_with_match(
 	cur_field = *matched_fields;
 	cur_bytes = *matched_bytes;
 
-	ut_ad(cur_field <= dtuple_get_n_fields_cmp(dtuple));
+	ut_ad(n_cmp > 0);
+	ut_ad(n_cmp <= dtuple_get_n_fields(dtuple));
+	ut_ad(cur_field <= n_cmp);
 	ut_ad(cur_field <= rec_offs_n_fields(offsets));
 
 	if (cur_bytes == 0 && cur_field == 0) {
@@ -681,7 +687,7 @@ cmp_dtuple_rec_with_match(
 	/* Match fields in a loop; stop if we run out of fields in dtuple
 	or find an externally stored field */
 
-	while (cur_field < dtuple_get_n_fields_cmp(dtuple)) {
+	while (cur_field < n_cmp) {
 
 		ulint	mtype;
 		ulint	prtype;
@@ -838,7 +844,7 @@ next_field:
 order_resolved:
 	ut_ad((ret >= - 1) && (ret <= 1));
 	ut_ad(ret == cmp_debug_dtuple_rec_with_match(dtuple, rec, offsets,
-						     matched_fields));
+						     n_cmp, matched_fields));
 	ut_ad(*matched_fields == cur_field); /* In the debug version, the
 					     above cmp_debug_... sets
 					     *matched_fields to a value */
@@ -909,9 +915,111 @@ cmp_dtuple_is_prefix_of_rec(
 }
 
 /*************************************************************//**
+Compare two physical record fields.
+@retval 1 if rec1 field is greater than rec2
+@retval -1 if rec1 field is less than rec2
+@retval 0 if rec1 field equals to rec2 */
+static __attribute__((nonnull, warn_unused_result))
+int
+cmp_rec_rec_simple_field(
+/*=====================*/
+	const rec_t*		rec1,	/*!< in: physical record */
+	const rec_t*		rec2,	/*!< in: physical record */
+	const ulint*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
+	const ulint*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
+	const dict_index_t*	index,	/*!< in: data dictionary index */
+	ulint			n)	/*!< in: field to compare */
+{
+	const byte*	rec1_b_ptr;
+	const byte*	rec2_b_ptr;
+	ulint		rec1_f_len;
+	ulint		rec2_f_len;
+	const dict_col_t*	col	= dict_index_get_nth_col(index, n);
+
+	ut_ad(!rec_offs_nth_extern(offsets1, n));
+	ut_ad(!rec_offs_nth_extern(offsets2, n));
+
+	rec1_b_ptr = rec_get_nth_field(rec1, offsets1, n, &rec1_f_len);
+	rec2_b_ptr = rec_get_nth_field(rec2, offsets2, n, &rec2_f_len);
+
+	if (rec1_f_len == UNIV_SQL_NULL || rec2_f_len == UNIV_SQL_NULL) {
+		if (rec1_f_len == rec2_f_len) {
+			return(0);
+		}
+		/* We define the SQL null to be the smallest possible
+		value of a field in the alphabetical order */
+		return(rec1_f_len == UNIV_SQL_NULL ? -1 : 1);
+	}
+
+	if (col->mtype >= DATA_FLOAT
+	    || (col->mtype == DATA_BLOB
+		&& !(col->prtype & DATA_BINARY_TYPE)
+		&& dtype_get_charset_coll(col->prtype)
+		!= DATA_MYSQL_LATIN1_SWEDISH_CHARSET_COLL)) {
+		return(cmp_whole_field(col->mtype, col->prtype,
+				       rec1_b_ptr, (unsigned) rec1_f_len,
+				       rec2_b_ptr, (unsigned) rec2_f_len));
+	}
+
+	/* Compare the fields */
+	for (ulint cur_bytes = 0;; cur_bytes++, rec1_b_ptr++, rec2_b_ptr++) {
+		ulint		rec1_byte;
+		ulint		rec2_byte;
+
+		if (rec2_f_len <= cur_bytes) {
+			if (rec1_f_len <= cur_bytes) {
+				return(0);
+			}
+
+			rec2_byte = dtype_get_pad_char(
+				col->mtype, col->prtype);
+
+			if (rec2_byte == ULINT_UNDEFINED) {
+				return(1);
+			}
+		} else {
+			rec2_byte = *rec2_b_ptr;
+		}
+
+		if (rec1_f_len <= cur_bytes) {
+			rec1_byte = dtype_get_pad_char(
+				col->mtype, col->prtype);
+
+			if (rec1_byte == ULINT_UNDEFINED) {
+				return(-1);
+			}
+		} else {
+			rec1_byte = *rec1_b_ptr;
+		}
+
+		if (rec1_byte == rec2_byte) {
+			/* If the bytes are equal, they will remain such
+			even after the collation transformation below */
+			continue;
+		}
+
+		if (col->mtype <= DATA_CHAR
+		    || (col->mtype == DATA_BLOB
+			&& !(col->prtype & DATA_BINARY_TYPE))) {
+
+			rec1_byte = cmp_collate(rec1_byte);
+			rec2_byte = cmp_collate(rec2_byte);
+		}
+
+		if (rec1_byte < rec2_byte) {
+			return(-1);
+		} else if (rec1_byte > rec2_byte) {
+			return(1);
+		}
+	}
+}
+
+/*************************************************************//**
 Compare two physical records that contain the same number of columns,
 none of which are stored externally.
-@return	1, 0, -1 if rec1 is greater, equal, less, respectively, than rec2 */
+@retval 1 if rec1 (including non-ordering columns) is greater than rec2
+@retval -1 if rec1 (including non-ordering columns) is less than rec2
+@retval 0 if rec1 is a duplicate of rec2 */
 UNIV_INTERN
 int
 cmp_rec_rec_simple(
@@ -921,144 +1029,67 @@ cmp_rec_rec_simple(
 	const ulint*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
 	const ulint*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
 	const dict_index_t*	index,	/*!< in: data dictionary index */
-	ibool*			null_eq)/*!< out: set to TRUE if
-					found matching null values */
+	struct TABLE*		table)	/*!< in: MySQL table, for reporting
+					duplicate key value if applicable,
+					or NULL */
 {
-	ulint		rec1_f_len;	/*!< length of current field in rec1 */
-	const byte*	rec1_b_ptr;	/*!< pointer to the current byte
-					in rec1 field */
-	ulint		rec1_byte;	/*!< value of current byte to be
-					compared in rec1 */
-	ulint		rec2_f_len;	/*!< length of current field in rec2 */
-	const byte*	rec2_b_ptr;	/*!< pointer to the current byte
-					in rec2 field */
-	ulint		rec2_byte;	/*!< value of current byte to be
-					compared in rec2 */
-	ulint		cur_field;	/*!< current field number */
-	ulint		n_uniq;
+	ulint		n;
+	ulint		n_uniq	= dict_index_get_n_unique(index);
+	bool		null_eq	= false;
 
-	n_uniq = dict_index_get_n_unique(index);
 	ut_ad(rec_offs_n_fields(offsets1) >= n_uniq);
-	ut_ad(rec_offs_n_fields(offsets2) >= n_uniq);
+	ut_ad(rec_offs_n_fields(offsets2) == rec_offs_n_fields(offsets2));
 
 	ut_ad(rec_offs_comp(offsets1) == rec_offs_comp(offsets2));
 
-	for (cur_field = 0; cur_field < n_uniq; cur_field++) {
+	for (n = 0; n < n_uniq; n++) {
+		int cmp = cmp_rec_rec_simple_field(
+			rec1, rec2, offsets1, offsets2, index, n);
 
-		ulint	cur_bytes;
-		ulint	mtype;
-		ulint	prtype;
-
-		{
-			const dict_col_t*	col
-				= dict_index_get_nth_col(index, cur_field);
-
-			mtype = col->mtype;
-			prtype = col->prtype;
+		if (cmp) {
+			return(cmp);
 		}
 
-		ut_ad(!rec_offs_nth_extern(offsets1, cur_field));
-		ut_ad(!rec_offs_nth_extern(offsets2, cur_field));
+		/* If the fields are internally equal, they must both
+		be NULL or non-NULL. */
+		ut_ad(rec_offs_nth_sql_null(offsets1, n)
+		      == rec_offs_nth_sql_null(offsets2, n));
 
-		rec1_b_ptr = rec_get_nth_field(rec1, offsets1,
-					       cur_field, &rec1_f_len);
-		rec2_b_ptr = rec_get_nth_field(rec2, offsets2,
-					       cur_field, &rec2_f_len);
-
-		if (rec1_f_len == UNIV_SQL_NULL
-		    || rec2_f_len == UNIV_SQL_NULL) {
-
-			if (rec1_f_len == rec2_f_len) {
-				if (null_eq) {
-					*null_eq = TRUE;
-				}
-
-				goto next_field;
-
-			} else if (rec2_f_len == UNIV_SQL_NULL) {
-
-				/* We define the SQL null to be the
-				smallest possible value of a field
-				in the alphabetical order */
-
-				return(1);
-			} else {
-				return(-1);
-			}
+		if (rec_offs_nth_sql_null(offsets1, n)) {
+			ut_ad(!(dict_index_get_nth_col(index, n)->prtype
+				& DATA_NOT_NULL));
+			null_eq = true;
 		}
-
-		if (mtype >= DATA_FLOAT
-		    || (mtype == DATA_BLOB
-			&& 0 == (prtype & DATA_BINARY_TYPE)
-			&& dtype_get_charset_coll(prtype)
-			!= DATA_MYSQL_LATIN1_SWEDISH_CHARSET_COLL)) {
-			int ret = cmp_whole_field(mtype, prtype,
-						  rec1_b_ptr,
-						  (unsigned) rec1_f_len,
-						  rec2_b_ptr,
-						  (unsigned) rec2_f_len);
-			if (ret) {
-				return(ret);
-			}
-
-			goto next_field;
-		}
-
-		/* Compare the fields */
-		for (cur_bytes = 0;; cur_bytes++, rec1_b_ptr++, rec2_b_ptr++) {
-			if (rec2_f_len <= cur_bytes) {
-
-				if (rec1_f_len <= cur_bytes) {
-
-					goto next_field;
-				}
-
-				rec2_byte = dtype_get_pad_char(mtype, prtype);
-
-				if (rec2_byte == ULINT_UNDEFINED) {
-					return(1);
-				}
-			} else {
-				rec2_byte = *rec2_b_ptr;
-			}
-
-			if (rec1_f_len <= cur_bytes) {
-				rec1_byte = dtype_get_pad_char(mtype, prtype);
-
-				if (rec1_byte == ULINT_UNDEFINED) {
-					return(-1);
-				}
-			} else {
-				rec1_byte = *rec1_b_ptr;
-			}
-
-			if (rec1_byte == rec2_byte) {
-				/* If the bytes are equal, they will remain
-				such even after the collation transformation
-				below */
-
-				continue;
-			}
-
-			if (mtype <= DATA_CHAR
-			    || (mtype == DATA_BLOB
-				&& !(prtype & DATA_BINARY_TYPE))) {
-
-				rec1_byte = cmp_collate(rec1_byte);
-				rec2_byte = cmp_collate(rec2_byte);
-			}
-
-			if (rec1_byte < rec2_byte) {
-				return(-1);
-			} else if (rec1_byte > rec2_byte) {
-				return(1);
-			}
-		}
-next_field:
-		continue;
 	}
 
-	/* If we ran out of fields, rec1 was equal to rec2. */
+	/* If we ran out of fields, the ordering columns of rec1 were
+	equal to rec2. Issue a duplicate key error if needed. */
+
+	if (!null_eq && table && dict_index_is_unique(index)) {
+		/* Report erroneous row using new version of table. */
+		innobase_rec_to_mysql(table, rec1, index, offsets1);
+		return(0);
+	}
+
+	/* Else, keep comparing so that we have the full internal
+	order. */
+	for (; n < dict_index_get_n_fields(index); n++) {
+		int cmp = cmp_rec_rec_simple_field(
+			rec1, rec2, offsets1, offsets2, index, n);
+
+		if (cmp) {
+			return(cmp);
+		}
+
+		/* If the fields are internally equal, they must both
+		be NULL or non-NULL. */
+		ut_ad(rec_offs_nth_sql_null(offsets1, n)
+		      == rec_offs_nth_sql_null(offsets2, n));
+	}
+
+	/* This should never be reached. Internally, an index must
+	never contain duplicate entries. */
+	ut_ad(0);
 	return(0);
 }
 
@@ -1327,6 +1358,7 @@ cmp_debug_dtuple_rec_with_match(
 				has an equal number or more fields than
 				dtuple */
 	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	ulint		n_cmp,	/*!< in: number of fields to compare */
 	ulint*		matched_fields) /*!< in/out: number of already
 				completely matched fields; when function
 				returns, contains the value for current
@@ -1339,14 +1371,16 @@ cmp_debug_dtuple_rec_with_match(
 					field data */
 	ulint		rec_f_len;	/* length of current field in rec */
 	const byte*	rec_f_data;	/* pointer to the current rec field */
-	int		ret = 3333;	/* return value */
+	int		ret;		/* return value */
 	ulint		cur_field;	/* current field number */
 
 	ut_ad(dtuple && rec && matched_fields);
 	ut_ad(dtuple_check_typed(dtuple));
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 
-	ut_ad(*matched_fields <= dtuple_get_n_fields_cmp(dtuple));
+	ut_ad(n_cmp > 0);
+	ut_ad(n_cmp <= dtuple_get_n_fields(dtuple));
+	ut_ad(*matched_fields <= n_cmp);
 	ut_ad(*matched_fields <= rec_offs_n_fields(offsets));
 
 	cur_field = *matched_fields;
@@ -1372,7 +1406,7 @@ cmp_debug_dtuple_rec_with_match(
 
 	/* Match fields in a loop; stop if we run out of fields in dtuple */
 
-	while (cur_field < dtuple_get_n_fields_cmp(dtuple)) {
+	while (cur_field < n_cmp) {
 
 		ulint	mtype;
 		ulint	prtype;

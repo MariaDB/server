@@ -714,7 +714,7 @@ bool st_select_lex_unit::exec()
           Stop execution of the remaining queries in the UNIONS, and produce
           the current result.
         */
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT,
                             ER(ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
                             thd->accessed_rows_and_keys,

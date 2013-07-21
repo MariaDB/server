@@ -379,11 +379,11 @@ static int ndb_to_mysql_error(const NdbError *ndberr)
     - Used by replication to see if the error was temporary
   */
   if (ndberr->status == NdbError::TemporaryError)
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_GET_TEMPORARY_ERRMSG, ER(ER_GET_TEMPORARY_ERRMSG),
 			ndberr->code, ndberr->message, "NDB");
   else
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_GET_ERRMSG, ER(ER_GET_ERRMSG),
 			ndberr->code, ndberr->message, "NDB");
   return error;
@@ -650,7 +650,7 @@ static void set_ndb_err(THD *thd, const NdbError &err)
   {
     char buf[FN_REFLEN];
     ndb_error_string(thd_ndb->m_error_code, buf, sizeof(buf));
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_GET_ERRMSG, ER(ER_GET_ERRMSG),
 			thd_ndb->m_error_code, buf, "NDB");
   }
@@ -930,7 +930,7 @@ int ha_ndbcluster::set_ndb_value(NdbOperation *ndb_op, Field *field,
 
       DBUG_PRINT("value", ("set blob ptr: 0x%lx  len: %u",
                            (long) blob_ptr, blob_len));
-      DBUG_DUMP("value", blob_ptr, min(blob_len, 26));
+      DBUG_DUMP("value", blob_ptr, MY_MIN(blob_len, 26));
 
       if (set_blob_value)
         *set_blob_value= TRUE;
@@ -1245,8 +1245,8 @@ static int fix_unique_index_attr_order(NDB_INDEX_DATA &data,
   }
 
   KEY_PART_INFO* key_part= key_info->key_part;
-  KEY_PART_INFO* end= key_part+key_info->key_parts;
-  DBUG_ASSERT(key_info->key_parts == sz);
+  KEY_PART_INFO* end= key_part+key_info->user_defined_key_parts;
+  DBUG_ASSERT(key_info->user_defined_key_parts == sz);
   for (unsigned i= 0; key_part != end; key_part++, i++) 
   {
     const char *field_name= key_part->field->field_name;
@@ -1576,7 +1576,7 @@ NDB_INDEX_TYPE ha_ndbcluster::get_index_type_from_key(uint inx,
 bool ha_ndbcluster::check_index_fields_not_null(KEY* key_info)
 {
   KEY_PART_INFO* key_part= key_info->key_part;
-  KEY_PART_INFO* end= key_part+key_info->key_parts;
+  KEY_PART_INFO* end= key_part+key_info->user_defined_key_parts;
   DBUG_ENTER("ha_ndbcluster::check_index_fields_not_null");
   
   for (; key_part != end; key_part++) 
@@ -1733,7 +1733,7 @@ int ha_ndbcluster::set_primary_key(NdbOperation *op, const uchar *key)
 {
   KEY* key_info= table->key_info + table_share->primary_key;
   KEY_PART_INFO* key_part= key_info->key_part;
-  KEY_PART_INFO* end= key_part+key_info->key_parts;
+  KEY_PART_INFO* end= key_part+key_info->user_defined_key_parts;
   DBUG_ENTER("set_primary_key");
 
   for (; key_part != end; key_part++) 
@@ -1755,7 +1755,7 @@ int ha_ndbcluster::set_primary_key_from_record(NdbOperation *op, const uchar *re
 {
   KEY* key_info= table->key_info + table_share->primary_key;
   KEY_PART_INFO* key_part= key_info->key_part;
-  KEY_PART_INFO* end= key_part+key_info->key_parts;
+  KEY_PART_INFO* end= key_part+key_info->user_defined_key_parts;
   DBUG_ENTER("set_primary_key_from_record");
 
   for (; key_part != end; key_part++) 
@@ -1772,7 +1772,7 @@ bool ha_ndbcluster::check_index_fields_in_write_set(uint keyno)
 {
   KEY* key_info= table->key_info + keyno;
   KEY_PART_INFO* key_part= key_info->key_part;
-  KEY_PART_INFO* end= key_part+key_info->key_parts;
+  KEY_PART_INFO* end= key_part+key_info->user_defined_key_parts;
   uint i;
   DBUG_ENTER("check_index_fields_in_write_set");
 
@@ -1793,7 +1793,7 @@ int ha_ndbcluster::set_index_key_from_record(NdbOperation *op,
 {
   KEY* key_info= table->key_info + keyno;
   KEY_PART_INFO* key_part= key_info->key_part;
-  KEY_PART_INFO* end= key_part+key_info->key_parts;
+  KEY_PART_INFO* end= key_part+key_info->user_defined_key_parts;
   uint i;
   DBUG_ENTER("set_index_key_from_record");
                                                                                 
@@ -1815,7 +1815,7 @@ ha_ndbcluster::set_index_key(NdbOperation *op,
   DBUG_ENTER("ha_ndbcluster::set_index_key");
   uint i;
   KEY_PART_INFO* key_part= key_info->key_part;
-  KEY_PART_INFO* end= key_part+key_info->key_parts;
+  KEY_PART_INFO* end= key_part+key_info->user_defined_key_parts;
   
   for (i= 0; key_part != end; key_part++, i++) 
   {
@@ -2083,7 +2083,7 @@ check_null_in_record(const KEY* key_info, const uchar *record)
 {
   KEY_PART_INFO *curr_part, *end_part;
   curr_part= key_info->key_part;
-  end_part= curr_part + key_info->key_parts;
+  end_part= curr_part + key_info->user_defined_key_parts;
 
   while (curr_part != end_part)
   {
@@ -2177,7 +2177,7 @@ int ha_ndbcluster::peek_indexed_rows(const uchar *record,
       NdbIndexOperation *iop;
       const NDBINDEX *unique_index = m_index[i].unique_index;
       key_part= key_info->key_part;
-      end= key_part + key_info->key_parts;
+      end= key_part + key_info->user_defined_key_parts;
       if (!(iop= trans->getNdbIndexOperation(unique_index, m_table)) ||
           iop->readTuple(lm) != 0)
         ERR_RETURN(trans->getNdbError());
@@ -2405,7 +2405,7 @@ int ha_ndbcluster::set_bounds(NdbIndexScanOperation *op,
                               uint range_no)
 {
   const KEY *const key_info= table->key_info + inx;
-  const uint key_parts= key_info->key_parts;
+  const uint key_parts= key_info->user_defined_key_parts;
   uint key_tot_len[2];
   uint tot_len;
   uint i, j;
@@ -3206,7 +3206,7 @@ int ha_ndbcluster::update_row(const uchar *old_data, uchar *new_data)
         undo_res= write_row((uchar *)old_data);
         if (undo_res)
           push_warning(current_thd, 
-                       MYSQL_ERROR::WARN_LEVEL_WARN, 
+                       Sql_condition::WARN_LEVEL_WARN, 
                        undo_res, 
                        "NDB failed undoing delete at primary key update");
         m_primary_key_update= FALSE;
@@ -3708,7 +3708,7 @@ check_null_in_key(const KEY* key_info, const uchar *key, uint key_len)
   KEY_PART_INFO *curr_part, *end_part;
   const uchar* end_ptr= key + key_len;
   curr_part= key_info->key_part;
-  end_part= curr_part + key_info->key_parts;
+  end_part= curr_part + key_info->user_defined_key_parts;
 
   for (; curr_part != end_part && key < end_ptr; curr_part++)
   {
@@ -4079,7 +4079,7 @@ void ha_ndbcluster::position(const uchar *record)
     key_length= ref_length;
     key_info= table->key_info + table_share->primary_key;
     key_part= key_info->key_part;
-    end= key_part + key_info->key_parts;
+    end= key_part + key_info->user_defined_key_parts;
     buff= ref;
     
     for (; key_part != end; key_part++) 
@@ -5416,7 +5416,7 @@ int ha_ndbcluster::create(const char *name,
   {
     if (create_info->storage_media == HA_SM_MEMORY)
     {
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			  ER_ILLEGAL_HA_CREATE_OPTION,
 			  ER(ER_ILLEGAL_HA_CREATE_OPTION),
 			  ndbcluster_hton_name,
@@ -5471,7 +5471,7 @@ int ha_ndbcluster::create(const char *name,
     case ROW_TYPE_FIXED:
       if (field_type_forces_var_part(field->type()))
       {
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_ILLEGAL_HA_CREATE_OPTION,
                             ER(ER_ILLEGAL_HA_CREATE_OPTION),
                             ndbcluster_hton_name,
@@ -5500,7 +5500,7 @@ int ha_ndbcluster::create(const char *name,
   for (i= 0, key_info= form->key_info; i < form->s->keys; i++, key_info++)
   {
     KEY_PART_INFO *key_part= key_info->key_part;
-    KEY_PART_INFO *end= key_part + key_info->key_parts;
+    KEY_PART_INFO *end= key_part + key_info->user_defined_key_parts;
     for (; key_part != end; key_part++)
       tab.getColumn(key_part->fieldnr-1)->setStorageType(
                              NdbDictionary::Column::StorageTypeMemory);
@@ -5802,7 +5802,7 @@ int ha_ndbcluster::create_index(const char *name, KEY *key_info,
   case UNIQUE_INDEX:
     if (check_index_fields_not_null(key_info))
     {
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			  ER_NULL_COLUMN_IN_INDEX,
 			  "Ndb does not support unique index on NULL valued attributes, index access with NULL value will become full table scan");
     }
@@ -5811,7 +5811,7 @@ int ha_ndbcluster::create_index(const char *name, KEY *key_info,
   case ORDERED_INDEX:
     if (key_info->algorithm == HA_KEY_ALG_HASH)
     {
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			  ER_ILLEGAL_HA_CREATE_OPTION,
 			  ER(ER_ILLEGAL_HA_CREATE_OPTION),
 			  ndbcluster_hton_name,
@@ -5860,7 +5860,7 @@ int ha_ndbcluster::create_ndb_index(const char *name,
   Ndb *ndb= get_ndb();
   NdbDictionary::Dictionary *dict= ndb->getDictionary();
   KEY_PART_INFO *key_part= key_info->key_part;
-  KEY_PART_INFO *end= key_part + key_info->key_parts;
+  KEY_PART_INFO *end= key_part + key_info->user_defined_key_parts;
   
   DBUG_ENTER("ha_ndbcluster::create_index");
   DBUG_PRINT("enter", ("name: %s ", name));
@@ -7284,7 +7284,7 @@ int ndbcluster_find_files(handlerton *hton, THD *thd,
                             file_name->str));
         if (ndb_create_table_from_engine(thd, db, file_name->str))
         {
-          push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_TABLE_EXISTS_ERROR,
                               "Discover of table %s.%s failed",
                               db, file_name->str);
@@ -7310,7 +7310,7 @@ int ndbcluster_find_files(handlerton *hton, THD *thd,
                                       file_name->length);
 	DBUG_ASSERT(record);
 	my_hash_delete(&ndb_tables, record);
-	push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+	push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			    ER_TABLE_EXISTS_ERROR,
 			    "Local table %s.%s shadows ndb table",
 			    db, file_name->str);
@@ -8114,23 +8114,33 @@ uint8 ha_ndbcluster::table_cache_type()
 }
 
 
-uint ndb_get_commitcount(THD *thd, char *dbname, char *tabname,
+/**
+   Retrieve the commit count for the table object.
+
+   @param thd              Thread context.
+   @param norm_name        Normalized path to the table.
+   @param[out] commit_count Commit count for the table.
+
+   @return 0 on success.
+   @return 1 if an error occured.
+*/
+
+uint ndb_get_commitcount(THD *thd, char *norm_name,
                          Uint64 *commit_count)
 {
-  char name[FN_REFLEN + 1];
+  char dbname[NAME_LEN + 1];
   NDB_SHARE *share;
   DBUG_ENTER("ndb_get_commitcount");
 
-  build_table_filename(name, sizeof(name) - 1,
-                       dbname, tabname, "", 0);
-  DBUG_PRINT("enter", ("name: %s", name));
-  mysql_mutex_lock(&ndbcluster_mutex);
+  DBUG_PRINT("enter", ("name: %s", norm_name));
+  pthread_mutex_lock(&ndbcluster_mutex);
   if (!(share=(NDB_SHARE*) my_hash_search(&ndbcluster_open_tables,
-                                          (uchar*) name,
-                                          strlen(name))))
+                                          (const uchar*) norm_name,
+                                          strlen(norm_name))))
   {
-    mysql_mutex_unlock(&ndbcluster_mutex);
-    DBUG_PRINT("info", ("Table %s not found in ndbcluster_open_tables", name));
+    pthread_mutex_unlock(&ndbcluster_mutex);
+    DBUG_PRINT("info", ("Table %s not found in ndbcluster_open_tables",
+                         norm_name));
     DBUG_RETURN(1);
   }
   /* ndb_share reference temporary, free below */
@@ -8162,6 +8172,8 @@ uint ndb_get_commitcount(THD *thd, char *dbname, char *tabname,
   Ndb *ndb;
   if (!(ndb= check_ndb_in_thd(thd)))
     DBUG_RETURN(1);
+
+  ha_ndbcluster::set_dbname(norm_name, dbname);
   if (ndb->setDatabaseName(dbname))
   {
     ERR_RETURN(ndb->getNdbError());
@@ -8171,7 +8183,9 @@ uint ndb_get_commitcount(THD *thd, char *dbname, char *tabname,
 
   struct Ndb_statistics stat;
   {
-    Ndb_table_guard ndbtab_g(ndb->getDictionary(), tabname);
+    char tblname[NAME_LEN + 1];
+    ha_ndbcluster::set_tabname(norm_name, tblname);
+    Ndb_table_guard ndbtab_g(ndb->getDictionary(), tblname);
     if (ndbtab_g.get_table() == 0
         || ndb_get_table_statistics(NULL, FALSE, ndb, ndbtab_g.get_table(), &stat))
     {
@@ -8221,10 +8235,9 @@ uint ndb_get_commitcount(THD *thd, char *dbname, char *tabname,
 
 
   @param thd            thread handle
-  @param full_name      concatenation of database name,
-                        the null character '\\0', and the table name
-  @param full_name_len  length of the full name,
-                        i.e. len(dbname) + len(tablename) + 1
+  @param full_name      normalized path to the table in the canonical
+                        format.
+  @param full_name_len  length of the normalized path to the table.
   @param engine_data    parameter retrieved when query was first inserted into
                         the cache. If the value of engine_data is changed,
                         all queries for this table should be invalidated.
@@ -8243,11 +8256,15 @@ ndbcluster_cache_retrieval_allowed(THD *thd,
                                    ulonglong *engine_data)
 {
   Uint64 commit_count;
-  char *dbname= full_name;
-  char *tabname= dbname+strlen(dbname)+1;
+  char dbname[NAME_LEN + 1];
+  char tabname[NAME_LEN + 1];
 #ifndef DBUG_OFF
   char buff[22], buff2[22];
 #endif
+
+  ha_ndbcluster::set_dbname(full_name, dbname);
+  ha_ndbcluster::set_tabname(full_name, tabname);
+
   DBUG_ENTER("ndbcluster_cache_retrieval_allowed");
   DBUG_PRINT("enter", ("dbname: %s, tabname: %s", dbname, tabname));
 
@@ -8257,7 +8274,7 @@ ndbcluster_cache_retrieval_allowed(THD *thd,
     DBUG_RETURN(FALSE);
   }
 
-  if (ndb_get_commitcount(thd, dbname, tabname, &commit_count))
+  if (ndb_get_commitcount(thd, full_name, &commit_count))
   {
     *engine_data= 0; /* invalidate */
     DBUG_PRINT("exit", ("No, could not retrieve commit_count"));
@@ -8292,10 +8309,9 @@ ndbcluster_cache_retrieval_allowed(THD *thd,
   the cached query is reused.
 
   @param thd            thread handle
-  @param full_name      concatenation of database name,
-                        the null character '\\0', and the table name
-  @param full_name_len  length of the full name,
-                        i.e. len(dbname) + len(tablename) + 1
+  @param full_name      normalized path to the table in the 
+                        canonical format.
+  @param full_name_len  length of the normalized path to the table.
   @param engine_callback  function to be called before using cache on
                           this table
   @param[out] engine_data    commit_count for this table
@@ -8325,7 +8341,7 @@ ha_ndbcluster::register_query_cache_table(THD *thd,
     DBUG_RETURN(FALSE);
   }
 
-  if (ndb_get_commitcount(thd, m_dbname, m_tabname, &commit_count))
+  if (ndb_get_commitcount(thd, full_name, &commit_count))
   {
     *engine_data= 0;
     DBUG_PRINT("exit", ("Error, could not get commitcount"));
@@ -9827,11 +9843,11 @@ char* ha_ndbcluster::get_tablespace_name(THD *thd, char* name, uint name_len)
   }
 err:
   if (ndberr.status == NdbError::TemporaryError)
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_GET_TEMPORARY_ERRMSG, ER(ER_GET_TEMPORARY_ERRMSG),
 			ndberr.code, ndberr.message, "NDB");
   else
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_GET_ERRMSG, ER(ER_GET_ERRMSG),
 			ndberr.code, ndberr.message, "NDB");
   return 0;
@@ -9957,7 +9973,7 @@ int ha_ndbcluster::get_default_no_partitions(HA_CREATE_INFO *create_info)
   if (adjusted_frag_count(no_fragments, no_nodes, reported_frags))
   {
     push_warning(current_thd,
-                 MYSQL_ERROR::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+                 Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
     "Ndb might have problems storing the max amount of rows specified");
   }
   return (int)reported_frags;
@@ -10146,7 +10162,7 @@ uint ha_ndbcluster::set_up_partition_info(partition_info *part_info,
   {
     if (!current_thd->variables.new_mode)
     {
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_ILLEGAL_HA_CREATE_OPTION,
                           ER(ER_ILLEGAL_HA_CREATE_OPTION),
                           ndbcluster_hton_name,

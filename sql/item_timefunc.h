@@ -115,7 +115,7 @@ public:
   {
     int *input_version= (int*)int_arg;
     /* This function was introduced in 5.5 */
-    int output_version= max(*input_version, 50500);
+    int output_version= MY_MAX(*input_version, 50500);
     *input_version= output_version;
     return 0;
   }
@@ -933,7 +933,7 @@ public:
   const char *func_name() const { return "timediff"; }
   void fix_length_and_dec()
   {
-    decimals= max(args[0]->decimals, args[1]->decimals);
+    decimals= MY_MAX(args[0]->decimals, args[1]->decimals);
     Item_timefunc::fix_length_and_dec();
   }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);

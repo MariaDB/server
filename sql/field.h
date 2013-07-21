@@ -29,7 +29,7 @@
 #include "table.h"                              /* TABLE */
 #include "sql_string.h"                         /* String */
 #include "my_decimal.h"                         /* my_decimal */
-#include "sql_error.h"                          /* MYSQL_ERROR */
+#include "sql_error.h"                          /* Sql_condition */
 #include "compat56.h"
 
 class Send_field;
@@ -569,32 +569,53 @@ public:
   */
   virtual void sql_type(String &str) const =0;
   virtual uint size_of() const =0;		// For new field
-  inline bool is_null(my_ptrdiff_t row_offset= 0)
-  { return null_ptr ? (null_ptr[row_offset] & null_bit ? 1 : 0) : table->null_row; }
-  inline bool is_real_null(my_ptrdiff_t row_offset= 0)
+  inline bool is_null(my_ptrdiff_t row_offset= 0) const
+  {
+    /*
+      The table may have been marked as containing only NULL values
+      for all fields if it is a NULL-complemented row of an OUTER JOIN
+      or if the query is an implicitly grouped query (has aggregate
+      functions but no GROUP BY clause) with no qualifying rows. If
+      this is the case (in which TABLE::null_row is true), the field
+      is considered to be NULL.
+      Note that if a table->null_row is set then also all null_bits are
+      set for the row.
+
+      Otherwise, if the field is NULLable, it has a valid null_ptr
+      pointer, and its NULLity is recorded in the "null_bit" bit of
+      null_ptr[row_offset].
+    */
+    return (table->null_row ? TRUE :
+            null_ptr ? test(null_ptr[row_offset] & null_bit) : 0);
+  }
+  inline bool is_real_null(my_ptrdiff_t row_offset= 0) const
     { return null_ptr ? (null_ptr[row_offset] & null_bit ? 1 : 0) : 0; }
-  inline bool is_null_in_record(const uchar *record)
+  inline bool is_null_in_record(const uchar *record) const
   {
     if (!null_ptr)
       return 0;
     return test(record[(uint) (null_ptr -table->record[0])] &
 		null_bit);
   }
-  inline bool is_null_in_record_with_offset(my_ptrdiff_t col_offset)
-  {
-    if (!null_ptr)
-      return 0;
-    return test(null_ptr[col_offset] & null_bit);
-  }
   inline void set_null(my_ptrdiff_t row_offset= 0)
     { if (null_ptr) null_ptr[row_offset]|= null_bit; }
   inline void set_notnull(my_ptrdiff_t row_offset= 0)
     { if (null_ptr) null_ptr[row_offset]&= (uchar) ~null_bit; }
-  inline bool maybe_null(void) { return null_ptr != 0 || table->maybe_null; }
-  /**
-     Signals that this field is NULL-able.
-  */
-  inline bool real_maybe_null(void) { return null_ptr != 0; }
+  inline bool maybe_null(void) const
+  { return null_ptr != 0 || table->maybe_null; }
+
+  /* @return true if this field is NULL-able, false otherwise. */
+  inline bool real_maybe_null(void) const { return null_ptr != 0; }
+  uint null_offset(const uchar *record) const
+  { return (uint) (null_ptr - record); }
+
+  uint null_offset() const
+  { return null_offset(table->record[0]); }
+  void set_null_ptr(uchar *p_null_ptr, uint p_null_bit)
+  {
+    null_ptr= p_null_ptr;
+    null_bit= p_null_bit;
+  }
 
   inline THD *get_thd() { return table ? table->in_use : current_thd; }
 
@@ -762,9 +783,9 @@ public:
   virtual uint repertoire(void) const { return MY_REPERTOIRE_UNICODE30; }
   virtual void set_derivation(enum Derivation derivation_arg) { }
   virtual int set_time() { return 1; }
-  void set_warning(MYSQL_ERROR::enum_warning_level, unsigned int code,
-                   int cuted_increment);
-  void set_datetime_warning(MYSQL_ERROR::enum_warning_level, uint code, 
+  bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
+                   int cuted_increment) const;
+  void set_datetime_warning(Sql_condition::enum_warning_level, uint code, 
                             const ErrConv *str, timestamp_type ts_type,
                             int cuted_increment);
   inline bool check_overflow(int op_result)
@@ -807,6 +828,30 @@ public:
     /* shouldn't get here. */
     DBUG_ASSERT(0);
     return GEOM_GEOMETRY;
+  }
+
+  ha_storage_media field_storage_type() const
+  {
+    return (ha_storage_media)
+      ((flags >> FIELD_FLAGS_STORAGE_MEDIA) & 3);
+  }
+
+  void set_storage_type(ha_storage_media storage_type_arg)
+  {
+    DBUG_ASSERT(field_storage_type() == HA_SM_DEFAULT);
+    flags |= (storage_type_arg << FIELD_FLAGS_STORAGE_MEDIA);
+  }
+
+  column_format_type column_format() const
+  {
+    return (column_format_type)
+      ((flags >> FIELD_FLAGS_COLUMN_FORMAT) & 3);
+  }
+
+  void set_column_format(column_format_type column_format_arg)
+  {
+    DBUG_ASSERT(column_format() == COLUMN_FORMAT_TYPE_DEFAULT);
+    flags |= (column_format_arg << FIELD_FLAGS_COLUMN_FORMAT);
   }
 
   key_map get_possible_keys();
@@ -1458,7 +1503,7 @@ public:
     return (Field::eq_def(field) && decimals() == field->decimals());
   }
   my_decimal *val_decimal(my_decimal*);
-  void set_warnings(MYSQL_ERROR::enum_warning_level trunc_level,
+  void set_warnings(Sql_condition::enum_warning_level trunc_level,
                     const ErrConv *str, int was_cut, timestamp_type ts_type);
   double pos_in_interval(Field *min, Field *max)
   {
@@ -2274,6 +2319,7 @@ public:
   Field_blob(uint32 packlength_arg)
     :Field_longstr((uchar*) 0, 0, (uchar*) "", 0, NONE, "temp", system_charset_info),
     packlength(packlength_arg) {}
+  /* Note that the default copy constructor is used, in clone() */
   enum_field_types type() const { return MYSQL_TYPE_BLOB;}
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2; }
@@ -2298,7 +2344,7 @@ public:
   uint32 key_length() const { return 0; }
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const
-  { return (uint32) (packlength+table->s->blob_ptr_size); }
+  { return (uint32) (packlength + portable_sizeof_char_ptr); }
 
   /**
      Return the packed length without the pointer size added. 
@@ -2764,12 +2810,23 @@ public:
   {
     return (flags & (BINCMP_FLAG | BINARY_FLAG)) != 0;
   }
+
+  ha_storage_media field_storage_type() const
+  {
+    return (ha_storage_media)
+      ((flags >> FIELD_FLAGS_STORAGE_MEDIA) & 3);
+  }
+
+  column_format_type column_format() const
+  {
+    return (column_format_type)
+      ((flags >> FIELD_FLAGS_COLUMN_FORMAT) & 3);
+  }
+
   uint virtual_col_expr_maxlen()
   {
     return 255 - FRM_VCOL_HEADER_SIZE(interval != NULL);
   }
-private:
-  const String empty_set_string;
 };
 
 

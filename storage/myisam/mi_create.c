@@ -44,6 +44,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
        base_pos,long_varchar_count,varchar_length,
        max_key_block_length,unique_key_parts,fulltext_keys,offset;
   uint aligned_key_start, block_length, res;
+  uint internal_table= flags & HA_CREATE_INTERNAL_TABLE;
   ulong reclength, real_reclength,min_pack_length;
   char filename[FN_REFLEN],linkname[FN_REFLEN], *linkname_ptr;
   ulong pack_reclength;
@@ -447,8 +448,8 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     block_length= (keydef->block_length ?
                    my_round_up_to_next_power(keydef->block_length) :
                    myisam_block_size);
-    block_length= max(block_length, MI_MIN_KEY_BLOCK_LENGTH);
-    block_length= min(block_length, MI_MAX_KEY_BLOCK_LENGTH);
+    block_length= MY_MAX(block_length, MI_MIN_KEY_BLOCK_LENGTH);
+    block_length= MY_MIN(block_length, MI_MAX_KEY_BLOCK_LENGTH);
 
     keydef->block_length= (uint16) MI_BLOCK_SIZE(length-real_length_diff,
                                                  pointer,MI_MAX_KEYPTR_SIZE,
@@ -537,7 +538,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     got from MYI file header (see also myisampack.c:save_state)
   */
   share.base.key_reflength=
-    mi_get_pointer_length(max(ci->key_file_length,tmp),3);
+    mi_get_pointer_length(MY_MAX(ci->key_file_length,tmp),3);
   share.base.keys= share.state.header.keys= keys;
   share.state.header.uniques= uniques;
   share.state.header.fulltext_keys= fulltext_keys;
@@ -570,12 +571,13 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   share.base.min_block_length=
     (share.base.pack_reclength+3 < MI_EXTEND_BLOCK_LENGTH &&
      ! share.base.blobs) ?
-    max(share.base.pack_reclength,MI_MIN_BLOCK_LENGTH) :
+    MY_MAX(share.base.pack_reclength,MI_MIN_BLOCK_LENGTH) :
     MI_EXTEND_BLOCK_LENGTH;
   if (! (flags & HA_DONT_TOUCH_DATA))
     share.state.create_time= time((time_t*) 0);
 
-  mysql_mutex_lock(&THR_LOCK_myisam);
+  if (!internal_table)
+    mysql_mutex_lock(&THR_LOCK_myisam);
 
   /*
     NOTE: For test_if_reopen() we need a real path name. Hence we need
@@ -632,7 +634,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     NOTE: The filename is compared against unique_file_name of every
     open table. Hence we need a real path here.
   */
-  if (test_if_reopen(filename))
+  if (!internal_table && test_if_reopen(filename))
   {
     my_printf_error(HA_ERR_TABLE_EXIST, "MyISAM table '%s' is in use "
                     "(most likely by a MERGE table). Try FLUSH TABLES.",
@@ -821,7 +823,8 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
       goto err;
   }
   errpos=0;
-  mysql_mutex_unlock(&THR_LOCK_myisam);
+  if (!internal_table)
+    mysql_mutex_unlock(&THR_LOCK_myisam);
   res= 0;
   if (mysql_file_close(file, MYF(0)))
     res= my_errno;
@@ -829,7 +832,8 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   DBUG_RETURN(res);
 
 err:
-  mysql_mutex_unlock(&THR_LOCK_myisam);
+  if (!internal_table)
+    mysql_mutex_unlock(&THR_LOCK_myisam);
 
 err_no_lock:
   save_errno=my_errno;

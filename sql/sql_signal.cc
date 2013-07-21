@@ -88,9 +88,10 @@ void Set_signal_information::clear()
   memset(m_item, 0, sizeof(m_item));
 }
 
-void Signal_common::assign_defaults(MYSQL_ERROR *cond,
+void Sql_cmd_common_signal::assign_defaults(
+                                    Sql_condition *cond,
                                     bool set_level_code,
-                                    MYSQL_ERROR::enum_warning_level level,
+                                    Sql_condition::enum_warning_level level,
                                     int sqlcode)
 {
   if (set_level_code)
@@ -102,7 +103,7 @@ void Signal_common::assign_defaults(MYSQL_ERROR *cond,
     cond->set_builtin_message_text(ER(sqlcode));
 }
 
-void Signal_common::eval_defaults(THD *thd, MYSQL_ERROR *cond)
+void Sql_cmd_common_signal::eval_defaults(THD *thd, Sql_condition *cond)
 {
   DBUG_ASSERT(cond);
 
@@ -114,8 +115,8 @@ void Signal_common::eval_defaults(THD *thd, MYSQL_ERROR *cond)
     /*
       SIGNAL is restricted in sql_yacc.yy to only signal SQLSTATE conditions.
     */
-    DBUG_ASSERT(m_cond->type == sp_cond_type::state);
-    sqlstate= m_cond->sqlstate;
+    DBUG_ASSERT(m_cond->type == sp_condition_value::SQLSTATE);
+    sqlstate= m_cond->sql_state;
     cond->set_sqlstate(sqlstate);
   }
   else
@@ -129,19 +130,19 @@ void Signal_common::eval_defaults(THD *thd, MYSQL_ERROR *cond)
   {
     /* SQLSTATE class "01": warning. */
     assign_defaults(cond, set_defaults,
-                    MYSQL_ERROR::WARN_LEVEL_WARN, ER_SIGNAL_WARN);
+                    Sql_condition::WARN_LEVEL_WARN, ER_SIGNAL_WARN);
   }
   else if ((sqlstate[0] == '0') && (sqlstate[1] == '2'))
   {
     /* SQLSTATE class "02": not found. */
     assign_defaults(cond, set_defaults,
-                    MYSQL_ERROR::WARN_LEVEL_ERROR, ER_SIGNAL_NOT_FOUND);
+                    Sql_condition::WARN_LEVEL_ERROR, ER_SIGNAL_NOT_FOUND);
   }
   else
   {
     /* other SQLSTATE classes : error. */
     assign_defaults(cond, set_defaults,
-                    MYSQL_ERROR::WARN_LEVEL_ERROR, ER_SIGNAL_EXCEPTION);
+                    Sql_condition::WARN_LEVEL_ERROR, ER_SIGNAL_EXCEPTION);
   }
 }
 
@@ -256,26 +257,26 @@ static int assign_condition_item(MEM_ROOT *mem_root, const char* name, THD *thd,
 }
 
 
-int Signal_common::eval_signal_informations(THD *thd, MYSQL_ERROR *cond)
+int Sql_cmd_common_signal::eval_signal_informations(THD *thd, Sql_condition *cond)
 {
   struct cond_item_map
   {
     enum enum_diag_condition_item_name m_item;
-    String MYSQL_ERROR::*m_member;
+    String Sql_condition::*m_member;
   };
 
   static cond_item_map map[]=
   {
-    { DIAG_CLASS_ORIGIN, & MYSQL_ERROR::m_class_origin },
-    { DIAG_SUBCLASS_ORIGIN, & MYSQL_ERROR::m_subclass_origin },
-    { DIAG_CONSTRAINT_CATALOG, & MYSQL_ERROR::m_constraint_catalog },
-    { DIAG_CONSTRAINT_SCHEMA, & MYSQL_ERROR::m_constraint_schema },
-    { DIAG_CONSTRAINT_NAME, & MYSQL_ERROR::m_constraint_name },
-    { DIAG_CATALOG_NAME, & MYSQL_ERROR::m_catalog_name },
-    { DIAG_SCHEMA_NAME, & MYSQL_ERROR::m_schema_name },
-    { DIAG_TABLE_NAME, & MYSQL_ERROR::m_table_name },
-    { DIAG_COLUMN_NAME, & MYSQL_ERROR::m_column_name },
-    { DIAG_CURSOR_NAME, & MYSQL_ERROR::m_cursor_name }
+    { DIAG_CLASS_ORIGIN, & Sql_condition::m_class_origin },
+    { DIAG_SUBCLASS_ORIGIN, & Sql_condition::m_subclass_origin },
+    { DIAG_CONSTRAINT_CATALOG, & Sql_condition::m_constraint_catalog },
+    { DIAG_CONSTRAINT_SCHEMA, & Sql_condition::m_constraint_schema },
+    { DIAG_CONSTRAINT_NAME, & Sql_condition::m_constraint_name },
+    { DIAG_CATALOG_NAME, & Sql_condition::m_catalog_name },
+    { DIAG_SCHEMA_NAME, & Sql_condition::m_schema_name },
+    { DIAG_TABLE_NAME, & Sql_condition::m_table_name },
+    { DIAG_COLUMN_NAME, & Sql_condition::m_column_name },
+    { DIAG_CURSOR_NAME, & Sql_condition::m_cursor_name }
   };
 
   Item *set;
@@ -288,7 +289,7 @@ int Signal_common::eval_signal_informations(THD *thd, MYSQL_ERROR *cond)
   String *member;
   const LEX_STRING *name;
 
-  DBUG_ENTER("Signal_common::eval_signal_informations");
+  DBUG_ENTER("Sql_cmd_common_signal::eval_signal_informations");
 
   for (i= FIRST_DIAG_SET_PROPERTY;
        i <= LAST_DIAG_SET_PROPERTY;
@@ -360,7 +361,7 @@ int Signal_common::eval_signal_informations(THD *thd, MYSQL_ERROR *cond)
 
     /*
       See the comments
-       "Design notes about MYSQL_ERROR::m_message_text."
+       "Design notes about Sql_condition::m_message_text."
       in file sql_error.cc
     */
     String converted_text;
@@ -413,23 +414,23 @@ end:
   DBUG_RETURN(result);
 }
 
-bool Signal_common::raise_condition(THD *thd, MYSQL_ERROR *cond)
+bool Sql_cmd_common_signal::raise_condition(THD *thd, Sql_condition *cond)
 {
   bool result= TRUE;
 
-  DBUG_ENTER("Signal_common::raise_condition");
+  DBUG_ENTER("Sql_cmd_common_signal::raise_condition");
 
-  DBUG_ASSERT(m_lex->query_tables == NULL);
+  DBUG_ASSERT(thd->lex->query_tables == NULL);
 
   eval_defaults(thd, cond);
   if (eval_signal_informations(thd, cond))
     DBUG_RETURN(result);
 
   /* SIGNAL should not signal WARN_LEVEL_NOTE */
-  DBUG_ASSERT((cond->m_level == MYSQL_ERROR::WARN_LEVEL_WARN) ||
-              (cond->m_level == MYSQL_ERROR::WARN_LEVEL_ERROR));
+  DBUG_ASSERT((cond->m_level == Sql_condition::WARN_LEVEL_WARN) ||
+              (cond->m_level == Sql_condition::WARN_LEVEL_ERROR));
 
-  MYSQL_ERROR *raised= NULL;
+  Sql_condition *raised= NULL;
   raised= thd->raise_condition(cond->get_sql_errno(),
                                cond->get_sqlstate(),
                                cond->get_level(),
@@ -437,7 +438,7 @@ bool Signal_common::raise_condition(THD *thd, MYSQL_ERROR *cond)
   if (raised)
     raised->copy_opt_attributes(cond);
 
-  if (cond->m_level == MYSQL_ERROR::WARN_LEVEL_WARN)
+  if (cond->m_level == Sql_condition::WARN_LEVEL_WARN)
   {
     my_ok(thd);
     result= FALSE;
@@ -446,12 +447,12 @@ bool Signal_common::raise_condition(THD *thd, MYSQL_ERROR *cond)
   DBUG_RETURN(result);
 }
 
-bool Signal_statement::execute(THD *thd)
+bool Sql_cmd_signal::execute(THD *thd)
 {
   bool result= TRUE;
-  MYSQL_ERROR cond(thd->mem_root);
+  Sql_condition cond(thd->mem_root);
 
-  DBUG_ENTER("Signal_statement::execute");
+  DBUG_ENTER("Sql_cmd_signal::execute");
 
   /*
     WL#2110 SIGNAL specification says:
@@ -465,9 +466,9 @@ bool Signal_statement::execute(THD *thd)
     This has roots in the SQL standard specification for SIGNAL.
   */
 
-  thd->stmt_da->reset_diagnostics_area();
+  thd->get_stmt_da()->reset_diagnostics_area();
   thd->set_row_count_func(0);
-  thd->warning_info->clear_warning_info(thd->query_id);
+  thd->get_stmt_da()->clear_warning_info(thd->query_id);
 
   result= raise_condition(thd, &cond);
 
@@ -475,14 +476,27 @@ bool Signal_statement::execute(THD *thd)
 }
 
 
-bool Resignal_statement::execute(THD *thd)
+/**
+  Execute RESIGNAL SQL-statement.
+
+  @param thd Thread context.
+
+  @return Error status
+  @retval true  in case of error
+  @retval false on success
+*/
+
+bool Sql_cmd_resignal::execute(THD *thd)
 {
-  Sql_condition_info *signaled;
+  Diagnostics_area *da= thd->get_stmt_da();
+  const sp_rcontext::Sql_condition_info *signaled;
   int result= TRUE;
 
   DBUG_ENTER("Resignal_statement::execute");
 
-  thd->warning_info->m_warn_id= thd->query_id;
+  // This is a way to force sql_conditions from the current Warning_info to be
+  // passed to the caller's Warning_info.
+  da->set_warning_info_id(thd->query_id);
 
   if (! thd->spcont || ! (signaled= thd->spcont->raised_condition()))
   {
@@ -490,22 +504,38 @@ bool Resignal_statement::execute(THD *thd)
     DBUG_RETURN(result);
   }
 
-  MYSQL_ERROR signaled_err(thd->mem_root);
-  signaled_err.set(signaled->m_sql_errno,
-                   signaled->m_sql_state,
-                   signaled->m_level,
-                   signaled->m_message);
+  Sql_condition signaled_err(thd->mem_root);
+  signaled_err.set(signaled->sql_errno,
+                   signaled->sql_state,
+                   signaled->level,
+                   signaled->message);
 
-  if (m_cond == NULL)
+  if (m_cond)
   {
-    /* RESIGNAL without signal_value */
-    result= raise_condition(thd, &signaled_err);
-    DBUG_RETURN(result);
+    query_cache_abort(&thd->query_cache_tls);
+
+    /* Keep handled conditions. */
+    da->unmark_sql_conditions_from_removal();
+
+    /* Check if the old condition still exists. */
+    if (da->has_sql_condition(signaled->message, strlen(signaled->message)))
+    {
+      /* Make room for the new RESIGNAL condition. */
+      da->reserve_space(thd, 1);
+    }
+    else
+    {
+      /* Make room for old condition + the new RESIGNAL condition. */
+      da->reserve_space(thd, 2);
+
+      da->push_warning(thd, &signaled_err);
+    }
   }
 
   /* RESIGNAL with signal_value */
   result= raise_condition(thd, &signaled_err);
 
   DBUG_RETURN(result);
+
 }
 

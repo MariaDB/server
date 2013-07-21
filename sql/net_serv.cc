@@ -792,7 +792,7 @@ static my_bool my_net_skip_rest(NET *net, uint32 remain, thr_alarm_t *alarmed,
   {
     while (remain > 0)
     {
-      size_t length= min(remain, net->max_packet);
+      size_t length= MY_MIN(remain, net->max_packet);
       if (net_safe_read(net, net->buff, length, alarmed))
 	DBUG_RETURN(1);
       update_statistics(thd_increment_bytes_received(length));
@@ -989,7 +989,7 @@ my_real_read(NET *net, size_t *complen)
 	len=uint3korr(net->buff+net->where_b);
 	if (!len)				/* End of big multi-packet */
 	  goto end;
-	helping = max(len,*complen) + net->where_b;
+	helping = MY_MAX(len,*complen) + net->where_b;
 	/* The necessary size of net->buff */
 	if (helping >= net->max_packet)
 	{

@@ -15,9 +15,9 @@
 # Name or service not known
 call mtr.add_suppression("2001:db8::6:6");
 
-flush status;
-flush hosts;
-select @@global.debug;
+# Enforce a clean state
+--source ../include/wait_for_pfs_thread_count.inc
+--source ../include/hostcache_set_state.inc
 
 connect (con1,"::1",root,,test,$MASTER_MYPORT,);
 select "Con1 is alive";
@@ -25,7 +25,7 @@ select current_user();
 disconnect con1;
 
 --connection default
-set global debug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_error_noname";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_error_noname";
 
 --disable_query_log
 --error ER_HOST_NOT_PRIVILEGED
@@ -43,5 +43,5 @@ connect (con3,"::1",root,,test,$MASTER_MYPORT,);
 --connection default
 --source ../include/hostcache_dump.inc
 
-set global debug= default;
+set global debug_dbug= default;
 

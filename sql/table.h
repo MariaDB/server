@@ -498,19 +498,6 @@ typedef struct st_table_field_def
 } TABLE_FIELD_DEF;
 
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-/**
-  Partition specific ha_data struct.
-*/
-typedef struct st_ha_data_partition
-{
-  bool auto_inc_initialized;
-  mysql_mutex_t LOCK_auto_inc;                 /**< protecting auto_inc val */
-  ulonglong next_auto_inc_val;                 /**< first non reserved value */
-} HA_DATA_PARTITION;
-#endif
-
-
 class Table_check_intact
 {
 protected:
@@ -611,14 +598,16 @@ struct TABLE_SHARE
   TYPELIB fieldnames;			/* Pointer to fieldnames */
   TYPELIB *intervals;			/* pointer to interval info */
   mysql_mutex_t LOCK_ha_data;           /* To protect access to ha_data */
+  mysql_mutex_t LOCK_share;             /* To protect TABLE_SHARE */
   TABLE_SHARE *next, **prev;            /* Link to unused shares */
 
   /*
     Doubly-linked (back-linked) lists of used and unused TABLE objects
     for this share.
   */
-  I_P_List <TABLE, TABLE_share> used_tables;
-  I_P_List <TABLE, TABLE_share> free_tables;
+  typedef I_P_List <TABLE, TABLE_share> TABLE_list;
+  TABLE_list used_tables;
+  TABLE_list free_tables;
 
   LEX_CUSTRING tabledef_version;
 
@@ -663,7 +652,8 @@ struct TABLE_SHARE
   key_map keys_for_keyread;
   ha_rows min_rows, max_rows;		/* create information */
   ulong   avg_row_length;		/* create information */
-  ulong   version, mysql_version;
+  ulong   version;
+  ulong   mysql_version;		/* 0 if .frm is created before 5.0 */
   ulong   reclength;			/* Recordlength */
   /* Stored record length. No generated-only virtual fields are included */
   ulong   stored_rec_length;            
@@ -683,8 +673,10 @@ struct TABLE_SHARE
   enum ha_choice page_checksum;
 
   uint ref_count;                       /* How many TABLE objects uses this */
-  uint blob_ptr_size;			/* 4 or 8 */
   uint key_block_size;			/* create key_block_size, if used */
+  uint stats_sample_pages;		/* number of pages to sample during
+					stats estimation, if used, otherwise 0. */
+  enum_stats_auto_recalc stats_auto_recalc; /* Automatic recalc of stats. */
   uint null_bytes, last_null_bit_pos;
   /*
     Same as null_bytes, except that if there is only a 'delete-marker' in
@@ -735,6 +727,9 @@ struct TABLE_SHARE
   */
   int cached_row_logging_check;
 
+  /* Name of the tablespace used for this table */
+  char *tablespace;
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* filled in when reading from frm */
   bool auto_partitioned;
@@ -756,16 +751,8 @@ struct TABLE_SHARE
   */
   const TABLE_FIELD_DEF *table_field_def_cache;
 
-  /** place to store storage engine specific data */
-  void *ha_data;
-  void (*ha_data_destroy)(void *); /* An optional destructor for ha_data */
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  /** place to store partition specific data, LOCK_ha_data hold while init. */
-  HA_DATA_PARTITION *ha_part_data;
-  /* Destructor for ha_part_data */
-  void (*ha_part_data_destroy)(HA_DATA_PARTITION *);
-#endif
+  /** Main handler's share */
+  Handler_share *ha_share;
 
   /** Instrumentation for this table share. */
   PSI_table_share *m_psi;
@@ -1248,6 +1235,9 @@ public:
    */
   bool key_read;
   bool no_keyread;
+  /**
+    If set, indicate that the table is not replicated by the server.
+  */
   bool locked_by_logger;
   bool no_replicate;
   bool locked_by_name;
@@ -1281,7 +1271,8 @@ public:
   Query_arena *expr_arena;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *part_info;            /* Partition related information */
-  bool no_partitions_used; /* If true, all partitions have been pruned away */
+  /* If true, all partitions have been pruned away */
+  bool all_partitions_pruned_away;
 #endif
   uint max_keys; /* Size of allocated key_info array. */
   bool stats_is_read;     /* Persistent statistics is read for the table */
@@ -2051,6 +2042,11 @@ struct TABLE_LIST
 
   MDL_request mdl_request;
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  /* List to carry partition names from PARTITION (...) clause in statement */
+  List<String> *partition_names;
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
+
   void calc_md5(char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);
   bool create_field_translation(THD *thd);
@@ -2206,7 +2202,7 @@ struct TABLE_LIST
      @brief Returns the name of the database that the referenced table belongs
      to.
   */
-  char *get_db_name() { return view != NULL ? view_db.str : db; }
+  char *get_db_name() const { return view != NULL ? view_db.str : db; }
 
   /**
      @brief Returns the name of the table that this TABLE_LIST represents.
@@ -2214,7 +2210,7 @@ struct TABLE_LIST
      @details The unqualified table name or view name for a table or view,
      respectively.
    */
-  char *get_table_name() { return view != NULL ? view_name.str : table_name; }
+  char *get_table_name() const { return view != NULL ? view_name.str : table_name; }
   bool is_active_sjm();
   bool is_jtbm() { return test(jtbm_subselect!=NULL); }
   st_select_lex_unit *get_unit();
@@ -2511,7 +2507,7 @@ bool unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root,
                                TABLE *table, Field *field,
                                LEX_STRING *vcol_expr, bool *error_reported);
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
-                               char *key, uint key_length);
+                               const char *key, uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
                           uint key_length,
                           const char *table_name, const char *path);
