@@ -680,7 +680,7 @@ int spider_db_errorno(
         current_thd &&
         spider_param_force_commit(current_thd) == 1
       ) {
-        push_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
           error_num, conn->db_conn->get_error());
         if (!conn->mta_conn_mutex_unlock_later)
         {
@@ -1387,13 +1387,13 @@ int spider_db_append_key_columns(
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   KEY *key_info = result_list->key_info;
   uint key_name_length, key_count;
-  key_part_map full_key_part_map = make_prev_keypart_map(key_info->key_parts);
+  key_part_map full_key_part_map = make_prev_keypart_map(key_info->user_defined_key_parts);
   key_part_map start_key_part_map;
   char tmp_buf[MAX_FIELD_WIDTH];
   DBUG_ENTER("spider_db_append_key_columns");
 
   start_key_part_map = start_key->keypart_map & full_key_part_map;
-  DBUG_PRINT("info", ("spider key_info->key_parts=%u", key_info->key_parts));
+  DBUG_PRINT("info", ("spider key_info->user_defined_key_parts=%u", key_info->user_defined_key_parts));
   DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
   DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
 
@@ -1533,7 +1533,7 @@ int spider_db_append_key_where_internal(
   }
 
   if (key_info)
-    full_key_part_map = make_prev_keypart_map(key_info->key_parts);
+    full_key_part_map = make_prev_keypart_map(key_info->user_defined_key_parts);
   else
     full_key_part_map = 0;
 
@@ -1549,8 +1549,8 @@ int spider_db_append_key_where_internal(
     end_key_part_map = 0;
     use_both = FALSE;
   }
-  DBUG_PRINT("info", ("spider key_info->key_parts=%u", key_info ?
-    key_info->key_parts : 0));
+  DBUG_PRINT("info", ("spider key_info->user_defined_key_parts=%u", key_info ?
+    key_info->user_defined_key_parts : 0));
   DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
   DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
   DBUG_PRINT("info", ("spider end_key_part_map=%lu", end_key_part_map));
@@ -2699,7 +2699,7 @@ int spider_db_fetch_key(
   for (
     key_part = key_info->key_part,
     part_num = 0;
-    part_num < key_info->key_parts;
+    part_num < key_info->user_defined_key_parts;
     key_part++,
     part_num++
   ) {
@@ -4635,7 +4635,7 @@ int spider_db_seek_tmp_key(
   for (
     key_part = key_info->key_part,
     part_num = 0;
-    part_num < key_info->key_parts;
+    part_num < key_info->user_defined_key_parts;
     key_part++,
     part_num++
   ) {
@@ -4782,7 +4782,7 @@ void spider_db_set_cardinarity(
   for (roop_count = 0; roop_count < (int) table->s->keys; roop_count++)
   {
     key_info = &table->key_info[roop_count];
-    for (roop_count2 = 0; roop_count2 < (int) key_info->key_parts;
+    for (roop_count2 = 0; roop_count2 < (int) key_info->user_defined_key_parts;
       roop_count2++)
     {
       key_part = &key_info->key_part[roop_count2];
@@ -5438,7 +5438,7 @@ int spider_db_update_auto_increment(
           for (roop_count = first_set ? 1 : 0;
             roop_count < (int) affected_rows;
             roop_count++)
-            push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+            push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
               ER_SPIDER_AUTOINC_VAL_IS_DIFFERENT_NUM,
               ER_SPIDER_AUTOINC_VAL_IS_DIFFERENT_STR);
         }
@@ -5454,7 +5454,7 @@ int spider_db_update_auto_increment(
 #endif
       ) {
         for (roop_count = 0; roop_count < (int) affected_rows; roop_count++)
-          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
             ER_SPIDER_AUTOINC_VAL_IS_DIFFERENT_NUM,
             ER_SPIDER_AUTOINC_VAL_IS_DIFFERENT_STR);
       }
@@ -7759,7 +7759,7 @@ uint spider_db_check_ft_idx(
     key_info = &table->key_info[roop_count];
     if (
       key_info->algorithm == HA_KEY_ALG_FULLTEXT &&
-      item_count - 1 == key_info->key_parts
+      item_count - 1 == key_info->user_defined_key_parts
     ) {
       match1 = TRUE;
       for (roop_count2 = 1; roop_count2 < item_count; roop_count2++)
@@ -7770,7 +7770,7 @@ uint spider_db_check_ft_idx(
           DBUG_RETURN(MAX_KEY);
         match2 = FALSE;
         for (key_part = key_info->key_part, part_num = 0;
-          part_num < key_info->key_parts; key_part++, part_num++)
+          part_num < key_info->user_defined_key_parts; key_part++, part_num++)
         {
           if (key_part->field == field)
           {
