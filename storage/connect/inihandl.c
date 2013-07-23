@@ -29,6 +29,7 @@
 //#include <sys/types.h>
 //#include <memory.h>
 #include "my_global.h"
+#include "osutil.h"
 #include "global.h"
 #include "inihandl.h"
 

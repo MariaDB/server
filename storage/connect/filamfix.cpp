@@ -46,6 +46,7 @@
 #include "plgdbsem.h"
 #include "filamfix.h"
 #include "tabdos.h"
+#include "osutil.h"
 
 #ifndef INVALID_SET_FILE_POINTER
 #define INVALID_SET_FILE_POINTER  0xFFFFFFFF
