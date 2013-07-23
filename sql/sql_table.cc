@@ -8305,8 +8305,6 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   }
   else
   {
-    /* Should be MERGE only */
-    DBUG_ASSERT(new_table->file->ht->db_type == DB_TYPE_MRG_MYISAM);
     if (!table->s->tmp_table &&
         wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
       goto err_new_table_cleanup;

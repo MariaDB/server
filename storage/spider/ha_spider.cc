@@ -7840,7 +7840,7 @@ int ha_spider::info(
                       thd->main_da.message());
 #else
                     strmov(spider_init_error_table->init_error_msg,
-                      thd->stmt_da->message());
+                      thd->get_stmt_da()->message());
 #endif
                   spider_init_error_table->init_error_time =
                     (time_t) time((time_t*) 0);
@@ -8066,7 +8066,7 @@ ha_rows ha_spider::records_in_range(
                       thd->main_da.message());
 #else
                     strmov(spider_init_error_table->init_error_msg,
-                      thd->stmt_da->message());
+                      thd->get_stmt_da()->message());
 #endif
                   spider_init_error_table->init_error_time =
                     (time_t) time((time_t*) 0);
@@ -8110,7 +8110,7 @@ ha_rows ha_spider::records_in_range(
 
     KEY *key_info = &table->key_info[inx];
     key_part_map full_key_part_map =
-      make_prev_keypart_map(key_info->key_parts);
+      make_prev_keypart_map(key_info->user_defined_key_parts);
     key_part_map start_key_part_map;
     key_part_map end_key_part_map;
     key_part_map tgt_key_part_map;
@@ -8308,7 +8308,7 @@ int ha_spider::check_crd()
                     thd->main_da.message());
 #else
                   strmov(spider_init_error_table->init_error_msg,
-                    thd->stmt_da->message());
+                    thd->get_stmt_da()->message());
 #endif
                 spider_init_error_table->init_error_time =
                   (time_t) time((time_t*) 0);
@@ -9726,9 +9726,9 @@ int ha_spider::create(
     if (
       (thd->lex->alter_info.flags &
         (
-          ALTER_ADD_PARTITION | ALTER_DROP_PARTITION |
-          ALTER_COALESCE_PARTITION | ALTER_REORGANIZE_PARTITION |
-          ALTER_TABLE_REORG | ALTER_REBUILD_PARTITION
+          Alter_info::ALTER_ADD_PARTITION | Alter_info::ALTER_DROP_PARTITION |
+          Alter_info::ALTER_COALESCE_PARTITION | Alter_info::ALTER_REORGANIZE_PARTITION |
+          Alter_info::ALTER_TABLE_REORG | Alter_info::ALTER_REBUILD_PARTITION
         )
       ) &&
       memcmp(name + strlen(name) - 5, "#TMP#", 5)
@@ -9873,9 +9873,9 @@ int ha_spider::rename_table(
     if (
       (thd->lex->alter_info.flags &
         (
-          ALTER_ADD_PARTITION | ALTER_DROP_PARTITION |
-          ALTER_COALESCE_PARTITION | ALTER_REORGANIZE_PARTITION |
-          ALTER_TABLE_REORG | ALTER_REBUILD_PARTITION
+          Alter_info::ALTER_ADD_PARTITION | Alter_info::ALTER_DROP_PARTITION |
+          Alter_info::ALTER_COALESCE_PARTITION | Alter_info::ALTER_REORGANIZE_PARTITION |
+          Alter_info::ALTER_TABLE_REORG | Alter_info::ALTER_REBUILD_PARTITION
         )
       )
     )
@@ -10000,9 +10000,9 @@ int ha_spider::delete_table(
       sql_command == SQLCOM_ALTER_TABLE &&
       (thd->lex->alter_info.flags &
         (
-          ALTER_ADD_PARTITION | ALTER_DROP_PARTITION |
-          ALTER_COALESCE_PARTITION | ALTER_REORGANIZE_PARTITION |
-          ALTER_TABLE_REORG | ALTER_REBUILD_PARTITION
+          Alter_info::ALTER_ADD_PARTITION | Alter_info::ALTER_DROP_PARTITION |
+          Alter_info::ALTER_COALESCE_PARTITION | Alter_info::ALTER_REORGANIZE_PARTITION |
+          Alter_info::ALTER_TABLE_REORG | Alter_info::ALTER_REBUILD_PARTITION
         )
       )
     )
@@ -10614,7 +10614,7 @@ void ha_spider::set_select_column_mode()
           /* need primary key columns */
           key_info = &table_share->key_info[table_share->primary_key];
           key_part = key_info->key_part;
-          for (roop_count = 0; roop_count < (int) key_info->key_parts;
+          for (roop_count = 0; roop_count < (int) key_info->user_defined_key_parts;
             roop_count++)
           {
             field = key_part[roop_count].field;
