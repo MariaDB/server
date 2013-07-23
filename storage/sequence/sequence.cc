@@ -25,21 +25,33 @@
 #include <table.h>
 #include <field.h>
 
-typedef struct st_share {
+class SHARE : public Handler_share {
+public:
   const char *name;
   THR_LOCK lock;
-  uint use_count;
-  struct st_share *next;
 
   ulonglong from, to, step;
   bool reverse;
-} SHARE;
+
+  SHARE(const char *name_arg, ulonglong from_arg, ulonglong to_arg,
+        ulonglong step_arg, bool reverse_arg):
+    name(name_arg), from(from_arg), to(to_arg), step(step_arg),
+    reverse(reverse_arg)
+  {
+    thr_lock_init(&lock);
+  }
+  ~SHARE()
+  {
+    thr_lock_delete(&lock);
+  }
+};
 
 class ha_seq: public handler
 {
 private:
   THR_LOCK_DATA lock;
   SHARE *seqs;
+  SHARE *get_share();
   ulonglong cur;
 
 public:
@@ -229,12 +241,9 @@ ha_rows ha_seq::records_in_range(uint inx, key_range *min_key,
 
 int ha_seq::open(const char *name, int mode, uint test_if_locked)
 {
-  mysql_mutex_lock(&table->s->LOCK_ha_data);
-  seqs= (SHARE*)table->s->ha_data;
+  if (!(seqs= get_share()))
+    return HA_ERR_OUT_OF_MEM;
   DBUG_ASSERT(my_strcasecmp(table_alias_charset, name, seqs->name) == 0);
-  if (seqs->use_count++ == 0)
-    thr_lock_init(&seqs->lock);
-  mysql_mutex_unlock(&table->s->LOCK_ha_data);
 
   ref_length= sizeof(cur);
   thr_lock_data_init(&seqs->lock,&lock,NULL);
@@ -243,10 +252,6 @@ int ha_seq::open(const char *name, int mode, uint test_if_locked)
 
 int ha_seq::close(void)
 {
-  mysql_mutex_lock(&table->s->LOCK_ha_data);
-  if (--seqs->use_count == 0)
-    thr_lock_delete(&seqs->lock);
-  mysql_mutex_unlock(&table->s->LOCK_ha_data);
   return 0;
 }
 
@@ -271,6 +276,45 @@ static bool parse_table_name(const char *name, size_t name_length,
 }
 
 
+SHARE *ha_seq::get_share()
+{
+  SHARE *tmp_share;
+  lock_shared_ha_data();
+  if (!(tmp_share= static_cast<SHARE*>(get_ha_share_ptr())))
+  {
+    bool reverse;
+    ulonglong from, to, step;
+
+    parse_table_name(table_share->table_name.str,
+                     table_share->table_name.length, &from, &to, &step);
+    
+    if ((reverse = from > to))
+    {
+      if (step > from - to)
+        to = from;
+      else
+        swap_variables(ulonglong, from, to);
+      /*
+        when keyread is allowed, optimizer will always prefer an index to a
+        table scan for our tables, and we'll never see the range reversed.
+      */
+      table_share->keys_for_keyread.clear_all();
+    }
+
+    to= (to - from) / step * step + step + from;
+
+    tmp_share= new SHARE(table_share->normalized_path.str, from, to, step, reverse);
+
+    if (!tmp_share)
+      goto err;
+    set_ha_share_ptr(static_cast<Handler_share*>(tmp_share));
+  }
+err:
+  unlock_shared_ha_data();
+  return tmp_share;
+}
+
+
 static int discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 {
   ulonglong from, to, step;
@@ -282,36 +326,7 @@ static int discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
     return HA_WRONG_CREATE_OPTION;
 
   const char *sql="create table seq (seq bigint unsigned primary key)";
-  int res= share->init_from_sql_statement_string(thd, 0, sql, strlen(sql));
-  if (res)
-    return res;
-
-  bool reverse;
-  if ((reverse = from > to))
-  {
-    if (step > from - to)
-      to = from;
-    else
-      swap_variables(ulonglong, from, to);
-    /*
-      when keyread is allowed, optimizer will always prefer an index to a
-      table scan for our tables, and we'll never see the range reversed.
-    */
-    share->keys_for_keyread.clear_all();
-  }
-
-  to= (to - from) / step * step + step + from;
-
-  SHARE *seqs= (SHARE*)alloc_root(&share->mem_root, sizeof(*seqs));
-  bzero(seqs, sizeof(*seqs));
-  seqs->name = share->normalized_path.str;
-  seqs->from= from;
-  seqs->to= to;
-  seqs->step= step;
-  seqs->reverse= reverse;
-
-  share->ha_data = seqs;
-  return 0;
+  return share->init_from_sql_statement_string(thd, 0, sql, strlen(sql));
 }
 
 
