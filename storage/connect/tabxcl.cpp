@@ -16,6 +16,7 @@
 /*  Include relevant section of system dependant header files.         */
 /***********************************************************************/
 #include "my_global.h"
+#include "table.h"       // MySQL table definitions
 #if defined(WIN32)
 #include <stdlib.h>
 #include <stdio.h>
@@ -40,7 +41,6 @@
 /***********************************************************************/
 /*  Include application header files:                                  */
 /***********************************************************************/
-#include "table.h"       // MySQL table definitions
 #include "global.h"
 #include "plgdbsem.h"
 #include "plgcnx.h"                       // For DB types
