@@ -7,7 +7,7 @@ INSERT INTO t1(f1) VALUES (0),(1),(2),(3),(4),(5);
 SET session debug_dbug= '+d,alloc_sort_buffer_fail';
 CALL mtr.add_suppression("Out of sort memory");
 SELECT * FROM t1 ORDER BY f1 ASC, f0;
-Got one of the listed errors
+ERROR HY001: Out of sort memory, consider increasing server sort buffer size
 SET session debug_dbug= @old_debug;
 CREATE FUNCTION f1() RETURNS INT RETURN 1;
 DELETE FROM t1 ORDER BY (f1(10)) LIMIT 1;
