@@ -13,7 +13,7 @@ INSERT INTO t1(f1) VALUES (0),(1),(2),(3),(4),(5);
 
 SET session debug_dbug= '+d,alloc_sort_buffer_fail';
 CALL mtr.add_suppression("Out of sort memory");
---error ER_OUT_OF_SORTMEMORY
+--error ER_OUT_OF_SORTMEMORY,ER_OUT_OF_RESOURCES
 SELECT * FROM t1 ORDER BY f1 ASC, f0;
 SET session debug_dbug= @old_debug;
 
