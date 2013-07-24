@@ -40,14 +40,14 @@ static struct st_mysql_sys_var *sysvars[] = {
   NULL
 };
 
-class SHARE : public Handler_share {
+class TSD_share : public Handler_share {
 public:
   THR_LOCK lock;
-  SHARE()
+  TSD_share()
   {
     thr_lock_init(&lock);
   }
-  ~SHARE()
+  ~TSD_share()
   {
     thr_lock_delete(&lock);
   }
@@ -57,8 +57,8 @@ class ha_tsd: public handler
 {
 private:
   THR_LOCK_DATA lock;
-  SHARE *share;
-  SHARE *get_share();
+  TSD_share *share;
+  TSD_share *get_share();
 
 public:
   ha_tsd(handlerton *hton, TABLE_SHARE *table_arg)
@@ -94,13 +94,13 @@ public:
   int close(void);
 };
 
-SHARE *ha_tsd::get_share()
+TSD_share *ha_tsd::get_share()
 {
-  SHARE *tmp_share;
+  TSD_share *tmp_share;
   lock_shared_ha_data();
-  if (!(tmp_share= static_cast<SHARE*>(get_ha_share_ptr())))
+  if (!(tmp_share= static_cast<TSD_share*>(get_ha_share_ptr())))
   {
-    tmp_share= new SHARE;
+    tmp_share= new TSD_share;
     if (!tmp_share)
       goto err;
 
