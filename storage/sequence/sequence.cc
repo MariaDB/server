@@ -25,7 +25,7 @@
 #include <table.h>
 #include <field.h>
 
-class SHARE : public Handler_share {
+class Sequence_share : public Handler_share {
 public:
   const char *name;
   THR_LOCK lock;
@@ -33,14 +33,14 @@ public:
   ulonglong from, to, step;
   bool reverse;
 
-  SHARE(const char *name_arg, ulonglong from_arg, ulonglong to_arg,
-        ulonglong step_arg, bool reverse_arg):
+  Sequence_share(const char *name_arg, ulonglong from_arg, ulonglong to_arg,
+                 ulonglong step_arg, bool reverse_arg):
     name(name_arg), from(from_arg), to(to_arg), step(step_arg),
     reverse(reverse_arg)
   {
     thr_lock_init(&lock);
   }
-  ~SHARE()
+  ~Sequence_share()
   {
     thr_lock_delete(&lock);
   }
@@ -50,8 +50,8 @@ class ha_seq: public handler
 {
 private:
   THR_LOCK_DATA lock;
-  SHARE *seqs;
-  SHARE *get_share();
+  Sequence_share *seqs;
+  Sequence_share *get_share();
   ulonglong cur;
 
 public:
@@ -276,11 +276,11 @@ static bool parse_table_name(const char *name, size_t name_length,
 }
 
 
-SHARE *ha_seq::get_share()
+Sequence_share *ha_seq::get_share()
 {
-  SHARE *tmp_share;
+  Sequence_share *tmp_share;
   lock_shared_ha_data();
-  if (!(tmp_share= static_cast<SHARE*>(get_ha_share_ptr())))
+  if (!(tmp_share= static_cast<Sequence_share*>(get_ha_share_ptr())))
   {
     bool reverse;
     ulonglong from, to, step;
@@ -303,7 +303,7 @@ SHARE *ha_seq::get_share()
 
     to= (to - from) / step * step + step + from;
 
-    tmp_share= new SHARE(table_share->normalized_path.str, from, to, step, reverse);
+    tmp_share= new Sequence_share(table_share->normalized_path.str, from, to, step, reverse);
 
     if (!tmp_share)
       goto err;
