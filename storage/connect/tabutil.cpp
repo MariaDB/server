@@ -226,8 +226,12 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
     crp->Kdata->SetValue((fp->null_ptr != 0) ? 1 : 0, i);
 
     crp = crp->Next;                       // Remark
-    fld = fp->comment.str;
-    crp->Kdata->SetValue(fld, fp->comment.length, i);
+
+    // For Valgrind until bug on comment storage is fixed
+//    if (fp->comment.length > 0 && (fld = fp->comment.str))
+//      crp->Kdata->SetValue(fld, fp->comment.length, i);
+//    else
+      crp->Kdata->Reset(i);
 
     crp = crp->Next;                       // New
     crp->Kdata->SetValue((fmt) ? fmt : (char*) "", i);
