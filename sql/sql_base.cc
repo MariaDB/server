@@ -9611,7 +9611,7 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
       */
       if (remove_type == TDC_RT_REMOVE_NOT_OWN)
         share->remove_from_cache_at_close();
-      else
+      else if (remove_type != TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE)
       {
         /* Ensure that no can open the table while it's used */
         share->protect_against_usage();

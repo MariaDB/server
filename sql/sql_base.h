@@ -61,8 +61,8 @@ enum find_item_error_report_type {REPORT_ALL_ERRORS, REPORT_EXCEPT_NOT_FOUND,
 
 enum enum_tdc_remove_table_type {TDC_RT_REMOVE_ALL, TDC_RT_REMOVE_NOT_OWN,
                                  TDC_RT_REMOVE_UNUSED,
-                                 TDC_RT_REMOVE_NOT_OWN_AND_MARK_NOT_USABLE};
-#define TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE TDC_RT_REMOVE_NOT_OWN_AND_MARK_NOT_USABLE
+                                 TDC_RT_REMOVE_NOT_OWN_AND_MARK_NOT_USABLE,
+                                 TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE};
 
 /* bits for last argument to remove_table_from_cache() */
 #define RTFC_NO_FLAG                0x0000
