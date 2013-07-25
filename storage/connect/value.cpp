@@ -579,12 +579,12 @@ template <>
 void TYPVAL<double>::SetValue_char(char *p, int n)
   {
   if (p) {
-    char *p2, buf[32];
+    char buf[32];
 
-    for (p2 = p + n; p < p2 && *p == ' '; p++) ;
+    for (; n > 0 && *p == ' '; p++) 
+      n--;
 
-    n = min(p2 - p, 31);
-    memcpy(buf, p, n);
+    memcpy(buf, p, min(n, 31));
     buf[n] = '\0';
     Tval = atof(buf);
 

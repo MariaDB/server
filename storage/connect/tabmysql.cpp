@@ -1232,7 +1232,7 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
     if (trace)
       htrc("MySQL ReadColumn: name=%s buf=%s\n", Name, buf);
 
-    Value->SetValue_char(buf, Long);
+    Value->SetValue_char(buf, min((unsigned)Long, strlen(buf)));
   } else {
     if (Nullable)
       Value->SetNull(true);
