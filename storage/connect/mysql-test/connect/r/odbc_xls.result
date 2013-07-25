@@ -2,7 +2,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `Name` varchar(256) NOT NULL,
   `Description` varchar(256) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=ODBC `CATFUNC`=Sources `tabname`=t1
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='ODBC' `CATFUNC`='Sources'
 CREATE TABLE contact (Nom VARCHAR(128), Fonction VARCHAR(128), Company VARCHAR(128), Repertoire VARCHAR(30)) ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineXLS;DBQ=DATADIR/test/contacts.xls';;
 SELECT Nom, Fonction FROM contact WHERE Repertoire='ascii';
 Nom	Fonction

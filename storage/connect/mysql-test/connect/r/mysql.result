@@ -45,7 +45,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a	b
 NULL	NULL
@@ -114,7 +114,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` smallint(6) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
@@ -129,7 +129,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(9) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
@@ -144,7 +144,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
@@ -159,7 +159,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` bigint(20) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
@@ -177,7 +177,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
@@ -192,7 +192,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
@@ -213,7 +213,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` date DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
