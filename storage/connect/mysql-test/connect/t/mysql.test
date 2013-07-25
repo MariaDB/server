@@ -33,30 +33,30 @@ SELECT * FROM t1;
 
 # Bad user name
 # Suppress "mysql_real_connect failed:" (printed in _DEBUG build)
-#--replace_result $PORT PORT "mysql_real_connect failed: " ""
-#--error ER_UNKNOWN_ERROR
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root1,port=$PORT'
+--replace_result $PORT PORT "mysql_real_connect failed: " ""
+--error ER_UNKNOWN_ERROR
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root1,port=$PORT'
 
 # Bad database name
-#--replace_result $PORT PORT "mysql_real_connect failed: " ""
-#--error ER_UNKNOWN_ERROR
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='unknown' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--replace_result $PORT PORT "mysql_real_connect failed: " ""
+--error ER_UNKNOWN_ERROR
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='unknown' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 
 # Bad database name, with OPTION_LIST going first.
-#--replace_result $PORT PORT "mysql_real_connect failed: " ""
-#--error ER_UNKNOWN_ERROR
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL OPTION_LIST='host=localhost,user=root,port=$PORT' DBNAME='unknown' TABNAME='t1'
+--replace_result $PORT PORT "mysql_real_connect failed: " ""
+--error ER_UNKNOWN_ERROR
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL OPTION_LIST='host=localhost,user=root,port=$PORT' DBNAME='unknown' TABNAME='t1'
 
 # Bad table name
-#--replace_result $PORT PORT
-#--error ER_UNKNOWN_ERROR
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='unknown' OPTION_LIST='host=localhost,user=root,port=$PORT'
-#--error ER_NO_SUCH_TABLE
-#SHOW CREATE TABLE t2;
+--replace_result $PORT PORT
+--error ER_UNKNOWN_ERROR
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='unknown' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE t2;
 
 # Bad column name
 --replace_result $PORT PORT
---eval CREATE TABLE t2 (a int, y char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 (x int, y char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t2;
 --error ER_GET_ERRMSG
@@ -78,12 +78,12 @@ DROP TABLE t2;
 --echo #
 
 # Automatic table structure
-#--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
-#--replace_result $PORT PORT
-#SHOW CREATE TABLE t2;
-#SELECT * FROM t2;
-#DROP TABLE t2;
+--replace_result $PORT PORT
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--replace_result $PORT PORT
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
 
 
 # Explicit table structure
@@ -141,8 +141,7 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (a smallint);
 --replace_result $PORT PORT
-#-eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
---eval CREATE TABLE t2 (a smallint) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT
@@ -152,8 +151,7 @@ DROP TABLE t2, t1;
 
 CREATE TABLE t1 (a mediumint);
 --replace_result $PORT PORT
-#-eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
---eval CREATE TABLE t2 (a int) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT
@@ -163,8 +161,7 @@ DROP TABLE t2, t1;
 
 CREATE TABLE t1 (a int);
 --replace_result $PORT PORT
-#-eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
---eval CREATE TABLE t2 (a int) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT
@@ -176,8 +173,7 @@ DROP TABLE t2, t1;
 # TODO: bigint is mapped to double(20,0)
 CREATE TABLE t1 (a bigint);
 --replace_result $PORT PORT
-#-eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
---eval CREATE TABLE t2 (a bigint) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT
@@ -228,8 +224,7 @@ DROP TABLE t2, t1;
 # TODO: char is mapped to varchar
 CREATE TABLE t1 (a char(10));
 --replace_result $PORT PORT
-#-eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
---eval CREATE TABLE t2 (a varchar(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT
@@ -239,8 +234,7 @@ DROP TABLE t2, t1;
 
 CREATE TABLE t1 (a varchar(10));
 --replace_result $PORT PORT
-#-eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
---eval CREATE TABLE t2 (a varchar(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT
@@ -393,8 +387,7 @@ DROP TABLE t2, t1;
 
 CREATE TABLE t1 (a date);
 --replace_result $PORT PORT
-#-eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
---eval CREATE TABLE t2 (a date) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
 --replace_result $PORT PORT
 SHOW CREATE TABLE t1;
 --replace_result $PORT PORT

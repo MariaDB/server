@@ -2,7 +2,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `Description` varchar(128) NOT NULL,
   `Attributes` varchar(256) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='ODBC' `CATFUNC`='Drivers'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=ODBC `CATFUNC`=Drivers `tabname`=t1
 SET NAMES utf8;
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
@@ -23,7 +23,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(64) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=utf8 CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' `TABLE_TYPE`='ODBC' `DATA_CHARSET`='utf8'
+) ENGINE=CONNECT DEFAULT CHARSET=utf8 CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' `TABLE_TYPE`=ODBC `DATA_CHARSET`=utf8 `tabname`=t1
 SELECT * FROM t1;
 a
 test1
