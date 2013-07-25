@@ -20,7 +20,7 @@ Lisbeth	Lucy,Charles,Diana
 Corinne	NULL
 Claude	Marc
 Janet	Arthur,Sandra,Peter,John
-CREATE TABLE child (mother varchar(12) NOT NULL, children varchar(30)) ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=chlist OPTION_LIST='colname=children,port=PORT';
+CREATE TABLE child ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=chlist OPTION_LIST='colname=children,port=PORT';
 SELECT * FROM child;
 mother	children
 Sophia	Vivian
