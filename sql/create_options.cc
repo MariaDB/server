@@ -743,9 +743,9 @@ engine_option_value *merge_engine_table_options(engine_option_value *first,
   DBUG_ENTER("merge_engine_table_options");
   LINT_INIT(end);
 
-  /* find last element */
-  if (first && second)
-    for (end= first; end->next; end= end->next) /* no-op */;
+  /* Create copy of first list */
+  for (opt= first, first= 0; opt; opt= opt->next)
+    new (root) engine_option_value(opt, &first, &end);
 
   for (opt= second; opt; opt= opt->next)
     new (root) engine_option_value(opt->name, opt->value, opt->quoted_value,

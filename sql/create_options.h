@@ -34,6 +34,13 @@ class engine_option_value: public Sql_alloc
   bool parsed;                  ///< to detect unrecognized options
   bool quoted_value;            ///< option=VAL vs. option='VAL'
 
+  engine_option_value(engine_option_value *src,
+                      engine_option_value **start, engine_option_value **end) :
+    name(src->name), value(src->value),
+    next(NULL), parsed(src->parsed), quoted_value(src->quoted_value)
+  {
+    link(start, end);
+  }
   engine_option_value(LEX_STRING &name_arg, LEX_STRING &value_arg, bool quoted,
                       engine_option_value **start, engine_option_value **end) :
     name(name_arg), value(value_arg),
