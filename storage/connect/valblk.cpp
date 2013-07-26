@@ -592,7 +592,7 @@ void CHRBLK::SetValue(char *sp, uint len, int n)
 #endif
 
   if (sp)
-    memcpy(p, sp, Long);
+    memcpy(p, sp, min((unsigned)Long, len));
 
   if (Blanks) {
     // Suppress eventual ending zero and right fill with blanks
