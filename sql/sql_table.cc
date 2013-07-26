@@ -4192,8 +4192,7 @@ handler *mysql_create_frm_image(THD *thd,
   set_table_default_charset(thd, create_info, (char*) db);
 
   db_options= create_info->table_options;
-  if (create_table_mode != C_ALTER_TABLE_FRM_ONLY &&
-      create_info->row_type != ROW_TYPE_FIXED &&
+  if (create_info->row_type != ROW_TYPE_FIXED &&
       create_info->row_type != ROW_TYPE_DEFAULT)
     db_options|= HA_OPTION_PACK_RECORD;
 
