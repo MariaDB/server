@@ -97,6 +97,11 @@
      inserts a lot faster, but would mean highly arbitrary reads.
 
     -Brian
+
+  Archive file format versions:
+  <5.1.5 - v.1
+  5.1.5-5.1.15 - v.2
+  >5.1.15 - v.3
 */
 
 
@@ -192,9 +197,11 @@ static void init_archive_psi_keys(void)
 
 /*
   We just implement one additional file extension.
+  ARM is here just to properly drop 5.0 tables.
 */
 static const char *ha_archive_exts[] = {
   ARZ,
+  ARM,
   NullS
 };
 
@@ -581,20 +588,13 @@ int ha_archive::open(const char *name, int mode, uint open_options)
   if (!share)
     DBUG_RETURN(rc);
 
- /*
-    Allow open on crashed table in repair mode only.
-    Block open on 5.0 ARCHIVE table. Though we have almost all
-    routines to access these tables, they were not well tested.
-    For now we have to refuse to open such table to avoid
-    potential data loss.
-  */
+  /* Allow open on crashed table in repair mode only. */
   switch (rc)
   {
   case 0:
     break;
   case HA_ERR_TABLE_DEF_CHANGED:
   case HA_ERR_CRASHED_ON_USAGE:
-  case HA_ERR_TABLE_NEEDS_UPGRADE:
     if (open_options & HA_OPEN_FOR_REPAIR)
     {
       rc= 0;
@@ -674,6 +674,17 @@ int ha_archive::frm_copy(azio_stream *src, azio_stream *dst)
 {
   int rc= 0;
   uchar *frm_ptr;
+
+  if (!src->frm_length)
+  {
+    size_t frm_len;
+    if (!table_share->read_frm_image((const uchar**) &frm_ptr, &frm_len))
+    {
+      azwrite_frm(dst, frm_ptr, frm_len);
+      table_share->free_frm_image(frm_ptr);
+    }
+    return 0;
+  }
 
   if (!(frm_ptr= (uchar *) my_malloc(src->frm_length,
                                      MYF(MY_THREAD_SPECIFIC | MY_WME))))
@@ -1639,19 +1650,13 @@ int ha_archive::info(uint flag)
 {
   DBUG_ENTER("ha_archive::info");
 
-  /* 
-    If dirty, we lock, and then reset/flush the data.
-    I found that just calling azflush() doesn't always work.
-  */
   mysql_mutex_lock(&share->mutex);
-  if (share->dirty == TRUE)
+  if (share->dirty)
   {
-    if (share->dirty == TRUE)
-    {
-      DBUG_PRINT("ha_archive", ("archive flushing out rows for scan"));
-      azflush(&(share->archive_write), Z_SYNC_FLUSH);
-      share->dirty= FALSE;
-    }
+    DBUG_PRINT("ha_archive", ("archive flushing out rows for scan"));
+    DBUG_ASSERT(share->archive_write_open);
+    azflush(&(share->archive_write), Z_SYNC_FLUSH);
+    share->dirty= FALSE;
   }
 
   /* 
@@ -1727,7 +1732,10 @@ int ha_archive::end_bulk_insert()
 {
   DBUG_ENTER("ha_archive::end_bulk_insert");
   bulk_insert= FALSE;
-  share->dirty= TRUE;
+  mysql_mutex_lock(&share->mutex);
+  if (share->archive_write_open)
+    share->dirty= true;
+  mysql_mutex_unlock(&share->mutex);
   DBUG_RETURN(0);
 }
 
