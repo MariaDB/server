@@ -11347,7 +11347,7 @@ int ha_spider::rnd_handler_init()
 
 void ha_spider::set_error_mode()
 {
-  THD *thd = trx->thd;
+  THD *thd = ha_thd();
   DBUG_ENTER("ha_spider::set_error_mode");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (thd_sql_command(thd))
