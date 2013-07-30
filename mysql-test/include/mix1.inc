@@ -631,8 +631,10 @@ copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/bug29807.frm;
 select * from bug29807;
 drop table t1;
 drop table bug29807;
+--disable_query_log
 call mtr.add_suppression("InnoDB: Error: table .test...bug29807. does not exist in the InnoDB internal");
-call mtr.add_suppression("Cannot find or open table test\/bug29807 from");
+call mtr.add_suppression("InnoDB: Cannot open table test\/bug29807 from");
+--enable_query_log
 
 
 #
