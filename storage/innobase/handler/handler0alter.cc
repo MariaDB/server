@@ -235,7 +235,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
-	if (altered_table->s->fields > REC_MAX_N_USER_FIELDS) {
+	if (altered_table->s->stored_fields > REC_MAX_N_USER_FIELDS) {
 		/* Deny the inplace ALTER TABLE. MySQL will try to
 		re-create the table and ha_innobase::create() will
 		return an error too. This is how we effectively
@@ -364,8 +364,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		     key_part++) {
 			const Create_field*	new_field;
 
-			DBUG_ASSERT(key_part->fieldnr
-				    < altered_table->s->fields);
+			DBUG_ASSERT(key_part->fieldnr < altered_table->s->fields);
 
 			cf_it.rewind();
 			for (uint fieldnr = 0; (new_field = cf_it++);
@@ -426,7 +425,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	DBUG_ASSERT(!prebuilt->table->fts || prebuilt->table->fts->doc_col
-		    <= table->s->fields);
+		    <= table->s->stored_fields);
 	DBUG_ASSERT(!prebuilt->table->fts || prebuilt->table->fts->doc_col
 		    < dict_table_get_n_user_cols(prebuilt->table));
 
@@ -1135,17 +1134,21 @@ innobase_rec_to_mysql(
 	const ulint*		offsets)/*!< in: rec_get_offsets(
 					rec, index, ...) */
 {
-	uint	n_fields	= table->s->fields;
+	uint	n_fields	= table->s->stored_fields;
+        uint    sql_idx         = 0;
 
 	ut_ad(n_fields == dict_table_get_n_user_cols(index->table)
 	      - !!(DICT_TF2_FLAG_IS_SET(index->table,
 					DICT_TF2_FTS_HAS_DOC_ID)));
 
-	for (uint i = 0; i < n_fields; i++) {
-		Field*		field	= table->field[i];
+	for (uint i = 0; i < n_fields; i++, sql_idx++) {
+		Field*		field;
 		ulint		ipos;
 		ulint		ilen;
 		const uchar*	ifield;
+
+                while (!((field= table->field[sql_idx])->stored_in_db))
+                          sql_idx++;
 
 		field->reset();
 
@@ -1185,15 +1188,19 @@ innobase_fields_to_mysql(
 	const dict_index_t*	index,	/*!< in: InnoDB index */
 	const dfield_t*		fields)	/*!< in: InnoDB index fields */
 {
-	uint	n_fields	= table->s->fields;
+	uint	n_fields	= table->s->stored_fields;
+        uint    sql_idx         = 0;
 
 	ut_ad(n_fields == dict_table_get_n_user_cols(index->table)
 	      - !!(DICT_TF2_FLAG_IS_SET(index->table,
 					DICT_TF2_FTS_HAS_DOC_ID)));
 
-	for (uint i = 0; i < n_fields; i++) {
-		Field*		field	= table->field[i];
+	for (uint i = 0; i < n_fields; i++, sql_idx++) {
+		Field*		field;
 		ulint		ipos;
+
+                while (!((field= table->field[sql_idx])->stored_in_db))
+                          sql_idx++;
 
 		field->reset();
 
@@ -1228,16 +1235,20 @@ innobase_row_to_mysql(
 	const dict_table_t*	itab,	/*!< in: InnoDB table */
 	const dtuple_t*		row)	/*!< in: InnoDB row */
 {
-	uint  n_fields	= table->s->fields;
+	uint  n_fields	= table->s->stored_fields;
+        uint  sql_idx   = 0;
 
 	/* The InnoDB row may contain an extra FTS_DOC_ID column at the end. */
 	ut_ad(row->n_fields == dict_table_get_n_cols(itab));
 	ut_ad(n_fields == row->n_fields - DATA_N_SYS_COLS
 	      - !!(DICT_TF2_FLAG_IS_SET(itab, DICT_TF2_FTS_HAS_DOC_ID)));
 
-	for (uint i = 0; i < n_fields; i++) {
-		Field*		field	= table->field[i];
+	for (uint i = 0; i < n_fields; i++, sql_idx++) {
+		Field*          field;
 		const dfield_t*	df	= dtuple_get_nth_field(row, i);
+
+                while (!((field= table->field[sql_idx])->stored_in_db))
+                          sql_idx++;
 
 		field->reset();
 
@@ -1531,12 +1542,15 @@ innobase_fts_check_doc_id_col(
 {
 	*fts_doc_col_no = ULINT_UNDEFINED;
 
-	const uint n_cols = altered_table->s->fields;
+	const uint n_cols = altered_table->s->stored_fields;
+        uint sql_idx = 0;
 	uint i;
 
-	for (i = 0; i < n_cols; i++) {
-		const Field*	field = altered_table->s->field[i];
-
+	for (i = 0; i < n_cols; i++, sql_idx++) {
+		const Field*	field;
+                while (!((field= altered_table->field[sql_idx])->
+                                 stored_in_db))
+                          sql_idx++;
 		if (my_strcasecmp(system_charset_info,
 				  field->field_name, FTS_DOC_ID_COL_NAME)) {
 			continue;
@@ -1861,7 +1875,8 @@ created_clustered:
 			    && !innobase_fts_check_doc_id_col(
 				    NULL, altered_table,
 				    &fts_doc_id_col)) {
-				fts_doc_id_col = altered_table->s->fields;
+				fts_doc_id_col =
+                                  altered_table->s->stored_fields;
 				add_fts_doc_id = true;
 			}
 
@@ -1916,7 +1931,7 @@ created_clustered:
 			index->name = mem_heap_strdup(
 				heap, FTS_DOC_ID_INDEX_NAME);
 			ut_ad(!add_fts_doc_id
-			      || fts_doc_id_col == altered_table->s->fields);
+			      || fts_doc_id_col == altered_table->s->stored_fields);
 		} else {
 			char*	index_name;
 			index->name = index_name = static_cast<char*>(
@@ -2351,13 +2366,14 @@ innobase_build_col_map(
 	dtuple_t*		add_cols,
 	mem_heap_t*		heap)
 {
+        uint old_i, old_innobase_i;
 	DBUG_ENTER("innobase_build_col_map");
 	DBUG_ASSERT(altered_table != table);
 	DBUG_ASSERT(new_table != old_table);
 	DBUG_ASSERT(dict_table_get_n_cols(new_table)
-		    >= altered_table->s->fields + DATA_N_SYS_COLS);
+		    >= altered_table->s->stored_fields + DATA_N_SYS_COLS);
 	DBUG_ASSERT(dict_table_get_n_cols(old_table)
-		    >= table->s->fields + DATA_N_SYS_COLS);
+		    >= table->s->stored_fields + DATA_N_SYS_COLS);
 	DBUG_ASSERT(!!add_cols == !!(ha_alter_info->handler_flags
 				     & Alter_inplace_info::ADD_COLUMN));
 	DBUG_ASSERT(!add_cols || dtuple_get_n_fields(add_cols)
@@ -2368,34 +2384,46 @@ innobase_build_col_map(
 
 	List_iterator_fast<Create_field> cf_it(
 		ha_alter_info->alter_info->create_list);
-	uint i = 0;
+	uint i = 0, sql_idx = 0;
 
 	/* Any dropped columns will map to ULINT_UNDEFINED. */
-	for (uint old_i = 0; old_i + DATA_N_SYS_COLS < old_table->n_cols;
-	     old_i++) {
-		col_map[old_i] = ULINT_UNDEFINED;
+	for (old_innobase_i = 0;
+             old_innobase_i + DATA_N_SYS_COLS < old_table->n_cols;
+	     old_innobase_i++) {
+		col_map[old_innobase_i] = ULINT_UNDEFINED;
 	}
 
 	while (const Create_field* new_field = cf_it++) {
-		for (uint old_i = 0; table->field[old_i]; old_i++) {
+                if (!new_field->stored_in_db)
+                {
+                  sql_idx++;
+                  continue;
+                }
+		for (old_i = 0, old_innobase_i= 0;
+                     table->field[old_i];
+                     old_i++) {
 			const Field* field = table->field[old_i];
+                        if (!table->field[old_i]->stored_in_db)
+                          continue;
 			if (new_field->field == field) {
-				col_map[old_i] = i;
+				col_map[old_innobase_i] = i;
 				goto found_col;
 			}
+                        old_innobase_i++;
 		}
 
 		innobase_build_col_map_add(
 			heap, dtuple_get_nth_field(add_cols, i),
-			altered_table->s->field[i],
+			altered_table->s->field[sql_idx],
 			dict_table_is_comp(new_table));
 found_col:
 		i++;
+                sql_idx++;
 	}
 
-	DBUG_ASSERT(i == altered_table->s->fields);
+	DBUG_ASSERT(i == altered_table->s->stored_fields);
 
-	i = table->s->fields;
+	i = table->s->stored_fields;
 
 	/* Add the InnoDB hidden FTS_DOC_ID column, if any. */
 	if (i + DATA_N_SYS_COLS < old_table->n_cols) {
@@ -2405,17 +2433,17 @@ found_col:
 						 DICT_TF2_FTS_HAS_DOC_ID));
 		DBUG_ASSERT(i + DATA_N_SYS_COLS + 1 == old_table->n_cols);
 		DBUG_ASSERT(!strcmp(dict_table_get_col_name(
-					    old_table, table->s->fields),
+					    old_table, table->s->stored_fields),
 				    FTS_DOC_ID_COL_NAME));
-		if (altered_table->s->fields + DATA_N_SYS_COLS
+		if (altered_table->s->stored_fields + DATA_N_SYS_COLS
 		    < new_table->n_cols) {
 			DBUG_ASSERT(DICT_TF2_FLAG_IS_SET(
 					    new_table,
 					    DICT_TF2_FTS_HAS_DOC_ID));
-			DBUG_ASSERT(altered_table->s->fields
+			DBUG_ASSERT(altered_table->s->stored_fields
 				    + DATA_N_SYS_COLS + 1
 				    == new_table->n_cols);
-			col_map[i] = altered_table->s->fields;
+			col_map[i] = altered_table->s->stored_fields;
 		} else {
 			DBUG_ASSERT(!DICT_TF2_FLAG_IS_SET(
 					    new_table,
@@ -2533,6 +2561,7 @@ prepare_inplace_alter_table_dict(
 	const ulint*		col_map		= NULL;
 	dtuple_t*		add_cols	= NULL;
 	ulint			num_fts_index;
+        uint                    sql_idx;
 
 	DBUG_ENTER("prepare_inplace_alter_table_dict");
 	DBUG_ASSERT((add_autoinc_col != ULINT_UNDEFINED)
@@ -2656,7 +2685,7 @@ prepare_inplace_alter_table_dict(
 			goto new_clustered_failed;
 		}
 
-		n_cols = altered_table->s->fields;
+		n_cols = altered_table->s->stored_fields;
 
 		if (add_fts_doc_id) {
 			n_cols++;
@@ -2688,8 +2717,12 @@ prepare_inplace_alter_table_dict(
 				user_table->data_dir_path);
 		}
 
-		for (uint i = 0; i < altered_table->s->fields; i++) {
-			const Field*	field = altered_table->field[i];
+                sql_idx= 0;
+		for (uint i = 0; i < altered_table->s->stored_fields; i++, sql_idx++) {
+			const Field*	field;
+                        while (!((field= altered_table->field[sql_idx])->
+                                 stored_in_db))
+                          sql_idx++;
 			ulint		is_unsigned;
 			ulint		field_type
 				= (ulint) field->type();
@@ -2766,7 +2799,7 @@ prepare_inplace_alter_table_dict(
 		if (add_fts_doc_id) {
 			fts_add_doc_id_column(indexed_table, heap);
 			indexed_table->fts->doc_col = fts_doc_id_col;
-			ut_ad(fts_doc_id_col == altered_table->s->fields);
+			ut_ad(fts_doc_id_col == altered_table->s->stored_fields);
 		} else if (indexed_table->fts) {
 			indexed_table->fts->doc_col = fts_doc_id_col;
 		}
@@ -3674,7 +3707,7 @@ func_exit:
 
 		if (!innobase_fts_check_doc_id_col(
 			    prebuilt->table, altered_table, &fts_doc_col_no)) {
-			fts_doc_col_no = altered_table->s->fields;
+			fts_doc_col_no = altered_table->s->stored_fields;
 			add_fts_doc_id = true;
 			add_fts_doc_id_idx = true;
 
@@ -3708,15 +3741,22 @@ func_exit:
 	}
 
 	/* See if an AUTO_INCREMENT column was added. */
-	uint i = 0;
+	uint i = 0, innodb_idx= 0;
 	List_iterator_fast<Create_field> cf_it(
 		ha_alter_info->alter_info->create_list);
 	while (const Create_field* new_field = cf_it++) {
 		const Field*	field;
+                if (!new_field->stored_in_db) {
+                  i++;
+                  continue;
+                }
 
 		DBUG_ASSERT(i < altered_table->s->fields);
+		DBUG_ASSERT(innodb_idx < altered_table->s->stored_fields);
 
 		for (uint old_i = 0; table->field[old_i]; old_i++) {
+                        if (!table->field[old_i]->stored_in_db)
+                          continue;
 			if (new_field->field == table->field[old_i]) {
 				goto found_col;
 			}
@@ -3740,13 +3780,14 @@ func_exit:
 				my_error(ER_WRONG_AUTO_KEY, MYF(0));
 				goto err_exit;
 			}
-			add_autoinc_col_no = i;
+			add_autoinc_col_no = innodb_idx;
 
 			autoinc_col_max_value = innobase_get_int_col_max_value(
 				field);
 		}
 found_col:
 		i++;
+                innodb_idx++;
 	}
 
 	DBUG_ASSERT(user_thd == prebuilt->trx->mysql_thd);
@@ -4369,7 +4410,7 @@ innobase_rename_columns(
 	uint i = 0;
 
 	for (Field** fp = table->field; *fp; fp++, i++) {
-		if (!((*fp)->flags & FIELD_IS_RENAMED)) {
+		if (!((*fp)->flags & FIELD_IS_RENAMED) || !((*fp)->stored_in_db)) {
 			continue;
 		}
 
