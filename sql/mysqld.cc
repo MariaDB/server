@@ -6993,7 +6993,7 @@ static int show_rpl_status(THD *thd, SHOW_VAR *var, char *buff)
 
 static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 {
-  Master_info *mi;
+  Master_info *mi= NULL;
   bool tmp;
   LINT_INIT(tmp);
 
@@ -7001,12 +7001,15 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
   var->value= buff;
   mysql_mutex_unlock(&LOCK_status);
   mysql_mutex_lock(&LOCK_active_mi);
-  mi= master_info_index->
-    get_master_info(&thd->variables.default_master_connection,
-                    Sql_condition::WARN_LEVEL_NOTE);
-  if (mi)
-    tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_CONNECT &&
-                    mi->rli.slave_running);
+  if (master_info_index) 
+  {
+    mi= master_info_index->
+      get_master_info(&thd->variables.default_master_connection,
+                      Sql_condition::WARN_LEVEL_NOTE);
+    if (mi)
+      tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_CONNECT &&
+                      mi->rli.slave_running);
+  }
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_status);
   if (mi)
@@ -7019,7 +7022,7 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 
 static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 {
-  Master_info *mi;
+  Master_info *mi= NULL;
   longlong tmp;
   LINT_INIT(tmp);
 
@@ -7027,11 +7030,14 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
   var->value= buff;
   mysql_mutex_unlock(&LOCK_status);
   mysql_mutex_lock(&LOCK_active_mi);
-  mi= master_info_index->
-    get_master_info(&thd->variables.default_master_connection,
-                    Sql_condition::WARN_LEVEL_NOTE);
-  if (mi)
-    tmp= mi->received_heartbeats;
+  if (master_info_index) 
+  {
+    mi= master_info_index->
+      get_master_info(&thd->variables.default_master_connection,
+                      Sql_condition::WARN_LEVEL_NOTE);
+    if (mi)
+      tmp= mi->received_heartbeats;
+  }
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_status);
   if (mi)
@@ -7044,7 +7050,7 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 
 static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
 {
-  Master_info *mi;
+  Master_info *mi= NULL;
   float tmp;
   LINT_INIT(tmp);
 
@@ -7052,11 +7058,14 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
   var->value= buff;
   mysql_mutex_unlock(&LOCK_status);
   mysql_mutex_lock(&LOCK_active_mi);
-  mi= master_info_index->
-    get_master_info(&thd->variables.default_master_connection,
+  if (master_info_index) 
+  {
+    mi= master_info_index->
+      get_master_info(&thd->variables.default_master_connection,
                     Sql_condition::WARN_LEVEL_NOTE);
-  if (mi)
-    tmp= mi->heartbeat_period;
+    if (mi)
+      tmp= mi->heartbeat_period;
+  }
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_status);
   if (mi)
