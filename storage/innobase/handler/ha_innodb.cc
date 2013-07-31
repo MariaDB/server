@@ -2182,7 +2182,7 @@ ha_innobase::ha_innobase(
 	TABLE_SHARE*	table_arg)
 	:handler(hton, table_arg),
 	int_table_flags(HA_REC_NOT_IN_SEQ |
-		  HA_NULL_IN_KEY |
+		  HA_NULL_IN_KEY | HA_CAN_VIRTUAL_COLUMNS |
 		  HA_CAN_INDEX_BLOBS |
 		  HA_CAN_SQL_HANDLER |
 		  HA_PRIMARY_KEY_REQUIRED_FOR_POSITION |
@@ -4921,7 +4921,7 @@ retry:
 
 	if (ib_table
 	    && ((!DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
-		 && table->s->fields != dict_table_get_n_user_cols(ib_table))
+		 && table->s->stored_fields != dict_table_get_n_user_cols(ib_table))
 		|| (DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
 		    && (table->s->fields
 			!= dict_table_get_n_user_cols(ib_table) - 1)))) {
@@ -5080,7 +5080,7 @@ table_opened:
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
 	}
 
-	prebuilt = row_create_prebuilt(ib_table, table->s->reclength);
+	prebuilt = row_create_prebuilt(ib_table, table->s->stored_rec_length);
 
 	prebuilt->default_rec = table->s->default_values;
 	ut_ad(prebuilt->default_rec);
@@ -6128,9 +6128,10 @@ build_template_needs_field(
 					primary key columns */
 	dict_index_t*	index,		/*!< in: InnoDB index to use */
 	const TABLE*	table,		/*!< in: MySQL table object */
-	ulint		i)		/*!< in: field index in InnoDB table */
+	ulint		i,		/*!< in: field index in InnoDB table */
+        ulint		sql_idx)	/*!< in: field index in SQL table */
 {
-	const Field*	field	= table->field[i];
+	const Field*	field	= table->field[sql_idx];
 
 	ut_ad(index_contains == dict_index_contains_col_or_prefix(index, i));
 
@@ -6147,8 +6148,8 @@ build_template_needs_field(
 		return(field);
 	}
 
-	if (bitmap_is_set(table->read_set, i)
-	    || bitmap_is_set(table->write_set, i)) {
+	if (bitmap_is_set(table->read_set, sql_idx)
+	    || bitmap_is_set(table->write_set, sql_idx)) {
 		/* This field is needed in the query */
 
 		return(field);
@@ -6203,7 +6204,7 @@ build_template_field(
 	mysql_row_templ_t*	templ;
 	const dict_col_t*	col;
 
-	ut_ad(field == table->field[i]);
+        //ut_ad(field == table->field[i]);
 	ut_ad(clust_index->table == index->table);
 
 	col = dict_table_get_nth_col(index->table, i);
@@ -6275,10 +6276,10 @@ ha_innobase::build_template(
 {
 	dict_index_t*	index;
 	dict_index_t*	clust_index;
-	ulint		n_fields;
+	ulint		n_stored_fields;
 	ibool		fetch_all_in_key	= FALSE;
 	ibool		fetch_primary_key_cols	= FALSE;
-	ulint		i;
+	ulint		i, sql_idx;
 
 	if (prebuilt->select_lock_type == LOCK_X) {
 		/* We always retrieve the whole clustered index record if we
@@ -6331,11 +6332,11 @@ ha_innobase::build_template(
 	/* Below we check column by column if we need to access
 	the clustered index. */
 
-	n_fields = (ulint) table->s->fields; /* number of columns */
+        n_stored_fields= (ulint)table->s->stored_fields; /* number of stored columns */
 
 	if (!prebuilt->mysql_template) {
 		prebuilt->mysql_template = (mysql_row_templ_t*)
-			mem_alloc(n_fields * sizeof(mysql_row_templ_t));
+			mem_alloc(n_stored_fields * sizeof(mysql_row_templ_t));
 	}
 
 	prebuilt->template_type = whole_row
@@ -6353,7 +6354,12 @@ ha_innobase::build_template(
 
 	if (active_index != MAX_KEY && active_index == pushed_idx_cond_keyno) {
 		/* Push down an index condition or an end_range check. */
-		for (i = 0; i < n_fields; i++) {
+		for (i = 0, sql_idx = 0; i < n_stored_fields; i++, sql_idx++) {
+
+                        while (!table->field[sql_idx]->stored_in_db) {
+			        sql_idx++;
+                        }
+
 			const ibool		index_contains
 				= dict_index_contains_col_or_prefix(index, i);
 
@@ -6378,14 +6384,14 @@ ha_innobase::build_template(
 				mysql_row_templ_t*	templ;
 
 				if (whole_row) {
-					field = table->field[i];
+					field = table->field[sql_idx];
 				} else {
 					field = build_template_needs_field(
 						index_contains,
 						prebuilt->read_just_key,
 						fetch_all_in_key,
 						fetch_primary_key_cols,
-						index, table, i);
+						index, table, i, sql_idx);
 					if (!field) {
 						continue;
 					}
@@ -6466,7 +6472,12 @@ ha_innobase::build_template(
 
 		/* Include the fields that are not needed in index condition
 		pushdown. */
-		for (i = 0; i < n_fields; i++) {
+		for (i = 0, sql_idx = 0; i < n_stored_fields; i++, sql_idx++) {
+
+                        while (!table->field[sql_idx]->stored_in_db) {
+			        sql_idx++;
+                        }
+
 			const ibool		index_contains
 				= dict_index_contains_col_or_prefix(index, i);
 
@@ -6476,14 +6487,14 @@ ha_innobase::build_template(
 				const Field*	field;
 
 				if (whole_row) {
-					field = table->field[i];
+					field = table->field[sql_idx];
 				} else {
 					field = build_template_needs_field(
 						index_contains,
 						prebuilt->read_just_key,
 						fetch_all_in_key,
 						fetch_primary_key_cols,
-						index, table, i);
+						index, table, i, sql_idx);
 					if (!field) {
 						continue;
 					}
@@ -6500,11 +6511,15 @@ ha_innobase::build_template(
 		/* No index condition pushdown */
 		prebuilt->idx_cond = NULL;
 
-		for (i = 0; i < n_fields; i++) {
+		for (i = 0, sql_idx = 0; i < n_stored_fields; i++, sql_idx++) {
 			const Field*	field;
 
+                        while (!table->field[sql_idx]->stored_in_db) {
+			        sql_idx++;
+                        }
+
 			if (whole_row) {
-				field = table->field[i];
+				field = table->field[sql_idx];
 			} else {
 				field = build_template_needs_field(
 					dict_index_contains_col_or_prefix(
@@ -6512,7 +6527,7 @@ ha_innobase::build_template(
 					prebuilt->read_just_key,
 					fetch_all_in_key,
 					fetch_primary_key_cols,
-					index, table, i);
+					index, table, i, sql_idx);
 				if (!field) {
 					continue;
 				}
@@ -6946,7 +6961,7 @@ calc_row_difference(
 	ulint		n_changed = 0;
 	dfield_t	dfield;
 	dict_index_t*	clust_index;
-	uint		i;
+        uint		sql_idx, innodb_idx= 0;
 	ibool		changes_fts_column = FALSE;
 	ibool		changes_fts_doc_col = FALSE;
 	trx_t*          trx = thd_to_trx(thd);
@@ -6960,8 +6975,10 @@ calc_row_difference(
 	/* We use upd_buff to convert changed fields */
 	buf = (byte*) upd_buff;
 
-	for (i = 0; i < n_fields; i++) {
-		field = table->field[i];
+	for (sql_idx = 0; sql_idx < n_fields; sql_idx++) {
+		field = table->field[sql_idx];
+                if (!field->stored_in_db)
+		  continue;
 
 		o_ptr = (const byte*) old_row + get_field_offset(table, field);
 		n_ptr = (const byte*) new_row + get_field_offset(table, field);
@@ -6979,7 +6996,7 @@ calc_row_difference(
 
 		field_mysql_type = field->type();
 
-		col_type = prebuilt->table->cols[i].mtype;
+		col_type = prebuilt->table->cols[innodb_idx].mtype;
 
 		switch (col_type) {
 
@@ -7046,7 +7063,8 @@ calc_row_difference(
 			from the MySQL column format to the InnoDB format */
 
 			if (n_len != UNIV_SQL_NULL) {
-				dict_col_copy_type(prebuilt->table->cols + i,
+				dict_col_copy_type(prebuilt->table->cols +
+                                                   innodb_idx,
 						   dfield_get_type(&dfield));
 
 				buf = row_mysql_store_col_in_innobase_format(
@@ -7064,7 +7082,7 @@ calc_row_difference(
 			ufield->exp = NULL;
 			ufield->orig_len = 0;
 			ufield->field_no = dict_col_get_clust_pos(
-				&prebuilt->table->cols[i], clust_index);
+				&prebuilt->table->cols[innodb_idx], clust_index);
 			n_changed++;
 
 			/* If an FTS indexed column was changed by this
@@ -7098,6 +7116,8 @@ calc_row_difference(
 				}
 			}
 		}
+                if (field->stored_in_db)
+                  innodb_idx++;
 	}
 
 	/* If the update changes a column with an FTS index on it, we
@@ -7217,13 +7237,14 @@ ha_innobase::update_row(
 	if (upd_buf == NULL) {
 		ut_ad(upd_buf_size == 0);
 
-		/* Create a buffer for packing the fields of a record. Why
-		table->reclength did not work here? Obviously, because char
-		fields when packed actually became 1 byte longer, when we also
-		stored the string length as the first byte. */
+                /* Create a buffer for packing the fields of a record. Why
+                  table->stored_rec_length did not work here? Obviously,
+                  because char fields when packed actually became 1 byte
+                  longer, when we also stored the string length as the first
+                  byte. */
 
-		upd_buf_size = table->s->reclength + table->s->max_key_length
-			+ MAX_REF_PARTS * 3;
+		upd_buf_size = table->s->stored_rec_length +
+                  table->s->max_key_length + MAX_REF_PARTS * 3;
 		upd_buf = (uchar*) my_malloc(upd_buf_size, MYF(MY_WME));
 		if (upd_buf == NULL) {
 			upd_buf_size = 0;
@@ -8707,18 +8728,18 @@ create_table_def(
 	if (flags2 & DICT_TF2_FTS) {
 		/* Adjust for the FTS hidden field */
 		if (!has_doc_id_col) {
-			table = dict_mem_table_create(table_name, 0, n_cols + 1,
+			table = dict_mem_table_create(table_name, 0, form->s->stored_fields + 1,
 						      flags, flags2);
 
 			/* Set the hidden doc_id column. */
-			table->fts->doc_col = n_cols;
+			table->fts->doc_col = form->s->stored_fields;
 		} else {
-			table = dict_mem_table_create(table_name, 0, n_cols,
+			table = dict_mem_table_create(table_name, 0, form->s->stored_fields,
 						      flags, flags2);
 			table->fts->doc_col = doc_id_col;
 		}
 	} else {
-		table = dict_mem_table_create(table_name, 0, n_cols,
+		table = dict_mem_table_create(table_name, 0, form->s->stored_fields,
 					      flags, flags2);
 	}
 
@@ -8738,6 +8759,8 @@ create_table_def(
 
 	for (i = 0; i < n_cols; i++) {
 		Field*	field = form->field[i];
+                if (!field->stored_in_db)
+		  continue;
 
 		col_type = get_innobase_type_from_mysql_type(&unsigned_type,
 							     field);
@@ -9644,7 +9667,7 @@ ha_innobase::create(
 	DBUG_ASSERT(thd != NULL);
 	DBUG_ASSERT(create_info != NULL);
 
-	if (form->s->fields > REC_MAX_N_USER_FIELDS) {
+	if (form->s->stored_fields > REC_MAX_N_USER_FIELDS) {
 		DBUG_RETURN(HA_ERR_TOO_MANY_FIELDS);
 	} else if (srv_read_only_mode) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
