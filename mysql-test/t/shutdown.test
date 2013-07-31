@@ -11,13 +11,14 @@ shutdown;
 
 connection default;
 disconnect c1;
+--connect (c1,localhost,root,,)
 
 --let $_server_id= `SELECT @@server_id`
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
 --exec echo "wait" > $_expect_file_name
 
-shutdown;
-
+--send shutdown
+--connection default
 --source include/wait_until_disconnected.inc
 
 --exec echo "restart" > $_expect_file_name
