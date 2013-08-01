@@ -5038,24 +5038,12 @@ int mysqld_main(int argc, char **argv)
 
   sys_var_init();
 
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
-    The performance schema needs to be initialized as early as possible,
-    before to-be-instrumented objects of the server are initialized.
+    Initialize the array of performance schema instrument configurations.
   */
-  int ho_error;
-  DYNAMIC_ARRAY all_early_options;
-
-  my_getopt_register_get_addr(NULL);
-  /* Skip unknown options so that they may be processed later */
-  my_getopt_skip_unknown= TRUE;
-
-  /* prepare all_early_options array */
-  my_init_dynamic_array(&all_early_options, sizeof(my_option), 100, 25, MYF(0));
-  add_many_options(&all_early_options, pfs_early_options,
-                  array_elements(pfs_early_options));
-  sys_var_add_options(&all_early_options, sys_var::PARSE_EARLY);
-  add_terminator(&all_early_options);
-
+  init_pfs_instrument_array();
+#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
   /*
     Logs generated while parsing the command line
     options are buffered and printed later.
@@ -5065,23 +5053,11 @@ int mysqld_main(int argc, char **argv)
   my_charset_error_reporter= buffered_option_error_reporter;
   pfs_param.m_pfs_instrument= const_cast<char*>("");
 
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
-  /*
-    Initialize the array of performance schema instrument configurations.
-  */
-  init_pfs_instrument_array();
-#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
+  int ho_error= handle_early_options();
 
-  ho_error= handle_options(&remaining_argc, &remaining_argv,
-                           (my_option*)(all_early_options.buffer),
-                           mysqld_get_one_option);
-  delete_dynamic(&all_early_options);
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   if (ho_error == 0)
   {
-    /* Add back the program name handle_options removes */
-    remaining_argc++;
-    remaining_argv--;
     if (pfs_param.m_enabled  && !opt_help && !opt_bootstrap)
     {
       /* Add sizing hints from the server sizing parameters. */
@@ -6513,6 +6489,51 @@ error:
 /****************************************************************************
   Handle start options
 ******************************************************************************/
+
+
+/**
+  Process command line options flagged as 'early'.
+  Some components needs to be initialized as early as possible,
+  because the rest of the server initialization depends on them.
+  Options that needs to be parsed early includes:
+  - the performance schema, when compiled in,
+  - options related to the help,
+  - options related to the bootstrap
+  The performance schema needs to be initialized as early as possible,
+  before to-be-instrumented objects of the server are initialized.
+*/
+
+int handle_early_options()
+{
+  int ho_error;
+  DYNAMIC_ARRAY all_early_options;
+
+  my_getopt_register_get_addr(NULL);
+  /* Skip unknown options so that they may be processed later */
+  my_getopt_skip_unknown= TRUE;
+
+  /* prepare all_early_options array */
+  my_init_dynamic_array(&all_early_options, sizeof(my_option), 100, 25, MYF(0));
+  add_many_options(&all_early_options, pfs_early_options,
+                  array_elements(pfs_early_options));
+  sys_var_add_options(&all_early_options, sys_var::PARSE_EARLY);
+  add_terminator(&all_early_options);
+
+  ho_error= handle_options(&remaining_argc, &remaining_argv,
+                           (my_option*)(all_early_options.buffer),
+                           mysqld_get_one_option);
+  if (ho_error == 0)
+  {
+    /* Add back the program name handle_options removes */
+    remaining_argc++;
+    remaining_argv--;
+  }
+
+  delete_dynamic(&all_early_options);
+
+  return ho_error;
+}
+
 
 /**
   System variables are automatically command-line options (few
@@ -8346,6 +8367,7 @@ mysqld_get_one_option(int optid,
     break;
   case OPT_PFS_INSTRUMENT:
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+#ifndef EMBEDDED_LIBRARY
     /* Parse instrument name and value from argument string */
     char* name = argument,*p, *val;
 
@@ -8409,6 +8431,7 @@ mysqld_get_one_option(int optid,
                              "'%s'", argument);
       return 0;
     }
+#endif /* EMBEDDED_LIBRARY */
 #endif
     break;
   }
