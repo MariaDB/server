@@ -542,6 +542,10 @@ int init_embedded_server(int argc, char **argv, char **groups)
   system_charset_info= &my_charset_utf8_general_ci;
   sys_var_init();
 
+  int ho_error= handle_early_options();
+  if (ho_error != 0)
+    return 1;
+
   if (init_common_variables())
   {
     mysql_server_end();
