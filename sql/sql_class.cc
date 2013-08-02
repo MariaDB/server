@@ -5001,7 +5001,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       DBUG_PRINT("info", ("table: %s; ha_table_flags: 0x%llx",
                           table->table_name, flags));
 
-      if (table->table->no_replicate)
+      if (table->table->no_replicate && !table->table->s->is_gtid_slave_pos)
       {
         /*
           The statement uses a table that is not replicated.
