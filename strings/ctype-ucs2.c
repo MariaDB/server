@@ -3033,11 +3033,23 @@ static void
 my_fill_ucs2(CHARSET_INFO *cs __attribute__((unused)), 
              char *s, size_t l, int fill)
 {
+  DBUG_ASSERT(fill <= 0xFFFF);
+#ifdef WAITING_FOR_GCC_VECTORIZATION_BUG_TO_BE_FIXED
+  /*
+    This code with int2store() is known to be faster on some processors,
+    but crashes on other processors due to a possible bug in GCC's
+    -ftree-vectorization (which is enabled in -O3) in case of
+    a   non-aligned memory. See here for details:
+    http://gcc.gnu.org/bugzilla/show_bug.cgi?id=58039
+  */
   char *last= s + l - 2;
   uint16 tmp= (fill >> 8) + ((fill & 0xFF) << 8); /* swap bytes */
   DBUG_ASSERT(fill <= 0xFFFF);
   for ( ; s <= last; s+= 2)
     int2store(s, tmp); /* store little-endian */
+#else
+  for ( ; l >= 2; s[0]= (fill >> 8), s[1]= (fill & 0xFF), s+= 2, l-= 2);
+#endif
 }
 
 
