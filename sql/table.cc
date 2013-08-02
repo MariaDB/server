@@ -315,6 +315,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     strmov(share->path.str, path);
     share->normalized_path.str=    share->path.str;
     share->normalized_path.length= path_length;
+    /* TEMPORARY FIX: if true, this means this is mysql.gtid_slave_pos table */
+    share->is_gtid_slave_pos= FALSE;
     share->table_category= get_table_category(& share->db, & share->table_name);
     share->set_refresh_version();
     share->open_errno= ENOENT;
