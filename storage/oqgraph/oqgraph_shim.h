@@ -479,6 +479,15 @@ namespace boost
   inline optional<graph_traits<oqgraph3::graph>::vertex_descriptor>
   find_vertex(oqgraph3::vertex_id id, const oqgraph3::graph& g)
   {
+    // Fix for https://bugs.launchpad.net/oqgraph/+bug/1196020 returning vertex even when not in graph
+    // Psuedocode for fix:
+    // if count(*) from g->TABLE where source=id or target=id > 0 then return id else return null
+    oqgraph3::cursor* found = new oqgraph3::cursor(const_cast<oqgraph3::graph*>(&g));
+    if (found->seek_to(id, boost::none) &&
+        found->seek_to(boost::none, id)) {
+      // id is neither a from or a to in a link
+      return optional<graph_traits<oqgraph3::graph>::vertex_descriptor>();
+    }
     return id;
   }
 
