@@ -3985,7 +3985,7 @@ end:
     'UPDATE t SET part_key = const WHERE cond_is_prunable' so it adds
     a lock for part_key partition.
   */
-  if (!thd->lex->is_query_tables_locked() &&
+  if (table->file->get_lock_type() == F_UNLCK &&
       !partition_key_modified(table, table->write_set))
   {
     bitmap_copy(&prune_param.part_info->lock_partitions,
