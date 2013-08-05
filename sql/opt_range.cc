@@ -3969,7 +3969,6 @@ end:
   thd->no_errors=0;
   thd->mem_root= range_par->old_root;
   free_root(&alloc,MYF(0));			// Return memory & allocator
-  DBUG_RETURN(retval);
   /*
     Must be a subset of the locked partitions.
     lock_partitions contains the partitions marked by explicit partition
@@ -3993,7 +3992,11 @@ end:
                 &prune_param.part_info->read_partitions);
   }
   if (bitmap_is_clear_all(&(prune_param.part_info->read_partitions)))
+  {
     table->all_partitions_pruned_away= true;
+    retval= TRUE;
+  }
+  DBUG_RETURN(retval);
 }
 
 
