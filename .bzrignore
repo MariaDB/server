@@ -72,6 +72,9 @@ RelWithDebInfo
 .vimrc
 ac_available_languages_fragment
 BitKeeper/
+build_debug
+build_install
+build_release
 client/*.ds?
 client/completion_hash.cpp
 client/decimal.c

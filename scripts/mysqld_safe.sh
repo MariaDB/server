@@ -241,7 +241,8 @@ wsrep_recover_position() {
   if [ -z "$rp" ]; then
     local skipped="$(grep WSREP $wr_logfile | grep 'skipping position recovery')"
     if [ -z "$skipped" ]; then
-      log_error "WSREP: Failed to recover position: " `cat $wr_logfile`;
+      log_error "WSREP: Failed to recover position: 
+'`cat $wr_logfile`'"
       ret=1
     else
       log_notice "WSREP: Position recovery skipped"
@@ -253,7 +254,7 @@ wsrep_recover_position() {
     wsrep_start_position_opt="--wsrep_start_position=$start_pos"
   fi
 
-  rm $wr_logfile
+  [ $ret -eq 0 ] && rm $wr_logfile
 
   return $ret
 }

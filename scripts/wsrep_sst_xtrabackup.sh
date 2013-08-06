@@ -15,14 +15,25 @@
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1301  USA.
 
-# This is a reference script for Percona XtraBackup-based state snapshot tansfer
-# Dependencies:  (depending on configuration)
-# xbcrypt for encryption/decryption.
-# qpress for decompression. Download from http://www.quicklz.com/qpress-11-linux-x64.tar till 
-# https://blueprints.launchpad.net/percona-xtrabackup/+spec/package-qpress is fixed.
-# my_print_defaults to extract values from my.cnf.
-# netcat for transfer.
-# xbstream for streaming.
+#############################################################################################################
+#     This is a reference script for Percona XtraBackup-based state snapshot transfer                       #
+#     Dependencies:  (depending on configuration)                                                           #
+#     xbcrypt for encryption/decryption.                                                                    #
+#     qpress for decompression. Download from http://www.quicklz.com/qpress-11-linux-x64.tar till           #
+#     https://blueprints.launchpad.net/percona-xtrabackup/+spec/package-qpress is fixed.                    #
+#     my_print_defaults to extract values from my.cnf.                                                      #
+#     netcat for transfer.                                                                                  #
+#     xbstream/tar for streaming. (and xtrabackup ofc)                                                      #
+#                                                                                                           #
+#     Currently only option in cnf is read specifically for SST                                             #
+#     [sst]                                                                                                 #
+#     streamfmt=tar|xbstream                                                                                #
+#                                                                                                           #
+#     Default is tar till lp:1193240 is fixed                                                               #
+#     You need to use xbstream for encryption, compression etc., however,                                   #
+#     lp:1193240 requires you to manually cleanup the directory prior to SST                                #
+#                                                                                                           #
+#############################################################################################################
 
 . $(dirname $0)/wsrep_sst_common
 
@@ -30,6 +41,13 @@ ealgo=""
 ekey=""
 ekeyfile=""
 encrypt=0
+nproc=1
+ecode=0
+XTRABACKUP_PID=""
+
+sfmt="tar"
+strmcmd=""
+declare -a RC
 
 get_keys()
 {
@@ -39,6 +57,11 @@ get_keys()
     if ! my_print_defaults -c $WSREP_SST_OPT_CONF xtrabackup | grep -q encrypt; then
         return
     fi
+    if [[ $sfmt == 'tar' ]];then
+        wsrep_log_info "NOTE: Encryption cannot be enabled with tar format"
+        return
+    fi
+
     wsrep_log_info "Encryption enabled in my.cnf - not supported at the moment - Bug in Xtrabackup - lp:1190343"
     ealgo=$(my_print_defaults -c $WSREP_SST_OPT_CONF xtrabackup | grep -- '--encrypt=' | cut -d= -f2)
     ekey=$(my_print_defaults -c $WSREP_SST_OPT_CONF xtrabackup | grep -- '--encrypt-key=' | cut -d= -f2)
@@ -56,10 +79,58 @@ get_keys()
     encrypt=1
 }
 
+read_cnf()
+{
+    sfmt=$(my_print_defaults -c $WSREP_SST_OPT_CONF sst | grep -- '--streamfmt' | cut -d= -f2)
+    if [[ $sfmt == 'xbstream' ]];then 
+        wsrep_log_info "Streaming with xbstream"
+        if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
+            wsrep_log_info "xbstream requires manual cleanup of data directory before SST - lp:1193240"
+            strmcmd="xbstream -x -C ${DATA}"
+        elif [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then 
+            strmcmd="xbstream -c ${INFO_FILE} ${IST_FILE}"
+        else
+            wsrep_log_error "Invalid role: $WSREP_SST_OPT_ROLE"
+            exit 22
+        fi
+    else
+        sfmt="tar"
+        wsrep_log_info "Streaming with tar"
+        wsrep_log_info "Note: Advanced xtrabackup features - encryption,compression etc. not available with tar."
+        if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
+            wsrep_log_info "However, xbstream requires manual cleanup of data directory before SST - lp:1193240."
+            strmcmd="tar xfi  - -C ${DATA}"
+        elif [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
+            strmcmd="tar cf - ${INFO_FILE} ${IST_FILE}"
+        else 
+            wsrep_log_error "Invalid role: $WSREP_SST_OPT_ROLE"
+            exit 22
+        fi
+
+    fi
+}
+
+get_proc()
+{
+    set +e
+    nproc=$(grep -c processor /proc/cpuinfo)
+    [[ -z $nproc || $nproc -eq 0 ]] && nproc=1
+    set -e
+}
+
 cleanup_joiner()
 {
+    # Since this is invoked just after exit NNN
+    local estatus=$?
+    if [[ $estatus -ne 0 ]];then 
+        wsrep_log_error "Cleanup after exit with status:$estatus"
+    fi
     local PID=$(ps -aef |grep nc| grep $NC_PORT  | awk '{ print $2 }')
-    wsrep_log_info "Killing nc pid $PID"
+    if [[ $estatus -ne 0 ]];then 
+        wsrep_log_error "Killing nc pid $PID"
+    else 
+        wsrep_log_info "Killing nc pid $PID"
+    fi
     [ -n "$PID" -a "0" != "$PID" ] && kill $PID && (kill $PID && kill -9 $PID) || :
     rm -f "$MAGIC_FILE"
     if [ "${WSREP_SST_OPT_ROLE}" = "joiner" ];then
@@ -72,6 +143,24 @@ check_pid()
 {
     local pid_file="$1"
     [ -r "$pid_file" ] && ps -p $(cat "$pid_file") >/dev/null 2>&1
+}
+
+cleanup_donor()
+{
+    # Since this is invoked just after exit NNN
+    local estatus=$?
+    if [[ $estatus -ne 0 ]];then 
+        wsrep_log_error "Cleanup after exit with status:$estatus"
+    fi
+    local pid=$XTRABACKUP_PID
+    if check_pid "$pid"
+    then
+        wsrep_log_error "xtrabackup process is still running. Killing... "
+        kill_xtrabackup
+    fi
+
+    rm -f "$pid"
+    rm -f ${DATA}/${IST_FILE}
 }
 
 kill_xtrabackup()
@@ -123,12 +212,11 @@ IST_FILE="xtrabackup_ist"
 MAGIC_FILE="${DATA}/${INFO_FILE}"
 rm -f "${MAGIC_FILE}"
 
+read_cnf
+
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
-
-#    UUID=$6
-#    SEQNO=$7
-#    BYPASS=$8
+    trap cleanup_donor EXIT
 
     NC_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
     REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
@@ -137,7 +225,7 @@ then
     then
         TMPDIR="/tmp"
 
-        INNOBACKUPEX_ARGS="--galera-info --stream=xbstream
+        INNOBACKUPEX_ARGS="--galera-info --stream=$sfmt
                            --defaults-file=${WSREP_SST_OPT_CONF}
                            --socket=${WSREP_SST_OPT_SOCKET}"
 
@@ -152,7 +240,6 @@ then
            INNOBACKUPEX_ARGS="${INNOBACKUPEX_ARGS} --password="
        fi
 
-
         get_keys
         if [[ $encrypt -eq 1 ]];then
             if [[ -n $ekey ]];then
@@ -161,6 +248,8 @@ then
                 INNOBACKUPEX_ARGS="${INNOBACKUPEX_ARGS} --encrypt=$ealgo --encrypt-key-file=$ekeyfile"
             fi
         fi
+
+        wsrep_log_info "Streaming the backup to joiner at ${REMOTEIP} ${NC_PORT}"
 
         set +e
         ${INNOBACKUPEX_BIN} ${INNOBACKUPEX_ARGS} ${TMPDIR} \
@@ -182,31 +271,37 @@ then
         # innobackupex implicitly writes PID to fixed location in ${TMPDIR}
         XTRABACKUP_PID="${TMPDIR}/xtrabackup_pid"
 
-        if check_pid "${XTRABACKUP_PID}"
-        then
-            wsrep_log_error "xtrabackup process is still running. Killing... "
-            kill_xtrabackup
-            exit 22
-        fi
-
-        rm -f "${XTRABACKUP_PID}"
 
     else # BYPASS
+        wsrep_log_info "Bypassing the SST for IST"
         STATE="${WSREP_SST_OPT_GTID}"
         echo "continue" # now server can resume updating data
         echo "${STATE}" > "${MAGIC_FILE}"
         echo "1" > "${DATA}/${IST_FILE}"
         get_keys
+        pushd ${DATA} 1>/dev/null
+        set +e
         if [[ $encrypt -eq 1 ]];then
             if [[ -n $ekey ]];then
-                (cd ${DATA}; xbstream -c ${INFO_FILE} ${IST_FILE} | xbcrypt --encrypt-algo=$ealgo --encrypt-key=$ekey) | ${NC_BIN} ${REMOTEIP} ${NC_PORT}
+                 xbstream -c ${INFO_FILE} ${IST_FILE} | xbcrypt --encrypt-algo=$ealgo --encrypt-key=$ekey | ${NC_BIN} ${REMOTEIP} ${NC_PORT}
             else 
-                (cd ${DATA}; xbstream -c ${INFO_FILE} ${IST_FILE} | xbcrypt --encrypt-algo=$ealgo --encrypt-key-file=$ekeyfile) | ${NC_BIN} ${REMOTEIP} ${NC_PORT}
+                 xbstream -c ${INFO_FILE} ${IST_FILE} | xbcrypt --encrypt-algo=$ealgo --encrypt-key-file=$ekeyfile | ${NC_BIN} ${REMOTEIP} ${NC_PORT}
             fi
-        else 
-            (cd ${DATA}; xbstream -c ${INFO_FILE} ${IST_FILE}) | ${NC_BIN} ${REMOTEIP} ${NC_PORT}
+        else
+            $strmcmd | ${NC_BIN} ${REMOTEIP} ${NC_PORT}
         fi
-        rm -f ${DATA}/${IST_FILE}
+        RC=( "${PIPESTATUS[@]}" )
+        set -e
+        popd 1>/dev/null
+
+        for ecode in "${RC[@]}";do 
+            if [[ $ecode -ne 0 ]];then 
+                wsrep_log_error "Error while streaming data to joiner node: " \
+                                "exit codes: ${RC[@]}"
+                exit 1
+            fi
+        done
+        #rm -f ${DATA}/${IST_FILE}
     fi
 
     echo "done ${WSREP_SST_OPT_GTID}"
@@ -217,8 +312,7 @@ then
     touch $SST_PROGRESS_FILE
 
     sencrypted=1
-    ecode=0
-    declare -a RC
+    nthreads=1
 
     MODULE="xtrabackup_sst"
 
@@ -247,10 +341,20 @@ then
             ${NC_BIN} -dl ${NC_PORT}  |  xbcrypt -d --encrypt-algo=$ealgo --encrypt-key-file=$ekeyfile | xbstream -x -C ${DATA}
         fi
     else 
-        ${NC_BIN} -dl ${NC_PORT}  | xbstream -x -C ${DATA}  
+        ${NC_BIN} -dl ${NC_PORT}  | $strmcmd
     fi
     RC=( "${PIPESTATUS[@]}" )
     set -e
+
+    if [[ $sfmt == 'xbstream' ]];then 
+        # Special handling till lp:1193240 is fixed"
+        if [[ ${RC[$(( ${#RC[@]}-1 ))]} -eq 1 ]];then 
+            wsrep_log_error "Xbstream failed"
+            wsrep_log_error "Data directory ${DATA} needs to be empty for SST: lp:1193240" \
+                            "Manual intervention required in that case"
+            exit 32
+        fi
+    fi
 
     wait %% # join wait_for_nc thread
 
@@ -279,6 +383,7 @@ then
 
     if [ ! -r "${IST_FILE}" ]
     then
+        wsrep_log_info "Proceeding with SST"
         rebuild=""
         wsrep_log_info "Removing existing ib_logfile files"
         rm -f ${DATA}/ib_logfile*
@@ -306,10 +411,15 @@ then
             fi
         fi
 
+        get_proc
+
         # Rebuild indexes for compact backups
         if grep -q 'compact = 1' ${DATA}/xtrabackup_checkpoints;then 
             wsrep_log_info "Index compaction detected"
-            rebuild="--rebuild-indexes"
+            nthreads=$(my_print_defaults -c $WSREP_SST_OPT_CONF xtrabackup | grep -- '--rebuild-threads' | cut -d= -f2)
+            [[ -z $nthreads ]] && nthreads=$nproc
+            wsrep_log_info "Rebuilding with $nthreads threads"
+            rebuild="--rebuild-indexes --rebuild-threads=$nthreads"
         fi
 
         if test -n "$(find ${DATA} -maxdepth 1 -name '*.qp' -print -quit)";then
@@ -327,7 +437,8 @@ then
             rm -f ${DATA}/ibdata1
 
             # Decompress the qpress files 
-            find ${DATA} -type f -name '*.qp' -printf '%p\n%h\n' |  xargs -P $(grep -c processor /proc/cpuinfo) -n 2 qpress -d 
+            wsrep_log_info "Decompression with $nproc threads"
+            find ${DATA} -type f -name '*.qp' -printf '%p\n%h\n' |  xargs -P $nproc -n 2 qpress -d 
             extcode=$?
 
             set -e
@@ -354,7 +465,7 @@ then
             exit 22
         fi
     else 
-        wsrep_log_info "Running IST"
+        wsrep_log_info "${IST_FILE} received from donor: Running IST"
     fi
 
     cat "${MAGIC_FILE}" # output UUID:seqno
