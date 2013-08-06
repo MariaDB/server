@@ -48,7 +48,8 @@
 */
 
 bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
-                  SQL_I_List<ORDER> *order_list, ha_rows limit, ulonglong options)
+                  SQL_I_List<ORDER> *order_list, ha_rows limit,
+                  ulonglong options, select_result *result)
 {
   bool          will_batch;
   int		error, loc_error;
@@ -66,6 +67,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   SELECT_LEX   *select_lex= &thd->lex->select_lex;
   killed_state killed_status= NOT_KILLED;
   THD::enum_binlog_query_type query_type= THD::ROW_QUERY_TYPE;
+  bool with_select= !select_lex->item_list.is_empty();
   DBUG_ENTER("mysql_delete");
 
   if (open_and_lock_tables(thd, table_list, TRUE, 0))
@@ -90,8 +92,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   thd_proc_info(thd, "init");
   table->map=1;
 
-  if (mysql_prepare_delete(thd, table_list, &conds))
+  if (mysql_prepare_delete(thd, table_list, select_lex->with_wild,
+                                            select_lex->item_list, &conds))
     DBUG_RETURN(TRUE);
+
+  (void) result->prepare(select_lex->item_list, NULL);
 
   if (thd->lex->current_select->first_cond_optimization)
   {
@@ -154,9 +159,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       - We should not be binlogging this statement in row-based, and
       - there should be no delete triggers associated with the table.
   */
-  if (!using_limit && const_cond_result &&
-       (!thd->is_current_stmt_binlog_format_row() &&
-        !(table->triggers && table->triggers->has_delete_triggers())))
+  if (!with_select && !using_limit && const_cond_result &&
+      (!thd->is_current_stmt_binlog_format_row() &&
+       !(table->triggers && table->triggers->has_delete_triggers())))
   {
     /* Update the table->file->stats.records number */
     table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
@@ -323,8 +328,15 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   else
     will_batch= !table->file->start_bulk_delete();
 
-
   table->mark_columns_needed_for_delete();
+
+  if (with_select)
+  {
+    if (result->send_result_set_metadata(select_lex->item_list,
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
+      goto cleanup;
+  }
 
   while (!(error=info.read_record(&info)) && !thd->killed &&
 	 ! thd->is_error())
@@ -340,6 +352,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
                                             TRG_ACTION_BEFORE, FALSE))
       {
         error= 1;
+        break;
+      }
+
+      if (with_select && result->send_data(select_lex->item_list) < 0)
+      {
+        error=1;
         break;
       }
 
@@ -449,7 +467,10 @@ cleanup:
   if (error < 0 || 
       (thd->lex->ignore && !thd->is_error() && !thd->is_fatal_error))
   {
-    my_ok(thd, deleted);
+    if (!with_select)
+      my_ok(thd, deleted);
+    else
+      result->send_eof();
     DBUG_PRINT("info",("%ld records deleted",(long) deleted));
   }
   DBUG_RETURN(error >= 0 || thd->is_error());
@@ -463,13 +484,16 @@ cleanup:
     mysql_prepare_delete()
     thd			- thread handler
     table_list		- global/local table list
+    wild_num            - number of wildcards used in optional SELECT clause 
+    field_list          - list of items in optional SELECT clause
     conds		- conditions
 
   RETURN VALUE
     FALSE OK
     TRUE  error
 */
-int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list, Item **conds)
+  int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
+                           uint wild_num, List<Item> &field_list, Item **conds)
 {
   Item *fake_conds= 0;
   SELECT_LEX *select_lex= &thd->lex->select_lex;
@@ -481,7 +505,10 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list, Item **conds)
                                     &thd->lex->select_lex.top_join_list,
                                     table_list, 
                                     select_lex->leaf_tables, FALSE, 
-                                    DELETE_ACL, SELECT_ACL, TRUE) ||
+                                    DELETE_ACL, SELECT_ACL, TRUE))
+    DBUG_RETURN(TRUE);
+  if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num)) ||
+      setup_fields(thd, NULL, field_list, MARK_COLUMNS_READ, NULL, 0) ||
       setup_conds(thd, table_list, select_lex->leaf_tables, conds) ||
       setup_ftfuncs(select_lex))
     DBUG_RETURN(TRUE);
