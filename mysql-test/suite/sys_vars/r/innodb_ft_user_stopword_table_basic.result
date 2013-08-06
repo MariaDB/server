@@ -27,3 +27,4 @@ set global innodb_ft_user_stopword_table=1e1;
 ERROR 42000: Incorrect argument type to variable 'innodb_ft_user_stopword_table'
 set global innodb_ft_user_stopword_table='Salmon';
 ERROR 42000: Variable 'innodb_ft_user_stopword_table' can't be set to the value of 'Salmon'
+SET @@session.innodb_ft_user_stopword_table=@start_global_value;

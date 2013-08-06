@@ -2700,13 +2700,16 @@ static void update_func_longlong(THD *thd, struct st_mysql_sys_var *var,
 static void update_func_str(THD *thd, struct st_mysql_sys_var *var,
                              void *tgt, const void *save)
 {
-  char *old= *(char **) tgt;
-  *(char **)tgt= *(char **) save;
+  char *value= *(char**) save;
   if (var->flags & PLUGIN_VAR_MEMALLOC)
   {
-    *(char **)tgt= my_strdup(*(char **) save, MYF(0));
+    char *old= *(char**) tgt;
+    if (value)
+      *(char**) tgt= my_strdup(value, MYF(0));
     my_free(old);
   }
+  else
+    *(char**) tgt= value;
 }
 
 
