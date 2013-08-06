@@ -1256,6 +1256,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  RESTORE_SYM
 %token  RESTRICT
 %token  RESUME_SYM
+%token  RETURNING_SYM
 %token  RETURNS_SYM                   /* SQL-2003-R */
 %token  RETURN_SYM                    /* SQL-2003-R */
 %token  REVOKE                        /* SQL-2003-R */
@@ -11212,6 +11213,7 @@ single_multi:
           }
           where_clause opt_order_clause
           delete_limit_clause {}
+          opt_select_expressions {}
         | table_wild_list
           {
             mysql_init_multi_delete(Lex);
@@ -11234,6 +11236,11 @@ single_multi:
             if (multi_delete_set_locks_and_link_aux_tables(Lex))
               MYSQL_YYABORT;
           }
+        ;
+
+opt_select_expressions:
+          /* empty */ 
+        | RETURNING_SYM select_item_list 
         ;
 
 table_wild_list:

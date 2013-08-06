@@ -2281,7 +2281,8 @@ int select_send::send_data(List<Item> &items)
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("select_send::send_data");
 
-  if (unit->offset_limit_cnt)
+  /* unit is not set when using 'delete ... returning' */
+  if (unit && unit->offset_limit_cnt)
   {						// using limit offset,count
     unit->offset_limit_cnt--;
     DBUG_RETURN(FALSE);
