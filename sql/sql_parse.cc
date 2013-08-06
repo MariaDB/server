@@ -3243,6 +3243,7 @@ end_with_restore_list:
   }
   case SQLCOM_DELETE:
   {
+    select_result *sel_result=lex->result;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     if ((res= delete_precheck(thd, all_tables)))
       break;
@@ -3250,9 +3251,13 @@ end_with_restore_list:
     unit->set_limit(select_lex);
 
     MYSQL_DELETE_START(thd->query());
-    res = mysql_delete(thd, all_tables, select_lex->where,
-                       &select_lex->order_list,
-                       unit->select_limit_cnt, select_lex->options);
+    if (!(sel_result= lex->result) && !(sel_result= new select_send()))
+      return 1;                       
+    res = mysql_delete(thd, all_tables, 
+                       select_lex->where, &select_lex->order_list,
+                       unit->select_limit_cnt, select_lex->options,
+                       sel_result);
+    delete sel_result;
     MYSQL_DELETE_DONE(res, (ulong) thd->get_row_count_func());
     break;
   }
