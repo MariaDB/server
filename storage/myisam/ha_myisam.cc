@@ -355,12 +355,23 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
 
     if (found->flags & BLOB_FLAG)
       recinfo_pos->type= FIELD_BLOB;
-    else if (found->type() == MYSQL_TYPE_TIMESTAMP)
+    else if (found->real_type() == MYSQL_TYPE_TIMESTAMP)
+    {
+      /* pre-MySQL-5.6.4 TIMESTAMP, or MariaDB-5.3+ TIMESTAMP */
       recinfo_pos->type= FIELD_NORMAL;
+    }
     else if (found->type() == MYSQL_TYPE_VARCHAR)
       recinfo_pos->type= FIELD_VARCHAR;
     else if (!(options & HA_OPTION_PACK_RECORD))
       recinfo_pos->type= FIELD_NORMAL;
+    else if (found->real_type() == MYSQL_TYPE_TIMESTAMP2)
+    {
+      /*
+        MySQL-5.6.4+ erroneously marks Field_timestampf as FIELD_SKIP_PRESPACE,
+        but only if HA_OPTION_PACK_RECORD is set.
+      */
+      recinfo_pos->type= FIELD_SKIP_PRESPACE;
+    }
     else if (found->zero_pack())
       recinfo_pos->type= FIELD_SKIP_ZERO;
     else
