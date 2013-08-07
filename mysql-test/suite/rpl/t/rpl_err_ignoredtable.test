@@ -47,6 +47,9 @@ let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHE
 source include/wait_condition.inc;
 select (@id := id) - id from t3;
 kill @id;
+let $id= `SELECT @id`;
+let $wait_condition= SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID = $id;
+source include/wait_condition.inc;
 drop table t2,t3;
 insert into t4 values (3),(4);
 connection master;
