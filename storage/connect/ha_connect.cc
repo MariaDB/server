@@ -265,7 +265,7 @@ bool PushWarning(PGLOBAL g, PTDBASE tdbp)
       !(thd= (phc->GetTable())->in_use))
     return true;
 
-  push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+  push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
   return false;
   } // end of PushWarning
 
@@ -414,50 +414,24 @@ static int connect_done_func(void *p)
   they are needed to function.
 */
 
-static CONNECT_SHARE *get_share(const char *table_name, TABLE *table)
+CONNECT_SHARE *ha_connect::get_share()
 {
-  CONNECT_SHARE *share;
-  uint length;
-  char *tmp_name;
-
-  length=(uint) strlen(table_name);
-
-  if (!(share= (CONNECT_SHARE *)table->s->ha_data)) {
-    if (!(share= (CONNECT_SHARE *)alloc_root(&table->s->mem_root, sizeof(*share) + length + 1)))
-      return NULL;
-    bzero(share, sizeof(*share));
-    tmp_name= (char*)(share + 1);
-
-    share->table_name_length=length;
-    share->table_name=tmp_name;
-    strmov(share->table_name, table_name);
-
-    thr_lock_init(&share->lock);
+  CONNECT_SHARE *tmp_share;
+  lock_shared_ha_data();
+  if (!(tmp_share= static_cast<CONNECT_SHARE*>(get_ha_share_ptr())))
+  {
+    tmp_share= new CONNECT_SHARE;
+    if (!tmp_share)
+      goto err;
     mysql_mutex_init(con_key_mutex_CONNECT_SHARE_mutex,
-                     &share->mutex, MY_MUTEX_INIT_FAST);
-    } // endif share
-
-  share->use_count++;
-  return share;
+                     &tmp_share->mutex, MY_MUTEX_INIT_FAST);
+    set_ha_share_ptr(static_cast<Handler_share*>(tmp_share));
+  }
+err:
+  unlock_shared_ha_data();
+  return tmp_share;
 }
 
-
-/**
-  @brief
-  Free lock controls. We call this whenever we close a table. If the table had
-  the last reference to the share, then we free memory associated with it.
-*/
-
-static int free_share(CONNECT_SHARE *share)
-{
-  if (!--share->use_count) {
-    thr_lock_delete(&share->lock);
-    mysql_mutex_destroy(&share->mutex);
-    TRASH(share, sizeof(*share));
-    } // endif share
-
-  return 0;
-}
 
 static handler* connect_create_handler(handlerton *hton,
                                    TABLE_SHARE *table,
@@ -1017,7 +991,7 @@ PIXDEF ha_connect::GetIndexInfo(void)
     xdp= new(g) INDEXDEF(name, unique, n);
 
     // Get the the key parts info
-    for (int k= 0; (unsigned)k < kp.key_parts; k++) {
+    for (int k= 0; (unsigned)k < kp.user_defined_key_parts; k++) {
       pn= (char*)kp.key_part[k].field->field_name;
       name= (char*)PlugSubAlloc(g, NULL, strlen(pn) + 1);
       strcpy(name, pn);    // This is probably unuseful
@@ -1029,7 +1003,7 @@ PIXDEF ha_connect::GetIndexInfo(void)
 #if 0             // NIY
     // Index on auto increment column can be an XXROW index
     if (kp.key_part[k].field->flags & AUTO_INCREMENT_FLAG && 
-        kp.key_parts == 1) {
+        kp.uder_defined_key_parts == 1) {
       char   *type= GetStringOption("Type", "DOS");
       TABTYPE typ= GetTypeID(type);
 
@@ -1045,7 +1019,7 @@ PIXDEF ha_connect::GetIndexInfo(void)
       pkp= kpp;
       } // endfor k
 
-    xdp->SetNParts(kp.key_parts);
+    xdp->SetNParts(kp.user_defined_key_parts);
 
     if (pxd)
       pxd->SetNext(xdp);
@@ -1875,7 +1849,7 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
   if (xtrace)
      printf("open: name=%s mode=%d test=%ud\n", name, mode, test_if_locked);
 
-  if (!(share= get_share(name, table)))
+  if (!(share= get_share()))
     DBUG_RETURN(1);
 
   thr_lock_data_init(&share->lock,&lock,NULL);
@@ -1914,7 +1888,7 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
       rc= HA_ERR_INTERNAL_ERROR;
     } else if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, true))) {
       if (rc == RC_INFO) {
-        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
         rc= 0;
       } else
         rc = HA_ERR_INTERNAL_ERROR;
@@ -1929,8 +1903,7 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
 
 /**
   @brief
-  Closes a table. We call the free_share() function to free any resources
-  that we have allocated in the "shared" structure.
+  Closes a table.
 
   @details
   Called from sql_base.cc, sql_select.cc, and table.cc. In sql_select.cc it is
@@ -1952,7 +1925,7 @@ int ha_connect::close(void)
   if (tdbp && xp->last_query_id == valid_query_id)
     rc= CloseTable(xp->g);
 
-  DBUG_RETURN(free_share(share) || rc);
+  DBUG_RETURN(rc);
 } // end of close
 
 
@@ -2939,7 +2912,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       // This is an error while builing index
 #if defined(_DEBUG)
       // Make it a warning to avoid crash
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
       rc= 0;
 #else   // !_DEBUG
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
@@ -3494,7 +3467,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     topt->type= (src) ? "MYSQL" : (tab) ? "PROXY" : "DOS";
     ttp= GetTypeID(topt->type);
     sprintf(g->Message, "No table_type. Was set to %s", topt->type);
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
   } else if (ttp == TAB_NIY) {
     sprintf(g->Message, "Unsupported table type %s", topt->type);
     my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
@@ -3936,7 +3909,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
                    (options->tabname) ? "PROXY" : "DOS";
     type= GetTypeID(options->type);
     sprintf(g->Message, "No table_type. Will be set to %s", options->type);
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
   } else if (type == TAB_NIY) {
     sprintf(g->Message, "Unsupported table type %s", options->type);
     my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
@@ -3979,7 +3952,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case TAB_OCCUR:
         if (options->srcdef) {
           strcpy(g->Message, "Cannot check looping reference");
-          push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
         } else if (options->tabname) {
           if (!stricmp(options->tabname, create_info->alias) &&
              (!options->dbname || !stricmp(options->dbname, table_arg->s->db.str))) {
@@ -4178,7 +4151,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         
         strcat(strcat(buf, "."), lwt);
         sprintf(g->Message, "No file name. Table will use %s", buf);
-        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
         strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
         PlugSetPath(fn, buf, dbpath);
     
@@ -4189,12 +4162,12 @@ int ha_connect::create(const char *name, TABLE *table_arg,
             sprintf(g->Message, "Error %d creating file %s", errno, fn);
 
           push_warning(table->in_use, 
-                       MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+                       Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
         } else
           ::close(h);
     
         if (type == TAB_FMT || options->readonly)
-          push_warning(table->in_use, MYSQL_ERROR::WARN_LEVEL_WARN, 0,
+          push_warning(table->in_use, Sql_condition::WARN_LEVEL_WARN, 0,
             "Congratulation, you just created a read-only void table!");
 
         } // endif buf
@@ -4207,7 +4180,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
       // We should be in CREATE TABLE
       if (thd_sql_command(table->in_use) != SQLCOM_CREATE_TABLE)
-        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0,
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
           "Wrong command in create, please contact CONNECT team");
 
       // Get the index definitions
@@ -4260,7 +4233,7 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
   // TO DO: really implement and check it.
   THD *thd= current_thd;
 
-  push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, 
+  push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, 
     "The current version of CONNECT did not check what you changed in ALTER. Use at your own risk");
   
   if (table) {
@@ -4273,7 +4246,7 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
       PGLOBAL g= GetPlug(thd);
 
       if (!g)
-        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, 
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, 
           "Execute OPTIMIZE TABLE to remake the indexes");
       else
         g->Xchk= new(g) XCHK;

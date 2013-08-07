@@ -129,6 +129,8 @@ alter table t1 ULL=10000000;
 show create table t1;
 alter table t1 change a a int complex='c,c,c';
 show create table t1;
+alter table t1 one_or_two=two;
+show create table t1;
 drop table t1;
 
 --echo #illegal value error

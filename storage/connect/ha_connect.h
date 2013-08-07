@@ -123,12 +123,20 @@ struct ha_field_option_struct
   CONNECT_SHARE is a structure that will be shared among all open handlers.
   This example implements the minimum of what you will probably need.
 */
-typedef struct st_connect_share {
-  char *table_name;
-  uint  table_name_length, use_count;
+class CONNECT_SHARE : public Handler_share {
+public:
   mysql_mutex_t mutex;
   THR_LOCK lock;
-} CONNECT_SHARE;
+  CONNECT_SHARE()
+  {
+    thr_lock_init(&lock);
+  }
+  ~CONNECT_SHARE()
+  {
+    thr_lock_delete(&lock);
+    mysql_mutex_destroy(&mutex);
+  }
+};
 
 typedef class ha_connect *PHC;
 
@@ -139,6 +147,7 @@ class ha_connect: public handler
 {
   THR_LOCK_DATA lock;      ///< MySQL lock
   CONNECT_SHARE *share;        ///< Shared lock info
+  CONNECT_SHARE *get_share();
 
 public:
   ha_connect(handlerton *hton, TABLE_SHARE *table_arg);

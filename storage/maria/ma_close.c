@@ -27,6 +27,7 @@ int maria_close(register MARIA_HA *info)
   int error=0,flag;
   my_bool share_can_be_freed= FALSE;
   MARIA_SHARE *share= info->s;
+  my_bool internal_table= share->internal_table;
   DBUG_ENTER("maria_close");
   DBUG_PRINT("enter",("name: '%s'  base: 0x%lx  reopen: %u  locks: %u",
                       share->open_file_name.str,
@@ -49,9 +50,9 @@ int maria_close(register MARIA_HA *info)
       error= my_errno;
   }
 
-
   /* Ensure no one can open this file while we are closing it */
-  mysql_mutex_lock(&THR_LOCK_maria);
+  if (!internal_table)
+    mysql_mutex_lock(&THR_LOCK_maria);
   if (info->lock_type == F_EXTRA_LCK)
     info->lock_type=F_UNLCK;			/* HA_EXTRA_NO_USER_CHANGE */
 
@@ -60,8 +61,11 @@ int maria_close(register MARIA_HA *info)
     if (maria_lock_database(info,F_UNLCK))
       error=my_errno;
   }
-  mysql_mutex_lock(&share->close_lock);
-  mysql_mutex_lock(&share->intern_lock);
+  if (!internal_table)
+  {
+    mysql_mutex_lock(&share->close_lock);
+    mysql_mutex_lock(&share->intern_lock);
+  }
 
   if (share->options & HA_OPTION_READ_ONLY_DATA)
   {
@@ -75,7 +79,8 @@ int maria_close(register MARIA_HA *info)
     info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
   }
   flag= !--share->reopen;
-  maria_open_list=list_delete(maria_open_list,&info->open_list);
+  if (!internal_table)
+    maria_open_list=list_delete(maria_open_list,&info->open_list);
 
   my_free(info->rec_buff);
   (*share->end)(info);
@@ -159,7 +164,8 @@ int maria_close(register MARIA_HA *info)
         error= my_errno;
     }
     thr_lock_delete(&share->lock);
-    (void) mysql_mutex_destroy(&share->key_del_lock);
+    mysql_mutex_destroy(&share->key_del_lock);
+
     {
       int i,keys;
       keys = share->state.header.keys;
@@ -181,9 +187,11 @@ int maria_close(register MARIA_HA *info)
       We have to unlock share->intern_lock then lock it after
       LOCK_trn_list (trnman_lock()) to avoid dead locks.
     */
-    mysql_mutex_unlock(&share->intern_lock);
+    if (!internal_table)
+      mysql_mutex_unlock(&share->intern_lock);
     _ma_remove_not_visible_states_with_lock(share, TRUE);
-    mysql_mutex_lock(&share->intern_lock);
+    if (!internal_table)
+      mysql_mutex_lock(&share->intern_lock);
 
     if (share->in_checkpoint & MARIA_CHECKPOINT_LOOKS_AT_ME)
     {
@@ -220,9 +228,12 @@ int maria_close(register MARIA_HA *info)
       share->state_history= 0;
     }
   }
-  mysql_mutex_unlock(&THR_LOCK_maria);
-  mysql_mutex_unlock(&share->intern_lock);
-  mysql_mutex_unlock(&share->close_lock);
+  if (!internal_table)
+  {
+    mysql_mutex_unlock(&THR_LOCK_maria);
+    mysql_mutex_unlock(&share->intern_lock);
+    mysql_mutex_unlock(&share->close_lock);
+  }
   if (share_can_be_freed)
   {
     (void) mysql_mutex_destroy(&share->intern_lock);

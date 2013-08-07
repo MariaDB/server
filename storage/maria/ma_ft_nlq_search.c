@@ -71,10 +71,11 @@ static int walk_and_match(FT_WORD *word, uint32 count, ALL_IN_ONE *aio)
   TREE_ELEMENT *selem;
   double       gweight=1;
   MARIA_HA     *info= aio->info;
+  MARIA_SHARE  *share= info->s;
   uchar        *keybuff= aio->keybuff;
-  MARIA_KEYDEF *keyinfo= info->s->keyinfo+aio->keynr;
-  my_off_t     key_root=info->s->state.key_root[aio->keynr];
-  uint         extra=HA_FT_WLEN+info->s->rec_reflength;
+  MARIA_KEYDEF *keyinfo= share->keyinfo+aio->keynr;
+  my_off_t     key_root;
+  uint         extra=HA_FT_WLEN+share->rec_reflength;
   MARIA_KEY    key;
 #if HA_FT_WTYPE == HA_KEYTYPE_FLOAT
   float tmp_weight;
@@ -92,6 +93,11 @@ static int walk_and_match(FT_WORD *word, uint32 count, ALL_IN_ONE *aio)
   key.data_length-= HA_FT_WLEN;
   doc_cnt=0;
 
+  if (share->lock_key_trees)
+    mysql_rwlock_rdlock(&share->keyinfo[aio->keynr].root_lock);
+
+  key_root= share->state.key_root[aio->keynr];
+
   /* Skip rows inserted by current inserted */
   for (r= _ma_search(info, &key, SEARCH_FIND, key_root) ;
        !r &&
@@ -102,12 +108,14 @@ static int walk_and_match(FT_WORD *word, uint32 count, ALL_IN_ONE *aio)
        r= _ma_search_next(info, &info->last_key, SEARCH_BIGGER, key_root))
     ;
 
+  if (share->lock_key_trees)
+    mysql_rwlock_unlock(&share->keyinfo[aio->keynr].root_lock);
+
   info->update|= HA_STATE_AKTIV;              /* for _ma_test_if_changed() */
 
   /* The following should be safe, even if we compare doubles */
   while (!r && gweight)
   {
-
     if (key.data_length &&
         ha_compare_text(aio->charset,
                         info->last_key.data+1,
@@ -125,9 +133,11 @@ static int walk_and_match(FT_WORD *word, uint32 count, ALL_IN_ONE *aio)
         be skipped (based on subkeys) ?
       */
       keybuff+= key.data_length;
-      keyinfo= &info->s->ft2_keyinfo;
+      keyinfo= &share->ft2_keyinfo;
       key_root= info->cur_row.lastpos;
       key.data_length= 0;
+      if (share->lock_key_trees)
+        mysql_rwlock_rdlock(&share->keyinfo[aio->keynr].root_lock);
       r= _ma_search_first(info, keyinfo, key_root);
       goto do_skip;
     }
@@ -163,6 +173,9 @@ static int walk_and_match(FT_WORD *word, uint32 count, ALL_IN_ONE *aio)
     if (gweight < 0 || doc_cnt > 2000000)
       gweight=0;
 
+    if (share->lock_key_trees)
+      mysql_rwlock_rdlock(&share->keyinfo[aio->keynr].root_lock);
+
     if (_ma_test_if_changed(info) == 0)
 	r= _ma_search_next(info, &info->last_key, SEARCH_BIGGER, key_root);
     else
@@ -174,6 +187,8 @@ do_skip:
            !r && info->cur_row.lastpos >= info->state->data_file_length)
       r= _ma_search_next(info, &info->last_key, SEARCH_BIGGER, key_root);
 
+    if (share->lock_key_trees)
+      mysql_rwlock_unlock(&share->keyinfo[aio->keynr].root_lock);
   }
   word->weight=gweight;
 

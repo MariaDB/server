@@ -29,7 +29,7 @@
 --source ../include/no_protocol.inc
 
 # Set this to enable debugging output
-let $my_socket_debug= 0;
+let $my_socket_debug_dbug= 0;
 
 --echo #==============================================================================
 --echo # Establish the level of IPV6 support

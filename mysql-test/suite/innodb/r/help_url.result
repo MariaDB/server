@@ -1,9 +1,4 @@
-call mtr.add_suppression('InnoDB: Error');
-set global innodb_file_per_table=1, innodb_file_format=Barracuda;
-create table t1 (i int) engine=InnoDB;
-alter table t1 discard tablespace;
-select * from t1;
-ERROR HY000: Got error -1 "Internal error < 0 (Not system error)" from storage engine InnoDB
-InnoDB: http://dev.mysql.com/doc/refman/10.0/en/innodb-troubleshooting.html
-drop table t1;
-set global innodb_file_per_table=default, innodb_file_format=default;
+create table innodb_table_monitor (a int) engine=InnoDB;
+Warnings:
+Warning	131	Using innodb_table_monitor is deprecated and it may be removed in future releases. Please use the InnoDB INFORMATION_SCHEMA tables instead, see http://dev.mysql.com/doc/refman/10.0/en/innodb-i_s-tables.html
+drop table innodb_table_monitor;

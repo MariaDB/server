@@ -32,7 +32,7 @@ void key_copy(uchar *to_key, uchar *from_record, KEY *key_info, uint key_length,
 void key_restore(uchar *to_record, uchar *from_key, KEY *key_info,
                  uint key_length);
 bool key_cmp_if_same(TABLE *form,const uchar *key,uint index,uint key_length);
-void key_unpack(String *to,TABLE *form,uint index);
+void key_unpack(String *to, TABLE *form, KEY *key);
 void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
                   bool prefix_key);
 bool is_key_used(TABLE *table, uint idx, const MY_BITMAP *fields);

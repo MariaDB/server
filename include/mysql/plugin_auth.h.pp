@@ -1,5 +1,6 @@
 #include <mysql/plugin.h>
 typedef char my_bool;
+typedef void * MYSQL_PLUGIN;
 #include <mysql/services.h>
 #include <mysql/service_my_snprintf.h>
 extern struct my_snprintf_service_st {
@@ -107,6 +108,13 @@ extern struct thd_timezone_service_st {
 } *thd_timezone_service;
 my_time_t thd_TIME_to_gmt_sec(void* thd, const MYSQL_TIME *ltime, unsigned int *errcode);
 void thd_gmt_sec_to_TIME(void* thd, MYSQL_TIME *ltime, my_time_t t);
+#include <mysql/service_sha1.h>
+extern struct my_sha1_service_st {
+  void (*my_sha1_type)(unsigned char*, const char*, size_t);
+  void (*my_sha1_multi_type)(unsigned char*, ...);
+} *my_sha1_service;
+void my_sha1(unsigned char*, const char*, size_t);
+void my_sha1_multi(unsigned char*, ...);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;
@@ -247,6 +255,7 @@ int thd_sql_command(const void* thd);
 void **thd_ha_data(const void* thd, const struct handlerton *hton);
 void thd_storage_lock_wait(void* thd, long long value);
 int thd_tx_isolation(const void* thd);
+int thd_tx_is_read_only(const void* thd);
 char *thd_security_context(void* thd, char *buffer, unsigned int length,
                            unsigned int max_query_len);
 void thd_inc_row_count(void* thd);

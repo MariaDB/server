@@ -40,6 +40,7 @@
 #include "plgcnx.h"                       // For DB types
 #include "resource.h"
 #include "valblk.h"
+#include "osutil.h"
 
 
 #if defined(WIN32)

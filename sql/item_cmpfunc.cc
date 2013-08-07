@@ -679,7 +679,7 @@ int Arg_comparator::set_compare_func(Item_result_field *item, Item_result type)
   {
     if ((*a)->decimals < NOT_FIXED_DEC && (*b)->decimals < NOT_FIXED_DEC)
     {
-      precision= 5 / log_10[max((*a)->decimals, (*b)->decimals) + 1];
+      precision= 5 / log_10[MY_MAX((*a)->decimals, (*b)->decimals) + 1];
       if (func == &Arg_comparator::compare_real)
         func= &Arg_comparator::compare_real_fixed;
       else if (func == &Arg_comparator::compare_e_real)
@@ -746,7 +746,7 @@ bool get_mysql_time_from_str(THD *thd, String *str, timestamp_type warn_type,
   }
 
   if (status.warnings > 0)
-    make_truncated_value_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                                  &err, warn_type, warn_name);
 
   return value;
@@ -1020,7 +1020,7 @@ int Arg_comparator::compare_binary_string()
         owner->null_value= 0;
       uint res1_length= res1->length();
       uint res2_length= res2->length();
-      int cmp= memcmp(res1->ptr(), res2->ptr(), min(res1_length,res2_length));
+      int cmp= memcmp(res1->ptr(), res2->ptr(), MY_MIN(res1_length,res2_length));
       return cmp ? cmp : (int) (res1_length - res2_length);
     }
   }
@@ -2418,7 +2418,7 @@ Item_func_ifnull::fix_length_and_dec()
   uint32 char_length;
   agg_result_type(&hybrid_type, args, 2);
   maybe_null=args[1]->maybe_null;
-  decimals= max(args[0]->decimals, args[1]->decimals);
+  decimals= MY_MAX(args[0]->decimals, args[1]->decimals);
   unsigned_flag= args[0]->unsigned_flag && args[1]->unsigned_flag;
 
   if (hybrid_type == DECIMAL_RESULT || hybrid_type == INT_RESULT) 
@@ -2429,10 +2429,10 @@ Item_func_ifnull::fix_length_and_dec()
     int len1= args[1]->max_char_length() - args[1]->decimals
       - (args[1]->unsigned_flag ? 0 : 1);
 
-    char_length= max(len0, len1) + decimals + (unsigned_flag ? 0 : 1);
+    char_length= MY_MAX(len0, len1) + decimals + (unsigned_flag ? 0 : 1);
   }
   else
-    char_length= max(args[0]->max_char_length(), args[1]->max_char_length());
+    char_length= MY_MAX(args[0]->max_char_length(), args[1]->max_char_length());
 
   switch (hybrid_type) {
   case STRING_RESULT:
@@ -2459,9 +2459,9 @@ uint Item_func_ifnull::decimal_precision() const
 {
   int arg0_int_part= args[0]->decimal_int_part();
   int arg1_int_part= args[1]->decimal_int_part();
-  int max_int_part= max(arg0_int_part, arg1_int_part);
+  int max_int_part= MY_MAX(arg0_int_part, arg1_int_part);
   int precision= max_int_part + decimals;
-  return min(precision, DECIMAL_MAX_PRECISION);
+  return MY_MIN(precision, DECIMAL_MAX_PRECISION);
 }
 
 
@@ -2638,7 +2638,7 @@ Item_func_if::fix_length_and_dec()
 
   agg_result_type(&cached_result_type, args + 1, 2);
   maybe_null= args[1]->maybe_null || args[2]->maybe_null;
-  decimals= max(args[1]->decimals, args[2]->decimals);
+  decimals= MY_MAX(args[1]->decimals, args[2]->decimals);
   unsigned_flag=args[1]->unsigned_flag && args[2]->unsigned_flag;
 
   if (cached_result_type == STRING_RESULT)
@@ -2662,10 +2662,10 @@ Item_func_if::fix_length_and_dec()
     int len2= args[2]->max_length - args[2]->decimals
       - (args[2]->unsigned_flag ? 0 : 1);
 
-    char_length= max(len1, len2) + decimals + (unsigned_flag ? 0 : 1);
+    char_length= MY_MAX(len1, len2) + decimals + (unsigned_flag ? 0 : 1);
   }
   else
-    char_length= max(args[1]->max_char_length(), args[2]->max_char_length());
+    char_length= MY_MAX(args[1]->max_char_length(), args[2]->max_char_length());
   fix_char_length(char_length);
 }
 
@@ -2674,8 +2674,8 @@ uint Item_func_if::decimal_precision() const
 {
   int arg1_prec= args[1]->decimal_int_part();
   int arg2_prec= args[2]->decimal_int_part();
-  int precision=max(arg1_prec,arg2_prec) + decimals;
-  return min(precision, DECIMAL_MAX_PRECISION);
+  int precision=MY_MAX(arg1_prec,arg2_prec) + decimals;
+  return MY_MIN(precision, DECIMAL_MAX_PRECISION);
 }
 
 
@@ -2976,7 +2976,7 @@ bool Item_func_case::fix_fields(THD *thd, Item **ref)
 
 void Item_func_case::agg_str_lengths(Item* arg)
 {
-  fix_char_length(max(max_char_length(), arg->max_char_length()));
+  fix_char_length(MY_MAX(max_char_length(), arg->max_char_length()));
   set_if_bigger(decimals, arg->decimals);
   unsigned_flag= unsigned_flag && arg->unsigned_flag;
 }
@@ -3176,7 +3176,7 @@ uint Item_func_case::decimal_precision() const
 
   if (else_expr_num != -1) 
     set_if_bigger(max_int_part, args[else_expr_num]->decimal_int_part());
-  return min(max_int_part + decimals, DECIMAL_MAX_PRECISION);
+  return MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
 }
 
 
@@ -5169,7 +5169,7 @@ void Item_func_like::turboBM_compute_suffixes(int *suff)
       else
       {
 	if (i < g)
-	  g = i; // g = min(i, g)
+	  g = i; // g = MY_MIN(i, g)
 	f = i;
 	while (g >= 0 && pattern[g] == pattern[g + plm1 - f])
 	  g--;
@@ -5188,7 +5188,7 @@ void Item_func_like::turboBM_compute_suffixes(int *suff)
       else
       {
 	if (i < g)
-	  g = i; // g = min(i, g)
+	  g = i; // g = MY_MIN(i, g)
 	f = i;
 	while (g >= 0 &&
 	       likeconv(cs, pattern[g]) == likeconv(cs, pattern[g + plm1 - f]))
@@ -5309,14 +5309,14 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
       register const int v = plm1 - i;
       turboShift = u - v;
       bcShift    = bmBc[(uint) (uchar) text[i + j]] - plm1 + i;
-      shift      = max(turboShift, bcShift);
-      shift      = max(shift, bmGs[i]);
+      shift      = MY_MAX(turboShift, bcShift);
+      shift      = MY_MAX(shift, bmGs[i]);
       if (shift == bmGs[i])
-	u = min(pattern_len - shift, v);
+	u = MY_MIN(pattern_len - shift, v);
       else
       {
 	if (turboShift < bcShift)
-	  shift = max(shift, u + 1);
+	  shift = MY_MAX(shift, u + 1);
 	u = 0;
       }
       j+= shift;
@@ -5340,14 +5340,14 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
       register const int v = plm1 - i;
       turboShift = u - v;
       bcShift    = bmBc[(uint) likeconv(cs, text[i + j])] - plm1 + i;
-      shift      = max(turboShift, bcShift);
-      shift      = max(shift, bmGs[i]);
+      shift      = MY_MAX(turboShift, bcShift);
+      shift      = MY_MAX(shift, bmGs[i]);
       if (shift == bmGs[i])
-	u = min(pattern_len - shift, v);
+	u = MY_MIN(pattern_len - shift, v);
       else
       {
 	if (turboShift < bcShift)
-	  shift = max(shift, u + 1);
+	  shift = MY_MAX(shift, u + 1);
 	u = 0;
       }
       j+= shift;

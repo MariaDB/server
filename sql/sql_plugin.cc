@@ -686,7 +686,7 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
       for (i=0;
            (old= (struct st_maria_plugin *)(ptr + i * sizeof_st_plugin))->info;
            i++)
-        memcpy(cur + i, old, min(sizeof(cur[i]), sizeof_st_plugin));
+        memcpy(cur + i, old, MY_MIN(sizeof(cur[i]), sizeof_st_plugin));
 
       sym= cur;
       plugin_dl->allocated= true;
@@ -2009,7 +2009,7 @@ static bool finalize_install(THD *thd, TABLE *table, const LEX_STRING *name)
   if (tmp->state == PLUGIN_IS_DISABLED)
   {
     if (global_system_variables.log_warnings)
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_CANT_INITIALIZE_UDF, ER(ER_CANT_INITIALIZE_UDF),
                           name->str, "Plugin is disabled");
   }
@@ -2170,7 +2170,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_STRING *name)
 
   plugin->state= PLUGIN_IS_DELETED;
   if (plugin->ref_count)
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  WARN_PLUGIN_BUSY, ER(WARN_PLUGIN_BUSY));
   else
     reap_needed= true;
@@ -2700,13 +2700,16 @@ static void update_func_longlong(THD *thd, struct st_mysql_sys_var *var,
 static void update_func_str(THD *thd, struct st_mysql_sys_var *var,
                              void *tgt, const void *save)
 {
-  char *old= *(char **) tgt;
-  *(char **)tgt= *(char **) save;
+  char *value= *(char**) save;
   if (var->flags & PLUGIN_VAR_MEMALLOC)
   {
-    *(char **)tgt= my_strdup(*(char **) save, MYF(0));
+    char *old= *(char**) tgt;
+    if (value)
+      *(char**) tgt= my_strdup(value, MYF(0));
     my_free(old);
   }
+  else
+    *(char**) tgt= value;
 }
 
 

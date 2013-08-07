@@ -695,7 +695,7 @@ DROP TABLE t1;
 #
 DROP TABLE IF EXISTS t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 CREATE TABLE t1 (
 id int(10) unsigned NOT NULL,
 level tinyint(3) unsigned NOT NULL,
@@ -704,7 +704,7 @@ PRIMARY KEY (id)
 INSERT INTO t1 VALUES (2519583,1);
 DROP TABLE IF EXISTS t2;
 Warnings:
-Note	1051	Unknown table 't2'
+Note	1051	Unknown table 'test.t2'
 CREATE TABLE t2 (
 club_id int(11) NOT NULL DEFAULT '0',
 profile_id int(11) NOT NULL DEFAULT '0',
@@ -714,7 +714,7 @@ PRIMARY KEY (profile_id,club_id)
 INSERT INTO t2 VALUES (2,2519583,12);
 DROP TABLE IF EXISTS t3;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 CREATE TABLE t3 (
 member_level_id int(11) unsigned NOT NULL DEFAULT '0',
 map_level int(11) unsigned NOT NULL DEFAULT '0',

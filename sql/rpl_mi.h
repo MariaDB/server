@@ -208,7 +208,7 @@ public:
   bool add_master_info(Master_info *mi, bool write_to_file);
   bool remove_master_info(LEX_STRING *connection_name);
   Master_info *get_master_info(LEX_STRING *connection_name,
-                               MYSQL_ERROR::enum_warning_level warning);
+                               Sql_condition::enum_warning_level warning);
   bool give_error_if_slave_running();
   bool start_all_slaves(THD *thd);
   bool stop_all_slaves(THD *thd);

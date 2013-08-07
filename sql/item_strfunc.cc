@@ -106,23 +106,6 @@ String *Item_str_func::val_str_from_val_str_ascii(String *str, String *str2)
 }
 
 
-
-/*
-  Convert an array of bytes to a hexadecimal representation.
-
-  Used to generate a hexadecimal representation of a message digest.
-*/
-static void array_to_hex(char *to, const unsigned char *str, uint len)
-{
-  const unsigned char *str_end= str + len;
-  for (; str != str_end; ++str)
-  {
-    *to++= _dig_vec_lower[((uchar) *str) >> 4];
-    *to++= _dig_vec_lower[((uchar) *str) & 0x0F];
-  }
-}
-
-
 bool Item_str_func::fix_fields(THD *thd, Item **ref)
 {
   bool res= Item_func::fix_fields(thd, ref);
@@ -221,17 +204,11 @@ String *Item_func_sha::val_str_ascii(String *str)
   String * sptr= args[0]->val_str(str);
   if (sptr)  /* If we got value different from NULL */
   {
-    SHA1_CONTEXT context;  /* Context used to generate SHA1 hash */
     /* Temporary buffer to store 160bit digest */
     uint8 digest[SHA1_HASH_SIZE];
-    mysql_sha1_reset(&context);  /* We do not have to check for error here */
-    /* No need to check error as the only case would be too long message */
-    mysql_sha1_input(&context,
-                     (const uchar *) sptr->ptr(), sptr->length());
-
+    compute_sha1_hash(digest, (const char *) sptr->ptr(), sptr->length());
     /* Ensure that memory is free and we got result */
-    if (!( str->alloc(SHA1_HASH_SIZE*2) ||
-           (mysql_sha1_result(&context,digest))))
+    if (!str->alloc(SHA1_HASH_SIZE*2))
     {
       array_to_hex((char *) str->ptr(), digest, SHA1_HASH_SIZE);
       str->set_charset(&my_charset_numeric);
@@ -309,9 +286,9 @@ String *Item_func_sha2::val_str_ascii(String *str)
   default:
     if (!args[1]->const_item())
       push_warning_printf(current_thd,
-        MYSQL_ERROR::WARN_LEVEL_WARN,
-        ER_WRONG_PARAMETERS_TO_NATIVE_FCT,
-        ER(ER_WRONG_PARAMETERS_TO_NATIVE_FCT), "sha2");
+                          Sql_condition::WARN_LEVEL_WARN,
+                          ER_WRONG_PARAMETERS_TO_NATIVE_FCT,
+                          ER(ER_WRONG_PARAMETERS_TO_NATIVE_FCT), "sha2");
     null_value= TRUE;
     return NULL;
   }
@@ -333,7 +310,7 @@ String *Item_func_sha2::val_str_ascii(String *str)
 
 #else
   push_warning_printf(current_thd,
-    MYSQL_ERROR::WARN_LEVEL_WARN,
+    Sql_condition::WARN_LEVEL_WARN,
     ER_FEATURE_DISABLED,
     ER(ER_FEATURE_DISABLED),
     "sha2", "--with-ssl");
@@ -371,7 +348,7 @@ void Item_func_sha2::fix_length_and_dec()
 #endif
   default:
     push_warning_printf(current_thd,
-      MYSQL_ERROR::WARN_LEVEL_WARN,
+      Sql_condition::WARN_LEVEL_WARN,
       ER_WRONG_PARAMETERS_TO_NATIVE_FCT,
       ER(ER_WRONG_PARAMETERS_TO_NATIVE_FCT), "sha2");
   }
@@ -390,7 +367,7 @@ void Item_func_sha2::fix_length_and_dec()
       DERIVATION_COERCIBLE);
 #else
   push_warning_printf(current_thd,
-    MYSQL_ERROR::WARN_LEVEL_WARN,
+    Sql_condition::WARN_LEVEL_WARN,
     ER_FEATURE_DISABLED,
     ER(ER_FEATURE_DISABLED),
     "sha2", "--with-ssl");
@@ -592,7 +569,7 @@ String *Item_func_concat::val_str(String *str)
       if (res->length()+res2->length() >
 	  current_thd->variables.max_allowed_packet)
       {
-	push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+	push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			    ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 			    ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
 			    current_thd->variables.max_allowed_packet);
@@ -665,7 +642,7 @@ String *Item_func_concat::val_str(String *str)
           }
           else
           {
-            uint new_len = max(tmp_value.alloced_length() * 2, concat_len);
+            uint new_len = MY_MAX(tmp_value.alloced_length() * 2, concat_len);
 
             if (tmp_value.realloc(new_len))
               goto null;
@@ -798,11 +775,11 @@ String *Item_func_des_encrypt::val_str(String *str)
   return &tmp_value;
 
 error:
-  push_warning_printf(current_thd,MYSQL_ERROR::WARN_LEVEL_WARN,
+  push_warning_printf(current_thd,Sql_condition::WARN_LEVEL_WARN,
                           code, ER(code),
                           "des_encrypt");
 #else
-  push_warning_printf(current_thd,MYSQL_ERROR::WARN_LEVEL_WARN,
+  push_warning_printf(current_thd,Sql_condition::WARN_LEVEL_WARN,
                       ER_FEATURE_DISABLED, ER(ER_FEATURE_DISABLED),
                       "des_encrypt", "--with-ssl");
 #endif /* defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) */
@@ -876,12 +853,12 @@ String *Item_func_des_decrypt::val_str(String *str)
   return &tmp_value;
 
 error:
-  push_warning_printf(current_thd,MYSQL_ERROR::WARN_LEVEL_WARN,
+  push_warning_printf(current_thd,Sql_condition::WARN_LEVEL_WARN,
                           code, ER(code),
                           "des_decrypt");
 wrong_key:
 #else
-  push_warning_printf(current_thd,MYSQL_ERROR::WARN_LEVEL_WARN,
+  push_warning_printf(current_thd,Sql_condition::WARN_LEVEL_WARN,
                       ER_FEATURE_DISABLED, ER(ER_FEATURE_DISABLED),
                       "des_decrypt", "--with-ssl");
 #endif /* defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) */
@@ -932,7 +909,7 @@ String *Item_func_concat_ws::val_str(String *str)
     if (res->length() + sep_str->length() + res2->length() >
 	current_thd->variables.max_allowed_packet)
     {
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			  ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 			  ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
 			  current_thd->variables.max_allowed_packet);
@@ -1014,7 +991,7 @@ String *Item_func_concat_ws::val_str(String *str)
         }
         else
         {
-          uint new_len = max(tmp_value.alloced_length() * 2, concat_len);
+          uint new_len = MY_MAX(tmp_value.alloced_length() * 2, concat_len);
 
           if (tmp_value.realloc(new_len))
             goto null;
@@ -1191,7 +1168,7 @@ redo:
           if (res->length()-from_length + to_length >
 	      current_thd->variables.max_allowed_packet)
 	  {
-	    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+	    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 				ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 				ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
 				func_name(),
@@ -1220,7 +1197,7 @@ skip:
       if (res->length()-from_length + to_length >
 	  current_thd->variables.max_allowed_packet)
       {
-	push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+	push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			    ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 			    ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
 			    current_thd->variables.max_allowed_packet);
@@ -1307,7 +1284,7 @@ String *Item_func_insert::val_str(String *str)
   if ((ulonglong) (res->length() - length + res2->length()) >
       (ulonglong) current_thd->variables.max_allowed_packet)
   {
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
 			func_name(), current_thd->variables.max_allowed_packet);
@@ -1506,7 +1483,7 @@ String *Item_func_substr::val_str(String *str)
 
   length= res->charpos((int) length, (uint32) start);
   tmp_length= res->length() - start;
-  length= min(length, tmp_length);
+  length= MY_MIN(length, tmp_length);
 
   if (!start && (longlong) res->length() == length)
     return res;
@@ -1529,7 +1506,7 @@ void Item_func_substr::fix_length_and_dec()
     else if (start < 0)
       max_length= ((uint)(-start) > max_length) ? 0 : (uint)(-start);
     else
-      max_length-= min((uint)(start - 1), max_length);
+      max_length-= MY_MIN((uint)(start - 1), max_length);
   }
   if (arg_count == 3 && args[2]->const_item())
   {
@@ -1911,27 +1888,132 @@ void Item_func_trim::print(String *str, enum_query_type query_type)
 
 /* Item_func_password */
 
+/**
+  Helper function for calculating a new password. Used in 
+  Item_func_password::fix_length_and_dec() for const parameters and in 
+  Item_func_password::val_str_ascii() for non-const parameters.
+  @param str The plain text password which should be digested
+  @param buffer a pointer to the buffer where the digest will be stored.
+
+  @note The buffer must be of at least CRYPT_MAX_PASSWORD_SIZE size.
+
+  @return Size of the password.
+*/
+
+static int calculate_password(String *str, char *buffer)
+{
+  DBUG_ASSERT(str);
+  if (str->length() == 0) // PASSWORD('') returns ''
+    return 0;
+  
+  int buffer_len= 0;
+  THD *thd= current_thd;
+  int old_passwords= 0;
+  if (thd)
+    old_passwords= thd->variables.old_passwords;
+  
+#if defined(HAVE_OPENSSL)
+  if (old_passwords == 2)
+  {
+    my_make_scrambled_password(buffer, str->ptr(),
+                               str->length());
+    buffer_len= (int) strlen(buffer) + 1;
+  }
+  else
+#endif
+  if (old_passwords == 0)
+  {
+    my_make_scrambled_password_sha1(buffer, str->ptr(),
+                                    str->length());
+    buffer_len= SCRAMBLED_PASSWORD_CHAR_LENGTH;
+  }
+  else
+  if (old_passwords == 1)
+  {
+    my_make_scrambled_password_323(buffer, str->ptr(),
+                                   str->length());
+    buffer_len= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
+  }
+  return buffer_len;
+}
+
+/* Item_func_password */
+void Item_func_password::fix_length_and_dec()
+{
+  maybe_null= false; // PASSWORD() never returns NULL
+  
+  if (args[0]->const_item())
+  {
+    String str;
+    String *res= args[0]->val_str(&str);
+    if (!args[0]->null_value)
+    {
+      m_hashed_password_buffer_len=
+        calculate_password(res, m_hashed_password_buffer);
+      fix_length_and_charset(m_hashed_password_buffer_len, default_charset());
+      m_recalculate_password= false;
+      return;
+    }
+  }
+
+  m_recalculate_password= true;
+  fix_length_and_charset(CRYPT_MAX_PASSWORD_SIZE, default_charset());
+}
+
 String *Item_func_password::val_str_ascii(String *str)
 {
   DBUG_ASSERT(fixed == 1);
-  String *res= args[0]->val_str(str); 
-  if ((null_value=args[0]->null_value))
-    return 0;
-  if (res->length() == 0)
+
+  String *res= args[0]->val_str(str);
+
+  if (args[0]->null_value)
+    res= make_empty_result();
+
+  /* we treat NULLs as equal to empty string when calling the plugin */
+  check_password_policy(res);
+
+  null_value= 0;
+  if (args[0]->null_value)  // PASSWORD(NULL) returns ''
+    return res;
+  
+  if (m_recalculate_password)
+    m_hashed_password_buffer_len= calculate_password(res,
+                                                     m_hashed_password_buffer);
+
+  if (m_hashed_password_buffer_len == 0)
     return make_empty_result();
-  my_make_scrambled_password(tmp_value, res->ptr(), res->length());
-  str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH, &my_charset_latin1);
+
+  str->set(m_hashed_password_buffer, m_hashed_password_buffer_len,
+           default_charset());
+
   return str;
 }
 
-char *Item_func_password::alloc(THD *thd, const char *password,
-                                size_t pass_len)
+char *Item_func_password::
+  create_password_hash_buffer(THD *thd, const char *password,  size_t pass_len)
 {
-  char *buff= (char *) thd->alloc(SCRAMBLED_PASSWORD_CHAR_LENGTH+1);
-  if (buff)
+  String *password_str= new (thd->mem_root)String(password, thd->variables.
+                                                    character_set_client);
+  check_password_policy(password_str);
+
+  char *buff= NULL;
+  if (thd->variables.old_passwords == 0)
+  {
+    /* Allocate memory for the password scramble and one extra byte for \0 */
+    buff= (char *) thd->alloc(SCRAMBLED_PASSWORD_CHAR_LENGTH + 1);
+    my_make_scrambled_password_sha1(buff, password, pass_len);
+  }
+#if defined(HAVE_OPENSSL)
+  else
+  {
+    /* Allocate memory for the password scramble and one extra byte for \0 */
+    buff= (char *) thd->alloc(CRYPT_MAX_PASSWORD_SIZE + 1);
     my_make_scrambled_password(buff, password, pass_len);
+  }
+#endif
   return buff;
 }
+
 
 /* Item_func_old_password */
 
@@ -2223,7 +2305,7 @@ String *Item_func_soundex::val_str(String *str)
   if ((null_value= args[0]->null_value))
     return 0; /* purecov: inspected */
 
-  if (tmp_value.alloc(max(res->length(), 4 * cs->mbminlen)))
+  if (tmp_value.alloc(MY_MAX(res->length(), 4 * cs->mbminlen)))
     return str; /* purecov: inspected */
   char *to= (char *) tmp_value.ptr();
   char *to_end= to + tmp_value.alloced_length();
@@ -2333,7 +2415,7 @@ MY_LOCALE *Item_func_format::get_locale(Item *item)
   if (!locale_name ||
       !(lc= my_locale_by_name(locale_name->c_ptr_safe())))
   {
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_UNKNOWN_LOCALE,
                         ER(ER_UNKNOWN_LOCALE),
                         locale_name ? locale_name->c_ptr_safe() : "NULL");
@@ -2723,7 +2805,7 @@ String *Item_func_repeat::val_str(String *str)
   // Safe length check
   if (length > current_thd->variables.max_allowed_packet / (uint) count)
   {
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
 			func_name(), current_thd->variables.max_allowed_packet);
@@ -2856,7 +2938,7 @@ String *Item_func_rpad::val_str(String *str)
   byte_count= count * collation.collation->mbmaxlen;
   if ((ulonglong) byte_count > current_thd->variables.max_allowed_packet)
   {
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
 			func_name(), current_thd->variables.max_allowed_packet);
@@ -2964,7 +3046,7 @@ String *Item_func_lpad::val_str(String *str)
   
   if ((ulonglong) byte_count > current_thd->variables.max_allowed_packet)
   {
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
 			func_name(), current_thd->variables.max_allowed_packet);
@@ -3342,7 +3424,7 @@ String *Item_load_file::val_str(String *str)
   }
   if (stat_info.st_size > (long) current_thd->variables.max_allowed_packet)
   {
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
 			func_name(), current_thd->variables.max_allowed_packet);
@@ -3428,12 +3510,12 @@ String* Item_func_export_set::val_str(String* str)
   const ulong max_allowed_packet= current_thd->variables.max_allowed_packet;
   const uint num_separators= num_set_values > 0 ? num_set_values - 1 : 0;
   const ulonglong max_total_length=
-    num_set_values * max(yes->length(), no->length()) +
+    num_set_values * MY_MAX(yes->length(), no->length()) +
     num_separators * sep->length();
 
   if (unlikely(max_total_length > max_allowed_packet))
   {
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_ALLOWED_PACKET_OVERFLOWED,
                         ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
                         func_name(), max_allowed_packet);
@@ -3457,11 +3539,11 @@ String* Item_func_export_set::val_str(String* str)
 
 void Item_func_export_set::fix_length_and_dec()
 {
-  uint32 length= max(args[1]->max_char_length(), args[2]->max_char_length());
+  uint32 length= MY_MAX(args[1]->max_char_length(), args[2]->max_char_length());
   uint32 sep_length= (arg_count > 3 ? args[3]->max_char_length() : 1);
 
   if (agg_arg_charsets_for_string_result(collation,
-                                         args + 1, min(4, arg_count) - 1))
+                                         args + 1, MY_MIN(4, arg_count) - 1))
     return;
   fix_char_length(length * 64 + sep_length * 63);
 }
@@ -3681,7 +3763,7 @@ longlong Item_func_uncompressed_length::val_int()
   */
   if (res->length() <= 4)
   {
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_ZLIB_Z_DATA_ERROR,
                         ER(ER_ZLIB_Z_DATA_ERROR));
     null_value= 1;
@@ -3758,7 +3840,7 @@ String *Item_func_compress::val_str(String *str)
                                res->length())) != Z_OK)
   {
     code= err==Z_MEM_ERROR ? ER_ZLIB_Z_MEM_ERROR : ER_ZLIB_Z_BUF_ERROR;
-    push_warning(current_thd,MYSQL_ERROR::WARN_LEVEL_WARN,code,ER(code));
+    push_warning(current_thd,Sql_condition::WARN_LEVEL_WARN,code,ER(code));
     null_value= 1;
     return 0;
   }
@@ -3796,7 +3878,7 @@ String *Item_func_uncompress::val_str(String *str)
   /* If length is less than 4 bytes, data is corrupt */
   if (res->length() <= 4)
   {
-    push_warning_printf(current_thd,MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd,Sql_condition::WARN_LEVEL_WARN,
 			ER_ZLIB_Z_DATA_ERROR,
 			ER(ER_ZLIB_Z_DATA_ERROR));
     goto err;
@@ -3806,7 +3888,7 @@ String *Item_func_uncompress::val_str(String *str)
   new_size= uint4korr(res->ptr()) & 0x3FFFFFFF;
   if (new_size > current_thd->variables.max_allowed_packet)
   {
-    push_warning_printf(current_thd,MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd,Sql_condition::WARN_LEVEL_WARN,
 			ER_TOO_BIG_FOR_UNCOMPRESS,
 			ER(ER_TOO_BIG_FOR_UNCOMPRESS),
                         static_cast<int>(current_thd->variables.
@@ -3825,7 +3907,7 @@ String *Item_func_uncompress::val_str(String *str)
 
   code= ((err == Z_BUF_ERROR) ? ER_ZLIB_Z_BUF_ERROR :
 	 ((err == Z_MEM_ERROR) ? ER_ZLIB_Z_MEM_ERROR : ER_ZLIB_Z_DATA_ERROR));
-  push_warning(current_thd,MYSQL_ERROR::WARN_LEVEL_WARN,code,ER(code));
+  push_warning(current_thd,Sql_condition::WARN_LEVEL_WARN,code,ER(code));
 
 err:
   null_value= 1;
@@ -4100,10 +4182,8 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
       }
       break;
     case DYN_COL_DATETIME:
-      args[valpos]->get_date(&vals[i].x.time_value, 0);
-      break;
     case DYN_COL_DATE:
-      args[valpos]->get_date(&vals[i].x.time_value, 0);
+      args[valpos]->get_date(&vals[i].x.time_value, sql_mode_for_dates());
       break;
     case DYN_COL_TIME:
       args[valpos]->get_time(&vals[i].x.time_value);
@@ -4517,7 +4597,7 @@ longlong Item_dyncol_get::val_int()
     {
       char buff[30];
       sprintf(buff, "%lg", val.x.double_value);
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_DATA_OVERFLOW,
                           ER(ER_DATA_OVERFLOW),
                           buff,
@@ -4535,9 +4615,9 @@ longlong Item_dyncol_get::val_int()
     if (end != org_end || error > 0)
     {
       char buff[80];
-      strmake(buff, val.x.string.value.str, min(sizeof(buff)-1,
+      strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
                                               val.x.string.value.length));
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER(ER_BAD_DATA),
                           buff,
@@ -4599,9 +4679,9 @@ double Item_dyncol_get::val_real()
         error)
     {
       char buff[80];
-      strmake(buff, val.x.string.value.str, min(sizeof(buff)-1,
+      strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
                                               val.x.string.value.length));
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER(ER_BAD_DATA),
                           buff, "DOUBLE");
@@ -4655,11 +4735,11 @@ my_decimal *Item_dyncol_get::val_decimal(my_decimal *decimal_value)
     rc= str2my_decimal(0, val.x.string.value.str, val.x.string.value.length,
                        val.x.string.charset, decimal_value);
     char buff[80];
-    strmake(buff, val.x.string.value.str, min(sizeof(buff)-1,
+    strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
                                             val.x.string.value.length));
     if (rc != E_DEC_OK)
     {
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER(ER_BAD_DATA),
                           buff, "DECIMAL");

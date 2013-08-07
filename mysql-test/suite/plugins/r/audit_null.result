@@ -81,8 +81,8 @@ root[root] @ localhost []	mysql.table_stats : write
 root[root] @ localhost []	mysql.column_stats : write
 root[root] @ localhost []	mysql.index_stats : write
 root[root] @ localhost []	>> alter table t2 add column b int
-root[root] @ localhost []	test.t2 : read
 root[root] @ localhost []	test.t2 : alter
+root[root] @ localhost []	test.t2 : read
 root[root] @ localhost []	>> create definer=testuser@localhost view v1 as select t2.a+1, t2_copy.a+2 from t2, t2 as t2_copy
 root[root] @ localhost []	test.t2 : read
 root[root] @ localhost []	test.t2 : read

@@ -696,7 +696,7 @@ void JOIN_CACHE::set_constants()
   pack_length_with_blob_ptrs= pack_length + blobs*sizeof(uchar *);
   min_buff_size= 0;
   min_records= 1;
-  buff_size= max(join->thd->variables.join_buff_size,
+  buff_size= MY_MAX(join->thd->variables.join_buff_size,
                  get_min_join_buffer_size());
   size_of_rec_ofs= offset_size(buff_size);
   size_of_rec_len= blobs ? size_of_rec_ofs : offset_size(len); 
@@ -2739,7 +2739,7 @@ int JOIN_CACHE_HASHED::init_hash_table()
   key_entries= 0;
 
   /* Calculate the minimal possible value of size_of_key_ofs greater than 1 */
-  uint max_size_of_key_ofs= max(2, get_size_of_rec_offset());  
+  uint max_size_of_key_ofs= MY_MAX(2, get_size_of_rec_offset());  
   for (size_of_key_ofs= 2;
        size_of_key_ofs <= max_size_of_key_ofs;
        size_of_key_ofs+= 2)

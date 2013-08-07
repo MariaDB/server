@@ -24,6 +24,7 @@
 #include "table.h"                              /* TABLE_LIST */
 
 class Alter_info;
+class Alter_table_ctx;
 class Field;
 class String;
 class handler;
@@ -53,7 +54,6 @@ typedef struct st_lock_param_type
   HA_CREATE_INFO *create_info;
   Alter_info *alter_info;
   TABLE *table;
-  TABLE *old_table;
   KEY *key_info_buffer;
   const char *db;
   const char *table_name;
@@ -75,7 +75,7 @@ typedef struct {
 } part_id_range;
 
 struct st_partition_iter;
-#define NOT_A_PARTITION_ID ((uint32)-1)
+#define NOT_A_PARTITION_ID UINT_MAX32
 
 bool is_partition_in_list(char *part_name, List<char> list_part_names);
 char *are_partitions_in_table(partition_info *new_part_info,
@@ -125,6 +125,7 @@ bool check_part_func_fields(Field **ptr, bool ok_with_charsets);
 bool field_is_partition_charset(Field *field);
 Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs);
 void mem_alloc_error(size_t size);
+void truncate_partition_filename(char *path);
 
 /*
   A "Get next" function for partition iterator.
@@ -250,24 +251,23 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
                                 HA_CREATE_INFO *create_info,
                                 TABLE_LIST *table_list,
                                 char *db,
-                                const char *table_name,
-                                TABLE  *fast_alter_table);
+                                const char *table_name);
 bool set_part_state(Alter_info *alter_info, partition_info *tab_part_info,
                     enum partition_state part_state);
 uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
                            HA_CREATE_INFO *create_info,
-                           handlerton *old_db_type,
+                           Alter_table_ctx *alter_ctx,
                            bool *partition_changed,
-                           char *db,
-                           const char *table_name,
-                           const char *path,
-                           TABLE **fast_alter_table);
+                           bool *fast_alter_table);
 char *generate_partition_syntax(partition_info *part_info,
                                 uint *buf_length, bool use_sql_alloc,
                                 bool show_partition_options,
                                 HA_CREATE_INFO *create_info,
-                                Alter_info *alter_info,
-                                const char *current_comment_start);
+                                Alter_info *alter_info);
+bool verify_data_with_partition(TABLE *table, TABLE *part_table,
+                                uint32 part_id);
+bool compare_partition_options(HA_CREATE_INFO *table_create_info,
+                               partition_element *part_elem);
 bool partition_key_modified(TABLE *table, const MY_BITMAP *fields);
 #else
 #define partition_key_modified(X,Y) 0

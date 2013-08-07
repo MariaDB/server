@@ -7738,7 +7738,7 @@ static void my_coll_lexem_print_error(MY_COLL_LEXEM *lexem,
 {
   char tail[30];
   size_t len= lexem->end - lexem->prev;
-  strmake (tail, lexem->prev, (size_t) min(len, sizeof(tail)-1));
+  strmake (tail, lexem->prev, (size_t) MY_MIN(len, sizeof(tail)-1));
   errstr[errsize-1]= '\0';
   my_snprintf(errstr,errsize-1,"%s at '%s'", txt, tail);
 }

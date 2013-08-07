@@ -1159,7 +1159,7 @@ my_bool spider_ping_table_init_body(
 #if MYSQL_VERSION_ID < 50500
     strcpy(message, thd->main_da.message());
 #else
-    strcpy(message, thd->stmt_da->message());
+    strcpy(message, thd->get_stmt_da()->message());
 #endif
     goto error;
   }

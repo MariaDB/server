@@ -176,7 +176,7 @@ tz_load(const char *name, TIME_ZONE_INFO *sp, MEM_ROOT *storage)
       uchar buf[sizeof(struct tzhead) + sizeof(my_time_t) * TZ_MAX_TIMES +
                 TZ_MAX_TIMES + sizeof(TRAN_TYPE_INFO) * TZ_MAX_TYPES +
 #ifdef ABBR_ARE_USED
-               max(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1))) +
+               MY_MAX(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1))) +
 #endif
                sizeof(LS_INFO) * TZ_MAX_LEAPS];
     } u;
@@ -405,7 +405,7 @@ prepare_tz_info(TIME_ZONE_INFO *sp, MEM_ROOT *storage)
       Let us choose end_t as point before next time type change or leap
       second correction.
     */
-    end_t= min((next_trans_idx < sp->timecnt) ? sp->ats[next_trans_idx] - 1:
+    end_t= MY_MIN((next_trans_idx < sp->timecnt) ? sp->ats[next_trans_idx] - 1:
                                                 MY_TIME_T_MAX,
                (next_leap_idx < sp->leapcnt) ?
                  sp->lsis[next_leap_idx].ls_trans - 1: MY_TIME_T_MAX);
@@ -1690,7 +1690,8 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
                            MYSQL_OPEN_IGNORE_FLUSH | MYSQL_LOCK_IGNORE_TIMEOUT))
   {
     sql_print_warning("Can't open and lock time zone table: %s "
-                      "trying to live without them", thd->stmt_da->message());
+                      "trying to live without them",
+                      thd->get_stmt_da()->message());
     /* We will try emulate that everything is ok */
     return_val= time_zone_tables_exist= 0;
     goto end_with_setting_default_tz;
@@ -1876,7 +1877,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   uchar types[TZ_MAX_TIMES];
   TRAN_TYPE_INFO ttis[TZ_MAX_TYPES];
 #ifdef ABBR_ARE_USED
-  char chars[max(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1)))];
+  char chars[MY_MAX(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1)))];
 #endif
   /* 
     Used as a temporary tz_info until we decide that we actually want to
@@ -1927,7 +1928,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   field->store((longlong) tzid, TRUE);
   DBUG_ASSERT(field->key_length() <= sizeof(keybuff));
   field->get_key_image(keybuff,
-                       min(field->key_length(), sizeof(keybuff)),
+                       MY_MIN(field->key_length(), sizeof(keybuff)),
                        Field::itRAW);
   if (table->file->ha_index_init(0, 1))
     goto end;
@@ -1960,7 +1961,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   field->store((longlong) tzid, TRUE);
   DBUG_ASSERT(field->key_length() <= sizeof(keybuff));
   field->get_key_image(keybuff,
-                       min(field->key_length(), sizeof(keybuff)),
+                       MY_MIN(field->key_length(), sizeof(keybuff)),
                        Field::itRAW);
   if (table->file->ha_index_init(0, 1))
     goto end;

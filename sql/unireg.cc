@@ -191,7 +191,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     char warn_buff[MYSQL_ERRMSG_SIZE];
     my_snprintf(warn_buff, sizeof(warn_buff), ER(ER_TOO_LONG_TABLE_COMMENT),
                 real_table_name, TABLE_COMMENT_MAXLEN);
-    push_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_TOO_LONG_TABLE_COMMENT, warn_buff);
     create_info->comment.length= tmp_len;
   }
@@ -369,59 +369,53 @@ err:
 }
 
 
-/*
+/**
   Create a frm (table definition) file and the tables
 
-  SYNOPSIS
-    rea_create_table()
-    thd			Thread handler
-    frm                 binary frm image of the table to create
-    path		Name of file (including database, without .frm)
-    db			Data base name
-    table_name		Table name
-    create_info		create info parameters
-    file                Handler to use or NULL if only frm needs to be created
+  @param thd           Thread handler
+  @param frm           Binary frm image of the table to create
+  @param path          Name of file (including database, without .frm)
+  @param db            Data base name
+  @param table_name    Table name
+  @param create_info   create info parameters
+  @param file          Handler to use or NULL if only frm needs to be created
 
-  RETURN
-    0  ok
-    1  error
+  @retval 0   ok
+  @retval 1   error
 */
 
 int rea_create_table(THD *thd, LEX_CUSTRING *frm,
                      const char *path, const char *db, const char *table_name,
-                     HA_CREATE_INFO *create_info, handler *file)
+                     HA_CREATE_INFO *create_info, handler *file,
+                     bool no_ha_create_table)
 {
   DBUG_ENTER("rea_create_table");
 
-  if (file)
+  // TODO don't write frm for temp tables
+  if (no_ha_create_table || create_info->tmp_table())
   {
-    // TODO don't write frm for temp tables
-    if (create_info->tmp_table() &&
-        writefrm(path, db, table_name, true, frm->str, frm->length))
-      goto err_handler;
-
-    if (thd->variables.keep_files_on_create)
-      create_info->options|= HA_CREATE_KEEP_FILES;
-
-    if (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG) ||
-       ha_create_table(thd, path, db, table_name, create_info, frm))
-    {
-      file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG);
-      goto err_handler;
-    }
+    if (writefrm(path, db, table_name, true, frm->str, frm->length))
+      goto err_frm;
   }
-  else
+
+  if (thd->variables.keep_files_on_create)
+    create_info->options|= HA_CREATE_KEEP_FILES;
+
+  if (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG))
+    goto err_part;
+
+  if (!no_ha_create_table)
   {
-    if (writefrm(path, db, table_name, false, frm->str, frm->length))
-      goto err_handler;
+    if (ha_create_table(thd, path, db, table_name, create_info, frm))
+      goto err_part;
   }
 
   DBUG_RETURN(0);
 
-err_handler:
-  char frm_name[FN_REFLEN];
-  strxmov(frm_name, path, reg_ext, NullS);
-  mysql_file_delete(key_file_frm, frm_name, MYF(0));
+err_part:
+  file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG);
+err_frm:
+  deletefrm(path);
   DBUG_RETURN(1);
 } /* rea_create_table */
 
@@ -443,15 +437,15 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
   {
     int2store(pos, (key->flags ^ HA_NOSAME));
     int2store(pos+2,key->key_length);
-    pos[4]= (uchar) key->key_parts;
+    pos[4]= (uchar) key->user_defined_key_parts;
     pos[5]= (uchar) key->algorithm;
     int2store(pos+6, key->block_size);
     pos+=8;
-    key_parts+=key->key_parts;
+    key_parts+=key->user_defined_key_parts;
     DBUG_PRINT("loop", ("flags: %lu  key_parts: %d  key_part: 0x%lx",
-                        key->flags, key->key_parts,
+                        key->flags, key->user_defined_key_parts,
                         (long) key->key_part));
-    for (key_part=key->key_part,key_part_end=key_part+key->key_parts ;
+    for (key_part=key->key_part,key_part_end=key_part+key->user_defined_key_parts ;
 	 key_part != key_part_end ;
 	 key_part++)
 
@@ -660,7 +654,7 @@ static bool pack_header(uchar *forminfo, List<Create_field> &create_fields,
     DBUG_RETURN(1);
   }
   /* Hack to avoid bugs with small static rows in MySQL */
-  reclength=max(file->min_record_length(table_options),reclength);
+  reclength=MY_MAX(file->min_record_length(table_options),reclength);
   if ((ulong) create_fields.elements*FCOMP+FRM_FORMINFO_SIZE+
       n_length+int_length+com_length+vcol_info_length > 65535L || 
       int_count > 255)
@@ -940,7 +934,6 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
   table.s= &share;
 
   table.in_use= thd;
-  table.s->blob_ptr_size= portable_sizeof_char_ptr;
 
   null_count=0;
   if (!(table_options & HA_OPTION_PACK_RECORD))

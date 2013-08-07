@@ -27,6 +27,9 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
+#include "sql_class.h"
+#include "sql_time.h"
+
 #if defined(WIN32)
 //#include <windows.h>
 #else   // !WIN32
@@ -49,6 +52,7 @@
 #include "valblk.h"
 #define NO_FUNC                           // Already defined in ODBConn
 #include "plgcnx.h"                       // For DB types
+#include "osutil.h"
 
 /***********************************************************************/
 /*  Check macro's.                                                     */
@@ -1249,9 +1253,6 @@ void DTVAL::SetTimeShift(void)
 /*  though the gmtime C function. The purpose of this function is to   */
 /*  extend the range of valid dates by accepting negative time values. */
 /***********************************************************************/
-#include "sql_class.h"
-#include "sql_time.h"
-
 static void TIME_to_localtime(struct tm *tm, const MYSQL_TIME *ltime)
 {
   bzero(tm, sizeof(*tm));

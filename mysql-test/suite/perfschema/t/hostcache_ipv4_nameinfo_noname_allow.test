@@ -14,9 +14,9 @@
 # no reverse address mapping.
 call mtr.add_suppression("192.0.2.4");
 
-flush status;
-flush hosts;
-select @@global.debug;
+# Enforce a clean state
+--source ../include/wait_for_pfs_thread_count.inc
+--source ../include/hostcache_set_state.inc
 
 grant select on test.* to 'root'@'192.0.2.4';
 
@@ -26,7 +26,7 @@ select current_user();
 disconnect con1;
 
 --connection default
-set global debug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_error_noname";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_error_noname";
 
 connect (con2,"127.0.0.1",root,,test,$MASTER_MYPORT,);
 select "Con2 is alive";
@@ -47,5 +47,5 @@ disconnect con3;
 revoke select on test.* from 'root'@'192.0.2.4';
 drop user 'root'@'192.0.2.4';
 
-set global debug= default;
+set global debug_dbug= default;
 

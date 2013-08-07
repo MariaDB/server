@@ -160,7 +160,7 @@ int my_strnncollsp_simple(CHARSET_INFO * cs, const uchar *a, size_t a_length,
   diff_if_only_endspace_difference= 0;
 #endif
 
-  end= a + (length= min(a_length, b_length));
+  end= a + (length= MY_MIN(a_length, b_length));
   while (a < end)
   {
     if (map[*a++] != map[*b++])
@@ -770,7 +770,7 @@ size_t my_long10_to_str_8bit(CHARSET_INFO *cs __attribute__((unused)),
     val= new_val;
   }
   
-  len= min(len, (size_t) (e-p));
+  len= MY_MIN(len, (size_t) (e-p));
   memcpy(dst, p, len);
   return len+sign;
 }
@@ -824,7 +824,7 @@ size_t my_longlong10_to_str_8bit(CHARSET_INFO *cs __attribute__((unused)),
     long_val= quo;
   }
   
-  len= min(len, (size_t) (e-p));
+  len= MY_MIN(len, (size_t) (e-p));
 cnv:
   memcpy(dst, p, len);
   return len+sign;
@@ -1069,7 +1069,7 @@ size_t my_well_formed_len_8bit(CHARSET_INFO *cs __attribute__((unused)),
 {
   size_t nbytes= (size_t) (end-start);
   *error= 0;
-  return min(nbytes, nchars);
+  return MY_MIN(nbytes, nchars);
 }
 
 

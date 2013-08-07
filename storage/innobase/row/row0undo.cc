@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -216,7 +216,8 @@ row_undo_search_clust_to_pcur(
 		}
 
 		node->row = row_build(ROW_COPY_DATA, clust_index, rec,
-				      offsets, NULL, ext, node->heap);
+				      offsets, NULL,
+				      NULL, NULL, ext, node->heap);
 		if (node->rec_type == TRX_UNDO_UPD_EXIST_REC) {
 			node->undo_row = dtuple_copy(node->row, node->heap);
 			row_upd_replace(node->undo_row, &node->undo_ext,
@@ -244,14 +245,14 @@ Fetches an undo log record and does the undo for the recorded operation.
 If none left, or a partial rollback completed, returns control to the
 parent node, which is always a query thread node.
 @return	DB_SUCCESS if operation successfully completed, else error code */
-static
-ulint
+static __attribute__((nonnull, warn_unused_result))
+dberr_t
 row_undo(
 /*=====*/
 	undo_node_t*	node,	/*!< in: row undo node */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	ulint		err;
+	dberr_t		err;
 	trx_t*		trx;
 	roll_ptr_t	roll_ptr;
 	ibool		locked_data_dict;
@@ -332,7 +333,7 @@ row_undo_step(
 /*==========*/
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	ulint		err;
+	dberr_t		err;
 	undo_node_t*	node;
 	trx_t*		trx;
 
@@ -348,17 +349,17 @@ row_undo_step(
 
 	err = row_undo(node, thr);
 
-	trx->error_state = static_cast<enum db_err>(err);
+	trx->error_state = err;
 
 	if (err != DB_SUCCESS) {
 		/* SQL error detected */
 
-		fprintf(stderr, "InnoDB: Fatal error %lu in rollback.\n",
-			(ulong) err);
+		fprintf(stderr, "InnoDB: Fatal error (%s) in rollback.\n",
+			ut_strerr(err));
 
 		if (err == DB_OUT_OF_FILE_SPACE) {
 			fprintf(stderr,
-				"InnoDB: Error 13 means out of tablespace.\n"
+				"InnoDB: Out of tablespace.\n"
 				"InnoDB: Consider increasing"
 				" your tablespace.\n");
 

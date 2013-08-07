@@ -1230,7 +1230,7 @@ static my_bool extend_directory(MARIA_HA *info, uchar *buff, uint block_size,
   }
 
   check_directory(buff, block_size,
-                  info ? min(info->s->base.min_block_length, length) : 0,
+                  info ? MY_MIN(info->s->base.min_block_length, length) : 0,
                   *empty_space);
   DBUG_RETURN(0);
 }
@@ -2126,7 +2126,7 @@ static my_bool write_full_pages(MARIA_HA *info,
     }
     lsn_store(buff, lsn);
     buff[PAGE_TYPE_OFFSET]= (uchar) BLOB_PAGE;
-    copy_length= min(data_size, length);
+    copy_length= MY_MIN(data_size, length);
     memcpy(buff + LSN_SIZE + PAGE_TYPE_SIZE, data, copy_length);
     length-= copy_length;
 
@@ -3504,7 +3504,7 @@ static my_bool allocate_and_write_block_record(MARIA_HA *info,
 
   /* page will be pinned & locked by get_head_or_tail_page */
   if (get_head_or_tail_page(info, blocks->block, info->buff,
-                            max(row->space_on_head_page,
+                            MY_MAX(row->space_on_head_page,
                                 info->s->base.min_block_length),
                             HEAD_PAGE,
                             PAGECACHE_LOCK_WRITE, &row_pos))
@@ -3952,7 +3952,7 @@ static my_bool _ma_update_at_original_place(MARIA_HA *info,
   */
 
   DBUG_ASSERT(blocks->count > 1 ||
-              max(new_row->total_length, share->base.min_block_length) <=
+              MY_MAX(new_row->total_length, share->base.min_block_length) <=
               length_on_head_page);
 
   /* Store same amount of data on head page as on original page */

@@ -1,5 +1,25 @@
 drop table if exists t1,t2;
 drop view if exists v1;
+#
+# test basic creation of temporary tables together with normal table
+#
+create table t1 (a int);
+create temporary table t1 AS SELECT 1;
+create temporary table t1 AS SELECT 1;
+ERROR 42S01: Table 't1' already exists
+create temporary table t1 (a int);
+ERROR 42S01: Table 't1' already exists
+drop temporary table t1;
+drop table t1;
+create temporary table t1 AS SELECT 1;
+create temporary table t1 AS SELECT 1;
+ERROR 42S01: Table 't1' already exists
+create temporary table t1 (a int);
+ERROR 42S01: Table 't1' already exists
+drop temporary table t1;
+#
+# Test with rename
+#
 CREATE TABLE t1 (c int not null, d char (10) not null);
 insert into t1 values(1,""),(2,"a"),(3,"b");
 CREATE TEMPORARY TABLE t1 (a int not null, b char (10) not null);
@@ -145,7 +165,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (i INT);
 CREATE TEMPORARY TABLE t2 (i INT);
 DROP TEMPORARY TABLE t2, t1;
-ERROR 42S02: Unknown table 't1'
+ERROR 42S02: Unknown table 'test.t1'
 SELECT * FROM t2;
 ERROR 42S02: Table 'test.t2' doesn't exist
 SELECT * FROM t1;

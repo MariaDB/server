@@ -2185,7 +2185,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           double rows= 1.0;
           while ((tableno = tm_it.next_bit()) != Table_map_iterator::BITMAP_END)
             rows *= join->map2table[tableno]->table->quick_condition_rows;
-          sjm->rows= min(sjm->rows, rows);
+          sjm->rows= MY_MIN(sjm->rows, rows);
         }
         memcpy(sjm->positions, join->best_positions + join->const_tables, 
                sizeof(POSITION) * n_tables);
@@ -2380,7 +2380,7 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
           keyuse++;
         } while (keyuse->key == key && keyuse->table == table);
 
-        if (bound_parts == PREV_BITS(uint, keyinfo->key_parts))
+        if (bound_parts == PREV_BITS(uint, keyinfo->user_defined_key_parts))
           return TRUE;
       }
       else
@@ -3544,7 +3544,7 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
     KEY           *tmp_key; /* The only index on the temporary table. */
     uint          tmp_key_parts; /* Number of keyparts in tmp_key. */
     tmp_key= sjm->table->key_info;
-    tmp_key_parts= tmp_key->key_parts;
+    tmp_key_parts= tmp_key->user_defined_key_parts;
     
     /*
       Create/initialize everything we will need to index lookups into the
@@ -3942,7 +3942,6 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, tmpname, tmpname);
   share->blob_field= blob_field;
-  share->blob_ptr_size= portable_sizeof_char_ptr;
   share->table_charset= NULL;
   share->primary_key= MAX_KEY;               // Indicate no primary key
   share->keys_for_keyread.init();
@@ -3994,6 +3993,12 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   }
   if (!table->file)
     goto err;
+
+  if (table->file->set_ha_share_ref(&share->ha_share))
+  {
+    delete table->file;
+    goto err;
+  }
 
   null_count=1;
   
@@ -4064,7 +4069,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     share->max_rows= ~(ha_rows) 0;
   else
     share->max_rows= (ha_rows) (((share->db_type() == heap_hton) ?
-                                 min(thd->variables.tmp_table_size,
+                                 MY_MIN(thd->variables.tmp_table_size,
                                      thd->variables.max_heap_table_size) :
                                  thd->variables.tmp_table_size) /
 			         share->reclength);
@@ -4080,7 +4085,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     table->key_info=keyinfo;
     keyinfo->key_part=key_part_info;
     keyinfo->flags=HA_NOSAME;
-    keyinfo->usable_key_parts= keyinfo->key_parts= 1;
+    keyinfo->usable_key_parts= keyinfo->user_defined_key_parts= 1;
     keyinfo->key_length=0;
     keyinfo->rec_per_key=0;
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
@@ -5180,7 +5185,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
           0 or 1 record. Examples of both cases:
 
             select * from ot where col in (select ... from it where 2>3) 
-            select * from ot where col in (select min(it.key) from it)
+            select * from ot where col in (select MY_MIN(it.key) from it)
           
           in this case, the subquery predicate has not been setup for
           materialization. In particular, there is no materialized temp.table.
