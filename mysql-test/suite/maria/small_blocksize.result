@@ -1,6 +1,6 @@
 DROP TABLE if exists t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 CREATE TABLE t1 (col_longtext_ucs2 longtext, col_longtext_utf8 longtext, col_varchar_255_ucs2_key varchar(255), col_set_utf8 set ('a','b'), col_char_255_ucs2 char(255), col_char_255_ucs2_key char(255), col_enum_ucs2 enum ('a','b'), col_varchar_255_ucs2 varchar(255), col_longtext_ucs2_key longtext, col_longtext_utf8_key longtext, col_enum_utf8 enum ('a','b'), col_varchar_255_utf8_key varchar(1024), col_varchar_255_utf8 varchar(255), col_enum_ucs2_key enum ('a','b'), col_enum_utf8_key enum ('a','b'), col_set_utf8_key set ('a','b'), col_char_255_utf8 char(255), pk integer auto_increment, col_set_ucs2_key set ('a','b'), col_char_255_utf8_key char(255), col_set_ucs2 set ('a','b'), primary key (pk)) ENGINE=aria;
 INSERT INTO t1 ( col_char_255_utf8, col_varchar_255_utf8_key, col_longtext_utf8_key ) VALUES ( 'lggnqojgqectqlkvskffihliqcwoakzzzjvhkqlwjybkngdbubskflpmzegdrk', REPEAT( 'a', 627 ), 'mlggnqojgqectqlkvskffihliqcwoakzzzjvhkqlwjybkngdbubskflpmzegdrklnipcmzbtwdqfnyinqfohgtiwmvfpbuslgobjhslxnaybcyebhsrlipnuvalhmvhlwbwujtvjsdrbyapfzprnxfgtrukwhywtkaoupsaogxsjxhqjkidvnpeytjgndtnrrbm' );
 UPDATE t1 SET col_varchar_255_utf8 = REPEAT('a', 197 );

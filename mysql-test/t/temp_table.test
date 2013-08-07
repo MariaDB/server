@@ -1,5 +1,6 @@
 # mysqltest should be fixed
 -- source include/not_embedded.inc
+
 #
 # Test of temporary tables
 #
@@ -8,6 +9,30 @@
 drop table if exists t1,t2;
 drop view if exists v1;
 --enable_warnings
+
+--echo #
+--echo # test basic creation of temporary tables together with normal table
+--echo #
+
+create table t1 (a int);
+create temporary table t1 AS SELECT 1;
+--error 1050
+create temporary table t1 AS SELECT 1;
+--error 1050
+create temporary table t1 (a int);
+drop temporary table t1;
+drop table t1;
+
+create temporary table t1 AS SELECT 1;
+--error 1050
+create temporary table t1 AS SELECT 1;
+--error 1050
+create temporary table t1 (a int);
+drop temporary table t1;
+
+--echo #
+--echo # Test with rename
+--echo #
 
 CREATE TABLE t1 (c int not null, d char (10) not null);
 insert into t1 values(1,""),(2,"a"),(3,"b");

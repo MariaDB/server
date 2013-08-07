@@ -511,8 +511,8 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
       pos->algorithm;
     keydef[i].block_length= pos->block_size;
     keydef[i].seg= keyseg;
-    keydef[i].keysegs= pos->key_parts;
-    for (j= 0; j < pos->key_parts; j++)
+    keydef[i].keysegs= pos->user_defined_key_parts;
+    for (j= 0; j < pos->user_defined_key_parts; j++)
     {
       Field *field= pos->key_part[j].field;
       type= field->key_type();
@@ -564,7 +564,7 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
         keydef[i].seg[j].flag|= HA_BLOB_PART;
         /* save number of bytes used to pack length */
         keydef[i].seg[j].bit_start= (uint) (field->pack_length() -
-                                            share->blob_ptr_size);
+                                            portable_sizeof_char_ptr);
       }
       else if (field->type() == MYSQL_TYPE_BIT)
       {
@@ -574,7 +574,7 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
                                           (uchar*) table_arg->record[0]);
       }
     }
-    keyseg+= pos->key_parts;
+    keyseg+= pos->user_defined_key_parts;
   }
   if (table_arg->found_next_number_field)
     keydef[share->next_number_index].flag|= HA_AUTO_KEY;
@@ -1036,7 +1036,7 @@ ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
 double ha_maria::scan_time()
 {
   if (file->s->data_file_type == BLOCK_RECORD)
-    return ulonglong2double(stats.data_file_length - file->s->block_size) / max(file->s->block_size / 2, IO_SIZE) + 2;
+    return ulonglong2double(stats.data_file_length - file->s->block_size) / MY_MAX(file->s->block_size / 2, IO_SIZE) + 2;
   return handler::scan_time();
 }
 
@@ -1183,7 +1183,7 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
   {
     if (my_errno == HA_ERR_OLD_FILE)
     {
-      push_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+      push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE,
                    ER_CRASHED_ON_USAGE,
                    zerofill_error_msg);
     }
@@ -1639,8 +1639,8 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       }
       if (error && file->create_unique_index_by_sort && 
           share->state.dupp_key != MAX_KEY)
-          print_keydup_error(share->state.dupp_key, 
-                             ER(ER_DUP_ENTRY_WITH_KEY_NAME), MYF(0));
+        print_keydup_error(table, &table->key_info[share->state.dupp_key], 
+                           MYF(0));
     }
     else
     {
@@ -2201,8 +2201,8 @@ bool ha_maria::check_and_repair(THD *thd)
       STATE_MOVED)
   {
     /* Remove error about crashed table */
-    thd->warning_info->clear_warning_info(thd->query_id);
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+    thd->get_stmt_da()->clear_warning_info(thd->query_id);
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_CRASHED_ON_USAGE,
                         "Zerofilling moved table %s", table->s->path.str);
     sql_print_information("Zerofilling moved table:  '%s'",
@@ -2474,7 +2474,7 @@ int ha_maria::info(uint flag)
     ref_length= maria_info.reflength;
     share->db_options_in_use= maria_info.options;
     stats.block_size= maria_block_size;
-    stats.mrr_length_per_rec= maria_info.reflength + 8; // 8 = max(sizeof(void *))
+    stats.mrr_length_per_rec= maria_info.reflength + 8; // 8 = MY_MAX(sizeof(void *))
 
     /* Update share */
     share->keys_in_use.set_prefix(share->keys);
@@ -2721,7 +2721,7 @@ int ha_maria::external_lock(THD *thd, int lock_type)
             This is a bit excessive, ACID requires this only if there are some
             changes to commit (rollback shouldn't be tested).
           */
-          DBUG_ASSERT(!thd->stmt_da->is_sent ||
+          DBUG_ASSERT(!thd->get_stmt_da()->is_sent() ||
                       thd->killed == KILL_CONNECTION);
           /* autocommit ? rollback a transaction */
 #ifdef MARIA_CANNOT_ROLLBACK
@@ -2947,9 +2947,12 @@ void ha_maria::update_create_info(HA_CREATE_INFO *create_info)
   }
   create_info->data_file_name= data_file_name;
   create_info->index_file_name= index_file_name;
-  /* We need to restore the row type as Maria can change it */
+  /*
+    Keep user-specified row_type for ALTER,
+    but show the actually used one in SHOW
+  */
   if (create_info->row_type != ROW_TYPE_DEFAULT &&
-      !(create_info->used_fields & HA_CREATE_USED_ROW_FORMAT))
+      !(thd_sql_command(ha_thd()) == SQLCOM_ALTER_TABLE))
     create_info->row_type= get_row_type();
   /*
     Show always page checksums, as this can be forced with
@@ -3015,7 +3018,7 @@ int ha_maria::create(const char *name, register TABLE *table_arg,
       ha_create_info->row_type != ROW_TYPE_PAGE &&
       ha_create_info->row_type != ROW_TYPE_NOT_USED &&
       ha_create_info->row_type != ROW_TYPE_DEFAULT)
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+    push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                  ER_ILLEGAL_HA_CREATE_OPTION,
                  "Row format set to PAGE because of TRANSACTIONAL=1 option");
 
@@ -3048,9 +3051,9 @@ int ha_maria::create(const char *name, register TABLE *table_arg,
   create_info.transactional= (row_type == BLOCK_RECORD &&
                               ha_create_info->transactional != HA_CHOICE_NO);
 
-  if (ha_create_info->options & HA_LEX_CREATE_TMP_TABLE)
+  if (ha_create_info->tmp_table())
   {
-    create_flags|= HA_CREATE_TMP_TABLE;
+    create_flags|= HA_CREATE_TMP_TABLE | HA_CREATE_DELAY_KEY_WRITE;
     create_info.transactional= 0;
   }
   if (ha_create_info->options & HA_CREATE_KEEP_FILES)
@@ -3200,10 +3203,17 @@ bool ha_maria::check_if_incompatible_data(HA_CREATE_INFO *create_info,
 {
   DBUG_ENTER("check_if_incompatible_data");
   uint options= table->s->db_options_in_use;
+  enum ha_choice page_checksum= table->s->page_checksum;
+
+  if (page_checksum == HA_CHOICE_UNDEF)
+    page_checksum= file->s->options & HA_OPTION_PAGE_CHECKSUM ? HA_CHOICE_YES
+                                                              : HA_CHOICE_NO;
 
   if (create_info->auto_increment_value != stats.auto_increment_value ||
       create_info->data_file_name != data_file_name ||
       create_info->index_file_name != index_file_name ||
+      create_info->page_checksum != page_checksum ||
+      create_info->transactional != table->s->transactional ||
       (maria_row_type(create_info) != data_file_type &&
        create_info->row_type != ROW_TYPE_DEFAULT) ||
       table_changes == IS_EQUAL_NO ||
@@ -3817,7 +3827,7 @@ Item *ha_maria::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
   */
   const KEY *key= &table_share->key_info[keyno_arg];
 
-  for (uint k= 0; k < key->key_parts; ++k)
+  for (uint k= 0; k < key->user_defined_key_parts; ++k)
   {
     const KEY_PART_INFO *key_part= &key->key_part[k];
     if (key_part->key_part_flag & HA_BLOB_PART)

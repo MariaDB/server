@@ -2406,7 +2406,7 @@ static int initialize_variables_for_repair(HA_CHECK *param,
   else
   {
     ulong rec_length;
-    rec_length= max(share->base.min_pack_length,
+    rec_length= MY_MAX(share->base.min_pack_length,
                     share->base.min_block_length);
     sort_info->max_records= (ha_rows) (sort_info->filelength / rec_length);
   }
@@ -3612,7 +3612,7 @@ int maria_filecopy(HA_CHECK *param, File to,File from,my_off_t start,
   ulong buff_length;
   DBUG_ENTER("maria_filecopy");
 
-  buff_length=(ulong) min(param->write_buffer_length,length);
+  buff_length=(ulong) MY_MIN(param->write_buffer_length,length);
   if (!(buff=my_malloc(buff_length,MYF(0))))
   {
     buff=tmp_buff; buff_length=IO_SIZE;
@@ -5670,7 +5670,7 @@ word_init_ft_buf:
   ft_buf->buf=ft_buf->lastkey+a_len;
   /*
     32 is just a safety margin here
-    (at least max(val_len, sizeof(nod_flag)) should be there).
+    (at least MY_MAX(val_len, sizeof(nod_flag)) should be there).
     May be better performance could be achieved if we'd put
       (sort_info->keyinfo->block_length-32)/XXX
       instead.
@@ -6083,7 +6083,7 @@ int maria_recreate_table(HA_CHECK *param, MARIA_HA **org_info, char *filename)
   maria_close(*org_info);
 
   bzero((char*) &create_info,sizeof(create_info));
-  create_info.max_rows=max(max_records,share.base.records);
+  create_info.max_rows=MY_MAX(max_records,share.base.records);
   create_info.reloc_rows=share.base.reloc;
   create_info.old_options=(share.options |
 			   (unpack ? HA_OPTION_TEMP_COMPRESS_RECORD : 0));
@@ -6506,7 +6506,8 @@ static my_bool create_new_data_handle(MARIA_SORT_PARAM *param, File new_file)
   DBUG_ENTER("create_new_data_handle");
 
   if (!(sort_info->new_info= maria_open(info->s->open_file_name.str, O_RDWR,
-                                        HA_OPEN_COPY | HA_OPEN_FOR_REPAIR)))
+                                        HA_OPEN_COPY | HA_OPEN_FOR_REPAIR |
+                                        HA_OPEN_INTERNAL_TABLE)))
     DBUG_RETURN(1);
 
   new_info= sort_info->new_info;
@@ -6927,7 +6928,7 @@ static TrID max_trid_in_system(void)
 {
   TrID id= trnman_get_max_trid(); /* 0 if transac manager not initialized */
   /* 'id' may be far bigger, if last shutdown is old */
-  return max(id, max_trid_in_control_file);
+  return MY_MAX(id, max_trid_in_control_file);
 }
 
 

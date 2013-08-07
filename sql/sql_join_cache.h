@@ -421,7 +421,7 @@ protected:
   /* Shall calculate how much space is remaining in the join buffer */ 
   virtual size_t rem_space() 
   { 
-    return max(buff_size-(end_pos-buff)-aux_buff_size,0);
+    return MY_MAX(buff_size-(end_pos-buff)-aux_buff_size,0);
   }
 
   /* 
@@ -944,7 +944,7 @@ protected:
   */ 
   size_t rem_space() 
   { 
-    return max(last_key_entry-end_pos-aux_buff_size,0);
+    return MY_MAX(last_key_entry-end_pos-aux_buff_size,0);
   }
 
   /* 

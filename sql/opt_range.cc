@@ -112,7 +112,7 @@
 #include "key.h"        // is_key_used, key_copy, key_cmp, key_restore
 #include "sql_parse.h"                          // check_stack_overrun
 #include "sql_partition.h"    // get_part_id_func, PARTITION_ITERATOR,
-                              // struct partition_info
+                              // struct partition_info, NOT_A_PARTITION_ID
 #include "sql_base.h"         // free_io_cache
 #include "records.h"          // init_read_record, end_read_record
 #include <m_ctype.h>
@@ -2851,7 +2851,7 @@ static int fill_used_fields_bitmap(PARAM *param)
     /* The table uses clustered PK and it is not internally generated */
     KEY_PART_INFO *key_part= param->table->key_info[pk].key_part;
     KEY_PART_INFO *key_part_end= key_part +
-                                 param->table->key_info[pk].key_parts;
+                                 param->table->key_info[pk].user_defined_key_parts;
     for (;key_part != key_part_end; ++key_part)
       bitmap_clear_bit(&param->needed_fields, key_part->fieldnr-1);
   }
@@ -3081,7 +3081,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     group_trp= get_best_group_min_max(&param, tree, best_read_time);
     if (group_trp)
     {
-      param.table->quick_condition_rows= min(group_trp->records,
+      param.table->quick_condition_rows= MY_MIN(group_trp->records,
                                              head->stat_records());
       if (group_trp->read_cost < best_read_time)
       {
@@ -3529,7 +3529,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 
   /* Calculate selectivity of probably highly selective predicates */
   ulong check_rows=
-    min(thd->variables.optimizer_selectivity_sampling_limit,
+    MY_MIN(thd->variables.optimizer_selectivity_sampling_limit,
         (ulong) (table_records * SELECTIVITY_SAMPLING_SHARE));
   if (cond && check_rows > SELECTIVITY_SAMPLING_THRESHOLD &&
       thd->variables.optimizer_use_condition_selectivity > 4)
@@ -3814,29 +3814,26 @@ static void dbug_print_singlepoint_range(SEL_ARG **start, uint num);
 #endif
 
 
-/*
+/**
   Perform partition pruning for a given table and condition.
 
-  SYNOPSIS
-    prune_partitions()
-      thd           Thread handle
-      table         Table to perform partition pruning for
-      pprune_cond   Condition to use for partition pruning
+  @param      thd            Thread handle
+  @param      table          Table to perform partition pruning for
+  @param      pprune_cond    Condition to use for partition pruning
   
-  DESCRIPTION
-    This function assumes that all partitions are marked as unused when it
-    is invoked. The function analyzes the condition, finds partitions that
-    need to be used to retrieve the records that match the condition, and 
-    marks them as used by setting appropriate bit in part_info->used_partitions
-    In the worst case all partitions are marked as used.
+  @note This function assumes that lock_partitions are setup when it
+  is invoked. The function analyzes the condition, finds partitions that
+  need to be used to retrieve the records that match the condition, and 
+  marks them as used by setting appropriate bit in part_info->read_partitions
+  In the worst case all partitions are marked as used. If the table is not
+  yet locked, it will also unset bits in part_info->lock_partitions that is
+  not set in read_partitions.
 
-  NOTE
-    This function returns promptly if called for non-partitioned table.
+  This function returns promptly if called for non-partitioned table.
 
-  RETURN
-    TRUE   We've inferred that no partitions need to be used (i.e. no table
-           records will satisfy pprune_cond)
-    FALSE  Otherwise
+  @return Operation status
+    @retval true  Failure
+    @retval false Success
 */
 
 bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
@@ -3889,7 +3886,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   thd->no_errors=1;				// Don't warn about NULL
   thd->mem_root=&alloc;
 
-  bitmap_clear_all(&part_info->used_partitions);
+  bitmap_clear_all(&part_info->read_partitions);
 
   prune_param.key= prune_param.range_param.key_parts;
   SEL_TREE *tree;
@@ -3972,6 +3969,33 @@ end:
   thd->no_errors=0;
   thd->mem_root= range_par->old_root;
   free_root(&alloc,MYF(0));			// Return memory & allocator
+  /*
+    Must be a subset of the locked partitions.
+    lock_partitions contains the partitions marked by explicit partition
+    selection (... t PARTITION (pX) ...) and we must only use partitions
+    within that set.
+  */
+  bitmap_intersect(&prune_param.part_info->read_partitions,
+                   &prune_param.part_info->lock_partitions);
+  /*
+    If not yet locked, also prune partitions to lock if not UPDATEing
+    partition key fields. This will also prune lock_partitions if we are under
+    LOCK TABLES, so prune away calls to start_stmt().
+    TODO: enhance this prune locking to also allow pruning of
+    'UPDATE t SET part_key = const WHERE cond_is_prunable' so it adds
+    a lock for part_key partition.
+  */
+  if (table->file->get_lock_type() == F_UNLCK &&
+      !partition_key_modified(table, table->write_set))
+  {
+    bitmap_copy(&prune_param.part_info->lock_partitions,
+                &prune_param.part_info->read_partitions);
+  }
+  if (bitmap_is_clear_all(&(prune_param.part_info->read_partitions)))
+  {
+    table->all_partitions_pruned_away= true;
+    retval= TRUE;
+  }
   DBUG_RETURN(retval);
 }
 
@@ -4009,7 +4033,7 @@ static void mark_full_partition_used_no_parts(partition_info* part_info,
 {
   DBUG_ENTER("mark_full_partition_used_no_parts");
   DBUG_PRINT("enter", ("Mark partition %u as used", part_id));
-  bitmap_set_bit(&part_info->used_partitions, part_id);
+  bitmap_set_bit(&part_info->read_partitions, part_id);
   DBUG_VOID_RETURN;
 }
 
@@ -4025,7 +4049,7 @@ static void mark_full_partition_used_with_parts(partition_info *part_info,
   for (; start != end; start++)
   {
     DBUG_PRINT("info", ("1:Mark subpartition %u as used", start));
-    bitmap_set_bit(&part_info->used_partitions, start);
+    bitmap_set_bit(&part_info->read_partitions, start);
   }
   DBUG_VOID_RETURN;
 }
@@ -4053,7 +4077,7 @@ static int find_used_partitions_imerge_list(PART_PRUNE_PARAM *ppar,
   MY_BITMAP all_merges;
   uint bitmap_bytes;
   my_bitmap_map *bitmap_buf;
-  uint n_bits= ppar->part_info->used_partitions.n_bits;
+  uint n_bits= ppar->part_info->read_partitions.n_bits;
   bitmap_bytes= bitmap_buffer_size(n_bits);
   if (!(bitmap_buf= (my_bitmap_map*) alloc_root(ppar->range_param.mem_root,
                                                 bitmap_bytes)))
@@ -4079,14 +4103,15 @@ static int find_used_partitions_imerge_list(PART_PRUNE_PARAM *ppar,
     }
 
     if (res != -1)
-      bitmap_intersect(&all_merges, &ppar->part_info->used_partitions);
+      bitmap_intersect(&all_merges, &ppar->part_info->read_partitions);
+
 
     if (bitmap_is_clear_all(&all_merges))
       return 0;
 
-    bitmap_clear_all(&ppar->part_info->used_partitions);
+    bitmap_clear_all(&ppar->part_info->read_partitions);
   }
-  memcpy(ppar->part_info->used_partitions.bitmap, all_merges.bitmap,
+  memcpy(ppar->part_info->read_partitions.bitmap, all_merges.bitmap,
          bitmap_bytes);
   return 1;
 }
@@ -4446,7 +4471,7 @@ int find_used_partitions(PART_PRUNE_PARAM *ppar, SEL_ARG *key_tree)
       {
         for (uint i= 0; i < ppar->part_info->num_subparts; i++)
           if (bitmap_is_set(&ppar->subparts_bitmap, i))
-            bitmap_set_bit(&ppar->part_info->used_partitions,
+            bitmap_set_bit(&ppar->part_info->read_partitions,
                            part_id * ppar->part_info->num_subparts + i);
       }
       goto pop_and_go_right;
@@ -4508,7 +4533,7 @@ int find_used_partitions(PART_PRUNE_PARAM *ppar, SEL_ARG *key_tree)
         while ((part_id= ppar->part_iter.get_next(&ppar->part_iter)) !=
                 NOT_A_PARTITION_ID)
         {
-          bitmap_set_bit(&part_info->used_partitions,
+          bitmap_set_bit(&part_info->read_partitions,
                          part_id * part_info->num_subparts + subpart_id);
         }
         res= 1; /* Some partitions were marked as used */
@@ -4594,7 +4619,8 @@ pop_and_go_right:
 
 static void mark_all_partitions_as_used(partition_info *part_info)
 {
-  bitmap_set_all(&part_info->used_partitions);
+  bitmap_copy(&(part_info->read_partitions),
+              &(part_info->lock_partitions));
 }
 
 
@@ -5147,7 +5173,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     {
       imerge_trp->read_cost= imerge_cost;
       imerge_trp->records= non_cpk_scan_records + cpk_scan_records;
-      imerge_trp->records= min(imerge_trp->records,
+      imerge_trp->records= MY_MIN(imerge_trp->records,
                                param->table->stat_records());
       imerge_trp->range_scans= range_scans;
       imerge_trp->range_scans_end= range_scans + n_child_scans;
@@ -5737,7 +5763,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
   this number by #r.
 
   If we do not make any assumptions then we can only state that
-     #r<=min(#r1,#r2).
+     #r<=MY_MIN(#r1,#r2).
   With this estimate we can't say that the index intersection scan will be 
   cheaper than the cheapest index scan.
 
@@ -5770,7 +5796,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
   #rt2_0 of the same range for sub-index idx2_0(dept) of the index idx2.
   The current code does not make an estimate either for #rt1_0, or for #rt2_0,
   but it can be adjusted to provide those numbers.
-  Alternatively, min(rec_per_key) for (dept) could be used to get an upper 
+  Alternatively, MY_MIN(rec_per_key) for (dept) could be used to get an upper 
   bound for the value of sel(Rt1&Rt2). Yet this statistics is not provided
   now.  
  
@@ -5781,7 +5807,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
 
   sel(Rt1&Rt2)=sel(dept=5)*sel(last_name='Sm5')*sel(first_name='Robert')
   =sel(Rt2)*sel(dept=5)
-  Here max(rec_per_key) for (dept) could be used to get an upper bound for
+  Here MY_MAX(rec_per_key) for (dept) could be used to get an upper bound for
   the value of sel(Rt1&Rt2).
   
   When the intersected indexes have different major columns, but some
@@ -5834,9 +5860,9 @@ bool prepare_search_best_index_intersect(PARAM *param,
     f_1 = rec_per_key[first_name]/rec_per_key[last_name].
   The the number of records in the range tree:
     Rt_0:  (first_name='Robert' OR first_name='Bob')
-  for the sub-index (first_name) is not greater than max(#r*f_1, #t).
+  for the sub-index (first_name) is not greater than MY_MAX(#r*f_1, #t).
   Strictly speaking, we can state only that it's not greater than 
-  max(#r*max_f_1, #t), where
+  MY_MAX(#r*max_f_1, #t), where
     max_f_1= max_rec_per_key[first_name]/min_rec_per_key[last_name].
   Yet, if #r/#t is big enough (and this is the case of an index intersection,
   because using this index range with a single index scan is cheaper than
@@ -6292,7 +6318,7 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
 
   KEY_PART_INFO *key_part= param->table->key_info[keynr].key_part;
   KEY_PART_INFO *key_part_end= key_part +
-                               param->table->key_info[keynr].key_parts;
+                               param->table->key_info[keynr].user_defined_key_parts;
   for (;key_part != key_part_end; ++key_part)
   {
     if (bitmap_is_set(&param->needed_fields, key_part->fieldnr-1))
@@ -6965,7 +6991,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
 
   for (ROR_SCAN_INFO **scan= tree->ror_scans; scan != ror_scans_end; ++scan)
     (*scan)->key_components=
-      param->table->key_info[(*scan)->keynr].key_parts;
+      param->table->key_info[(*scan)->keynr].user_defined_key_parts;
 
   /*
     Run covering-ROR-search algorithm.
@@ -9073,7 +9099,7 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
   if (!key1)
     return &null_element;			// Impossible ranges
   key1->use_count++;
-  key1->max_part_no= max(key2->max_part_no, key2->part+1);
+  key1->max_part_no= MY_MAX(key2->max_part_no, key2->part+1);
   return key1;
 }
 
@@ -9166,7 +9192,7 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
   key1->use_count--;
   key2->use_count--;
   SEL_ARG *e1=key1->first(), *e2=key2->first(), *new_tree=0;
-  uint max_part_no= max(key1->max_part_no, key2->max_part_no);
+  uint max_part_no= MY_MAX(key1->max_part_no, key2->max_part_no);
 
   while (e1 && e2)
   {
@@ -9364,7 +9390,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
         b:      [----
    */
 
-  uint max_part_no= max(key1->max_part_no, key2->max_part_no);
+  uint max_part_no= MY_MAX(key1->max_part_no, key2->max_part_no);
 
   for (key2=key2->first(); key2; )
   {
@@ -9574,11 +9600,11 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
           are merged into one range by deleting first...last-1 from
           the key1 tree. In the figure, this applies to first and the
           two consecutive ranges. The range of last is then extended:
-            * last.min: Set to min(key2.min, first.min)
+            * last.min: Set to MY_MIN(key2.min, first.min)
             * last.max: If there is a last->next that overlaps key2 (i.e.,
                         last->next has a different next_key_part):
                                         Set adjacent to last->next.min
-                        Otherwise:      Set to max(key2.max, last.max)
+                        Otherwise:      Set to MY_MAX(key2.max, last.max)
 
           Result:
           key2:  [****----------------------*******]
@@ -9632,7 +9658,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
                      ^                 ^
                      last              different next_key_part
 
-              Extend range of last up to max(last.max, key2.max):
+              Extend range of last up to MY_MAX(last.max, key2.max):
               key2:    [--------*****]
               key1:  [***----------**] [xxxx]
              */
@@ -10473,7 +10499,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
       param->table->quick_key_parts[keynr]= param->max_key_part+1;
       param->table->quick_n_ranges[keynr]= param->range_count;
       param->table->quick_condition_rows=
-        min(param->table->quick_condition_rows, rows);
+        MY_MIN(param->table->quick_condition_rows, rows);
       param->table->quick_rows[keynr]= rows;
     }
   }
@@ -10551,7 +10577,7 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
   KEY *table_key= param->table->key_info + keynr;
   KEY_PART_INFO *key_part= table_key->key_part + nparts;
   KEY_PART_INFO *key_part_end= (table_key->key_part +
-                                table_key->key_parts);
+                                table_key->user_defined_key_parts);
   uint pk_number;
   
   for (KEY_PART_INFO *kp= table_key->key_part; kp < key_part; kp++)
@@ -10572,7 +10598,7 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
 
   KEY_PART_INFO *pk_part= param->table->key_info[pk_number].key_part;
   KEY_PART_INFO *pk_part_end= pk_part +
-                              param->table->key_info[pk_number].key_parts;
+                              param->table->key_info[pk_number].user_defined_key_parts;
   for (;(key_part!=key_part_end) && (pk_part != pk_part_end);
        ++key_part, ++pk_part)
   {
@@ -10733,7 +10759,7 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
     {
       KEY *table_key=quick->head->key_info+quick->index;
       flag=EQ_RANGE;
-      if ((table_key->flags & HA_NOSAME) && key->part == table_key->key_parts-1)
+      if ((table_key->flags & HA_NOSAME) && key->part == table_key->user_defined_key_parts-1)
       {
 	if (!(table_key->flags & HA_NULL_PART_KEY) ||
 	    !null_part_in_key(key,
@@ -11769,7 +11795,7 @@ int QUICK_SELECT_DESC::get_next()
     if (last_range)
     {						// Already read through key
       result = ((last_range->flag & EQ_RANGE && 
-                 used_key_parts <= head->key_info[index].key_parts) ? 
+                 used_key_parts <= head->key_info[index].user_defined_key_parts) ? 
                 file->ha_index_next_same(record, last_range->min_key,
                                       last_range->min_length) :
                 file->ha_index_prev(record));
@@ -11797,7 +11823,7 @@ int QUICK_SELECT_DESC::get_next()
     }
 
     if (last_range->flag & EQ_RANGE &&
-        used_key_parts <= head->key_info[index].key_parts)
+        used_key_parts <= head->key_info[index].user_defined_key_parts)
 
     {
       result= file->ha_index_read_map(record, last_range->max_key,
@@ -11808,7 +11834,7 @@ int QUICK_SELECT_DESC::get_next()
     {
       DBUG_ASSERT(last_range->flag & NEAR_MAX ||
                   (last_range->flag & EQ_RANGE && 
-                   used_key_parts > head->key_info[index].key_parts) ||
+                   used_key_parts > head->key_info[index].user_defined_key_parts) ||
                   range_reads_after_key(last_range));
       result= file->ha_index_read_map(record, last_range->max_key,
                                       last_range->max_keypart_map,
@@ -12258,7 +12284,7 @@ cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
 
   TODO
   - What happens if the query groups by the MIN/MAX field, and there is no
-    other field as in: "select min(a) from t1 group by a" ?
+    other field as in: "select MY_MIN(a) from t1 group by a" ?
   - We assume that the general correctness of the GROUP-BY query was checked
     before this point. Is this correct, or do we have to check it completely?
   - Lift the limitation in condition (B3), that is, make this access method 
@@ -12425,7 +12451,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       does not qualify as covering in our case. If this is the case, below
       we check that all query fields are indeed covered by 'cur_index'.
     */
-    if (cur_index_info->key_parts == table->actual_n_key_parts(cur_index_info)
+    if (cur_index_info->user_defined_key_parts == table->actual_n_key_parts(cur_index_info)
         && pk < MAX_KEY && cur_index != pk &&
         (table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX))
     {
@@ -12526,7 +12552,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         cur_group_prefix_len+= cur_part->store_length;
         used_key_parts_map.set_bit(key_part_nr);
         ++cur_group_key_parts;
-        max_key_part= max(max_key_part,key_part_nr);
+        max_key_part= MY_MAX(max_key_part,key_part_nr);
       }
       /*
         Check that used key parts forms a prefix of the index.
@@ -13312,9 +13338,9 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     {
       double blocks_per_group= (double) num_blocks / (double) num_groups;
       p_overlap= (blocks_per_group * (keys_per_subgroup - 1)) / keys_per_group;
-      p_overlap= min(p_overlap, 1.0);
+      p_overlap= MY_MIN(p_overlap, 1.0);
     }
-    io_cost= (double) min(num_groups * (1 + p_overlap), num_blocks);
+    io_cost= (double) MY_MIN(num_groups * (1 + p_overlap), num_blocks);
   }
   else
     io_cost= (keys_per_group > keys_per_block) ?

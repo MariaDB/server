@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 #include <my_global.h>
+#include <my_default.h>
 #include <m_string.h>
 #include <stdlib.h>
 #include <my_sys.h>

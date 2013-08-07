@@ -198,7 +198,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TEMPORARY TABLE `t2` (
   `a` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t2;
 create table t1 (
 test_set set( 'val1', 'val2', 'val3' ) not null default '',

@@ -14,14 +14,10 @@
 
 # Enforce a clean state
 --source ../include/wait_for_pfs_thread_count.inc
+--source ../include/hostcache_set_state.inc
 
-flush status;
-flush hosts;
-flush user_resources;
-select @@global.debug;
-select @@global.max_user_connections;
-select @@global.max_connections;
 select @@global.max_connections into @saved_max_connections;
+select @@global.max_user_connections into @saved_max_user_connections;
 
 create user 'quota'@'santa.claus.ipv4.example.com';
 grant select on test.* to 'quota'@'santa.claus.ipv4.example.com';
@@ -34,7 +30,7 @@ select current_user();
 disconnect con1;
 
 --connection default
-set global debug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
 
 connect (con2a,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 select "Con2a is alive";
@@ -242,9 +238,10 @@ disconnect con5b;
 --source ../include/wait_for_pfs_thread_count.inc
 
 set global max_connections = @saved_max_connections;
+set global max_user_connections = @saved_max_user_connections;
 
 # revoke all privileges on test.* from 'quota'@'santa.claus.ipv4.example.com';
 drop user 'quota'@'santa.claus.ipv4.example.com';
 
-set global debug= default;
+set global debug_dbug= default;
 

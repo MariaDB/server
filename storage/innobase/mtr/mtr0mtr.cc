@@ -142,9 +142,9 @@ mtr_memo_slot_note_modification(
 	mtr_t*			mtr,	/*!< in: mtr */
 	mtr_memo_slot_t*	slot)	/*!< in: memo slot */
 {
-	ut_ad(mtr);
-	ut_ad(mtr->magic_n == MTR_MAGIC_N);
 	ut_ad(mtr->modifications);
+	ut_ad(!srv_read_only_mode);
+	ut_ad(mtr->magic_n == MTR_MAGIC_N);
 
 	if (slot->object != NULL && slot->type == MTR_MEMO_PAGE_X_FIX) {
 		buf_block_t*	block = (buf_block_t*) slot->object;
@@ -170,7 +170,7 @@ mtr_memo_note_modifications(
 	dyn_array_t*	memo;
 	ulint		offset;
 
-	ut_ad(mtr);
+	ut_ad(!srv_read_only_mode);
 	ut_ad(mtr->magic_n == MTR_MAGIC_N);
 	ut_ad(mtr->state == MTR_COMMITTING); /* Currently only used in
 					     commit */
@@ -191,65 +191,14 @@ mtr_memo_note_modifications(
 }
 
 /************************************************************//**
-Writes the contents of a mini-transaction log, if any, to the database log. */
+Append the dirty pages to the flush list. */
 static
 void
-mtr_log_reserve_and_write(
-/*======================*/
-	mtr_t*	mtr)	/*!< in: mtr */
+mtr_add_dirtied_pages_to_flush_list(
+/*================================*/
+	mtr_t*	mtr)	/*!< in/out: mtr */
 {
-	dyn_array_t*	mlog;
-	dyn_block_t*	block;
-	ulint		data_size;
-	byte*		first_data;
-
-	ut_ad(mtr);
-
-	mlog = &(mtr->log);
-
-	first_data = dyn_block_get_data(mlog);
-
-	if (mtr->n_log_recs > 1) {
-		mlog_catenate_ulint(mtr, MLOG_MULTI_REC_END, MLOG_1BYTE);
-	} else {
-		*first_data = (byte)((ulint)*first_data
-				     | MLOG_SINGLE_REC_FLAG);
-	}
-
-	if (mlog->heap == NULL) {
-		mtr->end_lsn = log_reserve_and_write_fast(
-			first_data, dyn_block_get_used(mlog),
-			&mtr->start_lsn);
-		if (mtr->end_lsn) {
-
-			/* Success. We have the log mutex.
-			Add pages to flush list and exit */
-			goto func_exit;
-		}
-	}
-
-	data_size = dyn_array_get_data_size(mlog);
-
-	/* Open the database log for log_write_low */
-	mtr->start_lsn = log_reserve_and_open(data_size);
-
-	if (mtr->log_mode == MTR_LOG_ALL) {
-
-		block = mlog;
-
-		while (block != NULL) {
-			log_write_low(dyn_block_get_data(block),
-				      dyn_block_get_used(block));
-			block = dyn_array_get_next_block(mlog, block);
-		}
-	} else {
-		ut_ad(mtr->log_mode == MTR_LOG_NONE);
-		/* Do nothing */
-	}
-
-	mtr->end_lsn = log_close();
-
-func_exit:
+	ut_ad(!srv_read_only_mode);
 
 	/* No need to acquire log_flush_order_mutex if this mtr has
 	not dirtied a clean page. log_flush_order_mutex is used to
@@ -273,6 +222,77 @@ func_exit:
 		log_flush_order_mutex_exit();
 	}
 }
+
+/************************************************************//**
+Writes the contents of a mini-transaction log, if any, to the database log. */
+static
+void
+mtr_log_reserve_and_write(
+/*======================*/
+	mtr_t*	mtr)	/*!< in/out: mtr */
+{
+	dyn_array_t*	mlog;
+	ulint		data_size;
+	byte*		first_data;
+
+	ut_ad(!srv_read_only_mode);
+
+	mlog = &(mtr->log);
+
+	first_data = dyn_block_get_data(mlog);
+
+	if (mtr->n_log_recs > 1) {
+		mlog_catenate_ulint(mtr, MLOG_MULTI_REC_END, MLOG_1BYTE);
+	} else {
+		*first_data = (byte)((ulint)*first_data
+				     | MLOG_SINGLE_REC_FLAG);
+	}
+
+	if (mlog->heap == NULL) {
+		ulint	len;
+
+		len = mtr->log_mode != MTR_LOG_NO_REDO
+			? dyn_block_get_used(mlog) : 0;
+
+		mtr->end_lsn = log_reserve_and_write_fast(
+			first_data, len, &mtr->start_lsn);
+
+		if (mtr->end_lsn) {
+
+			/* Success. We have the log mutex.
+			Add pages to flush list and exit */
+			mtr_add_dirtied_pages_to_flush_list(mtr);
+
+			return;
+		}
+	}
+
+	data_size = dyn_array_get_data_size(mlog);
+
+	/* Open the database log for log_write_low */
+	mtr->start_lsn = log_reserve_and_open(data_size);
+
+	if (mtr->log_mode == MTR_LOG_ALL) {
+
+		for (dyn_block_t* block = mlog;
+		     block != 0;
+		     block = dyn_array_get_next_block(mlog, block)) {
+
+			log_write_low(
+				dyn_block_get_data(block),
+				dyn_block_get_used(block));
+		}
+
+	} else {
+		ut_ad(mtr->log_mode == MTR_LOG_NONE
+		      || mtr->log_mode == MTR_LOG_NO_REDO);
+		/* Do nothing */
+	}
+
+	mtr->end_lsn = log_close();
+
+	mtr_add_dirtied_pages_to_flush_list(mtr);
+}
 #endif /* !UNIV_HOTBACKUP */
 
 /***************************************************************//**
@@ -294,6 +314,7 @@ mtr_commit(
 	ut_ad(!recv_no_log_write);
 
 	if (mtr->modifications && mtr->n_log_recs) {
+		ut_ad(!srv_read_only_mode);
 		mtr_log_reserve_and_write(mtr);
 	}
 
@@ -376,14 +397,8 @@ mtr_read_ulint(
 	ut_ad(mtr->state == MTR_ACTIVE);
 	ut_ad(mtr_memo_contains_page(mtr, ptr, MTR_MEMO_PAGE_S_FIX)
 	      || mtr_memo_contains_page(mtr, ptr, MTR_MEMO_PAGE_X_FIX));
-	if (type == MLOG_1BYTE) {
-		return(mach_read_from_1(ptr));
-	} else if (type == MLOG_2BYTES) {
-		return(mach_read_from_2(ptr));
-	} else {
-		ut_ad(type == MLOG_4BYTES);
-		return(mach_read_from_4(ptr));
-	}
+
+	return(mach_read_ulint(ptr, type));
 }
 
 #ifdef UNIV_DEBUG

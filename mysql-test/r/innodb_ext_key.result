@@ -842,6 +842,10 @@ engine=innodb;
 insert into t3 select a,a,a,a from t2;
 alter table t3 add primary key (pk1, pk2);
 alter table t3 add  key (col1, col2);
+analyze table t1,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+test.t3	analyze	status	OK
 set optimizer_switch='extended_keys=off';
 explain 
 select * from t1, t3 where t3.col1=t1.a and  t3.col2=t1.a;
@@ -852,7 +856,7 @@ explain
 select * from t1, t3 where t3.col1=t1.a and  t3.col2=t1.a and t3.pk1=t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
-1	SIMPLE	t3	ref	PRIMARY,col1	PRIMARY	4	test.t1.a	#	Using where
+1	SIMPLE	t3	ref	PRIMARY,col1	col1	8	test.t1.a,test.t1.a	#	Using where; Using index
 set optimizer_switch='extended_keys=on';
 explain 
 select * from t1, t3 where t3.col1=t1.a and  t3.col2=t1.a;

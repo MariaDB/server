@@ -174,8 +174,6 @@ extern void *my_memdup(const void *from,size_t length,myf MyFlags);
 extern char *my_strdup(const char *from,myf MyFlags);
 extern char *my_strndup(const char *from, size_t length, myf MyFlags);
 
-extern int sf_leaking_memory; /* set to 1 to disable memleak detection */
-
 #ifdef HAVE_LARGE_PAGES
 extern uint my_get_large_page_size(void);
 extern uchar * my_large_malloc(size_t size, myf my_flags);
@@ -199,13 +197,17 @@ extern void my_large_free(uchar *ptr);
 #endif /* GNUC */
 #define my_alloca(SZ) alloca((size_t) (SZ))
 #define my_afree(PTR) ((void)0)
+#define my_safe_alloca(size, max_alloca_sz) ((size <= max_alloca_sz) ? \
+                                             my_alloca(size) : \
+                                             my_malloc(size, MYF(0)))
+#define my_safe_afree(ptr, size, max_alloca_sz) if (size > max_alloca_sz) \
+                                               my_free(ptr)
 #else
 #define my_alloca(SZ) my_malloc(SZ,MYF(MY_FAE))
 #define my_afree(PTR) my_free(PTR)
+#define my_safe_alloca(size, max_alloca_sz) my_alloca(size)
+#define my_safe_afree(ptr, size, max_alloca_sz) my_afree(ptr)
 #endif /* HAVE_ALLOCA */
-
-#define my_safe_alloca(size, min_length) ((size <= min_length) ? my_alloca(size) : my_malloc(size,MYF(MY_FAE)))
-#define my_safe_afree(ptr, size, min_length) ((size <= min_length) ? my_afree(ptr) : my_free(ptr))
 
 #ifndef errno				/* did we already get it? */
 #ifdef HAVE_ERRNO_AS_DEFINE
@@ -223,6 +225,7 @@ extern void (*fatal_error_handler_hook)(uint my_err, const char *str,
 				       myf MyFlags);
 extern uint my_file_limit;
 extern ulonglong my_thread_stack_size;
+extern int sf_leaking_memory; /* set to 1 to disable memleak detection */
 
 extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
                               const char *, const char *, const unsigned int);
@@ -265,11 +268,6 @@ extern my_bool  my_disable_locking, my_disable_async_io,
 extern my_bool my_disable_sync;
 extern char	wild_many,wild_one,wild_prefix;
 extern const char *charsets_dir;
-/* from default.c */
-extern const char *my_defaults_extra_file;
-extern const char *my_defaults_group_suffix;
-extern const char *my_defaults_file;
-
 extern my_bool timed_mutexes;
 
 enum loglevel {
@@ -566,12 +564,7 @@ my_off_t my_b_safe_tell(IO_CACHE* info); /* picks the correct tell() */
 typedef uint32 ha_checksum;
 extern ulong my_crc_dbug_check;
 
-/* Define the type of function to be passed to process_default_option_files */
-typedef int (*Process_option_func)(void *ctx, const char *group_name,
-                                   const char *option);
-
 #include <my_alloc.h>
-
 
 	/* Prototypes for mysys and my_func functions */
 
@@ -631,6 +624,13 @@ extern int      my_access(const char *path, int amode);
 extern int check_if_legal_filename(const char *path);
 extern int check_if_legal_tablename(const char *path);
 
+#ifdef __WIN__
+extern my_bool is_filename_allowed(const char *name, size_t length,
+                   my_bool allow_current_dir);
+#else /* __WIN__ */
+# define is_filename_allowed(name, length, allow_cwd) (TRUE)
+#endif /* __WIN__ */ 
+
 #ifdef _WIN32
 /* Windows-only functions (CRT equivalents)*/
 extern HANDLE   my_get_osfhandle(File fd);
@@ -656,15 +656,16 @@ extern void thr_set_sync_wait_callback(void (*before_sync)(void),
 extern int my_sync(File fd, myf my_flags);
 extern int my_sync_dir(const char *dir_name, myf my_flags);
 extern int my_sync_dir_by_file(const char *file_name, myf my_flags);
-extern void my_error(int nr,myf MyFlags, ...);
+extern const char *my_get_err_msg(uint nr);
+extern void my_error(uint nr,myf MyFlags, ...);
 extern void my_printf_error(uint my_err, const char *format,
                             myf MyFlags, ...)
                             ATTRIBUTE_FORMAT(printf, 2, 4);
 extern void my_printv_error(uint error, const char *format, myf MyFlags,
                             va_list ap);
 extern int my_error_register(const char** (*get_errmsgs) (),
-                             int first, int last);
-extern const char **my_error_unregister(int first, int last);
+                             uint first, uint last);
+extern const char **my_error_unregister(uint first, uint last);
 extern void my_message(uint my_err, const char *str,myf MyFlags);
 extern void my_message_stderr(uint my_err, const char *str, myf MyFlags);
 extern my_bool my_init(void);
@@ -853,22 +854,6 @@ static inline char *safe_strdup_root(MEM_ROOT *root, const char *str)
 }
 extern char *strmake_root(MEM_ROOT *root,const char *str,size_t len);
 extern void *memdup_root(MEM_ROOT *root,const void *str, size_t len);
-extern int get_defaults_options(int argc, char **argv,
-                                char **defaults, char **extra_defaults,
-                                char **group_suffix);
-extern my_bool my_getopt_use_args_separator;
-extern my_bool my_getopt_is_args_separator(const char* arg);
-extern int my_load_defaults(const char *conf_file, const char **groups,
-                            int *argc, char ***argv, const char ***);
-extern int load_defaults(const char *conf_file, const char **groups,
-                         int *argc, char ***argv);
-extern int my_search_option_files(const char *conf_file, int *argc,
-                                  char ***argv, uint *args_used,
-                                  Process_option_func func, void *func_ctx,
-                                  const char **default_directories);
-extern void free_defaults(char **argv);
-extern void my_print_default_files(const char *conf_file);
-extern void print_defaults(const char *conf_file, const char **groups);
 extern my_bool my_compress(uchar *, size_t *, size_t *);
 extern my_bool my_uncompress(uchar *, size_t , size_t *);
 extern uchar *my_compress_alloc(const uchar *packet, size_t *len,
@@ -960,14 +945,6 @@ void my_uuid(uchar *guid);
 void my_uuid2str(const uchar *guid, char *s);
 void my_uuid_end();
 
-struct my_rnd_struct {
-  unsigned long seed1,seed2,max_value;
-  double max_value_dbl;
-};
-
-void my_rnd_init(struct my_rnd_struct *rand_st, ulong seed1, ulong seed2);
-double my_rnd(struct my_rnd_struct *rand_st);
-
 /* character sets */
 extern uint get_charset_number(const char *cs_name, uint cs_flags);
 extern uint get_collation_number(const char *name);
@@ -1030,6 +1007,5 @@ void my_init_mysys_psi_keys(void);
 
 struct st_mysql_file;
 extern struct st_mysql_file *mysql_stdin;
-
 C_MODE_END
 #endif /* _my_sys_h */

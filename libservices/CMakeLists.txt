@@ -22,6 +22,7 @@ SET(MYSQLSERVICES_SOURCES
   thd_timezone_service.c
   progress_report_service.c
   debug_sync_service.c
+  my_sha1_service.c
   kill_statement_service.c)
 
 ADD_CONVENIENCE_LIBRARY(mysqlservices ${MYSQLSERVICES_SOURCES})

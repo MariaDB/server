@@ -1548,7 +1548,7 @@ public:
     is_single_comp_pk= FALSE;
     uint pk= table->s->primary_key;
     if ((uint) (table->key_info - key_info) == pk &&
-        table->key_info[pk].key_parts == 1)
+        table->key_info[pk].user_defined_key_parts == 1)
     {
       prefixes= 1;
       is_single_comp_pk= TRUE;
@@ -1990,12 +1990,12 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
     DBUG_RETURN(1);
 
   if (!is_safe)
-    mysql_mutex_lock(&table_share->LOCK_ha_data);
+    mysql_mutex_lock(&table_share->LOCK_share);
 
   if (stats_cb->stats_can_be_read)
   {
     if (!is_safe)
-      mysql_mutex_unlock(&table_share->LOCK_ha_data);
+      mysql_mutex_unlock(&table_share->LOCK_share);
     DBUG_RETURN(0);
   }
 
@@ -2007,7 +2007,7 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
     if (!table_stats)
     {
       if (!is_safe)
-        mysql_mutex_unlock(&table_share->LOCK_ha_data);
+        mysql_mutex_unlock(&table_share->LOCK_share);
       DBUG_RETURN(1);
     }
     memset(table_stats, 0, sizeof(Table_statistics));
@@ -2080,7 +2080,7 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
     stats_cb->stats_can_be_read= TRUE;
 
   if (!is_safe)
-    mysql_mutex_unlock(&table_share->LOCK_ha_data);
+    mysql_mutex_unlock(&table_share->LOCK_share);
 
   DBUG_RETURN(0);
 }
@@ -2124,12 +2124,12 @@ int alloc_histograms_for_table_share(THD* thd, TABLE_SHARE *table_share,
   DBUG_ENTER("alloc_histograms_for_table_share");
 
   if (!is_safe)
-    mysql_mutex_lock(&table_share->LOCK_ha_data);
+    mysql_mutex_lock(&table_share->LOCK_share);
 
   if (stats_cb->histograms_can_be_read)
   {
     if (!is_safe)
-      mysql_mutex_unlock(&table_share->LOCK_ha_data);
+      mysql_mutex_unlock(&table_share->LOCK_share);
     DBUG_RETURN(0);
   }
 
@@ -2143,7 +2143,7 @@ int alloc_histograms_for_table_share(THD* thd, TABLE_SHARE *table_share,
     if (!histograms)
     {
       if (!is_safe)
-        mysql_mutex_unlock(&table_share->LOCK_ha_data);
+        mysql_mutex_unlock(&table_share->LOCK_share);
       DBUG_RETURN(1);
     }
     memset(histograms, 0, total_hist_size);
@@ -2152,7 +2152,7 @@ int alloc_histograms_for_table_share(THD* thd, TABLE_SHARE *table_share,
   }
 
   if (!is_safe)
-    mysql_mutex_unlock(&table_share->LOCK_ha_data);
+    mysql_mutex_unlock(&table_share->LOCK_share);
 
   DBUG_RETURN(0);
 
@@ -2177,7 +2177,7 @@ void Column_statistics_collected::init(THD *thd, Field *table_field)
   
   is_single_pk_col= FALSE;
 
-  if (pk != MAX_KEY && table->key_info[pk].key_parts == 1 &&
+  if (pk != MAX_KEY && table->key_info[pk].user_defined_key_parts == 1 &&
       table->key_info[pk].key_part[0].fieldnr == table_field->field_index + 1)
     is_single_pk_col= TRUE;  
   
@@ -2727,12 +2727,12 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
     }
    
     key_part_map ext_key_part_map= key_info->ext_key_part_map;
-    if (key_info->key_parts != key_info->ext_key_parts &&
-        key_info->read_stats->get_avg_frequency(key_info->key_parts) == 0)
+    if (key_info->user_defined_key_parts != key_info->ext_key_parts &&
+        key_info->read_stats->get_avg_frequency(key_info->user_defined_key_parts) == 0)
     {
       KEY *pk_key_info= table_share->key_info + table_share->primary_key;
-      uint k= key_info->key_parts;
-      uint pk_parts= pk_key_info->key_parts;
+      uint k= key_info->user_defined_key_parts;
+      uint pk_parts= pk_key_info->user_defined_key_parts;
       ha_rows n_rows= read_stats->cardinality;
       double k_dist= n_rows / key_info->read_stats->get_avg_frequency(k-1);
       uint m= 0;
@@ -3193,7 +3193,7 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   }
   else
   {
-    for (uint i= key_info->key_parts; i < key_info->ext_key_parts; i++)
+    for (uint i= key_info->user_defined_key_parts; i < key_info->ext_key_parts; i++)
     {
       index_stat.set_key_fields(key_info, i+1);
       if (index_stat.find_next_stat_for_prefix(4))
@@ -3341,7 +3341,10 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
   int rc= 0;
 
   DBUG_ENTER("rename_column_in_stat_tables");
-   
+  
+  if (tab->s->tmp_table != NO_TMP_TABLE)
+    DBUG_RETURN(0);
+
   if (open_single_stat_table(thd, &tables, &stat_table_name[1],
                              &open_tables_backup, TRUE))
   {

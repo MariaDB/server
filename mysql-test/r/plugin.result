@@ -15,7 +15,7 @@ PLUGIN_STATUS	ACTIVE
 PLUGIN_TYPE	STORAGE ENGINE
 PLUGIN_TYPE_VERSION	#
 PLUGIN_LIBRARY	ha_example.so
-PLUGIN_LIBRARY_VERSION	1.5
+PLUGIN_LIBRARY_VERSION	1.7
 PLUGIN_AUTHOR	Brian Aker, MySQL AB
 PLUGIN_DESCRIPTION	Example storage engine
 PLUGIN_LICENSE	GPL
@@ -28,7 +28,7 @@ PLUGIN_STATUS	ACTIVE
 PLUGIN_TYPE	DAEMON
 PLUGIN_TYPE_VERSION	#
 PLUGIN_LIBRARY	ha_example.so
-PLUGIN_LIBRARY_VERSION	1.5
+PLUGIN_LIBRARY_VERSION	1.7
 PLUGIN_AUTHOR	Sergei Golubchik
 PLUGIN_DESCRIPTION	Unusable Daemon
 PLUGIN_LICENSE	GPL
@@ -60,7 +60,7 @@ PLUGIN_STATUS	DELETED
 PLUGIN_TYPE	STORAGE ENGINE
 PLUGIN_TYPE_VERSION	#
 PLUGIN_LIBRARY	ha_example.so
-PLUGIN_LIBRARY_VERSION	1.5
+PLUGIN_LIBRARY_VERSION	1.7
 PLUGIN_AUTHOR	Brian Aker, MySQL AB
 PLUGIN_DESCRIPTION	Example storage engine
 PLUGIN_LICENSE	GPL
@@ -137,17 +137,29 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ULL`=10000000000000000000 `one_or_two`='ttt' `YESNO`=SSS `VAROPT`='5'
 #alter table
 alter table t1 ULL=10000000;
+Warnings:
+Note	1105	EXAMPLE DEBUG: ULL 4294967290 -> 10000000
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `one_or_two`='ttt' `YESNO`=SSS `VAROPT`='5' `ULL`=10000000
 alter table t1 change a a int complex='c,c,c';
+Warnings:
+Note	1105	EXAMPLE DEBUG: Field `a` COMPLEX '(null)' -> 'c,c,c'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `complex`='c,c,c'
 ) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `one_or_two`='ttt' `YESNO`=SSS `VAROPT`='5' `ULL`=10000000
+alter table t1 one_or_two=two;
+Warnings:
+Note	1105	EXAMPLE DEBUG: Field `a` COMPLEX 'c,c,c' -> 'c,c,c'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL `complex`='c,c,c'
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `YESNO`=SSS `VAROPT`='5' `ULL`=10000000 `one_or_two`=two
 drop table t1;
 #illegal value error
 SET SQL_MODE='';
@@ -168,6 +180,8 @@ select create_options from information_schema.tables where table_schema='test' a
 create_options
 `ULL`=4660 `VAROPT`='5'
 ALTER TABLE t1 ULL=DEFAULT;
+Warnings:
+Note	1105	EXAMPLE DEBUG: ULL 4660 -> 4294967295
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -188,6 +202,8 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `varopt`=15
 alter table t1 varopt=default;
+Warnings:
+Note	1105	EXAMPLE DEBUG: Field `a` COMPLEX '(null)' -> '(null)'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

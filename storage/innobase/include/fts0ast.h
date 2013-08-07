@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,7 +29,7 @@ Created 2007/03/16/03 Sunny Bains
 #include "mem0mem.h"
 
 /* The type of AST Node */
-enum fts_ast_type_enum {
+enum fts_ast_type_t {
 	FTS_AST_OPER,				/*!< Operator */
 	FTS_AST_NUMB,				/*!< Number */
 	FTS_AST_TERM,				/*!< Term (or word) */
@@ -39,7 +39,7 @@ enum fts_ast_type_enum {
 };
 
 /* The FTS query operators that we support */
-enum fts_ast_oper_enum {
+enum fts_ast_oper_t {
 	FTS_NONE,				/*!< No operator */
 
 	FTS_IGNORE,				/*!< Ignore rows that contain
@@ -58,20 +58,18 @@ enum fts_ast_oper_enum {
 	FTS_DECR_RATING,			/*!< Decrease the rank for this
 						word*/
 
-	FTS_DISTANCE				/*!< Proximity distance */
+	FTS_DISTANCE,				/*!< Proximity distance */
+	FTS_IGNORE_SKIP				/*!< Transient node operator
+						signifies that this is a
+						FTS_IGNORE node, and ignored in
+						the first pass of
+						fts_ast_visit() */
 };
 
-/* Enum types used by the FTS parser */
-typedef enum fts_ast_type_enum fts_ast_type_t;
-typedef enum fts_ast_oper_enum fts_ast_oper_t;
-
 /* Data types used by the FTS parser */
-typedef struct fts_lexer_struct fts_lexer_t;
-typedef struct fts_ast_text_struct fts_ast_text_t;
-typedef struct fts_ast_term_struct fts_ast_term_t;
-typedef struct fts_ast_node_struct fts_ast_node_t;
-typedef struct fts_ast_list_struct fts_ast_list_t;
-typedef struct fts_ast_state_struct fts_ast_state_t;
+struct fts_lexer_t;
+struct fts_ast_node_t;
+struct fts_ast_state_t;
 
 typedef ulint (*fts_ast_callback)(fts_ast_oper_t, fts_ast_node_t*, void*);
 
@@ -180,60 +178,76 @@ fts_ast_state_free(
 /*===============*/
 	fts_ast_state_t*state);			/*!< in: state instance
 						to free */
-/********************************************************************
-Traverse the AST.*/
-ulint
+/******************************************************************//**
+Traverse the AST - in-order traversal.
+@return DB_SUCCESS if all went well */
+UNIV_INTERN
+dberr_t
 fts_ast_visit(
 /*==========*/
 	fts_ast_oper_t		oper,		/*!< in: FTS operator */
 	fts_ast_node_t*		node,		/*!< in: instance to traverse*/
 	fts_ast_callback	visitor,	/*!< in: callback */
-	void*			arg);		/*!< in: callback arg */
-/********************************************************************
-Traverse the sub expression list.*/
-ulint
+	void*			arg,		/*!< in: callback arg */
+	bool*			has_ignore)	/*!< out: whether we encounter
+						and ignored processing an
+						operator, currently we only
+						ignore FTS_IGNORE operator */
+	__attribute__((nonnull, warn_unused_result));
+/*****************************************************************//**
+Process (nested) sub-expression, create a new result set to store the
+sub-expression result by processing nodes under current sub-expression
+list. Merge the sub-expression result with that of parent expression list.
+@return DB_SUCCESS if all went well */
+UNIV_INTERN
+dberr_t
 fts_ast_visit_sub_exp(
-/*==========*/
+/*==================*/
 	fts_ast_node_t*		node,		/*!< in: instance to traverse*/
 	fts_ast_callback	visitor,	/*!< in: callback */
-	void*			arg);		/*!< in: callback arg */
+	void*			arg)		/*!< in: callback arg */
+	__attribute__((nonnull, warn_unused_result));
 /********************************************************************
 Create a lex instance.*/
+UNIV_INTERN
 fts_lexer_t*
 fts_lexer_create(
 /*=============*/
 	ibool		boolean_mode,		/*!< in: query type */
 	const byte*	query,			/*!< in: query string */
-	ulint		query_len);		/*!< in: query string len */
+	ulint		query_len)		/*!< in: query string len */
+	__attribute__((nonnull, malloc, warn_unused_result));
 /********************************************************************
 Free an fts_lexer_t instance.*/
+UNIV_INTERN
 void
 fts_lexer_free(
 /*===========*/
-	fts_lexer_t*	fts_lexer);		/*!< in: lexer instance to
+	fts_lexer_t*	fts_lexer)		/*!< in: lexer instance to
 						free */
+	__attribute__((nonnull));
 
 /* Query term type */
-struct fts_ast_term_struct {
+struct fts_ast_term_t {
 	byte*		ptr;			/*!< Pointer to term string.*/
 	ibool		wildcard;		/*!< TRUE if wild card set.*/
 };
 
 /* Query text type */
-struct fts_ast_text_struct {
+struct fts_ast_text_t {
 	byte*		ptr;			/*!< Pointer to term string.*/
 	ulint		distance;		/*!< > 0 if proximity distance
 						set */
 };
 
 /* The list of nodes in an expr list */
-struct fts_ast_list_struct {
+struct fts_ast_list_t {
 	fts_ast_node_t*	head;			/*!< Children list head */
 	fts_ast_node_t*	tail;			/*!< Children list tail */
 };
 
 /* FTS AST node to store the term, text, operator and sub-expressions.*/
-struct fts_ast_node_struct {
+struct fts_ast_node_t {
 	fts_ast_type_t	type;			/*!< The type of node */
 	fts_ast_text_t	text;			/*!< Text node */
 	fts_ast_term_t	term;			/*!< Term node */
@@ -241,10 +255,12 @@ struct fts_ast_node_struct {
 	fts_ast_list_t	list;			/*!< Expression list */
 	fts_ast_node_t*	next;			/*!< Link for expr list */
 	fts_ast_node_t*	next_alloc;		/*!< For tracking allocations */
+	bool		visited;		/*!< whether this node is
+						already processed */
 };
 
 /* To track state during parsing */
-struct fts_ast_state_struct {
+struct fts_ast_state_t {
 	mem_heap_t*	heap;			/*!< Heap to use for alloc */
 	fts_ast_node_t*	root;			/*!< If all goes OK, then this
 						will point to the root.*/

@@ -46,10 +46,7 @@ extern "C" {
           returned in the error packet.
           - SHOW ERROR/SHOW WARNINGS may be empty.
         */
-        thd->stmt_da->set_error_status(thd,
-                                       ER_OUT_OF_RESOURCES,
-                                       ER(ER_OUT_OF_RESOURCES),
-                                       NULL);
+        thd->get_stmt_da()->set_error_status(ER_OUT_OF_RESOURCES);
       }
     }
 
@@ -134,7 +131,7 @@ char *sql_strmake_with_convert(const char *str, size_t arg_length,
   if ((from_cs == &my_charset_bin) || (to_cs == &my_charset_bin))
   {
     // Safety if to_cs->mbmaxlen > 0
-    new_length= min(arg_length, max_res_length);
+    new_length= MY_MIN(arg_length, max_res_length);
     memcpy(pos, str, new_length);
   }
   else

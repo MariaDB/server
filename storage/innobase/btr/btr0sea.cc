@@ -42,7 +42,6 @@ Created 2/17/1996 Heikki Tuuri
 #include "btr0pcur.h"
 #include "btr0btr.h"
 #include "ha0ha.h"
-#include "srv0mon.h"
 
 /** Flag: has the search system been enabled?
 Protected by btr_search_latch. */
@@ -352,7 +351,7 @@ void
 btr_search_info_update_hash(
 /*========================*/
 	btr_search_t*	info,	/*!< in/out: search info */
-	btr_cur_t*	cursor)	/*!< in: cursor which was just positioned */
+	const btr_cur_t* cursor)/*!< in: cursor which was just positioned */
 {
 	dict_index_t*	index;
 	ulint		n_unique;
@@ -621,7 +620,7 @@ void
 btr_search_info_update_slow(
 /*========================*/
 	btr_search_t*	info,	/*!< in/out: search info */
-	btr_cur_t*	cursor)	/*!< in: cursor which was just positioned */
+	btr_cur_t* cursor)      /*!< in: cursor which was just positioned */
 {
 	buf_block_t*	block;
 	ibool		build_index;
@@ -865,7 +864,7 @@ btr_search_guess_on_hash(
 {
 	buf_pool_t*	buf_pool;
 	buf_block_t*	block;
-	rec_t*		rec;
+	const rec_t*	rec;
 	ulint		fold;
 	index_id_t	index_id;
 #ifdef notdefined
@@ -951,7 +950,7 @@ btr_search_guess_on_hash(
 
 	ut_ad(page_rec_is_user_rec(rec));
 
-	btr_cur_position(index, rec, block, cursor);
+	btr_cur_position(index, (rec_t*) rec, block, cursor);
 
 	/* Check the validity of the guess within the page */
 
@@ -1077,6 +1076,7 @@ btr_search_drop_page_hash_index(
 	mem_heap_t*		heap;
 	const dict_index_t*	index;
 	ulint*			offsets;
+	btr_search_t*		info;
 
 #ifdef UNIV_SYNC_DEBUG
 	ut_ad(!rw_lock_own(&btr_search_latch, RW_LOCK_SHARED));
@@ -1102,6 +1102,27 @@ retry:
 	}
 
 	ut_a(!dict_index_is_ibuf(index));
+#ifdef UNIV_DEBUG
+	switch (dict_index_get_online_status(index)) {
+	case ONLINE_INDEX_CREATION:
+		/* The index is being created (bulk loaded). */
+	case ONLINE_INDEX_COMPLETE:
+		/* The index has been published. */
+	case ONLINE_INDEX_ABORTED:
+		/* Either the index creation was aborted due to an
+		error observed by InnoDB (in which case there should
+		not be any adaptive hash index entries), or it was
+		completed and then flagged aborted in
+		rollback_inplace_alter_table(). */
+		break;
+	case ONLINE_INDEX_ABORTED_DROPPED:
+		/* The index should have been dropped from the tablespace
+		already, and the adaptive hash index entries should have
+		been dropped as well. */
+		ut_error;
+	}
+#endif /* UNIV_DEBUG */
+
 	table = btr_search_sys->hash_index;
 
 #ifdef UNIV_SYNC_DEBUG
@@ -1196,8 +1217,9 @@ next_rec:
 		ha_remove_all_nodes_to_page(table, folds[i], page);
 	}
 
-	ut_a(index->search_info->ref_count > 0);
-	index->search_info->ref_count--;
+	info = btr_search_get_info(block->index);
+	ut_a(info->ref_count > 0);
+	info->ref_count--;
 
 	block->index = NULL;
 

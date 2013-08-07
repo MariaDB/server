@@ -113,7 +113,7 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
     statement_text_length = strlen(statement_text);
     /* We truncate SQL statements up to MAX_STATEMENT_TEXT_LENGTH in our I_S table */
     table->field[COLUMN_STATEMENT_TEXT]->store((char*)statement_text,
-           min(statement_text_length, MAX_STATEMENT_TEXT_LENGTH), scs);
+           MY_MIN(statement_text_length, MAX_STATEMENT_TEXT_LENGTH), scs);
 
     /* get the entire key that identifies this query cache query */
     key = (const char*)query_cache_query_get_key(query_cache_block_raw,

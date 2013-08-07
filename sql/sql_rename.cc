@@ -39,8 +39,8 @@ static bool do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db,
 static TABLE_LIST *reverse_table_list(TABLE_LIST *table_list);
 
 /*
-  Every second entry in the table_list is the original name and every
-  second entry is the new name.
+  Every two entries in the table_list form a pair of original name and
+  the new name.
 */
 
 bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
@@ -144,7 +144,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
   }
 
   if (lock_table_names(thd, table_list, 0, thd->variables.lock_wait_timeout,
-                       MYSQL_OPEN_SKIP_TEMPORARY))
+                       0))
     goto err;
 
   error=0;

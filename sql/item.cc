@@ -105,7 +105,7 @@ void
 Hybrid_type_traits_decimal::fix_length_and_dec(Item *item, Item *arg) const
 {
   item->decimals= arg->decimals;
-  item->max_length= min(arg->max_length + DECIMAL_LONGLONG_DIGITS,
+  item->max_length= MY_MIN(arg->max_length + DECIMAL_LONGLONG_DIGITS,
                         DECIMAL_MAX_STR_LENGTH);
 }
 
@@ -297,7 +297,7 @@ String *Item::val_string_from_decimal(String *str)
 String *Item::val_string_from_date(String *str)
 {
   MYSQL_TIME ltime;
-  if (get_date(&ltime, 0) ||
+  if (get_date(&ltime, sql_mode_for_dates()) ||
       str->alloc(MAX_DATE_STRING_REP_LENGTH))
   {
     null_value= 1;
@@ -341,7 +341,7 @@ my_decimal *Item::val_decimal_from_string(my_decimal *decimal_value)
                      decimal_value) & E_DEC_BAD_NUM)
   {
     ErrConvString err(res);
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
                         ER(ER_TRUNCATED_WRONG_VALUE), "DECIMAL",
                         err.ptr());
@@ -354,7 +354,7 @@ my_decimal *Item::val_decimal_from_date(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
-  if (get_date(&ltime, 0))
+  if (get_date(&ltime, sql_mode_for_dates()))
   {
     my_decimal_set_zero(decimal_value);
     null_value= 1;                               // set NULL, stop processing
@@ -551,9 +551,9 @@ uint Item::decimal_precision() const
     uint prec= 
       my_decimal_length_to_precision(max_char_length(), decimals,
                                      unsigned_flag);
-    return min(prec, DECIMAL_MAX_PRECISION);
+    return MY_MIN(prec, DECIMAL_MAX_PRECISION);
   }
-  return min(max_char_length(), DECIMAL_MAX_PRECISION);
+  return MY_MIN(max_char_length(), DECIMAL_MAX_PRECISION);
 }
 
 
@@ -1005,14 +1005,14 @@ void Item::set_name(const char *str, uint length, CHARSET_INFO *cs)
     {
       char buff[SAFE_NAME_LEN];
       strmake(buff, str_start,
-              min(sizeof(buff)-1, length + (int) (str-str_start)));
+              MY_MIN(sizeof(buff)-1, length + (int) (str-str_start)));
 
       if (length == 0)
-        push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_NAME_BECOMES_EMPTY, ER(ER_NAME_BECOMES_EMPTY),
                             buff);
       else
-        push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_REMOVED_SPACES, ER(ER_REMOVED_SPACES),
                             buff);
     }
@@ -1026,7 +1026,7 @@ void Item::set_name(const char *str, uint length, CHARSET_INFO *cs)
     name_length= res_length;
   }
   else
-    name= sql_strmake(str, (name_length= min(length,MAX_ALIAS_NAME)));
+    name= sql_strmake(str, (name_length= MY_MIN(length,MAX_ALIAS_NAME)));
 }
 
 
@@ -1155,11 +1155,26 @@ Item *Item_static_float_func::safe_charset_converter(CHARSET_INFO *tocs)
 
 Item *Item_string::safe_charset_converter(CHARSET_INFO *tocs)
 {
+  return charset_converter(tocs, true);
+}
+
+
+/**
+  Convert a string item into the requested character set.
+
+  @param tocs       Character set to to convert the string to.
+  @param lossless   Whether data loss is acceptable.
+
+  @return A new item representing the converted string.
+*/
+Item *Item_string::charset_converter(CHARSET_INFO *tocs, bool lossless)
+{
   Item_string *conv;
   uint conv_errors;
   char *ptr;
   String tmp, cstr, *ostr= val_str(&tmp);
   cstr.copy(ostr->ptr(), ostr->length(), ostr->charset(), tocs, &conv_errors);
+  conv_errors= lossless && conv_errors;
   if (conv_errors || !(conv= new Item_string(cstr.ptr(), cstr.length(),
                                              cstr.charset(),
                                              collation.derivation)))
@@ -1179,7 +1194,6 @@ Item *Item_string::safe_charset_converter(CHARSET_INFO *tocs)
   conv->str_value.mark_as_const();
   return conv;
 }
-
 
 Item *Item_param::safe_charset_converter(CHARSET_INFO *tocs)
 {
@@ -2998,7 +3012,7 @@ double_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
       We can use err.ptr() here as ErrConvString is guranteed to put an
       end \0 here.
     */
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
                         ER(ER_TRUNCATED_WRONG_VALUE), "DOUBLE",
                         err.ptr());
@@ -3035,7 +3049,7 @@ longlong_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
        (end != end_of_num && !check_if_only_end_space(cs, end_of_num, end))))
   {
     ErrConvString err(cptr, end - cptr, cs);
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
                         ER(ER_TRUNCATED_WRONG_VALUE), "INTEGER",
                         err.ptr());
@@ -3244,7 +3258,7 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
   if (check_datetime_range(&value.time))
   {
     ErrConvTime str(&value.time);
-    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  &str, time_type, 0);
     set_zero_time(&value.time, MYSQL_TIMESTAMP_ERROR);
   }
@@ -4323,7 +4337,7 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
     return TRUE;
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 		 ER_WARN_FIELD_RESOLVED, ER(ER_WARN_FIELD_RESOLVED),
                  db_name, (db_name[0] ? "." : ""),
                  table_name, (table_name [0] ? "." : ""),
@@ -4571,7 +4585,7 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
         !((*group_by_ref)->eq(*select_ref, 0)))
     {
       ambiguous_fields= TRUE;
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_NON_UNIQ_ERROR,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NON_UNIQ_ERROR,
                           ER(ER_NON_UNIQ_ERROR), ref->full_name(),
                           current_thd->where);
 
@@ -5553,7 +5567,7 @@ String *Item::check_well_formed_result(String *str, bool send_error)
     {
       str->length(wlen);
     }
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_INVALID_CHARACTER_STRING,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_INVALID_CHARACTER_STRING,
                         ER(ER_INVALID_CHARACTER_STRING), cs->csname, hexbuf);
   }
   return str;
@@ -5689,10 +5703,6 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
     field= new Field_double((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
 			    name, decimals, 0, unsigned_flag);
     break;
-  case MYSQL_TYPE_NULL:
-    field= new Field_null((uchar*) 0, max_length, Field::NONE,
-			  name, &my_charset_bin);
-    break;
   case MYSQL_TYPE_INT24:
     field= new Field_medium((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
 			    name, 0, unsigned_flag);
@@ -5723,6 +5733,7 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
     /* This case should never be chosen */
     DBUG_ASSERT(0);
     /* If something goes awfully wrong, it's better to get a string than die */
+  case MYSQL_TYPE_NULL:
   case MYSQL_TYPE_STRING:
     if (fixed_length && !too_big_for_varchar())
     {
@@ -6176,7 +6187,7 @@ longlong Item_hex_hybrid::val_int()
   // following assert is redundant, because fixed=1 assigned in constructor
   DBUG_ASSERT(fixed == 1);
   char *end=(char*) str_value.ptr()+str_value.length(),
-       *ptr=end-min(str_value.length(),sizeof(longlong));
+       *ptr=end-MY_MIN(str_value.length(),sizeof(longlong));
 
   ulonglong value=0;
   for (; ptr != end ; ptr++)
@@ -6212,7 +6223,7 @@ int Item_hex_hybrid::save_in_field(Field *field, bool no_conversions)
 
 warn:
   if (!field->store((longlong) nr, TRUE))
-    field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE,
+    field->set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE,
                        1);
   return 1;
 }
@@ -6220,7 +6231,7 @@ warn:
 
 void Item_hex_hybrid::print(String *str, enum_query_type query_type)
 {
-  uint32 len= min(str_value.length(), sizeof(longlong));
+  uint32 len= MY_MIN(str_value.length(), sizeof(longlong));
   const char *ptr= str_value.ptr() + str_value.length() - len;
   str->append("0x");
   str->append_hex(ptr, len);
@@ -8225,7 +8236,7 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
       {
         TABLE_LIST *view= cached_table->top_table();
         push_warning_printf(field_arg->table->in_use,
-                            MYSQL_ERROR::WARN_LEVEL_WARN,
+                            Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_VIEW_FIELD,
                             ER(ER_NO_DEFAULT_FOR_VIEW_FIELD),
                             view->view_db.str,
@@ -8234,7 +8245,7 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
       else
       {
         push_warning_printf(field_arg->table->in_use,
-                            MYSQL_ERROR::WARN_LEVEL_WARN,
+                            Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_FIELD,
                             ER(ER_NO_DEFAULT_FOR_FIELD),
                             field_arg->field_name);
@@ -9386,14 +9397,14 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
     /* fix variable decimals which always is NOT_FIXED_DEC */
     if (Field::result_merge_type(fld_type) == INT_RESULT)
       item_decimals= 0;
-    decimals= max(decimals, item_decimals);
+    decimals= MY_MAX(decimals, item_decimals);
   }
   if (Field::result_merge_type(fld_type) == DECIMAL_RESULT)
   {
-    decimals= min(max(decimals, item->decimals), DECIMAL_MAX_SCALE);
+    decimals= MY_MIN(MY_MAX(decimals, item->decimals), DECIMAL_MAX_SCALE);
     int item_int_part= item->decimal_int_part();
-    int item_prec = max(prev_decimal_int_part, item_int_part) + decimals;
-    int precision= min(item_prec, DECIMAL_MAX_PRECISION);
+    int item_prec = MY_MAX(prev_decimal_int_part, item_int_part) + decimals;
+    int precision= MY_MIN(item_prec, DECIMAL_MAX_PRECISION);
     unsigned_flag&= item->unsigned_flag;
     max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                              decimals,
@@ -9424,7 +9435,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
      */
     if (collation.collation != &my_charset_bin)
     {
-      max_length= max(old_max_chars * collation.collation->mbmaxlen,
+      max_length= MY_MAX(old_max_chars * collation.collation->mbmaxlen,
                       display_length(item) /
                       item->collation.collation->mbmaxlen *
                       collation.collation->mbmaxlen);
@@ -9446,7 +9457,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
       {
         int delta1= max_length_orig - decimals_orig;
         int delta2= item->max_length - item->decimals;
-        max_length= max(delta1, delta2) + decimals;
+        max_length= MY_MAX(delta1, delta2) + decimals;
         if (fld_type == MYSQL_TYPE_FLOAT && max_length > FLT_DIG + 2)
         {
           max_length= MAX_FLOAT_STR_LENGTH;
@@ -9464,7 +9475,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
     break;
   }
   default:
-    max_length= max(max_length, display_length(item));
+    max_length= MY_MAX(max_length, display_length(item));
   };
   maybe_null|= item->maybe_null;
   get_full_info(item);

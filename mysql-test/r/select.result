@@ -4175,18 +4175,24 @@ str_to_date('2007-10-00','%Y-%m-%d') between '2007/09/01 00:00:00'
 set SQL_MODE=TRADITIONAL;
 select str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34';
 str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34'
-1
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2007-10-00 12:34' for function str_to_date
 select str_to_date('2007-10-01 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34';
 str_to_date('2007-10-01 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34'
 0
 select str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-01 12:34';
 str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-01 12:34'
-0
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2007-10-00 12:34' for function str_to_date
 select str_to_date('2007-10-00','%Y-%m-%d') between '2007/09/01'
                                                 and '2007/10/20';
 str_to_date('2007-10-00','%Y-%m-%d') between '2007/09/01'
                                                 and '2007/10/20'
-1
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2007-10-00' for function str_to_date
 set SQL_MODE=DEFAULT;
 select str_to_date('2007-10-00','%Y-%m-%d') between '' and '2007/10/20';
 str_to_date('2007-10-00','%Y-%m-%d') between '' and '2007/10/20'

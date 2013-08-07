@@ -245,12 +245,12 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   {
     DBUG_PRINT("info", ("filesort PQ is not applicable"));
 
-    size_t min_sort_memory= max(MIN_SORT_MEMORY, param.sort_length*MERGEBUFF2);
+    size_t min_sort_memory= MY_MAX(MIN_SORT_MEMORY, param.sort_length*MERGEBUFF2);
     set_if_bigger(min_sort_memory, sizeof(BUFFPEK*)*MERGEBUFF2);
     while (memory_available >= min_sort_memory)
     {
       ulonglong keys= memory_available / (param.rec_length + sizeof(char*));
-      param.max_keys_per_buffer= (uint) min(num_rows, keys);
+      param.max_keys_per_buffer= (uint) MY_MIN(num_rows, keys);
       if (table_sort.get_sort_keys())
       {
         // If we have already allocated a buffer, it better have same size!
@@ -391,7 +391,8 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
                     MYF(0),
                     ER_THD(thd, ER_FILSORT_ABORT),
                     kill_errno ? ER(kill_errno) :
-                    thd->killed == ABORT_QUERY ? "" : thd->stmt_da->message());
+                    thd->killed == ABORT_QUERY ? "" :
+                    thd->get_stmt_da()->message());
 
     if (global_system_variables.log_warnings > 1)
     { 
@@ -1371,7 +1372,7 @@ uint read_to_buffer(IO_CACHE *fromfile, BUFFPEK *buffpek,
   register uint count;
   uint length;
 
-  if ((count=(uint) min((ha_rows) buffpek->max_keys,buffpek->count)))
+  if ((count=(uint) MY_MIN((ha_rows) buffpek->max_keys,buffpek->count)))
   {
     if (mysql_file_pread(fromfile->file, (uchar*) buffpek->base,
                          (length= rec_length*count),
@@ -1696,7 +1697,7 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
          != -1 && error != 0);
 
 end:
-  lastbuff->count= min(org_max_rows-max_rows, param->max_rows);
+  lastbuff->count= MY_MIN(org_max_rows-max_rows, param->max_rows);
   lastbuff->file_pos= to_start_filepos;
 err:
   delete_queue(&queue);

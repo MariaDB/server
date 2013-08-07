@@ -171,7 +171,7 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
 
     table->file->ha_index_or_rnd_end();
     table->open_by_handler= 0;
-    (void) close_thread_table(thd, &table);
+    close_thread_table(thd, &table);
     thd->mdl_context.release_lock(handler->mdl_request.ticket);
   }
   else
@@ -294,7 +294,8 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     open_ltable() or open_table() because we would like to be able
     to open a temporary table.
   */
-  error= open_tables(thd, &tables, &counter, 0);
+  error= (open_temporary_tables(thd, tables) ||
+          open_tables(thd, &tables, &counter, 0));
 
   if (error)
     goto err;
@@ -502,9 +503,9 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char *sqlstate,
-                        MYSQL_ERROR::enum_warning_level level,
+                        Sql_condition::enum_warning_level level,
                         const char* msg,
-                        MYSQL_ERROR **cond_hdl);
+                        Sql_condition **cond_hdl);
 
   bool need_reopen() const { return m_need_reopen; };
   void init() { m_need_reopen= FALSE; };
@@ -523,9 +524,9 @@ Sql_handler_lock_error_handler::
 handle_condition(THD *thd,
                  uint sql_errno,
                  const char *sqlstate,
-                 MYSQL_ERROR::enum_warning_level level,
+                 Sql_condition::enum_warning_level level,
                  const char* msg,
-                 MYSQL_ERROR **cond_hdl)
+                 Sql_condition **cond_hdl)
 {
   *cond_hdl= NULL;
   if (sql_errno == ER_LOCK_ABORTED)
@@ -640,9 +641,10 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
       key_part_map keypart_map;
       uint key_len;
 
-      if (key_expr->elements > keyinfo->key_parts)
+      if (key_expr->elements > keyinfo->user_defined_key_parts)
       {
-        my_error(ER_TOO_MANY_KEY_PARTS, MYF(0), keyinfo->key_parts);
+        my_error(ER_TOO_MANY_KEY_PARTS, MYF(0),
+                 keyinfo->user_defined_key_parts);
         return 1;
       }
       for (keypart_map= key_len=0 ; (item=it_ke++) ; key_part++)

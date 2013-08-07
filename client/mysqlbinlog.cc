@@ -2345,7 +2345,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       my_off_t length,tmp;
       for (length= start_position_mot ; length > 0 ; length-=tmp)
       {
-	tmp=min(length,sizeof(buff));
+	tmp= MY_MIN(length,sizeof(buff));
 	if (my_b_read(file, buff, (uint) tmp))
         {
           error("Failed reading from file.");

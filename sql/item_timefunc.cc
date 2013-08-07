@@ -146,14 +146,14 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
       switch (*++ptr) {
 	/* Year */
       case 'Y':
-	tmp= (char*) val + min(4, val_len);
+	tmp= (char*) val + MY_MIN(4, val_len);
 	l_time->year= (int) my_strtoll10(val, &tmp, &error);
         if ((int) (tmp-val) <= 2)
           l_time->year= year_2000_handling(l_time->year);
 	val= tmp;
 	break;
       case 'y':
-	tmp= (char*) val + min(2, val_len);
+	tmp= (char*) val + MY_MIN(2, val_len);
 	l_time->year= (int) my_strtoll10(val, &tmp, &error);
 	val= tmp;
         l_time->year= year_2000_handling(l_time->year);
@@ -162,7 +162,7 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
 	/* Month */
       case 'm':
       case 'c':
-	tmp= (char*) val + min(2, val_len);
+	tmp= (char*) val + MY_MIN(2, val_len);
 	l_time->month= (int) my_strtoll10(val, &tmp, &error);
 	val= tmp;
 	break;
@@ -179,15 +179,15 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
 	/* Day */
       case 'd':
       case 'e':
-	tmp= (char*) val + min(2, val_len);
+	tmp= (char*) val + MY_MIN(2, val_len);
 	l_time->day= (int) my_strtoll10(val, &tmp, &error);
 	val= tmp;
 	break;
       case 'D':
-	tmp= (char*) val + min(2, val_len);
+	tmp= (char*) val + MY_MIN(2, val_len);
 	l_time->day= (int) my_strtoll10(val, &tmp, &error);
 	/* Skip 'st, 'nd, 'th .. */
-	val= tmp + min((int) (val_end-tmp), 2);
+	val= tmp + MY_MIN((int) (val_end-tmp), 2);
 	break;
 
 	/* Hour */
@@ -198,14 +198,14 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
 	/* fall through */
       case 'k':
       case 'H':
-	tmp= (char*) val + min(2, val_len);
+	tmp= (char*) val + MY_MIN(2, val_len);
 	l_time->hour= (int) my_strtoll10(val, &tmp, &error);
 	val= tmp;
 	break;
 
 	/* Minute */
       case 'i':
-	tmp= (char*) val + min(2, val_len);
+	tmp= (char*) val + MY_MIN(2, val_len);
 	l_time->minute= (int) my_strtoll10(val, &tmp, &error);
 	val= tmp;
 	break;
@@ -213,7 +213,7 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
 	/* Second */
       case 's':
       case 'S':
-	tmp= (char*) val + min(2, val_len);
+	tmp= (char*) val + MY_MIN(2, val_len);
 	l_time->second= (int) my_strtoll10(val, &tmp, &error);
 	val= tmp;
 	break;
@@ -265,7 +265,7 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
 	val= tmp;
 	break;
       case 'j':
-	tmp= (char*) val + min(val_len, 3);
+	tmp= (char*) val + MY_MIN(val_len, 3);
 	yearday= (int) my_strtoll10(val, &tmp, &error);
 	val= tmp;
 	break;
@@ -277,7 +277,7 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
       case 'u':
         sunday_first_n_first_week_non_iso= (*ptr=='U' || *ptr== 'V');
         strict_week_number= (*ptr=='V' || *ptr=='v');
-	tmp= (char*) val + min(val_len, 2);
+	tmp= (char*) val + MY_MIN(val_len, 2);
 	if ((week_number= (int) my_strtoll10(val, &tmp, &error)) < 0 ||
             (strict_week_number && !week_number) ||
             week_number > 53)
@@ -289,7 +289,7 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
       case 'X':
       case 'x':
         strict_week_number_year_type= (*ptr=='X');
-        tmp= (char*) val + min(4, val_len);
+        tmp= (char*) val + MY_MIN(4, val_len);
         strict_week_number_year= (int) my_strtoll10(val, &tmp, &error);
         val= tmp;
         break;
@@ -425,7 +425,7 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
     {
       if (!my_isspace(&my_charset_latin1,*val))
       {
-	make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+	make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                      val_begin, length,
 				     cached_timestamp_type, NullS);
 	break;
@@ -437,8 +437,8 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
 err:
   {
     char buff[128];
-    strmake(buff, val_begin, min(length, sizeof(buff)-1));
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    strmake(buff, val_begin, MY_MIN(length, sizeof(buff)-1));
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
                         date_time_type, buff, "str_to_date");
   }
@@ -1714,7 +1714,7 @@ overflow:
 
   ltime->hour= TIME_MAX_HOUR+1;
   check_time_range(ltime, decimals, &unused);
-  make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+  make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                err->ptr(), err->length(),
                                MYSQL_TIMESTAMP_TIME, NullS);
   return 0;
@@ -1744,7 +1744,7 @@ void Item_func_date_format::fix_length_and_dec()
   else
   {
     fixed_length=0;
-    max_length=min(arg1->max_length, MAX_BLOB_WIDTH) * 10 *
+    max_length=MY_MIN(arg1->max_length, MAX_BLOB_WIDTH) * 10 *
                    collation.collation->mbmaxlen;
     set_if_smaller(max_length,MAX_BLOB_WIDTH);
   }
@@ -2268,7 +2268,7 @@ String *Item_char_typecast::val_str(String *str)
   if (cast_length != ~0U &&
       cast_length > current_thd->variables.max_allowed_packet)
   {
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
 			cast_cs == &my_charset_bin ?
@@ -2326,7 +2326,7 @@ String *Item_char_typecast::val_str(String *str)
         res= &str_value;
       }
       ErrConvString err(res);
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_TRUNCATED_WRONG_VALUE,
                           ER(ER_TRUNCATED_WRONG_VALUE), char_type,
                           err.ptr());
@@ -2348,7 +2348,7 @@ String *Item_char_typecast::val_str(String *str)
 
   if (res->length() > current_thd->variables.max_allowed_packet)
   {
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
 			cast_cs == &my_charset_bin ?
@@ -2429,6 +2429,7 @@ bool Item_time_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
 bool Item_date_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
+  fuzzy_date |= sql_mode_for_dates();
   if (get_arg0_date(ltime, fuzzy_date & ~TIME_TIME_ONLY))
     return 1;
 
@@ -2441,6 +2442,7 @@ bool Item_date_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
 bool Item_datetime_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
+  fuzzy_date |= sql_mode_for_dates();
   if (get_arg0_date(ltime, fuzzy_date & ~TIME_TIME_ONLY))
     return 1;
 
@@ -2456,7 +2458,7 @@ bool Item_datetime_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     if (ltime->neg)
     {
       ErrConvTime str(ltime);
-      make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                    &str, MYSQL_TIMESTAMP_DATETIME, 0);
       return (null_value= 1);
     }
@@ -2513,7 +2515,7 @@ err:
 void Item_func_add_time::fix_length_and_dec()
 {
   enum_field_types arg0_field_type;
-  decimals= max(args[0]->decimals, args[1]->decimals);
+  decimals= MY_MAX(args[0]->decimals, args[1]->decimals);
 
   /*
     The field type for the result of an Item_func_add_time function is defined
@@ -2610,7 +2612,7 @@ bool Item_func_add_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
   check_time_range(ltime, decimals, &was_cut);
   if (was_cut)
-    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  &str, MYSQL_TIMESTAMP_TIME, NullS);
 
   return (null_value= 0);
@@ -2698,7 +2700,7 @@ bool Item_func_timediff::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   check_time_range(ltime, decimals, &was_cut);
 
   if (was_cut)
-    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  &str, MYSQL_TIMESTAMP_TIME, NullS);
   return (null_value= 0);
 }
@@ -2750,7 +2752,7 @@ bool Item_func_maketime::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     char buf[28];
     char *ptr= longlong10_to_str(hour, buf, args[0]->unsigned_flag ? 10 : -10);
     int len = (int)(ptr - buf) + sprintf(ptr, ":%02u:%02u", (uint)minute, (uint)second);
-    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  buf, len, MYSQL_TIMESTAMP_TIME,
                                  NullS);
   }
@@ -3109,7 +3111,7 @@ bool Item_func_str_to_date::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   date_time_format.format.length= format->length();
   if (extract_date_time(&date_time_format, val->ptr(), val->length(),
 			ltime, cached_timestamp_type, 0, "datetime",
-                        fuzzy_date))
+                        fuzzy_date | sql_mode_for_dates()))
     return (null_value=1);
   if (cached_timestamp_type == MYSQL_TIMESTAMP_TIME && ltime->day)
   {

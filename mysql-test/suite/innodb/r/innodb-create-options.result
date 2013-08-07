@@ -1,4 +1,4 @@
-SET storage_engine=InnoDB;
+SET default_storage_engine=InnoDB;
 SET GLOBAL innodb_file_format=`Barracuda`;
 SET GLOBAL innodb_file_per_table=ON;
 SET SESSION innodb_strict_mode = ON;
@@ -6,14 +6,14 @@ SET SESSION innodb_strict_mode = ON;
 #         KEY_BLOCK_SIZE=0 means 'no KEY_BLOCK_SIZE is specified'
 DROP TABLE IF EXISTS t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 #         'FIXED' is sent to InnoDB since it is used by MyISAM.
 #         But it is an invalid mode in InnoDB
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=FIXED;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: invalid ROW_FORMAT specifier.
+Warning	1478	InnoDB: invalid ROW_FORMAT specifier.
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=0;
 SHOW WARNINGS;
@@ -46,11 +46,11 @@ SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	
 ALTER TABLE t1 ROW_FORMAT=FIXED KEY_BLOCK_SIZE=0;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ROW_TYPE'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: invalid ROW_FORMAT specifier.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: invalid ROW_FORMAT specifier.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'ROW_TYPE'
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	
@@ -61,78 +61,78 @@ CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPACT KEY_BLOCK_SIZE=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: cannot specify ROW_FORMAT = COMPACT with KEY_BLOCK_SIZE.
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = COMPACT with KEY_BLOCK_SIZE.
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=REDUNDANT KEY_BLOCK_SIZE=2;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: cannot specify ROW_FORMAT = REDUNDANT with KEY_BLOCK_SIZE.
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = REDUNDANT with KEY_BLOCK_SIZE.
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=DYNAMIC KEY_BLOCK_SIZE=4;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: cannot specify ROW_FORMAT = DYNAMIC with KEY_BLOCK_SIZE.
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = DYNAMIC with KEY_BLOCK_SIZE.
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
-CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compressed	row_format=COMPRESSED key_block_size=8
+t1	Compressed	row_format=COMPRESSED key_block_size=2
 ALTER TABLE t1 ADD COLUMN f1 INT;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compressed	row_format=COMPRESSED key_block_size=8
+t1	Compressed	row_format=COMPRESSED key_block_size=2
 DROP TABLE IF EXISTS t1;
-CREATE TABLE t1 ( i INT ) ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=16;
+CREATE TABLE t1 ( i INT ) ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=1;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compressed	key_block_size=16
+t1	Compressed	key_block_size=1
 ALTER TABLE t1 ADD COLUMN f1 INT;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compressed	key_block_size=16
+t1	Compressed	key_block_size=1
 # Test 3) StrictMode=ON, ALTER with each ROW_FORMAT & a valid non-zero KEY_BLOCK_SIZE
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT );
 ALTER TABLE t1 ROW_FORMAT=FIXED KEY_BLOCK_SIZE=1;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ROW_TYPE'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: invalid ROW_FORMAT specifier.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: invalid ROW_FORMAT specifier.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'ROW_TYPE'
 ALTER TABLE t1 ROW_FORMAT=COMPACT KEY_BLOCK_SIZE=2;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: cannot specify ROW_FORMAT = COMPACT with KEY_BLOCK_SIZE.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = COMPACT with KEY_BLOCK_SIZE.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 ALTER TABLE t1 ROW_FORMAT=DYNAMIC KEY_BLOCK_SIZE=4;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: cannot specify ROW_FORMAT = DYNAMIC with KEY_BLOCK_SIZE.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
-ALTER TABLE t1 ROW_FORMAT=REDUNDANT KEY_BLOCK_SIZE=8;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = DYNAMIC with KEY_BLOCK_SIZE.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT KEY_BLOCK_SIZE=2;
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: cannot specify ROW_FORMAT = REDUNDANT with KEY_BLOCK_SIZE.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
-ALTER TABLE t1 ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=16;
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = REDUNDANT with KEY_BLOCK_SIZE.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
+ALTER TABLE t1 ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=1;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compressed	key_block_size=16
+t1	Compressed	key_block_size=1
 ALTER TABLE t1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 SHOW WARNINGS;
 Level	Code	Message
@@ -146,11 +146,11 @@ SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	row_format=COMPACT
 ALTER TABLE t1 KEY_BLOCK_SIZE=2;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: cannot specify ROW_FORMAT = COMPACT with KEY_BLOCK_SIZE.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = COMPACT with KEY_BLOCK_SIZE.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
 SHOW WARNINGS;
 Level	Code	Message
@@ -158,35 +158,35 @@ SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Redundant	row_format=REDUNDANT
 ALTER TABLE t1 KEY_BLOCK_SIZE=4;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: cannot specify ROW_FORMAT = REDUNDANT with KEY_BLOCK_SIZE.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = REDUNDANT with KEY_BLOCK_SIZE.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Dynamic	row_format=DYNAMIC
-ALTER TABLE t1 KEY_BLOCK_SIZE=8;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ALTER TABLE t1 KEY_BLOCK_SIZE=2;
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: cannot specify ROW_FORMAT = DYNAMIC with KEY_BLOCK_SIZE.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = DYNAMIC with KEY_BLOCK_SIZE.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 ALTER TABLE t1 ROW_FORMAT=COMPRESSED;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compressed	row_format=COMPRESSED
-ALTER TABLE t1 KEY_BLOCK_SIZE=16;
+ALTER TABLE t1 KEY_BLOCK_SIZE=1;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compressed	row_format=COMPRESSED key_block_size=16
+t1	Compressed	row_format=COMPRESSED key_block_size=1
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPACT;
 ALTER TABLE t1 ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=1;
@@ -212,23 +212,23 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=2
 ALTER TABLE t1 ROW_FORMAT=COMPACT;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: cannot specify ROW_FORMAT = COMPACT with KEY_BLOCK_SIZE.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = COMPACT with KEY_BLOCK_SIZE.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: cannot specify ROW_FORMAT = REDUNDANT with KEY_BLOCK_SIZE.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = REDUNDANT with KEY_BLOCK_SIZE.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: cannot specify ROW_FORMAT = DYNAMIC with KEY_BLOCK_SIZE.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = DYNAMIC with KEY_BLOCK_SIZE.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 ALTER TABLE t1 ROW_FORMAT=COMPRESSED;
 SHOW WARNINGS;
 Level	Code	Message
@@ -253,7 +253,7 @@ CREATE TABLE t1 ( i INT ) KEY_BLOCK_SIZE=9;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: invalid KEY_BLOCK_SIZE = 9. Valid values are [1, 2, 4, 8, 16]
+Warning	1478	InnoDB: invalid KEY_BLOCK_SIZE = 9. Valid values are [1, 2, 4, 8, 16]
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 # Test 7) StrictMode=ON, Make sure ROW_FORMAT= COMPRESSED & DYNAMIC and
 #         and a valid non-zero KEY_BLOCK_SIZE are rejected with Antelope
@@ -261,24 +261,24 @@ Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SET GLOBAL innodb_file_format=Antelope;
 DROP TABLE IF EXISTS t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 CREATE TABLE t1 ( i INT ) KEY_BLOCK_SIZE=4;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_format > Antelope.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_format > Antelope.
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=DYNAMIC;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_format > Antelope.
+Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_format > Antelope.
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=REDUNDANT;
 SHOW WARNINGS;
@@ -297,35 +297,42 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=DEFAULT;
 SHOW WARNINGS;
 Level	Code	Message
-ALTER TABLE t1 KEY_BLOCK_SIZE=8;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ALTER TABLE t1 KEY_BLOCK_SIZE=2;
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 ALTER TABLE t1 ROW_FORMAT=COMPRESSED;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ROW_FORMAT'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_format > Antelope.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_format > Antelope.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'ROW_FORMAT'
 ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ROW_FORMAT'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_format > Antelope.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_format > Antelope.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'ROW_FORMAT'
 SET GLOBAL innodb_file_format=Barracuda;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 SET GLOBAL innodb_file_format=Antelope;
 ALTER TABLE t1 ADD COLUMN f1 INT;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_format > Antelope.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL,
+  `f1` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
-Warning	140	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_format > Antelope.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
 ALTER TABLE t1 ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=0;
 SHOW WARNINGS;
 Level	Code	Message
@@ -339,23 +346,23 @@ SET GLOBAL innodb_file_format=Barracuda;
 #         values during strict mode.
 SET GLOBAL innodb_file_per_table=OFF;
 DROP TABLE IF EXISTS t1;
-CREATE TABLE t1 ( i INT ) KEY_BLOCK_SIZE=16;
+CREATE TABLE t1 ( i INT ) KEY_BLOCK_SIZE=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=DYNAMIC;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_per_table.
+Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_per_table.
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=REDUNDANT;
 SHOW WARNINGS;
@@ -375,23 +382,23 @@ CREATE TABLE t1 ( i INT ) ROW_FORMAT=DEFAULT;
 SHOW WARNINGS;
 Level	Code	Message
 ALTER TABLE t1 KEY_BLOCK_SIZE=1;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
 ALTER TABLE t1 ROW_FORMAT=COMPRESSED;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ROW_FORMAT'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'ROW_FORMAT'
 ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ROW_FORMAT'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_per_table.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_per_table.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'ROW_FORMAT'
 ALTER TABLE t1 ROW_FORMAT=COMPACT;
 SHOW WARNINGS;
 Level	Code	Message
@@ -415,12 +422,8 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 SET GLOBAL innodb_file_per_table=OFF;
 ALTER TABLE t1 ADD COLUMN f1 INT;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Warning	140	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
 ALTER TABLE t1 ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=0;
 SHOW WARNINGS;
 Level	Code	Message
@@ -437,10 +440,10 @@ SET SESSION innodb_strict_mode = OFF;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=FIXED;
 Warnings:
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	row_format=FIXED
@@ -477,10 +480,10 @@ TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	
 ALTER TABLE t1 ROW_FORMAT=FIXED KEY_BLOCK_SIZE=0;
 Warnings:
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	row_format=FIXED
@@ -489,70 +492,70 @@ t1	Compact	row_format=FIXED
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPACT KEY_BLOCK_SIZE=1;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	row_format=COMPACT key_block_size=1
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=REDUNDANT KEY_BLOCK_SIZE=2;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Redundant	row_format=REDUNDANT key_block_size=2
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=DYNAMIC KEY_BLOCK_SIZE=4;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=4 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4 unless ROW_FORMAT=COMPRESSED.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=4 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4 unless ROW_FORMAT=COMPRESSED.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Dynamic	row_format=DYNAMIC key_block_size=4
 DROP TABLE IF EXISTS t1;
-CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compressed	row_format=COMPRESSED key_block_size=8
+t1	Compressed	row_format=COMPRESSED key_block_size=2
 ALTER TABLE t1 ADD COLUMN f1 INT;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compressed	row_format=COMPRESSED key_block_size=8
+t1	Compressed	row_format=COMPRESSED key_block_size=2
 DROP TABLE IF EXISTS t1;
-CREATE TABLE t1 ( i INT ) ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=16;
+CREATE TABLE t1 ( i INT ) ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=1;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compressed	key_block_size=16
+t1	Compressed	key_block_size=1
 ALTER TABLE t1 ADD COLUMN f1 INT;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compressed	key_block_size=16
+t1	Compressed	key_block_size=1
 # Test 11) StrictMode=OFF, ALTER with each ROW_FORMAT & a valid KEY_BLOCK_SIZE
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT );
 ALTER TABLE t1 ROW_FORMAT=FIXED KEY_BLOCK_SIZE=1;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	row_format=FIXED key_block_size=1
@@ -560,10 +563,10 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT );
 ALTER TABLE t1 ROW_FORMAT=COMPACT KEY_BLOCK_SIZE=2;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	row_format=COMPACT key_block_size=2
@@ -571,32 +574,32 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT );
 ALTER TABLE t1 ROW_FORMAT=DYNAMIC KEY_BLOCK_SIZE=4;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=4 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4 unless ROW_FORMAT=COMPRESSED.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=4 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4 unless ROW_FORMAT=COMPRESSED.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Dynamic	row_format=DYNAMIC key_block_size=4
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT );
-ALTER TABLE t1 ROW_FORMAT=REDUNDANT KEY_BLOCK_SIZE=8;
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT KEY_BLOCK_SIZE=2;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=8 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=8 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Redundant	row_format=REDUNDANT key_block_size=8
+t1	Redundant	row_format=REDUNDANT key_block_size=2
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT );
-ALTER TABLE t1 ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=16;
+ALTER TABLE t1 ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=1;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compressed	key_block_size=16
+t1	Compressed	key_block_size=1
 ALTER TABLE t1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 SHOW WARNINGS;
 Level	Code	Message
@@ -611,28 +614,28 @@ TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	row_format=COMPACT
 ALTER TABLE t1 KEY_BLOCK_SIZE=2;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	row_format=COMPACT key_block_size=2
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Redundant	row_format=REDUNDANT key_block_size=2
 ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=2 unless ROW_FORMAT=COMPRESSED.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Dynamic	row_format=DYNAMIC key_block_size=2
@@ -650,23 +653,23 @@ TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compressed	row_format=COMPRESSED key_block_size=4
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPACT;
-ALTER TABLE t1 ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=8;
+ALTER TABLE t1 ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=2;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compressed	key_block_size=8
+t1	Compressed	key_block_size=2
 # Test 13) StrictMode=OFF, CREATE with a valid KEY_BLOCK_SIZE
 #          ALTER with each ROW_FORMAT
 DROP TABLE IF EXISTS t1;
-CREATE TABLE t1 ( i INT ) KEY_BLOCK_SIZE=16;
+CREATE TABLE t1 ( i INT ) KEY_BLOCK_SIZE=1;
 SHOW WARNINGS;
 Level	Code	Message
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=16
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=1
 ALTER TABLE t1 ADD COLUMN f1 INT;
 SHOW WARNINGS;
 Level	Code	Message
@@ -675,40 +678,40 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL,
   `f1` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=16
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=1
 ALTER TABLE t1 ROW_FORMAT=COMPACT;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=16 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=16 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compact	row_format=COMPACT key_block_size=16
+t1	Compact	row_format=COMPACT key_block_size=1
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=16 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=16 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Redundant	row_format=REDUNDANT key_block_size=16
+t1	Redundant	row_format=REDUNDANT key_block_size=1
 ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=16 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=16 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Dynamic	row_format=DYNAMIC key_block_size=16
+t1	Dynamic	row_format=DYNAMIC key_block_size=1
 ALTER TABLE t1 ROW_FORMAT=COMPRESSED;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compressed	row_format=COMPRESSED key_block_size=16
+t1	Compressed	row_format=COMPRESSED key_block_size=1
 ALTER TABLE t1 ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=0;
 SHOW WARNINGS;
 Level	Code	Message
@@ -721,14 +724,15 @@ Level	Code	Message
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	row_format=COMPACT
-# Test 14) StrictMode=OFF, CREATE with an invalid KEY_BLOCK_SIZE, it defaults to 8
+# Test 14) StrictMode=OFF, CREATE with an invalid KEY_BLOCK_SIZE,
+# it defaults to half of the page size.
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 ( i INT ) KEY_BLOCK_SIZE=15;
 Warnings:
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=15.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=15.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=15.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=15.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	key_block_size=15
@@ -745,16 +749,16 @@ t1	Compressed	row_format=COMPRESSED key_block_size=1
 SET GLOBAL innodb_file_format=Antelope;
 ALTER TABLE t1 ADD COLUMN f1 INT;
 Warnings:
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=1.
-Warning	140	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_format > Antelope.
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_format > Antelope.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=1.
-Warning	140	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_format > Antelope.
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_format > Antelope.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	row_format=COMPRESSED key_block_size=1
@@ -775,12 +779,12 @@ t1	Dynamic	row_format=DYNAMIC
 SET GLOBAL innodb_file_format=Antelope;
 ALTER TABLE t1 ADD COLUMN f1 INT;
 Warnings:
-Warning	140	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_format > Antelope.
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_format > Antelope.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_format > Antelope.
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_format > Antelope.
+Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compact	row_format=DYNAMIC
@@ -803,20 +807,11 @@ TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compressed	row_format=COMPRESSED key_block_size=2
 SET GLOBAL innodb_file_per_table=OFF;
 ALTER TABLE t1 ADD COLUMN f1 INT;
-Warnings:
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=2.
-Warning	140	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=2.
-Warning	140	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compact	row_format=COMPRESSED key_block_size=2
+t1	Compressed	row_format=COMPRESSED key_block_size=2
 SET GLOBAL innodb_file_per_table=ON;
 ALTER TABLE t1 ADD COLUMN f2 INT;
 SHOW WARNINGS;
@@ -833,16 +828,11 @@ TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Dynamic	row_format=DYNAMIC
 SET GLOBAL innodb_file_per_table=OFF;
 ALTER TABLE t1 ADD COLUMN f1 INT;
-Warnings:
-Warning	140	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_per_table.
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
 SHOW WARNINGS;
 Level	Code	Message
-Warning	140	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_per_table.
-Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
-t1	Compact	row_format=DYNAMIC
+t1	Dynamic	row_format=DYNAMIC
 SET GLOBAL innodb_file_per_table=ON;
 ALTER TABLE t1 ADD COLUMN f2 INT;
 SHOW WARNINGS;

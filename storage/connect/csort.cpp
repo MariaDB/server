@@ -56,6 +56,7 @@
 #include "global.h"
 #include "plgdbsem.h"                /* For MBLOCK type definition      */
 #include "csort.h"                  /* CSort class definition          */
+#include "osutil.h"
 
 #if !defined(BIGSORT)
 #define      BIGSORT  200000

@@ -210,6 +210,7 @@ rpl_slave_state::truncate_state_table(THD *thd)
   {
     table= tlist.table;
     table->no_replicate= 1;
+    table->s->is_gtid_slave_pos= TRUE; // TEMPORARY CODE
     err= table->file->ha_truncate();
 
     if (err)
@@ -346,6 +347,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     goto end;
 
   table->no_replicate= 1;
+  table->s->is_gtid_slave_pos= TRUE; // TEMPORARY CODE
   if (!in_transaction)
     thd->variables.option_bits&=
       ~(ulonglong)(OPTION_NOT_AUTOCOMMIT|OPTION_BEGIN);

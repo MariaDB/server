@@ -661,7 +661,7 @@ int String::reserve(uint32 space_needed, uint32 grow_by)
 {
   if (Alloced_length < str_length + space_needed)
   {
-    if (realloc(Alloced_length + max(space_needed, grow_by) - 1))
+    if (realloc(Alloced_length + MY_MAX(space_needed, grow_by) - 1))
       return TRUE;
   }
   return FALSE;
@@ -748,7 +748,7 @@ int sortcmp(const String *s,const String *t, CHARSET_INFO *cs)
 
 int stringcmp(const String *s,const String *t)
 {
-  uint32 s_len=s->length(),t_len=t->length(),len=min(s_len,t_len);
+  uint32 s_len=s->length(),t_len=t->length(),len=MY_MIN(s_len,t_len);
   int cmp= memcmp(s->ptr(), t->ptr(), len);
   return (cmp) ? cmp : (int) (s_len - t_len);
 }
@@ -765,7 +765,7 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
   }
   if (to->realloc(from_length))
     return from;				// Actually an error
-  if ((to->str_length=min(from->str_length,from_length)))
+  if ((to->str_length=MY_MIN(from->str_length,from_length)))
     memcpy(to->Ptr,from->Ptr,to->str_length);
   to->str_charset=from->str_charset;
   return to;
@@ -893,7 +893,7 @@ well_formed_copy_nchars(CHARSET_INFO *to_cs,
 
     if (to_cs == &my_charset_bin)
     {
-      res= min(min(nchars, to_length), from_length);
+      res= MY_MIN(MY_MIN(nchars, to_length), from_length);
       memmove(to, from, res);
       *from_end_pos= from + res;
       *well_formed_error_pos= NULL;
@@ -1094,7 +1094,7 @@ uint convert_to_printable(char *to, size_t to_len,
   char *t= to;
   char *t_end= to + to_len - 1; // '- 1' is for the '\0' at the end
   const char *f= from;
-  const char *f_end= from + (nbytes ? min(from_len, nbytes) : from_len);
+  const char *f_end= from + (nbytes ? MY_MIN(from_len, nbytes) : from_len);
   char *dots= to; // last safe place to append '...'
 
   if (!f || t == t_end)

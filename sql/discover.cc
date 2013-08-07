@@ -70,7 +70,7 @@ int readfrm(const char *name, const uchar **frmdata, size_t *len)
   error= 2;
   if (mysql_file_fstat(file, &state, MYF(0)))
     goto err;
-  read_len= (size_t)min(FRM_MAX_SIZE, state.st_size); // safety
+  read_len= (size_t)MY_MIN(FRM_MAX_SIZE, state.st_size); // safety
 
   // Read whole frm file
   error= 3;

@@ -32,6 +32,7 @@
 #include "log_event.h"                   // Query_log_event
 #include "sql_base.h"                    // lock_table_names, tdc_remove_table
 #include "sql_handler.h"                 // mysql_ha_rm_tables
+#include "sql_class.h"
 #include <mysys_err.h>
 #include "sp_head.h"
 #include "sp.h"
@@ -572,7 +573,7 @@ int mysql_create_db(THD *thd, char *db, HA_CREATE_INFO *create_info,
       error= -1;
       goto exit;
     }
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 			ER_DB_CREATE_EXISTS, ER(ER_DB_CREATE_EXISTS), db);
     error= 0;
     goto not_silent;
@@ -780,7 +781,7 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
     }
     else
     {
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 			  ER_DB_DROP_EXISTS, ER(ER_DB_DROP_EXISTS), db);
       error= false;
       goto update_binlog;
@@ -809,7 +810,7 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
 
   /* Lock all tables and stored routines about to be dropped. */
   if (lock_table_names(thd, tables, NULL, thd->variables.lock_wait_timeout,
-                       MYSQL_OPEN_SKIP_TEMPORARY) ||
+                       0) ||
       lock_db_routines(thd, db))
     goto exit;
 
@@ -1502,7 +1503,7 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
     {
       /* Throw a warning and free new_db_file_name. */
 
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_BAD_DB_ERROR, ER(ER_BAD_DB_ERROR),
                           new_db_file_name.str);
 

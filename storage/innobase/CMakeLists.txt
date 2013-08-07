@@ -54,6 +54,8 @@ SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DUNIV_DEBUG -DUNIV_SYNC_DEB
 #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wconversion")
 #ENDIF()
 
+CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
+
 IF(NOT MSVC)
 # either define HAVE_IB_GCC_ATOMIC_BUILTINS or not
 IF(NOT CMAKE_CROSSCOMPILING)
@@ -95,10 +97,34 @@ IF(NOT CMAKE_CROSSCOMPILING)
   }"
   HAVE_IB_GCC_ATOMIC_BUILTINS
   )
+  CHECK_C_SOURCE_RUNS(
+  "#include<stdint.h>
+  int main()
+  {
+    int64_t	x,y,res;
+
+    x = 10;
+    y = 123;
+    res = __sync_sub_and_fetch(&y, x);
+    if (res != y || y != 113) {
+      return(1);
+    }
+    res = __sync_add_and_fetch(&y, x);
+    if (res != y || y != 123) {
+      return(1);
+    }
+    return(0);
+  }"
+  HAVE_IB_GCC_ATOMIC_BUILTINS_64
+  )
 ENDIF()
 
 IF(HAVE_IB_GCC_ATOMIC_BUILTINS)
  ADD_DEFINITIONS(-DHAVE_IB_GCC_ATOMIC_BUILTINS=1)
+ENDIF()
+
+IF(HAVE_IB_GCC_ATOMIC_BUILTINS_64)
+ ADD_DEFINITIONS(-DHAVE_IB_GCC_ATOMIC_BUILTINS_64=1)
 ENDIF()
 
  # either define HAVE_IB_ATOMIC_PTHREAD_T_GCC or not
@@ -129,7 +155,8 @@ ENDIF()
 
 ENDIF(NOT MSVC)
 
-SET(LINKER_SCRIPT)
+CHECK_FUNCTION_EXISTS(asprintf  HAVE_ASPRINTF)
+CHECK_FUNCTION_EXISTS(vasprintf  HAVE_VASPRINTF)
 
 # Solaris atomics
 IF(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
@@ -148,10 +175,6 @@ IF(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
 
   IF(HAVE_IB_SOLARIS_ATOMICS)
     ADD_DEFINITIONS(-DHAVE_IB_SOLARIS_ATOMICS=1)
-  ENDIF()
-
-  IF(CMAKE_COMPILER_IS_GNUCC AND NOT HAVE_VISIBILITY_HIDDEN)
-    SET(LINKER_SCRIPT "-Wl,-M${CMAKE_CURRENT_SOURCE_DIR}/plugin_exports")
   ENDIF()
 
   IF(NOT CMAKE_CROSSCOMPILING)
@@ -233,13 +256,16 @@ ENDIF()
 IF(MSVC)
   # Avoid "unreferenced label" warning in generated file
   GET_FILENAME_COMPONENT(_SRC_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
-  SET_SOURCE_FILES_PROPERTIES(${_SRC_DIR}/pars/pars0grm.cc
+  SET_SOURCE_FILES_PROPERTIES(${_SRC_DIR}/pars/pars0grm.c
           PROPERTIES COMPILE_FLAGS "/wd4102")
-  SET_SOURCE_FILES_PROPERTIES(${_SRC_DIR}/pars/lexyy.cc
+  SET_SOURCE_FILES_PROPERTIES(${_SRC_DIR}/pars/lexyy.c
           PROPERTIES COMPILE_FLAGS "/wd4003")
 ENDIF()
- 
+
+
 SET(INNOBASE_SOURCES
+	api/api0api.cc
+	api/api0misc.cc
 	btr/btr0btr.cc
 	btr/btr0cur.cc
 	btr/btr0pcur.cc
@@ -260,6 +286,7 @@ SET(INNOBASE_SOURCES
 	dict/dict0load.cc
 	dict/dict0mem.cc
 	dict/dict0stats.cc
+	dict/dict0stats_bg.cc
 	dyn/dyn0dyn.cc
 	eval/eval0eval.cc
 	eval/eval0proc.cc
@@ -311,9 +338,11 @@ SET(INNOBASE_SOURCES
 	rem/rem0rec.cc
 	row/row0ext.cc
 	row/row0ftsort.cc
+	row/row0import.cc
 	row/row0ins.cc
 	row/row0merge.cc
 	row/row0mysql.cc
+	row/row0log.cc
 	row/row0purge.cc
 	row/row0row.cc
 	row/row0sel.cc
@@ -321,6 +350,7 @@ SET(INNOBASE_SOURCES
 	row/row0umod.cc
 	row/row0undo.cc
 	row/row0upd.cc
+	row/row0quiesce.cc
 	row/row0vers.cc
 	srv/srv0conc.cc
 	srv/srv0mon.cc
@@ -355,7 +385,18 @@ IF(WITH_INNODB)
   SET(WITH_INNOBASE_STORAGE_ENGINE TRUE)
 ENDIF()
 
+
+# On solaris, reduce symbol visibility, so loader does not mix
+# the same symbols from builtin innodb and from shared one.
+# Only required for old GCC (3.4.3) that does not support hidden visibility
+IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_COMPILER_IS_GNUCC 
+  AND NOT HAVE_VISIBILITY_HIDDEN)
+  SET(LINKER_SCRIPT "-Wl,-M${CMAKE_CURRENT_SOURCE_DIR}/plugin_exports")
+ELSE()
+  SET(LINKER_SCRIPT)
+ENDIF()
+
 MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
   DEFAULT
   MODULE_OUTPUT_NAME ha_innodb
-  LINK_LIBRARIES ${ZLIB_LIBRARY})
+  LINK_LIBRARIES ${ZLIB_LIBRARY} ${LINKER_SCRIPT})

@@ -83,7 +83,7 @@ int select_union::send_data(List<Item> &values)
       */
       return -1;
     }
-    bool is_duplicate;
+    bool is_duplicate= FALSE;
     /* create_internal_tmp_table_from_heap will generate error if needed */
     if (table->file->is_fatal_error(write_err, HA_CHECK_DUP) &&
         create_internal_tmp_table_from_heap(thd, table,
@@ -714,7 +714,7 @@ bool st_select_lex_unit::exec()
           Stop execution of the remaining queries in the UNIONS, and produce
           the current result.
         */
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT,
                             ER(ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
                             thd->accessed_rows_and_keys,

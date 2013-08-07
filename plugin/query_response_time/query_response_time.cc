@@ -156,14 +156,14 @@ public:
   {
     my_atomic_rwlock_destroy(&time_collector_lock);
   }
-  uint32 count(uint index) const
+  uint32 count(uint index)
   {
     my_atomic_rwlock_rdlock(&time_collector_lock);
     uint32 result= my_atomic_load32((int32*)&m_count[index]);
     my_atomic_rwlock_rdunlock(&time_collector_lock);
     return result;
   }
-  uint64 total(uint index) const
+  uint64 total(uint index)
   {
     my_atomic_rwlock_rdlock(&time_collector_lock);
     uint64 result= my_atomic_load64((int64*)&m_total[index]);

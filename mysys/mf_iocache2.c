@@ -497,7 +497,7 @@ process_flags:
       if (my_b_write(info, (uchar*) buff, length2))
 	goto err;
     }
-    else if ((*fmt == 'l' && fmt[1] == 'd') || fmt[1] == 'u')
+    else if ((*fmt == 'l' && (fmt[1] == 'd' || fmt[1] == 'u')))
       /* long parameter */
     {
       register long iarg;

@@ -768,13 +768,19 @@ CAST(CAST('20:05:05' AS TIME) as date)
 set sql_mode= TRADITIONAL;
 select cast("2101-00-01 02:03:04" as datetime);
 cast("2101-00-01 02:03:04" as datetime)
-2101-00-01 02:03:04
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '2101-00-01 02:03:04'
 select cast(cast("2101-00-01 02:03:04" as datetime) as time);
 cast(cast("2101-00-01 02:03:04" as datetime) as time)
-02:03:04
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '2101-00-01 02:03:04'
 SELECT CAST(CAST('20:05:05' AS TIME) as date);
 CAST(CAST('20:05:05' AS TIME) as date)
-0000-00-00
+NULL
+Warnings:
+Warning	1292	Truncated incorrect date value: '0000-00-00'
 set sql_mode=DEFAULT;
 create table t1 (f1 time, f2 date, f3 datetime);
 insert into t1 values ('11:22:33','2011-12-13','2011-12-13 11:22:33');

@@ -68,7 +68,7 @@
 #define PSEUDO_TABLE_BITS (PARAM_TABLE_BIT | OUTER_REF_TABLE_BIT | \
                            RAND_TABLE_BIT)
 #define MAX_FIELDS	4096			/* Limit in the .frm file */
-#define MAX_PARTITIONS  1024
+#define MAX_PARTITIONS  8192
 
 #define MAX_SELECT_NESTING (sizeof(nesting_map)*8-1)
 
@@ -77,7 +77,6 @@
 
 /* Some portable defines */
 
-#define portable_sizeof_char_ptr 8
 #define STRING_BUFFER_USUAL_SIZE 80
 
 /* Memory allocated when parsing a statement / saving a statement */
@@ -128,6 +127,13 @@
   cache can contain at least all tables of a given statement.
 */
 #define TABLE_DEF_CACHE_MIN     400
+
+/**
+ Maximum number of connections default value.
+ 151 is larger than Apache's default max children,
+ to avoid "too many connections" error in a common setup.
+*/
+#define MAX_CONNECTIONS_DEFAULT 151
 
 /*
   Stack reservation.
@@ -233,7 +239,7 @@
 #define DELAYED_LIMIT		100		/**< pause after xxx inserts */
 #define DELAYED_QUEUE_SIZE	1000
 #define DELAYED_WAIT_TIMEOUT	5*60		/**< Wait for delayed insert */
-#define MAX_CONNECT_ERRORS	10		///< errors before disabling host
+#define MAX_CONNECT_ERRORS	100		///< errors before disabling host
 
 #define LONG_TIMEOUT ((ulong) 3600L*24L*365L)
 
