@@ -69,6 +69,7 @@ class JOIN_TAB_SCAN;
   - Block Nested Loop (BNL) Join Algorithm,
   - Block Nested Loop Hash (BNLH) Join Algorithm,
   - Batched Key Access (BKA) Join Algorithm.
+
   The first algorithm is supported by the derived class JOIN_CACHE_BNL,
   the second algorithm is supported by the derived class JOIN_CACHE_BNLH,
   while the third algorithm is implemented in two variant supported by
