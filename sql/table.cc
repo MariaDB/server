@@ -562,12 +562,16 @@ inline bool is_system_table_name(const char *name, uint length)
              my_tolower(ci, name[2]) == 'm' &&
              my_tolower(ci, name[3]) == 'e') ||
 
-            /* one of mysql.*_stat tables */
-            (my_tolower(ci, name[length-5]) == 's' &&
-             my_tolower(ci, name[length-4]) == 't' &&
-             my_tolower(ci, name[length-3]) == 'a' &&
-             my_tolower(ci, name[length-2]) == 't' &&
-             my_tolower(ci, name[length-1]) == 's') ||
+            /* one of mysql.*_stat tables, but not mysql.innodb* tables*/
+            ((my_tolower(ci, name[length-5]) == 's' &&
+              my_tolower(ci, name[length-4]) == 't' &&
+              my_tolower(ci, name[length-3]) == 'a' &&
+              my_tolower(ci, name[length-2]) == 't' &&
+              my_tolower(ci, name[length-1]) == 's') &&
+             !(my_tolower(ci, name[0]) == 'i' &&
+               my_tolower(ci, name[1]) == 'n' &&
+               my_tolower(ci, name[2]) == 'n' &&
+               my_tolower(ci, name[3]) == 'o')) ||
            
             /* mysql.event table */
             (my_tolower(ci, name[0]) == 'e' &&
