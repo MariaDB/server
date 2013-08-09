@@ -1998,6 +1998,34 @@ WHERE i1 IN ( SELECT i3 FROM t3, t4 WHERE c4 = c3 AND i3 < ALL ( SELECT 4 UNION 
 
 drop table t1, t2, t3, t4;
 
+--echo #
+--echo # MDEV-4657 SQ pushdown: Valgrind warnings (Conditional jump or move depends on uninitialised value) in compare_items_by_cost
+--echo #
+
+CREATE TABLE t1 (i1 INT, c1 CHAR(1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'a'),(2,'b');
+
+CREATE TABLE t2 (i2 INT, c2 CHAR(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3,'m'),(4,'n');
+
+SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE (i2 = i1) AND ( c2 , c1 )  IN ( SELECT 'f' , 'q' );
+
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-4659 SQ pushdown: Valgrind warnings (Conditional jump or move depends on uninitialised value) in best_extension_by_limited_search /
+--echo # greedy_search with expensive_pred_static_pushdown=on
+--echo #
+
+SET optimizer_switch='expensive_pred_static_pushdown=on';
+
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (8),(18);
+SELECT 1 FROM t1 WHERE i IN ( SELECT 8 UNION SELECT 8 );
+
+SET optimizer_switch='expensive_pred_static_pushdown=off';
+
+drop table t1;
 
 SET optimizer_switch=@@global.optimizer_switch;
 SET optimizer_use_condition_selectivity=default;

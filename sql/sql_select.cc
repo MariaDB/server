@@ -1315,6 +1315,11 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
   {
     DBUG_PRINT("info",("No tables"));
     error= 0;
+    /*
+      Even if there are no tables the query has some small cost. Use the default
+      cost of all 'cheap' items.
+    */
+    best_read= (1 / (double)TIME_FOR_COMPARE);
     goto setup_subq_exit;
   }
   error= -1;					// Error is sent to client
