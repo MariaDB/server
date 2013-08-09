@@ -3008,7 +3008,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
         break;
       default:
         printf("Unsupported sql_command=%d", thd_sql_command(thd));
-        sprintf(g->Message, "Unsupported sql_command=%d", thd_sql_command(thd));
+        strcpy(g->Message, "CONNECT Unsupported command");
+        my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
         DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
         break;
       } // endswitch newmode
@@ -3046,7 +3047,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
         break;
       default:
         printf("Unsupported sql_command=%d", thd_sql_command(thd));
-        sprintf(g->Message, "Unsupported sql_command=%d", thd_sql_command(thd));
+        strcpy(g->Message, "CONNECT Unsupported command");
+        my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
         DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
         break;
       } // endswitch newmode
