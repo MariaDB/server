@@ -32,6 +32,8 @@ INSERT INTO graph_base(from_id, to_id, weight) VALUES (2,3,256), (3,2,256);
 INSERT INTO graph_base(from_id, to_id, weight) VALUES (3,4,65536), (4,3,65536);
 INSERT INTO graph_base(from_id, to_id, weight) VALUES (2,4,768);
 
+SELECT * FROM graph WHERE latch is NULL;
+
 SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 1;
 SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 2;
 SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 3;
