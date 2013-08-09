@@ -823,7 +823,8 @@ namespace open_query
                 EdgeWeight(),
                 make_dijkstra_visitor(
                     make_oqgraph_visit_dist(
-                        boost::make_assoc_property_map(p), d,
+                        boost::make_assoc_property_map(p), 
+                        boost::make_assoc_property_map(d),
                         static_cast<stack_cursor*>(cursor)
                     )
                 ),
