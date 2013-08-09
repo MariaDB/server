@@ -1973,6 +1973,32 @@ WHERE a = b AND
 
 drop table t1,t2,t3;
 
+--echo #
+--echo # MDEV-4648 SQ pushdown: Wrong result (missing rows) with materialization+semijoin, IN and ALL subqueries, UNION
+--echo #
+
+CREATE TABLE t1 (i1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (i2 INT, c2 CHAR(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (8,'c'),(6,'c');
+
+CREATE TABLE t3 (i3 INT, c3 CHAR(1)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1,'c'),(4,'r');
+
+CREATE TABLE t4 (c4 CHAR(1), KEY(c4)) ENGINE=MyISAM;
+INSERT INTO t4 VALUES ('c'),('c');
+
+EXPLAIN
+SELECT * FROM t1, t2
+WHERE i1 IN ( SELECT i3 FROM t3, t4 WHERE c4 = c3 AND i3 < ALL ( SELECT 4 UNION SELECT 8 ) );
+
+SELECT * FROM t1, t2
+WHERE i1 IN ( SELECT i3 FROM t3, t4 WHERE c4 = c3 AND i3 < ALL ( SELECT 4 UNION SELECT 8 ) );
+
+drop table t1, t2, t3, t4;
+
+
 SET optimizer_switch=@@global.optimizer_switch;
 SET optimizer_use_condition_selectivity=default;
 SET use_stat_tables=default;

@@ -259,6 +259,7 @@ public:
   void cleanup();
   const char *func_name() const { return "<in_optimizer>"; }
   Item_cache **get_cache() { return &cache; }
+  Item *left_expr() { return args[0]; }
   void keep_top_level_cache();
   Item *transform(Item_transformer transformer, uchar *arg);
   virtual Item *expr_cache_insert_transformer(uchar *thd_arg);

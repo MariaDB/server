@@ -2356,7 +2356,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	16	100.00	
 Warnings:
 Note	1276	Field or reference 'b' of SELECT #4 was resolved in SELECT #1
-Note	1003	select count(0) AS `cnt` from `test`.`t1` where (<cache>(<nop>(<in_optimizer>(9,((select max(`test`.`t1`.`a`) from `test`.`t1`) > <cache>(9))))) or <expr_cache><9>(exists(select 1 from `test`.`t3` `t3_1` join `test`.`t3` `t3_2` where ((`test`.`t3_2`.`c` = `test`.`t3_1`.`c`) and (`test`.`t3_1`.`c` <> 9))))) order by count(0)
+Note	1003	select count(0) AS `cnt` from `test`.`t1` where (<cache>(<nop>(<in_optimizer>(9,((select max(`test`.`t1`.`a`) from `test`.`t1`) > 9)))) or <expr_cache><9>(exists(select 1 from `test`.`t3` `t3_1` join `test`.`t3` `t3_2` where ((`test`.`t3_2`.`c` = `test`.`t3_1`.`c`) and (`test`.`t3_1`.`c` <> 9))))) order by count(0)
 SELECT  COUNT(*) AS cnt FROM t1, ( SELECT b FROM t2 ) AS t2_sq
 WHERE b < ANY ( SELECT a FROM t1, t2 ) 
 OR EXISTS ( SELECT 1 FROM t3 t3_1, t3 t3_2 WHERE t3_2.c = t3_1.c AND t3_2.c <> b )  
@@ -2377,7 +2377,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	16	100.00	
 Warnings:
 Note	1276	Field or reference 'b' of SELECT #4 was resolved in SELECT #1
-Note	1003	select count(9) AS `COUNT(b)` from `test`.`t1` where (<cache>(<nop>(<in_optimizer>(9,((select max(`test`.`t1`.`a`) from `test`.`t1`) > <cache>(9))))) or <expr_cache><9>(exists(select 1 from `test`.`t3` `t3_1` join `test`.`t3` `t3_2` where (`test`.`t3_2`.`c` <> 9)))) group by `test`.`t1`.`a`
+Note	1003	select count(9) AS `COUNT(b)` from `test`.`t1` where (<cache>(<nop>(<in_optimizer>(9,((select max(`test`.`t1`.`a`) from `test`.`t1`) > 9)))) or <expr_cache><9>(exists(select 1 from `test`.`t3` `t3_1` join `test`.`t3` `t3_2` where (`test`.`t3_2`.`c` <> 9)))) group by `test`.`t1`.`a`
 SELECT COUNT(b)
 FROM t1, (SELECT b FROM t2) AS t2_sq
 WHERE b < ANY (SELECT a FROM t1)
@@ -2463,6 +2463,35 @@ a IN (SELECT c FROM t1 AS inner_t1, t3
 WHERE inner_t1.a = 7 OR 2 IN (SELECT a FROM t1 WHERE 0));
 a	b
 drop table t1,t2,t3;
+#
+# MDEV-4648 SQ pushdown: Wrong result (missing rows) with materialization+semijoin, IN and ALL subqueries, UNION
+#
+CREATE TABLE t1 (i1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (i2 INT, c2 CHAR(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (8,'c'),(6,'c');
+CREATE TABLE t3 (i3 INT, c3 CHAR(1)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1,'c'),(4,'r');
+CREATE TABLE t4 (c4 CHAR(1), KEY(c4)) ENGINE=MyISAM;
+INSERT INTO t4 VALUES ('c'),('c');
+EXPLAIN
+SELECT * FROM t1, t2
+WHERE i1 IN ( SELECT i3 FROM t3, t4 WHERE c4 = c3 AND i3 < ALL ( SELECT 4 UNION SELECT 8 ) );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	MATERIALIZED	t4	index	c4	c4	2	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+SELECT * FROM t1, t2
+WHERE i1 IN ( SELECT i3 FROM t3, t4 WHERE c4 = c3 AND i3 < ALL ( SELECT 4 UNION SELECT 8 ) );
+i1	i2	c2
+1	8	c
+1	6	c
+drop table t1, t2, t3, t4;
 SET optimizer_switch=@@global.optimizer_switch;
 SET optimizer_use_condition_selectivity=default;
 SET use_stat_tables=default;
