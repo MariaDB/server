@@ -1,4 +1,4 @@
-1--disable_warnings
+--disable_warnings
 DROP TABLE IF EXISTS graph_base;
 DROP TABLE IF EXISTS graph;
 DROP TABLE IF EXISTS graph2;
@@ -212,8 +212,6 @@ SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11 AND (weight = 
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 12 AND (weight = 1 or weight = 2);
 
 #-- now do it in reverse - using destid find originating vertices
-#-- FIXME - currently these are returning NULL which is incorrect
-#-- https://bugs.launchpad.net/oqgraph/+bug/1196027
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 1;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 3;
