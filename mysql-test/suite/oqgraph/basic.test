@@ -1,4 +1,4 @@
---disable_warnings
+1--disable_warnings
 DROP TABLE IF EXISTS graph_base;
 DROP TABLE IF EXISTS graph;
 DROP TABLE IF EXISTS graph2;
@@ -67,10 +67,8 @@ SELECT * FROM graph;
 --echo # Currently count should be 13
 SELECT count(*) FROM graph;
 
-# FIXME - this is currently returning empty instead of all edges
-#--echo # Return all edges - in v2, NULL latch should do this, but v3 now returns nothing...
-#--https://bugs.launchpad.net/oqgraph/+bug/1196021
-#SELECT * FROM graph where latch=NULL;
+--echo # Return all edges when latch is NULL
+SELECT * FROM graph where latch is NULL;
 
 --echo # Return all vertices, and subsets of vertices
 SELECT * FROM graph where latch='';
@@ -139,16 +137,12 @@ SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 4;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 5;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 6;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 7;
-#-- FIXME This is returning one result set, suspect this is a bug...?
-#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
-SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8;  # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 9;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 10;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 12;
-#-- FIXME This is returning one result set, suspect this is a bug...?
-#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
-SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 666;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 666; # <-- note, should return nothing
 #-- The above results can then be filtered by weight, so the results should be a subset for the corresponding origid above
 #-- so effectively, `AND weight=1` returns the neighbours of origid in linkid
 #<----- orig test harness - still returns (breadth_first	1	NULL	1	3	3), (breadth_first	1	NULL	1	2	2)
@@ -159,7 +153,7 @@ SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 4 AND weight = 1;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 5 AND weight = 1;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 6 AND weight = 1;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 7 AND weight = 1;
-SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND weight = 1; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 9 AND weight = 1;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 10 AND weight = 1;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11 AND weight = 1;
@@ -173,7 +167,7 @@ SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 4 AND weig
 SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 5 AND weight = 1;
 SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 6 AND weight = 1;
 SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 7 AND weight = 1;
-SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND weight = 1;
+SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND weight = 1; # <-- note, should return nothing
 SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 9 AND weight = 1;
 SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 10 AND weight = 1;
 SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 11 AND weight = 1;
@@ -186,7 +180,7 @@ SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 4 AND weight = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 5 AND weight = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 6 AND weight = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 7 AND weight = 2;
-SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND weight = 2; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 9 AND weight = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 10 AND weight = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11 AND weight = 2;
@@ -198,7 +192,7 @@ SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 4 AND weight = 3;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 5 AND weight = 3;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 6 AND weight = 3;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 7 AND weight = 3;
-SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND weight = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND weight = 3; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 9 AND weight = 3;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 10 AND weight = 3;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11 AND weight = 3;
@@ -211,7 +205,7 @@ SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 4 AND (weight = 1
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 5 AND (weight = 1 or weight = 2);
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 6 AND (weight = 1 or weight = 2);
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 7 AND (weight = 1 or weight = 2);
-SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND (weight = 1 or weight = 2);
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND (weight = 1 or weight = 2); # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 9 AND (weight = 1 or weight = 2);
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 10 AND (weight = 1 or weight = 2);
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11 AND (weight = 1 or weight = 2);
@@ -227,9 +221,7 @@ SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 4;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 5;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 6;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 7;
-#-- FIXME This is returning one result set, suspect this is a bug...?
-#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
-SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 9;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 10;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 11;
@@ -241,7 +233,7 @@ SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 4 and weight = 1;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 5 and weight = 1;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 6 and weight = 1;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 7 and weight = 1;
-SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8 and weight = 1;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8 and weight = 1; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 9 and weight = 1;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 10 and weight = 1;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 11 and weight = 1;
@@ -253,7 +245,7 @@ SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 4 and weight = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 5 and weight = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 6 and weight = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 7 and weight = 2;
-SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8 and weight = 2;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8 and weight = 2; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 9 and weight = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 10 and weight = 2;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 11 and weight = 2;
@@ -265,7 +257,7 @@ SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 4 and weight = 3;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 5 and weight = 3;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 6 and weight = 3;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 7 and weight = 3;
-SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8 and weight = 3;
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8 and weight = 3; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 9 and weight = 3;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 10 and weight = 3;
 SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 11 and weight = 3;
@@ -285,16 +277,12 @@ SELECT * FROM graph WHERE latch = '2' AND origid = 4;
 SELECT * FROM graph WHERE latch = '2' AND origid = 5;
 SELECT * FROM graph WHERE latch = '2' AND origid = 6;
 SELECT * FROM graph WHERE latch = '2' AND origid = 7;
-#-- FIXME This is returning one result set, suspect this is a bug...?
-#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
-SELECT * FROM graph WHERE latch = '2' AND origid = 8;
+SELECT * FROM graph WHERE latch = '2' AND origid = 8; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = '2' AND origid = 9;
 SELECT * FROM graph WHERE latch = '2' AND origid = 10;
 SELECT * FROM graph WHERE latch = '2' AND origid = 11;
 SELECT * FROM graph WHERE latch = '2' AND origid = 12;
-#-- FIXME This is returning one result set, suspect this is a bug...?
-#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
-SELECT * FROM graph WHERE latch = '2' AND origid = 666;
+SELECT * FROM graph WHERE latch = '2' AND origid = 666; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = '2' AND origid = 1 AND weight = 1;
 SELECT * FROM graph WHERE latch = '2' AND origid = 2 AND weight = 1;
 SELECT * FROM graph WHERE latch = '2' AND origid = 3 AND weight = 1;
@@ -302,7 +290,7 @@ SELECT * FROM graph WHERE latch = '2' AND origid = 4 AND weight = 1;
 SELECT * FROM graph WHERE latch = '2' AND origid = 5 AND weight = 1;
 SELECT * FROM graph WHERE latch = '2' AND origid = 6 AND weight = 1;
 SELECT * FROM graph WHERE latch = '2' AND origid = 7 AND weight = 1;
-SELECT * FROM graph WHERE latch = '2' AND origid = 8 AND weight = 1;
+SELECT * FROM graph WHERE latch = '2' AND origid = 8 AND weight = 1; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = '2' AND origid = 9 AND weight = 1;
 SELECT * FROM graph WHERE latch = '2' AND origid = 10 AND weight = 1;
 SELECT * FROM graph WHERE latch = '2' AND origid = 11 AND weight = 1;
@@ -314,7 +302,7 @@ SELECT count(*) FROM graph WHERE latch = '2' AND origid = 4 AND weight = 1;
 SELECT count(*) FROM graph WHERE latch = '2' AND origid = 5 AND weight = 1;
 SELECT count(*) FROM graph WHERE latch = '2' AND origid = 6 AND weight = 1;
 SELECT count(*) FROM graph WHERE latch = '2' AND origid = 7 AND weight = 1;
-SELECT count(*) FROM graph WHERE latch = '2' AND origid = 8 AND weight = 1;
+SELECT count(*) FROM graph WHERE latch = '2' AND origid = 8 AND weight = 1; # <-- note, should return nothing
 SELECT count(*) FROM graph WHERE latch = '2' AND origid = 9 AND weight = 1;
 SELECT count(*) FROM graph WHERE latch = '2' AND origid = 10 AND weight = 1;
 SELECT count(*) FROM graph WHERE latch = '2' AND origid = 11 AND weight = 1;
@@ -326,7 +314,7 @@ SELECT * FROM graph WHERE latch = '2' AND origid = 4 AND weight = 2;
 SELECT * FROM graph WHERE latch = '2' AND origid = 5 AND weight = 2;
 SELECT * FROM graph WHERE latch = '2' AND origid = 6 AND weight = 2;
 SELECT * FROM graph WHERE latch = '2' AND origid = 7 AND weight = 2;
-SELECT * FROM graph WHERE latch = '2' AND origid = 8 AND weight = 2;
+SELECT * FROM graph WHERE latch = '2' AND origid = 8 AND weight = 2; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = '2' AND origid = 9 AND weight = 2;
 SELECT * FROM graph WHERE latch = '2' AND origid = 10 AND weight = 2;
 SELECT * FROM graph WHERE latch = '2' AND origid = 11 AND weight = 2;
@@ -338,7 +326,7 @@ SELECT * FROM graph WHERE latch = '2' AND origid = 4 AND weight = 3;
 SELECT * FROM graph WHERE latch = '2' AND origid = 5 AND weight = 3;
 SELECT * FROM graph WHERE latch = '2' AND origid = 6 AND weight = 3;
 SELECT * FROM graph WHERE latch = '2' AND origid = 7 AND weight = 3;
-SELECT * FROM graph WHERE latch = '2' AND origid = 8 AND weight = 3;
+SELECT * FROM graph WHERE latch = '2' AND origid = 8 AND weight = 3; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = '2' AND origid = 9 AND weight = 3;
 SELECT * FROM graph WHERE latch = '2' AND origid = 10 AND weight = 3;
 SELECT * FROM graph WHERE latch = '2' AND origid = 11 AND weight = 3;
@@ -351,7 +339,7 @@ SELECT * FROM graph WHERE latch = '2' AND origid = 4 AND (weight = 1 or weight =
 SELECT * FROM graph WHERE latch = '2' AND origid = 5 AND (weight = 1 or weight = 2);
 SELECT * FROM graph WHERE latch = '2' AND origid = 6 AND (weight = 1 or weight = 2);
 SELECT * FROM graph WHERE latch = '2' AND origid = 7 AND (weight = 1 or weight = 2);
-SELECT * FROM graph WHERE latch = '2' AND origid = 8 AND (weight = 1 or weight = 2);
+SELECT * FROM graph WHERE latch = '2' AND origid = 8 AND (weight = 1 or weight = 2); # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = '2' AND origid = 9 AND (weight = 1 or weight = 2);
 SELECT * FROM graph WHERE latch = '2' AND origid = 10 AND (weight = 1 or weight = 2);
 SELECT * FROM graph WHERE latch = '2' AND origid = 11 AND (weight = 1 or weight = 2);
@@ -364,9 +352,7 @@ SELECT * FROM graph WHERE latch = '2' AND destid = 4;
 SELECT * FROM graph WHERE latch = '2' AND destid = 5;
 SELECT * FROM graph WHERE latch = '2' AND destid = 6;
 SELECT * FROM graph WHERE latch = '2' AND destid = 7;
-#-- FIXME This is returning one result set, suspect this is a bug...?
-#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
-SELECT * FROM graph WHERE latch = '2' AND destid = 8;
+SELECT * FROM graph WHERE latch = '2' AND destid = 8;  # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = '2' AND destid = 9;
 SELECT * FROM graph WHERE latch = '2' AND destid = 10;
 SELECT * FROM graph WHERE latch = '2' AND destid = 11;
@@ -378,7 +364,7 @@ SELECT * FROM graph WHERE latch = '2' AND destid = 4 and weight = 1;
 SELECT * FROM graph WHERE latch = '2' AND destid = 5 and weight = 1;
 SELECT * FROM graph WHERE latch = '2' AND destid = 6 and weight = 1;
 SELECT * FROM graph WHERE latch = '2' AND destid = 7 and weight = 1;
-SELECT * FROM graph WHERE latch = '2' AND destid = 8 and weight = 1;
+SELECT * FROM graph WHERE latch = '2' AND destid = 8 and weight = 1; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = '2' AND destid = 9 and weight = 1;
 SELECT * FROM graph WHERE latch = '2' AND destid = 10 and weight = 1;
 SELECT * FROM graph WHERE latch = '2' AND destid = 11 and weight = 1;
@@ -390,7 +376,7 @@ SELECT * FROM graph WHERE latch = '2' AND destid = 4 and weight = 2;
 SELECT * FROM graph WHERE latch = '2' AND destid = 5 and weight = 2;
 SELECT * FROM graph WHERE latch = '2' AND destid = 6 and weight = 2;
 SELECT * FROM graph WHERE latch = '2' AND destid = 7 and weight = 2;
-SELECT * FROM graph WHERE latch = '2' AND destid = 8 and weight = 2;
+SELECT * FROM graph WHERE latch = '2' AND destid = 8 and weight = 2; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = '2' AND destid = 9 and weight = 2;
 SELECT * FROM graph WHERE latch = '2' AND destid = 10 and weight = 2;
 SELECT * FROM graph WHERE latch = '2' AND destid = 11 and weight = 2;
@@ -402,7 +388,7 @@ SELECT * FROM graph WHERE latch = '2' AND destid = 4 and weight = 3;
 SELECT * FROM graph WHERE latch = '2' AND destid = 5 and weight = 3;
 SELECT * FROM graph WHERE latch = '2' AND destid = 6 and weight = 3;
 SELECT * FROM graph WHERE latch = '2' AND destid = 7 and weight = 3;
-SELECT * FROM graph WHERE latch = '2' AND destid = 8 and weight = 3;
+SELECT * FROM graph WHERE latch = '2' AND destid = 8 and weight = 3; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch = '2' AND destid = 9 and weight = 3;
 SELECT * FROM graph WHERE latch = '2' AND destid = 10 and weight = 3;
 SELECT * FROM graph WHERE latch = '2' AND destid = 11 and weight = 3;
@@ -458,16 +444,12 @@ SELECT * FROM graph WHERE latch='dijkstras' AND origid=4;
 SELECT * FROM graph WHERE latch='dijkstras' AND origid=5;
 SELECT * FROM graph WHERE latch='dijkstras' AND origid=6;
 SELECT * FROM graph WHERE latch='dijkstras' AND origid=7;
-#-- FIXME This is returning one result set, suspect this is a bug...?
-#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
-SELECT * FROM graph WHERE latch='dijkstras' AND origid=8;
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=8; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch='dijkstras' AND origid=9;
 SELECT * FROM graph WHERE latch='dijkstras' AND origid=10;
 SELECT * FROM graph WHERE latch='dijkstras' AND origid=11;
 SELECT * FROM graph WHERE latch='dijkstras' AND origid=12;
-#-- FIXME This is returning one result set, suspect this is a bug...?
-#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
-SELECT * FROM graph WHERE latch='dijkstras' AND origid=666;
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=666; # <-- note, should return nothing
 
 #-- originating vertices
 SELECT * FROM graph WHERE latch='dijkstras' AND destid=1;
@@ -477,9 +459,7 @@ SELECT * FROM graph WHERE latch='dijkstras' AND destid=4;
 SELECT * FROM graph WHERE latch='dijkstras' AND destid=5;
 SELECT * FROM graph WHERE latch='dijkstras' AND destid=6;
 SELECT * FROM graph WHERE latch='dijkstras' AND destid=7;
-#-- FIXME This is returning one result set, suspect this is a bug...?
-#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
-SELECT * FROM graph WHERE latch='dijkstras' AND destid=8;
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=8; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch='dijkstras' AND destid=9;
 SELECT * FROM graph WHERE latch='dijkstras' AND destid=10;
 SELECT * FROM graph WHERE latch='dijkstras' AND destid=11;
@@ -492,7 +472,7 @@ SELECT * FROM graph WHERE latch='1' AND origid=2 AND destid=1;
 SELECT * FROM graph WHERE latch='1' AND origid=1 AND destid=4;
 SELECT * FROM graph WHERE latch='1' AND origid=4 AND destid=1;
 SELECT * FROM graph WHERE latch='1' AND origid=1 AND destid=5;
-SELECT * FROM graph WHERE latch='1' AND origid=1 AND destid=666;
+SELECT * FROM graph WHERE latch='1' AND origid=1 AND destid=666; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch='1' AND origid=5 AND destid=7;
 SELECT * FROM graph WHERE latch='1' AND origid=7 AND destid=5;
 SELECT * FROM graph WHERE latch='1' AND origid=10 AND destid=11;
@@ -508,16 +488,12 @@ SELECT * FROM graph WHERE latch='1' AND origid=4;
 SELECT * FROM graph WHERE latch='1' AND origid=5;
 SELECT * FROM graph WHERE latch='1' AND origid=6;
 SELECT * FROM graph WHERE latch='1' AND origid=7;
-#-- FIXME This is returning one result set, suspect this is a bug...?
-#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
-SELECT * FROM graph WHERE latch='1' AND origid=8;
+SELECT * FROM graph WHERE latch='1' AND origid=8; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch='1' AND origid=9;
 SELECT * FROM graph WHERE latch='1' AND origid=10;
 SELECT * FROM graph WHERE latch='1' AND origid=11;
 SELECT * FROM graph WHERE latch='1' AND origid=12;
-#-- FIXME This is returning one result set, suspect this is a bug...?
-#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
-SELECT * FROM graph WHERE latch='1' AND origid=666;
+SELECT * FROM graph WHERE latch='1' AND origid=666; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch='1' AND destid=1;
 SELECT * FROM graph WHERE latch='1' AND destid=2;
 SELECT * FROM graph WHERE latch='1' AND destid=3;
@@ -525,9 +501,7 @@ SELECT * FROM graph WHERE latch='1' AND destid=4;
 SELECT * FROM graph WHERE latch='1' AND destid=5;
 SELECT * FROM graph WHERE latch='1' AND destid=6;
 SELECT * FROM graph WHERE latch='1' AND destid=7;
-#-- FIXME This is returning one result set, suspect this is a bug...?
-#-- https://bugs.launchpad.net/oqgraph/+bug/1196020
-SELECT * FROM graph WHERE latch='1' AND destid=8;
+SELECT * FROM graph WHERE latch='1' AND destid=8; # <-- note, should return nothing
 SELECT * FROM graph WHERE latch='1' AND destid=9;
 SELECT * FROM graph WHERE latch='1' AND destid=10;
 SELECT * FROM graph WHERE latch='1' AND destid=11;
