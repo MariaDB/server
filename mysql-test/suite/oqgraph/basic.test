@@ -67,12 +67,15 @@ SELECT * FROM graph;
 --echo # Currently count should be 13
 SELECT count(*) FROM graph;
 
---echo # Return all edges when latch is NULL
+--echo # Return all edges when latch is NULL - this is different to latch='' and same as no where clause
 SELECT * FROM graph where latch is NULL;
 
 --echo # Return all vertices, and subsets of vertices
 SELECT * FROM graph where latch='';
+SELECT * FROM graph where latch='0';
+
 --echo # Currently count should be 11
+
 SELECT count(*) FROM graph where latch='';
 #-- get a subset of vertices
 SELECT * FROM graph where latch='' and linkid = 2;

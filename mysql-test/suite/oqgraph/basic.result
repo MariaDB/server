@@ -46,7 +46,7 @@ NULL	12	10	1	NULL	NULL
 SELECT count(*) FROM graph;
 count(*)
 13
-# Return all edges when latch is NULL
+# Return all edges when latch is NULL - this is different to latch='' and same as no where clause
 SELECT * FROM graph where latch is NULL;
 latch	origid	destid	weight	seq	linkid
 NULL	1	2	1	NULL	NULL
@@ -76,6 +76,19 @@ latch	origid	destid	weight	seq	linkid
 	NULL	NULL	NULL	NULL	10
 	NULL	NULL	NULL	NULL	11
 	NULL	NULL	NULL	NULL	12
+SELECT * FROM graph where latch='0';
+latch	origid	destid	weight	seq	linkid
+0	NULL	NULL	NULL	NULL	1
+0	NULL	NULL	NULL	NULL	2
+0	NULL	NULL	NULL	NULL	3
+0	NULL	NULL	NULL	NULL	4
+0	NULL	NULL	NULL	NULL	5
+0	NULL	NULL	NULL	NULL	6
+0	NULL	NULL	NULL	NULL	7
+0	NULL	NULL	NULL	NULL	9
+0	NULL	NULL	NULL	NULL	10
+0	NULL	NULL	NULL	NULL	11
+0	NULL	NULL	NULL	NULL	12
 # Currently count should be 11
 SELECT count(*) FROM graph where latch='';
 count(*)
