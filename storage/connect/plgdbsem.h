@@ -319,7 +319,8 @@ enum COLUSE {U_P         = 0x01,      /* the projection list.          */
              U_VAR       = 0x10,      /* a VARCHAR column              */
              U_VIRTUAL   = 0x20,      /* a VIRTUAL column              */
              U_NULLS     = 0x40,      /* The column may have nulls     */
-             U_IS_NULL   = 0x80};     /* The column has a null value   */
+             U_IS_NULL   = 0x80,      /* The column has a null value   */
+             U_SPECIAL   = 0x100};    /* The column is special         */
 
 /***********************************************************************/
 /*  DB description class and block pointer definitions.                */

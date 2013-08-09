@@ -113,6 +113,7 @@ class DllExport TDB: public TBX {     // Table Descriptor Block.
                   {fprintf(f, "%s AM(%d)\n",  m, GetAmType());}
   virtual void   Print(PGLOBAL g, FILE *f, uint n);
   virtual void   Print(PGLOBAL g, char *ps, uint z);
+  virtual PSZ    GetServer(void) = 0;
 
   // Database pure virtual routines
   virtual PCOL   ColDB(PGLOBAL g, PSZ name, int num) = 0;
@@ -192,13 +193,14 @@ class DllExport TDBASE : public TDB {
   virtual void   ResetSize(void) {MaxSize = -1;}
   virtual void   RestoreNrec(void) {}
   virtual int    ResetTableOpt(PGLOBAL g, bool dox);
+  virtual PSZ    GetServer(void) {return "Current";}
 
   // Database routines
   virtual PCOL ColDB(PGLOBAL g, PSZ name, int num);
   virtual PCOL MakeCol(PGLOBAL, PCOLDEF, PCOL, int)
                       {assert(false); return NULL;}
   virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL colp);
-  virtual PCOL InsertSpcBlk(PGLOBAL g, PCOLUMN cp);
+  virtual PCOL InsertSpcBlk(PGLOBAL g, PCOLDEF cdp);
   virtual void MarkDB(PGLOBAL g, PTDB tdb2);
 
  protected:

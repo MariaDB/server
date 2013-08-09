@@ -158,9 +158,9 @@ public:
   PIXDEF   GetIndexInfo(void);
   const char *GetDBName(const char *name);
   const char *GetTableName(void);
-  int      GetColNameLen(Field *fp);
-  char    *GetColName(Field *fp);
-  void     AddColName(char *cp, Field *fp);
+//int      GetColNameLen(Field *fp);
+//char    *GetColName(Field *fp);
+//void     AddColName(char *cp, Field *fp);
   TABLE   *GetTable(void) {return table;}
   bool     IsSameIndex(PIXDEF xp1, PIXDEF xp2);
 

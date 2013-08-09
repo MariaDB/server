@@ -194,6 +194,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url)
     if (trace)
       htrc("server: %s  Tabname: %s", url, Tabname);
 
+    Server = url;
     return GetServerInfo(g, url);
   } else {
     // URL, parse it
@@ -216,8 +217,10 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url)
     if (!(Hostname = strchr(Username, '@'))) {
       strcpy(g->Message, "No host specified in URL");
       return true;
-    } else
+    } else {
       *Hostname++ = 0;                   // End Username
+      Server = Hostname;
+    } // endif Hostname
 
     if ((Password = strchr(Username, ':'))) {
       *Password++ = 0;                   // End username
@@ -308,6 +311,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
       Username = Cat->GetStringCatInfo(g, "User", "*");
       Password = Cat->GetStringCatInfo(g, "Password", NULL);
       Portnumber = Cat->GetIntCatInfo("Port", GetDefaultPort());
+      Server = Hostname;
     } else if (ParseURL(g, url))
       return TRUE;
 
@@ -327,6 +331,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
       Username = Cat->GetStringCatInfo(g, "User", "*");
       Password = Cat->GetStringCatInfo(g, "Password", NULL);
       Portnumber = Cat->GetIntCatInfo("Port", GetDefaultPort());
+      Server = Hostname;
     } else {
       char *locdb = Database;
 
@@ -365,13 +370,14 @@ PTDB MYSQLDEF::GetTable(PGLOBAL g, MODE m)
 TDBMYSQL::TDBMYSQL(PMYDEF tdp) : TDBASE(tdp)
   {
   if (tdp) {
-    Host = tdp->GetHostname();
-    Database = tdp->GetDatabase();
-    Tabname = tdp->GetTabname();
-    Srcdef = tdp->GetSrcdef();
-    User = tdp->GetUsername();
-    Pwd = tdp->GetPassword();
-    Port = tdp->GetPortnumber();
+    Host = tdp->Hostname;
+    Database = tdp->Database;
+    Tabname = tdp->Tabname;
+    Srcdef = tdp->Srcdef;
+    User = tdp->Username;
+    Pwd = tdp->Password;
+    Server = tdp->Server;
+    Port = tdp->Portnumber;
     Isview = tdp->Isview;
     Prep = tdp->Bind;
     Delayed = tdp->Delayed;
@@ -382,6 +388,7 @@ TDBMYSQL::TDBMYSQL(PMYDEF tdp) : TDBASE(tdp)
     Srcdef = NULL;
     User = NULL;
     Pwd = NULL;
+    Server = NULL;
     Port = 0;
     Isview = FALSE;
     Prep = FALSE;
@@ -473,10 +480,11 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g)
 
   if (Columns) {
     for (colp = Columns; colp; colp = colp->GetNext())
-      if (colp->IsSpecial()) {
-        strcpy(g->Message, MSG(NO_SPEC_COL));
-        return TRUE;
-      } else {
+      if (!colp->IsSpecial()) {
+//      if (colp->IsSpecial()) {
+//        strcpy(g->Message, MSG(NO_SPEC_COL));
+//        return TRUE;
+//      } else {
         if (b)
           strcat(Query, ", ");
         else
@@ -519,10 +527,11 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
     return FALSE;        // already done
 
   for (colp = Columns; colp; colp = colp->GetNext())
-    if (colp->IsSpecial()) {
-      strcpy(g->Message, MSG(NO_SPEC_COL));
-      return TRUE;
-    } else {
+    if (!colp->IsSpecial()) {
+//    if (colp->IsSpecial()) {
+//      strcpy(g->Message, MSG(NO_SPEC_COL));
+//      return TRUE;
+//    } else {
       len += (strlen(colp->GetName()) + 4);
       ((PMYCOL)colp)->Rank = Nparm++;
     } // endif colp

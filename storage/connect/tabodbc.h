@@ -71,10 +71,11 @@ class TDBODBC : public TDBASE {
   // Methods
   virtual PTDB CopyOne(PTABS t);
   virtual int  GetRecpos(void);
-  virtual PSZ   GetFile(PGLOBAL g);
+  virtual PSZ  GetFile(PGLOBAL g);
   virtual void SetFile(PGLOBAL g, PSZ fn);
   virtual void ResetSize(void);
   virtual int  GetAffectedRows(void) {return AftRows;}
+  virtual PSZ  GetServer(void) {return "ODBC";}
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);

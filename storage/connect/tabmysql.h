@@ -49,6 +49,7 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   PSZ     Srcdef;             /* The source table SQL definition       */
   PSZ     Username;           /* User logon name                       */
   PSZ     Password;           /* Password logon info                   */
+  PSZ     Server;             /* PServerID                             */
   int     Portnumber;         /* MySQL port number (0 = default)       */
   bool    Isview;             /* TRUE if this table is a MySQL view    */
   bool    Bind;               /* Use prepared statement on insert      */
@@ -77,6 +78,7 @@ class TDBMYSQL : public TDBASE {
   virtual void ResetDB(void) {N = 0;}
   virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
   virtual bool IsView(void) {return Isview;}
+  virtual PSZ  GetServer(void) {return Server;}
           void SetDatabase(LPCSTR db) {Database = (char*)db;}
 
   // Database routines
@@ -110,6 +112,7 @@ class TDBMYSQL : public TDBASE {
   char       *Database;       // Database to be used by server
   char       *Tabname;        // External table name
   char       *Srcdef;         // The source table SQL definition
+  char       *Server;         // The server ID
   char       *Query;          // Points to SQL query
   char       *Qbuf;           // Used for not prepared insert
   bool        Fetched;        // True when fetch was done

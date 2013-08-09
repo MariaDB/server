@@ -380,7 +380,8 @@ int TDBTBL::GetMaxSize(PGLOBAL g)
 void TDBTBL::ResetDB(void)
   {
   for (PCOL colp = Columns; colp; colp = colp->GetNext())
-    if (colp->GetAmType() == TYPE_AM_TABID)
+    if (colp->GetAmType() == TYPE_AM_TABID ||
+        colp->GetAmType() == TYPE_AM_SRVID)
       colp->COLBLK::Reset();
 
   for (PTABLE tabp = Tablist; tabp; tabp = tabp->GetNext())
@@ -492,7 +493,8 @@ int TDBTBL::ReadDB(PGLOBAL g)
 
         // Check and initialize the subtable columns
         for (PCOL cp = Columns; cp; cp = cp->GetNext())
-          if (cp->GetAmType() == TYPE_AM_TABID)
+          if (cp->GetAmType() == TYPE_AM_TABID ||
+              cp->GetAmType() == TYPE_AM_SRVID)
             cp->COLBLK::Reset();
           else if (((PPRXCOL)cp)->Init(g) && !Accept)
             return RC_FX;

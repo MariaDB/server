@@ -873,11 +873,13 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
   pcf->Flags= 0;
 
   // Now get column information
+  pcf->Name= (char*)fp->field_name;
+
   if (fop && fop->special) {
-    pcf->Name= "*";
+    pcf->Fieldfmt= (char*)fop->special;
+    pcf->Flags= U_SPECIAL;
     return fldp;
-  } else
-    pcf->Name= (char*)fp->field_name;
+    } // endif special
 
   pcf->Prec= 0;
   pcf->Opt= (fop) ? (int)fop->opt : 0;
@@ -983,7 +985,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
   if (fp->comment.str && fp->comment.length) {
     pcf->Remark= (char*)PlugSubAlloc(g, NULL, fp->comment.length + 1);
     memcpy(pcf->Remark, fp->comment.str, fp->comment.length);
-    pcf->Remark[fp->comment.length] = 0;
+    pcf->Remark[fp->comment.length]= 0;
   } else
     pcf->Remark= NULL;
 
@@ -1071,6 +1073,7 @@ const char *ha_connect::GetTableName(void)
   return (tshp) ? tshp->table_name.str : table->s->table_name.str;
 } // end of GetTableName
 
+#if 0
 /****************************************************************************/
 /*  Returns the column real or special name length of a field.              */
 /****************************************************************************/
@@ -1083,7 +1086,7 @@ int ha_connect::GetColNameLen(Field *fp)
   if (fop && fop->special)
     n= strlen(fop->special) + 1;
   else
-    n= strlen(fp->field_name) + 1;
+    n= strlen(fp->field_name);
 
   return n;
 } // end of GetColNameLen
@@ -1113,6 +1116,7 @@ void ha_connect::AddColName(char *cp, Field *fp)
     strcpy(cp, (char*)fp->field_name);
 
 } // end of AddColName
+#endif // 0
 
 /****************************************************************************/
 /*  Get the table description block of a CONNECT table.                     */
@@ -1174,20 +1178,21 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
     char        *p;
     unsigned int k1, k2, n1, n2;
     Field*      *field;
+    Field*       fp;
     MY_BITMAP   *map= table->read_set;
     MY_BITMAP   *ump= (xmod == MODE_UPDATE) ? table->write_set : NULL;
 
     k1= k2= 0;
     n1= n2= 1;         // 1 is space for final null character
 
-    for (field= table->field; *field; field++) {
-      if (bitmap_is_set(map, (*field)->field_index)) {
-        n1+= (GetColNameLen(*field) + 1);
+    for (field= table->field; fp= *field; field++) {
+      if (bitmap_is_set(map, fp->field_index)) {
+        n1+= (strlen(fp->field_name) + 1);
         k1++;
         } // endif
 
-      if (ump && bitmap_is_set(ump, (*field)->field_index)) {
-        n2+= GetColNameLen(*field);
+      if (ump && bitmap_is_set(ump, fp->field_index)) {
+        n2+= (strlen(fp->field_name) + 1);
         k2++;
         } // endif
 
@@ -1196,9 +1201,9 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
     if (k1) {
       p= c1= (char*)PlugSubAlloc(g, NULL, n1);
 
-      for (field= table->field; *field; field++)
-        if (bitmap_is_set(map, (*field)->field_index)) {
-          AddColName(p, *field);
+      for (field= table->field; fp= *field; field++)
+        if (bitmap_is_set(map, fp->field_index)) {
+          strcpy(p, (char*)fp->field_name);
           p+= (strlen(p) + 1);
           } // endif used field
 
@@ -1208,9 +1213,9 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
     if (k2) {
       p= c2= (char*)PlugSubAlloc(g, NULL, n2);
 
-      for (field= table->field; *field; field++)
-        if (bitmap_is_set(ump, (*field)->field_index)) {
-          AddColName(p, *field);
+      for (field= table->field; fp= *field; field++)
+        if (bitmap_is_set(ump, fp->field_index)) {
+          strcpy(p, (char*)fp->field_name);
           p+= (strlen(p) + 1);
           } // endif used field
 
@@ -1309,7 +1314,7 @@ int ha_connect::MakeRecord(char *buf)
     if (bitmap_is_set(map, fp->field_index)) {
       // This is a used field, fill the buffer with value
       for (colp= tdbp->GetColumns(); colp; colp= colp->GetNext())
-        if (!stricmp(colp->GetName(), GetColName(fp)))
+        if (!stricmp(colp->GetName(), (char*)fp->field_name))
           break;
 
       if (!colp) {
@@ -1920,7 +1925,7 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
         push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
         rc= 0;
       } else
-        rc = HA_ERR_INTERNAL_ERROR;
+        rc= HA_ERR_INTERNAL_ERROR;
 
     } // endif's
 
@@ -3235,7 +3240,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   /* We have to retrieve the information about this table options. */
   ha_table_option_struct *pos;
   char         key[MAX_DBKEY_LENGTH], db[128], tabname[128];
-  int          rc = 0;
+  int          rc= 0;
   uint         key_length;
   TABLE_SHARE *share;
   THD         *thd= current_thd;
@@ -3851,7 +3856,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         dsn= (char*)PlugSubAlloc(g, NULL, strlen(dsn) + 1);
         strncpy(dsn, create_info->connect_string.str,
                      create_info->connect_string.length);
-        dsn[create_info->connect_string.length] = 0;
+        dsn[create_info->connect_string.length]= 0;
         mydef->SetName(create_info->alias);
         mydef->SetCat(cat);
 
@@ -3876,7 +3881,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       break;
 #endif   // WIN32
     case TAB_PIVOT:
-      supfnc = FNC_NO;
+      supfnc= FNC_NO;
     case TAB_PRX:
     case TAB_TBL:
     case TAB_XCL:

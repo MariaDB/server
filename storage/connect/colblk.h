@@ -62,7 +62,7 @@ class DllExport COLBLK : public XOBJECT {
   virtual bool    SetFormat(PGLOBAL, FORMAT&);
   virtual int     CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &xp, int &ag);
   virtual bool    IsSpecial(void) {return false;}
-  virtual int      CheckSpcCol(PTDB tdbp, int n) {return 2;}
+  virtual int     CheckSpcCol(PTDB tdbp, int n) {return 2;}
   virtual bool    CheckSort(PTDB tdbp);
   virtual bool    Eval(PGLOBAL g);
   virtual bool    SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
@@ -168,7 +168,7 @@ class TIDBLK : public SPCBLK {
   // Methods
   virtual void Reset(void) {}       // This is a pseudo constant column
   virtual int  CheckSpcCol(PTDB tdbp, int n)
-  {return (n == 3 && tdbp == To_Tdb) ? 1 : 2;}
+              {return (n == 3 && tdbp == To_Tdb) ? 1 : 2;}
   virtual void ReadColumn(PGLOBAL g);
 
  protected:
@@ -178,5 +178,30 @@ class TIDBLK : public SPCBLK {
   // Members
   PSZ  Tname;                       // The current table name
   }; // end of class TIDBLK
+
+/***********************************************************************/
+/*  Class SIDBLK: SERVID special column descriptor.                    */
+/***********************************************************************/
+class SIDBLK : public SPCBLK {
+ public:
+  // Constructor
+  SIDBLK(PCOLUMN cp);
+
+  // Implementation
+  virtual int  GetAmType(void) {return TYPE_AM_SRVID;}
+
+  // Methods
+  virtual void Reset(void) {}       // This is a pseudo constant column
+  virtual int  CheckSpcCol(PTDB tdbp, int n)
+              {return (n == 3 && tdbp == To_Tdb) ? 1 : 2;}
+  virtual void ReadColumn(PGLOBAL g);
+
+ protected:
+  // Default constructor not to be used
+  SIDBLK(void) {}
+
+  // Members
+  PSZ  Sname;                       // The current server name
+  }; // end of class SIDBLK
 
 #endif // __COLBLK__H
