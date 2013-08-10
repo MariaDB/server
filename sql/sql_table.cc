@@ -6093,6 +6093,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   uint *index_add_buffer= NULL;
   uint candidate_key_count= 0;
   bool no_pk;
+  engine_option_value *undo_option_list = NULL;
   ulong explicit_used_fields= 0;
   enum ha_extra_function extra_func= thd->locked_tables_mode
                                        ? HA_EXTRA_NOT_USED
@@ -6500,6 +6501,16 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   if (is_index_maintenance_unique (table, alter_info))
     need_copy_table= ALTER_TABLE_DATA_CHANGED;
 
+
+  // This modifies the options list of table
+  // we need to save the current end of list so we can de-link if 
+  // there is a failure to copy_data_between_tables() (and posibly other cases?)
+  if (table->s->option_list) {
+    engine_option_value *end;
+    for (end= table->s->option_list; end->next; end= end->next) { undo_option_list = end; }
+  }
+  
+  
   if (mysql_prepare_alter_table(thd, table, create_info, alter_info))
     goto err;
   
@@ -6898,6 +6909,10 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                                     order_num, order, &copied, &deleted,
                                     alter_info->keys_onoff,
                                     alter_info->error_if_not_empty);
+                                    
+    if (error && undo_option_list) {
+      undo_option_list->next = NULL; // delink create_options, which will still get freed (which was causing a segfault on subsequent alter)                                    
+    }
   }
   else
   {
