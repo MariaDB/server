@@ -109,11 +109,11 @@ static const char *latchToCode(int latch) {
 
 struct oqgraph_table_option_struct
 {
-  char *table_name;
+  const char *table_name;
 
-  char *origid; // name of the origin id column
-  char *destid; // name of the target id column
-  char *weight; // name of the weight column (optional)
+  const char *origid; // name of the origin id column
+  const char *destid; // name of the target id column
+  const char *weight; // name of the weight column (optional)
 };
 
 #define ha_table_option_struct oqgraph_table_option_struct
