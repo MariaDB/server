@@ -31,6 +31,8 @@ INSERT INTO graph_base(from_id, to_id) VALUES (3,4), (4,3);
 INSERT INTO graph_base(from_id, to_id) VALUES (5,6), (6,5);
 
 select * from graph where latch is null;
+select * from graph where latch is null and origid=1;
+select * from graph where latch is null and destid=2;
 
 DROP TABLE graph_base;
 DROP TABLE graph;
