@@ -21,15 +21,6 @@ INSERT INTO graph_base(from_id, to_id, weight) VALUES (1,2,16), (2,1,16);
 INSERT INTO graph_base(from_id, to_id, weight) VALUES (2,3,256), (3,2,256);
 INSERT INTO graph_base(from_id, to_id, weight) VALUES (3,4,65536), (4,3,65536);
 INSERT INTO graph_base(from_id, to_id, weight) VALUES (2,4,768);
-SELECT * FROM graph WHERE latch is NULL;
-latch	origid	destid	weight	seq	linkid
-NULL	1	2	16	NULL	NULL
-NULL	2	1	16	NULL	NULL
-NULL	2	3	256	NULL	NULL
-NULL	3	2	256	NULL	NULL
-NULL	3	4	65536	NULL	NULL
-NULL	4	3	65536	NULL	NULL
-NULL	2	4	768	NULL	NULL
 SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 1;
 latch	origid	destid	weight	seq	linkid
 dijkstras	1	NULL	784	4	4
