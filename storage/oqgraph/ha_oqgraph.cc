@@ -44,7 +44,7 @@
 #include "my_dbug.h"
 
 // Uncomment this for extra debug, but expect a performance hit in large queries
-#define VERBOSE_DEBUG
+//#define VERBOSE_DEBUG
 #ifdef VERBOSE_DEBUG
 #else
 #undef DBUG_PRINT
