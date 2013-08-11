@@ -905,9 +905,13 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     case MYSQL_TYPE_VAR_STRING:
       pcf->Flags |= U_VAR;
       /* no break */
-    case MYSQL_TYPE_STRING:
-      pcf->Type= TYPE_STRING;
+    default:
+      pcf->Type= MYSQLtoPLG(fp->type());
+      break;
+    } // endswitch SQL type
 
+  switch (pcf->Type) {
+    case TYPE_STRING:
       // Do something for case
       cp= fp->charset()->name;
 
@@ -918,26 +922,10 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
         } // endif ci
 
       break;
-    case MYSQL_TYPE_LONG:
-      pcf->Type= TYPE_INT;
-      break;
-    case MYSQL_TYPE_SHORT:
-      pcf->Type= TYPE_SHORT;
-      break;
-    case MYSQL_TYPE_TINY:
-      pcf->Type= TYPE_TINY;
-      break;
-    case MYSQL_TYPE_DOUBLE:
-    case MYSQL_TYPE_FLOAT:
-      pcf->Type= TYPE_FLOAT;
+    case TYPE_FLOAT:
       pcf->Prec= max(min(fp->decimals(), ((unsigned)pcf->Length - 2)), 0);
       break;
-    case MYSQL_TYPE_DATE:
-    case MYSQL_TYPE_TIME:
-    case MYSQL_TYPE_DATETIME:
-    case MYSQL_TYPE_TIMESTAMP:
-      pcf->Type= TYPE_DATE;
-
+    case TYPE_DATE:
       // Field_length is only used for DATE columns
       if (fop->fldlen)
         pcf->Length= (int)fop->fldlen;
@@ -963,11 +951,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
         } // endelse
 
       break;
-    case MYSQL_TYPE_LONGLONG:
-      pcf->Type= TYPE_BIGINT;
-      break;
     default:
-      pcf->Type=TYPE_ERROR;
       break;
     } // endswitch type
 
