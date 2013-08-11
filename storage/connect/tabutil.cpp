@@ -368,7 +368,11 @@ PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
 #if defined(MYSQL_SUPPORT)
     // Access sub-table via MySQL API
     if (!(tdbp= cat->GetTable(g, tabp, MODE_READ, "MYPRX"))) {
-      sprintf(g->Message, "Cannot access %s.%s", db, name);
+      char buf[MAX_STR];
+
+      strcpy(buf, g->Message);
+      sprintf(g->Message, "Error accessing %s.%s: %s", db, name, buf);
+      hc->tshp = NULL;
       goto err;
       } // endif Define
 
