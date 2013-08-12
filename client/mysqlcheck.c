@@ -32,10 +32,6 @@
 #define EX_USAGE 1
 #define EX_MYSQLERR 2
 
-/* ALTER instead of repair. */
-#define MAX_ALTER_STR_SIZE 128 * 1024
-#define KEY_PARTITIONING_CHANGED_STR "KEY () partitioning changed"
-
 static MYSQL mysql_connection, *sock = 0;
 static my_bool opt_alldbs = 0, opt_check_only_changed = 0, opt_extended = 0,
                opt_compress = 0, opt_databases = 0, opt_fast = 0,
@@ -51,7 +47,7 @@ static char *opt_password = 0, *current_user = 0,
 	    *default_charset= 0, *current_host= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 static int first_error = 0;
-DYNAMIC_ARRAY tables4repair, tables4rebuild, alter_table_cmds;
+DYNAMIC_ARRAY tables4repair, tables4rebuild;
 static char *shared_memory_base_name=0;
 static uint opt_protocol=0;
 
@@ -818,7 +814,6 @@ static void print_result()
   MYSQL_RES *res;
   MYSQL_ROW row;
   char prev[(NAME_LEN+9)*2+2];
-  char prev_alter[MAX_ALTER_STR_SIZE];
   uint i;
   my_bool found_error=0, table_rebuild=0;
   DBUG_ENTER("print_result");
@@ -826,7 +821,6 @@ static void print_result()
   res = mysql_use_result(sock);
 
   prev[0] = '\0';
-  prev_alter[0]= 0;
   for (i = 0; (row = mysql_fetch_row(res)); i++)
   {
     int changed = strcmp(prev, row[0]);
@@ -843,18 +837,12 @@ static void print_result()
 	  strcmp(row[3],"OK"))
       {
         if (table_rebuild)
-        {
-          if (prev_alter[0])
-            insert_dynamic(&alter_table_cmds, (uchar*) prev_alter);
-          else
-            insert_dynamic(&tables4rebuild, (uchar*) prev);
-        }
+          insert_dynamic(&tables4rebuild, (uchar*) prev);
         else
           insert_dynamic(&tables4repair, (uchar*) prev);
       }
       found_error=0;
       table_rebuild=0;
-      prev_alter[0]= 0;
       if (opt_silent)
 	continue;
     }
@@ -871,30 +859,11 @@ static void print_result()
         printf("%-50s %s", row[0], "Needs upgrade");
       else
         printf("%s\n%-9s: %s", row[0], row[2], row[3]);
-      if (opt_auto_repair && strcmp(row[2],"note"))
+      if (strcmp(row[2],"note"))
       {
-        const char *alter_txt= strstr(row[3], "ALTER TABLE");
         found_error=1;
-        if (alter_txt)
-        {
+        if (opt_auto_repair && strstr(row[3], "ALTER TABLE") != NULL)
           table_rebuild=1;
-          if (!strncmp(row[3], KEY_PARTITIONING_CHANGED_STR,
-                       strlen(KEY_PARTITIONING_CHANGED_STR)) &&
-              strstr(alter_txt, "PARTITION BY"))
-          {
-            if (strlen(alter_txt) >= MAX_ALTER_STR_SIZE)
-            {
-              printf("Error: Alter command too long (>= %d),"
-                     " please do \"%s\" or dump/reload to fix it!\n",
-                     MAX_ALTER_STR_SIZE,
-                     alter_txt);
-              table_rebuild= 0;
-              prev_alter[0]= 0;
-            }
-            else
-              strcpy(prev_alter, alter_txt);
-          }
-        }
       }
     }
     else
@@ -906,12 +875,7 @@ static void print_result()
   if (found_error && opt_auto_repair && what_to_do != DO_REPAIR)
   {
     if (table_rebuild)
-    {
-      if (prev_alter[0])
-        insert_dynamic(&alter_table_cmds, (uchar*) prev_alter);
-      else
-        insert_dynamic(&tables4rebuild, (uchar*) prev);
-    }
+      insert_dynamic(&tables4rebuild, (uchar*) prev);
     else
       insert_dynamic(&tables4repair, (uchar*) prev);
   }
@@ -1030,9 +994,7 @@ int main(int argc, char **argv)
       (my_init_dynamic_array(&tables4repair, sizeof(char)*(NAME_LEN*2+2),16,
                              64, MYF(0)) ||
        my_init_dynamic_array(&tables4rebuild, sizeof(char)*(NAME_LEN*2+2),16,
-                             64, MYF(0)) ||
-       my_init_dynamic_array(&alter_table_cmds, MAX_ALTER_STR_SIZE, 0,
-                             1, MYF(0))))
+                             64, MYF(0))))
     goto end;
 
   if (opt_alldbs)
@@ -1057,8 +1019,6 @@ int main(int argc, char **argv)
     }
     for (i = 0; i < tables4rebuild.elements ; i++)
       rebuild_table((char*) dynamic_array_ptr(&tables4rebuild, i));
-    for (i = 0; i < alter_table_cmds.elements ; i++)
-      run_query((char*) dynamic_array_ptr(&alter_table_cmds, i));
   }
   ret= test(first_error);
 

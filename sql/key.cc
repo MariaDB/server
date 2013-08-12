@@ -347,8 +347,8 @@ bool key_cmp_if_same(TABLE *table,const uchar *key,uint idx,uint key_length)
   @param        prefix_key   The field is used as a prefix key.
 */
 
-void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
-                  bool prefix_key)
+static void field_unpack(String *to, Field *field, const uchar *rec,
+                         uint max_length, bool prefix_key)
 {
   String tmp;
   DBUG_ENTER("field_unpack");
