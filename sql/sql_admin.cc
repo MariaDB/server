@@ -132,8 +132,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       DBUG_RETURN(0);
     has_mdl_lock= TRUE;
 
-    share= get_table_share(thd, table_list->db, table_list->table_name,
-                           GTS_TABLE);
+    share= get_table_share_shortlived(thd, table_list, GTS_TABLE);
     if (share == NULL)
       DBUG_RETURN(0);				// Can't open frm file
 

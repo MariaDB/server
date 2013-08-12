@@ -3204,11 +3204,9 @@ void Query_cache::invalidate_table(THD *thd, TABLE_LIST *table_list)
     invalidate_table(thd, table_list->table);	// Table is open
   else
   {
-    char key[MAX_DBKEY_LENGTH];
+    const char *key;
     uint key_length;
-
-    key_length= create_table_def_key(key, table_list->db,
-                                     table_list->table_name);
+    key_length= get_table_def_key(table_list, &key);
 
     // We don't store temporary tables => no key_length+=4 ...
     invalidate_table(thd, (uchar *)key, key_length);
@@ -3321,13 +3319,12 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
     (*block_table)->n= n;
     if (tables_used->view)
     {
-      char key[MAX_DBKEY_LENGTH];
+      const char *key;
       uint key_length;
       DBUG_PRINT("qcache", ("view: %s  db: %s",
                             tables_used->view_name.str,
                             tables_used->view_db.str));
-      key_length= create_table_def_key(key, tables_used->view_db.str,
-                                       tables_used->view_name.str);
+      key_length= get_table_def_key(tables_used, &key);
       /*
         There are not callback function for for VIEWs
       */
@@ -3416,7 +3413,7 @@ my_bool Query_cache::register_all_tables(THD *thd,
 */
 
 my_bool
-Query_cache::insert_table(uint key_len, char *key,
+Query_cache::insert_table(uint key_len, const char *key,
 			  Query_cache_block_table *node,
 			  uint32 db_length, uint8 suffix_length_arg,
                           uint8 cache_type,

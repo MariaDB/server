@@ -4424,8 +4424,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
     goto end;
   }
 
-  share= get_table_share(thd, table_list.db, table_list.table_name,
-                         GTS_TABLE | GTS_VIEW);
+  share= get_table_share_shortlived(thd, &table_list, GTS_TABLE | GTS_VIEW);
   if (!share)
   {
     res= 0;
