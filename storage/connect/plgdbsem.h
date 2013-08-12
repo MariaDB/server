@@ -151,7 +151,8 @@ enum ALGMOD {AMOD_AUTO =  0,          /* PLG chooses best algorithm    */
 #define    NAM_LEN          128
 #endif // !0
 
-enum MODE {MODE_ANY     =  0,         /* Unspecified mode              */
+enum MODE {MODE_ERROR   = -1,         /* Invalid mode                  */
+           MODE_ANY     =  0,         /* Unspecified mode              */
            MODE_READ    = 10,         /* Input/Output mode             */
            MODE_WRITE   = 20,         /* Input/Output mode             */
            MODE_UPDATE  = 30,         /* Input/Output mode             */
