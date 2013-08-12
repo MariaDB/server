@@ -1192,6 +1192,7 @@ public:
     private:
     int handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt, uint flags);
     public:
+
   /*
     -------------------------------------------------------------------------
     Admin commands not supported currently (almost purely MyISAM routines)

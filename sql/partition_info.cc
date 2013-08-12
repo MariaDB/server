@@ -2759,35 +2759,8 @@ int partition_info::fix_parser_data(THD *thd)
   if (!(part_type == RANGE_PARTITION ||
         part_type == LIST_PARTITION))
   {
-    if (part_type == HASH_PARTITION && list_of_part_fields)
-    {
-      /* KEY partitioning, check ALGORITHM = N. Should not pass the parser! */
-      if (key_algorithm > KEY_ALGORITHM_55)
-      {
-        my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
-        DBUG_RETURN(true);
-      }
-      /* If not set, use DEFAULT = 2 for CREATE and ALTER! */
-      if ((thd_sql_command(thd) == SQLCOM_CREATE_TABLE ||
-           thd_sql_command(thd) == SQLCOM_ALTER_TABLE) &&
-          key_algorithm == KEY_ALGORITHM_NONE)
-        key_algorithm= KEY_ALGORITHM_55;
-    }
+    /* Nothing to do for HASH/KEY partitioning */
     DBUG_RETURN(FALSE);
-  }
-  if (is_sub_partitioned() && list_of_subpart_fields)
-  {
-    /* KEY subpartitioning, check ALGORITHM = N. Should not pass the parser! */
-    if (key_algorithm > KEY_ALGORITHM_55)
-    {
-      my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
-      DBUG_RETURN(true);
-    }
-    /* If not set, use DEFAULT = 2 for CREATE and ALTER! */
-    if ((thd_sql_command(thd) == SQLCOM_CREATE_TABLE ||
-         thd_sql_command(thd) == SQLCOM_ALTER_TABLE) &&
-        key_algorithm == KEY_ALGORITHM_NONE)
-      key_algorithm= KEY_ALGORITHM_55;
   }
   do
   {

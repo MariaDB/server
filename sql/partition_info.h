@@ -210,19 +210,6 @@ public:
     but mainly of use to handlers supporting partitioning.
   */
   uint16 linear_hash_mask;
-  /*
-    PARTITION BY KEY ALGORITHM=N
-    Which algorithm to use for hashing the fields.
-    N = 1 - Use 5.1 hashing (numeric fields are hashed as binary)
-    N = 2 - Use 5.5 hashing (numeric fields are hashed like latin1 bytes)
-  */
-  enum enum_key_algorithm
-    {
-      KEY_ALGORITHM_NONE= 0,
-      KEY_ALGORITHM_51= 1,
-      KEY_ALGORITHM_55= 2
-    };
-  enum_key_algorithm key_algorithm;
 
   bool use_default_partitions;
   bool use_default_num_partitions;
@@ -273,7 +260,6 @@ public:
     count_curr_subparts(0), part_error_code(0),
     num_list_values(0), num_part_fields(0), num_subpart_fields(0),
     num_full_part_fields(0), has_null_part_id(0), linear_hash_mask(0),
-    key_algorithm(KEY_ALGORITHM_NONE),
     use_default_partitions(TRUE), use_default_num_partitions(TRUE),
     use_default_subpartitions(TRUE), use_default_num_subpartitions(TRUE),
     default_partitions_setup(FALSE), defined_max_value(FALSE),
