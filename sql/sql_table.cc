@@ -7456,28 +7456,9 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
     if (lock_tables(thd, table_list, alter_ctx->tables_opened, 0))
       DBUG_RETURN(true);
 
-    if (keys_onoff == Alter_info::ENABLE)
-    {
-      DEBUG_SYNC(thd,"alter_table_enable_indexes");
-      DBUG_EXECUTE_IF("sleep_alter_enable_indexes", my_sleep(6000000););
-      error= table->file->ha_enable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
-    }
-    else if (keys_onoff == Alter_info::DISABLE)
-      error=table->file->ha_disable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
-
-    if (error == HA_ERR_WRONG_COMMAND)
-    {
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_ILLEGAL_HA, ER(ER_ILLEGAL_HA),
-                          table->file->table_type(),
-                          table->s->db.str, table->s->table_name.str);
-      error= 0;
-    }
-    else if (error > 0)
-    {
-      table->file->print_error(error, MYF(0));
-      error= -1;
-    }
+    error= alter_table_manage_keys(table,
+                                   table->file->indexes_are_disabled(),
+                                   keys_onoff);
   }
 
   if (!error && alter_ctx->is_table_renamed())
@@ -8307,7 +8288,6 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
         wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
       goto err_new_table_cleanup;
     THD_STAGE_INFO(thd, stage_manage_keys);
-    DEBUG_SYNC(thd, "alter_table_manage_keys");
     alter_table_manage_keys(table, table->file->indexes_are_disabled(),
                             alter_info->keys_onoff);
     if (trans_commit_stmt(thd) || trans_commit_implicit(thd))
