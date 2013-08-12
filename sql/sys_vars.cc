@@ -1449,11 +1449,8 @@ Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, LEX_STRING *base)
   char *p;
 
   if (!rpl_global_gtid_slave_state.loaded)
-  {
-    my_error(ER_CANNOT_LOAD_SLAVE_GTID_STATE, MYF(0), "mysql",
-             rpl_gtid_slave_state_table_name.str);
     return NULL;
-  }
+
   str.length(0);
   if ((opt_bin_log && mysql_bin_log.append_state_pos(&str)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
@@ -1567,11 +1564,7 @@ Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, LEX_STRING *base)
   char *p;
 
   if (!rpl_global_gtid_slave_state.loaded)
-  {
-    my_error(ER_CANNOT_LOAD_SLAVE_GTID_STATE, MYF(0), "mysql",
-             rpl_gtid_slave_state_table_name.str);
     return NULL;
-  }
 
   str.length(0);
   if (rpl_append_gtid_state(&str, false) ||
