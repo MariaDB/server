@@ -61,7 +61,6 @@ enum find_item_error_report_type {REPORT_ALL_ERRORS, REPORT_EXCEPT_NOT_FOUND,
 
 enum enum_tdc_remove_table_type {TDC_RT_REMOVE_ALL, TDC_RT_REMOVE_NOT_OWN,
                                  TDC_RT_REMOVE_UNUSED,
-                                 TDC_RT_REMOVE_NOT_OWN_AND_MARK_NOT_USABLE,
                                  TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE};
 
 /* bits for last argument to remove_table_from_cache() */
@@ -187,7 +186,6 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
 */
 #define MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK         0x1000
 #define MYSQL_LOCK_NOT_TEMPORARY		0x2000
-#define MYSQL_OPEN_FOR_REPAIR                   0x4000
 /**
   Only check THD::killed if waits happen (e.g. wait on MDL, wait on
   table flush, wait on thr_lock.c locks) while opening and locking table.
@@ -297,9 +295,7 @@ bool setup_tables_and_check_access(THD *thd,
                                    ulong want_access,
                                    bool full_table_list);
 bool wait_while_table_is_used(THD *thd, TABLE *table,
-                              enum ha_extra_function function,
-                              enum_tdc_remove_table_type remove_type=
-                              TDC_RT_REMOVE_NOT_OWN);
+                              enum ha_extra_function function);
 
 void drop_open_table(THD *thd, TABLE *table, const char *db_name,
                      const char *table_name);
