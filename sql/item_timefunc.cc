@@ -2429,7 +2429,7 @@ bool Item_time_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
 bool Item_date_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
-  fuzzy_date |= sql_mode_for_dates();
+  fuzzy_date |= sql_mode_for_dates(current_thd);
   if (get_arg0_date(ltime, fuzzy_date & ~TIME_TIME_ONLY))
     return 1;
 
@@ -2442,7 +2442,7 @@ bool Item_date_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
 bool Item_datetime_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
-  fuzzy_date |= sql_mode_for_dates();
+  fuzzy_date |= sql_mode_for_dates(current_thd);
   if (get_arg0_date(ltime, fuzzy_date & ~TIME_TIME_ONLY))
     return 1;
 
@@ -3111,7 +3111,7 @@ bool Item_func_str_to_date::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   date_time_format.format.length= format->length();
   if (extract_date_time(&date_time_format, val->ptr(), val->length(),
 			ltime, cached_timestamp_type, 0, "datetime",
-                        fuzzy_date | sql_mode_for_dates()))
+                        fuzzy_date | sql_mode_for_dates(current_thd)))
     return (null_value=1);
   if (cached_timestamp_type == MYSQL_TIMESTAMP_TIME && ltime->day)
   {

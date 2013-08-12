@@ -297,7 +297,7 @@ String *Item::val_string_from_decimal(String *str)
 String *Item::val_string_from_date(String *str)
 {
   MYSQL_TIME ltime;
-  if (get_date(&ltime, sql_mode_for_dates()) ||
+  if (get_date(&ltime, sql_mode_for_dates(current_thd)) ||
       str->alloc(MAX_DATE_STRING_REP_LENGTH))
   {
     null_value= 1;
@@ -354,7 +354,7 @@ my_decimal *Item::val_decimal_from_date(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
-  if (get_date(&ltime, sql_mode_for_dates()))
+  if (get_date(&ltime, sql_mode_for_dates(current_thd)))
   {
     my_decimal_set_zero(decimal_value);
     null_value= 1;                               // set NULL, stop processing
@@ -434,9 +434,7 @@ int Item::save_time_in_field(Field *field)
 int Item::save_date_in_field(Field *field)
 {
   MYSQL_TIME ltime;
-  if (get_date(&ltime, (current_thd->variables.sql_mode &
-                        (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE |
-                         MODE_INVALID_DATES))))
+  if (get_date(&ltime, sql_mode_for_dates(current_thd)))
     return set_field_to_null_with_conversions(field, 0);
   field->set_notnull();
   return field->store_time_dec(&ltime, decimals);
@@ -6487,7 +6485,7 @@ bool Item::send(Protocol *protocol, String *buffer)
   case MYSQL_TYPE_TIMESTAMP:
   {
     MYSQL_TIME tm;
-    get_date(&tm, sql_mode_for_dates());
+    get_date(&tm, sql_mode_for_dates(current_thd));
     if (!null_value)
     {
       if (f_type == MYSQL_TYPE_DATE)
