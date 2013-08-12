@@ -5159,9 +5159,7 @@ int Field_temporal_with_date::store(const char *from, uint len, CHARSET_INFO *cs
   THD *thd= get_thd();
   ErrConvString str(from, len, cs);
   bool func_res= !str_to_datetime(cs, from, len, &ltime,
-                                  (thd->variables.sql_mode &
-                                   (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE |
-                                   MODE_INVALID_DATES)),
+                                  sql_mode_for_dates(thd),
                                   &status);
   return store_TIME_with_warning(&ltime, &str, status.warnings, func_res);
 }
@@ -5175,10 +5173,7 @@ int Field_temporal_with_date::store(double nr)
   ErrConvDouble str(nr);
 
   longlong tmp= double_to_datetime(nr, &ltime,
-                                    (thd->variables.sql_mode &
-                                        (MODE_NO_ZERO_IN_DATE |
-                                         MODE_NO_ZERO_DATE |
-                                         MODE_INVALID_DATES)), &error);
+                                    sql_mode_for_dates(thd), &error);
   return store_TIME_with_warning(&ltime, &str, error, tmp != -1);
 }
 
@@ -5191,10 +5186,7 @@ int Field_temporal_with_date::store(longlong nr, bool unsigned_val)
   THD *thd= get_thd();
   ErrConvInteger str(nr);
 
-  tmp= number_to_datetime(nr, 0, &ltime, (thd->variables.sql_mode &
-                                       (MODE_NO_ZERO_IN_DATE |
-                                        MODE_NO_ZERO_DATE |
-                                        MODE_INVALID_DATES)), &error);
+  tmp= number_to_datetime(nr, 0, &ltime, sql_mode_for_dates(thd), &error);
 
   return store_TIME_with_warning(&ltime, &str, error, tmp != -1);
 }
@@ -5210,9 +5202,7 @@ int Field_temporal_with_date::store_time_dec(MYSQL_TIME *ltime, uint dec)
     structure always fit into DATETIME range.
   */
   have_smth_to_conv= !check_date(&l_time, pack_time(&l_time) != 0,
-                                 (current_thd->variables.sql_mode &
-                                   (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE |
-                                    MODE_INVALID_DATES)), &error);
+                                 sql_mode_for_dates(current_thd), &error);
   return store_TIME_with_warning(&l_time, &str, error, have_smth_to_conv);
 }
 
@@ -5278,10 +5268,7 @@ int Field_time::store(const char *from,uint len,CHARSET_INFO *cs)
   MYSQL_TIME_STATUS status;
   ErrConvString str(from, len, cs);
   bool have_smth_to_conv= 
-   !str_to_time(cs, from, len, &ltime,
-                get_thd()->variables.sql_mode &
-                (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE |
-                 MODE_INVALID_DATES),
+   !str_to_time(cs, from, len, &ltime, sql_mode_for_dates(get_thd()),
                 &status);
 
   return store_TIME_with_warning(&ltime, &str,
@@ -6057,10 +6044,8 @@ int Field_temporal_with_date::store_decimal(const my_decimal *d)
     error= 2;
   }
   else
-    tmp= number_to_datetime(nr, sec_part, &ltime, (thd->variables.sql_mode &
-                                           (MODE_NO_ZERO_IN_DATE |
-                                            MODE_NO_ZERO_DATE |
-                                            MODE_INVALID_DATES)), &error);
+    tmp= number_to_datetime(nr, sec_part, &ltime, sql_mode_for_dates(thd),
+                            &error);
 
   return store_TIME_with_warning(&ltime, &str, error, tmp != -1);
 }

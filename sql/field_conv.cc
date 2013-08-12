@@ -840,8 +840,7 @@ int field_conv(Field *to,Field *from)
         (to->real_type() != MYSQL_TYPE_NEWDECIMAL ||
          to->field_length == from->field_length) &&
         from->charset() == to->charset() &&
-        (!(to->table->in_use->variables.sql_mode &
-           (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE | MODE_INVALID_DATES)) ||
+        (!sql_mode_for_dates(to->table->in_use) ||
          (to->type() != MYSQL_TYPE_DATE &&
           to->type() != MYSQL_TYPE_DATETIME)) &&
         (from->real_type() != MYSQL_TYPE_VARCHAR ||

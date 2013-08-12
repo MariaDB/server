@@ -2884,8 +2884,6 @@ public:
 
 class Item_temporal_literal :public Item_basic_constant
 {
-    //sql_mode= current_thd->variables.sql_mode &
-    //               (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
 protected:
   MYSQL_TIME cached_time;
 public:

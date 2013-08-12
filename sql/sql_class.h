@@ -3494,25 +3494,10 @@ my_eof(THD *thd)
 #define reenable_binlog(A)   (A)->variables.option_bits= tmp_disable_binlog__save_options;}
 
 
-/*
-  These functions are for making it later easy to add strict
-  checking for all date handling.
-*/
-
-const my_bool strict_date_checking= 1;
-
 inline sql_mode_t sql_mode_for_dates(THD *thd)
 {
-  if (strict_date_checking)
-    return (thd->variables.sql_mode &
-            (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE |
-             MODE_INVALID_DATES));
-  return (thd->variables.sql_mode & MODE_INVALID_DATES);
-}
-
-inline sql_mode_t sql_mode_for_dates()
-{
-  return sql_mode_for_dates(current_thd);
+  return thd->variables.sql_mode &
+          (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE | MODE_INVALID_DATES);
 }
 
 /*
