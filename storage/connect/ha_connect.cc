@@ -497,6 +497,7 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   creat_query_id= (table && table->in_use) ? table->in_use->query_id : 0;
   stop= false;
   indexing= -1;
+  locked= 0;
   data_file_name= NULL;
   index_file_name= NULL;
   enable_activate_all_index= 0;
@@ -1865,7 +1866,7 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
   DBUG_ENTER("ha_connect::open");
 
   if (xtrace)
-     printf("open: name=%s mode=%d test=%ud\n", name, mode, test_if_locked);
+     printf("open: name=%s mode=%d test=%u\n", name, mode, test_if_locked);
 
   if (!(share= get_share(name, table)))
     DBUG_RETURN(1);
@@ -1983,8 +1984,11 @@ int ha_connect::write_row(uchar *buf)
   PGLOBAL& g= xp->g;
   DBUG_ENTER("ha_connect::write_row");
 
-  // Open the table if it was not opened yet (possible ???)
-  if (!IsOpened())
+  // Open the table if it was not opened yet (locked)
+  if (!IsOpened() || xmod != tdbp->GetMode()) {
+    if (IsOpened())
+      CloseTable(g);
+
     if (OpenTable(g)) {
       if (strstr(g->Message, "read only"))
         rc= HA_ERR_TABLE_READONLY;
@@ -1993,6 +1997,8 @@ int ha_connect::write_row(uchar *buf)
 
       DBUG_RETURN(rc);
       } // endif tdbp
+
+    } // endif isopened
 
   if (tdbp->GetMode() == MODE_ANY)
     DBUG_RETURN(0);
@@ -2111,6 +2117,13 @@ int ha_connect::index_init(uint idx, bool sorted)
 
   if ((rc= rnd_init(0)))
     return rc;
+
+  if (locked == 2) {
+    // Indexes are not updated in lock write mode
+    active_index= MAX_KEY;
+    indexing= 0;
+    DBUG_RETURN(0);
+    } // endif locked
 
   indexing= CntIndexInit(g, tdbp, (signed)idx);
 
@@ -2356,16 +2369,15 @@ int ha_connect::rnd_init(bool scan)
     printf("%p in rnd_init: scan=%d\n", this, scan);
 
   if (g) {
-    // Open the table if it was not opened yet (possible ???)
-    if (!IsOpened()) {
-      if (!table || xmod == MODE_INSERT)
-        DBUG_RETURN(HA_ERR_INITIALIZATION);
+    if (!table || xmod == MODE_INSERT)
+      DBUG_RETURN(HA_ERR_INITIALIZATION);
 
-      if (OpenTable(g, xmod == MODE_DELETE))
-        DBUG_RETURN(HA_ERR_INITIALIZATION);
+    // Close the table if it was opened yet (locked?)
+    if (IsOpened())
+      CloseTable(g);
 
-    } else
-      void(CntRewindTable(g, tdbp));      // Read from beginning
+    if (OpenTable(g, xmod == MODE_DELETE))
+      DBUG_RETURN(HA_ERR_INITIALIZATION);
 
     } // endif g
 
@@ -2780,6 +2792,153 @@ bool ha_connect::IsSameIndex(PIXDEF xp1, PIXDEF xp2)
   return b;
 } // end of IsSameIndex
 
+MODE ha_connect::CheckMode(PGLOBAL g, THD *thd, 
+                           MODE newmode, bool *chk, bool *cras)
+{
+  if (xtrace) {
+    LEX_STRING *query_string= thd_query_string(thd);
+    printf("%p check_mode: cmdtype=%d\n", this, thd_sql_command(thd));
+    printf("Cmd=%.*s\n", (int) query_string->length, query_string->str);
+    } // endif xtrace
+
+  // Next code is temporarily replaced until sql_command is set
+  stop= false;
+
+  if (newmode == MODE_WRITE) {
+    switch (thd_sql_command(thd)) {
+      case SQLCOM_LOCK_TABLES:
+        locked= 2;
+      case SQLCOM_CREATE_TABLE:
+      case SQLCOM_INSERT:
+      case SQLCOM_LOAD:
+      case SQLCOM_INSERT_SELECT:
+        newmode= MODE_INSERT;
+        break;
+//    case SQLCOM_REPLACE:
+//    case SQLCOM_REPLACE_SELECT:
+//      newmode= MODE_UPDATE;               // To be checked
+//      break;
+      case SQLCOM_DELETE:
+      case SQLCOM_DELETE_MULTI:
+      case SQLCOM_TRUNCATE:
+        newmode= MODE_DELETE;
+        break;
+      case SQLCOM_UPDATE:
+      case SQLCOM_UPDATE_MULTI:
+        newmode= MODE_UPDATE;
+        break;
+      case SQLCOM_SELECT:
+      case SQLCOM_OPTIMIZE:
+        newmode= MODE_READ;
+        break;
+      case SQLCOM_DROP_TABLE:
+      case SQLCOM_RENAME_TABLE:
+      case SQLCOM_ALTER_TABLE:
+        newmode= MODE_ANY;
+        break;
+      case SQLCOM_DROP_INDEX:
+      case SQLCOM_CREATE_INDEX:
+        newmode= MODE_ANY;
+//      stop= true;
+        break;
+      case SQLCOM_CREATE_VIEW:
+      case SQLCOM_DROP_VIEW:
+        newmode= MODE_ANY;
+        break;
+      default:
+        printf("Unsupported sql_command=%d", thd_sql_command(thd));
+        strcpy(g->Message, "CONNECT Unsupported command");
+        my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
+        newmode= MODE_ERROR;
+        break;
+      } // endswitch newmode
+
+  } else if (newmode == MODE_READ) {
+    switch (thd_sql_command(thd)) {
+      case SQLCOM_CREATE_TABLE:
+        *chk= true;
+        *cras= true;
+      case SQLCOM_INSERT:
+      case SQLCOM_LOAD:
+      case SQLCOM_INSERT_SELECT:
+//    case SQLCOM_REPLACE:
+//    case SQLCOM_REPLACE_SELECT:
+      case SQLCOM_DELETE:
+      case SQLCOM_DELETE_MULTI:
+      case SQLCOM_TRUNCATE:
+      case SQLCOM_UPDATE:
+      case SQLCOM_UPDATE_MULTI:
+      case SQLCOM_SELECT:
+      case SQLCOM_OPTIMIZE:
+        break;
+      case SQLCOM_LOCK_TABLES:
+        locked= 1;
+        break;
+      case SQLCOM_DROP_INDEX:
+      case SQLCOM_CREATE_INDEX:
+      case SQLCOM_ALTER_TABLE:
+        *chk= true;
+//      stop= true;
+      case SQLCOM_DROP_TABLE:
+      case SQLCOM_RENAME_TABLE:
+        newmode= MODE_ANY;
+        break;
+      case SQLCOM_CREATE_VIEW:
+      case SQLCOM_DROP_VIEW:
+        newmode= MODE_ANY;
+        break;
+      default:
+        printf("Unsupported sql_command=%d", thd_sql_command(thd));
+        strcpy(g->Message, "CONNECT Unsupported command");
+        my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
+        newmode= MODE_ERROR;
+        break;
+      } // endswitch newmode
+
+  } // endif's newmode
+
+  if (xtrace)
+    printf("New mode=%d\n", newmode);
+
+  return newmode;
+} // end of check_mode
+
+int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
+{
+  int     rc= 0;
+  bool    chk=false, cras= false;
+  MODE    newmode;
+  PGLOBAL g= GetPlug(thd, xp);
+  DBUG_ENTER("ha_connect::start_stmt");
+
+  // Action will depend on lock_type
+  switch (lock_type) {
+    case TL_WRITE_ALLOW_WRITE:
+    case TL_WRITE_CONCURRENT_INSERT:
+    case TL_WRITE_DELAYED:
+    case TL_WRITE_DEFAULT:
+    case TL_WRITE_LOW_PRIORITY:
+    case TL_WRITE:
+    case TL_WRITE_ONLY:
+      newmode= MODE_WRITE;
+      break;
+    case TL_READ:
+    case TL_READ_WITH_SHARED_LOCKS:
+    case TL_READ_HIGH_PRIORITY:
+    case TL_READ_NO_INSERT:
+    case TL_READ_DEFAULT:
+      newmode= MODE_READ;
+      break;
+    case TL_UNLOCK:
+    default:
+      newmode= MODE_ANY;
+      break;
+    } // endswitch mode
+
+  xmod= CheckMode(g, thd, newmode, &chk, &cras);
+  DBUG_RETURN((xmod == MODE_ERROR) ? HA_ERR_INTERNAL_ERROR : 0);
+} // end of start_stmt
+
 /**
   @brief
   This create a lock on the table. If you are implementing a storage engine
@@ -2841,7 +3000,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
   if (newmode == MODE_ANY) {
     // This is unlocking, do it by closing the table
-    if (xp->CheckQueryID())
+    if (xp->CheckQueryID() && thd_sql_command(thd) != SQLCOM_UNLOCK_TABLES
+                           && thd_sql_command(thd) != SQLCOM_LOCK_TABLES)
       rc= 2;          // Logical error ???
     else if (g->Xchk) {
       if (!tdbp || *tdbp->GetName() == '#') {
@@ -2939,109 +3099,15 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 //#endif  // !DEBUG
       } // endif Close
 
+    locked= 0;
     DBUG_RETURN(rc);
     } // endif MODE_ANY
 
-  if (xtrace) {
-    LEX_STRING *query_string= thd_query_string(thd);
-    printf("%p external_lock: cmdtype=%d\n", this, thd_sql_command(thd));
-    printf("Cmd=%.*s\n", (int) query_string->length, query_string->str);
-    } // endif xtrace
+  // Table mode depends on the query type
+  newmode= CheckMode(g, thd, newmode, &xcheck, &cras);
 
-  // Next code is temporarily replaced until sql_command is set
-  stop= false;
-
-  if (newmode == MODE_WRITE) {
-    switch (thd_sql_command(thd)) {
-      case SQLCOM_CREATE_TABLE:
-      case SQLCOM_INSERT:
-      case SQLCOM_LOAD:
-      case SQLCOM_INSERT_SELECT:
-        newmode= MODE_INSERT;
-        break;
-//    case SQLCOM_REPLACE:
-//    case SQLCOM_REPLACE_SELECT:
-//      newmode= MODE_UPDATE;               // To be checked
-//      break;
-      case SQLCOM_DELETE:
-      case SQLCOM_DELETE_MULTI:
-      case SQLCOM_TRUNCATE:
-        newmode= MODE_DELETE;
-        break;
-      case SQLCOM_UPDATE:
-      case SQLCOM_UPDATE_MULTI:
-        newmode= MODE_UPDATE;
-        break;
-      case SQLCOM_SELECT:
-      case SQLCOM_OPTIMIZE:
-        newmode= MODE_READ;
-        break;
-      case SQLCOM_DROP_TABLE:
-      case SQLCOM_RENAME_TABLE:
-      case SQLCOM_ALTER_TABLE:
-        newmode= MODE_ANY;
-        break;
-      case SQLCOM_DROP_INDEX:
-      case SQLCOM_CREATE_INDEX:
-        newmode= MODE_ANY;
-//      stop= true;
-        break;
-      case SQLCOM_CREATE_VIEW:
-      case SQLCOM_DROP_VIEW:
-        newmode= MODE_ANY;
-        break;
-      default:
-        printf("Unsupported sql_command=%d", thd_sql_command(thd));
-        strcpy(g->Message, "CONNECT Unsupported command");
-        my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
-        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
-        break;
-      } // endswitch newmode
-
-  } else if (newmode == MODE_READ) {
-    switch (thd_sql_command(thd)) {
-      case SQLCOM_CREATE_TABLE:
-        xcheck= true;
-        cras= true;
-      case SQLCOM_INSERT:
-      case SQLCOM_LOAD:
-      case SQLCOM_INSERT_SELECT:
-//    case SQLCOM_REPLACE:
-//    case SQLCOM_REPLACE_SELECT:
-      case SQLCOM_DELETE:
-      case SQLCOM_DELETE_MULTI:
-      case SQLCOM_TRUNCATE:
-      case SQLCOM_UPDATE:
-      case SQLCOM_UPDATE_MULTI:
-      case SQLCOM_SELECT:
-      case SQLCOM_OPTIMIZE:
-        break;
-      case SQLCOM_DROP_INDEX:
-      case SQLCOM_CREATE_INDEX:
-      case SQLCOM_ALTER_TABLE:
-        xcheck= true;
-//      stop= true;
-      case SQLCOM_DROP_TABLE:
-      case SQLCOM_RENAME_TABLE:
-        newmode= MODE_ANY;
-        break;
-      case SQLCOM_CREATE_VIEW:
-      case SQLCOM_DROP_VIEW:
-        newmode= MODE_ANY;
-        break;
-      default:
-        printf("Unsupported sql_command=%d", thd_sql_command(thd));
-        strcpy(g->Message, "CONNECT Unsupported command");
-        my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
-        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
-        break;
-      } // endswitch newmode
-
-  } // endif's newmode
-
-
-  if (xtrace)
-    printf("New mode=%d\n", newmode);
+  if (newmode == MODE_ERROR)
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   // If this is the start of a new query, cleanup the previous one
   if (xp->CheckCleanup()) {

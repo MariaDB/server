@@ -406,6 +406,7 @@ const char *GetValStr(OPVAL vop, bool neg);
   void position(const uchar *record);                           ///< required
   int info(uint);                                               ///< required
   int extra(enum ha_extra_function operation);
+  int start_stmt(THD *thd, thr_lock_type lock_type);
   int external_lock(THD *thd, int lock_type);                   ///< required
   int delete_all_rows(void);
   ha_rows records_in_range(uint inx, key_range *min_key,
@@ -435,6 +436,7 @@ const char *GetValStr(OPVAL vop, bool neg);
 
 protected:
   bool check_privileges(THD *thd, PTOS options);
+  MODE CheckMode(PGLOBAL g, THD *thd, MODE newmode, bool *chk, bool *cras);
 
   // Members
   static ulong  num;                  // Tracable handler number
@@ -452,6 +454,7 @@ protected:
   bool          valid_info;           // True if xinfo is valid
   bool          stop;                 // Used when creating index
   int           indexing;             // Type of indexing for CONNECT
+  int           locked;               // Table lock
   THR_LOCK_DATA lock_data;
 
 public:

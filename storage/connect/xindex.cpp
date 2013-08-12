@@ -1832,8 +1832,9 @@ int XINDXS::Range(PGLOBAL g, int limit, bool incl)
   /*********************************************************************/
   if (xp->GetType() == TYPE_CONST) {
     kp->Valp->SetValue_pval(xp->GetValue(), !kp->Prefix);
+    k = FastFind(Nval);
 
-    if ((k = FastFind(Nval)) < Num_K)
+    if (k < Num_K || Op != OP_EQ)
       if (limit)
         n = (Mul) ? k : kp->Val_K;
       else 
