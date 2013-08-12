@@ -262,11 +262,6 @@ enum enum_alter_inplace_result {
 #define HA_CAN_EXPORT                 (1LL << 46)
 
 /*
-  The handler don't want accesses to this table to 
-  be const-table optimized
-*/
-#define HA_BLOCK_CONST_TABLE          (1LL << 47)
-/*
   Set of all binlog flags. Currently only contain the capabilities
   flags.
  */
