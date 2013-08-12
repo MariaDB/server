@@ -248,14 +248,6 @@ enum enum_alter_inplace_result {
 #define HA_CAN_FULLTEXT_EXT              (1LL << 44)
 
 /*
-  Storage engine doesn't synchronize result set with expected table contents.
-  Used by replication slave to check if it is possible to retrieve rows from
-  the table when deciding whether to do a full table scan, index scan or hash
-  scan while applying a row event.
- */
-#define HA_READ_OUT_OF_SYNC              (1LL << 45)
-
-/*
   Set of all binlog flags. Currently only contain the capabilities
   flags.
  */
