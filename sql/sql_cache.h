@@ -491,7 +491,7 @@ protected:
               const char *packet,
               ulong length,
               unsigned pkt_nr);
-  my_bool insert_table(uint key_len, char *key,
+  my_bool insert_table(uint key_len, const char *key,
 		       Query_cache_block_table *node,
 		       uint32 db_length, uint8 suffix_length_arg,
                        uint8 cache_type,

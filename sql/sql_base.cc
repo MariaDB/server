@@ -3859,8 +3859,7 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
   if (!(entry= (TABLE*)my_malloc(sizeof(TABLE), MYF(MY_WME))))
     return result;
 
-  if (!(share= get_table_share(thd, table_list->db, table_list->table_name,
-                               GTS_TABLE)))
+  if (!(share= get_table_share_shortlived(thd, table_list, GTS_TABLE)))
     goto end_free;
 
   DBUG_ASSERT(! share->is_view);

@@ -136,6 +136,17 @@ static inline TABLE_SHARE *get_table_share(THD *thd, const char *db,
   return get_table_share(thd, db, table_name, key, key_length, flags);
 }
 
+// convenience helper: call get_table_share() reusing the MDL cache key.
+// NOTE: lifetime of the returned TABLE_SHARE is limited by the
+// lifetime of the TABLE_LIST object!!!
+static inline TABLE_SHARE *get_table_share_shortlived(THD *thd, TABLE_LIST *tl,
+                                                      uint flags)
+{
+  const char *key;
+  uint        key_length= get_table_def_key(tl, &key);
+  return get_table_share(thd, tl->db, tl->table_name, key, key_length, flags);
+}
+
 TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
                    uint lock_flags);
 
@@ -365,9 +376,8 @@ static inline bool tdc_open_view(THD *thd, TABLE_LIST *table_list,
                                  const char *alias, MEM_ROOT *mem_root,
                                  uint flags)
 {
-  char key[MAX_DBKEY_LENGTH];
-  uint key_length;
-  key_length= create_table_def_key(key, table_list->db, table_list->table_name);
+  const char *key;
+  uint key_length= get_table_def_key(table_list, &key);
   return tdc_open_view(thd, table_list, alias, key, key_length, mem_root, flags);
 }
 
