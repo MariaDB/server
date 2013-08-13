@@ -60,9 +60,7 @@ component, i.e. we show M.N.P as M.N */
 	IB_TO_STR(INNODB_VERSION_MINOR) "."	\
 	IB_TO_STR(INNODB_VERSION_BUGFIX)
 
-#define REFMAN "http://dev.mysql.com/doc/refman/"	\
-	IB_TO_STR(MYSQL_VERSION_MAJOR) "."		\
-	IB_TO_STR(MYSQL_VERSION_MINOR) "/en/"
+#define REFMAN "http://dev.mysql.com/doc/refman/5.6/en/"
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 /* In the dynamic plugin, redefine some externally visible symbols
