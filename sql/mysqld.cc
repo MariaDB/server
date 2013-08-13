@@ -4669,13 +4669,6 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
 
-  have_csv= plugin_status(STRING_WITH_LEN("csv"),
-                          MYSQL_STORAGE_ENGINE_PLUGIN);
-  have_ndbcluster= plugin_status(STRING_WITH_LEN("ndbcluster"),
-                                 MYSQL_STORAGE_ENGINE_PLUGIN);
-  have_partitioning= plugin_status(STRING_WITH_LEN("partition"),
-                                   MYSQL_STORAGE_ENGINE_PLUGIN);
-
   /* we do want to exit if there are any other unknown options */
   if (remaining_argc > 1)
   {
@@ -6759,14 +6752,6 @@ struct my_option my_long_options[]=
   "Log slow statements executed by slave thread to the slow log if it is open.",
   &opt_log_slow_slave_statements, &opt_log_slow_slave_statements,
   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"log-slow-queries", OPT_SLOW_QUERY_LOG,
-   "Enable logging of slow queries (longer than --long-query-time) to log file "
-   "or table. Optional argument is a file name for the slow log. If not given, "
-   "'log-basename'-slow.log will be used. Use --log-output=TABLE if you want "
-   "to have the log in the table mysql.slow_log. "
-   "Deprecated option, use --slow-query-log/--slow-query-log-file instead.",
-   &opt_slow_logname, &opt_slow_logname, 0, GET_STR_ALLOC, OPT_ARG,
-   0, 0, 0, 0, 0, 0},
   {"log-tc", 0,
    "Path to transaction coordinator log (used for transactions that affect "
    "more than one storage engine, when binary log is disabled).",
@@ -6795,10 +6780,6 @@ struct my_option my_long_options[]=
 #endif /* HAVE_REPLICATION */
   {"memlock", 0, "Lock mysqld in memory.", &locked_in_memory,
    &locked_in_memory, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"one-thread", OPT_ONE_THREAD,
-   "(Deprecated): Only use one thread (for debugging under Linux). Use "
-   "thread-handling=no-threads instead.",
-   0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"old-style-user-limits", 0,
    "Enable old-style user limits (before 5.0.3, user resources were counted "
    "per each user+host vs. per account).",
@@ -6886,10 +6867,6 @@ struct my_option my_long_options[]=
   {"skip-slave-start", 0,
    "If set, slave is not autostarted.", &opt_skip_slave_start,
    &opt_skip_slave_start, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"skip-thread-priority", OPT_SKIP_PRIOR,
-   "Don't give threads different priorities. This option is deprecated "
-   "because it has no effect; the implied behavior is already the default.",
-   0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
   {"slow-start-timeout", 0,
    "Maximum number of milliseconds that the service control manager should wait "
@@ -8092,10 +8069,6 @@ mysqld_get_one_option(int optid,
     if (default_collation_name == compiled_default_collation_name)
       default_collation_name= 0;
     break;
-  case 'l':
-    WARN_DEPRECATED(NULL, 10, 1, "--log", "'--general-log'/'--general-log-file'");
-    opt_log=1;
-    break;
   case 'h':
     strmake_buf(mysql_real_data_home, argument);
     /* Correct pointer set by my_getopt (for embedded library) */
@@ -8257,10 +8230,6 @@ mysqld_get_one_option(int optid,
     break;
   }
 #endif /* HAVE_REPLICATION */
-  case (int) OPT_SLOW_QUERY_LOG:
-    WARN_DEPRECATED(NULL, 10, 1, "--log-slow-queries", "'--slow-query-log'/'--slow-query-log-file'");
-    opt_slow_log= 1;
-    break;
   case (int) OPT_SAFE:
     opt_specialflag|= SPECIAL_SAFE_MODE | SPECIAL_NO_NEW_FUNC;
     delay_key_write_options= (uint) DELAY_KEY_WRITE_NONE;
@@ -8271,12 +8240,6 @@ mysqld_get_one_option(int optid,
 #endif
     sql_print_warning("The syntax '--safe-mode' is deprecated and will be "
                       "removed in a future release.");
-    break;
-  case (int) OPT_SKIP_PRIOR:
-    opt_specialflag|= SPECIAL_NO_PRIOR;
-    sql_print_warning("The --skip-thread-priority startup option is deprecated "
-                      "and will be removed in MySQL 11.0. This option has no effect "
-                      "as the implied behavior is already the default.");
     break;
   case (int) OPT_SKIP_HOST_CACHE:
     opt_specialflag|= SPECIAL_NO_HOST_CACHE;
@@ -8298,9 +8261,6 @@ mysqld_get_one_option(int optid,
   case OPT_SERVER_ID:
     server_id_supplied = 1;
     ::server_id= global_system_variables.server_id;
-    break;
-  case OPT_ONE_THREAD:
-    thread_handling= SCHEDULER_NO_THREADS;
     break;
   case OPT_LOWER_CASE_TABLE_NAMES:
     lower_case_table_names_used= 1;

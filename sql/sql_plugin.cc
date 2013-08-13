@@ -1175,10 +1175,6 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
   }
   plugin->state= PLUGIN_IS_UNINITIALIZED;
 
-  /* maintain the obsolete @@have_innodb variable */
-  if (!my_strcasecmp(&my_charset_latin1, plugin->name.str, "InnoDB"))
-    have_innodb= SHOW_OPTION_DISABLED;
-
   /*
     We do the check here because NDB has a worker THD which doesn't
     exit until NDB is shut down.
@@ -1402,11 +1398,6 @@ static int plugin_initialize(struct st_plugin_int *plugin)
 err:
   mysql_mutex_lock(&LOCK_plugin);
   plugin->state= state;
-
-  /* maintain the obsolete @@have_innodb variable */
-  if (!my_strcasecmp(&my_charset_latin1, plugin->name.str, "InnoDB"))
-    have_innodb= state & PLUGIN_IS_READY ? SHOW_OPTION_YES
-                                         : SHOW_OPTION_DISABLED;
 
   DBUG_RETURN(ret);
 }

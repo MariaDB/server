@@ -7682,10 +7682,6 @@ opt_to:
         | AS {}
         ;
 
-/*
-  SLAVE START and SLAVE STOP are deprecated. We keep them for compatibility.
-*/
-
 slave:
           START_SYM SLAVE optional_connection_name slave_thread_opts
           {
@@ -7716,20 +7712,6 @@ slave:
             lex->sql_command = SQLCOM_SLAVE_ALL_STOP;
             lex->type = 0;
             /* If you change this code don't forget to update SLAVE STOP too */
-          }
-        | SLAVE optional_connection_name START_SYM slave_thread_opts
-          {
-            LEX *lex=Lex;
-            lex->sql_command = SQLCOM_SLAVE_START;
-            lex->type = 0;
-          }
-          slave_until
-          {}
-        | SLAVE optional_connection_name STOP_SYM slave_thread_opts
-          {
-            LEX *lex=Lex;
-            lex->sql_command = SQLCOM_SLAVE_STOP;
-            lex->type = 0;
           }
         ;
 

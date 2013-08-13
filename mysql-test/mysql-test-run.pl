@@ -1967,10 +1967,6 @@ sub collect_mysqld_features_from_running_server ()
     }
   }
 
-  # "Convert" innodb flag
-  $mysqld_variables{'innodb'}= "ON"
-    if ($mysqld_variables{'have_innodb'} eq "YES");
-
   # Parse version
   my $version_str= $mysqld_variables{'version'};
   if ( $version_str =~ /^([0-9]*)\.([0-9]*)\.([0-9]*)([^\s]*)/ )

@@ -21,10 +21,6 @@ start slave 'qqq';
 ERROR HY000: There is no master connection 'qqq'
 stop slave 'qqq';
 ERROR HY000: There is no master connection 'qqq'
-slave 'qqq' start;
-ERROR HY000: There is no master connection 'qqq'
-slave 'qqq' stop;
-ERROR HY000: There is no master connection 'qqq'
 flush slave 'qqq';
 ERROR HY000: There is no master connection 'qqq'
 reset slave 'qqq';

@@ -13,9 +13,6 @@ utf8
 show variables like 'character_set_system';
 Variable_name	Value
 character_set_system	utf8
-show variables like 'log';
-Variable_name	Value
-log	ON
 show variables like 'general_log';
 Variable_name	Value
 general_log	ON
