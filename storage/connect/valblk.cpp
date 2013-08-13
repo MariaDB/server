@@ -712,7 +712,7 @@ void *CHRBLK::GetValPtrEx(int n)
     // For VCT blocks we must remove rightmost blanks.
     char *p = Valp + Long;
 
-    for (p--; *p == ' ' && p >= Valp; p--) ;
+    for (p--; p >= Valp && *p == ' '; p--) ;
 
     *(++p) = '\0';
     } // endif Blanks
