@@ -149,10 +149,6 @@ The following options may be given as the first argument:
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
- --engine-condition-pushdown 
- Push supported query conditions to the storage engine.
- Deprecated, use --optimizer-switch instead.
- (Defaults to on; use --skip-engine-condition-pushdown to disable.)
  --event-scheduler[=name] 
  Enable the event scheduler. Possible values are ON, OFF,
  and DISABLED (keep the event scheduler completely
@@ -324,14 +320,6 @@ The following options may be given as the first argument:
  slave, filesort, filesort_on_disk, full_join, full_scan,
  query_cache, query_cache_miss, tmp_table,
  tmp_table_on_disk
- --log-slow-queries[=name] 
- Enable logging of slow queries (longer than
- --long-query-time) to log file or table. Optional
- argument is a file name for the slow log. If not given,
- 'log-basename'-slow.log will be used. Use
- --log-output=TABLE if you want to have the log in the
- table mysql.slow_log. Deprecated option, use
- --slow-query-log/--slow-query-log-file instead.
  --log-slow-rate-limit=# 
  Write to slow log every #th slow query. Set to 1 to log
  everything. Increase it to reduce the size of the slow or
@@ -477,8 +465,6 @@ The following options may be given as the first argument:
  Enable old-style user limits (before 5.0.3, user
  resources were counted per each user+host vs. per
  account).
- --one-thread        (Deprecated): Only use one thread (for debugging under
- Linux). Use thread-handling=no-threads instead.
  --open-files-limit=# 
  If this is not 0, then mysqld will use this value to
  reserve file descriptors to use with setrlimit(). If this
@@ -857,10 +843,6 @@ The following options may be given as the first argument:
  --skip-show-database 
  Don't allow 'SHOW DATABASE' commands
  --skip-slave-start  If set, slave is not autostarted.
- --skip-thread-priority 
- Don't give threads different priorities. This option is
- deprecated because it has no effect; the implied behavior
- is already the default.
  --slave-compressed-protocol 
  Use compression on master/slave protocol
  --slave-exec-mode=name 
@@ -1050,7 +1032,6 @@ delayed-insert-limit 100
 delayed-insert-timeout 300
 delayed-queue-size 1000
 div-precision-increment 4
-engine-condition-pushdown FALSE
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0

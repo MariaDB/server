@@ -298,18 +298,15 @@ CREATE TABLE `t1` (
 ) AUTO_INCREMENT=12 DEFAULT CHARSET=latin1;
 INSERT INTO `t1` VALUES (10,'00:00:00','i','i'),(11,'00:00:00','','');
 
-set @old_optimizer_switch          = @@session.optimizer_switch,
-    @old_engine_condition_pushdown = @@session.engine_condition_pushdown;
+set @old_optimizer_switch          = @@session.optimizer_switch;
 
-SET SESSION OPTIMIZER_SWITCH = 'materialization=off,semijoin=off,loosescan=off,firstmatch=off,mrr=on';
-SET SESSION engine_condition_pushdown = 1;
+SET SESSION OPTIMIZER_SWITCH = 'materialization=off,semijoin=off,loosescan=off,firstmatch=off,mrr=on,engine_condition_pushdown=on';
 
  SELECT `time_nokey` G1  FROM t1  WHERE ( `varchar_nokey`  , `varchar_key`  )  IN ( 
 SELECT `varchar_nokey`  , `varchar_nokey`  )  AND `varchar_key`  >= 'c' HAVING G1  ORDER 
 BY `pk`   ;
 
-set @@session.optimizer_switch          = @old_optimizer_switch,
-    @@session.engine_condition_pushdown = @old_engine_condition_pushdown;
+set @@session.optimizer_switch          = @old_optimizer_switch;
 
 DROP TABLE t1;
 
@@ -476,8 +473,8 @@ INSERT INTO t2 VALUES (9,1);
 
 --echo # Enable Index condition pushdown
 --replace_column 1 #
-SELECT @old_icp:=@@engine_condition_pushdown;
-SET SESSION engine_condition_pushdown = 'ON';
+set @old_icp=@@optimizer_switch;
+SET SESSION optimizer_switch="engine_condition_pushdown=on";
 
 --echo
 SELECT pk
@@ -490,7 +487,7 @@ WHERE
      ORDER BY t1.i2 desc);
 
 --echo # Restore old value for Index condition pushdown
-SET SESSION engine_condition_pushdown=@old_icp;
+SET SESSION optimizer_switch=@old_icp;
 
 DROP TABLE t1,t2;
 

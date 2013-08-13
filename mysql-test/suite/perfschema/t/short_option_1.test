@@ -11,7 +11,6 @@ show variables like 'sql_mode';
 select @@character_set_server;
 show variables like 'character_set_system';
 
-show variables like 'log';
 show variables like 'general_log';
 
 show variables like 'new';

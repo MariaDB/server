@@ -87,8 +87,7 @@ CREATE TABLE IF NOT EXISTS procs_priv ( Host char(60) binary DEFAULT '' NOT NULL
 
 
 -- Create general_log if CSV is enabled.
-SET @have_csv = 'NO';
-SET @have_csv = (SELECT @@have_csv);
+SET @have_csv = (SELECT support FROM information_schema.engines WHERE engine = 'CSV');
 SET @str = IF (@have_csv = 'YES', 'CREATE TABLE IF NOT EXISTS general_log (event_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, user_host MEDIUMTEXT NOT NULL, thread_id BIGINT(21) UNSIGNED NOT NULL, server_id INTEGER UNSIGNED NOT NULL, command_type VARCHAR(64) NOT NULL, argument MEDIUMTEXT NOT NULL) engine=CSV CHARACTER SET utf8 comment="General log"', 'SET @dummy = 0');
 
 PREPARE stmt FROM @str;
@@ -136,8 +135,7 @@ CREATE TABLE IF NOT EXISTS innodb_index_stats (
 
 SET SESSION sql_mode=@sql_mode_orig;
 
-SET @have_innodb = 'NO';
-SET @have_innodb = (SELECT @@have_innodb);
+SET @have_innodb = (SELECT support FROM information_schema.engines WHERE engine = 'InnoDB');
 
 SET @cmd="CREATE TABLE IF NOT EXISTS slave_relay_log_info (
   Number_of_lines INTEGER UNSIGNED NOT NULL COMMENT 'Number of lines in the file or rows in the table. Used to version table definitions.', 
