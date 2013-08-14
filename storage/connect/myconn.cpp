@@ -134,7 +134,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
   /*  Allocate the structures used to refer to the result set.          */
   /**********************************************************************/
   qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
-                          buftyp, fldtyp, length, true, true);
+                          buftyp, fldtyp, length, false, true);
 
   // Some columns must be renamed
   for (i = 0, crp = qrp->Colresp; crp; crp = crp->Next)
