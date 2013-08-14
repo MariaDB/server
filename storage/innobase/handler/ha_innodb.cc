@@ -40,6 +40,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <my_base.h>	// HA_OPTION_*
 #include <mysys_err.h>
 #include <innodb_priv.h>
+#include <table_cache.h>
 
 #ifdef _WIN32
 #include <io.h>
@@ -1705,16 +1706,16 @@ innobase_get_stmt(
 }
 
 /**********************************************************************//**
-Get the current setting of the table_def_size global parameter. We do
+Get the current setting of the tdc_size global parameter. We do
 a dirty read because for one there is no synchronization object and
 secondly there is little harm in doing so even if we get a torn read.
-@return	value of table_def_size */
+@return	value of tdc_size */
 UNIV_INTERN
 ulint
 innobase_get_table_cache_size(void)
 /*===============================*/
 {
-	return(table_def_size);
+	return(tdc_size);
 }
 
 /**********************************************************************//**
@@ -3154,8 +3155,8 @@ innobase_change_buffering_inited_ok:
 
 	if (innobase_open_files < 10) {
 		innobase_open_files = 300;
-		if (srv_file_per_table && table_cache_size > 300) {
-			innobase_open_files = table_cache_size;
+		if (srv_file_per_table && tc_size > 300) {
+			innobase_open_files = tc_size;
 		}
 	}
 	srv_max_n_open_files = (ulint) innobase_open_files;

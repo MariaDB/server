@@ -20,6 +20,7 @@
 #include "sql_trigger.h"                        /* trg_event_type */
 #include "sql_class.h"                          /* enum_mark_columns */
 #include "mysqld.h"                             /* key_map */
+#include "table_cache.h"
 
 class Item_ident;
 struct Name_resolution_context;
@@ -59,93 +60,9 @@ enum find_item_error_report_type {REPORT_ALL_ERRORS, REPORT_EXCEPT_NOT_FOUND,
 				  IGNORE_ERRORS, REPORT_EXCEPT_NON_UNIQUE,
                                   IGNORE_EXCEPT_NON_UNIQUE};
 
-enum enum_tdc_remove_table_type {TDC_RT_REMOVE_ALL, TDC_RT_REMOVE_NOT_OWN,
-                                 TDC_RT_REMOVE_UNUSED,
-                                 TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE};
-
-/* bits for last argument to remove_table_from_cache() */
-#define RTFC_NO_FLAG                0x0000
-#define RTFC_OWNED_BY_THD_FLAG      0x0001
-#define RTFC_WAIT_OTHER_THREAD_FLAG 0x0002
-#define RTFC_CHECK_KILLED_FLAG      0x0004
-
-extern HASH table_def_cache;
-
-bool check_dup(const char *db, const char *name, TABLE_LIST *tables);
-extern mysql_mutex_t LOCK_open;
-bool table_cache_init(void);
-void table_cache_free(void);
-bool table_def_init(void);
-void table_def_free(void);
-void table_def_start_shutdown(void);
-void assign_new_table_id(TABLE_SHARE *share);
-uint cached_table_definitions(void);
-uint cached_open_tables(void);
-
-/**
-  Create a table cache key for non-temporary table.
-
-  @param key         Buffer for key (must be at least MAX_DBKEY_LENGTH bytes).
-  @param db          Database name.
-  @param table_name  Table name.
-
-  @return Length of key.
-
-  @sa create_table_def_key(thd, char *, table_list, bool)
-*/
-
-inline uint
-create_table_def_key(char *key, const char *db, const char *table_name)
-{
-  /*
-    In theory caller should ensure that both db and table_name are
-    not longer than NAME_LEN bytes. In practice we play safe to avoid
-    buffer overruns.
-  */
-  return (uint)(strmake(strmake(key, db, NAME_LEN) + 1, table_name,
-                        NAME_LEN) - key + 1);
-}
-
 uint create_tmp_table_def_key(THD *thd, char *key, const char *db,
                               const char *table_name);
 uint get_table_def_key(const TABLE_LIST *table_list, const char **key);
-TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
-                             const char *key, uint key_length, uint flags,
-                             my_hash_value_type hash_value);
-void release_table_share(TABLE_SHARE *share);
-TABLE_SHARE *get_cached_table_share(const char *db, const char *table_name);
-
-// convenience helper: call get_table_share() without precomputed hash_value
-static inline TABLE_SHARE *get_table_share(THD *thd, const char *db,
-                                           const char *table_name,
-                                           const char *key, uint key_length,
-                                           uint flags)
-{
-  return get_table_share(thd, db, table_name, key, key_length, flags,
-                my_calc_hash(&table_def_cache, (uchar*) key, key_length));
-}
-
-// convenience helper: call get_table_share() without precomputed cache key
-static inline TABLE_SHARE *get_table_share(THD *thd, const char *db,
-                                           const char *table_name, uint flags)
-{
-  char	key[MAX_DBKEY_LENGTH];
-  uint	key_length;
-  key_length= create_table_def_key(key, db, table_name);
-  return get_table_share(thd, db, table_name, key, key_length, flags);
-}
-
-// convenience helper: call get_table_share() reusing the MDL cache key.
-// NOTE: lifetime of the returned TABLE_SHARE is limited by the
-// lifetime of the TABLE_LIST object!!!
-static inline TABLE_SHARE *get_table_share_shortlived(THD *thd, TABLE_LIST *tl,
-                                                      uint flags)
-{
-  const char *key;
-  uint        key_length= get_table_def_key(tl, &key);
-  return get_table_share(thd, tl->db, tl->table_name, key, key_length, flags);
-}
-
 TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
                    uint lock_flags);
 
@@ -326,6 +243,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint counter, uint flags);
 int decide_logging_format(THD *thd, TABLE_LIST *tables);
 void free_io_cache(TABLE *entry);
 void intern_close_table(TABLE *entry);
+void kill_delayed_threads_for_table(TABLE_SHARE *share);
 void close_thread_table(THD *thd, TABLE **table_ptr);
 bool close_temporary_tables(THD *thd);
 TABLE_LIST *unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
@@ -361,9 +279,6 @@ void close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                                ha_extra_function extra,
                                TABLE *skip_table);
 OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild);
-void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
-                      const char *db, const char *table_name,
-                      bool has_lock);
 bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
                    const char *cache_key, uint cache_key_length,
                    MEM_ROOT *mem_root, uint flags);
@@ -377,7 +292,6 @@ static inline bool tdc_open_view(THD *thd, TABLE_LIST *table_list,
   return tdc_open_view(thd, table_list, alias, key, key_length, mem_root, flags);
 }
 
-void tdc_flush_unused_tables();
 TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
                                   const char *table_name,
                                   bool no_error);
@@ -395,7 +309,6 @@ extern "C" int simple_raw_key_cmp(void* arg, const void* key1,
 extern "C" int count_distinct_walk(void *elem, element_count count, void *arg);
 int simple_str_key_cmp(void* arg, uchar* key1, uchar* key2);
 
-extern TABLE *unused_tables;
 extern Item **not_found_item;
 extern Field *not_found_field;
 extern Field *view_ref_found;

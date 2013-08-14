@@ -160,7 +160,6 @@ extern ulonglong query_cache_size;
 extern ulong query_cache_limit;
 extern ulong query_cache_min_res_unit;
 extern ulong slow_launch_threads, slow_launch_time;
-extern ulong table_cache_size, table_def_size;
 extern MYSQL_PLUGIN_IMPORT ulong max_connections;
 extern ulong max_connect_errors, connect_timeout;
 extern my_bool slave_allow_batching;
@@ -248,7 +247,7 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_logger, key_LOCK_manager,
   key_LOCK_prepared_stmt_count,
   key_LOCK_rpl_status, key_LOCK_server_started, key_LOCK_status,
-  key_LOCK_table_share, key_LOCK_thd_data,
+  key_LOCK_thd_data,
   key_LOCK_user_conn, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock,

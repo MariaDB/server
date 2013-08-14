@@ -1600,8 +1600,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                         (int) thread_count, (ulong) thd->query_id,
                         current_global_status_var->long_query_count,
                         current_global_status_var->opened_tables,
-                        refresh_version,
-                        cached_open_tables(),
+                        tdc_refresh_version(),
+                        tc_records(),
                         (uint) (queries_per_second1000 / 1000),
                         (uint) (queries_per_second1000 % 1000));
 #ifdef EMBEDDED_LIBRARY

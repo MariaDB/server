@@ -4424,7 +4424,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
     goto end;
   }
 
-  share= get_table_share_shortlived(thd, &table_list, GTS_TABLE | GTS_VIEW);
+  share= tdc_acquire_share_shortlived(thd, &table_list, GTS_TABLE | GTS_VIEW);
   if (!share)
   {
     res= 0;
@@ -4476,9 +4476,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
 
 
 end_share:
-  mysql_mutex_lock(&LOCK_open);
-  release_table_share(share);
-  mysql_mutex_unlock(&LOCK_open);
+  tdc_release_share(share);
 
 end:
   /*
