@@ -3220,7 +3220,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
       *tabname == '#')
     goto fin;
 
-  key_length= create_table_def_key(key, db, tabname);
+  key_length= tdc_create_key(key, db, tabname);
 
   // share contains the option struct that we need
   if (!(share= alloc_table_share(db, tabname, key, key_length)))

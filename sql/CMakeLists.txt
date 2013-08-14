@@ -91,6 +91,7 @@ SET (SQL_SOURCE
 			   ../sql-common/mysql_async.c
                my_apc.cc my_apc.h
                rpl_gtid.cc
+               table_cache.cc
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 			   )

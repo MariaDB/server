@@ -376,9 +376,7 @@ ndbcluster_binlog_open_table(THD *thd, NDB_SHARE *share,
     free_table_share(table_share);
     DBUG_RETURN(error);
   }
-  mysql_mutex_lock(&LOCK_open);
-  assign_new_table_id(table_share);
-  mysql_mutex_unlock(&LOCK_open);
+  tdc_assign_new_table_id(table_share);
 
   if (!reopen)
   {

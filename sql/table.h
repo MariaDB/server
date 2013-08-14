@@ -479,7 +479,7 @@ TABLE_CATEGORY get_table_category(const LEX_STRING *db,
 
 struct TABLE_share;
 
-extern ulong refresh_version;
+extern ulong tdc_refresh_version(void);
 
 typedef struct st_table_field_type
 {
@@ -599,15 +599,27 @@ struct TABLE_SHARE
   TYPELIB *intervals;			/* pointer to interval info */
   mysql_mutex_t LOCK_ha_data;           /* To protect access to ha_data */
   mysql_mutex_t LOCK_share;             /* To protect TABLE_SHARE */
-  TABLE_SHARE *next, **prev;            /* Link to unused shares */
 
-  /*
-    Doubly-linked (back-linked) lists of used and unused TABLE objects
-    for this share.
-  */
   typedef I_P_List <TABLE, TABLE_share> TABLE_list;
-  TABLE_list used_tables;
-  TABLE_list free_tables;
+  struct
+  {
+    /**
+      Protects ref_count and m_flush_tickets.
+    */
+    mysql_mutex_t LOCK_table_share;
+    TABLE_SHARE *next, **prev;            /* Link to unused shares */
+    uint ref_count;                       /* How many TABLE objects uses this */
+    /**
+      List of tickets representing threads waiting for the share to be flushed.
+    */
+    Wait_for_flush_list m_flush_tickets;
+    /*
+      Doubly-linked (back-linked) lists of used and unused TABLE objects
+      for this share.
+    */
+    TABLE_list used_tables;
+    TABLE_list free_tables;
+  } tdc;
 
   LEX_CUSTRING tabledef_version;
 
@@ -674,7 +686,6 @@ struct TABLE_SHARE
   /** Per-page checksums or not. */
   enum ha_choice page_checksum;
 
-  uint ref_count;                       /* How many TABLE objects uses this */
   uint key_block_size;			/* create key_block_size, if used */
   uint stats_sample_pages;		/* number of pages to sample during
 					stats estimation, if used, otherwise 0. */
@@ -759,11 +770,6 @@ struct TABLE_SHARE
   /** Instrumentation for this table share. */
   PSI_table_share *m_psi;
 
-  /**
-    List of tickets representing threads waiting for the share to be flushed.
-  */
-  Wait_for_flush_list m_flush_tickets;
-
   /*
     Set share's table cache key and update its db and table name appropriately.
 
@@ -835,7 +841,7 @@ struct TABLE_SHARE
   /** Is this table share being expelled from the table definition cache?  */
   inline bool has_old_version() const
   {
-    return version != refresh_version;
+    return version != tdc_refresh_version();
   }
 
   /**

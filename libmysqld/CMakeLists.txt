@@ -102,6 +102,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/my_apc.cc ../sql/my_apc.h
 	   ../sql/rpl_gtid.cc
            ../sql/compat56.cc
+           ../sql/table_cache.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )

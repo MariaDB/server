@@ -40,9 +40,7 @@
 #include "hostname.h"     // hostname_cache_free, hostname_cache_init
 #include "sql_acl.h"      // acl_free, grant_free, acl_init,
                           // grant_init
-#include "sql_base.h"     // table_def_free, table_def_init,
-                          // cached_open_tables,
-                          // cached_table_definitions
+#include "sql_base.h"
 #include "sql_test.h"     // mysql_print_status
 #include "item_create.h"  // item_create_cleanup, item_create_init
 #include "sql_servers.h"  // servers_free, servers_init
@@ -473,7 +471,6 @@ int32 thread_count;
 int32 thread_running;
 ulong thread_created;
 ulong back_log, connect_timeout, concurrency, server_id;
-ulong table_cache_size, table_def_size;
 ulong what_to_log;
 ulong slow_launch_time, slave_open_temp_tables;
 ulong open_files_limit, max_binlog_size;
@@ -489,7 +486,6 @@ ulonglong binlog_stmt_cache_size=0;
 ulonglong  max_binlog_stmt_cache_size=0;
 ulonglong query_cache_size=0;
 ulong query_cache_limit=0;
-ulong refresh_version;  /* Increments on each reload */
 ulong executed_events=0;
 query_id_t global_query_id;
 my_atomic_rwlock_t global_query_id_lock;
@@ -843,7 +839,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_manager,
   key_LOCK_prepared_stmt_count,
   key_LOCK_rpl_status, key_LOCK_server_started, key_LOCK_status,
-  key_LOCK_system_variables_hash, key_LOCK_table_share, key_LOCK_thd_data,
+  key_LOCK_system_variables_hash, key_LOCK_thd_data,
   key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock,
@@ -902,7 +898,6 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_server_started, "LOCK_server_started", PSI_FLAG_GLOBAL},
   { &key_LOCK_status, "LOCK_status", PSI_FLAG_GLOBAL},
   { &key_LOCK_system_variables_hash, "LOCK_system_variables_hash", PSI_FLAG_GLOBAL},
-  { &key_LOCK_table_share, "LOCK_table_share", PSI_FLAG_GLOBAL},
   { &key_LOCK_stats, "LOCK_stats", PSI_FLAG_GLOBAL},
   { &key_LOCK_global_user_client_stats, "LOCK_global_user_client_stats", PSI_FLAG_GLOBAL},
   { &key_LOCK_global_table_stats, "LOCK_global_table_stats", PSI_FLAG_GLOBAL},
@@ -1963,14 +1958,14 @@ void clean_up(bool print_message)
     udf_free();
 #endif
   }
-  table_def_start_shutdown();
+  tdc_start_shutdown();
   plugin_shutdown();
   ha_end();
   if (tc_log)
     tc_log->close();
   delegates_destroy();
   xid_cache_free();
-  table_def_free();
+  tdc_deinit();
   mdl_destroy();
   key_caches.delete_elements((void (*)(const char*, uchar*)) free_key_cache);
   wt_end();
@@ -4012,7 +4007,7 @@ static int init_common_variables()
 
     /* MyISAM requires two file handles per table. */
     wanted_files= (10 + max_connections + extra_max_connections +
-                   table_cache_size*2);
+                   tc_size * 2);
     /*
       We are trying to allocate no less than max_connections*5 file
       handles (i.e. we are trying to set the limit so that they will
@@ -4039,20 +4034,19 @@ static int init_common_variables()
         max_connections= (ulong) MY_MIN(files-10-TABLE_OPEN_CACHE_MIN*2,
                                      max_connections);
         /*
-          Decrease table_cache_size according to max_connections, but
+          Decrease tc_size according to max_connections, but
           not below TABLE_OPEN_CACHE_MIN.  Outer MY_MIN() ensures that we
-          never increase table_cache_size automatically (that could
+          never increase tc_size automatically (that could
           happen if max_connections is decreased above).
         */
-        table_cache_size= (ulong) MY_MIN(MY_MAX((files-10-max_connections)/2,
-                                          TABLE_OPEN_CACHE_MIN),
-                                      table_cache_size);
+        tc_size= (ulong) MY_MIN(MY_MAX((files - 10 - max_connections) / 2,
+                                       TABLE_OPEN_CACHE_MIN), tc_size);
 	DBUG_PRINT("warning",
 		   ("Changed limits: max_open_files: %u  max_connections: %ld  table_cache: %ld",
-		    files, max_connections, table_cache_size));
+		    files, max_connections, tc_size));
 	if (global_system_variables.log_warnings)
 	  sql_print_warning("Changed limits: max_open_files: %u  max_connections: %ld  table_cache: %ld",
-			files, max_connections, table_cache_size);
+			files, max_connections, tc_size);
       }
       else if (global_system_variables.log_warnings)
 	sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, wanted_files);
@@ -4477,7 +4471,7 @@ static int init_server_components()
     all things are initialized so that unireg_abort() doesn't fail
   */
   mdl_init();
-  if (table_def_init() | hostname_cache_init())
+  if (tdc_init() | hostname_cache_init())
     unireg_abort(1);
 
   query_cache_set_min_res_unit(query_cache_min_res_unit);
@@ -5054,8 +5048,8 @@ int mysqld_main(int argc, char **argv)
     if (pfs_param.m_enabled  && !opt_help && !opt_bootstrap)
     {
       /* Add sizing hints from the server sizing parameters. */
-      pfs_param.m_hints.m_table_definition_cache= table_def_size;
-      pfs_param.m_hints.m_table_open_cache= table_cache_size;
+      pfs_param.m_hints.m_table_definition_cache= tdc_size;
+      pfs_param.m_hints.m_table_open_cache= tc_size;
       pfs_param.m_hints.m_max_connections= max_connections;
       pfs_param.m_hints.m_open_files_limit= open_files_limit;
       PSI_hook= initialize_performance_schema(&pfs_param);
@@ -5285,12 +5279,6 @@ int mysqld_main(int argc, char **argv)
   initialize_information_schema_acl();
 
   execute_ddl_log_recovery();
-
-  /*
-    We must have LOCK_open before LOCK_global_system_variables because
-    LOCK_open is held while sql_plugin.c::intern_sys_var_ptr() is called.
-  */
-  mysql_mutex_record_order(&LOCK_open, &LOCK_global_system_variables);
 
   if (Events::init(opt_noacl || opt_bootstrap))
     unireg_abort(1);
@@ -6944,7 +6932,7 @@ struct my_option my_long_options[]=
    0, 0, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"table_cache", 0, "Deprecated; use --table-open-cache instead.",
-   &table_cache_size, &table_cache_size, 0, GET_ULONG,
+   &tc_size, &tc_size, 0, GET_ULONG,
    REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, 0, 1, 0}
 };
 
@@ -7080,7 +7068,7 @@ static int show_open_tables(THD *thd, SHOW_VAR *var, char *buff)
 {
   var->type= SHOW_LONG;
   var->value= buff;
-  *((long *)buff)= (long)cached_open_tables();
+  *((long *) buff)= (long) tc_records();
   return 0;
 }
 
@@ -7098,9 +7086,19 @@ static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff)
 {
   var->type= SHOW_LONG;
   var->value= buff;
-  *((long *)buff)= (long)cached_table_definitions();
+  *((long *) buff)= (long) tdc_records();
   return 0;
 }
+
+
+static int show_flush_commands(THD *thd, SHOW_VAR *var, char *buff)
+{
+  var->type= SHOW_LONG;
+  var->value= buff;
+  *((long *) buff)= (long) tdc_refresh_version();
+  return 0;
+}
+
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 /* Functions relying on CTX */
@@ -7557,7 +7555,7 @@ SHOW_VAR status_vars[]= {
   {"Feature_timezone",         (char*) offsetof(STATUS_VAR, feature_timezone), SHOW_LONG_STATUS},
   {"Feature_trigger",          (char*) offsetof(STATUS_VAR, feature_trigger), SHOW_LONG_STATUS},
   {"Feature_xml",              (char*) offsetof(STATUS_VAR, feature_xml), SHOW_LONG_STATUS},
-  {"Flush_commands",           (char*) &refresh_version,        SHOW_LONG_NOFLUSH},
+  {"Flush_commands",           (char*) &show_flush_commands, SHOW_SIMPLE_FUNC},
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},
   {"Handler_delete",           (char*) offsetof(STATUS_VAR, ha_delete_count), SHOW_LONG_STATUS},
   {"Handler_discover",         (char*) offsetof(STATUS_VAR, ha_discover_count), SHOW_LONG_STATUS},
@@ -7890,7 +7888,6 @@ static int mysql_init_variables(void)
   log_error_file_ptr= log_error_file;
   protocol_version= PROTOCOL_VERSION;
   what_to_log= ~ (1L << (uint) COM_TIME);
-  refresh_version= 1L;	/* Increments on each reload */
   denied_connections= 0;
   executed_events= 0;
   global_query_id= thread_id= 1L;

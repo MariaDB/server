@@ -131,15 +131,13 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       DBUG_RETURN(0);
     has_mdl_lock= TRUE;
 
-    share= get_table_share_shortlived(thd, table_list, GTS_TABLE);
+    share= tdc_acquire_share_shortlived(thd, table_list, GTS_TABLE);
     if (share == NULL)
       DBUG_RETURN(0);				// Can't open frm file
 
     if (open_table_from_share(thd, share, "", 0, 0, 0, &tmp_table, FALSE))
     {
-      mysql_mutex_lock(&LOCK_open);
-      release_table_share(share);
-      mysql_mutex_unlock(&LOCK_open);
+      tdc_release_share(share);
       DBUG_RETURN(0);                           // Out of memory
     }
     table= &tmp_table;
@@ -262,11 +260,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 end:
   thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
   if (table == &tmp_table)
-  {
-    mysql_mutex_lock(&LOCK_open);
     closefrm(table, 1);				// Free allocated memory
-    mysql_mutex_unlock(&LOCK_open);
-  }
   /* In case of a temporary table there will be no metadata lock. */
   if (error && has_mdl_lock)
     thd->mdl_context.release_transactional_locks();

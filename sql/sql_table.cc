@@ -2432,7 +2432,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     {
       char *end;
       /*
-        It could happen that table's share in the table_def_cache
+        It could happen that table's share in the table definition cache
         is the only thing that keeps the engine plugin loaded
         (if it is uninstalled and waits for the ref counter to drop to 0).
 

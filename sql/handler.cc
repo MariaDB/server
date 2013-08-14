@@ -4718,7 +4718,7 @@ static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
     {
       if (error)
       {
-        DBUG_ASSERT(share->error); // get_cached_table_share needs that
+        DBUG_ASSERT(share->error); // tdc_lock_share needs that
         /*
           report an error, unless it is "generic" and a more
           specific one was already reported
@@ -4856,29 +4856,27 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
 
     Table_exists_error_handler no_such_table_handler;
     thd->push_internal_handler(&no_such_table_handler);
-    TABLE_SHARE *share= get_table_share(thd, db, table_name, flags);
+    TABLE_SHARE *share= tdc_acquire_share(thd, db, table_name, flags);
     thd->pop_internal_handler();
 
     if (hton && share)
     {
       *hton= share->db_type();
-      mysql_mutex_lock(&LOCK_open);
-      release_table_share(share);
-      mysql_mutex_unlock(&LOCK_open);
+      tdc_release_share(share);
     }
 
     // the table doesn't exist if we've caught ER_NO_SUCH_TABLE and nothing else
     DBUG_RETURN(!no_such_table_handler.safely_trapped_errors());
   }
 
-  mysql_mutex_lock(&LOCK_open);
-  TABLE_SHARE *share= get_cached_table_share(db, table_name);
-  if (hton && share)
-    *hton= share->db_type();
-  mysql_mutex_unlock(&LOCK_open);
-
+  TABLE_SHARE *share= tdc_lock_share(db, table_name);
   if (share)
+  {
+    if (hton)
+      *hton= share->db_type();
+    tdc_unlock_share(share);
     DBUG_RETURN(TRUE);
+  }
 
   char path[FN_REFLEN + 1];
   size_t path_len = build_table_filename(path, sizeof(path) - 1,

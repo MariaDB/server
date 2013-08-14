@@ -2675,15 +2675,24 @@ static Sys_var_charptr Sys_system_time_zone(
 static Sys_var_ulong Sys_table_def_size(
        "table_definition_cache",
        "The number of cached table definitions",
-       GLOBAL_VAR(table_def_size), CMD_LINE(REQUIRED_ARG),
+       GLOBAL_VAR(tdc_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(TABLE_DEF_CACHE_MIN, 512*1024),
        DEFAULT(TABLE_DEF_CACHE_DEFAULT), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_table_cache_size(
        "table_open_cache", "The number of cached open tables",
-       GLOBAL_VAR(table_cache_size), CMD_LINE(REQUIRED_ARG),
+       GLOBAL_VAR(tc_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 512*1024), DEFAULT(TABLE_OPEN_CACHE_DEFAULT),
        BLOCK_SIZE(1));
+
+static ulong table_cache_instances;
+static Sys_var_ulong Sys_table_cache_instances(
+       "table_open_cache_instances",
+       "MySQL 5.6 compatible option. Not used or needed in MariaDB",
+       READ_ONLY GLOBAL_VAR(table_cache_instances), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 64), DEFAULT(1),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
+       ON_UPDATE(NULL), NULL);
 
 static Sys_var_ulong Sys_thread_cache_size(
        "thread_cache_size",

@@ -31,7 +31,7 @@
 #include "sql_partition.h"       // mysql_unpack_partition,
                                  // fix_partition_func, partition_info
 #include "sql_acl.h"             // *_ACL, acl_getroot_no_password
-#include "sql_base.h"            // release_table_share
+#include "sql_base.h"
 #include "create_options.h"
 #include <m_ctype.h>
 #include "my_md5.h"
@@ -318,22 +318,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     /* TEMPORARY FIX: if true, this means this is mysql.gtid_slave_pos table */
     share->is_gtid_slave_pos= FALSE;
     share->table_category= get_table_category(& share->db, & share->table_name);
-    share->version= refresh_version;
     share->open_errno= ENOENT;
-
-    /*
-      Since alloc_table_share() can be called without any locking (for
-      example, ha_create_table... functions), we do not assign a table
-      map id here.  Instead we assign a value that is not used
-      elsewhere, and then assign a table map id inside open_table()
-      under the protection of the LOCK_open mutex.
-    */
-    share->table_map_id= ~0UL;
     share->cached_row_logging_check= -1;
-
-    share->used_tables.empty();
-    share->free_tables.empty();
-    share->m_flush_tickets.empty();
 
     init_sql_alloc(&share->stats_cb.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
@@ -342,6 +328,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                      &share->LOCK_share, MY_MUTEX_INIT_SLOW);
     mysql_mutex_init(key_TABLE_SHARE_LOCK_ha_data,
                      &share->LOCK_ha_data, MY_MUTEX_INIT_FAST);
+    tdc_init_share(share);
   }
   DBUG_RETURN(share);
 }
@@ -354,7 +341,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     init_tmp_table_share()
     thd         thread handle
     share	Share to fill
-    key		Table_cache_key, as generated from create_table_def_key.
+    key		Table_cache_key, as generated from tdc_create_key.
 		must start with db name.    
     key_length	Length of key
     table_name	Table name
@@ -404,11 +391,6 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
     compatibility checks.
   */
   share->table_map_id= (ulong) thd->query_id;
-
-  share->used_tables.empty();
-  share->free_tables.empty();
-  share->m_flush_tickets.empty();
-
   DBUG_VOID_RETURN;
 }
 
@@ -443,6 +425,7 @@ void TABLE_SHARE::destroy()
   {
     mysql_mutex_destroy(&LOCK_share);
     mysql_mutex_destroy(&LOCK_ha_data);
+    tdc_deinit_share(this);
   }
   my_hash_free(&name_hash);
 
@@ -487,37 +470,7 @@ void free_table_share(TABLE_SHARE *share)
 {
   DBUG_ENTER("free_table_share");
   DBUG_PRINT("enter", ("table: %s.%s", share->db.str, share->table_name.str));
-  DBUG_ASSERT(share->ref_count == 0);
-
-  if (share->m_flush_tickets.is_empty())
-  {
-    /*
-      No threads are waiting for this share to be flushed (the
-      share is not old, is for a temporary table, or just nobody
-      happens to be waiting for it). Destroy it.
-    */
-    share->destroy();
-  }
-  else
-  {
-    Wait_for_flush_list::Iterator it(share->m_flush_tickets);
-    Wait_for_flush *ticket;
-    /*
-      We're about to iterate over a list that is used
-      concurrently. Make sure this never happens without a lock.
-    */
-    mysql_mutex_assert_owner(&LOCK_open);
-
-    while ((ticket= it++))
-      (void) ticket->get_ctx()->m_wait.set_status(MDL_wait::GRANTED);
-    /*
-      If there are threads waiting for this share to be flushed,
-      the last one to receive the notification will destroy the
-      share. At this point the share is removed from the table
-      definition cache, so is OK to proceed here without waiting
-      for this thread to do the work.
-    */
-  }
+  share->destroy();
   DBUG_VOID_RETURN;
 }
 
@@ -596,7 +549,7 @@ inline bool is_system_table_name(const char *name, uint length)
 
   NOTES
     This function is called when the table definition is not cached in
-    table_def_cache
+    table definition cache
     The data is returned in 'share', which is alloced by
     alloc_table_share().. The code assumes that share is initialized.
 */
@@ -2932,7 +2885,7 @@ int closefrm(register TABLE *table, bool free_share)
   if (free_share)
   {
     if (table->s->tmp_table == NO_TMP_TABLE)
-      release_table_share(table->s);
+      tdc_release_share(table->s);
     else
       free_table_share(table->s);
   }
@@ -3775,7 +3728,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   if (gvisitor->m_lock_open_count++ == 0)
     mysql_mutex_lock(&LOCK_open);
 
-  TABLE_list::Iterator tables_it(used_tables);
+  TABLE_list::Iterator tables_it(tdc.used_tables);
 
   /*
     In case of multiple searches running in parallel, avoid going
@@ -3829,10 +3782,15 @@ end:
   @param abstime         Timeout for waiting as absolute time value.
   @param deadlock_weight Weight of this wait for deadlock detector.
 
-  @pre LOCK_open is write locked, the share is used (has
-       non-zero reference count), is marked for flush and
+  @pre LOCK_table_share is locked, the share is marked for flush and
        this connection does not reference the share.
-       LOCK_open will be unlocked temporarily during execution.
+       LOCK_table_share will be unlocked temporarily during execution.
+
+  It may happen that another FLUSH TABLES thread marked this share
+  for flush, but didn't yet purge it from table definition cache.
+  In this case we may start waiting for a table share that has no
+  references (ref_count == 0). We do this with assumption that this
+  another FLUSH TABLES thread is about to purge this share.
 
   @retval FALSE - Success.
   @retval TRUE  - Error (OOM, deadlock, timeout, etc...).
@@ -3845,19 +3803,14 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   Wait_for_flush ticket(mdl_context, this, deadlock_weight);
   MDL_wait::enum_wait_status wait_status;
 
-  mysql_mutex_assert_owner(&LOCK_open);
-  /*
-    We should enter this method only when share's version is not
-    up to date and the share is referenced. Otherwise our
-    thread will never be woken up from wait.
-  */
-  DBUG_ASSERT(version != refresh_version && ref_count != 0);
+  mysql_mutex_assert_owner(&tdc.LOCK_table_share);
+  DBUG_ASSERT(has_old_version());
 
-  m_flush_tickets.push_front(&ticket);
+  tdc.m_flush_tickets.push_front(&ticket);
 
   mdl_context->m_wait.reset_status();
 
-  mysql_mutex_unlock(&LOCK_open);
+  mysql_mutex_unlock(&tdc.LOCK_table_share);
 
   mdl_context->will_wait_for(&ticket);
 
@@ -3868,18 +3821,22 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
 
   mdl_context->done_waiting_for();
 
-  mysql_mutex_lock(&LOCK_open);
+  mysql_mutex_lock(&tdc.LOCK_table_share);
 
-  m_flush_tickets.remove(&ticket);
+  tdc.m_flush_tickets.remove(&ticket);
 
-  if (m_flush_tickets.is_empty() && ref_count == 0)
+  if (tdc.m_flush_tickets.is_empty() && tdc.ref_count == 0)
   {
     /*
       If our thread was the last one using the share,
       we must destroy it here.
     */
+    mysql_mutex_unlock(&tdc.LOCK_table_share);
     destroy();
   }
+  else
+    mysql_mutex_unlock(&tdc.LOCK_table_share);
+
 
   /*
     In cases when our wait was aborted by KILL statement,
@@ -3924,7 +3881,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
 
 void TABLE::init(THD *thd, TABLE_LIST *tl)
 {
-  DBUG_ASSERT(s->ref_count > 0 || s->tmp_table != NO_TMP_TABLE);
+  DBUG_ASSERT(s->tdc.ref_count > 0 || s->tmp_table != NO_TMP_TABLE);
 
   if (thd->lex->need_correct_ident())
     alias_name_used= my_strcasecmp(table_alias_charset,
