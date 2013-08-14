@@ -280,7 +280,7 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_COLUMNS,
-                          buftyp, fldtyp, length, true, true);
+                          buftyp, fldtyp, length, false, true);
 
   if (info)                      // Info table
     return qrp;
@@ -422,7 +422,7 @@ PQRYRES ODBCDataSources(PGLOBAL g, bool info)
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_DSRC, 
-                          buftyp, fldtyp, length, true, true);
+                          buftyp, fldtyp, length, false, true);
 
   /************************************************************************/
   /*  Now get the results into blocks.                                    */
@@ -467,7 +467,7 @@ PQRYRES ODBCDrivers(PGLOBAL g, bool info)
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_DRIVER, 
-                          buftyp, fldtyp, length, true, true);
+                          buftyp, fldtyp, length, false, true);
 
   /************************************************************************/
   /*  Now get the results into blocks.                                    */
@@ -532,7 +532,7 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_TABLES, buftyp,
-                                        fldtyp, length, true, true);
+                                        fldtyp, length, false, true);
 
   if (info)
     return qrp;
@@ -616,7 +616,7 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
   /*  Allocate the structure used to refer to the result set.             */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_PKEY,
-                          buftyp, NULL, length, true, true);
+                          buftyp, NULL, length, false, true);
 
   if (trace)
     htrc("Getting pkey results ncol=%d\n", qrp->Nbcol);
@@ -698,7 +698,7 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
   /*  Allocate the structure used to refer to the result set.             */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_STAT,
-                          buftyp, NULL, length, true, true);
+                          buftyp, NULL, length, false, true);
 
   if (trace)
     htrc("Getting stat results ncol=%d\n", qrp->Nbcol);
