@@ -4191,8 +4191,8 @@ handler *mysql_create_frm_image(THD *thd,
   set_table_default_charset(thd, create_info, (char*) db);
 
   db_options= create_info->table_options;
-  if (create_info->row_type != ROW_TYPE_FIXED &&
-      create_info->row_type != ROW_TYPE_DEFAULT)
+  if (create_info->row_type == ROW_TYPE_DYNAMIC ||
+      create_info->row_type == ROW_TYPE_PAGE)
     db_options|= HA_OPTION_PACK_RECORD;
 
   if (!(file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root,
@@ -6019,6 +6019,7 @@ bool mysql_compare_tables(TABLE *table,
       mimic behavior of create_table_impl().
     */
     if (create_info->row_type == ROW_TYPE_DYNAMIC ||
+        create_info->row_type == ROW_TYPE_PAGE ||
 	(tmp_new_field->flags & BLOB_FLAG) ||
 	(tmp_new_field->sql_type == MYSQL_TYPE_VARCHAR &&
 	create_info->row_type != ROW_TYPE_FIXED))
