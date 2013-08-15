@@ -211,7 +211,7 @@ PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info)
   /*  Allocate the structures used to refer to the result set.         */
   /*********************************************************************/
   qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
-                          buftyp, fldtyp, length, true, true);
+                          buftyp, fldtyp, length, false, true);
 
   if (info)
     return qrp;

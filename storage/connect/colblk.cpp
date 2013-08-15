@@ -350,8 +350,7 @@ TIDBLK::TIDBLK(PCOLUMN cp) : SPCBLK(cp)
   *Format.Type = 'C';
   Format.Length = Long;
   Format.Prec = 1;          // Case insensitive
-  Constant = (To_Tdb->GetAmType() != TYPE_AM_PLG &&
-              To_Tdb->GetAmType() != TYPE_AM_PLM);
+  Constant = (To_Tdb->GetAmType() != TYPE_AM_TBL);
   Tname = NULL;
   } // end of TIDBLK constructor
 
@@ -364,6 +363,33 @@ void TIDBLK::ReadColumn(PGLOBAL g)
     Tname = (char*)To_Tdb->GetName();
     Value->SetValue_psz(Tname);
     } // endif Tname
+
+  } // end of ReadColumn
+
+/***********************************************************************/
+/*  SIDBLK constructor for the SERVID special column.                  */
+/***********************************************************************/
+SIDBLK::SIDBLK(PCOLUMN cp) : SPCBLK(cp)
+  {
+//Is_Key = 2; for when the MUL table indexed reading will be implemented.
+  Long = 64;
+  Buf_Type = TYPE_STRING;
+  *Format.Type = 'C';
+  Format.Length = Long;
+  Format.Prec = 1;          // Case insensitive
+  Constant = (To_Tdb->GetAmType() != TYPE_AM_TBL);
+  Sname = NULL;
+  } // end of TIDBLK constructor
+
+/***********************************************************************/
+/*  ReadColumn: what this routine does is to return the server ID.     */
+/***********************************************************************/
+void SIDBLK::ReadColumn(PGLOBAL g)
+  {
+//if (Sname == NULL) {
+    Sname = (char*)To_Tdb->GetServer();
+    Value->SetValue_psz(Sname);
+//  } // endif Sname
 
   } // end of ReadColumn
 

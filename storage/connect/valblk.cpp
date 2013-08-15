@@ -592,7 +592,7 @@ void CHRBLK::SetValue(char *sp, uint len, int n)
 #endif
 
   if (sp)
-    memcpy(p, sp, Long);
+    memcpy(p, sp, min((unsigned)Long, len));
 
   if (Blanks) {
     // Suppress eventual ending zero and right fill with blanks
@@ -712,7 +712,7 @@ void *CHRBLK::GetValPtrEx(int n)
     // For VCT blocks we must remove rightmost blanks.
     char *p = Valp + Long;
 
-    for (p--; *p == ' ' && p >= Valp; p--) ;
+    for (p--; p >= Valp && *p == ' '; p--) ;
 
     *(++p) = '\0';
     } // endif Blanks

@@ -83,6 +83,7 @@ class DllExport VALUE : public BLOCK {
   virtual void   SetPrec(int prec) {Prec = prec;}
           bool   IsNull(void) {return Null;}
           void   SetNull(bool b) {Null = b;}
+          bool   GetNullable(void) {return Nullable;}
           void   SetNullable(bool b) {Nullable = b;}
           int    GetType(void) {return Type;}
           int    GetClen(void) {return Clen;}

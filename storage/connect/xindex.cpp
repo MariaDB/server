@@ -1832,8 +1832,9 @@ int XINDXS::Range(PGLOBAL g, int limit, bool incl)
   /*********************************************************************/
   if (xp->GetType() == TYPE_CONST) {
     kp->Valp->SetValue_pval(xp->GetValue(), !kp->Prefix);
+    k = FastFind(Nval);
 
-    if ((k = FastFind(Nval)) < Num_K)
+    if (k < Num_K || Op != OP_EQ)
       if (limit)
         n = (Mul) ? k : kp->Val_K;
       else 
@@ -2797,7 +2798,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   if (Asc)
     IsSorted = colp->GetOpt() < 0;
 
-//MayHaveNulls = colp->HasNulls();
+//SetNulls(colp->IsNullable()); for when null columns will be indexable
   return false;
   } // end of Init
 
@@ -2956,6 +2957,11 @@ void KXYCOL::InitBinFind(void *vp)
 void KXYCOL::FillValue(PVAL valp)
   {
   valp->SetValue_pvblk(Kblp, Val_K);
+
+  // Set null when applicable (NIY)
+//if (valp->GetNullable())
+//  valp->SetNull(valp->IsZero());
+
   } // end of FillValue
 
 /***********************************************************************/

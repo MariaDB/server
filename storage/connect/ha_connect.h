@@ -167,9 +167,9 @@ public:
   PIXDEF   GetIndexInfo(void);
   const char *GetDBName(const char *name);
   const char *GetTableName(void);
-  int      GetColNameLen(Field *fp);
-  char    *GetColName(Field *fp);
-  void     AddColName(char *cp, Field *fp);
+//int      GetColNameLen(Field *fp);
+//char    *GetColName(Field *fp);
+//void     AddColName(char *cp, Field *fp);
   TABLE   *GetTable(void) {return table;}
   bool     IsSameIndex(PIXDEF xp1, PIXDEF xp2);
 
@@ -208,7 +208,7 @@ public:
     return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_HAS_RECORDS |
             HA_NO_AUTO_INCREMENT | HA_NO_PREFIX_CHAR_KEYS |
             HA_NO_COPY_ON_ALTER | HA_CAN_VIRTUAL_COLUMNS |
-            HA_NULL_IN_KEY | HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE);
+            /*HA_NULL_IN_KEY |*/ HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE);
   }
 
   /** @brief
@@ -319,6 +319,21 @@ const char *GetValStr(OPVAL vop, bool neg);
  */
  virtual ha_rows records();
 
+ /** 
+   Type of table for caching query
+   CONNECT should not use caching because its tables are external
+   data prone to me modified out of MariaDB
+ */
+ virtual uint8 table_cache_type(void)
+ {
+#if defined(MEMORY_TRACE)
+   // Temporary until bug MDEV-4771 is fixed
+   return HA_CACHE_TBL_NONTRANSACT;
+#else
+   return HA_CACHE_TBL_NOCACHE;
+#endif
+ }
+
  /** @brief
     We implement this in ha_connect.cc; it's a required method.
   */
@@ -400,6 +415,7 @@ const char *GetValStr(OPVAL vop, bool neg);
   void position(const uchar *record);                           ///< required
   int info(uint);                                               ///< required
   int extra(enum ha_extra_function operation);
+  int start_stmt(THD *thd, thr_lock_type lock_type);
   int external_lock(THD *thd, int lock_type);                   ///< required
   int delete_all_rows(void);
   ha_rows records_in_range(uint inx, key_range *min_key,
@@ -429,6 +445,7 @@ const char *GetValStr(OPVAL vop, bool neg);
 
 protected:
   bool check_privileges(THD *thd, PTOS options);
+  MODE CheckMode(PGLOBAL g, THD *thd, MODE newmode, bool *chk, bool *cras);
 
   // Members
   static ulong  num;                  // Tracable handler number
@@ -446,6 +463,7 @@ protected:
   bool          valid_info;           // True if xinfo is valid
   bool          stop;                 // Used when creating index
   int           indexing;             // Type of indexing for CONNECT
+  int           locked;               // Table lock
   THR_LOCK_DATA lock_data;
 
 public:

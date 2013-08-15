@@ -583,12 +583,12 @@ template <>
 void TYPVAL<double>::SetValue_char(char *p, int n)
   {
   if (p) {
-    char *p2, buf[32];
+    char buf[32];
 
-    for (p2 = p + n; p < p2 && *p == ' '; p++) ;
+    for (; n > 0 && *p == ' '; p++) 
+      n--;
 
-    n = min(p2 - p, 31);
-    memcpy(buf, p, n);
+    memcpy(buf, p, min(n, 31));
     buf[n] = '\0';
     Tval = atof(buf);
 
@@ -875,12 +875,16 @@ TYPVAL<PSZ>::TYPVAL(PSZ s) : VALUE(TYPE_STRING)
 TYPVAL<PSZ>::TYPVAL(PGLOBAL g, PSZ s, int n, int c)
            : VALUE(TYPE_STRING)
   {
-  assert(Type == TYPE_STRING && (g || s));
+  assert(Type == TYPE_STRING);
   Len = (g) ? n : strlen(s);
 
-  if (g && !s) {
-    Strp = (char *)PlugSubAlloc(g, NULL, Len + 1);
-    Strp[Len] = '\0';
+  if (!s) {
+    if (g) {
+	    Strp = (char *)PlugSubAlloc(g, NULL, Len + 1);
+  	  Strp[Len] = '\0';
+  	} else
+  	  assert(false);
+  	  
   } else
     Strp = s;
 
@@ -912,15 +916,21 @@ bool TYPVAL<PSZ>::SetValue_pval(PVAL valp, bool chktype)
 void TYPVAL<PSZ>::SetValue_char(char *p, int n)
   {
   if (p) {
-    n = min(n, Len);
-    strncpy(Strp, p, n);
+    if ((n = min(n, Len))) {
+    	strncpy(Strp, p, n);
 
-    for (p = Strp + n - 1; (*p == ' ' || *p == '\0') && p >= Strp; p--) ;
+//	  for (p = Strp + n - 1; p >= Strp && (*p == ' ' || *p == '\0'); p--) ;
+      for (p = Strp + n - 1; p >= Strp; p--)
+        if (*p && *p != ' ')
+          break;
 
-    *(++p) = '\0';
+	    *(++p) = '\0';
 
-    if (trace > 1)
-      htrc(" Setting string to: '%s'\n", Strp);
+	    if (trace > 1)
+	      htrc(" Setting string to: '%s'\n", Strp);
+	      
+	  } else
+	  	Reset();
 
     Null = false;
   } else {
