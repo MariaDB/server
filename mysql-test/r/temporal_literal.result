@@ -474,3 +474,15 @@ TIMESTAMP('2001-01-01 10:10:10.1234567xyz')
 2001-01-01 10:10:10.123456
 Warnings:
 Warning	1292	Truncated incorrect datetime value: '2001-01-01 10:10:10.1234567xyz'
+CREATE TABLE t1 (a TIME(6));
+INSERT INTO t1 VALUES (TIME'10:20:30.1234567');
+Warnings:
+Note	1292	Truncated incorrect time value: '10:20:30.1234567'
+INSERT INTO t1 VALUES (TIME('10:20:30.1234567'));
+Warnings:
+Note	1292	Truncated incorrect time value: '10:20:30.1234567'
+SELECT * FROM t1;
+a
+10:20:30.123456
+10:20:30.123456
+DROP TABLE t1;
