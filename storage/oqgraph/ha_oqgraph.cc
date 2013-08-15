@@ -193,7 +193,12 @@ static bool oqgraph_init()
   hton->state= SHOW_OPTION_YES;
   hton->db_type= DB_TYPE_AUTOASSIGN;
   hton->create= oqgraph_create_handler;
-  hton->flags= HTON_NO_FLAGS;
+  hton->flags= HTON_ALTER_NOT_SUPPORTED;
+  // Prevent ALTER, because the core crashes when the user provides a
+  // non-existing backing store field for ORIGID, etc
+  // 'Fixes' bug 1134355  
+  // HTON_NO_FLAGS;
+  
   hton->table_options= oqgraph_table_option_list;
   oqgraph_init_done= TRUE;
   return 0;
