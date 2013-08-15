@@ -1,4 +1,4 @@
--- require r/have_partition.require
-disable_query_log;
-show variables like 'have_partitioning';
-enable_query_log;
+if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'partition' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip Test requires partitioning
+}
