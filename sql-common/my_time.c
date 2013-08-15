@@ -239,7 +239,7 @@ static void get_microseconds(ulong *val, MYSQL_TIME_STATUS *status,
   else
     *val= tmp;
   if (skip_digits(str, end))
-    status->warnings|= MYSQL_TIME_WARN_TRUNCATED;
+    status->warnings|= MYSQL_TIME_NOTE_TRUNCATED;
 }
 
 

@@ -562,7 +562,7 @@ select column_get(column_create(1, "2011-04-05 8:46:06.12345678" AS datetime(6))
 column_get(column_create(1, "2011-04-05 8:46:06.12345678" AS datetime(6)), 1 as decimal(32,8))
 20110405084606.12345600
 Warnings:
-Warning	1292	Truncated incorrect datetime value: '2011-04-05 8:46:06.12345678'
+Note	1292	Truncated incorrect datetime value: '2011-04-05 8:46:06.12345678'
 select column_get(column_create(1, NULL as decimal), 1 as decimal(32,10));
 column_get(column_create(1, NULL as decimal), 1 as decimal(32,10))
 NULL

@@ -5796,6 +5796,13 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
 }
 
 
+static bool
+have_important_literal_warnings(const MYSQL_TIME_STATUS *status)
+{
+  return (status->warnings & ~MYSQL_TIME_NOTE_TRUNCATED) != 0;
+}
+
+
 /**
   Builder for datetime literals:
     TIME'00:00:00', DATE'2001-01-01', TIMESTAMP'2001-01-01 00:00:00'.
@@ -5827,13 +5834,15 @@ Item *create_temporal_literal(THD *thd,
     break;
   case MYSQL_TYPE_DATETIME:
     if (!str_to_datetime(cs, str, length, &ltime, flags, &status) &&
-        ltime.time_type == MYSQL_TIMESTAMP_DATETIME && !status.warnings)
+        ltime.time_type == MYSQL_TIMESTAMP_DATETIME &&
+        !have_important_literal_warnings(&status))
       item= new (thd->mem_root) Item_datetime_literal(&ltime,
                                                       status.precision);
     break;
   case MYSQL_TYPE_TIME:
     if (!str_to_time(cs, str, length, &ltime, 0, &status) &&
-        ltime.time_type == MYSQL_TIMESTAMP_TIME && !status.warnings)
+        ltime.time_type == MYSQL_TIMESTAMP_TIME &&
+        !have_important_literal_warnings(&status))
       item= new (thd->mem_root) Item_time_literal(&ltime,
                                                   status.precision);
     break;
@@ -5842,7 +5851,16 @@ Item *create_temporal_literal(THD *thd,
   }
 
   if (item)
+  {
+    if (status.warnings) // e.g. a note on nanosecond truncation
+    {
+      ErrConvString err(str, length, cs);
+      make_truncated_value_warning(current_thd,
+                                   Sql_condition::time_warn_level(status.warnings),
+                                   &err, ltime.time_type, 0);
+    }
     return item;
+  }
 
   if (send_error)
   {
