@@ -847,7 +847,6 @@ TABLE_SHARE *tdc_acquire_share(THD *thd, const char *db, const char *table_name,
     if ((*out_table= tc_acquire_table(thd, share)))
     {
       DBUG_ASSERT(!(flags & GTS_NOLOCK));
-      DBUG_ASSERT(!share->tdc.prev && !share->tdc.next);
       DBUG_ASSERT(!share->error);
       DBUG_ASSERT(!share->is_view);
       DBUG_RETURN(share);
@@ -898,7 +897,6 @@ TABLE_SHARE *tdc_acquire_share(THD *thd, const char *db, const char *table_name,
     } 
     mysql_mutex_unlock(&LOCK_unused_shares);
   }
-  DBUG_ASSERT(share->tdc.prev == 0 && share->tdc.next == 0);
 
 end:
   DBUG_PRINT("exit", ("share: 0x%lx  ref_count: %u",
