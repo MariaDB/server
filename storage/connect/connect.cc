@@ -239,7 +239,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
   char   *p;
   int     i, n;
   PCOL    colp;
-  PCOLUMN cp;
+//PCOLUMN cp;
   PDBUSER dup= PlgGetUser(g);
 
   if (xtrace)
@@ -251,6 +251,8 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     return true;
     } // endif tdbp
 
+  tdbp->SetMode(mode);
+
   if (!c1) {
     if (mode == MODE_INSERT)
       // Allocate all column blocks for that table
@@ -261,12 +263,12 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     if (xtrace)
       printf("Allocating column %s\n", p);
 
-    if (*p == '*') {
-      // This is a special column
-      cp= new(g) COLUMN(p + 1);
-      cp->SetTo_Table(tdbp->GetTable());
-      colp= ((PTDBASE)tdbp)->InsertSpcBlk(g, cp);
-    } else
+//    if (*p == '*') {
+//      // This is a special column
+//      cp= new(g) COLUMN(p + 1);
+//      cp->SetTo_Table(tdbp->GetTable());
+//      colp= ((PTDBASE)tdbp)->InsertSpcBlk(g, cp);
+//    } else
       colp= tdbp->ColDB(g, p, 0);
 
     if (!colp) {
@@ -330,7 +332,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     printf("Opening table %s in mode %d tdbp=%p\n",
            tdbp->GetName(), mode, tdbp);
 
-  tdbp->SetMode(mode);
+//tdbp->SetMode(mode);
 
   if (del && ((PTDBASE)tdbp)->GetFtype() != RECFM_NAF) {  
     // To avoid erasing the table when doing a partial delete

@@ -468,9 +468,9 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
         break;
 			} // endswitch tc
 
-		do {
+//		do {
 			field= Hc->GetColumnOption(g, field, pcf);
-			} while (field && (*pcf->Name =='*' /*|| pcf->Flags & U_VIRTUAL*/));
+//    } while (field && (*pcf->Name =='*' /*|| pcf->Flags & U_VIRTUAL*/));
 
 		if (tc == TAB_DBF && pcf->Type == TYPE_DATE && !pcf->Datefmt) {
 			// DBF date format defaults to 'YYYMMDD'

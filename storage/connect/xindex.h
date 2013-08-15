@@ -473,10 +473,10 @@ class KXYCOL: public BLOCK {
 
  protected:
   // Members
-  PXCOL    Next;            // To next in the key part list
+  PXCOL   Next;            // To next in the key part list
   PXCOL   Previous;        // To previous in the key part list
   PKXBASE Kxp;             // To the INDEX class block
-  PCOL    Colp;             // To matching object if a column
+  PCOL    Colp;            // To matching object if a column
   bool    IsSorted;        // true if column is already sorted
   bool    Asc;             // true for ascending sort, false for Desc
   MBLOCK  Keys;            // Data array allocation block
