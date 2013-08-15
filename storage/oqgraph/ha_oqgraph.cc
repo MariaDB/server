@@ -745,6 +745,7 @@ int ha_oqgraph::index_read(byte * buf, const byte * key, uint key_len,
 			enum ha_rkey_function find_flag)
 {
   DBUG_ASSERT(inited==INDEX);
+  graph->row_ref((void*) ref);	// reset before we have a cursor, so the memory is inited, avoiding the sefgault in position() when select with order by (bug #1133093)
   return index_read_idx(buf, active_index, key, key_len, find_flag);
 }
 
