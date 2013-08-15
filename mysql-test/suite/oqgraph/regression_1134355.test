@@ -9,6 +9,8 @@ DROP TABLE IF EXISTS graph;
 CREATE TABLE graph_base (
     from_id INT UNSIGNED NOT NULL,
     to_id INT UNSIGNED NOT NULL,
+    another_id INT UNSIGNED NOT NULL DEFAULT 1,
+    w DOUBLE NOT NULL DEFAULT 1,
     PRIMARY KEY (from_id,to_id),
     INDEX (to_id)
   ) ENGINE=MyISAM;
@@ -23,7 +25,7 @@ CREATE TABLE graph (
     linkid  BIGINT    UNSIGNED NULL,
     KEY (latch, origid, destid) USING HASH,
     KEY (latch, destid, origid) USING HASH
-  ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+  ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id', WEIGHT='w';
 
 # -- do some stuff
 
@@ -35,8 +37,18 @@ INSERT INTO graph_base(from_id, to_id) VALUES (3,4), (4,3);
 SELECT * from graph;
 SELECT * FROM graph WHERE destid=2 and origid=1;
 
-# -- trigger bug
-# --error 1296  # commented out at the moment because the message is corrupted
+# We cant do this anyway because of read onlyness of table.... 1036 == read only
+# In any case I changed the flags to make alter unsupported; later we can try and work out why the core doesnt help us clean up properly
+# --error 1036
+--error 1031
+alter table graph ORIGID = 'another_id';
+
+# But we need that to hold even in an invalid situation!
+# -- bug was: the following alter table would crash, instead of returning error 1296
+# -- currently following may not crash, but does with the previous error 1036 causing statement present
+#  'attribute not set to a valid column of 'xxx'  - note currently truncating to graph_b instead of graph_base for some reason...
+#--error 1296
+--error 1031
 alter table graph ORIGID = 'something_else';
 
 DELETE FROM graph_base;
