@@ -6555,3 +6555,5 @@ ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
         eng "Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a transaction"
 ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
         eng "Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a stored function or trigger"
+ER_GTID_POSITION_NOT_FOUND_IN_BINLOG2
+	eng "Connecting slave requested to start from GTID %u-%u-%llu, which is not in the master's binlog. Since the master's binlog contains GTIDs with higher sequence numbers, it probably means that the slave has diverged due to executing extra errorneous transactions"
