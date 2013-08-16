@@ -947,7 +947,7 @@ namespace open_query
     if (cursor)
       cursor->current(ref);
     else
-      new (ref_ptr) reference(); // avoid assignment operator because the intrusive_ptr swaps for unknown reasons, which means if ref is uninitialised it segfaults
+      ref = reference(); // avoid assignment operator because the intrusive_ptr swaps for unknown reasons, which means if ref is uninitialised it segfaults
   }
 
   int oqgraph::random(bool scan) throw()
