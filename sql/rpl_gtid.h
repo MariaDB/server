@@ -174,7 +174,14 @@ struct rpl_binlog_state
 */
 struct slave_connection_state
 {
-  /* Mapping from domain_id to the GTID requested for that domain. */
+  struct entry {
+    rpl_gtid gtid;
+    uint32 flags;
+  };
+  static const uint32 START_OWN_SLAVE_POS= 0x1;
+  static const uint32 START_ON_EMPTY_DOMAIN= 0x2;
+
+  /* Mapping from domain_id to the entry with GTID requested for that domain. */
   HASH hash;
 
   slave_connection_state();
@@ -185,6 +192,7 @@ struct slave_connection_state
   int load(const rpl_gtid *gtid_list, uint32 count);
   int load(rpl_slave_state *state, rpl_gtid *extra_gtids, uint32 num_extra);
   rpl_gtid *find(uint32 domain_id);
+  entry *find_entry(uint32 domain_id);
   int update(const rpl_gtid *in_gtid);
   void remove(const rpl_gtid *gtid);
   ulong count() const { return hash.records; }
