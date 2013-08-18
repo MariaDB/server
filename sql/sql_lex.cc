@@ -4085,7 +4085,8 @@ void SELECT_LEX::increase_derived_records(ha_rows records)
 void SELECT_LEX::mark_const_derived(bool empty)
 {
   TABLE_LIST *derived= master_unit()->derived;
-  if (!join->thd->lex->describe && derived)
+  /* join == NULL in  DELETE ... RETURNING */
+  if (!(join && join->thd->lex->describe) && derived)
   {
     if (!empty)
       increase_derived_records(1);

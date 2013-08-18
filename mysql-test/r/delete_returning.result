@@ -233,3 +233,13 @@ DROP USER mysqltest_1@localhost;
 DROP VIEW v1;
 DROP TABLE t1,t2;
 DROP TABLE t1c,t2c;
+#
+# Bug mdev-4918: DELETE ... RETURNING subquery with more than 1 row
+#
+CREATE TABLE t1 (i1 int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (i2 int);
+INSERT INTO t2 VALUES (1),(2);
+DELETE FROM t1 ORDER BY i1 RETURNING ( SELECT i2 FROM t2 );
+ERROR 21000: Subquery returns more than 1 row
+DROP TABLE t1,t2;
