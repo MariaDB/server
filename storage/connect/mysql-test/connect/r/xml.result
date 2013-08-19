@@ -413,7 +413,7 @@ DROP TABLE t1;
 SET @a=LOAD_FILE('MYSQLD_DATADIR/test/t1.xml');
 SELECT CAST(@a AS CHAR CHARACTER SET latin1);
 CAST(@a AS CHAR CHARACTER SET latin1)	<?xml version="1.0" encoding="iso-8859-1"?>
-<!-- Created by CONNECT Version 1.01.0007 July 26, 2013 -->
+<!-- Created by CONNECT Version 1.01.0008 August 18, 2013 -->
 <t1>
 	<line>
 		<node>ÀÁÂÃ</node>

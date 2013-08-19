@@ -618,8 +618,8 @@ bool DOMATTR::SetText(PGLOBAL g, char *txtp, int len)
     Len = len;
     } // endif len
 
-  if (!MultiByteToWideChar(CP_ACP, 0, txtp, strlen(txtp) + 1,
-                                      Ws, Len + 1)) {
+  if (!MultiByteToWideChar(CP_UTF8, 0, txtp, strlen(txtp) + 1,
+                                       Ws, Len + 1)) {
     sprintf(g->Message, MSG(WS_CONV_ERR), txtp);
     return true;
     } // endif
