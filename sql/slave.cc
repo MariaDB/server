@@ -3160,6 +3160,14 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli)
       DBUG_RETURN(2);
     }
   }
+  else
+  {
+    /*
+      Make sure we do not errorneously update gtid_slave_pos with a lingering
+      GTID from this failed event group (MDEV-4906).
+    */
+    rli->gtid_sub_id= 0;
+  }
 
   DBUG_RETURN(exec_res ? 1 : 0);
 }
@@ -4094,6 +4102,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   rli->trans_retries= 0; // start from "no error"
   DBUG_PRINT("info", ("rli->trans_retries: %lu", rli->trans_retries));
 
+  rli->gtid_sub_id= 0;
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
                          rli->group_relay_log_pos,
