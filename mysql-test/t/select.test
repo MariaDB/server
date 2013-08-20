@@ -4518,3 +4518,34 @@ DROP TABLE t1, t2;
 
 --echo End of 5.3 tests
 
+--echo #
+--echo # mysql BUG#1271 Undefined variable in PASSWORD() 
+--echo # function is not handled correctly
+--echo #
+
+create table t1 (
+name VARCHAR(50) NOT NULL PRIMARY KEY,
+pw VARCHAR(41) NOT NULL);
+
+INSERT INTO t1 (name, pw) 
+VALUES ('tom', PASSWORD('my_pw'));
+
+SET @pass='my_pw';
+SET @wrong='incorrect';
+
+select * from t1;
+select length(PASSWORD(@pass));
+
+
+SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@pass);
+SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@wrong);
+SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@undefined);
+
+
+select (SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@pass));
+select (SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@wrong));
+select (SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@undefined));
+
+drop table t1;
+
+--echo End of 10.0 tests

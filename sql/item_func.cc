@@ -2791,6 +2791,13 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     ltime->time_type= MYSQL_TIMESTAMP_DATE;
     ltime->hour= ltime->minute= ltime->second= ltime->second_part= 0;
   }
+  else if (compare_as_dates->field_type() == MYSQL_TYPE_TIME)
+  {
+    ltime->time_type= MYSQL_TIMESTAMP_TIME;
+    ltime->hour+= (ltime->month * 32 + ltime->day) * 24;
+    ltime->month= ltime->day= 0;
+  }
+
 
   return (null_value= 0);
 }
@@ -4067,9 +4074,7 @@ longlong Item_func_get_lock::val_int()
 
   if (!ull_name_ok(res))
     DBUG_RETURN(0);
-
-  DBUG_PRINT("info", ("lock %.*s, thd=%ld", res->length(), res->ptr(),
-                      (long) thd->real_id));
+  DBUG_PRINT("enter", ("lock: %.*s", res->length(), res->ptr()));
   /* HASH entries are of type User_level_lock. */
   if (! my_hash_inited(&thd->ull_hash) &&
         my_hash_init(&thd->ull_hash, &my_charset_bin,
@@ -4090,6 +4095,7 @@ longlong Item_func_get_lock::val_int()
     /* Recursive lock */
     ull->refs++;
     null_value = 0;
+    DBUG_PRINT("info", ("recursive lock, ref-count: %d", (int) ull->refs));
     DBUG_RETURN(1);
   }
 
@@ -4146,7 +4152,7 @@ longlong Item_func_release_lock::val_int()
   if (!ull_name_ok(res))
     DBUG_RETURN(0);
 
-  DBUG_PRINT("info", ("lock %.*s", res->length(), res->ptr()));
+  DBUG_PRINT("enter", ("lock: %.*s", res->length(), res->ptr()));
 
   MDL_key ull_key;
   ull_key.mdl_key_init(MDL_key::USER_LOCK, res->c_ptr_safe(), "");
@@ -4160,6 +4166,7 @@ longlong Item_func_release_lock::val_int()
     null_value= thd->mdl_context.get_lock_owner(&ull_key) == 0;
     DBUG_RETURN(0);
   }
+  DBUG_PRINT("info", ("ref count: %d", (int) ull->refs));
   null_value= 0;
   if (--ull->refs == 0)
   {
