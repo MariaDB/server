@@ -70,7 +70,7 @@ class DllExport TDBPRX : public TDBASE {
   virtual int   GetRecpos(void) {return Tdbp->GetRecpos();}
 	virtual void  ResetDB(void) {Tdbp->ResetDB();}
 	virtual int   RowNumber(PGLOBAL g, bool b = FALSE);
-  virtual PSZ   GetServer(void) {return (Tdbp) ? Tdbp->GetServer() : "?";}
+  virtual PSZ   GetServer(void) {return (Tdbp) ? Tdbp->GetServer() : (PSZ)"?";}
 
   // Database routines
 	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
