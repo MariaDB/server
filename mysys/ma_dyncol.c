@@ -1941,13 +1941,15 @@ static size_t hdr_interval_length(DYN_HEADER *hdr, uchar *next_entry)
 
   if ((*fmt->type_and_offset_read)(&hdr->type, &hdr->offset,
                                    hdr->entry + fmt->fixed_hdr_entry,
-                                   hdr->offset_size))
+                                   hdr->offset_size) ||
+      hdr->data_size < hdr->offset)
     return DYNCOL_OFFSET_ERROR;
   if (next_entry == hdr->header + hdr->header_size)
     return hdr->data_size - hdr->offset;
   if ((*fmt->type_and_offset_read)(&next_entry_type, &next_entry_offset,
                                    next_entry + fmt->fixed_hdr_entry,
-                                   hdr->offset_size))
+                                   hdr->offset_size) ||
+      hdr->data_size < next_entry_offset)
     return DYNCOL_OFFSET_ERROR;
   return (next_entry_offset - hdr->offset);
 }
