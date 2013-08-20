@@ -801,3 +801,14 @@ select hex(column_create("t", "2012-12-21 10:46:06" AS datetime)) as hex,
        column_json(column_create("t", "2012-12-21 10:46:06" AS datetime)) as json;
 select hex(column_create(1, "2012-12-21 10:46:06" AS datetime)) as hex,
        column_json(column_create(1, "2012-12-21 10:46:06" AS datetime)) as json;
+
+--echo #
+--echo # MDEV-4849: Out of memory error and valgrind warnings on COLUMN_ADD
+--echo #
+CREATE TABLE t1 (dyncol tinyblob) ENGINE=MyISAM;
+
+INSERT INTO t1 SET dyncol = COLUMN_CREATE( 3, REPEAT('a',330), 4, 'x' );
+--error ER_DYN_COL_WRONG_FORMAT
+SELECT COLUMN_ADD( COLUMN_ADD( dyncol, 1, REPEAT('b',130) ), 3, 'y' ) FROM t1;
+
+DROP TABLE t1;

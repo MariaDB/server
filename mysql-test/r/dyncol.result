@@ -1741,3 +1741,13 @@ select hex(column_create(1, "2012-12-21 10:46:06" AS datetime)) as hex,
 column_json(column_create(1, "2012-12-21 10:46:06" AS datetime)) as json;
 hex	json
 00010001000595B90F000060B80A00	{"1":"2012-12-21 10:46:06"}
+#
+# MDEV-4849: Out of memory error and valgrind warnings on COLUMN_ADD
+#
+CREATE TABLE t1 (dyncol tinyblob) ENGINE=MyISAM;
+INSERT INTO t1 SET dyncol = COLUMN_CREATE( 3, REPEAT('a',330), 4, 'x' );
+Warnings:
+Warning	1265	Data truncated for column 'dyncol' at row 1
+SELECT COLUMN_ADD( COLUMN_ADD( dyncol, 1, REPEAT('b',130) ), 3, 'y' ) FROM t1;
+ERROR HY000: Encountered illegal format of dynamic column string
+DROP TABLE t1;
