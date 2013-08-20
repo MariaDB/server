@@ -8957,10 +8957,6 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     {                        /* there may be a select without a cond. */    
       if (join->table_count > 1)
         cond->update_used_tables();		// Tablenr may have changed
-      if (join->const_tables == join->table_count &&
-	  thd->lex->current_select->master_unit() ==
-	  &thd->lex->unit)		// not upper level SELECT
-        join->const_table_map|=RAND_TABLE_BIT;
 
       /*
         Extract expressions that depend on constant tables
@@ -16171,6 +16167,8 @@ create_internal_tmp_table_from_heap2(THD *thd, TABLE *table,
   const char *save_proc_info;
   int write_err= 0;
   DBUG_ENTER("create_internal_tmp_table_from_heap2");
+  if (is_duplicate)
+    *is_duplicate= FALSE;
 
   if (table->s->db_type() != heap_hton || 
       error != HA_ERR_RECORD_FILE_FULL)

@@ -1913,7 +1913,8 @@ static size_t get_length_interval(uchar *entry, uchar *entry_next,
   if (entry_next >= header_end)
     return (last_offset - offset);
   if (type_and_offset_read_num(&type_next, &offset_next,
-                               entry_next + COLUMN_NUMBER_SIZE, offset_size))
+                               entry_next + COLUMN_NUMBER_SIZE, offset_size) ||
+      (offset_next > last_offset))
     return DYNCOL_OFFSET_ERROR;
   return (offset_next - offset);
 }

@@ -5358,3 +5358,38 @@ WHERE c = a AND
 a	b	c
 DROP TABLE t1, t2;
 End of 5.3 tests
+#
+# mysql BUG#1271 Undefined variable in PASSWORD() 
+# function is not handled correctly
+#
+create table t1 (
+name VARCHAR(50) NOT NULL PRIMARY KEY,
+pw VARCHAR(41) NOT NULL);
+INSERT INTO t1 (name, pw) 
+VALUES ('tom', PASSWORD('my_pw'));
+SET @pass='my_pw';
+SET @wrong='incorrect';
+select * from t1;
+name	pw
+tom	*F305E8EC27734F687F2EB6EC03CF0F7AF27C18E1
+select length(PASSWORD(@pass));
+length(PASSWORD(@pass))
+41
+SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@pass);
+name
+tom
+SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@wrong);
+name
+SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@undefined);
+name
+select (SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@pass));
+(SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@pass))
+tom
+select (SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@wrong));
+(SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@wrong))
+NULL
+select (SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@undefined));
+(SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@undefined))
+NULL
+drop table t1;
+End of 10.0 tests

@@ -248,7 +248,7 @@ create procedure p1() update t1 set value='updated' where value='old';
 # load the procedure into sp cache and execute once
 call p1();
 
-insert into t1 (value) values ("old");
+insert into t1 (value) values ("old"),("irrelevant");
 
 connect (rl_holder, localhost, root,,);
 connect (rl_acquirer, localhost, root,,);

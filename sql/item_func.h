@@ -43,7 +43,14 @@ protected:
   bool persistent_maybe_null;
 public:
   uint arg_count;
-  table_map used_tables_cache, not_null_tables_cache;
+  /*
+    In some cases used_tables_cache is not what used_tables() return
+    so the method should be used where one need used tables bit map 
+    (even internally in Item_func_* code).
+  */
+  table_map used_tables_cache;
+  table_map not_null_tables_cache;
+
   bool const_item_cache;
   enum Functype { UNKNOWN_FUNC,EQ_FUNC,EQUAL_FUNC,NE_FUNC,LT_FUNC,LE_FUNC,
 		  GE_FUNC,GT_FUNC,FT_FUNC,
@@ -1269,11 +1276,11 @@ public:
   Item_func_sleep(Item *a) :Item_int_func(a) {}
   bool const_item() const { return 0; }
   const char *func_name() const { return "sleep"; }
-  void update_used_tables()
+  table_map used_tables() const
   {
-    Item_int_func::update_used_tables();
-    used_tables_cache|= RAND_TABLE_BIT;
+    return Item_int_func::used_tables() | RAND_TABLE_BIT;
   }
+  bool is_expensive() { return 1; }
   longlong val_int();
   bool check_vcol_func_processor(uchar *int_arg) 
   {
@@ -1523,6 +1530,12 @@ class Item_func_get_lock :public Item_int_func
   longlong val_int();
   const char *func_name() const { return "get_lock"; }
   void fix_length_and_dec() { max_length=1; set_persist_maybe_null(1);}
+  table_map used_tables() const
+  {
+    return Item_int_func::used_tables() | RAND_TABLE_BIT;
+  }
+  bool const_item() const { return 0; }
+  bool is_expensive() { return 1; }
   bool check_vcol_func_processor(uchar *int_arg) 
   {
     return trace_unsupported_by_check_vcol_func_processor(func_name());
@@ -1537,6 +1550,12 @@ public:
   longlong val_int();
   const char *func_name() const { return "release_lock"; }
   void fix_length_and_dec() { max_length=1; set_persist_maybe_null(1);}
+  table_map used_tables() const
+  {
+    return Item_int_func::used_tables() | RAND_TABLE_BIT;
+  }
+  bool const_item() const { return 0; }
+  bool is_expensive() { return 1; }
   bool check_vcol_func_processor(uchar *int_arg) 
   {
     return trace_unsupported_by_check_vcol_func_processor(func_name());
@@ -1629,6 +1648,12 @@ public:
   enum Item_result result_type () const { return cached_result_type; }
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
+  table_map used_tables() const
+  {
+    return Item_func::used_tables() | RAND_TABLE_BIT;
+  }
+  bool const_item() const { return 0; }
+  bool is_expensive() { return 1; }
   virtual void print(String *str, enum_query_type query_type);
   void print_as_stmt(String *str, enum_query_type query_type);
   const char *func_name() const { return "set_user_var"; }
