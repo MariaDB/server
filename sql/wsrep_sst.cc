@@ -45,8 +45,9 @@ extern const char wsrep_defaults_file[];
 #define WSREP_SST_OPT_BYPASS   "--bypass"
 
 #define WSREP_SST_MYSQLDUMP    "mysqldump"
+#define WSREP_SST_RSYNC        "rsync"
 #define WSREP_SST_SKIP         "skip"
-#define WSREP_SST_DEFAULT      WSREP_SST_MYSQLDUMP
+#define WSREP_SST_DEFAULT      WSREP_SST_RSYNC
 #define WSREP_SST_ADDRESS_AUTO "AUTO"
 #define WSREP_SST_AUTH_MASK    "********"
 
@@ -691,9 +692,11 @@ static int sst_donate_mysqldump (const char*         addr,
               WSREP_SST_OPT_PORT" '%s' "
               WSREP_SST_OPT_LPORT" '%u' "
               WSREP_SST_OPT_SOCKET" '%s' "
+              WSREP_SST_OPT_DATA" '%s' "
               WSREP_SST_OPT_GTID" '%s:%lld'"
               "%s",
-              user, pswd, host, port, mysqld_port, mysqld_unix_port, uuid_str,
+              user, pswd, host, port, mysqld_port, mysqld_unix_port,
+              mysql_real_data_home, uuid_str,
               (long long)seqno, bypass ? " "WSREP_SST_OPT_BYPASS : "");
 
     WSREP_DEBUG("Running: '%s'", cmd_str);
@@ -747,8 +750,8 @@ static int sst_flush_tables(THD* thd)
   else
   {
     /* make sure logs are flushed after global read lock acquired */
-    err= reload_acl_and_cache(thd, REFRESH_ENGINE_LOG, 
-			      (TABLE_LIST*) 0, &not_used);
+    err= reload_acl_and_cache(thd, REFRESH_ENGINE_LOG,
+                              (TABLE_LIST*) 0, &not_used);
   }
 
   if (err)

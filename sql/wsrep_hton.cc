@@ -75,7 +75,12 @@ void wsrep_register_hton(THD* thd, bool all)
     if (i->ht()->db_type == DB_TYPE_INNODB)
     {
       trans_register_ha(thd, all, wsrep_hton);
-      thd->ha_data[wsrep_hton->slot].ha_info[all].set_trx_read_write();
+
+      /* follow innodb read/write settting */
+      if (i->is_trx_read_write())
+      {
+	thd->ha_data[wsrep_hton->slot].ha_info[all].set_trx_read_write();
+      }
       break;
     }
   }

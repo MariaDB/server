@@ -52,6 +52,7 @@ Created 12/27/1996 Heikki Tuuri
 #include "eval0eval.h"
 #include "buf0lru.h"
 #ifdef WITH_WSREP
+#include "ha_prototypes.h"
 extern my_bool wsrep_debug;
 #endif
 

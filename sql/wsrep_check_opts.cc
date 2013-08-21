@@ -40,7 +40,7 @@ static struct opt opts[] =
 {
     { "wsrep_slave_threads",     "1" }, // mysqld.cc
     { "bind_address",      "0.0.0.0" }, // mysqld.cc
-    { "wsrep_sst_method","mysqldump" }, // mysqld.cc
+    { "wsrep_sst_method",    "rsync" }, // mysqld.cc
     { "wsrep_sst_receive_address","AUTO"}, // mysqld.cc
     { "binlog_format",         "ROW" }, // mysqld.cc
     { "wsrep_provider",       "none" }, // mysqld.cc

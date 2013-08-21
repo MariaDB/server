@@ -2381,6 +2381,9 @@ public:
   wsrep_stats_var*          wsrep_status_vars;
   int                       wsrep_mysql_replicated;
   THD*                      wsrep_bf_thd;
+  const char*               wsrep_TOI_pre_query; /* a query to apply before 
+						    the actual TOI query */
+  size_t                    wsrep_TOI_pre_query_len;
 #endif /* WITH_WSREP */
   /**
     Internal parser state.

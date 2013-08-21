@@ -377,11 +377,12 @@ the other cluster members by transferring state snapshot from one of them.
 The options below govern how this happens and should be set up before attempting
 to join or start a cluster.
 
-wsrep_sst_method=mysqldump
+wsrep_sst_method=rsync
    What method to use to copy database state to a newly joined node. Supported
    methods:
-   - mysqldump:  slow (except for small datasets) but most tested.
-   - rsync:      much faster on large datasets.
+   - mysqldump:  slow (except for small datasets) but allows for upgrade
+                 between major MySQL versions or InnoDB features.
+   - rsync:      much faster on large datasets (default).
    - rsync_wan:  same as rsync but with deltaxfer to minimize network traffic.
    - xtrabackup: very fast and practically non-blocking SST method based on
                  Percona's xtrabackup tool.

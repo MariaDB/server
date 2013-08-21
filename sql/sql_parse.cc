@@ -2893,12 +2893,6 @@ case SQLCOM_PREPARE:
       if (create_info.options & HA_LEX_CREATE_TMP_TABLE)
         thd->variables.option_bits|= OPTION_KEEP_LOG;
       /* regular create */
-#ifdef WITH_WSREP
-      if (!thd->is_current_stmt_binlog_format_row() ||
-	  !(create_info.options & HA_LEX_CREATE_TMP_TABLE))
-       WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
-                                 NULL)
-#endif /* WITH_WSREP */
       if (create_info.options & HA_LEX_CREATE_TABLE_LIKE)
       {
         /* CREATE TABLE ... LIKE ... */
@@ -2907,6 +2901,12 @@ case SQLCOM_PREPARE:
       }
       else
       {
+#ifdef WITH_WSREP
+        if (!thd->is_current_stmt_binlog_format_row() ||
+            !(create_info.options & HA_LEX_CREATE_TMP_TABLE))
+          WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
+                                   NULL)
+#endif /* WITH_WSREP */
         /* Regular CREATE TABLE */
         res= mysql_create_table(thd, create_table,
                                 &create_info, &alter_info);
@@ -8260,6 +8260,15 @@ wsrep_status_t wsrep_apply_cb(void* const ctx,
 #endif /* WSREP_PROC_INFO */
 
   if (WSREP_OK != rcode) wsrep_write_rbr_buf(thd, buf, buf_len);
+  TABLE *tmp;
+  while ((tmp = thd->temporary_tables))
+  {
+    WSREP_DEBUG("Applier %lu, has temporary tables: %s.%s",
+      thd->thread_id, 
+      (tmp->s) ? tmp->s->db.str : "void",
+      (tmp->s) ? tmp->s->table_name.str : "void");
+    close_temporary_table(thd, tmp, 1, 1);    
+  }
 
   return rcode;
 }
@@ -8447,6 +8456,10 @@ void wsrep_replication_process(THD *thd)
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
+  if (thd->temporary_tables)
+  {
+    WSREP_DEBUG("Applier %lu, has temporary tables at exit", thd->thread_id);
+  }
   wsrep_return_from_bf_mode(thd, &shadow);
   DBUG_VOID_RETURN;
 }
