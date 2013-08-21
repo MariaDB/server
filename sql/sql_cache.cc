@@ -3986,6 +3986,18 @@ Query_cache::process_and_count_tables(THD *thd, TABLE_LIST *tables_used,
 
 
 /*
+In non-embedded QC intercepts result in net_real_write
+but if we have no net.vio then net_real_write
+will not be called, so QC can't get results of the query
+*/
+#ifdef EMBEDDED_LIBRARY
+#define qc_is_able_to_intercept_result(T) 1
+#else
+#define qc_is_able_to_intercept_result(T) ((T)->net.vio)
+#endif
+
+
+/*
   If query is cacheable return number tables in query
   (query without tables are not cached)
 */
@@ -4000,7 +4012,8 @@ Query_cache::is_cacheable(THD *thd, LEX *lex,
   if (thd->lex->safe_to_cache_query &&
       (thd->variables.query_cache_type == 1 ||
        (thd->variables.query_cache_type == 2 && (lex->select_lex.options &
-						 OPTION_TO_QUERY_CACHE))))
+						 OPTION_TO_QUERY_CACHE))) &&
+      qc_is_able_to_intercept_result(thd))
   {
     DBUG_PRINT("qcache", ("options: %lx  %lx  type: %u",
                           (long) OPTION_TO_QUERY_CACHE,
@@ -4022,11 +4035,12 @@ Query_cache::is_cacheable(THD *thd, LEX *lex,
   }
 
   DBUG_PRINT("qcache",
-	     ("not interesting query: %d or not cacheable, options %lx %lx  type: %u",
+	     ("not interesting query: %d or not cacheable, options %lx %lx  type: %u  net->vio present: %u",
 	      (int) lex->sql_command,
 	      (long) OPTION_TO_QUERY_CACHE,
 	      (long) lex->select_lex.options,
-	      (int) thd->variables.query_cache_type));
+	      (int) thd->variables.query_cache_type,
+              (uint) test(qc_is_able_to_intercept_result(thd))));
   DBUG_RETURN(0);
 }
 

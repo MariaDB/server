@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /* Some general useful functions */
@@ -802,6 +802,11 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
     share->frm_version= FRM_VER_TRUE_VARCHAR;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
+  /*
+    Yuck! Double-bad. Doesn't work with dynamic engine codes.
+    And doesn't lock the plugin. Fixed in 10.0.4
+  */
+  compile_time_assert(MYSQL_VERSION_ID < 100000);
   if (*(head+61) &&
       !(share->default_part_db_type= 
         ha_checktype(thd, (enum legacy_db_type) (uint) *(head+61), 1, 0)))
@@ -4187,6 +4192,7 @@ bool TABLE_LIST::prep_where(THD *thd, Item **conds,
                                bool no_where_clause)
 {
   DBUG_ENTER("TABLE_LIST::prep_where");
+  bool res= FALSE;
 
   for (TABLE_LIST *tbl= merge_underlying_list; tbl; tbl= tbl->next_local)
   {
@@ -4235,10 +4241,11 @@ bool TABLE_LIST::prep_where(THD *thd, Item **conds,
       if (tbl == 0)
       {
         if (*conds && !(*conds)->fixed)
-	  (*conds)->fix_fields(thd, conds);
-        *conds= and_conds(*conds, where->copy_andor_structure(thd));
-        if (*conds && !(*conds)->fixed)
-          (*conds)->fix_fields(thd, conds);        
+          res= (*conds)->fix_fields(thd, conds);
+        if (!res)
+          *conds= and_conds(*conds, where->copy_andor_structure(thd));
+        if (*conds && !(*conds)->fixed && !res)
+          res= (*conds)->fix_fields(thd, conds);
       }
       if (arena)
         thd->restore_active_arena(arena, &backup);
@@ -4246,7 +4253,7 @@ bool TABLE_LIST::prep_where(THD *thd, Item **conds,
     }
   }
 
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(res);
 }
 
 /**

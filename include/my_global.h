@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /* This is the include file that should be included 'first' in every C file. */
 
@@ -1436,6 +1436,7 @@ static inline char *dlerror(void)
 #endif
 
 /* Provide __func__ macro definition for platforms that miss it. */
+#if !defined (__func__)
 #if __STDC_VERSION__ < 199901L
 #  if __GNUC__ >= 2
 #    define __func__ __FUNCTION__
@@ -1453,6 +1454,7 @@ static inline char *dlerror(void)
 #else
 #  define __func__ "<unknown>"
 #endif
+#endif /* !defined(__func__) */
 
 #ifndef HAVE_RINT
 /**

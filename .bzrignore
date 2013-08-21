@@ -1155,3 +1155,4 @@ sql/db.opt
 typescript
 mysql-test/collections/default.release.done
 sql/sql_yacc.hh
+packaging/solaris/postinstall-solaris

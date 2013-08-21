@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1607,6 +1607,8 @@ void THD::cleanup(void)
   }
 #endif
 
+  mysql_ha_cleanup(this);
+
   close_temporary_tables(this);
 
   transaction.xid_state.xa_state= XA_NOTR;
@@ -1614,7 +1616,6 @@ void THD::cleanup(void)
   xid_cache_delete(&transaction.xid_state);
 
   locked_tables_list.unlock_locked_tables(this);
-  mysql_ha_cleanup(this);
 
   DBUG_ASSERT(open_tables == NULL);
   /*
@@ -1667,7 +1668,6 @@ THD::~THD()
   DBUG_ENTER("~THD()");
   /* Ensure that no one is using THD */
   mysql_mutex_lock(&LOCK_thd_data);
-  mysys_var=0;					// Safety (shouldn't be needed)
   mysql_mutex_unlock(&LOCK_thd_data);
 
 #ifdef WITH_WSREP
@@ -1905,8 +1905,8 @@ void THD::awake(killed_state state_to_set)
           mysql_mutex_unlock(mysys_var->current_mutex);
           break;
         }
+        my_sleep(1000000L / WAIT_FOR_KILL_TRY_TIMES);
       }
-      my_sleep(1000000L / WAIT_FOR_KILL_TRY_TIMES);
     }
     mysql_mutex_unlock(&mysys_var->mutex);
   }
@@ -4825,7 +4825,7 @@ void xid_cache_delete(XID_STATE *xid_state)
 int THD::decide_logging_format(TABLE_LIST *tables)
 {
   DBUG_ENTER("THD::decide_logging_format");
-  DBUG_PRINT("info", ("query: %s", query()));
+  DBUG_PRINT("info", ("Query: %s", query()));
   DBUG_PRINT("info", ("variables.binlog_format: %lu",
                       variables.binlog_format));
   DBUG_PRINT("info", ("lex->get_stmt_unsafe_flags(): 0x%x",
@@ -5092,6 +5092,46 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     DBUG_PRINT("info", ("decision: logging in %s format",
                         is_current_stmt_binlog_format_row() ?
                         "ROW" : "STATEMENT"));
+
+    if (variables.binlog_format == BINLOG_FORMAT_ROW &&
+        (lex->sql_command == SQLCOM_UPDATE ||
+         lex->sql_command == SQLCOM_UPDATE_MULTI ||
+         lex->sql_command == SQLCOM_DELETE ||
+         lex->sql_command == SQLCOM_DELETE_MULTI))
+    {
+      String table_names;
+      /*
+        Generate a warning for UPDATE/DELETE statements that modify a
+        BLACKHOLE table, as row events are not logged in row format.
+      */
+      for (TABLE_LIST *table= tables; table; table= table->next_global)
+      {
+        if (table->placeholder())
+          continue;
+        if (table->table->file->ht->db_type == DB_TYPE_BLACKHOLE_DB &&
+            table->lock_type >= TL_WRITE_ALLOW_WRITE)
+        {
+            table_names.append(table->table_name);
+            table_names.append(",");
+        }
+      }
+      if (!table_names.is_empty())
+      {
+        bool is_update= (lex->sql_command == SQLCOM_UPDATE ||
+                         lex->sql_command == SQLCOM_UPDATE_MULTI);
+        /*
+          Replace the last ',' with '.' for table_names
+        */
+        table_names.replace(table_names.length()-1, 1, ".", 1);
+        push_warning_printf(this, MYSQL_ERROR::WARN_LEVEL_WARN,
+                            ER_UNKNOWN_ERROR,
+                            "Row events are not logged for %s statements "
+                            "that modify BLACKHOLE tables in row format. "
+                            "Table(s): '%-.192s'",
+                            is_update ? "UPDATE" : "DELETE",
+                            table_names.c_ptr());
+      }
+    }
   }
 #ifndef DBUG_OFF
   else

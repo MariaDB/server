@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /**
@@ -723,7 +723,7 @@ bool get_mysql_time_from_str(THD *thd, String *str, timestamp_type warn_type,
   bool value;
   int error;
   enum_mysql_timestamp_type timestamp_type;
-  int flags= TIME_FUZZY_DATE | MODE_INVALID_DATES;
+  int flags= TIME_FUZZY_DATES | MODE_INVALID_DATES;
   ErrConvString err(str);
 
   if (warn_type == MYSQL_TIMESTAMP_TIME)
@@ -896,7 +896,7 @@ get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
   else
   {
     MYSQL_TIME ltime;
-    uint fuzzydate= TIME_FUZZY_DATE | TIME_INVALID_DATES;
+    uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
     if (f_type == MYSQL_TYPE_TIME)
       fuzzydate|= TIME_TIME_ONLY;
     if (item->get_date(&ltime, fuzzydate))
