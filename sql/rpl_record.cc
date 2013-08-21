@@ -304,6 +304,10 @@ unpack_row(Relay_log_info const *rli,
         uint16 const metadata= tabledef->field_metadata(i);
 #ifndef DBUG_OFF
         uchar const *const old_pack_ptr= pack_ptr;
+#else 
+#if WITH_WSREP
+        uchar const *const old_pack_ptr= pack_ptr;
+#endif
 #endif
         pack_ptr= f->unpack(f->ptr, pack_ptr, row_buffer_end, metadata);
 	DBUG_PRINT("debug", ("field: %s; metadata: 0x%x;"
@@ -313,6 +317,17 @@ unpack_row(Relay_log_info const *rli,
                              (int) (pack_ptr - old_pack_ptr)));
         if (!pack_ptr)
         {
+          /* Debug message to troubleshoot bug: 
+             https://mariadb.atlassian.net/browse/MDEV-4404
+          */ 
+          WSREP_WARN("ROW event unpack field: %s  metadata: 0x%x;"
+                     " pack_ptr: 0x%lx; conv_table %p conv_field %p table %s"
+                     " row_buffer_end: 0x%lx",
+                     f->field_name, metadata,
+                     (ulong) old_pack_ptr, conv_table, conv_field,
+                     (table_found) ? "found" : "not found", (ulong)row_buffer_end
+          );
+
           rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
                       "Could not read field '%s' of table '%s.%s'",
                       f->field_name, table->s->db.str,
