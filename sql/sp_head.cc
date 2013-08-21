@@ -312,6 +312,17 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_UNINSTALL_PLUGIN:
     flags= sp_head::HAS_COMMIT_OR_ROLLBACK;
     break;
+  case SQLCOM_DELETE:
+  {
+    if (lex->select_lex.item_list.is_empty())
+      flags= 0;
+    else
+    {
+      /* This is DELETE ... RETURNING ...  */
+      flags= sp_head::MULTI_RESULTS; 
+    }
+    break;
+  }
   default:
     flags= 0;
     break;
