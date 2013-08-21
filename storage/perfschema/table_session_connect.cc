@@ -40,7 +40,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 };
 
 TABLE_FIELD_DEF table_session_connect::m_field_def=
-{ 4, field_types };
+{ 4, field_types, 0, (uint*) 0 };
 
 table_session_connect::table_session_connect(const PFS_engine_table_share *share) :
                        cursor_by_thread_connect_attr(share)
