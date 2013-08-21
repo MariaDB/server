@@ -12411,8 +12411,12 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     uchar cur_key_infix[MAX_KEY_LENGTH];
     uint cur_used_key_parts;
     
-    /* Check (B1) - if current index is covering. */
-    if (!table->covering_keys.is_set(cur_index))
+    /*
+      Check (B1) - if current index is covering. Exclude UNIQUE indexes, because
+      loose scan may still be chosen for them due to imperfect cost calculations.
+    */
+    if (!table->covering_keys.is_set(cur_index) ||
+        cur_index_info->flags & HA_NOSAME)
       goto next_index;
 
     /*
