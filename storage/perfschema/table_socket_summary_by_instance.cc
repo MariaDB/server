@@ -160,7 +160,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 
 TABLE_FIELD_DEF
 table_socket_summary_by_instance::m_field_def=
-{ 24, field_types };
+{ 24, field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_socket_summary_by_instance::m_share=

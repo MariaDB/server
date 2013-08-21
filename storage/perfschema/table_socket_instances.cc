@@ -69,7 +69,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 
 TABLE_FIELD_DEF
 table_socket_instances::m_field_def=
-{ 7, field_types };
+{ 7, field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_socket_instances::m_share=

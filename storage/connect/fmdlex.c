@@ -401,7 +401,7 @@ char *yytext;
 #define YYSTATE    ((yy_start-1)/2)
 #undef  YY_INPUT
 #define YY_INPUT(buf,n,m) \
-  {n=(m<strlen(pp->Curp))?m:strlen(pp->Curp);strncpy(buf,pp->Curp,n);pp->Curp+=n;}
+  {n=((int) m< (int) strlen(pp->Curp))? (int) m: (int) strlen(pp->Curp);strncpy(buf,pp->Curp,n);pp->Curp+=n;}
 #if defined(UNIX)
 #undef  yywrap
 #define yywrap  ddwrap
@@ -458,7 +458,7 @@ YY_MALLOC_DECL
   if ( yy_current_buffer->yy_is_interactive ) \
     { \
     int c = getc( yyin ); \
-    result = c == EOF ? 0 : 1; \
+    result = c == (int) EOF ? 0 : 1;             \
     buf[0] = (char) c; \
     } \
   else if ( ((result = fread( buf, 1, max_size, yyin )) == 0) \

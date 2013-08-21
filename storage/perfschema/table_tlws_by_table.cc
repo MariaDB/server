@@ -400,7 +400,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 
 TABLE_FIELD_DEF
 table_tlws_by_table::m_field_def=
-{ 73, field_types };
+{ 73, field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_tlws_by_table::m_share=

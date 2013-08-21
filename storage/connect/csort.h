@@ -35,7 +35,7 @@ class DllExport CSORT {
  public:
   // Constructor
   CSORT(bool cns, int th = THRESH, int mth = MTHRESH);
-
+  virtual ~CSORT() {}
  protected:
   // Implementation
   /*********************************************************************/

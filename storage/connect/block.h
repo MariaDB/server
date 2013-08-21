@@ -51,7 +51,10 @@ if (debug != NULL)
 #if !defined(__BORLANDC__)
   // Avoid warning C4291 by defining a matching dummy delete operator
   void operator delete(void *, PGLOBAL, void *) {}
+  void operator delete(void *ptr,size_t size) {}
 #endif
+  virtual ~BLOCK() {}
+
   }; // end of class BLOCK
 
 #endif   // !BLOCK_DEFINED
