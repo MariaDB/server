@@ -1419,6 +1419,15 @@ slave_connection_state::remove(const rpl_gtid *in_gtid)
 }
 
 
+void
+slave_connection_state::remove_if_present(const rpl_gtid *in_gtid)
+{
+  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
+  if (rec)
+    my_hash_delete(&hash, rec);
+}
+
+
 int
 slave_connection_state::to_string(String *out_str)
 {
@@ -1440,5 +1449,24 @@ slave_connection_state::append_to_string(String *out_str)
     if (rpl_slave_state_tostring_helper(out_str, &e->gtid, &first))
       return 1;
   }
+  return 0;
+}
+
+
+int
+slave_connection_state::get_gtid_list(rpl_gtid *gtid_list, uint32 list_size)
+{
+  uint32 i, pos;
+
+  pos= 0;
+  for (i= 0; i < hash.records; ++i)
+  {
+    entry *e;
+    if (pos >= list_size)
+      return 1;
+    e= (entry *)my_hash_element(&hash, i);
+    memcpy(&gtid_list[pos++], &e->gtid, sizeof(e->gtid));
+  }
+
   return 0;
 }

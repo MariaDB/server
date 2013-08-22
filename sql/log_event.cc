@@ -6334,7 +6334,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
 
 Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
                const Format_description_log_event *description_event)
-  : Log_event(buf, description_event), count(0), list(0)
+  : Log_event(buf, description_event), count(0), list(0), sub_id_list(0)
 {
   uint32 i;
   uint32 val;
@@ -6363,6 +6363,31 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
     list[i].seq_no= uint8korr(buf);
     buf+= 8;
   }
+
+#ifdef MYSQL_SERVER
+  if ((gl_flags & FLAG_IGN_GTIDS))
+  {
+    uint32 i;
+    if (!(sub_id_list= (uint64 *)my_malloc(count*sizeof(uint64), MYF(MY_WME))))
+    {
+      my_free(list);
+      list= NULL;
+      return;
+    }
+    for (i= 0; i < count; ++i)
+    {
+      if (!(sub_id_list[i]=
+            rpl_global_gtid_slave_state.next_sub_id(list[i].domain_id)))
+      {
+        my_free(list);
+        my_free(sub_id_list);
+        list= NULL;
+        sub_id_list= NULL;
+        return;
+      }
+    }
+  }
+#endif
 }
 
 
@@ -6370,7 +6395,7 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
 
 Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state *gtid_set,
                                          uint32 gl_flags_)
-  : count(gtid_set->count()), gl_flags(gl_flags_), list(0)
+  : count(gtid_set->count()), gl_flags(gl_flags_), list(0), sub_id_list(0)
 {
   cache_type= EVENT_NO_CACHE;
   /* Failure to allocate memory will be caught by is_valid() returning false. */
@@ -6378,6 +6403,45 @@ Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state *gtid_set,
       (list = (rpl_gtid *)my_malloc(count * sizeof(*list) + (count == 0),
                                     MYF(MY_WME))))
     gtid_set->get_gtid_list(list, count);
+}
+
+
+Gtid_list_log_event::Gtid_list_log_event(slave_connection_state *gtid_set,
+                                         uint32 gl_flags_)
+  : count(gtid_set->count()), gl_flags(gl_flags_), list(0), sub_id_list(0)
+{
+  cache_type= EVENT_NO_CACHE;
+  /* Failure to allocate memory will be caught by is_valid() returning false. */
+  if (count < (1<<28) &&
+      (list = (rpl_gtid *)my_malloc(count * sizeof(*list) + (count == 0),
+                                    MYF(MY_WME))))
+  {
+    gtid_set->get_gtid_list(list, count);
+    if (gl_flags & FLAG_IGN_GTIDS)
+    {
+      uint32 i;
+
+      if (!(sub_id_list= (uint64 *)my_malloc(count * sizeof(uint64),
+                                             MYF(MY_WME))))
+      {
+        my_free(list);
+        list= NULL;
+        return;
+      }
+      for (i= 0; i < count; ++i)
+      {
+        if (!(sub_id_list[i]=
+              rpl_global_gtid_slave_state.next_sub_id(list[i].domain_id)))
+        {
+          my_free(list);
+          my_free(sub_id_list);
+          list= NULL;
+          sub_id_list= NULL;
+          return;
+        }
+      }
+    }
+  }
 }
 
 
@@ -6432,7 +6496,20 @@ Gtid_list_log_event::write(IO_CACHE *file)
 int
 Gtid_list_log_event::do_apply_event(Relay_log_info const *rli)
 {
-  int ret= Log_event::do_apply_event(rli);
+  int ret;
+  if (gl_flags & FLAG_IGN_GTIDS)
+  {
+    uint32 i;
+    for (i= 0; i < count; ++i)
+    {
+      if ((ret= rpl_global_gtid_slave_state.record_gtid(thd, &list[i],
+                                                        sub_id_list[i],
+                                                        false, false)))
+        return ret;
+      rpl_global_gtid_slave_state.update_state_hash(sub_id_list[i], &list[i]);
+    }
+  }
+  ret= Log_event::do_apply_event(rli);
   if (rli->until_condition == Relay_log_info::UNTIL_GTID &&
       (gl_flags & FLAG_UNTIL_REACHED))
   {
