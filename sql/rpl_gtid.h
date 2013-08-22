@@ -195,9 +195,11 @@ struct slave_connection_state
   entry *find_entry(uint32 domain_id);
   int update(const rpl_gtid *in_gtid);
   void remove(const rpl_gtid *gtid);
+  void remove_if_present(const rpl_gtid *in_gtid);
   ulong count() const { return hash.records; }
   int to_string(String *out_str);
   int append_to_string(String *out_str);
+  int get_gtid_list(rpl_gtid *gtid_list, uint32 list_size);
 };
 
 extern bool rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid,

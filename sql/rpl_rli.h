@@ -303,6 +303,8 @@ public:
   */
   char ign_master_log_name_end[FN_REFLEN];
   ulonglong ign_master_log_pos_end;
+  /* Similar for ignored GTID events. */
+  slave_connection_state ign_gtids;
 
   /* 
     Indentifies where the SQL Thread should create temporary files for the

@@ -3197,12 +3197,15 @@ public:
   uint32 count;
   uint32 gl_flags;
   struct rpl_gtid *list;
+  uint64 *sub_id_list;
 
   static const uint element_size= 4+4+8;
   static const uint32 FLAG_UNTIL_REACHED= (1<<28);
+  static const uint32 FLAG_IGN_GTIDS= (1<<29);
 
 #ifdef MYSQL_SERVER
   Gtid_list_log_event(rpl_binlog_state *gtid_set, uint32 gl_flags);
+  Gtid_list_log_event(slave_connection_state *gtid_set, uint32 gl_flags);
 #ifdef HAVE_REPLICATION
   void pack_info(THD *thd, Protocol *protocol);
 #endif
@@ -3211,7 +3214,7 @@ public:
 #endif
   Gtid_list_log_event(const char *buf, uint event_len,
                       const Format_description_log_event *description_event);
-  ~Gtid_list_log_event() { my_free(list); }
+  ~Gtid_list_log_event() { my_free(list); my_free(sub_id_list); }
   Log_event_type get_type_code() { return GTID_LIST_EVENT; }
   int get_data_size() {
     /*
