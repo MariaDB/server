@@ -117,6 +117,7 @@ class TBTBLK : public TIDBLK {
 #if !defined(__BORLANDC__)
   // Avoid warning C4291 by defining a matching dummy delete operator
   void operator delete(void *, TIDBLK*) {}
+  void operator delete(void *, size_t size) {}
 #endif
 
  protected:

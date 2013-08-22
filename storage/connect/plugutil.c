@@ -447,7 +447,7 @@ void *PlugAllocMem(PGLOBAL g, uint size)
 /*  Here there should be some verification done such as validity of    */
 /*  the address and size not larger than memory size.                  */
 /***********************************************************************/
-BOOL PlugSubSet(PGLOBAL g, void *memp, uint size)
+BOOL PlugSubSet(PGLOBAL g __attribute__((unused)), void *memp, uint size)
   {
   PPOOLHEADER pph = memp;
 

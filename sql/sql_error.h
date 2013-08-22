@@ -47,6 +47,16 @@ public:
   { WARN_LEVEL_NOTE, WARN_LEVEL_WARN, WARN_LEVEL_ERROR, WARN_LEVEL_END};
 
   /**
+    Convert a bitmask consisting of MYSQL_TIME_{NOTE|WARN}_XXX bits
+    to WARN_LEVEL_XXX
+  */
+  static enum_warning_level time_warn_level(int warnings)
+  {
+    return MYSQL_TIME_WARN_HAVE_WARNINGS(warnings) ?
+           WARN_LEVEL_WARN : WARN_LEVEL_NOTE;
+  }
+
+  /**
     Get the MESSAGE_TEXT of this condition.
     @return the message text.
   */

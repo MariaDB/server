@@ -291,24 +291,33 @@ SELECT TIMESTAMP'2001-01-00 00:00:00.999999';
 TIMESTAMP'2001-01-00 00:00:00.999999'
 2001-01-00 00:00:00.999999
 SELECT TIMESTAMP'2001-00-00 00:00:00.9999999';
-ERROR HY000: Incorrect DATETIME value: '2001-00-00 00:00:00.9999999'
+TIMESTAMP'2001-00-00 00:00:00.9999999'
+2001-00-00 00:00:00.999999
+Warnings:
+Note	1292	Truncated incorrect datetime value: '2001-00-00 00:00:00.9999999'
 SELECT TIMESTAMP'2001-00-01 00:00:00.9999999';
-ERROR HY000: Incorrect DATETIME value: '2001-00-01 00:00:00.9999999'
+TIMESTAMP'2001-00-01 00:00:00.9999999'
+2001-00-01 00:00:00.999999
+Warnings:
+Note	1292	Truncated incorrect datetime value: '2001-00-01 00:00:00.9999999'
 SELECT TIMESTAMP'2001-01-00 00:00:00.9999999';
-ERROR HY000: Incorrect DATETIME value: '2001-01-00 00:00:00.9999999'
+TIMESTAMP'2001-01-00 00:00:00.9999999'
+2001-01-00 00:00:00.999999
+Warnings:
+Note	1292	Truncated incorrect datetime value: '2001-01-00 00:00:00.9999999'
 #
 # String literal with bad dates and nanoseconds to DATETIME(N)
 #
 CREATE TABLE t1 (a DATETIME(6));
 INSERT INTO t1 VALUES ('2001-00-00 00:00:00.9999999');
 Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 1
 INSERT INTO t1 VALUES ('2001-00-01 00:00:00.9999999');
 Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 1
 INSERT INTO t1 VALUES ('2001-01-00 00:00:00.9999999');
 Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 1
 SELECT * FROM t1;
 a
 2001-00-00 00:00:00.999999
@@ -318,13 +327,13 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME(5));
 INSERT INTO t1 VALUES ('2001-00-00 00:00:00.9999999');
 Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 1
 INSERT INTO t1 VALUES ('2001-00-01 00:00:00.9999999');
 Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 1
 INSERT INTO t1 VALUES ('2001-01-00 00:00:00.9999999');
 Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 1
 SELECT * FROM t1;
 a
 2001-00-00 00:00:00.99999
@@ -334,13 +343,13 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME);
 INSERT INTO t1 VALUES ('2001-00-00 00:00:00.9999999');
 Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 1
 INSERT INTO t1 VALUES ('2001-00-01 00:00:00.9999999');
 Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 1
 INSERT INTO t1 VALUES ('2001-01-00 00:00:00.9999999');
 Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 1
 SELECT * FROM t1;
 a
 2001-00-00 00:00:00
@@ -414,3 +423,66 @@ SELECT 'a' LIKE 'a' ESCAPE TIMESTAMP'2001-01-01 00:00:00';
 ERROR HY000: Incorrect arguments to ESCAPE
 SELECT 'a' LIKE 'a' ESCAPE TIME'00:00:00';
 ERROR HY000: Incorrect arguments to ESCAPE
+#
+# MDEV-4871 Temporal literals do not accept nanoseconds
+#
+SELECT TIME'10:10:10.1234567';
+TIME'10:10:10.1234567'
+10:10:10.123456
+Warnings:
+Note	1292	Truncated incorrect time value: '10:10:10.1234567'
+SELECT TIME('10:10:10.1234567');
+TIME('10:10:10.1234567')
+10:10:10.123456
+Warnings:
+Note	1292	Truncated incorrect time value: '10:10:10.1234567'
+SELECT TIME'10:10:10.123456xyz';
+ERROR HY000: Incorrect TIME value: '10:10:10.123456xyz'
+SELECT TIME'10:10:10.1234567xyz';
+ERROR HY000: Incorrect TIME value: '10:10:10.1234567xyz'
+SELECT TIME('10:10:10.123456xyz');
+TIME('10:10:10.123456xyz')
+10:10:10.123456
+Warnings:
+Warning	1292	Truncated incorrect time value: '10:10:10.123456xyz'
+SELECT TIME('10:10:10.1234567xyz');
+TIME('10:10:10.1234567xyz')
+10:10:10.123456
+Warnings:
+Warning	1292	Truncated incorrect time value: '10:10:10.1234567xyz'
+SELECT TIMESTAMP'2001-01-01 10:10:10.1234567';
+TIMESTAMP'2001-01-01 10:10:10.1234567'
+2001-01-01 10:10:10.123456
+Warnings:
+Note	1292	Truncated incorrect datetime value: '2001-01-01 10:10:10.1234567'
+SELECT TIMESTAMP('2001-01-01 10:10:10.1234567');
+TIMESTAMP('2001-01-01 10:10:10.1234567')
+2001-01-01 10:10:10.123456
+Warnings:
+Note	1292	Truncated incorrect datetime value: '2001-01-01 10:10:10.1234567'
+SELECT TIMESTAMP'2001-01-01 10:10:10.123456xyz';
+ERROR HY000: Incorrect DATETIME value: '2001-01-01 10:10:10.123456xyz'
+SELECT TIMESTAMP'2001-01-01 10:10:10.1234567xyz';
+ERROR HY000: Incorrect DATETIME value: '2001-01-01 10:10:10.1234567xyz'
+SELECT TIMESTAMP('2001-01-01 10:10:10.123456xyz');
+TIMESTAMP('2001-01-01 10:10:10.123456xyz')
+2001-01-01 10:10:10.123456
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '2001-01-01 10:10:10.123456xyz'
+SELECT TIMESTAMP('2001-01-01 10:10:10.1234567xyz');
+TIMESTAMP('2001-01-01 10:10:10.1234567xyz')
+2001-01-01 10:10:10.123456
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '2001-01-01 10:10:10.1234567xyz'
+CREATE TABLE t1 (a TIME(6));
+INSERT INTO t1 VALUES (TIME'10:20:30.1234567');
+Warnings:
+Note	1292	Truncated incorrect time value: '10:20:30.1234567'
+INSERT INTO t1 VALUES (TIME('10:20:30.1234567'));
+Warnings:
+Note	1292	Truncated incorrect time value: '10:20:30.1234567'
+SELECT * FROM t1;
+a
+10:20:30.123456
+10:20:30.123456
+DROP TABLE t1;
