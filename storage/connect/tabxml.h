@@ -211,6 +211,7 @@ class XMLCOLX : public XMLCOL {
   void * operator new(size_t size, PXMLCOL colp) {return colp;}
 #if !defined(__BORLANDC__)
   // Avoid warning C4291 by defining a matching dummy delete operator
+  void operator delete(void *, size_t size) {}
   void operator delete(void *, PXMLCOL) {}
 #endif
   }; // end of class XMLCOLX
