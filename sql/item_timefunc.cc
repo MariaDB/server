@@ -1438,22 +1438,25 @@ void Item_temporal_func::fix_length_and_dec()
   static const uint max_time_type_width[5]=
   { MAX_DATETIME_WIDTH, MAX_DATETIME_WIDTH, MAX_DATE_WIDTH,
     MAX_DATETIME_WIDTH, MIN_TIME_WIDTH };
+  uint char_length= max_time_type_width[mysql_type_to_time_type(field_type())+2];
 
   set_persist_maybe_null(1);
-  max_length= max_time_type_width[mysql_type_to_time_type(field_type())+2];
   if (decimals)
   {
     if (decimals == NOT_FIXED_DEC)
-      max_length+= TIME_SECOND_PART_DIGITS + 1;
+      char_length+= TIME_SECOND_PART_DIGITS + 1;
     else
     {
       set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
-      max_length+= decimals + 1;
+      char_length+= decimals + 1;
     }
   }
   sql_mode= current_thd->variables.sql_mode &
                  (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
-  collation.set(&my_charset_numeric, DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
+  collation.set(field_type() == MYSQL_TYPE_STRING ?
+                default_charset() : &my_charset_numeric,
+                DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
+  fix_char_length(char_length);
 }
 
 String *Item_temporal_func::val_str(String *str)
@@ -1481,6 +1484,23 @@ double Item_temporal_func::val_real()
   if (get_date(&ltime, sql_mode))
     return 0;
   return TIME_to_double(&ltime);
+}
+
+
+String *Item_temporal_hybrid_func::val_str_ascii(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  MYSQL_TIME ltime;
+
+  if (get_date(&ltime, 0) ||
+      (null_value= my_TIME_to_str(&ltime, str, decimals)))
+    return (String *) 0;
+
+  /* Check that the returned timestamp type matches to the function type */
+  DBUG_ASSERT(cached_field_type == MYSQL_TYPE_STRING ||
+              ltime.time_type == MYSQL_TIMESTAMP_NONE ||
+              mysql_type_to_time_type(cached_field_type) == ltime.time_type);
+  return str;
 }
 
 
