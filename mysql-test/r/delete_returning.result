@@ -1,3 +1,6 @@
+drop table if exists t1,t2;
+drop view if exists v1;
+drop procedure if exists p1;
 CREATE TABLE t1 (a int, b varchar(32));
 INSERT INTO t1 VALUES
 (7,'ggggggg'), (1,'a'), (3,'ccc'),
@@ -243,3 +246,22 @@ INSERT INTO t2 VALUES (1),(2);
 DELETE FROM t1 ORDER BY i1 RETURNING ( SELECT i2 FROM t2 );
 ERROR 21000: Subquery returns more than 1 row
 DROP TABLE t1,t2;
+#
+# MDEV-4919: Packets out of order on a SELECT after calling a procedure with DELETE .. RETURNING
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE PROCEDURE p1 (a INT) 
+BEGIN
+DELETE FROM t1 WHERE i = a RETURNING *;
+INSERT INTO t1 VALUES (a);
+END |
+CALL p1(1);
+i
+1
+SELECT * FROM t1;
+i
+1
+2
+DROP PROCEDURE p1;
+DROP TABLE t1;
