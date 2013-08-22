@@ -41,6 +41,7 @@ protected:
   uint allowed_arg_cols;
   /* maybe_null can't be changed by parameters or used table state */
   bool persistent_maybe_null;
+  String *val_str_from_val_str_ascii(String *str, String *str2);
 public:
   uint arg_count;
   table_map used_tables_cache, not_null_tables_cache;
