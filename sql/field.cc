@@ -4593,17 +4593,23 @@ my_time_t Field_timestamp::get_timestamp(ulong *sec_part) const
 
 int Field_timestamp::store_TIME_with_warning(THD *thd, MYSQL_TIME *l_time,
                                              const ErrConv *str,
-                                             bool was_cut,
+                                             int was_cut,
                                              bool have_smth_to_conv)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   uint error = 0;
   my_time_t timestamp;
 
-  if (was_cut || !have_smth_to_conv)
+  if (MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut) || !have_smth_to_conv)
   {
     error= 1;
     set_datetime_warning(Sql_condition::WARN_LEVEL_WARN, WARN_DATA_TRUNCATED,
+                         str, MYSQL_TIMESTAMP_DATETIME, 1);
+  }
+  else if (MYSQL_TIME_WARN_HAVE_NOTES(was_cut))
+  {
+    error= 3;
+    set_datetime_warning(Sql_condition::WARN_LEVEL_NOTE, WARN_DATA_TRUNCATED,
                          str, MYSQL_TIMESTAMP_DATETIME, 1);
   }
   /* Only convert a correct date (not a zero date) */
@@ -5138,9 +5144,10 @@ int Field_temporal_with_date::store_TIME_with_warning(MYSQL_TIME *ltime,
     was_cut=  MYSQL_TIME_WARN_TRUNCATED;
     ret= 1;
   }
-  else if (!(was_cut & MYSQL_TIME_WARN_TRUNCATED) &&
-           mysql_type_to_time_type(type()) == MYSQL_TIMESTAMP_DATE &&
-           (ltime->hour || ltime->minute || ltime->second || ltime->second_part))
+  else if (!MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut) &&
+           (MYSQL_TIME_WARN_HAVE_NOTES(was_cut) ||
+            (mysql_type_to_time_type(type()) == MYSQL_TIMESTAMP_DATE &&
+             (ltime->hour || ltime->minute || ltime->second || ltime->second_part))))
   {
     trunc_level= Sql_condition::WARN_LEVEL_NOTE;
     was_cut|=  MYSQL_TIME_WARN_TRUNCATED;
@@ -5230,7 +5237,6 @@ int Field_time::store_TIME_with_warning(MYSQL_TIME *ltime,
 {
   Sql_condition::enum_warning_level trunc_level= Sql_condition::WARN_LEVEL_WARN;
   int ret= 2;
-  
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
 
   if (!have_smth_to_conv)
@@ -5239,10 +5245,12 @@ int Field_time::store_TIME_with_warning(MYSQL_TIME *ltime,
     was_cut= MYSQL_TIME_WARN_TRUNCATED;
     ret= 1;
   }
-  else if (!(was_cut & MYSQL_TIME_WARN_TRUNCATED) &&
-           (ltime->year || ltime->month))
+  else if (!MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut) &&
+           ((ltime->year || ltime->month) ||
+            MYSQL_TIME_WARN_HAVE_NOTES(was_cut)))
   {
-    ltime->year= ltime->month= ltime->day= 0;
+    if (ltime->year || ltime->month)
+      ltime->year= ltime->month= ltime->day= 0;
     trunc_level= Sql_condition::WARN_LEVEL_NOTE;
     was_cut|=  MYSQL_TIME_WARN_TRUNCATED;
     ret= 3;

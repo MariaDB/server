@@ -69,7 +69,7 @@ static const TABLE_FIELD_TYPE ews_by_instance_field_types[]=
 
 TABLE_FIELD_DEF
 table_events_waits_summary_by_instance::m_field_def=
-{ 7, ews_by_instance_field_types };
+{ 7, ews_by_instance_field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_events_waits_summary_by_instance::m_share=

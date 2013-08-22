@@ -311,7 +311,9 @@ str_to_datetime_with_warn(CHARSET_INFO *cs,
   THD *thd= current_thd;
   bool ret_val= str_to_datetime(cs, str, length, l_time, flags, &status);
   if (ret_val || status.warnings)
-    make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+    make_truncated_value_warning(thd,
+                                 ret_val ? Sql_condition::WARN_LEVEL_WARN :
+                                 Sql_condition::time_warn_level(status.warnings),
                                  str, length, flags & TIME_TIME_ONLY ?
                                  MYSQL_TIMESTAMP_TIME : l_time->time_type, NullS);
   DBUG_EXECUTE_IF("str_to_datetime_warn",

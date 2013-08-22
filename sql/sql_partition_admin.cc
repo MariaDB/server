@@ -32,9 +32,9 @@
 
 #ifndef WITH_PARTITION_STORAGE_ENGINE
 
-bool Partition_statement_unsupported::execute(THD *)
+bool Sql_cmd_partition_unsupported::execute(THD *)
 {
-  DBUG_ENTER("Partition_statement_unsupported::execute");
+  DBUG_ENTER("Sql_cmd_partition_unsupported::execute");
   /* error, partitioning support not compiled in... */
   my_error(ER_FEATURE_DISABLED, MYF(0), "partitioning",
            "--with-plugin-partition");

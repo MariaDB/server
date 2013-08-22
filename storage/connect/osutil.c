@@ -108,7 +108,7 @@ void _splitpath(LPCSTR name, LPSTR drive, LPSTR dir, LPSTR fn, LPSTR ft)
 /***********************************************************************/
 /*  Define the makepath function not existing in the UNIX library.     */
 /***********************************************************************/
-void _makepath(LPSTR name, LPCSTR drive, LPCSTR dir, LPCSTR fn, LPCSTR ft)
+void _makepath(LPSTR name, LPCSTR drive __attribute__((unused)), LPCSTR dir, LPCSTR fn, LPCSTR ft)
   {
   int n;
 
@@ -196,7 +196,7 @@ char *_fullpath(char *absPath, const char *relPath, size_t maxLength)
   return absPath;
   }  /* end of _fullpath */
 
-BOOL MessageBeep(uint i)
+BOOL MessageBeep(uint i __attribute__((unused)))
   {
   // Fixme
   return TRUE;
