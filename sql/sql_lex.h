@@ -618,7 +618,10 @@ class select_result;
 class JOIN;
 class select_union;
 class Procedure;
+class QPF_query;
 
+void delete_qpf_query(LEX *lex);
+void create_qpf_query(LEX *lex, MEM_ROOT *mem_root);
 
 class st_select_lex_unit: public st_select_lex_node {
 protected:
@@ -729,8 +732,9 @@ public:
   friend int subselect_union_engine::exec();
 
   List<Item> *get_unit_column_types();
-  int print_explain(select_result_sink *output, uint8 explain_flags,
-                    bool *printed_anything);
+
+  int save_union_qpf(QPF_query *output);
+  int save_union_qpf_part2(QPF_query *output);
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
@@ -1054,8 +1058,7 @@ public:
   bool save_prep_leaf_tables(THD *thd);
 
   bool is_merged_child_of(st_select_lex *ancestor);
-  int print_explain(select_result_sink *output, uint8 explain_flags, 
-                    bool *printed_anything);
+
   /*
     For MODE_ONLY_FULL_GROUP_BY we need to maintain two flags:
      - Non-aggregated fields are used in this select.
@@ -2360,6 +2363,69 @@ protected:
   LEX *m_lex;
 };
 
+
+class Delete_plan;
+class SQL_SELECT;
+
+class QPF_query;
+class QPF_update;
+
+/* 
+  Query plan of a single-table UPDATE.
+  (This is actually a plan for single-table DELETE also)
+*/
+
+class Update_plan
+{
+protected:
+  bool impossible_where;
+public:
+  bool updating_a_view;
+  TABLE *table;
+  SQL_SELECT *select;
+  uint index;
+  ha_rows table_rows; /* Use if select==NULL */
+  /*
+    Top-level select_lex. Most of its fields are not used, we need it only to
+    get to the subqueries.
+  */
+  SELECT_LEX *select_lex;
+  
+  key_map possible_keys;
+  bool using_filesort;
+  
+  /* Set this plan to be a plan to do nothing because of impossible WHRE*/
+  void set_impossible_where() { impossible_where= true; }
+
+  void save_query_plan_footprint(QPF_query *query);
+  void save_query_plan_footprint_intern(QPF_query *query, QPF_update *qpf);
+  virtual ~Update_plan() {}
+
+  Update_plan() : impossible_where(false), using_filesort(false) {}
+};
+
+
+/* Query plan of a single-table DELETE */
+class Delete_plan : public Update_plan
+{
+  bool deleting_all_rows;
+public:
+
+  /* Construction functions */
+  Delete_plan() : 
+    deleting_all_rows(false)  {}
+
+  /* Set this query plan to be a plan to make a call to h->delete_all_rows() */
+  void set_delete_all_rows(ha_rows rows_arg) 
+  { 
+    deleting_all_rows= true;
+    table_rows= rows_arg;
+  }
+
+  void save_query_plan_footprint(QPF_query *query);
+};
+
+
 /* The state of the lex parsing. This is saved in the THD struct */
 
 struct LEX: public Query_tables_list
@@ -2370,6 +2436,9 @@ struct LEX: public Query_tables_list
   SELECT_LEX *current_select;
   /* list of all SELECT_LEX */
   SELECT_LEX *all_selects_list;
+  
+  /* Query Plan Footprint of a currently running select  */
+  QPF_query *query_plan_footprint;
 
   char *length,*dec,*change;
   LEX_STRING name;
@@ -2786,6 +2855,9 @@ struct LEX: public Query_tables_list
     }
     return FALSE;
   }
+
+  int print_explain(select_result_sink *output, uint8 explain_flags,
+                    bool *printed_anything);
 };
 
 
