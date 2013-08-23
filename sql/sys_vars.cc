@@ -3834,6 +3834,11 @@ static Sys_var_ulong Sys_wsrep_mysql_replication_bundle(
        GLOBAL_VAR(wsrep_mysql_replication_bundle), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1000), DEFAULT(0), BLOCK_SIZE(1));
 
+static Sys_var_mybool Sys_wsrep_load_data_splitting(
+       "wsrep_load_data_splitting", "To commit LOAD DATA "
+       "transaction after every 10K rows inserted",
+       GLOBAL_VAR(wsrep_load_data_splitting), 
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 #endif /* WITH_WSREP */
 
 static Sys_var_charptr Sys_ignore_db_dirs(
