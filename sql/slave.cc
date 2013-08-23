@@ -2224,8 +2224,8 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
   mysql_mutex_lock(log_lock);
   if (rli->ign_master_log_name_end[0] || rli->ign_gtids.count())
   {
-    Rotate_log_event *rev;
-    Gtid_list_log_event *glev;
+    Rotate_log_event *rev= NULL;
+    Gtid_list_log_event *glev= NULL;
     if (rli->ign_master_log_name_end[0])
     {
       rev= new Rotate_log_event(rli->ign_master_log_name_end,

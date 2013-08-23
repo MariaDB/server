@@ -6364,7 +6364,7 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
     buf+= 8;
   }
 
-#ifdef MYSQL_SERVER
+#if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
   if ((gl_flags & FLAG_IGN_GTIDS))
   {
     uint32 i;
@@ -6417,6 +6417,7 @@ Gtid_list_log_event::Gtid_list_log_event(slave_connection_state *gtid_set,
                                     MYF(MY_WME))))
   {
     gtid_set->get_gtid_list(list, count);
+#if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
     if (gl_flags & FLAG_IGN_GTIDS)
     {
       uint32 i;
@@ -6441,6 +6442,7 @@ Gtid_list_log_event::Gtid_list_log_event(slave_connection_state *gtid_set,
         }
       }
     }
+#endif
   }
 }
 
