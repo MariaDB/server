@@ -163,6 +163,7 @@ struct rpl_binlog_state
   int get_gtid_list(rpl_gtid *gtid_list, uint32 list_size);
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
   bool append_pos(String *str);
+  bool append_state(String *str);
   rpl_gtid *find(uint32 domain_id, uint32 server_id);
   rpl_gtid *find_most_recent(uint32 domain_id);
 };
@@ -205,5 +206,7 @@ struct slave_connection_state
 extern bool rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid,
                                             bool *first);
 extern int gtid_check_rpl_slave_state_table(TABLE *table);
+extern rpl_gtid *gtid_parse_string_to_list(const char *p, size_t len,
+                                           uint32 *out_len);
 
 #endif  /* RPL_GTID_H */

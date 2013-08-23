@@ -6527,7 +6527,7 @@ ER_SQL_DISCOVER_ERROR
 ER_FAILED_GTID_STATE_INIT
         eng "Failed initializing replication GTID state"
 ER_INCORRECT_GTID_STATE
-        eng "Could not parse GTID list for GTID_POS"
+        eng "Could not parse GTID list"
 ER_CANNOT_UPDATE_GTID_STATE
         eng "Could not update replication slave gtid state"
 ER_DUPLICATE_GTID_DOMAIN
@@ -6557,3 +6557,5 @@ ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
         eng "Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a stored function or trigger"
 ER_GTID_POSITION_NOT_FOUND_IN_BINLOG2
 	eng "Connecting slave requested to start from GTID %u-%u-%llu, which is not in the master's binlog. Since the master's binlog contains GTIDs with higher sequence numbers, it probably means that the slave has diverged due to executing extra errorneous transactions"
+ER_BINLOG_MUST_BE_EMPTY
+	eng "This operation is not allowed if any GTID has been logged to the binary log. Run RESET MASTER first to erase the log"

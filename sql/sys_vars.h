@@ -2167,3 +2167,44 @@ public:
   }
   uchar *global_value_ptr(THD *thd, LEX_STRING *base);
 };
+
+
+/**
+  Class for @@global.gtid_binlog_state.
+*/
+class Sys_var_gtid_binlog_state: public sys_var
+{
+public:
+  Sys_var_gtid_binlog_state(const char *name_arg,
+          const char *comment, int flag_args, ptrdiff_t off, size_t size,
+          CMD_LINE getopt)
+    : sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
+              getopt.arg_type, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
+              NULL, NULL, NULL)
+  {
+    option.var_type= GET_STR;
+  }
+  bool do_check(THD *thd, set_var *var);
+  bool session_update(THD *thd, set_var *var)
+  {
+    DBUG_ASSERT(false);
+    return true;
+  }
+  bool global_update(THD *thd, set_var *var);
+  bool check_update_type(Item_result type) { return type != STRING_RESULT; }
+  void session_save_default(THD *thd, set_var *var)
+  {
+    DBUG_ASSERT(false);
+  }
+  void global_save_default(THD *thd, set_var *var)
+  {
+    /* Record the attempt to use default so we can error. */
+    var->value= 0;
+  }
+  uchar *session_value_ptr(THD *thd, LEX_STRING *base)
+  {
+    DBUG_ASSERT(false);
+    return NULL;
+  }
+  uchar *global_value_ptr(THD *thd, LEX_STRING *base);
+};

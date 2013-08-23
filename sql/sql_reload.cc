@@ -322,7 +322,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long options,
   {
     DBUG_ASSERT(thd);
     tmp_write_to_binlog= 0;
-    if (reset_master(thd))
+    if (reset_master(thd, NULL, 0))
     {
       /* NOTE: my_error() has been already called by reset_master(). */
       result= 1;
