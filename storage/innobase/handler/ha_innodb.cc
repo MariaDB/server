@@ -3197,6 +3197,7 @@ innobase_change_buffering_inited_ok:
 	srv_use_posix_fallocate = (ibool) innobase_use_fallocate;
 #endif
 	srv_use_atomic_writes = (ibool) innobase_use_atomic_writes;
+
 	if (innobase_use_atomic_writes) {
 		fprintf(stderr, "InnoDB: using atomic writes.\n");
 
@@ -3211,13 +3212,13 @@ innobase_change_buffering_inited_ok:
 #ifndef _WIN32
 		if(!innobase_file_flush_method ||
 			!strstr(innobase_file_flush_method, "O_DIRECT")) {
-			innobase_file_flush_method = 
+			innobase_file_flush_method =
 				srv_file_flush_method_str = (char*)"O_DIRECT";
 			fprintf(stderr, "InnoDB: using O_DIRECT due to atomic writes.\n");
 		}
 #endif
 #ifdef HAVE_POSIX_FALLOCATE
-		/* Due to a bug in directFS, using atomics needs  
+		/* Due to a bug in directFS, using atomics needs
 		 * posix_fallocate to extend the file
 		 * pwrite()  past end of the file won't work
 		 */
@@ -16892,7 +16893,11 @@ ib_senderrf(
 	str[size - 1] = 0x0;
 	vsnprintf(str, size, format, args);
 #elif HAVE_VASPRINTF
-	(void) vasprintf(&str, format, args);
+	if (vasprintf(&str, format, args) == -1) {
+		/* In case of failure use a fixed length string */
+		str = static_cast<char*>(malloc(BUFSIZ));
+		my_vsnprintf(str, BUFSIZ, format, args);
+	}
 #else
 	/* Use a fixed length string. */
 	str = static_cast<char*>(malloc(BUFSIZ));
@@ -16968,7 +16973,11 @@ ib_errf(
 	str[size - 1] = 0x0;
 	vsnprintf(str, size, format, args);
 #elif HAVE_VASPRINTF
-	(void) vasprintf(&str, format, args);
+	if (vasprintf(&str, format, args) == -1) {
+		/* In case of failure use a fixed length string */
+		str = static_cast<char*>(malloc(BUFSIZ));
+		my_vsnprintf(str, BUFSIZ, format, args);
+	}
 #else
 	/* Use a fixed length string. */
 	str = static_cast<char*>(malloc(BUFSIZ));
@@ -17002,7 +17011,11 @@ ib_logf(
 	str[size - 1] = 0x0;
 	vsnprintf(str, size, format, args);
 #elif HAVE_VASPRINTF
-	(void) vasprintf(&str, format, args);
+	if (vasprintf(&str, format, args) == -1) {
+		/* In case of failure use a fixed length string */
+		str = static_cast<char*>(malloc(BUFSIZ));
+		my_vsnprintf(str, BUFSIZ, format, args);
+	}
 #else
 	/* Use a fixed length string. */
 	str = static_cast<char*>(malloc(BUFSIZ));

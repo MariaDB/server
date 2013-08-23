@@ -4938,10 +4938,11 @@ fil_extend_space_to_desired_size(
 
 	mem_free(buf2);
 
-	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
-
 #ifdef HAVE_POSIX_FALLOCATE
 complete_io:
+	fil_node_complete_io(node, fil_system, OS_FILE_READ);
+#else
+	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
 #endif
 
 	*actual_size = space->size;
