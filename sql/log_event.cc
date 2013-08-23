@@ -9072,6 +9072,7 @@ int Rows_log_event::do_apply_event(Relay_log_info const *rli)
       call might reset the value of current_stmt_binlog_format, so
       we need to do any changes to that value after this function.
     */
+    delete_qpf_query(thd->lex);
     lex_start(thd);
     mysql_reset_thd_for_next_command(thd, 0);
     /*
