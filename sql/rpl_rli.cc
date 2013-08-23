@@ -1011,7 +1011,7 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     rli->cur_log_fd= -1;
   }
 
-  if (rli->relay_log.reset_logs(thd, !just_reset))
+  if (rli->relay_log.reset_logs(thd, !just_reset, NULL, 0))
   {
     *errmsg = "Failed during log reset";
     error=1;

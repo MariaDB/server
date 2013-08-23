@@ -751,7 +751,8 @@ public:
   int register_create_index_entry(const char* entry);
   int purge_index_entry(THD *thd, ulonglong *decrease_log_space,
                         bool need_mutex);
-  bool reset_logs(THD* thd, bool create_new_log);
+  bool reset_logs(THD* thd, bool create_new_log,
+                  rpl_gtid *init_state, uint32 init_state_len);
   void close(uint exiting);
   void clear_inuse_flag_when_closing(File file);
 
@@ -780,6 +781,8 @@ public:
   int write_state_to_file();
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
   bool append_state_pos(String *str);
+  bool append_state(String *str);
+  bool is_empty_state();
   bool find_in_binlog_state(uint32 domain_id, uint32 server_id,
                             rpl_gtid *out_gtid);
   bool lookup_domain_in_binlog_state(uint32 domain_id, rpl_gtid *out_gtid);

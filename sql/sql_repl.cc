@@ -3474,7 +3474,7 @@ err:
   @retval 0 success
   @retval 1 error
 */
-int reset_master(THD* thd)
+int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len)
 {
   if (!mysql_bin_log.is_open())
   {
@@ -3483,7 +3483,7 @@ int reset_master(THD* thd)
     return 1;
   }
 
-  if (mysql_bin_log.reset_logs(thd, 1))
+  if (mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len))
     return 1;
   RUN_HOOK(binlog_transmit, after_reset_master, (thd, 0 /* flags */));
   return 0;

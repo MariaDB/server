@@ -160,4 +160,47 @@ eval SELECT BINLOG_GTID_POS('$valid_binlog_name',0);
 eval SELECT BINLOG_GTID_POS('$valid_binlog_name',18446744073709551615);
 eval SELECT BINLOG_GTID_POS('$valid_binlog_name',18446744073709551616);
 
+
+--echo *** Some tests of @@GLOBAL.gtid_binlog_state ***
+--connection server_2
+--source include/stop_slave.inc
+
+--connection server_1
+SET @old_state= @@GLOBAL.gtid_binlog_state;
+
+--error ER_BINLOG_MUST_BE_EMPTY
+SET GLOBAL gtid_binlog_state = '';
+RESET MASTER;
+SET GLOBAL gtid_binlog_state = '';
+FLUSH LOGS;
+--source include/show_binary_logs.inc
+SET GLOBAL gtid_binlog_state = '0-1-10,1-2-20,0-3-30';
+--source include/show_binary_logs.inc
+--let $binlog_file= master-bin.000001
+--let $binlog_start= 4
+--source include/show_binlog_events.inc
+SELECT @@GLOBAL.gtid_binlog_pos;
+SELECT @@GLOBAL.gtid_binlog_state;
+--error ER_BINLOG_MUST_BE_EMPTY
+SET GLOBAL gtid_binlog_state = @old_state;
+RESET MASTER;
+SET GLOBAL gtid_binlog_state = @old_state;
+
+# Check that slave can reconnect again, despite the RESET MASTER, as we
+# restored the state.
+
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+--save_master_pos
+
+--connection server_2
+--source include/start_slave.inc
+--sync_with_master
+
+SELECT * FROM t1;
+
+--connection server_1
+DROP TABLE t1;
+
+
 --source include/rpl_end.inc

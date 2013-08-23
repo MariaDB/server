@@ -719,6 +719,45 @@ gtid_parser_helper(char **ptr, char *end, rpl_gtid *out_gtid)
 }
 
 
+rpl_gtid *
+gtid_parse_string_to_list(const char *str, size_t str_len, uint32 *out_len)
+{
+  char *p= const_cast<char *>(str);
+  char *end= p + str_len;
+  uint32 len= 0, alloc_len= 5;
+  rpl_gtid *list= NULL;
+
+  for (;;)
+  {
+    rpl_gtid gtid;
+
+    if (len >= (((uint32)1 << 28)-1) || gtid_parser_helper(&p, end, &gtid))
+    {
+      my_free(list);
+      return NULL;
+    }
+    if ((!list || len >= alloc_len) &&
+        !(list=
+          (rpl_gtid *)my_realloc(list,
+                                 (alloc_len= alloc_len*2) * sizeof(rpl_gtid),
+                                 MYF(MY_FREE_ON_ERROR|MY_ALLOW_ZERO_PTR))))
+      return NULL;
+    list[len++]= gtid;
+
+    if (p == end)
+      break;
+    if (*p != ',')
+    {
+      my_free(list);
+      return NULL;
+    }
+    ++p;
+  }
+  *out_len= len;
+  return list;
+}
+
+
 /*
   Update the slave replication state with the GTID position obtained from
   master when connecting with old-style (filename,offset) position.
@@ -1228,6 +1267,41 @@ rpl_binlog_state::append_pos(String *str)
     if (e->last_gtid &&
         rpl_slave_state_tostring_helper(str, e->last_gtid, &first))
       return true;
+  }
+
+  return false;
+}
+
+
+bool
+rpl_binlog_state::append_state(String *str)
+{
+  uint32 i, j;
+  bool first= true;
+
+  for (i= 0; i < hash.records; ++i)
+  {
+    element *e= (element *)my_hash_element(&hash, i);
+    if (!e->last_gtid)
+    {
+      DBUG_ASSERT(e->hash.records==0);
+      continue;
+    }
+    for (j= 0; j <= e->hash.records; ++j)
+    {
+      const rpl_gtid *gtid;
+      if (j < e->hash.records)
+      {
+        gtid= (rpl_gtid *)my_hash_element(&e->hash, j);
+        if (gtid == e->last_gtid)
+          continue;
+      }
+      else
+        gtid= e->last_gtid;
+
+      if (rpl_slave_state_tostring_helper(str, gtid, &first))
+        return true;
+    }
   }
 
   return false;
