@@ -371,15 +371,29 @@ int spider_get_sys_table_by_idx(
   const int col_count
 ) {
   int error_num;
+  uint key_length;
+  KEY *key_info = table->key_info;
   DBUG_ENTER("spider_get_sys_table_by_idx");
   if ((error_num = spider_sys_index_init(table, idx, FALSE)))
     DBUG_RETURN(error_num);
 
+  if ((int) key_info->key_parts == col_count)
+  {
+    key_length = key_info->key_length;
+  } else {
+    int roop_count;
+    key_length = 0;
+    for (roop_count = 0; roop_count < col_count; ++roop_count)
+    {
+      key_length += key_info->key_part[roop_count].store_length;
+    }
+  }
+
   key_copy(
     (uchar *) table_key,
     table->record[0],
-    table->key_info,
-    table->key_info->key_length);
+    key_info,
+    key_length);
 
   if (
 /*
