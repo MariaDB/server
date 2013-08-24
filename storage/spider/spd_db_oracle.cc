@@ -1403,6 +1403,22 @@ int spider_db_oracle::exec_query(
   int error_num;
   DBUG_ENTER("spider_db_oracle::exec_query");
   DBUG_PRINT("info",("spider this=%p", this));
+  if (spider_param_general_log())
+  {
+    const char *tgt_str = conn->tgt_host;
+    uint32 tgt_len = conn->tgt_host_length;
+    spider_string tmp_query_str(length + conn->tgt_wrapper_length +
+      tgt_len + (SPIDER_SQL_SPACE_LEN * 2));
+    tmp_query_str.init_calc_mem(232);
+    tmp_query_str.length(0);
+    tmp_query_str.q_append(conn->tgt_wrapper, conn->tgt_wrapper_length);
+    tmp_query_str.q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
+    tmp_query_str.q_append(tgt_str, tgt_len);
+    tmp_query_str.q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
+    tmp_query_str.q_append(query, length);
+    general_log_write(current_thd, COM_QUERY, tmp_query_str.ptr(),
+      tmp_query_str.length());
+  }
   stored_error_num = 0;
   if (table_lock_mode && !conn->in_before_query)
   {

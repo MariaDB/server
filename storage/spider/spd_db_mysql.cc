@@ -1475,9 +1475,54 @@ int spider_db_mysql::exec_query(
   uint length,
   int quick_mode
 ) {
+  int error_num;
   DBUG_ENTER("spider_db_mysql::exec_query");
   DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(mysql_real_query(db_conn, query, length));
+  if (spider_param_general_log())
+  {
+    const char *tgt_str = conn->tgt_host;
+    uint32 tgt_len = conn->tgt_host_length;
+    spider_string tmp_query_str(length + conn->tgt_wrapper_length +
+      tgt_len + (SPIDER_SQL_SPACE_LEN * 2));
+    tmp_query_str.init_calc_mem(230);
+    tmp_query_str.length(0);
+    tmp_query_str.q_append(conn->tgt_wrapper, conn->tgt_wrapper_length);
+    tmp_query_str.q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
+    tmp_query_str.q_append(tgt_str, tgt_len);
+    tmp_query_str.q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
+    tmp_query_str.q_append(query, length);
+    general_log_write(current_thd, COM_QUERY, tmp_query_str.ptr(),
+      tmp_query_str.length());
+  }
+  error_num = mysql_real_query(db_conn, query, length);
+  if (spider_param_log_result_errors() >= 2 && db_conn->warning_count > 0)
+  {
+    time_t cur_time = (time_t) time((time_t*) 0);
+    struct tm lt;
+    struct tm *l_time = localtime_r(&cur_time, &lt);
+    fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] "
+      "from [%s] %ld to %ld:  "
+      "affected_rows: %llu  id: %llu  status: %u  warning_count: %u\n",
+      l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+      l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+      conn->tgt_host, db_conn->thread_id, current_thd->thread_id,
+      db_conn->affected_rows, db_conn->insert_id,
+      db_conn->server_status, db_conn->warning_count);
+  } else if (spider_param_log_result_errors() >= 4)
+  {
+    time_t cur_time = (time_t) time((time_t*) 0);
+    struct tm lt;
+    struct tm *l_time = localtime_r(&cur_time, &lt);
+    fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [INFO SPIDER RESULT] "
+      "from [%s] %ld to %ld:  "
+      "affected_rows: %llu  id: %llu  status: %u  warning_count: %u\n",
+      l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+      l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+      conn->tgt_host, db_conn->thread_id, current_thd->thread_id,
+      db_conn->affected_rows, db_conn->insert_id,
+      db_conn->server_status, db_conn->warning_count);
+  }
+  DBUG_RETURN(error_num);
 }
 
 int spider_db_mysql::get_errno()

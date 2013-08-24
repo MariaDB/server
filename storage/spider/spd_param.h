@@ -368,3 +368,5 @@ int spider_param_udf_ds_use_real_table(
   int udf_ds_use_real_table
 );
 #endif
+my_bool spider_param_general_log();
+uint spider_param_log_result_errors();
