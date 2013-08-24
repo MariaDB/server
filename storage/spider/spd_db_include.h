@@ -653,8 +653,9 @@ public:
 class spider_db_row
 {
 public:
+  uint dbton_id;
   SPIDER_DB_ROW *next_pos;
-  spider_db_row() : next_pos(NULL) {}
+  spider_db_row(uint in_dbton_id) : dbton_id(in_dbton_id), next_pos(NULL) {}
   virtual ~spider_db_row() {}
   virtual int store_to_field(
     Field *field,
@@ -693,7 +694,8 @@ public:
 class spider_db_result
 {
 public:
-  spider_db_result() {}
+  uint dbton_id;
+  spider_db_result(uint in_dbton_id) : dbton_id(in_dbton_id) {}
   virtual ~spider_db_result() {}
   virtual bool has_result() = 0;
   virtual void free_result() = 0;
@@ -1343,6 +1345,12 @@ public:
   ) = 0;
   virtual bool support_use_handler(
     int use_handler
+  ) = 0;
+  virtual bool minimum_select_bit_is_set(
+    uint field_index
+  ) = 0;
+  virtual void copy_minimum_select_bitmap(
+    uchar *bitmap
   ) = 0;
 };
 

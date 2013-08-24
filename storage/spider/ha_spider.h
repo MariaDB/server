@@ -92,6 +92,7 @@ public:
   SPIDER_CONDITION   *condition;
   spider_string      *blob_buff;
   uchar              *searched_bitmap;
+  uchar              *ft_discard_bitmap;
   bool               position_bitmap_init;
   uchar              *position_bitmap;
   SPIDER_POSITION    *pushed_pos;
@@ -685,6 +686,7 @@ public:
     void *info
   );
   TABLE *get_table();
+  void set_ft_discard_bitmap();
   void set_searched_bitmap();
   void set_clone_searched_bitmap();
   void set_select_column_mode();
