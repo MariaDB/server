@@ -377,7 +377,7 @@ int spider_get_sys_table_by_idx(
   if ((error_num = spider_sys_index_init(table, idx, FALSE)))
     DBUG_RETURN(error_num);
 
-  if ((int) key_info->key_parts == col_count)
+  if ((int) spider_user_defined_key_parts(key_info) == col_count)
   {
     key_length = key_info->key_length;
   } else {
