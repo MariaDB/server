@@ -6748,10 +6748,6 @@ int ha_spider::rnd_init(
           memset(searched_bitmap, 0xFF, no_bytes_in_map(table->read_set));
       }
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-      if ((error_num = spider_set_conn_bg_param(this)))
-        DBUG_RETURN(error_num);
-#endif
       set_select_column_mode();
       result_list.keyread = FALSE;
 
@@ -6830,6 +6826,10 @@ int ha_spider::rnd_next_internal(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     if (sql_kinds & SPIDER_SQL_KIND_HS)
       DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+#endif
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+    if ((error_num = spider_set_conn_bg_param(this)))
+      DBUG_RETURN(error_num);
 #endif
     if ((error_num = rnd_handler_init()))
       DBUG_RETURN(check_error_mode_eof(error_num));
