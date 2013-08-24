@@ -67,6 +67,7 @@ ha_spider::ha_spider(
   conns = NULL;
   need_mons = NULL;
   condition = NULL;
+  cond_check = FALSE;
   blob_buff = NULL;
   conn_keys = NULL;
   spider_thread_id = 0;
@@ -159,6 +160,7 @@ ha_spider::ha_spider(
   conns = NULL;
   need_mons = NULL;
   condition = NULL;
+  cond_check = FALSE;
   blob_buff = NULL;
   conn_keys = NULL;
   spider_thread_id = 0;
@@ -1676,6 +1678,7 @@ int ha_spider::reset()
     spider_free(spider_current_trx, condition, MYF(0));
     condition = tmp_cond;
   }
+  cond_check = FALSE;
 #ifdef HA_MRR_USE_DEFAULT_IMPL
   if (multi_range_keys)
   {
