@@ -1467,11 +1467,23 @@ int spider_set_conn_bg_param(
   else {
     result_list->bgs_phase = 1;
 
-    result_list->bgs_first_read =
-      spider_param_bgs_first_read(thd, share->bgs_first_read);
-    result_list->bgs_second_read =
-      spider_param_bgs_second_read(thd, share->bgs_second_read);
     result_list->bgs_split_read = spider_bg_split_read_param(spider);
+    if (spider->use_pre_call)
+    {
+      DBUG_PRINT("info",("spider use_pre_call=TRUE"));
+      result_list->bgs_first_read = result_list->bgs_split_read;
+      result_list->bgs_second_read = result_list->bgs_split_read;
+    } else {
+      DBUG_PRINT("info",("spider use_pre_call=FALSE"));
+      result_list->bgs_first_read =
+        spider_param_bgs_first_read(thd, share->bgs_first_read);
+      result_list->bgs_second_read =
+        spider_param_bgs_second_read(thd, share->bgs_second_read);
+    }
+    DBUG_PRINT("info",("spider bgs_split_read=%lld",
+      result_list->bgs_split_read));
+    DBUG_PRINT("info",("spider bgs_first_read=%lld", share->bgs_first_read));
+    DBUG_PRINT("info",("spider bgs_second_read=%lld", share->bgs_second_read));
 
     result_list->split_read =
       result_list->bgs_first_read > 0 ?
