@@ -59,6 +59,38 @@
 #define my_sprintf(A,B) sprintf B
 #endif
 
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100004
+#define spider_stmt_da_message(A) (A)->get_stmt_da()->message()
+#define spider_stmt_da_sql_errno(A) (A)->get_stmt_da()->sql_errno()
+#define spider_user_defined_key_parts(A) (A)->user_defined_key_parts
+#define SPIDER_CAN_BG_UPDATE (1LL << 39)
+#define SPIDER_ALTER_ADD_PARTITION        Alter_info::ALTER_ADD_PARTITION
+#define SPIDER_ALTER_DROP_PARTITION       Alter_info::ALTER_DROP_PARTITION
+#define SPIDER_ALTER_COALESCE_PARTITION   Alter_info::ALTER_COALESCE_PARTITION
+#define SPIDER_ALTER_REORGANIZE_PARTITION Alter_info::ALTER_REORGANIZE_PARTITION
+#define SPIDER_ALTER_TABLE_REORG          Alter_info::ALTER_TABLE_REORG
+#define SPIDER_ALTER_REBUILD_PARTITION    Alter_info::ALTER_REBUILD_PARTITION
+#define SPIDER_WARN_LEVEL_WARN            Sql_condition::WARN_LEVEL_WARN
+#define SPIDER_WARN_LEVEL_NOTE            Sql_condition::WARN_LEVEL_NOTE
+#else
+#if MYSQL_VERSION_ID < 50500
+#define spider_stmt_da_message(A) (A)->main_da.message()
+#define spider_stmt_da_sql_errno(A) (A)->main_da.sql_errno()
+#else
+#define spider_stmt_da_message(A) (A)->stmt_da->message()
+#define spider_stmt_da_sql_errno(A) (A)->stmt_da->sql_errno()
+#endif
+#define spider_user_defined_key_parts(A) (A)->key_parts
+#define SPIDER_ALTER_ADD_PARTITION        ALTER_ADD_PARTITION
+#define SPIDER_ALTER_DROP_PARTITION       ALTER_DROP_PARTITION
+#define SPIDER_ALTER_COALESCE_PARTITION   ALTER_COALESCE_PARTITION
+#define SPIDER_ALTER_REORGANIZE_PARTITION ALTER_REORGANIZE_PARTITION
+#define SPIDER_ALTER_TABLE_REORG          ALTER_TABLE_REORG
+#define SPIDER_ALTER_REBUILD_PARTITION    ALTER_REBUILD_PARTITION
+#define SPIDER_WARN_LEVEL_WARN            MYSQL_ERROR::WARN_LEVEL_WARN
+#define SPIDER_WARN_LEVEL_NOTE            MYSQL_ERROR::WARN_LEVEL_NOTE
+#endif
+
 #if MYSQL_VERSION_ID >= 50500
 #define SPIDER_HAS_HASH_VALUE_TYPE
 #endif

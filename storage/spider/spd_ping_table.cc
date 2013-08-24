@@ -1156,11 +1156,7 @@ my_bool spider_ping_table_init_body(
   if (!(trx = spider_get_trx(thd, TRUE, &error_num)))
   {
     my_error(error_num, MYF(0));
-#if MYSQL_VERSION_ID < 50500
-    strcpy(message, thd->main_da.message());
-#else
-    strcpy(message, thd->stmt_da->message());
-#endif
+    strcpy(message, spider_stmt_da_message(thd));
     goto error;
   }
 

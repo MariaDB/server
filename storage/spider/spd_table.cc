@@ -21,6 +21,7 @@
 #else
 #include "sql_priv.h"
 #include "probes_mysql.h"
+#include "my_getopt.h"
 #include "sql_class.h"
 #include "sql_partition.h"
 #include "sql_servers.h"
@@ -4562,13 +4563,8 @@ SPIDER_SHARE *spider_get_share(
           spider_init_error_table->init_error = *error_num;
           if ((spider_init_error_table->init_error_with_message =
             thd->is_error()))
-#if MYSQL_VERSION_ID < 50500
             strmov(spider_init_error_table->init_error_msg,
-              thd->main_da.message());
-#else
-            strmov(spider_init_error_table->init_error_msg,
-              thd->stmt_da->message());
-#endif
+              spider_stmt_da_message(thd));
           spider_init_error_table->init_error_time =
             (time_t) time((time_t*) 0);
         }
@@ -4990,13 +4986,8 @@ SPIDER_SHARE *spider_get_share(
               spider_init_error_table->init_error = *error_num;
               if ((spider_init_error_table->init_error_with_message =
                 thd->is_error()))
-#if MYSQL_VERSION_ID < 50500
                 strmov(spider_init_error_table->init_error_msg,
-                  thd->main_da.message());
-#else
-                strmov(spider_init_error_table->init_error_msg,
-                  thd->stmt_da->message());
-#endif
+                  spider_stmt_da_message(thd));
               spider_init_error_table->init_error_time =
                 (time_t) time((time_t*) 0);
             }
@@ -6985,7 +6976,8 @@ bool spider_check_pk_update(
 
   key_info = &table_share->key_info[table_share->primary_key];
   key_part = key_info->key_part;
-  for (roop_count = 0; roop_count < (int) key_info->key_parts; roop_count++)
+  for (roop_count = 0;
+    roop_count < (int) spider_user_defined_key_parts(key_info); roop_count++)
   {
     if (bitmap_is_set(table->write_set,
       key_part[roop_count].field->field_index))
@@ -7018,7 +7010,8 @@ bool spider_check_hs_pk_update(
   memset(spider->tmp_column_bitmap, 0, sizeof(uchar) * share->bitmap_size);
   key_info = &table->key_info[table_share->primary_key];
   key_part = key_info->key_part;
-  for (roop_count = 0; roop_count < key_info->key_parts; roop_count++)
+  for (roop_count = 0; roop_count < spider_user_defined_key_parts(key_info);
+    roop_count++)
   {
     field_index = key_part[roop_count].field->field_index;
     if (bitmap_is_set(table->write_set, field_index))
@@ -7829,13 +7822,8 @@ int spider_discover_table_structure(
     {
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     }
-#ifdef SPIDER_GENERATE_PARTITION_SYNTAX_HAS_CURRENT_COMMENT_START
-    if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
-      FALSE, TRUE, info, NULL, NULL)))
-#else
     if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
       FALSE, TRUE, info, NULL)))
-#endif
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
