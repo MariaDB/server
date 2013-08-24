@@ -567,7 +567,7 @@ int spider_db_mysql_result::fetch_table_status(
 #else
   my_bool not_used_my_bool;
 #endif
-  MYSQL_TIME_STATUS time_status;
+  int not_used_int;
   long not_used_long;
   DBUG_ENTER("spider_db_mysql_result::fetch_table_status");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -628,9 +628,8 @@ int spider_db_mysql_result::fetch_table_status(
       ("spider auto_increment_value=%lld", auto_increment_value));
     if (mysql_row[11])
     {
-      my_time_status_init(&time_status);
       str_to_datetime(mysql_row[11], strlen(mysql_row[11]), &mysql_time, 0,
-        &time_status);
+        &not_used_int);
 #ifdef MARIADB_BASE_VERSION
       create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -651,9 +650,8 @@ int spider_db_mysql_result::fetch_table_status(
 #endif
     if (mysql_row[12])
     {
-      my_time_status_init(&time_status);
       str_to_datetime(mysql_row[12], strlen(mysql_row[12]), &mysql_time, 0,
-        &time_status);
+        &not_used_int);
 #ifdef MARIADB_BASE_VERSION
       update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -674,9 +672,8 @@ int spider_db_mysql_result::fetch_table_status(
 #endif
     if (mysql_row[13])
     {
-      my_time_status_init(&time_status);
       str_to_datetime(mysql_row[13], strlen(mysql_row[13]), &mysql_time, 0,
-        &time_status);
+        &not_used_int);
 #ifdef MARIADB_BASE_VERSION
       check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -740,9 +737,8 @@ int spider_db_mysql_result::fetch_table_status(
       ("spider auto_increment_value=%lld", auto_increment_value));
     if (mysql_row[6])
     {
-      my_time_status_init(&time_status);
       str_to_datetime(mysql_row[6], strlen(mysql_row[6]), &mysql_time, 0,
-        &time_status);
+        &not_used_int);
 #ifdef MARIADB_BASE_VERSION
       create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -763,9 +759,8 @@ int spider_db_mysql_result::fetch_table_status(
 #endif
     if (mysql_row[7])
     {
-      my_time_status_init(&time_status);
       str_to_datetime(mysql_row[7], strlen(mysql_row[7]), &mysql_time, 0,
-        &time_status);
+        &not_used_int);
 #ifdef MARIADB_BASE_VERSION
       update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -786,9 +781,8 @@ int spider_db_mysql_result::fetch_table_status(
 #endif
     if (mysql_row[8])
     {
-      my_time_status_init(&time_status);
       str_to_datetime(mysql_row[8], strlen(mysql_row[8]), &mysql_time, 0,
-        &time_status);
+        &not_used_int);
 #ifdef MARIADB_BASE_VERSION
       check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -4268,7 +4262,7 @@ int spider_mysql_share::append_key_select(
   const KEY *key_info = &table_share->key_info[idx];
   DBUG_ENTER("spider_mysql_share::append_key_select");
   for (key_part = key_info->key_part, part_num = 0;
-    part_num < key_info->user_defined_key_parts; key_part++, part_num++)
+    part_num < key_info->key_parts; key_part++, part_num++)
   {
     field = key_part->field;
     field_length = column_name_str[field->field_index].length();
@@ -4595,7 +4589,7 @@ int spider_mysql_handler::append_key_column_types(
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   KEY *key_info = result_list->key_info;
   uint key_name_length, key_count;
-  key_part_map full_key_part_map = make_prev_keypart_map(key_info->user_defined_key_parts);
+  key_part_map full_key_part_map = make_prev_keypart_map(key_info->key_parts);
   key_part_map start_key_part_map;
   KEY_PART_INFO *key_part;
   Field *field;
@@ -4606,7 +4600,7 @@ int spider_mysql_handler::append_key_column_types(
   tmp_str.init_calc_mem(115);
 
   start_key_part_map = start_key->keypart_map & full_key_part_map;
-  DBUG_PRINT("info", ("spider key_info->user_defined_key_parts=%u", key_info->user_defined_key_parts));
+  DBUG_PRINT("info", ("spider key_info->key_parts=%u", key_info->key_parts));
   DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
   DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
 
@@ -4662,7 +4656,7 @@ int spider_mysql_handler::append_key_join_columns_for_bka(
 ) {
   KEY *key_info = spider->result_list.key_info;
   uint length, key_name_length, key_count;
-  key_part_map full_key_part_map = make_prev_keypart_map(key_info->user_defined_key_parts);
+  key_part_map full_key_part_map = make_prev_keypart_map(key_info->key_parts);
   key_part_map start_key_part_map;
   KEY_PART_INFO *key_part;
   Field *field;
@@ -4671,7 +4665,7 @@ int spider_mysql_handler::append_key_join_columns_for_bka(
   DBUG_ENTER("spider_mysql_handler::append_key_join_columns_for_bka");
   DBUG_PRINT("info",("spider this=%p", this));
   start_key_part_map = start_key->keypart_map & full_key_part_map;
-  DBUG_PRINT("info", ("spider key_info->user_defined_key_parts=%u", key_info->user_defined_key_parts));
+  DBUG_PRINT("info", ("spider key_info->key_parts=%u", key_info->key_parts));
   DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
   DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
 
@@ -5768,7 +5762,7 @@ int spider_mysql_handler::append_key_select_with_alias(
   int field_length;
   DBUG_ENTER("spider_mysql_handler::append_key_select_with_alias");
   for (key_part = key_info->key_part, part_num = 0;
-    part_num < key_info->user_defined_key_parts; key_part++, part_num++)
+    part_num < key_info->key_parts; key_part++, part_num++)
   {
     field = key_part->field;
     field_length = mysql_share->column_name_str[field->field_index].length();
@@ -6049,13 +6043,13 @@ int spider_mysql_handler::append_key_column_values(
   KEY *key_info = result_list->key_info;
   uint length;
   uint store_length;
-  key_part_map full_key_part_map = make_prev_keypart_map(key_info->user_defined_key_parts);
+  key_part_map full_key_part_map = make_prev_keypart_map(key_info->key_parts);
   key_part_map start_key_part_map;
   KEY_PART_INFO *key_part;
   Field *field;
   DBUG_ENTER("spider_mysql_handler::append_key_column_values");
   start_key_part_map = start_key->keypart_map & full_key_part_map;
-  DBUG_PRINT("info", ("spider key_info->user_defined_key_parts=%u", key_info->user_defined_key_parts));
+  DBUG_PRINT("info", ("spider key_info->key_parts=%u", key_info->key_parts));
   DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
   DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
 
@@ -6598,13 +6592,13 @@ int spider_mysql_handler::append_match_against(
 
   ft_init_key = ft_info->key;
   key_info = &table->key_info[ft_info->inx];
-  DBUG_PRINT("info", ("spider key_info->user_defined_key_parts=%u",
-    key_info->user_defined_key_parts));
+  DBUG_PRINT("info", ("spider key_info->key_parts=%u",
+    key_info->key_parts));
 
   for (
     key_part = key_info->key_part,
     key_count = 0;
-    key_count < (int) key_info->user_defined_key_parts;
+    key_count < (int) key_info->key_parts;
     key_part++,
     key_count++
   ) {
@@ -6814,7 +6808,7 @@ int spider_mysql_handler::append_key_order_for_merge_with_alias(
     for (
       key_part = key_info->key_part,
       length = 1;
-      length <= (int) key_info->user_defined_key_parts;
+      length <= (int) key_info->key_parts;
       key_part++,
       length++
     ) {
@@ -7016,7 +7010,7 @@ int spider_mysql_handler::append_key_order_with_alias(
       for (
         key_part = key_info->key_part + result_list->key_order,
         length = 1;
-        length + result_list->key_order < (int) key_info->user_defined_key_parts &&
+        length + result_list->key_order < (int) key_info->key_parts &&
         length < result_list->max_order;
         key_part++,
         length++
@@ -7050,7 +7044,7 @@ int spider_mysql_handler::append_key_order_with_alias(
         }
       }
       if (
-        length + result_list->key_order <= (int) key_info->user_defined_key_parts &&
+        length + result_list->key_order <= (int) key_info->key_parts &&
         length <= result_list->max_order
       ) {
         field = key_part->field;
@@ -7082,7 +7076,7 @@ int spider_mysql_handler::append_key_order_with_alias(
       for (
         key_part = key_info->key_part + result_list->key_order,
         length = 1;
-        length + result_list->key_order < (int) key_info->user_defined_key_parts &&
+        length + result_list->key_order < (int) key_info->key_parts &&
         length < result_list->max_order;
         key_part++,
         length++
@@ -7116,7 +7110,7 @@ int spider_mysql_handler::append_key_order_with_alias(
         }
       }
       if (
-        length + result_list->key_order <= (int) key_info->user_defined_key_parts &&
+        length + result_list->key_order <= (int) key_info->key_parts &&
         length <= result_list->max_order
       ) {
         field = key_part->field;
@@ -10480,7 +10474,7 @@ int spider_mysql_copy_table::append_copy_where(
   sql.q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
   Field *field;
   KEY_PART_INFO *key_part = key_info->key_part;
-  for (roop_count = key_info->user_defined_key_parts - 1; roop_count >= 0; roop_count--)
+  for (roop_count = key_info->key_parts - 1; roop_count >= 0; roop_count--)
   {
     for (roop_count2 = 0; roop_count2 < roop_count; roop_count2++)
     {
@@ -10525,7 +10519,7 @@ int spider_mysql_copy_table::append_key_order_str(
   Field *field;
   DBUG_ENTER("spider_mysql_copy_table::append_key_order_str");
   DBUG_PRINT("info",("spider this=%p", this));
-  if ((int) key_info->user_defined_key_parts > start_pos)
+  if ((int) key_info->key_parts > start_pos)
   {
     if (sql.reserve(SPIDER_SQL_ORDER_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -10535,7 +10529,7 @@ int spider_mysql_copy_table::append_key_order_str(
       for (
         key_part = key_info->key_part + start_pos,
         length = 0;
-        length + start_pos < (int) key_info->user_defined_key_parts;
+        length + start_pos < (int) key_info->key_parts;
         key_part++,
         length++
       ) {
@@ -10565,7 +10559,7 @@ int spider_mysql_copy_table::append_key_order_str(
       for (
         key_part = key_info->key_part + start_pos,
         length = 0;
-        length + start_pos < (int) key_info->user_defined_key_parts;
+        length + start_pos < (int) key_info->key_parts;
         key_part++,
         length++
       ) {
