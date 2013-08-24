@@ -620,6 +620,7 @@ bool st_select_lex_unit::exec()
   ulonglong add_rows=0;
   ha_rows examined_rows= 0;
   DBUG_ENTER("st_select_lex_unit::exec");
+  bool was_executed= executed;
 
   if (executed && !uncacheable && !describe)
     DBUG_RETURN(FALSE);
@@ -628,6 +629,9 @@ bool st_select_lex_unit::exec()
     item->make_const();
   
   saved_error= optimize();
+
+  if (!was_executed && thd->lex->query_plan_footprint)
+    save_union_qpf(thd->lex->query_plan_footprint);
 
   if (uncacheable || !item || !item->assigned() || describe)
   {
@@ -775,6 +779,9 @@ bool st_select_lex_unit::exec()
         */
         if (!fake_select_lex->ref_pointer_array)
           fake_select_lex->n_child_sum_items+= global_parameters->n_sum_items;
+        
+        if (!was_executed && thd->lex->query_plan_footprint)
+          save_union_qpf_part2(thd->lex->query_plan_footprint);
 
         saved_error= mysql_select(thd, &fake_select_lex->ref_pointer_array,
                               &result_table_list,

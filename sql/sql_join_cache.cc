@@ -2568,34 +2568,26 @@ finish:
     none
 */ 
 
-void JOIN_CACHE::print_explain_comment(String *str)
+void JOIN_CACHE::save_qpf(struct st_qpf_bka_type *qpf)
 {
-  str->append(STRING_WITH_LEN(" ("));
-  const char *buffer_type= prev_cache ? "incremental" : "flat";
-  str->append(buffer_type);
-  str->append(STRING_WITH_LEN(", "));
-  
-  const char *join_alg="";
+  qpf->incremental= test(prev_cache);
+
   switch (get_join_alg()) {
   case BNL_JOIN_ALG:
-    join_alg= "BNL";
+    qpf->join_alg= "BNL";
     break;
   case BNLH_JOIN_ALG:
-    join_alg= "BNLH";
+    qpf->join_alg= "BNLH";
     break;
   case BKA_JOIN_ALG:
-    join_alg= "BKA";
+    qpf->join_alg= "BKA";
     break;
   case BKAH_JOIN_ALG:
-    join_alg= "BKAH";
+    qpf->join_alg= "BKAH";
     break;
   default:
     DBUG_ASSERT(0);
   }
-
-  str->append(join_alg);
-  str->append(STRING_WITH_LEN(" join"));
-  str->append(STRING_WITH_LEN(")"));
 }
 
 /**
@@ -2621,18 +2613,17 @@ static void add_mrr_explain_info(String *str, uint mrr_mode, handler *file)
   }
 }
 
-
-void JOIN_CACHE_BKA::print_explain_comment(String *str)
+void JOIN_CACHE_BKA::save_qpf(struct st_qpf_bka_type *qpf)
 {
-  JOIN_CACHE::print_explain_comment(str); 
-  add_mrr_explain_info(str, mrr_mode, join_tab->table->file);
+  JOIN_CACHE::save_qpf(qpf); 
+  add_mrr_explain_info(&qpf->mrr_type, mrr_mode, join_tab->table->file);
 }
 
 
-void JOIN_CACHE_BKAH::print_explain_comment(String *str)
+void JOIN_CACHE_BKAH::save_qpf(struct st_qpf_bka_type *qpf)
 {
-  JOIN_CACHE::print_explain_comment(str); 
-  add_mrr_explain_info(str, mrr_mode, join_tab->table->file);
+  JOIN_CACHE::save_qpf(qpf); 
+  add_mrr_explain_info(&qpf->mrr_type, mrr_mode, join_tab->table->file);
 }
 
 

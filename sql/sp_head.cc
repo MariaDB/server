@@ -2988,6 +2988,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   }
 
   reinit_stmt_before_use(thd, m_lex);
+  // not here, but inside every instr: create_qpf_query(m_lex);
 
   if (open_tables)
     res= instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
@@ -3021,6 +3022,8 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     else if (! thd->in_sub_stmt)
       thd->mdl_context.release_statement_locks();
   }
+  
+  delete_qpf_query(m_lex);
 
   if (m_lex->query_tables_own_last)
   {
@@ -3228,6 +3231,7 @@ sp_instr_set::execute(THD *thd, uint *nextp)
 int
 sp_instr_set::exec_core(THD *thd, uint *nextp)
 {
+  create_qpf_query(thd->lex, thd->mem_root);
   int res= thd->spcont->set_variable(thd, m_offset, &m_value);
 
   if (res)
@@ -3240,6 +3244,7 @@ sp_instr_set::exec_core(THD *thd, uint *nextp)
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
     }
   }
+  delete_qpf_query(thd->lex);
 
   *nextp = m_ip+1;
   return res;
