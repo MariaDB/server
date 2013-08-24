@@ -598,6 +598,7 @@ static void handle_bootstrap_impl(THD *thd)
 #if defined(ENABLED_PROFILING)
     thd->profiling.finish_current_query();
 #endif
+    delete_qpf_query(thd->lex);
 
     if (bootstrap_error)
       break;
@@ -807,7 +808,9 @@ bool do_command(THD *thd)
   my_net_set_read_timeout(net, thd->variables.net_read_timeout);
 
   DBUG_ASSERT(packet_length);
+  DBUG_ASSERT(!thd->apc_target.is_enabled());
   return_value= dispatch_command(command, thd, packet+1, (uint) (packet_length-1));
+  DBUG_ASSERT(!thd->apc_target.is_enabled());
 
 out:
   DBUG_RETURN(return_value);
@@ -1117,6 +1120,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       ulong length= (ulong)(packet_end - beginning_of_next_stmt);
 
       log_slow_statement(thd);
+      DBUG_ASSERT(!thd->apc_target.is_enabled());
 
       /* Remove garbage at start of query */
       while (length > 0 && my_isspace(thd->charset(), *beginning_of_next_stmt))
@@ -1489,6 +1493,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   thd->update_all_stats();
 
   log_slow_statement(thd);
+  /* psergey-todo: this is the place we could print EXPLAIN to slow query log */
 
   thd_proc_info(thd, "cleaning up");
   thd->reset_query();
@@ -1524,6 +1529,8 @@ void log_slow_statement(THD *thd)
 {
   DBUG_ENTER("log_slow_statement");
 
+  delete_qpf_query(thd->lex);
+
   /*
     The following should never be true with our current code base,
     but better to keep this here so we don't accidently try to log a
@@ -1531,6 +1538,7 @@ void log_slow_statement(THD *thd)
   */
   if (unlikely(thd->in_sub_stmt))
     DBUG_VOID_RETURN;                           // Don't set time for sub stmt
+
 
   /* Follow the slow log filter configuration. */ 
   if (!thd->enable_slow_log ||
@@ -2185,6 +2193,8 @@ mysql_execute_command(THD *thd)
     /* Release metadata locks acquired in this transaction. */
     thd->mdl_context.release_transactional_locks();
   }
+  
+  create_qpf_query(thd->lex, thd->mem_root);
 
 #ifndef DBUG_OFF
   if (lex->sql_command != SQLCOM_SET_OPTION)
@@ -3265,7 +3275,8 @@ end_with_restore_list:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     TABLE_LIST *aux_tables= thd->lex->auxiliary_table_list.first;
-    multi_delete *del_result;
+    bool explain= test(lex->describe);
+    select_result *result;
 
     if ((res= multi_delete_precheck(thd, all_tables)))
       break;
@@ -3280,37 +3291,80 @@ end_with_restore_list:
     if ((res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
       break;
 
-    MYSQL_MULTI_DELETE_START(thd->query());
+    if (!explain)
+    {
+      MYSQL_MULTI_DELETE_START(thd->query());
+    }
+
     if ((res= mysql_multi_delete_prepare(thd)))
     {
-      MYSQL_MULTI_DELETE_DONE(1, 0);
+      if (!explain)
+      {
+        MYSQL_MULTI_DELETE_DONE(1, 0);
+      }
       goto error;
     }
 
-    if (!thd->is_fatal_error &&
-        (del_result= new multi_delete(aux_tables, lex->table_count)))
+    if (!thd->is_fatal_error)
     {
-      res= mysql_select(thd, &select_lex->ref_pointer_array,
-			select_lex->get_table_list(),
-			select_lex->with_wild,
-			select_lex->item_list,
-			select_lex->where,
-			0, (ORDER *)NULL, (ORDER *)NULL, (Item *)NULL,
-			(ORDER *)NULL,
-			(select_lex->options | thd->variables.option_bits |
-			SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
-                        OPTION_SETUP_TABLES_DONE) & ~OPTION_BUFFER_RESULT,
-			del_result, unit, select_lex);
-      res|= thd->is_error();
-      MYSQL_MULTI_DELETE_DONE(res, del_result->num_deleted());
-      if (res)
-        del_result->abort_result_set();
-      delete del_result;
+      if (explain)
+      {
+        result= new select_send();
+        if (thd->send_explain_fields(result))
+        {
+          delete result;
+          result= NULL;
+        }
+        select_lex->set_explain_type(FALSE);
+        //thd->lex->query_plan_footprint= new QPF_query;
+      }
+      else
+        result= new multi_delete(aux_tables, lex->table_count);
+
+      if (result)
+      {
+        res= mysql_select(thd, &select_lex->ref_pointer_array,
+                          select_lex->get_table_list(),
+                          select_lex->with_wild,
+                          select_lex->item_list,
+                          select_lex->where,
+                          0, (ORDER *)NULL, (ORDER *)NULL, (Item *)NULL,
+                          (ORDER *)NULL,
+                          (select_lex->options | thd->variables.option_bits |
+                          SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
+                          OPTION_SETUP_TABLES_DONE) & ~OPTION_BUFFER_RESULT,
+                          result, unit, select_lex);
+        res|= thd->is_error();
+
+        if (!explain)
+        {
+          MYSQL_MULTI_DELETE_DONE(res, del_result->num_deleted());
+        }
+        else
+        {
+          result->reset_offset_limit(); 
+          thd->lex->query_plan_footprint->print_explain(result, thd->lex->describe);
+          //delete thd->lex->query_plan_footprint;
+          //thd->lex->query_plan_footprint= NULL;
+        }
+      
+        if (res)
+          result->abort_result_set(); /* for both DELETE and EXPLAIN DELETE */
+        else
+        {
+          if (explain)
+            result->send_eof(); 
+        }
+        delete result;
+      }
     }
     else
     {
       res= TRUE;                                // Error
-      MYSQL_MULTI_DELETE_DONE(1, 0);
+      if (!explain)
+      {
+        MYSQL_MULTI_DELETE_DONE(1, 0);
+      }
     }
     break;
   }
@@ -4743,8 +4797,14 @@ finish:
     ha_maria::implicit_commit(thd, FALSE);
 #endif
   }
-
   lex->unit.cleanup();
+  //psergey-todo: print EXPLAIN here? After the above JOIN::cleanup calls?
+  // how do we print EXPLAIN extended, then?
+  if (lex->describe)
+  {
+    DBUG_ASSERT(lex->query_plan_footprint);
+    ///..
+  }
   /* Free tables */
   thd_proc_info(thd, "closing tables");
   close_thread_tables(thd);
@@ -4819,7 +4879,25 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       if (!(result= new select_send()))
         return 1;                               /* purecov: inspected */
       thd->send_explain_fields(result);
+      //thd->lex->query_plan_footprint= new QPF_query;
       res= mysql_explain_union(thd, &thd->lex->unit, result);
+
+      if (!res)
+      {
+        /* 
+          Do like the original select_describe did: remove OFFSET from the
+          top-level LIMIT
+        */        
+        result->reset_offset_limit(); 
+        thd->lex->query_plan_footprint->print_explain(result, thd->lex->describe);
+      }
+      //delete thd->lex->query_plan_footprint;
+      //thd->lex->query_plan_footprint= NULL;
+
+      //psergey-todo: here, produce the EXPLAIN output.
+      //  mysql_explain_union() itself is only responsible for calling
+      //  optimize() for all parts of the query.
+
       /*
         The code which prints the extended description is not robust
         against malformed queries, so skip it if we have an error.
