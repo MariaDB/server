@@ -1061,6 +1061,24 @@ int spider_db_handlersocket::exec_query(
     (*hs_conn_p)->get_num_req_rcvd()));
   DBUG_PRINT("info",("spider hs response_end_offset=%zu",
     (*hs_conn_p)->get_response_end_offset()));
+  if (spider_param_general_log())
+  {
+    const char *tgt_str = conn->hs_sock ? conn->hs_sock : conn->tgt_host;
+    uint32 tgt_len = strlen(tgt_str);
+    spider_string tmp_query_str((*hs_conn_p)->get_writebuf_size() +
+      conn->tgt_wrapper_length +
+      tgt_len + (SPIDER_SQL_SPACE_LEN * 2));
+    tmp_query_str.init_calc_mem(231);
+    tmp_query_str.length(0);
+    tmp_query_str.q_append(conn->tgt_wrapper, conn->tgt_wrapper_length);
+    tmp_query_str.q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
+    tmp_query_str.q_append(tgt_str, tgt_len);
+    tmp_query_str.q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
+    tmp_query_str.q_append((*hs_conn_p)->get_writebuf_begin(),
+      (*hs_conn_p)->get_writebuf_size());
+    general_log_write(current_thd, COM_QUERY, tmp_query_str.ptr(),
+      tmp_query_str.length());
+  }
   if ((*hs_conn_p)->request_send() < 0)
   {
     DBUG_PRINT("info",("spider hs num_req_bufd=%zu",

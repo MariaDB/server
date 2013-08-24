@@ -682,6 +682,17 @@ int spider_db_errorno(
       ) {
         push_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
           error_num, conn->db_conn->get_error());
+        if (spider_param_log_result_errors() >= 3)
+        {
+          time_t cur_time = (time_t) time((time_t*) 0);
+          struct tm lt;
+          struct tm *l_time = localtime_r(&cur_time, &lt);
+          fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] "
+            "to %ld: %d %s\n",
+            l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+            l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+            current_thd->thread_id, error_num, conn->db_conn->get_error());
+        }
         if (!conn->mta_conn_mutex_unlock_later)
         {
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -691,6 +702,17 @@ int spider_db_errorno(
       }
       *conn->need_mon = error_num;
       my_message(error_num, conn->db_conn->get_error(), MYF(0));
+      if (spider_param_log_result_errors() >= 1)
+      {
+        time_t cur_time = (time_t) time((time_t*) 0);
+        struct tm lt;
+        struct tm *l_time = localtime_r(&cur_time, &lt);
+        fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [ERROR SPIDER RESULT] "
+          "to %ld: %d %s\n",
+          l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+          l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+          current_thd->thread_id, error_num, conn->db_conn->get_error());
+      }
       if (!conn->mta_conn_mutex_unlock_later)
       {
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -725,6 +747,18 @@ int spider_db_errorno(
     }
     my_printf_error(ER_SPIDER_HS_NUM, ER_SPIDER_HS_STR, MYF(0),
       conn->db_conn->get_errno(), conn->db_conn->get_error());
+    if (spider_param_log_result_errors() >= 1)
+    {
+      time_t cur_time = (time_t) time((time_t*) 0);
+      struct tm lt;
+      struct tm *l_time = localtime_r(&cur_time, &lt);
+      fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [ERROR SPIDER RESULT] "
+        "to %ld: %d %s\n",
+        l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+        l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+        current_thd->thread_id, conn->db_conn->get_errno(),
+        conn->db_conn->get_error());
+    }
     *conn->need_mon = ER_SPIDER_HS_NUM;
     if (!conn->mta_conn_mutex_unlock_later)
     {
