@@ -1221,8 +1221,8 @@ void spider_conn_clear_queue(
   DBUG_PRINT("info", ("spider conn=%p", conn));
 /*
   conn->queued_connect = FALSE;
-*/
   conn->queued_ping = FALSE;
+*/
   conn->queued_trx_isolation = FALSE;
   conn->queued_semi_trx_isolation = FALSE;
   conn->queued_autocommit = FALSE;

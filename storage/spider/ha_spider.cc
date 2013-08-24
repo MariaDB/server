@@ -1242,6 +1242,8 @@ int ha_spider::external_lock(
         DBUG_RETURN(0);
       else if (sql_command != SQLCOM_UNLOCK_TABLES)
       {
+        DBUG_PRINT("info",("spider conns[%d]->join_trx=%u",
+          roop_count, conns[roop_count]->join_trx));
         if (
           (!conns[roop_count]->join_trx &&
             (error_num = spider_internal_start_trx(this, conns[roop_count],
