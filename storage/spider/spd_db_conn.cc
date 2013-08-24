@@ -2581,16 +2581,14 @@ int spider_db_fetch_table(
     if (spider->hs_pushed_ret_fields_num == MAX_FIELDS)
     {
 #endif
+      spider_db_handler *dbton_hdl = spider->dbton_handler[row->dbton_id];
       for (
         field = table->field;
         *field;
         field++
       ) {
-        if (
-          spider_bit_is_set(spider->searched_bitmap, (*field)->field_index) |
-          bitmap_is_set(table->read_set, (*field)->field_index) |
-          bitmap_is_set(table->write_set, (*field)->field_index)
-        ) {
+        if (dbton_hdl->minimum_select_bit_is_set((*field)->field_index))
+        {
 #ifndef DBUG_OFF
           my_bitmap_map *tmp_map =
             dbug_tmp_use_all_columns(table, table->write_set);
@@ -2738,6 +2736,7 @@ int spider_db_fetch_minimum_columns(
   SPIDER_RESULT *current = (SPIDER_RESULT*) result_list->current;
   SPIDER_DB_ROW *row;
   Field **field;
+  spider_db_handler *dbton_hdl;
   DBUG_ENTER("spider_db_fetch_minimum_columns");
   if (result_list->quick_mode == 0)
   {
@@ -2776,6 +2775,7 @@ int spider_db_fetch_minimum_columns(
     spider->ft_first, spider->ft_current, row)))
     DBUG_RETURN(error_num);
 
+  dbton_hdl = spider->dbton_handler[row->dbton_id];
   for (
     field = table->field;
     *field;
@@ -2788,11 +2788,8 @@ int spider_db_fetch_minimum_columns(
       bitmap_is_set(table->read_set, (*field)->field_index)));
     DBUG_PRINT("info", ("spider write_set %u",
       bitmap_is_set(table->write_set, (*field)->field_index)));
-    if (
-      spider_bit_is_set(spider->searched_bitmap, (*field)->field_index) |
-      bitmap_is_set(table->read_set, (*field)->field_index) |
-      bitmap_is_set(table->write_set, (*field)->field_index)
-    ) {
+    if (dbton_hdl->minimum_select_bit_is_set((*field)->field_index))
+    {
       if ((
         bitmap_is_set(table->read_set, (*field)->field_index) |
         bitmap_is_set(table->write_set, (*field)->field_index)

@@ -342,6 +342,7 @@ int ha_spider::open(
     if (!(searched_bitmap = (uchar *)
       spider_bulk_malloc(spider_current_trx, 15, MYF(MY_WME),
         &searched_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &ft_discard_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
         &position_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
         &partition_handler_share, sizeof(SPIDER_PARTITION_HANDLER_SHARE),
         &idx_read_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
@@ -363,6 +364,7 @@ int ha_spider::open(
     DBUG_PRINT("info",("spider table=%p", table));
     partition_handler_share->table = table;
     partition_handler_share->searched_bitmap = NULL;
+    partition_handler_share->ft_discard_bitmap = NULL;
     partition_handler_share->idx_read_bitmap = idx_read_bitmap;
     partition_handler_share->idx_write_bitmap = idx_write_bitmap;
     partition_handler_share->rnd_read_bitmap = rnd_read_bitmap;
@@ -405,6 +407,7 @@ int ha_spider::open(
     if (!(searched_bitmap = (uchar *)
       spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME),
         &searched_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &ft_discard_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
         &position_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
         NullS))
     ) {
@@ -1532,12 +1535,16 @@ int ha_spider::reset()
     partition_handler_share->searched_bitmap
   ) {
     if (!is_clone)
+    {
       partition_handler_share->searched_bitmap = NULL;
+      partition_handler_share->ft_discard_bitmap = NULL;
+    }
     partition_handler_share->between_flg = FALSE;
     partition_handler_share->idx_bitmap_is_set = FALSE;
     partition_handler_share->rnd_bitmap_is_set = FALSE;
   }
 #endif
+  memset(ft_discard_bitmap, 0xFF, no_bytes_in_map(table->read_set));
   if (!(tmp_trx = spider_get_trx(thd, TRUE, &error_num2)))
   {
     DBUG_PRINT("info",("spider get trx error"));
@@ -7130,25 +7137,9 @@ void ha_spider::position(
     {
       if (select_column_mode)
       {
-        int roop_count;
-        for (roop_count = 0;
-          roop_count < (int) ((table_share->fields + 7) / 8);
-          roop_count++)
-        {
-          position_bitmap[roop_count] =
-            searched_bitmap[roop_count] |
-            ((uchar *) table->read_set->bitmap)[roop_count] |
-            ((uchar *) table->write_set->bitmap)[roop_count];
-          DBUG_PRINT("info",("spider roop_count=%d", roop_count));
-          DBUG_PRINT("info",("spider position_bitmap=%d",
-            position_bitmap[roop_count]));
-          DBUG_PRINT("info",("spider searched_bitmap=%d",
-            searched_bitmap[roop_count]));
-          DBUG_PRINT("info",("spider read_set=%d",
-            ((uchar *) table->read_set->bitmap)[roop_count]));
-          DBUG_PRINT("info",("spider write_set=%d",
-            ((uchar *) table->write_set->bitmap)[roop_count]));
-        }
+        spider_db_handler *dbton_hdl =
+          dbton_handler[result_list.current->result->dbton_id];
+        dbton_hdl->copy_minimum_select_bitmap(position_bitmap);
       }
       position_bitmap_init = TRUE;
     }
@@ -7333,8 +7324,10 @@ FT_INFO *ha_spider::ft_init_ext(
   tmp_ft_info = ft_current;
   if (ft_current)
     ft_current = ft_current->next;
-  else
+  else {
     ft_current = ft_first;
+    set_ft_discard_bitmap();
+  }
 
   if (!ft_current)
   {
@@ -10508,6 +10501,87 @@ TABLE *ha_spider::get_table()
   DBUG_RETURN(table);
 }
 
+void ha_spider::set_ft_discard_bitmap()
+{
+  DBUG_ENTER("ha_spider::set_ft_discard_bitmap");
+  TABLE_LIST *table_list = spider_get_parent_table_list(this);
+  if (table_list)
+  {
+    st_select_lex *select_lex = table_list->select_lex;
+    if (select_lex && select_lex->ftfunc_list)
+    {
+      uint roop_count;
+      Field *field;
+      Item *item, *item_next;
+      Item_func_match *item_func_match;
+      Item_field *item_field;
+      {
+        List_iterator_fast<Item_func_match> fmi(*select_lex->ftfunc_list);
+        while ((item_func_match = fmi++))
+        {
+          DBUG_PRINT("info",("spider item_func_match=%p", item_func_match));
+          uint item_count = item_func_match->argument_count();
+          Item **item_list = item_func_match->arguments();
+          for (roop_count = 1; roop_count < item_count; roop_count++)
+          {
+            item_field = (Item_field *) item_list[roop_count];
+            DBUG_PRINT("info",("spider item_field=%p", item_field));
+            field = item_field->field;
+            DBUG_PRINT("info",("spider field=%p", field));
+            if (!field || !(field = field_exchange(field)))
+              continue;
+            DBUG_PRINT("info",("spider clear_bit=%u", field->field_index));
+            spider_clear_bit(ft_discard_bitmap, field->field_index);
+          }
+        }
+      }
+      item_next = ha_thd()->free_list;
+      while ((item = item_next))
+      {
+        DBUG_PRINT("info",("spider item=%p", item));
+        item_next = item->next;
+        if (item->type() != Item::FIELD_ITEM)
+          continue;
+        field = ((Item_field *) item)->field;
+        DBUG_PRINT("info",("spider field=%p", field));
+        if (!field || !(field = field_exchange(field)))
+          continue;
+        DBUG_PRINT("info",("spider field_index=%u", field->field_index));
+        if (!spider_bit_is_set(ft_discard_bitmap, field->field_index))
+        {
+          bool match_flag = FALSE;
+          List_iterator_fast<Item_func_match> fmi(*select_lex->ftfunc_list);
+          while ((item_func_match = fmi++))
+          {
+            DBUG_PRINT("info",("spider item_func_match=%p", item_func_match));
+            uint item_count = item_func_match->argument_count();
+            Item **item_list = item_func_match->arguments();
+            for (roop_count = 1; roop_count < item_count; roop_count++)
+            {
+              DBUG_PRINT("info",("spider item_list[%u]=%p", roop_count,
+                item_list[roop_count]));
+              if (item == item_list[roop_count])
+              {
+                DBUG_PRINT("info",("spider matched"));
+                match_flag = TRUE;
+                break;
+              }
+            }
+            if (match_flag)
+              break;
+          }
+          if (!match_flag)
+          {
+            DBUG_PRINT("info",("spider set_bit=%u", field->field_index));
+            spider_set_bit(ft_discard_bitmap, field->field_index);
+          }
+        }
+      }
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
 void ha_spider::set_searched_bitmap()
 {
   int roop_count;
@@ -10530,8 +10604,8 @@ void ha_spider::set_searched_bitmap()
   {
     DBUG_PRINT("info",("spider update option start"));
     Item *item;
-    List_iterator_fast<Item> fi(table->pos_in_table_list->select_lex->
-      item_list);
+    st_select_lex *select_lex = spider_get_select_lex(this);
+    List_iterator_fast<Item> fi(select_lex->item_list);
     while ((item = fi++))
     {
       if (item->type() == Item::FIELD_ITEM)
@@ -10557,6 +10631,8 @@ void ha_spider::set_clone_searched_bitmap()
 {
   DBUG_ENTER("ha_spider::set_clone_searched_bitmap");
   memcpy(searched_bitmap, pt_clone_source_handler->searched_bitmap,
+    (table_share->fields + 7) / 8);
+  memcpy(ft_discard_bitmap, pt_clone_source_handler->ft_discard_bitmap,
     (table_share->fields + 7) / 8);
   DBUG_VOID_RETURN;
 }
@@ -10586,8 +10662,12 @@ void ha_spider::set_select_column_mode()
       partition_handler_share->searched_bitmap
     ) {
       if (partition_handler_share->searched_bitmap != searched_bitmap)
+      {
         memcpy(searched_bitmap, partition_handler_share->searched_bitmap,
           (table_share->fields + 7) / 8);
+        memcpy(ft_discard_bitmap, partition_handler_share->ft_discard_bitmap,
+          (table_share->fields + 7) / 8);
+      }
       partition_handler_share->between_flg = FALSE;
       DBUG_PRINT("info",("spider copy searched_bitmap"));
     } else {
@@ -10633,6 +10713,7 @@ void ha_spider::set_select_column_mode()
       if (partition_handler_share)
       {
         partition_handler_share->searched_bitmap = searched_bitmap;
+        partition_handler_share->ft_discard_bitmap = ft_discard_bitmap;
         partition_handler_share->between_flg = TRUE;
         DBUG_PRINT("info",("spider set searched_bitmap"));
       }

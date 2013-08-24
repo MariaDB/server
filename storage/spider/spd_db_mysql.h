@@ -1211,6 +1211,12 @@ public:
   bool support_use_handler(
     int use_handler
   );
+  bool minimum_select_bit_is_set(
+    uint field_index
+  );
+  void copy_minimum_select_bitmap(
+    uchar *bitmap
+  );
 };
 
 class spider_mysql_copy_table: public spider_db_copy_table

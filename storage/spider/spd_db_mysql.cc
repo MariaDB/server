@@ -210,7 +210,8 @@ SPIDER_DBTON spider_dbton_mysql = {
   &spider_db_mysql_utility
 };
 
-spider_db_mysql_row::spider_db_mysql_row() : spider_db_row(),
+spider_db_mysql_row::spider_db_mysql_row() :
+  spider_db_row(spider_dbton_mysql.dbton_id),
   row(NULL), lengths(NULL), cloned(FALSE)
 {
   DBUG_ENTER("spider_db_mysql_row::spider_db_mysql_row");
@@ -426,7 +427,8 @@ int spider_db_mysql_row::store_to_tmp_table(
   DBUG_RETURN(tmp_table->file->ha_write_row(tmp_table->record[0]));
 }
 
-spider_db_mysql_result::spider_db_mysql_result() : spider_db_result(),
+spider_db_mysql_result::spider_db_mysql_result() :
+  spider_db_result(spider_dbton_mysql.dbton_id),
   db_result(NULL)
 {
   DBUG_ENTER("spider_db_mysql_result::spider_db_mysql_result");
@@ -5701,11 +5703,8 @@ int spider_mysql_handler::append_minimum_select(
   DBUG_ENTER("spider_mysql_handler::append_minimum_select");
   for (field = table->field; *field; field++)
   {
-    if (
-      spider_bit_is_set(spider->searched_bitmap, (*field)->field_index) |
-      bitmap_is_set(table->read_set, (*field)->field_index) |
-      bitmap_is_set(table->write_set, (*field)->field_index)
-    ) {
+    if (minimum_select_bit_is_set((*field)->field_index))
+    {
       field_length =
         mysql_share->column_name_str[(*field)->field_index].length();
       if (str->reserve(field_length +
@@ -5789,11 +5788,8 @@ int spider_mysql_handler::append_minimum_select_with_alias(
   DBUG_ENTER("spider_mysql_handler::append_minimum_select_with_alias");
   for (field = table->field; *field; field++)
   {
-    if (
-      spider_bit_is_set(spider->searched_bitmap, (*field)->field_index) |
-      bitmap_is_set(table->read_set, (*field)->field_index) |
-      bitmap_is_set(table->write_set, (*field)->field_index)
-    ) {
+    if (minimum_select_bit_is_set((*field)->field_index))
+    {
       field_length =
         mysql_share->column_name_str[(*field)->field_index].length();
       if (str->reserve(alias_length + field_length +
@@ -10307,6 +10303,67 @@ bool spider_mysql_handler::support_use_handler(
   DBUG_ENTER("spider_mysql_handler::support_use_handler");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(TRUE);
+}
+
+bool spider_mysql_handler::minimum_select_bit_is_set(
+  uint field_index
+) {
+  TABLE *table = spider->get_table();
+  DBUG_ENTER("spider_mysql_handler::minimum_select_bit_is_set");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_PRINT("info",("spider field_index=%u", field_index));
+  DBUG_PRINT("info",("spider ft_discard_bitmap=%s",
+    spider_bit_is_set(spider->ft_discard_bitmap, field_index) ?
+      "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider searched_bitmap=%s",
+    spider_bit_is_set(spider->searched_bitmap, field_index) ?
+      "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider read_set=%s",
+    bitmap_is_set(table->read_set, field_index) ?
+      "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider write_set=%s",
+    bitmap_is_set(table->write_set, field_index) ?
+      "TRUE" : "FALSE"));
+  DBUG_RETURN(
+    spider_bit_is_set(spider->ft_discard_bitmap, field_index) &
+    (
+      spider_bit_is_set(spider->searched_bitmap, field_index) |
+      bitmap_is_set(table->read_set, field_index) |
+      bitmap_is_set(table->write_set, field_index)
+    )
+  );
+}
+
+void spider_mysql_handler::copy_minimum_select_bitmap(
+  uchar *bitmap
+) {
+  int roop_count;
+  TABLE *table = spider->get_table();
+  DBUG_ENTER("spider_mysql_handler::copy_minimum_select_bitmap");
+  for (roop_count = 0;
+    roop_count < (int) ((table->s->fields + 7) / 8);
+    roop_count++)
+  {
+    bitmap[roop_count] =
+      spider->ft_discard_bitmap[roop_count] &
+      (
+        spider->searched_bitmap[roop_count] |
+        ((uchar *) table->read_set->bitmap)[roop_count] |
+        ((uchar *) table->write_set->bitmap)[roop_count]
+      );
+    DBUG_PRINT("info",("spider roop_count=%d", roop_count));
+    DBUG_PRINT("info",("spider bitmap=%d",
+      bitmap[roop_count]));
+    DBUG_PRINT("info",("spider ft_discard_bitmap=%d",
+      spider->ft_discard_bitmap[roop_count]));
+    DBUG_PRINT("info",("spider searched_bitmap=%d",
+      spider->searched_bitmap[roop_count]));
+    DBUG_PRINT("info",("spider read_set=%d",
+      ((uchar *) table->read_set->bitmap)[roop_count]));
+    DBUG_PRINT("info",("spider write_set=%d",
+      ((uchar *) table->write_set->bitmap)[roop_count]));
+  }
+  DBUG_VOID_RETURN;
 }
 
 spider_mysql_copy_table::spider_mysql_copy_table(

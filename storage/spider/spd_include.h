@@ -388,6 +388,7 @@ typedef struct st_spider_patition_handler_share
   void               *creator;
   void               **handlers;
   uchar              *searched_bitmap;
+  uchar              *ft_discard_bitmap;
   uchar              *idx_read_bitmap;
   uchar              *idx_write_bitmap;
   uchar              *rnd_read_bitmap;

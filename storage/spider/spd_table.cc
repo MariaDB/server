@@ -7309,30 +7309,49 @@ void spider_free_tmp_dbton_handler(
   DBUG_VOID_RETURN;
 }
 
+TABLE_LIST *spider_get_parent_table_list(
+  ha_spider *spider
+) {
+  TABLE *table = spider->get_table();
+  TABLE_LIST *table_list = table->pos_in_table_list;
+  DBUG_ENTER("spider_get_parent_table_list");
+  if (table_list)
+  {
+    while (table_list->parent_l)
+      table_list = table_list->parent_l;
+    DBUG_RETURN(table_list);
+  }
+  DBUG_RETURN(NULL);
+}
+
+st_select_lex *spider_get_select_lex(
+  ha_spider *spider
+) {
+  TABLE_LIST *table_list = spider_get_parent_table_list(spider);
+  DBUG_ENTER("spider_get_select_lex");
+  if (table_list)
+  {
+    DBUG_RETURN(table_list->select_lex);
+  }
+  DBUG_RETURN(NULL);
+}
+
 void spider_get_select_limit(
   ha_spider *spider,
   st_select_lex **select_lex,
   longlong *select_limit,
   longlong *offset_limit
 ) {
-  TABLE *table = spider->get_table();
-  TABLE_LIST *table_list = table->pos_in_table_list;
   DBUG_ENTER("spider_get_select_limit");
-  *select_lex = NULL;
+  *select_lex = spider_get_select_lex(spider);
   *select_limit = 9223372036854775807LL;
   *offset_limit = 0;
-  if (table_list)
+  if (*select_lex && (*select_lex)->explicit_limit)
   {
-    while (table_list->parent_l)
-      table_list = table_list->parent_l;
-    *select_lex = table_list->select_lex;
-    if (*select_lex && (*select_lex)->explicit_limit)
-    {
-      *select_limit = (*select_lex)->select_limit ?
-        (*select_lex)->select_limit->val_int() : 0;
-      *offset_limit = (*select_lex)->offset_limit ?
-        (*select_lex)->offset_limit->val_int() : 0;
-    }
+    *select_limit = (*select_lex)->select_limit ?
+      (*select_lex)->select_limit->val_int() : 0;
+    *offset_limit = (*select_lex)->offset_limit ?
+      (*select_lex)->offset_limit->val_int() : 0;
   }
   DBUG_VOID_RETURN;
 }
