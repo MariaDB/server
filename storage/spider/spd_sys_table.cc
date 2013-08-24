@@ -130,7 +130,7 @@ TABLE *spider_open_sys_table(
       table->s->fields != SPIDER_SYS_XA_COL_CNT
     ) {
       spider_close_sys_table(thd, table, open_tables_backup, need_lock);
-      spider_free(spider_current_trx, table, MYF(0));
+      table = NULL;
       my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
         ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
         SPIDER_SYS_XA_TABLE_NAME_STR);
@@ -146,7 +146,7 @@ TABLE *spider_open_sys_table(
       table->s->fields != SPIDER_SYS_XA_MEMBER_COL_CNT
     ) {
       spider_close_sys_table(thd, table, open_tables_backup, need_lock);
-      spider_free(spider_current_trx, table, MYF(0));
+      table = NULL;
       my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
         ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
         SPIDER_SYS_XA_MEMBER_TABLE_NAME_STR);
@@ -162,7 +162,7 @@ TABLE *spider_open_sys_table(
       table->s->fields != SPIDER_SYS_TABLES_COL_CNT
     ) {
       spider_close_sys_table(thd, table, open_tables_backup, need_lock);
-      spider_free(spider_current_trx, table, MYF(0));
+      table = NULL;
       my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
         ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
         SPIDER_SYS_TABLES_TABLE_NAME_STR);
@@ -178,7 +178,7 @@ TABLE *spider_open_sys_table(
       table->s->fields != SPIDER_SYS_LINK_MON_TABLE_COL_CNT
     ) {
       spider_close_sys_table(thd, table, open_tables_backup, need_lock);
-      spider_free(spider_current_trx, table, MYF(0));
+      table = NULL;
       my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
         ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
         SPIDER_SYS_LINK_MON_TABLE_NAME_STR);
