@@ -8351,6 +8351,10 @@ ha_rows ha_spider::records()
   backup_error_status();
   DBUG_ENTER("ha_spider::records");
   DBUG_PRINT("info",("spider this=%p", this));
+  if (sql_command == SQLCOM_ALTER_TABLE)
+  {
+    DBUG_RETURN(0);
+  }
   if ((error_num = spider_db_show_records(this, search_link_idx)))
   {
     check_error_mode(error_num);
