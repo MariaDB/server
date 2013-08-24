@@ -21,7 +21,6 @@
 #else
 #include "sql_priv.h"
 #include "probes_mysql.h"
-#include "my_getopt.h"
 #include "sql_class.h"
 #include "sql_partition.h"
 #include "sql_servers.h"
@@ -6986,7 +6985,7 @@ bool spider_check_pk_update(
 
   key_info = &table_share->key_info[table_share->primary_key];
   key_part = key_info->key_part;
-  for (roop_count = 0; roop_count < (int) key_info->user_defined_key_parts; roop_count++)
+  for (roop_count = 0; roop_count < (int) key_info->key_parts; roop_count++)
   {
     if (bitmap_is_set(table->write_set,
       key_part[roop_count].field->field_index))

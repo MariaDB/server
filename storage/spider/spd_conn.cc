@@ -2255,7 +2255,7 @@ void *spider_bg_conn_action(
 #if MYSQL_VERSION_ID < 50500
             strmov(result_list->bgs_error_msg, thd->main_da.message());
 #else
-            strmov(result_list->bgs_error_msg, thd->get_stmt_da()->message());
+            strmov(result_list->bgs_error_msg, thd->stmt_da->message());
 #endif
         }
         if (!dbton_handler->need_lock_before_set_sql_for_exec(sql_type))
@@ -2309,7 +2309,7 @@ void *spider_bg_conn_action(
                       thd->main_da.message());
 #else
                     strmov(result_list->bgs_error_msg,
-                      thd->get_stmt_da()->message());
+                      thd->stmt_da->message());
 #endif
                 } else
                   spider_db_discard_multiple_result(spider, conn->link_idx,
@@ -2332,7 +2332,7 @@ void *spider_bg_conn_action(
                       thd->main_da.message());
 #else
                     strmov(result_list->bgs_error_msg,
-                      thd->get_stmt_da()->message());
+                      thd->stmt_da->message());
 #endif
                 } else {
                   spider->connection_ids[conn->link_idx] = conn->connection_id;
@@ -2350,7 +2350,7 @@ void *spider_bg_conn_action(
                           thd->main_da.message());
 #else
                         strmov(result_list->bgs_error_msg,
-                          thd->get_stmt_da()->message());
+                          thd->stmt_da->message());
 #endif
                     }
                   } else {
@@ -2364,7 +2364,7 @@ void *spider_bg_conn_action(
 #if MYSQL_VERSION_ID < 50500
                 strmov(result_list->bgs_error_msg, thd->main_da.message());
 #else
-                strmov(result_list->bgs_error_msg, thd->get_stmt_da()->message());
+                strmov(result_list->bgs_error_msg, thd->stmt_da->message());
 #endif
             }
 #ifdef HA_CAN_BULK_ACCESS
@@ -2387,7 +2387,7 @@ void *spider_bg_conn_action(
 #if MYSQL_VERSION_ID < 50500
           strmov(result_list->bgs_error_msg, thd->main_da.message());
 #else
-          strmov(result_list->bgs_error_msg, thd->get_stmt_da()->message());
+          strmov(result_list->bgs_error_msg, thd->stmt_da->message());
 #endif
         conn->mta_conn_mutex_unlock_later = FALSE;
       }
@@ -2420,9 +2420,9 @@ void *spider_bg_conn_action(
             strmov((char *) bg_direct_sql->bg_error_msg,
               thd->main_da.message());
 #else
-            bg_direct_sql->bg_error = thd->get_stmt_da()->sql_errno();
+            bg_direct_sql->bg_error = thd->stmt_da->sql_errno();
             strmov((char *) bg_direct_sql->bg_error_msg,
-              thd->get_stmt_da()->message());
+              thd->stmt_da->message());
 #endif
             pthread_mutex_unlock(direct_sql->bg_mutex);
             is_error = TRUE;
