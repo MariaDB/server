@@ -1861,6 +1861,8 @@ int spider_internal_xa_commit(
             if (!error_num && tmp_error_num)
               error_num = tmp_error_num;
           }
+          spider_sys_log_xa_failed(thd, &trx->xid, conn,
+            SPIDER_SYS_XA_COMMIT_STR, TRUE);
         }
         if ((tmp_error_num = spider_end_trx(trx, conn)))
         {
