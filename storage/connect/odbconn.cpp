@@ -76,8 +76,9 @@ static short GetSQLType(int type)
     case TYPE_SHORT:  tp = SQL_SMALLINT;  break;
     case TYPE_INT:    tp = SQL_INTEGER;   break;
     case TYPE_DATE:   tp = SQL_TIMESTAMP; break;
-    case TYPE_BIGINT: tp = SQL_BIGINT;    break;                    //  (-5)
+    case TYPE_BIGINT: tp = SQL_BIGINT;    break;                //  (-5)
     case TYPE_FLOAT:  tp = SQL_DOUBLE;    break;
+    case TYPE_TINY :  tp = SQL_TINYINT;   break;
     } // endswitch type
 
   return tp;
@@ -97,6 +98,7 @@ static int GetSQLCType(int type)
     case TYPE_DATE:   tp = SQL_C_TIMESTAMP; break;
     case TYPE_BIGINT: tp = SQL_C_SBIGINT;   break;
     case TYPE_FLOAT:  tp = SQL_C_DOUBLE;    break;
+    case TYPE_TINY :  tp = SQL_C_TINYINT;   break;
     } // endswitch type
 
   return tp;
@@ -127,9 +129,11 @@ int TranslateSQLType(int stp, int prec, int& len)
       type = TYPE_INT;
       break;
     case SQL_SMALLINT:                      //    5
+      type = TYPE_SHORT;
+      break;
     case SQL_TINYINT:                       //  (-6)
     case SQL_BIT:                           //  (-7)
-      type = TYPE_SHORT;
+      type = TYPE_TINY;
       break;
     case SQL_FLOAT:                         //    6
     case SQL_REAL:                          //    7
