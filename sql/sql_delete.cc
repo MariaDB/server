@@ -658,18 +658,18 @@ cleanup:
 exit_without_my_ok:
   query_plan.save_query_plan_footprint(thd->lex->query_plan_footprint);
 
-  select_send *result;
-  if (!(result= new select_send()))
+  select_send *result2;
+  if (!(result2= new select_send()))
     return 1;                               /* purecov: inspected */
   List<Item> dummy; /* note: looked in 5.6 and they too use a dummy list like this */
-  result->prepare(dummy, &thd->lex->unit);
-  thd->send_explain_fields(result);
-  int err2= thd->lex->query_plan_footprint->print_explain(result, 0 /* explain flags*/);
+  result2->prepare(dummy, &thd->lex->unit);
+  thd->send_explain_fields(result2);
+  int err2= thd->lex->query_plan_footprint->print_explain(result2, 0 /* explain flags*/);
 
   if (err2)
-    result->abort_result_set();
+    result2->abort_result_set();
   else
-    result->send_eof();
+    result2->send_eof();
   
   delete select;
   free_underlaid_joins(thd, select_lex);
