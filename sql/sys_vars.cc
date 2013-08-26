@@ -1310,17 +1310,7 @@ Sys_var_gtid_current_pos::global_value_ptr(THD *thd, LEX_STRING *base)
   char *p;
 
   str.length(0);
-
-  /*
-    If the mysql.rpl_slave_pos table could not be loaded, then we cannot
-    easily automatically try to reload it here - we may be inside a statement
-    that already has tables locked and so opening more tables is problematic.
-
-    But if the table is not loaded (eg. missing mysql_upgrade_db or some such),
-    then the slave state must be empty anyway.
-  */
-  if ((rpl_global_gtid_slave_state.loaded &&
-       rpl_append_gtid_state(&str, true)) ||
+  if (rpl_append_gtid_state(&str, true) ||
       !(p= thd->strmake(str.ptr(), str.length())))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
