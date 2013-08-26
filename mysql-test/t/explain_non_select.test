@@ -84,3 +84,14 @@ explain update t0, t1 set t1.a=t1.a+1 where t0.a = t1.a;
 
 
 drop table t0, t1;
+
+--echo #
+--echo # Try DELETE ... RETURNING ...
+--echo #
+create table t0 (a int);
+insert into t0 values (1),(2),(3),(4);
+explain delete from t0 where a=1 returning a;
+explain delete from t0 returning a;
+drop table t0;
+
+
