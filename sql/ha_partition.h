@@ -1171,6 +1171,13 @@ public:
       DBUG_ASSERT(h == m_file[i]->ht);
     return h;
   }
+#ifdef WITH_WSREP
+  void wsrep_reset_files()
+  {
+    for (uint i=0; i < m_tot_parts; i++)
+      m_file[i]->ha_start_of_new_statement();
+  }
+#endif /* WITH_WSREP */
 };
 
 #endif /* HA_PARTITION_INCLUDED */
