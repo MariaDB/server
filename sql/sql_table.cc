@@ -4753,7 +4753,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table, TABLE_LIST* src_table,
   DBUG_ENTER("mysql_create_like_table");
 
 #ifdef WITH_WSREP
-  if (!thd->wsrep_applier)
+  if (WSREP(thd) && !thd->wsrep_applier)
   {
     TABLE *tmp_table;
     bool is_tmp_table= FALSE;
