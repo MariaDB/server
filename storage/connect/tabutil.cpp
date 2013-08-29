@@ -592,6 +592,17 @@ bool PRXCOL::Init(PGLOBAL g)
   } // end of Init
 
 /***********************************************************************/
+/*  Reset the column descriptor to non evaluated yet.                  */
+/***********************************************************************/
+void PRXCOL::Reset(void)
+  {
+  if (Colp)
+    Colp->Reset();
+
+  Status &= ~BUF_READ;
+  } // end of Reset
+
+/***********************************************************************/
 /*  ReadColumn:                                                        */
 /***********************************************************************/
 void PRXCOL::ReadColumn(PGLOBAL g)
@@ -600,7 +611,7 @@ void PRXCOL::ReadColumn(PGLOBAL g)
     htrc("PRX ReadColumn: name=%s\n", Name);
 
   if (Colp) {
-    Colp->ReadColumn(g);
+    Colp->Eval(g);
     Value->SetValue_pval(To_Val);
 
     // Set null when applicable
