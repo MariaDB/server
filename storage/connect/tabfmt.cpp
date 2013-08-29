@@ -93,7 +93,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
   PCOLRES crp;
 
   if (info) {
-    imax = 0;
+    imax = hmax = 0;
     length[0] = 128;
     goto skipit;
     } // endif info
