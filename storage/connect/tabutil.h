@@ -105,6 +105,7 @@ class DllExport PRXCOL : public COLBLK {
   virtual int    GetAmType(void) {return TYPE_AM_PRX;}
 
   // Methods
+  virtual void   Reset(void);
   virtual bool   IsSpecial(void) {return Pseudo;}
   virtual void   ReadColumn(PGLOBAL g);
           bool   Init(PGLOBAL g);

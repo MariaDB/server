@@ -178,7 +178,7 @@ bool COLBLK::InitValue(PGLOBAL g)
                                  (To_Tdb) ? To_Tdb->GetCat() : NULL)))
     return true;
 
-  Status = BUF_READY;
+  AddStatus(BUF_READY);
   Value->SetNullable(Nullable);
 
 #ifdef DEBTRACE
