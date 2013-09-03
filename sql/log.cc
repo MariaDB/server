@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /**
@@ -174,9 +174,9 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sql_state,
-                                MYSQL_ERROR::enum_warning_level level,
+                                Sql_condition::enum_warning_level level,
                                 const char* msg,
-                                MYSQL_ERROR ** cond_hdl);
+                                Sql_condition ** cond_hdl);
   const char *message() const { return m_message; }
 };
 
@@ -184,9 +184,9 @@ bool
 Silence_log_table_errors::handle_condition(THD *,
                                            uint,
                                            const char*,
-                                           MYSQL_ERROR::enum_warning_level,
+                                           Sql_condition::enum_warning_level,
                                            const char* msg,
-                                           MYSQL_ERROR ** cond_hdl)
+                                           Sql_condition ** cond_hdl)
 {
   *cond_hdl= NULL;
   strmake_buf(m_message, msg);
@@ -917,8 +917,8 @@ bool Log_to_csv_event_handler::
   Open_tables_backup open_tables_backup;
   CHARSET_INFO *client_cs= thd->variables.character_set_client;
   bool save_time_zone_used;
-  long query_time= (long) min(query_utime/1000000, TIME_MAX_VALUE_SECONDS);
-  long lock_time=  (long) min(lock_utime/1000000, TIME_MAX_VALUE_SECONDS);
+  long query_time= (long) MY_MIN(query_utime/1000000, TIME_MAX_VALUE_SECONDS);
+  long lock_time=  (long) MY_MIN(lock_utime/1000000, TIME_MAX_VALUE_SECONDS);
   long query_time_micro= (long) (query_utime % 1000000);
   long lock_time_micro=  (long) (lock_utime % 1000000);
 
@@ -1029,6 +1029,9 @@ bool Log_to_csv_event_handler::
     Still logging a message in the log in this case.
   */
   if (table->field[10]->store(sql_text, sql_text_len, client_cs) < 0)
+    goto err;
+
+  if (table->field[11]->store((longlong) thd->thread_id, TRUE))
     goto err;
 
   /* log table entries are not replicated */
@@ -2223,7 +2226,7 @@ bool MYSQL_BIN_LOG::check_write_error(THD *thd)
   if (!thd->is_error())
     DBUG_RETURN(checked);
 
-  switch (thd->stmt_da->sql_errno())
+  switch (thd->get_stmt_da()->sql_errno())
   {
     case ER_TRANS_CACHE_FULL:
     case ER_STMT_CACHE_FULL:
@@ -3099,7 +3102,7 @@ const char *MYSQL_LOG::generate_name(const char *log_name,
   {
     char *p= fn_ext(log_name);
     uint length= (uint) (p - log_name);
-    strmake(buff, log_name, min(length, FN_REFLEN-1));
+    strmake(buff, log_name, MY_MIN(length, FN_REFLEN-1));
     return (const char*)buff;
   }
   return log_name;
@@ -3993,11 +3996,11 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
 
   for (;;)
   {
-    if ((error= my_delete_allow_opened(linfo.log_file_name, MYF(0))) != 0)
+    if ((error= my_delete(linfo.log_file_name, MYF(0))) != 0)
     {
       if (my_errno == ENOENT) 
       {
-        push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_LOG_PURGE_NO_FILE, ER(ER_LOG_PURGE_NO_FILE),
                             linfo.log_file_name);
         sql_print_information("Failed to delete file '%s'",
@@ -4007,7 +4010,7 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
       }
       else
       {
-        push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_BINLOG_PURGE_FATAL_ERR,
                             "a problem with deleting %s; "
                             "consider examining correspondence "
@@ -4029,11 +4032,11 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
 
   /* Start logging with a new file */
   close(LOG_CLOSE_INDEX | LOG_CLOSE_TO_BE_OPENED);
-  if ((error= my_delete_allow_opened(index_file_name, MYF(0))))	// Reset (open will update)
+  if ((error= my_delete(index_file_name, MYF(0))))	// Reset (open will update)
   {
     if (my_errno == ENOENT) 
     {
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_LOG_PURGE_NO_FILE, ER(ER_LOG_PURGE_NO_FILE),
                           index_file_name);
       sql_print_information("Failed to delete file '%s'",
@@ -4043,7 +4046,7 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
     }
     else
     {
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BINLOG_PURGE_FATAL_ERR,
                           "a problem with deleting %s; "
                           "consider examining correspondence "
@@ -4483,7 +4486,7 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *decrease_log_space,
         */
         if (thd)
         {
-          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_LOG_PURGE_NO_FILE, ER(ER_LOG_PURGE_NO_FILE),
                               log_info.log_file_name);
         }
@@ -4498,7 +4501,7 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *decrease_log_space,
         */
         if (thd)
         {
-          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_BINLOG_PURGE_FATAL_ERR,
                               "a problem with getting info on being purged %s; "
                               "consider examining correspondence "
@@ -4526,7 +4529,7 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *decrease_log_space,
         {
           if (thd)
           {
-            push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                 ER_BINLOG_PURGE_FATAL_ERR,
                                 "a problem with deleting %s and "
                                 "reading the binlog index file",
@@ -4562,7 +4565,7 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *decrease_log_space,
           {
             if (thd)
             {
-              push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_LOG_PURGE_NO_FILE, ER(ER_LOG_PURGE_NO_FILE),
                                   log_info.log_file_name);
             }
@@ -4574,7 +4577,7 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *decrease_log_space,
           {
             if (thd)
             {
-              push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_BINLOG_PURGE_FATAL_ERR,
                                   "a problem with deleting %s; "
                                   "consider examining correspondence "
@@ -4664,7 +4667,7 @@ int MYSQL_BIN_LOG::purge_logs_before_date(time_t purge_time)
         */
         if (thd)
         {
-          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_BINLOG_PURGE_FATAL_ERR,
                               "a problem with getting info on being purged %s; "
                               "consider examining correspondence "
@@ -5572,7 +5575,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
     mysql_mutex_lock(&LOCK_rpl_gtid_state);
     err= rpl_global_gtid_binlog_state.update(&gtid, opt_gtid_strict_mode);
     mysql_mutex_unlock(&LOCK_rpl_gtid_state);
-    if (err && thd->stmt_da->sql_errno()==ER_GTID_STRICT_OUT_OF_ORDER)
+    if (err && thd->get_stmt_da()->sql_errno()==ER_GTID_STRICT_OUT_OF_ORDER)
       errno= ER_GTID_STRICT_OUT_OF_ORDER;
   }
   else
@@ -6595,9 +6598,9 @@ int query_error_code(THD *thd, bool not_killed)
   
   if (not_killed || (killed_mask_hard(thd->killed) == KILL_BAD_DATA))
   {
-    error= thd->is_error() ? thd->stmt_da->sql_errno() : 0;
+    error= thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0;
 
-    /* thd->stmt_da->sql_errno() might be ER_SERVER_SHUTDOWN or
+    /* thd->get_get_stmt_da()->sql_errno() might be ER_SERVER_SHUTDOWN or
        ER_QUERY_INTERRUPTED, So here we need to make sure that error
        is not set to these errors when specified not_killed by the
        caller.
@@ -7533,7 +7536,7 @@ static void print_buffer_to_nt_eventlog(enum loglevel level, char *buff,
   DBUG_ENTER("print_buffer_to_nt_eventlog");
 
   /* Add ending CR/LF's to string, overwrite last chars if necessary */
-  strmov(buffptr+min(length, buffLen-5), "\r\n\r\n");
+  strmov(buffptr+MY_MIN(length, buffLen-5), "\r\n\r\n");
 
   setup_windows_event_source();
   if ((event= RegisterEventSource(NULL,"MySQL")))
@@ -8779,7 +8782,8 @@ binlog_background_thread(void *arg __attribute__((unused)))
     sql_print_warning("Failed to load slave replication state from table "
                       "%s.%s: %u: %s", "mysql",
                       rpl_gtid_slave_state_table_name.str,
-                      thd->stmt_da->sql_errno(), thd->stmt_da->message());
+                      thd->get_stmt_da()->sql_errno(),
+                      thd->get_stmt_da()->message());
 #endif
 
   mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);

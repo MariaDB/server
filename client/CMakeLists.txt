@@ -15,6 +15,7 @@
 
 INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/include
+  ${CMAKE_SOURCE_DIR}/mysys_ssl
   ${ZLIB_INCLUDE_DIR}
   ${SSL_INCLUDE_DIRS}
   ${CMAKE_SOURCE_DIR}/libmysql
@@ -24,6 +25,9 @@ INCLUDE_DIRECTORIES(
   ${MY_READLINE_INCLUDE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
 )
+
+## We will need libeay32.dll and ssleay32.dll when running client executables.
+COPY_OPENSSL_DLLS(copy_openssl_client)
 
 ADD_DEFINITIONS(${SSL_DEFINES})
 MYSQL_ADD_EXECUTABLE(mysql completion_hash.cc mysql.cc readline.cc
@@ -78,7 +82,7 @@ ENDIF(WIN32)
 ADD_EXECUTABLE(async_example async_example.c)
 TARGET_LINK_LIBRARIES(async_example mysqlclient)
 
-SET_TARGET_PROPERTIES (mysqlcheck mysqldump mysqlimport mysql_upgrade mysqlshow mysqlslap mysql_plugin 
+SET_TARGET_PROPERTIES (mysqlcheck mysqldump mysqlimport mysql_upgrade mysqlshow mysqlslap mysql_plugin async_example
 PROPERTIES HAS_CXX TRUE)
 
 ADD_DEFINITIONS(-DHAVE_DLOPEN)

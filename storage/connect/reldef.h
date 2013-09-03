@@ -175,6 +175,7 @@ class DllExport COLDEF : public COLCRT { /* Column description block            
   friend class MYCAT;
   friend class COLBLK;
   friend class DBFFAM;
+  friend class TDBASE;
  public:
   COLDEF(void);                // Constructor
 

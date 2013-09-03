@@ -1,4 +1,8 @@
 include/rpl_init.inc [topology=1->2->3->4]
+*** GTID position should be empty here ***
+SELECT BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>);
+BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>)
+
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=MyISAM;
 CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1, "m1");
@@ -8,6 +12,14 @@ BEGIN;
 INSERT INTO t2 VALUES (2, "i2"), (3, "i3");
 INSERT INTO t2 VALUES (4, "i4");
 COMMIT;
+*** GTID position should be non-empty here ***
+SELECT BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>);
+BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>)
+<GTID_POS_SERVER_1>
+*** GTID position should be the same as on server_1 ***
+SELECT BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>);
+BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>)
+<GTID_POS_SERVER_1>
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	m1
@@ -115,4 +127,39 @@ include/stop_slave.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_3;
 include/start_slave.inc
 DROP TABLE t1,t2;
+*** A few more checks for BINLOG_GTID_POS function ***
+SELECT BINLOG_GTID_POS();
+ERROR 42000: Incorrect parameter count in the call to native function 'BINLOG_GTID_POS'
+SELECT BINLOG_GTID_POS('a');
+ERROR 42000: Incorrect parameter count in the call to native function 'BINLOG_GTID_POS'
+SELECT BINLOG_GTID_POS('a',1,NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'BINLOG_GTID_POS'
+SELECT BINLOG_GTID_POS(1,'a');
+BINLOG_GTID_POS(1,'a')
+NULL
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'a'
+SELECT BINLOG_GTID_POS(NULL,NULL);
+BINLOG_GTID_POS(NULL,NULL)
+NULL
+SELECT BINLOG_GTID_POS('',1);
+BINLOG_GTID_POS('',1)
+
+SELECT BINLOG_GTID_POS('a',1);
+BINLOG_GTID_POS('a',1)
+NULL
+SELECT BINLOG_GTID_POS('master-bin.000001',-1);
+BINLOG_GTID_POS('master-bin.000001',-1)
+NULL
+SELECT BINLOG_GTID_POS('master-bin.000001',0);
+BINLOG_GTID_POS('master-bin.000001',0)
+
+SELECT BINLOG_GTID_POS('master-bin.000001',18446744073709551615);
+BINLOG_GTID_POS('master-bin.000001',18446744073709551615)
+NULL
+SELECT BINLOG_GTID_POS('master-bin.000001',18446744073709551616);
+BINLOG_GTID_POS('master-bin.000001',18446744073709551616)
+NULL
+Warnings:
+Warning	1916	Got overflow when converting '18446744073709551616' to INT. Value truncated.
 include/rpl_end.inc

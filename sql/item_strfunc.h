@@ -16,10 +16,12 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /* This file defines all string functions */
+
+#include "crypt_genhash_impl.h"
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
@@ -62,7 +64,6 @@ public:
   enum Item_result result_type () const { return STRING_RESULT; }
   void left_right_max_length();
   bool fix_fields(THD *thd, Item **ref);
-  String *val_str_from_val_str_ascii(String *str, String *str2);
 };
 
 
@@ -329,16 +330,21 @@ public:
 
 class Item_func_password :public Item_str_ascii_func
 {
-  char tmp_value[SCRAMBLED_PASSWORD_CHAR_LENGTH+1]; 
+  char m_hashed_password_buffer[CRYPT_MAX_PASSWORD_SIZE + 1];
+  unsigned int m_hashed_password_buffer_len;
+  bool m_recalculate_password;
 public:
-  Item_func_password(Item *a) :Item_str_ascii_func(a) {}
-  String *val_str_ascii(String *str);
-  void fix_length_and_dec()
+  Item_func_password(Item *a) :Item_str_ascii_func(a)
   {
-    fix_length_and_charset(SCRAMBLED_PASSWORD_CHAR_LENGTH, default_charset());
+    m_hashed_password_buffer_len= 0;
+    m_recalculate_password= false;
   }
+  String *val_str_ascii(String *str);
+  void fix_length_and_dec();
   const char *func_name() const { return "password"; }
   static char *alloc(THD *thd, const char *password, size_t pass_len);
+  static char *create_password_hash_buffer(THD *thd, const char *password,
+                                           size_t pass_len);
 };
 
 
@@ -823,7 +829,7 @@ public:
     collation.set(args[0]->collation);
     ulonglong max_result_length= (ulonglong) args[0]->max_length * 2 +
                                   2 * collation.collation->mbmaxlen;
-    max_length= (uint32) min(max_result_length, MAX_BLOB_WIDTH);
+    max_length= (uint32) MY_MIN(max_result_length, MAX_BLOB_WIDTH);
   }
 };
 
@@ -917,10 +923,10 @@ public:
   const char *func_name() const { return "collate"; }
   enum Functype functype() const { return COLLATE_FUNC; }
   virtual void print(String *str, enum_query_type query_type);
-  Item_field *filed_for_view_update()
+  Item_field *field_for_view_update()
   {
     /* this function is transparent for view updating */
-    return args[0]->filed_for_view_update();
+    return args[0]->field_for_view_update();
   }
 };
 

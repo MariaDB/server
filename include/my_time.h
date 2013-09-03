@@ -55,17 +55,27 @@ extern uchar days_in_month[];
 #endif
 
 /* Flags to str_to_datetime */
-#define TIME_FUZZY_DATE		1
+
+/*
+  TIME_FUZZY_DATES is used for the result will only be used for comparison
+  purposes. Conversion is as relaxed as possible.
+*/
+#define TIME_FUZZY_DATES        1
 #define TIME_DATETIME_ONLY	2
 #define TIME_TIME_ONLY	        4
-/* Must be same as MODE_NO_ZERO_IN_DATE */
-#define TIME_NO_ZERO_IN_DATE    (65536L*2*2*2*2*2*2*2)
-/* Must be same as MODE_NO_ZERO_DATE */
-#define TIME_NO_ZERO_DATE	(TIME_NO_ZERO_IN_DATE*2)
-#define TIME_INVALID_DATES	(TIME_NO_ZERO_DATE*2)
+#define TIME_NO_ZERO_IN_DATE    (1UL << 23) /* == MODE_NO_ZERO_IN_DATE */
+#define TIME_NO_ZERO_DATE	(1UL << 24) /* == MODE_NO_ZERO_DATE    */
+#define TIME_INVALID_DATES	(1UL << 25) /* == MODE_INVALID_DATES   */
 
 #define MYSQL_TIME_WARN_TRUNCATED    1
 #define MYSQL_TIME_WARN_OUT_OF_RANGE 2
+#define MYSQL_TIME_NOTE_TRUNCATED    16
+
+#define MYSQL_TIME_WARN_WARNINGS (MYSQL_TIME_WARN_TRUNCATED|MYSQL_TIME_WARN_OUT_OF_RANGE)
+#define MYSQL_TIME_WARN_NOTES    (MYSQL_TIME_NOTE_TRUNCATED)
+
+#define MYSQL_TIME_WARN_HAVE_WARNINGS(x) test((x) & MYSQL_TIME_WARN_WARNINGS)
+#define MYSQL_TIME_WARN_HAVE_NOTES(x) test((x) & MYSQL_TIME_WARN_NOTES)
 
 /* Limits for the TIME data type */
 #define TIME_MAX_HOUR 838
@@ -143,8 +153,8 @@ void my_init_time(void);
     estimate.
 
   RETURN VALUES
-    FALSE   The value seems sane
-    TRUE    The MYSQL_TIME value is definitely out of range
+    TRUE   The value seems sane
+    FALSE  The MYSQL_TIME value is definitely out of range
 */
 
 static inline my_bool validate_timestamp_range(const MYSQL_TIME *t)

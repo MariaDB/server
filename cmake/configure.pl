@@ -150,6 +150,16 @@ foreach my $option (@ARGV)
     $cmakeargs = $cmakeargs." -DWITH_ZLIB=system";
     next;
   }
+  if($option =~ /with-libevent=/)
+  {
+    $cmakeargs = $cmakeargs." -DWITH_LIBEVENT=system";
+    next;
+  }
+  if($option =~ /with-libevent/)
+  {
+    $cmakeargs = $cmakeargs." -DWITH_LIBEVENT=bundled";
+    next;
+  }
   if($option =~ /with-ssl=/)
   {
     $cmakeargs = $cmakeargs." -DWITH_SSL=yes";
@@ -235,6 +245,16 @@ foreach my $option (@ARGV)
   if ($option =~ /verbose/)
   {
       $cmakeargs = $cmakeargs." -DCMAKE_VERBOSE_MAKEFILE=1";
+      next;
+  }
+  if ($option =~ /with-client-ldflags/)
+  {
+      print("configure.pl : ignoring $option\n");
+      next;
+  }
+  if ($option =~ /with-mysqld-ldflags=/)
+  {
+      print("configure.pl : ignoring $option\n");
       next;
   }
   if ($option =~ /with-client-ldflags/)

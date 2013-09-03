@@ -894,7 +894,8 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
 static int
 check_slave_start_position(THD *thd, slave_connection_state *st,
                            const char **errormsg, rpl_gtid *error_gtid,
-                           slave_connection_state *until_gtid_state)
+                           slave_connection_state *until_gtid_state,
+                           HASH *fake_gtid_hash)
 {
   uint32 i;
   int err;
@@ -998,11 +999,30 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
                                            &start_gtid) &&
         start_gtid.seq_no > slave_gtid->seq_no)
     {
+      rpl_gtid *fake_gtid;
       /*
         Start replication within this domain at the first GTID that we logged
         ourselves after becoming a master.
+
+        Remember that this starting point is in fact a "fake" GTID which may
+        not exists in the binlog, so that we do not complain about it in
+        --gtid-strict-mode.
       */
       slave_gtid->server_id= global_system_variables.server_id;
+      if (!(fake_gtid= (rpl_gtid *)my_malloc(sizeof(*fake_gtid), MYF(0))))
+      {
+        *errormsg= "Out of memory while checking slave start position";
+        err= ER_OUT_OF_RESOURCES;
+        goto end;
+      }
+      *fake_gtid= *slave_gtid;
+      if (my_hash_insert(fake_gtid_hash, (uchar *)fake_gtid))
+      {
+        my_free(fake_gtid);
+        *errormsg= "Out of memory while checking slave start position";
+        err= ER_OUT_OF_RESOURCES;
+        goto end;
+      }
     }
     else if (mysql_bin_log.lookup_domain_in_binlog_state(slave_gtid->domain_id,
                                                          &start_gtid))
@@ -1022,8 +1042,8 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
       */
       if (!delete_list)
       {
-        if ((delete_list= (rpl_gtid **)my_malloc(sizeof(*delete_list),
-                                                 MYF(MY_WME))))
+        if (!(delete_list= (rpl_gtid **)
+              my_malloc(sizeof(*delete_list) * st->hash.records, MYF(MY_WME))))
         {
           *errormsg= "Out of memory while checking slave start position";
           err= ER_OUT_OF_RESOURCES;
@@ -1461,7 +1481,8 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                     slave_connection_state *until_gtid_state,
                     enum_gtid_until_state *gtid_until_group,
                     rpl_binlog_state *until_binlog_state,
-                    bool slave_gtid_strict_mode, rpl_gtid *error_gtid)
+                    bool slave_gtid_strict_mode, rpl_gtid *error_gtid,
+                    bool *send_fake_gtid_list, HASH *fake_gtid_hash)
 {
   my_off_t pos;
   size_t len= packet->length();
@@ -1541,7 +1562,9 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
           if (event_gtid.server_id == gtid->server_id &&
               event_gtid.seq_no >= gtid->seq_no)
           {
-            if (event_gtid.seq_no > gtid->seq_no)
+            if (slave_gtid_strict_mode && event_gtid.seq_no > gtid->seq_no &&
+                !my_hash_search(fake_gtid_hash,
+                                (const uchar *)&event_gtid.domain_id, 0))
             {
               /*
                 In strict mode, it is an error if the slave requests to start
@@ -1549,24 +1572,21 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                 exist, even though both the prior and subsequent seq_no exists
                 for same domain_id and server_id.
               */
-              if (slave_gtid_strict_mode)
-              {
-                my_errno= ER_GTID_START_FROM_BINLOG_HOLE;
-                *error_gtid= *gtid;
-                return "The binlog on the master is missing the GTID requested "
-                  "by the slave (even though both a prior and a subsequent "
-                  "sequence number does exist), and GTID strict mode is enabled.";
-              }
+              my_errno= ER_GTID_START_FROM_BINLOG_HOLE;
+              *error_gtid= *gtid;
+              return "The binlog on the master is missing the GTID requested "
+                "by the slave (even though both a prior and a subsequent "
+                "sequence number does exist), and GTID strict mode is enabled.";
             }
-            else
-            {
-              /*
-                Send a fake Gtid_list event to the slave.
-                This allows the slave to update its current binlog position
-                so MASTER_POS_WAIT() and MASTER_GTID_WAIT() can work.
-              */
-//              send_fake_gtid_list_event(until_binlog_state);
-            }
+
+            /*
+              Send a fake Gtid_list event to the slave.
+              This allows the slave to update its current binlog position
+              so MASTER_POS_WAIT() and MASTER_GTID_WAIT() can work.
+              The fake event will be sent at the end of this event group.
+            */
+            *send_fake_gtid_list= true;
+
             /*
               Delete this entry if we have reached slave start position (so we
               will not skip subsequent events and won't have to look them up
@@ -1817,7 +1837,9 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   enum_gtid_skip_type gtid_skip_group= GTID_SKIP_NOT;
   enum_gtid_until_state gtid_until_group= GTID_UNTIL_NOT_DONE;
   rpl_binlog_state until_binlog_state;
-  bool slave_gtid_strict_mode;
+  bool slave_gtid_strict_mode= false;
+  bool send_fake_gtid_list= false;
+  HASH fake_gtid_hash;
 
   uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
@@ -1831,6 +1853,9 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   bzero((char*) &log,sizeof(log));
   bzero(&error_gtid, sizeof(error_gtid));
+  my_hash_init(&fake_gtid_hash, &my_charset_bin, 32,
+               offsetof(rpl_gtid, domain_id), sizeof(uint32), NULL, my_free,
+               HASH_UNIQUE);
   /* 
      heartbeat_period from @master_heartbeat_period user variable
   */
@@ -1930,7 +1955,8 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
       goto err;
     }
     if ((error= check_slave_start_position(thd, &gtid_state, &errmsg,
-                                           &error_gtid, until_gtid_state)))
+                                           &error_gtid, until_gtid_state,
+                                           &fake_gtid_hash)))
     {
       my_errno= error;
       goto err;
@@ -2234,10 +2260,24 @@ impossible position";
                                         &gtid_state, &gtid_skip_group,
                                         until_gtid_state, &gtid_until_group,
                                         &until_binlog_state,
-                                        slave_gtid_strict_mode, &error_gtid)))
+                                        slave_gtid_strict_mode, &error_gtid,
+                                        &send_fake_gtid_list, &fake_gtid_hash)))
       {
         errmsg= tmp_msg;
         goto err;
+      }
+      if (unlikely(send_fake_gtid_list) && gtid_skip_group == GTID_SKIP_NOT)
+      {
+        Gtid_list_log_event glev(&until_binlog_state, 0);
+
+        if (reset_transmit_packet(thd, flags, &ev_offset, &errmsg) ||
+            fake_gtid_list_event(net, packet, &glev, &errmsg,
+                                 current_checksum_alg, my_b_tell(&log)))
+        {
+          my_errno= ER_UNKNOWN_ERROR;
+          goto err;
+        }
+        send_fake_gtid_list= false;
       }
       if (until_gtid_state &&
           is_until_reached(thd, net, packet, &ev_offset, gtid_until_group,
@@ -2426,13 +2466,27 @@ impossible position";
                                             using_gtid_state, &gtid_state,
                                             &gtid_skip_group, until_gtid_state,
                                             &gtid_until_group, &until_binlog_state,
-                                            slave_gtid_strict_mode, &error_gtid)))
+                                            slave_gtid_strict_mode, &error_gtid,
+                                            &send_fake_gtid_list,
+                                            &fake_gtid_hash)))
           {
             errmsg= tmp_msg;
             goto err;
           }
-          if (
-              until_gtid_state &&
+          if (unlikely(send_fake_gtid_list) && gtid_skip_group == GTID_SKIP_NOT)
+          {
+            Gtid_list_log_event glev(&until_binlog_state, 0);
+
+            if (reset_transmit_packet(thd, flags, &ev_offset, &errmsg) ||
+                fake_gtid_list_event(net, packet, &glev, &errmsg,
+                                     current_checksum_alg, my_b_tell(&log)))
+            {
+              my_errno= ER_UNKNOWN_ERROR;
+              goto err;
+            }
+            send_fake_gtid_list= false;
+          }
+          if (until_gtid_state &&
               is_until_reached(thd, net, packet, &ev_offset, gtid_until_group,
                                event_type, current_checksum_alg, flags, &errmsg,
                                &until_binlog_state, my_b_tell(&log)))
@@ -2504,6 +2558,7 @@ impossible position";
 end:
   end_io_cache(&log);
   mysql_file_close(file, MYF(MY_WME));
+  my_hash_free(&fake_gtid_hash);
 
   RUN_HOOK(binlog_transmit, transmit_stop, (thd, flags));
   my_eof(thd);
@@ -2574,6 +2629,7 @@ err:
   mysql_mutex_unlock(&LOCK_thread_count);
   if (file >= 0)
     mysql_file_close(file, MYF(MY_WME));
+  my_hash_free(&fake_gtid_hash);
   thd->variables.max_allowed_packet= old_max_allowed_packet;
 
   my_message(my_errno, error_text, MYF(0));
@@ -2727,7 +2783,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
         {
           /* Issuing warning then started without --skip-slave-start */
           if (!opt_skip_slave_start)
-            push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+            push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                          ER_MISSING_SKIP_SLAVE,
                          ER(ER_MISSING_SKIP_SLAVE));
         }
@@ -2735,7 +2791,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
         mysql_mutex_unlock(&mi->rli.data_lock);
       }
       else if (thd->lex->mi.pos || thd->lex->mi.relay_log_pos)
-        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE, ER_UNTIL_COND_IGNORED,
+        push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNTIL_COND_IGNORED,
                      ER(ER_UNTIL_COND_IGNORED));
 
       if (!slave_errno)
@@ -2752,7 +2808,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
   else
   {
     /* no error if all threads are already started, only a warning */
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE, ER_SLAVE_WAS_RUNNING,
+    push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_SLAVE_WAS_RUNNING,
                  ER(ER_SLAVE_WAS_RUNNING));
   }
 
@@ -2818,7 +2874,7 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
   {
     //no error if both threads are already stopped, only a warning
     slave_errno= 0;
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE, ER_SLAVE_WAS_NOT_RUNNING,
+    push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_SLAVE_WAS_NOT_RUNNING,
                  ER(ER_SLAVE_WAS_NOT_RUNNING));
   }
   unlock_slave_threads(mi);
@@ -3078,7 +3134,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
 
   /* if new Master_info doesn't exists, add it */
   if (!master_info_index->get_master_info(&mi->connection_name,
-                                          MYSQL_ERROR::WARN_LEVEL_NOTE))
+                                          Sql_condition::WARN_LEVEL_NOTE))
   {
     if (master_info_index->add_master_info(mi, TRUE))
     {
@@ -3160,7 +3216,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->heartbeat_opt != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
     mi->heartbeat_period = lex_mi->heartbeat_period;
   else
-    mi->heartbeat_period= (float) min(SLAVE_MAX_HEARTBEAT_PERIOD,
+    mi->heartbeat_period= (float) MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD,
                                       (slave_net_timeout/2.0));
   mi->received_heartbeats= 0; // counter lives until master is CHANGEd
   /*
@@ -3217,7 +3273,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->ssl || lex_mi->ssl_ca || lex_mi->ssl_capath ||
       lex_mi->ssl_cert || lex_mi->ssl_cipher || lex_mi->ssl_key ||
       lex_mi->ssl_verify_server_cert || lex_mi->ssl_crl || lex_mi->ssl_crlpath)
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+    push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                  ER_SLAVE_IGNORED_SSL_PARAMS, ER(ER_SLAVE_IGNORED_SSL_PARAMS));
 #endif
 
@@ -3265,12 +3321,12 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
    {
      /*
        Sometimes mi->rli.master_log_pos == 0 (it happens when the SQL thread is
-       not initialized), so we use a max().
+       not initialized), so we use a MY_MAX().
        What happens to mi->rli.master_log_pos during the initialization stages
        of replication is not 100% clear, so we guard against problems using
-       max().
+       MY_MAX().
       */
-     mi->master_log_pos = max(BIN_LOG_HEADER_SIZE,
+     mi->master_log_pos = MY_MAX(BIN_LOG_HEADER_SIZE,
 			      mi->rli.group_master_log_pos);
      strmake_buf(mi->master_log_name, mi->rli.group_master_log_name);
   }
@@ -3296,16 +3352,6 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
       my_error(ER_RELAY_LOG_FAIL, MYF(0), errmsg);
       ret= TRUE;
       goto err;
-    }
-
-    if (mi->using_gtid != Master_info::USE_GTID_NO)
-    {
-      /*
-        Clear the position in the master binlogs, so that we request the
-        correct GTID position.
-      */
-      mi->master_log_name[0]= 0;
-      mi->master_log_pos= 0;
     }
   }
   else
@@ -3456,7 +3502,7 @@ bool mysql_show_binlog_events(THD* thd)
     mysql_mutex_lock(&LOCK_active_mi);
     if (!(mi= master_info_index->
           get_master_info(&thd->variables.default_master_connection,
-                          MYSQL_ERROR::WARN_LEVEL_ERROR)))
+                          Sql_condition::WARN_LEVEL_ERROR)))
     {
       mysql_mutex_unlock(&LOCK_active_mi);
       DBUG_RETURN(TRUE);
@@ -3469,7 +3515,7 @@ bool mysql_show_binlog_events(THD* thd)
     LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
     SELECT_LEX_UNIT *unit= &thd->lex->unit;
     ha_rows event_count, limit_start, limit_end;
-    my_off_t pos = max(BIN_LOG_HEADER_SIZE, lex_mi->pos); // user-friendly
+    my_off_t pos = MY_MAX(BIN_LOG_HEADER_SIZE, lex_mi->pos); // user-friendly
     char search_file_name[FN_REFLEN], *name;
     const char *log_file_name = lex_mi->log_file_name;
     mysql_mutex_t *log_lock = binary_log->get_log_lock();
@@ -3722,6 +3768,8 @@ bool show_binlogs(THD* thd)
     if (protocol->write())
       goto err;
   }
+  if(index_file->error == -1)
+    goto err;
   mysql_bin_log.unlock_index();
   my_eof(thd);
   DBUG_RETURN(FALSE);
@@ -3757,14 +3805,14 @@ int log_loaded_block(IO_CACHE* file)
     DBUG_RETURN(0);
   
   for (block_len= (uint) (my_b_get_bytes_in_buffer(file)); block_len > 0;
-       buffer += min(block_len, max_event_size),
-       block_len -= min(block_len, max_event_size))
+       buffer += MY_MIN(block_len, max_event_size),
+       block_len -= MY_MIN(block_len, max_event_size))
   {
     lf_info->last_pos_in_file= my_b_get_pos_in_file(file);
     if (lf_info->wrote_create_file)
     {
       Append_block_log_event a(lf_info->thd, lf_info->thd->db, buffer,
-                               min(block_len, max_event_size),
+                               MY_MIN(block_len, max_event_size),
                                lf_info->log_delayed);
       if (mysql_bin_log.write(&a))
         DBUG_RETURN(1);
@@ -3773,7 +3821,7 @@ int log_loaded_block(IO_CACHE* file)
     {
       Begin_load_query_log_event b(lf_info->thd, lf_info->thd->db,
                                    buffer,
-                                   min(block_len, max_event_size),
+                                   MY_MIN(block_len, max_event_size),
                                    lf_info->log_delayed);
       if (mysql_bin_log.write(&b))
         DBUG_RETURN(1);
@@ -3917,7 +3965,7 @@ rpl_gtid_pos_check(THD *thd, char *str, size_t len)
         }
         else if (!gave_missing_warning)
         {
-          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_MASTER_GTID_POS_MISSING_DOMAIN,
                               ER(ER_MASTER_GTID_POS_MISSING_DOMAIN),
                               binlog_gtid->domain_id, binlog_gtid->domain_id,
@@ -3937,7 +3985,7 @@ rpl_gtid_pos_check(THD *thd, char *str, size_t len)
         }
         else if (!gave_conflict_warning)
         {
-          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG,
                               ER(ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG),
                               slave_gtid->domain_id, slave_gtid->server_id,

@@ -339,7 +339,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
   /*  Allocate the structures used to refer to the result set.         */
   /*********************************************************************/
   qrp = PlgAllocResult(g, ncol, imax, IDS_COLUMNS + 3,
-                          buftyp, fldtyp, length, true, false);
+                          buftyp, fldtyp, length, false, false);
   qrp->Nblin = imax;
 
   if (info)

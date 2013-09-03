@@ -287,7 +287,7 @@ struct st_harvester {
 static int harvest_pins(LF_PINS *el, struct st_harvester *hv)
 {
   int i;
-  LF_PINS *el_end= el+min(hv->npins, LF_DYNARRAY_LEVEL_LENGTH);
+  LF_PINS *el_end= el+MY_MIN(hv->npins, LF_DYNARRAY_LEVEL_LENGTH);
   for (; el < el_end; el++)
   {
     for (i= 0; i < LF_PINBOX_PINS; i++)
@@ -411,8 +411,6 @@ found:
 }
 
 /* lock-free memory allocator for fixed-size objects */
-
-LF_REQUIRE_PINS(1)
 
 /*
   callback for _lf_pinbox_real_free to free a list of unpinned objects -

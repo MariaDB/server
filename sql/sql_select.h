@@ -1319,6 +1319,12 @@ public:
     pre_sort_join_tab= NULL;
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
+    /* 
+      The following is needed because JOIN::cleanup(true) may be called for 
+      joins for which JOIN::optimize was aborted with an error before a proper
+      query plan was produced
+    */
+    table_access_tabs= NULL; 
   }
 
   int prepare(Item ***rref_pointer_array, TABLE_LIST *tables, uint wind_num,
@@ -1836,11 +1842,12 @@ void free_tmp_table(THD *thd, TABLE *entry);
 bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
                                          TMP_ENGINE_COLUMNDEF *start_recinfo,
                                          TMP_ENGINE_COLUMNDEF **recinfo, 
-                                         int error, bool ignore_last_dupp_key_error);
+                                         int error, bool ignore_last_dupp_key_error,
+                                         bool *is_duplicate);
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
                                TMP_ENGINE_COLUMNDEF *start_recinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo, 
-                               ulonglong options, my_bool big_tables);
+                               ulonglong options);
 bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
 double prev_record_reads(POSITION *positions, uint idx, table_map found_ref);

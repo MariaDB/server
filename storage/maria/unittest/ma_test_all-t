@@ -650,6 +650,8 @@ sub ok
   {
     exit 1;
   }
+  # Unlink all files so that we can continue on error
+  unlink_all_possible_tmp_files();
   return 0;
 }
 
@@ -702,7 +704,7 @@ sub unlink_all_possible_tmp_files()
   unlink_log_files();
 
   # Unlink tmp files that may have been created when testing the test programs
-  unlink <$full_tmpdir/*.TMD $full_tmpdir/aria_read_log_test1.txt $full_tmpdir/test1*.MA? $full_tmpdir/ma_test_recovery.output aria_log_control aria_log.00000001 aria_log.00000002 aria_logtest1.MA? test1.MA? test2.MA? test3.MA?>;
+  unlink <$full_tmpdir/*.TMD $full_tmpdir/aria_read_log_test1.txt $full_tmpdir/test1*.MA? $full_tmpdir/ma_test_recovery.output aria_log_control aria_log.00000001 aria_log.00000002 aria_logtest1.MA? test1.MA? test2.MA? test3.MA? *.TMD>;
 }
 
 ####

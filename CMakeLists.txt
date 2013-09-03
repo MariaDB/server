@@ -1,5 +1,5 @@
-# Copyright (c) 2006, 2012, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2012 Monty Program Ab
+# Copyright (c) 2006, 2013, Oracle and/or its affiliates.
+# Copyright (c) 2008, 2013, Monty Program Ab
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -139,7 +139,9 @@ INCLUDE(cpack_rpm)
 
 # Add macros
 INCLUDE(character_sets)
+INCLUDE(cpu_info)
 INCLUDE(zlib)
+INCLUDE(libevent)
 INCLUDE(ssl)
 INCLUDE(readline)
 INCLUDE(libutils)
@@ -211,7 +213,7 @@ ENDFOREACH()
 
 # Add safemutex for debug configurations, except on Windows
 # (safemutex has never worked on Windows)
-IF(NOT WIN32)
+IF(NOT WIN32 AND NOT WITH_INNODB_MEMCACHED)
   FOREACH(LANG C CXX)
       SET(CMAKE_${LANG}_FLAGS_DEBUG "${CMAKE_${LANG}_FLAGS_DEBUG} -DSAFE_MUTEX")
   ENDFOREACH()
@@ -263,10 +265,12 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include)
 
 # Add bundled or system zlib.
 MYSQL_CHECK_ZLIB_WITH_COMPRESS()
-# Optionally add bundled yassl/taocrypt or system openssl.
+# Add bundled yassl/taocrypt or system openssl.
 MYSQL_CHECK_SSL()
 # Add readline or libedit.
 MYSQL_CHECK_READLINE()
+# Add libevent
+MYSQL_CHECK_LIBEVENT()
 
 #
 # Setup maintainer mode options. Platform checks are
@@ -304,6 +308,7 @@ ADD_SUBDIRECTORY(strings)
 ADD_SUBDIRECTORY(vio)
 ADD_SUBDIRECTORY(regex)
 ADD_SUBDIRECTORY(mysys)
+ADD_SUBDIRECTORY(mysys_ssl)
 ADD_SUBDIRECTORY(libmysql)
 IF(WITH_WSREP)
 ADD_SUBDIRECTORY(wsrep)
@@ -345,6 +350,7 @@ IF(WIN32)
   ADD_SUBDIRECTORY(win/upgrade_wizard)
   ADD_SUBDIRECTORY(win/packaging)
 ENDIF()
+ADD_SUBDIRECTORY(packaging/solaris)
 
 CONFIGURE_FILE(config.h.cmake   ${CMAKE_BINARY_DIR}/include/my_config.h)
 CONFIGURE_FILE(config.h.cmake   ${CMAKE_BINARY_DIR}/include/config.h)

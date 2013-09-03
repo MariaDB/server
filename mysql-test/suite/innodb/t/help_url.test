@@ -4,19 +4,5 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 
-call mtr.add_suppression('InnoDB: Error');
-
-set global innodb_file_per_table=1, innodb_file_format=Barracuda;
-
-create table t1 (i int) engine=InnoDB;
-alter table t1 discard tablespace;
---error ER_GET_ERRNO
-select * from t1;
-perl;
-@ARGV = ("$ENV{MYSQLTEST_VARDIR}/log/mysqld.1.err");
-print ((grep {/innodb-troubleshooting/} <>)[-1]);
-EOF
-
-drop table t1;
-
-set global innodb_file_per_table=default, innodb_file_format=default;
+create table innodb_table_monitor (a int) engine=InnoDB;
+drop table innodb_table_monitor;

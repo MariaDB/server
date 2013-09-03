@@ -25,27 +25,40 @@
 #include <table.h>
 #include <field.h>
 
-typedef struct st_share {
+class Sequence_share : public Handler_share {
+public:
   const char *name;
   THR_LOCK lock;
-  uint use_count;
-  struct st_share *next;
 
   ulonglong from, to, step;
   bool reverse;
-} SHARE;
+
+  Sequence_share(const char *name_arg, ulonglong from_arg, ulonglong to_arg,
+                 ulonglong step_arg, bool reverse_arg):
+    name(name_arg), from(from_arg), to(to_arg), step(step_arg),
+    reverse(reverse_arg)
+  {
+    thr_lock_init(&lock);
+  }
+  ~Sequence_share()
+  {
+    thr_lock_delete(&lock);
+  }
+};
 
 class ha_seq: public handler
 {
 private:
   THR_LOCK_DATA lock;
-  SHARE *seqs;
+  Sequence_share *seqs;
+  Sequence_share *get_share();
   ulonglong cur;
 
 public:
   ha_seq(handlerton *hton, TABLE_SHARE *table_arg)
     : handler(hton, table_arg), seqs(0) { }
-  ulonglong table_flags() const { return 0; }
+  ulonglong table_flags() const
+  { return HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE; }
 
   /* open/close/locking */
   int create(const char *name, TABLE *table_arg,
@@ -228,12 +241,9 @@ ha_rows ha_seq::records_in_range(uint inx, key_range *min_key,
 
 int ha_seq::open(const char *name, int mode, uint test_if_locked)
 {
-  mysql_mutex_lock(&table->s->LOCK_ha_data);
-  seqs= (SHARE*)table->s->ha_data;
+  if (!(seqs= get_share()))
+    return HA_ERR_OUT_OF_MEM;
   DBUG_ASSERT(my_strcasecmp(table_alias_charset, name, seqs->name) == 0);
-  if (seqs->use_count++ == 0)
-    thr_lock_init(&seqs->lock);
-  mysql_mutex_unlock(&table->s->LOCK_ha_data);
 
   ref_length= sizeof(cur);
   thr_lock_data_init(&seqs->lock,&lock,NULL);
@@ -242,10 +252,6 @@ int ha_seq::open(const char *name, int mode, uint test_if_locked)
 
 int ha_seq::close(void)
 {
-  mysql_mutex_lock(&table->s->LOCK_ha_data);
-  if (--seqs->use_count == 0)
-    thr_lock_delete(&seqs->lock);
-  mysql_mutex_unlock(&table->s->LOCK_ha_data);
   return 0;
 }
 
@@ -255,63 +261,90 @@ static handler *create_handler(handlerton *hton, TABLE_SHARE *table,
   return new (mem_root) ha_seq(hton, table);
 }
 
+
+static bool parse_table_name(const char *name, size_t name_length,
+                             ulonglong *from, ulonglong *to, ulonglong *step)
+{
+  uint n1= 0, n2= 0;
+  *step= 1;
+
+  // the table is discovered if its name matches the pattern of seq_1_to_10 or 
+  // seq_1_to_10_step_3
+  sscanf(name, "seq_%llu_to_%llu%n_step_%llu%n",
+         from, to, &n1, step, &n2);
+  return n1 != name_length && n2 != name_length;
+}
+
+
+Sequence_share *ha_seq::get_share()
+{
+  Sequence_share *tmp_share;
+  lock_shared_ha_data();
+  if (!(tmp_share= static_cast<Sequence_share*>(get_ha_share_ptr())))
+  {
+    bool reverse;
+    ulonglong from, to, step;
+
+    parse_table_name(table_share->table_name.str,
+                     table_share->table_name.length, &from, &to, &step);
+    
+    if ((reverse = from > to))
+    {
+      if (step > from - to)
+        to = from;
+      else
+        swap_variables(ulonglong, from, to);
+      /*
+        when keyread is allowed, optimizer will always prefer an index to a
+        table scan for our tables, and we'll never see the range reversed.
+      */
+      table_share->keys_for_keyread.clear_all();
+    }
+
+    to= (to - from) / step * step + step + from;
+
+    tmp_share= new Sequence_share(table_share->normalized_path.str, from, to, step, reverse);
+
+    if (!tmp_share)
+      goto err;
+    set_ha_share_ptr(static_cast<Handler_share*>(tmp_share));
+  }
+err:
+  unlock_shared_ha_data();
+  return tmp_share;
+}
+
+
 static int discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 {
-  // the table is discovered if it has the pattern of seq_1_to_10 or 
-  // seq_1_to_10_step_3
-  ulonglong from, to, step= 1;
-  uint n1= 0, n2= 0;
-  bool reverse;
-  sscanf(share->table_name.str, "seq_%llu_to_%llu%n_step_%llu%n",
-         &from, &to, &n1, &step, &n2);
-  if (n1 != share->table_name.length && n2 != share->table_name.length)
+  ulonglong from, to, step;
+  if (parse_table_name(share->table_name.str, share->table_name.length,
+                       &from, &to, &step))
     return HA_ERR_NO_SUCH_TABLE;
 
   if (step == 0)
     return HA_WRONG_CREATE_OPTION;
 
   const char *sql="create table seq (seq bigint unsigned primary key)";
-  int res= share->init_from_sql_statement_string(thd, 0, sql, strlen(sql));
-  if (res)
-    return res;
-
-  if ((reverse = from > to))
-  {
-    if (step > from - to)
-      to = from;
-    else
-      swap_variables(ulonglong, from, to);
-    /*
-      when keyread is allowed, optimizer will always prefer an index to a
-      table scan for our tables, and we'll never see the range reversed.
-    */
-    share->keys_for_keyread.clear_all();
-  }
-
-  to= (to - from) / step * step + step + from;
-
-  SHARE *seqs= (SHARE*)alloc_root(&share->mem_root, sizeof(*seqs));
-  bzero(seqs, sizeof(*seqs));
-  seqs->name = share->normalized_path.str;
-  seqs->from= from;
-  seqs->to= to;
-  seqs->step= step;
-  seqs->reverse= reverse;
-
-  share->ha_data = seqs;
-  return 0;
+  return share->init_from_sql_statement_string(thd, 0, sql, strlen(sql));
 }
 
+
+static int discover_table_existence(handlerton *hton, const char *db,
+                                    const char *table_name)
+{
+  ulonglong from, to, step;
+  return !parse_table_name(table_name, strlen(table_name), &from, &to, &step);
+}
 
 static int dummy_ret_int() { return 0; }
 
 static int init(void *p)
 {
-  handlerton *hton = (handlerton *)p;
-  hton->create = create_handler;
-  hton->discover_table = discover_table;
-  hton->discover_table_existence =
-    (int (*)(handlerton *, const char *, const char *)) &dummy_ret_int;
+  handlerton *hton= (handlerton *)p;
+  hton->create= create_handler;
+  hton->discover_table= discover_table;
+  hton->discover_table_existence= discover_table_existence;
   hton->commit= hton->rollback= hton->prepare=
    (int (*)(handlerton *, THD *, bool)) &dummy_ret_int;
   hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -95,15 +95,13 @@ static bool check_view_insertability(THD *thd, TABLE_LIST *view);
 /*
   Check that insert/update fields are from the same single table of a view.
 
-  SYNOPSIS
-    check_view_single_update()
-    fields            The insert/update fields to be checked.
-    values            Values to use for update
-    view              The view for insert.
-    map     [in/out]  The insert table map.
+  @param fields            The insert/update fields to be checked.
+  @param values            The insert/update values to be checked, NULL if
+  checking is not wanted.
+  @param view              The view for insert.
+  @param map     [in/out]  The insert table map.
 
-  DESCRIPTION
-    This function is called in 2 cases:
+  This function is called in 2 cases:
     1. to check insert fields. In this case *map will be set to 0.
        Insert fields are checked to be all from the same single underlying
        table of the given view. Otherwise the error is thrown. Found table
@@ -113,9 +111,7 @@ static bool check_view_insertability(THD *thd, TABLE_LIST *view);
        the function to check insert fields. Update fields are checked to be
        from the same table as the insert fields.
 
-  RETURN
-    0   OK
-    1   Error
+  @returns false if success.
 */
 
 bool check_view_single_update(List<Item> &fields, List<Item> *values,
@@ -180,21 +176,16 @@ error:
 /*
   Check if insert fields are correct.
 
-  SYNOPSIS
-    check_insert_fields()
-    thd                         The current thread.
-    table                       The table for insert.
-    fields                      The insert fields.
-    values                      The insert values.
-    check_unique                If duplicate values should be rejected.
-    fields_and_values_from_different_maps
-				Set to 1 if fields and values are using
-                                different table maps, like on select ... insert
-    map                         Store here table map for used fields
-
-  RETURN
-    0           OK
-    -1          Error
+  @param thd            The current thread.
+  @param table_list     The table we are inserting into (may be view)
+  @param fields         The insert fields.
+  @param values         The insert values.
+  @param check_unique   If duplicate values should be rejected.
+  @param fields_and_values_from_different_maps If 'values' are allowed to
+  refer to other tables than those of 'fields'
+  @param map            See check_view_single_update
+  
+  @returns 0 if success, -1 if error
 */
 
 static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
@@ -312,28 +303,29 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
 }
 
 
-/*
-  Check update fields for the timestamp and auto_increment fields.
+/**
+  Check if update fields are correct.
 
-  SYNOPSIS
-    check_update_fields()
-    thd                         The current thread.
-    insert_table_list           The insert table list.
-    table                       The table for update.
-    update_fields               The update fields.
+  @param thd                  The current thread.
+  @param insert_table_list    The table we are inserting into (may be view)
+  @param update_fields        The update fields.
+  @param update_values        The update values.
+  @param fields_and_values_from_different_maps If 'update_values' are allowed to
+  refer to other tables than those of 'update_fields'
+  @param map                  See check_view_single_update
 
-  NOTE
-   If the update fields include an autoinc field, set the
-   table->next_number_field_updated flag.
+  @note
+  If the update fields include an autoinc field, set the
+  table->next_number_field_updated flag.
 
-  RETURN
-    0           OK
-    -1          Error
+  @returns 0 if success, -1 if error
 */
 
 static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
                                List<Item> &update_fields,
-                               List<Item> &update_values, table_map *map)
+                               List<Item> &update_values,
+                               bool fields_and_values_from_different_maps,
+                               table_map *map)
 {
   TABLE *table= insert_table_list->table;
   my_bool autoinc_mark;
@@ -358,7 +350,9 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
 
   if (insert_table_list->is_view() &&
       insert_table_list->is_merged_derived() &&
-      check_view_single_update(update_fields, &update_values,
+      check_view_single_update(update_fields,
+                               fields_and_values_from_different_maps ?
+                               (List<Item>*) 0 : &update_values,
                                insert_table_list, map, false))
     return -1;
 
@@ -963,7 +957,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       error=write_record(thd, table ,&info);
     if (error)
       break;
-    thd->warning_info->inc_current_row_for_warning();
+    thd->get_stmt_da()->inc_current_row_for_warning();
   }
 
   free_underlaid_joins(thd, &thd->lex->select_lex);
@@ -1124,11 +1118,11 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
 	      (lock_type == TL_WRITE_DELAYED) ? (ulong) 0 :
 	      (ulong) (info.records - info.copied),
-              (ulong) thd->warning_info->statement_warn_count());
+              (long) thd->get_stmt_da()->current_statement_warn_count());
     else
       sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
 	      (ulong) (info.deleted + updated),
-              (ulong) thd->warning_info->statement_warn_count());
+              (long) thd->get_stmt_da()->current_statement_warn_count());
     ::my_ok(thd, info.copied + info.deleted + updated, id, buff);
   }
   thd->abort_on_warning= 0;
@@ -1213,7 +1207,7 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
     }
     Item_field *field;
     /* simple SELECT list entry (field without expression) */
-    if (!(field= trans->item->filed_for_view_update()))
+    if (!(field= trans->item->field_for_view_update()))
     {
       thd->mark_used_columns= save_mark_used_columns;
       DBUG_RETURN(TRUE);
@@ -1455,7 +1449,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     {
       select_lex->no_wrap_view_item= TRUE;
       res= check_update_fields(thd, context->table_list, update_fields,
-                               update_values, &map);
+                               update_values, false, &map);
       select_lex->no_wrap_view_item= FALSE;
     }
 
@@ -1649,7 +1643,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 	  }
 	}
 	key_copy((uchar*) key,table->record[0],table->key_info+key_nr,0);
-        key_part_map keypart_map= (1 << table->key_info[key_nr].key_parts) - 1;
+        key_part_map keypart_map= (1 << table->key_info[key_nr].user_defined_key_parts) - 1;
 	if ((error= (table->file->ha_index_read_idx_map(table->record[1],
                                                         key_nr, (uchar*) key,
                                                         keypart_map,
@@ -1898,7 +1892,7 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
       }
       if (view)
       {
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_VIEW_FIELD,
                             ER(ER_NO_DEFAULT_FOR_VIEW_FIELD),
                             table_list->view_db.str,
@@ -1906,7 +1900,7 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
       }
       else
       {
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_FIELD,
                             ER(ER_NO_DEFAULT_FOR_FIELD),
                             (*field)->field_name);
@@ -2256,7 +2250,8 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
             want to send "Server shutdown in progress" in the
             INSERT THREAD.
           */
-          my_message(di->thd.stmt_da->sql_errno(), di->thd.stmt_da->message(),
+          my_message(di->thd.get_stmt_da()->sql_errno(),
+                     di->thd.get_stmt_da()->message(),
                      MYF(0));
         }
         di->unlock();
@@ -2346,7 +2341,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
       if (!thd.is_error())
         my_message(ER_QUERY_INTERRUPTED, ER(ER_QUERY_INTERRUPTED), MYF(0));
       else
-        my_message(thd.stmt_da->sql_errno(), thd.stmt_da->message(), MYF(0));
+        my_message(thd.get_stmt_da()->sql_errno(),
+                   thd.get_stmt_da()->message(), MYF(0));
       goto error;
     }
   }
@@ -2768,8 +2764,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
   if (my_thread_init())
   {
     /* Can't use my_error since store_globals has not yet been called */
-    thd->stmt_da->set_error_status(thd, ER_OUT_OF_RESOURCES,
-                                   ER(ER_OUT_OF_RESOURCES), NULL);
+    thd->get_stmt_da()->set_error_status(ER_OUT_OF_RESOURCES);
     di->handler_thread_initialized= TRUE;
   }
   else
@@ -2779,8 +2774,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
     if (init_thr_lock() || thd->store_globals())
     {
       /* Can't use my_error since store_globals has perhaps failed */
-      thd->stmt_da->set_error_status(thd, ER_OUT_OF_RESOURCES,
-                                     ER(ER_OUT_OF_RESOURCES), NULL);
+      thd->get_stmt_da()->set_error_status(ER_OUT_OF_RESOURCES);
       di->handler_thread_initialized= TRUE;
       thd->fatal_error();
       goto err;
@@ -3170,7 +3164,7 @@ bool Delayed_insert::handle_inserts(void)
 	{
 	  /* This should never happen */
 	  table->file->print_error(error,MYF(0));
-	  sql_print_error("%s", thd.stmt_da->message());
+	  sql_print_error("%s", thd.get_stmt_da()->message());
           DBUG_PRINT("error", ("HA_EXTRA_NO_CACHE failed in loop"));
 	  goto err;
 	}
@@ -3216,7 +3210,7 @@ bool Delayed_insert::handle_inserts(void)
   if ((error=table->file->extra(HA_EXTRA_NO_CACHE)))
   {						// This shouldn't happen
     table->file->print_error(error,MYF(0));
-    sql_print_error("%s", thd.stmt_da->message());
+    sql_print_error("%s", thd.get_stmt_da()->message());
     DBUG_PRINT("error", ("HA_EXTRA_NO_CACHE failed after loop"));
     goto err;
   }
@@ -3386,9 +3380,16 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     context->resolve_in_table_list_only(table_list);
 
     lex->select_lex.no_wrap_view_item= TRUE;
-    res= res || check_update_fields(thd, context->table_list,
-                                    *info.update_fields, *info.update_values,
-                                    &map);
+    res= res ||
+      check_update_fields(thd, context->table_list,
+                          *info.update_fields, *info.update_values,
+                          /*
+                            In INSERT SELECT ON DUPLICATE KEY UPDATE col=x
+                            'x' can legally refer to a non-inserted table.
+                            'x' is not even resolved yet.
+                           */
+                          true,
+                          &map);
     lex->select_lex.no_wrap_view_item= FALSE;
     /*
       When we are not using GROUP BY and there are no ungrouped aggregate functions 
@@ -3654,7 +3655,7 @@ bool select_insert::send_eof()
           table->file->ha_end_bulk_insert() : 0);
 #endif /* WITH_WSREP */
   if (!error && thd->is_error())
-    error= thd->stmt_da->sql_errno();
+    error= thd->get_stmt_da()->sql_errno();
 
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
@@ -3712,11 +3713,11 @@ bool select_insert::send_eof()
   if (info.ignore)
     sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
 	    (ulong) (info.records - info.copied),
-            (ulong) thd->warning_info->statement_warn_count());
+            (long) thd->get_stmt_da()->current_statement_warn_count());
   else
     sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
 	    (ulong) (info.deleted+info.updated),
-            (ulong) thd->warning_info->statement_warn_count());
+            (long) thd->get_stmt_da()->current_statement_warn_count());
   row_count= info.copied + info.deleted +
              ((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
               info.touched : info.updated);
@@ -3858,7 +3859,6 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
   init_tmp_table_share(thd, &share, "", 0, "", "");
 
   tmp_table.s->db_create_options=0;
-  tmp_table.s->blob_ptr_size= portable_sizeof_char_ptr;
   tmp_table.null_row= 0;
   tmp_table.maybe_null= 0;
 
@@ -3915,7 +3915,7 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
     {
       DEBUG_SYNC(thd,"create_table_select_before_open");
 
-      if (!(create_info->options & HA_LEX_CREATE_TMP_TABLE))
+      if (!create_info->tmp_table())
       {
         Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
         /*
@@ -3924,7 +3924,7 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
         */
         if (open_table(thd, create_table, thd->mem_root, &ot_ctx))
         {
-          quick_rm_table(create_info->db_type, create_table->db,
+          quick_rm_table(thd, create_info->db_type, create_table->db,
                          table_case_name(create_info, create_table->table_name),
                          0);
         }
@@ -3933,15 +3933,14 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
       }
       else
       {
-        Open_table_context ot_ctx(thd, MYSQL_OPEN_TEMPORARY_ONLY);
-        if (open_table(thd, create_table, thd->mem_root, &ot_ctx))
+        if (open_temporary_table(thd, create_table))
         {
           /*
             This shouldn't happen as creation of temporary table should make
-            it preparable for open. But let us do close_temporary_table() here
-            just in case.
+            it preparable for open. Anyway we can't drop temporary table if
+            we are unable to find it.
           */
-          drop_temporary_table(thd, create_table, NULL);
+          DBUG_ASSERT(0);
         }
         else
           table= create_table->table;
@@ -4061,7 +4060,7 @@ select_create::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     row-based replication for the statement.  If we are creating a
     temporary table, we need to start a statement transaction.
   */
-  if ((thd->lex->create_info.options & HA_LEX_CREATE_TMP_TABLE) == 0 &&
+  if (!thd->lex->create_info.tmp_table() &&
       thd->is_current_stmt_binlog_format_row() &&
       mysql_bin_log.is_open())
   {
@@ -4082,7 +4081,7 @@ select_create::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   {
     DBUG_ASSERT(m_plock == NULL);
 
-    if (create_info->options & HA_LEX_CREATE_TMP_TABLE)
+    if (create_info->tmp_table())
       m_plock= &m_lock;
     else
       m_plock= &thd->extra_lock;

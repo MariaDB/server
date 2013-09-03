@@ -47,20 +47,9 @@ int   CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 PGLOBAL CntExit(PGLOBAL g);
 
 /***********************************************************************/
-/*  Definition of classes XCOLCRT, XIXDEF, XKPDEF, DOXDEF, TDBDOX      */
+/*  Definition of classes XKPDEF, DOXDEF, TDBDOX                       */
 /*  These classes purpose is chiefly to access protected items!        */
 /***********************************************************************/
-class XCOLCRT: public COLCRT {
-  friend class ha_connect;
-  friend bool CntCreateTable(PGLOBAL, char *, PCXF);
- public:
-  XCOLCRT(PSZ name) : COLCRT(name) {Nulls= -1;}        // Constructor
-  bool HasNulls(void) {return (Nulls != 0);}
-
-private:
-  int Nulls;
-  }; // end of class XCOLCRT
-
 class DOXDEF: public DOSDEF {
 //friend class TDBDOX;
 //friend int MakeIndex(PGLOBAL, PTDB, PIXDEF);
@@ -87,11 +76,7 @@ class XKPDEF: public KPARTDEF {
 //friend int CntMakeIndex(PGLOBAL, const char *, PIXDEF);
   friend int CntIndexInit(PGLOBAL, PTDB, int);
  public:
-  XKPDEF(const char *name, int n) : KPARTDEF((PSZ)name, n) {HasNulls= false;}
-  void   SetNulls(bool b) {HasNulls= b;}
-
- protected:
-  bool   HasNulls;            /* Can have null values                  */
+  XKPDEF(const char *name, int n) : KPARTDEF((PSZ)name, n) {}
   }; // end of class XKPDEF
 
 //RCODE CheckRecord(PGLOBAL g, PTDB tdbp, char *oldbuf, char *newbuf);

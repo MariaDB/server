@@ -94,6 +94,7 @@ be any number of TL_WRITE_CONCURRENT_INSERT locks aktive at the same time.
 my_bool thr_lock_inited=0;
 ulong locks_immediate = 0L, locks_waited = 0L;
 enum thr_lock_type thr_upgraded_concurrent_insert_lock = TL_WRITE;
+
 #ifdef WITH_WSREP
 static wsrep_thd_is_brute_force_fun wsrep_thd_is_brute_force= NULL;
 static wsrep_abort_thd_fun wsrep_abort_thd= NULL;

@@ -36,7 +36,9 @@
 #include "global.h"
 #include "plgdbsem.h"
 #include "reldef.h"
-//#include "xobject.h"
+#if !defined(WIN32)
+#include "osutil.h"
+#endif   // !WIN32
 #include "filamtxt.h"
 #include "tabdos.h"
 #include "tabsys.h"
@@ -320,7 +322,11 @@ int TDBINI::DeleteDB(PGLOBAL g, int irc)
       break;
     case RC_FX:
       while (ReadDB(g) == RC_OK)
-        WritePrivateProfileString(Section, NULL, NULL, Ifile);
+        if (!WritePrivateProfileString(Section, NULL, NULL, Ifile)) {
+          sprintf(g->Message, "Error %d accessing %s", 
+                              GetLastError(), Ifile);
+          return RC_FX;
+          } // endif
 
       break;
     default:
@@ -328,7 +334,11 @@ int TDBINI::DeleteDB(PGLOBAL g, int irc)
         strcpy(g->Message, MSG(NO_SECTION_NAME));
         return RC_FX;
       } else
-        WritePrivateProfileString(Section, NULL, NULL, Ifile);
+        if (!WritePrivateProfileString(Section, NULL, NULL, Ifile)) {
+          sprintf(g->Message, "Error %d accessing %s", 
+                              GetLastError(), Ifile);
+          return RC_FX;
+          } // endif rc
 
     } // endswitch irc
 
@@ -461,13 +471,13 @@ void INICOL::ReadColumn(PGLOBAL g)
       Valbuf[Long] = '\0';
       break;
     default:
-      GetPrivateProfileString(tdbp->Section, Name, "µ",
+      GetPrivateProfileString(tdbp->Section, Name, "\b",
                                         Valbuf, Long + 1, tdbp->Ifile);
       break;
     } // endswitch Flag
 
   // Missing keys are interpreted as null values
-  if (!strcmp(Valbuf, "µ")) {
+  if (!strcmp(Valbuf, "\b")) {
     if (Nullable)
       Value->SetNull(true);
 
@@ -485,6 +495,7 @@ void INICOL::ReadColumn(PGLOBAL g)
 void INICOL::WriteColumn(PGLOBAL g)
   {
   char   *p;
+  bool    rc;
   PTDBINI tdbp = (PTDBINI)To_Tdb;
 
   if (trace > 1)
@@ -510,11 +521,12 @@ void INICOL::WriteColumn(PGLOBAL g)
     if (tdbp->Mode == MODE_UPDATE) {
       strcpy(g->Message, MSG(NO_SEC_UPDATE));
       longjmp(g->jumper[g->jump_level], 31);
-    } else {
+    } else if (*p) {
       tdbp->Section = p;
-      return;
-    } // endif Mode
+    } else
+      tdbp->Section = NULL;
 
+    return;
   } else if (!tdbp->Section) {
     strcpy(g->Message, MSG(SEC_NAME_FIRST));
     longjmp(g->jumper[g->jump_level], 31);
@@ -523,8 +535,16 @@ void INICOL::WriteColumn(PGLOBAL g)
   /*********************************************************************/
   /*  Updating must be done only when not in checking pass.            */
   /*********************************************************************/
-  if (Status)
-    WritePrivateProfileString(tdbp->Section, Name, p, tdbp->Ifile);
+  if (Status) {
+    rc = WritePrivateProfileString(tdbp->Section, Name, p, tdbp->Ifile);
+    
+    if (!rc) {
+      sprintf(g->Message, "Error %d writing to %s", 
+                          GetLastError(), tdbp->Ifile);
+      longjmp(g->jumper[g->jump_level], 31);
+      } // endif rc
+
+    } // endif Status
 
   } // end of WriteColumn
 
@@ -724,14 +744,21 @@ int TDBXIN::DeleteDB(PGLOBAL g, int irc)
   if (irc == RC_EF) {
   } else if (irc == RC_FX) {
     for (Section = Seclist; *Section; Section += (strlen(Section) + 1))
-      WritePrivateProfileString(Section, NULL, NULL, Ifile);
+      if (!WritePrivateProfileString(Section, NULL, NULL, Ifile)) {
+        sprintf(g->Message, "Error %d accessing %s", 
+                            GetLastError(), Ifile);
+        return RC_FX;
+        } // endif
 
-  } else if (Section) {
-    WritePrivateProfileString(Section, Keycur, NULL, Ifile);
-  } else {
+  } else if (!Section) {
     strcpy(g->Message, MSG(NO_SECTION_NAME));
     return RC_FX;
-  } // endif's
+  } else
+    if (!WritePrivateProfileString(Section, Keycur, NULL, Ifile)) {
+      sprintf(g->Message, "Error %d accessing %s", 
+                          GetLastError(), Ifile);
+      return RC_FX;
+      } // endif
 
   return RC_OK;
   } // end of DeleteDB
@@ -792,6 +819,7 @@ void XINCOL::ReadColumn(PGLOBAL g)
 void XINCOL::WriteColumn(PGLOBAL g)
   {
   char   *p;
+  bool    rc;
   PTDBXIN tdbp = (PTDBXIN)To_Tdb;
 
   if (trace > 1)
@@ -813,20 +841,22 @@ void XINCOL::WriteColumn(PGLOBAL g)
     if (tdbp->Mode == MODE_UPDATE) {
       strcpy(g->Message, MSG(NO_SEC_UPDATE));
       longjmp(g->jumper[g->jump_level], 31);
-    } else {
+    } else if (*p) {
       tdbp->Section = p;
-      return;
-    } // endif Mode
+    } else
+      tdbp->Section = NULL;
 
+    return;
   } else if (Flag == 2) {
     if (tdbp->Mode == MODE_UPDATE) {
       strcpy(g->Message, MSG(NO_KEY_UPDATE));
       longjmp(g->jumper[g->jump_level], 31);
-    } else {
+    } else if (*p) {
       tdbp->Keycur = p;
-      return;
-    } // endif Mode
+    } else
+      tdbp->Keycur = NULL;
 
+    return;
   } else if (!tdbp->Section || !tdbp->Keycur) {
     strcpy(g->Message, MSG(SEC_KEY_FIRST));
     longjmp(g->jumper[g->jump_level], 31);
@@ -835,8 +865,16 @@ void XINCOL::WriteColumn(PGLOBAL g)
   /*********************************************************************/
   /*  Updating must be done only when not in checking pass.            */
   /*********************************************************************/
-  if (Status)
-    WritePrivateProfileString(tdbp->Section, tdbp->Keycur, p, tdbp->Ifile);
+  if (Status) {
+    rc = WritePrivateProfileString(tdbp->Section, tdbp->Keycur, p, tdbp->Ifile);
+    
+    if (!rc) {
+      sprintf(g->Message, "Error %d writing to %s", 
+                          GetLastError(), tdbp->Ifile);
+      longjmp(g->jumper[g->jump_level], 31);
+      } // endif rc
+
+    } // endif Status
 
   } // end of WriteColumn
 

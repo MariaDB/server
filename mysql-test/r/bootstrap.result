@@ -1,7 +1,7 @@
 drop table if exists t1;
 drop table t1;
 drop table t1;
-ERROR 42S02: Unknown table 't1'
+ERROR 42S02: Unknown table 'test.t1'
 set @my_max_allowed_packet= @@max_allowed_packet;
 set global max_allowed_packet=100*@@max_allowed_packet;
 set global max_allowed_packet=@my_max_allowed_packet;
@@ -11,9 +11,6 @@ End of 5.1 tests
 # Bug #11766306: 59393: HAVE_INNODB=YES WHEN MYSQLD 
 #  STARTED WITH --SKIP-INNODB
 #
-SHOW VARIABLES LIKE 'have_innodb';
-Variable_name	Value
-have_innodb	DISABLED
 SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
  and SUPPORT='YES';
 

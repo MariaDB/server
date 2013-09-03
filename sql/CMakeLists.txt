@@ -40,6 +40,7 @@ ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER -DHAVE_POOL_OF_THREADS)
 IF(SSL_DEFINES)
  ADD_DEFINITIONS(${SSL_DEFINES})
 ENDIF()
+
 IF(WITH_WSREP)
  SET(WSREP_SOURCES
    wsrep_check_opts.cc
@@ -76,7 +77,8 @@ SET (SQL_SOURCE
                sp_rcontext.cc spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc 
                sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc sql_crypt.h 
                sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc sql_do.cc 
-               sql_error.cc sql_handler.cc sql_help.cc sql_insert.cc sql_lex.cc 
+               sql_error.cc sql_handler.cc sql_get_diagnostics.cc
+               sql_help.cc sql_insert.cc sql_lex.cc 
                sql_list.cc sql_load.cc sql_manager.cc
                sql_parse.cc sql_bootstrap.cc sql_bootstrap.h
                sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc 
@@ -96,7 +98,6 @@ SET (SQL_SOURCE
                sql_signal.cc rpl_handler.cc mdl.cc sql_admin.cc
                transaction.cc sys_vars.cc sql_truncate.cc datadict.cc
                sql_reload.cc sql_cmd.h
-
                # added in MariaDB:
                sql_lifo_buffer.h sql_join_cache.h sql_join_cache.cc
                create_options.cc multi_range_read.cc
@@ -108,9 +109,9 @@ SET (SQL_SOURCE
                my_apc.cc my_apc.h
                rpl_gtid.cc
 	       ${WSREP_SOURCES}
+               table_cache.cc
                ${GEN_SOURCES}
-               ${MYSYS_LIBWRAP_SOURCE}
-			   )
+               ${MYSYS_LIBWRAP_SOURCE})
   
 IF(WIN32)
   SET(SQL_SOURCE ${SQL_SOURCE} threadpool_win.cc)
@@ -125,7 +126,7 @@ ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 ADD_DEPENDENCIES(sql GenServerSource)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
-  mysys dbug strings vio regex
+  mysys mysys_ssl dbug strings vio regex
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
   ${WSREP_LIB}
   ${SSL_LIBRARIES})
@@ -161,7 +162,7 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
     # incremental appears to crash from time to time,if used with /DEF option
     SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS "${mysqld_link_flags} /DEF:mysqld.def /INCREMENTAL:NO")
 
-    FOREACH (CORELIB sql mysys dbug strings)
+    FOREACH (CORELIB sql mysys mysys_ssl dbug strings)
       GET_TARGET_PROPERTY(LOC ${CORELIB} LOCATION)
       FILE(TO_NATIVE_PATH ${LOC} LOC)
       SET (LIB_LOCATIONS ${LIB_LOCATIONS} ${LOC}) 
@@ -191,7 +192,7 @@ ENDIF()
 # On Solaris, some extra effort is required in order to get dtrace probes
 # from static libraries
 DTRACE_INSTRUMENT_STATIC_LIBS(mysqld 
- "sql;mysys;${MYSQLD_STATIC_PLUGIN_LIBS}")
+ "sql;mysys;mysys_ssl;${MYSQLD_STATIC_PLUGIN_LIBS}")
  
 
 SET(WITH_MYSQLD_LDFLAGS "" CACHE STRING "Additional linker flags for mysqld")
@@ -244,7 +245,7 @@ ADD_CUSTOM_COMMAND(
 
 MYSQL_ADD_EXECUTABLE(mysql_tzinfo_to_sql tztime.cc COMPONENT Server)
 SET_TARGET_PROPERTIES(mysql_tzinfo_to_sql PROPERTIES COMPILE_FLAGS "-DTZINFO2SQL")
-TARGET_LINK_LIBRARIES(mysql_tzinfo_to_sql mysys)
+TARGET_LINK_LIBRARIES(mysql_tzinfo_to_sql mysys mysys_ssl)
 
 ADD_CUSTOM_TARGET( 
         GenServerSource

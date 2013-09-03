@@ -13,7 +13,7 @@ select * from t1;
 set @@test_sql_discovery_statement='t1:foobar bwa-ha-ha';
 --error ER_NO_SUCH_TABLE
 select * from t0;
---error ER_NO_SUCH_TABLE
+--error ER_SQL_DISCOVER_ERROR
 select * from t1;
 show warnings;
 
@@ -22,52 +22,57 @@ show warnings;
 #
 
 set @@test_sql_discovery_statement='t1:select 1';
---error ER_NO_SUCH_TABLE
+--error ER_SQL_DISCOVER_ERROR
 select * from t1;
 show warnings;
 
 set @@test_sql_discovery_statement='t1:create table t1 (a int primary key) partition by hash(id) partitions 2';
---error ER_NO_SUCH_TABLE
+--error ER_SQL_DISCOVER_ERROR
 select * from t1;
 show warnings;
 
 set @@test_sql_discovery_statement='t1:create table t1 (a int) union=(t3,t4)';
---error ER_NO_SUCH_TABLE
+--error ER_SQL_DISCOVER_ERROR
 select * from t1;
 show warnings;
 
 set @@test_sql_discovery_statement='t1:create table t1 like t2';
---error ER_NO_SUCH_TABLE
+--error ER_SQL_DISCOVER_ERROR
 select * from t1;
 show warnings;
 
 set @@test_sql_discovery_statement='t1:create table t1 select * from t2';
---error ER_NO_SUCH_TABLE
+--error ER_SQL_DISCOVER_ERROR
 select * from t1;
 show warnings;
 
 set @@test_sql_discovery_statement='t1:create table t1 (a int) index directory="/tmp"';
---error ER_NO_SUCH_TABLE
+--error ER_SQL_DISCOVER_ERROR
 select * from t1;
 show warnings;
 
 set @@test_sql_discovery_statement='t1:create table t1 (a int) data directory="/tmp"';
---error ER_NO_SUCH_TABLE
+--error ER_SQL_DISCOVER_ERROR
 select * from t1;
 show warnings;
 
 set @@test_sql_discovery_statement='t1:create table t1 (a int) engine=myisam';
---error ER_NO_SUCH_TABLE
+--error ER_SQL_DISCOVER_ERROR
 select * from t1;
 show warnings;
 
 set @@test_sql_discovery_statement='t1:create temporary table t1 (a int)';
---error ER_NO_SUCH_TABLE
+--error ER_SQL_DISCOVER_ERROR
 select * from t1;
 show warnings;
 
 set @@test_sql_discovery_statement='t1:create table if not exists t1 (a int)';
---error ER_NO_SUCH_TABLE
+--error ER_SQL_DISCOVER_ERROR
+select * from t1;
+show warnings;
+
+set @@test_sql_discovery_statement='t1:create table t1 (a uint)';
+--error ER_SQL_DISCOVER_ERROR
 select * from t1;
 show warnings;
 

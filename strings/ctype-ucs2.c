@@ -58,7 +58,7 @@ my_bincmp(const uchar *s, const uchar *se,
           const uchar *t, const uchar *te)
 {
   int slen= (int) (se - s), tlen= (int) (te - t);
-  int len= min(slen, tlen);
+  int len= MY_MIN(slen, tlen);
   int cmp= memcmp(s, t, len);
   return cmp ? cmp : slen - tlen;
 }
@@ -2658,7 +2658,7 @@ my_strnncollsp_utf32_bin(CHARSET_INFO *cs __attribute__((unused)),
   se= s + slen;
   te= t + tlen;
 
-  for (minlen= min(slen, tlen); minlen; minlen-= 4)
+  for (minlen= MY_MIN(slen, tlen); minlen; minlen-= 4)
   {
     my_wc_t s_wc= my_utf32_get(s);
     my_wc_t t_wc= my_utf32_get(t);
@@ -3033,11 +3033,23 @@ static void
 my_fill_ucs2(CHARSET_INFO *cs __attribute__((unused)), 
              char *s, size_t l, int fill)
 {
+  DBUG_ASSERT(fill <= 0xFFFF);
+#ifdef WAITING_FOR_GCC_VECTORIZATION_BUG_TO_BE_FIXED
+  /*
+    This code with int2store() is known to be faster on some processors,
+    but crashes on other processors due to a possible bug in GCC's
+    -ftree-vectorization (which is enabled in -O3) in case of
+    a   non-aligned memory. See here for details:
+    http://gcc.gnu.org/bugzilla/show_bug.cgi?id=58039
+  */
   char *last= s + l - 2;
   uint16 tmp= (fill >> 8) + ((fill & 0xFF) << 8); /* swap bytes */
   DBUG_ASSERT(fill <= 0xFFFF);
   for ( ; s <= last; s+= 2)
     int2store(s, tmp); /* store little-endian */
+#else
+  for ( ; l >= 2; s[0]= (fill >> 8), s[1]= (fill & 0xFF), s+= 2, l-= 2);
+#endif
 }
 
 
@@ -3121,7 +3133,7 @@ static int my_strnncollsp_ucs2(CHARSET_INFO *cs __attribute__((unused)),
   se= s + slen;
   te= t + tlen;
 
-  for (minlen= min(slen, tlen); minlen; minlen-= 2)
+  for (minlen= MY_MIN(slen, tlen); minlen; minlen-= 2)
   {
     int s_wc = uni_plane[s[0]] ? (int) uni_plane[s[0]][s[1]].sort :
                                  (((int) s[0]) << 8) + (int) s[1];
@@ -3198,7 +3210,7 @@ size_t my_well_formed_len_ucs2(CHARSET_INFO *cs __attribute__((unused)),
   size_t nbytes= ((size_t) (e-b)) & ~(size_t) 1;
   *error= 0;
   nchars*= 2;
-  return min(nbytes, nchars);
+  return MY_MIN(nbytes, nchars);
 }
 
 
@@ -3273,7 +3285,7 @@ static int my_strnncollsp_ucs2_bin(CHARSET_INFO *cs __attribute__((unused)),
   se= s + slen;
   te= t + tlen;
 
-  for (minlen= min(slen, tlen); minlen; minlen-= 2)
+  for (minlen= MY_MIN(slen, tlen); minlen; minlen-= 2)
   {
     int s_wc= s[0] * 256 + s[1];
     int t_wc= t[0] * 256 + t[1];

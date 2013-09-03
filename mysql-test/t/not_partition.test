@@ -2,10 +2,10 @@
 # Run this test only when mysqld doesn't have partitioning (not compiled with)
 # the statements are not expected to work, just check that we
 # can't crash the server
--- require r/not_partition.require
-disable_query_log;
-show variables like "have_partitioning";
-enable_query_log;
+if (`SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'partition'`)
+{
+  --skip Test requires no partitioning
+}
 --disable_warnings
 DROP TABLE IF EXISTS t1;
 --enable_warnings

@@ -52,6 +52,23 @@ ALTER TABLE mysql.gtid_slave_pos ADD PRIMARY KEY (domain_id, sub_id);
 SELECT * FROM t1;
 
 
+--echo *** Test that setting @@gtid_domain_id or @@gtid_seq_no is not allowed inside a transaction. ***
+BEGIN;
+INSERT INTO t1 VALUES (100);
+--error ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
+SET SESSION gtid_domain_id= 100;
+--error ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
+SET SESSION gtid_seq_no= 100;
+SET @old_domain= @@GLOBAL.gtid_domain_id;
+SET GLOBAL gtid_domain_id= 100;
+SELECT @@SESSION.gtid_domain_id;
+SET GLOBAL gtid_domain_id= @old_domain;
+INSERT INTO t1 VALUES (101);
+SELECT * FROM t1 ORDER BY a;
+ROLLBACK;
+SELECT * FROM t1 ORDER BY a;
+
+
 --echo *** Test requesting an explicit GTID position that conflicts with newer GTIDs of our own in the binlog. ***
 --connection slave
 --source include/stop_slave.inc
@@ -97,10 +114,41 @@ START SLAVE;
 --source include/wait_condition.inc
 SELECT * FROM t1 ORDER BY a;
 
+--echo *** MDEV-4688: Empty value of @@GLOBAL.gtid_slave_pos ***
+# The problem was that record_gtid() deleted too much of the in-memory state,
+# leaving the state empty until after commit when we add the newly committed
+# GTID. Test this by forcing an error after the delete of the old data but
+# before the add of new data.
+
+--source include/stop_slave.inc
+
+--connection master
+# This will be GTID 0-1-3
+INSERT INTO t1 VALUES (5);
+
+--connection slave
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
+SET GLOBAL debug_dbug="+d,gtid_fail_after_record_gtid";
+SET sql_log_bin=0;
+CALL mtr.add_suppression('Got error 131 "Command not supported by database" during COMMIT');
+SET sql_log_bin=1;
+START SLAVE;
+--let $slave_sql_errno= 1180
+--source include/wait_for_slave_sql_error.inc
+# The bug was that @@GLOBAL.gtid_slave_pos was empty here.
+SELECT @@GLOBAL.gtid_slave_pos;
+SELECT * FROM t1 ORDER BY a;
+SET GLOBAL debug_dbug= @old_dbug;
+START SLAVE SQL_THREAD;
+--let $wait_condition= SELECT COUNT(*) = 5 FROM t1
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY a;
+
 
 --echo *** Test slave requesting a GTID that is not present in the master's binlog ***
 --source include/stop_slave.inc
-SET GLOBAL gtid_slave_pos = "0-1-3";
+SET GLOBAL gtid_slave_pos = "0-1-4";
 START SLAVE;
 
 SET sql_log_bin=0;
@@ -113,15 +161,15 @@ SET sql_log_bin=1;
 
 --let $rpl_only_running_threads= 1
 --source include/stop_slave.inc
-SET GLOBAL gtid_slave_pos = "0-1-2";
+SET GLOBAL gtid_slave_pos = "0-1-3";
 START SLAVE;
 --source include/wait_for_slave_to_start.inc
 
 --connection master
-INSERT INTO t1 VALUES (5);
+INSERT INTO t1 VALUES (6);
 
 --connection slave
---let $wait_condition= SELECT COUNT(*) = 5 FROM t1
+--let $wait_condition= SELECT COUNT(*) = 6 FROM t1
 --source include/wait_condition.inc
 SELECT * FROM t1 ORDER BY a;
 
@@ -142,7 +190,7 @@ START SLAVE;
 
 --connection master
 SET GLOBAL debug_dbug= @old_dbug;
-INSERT INTO t1 VALUES (6);
+INSERT INTO t1 VALUES (7);
 --save_master_pos
 
 --connection slave

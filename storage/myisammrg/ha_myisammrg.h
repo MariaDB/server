@@ -137,6 +137,7 @@ public:
   int extra_opt(enum ha_extra_function operation, ulong cache_size);
   int external_lock(THD *thd, int lock_type);
   uint lock_count(void) const;
+  int create_mrg(const char *name, HA_CREATE_INFO *create_info);
   int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info);
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
 			     enum thr_lock_type lock_type);
@@ -144,7 +145,10 @@ public:
   void append_create_info(String *packet);
   MYRG_INFO *myrg_info() { return file; }
   TABLE *table_ptr() { return table; }
-  bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes);
+  enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *,
+                                                Alter_inplace_info *);
+  bool inplace_alter_table(TABLE *altered_table,
+                           Alter_inplace_info *ha_alter_info);
   int check(THD* thd, HA_CHECK_OPT* check_opt);
   ha_rows records();
   virtual uint count_query_cache_dependant_tables(uint8 *tables_type);

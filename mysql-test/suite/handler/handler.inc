@@ -581,7 +581,7 @@ handler t1 open;
 handler t1 read next;
 --error ER_LOCK_OR_ACTIVE_TRANSACTION
 handler t2 close;
---error ER_LOCK_OR_ACTIVE_TRANSACTION
+--error ER_CANT_REOPEN_TABLE
 handler t3 open;
 --echo # After UNLOCK TABLES handlers should be around and
 --echo # we should be able to continue reading through them.

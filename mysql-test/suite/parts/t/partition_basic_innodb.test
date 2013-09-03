@@ -1,3 +1,7 @@
+#Considering the time taken for this test on slow solaris platforms making it a big test
+--source include/big_test.inc
+# Skiping this test from Valgrind execution as per Bug-14627884
+--source include/not_valgrind.inc
 ################################################################################
 # t/partition_basic_innodb.test                                                #
 #                                                                              #
@@ -22,8 +26,6 @@
 # any of the variables.
 #
 
---source include/big_test.inc
-
 #------------------------------------------------------------------------------#
 # General not engine specific settings and requirements
 
@@ -42,11 +44,11 @@ SET @max_row = 20;
 let $more_trigger_tests= 0;
 let $more_pk_ui_tests= 0;
 
-# This test relies on connecting externally from mysqltest, doesn't
-# work with embedded.
---source include/not_embedded.inc
 # The server must support partitioning.
 --source include/have_partition.inc
+
+# Does not work with --embedded
+--source include/not_embedded.inc
 
 #------------------------------------------------------------------------------#
 # Engine specific settings and requirements

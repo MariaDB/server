@@ -43,6 +43,7 @@ SELECT * FROM t1 ORDER BY a;
 --source include/kill_binlog_dump_threads.inc
 INSERT INTO t1 VALUES (10);
 SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
 SET GLOBAL debug_dbug="+d,gtid_force_reconnect_at_10_1_100";
 --save_master_pos
 
@@ -88,6 +89,7 @@ SELECT * FROM t1 ORDER BY a;
 --connection server_1
 --source include/kill_binlog_dump_threads.inc
 INSERT INTO t1 VALUES (20);
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
 SET GLOBAL debug_dbug="+d,gtid_force_reconnect_at_10_1_100";
 --save_master_pos
 
@@ -127,6 +129,7 @@ SET gtid_seq_no= 200;
 INSERT INTO t1 VALUES (13);
 SET gtid_domain_id= 10;
 
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
 SET GLOBAL debug_dbug="+d,gtid_force_reconnect_at_10_1_100";
 
 --connection server_2
@@ -158,6 +161,7 @@ TRUNCATE t1;
 RESET MASTER;
 
 --source include/kill_binlog_dump_threads.inc
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
 SET GLOBAL debug_dbug="+d,binlog_force_reconnect_after_22_events";
 
 # 4 events for FD, fake rotate, gtid list, binlog checkpoint.

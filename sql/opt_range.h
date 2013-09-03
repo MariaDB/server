@@ -104,7 +104,7 @@ class QUICK_RANGE :public Sql_alloc {
   void make_min_endpoint(key_range *kr, uint prefix_length, 
                          key_part_map keypart_map) {
     make_min_endpoint(kr);
-    kr->length= min(kr->length, prefix_length);
+    kr->length= MY_MIN(kr->length, prefix_length);
     kr->keypart_map&= keypart_map;
   }
   
@@ -142,7 +142,7 @@ class QUICK_RANGE :public Sql_alloc {
   void make_max_endpoint(key_range *kr, uint prefix_length, 
                          key_part_map keypart_map) {
     make_max_endpoint(kr);
-    kr->length= min(kr->length, prefix_length);
+    kr->length= MY_MIN(kr->length, prefix_length);
     kr->keypart_map&= keypart_map;
   }
 
@@ -1046,8 +1046,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond);
-void store_key_image_to_rec(Field *field, uchar *ptr, uint len);
 #endif
+void store_key_image_to_rec(Field *field, uchar *ptr, uint len);
 
 extern String null_string;
 

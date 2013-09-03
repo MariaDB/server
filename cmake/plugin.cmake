@@ -90,7 +90,8 @@ MACRO(MYSQL_ADD_PLUGIN)
     AND NOT ARG_MODULE_ONLY)
      
     SET(WITH_${plugin} 1)
-  ELSEIF(WITHOUT_${plugin}_STORAGE_ENGINE OR WITH_NONE OR ${plugin}_DISABLED)
+  ELSEIF(WITHOUT_${plugin} OR WITHOUT_${plugin}_STORAGE_ENGINE OR
+         WITH_NONE OR ${plugin}_DISABLED)
     SET(WITHOUT_${plugin} 1)
     SET(WITH_${plugin}_STORAGE_ENGINE 0)
     SET(WITH_${plugin} 0)

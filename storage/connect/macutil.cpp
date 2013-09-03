@@ -315,4 +315,4 @@ bool MACINFO::GetOneInfo(PGLOBAL g, int flag, void *v, int lv)
     *((int*)v) = n;
 
   return false;
-  } // end of ReadColumn
+  } // end of GetOneInfo

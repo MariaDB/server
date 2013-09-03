@@ -479,7 +479,7 @@ TABLE_CATEGORY get_table_category(const LEX_STRING *db,
 
 struct TABLE_share;
 
-extern ulong refresh_version;
+extern ulong tdc_refresh_version(void);
 
 typedef struct st_table_field_type
 {
@@ -496,19 +496,6 @@ typedef struct st_table_field_def
   uint primary_key_parts;
   const uint *primary_key_columns;
 } TABLE_FIELD_DEF;
-
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-/**
-  Partition specific ha_data struct.
-*/
-typedef struct st_ha_data_partition
-{
-  bool auto_inc_initialized;
-  mysql_mutex_t LOCK_auto_inc;                 /**< protecting auto_inc val */
-  ulonglong next_auto_inc_val;                 /**< first non reserved value */
-} HA_DATA_PARTITION;
-#endif
 
 
 class Table_check_intact
@@ -611,14 +598,28 @@ struct TABLE_SHARE
   TYPELIB fieldnames;			/* Pointer to fieldnames */
   TYPELIB *intervals;			/* pointer to interval info */
   mysql_mutex_t LOCK_ha_data;           /* To protect access to ha_data */
-  TABLE_SHARE *next, **prev;            /* Link to unused shares */
+  mysql_mutex_t LOCK_share;             /* To protect TABLE_SHARE */
 
-  /*
-    Doubly-linked (back-linked) lists of used and unused TABLE objects
-    for this share.
-  */
-  I_P_List <TABLE, TABLE_share> used_tables;
-  I_P_List <TABLE, TABLE_share> free_tables;
+  typedef I_P_List <TABLE, TABLE_share> TABLE_list;
+  struct
+  {
+    /**
+      Protects ref_count and m_flush_tickets.
+    */
+    mysql_mutex_t LOCK_table_share;
+    TABLE_SHARE *next, **prev;            /* Link to unused shares */
+    uint ref_count;                       /* How many TABLE objects uses this */
+    /**
+      List of tickets representing threads waiting for the share to be flushed.
+    */
+    Wait_for_flush_list m_flush_tickets;
+    /*
+      Doubly-linked (back-linked) lists of used and unused TABLE objects
+      for this share.
+    */
+    TABLE_list used_tables;
+    TABLE_list free_tables;
+  } tdc;
 
   LEX_CUSTRING tabledef_version;
 
@@ -655,6 +656,8 @@ struct TABLE_SHARE
   LEX_STRING normalized_path;		/* unpack_filename(path) */
   LEX_STRING connect_string;
 
+  bool is_gtid_slave_pos;
+
   /* 
      Set of keys in use, implemented as a Bitmap.
      Excludes keys disabled by ALTER TABLE ... DISABLE KEYS.
@@ -663,7 +666,8 @@ struct TABLE_SHARE
   key_map keys_for_keyread;
   ha_rows min_rows, max_rows;		/* create information */
   ulong   avg_row_length;		/* create information */
-  ulong   version, mysql_version;
+  ulong   version;
+  ulong   mysql_version;		/* 0 if .frm is created before 5.0 */
   ulong   reclength;			/* Recordlength */
   /* Stored record length. No generated-only virtual fields are included */
   ulong   stored_rec_length;            
@@ -672,8 +676,7 @@ struct TABLE_SHARE
   inline handlerton *db_type() const	/* table_type for handler */
   { 
     return is_view   ? view_pseudo_hton :
-           db_plugin ? plugin_data(db_plugin, handlerton*)
-                     : NULL;
+           db_plugin ? plugin_hton(db_plugin) : NULL;
   }
   enum row_type row_type;		/* How rows are stored */
   enum tmp_table_type tmp_table;
@@ -683,9 +686,10 @@ struct TABLE_SHARE
   /** Per-page checksums or not. */
   enum ha_choice page_checksum;
 
-  uint ref_count;                       /* How many TABLE objects uses this */
-  uint blob_ptr_size;			/* 4 or 8 */
   uint key_block_size;			/* create key_block_size, if used */
+  uint stats_sample_pages;		/* number of pages to sample during
+					stats estimation, if used, otherwise 0. */
+  enum_stats_auto_recalc stats_auto_recalc; /* Automatic recalc of stats. */
   uint null_bytes, last_null_bit_pos;
   /*
     Same as null_bytes, except that if there is only a 'delete-marker' in
@@ -736,13 +740,16 @@ struct TABLE_SHARE
   */
   int cached_row_logging_check;
 
+  /* Name of the tablespace used for this table */
+  char *tablespace;
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* filled in when reading from frm */
   bool auto_partitioned;
   char *partition_info_str;
   uint  partition_info_str_len;
   uint  partition_info_buffer_size;
-  handlerton *default_part_db_type;
+  plugin_ref default_part_plugin;
 #endif
 
   /**
@@ -757,24 +764,11 @@ struct TABLE_SHARE
   */
   const TABLE_FIELD_DEF *table_field_def_cache;
 
-  /** place to store storage engine specific data */
-  void *ha_data;
-  void (*ha_data_destroy)(void *); /* An optional destructor for ha_data */
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  /** place to store partition specific data, LOCK_ha_data hold while init. */
-  HA_DATA_PARTITION *ha_part_data;
-  /* Destructor for ha_part_data */
-  void (*ha_part_data_destroy)(HA_DATA_PARTITION *);
-#endif
+  /** Main handler's share */
+  Handler_share *ha_share;
 
   /** Instrumentation for this table share. */
   PSI_table_share *m_psi;
-
-  /**
-    List of tickets representing threads waiting for the share to be flushed.
-  */
-  Wait_for_flush_list m_flush_tickets;
 
   /*
     Set share's table cache key and update its db and table name appropriately.
@@ -847,37 +841,7 @@ struct TABLE_SHARE
   /** Is this table share being expelled from the table definition cache?  */
   inline bool has_old_version() const
   {
-    return version != refresh_version;
-  }
-  inline bool protected_against_usage() const
-  {
-    return version == 0;
-  }
-  inline void protect_against_usage()
-  {
-    version= 0;
-  }
-  /*
-    This is used only for the case of locked tables, as we want to
-    allow one to do SHOW commands on them even after ALTER or REPAIR
-  */
-  inline void allow_access_to_protected_table()
-  {
-    DBUG_ASSERT(version == 0);
-    version= 1;
-  }
-  /*
-    Remove from table definition cache at close.
-    Table can still be opened by SHOW
-  */
-  inline void remove_from_cache_at_close()
-  {
-    if (version != 0)                           /* Don't remove protection */
-      version= 1;
-  }
-  inline void set_refresh_version()
-  {
-    version= refresh_version;
+    return version != tdc_refresh_version();
   }
 
   /**
@@ -1249,6 +1213,9 @@ public:
    */
   bool key_read;
   bool no_keyread;
+  /**
+    If set, indicate that the table is not replicated by the server.
+  */
   bool locked_by_logger;
   bool no_replicate;
   bool locked_by_name;
@@ -1282,7 +1249,8 @@ public:
   Query_arena *expr_arena;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *part_info;            /* Partition related information */
-  bool no_partitions_used; /* If true, all partitions have been pruned away */
+  /* If true, all partitions have been pruned away */
+  bool all_partitions_pruned_away;
 #endif
   uint max_keys; /* Size of allocated key_info array. */
   bool stats_is_read;     /* Persistent statistics is read for the table */
@@ -1983,7 +1951,6 @@ struct TABLE_LIST
   /* For transactional locking. */
   int           lock_timeout;           /* NOWAIT or WAIT [X]               */
   bool          lock_transactional;     /* If transactional lock requested. */
-  bool          internal_tmp_table;
   /** TRUE if an alias for this table was specified in the SQL. */
   bool          is_alias;
   /** TRUE if the table is referred to in the statement using a fully
@@ -2052,6 +2019,11 @@ struct TABLE_LIST
   enum enum_schema_table_state schema_table_state;
 
   MDL_request mdl_request;
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  /* List to carry partition names from PARTITION (...) clause in statement */
+  List<String> *partition_names;
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
 
   void calc_md5(char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);
@@ -2208,7 +2180,7 @@ struct TABLE_LIST
      @brief Returns the name of the database that the referenced table belongs
      to.
   */
-  char *get_db_name() { return view != NULL ? view_db.str : db; }
+  char *get_db_name() const { return view != NULL ? view_db.str : db; }
 
   /**
      @brief Returns the name of the table that this TABLE_LIST represents.
@@ -2216,7 +2188,7 @@ struct TABLE_LIST
      @details The unqualified table name or view name for a table or view,
      respectively.
    */
-  char *get_table_name() { return view != NULL ? view_name.str : table_name; }
+  char *get_table_name() const { return view != NULL ? view_name.str : table_name; }
   bool is_active_sjm();
   bool is_jtbm() { return test(jtbm_subselect!=NULL); }
   st_select_lex_unit *get_unit();
@@ -2497,7 +2469,8 @@ enum get_table_share_flags {
   GTS_TABLE                = 1,
   GTS_VIEW                 = 2,
   GTS_NOLOCK               = 4,
-  GTS_FORCE_DISCOVERY      = 8
+  GTS_USE_DISCOVERY        = 8,
+  GTS_FORCE_DISCOVERY      = 16
 };
 
 size_t max_row_length(TABLE *table, const uchar *data);
@@ -2512,7 +2485,7 @@ bool unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root,
                                TABLE *table, Field *field,
                                LEX_STRING *vcol_expr, bool *error_reported);
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
-                               char *key, uint key_length);
+                               const char *key, uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
                           uint key_length,
                           const char *table_name, const char *path);

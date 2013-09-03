@@ -129,6 +129,8 @@ alter table t1 ULL=10000000;
 show create table t1;
 alter table t1 change a a int complex='c,c,c';
 show create table t1;
+alter table t1 one_or_two=two;
+show create table t1;
 drop table t1;
 
 --echo #illegal value error
@@ -174,3 +176,24 @@ SET @@SQL_MODE=@OLD_SQL_MODE;
 #
 select 1;
 UNINSTALL PLUGIN example;
+
+#
+# MDEV-4573 UNINSTALL PLUGIN misleading error message for non-dynamic plugins
+#
+--error ER_PLUGIN_DELETE_BUILTIN
+UNINSTALL PLUGIN MyISAM;
+
+#
+# MDEV-4529 Assertion `tmp->state == 4' fails on mix of INSTALL SONAME / UNINSTALL PLUGIN
+#
+
+select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+install soname 'ha_example';
+select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+uninstall plugin example;
+select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+install soname 'ha_example';
+select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+uninstall soname 'ha_example';
+select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+

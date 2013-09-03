@@ -27,8 +27,6 @@
 #include <my_bit.h>
 #include <lf.h>
 
-LF_REQUIRE_PINS(3)
-
 /* An element of the list */
 typedef struct {
   intptr volatile link; /* a pointer to the next element in a listand a flag */

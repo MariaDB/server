@@ -43,7 +43,7 @@
 # Set IP address defaults with respect to IPV6 support
 #
 # Set this to enable debugging output
-let $my_socket_debug= 0;
+let $my_socket_debug_dbug= 0;
 #
 # Determine if IPV6 supported
 #
@@ -66,7 +66,7 @@ if($check_ipv4_mapped_supported)
   let $my_localhost=::ffff:127.0.0.1;
 }
 #
-let $my_socket_debug= 0;
+let $my_socket_debug_dbug= 0;
 if($my_socket_debug)
 {
   --echo IPV6=$check_ipv6_supported, IPV4_MAPPED = $check_ipv4_mapped_supported, LOCALHOST = $my_localhost

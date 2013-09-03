@@ -56,7 +56,7 @@ static void wrong_precision_error(uint errcode, Item *a,
   char buff[1024];
   String buf(buff, sizeof(buff), system_charset_info);
 
-  my_error(errcode, MYF(0), (uint) min(number, UINT_MAX32),
+  my_error(errcode, MYF(0), (uint) MY_MIN(number, UINT_MAX32),
            item_name(a, &buf), maximum);
 }
 
@@ -2077,19 +2077,6 @@ public:
 protected:
   Create_func_round() {}
   virtual ~Create_func_round() {}
-};
-
-
-class Create_func_row_count : public Create_func_arg0
-{
-public:
-  virtual Item *create_builder(THD *thd);
-
-  static Create_func_row_count s_singleton;
-
-protected:
-  Create_func_row_count() {}
-  virtual ~Create_func_row_count() {}
 };
 
 
@@ -4838,18 +4825,6 @@ Create_func_round::create_native(THD *thd, LEX_STRING name,
 }
 
 
-Create_func_row_count Create_func_row_count::s_singleton;
-
-Item*
-Create_func_row_count::create_builder(THD *thd)
-{
-  DBUG_ENTER("Create_func_row_count::create");
-  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-  thd->lex->safe_to_cache_query= 0;
-  DBUG_RETURN(new (thd->mem_root) Item_func_row_count());
-}
-
-
 Create_func_rpad Create_func_rpad::s_singleton;
 
 Item*
@@ -5520,7 +5495,6 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("RELEASE_LOCK") }, BUILDER(Create_func_release_lock)},
   { { C_STRING_WITH_LEN("REVERSE") }, BUILDER(Create_func_reverse)},
   { { C_STRING_WITH_LEN("ROUND") }, BUILDER(Create_func_round)},
-  { { C_STRING_WITH_LEN("ROW_COUNT") }, BUILDER(Create_func_row_count)},
   { { C_STRING_WITH_LEN("RPAD") }, BUILDER(Create_func_rpad)},
   { { C_STRING_WITH_LEN("RTRIM") }, BUILDER(Create_func_rtrim)},
   { { C_STRING_WITH_LEN("SEC_TO_TIME") }, BUILDER(Create_func_sec_to_time)},
@@ -5822,6 +5796,13 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
 }
 
 
+static bool
+have_important_literal_warnings(const MYSQL_TIME_STATUS *status)
+{
+  return (status->warnings & ~MYSQL_TIME_NOTE_TRUNCATED) != 0;
+}
+
+
 /**
   Builder for datetime literals:
     TIME'00:00:00', DATE'2001-01-01', TIMESTAMP'2001-01-01 00:00:00'.
@@ -5841,11 +5822,7 @@ Item *create_temporal_literal(THD *thd,
   MYSQL_TIME_STATUS status;
   MYSQL_TIME ltime;
   Item *item= NULL;
-  ulonglong datetime_flags= thd->variables.sql_mode &
-                            (MODE_NO_ZERO_IN_DATE |
-                             MODE_NO_ZERO_DATE |
-                             MODE_INVALID_DATES);
-  ulonglong flags= TIME_FUZZY_DATE | datetime_flags;
+  ulonglong flags= sql_mode_for_dates(thd);
 
   switch(type)
   {
@@ -5857,13 +5834,15 @@ Item *create_temporal_literal(THD *thd,
     break;
   case MYSQL_TYPE_DATETIME:
     if (!str_to_datetime(cs, str, length, &ltime, flags, &status) &&
-        ltime.time_type == MYSQL_TIMESTAMP_DATETIME && !status.warnings)
+        ltime.time_type == MYSQL_TIMESTAMP_DATETIME &&
+        !have_important_literal_warnings(&status))
       item= new (thd->mem_root) Item_datetime_literal(&ltime,
                                                       status.precision);
     break;
   case MYSQL_TYPE_TIME:
     if (!str_to_time(cs, str, length, &ltime, 0, &status) &&
-        ltime.time_type == MYSQL_TIMESTAMP_TIME && !status.warnings)
+        ltime.time_type == MYSQL_TIMESTAMP_TIME &&
+        !have_important_literal_warnings(&status))
       item= new (thd->mem_root) Item_time_literal(&ltime,
                                                   status.precision);
     break;
@@ -5872,7 +5851,16 @@ Item *create_temporal_literal(THD *thd,
   }
 
   if (item)
+  {
+    if (status.warnings) // e.g. a note on nanosecond truncation
+    {
+      ErrConvString err(str, length, cs);
+      make_truncated_value_warning(current_thd,
+                                   Sql_condition::time_warn_level(status.warnings),
+                                   &err, ltime.time_type, 0);
+    }
     return item;
+  }
 
   if (send_error)
   {

@@ -159,7 +159,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
   /*  Allocate the structures used to refer to the result set.          */
   /**********************************************************************/
   qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
-                          buftyp, fldtyp, length, true, true);
+                          buftyp, fldtyp, length, false, true);
 
   // Some columns must be renamed
   for (i = 0, crp = qrp->Colresp; crp; crp = crp->Next)
@@ -226,8 +226,12 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
     crp->Kdata->SetValue((fp->null_ptr != 0) ? 1 : 0, i);
 
     crp = crp->Next;                       // Remark
-    fld = fp->comment.str;
-    crp->Kdata->SetValue(fld, fp->comment.length, i);
+
+    // For Valgrind
+    if (fp->comment.length > 0 && (fld = fp->comment.str))
+      crp->Kdata->SetValue(fld, fp->comment.length, i);
+    else
+      crp->Kdata->Reset(i);
 
     crp = crp->Next;                       // New
     crp->Kdata->SetValue((fmt) ? fmt : (char*) "", i);
@@ -364,7 +368,11 @@ PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
 #if defined(MYSQL_SUPPORT)
     // Access sub-table via MySQL API
     if (!(tdbp= cat->GetTable(g, tabp, MODE_READ, "MYPRX"))) {
-      sprintf(g->Message, "Cannot access %s.%s", db, name);
+      char buf[MAX_STR];
+
+      strcpy(buf, g->Message);
+      sprintf(g->Message, "Error accessing %s.%s: %s", db, name, buf);
+      hc->tshp = NULL;
       goto err;
       } // endif Define
 

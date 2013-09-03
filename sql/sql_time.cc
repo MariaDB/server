@@ -20,8 +20,8 @@
 #include "sql_priv.h"
 #include "unireg.h"                      // REQUIRED by other includes
 #include "sql_time.h"
-#include "tztime.h"                             // struct Time_zone
-#include "sql_class.h"   // THD, MODE_INVALID_DATES, MODE_NO_ZERO_DATE
+#include "tztime.h"                      // struct Time_zone
+#include "sql_class.h"                   // THD
 #include <m_ctype.h>
 
 
@@ -222,7 +222,7 @@ check_date_with_warn(const MYSQL_TIME *ltime, ulonglong fuzzy_date,
   if (check_date(ltime, fuzzy_date, &unused))
   {
     ErrConvTime str(ltime);
-    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  &str, ts_type, 0);
     return true;
   }
@@ -309,15 +309,15 @@ str_to_datetime_with_warn(CHARSET_INFO *cs,
 {
   MYSQL_TIME_STATUS status;
   THD *thd= current_thd;
-  bool ret_val= str_to_datetime(cs, str, length, l_time,
-                           (flags | (sql_mode_for_dates(thd))),
-                           &status);
+  bool ret_val= str_to_datetime(cs, str, length, l_time, flags, &status);
   if (ret_val || status.warnings)
-    make_truncated_value_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    make_truncated_value_warning(thd,
+                                 ret_val ? Sql_condition::WARN_LEVEL_WARN :
+                                 Sql_condition::time_warn_level(status.warnings),
                                  str, length, flags & TIME_TIME_ONLY ?
                                  MYSQL_TIMESTAMP_TIME : l_time->time_type, NullS);
   DBUG_EXECUTE_IF("str_to_datetime_warn",
-                  push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+                  push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                                ER_YES, str););
   return ret_val;
 }
@@ -330,7 +330,7 @@ str_to_datetime_with_warn(CHARSET_INFO *cs,
   @param nr            integer part of the number to convert
   @param sec_part      microsecond part of the number
   @param ltime         converted value will be written here
-  @param fuzzydate     conversion flags (TIME_FUZZY_DATE, etc)
+  @param fuzzydate     conversion flags (TIME_INVALID_DATE, etc)
   @param str           original number, as an ErrConv. For the warning
   @param field_name    field name or NULL if not a field. For the warning
   
@@ -347,6 +347,7 @@ static bool number_to_time_with_warn(bool neg, ulonglong nr, ulong sec_part,
 
   if (fuzzydate & TIME_TIME_ONLY)
   {
+    fuzzydate= TIME_TIME_ONLY; // clear other flags
     f_type= MYSQL_TYPE_TIME;
     res= number_to_time(neg, nr, sec_part, ltime, &was_cut);
   }
@@ -356,10 +357,10 @@ static bool number_to_time_with_warn(bool neg, ulonglong nr, ulong sec_part,
     res= neg ? -1 : number_to_datetime(nr, sec_part, ltime, fuzzydate, &was_cut);
   }
 
-  if (res < 0 || (was_cut && !(fuzzydate & TIME_FUZZY_DATE)))
+  if (res < 0 || (was_cut && (fuzzydate & TIME_NO_ZERO_IN_DATE)))
   {
     make_truncated_value_warning(current_thd,
-                                 MYSQL_ERROR::WARN_LEVEL_WARN, str,
+                                 Sql_condition::WARN_LEVEL_WARN, str,
                                  res < 0 ? MYSQL_TIMESTAMP_ERROR
                                          : mysql_type_to_time_type(f_type),
                                  field_name);
@@ -812,8 +813,25 @@ const char *get_date_time_format_str(KNOWN_DATE_TIME_FORMAT *format,
   }
 }
 
+
+/**
+  Convert TIME/DATE/DATETIME value to String.
+  @param l_time   DATE value
+  @param OUT str  String to convert to
+  @param dec      Number of fractional digits.
+*/
+bool my_TIME_to_str(const MYSQL_TIME *ltime, String *str, uint dec)
+{
+  if (str->alloc(MAX_DATE_STRING_REP_LENGTH))
+    return true;
+  str->set_charset(&my_charset_numeric);
+  str->length(my_TIME_to_str(ltime, const_cast<char*>(str->ptr()), dec));
+  return false;
+}
+
+
 void make_truncated_value_warning(THD *thd,
-                                  MYSQL_ERROR::enum_warning_level level,
+                                  Sql_condition::enum_warning_level level,
                                   const ErrConv *sval,
 				  timestamp_type time_type,
                                   const char *field_name)
@@ -838,7 +856,7 @@ void make_truncated_value_warning(THD *thd,
     cs->cset->snprintf(cs, warn_buff, sizeof(warn_buff),
                        ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                        type_str, sval->ptr(), field_name,
-                       (ulong) thd->warning_info->current_row_for_warning());
+                       (ulong) thd->get_stmt_da()->current_row_for_warning());
   else
   {
     if (time_type > MYSQL_TIMESTAMP_ERROR)
@@ -967,7 +985,7 @@ bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
     return 0;                                   // Ok
 
 invalid_date:
-  push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_DATETIME_FUNCTION_OVERFLOW,
                       ER(ER_DATETIME_FUNCTION_OVERFLOW),
                       ltime->time_type == MYSQL_TIMESTAMP_TIME ?

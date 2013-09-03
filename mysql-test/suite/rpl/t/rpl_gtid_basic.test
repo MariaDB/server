@@ -8,6 +8,13 @@
 #  A -> B -> C -> D
 
 connection server_1;
+--source include/wait_for_binlog_checkpoint.inc
+--let $binlog_file = query_get_value(SHOW MASTER STATUS,File,1)
+--let $binlog_pos = query_get_value(SHOW MASTER STATUS,Position,1)
+--echo *** GTID position should be empty here ***
+--replace_result $binlog_file <BINLOG_FILE> $binlog_pos <BINLOG_POS> 
+eval SELECT BINLOG_GTID_POS('$binlog_file',$binlog_pos);
+
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=MyISAM;
 CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1, "m1");
@@ -18,9 +25,22 @@ INSERT INTO t2 VALUES (2, "i2"), (3, "i3");
 INSERT INTO t2 VALUES (4, "i4");
 COMMIT;
 save_master_pos;
+source include/wait_for_binlog_checkpoint.inc;
+--let $binlog_file = query_get_value(SHOW MASTER STATUS,File,1)
+--let $binlog_pos = query_get_value(SHOW MASTER STATUS,Position,1)
+--let $gtid_pos_server_1 = `SELECT @@gtid_binlog_pos`
+--echo *** GTID position should be non-empty here ***
+--replace_result $binlog_file <BINLOG_FILE> $binlog_pos <BINLOG_POS> $gtid_pos_server_1 <GTID_POS_SERVER_1>
+eval SELECT BINLOG_GTID_POS('$binlog_file',$binlog_pos);
 
 connection server_2;
 sync_with_master;
+source include/wait_for_binlog_checkpoint.inc;
+--let $binlog_file = query_get_value(SHOW MASTER STATUS,File,1)
+--let $binlog_pos = query_get_value(SHOW MASTER STATUS,Position,1)
+--echo *** GTID position should be the same as on server_1 ***
+--replace_result $binlog_file <BINLOG_FILE> $binlog_pos <BINLOG_POS> $gtid_pos_server_1 <GTID_POS_SERVER_1>
+eval SELECT BINLOG_GTID_POS('$binlog_file',$binlog_pos);
 SELECT * FROM t1 ORDER BY a;
 SELECT * FROM t2 ORDER BY a;
 save_master_pos;
@@ -122,5 +142,22 @@ eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_3;
 
 connection server_1;
 DROP TABLE t1,t2;
+
+--echo *** A few more checks for BINLOG_GTID_POS function ***
+--let $valid_binlog_name = query_get_value(SHOW BINARY LOGS,Log_name,1)
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT BINLOG_GTID_POS();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT BINLOG_GTID_POS('a');
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT BINLOG_GTID_POS('a',1,NULL);
+SELECT BINLOG_GTID_POS(1,'a');
+SELECT BINLOG_GTID_POS(NULL,NULL);
+SELECT BINLOG_GTID_POS('',1);
+SELECT BINLOG_GTID_POS('a',1);
+eval SELECT BINLOG_GTID_POS('$valid_binlog_name',-1);
+eval SELECT BINLOG_GTID_POS('$valid_binlog_name',0);
+eval SELECT BINLOG_GTID_POS('$valid_binlog_name',18446744073709551615);
+eval SELECT BINLOG_GTID_POS('$valid_binlog_name',18446744073709551616);
 
 --source include/rpl_end.inc

@@ -686,7 +686,7 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
       for (i=0;
            (old= (struct st_maria_plugin *)(ptr + i * sizeof_st_plugin))->info;
            i++)
-        memcpy(cur + i, old, min(sizeof(cur[i]), sizeof_st_plugin));
+        memcpy(cur + i, old, MY_MIN(sizeof(cur[i]), sizeof_st_plugin));
 
       sym= cur;
       plugin_dl->allocated= true;
@@ -1175,10 +1175,6 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
   }
   plugin->state= PLUGIN_IS_UNINITIALIZED;
 
-  /* maintain the obsolete @@have_innodb variable */
-  if (!my_strcasecmp(&my_charset_latin1, plugin->name.str, "InnoDB"))
-    have_innodb= SHOW_OPTION_DISABLED;
-
   /*
     We do the check here because NDB has a worker THD which doesn't
     exit until NDB is shut down.
@@ -1402,11 +1398,6 @@ static int plugin_initialize(struct st_plugin_int *plugin)
 err:
   mysql_mutex_lock(&LOCK_plugin);
   plugin->state= state;
-
-  /* maintain the obsolete @@have_innodb variable */
-  if (!my_strcasecmp(&my_charset_latin1, plugin->name.str, "InnoDB"))
-    have_innodb= state & PLUGIN_IS_READY ? SHOW_OPTION_YES
-                                         : SHOW_OPTION_DISABLED;
 
   DBUG_RETURN(ret);
 }
@@ -2009,13 +2000,17 @@ static bool finalize_install(THD *thd, TABLE *table, const LEX_STRING *name)
   if (tmp->state == PLUGIN_IS_DISABLED)
   {
     if (global_system_variables.log_warnings)
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_CANT_INITIALIZE_UDF, ER(ER_CANT_INITIALIZE_UDF),
                           name->str, "Plugin is disabled");
   }
+  else if (tmp->state != PLUGIN_IS_UNINITIALIZED)
+  {
+    /* already installed */
+    return 0;
+  }
   else
   {
-    DBUG_ASSERT(tmp->state == PLUGIN_IS_UNINITIALIZED);
     if (plugin_initialize(tmp))
     {
       report_error(REPORT_TO_USER, ER_CANT_INITIALIZE_UDF, name->str,
@@ -2155,9 +2150,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_STRING *name)
   }
   if (!plugin->plugin_dl)
   {
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-                 WARN_PLUGIN_DELETE_BUILTIN, ER(WARN_PLUGIN_DELETE_BUILTIN));
-    my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PLUGIN", name->str);
+    my_error(ER_PLUGIN_DELETE_BUILTIN, MYF(0));
     return 1;
   }
   if (plugin->load_option == PLUGIN_FORCE_PLUS_PERMANENT)
@@ -2168,7 +2161,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_STRING *name)
 
   plugin->state= PLUGIN_IS_DELETED;
   if (plugin->ref_count)
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  WARN_PLUGIN_BUSY, ER(WARN_PLUGIN_BUSY));
   else
     reap_needed= true;
@@ -2698,13 +2691,16 @@ static void update_func_longlong(THD *thd, struct st_mysql_sys_var *var,
 static void update_func_str(THD *thd, struct st_mysql_sys_var *var,
                              void *tgt, const void *save)
 {
-  char *old= *(char **) tgt;
-  *(char **)tgt= *(char **) save;
+  char *value= *(char**) save;
   if (var->flags & PLUGIN_VAR_MEMALLOC)
   {
-    *(char **)tgt= my_strdup(*(char **) save, MYF(0));
+    char *old= *(char**) tgt;
+    if (value)
+      *(char**) tgt= my_strdup(value, MYF(0));
     my_free(old);
   }
+  else
+    *(char**) tgt= value;
 }
 
 

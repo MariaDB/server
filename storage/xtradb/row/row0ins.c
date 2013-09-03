@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1738,6 +1738,7 @@ row_ins_scan_sec_index_for_duplicate(
 	do {
 		const rec_t*		rec	= btr_pcur_get_rec(&pcur);
 		const buf_block_t*	block	= btr_pcur_get_block(&pcur);
+		ulint			lock_type;
 
 		if (page_rec_is_infimum(rec)) {
 
@@ -1747,12 +1748,23 @@ row_ins_scan_sec_index_for_duplicate(
 		offsets = rec_get_offsets(rec, index, offsets,
 					  ULINT_UNDEFINED, &heap);
 
+		/* If the transaction isolation level is no stronger than
+		READ COMMITTED, then avoid gap locks. */
+		if (!page_rec_is_supremum(rec)
+		    && thr_get_trx(thr)->isolation_level
+					<= TRX_ISO_READ_COMMITTED) {
+			lock_type = LOCK_REC_NOT_GAP;
+
+		} else {
+			lock_type = LOCK_ORDINARY;
+		}
 #ifdef WITH_WSREP
 		/* slave applier must not get duplicate error */
 		if (allow_duplicates ||
 		    (wsrep_on(trx->mysql_thd) &&
 		     wsrep_thd_is_brute_force(trx->mysql_thd))) {
 #else
+
 		if (allow_duplicates) {
 #endif
 
@@ -1762,13 +1774,11 @@ row_ins_scan_sec_index_for_duplicate(
 			INSERT ON DUPLICATE KEY UPDATE). */
 
 			err = row_ins_set_exclusive_rec_lock(
-				LOCK_ORDINARY, block,
-				rec, index, offsets, thr);
+				lock_type, block, rec, index, offsets, thr);
 		} else {
 
 			err = row_ins_set_shared_rec_lock(
-				LOCK_ORDINARY, block,
-				rec, index, offsets, thr);
+				lock_type, block, rec, index, offsets, thr);
 		}
 
 		switch (err) {

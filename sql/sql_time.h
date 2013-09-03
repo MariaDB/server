@@ -19,7 +19,7 @@
 #include "my_global.h"                          /* ulong */
 #include "my_time.h"
 #include "mysql_time.h"                         /* timestamp_type */
-#include "sql_error.h"                          /* MYSQL_ERROR */
+#include "sql_error.h"                          /* Sql_condition */
 #include "structs.h"                            /* INTERVAL */
 
 typedef enum enum_mysql_timestamp_type timestamp_type;
@@ -48,13 +48,14 @@ bool int_to_datetime_with_warn(longlong value, MYSQL_TIME *ltime,
                                ulonglong fuzzydate,
                                const char *name);
 
-void make_truncated_value_warning(THD *thd, MYSQL_ERROR::enum_warning_level level,
+void make_truncated_value_warning(THD *thd,
+                                  Sql_condition::enum_warning_level level,
                                   const ErrConv *str_val,
                                   timestamp_type time_type,
                                   const char *field_name);
 
 static inline void make_truncated_value_warning(THD *thd,
-                MYSQL_ERROR::enum_warning_level level, const char *str_val,
+                Sql_condition::enum_warning_level level, const char *str_val,
                 uint str_length, timestamp_type time_type,
                 const char *field_name)
 {
@@ -69,6 +70,8 @@ extern DATE_TIME_FORMAT *date_time_format_copy(THD *thd,
 					       DATE_TIME_FORMAT *format);
 const char *get_date_time_format_str(KNOWN_DATE_TIME_FORMAT *format,
 				     timestamp_type type);
+bool my_TIME_to_str(const MYSQL_TIME *ltime, String *str, uint dec);
+
 /* MYSQL_TIME operations */
 bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
                        INTERVAL interval);

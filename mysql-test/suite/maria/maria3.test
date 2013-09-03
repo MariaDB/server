@@ -364,7 +364,7 @@ INSERT IGNORE INTO t1 (f1) VALUES ("test1");
 INSERT IGNORE INTO t1 (f1) VALUES ("test2");
 SELECT * FROM t1;
 drop table t1;
-SET SQL_MODE = 'TRADITIONAL';
+SET SQL_MODE = '';
 
 create table t1 (n int not null primary key auto_increment, c char(1), unique(c));
 insert into t1 values(100, "a");

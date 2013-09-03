@@ -48,6 +48,7 @@
                      // mysql_user_table_is_in_short_password_format
 #include "derror.h"  // read_texts
 #include "sql_base.h"                           // close_cached_tables
+#include "hostname.h"                           // host_cache_size
 #include <myisam.h>
 #include "log_slow.h"
 #include "debug_sync.h"                         // DEBUG_SYNC
@@ -75,22 +76,24 @@ static Sys_var_mybool Sys_pfs_enabled(
        "performance_schema",
        "Enable the performance schema.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
-static Sys_var_ulong Sys_pfs_events_waits_history_long_size(
+static Sys_var_long Sys_pfs_events_waits_history_long_size(
        "performance_schema_events_waits_history_long_size",
-       "Number of rows in EVENTS_WAITS_HISTORY_LONG.",
+       "Number of rows in EVENTS_WAITS_HISTORY_LONG."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY
        GLOBAL_VAR(pfs_param.m_events_waits_history_long_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_WAITS_HISTORY_LONG_SIZE), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_events_waits_history_size(
+static Sys_var_long Sys_pfs_events_waits_history_size(
        "performance_schema_events_waits_history_size",
-       "Number of rows per thread in EVENTS_WAITS_HISTORY.",
+       "Number of rows per thread in EVENTS_WAITS_HISTORY."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_waits_history_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024),
-       DEFAULT(PFS_WAITS_HISTORY_SIZE), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_max_cond_classes(
        "performance_schema_max_cond_classes",
@@ -99,12 +102,13 @@ static Sys_var_ulong Sys_pfs_max_cond_classes(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
        DEFAULT(PFS_MAX_COND_CLASS), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_cond_instances(
+static Sys_var_long Sys_pfs_max_cond_instances(
        "performance_schema_max_cond_instances",
-       "Maximum number of instrumented condition objects.",
+       "Maximum number of instrumented condition objects."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_cond_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_COND), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_max_file_classes(
        "performance_schema_max_file_classes",
@@ -120,19 +124,21 @@ static Sys_var_ulong Sys_pfs_max_file_handles(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
        DEFAULT(PFS_MAX_FILE_HANDLE), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_file_instances(
+static Sys_var_long Sys_pfs_max_file_instances(
        "performance_schema_max_file_instances",
-       "Maximum number of instrumented files.",
+       "Maximum number of instrumented files."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_file_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_FILE), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_sockets(
+static Sys_var_long Sys_pfs_max_sockets(
        "performance_schema_max_socket_instances",
-       "Maximum number of opened instrumented sockets.",
+       "Maximum number of opened instrumented sockets."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_socket_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_SOCKETS),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_max_socket_classes(
@@ -150,12 +156,13 @@ static Sys_var_ulong Sys_pfs_max_mutex_classes(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
        DEFAULT(PFS_MAX_MUTEX_CLASS), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_mutex_instances(
+static Sys_var_long Sys_pfs_max_mutex_instances(
        "performance_schema_max_mutex_instances",
-       "Maximum number of instrumented MUTEX objects.",
+       "Maximum number of instrumented MUTEX objects."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_mutex_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 100*1024*1024),
-       DEFAULT(PFS_MAX_MUTEX), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 100*1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_max_rwlock_classes(
        "performance_schema_max_rwlock_classes",
@@ -164,26 +171,29 @@ static Sys_var_ulong Sys_pfs_max_rwlock_classes(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
        DEFAULT(PFS_MAX_RWLOCK_CLASS), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_rwlock_instances(
+static Sys_var_long Sys_pfs_max_rwlock_instances(
        "performance_schema_max_rwlock_instances",
-       "Maximum number of instrumented RWLOCK objects.",
+       "Maximum number of instrumented RWLOCK objects."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_rwlock_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 100*1024*1024),
-       DEFAULT(PFS_MAX_RWLOCK), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 100*1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_table_handles(
+static Sys_var_long Sys_pfs_max_table_handles(
        "performance_schema_max_table_handles",
-       "Maximum number of opened instrumented tables.",
+       "Maximum number of opened instrumented tables."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_table_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_TABLE), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_table_instances(
+static Sys_var_long Sys_pfs_max_table_instances(
        "performance_schema_max_table_instances",
-       "Maximum number of instrumented tables.",
+       "Maximum number of instrumented tables."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_table_share_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_TABLE_SHARE), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_max_thread_classes(
        "performance_schema_max_thread_classes",
@@ -192,12 +202,13 @@ static Sys_var_ulong Sys_pfs_max_thread_classes(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
        DEFAULT(PFS_MAX_THREAD_CLASS), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_thread_instances(
+static Sys_var_long Sys_pfs_max_thread_instances(
        "performance_schema_max_thread_instances",
-       "Maximum number of instrumented threads.",
+       "Maximum number of instrumented threads."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_thread_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_THREAD), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_setup_actors_size(
        "performance_schema_setup_actors_size",
@@ -215,28 +226,31 @@ static Sys_var_ulong Sys_pfs_setup_objects_size(
        DEFAULT(PFS_MAX_SETUP_OBJECT),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_accounts_size(
+static Sys_var_long Sys_pfs_accounts_size(
        "performance_schema_accounts_size",
-       "Maximum number of instrumented user@host accounts.",
+       "Maximum number of instrumented user@host accounts."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_account_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_ACCOUNT),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_hosts_size(
+static Sys_var_long Sys_pfs_hosts_size(
        "performance_schema_hosts_size",
-       "Maximum number of instrumented hosts.",
+       "Maximum number of instrumented hosts."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_host_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_HOST),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_users_size(
+static Sys_var_long Sys_pfs_users_size(
        "performance_schema_users_size",
-       "Maximum number of instrumented users.",
+       "Maximum number of instrumented users."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_user_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_USER),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_max_stage_classes(
@@ -247,20 +261,22 @@ static Sys_var_ulong Sys_pfs_max_stage_classes(
        DEFAULT(PFS_MAX_STAGE_CLASS),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_events_stages_history_long_size(
+static Sys_var_long Sys_pfs_events_stages_history_long_size(
        "performance_schema_events_stages_history_long_size",
-       "Number of rows in EVENTS_STAGES_HISTORY_LONG.",
+       "Number of rows in EVENTS_STAGES_HISTORY_LONG."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_stages_history_long_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_STAGES_HISTORY_LONG_SIZE),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_events_stages_history_size(
+static Sys_var_long Sys_pfs_events_stages_history_size(
        "performance_schema_events_stages_history_size",
-       "Number of rows per thread in EVENTS_STAGES_HISTORY.",
+       "Number of rows per thread in EVENTS_STAGES_HISTORY."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_stages_history_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024),
-       DEFAULT(PFS_STAGES_HISTORY_SIZE),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
 /**
@@ -280,28 +296,41 @@ static Sys_var_ulong Sys_pfs_max_statement_classes(
        DEFAULT((ulong) SQLCOM_END + (ulong) COM_END + 3),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_events_statements_history_long_size(
+static Sys_var_long Sys_pfs_events_statements_history_long_size(
        "performance_schema_events_statements_history_long_size",
-       "Number of rows in EVENTS_STATEMENTS_HISTORY_LONG.",
+       "Number of rows in EVENTS_STATEMENTS_HISTORY_LONG."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_statements_history_long_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_STATEMENTS_HISTORY_LONG_SIZE),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_events_statements_history_size(
+static Sys_var_long Sys_pfs_events_statements_history_size(
        "performance_schema_events_statements_history_size",
-       "Number of rows per thread in EVENTS_STATEMENTS_HISTORY.",
+       "Number of rows per thread in EVENTS_STATEMENTS_HISTORY."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_statements_history_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024),
-       DEFAULT(PFS_STATEMENTS_HISTORY_SIZE),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_digest_size(
+static Sys_var_long Sys_pfs_digest_size(
        "performance_schema_digests_size",
-       "Size of the statement digest.",
+       "Size of the statement digest."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_digest_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 200),
-       DEFAULT(PFS_DIGEST_SIZE),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 200),
+       DEFAULT(-1),
+       BLOCK_SIZE(1));
+
+static Sys_var_long Sys_pfs_connect_attrs_size(
+       "performance_schema_session_connect_attrs_size",
+       "Size of session attribute string buffer per thread."
+         " Use 0 to disable, -1 for automated sizing.",
+       PARSED_EARLY READ_ONLY
+       GLOBAL_VAR(pfs_param.m_session_connect_attrs_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024 * 1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
@@ -349,7 +378,7 @@ static Sys_var_ulonglong Sys_binlog_cache_size(
        "you can increase this to get more performance",
        GLOBAL_VAR(binlog_cache_size),
        CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(IO_SIZE, ULONGLONG_MAX), DEFAULT(32768), BLOCK_SIZE(IO_SIZE));
+       VALID_RANGE(IO_SIZE, SIZE_T_MAX), DEFAULT(32768), BLOCK_SIZE(IO_SIZE));
 
 static Sys_var_ulonglong Sys_binlog_stmt_cache_size(
        "binlog_stmt_cache_size", "The size of the statement cache for "
@@ -358,7 +387,7 @@ static Sys_var_ulonglong Sys_binlog_stmt_cache_size(
        "you can increase this to get more performance",
        GLOBAL_VAR(binlog_stmt_cache_size),
        CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(IO_SIZE, ULONGLONG_MAX), DEFAULT(32768), BLOCK_SIZE(IO_SIZE));
+       VALID_RANGE(IO_SIZE, SIZE_T_MAX), DEFAULT(32768), BLOCK_SIZE(IO_SIZE));
 
 /*
   Some variables like @sql_log_bin and @binlog_format change how/if binlogging
@@ -491,7 +520,7 @@ static Sys_var_ulonglong Sys_bulk_insert_buff_size(
        "bulk_insert_buffer_size", "Size of tree cache used in bulk "
        "insert optimisation. Note that this is a limit per thread!",
        SESSION_VAR(bulk_insert_buff_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(8192*1024), BLOCK_SIZE(1));
+       VALID_RANGE(0, SIZE_T_MAX), DEFAULT(8192*1024), BLOCK_SIZE(1));
 
 static Sys_var_charptr Sys_character_sets_dir(
        "character_sets_dir", "Directory where character sets are",
@@ -983,7 +1012,7 @@ static Sys_var_ulonglong Sys_join_buffer_size(
        "join_buffer_size",
        "The size of the buffer that is used for joins",
        SESSION_VAR(join_buff_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(128, ULONGLONG_MAX), DEFAULT(128*1024), BLOCK_SIZE(128));
+       VALID_RANGE(128, SIZE_T_MAX), DEFAULT(128*1024), BLOCK_SIZE(128));
 
 static Sys_var_keycache Sys_key_buffer_size(
        "key_buffer_size", "The size of the buffer used for "
@@ -1146,15 +1175,6 @@ static Sys_var_mybool Sys_low_priority_updates(
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_low_prio_updates));
 
-#ifndef TO_BE_DELETED   /* Alias for the low_priority_updates */
-static Sys_var_mybool Sys_sql_low_priority_updates(
-       "sql_low_priority_updates",
-       "INSERT/DELETE/UPDATE has lower priority than selects",
-       SESSION_VAR(low_priority_updates), NO_CMD_LINE,
-       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_low_prio_updates));
-#endif
-
 static Sys_var_mybool Sys_lower_case_file_system(
        "lower_case_file_system",
        "Case sensitivity of file names on the file system where the "
@@ -1195,7 +1215,7 @@ static bool check_max_allowed_packet(sys_var *self, THD *thd,  set_var *var)
   val= var->save_result.ulonglong_value;
   if (val < (longlong) global_system_variables.net_buffer_length)
   {
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         WARN_OPTION_BELOW_LIMIT, ER(WARN_OPTION_BELOW_LIMIT),
                         "max_allowed_packet", "net_buffer_length");
   }
@@ -1223,16 +1243,16 @@ static Sys_var_ulonglong Sys_max_binlog_cache_size(
        "max_binlog_cache_size",
        "Sets the total size of the transactional cache",
        GLOBAL_VAR(max_binlog_cache_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(IO_SIZE, ULONGLONG_MAX),
-       DEFAULT((ULONGLONG_MAX/IO_SIZE)*IO_SIZE),
+       VALID_RANGE(IO_SIZE, SIZE_T_MAX),
+       DEFAULT((SIZE_T_MAX/IO_SIZE)*IO_SIZE),
        BLOCK_SIZE(IO_SIZE));
 
 static Sys_var_ulonglong Sys_max_binlog_stmt_cache_size(
        "max_binlog_stmt_cache_size",
        "Sets the total size of the statement cache",
        GLOBAL_VAR(max_binlog_stmt_cache_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(IO_SIZE, ULONGLONG_MAX),
-       DEFAULT((ULONGLONG_MAX/IO_SIZE)*IO_SIZE),
+       VALID_RANGE(IO_SIZE, SIZE_T_MAX),
+       DEFAULT((SIZE_T_MAX/IO_SIZE)*IO_SIZE),
        BLOCK_SIZE(IO_SIZE));
 
 static bool fix_max_binlog_size(sys_var *self, THD *thd, enum_var_type type)
@@ -1262,8 +1282,9 @@ static bool fix_max_connections(sys_var *self, THD *thd, enum_var_type type)
 // children, to avoid "too many connections" error in a common setup
 static Sys_var_ulong Sys_max_connections(
        "max_connections", "The number of simultaneous clients allowed",
-       GLOBAL_VAR(max_connections), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 100000), DEFAULT(151), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       PARSED_EARLY GLOBAL_VAR(max_connections), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 100000),
+       DEFAULT(MAX_CONNECTIONS_DEFAULT), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_max_connections));
 
 static Sys_var_ulong Sys_max_connect_errors(
@@ -1320,6 +1341,12 @@ static Sys_var_ulong Sys_metadata_locks_cache_size(
        VALID_RANGE(1, 1024*1024), DEFAULT(MDL_LOCKS_CACHE_SIZE_DEFAULT),
        BLOCK_SIZE(1));
 
+static Sys_var_ulong Sys_metadata_locks_hash_instances(
+       "metadata_locks_hash_instances", "Number of metadata locks hash instances",
+       READ_ONLY GLOBAL_VAR(mdl_locks_hash_partitions), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 1024), DEFAULT(MDL_LOCKS_HASH_PARTITIONS_DEFAULT),
+       BLOCK_SIZE(1));
+
 /*
   "pseudo_thread_id" variable used in the test suite to detect 32/64bit
   systems.  If you change it to something else then ulong then fix the tests
@@ -1333,6 +1360,21 @@ static Sys_var_ulong Sys_pseudo_thread_id(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG,
        ON_CHECK(check_has_super));
 
+static bool
+check_gtid_domain_id(sys_var *self, THD *thd, set_var *var)
+{
+  if (check_has_super(self, thd, var))
+    return true;
+  if (var->type != OPT_GLOBAL &&
+      error_if_in_trans_or_substatement(thd,
+          ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
+          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO))
+    return true;
+
+  return false;
+}
+
+
 static Sys_var_uint Sys_gtid_domain_id(
        "gtid_domain_id",
        "Used with global transaction ID to identify logically independent "
@@ -1343,7 +1385,7 @@ static Sys_var_uint Sys_gtid_domain_id(
        SESSION_VAR(gtid_domain_id),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, UINT_MAX32), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(check_has_super));
+       ON_CHECK(check_gtid_domain_id));
 
 
 static bool check_gtid_seq_no(sys_var *self, THD *thd, set_var *var)
@@ -1353,6 +1395,11 @@ static bool check_gtid_seq_no(sys_var *self, THD *thd, set_var *var)
 
   if (check_has_super(self, thd, var))
     return true;
+  if (error_if_in_trans_or_substatement(thd,
+          ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
+          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO))
+    return true;
+
   domain_id= thd->variables.gtid_domain_id;
   server_id= thd->variables.server_id;
   seq_no= (uint64)var->value->val_uint();
@@ -1393,11 +1440,8 @@ Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, LEX_STRING *base)
   char *p;
 
   if (!rpl_global_gtid_slave_state.loaded)
-  {
-    my_error(ER_CANNOT_LOAD_SLAVE_GTID_STATE, MYF(0), "mysql",
-             rpl_gtid_slave_state_table_name.str);
     return NULL;
-  }
+
   str.length(0);
   if ((opt_bin_log && mysql_bin_log.append_state_pos(&str)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
@@ -1511,11 +1555,7 @@ Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, LEX_STRING *base)
   char *p;
 
   if (!rpl_global_gtid_slave_state.loaded)
-  {
-    my_error(ER_CANNOT_LOAD_SLAVE_GTID_STATE, MYF(0), "mysql",
-             rpl_gtid_slave_state_table_name.str);
     return NULL;
-  }
 
   str.length(0);
   if (rpl_append_gtid_state(&str, false) ||
@@ -1576,13 +1616,6 @@ static Sys_var_ulong Sys_max_length_for_sort_data(
        "Max number of bytes in sorted records",
        SESSION_VAR(max_length_for_sort_data), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(4, 8192*1024L), DEFAULT(1024), BLOCK_SIZE(1));
-
-static Sys_var_harows Sys_sql_max_join_size(
-       "sql_max_join_size", "Alias for max_join_size",
-       SESSION_VAR(max_join_size), NO_CMD_LINE,
-       VALID_RANGE(1, HA_POS_ERROR), DEFAULT(HA_POS_ERROR), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_max_join_size), DEPRECATED("'@@max_join_size'"));
 
 static Sys_var_ulong Sys_max_long_data_size(
        "max_long_data_size",
@@ -1675,7 +1708,7 @@ static bool check_net_buffer_length(sys_var *self, THD *thd,  set_var *var)
   val= var->save_result.ulonglong_value;
   if (val > (longlong) global_system_variables.max_allowed_packet)
   {
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         WARN_OPTION_BELOW_LIMIT, ER(WARN_OPTION_BELOW_LIMIT),
                         "max_allowed_packet", "net_buffer_length");
   }
@@ -2238,26 +2271,33 @@ static bool fix_query_cache_size(sys_var *self, THD *thd, enum_var_type type)
      requested cache size. See also query_cache_size_arg
   */
   if (query_cache_size != new_cache_size)
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_QC_RESIZE, ER(ER_WARN_QC_RESIZE),
                         query_cache_size, new_cache_size);
 
   query_cache_size= new_cache_size;
   return false;
 }
+static bool fix_query_cache_limit(sys_var *self, THD *thd, enum_var_type type)
+{
+  query_cache.result_size_limit(query_cache_limit);
+  return false;
+}
 static Sys_var_ulonglong Sys_query_cache_size(
        "query_cache_size",
        "The memory allocated to store results from old queries",
        GLOBAL_VAR(query_cache_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1024),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1024),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_query_cache_size),
        ON_UPDATE(fix_query_cache_size));
 
 static Sys_var_ulong Sys_query_cache_limit(
        "query_cache_limit",
        "Don't cache results that are bigger than this",
-       GLOBAL_VAR(query_cache.query_cache_limit), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(1024*1024), BLOCK_SIZE(1));
+       GLOBAL_VAR(query_cache_limit), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(1024*1024), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
+       ON_UPDATE(fix_query_cache_limit));
 
 static bool fix_qcache_min_res_unit(sys_var *self, THD *thd, enum_var_type type)
 {
@@ -2454,7 +2494,7 @@ static Sys_var_ulonglong Sys_sort_buffer(
        "sort_buffer_size",
        "Each thread that needs to do a sort allocates a buffer of this size",
        SESSION_VAR(sortbuff_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(MIN_SORT_MEMORY, ULONGLONG_MAX), DEFAULT(MAX_SORT_MEMORY),
+       VALID_RANGE(MIN_SORT_MEMORY, SIZE_T_MAX), DEFAULT(MAX_SORT_MEMORY),
        BLOCK_SIZE(1));
 
 export ulonglong expand_sql_mode(ulonglong sql_mode)
@@ -2635,15 +2675,24 @@ static Sys_var_charptr Sys_system_time_zone(
 static Sys_var_ulong Sys_table_def_size(
        "table_definition_cache",
        "The number of cached table definitions",
-       GLOBAL_VAR(table_def_size), CMD_LINE(REQUIRED_ARG),
+       GLOBAL_VAR(tdc_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(TABLE_DEF_CACHE_MIN, 512*1024),
        DEFAULT(TABLE_DEF_CACHE_DEFAULT), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_table_cache_size(
        "table_open_cache", "The number of cached open tables",
-       GLOBAL_VAR(table_cache_size), CMD_LINE(REQUIRED_ARG),
+       GLOBAL_VAR(tc_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 512*1024), DEFAULT(TABLE_OPEN_CACHE_DEFAULT),
        BLOCK_SIZE(1));
+
+static ulong table_cache_instances;
+static Sys_var_ulong Sys_table_cache_instances(
+       "table_open_cache_instances",
+       "MySQL 5.6 compatible option. Not used or needed in MariaDB",
+       READ_ONLY GLOBAL_VAR(table_cache_instances), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 64), DEFAULT(1),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
+       ON_UPDATE(NULL), NULL);
 
 static Sys_var_ulong Sys_thread_cache_size(
        "thread_cache_size",
@@ -2845,27 +2894,6 @@ static Sys_var_ulong Sys_net_wait_timeout(
        VALID_RANGE(1, IF_WIN(INT_MAX32/1000, LONG_TIMEOUT)),
        DEFAULT(NET_WAIT_TIMEOUT), BLOCK_SIZE(1));
 
-/** propagates changes to the relevant flag of @@optimizer_switch */
-static bool fix_engine_condition_pushdown(sys_var *self, THD *thd,
-                                          enum_var_type type)
-{
-  SV *sv= (type == OPT_GLOBAL) ? &global_system_variables : &thd->variables;
-  if (sv->engine_condition_pushdown)
-    sv->optimizer_switch|= OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN;
-  else
-    sv->optimizer_switch&= ~OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN;
-  return false;
-}
-static Sys_var_mybool Sys_engine_condition_pushdown(
-       "engine_condition_pushdown",
-       "Push supported query conditions to the storage engine."
-       " Deprecated, use --optimizer-switch instead.",
-       SESSION_VAR(engine_condition_pushdown),
-       CMD_LINE(OPT_ARG, OPT_ENGINE_CONDITION_PUSHDOWN),
-       DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
-       ON_UPDATE(fix_engine_condition_pushdown),
-       DEPRECATED("'@@optimizer_switch'"));
-
 static Sys_var_plugin Sys_default_storage_engine(
        "default_storage_engine", "The default storage engine for new tables",
        SESSION_VAR(table_plugin), NO_CMD_LINE,
@@ -2949,7 +2977,7 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
       Don't close thread tables or release metadata locks: if we do so, we
       risk releasing locks/closing tables of expressions used to assign
       other variables, as in:
-      set @var=my_stored_function1(), @@autocommit=1, @var2=(select max(a)
+      set @var=my_stored_function1(), @@autocommit=1, @var2=(select MY_MAX(a)
       from my_table), ...
       The locks will be released at statement end anyway, as SET
       statement that assigns autocommit is marked to commit
@@ -2984,12 +3012,6 @@ static Sys_var_mybool Sys_big_tables(
        "big_tables", "Allow big result sets by saving all "
        "temporary sets on file (Solves most 'table full' errors)",
        SESSION_VAR(big_tables), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
-
-#ifndef TO_BE_DELETED   /* Alias for big_tables */
-static Sys_var_mybool Sys_sql_big_tables(
-       "sql_big_tables", "alias for big_tables",
-       SESSION_VAR(big_tables), NO_CMD_LINE, DEFAULT(FALSE));
-#endif
 
 static Sys_var_bit Sys_big_selects(
        "sql_big_selects", "sql_big_selects",
@@ -3288,7 +3310,7 @@ static Sys_var_session_special Sys_rand_seed2(
 
 static ulonglong read_error_count(THD *thd)
 {
-  return thd->warning_info->error_count();
+  return thd->get_stmt_da()->error_count();
 }
 // this really belongs to the SHOW STATUS
 static Sys_var_session_special Sys_error_count(
@@ -3300,7 +3322,7 @@ static Sys_var_session_special Sys_error_count(
 
 static ulonglong read_warning_count(THD *thd)
 {
-  return thd->warning_info->warn_count();
+  return thd->get_stmt_da()->warn_count();
 }
 // this really belongs to the SHOW STATUS
 static Sys_var_session_special Sys_warning_count(
@@ -3320,7 +3342,7 @@ static Sys_var_ulonglong Sys_group_concat_max_len(
        "group_concat_max_len",
        "The maximum length of the result of function  GROUP_CONCAT()",
        SESSION_VAR(group_concat_max_len), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(4, ULONGLONG_MAX), DEFAULT(1024), BLOCK_SIZE(1));
+       VALID_RANGE(4, SIZE_T_MAX), DEFAULT(1024), BLOCK_SIZE(1));
 
 static char *glob_hostname_ptr;
 static Sys_var_charptr Sys_hostname(
@@ -3396,6 +3418,14 @@ static bool check_log_path(sys_var *self, THD *thd, set_var *var)
 
   if (!path_length)
     return true;
+
+  if (!is_filename_allowed(var->save_result.string_value.str, 
+                           var->save_result.string_value.length, TRUE))
+  {
+     my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), 
+              self->name.str, var->save_result.string_value.str);
+     return true;
+  }
 
   MY_STAT f_stat;
 
@@ -3473,25 +3503,6 @@ static Sys_var_charptr Sys_slow_log_path(
        IN_FS_CHARSET, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_log_path), ON_UPDATE(fix_slow_log_file));
 
-/// @todo deprecate these four legacy have_PLUGIN variables and use I_S instead
-export SHOW_COMP_OPTION have_csv, have_innodb= SHOW_OPTION_DISABLED;
-export SHOW_COMP_OPTION have_ndbcluster, have_partitioning;
-static Sys_var_have Sys_have_csv(
-       "have_csv", "have_csv",
-       READ_ONLY GLOBAL_VAR(have_csv), NO_CMD_LINE);
-
-static Sys_var_have Sys_have_innodb(
-       "have_innodb", "have_innodb",
-       READ_ONLY GLOBAL_VAR(have_innodb), NO_CMD_LINE);
-
-static Sys_var_have Sys_have_ndbcluster(
-       "have_ndbcluster", "have_ndbcluster",
-       READ_ONLY GLOBAL_VAR(have_ndbcluster), NO_CMD_LINE);
-
-static Sys_var_have Sys_have_partition_db(
-       "have_partitioning", "have_partitioning",
-       READ_ONLY GLOBAL_VAR(have_partitioning), NO_CMD_LINE);
-
 static Sys_var_have Sys_have_compress(
        "have_compress", "have_compress",
        READ_ONLY GLOBAL_VAR(have_compress), NO_CMD_LINE);
@@ -3541,13 +3552,6 @@ static Sys_var_mybool Sys_general_log(
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_log_state));
 
-// Synonym of "general_log" for consistency with SHOW VARIABLES output
-static Sys_var_mybool Sys_log(
-       "log", "Alias for --general-log. Deprecated",
-       GLOBAL_VAR(opt_log), NO_CMD_LINE,
-       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_log_state), DEPRECATED("'@@general_log'"));
-
 static Sys_var_mybool Sys_slow_query_log(
        "slow_query_log",
        "Log slow queries to a table or log file. Defaults logging to a file "
@@ -3557,27 +3561,19 @@ static Sys_var_mybool Sys_slow_query_log(
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_log_state));
 
-/* Synonym of "slow_query_log" for consistency with SHOW VARIABLES output */
-static Sys_var_mybool Sys_log_slow(
-       "log_slow_queries",
-       "Alias for --slow-query-log. Deprecated",
-       GLOBAL_VAR(opt_slow_log), NO_CMD_LINE,
-       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_log_state), DEPRECATED("'@@slow_query_log'"));
-
 static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type)
 {
   bool res;
   my_bool *UNINIT_VAR(newvalptr), newval, UNINIT_VAR(oldval);
   uint UNINIT_VAR(log_type);
 
-  if (self == &Sys_general_log || self == &Sys_log)
+  if (self == &Sys_general_log)
   {
     newvalptr= &opt_log;
     oldval=    logger.get_log_file_handler()->is_open();
     log_type=  QUERY_LOG_GENERAL;
   }
-  else if (self == &Sys_slow_query_log || self == &Sys_log_slow)
+  else if (self == &Sys_slow_query_log)
   {
     newvalptr= &opt_slow_log;
     oldval=    logger.get_slow_log_file_handler()->is_open();
@@ -3676,13 +3672,13 @@ bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
   {
     mi= master_info_index->
       get_master_info(&thd->variables.default_master_connection,
-                      MYSQL_ERROR::WARN_LEVEL_ERROR);
+                      Sql_condition::WARN_LEVEL_ERROR);
   }
   else // has base name
   {
     mi= master_info_index->
       get_master_info(&var->base, 
-                      MYSQL_ERROR::WARN_LEVEL_WARN);
+                      Sql_condition::WARN_LEVEL_WARN);
   }
 
   if (mi)
@@ -3748,13 +3744,13 @@ uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, LEX_STRING *base)
   {
     mi= master_info_index->
       get_master_info(&thd->variables.default_master_connection,
-                      MYSQL_ERROR::WARN_LEVEL_ERROR);
+                      Sql_condition::WARN_LEVEL_ERROR);
   }
   else // has base name
   {
     mi= master_info_index->
       get_master_info(base, 
-                      MYSQL_ERROR::WARN_LEVEL_WARN);
+                      Sql_condition::WARN_LEVEL_WARN);
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
 
@@ -3862,7 +3858,7 @@ get_master_info_uint_value(THD *thd, ptrdiff_t offset)
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
-                    MYSQL_ERROR::WARN_LEVEL_WARN);
+                    Sql_condition::WARN_LEVEL_WARN);
   if (mi)
   {
     mysql_mutex_lock(&mi->rli.data_lock);
@@ -3887,7 +3883,7 @@ bool update_multi_source_variable(sys_var *self_var, THD *thd,
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
-                    MYSQL_ERROR::WARN_LEVEL_ERROR);
+                    Sql_condition::WARN_LEVEL_ERROR);
   if (mi)
   {
     mysql_mutex_lock(&mi->rli.run_lock);
@@ -4036,7 +4032,7 @@ static bool check_locale(sys_var *self, THD *thd, set_var *var)
     mysql_mutex_unlock(&LOCK_error_messages);
     if (res)
     {
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
                           "Can't process error message file for locale '%s'",
                           locale->name);
       return true;
@@ -4063,6 +4059,7 @@ static Sys_var_tz Sys_time_zone(
        "time_zone", "time_zone",
        SESSION_VAR(time_zone), NO_CMD_LINE,
        DEFAULT(&default_tz), NO_MUTEX_GUARD, IN_BINLOG);
+
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 
@@ -4283,6 +4280,22 @@ static Sys_var_ulong Sys_wsrep_mysql_replication_bundle(
        VALID_RANGE(0, 1000), DEFAULT(0), BLOCK_SIZE(1));
 
 #endif /* WITH_WSREP */
+
+static bool fix_host_cache_size(sys_var *, THD *, enum_var_type)
+{
+  hostname_cache_resize((uint) host_cache_size);
+  return false;
+}
+
+static Sys_var_ulong Sys_host_cache_size(
+       "host_cache_size",
+       "How many host names should be cached to avoid resolving.",
+       GLOBAL_VAR(host_cache_size),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 65536),
+       DEFAULT(HOST_CACHE_SIZE),
+       BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
+       ON_UPDATE(fix_host_cache_size));
 
 static Sys_var_charptr Sys_ignore_db_dirs(
        "ignore_db_dirs",
@@ -4547,7 +4560,7 @@ static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
     else if (previous_val && val)
       goto ineffective;
     else if (!previous_val && val)
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                    ER_WRONG_VALUE_FOR_VAR,
                    "'pseudo_slave_mode' is already ON.");
   }
@@ -4556,7 +4569,7 @@ static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
     if (!previous_val && !val)
       goto ineffective;
     else if (previous_val && !val)
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                    ER_WRONG_VALUE_FOR_VAR,
                    "Slave applier execution mode not active, "
                    "statement ineffective.");
@@ -4564,7 +4577,7 @@ static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
   goto end;
 
 ineffective:
-  push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+  push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                ER_WRONG_VALUE_FOR_VAR,
                "'pseudo_slave_mode' change was ineffective.");
 

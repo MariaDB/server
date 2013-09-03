@@ -307,15 +307,17 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
       /*****************************************************************/
       if (cp)
         colp = cp;
-      else
+      else if (!(cdp->Flags & U_SPECIAL))
         colp = MakeCol(g, cdp, cprec, i);
+      else if (Mode == MODE_READ)
+        colp = InsertSpcBlk(g, cdp);
 
       if (trace)
         htrc("colp=%p\n", colp);
       
       if (name || num)
         break;
-      else if (colp)
+      else if (colp && !colp->IsSpecial())
         cprec = colp;
 
       } // endif Name
@@ -339,30 +341,35 @@ PCOL TDBASE::InsertSpecialColumn(PGLOBAL g, PCOL colp)
 /***********************************************************************/
 /*  Make a special COLBLK to insert in a table.                        */
 /***********************************************************************/
-PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLUMN cp)
+PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
   {
-  char *name = (char*)cp->GetName();
-  PCOL  colp;
+//char *name = cdp->GetName();
+  char   *name = cdp->GetFmt();
+  PCOLUMN cp;
+  PCOL    colp;
 
-  if (!strcmp(name, "FILEID")) {
-//    !strcmp(name, "SERVID")) {
+  cp= new(g) COLUMN(cdp->GetName());
+  cp->SetTo_Table(To_Table);
+
+  if (!stricmp(name, "FILEID") ||
+      !stricmp(name, "SERVID")) {
     if (!To_Def || !(To_Def->GetPseudo() & 2)) {
       sprintf(g->Message, MSG(BAD_SPEC_COLUMN));
       return NULL;
       } // endif Pseudo
 
-//  if (!strcmp(name, "FILEID"))
+    if (!stricmp(name, "FILEID"))
       colp = new(g) FIDBLK(cp);
-//  else
-//    colp = new(g) SIDBLK(cp);
+    else
+      colp = new(g) SIDBLK(cp);
 
-  } else if (!strcmp(name, "TABID")) {
+  } else if (!stricmp(name, "TABID")) {
     colp = new(g) TIDBLK(cp);
-//} else if (!strcmp(name, "CONID")) {
+//} else if (!stricmp(name, "CONID")) {
 //  colp = new(g) CIDBLK(cp);
-  } else if (!strcmp(name, "ROWID")) {
+  } else if (!stricmp(name, "ROWID")) {
     colp = new(g) RIDBLK(cp, false);
-  } else if (!strcmp(name, "ROWNUM")) {
+  } else if (!stricmp(name, "ROWNUM")) {
       colp = new(g) RIDBLK(cp, true);
   } else {
     sprintf(g->Message, MSG(BAD_SPECIAL_COL), name);

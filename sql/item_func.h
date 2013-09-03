@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /* Function items used by mysql */
@@ -41,6 +41,7 @@ protected:
   uint allowed_arg_cols;
   /* maybe_null can't be changed by parameters or used table state */
   bool persistent_maybe_null;
+  String *val_str_from_val_str_ascii(String *str, String *str2);
 public:
   uint arg_count;
   table_map used_tables_cache, not_null_tables_cache;
@@ -561,8 +562,8 @@ public:
   longlong val_int_from_str(int *error);
   void fix_length_and_dec()
   {
-    fix_char_length(min(args[0]->max_char_length(),
-                        MY_INT64_NUM_DECIMAL_DIGITS));
+    fix_char_length(MY_MIN(args[0]->max_char_length(),
+                           MY_INT64_NUM_DECIMAL_DIGITS));
   }
   virtual void print(String *str, enum_query_type query_type);
   uint decimal_precision() const { return args[0]->decimal_precision(); }
@@ -1807,7 +1808,6 @@ public:
   bool is_expensive_processor(uchar *arg) { return TRUE; }
   enum Functype functype() const { return FT_FUNC; }
   const char *func_name() const { return "match"; }
-  void update_used_tables() {}
   table_map not_null_tables() const { return 0; }
   bool fix_fields(THD *thd, Item **ref);
   bool eq(const Item *, bool binary_cmp) const;

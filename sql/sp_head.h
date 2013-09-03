@@ -30,14 +30,20 @@
 #include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_class.h"                          // THD, set_var.h: THD
 #include "set_var.h"                            // Item
-#include "sp.h"
+#include "sp_pcontext.h"                        // sp_pcontext
 #include <stddef.h>
+#include "sp.h"
 
 /**
   @defgroup Stored_Routines Stored Routines
   @ingroup Runtime_Environment
   @{
 */
+
+// Values for the type enum. This reflects the order of the enum declaration
+// in the CREATE TABLE command.
+//#define TYPE_ENUM_FUNCTION  1 #define TYPE_ENUM_PROCEDURE 2 #define
+//TYPE_ENUM_TRIGGER   3 #define TYPE_ENUM_PROXY     4
 
 Item_result
 sp_map_result_type(enum enum_field_types type);
@@ -48,12 +54,9 @@ sp_map_item_type(enum enum_field_types type);
 uint
 sp_get_flags_for_command(LEX *lex);
 
-struct sp_label;
 class sp_instr;
 class sp_instr_opt_meta;
 class sp_instr_jump_if_not;
-struct sp_cond_type;
-struct sp_variable;
 
 /*************************************************************************/
 
@@ -274,6 +277,15 @@ public:
   */
   Security_context m_security_ctx;
 
+  /**
+    List of all items (Item_trigger_field objects) representing fields in
+    old/new version of row in trigger. We use this list for checking whenever
+    all such fields are valid at trigger creation time and for binding these
+    fields to TABLE object at table open (although for latter pointer to table
+    being opened is probably enough).
+  */
+  SQL_I_List<Item_trigger_field> m_trg_table_fields;
+
   static void *
   operator new(size_t size) throw ();
 
@@ -352,12 +364,12 @@ public:
 
   /// Put the instruction on the backpatch list, associated with the label.
   int
-  push_backpatch(sp_instr *, struct sp_label *);
+  push_backpatch(sp_instr *, sp_label *);
 
   /// Update all instruction with this label in the backpatch list to
   /// the current position.
   void
-  backpatch(struct sp_label *);
+  backpatch(sp_label *);
 
   /// Start a new cont. backpatch level. If 'i' is NULL, the level is just incr.
   int
@@ -493,7 +505,7 @@ private:
   DYNAMIC_ARRAY m_instr;	///< The "instructions"
   typedef struct
   {
-    struct sp_label *lab;
+    sp_label *lab;
     sp_instr *instr;
   } bp_t;
   List<bp_t> m_backpatch;	///< Instructions needing backpatching
@@ -593,7 +605,7 @@ public:
     Get the continuation destination of this instruction.
     @return the continuation destination
   */
-  virtual uint get_cont_dest();
+  virtual uint get_cont_dest() const;
 
   /*
     Execute core function of instruction after all preparations (e.g.
@@ -865,7 +877,7 @@ public:
   virtual void set_destination(uint old_dest, uint new_dest)
     = 0;
 
-  virtual uint get_cont_dest();
+  virtual uint get_cont_dest() const;
 
 protected:
 
@@ -1016,15 +1028,21 @@ class sp_instr_hpush_jump : public sp_instr_jump
 
 public:
 
-  sp_instr_hpush_jump(uint ip, sp_pcontext *ctx, int htype, uint fp)
-    : sp_instr_jump(ip, ctx), m_type(htype), m_frame(fp), m_opt_hpop(0)
+  sp_instr_hpush_jump(uint ip,
+                      sp_pcontext *ctx,
+                      sp_handler *handler)
+   :sp_instr_jump(ip, ctx),
+    m_handler(handler),
+    m_opt_hpop(0),
+    m_frame(ctx->current_var_count())
   {
-    m_cond.empty();
+    DBUG_ASSERT(m_handler->condition_values.elements == 0);
   }
 
   virtual ~sp_instr_hpush_jump()
   {
-    m_cond.empty();
+    m_handler->condition_values.empty();
+    m_handler= NULL;
   }
 
   virtual int execute(THD *thd, uint *nextp);
@@ -1048,17 +1066,24 @@ public:
       m_opt_hpop= dest;
   }
 
-  inline void add_condition(struct sp_cond_type *cond)
-  {
-    m_cond.push_front(cond);
-  }
+  void add_condition(sp_condition_value *condition_value)
+  { m_handler->condition_values.push_back(condition_value); }
+
+  sp_handler *get_handler()
+  { return m_handler; }
 
 private:
 
-  int m_type;			///< Handler type
+private:
+  /// Handler.
+  sp_handler *m_handler;
+
+  /// hpop marking end of handler scope.
+  uint m_opt_hpop;
+
+  // This attribute is needed for SHOW PROCEDURE CODE only (i.e. it's needed in
+  // debug version only). It's used in print().
   uint m_frame;
-  uint m_opt_hpop;              // hpop marking end of handler scope.
-  List<struct sp_cond_type> m_cond;
 
 }; // class sp_instr_hpush_jump : public sp_instr_jump
 
@@ -1095,8 +1120,9 @@ class sp_instr_hreturn : public sp_instr_jump
 
 public:
 
-  sp_instr_hreturn(uint ip, sp_pcontext *ctx, uint fp)
-    : sp_instr_jump(ip, ctx), m_frame(fp)
+  sp_instr_hreturn(uint ip, sp_pcontext *ctx)
+   :sp_instr_jump(ip, ctx),
+    m_frame(ctx->current_var_count())
   {}
 
   virtual ~sp_instr_hreturn()
@@ -1251,7 +1277,7 @@ public:
 
   virtual void print(String *str);
 
-  void add_to_varlist(struct sp_variable *var)
+  void add_to_varlist(sp_variable *var)
   {
     m_varlist.push_back(var);
   }
@@ -1259,7 +1285,7 @@ public:
 private:
 
   uint m_cursor;
-  List<struct sp_variable> m_varlist;
+  List<sp_variable> m_varlist;
 
 }; // class sp_instr_cfetch : public sp_instr
 

@@ -40,18 +40,25 @@ static struct st_mysql_sys_var *sysvars[] = {
   NULL
 };
 
-typedef struct st_share {
-  const char *name;
+class TSD_share : public Handler_share {
+public:
   THR_LOCK lock;
-  uint use_count;
-  struct st_share *next;
-} SHARE;
+  TSD_share()
+  {
+    thr_lock_init(&lock);
+  }
+  ~TSD_share()
+  {
+    thr_lock_delete(&lock);
+  }
+};
 
 class ha_tsd: public handler
 {
 private:
   THR_LOCK_DATA lock;
-  SHARE *share;
+  TSD_share *share;
+  TSD_share *get_share();
 
 public:
   ha_tsd(handlerton *hton, TABLE_SHARE *table_arg)
@@ -87,39 +94,34 @@ public:
   int close(void);
 };
 
-static SHARE *find_or_create_share(const char *table_name, TABLE *table)
+TSD_share *ha_tsd::get_share()
 {
-  SHARE *share;
-  for (share = (SHARE*)table->s->ha_data; share; share = share->next)
-    if (my_strcasecmp(table_alias_charset, table_name, share->name) == 0)
-      return share;
+  TSD_share *tmp_share;
+  lock_shared_ha_data();
+  if (!(tmp_share= static_cast<TSD_share*>(get_ha_share_ptr())))
+  {
+    tmp_share= new TSD_share;
+    if (!tmp_share)
+      goto err;
 
-  share = (SHARE*)alloc_root(&table->s->mem_root, sizeof(*share));
-  bzero(share, sizeof(*share));
-  share->name = strdup_root(&table->s->mem_root, table_name);
-  share->next = (SHARE*)table->s->ha_data;
-  table->s->ha_data = share;
-  return share;
+    set_ha_share_ptr(static_cast<Handler_share*>(tmp_share));
+  }
+err:
+  unlock_shared_ha_data();
+  return tmp_share;
 }
 
 int ha_tsd::open(const char *name, int mode, uint test_if_locked)
 {
-  mysql_mutex_lock(&table->s->LOCK_ha_data);
-  share = find_or_create_share(name, table);
-  if (share->use_count++ == 0)
-    thr_lock_init(&share->lock);
-  mysql_mutex_unlock(&table->s->LOCK_ha_data);
-  thr_lock_data_init(&share->lock,&lock,NULL);
+  if (!(share= get_share()))
+    return HA_ERR_OUT_OF_MEM;
 
+  thr_lock_data_init(&share->lock,&lock,NULL);
   return 0;
 }
 
 int ha_tsd::close(void)
 {
-  mysql_mutex_lock(&table->s->LOCK_ha_data);
-  if (--share->use_count == 0)
-    thr_lock_delete(&share->lock);
-  mysql_mutex_unlock(&table->s->LOCK_ha_data);
   return 0;
 }
 

@@ -1,5 +1,6 @@
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
+--source include/have_innodb.inc
 
 --echo *** Test normal shutdown/restart of slave server configured as a GTID slave. ***
 
@@ -116,7 +117,160 @@ SET @slave_pos2= @@GLOBAL.gtid_slave_pos;
 SET @current_pos2= @@GLOBAL.gtid_current_pos;
 SELECT IF(@slave_pos1=@slave_pos2, "OK", CONCAT(@slave_pos1, " != ", @slave_pos2));
 SELECT IF(@current_pos1=@current_pos2, "OK", CONCAT(@current_pos1, " != ", @current_pos2));
+
+--connection server_1
+INSERT INTO t1 VALUES (6);
+--save_master_pos
+
+--connection server_2
 --source include/start_slave.inc
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+
+--echo *** MDEV-4490: Old-style master position points at the last GTID event after slave restart ***
+
+--connection server_1
+INSERT INTO t1 VALUES (7);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+# Now we restart the slave server. When it restarts, there is nothing new
+# to replicate. Check that the position is nevertheless updated and
+# MASTER_POS_WAIT() works correctly and detects that we are up-to-date.
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server 30
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/wait_for_slave_to_start.inc
+
+--connection server_1
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+
+--echo *** MDEV-4486: Allow to start old-style replication even if mysql.gtid_slave_pos is unavailable
+
+--connection server_2
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid= no;
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (8);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+--source include/stop_slave.inc
+
+SET sql_log_bin= 0;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET sql_log_bin= 1;
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server 30
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=1 --skip-innodb
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM mysql.gtid_slave_pos;
+SET sql_log_bin=0;
+call mtr.add_suppression("Failed to load slave replication state from table");
+call mtr.add_suppression("Unable to load replication GTID slave state");
+SET sql_log_bin=1;
+
+--source include/start_slave.inc
+--connection server_1
+INSERT INTO t1 VALUES (9);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+# Put things back as they were.
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server 30
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart:  
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+SET sql_log_bin= 0;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+SET sql_log_bin= 1;
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (10);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid= slave_pos;
+--source include/start_slave.inc
+
+--echo *** MDEV-4692: mysql.gtid_slave_pos accumulates values for a domain ***
+SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+
+--connection server_1
+INSERT INTO t1 VALUES (11);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server 30
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart:  
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (12);
+INSERT INTO t1 VALUES (13);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 
 
 --connection server_1
