@@ -4806,12 +4806,23 @@ end:
 }
 
 
-bool MYSQL_BIN_LOG::append(Log_event* ev)
+bool
+MYSQL_BIN_LOG::append(Log_event *ev)
+{
+  bool res;
+  mysql_mutex_lock(&LOCK_log);
+  res= append_no_lock(ev);
+  mysql_mutex_unlock(&LOCK_log);
+  return res;
+}
+
+
+bool MYSQL_BIN_LOG::append_no_lock(Log_event* ev)
 {
   bool error = 0;
-  mysql_mutex_lock(&LOCK_log);
   DBUG_ENTER("MYSQL_BIN_LOG::append");
 
+  mysql_mutex_assert_owner(&LOCK_log);
   DBUG_ASSERT(log_file.type == SEQ_READ_APPEND);
   /*
     Log_event::write() is smart enough to use my_b_write() or
@@ -4829,7 +4840,6 @@ bool MYSQL_BIN_LOG::append(Log_event* ev)
   if (my_b_append_tell(&log_file) > max_size)
     error= new_file_without_locking();
 err:
-  mysql_mutex_unlock(&LOCK_log);
   signal_update();				// Safe as we don't call close
   DBUG_RETURN(error);
 }

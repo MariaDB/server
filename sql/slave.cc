@@ -4925,8 +4925,6 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     goto err;
   }
 
-  LINT_INIT(inc_pos);
-
   if (mi->rli.relay_log.description_event_for_queue->binlog_version<4 &&
       (uchar)buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT /* a way to escape */)
     DBUG_RETURN(queue_old_event(mi,buf,event_len));
@@ -5182,7 +5180,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
 
     if (Gtid_log_event::peek(buf, event_len, checksum_alg,
                              &event_gtid.domain_id, &event_gtid.server_id,
-                             &event_gtid.seq_no, &dummy_flag))
+                             &event_gtid.seq_no, &dummy_flag,
+                             rli->relay_log.description_event_for_queue))
     {
       error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
       goto err;
@@ -5240,15 +5239,9 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       mi->gtid_current_pos.update(&mi->last_queued_gtid);
       mi->events_queued_since_last_gtid= 0;
     }
-    if (Gtid_log_event::peek(buf, event_len, checksum_alg,
-                             &mi->last_queued_gtid.domain_id,
-                             &mi->last_queued_gtid.server_id,
-                             &mi->last_queued_gtid.seq_no, &dummy_flag))
-    {
-      error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
-      goto err;
-    }
+    mi->last_queued_gtid= event_gtid;
     ++mi->events_queued_since_last_gtid;
+    inc_pos= event_len;
   }
   break;
 
@@ -5308,6 +5301,26 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   if (unlikely(gtid_skip_enqueue))
   {
     mi->master_log_pos+= inc_pos;
+    if ((uchar)buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT &&
+        s_id == mi->master_id)
+    {
+      /*
+        If we write this master's description event in the middle of an event
+        group due to GTID reconnect, SQL thread will think that master crashed
+        in the middle of the group and roll back the first half, so we must not.
+
+        But we still have to write an artificial copy of the masters description
+        event, to override the initial slave-version description event so that
+        SQL thread has the right information for parsing the events it reads.
+      */
+      rli->relay_log.description_event_for_queue->created= 0;
+      rli->relay_log.description_event_for_queue->set_artificial_event();
+      if (rli->relay_log.append_no_lock
+          (rli->relay_log.description_event_for_queue))
+        error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
+      else
+        rli->relay_log.harvest_bytes_written(&rli->log_space_total);
+    }
   }
   else
   if ((s_id == global_system_variables.server_id &&
