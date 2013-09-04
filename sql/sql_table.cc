@@ -7499,6 +7499,10 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                                        : HA_EXTRA_FORCE_REOPEN;
   DBUG_ENTER("simple_rename_or_index_change");
 
+#ifdef WITH_WSREP
+    bool do_log_write(true);
+#endif /* WITH_WSREP */
+
   if (keys_onoff != Alter_info::LEAVE_AS_IS)
   {
     if (wait_while_table_is_used(thd, table, extra_func))
@@ -7557,7 +7561,14 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
 
   if (!error)
   {
-    error= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+#ifdef WITH_WSREP
+      if (!WSREP(thd) || do_log_write) {
+#endif /* WITH_WSREP */
+        error= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+#ifdef WITH_WSREP
+      }
+#endif /* !WITH_WSREP */
+
     if (!error)
       my_ok(thd);
   }
@@ -7857,9 +7868,6 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     bool res= simple_rename_or_index_change(thd, table_list,
                                             alter_info->keys_onoff,
                                             &alter_ctx);
-#ifdef WITH_WSREP
-    bool do_log_write(true);
-#endif /* WITH_WSREP */
     DBUG_RETURN(res);
   }
 
