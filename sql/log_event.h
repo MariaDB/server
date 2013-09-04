@@ -3118,7 +3118,7 @@ public:
   static bool peek(const char *event_start, size_t event_len,
                    uint8 checksum_alg,
                    uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
-                   uchar *flags2);
+                   uchar *flags2, const Format_description_log_event *fdev);
 #endif
 };
 
@@ -3232,7 +3232,8 @@ public:
 #endif
   static bool peek(const char *event_start, uint32 event_len,
                    uint8 checksum_alg,
-                   rpl_gtid **out_gtid_list, uint32 *out_list_len);
+                   rpl_gtid **out_gtid_list, uint32 *out_list_len,
+                   const Format_description_log_event *fdev);
 };
 
 

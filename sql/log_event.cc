@@ -4754,16 +4754,15 @@ bool Format_description_log_event::write(IO_CACHE* file)
     We don't call Start_log_event_v3::write() because this would make 2
     my_b_safe_write().
   */
-  uchar buff[FORMAT_DESCRIPTION_HEADER_LEN + BINLOG_CHECKSUM_ALG_DESC_LEN];
-  size_t rec_size= sizeof(buff);
+  uchar buff[START_V3_HEADER_LEN+1];
+  size_t rec_size= sizeof(buff) + BINLOG_CHECKSUM_ALG_DESC_LEN +
+                   number_of_event_types;
   int2store(buff + ST_BINLOG_VER_OFFSET,binlog_version);
   memcpy((char*) buff + ST_SERVER_VER_OFFSET,server_version,ST_SERVER_VER_LEN);
   if (!dont_set_created)
     created= get_time();
   int4store(buff + ST_CREATED_OFFSET,created);
   buff[ST_COMMON_HEADER_LEN_OFFSET]= LOG_EVENT_HEADER_LEN;
-  memcpy((char*) buff+ST_COMMON_HEADER_LEN_OFFSET + 1, (uchar*) post_header_len,
-         LOG_EVENT_TYPES);
   /*
     if checksum is requested
     record the checksum-algorithm descriptor next to
@@ -4776,7 +4775,7 @@ bool Format_description_log_event::write(IO_CACHE* file)
 #ifndef DBUG_OFF
   data_written= 0; // to prepare for need_checksum assert
 #endif
-  buff[FORMAT_DESCRIPTION_HEADER_LEN]= need_checksum() ?
+  uchar checksum_byte= need_checksum() ?
     checksum_alg : (uint8) BINLOG_CHECKSUM_ALG_OFF;
   /* 
      FD of checksum-aware server is always checksum-equipped, (V) is in,
@@ -4796,7 +4795,10 @@ bool Format_description_log_event::write(IO_CACHE* file)
     checksum_alg= BINLOG_CHECKSUM_ALG_CRC32;  // Forcing (V) room to fill anyway
   }
   ret= (write_header(file, rec_size) ||
-        wrapper_my_b_safe_write(file, buff, rec_size) ||
+        wrapper_my_b_safe_write(file, buff, sizeof(buff)) ||
+        wrapper_my_b_safe_write(file, (uchar*)post_header_len,
+                                number_of_event_types) ||
+        wrapper_my_b_safe_write(file, &checksum_byte, sizeof(checksum_byte)) ||
         write_footer(file));
   if (no_checksum)
     checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
@@ -6125,7 +6127,7 @@ bool
 Gtid_log_event::peek(const char *event_start, size_t event_len,
                      uint8 checksum_alg,
                      uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
-                     uchar *flags2)
+                     uchar *flags2, const Format_description_log_event *fdev)
 {
   const char *p;
 
@@ -6140,10 +6142,10 @@ Gtid_log_event::peek(const char *event_start, size_t event_len,
     DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
                 checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
 
-  if (event_len < LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
+  if (event_len < (uint32)fdev->common_header_len + GTID_HEADER_LEN)
     return true;
   *server_id= uint4korr(event_start + SERVER_ID_OFFSET);
-  p= event_start + LOG_EVENT_HEADER_LEN;
+  p= event_start + fdev->common_header_len;
   *seq_no= uint8korr(p);
   p+= 8;
   *domain_id= uint4korr(p);
@@ -6581,7 +6583,8 @@ Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
 bool
 Gtid_list_log_event::peek(const char *event_start, uint32 event_len,
                           uint8 checksum_alg,
-                          rpl_gtid **out_gtid_list, uint32 *out_list_len)
+                          rpl_gtid **out_gtid_list, uint32 *out_list_len,
+                          const Format_description_log_event *fdev)
 {
   const char *p;
   uint32 count_field, count;
@@ -6598,13 +6601,13 @@ Gtid_list_log_event::peek(const char *event_start, uint32 event_len,
     DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
                 checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
 
-  if (event_len < LOG_EVENT_HEADER_LEN + GTID_LIST_HEADER_LEN)
+  if (event_len < (uint32)fdev->common_header_len + GTID_LIST_HEADER_LEN)
     return true;
-  p= event_start + LOG_EVENT_HEADER_LEN;
+  p= event_start + fdev->common_header_len;
   count_field= uint4korr(p);
   p+= 4;
   count= count_field & ((1<<28)-1);
-  if (event_len < LOG_EVENT_HEADER_LEN + GTID_LIST_HEADER_LEN +
+  if (event_len < (uint32)fdev->common_header_len + GTID_LIST_HEADER_LEN +
       16 * count)
     return true;
   if (!(gtid_list= (rpl_gtid *)my_malloc(sizeof(rpl_gtid)*count + (count == 0),

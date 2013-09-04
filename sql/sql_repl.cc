@@ -1269,6 +1269,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
   uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   int err;
   String packet;
+  Format_description_log_event *fdev= NULL;
 
   if (gtid_state->load((const rpl_gtid *)NULL, 0))
   {
@@ -1279,6 +1280,13 @@ gtid_state_from_pos(const char *name, uint32 offset,
 
   if ((file= open_binlog(&cache, name, &errormsg)) == (File)-1)
     return errormsg;
+
+  if (!(fdev= new Format_description_log_event(3)))
+  {
+    errormsg= "Out of memory initializing format_description event "
+      "while scanning binlog to find start position";
+    goto end;
+  }
 
   /*
     First we need to find the initial GTID_LIST_EVENT. We need this even
@@ -1315,6 +1323,8 @@ gtid_state_from_pos(const char *name, uint32 offset,
     typ= (Log_event_type)(uchar)packet[EVENT_TYPE_OFFSET];
     if (typ == FORMAT_DESCRIPTION_EVENT)
     {
+      Format_description_log_event *tmp;
+
       if (found_format_description_event)
       {
         errormsg= "Duplicate format description log event found while "
@@ -1324,6 +1334,15 @@ gtid_state_from_pos(const char *name, uint32 offset,
 
       current_checksum_alg= get_checksum_alg(packet.ptr(), packet.length());
       found_format_description_event= true;
+      if (!(tmp= new Format_description_log_event(packet.ptr(), packet.length(),
+                                                  fdev)))
+      {
+        errormsg= "Corrupt Format_description event found or out-of-memory "
+          "while searching for old-style position in binlog";
+        goto end;
+      }
+      delete fdev;
+      fdev= tmp;
     }
     else if (typ != FORMAT_DESCRIPTION_EVENT && !found_format_description_event)
     {
@@ -1348,7 +1367,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       }
       status= Gtid_list_log_event::peek(packet.ptr(), packet.length(),
                                         current_checksum_alg,
-                                        &gtid_list, &list_len);
+                                        &gtid_list, &list_len, fdev);
       if (status)
       {
         errormsg= "Error reading Gtid_list_log_event while searching "
@@ -1376,7 +1395,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       uchar flags2;
       if (Gtid_log_event::peek(packet.ptr(), packet.length(),
                                current_checksum_alg, &gtid.domain_id,
-                               &gtid.server_id, &gtid.seq_no, &flags2))
+                               &gtid.server_id, &gtid.seq_no, &flags2, fdev))
       {
         errormsg= "Corrupt gtid_log_event found while scanning binlog to find "
           "initial slave position";
@@ -1399,6 +1418,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
   }
 
 end:
+  delete fdev;
   end_io_cache(&cache);
   mysql_file_close(file, MYF(MY_WME));
 
@@ -1502,7 +1522,8 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                     enum_gtid_until_state *gtid_until_group,
                     rpl_binlog_state *until_binlog_state,
                     bool slave_gtid_strict_mode, rpl_gtid *error_gtid,
-                    bool *send_fake_gtid_list)
+                    bool *send_fake_gtid_list,
+                    Format_description_log_event *fdev)
 {
   my_off_t pos;
   size_t len= packet->length();
@@ -1516,7 +1537,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
     if (ev_offset > len ||
         Gtid_list_log_event::peek(packet->ptr()+ev_offset, len - ev_offset,
                                   current_checksum_alg,
-                                  &gtid_list, &list_len))
+                                  &gtid_list, &list_len, fdev))
     {
       my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       return "Failed to read Gtid_list_log_event: corrupt binlog";
@@ -1545,7 +1566,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
           Gtid_log_event::peek(packet->ptr()+ev_offset, len - ev_offset,
                                current_checksum_alg,
                                &event_gtid.domain_id, &event_gtid.server_id,
-                               &event_gtid.seq_no, &flags2))
+                               &event_gtid.seq_no, &flags2, fdev))
       {
         my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
         return "Failed to read Gtid_log_event: corrupt binlog";
@@ -1881,6 +1902,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
+  Format_description_log_event *fdev= NULL;
 
 #ifndef DBUG_OFF
   int left_events = max_binlog_dump_events;
@@ -1955,6 +1977,13 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     goto err;
   }
 #endif
+
+  if (!(fdev= new Format_description_log_event(3)))
+  {
+    errmsg= "Out of memory initializing format_description event";
+    my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+    goto err;
+  }
 
   if (!mysql_bin_log.is_open())
   {
@@ -2119,6 +2148,8 @@ impossible position";
                    (*packet)[EVENT_TYPE_OFFSET+ev_offset]));
        if ((*packet)[EVENT_TYPE_OFFSET+ev_offset] == FORMAT_DESCRIPTION_EVENT)
        {
+         Format_description_log_event *tmp;
+
          current_checksum_alg= get_checksum_alg(packet->ptr() + ev_offset,
                                                 packet->length() - ev_offset);
          DBUG_ASSERT(current_checksum_alg == BINLOG_CHECKSUM_ALG_OFF ||
@@ -2136,6 +2167,18 @@ impossible position";
                              "slaves that cannot process them");
            goto err;
          }
+
+         if (!(tmp= new Format_description_log_event(packet->ptr()+ev_offset,
+                                                     packet->length()-ev_offset,
+                                                     fdev)))
+         {
+           my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+           errmsg= "Corrupt Format_description event found or out-of-memory";
+           goto err;
+         }
+         delete fdev;
+         fdev= tmp;
+
          (*packet)[FLAGS_OFFSET+ev_offset] &= ~LOG_EVENT_BINLOG_IN_USE_F;
          /*
            mark that this event with "log_pos=0", so the slave
@@ -2253,6 +2296,8 @@ impossible position";
 #endif
       if (event_type == FORMAT_DESCRIPTION_EVENT)
       {
+        Format_description_log_event *tmp;
+
         current_checksum_alg= get_checksum_alg(packet->ptr() + ev_offset,
                                                packet->length() - ev_offset);
         DBUG_ASSERT(current_checksum_alg == BINLOG_CHECKSUM_ALG_OFF ||
@@ -2270,6 +2315,17 @@ impossible position";
                             "slaves that cannot process them");
           goto err;
         }
+
+        if (!(tmp= new Format_description_log_event(packet->ptr()+ev_offset,
+                                                    packet->length()-ev_offset,
+                                                    fdev)))
+        {
+          my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+          errmsg= "Corrupt Format_description event found or out-of-memory";
+          goto err;
+        }
+        delete fdev;
+        fdev= tmp;
 
         (*packet)[FLAGS_OFFSET+ev_offset] &= ~LOG_EVENT_BINLOG_IN_USE_F;
       }
@@ -2295,7 +2351,7 @@ impossible position";
                                         until_gtid_state, &gtid_until_group,
                                         &until_binlog_state,
                                         slave_gtid_strict_mode, &error_gtid,
-                                        &send_fake_gtid_list)))
+                                        &send_fake_gtid_list, fdev)))
       {
         errmsg= tmp_msg;
         goto err;
@@ -2501,7 +2557,7 @@ impossible position";
                                             &gtid_skip_group, until_gtid_state,
                                             &gtid_until_group, &until_binlog_state,
                                             slave_gtid_strict_mode, &error_gtid,
-                                            &send_fake_gtid_list)))
+                                            &send_fake_gtid_list, fdev)))
           {
             errmsg= tmp_msg;
             goto err;
@@ -2599,6 +2655,7 @@ end:
   thd->current_linfo = 0;
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->variables.max_allowed_packet= old_max_allowed_packet;
+  delete fdev;
   DBUG_VOID_RETURN;
 
 err:
@@ -2674,6 +2731,7 @@ err:
   if (file >= 0)
     mysql_file_close(file, MYF(MY_WME));
   thd->variables.max_allowed_packet= old_max_allowed_packet;
+  delete fdev;
 
   my_message(my_errno, error_text, MYF(0));
   DBUG_VOID_RETURN;

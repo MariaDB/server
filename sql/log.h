@@ -712,6 +712,7 @@ public:
   */
   bool appendv(const char* buf,uint len,...);
   bool append(Log_event* ev);
+  bool append_no_lock(Log_event* ev);
 
   void mark_xids_active(ulong cookie, uint xid_count);
   void mark_xid_done(ulong cookie, bool write_checkpoint);
