@@ -210,7 +210,8 @@ SPIDER_DBTON spider_dbton_mysql = {
   &spider_db_mysql_utility
 };
 
-spider_db_mysql_row::spider_db_mysql_row() : spider_db_row(),
+spider_db_mysql_row::spider_db_mysql_row() :
+  spider_db_row(spider_dbton_mysql.dbton_id),
   row(NULL), lengths(NULL), cloned(FALSE)
 {
   DBUG_ENTER("spider_db_mysql_row::spider_db_mysql_row");
@@ -426,7 +427,8 @@ int spider_db_mysql_row::store_to_tmp_table(
   DBUG_RETURN(tmp_table->file->ha_write_row(tmp_table->record[0]));
 }
 
-spider_db_mysql_result::spider_db_mysql_result() : spider_db_result(),
+spider_db_mysql_result::spider_db_mysql_result() :
+  spider_db_result(spider_dbton_mysql.dbton_id),
   db_result(NULL)
 {
   DBUG_ENTER("spider_db_mysql_result::spider_db_mysql_result");
@@ -567,7 +569,11 @@ int spider_db_mysql_result::fetch_table_status(
 #else
   my_bool not_used_my_bool;
 #endif
+#ifdef SPIDER_HAS_TIME_STATUS
   MYSQL_TIME_STATUS time_status;
+#else
+  int time_status;
+#endif
   long not_used_long;
   DBUG_ENTER("spider_db_mysql_result::fetch_table_status");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -628,7 +634,9 @@ int spider_db_mysql_result::fetch_table_status(
       ("spider auto_increment_value=%lld", auto_increment_value));
     if (mysql_row[11])
     {
+#ifdef SPIDER_HAS_TIME_STATUS
       my_time_status_init(&time_status);
+#endif
       str_to_datetime(mysql_row[11], strlen(mysql_row[11]), &mysql_time, 0,
         &time_status);
 #ifdef MARIADB_BASE_VERSION
@@ -651,7 +659,9 @@ int spider_db_mysql_result::fetch_table_status(
 #endif
     if (mysql_row[12])
     {
+#ifdef SPIDER_HAS_TIME_STATUS
       my_time_status_init(&time_status);
+#endif
       str_to_datetime(mysql_row[12], strlen(mysql_row[12]), &mysql_time, 0,
         &time_status);
 #ifdef MARIADB_BASE_VERSION
@@ -674,7 +684,9 @@ int spider_db_mysql_result::fetch_table_status(
 #endif
     if (mysql_row[13])
     {
+#ifdef SPIDER_HAS_TIME_STATUS
       my_time_status_init(&time_status);
+#endif
       str_to_datetime(mysql_row[13], strlen(mysql_row[13]), &mysql_time, 0,
         &time_status);
 #ifdef MARIADB_BASE_VERSION
@@ -740,7 +752,9 @@ int spider_db_mysql_result::fetch_table_status(
       ("spider auto_increment_value=%lld", auto_increment_value));
     if (mysql_row[6])
     {
+#ifdef SPIDER_HAS_TIME_STATUS
       my_time_status_init(&time_status);
+#endif
       str_to_datetime(mysql_row[6], strlen(mysql_row[6]), &mysql_time, 0,
         &time_status);
 #ifdef MARIADB_BASE_VERSION
@@ -763,7 +777,9 @@ int spider_db_mysql_result::fetch_table_status(
 #endif
     if (mysql_row[7])
     {
+#ifdef SPIDER_HAS_TIME_STATUS
       my_time_status_init(&time_status);
+#endif
       str_to_datetime(mysql_row[7], strlen(mysql_row[7]), &mysql_time, 0,
         &time_status);
 #ifdef MARIADB_BASE_VERSION
@@ -786,7 +802,9 @@ int spider_db_mysql_result::fetch_table_status(
 #endif
     if (mysql_row[8])
     {
+#ifdef SPIDER_HAS_TIME_STATUS
       my_time_status_init(&time_status);
+#endif
       str_to_datetime(mysql_row[8], strlen(mysql_row[8]), &mysql_time, 0,
         &time_status);
 #ifdef MARIADB_BASE_VERSION
@@ -1479,9 +1497,54 @@ int spider_db_mysql::exec_query(
   uint length,
   int quick_mode
 ) {
+  int error_num;
   DBUG_ENTER("spider_db_mysql::exec_query");
   DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(mysql_real_query(db_conn, query, length));
+  if (spider_param_general_log())
+  {
+    const char *tgt_str = conn->tgt_host;
+    uint32 tgt_len = conn->tgt_host_length;
+    spider_string tmp_query_str(length + conn->tgt_wrapper_length +
+      tgt_len + (SPIDER_SQL_SPACE_LEN * 2));
+    tmp_query_str.init_calc_mem(230);
+    tmp_query_str.length(0);
+    tmp_query_str.q_append(conn->tgt_wrapper, conn->tgt_wrapper_length);
+    tmp_query_str.q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
+    tmp_query_str.q_append(tgt_str, tgt_len);
+    tmp_query_str.q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
+    tmp_query_str.q_append(query, length);
+    general_log_write(current_thd, COM_QUERY, tmp_query_str.ptr(),
+      tmp_query_str.length());
+  }
+  error_num = mysql_real_query(db_conn, query, length);
+  if (spider_param_log_result_errors() >= 2 && db_conn->warning_count > 0)
+  {
+    time_t cur_time = (time_t) time((time_t*) 0);
+    struct tm lt;
+    struct tm *l_time = localtime_r(&cur_time, &lt);
+    fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] "
+      "from [%s] %ld to %ld:  "
+      "affected_rows: %llu  id: %llu  status: %u  warning_count: %u\n",
+      l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+      l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+      conn->tgt_host, db_conn->thread_id, current_thd->thread_id,
+      db_conn->affected_rows, db_conn->insert_id,
+      db_conn->server_status, db_conn->warning_count);
+  } else if (spider_param_log_result_errors() >= 4)
+  {
+    time_t cur_time = (time_t) time((time_t*) 0);
+    struct tm lt;
+    struct tm *l_time = localtime_r(&cur_time, &lt);
+    fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [INFO SPIDER RESULT] "
+      "from [%s] %ld to %ld:  "
+      "affected_rows: %llu  id: %llu  status: %u  warning_count: %u\n",
+      l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+      l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+      conn->tgt_host, db_conn->thread_id, current_thd->thread_id,
+      db_conn->affected_rows, db_conn->insert_id,
+      db_conn->server_status, db_conn->warning_count);
+  }
+  DBUG_RETURN(error_num);
 }
 
 int spider_db_mysql::get_errno()
@@ -4268,7 +4331,7 @@ int spider_mysql_share::append_key_select(
   const KEY *key_info = &table_share->key_info[idx];
   DBUG_ENTER("spider_mysql_share::append_key_select");
   for (key_part = key_info->key_part, part_num = 0;
-    part_num < key_info->user_defined_key_parts; key_part++, part_num++)
+    part_num < spider_user_defined_key_parts(key_info); key_part++, part_num++)
   {
     field = key_part->field;
     field_length = column_name_str[field->field_index].length();
@@ -4595,7 +4658,8 @@ int spider_mysql_handler::append_key_column_types(
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   KEY *key_info = result_list->key_info;
   uint key_name_length, key_count;
-  key_part_map full_key_part_map = make_prev_keypart_map(key_info->user_defined_key_parts);
+  key_part_map full_key_part_map =
+    make_prev_keypart_map(spider_user_defined_key_parts(key_info));
   key_part_map start_key_part_map;
   KEY_PART_INFO *key_part;
   Field *field;
@@ -4606,7 +4670,8 @@ int spider_mysql_handler::append_key_column_types(
   tmp_str.init_calc_mem(115);
 
   start_key_part_map = start_key->keypart_map & full_key_part_map;
-  DBUG_PRINT("info", ("spider key_info->user_defined_key_parts=%u", key_info->user_defined_key_parts));
+  DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
+    spider_user_defined_key_parts(key_info)));
   DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
   DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
 
@@ -4662,7 +4727,8 @@ int spider_mysql_handler::append_key_join_columns_for_bka(
 ) {
   KEY *key_info = spider->result_list.key_info;
   uint length, key_name_length, key_count;
-  key_part_map full_key_part_map = make_prev_keypart_map(key_info->user_defined_key_parts);
+  key_part_map full_key_part_map =
+    make_prev_keypart_map(spider_user_defined_key_parts(key_info));
   key_part_map start_key_part_map;
   KEY_PART_INFO *key_part;
   Field *field;
@@ -4671,7 +4737,8 @@ int spider_mysql_handler::append_key_join_columns_for_bka(
   DBUG_ENTER("spider_mysql_handler::append_key_join_columns_for_bka");
   DBUG_PRINT("info",("spider this=%p", this));
   start_key_part_map = start_key->keypart_map & full_key_part_map;
-  DBUG_PRINT("info", ("spider key_info->user_defined_key_parts=%u", key_info->user_defined_key_parts));
+  DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
+    spider_user_defined_key_parts(key_info)));
   DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
   DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
 
@@ -5707,11 +5774,8 @@ int spider_mysql_handler::append_minimum_select(
   DBUG_ENTER("spider_mysql_handler::append_minimum_select");
   for (field = table->field; *field; field++)
   {
-    if (
-      spider_bit_is_set(spider->searched_bitmap, (*field)->field_index) |
-      bitmap_is_set(table->read_set, (*field)->field_index) |
-      bitmap_is_set(table->write_set, (*field)->field_index)
-    ) {
+    if (minimum_select_bit_is_set((*field)->field_index))
+    {
       field_length =
         mysql_share->column_name_str[(*field)->field_index].length();
       if (str->reserve(field_length +
@@ -5768,7 +5832,7 @@ int spider_mysql_handler::append_key_select_with_alias(
   int field_length;
   DBUG_ENTER("spider_mysql_handler::append_key_select_with_alias");
   for (key_part = key_info->key_part, part_num = 0;
-    part_num < key_info->user_defined_key_parts; key_part++, part_num++)
+    part_num < spider_user_defined_key_parts(key_info); key_part++, part_num++)
   {
     field = key_part->field;
     field_length = mysql_share->column_name_str[field->field_index].length();
@@ -5795,11 +5859,8 @@ int spider_mysql_handler::append_minimum_select_with_alias(
   DBUG_ENTER("spider_mysql_handler::append_minimum_select_with_alias");
   for (field = table->field; *field; field++)
   {
-    if (
-      spider_bit_is_set(spider->searched_bitmap, (*field)->field_index) |
-      bitmap_is_set(table->read_set, (*field)->field_index) |
-      bitmap_is_set(table->write_set, (*field)->field_index)
-    ) {
+    if (minimum_select_bit_is_set((*field)->field_index))
+    {
       field_length =
         mysql_share->column_name_str[(*field)->field_index].length();
       if (str->reserve(alias_length + field_length +
@@ -6049,13 +6110,15 @@ int spider_mysql_handler::append_key_column_values(
   KEY *key_info = result_list->key_info;
   uint length;
   uint store_length;
-  key_part_map full_key_part_map = make_prev_keypart_map(key_info->user_defined_key_parts);
+  key_part_map full_key_part_map =
+    make_prev_keypart_map(spider_user_defined_key_parts(key_info));
   key_part_map start_key_part_map;
   KEY_PART_INFO *key_part;
   Field *field;
   DBUG_ENTER("spider_mysql_handler::append_key_column_values");
   start_key_part_map = start_key->keypart_map & full_key_part_map;
-  DBUG_PRINT("info", ("spider key_info->user_defined_key_parts=%u", key_info->user_defined_key_parts));
+  DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
+    spider_user_defined_key_parts(key_info)));
   DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
   DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
 
@@ -6598,13 +6661,13 @@ int spider_mysql_handler::append_match_against(
 
   ft_init_key = ft_info->key;
   key_info = &table->key_info[ft_info->inx];
-  DBUG_PRINT("info", ("spider key_info->user_defined_key_parts=%u",
-    key_info->user_defined_key_parts));
+  DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
+    spider_user_defined_key_parts(key_info)));
 
   for (
     key_part = key_info->key_part,
     key_count = 0;
-    key_count < (int) key_info->user_defined_key_parts;
+    key_count < (int) spider_user_defined_key_parts(key_info);
     key_part++,
     key_count++
   ) {
@@ -6814,7 +6877,7 @@ int spider_mysql_handler::append_key_order_for_merge_with_alias(
     for (
       key_part = key_info->key_part,
       length = 1;
-      length <= (int) key_info->user_defined_key_parts;
+      length <= (int) spider_user_defined_key_parts(key_info);
       key_part++,
       length++
     ) {
@@ -7016,7 +7079,8 @@ int spider_mysql_handler::append_key_order_with_alias(
       for (
         key_part = key_info->key_part + result_list->key_order,
         length = 1;
-        length + result_list->key_order < (int) key_info->user_defined_key_parts &&
+        length + result_list->key_order <
+          (int) spider_user_defined_key_parts(key_info) &&
         length < result_list->max_order;
         key_part++,
         length++
@@ -7050,7 +7114,8 @@ int spider_mysql_handler::append_key_order_with_alias(
         }
       }
       if (
-        length + result_list->key_order <= (int) key_info->user_defined_key_parts &&
+        length + result_list->key_order <=
+          (int) spider_user_defined_key_parts(key_info) &&
         length <= result_list->max_order
       ) {
         field = key_part->field;
@@ -7082,7 +7147,8 @@ int spider_mysql_handler::append_key_order_with_alias(
       for (
         key_part = key_info->key_part + result_list->key_order,
         length = 1;
-        length + result_list->key_order < (int) key_info->user_defined_key_parts &&
+        length + result_list->key_order <
+          (int) spider_user_defined_key_parts(key_info) &&
         length < result_list->max_order;
         key_part++,
         length++
@@ -7116,7 +7182,8 @@ int spider_mysql_handler::append_key_order_with_alias(
         }
       }
       if (
-        length + result_list->key_order <= (int) key_info->user_defined_key_parts &&
+        length + result_list->key_order <=
+          (int) spider_user_defined_key_parts(key_info) &&
         length <= result_list->max_order
       ) {
         field = key_part->field;
@@ -10315,6 +10382,67 @@ bool spider_mysql_handler::support_use_handler(
   DBUG_RETURN(TRUE);
 }
 
+bool spider_mysql_handler::minimum_select_bit_is_set(
+  uint field_index
+) {
+  TABLE *table = spider->get_table();
+  DBUG_ENTER("spider_mysql_handler::minimum_select_bit_is_set");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_PRINT("info",("spider field_index=%u", field_index));
+  DBUG_PRINT("info",("spider ft_discard_bitmap=%s",
+    spider_bit_is_set(spider->ft_discard_bitmap, field_index) ?
+      "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider searched_bitmap=%s",
+    spider_bit_is_set(spider->searched_bitmap, field_index) ?
+      "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider read_set=%s",
+    bitmap_is_set(table->read_set, field_index) ?
+      "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider write_set=%s",
+    bitmap_is_set(table->write_set, field_index) ?
+      "TRUE" : "FALSE"));
+  DBUG_RETURN(
+    spider_bit_is_set(spider->ft_discard_bitmap, field_index) &
+    (
+      spider_bit_is_set(spider->searched_bitmap, field_index) |
+      bitmap_is_set(table->read_set, field_index) |
+      bitmap_is_set(table->write_set, field_index)
+    )
+  );
+}
+
+void spider_mysql_handler::copy_minimum_select_bitmap(
+  uchar *bitmap
+) {
+  int roop_count;
+  TABLE *table = spider->get_table();
+  DBUG_ENTER("spider_mysql_handler::copy_minimum_select_bitmap");
+  for (roop_count = 0;
+    roop_count < (int) ((table->s->fields + 7) / 8);
+    roop_count++)
+  {
+    bitmap[roop_count] =
+      spider->ft_discard_bitmap[roop_count] &
+      (
+        spider->searched_bitmap[roop_count] |
+        ((uchar *) table->read_set->bitmap)[roop_count] |
+        ((uchar *) table->write_set->bitmap)[roop_count]
+      );
+    DBUG_PRINT("info",("spider roop_count=%d", roop_count));
+    DBUG_PRINT("info",("spider bitmap=%d",
+      bitmap[roop_count]));
+    DBUG_PRINT("info",("spider ft_discard_bitmap=%d",
+      spider->ft_discard_bitmap[roop_count]));
+    DBUG_PRINT("info",("spider searched_bitmap=%d",
+      spider->searched_bitmap[roop_count]));
+    DBUG_PRINT("info",("spider read_set=%d",
+      ((uchar *) table->read_set->bitmap)[roop_count]));
+    DBUG_PRINT("info",("spider write_set=%d",
+      ((uchar *) table->write_set->bitmap)[roop_count]));
+  }
+  DBUG_VOID_RETURN;
+}
+
 spider_mysql_copy_table::spider_mysql_copy_table(
   spider_mysql_share *db_share
 ) : spider_db_copy_table(
@@ -10480,7 +10608,8 @@ int spider_mysql_copy_table::append_copy_where(
   sql.q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
   Field *field;
   KEY_PART_INFO *key_part = key_info->key_part;
-  for (roop_count = key_info->user_defined_key_parts - 1; roop_count >= 0; roop_count--)
+  for (roop_count = spider_user_defined_key_parts(key_info) - 1;
+    roop_count >= 0; roop_count--)
   {
     for (roop_count2 = 0; roop_count2 < roop_count; roop_count2++)
     {
@@ -10525,7 +10654,7 @@ int spider_mysql_copy_table::append_key_order_str(
   Field *field;
   DBUG_ENTER("spider_mysql_copy_table::append_key_order_str");
   DBUG_PRINT("info",("spider this=%p", this));
-  if ((int) key_info->user_defined_key_parts > start_pos)
+  if ((int) spider_user_defined_key_parts(key_info) > start_pos)
   {
     if (sql.reserve(SPIDER_SQL_ORDER_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -10535,7 +10664,7 @@ int spider_mysql_copy_table::append_key_order_str(
       for (
         key_part = key_info->key_part + start_pos,
         length = 0;
-        length + start_pos < (int) key_info->user_defined_key_parts;
+        length + start_pos < (int) spider_user_defined_key_parts(key_info);
         key_part++,
         length++
       ) {
@@ -10565,7 +10694,7 @@ int spider_mysql_copy_table::append_key_order_str(
       for (
         key_part = key_info->key_part + start_pos,
         length = 0;
-        length + start_pos < (int) key_info->user_defined_key_parts;
+        length + start_pos < (int) spider_user_defined_key_parts(key_info);
         key_part++,
         length++
       ) {

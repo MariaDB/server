@@ -680,8 +680,19 @@ int spider_db_errorno(
         current_thd &&
         spider_param_force_commit(current_thd) == 1
       ) {
-        push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
+        push_warning(current_thd, SPIDER_WARN_LEVEL_WARN,
           error_num, conn->db_conn->get_error());
+        if (spider_param_log_result_errors() >= 3)
+        {
+          time_t cur_time = (time_t) time((time_t*) 0);
+          struct tm lt;
+          struct tm *l_time = localtime_r(&cur_time, &lt);
+          fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] "
+            "to %ld: %d %s\n",
+            l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+            l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+            current_thd->thread_id, error_num, conn->db_conn->get_error());
+        }
         if (!conn->mta_conn_mutex_unlock_later)
         {
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -691,6 +702,17 @@ int spider_db_errorno(
       }
       *conn->need_mon = error_num;
       my_message(error_num, conn->db_conn->get_error(), MYF(0));
+      if (spider_param_log_result_errors() >= 1)
+      {
+        time_t cur_time = (time_t) time((time_t*) 0);
+        struct tm lt;
+        struct tm *l_time = localtime_r(&cur_time, &lt);
+        fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [ERROR SPIDER RESULT] "
+          "to %ld: %d %s\n",
+          l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+          l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+          current_thd->thread_id, error_num, conn->db_conn->get_error());
+      }
       if (!conn->mta_conn_mutex_unlock_later)
       {
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -725,6 +747,18 @@ int spider_db_errorno(
     }
     my_printf_error(ER_SPIDER_HS_NUM, ER_SPIDER_HS_STR, MYF(0),
       conn->db_conn->get_errno(), conn->db_conn->get_error());
+    if (spider_param_log_result_errors() >= 1)
+    {
+      time_t cur_time = (time_t) time((time_t*) 0);
+      struct tm lt;
+      struct tm *l_time = localtime_r(&cur_time, &lt);
+      fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [ERROR SPIDER RESULT] "
+        "to %ld: %d %s\n",
+        l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+        l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+        current_thd->thread_id, conn->db_conn->get_errno(),
+        conn->db_conn->get_error());
+    }
     *conn->need_mon = ER_SPIDER_HS_NUM;
     if (!conn->mta_conn_mutex_unlock_later)
     {
@@ -1387,13 +1421,15 @@ int spider_db_append_key_columns(
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   KEY *key_info = result_list->key_info;
   uint key_name_length, key_count;
-  key_part_map full_key_part_map = make_prev_keypart_map(key_info->user_defined_key_parts);
+  key_part_map full_key_part_map =
+    make_prev_keypart_map(spider_user_defined_key_parts(key_info));
   key_part_map start_key_part_map;
   char tmp_buf[MAX_FIELD_WIDTH];
   DBUG_ENTER("spider_db_append_key_columns");
 
   start_key_part_map = start_key->keypart_map & full_key_part_map;
-  DBUG_PRINT("info", ("spider key_info->user_defined_key_parts=%u", key_info->user_defined_key_parts));
+  DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
+    spider_user_defined_key_parts(key_info)));
   DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
   DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
 
@@ -1533,7 +1569,8 @@ int spider_db_append_key_where_internal(
   }
 
   if (key_info)
-    full_key_part_map = make_prev_keypart_map(key_info->user_defined_key_parts);
+    full_key_part_map =
+      make_prev_keypart_map(spider_user_defined_key_parts(key_info));
   else
     full_key_part_map = 0;
 
@@ -1549,8 +1586,8 @@ int spider_db_append_key_where_internal(
     end_key_part_map = 0;
     use_both = FALSE;
   }
-  DBUG_PRINT("info", ("spider key_info->user_defined_key_parts=%u", key_info ?
-    key_info->user_defined_key_parts : 0));
+  DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u", key_info ?
+    spider_user_defined_key_parts(key_info) : 0));
   DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
   DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
   DBUG_PRINT("info", ("spider end_key_part_map=%lu", end_key_part_map));
@@ -2581,16 +2618,14 @@ int spider_db_fetch_table(
     if (spider->hs_pushed_ret_fields_num == MAX_FIELDS)
     {
 #endif
+      spider_db_handler *dbton_hdl = spider->dbton_handler[row->dbton_id];
       for (
         field = table->field;
         *field;
         field++
       ) {
-        if (
-          spider_bit_is_set(spider->searched_bitmap, (*field)->field_index) |
-          bitmap_is_set(table->read_set, (*field)->field_index) |
-          bitmap_is_set(table->write_set, (*field)->field_index)
-        ) {
+        if (dbton_hdl->minimum_select_bit_is_set((*field)->field_index))
+        {
 #ifndef DBUG_OFF
           my_bitmap_map *tmp_map =
             dbug_tmp_use_all_columns(table, table->write_set);
@@ -2699,7 +2734,7 @@ int spider_db_fetch_key(
   for (
     key_part = key_info->key_part,
     part_num = 0;
-    part_num < key_info->user_defined_key_parts;
+    part_num < spider_user_defined_key_parts(key_info);
     key_part++,
     part_num++
   ) {
@@ -2738,6 +2773,7 @@ int spider_db_fetch_minimum_columns(
   SPIDER_RESULT *current = (SPIDER_RESULT*) result_list->current;
   SPIDER_DB_ROW *row;
   Field **field;
+  spider_db_handler *dbton_hdl;
   DBUG_ENTER("spider_db_fetch_minimum_columns");
   if (result_list->quick_mode == 0)
   {
@@ -2776,6 +2812,7 @@ int spider_db_fetch_minimum_columns(
     spider->ft_first, spider->ft_current, row)))
     DBUG_RETURN(error_num);
 
+  dbton_hdl = spider->dbton_handler[row->dbton_id];
   for (
     field = table->field;
     *field;
@@ -2788,11 +2825,8 @@ int spider_db_fetch_minimum_columns(
       bitmap_is_set(table->read_set, (*field)->field_index)));
     DBUG_PRINT("info", ("spider write_set %u",
       bitmap_is_set(table->write_set, (*field)->field_index)));
-    if (
-      spider_bit_is_set(spider->searched_bitmap, (*field)->field_index) |
-      bitmap_is_set(table->read_set, (*field)->field_index) |
-      bitmap_is_set(table->write_set, (*field)->field_index)
-    ) {
+    if (dbton_hdl->minimum_select_bit_is_set((*field)->field_index))
+    {
       if ((
         bitmap_is_set(table->read_set, (*field)->field_index) |
         bitmap_is_set(table->write_set, (*field)->field_index)
@@ -4635,7 +4669,7 @@ int spider_db_seek_tmp_key(
   for (
     key_part = key_info->key_part,
     part_num = 0;
-    part_num < key_info->user_defined_key_parts;
+    part_num < spider_user_defined_key_parts(key_info);
     key_part++,
     part_num++
   ) {
@@ -4782,7 +4816,8 @@ void spider_db_set_cardinarity(
   for (roop_count = 0; roop_count < (int) table->s->keys; roop_count++)
   {
     key_info = &table->key_info[roop_count];
-    for (roop_count2 = 0; roop_count2 < (int) key_info->user_defined_key_parts;
+    for (roop_count2 = 0;
+      roop_count2 < (int) spider_user_defined_key_parts(key_info);
       roop_count2++)
     {
       key_part = &key_info->key_part[roop_count2];
@@ -5438,7 +5473,7 @@ int spider_db_update_auto_increment(
           for (roop_count = first_set ? 1 : 0;
             roop_count < (int) affected_rows;
             roop_count++)
-            push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+            push_warning_printf(thd, SPIDER_WARN_LEVEL_NOTE,
               ER_SPIDER_AUTOINC_VAL_IS_DIFFERENT_NUM,
               ER_SPIDER_AUTOINC_VAL_IS_DIFFERENT_STR);
         }
@@ -5454,7 +5489,7 @@ int spider_db_update_auto_increment(
 #endif
       ) {
         for (roop_count = 0; roop_count < (int) affected_rows; roop_count++)
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+          push_warning_printf(thd, SPIDER_WARN_LEVEL_NOTE,
             ER_SPIDER_AUTOINC_VAL_IS_DIFFERENT_NUM,
             ER_SPIDER_AUTOINC_VAL_IS_DIFFERENT_STR);
       }
@@ -7759,7 +7794,7 @@ uint spider_db_check_ft_idx(
     key_info = &table->key_info[roop_count];
     if (
       key_info->algorithm == HA_KEY_ALG_FULLTEXT &&
-      item_count - 1 == key_info->user_defined_key_parts
+      item_count - 1 == spider_user_defined_key_parts(key_info)
     ) {
       match1 = TRUE;
       for (roop_count2 = 1; roop_count2 < item_count; roop_count2++)
@@ -7770,7 +7805,8 @@ uint spider_db_check_ft_idx(
           DBUG_RETURN(MAX_KEY);
         match2 = FALSE;
         for (key_part = key_info->key_part, part_num = 0;
-          part_num < key_info->user_defined_key_parts; key_part++, part_num++)
+          part_num < spider_user_defined_key_parts(key_info);
+          key_part++, part_num++)
         {
           if (key_part->field == field)
           {

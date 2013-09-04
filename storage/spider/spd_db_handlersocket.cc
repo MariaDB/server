@@ -347,7 +347,8 @@ spider_string *spider_db_hs_str_buffer::add(
   DBUG_RETURN(element);
 }
 
-spider_db_handlersocket_row::spider_db_handlersocket_row() : spider_db_row(),
+spider_db_handlersocket_row::spider_db_handlersocket_row() :
+  spider_db_row(spider_dbton_handlersocket.dbton_id),
   hs_row(NULL), field_count(0), cloned(FALSE)
 {
   DBUG_ENTER("spider_db_handlersocket_row::spider_db_handlersocket_row");
@@ -568,7 +569,7 @@ bool spider_db_handlersocket_result_buffer::check_size(
 }
 
 spider_db_handlersocket_result::spider_db_handlersocket_result(
-) : spider_db_result()
+) : spider_db_result(spider_dbton_handlersocket.dbton_id)
 {
   DBUG_ENTER("spider_db_handlersocket_result::spider_db_handlersocket_result");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -1060,6 +1061,24 @@ int spider_db_handlersocket::exec_query(
     (*hs_conn_p)->get_num_req_rcvd()));
   DBUG_PRINT("info",("spider hs response_end_offset=%zu",
     (*hs_conn_p)->get_response_end_offset()));
+  if (spider_param_general_log())
+  {
+    const char *tgt_str = conn->hs_sock ? conn->hs_sock : conn->tgt_host;
+    uint32 tgt_len = strlen(tgt_str);
+    spider_string tmp_query_str((*hs_conn_p)->get_writebuf_size() +
+      conn->tgt_wrapper_length +
+      tgt_len + (SPIDER_SQL_SPACE_LEN * 2));
+    tmp_query_str.init_calc_mem(231);
+    tmp_query_str.length(0);
+    tmp_query_str.q_append(conn->tgt_wrapper, conn->tgt_wrapper_length);
+    tmp_query_str.q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
+    tmp_query_str.q_append(tgt_str, tgt_len);
+    tmp_query_str.q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
+    tmp_query_str.q_append((*hs_conn_p)->get_writebuf_begin(),
+      (*hs_conn_p)->get_writebuf_size());
+    general_log_write(current_thd, COM_QUERY, tmp_query_str.ptr(),
+      tmp_query_str.length());
+  }
   if ((*hs_conn_p)->request_send() < 0)
   {
     DBUG_PRINT("info",("spider hs num_req_bufd=%zu",
@@ -3943,11 +3962,8 @@ int spider_handlersocket_handler::append_minimum_select_without_quote(
   DBUG_ENTER("spider_handlersocket_handler::append_minimum_select_without_quote");
   for (field = table->field; *field; field++)
   {
-    if (
-      spider_bit_is_set(spider->searched_bitmap, (*field)->field_index) |
-      bitmap_is_set(table->read_set, (*field)->field_index) |
-      bitmap_is_set(table->write_set, (*field)->field_index)
-    ) {
+    if (minimum_select_bit_is_set((*field)->field_index))
+    {
       field_length =
         handlersocket_share->column_name_str[(*field)->field_index].length();
       if (str->reserve(field_length + SPIDER_SQL_COMMA_LEN))
@@ -5304,5 +5320,44 @@ bool spider_handlersocket_handler::support_use_handler(
   DBUG_ENTER("spider_handlersocket_handler::support_use_handler");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(TRUE);
+}
+
+bool spider_handlersocket_handler::minimum_select_bit_is_set(
+  uint field_index
+) {
+  TABLE *table = spider->get_table();
+  DBUG_ENTER("spider_handlersocket_handler::minimum_select_bit_is_set");
+  DBUG_RETURN(
+    spider_bit_is_set(spider->searched_bitmap, field_index) |
+    bitmap_is_set(table->read_set, field_index) |
+    bitmap_is_set(table->write_set, field_index)
+  );
+}
+
+void spider_handlersocket_handler::copy_minimum_select_bitmap(
+  uchar *bitmap
+) {
+  int roop_count;
+  TABLE *table = spider->get_table();
+  DBUG_ENTER("spider_handlersocket_handler::copy_minimum_select_bitmap");
+  for (roop_count = 0;
+    roop_count < (int) ((table->s->fields + 7) / 8);
+    roop_count++)
+  {
+    bitmap[roop_count] =
+      spider->searched_bitmap[roop_count] |
+      ((uchar *) table->read_set->bitmap)[roop_count] |
+      ((uchar *) table->write_set->bitmap)[roop_count];
+    DBUG_PRINT("info",("spider roop_count=%d", roop_count));
+    DBUG_PRINT("info",("spider bitmap=%d",
+      bitmap[roop_count]));
+    DBUG_PRINT("info",("spider searched_bitmap=%d",
+      spider->searched_bitmap[roop_count]));
+    DBUG_PRINT("info",("spider read_set=%d",
+      ((uchar *) table->read_set->bitmap)[roop_count]));
+    DBUG_PRINT("info",("spider write_set=%d",
+      ((uchar *) table->write_set->bitmap)[roop_count]));
+  }
+  DBUG_VOID_RETURN;
 }
 #endif
