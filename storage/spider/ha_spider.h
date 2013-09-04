@@ -17,6 +17,10 @@
 #pragma interface
 #endif
 
+#if (defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000)
+#define SPIDER_HANDLER_START_BULK_INSERT_HAS_FLAGS
+#endif
+
 #define SPIDER_CONNECT_INFO_MAX_LEN 64
 #define SPIDER_CONNECT_INFO_PATH_MAX_LEN FN_REFLEN
 #define SPIDER_LONGLONG_LEN 20
@@ -92,6 +96,7 @@ public:
   SPIDER_CONDITION   *condition;
   spider_string      *blob_buff;
   uchar              *searched_bitmap;
+  uchar              *ft_discard_bitmap;
   bool               position_bitmap_init;
   uchar              *position_bitmap;
   SPIDER_POSITION    *pushed_pos;
@@ -512,9 +517,16 @@ public:
     ulonglong value
   );
   void release_auto_increment();
+#ifdef SPIDER_HANDLER_START_BULK_INSERT_HAS_FLAGS
+  void start_bulk_insert(
+    ha_rows rows,
+    uint flags
+  );
+#else
   void start_bulk_insert(
     ha_rows rows
   );
+#endif
   int end_bulk_insert();
   int write_row(
     uchar *buf
@@ -685,6 +697,7 @@ public:
     void *info
   );
   TABLE *get_table();
+  void set_ft_discard_bitmap();
   void set_searched_bitmap();
   void set_clone_searched_bitmap();
   void set_select_column_mode();

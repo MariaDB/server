@@ -67,6 +67,7 @@ ha_spider::ha_spider(
   conns = NULL;
   need_mons = NULL;
   condition = NULL;
+  cond_check = FALSE;
   blob_buff = NULL;
   conn_keys = NULL;
   spider_thread_id = 0;
@@ -159,6 +160,7 @@ ha_spider::ha_spider(
   conns = NULL;
   need_mons = NULL;
   condition = NULL;
+  cond_check = FALSE;
   blob_buff = NULL;
   conn_keys = NULL;
   spider_thread_id = 0;
@@ -342,6 +344,7 @@ int ha_spider::open(
     if (!(searched_bitmap = (uchar *)
       spider_bulk_malloc(spider_current_trx, 15, MYF(MY_WME),
         &searched_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &ft_discard_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
         &position_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
         &partition_handler_share, sizeof(SPIDER_PARTITION_HANDLER_SHARE),
         &idx_read_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
@@ -363,6 +366,7 @@ int ha_spider::open(
     DBUG_PRINT("info",("spider table=%p", table));
     partition_handler_share->table = table;
     partition_handler_share->searched_bitmap = NULL;
+    partition_handler_share->ft_discard_bitmap = NULL;
     partition_handler_share->idx_read_bitmap = idx_read_bitmap;
     partition_handler_share->idx_write_bitmap = idx_write_bitmap;
     partition_handler_share->rnd_read_bitmap = rnd_read_bitmap;
@@ -405,6 +409,7 @@ int ha_spider::open(
     if (!(searched_bitmap = (uchar *)
       spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME),
         &searched_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &ft_discard_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
         &position_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
         NullS))
     ) {
@@ -1237,6 +1242,8 @@ int ha_spider::external_lock(
         DBUG_RETURN(0);
       else if (sql_command != SQLCOM_UNLOCK_TABLES)
       {
+        DBUG_PRINT("info",("spider conns[%d]->join_trx=%u",
+          roop_count, conns[roop_count]->join_trx));
         if (
           (!conns[roop_count]->join_trx &&
             (error_num = spider_internal_start_trx(this, conns[roop_count],
@@ -1532,12 +1539,16 @@ int ha_spider::reset()
     partition_handler_share->searched_bitmap
   ) {
     if (!is_clone)
+    {
       partition_handler_share->searched_bitmap = NULL;
+      partition_handler_share->ft_discard_bitmap = NULL;
+    }
     partition_handler_share->between_flg = FALSE;
     partition_handler_share->idx_bitmap_is_set = FALSE;
     partition_handler_share->rnd_bitmap_is_set = FALSE;
   }
 #endif
+  memset(ft_discard_bitmap, 0xFF, no_bytes_in_map(table->read_set));
   if (!(tmp_trx = spider_get_trx(thd, TRUE, &error_num2)))
   {
     DBUG_PRINT("info",("spider get trx error"));
@@ -1669,6 +1680,7 @@ int ha_spider::reset()
     spider_free(spider_current_trx, condition, MYF(0));
     condition = tmp_cond;
   }
+  cond_check = FALSE;
 #ifdef HA_MRR_USE_DEFAULT_IMPL
   if (multi_range_keys)
   {
@@ -6738,10 +6750,6 @@ int ha_spider::rnd_init(
           memset(searched_bitmap, 0xFF, no_bytes_in_map(table->read_set));
       }
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-      if ((error_num = spider_set_conn_bg_param(this)))
-        DBUG_RETURN(error_num);
-#endif
       set_select_column_mode();
       result_list.keyread = FALSE;
 
@@ -6820,6 +6828,10 @@ int ha_spider::rnd_next_internal(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     if (sql_kinds & SPIDER_SQL_KIND_HS)
       DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+#endif
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+    if ((error_num = spider_set_conn_bg_param(this)))
+      DBUG_RETURN(error_num);
 #endif
     if ((error_num = rnd_handler_init()))
       DBUG_RETURN(check_error_mode_eof(error_num));
@@ -7130,25 +7142,9 @@ void ha_spider::position(
     {
       if (select_column_mode)
       {
-        int roop_count;
-        for (roop_count = 0;
-          roop_count < (int) ((table_share->fields + 7) / 8);
-          roop_count++)
-        {
-          position_bitmap[roop_count] =
-            searched_bitmap[roop_count] |
-            ((uchar *) table->read_set->bitmap)[roop_count] |
-            ((uchar *) table->write_set->bitmap)[roop_count];
-          DBUG_PRINT("info",("spider roop_count=%d", roop_count));
-          DBUG_PRINT("info",("spider position_bitmap=%d",
-            position_bitmap[roop_count]));
-          DBUG_PRINT("info",("spider searched_bitmap=%d",
-            searched_bitmap[roop_count]));
-          DBUG_PRINT("info",("spider read_set=%d",
-            ((uchar *) table->read_set->bitmap)[roop_count]));
-          DBUG_PRINT("info",("spider write_set=%d",
-            ((uchar *) table->write_set->bitmap)[roop_count]));
-        }
+        spider_db_handler *dbton_hdl =
+          dbton_handler[result_list.current->result->dbton_id];
+        dbton_hdl->copy_minimum_select_bitmap(position_bitmap);
       }
       position_bitmap_init = TRUE;
     }
@@ -7333,8 +7329,10 @@ FT_INFO *ha_spider::ft_init_ext(
   tmp_ft_info = ft_current;
   if (ft_current)
     ft_current = ft_current->next;
-  else
+  else {
     ft_current = ft_first;
+    set_ft_discard_bitmap();
+  }
 
   if (!ft_current)
   {
@@ -7835,13 +7833,8 @@ int ha_spider::info(
 */
                   if ((spider_init_error_table->init_error_with_message =
                     thd->is_error()))
-#if MYSQL_VERSION_ID < 50500
                     strmov(spider_init_error_table->init_error_msg,
-                      thd->main_da.message());
-#else
-                    strmov(spider_init_error_table->init_error_msg,
-                      thd->get_stmt_da()->message());
-#endif
+                      spider_stmt_da_message(thd));
                   spider_init_error_table->init_error_time =
                     (time_t) time((time_t*) 0);
                 }
@@ -8061,13 +8054,8 @@ ha_rows ha_spider::records_in_range(
 */
                   if ((spider_init_error_table->init_error_with_message =
                     thd->is_error()))
-#if MYSQL_VERSION_ID < 50500
                     strmov(spider_init_error_table->init_error_msg,
-                      thd->main_da.message());
-#else
-                    strmov(spider_init_error_table->init_error_msg,
-                      thd->get_stmt_da()->message());
-#endif
+                      spider_stmt_da_message(thd));
                   spider_init_error_table->init_error_time =
                     (time_t) time((time_t*) 0);
                 }
@@ -8110,7 +8098,7 @@ ha_rows ha_spider::records_in_range(
 
     KEY *key_info = &table->key_info[inx];
     key_part_map full_key_part_map =
-      make_prev_keypart_map(key_info->user_defined_key_parts);
+      make_prev_keypart_map(spider_user_defined_key_parts(key_info));
     key_part_map start_key_part_map;
     key_part_map end_key_part_map;
     key_part_map tgt_key_part_map;
@@ -8303,13 +8291,8 @@ int ha_spider::check_crd()
                 spider_init_error_table->init_error = error_num;
                 if ((spider_init_error_table->init_error_with_message =
                   thd->is_error()))
-#if MYSQL_VERSION_ID < 50500
                   strmov(spider_init_error_table->init_error_msg,
-                    thd->main_da.message());
-#else
-                  strmov(spider_init_error_table->init_error_msg,
-                    thd->get_stmt_da()->message());
-#endif
+                    spider_stmt_da_message(thd));
                 spider_init_error_table->init_error_time =
                   (time_t) time((time_t*) 0);
               }
@@ -8355,6 +8338,10 @@ ha_rows ha_spider::records()
   backup_error_status();
   DBUG_ENTER("ha_spider::records");
   DBUG_PRINT("info",("spider this=%p", this));
+  if (sql_command == SQLCOM_ALTER_TABLE)
+  {
+    DBUG_RETURN(0);
+  }
   if ((error_num = spider_db_show_records(this, search_link_idx)))
   {
     check_error_mode(error_num);
@@ -8641,9 +8628,17 @@ void ha_spider::release_auto_increment()
   DBUG_VOID_RETURN;
 }
 
+#ifdef SPIDER_HANDLER_START_BULK_INSERT_HAS_FLAGS
+void ha_spider::start_bulk_insert(
+  ha_rows rows,
+  uint flags
+)
+#else
 void ha_spider::start_bulk_insert(
   ha_rows rows
-) {
+)
+#endif
+{
   DBUG_ENTER("ha_spider::start_bulk_insert");
   DBUG_PRINT("info",("spider this=%p", this));
   bulk_insert = TRUE;
@@ -9726,9 +9721,9 @@ int ha_spider::create(
     if (
       (thd->lex->alter_info.flags &
         (
-          Alter_info::ALTER_ADD_PARTITION | Alter_info::ALTER_DROP_PARTITION |
-          Alter_info::ALTER_COALESCE_PARTITION | Alter_info::ALTER_REORGANIZE_PARTITION |
-          Alter_info::ALTER_TABLE_REORG | Alter_info::ALTER_REBUILD_PARTITION
+          SPIDER_ALTER_ADD_PARTITION | SPIDER_ALTER_DROP_PARTITION |
+          SPIDER_ALTER_COALESCE_PARTITION | SPIDER_ALTER_REORGANIZE_PARTITION |
+          SPIDER_ALTER_TABLE_REORG | SPIDER_ALTER_REBUILD_PARTITION
         )
       ) &&
       memcmp(name + strlen(name) - 5, "#TMP#", 5)
@@ -9873,9 +9868,9 @@ int ha_spider::rename_table(
     if (
       (thd->lex->alter_info.flags &
         (
-          Alter_info::ALTER_ADD_PARTITION | Alter_info::ALTER_DROP_PARTITION |
-          Alter_info::ALTER_COALESCE_PARTITION | Alter_info::ALTER_REORGANIZE_PARTITION |
-          Alter_info::ALTER_TABLE_REORG | Alter_info::ALTER_REBUILD_PARTITION
+          SPIDER_ALTER_ADD_PARTITION | SPIDER_ALTER_DROP_PARTITION |
+          SPIDER_ALTER_COALESCE_PARTITION | SPIDER_ALTER_REORGANIZE_PARTITION |
+          SPIDER_ALTER_TABLE_REORG | SPIDER_ALTER_REBUILD_PARTITION
         )
       )
     )
@@ -10000,9 +9995,9 @@ int ha_spider::delete_table(
       sql_command == SQLCOM_ALTER_TABLE &&
       (thd->lex->alter_info.flags &
         (
-          Alter_info::ALTER_ADD_PARTITION | Alter_info::ALTER_DROP_PARTITION |
-          Alter_info::ALTER_COALESCE_PARTITION | Alter_info::ALTER_REORGANIZE_PARTITION |
-          Alter_info::ALTER_TABLE_REORG | Alter_info::ALTER_REBUILD_PARTITION
+          SPIDER_ALTER_ADD_PARTITION | SPIDER_ALTER_DROP_PARTITION |
+          SPIDER_ALTER_COALESCE_PARTITION | SPIDER_ALTER_REORGANIZE_PARTITION |
+          SPIDER_ALTER_TABLE_REORG | SPIDER_ALTER_REBUILD_PARTITION
         )
       )
     )
@@ -10508,6 +10503,87 @@ TABLE *ha_spider::get_table()
   DBUG_RETURN(table);
 }
 
+void ha_spider::set_ft_discard_bitmap()
+{
+  DBUG_ENTER("ha_spider::set_ft_discard_bitmap");
+  TABLE_LIST *table_list = spider_get_parent_table_list(this);
+  if (table_list)
+  {
+    st_select_lex *select_lex = table_list->select_lex;
+    if (select_lex && select_lex->ftfunc_list)
+    {
+      uint roop_count;
+      Field *field;
+      Item *item, *item_next;
+      Item_func_match *item_func_match;
+      Item_field *item_field;
+      {
+        List_iterator_fast<Item_func_match> fmi(*select_lex->ftfunc_list);
+        while ((item_func_match = fmi++))
+        {
+          DBUG_PRINT("info",("spider item_func_match=%p", item_func_match));
+          uint item_count = item_func_match->argument_count();
+          Item **item_list = item_func_match->arguments();
+          for (roop_count = 1; roop_count < item_count; roop_count++)
+          {
+            item_field = (Item_field *) item_list[roop_count];
+            DBUG_PRINT("info",("spider item_field=%p", item_field));
+            field = item_field->field;
+            DBUG_PRINT("info",("spider field=%p", field));
+            if (!field || !(field = field_exchange(field)))
+              continue;
+            DBUG_PRINT("info",("spider clear_bit=%u", field->field_index));
+            spider_clear_bit(ft_discard_bitmap, field->field_index);
+          }
+        }
+      }
+      item_next = ha_thd()->free_list;
+      while ((item = item_next))
+      {
+        DBUG_PRINT("info",("spider item=%p", item));
+        item_next = item->next;
+        if (item->type() != Item::FIELD_ITEM)
+          continue;
+        field = ((Item_field *) item)->field;
+        DBUG_PRINT("info",("spider field=%p", field));
+        if (!field || !(field = field_exchange(field)))
+          continue;
+        DBUG_PRINT("info",("spider field_index=%u", field->field_index));
+        if (!spider_bit_is_set(ft_discard_bitmap, field->field_index))
+        {
+          bool match_flag = FALSE;
+          List_iterator_fast<Item_func_match> fmi(*select_lex->ftfunc_list);
+          while ((item_func_match = fmi++))
+          {
+            DBUG_PRINT("info",("spider item_func_match=%p", item_func_match));
+            uint item_count = item_func_match->argument_count();
+            Item **item_list = item_func_match->arguments();
+            for (roop_count = 1; roop_count < item_count; roop_count++)
+            {
+              DBUG_PRINT("info",("spider item_list[%u]=%p", roop_count,
+                item_list[roop_count]));
+              if (item == item_list[roop_count])
+              {
+                DBUG_PRINT("info",("spider matched"));
+                match_flag = TRUE;
+                break;
+              }
+            }
+            if (match_flag)
+              break;
+          }
+          if (!match_flag)
+          {
+            DBUG_PRINT("info",("spider set_bit=%u", field->field_index));
+            spider_set_bit(ft_discard_bitmap, field->field_index);
+          }
+        }
+      }
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
 void ha_spider::set_searched_bitmap()
 {
   int roop_count;
@@ -10530,8 +10606,8 @@ void ha_spider::set_searched_bitmap()
   {
     DBUG_PRINT("info",("spider update option start"));
     Item *item;
-    List_iterator_fast<Item> fi(table->pos_in_table_list->select_lex->
-      item_list);
+    st_select_lex *select_lex = spider_get_select_lex(this);
+    List_iterator_fast<Item> fi(select_lex->item_list);
     while ((item = fi++))
     {
       if (item->type() == Item::FIELD_ITEM)
@@ -10557,6 +10633,8 @@ void ha_spider::set_clone_searched_bitmap()
 {
   DBUG_ENTER("ha_spider::set_clone_searched_bitmap");
   memcpy(searched_bitmap, pt_clone_source_handler->searched_bitmap,
+    (table_share->fields + 7) / 8);
+  memcpy(ft_discard_bitmap, pt_clone_source_handler->ft_discard_bitmap,
     (table_share->fields + 7) / 8);
   DBUG_VOID_RETURN;
 }
@@ -10586,8 +10664,12 @@ void ha_spider::set_select_column_mode()
       partition_handler_share->searched_bitmap
     ) {
       if (partition_handler_share->searched_bitmap != searched_bitmap)
+      {
         memcpy(searched_bitmap, partition_handler_share->searched_bitmap,
           (table_share->fields + 7) / 8);
+        memcpy(ft_discard_bitmap, partition_handler_share->ft_discard_bitmap,
+          (table_share->fields + 7) / 8);
+      }
       partition_handler_share->between_flg = FALSE;
       DBUG_PRINT("info",("spider copy searched_bitmap"));
     } else {
@@ -10614,7 +10696,8 @@ void ha_spider::set_select_column_mode()
           /* need primary key columns */
           key_info = &table_share->key_info[table_share->primary_key];
           key_part = key_info->key_part;
-          for (roop_count = 0; roop_count < (int) key_info->user_defined_key_parts;
+          for (roop_count = 0;
+            roop_count < (int) spider_user_defined_key_parts(key_info);
             roop_count++)
           {
             field = key_part[roop_count].field;
@@ -10633,6 +10716,7 @@ void ha_spider::set_select_column_mode()
       if (partition_handler_share)
       {
         partition_handler_share->searched_bitmap = searched_bitmap;
+        partition_handler_share->ft_discard_bitmap = ft_discard_bitmap;
         partition_handler_share->between_flg = TRUE;
         DBUG_PRINT("info",("spider set searched_bitmap"));
       }

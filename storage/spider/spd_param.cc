@@ -2783,6 +2783,50 @@ int spider_param_udf_ds_use_real_table(
 }
 #endif
 
+static my_bool spider_general_log;
+static MYSQL_SYSVAR_BOOL(
+  general_log,
+  spider_general_log,
+  PLUGIN_VAR_OPCMDARG,
+  "Log query to remote server in general log",
+  NULL,
+  NULL,
+  FALSE
+);
+
+my_bool spider_param_general_log()
+{
+  DBUG_ENTER("spider_param_general_log");
+  DBUG_RETURN(spider_general_log);
+}
+
+static uint spider_log_result_errors;
+/*
+  0: no log
+  1: log error
+  2: log warning summary
+  3: log warning
+  4: log info
+ */
+static MYSQL_SYSVAR_UINT(
+  log_result_errors,
+  spider_log_result_errors,
+  PLUGIN_VAR_RQCMDARG,
+  "Log error from remote server in error log",
+  NULL,
+  NULL,
+  0,
+  0,
+  4,
+  0
+);
+
+uint spider_param_log_result_errors()
+{
+  DBUG_ENTER("spider_param_log_result_errors");
+  DBUG_RETURN(spider_log_result_errors);
+}
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -2908,6 +2952,8 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
 #else
   MYSQL_SYSVAR(udf_ds_use_real_table),
 #endif
+  MYSQL_SYSVAR(general_log),
+  MYSQL_SYSVAR(log_result_errors),
   NULL
 };
 
