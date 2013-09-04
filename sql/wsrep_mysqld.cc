@@ -858,14 +858,15 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
     ka->keys_len= 0;
 
     extern TABLE* find_temporary_table(THD*, const TABLE_LIST*);
+    extern TABLE* find_temporary_table(THD*, const char *, const char *);
 
     if (db || table)
     {
         TABLE_LIST tmp_table;
         bzero((char*) &tmp_table,sizeof(tmp_table));
-        tmp_table.table_name= (char*)db;
-        tmp_table.db= (char*)table;
-        if (!table || !find_temporary_table(thd, &tmp_table))
+        tmp_table.table_name= (char*)table;
+        tmp_table.db= (char*)db;
+        if (!table || !find_temporary_table(thd, db, table))
         {
             if (!(ka->keys= (wsrep_key_t*)my_malloc(sizeof(wsrep_key_t), MYF(0))))
             {
@@ -896,8 +897,10 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
         if (!find_temporary_table(thd, table))
         {
             wsrep_key_t* tmp;
+	    /* In drop table both db and table can be NULL and table_list
+            contains tables, but ka->keys is not yet allocated ? */
             tmp= (wsrep_key_t*)my_realloc(
-                ka->keys, (ka->keys_len + 1) * sizeof(wsrep_key_t), MYF(0));
+                ka->keys, (ka->keys_len + 1) * sizeof(wsrep_key_t), MYF(MY_ALLOW_ZERO_PTR));
             if (!tmp)
             {
                 sql_print_error("Can't allocate memory for key_array");

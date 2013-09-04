@@ -2076,7 +2076,7 @@ trx_start_if_not_started_xa_low(
 		transaction, doesn't. */
 		trx->support_xa = thd_supports_xa(trx->mysql_thd);
 
-		trx_start_low(trx);
+		trx_start_if_not_started(trx);
 		/* fall through */
 	case TRX_STATE_ACTIVE:
 		return;

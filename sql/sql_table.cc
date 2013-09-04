@@ -4883,6 +4883,50 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table, TABLE_LIST* src_table,
   uint not_used;
   DBUG_ENTER("mysql_create_like_table");
 
+#ifdef WITH_WSREP
+  if (WSREP(thd) && !thd->wsrep_applier)
+  {
+    TABLE *tmp_table;
+    bool is_tmp_table= FALSE;
+
+    for (tmp_table= thd->temporary_tables; tmp_table; tmp_table=tmp_table->next)
+    {
+      if (!strcmp(src_table->db, tmp_table->s->db.str)     &&
+          !strcmp(src_table->table_name, tmp_table->s->table_name.str))
+      {
+        is_tmp_table= TRUE;
+        break;
+      }
+    }
+    if (!is_tmp_table)
+    {
+      WSREP_TO_ISOLATION_BEGIN(table->db, table->table_name, NULL);
+    }
+    else
+    {
+      TABLE_LIST tbl;
+      bzero((void*) &tbl, sizeof(tbl));
+      tbl.db= src_table->db;
+      tbl.table_name= tbl.alias= src_table->table_name;
+      tbl.table= tmp_table;
+      char buf[2048];
+      String query(buf, sizeof(buf), system_charset_info);
+      query.length(0);  // Have to zero it since constructor doesn't
+
+      (void)  store_create_info(thd, &tbl, &query, NULL, TRUE);
+      WSREP_DEBUG("TMP TABLE: %s", query.ptr());
+
+      thd->wsrep_TOI_pre_query=     query.ptr();
+      thd->wsrep_TOI_pre_query_len= query.length();
+      
+      WSREP_TO_ISOLATION_BEGIN(table->db, table->table_name, NULL);
+
+      thd->wsrep_TOI_pre_query=      NULL;
+      thd->wsrep_TOI_pre_query_len= 0;
+    }
+  }
+#endif
+
 
   /*
     We the open source table to get its description in HA_CREATE_INFO
@@ -5041,6 +5085,13 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table, TABLE_LIST* src_table,
 
 err:
   DBUG_RETURN(res);
+
+#ifdef WITH_WSREP
+ error:
+  thd->wsrep_TOI_pre_query= NULL;
+  DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
+
 }
 
 

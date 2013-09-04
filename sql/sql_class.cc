@@ -1155,6 +1155,8 @@ THD::THD()
   wsrep_status_vars       = 0;
   wsrep_mysql_replicated  = 0;
   wsrep_bf_thd            = NULL;
+  wsrep_TOI_pre_query     = NULL;
+  wsrep_TOI_pre_query_len = 0;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
