@@ -11172,7 +11172,7 @@ void JOIN::cleanup(bool full)
   if (full)
   {
     /* Save it again */
-#if 0    
+#if 0    psergey-todo: remove?
     if (select_lex->select_number != UINT_MAX && 
         select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
         have_query_plan != QEP_NOT_PRESENT_YET && 
@@ -22487,11 +22487,7 @@ void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res)
 }
 
 
-/////////////////////////////////////////////////////////////////////////////////////////////////
-void QPF_table_access::push_extra(enum Extra_tag extra_tag)
-{
-  extra_tags.append(extra_tag);
-}
+///////////////////////////////////////////////////////////////////////////////
 
 void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
 {
@@ -22548,24 +22544,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   }
   else if (join->select_lex == join->unit->fake_select_lex)
   {
-#if 0
-    select_lex->set_explain_type(on_the_fly);
-    QPF_union *qp_union= new (output->mem_root) QPF_union;
-    qp_node= qp_union;
-
-    SELECT_LEX *child;
-    for (child= select_lex->master_unit()->first_select(); child;
-         child=child->next_select())
-    {
-      qp_union->add_select(child->select_number);
-    }
-
-    qp_union->fake_select_type= select_lex->type;
-    qp_union->using_filesort=
-      test(select_lex->master_unit()->global_parameters->order_list.first);
-
-    output->add_node(qp_union);
-#endif    
+    /* Do nothing, QPF_union will create and print fake_select_lex */
   }
   else if (!join->select_lex->master_unit()->derived ||
            join->select_lex->master_unit()->derived->is_materialized_derived())
@@ -22713,7 +22692,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
 
       // tmp2 holds key_name
       // tmp3 holds key_length
-      // tmp4 holds ref?
+      // tmp4 holds ref
       if (tab_type == JT_NEXT)
       {
 	key_info= table->key_info+tab->index;
@@ -23074,16 +23053,16 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
 
 
 /*
-  This function servers as "shortcut point" for EXPLAIN queries.
+  This function serves as "shortcut point" for EXPLAIN queries.
+  
+  The EXPLAIN statement executes just like its SELECT counterpart would
+  execute, except that JOIN::exec() will call select_describe() instead of
+  actually executing the query.
 
-  For UNIONs and JOINs, EXPLAIN statement executes just like its SELECT
-  statement would execute, except that JOIN::exec() will call select_describe()
-  instead of actually executing the query.
-
-  The purpose of select_describe() is:
-  - update the query plan with info about last-minute choices made at the start
-    of JOIN::exec
-  - Invoke "pseudo-execution" for the children subqueries.
+  Inside select_describe():
+  - Query plan is updated with latest QEP choices made at the start of
+    JOIN::exec().
+  - the proces of "almost execution" is invoked for the children subqueries.
 
   Overall, select_describe() is a legacy of old EXPLAIN implementation and
   should be removed.
@@ -23096,9 +23075,10 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
   select_result *result=join->result;
   DBUG_ENTER("select_describe");
   
-  // Update the QPF:
+  /* Update the QPF with latest values of using_temporary, using_filesort */
   QPF_select *qp;
-  if ((qp= thd->lex->query_plan_footprint->get_select(join->select_lex->select_number)))
+  uint select_nr= join->select_lex->select_number;
+  if ((qp= thd->lex->query_plan_footprint->get_select(select_nr)))
   {
     qp->using_temporary= need_tmp_table;
     qp->using_filesort= need_order;

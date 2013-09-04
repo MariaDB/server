@@ -14,8 +14,6 @@ QPF_query::QPF_query()
 {
   upd_del_plan= NULL;
   operations= 0;
-  //memset(&unions, 0, sizeof(unions));
-  //memset(&selects, 0, sizeof(selects));
 }
 
 
@@ -105,15 +103,10 @@ int QPF_query::print_explain(select_result_sink *output,
   }
   else
   {
-    // Start with id=1
+    // Start printing from id=1
     QPF_node *node= get_node(1);
     return node->print_explain(this, output, explain_flags);
   }
-}
-
-
-void QPF_union::push_table_name(List<Item> *item_list)
-{
 }
 
 
@@ -134,7 +127,7 @@ static void push_string(List<Item> *item_list, String *str)
 int QPF_union::print_explain(QPF_query *query, select_result_sink *output, 
                              uint8 explain_flags)
 {
-  // print all children, in order
+  /* print all UNION children, in order */
   for (int i= 0; i < (int) union_members.elements(); i++)
   {
     QPF_select *sel= query->get_select(union_members.at(i));
@@ -152,7 +145,6 @@ int QPF_union::print_explain(QPF_query *query, select_result_sink *output,
   push_str(&item_list, fake_select_type);
 
   /* `table` column: something like "<union1,2>" */
-  //
   {
     char table_name_buffer[SAFE_NAME_LEN];
     uint childno= 0;
@@ -180,8 +172,6 @@ int QPF_union::print_explain(QPF_query *query, select_result_sink *output,
     const CHARSET_INFO *cs= system_charset_info;
     item_list.push_back(new Item_string(table_name_buffer, len, cs));
   }
-  //
-  push_table_name(&item_list);
   
   /* `partitions` column */
   if (explain_flags & DESCRIBE_PARTITIONS)
@@ -221,10 +211,18 @@ int QPF_union::print_explain(QPF_query *query, select_result_sink *output,
   //output->unit.offset_limit_cnt= 0; 
   if (output->send_data(item_list))
     return 1;
-
+  
+  /*
+    Print all subquery children (UNION children have already been printed at
+    the start of this function)
+  */
   return print_explain_for_children(query, output, explain_flags);
 }
 
+
+/*
+  Print EXPLAINs for all children nodes (i.e. for subqueries)
+*/
 
 int QPF_node::print_explain_for_children(QPF_query *query, 
                                          select_result_sink *output,
@@ -298,6 +296,12 @@ int QPF_select::print_explain(QPF_query *query, select_result_sink *output,
   }
 
   return print_explain_for_children(query, output, explain_flags);
+}
+
+
+void QPF_table_access::push_extra(enum Extra_tag extra_tag)
+{
+  extra_tags.append(extra_tag);
 }
 
 
@@ -422,13 +426,17 @@ int QPF_table_access::print_explain(select_result_sink *output, uint8 explain_fl
 }
 
 
+/*
+  Elements in this array match members of enum Extra_tag, defined in opt_qpf.h.
+*/
+
 const char * extra_tag_text[]=
 {
   "ET_none",
   "Using index condition",
   "Using index condition(BKA)",
-  "Using ", //special
-  "Range checked for each record (index map: 0x", //special
+  "Using ", // special handling
+  "Range checked for each record (index map: 0x", // special handling
   "Using where with pushed condition",
   "Using where",
   "Not exists",
@@ -443,17 +451,17 @@ const char * extra_tag_text[]=
   "Scanned 1 database",
   "Scanned all databases",
 
-  "Using index for group-by", // Special?
+  "Using index for group-by", // special handling
 
-  "USING MRR: DONT PRINT ME", // Special!
+  "USING MRR: DONT PRINT ME", // special handling
 
   "Distinct",
   "LooseScan",
   "Start temporary",
   "End temporary",
-  "FirstMatch", //TODO: also handle special variant!
+  "FirstMatch", // special handling
 
-  "Using join buffer", // Special!,
+  "Using join buffer", // special handling 
 
   "const row not found",
   "unique row not found",

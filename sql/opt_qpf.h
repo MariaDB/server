@@ -146,7 +146,6 @@ public:
   {
     union_members.append(select_no);
   }
-  void push_table_name(List<Item> *item_list);
   int print_explain(QPF_query *query, select_result_sink *output, 
                     uint8 explain_flags);
 
@@ -231,6 +230,11 @@ private:
 };
 
 
+/* 
+  Some of the tags have matching text. See extra_tag_text for text names, and 
+  QPF_table_access::append_tag_name() for code to convert from tag form to text
+  form.
+*/
 enum Extra_tag
 {
   ET_none= 0, /* not-a-tag */
@@ -347,7 +351,6 @@ public:
   StringBuffer<64> mrr_type;
 
   // valid with ET_USING_JOIN_BUFFER
-  //StringBuffer<64> join_buffer_type;
   QPF_BKA_TYPE bka_type;
   
   //TABLE *firstmatch_table;
