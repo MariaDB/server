@@ -1,4 +1,5 @@
-/* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -59,6 +60,7 @@ static my_hash_value_type calc_hash(const HASH *hash,
   as required during insertion.
 
   @param[in,out] hash         The hash that is initialized
+  @param[in[     growth_size  size incrememnt for the underlying dynarray
   @param[in]     charset      The charater set information
   @param[in]     size         The hash size
   @param[in]     key_offest   The key offset for the hash
@@ -67,12 +69,13 @@ static my_hash_value_type calc_hash(const HASH *hash,
   @param[in]     get_key      get the key for the hash
   @param[in]     free_element pointer to the function that
                               does cleanup
-  @return        inidicates success or failure of initialization
+  @param[in]     flags        flags set in the hash
+  @return        indicates success or failure of initialization
     @retval 0 success
     @retval 1 failure
 */
 my_bool
-_my_hash_init(HASH *hash, uint growth_size, CHARSET_INFO *charset,
+my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
               ulong size, size_t key_offset, size_t key_length,
               my_hash_get_key get_key,
               void (*free_element)(void*), uint flags)

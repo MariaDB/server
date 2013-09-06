@@ -176,7 +176,7 @@ tz_load(const char *name, TIME_ZONE_INFO *sp, MEM_ROOT *storage)
       uchar buf[sizeof(struct tzhead) + sizeof(my_time_t) * TZ_MAX_TIMES +
                 TZ_MAX_TIMES + sizeof(TRAN_TYPE_INFO) * TZ_MAX_TYPES +
 #ifdef ABBR_ARE_USED
-               max(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1))) +
+               MY_MAX(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1))) +
 #endif
                sizeof(LS_INFO) * TZ_MAX_LEAPS];
     } u;
@@ -405,7 +405,7 @@ prepare_tz_info(TIME_ZONE_INFO *sp, MEM_ROOT *storage)
       Let us choose end_t as point before next time type change or leap
       second correction.
     */
-    end_t= min((next_trans_idx < sp->timecnt) ? sp->ats[next_trans_idx] - 1:
+    end_t= MY_MIN((next_trans_idx < sp->timecnt) ? sp->ats[next_trans_idx] - 1:
                                                 MY_TIME_T_MAX,
                (next_leap_idx < sp->leapcnt) ?
                  sp->lsis[next_leap_idx].ls_trans - 1: MY_TIME_T_MAX);
@@ -1690,7 +1690,8 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
                            MYSQL_OPEN_IGNORE_FLUSH | MYSQL_LOCK_IGNORE_TIMEOUT))
   {
     sql_print_warning("Can't open and lock time zone table: %s "
-                      "trying to live without them", thd->stmt_da->message());
+                      "trying to live without them",
+                      thd->get_stmt_da()->message());
     /* We will try emulate that everything is ok */
     return_val= time_zone_tables_exist= 0;
     goto end_with_setting_default_tz;
@@ -1856,7 +1857,7 @@ static Time_zone*
 tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
 {
   TABLE *table= 0;
-  TIME_ZONE_INFO *tz_info;
+  TIME_ZONE_INFO *tz_info= NULL;
   Tz_names_entry *tmp_tzname;
   Time_zone *return_val= 0;
   int res;
@@ -1866,7 +1867,8 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   uchar keybuff[32];
   Field *field;
   String abbr(buff, sizeof(buff), &my_charset_latin1);
-  char *alloc_buff, *tz_name_buff;
+  char *alloc_buff= NULL;
+  char *tz_name_buff= NULL;
   /*
     Temporary arrays that are used for loading of data for filling
     TIME_ZONE_INFO structure
@@ -1875,7 +1877,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   uchar types[TZ_MAX_TIMES];
   TRAN_TYPE_INFO ttis[TZ_MAX_TYPES];
 #ifdef ABBR_ARE_USED
-  char chars[max(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1)))];
+  char chars[MY_MAX(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1)))];
 #endif
   /* 
     Used as a temporary tz_info until we decide that we actually want to
@@ -1885,22 +1887,6 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   memset(&tmp_tz_info, 0, sizeof(TIME_ZONE_INFO));
 
   DBUG_ENTER("tz_load_from_open_tables");
-
-  /* Prepare tz_info for loading also let us make copy of time zone name */
-  if (!(alloc_buff= (char*) alloc_root(&tz_storage, sizeof(TIME_ZONE_INFO) +
-                                       tz_name->length() + 1)))
-  {
-    sql_print_error("Out of memory while loading time zone description");
-    return 0;
-  }
-  tz_info= (TIME_ZONE_INFO *)alloc_buff;
-  bzero(tz_info, sizeof(TIME_ZONE_INFO));
-  tz_name_buff= alloc_buff + sizeof(TIME_ZONE_INFO);
-  /*
-    By writing zero to the end we guarantee that we can call ptr()
-    instead of c_ptr() for time zone name.
-  */
-  strmake(tz_name_buff, tz_name->ptr(), tz_name->length());
 
   /*
     Let us find out time zone id by its name (there is only one index
@@ -1942,7 +1928,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   field->store((longlong) tzid, TRUE);
   DBUG_ASSERT(field->key_length() <= sizeof(keybuff));
   field->get_key_image(keybuff,
-                       min(field->key_length(), sizeof(keybuff)),
+                       MY_MIN(field->key_length(), sizeof(keybuff)),
                        Field::itRAW);
   if (table->file->ha_index_init(0, 1))
     goto end;
@@ -1975,7 +1961,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   field->store((longlong) tzid, TRUE);
   DBUG_ASSERT(field->key_length() <= sizeof(keybuff));
   field->get_key_image(keybuff,
-                       min(field->key_length(), sizeof(keybuff)),
+                       MY_MIN(field->key_length(), sizeof(keybuff)),
                        Field::itRAW);
   if (table->file->ha_index_init(0, 1))
     goto end;
@@ -2520,7 +2506,7 @@ scan_tz_dir(char * name_end)
 
   name_end= strmake(name_end, "/", FN_REFLEN - (name_end - fullname));
 
-  for (i= 0; i < cur_dir->number_off_files; i++)
+  for (i= 0; i < cur_dir->number_of_files; i++)
   {
     if (cur_dir->dir_entry[i].name[0] != '.')
     {
@@ -2574,7 +2560,7 @@ main(int argc, char **argv)
 
   if (argc == 2)
   {
-    root_name_end= strmake(fullname, argv[1], FN_REFLEN);
+    root_name_end= strmake_buf(fullname, argv[1]);
 
     printf("TRUNCATE TABLE time_zone;\n");
     printf("TRUNCATE TABLE time_zone_name;\n");
@@ -2728,7 +2714,7 @@ main(int argc, char **argv)
          (int)t, (int)t1);
 
   /* Let us load time zone description */
-  str_end= strmake(fullname, TZDIR, FN_REFLEN);
+  str_end= strmake_buf(fullname, TZDIR);
   strmake(str_end, "/MET", FN_REFLEN - (str_end - fullname));
 
   if (tz_load(fullname, &tz_info, &tz_storage))

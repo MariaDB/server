@@ -1,6 +1,15 @@
 include/master-slave.inc
 [connection master]
+call mtr.add_suppression("Timeout waiting for reply of binlog");
+call mtr.add_suppression("Semi-sync master .* waiting for slave reply");
+call mtr.add_suppression("Read semi-sync reply");
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
+call mtr.add_suppression("Master server does not support semi-sync");
+call mtr.add_suppression("Semi-sync slave .* reply");
+call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
+set global rpl_semi_sync_master_enabled = 1;
 include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled = 1;
 include/start_slave.inc
 SET GLOBAL event_scheduler = ON;
 CREATE TABLE t1 (i INT NOT NULL AUTO_INCREMENT PRIMARY KEY, f varchar(8)) ENGINE=ENGINE_TYPE;
@@ -34,8 +43,8 @@ UPDATE t1 SET f = CONCAT('up_',CONNECTION_ID()) WHERE i = 2;
 UPDATE t1 SET f = CONCAT('up_',CONNECTION_ID()) WHERE i = 1;
 SET GLOBAL event_scheduler = OFF;
 include/stop_slave.inc
-UNINSTALL PLUGIN rpl_semi_sync_slave;
-UNINSTALL PLUGIN rpl_semi_sync_master;
+set global rpl_semi_sync_slave_enabled = 0;
+set global rpl_semi_sync_master_enabled = 0;
 include/start_slave.inc
 DROP EVENT ev1;
 DROP EVENT ev2;

@@ -26,6 +26,7 @@ a	b	c
 0000-00-00 00:00:00.0000	0	2022-02-02 02:02:02.65
 drop table t1;
 include/rpl_end.inc
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
@@ -42,17 +43,15 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a timestamp(4), b varchar(100), c datetime(2))
 /*!*/;
-SET TIMESTAMP=1293832861.123456/*!*/;
-SET @@session.time_zone='+03:00'/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1293832861.123456/*!*/;
+SET @@session.time_zone='+03:00'/*!*/;
 insert t1 (b,c) values (now(6), now(6))
 /*!*/;
 SET TIMESTAMP=1293832861.123456/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1293832861/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1293832861/*!*/;
@@ -61,7 +60,6 @@ insert t1 values ('2010-10-10 10:10:10.101010','2010-10-10 10:10:10.101010','201
 SET TIMESTAMP=1293832861/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1643756522.654321/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1643756522.654321/*!*/;
@@ -70,7 +68,6 @@ insert t1 (b,c) values (now(), now())
 SET TIMESTAMP=1643756522.654321/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1643756522.654321/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1643756522.654321/*!*/;
@@ -79,7 +76,6 @@ insert t1 (b,c) values (0,0)
 SET TIMESTAMP=1643756522.654321/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1643756522.654321/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1643756522.654321/*!*/;
@@ -95,3 +91,4 @@ DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;

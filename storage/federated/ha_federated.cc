@@ -584,10 +584,10 @@ static int parse_url_error(FEDERATED_SHARE *share, TABLE *table, int error_num)
   size_t buf_len;
   DBUG_ENTER("ha_federated parse_url_error");
 
-  buf_len= min(table->s->connect_string.length,
+  buf_len= MY_MIN(table->s->connect_string.length,
                FEDERATED_QUERY_BUFFER_SIZE-1);
   strmake(buf, table->s->connect_string.str, buf_len);
-  my_error(error_num, MYF(0), buf);
+  my_error(error_num, MYF(0), buf, 14);
   DBUG_RETURN(error_num);
 }
 
@@ -1317,7 +1317,7 @@ bool ha_federated::create_where_from_key(String *to,
     }
 
     for (key_part= key_info->key_part,
-         remainder= key_info->key_parts,
+         remainder= key_info->user_defined_key_parts,
          length= ranges[i]->length,
          ptr= ranges[i]->key; ;
          remainder--,
@@ -1325,7 +1325,7 @@ bool ha_federated::create_where_from_key(String *to,
     {
       Field *field= key_part->field;
       uint store_length= key_part->store_length;
-      uint part_length= min(store_length, length);
+      uint part_length= MY_MIN(store_length, length);
       needs_quotes= field->str_needs_quotes();
       DBUG_DUMP("key, start of loop", ptr, length);
 
@@ -1614,21 +1614,6 @@ ha_rows ha_federated::records_in_range(uint inx, key_range *start_key,
 */
   DBUG_ENTER("ha_federated::records_in_range");
   DBUG_RETURN(FEDERATED_RECORDS_IN_RANGE);
-}
-/*
-  If frm_error() is called then we will use this to to find out
-  what file extentions exist for the storage engine. This is
-  also used by the default rename_table and delete_table method
-  in handler.cc.
-*/
-
-const char **ha_federated::bas_ext() const
-{
-  static const char *ext[]=
-  {
-    NullS
-  };
-  return ext;
 }
 
 
@@ -3235,7 +3220,7 @@ int ha_federated::stash_remote_error()
   if (!mysql)
     DBUG_RETURN(remote_error_number);
   remote_error_number= mysql_errno(mysql);
-  strmake(remote_error_buf, mysql_error(mysql), sizeof(remote_error_buf)-1);
+  strmake_buf(remote_error_buf, mysql_error(mysql));
   if (remote_error_number == ER_DUP_ENTRY ||
       remote_error_number == ER_DUP_KEY)
     DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);

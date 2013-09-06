@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -57,35 +58,35 @@ extern "C" {
   sets all high keys.
 */
 #define MI_KEYMAP_BITS      (8 * SIZEOF_LONG_LONG)
-#define MI_KEYMAP_HIGH_MASK (ULL(1) << (MI_KEYMAP_BITS - 1))
+#define MI_KEYMAP_HIGH_MASK (1ULL << (MI_KEYMAP_BITS - 1))
 #define mi_get_mask_all_keys_active(_keys_) \
                             (((_keys_) < MI_KEYMAP_BITS) ? \
-                             ((ULL(1) << (_keys_)) - ULL(1)) : \
-                             (~ ULL(0)))
+                             ((1ULL << (_keys_)) - 1ULL) : \
+                             (~ 0ULL))
 
 #if MI_MAX_KEY > MI_KEYMAP_BITS
 
 #define mi_is_key_active(_keymap_,_keyno_) \
                             (((_keyno_) < MI_KEYMAP_BITS) ? \
-                             test((_keymap_) & (ULL(1) << (_keyno_))) : \
+                             test((_keymap_) & (1ULL << (_keyno_))) : \
                              test((_keymap_) & MI_KEYMAP_HIGH_MASK))
 #define mi_set_key_active(_keymap_,_keyno_) \
                             (_keymap_)|= (((_keyno_) < MI_KEYMAP_BITS) ? \
-                                          (ULL(1) << (_keyno_)) : \
+                                          (1ULL << (_keyno_)) : \
                                           MI_KEYMAP_HIGH_MASK)
 #define mi_clear_key_active(_keymap_,_keyno_) \
                             (_keymap_)&= (((_keyno_) < MI_KEYMAP_BITS) ? \
-                                          (~ (ULL(1) << (_keyno_))) : \
-                                          (~ (ULL(0))) /*ignore*/ )
+                                          (~ (1ULL << (_keyno_))) : \
+                                          (~ (0ULL)) /*ignore*/ )
 
 #else
 
 #define mi_is_key_active(_keymap_,_keyno_) \
-                            test((_keymap_) & (ULL(1) << (_keyno_)))
+                            test((_keymap_) & (1ULL << (_keyno_)))
 #define mi_set_key_active(_keymap_,_keyno_) \
-                            (_keymap_)|= (ULL(1) << (_keyno_))
+                            (_keymap_)|= (1ULL << (_keyno_))
 #define mi_clear_key_active(_keymap_,_keyno_) \
-                            (_keymap_)&= (~ (ULL(1) << (_keyno_)))
+                            (_keymap_)&= (~ (1ULL << (_keyno_)))
 
 #endif
 
@@ -355,8 +356,10 @@ typedef struct st_mi_sort_param
   ulonglong notnull[HA_MAX_KEY_SEG+1];
 
   my_off_t pos,max_pos,filepos,start_recpos;
-  uint key, key_length,real_key_length,sortbuff_size;
-  uint maxbuffers, keys, find_length, sort_keys_length;
+  uint key, key_length,real_key_length;
+  uint maxbuffers, find_length;
+  ulonglong sortbuff_size;
+  ha_rows keys;
   my_bool fix_datafile, master;
   my_bool calc_checksum;                /* calculate table checksum */
 
@@ -365,10 +368,10 @@ typedef struct st_mi_sort_param
   int (*key_write)(struct st_mi_sort_param *, const void *);
   void (*lock_in_memory)(HA_CHECK *);
   int (*write_keys)(struct st_mi_sort_param *, register uchar **,
-                    uint , struct st_buffpek *, IO_CACHE *);
-  uint (*read_to_buffer)(IO_CACHE *,struct st_buffpek *, uint);
+                    ulonglong , struct st_buffpek *, IO_CACHE *);
+  my_off_t (*read_to_buffer)(IO_CACHE *,struct st_buffpek *, uint);
   int (*write_key)(struct st_mi_sort_param *, IO_CACHE *,uchar *,
-                   uint, uint);
+                   uint, ulonglong);
 } MI_SORT_PARAM;
 
 /* functions in mi_check */
@@ -407,7 +410,7 @@ void mi_disable_non_unique_index(MI_INFO *info, ha_rows rows);
 my_bool mi_test_if_sort_rep(MI_INFO *info, ha_rows rows, ulonglong key_map,
 			    my_bool force);
 
-int mi_init_bulk_insert(MI_INFO *info, ulong cache_size, ha_rows rows);
+int mi_init_bulk_insert(MI_INFO *info, size_t cache_size, ha_rows rows);
 void mi_flush_bulk_insert(MI_INFO *info, uint inx);
 void mi_end_bulk_insert(MI_INFO *info);
 int mi_assign_to_key_cache(MI_INFO *info, ulonglong key_map,

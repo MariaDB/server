@@ -6,16 +6,23 @@ connection master;
 
 set @old_master_binlog_checksum= @@global.binlog_checksum;
 set @old_slave_dbug= @@global.debug_dbug;
-CREATE TABLE t1 (a INT PRIMARY KEY);
-INSERT INTO t1 VALUES (0);
 
-sync_slave_with_master;
+# MDEV-4475: Cannot replicate to old server when binlog contains
+# empty Gtid_list event
+#
+# Test this by binlog rotation before we log any GTIDs.
 connection slave;
-
---echo # Test slave with no capability gets dummy event, which is ignored.
 --source include/stop_slave.inc
+--echo # Test slave with no capability gets dummy event, which is ignored.
 SET @@global.debug_dbug='+d,simulate_slave_capability_none';
 --source include/start_slave.inc
+
+connection master;
+FLUSH LOGS;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (0);
+sync_slave_with_master;
+
 connection master;
 # Add a dummy event just to have something to sync_slave_with_master on.
 # Otherwise we occasionally get different $relaylog_start, depending on
@@ -61,7 +68,7 @@ connection slave;
 SELECT * FROM t1;
 let $binlog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1);
 let $binlog_start= 0;
-let $binlog_limit=5,5;
+let $binlog_limit=7,5;
 --source include/show_relaylog_events.inc
 
 --echo # Test that slave which cannot tolerate holes in binlog stream but

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2912,6 +2912,14 @@ ibuf_get_volume_buffered_count_func(
 	ut_a(len == 1);
 	ut_ad(trx_sys_multiple_tablespace_format);
 
+	if (rec_get_deleted_flag(rec, 0)) {
+		/* This record has been merged already,
+		but apparently the system crashed before
+		the change was discarded from the buffer.
+		Pretend that the record does not exist. */
+		return(0);
+	}
+
 	types = rec_get_nth_field_old(rec, IBUF_REC_FIELD_METADATA, &len);
 
 	switch (UNIV_EXPECT(len % DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE,
@@ -4224,11 +4232,11 @@ ibuf_delete(
 					page, 1);
 		}
 #ifdef UNIV_ZIP_DEBUG
-		ut_a(!page_zip || page_zip_validate(page_zip, page));
+		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 		page_cur_delete_rec(&page_cur, index, offsets, mtr);
 #ifdef UNIV_ZIP_DEBUG
-		ut_a(!page_zip || page_zip_validate(page_zip, page));
+		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
 		if (page_zip) {
@@ -4311,7 +4319,7 @@ Deletes from ibuf the record on which pcur is positioned. If we have to
 resort to a pessimistic delete, this function commits mtr and closes
 the cursor.
 @return	TRUE if mtr was committed and pcur closed in this operation */
-static
+static __attribute__((warn_unused_result))
 ibool
 ibuf_delete_rec(
 /*============*/
@@ -4332,6 +4340,22 @@ ibuf_delete_rec(
 	ut_ad(page_rec_is_user_rec(btr_pcur_get_rec(pcur)));
 	ut_ad(ibuf_rec_get_page_no(mtr, btr_pcur_get_rec(pcur)) == page_no);
 	ut_ad(ibuf_rec_get_space(mtr, btr_pcur_get_rec(pcur)) == space);
+
+#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+	if (ibuf_debug == 2) {
+		/* Inject a fault (crash). We do this before trying
+		optimistic delete, because a pessimistic delete in the
+		change buffer would require a larger test case. */
+
+		/* Flag the buffered record as processed, to avoid
+		an assertion failure after crash recovery. */
+		btr_cur_set_deleted_flag_for_ibuf(
+			btr_pcur_get_rec(pcur), NULL, TRUE, mtr);
+		ibuf_mtr_commit(mtr);
+		log_make_checkpoint_at(IB_ULONGLONG_MAX, TRUE);
+		DBUG_SUICIDE();
+	}
+#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
 	success = btr_cur_optimistic_delete(btr_pcur_get_btr_cur(pcur), mtr);
 
@@ -4367,7 +4391,13 @@ ibuf_delete_rec(
 	ut_ad(ibuf_rec_get_page_no(mtr, btr_pcur_get_rec(pcur)) == page_no);
 	ut_ad(ibuf_rec_get_space(mtr, btr_pcur_get_rec(pcur)) == space);
 
-	/* We have to resort to a pessimistic delete from ibuf */
+	/* We have to resort to a pessimistic delete from ibuf.
+	Delete-mark the record so that it will not be applied again,
+	in case the server crashes before the pessimistic delete is
+	made persistent. */
+	btr_cur_set_deleted_flag_for_ibuf(
+		btr_pcur_get_rec(pcur), NULL, TRUE, mtr);
+
 	btr_pcur_store_position(pcur, mtr);
 	ibuf_btr_pcur_commit_specify_mtr(pcur, mtr);
 
@@ -4448,7 +4478,7 @@ ibuf_merge_or_delete_for_page(
 	ut_ad(!block || buf_block_get_space(block) == space);
 	ut_ad(!block || buf_block_get_page_no(block) == page_no);
 	ut_ad(!block || buf_block_get_zip_size(block) == zip_size);
-	ut_ad(!block || buf_block_get_io_fix(block) == BUF_IO_READ);
+	ut_ad(!block || buf_block_get_io_fix_unlocked(block) == BUF_IO_READ);
 
 	if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE
 	    || trx_sys_hdr_page(space, page_no)) {
@@ -4595,6 +4625,12 @@ ibuf_merge_or_delete_for_page(
 loop:
 	ibuf_mtr_start(&mtr);
 
+	/* Position pcur in the insert buffer at the first entry for this
+	index page */
+	btr_pcur_open_on_user_rec(
+		ibuf->index, search_tuple, PAGE_CUR_GE, BTR_MODIFY_LEAF,
+		&pcur, &mtr);
+
 	if (block) {
 		ibool success;
 
@@ -4612,12 +4648,6 @@ loop:
 		latch an io-fixed block. */
 		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE);
 	}
-
-	/* Position pcur in the insert buffer at the first entry for this
-	index page */
-	btr_pcur_open_on_user_rec(
-		ibuf->index, search_tuple, PAGE_CUR_GE, BTR_MODIFY_LEAF,
-		&pcur, &mtr);
 
 	if (!btr_pcur_is_on_user_rec(&pcur)) {
 		ut_ad(btr_pcur_is_after_last_in_tree(&pcur, &mtr));
@@ -4648,7 +4678,7 @@ loop:
 			fputs("InnoDB: Discarding record\n ", stderr);
 			rec_print_old(stderr, rec);
 			fputs("\nInnoDB: from the insert buffer!\n\n", stderr);
-		} else if (block) {
+		} else if (block && !rec_get_deleted_flag(rec, 0)) {
 			/* Now we have at pcur a record which should be
 			applied on the index page; NOTE that the call below
 			copies pointers to fields in rec, and we must
@@ -4703,6 +4733,16 @@ loop:
 				      == page_no);
 				ut_ad(ibuf_rec_get_space(&mtr, rec) == space);
 
+				/* Mark the change buffer record processed,
+				so that it will not be merged again in case
+				the server crashes between the following
+				mtr_commit() and the subsequent mtr_commit()
+				of deleting the change buffer record. */
+
+				btr_cur_set_deleted_flag_for_ibuf(
+					btr_pcur_get_rec(&pcur), NULL,
+					TRUE, &mtr);
+
 				btr_pcur_store_position(&pcur, &mtr);
 				ibuf_btr_pcur_commit_specify_mtr(&pcur, &mtr);
 
@@ -4751,6 +4791,7 @@ loop:
 			/* Deletion was pessimistic and mtr was committed:
 			we start from the beginning again */
 
+			ut_ad(mtr.state == MTR_COMMITTED);
 			goto loop;
 		} else if (btr_pcur_is_after_last_on_page(&pcur)) {
 			ibuf_mtr_commit(&mtr);
@@ -4881,6 +4922,7 @@ loop:
 			/* Deletion was pessimistic and mtr was committed:
 			we start from the beginning again */
 
+			ut_ad(mtr.state == MTR_COMMITTED);
 			goto loop;
 		}
 

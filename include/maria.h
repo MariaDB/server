@@ -1,4 +1,5 @@
 /* Copyright (C) 2006-2008 MySQL AB, 2008-2009 Sun Microsystems, Inc.
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -60,31 +61,31 @@ extern "C" {
   sets all high keys.
 */
 #define MARIA_KEYMAP_BITS      (8 * SIZEOF_LONG_LONG)
-#define MARIA_KEYMAP_HIGH_MASK (ULL(1) << (MARIA_KEYMAP_BITS - 1))
+#define MARIA_KEYMAP_HIGH_MASK (1ULL << (MARIA_KEYMAP_BITS - 1))
 #define maria_get_mask_all_keys_active(_keys_) \
                             (((_keys_) < MARIA_KEYMAP_BITS) ? \
-                             ((ULL(1) << (_keys_)) - ULL(1)) : \
-                             (~ ULL(0)))
+                             ((1ULL << (_keys_)) - 1ULL) : \
+                             (~ 0ULL))
 #if MARIA_MAX_KEY > MARIA_KEYMAP_BITS
 #define maria_is_key_active(_keymap_,_keyno_) \
                             (((_keyno_) < MARIA_KEYMAP_BITS) ? \
-                             test((_keymap_) & (ULL(1) << (_keyno_))) : \
+                             test((_keymap_) & (1ULL << (_keyno_))) : \
                              test((_keymap_) & MARIA_KEYMAP_HIGH_MASK))
 #define maria_set_key_active(_keymap_,_keyno_) \
                             (_keymap_)|= (((_keyno_) < MARIA_KEYMAP_BITS) ? \
-                                          (ULL(1) << (_keyno_)) : \
+                                          (1ULL << (_keyno_)) : \
                                           MARIA_KEYMAP_HIGH_MASK)
 #define maria_clear_key_active(_keymap_,_keyno_) \
                             (_keymap_)&= (((_keyno_) < MARIA_KEYMAP_BITS) ? \
-                                          (~ (ULL(1) << (_keyno_))) : \
-                                          (~ (ULL(0))) /*ignore*/ )
+                                          (~ (1ULL << (_keyno_))) : \
+                                          (~ (0ULL)) /*ignore*/ )
 #else
 #define maria_is_key_active(_keymap_,_keyno_) \
-                            test((_keymap_) & (ULL(1) << (_keyno_)))
+                            test((_keymap_) & (1ULL << (_keyno_)))
 #define maria_set_key_active(_keymap_,_keyno_) \
-                            (_keymap_)|= (ULL(1) << (_keyno_))
+                            (_keymap_)|= (1ULL << (_keyno_))
 #define maria_clear_key_active(_keymap_,_keyno_) \
-                            (_keymap_)&= (~ (ULL(1) << (_keyno_)))
+                            (_keymap_)&= (~ (1ULL << (_keyno_)))
 #endif
 #define maria_is_any_key_active(_keymap_) \
                             test((_keymap_))
@@ -388,7 +389,7 @@ void maria_disable_indexes_for_rebuild(MARIA_HA *info, ha_rows rows,
 my_bool maria_test_if_sort_rep(MARIA_HA *info, ha_rows rows, ulonglong key_map,
 			       my_bool force);
 
-int maria_init_bulk_insert(MARIA_HA *info, ulong cache_size, ha_rows rows);
+int maria_init_bulk_insert(MARIA_HA *info, size_t cache_size, ha_rows rows);
 void maria_flush_bulk_insert(MARIA_HA *info, uint inx);
 void maria_end_bulk_insert(MARIA_HA *info);
 int maria_preload(MARIA_HA *info, ulonglong key_map, my_bool ignore_leaves);

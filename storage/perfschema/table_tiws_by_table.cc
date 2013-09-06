@@ -225,7 +225,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 
 TABLE_FIELD_DEF
 table_tiws_by_table::m_field_def=
-{ 38, field_types };
+{ 38, field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_tiws_by_table::m_share=

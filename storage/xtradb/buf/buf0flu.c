@@ -79,6 +79,23 @@ static buf_flush_stat_t	buf_flush_stat_sum;
 
 /* @} */
 
+/******************************************************************//**
+Increases flush_list size in bytes with zip_size for compressed page,
+UNIV_PAGE_SIZE for uncompressed page in inline function */
+static inline
+void
+incr_flush_list_size_in_bytes(
+/*==========================*/
+	buf_block_t*	block,		/*!< in: control block */
+	buf_pool_t*	buf_pool)	/*!< in: buffer pool instance */
+{
+	ulint		zip_size;
+	ut_ad(buf_flush_list_mutex_own(buf_pool));
+	zip_size = page_zip_get_size(&block->page.zip);
+	buf_pool->stat.flush_list_bytes += zip_size ? zip_size : UNIV_PAGE_SIZE;
+	ut_ad(buf_pool->stat.flush_list_bytes <= buf_pool->curr_pool_size);
+}
+
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /******************************************************************//**
 Validates the flush list.
@@ -308,6 +325,7 @@ buf_flush_insert_into_flush_list(
 	ut_d(block->page.in_flush_list = TRUE);
 	block->page.oldest_modification = lsn;
 	UT_LIST_ADD_FIRST(flush_list, buf_pool->flush_list, &block->page);
+	incr_flush_list_size_in_bytes(block, buf_pool);
 
 #ifdef UNIV_DEBUG_VALGRIND
 	{
@@ -412,6 +430,8 @@ buf_flush_insert_sorted_into_flush_list(
 				     prev_b, &block->page);
 	}
 
+	incr_flush_list_size_in_bytes(block, buf_pool);
+
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 	ut_a(buf_flush_validate_low(buf_pool));
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
@@ -439,7 +459,7 @@ buf_flush_ready_for_replace(
 
 	if (UNIV_LIKELY(bpage->in_LRU_list && buf_page_in_file(bpage))) {
 
-		return((bpage->oldest_modification == 0 || bpage->space_was_being_deleted)
+		return(bpage->oldest_modification == 0
 		       && buf_page_get_io_fix(bpage) == BUF_IO_NONE
 		       && bpage->buf_fix_count == 0);
 	}
@@ -481,13 +501,6 @@ buf_flush_ready_for_flush(
 	    && buf_page_get_io_fix(bpage) == BUF_IO_NONE) {
 		ut_ad(bpage->in_flush_list);
 
-		if (bpage->space_was_being_deleted) {
-			/* should be removed from flush_list here */
-			/* because buf_flush_try_neighbors() cannot flush without fil_space_get_size(space) */
-			buf_flush_remove(bpage);
-			return(FALSE);
-		}
-
 		if (flush_type != BUF_FLUSH_LRU) {
 
 			return(TRUE);
@@ -514,6 +527,7 @@ buf_flush_remove(
 	buf_page_t*	bpage)	/*!< in: pointer to the block in question */
 {
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
+	ulint		zip_size;
 
 	//ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
@@ -551,6 +565,9 @@ buf_flush_remove(
 	/* Must be done after we have removed it from the flush_rbt
 	because we assert on in_flush_list in comparison function. */
 	ut_d(bpage->in_flush_list = FALSE);
+
+	zip_size = page_zip_get_size(&bpage->zip);
+	buf_pool->stat.flush_list_bytes -= zip_size ? zip_size : UNIV_PAGE_SIZE;
 
 	bpage->oldest_modification = 0;
 
@@ -915,7 +932,7 @@ flush:
 				"InnoDB: Page buf fix count %lu,"
 				" io fix %lu, state %lu\n",
 				(ulong)block->page.buf_fix_count,
-				(ulong)buf_block_get_io_fix(block),
+				(ulong)buf_block_get_io_fix_unlocked(block),
 				(ulong)buf_block_get_state(block));
 		}
 
@@ -1115,7 +1132,7 @@ buf_flush_write_block_low(
 	ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
 	ut_ad(!buf_flush_list_mutex_own(buf_pool));
 	ut_ad(!mutex_own(buf_page_get_mutex(bpage)));
-	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_WRITE);
+	ut_ad(buf_page_get_io_fix_unlocked(bpage) == BUF_IO_WRITE);
 	ut_ad(bpage->oldest_modification != 0);
 
 #ifdef UNIV_IBUF_COUNT_DEBUG
@@ -1181,10 +1198,10 @@ buf_flush_write_block_low(
 # if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 /********************************************************************//**
 Writes a flushable page asynchronously from the buffer pool to a file.
-NOTE: buf_pool->mutex and block->mutex must be held upon entering this
-function, and they will be released by this function after flushing.
+NOTE: block->mutex must be held upon entering this function, and it will be
+released by this function after flushing.
 This is loosely based on buf_flush_batch() and buf_flush_page().
-@return TRUE if the page was flushed and the mutexes released */
+@return TRUE if the page was flushed and the mutex released */
 UNIV_INTERN
 ibool
 buf_flush_page_try(
@@ -1553,16 +1570,14 @@ scan:
 Check if the block is modified and ready for flushing. If the the block
 is ready to flush then flush the page and try o flush its neighbors.
 
-@return	TRUE if buf_pool mutex was not released during this function.
+@return	TRUE if LRU list mutex was not released during this function.
 This does not guarantee that some pages were written as well.
 Number of pages written are incremented to the count. */
 static
 ibool
 buf_flush_page_and_try_neighbors(
 /*=============================*/
-	buf_page_t*	bpage,		/*!< in: buffer control block,
-					must be
-					buf_page_in_file(bpage) */
+	buf_page_t*	bpage,		/*!< in: buffer control block */
 	enum buf_flush	flush_type,	/*!< in: BUF_FLUSH_LRU
 					or BUF_FLUSH_LIST */
 	ulint		n_to_flush,	/*!< in: number of pages to

@@ -6,6 +6,7 @@ db
 event
 func
 general_log
+gtid_slave_pos
 help_category
 help_keyword
 help_relation
@@ -14,15 +15,11 @@ host
 index_stats
 innodb_index_stats
 innodb_table_stats
-ndb_binlog_index
 plugin
 proc
 procs_priv
 proxies_priv
 servers
-slave_master_info
-slave_relay_log_info
-slave_worker_info
 slow_log
 table_stats
 tables_priv
@@ -130,6 +127,7 @@ user	CREATE TABLE `user` (
   `max_user_connections` int(11) NOT NULL DEFAULT '0',
   `plugin` char(64) CHARACTER SET latin1 NOT NULL DEFAULT '',
   `authentication_string` text COLLATE utf8_bin NOT NULL,
+  `password_expired` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
   PRIMARY KEY (`Host`,`User`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Users and global privileges'
 show create table func;
@@ -252,7 +250,7 @@ Table	Create Table
 general_log	CREATE TABLE `general_log` (
   `event_time` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   `user_host` mediumtext NOT NULL,
-  `thread_id` int(11) NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `command_type` varchar(64) NOT NULL,
   `argument` mediumtext NOT NULL
@@ -270,7 +268,8 @@ slow_log	CREATE TABLE `slow_log` (
   `last_insert_id` int(11) NOT NULL,
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
-  `sql_text` mediumtext NOT NULL
+  `sql_text` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log'
 show create table table_stats;
 Table	Create Table
@@ -291,6 +290,9 @@ column_stats	CREATE TABLE `column_stats` (
   `nulls_ratio` decimal(12,4) DEFAULT NULL,
   `avg_length` decimal(12,4) DEFAULT NULL,
   `avg_frequency` decimal(12,4) DEFAULT NULL,
+  `hist_size` tinyint(3) unsigned DEFAULT NULL,
+  `hist_type` enum('SINGLE_PREC_HB','DOUBLE_PREC_HB') COLLATE utf8_bin DEFAULT NULL,
+  `histogram` varbinary(255) DEFAULT NULL,
   PRIMARY KEY (`db_name`,`table_name`,`column_name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Statistics on Columns'
 show create table index_stats;

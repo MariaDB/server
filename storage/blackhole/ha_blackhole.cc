@@ -52,15 +52,6 @@ ha_blackhole::ha_blackhole(handlerton *hton,
 {}
 
 
-static const char *ha_blackhole_exts[] = {
-  NullS
-};
-
-const char **ha_blackhole::bas_ext() const
-{
-  return ha_blackhole_exts;
-}
-
 int ha_blackhole::open(const char *name, int mode, uint test_if_locked)
 {
   DBUG_ENTER("ha_blackhole::open");

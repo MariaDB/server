@@ -69,7 +69,6 @@ public:
   }
   /* Rows also use a fixed-size format */
   enum row_type get_row_type() const { return ROW_TYPE_FIXED; }
-  const char **bas_ext() const;
   ulong index_flags(uint inx, uint part, bool all_parts) const;
   uint max_supported_keys()          const { return MAX_KEY; }
   uint max_supported_key_part_length() const { return MAX_KEY_LENGTH; }

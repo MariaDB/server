@@ -135,7 +135,7 @@ ha_myisammrg::~ha_myisammrg(void)
 
 
 static const char *ha_myisammrg_exts[] = {
-  ".MRG",
+  MYRG_NAME_EXT,
   NullS
 };
 extern int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
@@ -168,12 +168,6 @@ extern "C" void myrg_print_wrong_table(const char *table_name)
     handler::print_error() call.
   */
   my_error(ER_ADMIN_WRONG_MRG_TABLE, MYF(0), buf);
-}
-
-
-const char **ha_myisammrg::bas_ext() const
-{
-  return ha_myisammrg_exts;
 }
 
 
@@ -331,6 +325,19 @@ extern "C" int myisammrg_parent_open_callback(void *callback_param,
 CPP_UNNAMED_NS_END
 
 
+/*
+  Set external_ref for the child MyISAM tables. They need this to be set in
+  order to check for killed status.
+*/
+static void myrg_set_external_ref(MYRG_INFO *m_info, void *ext_ref_arg)
+{
+  int i;
+  for (i= 0; i < (int)m_info->tables; i++)
+  {
+    m_info->open_tables[i].table->external_ref= ext_ref_arg;
+  }
+}
+
 /**
   Open a MERGE parent table, but not its children.
 
@@ -394,6 +401,7 @@ int ha_myisammrg::open(const char *name, int mode __attribute__((unused)),
     }
 
     file->children_attached= TRUE;
+    myrg_set_external_ref(file, (void*)table);
 
     info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
   }
@@ -485,6 +493,11 @@ int ha_myisammrg::add_children_list(void)
     child_l->set_table_ref_id(mrg_child_def->get_child_table_ref_type(),
                               mrg_child_def->get_child_def_version());
     /*
+      Copy parent's prelocking attribute to allow opening of child
+      temporary residing in the prelocking list.
+    */
+    child_l->prelocking_placeholder= parent_l->prelocking_placeholder;
+    /*
       For statements which acquire a SNW metadata lock on a parent table and
       then later try to upgrade it to an X lock (e.g. ALTER TABLE), SNW
       locks should be also taken on the children tables.
@@ -507,7 +520,7 @@ int ha_myisammrg::add_children_list(void)
       DDL on implicitly locked underlying tables of a MERGE table.
     */
     if (! thd->locked_tables_mode &&
-        parent_l->mdl_request.type == MDL_SHARED_NO_WRITE)
+        parent_l->mdl_request.type == MDL_SHARED_UPGRADABLE)
       child_l->mdl_request.set_type(MDL_SHARED_NO_WRITE);
     /* Link TABLE_LIST object into the children list. */
     if (this->children_last_l)
@@ -1304,7 +1317,7 @@ int ha_myisammrg::info(uint flag)
       memcpy((char*) table->key_info[0].rec_per_key,
 	     (char*) mrg_info.rec_per_key,
              sizeof(table->key_info[0].rec_per_key[0]) *
-             min(file->keys, table->s->key_parts));
+             MY_MIN(file->keys, table->s->key_parts));
     }
   }
   if (flag & HA_STATUS_ERRKEY)
@@ -1367,8 +1380,6 @@ int ha_myisammrg::reset(void)
 int ha_myisammrg::extra_opt(enum ha_extra_function operation, ulong cache_size)
 {
   DBUG_ASSERT(this->file->children_attached);
-  if ((specialflag & SPECIAL_SAFE_MODE) && operation == HA_EXTRA_WRITE_CACHE)
-    return 0;
   return myrg_extra(file, operation, (void*) &cache_size);
 }
 
@@ -1439,7 +1450,7 @@ static void split_file_name(const char *file_name,
   char buff[FN_REFLEN];
 
   db->length= 0;
-  strmake(buff, file_name, sizeof(buff)-1);
+  strmake_buf(buff, file_name);
   dir_length= dirname_length(buff);
   if (dir_length > 1)
   {
@@ -1501,15 +1512,14 @@ err:
 }
 
 
-int ha_myisammrg::create(const char *name, register TABLE *form,
-			 HA_CREATE_INFO *create_info)
+int ha_myisammrg::create_mrg(const char *name, HA_CREATE_INFO *create_info)
 {
   char buff[FN_REFLEN];
   const char **table_names, **pos;
   TABLE_LIST *tables= create_info->merge_list.first;
   THD *thd= current_thd;
   size_t dirlgt= dirname_length(name);
-  DBUG_ENTER("ha_myisammrg::create");
+  DBUG_ENTER("ha_myisammrg::create_mrg");
 
   /* Allocate a table_names array in thread mem_root. */
   if (!(table_names= (const char**)
@@ -1557,12 +1567,19 @@ int ha_myisammrg::create(const char *name, register TABLE *form,
   *pos=0;
 
   /* Create a MERGE meta file from the table_names array. */
-  DBUG_RETURN(myrg_create(fn_format(buff,name,"","",
-                                    MY_RESOLVE_SYMLINKS|
-                                    MY_UNPACK_FILENAME|MY_APPEND_EXT),
-			  table_names,
-                          create_info->merge_insert_method,
-                          (my_bool) 0));
+  int res= myrg_create(name, table_names, create_info->merge_insert_method, 0);
+  DBUG_RETURN(res);
+}
+
+
+int ha_myisammrg::create(const char *name, register TABLE *form,
+			 HA_CREATE_INFO *create_info)
+{
+  char buff[FN_REFLEN];
+  DBUG_ENTER("ha_myisammrg::create");
+  fn_format(buff, name, "", MYRG_NAME_EXT, MY_UNPACK_FILENAME | MY_APPEND_EXT);
+  int res= create_mrg(buff, create_info);
+  DBUG_RETURN(res);
 }
 
 
@@ -1613,16 +1630,40 @@ void ha_myisammrg::append_create_info(String *packet)
 }
 
 
-bool ha_myisammrg::check_if_incompatible_data(HA_CREATE_INFO *info,
-					      uint table_changes)
+enum_alter_inplace_result
+ha_myisammrg::check_if_supported_inplace_alter(TABLE *altered_table,
+                                               Alter_inplace_info *ha_alter_info)
 {
   /*
-    For myisammrg, we should always re-generate the mapping file as this
-    is trivial to do
+    We always support inplace ALTER in the new API, because old
+    HA_NO_COPY_ON_ALTER table_flags() hack prevents non-inplace ALTER anyway.
   */
-  return COMPATIBLE_DATA_NO;
+  return HA_ALTER_INPLACE_EXCLUSIVE_LOCK;
 }
 
+
+bool ha_myisammrg::inplace_alter_table(TABLE *altered_table,
+                                       Alter_inplace_info *ha_alter_info)
+{
+  char tmp_path[FN_REFLEN];
+  char *name= table->s->normalized_path.str;
+  DBUG_ENTER("ha_myisammrg::inplace_alter_table");
+  fn_format(tmp_path, name, "", MYRG_NAME_TMPEXT, MY_UNPACK_FILENAME | MY_APPEND_EXT);
+  int res= create_mrg(tmp_path, ha_alter_info->create_info);
+  if (res)
+    mysql_file_delete(rg_key_file_MRG, tmp_path, MYF(0));
+  else
+  {
+    char path[FN_REFLEN];
+    fn_format(path, name, "", MYRG_NAME_EXT, MY_UNPACK_FILENAME | MY_APPEND_EXT);
+    if (mysql_file_rename(rg_key_file_MRG, tmp_path, path, MYF(0)))
+    {
+      res= my_errno;
+      mysql_file_delete(rg_key_file_MRG, tmp_path, MYF(0));
+    }
+  }
+  DBUG_RETURN(res);
+}
 
 int ha_myisammrg::check(THD* thd, HA_CHECK_OPT* check_opt)
 {
@@ -1669,7 +1710,7 @@ my_bool ha_myisammrg::register_query_cache_dependant_tables(THD *thd
       There are not callback function for for MyISAM, and engine data
     */
     if (!cache->insert_table(key_length, key, (*block_table),
-                             db_length,
+                             db_length, 0,
                              table_cache_type(),
                              0, 0, TRUE))
       DBUG_RETURN(TRUE);
@@ -1697,6 +1738,7 @@ static int myisammrg_init(void *p)
   myisammrg_hton->create= myisammrg_create_handler;
   myisammrg_hton->panic= myisammrg_panic;
   myisammrg_hton->flags= HTON_NO_PARTITION;
+  myisammrg_hton->tablefile_extensions= ha_myisammrg_exts;
 
   return 0;
 }

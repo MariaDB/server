@@ -661,7 +661,7 @@ int String::reserve(uint32 space_needed, uint32 grow_by)
 {
   if (Alloced_length < str_length + space_needed)
   {
-    if (realloc(Alloced_length + max(space_needed, grow_by) - 1))
+    if (realloc(Alloced_length + MY_MAX(space_needed, grow_by) - 1))
       return TRUE;
   }
   return FALSE;
@@ -748,7 +748,7 @@ int sortcmp(const String *s,const String *t, CHARSET_INFO *cs)
 
 int stringcmp(const String *s,const String *t)
 {
-  uint32 s_len=s->length(),t_len=t->length(),len=min(s_len,t_len);
+  uint32 s_len=s->length(),t_len=t->length(),len=MY_MIN(s_len,t_len);
   int cmp= memcmp(s->ptr(), t->ptr(), len);
   return (cmp) ? cmp : (int) (s_len - t_len);
 }
@@ -758,14 +758,14 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
 {
   if (from->Alloced_length >= from_length)
     return from;
-  if (from->alloced || !to || from == to)
+  if ((from->alloced && (from->Alloced_length != 0)) || !to || from == to)
   {
     (void) from->realloc(from_length);
     return from;
   }
   if (to->realloc(from_length))
     return from;				// Actually an error
-  if ((to->str_length=min(from->str_length,from_length)))
+  if ((to->str_length=MY_MIN(from->str_length,from_length)))
     memcpy(to->Ptr,from->Ptr,to->str_length);
   to->str_charset=from->str_charset;
   return to;
@@ -775,67 +775,6 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
 /****************************************************************************
   Help functions
 ****************************************************************************/
-
-
-
-/*
-  Optimized for quick copying of ASCII characters in the range 0x00..0x7F.
-*/
-uint32
-copy_and_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs, 
-                 const char *from, uint32 from_length, CHARSET_INFO *from_cs,
-                 uint *errors)
-{
-  /*
-    If any of the character sets is not ASCII compatible,
-    immediately switch to slow mb_wc->wc_mb method.
-  */
-  if ((to_cs->state | from_cs->state) & MY_CS_NONASCII)
-    return copy_and_convert_extended(to, to_length, to_cs,
-                                     from, from_length, from_cs, errors);
-
-  uint32 length= min(to_length, from_length), length2= length;
-
-#if defined(__i386__)
-  /*
-    Special loop for i386, it allows to refer to a
-    non-aligned memory block as UINT32, which makes
-    it possible to copy four bytes at once. This
-    gives about 10% performance improvement comparing
-    to byte-by-byte loop.
-  */
-  for ( ; length >= 4; length-= 4, from+= 4, to+= 4)
-  {
-    if ((*(uint32*)from) & 0x80808080)
-      break;
-    *((uint32*) to)= *((const uint32*) from);
-  }
-#endif
-
-  for (; ; *to++= *from++, length--)
-  {
-    if (!length)
-    {
-      *errors= 0;
-      return length2;
-    }
-    if (*((unsigned char*) from) > 0x7F) /* A non-ASCII character */
-    {
-      uint32 copied_length= length2 - length;
-      to_length-= copied_length;
-      from_length-= copied_length;
-      return copied_length + copy_and_convert_extended(to, to_length,
-                                                       to_cs,
-                                                       from, from_length,
-                                                       from_cs,
-                                                       errors);
-    }
-  }
-
-  DBUG_ASSERT(FALSE); // Should never get to here
-  return 0;           // Make compiler happy
-}
-
 
 /**
   Copy string with HEX-encoding of "bad" characters.
@@ -954,7 +893,7 @@ well_formed_copy_nchars(CHARSET_INFO *to_cs,
 
     if (to_cs == &my_charset_bin)
     {
-      res= min(min(nchars, to_length), from_length);
+      res= MY_MIN(MY_MIN(nchars, to_length), from_length);
       memmove(to, from, res);
       *from_end_pos= from + res;
       *well_formed_error_pos= NULL;
@@ -1079,7 +1018,8 @@ outp:
   characters as necessary.
   Does not add the enclosing quotes, this is left up to caller.
 */
-void String::append_for_single_quote(const char *st, uint len)
+#define APPEND(X)   if (append(X)) return 1; else break
+bool String::append_for_single_quote(const char *st, uint len)
 {
   const char *end= st+len;
   for (; st < end; st++)
@@ -1087,28 +1027,16 @@ void String::append_for_single_quote(const char *st, uint len)
     uchar c= *st;
     switch (c)
     {
-    case '\\':
-      append(STRING_WITH_LEN("\\\\"));
-      break;
-    case '\0':
-      append(STRING_WITH_LEN("\\0"));
-      break;
-    case '\'':
-      append(STRING_WITH_LEN("\\'"));
-      break;
-    case '\n':
-      append(STRING_WITH_LEN("\\n"));
-      break;
-    case '\r':
-      append(STRING_WITH_LEN("\\r"));
-      break;
-    case '\032': // Ctrl-Z
-      append(STRING_WITH_LEN("\\Z"));
-      break;
-    default:
-      append(c);
+    case '\\':   APPEND(STRING_WITH_LEN("\\\\"));
+    case '\0':   APPEND(STRING_WITH_LEN("\\0"));
+    case '\'':   APPEND(STRING_WITH_LEN("\\'"));
+    case '\n':   APPEND(STRING_WITH_LEN("\\n"));
+    case '\r':   APPEND(STRING_WITH_LEN("\\r"));
+    case '\032': APPEND(STRING_WITH_LEN("\\Z"));
+    default:     APPEND(c);
     }
   }
+  return 0;
 }
 
 void String::print(String *str)
@@ -1166,7 +1094,7 @@ uint convert_to_printable(char *to, size_t to_len,
   char *t= to;
   char *t_end= to + to_len - 1; // '- 1' is for the '\0' at the end
   const char *f= from;
-  const char *f_end= from + (nbytes ? min(from_len, nbytes) : from_len);
+  const char *f_end= from + (nbytes ? MY_MIN(from_len, nbytes) : from_len);
   char *dots= to; // last safe place to append '...'
 
   if (!f || t == t_end)

@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,6 +21,7 @@
 #endif
 
 #include "myisamdef.h"
+#include "my_default.h"
 #include <queues.h>
 #include <my_tree.h>
 #include "mysys_err.h"
@@ -783,7 +785,7 @@ static int create_dest_frm(char *source_table, char *dest_table)
   */
   (void) my_copy(source_name, dest_name, MYF(MY_DONT_OVERWRITE_FILE));
   
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
@@ -1269,7 +1271,7 @@ static void check_counts(HUFF_COUNTS *huff_counts, uint trees,
     {
       if (huff_counts->field_length > 2 &&
 	  huff_counts->empty_fields + (records - huff_counts->empty_fields)*
-	  (1+max_bit(max(huff_counts->max_pre_space,
+	  (1+max_bit(MY_MAX(huff_counts->max_pre_space,
 			 huff_counts->max_end_space))) <
 	  records * max_bit(huff_counts->field_length))
       {
@@ -1931,7 +1933,7 @@ static int make_huff_decode_table(HUFF_TREE *huff_tree, uint trees)
 	return 1;
       huff_tree->code_len=(uchar*) (huff_tree->code+elements);
       make_traverse_code_tree(huff_tree, huff_tree->root,
-                              8 * sizeof(ulonglong), LL(0));
+                              8 * sizeof(ulonglong), 0);
     }
   }
   return 0;
@@ -2143,7 +2145,8 @@ static my_off_t write_huff_tree(HUFF_TREE *huff_tree, uint trees)
   */
   if (!(packed_tree=(uint*) my_alloca(sizeof(uint)*length*2)))
   {
-    my_error(EE_OUTOFMEMORY,MYF(ME_BELL),sizeof(uint)*length*2);
+    my_error(EE_OUTOFMEMORY, MYF(ME_BELL+ME_FATALERROR), 
+             sizeof(uint)*length*2);
     return 0;
   }
 
@@ -3022,7 +3025,7 @@ static int save_state_mrg(File file,PACK_MRG_INFO *mrg,my_off_t new_length,
   if (mrg->src_file_has_indexes_disabled)
   {
     isam_file->s->state.state.key_file_length=
-      max(isam_file->s->state.state.key_file_length, new_length);
+      MY_MAX(isam_file->s->state.state.key_file_length, new_length);
   }
   state.dellink= HA_OFFSET_ERROR;
   state.version=(ulong) time((time_t*) 0);

@@ -92,3 +92,4 @@ FLUSH TABLE t1;
 SELECT * FROM t1;
 
 DROP TABLE t1;
+SET debug_sync = 'RESET';

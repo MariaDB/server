@@ -45,6 +45,9 @@ class Item;
 #define MYSQL_THD void*
 #endif
 
+typedef char my_bool;
+typedef void * MYSQL_PLUGIN;
+
 #include <mysql/services.h>
 
 #define MYSQL_XIDDATASIZE 128
@@ -69,10 +72,10 @@ typedef struct st_mysql_xid MYSQL_XID;
 */
 
 /* MySQL plugin interface version */
-#define MYSQL_PLUGIN_INTERFACE_VERSION 0x0103
+#define MYSQL_PLUGIN_INTERFACE_VERSION 0x0104
 
 /* MariaDB plugin interface version */
-#define MARIA_PLUGIN_INTERFACE_VERSION 0x0104
+#define MARIA_PLUGIN_INTERFACE_VERSION 0x0107
 
 /*
   The allowable types of plugins
@@ -85,7 +88,8 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MYSQL_AUDIT_PLUGIN           5  /* The Audit plugin type        */
 #define MYSQL_REPLICATION_PLUGIN     6	/* The replication plugin type */
 #define MYSQL_AUTHENTICATION_PLUGIN  7  /* The authentication plugin type */
-#define MYSQL_MAX_PLUGIN_TYPE_NUM    8  /* The number of plugin types   */
+#define MYSQL_VALIDATE_PASSWORD_PLUGIN  8   /* validate password plugin type */
+#define MYSQL_MAX_PLUGIN_TYPE_NUM    9  /* The number of plugin types   */
 
 /* We use the following strings to define licenses for plugins */
 #define PLUGIN_LICENSE_PROPRIETARY 0
@@ -558,7 +562,7 @@ struct handlerton;
 /*
   API for Replication plugin. (MYSQL_REPLICATION_PLUGIN)
 */
- #define MYSQL_REPLICATION_INTERFACE_VERSION 0x0100
+ #define MYSQL_REPLICATION_INTERFACE_VERSION 0x0200
  
  /**
     Replication plugin descriptor
@@ -606,6 +610,7 @@ int thd_sql_command(const MYSQL_THD thd);
 void **thd_ha_data(const MYSQL_THD thd, const struct handlerton *hton);
 void thd_storage_lock_wait(MYSQL_THD thd, long long value);
 int thd_tx_isolation(const MYSQL_THD thd);
+int thd_tx_is_read_only(const MYSQL_THD thd);
 char *thd_security_context(MYSQL_THD thd, char *buffer, unsigned int length,
                            unsigned int max_query_len);
 /* Increments the row counter, see THD::row_count */

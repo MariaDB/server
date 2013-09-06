@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 #ifndef INNODB_PRIV_INCLUDED
 #define INNODB_PRIV_INCLUDED
@@ -25,12 +25,10 @@ class THD;
 int get_quote_char_for_identifier(THD *thd, const char *name, uint length);
 bool schema_table_store_record(THD *thd, TABLE *table);
 void localtime_to_TIME(MYSQL_TIME *to, struct tm *from);
-bool check_global_access(THD *thd, ulong want_access);
-uint strconvert(CHARSET_INFO *from_cs, const char *from,
+bool check_global_access(THD *thd, ulong want_access, bool no_errors=false);
+uint strconvert(CHARSET_INFO *from_cs, const char *from, uint from_length,
                 CHARSET_INFO *to_cs, char *to, uint to_length,
                 uint *errors);
 void sql_print_error(const char *format, ...);
-
-
 
 #endif /* INNODB_PRIV_INCLUDED */

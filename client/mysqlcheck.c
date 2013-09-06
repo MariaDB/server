@@ -18,7 +18,7 @@
 
 /* By Jani Tolonen, 2001-04-20, MySQL Development Team */
 
-#define CHECK_VERSION "2.7.0"
+#define CHECK_VERSION "2.7.1"
 
 #include "client_priv.h"
 #include <m_ctype.h>
@@ -620,6 +620,17 @@ static int process_all_tables_in_db(char *database)
 } /* process_all_tables_in_db */
 
 
+static int run_query(const char *query)
+{
+  if (mysql_query(sock, query))
+  {
+    fprintf(stderr, "Failed to %s\n", query);
+    fprintf(stderr, "Error: %s\n", mysql_error(sock));
+    return 1;
+  }
+  return 0;
+}
+
 
 static int fix_table_storage_name(const char *name)
 {
@@ -630,12 +641,7 @@ static int fix_table_storage_name(const char *name)
   if (strncmp(name, "#mysql50#", 9))
     DBUG_RETURN(1);
   sprintf(qbuf, "RENAME TABLE `%s` TO `%s`", name, name + 9);
-  if (mysql_query(sock, qbuf))
-  {
-    fprintf(stderr, "Failed to %s\n", qbuf);
-    fprintf(stderr, "Error: %s\n", mysql_error(sock));
-    rc= 1;
-  }
+  rc= run_query(qbuf);
   if (verbose)
     printf("%-50s %s\n", name, rc ? "FAILED" : "OK");
   DBUG_RETURN(rc);
@@ -650,12 +656,7 @@ static int fix_database_storage_name(const char *name)
   if (strncmp(name, "#mysql50#", 9))
     DBUG_RETURN(1);
   sprintf(qbuf, "ALTER DATABASE `%s` UPGRADE DATA DIRECTORY NAME", name);
-  if (mysql_query(sock, qbuf))
-  {
-    fprintf(stderr, "Failed to %s\n", qbuf);
-    fprintf(stderr, "Error: %s\n", mysql_error(sock));
-    rc= 1;
-  }
+  rc= run_query(qbuf);
   if (verbose)
     printf("%-50s %s\n", name, rc ? "FAILED" : "OK");
   DBUG_RETURN(rc);
@@ -726,15 +727,7 @@ static int use_db(char *database)
 static int disable_binlog()
 {
   const char *stmt= "SET SQL_LOG_BIN=0";
-  DBUG_ENTER("disable_binlog");
-
-  if (mysql_query(sock, stmt))
-  {
-    fprintf(stderr, "Failed to %s\n", stmt);
-    fprintf(stderr, "Error: %s\n", mysql_error(sock));
-    DBUG_RETURN(1);
-  }
-  DBUG_RETURN(0);
+  return run_query(stmt);
 }
 
 static int handle_request_for_tables(char *tables, uint length)
@@ -787,8 +780,8 @@ static int handle_request_for_tables(char *tables, uint length)
 
     org= ptr= strmov(strmov(query, op), " TABLE ");
     ptr= fix_table_name(ptr, tables);
-    strmake(table_name_buff, org, min((int) sizeof(table_name_buff)-1,
-                                      (int) (ptr - org)));
+    strmake(table_name_buff, org, MY_MIN((int) sizeof(table_name_buff)-1,
+                                         (int) (ptr - org)));
     table_name= table_name_buff;
     ptr= strxmov(ptr, " ", options, NullS);
     query_length= (uint) (ptr - query);
@@ -868,7 +861,7 @@ static void print_result()
         printf("%s\n%-9s: %s", row[0], row[2], row[3]);
       if (strcmp(row[2],"note"))
       {
-	found_error=1;
+        found_error=1;
         if (opt_auto_repair && strstr(row[3], "ALTER TABLE") != NULL)
           table_rebuild=1;
       }

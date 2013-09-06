@@ -37,7 +37,9 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
    checksum_alg_before_fd(BINLOG_CHECKSUM_ALG_UNDEF),
    connect_retry(DEFAULT_CONNECT_RETRY), inited(0), abort_slave(0),
    slave_running(0), slave_run_id(0), sync_counter(0),
-   heartbeat_period(0), received_heartbeats(0), master_id(0)
+   heartbeat_period(0), received_heartbeats(0), master_id(0),
+   using_gtid(USE_GTID_NO), events_queued_since_last_gtid(0),
+   gtid_reconnect_event_skip_count(0), gtid_event_seen(false)
 {
   host[0] = 0; user[0] = 0; password[0] = 0;
   ssl_ca[0]= 0; ssl_capath[0]= 0; ssl_cert[0]= 0;
@@ -61,8 +63,17 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
            connection_name.length+1);
     my_casedn_str(system_charset_info, cmp_connection_name.str);
   }
+  /* When MySQL restarted, all Rpl_filter settings which aren't in the my.cnf
+   * will lose. So if you want a setting will not lose after restarting, you
+   * should add them into my.cnf
+   * */
+  rpl_filter= get_or_create_rpl_filter(connection_name.str, 
+                                       connection_name.length);
+  copy_filter_setting(rpl_filter, global_rpl_filter);
 
-  my_init_dynamic_array(&ignore_server_ids, sizeof(::server_id), 16, 16, MYF(0));
+  my_init_dynamic_array(&ignore_server_ids,
+                        sizeof(global_system_variables.server_id), 16, 16,
+                        MYF(0));
   bzero((char*) &file, sizeof(file));
   mysql_mutex_init(key_master_info_run_lock, &run_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_master_info_data_lock, &data_lock, MY_MUTEX_INIT_FAST);
@@ -77,6 +88,8 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
 
 Master_info::~Master_info()
 {
+  rpl_filters.delete_element(connection_name.str, connection_name.length,
+                             (void (*)(const char*, uchar*)) free_rpl_filter);
   my_free(connection_name.str);
   delete_dynamic(&ignore_server_ids);
   mysql_mutex_destroy(&run_lock);
@@ -136,12 +149,34 @@ void Master_info::clear_in_memory_info(bool all)
   }
 }
 
+
+const char *
+Master_info::using_gtid_astext(enum enum_using_gtid arg)
+{
+  switch (arg)
+  {
+  case USE_GTID_NO:
+    return "No";
+  case USE_GTID_SLAVE_POS:
+    return "Slave_Pos";
+  default:
+    DBUG_ASSERT(arg == USE_GTID_CURRENT_POS);
+    return "Current_Pos";
+  }
+}
+
+
 void init_master_log_pos(Master_info* mi)
 {
   DBUG_ENTER("init_master_log_pos");
 
   mi->master_log_name[0] = 0;
   mi->master_log_pos = BIN_LOG_HEADER_SIZE;             // skip magic number
+  mi->using_gtid= Master_info::USE_GTID_NO;
+  mi->gtid_current_pos.reset();
+  mi->events_queued_since_last_gtid= 0;
+  mi->gtid_reconnect_event_skip_count= 0;
+  mi->gtid_event_seen= false;
 
   /* Intentionally init ssl_verify_server_cert to 0, no option available  */
   mi->ssl_verify_server_cert= 0;
@@ -151,7 +186,7 @@ void init_master_log_pos(Master_info* mi)
     if CHANGE MASTER did not specify it.  (no data loss in conversion
     as hb period has a max)
   */
-  mi->heartbeat_period= (float) min(SLAVE_MAX_HEARTBEAT_PERIOD,
+  mi->heartbeat_period= (float) MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD,
                                     (slave_net_timeout/2.0));
   DBUG_ASSERT(mi->heartbeat_period > (float) 0.001
               || mi->heartbeat_period == 0);
@@ -187,8 +222,13 @@ enum {
   /* line for ssl_crl */
   LINE_FOR_SSL_CRLPATH= 22,
 
-  /* Number of lines currently used when saving master info file */
-  LINES_IN_MASTER_INFO= LINE_FOR_SSL_CRLPATH
+  /* MySQL 5.6 fixed-position lines. */
+  LINE_FOR_FIRST_MYSQL_5_6=23,
+  LINE_FOR_LAST_MYSQL_5_6=23,
+  /* Reserved lines for MySQL future versions. */
+  LINE_FOR_LAST_MYSQL_FUTURE=33,
+  /* Number of (fixed-position) lines used when saving master info file */
+  LINES_IN_MASTER_INFO= LINE_FOR_LAST_MYSQL_FUTURE
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,
@@ -316,7 +356,7 @@ file '%s')", fname);
     int ssl= 0, ssl_verify_server_cert= 0;
     float master_heartbeat_period= 0.0;
     char *first_non_digit;
-    char dummy_buf[HOSTNAME_LENGTH+1];
+    char buf[HOSTNAME_LENGTH+1];
 
     /*
        Starting from 4.1.x master.info has new format. Now its
@@ -410,7 +450,7 @@ file '%s')", fname);
 	(this is just a reservation to avoid future upgrade problems) 
        */
       if (lines >= LINE_FOR_MASTER_BIND &&
-	  init_strvar_from_file(dummy_buf, sizeof(dummy_buf), &mi->file, ""))
+	  init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
 	  goto errwithmsg;
       /*
         Starting from 6.0 list of server_id of ignorable servers might be
@@ -425,12 +465,12 @@ file '%s')", fname);
 
       /* reserved */
       if (lines >= LINE_FOR_MASTER_UUID &&
-	  init_strvar_from_file(dummy_buf, sizeof(dummy_buf), &mi->file, ""))
+	  init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
 	  goto errwithmsg;
 
       /* Starting from 5.5 the master_retry_count may be in the repository. */
       if (lines >= LINE_FOR_MASTER_RETRY_COUNT &&
-	  init_strvar_from_file(dummy_buf, sizeof(dummy_buf), &mi->file, ""))
+	  init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
 	  goto errwithmsg;
 
       if (lines >= LINE_FOR_SSL_CRLPATH &&
@@ -439,6 +479,42 @@ file '%s')", fname);
 	   init_strvar_from_file(mi->ssl_crlpath, sizeof(mi->ssl_crlpath),
                                  &mi->file, "")))
 	  goto errwithmsg;
+
+      /*
+        Starting with MariaDB 10.0, we use a key=value syntax, which is nicer
+        in several ways. But we leave a bunch of empty lines to accomodate
+        any future old-style additions in MySQL (this will make it easier for
+        users moving from MariaDB to MySQL, to not have MySQL try to
+        interpret a MariaDB key=value line.)
+      */
+      if (lines >= LINE_FOR_LAST_MYSQL_FUTURE)
+      {
+        uint i;
+        /* Skip lines used by / reserved for MySQL >= 5.6. */
+        for (i= LINE_FOR_FIRST_MYSQL_5_6; i <= LINE_FOR_LAST_MYSQL_FUTURE; ++i)
+        {
+          if (init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
+          goto errwithmsg;
+        }
+
+        /*
+          Parse any extra key=value lines.
+          Ignore unknown lines, to facilitate downgrades.
+        */
+        while (!init_strvar_from_file(buf, sizeof(buf), &mi->file, 0))
+        {
+          if (0 == strncmp(buf, STRING_WITH_LEN("using_gtid=")))
+          {
+            int val= atoi(buf + sizeof("using_gtid"));
+            if (val == Master_info::USE_GTID_CURRENT_POS)
+              mi->using_gtid= Master_info::USE_GTID_CURRENT_POS;
+            else if (val == Master_info::USE_GTID_SLAVE_POS)
+              mi->using_gtid= Master_info::USE_GTID_SLAVE_POS;
+            else
+              mi->using_gtid= Master_info::USE_GTID_NO;
+          }
+        }
+      }
     }
 
 #ifndef HAVE_OPENSSL
@@ -544,7 +620,7 @@ int flush_master_info(Master_info* mi,
   char* ignore_server_ids_buf;
   {
     ignore_server_ids_buf=
-      (char *) my_malloc((sizeof(::server_id) * 3 + 1) *
+      (char *) my_malloc((sizeof(global_system_variables.server_id) * 3 + 1) *
                          (1 + mi->ignore_server_ids.elements), MYF(MY_WME));
     if (!ignore_server_ids_buf)
       DBUG_RETURN(1);
@@ -578,7 +654,9 @@ int flush_master_info(Master_info* mi,
   sprintf(heartbeat_buf, "%.3f", mi->heartbeat_period);
   my_b_seek(file, 0L);
   my_b_printf(file,
-              "%u\n%s\n%s\n%s\n%s\n%s\n%d\n%d\n%d\n%s\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n",
+              "%u\n%s\n%s\n%s\n%s\n%s\n%d\n%d\n%d\n%s\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n"
+              "\n\n\n\n\n\n\n\n\n\n\n"
+              "using_gtid=%d\n",
               LINES_IN_MASTER_INFO,
               mi->master_log_name, llstr(mi->master_log_pos, lbuf),
               mi->host, mi->user,
@@ -587,7 +665,7 @@ int flush_master_info(Master_info* mi,
               mi->ssl_cipher, mi->ssl_key, mi->ssl_verify_server_cert,
               heartbeat_buf, "", ignore_server_ids_buf,
               "", 0,
-              mi->ssl_crl, mi->ssl_crlpath);
+              mi->ssl_crl, mi->ssl_crlpath, mi->using_gtid);
   my_free(ignore_server_ids_buf);
   err= flush_io_cache(file);
   if (sync_masterinfo_period && !err && 
@@ -675,11 +753,12 @@ bool check_master_connection_name(LEX_STRING *name)
    file names without a prefix.
 */
 
-void create_logfile_name_with_suffix(char *res_file_name, uint length,
-                             const char *info_file, bool append,
-                             LEX_STRING *suffix)
+void create_logfile_name_with_suffix(char *res_file_name, size_t length,
+                                     const char *info_file, bool append,
+                                     LEX_STRING *suffix)
 {
-  char buff[MAX_CONNECTION_NAME+1], res[MAX_CONNECTION_NAME+1], *p;
+  char buff[MAX_CONNECTION_NAME+1],
+    res[MAX_CONNECTION_NAME * MAX_FILENAME_MBWIDTH+1], *p;
 
   p= strmake(res_file_name, info_file, length);
   /* If not empty suffix and there is place left for some part of the suffix */
@@ -687,28 +766,85 @@ void create_logfile_name_with_suffix(char *res_file_name, uint length,
   {
     const char *info_file_end= info_file + (p - res_file_name);
     const char *ext= append ? info_file_end : fn_ext2(info_file);
-    size_t res_length, ext_pos;
+    size_t res_length, ext_pos, from_length;
     uint errors;
 
     /* Create null terminated string */
-    strmake(buff, suffix->str, suffix->length);
-    /* Convert to lower case */
-    my_casedn_str(system_charset_info, buff);
+    from_length= strmake(buff, suffix->str, suffix->length) - buff;
     /* Convert to characters usable in a file name */
-    res_length= strconvert(system_charset_info, buff,
+    res_length= strconvert(system_charset_info, buff, from_length,
                            &my_charset_filename, res, sizeof(res), &errors);
     
     ext_pos= (size_t) (ext - info_file);
     length-= (suffix->length - ext_pos); /* Leave place for extension */
     p= res_file_name + ext_pos;
     *p++= '-';                           /* Add separator */
-    p= strmake(p, res, min((size_t) (length - (p - res_file_name)),
+    p= strmake(p, res, MY_MIN((size_t) (length - (p - res_file_name)),
                            res_length));
     /* Add back extension. We have checked above that there is space for it */
     strmov(p, ext);
   }
 }
 
+void copy_filter_setting(Rpl_filter* dst_filter, Rpl_filter* src_filter)
+{
+  char buf[256];
+  String tmp(buf, sizeof(buf), &my_charset_bin);
+
+  dst_filter->get_do_db(&tmp);
+  if (tmp.is_empty())
+  {
+    src_filter->get_do_db(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_do_db(tmp.ptr());
+  }
+
+  dst_filter->get_do_table(&tmp);
+  if (tmp.is_empty())
+  {
+    src_filter->get_do_table(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_do_table(tmp.ptr());
+  }
+
+  dst_filter->get_ignore_db(&tmp);
+  if (tmp.is_empty())
+  {
+    src_filter->get_ignore_db(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_ignore_db(tmp.ptr());
+  }
+
+  dst_filter->get_ignore_table(&tmp);
+  if (tmp.is_empty())
+  {
+    src_filter->get_ignore_table(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_ignore_table(tmp.ptr());
+  }
+
+  dst_filter->get_wild_do_table(&tmp);
+  if (tmp.is_empty())
+  {
+    src_filter->get_wild_do_table(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_wild_do_table(tmp.ptr());
+  }
+
+  dst_filter->get_wild_ignore_table(&tmp);
+  if (tmp.is_empty())
+  {
+    src_filter->get_wild_ignore_table(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_wild_ignore_table(tmp.ptr());
+  }
+
+  if (dst_filter->rewrite_db_is_empty())
+  {
+    if (!src_filter->rewrite_db_is_empty())
+      dst_filter->copy_rewrite_db(src_filter);
+  }
+}
 
 Master_info_index::Master_info_index()
 {
@@ -750,7 +886,7 @@ bool Master_info_index::init_all_master_info()
 {
   int thread_mask;
   int err_num= 0, succ_num= 0; // The number of success read Master_info
-  char sign[MAX_CONNECTION_NAME];
+  char sign[MAX_CONNECTION_NAME+1];
   File index_file_nr;
   DBUG_ENTER("init_all_master_info");
 
@@ -802,11 +938,14 @@ bool Master_info_index::init_all_master_info()
     lock_slave_threads(mi);
     init_thread_mask(&thread_mask,mi,0 /*not inverse*/);
 
-    create_logfile_name_with_suffix(buf_master_info_file, sizeof(buf_master_info_file),
-                            master_info_file, 0, &connection_name);
+    create_logfile_name_with_suffix(buf_master_info_file,
+                                    sizeof(buf_master_info_file),
+                                    master_info_file, 0,
+                                    &mi->cmp_connection_name);
     create_logfile_name_with_suffix(buf_relay_log_info_file,
-                            sizeof(buf_relay_log_info_file),
-                            relay_log_info_file, 0, &connection_name);
+                                    sizeof(buf_relay_log_info_file),
+                                    relay_log_info_file, 0,
+                                    &mi->cmp_connection_name);
     if (global_system_variables.log_warnings > 1)
       sql_print_information("Reading Master_info: '%s'  Relay_info:'%s'",
                             buf_master_info_file, buf_relay_log_info_file);
@@ -818,7 +957,7 @@ bool Master_info_index::init_all_master_info()
       sql_print_error("Initialized Master_info from '%s' failed",
                       buf_master_info_file);
       if (!master_info_index->get_master_info(&connection_name,
-                                              MYSQL_ERROR::WARN_LEVEL_NOTE))
+                                              Sql_condition::WARN_LEVEL_NOTE))
       {
         /* Master_info is not in HASH; Add it */
         if (master_info_index->add_master_info(mi, FALSE))
@@ -843,7 +982,7 @@ bool Master_info_index::init_all_master_info()
         sql_print_information("Initialized Master_info from '%s'",
                               buf_master_info_file);
       if (master_info_index->get_master_info(&connection_name,
-                                             MYSQL_ERROR::WARN_LEVEL_NOTE))
+                                             Sql_condition::WARN_LEVEL_NOTE))
       {
         /* Master_info was already registered */
         sql_print_error(ER(ER_CONNECTION_ALREADY_EXISTS),
@@ -940,7 +1079,7 @@ bool Master_info_index::write_master_name_to_index_file(LEX_STRING *name,
 
 Master_info *
 Master_info_index::get_master_info(LEX_STRING *connection_name,
-                                   MYSQL_ERROR::enum_warning_level warning)
+                                   Sql_condition::enum_warning_level warning)
 {
   Master_info *mi;
   char buff[MAX_CONNECTION_NAME+1], *res;
@@ -957,10 +1096,10 @@ Master_info_index::get_master_info(LEX_STRING *connection_name,
 
   mi= (Master_info*) my_hash_search(&master_info_hash,
                                     (uchar*) buff, buff_length);
-  if (!mi && warning != MYSQL_ERROR::WARN_LEVEL_NOTE)
+  if (!mi && warning != Sql_condition::WARN_LEVEL_NOTE)
   {
     my_error(WARN_NO_MASTER_INFO,
-             MYF(warning == MYSQL_ERROR::WARN_LEVEL_WARN ? ME_JUST_WARNING :
+             MYF(warning == Sql_condition::WARN_LEVEL_WARN ? ME_JUST_WARNING :
                  0),
              (int) connection_name->length,
              connection_name->str);
@@ -979,7 +1118,7 @@ bool Master_info_index::check_duplicate_master_info(LEX_STRING *name_arg,
 
   /* Get full host and port name */
   if ((mi= master_info_index->get_master_info(name_arg,
-                                              MYSQL_ERROR::WARN_LEVEL_NOTE)))
+                                              Sql_condition::WARN_LEVEL_NOTE)))
   {
     if (!host)
       host= mi->host;
@@ -1043,7 +1182,7 @@ bool Master_info_index::remove_master_info(LEX_STRING *name)
   Master_info* mi;
   DBUG_ENTER("remove_master_info");
 
-  if ((mi= get_master_info(name, MYSQL_ERROR::WARN_LEVEL_WARN)))
+  if ((mi= get_master_info(name, Sql_condition::WARN_LEVEL_WARN)))
   {
     // Delete Master_info and rewrite others to file
     if (!my_hash_delete(&master_info_hash, (uchar*) mi))
@@ -1155,7 +1294,7 @@ bool Master_info_index::start_all_slaves(THD *thd)
           break;
       }
       else
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_SLAVE_STARTED, ER(ER_SLAVE_STARTED),
                             (int) mi->connection_name.length,
                             mi->connection_name.str);
@@ -1200,7 +1339,7 @@ bool Master_info_index::stop_all_slaves(THD *thd)
           break;
       }
       else
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_SLAVE_STOPPED, ER(ER_SLAVE_STOPPED),
                             (int) mi->connection_name.length,
                             mi->connection_name.str);

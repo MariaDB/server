@@ -85,6 +85,127 @@ trx_set_detailed_error_from_file(
 			    sizeof(trx->detailed_error));
 }
 
+/*************************************************************//**
+Callback function for trx_find_descriptor() to compare trx IDs. */
+UNIV_INTERN
+int
+trx_descr_cmp(
+/*==========*/
+	const void *a,	/*!< in: pointer to first comparison argument */
+	const void *b)	/*!< in: pointer to second comparison argument */
+{
+	const trx_id_t*	da = (const trx_id_t*) a;
+	const trx_id_t*	db = (const trx_id_t*) b;
+
+	if (*da < *db) {
+		return -1;
+	} else if (*da > *db) {
+		return 1;
+	}
+
+	return 0;
+}
+
+/*************************************************************//**
+Reserve a slot for a given trx in the global descriptors array. */
+UNIV_INLINE
+void
+trx_reserve_descriptor(
+/*===================*/
+	const trx_t* trx)	/*!< in: trx pointer */
+{
+	ulint		n_used;
+	ulint		n_max;
+	trx_id_t*	descr;
+
+	ut_ad(mutex_own(&kernel_mutex));
+	ut_ad(!trx_find_descriptor(trx_sys->descriptors,
+				   trx_sys->descr_n_used,
+				   trx->id));
+
+	n_used = trx_sys->descr_n_used + 1;
+	n_max = trx_sys->descr_n_max;
+
+	if (UNIV_UNLIKELY(n_used > n_max)) {
+
+		n_max = n_max * 2;
+
+		trx_sys->descriptors =
+			ut_realloc(trx_sys->descriptors,
+				   n_max * sizeof(trx_id_t));
+
+		trx_sys->descr_n_max = n_max;
+		srv_descriptors_memory = n_max * sizeof(trx_id_t);
+	}
+
+	descr = trx_sys->descriptors + n_used - 1;
+
+	if (UNIV_UNLIKELY(n_used > 1 && trx->id < descr[-1])) {
+
+		/* Find the slot where it should be inserted. We could use a
+		binary search, but in reality linear search should be faster,
+		because the slot we are looking for is near the array end. */
+
+		trx_id_t*	tdescr;
+
+		for (tdescr = descr - 1;
+		     tdescr >= trx_sys->descriptors && *tdescr > trx->id;
+		     tdescr--) {
+		}
+
+		tdescr++;
+
+		ut_memmove(tdescr + 1, tdescr, (descr - tdescr) *
+			   sizeof(trx_id_t));
+
+		descr = tdescr;
+	}
+
+	*descr = trx->id;
+
+	trx_sys->descr_n_used = n_used;
+}
+
+/*************************************************************//**
+Release a slot for a given trx in the global descriptors array. */
+UNIV_INTERN
+void
+trx_release_descriptor(
+/*===================*/
+	trx_t* trx)	/*!< in: trx pointer */
+{
+	ulint		size;
+	trx_id_t*	descr;
+
+	ut_ad(mutex_own(&kernel_mutex));
+
+	if (UNIV_LIKELY(trx->is_in_trx_serial_list)) {
+
+		UT_LIST_REMOVE(trx_serial_list, trx_sys->trx_serial_list,
+			       trx);
+		trx->is_in_trx_serial_list = 0;
+	}
+
+	descr = trx_find_descriptor(trx_sys->descriptors,
+				    trx_sys->descr_n_used,
+				    trx->id);
+
+	if (UNIV_UNLIKELY(descr == NULL)) {
+
+		return;
+	}
+
+	size = (trx_sys->descriptors + trx_sys->descr_n_used - 1 - descr) *
+		sizeof(trx_id_t);
+
+	if (UNIV_LIKELY(size > 0)) {
+
+		ut_memmove(descr, descr + 1, size);
+	}
+
+	trx_sys->descr_n_used--;
+}
+
 /****************************************************************//**
 Creates and initializes a transaction object.
 @return	own: the transaction */
@@ -99,7 +220,7 @@ trx_create(
 	ut_ad(mutex_own(&kernel_mutex));
 	ut_ad(sess);
 
-	trx = mem_alloc(sizeof(trx_t));
+	trx = ut_malloc(sizeof(trx_t));
 
 	trx->magic_n = TRX_MAGIC_N;
 
@@ -107,7 +228,7 @@ trx_create(
 
 	trx->is_purge = 0;
 	trx->is_recovered = 0;
-	trx->conc_state = TRX_NOT_STARTED;
+	trx->state = TRX_NOT_STARTED;
 
 	trx->is_registered = 0;
 	trx->active_commit_ordered = 0;
@@ -118,6 +239,7 @@ trx_create(
 
 	trx->id = 0;
 	trx->no = IB_ULONGLONG_MAX;
+	trx->is_in_trx_serial_list = 0;
 
 	trx->support_xa = TRUE;
 
@@ -189,9 +311,9 @@ trx_create(
 	trx->declared_to_be_inside_innodb = FALSE;
 	trx->n_tickets_to_enter_innodb = 0;
 
-	trx->global_read_view_heap = mem_heap_create(256);
 	trx->global_read_view = NULL;
 	trx->read_view = NULL;
+	trx->prebuilt_view = NULL;
 
 	trx->io_reads = 0;
 	trx->io_read = 0;
@@ -235,7 +357,7 @@ trx_allocate_for_mysql(void)
 
 	mutex_exit(&kernel_mutex);
 
-	if (innobase_get_slow_log() && trx->take_stats) {
+	if (UNIV_UNLIKELY(trx->take_stats)) {
 		trx->distinct_page_access_hash = mem_alloc(DPAH_SIZE);
 		memset(trx->distinct_page_access_hash, 0, DPAH_SIZE);
 	}
@@ -327,7 +449,7 @@ trx_free(
 
 	trx->magic_n = 11112222;
 
-	ut_a(trx->conc_state == TRX_NOT_STARTED);
+	ut_a(trx->state == TRX_NOT_STARTED);
 
 	mutex_free(&(trx->undo_mutex));
 
@@ -354,11 +476,9 @@ trx_free(
 
 	ut_a(UT_LIST_GET_LEN(trx->trx_locks) == 0);
 
-	if (trx->global_read_view_heap) {
-		mem_heap_free(trx->global_read_view_heap);
+	if (trx->prebuilt_view != NULL) {
+		read_view_free(trx->prebuilt_view);
 	}
-
-	trx->global_read_view = NULL;
 
 	ut_a(trx->read_view == NULL);
 
@@ -366,7 +486,9 @@ trx_free(
 	/* We allocated a dedicated heap for the vector. */
 	ib_vector_free(trx->autoinc_locks);
 
-	mem_free(trx);
+	trx_release_descriptor(trx);
+
+	ut_free(trx);
 }
 
 /********************************************************************//**
@@ -378,7 +500,7 @@ trx_free_prepared(
 	trx_t*	trx)	/*!< in, own: trx object */
 {
 	ut_ad(mutex_own(&kernel_mutex));
-	ut_a(trx->conc_state == TRX_PREPARED);
+	ut_a(trx->state == TRX_PREPARED);
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
 	/* Prepared transactions are sort of active; they allow
@@ -411,16 +533,20 @@ trx_free_prepared(
 		mem_heap_free(trx->lock_heap);
 	}
 
-	if (trx->global_read_view_heap) {
-		mem_heap_free(trx->global_read_view_heap);
-	}
-
 	ut_a(ib_vector_is_empty(trx->autoinc_locks));
 	ib_vector_free(trx->autoinc_locks);
 
+	trx_release_descriptor(trx);
+
+	if (trx->prebuilt_view != NULL) {
+		read_view_free(trx->prebuilt_view);
+	}
+
 	UT_LIST_REMOVE(trx_list, trx_sys->trx_list, trx);
 
-	mem_free(trx);
+	ut_ad(trx_sys->descr_n_used <= UT_LIST_GET_LEN(trx_sys->trx_list));
+
+	ut_free(trx);
 }
 
 /********************************************************************//**
@@ -528,6 +654,7 @@ trx_lists_init_at_db_start(void)
 
 	ut_ad(mutex_own(&kernel_mutex));
 	UT_LIST_INIT(trx_sys->trx_list);
+	UT_LIST_INIT(trx_sys->trx_serial_list);
 
 	/* Look from the rollback segments if there exist undo logs for
 	transactions */
@@ -564,7 +691,7 @@ trx_lists_init_at_db_start(void)
 
 					if (srv_force_recovery == 0) {
 
-						trx->conc_state = TRX_PREPARED;
+						trx->state = TRX_PREPARED;
 						trx_n_prepared++;
 					} else {
 						fprintf(stderr,
@@ -574,11 +701,12 @@ trx_lists_init_at_db_start(void)
 							" rollback it"
 							" anyway.\n");
 
-						trx->conc_state = TRX_ACTIVE;
+						trx->state = TRX_ACTIVE;
 					}
+
+					trx_reserve_descriptor(trx);
 				} else {
-					trx->conc_state
-						= TRX_COMMITTED_IN_MEMORY;
+					trx->state = TRX_COMMITTED_IN_MEMORY;
 				}
 
 				/* We give a dummy value for the trx no;
@@ -590,12 +718,15 @@ trx_lists_init_at_db_start(void)
 
 				trx->no = trx->id;
 			} else {
-				trx->conc_state = TRX_ACTIVE;
+				trx->state = TRX_ACTIVE;
 
 				/* A running transaction always has the number
 				field inited to IB_ULONGLONG_MAX */
 
 				trx->no = IB_ULONGLONG_MAX;
+
+				trx_reserve_descriptor(trx);
+
 			}
 
 			if (undo->dict_operation) {
@@ -640,7 +771,7 @@ trx_lists_init_at_db_start(void)
 
 						if (srv_force_recovery == 0) {
 
-							trx->conc_state
+							trx->state
 								= TRX_PREPARED;
 							trx_n_prepared++;
 						} else {
@@ -651,11 +782,12 @@ trx_lists_init_at_db_start(void)
 								" rollback it"
 								" anyway.\n");
 
-							trx->conc_state
-								= TRX_ACTIVE;
+							trx->state = TRX_ACTIVE;
+							trx_reserve_descriptor(
+								trx);
 						}
 					} else {
-						trx->conc_state
+						trx->state
 							= TRX_COMMITTED_IN_MEMORY;
 					}
 
@@ -664,13 +796,14 @@ trx_lists_init_at_db_start(void)
 
 					trx->no = trx->id;
 				} else {
-					trx->conc_state = TRX_ACTIVE;
-
+					trx->state = TRX_ACTIVE;
 					/* A running transaction always has
 					the number field inited to
 					IB_ULONGLONG_MAX */
 
 					trx->no = IB_ULONGLONG_MAX;
+
+					trx_reserve_descriptor(trx);
 				}
 
 				trx->rseg = rseg;
@@ -741,13 +874,15 @@ trx_start_low(
 
 	if (trx->is_purge) {
 		trx->id = 0;
-		trx->conc_state = TRX_ACTIVE;
+		/* Don't reserve a descriptor, since this trx is not added to
+		trx_list. */
+		trx->state = TRX_ACTIVE;
 		trx->start_time = time(NULL);
 
 		return(TRUE);
 	}
 
-	ut_ad(trx->conc_state != TRX_ACTIVE);
+	ut_ad(trx->state != TRX_ACTIVE);
 
 	ut_a(rseg_id == ULINT_UNDEFINED);
 
@@ -762,7 +897,10 @@ trx_start_low(
 
 	trx->rseg = rseg;
 
-	trx->conc_state = TRX_ACTIVE;
+	trx->state = TRX_ACTIVE;
+
+	trx_reserve_descriptor(trx);
+
 	trx->start_time = time(NULL);
 
 	UT_LIST_ADD_FIRST(trx_list, trx_sys->trx_list, trx);
@@ -818,6 +956,14 @@ trx_serialisation_number_get(
 	mutex_enter(&kernel_mutex);
 
 	trx->no = trx_sys_get_new_trx_id();
+
+	if (UNIV_LIKELY(trx->is_in_trx_serial_list == 0)) {
+
+		UT_LIST_ADD_LAST(trx_serial_list, trx_sys->trx_serial_list,
+				 trx);
+
+		trx->is_in_trx_serial_list = 1;
+	}
 
 	/* If the rollack segment is not empty then the
 	new trx_t::no can't be less than any trx_t::no
@@ -946,6 +1092,18 @@ trx_write_serialisation_history(
 			trx->mysql_master_log_pos,
 			TRX_SYS_COMMIT_MASTER_LOG_INFO, &mtr);
 
+		trx_sys_update_mysql_binlog_offset(
+			sys_header,
+			trx->mysql_relay_log_file_name,
+			trx->mysql_relay_log_pos,
+			TRX_SYS_MYSQL_RELAY_LOG_INFO, &mtr);
+
+		trx_sys_update_mysql_binlog_offset(
+			sys_header,
+			trx->mysql_master_log_file_name,
+			trx->mysql_master_log_pos,
+			TRX_SYS_MYSQL_MASTER_LOG_INFO, &mtr);
+
 		trx->mysql_master_log_file_name = "";
 	}
 
@@ -1000,10 +1158,10 @@ trx_commit_off_kernel(
 		lsn = 0;
 	}
 
-	ut_ad(trx->conc_state == TRX_ACTIVE || trx->conc_state == TRX_PREPARED);
+	ut_ad(trx->state == TRX_ACTIVE || trx->state == TRX_PREPARED);
 	ut_ad(mutex_own(&kernel_mutex));
 
-	if (UNIV_UNLIKELY(trx->conc_state == TRX_PREPARED)) {
+	if (UNIV_UNLIKELY(trx->state == TRX_PREPARED)) {
 		ut_a(trx_n_prepared > 0);
 		trx_n_prepared--;
 	}
@@ -1023,7 +1181,9 @@ trx_commit_off_kernel(
 	committed. */
 
 	/*--------------------------------------*/
-	trx->conc_state = TRX_COMMITTED_IN_MEMORY;
+	trx->state = TRX_COMMITTED_IN_MEMORY;
+	/* The following also removes trx from trx_serial_list */
+	trx_release_descriptor(trx);
 	/*--------------------------------------*/
 
 	/* If we release kernel_mutex below and we are still doing
@@ -1044,7 +1204,6 @@ trx_commit_off_kernel(
 
 	if (trx->global_read_view) {
 		read_view_close(trx->global_read_view);
-		mem_heap_empty(trx->global_read_view_heap);
 		trx->global_read_view = NULL;
 	}
 
@@ -1131,7 +1290,7 @@ trx_commit_off_kernel(
 	/* Free all savepoints */
 	trx_roll_free_all_savepoints(trx);
 
-	trx->conc_state = TRX_NOT_STARTED;
+	trx->state = TRX_NOT_STARTED;
 	trx->rseg = NULL;
 	trx->undo_no = 0;
 	trx->last_sql_stat_start.least_undo_no = 0;
@@ -1140,6 +1299,8 @@ trx_commit_off_kernel(
 	ut_ad(UT_LIST_GET_LEN(trx->trx_locks) == 0);
 
 	UT_LIST_REMOVE(trx_list, trx_sys->trx_list, trx);
+
+	ut_ad(trx_sys->descr_n_used <= UT_LIST_GET_LEN(trx_sys->trx_list));
 
 	trx->error_state = DB_SUCCESS;
 }
@@ -1159,12 +1320,15 @@ trx_cleanup_at_db_startup(
 		trx_undo_insert_cleanup(trx);
 	}
 
-	trx->conc_state = TRX_NOT_STARTED;
+	trx->state = TRX_NOT_STARTED;
+	trx_release_descriptor(trx);
 	trx->rseg = NULL;
 	trx->undo_no = 0;
 	trx->last_sql_stat_start.least_undo_no = 0;
 
 	UT_LIST_REMOVE(trx_list, trx_sys->trx_list, trx);
+
+	ut_ad(trx_sys->descr_n_used <= UT_LIST_GET_LEN(trx_sys->trx_list));
 }
 
 /********************************************************************//**
@@ -1178,7 +1342,7 @@ trx_assign_read_view(
 /*=================*/
 	trx_t*	trx)	/*!< in: active transaction */
 {
-	ut_ad(trx->conc_state == TRX_ACTIVE);
+	ut_ad(trx->state == TRX_ACTIVE);
 
 	if (trx->read_view) {
 		return(trx->read_view);
@@ -1186,11 +1350,9 @@ trx_assign_read_view(
 
 	mutex_enter(&kernel_mutex);
 
-	if (!trx->read_view) {
-		trx->read_view = read_view_open_now(
-			trx->id, trx->global_read_view_heap);
-		trx->global_read_view = trx->read_view;
-	}
+	trx->read_view = read_view_open_now(trx->id, trx->prebuilt_view, TRUE);
+	trx->prebuilt_view = trx->read_view;
+	trx->global_read_view = trx->read_view;
 
 	mutex_exit(&kernel_mutex);
 
@@ -1269,7 +1431,7 @@ trx_end_lock_wait(
 		thr = UT_LIST_GET_FIRST(trx->wait_thrs);
 	}
 
-	if (innobase_get_slow_log() && trx->take_stats) {
+	if (UNIV_UNLIKELY(trx->take_stats)) {
 		ut_usectime(&sec, &ms);
 		now = (ib_uint64_t)sec * 1000000 + ms;
 		trx->lock_que_wait_timer += (ulint)(now - trx->lock_que_wait_ustarted);
@@ -1304,7 +1466,7 @@ trx_lock_wait_to_suspended(
 		thr = UT_LIST_GET_FIRST(trx->wait_thrs);
 	}
 
-	if (innobase_get_slow_log() && trx->take_stats) {
+	if (UNIV_UNLIKELY(trx->take_stats)) {
 		ut_usectime(&sec, &ms);
 		now = (ib_uint64_t)sec * 1000000 + ms;
 		trx->lock_que_wait_timer += (ulint)(now - trx->lock_que_wait_ustarted);
@@ -1555,7 +1717,7 @@ loop:
 		return;
 	}
 
-	if (trx->conc_state == TRX_NOT_STARTED) {
+	if (trx->state == TRX_NOT_STARTED) {
 
 		trx_start_low(trx, ULINT_UNDEFINED);
 	}
@@ -1851,7 +2013,7 @@ trx_mark_sql_stat_end(
 {
 	ut_a(trx);
 
-	if (trx->conc_state == TRX_NOT_STARTED) {
+	if (trx->state == TRX_NOT_STARTED) {
 		trx->undo_no = 0;
 	}
 
@@ -1874,7 +2036,7 @@ trx_print(
 
 	fprintf(f, "TRANSACTION " TRX_ID_FMT, (ullint) trx->id);
 
-	switch (trx->conc_state) {
+	switch (trx->state) {
 	case TRX_NOT_STARTED:
 		fputs(", not started", f);
 		break;
@@ -1890,7 +2052,7 @@ trx_print(
 		fputs(", COMMITTED IN MEMORY", f);
 		break;
 	default:
-		fprintf(f, " state %lu", (ulong) trx->conc_state);
+		fprintf(f, " state %lu", (ulong) trx->state);
 	}
 
 	if (*trx->op_info) {
@@ -2085,7 +2247,11 @@ trx_prepare_off_kernel(
 	ut_ad(mutex_own(&kernel_mutex));
 
 	/*--------------------------------------*/
-	trx->conc_state = TRX_PREPARED;
+	if (UNIV_UNLIKELY(trx->state != TRX_ACTIVE)) {
+
+		trx_reserve_descriptor(trx);
+	}
+	trx->state = TRX_PREPARED;
 	trx_n_prepared++;
 	/*--------------------------------------*/
 
@@ -2199,7 +2365,7 @@ trx_recover_for_mysql(
 	trx = UT_LIST_GET_FIRST(trx_sys->trx_list);
 
 	while (trx) {
-		if (trx->conc_state == TRX_PREPARED) {
+		if (trx->state == TRX_PREPARED) {
 			xid_list[count] = trx->xid;
 
 			if (count == 0) {
@@ -2272,7 +2438,7 @@ trx_get_trx_by_xid(
 		the same */
 
 		if (trx->is_recovered
-		    && trx->conc_state == TRX_PREPARED
+		    && trx->state == TRX_PREPARED
 		    && xid->gtrid_length == trx->xid.gtrid_length
 		    && xid->bqual_length == trx->xid.bqual_length
 		    && memcmp(xid->data, trx->xid.data,

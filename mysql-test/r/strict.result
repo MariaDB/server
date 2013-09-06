@@ -206,7 +206,9 @@ INSERT INTO t1 (col1) VALUES (STR_TO_DATE('15.10.2004','%d.%m.%Y'));
 INSERT INTO t1 (col2) VALUES (STR_TO_DATE('15.10.2004 10.15','%d.%m.%Y %H.%i'));
 INSERT INTO t1 (col3) VALUES (STR_TO_DATE('15.10.2004 10.15','%d.%m.%Y %H.%i'));
 INSERT INTO t1 (col1) VALUES(STR_TO_DATE('31.10.0000 15.30','%d.%m.%Y %H.%i'));
-ERROR HY000: Incorrect datetime value: '31.10.0000 15.30' for function str_to_date
+Warnings:
+Note	1265	Data truncated for column 'col1' at row 1
+INSERT INTO t1 (col2) VALUES(STR_TO_DATE('31.10.0000 15.30','%d.%m.%Y %H.%i'));
 INSERT INTO t1 (col1) VALUES(STR_TO_DATE('31.0.2004 15.30','%d.%m.%Y %H.%i'));
 ERROR HY000: Incorrect datetime value: '31.0.2004 15.30' for function str_to_date
 INSERT INTO t1 (col1) VALUES(STR_TO_DATE('0.10.2004 15.30','%d.%m.%Y %H.%i'));
@@ -221,8 +223,6 @@ INSERT INTO t1 (col1) VALUES(STR_TO_DATE('15.13.2004 15.30','%d.%m.%Y %H.%i'));
 ERROR HY000: Incorrect datetime value: '15.13.2004 15.30' for function str_to_date
 INSERT INTO t1 (col1) VALUES(STR_TO_DATE('00.00.0000','%d.%m.%Y'));
 ERROR HY000: Incorrect datetime value: '00.00.0000' for function str_to_date
-INSERT INTO t1 (col2) VALUES(STR_TO_DATE('31.10.0000 15.30','%d.%m.%Y %H.%i'));
-ERROR HY000: Incorrect datetime value: '31.10.0000 15.30' for function str_to_date
 INSERT INTO t1 (col2) VALUES(STR_TO_DATE('31.0.2004 15.30','%d.%m.%Y %H.%i'));
 ERROR HY000: Incorrect datetime value: '31.0.2004 15.30' for function str_to_date
 INSERT INTO t1 (col2) VALUES(STR_TO_DATE('0.10.2004 15.30','%d.%m.%Y %H.%i'));
@@ -238,7 +238,7 @@ ERROR HY000: Incorrect datetime value: '15.13.2004 15.30' for function str_to_da
 INSERT INTO t1 (col2) VALUES(STR_TO_DATE('00.00.0000','%d.%m.%Y'));
 ERROR HY000: Incorrect datetime value: '00.00.0000' for function str_to_date
 INSERT INTO t1 (col3) VALUES(STR_TO_DATE('31.10.0000 15.30','%d.%m.%Y %H.%i'));
-ERROR HY000: Incorrect datetime value: '31.10.0000 15.30' for function str_to_date
+ERROR 22007: Incorrect datetime value: '0000-10-31 15:30:00' for column 'col3' at row 1
 INSERT INTO t1 (col3) VALUES(STR_TO_DATE('31.0.2004 15.30','%d.%m.%Y %H.%i'));
 ERROR HY000: Incorrect datetime value: '31.0.2004 15.30' for function str_to_date
 INSERT INTO t1 (col3) VALUES(STR_TO_DATE('0.10.2004 15.30','%d.%m.%Y %H.%i'));
@@ -1135,7 +1135,7 @@ create table t1 (col1 date, col2 datetime, col3 timestamp);
 insert into t1 values (0,0,0);
 ERROR 22007: Incorrect date value: '0' for column 'col1' at row 1
 insert into t1 values (0.0,0.0,0.0);
-ERROR 22007: Incorrect date value: '0' for column 'col1' at row 1
+ERROR 22007: Incorrect date value: '0.0' for column 'col1' at row 1
 insert into t1 (col1) values (convert('0000-00-00',date));
 ERROR 22007: Incorrect datetime value: '0000-00-00'
 insert into t1 (col1) values (cast('0000-00-00' as date));
@@ -1190,8 +1190,6 @@ select'a'; insert into t1 values (200); end;|
 call t1();
 a
 a
-Warnings:
-Error	1264	Out of range value for column 'col1' at row 1
 select * from t1;
 col1
 drop procedure t1;
@@ -1501,3 +1499,29 @@ count(*)
 0
 drop table t1;
 End of 5.0 tests
+#
+# Start of 5.6 tests
+#
+#
+# WL#946 TIME/TIMESTAMP/DATETIME with fractional seconds: CAST to DATETIME
+#
+#
+# STR_TO_DATE with NO_ZERO_DATE did not return NULL (with warning)
+# in get_date(). Only did in val_str() and val_int().
+SET sql_mode='NO_ZERO_DATE';
+SELECT STR_TO_DATE('2001','%Y'),CONCAT(STR_TO_DATE('2001','%Y')), STR_TO_DATE('2001','%Y')+1, STR_TO_DATE('0','%Y')+1, STR_TO_DATE('0000','%Y')+1;
+STR_TO_DATE('2001','%Y')	CONCAT(STR_TO_DATE('2001','%Y'))	STR_TO_DATE('2001','%Y')+1	STR_TO_DATE('0','%Y')+1	STR_TO_DATE('0000','%Y')+1
+2001-00-00	2001-00-00	20010001	20000001	NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '0000' for function str_to_date
+SET sql_mode='NO_ZERO_IN_DATE';
+SELECT STR_TO_DATE('2001','%Y'),CONCAT(STR_TO_DATE('2001','%Y')), STR_TO_DATE('2001','%Y')+1, STR_TO_DATE('0000','%Y')+1;
+STR_TO_DATE('2001','%Y')	CONCAT(STR_TO_DATE('2001','%Y'))	STR_TO_DATE('2001','%Y')+1	STR_TO_DATE('0000','%Y')+1
+NULL	NULL	NULL	1
+Warnings:
+Warning	1411	Incorrect datetime value: '2001' for function str_to_date
+Warning	1411	Incorrect datetime value: '2001' for function str_to_date
+Warning	1411	Incorrect datetime value: '2001' for function str_to_date
+#
+# End of 5.6 tests
+#

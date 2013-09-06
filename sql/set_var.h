@@ -1,6 +1,6 @@
 #ifndef SET_VAR_INCLUDED
 #define SET_VAR_INCLUDED
-/* Copyright (c) 2002, 2011, Oracle and/or its affiliates.
+/* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /**
   @file
@@ -105,8 +105,18 @@ public:
 
   bool check(THD *thd, set_var *var);
   uchar *value_ptr(THD *thd, enum_var_type type, LEX_STRING *base);
-  bool set_default(THD *thd, enum_var_type type);
+
+  /**
+     Update the system variable with the default value from either
+     session or global scope.  The default value is stored in the
+     'var' argument. Return false when successful.
+  */
+  bool set_default(THD *thd, set_var *var);
   bool update(THD *thd, set_var *var);
+
+  longlong val_int(bool *is_null, THD *thd, enum_var_type type, LEX_STRING *base);
+  String *val_str(String *str, THD *thd, enum_var_type type, LEX_STRING *base);
+  double val_real(bool *is_null, THD *thd, enum_var_type type, LEX_STRING *base);
 
   SHOW_TYPE show_type() { return show_val_type; }
   int scope() const { return flags & SCOPE_MASK; }

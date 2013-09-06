@@ -550,7 +550,7 @@ int Mrr_ordered_index_reader::init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
 
   KEY *key_info= &file->get_table()->key_info[file->active_index];
   keypar.index_ranges_unique= test(key_info->flags & HA_NOSAME && 
-                                   key_info->key_parts == 
+                                   key_info->user_defined_key_parts == 
                                    my_count_bits(keypar.key_tuple_map));
 
   mrr_iter= seq_funcs->init(seq_init_param, n_ranges, mode);
@@ -1114,6 +1114,7 @@ void DsMrr_impl::close_second_handler()
 {
   if (secondary_file)
   {
+    secondary_file->extra(HA_EXTRA_NO_KEYREAD);
     secondary_file->ha_index_or_rnd_end();
     secondary_file->ha_external_lock(current_thd, F_UNLCK);
     secondary_file->ha_close();
@@ -1199,9 +1200,9 @@ bool DsMrr_impl::setup_buffer_sharing(uint key_size_in_keybuf,
            statistics?
   */
   uint parts= my_count_bits(key_tuple_map);
-  ulong rpc;
+  ha_rows rpc;
   ulonglong rowids_size= rowid_buf_elem_size;
-  if ((rpc= key_info->actual_rec_per_key(parts - 1)))
+  if ((rpc= (ha_rows) key_info->actual_rec_per_key(parts - 1)))
     rowids_size= rowid_buf_elem_size * rpc;
 
   double fraction_for_rowids=
@@ -1496,7 +1497,7 @@ ha_rows DsMrr_impl::dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq,
 bool key_uses_partial_cols(TABLE *table, uint keyno)
 {
   KEY_PART_INFO *kp= table->key_info[keyno].key_part;
-  KEY_PART_INFO *kp_end= kp + table->key_info[keyno].key_parts;
+  KEY_PART_INFO *kp_end= kp + table->key_info[keyno].user_defined_key_parts;
   for (; kp != kp_end; kp++)
   {
     if (!kp->field->part_of_key.is_set(keyno))
@@ -1647,8 +1648,8 @@ int DsMrr_impl::dsmrr_explain_info(uint mrr_mode, char *str, size_t size)
       used_str= rowid_ordered;
 
     uint used_str_len= strlen(used_str);
-    uint copy_len= min(used_str_len, size);
-    memcpy(str, used_str, size);
+    uint copy_len= MY_MIN(used_str_len, size);
+    memcpy(str, used_str, copy_len);
     return copy_len;
   }
   return 0;
@@ -1708,7 +1709,7 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
   else
   {
     cost->reset();
-    *buffer_size= max(*buffer_size, 
+    *buffer_size= MY_MAX(*buffer_size, 
                       (size_t)(1.2*rows_in_last_step) * elem_size + 
                       primary_file->ref_length + table->key_info[keynr].key_length);
   }

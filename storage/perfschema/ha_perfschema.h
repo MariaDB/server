@@ -46,8 +46,6 @@ public:
 
   const char *index_type(uint) { return ""; }
 
-  const char **bas_ext(void) const;
-
   /** Capabilities of the performance schema tables. */
   ulonglong table_flags(void) const
   {
@@ -72,8 +70,7 @@ public:
       records.
     */
     return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_NO_AUTO_INCREMENT |
-            HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
-            HA_PRIMARY_KEY_REQUIRED_FOR_DELETE | HA_HAS_OWN_BINLOGGING);
+            HA_PRIMARY_KEY_REQUIRED_FOR_DELETE);
   }
 
   /**

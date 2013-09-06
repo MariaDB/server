@@ -3274,7 +3274,7 @@ static my_bool translog_get_last_page_addr(TRANSLOG_ADDRESS *addr,
   DBUG_PRINT("info", ("File size: %s", llstr(file_size, buff)));
   if (file_size == MY_FILEPOS_ERROR)
     DBUG_RETURN(1);
-  DBUG_ASSERT(file_size < ULL(0xffffffff));
+  DBUG_ASSERT(file_size < 0xffffffffULL);
   if (((uint32)file_size) > TRANSLOG_PAGE_SIZE)
   {
     rec_offset= (((((uint32)file_size) / TRANSLOG_PAGE_SIZE) - 1) *
@@ -3479,7 +3479,7 @@ my_bool translog_walk_filenames(const char *directory,
   if (!(dirp = my_dir(directory, MYF(MY_DONT_SORT))))
     return FALSE;
 
-  for (i= 0; i < dirp->number_off_files; i++)
+  for (i= 0; i < dirp->number_of_files; i++)
   {
     char *file= dirp->dir_entry[i].name;
     if (strncmp(file, "aria_log.", 10) == 0 &&
@@ -3785,12 +3785,12 @@ my_bool translog_init_with_table(const char *directory,
         TRANSLOG_FILE *file= (TRANSLOG_FILE *)my_malloc(sizeof(TRANSLOG_FILE),
                                                         MYF(0));
 
-        compile_time_assert(MY_FILEPOS_ERROR > ULL(0xffffffff));
+        compile_time_assert(MY_FILEPOS_ERROR > 0xffffffffULL);
         if (file == NULL ||
             (file->handler.file=
              open_logfile_by_number_no_cache(i)) < 0 ||
             mysql_file_seek(file->handler.file, 0, SEEK_END, MYF(0)) >=
-            ULL(0xffffffff))
+            0xffffffffULL)
         {
           int j;
           for (j= i - log_descriptor.min_file - 1; j > 0; j--)
@@ -4808,7 +4808,7 @@ static my_bool translog_advance_pointer(int pages, uint16 last_page_data)
     }
 #endif
 
-    min_offset= min(buffer_end_offset, file_end_offset);
+    min_offset= MY_MIN(buffer_end_offset, file_end_offset);
     /* TODO: check is it ptr or size enough */
     log_descriptor.bc.buffer->size+= min_offset;
     log_descriptor.bc.ptr+= min_offset;
@@ -5247,7 +5247,7 @@ static uchar *translog_put_LSN_diff(LSN base_lsn, LSN lsn, uchar *dst)
     dst[0]= (uchar)(0x80 | (diff >> 24));
     int3store(dst + 1, diff & 0xFFFFFFL);
   }
-  else if (diff <= LL(0x3FFFFFFFFF))
+  else if (diff <= 0x3FFFFFFFFFLL)
 
   {
     dst-= 5;
@@ -5344,7 +5344,7 @@ static uchar *translog_get_LSN_from_diff(LSN base_lsn, uchar *src, uchar *dst)
     {
       /* take 1 from file offset */
       first_byte++;
-      base_offset+= LL(0x100000000);
+      base_offset+= 0x100000000LL;
     }
     file_no= LSN_FILE_NO(base_lsn) - first_byte;
     DBUG_ASSERT(base_offset - diff <= UINT_MAX);
@@ -6833,7 +6833,7 @@ translog_variable_length_header(uchar *page, translog_size_t page_offset,
     page_rest= (uint16) (TRANSLOG_PAGE_SIZE - (src - page));
 
     base_lsn= buff->lsn;
-    body_len= min(page_rest, buff->record_length);
+    body_len= MY_MIN(page_rest, buff->record_length);
   }
   else
   {
@@ -7396,7 +7396,7 @@ translog_size_t translog_read_record(LSN lsn,
                       data->scanner.fixed_horizon));
   if (offset < data->read_header)
   {
-    uint16 len= min(data->read_header, end) - offset;
+    uint16 len= MY_MIN(data->read_header, end) - offset;
     DBUG_PRINT("info",
                ("enter header offset: %lu  length: %lu",
                 (ulong) offset, (ulong) length));
@@ -7472,9 +7472,8 @@ static void translog_force_current_buffer_to_finish()
   struct st_translog_buffer *old_buffer= log_descriptor.bc.buffer;
   uchar *data= log_descriptor.bc.ptr - log_descriptor.bc.current_page_fill;
   uint16 left= TRANSLOG_PAGE_SIZE - log_descriptor.bc.current_page_fill;
-  uint16 current_page_fill, write_counter, previous_offset;
+  uint16 UNINIT_VAR(current_page_fill), write_counter, previous_offset;
   DBUG_ENTER("translog_force_current_buffer_to_finish");
-  LINT_INIT(current_page_fill);
 
   DBUG_PRINT("enter", ("Buffer #%u 0x%lx  "
                        "Buffer addr: (%lu,0x%lx)  "

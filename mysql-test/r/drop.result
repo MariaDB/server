@@ -2,7 +2,7 @@ drop table if exists t1;
 drop database if exists mysqltest;
 drop database if exists client_test_db;
 drop table t1;
-ERROR 42S02: Unknown table 't1'
+ERROR 42S02: Unknown table 'test.t1'
 create table t1(n int);
 insert into t1 values(1);
 create temporary table t1( n int);
@@ -30,13 +30,13 @@ table7, table8, table9, table10, table11, table12, table13,
 table14, table15, table16, table17, table18, table19, table20,
 table21, table22, table23, table24, table25, table26, table27,
 table28;
-ERROR 42S02: Unknown table 'table1,table2,table3,table4,table5,table6,table7,table8,table9,table10,table11,table12,table13,table'
+ERROR 42S02: Unknown table 'mysqltest.table1,mysqltest.table2,mysqltest.table3,mysqltest.table4,mysqltest.table5,mysqltest.table'
 drop table table1, table2, table3, table4, table5, table6,
 table7, table8, table9, table10, table11, table12, table13,
 table14, table15, table16, table17, table18, table19, table20,
 table21, table22, table23, table24, table25, table26, table27,
 table28, table29, table30;
-ERROR 42S02: Unknown table 'table1,table2,table3,table4,table5,table6,table7,table8,table9,table10,table11,table12,table13,table'
+ERROR 42S02: Unknown table 'mysqltest.table1,mysqltest.table2,mysqltest.table3,mysqltest.table4,mysqltest.table5,mysqltest.table'
 use test;
 drop database mysqltest;
 flush tables with read lock;
@@ -142,9 +142,9 @@ create table `#mysql50#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ERROR 42000: Incorrect table name '#mysql50#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa12345'
 show tables;
 Tables_in_mysqltestbug26703
+#mysql50#abc`def
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-#mysql50#abc`def
 use test;
 drop database mysqltestbug26703;
 End of 5.1 tests
@@ -154,10 +154,10 @@ End of 5.1 tests
 # --
 DROP TABLE IF EXISTS t1;
 DROP TABLE t1;
-ERROR 42S02: Unknown table 't1'
+ERROR 42S02: Unknown table 'test.t1'
 SHOW WARNINGS;
 Level	Code	Message
-Error	1051	Unknown table 't1'
+Error	1051	Unknown table 'test.t1'
 
 # --
 # -- End of Bug#37431.

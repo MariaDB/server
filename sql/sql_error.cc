@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA */
 
 /**********************************************************************
 This file contains the implementation of error and warnings related
@@ -47,12 +47,12 @@ This file contains the implementation of error and warnings related
 #include "sp_rcontext.h"
 
 /*
-  Design notes about MYSQL_ERROR::m_message_text.
+  Design notes about Sql_condition::m_message_text.
 
-  The member MYSQL_ERROR::m_message_text contains the text associated with
+  The member Sql_condition::m_message_text contains the text associated with
   an error, warning or note (which are all SQL 'conditions')
 
-  Producer of MYSQL_ERROR::m_message_text:
+  Producer of Sql_condition::m_message_text:
   ----------------------------------------
 
   (#1) the server implementation itself, when invoking functions like
@@ -78,16 +78,16 @@ This file contains the implementation of error and warnings related
   - a RESIGNAL statement,
   the message text is provided by the user logic, and is expressed in UTF8.
 
-  Storage of MYSQL_ERROR::m_message_text:
+  Storage of Sql_condition::m_message_text:
   ---------------------------------------
 
-  (#4) The class MYSQL_ERROR is used to hold the message text member.
+  (#4) The class Sql_condition is used to hold the message text member.
   This class represents a single SQL condition.
 
   (#5) The class Warning_info represents a SQL condition area, and contains
   a collection of SQL conditions in the Warning_info::m_warn_list
 
-  Consumer of MYSQL_ERROR::m_message_text:
+  Consumer of Sql_condition::m_message_text:
   ----------------------------------------
 
   (#6) The statements SHOW WARNINGS and SHOW ERRORS display the content of
@@ -97,9 +97,9 @@ This file contains the implementation of error and warnings related
   also read the content of:
   - the top level statement condition area (when executed in a query),
   - a sub statement (when executed in a stored program)
-  and return the data stored in a MYSQL_ERROR.
+  and return the data stored in a Sql_condition.
 
-  (#8) The RESIGNAL statement reads the MYSQL_ERROR caught by an exception
+  (#8) The RESIGNAL statement reads the Sql_condition caught by an exception
   handler, to raise a new or modified condition (in #3).
 
   The big picture
@@ -113,7 +113,7 @@ This file contains the implementation of error and warnings related
       ----------------------------|----------------------------            |
                                   |                                        |
                                   V                                        |
-                           MYSQL_ERROR(#4)                                 |
+                           Sql_condition(#4)                                 |
                                   |                                        |
                                   |                                        |
                                   V                                        |
@@ -151,10 +151,10 @@ This file contains the implementation of error and warnings related
 
   As a result, the design choice for (#4) and (#5) is to store data in
   the 'error_message_charset_info' CHARSET, to minimize impact on the code base.
-  This is implemented by using 'String MYSQL_ERROR::m_message_text'.
+  This is implemented by using 'String Sql_condition::m_message_text'.
 
   The UTF8 -> error_message_charset_info conversion is implemented in
-  Signal_common::eval_signal_informations() (for path #B and #C).
+  Sql_cmd_common_signal::eval_signal_informations() (for path #B and #C).
 
   Future work
   -----------
@@ -164,14 +164,14 @@ This file contains the implementation of error and warnings related
 
   - Change (#4 and #5) to store message text in UTF8 natively.
     In practice, this means changing the type of the message text to
-    '<UTF8 String 128 class> MYSQL_ERROR::m_message_text', and is a direct
+    '<UTF8 String 128 class> Sql_condition::m_message_text', and is a direct
     consequence of WL#751.
 
   - Implement (#9) (GET DIAGNOSTICS).
     See WL#2111 (Stored Procedures: Implement GET DIAGNOSTICS)
 */
 
-MYSQL_ERROR::MYSQL_ERROR()
+Sql_condition::Sql_condition()
  : Sql_alloc(),
    m_class_origin((const char*) NULL, 0, & my_charset_utf8_bin),
    m_subclass_origin((const char*) NULL, 0, & my_charset_utf8_bin),
@@ -185,20 +185,20 @@ MYSQL_ERROR::MYSQL_ERROR()
    m_cursor_name((const char*) NULL, 0, & my_charset_utf8_bin),
    m_message_text(),
    m_sql_errno(0),
-   m_level(MYSQL_ERROR::WARN_LEVEL_ERROR),
+   m_level(Sql_condition::WARN_LEVEL_ERROR),
    m_mem_root(NULL)
 {
   memset(m_returned_sqlstate, 0, sizeof(m_returned_sqlstate));
 }
 
-void MYSQL_ERROR::init(MEM_ROOT *mem_root)
+void Sql_condition::init(MEM_ROOT *mem_root)
 {
   DBUG_ASSERT(mem_root != NULL);
   DBUG_ASSERT(m_mem_root == NULL);
   m_mem_root= mem_root;
 }
 
-void MYSQL_ERROR::clear()
+void Sql_condition::clear()
 {
   m_class_origin.length(0);
   m_subclass_origin.length(0);
@@ -212,10 +212,10 @@ void MYSQL_ERROR::clear()
   m_cursor_name.length(0);
   m_message_text.length(0);
   m_sql_errno= 0;
-  m_level= MYSQL_ERROR::WARN_LEVEL_ERROR;
+  m_level= Sql_condition::WARN_LEVEL_ERROR;
 }
 
-MYSQL_ERROR::MYSQL_ERROR(MEM_ROOT *mem_root)
+Sql_condition::Sql_condition(MEM_ROOT *mem_root)
  : Sql_alloc(),
    m_class_origin((const char*) NULL, 0, & my_charset_utf8_bin),
    m_subclass_origin((const char*) NULL, 0, & my_charset_utf8_bin),
@@ -229,7 +229,7 @@ MYSQL_ERROR::MYSQL_ERROR(MEM_ROOT *mem_root)
    m_cursor_name((const char*) NULL, 0, & my_charset_utf8_bin),
    m_message_text(),
    m_sql_errno(0),
-   m_level(MYSQL_ERROR::WARN_LEVEL_ERROR),
+   m_level(Sql_condition::WARN_LEVEL_ERROR),
    m_mem_root(mem_root)
 {
   DBUG_ASSERT(mem_root != NULL);
@@ -254,7 +254,7 @@ static void copy_string(MEM_ROOT *mem_root, String* dst, const String* src)
 }
 
 void
-MYSQL_ERROR::copy_opt_attributes(const MYSQL_ERROR *cond)
+Sql_condition::copy_opt_attributes(const Sql_condition *cond)
 {
   DBUG_ASSERT(this != cond);
   copy_string(m_mem_root, & m_class_origin, & cond->m_class_origin);
@@ -270,8 +270,8 @@ MYSQL_ERROR::copy_opt_attributes(const MYSQL_ERROR *cond)
 }
 
 void
-MYSQL_ERROR::set(uint sql_errno, const char* sqlstate,
-                 MYSQL_ERROR::enum_warning_level level, const char* msg)
+Sql_condition::set(uint sql_errno, const char* sqlstate,
+                 Sql_condition::enum_warning_level level, const char* msg)
 {
   DBUG_ASSERT(sql_errno != 0);
   DBUG_ASSERT(sqlstate != NULL);
@@ -286,11 +286,11 @@ MYSQL_ERROR::set(uint sql_errno, const char* sqlstate,
 }
 
 void
-MYSQL_ERROR::set_builtin_message_text(const char* str)
+Sql_condition::set_builtin_message_text(const char* str)
 {
   /*
     See the comments
-     "Design notes about MYSQL_ERROR::m_message_text."
+     "Design notes about Sql_condition::m_message_text."
   */
   const char* copy;
 
@@ -300,22 +300,40 @@ MYSQL_ERROR::set_builtin_message_text(const char* str)
 }
 
 const char*
-MYSQL_ERROR::get_message_text() const
+Sql_condition::get_message_text() const
 {
   return m_message_text.ptr();
 }
 
 int
-MYSQL_ERROR::get_message_octet_length() const
+Sql_condition::get_message_octet_length() const
 {
   return m_message_text.length();
 }
 
 void
-MYSQL_ERROR::set_sqlstate(const char* sqlstate)
+Sql_condition::set_sqlstate(const char* sqlstate)
 {
   memcpy(m_returned_sqlstate, sqlstate, SQLSTATE_LENGTH);
   m_returned_sqlstate[SQLSTATE_LENGTH]= '\0';
+}
+
+Diagnostics_area::Diagnostics_area(bool initialize)
+  : m_main_wi(0, false, initialize)
+{
+  push_warning_info(&m_main_wi);
+
+  reset_diagnostics_area();
+}
+
+Diagnostics_area::Diagnostics_area(ulonglong warning_info_id,
+                                   bool allow_unlimited_warnings,
+                                   bool initialize)
+  : m_main_wi(warning_info_id, allow_unlimited_warnings, initialize)
+{
+  push_warning_info(&m_main_wi);
+
+  reset_diagnostics_area();
 }
 
 /**
@@ -329,7 +347,7 @@ Diagnostics_area::reset_diagnostics_area()
 {
   DBUG_ENTER("reset_diagnostics_area");
 #ifdef DBUG_OFF
-  can_overwrite_status= FALSE;
+  m_can_overwrite_status= FALSE;
   /** Don't take chances in production */
   m_message[0]= '\0';
   m_sql_errno= 0;
@@ -337,7 +355,8 @@ Diagnostics_area::reset_diagnostics_area()
   m_last_insert_id= 0;
   m_statement_warn_count= 0;
 #endif
-  is_sent= FALSE;
+  get_warning_info()->clear_error_condition();
+  set_is_sent(false);
   /** Tiny reset in debug mode to see garbage right away */
   m_status= DA_EMPTY;
   DBUG_VOID_RETURN;
@@ -350,9 +369,9 @@ Diagnostics_area::reset_diagnostics_area()
 */
 
 void
-Diagnostics_area::set_ok_status(THD *thd, ulonglong affected_rows_arg,
-                                ulonglong last_insert_id_arg,
-                                const char *message_arg)
+Diagnostics_area::set_ok_status(ulonglong affected_rows,
+                                ulonglong last_insert_id,
+                                const char *message)
 {
   DBUG_ENTER("set_ok_status");
   DBUG_ASSERT(! is_set());
@@ -363,11 +382,11 @@ Diagnostics_area::set_ok_status(THD *thd, ulonglong affected_rows_arg,
   if (is_error() || is_disabled())
     return;
 
-  m_statement_warn_count= thd->warning_info->statement_warn_count();
-  m_affected_rows= affected_rows_arg;
-  m_last_insert_id= last_insert_id_arg;
-  if (message_arg)
-    strmake(m_message, message_arg, sizeof(m_message) - 1);
+  m_statement_warn_count= current_statement_warn_count();
+  m_affected_rows= affected_rows;
+  m_last_insert_id= last_insert_id;
+  if (message)
+    strmake_buf(m_message, message);
   else
     m_message[0]= '\0';
   m_status= DA_OK;
@@ -398,20 +417,51 @@ Diagnostics_area::set_eof_status(THD *thd)
     anyway.
   */
   m_statement_warn_count= (thd->spcont ?
-                           0 : thd->warning_info->statement_warn_count());
+                           0 :
+                           current_statement_warn_count());
 
   m_status= DA_EOF;
   DBUG_VOID_RETURN;
 }
 
 /**
-  Set ERROR status.
+  Set ERROR status in the Diagnostics Area. This function should be used to
+  report fatal errors (such as out-of-memory errors) when no further
+  processing is possible.
+
+  @param sql_errno        SQL-condition error number
 */
 
 void
-Diagnostics_area::set_error_status(THD *thd, uint sql_errno_arg,
-                                   const char *message_arg,
-                                   const char *sqlstate)
+Diagnostics_area::set_error_status(uint sql_errno)
+{
+  set_error_status(sql_errno,
+                   ER(sql_errno),
+                   mysql_errno_to_sqlstate(sql_errno),
+                   NULL);
+}
+
+
+/**
+  Set ERROR status in the Diagnostics Area.
+
+  @note error_condition may be NULL. It happens if a) OOM error is being
+  reported; or b) when Warning_info is full.
+
+  @param sql_errno        SQL-condition error number
+  @param message          SQL-condition message
+  @param sqlstate         SQL-condition state
+  @param error_condition  SQL-condition object representing the error state
+
+  @note Note, that error_condition may be NULL. It happens if a) OOM error is
+  being reported; or b) when Warning_info is full.
+*/
+
+void
+Diagnostics_area::set_error_status(uint sql_errno,
+                                   const char *message,
+                                   const char *sqlstate,
+                                   const Sql_condition *error_condition)
 {
   DBUG_ENTER("set_error_status");
   /*
@@ -419,7 +469,14 @@ Diagnostics_area::set_error_status(THD *thd, uint sql_errno_arg,
     The only exception is when we flush the message to the client,
     an error can happen during the flush.
   */
-  DBUG_ASSERT(! is_set() || can_overwrite_status);
+  DBUG_ASSERT(! is_set() || m_can_overwrite_status);
+
+  // message must be set properly by the caller.
+  DBUG_ASSERT(message);
+
+  // sqlstate must be set properly by the caller.
+  DBUG_ASSERT(sqlstate);
+
 #ifdef DBUG_OFF
   /*
     In production, refuse to overwrite a custom response with an
@@ -429,18 +486,16 @@ Diagnostics_area::set_error_status(THD *thd, uint sql_errno_arg,
     return;
 #endif
 
-  if (sqlstate == NULL)
-    sqlstate= mysql_errno_to_sqlstate(sql_errno_arg);
-
-  m_sql_errno= sql_errno_arg;
+  m_sql_errno= sql_errno;
   memcpy(m_sqlstate, sqlstate, SQLSTATE_LENGTH);
   m_sqlstate[SQLSTATE_LENGTH]= '\0';
-  strmake(m_message, message_arg, sizeof(m_message)-1);
+  strmake_buf(m_message, message);
+
+  get_warning_info()->set_error_condition(error_condition);
 
   m_status= DA_ERROR;
   DBUG_VOID_RETURN;
 }
-
 
 /**
   Mark the diagnostics area as 'DISABLED'.
@@ -459,15 +514,16 @@ Diagnostics_area::disable_status()
 
 Warning_info::Warning_info(ulonglong warn_id_arg,
                            bool allow_unlimited_warnings, bool initialize)
-  :m_statement_warn_count(0),
+  :m_current_statement_warn_count(0),
   m_current_row_for_warning(1),
   m_warn_id(warn_id_arg),
+  m_error_condition(NULL),
   m_allow_unlimited_warnings(allow_unlimited_warnings),
   initialized(0),
   m_read_only(FALSE)
 {
   m_warn_list.empty();
-  bzero((char*) m_warn_count, sizeof(m_warn_count));
+  memset(m_warn_count, 0, sizeof(m_warn_count));
   if (initialize)
     init();
 }
@@ -475,6 +531,7 @@ Warning_info::Warning_info(ulonglong warn_id_arg,
 void Warning_info::init()
 {
   /* Initialize sub structures */
+  DBUG_ASSERT(initialized == 0);
   init_sql_alloc(&m_warn_root, WARN_ALLOC_BLOCK_SIZE,
                  WARN_ALLOC_PREALLOC_SIZE, MYF(MY_THREAD_SPECIFIC));
   initialized= 1;
@@ -492,92 +549,164 @@ Warning_info::~Warning_info()
 }
 
 
-/**
-  Reset the warning information of this connection.
-*/
-
-void Warning_info::clear_warning_info(ulonglong warn_id_arg)
+bool Warning_info::has_sql_condition(const char *message_str,
+                                     ulong message_length) const
 {
-  m_warn_id= warn_id_arg;
-  free_memory();
-  bzero((char*) m_warn_count, sizeof(m_warn_count));
-  m_warn_list.empty();
-  m_statement_warn_count= 0;
-  m_current_row_for_warning= 1; /* Start counting from the first row */
+  Diagnostics_area::Sql_condition_iterator it(m_warn_list);
+  const Sql_condition *err;
+
+  while ((err= it++))
+  {
+    if (strncmp(message_str, err->get_message_text(), message_length) == 0)
+      return true;
+  }
+
+  return false;
 }
 
-/**
-  Append warnings only if the original contents of the routine
-  warning info was replaced.
-*/
-void Warning_info::merge_with_routine_info(THD *thd, Warning_info *source)
+
+void Warning_info::clear(ulonglong new_id)
 {
-  /*
-    If a routine body is empty or if a routine did not
-    generate any warnings (thus m_warn_id didn't change),
-    do not duplicate our own contents by appending the
-    contents of the called routine. We know that the called
-    routine did not change its warning info.
+  id(new_id);
+  m_warn_list.empty();
+  m_marked_sql_conditions.empty();
+  free_memory();
+  memset(m_warn_count, 0, sizeof(m_warn_count));
+  m_current_statement_warn_count= 0;
+  m_current_row_for_warning= 1; /* Start counting from the first row */
+  clear_error_condition();
+}
 
-    On the other hand, if the routine body is not empty and
-    some statement in the routine generates a warning or
-    uses tables, m_warn_id is guaranteed to have changed.
-    In this case we know that the routine warning info
-    contains only new warnings, and thus we perform a copy.
-  */
-  if (m_warn_id != source->m_warn_id)
+void Warning_info::append_warning_info(THD *thd, const Warning_info *source)
+{
+  const Sql_condition *err;
+  Diagnostics_area::Sql_condition_iterator it(source->m_warn_list);
+  const Sql_condition *src_error_condition = source->get_error_condition();
+
+  while ((err= it++))
   {
-    /*
-      If the invocation of the routine was a standalone statement,
-      rather than a sub-statement, in other words, if it's a CALL
-      of a procedure, rather than invocation of a function or a
-      trigger, we need to clear the current contents of the caller's
-      warning info.
+    // Do not use ::push_warning() to avoid invocation of THD-internal-handlers.
+    Sql_condition *new_error= Warning_info::push_warning(thd, err);
 
-      This is per MySQL rules: if a statement generates a warning,
-      warnings from the previous statement are flushed.  Normally
-      it's done in push_warning(). However, here we don't use
-      push_warning() to avoid invocation of condition handlers or
-      escalation of warnings to errors.
-    */
-    opt_clear_warning_info(thd->query_id);
-    append_warning_info(thd, source);
+    if (src_error_condition && src_error_condition == err)
+      set_error_condition(new_error);
+
+    if (source->is_marked_for_removal(err))
+      mark_condition_for_removal(new_error);
   }
 }
 
+
 /**
-  Add a warning to the list of warnings. Increment the respective
-  counters.
+  Copy Sql_conditions that are not WARN_LEVEL_ERROR from the source
+  Warning_info to the current Warning_info.
+
+  @param thd    Thread context.
+  @param sp_wi  Stored-program Warning_info
+  @param thd     Thread context.
+  @param src_wi  Warning_info to copy from.
 */
-MYSQL_ERROR *Warning_info::push_warning(THD *thd,
-                                        uint sql_errno, const char* sqlstate,
-                                        MYSQL_ERROR::enum_warning_level level,
-                                        const char *msg)
+void Diagnostics_area::copy_non_errors_from_wi(THD *thd,
+                                               const Warning_info *src_wi)
 {
-  MYSQL_ERROR *cond= NULL;
+  Sql_condition_iterator it(src_wi->m_warn_list);
+  const Sql_condition *cond;
+  Warning_info *wi= get_warning_info();
+
+  while ((cond= it++))
+  {
+    if (cond->get_level() == Sql_condition::WARN_LEVEL_ERROR)
+      continue;
+
+    Sql_condition *new_condition= wi->push_warning(thd, cond);
+
+    if (src_wi->is_marked_for_removal(cond))
+      wi->mark_condition_for_removal(new_condition);
+  }
+}
+
+
+void Warning_info::mark_sql_conditions_for_removal()
+{
+  Sql_condition_list::Iterator it(m_warn_list);
+  Sql_condition *cond;
+
+  while ((cond= it++))
+    mark_condition_for_removal(cond);
+}
+
+
+void Warning_info::remove_marked_sql_conditions()
+{
+  List_iterator_fast<Sql_condition> it(m_marked_sql_conditions);
+  Sql_condition *cond;
+
+  while ((cond= it++))
+  {
+    m_warn_list.remove(cond);
+    m_warn_count[cond->get_level()]--;
+    m_current_statement_warn_count--;
+    if (cond == m_error_condition)
+      m_error_condition= NULL;
+  }
+
+  m_marked_sql_conditions.empty();
+}
+
+
+bool Warning_info::is_marked_for_removal(const Sql_condition *cond) const
+{
+  List_iterator_fast<Sql_condition> it(
+    const_cast<List<Sql_condition>&> (m_marked_sql_conditions));
+  Sql_condition *c;
+
+  while ((c= it++))
+  {
+    if (c == cond)
+      return true;
+  }
+
+  return false;
+}
+
+
+void Warning_info::reserve_space(THD *thd, uint count)
+{
+  while (m_warn_list.elements() &&
+         (m_warn_list.elements() + count) > thd->variables.max_error_count)
+    m_warn_list.remove(m_warn_list.front());
+}
+
+Sql_condition *Warning_info::push_warning(THD *thd,
+                                          uint sql_errno, const char* sqlstate,
+                                          Sql_condition::enum_warning_level level,
+                                          const char *msg)
+{
+  Sql_condition *cond= NULL;
 
   if (! m_read_only)
   {
     if (m_allow_unlimited_warnings ||
-        m_warn_list.elements < thd->variables.max_error_count)
+        m_warn_list.elements() < thd->variables.max_error_count)
     {
-      cond= new (& m_warn_root) MYSQL_ERROR(& m_warn_root);
+      cond= new (& m_warn_root) Sql_condition(& m_warn_root);
       if (cond)
       {
         cond->set(sql_errno, sqlstate, level, msg);
-        m_warn_list.push_back(cond, &m_warn_root);
+        m_warn_list.push_back(cond);
       }
     }
     m_warn_count[(uint) level]++;
   }
 
-  m_statement_warn_count++;
+  m_current_statement_warn_count++;
   return cond;
 }
 
-MYSQL_ERROR *Warning_info::push_warning(THD *thd, const MYSQL_ERROR *sql_condition)
+
+Sql_condition *Warning_info::push_warning(THD *thd, const Sql_condition *sql_condition)
 {
-  MYSQL_ERROR *new_condition= push_warning(thd,
+  Sql_condition *new_condition= push_warning(thd,
                                            sql_condition->get_sql_errno(),
                                            sql_condition->get_sqlstate(),
                                            sql_condition->get_level(),
@@ -600,7 +729,7 @@ MYSQL_ERROR *Warning_info::push_warning(THD *thd, const MYSQL_ERROR *sql_conditi
     msg			Clear error message
 */
 
-void push_warning(THD *thd, MYSQL_ERROR::enum_warning_level level,
+void push_warning(THD *thd, Sql_condition::enum_warning_level level,
                   uint code, const char *msg)
 {
   DBUG_ENTER("push_warning");
@@ -611,15 +740,15 @@ void push_warning(THD *thd, MYSQL_ERROR::enum_warning_level level,
     WARN_LEVEL_ERROR *is* a bug.  Either use my_printf_error(),
     my_error(), or WARN_LEVEL_WARN.
   */
-  DBUG_ASSERT(level != MYSQL_ERROR::WARN_LEVEL_ERROR);
+  DBUG_ASSERT(level != Sql_condition::WARN_LEVEL_ERROR);
 
-  if (level == MYSQL_ERROR::WARN_LEVEL_ERROR)
-    level= MYSQL_ERROR::WARN_LEVEL_WARN;
+  if (level == Sql_condition::WARN_LEVEL_ERROR)
+    level= Sql_condition::WARN_LEVEL_WARN;
 
   (void) thd->raise_condition(code, NULL, level, msg);
 
   /* Make sure we also count warnings pushed after calling set_ok_status(). */
-  thd->stmt_da->increment_warning();
+  thd->get_stmt_da()->increment_warning();
 
   DBUG_VOID_RETURN;
 }
@@ -636,7 +765,7 @@ void push_warning(THD *thd, MYSQL_ERROR::enum_warning_level level,
     msg			Clear error message
 */
 
-void push_warning_printf(THD *thd, MYSQL_ERROR::enum_warning_level level,
+void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
 			 uint code, const char *format, ...)
 {
   va_list args;
@@ -685,7 +814,7 @@ bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
   List<Item> field_list;
   DBUG_ENTER("mysqld_show_warnings");
 
-  DBUG_ASSERT(thd->warning_info->is_read_only());
+  DBUG_ASSERT(thd->get_stmt_da()->is_warning_info_read_only());
 
   field_list.push_back(new Item_empty_string("Level", 7));
   field_list.push_back(new Item_return_int("Code",4, MYSQL_TYPE_LONG));
@@ -695,7 +824,7 @@ bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
                                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
 
-  MYSQL_ERROR *err;
+  const Sql_condition *err;
   SELECT_LEX *sel= &thd->lex->select_lex;
   SELECT_LEX_UNIT *unit= &thd->lex->unit;
   ulonglong idx= 0;
@@ -703,7 +832,8 @@ bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
 
   unit->set_limit(sel);
 
-  List_iterator_fast<MYSQL_ERROR> it(thd->warning_info->warn_list());
+  Diagnostics_area::Sql_condition_iterator it=
+    thd->get_stmt_da()->sql_conditions();
   while ((err= it++))
   {
     /* Skip levels that the user is not interested in */
@@ -726,7 +856,7 @@ bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
   }
   my_eof(thd);
 
-  thd->warning_info->set_read_only(FALSE);
+  thd->get_stmt_da()->set_warning_info_read_only(FALSE);
 
   DBUG_RETURN(FALSE);
 }
@@ -834,7 +964,7 @@ uint32 convert_error_message(char *to, uint32 to_length, CHARSET_INFO *to_cs,
 
   if (!to_cs || from_cs == to_cs || to_cs == &my_charset_bin)
   {
-    length= min(to_length, from_length);
+    length= MY_MIN(to_length, from_length);
     memmove(to, from, length);
     to[length]= 0;
     return length;
@@ -875,4 +1005,33 @@ uint32 convert_error_message(char *to, uint32 to_length, CHARSET_INFO *to_cs,
   *to= 0;
   *errors= error_count;
   return (uint32) (to - to_start);
+}
+
+
+/**
+  Sanity check for SQLSTATEs. The function does not check if it's really an
+  existing SQL-state (there are just too many), it just checks string length and
+  looks for bad characters.
+
+  @param sqlstate the condition SQLSTATE.
+
+  @retval true if it's ok.
+  @retval false if it's bad.
+*/
+
+bool is_sqlstate_valid(const LEX_STRING *sqlstate)
+{
+  if (sqlstate->length != 5)
+    return false;
+
+  for (int i= 0 ; i < 5 ; ++i)
+  {
+    char c = sqlstate->str[i];
+
+    if ((c < '0' || '9' < c) &&
+	(c < 'A' || 'Z' < c))
+      return false;
+  }
+
+  return true;
 }

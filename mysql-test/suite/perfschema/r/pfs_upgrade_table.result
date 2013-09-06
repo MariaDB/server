@@ -1,0 +1,65 @@
+drop table if exists test.user_table;
+"Testing mysql_upgrade with TABLE performance_schema.user_table"
+create table test.user_table(a int);
+use performance_schema;
+show tables like "user_table";
+Tables_in_performance_schema (user_table)
+user_table
+ERROR 1050 (42S01) at line ###: Table 'cond_instances' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_waits_current' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_waits_history' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_waits_history_long' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_waits_summary_by_instance' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_waits_summary_by_host_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_waits_summary_by_user_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_waits_summary_by_account_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_waits_summary_by_thread_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_waits_summary_global_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'file_instances' already exists
+ERROR 1050 (42S01) at line ###: Table 'file_summary_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'file_summary_by_instance' already exists
+ERROR 1050 (42S01) at line ###: Table 'socket_instances' already exists
+ERROR 1050 (42S01) at line ###: Table 'socket_summary_by_instance' already exists
+ERROR 1050 (42S01) at line ###: Table 'socket_summary_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'host_cache' already exists
+ERROR 1050 (42S01) at line ###: Table 'mutex_instances' already exists
+ERROR 1050 (42S01) at line ###: Table 'objects_summary_global_by_type' already exists
+ERROR 1050 (42S01) at line ###: Table 'performance_timers' already exists
+ERROR 1050 (42S01) at line ###: Table 'rwlock_instances' already exists
+ERROR 1050 (42S01) at line ###: Table 'setup_actors' already exists
+ERROR 1050 (42S01) at line ###: Table 'setup_consumers' already exists
+ERROR 1050 (42S01) at line ###: Table 'setup_instruments' already exists
+ERROR 1050 (42S01) at line ###: Table 'setup_objects' already exists
+ERROR 1050 (42S01) at line ###: Table 'setup_timers' already exists
+ERROR 1050 (42S01) at line ###: Table 'table_io_waits_summary_by_index_usage' already exists
+ERROR 1050 (42S01) at line ###: Table 'table_io_waits_summary_by_table' already exists
+ERROR 1050 (42S01) at line ###: Table 'table_lock_waits_summary_by_table' already exists
+ERROR 1050 (42S01) at line ###: Table 'threads' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_stages_current' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_stages_history' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_stages_history_long' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_stages_summary_by_thread_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_stages_summary_by_host_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_stages_summary_by_user_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_stages_summary_by_account_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_stages_summary_global_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_statements_current' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_statements_history' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_statements_history_long' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_statements_summary_by_thread_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_statements_summary_by_host_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_statements_summary_by_user_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_statements_summary_by_account_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_statements_summary_global_by_event_name' already exists
+ERROR 1050 (42S01) at line ###: Table 'hosts' already exists
+ERROR 1050 (42S01) at line ###: Table 'users' already exists
+ERROR 1050 (42S01) at line ###: Table 'accounts' already exists
+ERROR 1050 (42S01) at line ###: Table 'events_statements_summary_by_digest' already exists
+ERROR 1050 (42S01) at line ###: Table 'session_connect_attrs' already exists
+ERROR 1050 (42S01) at line ###: Table 'session_account_connect_attrs' already exists
+FATAL ERROR: Upgrade failed
+show tables like "user_table";
+Tables_in_performance_schema (user_table)
+user_table
+use test;
+drop table test.user_table;

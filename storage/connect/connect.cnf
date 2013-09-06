@@ -1,0 +1,2 @@
+[mariadb]
+plugin-load-add=ha_connect.so

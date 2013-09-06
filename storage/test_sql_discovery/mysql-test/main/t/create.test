@@ -1,0 +1,3 @@
+# run the normal test file with need_full_discover_for_existence>0
+--source ../sql_discovery/inc.inc
+--source create.test

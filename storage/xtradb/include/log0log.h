@@ -122,14 +122,22 @@ UNIV_INLINE
 void
 log_free_check(void);
 /*================*/
-/************************************************************//**
-Opens the log for log_write_low. The log must be closed with log_close and
-released with log_release.
-@return	start lsn of the log record */
-UNIV_INTERN
+/**************************************************************************//**
+Locks the log mutex and opens the log for log_write_low. The log must be closed
+with log_close and released with log_release.
+@return start lsn of the log record */
+UNIV_INLINE
 ib_uint64_t
 log_reserve_and_open(
 /*=================*/
+	ulint	len);	/*!< in: length of data to be catenated */
+/************************************************************//**
+Opens the log for log_write_low. The log must be closed with log_close.
+@return	start lsn of the log record */
+UNIV_INTERN
+ib_uint64_t
+log_open(
+/*=====*/
 	ulint	len);	/*!< in: length of data to be catenated */
 /************************************************************//**
 Writes to the log the string given. It is assumed that the caller holds the
@@ -414,7 +422,9 @@ log_group_read_log_seg(
 	byte*		buf,		/*!< in: buffer where to read */
 	log_group_t*	group,		/*!< in: log group */
 	ib_uint64_t	start_lsn,	/*!< in: read area start */
-	ib_uint64_t	end_lsn);	/*!< in: read area end */
+	ib_uint64_t	end_lsn,	/*!< in: read area end */
+	ibool		release_mutex);	/*!< in: whether the log_sys->mutex
+				        should be released before the read */
 /******************************************************//**
 Writes a buffer to a log file group. */
 UNIV_INTERN

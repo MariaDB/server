@@ -337,11 +337,9 @@ select @@sql_auto_is_null;
 set @@sql_auto_is_null=0;
 select @@sql_auto_is_null;
 set sql_big_selects=1;
-set sql_big_tables=1;
 set sql_buffer_result=1;
 set sql_log_bin=1;
 set sql_log_off=1;
-set sql_low_priority_updates=1;
 set sql_quote_show_create=1;
 set sql_safe_updates=1;
 set sql_select_limit=1;
@@ -516,14 +514,6 @@ SET GLOBAL table_open_cache=DEFAULT;
 set character_set_results=NULL;
 select ifnull(@@character_set_results,"really null");
 set names latin1;
-
-
-#
-# Bug #9613: @@have_innodb
-#
-
---replace_column 1 #
-select @@have_innodb;
 
 #
 # Tests for lc_time_names
@@ -1206,29 +1196,16 @@ SET GLOBAL server_id = -1;
 SELECT @@GLOBAL.server_id;
 SET GLOBAL server_id = @old_server_id;
 
-#
-# Bug #42778: delete order by null global variable causes 
-#             assertion .\filesort.cc, line 797
-#
-
-SELECT @@GLOBAL.INIT_CONNECT, @@GLOBAL.INIT_CONNECT IS NULL;
-
-CREATE TABLE t1 (a INT);
-INSERT INTO t1 VALUES ();
-SET @bug42778= @@sql_safe_updates;
-SET @@sql_safe_updates= 0;
-DELETE FROM t1 ORDER BY (@@GLOBAL.INIT_CONNECT) ASC LIMIT 10;
-SET @@sql_safe_updates= @bug42778;
-
-DROP TABLE t1;
-
 --echo #
 --echo # BUG#10206 - InnoDB: Transaction requiring Max_BinLog_Cache_size > 4GB always rollsback
 --echo #
 
 SET @old_max_binlog_cache_size = @@GLOBAL.max_binlog_cache_size;
 --echo # Set the max_binlog_cache_size to size more than 4GB. 
+--disable_warnings
 SET GLOBAL max_binlog_cache_size = 5 * 1024 * 1024 * 1024;
+--enable_warnings
+--replace_result 5368709120 max_size 4294963200 max_size
 SELECT @@GLOBAL.max_binlog_cache_size;
 SET GLOBAL max_binlog_cache_size = @old_max_binlog_cache_size;
 
@@ -1537,5 +1514,17 @@ set session character_set_database=2048;
 set session collation_connection=2048;
 --error ER_UNKNOWN_COLLATION
 set session collation_database=2048;
+
+#
+# Bug #16044655 CRASH: SETTING DEFAULT VALUE FOR SOME VARIABLES
+#
+--error ER_NO_DEFAULT
+set session rand_seed1=DEFAULT;
+
+#
+# Bug #14211565 CRASH WHEN ATTEMPTING TO SET SYSTEM VARIABLE TO RESULT OF VALUES()
+#
+--error ER_BAD_FIELD_ERROR
+set autocommit = values(v);
 
 --echo End of 5.5 tests

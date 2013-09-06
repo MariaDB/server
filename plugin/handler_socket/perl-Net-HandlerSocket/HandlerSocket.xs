@@ -151,7 +151,7 @@ sv_get_string_ref(SV *sv)
 static IV
 sv_get_iv(SV *sv)
 {
-  if (sv == 0 || !SvIOK(sv)) {
+  if (sv == 0 || ( !SvIOK(sv) && !SvPOK(sv) ) ) {
     return 0;
   }
   return SvIV(sv);

@@ -1037,7 +1037,7 @@ static char simpletok[128]=
 /*
     ! " # $ % & ' ( ) * + , - . / 0 1 2 3 4 5 6 7 8 9 : ; < = > ?
   @ A B C D E F G H I J K L M N O P Q R S T U V W X Y Z [ \ ] ^ _
-  ` a b c d e f g h i j k l m n o p q r s t u v w x y z { | } ~ €
+  ` a b c d e f g h i j k l m n o p q r s t u v w x y z { | } ~ \200
 */
   0,1,0,0,1,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,0,1,1,1,0,
   1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,
@@ -2501,12 +2501,12 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
     xpath->item= new Item_func_get_user_var(name);
   else
   {
-    sp_variable_t *spv;
+    sp_variable *spv;
     sp_pcontext *spc;
     LEX *lex;
     if ((lex= current_thd->lex) &&
         (spc= lex->spcont) &&
-        (spv= spc->find_variable(&name)))
+        (spv= spc->find_variable(name, false)))
     {
       Item_splocal *splocal= new Item_splocal(name, spv->offset, spv->type, 0);
 #ifndef DBUG_OFF
@@ -2704,8 +2704,12 @@ int xml_enter(MY_XML_PARSER *st,const char *attr, size_t len)
 
   node.parent= data->parent; // Set parent for the new node to old parent
   data->parent= numnodes;    // Remember current node as new parent
+  DBUG_ASSERT(data->level <= MAX_LEVEL);
   data->pos[data->level]= numnodes;
-  node.level= data->level++;
+  if (data->level < MAX_LEVEL)
+    node.level= data->level++;
+  else
+    return MY_XML_ERROR;
   node.type= st->current_node_type; // TAG or ATTR
   node.beg= attr;
   node.end= attr + len;
@@ -2811,7 +2815,7 @@ String *Item_xml_str_func::parse_xml(String *raw_xml, String *parsed_xml_buf)
                 my_xml_error_lineno(&p) + 1,
                 (ulong) my_xml_error_pos(&p) + 1,
                 my_xml_error_string(&p));
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WRONG_VALUE,
                         ER(ER_WRONG_VALUE), "XML", buf);
   }

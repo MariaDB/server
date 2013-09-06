@@ -60,9 +60,7 @@ component, i.e. we show M.N.P as M.N */
 	IB_TO_STR(INNODB_VERSION_MINOR) "."	\
 	IB_TO_STR(INNODB_VERSION_BUGFIX)
 
-#define REFMAN "http://dev.mysql.com/doc/refman/"	\
-	IB_TO_STR(MYSQL_VERSION_MAJOR) "."		\
-	IB_TO_STR(MYSQL_VERSION_MINOR) "/en/"
+#define REFMAN "http://dev.mysql.com/doc/refman/5.6/en/"
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 /* In the dynamic plugin, redefine some externally visible symbols
@@ -380,11 +378,16 @@ This number varies depending on UNIV_PAGE_SIZE. */
 /** Maximum number of parallel threads in a parallelized operation */
 #define UNIV_MAX_PARALLELISM	32
 
-/** The maximum length of a table name. This is the MySQL limit and is
-defined in mysql_com.h like NAME_CHAR_LEN*SYSTEM_CHARSET_MBMAXLEN, the
-number does not include a terminating '\0'. InnoDB probably can handle
-longer names internally */
-#define MAX_TABLE_NAME_LEN	192
+/** This is the "mbmaxlen" for my_charset_filename (defined in
+strings/ctype-utf8.c), which is used to encode File and Database names. */
+#define FILENAME_CHARSET_MAXNAMLEN	5
+
+/** The maximum length of an encode table name in bytes.  The max
+table and database names are NAME_CHAR_LEN (64) characters. After the
+encoding, the max length would be NAME_CHAR_LEN (64) *
+FILENAME_CHARSET_MAXNAMLEN (5) = 320 bytes. The number does not include a
+terminating '\0'. InnoDB can handle longer names internally */
+#define MAX_TABLE_NAME_LEN	320
 
 /** The maximum length of a database name. Like MAX_TABLE_NAME_LEN this is
 the MySQL's NAME_LEN, see check_and_convert_db_name(). */
@@ -397,6 +400,16 @@ database name and table name. In addition, 14 bytes is added for:
 	9 for the #mysql50# prefix */
 #define MAX_FULL_NAME_LEN				\
 	(MAX_TABLE_NAME_LEN + MAX_DATABASE_NAME_LEN + 14)
+
+/** The maximum length in bytes that a database name can occupy when stored in
+UTF8, including the terminating '\0', see dict_fs2utf8(). You must include
+mysql_com.h if you are to use this macro. */
+#define MAX_DB_UTF8_LEN		(NAME_LEN + 1)
+
+/** The maximum length in bytes that a table name can occupy when stored in
+UTF8, including the terminating '\0', see dict_fs2utf8(). You must include
+mysql_com.h if you are to use this macro. */
+#define MAX_TABLE_UTF8_LEN	(NAME_LEN + sizeof(srv_mysql50_table_name_prefix))
 
 /*
 			UNIVERSAL TYPE DEFINITIONS
@@ -417,6 +430,7 @@ macro ULINTPF. */
 # define UINT32PF	"%I32u"
 # define INT64PF	"%I64d"
 # define UINT64PF	"%I64u"
+# define UINT64PFx	"%016I64u"
 typedef __int64 ib_int64_t;
 typedef unsigned __int64 ib_uint64_t;
 typedef unsigned __int32 ib_uint32_t;
@@ -425,6 +439,7 @@ typedef unsigned __int32 ib_uint32_t;
 # define UINT32PF	"%"PRIu32
 # define INT64PF	"%"PRId64
 # define UINT64PF	"%"PRIu64
+# define UINT64PFx	"%016"PRIx64
 typedef int64_t ib_int64_t;
 typedef uint64_t ib_uint64_t;
 typedef uint32_t ib_uint32_t;
@@ -488,6 +503,8 @@ headers may define 'bool' differently. Do not assume that 'bool' is a ulint! */
 #define FALSE   0
 
 #endif
+
+#define UNIV_NOTHROW
 
 /** The following number as the length of a logical field means that the field
 has the SQL NULL as its value. NOTE that because we assume that the length
@@ -588,15 +605,23 @@ typedef void* os_thread_ret_t;
 # define UNIV_MEM_ALLOC(addr, size) VALGRIND_MAKE_MEM_UNDEFINED(addr, size)
 # define UNIV_MEM_DESC(addr, size) VALGRIND_CREATE_BLOCK(addr, size, #addr)
 # define UNIV_MEM_UNDESC(b) VALGRIND_DISCARD(b)
-# define UNIV_MEM_ASSERT_RW(addr, size) do {				\
+# define UNIV_MEM_ASSERT_RW_LOW(addr, size, should_abort) do {		\
 	const void* _p = (const void*) (ulint)				\
 		VALGRIND_CHECK_MEM_IS_DEFINED(addr, size);		\
-	if (UNIV_LIKELY_NULL(_p))					\
+	if (UNIV_LIKELY_NULL(_p)) {					\
 		fprintf(stderr, "%s:%d: %p[%u] undefined at %ld\n",	\
 			__FILE__, __LINE__,				\
 			(const void*) (addr), (unsigned) (size), (long)	\
 			(((const char*) _p) - ((const char*) (addr))));	\
-	} while (0)
+		if (should_abort) {					\
+			ut_error;					\
+		}							\
+	}								\
+} while (0)
+# define UNIV_MEM_ASSERT_RW(addr, size)					\
+	UNIV_MEM_ASSERT_RW_LOW(addr, size, false)
+# define UNIV_MEM_ASSERT_RW_ABORT(addr, size)				\
+	UNIV_MEM_ASSERT_RW_LOW(addr, size, true)
 # define UNIV_MEM_ASSERT_W(addr, size) do {				\
 	const void* _p = (const void*) (ulint)				\
 		VALGRIND_CHECK_MEM_IS_ADDRESSABLE(addr, size);		\
@@ -613,7 +638,9 @@ typedef void* os_thread_ret_t;
 # define UNIV_MEM_ALLOC(addr, size) do {} while(0)
 # define UNIV_MEM_DESC(addr, size) do {} while(0)
 # define UNIV_MEM_UNDESC(b) do {} while(0)
+# define UNIV_MEM_ASSERT_RW_LOW(addr, size, should_abort) do {} while(0)
 # define UNIV_MEM_ASSERT_RW(addr, size) do {} while(0)
+# define UNIV_MEM_ASSERT_RW_ABORT(addr, size) do {} while(0)
 # define UNIV_MEM_ASSERT_W(addr, size) do {} while(0)
 #endif
 #define UNIV_MEM_ASSERT_AND_FREE(addr, size) do {	\

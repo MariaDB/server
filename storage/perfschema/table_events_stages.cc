@@ -32,7 +32,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 {
   {
     { C_STRING_WITH_LEN("THREAD_ID") },
-    { C_STRING_WITH_LEN("int(11)") },
+    { C_STRING_WITH_LEN("bigint(20)") },
     { NULL, 0}
   },
   {
@@ -84,7 +84,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 
 TABLE_FIELD_DEF
 table_events_stages_current::m_field_def=
-{10 , field_types };
+{10 , field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_events_stages_current::m_share=
@@ -207,7 +207,7 @@ int table_events_stages_common::read_row_values(TABLE *table,
       switch(f->field_index)
       {
       case 0: /* THREAD_ID */
-        set_field_ulong(f, m_row.m_thread_internal_id);
+        set_field_ulonglong(f, m_row.m_thread_internal_id);
         break;
       case 1: /* EVENT_ID */
         set_field_ulonglong(f, m_row.m_event_id);

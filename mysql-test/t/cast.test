@@ -74,11 +74,11 @@ select 10E+0+'10';
 
 # The following cast creates warnings
 
-select CONVERT(DATE "2004-01-22 21:45:33" USING latin1);
-select CONVERT(DATE "2004-01-22 21:45:33",CHAR);
-select CONVERT(DATE "2004-01-22 21:45:33",CHAR(4));
-select CONVERT(DATE "2004-01-22 21:45:33",BINARY(4));
-select CAST(DATE "2004-01-22 21:45:33" AS BINARY(4));
+select CONVERT(TIMESTAMP "2004-01-22 21:45:33" USING latin1);
+select CONVERT(TIMESTAMP "2004-01-22 21:45:33",CHAR);
+select CONVERT(TIMESTAMP "2004-01-22 21:45:33",CHAR(4));
+select CONVERT(TIMESTAMP "2004-01-22 21:45:33",BINARY(4));
+select CAST(TIMESTAMP "2004-01-22 21:45:33" AS BINARY(4));
 select CAST(0xb3 as signed);
 select CAST(0x8fffffffffffffff as signed);
 select CAST(0xffffffffffffffff as unsigned);
@@ -412,6 +412,19 @@ WHERE CAST(a as BINARY)=x'62736D697468'
 
 DROP TABLE t1;
 
+--echo #
+--echo # Bug#13581962 HIGH MEMORY USAGE ATTEMPT, THEN CRASH WITH 
+--echo # LONGTEXT, UNION, USER VARIABLE
+--echo # Bug#14096619 UNABLE TO RESTORE DATABASE DUMP
+--echo #
+
+CREATE TABLE t1 AS SELECT CONCAT(CAST(REPEAT('9', 1000) AS SIGNED)),
+                          CONCAT(CAST(REPEAT('9', 1000) AS UNSIGNED));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo # End of test for Bug#13581962, Bug#14096619
+
 --echo End of 5.1 tests
 
 select cast("2101-00-01 02:03:04" as datetime);
@@ -436,4 +449,7 @@ drop table t1;
 # CAST(... AS DATE) and invalid dates
 #
 SELECT CAST(TIME('10:20:30') AS DATE) + INTERVAL 1 DAY;
+
+SET SQL_MODE=ALLOW_INVALID_DATES;
+SELECT DATE("foo");
 

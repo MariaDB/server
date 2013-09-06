@@ -21,7 +21,7 @@ Public License for more details.
 
 You should have received a copy of the GNU General Public License along
 with this program; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 ***********************************************************************/
 
@@ -64,6 +64,13 @@ Created 10/21/1995 Heikki Tuuri
 
 #ifdef _WIN32
 #define IOCP_SHUTDOWN_KEY (ULONG_PTR)-1
+#endif
+
+#if defined(UNIV_LINUX) && defined(HAVE_SYS_IOCTL_H)
+# include <sys/ioctl.h>
+# ifndef DFS_IOCTL_ATOMIC_WRITE_SET
+#  define DFS_IOCTL_ATOMIC_WRITE_SET _IOW(0x95, 2, uint)
+# endif
 #endif
 
 /* This specifies the file permissions InnoDB uses when it creates files in
@@ -1454,6 +1461,39 @@ os_file_set_nocache(
 #endif
 }
 
+
+/****************************************************************//**
+Tries to enable the atomic write feature, if available, for the specified file
+handle.
+@return TRUE if success */
+static __attribute__((warn_unused_result))
+ibool
+os_file_set_atomic_writes(
+/*======================*/
+	const char*	name	/*!< in: name of the file */
+	__attribute__((unused)),
+	os_file_t	file	/*!< in: handle to the file */
+	__attribute__((unused)))
+
+{
+#ifdef DFS_IOCTL_ATOMIC_WRITE_SET
+	int	atomic_option	= 1;
+
+	if (ioctl(file, DFS_IOCTL_ATOMIC_WRITE_SET, &atomic_option)) {
+
+		os_file_handle_error_no_exit(name, "ioctl");
+		return(FALSE);
+	}
+
+	return(TRUE);
+#else
+	fprintf(stderr, "InnoDB: Error: trying to enable atomic writes on "
+		"non-supported platform! Please restart with "
+		"innodb_use_atomic_writes disabled.\n");
+	return(FALSE);
+#endif
+}
+
 /****************************************************************//**
 NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
@@ -1490,6 +1530,13 @@ os_file_create_func(
 	DWORD		create_flag;
 	DWORD		attributes;
 	ibool		retry;
+
+	DBUG_EXECUTE_IF(
+		"ib_create_table_fail_disk_full",
+		*success = FALSE;
+		SetLastError(ERROR_DISK_FULL);
+		return((os_file_t) -1);
+	);
 try_again:
 	ut_a(name);
 
@@ -1611,6 +1658,13 @@ try_again:
 		}
 	}
 
+	if (srv_use_atomic_writes && type == OS_DATA_FILE && 
+		os_file_set_atomic_writes(file, name)) {
+			 CloseHandle(file);
+			*success = FALSE;
+			file = INVALID_HANDLE_VALUE;
+	}
+
 	return(file);
 #else /* __WIN__ */
 	os_file_t	file;
@@ -1618,6 +1672,12 @@ try_again:
 	ibool		retry;
 	const char*	mode_str	= NULL;
 
+	DBUG_EXECUTE_IF(
+		"ib_create_table_fail_disk_full",
+		*success = FALSE;
+		errno = ENOSPC;
+		return((os_file_t) -1);
+	);
 try_again:
 	ut_a(name);
 
@@ -1724,6 +1784,14 @@ try_again:
 		file = -1;
 	}
 #endif /* USE_FILE_LOCK */
+
+	if (srv_use_atomic_writes && type == OS_DATA_FILE
+	    && os_file_set_atomic_writes(name, file)) {
+
+		*success = FALSE;
+		close(file);
+		file = -1;
+	}
 
 	return(file);
 #endif /* __WIN__ */
@@ -1934,7 +2002,6 @@ os_file_close_func(
 #endif
 }
 
-#ifdef UNIV_HOTBACKUP
 /***********************************************************************//**
 Closes a file handle.
 @return	TRUE if success */
@@ -1969,7 +2036,6 @@ os_file_close_no_error_handling(
 	return(TRUE);
 #endif
 }
-#endif /* UNIV_HOTBACKUP */
 
 /***********************************************************************//**
 Gets a file size.
@@ -2067,6 +2133,22 @@ os_file_set_size(
 
 	current_size = 0;
 	desired_size = (ib_int64_t)size + (((ib_int64_t)size_high) << 32);
+
+#ifdef HAVE_POSIX_FALLOCATE
+	if (srv_use_posix_fallocate) {
+
+		if (posix_fallocate(file, current_size, desired_size) == -1) {
+
+			fprintf(stderr, "InnoDB: Error: preallocating file "
+				"space for file \'%s\' failed.  Current size "
+				"%lld, desired size %lld\n",
+				name, current_size, desired_size);
+			os_file_handle_error_no_exit(name, "posix_fallocate");
+			return(FALSE);
+		}
+		return(TRUE);
+	}
+#endif
 
 	/* Write up to 1 megabyte at a time. */
 	buf_size = ut_min(64, (ulint) (desired_size / UNIV_PAGE_SIZE))
@@ -2377,7 +2459,7 @@ os_file_pread(
 
 	os_n_file_reads++;
 
-	if (innobase_get_slow_log() && trx && trx->take_stats)
+	if (UNIV_UNLIKELY(trx && trx->take_stats))
 	{
 	        trx->io_reads++;
 		trx->io_read += n;
@@ -2410,7 +2492,7 @@ os_file_pread(
 	os_n_pending_reads--;
 	os_mutex_exit(os_file_count_mutex);
 
-	if (innobase_get_slow_log() && trx && trx->take_stats && start_time)
+	if (UNIV_UNLIKELY(start_time != 0))
 	{
 		ut_usectime(&sec, &ms);
 		finish_time = (ib_uint64_t)sec * 1000000 + ms;
@@ -2464,7 +2546,7 @@ os_file_pread(
 		os_n_pending_reads--;
 		os_mutex_exit(os_file_count_mutex);
 
-		if (innobase_get_slow_log() && trx && trx->take_stats && start_time)
+		if (UNIV_UNLIKELY(start_time != 0)
 		{
 			ut_usectime(&sec, &ms);
 			finish_time = (ib_uint64_t)sec * 1000000 + ms;
@@ -4245,8 +4327,8 @@ os_aio_func(
 	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
-	ut_ad(n % OS_FILE_LOG_BLOCK_SIZE == 0);
-	ut_ad(offset % OS_FILE_LOG_BLOCK_SIZE == 0);
+	ut_ad(n % OS_MIN_LOG_BLOCK_SIZE == 0);
+	ut_ad(offset % OS_MIN_LOG_BLOCK_SIZE == 0);
 	ut_ad(os_aio_validate_skip());
 #ifdef WIN_ASYNC_IO
 	ut_ad((n & 0xFFFFFFFFUL) == n);

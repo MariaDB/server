@@ -1,0 +1,95 @@
+include/rpl_init.inc [topology=1->2]
+*** Test crashing master, causing slave IO thread to reconnect while SQL thread is running ***
+call mtr.add_suppression("Checking table:");
+call mtr.add_suppression("client is using or hasn't closed the table properly");
+call mtr.add_suppression("Table .* is marked as crashed and should be repaired");
+flush tables;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
+MASTER_USE_GTID=CURRENT_POS;
+INSERT INTO t1 VALUES (2,1);
+INSERT INTO t1 VALUES (3,1);
+include/start_slave.inc
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+SELECT 1;
+Got one of the listed errors
+INSERT INTO t1 VALUES (1000, 3);
+DROP TABLE t1;
+*** Test crashing the master mysqld and check that binlog state is recovered. ***
+include/stop_slave.inc
+RESET MASTER;
+SET GLOBAL gtid_slave_pos='';
+RESET MASTER;
+SHOW BINLOG EVENTS IN 'master-bin.000001' LIMIT 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid_list	#	#	[]
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+include/start_slave.inc
+SET gtid_domain_id= 1;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+FLUSH LOGS;
+SET gtid_domain_id= 2;
+INSERT INTO t1 VALUES (3);
+FLUSH LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+SHOW BINLOG EVENTS IN 'master-bin.000003' LIMIT 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid_list	#	#	[1-1-2,2-1-1,0-1-1]
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+SELECT 1;
+Got one of the listed errors
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+SHOW BINLOG EVENTS IN 'master-bin.000004' LIMIT 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Gtid_list	#	#	[1-1-2,0-1-1,2-1-1]
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+*** Test crashing slave at various points and check that it recovers crash-safe. ***
+include/stop_slave.inc
+SET GLOBAL debug_dbug="+d,inject_crash_before_write_rpl_slave_state";
+START SLAVE;
+INSERT INTO t1 VALUES (4);
+include/stop_slave.inc
+SET GLOBAL debug_dbug="+d,crash_commit_before";
+START SLAVE;
+INSERT INTO t1 VALUES (5);
+include/stop_slave.inc
+SET GLOBAL debug_dbug="+d,crash_commit_after";
+START SLAVE;
+INSERT INTO t1 VALUES (6);
+include/stop_slave.inc
+SET GLOBAL debug_dbug="+d,inject_crash_before_flush_rli";
+START SLAVE;
+INSERT INTO t1 VALUES (7);
+include/stop_slave.inc
+SET GLOBAL debug_dbug="+d,inject_crash_after_flush_rli";
+START SLAVE;
+INSERT INTO t1 VALUES (8);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+7
+8
+DROP TABLE t1;
+include/rpl_end.inc

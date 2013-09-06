@@ -19,7 +19,6 @@
 #include "hash.h"                               /* HASH */
 
 class THD;
-typedef struct st_ha_create_information HA_CREATE_INFO;
 
 int mysql_create_db(THD *thd, char *db, HA_CREATE_INFO *create, bool silent);
 bool mysql_alter_db(THD *thd, const char *db, HA_CREATE_INFO *create);

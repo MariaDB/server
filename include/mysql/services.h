@@ -1,5 +1,6 @@
 #ifndef MYSQL_SERVICES_INCLUDED
-/* Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2012, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,10 +22,11 @@ extern "C" {
 #include <mysql/service_my_snprintf.h>
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
-#include <mysql/service_thread_scheduler.h>
 #include <mysql/service_progress_report.h>
 #include <mysql/service_debug_sync.h>
 #include <mysql/service_kill_statement.h>
+#include <mysql/service_thd_timezone.h>
+#include <mysql/service_sha1.h>
 
 #ifdef __cplusplus
 }

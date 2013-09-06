@@ -1,7 +1,7 @@
-#ifndef INCLUDES_MY_APC_H
-#define INCLUDES_MY_APC_H
+#ifndef SQL_MY_APC_INCLUDED
+#define SQL_MY_APC_INCLUDED
 /*
-   Copyright (c) 2011 - 2012, Monty Program Ab
+   Copyright (c) 2011, 2013 Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -134,5 +134,5 @@ private:
 void init_show_explain_psi_keys(void);
 #endif
 
-#endif //INCLUDES_MY_APC_H
+#endif //SQL_MY_APC_INCLUDED
 

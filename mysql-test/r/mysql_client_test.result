@@ -1,5 +1,6 @@
 SET @old_general_log= @@global.general_log;
 SET @old_slow_query_log= @@global.slow_query_log;
+call mtr.add_suppression(" Error reading file './client_test_db/test_frm_bug.frm'");
 ok
 
 # cat MYSQL_TMP_DIR/test_wl4435.out.log

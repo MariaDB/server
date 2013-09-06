@@ -11,11 +11,12 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /* Describe, check and repair of MyISAM tables */
 
 #include "fulltext.h"
+#include "my_default.h"
 #include <m_ctype.h>
 #include <stdarg.h>
 #include <my_getopt.h>
@@ -134,7 +135,7 @@ int main(int argc, char **argv)
 
 enum options_mc {
   OPT_CHARSETS_DIR=256, OPT_SET_COLLATION,OPT_START_CHECK_POS,
-  OPT_CORRECT_CHECKSUM, OPT_KEY_BUFFER_SIZE,
+  OPT_CORRECT_CHECKSUM, OPT_CREATE_MISSING_KEYS, OPT_KEY_BUFFER_SIZE,
   OPT_KEY_CACHE_BLOCK_SIZE, OPT_MYISAM_BLOCK_SIZE,
   OPT_READ_BUFFER_SIZE, OPT_WRITE_BUFFER_SIZE, OPT_SORT_BUFFER_SIZE,
   OPT_SORT_KEY_BLOCKS, OPT_DECODE_BITS, OPT_FT_MIN_WORD_LEN,
@@ -164,6 +165,11 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"correct-checksum", OPT_CORRECT_CHECKSUM,
    "Correct checksum information for table.",
+   0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"create-missing-keys", OPT_CREATE_MISSING_KEYS,
+   "Create missing keys. This assumes that the data file is correct and that "
+   "the the number of rows stored in the index file is correct. Enables "
+   "--quick",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DBUG_OFF
   {"debug", '#',
@@ -270,7 +276,7 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   { "key_buffer_size", OPT_KEY_BUFFER_SIZE, "",
     &check_param.use_buffers, &check_param.use_buffers, 0,
-    GET_ULL, REQUIRED_ARG, USE_BUFFER_INIT, MALLOC_OVERHEAD,
+    GET_ULL, REQUIRED_ARG, KEY_BUFFER_INIT, MALLOC_OVERHEAD,
     SIZE_T_MAX, MALLOC_OVERHEAD,  IO_SIZE, 0},
   { "key_cache_block_size", OPT_KEY_CACHE_BLOCK_SIZE,  "",
     &opt_key_cache_block_size,
@@ -284,25 +290,25 @@ static struct my_option my_long_options[] =
   { "read_buffer_size", OPT_READ_BUFFER_SIZE, "",
     &check_param.read_buffer_length,
     &check_param.read_buffer_length, 0, GET_ULONG, REQUIRED_ARG,
-    (long) READ_BUFFER_INIT, (long) MALLOC_OVERHEAD,
-    INT_MAX32, (long) MALLOC_OVERHEAD, (long) 1L, 0},
+    READ_BUFFER_INIT, MALLOC_OVERHEAD,
+    INT_MAX32, MALLOC_OVERHEAD, 1L, 0},
   { "write_buffer_size", OPT_WRITE_BUFFER_SIZE, "",
     &check_param.write_buffer_length,
     &check_param.write_buffer_length, 0, GET_ULONG, REQUIRED_ARG,
-    (long) READ_BUFFER_INIT, (long) MALLOC_OVERHEAD,
-    INT_MAX32, (long) MALLOC_OVERHEAD, (long) 1L, 0},
+    READ_BUFFER_INIT, MALLOC_OVERHEAD,
+    INT_MAX32, MALLOC_OVERHEAD, 1L, 0},
   { "sort_buffer_size", OPT_SORT_BUFFER_SIZE,
     "Deprecated. myisam_sort_buffer_size alias is being used",
     &check_param.sort_buffer_length,
     &check_param.sort_buffer_length, 0, GET_ULL, REQUIRED_ARG,
-    (long) SORT_BUFFER_INIT, (long) (MIN_SORT_BUFFER + MALLOC_OVERHEAD),
-    SIZE_T_MAX, (long) MALLOC_OVERHEAD, (long) 1L, 0},
+    SORT_BUFFER_INIT, MIN_SORT_BUFFER + MALLOC_OVERHEAD,
+    SIZE_T_MAX, MALLOC_OVERHEAD, 1L, 0},
   { "myisam_sort_buffer_size", OPT_SORT_BUFFER_SIZE, 
     "Alias of sort_buffer_size parameter",
     &check_param.sort_buffer_length,
     &check_param.sort_buffer_length, 0, GET_ULL, REQUIRED_ARG,
-    (long) SORT_BUFFER_INIT, (long) (MIN_SORT_BUFFER + MALLOC_OVERHEAD),
-    SIZE_T_MAX, (long) MALLOC_OVERHEAD, (long) 1L, 0},
+    SORT_BUFFER_INIT, MIN_SORT_BUFFER + MALLOC_OVERHEAD,
+    SIZE_T_MAX, MALLOC_OVERHEAD, 1L, 0},
   { "sort_key_blocks", OPT_SORT_KEY_BLOCKS, "",
     &check_param.sort_key_blocks,
     &check_param.sort_key_blocks, 0, GET_ULONG, REQUIRED_ARG,
@@ -395,10 +401,18 @@ static void usage(void)
   -e, --extend-check  Try to recover every possible row from the data file\n\
 		      Normally this will also find a lot of garbage rows;\n\
 		      Don't use this option if you are not totally desperate.\n\
-  -f, --force         Overwrite old temporary files.\n\
+  -f, --force         Overwrite old temporary files. Add another --force to\n\
+                      avoid 'myisam_sort_buffer_size is too small' errors.\n\
+                      In this case we will attempt to do the repair with the\n\
+                      given myisam_sort_buffer_size and dynamically allocate\n\
+                      as many management buffers as needed.\n\
   -k, --keys-used=#   Tell MyISAM to update only some specific keys. # is a\n\
 	              bit mask of which keys to use. This can be used to\n\
 		      get faster inserts.\n\
+  --create-missing-keys\n\
+                      Create missing keys. This assumes that the data\n\
+                      file is correct and that the the number of rows stored\n\
+                      in the index file is correct. Enables --quick\n\
   --max-record-length=#\n\
                       Skip rows bigger than this if myisamchk can't allocate\n\
 		      memory to hold it.\n\
@@ -541,10 +555,13 @@ get_one_option(int optid,
     if (argument == disabled_my_option)
     {
       check_param.tmpfile_createflag= O_RDWR | O_TRUNC | O_EXCL;
-      check_param.testflag&= ~(T_FORCE_CREATE | T_UPDATE_STATE);
+      check_param.testflag&= ~(T_FORCE_CREATE | T_UPDATE_STATE |
+                               T_FORCE_SORT_MEMORY);
     }
     else
     {
+      if (check_param.testflag & T_FORCE_CREATE)
+        check_param.testflag= T_FORCE_SORT_MEMORY;
       check_param.tmpfile_createflag= O_RDWR | O_TRUNC;
       check_param.testflag|= T_FORCE_CREATE | T_UPDATE_STATE;
     }
@@ -597,8 +614,26 @@ get_one_option(int optid,
     if (argument == disabled_my_option)
       check_param.testflag&= ~(T_QUICK | T_FORCE_UNIQUENESS);
     else
+    {
+      /*
+        If T_QUICK was specified before, but not OPT_CREATE_MISSING_KEYS,
+        then add T_FORCE_UNIQUENESS.
+      */
       check_param.testflag|=
-        (check_param.testflag & T_QUICK) ? T_FORCE_UNIQUENESS : T_QUICK;
+        ((check_param.testflag & (T_QUICK | T_CREATE_MISSING_KEYS)) ==
+         T_QUICK ? T_FORCE_UNIQUENESS : T_QUICK);
+    }
+    break;
+  case OPT_CREATE_MISSING_KEYS:
+    if (argument == disabled_my_option)
+      check_param.testflag&= ~(T_QUICK | T_CREATE_MISSING_KEYS);
+    else
+    {
+      check_param.testflag|= T_QUICK | T_CREATE_MISSING_KEYS;
+      /* Use repair by sort by default */
+      if (!(check_param.testflag & T_REP_ANY))
+        check_param.testflag|= T_REP_BY_SORT;
+    }
     break;
   case 'u':
     if (argument == disabled_my_option)

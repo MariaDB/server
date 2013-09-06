@@ -1243,7 +1243,7 @@ static void check_counts(HUFF_COUNTS *huff_counts, uint trees,
     {
       if (huff_counts->field_length > 2 &&
 	  huff_counts->empty_fields + (records - huff_counts->empty_fields)*
-	  (1+max_bit(max(huff_counts->max_pre_space,
+	  (1+max_bit(MY_MAX(huff_counts->max_pre_space,
 			 huff_counts->max_end_space))) <
 	  records * max_bit(huff_counts->field_length))
       {
@@ -1905,7 +1905,7 @@ static int make_huff_decode_table(HUFF_TREE *huff_tree, uint trees)
 	return 1;
       huff_tree->code_len=(uchar*) (huff_tree->code+elements);
       make_traverse_code_tree(huff_tree, huff_tree->root,
-                              8 * sizeof(ulonglong), LL(0));
+                              8 * sizeof(ulonglong), 0);
     }
   }
   return 0;
@@ -3021,7 +3021,7 @@ static int save_state_mrg(File file,PACK_MRG_INFO *mrg,my_off_t new_length,
   if (mrg->src_file_has_indexes_disabled)
   {
     isam_file->s->state.state.key_file_length=
-      max(isam_file->s->state.state.key_file_length, new_length);
+      MY_MAX(isam_file->s->state.state.key_file_length, new_length);
   }
   state.dellink= HA_OFFSET_ERROR;
   state.version=(ulong) time((time_t*) 0);

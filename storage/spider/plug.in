@@ -1,0 +1,6 @@
+MYSQL_STORAGE_ENGINE(spider,,[Spider Storage Engine],
+  [Access transactional/nontransactional objects on remote servers],
+  [max,max-no-ndb])
+MYSQL_PLUGIN_DIRECTORY(spider, [storage/spider])
+MYSQL_PLUGIN_STATIC(spider,  [libspider.a])
+MYSQL_PLUGIN_DYNAMIC(spider, [ha_spider.la])

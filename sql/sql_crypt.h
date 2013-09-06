@@ -22,7 +22,7 @@
 #endif
 
 #include "sql_list.h"                           /* Sql_alloc */
-#include "mysql_com.h"                          /* rand_struct */
+#include "my_rnd.h"                          /* rand_struct */
 
 class SQL_CRYPT :public Sql_alloc
 {

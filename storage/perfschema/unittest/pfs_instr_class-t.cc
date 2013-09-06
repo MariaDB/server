@@ -475,6 +475,7 @@ void test_table_registration()
 #endif
 }
 
+#ifdef LATER
 void set_wait_stat(PFS_instr_class *klass)
 {
   PFS_single_stat *stat;
@@ -501,6 +502,7 @@ bool is_empty_stat(PFS_instr_class *klass)
     return false;
   return true;
 }
+#endif
 
 void test_instruments_reset()
 {
@@ -674,5 +676,5 @@ int main(int argc, char **argv)
   MY_INIT(argv[0]);
   do_all_tests();
   my_end(0);
-  return 0;
+  return exit_status();
 }

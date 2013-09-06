@@ -1,4 +1,4 @@
-# Copyright (c) 2009, 2011, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -90,7 +90,8 @@ MACRO(MYSQL_ADD_PLUGIN)
     AND NOT ARG_MODULE_ONLY)
      
     SET(WITH_${plugin} 1)
-  ELSEIF(WITHOUT_${plugin}_STORAGE_ENGINE OR WITH_NONE OR ${plugin}_DISABLED)
+  ELSEIF(WITHOUT_${plugin} OR WITHOUT_${plugin}_STORAGE_ENGINE OR
+         WITH_NONE OR ${plugin}_DISABLED)
     SET(WITHOUT_${plugin} 1)
     SET(WITH_${plugin}_STORAGE_ENGINE 0)
     SET(WITH_${plugin} 0)
@@ -171,12 +172,12 @@ MACRO(MYSQL_ADD_PLUGIN)
 
     IF(ARG_MANDATORY)
       SET (mysql_mandatory_plugins  
-        "${mysql_mandatory_plugins} builtin_maria_${target}_plugin," 
-      PARENT_SCOPE)
+        "${mysql_mandatory_plugins} builtin_maria_${target}_plugin,")
+      SET (mysql_mandatory_plugins ${mysql_mandatory_plugins} PARENT_SCOPE)
     ELSE()
       SET (mysql_optional_plugins  
-        "${mysql_optional_plugins} builtin_maria_${target}_plugin,"
-      PARENT_SCOPE)
+        "${mysql_optional_plugins} builtin_maria_${target}_plugin,")
+      SET (mysql_optional_plugins ${mysql_optional_plugins} PARENT_SCOPE)
     ENDIF()
   ELSEIF(NOT WITHOUT_${plugin} AND NOT ARG_STATIC_ONLY  AND NOT WITHOUT_DYNAMIC_PLUGINS)
   

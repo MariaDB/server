@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /* Function items used by mysql */
@@ -115,7 +115,7 @@ public:
   {
     int *input_version= (int*)int_arg;
     /* This function was introduced in 5.5 */
-    int output_version= max(*input_version, 50500);
+    int output_version= MY_MAX(*input_version, 50500);
     *input_version= output_version;
     return 0;
   }
@@ -489,8 +489,8 @@ public:
   Item_temporal_func(Item *a, Item *b) :Item_func(a,b) {}
   Item_temporal_func(Item *a, Item *b, Item *c) :Item_func(a,b,c) {}
   enum Item_result result_type () const { return STRING_RESULT; }
-  CHARSET_INFO *charset_for_protocol(void) const { return &my_charset_bin; }
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  Item_result cmp_type() const { return TIME_RESULT; }
   String *val_str(String *str);
   longlong val_int();
   double val_real();
@@ -502,6 +502,45 @@ public:
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field); }
   void fix_length_and_dec();
+};
+
+
+/**
+  Abstract class for functions returning TIME, DATE, DATETIME or string values,
+  whose data type depends on parameters and is set at fix_fields time.
+*/
+class Item_temporal_hybrid_func: public Item_temporal_func
+{
+protected:
+  enum_field_types cached_field_type; // TIME, DATE, DATETIME or STRING
+  String ascii_buf; // Conversion buffer
+public:
+  Item_temporal_hybrid_func(Item *a,Item *b)
+    :Item_temporal_func(a,b) {}
+  enum_field_types field_type() const { return cached_field_type; }
+  const CHARSET_INFO *charset_for_protocol() const
+  {
+    /*
+      Can return TIME, DATE, DATETIME or VARCHAR depending on arguments.
+      Send using "binary" when TIME, DATE or DATETIME,
+      or using collation.collation when VARCHAR
+      (which is fixed from @@collation_connection in fix_length_and_dec).
+    */
+    DBUG_ASSERT(fixed == 1);
+    return cached_field_type == MYSQL_TYPE_STRING ?
+           collation.collation : &my_charset_bin;
+  }
+  /**
+    Return string value in ASCII character set.
+  */
+  String *val_str_ascii(String *str);
+  /**
+    Return string value in @@character_set_connection.
+  */
+  String *val_str(String *str)
+  {
+    return val_str_from_val_str_ascii(str, &ascii_buf);
+  }
 };
 
 
@@ -761,17 +800,15 @@ public:
 };
 
 
-class Item_date_add_interval :public Item_temporal_func
+class Item_date_add_interval :public Item_temporal_hybrid_func
 {
-  enum_field_types cached_field_type;
 public:
   const interval_type int_type; // keep it public
   const bool date_sub_interval; // keep it public
   Item_date_add_interval(Item *a,Item *b,interval_type type_arg,bool neg_arg)
-    :Item_temporal_func(a,b),int_type(type_arg), date_sub_interval(neg_arg) {}
+    :Item_temporal_hybrid_func(a,b),int_type(type_arg), date_sub_interval(neg_arg) {}
   const char *func_name() const { return "date_add_interval"; }
   void fix_length_and_dec();
-  enum_field_types field_type() const { return cached_field_type; }
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
@@ -909,16 +946,14 @@ public:
 };
 
 
-class Item_func_add_time :public Item_temporal_func
+class Item_func_add_time :public Item_temporal_hybrid_func
 {
   const bool is_date;
   int sign;
-  enum_field_types cached_field_type;
 
 public:
   Item_func_add_time(Item *a, Item *b, bool type_arg, bool neg_arg)
-    :Item_temporal_func(a, b), is_date(type_arg) { sign= neg_arg ? -1 : 1; }
-  enum_field_types field_type() const { return cached_field_type; }
+    :Item_temporal_hybrid_func(a, b), is_date(type_arg) { sign= neg_arg ? -1 : 1; }
   void fix_length_and_dec();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   void print(String *str, enum_query_type query_type);
@@ -933,7 +968,7 @@ public:
   const char *func_name() const { return "timediff"; }
   void fix_length_and_dec()
   {
-    decimals= max(args[0]->decimals, args[1]->decimals);
+    decimals= MY_MAX(args[0]->decimals, args[1]->decimals);
     Item_timefunc::fix_length_and_dec();
   }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
@@ -1011,18 +1046,16 @@ public:
 };
 
 
-class Item_func_str_to_date :public Item_temporal_func
+class Item_func_str_to_date :public Item_temporal_hybrid_func
 {
-  enum_field_types cached_field_type;
   timestamp_type cached_timestamp_type;
   bool const_item;
 public:
   Item_func_str_to_date(Item *a, Item *b)
-    :Item_temporal_func(a, b), const_item(false)
+    :Item_temporal_hybrid_func(a, b), const_item(false)
   {}
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   const char *func_name() const { return "str_to_date"; }
-  enum_field_types field_type() const { return cached_field_type; }
   void fix_length_and_dec();
 };
 

@@ -45,7 +45,7 @@ pthread_handler_t test_trnman(void *arg)
 
   for (x= ((int)(intptr)(&m)); m > 0; )
   {
-    y= x= (x*LL(3628273133) + LL(1500450271)) % LL(9576890767); /* three prime numbers */
+    y= x= (x*3628273133LL + 1500450271LL) % 9576890767LL; /* three prime numbers */
     m-= n= x % MAX_ITER;
     for (i= 0; i < n; i++)
     {

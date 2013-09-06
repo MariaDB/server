@@ -32,6 +32,7 @@
 #include "set_var.h"
 #include "sp_head.h"
 #include "sp.h"
+#include "sql_time.h"
 
 /*
 =============================================================================
@@ -55,7 +56,7 @@ static void wrong_precision_error(uint errcode, Item *a,
   char buff[1024];
   String buf(buff, sizeof(buff), system_charset_info);
 
-  my_error(errcode, MYF(0), (uint) min(number, UINT_MAX32),
+  my_error(errcode, MYF(0), (uint) MY_MIN(number, UINT_MAX32),
            item_name(a, &buf), maximum);
 }
 
@@ -447,6 +448,19 @@ protected:
 };
 
 
+class Create_func_binlog_gtid_pos : public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_binlog_gtid_pos s_singleton;
+
+protected:
+  Create_func_binlog_gtid_pos() {}
+  virtual ~Create_func_binlog_gtid_pos() {}
+};
+
+
 class Create_func_bit_count : public Create_func_arg1
 {
 public:
@@ -598,6 +612,19 @@ public:
 protected:
   Create_func_concat() {}
   virtual ~Create_func_concat() {}
+};
+
+
+class Create_func_decode_histogram : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_decode_histogram s_singleton;
+
+protected:
+  Create_func_decode_histogram() {}
+  virtual ~Create_func_decode_histogram() {}
 };
 
 
@@ -2053,19 +2080,6 @@ protected:
 };
 
 
-class Create_func_row_count : public Create_func_arg0
-{
-public:
-  virtual Item *create_builder(THD *thd);
-
-  static Create_func_row_count s_singleton;
-
-protected:
-  Create_func_row_count() {}
-  virtual ~Create_func_row_count() {}
-};
-
-
 class Create_func_rpad : public Create_func_arg3
 {
 public:
@@ -3100,6 +3114,16 @@ Create_func_bin::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_binlog_gtid_pos Create_func_binlog_gtid_pos::s_singleton;
+
+Item*
+Create_func_binlog_gtid_pos::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+  return new (thd->mem_root) Item_func_binlog_gtid_pos(arg1, arg2);
+}
+
+
 Create_func_bit_count Create_func_bit_count::s_singleton;
 
 Item*
@@ -3208,6 +3232,13 @@ Create_func_concat::create_native(THD *thd, LEX_STRING name,
   return new (thd->mem_root) Item_func_concat(*item_list);
 }
 
+Create_func_decode_histogram Create_func_decode_histogram::s_singleton;
+
+Item *
+Create_func_decode_histogram::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_decode_histogram(arg1, arg2);
+}
 
 Create_func_concat_ws Create_func_concat_ws::s_singleton;
 
@@ -4453,8 +4484,7 @@ Create_func_make_set::create_native(THD *thd, LEX_STRING name,
     return NULL;
   }
 
-  Item *param_1= item_list->pop();
-  return new (thd->mem_root) Item_func_make_set(param_1, *item_list);
+  return new (thd->mem_root) Item_func_make_set(*item_list);
 }
 
 
@@ -4792,18 +4822,6 @@ Create_func_round::create_native(THD *thd, LEX_STRING name,
   }
 
   return func;
-}
-
-
-Create_func_row_count Create_func_row_count::s_singleton;
-
-Item*
-Create_func_row_count::create_builder(THD *thd)
-{
-  DBUG_ENTER("Create_func_row_count::create");
-  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-  thd->lex->safe_to_cache_query= 0;
-  DBUG_RETURN(new (thd->mem_root) Item_func_row_count());
 }
 
 
@@ -5323,6 +5341,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("ATAN2") }, BUILDER(Create_func_atan)},
   { { C_STRING_WITH_LEN("BENCHMARK") }, BUILDER(Create_func_benchmark)},
   { { C_STRING_WITH_LEN("BIN") }, BUILDER(Create_func_bin)},
+  { { C_STRING_WITH_LEN("BINLOG_GTID_POS") }, BUILDER(Create_func_binlog_gtid_pos)},
   { { C_STRING_WITH_LEN("BIT_COUNT") }, BUILDER(Create_func_bit_count)},
   { { C_STRING_WITH_LEN("BIT_LENGTH") }, BUILDER(Create_func_bit_length)},
   { { C_STRING_WITH_LEN("BUFFER") }, GEOM_BUILDER(Create_func_buffer)},
@@ -5354,6 +5373,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("DAYOFYEAR") }, BUILDER(Create_func_dayofyear)},
   { { C_STRING_WITH_LEN("DECODE") }, BUILDER(Create_func_decode)},
   { { C_STRING_WITH_LEN("DEGREES") }, BUILDER(Create_func_degrees)},
+  { { C_STRING_WITH_LEN("DECODE_HISTOGRAM") }, BUILDER(Create_func_decode_histogram)},
   { { C_STRING_WITH_LEN("DES_DECRYPT") }, BUILDER(Create_func_des_decrypt)},
   { { C_STRING_WITH_LEN("DES_ENCRYPT") }, BUILDER(Create_func_des_encrypt)},
   { { C_STRING_WITH_LEN("DIMENSION") }, GEOM_BUILDER(Create_func_dimension)},
@@ -5475,7 +5495,6 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("RELEASE_LOCK") }, BUILDER(Create_func_release_lock)},
   { { C_STRING_WITH_LEN("REVERSE") }, BUILDER(Create_func_reverse)},
   { { C_STRING_WITH_LEN("ROUND") }, BUILDER(Create_func_round)},
-  { { C_STRING_WITH_LEN("ROW_COUNT") }, BUILDER(Create_func_row_count)},
   { { C_STRING_WITH_LEN("RPAD") }, BUILDER(Create_func_rpad)},
   { { C_STRING_WITH_LEN("RTRIM") }, BUILDER(Create_func_rtrim)},
   { { C_STRING_WITH_LEN("SEC_TO_TIME") }, BUILDER(Create_func_sec_to_time)},
@@ -5774,6 +5793,84 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
   }
   }
   return res;
+}
+
+
+static bool
+have_important_literal_warnings(const MYSQL_TIME_STATUS *status)
+{
+  return (status->warnings & ~MYSQL_TIME_NOTE_TRUNCATED) != 0;
+}
+
+
+/**
+  Builder for datetime literals:
+    TIME'00:00:00', DATE'2001-01-01', TIMESTAMP'2001-01-01 00:00:00'.
+  @param thd          The current thread
+  @param str          Character literal
+  @param length       Length of str
+  @param type         Type of literal (TIME, DATE or DATETIME)
+  @param send_error   Whether to generate an error on failure
+*/
+
+Item *create_temporal_literal(THD *thd,
+                              const char *str, uint length,
+                              CHARSET_INFO *cs,
+                              enum_field_types type,
+                              bool send_error)
+{
+  MYSQL_TIME_STATUS status;
+  MYSQL_TIME ltime;
+  Item *item= NULL;
+  ulonglong flags= sql_mode_for_dates(thd);
+
+  switch(type)
+  {
+  case MYSQL_TYPE_DATE:
+  case MYSQL_TYPE_NEWDATE:
+    if (!str_to_datetime(cs, str, length, &ltime, flags, &status) &&
+        ltime.time_type == MYSQL_TIMESTAMP_DATE && !status.warnings)
+      item= new (thd->mem_root) Item_date_literal(&ltime);
+    break;
+  case MYSQL_TYPE_DATETIME:
+    if (!str_to_datetime(cs, str, length, &ltime, flags, &status) &&
+        ltime.time_type == MYSQL_TIMESTAMP_DATETIME &&
+        !have_important_literal_warnings(&status))
+      item= new (thd->mem_root) Item_datetime_literal(&ltime,
+                                                      status.precision);
+    break;
+  case MYSQL_TYPE_TIME:
+    if (!str_to_time(cs, str, length, &ltime, 0, &status) &&
+        ltime.time_type == MYSQL_TIMESTAMP_TIME &&
+        !have_important_literal_warnings(&status))
+      item= new (thd->mem_root) Item_time_literal(&ltime,
+                                                  status.precision);
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+
+  if (item)
+  {
+    if (status.warnings) // e.g. a note on nanosecond truncation
+    {
+      ErrConvString err(str, length, cs);
+      make_truncated_value_warning(current_thd,
+                                   Sql_condition::time_warn_level(status.warnings),
+                                   &err, ltime.time_type, 0);
+    }
+    return item;
+  }
+
+  if (send_error)
+  {
+    const char *typestr=
+      (type == MYSQL_TYPE_DATE) ? "DATE" :
+      (type == MYSQL_TYPE_TIME) ? "TIME" : "DATETIME";
+    ErrConvString err(str, length, thd->variables.character_set_client);
+    my_error(ER_WRONG_VALUE, MYF(0), typestr, err.ptr());
+  }
+  return NULL;
 }
 
 

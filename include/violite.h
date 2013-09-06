@@ -105,7 +105,9 @@ my_bool vio_is_connected(Vio *vio);
 ssize_t vio_pending(Vio *vio);
 #endif
 /* Set timeout for a network operation. */
-int vio_timeout(Vio *vio, uint which, int timeout_sec);
+extern int vio_timeout(Vio *vio, uint which, int timeout_sec);
+extern void vio_set_wait_callback(void (*before_wait)(void),
+                                void (*after_wait)(void));
 /* Connect to a peer. */
 my_bool vio_socket_connect(Vio *vio, struct sockaddr *addr, socklen_t len,
                            int timeout);
@@ -237,11 +239,7 @@ struct st_vio
   struct sockaddr_storage remote;	/* Remote internet address */
   int addrLen;                          /* Length of remote address */
   enum enum_vio_type	type;		/* Type of connection */
-  /*
-    Description string. This member MUST NOT be used directly, but only
-    via function "vio_description"
-  */
-  char			desc[VIO_DESCRIPTION_SIZE];
+  const char		*desc;		/* String description */
   char                  *read_buffer;   /* buffer for vio_read_buff */
   char                  *read_pos;      /* start of unfetched data in the
                                            read buffer */

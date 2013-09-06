@@ -2245,6 +2245,7 @@ FLUSH LOGS;
 #
 # Call mysqlbinlog to display the log file contents.
 #
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
@@ -2252,7 +2253,14 @@ DELIMITER /*!*/;
 #010909  4:46:40 server id 1  end_log_pos # 	Start: binlog v 4, server v #.##.## created 010909  4:46:40 at startup
 ROLLBACK/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	Gtid list []
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1
+/*!100001 SET @@session.gtid_domain_id=0*//*!*/;
+/*!100001 SET @@session.server_id=1*//*!*/;
+/*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 use `test`/*!*/;
@@ -2356,9 +2364,8 @@ crn INT -- row number
 ) ENGINE=MyISAM DEFAULT CHARSET latin1
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
-SET @@session.time_zone='SYSTEM'/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-2
+/*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -2397,7 +2404,7 @@ BEGIN
 ###   @28='1000:01:01' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @29=1000-01-01 00:00:00 /* DATETIME meta=0 nullable=1 is_null=0 */
 ###   @30=75601 /* TIMESTAMP meta=0 nullable=0 is_null=0 */
-###   @31='839:12:57' /* TIME meta=0 nullable=1 is_null=0 */
+###   @31='-838:59:59' /* TIME meta=0 nullable=1 is_null=0 */
 ###   @32=1901 /* YEAR meta=0 nullable=1 is_null=0 */
 ###   @33='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 ###   @34='' /* STRING(0) meta=65024 nullable=1 is_null=0 */
@@ -2449,11 +2456,12 @@ BEGIN
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
+SET @@session.time_zone='SYSTEM'/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-3
+/*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -2547,8 +2555,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-4
+/*!100001 SET @@session.gtid_seq_no=4*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -2725,8 +2733,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-5
+/*!100001 SET @@session.gtid_seq_no=5*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -2765,7 +2773,7 @@ BEGIN
 ###   @28='1000:01:01' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @29=1000-01-01 00:00:00 /* DATETIME meta=0 nullable=1 is_null=0 */
 ###   @30=75601 /* TIMESTAMP meta=0 nullable=0 is_null=0 */
-###   @31='839:12:57' /* TIME meta=0 nullable=1 is_null=0 */
+###   @31='-838:59:59' /* TIME meta=0 nullable=1 is_null=0 */
 ###   @32=1901 /* YEAR meta=0 nullable=1 is_null=0 */
 ###   @33='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 ###   @34='' /* STRING(0) meta=65024 nullable=1 is_null=0 */
@@ -2900,8 +2908,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-6
+/*!100001 SET @@session.gtid_seq_no=6*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -3020,7 +3028,7 @@ BEGIN
 ###   @28='1000:01:01' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @29=1000-01-01 00:00:00 /* DATETIME meta=0 nullable=1 is_null=0 */
 ###   @30=75601 /* TIMESTAMP meta=0 nullable=0 is_null=0 */
-###   @31='839:12:57' /* TIME meta=0 nullable=1 is_null=0 */
+###   @31='-838:59:59' /* TIME meta=0 nullable=1 is_null=0 */
 ###   @32=1901 /* YEAR meta=0 nullable=1 is_null=0 */
 ###   @33='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 ###   @34='' /* STRING(0) meta=65024 nullable=1 is_null=0 */
@@ -3075,8 +3083,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-7
+/*!100001 SET @@session.gtid_seq_no=7*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -3250,8 +3258,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-8
+/*!100001 SET @@session.gtid_seq_no=8*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -3425,8 +3433,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-9
+/*!100001 SET @@session.gtid_seq_no=9*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -3520,8 +3528,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-10
+/*!100001 SET @@session.gtid_seq_no=10*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -3560,7 +3568,7 @@ BEGIN
 ###   @28='1000:01:01' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @29=1000-01-01 00:00:00 /* DATETIME meta=0 nullable=1 is_null=0 */
 ###   @30=75601 /* TIMESTAMP meta=0 nullable=0 is_null=0 */
-###   @31='839:12:57' /* TIME meta=0 nullable=1 is_null=0 */
+###   @31='-838:59:59' /* TIME meta=0 nullable=1 is_null=0 */
 ###   @32=1901 /* YEAR meta=0 nullable=1 is_null=0 */
 ###   @33='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 ###   @34='' /* STRING(0) meta=65024 nullable=1 is_null=0 */
@@ -3615,8 +3623,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-11
+/*!100001 SET @@session.gtid_seq_no=11*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -3710,8 +3718,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-12
+/*!100001 SET @@session.gtid_seq_no=12*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -3810,6 +3818,7 @@ DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 #
 # Cleanup.
 #
@@ -3892,6 +3901,7 @@ FLUSH LOGS;
 #
 # Call mysqlbinlog to display the log file contents.
 #
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
@@ -3899,7 +3909,14 @@ DELIMITER /*!*/;
 #010909  4:46:40 server id 1  end_log_pos # 	Start: binlog v 4, server v #.##.## created 010909  4:46:40 at startup
 ROLLBACK/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	Gtid list []
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1
+/*!100001 SET @@session.gtid_domain_id=0*//*!*/;
+/*!100001 SET @@session.server_id=1*//*!*/;
+/*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 use `test`/*!*/;
@@ -3919,8 +3936,8 @@ crn INT -- row number
 ) ENGINE=MyISAM DEFAULT CHARSET latin1
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-2
+/*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -3978,8 +3995,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-3
+/*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -4055,8 +4072,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-4
+/*!100001 SET @@session.gtid_seq_no=4*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -4109,6 +4126,7 @@ DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 #
 # Cleanup.
 #
@@ -4267,6 +4285,7 @@ FLUSH LOGS;
 #
 # Call mysqlbinlog to display the log file contents.
 #
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
@@ -4274,7 +4293,14 @@ DELIMITER /*!*/;
 #010909  4:46:40 server id 1  end_log_pos # 	Start: binlog v 4, server v #.##.## created 010909  4:46:40 at startup
 ROLLBACK/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	Gtid list []
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1
+/*!100001 SET @@session.gtid_domain_id=0*//*!*/;
+/*!100001 SET @@session.server_id=1*//*!*/;
+/*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 use `test`/*!*/;
@@ -4294,6 +4320,9 @@ c_1_n INT -- row number
 ) ENGINE=MyISAM DEFAULT CHARSET latin1
 /*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-2
+/*!100001 SET @@session.gtid_seq_no=2*//*!*/;
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 CREATE TABLE t2 (
@@ -4302,6 +4331,9 @@ c_2_2 VARCHAR(255),
 c_2_n INT -- row number
 ) ENGINE=MyISAM DEFAULT CHARSET latin1
 /*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-3
+/*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -4312,8 +4344,8 @@ c_3_n INT -- row number
 ) ENGINE=MyISAM DEFAULT CHARSET latin1
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-4
+/*!100001 SET @@session.gtid_seq_no=4*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -4371,8 +4403,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-5
+/*!100001 SET @@session.gtid_seq_no=5*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -4430,8 +4462,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-6
+/*!100001 SET @@session.gtid_seq_no=6*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -4489,8 +4521,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-7
+/*!100001 SET @@session.gtid_seq_no=7*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -4673,8 +4705,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-8
+/*!100001 SET @@session.gtid_seq_no=8*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -4790,6 +4822,7 @@ DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 #
 # Cleanup.
 #
@@ -4840,6 +4873,7 @@ FLUSH LOGS;
 #
 # Call mysqlbinlog to display the log file contents.
 #
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
@@ -4847,7 +4881,14 @@ DELIMITER /*!*/;
 #010909  4:46:40 server id 1  end_log_pos # 	Start: binlog v 4, server v #.##.## created 010909  4:46:40 at startup
 ROLLBACK/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	Gtid list []
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1
+/*!100001 SET @@session.gtid_domain_id=0*//*!*/;
+/*!100001 SET @@session.server_id=1*//*!*/;
+/*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 use `test`/*!*/;
@@ -4867,8 +4908,8 @@ c3 VARCHAR(60)
 ) ENGINE=MyISAM DEFAULT CHARSET latin1
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-2
+/*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 BEGIN
 /*!*/;
 # at #
@@ -4901,6 +4942,7 @@ DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 #
 # Cleanup.
 #

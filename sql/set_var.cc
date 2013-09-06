@@ -1,5 +1,5 @@
-/* Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+/* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 
 /* variable declarations are in sys_vars.cc now !!! */
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "sql_plugin.h"
 #include "sql_class.h"                   // set_var.h: session_var_ptr
 #include "set_var.h"
 #include "sql_priv.h"
@@ -251,18 +251,123 @@ uchar *sys_var::value_ptr(THD *thd, enum_var_type type, LEX_STRING *base)
     return session_value_ptr(thd, base);
 }
 
-bool sys_var::set_default(THD *thd, enum_var_type type)
+bool sys_var::set_default(THD *thd, set_var* var)
 {
-  LEX_STRING empty={0,0};
-  set_var var(type, this, &empty, 0);
-
-  if (type == OPT_GLOBAL || scope() == GLOBAL)
-    global_save_default(thd, &var);
+  if (var->type == OPT_GLOBAL || scope() == GLOBAL)
+    global_save_default(thd, var);
   else
-    session_save_default(thd, &var);
+    session_save_default(thd, var);
 
-  return check(thd, &var) || update(thd, &var);
+  return check(thd, var) || update(thd, var);
 }
+
+
+#define do_num_val(T,CMD)                               \
+do {                                                    \
+  mysql_mutex_lock(&LOCK_global_system_variables);      \
+  T val= *(T*) value_ptr(thd, type,  base);             \
+  mysql_mutex_unlock(&LOCK_global_system_variables);    \
+  CMD;                                                  \
+} while (0)
+
+#define case_for_integers(CMD)                      \
+    case SHOW_SINT:     do_num_val (int,CMD);       \
+    case SHOW_SLONG:    do_num_val (long,CMD);      \
+    case SHOW_SLONGLONG:do_num_val (longlong,CMD);  \
+    case SHOW_UINT:     do_num_val (uint,CMD);      \
+    case SHOW_ULONG:    do_num_val (ulong,CMD);     \
+    case SHOW_ULONGLONG:do_num_val (ulonglong,CMD); \
+    case SHOW_HA_ROWS:  do_num_val (ha_rows,CMD);   \
+    case SHOW_BOOL:     do_num_val (bool,CMD);      \
+    case SHOW_MY_BOOL:  do_num_val (my_bool,CMD)
+
+#define case_for_double(CMD)                            \
+    case SHOW_DOUBLE:   do_num_val (double,CMD)
+
+#define case_get_string_as_lex_string                   \
+    case SHOW_CHAR:                                     \
+      mysql_mutex_lock(&LOCK_global_system_variables);  \
+      sval.str= (char*) value_ptr(thd, type, base);     \
+      sval.length= sval.str ? strlen(sval.str) : 0;     \
+      break;                                            \
+    case SHOW_CHAR_PTR:                                 \
+      mysql_mutex_lock(&LOCK_global_system_variables);  \
+      sval.str= *(char**) value_ptr(thd, type, base);   \
+      sval.length= sval.str ? strlen(sval.str) : 0;     \
+      break;                                            \
+    case SHOW_LEX_STRING:                               \
+      mysql_mutex_lock(&LOCK_global_system_variables);  \
+      sval= *(LEX_STRING *) value_ptr(thd, type, base); \
+      break
+
+longlong sys_var::val_int(bool *is_null,
+                          THD *thd, enum_var_type type, LEX_STRING *base)
+{
+  LEX_STRING sval;
+  *is_null= false;
+  switch (show_type())
+  {
+    case_get_string_as_lex_string;
+    case_for_integers(return val);
+    case_for_double(return (longlong) val);
+    default:            
+      my_error(ER_VAR_CANT_BE_READ, MYF(0), name.str); 
+      return 0;
+  }
+
+  longlong ret= 0;
+  if (!(*is_null= !sval.str))
+    ret= longlong_from_string_with_check(system_charset_info,
+                                         sval.str, sval.str + sval.length);
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  return ret;
+}
+
+
+String *sys_var::val_str(String *str,
+                         THD *thd, enum_var_type type, LEX_STRING *base)
+{
+  LEX_STRING sval;
+  switch (show_type())
+  {
+    case_get_string_as_lex_string;
+    case_for_integers(return str->set((ulonglong)val, system_charset_info) ? 0 : str);
+    case_for_double(return str->set_real(val, 6, system_charset_info) ? 0 : str);
+    default:
+      my_error(ER_VAR_CANT_BE_READ, MYF(0), name.str);
+      return 0;
+  }
+
+  if (!sval.str || str->copy(sval.str, sval.length, system_charset_info))
+    str= NULL;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  return str;
+}
+
+
+double sys_var::val_real(bool *is_null,
+                         THD *thd, enum_var_type type, LEX_STRING *base)
+{
+  LEX_STRING sval;
+  *is_null= false;
+  switch (show_type())
+  {
+    case_get_string_as_lex_string;
+    case_for_integers(return val);
+    case_for_double(return val);
+    default:            
+      my_error(ER_VAR_CANT_BE_READ, MYF(0), name.str); 
+      return 0;
+  }
+
+  double ret= 0;
+  if (!(*is_null= !sval.str))
+    ret= double_from_string_with_check(system_charset_info,
+                                       sval.str, sval.str + sval.length);
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  return ret;
+}
+
 
 void sys_var::do_deprecated_warning(THD *thd)
 {
@@ -279,7 +384,7 @@ void sys_var::do_deprecated_warning(THD *thd)
       ? ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT
       : ER_WARN_DEPRECATED_SYNTAX;
     if (thd)
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WARN_DEPRECATED_SYNTAX, ER(errmsg),
                           buf1, deprecation_substitute);
     else
@@ -316,7 +421,7 @@ bool throw_bounds_warning(THD *thd, const char *name,
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
     }
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
                         ER(ER_TRUNCATED_WRONG_VALUE), name, buf);
   }
@@ -336,7 +441,7 @@ bool throw_bounds_warning(THD *thd, const char *name, bool fixed, double v)
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
     }
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
                         ER(ER_TRUNCATED_WRONG_VALUE), name, buf);
   }
@@ -664,7 +769,7 @@ int set_var::light_check(THD *thd)
 */
 int set_var::update(THD *thd)
 {
-  return value ? var->update(thd, this) : var->set_default(thd, type);
+  return value ? var->update(thd, this) : var->set_default(thd, this);
 }
 
 

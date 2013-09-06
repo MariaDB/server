@@ -16,14 +16,18 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /* This file defines all string functions */
 
+#include "crypt_genhash_impl.h"
+
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
 #endif
+
+extern size_t username_char_length;
 
 class MY_LOCALE;
 
@@ -60,7 +64,6 @@ public:
   enum Item_result result_type () const { return STRING_RESULT; }
   void left_right_max_length();
   bool fix_fields(THD *thd, Item **ref);
-  String *val_str_from_val_str_ascii(String *str, String *str2);
 };
 
 
@@ -141,6 +144,22 @@ public:
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "concat"; }
+};
+
+class Item_func_decode_histogram :public Item_str_func
+{
+  String tmp_value;
+public:
+  Item_func_decode_histogram(Item *a, Item *b)
+    :Item_str_func(a, b) {}
+  String *val_str(String *);
+  void fix_length_and_dec()
+  {
+    collation.set(system_charset_info);
+    max_length= MAX_BLOB_WIDTH;
+    set_persist_maybe_null(1);
+  }
+  const char *func_name() const { return "decode_histogram"; }
 };
 
 class Item_func_concat_ws :public Item_str_func
@@ -311,16 +330,21 @@ public:
 
 class Item_func_password :public Item_str_ascii_func
 {
-  char tmp_value[SCRAMBLED_PASSWORD_CHAR_LENGTH+1]; 
+  char m_hashed_password_buffer[CRYPT_MAX_PASSWORD_SIZE + 1];
+  unsigned int m_hashed_password_buffer_len;
+  bool m_recalculate_password;
 public:
-  Item_func_password(Item *a) :Item_str_ascii_func(a) {}
-  String *val_str_ascii(String *str);
-  void fix_length_and_dec()
+  Item_func_password(Item *a) :Item_str_ascii_func(a)
   {
-    fix_length_and_charset(SCRAMBLED_PASSWORD_CHAR_LENGTH, default_charset());
+    m_hashed_password_buffer_len= 0;
+    m_recalculate_password= false;
   }
+  String *val_str_ascii(String *str);
+  void fix_length_and_dec();
   const char *func_name() const { return "password"; }
   static char *alloc(THD *thd, const char *password, size_t pass_len);
+  static char *create_password_hash_buffer(THD *thd, const char *password,
+                                           size_t pass_len);
 };
 
 
@@ -494,8 +518,8 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
   {
-    max_length= (USERNAME_LENGTH +
-                 (HOSTNAME_LENGTH + 1) * SYSTEM_CHARSET_MBMAXLEN);
+    max_length= (username_char_length +
+                 HOSTNAME_LENGTH + 1) * SYSTEM_CHARSET_MBMAXLEN;
   }
   const char *func_name() const { return "user"; }
   const char *fully_qualified_func_name() const { return "user()"; }
@@ -544,31 +568,13 @@ public:
 
 class Item_func_make_set :public Item_str_func
 {
-  Item *item;
   String tmp_str;
 
 public:
-  Item_func_make_set(Item *a,List<Item> &list) :Item_str_func(list),item(a) {}
+  Item_func_make_set(List<Item> &list) :Item_str_func(list) {}
   String *val_str(String *str);
-  bool fix_fields(THD *thd, Item **ref)
-  {
-    DBUG_ASSERT(fixed == 0);
-    return ((!item->fixed && item->fix_fields(thd, &item)) ||
-	    item->check_cols(1) ||
-	    Item_func::fix_fields(thd, ref));
-  }
-  void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
   void fix_length_and_dec();
-  void update_used_tables();
   const char *func_name() const { return "make_set"; }
-
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
-  {
-    return item->walk(processor, walk_subquery, arg) ||
-      Item_str_func::walk(processor, walk_subquery, arg);
-  }
-  Item *transform(Item_transformer transformer, uchar *arg);
-  virtual void print(String *str, enum_query_type query_type);
 };
 
 
@@ -613,6 +619,17 @@ public:
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "repeat"; }
+};
+
+
+class Item_func_binlog_gtid_pos :public Item_str_func
+{
+  String tmp_value;
+public:
+  Item_func_binlog_gtid_pos(Item *arg1,Item *arg2) :Item_str_func(arg1,arg2) {}
+  String *val_str(String *);
+  void fix_length_and_dec();
+  const char *func_name() const { return "binlog_gtid_pos"; }
 };
 
 
@@ -812,7 +829,7 @@ public:
     collation.set(args[0]->collation);
     ulonglong max_result_length= (ulonglong) args[0]->max_length * 2 +
                                   2 * collation.collation->mbmaxlen;
-    max_length= (uint32) min(max_result_length, MAX_BLOB_WIDTH);
+    max_length= (uint32) MY_MIN(max_result_length, MAX_BLOB_WIDTH);
   }
 };
 
@@ -859,25 +876,37 @@ public:
   {
     if (args[0]->result_type() == STRING_RESULT)
       return Item_str_func::val_int();
-    return args[0]->val_int();
+    longlong res= args[0]->val_int();
+    if ((null_value= args[0]->null_value))
+      return 0;
+    return res;
   }
   double val_real()
   {
     if (args[0]->result_type() == STRING_RESULT)
       return Item_str_func::val_real();
-    return args[0]->val_real();
+    double res= args[0]->val_real();
+    if ((null_value= args[0]->null_value))
+      return 0;
+    return res;
   }
   my_decimal *val_decimal(my_decimal *d)
   {
     if (args[0]->result_type() == STRING_RESULT)
       return Item_str_func::val_decimal(d);
-    return args[0]->val_decimal(d);
+    my_decimal *res= args[0]->val_decimal(d);
+    if ((null_value= args[0]->null_value))
+      return NULL;
+    return res;
   }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   {
     if (args[0]->result_type() == STRING_RESULT)
       return Item_str_func::get_date(ltime, fuzzydate);
-    return args[0]->get_date(ltime, fuzzydate);
+    bool res= args[0]->get_date(ltime, fuzzydate);
+    if ((null_value= args[0]->null_value))
+      return 1;
+    return res;
   }
   void fix_length_and_dec();
   const char *func_name() const { return "convert"; }
@@ -894,10 +923,10 @@ public:
   const char *func_name() const { return "collate"; }
   enum Functype functype() const { return COLLATE_FUNC; }
   virtual void print(String *str, enum_query_type query_type);
-  Item_field *filed_for_view_update()
+  Item_field *field_for_view_update()
   {
     /* this function is transparent for view updating */
-    return args[0]->filed_for_view_update();
+    return args[0]->field_for_view_update();
   }
 };
 

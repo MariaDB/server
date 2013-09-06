@@ -160,7 +160,7 @@ int my_strnncollsp_simple(CHARSET_INFO * cs, const uchar *a, size_t a_length,
   diff_if_only_endspace_difference= 0;
 #endif
 
-  end= a + (length= min(a_length, b_length));
+  end= a + (length= MY_MIN(a_length, b_length));
   while (a < end)
   {
     if (map[*a++] != map[*b++])
@@ -770,7 +770,7 @@ size_t my_long10_to_str_8bit(CHARSET_INFO *cs __attribute__((unused)),
     val= new_val;
   }
   
-  len= min(len, (size_t) (e-p));
+  len= MY_MIN(len, (size_t) (e-p));
   memcpy(dst, p, len);
   return len+sign;
 }
@@ -824,7 +824,7 @@ size_t my_longlong10_to_str_8bit(CHARSET_INFO *cs __attribute__((unused)),
     long_val= quo;
   }
   
-  len= min(len, (size_t) (e-p));
+  len= MY_MIN(len, (size_t) (e-p));
 cnv:
   memcpy(dst, p, len);
   return len+sign;
@@ -847,13 +847,16 @@ cnv:
 #define INC_PTR(cs,A,B) (A)++
 
 
-int my_wildcmp_8bit(CHARSET_INFO *cs,
-		    const char *str,const char *str_end,
-		    const char *wildstr,const char *wildend,
-		    int escape, int w_one, int w_many)
+static
+int my_wildcmp_8bit_impl(CHARSET_INFO *cs,
+                         const char *str,const char *str_end,
+                         const char *wildstr,const char *wildend,
+                         int escape, int w_one, int w_many, int recurse_level)
 {
   int result= -1;			/* Not found, using wildcards */
 
+  if (my_string_stack_guard && my_string_stack_guard(recurse_level))
+    return 1;
   while (wildstr != wildend)
   {
     while (*wildstr != w_many && *wildstr != w_one)
@@ -913,8 +916,9 @@ int my_wildcmp_8bit(CHARSET_INFO *cs,
 	  str++;
 	if (str++ == str_end) return(-1);
 	{
-	  int tmp=my_wildcmp_8bit(cs,str,str_end,wildstr,wildend,escape,w_one,
-				  w_many);
+	  int tmp=my_wildcmp_8bit_impl(cs,str,str_end,
+                                       wildstr,wildend,escape,w_one,
+                                       w_many, recurse_level+1);
 	  if (tmp <= 0)
 	    return(tmp);
 	}
@@ -923,6 +927,16 @@ int my_wildcmp_8bit(CHARSET_INFO *cs,
     }
   }
   return(str != str_end ? 1 : 0);
+}
+
+int my_wildcmp_8bit(CHARSET_INFO *cs,
+                    const char *str,const char *str_end,
+                    const char *wildstr,const char *wildend,
+                    int escape, int w_one, int w_many)
+{
+  return my_wildcmp_8bit_impl(cs, str, str_end,
+                              wildstr, wildend,
+                              escape, w_one, w_many, 1);
 }
 
 
@@ -1055,7 +1069,7 @@ size_t my_well_formed_len_8bit(CHARSET_INFO *cs __attribute__((unused)),
 {
   size_t nbytes= (size_t) (end-start);
   *error= 0;
-  return min(nbytes, nchars);
+  return MY_MIN(nbytes, nchars);
 }
 
 

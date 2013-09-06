@@ -34,6 +34,13 @@ class engine_option_value: public Sql_alloc
   bool parsed;                  ///< to detect unrecognized options
   bool quoted_value;            ///< option=VAL vs. option='VAL'
 
+  engine_option_value(engine_option_value *src,
+                      engine_option_value **start, engine_option_value **end) :
+    name(src->name), value(src->value),
+    next(NULL), parsed(src->parsed), quoted_value(src->quoted_value)
+  {
+    link(start, end);
+  }
   engine_option_value(LEX_STRING &name_arg, LEX_STRING &value_arg, bool quoted,
                       engine_option_value **start, engine_option_value **end) :
     name(name_arg), value(value_arg),
@@ -69,16 +76,15 @@ class engine_option_value: public Sql_alloc
 typedef struct st_key KEY;
 class Create_field;
 
-my_bool parse_engine_table_options(THD *thd, handlerton *ht,
+bool resolve_sysvar_table_options(handlerton *hton);
+void free_sysvar_table_options(handlerton *hton);
+bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share);
+bool parse_option_list(THD* thd, handlerton *hton, void *option_struct,
+                       engine_option_value **option_list,
+                       ha_create_table_option *rules,
+                       bool suppress_warning, MEM_ROOT *root);
+bool engine_table_options_frm_read(const uchar *buff, uint length,
                                    TABLE_SHARE *share);
-my_bool parse_option_list(THD* thd, void *option_struct,
-                          engine_option_value *option_list,
-                          const ha_create_table_option *rules,
-                          my_bool suppress_warning,
-                          MEM_ROOT *root);
-my_bool engine_table_options_frm_read(const uchar *buff,
-                                      uint length,
-                                      TABLE_SHARE *share);
 engine_option_value *merge_engine_table_options(engine_option_value *source,
                                                 engine_option_value *changes,
                                                 MEM_ROOT *root);

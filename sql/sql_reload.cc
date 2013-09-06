@@ -53,7 +53,7 @@ static void disable_checkpoints(THD *thd);
     @retval !=0  Error; thd->killed is set or thd->is_error() is true
 */
 
-bool reload_acl_and_cache(THD *thd, unsigned long options,
+bool reload_acl_and_cache(THD *thd, unsigned long long options,
                           TABLE_LIST *tables, int *write_to_binlog)
 {
   bool result=0;
@@ -176,7 +176,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long options,
     mysql_mutex_lock(&LOCK_active_mi);
     if (!(mi= (master_info_index->
                get_master_info(&connection_name,
-                               MYSQL_ERROR::WARN_LEVEL_ERROR))))
+                               Sql_condition::WARN_LEVEL_ERROR))))
     {
       result= 1;
     }
@@ -205,6 +205,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long options,
   DBUG_ASSERT(!thd || thd->locked_tables_mode ||
               !thd->mdl_context.has_locks() ||
               thd->handler_tables_hash.records ||
+              thd->ull_hash.records ||
               thd->global_read_lock.is_acquired());
 
   /*
@@ -348,7 +349,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long options,
 
    if (!(mi= (master_info_index->
               get_master_info(&lex_mi->connection_name,
-                              MYSQL_ERROR::WARN_LEVEL_ERROR))))
+                              Sql_condition::WARN_LEVEL_ERROR))))
    {
      result= 1;
    }

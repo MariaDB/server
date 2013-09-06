@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /* Function items used by mysql */
@@ -41,6 +41,7 @@ protected:
   uint allowed_arg_cols;
   /* maybe_null can't be changed by parameters or used table state */
   bool persistent_maybe_null;
+  String *val_str_from_val_str_ascii(String *str, String *str2);
 public:
   uint arg_count;
   table_map used_tables_cache, not_null_tables_cache;
@@ -431,6 +432,13 @@ public:
   void fix_num_length_and_dec();
   virtual void find_num_type()= 0; /* To be called from fix_length_and_dec */
 
+  inline void fix_decimals()
+  {
+    DBUG_ASSERT(result_type() == DECIMAL_RESULT);
+    if (decimals == NOT_FIXED_DEC)
+      set_if_smaller(decimals, max_length - 1);
+  }
+
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
@@ -545,12 +553,18 @@ public:
 class Item_func_signed :public Item_int_func
 {
 public:
-  Item_func_signed(Item *a) :Item_int_func(a) {}
+  Item_func_signed(Item *a) :Item_int_func(a)
+  {
+    unsigned_flag= 0;
+  }
   const char *func_name() const { return "cast_as_signed"; }
   longlong val_int();
   longlong val_int_from_str(int *error);
   void fix_length_and_dec()
-  { fix_char_length(args[0]->max_char_length()); unsigned_flag=0; }
+  {
+    fix_char_length(MY_MIN(args[0]->max_char_length(),
+                           MY_INT64_NUM_DECIMAL_DIGITS));
+  }
   virtual void print(String *str, enum_query_type query_type);
   uint decimal_precision() const { return args[0]->decimal_precision(); }
 };
@@ -559,14 +573,11 @@ public:
 class Item_func_unsigned :public Item_func_signed
 {
 public:
-  Item_func_unsigned(Item *a) :Item_func_signed(a) {}
-  const char *func_name() const { return "cast_as_unsigned"; }
-  void fix_length_and_dec()
+  Item_func_unsigned(Item *a) :Item_func_signed(a)
   {
-    fix_char_length(min(args[0]->max_char_length(),
-                        DECIMAL_MAX_PRECISION + 2));
-    unsigned_flag=1;
+    unsigned_flag= 1;
   }
+  const char *func_name() const { return "cast_as_unsigned"; }
   longlong val_int();
   virtual void print(String *str, enum_query_type query_type);
 };
@@ -1250,6 +1261,9 @@ public:
 };
 
 
+void item_func_sleep_init(void);
+void item_func_sleep_free(void);
+
 class Item_func_sleep :public Item_int_func
 {
 public:
@@ -1467,14 +1481,8 @@ public:
 
 #endif /* HAVE_DLOPEN */
 
-/*
-** User level locks
-*/
-
-class User_level_lock;
-void item_user_lock_init(void);
-void item_user_lock_release(User_level_lock *ull);
-void item_user_lock_free(void);
+void mysql_ull_cleanup(THD *thd);
+void mysql_ull_set_explicit_lock_duration(THD *thd);
 
 class Item_func_get_lock :public Item_int_func
 {
@@ -1768,7 +1776,6 @@ public:
   bool is_expensive_processor(uchar *arg) { return TRUE; }
   enum Functype functype() const { return FT_FUNC; }
   const char *func_name() const { return "match"; }
-  void update_used_tables() {}
   table_map not_null_tables() const { return 0; }
   bool fix_fields(THD *thd, Item **ref);
   bool eq(const Item *, bool binary_cmp) const;

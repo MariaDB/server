@@ -1,5 +1,6 @@
 /*
-   Copyright (c) 2002, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2002, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,7 +29,7 @@ class Gis_read_stream;
 
 const uint SRID_SIZE= 4;
 const uint SIZEOF_STORED_DOUBLE= 8;
-const uint POINT_DATA_SIZE= SIZEOF_STORED_DOUBLE*2; 
+const uint POINT_DATA_SIZE= (SIZEOF_STORED_DOUBLE * 2); 
 const uint WKB_HEADER_SIZE= 1+4;
 const uint32 GET_SIZE_ERROR= ((uint32) -1);
 
@@ -195,11 +196,14 @@ struct MBR
     if (d != mbr->dimension() || d <= 0 || contains(mbr) || within(mbr))
       return 0;
 
-    MBR intersection(max(xmin, mbr->xmin), max(ymin, mbr->ymin),
-                     min(xmax, mbr->xmax), min(ymax, mbr->ymax));
+    MBR intersection(MY_MAX(xmin, mbr->xmin), MY_MAX(ymin, mbr->ymin),
+                     MY_MIN(xmax, mbr->xmax), MY_MIN(ymax, mbr->ymax));
 
     return (d == intersection.dimension());
   }
+
+  int valid() const
+  { return xmin <= xmax && ymin <= ymax; }
 };
 
 
@@ -210,6 +214,11 @@ struct Geometry_buffer;
 class Geometry
 {
 public:
+  // Maximum number of points in feature that can fit into String
+  static const uint32 max_n_points=
+    (uint32) (INT_MAX32 - WKB_HEADER_SIZE - 4 /* n_points */) /
+    POINT_DATA_SIZE;
+
   Geometry() {}                               /* Remove gcc warning */
   virtual ~Geometry() {}                        /* Remove gcc warning */
   static void *operator new(size_t size, void *buffer)
@@ -326,9 +335,35 @@ protected:
   const char *get_mbr_for_points(MBR *mbr, const char *data, uint offset)
     const;
 
-  inline bool no_data(const char *cur_data, uint32 data_amount) const
+  /**
+     Check if there're enough data remaining as requested
+
+     @arg cur_data     pointer to the position in the binary form
+     @arg data_amount  number of points expected
+     @return           true if not enough data
+  */
+  inline bool no_data(const char *cur_data, size_t data_amount) const
   {
     return (cur_data + data_amount > m_data_end);
+  }
+
+  /**
+     Check if there're enough points remaining as requested
+
+     Need to perform the calculation in logical units, since multiplication
+     can overflow the size data type.
+
+     @arg data              pointer to the begining of the points array
+     @arg expected_points   number of points expected
+     @arg extra_point_space extra space for each point element in the array
+     @return               true if there are not enough points
+  */
+  inline bool not_enough_points(const char *data, uint32 expected_points,
+                                uint32 extra_point_space = 0) const
+  {
+    return (m_data_end < data ||
+            (expected_points > ((m_data_end - data) /
+                                (POINT_DATA_SIZE + extra_point_space))));
   }
   const char *m_data;
   const char *m_data_end;
@@ -391,10 +426,6 @@ public:
 
 class Gis_line_string: public Geometry
 {
-  // Maximum number of points in LineString that can fit into String
-  static const uint32 max_n_points=
-    (uint32) (UINT_MAX32 - WKB_HEADER_SIZE - 4 /* n_points */) /
-    POINT_DATA_SIZE;
 public:
   Gis_line_string() {}                        /* Remove gcc warning */
   virtual ~Gis_line_string() {}               /* Remove gcc warning */
