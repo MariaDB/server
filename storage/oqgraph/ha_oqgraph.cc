@@ -26,6 +26,10 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
+#define MYSQL_SERVER	// to have THD
+#include <mysql/plugin.h>
+#include "sql_class.h"
+
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -33,8 +37,13 @@
 #include "ha_oqgraph.h"
 #include "graphcore.h"
 
-#define MYSQL_SERVER	// to have THD
-#include <mysql/plugin.h>
+#include <sql_error.h>
+#if MYSQL_VERSION_ID	>= 100004
+// Interim workaround for rename in sql_error.h from this point
+#define MYSQL_ERROR Sql_condition
+#endif
+
+
 #include "table.h"
 #include "field.h"
 #include "key.h"
@@ -199,7 +208,7 @@ static bool oqgraph_init()
   // 'Fixes' bug 1134355  
   // HTON_NO_FLAGS;
   
-  hton->table_options= oqgraph_table_option_list;
+  hton->table_options= (ha_create_table_option*)oqgraph_table_option_list;
   oqgraph_init_done= TRUE;
   return 0;
 }
