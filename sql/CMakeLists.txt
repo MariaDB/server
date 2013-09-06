@@ -37,7 +37,7 @@ IF(SSL_DEFINES)
 ENDIF()
 
 SET (SQL_SOURCE
-              ../sql-common/client.c derror.cc des_key_file.cc
+              ../sql-common/client.c compat56.cc derror.cc des_key_file.cc
                discover.cc ../libmysql/errmsg.c field.cc  field_conv.cc 
                filesort_utils.cc
                filesort.cc gstream.cc sha2.cc
@@ -59,7 +59,8 @@ SET (SQL_SOURCE
                sp_rcontext.cc spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc 
                sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc sql_crypt.h 
                sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc sql_do.cc 
-               sql_error.cc sql_handler.cc sql_help.cc sql_insert.cc sql_lex.cc 
+               sql_error.cc sql_handler.cc sql_get_diagnostics.cc
+               sql_help.cc sql_insert.cc sql_lex.cc 
                sql_list.cc sql_load.cc sql_manager.cc
                sql_parse.cc sql_bootstrap.cc sql_bootstrap.h
                sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc 
@@ -89,6 +90,8 @@ SET (SQL_SOURCE
 			   threadpool_common.cc 
 			   ../sql-common/mysql_async.c
                my_apc.cc my_apc.h
+               rpl_gtid.cc
+               table_cache.cc
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 			   )
@@ -106,7 +109,7 @@ ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 ADD_DEPENDENCIES(sql GenServerSource)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
-  mysys dbug strings vio regex
+  mysys mysys_ssl dbug strings vio regex
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
   ${SSL_LIBRARIES})
 
@@ -141,7 +144,7 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
     # incremental appears to crash from time to time,if used with /DEF option
     SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS "${mysqld_link_flags} /DEF:mysqld.def /INCREMENTAL:NO")
 
-    FOREACH (CORELIB sql mysys dbug strings)
+    FOREACH (CORELIB sql mysys mysys_ssl dbug strings)
       GET_TARGET_PROPERTY(LOC ${CORELIB} LOCATION)
       FILE(TO_NATIVE_PATH ${LOC} LOC)
       SET (LIB_LOCATIONS ${LIB_LOCATIONS} ${LOC}) 
@@ -171,7 +174,7 @@ ENDIF()
 # On Solaris, some extra effort is required in order to get dtrace probes
 # from static libraries
 DTRACE_INSTRUMENT_STATIC_LIBS(mysqld 
- "sql;mysys;${MYSQLD_STATIC_PLUGIN_LIBS}")
+ "sql;mysys;mysys_ssl;${MYSQLD_STATIC_PLUGIN_LIBS}")
  
 
 SET(WITH_MYSQLD_LDFLAGS "" CACHE STRING "Additional linker flags for mysqld")
@@ -189,9 +192,12 @@ INSTALL_DEBUG_TARGET(mysqld
   PDB_DESTINATION ${INSTALL_SBINDIR}/debug
   RENAME mysqld-debug)
 
+INCLUDE(${CMAKE_SOURCE_DIR}/cmake/bison.cmake)
+
 # Handle out-of-source build from source package with possibly broken 
 # bison. Copy bison output to from source to build directory, if not already 
 # there
+IF (NOT BISON_USABLE)
 IF (NOT ${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
   IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.cc)
     IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc)
@@ -202,9 +208,8 @@ IF (NOT ${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
     ENDIF()
   ENDIF()
 ENDIF()
+ENDIF()
 
-
-INCLUDE(${CMAKE_SOURCE_DIR}/cmake/bison.cmake)
 RUN_BISON(
   ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy 
   ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
@@ -222,7 +227,7 @@ ADD_CUSTOM_COMMAND(
 
 MYSQL_ADD_EXECUTABLE(mysql_tzinfo_to_sql tztime.cc COMPONENT Server)
 SET_TARGET_PROPERTIES(mysql_tzinfo_to_sql PROPERTIES COMPILE_FLAGS "-DTZINFO2SQL")
-TARGET_LINK_LIBRARIES(mysql_tzinfo_to_sql mysys)
+TARGET_LINK_LIBRARIES(mysql_tzinfo_to_sql mysys mysys_ssl)
 
 ADD_CUSTOM_TARGET( 
         GenServerSource
@@ -272,12 +277,9 @@ ADD_CUSTOM_TARGET(distclean
 
 IF(INSTALL_LAYOUT STREQUAL "STANDALONE")
 
-# We need to create empty directories (data/test) the installation.  
-# This does not work with current CPack due to http://www.cmake.org/Bug/view.php?id=8767
-# Avoid completely empty directories and install dummy file instead.
-SET(DUMMY_FILE ${CMAKE_CURRENT_BINARY_DIR}/db.opt ) 
-FILE(WRITE ${DUMMY_FILE} "")
-INSTALL(FILES ${DUMMY_FILE} DESTINATION data/test COMPONENT DataFiles)
+# Copy db.opt into data/test/
+SET(DBOPT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/db.opt ) 
+INSTALL(FILES ${DBOPT_FILE} DESTINATION data/test COMPONENT DataFiles)
 
 # Install initial database on windows
 IF(NOT CMAKE_CROSSCOMPILING)

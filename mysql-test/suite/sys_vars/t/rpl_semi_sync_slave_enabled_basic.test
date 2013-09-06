@@ -6,10 +6,7 @@
 #
 #
 source include/not_embedded.inc;
-source include/have_semisync_plugin.inc;
-# The following is to prevent a mis-match on windows that has the name of of the lib ending with 'dll' 
---replace_regex /\.dll/.so/
-eval INSTALL PLUGIN rpl_semi_sync_slave SONAME '$SEMISYNC_SLAVE_SO';
+source include/have_semisync.inc;
 select @@global.rpl_semi_sync_slave_enabled;
 SET @start_global_value = @@global.rpl_semi_sync_slave_enabled;
 
@@ -62,5 +59,3 @@ set global rpl_semi_sync_slave_enabled="some text";
 #
 SET @@global.rpl_semi_sync_slave_enabled = @start_global_value;
 select @@global.rpl_semi_sync_slave_enabled;
-UNINSTALL PLUGIN rpl_semi_sync_slave;
-

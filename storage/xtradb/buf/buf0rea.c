@@ -220,7 +220,7 @@ not_to_recover:
 
 	ut_ad(buf_page_in_file(bpage));
 
-	if(sync) {
+	if (sync) {
 		thd_wait_begin(NULL, THD_WAIT_DISKIO);
 	}
 
@@ -235,7 +235,8 @@ not_to_recover:
 			      sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
 			      ((buf_block_t*) bpage)->frame, bpage, trx);
 	}
-	if(sync) {
+
+	if (sync) {
 		thd_wait_end(NULL);
 	}
 
@@ -244,13 +245,7 @@ not_to_recover:
 		return(0);
 	}
 
-	if (srv_pass_corrupt_table) {
-		if (*err != DB_SUCCESS) {
-			bpage->is_corrupt = TRUE;
-		}
-	} else {
-	ut_a(*err == DB_SUCCESS);
-	}
+	SRV_CORRUPT_TABLE_CHECK(*err == DB_SUCCESS, bpage->is_corrupt = TRUE;);
 
 	if (sync) {
 		/* The i/o is already completed when we arrive from

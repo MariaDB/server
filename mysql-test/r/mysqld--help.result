@@ -108,8 +108,6 @@ The following options may be given as the first argument:
  --concurrent-insert[=name] 
  Use concurrent insert with MyISAM. Possible values are
  NEVER, AUTO, ALWAYS
- --connect-timeout=# The number of seconds the mysqld server is waiting for a
- connect packet before responding with 'Bad handshake'
  --console           Write error output on screen; don't remove the console
  window on windows.
  --core-file         Write core on errors.
@@ -151,10 +149,6 @@ The following options may be given as the first argument:
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
- --engine-condition-pushdown 
- Push supported query conditions to the storage engine.
- Deprecated, use --optimizer-switch instead.
- (Defaults to on; use --skip-engine-condition-pushdown to disable.)
  --event-scheduler[=name] 
  Enable the event scheduler. Possible values are ON, OFF,
  and DISABLED (keep the event scheduler completely
@@ -201,7 +195,25 @@ The following options may be given as the first argument:
  --group-concat-max-len=# 
  The maximum length of the result of function 
  GROUP_CONCAT()
+ --gtid-domain-id=#  Used with global transaction ID to identify logically
+ independent replication streams. When events can
+ propagate through multiple parallel paths (for example
+ multiple masters), each independent source server must
+ use a distinct domain_id. For simple tree-shaped
+ replication topologies, it can be left at its default, 0.
+ --gtid-strict-mode  Enforce strict seq_no ordering of events in the binary
+ log. Slave stops with an error if it encounters an event
+ that would cause it to generate an out-of-order binlog if
+ executed.
  -?, --help          Display this help and exit.
+ --histogram-size=#  Number of bytes used for a histogram. If set to 0, no
+ histograms are created by ANALYZE.
+ --histogram-type=name 
+ Specifies type of the histograms created by ANALYZE.
+ Possible values are: SINGLE_PREC_HB - single precision
+ height-balanced, DOUBLE_PREC_HB - double precision
+ height-balanced.
+ --host-cache-size=# How many host names should be cached to avoid resolving.
  --ignore-builtin-innodb 
  Disable initialization of builtin InnoDB plugin
  --ignore-db-dirs=name 
@@ -308,14 +320,6 @@ The following options may be given as the first argument:
  slave, filesort, filesort_on_disk, full_join, full_scan,
  query_cache, query_cache_miss, tmp_table,
  tmp_table_on_disk
- --log-slow-queries[=name] 
- Enable logging of slow queries (longer than
- --long-query-time) to log file or table. Optional
- argument is a file name for the slow log. If not given,
- 'log-basename'-slow.log will be used. Use
- --log-output=TABLE if you want to have the log in the
- table mysql.slow_log. Deprecated option, use
- --slow-query-log/--slow-query-log-file instead.
  --log-slow-rate-limit=# 
  Write to slow log every #th slow query. Set to 1 to log
  everything. Increase it to reduce the size of the slow or
@@ -407,6 +411,8 @@ The following options may be given as the first argument:
  --memlock           Lock mysqld in memory.
  --metadata-locks-cache-size=# 
  Size of unused metadata locks cache
+ --metadata-locks-hash-instances=# 
+ Number of metadata locks hash instances
  --min-examined-row-limit=# 
  Don't write queries to slow log that examine fewer rows
  than that
@@ -459,8 +465,6 @@ The following options may be given as the first argument:
  Enable old-style user limits (before 5.0.3, user
  resources were counted per each user+host vs. per
  account).
- --one-thread        (Deprecated): Only use one thread (for debugging under
- Linux). Use thread-handling=no-threads instead.
  --open-files-limit=# 
  If this is not 0, then mysqld will use this value to
  reserve file descriptors to use with setrlimit(). If this
@@ -484,6 +488,9 @@ The following options may be given as the first argument:
  optimizer will switch to the original find_best search.
  NOTE: The value 63 and its associated behaviour is
  deprecated
+ --optimizer-selectivity-sampling-limit=# 
+ Controls number of record samples to check condition
+ selectivity
  --optimizer-switch=name 
  optimizer_switch=option=val[,option=val...], where option
  is one of {derived_merge, derived_with_keys, firstmatch,
@@ -496,12 +503,31 @@ The following options may be given as the first argument:
  mrr_cost_based, mrr_sort_keys, optimize_join_buffer_size,
  outer_join_with_cache, partial_match_rowid_merge,
  partial_match_table_scan, semijoin, semijoin_with_cache,
- subquery_cache, table_elimination, extended_keys } and
- val is one of {on, off, default}
+ subquery_cache, table_elimination, extended_keys,
+ exists_to_in } and val is one of {on, off, default}
+ --optimizer-use-condition-selectivity=# 
+ Controls selectivity of which conditions the optimizer
+ takes into account to calculate cardinality of a partial
+ join when it searches for the best execution plan
+ Meaning: 1 - use selectivity of index backed range
+ conditions to calculate the cardinality of a partial join
+ if the last joined table is accessed by full table scan
+ or an index scan, 2 - use selectivity of index backed
+ range conditions to calculate the cardinality of a
+ partial join in any case, 3 - additionally always use
+ selectivity of range conditions that are not backed by
+ any index to calculate the cardinality of a partial join,
+ 4 - use histograms to calculate selectivity of range
+ conditions that are not backed by any index to calculate
+ the cardinality of a partial join.5 - additionally use
+ selectivity of certain non-range predicates calculated on
+ record samples
  --performance-schema 
  Enable the performance schema.
+ (Defaults to on; use --skip-performance-schema to disable.)
  --performance-schema-accounts-size=# 
- Maximum number of instrumented user@host accounts.
+ Maximum number of instrumented user@host accounts. Use 0
+ to disable, -1 for automated sizing.
  --performance-schema-consumer-events-stages-current 
  Default startup value for the events_stages_current
  consumer.
@@ -542,64 +568,84 @@ The following options may be given as the first argument:
  consumer.
  (Defaults to on; use --skip-performance-schema-consumer-thread-instrumentation to disable.)
  --performance-schema-digests-size=# 
- Size of the statement digest.
+ Size of the statement digest. Use 0 to disable, -1 for
+ automated sizing.
  --performance-schema-events-stages-history-long-size=# 
- Number of rows in EVENTS_STAGES_HISTORY_LONG.
+ Number of rows in EVENTS_STAGES_HISTORY_LONG. Use 0 to
+ disable, -1 for automated sizing.
  --performance-schema-events-stages-history-size=# 
- Number of rows per thread in EVENTS_STAGES_HISTORY.
+ Number of rows per thread in EVENTS_STAGES_HISTORY. Use 0
+ to disable, -1 for automated sizing.
  --performance-schema-events-statements-history-long-size=# 
- Number of rows in EVENTS_STATEMENTS_HISTORY_LONG.
+ Number of rows in EVENTS_STATEMENTS_HISTORY_LONG. Use 0
+ to disable, -1 for automated sizing.
  --performance-schema-events-statements-history-size=# 
  Number of rows per thread in EVENTS_STATEMENTS_HISTORY.
+ Use 0 to disable, -1 for automated sizing.
  --performance-schema-events-waits-history-long-size=# 
- Number of rows in EVENTS_WAITS_HISTORY_LONG.
+ Number of rows in EVENTS_WAITS_HISTORY_LONG. Use 0 to
+ disable, -1 for automated sizing.
  --performance-schema-events-waits-history-size=# 
- Number of rows per thread in EVENTS_WAITS_HISTORY.
+ Number of rows per thread in EVENTS_WAITS_HISTORY. Use 0
+ to disable, -1 for automated sizing.
  --performance-schema-hosts-size=# 
- Maximum number of instrumented hosts.
+ Maximum number of instrumented hosts. Use 0 to disable,
+ -1 for automated sizing.
  --performance-schema-instrument[=name] 
  Default startup value for a performance schema
  instrument.
  --performance-schema-max-cond-classes=# 
  Maximum number of condition instruments.
  --performance-schema-max-cond-instances=# 
- Maximum number of instrumented condition objects.
+ Maximum number of instrumented condition objects. Use 0
+ to disable, -1 for automated sizing.
  --performance-schema-max-file-classes=# 
  Maximum number of file instruments.
  --performance-schema-max-file-handles=# 
  Maximum number of opened instrumented files.
  --performance-schema-max-file-instances=# 
- Maximum number of instrumented files.
+ Maximum number of instrumented files. Use 0 to disable,
+ -1 for automated sizing.
  --performance-schema-max-mutex-classes=# 
  Maximum number of mutex instruments.
  --performance-schema-max-mutex-instances=# 
- Maximum number of instrumented MUTEX objects.
+ Maximum number of instrumented MUTEX objects. Use 0 to
+ disable, -1 for automated sizing.
  --performance-schema-max-rwlock-classes=# 
  Maximum number of rwlock instruments.
  --performance-schema-max-rwlock-instances=# 
- Maximum number of instrumented RWLOCK objects.
+ Maximum number of instrumented RWLOCK objects. Use 0 to
+ disable, -1 for automated sizing.
  --performance-schema-max-socket-classes=# 
  Maximum number of socket instruments.
  --performance-schema-max-socket-instances=# 
- Maximum number of opened instrumented sockets.
+ Maximum number of opened instrumented sockets. Use 0 to
+ disable, -1 for automated sizing.
  --performance-schema-max-stage-classes=# 
  Maximum number of stage instruments.
  --performance-schema-max-statement-classes=# 
  Maximum number of statement instruments.
  --performance-schema-max-table-handles=# 
- Maximum number of opened instrumented tables.
+ Maximum number of opened instrumented tables. Use 0 to
+ disable, -1 for automated sizing.
  --performance-schema-max-table-instances=# 
- Maximum number of instrumented tables.
+ Maximum number of instrumented tables. Use 0 to disable,
+ -1 for automated sizing.
  --performance-schema-max-thread-classes=# 
  Maximum number of thread instruments.
  --performance-schema-max-thread-instances=# 
- Maximum number of instrumented threads.
+ Maximum number of instrumented threads. Use 0 to disable,
+ -1 for automated sizing.
+ --performance-schema-session-connect-attrs-size=# 
+ Size of session attribute string buffer per thread. Use 0
+ to disable, -1 for automated sizing.
  --performance-schema-setup-actors-size=# 
  Maximum number of rows in SETUP_ACTORS.
  --performance-schema-setup-objects-size=# 
  Maximum number of rows in SETUP_OBJECTS.
  --performance-schema-users-size=# 
- Maximum number of instrumented users.
+ Maximum number of instrumented users. Use 0 to disable,
+ -1 for automated sizing.
  --pid-file=name     Pid file used by safe_mysqld
  --plugin-dir=name   Directory for plugins
  --plugin-load=name  Semicolon-separated list of plugins to load, where each
@@ -797,10 +843,6 @@ The following options may be given as the first argument:
  --skip-show-database 
  Don't allow 'SHOW DATABASE' commands
  --skip-slave-start  If set, slave is not autostarted.
- --skip-thread-priority 
- Don't give threads different priorities. This option is
- deprecated because it has no effect; the implied behavior
- is already the default.
  --slave-compressed-protocol 
  Use compression on master/slave protocol
  --slave-exec-mode=name 
@@ -885,11 +927,33 @@ The following options may be given as the first argument:
  The number of cached table definitions
  --table-open-cache=# 
  The number of cached open tables
+ --table-open-cache-instances=# 
+ MySQL 5.6 compatible option. Not used or needed in
+ MariaDB
  --tc-heuristic-recover=name 
  Decision to use in heuristic recover process. Possible
  values are COMMIT or ROLLBACK.
  --thread-cache-size=# 
  How many threads we should keep in a cache for reuse
+ --thread-pool-idle-timeout=# 
+ Timeout in seconds for an idle thread in the thread
+ pool.Worker thread will be shut down after timeout
+ --thread-pool-max-threads=# 
+ Maximum allowed number of worker threads in the thread
+ pool
+ --thread-pool-oversubscribe=# 
+ How many additional active worker threads in a group are
+ allowed.
+ --thread-pool-size=# 
+ Number of thread groups in the pool. This parameter is
+ roughly equivalent to maximum number of concurrently
+ executing threads (threads in a waiting state do not
+ count as executing).
+ --thread-pool-stall-limit=# 
+ Maximum query execution time in milliseconds,before an
+ executing non-yielding thread is considered stalled.If a
+ worker thread is stalled, additional worker thread may be
+ created to handle remaining clients.
  --thread-stack=#    The stack size for each thread
  --time-format=name  The TIME format (ignored)
  --timed-mutexes     Specify whether to time mutexes (only InnoDB mutexes are
@@ -956,7 +1020,6 @@ chroot (No default value)
 collation-server latin1_swedish_ci
 completion-type NO_CHAIN
 concurrent-insert AUTO
-connect-timeout 10
 console FALSE
 date-format %Y-%m-%d
 datetime-format %Y-%m-%d %H:%i:%s
@@ -972,7 +1035,6 @@ delayed-insert-limit 100
 delayed-insert-timeout 300
 delayed-queue-size 1000
 div-precision-increment 4
-engine-condition-pushdown FALSE
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0
@@ -989,7 +1051,12 @@ ft-stopword-file (No default value)
 gdb FALSE
 general-log FALSE
 group-concat-max-len 1024
+gtid-domain-id 0
+gtid-strict-mode FALSE
 help TRUE
+histogram-size 0
+histogram-type SINGLE_PREC_HB
+host-cache-size 128
 ignore-builtin-innodb FALSE
 ignore-db-dirs 
 init-connect 
@@ -1039,7 +1106,7 @@ max-allowed-packet 1048576
 max-binlog-cache-size 18446744073709547520
 max-binlog-size 1073741824
 max-binlog-stmt-cache-size 18446744073709547520
-max-connect-errors 10
+max-connect-errors 100
 max-connections 151
 max-delayed-threads 20
 max-error-count 64
@@ -1057,6 +1124,7 @@ max-user-connections 0
 max-write-lock-count 18446744073709551615
 memlock FALSE
 metadata-locks-cache-size 1024
+metadata-locks-hash-instances 8
 min-examined-row-limit 0
 mrr-buffer-size 262144
 multi-range-count 256
@@ -1066,7 +1134,7 @@ myisam-max-sort-file-size 9223372036853727232
 myisam-mmap-size 18446744073709551615
 myisam-recover-options DEFAULT
 myisam-repair-threads 1
-myisam-sort-buffer-size 8388608
+myisam-sort-buffer-size 134216704
 myisam-stats-method nulls_unequal
 myisam-use-mmap FALSE
 net-buffer-length 16384
@@ -1079,9 +1147,11 @@ old-passwords FALSE
 old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
+optimizer-selectivity-sampling-limit 100
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on
-performance-schema FALSE
-performance-schema-accounts-size 100
+optimizer-use-condition-selectivity 1
+performance-schema TRUE
+performance-schema-accounts-size 10
 performance-schema-consumer-events-stages-current FALSE
 performance-schema-consumer-events-stages-history FALSE
 performance-schema-consumer-events-stages-history-long FALSE
@@ -1094,35 +1164,36 @@ performance-schema-consumer-events-waits-history-long FALSE
 performance-schema-consumer-global-instrumentation TRUE
 performance-schema-consumer-statements-digest TRUE
 performance-schema-consumer-thread-instrumentation TRUE
-performance-schema-digests-size 200
-performance-schema-events-stages-history-long-size 10000
-performance-schema-events-stages-history-size 10
-performance-schema-events-statements-history-long-size 10000
-performance-schema-events-statements-history-size 10
-performance-schema-events-waits-history-long-size 10000
-performance-schema-events-waits-history-size 10
-performance-schema-hosts-size 100
+performance-schema-digests-size 1000
+performance-schema-events-stages-history-long-size 100
+performance-schema-events-stages-history-size 5
+performance-schema-events-statements-history-long-size 100
+performance-schema-events-statements-history-size 5
+performance-schema-events-waits-history-long-size 100
+performance-schema-events-waits-history-size 5
+performance-schema-hosts-size 20
 performance-schema-instrument 
 performance-schema-max-cond-classes 80
-performance-schema-max-cond-instances 1000
+performance-schema-max-cond-instances 836
 performance-schema-max-file-classes 50
 performance-schema-max-file-handles 32768
-performance-schema-max-file-instances 10000
+performance-schema-max-file-instances 1556
 performance-schema-max-mutex-classes 200
-performance-schema-max-mutex-instances 1000000
-performance-schema-max-rwlock-classes 30
-performance-schema-max-rwlock-instances 1000000
+performance-schema-max-mutex-instances 3282
+performance-schema-max-rwlock-classes 40
+performance-schema-max-rwlock-instances 1724
 performance-schema-max-socket-classes 10
-performance-schema-max-socket-instances 1000
+performance-schema-max-socket-instances 179
 performance-schema-max-stage-classes 150
-performance-schema-max-statement-classes 173
-performance-schema-max-table-handles 10000
-performance-schema-max-table-instances 1000
+performance-schema-max-statement-classes 175
+performance-schema-max-table-handles 445
+performance-schema-max-table-instances 445
 performance-schema-max-thread-classes 50
-performance-schema-max-thread-instances 1000
+performance-schema-max-thread-instances 224
+performance-schema-session-connect-attrs-size 512
 performance-schema-setup-actors-size 100
 performance-schema-setup-objects-size 100
-performance-schema-users-size 100
+performance-schema-users-size 5
 plugin-maturity unknown
 port 3306
 port-open-timeout 0
@@ -1190,8 +1261,13 @@ sysdate-is-now FALSE
 table-cache 400
 table-definition-cache 400
 table-open-cache 400
+table-open-cache-instances 1
 tc-heuristic-recover COMMIT
 thread-cache-size 0
+thread-pool-idle-timeout 60
+thread-pool-max-threads 500
+thread-pool-oversubscribe 3
+thread-pool-stall-limit 500
 thread-stack 294912
 time-format %H:%i:%s
 timed-mutexes FALSE

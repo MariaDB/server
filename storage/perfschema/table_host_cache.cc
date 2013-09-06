@@ -23,8 +23,6 @@
 #include "table_host_cache.h"
 #include "hostname.h"
 
-#ifdef NOT_YET_PORTED
-
 THR_LOCK table_host_cache::m_table_lock;
 
 static const TABLE_FIELD_TYPE field_types[]=
@@ -178,7 +176,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 
 TABLE_FIELD_DEF
 table_host_cache::m_field_def=
-{ 29, field_types };
+{ 29, field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_host_cache::m_share=
@@ -266,9 +264,6 @@ void table_host_cache::materialize(THD *thd)
     index++;
     row++;
     current= current->next();
-    /* Host cache is a circular linked list. */
-    if (current == first)
-      break;
   }
 
   m_all_rows= rows;
@@ -481,4 +476,3 @@ int table_host_cache::read_row_values(TABLE *table,
   return 0;
 }
 
-#endif /* NOT_YET_PORTED */

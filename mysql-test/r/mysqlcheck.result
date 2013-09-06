@@ -8,6 +8,7 @@ mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
 mysql.func                                         OK
+mysql.gtid_slave_pos                               OK
 mysql.help_category                                OK
 mysql.help_keyword                                 OK
 mysql.help_relation                                OK
@@ -16,15 +17,11 @@ mysql.host                                         OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
-mysql.ndb_binlog_index                             OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
 mysql.servers                                      OK
-mysql.slave_master_info                            OK
-mysql.slave_relay_log_info                         OK
-mysql.slave_worker_info                            OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
@@ -40,6 +37,7 @@ mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
 mysql.func                                         OK
+mysql.gtid_slave_pos                               OK
 mysql.help_category                                OK
 mysql.help_keyword                                 OK
 mysql.help_relation                                OK
@@ -52,15 +50,11 @@ status   : OK
 mysql.innodb_table_stats
 note     : Table does not support optimize, doing recreate + analyze instead
 status   : OK
-mysql.ndb_binlog_index                             OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
 mysql.servers                                      OK
-mysql.slave_master_info                            OK
-mysql.slave_relay_log_info                         OK
-mysql.slave_worker_info                            OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
@@ -74,6 +68,7 @@ mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
 mysql.func                                         OK
+mysql.gtid_slave_pos                               OK
 mysql.help_category                                OK
 mysql.help_keyword                                 OK
 mysql.help_relation                                OK
@@ -82,15 +77,11 @@ mysql.host                                         OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
-mysql.ndb_binlog_index                             OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
 mysql.servers                                      OK
-mysql.slave_master_info                            OK
-mysql.slave_relay_log_info                         OK
-mysql.slave_worker_info                            OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
@@ -104,6 +95,7 @@ mysql.columns_priv                                 Table is already up to date
 mysql.db                                           Table is already up to date
 mysql.event                                        Table is already up to date
 mysql.func                                         Table is already up to date
+mysql.gtid_slave_pos                               Table is already up to date
 mysql.help_category                                Table is already up to date
 mysql.help_keyword                                 Table is already up to date
 mysql.help_relation                                Table is already up to date
@@ -116,15 +108,11 @@ status   : OK
 mysql.innodb_table_stats
 note     : Table does not support optimize, doing recreate + analyze instead
 status   : OK
-mysql.ndb_binlog_index                             Table is already up to date
 mysql.plugin                                       Table is already up to date
 mysql.proc                                         Table is already up to date
 mysql.procs_priv                                   Table is already up to date
 mysql.proxies_priv                                 Table is already up to date
 mysql.servers                                      Table is already up to date
-mysql.slave_master_info                            Table is already up to date
-mysql.slave_relay_log_info                         Table is already up to date
-mysql.slave_worker_info                            Table is already up to date
 mysql.table_stats                                  Table is already up to date
 mysql.tables_priv                                  Table is already up to date
 mysql.time_zone                                    Table is already up to date
@@ -188,6 +176,7 @@ Table	Op	Msg_type	Msg_text
 test.v1	check	status	OK
 information_schema.routines	check	note	The storage engine for the table doesn't support check
 drop view v1;
+call mtr.add_suppression("Error reading file './test/t1.frm'");
 CREATE TABLE t1(a INT) engine=myisam;
 CREATE TABLE t2(a INT) engine=myisam;
 test.t1
@@ -204,15 +193,15 @@ t1
 v1
 show tables;
 Tables_in_test
-t1
 #mysql50#v-1
+t1
 v1
 test.t1                                            OK
 show tables;
 Tables_in_test
 t1
-v1
 v-1
+v1
 drop view v1, `v-1`;
 drop table t1;
 SET NAMES utf8;

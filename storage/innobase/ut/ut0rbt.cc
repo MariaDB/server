@@ -773,7 +773,7 @@ rbt_create_arg_cmp(
 	size_t		sizeof_value,		/*!< in: sizeof data item */
 	ib_rbt_arg_compare
 			compare,		/*!< in: fn to compare items */
-	const void*	cmp_arg)		/*!< in: compare fn arg */
+	void*		cmp_arg)		/*!< in: compare fn arg */
 {
 	ib_rbt_t*       tree;
 

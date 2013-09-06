@@ -244,6 +244,7 @@ public:
   virtual bool expr_cache_is_needed(THD *);
   virtual void get_cache_parameters(List<Item> &parameters);
   virtual bool is_subquery_processor (uchar *opt_arg) { return 1; }
+  bool exists2in_processor(uchar *opt_arg) { return 0; }
   bool limit_index_condition_pushdown_processor(uchar *opt_arg) 
   {
     return TRUE;
@@ -286,6 +287,7 @@ public:
   bool val_bool();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   enum Item_result result_type() const;
+  enum Item_result cmp_type() const;
   enum_field_types field_type() const;
   void fix_length_and_dec();
 
@@ -338,13 +340,35 @@ public:
 class Item_exists_subselect :public Item_subselect
 {
 protected:
+  Item_func_not *upper_not;
   bool value; /* value of this item (boolean: exists/not-exists) */
+  bool abort_on_null;
 
   void init_length_and_dec();
+  bool select_prepare_to_be_in();
 
 public:
+  /*
+    Used by subquery optimizations to keep track about in which clause this
+    subquery predicate is located: 
+      NO_JOIN_NEST      - the predicate is an AND-part of the WHERE
+      join nest pointer - the predicate is an AND-part of ON expression
+                          of a join nest   
+      NULL              - for all other locations
+  */
+  TABLE_LIST *emb_on_expr_nest;
+  /**
+    Reference on the Item_in_optimizer wrapper of this subquery
+  */
+  Item_in_optimizer *optimizer;
+  /* true if we got this from EXISTS or to IN */
+  bool exists_transformed;
+
   Item_exists_subselect(st_select_lex *select_lex);
-  Item_exists_subselect(): Item_subselect() {}
+  Item_exists_subselect()
+    :Item_subselect(), upper_not(NULL),abort_on_null(0),
+    emb_on_expr_nest(NULL), optimizer(0), exists_transformed(0)
+  {}
 
   subs_type substype() { return EXISTS_SUBS; }
   void reset() 
@@ -360,10 +384,23 @@ public:
   String *val_str(String*);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
+  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
+  bool select_transformer(JOIN *join);
+  void top_level_item() { abort_on_null=1; }
+  inline bool is_top_level_item() { return abort_on_null; }
+  bool exists2in_processor(uchar *opt_arg);
 
   Item* expr_cache_insert_transformer(uchar *thd_arg);
+
+  void mark_as_condition_AND_part(TABLE_LIST *embedding)
+  {
+    emb_on_expr_nest= embedding;
+  }
+  virtual void under_not(Item_func_not *upper) { upper_not= upper; };
+
+  void set_exists_transformed() { exists_transformed= TRUE; }
 
   friend class select_exists_subselect;
   friend class subselect_uniquesubquery_engine;
@@ -424,11 +461,8 @@ protected:
   */
   Item *expr;
   bool was_null;
-  bool abort_on_null;
   /* A bitmap of possible execution strategies for an IN predicate. */
   uchar in_strategy;
-public:
-  Item_in_optimizer *optimizer;
 protected:
   /* Used to trigger on/off conditions that were pushed down to subselect */
   bool *pushed_cond_guards;
@@ -450,15 +484,6 @@ public:
   Item *left_expr;
   /* Priority of this predicate in the convert-to-semi-join-nest process. */
   int sj_convert_priority;
-  /*
-    Used by subquery optimizations to keep track about in which clause this
-    subquery predicate is located: 
-      NO_JOIN_NEST      - the predicate is an AND-part of the WHERE
-      join nest pointer - the predicate is an AND-part of ON expression
-                          of a join nest   
-      NULL              - for all other locations
-  */
-  TABLE_LIST *emb_on_expr_nest;
   /*
     Types of left_expr and subquery's select list allow to perform subquery
     materialization. Currently, we set this to FALSE when it as well could
@@ -527,7 +552,9 @@ public:
   */
   Item *original_item()
   {
-    return is_flattenable_semijoin ? (Item*)this : (Item*)optimizer;
+    return (is_flattenable_semijoin && !exists_transformed ?
+            (Item*)this :
+            (Item*)optimizer);
   }
   
   bool *get_cond_guard(int i)
@@ -546,11 +573,9 @@ public:
   Item_in_subselect(Item * left_expr, st_select_lex *select_lex);
   Item_in_subselect()
     :Item_exists_subselect(), left_expr_cache(0), first_execution(TRUE),
-     abort_on_null(0), in_strategy(SUBS_NOT_TRANSFORMED), optimizer(0),
-    pushed_cond_guards(NULL), func(NULL), emb_on_expr_nest(NULL), 
-    is_jtbm_merged(FALSE), is_jtbm_const_tab(FALSE),
-    upper_item(0)
-    {}
+    in_strategy(SUBS_NOT_TRANSFORMED),
+    pushed_cond_guards(NULL), func(NULL), is_jtbm_merged(FALSE),
+    is_jtbm_const_tab(FALSE), upper_item(0) {}
   void cleanup();
   subs_type substype() { return IN_SUBS; }
   void reset() 
@@ -571,8 +596,6 @@ public:
   my_decimal *val_decimal(my_decimal *);
   void update_null_value () { (void) val_bool(); }
   bool val_bool();
-  void top_level_item() { abort_on_null=1; }
-  inline bool is_top_level_item() { return abort_on_null; }
   bool test_limit(st_select_lex_unit *unit);
   virtual void print(String *str, enum_query_type query_type);
   bool fix_fields(THD *thd, Item **ref);
@@ -589,18 +612,13 @@ public:
   void set_first_execution() { if (first_execution) first_execution= FALSE; }
   bool expr_cache_is_needed(THD *thd);
   inline bool left_expr_has_null();
-  
+
   int optimize(double *out_rows, double *cost);
-  /* 
+  /*
     Return the identifier that we could use to identify the subquery for the
     user.
   */
   int get_identifier();
-
-  void mark_as_condition_AND_part(TABLE_LIST *embedding)
-  {
-    emb_on_expr_nest= embedding;
-  }
 
   bool test_strategy(uchar strategy)
   { return test(in_strategy & strategy); }
@@ -630,6 +648,9 @@ public:
 
   void add_strategy (uchar strategy)
   {
+    DBUG_ENTER("Item_in_subselect::add_strategy");
+    DBUG_PRINT("enter", ("current: %u  add: %u",
+                         (uint) in_strategy, (uint) strategy));
     DBUG_ASSERT(strategy != SUBS_NOT_TRANSFORMED);
     DBUG_ASSERT(!(strategy & SUBS_STRATEGY_CHOSEN));
     /*
@@ -639,16 +660,25 @@ public:
       DBUG_ASSERT(!(in_strategy & SUBS_STRATEGY_CHOSEN));
     */
     in_strategy|= strategy;
+    DBUG_VOID_RETURN;
   }
 
   void reset_strategy(uchar strategy)
   {
+    DBUG_ENTER("Item_in_subselect::reset_strategy");
+    DBUG_PRINT("enter", ("current: %u  new: %u",
+                         (uint) in_strategy, (uint) strategy));
     DBUG_ASSERT(strategy != SUBS_NOT_TRANSFORMED);
     in_strategy= strategy;
+    DBUG_VOID_RETURN;
   }
 
   void set_strategy(uchar strategy)
   {
+    DBUG_ENTER("Item_in_subselect::set_strategy");
+    DBUG_PRINT("enter", ("current: %u  set: %u",
+                         (uint) in_strategy,
+                         (uint) (SUBS_STRATEGY_CHOSEN | strategy)));
     /* Check that only one strategy is set for execution. */
     DBUG_ASSERT(strategy == SUBS_SEMI_JOIN ||
                 strategy == SUBS_IN_TO_EXISTS ||
@@ -658,7 +688,12 @@ public:
                 strategy == SUBS_MAXMIN_INJECTED ||
                 strategy == SUBS_MAXMIN_ENGINE);
     in_strategy= (SUBS_STRATEGY_CHOSEN | strategy);
+    DBUG_VOID_RETURN;
   }
+  bool exists2in_processor(uchar *opt_arg __attribute__((unused)))
+  {
+    return 0;
+  };
 
   friend class Item_ref_null_helper;
   friend class Item_is_not_null_test;
@@ -666,6 +701,7 @@ public:
   friend class subselect_indexsubquery_engine;
   friend class subselect_hash_sj_engine;
   friend class subselect_partial_match_engine;
+  friend class Item_exists_subselect;
 };
 
 
@@ -698,6 +734,7 @@ protected:
   THD *thd; /* pointer to current THD */
   Item_subselect *item; /* item, that use this engine */
   enum Item_result res_type; /* type of results */
+  enum Item_result cmp_type; /* how to compare the results */
   enum_field_types res_field_type; /* column type of the results */
   bool maybe_null; /* may be null (first item in select) */
 public:
@@ -712,7 +749,7 @@ public:
   {
     result= res;
     item= si;
-    res_type= STRING_RESULT;
+    cmp_type= res_type= STRING_RESULT;
     res_field_type= MYSQL_TYPE_VAR_STRING;
     maybe_null= 0;
     set_thd(thd_arg);
@@ -752,6 +789,7 @@ public:
   virtual uint cols()= 0; /* return number of columns in select */
   virtual uint8 uncacheable()= 0; /* query is uncacheable */
   enum Item_result type() { return res_type; }
+  enum Item_result cmptype() { return cmp_type; }
   enum_field_types field_type() { return res_field_type; }
   virtual void exclude()= 0;
   virtual bool may_be_null() { return maybe_null; };

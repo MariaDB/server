@@ -61,6 +61,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1(a CHAR(255), KEY(a));
 SET myisam_sort_buffer_size=4096;
+--replace_regex /Current myisam_sort_buffer_size.*/X/
 INSERT INTO t1 VALUES
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
@@ -79,6 +80,7 @@ INSERT INTO t1 VALUES
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
 ('0'),('0'),('0'),('0'),('0'),('0'),('0');
 SET myisam_repair_threads=2;
+--replace_regex /Current myisam_sort_buffer_size.*/X/
 REPAIR TABLE t1;
 SET myisam_repair_threads=@@global.myisam_repair_threads;
 SET myisam_sort_buffer_size=@@global.myisam_sort_buffer_size;

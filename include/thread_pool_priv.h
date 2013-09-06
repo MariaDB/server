@@ -1,6 +1,6 @@
 #error don't use
 /*
-  Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
+  Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -49,7 +49,6 @@ void thd_set_killed(THD *thd);
 void thd_clear_errors(THD *thd);
 void thd_set_thread_stack(THD *thd, char *stack_start);
 void thd_lock_thread_count(THD *thd);
-void thd_unlock_thread_count(THD *thd);
 void thd_close_connection(THD *thd);
 THD *thd_get_current_thd();
 void thd_lock_data(THD *thd);
@@ -61,6 +60,7 @@ uint thd_get_net_read_write(THD *thd);
 void thd_set_mysys_var(THD *thd, st_my_thread_var *mysys_var);
 ulong  thd_get_net_wait_timeout(THD *thd);
 my_socket thd_get_fd(THD *thd);
+int thd_store_globals(THD* thd);
 
 THD *first_global_thread();
 THD *next_global_thread(THD *thd);

@@ -199,6 +199,15 @@ struct buf_pool_info_struct{
 
 typedef struct buf_pool_info_struct	buf_pool_info_t;
 
+/** The occupied bytes of lists in all buffer pools */
+struct buf_pools_list_size_struct {
+	ulint	LRU_bytes;		/*!< LRU size in bytes */
+	ulint	unzip_LRU_bytes;	/*!< unzip_LRU size in bytes */
+	ulint	flush_list_bytes;	/*!< flush_list size in bytes */
+};
+
+typedef struct buf_pools_list_size_struct	buf_pools_list_size_t;
+
 #ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 Acquire mutex on all buffer pool instances */
@@ -958,7 +967,7 @@ buf_block_set_file_page(
 	ulint			space,	/*!< in: tablespace id */
 	ulint			page_no);/*!< in: page number */
 /*********************************************************************//**
-Gets the io_fix state of a block.
+Gets the io_fix state of a block.  Requires that the block mutex is held.
 @return	io_fix state */
 UNIV_INLINE
 enum buf_io_fix
@@ -967,12 +976,32 @@ buf_page_get_io_fix(
 	const buf_page_t*	bpage)	/*!< in: pointer to the control block */
 	__attribute__((pure));
 /*********************************************************************//**
-Gets the io_fix state of a block.
+Gets the io_fix state of a block.  Does not assert that the block mutex is
+held, to be used in the cases where it is safe not to hold it.
+@return	io_fix state */
+UNIV_INLINE
+enum buf_io_fix
+buf_page_get_io_fix_unlocked(
+/*=========================*/
+	const buf_page_t*	bpage)	/*!< in: pointer to the control block */
+	__attribute__((pure));
+/*********************************************************************//**
+Gets the io_fix state of a block.  Requires that the block mutex is held.
 @return	io_fix state */
 UNIV_INLINE
 enum buf_io_fix
 buf_block_get_io_fix(
 /*================*/
+	const buf_block_t*	block)	/*!< in: pointer to the control block */
+	__attribute__((pure));
+/*********************************************************************//**
+Gets the io_fix state of a block.  Does not assert that the block mutex is
+held, to be used in the cases where it is safe not to hold it.
+@return	io_fix state */
+UNIV_INLINE
+enum buf_io_fix
+buf_block_get_io_fix_unlocked(
+/*==========================*/
 	const buf_block_t*	block)	/*!< in: pointer to the control block */
 	__attribute__((pure));
 /*********************************************************************//**
@@ -1054,8 +1083,7 @@ UNIV_INLINE
 void
 buf_page_set_accessed(
 /*==================*/
-	buf_page_t*	bpage,		/*!< in/out: control block */
-	ulint		time_ms)	/*!< in: ut_time_ms() */
+	buf_page_t*	bpage)		/*!< in/out: control block */
 	__attribute__((nonnull));
 /*********************************************************************//**
 Gets the buf_block_t handle of a buffered file block if an uncompressed
@@ -1374,6 +1402,14 @@ buf_get_total_list_len(
 	ulint*		free_len,	/*!< out: length of all free lists */
 	ulint*		flush_list_len);/*!< out: length of all flush lists */
 /********************************************************************//**
+Get total list size in bytes from all buffer pools. */
+UNIV_INTERN
+void
+buf_get_total_list_size_in_bytes(
+/*=============================*/
+	buf_pools_list_size_t*	buf_pools_list_size);	/*!< out: list sizes
+							in all buffer pools */
+/********************************************************************//**
 Get total buffer pool statistics. */
 UNIV_INTERN
 void
@@ -1548,11 +1584,11 @@ struct buf_page_struct{
 					to read this for heuristic
 					purposes without holding any
 					mutex or latch */
-	unsigned	access_time:32;	/*!< time of first access, or
-					0 if the block was never accessed
-					in the buffer pool */
 	/* @} */
-	ibool		space_was_being_deleted;
+	unsigned	access_time;	/*!< time of first access, or
+					0 if the block was never accessed
+					in the buffer pool. Protected by
+					block mutex */
 	ibool		is_corrupt;
 # if defined UNIV_DEBUG_FILE_ACCESSES || defined UNIV_DEBUG
 	ibool		file_page_was_freed;
@@ -1741,6 +1777,8 @@ struct buf_pool_stat_struct{
 				young because the first access
 				was not long enough ago, in
 				buf_page_peek_if_too_old() */
+	ulint	LRU_bytes;	/*!< LRU size in bytes */
+	ulint	flush_list_bytes;/*!< flush_list size in bytes */
 };
 
 /** Statistics of buddy blocks of a given size. */

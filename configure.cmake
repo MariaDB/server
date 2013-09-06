@@ -1,5 +1,4 @@
-
-# Copyright (c) 2009, 2011, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2009, 2013, Oracle and/or its affiliates. All rights reserved.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -153,6 +152,7 @@ IF(UNIX)
     SET(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} wrap)
     CHECK_C_SOURCE_COMPILES(
     "
+    #include <sys/types.h>
     #include <tcpd.h>
     int allow_severity = 0;
     int deny_severity  = 0;
@@ -210,6 +210,7 @@ CHECK_INCLUDE_FILES (sched.h HAVE_SCHED_H)
 CHECK_INCLUDE_FILES (select.h HAVE_SELECT_H)
 CHECK_INCLUDE_FILES (semaphore.h HAVE_SEMAPHORE_H)
 CHECK_INCLUDE_FILES ("sys/types.h;sys/dir.h" HAVE_SYS_DIR_H)
+CHECK_INCLUDE_FILES ("sys/types.h;sys/event.h" HAVE_SYS_EVENT_H)
 CHECK_INCLUDE_FILES (sys/ndir.h HAVE_SYS_NDIR_H)
 CHECK_INCLUDE_FILES (sys/pte.h HAVE_SYS_PTE_H)
 CHECK_INCLUDE_FILES (stddef.h HAVE_STDDEF_H)
@@ -223,13 +224,13 @@ CHECK_INCLUDE_FILES (sys/cdefs.h HAVE_SYS_CDEFS_H)
 CHECK_INCLUDE_FILES (sys/file.h HAVE_SYS_FILE_H)
 CHECK_INCLUDE_FILES (sys/fpu.h HAVE_SYS_FPU_H)
 CHECK_INCLUDE_FILES (sys/ioctl.h HAVE_SYS_IOCTL_H)
-CHECK_INCLUDE_FILES (sys/ipc.h HAVE_SYS_IPC_H)
-CHECK_INCLUDE_FILES (sys/malloc.h HAVE_SYS_MALLOC_H)
+CHECK_INCLUDE_FILES ("sys/types.h;sys/ipc.h" HAVE_SYS_IPC_H)
+CHECK_INCLUDE_FILES ("sys/types.h;sys/malloc.h" HAVE_SYS_MALLOC_H)
 CHECK_INCLUDE_FILES (sys/mman.h HAVE_SYS_MMAN_H)
 CHECK_INCLUDE_FILES (sys/prctl.h HAVE_SYS_PRCTL_H)
 CHECK_INCLUDE_FILES (sys/resource.h HAVE_SYS_RESOURCE_H)
 CHECK_INCLUDE_FILES (sys/select.h HAVE_SYS_SELECT_H)
-CHECK_INCLUDE_FILES (sys/shm.h HAVE_SYS_SHM_H)
+CHECK_INCLUDE_FILES ("sys/types.h;sys/shm.h" HAVE_SYS_SHM_H)
 CHECK_INCLUDE_FILES (sys/socket.h HAVE_SYS_SOCKET_H)
 CHECK_INCLUDE_FILES (sys/stat.h HAVE_SYS_STAT_H)
 CHECK_INCLUDE_FILES (sys/stream.h HAVE_SYS_STREAM_H)
@@ -461,6 +462,10 @@ CHECK_FUNCTION_EXISTS (memalign HAVE_MEMALIGN)
 CHECK_FUNCTION_EXISTS (chown HAVE_CHOWN)
 CHECK_FUNCTION_EXISTS (nl_langinfo HAVE_NL_LANGINFO)
 
+IF(HAVE_SYS_EVENT_H)
+CHECK_FUNCTION_EXISTS (kqueue HAVE_KQUEUE)
+ENDIF()
+
 #--------------------------------------------------------------------
 # Support for WL#2373 (Use cycle counter for timing)
 #--------------------------------------------------------------------
@@ -613,6 +618,7 @@ ENDIF()
 
 # check whether time_t is unsigned
 CHECK_C_SOURCE_COMPILES("
+#include <time.h>
 int main()
 {
   int array[(((time_t)-1) > 0) ? 1 : -1];
@@ -1052,3 +1058,4 @@ SET(CMAKE_EXTRA_INCLUDE_FILES)
 CHECK_STRUCT_HAS_MEMBER("struct dirent" d_ino "dirent.h"  STRUCT_DIRENT_HAS_D_INO)
 CHECK_STRUCT_HAS_MEMBER("struct dirent" d_namlen "dirent.h"  STRUCT_DIRENT_HAS_D_NAMLEN)
 SET(SPRINTF_RETURNS_INT 1)
+CHECK_INCLUDE_FILE(ucontext.h HAVE_UCONTEXT_H)

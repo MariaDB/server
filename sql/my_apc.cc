@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2011 - 2012, Monty Program Ab
+   Copyright (c) 2011, 2013 Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 
 #ifndef MY_APC_STANDALONE
 
-#include "sql_priv.h"
 #include "sql_class.h"
 
 #endif

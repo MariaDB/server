@@ -1,5 +1,4 @@
-/*
-   Copyright (c) 2006, 2010, Oracle and/or its affiliates.
+/* Copyright (c) 2006, 2013, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,10 +22,12 @@
 #include "sql_priv.h"
 // Required to get server definitions for mysql/plugin.h right
 #include "sql_plugin.h"
-#include "sql_partition.h"     /* partition_info.h: LIST_PART_ENTRY */
+#include "sql_partition.h"                 // partition_info.h: LIST_PART_ENTRY
+                                           // NOT_A_PARTITION_ID
 #include "partition_info.h"
 #include "sql_parse.h"                        // test_if_data_home_dir
 #include "sql_acl.h"                          // *_ACL
+#include "sql_base.h"                         // fill_record
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -34,17 +35,21 @@
 
 partition_info *partition_info::get_clone()
 {
+  DBUG_ENTER("partition_info::get_clone");
   if (!this)
-    return 0;
+    DBUG_RETURN(NULL);
   List_iterator<partition_element> part_it(partitions);
   partition_element *part;
   partition_info *clone= new partition_info();
   if (!clone)
   {
     mem_alloc_error(sizeof(partition_info));
-    return NULL;
+    DBUG_RETURN(NULL);
   }
   memcpy(clone, this, sizeof(partition_info));
+  memset(&(clone->read_partitions), 0, sizeof(clone->read_partitions));
+  memset(&(clone->lock_partitions), 0, sizeof(clone->lock_partitions));
+  clone->bitmaps_are_initialized= FALSE;
   clone->partitions.empty();
 
   while ((part= (part_it++)))
@@ -55,7 +60,7 @@ partition_info *partition_info::get_clone()
     if (!part_clone)
     {
       mem_alloc_error(sizeof(partition_element));
-      return NULL;
+      DBUG_RETURN(NULL);
     }
     memcpy(part_clone, part, sizeof(partition_element));
     part_clone->subpartitions.empty();
@@ -65,15 +70,426 @@ partition_info *partition_info::get_clone()
       if (!subpart_clone)
       {
         mem_alloc_error(sizeof(partition_element));
-        return NULL;
+        DBUG_RETURN(NULL);
       }
       memcpy(subpart_clone, subpart, sizeof(partition_element));
       part_clone->subpartitions.push_back(subpart_clone);
     }
     clone->partitions.push_back(part_clone);
   }
-  return clone;
+  DBUG_RETURN(clone);
 }
+
+/**
+  Mark named [sub]partition to be used/locked.
+
+  @param part_name  Partition name to match.
+  @param length     Partition name length.
+
+  @return Success if partition found
+    @retval true  Partition found
+    @retval false Partition not found
+*/
+
+bool partition_info::add_named_partition(const char *part_name,
+                                         uint length)
+{
+  HASH *part_name_hash;
+  PART_NAME_DEF *part_def;
+  Partition_share *part_share;
+  DBUG_ENTER("partition_info::add_named_partition");
+  DBUG_ASSERT(table && table->s && table->s->ha_share);
+  part_share= static_cast<Partition_share*>((table->s->ha_share));
+  DBUG_ASSERT(part_share->partition_name_hash_initialized);
+  part_name_hash= &part_share->partition_name_hash;
+  DBUG_ASSERT(part_name_hash->records);
+
+  part_def= (PART_NAME_DEF*) my_hash_search(part_name_hash,
+                                            (const uchar*) part_name,
+                                            length);
+  if (!part_def)
+  {
+    my_error(ER_UNKNOWN_PARTITION, MYF(0), part_name, table->alias.c_ptr());
+    DBUG_RETURN(true);
+  }
+
+  if (part_def->is_subpart)
+  {
+    bitmap_set_bit(&read_partitions, part_def->part_id);
+  }
+  else
+  {
+    if (is_sub_partitioned())
+    {
+      /* Mark all subpartitions in the partition */
+      uint j, start= part_def->part_id;
+      uint end= start + num_subparts;
+      for (j= start; j < end; j++)
+        bitmap_set_bit(&read_partitions, j);
+    }
+    else
+      bitmap_set_bit(&read_partitions, part_def->part_id);
+  }
+  DBUG_PRINT("info", ("Found partition %u is_subpart %d for name %s",
+                      part_def->part_id, part_def->is_subpart,
+                      part_name));
+  DBUG_RETURN(false);
+}
+
+
+/**
+  Mark named [sub]partition to be used/locked.
+
+  @param part_elem  Partition element that matched.
+*/
+
+bool partition_info::set_named_partition_bitmap(const char *part_name,
+                                                uint length)
+{
+  DBUG_ENTER("partition_info::set_named_partition_bitmap");
+  bitmap_clear_all(&read_partitions);
+  if (add_named_partition(part_name, length))
+    DBUG_RETURN(true);
+  bitmap_copy(&lock_partitions, &read_partitions);
+  DBUG_RETURN(false);
+}
+
+
+
+/**
+  Prune away partitions not mentioned in the PARTITION () clause,
+  if used.
+
+    @param table_list  Table list pointing to table to prune.
+
+  @return Operation status
+    @retval true  Failure
+    @retval false Success
+*/
+bool partition_info::prune_partition_bitmaps(TABLE_LIST *table_list)
+{
+  List_iterator<String> partition_names_it(*(table_list->partition_names));
+  uint num_names= table_list->partition_names->elements;
+  uint i= 0;
+  DBUG_ENTER("partition_info::prune_partition_bitmaps");
+
+  if (num_names < 1)
+    DBUG_RETURN(true);
+
+  /*
+    TODO: When adding support for FK in partitioned tables, the referenced
+    table must probably lock all partitions for read, and also write depending
+    of ON DELETE/UPDATE.
+  */
+  bitmap_clear_all(&read_partitions);
+
+  /* No check for duplicate names or overlapping partitions/subpartitions. */
+
+  DBUG_PRINT("info", ("Searching through partition_name_hash"));
+  do
+  {
+    String *part_name_str= partition_names_it++;
+    if (add_named_partition(part_name_str->c_ptr(), part_name_str->length()))
+      DBUG_RETURN(true);
+  } while (++i < num_names);
+  DBUG_RETURN(false);
+}
+
+
+/**
+  Set read/lock_partitions bitmap over non pruned partitions
+
+  @param table_list   Possible TABLE_LIST which can contain
+                      list of partition names to query
+
+  @return Operation status
+    @retval FALSE  OK
+    @retval TRUE   Failed to allocate memory for bitmap or list of partitions
+                   did not match
+
+  @note OK to call multiple times without the need for free_bitmaps.
+*/
+
+bool partition_info::set_partition_bitmaps(TABLE_LIST *table_list)
+{
+  DBUG_ENTER("partition_info::set_partition_bitmaps");
+
+  DBUG_ASSERT(bitmaps_are_initialized);
+  DBUG_ASSERT(table);
+  is_pruning_completed= false;
+  if (!bitmaps_are_initialized)
+    DBUG_RETURN(TRUE);
+
+  if (table_list &&
+      table_list->partition_names &&
+      table_list->partition_names->elements)
+  {
+    if (table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)
+    {
+        /*
+          Don't allow PARTITION () clause on a NDB tables yet.
+          TODO: Add partition name handling to NDB/partition_info.
+          which is currently ha_partition specific.
+        */
+        my_error(ER_PARTITION_CLAUSE_ON_NONPARTITIONED, MYF(0));
+        DBUG_RETURN(true);
+    }
+    if (prune_partition_bitmaps(table_list))
+      DBUG_RETURN(TRUE);
+  }
+  else
+  {
+    bitmap_set_all(&read_partitions);
+    DBUG_PRINT("info", ("Set all partitions"));
+  }
+  bitmap_copy(&lock_partitions, &read_partitions);
+  DBUG_ASSERT(bitmap_get_first_set(&lock_partitions) != MY_BIT_NONE);
+  DBUG_RETURN(FALSE);
+}
+
+
+/**
+  Checks if possible to do prune partitions on insert.
+
+  @param thd           Thread context
+  @param duplic        How to handle duplicates
+  @param update        In case of ON DUPLICATE UPDATE, default function fields
+  @param update_fields In case of ON DUPLICATE UPDATE, which fields to update
+  @param fields        Listed fields
+  @param empty_values  True if values is empty (only defaults)
+  @param[out] prune_needs_default_values  Set on return if copying of default
+                                          values is needed
+  @param[out] can_prune_partitions        Enum showing if possible to prune
+  @param[inout] used_partitions           If possible to prune the bitmap
+                                          is initialized and cleared
+
+  @return Operation status
+    @retval false  Success
+    @retval true   Failure
+*/
+
+bool partition_info::can_prune_insert(THD* thd,
+                                      enum_duplicates duplic,
+                                      COPY_INFO &update,
+                                      List<Item> &update_fields,
+                                      List<Item> &fields,
+                                      bool empty_values,
+                                      enum_can_prune *can_prune_partitions,
+                                      bool *prune_needs_default_values,
+                                      MY_BITMAP *used_partitions)
+{
+  uint32 *bitmap_buf;
+  uint bitmap_bytes;
+  uint num_partitions= 0;
+  *can_prune_partitions= PRUNE_NO;
+  DBUG_ASSERT(bitmaps_are_initialized);
+  DBUG_ENTER("partition_info::can_prune_insert");
+
+  if (table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)
+    DBUG_RETURN(false); /* Should not insert prune NDB tables */
+
+  /*
+    If under LOCK TABLES pruning will skip start_stmt instead of external_lock
+    for unused partitions.
+
+    Cannot prune if there are BEFORE INSERT triggers that changes any
+    partitioning column, since they may change the row to be in another
+    partition.
+  */
+  if (table->triggers &&
+      table->triggers->has_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE) &&
+      table->triggers->is_fields_updated_in_trigger(&full_part_field_set,
+                                                    TRG_EVENT_INSERT,
+                                                    TRG_ACTION_BEFORE))
+    DBUG_RETURN(false);
+
+  if (table->found_next_number_field)
+  {
+    /*
+      If the field is used in the partitioning expression, we cannot prune.
+      TODO: If all rows have not null values and
+      is not 0 (with NO_AUTO_VALUE_ON_ZERO sql_mode), then pruning is possible!
+    */
+    if (bitmap_is_set(&full_part_field_set,
+        table->found_next_number_field->field_index))
+      DBUG_RETURN(false);
+  }
+
+  /*
+    If updating a field in the partitioning expression, we cannot prune.
+
+    Note: TIMESTAMP_AUTO_SET_ON_INSERT is handled by converting Item_null
+    to the start time of the statement. Which will be the same as in
+    write_row(). So pruning of TIMESTAMP DEFAULT CURRENT_TIME will work.
+    But TIMESTAMP_AUTO_SET_ON_UPDATE cannot be pruned if the timestamp
+    column is a part of any part/subpart expression.
+  */
+  if (duplic == DUP_UPDATE)
+  {
+    /*
+      TODO: add check for static update values, which can be pruned.
+    */
+    if (is_field_in_part_expr(update_fields))
+      DBUG_RETURN(false);
+
+    /*
+      Cannot prune if there are BEFORE UPDATE triggers that changes any
+      partitioning column, since they may change the row to be in another
+      partition.
+    */
+    if (table->triggers &&
+        table->triggers->has_triggers(TRG_EVENT_UPDATE,
+                                      TRG_ACTION_BEFORE) &&
+        table->triggers->is_fields_updated_in_trigger(&full_part_field_set,
+                                                      TRG_EVENT_UPDATE,
+                                                      TRG_ACTION_BEFORE))
+    {
+      DBUG_RETURN(false);
+    }
+  }
+
+  /*
+    If not all partitioning fields are given,
+    we also must set all non given partitioning fields
+    to get correct defaults.
+    TODO: If any gain, we could enhance this by only copy the needed default
+    fields by
+      1) check which fields needs to be set.
+      2) only copy those fields from the default record.
+  */
+  *prune_needs_default_values= false;
+  if (fields.elements)
+  {
+    if (!is_full_part_expr_in_fields(fields))
+      *prune_needs_default_values= true;
+  }
+  else if (empty_values)
+  {
+    *prune_needs_default_values= true; // like 'INSERT INTO t () VALUES ()'
+  }
+  else
+  {
+     /*
+       In case of INSERT INTO t VALUES (...) we must get values for
+       all fields in table from VALUES (...) part, so no defaults
+       are needed.
+     */
+  }
+
+  /* Pruning possible, have to initialize the used_partitions bitmap. */
+  num_partitions= lock_partitions.n_bits;
+  bitmap_bytes= bitmap_buffer_size(num_partitions);
+  if (!(bitmap_buf= (uint32*) thd->alloc(bitmap_bytes)))
+  {
+    mem_alloc_error(bitmap_bytes);
+    DBUG_RETURN(true);
+  }
+  /* Also clears all bits. */
+  if (bitmap_init(used_partitions, bitmap_buf, num_partitions, false))
+  {
+    /* purecov: begin deadcode */
+    /* Cannot happen, due to pre-alloc. */
+    mem_alloc_error(bitmap_bytes);
+    DBUG_RETURN(true);
+    /* purecov: end */
+  }
+  /*
+    If no partitioning field in set (e.g. defaults) check pruning only once.
+  */
+  if (fields.elements &&
+      !is_field_in_part_expr(fields))
+    *can_prune_partitions= PRUNE_DEFAULTS;
+  else
+    *can_prune_partitions= PRUNE_YES;
+
+  DBUG_RETURN(false);
+}
+
+
+/**
+  Mark the partition, the record belongs to, as used.
+
+  @param fields           Fields to set
+  @param values           Values to use
+  @param info             COPY_INFO used for default values handling
+  @param copy_default_values  True if we should copy default values
+  @param used_partitions  Bitmap to set
+
+  @returns Operational status
+    @retval false  Success
+    @retval true   Failure
+*/
+
+bool partition_info::set_used_partition(List<Item> &fields,
+                                        List<Item> &values,
+                                        COPY_INFO &info,
+                                        bool copy_default_values,
+                                        MY_BITMAP *used_partitions)
+{
+  THD *thd= table->in_use;
+  uint32 part_id;
+  longlong func_value;
+  Dummy_error_handler error_handler;
+  bool ret= true;
+  DBUG_ENTER("set_partition");
+  DBUG_ASSERT(thd);
+
+  /* Only allow checking of constant values */
+  List_iterator_fast<Item> v(values);
+  Item *item;
+  thd->push_internal_handler(&error_handler);
+  while ((item= v++))
+  {
+    if (!item->const_item())
+      goto err;
+  }
+
+  if (copy_default_values)
+    restore_record(table,s->default_values);
+
+  if (fields.elements || !values.elements)
+  {
+    if (fill_record(thd, table, fields, values, false))
+      goto err;
+  }
+  else
+  {
+    if (fill_record(thd, table, table->field, values, false, false))
+      goto err;
+  }
+  DBUG_ASSERT(!table->auto_increment_field_not_null);
+
+  /*
+    Evaluate DEFAULT functions like CURRENT_TIMESTAMP.
+    TODO: avoid setting non partitioning fields default value, to avoid
+    overhead. Not yet done, since mostly only one DEFAULT function per
+    table, or at least very few such columns.
+  */
+//  if (info.function_defaults_apply_on_columns(&full_part_field_set))
+//  info.set_function_defaults(table);
+
+  {
+    /*
+      This function is used in INSERT; 'values' are supplied by user,
+      or are default values, not values read from a table, so read_set is
+      irrelevant.
+    */
+    my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+    const int rc= get_partition_id(this, &part_id, &func_value);
+    dbug_tmp_restore_column_map(table->read_set, old_map);
+    if (rc)
+      goto err;
+  }
+
+  DBUG_PRINT("info", ("Insert into partition %u", part_id));
+  bitmap_set_bit(used_partitions, part_id);
+  ret= false;
+
+err:
+  thd->pop_internal_handler();
+  DBUG_RETURN(ret);
+}
+
 
 /*
   Create a memory area where default partition names are stored and fill it
@@ -160,8 +576,9 @@ void partition_info::set_show_version_string(String *packet)
 
 /*
   Create a unique name for the subpartition as part_name'sp''subpart_no'
+
   SYNOPSIS
-    create_subpartition_name()
+    create_default_subpartition_name()
     subpart_no                  Number of subpartition
     part_name                   Name of partition
   RETURN VALUES
@@ -169,12 +586,12 @@ void partition_info::set_show_version_string(String *packet)
     0                           Memory allocation error
 */
 
-char *partition_info::create_subpartition_name(uint subpart_no,
+char *partition_info::create_default_subpartition_name(uint subpart_no,
                                                const char *part_name)
 {
   uint size_alloc= strlen(part_name) + MAX_PART_NAME_SIZE;
   char *ptr= (char*) sql_calloc(size_alloc);
-  DBUG_ENTER("create_subpartition_name");
+  DBUG_ENTER("create_default_subpartition_name");
 
   if (likely(ptr != NULL))
   {
@@ -320,7 +737,8 @@ bool partition_info::set_up_default_subpartitions(handler *file,
       if (likely(subpart_elem != 0 &&
           (!part_elem->subpartitions.push_back(subpart_elem))))
       {
-        char *ptr= create_subpartition_name(j, part_elem->partition_name);
+        char *ptr= create_default_subpartition_name(j,
+                                                    part_elem->partition_name);
         if (!ptr)
           goto end;
         subpart_elem->engine_type= default_engine_type;
@@ -380,7 +798,7 @@ bool partition_info::set_up_defaults_for_partitioning(handler *file,
   Support routine for check_partition_info
 
   SYNOPSIS
-    has_unique_fields
+    find_duplicate_field
     no parameters
 
   RETURN VALUE
@@ -391,13 +809,13 @@ bool partition_info::set_up_defaults_for_partitioning(handler *file,
     Check that the user haven't defined the same field twice in
     key or column list partitioning.
 */
-char* partition_info::has_unique_fields()
+char* partition_info::find_duplicate_field()
 {
   char *field_name_outer, *field_name_inner;
   List_iterator<char> it_outer(part_field_list);
   uint num_fields= part_field_list.elements;
   uint i,j;
-  DBUG_ENTER("partition_info::has_unique_fields");
+  DBUG_ENTER("partition_info::find_duplicate_field");
 
   for (i= 0; i < num_fields; i++)
   {
@@ -418,6 +836,152 @@ char* partition_info::has_unique_fields()
   }
   DBUG_RETURN(NULL);
 }
+
+
+/**
+  @brief Get part_elem and part_id from partition name
+
+  @param partition_name Name of partition to search for.
+  @param file_name[out] Partition file name (part after table name,
+                        #P#<part>[#SP#<subpart>]), skipped if NULL.
+  @param part_id[out]   Id of found partition or NOT_A_PARTITION_ID.
+
+  @retval Pointer to part_elem of [sub]partition, if not found NULL
+
+  @note Since names of partitions AND subpartitions must be unique,
+  this function searches both partitions and subpartitions and if name of
+  a partition is given for a subpartitioned table, part_elem will be
+  the partition, but part_id will be NOT_A_PARTITION_ID and file_name not set.
+*/
+partition_element *partition_info::get_part_elem(const char *partition_name,
+                                                 char *file_name,
+                                                 uint32 *part_id)
+{
+  List_iterator<partition_element> part_it(partitions);
+  uint i= 0;
+  DBUG_ENTER("partition_info::get_part_elem");
+  DBUG_ASSERT(part_id);
+  *part_id= NOT_A_PARTITION_ID;
+  do
+  {
+    partition_element *part_elem= part_it++;
+    if (is_sub_partitioned())
+    {
+      List_iterator<partition_element> sub_part_it(part_elem->subpartitions);
+      uint j= 0;
+      do
+      {
+        partition_element *sub_part_elem= sub_part_it++;
+        if (!my_strcasecmp(system_charset_info,
+                           sub_part_elem->partition_name, partition_name))
+        {
+          if (file_name)
+            create_subpartition_name(file_name, "",
+                                     part_elem->partition_name,
+                                     partition_name,
+                                     NORMAL_PART_NAME);
+          *part_id= j + (i * num_subparts);
+          DBUG_RETURN(sub_part_elem);
+        }
+      } while (++j < num_subparts);
+
+      /* Naming a partition (first level) on a subpartitioned table. */
+      if (!my_strcasecmp(system_charset_info,
+                            part_elem->partition_name, partition_name))
+        DBUG_RETURN(part_elem);
+    }
+    else if (!my_strcasecmp(system_charset_info,
+                            part_elem->partition_name, partition_name))
+    {
+      if (file_name)
+        create_partition_name(file_name, "", partition_name,
+                              NORMAL_PART_NAME, TRUE);
+      *part_id= i;
+      DBUG_RETURN(part_elem);
+    }
+  } while (++i < num_parts);
+  DBUG_RETURN(NULL);
+}
+
+
+/**
+  Helper function to find_duplicate_name.
+*/
+
+static const char *get_part_name_from_elem(const char *name, size_t *length,
+                                      my_bool not_used __attribute__((unused)))
+{
+  *length= strlen(name);
+  return name;
+}
+
+/*
+  A support function to check partition names for duplication in a
+  partitioned table
+
+  SYNOPSIS
+    find_duplicate_name()
+
+  RETURN VALUES
+    NULL               Has unique part and subpart names
+    !NULL              Pointer to duplicated name
+
+  DESCRIPTION
+    Checks that the list of names in the partitions doesn't contain any
+    duplicated names.
+*/
+
+char *partition_info::find_duplicate_name()
+{
+  HASH partition_names;
+  uint max_names;
+  const uchar *curr_name= NULL;
+  List_iterator<partition_element> parts_it(partitions);
+  partition_element *p_elem;
+
+  DBUG_ENTER("partition_info::find_duplicate_name");
+
+  /*
+    TODO: If table->s->ha_part_data->partition_name_hash.elements is > 0,
+    then we could just return NULL, but that has not been verified.
+    And this only happens when in ALTER TABLE with full table copy.
+  */
+
+  max_names= num_parts;
+  if (is_sub_partitioned())
+    max_names+= num_parts * num_subparts;
+  if (my_hash_init(&partition_names, system_charset_info, max_names, 0, 0,
+                   (my_hash_get_key) get_part_name_from_elem, 0, HASH_UNIQUE))
+  {
+    DBUG_ASSERT(0);
+    curr_name= (const uchar*) "Internal failure";
+    goto error;
+  }
+  while ((p_elem= (parts_it++)))
+  {
+    curr_name= (const uchar*) p_elem->partition_name;
+    if (my_hash_insert(&partition_names, curr_name))
+      goto error;
+
+    if (!p_elem->subpartitions.is_empty())
+    {
+      List_iterator<partition_element> subparts_it(p_elem->subpartitions);
+      partition_element *subp_elem;
+      while ((subp_elem= (subparts_it++)))
+      {
+        curr_name= (const uchar*) subp_elem->partition_name;
+        if (my_hash_insert(&partition_names, curr_name))
+          goto error;
+      }
+    }
+  }
+  my_hash_free(&partition_names);
+  DBUG_RETURN(NULL);
+error:
+  my_hash_free(&partition_names);
+  DBUG_RETURN((char*) curr_name);
+}
+
 
 /*
   A support function to check if a partition element's name is unique
@@ -458,49 +1022,6 @@ bool partition_info::has_unique_name(partition_element *element)
     }
   } 
   DBUG_RETURN(TRUE);
-}
-
-
-/*
-  A support function to check partition names for duplication in a
-  partitioned table
-
-  SYNOPSIS
-    has_unique_names()
-
-  RETURN VALUES
-    TRUE               Has unique part and subpart names
-    FALSE              Doesn't
-
-  DESCRIPTION
-    Checks that the list of names in the partitions doesn't contain any
-    duplicated names.
-*/
-
-char *partition_info::has_unique_names()
-{
-  DBUG_ENTER("partition_info::has_unique_names");
-  
-  List_iterator<partition_element> parts_it(partitions);
-
-  partition_element *el;  
-  while ((el= (parts_it++)))
-  {
-    if (! has_unique_name(el))
-      DBUG_RETURN(el->partition_name);
-      
-    if (!el->subpartitions.is_empty())
-    {
-      List_iterator<partition_element> subparts_it(el->subpartitions);
-      partition_element *subel;
-      while ((subel= (subparts_it++)))
-      {
-        if (! has_unique_name(subel))
-          DBUG_RETURN(subel->partition_name);
-      }
-    }
-  } 
-  DBUG_RETURN(NULL);
 }
 
 
@@ -1058,11 +1579,11 @@ static void warn_if_dir_in_part_elem(THD *thd, partition_element *part_elem)
 #endif
   {
     if (part_elem->data_file_name)
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           WARN_OPTION_IGNORED, ER(WARN_OPTION_IGNORED),
                           "DATA DIRECTORY");
     if (part_elem->index_file_name)
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           WARN_OPTION_IGNORED, ER(WARN_OPTION_IGNORED),
                           "INDEX DIRECTORY");
     part_elem->data_file_name= part_elem->index_file_name= NULL;
@@ -1188,12 +1709,12 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   }
 
   if (part_field_list.elements > 0 &&
-      (same_name= has_unique_fields()))
+      (same_name= find_duplicate_field()))
   {
     my_error(ER_SAME_NAME_PARTITION_FIELD, MYF(0), same_name);
     goto end;
   }
-  if ((same_name= has_unique_names()))
+  if ((same_name= find_duplicate_name()))
   {
     my_error(ER_SAME_NAME_PARTITION, MYF(0), same_name);
     goto end;
@@ -1582,29 +2103,21 @@ bool check_partition_dirs(partition_info *part_info)
       partition_element *subpart_elem;
       while ((subpart_elem= sub_it++))
       {
-        if (test_if_data_home_dir(subpart_elem->data_file_name))
-          goto dd_err;
-        if (test_if_data_home_dir(subpart_elem->index_file_name))
-          goto id_err;
+        if (error_if_data_home_dir(subpart_elem->data_file_name,
+                                   "DATA DIRECTORY") ||
+            error_if_data_home_dir(subpart_elem->index_file_name,
+                                   "INDEX DIRECTORY"))
+        return 1;
       }
     }
     else
     {
-      if (test_if_data_home_dir(part_elem->data_file_name))
-        goto dd_err;
-      if (test_if_data_home_dir(part_elem->index_file_name))
-        goto id_err;
+      if (error_if_data_home_dir(part_elem->data_file_name, "DATA DIRECTORY") ||
+          error_if_data_home_dir(part_elem->index_file_name, "INDEX DIRECTORY"))
+        return 1;
     }
   }
   return 0;
-
-dd_err:
-  my_error(ER_WRONG_ARGUMENTS,MYF(0),"DATA DIRECTORY");
-  return 1;
-
-id_err:
-  my_error(ER_WRONG_ARGUMENTS,MYF(0),"INDEX DIRECTORY");
-  return 1;
 }
 
 
@@ -1650,6 +2163,71 @@ void partition_info::report_part_expr_error(bool use_subpart_expr)
   else
     my_error(ER_PARTITION_FUNC_NOT_ALLOWED_ERROR, MYF(0), "PARTITION");
   DBUG_VOID_RETURN;
+}
+ 
+
+/**
+  Check if fields are in the partitioning expression.
+
+  @param fields  List of Items (fields)
+
+  @return True if any field in the fields list is used by a partitioning expr.
+    @retval true  At least one field in the field list is found.
+    @retval false No field is within any partitioning expression.
+*/
+
+bool partition_info::is_field_in_part_expr(List<Item> &fields)
+{
+  List_iterator<Item> it(fields);
+  Item *item;
+  Item_field *field;
+  DBUG_ENTER("is_fields_in_part_expr");
+  while ((item= it++))
+  {
+    field= item->field_for_view_update();
+    DBUG_ASSERT(field->field->table == table);
+    if (bitmap_is_set(&full_part_field_set, field->field->field_index))
+      DBUG_RETURN(true);
+  }
+  DBUG_RETURN(false);
+}
+ 
+
+/**
+  Check if all partitioning fields are included.
+*/
+
+bool partition_info::is_full_part_expr_in_fields(List<Item> &fields)
+{
+  Field **part_field= full_part_field_array;
+  DBUG_ASSERT(*part_field);
+  DBUG_ENTER("is_full_part_expr_in_fields");
+  /*
+    It is very seldom many fields in full_part_field_array, so it is OK
+    to loop over all of them instead of creating a bitmap fields argument
+    to compare with.
+  */
+  do
+  {
+    List_iterator<Item> it(fields);
+    Item *item;
+    Item_field *field;
+    bool found= false;
+  
+    while ((item= it++))
+    {
+      field= item->field_for_view_update();
+      DBUG_ASSERT(field->field->table == table);
+      if (*part_field == field->field)
+      {
+        found= true;
+        break;
+      }
+    }
+    if (!found)
+      DBUG_RETURN(false);
+  } while (*(++part_field));
+  DBUG_RETURN(true);
 }
  
 
@@ -2232,6 +2810,7 @@ int partition_info::fix_parser_data(THD *thd)
   DBUG_RETURN(FALSE);
 }
 
+
 void partition_info::print_debug(const char *str, uint *value)
 {
   DBUG_ENTER("print_debug");
@@ -2284,6 +2863,11 @@ int partition_info::add_max_value()
 
 void partition_info::print_debug(const char *str, uint *value)
 {
+}
+
+bool check_partition_dirs(partition_info *part_info)
+{
+  return 0;
 }
 
 #endif /* WITH_PARTITION_STORAGE_ENGINE */

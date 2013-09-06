@@ -43,8 +43,6 @@ END|
 SELECT f2 ();
 f2 ()
 NULL
-Warnings:
-Error	1305	FUNCTION testdb.f_not_exists does not exist
 DROP SCHEMA testdb;
 USE test;
 #
@@ -133,6 +131,15 @@ Note	1050	Table 't2' already exists
 DROP DATABASE testdb;
 USE test;
 End of 5.1 tests
+#
+# BUG#13489996 valgrind:conditional jump or move depends on
+# uninitialised values-field_blob
+#
+CREATE FUNCTION sf() RETURNS BLOB RETURN "";
+SELECT sf();
+sf()
+
+DROP FUNCTION sf;
 #
 # Bug#11763507 - 56224: FUNCTION NAME IS CASE-SENSITIVE
 #

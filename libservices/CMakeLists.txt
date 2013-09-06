@@ -1,4 +1,4 @@
-# Copyright (c) 2006 MySQL AB, 2010 Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2006 MySQL AB, 2010 Oracle and/or its affiliates.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,9 +19,10 @@ SET(MYSQLSERVICES_SOURCES
   my_snprintf_service.c
   thd_alloc_service.c
   thd_wait_service.c
-  my_thread_scheduler_service.c
+  thd_timezone_service.c
   progress_report_service.c
   debug_sync_service.c
+  my_sha1_service.c
   kill_statement_service.c)
 
 ADD_CONVENIENCE_LIBRARY(mysqlservices ${MYSQLSERVICES_SOURCES})

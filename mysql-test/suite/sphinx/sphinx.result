@@ -46,9 +46,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	ts	ref	q	q	257	const	3	Using where with pushed condition
 SET optimizer_switch=@save_optimizer_switch;
 drop table ts;
-show status like "sphinx_error%";
-Variable_name	Value
-Sphinx_error	OFF
 show status like "sphinx_total%";
 Variable_name	Value
 Sphinx_total	2

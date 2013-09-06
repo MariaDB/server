@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -524,7 +524,7 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_STRING name)
   else if (((thd->variables.option_bits & OPTION_KEEP_LOG) ||
             thd->transaction.all.modified_non_trans_table) &&
            !thd->slave_thread)
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
                  ER(ER_WARNING_NOT_COMPLETE_ROLLBACK));
 
@@ -610,15 +610,19 @@ bool trans_xa_start(THD *thd)
     my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
   else if (thd->locked_tables_mode || thd->in_active_multi_stmt_transaction())
     my_error(ER_XAER_OUTSIDE, MYF(0));
-  else if (xid_cache_search(thd->lex->xid))
-    my_error(ER_XAER_DUPID, MYF(0));
   else if (!trans_begin(thd))
   {
     DBUG_ASSERT(thd->transaction.xid_state.xid.is_null());
     thd->transaction.xid_state.xa_state= XA_ACTIVE;
     thd->transaction.xid_state.rm_error= 0;
     thd->transaction.xid_state.xid.set(thd->lex->xid);
-    xid_cache_insert(&thd->transaction.xid_state);
+    if (xid_cache_insert(&thd->transaction.xid_state))
+    {
+      thd->transaction.xid_state.xa_state= XA_NOTR;
+      thd->transaction.xid_state.xid.null();
+      trans_rollback(thd);
+      DBUG_RETURN(true);
+    }
     DBUG_RETURN(FALSE);
   }
 
@@ -704,6 +708,16 @@ bool trans_xa_commit(THD *thd)
 
   if (!thd->transaction.xid_state.xid.eq(thd->lex->xid))
   {
+    /*
+      xid_state.in_thd is always true beside of xa recovery procedure.
+      Note, that there is no race condition here between xid_cache_search
+      and xid_cache_delete, since we always delete our own XID
+      (thd->lex->xid == thd->transaction.xid_state.xid).
+      The only case when thd->lex->xid != thd->transaction.xid_state.xid
+      and xid_state->in_thd == 0 is in the function
+      xa_cache_insert(XID, xa_states), which is called before starting
+      client connections, and thus is always single-threaded.
+    */
     XID_STATE *xs= xid_cache_search(thd->lex->xid);
     res= !xs || xs->in_thd;
     if (res)
@@ -801,7 +815,7 @@ bool trans_xa_rollback(THD *thd)
       ha_commit_or_rollback_by_xid(thd->lex->xid, 0);
       xid_cache_delete(xs);
     }
-    DBUG_RETURN(thd->stmt_da->is_error());
+    DBUG_RETURN(thd->get_stmt_da()->is_error());
   }
 
   if (xa_state != XA_IDLE && xa_state != XA_PREPARED && xa_state != XA_ROLLBACK_ONLY)

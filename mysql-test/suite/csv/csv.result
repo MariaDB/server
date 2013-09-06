@@ -4927,9 +4927,9 @@ period
 9410
 drop table if exists t1,t2,t3,t4;
 Warnings:
-Note	1051	Unknown table 't2'
-Note	1051	Unknown table 't3'
-Note	1051	Unknown table 't4'
+Note	1051	Unknown table 'test.t2'
+Note	1051	Unknown table 'test.t3'
+Note	1051	Unknown table 'test.t4'
 DROP TABLE IF EXISTS bug13894;
 CREATE TABLE bug13894 ( val integer not null ) ENGINE = CSV;
 INSERT INTO bug13894 VALUES (5);
@@ -5379,7 +5379,7 @@ ERROR 42000: The storage engine for the table doesn't support nullable columns
 SHOW WARNINGS;
 Level	Code	Message
 Error	1178	The storage engine for the table doesn't support nullable columns
-Error	1005	Can't create table 'test.t1' (errno: 138 "Unsupported extension used for table")
+Error	1005	Can't create table `test`.`t1` (errno: 138 "Unsupported extension used for table")
 create table t1 (c1 tinyblob not null) engine=csv;
 insert into t1 values("This");
 update t1 set c1="That" where c1="This";

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /**
@@ -55,7 +55,7 @@ static ha_rows find_all_keys(Sort_param *param,SQL_SELECT *select,
                              IO_CACHE *tempfile,
                              Bounded_queue<uchar, uchar> *pq,
                              ha_rows *found_rows);
-static int write_keys(Sort_param *param, Filesort_info *fs_info,
+static bool write_keys(Sort_param *param, Filesort_info *fs_info,
                       uint count, IO_CACHE *buffer_file, IO_CACHE *tempfile);
 static void make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos);
 static void register_used_fields(Sort_param *param);
@@ -147,7 +147,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
                  ha_rows *found_rows)
 {
   int error;
-  ulong memory_available= thd->variables.sortbuff_size;
+  size_t memory_available= thd->variables.sortbuff_size;
   uint maxbuffer;
   BUFFPEK *buffpek;
   ha_rows num_rows= HA_POS_ERROR;
@@ -245,12 +245,12 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   {
     DBUG_PRINT("info", ("filesort PQ is not applicable"));
 
-    ulong min_sort_memory= max(MIN_SORT_MEMORY, param.sort_length*MERGEBUFF2);
+    size_t min_sort_memory= MY_MAX(MIN_SORT_MEMORY, param.sort_length*MERGEBUFF2);
     set_if_bigger(min_sort_memory, sizeof(BUFFPEK*)*MERGEBUFF2);
     while (memory_available >= min_sort_memory)
     {
-      ulong keys= memory_available / (param.rec_length + sizeof(char*));
-      param.max_keys_per_buffer= (uint) min(num_rows, keys);
+      ulonglong keys= memory_available / (param.rec_length + sizeof(char*));
+      param.max_keys_per_buffer= (uint) MY_MIN(num_rows, keys);
       if (table_sort.get_sort_keys())
       {
         // If we have already allocated a buffer, it better have same size!
@@ -267,7 +267,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
       table_sort.alloc_sort_buffer(param.max_keys_per_buffer, param.rec_length);
       if (table_sort.get_sort_keys())
         break;
-      ulong old_memory_available= memory_available;
+      size_t old_memory_available= memory_available;
       memory_available= memory_available/4*3;
       if (memory_available < min_sort_memory &&
           old_memory_available > min_sort_memory)
@@ -391,7 +391,8 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
                     MYF(0),
                     ER_THD(thd, ER_FILSORT_ABORT),
                     kill_errno ? ER(kill_errno) :
-                    thd->killed == ABORT_QUERY ? "" : thd->stmt_da->message());
+                    thd->killed == ABORT_QUERY ? "" :
+                    thd->get_stmt_da()->message());
 
     if (global_system_variables.log_warnings > 1)
     { 
@@ -448,7 +449,7 @@ void filesort_free_buffers(TABLE *table, bool full)
 static uchar *read_buffpek_from_file(IO_CACHE *buffpek_pointers, uint count,
                                      uchar *buf)
 {
-  ulong length= sizeof(BUFFPEK)*count;
+  size_t length= sizeof(BUFFPEK)*count;
   uchar *tmp= buf;
   DBUG_ENTER("read_buffpek_from_file");
   if (count > UINT_MAX/sizeof(BUFFPEK))
@@ -790,7 +791,7 @@ static ha_rows find_all_keys(Sort_param *param, SQL_SELECT *select,
     1 Error
 */
 
-static int
+static bool
 write_keys(Sort_param *param,  Filesort_info *fs_info, uint count,
            IO_CACHE *buffpek_pointers, IO_CACHE *tempfile)
 {
@@ -951,8 +952,11 @@ static void make_sortkey(register Sort_param *param,
           else
           {
             MYSQL_TIME buf;
-            if (item->get_date_result(&buf, TIME_FUZZY_DATE | TIME_INVALID_DATES))
-              DBUG_ASSERT(maybe_null && item->null_value);
+            if (item->get_date_result(&buf, TIME_INVALID_DATES))
+            {
+              DBUG_ASSERT(maybe_null);
+              DBUG_ASSERT(item->null_value);
+            }
             else
               value= pack_time(&buf);
           }
@@ -1368,7 +1372,7 @@ uint read_to_buffer(IO_CACHE *fromfile, BUFFPEK *buffpek,
   register uint count;
   uint length;
 
-  if ((count=(uint) min((ha_rows) buffpek->max_keys,buffpek->count)))
+  if ((count=(uint) MY_MIN((ha_rows) buffpek->max_keys,buffpek->count)))
   {
     if (mysql_file_pread(fromfile->file, (uchar*) buffpek->base,
                          (length= rec_length*count),
@@ -1693,7 +1697,7 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
          != -1 && error != 0);
 
 end:
-  lastbuff->count= min(org_max_rows-max_rows, param->max_rows);
+  lastbuff->count= MY_MIN(org_max_rows-max_rows, param->max_rows);
   lastbuff->file_pos= to_start_filepos;
 err:
   delete_queue(&queue);

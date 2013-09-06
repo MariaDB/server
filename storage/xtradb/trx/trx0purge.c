@@ -61,6 +61,10 @@ UNIV_INTERN mysql_pfs_key_t	trx_purge_latch_key;
 UNIV_INTERN mysql_pfs_key_t	purge_sys_bh_mutex_key;
 #endif /* UNIV_PFS_MUTEX */
 
+#ifdef UNIV_DEBUG
+UNIV_INTERN my_bool		srv_purge_view_update_only_debug;
+#endif /* UNIV_DEBUG */
+
 /*****************************************************************//**
 Checks if trx_id is >= purge_view: then it is guaranteed that its update
 undo log still exists in the system.
@@ -236,6 +240,7 @@ trx_purge_sys_create(
 	purge_sys->purge_trx_no = 0;
 	purge_sys->purge_undo_no = 0;
 	purge_sys->next_stored = FALSE;
+	ut_d(purge_sys->done_trx_no = 0);
 
 	rw_lock_create(trx_purge_latch_key,
 		       &purge_sys->latch, SYNC_PURGE_LATCH);
@@ -258,8 +263,9 @@ trx_purge_sys_create(
 
 	purge_sys->query = trx_purge_graph_build();
 
-	purge_sys->view = read_view_oldest_copy_or_open_new(0,
-							    purge_sys->heap);
+	purge_sys->prebuilt_view =
+		read_view_oldest_copy_or_open_new(0, NULL);
+	purge_sys->view = purge_sys->prebuilt_view;
 }
 
 /************************************************************************
@@ -274,7 +280,12 @@ trx_purge_sys_close(void)
 	que_graph_free(purge_sys->query);
 
 	ut_a(purge_sys->sess->trx->is_purge);
-	purge_sys->sess->trx->conc_state = TRX_NOT_STARTED;
+	purge_sys->sess->trx->state = TRX_NOT_STARTED;
+
+	mutex_enter(&kernel_mutex);
+	trx_release_descriptor(purge_sys->sess->trx);
+	mutex_exit(&kernel_mutex);
+
 	sess_close(purge_sys->sess);
 	purge_sys->sess = NULL;
 
@@ -284,6 +295,8 @@ trx_purge_sys_close(void)
 		mutex_enter(&kernel_mutex);
 
 		read_view_close(purge_sys->view);
+		read_view_free(purge_sys->prebuilt_view);
+		purge_sys->prebuilt_view = NULL;
 		purge_sys->view = NULL;
 
 		mutex_exit(&kernel_mutex);
@@ -655,6 +668,12 @@ trx_purge_truncate_if_arr_empty(void)
 /*=================================*/
 {
 	static ulint	count;
+
+#ifdef UNIV_DEBUG
+	if (purge_sys->arr->n_used == 0) {
+		purge_sys->done_trx_no = purge_sys->purge_trx_no;
+	}
+#endif /* UNIV_DEBUG */
 
 	if (!(++count % TRX_SYS_N_RSEGS) && purge_sys->arr->n_used == 0) {
 
@@ -1166,11 +1185,17 @@ trx_purge(
 	}
 
 	purge_sys->view = read_view_oldest_copy_or_open_new(
-		0, purge_sys->heap);
+		0, purge_sys->prebuilt_view);
 
 	mutex_exit(&kernel_mutex);
 
 	rw_lock_x_unlock(&(purge_sys->latch));
+
+#ifdef UNIV_DEBUG
+	if (srv_purge_view_update_only_debug) {
+		return(0);
+	}
+#endif
 
 	purge_sys->state = TRX_PURGE_ON;
 

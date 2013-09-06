@@ -7,9 +7,6 @@
 # In the case of trouble you might want to skip this.
 #
 
-# embedded server returns different paths in error messages
-# in lines like 'call bug14233();'
-# mysqltest should be fixed to allow REPLACE_RESULT in error message
 -- source include/not_embedded.inc
 
 # Supress warnings written to the log file

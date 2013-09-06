@@ -43,14 +43,14 @@ static const TABLE_FIELD_TYPE mutex_field_types[]=
   },
   {
     { C_STRING_WITH_LEN("LOCKED_BY_THREAD_ID") },
-    { C_STRING_WITH_LEN("int(11)") },
+    { C_STRING_WITH_LEN("bigint(20)") },
     { NULL, 0}
   }
 };
 
 TABLE_FIELD_DEF
 table_mutex_instances::m_field_def=
-{ 3, mutex_field_types };
+{ 3, mutex_field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_mutex_instances::m_share=
@@ -178,7 +178,7 @@ int table_mutex_instances::read_row_values(TABLE *table,
         break;
       case 2: /* LOCKED_BY_THREAD_ID */
         if (m_row.m_locked)
-          set_field_ulong(f, m_row.m_locked_by_thread_id);
+          set_field_ulonglong(f, m_row.m_locked_by_thread_id);
         else
           f->set_null();
         break;
@@ -207,7 +207,7 @@ static const TABLE_FIELD_TYPE rwlock_field_types[]=
   },
   {
     { C_STRING_WITH_LEN("WRITE_LOCKED_BY_THREAD_ID") },
-    { C_STRING_WITH_LEN("int(11)") },
+    { C_STRING_WITH_LEN("bigint(20)") },
     { NULL, 0}
   },
   {
@@ -219,7 +219,7 @@ static const TABLE_FIELD_TYPE rwlock_field_types[]=
 
 TABLE_FIELD_DEF
 table_rwlock_instances::m_field_def=
-{ 4, rwlock_field_types };
+{ 4, rwlock_field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_rwlock_instances::m_share=
@@ -351,7 +351,7 @@ int table_rwlock_instances::read_row_values(TABLE *table,
         break;
       case 2: /* WRITE_LOCKED_BY_THREAD_ID */
         if (m_row.m_write_locked)
-          set_field_ulong(f, m_row.m_write_locked_by_thread_id);
+          set_field_ulonglong(f, m_row.m_write_locked_by_thread_id);
         else
           f->set_null();
         break;
@@ -385,7 +385,7 @@ static const TABLE_FIELD_TYPE cond_field_types[]=
 
 TABLE_FIELD_DEF
 table_cond_instances::m_field_def=
-{ 2, cond_field_types };
+{ 2, cond_field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_cond_instances::m_share=

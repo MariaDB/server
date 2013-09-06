@@ -1,6 +1,18 @@
 *** Set up circular replication on four servers *** 
 include/rpl_init.inc [topology=1->2->3->4->1]
 
+[connection server_4]
+SET auto_increment_increment= 4;
+SET auto_increment_offset= 4;
+[connection server_3]
+SET auto_increment_increment= 4;
+SET auto_increment_offset= 3;
+[connection server_2]
+SET auto_increment_increment= 4;
+SET auto_increment_offset= 2;
+[connection server_1]
+SET auto_increment_increment= 4;
+SET auto_increment_offset= 1;
 *** Preparing data ***
 CREATE TABLE t1 (a INT NOT NULL AUTO_INCREMENT, b VARCHAR(100), c INT NOT NULL, PRIMARY KEY(a)) ENGINE=MyISAM;
 CREATE TABLE t2 (a INT NOT NULL AUTO_INCREMENT, b VARCHAR(100), c INT NOT NULL, PRIMARY KEY(a)) ENGINE=InnoDB;
@@ -47,7 +59,7 @@ SET GLOBAL SQL_SLAVE_SKIP_COUNTER = 1;
 include/start_slave.inc
 INSERT INTO t1 VALUES(6,'C',2);
 INSERT INTO t1(b,c) VALUES('B',2);
-call mtr.add_suppression("Slave SQL.*Duplicate entry .6. for key .PRIMARY.* Error_code: 1062");
+call mtr.add_suppression("Slave SQL.*Duplicate entry .6. for key .PRIMARY.* error.* 1062");
 include/wait_for_slave_sql_error.inc [errno=1062]
 INSERT INTO t1(b,c) VALUES('A',2);
 INSERT INTO t1(b,c) VALUES('D',2);

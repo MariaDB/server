@@ -1,0 +1,159 @@
+include/rpl_init.inc [topology=1->2]
+*** Test normal shutdown/restart of slave server configured as a GTID slave. ***
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+include/stop_slave.inc
+Master_Log_File = 'master-bin.000001'
+Using_Gtid = 'No'
+CHANGE MASTER TO master_use_gtid=current_pos;
+FLUSH LOGS;
+include/wait_for_purge.inc "master-bin.000002"
+show binary logs;
+Log_name	File_size
+master-bin.000002	#
+INSERT INTO t1 VALUES (2);
+FLUSH LOGS;
+INSERT INTO t1 VALUES (3);
+show binary logs;
+Log_name	File_size
+master-bin.000002	#
+master-bin.000003	#
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+*** Test normal shutdown/restart of master server, check binlog state is preserved. ***
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (4);
+SHOW BINLOG EVENTS IN 'master-bin.000003' LIMIT 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid_list	#	#	[0-1-3]
+FLUSH LOGS;
+SHOW BINLOG EVENTS IN 'master-bin.000004' LIMIT 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Gtid_list	#	#	[1-1-1,0-1-4]
+SHOW BINLOG EVENTS IN 'master-bin.000005' LIMIT 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000005	#	Gtid_list	#	#	[1-1-1,0-1-4]
+show binary logs;
+Log_name	File_size
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+master-bin.000005	#
+INSERT INTO t1 VALUES(5);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+*** Test that @@gtid_slave_pos and @@gtid_current_pos are correctly loaded even if slave threads have not started. ***
+SET @slave_pos2= @@GLOBAL.gtid_slave_pos;
+SET @current_pos2= @@GLOBAL.gtid_current_pos;
+SELECT IF(@slave_pos1=@slave_pos2, "OK", CONCAT(@slave_pos1, " != ", @slave_pos2));
+IF(@slave_pos1=@slave_pos2, "OK", CONCAT(@slave_pos1, " != ", @slave_pos2))
+OK
+SELECT IF(@current_pos1=@current_pos2, "OK", CONCAT(@current_pos1, " != ", @current_pos2));
+IF(@current_pos1=@current_pos2, "OK", CONCAT(@current_pos1, " != ", @current_pos2))
+OK
+INSERT INTO t1 VALUES (6);
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+*** MDEV-4490: Old-style master position points at the last GTID event after slave restart ***
+INSERT INTO t1 VALUES (7);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+7
+include/wait_for_slave_to_start.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+7
+*** MDEV-4486: Allow to start old-style replication even if mysql.gtid_slave_pos is unavailable
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid= no;
+include/start_slave.inc
+INSERT INTO t1 VALUES (8);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+7
+8
+include/stop_slave.inc
+SET sql_log_bin= 0;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET sql_log_bin= 1;
+SELECT * FROM mysql.gtid_slave_pos;
+ERROR 42000: Unknown storage engine 'InnoDB'
+SET sql_log_bin=0;
+call mtr.add_suppression("Failed to load slave replication state from table");
+call mtr.add_suppression("Unable to load replication GTID slave state");
+SET sql_log_bin=1;
+include/start_slave.inc
+Warnings:
+Error	1286	Unknown storage engine 'InnoDB'
+INSERT INTO t1 VALUES (9);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+7
+8
+9
+SET sql_log_bin= 0;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+SET sql_log_bin= 1;
+include/start_slave.inc
+INSERT INTO t1 VALUES (10);
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid= slave_pos;
+include/start_slave.inc
+*** MDEV-4692: mysql.gtid_slave_pos accumulates values for a domain ***
+SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+domain_id	COUNT(*)
+0	2
+1	2
+INSERT INTO t1 VALUES (11);
+SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+domain_id	COUNT(*)
+0	2
+1	2
+include/start_slave.inc
+INSERT INTO t1 VALUES (12);
+INSERT INTO t1 VALUES (13);
+SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+domain_id	COUNT(*)
+0	2
+1	2
+DROP TABLE t1;
+include/rpl_end.inc

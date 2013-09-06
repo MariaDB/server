@@ -1,0 +1,20 @@
+LIBRARY		ha_spider
+VERSION		1.0
+EXPORTS
+  spider_direct_sql
+  spider_direct_sql_init
+  spider_direct_sql_deinit
+  spider_bg_direct_sql
+  spider_bg_direct_sql_init
+  spider_bg_direct_sql_deinit
+  spider_bg_direct_sql_clear
+  spider_bg_direct_sql_add
+  spider_ping_table
+  spider_ping_table_init
+  spider_ping_table_deinit
+  spider_flush_table_mon_cache
+  spider_flush_table_mon_cache_init
+  spider_flush_table_mon_cache_deinit
+  spider_copy_tables
+  spider_copy_tables_init
+  spider_copy_tables_deinit

@@ -32,6 +32,13 @@
 
 static int count_relay_log_space(Relay_log_info* rli);
 
+/**
+   Current replication state (hash of last GTID executed, per replication
+   domain).
+*/
+rpl_slave_state rpl_global_gtid_slave_state;
+
+
 // Defined in slave.cc
 int init_intvar_from_file(int* var, IO_CACHE* f, int default_val);
 int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
@@ -42,7 +49,8 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    no_storage(FALSE), replicate_same_server_id(::replicate_same_server_id),
    info_fd(-1), cur_log_fd(-1), relay_log(&sync_relaylog_period),
    sync_counter(0), is_relay_log_recovery(is_slave_recovery),
-   save_temporary_tables(0), cur_log_old_open_count(0), group_relay_log_pos(0), 
+   save_temporary_tables(0), mi(0),
+   cur_log_old_open_count(0), group_relay_log_pos(0), 
    event_relay_log_pos(0),
 #if HAVE_valgrind
    is_fake(FALSE),
@@ -52,7 +60,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    abort_pos_wait(0), slave_run_id(0), sql_thd(0),
    inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
-   tables_to_lock(0), tables_to_lock_count(0),
+   gtid_sub_id(0), tables_to_lock(0), tables_to_lock_count(0),
    last_event_start_time(0), deferred_events(NULL),m_flags(0),
    row_stmt_start_timestamp(0), long_find_row_note_printed(false),
    m_annotate_event(0)
@@ -206,17 +214,18 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     char buf_relay_logname[FN_REFLEN], buf_relaylog_index_name_buff[FN_REFLEN];
     char *buf_relaylog_index_name= opt_relaylog_index_name;
 
-    create_logfile_name_with_suffix(buf_relay_logname, sizeof(buf_relay_logname),
-                            ln, 1, &mi->connection_name);
+    create_logfile_name_with_suffix(buf_relay_logname,
+                                    sizeof(buf_relay_logname),
+                                    ln, 1, &mi->cmp_connection_name);
     ln= buf_relay_logname;
 
     if (opt_relaylog_index_name)
     {
       buf_relaylog_index_name= buf_relaylog_index_name_buff; 
       create_logfile_name_with_suffix(buf_relaylog_index_name_buff,
-                              sizeof(buf_relaylog_index_name_buff),
-                              opt_relaylog_index_name, 0,
-                              &mi->connection_name);
+                                      sizeof(buf_relaylog_index_name_buff),
+                                      opt_relaylog_index_name, 0,
+                                      &mi->cmp_connection_name);
     }
 
     /*
@@ -247,7 +256,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     {
       sql_print_error("Failed to create a new relay log info file (\
 file '%s', errno %d)", fname, my_errno);
-      msg= current_thd->stmt_da->message();
+      msg= current_thd->get_stmt_da()->message();
       goto err;
     }
     if (init_io_cache(&rli->info_file, info_fd, IO_SIZE*2, READ_CACHE, 0L,0,
@@ -255,7 +264,7 @@ file '%s', errno %d)", fname, my_errno);
     {
       sql_print_error("Failed to create a cache on relay log info file '%s'",
                       fname);
-      msg= current_thd->stmt_da->message();
+      msg= current_thd->get_stmt_da()->message();
       goto err;
     }
 
@@ -318,8 +327,7 @@ Failed to open the existing relay log info file '%s' (errno %d)",
       msg="Error reading slave log configuration";
       goto err;
     }
-    strmake(rli->event_relay_log_name,rli->group_relay_log_name,
-            sizeof(rli->event_relay_log_name)-1);
+    strmake_buf(rli->event_relay_log_name,rli->group_relay_log_name);
     rli->group_relay_log_pos= rli->event_relay_log_pos= relay_log_pos;
     rli->group_master_log_pos= master_log_pos;
 
@@ -537,10 +545,8 @@ int init_relay_log_pos(Relay_log_info* rli,const char* log,
     *errmsg="Could not find target log during relay log initialization";
     goto err;
   }
-  strmake(rli->group_relay_log_name,rli->linfo.log_file_name,
-          sizeof(rli->group_relay_log_name)-1);
-  strmake(rli->event_relay_log_name,rli->linfo.log_file_name,
-          sizeof(rli->event_relay_log_name)-1);
+  strmake_buf(rli->group_relay_log_name,rli->linfo.log_file_name);
+  strmake_buf(rli->event_relay_log_name,rli->linfo.log_file_name);
   if (rli->relay_log.is_active(rli->linfo.log_file_name))
   {
     /*
@@ -735,7 +741,7 @@ int Relay_log_info::wait_for_pos(THD* thd, String* log_name,
   ulong log_name_extension;
   char log_name_tmp[FN_REFLEN]; //make a char[] from String
 
-  strmake(log_name_tmp, log_name->ptr(), min(log_name->length(), FN_REFLEN-1));
+  strmake(log_name_tmp, log_name->ptr(), MY_MIN(log_name->length(), FN_REFLEN-1));
 
   char *p= fn_ext(log_name_tmp);
   char *p_end;
@@ -745,7 +751,7 @@ int Relay_log_info::wait_for_pos(THD* thd, String* log_name,
     goto err;
   }
   // Convert 0-3 to 4
-  log_pos= max(log_pos, BIN_LOG_HEADER_SIZE);
+  log_pos= MY_MAX(log_pos, BIN_LOG_HEADER_SIZE);
   /* p points to '.' */
   log_name_extension= strtoul(++p, &p_end, 10);
   /*
@@ -880,8 +886,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     mysql_mutex_lock(&data_lock);
   inc_event_relay_log_pos();
   group_relay_log_pos= event_relay_log_pos;
-  strmake(group_relay_log_name,event_relay_log_name,
-          sizeof(group_relay_log_name)-1);
+  strmake_buf(group_relay_log_name,event_relay_log_name);
 
   notify_group_relay_log_name_update();
 
@@ -1016,10 +1021,8 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
   if (!just_reset)
   {
     /* Save name of used relay log file */
-    strmake(rli->group_relay_log_name, rli->relay_log.get_log_fname(),
-            sizeof(rli->group_relay_log_name)-1);
-    strmake(rli->event_relay_log_name, rli->relay_log.get_log_fname(),
-            sizeof(rli->event_relay_log_name)-1);
+    strmake_buf(rli->group_relay_log_name, rli->relay_log.get_log_fname());
+    strmake_buf(rli->event_relay_log_name, rli->relay_log.get_log_fname());
     rli->group_relay_log_pos= rli->event_relay_log_pos= BIN_LOG_HEADER_SIZE;
     rli->log_space_total= 0;
 
@@ -1088,11 +1091,13 @@ bool Relay_log_info::is_until_satisfied(THD *thd, Log_event *ev)
   ulonglong log_pos;
   DBUG_ENTER("Relay_log_info::is_until_satisfied");
 
-  DBUG_ASSERT(until_condition != UNTIL_NONE);
+  DBUG_ASSERT(until_condition == UNTIL_MASTER_POS ||
+              until_condition == UNTIL_RELAY_POS);
 
   if (until_condition == UNTIL_MASTER_POS)
   {
-    if (ev && ev->server_id == (uint32) ::server_id && !replicate_same_server_id)
+    if (ev && ev->server_id == (uint32) global_system_variables.server_id &&
+        !replicate_same_server_id)
       DBUG_RETURN(FALSE);
     log_name= group_master_log_name;
     log_pos= (!ev)? group_master_log_pos :
@@ -1190,7 +1195,7 @@ bool Relay_log_info::cached_charset_compare(char *charset) const
 
 
 void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
-                                  time_t event_creation_time)
+                               time_t event_creation_time, THD *thd)
 {
 #ifndef DBUG_OFF
   extern uint debug_not_change_ts_if_art_event;
@@ -1225,7 +1230,23 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
   else
   {
     inc_group_relay_log_pos(event_master_log_pos);
+    if (rpl_global_gtid_slave_state.record_and_update_gtid(thd, this))
+    {
+      report(WARNING_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
+             "Failed to update GTID state in %s.%s, slave state may become "
+             "inconsistent: %d: %s",
+             "mysql", rpl_gtid_slave_state_table_name.str,
+             thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
+      /*
+        At this point we are not in a transaction (for example after DDL),
+        so we can not roll back. Anyway, normally updates to the slave
+        state table should not fail, and if they do, at least we made the
+        DBA aware of the problem in the error log.
+      */
+    }
+    DBUG_EXECUTE_IF("inject_crash_before_flush_rli", DBUG_SUICIDE(););
     flush_relay_log_info(this);
+    DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
     /*
       Note that Rotate_log_event::do_apply_event() does not call this
       function, so there is no chance that a fake rotate event resets
@@ -1334,9 +1355,9 @@ void Relay_log_info::clear_tables_to_lock()
 void Relay_log_info::slave_close_thread_tables(THD *thd)
 {
   DBUG_ENTER("Relay_log_info::slave_close_thread_tables(THD *thd)");
-  thd->stmt_da->can_overwrite_status= TRUE;
+  thd->get_stmt_da()->set_overwrite_status(true);
   thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
-  thd->stmt_da->can_overwrite_status= FALSE;
+  thd->get_stmt_da()->set_overwrite_status(false);
 
   close_thread_tables(thd);
   /*
@@ -1357,4 +1378,181 @@ void Relay_log_info::slave_close_thread_tables(THD *thd)
   clear_tables_to_lock();
   DBUG_VOID_RETURN;
 }
+
+
+int
+rpl_load_gtid_slave_state(THD *thd)
+{
+  TABLE_LIST tlist;
+  TABLE *table;
+  bool table_opened= false;
+  bool table_scanned= false;
+  bool array_inited= false;
+  struct local_element { uint64 sub_id; rpl_gtid gtid; };
+  struct local_element tmp_entry, *entry;
+  HASH hash;
+  DYNAMIC_ARRAY array;
+  int err= 0;
+  uint32 i;
+  DBUG_ENTER("rpl_load_gtid_slave_state");
+
+  rpl_global_gtid_slave_state.lock();
+  bool loaded= rpl_global_gtid_slave_state.loaded;
+  rpl_global_gtid_slave_state.unlock();
+  if (loaded)
+    DBUG_RETURN(0);
+
+  my_hash_init(&hash, &my_charset_bin, 32,
+               offsetof(local_element, gtid) + offsetof(rpl_gtid, domain_id),
+               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
+  if ((err= my_init_dynamic_array(&array, sizeof(local_element), 0, 0, MYF(0))))
+    goto end;
+  array_inited= true;
+
+  mysql_reset_thd_for_next_command(thd, 0);
+
+  tlist.init_one_table(STRING_WITH_LEN("mysql"),
+                       rpl_gtid_slave_state_table_name.str,
+                       rpl_gtid_slave_state_table_name.length,
+                       NULL, TL_READ);
+  if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
+    goto end;
+  table_opened= true;
+  table= tlist.table;
+
+  if ((err= gtid_check_rpl_slave_state_table(table)))
+    goto end;
+
+  bitmap_set_all(table->read_set);
+  if ((err= table->file->ha_rnd_init_with_error(1)))
+  {
+    table->file->print_error(err, MYF(0));
+    goto end;
+  }
+  table_scanned= true;
+  for (;;)
+  {
+    uint32 domain_id, server_id;
+    uint64 sub_id, seq_no;
+    uchar *rec;
+
+    if ((err= table->file->ha_rnd_next(table->record[0])))
+    {
+      if (err == HA_ERR_RECORD_DELETED)
+        continue;
+      else if (err == HA_ERR_END_OF_FILE)
+        break;
+      else
+      {
+        table->file->print_error(err, MYF(0));
+        goto end;
+      }
+    }
+    domain_id= (ulonglong)table->field[0]->val_int();
+    sub_id= (ulonglong)table->field[1]->val_int();
+    server_id= (ulonglong)table->field[2]->val_int();
+    seq_no= (ulonglong)table->field[3]->val_int();
+    DBUG_PRINT("info", ("Read slave state row: %u-%u-%lu sub_id=%lu\n",
+                        (unsigned)domain_id, (unsigned)server_id,
+                        (ulong)seq_no, (ulong)sub_id));
+
+    tmp_entry.sub_id= sub_id;
+    tmp_entry.gtid.domain_id= domain_id;
+    tmp_entry.gtid.server_id= server_id;
+    tmp_entry.gtid.seq_no= seq_no;
+    if ((err= insert_dynamic(&array, (uchar *)&tmp_entry)))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      goto end;
+    }
+
+    if ((rec= my_hash_search(&hash, (const uchar *)&domain_id, 0)))
+    {
+      entry= (struct local_element *)rec;
+      if (entry->sub_id >= sub_id)
+        continue;
+      entry->sub_id= sub_id;
+      DBUG_ASSERT(entry->gtid.domain_id == domain_id);
+      entry->gtid.server_id= server_id;
+      entry->gtid.seq_no= seq_no;
+    }
+    else
+    {
+      if (!(entry= (struct local_element *)my_malloc(sizeof(*entry),
+                                                     MYF(MY_WME))))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*entry));
+        err= 1;
+        goto end;
+      }
+      entry->sub_id= sub_id;
+      entry->gtid.domain_id= domain_id;
+      entry->gtid.server_id= server_id;
+      entry->gtid.seq_no= seq_no;
+      if ((err= my_hash_insert(&hash, (uchar *)entry)))
+      {
+        my_free(entry);
+        my_error(ER_OUT_OF_RESOURCES, MYF(0));
+        goto end;
+      }
+    }
+  }
+
+  rpl_global_gtid_slave_state.lock();
+  if (rpl_global_gtid_slave_state.loaded)
+  {
+    rpl_global_gtid_slave_state.unlock();
+    goto end;
+  }
+
+  for (i= 0; i < array.elements; ++i)
+  {
+    get_dynamic(&array, (uchar *)&tmp_entry, i);
+    if ((err= rpl_global_gtid_slave_state.update(tmp_entry.gtid.domain_id,
+                                                 tmp_entry.gtid.server_id,
+                                                 tmp_entry.sub_id,
+                                                 tmp_entry.gtid.seq_no)))
+    {
+      rpl_global_gtid_slave_state.unlock();
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      goto end;
+    }
+  }
+
+  for (i= 0; i < hash.records; ++i)
+  {
+    entry= (struct local_element *)my_hash_element(&hash, i);
+    if (opt_bin_log &&
+        mysql_bin_log.bump_seq_no_counter_if_needed(entry->gtid.domain_id,
+                                                    entry->gtid.seq_no))
+    {
+      rpl_global_gtid_slave_state.unlock();
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      goto end;
+    }
+  }
+
+  rpl_global_gtid_slave_state.loaded= true;
+  rpl_global_gtid_slave_state.unlock();
+
+  err= 0;                                       /* Clear HA_ERR_END_OF_FILE */
+
+end:
+  if (table_scanned)
+  {
+    table->file->ha_index_or_rnd_end();
+    ha_commit_trans(thd, FALSE);
+    ha_commit_trans(thd, TRUE);
+  }
+  if (table_opened)
+  {
+    close_thread_tables(thd);
+    thd->mdl_context.release_transactional_locks();
+  }
+  if (array_inited)
+    delete_dynamic(&array);
+  my_hash_free(&hash);
+  DBUG_RETURN(err);
+}
+
 #endif

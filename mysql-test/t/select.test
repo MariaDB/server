@@ -1424,9 +1424,9 @@ drop table tmp;
 
 # big table done
 
-SET SQL_BIG_TABLES=1;
+SET BIG_TABLES=1;
 select distinct concat(fld3," ",fld3) as namn from t2,t3 where t2.fld1=t3.t2nr order by namn limit 10;
-SET SQL_BIG_TABLES=0;
+SET BIG_TABLES=0;
 select distinct concat(fld3," ",fld3) from t2,t3 where t2.fld1=t3.t2nr order by fld3 limit 10;
 select distinct fld5 from t2 limit 10;
 
@@ -1435,9 +1435,9 @@ select distinct fld5 from t2 limit 10;
 #
 
 select distinct fld3,count(*) from t2 group by companynr,fld3 limit 10;
-SET SQL_BIG_TABLES=1; # Force use of MyISAM
+SET BIG_TABLES=1; # Force use of MyISAM
 select distinct fld3,count(*) from t2 group by companynr,fld3 limit 10;
-SET SQL_BIG_TABLES=0;
+SET BIG_TABLES=0;
 select distinct fld3,repeat("a",length(fld3)),count(*) from t2 group by companynr,fld3 limit 100,10;
 
 #
@@ -2493,7 +2493,7 @@ DROP TABLE t1,t2;
 # Bug #10650
 #
 
-select x'10' + 0, X'10' + 0, b'10' + 0, B'10' + 0;
+select x'3136' + 0, X'3136' + 0, b'10' + 0, B'10' + 0;
 
 #
 # Bug #11398 Bug in field_conv() results in wrong result of join with index
@@ -4289,6 +4289,7 @@ SELECT f1 FROM t1 GROUP BY 1;
 SELECT f1 FROM t1 GROUP BY '123' = 'abc';
 SELECT 1 FROM t1 GROUP BY 1;
 drop table t1;
+set sql_buffer_result= 0;
 
 
 --echo #
@@ -4459,6 +4460,61 @@ CREATE TABLE t2 ( b INT PRIMARY KEY );
 INSERT INTO t2 VALUES (3),(4);
 SELECT * FROM t1, t2 WHERE a=3 AND a=b;
 drop table t1,t2;
+
+--echo #
+--echo # Bug mdev-4250: wrong transformation of WHERE condition with OR
+--echo #
+
+CREATE TABLE t1 (pk int PRIMARY KEY, a int);
+INSERT INTO t1 VALUES (3,0), (2,0), (4,1), (5,0), (1,0);
+
+SELECT * FROM t1 WHERE (1=2 OR t1.pk=2) AND t1.a <> 0;
+EXPLAIN EXTENDED 
+SELECT * FROM t1 WHERE (1=2 OR t1.pk=2) AND t1.a <> 0;
+
+DROP TABLE t1;
+
+SELECT * FROM mysql.time_zone 
+WHERE ( NOT (Use_leap_seconds <= Use_leap_seconds AND Time_zone_id != 1) 
+        AND Time_zone_id = Time_zone_id 
+     OR Time_zone_id <> Time_zone_id ) 
+  AND Use_leap_seconds <> 'N';
+
+--echo #
+--echo # Bug mdev-4274: result of simplification of OR badly merged
+--echo #                into embedding AND  
+--echo #
+
+CREATE TABLE t1 (a int, b int, INDEX idx(b)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (8,8);
+
+CREATE TABLE t2 (c int, INDEX idx(c)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (8), (9);
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 INNER JOIN t2 ON ( c = a ) 
+  WHERE 1 IS NULL OR b < 33 AND b = c;
+SELECT * FROM t1 INNER JOIN t2 ON ( c = a ) 
+  WHERE 1 IS NULL OR b < 33 AND b = c;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Bug mdev-4413: another manifestations of bug mdev-2474
+--echo #                (valgrind complains)
+--echo #
+
+CREATE TABLE t1 (a int, b int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (7,1);
+
+CREATE TABLE t2 (c int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (0), (8);
+
+SELECT * FROM t1, t2 
+  WHERE c = a AND
+        ( 0 OR ( b BETWEEN 45 AND 300 OR a > 45 AND a < 100 ) AND b = c );
+
+DROP TABLE t1, t2;
 
 --echo End of 5.3 tests
 

@@ -89,6 +89,16 @@ AND A.c = 343;
 DROP TABLE t1;
 
 --echo #
+--echo # Bug#59503: explain extended crash in get_mm_leaf
+--echo #
+CREATE TABLE t1 (a VARCHAR(51) CHARACTER SET latin1)
+ENGINE=MyISAM
+PARTITION BY KEY (a) PARTITIONS 1;
+INSERT INTO t1 VALUES ('a'),('b'),('c');
+EXPLAIN EXTENDED SELECT 1 FROM t1 WHERE a > 1;
+DROP TABLE t1;
+
+--echo #
 --echo # Bug#57778: failed primary key add to partitioned innodb table
 --echo #            inconsistent and crashes
 --echo #
@@ -303,6 +313,31 @@ DROP TABLE t1;
 #
 # Bug#35765: ALTER TABLE produces wrong error when non-existent storage engine
 # used
+SET sql_mode=no_engine_substitution;
+--error ER_UNKNOWN_STORAGE_ENGINE
+CREATE TABLE t1 (a INT)
+ENGINE=NonExistentEngine;
+--error ER_UNKNOWN_STORAGE_ENGINE
+CREATE TABLE t1 (a INT)
+ENGINE=NonExistentEngine
+PARTITION BY HASH (a);
+CREATE TABLE t1 (a INT)
+ENGINE=Memory;
+--error ER_UNKNOWN_STORAGE_ENGINE
+ALTER TABLE t1 ENGINE=NonExistentEngine;
+# OK to only specify one partitions engine, since it is already assigned at
+# table level (after create, it is specified on all levels and all parts).
+--error ER_UNKNOWN_STORAGE_ENGINE
+ALTER TABLE t1
+PARTITION BY HASH (a)
+(PARTITION p0 ENGINE=Memory,
+ PARTITION p1 ENGINE=NonExistentEngine);
+--error ER_UNKNOWN_STORAGE_ENGINE
+ALTER TABLE t1 ENGINE=NonExistentEngine;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SET sql_mode='';
 CREATE TABLE t1 (a INT)
 ENGINE=NonExistentEngine;
 DROP TABLE t1;
@@ -322,6 +357,7 @@ PARTITION BY HASH (a)
 ALTER TABLE t1 ENGINE=NonExistentEngine;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+SET sql_mode=DEFAULT;
 
 #
 # Bug#40494: Crash MYSQL server crashes on range access with partitioning
@@ -990,13 +1026,13 @@ drop table t1;
 #
 # Bug #16775: Wrong engine type stored for subpartition
 #
-set session storage_engine= 'memory';
+set session default_storage_engine= 'memory';
 create table t1 (f_int1 int(11) default null) engine = memory
   partition by range (f_int1) subpartition by hash (f_int1)
   (partition part1 values less than (1000)
    (subpartition subpart11 engine = memory));
 drop table t1;
-set session storage_engine='myisam';
+set session default_storage_engine='myisam';
 
 #
 # Bug #16782: Crash using REPLACE on table with primary key
@@ -1840,8 +1876,7 @@ WHERE t1.id IN (
     SELECT distinct id
     FROM t4
     WHERE taken BETWEEN @f_date AND date_add(@t_date, INTERVAL 1 DAY))
-ORDER BY t1.id
-;
+ORDER BY t1.id;
 
 drop table t1, t2, t4;
 
@@ -2494,3 +2529,31 @@ INSERT INTO t1 VALUES (1),(2),(2),(3),(4);
 ALTER TABLE t1 ADD PARTITION PARTITIONS 2;
 SELECT * from t1 order by i;
 DROP TABLE t1;
+
+#
+# Test ALTER TABLE ADD/DROP PARTITION IF EXISTS
+#
+
+CREATE TABLE t1 ( d DATE NOT NULL)
+PARTITION BY RANGE( YEAR(d) ) (
+    PARTITION p0 VALUES LESS THAN (1960),
+    PARTITION p1 VALUES LESS THAN (1970),
+    PARTITION p2 VALUES LESS THAN (1980),
+    PARTITION p3 VALUES LESS THAN (1990)
+);
+
+ALTER TABLE t1 ADD PARTITION IF NOT EXISTS(
+PARTITION `p5` VALUES LESS THAN (2010)
+COMMENT 'APSTART \' APEND'
+);
+
+ALTER TABLE t1 ADD PARTITION IF NOT EXISTS(
+PARTITION `p5` VALUES LESS THAN (2010)
+COMMENT 'APSTART \' APEND'
+);
+
+alter table t1 drop partition if exists p5;
+alter table t1 drop partition if exists p5;
+
+DROP TABLE t1;
+

@@ -10,30 +10,6 @@
 --let $include_filename= show_events.inc
 --source include/begin_include_file.inc
 
-# Do not modify $binlog_start - if we did, it could wrongly persist until a
-# later call of show_events.inc.
-if ($binlog_start)
-{
-  --let $_binlog_start= $binlog_start
-}
-if (!$binlog_start)
-{
-  # If $binlog_start is not set, we will set it as the third event's
-  # position (second in relay log which has not Binlog Checkpoing event).
-  # The first two events (Description Event and Binlog Checkpoint
-  # event) are always ignored. For description event's length might be changed
-  # because of adding new events, 'SHOW BINLOG EVENTS LIMIT 2' is used to get
-  # the right value.
-  if ($is_relay_log)
-  {
-    --let $_binlog_start= query_get_value(SHOW BINLOG EVENTS LIMIT 1, End_log_pos, 1)
-  }
-  if (!$is_relay_log)
-  {
-    --let $_binlog_start= query_get_value(SHOW BINLOG EVENTS LIMIT 2, End_log_pos, 2)
-  }
-}
-
 --let $_se_old_statement= $statement
 
 --let $statement=show BINLOG events
@@ -59,6 +35,32 @@ if ($binlog_file)
   --let $statement= $statement in '$_binlog_file'
 }
 
+# Do not modify $binlog_start - if we did, it could wrongly persist until a
+# later call of show_events.inc.
+if ($binlog_start)
+{
+  --let $_binlog_start= $binlog_start
+}
+
+if (!$binlog_start)
+{
+  # If $binlog_start is not set, we will set it as the fourth event's
+  # position (second in relay log which has not Binlog Checkpoint nor
+  # Gtid_list events).
+  # The first three events (Description Event, Gtid list, and Binlog Checkpoint
+  # event) are always ignored. For description event's length might be changed
+  # because of adding new events, 'SHOW BINLOG EVENTS LIMIT 3' is used to get
+  # the right value.
+  if ($is_relay_log)
+  {
+    --let $_binlog_start= query_get_value($statement LIMIT 1, End_log_pos, 1)
+  }
+  if (!$is_relay_log)
+  {
+    --let $_binlog_start= query_get_value($statement LIMIT 3, End_log_pos, 3)
+  }
+}
+
 --let $statement= $statement from $_binlog_start
 
 if ($binlog_limit != '')
@@ -80,24 +82,14 @@ let $script=
   s{file_id=[0-9]+}{file_id=#};
   s{block_len=[0-9]+}{block_len=#};
   s{Server ver:.*DOLLAR}{SERVER_VERSION, BINLOG_VERSION};
+  s{GTID [0-9]+-[0-9]+-[0-9]+}{GTID #-#-#};
+  s{\[[0-9]-[0-9]-[0-9]+\]}{[#-#-#]};
   s{SQL_LOAD-[a-z,0-9,-]*.[a-z]*}{SQL_LOAD-<SERVER UUID>-<MASTER server-id>-<file-id>.<extension>};
   s{rand_seed1=[0-9]*,rand_seed2=[0-9]*}{rand_seed1=<seed 1>,rand_seed2=<seed 2>};
   s{((?:master|slave|slave-relay)-bin\.[0-9]{6};pos=)[0-9]+DOLLAR}{DOLLAR1POS};
   s{DOLLARmysqltest_vardir}{MYSQLTEST_VARDIR}g;
 ||
 --let $pre_script= my DOLLARmysqltest_vardir = DOLLARENV{'MYSQLTEST_VARDIR'};
-if (!$keep_gtid_events)
-{
-  --let $script= $script DOLLAR_ = '' if (m{\t(?:Gtid|Previous_gtids)\t});
-}
-if ($keep_gtid_events)
-{
-  let $pre_script= $pre_script
-    my DOLLARuuid_regex = '[0-9A-F]{8}-(?:[0-9A-F]{4}-){3}[0-9A-F]{12}';
-    my DOLLARuuid_sidno_regex = DOLLARuuid_regex.'(?::[0-9]+(?:-[0-9]+)?)+';
-  ||
-  --let $script= $script s{DOLLARuuid_sidno_regex(?:,DOLLARuuid_sidno_regex)*}{Gtid_set};
-}
 --delimiter ;
 
 #--let $select_columns= 1 3 6

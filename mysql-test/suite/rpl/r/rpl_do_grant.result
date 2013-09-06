@@ -85,7 +85,7 @@ show grants for rpl_do_grant2@localhost;
 ERROR 42000: There is no such grant defined for user 'rpl_do_grant2' on host 'localhost'
 show grants for rpl_do_grant2@localhost;
 ERROR 42000: There is no such grant defined for user 'rpl_do_grant2' on host 'localhost'
-call mtr.add_suppression("Slave: Operation DROP USER failed for 'create_rout_db'@'localhost' Error_code: 1396");
+call mtr.add_suppression("Slave: Operation DROP USER failed for 'create_rout_db'@'localhost' error.* 1396");
 DROP DATABASE IF EXISTS bug42217_db;
 CREATE DATABASE  bug42217_db;
 GRANT CREATE ROUTINE ON bug42217_db.* TO 'create_rout_db'@'localhost'
@@ -239,7 +239,9 @@ revoke all privileges, grant option from "foo";
 ERROR HY000: Can't revoke all privileges for one or more of the requested users
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; grant all on *.* to foo@"1.2.3.4"
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; revoke all privileges, grant option from "foo"
 include/check_slave_no_error.inc
 DROP USER foo@"1.2.3.4";

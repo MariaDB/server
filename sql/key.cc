@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -78,7 +78,7 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
     KEY_PART_INFO *key_part;
     *key_length=0;
     for (j=0, key_part=key_info->key_part ;
-	 j < key_info->key_parts ;
+	 j < key_info->user_defined_key_parts ;
 	 j++, key_part++)
     {
       if (key_part->offset == fieldpos)
@@ -132,7 +132,7 @@ void key_copy(uchar *to_key, uchar *from_record, KEY *key_info,
           Don't copy data for null values
           The -1 below is to subtract the null byte which is already handled
         */
-        length= min(key_length, (uint) key_part->store_length-1);
+        length= MY_MIN(key_length, (uint) key_part->store_length-1);
         if (with_zerofill)
           bzero((char*) to_key, length);
         continue;
@@ -142,7 +142,7 @@ void key_copy(uchar *to_key, uchar *from_record, KEY *key_info,
         key_part->key_part_flag & HA_VAR_LENGTH_PART)
     {
       key_length-= HA_KEY_BLOB_LENGTH;
-      length= min(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       uint bytes= key_part->field->get_key_image(to_key, length, Field::itRAW);
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
@@ -150,7 +150,7 @@ void key_copy(uchar *to_key, uchar *from_record, KEY *key_info,
     }
     else
     {
-      length= min(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       Field *field= key_part->field;
       CHARSET_INFO *cs= field->charset();
       uint bytes= field->get_key_image(to_key, length, Field::itRAW);
@@ -202,7 +202,7 @@ void key_restore(uchar *to_record, uchar *from_key, KEY *key_info,
           Don't copy data for null bytes
           The -1 below is to subtract the null byte which is already handled
         */
-        length= min(key_length, (uint) key_part->store_length-1);
+        length= MY_MIN(key_length, (uint) key_part->store_length-1);
         continue;
       }
     }
@@ -244,7 +244,7 @@ void key_restore(uchar *to_record, uchar *from_key, KEY *key_info,
       my_ptrdiff_t ptrdiff= to_record - field->table->record[0];
       field->move_field_offset(ptrdiff);
       key_length-= HA_KEY_BLOB_LENGTH;
-      length= min(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       old_map= dbug_tmp_use_all_columns(field->table, field->table->write_set);
       field->set_key_image(from_key, length);
       dbug_tmp_restore_column_map(field->table->write_set, old_map);
@@ -253,7 +253,7 @@ void key_restore(uchar *to_record, uchar *from_key, KEY *key_info,
     }
     else
     {
-      length= min(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       /* skip the byte with 'uneven' bits, if used */
       memcpy(to_record + key_part->offset, from_key + used_uneven_bits
              , (size_t) length - used_uneven_bits);
@@ -311,7 +311,7 @@ bool key_cmp_if_same(TABLE *table,const uchar *key,uint idx,uint key_length)
 	return 1;
       continue;
     }
-    length= min((uint) (key_end-key), store_length);
+    length= MY_MIN((uint) (key_end-key), store_length);
     if (!(key_part->key_type & (FIELDFLAG_NUMBER+FIELDFLAG_BINARY+
                                 FIELDFLAG_PACK)))
     {
@@ -335,6 +335,70 @@ bool key_cmp_if_same(TABLE *table,const uchar *key,uint idx,uint key_length)
   return 0;
 }
 
+
+/**
+  Unpack a field and append it.
+
+  @param[inout] to           String to append the field contents to.
+  @param        field        Field to unpack.
+  @param        rec          Record which contains the field data.
+  @param        max_length   Maximum length of field to unpack
+                             or 0 for unlimited.
+  @param        prefix_key   The field is used as a prefix key.
+*/
+
+static void field_unpack(String *to, Field *field, const uchar *rec,
+                         uint max_length, bool prefix_key)
+{
+  String tmp;
+  DBUG_ENTER("field_unpack");
+  if (!max_length)
+    max_length= field->pack_length();
+  if (field)
+  {
+    if (field->is_null())
+    {
+      to->append(STRING_WITH_LEN("NULL"));
+      DBUG_VOID_RETURN;
+    }
+    CHARSET_INFO *cs= field->charset();
+    field->val_str(&tmp);
+    /*
+      For BINARY(N) strip trailing zeroes to make
+      the error message nice-looking
+    */
+    if (field->binary() &&  field->type() == MYSQL_TYPE_STRING && tmp.length())
+    {
+      const char *tmp_end= tmp.ptr() + tmp.length();
+      while (tmp_end > tmp.ptr() && !*--tmp_end) ;
+      tmp.length(tmp_end - tmp.ptr() + 1);
+    }
+    if (cs->mbmaxlen > 1 && prefix_key)
+    {
+      /*
+        Prefix key, multi-byte charset.
+        For the columns of type CHAR(N), the above val_str()
+        call will return exactly "key_part->length" bytes,
+        which can break a multi-byte characters in the middle.
+        Align, returning not more than "char_length" characters.
+      */
+      uint charpos, char_length= max_length / cs->mbmaxlen;
+      if ((charpos= my_charpos(cs, tmp.ptr(),
+                               tmp.ptr() + tmp.length(),
+                               char_length)) < tmp.length())
+        tmp.length(charpos);
+    }
+    if (max_length < field->pack_length())
+      tmp.length(MY_MIN(tmp.length(),max_length));
+    ErrConvString err(&tmp);
+    to->append(err.ptr());
+  }
+  else
+    to->append(STRING_WITH_LEN("???"));
+  DBUG_VOID_RETURN;
+}
+
+
 /*
   unpack key-fields from record to some buffer.
 
@@ -349,17 +413,15 @@ bool key_cmp_if_same(TABLE *table,const uchar *key,uint idx,uint key_length)
      idx	Key number
 */
 
-void key_unpack(String *to,TABLE *table,uint idx)
+void key_unpack(String *to,TABLE *table, KEY *key)
 {
   KEY_PART_INFO *key_part,*key_part_end;
-  Field *field;
-  String tmp;
   my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
   DBUG_ENTER("key_unpack");
 
   to->length(0);
-  for (key_part=table->key_info[idx].key_part,key_part_end=key_part+
-	 table->key_info[idx].key_parts ;
+  for (key_part=key->key_part,key_part_end=key_part+
+	 key->user_defined_key_parts ;
        key_part < key_part_end;
        key_part++)
   {
@@ -373,43 +435,9 @@ void key_unpack(String *to,TABLE *table,uint idx)
 	continue;
       }
     }
-    if ((field=key_part->field))
-    {
-      CHARSET_INFO *cs= field->charset();
-      field->val_str(&tmp);
-      /*
-        For BINARY(N) strip trailing zeroes to make
-        the error message nice-looking
-      */
-      if (field->binary() &&  field->type() == MYSQL_TYPE_STRING && tmp.length())
-      {
-        const char *tmp_end= tmp.ptr() + tmp.length();
-        while (tmp_end > tmp.ptr() && !*--tmp_end) ;
-        tmp.length(tmp_end - tmp.ptr() + 1);
-      }
-      if (cs->mbmaxlen > 1 && (key_part->key_part_flag & HA_PART_KEY_SEG))
-      {
-        /* 
-          Prefix key, multi-byte charset. 
-          For the columns of type CHAR(N), the above val_str() 
-          call will return exactly "key_part->length" bytes, 
-          which can break a multi-byte characters in the middle. 
-          Align, returning not more than "char_length" characters. 
-        */
-        uint charpos, char_length= key_part->length / cs->mbmaxlen;
-        if ((charpos= my_charpos(cs, tmp.ptr(),
-                                 tmp.ptr() + tmp.length(),
-                                 char_length)) < tmp.length())
-          tmp.length(charpos);
-      }
-      if (key_part->length < field->pack_length())
-	tmp.length(min(tmp.length(),key_part->length));
-      ErrConvString err(&tmp);
-      to->append(err.ptr());
-    }
-    else
-      to->append(STRING_WITH_LEN("???"));
-  }
+    field_unpack(to, key_part->field, table->record[0], key_part->length,
+                 test(key_part->key_part_flag & HA_PART_KEY_SEG));
+ }
   dbug_tmp_restore_column_map(table->read_set, old_map);
   DBUG_VOID_RETURN;
 }
@@ -546,7 +574,7 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
   /* loop over all given keys */
   do
   {
-    key_parts= key_info->key_parts;
+    key_parts= key_info->user_defined_key_parts;
     key_part= key_info->key_part;
     key_part_num= 0;
 
@@ -558,8 +586,8 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
       if (key_part->null_bit)
       {
         /* The key_part can contain NULL values */
-        bool first_is_null= field->is_null_in_record_with_offset(first_diff);
-        bool sec_is_null= field->is_null_in_record_with_offset(sec_diff);
+        bool first_is_null= field->is_real_null(first_diff);
+        bool sec_is_null= field->is_real_null(sec_diff);
         /*
           NULL is smaller then everything so if first is NULL and the other
           not then we know that we should return -1 and for the opposite

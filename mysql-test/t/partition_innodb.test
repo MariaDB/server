@@ -41,6 +41,17 @@ EXPLAIN SELECT b FROM t1 WHERE b between 'L' and 'N' AND a > -100;
 DROP TABLE t1;
 
 --echo #
+--echo # Bug#13007154: Crash in keys_to_use_for_scanning with ORDER BY
+--echo #               and PARTITIONING
+--echo #
+CREATE TABLE t1 (a INT, KEY(a))
+ENGINE = InnoDB
+PARTITION BY KEY (a) PARTITIONS 1;
+SELECT 1 FROM t1 WHERE a > (SELECT LAST_INSERT_ID() FROM t1 LIMIT 0)
+ORDER BY a;
+DROP TABLE t1;
+
+--echo #
 --echo # Bug#56287: crash when using Partition datetime in sub in query
 --echo #
 
@@ -60,8 +71,8 @@ insert into t1(c2,c3) values ("Test row",'2010-01-01 00:00:00');
 
 SELECT PARTITION_NAME, TABLE_ROWS FROM INFORMATION_SCHEMA.PARTITIONS WHERE TABLE_NAME = 't1' AND TABLE_SCHEMA = 'test';
 SELECT count(*) FROM t1 p where c3 in
-(select c3 from t1 t where t.c3 < date '2011-04-26 19:19:44'
- and t.c3 > date '2011-04-26 19:18:44') ;
+(select c3 from t1 t where t.c3 < timestamp '2011-04-26 19:19:44'
+ and t.c3 > timestamp '2011-04-26 19:18:44') ;
 
 DROP TABLE t1;
 
@@ -71,7 +82,7 @@ DROP TABLE t1;
 --echo #            SELECT is not detected
 --echo #
 
-SET @old_innodb_thread_concurrency:= @@innodb_thread_concurrency;
+SET @old_innodb_thread_concurrency := @@innodb_thread_concurrency;
 SET @old_innodb_thread_sleep_delay := @@innodb_thread_sleep_delay;
 SET GLOBAL innodb_thread_concurrency = 1;
 

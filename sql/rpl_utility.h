@@ -65,6 +65,14 @@ public:
   ulong size() const { return m_size; }
 
 
+  /**
+    Returns internal binlog type code for one field,
+    without translation to real types.
+  */
+  enum_field_types binlog_type(ulong index) const
+  {
+    return static_cast<enum_field_types>(m_type[index]);
+  }
   /*
     Return a representation of the type data for one field.
 
@@ -82,7 +90,7 @@ public:
       either MYSQL_TYPE_STRING, MYSQL_TYPE_ENUM, or MYSQL_TYPE_SET, so
       we might need to modify the type to get the real type.
     */
-    enum_field_types source_type= static_cast<enum_field_types>(m_type[index]);
+    enum_field_types source_type= binlog_type(index);
     uint16 source_metadata= m_field_metadata[index];
     switch (source_type)
     {
@@ -287,7 +295,7 @@ public:
   do {                                             \
     char buf[256];                                 \
     uint i;                                        \
-    for (i = 0 ; i < min(sizeof(buf) - 1, (BS)->n_bits) ; i++) \
+    for (i = 0 ; i < MY_MIN(sizeof(buf) - 1, (BS)->n_bits) ; i++) \
       buf[i] = bitmap_is_set((BS), i) ? '1' : '0'; \
     buf[i] = '\0';                                 \
     DBUG_PRINT((N), ((FRM), buf));                 \

@@ -1472,4 +1472,50 @@ dog_id	dog_id	birthday	dog_id	t_id	birthday	dog_id	t_id	birthday	a_id	dog_id
 5918	5918	2004-07-22	5918	N	2004-07-22	5918	N	2004-07-22	5992424	5918
 SET optimizer_switch=@tmp_optimizer_switch;
 DROP TABLE t1,t2,t3,t4,t5;
+#
+# MDEV-4752: Segfault during parsing of illegal query
+#
+SELECT * FROM t5 JOIN (t1 JOIN t2 UNION SELECT * FROM t3 JOIN t4);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
 SET optimizer_switch=@save_optimizer_switch;
+#
+# Bug #35268: Parser can't handle STRAIGHT_JOIN with USING
+#                   
+CREATE TABLE t1 (a int);
+INSERT INTO t1 (a) VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+CREATE TABLE t2 (a int);
+INSERT INTO t2 (a) VALUES (1),(2),(3),(4);
+EXPLAIN
+SELECT t1.a FROM t1 NATURAL INNER JOIN t2 ORDER BY t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+SELECT t1.a FROM t1 NATURAL INNER JOIN t2 ORDER BY t1.a;
+a
+1
+2
+3
+4
+EXPLAIN
+SELECT t1.a FROM t1 STRAIGHT_JOIN t2 USING(a) ORDER BY t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+SELECT t1.a FROM t1 STRAIGHT_JOIN t2 USING(a) ORDER BY t1.a;
+a
+1
+2
+3
+4
+EXPLAIN
+SELECT t1.a FROM t1 NATURAL STRAIGHT_JOIN t2 ORDER BY t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+SELECT t1.a FROM t1 NATURAL STRAIGHT_JOIN t2 ORDER BY t1.a;
+a
+1
+2
+3
+4
+DROP TABLE t1,t2;

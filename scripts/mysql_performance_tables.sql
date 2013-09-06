@@ -80,7 +80,7 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.events_waits_current("
-  "THREAD_ID INTEGER not null,"
+  "THREAD_ID BIGINT unsigned not null,"
   "EVENT_ID BIGINT unsigned not null,"
   "END_EVENT_ID BIGINT unsigned,"
   "EVENT_NAME VARCHAR(128) not null,"
@@ -111,7 +111,7 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.events_waits_history("
-  "THREAD_ID INTEGER not null,"
+  "THREAD_ID BIGINT unsigned not null,"
   "EVENT_ID BIGINT unsigned not null,"
   "END_EVENT_ID BIGINT unsigned,"
   "EVENT_NAME VARCHAR(128) not null,"
@@ -142,7 +142,7 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.events_waits_history_long("
-  "THREAD_ID INTEGER not null,"
+  "THREAD_ID BIGINT unsigned not null,"
   "EVENT_ID BIGINT unsigned not null,"
   "END_EVENT_ID BIGINT unsigned,"
   "EVENT_NAME VARCHAR(128) not null,"
@@ -250,7 +250,7 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.events_waits_summary_by_thread_by_event_name("
-  "THREAD_ID INTEGER not null,"
+  "THREAD_ID BIGINT unsigned not null,"
   "EVENT_NAME VARCHAR(128) not null,"
   "COUNT_STAR BIGINT unsigned not null,"
   "SUM_TIMER_WAIT BIGINT unsigned not null,"
@@ -377,7 +377,7 @@ DROP PREPARE stmt;
 SET @cmd="CREATE TABLE performance_schema.socket_instances("
   "EVENT_NAME VARCHAR(128) not null,"
   "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-  "THREAD_ID INTEGER,"
+  "THREAD_ID BIGINT unsigned,"
   "SOCKET_ID INTEGER not null,"
   "IP VARCHAR(64) not null,"
   "PORT INTEGER not null,"
@@ -490,16 +490,16 @@ SET @cmd="CREATE TABLE performance_schema.host_cache("
   "COUNT_INIT_CONNECT_ERRORS BIGINT not null,"
   "COUNT_LOCAL_ERRORS BIGINT not null,"
   "COUNT_UNKNOWN_ERRORS BIGINT not null,"
-  "FIRST_SEEN TIMESTAMP(0) default 0,"
-  "LAST_SEEN TIMESTAMP(0) default 0,"
+  "FIRST_SEEN TIMESTAMP(0) NOT NULL default 0,"
+  "LAST_SEEN TIMESTAMP(0) NOT NULL default 0,"
   "FIRST_ERROR_SEEN TIMESTAMP(0) null default 0,"
   "LAST_ERROR_SEEN TIMESTAMP(0) null default 0"
   ")ENGINE=PERFORMANCE_SCHEMA;";
 
 SET @str = IF(@have_pfs = 1, @cmd, 'SET @dummy = 0');
-#PREPARE stmt FROM @str;
-#EXECUTE stmt;
-#DROP PREPARE stmt;
+PREPARE stmt FROM @str;
+EXECUTE stmt;
+DROP PREPARE stmt;
 
 --
 -- TABLE MUTEX_INSTANCES
@@ -508,7 +508,7 @@ SET @str = IF(@have_pfs = 1, @cmd, 'SET @dummy = 0');
 SET @cmd="CREATE TABLE performance_schema.mutex_instances("
   "NAME VARCHAR(128) not null,"
   "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-  "LOCKED_BY_THREAD_ID INTEGER"
+  "LOCKED_BY_THREAD_ID BIGINT unsigned"
   ")ENGINE=PERFORMANCE_SCHEMA;";
 
 SET @str = IF(@have_pfs = 1, @cmd, 'SET @dummy = 0');
@@ -559,7 +559,7 @@ DROP PREPARE stmt;
 SET @cmd="CREATE TABLE performance_schema.rwlock_instances("
   "NAME VARCHAR(128) not null,"
   "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-  "WRITE_LOCKED_BY_THREAD_ID INTEGER,"
+  "WRITE_LOCKED_BY_THREAD_ID BIGINT unsigned,"
   "READ_LOCKED_BY_COUNT INTEGER unsigned not null"
   ")ENGINE=PERFORMANCE_SCHEMA;";
 
@@ -834,10 +834,10 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.threads("
-  "THREAD_ID INTEGER not null,"
+  "THREAD_ID BIGINT unsigned not null,"
   "NAME VARCHAR(128) not null,"
   "TYPE VARCHAR(10) not null,"
-  "PROCESSLIST_ID INTEGER,"
+  "PROCESSLIST_ID BIGINT unsigned,"
   "PROCESSLIST_USER VARCHAR(16),"
   "PROCESSLIST_HOST VARCHAR(60),"
   "PROCESSLIST_DB VARCHAR(64),"
@@ -845,7 +845,7 @@ SET @cmd="CREATE TABLE performance_schema.threads("
   "PROCESSLIST_TIME BIGINT,"
   "PROCESSLIST_STATE VARCHAR(64),"
   "PROCESSLIST_INFO LONGTEXT,"
-  "PARENT_THREAD_ID INTEGER,"
+  "PARENT_THREAD_ID BIGINT unsigned,"
   "ROLE VARCHAR(64),"
   "INSTRUMENTED ENUM ('YES', 'NO') not null"
   ")ENGINE=PERFORMANCE_SCHEMA;";
@@ -860,7 +860,7 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.events_stages_current("
-  "THREAD_ID INTEGER not null,"
+  "THREAD_ID BIGINT unsigned not null,"
   "EVENT_ID BIGINT unsigned not null,"
   "END_EVENT_ID BIGINT unsigned,"
   "EVENT_NAME VARCHAR(128) not null,"
@@ -882,7 +882,7 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.events_stages_history("
-  "THREAD_ID INTEGER not null,"
+  "THREAD_ID BIGINT unsigned not null,"
   "EVENT_ID BIGINT unsigned not null,"
   "END_EVENT_ID BIGINT unsigned,"
   "EVENT_NAME VARCHAR(128) not null,"
@@ -904,7 +904,7 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.events_stages_history_long("
-  "THREAD_ID INTEGER not null,"
+  "THREAD_ID BIGINT unsigned not null,"
   "EVENT_ID BIGINT unsigned not null,"
   "END_EVENT_ID BIGINT unsigned,"
   "EVENT_NAME VARCHAR(128) not null,"
@@ -926,7 +926,7 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.events_stages_summary_by_thread_by_event_name("
-  "THREAD_ID INTEGER not null,"
+  "THREAD_ID BIGINT unsigned not null,"
   "EVENT_NAME VARCHAR(128) not null,"
   "COUNT_STAR BIGINT unsigned not null,"
   "SUM_TIMER_WAIT BIGINT unsigned not null,"
@@ -1021,7 +1021,7 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.events_statements_current("
-  "THREAD_ID INTEGER not null,"
+  "THREAD_ID BIGINT unsigned not null,"
   "EVENT_ID BIGINT unsigned not null,"
   "END_EVENT_ID BIGINT unsigned,"
   "EVENT_NAME VARCHAR(128) not null,"
@@ -1073,7 +1073,7 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.events_statements_history("
-  "THREAD_ID INTEGER not null,"
+  "THREAD_ID BIGINT unsigned not null,"
   "EVENT_ID BIGINT unsigned not null,"
   "END_EVENT_ID BIGINT unsigned,"
   "EVENT_NAME VARCHAR(128) not null,"
@@ -1125,7 +1125,7 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.events_statements_history_long("
-  "THREAD_ID INTEGER not null,"
+  "THREAD_ID BIGINT unsigned not null,"
   "EVENT_ID BIGINT unsigned not null,"
   "END_EVENT_ID BIGINT unsigned,"
   "EVENT_NAME VARCHAR(128) not null,"
@@ -1177,7 +1177,7 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.events_statements_summary_by_thread_by_event_name("
-  "THREAD_ID INTEGER not null,"
+  "THREAD_ID BIGINT unsigned not null,"
   "EVENT_NAME VARCHAR(128) not null,"
   "COUNT_STAR BIGINT unsigned not null,"
   "SUM_TIMER_WAIT BIGINT unsigned not null,"
@@ -1413,6 +1413,7 @@ DROP PREPARE stmt;
 --
 
 SET @cmd="CREATE TABLE performance_schema.events_statements_summary_by_digest("
+  "SCHEMA_NAME VARCHAR(64),"
   "DIGEST VARCHAR(32),"
   "DIGEST_TEXT LONGTEXT,"
   "COUNT_STAR BIGINT unsigned not null,"
@@ -1439,8 +1440,8 @@ SET @cmd="CREATE TABLE performance_schema.events_statements_summary_by_digest("
   "SUM_SORT_SCAN BIGINT unsigned not null,"
   "SUM_NO_INDEX_USED BIGINT unsigned not null,"
   "SUM_NO_GOOD_INDEX_USED BIGINT unsigned not null,"
-  "FIRST_SEEN TIMESTAMP(0) default 0,"
-  "LAST_SEEN TIMESTAMP(0) default 0"
+  "FIRST_SEEN TIMESTAMP(0) NOT NULL default 0,"
+  "LAST_SEEN TIMESTAMP(0) NOT NULL default 0"
   ")ENGINE=PERFORMANCE_SCHEMA;";
 
 
@@ -1449,3 +1450,30 @@ PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;
 
+--
+-- TABLE SESSION_CONNECT_ATTRS
+--
+
+SET @cmd="CREATE TABLE performance_schema.session_connect_attrs("
+  "PROCESSLIST_ID INT NOT NULL,"
+  "ATTR_NAME VARCHAR(32) NOT NULL,"
+  "ATTR_VALUE VARCHAR(1024),"
+  "ORDINAL_POSITION INT"
+  ")ENGINE=PERFORMANCE_SCHEMA CHARACTER SET utf8 COLLATE utf8_bin;";
+
+SET @str = IF(@have_pfs = 1, @cmd, 'SET @dummy = 0');
+PREPARE stmt FROM @str;
+EXECUTE stmt;
+DROP PREPARE stmt;
+
+--
+-- TABLE SESSION_ACCOUNT_CONNECT_ATTRS
+--
+
+SET @cmd="CREATE TABLE performance_schema.session_account_connect_attrs "
+         " LIKE performance_schema.session_connect_attrs;";
+
+SET @str = IF(@have_pfs = 1, @cmd, 'SET @dummy = 0');
+PREPARE stmt FROM @str;
+EXECUTE stmt;
+DROP PREPARE stmt;

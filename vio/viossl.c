@@ -383,6 +383,10 @@ static int ssl_do(struct st_VioSSLFd *ptr, Vio *vio, long timeout,
   yaSSL_transport_set_send_function(ssl, yassl_send);
 #endif
 
+#if !defined(HAVE_YASSL) && defined(SSL_OP_NO_COMPRESSION)
+  SSL_set_options(ssl, SSL_OP_NO_COMPRESSION);
+#endif
+
   if ((r= ssl_handshake_loop(vio, ssl, func)) < 1)
   {
     DBUG_PRINT("error", ("SSL_connect/accept failure"));

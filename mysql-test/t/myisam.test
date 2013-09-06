@@ -1536,10 +1536,10 @@ drop table t1;
 #
 
 CREATE TABLE t1 (line LINESTRING NOT NULL) engine=myisam;
-INSERT INTO t1 VALUES (GeomFromText("POINT(0 0)"));
+INSERT INTO t1 VALUES (GeomFromText("LINESTRING(0 0)"));
 checksum table t1;
 CREATE TABLE t2 (line LINESTRING NOT NULL) engine=myisam;
-INSERT INTO t2 VALUES (GeomFromText("POINT(0 0)"));
+INSERT INTO t2 VALUES (GeomFromText("LINESTRING(0 0)"));
 checksum table t2;
 CREATE TABLE t3 select * from t1;
 checksum table t3;
@@ -1582,22 +1582,6 @@ SELECT h+0, d + 0, e, g + 0 FROM t1;
 
 DROP TABLE t1;
 
---echo #
---echo # Test of BUG#35570 CHECKSUM TABLE unreliable if LINESTRING field
---echo # (same content / differen checksum)
---echo #
-
-CREATE TABLE t1 (line LINESTRING NOT NULL) engine=myisam;
-INSERT INTO t1 VALUES (GeomFromText("POINT(0 0)"));
-checksum table t1;
-CREATE TABLE t2 (line LINESTRING NOT NULL) engine=myisam;
-INSERT INTO t2 VALUES (GeomFromText("POINT(0 0)"));
-checksum table t2;
-CREATE TABLE t3 select * from t1;
-checksum table t3;
-drop table t1,t2,t3;
-
-
 #
 # BUG#47073 - valgrind errs, corruption,failed repair of partition,
 #             low myisam_sort_buffer_size
@@ -1616,6 +1600,7 @@ INSERT INTO t1 SELECT a+1280,b FROM t1;
 INSERT INTO t1 SELECT a+2560,b FROM t1;
 INSERT INTO t1 SELECT a+5120,b FROM t1;
 SET myisam_sort_buffer_size=4;
+--replace_regex /Current myisam_sort_buffer_size.*/X/
 REPAIR TABLE t1;
 
 SET myisam_repair_threads=2;
@@ -1664,6 +1649,7 @@ DROP TABLE t1, t2, t3;
 CREATE TABLE t1(a CHAR(255), KEY(a));
 SELECT * FROM t1, t1 AS a1;
 SET myisam_sort_buffer_size=4;
+--replace_regex /Current myisam_sort_buffer_size.*/X/
 INSERT INTO t1 VALUES
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),

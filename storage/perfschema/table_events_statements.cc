@@ -35,7 +35,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 {
   {
     { C_STRING_WITH_LEN("THREAD_ID") },
-    { C_STRING_WITH_LEN("int(11)") },
+    { C_STRING_WITH_LEN("bigint(20)") },
     { NULL, 0}
   },
   {
@@ -237,7 +237,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 
 TABLE_FIELD_DEF
 table_events_statements_current::m_field_def=
-{40 , field_types };
+{40 , field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_events_statements_current::m_share=
@@ -372,7 +372,7 @@ void table_events_statements_common::make_row(PFS_events_statements *statement)
   PSI_digest_storage *digest= & statement->m_digest_storage;
   if (digest->m_byte_count > 0)
   {
-    PFS_digest_hash md5;
+    PFS_digest_key md5;
     compute_md5_hash((char *) md5.m_md5,
                      (char *) digest->m_token_array,
                      digest->m_byte_count);
@@ -420,7 +420,7 @@ int table_events_statements_common::read_row_values(TABLE *table,
       switch(f->field_index)
       {
       case 0: /* THREAD_ID */
-        set_field_ulong(f, m_row.m_thread_internal_id);
+        set_field_ulonglong(f, m_row.m_thread_internal_id);
         break;
       case 1: /* EVENT_ID */
         set_field_ulonglong(f, m_row.m_event_id);

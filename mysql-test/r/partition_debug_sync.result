@@ -5,7 +5,9 @@ SET DEBUG_SYNC= 'RESET';
 # Test when remove partitioning is done while drop table is waiting
 # for the table.
 # After MDL was introduced, there is no longer any race, so test is done
-# by adding a small sleep to verify that the delete waits.
+# by adding a small sleep to verify that the delete waits. This happens
+# only until ALTER tries to upgrade its MDL lock, which ends up in MDL
+# deadlock which is correctly reported.
 # Con 1
 SET DEBUG_SYNC= 'RESET';
 CREATE TABLE t1
@@ -18,17 +20,16 @@ ENGINE = MYISAM
 PARTITION p1 VALUES LESS THAN (20),
 PARTITION p2 VALUES LESS THAN (100),
 PARTITION p3 VALUES LESS THAN MAXVALUE ) */;
-SET SESSION debug_dbug= "+d,sleep_before_create_table_no_lock";
 SET DEBUG_SYNC= 'alter_table_before_create_table_no_lock SIGNAL removing_partitioning WAIT_FOR waiting_for_alter';
-SET DEBUG_SYNC= 'alter_table_before_main_binlog SIGNAL partitioning_removed';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL waiting_for_upgrade';
 ALTER TABLE t1 REMOVE PARTITIONING;
 # Con default
 SET DEBUG_SYNC= 'now WAIT_FOR removing_partitioning';
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL waiting_for_alter';
-SET DEBUG_SYNC= 'rm_table_no_locks_before_delete_table WAIT_FOR partitioning_removed';
+SET DEBUG_SYNC= 'rm_table_no_locks_before_delete_table WAIT_FOR waiting_for_upgrade';
 DROP TABLE IF EXISTS t1;
 # Con 1
-SET SESSION debug_dbug= "-d,sleep_before_create_table_no_lock";
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 SET DEBUG_SYNC= 'RESET';
 SET DEBUG_SYNC= 'RESET';
 #
@@ -42,24 +43,45 @@ CREATE TABLE t2
 b INTEGER NOT NULL,
 KEY (b))
 ENGINE = MYISAM
-/*!50100  PARTITION BY RANGE (a)
-(PARTITION p0 VALUES LESS THAN (2),
+PARTITION BY RANGE (a) (PARTITION p0 VALUES LESS THAN (2),
 PARTITION p1 VALUES LESS THAN (20),
 PARTITION p2 VALUES LESS THAN (100),
-PARTITION p3 VALUES LESS THAN MAXVALUE ) */;
+PARTITION p3 VALUES LESS THAN MAXVALUE);
 SET DEBUG_SYNC= 'alter_table_before_open_tables SIGNAL removing_partitions WAIT_FOR waiting_for_alter';
 SET DEBUG_SYNC= 'alter_table_before_rename_result_table WAIT_FOR delete_done';
 ALTER TABLE t2 REMOVE PARTITIONING;
 # Con default
-SET SESSION debug_dbug= "+d,sleep_before_no_locks_delete_table";
 SET DEBUG_SYNC= 'now WAIT_FOR removing_partitions';
 SET DEBUG_SYNC= 'rm_table_no_locks_before_delete_table SIGNAL waiting_for_alter';
 SET DEBUG_SYNC= 'rm_table_no_locks_before_binlog SIGNAL delete_done';
 DROP TABLE IF EXISTS t2;
-SET SESSION debug_dbug= "-d,sleep_before_no_locks_delete_table";
 # Con 1
 ERROR 42S02: Table 'test.t2' doesn't exist
 SET DEBUG_SYNC= 'RESET';
 # Con default
 SET DEBUG_SYNC= 'RESET';
 End of 5.1 tests
+#
+# Coverage test for non pruned ha_partition::store_lock()
+#
+CREATE TABLE t1 (a int) ENGINE = InnoDB;
+CREATE TABLE t2 (a int PRIMARY KEY)
+ENGINE = InnoDB PARTITION BY HASH (a) PARTITIONS 3;
+HANDLER t1 OPEN;
+# Con1
+LOCK TABLES t1 WRITE, t2 READ;
+# Default
+SET DEBUG_SYNC="wait_for_lock SIGNAL locking";
+INSERT INTO t2 VALUES (1), (2), (3);
+# Con1
+SET DEBUG_SYNC="now WAIT_FOR locking";
+ALTER TABLE t1 ADD COLUMN b int;
+# Default
+ERROR HY000: Wait on a lock was aborted due to a pending exclusive lock
+SELECT 1;
+1
+1
+# Con1
+UNLOCK TABLES;
+# Default
+DROP TABLE t1, t2;

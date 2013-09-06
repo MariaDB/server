@@ -77,6 +77,7 @@ int az_open (azio_stream *s, const char *path, int Flags, File fd)
   s->version = (unsigned char)az_magic[1]; /* this needs to be a define to version */
   s->minor_version= (unsigned char) az_magic[2]; /* minor version */
   s->dirty= AZ_STATE_CLEAN;
+  s->start= 0;
 
   /*
     We do our own version of append by nature. 
@@ -185,6 +186,9 @@ int write_header(azio_stream *s)
 {
   char buffer[AZHEADER_SIZE + AZMETA_BUFFER_SIZE];
   char *ptr= buffer;
+
+  if (s->version == 1)
+    return 0;
 
   s->block_size= AZ_BUFSIZE_WRITE;
   s->version = (unsigned char)az_magic[1];
@@ -308,9 +312,9 @@ void check_header(azio_stream *s)
   /* Peek ahead to check the gzip magic header */
   if ( s->stream.next_in[0] == gz_magic[0]  && s->stream.next_in[1] == gz_magic[1])
   {
+    read_header(s, s->stream.next_in);
     s->stream.avail_in -= 2;
     s->stream.next_in += 2;
-    s->version= (unsigned char)2;
 
     /* Check the rest of the gzip header */
     method = get_byte(s);
@@ -339,7 +343,8 @@ void check_header(azio_stream *s)
       for (len = 0; len < 2; len++) (void)get_byte(s);
     }
     s->z_err = s->z_eof ? Z_DATA_ERROR : Z_OK;
-    s->start = my_tell(s->file, MYF(0)) - s->stream.avail_in;
+    if (!s->start)
+      s->start= my_tell(s->file, MYF(0)) - s->stream.avail_in;
   }
   else if ( s->stream.next_in[0] == az_magic[0]  && s->stream.next_in[1] == az_magic[1])
   {
@@ -364,6 +369,8 @@ void read_header(azio_stream *s, unsigned char *buffer)
 {
   if (buffer[0] == az_magic[0]  && buffer[1] == az_magic[1])
   {
+    uchar tmp[AZ_FRMVER_LEN + 2];
+
     s->version= (unsigned int)buffer[AZ_VERSION_POS];
     s->minor_version= (unsigned int)buffer[AZ_MINOR_VERSION_POS];
     s->block_size= 1024 * buffer[AZ_BLOCK_POS];
@@ -379,13 +386,33 @@ void read_header(azio_stream *s, unsigned char *buffer)
     s->comment_start_pos= (unsigned int)uint4korr(buffer + AZ_COMMENT_POS);
     s->comment_length= (unsigned int)uint4korr(buffer + AZ_COMMENT_LENGTH_POS);
     s->dirty= (unsigned int)buffer[AZ_DIRTY_POS];
+
+    /*
+      we'll hard-code the current frm format for now, to avoid
+      changing archive table versions.
+    */
+    if (s->frm_length == 0 ||
+        my_pread(s->file, tmp,  sizeof(tmp), s->frm_start_pos + 64, MYF(MY_NABP)) ||
+        tmp[0] != 0 || tmp[1] != AZ_FRMVER_LEN)
+    {
+      s->frmver_length= 0;
+    }
+    else
+    {
+      s->frmver_length= tmp[1];
+      memcpy(s->frmver, tmp+2, s->frmver_length);
+    }
   }
   else if (buffer[0] == gz_magic[0]  && buffer[1] == gz_magic[1])
   {
     /*
-      Set version number to previous version (2).
+      Set version number to previous version (1).
     */
-    s->version= (unsigned char) 2;
+    s->version= 1;
+    s->auto_increment= 0;
+    s->frm_length= 0;
+    s->longest_row= 0;
+    s->shortest_row= 0;
   } else {
     /*
       Unknown version.
@@ -855,7 +882,7 @@ int azclose (azio_stream *s)
   Though this was added to support MySQL's FRM file, anything can be 
   stored in this location.
 */
-int azwrite_frm(azio_stream *s, char *blob, unsigned int length)
+int azwrite_frm(azio_stream *s, const uchar *blob, unsigned int length)
 {
   if (s->mode == 'r') 
     return 1;
@@ -867,7 +894,7 @@ int azwrite_frm(azio_stream *s, char *blob, unsigned int length)
   s->frm_length= length;
   s->start+= length;
 
-  if (my_pwrite(s->file, (uchar*) blob, s->frm_length,
+  if (my_pwrite(s->file, blob, s->frm_length,
                 s->frm_start_pos, MYF(MY_NABP)) ||
       write_header(s) ||
       (my_seek(s->file, 0, MY_SEEK_END, MYF(0)) == MY_FILEPOS_ERROR))
@@ -876,9 +903,9 @@ int azwrite_frm(azio_stream *s, char *blob, unsigned int length)
   return 0;
 }
 
-int azread_frm(azio_stream *s, char *blob)
+int azread_frm(azio_stream *s, uchar *blob)
 {
-  return my_pread(s->file, (uchar*) blob, s->frm_length,
+  return my_pread(s->file, blob, s->frm_length,
                   s->frm_start_pos, MYF(MY_NABP)) ? 1 : 0;
 }
 

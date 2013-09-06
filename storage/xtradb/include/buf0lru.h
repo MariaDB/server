@@ -73,13 +73,6 @@ buf_LRU_flush_or_remove_pages(
 	enum buf_remove_t	buf_remove);/*!< in: remove or flush
 					strategy */
 
-/******************************************************************//**
-*/
-UNIV_INTERN
-void
-buf_LRU_mark_space_was_deleted(
-/*===========================*/
-	ulint	id);	/*!< in: space id */
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /********************************************************************//**
 Insert a compressed block into buf_pool->zip_clean in the LRU order. */
@@ -158,7 +151,10 @@ buf_LRU_block_free_non_file_page(
 	buf_block_t*	block,	/*!< in: block, must not contain a file page */
 	ibool		have_page_hash_mutex);
 /******************************************************************//**
-Adds a block to the LRU list. */
+Adds a block to the LRU list. Please make sure that the zip_size is
+already set into the page zip when invoking the function, so that we
+can get correct zip_size from the buffer page when adding a block
+into LRU */
 UNIV_INTERN
 void
 buf_LRU_add_block(

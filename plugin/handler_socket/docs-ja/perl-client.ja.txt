@@ -86,7 +86,6 @@ execute_singleメソッドは列の挿入にも使用できます。
 
   my $res = $hs->execute_single(3, '+', [ 'foo', 'bar', 'baz' ]);
   die $hs->get_error() if $res->[0] != 0;
-  my $num_inserted_rows = $res->[1];
 
 第3引数は、対応するopen_index呼び出しの第5引数の列リストと同じだ
 けの長さの配列への参照でなければなりません。open_index呼び出しの
@@ -108,6 +107,15 @@ execute_multiメソッドを使えば、複数のリクエストを一つの呼�
     shift(@$res);
     # ...
   }
+
+-----------------------------------------------------------------
+もしhandlersocketが接続を認証するように設定されている
+(handlersocket_plain_secret又はhandlersocket_plain_secret_wrがセッ
+トされている)ならば、クライアントは他のメソッド呼び出しの前にauth
+メソッドを呼び出す必要があります。
+
+  my $res = $hs->auth('password');
+  die $hs->get_error() if $res->[0] != 0;
 
 -----------------------------------------------------------------
 エラーが起こると返値の配列参照の最初の要素が0以外になります。負の

@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (c) 2009, 2011, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -150,6 +150,16 @@ foreach my $option (@ARGV)
     $cmakeargs = $cmakeargs." -DWITH_ZLIB=system";
     next;
   }
+  if($option =~ /with-libevent=/)
+  {
+    $cmakeargs = $cmakeargs." -DWITH_LIBEVENT=system";
+    next;
+  }
+  if($option =~ /with-libevent/)
+  {
+    $cmakeargs = $cmakeargs." -DWITH_LIBEVENT=bundled";
+    next;
+  }
   if($option =~ /with-ssl=/)
   {
     $cmakeargs = $cmakeargs." -DWITH_SSL=yes";
@@ -225,6 +235,16 @@ foreach my $option (@ARGV)
   if ($option =~ /verbose/)
   {
       $cmakeargs = $cmakeargs." -DCMAKE_VERBOSE_MAKEFILE=1";
+      next;
+  }
+  if ($option =~ /with-client-ldflags/)
+  {
+      print("configure.pl : ignoring $option\n");
+      next;
+  }
+  if ($option =~ /with-mysqld-ldflags=/)
+  {
+      print("configure.pl : ignoring $option\n");
       next;
   }
   if ($option =~ /with-client-ldflags/)

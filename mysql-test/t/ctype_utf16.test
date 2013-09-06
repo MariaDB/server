@@ -653,6 +653,7 @@ select 1.1 + '1.2xxx';
 # Testing strntoll10_utf16
 # Testing cs->cset->strtoll10
 select left('aaa','1');
+--source include/ctype_strtoll10.inc
 
 #
 # Testing cs->cset->strntoull10rnd

@@ -67,7 +67,13 @@
 # http://forge.mysql.com/wiki/CMake#Fine-tuning_installation_paths
 
 IF(NOT INSTALL_LAYOUT)
-  SET(INSTALL_LAYOUT "STANDALONE")
+  IF(DEB)
+    SET(INSTALL_LAYOUT "DEB")
+  ELSEIF(RPM)
+    SET(INSTALL_LAYOUT "RPM")
+  ELSE()
+    SET(INSTALL_LAYOUT "STANDALONE")
+  ENDIF()
 ENDIF()
 
 SET(INSTALL_LAYOUT "${INSTALL_LAYOUT}"
@@ -187,7 +193,7 @@ SET(INSTALL_SHAREDIR_DEB                "share")
 SET(INSTALL_MYSQLSHAREDIR_DEB           "share/mysql")
 SET(INSTALL_MYSQLTESTDIR_DEB            "mysql-test")
 SET(INSTALL_SQLBENCHDIR_DEB             ".")
-SET(INSTALL_SUPPORTFILESDIR_DEB         "support-files")
+SET(INSTALL_SUPPORTFILESDIR_DEB         "share/mysql")
 #
 SET(INSTALL_MYSQLDATADIR_DEB            "/var/lib/mysql")
 SET(INSTALL_PLUGINTESTDIR_DEB           ${plugin_tests})

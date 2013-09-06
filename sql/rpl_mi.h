@@ -21,6 +21,8 @@
 #include "rpl_rli.h"
 #include "rpl_reporting.h"
 #include "my_sys.h"
+#include "rpl_filter.h"
+#include "keycaches.h"
 
 typedef struct st_mysql MYSQL;
 
@@ -59,6 +61,10 @@ typedef struct st_mysql MYSQL;
 class Master_info : public Slave_reporting_capability
 {
  public:
+  enum enum_using_gtid {
+    USE_GTID_NO= 0, USE_GTID_CURRENT_POS= 1, USE_GTID_SLAVE_POS= 2
+  };
+
   Master_info(LEX_STRING *connection_name, bool is_slave_recovery);
   ~Master_info();
   bool shall_ignore_server_id(ulong s_id);
@@ -68,11 +74,12 @@ class Master_info : public Slave_reporting_capability
     /* If malloc() in initialization failed */
     return connection_name.str == 0;
   }
+  static const char *using_gtid_astext(enum enum_using_gtid arg);
 
   /* the variables below are needed because we can change masters on the fly */
   char master_log_name[FN_REFLEN+6]; /* Room for multi-*/
   char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
-  char user[USERNAME_LENGTH*+1];
+  char user[USERNAME_LENGTH+1];
   char password[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
   LEX_STRING connection_name;  		/* User supplied connection name */
   LEX_STRING cmp_connection_name;	/* Connection name in lower case */
@@ -93,6 +100,7 @@ class Master_info : public Slave_reporting_capability
   uint32 file_id;				/* for 3.23 load data infile */
   Relay_log_info rli;
   uint port;
+  Rpl_filter* rpl_filter;      /* Each replication can set its filter rule*/
   /*
     to hold checksum alg in use until IO thread has received FD.
     Initialized to novalue, then set to the queried from master
@@ -127,6 +135,41 @@ class Master_info : public Slave_reporting_capability
   ulonglong received_heartbeats;  // counter of received heartbeat events
   DYNAMIC_ARRAY ignore_server_ids;
   ulong master_id;
+  /*
+    Which kind of GTID position (if any) is used when connecting to master.
+
+    Note that you can not change the numeric values of these, they are used
+    in master.info.
+  */
+  enum enum_using_gtid using_gtid;
+
+  /*
+    This GTID position records how far we have fetched into the relay logs.
+    This is used to continue fetching when the IO thread reconnects to the
+    master.
+
+    (Full slave stop/start does not use it, as it resets the relay logs).
+  */
+  slave_connection_state gtid_current_pos;
+  /*
+    If events_queued_since_last_gtid is non-zero, it is the number of events
+    queued so far in the relaylog of a GTID-prefixed event group.
+    It is zero when no partial event group has been queued at the moment.
+  */
+  uint64 events_queued_since_last_gtid;
+  /*
+    The GTID of the partially-queued event group, when
+    events_queued_since_last_gtid is non-zero.
+  */
+  rpl_gtid last_queued_gtid;
+  /*
+    When slave IO thread needs to reconnect, gtid_reconnect_event_skip_count
+    counts number of events to skip from the first GTID-prefixed event group,
+    to avoid duplicating events in the relay log.
+  */
+  uint64 gtid_reconnect_event_skip_count;
+  /* gtid_event_seen is false until we receive first GTID event from master. */
+  bool gtid_event_seen;
 };
 int init_master_info(Master_info* mi, const char* master_info_fname,
 		     const char* slave_info_fname,
@@ -137,6 +180,7 @@ int flush_master_info(Master_info* mi,
                       bool flush_relay_log_cache, 
                       bool need_lock_relay_log);
 int change_master_server_id_cmp(ulong *id1, ulong *id2);
+void copy_filter_setting(Rpl_filter* dst_filter, Rpl_filter* src_filter);
 
 /*
   Multi master are handled trough this struct.
@@ -164,14 +208,14 @@ public:
   bool add_master_info(Master_info *mi, bool write_to_file);
   bool remove_master_info(LEX_STRING *connection_name);
   Master_info *get_master_info(LEX_STRING *connection_name,
-                               MYSQL_ERROR::enum_warning_level warning);
+                               Sql_condition::enum_warning_level warning);
   bool give_error_if_slave_running();
   bool start_all_slaves(THD *thd);
   bool stop_all_slaves(THD *thd);
 };
 
 bool check_master_connection_name(LEX_STRING *name);
-void create_logfile_name_with_suffix(char *res_file_name, uint length,
+void create_logfile_name_with_suffix(char *res_file_name, size_t length,
                              const char *info_file, 
                              bool append,
                              LEX_STRING *suffix);

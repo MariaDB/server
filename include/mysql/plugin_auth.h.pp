@@ -1,4 +1,6 @@
 #include <mysql/plugin.h>
+typedef char my_bool;
+typedef void * MYSQL_PLUGIN;
 #include <mysql/services.h>
 #include <mysql/service_my_snprintf.h>
 extern struct my_snprintf_service_st {
@@ -43,7 +45,8 @@ typedef enum _thd_wait_type_e {
   THD_WAIT_BINLOG= 8,
   THD_WAIT_GROUP_COMMIT= 9,
   THD_WAIT_SYNC= 10,
-  THD_WAIT_LAST= 11
+  THD_WAIT_NET= 11,
+  THD_WAIT_LAST= 12
 } thd_wait_type;
 extern struct thd_wait_service_st {
   void (*thd_wait_begin_func)(void*, int);
@@ -51,14 +54,6 @@ extern struct thd_wait_service_st {
 } *thd_wait_service;
 void thd_wait_begin(void* thd, int wait_type);
 void thd_wait_end(void* thd);
-#include <mysql/service_thread_scheduler.h>
-struct scheduler_functions;
-extern struct my_thread_scheduler_service {
-  int (*set)(struct scheduler_functions *scheduler);
-  int (*reset)();
-} *my_thread_scheduler_service;
-int my_thread_scheduler_set(struct scheduler_functions *scheduler);
-int my_thread_scheduler_reset();
 #include <mysql/service_progress_report.h>
 extern struct progress_report_service_st {
   void (*thd_progress_init_func)(void* thd, unsigned int max_stage);
@@ -92,6 +87,34 @@ extern struct kill_statement_service_st {
   enum thd_kill_levels (*thd_kill_level_func)(const void*);
 } *thd_kill_statement_service;
 enum thd_kill_levels thd_kill_level(const void*);
+#include <mysql/service_thd_timezone.h>
+#include "mysql_time.h"
+typedef long my_time_t;
+enum enum_mysql_timestamp_type
+{
+  MYSQL_TIMESTAMP_NONE= -2, MYSQL_TIMESTAMP_ERROR= -1,
+  MYSQL_TIMESTAMP_DATE= 0, MYSQL_TIMESTAMP_DATETIME= 1, MYSQL_TIMESTAMP_TIME= 2
+};
+typedef struct st_mysql_time
+{
+  unsigned int year, month, day, hour, minute, second;
+  unsigned long second_part;
+  my_bool neg;
+  enum enum_mysql_timestamp_type time_type;
+} MYSQL_TIME;
+extern struct thd_timezone_service_st {
+  my_time_t (*thd_TIME_to_gmt_sec)(void* thd, const MYSQL_TIME *ltime, unsigned int *errcode);
+  void (*thd_gmt_sec_to_TIME)(void* thd, MYSQL_TIME *ltime, my_time_t t);
+} *thd_timezone_service;
+my_time_t thd_TIME_to_gmt_sec(void* thd, const MYSQL_TIME *ltime, unsigned int *errcode);
+void thd_gmt_sec_to_TIME(void* thd, MYSQL_TIME *ltime, my_time_t t);
+#include <mysql/service_sha1.h>
+extern struct my_sha1_service_st {
+  void (*my_sha1_type)(unsigned char*, const char*, size_t);
+  void (*my_sha1_multi_type)(unsigned char*, ...);
+} *my_sha1_service;
+void my_sha1(unsigned char*, const char*, size_t);
+void my_sha1_multi(unsigned char*, ...);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;
@@ -232,6 +255,7 @@ int thd_sql_command(const void* thd);
 void **thd_ha_data(const void* thd, const struct handlerton *hton);
 void thd_storage_lock_wait(void* thd, long long value);
 int thd_tx_isolation(const void* thd);
+int thd_tx_is_read_only(const void* thd);
 char *thd_security_context(void* thd, char *buffer, unsigned int length,
                            unsigned int max_query_len);
 void thd_inc_row_count(void* thd);
@@ -266,8 +290,8 @@ typedef struct st_mysql_server_auth_info
   unsigned int user_name_length;
   const char *auth_string;
   unsigned long auth_string_length;
-  char authenticated_as[48 +1];
-  char external_user[512];
+  char authenticated_as[512 +1];
+  char external_user[512 +1];
   int password_used;
   const char *host_or_ip;
   unsigned int host_or_ip_length;

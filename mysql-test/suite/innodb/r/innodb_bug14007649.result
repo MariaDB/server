@@ -39,17 +39,18 @@ update t1 set f2 = 6 where f1 = 1 and f2 is null;
 (a) Number of rows updated:
 select row_count();
 row_count()
-0
+1
 (a) After the update statement is executed.
 select rowid, f1, f2 from t1;
 rowid	f1	f2
 1	1	10
 2	1	NULL
+3	1	6
 commit;
 "The trx with consistent snapshot ended."
 select rowid, f1, f2 from t1;
 rowid	f1	f2
 1	1	10
 2	1	4
-3	1	NULL
+3	1	6
 drop table t1;

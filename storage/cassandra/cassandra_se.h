@@ -45,6 +45,7 @@ public:
 
   /* Settings */
   virtual void set_consistency_levels(ulong read_cons_level, ulong write_cons_level)=0;
+  virtual void set_n_retries(uint retries_arg)=0;
 
   /* Check underlying DDL */
   virtual bool setup_ddl_checks()=0;
@@ -113,6 +114,7 @@ public:
 
   ulong timeout_exceptions;
   ulong unavailable_exceptions;
+  ulong network_exceptions;
 };
 
 

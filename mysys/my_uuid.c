@@ -40,6 +40,7 @@
 */
 
 #include "mysys_priv.h"
+#include <my_rnd.h>
 #include <m_string.h>
 #include <myisampack.h> /* mi_int2store, mi_int4store */
 
@@ -123,7 +124,7 @@ void my_uuid_init(ulong seed1, ulong seed2)
    Create a global unique identifier (uuid)
 
    @func  my_uuid()
-   @param to   Store uuid here. Must be of size MY_uuid_SIZE (16)
+   @param to   Store uuid here. Must be of size MY_UUID_SIZE (16)
 */
 
 void my_uuid(uchar *to)
@@ -151,7 +152,7 @@ void my_uuid(uchar *to)
       /*
         -1 so we won't make tv= uuid_time for nanoseq >= (tv - uuid_time)
       */
-      delta= min(nanoseq, (ulong)(tv - uuid_time -1));
+      delta= MY_MIN(nanoseq, (ulong)(tv - uuid_time -1));
       tv-= delta;
       nanoseq-= delta;
     }

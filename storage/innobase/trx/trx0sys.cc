@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -43,19 +43,15 @@ Created 3/26/1996 Heikki Tuuri
 #include "log0recv.h"
 #include "os0file.h"
 #include "read0read.h"
-#include "buf0dblwr.h"
 
 /** The file format tag structure with id and name. */
-struct file_format_struct {
+struct file_format_t {
 	ulint		id;		/*!< id of the file format */
 	const char*	name;		/*!< text representation of the
 					file format */
-	mutex_t		mutex;		/*!< covers changes to the above
+	ib_mutex_t		mutex;		/*!< covers changes to the above
 					fields */
 };
-
-/** The file format tag */
-typedef struct file_format_struct	file_format_t;
 
 /** The transaction system */
 UNIV_INTERN trx_sys_t*		trx_sys		= NULL;
@@ -122,12 +118,12 @@ UNIV_INTERN mysql_pfs_key_t	file_format_max_mutex_key;
 UNIV_INTERN mysql_pfs_key_t	trx_sys_mutex_key;
 #endif /* UNIV_PFS_RWLOCK */
 
+#ifndef UNIV_HOTBACKUP
 #ifdef UNIV_DEBUG
 /* Flag to control TRX_RSEG_N_SLOTS behavior debugging. */
 uint		trx_rseg_n_slots_debug = 0;
 #endif
 
-#ifndef UNIV_HOTBACKUP
 /** This is used to track the maximum file format id known to InnoDB. It's
 updated via SET GLOBAL innodb_file_format_max = 'x' or when we open
 or create a table. */
@@ -180,13 +176,17 @@ trx_sys_flush_max_trx_id(void)
 
 	ut_ad(mutex_own(&trx_sys->mutex));
 
-	mtr_start(&mtr);
+	if (!srv_read_only_mode) {
+		mtr_start(&mtr);
 
-	sys_header = trx_sysf_get(&mtr);
+		sys_header = trx_sysf_get(&mtr);
 
-	mlog_write_ull(sys_header + TRX_SYS_TRX_ID_STORE,
-		       trx_sys->max_trx_id, &mtr);
-	mtr_commit(&mtr);
+		mlog_write_ull(
+			sys_header + TRX_SYS_TRX_ID_STORE,
+			trx_sys->max_trx_id, &mtr);
+
+		mtr_commit(&mtr);
+	}
 }
 
 /*****************************************************************//**
@@ -524,6 +524,8 @@ trx_sys_init_at_db_start(void)
 						   + TRX_SYS_TRX_ID_STORE),
 				     TRX_SYS_TRX_ID_WRITE_MARGIN);
 
+	ut_d(trx_sys->rw_max_trx_id = trx_sys->max_trx_id);
+
 	UT_LIST_INIT(trx_sys->mysql_trx_list);
 
 	trx_dummy_sess = sess_open();
@@ -701,7 +703,7 @@ Check for the max file format tag stored on disk. Note: If max_format_id
 is == UNIV_FORMAT_MAX + 1 then we only print a warning.
 @return	DB_SUCCESS or error code */
 UNIV_INTERN
-ulint
+dberr_t
 trx_sys_file_format_max_check(
 /*==========================*/
 	ulint	max_format_id)	/*!< in: max format id to check */
@@ -718,21 +720,18 @@ trx_sys_file_format_max_check(
 		format_id = UNIV_FORMAT_MIN;
 	}
 
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: highest supported file format is %s.\n",
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"Highest supported file format is %s.",
 		trx_sys_file_format_id_to_name(UNIV_FORMAT_MAX));
 
 	if (format_id > UNIV_FORMAT_MAX) {
 
 		ut_a(format_id < FILE_FORMAT_NAME_N);
 
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: %s: the system tablespace is in a file "
-			"format that this version doesn't support - %s\n",
-			((max_format_id <= UNIV_FORMAT_MAX)
-				? "Error" : "Warning"),
+		ib_logf(max_format_id <= UNIV_FORMAT_MAX
+			? IB_LOG_LEVEL_ERROR : IB_LOG_LEVEL_WARN,
+			"The system tablespace is in a file "
+			"format that this version doesn't support - %s.",
 			trx_sys_file_format_id_to_name(format_id));
 
 		if (max_format_id <= UNIV_FORMAT_MAX) {
@@ -883,7 +882,7 @@ trx_sys_create_rsegs(
 	ut_a(n_spaces < TRX_SYS_N_RSEGS);
 	ut_a(n_rsegs <= TRX_SYS_N_RSEGS);
 
-	if (srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
+	if (srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO || srv_read_only_mode) {
 		return(ULINT_UNDEFINED);
 	}
 
@@ -926,9 +925,8 @@ trx_sys_create_rsegs(
 		}
 	}
 
-	ut_print_timestamp(stderr);
-	fprintf(stderr, " InnoDB: %lu rollback segment(s) are active.\n",
-		n_used);
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"%lu rollback segment(s) are active.", n_used);
 
 	return(n_used);
 }
@@ -1000,7 +998,7 @@ trx_sys_read_file_format_id(
 	);
 	if (!success) {
 		/* The following call prints an error message */
-		os_file_get_last_error(TRUE);
+		os_file_get_last_error(true);
 
 		ut_print_timestamp(stderr);
 
@@ -1019,7 +1017,7 @@ trx_sys_read_file_format_id(
 
 	if (!success) {
 		/* The following call prints an error message */
-		os_file_get_last_error(TRUE);
+		os_file_get_last_error(true);
 
 		ut_print_timestamp(stderr);
 
@@ -1080,7 +1078,7 @@ trx_sys_read_pertable_file_format_id(
 	);
 	if (!success) {
 		/* The following call prints an error message */
-		os_file_get_last_error(TRUE);
+		os_file_get_last_error(true);
 
 		ut_print_timestamp(stderr);
 
@@ -1099,7 +1097,7 @@ trx_sys_read_pertable_file_format_id(
 
 	if (!success) {
 		/* The following call prints an error message */
-		os_file_get_last_error(TRUE);
+		os_file_get_last_error(true);
 
 		ut_print_timestamp(stderr);
 
@@ -1120,11 +1118,11 @@ trx_sys_read_pertable_file_format_id(
 	if (flags == 0) {
 		/* file format is Antelope */
 		*format_id = 0;
-		return (TRUE);
+		return(TRUE);
 	} else if (flags & 1) {
 		/* tablespace flags are ok */
 		*format_id = (flags / 32) % 128;
-		return (TRUE);
+		return(TRUE);
 	} else {
 		/* bad tablespace flags */
 		return(FALSE);
@@ -1143,7 +1141,7 @@ trx_sys_file_format_id_to_name(
 {
 	if (!(id < FILE_FORMAT_NAME_N)) {
 		/* unknown id */
-		return ("Unknown");
+		return("Unknown");
 	}
 
 	return(file_format_name_map[id]);
@@ -1252,7 +1250,7 @@ trx_sys_any_active_transactions(void)
 	mutex_enter(&trx_sys->mutex);
 
 	total_trx = UT_LIST_GET_LEN(trx_sys->rw_trx_list)
-		+ trx_sys->n_mysql_trx;
+		  + UT_LIST_GET_LEN(trx_sys->mysql_trx_list);
 
 	ut_a(total_trx >= trx_sys->n_prepared_trx);
 	total_trx -= trx_sys->n_prepared_trx;

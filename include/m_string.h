@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -108,6 +108,15 @@ extern  char *strcend(const char *, pchar);
 extern	char *strfill(char * s,size_t len,pchar fill);
 extern	char *strmake(char *dst,const char *src,size_t length);
 
+#if !defined(__GNUC__) || (__GNUC__ < 4)
+#define strmake_buf(D,S)        strmake(D, S, sizeof(D) - 1)
+#else
+#define strmake_buf(D,S) ({                             \
+  compile_time_assert(sizeof(D) != sizeof(char*));      \
+  strmake(D, S, sizeof(D) - 1);                         \
+  })
+#endif
+
 #ifndef strmov
 extern	char *strmov(char *dst,const char *src);
 #endif
@@ -159,7 +168,7 @@ size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
   (DBL_DIG + 2) significant digits + sign + "." + ("e-NNN" or
   MAX_DECPT_FOR_F_FORMAT zeros for cases when |x|<1 and the 'f' format is used).
 */
-#define MY_GCVT_MAX_FIELD_WIDTH (DBL_DIG + 4 + max(5, MAX_DECPT_FOR_F_FORMAT)) \
+#define MY_GCVT_MAX_FIELD_WIDTH (DBL_DIG + 4 + MY_MAX(5, MAX_DECPT_FOR_F_FORMAT)) \
 
 extern char *llstr(longlong value,char *buff);
 extern char *ullstr(longlong value,char *buff);
