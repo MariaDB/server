@@ -3607,23 +3607,6 @@ void Item_udf_func::print(String *str, enum_query_type query_type)
 }
 
 
-longlong Item_func_udf_float::val_int()
-{
-  DBUG_ASSERT(fixed == 1);
-  return (longlong) rint(Item_func_udf_float::val_real());
-}
-
-
-my_decimal *Item_func_udf_float::val_decimal(my_decimal *dec_buf)
-{
-  double res=val_real();
-  if (null_value)
-    return NULL;
-  double2my_decimal(E_DEC_FATAL_ERROR, res, dec_buf);
-  return dec_buf;
-}
-
-
 double Item_func_udf_float::val_real()
 {
   double res;
@@ -3751,32 +3734,6 @@ String *Item_func_udf_str::val_str(String *str)
   String *res=udf.val_str(str,&str_value);
   null_value = !res;
   return res;
-}
-
-double Item_func_udf_str::val_real()
-{
-  int err_not_used;
-  char *end_not_used;
-  String *res;
-  res= val_str(&str_value);
-  return res ? my_strntod(res->charset(),(char*) res->ptr(), 
-                          res->length(), &end_not_used, &err_not_used) : 0.0;
-}
-longlong Item_func_udf_str::val_int()
-{
-  int err_not_used;
-  String *res;  res=val_str(&str_value);
-  return res ? my_strntoll(res->charset(),res->ptr(),res->length(),10,
-                           (char**) 0, &err_not_used) : (longlong) 0;
-}
-
-my_decimal *Item_func_udf_str::val_decimal(my_decimal *dec_buf)
-{
-  String *res=val_str(&str_value);
-  if (!res)
-    return NULL;
-  string2my_decimal(E_DEC_FATAL_ERROR, res, dec_buf);
-  return dec_buf;
 }
 
 

@@ -1212,9 +1212,9 @@ struct handlerton
    /*
      Optional clauses in the CREATE/ALTER TABLE
    */
-   const ha_create_table_option *table_options; // table level options
-   const ha_create_table_option *field_options; // these are specified per field
-   const ha_create_table_option *index_options; // these are specified per index
+   ha_create_table_option *table_options; // table level options
+   ha_create_table_option *field_options; // these are specified per field
+   ha_create_table_option *index_options; // these are specified per index
 
    /**
      The list of extensions of files created for a single table in the
