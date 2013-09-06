@@ -364,18 +364,7 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   DBUG_ENTER("init_tmp_table_share");
   DBUG_PRINT("enter", ("table: '%s'.'%s'", key, table_name));
 
-  /* 
-     Dont let badly coded plugins crash the daemon here...  
-     The table_name and path cannot be NULL.
-     ASSERT if debug enabled, otherwise, just warn and return.
-   */
-  DBUG_ASSERT(table_name);
-  DBUG_ASSERT(path);
-  if (table_name==NULL || path==NULL) {
-    sql_print_warning("Someone called init_tmp_table_share() with invalid table_name or path.");
-    return;
-  }
-    bzero((char*) share, sizeof(*share));
+  bzero((char*) share, sizeof(*share));
   /*
     This can't be MY_THREAD_SPECIFIC for slaves as they are freed
     during cleanup() from Relay_log_info::close_temporary_tables()
