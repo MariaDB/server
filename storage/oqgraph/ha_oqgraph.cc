@@ -398,7 +398,7 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
       push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Incorrect keys algorithm on key %d.", i);
       DBUG_RETURN(-1);
     }
-    if (key->key_parts == 3)
+    if (key->user_defined_key_parts == 3)
     {
       /* KEY (latch, origid, destid) USING HASH */
       /* KEY (latch, destid, origid) USING HASH */
@@ -535,16 +535,16 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
               share->normalized_path.str, share->path.length));
   while (open_table_def(thd, share, 0))
   {
-    if (thd->is_error() && thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE)
+    if (thd->is_error() && thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE)
     {
       free_table_share(share);
-      return thd->stmt_da->sql_errno();
+      return thd->get_stmt_da()->sql_errno();
     }
 
     if (ha_create_table_from_engine(thd, table->s->db.str, options->table_name))
     {
       free_table_share(share);
-      return thd->stmt_da->sql_errno();
+      return thd->get_stmt_da()->sql_errno();
     }
     /*mysql_reset_errors(thd, 1);*/
     thd->clear_error();
@@ -553,26 +553,26 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   if (int err= share->error)
   {
-    open_table_error(share, share->error, share->open_errno, share->errarg);
+    open_table_error(share, share->error, share->open_errno);
     free_table_share(share);
     return err;
   }
 
   if (share->is_view)
   {
-    open_table_error(share, 1, EMFILE, 0);
+    open_table_error(share, OPEN_FRM_OPEN_ERROR, EMFILE);
     free_table_share(share);
     fprint_error("VIEWs are not supported for an OQGRAPH backing store");
     return -1;
   }
 
-  if (int err= open_table_from_share(thd, share, "",
+  if (enum open_frm_error err= open_table_from_share(thd, share, "",
                             (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
                                     HA_GET_INDEX | HA_TRY_READ_ONLY),
                             READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD,
                             thd->open_options, edges, FALSE))
   {
-    open_table_error(share, err, EMFILE, 0);
+    open_table_error(share, err, EMFILE);
     free_table_share(share);
     return -1;
   }
@@ -717,7 +717,7 @@ void ha_oqgraph::update_key_stats()
     if (key->algorithm != HA_KEY_ALG_BTREE)
     {
       if (key->flags & HA_NOSAME)
-        key->rec_per_key[key->key_parts-1]= 1;
+        key->rec_per_key[key->user_defined_key_parts-1]= 1;
       else
       {
         //unsigned vertices= graph->vertices_count();
@@ -726,7 +726,7 @@ void ha_oqgraph::update_key_stats()
         //if (no_records < 2)
         uint
           no_records= 2;
-        key->rec_per_key[key->key_parts-1]= no_records;
+        key->rec_per_key[key->user_defined_key_parts-1]= no_records;
       }
     }
   }
@@ -1192,7 +1192,7 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
 
   /* Assert that info() did run. We need current statistics here. */
   //DBUG_ASSERT(key_stat_version == share->key_stat_version);
-  //ha_rows result= key->rec_per_key[key->key_parts-1];
+  //ha_rows result= key->rec_per_key[key->user_defined_key_parts-1];
   ha_rows result= 10;
   DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u", (unsigned)result));
 
