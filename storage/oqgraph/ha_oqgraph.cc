@@ -53,7 +53,7 @@
 #include "my_dbug.h"
 
 // Uncomment this for extra debug, but expect a performance hit in large queries
-//#define VERBOSE_DEBUG
+#define VERBOSE_DEBUG
 #ifdef VERBOSE_DEBUG
 #else
 #undef DBUG_PRINT
@@ -426,6 +426,10 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
 
 ha_oqgraph::ha_oqgraph(handlerton *hton, TABLE_SHARE *table_arg)
   : handler(hton, table_arg)
+  , have_table_share(false)
+  , origid(NULL)
+  , destid(NULL)
+  , weight(NULL)
   , graph_share(0)
   , graph(0)
   , error_message("", 0, &my_charset_latin1)
@@ -478,10 +482,23 @@ void ha_oqgraph::fprint_error(const char* fmt, ...)
   va_end(ap);
 }
 
-
+/**
+ * Open the OQGRAPH engine 'table'.
+ *
+ * An OQGRAPH table is effectively similar to a view over the underlying backing table,
+ * attribute 'data_table', but where the result returned by a query depends on the
+ * value of the 'latch' column specified to the query.  Therefore, 
+ * when mysqld opens us, we need to open the corresponding backing table 'data_table'
+ *
+ */
 int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 {
-  DBUG_PRINT( "oq-debug", ("open(name=%s,mode=%d)", name, mode));
+  DBUG_ENTER("ha_oqgraph::open");
+
+  DBUG_PRINT( "oq-debug", ("open(name=%s,mode=%d,test_if_locked=%u)", name, mode, test_if_locked));
+
+  assert(!have_table_share);
+  assert(graph == NULL);
 
   THD* thd = current_thd;
   oqgraph_table_option_struct *options=
@@ -490,80 +507,102 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   // Catch cases where table was not constructed properly
   if (!options) {
     fprint_error("Invalid OQGRAPH backing store (null attributes)");
-    return -1;
+    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
   if (!options->table_name || !*options->table_name) {
     fprint_error("Invalid OQGRAPH backing store (unspecified or empty data_table attribute)");
     // if table_name if present but doesnt actually exist, we will fail out below
     // when we call open_table_def(). same probably applies for the id fields
-    return -1;
+    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
   if (!options->origid || !*options->origid) {
     fprint_error("Invalid OQGRAPH backing store (unspecified or empty origid attribute)");
-    return -1;
+    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
   if (!options->destid || !*options->destid) {
     fprint_error("Invalid OQGRAPH backing store (unspecified or empty destid attribute)");
-    return -1;
+    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
   // weight is optional
 
   error_message.length(0);
 
+  origid= destid= weight= 0;
+
+  init_tmp_table_share( thd, share, table->s->db.str, table->s->db.length, options->table_name, "");
+
+  // What I think this code is doing:
+  // * Our OQGRAPH table is `database_blah/name`
+  // * We point p --> /name (or if table happened to be simply `name`, to `name`, dont know if this is possible)
+  // * plen seems to be then set to length of `database_blah/options_data_table_name`
+  // * then we set share->normalized_path.str and share->path.str to `database_blah/options_data_table_name`
+  // * I assume that this verbiage is needed so  the memory used by share->path.str is set in the share mem root
+  // * because otherwise one could simply build the string more simply using malloc and pass it instead of "" above  
   const char* p= strend(name)-1;
   while (p > name && *p != '\\' && *p != '/')
     --p;
-    
-  init_tmp_table_share(
-      thd, share, table->s->db.str, table->s->db.length,
-      options->table_name, "");
-
   size_t tlen= strlen(options->table_name);
   size_t plen= (int)(p - name) + tlen + 1;
 
-  share->path.str= (char*)
-      alloc_root(&share->mem_root, plen);
-
+  share->path.str= (char*)alloc_root(&share->mem_root, plen);
   strmov(strnmov(share->path.str, name, (int)(p - name) + 1), options->table_name);
 
   share->normalized_path.str= share->path.str;
   share->path.length= share->normalized_path.length= plen;
 
-  origid= destid= weight= 0;
-
   DBUG_PRINT( "oq-debug", ("share:(normalized_path=%s,path.length=%zu)", 
               share->normalized_path.str, share->path.length));
-  while (open_table_def(thd, share, 0))
+
+  int open_def_flags = 0;
+#if MYSQL_VERSION_ID	>= 100002
+  open_def_flags = GTS_TABLE;
+#endif
+  // We want to open the definition for the given backing table
+  // Once can assume this loop exists because sometimes open_table_def() fails for a reason other than not exist
+  // and not 'exist' is valid, because we use ha_create_table_from_engine() to force it to 'exist'
+  // But, ha_create_table_from_engine() is removed in MariaDB 10.0.4 (?)
+  // Looking inside most recent ha_create_table_from_engine(), it also calls open_table_def() so maybe this whole thing is redundant...
+  // Or perhaps it is needed if the backing store is a temporary table or maybe if has no records as yet...?
+  // Lets try without this, and see if all the tests pass...
+  while (open_table_def(thd, share, open_def_flags))
   {
     if (thd->is_error() && thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE)
     {
       free_table_share(share);
-      return thd->get_stmt_da()->sql_errno();
+      DBUG_RETURN(thd->get_stmt_da()->sql_errno());
     }
 
+#if MYSQL_VERSION_ID	< 100002
     if (ha_create_table_from_engine(thd, table->s->db.str, options->table_name))
     {
       free_table_share(share);
-      return thd->get_stmt_da()->sql_errno();
+      DBUG_RETURN(thd->get_stmt_da()->sql_errno());
     }
     /*mysql_reset_errors(thd, 1);*/
     thd->clear_error();
     continue;
+#else
+    open_table_error(share, OPEN_FRM_OPEN_ERROR, EMFILE);
+    free_table_share(share);
+    fprint_error("Problem opening OQGRPAPH backing store, maybe introduced by MariaDB v10.0.2.");
+    DBUG_RETURN(-1);
+#endif
   }
+
 
   if (int err= share->error)
   {
     open_table_error(share, share->error, share->open_errno);
     free_table_share(share);
-    return err;
+    DBUG_RETURN(err);
   }
 
   if (share->is_view)
   {
     open_table_error(share, OPEN_FRM_OPEN_ERROR, EMFILE);
     free_table_share(share);
-    fprint_error("VIEWs are not supported for an OQGRAPH backing store");
-    return -1;
+    fprint_error("VIEWs are not supported for an OQGRAPH backing store.");
+    DBUG_RETURN(-1);
   }
 
   if (enum open_frm_error err= open_table_from_share(thd, share, "",
@@ -574,7 +613,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   {
     open_table_error(share, err, EMFILE);
     free_table_share(share);
-    return -1;
+    DBUG_RETURN(-1);
   }
 
   edges->reginfo.lock_type= TL_READ;
@@ -595,7 +634,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   {
     fprint_error("Some error occurred opening table '%s'", options->table_name);
     free_table_share(share);
-    return -1;
+    DBUG_RETURN(-1);
   }
 
   for (Field **field= edges->field; *field; ++field)
@@ -609,17 +648,17 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
           options->table_name, options->origid);
       closefrm(edges, 0);
       free_table_share(share);
-      return -1;
+      DBUG_RETURN(-1);
     }
     origid = *field;
     break;
   }
 
   if (!origid) {
-    fprint_error("Invalid OQGRAPH backing store ('%s'.origid attribute not set to a valid column of '%s')", p, options->table_name);
+    fprint_error("Invalid OQGRAPH backing store ('%s.origid' attribute not set to a valid column of '%s')", p+1, options->table_name);
     closefrm(edges, 0);
     free_table_share(share);
-    return -1;
+    DBUG_RETURN(-1);
   }
 
 
@@ -634,25 +673,25 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
           options->table_name, options->destid);
       closefrm(edges, 0);
       free_table_share(share);
-      return -1;
+      DBUG_RETURN(-1);
     }
     destid = *field;
     break;
   }
 
   if (!destid) {
-    fprint_error("Invalid OQGRAPH backing store ('%s'.destid attribute not set to a valid column of '%s')", p, options->table_name);
+    fprint_error("Invalid OQGRAPH backing store ('%s.destid' attribute not set to a valid column of '%s')", p+1, options->table_name);
     closefrm(edges, 0);
     free_table_share(share);
-    return -1;
+    DBUG_RETURN(-1);
   }
   
   // Make sure origid column != destid column
   if (strcmp( origid->field_name, destid->field_name)==0) {
-    fprint_error("Invalid OQGRAPH backing store ('%s'.destid attribute set to same column as origid attribute)", p, options->table_name);
+    fprint_error("Invalid OQGRAPH backing store ('%s.destid' attribute set to same column as origid attribute)", p+1, options->table_name);
     closefrm(edges, 0);
     free_table_share(share);
-    return -1;
+    DBUG_RETURN(-1);
   }
 
   for (Field **field= edges->field; options->weight && *field; ++field)
@@ -666,17 +705,17 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
           options->table_name, options->weight);
       closefrm(edges, 0);
       free_table_share(share);
-      return -1;
+      DBUG_RETURN(-1);
     }
     weight = *field;
     break;
   }
 
   if (!weight && options->weight) {
-    fprint_error("Invalid OQGRAPH backing store ('%s'.weight attribute not set to a valid column of '%s')", p, options->table_name);
+    fprint_error("Invalid OQGRAPH backing store ('%s.weight' attribute not set to a valid column of '%s')", p, options->table_name);
     closefrm(edges, 0);
     free_table_share(share);
-    return -1;
+    DBUG_RETURN(-1);
   }
 
   if (!(graph_share = oqgraph::create(edges, origid, destid, weight)))
@@ -684,13 +723,14 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     fprint_error("Unable to create graph instance.");
     closefrm(edges, 0);
     free_table_share(share);
-    return -1;
+    DBUG_RETURN(-1);
   }
   ref_length= oqgraph::sizeof_ref;
 
   graph = oqgraph::create(graph_share);
+  have_table_share = true;
 
-  return 0;
+  DBUG_RETURN(0);
 }
 
 int ha_oqgraph::close(void)
@@ -698,11 +738,12 @@ int ha_oqgraph::close(void)
   oqgraph::free(graph); graph= 0;
   oqgraph::free(graph_share); graph_share= 0;
 
-  if (share)
+  if (have_table_share)
   {
     if (edges->file)
       closefrm(edges, 0);
     free_table_share(share);
+    have_table_share = false;
   }
   return 0;
 }

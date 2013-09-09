@@ -44,6 +44,7 @@ namespace open_query
 class ha_oqgraph: public handler
 {
   TABLE_SHARE share[1];
+  bool have_table_share;
   TABLE edges[1];
   Field *origid;
   Field *destid;
@@ -62,7 +63,7 @@ public:
   ha_oqgraph(TABLE *table);
   Table_flags table_flags() const;
 #endif
-  ~ha_oqgraph();
+  virtual ~ha_oqgraph();
   const char *index_type(uint inx)
   {
     return "HASH";

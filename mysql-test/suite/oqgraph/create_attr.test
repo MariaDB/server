@@ -202,6 +202,14 @@ DROP TABLE IF EXISTS oqtable;
 CREATE TABLE oqtable ( latch varchar(32) NULL NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='id2',WEIGHT='weight';
 DESCRIBE oqtable;
 
+#-- Expect an error if we attempt to use a view as the backing store
+#-- 'VIEWs are not supported for an OQGRAPH backing store.'
+#-- TODO
+
+#-- TODO - what happens if we make two tables with the same backing store?
+
+#-- TODO - what happens if data_table is a TEMPORARY table?
+
 # cleanup
 --disable_warnings
 DROP TABLE IF EXISTS oqtable;
