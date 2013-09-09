@@ -320,7 +320,8 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
           sql_lock->lock_count * sizeof(*sql_lock->locks));
 #ifdef WITH_WSREP
     thd->lock_info.in_lock_tables= thd->in_lock_tables;
-#endif    /* Lock on the copied half of the lock data array. */
+#endif
+
   /* Lock on the copied half of the lock data array. */
   rc= thr_lock_errno_to_mysql[(int) thr_multi_lock(sql_lock->locks +
                                                    sql_lock->lock_count,
@@ -330,6 +331,12 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
     (void) unlock_external(thd, sql_lock->table, sql_lock->table_count);
 
 end:
+#ifdef WITH_WSREP
+  thd_proc_info(thd, "mysql_lock_tables(): unlocking tables II");
+#else /* WITH_WSREP */
+   thd_proc_info(thd, 0);
+#endif /* WITH_WSREP */
+
   if (thd->killed)
   {
     thd->send_kill_message();

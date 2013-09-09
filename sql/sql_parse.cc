@@ -970,9 +970,12 @@ bool do_command(THD *thd)
     thd->wsrep_query_state= QUERY_EXEC;
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
   }
-#endif /* WITH_WSREP */
 
+  if ((WSREP(thd)  && packet_length == packet_error) ||
+      (!WSREP(thd) && (packet_length= my_net_read(net)) == packet_error))
+#else
   if (packet_length == packet_error)
+#endif /* WITH_WSREP */
   {
     DBUG_PRINT("info",("Got error %d reading command from socket %s",
 		       net->error,
@@ -2708,9 +2711,6 @@ mysql_execute_command(THD *thd)
     my_error(ER_NOT_SUPPORTED_YET, MYF(0), "embedded server");
     break;
 #endif
-#ifdef WITH_WSREP
-    if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd)) goto error;
-#endif /* WITH_WSREP */
   case SQLCOM_SHOW_STATUS:
   {
     execute_show_status(thd, all_tables);
@@ -2745,6 +2745,10 @@ mysql_execute_command(THD *thd)
   }
   case SQLCOM_SHOW_STATUS_PROC:
   case SQLCOM_SHOW_STATUS_FUNC:
+#ifdef WITH_WSREP
+    if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd)) goto error;
+#endif /* WITH_WSREP */
+
   case SQLCOM_SHOW_DATABASES:
   case SQLCOM_SHOW_TABLES:
   case SQLCOM_SHOW_TRIGGERS:
@@ -3237,12 +3241,6 @@ case SQLCOM_PREPARE:
       if (create_info.tmp_table())
         thd->variables.option_bits|= OPTION_KEEP_LOG;
       /* regular create */
-#ifdef WITH_WSREP
-      if (!thd->is_current_stmt_binlog_format_row() ||
-	  !(create_info.options & HA_LEX_CREATE_TMP_TABLE))
-       WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
-                                 NULL)
-#endif /* WITH_WSREP */
       if (create_info.options & HA_LEX_CREATE_TABLE_LIKE)
       {
         /* CREATE TABLE ... LIKE ... */
@@ -3251,6 +3249,13 @@ case SQLCOM_PREPARE:
       }
       else
       {
+#ifdef WITH_WSREP
+      if (!thd->is_current_stmt_binlog_format_row() ||
+	  !(create_info.options & HA_LEX_CREATE_TMP_TABLE))
+       WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
+                                 NULL)
+#endif /* WITH_WSREP */
+
         /* Regular CREATE TABLE */
         res= mysql_create_table(thd, create_table,
                                 &create_info, &alter_info);

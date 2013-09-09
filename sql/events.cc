@@ -1167,6 +1167,7 @@ end:
   close_mysql_tables(thd);
   DBUG_RETURN(ret);
 }
+
 #ifdef WITH_WSREP
 int wsrep_create_event_query(THD *thd, uchar** buf, uint* buf_len)
 {

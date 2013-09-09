@@ -4429,6 +4429,15 @@ restart:
 #endif
 
 err:
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+    thd_proc_info(thd, "exit open_tables()");
+  else
+    thd_proc_info(thd, 0);
+#else /* WITH_WSREP */
+  thd_proc_info(thd, 0);
+#endif /* WITH_WSREP */
+
   free_root(&new_frm_mem, MYF(0));              // Free pre-alloced block
 
   if (error && *table_to_open)
@@ -4881,6 +4890,16 @@ end:
       trans_rollback_stmt(thd);
     close_thread_tables(thd);
   }
+
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+    thd_proc_info(thd, "End opening table");
+  else
+  thd_proc_info(thd, 0);
+#else /* WITH_WSREP */
+  thd_proc_info(thd, 0);
+#endif /* WITH_WSREP */
+
   DBUG_RETURN(table);
 }
 

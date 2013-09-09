@@ -4340,6 +4340,21 @@ Query_log_event::do_shall_skip(Relay_log_info *rli)
       DBUG_RETURN(Log_event::EVENT_SKIP_COUNT);
     }
   }
+#ifdef WITH_WSREP
+  else if (wsrep_mysql_replication_bundle && WSREP_ON && thd->wsrep_mysql_replicated > 0 &&
+       (!strncasecmp(query , "BEGIN", 5) || !strncasecmp(query , "COMMIT", 6)))
+  {
+    if (++thd->wsrep_mysql_replicated < (int)wsrep_mysql_replication_bundle)
+    {
+      WSREP_DEBUG("skipping wsrep commit %d", thd->wsrep_mysql_replicated);
+      DBUG_RETURN(Log_event::EVENT_SKIP_IGNORE);
+    }
+    else
+    {
+      thd->wsrep_mysql_replicated = 0;
+    }
+  }
+#endif
   DBUG_RETURN(Log_event::do_shall_skip(rli));
 }
 
@@ -7014,6 +7029,20 @@ Xid_log_event::do_shall_skip(Relay_log_info *rli)
     thd->variables.option_bits&= ~OPTION_BEGIN;
     DBUG_RETURN(Log_event::EVENT_SKIP_COUNT);
   }
+#ifdef WITH_WSREP
+  else if (wsrep_mysql_replication_bundle && WSREP_ON)
+  {
+    if (++thd->wsrep_mysql_replicated < (int)wsrep_mysql_replication_bundle)
+    {
+      WSREP_DEBUG("skipping wsrep commit %d", thd->wsrep_mysql_replicated);
+      DBUG_RETURN(Log_event::EVENT_SKIP_IGNORE);
+    }
+    else
+    {
+      thd->wsrep_mysql_replicated = 0;
+    }
+  }
+#endif
   DBUG_RETURN(Log_event::do_shall_skip(rli));
 }
 #endif /* !MYSQL_CLIENT */
@@ -8038,6 +8067,14 @@ err:
     end_io_cache(&file);
   if (fd >= 0)
     mysql_file_close(fd, MYF(0));
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+    thd_proc_info(thd, "exit Create_file_log_event::do_apply_event()");
+  else
+    thd_proc_info(thd, 0);
+#else /* WITH_WSREP */
+  thd_proc_info(thd, 0);
+#endif /* WITH_WSREP */
   return error != 0;
 }
 #endif /* defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT) */
@@ -8208,6 +8245,14 @@ int Append_block_log_event::do_apply_event(Relay_log_info const *rli)
 err:
   if (fd >= 0)
     mysql_file_close(fd, MYF(0));
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+    thd_proc_info(thd, "exit Append_block_log_event::do_apply_event()");
+  else
+    thd_proc_info(thd, 0);
+#else /* WITH_WSREP */
+  thd_proc_info(thd, 0);
+#endif /* WITH_WSREP */
   DBUG_RETURN(error);
 }
 #endif

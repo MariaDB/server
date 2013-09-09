@@ -3187,6 +3187,12 @@ bool Delayed_insert::handle_inserts(void)
         mysql_cond_broadcast(&cond_client);     // If waiting clients
     }
   }
+#ifdef WITH_WSREP
+  if (WSREP((&thd)))
+    thd_proc_info(&thd, "insert done");
+  else
+#endif /* WITH_WSREP */
+  thd_proc_info(&thd, 0);
   mysql_mutex_unlock(&mutex);
 
   /*
