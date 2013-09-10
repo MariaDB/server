@@ -795,7 +795,8 @@ int ha_oqgraph::index_read(byte * buf, const byte * key, uint key_len,
 			enum ha_rkey_function find_flag)
 {
   DBUG_ASSERT(inited==INDEX);
-  graph->row_ref((void*) ref);	// reset before we have a cursor, so the memory is inited, avoiding the sefgault in position() when select with order by (bug #1133093)
+  // reset before we have a cursor, so the memory is not junk, avoiding the sefgault in position() when select with order by (bug #1133093)
+  graph->init_row_ref(ref);
   return index_read_idx(buf, active_index, key, key_len, find_flag);
 }
 
@@ -1107,6 +1108,15 @@ int ha_oqgraph::delete_all_rows()
 
 int ha_oqgraph::external_lock(THD *thd, int lock_type)
 {
+  // This method is also called to _unlock_ (lock_type == F_UNLCK)
+  // Which means we need to release things before we let the underlying backing table lock go...
+  if (lock_type == F_UNLCK) {
+    // If we have an index open on the backing table, we need to close it out here
+    // this means destroying any open cursor first.
+    // Then we can let the unlock go through to the backing table
+    graph->release_cursor();
+  }
+
   return edges->file->ha_external_lock(thd, lock_type);
 }
 
