@@ -505,23 +505,24 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     reinterpret_cast<oqgraph_table_option_struct*>(table->s->option_struct);
 
   // Catch cases where table was not constructed properly
+  // Note - need to return -1 so our error text gets reported
   if (!options) {
     fprint_error("Invalid OQGRAPH backing store (null attributes)");
-    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
+    DBUG_RETURN(-1);
   }
   if (!options->table_name || !*options->table_name) {
     fprint_error("Invalid OQGRAPH backing store (unspecified or empty data_table attribute)");
     // if table_name if present but doesnt actually exist, we will fail out below
     // when we call open_table_def(). same probably applies for the id fields
-    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
+    DBUG_RETURN(-1);
   }
   if (!options->origid || !*options->origid) {
     fprint_error("Invalid OQGRAPH backing store (unspecified or empty origid attribute)");
-    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
+    DBUG_RETURN(-1);
   }
   if (!options->destid || !*options->destid) {
     fprint_error("Invalid OQGRAPH backing store (unspecified or empty destid attribute)");
-    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
+    DBUG_RETURN(-1);
   }
   // weight is optional
 
@@ -566,13 +567,13 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   // Lets try without this, and see if all the tests pass...
   while (open_table_def(thd, share, open_def_flags))
   {
+#if MYSQL_VERSION_ID	< 100002
     if (thd->is_error() && thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE)
     {
       free_table_share(share);
       DBUG_RETURN(thd->get_stmt_da()->sql_errno());
     }
 
-#if MYSQL_VERSION_ID	< 100002
     if (ha_create_table_from_engine(thd, table->s->db.str, options->table_name))
     {
       free_table_share(share);
@@ -582,10 +583,11 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     thd->clear_error();
     continue;
 #else
-    open_table_error(share, OPEN_FRM_OPEN_ERROR, EMFILE);
+    open_table_error(share, OPEN_FRM_OPEN_ERROR, ENOENT);
     free_table_share(share);
-    fprint_error("Problem opening OQGRPAPH backing store, maybe introduced by MariaDB v10.0.2.");
-    DBUG_RETURN(-1);
+    if (thd->is_error()) 
+      DBUG_RETURN(thd->get_stmt_da()->sql_errno());
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
 #endif
   }
 
@@ -599,7 +601,6 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   if (share->is_view)
   {
-    open_table_error(share, OPEN_FRM_OPEN_ERROR, EMFILE);
     free_table_share(share);
     fprint_error("VIEWs are not supported for an OQGRAPH backing store.");
     DBUG_RETURN(-1);
@@ -611,7 +612,15 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
                             READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD,
                             thd->open_options, edges, FALSE))
   {
-    open_table_error(share, err, EMFILE);
+    open_table_error(share, err, EMFILE); // NOTE - EMFILE is probably bogus, it reports as too many open files (!)
+    free_table_share(share);
+    DBUG_RETURN(-1);
+  }
+
+
+  if (!edges->file)
+  {
+    fprint_error("Some error occurred opening table '%s'", options->table_name);
     free_table_share(share);
     DBUG_RETURN(-1);
   }
@@ -629,13 +638,6 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   // We expect fields origid, destid and optionally weight
   origid= destid= weight= 0;
-
-  if (!edges->file)
-  {
-    fprint_error("Some error occurred opening table '%s'", options->table_name);
-    free_table_share(share);
-    DBUG_RETURN(-1);
-  }
 
   for (Field **field= edges->field; *field; ++field)
   {
@@ -712,7 +714,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   }
 
   if (!weight && options->weight) {
-    fprint_error("Invalid OQGRAPH backing store ('%s.weight' attribute not set to a valid column of '%s')", p, options->table_name);
+    fprint_error("Invalid OQGRAPH backing store ('%s.weight' attribute not set to a valid column of '%s')", p+1, options->table_name);
     closefrm(edges, 0);
     free_table_share(share);
     DBUG_RETURN(-1);
