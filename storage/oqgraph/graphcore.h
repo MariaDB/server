@@ -121,12 +121,15 @@ namespace open_query
     int fetch_row(row&) throw();
     int fetch_row(row&, const void*) throw();
     void row_ref(void*) throw();
+    void init_row_ref(void*) throw();
 
     static oqgraph* create(oqgraph_share*) throw();
     static oqgraph_share *create(TABLE*,Field*,Field*,Field*) throw();
 
     static void free(oqgraph*) throw();
     static void free(oqgraph_share*) throw();
+
+    void release_cursor() throw();
 
     static const size_t sizeof_ref;
   private:    

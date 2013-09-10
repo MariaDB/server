@@ -34,8 +34,8 @@ INSERT INTO graph_base(from_id, to_id) VALUES (1,3), (3,1);
 INSERT INTO graph_base(from_id, to_id) VALUES (1,4), (4,1);
 INSERT INTO graph_base(from_id, to_id) VALUES (3,4), (4,3);
 
-#SELECT * from graph;
-#SELECT * FROM graph WHERE latch='1' and destid=2 and origid=1;
+SELECT * from graph;
+SELECT * FROM graph WHERE latch='1' and destid=2 and origid=1;
 SELECT * FROM graph WHERE latch='1' and destid=2 and origid=1 order by seq;
 
 DROP TABLE graph;

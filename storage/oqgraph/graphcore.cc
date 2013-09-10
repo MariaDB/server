@@ -147,6 +147,17 @@ namespace open_query
       HAVE_EDGE = 4,
     };
 
+    // Force assignment operator, so we can trace through in the debugger
+    inline reference& operator=(const reference& ref) 
+    {    
+      m_flags = ref.m_flags;
+      m_sequence = ref.m_sequence;
+      m_vertex = ref.m_vertex;
+      m_edge = ref.m_edge;
+      m_weight = ref.m_weight;
+      return *this;
+    }
+
     inline reference()
       : m_flags(0), m_sequence(0),
         m_vertex(graph_traits<Graph>::null_vertex()),
@@ -162,7 +173,8 @@ namespace open_query
     inline reference(int s, Vertex v, const optional<Edge> &e,
                      const optional<EdgeWeight> &w)
       : m_flags(HAVE_SEQUENCE | (w ? HAVE_WEIGHT : 0) | (e ? HAVE_EDGE : 0)),
-        m_sequence(s), m_vertex(v)
+        m_sequence(s), m_vertex(v),
+        m_edge(), m_weight(0)
     {
       if (w) m_weight= *w;
       if (e) m_edge= *e;
@@ -685,6 +697,15 @@ namespace open_query
     if (retainedLatch) { lastRetainedLatch = strdup(retainedLatch); }
   }
 
+  // Because otherwise things can happen and we havent freed a resource since the end of the last query...
+  void oqgraph::release_cursor() throw() {
+    if (share->g._cursor) {
+      delete share->g._cursor;
+    }
+    delete cursor; cursor= 0;
+    row_info= empty_row;
+  }
+
 
   int oqgraph::search(int *latch, VertexID *orig_id, VertexID *dest_id) throw()
   {
@@ -947,7 +968,15 @@ namespace open_query
     if (cursor)
       cursor->current(ref);
     else
-      ref = reference(); // avoid assignment operator because the intrusive_ptr swaps for unknown reasons, which means if ref is uninitialised it segfaults
+      // Beware: internally this eventually causes a swap by intrusive_ptr, so ref must be initialised to sane on all cases
+      ref = reference(); 
+  }
+
+  void oqgraph::init_row_ref(void *ref_ptr) throw()
+  {
+    // Placement new will cause a constructor to be called avoiding the assignment operator of intrusive_ptr
+    // This doesnt allocate any memory, assumes ref_ptr is the correct size(!)
+    new (ref_ptr) reference(); 
   }
 
   int oqgraph::random(bool scan) throw()
