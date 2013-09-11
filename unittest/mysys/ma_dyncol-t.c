@@ -606,7 +606,7 @@ void test_empty_string()
   dynamic_column_column_free(&str);
 }
 
-void test_mdev_4994()
+static void test_mdev_4994()
 {
   DYNAMIC_COLUMN dyncol;
   LEX_STRING key= {0,0};
@@ -621,6 +621,17 @@ void test_mdev_4994()
   dynamic_column_column_free(&dyncol);
 }
 
+static void test_mdev_4995()
+{
+  DYNAMIC_COLUMN dyncol;
+  uint column_count= 5;
+  int rc;
+
+  dynamic_column_initialize(&dyncol);
+  rc= mariadb_dyncol_column_count(&dyncol,&column_count);
+
+  ok( (rc == ER_DYNCOL_OK), "%s", "test_mdev_4995");
+}
 
 void test_update_many(uint *column_numbers, uint *column_values,
                       uint column_count,
@@ -686,7 +697,7 @@ int main(int argc __attribute__((unused)), char **argv)
   char *big_string= (char *)malloc(1024*1024);
 
   MY_INIT(argv[0]);
-  plan(61);
+  plan(62);
 
   if (!big_string)
     exit(1);
@@ -818,6 +829,7 @@ int main(int argc __attribute__((unused)), char **argv)
                      result_numbers, result_values, 3);
   }
   test_mdev_4994();
+  test_mdev_4995();
 
   my_end(0);
   return exit_status();

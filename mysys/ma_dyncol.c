@@ -4327,6 +4327,10 @@ mariadb_dyncol_column_count(DYNAMIC_COLUMN *str, uint *column_count)
   DYN_HEADER header;
   enum enum_dyncol_func_result rc;
 
+  *(column_count)= 0;
+  if (str->length == 0)
+    return ER_DYNCOL_OK;
+
   if ((rc= init_read_hdr(&header, str)) < 0)
     return rc;
   *column_count= header.column_count;
