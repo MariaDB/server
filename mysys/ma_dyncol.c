@@ -1618,15 +1618,22 @@ dynamic_new_column_store(DYNAMIC_COLUMN *str,
 
   if (!(columns_order= malloc(sizeof(void*)*column_count)))
     return ER_DYNCOL_RESOURCE;
-  if (new_str)
+  if (new_str || str->str == 0)
   {
-    if (dynamic_column_init_named(str,
-                                  fmt->fixed_hdr +
-                                  hdr->header_size +
-                                  hdr->nmpool_size +
-                                  hdr->data_size +
-                                  DYNCOL_SYZERESERVE))
-      goto err;
+    if (column_count)
+    {
+      if (dynamic_column_init_named(str,
+                                    fmt->fixed_hdr +
+                                    hdr->header_size +
+                                    hdr->nmpool_size +
+                                    hdr->data_size +
+                                    DYNCOL_SYZERESERVE))
+        goto err;
+    }
+    else
+    {
+      dynamic_column_initialize(str);
+    }
   }
   else
   {
@@ -2438,7 +2445,8 @@ mariadb_dyncol_list(DYNAMIC_COLUMN *str, uint *count, uint **nums)
   uint i;
   enum enum_dyncol_func_result rc;
 
-  (*nums)= 0;                                   /* In case of errors */
+  (*nums)= 0; (*count)= 0;                      /* In case of errors */
+
   if (str->length == 0)
     return ER_DYNCOL_OK;                        /* no columns */
 
