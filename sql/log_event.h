@@ -1253,6 +1253,7 @@ public:
 #endif
   virtual Log_event_type get_type_code() = 0;
   virtual bool is_valid() const = 0;
+  virtual my_off_t get_header_len(my_off_t len) { return len; }
   void set_artificial_event() { flags |= LOG_EVENT_ARTIFICIAL_F; }
   void set_relay_log_event() { flags |= LOG_EVENT_RELAY_LOG_F; }
   bool is_artificial_event() const { return flags & LOG_EVENT_ARTIFICIAL_F; }
@@ -2469,6 +2470,8 @@ public:
                      const Format_description_log_event* description_event);
   ~Start_log_event_v3() {}
   Log_event_type get_type_code() { return START_EVENT_V3;}
+  my_off_t get_header_len(my_off_t l __attribute__((unused)))
+  { return LOG_EVENT_MINIMAL_HEADER_LEN; }
 #ifdef MYSQL_SERVER
   bool write(IO_CACHE* file);
 #endif
@@ -2984,6 +2987,8 @@ public:
       my_free((void*) new_log_ident);
   }
   Log_event_type get_type_code() { return ROTATE_EVENT;}
+  my_off_t get_header_len(my_off_t l __attribute__((unused)))
+  { return LOG_EVENT_MINIMAL_HEADER_LEN; }
   int get_data_size() { return  ident_len + ROTATE_HEADER_LEN;}
   bool is_valid() const { return new_log_ident != 0; }
 #ifdef MYSQL_SERVER

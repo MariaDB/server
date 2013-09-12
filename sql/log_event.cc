@@ -1755,6 +1755,165 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
 
 #ifdef MYSQL_CLIENT
 
+static void hexdump_minimal_header_to_io_cache(IO_CACHE *file,
+                                               my_off_t offset,
+                                               uchar *ptr)
+{
+  DBUG_ASSERT(LOG_EVENT_MINIMAL_HEADER_LEN == 19);
+
+  /*
+    Pretty-print the first LOG_EVENT_MINIMAL_HEADER_LEN (19) bytes of the
+    common header, which contains the basic information about the log event.
+    Every event will have at least this much header, but events could contain
+    more headers (which must be printed by other methods, if desired).
+  */
+  char emit_buf[120];               // Enough for storing one line
+  my_b_printf(file,
+              "#           "
+              "|Timestamp   "
+              "|Type "
+              "|Master ID   "
+              "|Size        "
+              "|Master Pos  "
+              "|Flags\n");
+  size_t const emit_buf_written=
+    my_snprintf(emit_buf, sizeof(emit_buf),
+                "# %8llx  "                         /* Position */
+                "|%02x %02x %02x %02x "             /* Timestamp */
+                "|%02x   "                          /* Type */
+                "|%02x %02x %02x %02x "             /* Master ID */
+                "|%02x %02x %02x %02x "             /* Size */
+                "|%02x %02x %02x %02x "             /* Master Pos */
+                "|%02x %02x\n",                     /* Flags */
+                (ulonglong) offset,                 /* Position */
+                ptr[0], ptr[1], ptr[2], ptr[3],     /* Timestamp */
+                ptr[4],                             /* Type */
+                ptr[5], ptr[6], ptr[7], ptr[8],     /* Master ID */
+                ptr[9], ptr[10], ptr[11], ptr[12],  /* Size */
+                ptr[13], ptr[14], ptr[15], ptr[16], /* Master Pos */
+                ptr[17], ptr[18]);                  /* Flags */
+
+  DBUG_ASSERT(static_cast<size_t>(emit_buf_written) < sizeof(emit_buf));
+  my_b_write(file, reinterpret_cast<uchar*>(emit_buf), emit_buf_written);
+  my_b_write(file, "#\n", 2);
+}
+
+
+/*
+  The number of bytes to print per line. Should be an even number,
+  and "hexdump -C" uses 16, so we'll duplicate that here.
+*/
+#define HEXDUMP_BYTES_PER_LINE 16
+
+static void format_hex_line(char *emit_buff)
+{
+  memset(emit_buff + 1, ' ',
+         1 + 8 + 2 + (HEXDUMP_BYTES_PER_LINE * 3 + 1) + 2 +
+         HEXDUMP_BYTES_PER_LINE);
+  emit_buff[0]= '#';
+  emit_buff[2 + 8 + 2 + (HEXDUMP_BYTES_PER_LINE * 3 + 1) + 1]= '|';
+  emit_buff[2 + 8 + 2 + (HEXDUMP_BYTES_PER_LINE * 3 + 1) + 2 +
+    HEXDUMP_BYTES_PER_LINE]= '|';
+  emit_buff[2 + 8 + 2 + (HEXDUMP_BYTES_PER_LINE * 3 + 1) + 2 +
+    HEXDUMP_BYTES_PER_LINE + 1]= '\n';
+  emit_buff[2 + 8 + 2 + (HEXDUMP_BYTES_PER_LINE * 3 + 1) + 2 +
+    HEXDUMP_BYTES_PER_LINE + 2]= '\0';
+}
+
+static void hexdump_data_to_io_cache(IO_CACHE *file,
+                                     my_off_t offset,
+                                     uchar *ptr,
+                                     my_off_t size)
+{
+  /*
+    2 = '# '
+    8 = address
+    2 = '  '
+    (HEXDUMP_BYTES_PER_LINE * 3 + 1) = Each byte prints as two hex digits,
+       plus a space
+    2 = ' |'
+    HEXDUMP_BYTES_PER_LINE = text representation
+    2 = '|\n'
+    1 = '\0'
+  */
+  char emit_buffer[2 + 8 + 2 + (HEXDUMP_BYTES_PER_LINE * 3 + 1) + 2 +
+    HEXDUMP_BYTES_PER_LINE + 2 + 1 ];
+  char *h,*c;
+  my_off_t i;
+
+  if (size == 0)
+    return;
+
+  format_hex_line(emit_buffer);
+  /*
+    Print the rest of the event (without common header)
+  */
+  my_off_t starting_offset = offset;
+  for (i= 0,
+       c= emit_buffer + 2 + 8 + 2 + (HEXDUMP_BYTES_PER_LINE * 3 + 1) + 2,
+       h= emit_buffer + 2 + 8 + 2;
+       i < size;
+       i++, ptr++)
+  {
+    my_snprintf(h, 4, "%02x ", *ptr);
+    h+= 3;
+
+    *c++= my_isprint(&my_charset_bin, *ptr) ? *ptr : '.';
+
+    /* Print in groups of HEXDUMP_BYTES_PER_LINE characters. */
+    if ((i % HEXDUMP_BYTES_PER_LINE) == (HEXDUMP_BYTES_PER_LINE - 1))
+    {
+      /* remove \0 left after printing hex byte representation */
+      *h= ' ';
+      /* prepare space to print address */
+      memset(emit_buffer + 2, ' ', 8);
+      /* print address */
+      size_t const emit_buf_written= my_snprintf(emit_buffer + 2, 9, "%8llx",
+                                                 (ulonglong) starting_offset);
+      /* remove \0 left after printing address */
+      emit_buffer[2 + emit_buf_written]= ' ';
+      my_b_write(file, reinterpret_cast<uchar*>(emit_buffer),
+                 sizeof(emit_buffer) - 1);
+      c= emit_buffer + 2 + 8 + 2 + (HEXDUMP_BYTES_PER_LINE * 3 + 1) + 2;
+      h= emit_buffer + 2 + 8 + 2;
+      format_hex_line(emit_buffer);
+      starting_offset+= HEXDUMP_BYTES_PER_LINE;
+    }
+    else if ((i % (HEXDUMP_BYTES_PER_LINE / 2))
+             == ((HEXDUMP_BYTES_PER_LINE / 2) - 1))
+    {
+      /*
+        In the middle of the group of HEXDUMP_BYTES_PER_LINE, emit an extra
+        space in the hex string, to make two groups.
+      */
+      *h++= ' ';
+    }
+
+  }
+
+  /*
+    There is still data left in our buffer, which means that the previous
+    line was not perfectly HEXDUMP_BYTES_PER_LINE characters, so write an
+    incomplete line, with spaces to pad out to the same length as a full
+    line would be, to make things more readable.
+  */
+  if (h != emit_buffer + 2 + 8 + 2)
+  {
+    *h= ' ';
+    *c++= '|'; *c++= '\n';
+    memset(emit_buffer + 2, ' ', 8);
+    size_t const emit_buf_written= my_snprintf(emit_buffer + 2, 9, "%8llx",
+                                               (ulonglong) starting_offset);
+    emit_buffer[2 + emit_buf_written]= ' ';
+    /* pad unprinted area */
+    memset(h, ' ',
+           (HEXDUMP_BYTES_PER_LINE * 3 + 1) - (h - (emit_buffer + 2 + 8 + 2)));
+    my_b_write(file, reinterpret_cast<uchar*>(emit_buffer),
+               c - emit_buffer);
+  }
+  my_b_write(file, "#\n", 2);
+}
+
 /*
   Log_event::print_header()
 */
@@ -1789,86 +1948,27 @@ void Log_event::print_header(IO_CACHE* file,
   {
     my_b_printf(file, "\n");
     uchar *ptr= (uchar*)temp_buf;
-    my_off_t size=
-      uint4korr(ptr + EVENT_LEN_OFFSET) - LOG_EVENT_MINIMAL_HEADER_LEN;
-    my_off_t i;
+    my_off_t size= uint4korr(ptr + EVENT_LEN_OFFSET);
+    my_off_t hdr_len= get_header_len(print_event_info->common_header_len);
 
-    /* Header len * 4 >= header len * (2 chars + space + extra space) */
-    char *h, hex_string[LOG_EVENT_MINIMAL_HEADER_LEN*4]= {0};
-    char *c, char_string[16+1]= {0};
+    size-= hdr_len;
 
-    /* Pretty-print event common header if header is exactly 19 bytes */
-    if (print_event_info->common_header_len == LOG_EVENT_MINIMAL_HEADER_LEN)
-    {
-      char emit_buf[256];               // Enough for storing one line
-      my_b_printf(file, "# Position  Timestamp   Type   Master ID        "
-                  "Size      Master Pos    Flags \n");
-      size_t const bytes_written=
-        my_snprintf(emit_buf, sizeof(emit_buf),
-                    "# %8.8lx %02x %02x %02x %02x   %02x   "
-                    "%02x %02x %02x %02x   %02x %02x %02x %02x   "
-                    "%02x %02x %02x %02x   %02x %02x\n",
-                    (unsigned long) hexdump_from,
-                    ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6],
-                    ptr[7], ptr[8], ptr[9], ptr[10], ptr[11], ptr[12], ptr[13],
-                    ptr[14], ptr[15], ptr[16], ptr[17], ptr[18]);
-      DBUG_ASSERT(static_cast<size_t>(bytes_written) < sizeof(emit_buf));
-      my_b_write(file, (uchar*) emit_buf, bytes_written);
-      ptr += LOG_EVENT_MINIMAL_HEADER_LEN;
-      hexdump_from += LOG_EVENT_MINIMAL_HEADER_LEN;
-    }
+    my_b_printf(file, "# Position\n");
 
-    /* Rest of event (without common header) */
-    for (i= 0, c= char_string, h=hex_string;
-	 i < size;
-	 i++, ptr++)
-    {
-      my_snprintf(h, 4, "%02x ", *ptr);
-      h += 3;
+    /* Write the header, nicely formatted by field. */
+    hexdump_minimal_header_to_io_cache(file, hexdump_from, ptr);
 
-      *c++= my_isalnum(&my_charset_bin, *ptr) ? *ptr : '.';
+    ptr+= hdr_len;
+    hexdump_from+= hdr_len;
 
-      if (i % 16 == 15)
-      {
-        /*
-          my_b_printf() does not support full printf() formats, so we
-          have to do it this way.
+    /* Print the rest of the data, mimicking "hexdump -C" output. */
+    hexdump_data_to_io_cache(file, hexdump_from, ptr, size);
 
-          TODO: Rewrite my_b_printf() to support full printf() syntax.
-         */
-        char emit_buf[256];
-        size_t const bytes_written=
-          my_snprintf(emit_buf, sizeof(emit_buf),
-                      "# %8.8lx %-48.48s |%16s|\n",
-                      (unsigned long) (hexdump_from + (i & 0xfffffff0)),
-                      hex_string, char_string);
-        DBUG_ASSERT(static_cast<size_t>(bytes_written) < sizeof(emit_buf));
-	my_b_write(file, (uchar*) emit_buf, bytes_written);
-	hex_string[0]= 0;
-	char_string[0]= 0;
-	c= char_string;
-	h= hex_string;
-      }
-      else if (i % 8 == 7) *h++ = ' ';
-    }
-    *c= '\0';
-
-    if (hex_string[0])
-    {
-      char emit_buf[256];
-      size_t const bytes_written=
-        my_snprintf(emit_buf, sizeof(emit_buf),
-                    "# %8.8lx %-48.48s |%s|\n",
-                    (unsigned long) (hexdump_from + (i & 0xfffffff0)),
-                    hex_string, char_string);
-      DBUG_ASSERT(static_cast<size_t>(bytes_written) < sizeof(emit_buf));
-      my_b_write(file, (uchar*) emit_buf, bytes_written);
-    }
     /*
-      need a # to prefix the rest of printouts for example those of
-      Rows_log_event::print_helper().
+      Prefix the next line so that the output from print_helper()
+      will appear as a comment.
     */
-    my_b_write(file, reinterpret_cast<const uchar*>("# "), 2);
+    my_b_write(file, "# Event: ", 9);
   }
   DBUG_VOID_RETURN;
 }
@@ -4407,7 +4507,7 @@ Start_log_event_v3::Start_log_event_v3(const char* buf,
                                        *description_event)
   :Log_event(buf, description_event)
 {
-  buf+= description_event->common_header_len;
+  buf+= LOG_EVENT_MINIMAL_HEADER_LEN;
   binlog_version= uint2korr(buf+ST_BINLOG_VER_OFFSET);
   memcpy(server_version, buf+ST_SERVER_VER_OFFSET,
 	 ST_SERVER_VER_LEN);
@@ -4762,7 +4862,7 @@ bool Format_description_log_event::write(IO_CACHE* file)
   if (!dont_set_created)
     created= get_time();
   int4store(buff + ST_CREATED_OFFSET,created);
-  buff[ST_COMMON_HEADER_LEN_OFFSET]= LOG_EVENT_HEADER_LEN;
+  buff[ST_COMMON_HEADER_LEN_OFFSET]= common_header_len;
   /*
     if checksum is requested
     record the checksum-algorithm descriptor next to
@@ -4989,9 +5089,9 @@ uint8 get_checksum_alg(const char* buf, ulong len)
   DBUG_ENTER("get_checksum_alg");
   DBUG_ASSERT(buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT);
 
-  memcpy(version, buf +
-         buf[LOG_EVENT_MINIMAL_HEADER_LEN + ST_COMMON_HEADER_LEN_OFFSET]
-         + ST_SERVER_VER_OFFSET, ST_SERVER_VER_LEN);
+  memcpy(version,
+         buf + LOG_EVENT_MINIMAL_HEADER_LEN + ST_SERVER_VER_OFFSET,
+         ST_SERVER_VER_LEN);
   version[ST_SERVER_VER_LEN - 1]= 0;
   
   do_server_version_split(version, &version_split);
@@ -5863,16 +5963,14 @@ Rotate_log_event::Rotate_log_event(const char* buf, uint event_len,
 {
   DBUG_ENTER("Rotate_log_event::Rotate_log_event(char*,...)");
   // The caller will ensure that event_len is what we have at EVENT_LEN_OFFSET
-  uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[ROTATE_EVENT-1];
   uint ident_offset;
-  if (event_len < header_size)
+  if (event_len < LOG_EVENT_MINIMAL_HEADER_LEN)
     DBUG_VOID_RETURN;
-  buf += header_size;
-  pos = post_header_len ? uint8korr(buf + R_POS_OFFSET) : 4;
-  ident_len = (uint)(event_len -
-                     (header_size+post_header_len)); 
-  ident_offset = post_header_len; 
+  buf+= LOG_EVENT_MINIMAL_HEADER_LEN;
+  pos= post_header_len ? uint8korr(buf + R_POS_OFFSET) : 4;
+  ident_len= (uint)(event_len - (LOG_EVENT_MINIMAL_HEADER_LEN + post_header_len));
+  ident_offset= post_header_len;
   set_if_smaller(ident_len,FN_REFLEN-1);
   new_log_ident= my_strndup(buf + ident_offset, (uint) ident_len, MYF(MY_WME));
   DBUG_PRINT("debug", ("new_log_ident: '%s'", new_log_ident));
