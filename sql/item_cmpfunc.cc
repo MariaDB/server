@@ -5041,23 +5041,13 @@ int Item_func_regex::regcomp(bool send_error)
 }
 
 
-bool
-Item_func_regex::fix_fields(THD *thd, Item **ref)
+void
+Item_func_regex::fix_length_and_dec()
 {
-  DBUG_ASSERT(fixed == 0);
-  if ((!args[0]->fixed &&
-       args[0]->fix_fields(thd, args)) || args[0]->check_cols(1) ||
-      (!args[1]->fixed &&
-       args[1]->fix_fields(thd, args + 1)) || args[1]->check_cols(1))
-    return TRUE;				/* purecov: inspected */
-  with_sum_func=args[0]->with_sum_func || args[1]->with_sum_func;
-  with_field= args[0]->with_field || args[1]->with_field;
-  with_subselect= args[0]->has_subquery() || args[1]->has_subquery();
-  max_length= 1;
-  decimals= 0;
+  Item_bool_func::fix_length_and_dec();
 
   if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
-    return TRUE;
+    return;
 
   regex_lib_flags= (cmp_collation.collation->state &
                     (MY_CS_BINSORT | MY_CS_CSSORT)) ?
@@ -5071,28 +5061,21 @@ Item_func_regex::fix_fields(THD *thd, Item **ref)
                      &my_charset_utf8_general_ci :
                      cmp_collation.collation;
 
-  used_tables_cache=args[0]->used_tables() | args[1]->used_tables();
-  not_null_tables_cache= (args[0]->not_null_tables() |
-			  args[1]->not_null_tables());
-  const_item_cache=args[0]->const_item() && args[1]->const_item();
   if (!regex_compiled && args[1]->const_item())
   {
     int comp_res= regcomp(TRUE);
     if (comp_res == -1)
     {						// Will always return NULL
       set_persist_maybe_null(1);
-      fixed= 1;
-      return FALSE;
+      return;
     }
     else if (comp_res)
-      return TRUE;
+      return; /* Error */
     regex_is_const= 1;
     maybe_null= args[0]->maybe_null;
   }
   else
     set_persist_maybe_null(1);
-  fixed= 1;
-  return FALSE;
 }
 
 

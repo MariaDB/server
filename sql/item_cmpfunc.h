@@ -1526,7 +1526,7 @@ public:
     regex_compiled(0),regex_is_const(0) {}
   void cleanup();
   longlong val_int();
-  bool fix_fields(THD *thd, Item **ref);
+  void fix_length_and_dec();
   void update_used_tables()
   {
     Item_bool_func::update_used_tables();
