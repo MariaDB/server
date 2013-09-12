@@ -1050,6 +1050,7 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
 
 int ha_oqgraph::rnd_init(bool scan)
 {
+  edges->file->info(HA_STATUS_VARIABLE); // Fix for bug 1195735 - ensure we operate with up to date count!
   edges->prepare_for_position();
   return error_code(graph->random(scan));
 }
@@ -1057,7 +1058,15 @@ int ha_oqgraph::rnd_init(bool scan)
 int ha_oqgraph::rnd_next(byte *buf)
 {
   int res;
-  open_query::row row;
+  open_query::row row = {};
+
+  // Problem: bug 1195735 - mysqld hang if we delete * from the underlying table, we get an infinite loop through here
+  // fetch_row() --> fetch_row() --> num_edges() --> _table->file->stats->records
+  // _table is actually a handle on the backing table we just deleted everything from.  so the statistics are out of date.
+  // so we really need to force a refresh on the backing store statistics, when starting a new query
+  // So we probably need to fix this bug in rnd_init
+  // Note, close() never called in between; this would otherwise clean things up
+
   if (!(res= graph->fetch_row(row))) // FIXME - this called after DELETE FROM graph_base; hangs...
     res= fill_record(buf, row);
   table->status= res ? STATUS_NOT_FOUND: 0;

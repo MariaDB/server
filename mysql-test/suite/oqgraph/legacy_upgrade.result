@@ -17,7 +17,7 @@ linkid  BIGINT    UNSIGNED NULL,
 KEY (latch, origid, destid) USING HASH,
 KEY (latch, destid, origid) USING HASH
 ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
-ERROR HY000: Can't create table 'test.graph' (errno: 140 "Wrong create options")
+ERROR HY000: Can't create table `test`.`graph` (errno: 140 "Wrong create options")
 SET GLOBAL oqgraph_allow_create_integer_latch=true;
 The next warning 1287 is expected
 CREATE TABLE graph (
@@ -44,7 +44,7 @@ linkid  BIGINT    UNSIGNED NULL,
 KEY (latch, origid, destid) USING HASH,
 KEY (latch, destid, origid) USING HASH
 ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
-ERROR HY000: Can't create table 'test.graph_again' (errno: 140 "Wrong create options")
+ERROR HY000: Can't create table `test`.`graph_again` (errno: 140 "Wrong create options")
 # Populating base table
 INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
 INSERT INTO graph_base(from_id, to_id) VALUES (1,3), (3,1);
