@@ -1193,7 +1193,7 @@ bool Relay_log_info::cached_charset_compare(char *charset) const
 
 void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
                                time_t event_creation_time, THD *thd,
-                               struct rpl_group_info *rgi)
+                               rpl_group_info *rgi)
 {
 #ifndef DBUG_OFF
   extern uint debug_not_change_ts_if_art_event;
@@ -1265,6 +1265,11 @@ void Relay_log_info::cleanup_context(THD *thd, bool error)
 {
   DBUG_ENTER("Relay_log_info::cleanup_context");
 
+  /*
+    In parallel replication, different THDs can be used from different
+    parallel threads. But in single-threaded mode, only the THD of the main
+    SQL thread is allowed.
+  */
   DBUG_ASSERT(opt_slave_parallel_threads > 0 || sql_thd == thd);
   /*
     1) Instances of Table_map_log_event, if ::do_apply_event() was called on them,
@@ -1552,6 +1557,7 @@ event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
   uint64 sub_id= rpl_global_gtid_slave_state.next_subid(gev->domain_id);
   if (!sub_id)
   {
+    /* Out of memory caused hash insertion to fail. */
     return 1;
   }
   rgi->gtid_sub_id= sub_id;

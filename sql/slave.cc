@@ -3019,7 +3019,7 @@ static int has_temporary_error(THD *thd)
   ev->update_pos().
 */
 int apply_event_and_update_pos(Log_event* ev, THD* thd,
-                               struct rpl_group_info *rgi,
+                               rpl_group_info *rgi,
                                rpl_parallel_thread *rpt)
 {
   int exec_res= 0;

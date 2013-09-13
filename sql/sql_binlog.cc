@@ -80,7 +80,7 @@ void mysql_client_binlog_statement(THD* thd)
   my_bool have_fd_event= TRUE;
   int err;
   Relay_log_info *rli;
-  struct rpl_group_info *rgi;
+  rpl_group_info *rgi;
 
   rli= thd->rli_fake;
   if (!rli)

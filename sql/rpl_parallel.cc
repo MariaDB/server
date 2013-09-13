@@ -62,7 +62,7 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
                  struct rpl_parallel_thread *rpt)
 {
   int err;
-  struct rpl_group_info *rgi= qev->rgi;
+  rpl_group_info *rgi= qev->rgi;
   Relay_log_info *rli= rgi->rli;
   THD *thd= rgi->thd;
 
@@ -128,8 +128,9 @@ handle_rpl_parallel_thread(void *arg)
     old_msg= thd->proc_info;
     thd->enter_cond(&rpt->COND_rpl_thread, &rpt->LOCK_rpl_thread,
                     "Waiting for work from SQL thread");
-    while (!rpt->stop && !thd->killed && !(events= rpt->event_queue))
+    while (!(events= rpt->event_queue) && !rpt->stop && !thd->killed)
       mysql_cond_wait(&rpt->COND_rpl_thread, &rpt->LOCK_rpl_thread);
+    /* Mark that this thread is now executing */
     rpt->free= false;
     rpt->event_queue= rpt->last_in_queue= NULL;
     thd->exit_cond(old_msg);
@@ -145,9 +146,15 @@ handle_rpl_parallel_thread(void *arg)
       uint64 wait_start_sub_id;
       bool end_of_group;
 
+      /* Handle a new event group, which will be initiated by a GTID event. */
       if (event_type == GTID_EVENT)
       {
         in_event_group= true;
+        /*
+          If the standalone flag is set, then this event group consists of a
+          single statement (possibly preceeded by some Intvar_log_event and
+          similar), without any terminating COMMIT/ROLLBACK/XID.
+        */
         group_standalone=
           (0 != (static_cast<Gtid_log_event *>(events->ev)->flags2 &
                  Gtid_log_event::FL_STANDALONE));
@@ -540,12 +547,12 @@ rpl_parallel::wait_for_done()
 
 
 bool
-rpl_parallel::do_event(struct rpl_group_info *serial_rgi, Log_event *ev)
+rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
 {
   rpl_parallel_entry *e;
   rpl_parallel_thread *cur_thread;
   rpl_parallel_thread::queued_event *qev;
-  struct rpl_group_info *rgi;
+  rpl_group_info *rgi;
   Relay_log_info *rli= serial_rgi->rli;
   enum Log_event_type typ;
 

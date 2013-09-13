@@ -1615,7 +1615,7 @@ struct wait_for_commit
   */
   bool waiting_for_commit;
   /*
-    Flag set when wakeup_subsequent_commits_running() is active, see commonts
+    Flag set when wakeup_subsequent_commits_running() is active, see comments
     on that function for details.
   */
   bool wakeup_subsequent_commits_running;

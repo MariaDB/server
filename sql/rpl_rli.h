@@ -422,7 +422,7 @@ public:
   */
   void stmt_done(my_off_t event_log_pos,
                  time_t event_creation_time, THD *thd,
-                 struct rpl_group_info *rgi);
+                 rpl_group_info *rgi);
 
 
   /**
@@ -521,10 +521,14 @@ private:
 
 /*
   This is data for various state needed to be kept for the processing of
-  one event group in the SQL thread.
+  one event group (transaction) during replication.
 
-  For single-threaded replication it is linked from the RLI, for parallel
-  replication it is linked into each event group being executed in parallel.
+  In single-threaded replication, there will be one global rpl_group_info and
+  one global Relay_log_info per master connection. They will be linked
+  together.
+
+  In parallel replication, there will be one rpl_group_info object for
+  each running thd. All rpl_group_info will share the same Relay_log_info.
 */
 struct rpl_group_info
 {
@@ -555,7 +559,7 @@ struct rpl_group_info
     for the wrong commit).
   */
   uint64 wait_commit_sub_id;
-  struct rpl_group_info *wait_commit_group_info;
+  rpl_group_info *wait_commit_group_info;
   /*
     If non-zero, the event group must wait for this sub_id to be committed
     before the execution of the event group is allowed to start.

@@ -62,7 +62,7 @@ rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid)
 
 
 int
-rpl_slave_state::record_and_update_gtid(THD *thd, struct rpl_group_info *rgi)
+rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
 {
   uint64 sub_id;
 

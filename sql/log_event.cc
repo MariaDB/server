@@ -937,7 +937,7 @@ Log_event::Log_event(const char* buf,
 #ifndef MYSQL_CLIENT
 #ifdef HAVE_REPLICATION
 
-int Log_event::do_update_pos(struct rpl_group_info *rgi)
+int Log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   /*
@@ -3756,7 +3756,7 @@ void Query_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 
-int Query_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Query_log_event::do_apply_event(rpl_group_info *rgi)
 {
   return do_apply_event(rgi, query, q_len);
 }
@@ -3807,8 +3807,8 @@ bool test_if_equal_repl_errors(int expected_error, int actual_error)
   mismatch. This mismatch could be implemented with a new ER_ code, and
   to ignore it you would use --slave-skip-errors...
 */
-int Query_log_event::do_apply_event(struct rpl_group_info *rgi,
-                                      const char *query_arg, uint32 q_len_arg)
+int Query_log_event::do_apply_event(rpl_group_info *rgi,
+                                    const char *query_arg, uint32 q_len_arg)
 {
   LEX_STRING new_db;
   int expected_error,actual_error= 0;
@@ -4244,7 +4244,7 @@ end:
   DBUG_RETURN(thd->is_slave_error);
 }
 
-int Query_log_event::do_update_pos(struct rpl_group_info *rgi)
+int Query_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   /*
@@ -4461,7 +4461,7 @@ bool Start_log_event_v3::write(IO_CACHE* file)
     other words, no deadlock problem.
 */
 
-int Start_log_event_v3::do_apply_event(struct rpl_group_info *rgi)
+int Start_log_event_v3::do_apply_event(rpl_group_info *rgi)
 {
   DBUG_ENTER("Start_log_event_v3::do_apply_event");
   int error= 0;
@@ -4810,7 +4810,7 @@ bool Format_description_log_event::write(IO_CACHE* file)
 #endif
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-int Format_description_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
 {
   int ret= 0;
   Relay_log_info const *rli= rgi->rli;
@@ -4867,7 +4867,7 @@ int Format_description_log_event::do_apply_event(struct rpl_group_info *rgi)
   DBUG_RETURN(ret);
 }
 
-int Format_description_log_event::do_update_pos(struct rpl_group_info *rgi)
+int Format_description_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   if (server_id == (uint32) global_system_variables.server_id)
@@ -5516,7 +5516,7 @@ void Load_log_event::set_fields(const char* affected_db,
     1           Failure
 */
 
-int Load_log_event::do_apply_event(NET* net, struct rpl_group_info *rgi,
+int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
                                    bool use_rli_only_for_errors)
 {
   LEX_STRING new_db;
@@ -5919,7 +5919,7 @@ bool Rotate_log_event::write(IO_CACHE* file)
   @retval
     0	ok
 */
-int Rotate_log_event::do_update_pos(struct rpl_group_info *rgi)
+int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Rotate_log_event::do_update_pos");
@@ -6096,7 +6096,7 @@ bool Binlog_checkpoint_log_event::write(IO_CACHE *file)
 
 Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
                const Format_description_log_event *description_event)
-  : Log_event(buf, description_event), seq_no(0)
+  : Log_event(buf, description_event), seq_no(0), commit_id(0)
 {
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_EVENT-1];
@@ -6120,8 +6120,6 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
     ++buf;
     commit_id= uint8korr(buf);
   }
-  else
-    commit_id= 0;
 }
 
 
@@ -6254,7 +6252,7 @@ Gtid_log_event::pack_info(THD *thd, Protocol *protocol)
 static char gtid_begin_string[] = "BEGIN";
 
 int
-Gtid_log_event::do_apply_event(struct rpl_group_info *rgi)
+Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 {
   thd->variables.server_id= this->server_id;
   thd->variables.gtid_domain_id= this->domain_id;
@@ -6295,7 +6293,7 @@ Gtid_log_event::do_apply_event(struct rpl_group_info *rgi)
 
 
 int
-Gtid_log_event::do_update_pos(struct rpl_group_info *rgi)
+Gtid_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   rli->inc_event_relay_log_pos();
@@ -6477,7 +6475,7 @@ Gtid_list_log_event::write(IO_CACHE *file)
 
 
 int
-Gtid_list_log_event::do_apply_event(struct rpl_group_info *rgi)
+Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
 {
   Relay_log_info const *rli= rgi->rli;
   int ret= Log_event::do_apply_event(rgi);
@@ -6707,7 +6705,7 @@ void Intvar_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   Intvar_log_event::do_apply_event()
 */
 
-int Intvar_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Intvar_log_event::do_apply_event(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   /*
@@ -6731,7 +6729,7 @@ int Intvar_log_event::do_apply_event(struct rpl_group_info *rgi)
   return 0;
 }
 
-int Intvar_log_event::do_update_pos(struct rpl_group_info *rgi)
+int Intvar_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   rli->inc_event_relay_log_pos();
@@ -6818,7 +6816,7 @@ void Rand_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-int Rand_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Rand_log_event::do_apply_event(rpl_group_info *rgi)
 {
   Relay_log_info const *rli= rgi->rli;
   /*
@@ -6835,7 +6833,7 @@ int Rand_log_event::do_apply_event(struct rpl_group_info *rgi)
   return 0;
 }
 
-int Rand_log_event::do_update_pos(struct rpl_group_info *rgi)
+int Rand_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   rli->inc_event_relay_log_pos();
@@ -6950,7 +6948,7 @@ void Xid_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-int Xid_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Xid_log_event::do_apply_event(rpl_group_info *rgi)
 {
   bool res;
   int err;
@@ -7416,7 +7414,7 @@ void User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-int User_var_log_event::do_apply_event(struct rpl_group_info *rgi)
+int User_var_log_event::do_apply_event(rpl_group_info *rgi)
 {
   Item *it= 0;
   CHARSET_INFO *charset;
@@ -7505,7 +7503,7 @@ int User_var_log_event::do_apply_event(struct rpl_group_info *rgi)
   DBUG_RETURN(0);
 }
 
-int User_var_log_event::do_update_pos(struct rpl_group_info *rgi)
+int User_var_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   rli->inc_event_relay_log_pos();
@@ -7682,7 +7680,7 @@ Slave_log_event::Slave_log_event(const char* buf,
 
 
 #ifndef MYSQL_CLIENT
-int Slave_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Slave_log_event::do_apply_event(rpl_group_info *rgi)
 {
   if (mysql_bin_log.is_open())
     return mysql_bin_log.write(this);
@@ -7726,7 +7724,7 @@ void Stop_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   Start_log_event_v3::do_apply_event(), not here. Because if we come
   here, the master was sane.
 */
-int Stop_log_event::do_update_pos(struct rpl_group_info *rgi)
+int Stop_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   /*
@@ -7958,7 +7956,7 @@ void Create_file_log_event::pack_info(THD *thd, Protocol *protocol)
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-int Create_file_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Create_file_log_event::do_apply_event(rpl_group_info *rgi)
 {
   char proc_info[17+FN_REFLEN+10], *fname_buf;
   char *ext;
@@ -8140,7 +8138,7 @@ int Append_block_log_event::get_create_or_append() const
   Append_block_log_event::do_apply_event()
 */
 
-int Append_block_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Append_block_log_event::do_apply_event(rpl_group_info *rgi)
 {
   char proc_info[17+FN_REFLEN+10], *fname= proc_info+17;
   int fd;
@@ -8291,7 +8289,7 @@ void Delete_file_log_event::pack_info(THD *thd, Protocol *protocol)
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-int Delete_file_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Delete_file_log_event::do_apply_event(rpl_group_info *rgi)
 {
   char fname[FN_REFLEN+10];
   Relay_log_info const *rli= rgi->rli;
@@ -8391,7 +8389,7 @@ void Execute_load_log_event::pack_info(THD *thd, Protocol *protocol)
   Execute_load_log_event::do_apply_event()
 */
 
-int Execute_load_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Execute_load_log_event::do_apply_event(rpl_group_info *rgi)
 {
   char fname[FN_REFLEN+10];
   char *ext;
@@ -8664,7 +8662,7 @@ void Execute_load_query_log_event::pack_info(THD *thd, Protocol *protocol)
 
 
 int
-Execute_load_query_log_event::do_apply_event(struct rpl_group_info *rgi)
+Execute_load_query_log_event::do_apply_event(rpl_group_info *rgi)
 {
   char *p;
   char *buf;
@@ -9072,7 +9070,7 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-int Rows_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   Relay_log_info const *rli= rgi->rli;
   DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
@@ -9538,7 +9536,7 @@ static int rows_event_stmt_cleanup(Relay_log_info const *rli, THD * thd)
    @retval non-zero  Error in the statement commit
  */
 int
-Rows_log_event::do_update_pos(struct rpl_group_info *rgi)
+Rows_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Rows_log_event::do_update_pos");
@@ -9777,7 +9775,7 @@ void Annotate_rows_log_event::print(FILE *file, PRINT_EVENT_INFO *pinfo)
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-int Annotate_rows_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Annotate_rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   m_save_thd_query_txt= thd->query();
   m_save_thd_query_len= thd->query_length();
@@ -9787,7 +9785,7 @@ int Annotate_rows_log_event::do_apply_event(struct rpl_group_info *rgi)
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-int Annotate_rows_log_event::do_update_pos(struct rpl_group_info *rgi)
+int Annotate_rows_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   rli->inc_event_relay_log_pos();
@@ -10296,7 +10294,7 @@ check_table_map(Relay_log_info const *rli, RPL_TABLE_LIST *table_list)
   DBUG_RETURN(res);
 }
 
-int Table_map_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 {
   RPL_TABLE_LIST *table_list;
   char *db_mem, *tname_mem;
@@ -10415,7 +10413,7 @@ Table_map_log_event::do_shall_skip(Relay_log_info *rli)
   return continue_group(rli);
 }
 
-int Table_map_log_event::do_update_pos(struct rpl_group_info *rgi)
+int Table_map_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   rli->inc_event_relay_log_pos();
@@ -11847,7 +11845,7 @@ Incident_log_event::print(FILE *file,
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 int
-Incident_log_event::do_apply_event(struct rpl_group_info *rgi)
+Incident_log_event::do_apply_event(rpl_group_info *rgi)
 {
   Relay_log_info const *rli= rgi->rli;
   DBUG_ENTER("Incident_log_event::do_apply_event");
