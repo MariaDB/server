@@ -1143,7 +1143,7 @@ bool Deferred_log_events::is_empty()
   return array.elements == 0;
 }
 
-bool Deferred_log_events::execute(struct rpl_group_info *rgi)
+bool Deferred_log_events::execute(rpl_group_info *rgi)
 {
   bool res= false;
 

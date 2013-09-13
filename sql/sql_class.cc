@@ -5666,6 +5666,10 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
     waiting_for_commit= false;
   else
   {
+    /*
+      Put ourself at the head of the waitee's list of transactions that must
+      wait for it to commit first.
+     */
     this->next_subsequent_commit= waitee->subsequent_commits_list;
     waitee->subsequent_commits_list= this;
   }
@@ -5704,7 +5708,7 @@ wait_for_commit::wait_for_prior_commit2()
 
   The waiter needs to lock the waitee to delete itself from the list in
   unregister_wait_for_prior_commit(). Thus wakeup_subsequent_commits() can not
-  hold its own lock while locking waiters, lest we deadlock.
+  hold its own lock while locking waiters, as this could lead to deadlock.
 
   So we need to prevent unregister_wait_for_prior_commit() running while wakeup
   is in progress - otherwise the unregister could complete before the wakeup,
@@ -5727,6 +5731,7 @@ wait_for_commit::wait_for_prior_commit2()
   would not be woken up until next wakeup, which could be potentially much
   later than necessary.
 */
+
 void
 wait_for_commit::wakeup_subsequent_commits2()
 {

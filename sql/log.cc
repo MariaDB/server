@@ -6542,26 +6542,87 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   }
 }
 
+
+/*
+  Put a transaction that is ready to commit in the group commit queue.
+  The transaction is identified by the ENTRY object passed into this function.
+
+  To facilitate group commit for the binlog, we first queue up ourselves in
+  this function. Then later the first thread to enter the queue waits for
+  the LOCK_log mutex, and commits for everyone in the queue once it gets the
+  lock. Any other threads in the queue just wait for the first one to finish
+  the commit and wake them up. This way, all transactions in the queue get
+  committed in a single disk operation.
+
+  The return value of this function is TRUE if queued as the first entry in
+  the queue (meaning this is the leader), FALSE otherwise.
+
+  The main work in this function is when the commit in one transaction has
+  been marked to wait for the commit of another transaction to happen
+  first. This is used to support in-order parallel replication, where
+  transactions can execute out-of-order but need to be committed in-order with
+  how they happened on the master. The waiting of one commit on another needs
+  to be integrated with the group commit queue, to ensure that the waiting
+  transaction can participate in the same group commit as the waited-for
+  transaction.
+
+  So when we put a transaction in the queue, we check if there were other
+  transactions already prepared to commit but just waiting for the first one
+  to commit. If so, we add those to the queue as well, transitively for all
+  waiters.
+*/
+
 bool
-MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry,
-                                      wait_for_commit *wfc)
+MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry)
 {
   group_commit_entry *orig_queue;
   wait_for_commit *list, *cur, *last;
+  wait_for_commit *wfc;
 
   /*
-    To facilitate group commit for the binlog, we first queue up ourselves in
-    the group commit queue. Then the first thread to enter the queue waits for
-    the LOCK_log mutex, and commits for everyone in the queue once it gets the
-    lock. Any other threads in the queue just wait for the first one to finish
-    the commit and wake them up.
+    Check if we need to wait for another transaction to commit before us.
 
-    To support in-order parallel replication with group commit, after we add
-    some transaction to the queue, we check if there were other transactions
-    already prepared to commit but just waiting for the first one to commit.
-    If so, we add those to the queue as well, transitively for all waiters.
+    It is safe to do a quick check without lock first in the case where we do
+    not have to wait. But if the quick check shows we need to wait, we must do
+    another safe check under lock, to avoid the race where the other
+    transaction wakes us up between the check and the wait.
   */
+  wfc= entry->thd->wait_for_commit_ptr;
+  entry->queued_by_other= false;
+  if (wfc && wfc->waiting_for_commit)
+  {
+    mysql_mutex_lock(&wfc->LOCK_wait_commit);
+    /* Do an extra check here, this time safely under lock. */
+    if (wfc->waiting_for_commit)
+    {
+      /*
+        By setting wfc->opaque_pointer to our own entry, we mark that we are
+        ready to commit, but waiting for another transaction to commit before
+        us.
 
+        This other transaction may then take over the commit process for us to
+        get us included in its own group commit. If this happens, the
+        queued_by_other flag is set.
+      */
+      wfc->opaque_pointer= entry;
+      do
+      {
+        mysql_cond_wait(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit);
+      } while (wfc->waiting_for_commit);
+      wfc->opaque_pointer= NULL;
+    }
+    mysql_mutex_unlock(&wfc->LOCK_wait_commit);
+  }
+
+  /*
+    If the transaction we were waiting for has already put us into the group
+    commit queue (and possibly already done the entire binlog commit for us),
+    then there is nothing else to do.
+  */
+  if (entry->queued_by_other)
+    return false;
+
+  /* Now enqueue ourselves in the group commit queue. */
   entry->thd->clear_wakeup_ready();
   mysql_mutex_lock(&LOCK_prepare_ordered);
   orig_queue= group_commit_queue;
@@ -6574,6 +6635,23 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry,
     This would be natural to do with recursion, but we want to avoid
     potentially unbounded recursion blowing the C stack, so we use the list
     approach instead.
+
+    We keep a list of all the waiters that need to be processed in `list',
+    linked through the next_subsequent_commit pointer. Initially this list
+    contains only the entry passed into this function.
+
+    We process entries in the list one by one. The element currently being
+    processed is pointed to by `cur`, and the element at the end of the list
+    is pointed to by `last` (we do not use NULL to terminate the list).
+
+    As we process an element, it is first added to the group_commit_queue.
+    Then any waiters for that element are added at the end of the list, to
+    be processed in subsequent iterations. This continues until the list
+    is exhausted, with all elements ever added eventually processed.
+
+    The end result is a breath-first traversal of the tree of waiters,
+    re-using the next_subsequent_commit pointers in place of extra stack
+    space in a recursive traversal.
   */
   list= wfc;
   cur= list;
@@ -6594,6 +6672,12 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry,
     if (!cur)
       break;             // Can happen if initial entry has no wait_for_commit
 
+    /*
+      Check if this transaction has other transaction waiting for it to commit.
+
+      If so, process the waiting transactions, and their waiters and so on,
+      transitively.
+    */
     if (cur->subsequent_commits_list)
     {
       bool have_lock;
@@ -6601,63 +6685,66 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry,
 
       mysql_mutex_lock(&cur->LOCK_wait_commit);
       have_lock= true;
+      /*
+        Grab the list, now safely under lock, and process it if still
+        non-empty.
+      */
       waiter= cur->subsequent_commits_list;
-      /* Check again, now safely under lock. */
-      if (waiter)
+      cur->subsequent_commits_list= NULL;
+      while (waiter)
       {
-        /* Grab the list of waiters and process it. */
-        cur->subsequent_commits_list= NULL;
-        do
+        wait_for_commit *next= waiter->next_subsequent_commit;
+        group_commit_entry *entry2=
+          (group_commit_entry *)waiter->opaque_pointer;
+        if (entry2)
         {
-          wait_for_commit *next= waiter->next_subsequent_commit;
-          group_commit_entry *entry2=
-            (group_commit_entry *)waiter->opaque_pointer;
-          if (entry2)
-          {
-            /*
-              This is another transaction ready to be written to the binary
-              log. We can put it into the queue directly, without needing a
-              separate context switch to the other thread. We just set a flag
-              so that the other thread will know when it wakes up that it was
-              already processed.
+          /*
+            This is another transaction ready to be written to the binary
+            log. We can put it into the queue directly, without needing a
+            separate context switch to the other thread. We just set a flag
+            so that the other thread will know when it wakes up that it was
+            already processed.
 
-              So put it at the end of the list to be processed in a subsequent
-              iteration of the outer loop.
-            */
-            entry2->queued_by_other= true;
-            last->next_subsequent_commit= waiter;
-            last= waiter;
-            /*
-              As a small optimisation, we do not actually need to set
-              waiter->next_subsequent_commit to NULL, as we can use the
-              pointer `last' to check for end-of-list.
-            */
-          }
-          else
-          {
-            /*
-              Wake up the waiting transaction.
+            So put it at the end of the list to be processed in a subsequent
+            iteration of the outer loop.
+          */
+          entry2->queued_by_other= true;
+          last->next_subsequent_commit= waiter;
+          last= waiter;
+          /*
+            As a small optimisation, we do not actually need to set
+            waiter->next_subsequent_commit to NULL, as we can use the
+            pointer `last' to check for end-of-list.
+          */
+        }
+        else
+        {
+          /*
+            Wake up the waiting transaction.
 
-              For this, we need to set the "wakeup running" flag and release
-              the waitee lock to avoid a deadlock, see comments on
-              THD::wakeup_subsequent_commits2() for details.
-            */
-            if (have_lock)
-            {
-              cur->wakeup_subsequent_commits_running= true;
-              mysql_mutex_unlock(&cur->LOCK_wait_commit);
-              have_lock= false;
-            }
-            waiter->wakeup();
+            For this, we need to set the "wakeup running" flag and release
+            the waitee lock to avoid a deadlock, see comments on
+            THD::wakeup_subsequent_commits2() for details.
+          */
+          if (have_lock)
+          {
+            have_lock= false;
+            cur->wakeup_subsequent_commits_running= true;
+            mysql_mutex_unlock(&cur->LOCK_wait_commit);
           }
-          waiter= next;
-        } while (waiter);
+          waiter->wakeup();
+        }
+        waiter= next;
       }
       if (have_lock)
         mysql_mutex_unlock(&cur->LOCK_wait_commit);
     }
     if (cur == last)
       break;
+    /*
+      Move to the next entry in the flattened list of waiting transactions
+      that still need to be processed transitively.
+    */
     cur= cur->next_subsequent_commit;
     entry= (group_commit_entry *)cur->opaque_pointer;
     DBUG_ASSERT(entry != NULL);
@@ -6691,31 +6778,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry,
 bool
 MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
-  wait_for_commit *wfc;
-  bool is_leader;
-
-  wfc= entry->thd->wait_for_commit_ptr;
-  entry->queued_by_other= false;
-  if (wfc && wfc->waiting_for_commit)
-  {
-    mysql_mutex_lock(&wfc->LOCK_wait_commit);
-    /* Do an extra check here, this time safely under lock. */
-    if (wfc->waiting_for_commit)
-    {
-      wfc->opaque_pointer= entry;
-      do
-      {
-        mysql_cond_wait(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit);
-      } while (wfc->waiting_for_commit);
-      wfc->opaque_pointer= NULL;
-    }
-    mysql_mutex_unlock(&wfc->LOCK_wait_commit);
-  }
-
-  if (entry->queued_by_other)
-    is_leader= false;
-  else
-    is_leader= queue_for_group_commit(entry, wfc);
+  bool is_leader= queue_for_group_commit(entry);
 
   /*
     The first in the queue handles group commit for all; the others just wait
@@ -6756,6 +6819,16 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 
     if (next)
     {
+      /*
+        Wake up the next thread in the group commit.
+
+        The next thread can be waiting in two different ways, depending on
+        whether it put itself in the queue, or if it was put in queue by us
+        because it had to wait for us to commit first.
+
+        So execute the appropriate wakeup, identified by the queued_by_other
+        field.
+      */
       if (next->queued_by_other)
         next->thd->wait_for_commit_ptr->wakeup();
       else
@@ -6840,14 +6913,18 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     */
     mysql_mutex_lock(&LOCK_log);
     DEBUG_SYNC(leader->thd, "commit_after_get_LOCK_log");
-    binlog_id= current_binlog_id;
 
     mysql_mutex_lock(&LOCK_prepare_ordered);
     if (opt_binlog_commit_wait_count)
       wait_for_sufficient_commits();
+    /*
+      Note that wait_for_sufficient_commits() may have released and
+      re-acquired the LOCK_log and LOCK_prepare_ordered if it needed to wait.
+    */
     current= group_commit_queue;
     group_commit_queue= NULL;
     mysql_mutex_unlock(&LOCK_prepare_ordered);
+    binlog_id= current_binlog_id;
 
     /* As the queue is in reverse order of entering, reverse it. */
     last_in_queue= current;
@@ -7141,6 +7218,13 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
 }
 
 
+/*
+  Wait for sufficient commits to queue up for group commit, according to the
+  values of binlog_commit_wait_count and binlog_commit_wait_usec.
+
+  Note that this function may release and re-acquire LOCK_log and
+  LOCK_prepare_ordered if it needs to wait.
+*/
 void
 MYSQL_BIN_LOG::wait_for_sufficient_commits()
 {
@@ -7152,11 +7236,9 @@ MYSQL_BIN_LOG::wait_for_sufficient_commits()
   mysql_mutex_assert_owner(&LOCK_log);
   mysql_mutex_assert_owner(&LOCK_prepare_ordered);
 
-  count= 0;
-  for (e= last_head= group_commit_queue; e; e= e->next)
-    ++count;
-  if (count >= opt_binlog_commit_wait_count)
-    return;
+  for (e= last_head= group_commit_queue, count= 0; e; e= e->next)
+    if (++count >= opt_binlog_commit_wait_count)
+      return;
 
   mysql_mutex_unlock(&LOCK_log);
   set_timespec_nsec(wait_until, (ulonglong)1000*opt_binlog_commit_wait_usec);
@@ -7178,7 +7260,25 @@ MYSQL_BIN_LOG::wait_for_sufficient_commits()
     last_head= head;
   }
 
-  mysql_mutex_lock(&LOCK_log);
+  /*
+    We must not wait for LOCK_log while holding LOCK_prepare_ordered.
+    LOCK_log can be held for long periods (eg. we do I/O under it), while
+    LOCK_prepare_ordered must only be held for short periods.
+
+    In addition, waiting for LOCK_log while holding LOCK_prepare_ordered would
+    violate locking order of LOCK_log-before-LOCK_prepare_ordered. This could
+    cause SAFEMUTEX warnings (even if it cannot actually deadlock with current
+    code, as there can be at most one group commit leader thread at a time).
+
+    So release and re-acquire LOCK_prepare_ordered if we need to wait for the
+    LOCK_log.
+  */
+  if (mysql_mutex_trylock(&LOCK_log))
+  {
+    mysql_mutex_unlock(&LOCK_prepare_ordered);
+    mysql_mutex_lock(&LOCK_log);
+    mysql_mutex_lock(&LOCK_prepare_ordered);
+  }
 }
 
 

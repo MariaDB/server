@@ -36,7 +36,7 @@
 
 // Old implementation of do_apply_event()
 int 
-Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, struct rpl_group_info *rgi)
+Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
 {
   DBUG_ENTER("Old_rows_log_event::do_apply_event(st_relay_log_info*)");
   int error= 0;
@@ -1451,7 +1451,7 @@ int Old_rows_log_event::do_add_row_data(uchar *row_data, size_t length)
 
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-int Old_rows_log_event::do_apply_event(struct rpl_group_info *rgi)
+int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   DBUG_ENTER("Old_rows_log_event::do_apply_event(Relay_log_info*)");
   int error= 0;
@@ -1834,7 +1834,7 @@ Old_rows_log_event::do_shall_skip(Relay_log_info *rli)
 }
 
 int
-Old_rows_log_event::do_update_pos(struct rpl_group_info *rgi)
+Old_rows_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Old_rows_log_event::do_update_pos");

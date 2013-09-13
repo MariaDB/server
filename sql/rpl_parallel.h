@@ -23,7 +23,7 @@ struct rpl_parallel_thread {
   struct queued_event {
     queued_event *next;
     Log_event *ev;
-    struct rpl_group_info *rgi;
+    rpl_group_info *rgi;
   } *event_queue, *last_in_queue;
 };
 
@@ -59,7 +59,7 @@ struct rpl_parallel_entry {
   mysql_mutex_t LOCK_parallel_entry;
   mysql_cond_t COND_parallel_entry;
   uint64 current_sub_id;
-  struct rpl_group_info *current_group_info;
+  rpl_group_info *current_group_info;
   /*
     The sub_id of the last event group in the previous batch of group-committed
     transactions.
@@ -78,7 +78,7 @@ struct rpl_parallel {
   ~rpl_parallel();
   rpl_parallel_entry *find(uint32 domain_id);
   void wait_for_done();
-  bool do_event(struct rpl_group_info *serial_rgi, Log_event *ev);
+  bool do_event(rpl_group_info *serial_rgi, Log_event *ev);
 };
 
 
