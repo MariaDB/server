@@ -235,7 +235,7 @@ int oqgraph3::cursor::restore_position()
 }
 
 oqgraph3::vertex_id oqgraph3::cursor::get_origid()
-{
+{ 
   if (_origid)
     return *_origid;
 
@@ -509,10 +509,14 @@ int oqgraph3::cursor::seek_to(
   }
   else
   {
-    if (int rc= table.file->ha_rnd_init(true))
+    int rc;
+    if ((rc= table.file->ha_rnd_init(true)))
       return clear_position(rc);
-    if (int rc= table.file->ha_rnd_next(table.record[0]))
-    {
+
+    // We need to skip over any deleted records we encounter. Bug 796647
+    while ( ((rc= table.file->ha_rnd_next(table.record[0]))) != 0) {
+      if (rc == HA_ERR_RECORD_DELETED)
+        continue;
       table.file->ha_rnd_end();
       return clear_position(rc);
     }
