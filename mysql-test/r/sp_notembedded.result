@@ -32,9 +32,9 @@ drop procedure bug4902_2|
 drop procedure if exists bug6807|
 create procedure bug6807()
 begin
-declare id int;
-set id = connection_id();
-kill query id;
+declare a int;
+set a = connection_id();
+kill query a;
 select 'Not reached';
 end|
 call bug6807()|

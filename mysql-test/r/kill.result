@@ -298,5 +298,13 @@ select 1;
 Got one of the listed errors
 select 1;
 Got one of the listed errors
+#
+# MDEV-4911 - add KILL query id, and add query id information to
+#             processlist
+#
+SELECT SLEEP(1000);
+KILL QUERY ID @id;
+SLEEP(1000)
+1
 SET DEBUG_SYNC = 'RESET';
 DROP FUNCTION MY_KILL;

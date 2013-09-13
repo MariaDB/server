@@ -119,7 +119,7 @@
    "FUNCTION" : "PROCEDURE")
 
 static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables);
-static void sql_kill(THD *thd, ulong id, killed_state state);
+static void sql_kill(THD *thd, longlong id, killed_state state, killed_type type);
 static void sql_kill_user(THD *thd, LEX_USER *user, killed_state state);
 static bool execute_show_status(THD *, TABLE_LIST *);
 static bool execute_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
@@ -1429,7 +1429,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   {
     status_var_increment(thd->status_var.com_stat[SQLCOM_KILL]);
     ulong id=(ulong) uint4korr(packet);
-    sql_kill(thd,id, KILL_CONNECTION_HARD);
+    sql_kill(thd, id, KILL_CONNECTION_HARD, KILL_TYPE_ID);
     break;
   }
   case COM_SET_OPTION:
@@ -3914,7 +3914,7 @@ end_with_restore_list:
       break;
     }
 
-    if (lex->kill_type == KILL_TYPE_ID)
+    if (lex->kill_type == KILL_TYPE_ID || lex->kill_type == KILL_TYPE_QUERY)
     {
       Item *it= (Item *)lex->value_list.head();
       if ((!it->fixed && it->fix_fields(lex->thd, &it)) || it->check_cols(1))
@@ -3923,7 +3923,7 @@ end_with_restore_list:
                    MYF(0));
         goto error;
       }
-      sql_kill(thd, (ulong) it->val_int(), lex->kill_signal);
+      sql_kill(thd, it->val_int(), lex->kill_signal, lex->kill_type);
     }
     else
       sql_kill_user(thd, get_current_user(thd, lex->users_list.head()),
@@ -6812,12 +6812,13 @@ void add_join_natural(TABLE_LIST *a, TABLE_LIST *b, List<String> *using_fields,
   Find a thread by id and return it, locking it LOCK_thd_data
 
   @param id  Identifier of the thread we're looking for
+  @param query_id If true, search by query_id instead of thread_id
 
   @return NULL    - not found
           pointer - thread found, and its LOCK_thd_data is locked.
 */
 
-THD *find_thread_by_id(ulong id)
+THD *find_thread_by_id(longlong id, bool query_id)
 {
   THD *tmp;
   mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
@@ -6826,7 +6827,7 @@ THD *find_thread_by_id(ulong id)
   {
     if (tmp->command == COM_DAEMON)
       continue;
-    if (tmp->thread_id == id)
+    if (id == (query_id ? tmp->query_id : (longlong) tmp->thread_id))
     {
       mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
       break;
@@ -6838,24 +6839,26 @@ THD *find_thread_by_id(ulong id)
 
 
 /**
-  kill on thread.
+  kill one thread.
 
   @param thd			Thread class
-  @param id			Thread id
-  @param only_kill_query        Should it kill the query or the connection
+  @param id                     Thread id or query id
+  @param kill_signal            Should it kill the query or the connection
+  @param type                   Type of id: thread id or query id
 
   @note
     This is written such that we have a short lock on LOCK_thread_count
 */
 
-uint kill_one_thread(THD *thd, ulong id, killed_state kill_signal)
+uint
+kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type type)
 {
   THD *tmp;
   uint error=ER_NO_SUCH_THREAD;
   DBUG_ENTER("kill_one_thread");
-  DBUG_PRINT("enter", ("id: %lu  signal: %u", id, (uint) kill_signal));
+  DBUG_PRINT("enter", ("id: %lld  signal: %u", id, (uint) kill_signal));
 
-  if ((tmp= find_thread_by_id(id)))
+  if ((tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY)))
   {
     /*
       If we're SUPER, we can KILL anything, including system-threads.
@@ -6973,21 +6976,20 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
 }
 
 
-/*
-  kills a thread and sends response
+/**
+  kills a thread and sends response.
 
-  SYNOPSIS
-    sql_kill()
-    thd			Thread class
-    id			Thread id
-    only_kill_query     Should it kill the query or the connection
+  @param thd                    Thread class
+  @param id                     Thread id or query id
+  @param state                  Should it kill the query or the connection
+  @param type                   Type of id: thread id or query id
 */
 
 static
-void sql_kill(THD *thd, ulong id, killed_state state)
+void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
 {
   uint error;
-  if (!(error= kill_one_thread(thd, id, state)))
+  if (!(error= kill_one_thread(thd, id, state, type)))
   {
     if ((!thd->killed))
       my_ok(thd);

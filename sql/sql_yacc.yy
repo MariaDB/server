@@ -790,10 +790,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %pure_parser                                    /* We have threads */
 /*
-  Currently there are 196 shift/reduce conflicts.
+  Currently there are 197 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 196
+%expect 197
 
 /*
    Comments for TOKENS.
@@ -1032,6 +1032,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  HOUR_MINUTE_SYM
 %token  HOUR_SECOND_SYM
 %token  HOUR_SYM                      /* SQL-2003-R */
+%token  ID_SYM                        /* MYSQL */
 %token  IDENT
 %token  IDENTIFIED_SYM
 %token  IDENT_QUOTED
@@ -12250,6 +12251,7 @@ kill:
             lex->value_list.empty();
             lex->users_list.empty();
             lex->sql_command= SQLCOM_KILL;
+            lex->kill_type= KILL_TYPE_ID;
           }
           kill_type kill_option kill_expr
           {
@@ -12266,13 +12268,17 @@ kill_option:
           /* empty */    { $$= (int) KILL_CONNECTION; }
         | CONNECTION_SYM { $$= (int) KILL_CONNECTION; }
         | QUERY_SYM      { $$= (int) KILL_QUERY; }
+        | QUERY_SYM ID_SYM
+          {
+            $$= (int) KILL_QUERY;
+            Lex->kill_type= KILL_TYPE_QUERY;
+          }
         ;
 
 kill_expr:
         expr
         {
           Lex->value_list.push_front($$);
-          Lex->kill_type= KILL_TYPE_ID;
          }
         | USER user
           {
@@ -13435,6 +13441,7 @@ keyword_sp:
         | HARD_SYM                 {}
         | HOSTS_SYM                {}
         | HOUR_SYM                 {}
+        | ID_SYM                   {}
         | IDENTIFIED_SYM           {}
         | IGNORE_SERVER_IDS_SYM    {}
         | INDEX_STATS_SYM          {}
