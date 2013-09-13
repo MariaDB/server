@@ -437,7 +437,8 @@ extern int killed_errno(killed_state killed);
 enum killed_type
 {
   KILL_TYPE_ID,
-  KILL_TYPE_USER
+  KILL_TYPE_USER,
+  KILL_TYPE_QUERY
 };
 
 #include "sql_lex.h"				/* Must be here */

@@ -63,10 +63,10 @@ drop procedure if exists bug6807|
 --enable_warnings
 create procedure bug6807()
 begin
-  declare id int;
+  declare a int;
 
-  set id = connection_id();
-  kill query id;
+  set a = connection_id();
+  kill query a;
   select 'Not reached';
 end|
 
