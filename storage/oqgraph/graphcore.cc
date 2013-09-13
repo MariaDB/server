@@ -1111,8 +1111,18 @@ int edges_cursor::fetch_row(const row &row_info, row &result,
   {
     result= row_info;
     result.orig_indicator= result.dest_indicator= result.weight_indicator= 1;
-    result.orig= get(boost::vertex_index, share->g, source( *edge, share->g ) );
-    result.dest= get(boost::vertex_index, share->g, target( *edge, share->g ) );
+
+    oqgraph3::vertex_id orig = get(boost::vertex_index, share->g, source( *edge, share->g ) );
+    oqgraph3::vertex_id dest = get(boost::vertex_index, share->g, target( *edge, share->g ) );
+
+    // bug 796647c - may be symptomatic of a bigger problem with representation
+    // but origid and destid can be -1 indicating no such record, NULL? but oqgraph3::vertex_id
+    // seems to resolve to VertexID (unsigned) in row
+    // in any case we should check for errors (-1) in origid... because all edges have at least one vertex by definition
+    assert( ! ((size_t)orig == (size_t)-1 && (size_t)dest == (size_t)-1)); // indicates we havent handle a HA_ERR_RECORD_DELETED somewhere
+
+    result.orig= orig;
+    result.dest= dest;
     result.weight= get(boost::edge_weight, share->g, *edge);
     return oqgraph::OK;
   }
