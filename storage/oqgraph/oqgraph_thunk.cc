@@ -286,8 +286,11 @@ int oqgraph3::cursor::seek_next()
 
   if (_index < 0)
   {
-    if (int rc= table.file->ha_rnd_next(table.record[0]))
-    {
+    // We need to skip over any deleted records we encounter beyond the start of the table. Bug 796647b
+    int rc;
+    while ( ((rc= table.file->ha_rnd_next(table.record[0]))) != 0) {
+      if (rc == HA_ERR_RECORD_DELETED)
+        continue;
       table.file->ha_rnd_end();
       return clear_position(rc);
     }
@@ -513,7 +516,7 @@ int oqgraph3::cursor::seek_to(
     if ((rc= table.file->ha_rnd_init(true)))
       return clear_position(rc);
 
-    // We need to skip over any deleted records we encounter. Bug 796647
+    // We need to skip over any deleted records we encounter at the start of the table. Bug 796647c
     while ( ((rc= table.file->ha_rnd_next(table.record[0]))) != 0) {
       if (rc == HA_ERR_RECORD_DELETED)
         continue;

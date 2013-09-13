@@ -65,6 +65,9 @@ INSERT INTO graph_base (from_id,to_id) VALUES (4,6);
 #-- we get a segfault
 SELECT count(*) FROM graph;
 SELECT count(*) FROM graph_base;
+SELECT * from graph;
+SELECT * from graph where latch='0';
+SELECT * from graph_base;
 
 --echo # And delete all references to node 5
 DELETE FROM graph_base WHERE from_id=5;
@@ -76,6 +79,9 @@ DELETE FROM graph_base WHERE from_id=3 AND to_id=5;
 --echo # This is currently bogus:
 SELECT count(*) FROM graph;
 SELECT count(*) FROM graph_base;
+SELECT * from graph;
+SELECT * from graph where latch='0';
+SELECT * from graph_base;
 
 DELETE FROM graph_base;
 
