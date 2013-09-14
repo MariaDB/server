@@ -27,20 +27,12 @@ class String;
 class THD;
 class sp_name;
 struct TABLE_LIST;
-struct st_ha_create_information;
 typedef class st_select_lex SELECT_LEX;
-typedef st_ha_create_information HA_CREATE_INFO;
 struct LEX;
 typedef struct st_mysql_show_var SHOW_VAR;
 typedef struct st_schema_table ST_SCHEMA_TABLE;
 struct TABLE;
 typedef struct system_status_var STATUS_VAR;
-
-enum find_files_result {
-  FIND_FILES_OK,
-  FIND_FILES_OOM,
-  FIND_FILES_DIR
-};
 
 /* Used by handlers to store things in schema tables */
 #define IS_FILES_FILE_ID              0
@@ -81,9 +73,6 @@ enum find_files_result {
 #define IS_FILES_CHECKSUM            35
 #define IS_FILES_STATUS              36
 #define IS_FILES_EXTRA               37
-
-find_files_result find_files(THD *thd, List<LEX_STRING> *files, const char *db,
-                             const char *path, const char *wild, bool dir);
 
 int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
                       HA_CREATE_INFO  *create_info_arg, bool show_database);

@@ -78,6 +78,7 @@ MARIA_HA *_ma_test_if_reopen(const char *filename)
     mode	Mode of table (O_RDONLY | O_RDWR)
     data_file   Filedescriptor of data file to use < 0 if one should open
 	        open it.
+    internal_table <> 0 if this is an internal temporary table
 
  RETURN
     #   Maria handler
@@ -86,7 +87,8 @@ MARIA_HA *_ma_test_if_reopen(const char *filename)
 
 
 static MARIA_HA *maria_clone_internal(MARIA_SHARE *share, const char *name,
-                                      int mode, File data_file)
+                                      int mode, File data_file,
+                                      uint internal_table)
 {
   int save_errno;
   uint errpos;
@@ -159,7 +161,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share, const char *name,
   /* The following should be big enough for all pinning purposes */
   if (my_init_dynamic_array(&info.pinned_pages,
                             sizeof(MARIA_PINNED_PAGE),
-                            max(share->base.blobs*2 + 4,
+                            MY_MAX(share->base.blobs*2 + 4,
                                 MARIA_MAX_TREE_LEVELS*3), 16, MYF(0)))
     goto err;
 
@@ -207,9 +209,17 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share, const char *name,
   if (share->options & HA_OPTION_TMP_TABLE)
     m_info->lock.type= TL_WRITE;
 
-  m_info->open_list.data=(void*) m_info;
-  maria_open_list=list_add(maria_open_list,&m_info->open_list);
-
+  if (!internal_table)
+  {
+    m_info->open_list.data=(void*) m_info;
+    maria_open_list=list_add(maria_open_list,&m_info->open_list);
+  }
+  else
+  {
+    /* We don't need to mark internal temporary tables as changed on disk */
+    share->internal_table= 1;
+    share->global_changed= 1;
+  }
   DBUG_RETURN(m_info);
 
 err:
@@ -243,7 +253,7 @@ MARIA_HA *maria_clone(MARIA_SHARE *share, int mode)
   mysql_mutex_lock(&THR_LOCK_maria);
   new_info= maria_clone_internal(share, NullS, mode,
                                  share->data_file_type == BLOCK_RECORD ?
-                                 share->bitmap.file.file : -1);
+                                 share->bitmap.file.file : -1, 0);
   mysql_mutex_unlock(&THR_LOCK_maria);
   return new_info;
 }
@@ -263,6 +273,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
   int kfile,open_mode,save_errno;
   uint i,j,len,errpos,head_length,base_pos,keys, realpath_err,
     key_parts,unique_key_parts,fulltext_keys,uniques;
+  uint internal_table= test(open_flags & HA_OPEN_INTERNAL_TABLE);
   size_t info_length;
   char name_buff[FN_REFLEN], org_name[FN_REFLEN], index_name[FN_REFLEN],
        data_name[FN_REFLEN];
@@ -293,10 +304,11 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
     DBUG_RETURN(0);
   }
 
-  mysql_mutex_lock(&THR_LOCK_maria);
   old_info= 0;
+  if (!internal_table)
+    mysql_mutex_lock(&THR_LOCK_maria);
   if ((open_flags & HA_OPEN_COPY) ||
-      !(old_info=_ma_test_if_reopen(name_buff)))
+      (internal_table || !(old_info=_ma_test_if_reopen(name_buff))))
   {
     share= &share_buff;
     bzero((uchar*) &share_buff,sizeof(share_buff));
@@ -437,15 +449,23 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
       share->open_count_not_zero_on_open= 1;
 
     /*
+      A transactional table is not usable on this system if:
+      - share->state.create_trid > trnman_get_max_trid()
+        - Critical as trid as stored releativel to create_trid.
+      - uuid is different
+      
+        STATE_NOT_MOVABLE is reset when a table is zerofilled
+        (has no LSN's and no trids)
+
       We can ignore testing uuid if STATE_NOT_MOVABLE is set, as in this
-      case the uuid will be set in _ma_mark_file_changed()
+      case the uuid will be set in _ma_mark_file_changed().
     */
-    if ((share->state.changed & STATE_NOT_MOVABLE) &&
-        share->base.born_transactional &&
-        ((!(open_flags & HA_OPEN_IGNORE_MOVED_STATE) &&
-          memcmp(share->base.uuid, maria_uuid, MY_UUID_SIZE)) ||
-         (share->state.create_trid > trnman_get_max_trid() &&
-          !maria_in_recovery)))
+    if (share->base.born_transactional &&
+        ((share->state.create_trid > trnman_get_max_trid() &&
+         !maria_in_recovery) ||
+         ((share->state.changed & STATE_NOT_MOVABLE) &&
+          ((!(open_flags & HA_OPEN_IGNORE_MOVED_STATE) &&
+            memcmp(share->base.uuid, maria_uuid, MY_UUID_SIZE))))))
     {
       DBUG_PRINT("warning", ("table is moved from another system.  uuid_diff: %d  create_trid: %lu  max_trid: %lu",
                             memcmp(share->base.uuid, maria_uuid,
@@ -592,7 +612,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
         {
           /* Packed key, ensure we don't get overflow in underflow() */
           keyinfo->underflow_block_length=
-            max((int) (share->max_index_block_size - keyinfo->maxlength * 3),
+            MY_MAX((int) (share->max_index_block_size - keyinfo->maxlength * 3),
                 (int) (share->keypage_header + share->base.key_reflength));
           set_if_smaller(keyinfo->underflow_block_length,
                          keyinfo->block_length/3);
@@ -756,7 +776,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
                   HA_ERR_CRASHED_ON_REPAIR : HA_ERR_CRASHED_ON_USAGE);
         goto err;
       }
-      else
+      else if (!(open_flags & HA_OPEN_FOR_REPAIR))
       {
         /* create_rename_lsn != LSN_NEEDS_NEW_STATE_LSNS */
         share->state.changed|= STATE_NOT_MOVABLE;
@@ -780,7 +800,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
       /* Need some extra bytes for decode_bytes */
       share->base.extra_rec_buff_size+= 7;
     }
-    share->base.default_rec_buff_size= max(share->base.pack_reclength +
+    share->base.default_rec_buff_size= MY_MAX(share->base.pack_reclength +
                                            share->base.extra_rec_buff_size,
                                            share->base.max_key_length);
 
@@ -894,8 +914,10 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
                         &share->keyinfo[i].root_lock);
     mysql_rwlock_init(key_SHARE_mmap_lock, &share->mmap_lock);
 
-    share->row_is_visible= _ma_row_visible_always;
-    share->lock.get_status= _ma_reset_update_flag;
+    share->row_is_visible=   _ma_row_visible_always;
+    share->lock.get_status=  _ma_reset_update_flag;
+    share->lock.start_trans= _ma_start_trans;
+
     if (!thr_lock_inited)
     {
       /* Probably a single threaded program; Don't use concurrent inserts */
@@ -981,14 +1003,16 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
       data_file= share->bitmap.file.file;       /* Only opened once */
   }
 
-  if (!(m_info= maria_clone_internal(share, name, mode, data_file)))
+  if (!(m_info= maria_clone_internal(share, name, mode, data_file,
+                                     internal_table)))
     goto err;
 
   if (maria_is_crashed(m_info))
     DBUG_PRINT("warning", ("table is crashed: changed: %u",
                            share->state.changed));
 
-  mysql_mutex_unlock(&THR_LOCK_maria);
+  if (!internal_table)
+    mysql_mutex_unlock(&THR_LOCK_maria);
 
   m_info->open_flags= open_flags;
   DBUG_PRINT("exit", ("table: %p  name: %s",m_info, name));
@@ -1027,7 +1051,8 @@ err:
   default:
     break;
   }
-  mysql_mutex_unlock(&THR_LOCK_maria);
+  if (!internal_table)
+    mysql_mutex_unlock(&THR_LOCK_maria);
   my_errno= save_errno;
   DBUG_RETURN (NULL);
 } /* maria_open */

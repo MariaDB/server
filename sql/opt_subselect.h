@@ -283,6 +283,7 @@ public:
     {
       pos->records_read=    best_loose_scan_records;
       pos->key=             best_loose_scan_start_key;
+      pos->cond_selectivity= 1.0;
       pos->loosescan_picker.loosescan_key=   best_loose_scan_key;
       pos->loosescan_picker.loosescan_parts= best_max_loose_keypart + 1;
       pos->use_join_buffer= FALSE;

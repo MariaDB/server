@@ -84,7 +84,7 @@ static ulonglong get_exact_record_count(List<TABLE_LIST> &tables)
   while ((tl= ti++))
   {
     ha_rows tmp= tl->table->file->records();
-    if ((tmp == HA_POS_ERROR))
+    if (tmp == HA_POS_ERROR)
       return ULONGLONG_MAX;
     count*= tmp;
   }
@@ -464,7 +464,7 @@ int opt_sum_query(THD *thd,
   }
 
   if (thd->is_error())
-    DBUG_RETURN(thd->stmt_da->sql_errno());
+    DBUG_RETURN(thd->get_stmt_da()->sql_errno());
 
   /*
     If we have a where clause, we can only ignore searching in the

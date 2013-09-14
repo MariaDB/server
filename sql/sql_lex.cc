@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -494,12 +494,13 @@ void lex_start(THD *thd)
   lex->select_lex.ftfunc_list= &lex->select_lex.ftfunc_list_alloc;
   lex->select_lex.group_list.empty();
   lex->select_lex.order_list.empty();
+  lex->m_sql_cmd= NULL;
   lex->duplicates= DUP_ERROR;
   lex->ignore= 0;
   lex->spname= NULL;
   lex->sphead= NULL;
   lex->spcont= NULL;
-  lex->m_stmt= NULL;
+  lex->m_sql_cmd= NULL;
   lex->proc_list.first= 0;
   lex->escape_used= FALSE;
   lex->query_tables= 0;
@@ -507,7 +508,9 @@ void lex_start(THD *thd)
   lex->expr_allows_subselect= TRUE;
   lex->use_only_table_context= FALSE;
   lex->parse_vcol_expr= FALSE;
+  lex->check_exists= FALSE;
   lex->verbose= 0;
+  lex->contains_plaintext_password= false;
 
   lex->name.str= 0;
   lex->name.length= 0;
@@ -1422,7 +1425,7 @@ int lex_one_token(void *arg, void *yythd)
       yylval->lex_str=get_token(lip,
                                 2,          // skip x'
                                 length-3);  // don't count x' and last '
-      return (HEX_NUM);
+      return HEX_STRING;
 
     case MY_LEX_BIN_NUMBER:           // Found b'bin-string'
       lip->yySkip();                  // Accept opening '
@@ -1746,50 +1749,6 @@ int lex_one_token(void *arg, void *yythd)
 }
 
 
-/**
-  Construct a copy of this object to be used for mysql_alter_table
-  and mysql_create_table.
-
-  Historically, these two functions modify their Alter_info
-  arguments. This behaviour breaks re-execution of prepared
-  statements and stored procedures and is compensated by always
-  supplying a copy of Alter_info to these functions.
-
-  @return You need to use check the error in THD for out
-  of memory condition after calling this function.
-*/
-
-Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
-  :drop_list(rhs.drop_list, mem_root),
-  alter_list(rhs.alter_list, mem_root),
-  key_list(rhs.key_list, mem_root),
-  create_list(rhs.create_list, mem_root),
-  flags(rhs.flags),
-  keys_onoff(rhs.keys_onoff),
-  tablespace_op(rhs.tablespace_op),
-  partition_names(rhs.partition_names, mem_root),
-  num_parts(rhs.num_parts),
-  change_level(rhs.change_level),
-  datetime_field(rhs.datetime_field),
-  error_if_not_empty(rhs.error_if_not_empty)
-{
-  /*
-    Make deep copies of used objects.
-    This is not a fully deep copy - clone() implementations
-    of Alter_drop, Alter_column, Key, foreign_key, Key_part_spec
-    do not copy string constants. At the same length the only
-    reason we make a copy currently is that ALTER/CREATE TABLE
-    code changes input Alter_info definitions, but string
-    constants never change.
-  */
-  list_copy_and_replace_each_value(drop_list, mem_root);
-  list_copy_and_replace_each_value(alter_list, mem_root);
-  list_copy_and_replace_each_value(key_list, mem_root);
-  list_copy_and_replace_each_value(create_list, mem_root);
-  /* partition_names are not deeply copied currently */
-}
-
-
 void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str)
 {
   /*
@@ -1882,8 +1841,11 @@ void st_select_lex::init_query()
   cond_count= between_count= with_wild= 0;
   max_equal_elems= 0;
   ref_pointer_array= 0;
+  ref_pointer_array_size= 0;
   select_n_where_fields= 0;
+  select_n_reserved= 0;
   select_n_having_items= 0;
+  n_sum_items= 0;
   n_child_sum_items= 0;
   subquery_in_having= explicit_limit= 0;
   is_item_list_lookup= 0;
@@ -1937,6 +1899,7 @@ void st_select_lex::init_select()
   merged_into= 0;
   m_non_agg_field_used= false;
   m_agg_func_used= false;
+  name_visibility_map= 0;
 }
 
 /*
@@ -2195,12 +2158,13 @@ bool st_select_lex_node::inc_in_sum_expr()           { return 1; }
 uint st_select_lex_node::get_in_sum_expr()           { return 0; }
 TABLE_LIST* st_select_lex_node::get_table_list()     { return 0; }
 List<Item>* st_select_lex_node::get_item_list()      { return 0; }
-TABLE_LIST *st_select_lex_node::add_table_to_list (THD *thd, Table_ident *table,
+TABLE_LIST *st_select_lex_node::add_table_to_list(THD *thd, Table_ident *table,
 						  LEX_STRING *alias,
 						  ulong table_join_options,
 						  thr_lock_type flags,
                                                   enum_mdl_type mdl_type,
 						  List<Index_hint> *hints,
+                                                  List<String> *partition_names,
                                                   LEX_STRING *option)
 {
   return 0;
@@ -2242,6 +2206,11 @@ bool st_select_lex::add_order_to_list(THD *thd, Item *item, bool asc)
   return add_to_list(thd, order_list, item, asc);
 }
 
+
+bool st_select_lex::add_gorder_to_list(THD *thd, Item *item, bool asc)
+{
+  return add_to_list(thd, gorder_list, item, asc);
+}
 
 bool st_select_lex::add_item_to_list(THD *thd, Item *item)
 {
@@ -2313,11 +2282,6 @@ ulong st_select_lex::get_table_join_options()
 
 bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
 {
-  DBUG_ENTER("st_select_lex::setup_ref_array");
-
-  if (ref_pointer_array)
-    DBUG_RETURN(0);
-
   // find_order_in_list() may need some extra space, so multiply by two.
   order_group_num*= 2;
 
@@ -2325,13 +2289,31 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
     We have to create array in prepared statement memory if it is a
     prepared statement
   */
-  ref_pointer_array=
-    (Item **)thd->stmt_arena->alloc(sizeof(Item*) * (n_child_sum_items +
-                                                     item_list.elements +
-                                                     select_n_having_items +
-                                                     select_n_where_fields +
-                                                     order_group_num)*5);
-  DBUG_RETURN(ref_pointer_array == 0);
+  Query_arena *arena= thd->stmt_arena;
+  const uint n_elems= (n_sum_items +
+                       n_child_sum_items +
+                       item_list.elements +
+                       select_n_reserved +
+                       select_n_having_items +
+                       select_n_where_fields +
+                       order_group_num) * 5;
+  if (ref_pointer_array != NULL)
+  {
+    /*
+      We need to take 'n_sum_items' into account when allocating the array,
+      and this may actually increase during the optimization phase due to
+      MIN/MAX rewrite in Item_in_subselect::single_value_transformer.
+      In the usual case we can reuse the array from the prepare phase.
+      If we need a bigger array, we must allocate a new one.
+    */
+    if (ref_pointer_array_size >= n_elems)
+      return false;
+  }
+  ref_pointer_array= static_cast<Item**>(arena->alloc(sizeof(Item*) * n_elems));
+  if (ref_pointer_array != NULL)
+    ref_pointer_array_size= n_elems;
+
+  return ref_pointer_array == NULL;
 }
 
 
@@ -2883,7 +2865,7 @@ void st_select_lex_unit::set_limit(st_select_lex *sl)
     val= fix_fields_successful ? item->val_uint() : 0;
   }
   else
-    val= ULL(0);
+    val= 0;
 
   offset_limit_cnt= (ha_rows)val;
 #ifndef BIG_TABLES
@@ -3877,7 +3859,8 @@ void SELECT_LEX::update_used_tables()
   {
     for (ORDER *order= order_list.first; order; order= order->next)
       (*order->item)->update_used_tables();
-  }      
+  }
+  join->result->update_used_tables();
 }
 
 
@@ -4299,8 +4282,8 @@ int st_select_lex_unit::print_explain(select_result_sink *output,
 bool LEX::is_partition_management() const
 {
   return (sql_command == SQLCOM_ALTER_TABLE &&
-          (alter_info.flags == ALTER_ADD_PARTITION ||
-           alter_info.flags == ALTER_REORGANIZE_PARTITION));
+          (alter_info.flags ==  Alter_info::ALTER_ADD_PARTITION ||
+           alter_info.flags ==  Alter_info::ALTER_REORGANIZE_PARTITION));
 }
 
 #ifdef MYSQL_SERVER

@@ -1,0 +1,52 @@
+--source include/master-slave.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+CREATE TABLE t1 (i int) ENGINE=InnoDB;
+
+--sync_slave_with_master
+
+--echo *** MDEV-4484, incorrect error handling when entries in gtid_slave_pos not found. ***
+TRUNCATE TABLE mysql.gtid_slave_pos;
+
+--connection master
+INSERT INTO t1 VALUES (1);
+--sync_slave_with_master
+
+# Inject an artificial error deleting entries, and check that the error handling code works.
+--connection slave
+--source include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,gtid_slave_pos_simulate_failed_delete";
+--source include/start_slave.inc
+SET sql_log_bin= 0;
+CALL mtr.add_suppression("Can't find file");
+SET sql_log_bin= 1;
+
+--connection master
+INSERT INTO t1 VALUES (2);
+
+--connection slave
+--let $slave_sql_errno= 1942
+--source include/wait_for_slave_sql_error.inc
+STOP SLAVE IO_THREAD;
+SELECT domain_id, server_id, seq_no FROM mysql.gtid_slave_pos
+ ORDER BY domain_id, sub_id DESC LIMIT 1;
+SET GLOBAL debug_dbug= @old_dbug;
+--source include/start_slave.inc
+
+--connection master
+INSERT INTO t1 VALUES (3);
+--sync_slave_with_master
+
+--connection slave
+SELECT domain_id, server_id, seq_no FROM mysql.gtid_slave_pos
+ ORDER BY domain_id, sub_id DESC LIMIT 1;
+SELECT * FROM t1 ORDER BY i;
+
+
+# Clean up
+--connection master
+DROP TABLE t1;
+
+--source include/rpl_end.inc

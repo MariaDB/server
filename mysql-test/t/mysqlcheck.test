@@ -93,6 +93,7 @@ drop view v1;
 # Bug#37527: mysqlcheck fails to report entire database 
 # when frm file corruption
 #
+call mtr.add_suppression("Error reading file './test/t1.frm'");
 CREATE TABLE t1(a INT) engine=myisam;
 CREATE TABLE t2(a INT) engine=myisam;
 # backup then null t1.frm

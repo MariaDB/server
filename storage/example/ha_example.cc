@@ -107,17 +107,8 @@ static handler *example_create_handler(handlerton *hton,
 
 handlerton *example_hton;
 
-/* Variables for example share methods */
-
-/* 
-   Hash used to track the number of open tables; variable for example share
-   methods
-*/
-static HASH example_open_tables;
-
-/* The mutex used to init the hash; variable for example share methods */
-mysql_mutex_t example_mutex;
-
+static MYSQL_THDVAR_ULONG(varopt_default, PLUGIN_VAR_RQCMDARG,
+  "default value of the VAROPT table option", NULL, NULL, 5, 0, 100, 0);
 
 /**
   Structure for CREATE TABLE options (table options).
@@ -133,6 +124,7 @@ struct ha_table_option_struct
   ulonglong ullparam;
   uint enumparam;
   bool boolparam;
+  ulonglong varparam;
 };
 
 
@@ -179,6 +171,12 @@ ha_create_table_option example_table_option_list[]=
     The default is 1, that is true, yes, on.
   */
   HA_TOPTION_BOOL("YESNO", boolparam, 1),
+  /*
+    one option defined by the system variable. The type, the range, or
+    a list of allowed values is the same as for the system variable.
+  */
+  HA_TOPTION_SYSVAR("VAROPT", varparam, varopt_default),
+
   HA_TOPTION_END
 };
 
@@ -199,20 +197,12 @@ ha_create_table_option example_field_option_list[]=
   Function we use in the creation of our hash to get key.
 */
 
-static uchar* example_get_key(EXAMPLE_SHARE *share, size_t *length,
-                             my_bool not_used __attribute__((unused)))
-{
-  *length=share->table_name_length;
-  return (uchar*) share->table_name;
-}
-
 #ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key ex_key_mutex_example, ex_key_mutex_EXAMPLE_SHARE_mutex;
+static PSI_mutex_key ex_key_mutex_Example_share_mutex;
 
 static PSI_mutex_info all_example_mutexes[]=
 {
-  { &ex_key_mutex_example, "example", PSI_FLAG_GLOBAL},
-  { &ex_key_mutex_EXAMPLE_SHARE_mutex, "EXAMPLE_SHARE::mutex", 0}
+  { &ex_key_mutex_Example_share_mutex, "Example_share::mutex", 0}
 };
 
 static void init_example_psi_keys()
@@ -220,137 +210,10 @@ static void init_example_psi_keys()
   const char* category= "example";
   int count;
 
-  if (PSI_server == NULL)
-    return;
-
   count= array_elements(all_example_mutexes);
-  PSI_server->register_mutex(category, all_example_mutexes, count);
+  mysql_mutex_register(category, all_example_mutexes, count);
 }
 #endif
-
-
-static int example_init_func(void *p)
-{
-  DBUG_ENTER("example_init_func");
-
-#ifdef HAVE_PSI_INTERFACE
-  init_example_psi_keys();
-#endif
-
-  example_hton= (handlerton *)p;
-  mysql_mutex_init(ex_key_mutex_example, &example_mutex, MY_MUTEX_INIT_FAST);
-  (void) my_hash_init(&example_open_tables,system_charset_info,32,0,0,
-                      (my_hash_get_key) example_get_key,0,0);
-
-  example_hton->state=   SHOW_OPTION_YES;
-  example_hton->create=  example_create_handler;
-  example_hton->flags=   HTON_CAN_RECREATE;
-  example_hton->table_options= example_table_option_list;
-  example_hton->field_options= example_field_option_list;
-
-  DBUG_RETURN(0);
-}
-
-
-static int example_done_func(void *p)
-{
-  int error= 0;
-  DBUG_ENTER("example_done_func");
-
-  if (example_open_tables.records)
-    error= 1;
-  my_hash_free(&example_open_tables);
-  mysql_mutex_destroy(&example_mutex);
-
-  DBUG_RETURN(error);
-}
-
-
-/**
-  @brief
-  Example of simple lock controls. The "share" it creates is a
-  structure we will pass to each example handler. Do you have to have
-  one of these? Well, you have pieces that are used for locking, and
-  they are needed to function.
-*/
-
-static EXAMPLE_SHARE *get_share(const char *table_name, TABLE *table)
-{
-  EXAMPLE_SHARE *share;
-  uint length;
-  char *tmp_name;
-
-  mysql_mutex_lock(&example_mutex);
-  length=(uint) strlen(table_name);
-
-  if (!(share=(EXAMPLE_SHARE*) my_hash_search(&example_open_tables,
-                                              (uchar*) table_name,
-                                              length)))
-  {
-    if (!(share=(EXAMPLE_SHARE *)
-          my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
-                          &share, sizeof(*share),
-                          &tmp_name, length+1,
-                          NullS)))
-    {
-      mysql_mutex_unlock(&example_mutex);
-      return NULL;
-    }
-
-    share->use_count=0;
-    share->table_name_length=length;
-    share->table_name=tmp_name;
-    strmov(share->table_name,table_name);
-    if (my_hash_insert(&example_open_tables, (uchar*) share))
-      goto error;
-    thr_lock_init(&share->lock);
-    mysql_mutex_init(ex_key_mutex_EXAMPLE_SHARE_mutex,
-                     &share->mutex, MY_MUTEX_INIT_FAST);
-  }
-  share->use_count++;
-  mysql_mutex_unlock(&example_mutex);
-
-  return share;
-
-error:
-  mysql_mutex_destroy(&share->mutex);
-  my_free(share);
-
-  return NULL;
-}
-
-
-/**
-  @brief
-  Free lock controls. We call this whenever we close a table. If the table had
-  the last reference to the share, then we free memory associated with it.
-*/
-
-static int free_share(EXAMPLE_SHARE *share)
-{
-  mysql_mutex_lock(&example_mutex);
-  if (!--share->use_count)
-  {
-    my_hash_delete(&example_open_tables, (uchar*) share);
-    thr_lock_delete(&share->lock);
-    mysql_mutex_destroy(&share->mutex);
-    my_free(share);
-  }
-  mysql_mutex_unlock(&example_mutex);
-
-  return 0;
-}
-
-static handler* example_create_handler(handlerton *hton,
-                                       TABLE_SHARE *table, 
-                                       MEM_ROOT *mem_root)
-{
-  return new (mem_root) ha_example(hton, table);
-}
-
-ha_example::ha_example(handlerton *hton, TABLE_SHARE *table_arg)
-  :handler(hton, table_arg)
-{}
 
 
 /**
@@ -358,7 +221,7 @@ ha_example::ha_example(handlerton *hton, TABLE_SHARE *table_arg)
   If frm_error() is called then we will use this to determine
   the file extensions that exist for the storage engine. This is also
   used by the default rename_table and delete_table method in
-  handler.cc.
+  handler.cc and by the default discover_many method.
 
   For engines that have two file name extentions (separate meta/index file
   and data file), the order of elements is relevant. First element of engine
@@ -375,10 +238,73 @@ static const char *ha_example_exts[] = {
   NullS
 };
 
-const char **ha_example::bas_ext() const
+Example_share::Example_share()
 {
-  return ha_example_exts;
+  thr_lock_init(&lock);
+  mysql_mutex_init(ex_key_mutex_Example_share_mutex,
+                   &mutex, MY_MUTEX_INIT_FAST);
 }
+
+
+static int example_init_func(void *p)
+{
+  DBUG_ENTER("example_init_func");
+
+#ifdef HAVE_PSI_INTERFACE
+  init_example_psi_keys();
+#endif
+
+  example_hton= (handlerton *)p;
+  example_hton->state=   SHOW_OPTION_YES;
+  example_hton->create=  example_create_handler;
+  example_hton->flags=   HTON_CAN_RECREATE;
+  example_hton->table_options= example_table_option_list;
+  example_hton->field_options= example_field_option_list;
+  example_hton->tablefile_extensions= ha_example_exts;
+
+  DBUG_RETURN(0);
+}
+
+
+/**
+  @brief
+  Example of simple lock controls. The "share" it creates is a
+  structure we will pass to each example handler. Do you have to have
+  one of these? Well, you have pieces that are used for locking, and
+  they are needed to function.
+*/
+
+Example_share *ha_example::get_share()
+{
+  Example_share *tmp_share;
+
+  DBUG_ENTER("ha_example::get_share()");
+
+  lock_shared_ha_data();
+  if (!(tmp_share= static_cast<Example_share*>(get_ha_share_ptr())))
+  {
+    tmp_share= new Example_share;
+    if (!tmp_share)
+      goto err;
+
+    set_ha_share_ptr(static_cast<Handler_share*>(tmp_share));
+  }
+err:
+  unlock_shared_ha_data();
+  DBUG_RETURN(tmp_share);
+}
+
+static handler* example_create_handler(handlerton *hton,
+                                       TABLE_SHARE *table, 
+                                       MEM_ROOT *mem_root)
+{
+  return new (mem_root) ha_example(hton, table);
+}
+
+ha_example::ha_example(handlerton *hton, TABLE_SHARE *table_arg)
+  :handler(hton, table_arg)
+{}
+
 
 /**
   @brief
@@ -400,7 +326,7 @@ int ha_example::open(const char *name, int mode, uint test_if_locked)
 {
   DBUG_ENTER("ha_example::open");
 
-  if (!(share = get_share(name, table)))
+  if (!(share = get_share()))
     DBUG_RETURN(1);
   thr_lock_data_init(&share->lock,&lock,NULL);
 
@@ -420,8 +346,7 @@ int ha_example::open(const char *name, int mode, uint test_if_locked)
 
 /**
   @brief
-  Closes a table. We call the free_share() function to free any resources
-  that we have allocated in the "shared" structure.
+  Closes a table.
 
   @details
   Called from sql_base.cc, sql_select.cc, and table.cc. In sql_select.cc it is
@@ -437,7 +362,7 @@ int ha_example::open(const char *name, int mode, uint test_if_locked)
 int ha_example::close(void)
 {
   DBUG_ENTER("ha_example::close");
-  DBUG_RETURN(free_share(share));
+  DBUG_RETURN(0);
 }
 
 
@@ -1018,33 +943,44 @@ bool ha_example::check_if_incompatible_data(HA_CREATE_INFO *info,
     for this example engine, we'll assume that changing ullparam or
     boolparam requires a table to be rebuilt, while changing strparam
     or enumparam - does not.
-  */
-  if (param_new->ullparam != param_old->ullparam ||
-      param_new->boolparam != param_old->boolparam)
-    DBUG_RETURN(COMPATIBLE_DATA_NO);
 
-#ifndef DBUG_OFF
+    For debugging purposes we'll announce this to the user
+    (don't do it in production!)
+
+  */
+  if (param_new->ullparam != param_old->ullparam)
+  {
+    push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
+                        ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: ULL %llu -> %llu",
+                        param_old->ullparam, param_new->ullparam);
+    DBUG_RETURN(COMPATIBLE_DATA_NO);
+  }
+
+  if (param_new->boolparam != param_old->boolparam)
+  {
+    push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
+                        ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: YESNO %u -> %u",
+                        param_old->boolparam, param_new->boolparam);
+    DBUG_RETURN(COMPATIBLE_DATA_NO);
+  }
+
   for (uint i= 0; i < table->s->fields; i++)
   {
     ha_field_option_struct *f_old, *f_new;
     f_old= table->s->field[i]->option_struct;
     DBUG_ASSERT(f_old);
-    DBUG_PRINT("info", ("old field: %u old complex: '%-.64s'", i,
-                         (f_old->complex_param_to_parse_it_in_engine ?
-                          f_old->complex_param_to_parse_it_in_engine :
-                          "<NULL>")));
     if (info->fields_option_struct[i])
     {
       f_new= info->fields_option_struct[i];
-      DBUG_PRINT("info", ("old field: %u  new complex: '%-.64s'", i,
-                          (f_new->complex_param_to_parse_it_in_engine ?
-                           f_new->complex_param_to_parse_it_in_engine :
-                           "<NULL>")));
+      push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
+                          ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: Field %`s COMPLEX '%s' -> '%s'",
+                          table->s->field[i]->field_name,
+                          f_old->complex_param_to_parse_it_in_engine,
+                          f_new->complex_param_to_parse_it_in_engine);
     }
     else
       DBUG_PRINT("info", ("old field %i did not changed", i));
   }
-#endif
 
   DBUG_RETURN(COMPATIBLE_DATA_YES);
 }
@@ -1092,6 +1028,7 @@ static MYSQL_SYSVAR_ULONG(
 static struct st_mysql_sys_var* example_system_variables[]= {
   MYSQL_SYSVAR(enum_var),
   MYSQL_SYSVAR(ulong_var),
+  MYSQL_SYSVAR(varopt_default),
   NULL
 };
 
@@ -1110,7 +1047,7 @@ static int show_func_example(MYSQL_THD thd, struct st_mysql_show_var *var,
 
 static struct st_mysql_show_var func_status[]=
 {
-  {"example_func_example",  (char *)show_func_example, SHOW_SIMPLE_FUNC},
+  {"func_example",  (char *)show_func_example, SHOW_SIMPLE_FUNC},
   {0,0,SHOW_UNDEF}
 };
 
@@ -1126,7 +1063,7 @@ mysql_declare_plugin(example)
   "Example storage engine",
   PLUGIN_LICENSE_GPL,
   example_init_func,                            /* Plugin Init */
-  example_done_func,                            /* Plugin Deinit */
+  NULL,                                         /* Plugin Deinit */
   0x0001 /* 0.1 */,
   func_status,                                  /* status variables */
   example_system_variables,                     /* system variables */
@@ -1143,7 +1080,7 @@ maria_declare_plugin(example)
   "Example storage engine",
   PLUGIN_LICENSE_GPL,
   example_init_func,                            /* Plugin Init */
-  example_done_func,                            /* Plugin Deinit */
+  NULL,                                         /* Plugin Deinit */
   0x0001,                                       /* version number (0.1) */
   func_status,                                  /* status variables */
   example_system_variables,                     /* system variables */

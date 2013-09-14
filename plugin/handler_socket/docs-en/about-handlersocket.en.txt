@@ -66,7 +66,7 @@ Here is a list of other language bindings:
     https://github.com/koichik/node-handlersocket
 
 The home of HandlerSocket is here:
-    https://github.com/ahiguti/HandlerSocket-Plugin-for-MySQL
+    https://github.com/DeNADev/HandlerSocket-Plugin-for-MySQL
 
 More documents are available in docs-en/ and docs-ja/ directories.
 

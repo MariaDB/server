@@ -43,7 +43,7 @@ SET autocommit=0;
 SET innodb_fake_changes=1;
 BEGIN;
 CREATE TABLE t2 (a INT) ENGINE=InnoDB;
-ERROR HY000: Can't create table 'test.t2' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table `test`.`t2` (errno: 131 "Command not supported by database")
 DROP TABLE t1;
 ERROR 42S02: Unknown table 't1'
 TRUNCATE TABLE t1;

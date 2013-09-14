@@ -553,7 +553,8 @@ recv_copy_group(
 		}
 
 		log_group_read_log_seg(LOG_RECOVER, log_sys->buf,
-				       up_to_date_group, start_lsn, end_lsn);
+				       up_to_date_group, start_lsn, end_lsn,
+				       FALSE);
 
 		len = (ulint) (end_lsn - start_lsn);
 
@@ -597,7 +598,7 @@ recv_synchronize_groups(
 	ut_a(start_lsn != end_lsn);
 
 	log_group_read_log_seg(LOG_RECOVER, recv_sys->last_block,
-			       up_to_date_group, start_lsn, end_lsn);
+			       up_to_date_group, start_lsn, end_lsn, FALSE);
 
 	group = UT_LIST_GET_FIRST(log_sys->log_groups);
 
@@ -994,8 +995,11 @@ recv_parse_or_apply_log_rec_body(
 				not NULL, then the log record is
 				applied to the page, and the log
 				record should be complete then */
-	mtr_t*		mtr)	/*!< in: mtr or NULL; should be non-NULL
+	mtr_t*		mtr,	/*!< in: mtr or NULL; should be non-NULL
 				if and only if block is non-NULL */
+	ulint		space_id)
+				/*!< in: tablespace id obtained by
+				parsing initial log record */
 {
 	dict_index_t*	index	= NULL;
 	page_t*		page;
@@ -1267,8 +1271,11 @@ recv_parse_or_apply_log_rec_body(
 		ut_ad(!page || page_type != FIL_PAGE_TYPE_ALLOCATED);
 		ptr = mlog_parse_string(ptr, end_ptr, page, page_zip);
 		break;
-	case MLOG_FILE_CREATE:
 	case MLOG_FILE_RENAME:
+		ptr = fil_op_log_parse_or_replay(ptr, end_ptr, type,
+						 space_id, 0);
+		break;
+	case MLOG_FILE_CREATE:
 	case MLOG_FILE_DELETE:
 	case MLOG_FILE_CREATE2:
 		ptr = fil_op_log_parse_or_replay(ptr, end_ptr, type, 0, 0);
@@ -1672,7 +1679,8 @@ recv_recover_page_func(
 
 			recv_parse_or_apply_log_rec_body(recv->type, buf,
 							 buf + recv->len,
-							 block, &mtr);
+							 block, &mtr,
+							 recv_addr->space);
 
 			if (srv_recovery_stats) {
 				mutex_enter(&(recv_sys->mutex));
@@ -1704,24 +1712,10 @@ recv_recover_page_func(
 	if (fil_page_get_type(page) == FIL_PAGE_INDEX) {
 		page_zip_des_t*	page_zip = buf_block_get_page_zip(block);
 
-		if (page_zip) {
-			ut_a(page_zip_validate_low(page_zip, page, FALSE));
-		}
+		ut_a(!page_zip
+		     || page_zip_validate_low(page_zip, page, NULL, FALSE));
 	}
 #endif /* UNIV_ZIP_DEBUG */
-
-	mutex_enter(&(recv_sys->mutex));
-
-	if (recv_max_page_lsn < page_lsn) {
-		recv_max_page_lsn = page_lsn;
-	}
-
-	recv_addr->state = RECV_PROCESSED;
-
-	ut_a(recv_sys->n_addrs);
-	recv_sys->n_addrs--;
-
-	mutex_exit(&(recv_sys->mutex));
 
 #ifndef UNIV_HOTBACKUP
 	if (modification_to_page) {
@@ -1739,6 +1733,20 @@ recv_recover_page_func(
 	mtr.modifications = FALSE;
 
 	mtr_commit(&mtr);
+
+	mutex_enter(&(recv_sys->mutex));
+
+	if (recv_max_page_lsn < page_lsn) {
+		recv_max_page_lsn = page_lsn;
+	}
+
+	recv_addr->state = RECV_PROCESSED;
+
+	ut_a(recv_sys->n_addrs);
+	recv_sys->n_addrs--;
+
+	mutex_exit(&(recv_sys->mutex));
+
 }
 
 #ifndef UNIV_HOTBACKUP
@@ -2158,7 +2166,7 @@ recv_parse_log_rec(
 #endif /* UNIV_LOG_LSN_DEBUG */
 
 	new_ptr = recv_parse_or_apply_log_rec_body(*type, new_ptr, end_ptr,
-						   NULL, NULL);
+						   NULL, NULL, *space);
 	if (UNIV_UNLIKELY(new_ptr == NULL)) {
 
 		return(0);
@@ -2888,7 +2896,7 @@ recv_group_scan_log_recs(
 		end_lsn = start_lsn + RECV_SCAN_SIZE;
 
 		log_group_read_log_seg(LOG_RECOVER, log_sys->buf,
-				       group, start_lsn, end_lsn);
+				       group, start_lsn, end_lsn, FALSE);
 
 		finished = recv_scan_log_recs(
 			(buf_pool_get_n_pages()

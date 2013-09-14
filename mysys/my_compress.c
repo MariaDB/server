@@ -234,7 +234,7 @@ my_bool my_uncompress(uchar *packet, size_t len, size_t *complen)
     >0                      Failure
 */
 
-int packfrm(uchar *data, size_t len,
+int packfrm(const uchar *data, size_t len,
             uchar **pack_data, size_t *pack_len)
 {
   int error;
@@ -311,7 +311,7 @@ int unpackfrm(uchar **unpack_data, size_t *unpack_len,
 
    if (ver != 1)
      DBUG_RETURN(1);
-   if (!(data= my_malloc(max(orglen, complen), MYF(MY_WME))))
+   if (!(data= my_malloc(MY_MAX(orglen, complen), MYF(MY_WME))))
      DBUG_RETURN(2);
    memcpy(data, pack_data + BLOB_HEADER, complen);
 

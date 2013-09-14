@@ -6,7 +6,7 @@ SET @OLD_SLAVE_CONCURRENT_INSERT= @@GLOBAL.CONCURRENT_INSERT;
 SET @@GLOBAL.CONCURRENT_INSERT= 0;
 DROP TABLE IF EXISTS federated.t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'federated.t1'
 CREATE TABLE federated.t1 (
 `id` int(20) NOT NULL,
 `group` int NOT NULL default 0,
@@ -17,7 +17,7 @@ CREATE TABLE federated.t1 (
 DEFAULT CHARSET=latin1;
 DROP TABLE IF EXISTS federated.t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'federated.t1'
 CREATE TABLE federated.t1 (
 `id` int(20) NOT NULL,
 `group` int NOT NULL default 0,
@@ -50,7 +50,7 @@ CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t3';
 ERROR HY000: Can't create federated table. Foreign data src error:  database: 'federated'  username: 'root'  hostname: '127.0.0.1'
 DROP TABLE IF EXISTS federated.t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'federated.t1'
 CREATE TABLE federated.t1 (
 `id` int(20) NOT NULL,
 `group` int NOT NULL default 0,
@@ -63,7 +63,7 @@ CONNECTION='mysql://user:pass@127.0.0.1:SLAVE_PORT/federated/t1';
 ERROR HY000: Can't create federated table. Foreign data src error:  database: 'federated'  username: 'user'  hostname: '127.0.0.1'
 DROP TABLE IF EXISTS federated.t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'federated.t1'
 CREATE TABLE federated.t1 (
 `id` int(20) NOT NULL,
 `group` int NOT NULL default 0,
@@ -89,7 +89,7 @@ DELETE FROM federated.t1;
 DROP TABLE federated.t1;
 DROP TABLE IF EXISTS federated.t2;
 Warnings:
-Note	1051	Unknown table 't2'
+Note	1051	Unknown table 'federated.t2'
 CREATE TABLE federated.t2 (
 `id` int(20) NOT NULL,
 `name` varchar(32) NOT NULL default ''
@@ -112,7 +112,7 @@ DROP TABLE federated.t2;
 DROP TABLE IF EXISTS federated.t1;
 DROP TABLE IF EXISTS federated.`t1%`;
 Warnings:
-Note	1051	Unknown table 't1%'
+Note	1051	Unknown table 'federated.t1%'
 CREATE TABLE federated.`t1%` (
 `id` int(20) NOT NULL,
 `name` varchar(32) NOT NULL default ''
@@ -120,7 +120,7 @@ CREATE TABLE federated.`t1%` (
 DEFAULT CHARSET=latin1;
 DROP TABLE IF EXISTS federated.t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'federated.t1'
 CREATE TABLE federated.t1 (
 `id` int(20) NOT NULL,
 `name` varchar(32) NOT NULL default ''
@@ -152,7 +152,7 @@ DROP TABLE IF EXISTS federated.`t1%`;
 DROP TABLE IF EXISTS federated.`t1%`;
 DROP TABLE IF EXISTS federated.t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'federated.t1'
 CREATE TABLE federated.t1 (
 `id` int(20) NOT NULL auto_increment,
 `name` varchar(32) NOT NULL default '',
@@ -1391,7 +1391,7 @@ PRIMARY KEY  (`id`),
 key (country_id));
 DROP TABLE IF EXISTS federated.countries;
 Warnings:
-Note	1051	Unknown table 'countries'
+Note	1051	Unknown table 'federated.countries'
 CREATE TABLE federated.countries (
 `id` int(20) NOT NULL auto_increment,
 `country` varchar(32),
@@ -1508,7 +1508,7 @@ id	name
 1	Monty
 2	David
 ALTER TABLE federated.alter_me MODIFY COLUMN id int(16) NOT NULL;
-ERROR HY000: Table storage engine for 'alter_me' doesn't have this option
+ERROR HY000: Storage engine FEDERATED of the table `federated`.`alter_me` doesn't have this option
 SELECT * FROM federated.alter_me;
 id	name
 1	Monty
@@ -1544,13 +1544,13 @@ drop table federated.t1;
 drop table federated.t1;
 DROP TABLE IF EXISTS federated.t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'federated.t1'
 CREATE TABLE federated.t1 (
 `id` int(20) NOT NULL auto_increment,
 PRIMARY KEY  (`id`));
 DROP TABLE IF EXISTS federated.t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'federated.t1'
 CREATE TABLE federated.t1 (
 `id` int(20) NOT NULL auto_increment,
 PRIMARY KEY  (`id`)

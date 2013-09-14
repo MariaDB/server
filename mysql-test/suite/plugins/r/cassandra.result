@@ -1,4 +1,29 @@
 drop table if exists t0, t1;
+#
+# Check variables and status counters
+#
+show status like 'cassandra%';
+Variable_name	Value
+Cassandra_row_inserts	0
+Cassandra_row_insert_batches	0
+Cassandra_multiget_keys_scanned	0
+Cassandra_multiget_reads	0
+Cassandra_multiget_rows_read	0
+Cassandra_network_exceptions	0
+Cassandra_timeout_exceptions	0
+Cassandra_unavailable_exceptions	0
+show variables like 'cassandra%';
+Variable_name	Value
+cassandra_default_thrift_host	
+cassandra_failure_retries	3
+cassandra_insert_batch_size	100
+cassandra_multiget_batch_size	100
+cassandra_read_consistency	ONE
+cassandra_rnd_batch_size	10000
+cassandra_write_consistency	ONE
+#
+# Test various errors on table creation.
+#
 create table t1 (a int) engine=cassandra 
 thrift_host='localhost' keyspace='foo' column_family='colfam';
 ERROR 42000: This table type requires a primary key
@@ -74,8 +99,8 @@ Variable_name	Value
 cassandra_insert_batch_size	100
 show status like 'cassandra_row_insert%';
 Variable_name	Value
-Cassandra_row_insert_batches	7
 Cassandra_row_inserts	8
+Cassandra_row_insert_batches	7
 CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
 thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
 delete from t1;
@@ -84,14 +109,14 @@ DELETE FROM t1 ORDER BY a LIMIT 1;
 DROP TABLE t1;
 show status like 'cassandra_row_insert%';
 Variable_name	Value
-Cassandra_row_insert_batches	8
 Cassandra_row_inserts	10
+Cassandra_row_insert_batches	8
 # FLUSH STATUS doesn't work for our variables, just like with InnoDB.
 flush status;
 show status like 'cassandra_row_insert%';
 Variable_name	Value
-Cassandra_row_insert_batches	0
-Cassandra_row_inserts	0
+Cassandra_row_inserts	10
+Cassandra_row_insert_batches	8
 #
 # Batched Key Access
 #
@@ -590,4 +615,22 @@ pk int primary key,
 col_int int,
 dyncol blob DYNAMIC_COLUMN_STORAGE=yes
 ) ENGINE=cassandra keyspace='bug' thrift_host = '127.0.0.1' column_family='cf1';
+drop table t1;
+#
+# MDEV-4000: Mapping between Cassandra blob (BytesType) and MySQL BLOB does not work
+#
+create table t1 (rowkey int primary key, b blob ) ENGINE=CASSANDRA thrift_host = '127.0.0.1' `keyspace`='mariadbtest2' `column_family`='cf13';
+insert into t1 values (1, 'fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo-bar');
+insert into t1 values (2, 'qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq-baz');
+select * from t1;
+rowkey	b
+1	fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo-bar
+2	qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq-baz
+drop table t1;
+#
+# MDEV-4001: Cassandra: server crashes in ha_cassandra::end_bulk_insert on INSERT .. SELECT with a non-existing column
+#
+create table t1 (rowkey int primary key, a int)  ENGINE=cassandra thrift_host='127.0.0.1' keyspace='mariadbtest2' column_family='cf14';
+insert into t1 (a) select b from t1;
+ERROR 42S22: Unknown column 'b' in 'field list'
 drop table t1;

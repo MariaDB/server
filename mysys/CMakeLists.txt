@@ -15,15 +15,14 @@
 
 INCLUDE_DIRECTORIES(${ZLIB_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/mysys)
 
-SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c default.c
+SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
 				errors.c hash.c list.c
-                                md5.c md5_compute.cc
                                 mf_cache.c mf_dirname.c mf_fn_ext.c
 				mf_format.c mf_getdate.c mf_iocache.c mf_iocache2.c mf_keycache.c 
 				mf_keycaches.c mf_loadpath.c mf_pack.c mf_path.c mf_qsort.c mf_qsort2.c
 				mf_radix.c mf_same.c mf_sort.c mf_soundex.c mf_arr_appstr.c mf_tempdir.c
 				mf_tempfile.c mf_unixpath.c mf_wcomp.c mulalloc.c my_access.c
-				my_aes.c my_alloc.c my_bit.c my_bitmap.c my_chsize.c
+				my_alloc.c my_bit.c my_bitmap.c my_chsize.c
 				my_compress.c my_copy.c  my_create.c my_delete.c
 				my_div.c my_error.c my_file.c my_fopen.c my_fstream.c 
 				my_gethwaddr.c my_getopt.c my_getsystime.c my_getwd.c my_compare.c my_init.c
@@ -33,7 +32,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c default.c
 				my_static.c my_symlink.c my_symlink2.c my_sync.c my_thr_init.c 
 				my_basename.c
 				my_write.c ptr_cmp.c queues.c stacktrace.c
-				rijndael.c sha1.c string.c thr_alarm.c thr_lock.c thr_mutex.c
+				string.c thr_alarm.c thr_lock.c thr_mutex.c
 				thr_rwlock.c tree.c typelib.c base64.c my_memmem.c my_getpagesize.c
 				lf_alloc-pin.c lf_dynarray.c lf_hash.c
                 safemalloc.c my_new.cc

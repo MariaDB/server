@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -63,8 +63,9 @@
 #define SIGNAL_FMT "signal %d"
 #endif
 
+#include <my_context.h>
 static my_bool non_blocking_api_enabled= 0;
-#if !defined(EMBEDDED_LIBRARY)
+#if !defined(EMBEDDED_LIBRARY) && !defined(MY_CONTEXT_DISABLE)
 #define WRAP_NONBLOCK_ENABLED non_blocking_api_enabled
 #include "../tests/nonblock-wrappers.h"
 #endif
@@ -3590,7 +3591,7 @@ void do_remove_file(struct st_command *command)
                      ' ');
 
   DBUG_PRINT("info", ("removing file: %s", ds_filename.str));
-  error= my_delete_allow_opened(ds_filename.str, MYF(disable_warnings ? 0 : MY_WME)) != 0;
+  error= my_delete(ds_filename.str, MYF(disable_warnings ? 0 : MY_WME)) != 0;
   handle_command_error(command, error, my_errno);
   dynstr_free(&ds_filename);
   DBUG_VOID_RETURN;
@@ -3633,7 +3634,6 @@ void do_remove_files_wildcard(struct st_command *command)
   fn_format(dirname, ds_directory.str, "", "", MY_UNPACK_FILENAME);
 
   DBUG_PRINT("info", ("listing directory: %s", dirname));
-  /* Note that my_dir sorts the list if not given any flags */
   if (!(dir_info= my_dir(dirname, MYF(MY_DONT_SORT | MY_WANT_STAT | MY_WME))))
   {
     error= 1;
@@ -3648,7 +3648,7 @@ void do_remove_files_wildcard(struct st_command *command)
   /* Set default wild chars for wild_compare, is changed in embedded mode */
   set_wild_chars(1);
   
-  for (i= 0; i < (uint) dir_info->number_off_files; i++)
+  for (i= 0; i < (uint) dir_info->number_of_files; i++)
   {
     file= dir_info->dir_entry + i;
     /* Remove only regular files, i.e. no directories etc. */
@@ -3911,17 +3911,12 @@ static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
   DBUG_ENTER("get_list_files");
 
   DBUG_PRINT("info", ("listing directory: %s", ds_dirname->str));
-  /* Note that my_dir sorts the list if not given any flags */
-  if (!(dir_info= my_dir(ds_dirname->str, MYF(0))))
+  if (!(dir_info= my_dir(ds_dirname->str, MYF(MY_WANT_SORT))))
     DBUG_RETURN(1);
   set_wild_chars(1);
-  for (i= 0; i < (uint) dir_info->number_off_files; i++)
+  for (i= 0; i < (uint) dir_info->number_of_files; i++)
   {
     file= dir_info->dir_entry + i;
-    if (file->name[0] == '.' &&
-        (file->name[1] == '\0' ||
-         (file->name[1] == '.' && file->name[2] == '\0')))
-      continue;                               /* . or .. */
     if (ds_wild && ds_wild->length &&
         wild_compare(file->name, ds_wild->str, 0))
       continue;
@@ -5956,8 +5951,10 @@ void do_connect(struct st_command *command)
   if (opt_connect_timeout)
     mysql_options(con_slot->mysql, MYSQL_OPT_CONNECT_TIMEOUT,
                   (void *) &opt_connect_timeout);
-
-  mysql_options(con_slot->mysql, MYSQL_OPT_NONBLOCK, 0);
+#ifndef MY_CONTEXT_DISABLE
+  if (mysql_options(con_slot->mysql, MYSQL_OPT_NONBLOCK, 0))
+    die("Failed to initialise non-blocking API");
+#endif
   if (opt_compress || con_compress)
     mysql_options(con_slot->mysql, MYSQL_OPT_COMPRESS, NullS);
   mysql_options(con_slot->mysql, MYSQL_OPT_LOCAL_INFILE, 0);
@@ -6361,8 +6358,7 @@ void do_delimiter(struct st_command* command)
   if (!(*p))
     die("Can't set empty delimiter");
 
-  strmake(delimiter, p, sizeof(delimiter) - 1);
-  delimiter_length= strlen(delimiter);
+  delimiter_length= strmake_buf(delimiter, p) - delimiter;
 
   DBUG_PRINT("exit", ("delimiter: %s", delimiter));
   command->last_argument= p + delimiter_length;
@@ -6489,9 +6485,9 @@ int read_line(char *buf, int size)
       }
       else if ((c == '{' &&
                 (!my_strnncoll_simple(charset_info, (const uchar*) "while", 5,
-                                      (uchar*) buf, min(5, p - buf), 0) ||
+                                      (uchar*) buf, MY_MIN(5, p - buf), 0) ||
                  !my_strnncoll_simple(charset_info, (const uchar*) "if", 2,
-                                      (uchar*) buf, min(2, p - buf), 0))))
+                                      (uchar*) buf, MY_MIN(2, p - buf), 0))))
       {
         /* Only if and while commands can be terminated by { */
         *p++= c;

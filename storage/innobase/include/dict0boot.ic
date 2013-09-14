@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2009, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -22,15 +22,6 @@ Data dictionary creation and booting
 
 Created 4/18/1996 Heikki Tuuri
 *******************************************************/
-
-/**********************************************************************//**
-Writes the current value of the row id counter to the dictionary header file
-page. */
-UNIV_INTERN
-void
-dict_hdr_flush_row_id(void);
-/*=======================*/
-
 
 /**********************************************************************//**
 Returns a new row id.
@@ -88,6 +79,18 @@ dict_sys_write_row_id(
 #endif
 
 	mach_write_to_6(field, row_id);
+}
+
+/*********************************************************************//**
+Check if a table id belongs to  system table.
+@return true if the table id belongs to a system table. */
+UNIV_INLINE
+bool
+dict_is_sys_table(
+/*==============*/
+	table_id_t	id)		/*!< in: table id to check */
+{
+	return(id < DICT_HDR_FIRST_ID);
 }
 
 

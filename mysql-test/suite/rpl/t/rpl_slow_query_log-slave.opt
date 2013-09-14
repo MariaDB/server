@@ -1,1 +1,1 @@
---log-slow-slave-statements --log-slow-queries
+--log-slow-slave-statements --slow-query-log

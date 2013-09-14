@@ -16,15 +16,6 @@
 #ifndef SQL_STATISTICS_H
 #define SQL_STATISTICS_H
 
-/* 
-  These enumeration types comprise the dictionary of three
-  statistical tables table_stat, column_stat and index_stat
-  as they defined in ../scripts/mysql_system_tables.sql.
-
-  It would be nice if the declarations of these types were
-  generated automatically by the table definitions.   
-*/
-
 typedef
 enum enum_use_stat_tables_mode
 {
@@ -33,12 +24,29 @@ enum enum_use_stat_tables_mode
   PEFERABLY,
 } Use_stat_tables_mode;
 
+typedef
+enum enum_histogram_type
+{
+  SINGLE_PREC_HB,
+  DOUBLE_PREC_HB
+} Histogram_type;
+
 enum enum_stat_tables
 {
   TABLE_STAT,
   COLUMN_STAT,
   INDEX_STAT,
 };
+
+
+/* 
+  These enumeration types comprise the dictionary of three
+  statistical tables table_stat, column_stat and index_stat
+  as they defined in ../scripts/mysql_system_tables.sql.
+
+  It would be nice if the declarations of these types were
+  generated automatically by the table definitions.   
+*/
 
 enum enum_table_stat_col
 {
@@ -56,7 +64,10 @@ enum enum_column_stat_col
   COLUMN_STAT_MAX_VALUE,
   COLUMN_STAT_NULLS_RATIO,
   COLUMN_STAT_AVG_LENGTH,
-  COLUMN_STAT_AVG_FREQUENCY
+  COLUMN_STAT_AVG_FREQUENCY,
+  COLUMN_STAT_HIST_SIZE,
+  COLUMN_STAT_HIST_TYPE,
+  COLUMN_STAT_HISTOGRAM
 };
 
 enum enum_index_stat_col
@@ -90,8 +101,173 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
                                   const char *new_name);
 void set_statistics_for_table(THD *thd, TABLE *table);
 
+double get_column_avg_frequency(Field * field);
+
+double get_column_range_cardinality(Field *field,
+                                    key_range *min_endp,
+                                    key_range *max_endp,
+                                    uint range_flag);
+
+class Histogram
+{
+
+private:
+  Histogram_type type;
+  uint8 size;
+  uchar *values;
+
+  uint prec_factor()
+  {
+    switch (type) {
+    case SINGLE_PREC_HB:
+      return ((uint) (1 << 8) - 1);
+    case DOUBLE_PREC_HB:
+      return ((uint) (1 << 16) - 1);
+    }
+    return 1;
+  }
+
+public:
+  uint get_width()
+  {
+    switch (type) {
+    case SINGLE_PREC_HB:
+      return size;
+    case DOUBLE_PREC_HB:
+      return size / 2;
+    }
+    return 0;
+  }
+
+private:
+  uint get_value(uint i)
+  {
+    switch (type) {
+    case SINGLE_PREC_HB:
+      return (uint) (((uint8 *) values)[i]);
+    case DOUBLE_PREC_HB:
+      return (uint) (((uint16 *) values)[i]);
+    }
+    return 0;
+  }
+
+  uint find_bucket(double pos, bool first)
+  {
+    uint val= (uint) (pos * prec_factor());
+    int lp= 0;
+    int rp= get_width() - 1;
+    int d= get_width() / 2;
+    uint i= lp + d;
+    for ( ; d;  d= (rp - lp) / 2, i= lp + d)
+    {
+      if (val == get_value(i))
+	break; 
+      if (val < get_value(i))
+        rp= i;
+      else if (val > get_value(i + 1))
+        lp= i + 1;
+      else
+        break;
+    }
+    if (val == get_value(i))
+    {
+      if (first)
+      {
+        while(i && val == get_value(i - 1))
+          i--;
+      }
+      else
+      {
+        while(i + 1 < get_width() && val == get_value(i + 1))
+          i++;
+      }
+    }
+    return i;
+  }
+
+public:
+
+  uint get_size() { return (uint) size; }
+
+  Histogram_type get_type() { return type; }
+
+  uchar *get_values() { return (uchar *) values; }
+
+  void set_size (ulonglong sz) { size= (uint8) sz; }
+
+  void set_type (Histogram_type t) { type= t; }
+
+  void set_values (uchar *vals) { values= (uchar *) vals; }
+
+  bool is_available() { return get_size() > 0 && get_values(); }
+
+  void set_value(uint i, double val)
+  {
+    switch (type) {
+    case SINGLE_PREC_HB:   
+      ((uint8 *) values)[i]= (uint8) (val * prec_factor());
+      return;
+    case DOUBLE_PREC_HB:
+      ((uint16 *) values)[i]= (uint16) (val * prec_factor());
+      return;
+    }
+  }
+
+  void set_prev_value(uint i)
+  {
+    switch (type) {
+    case SINGLE_PREC_HB:   
+      ((uint8 *) values)[i]= ((uint8 *) values)[i-1];
+      return;
+    case DOUBLE_PREC_HB:
+      ((uint16 *) values)[i]= ((uint16 *) values)[i-1];
+      return;
+    }
+  }
+
+  double range_selectivity(double min_pos, double max_pos)
+  {
+    double sel;
+    double bucket_sel= 1.0/(get_width() + 1);  
+    uint min= find_bucket(min_pos, TRUE);
+    uint max= find_bucket(max_pos, FALSE);
+    sel= bucket_sel * (max - min + 1);
+    return sel;
+  } 
+
+  double point_selectivity(double pos, double avg_sel)
+  {
+    double sel;
+    double bucket_sel= 1.0/(get_width() + 1);  
+    uint min= find_bucket(pos, TRUE);
+    uint max= min;
+    while (max + 1 < get_width() && get_value(max + 1) == get_value(max))
+      max++;
+    double inv_prec_factor= (double) 1.0 / prec_factor(); 
+    double width= (max + 1 == get_width() ?
+                   1.0 : get_value(max) * inv_prec_factor) -
+	          (min == 0 ?
+                   0.0 : get_value(min-1) * inv_prec_factor); 
+    sel= avg_sel * (bucket_sel * (max + 1 - min)) / width;
+    return sel;
+  }
+             
+};
+
+
 class Columns_statistics;
 class Index_statistics;
+
+static inline
+int rename_table_in_stat_tables(THD *thd, const char *db, const char *tab,
+                                const char *new_db, const char *new_tab)
+{
+  LEX_STRING od= { const_cast<char*>(db), strlen(db) };
+  LEX_STRING ot= { const_cast<char*>(tab), strlen(tab) };
+  LEX_STRING nd= { const_cast<char*>(new_db), strlen(new_db) };
+  LEX_STRING nt= { const_cast<char*>(new_tab), strlen(new_tab) };
+  return rename_table_in_stat_tables(thd, &od, &ot, &nd, &nt);
+}
 
 
 /* Statistical data on a table */
@@ -105,8 +281,9 @@ public:
   uchar *min_max_record_buffers;    /* Record buffers for min/max values  */
   Column_statistics *column_stats;  /* Array of statistical data for columns */
   Index_statistics *index_stats;    /* Array of statistical data for indexes */
-  ulong *idx_avg_frequency;   /* Array of records per key for index prefixes */                                       
-
+  ulong *idx_avg_frequency;   /* Array of records per key for index prefixes */
+  ulong total_hist_size;            /* Total size of all histograms */
+  uchar *histograms;                /* Sequence of histograms       */                    
 };
 
 
@@ -161,10 +338,12 @@ private:
 
 public:
 
+  Histogram histogram;
+ 
   void set_all_nulls()
   {
     column_stat_nulls= 
-      ((1 << (COLUMN_STAT_AVG_FREQUENCY-COLUMN_STAT_COLUMN_NAME))-1) <<
+      ((1 << (COLUMN_STAT_HISTOGRAM-COLUMN_STAT_COLUMN_NAME))-1) <<
       (COLUMN_STAT_COLUMN_NAME+1);
   }
 

@@ -45,8 +45,6 @@ btr_search_get_info(
 /*================*/
 	dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
-
 	return(index->search_info);
 }
 

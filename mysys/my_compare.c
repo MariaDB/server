@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
    
 #include <my_global.h>
 #include <m_ctype.h>
@@ -36,7 +36,7 @@ static int compare_bin(const uchar *a, uint a_length,
                        const uchar *b, uint b_length,
                        my_bool part_key, my_bool skip_end_space)
 {
-  uint length= min(a_length,b_length);
+  uint length= MY_MIN(a_length,b_length);
   const uchar *end= a+ length;
   int flag;
 
@@ -171,7 +171,7 @@ int ha_key_cmp(HA_KEYSEG *keyseg, const uchar *a,
         continue;                               /* To next key part */
       }
     }
-    end= a+ min(keyseg->length,key_length);
+    end= a+ MY_MIN(keyseg->length,key_length);
     next_key_length=key_length-keyseg->length;
 
     switch ((enum ha_base_keytype) keyseg->type) {

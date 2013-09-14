@@ -1,4 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -48,6 +49,8 @@
 #include "rpl_reporting.h"
 #include "sql_class.h"                          /* THD */
 #endif
+
+#include "rpl_gtid.h"
 
 /* Forward declarations */
 class String;
@@ -260,6 +263,8 @@ struct sql_ex_info
 #define HEARTBEAT_HEADER_LEN   0
 #define ANNOTATE_ROWS_HEADER_LEN  0
 #define BINLOG_CHECKPOINT_HEADER_LEN 4
+#define GTID_HEADER_LEN       19
+#define GTID_LIST_HEADER_LEN   4
 
 /* 
   Max number of possible extra bytes in a replication event compared to a
@@ -551,7 +556,7 @@ struct sql_ex_info
 
 /* Shouldn't be defined before */
 #define EXPECTED_OPTIONS \
-  ((ULL(1) << 14) | (ULL(1) << 26) | (ULL(1) << 27) | (ULL(1) << 19))
+  ((1ULL << 14) | (1ULL << 26) | (1ULL << 27) | (1ULL << 19))
 
 #if OPTIONS_WRITTEN_TO_BIN_LOG != EXPECTED_OPTIONS
 #error OPTIONS_WRITTEN_TO_BIN_LOG must NOT change their values!
@@ -599,16 +604,13 @@ enum enum_binlog_checksum_alg {
   because they mis-compute the offsets into the master's binlog).
 */
 #define MARIA_SLAVE_CAPABILITY_TOLERATE_HOLES 2
-/* MariaDB > 5.5, which knows about binlog_checkpoint_log_event. */
+/* MariaDB >= 10.0, which knows about binlog_checkpoint_log_event. */
 #define MARIA_SLAVE_CAPABILITY_BINLOG_CHECKPOINT 3
-/*
-  MariaDB server which understands MySQL 5.6 ignorable events. This server
-  can tolerate receiving any event with the LOG_EVENT_IGNORABLE_F flag set.
-*/
-#define MARIA_SLAVE_CAPABILITY_IGNORABLE 4
+/* MariaDB >= 10.0.1, which knows about global transaction id events. */
+#define MARIA_SLAVE_CAPABILITY_GTID 4
 
 /* Our capability. */
-#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_BINLOG_CHECKPOINT
+#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_GTID
 
 
 /**
@@ -694,6 +696,18 @@ enum Log_event_type
     that are prepared in storage engines but not yet committed.
   */
   BINLOG_CHECKPOINT_EVENT= 161,
+  /*
+    Gtid event. For global transaction ID, used to start a new event group,
+    instead of the old BEGIN query event, and also to mark stand-alone
+    events.
+  */
+  GTID_EVENT= 162,
+  /*
+    Gtid list event. Logged at the start of every binlog, to record the
+    current replication state. This consists of the last GTID seen for
+    each replication domain.
+  */
+  GTID_LIST_EVENT= 163,
 
   /* Add new MariaDB events here - right above this comment!  */
 
@@ -766,6 +780,11 @@ typedef struct st_print_event_info
   uint charset_database_number;
   uint thread_id;
   bool thread_id_printed;
+  uint32 server_id;
+  bool server_id_printed;
+  uint32 domain_id;
+  bool domain_id_printed;
+
   /*
     Track when @@skip_replication changes so we need to output a SET
     statement for it.
@@ -1102,8 +1121,35 @@ public:
                                    const Format_description_log_event
                                    *description_event,
                                    my_bool crc_check);
+
+  /**
+    Reads an event from a binlog or relay log. Used by the dump thread
+    this method reads the event into a raw buffer without parsing it.
+
+    @Note If mutex is 0, the read will proceed without mutex.
+
+    @Note If a log name is given than the method will check if the
+    given binlog is still active.
+
+    @param[in]  file                log file to be read
+    @param[out] packet              packet to hold the event
+    @param[in]  lock                the lock to be used upon read
+    @param[in]  log_file_name_arg   the log's file name
+    @param[out] is_binlog_active    is the current log still active
+
+    @retval 0                   success
+    @retval LOG_READ_EOF        end of file, nothing was read
+    @retval LOG_READ_BOGUS      malformed event
+    @retval LOG_READ_IO         io error while reading
+    @retval LOG_READ_MEM        packet memory allocation failed
+    @retval LOG_READ_TRUNC      only a partial event could be read
+    @retval LOG_READ_TOO_LARGE  event too large
+   */
   static int read_log_event(IO_CACHE* file, String* packet,
-                            mysql_mutex_t* log_lock, uint8 checksum_alg_arg);
+                            mysql_mutex_t* log_lock,
+                            uint8 checksum_alg_arg,
+                            const char *log_file_name_arg = NULL,
+                            bool* is_binlog_active = NULL);
   /*
     init_show_field_list() prepares the column names and types for the
     output of SHOW BINLOG EVENTS; it is used only by SHOW BINLOG
@@ -1127,7 +1173,7 @@ public:
     return thd ? thd->db : 0;
   }
 #else
-  Log_event() : temp_buf(0) {}
+  Log_event() : temp_buf(0), flags(0) {}
     /* avoid having to link mysqlbinlog against libpthread */
   static Log_event* read_log_event(IO_CACHE* file,
                                    const Format_description_log_event
@@ -1299,6 +1345,35 @@ public:
   enum_skip_reason shall_skip(Relay_log_info *rli)
   {
     return do_shall_skip(rli);
+  }
+
+
+  /*
+    Check if an event is non-final part of a stand-alone event group,
+    such as Intvar_log_event (such events should be processed as part
+    of the following event group, not individually).
+  */
+  static bool is_part_of_group(enum Log_event_type ev_type)
+  {
+    switch (ev_type)
+    {
+    case GTID_EVENT:
+    case INTVAR_EVENT:
+    case RAND_EVENT:
+    case USER_VAR_EVENT:
+    case TABLE_MAP_EVENT:
+    case ANNOTATE_ROWS_EVENT:
+      return true;
+    case DELETE_ROWS_EVENT:
+    case UPDATE_ROWS_EVENT:
+    case WRITE_ROWS_EVENT:
+    /*
+      ToDo: also check for non-final Rows_log_event (though such events
+      are usually in a BEGIN-COMMIT group).
+    */
+    default:
+      return false;
+    }
   }
 
 protected:
@@ -1874,6 +1949,7 @@ public:
   }
   Log_event_type get_type_code() { return QUERY_EVENT; }
   static int dummy_event(String *packet, ulong ev_offset, uint8 checksum_alg);
+  static int begin_event(String *packet, ulong ev_offset, uint8 checksum_alg);
 #ifdef MYSQL_SERVER
   bool write(IO_CACHE* file);
   virtual bool write_post_header_for_derived(IO_CACHE* file) { return FALSE; }
@@ -1896,6 +1972,8 @@ public:        /* !!! Public in this patch to allow old usage */
   int do_apply_event(Relay_log_info const *rli,
                        const char *query_arg,
                        uint32 q_len_arg);
+  static bool peek_is_commit_rollback(const char *event_start,
+                                      size_t event_len, uint8 checksum_alg);
 #endif /* HAVE_REPLICATION */
   /*
     If true, the event always be applied by slave SQL thread or be printed by
@@ -2409,7 +2487,7 @@ protected:
       Events from ourself should be skipped, but they should not
       decrease the slave skip counter.
      */
-    if (this->server_id == ::server_id)
+    if (this->server_id == global_system_variables.server_id)
       return Log_event::EVENT_SKIP_IGNORE;
     else
       return Log_event::EVENT_SKIP_NOT;
@@ -2464,12 +2542,26 @@ public:
 #ifdef MYSQL_SERVER
   bool write(IO_CACHE* file);
 #endif
-  bool is_valid() const
+  bool header_is_valid() const
   {
     return ((common_header_len >= ((binlog_version==1) ? OLD_HEADER_LEN :
                                    LOG_EVENT_MINIMAL_HEADER_LEN)) &&
             (post_header_len != NULL));
   }
+
+  bool version_is_valid() const
+  {
+    /* It is invalid only when all version numbers are 0 */
+    return !(server_version_split.ver[0] == 0 &&
+             server_version_split.ver[1] == 0 &&
+             server_version_split.ver[2] == 0);
+  }
+
+  bool is_valid() const
+  {
+    return header_is_valid() && version_is_valid();
+  }
+
   int get_data_size()
   {
     /*
@@ -2722,6 +2814,7 @@ public:
   uchar flags;
 #ifdef MYSQL_SERVER
   bool deferred;
+  query_id_t query_id;
   User_var_log_event(THD* thd_arg, char *name_arg, uint name_len_arg,
                      char *val_arg, ulong val_len_arg, Item_result type_arg,
 		     uint charset_number_arg, uchar flags_arg,
@@ -2752,7 +2845,11 @@ public:
      and which case the applier adjusts execution path.
   */
   bool is_deferred() { return deferred; }
-  void set_deferred() { deferred= true; }
+  /*
+    In case of the deffered applying the variable instance is flagged
+    and the parsing time query id is stored to be used at applying time.
+  */
+  void set_deferred(query_id_t qid) { deferred= true; query_id= qid; }
 #endif
   bool is_valid() const { return name != 0; }
 
@@ -2800,7 +2897,7 @@ private:
       Events from ourself should be skipped, but they should not
       decrease the slave skip counter.
      */
-    if (this->server_id == ::server_id)
+    if (this->server_id == global_system_variables.server_id)
       return Log_event::EVENT_SKIP_IGNORE;
     else
       return Log_event::EVENT_SKIP_NOT;
@@ -2926,6 +3023,215 @@ public:
   bool write(IO_CACHE* file);
 #endif
 };
+
+
+/**
+  @class Gtid_log_event
+
+  This event is logged as part of every event group to give the global
+  transaction id (GTID) of that group.
+
+  It replaces the BEGIN query event used in earlier versions to begin most
+  event groups, but is also used for events that used to be stand-alone.
+
+  @section Gtid_log_event_binary_format Binary Format
+
+  The binary format for Gtid_log_event has 6 extra reserved bytes to make the
+  length a total of 19 byte (+ 19 bytes of header in common with all events).
+  This is just the minimal size for a BEGIN query event, which makes it easy
+  to replace this event with such BEGIN event to remain compatible with old
+  slave servers.
+
+  <table>
+  <caption>Post-Header</caption>
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>seq_no</td>
+    <td>8 byte unsigned integer</td>
+    <td>increasing id within one server_id. Starts at 1, holes in the sequence
+        may occur</td>
+  </tr>
+
+  <tr>
+    <td>domain_id</td>
+    <td>4 byte unsigned integer</td>
+    <td>Replication domain id, identifying independent replication streams></td>
+  </tr>
+
+  <tr>
+    <td>flags</td>
+    <td>1 byte bitfield</td>
+    <td>Bit 0 set indicates stand-alone event (no terminating COMMIT)</td>
+  </tr>
+
+  <tr>
+    <td>Reserved</td>
+    <td>6 bytes</td>
+    <td>Reserved bytes, set to 0. Maybe be used for future expansion.</td>
+  </tr>
+  </table>
+
+  The Body of Gtid_log_event is empty. The total event size is 19 bytes +
+  the normal 19 bytes common-header.
+*/
+
+class Gtid_log_event: public Log_event
+{
+public:
+  uint64 seq_no;
+  uint32 domain_id;
+  uchar flags2;
+
+  /* Flags2. */
+
+  /* FL_STANDALONE is set when there is no terminating COMMIT event. */
+  static const uchar FL_STANDALONE= 1;
+
+#ifdef MYSQL_SERVER
+  Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
+                 uint16 flags, bool is_transactional);
+#ifdef HAVE_REPLICATION
+  void pack_info(THD *thd, Protocol *protocol);
+  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_update_pos(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+#endif
+#else
+  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+#endif
+  Gtid_log_event(const char *buf, uint event_len,
+                 const Format_description_log_event *description_event);
+  ~Gtid_log_event() { }
+  Log_event_type get_type_code() { return GTID_EVENT; }
+  int get_data_size() { return GTID_HEADER_LEN; }
+  bool is_valid() const { return seq_no != 0; }
+#ifdef MYSQL_SERVER
+  bool write(IO_CACHE *file);
+  static int make_compatible_event(String *packet, bool *need_dummy_event,
+                                    ulong ev_offset, uint8 checksum_alg);
+  static bool peek(const char *event_start, size_t event_len,
+                   uint8 checksum_alg,
+                   uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
+                   uchar *flags2);
+#endif
+};
+
+
+/**
+  @class Gtid_list_log_event
+
+  This event is logged at the start of every binlog file to record the
+  current replication state: the last global transaction id (GTID) applied
+  on the server within each replication domain.
+
+  It consists of a list of GTIDs, one for each replication domain ever seen
+  on the server.
+
+  @section Gtid_list_log_event_binary_format Binary Format
+
+  <table>
+  <caption>Post-Header</caption>
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>count</td>
+    <td>4 byte unsigned integer</td>
+    <td>The lower 28 bits are the number of GTIDs. The upper 4 bits are
+        flags bits.</td>
+  </tr>
+  </table>
+
+  <table>
+  <caption>Body</caption>
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>domain_id</td>
+    <td>4 byte unsigned integer</td>
+    <td>Replication domain id of one GTID</td>
+  </tr>
+
+  <tr>
+    <td>server_id</td>
+    <td>4 byte unsigned integer</td>
+    <td>Server id of one GTID</td>
+  </tr>
+
+  <tr>
+    <td>seq_no</td>
+    <td>8 byte unsigned integer</td>
+    <td>sequence number of one GTID</td>
+  </tr>
+  </table>
+
+  The three elements in the body repeat COUNT times to form the GTID list.
+
+  At the time of writing, only one flag bit is in use.
+
+  Bit 28 of `count' is used for flag FLAG_UNTIL_REACHED, which is sent in a
+  Gtid_list event from the master to the slave to indicate that the START
+  SLAVE UNTIL master_gtid_pos=xxx condition has been reached. (This flag is
+  only sent in "fake" events generated on the fly, it is not written into
+  the binlog).
+*/
+
+class Gtid_list_log_event: public Log_event
+{
+public:
+  uint32 count;
+  uint32 gl_flags;
+  struct rpl_gtid *list;
+
+  static const uint element_size= 4+4+8;
+  static const uint32 FLAG_UNTIL_REACHED= (1<<28);
+
+#ifdef MYSQL_SERVER
+  Gtid_list_log_event(rpl_binlog_state *gtid_set, uint32 gl_flags);
+#ifdef HAVE_REPLICATION
+  void pack_info(THD *thd, Protocol *protocol);
+#endif
+#else
+  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+#endif
+  Gtid_list_log_event(const char *buf, uint event_len,
+                      const Format_description_log_event *description_event);
+  ~Gtid_list_log_event() { my_free(list); }
+  Log_event_type get_type_code() { return GTID_LIST_EVENT; }
+  int get_data_size() {
+    /*
+      Replacing with dummy event, needed for older slaves, requires a minimum
+      of 6 bytes in the body.
+    */
+    return (count==0 ?
+            GTID_LIST_HEADER_LEN+2 : GTID_LIST_HEADER_LEN+count*element_size);
+  }
+  bool is_valid() const { return list != NULL; }
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+  bool to_packet(String *packet);
+  bool write(IO_CACHE *file);
+  virtual int do_apply_event(Relay_log_info const *rli);
+#endif
+  static bool peek(const char *event_start, uint32 event_len,
+                   uint8 checksum_alg,
+                   rpl_gtid **out_gtid_list, uint32 *out_list_len);
+};
+
 
 /* the classes below are for the new LOAD DATA INFILE logging */
 

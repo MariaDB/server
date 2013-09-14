@@ -184,7 +184,7 @@ DROP TABLE t1,t2,t3;
 #
 DROP TABLE IF EXISTS `t1`;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 CREATE TABLE `t1` (
 `node_uid` bigint(20) unsigned DEFAULT NULL,
 `date` datetime DEFAULT NULL,

@@ -1,5 +1,5 @@
 /* Copyright (C) 2006, 2007 MySQL AB
-   Copyright (C) 2010-2011 Monty Program Ab
+   Copyright (C) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3304,7 +3304,7 @@ static LSN parse_checkpoint_record(LSN lsn)
     first_log_write_lsn= lsn_korr(ptr);
     ptr+= LSN_STORE_SIZE;
     name_len= strlen((char *)ptr) + 1;
-    strmake(name, (char *)ptr, sizeof(name)-1);
+    strmake_buf(name, (char *)ptr);
     ptr+= name_len;
     if (new_table(sid, name, first_log_write_lsn))
       return LSN_ERROR;
@@ -3679,11 +3679,11 @@ static void print_redo_phase_progress(TRANSLOG_ADDRESS addr)
   cur_offset= LSN_OFFSET(addr);
   local_remainder= (cur_logno == end_logno) ? (end_offset - cur_offset) :
     (((longlong)log_file_size) - cur_offset +
-     max(end_logno - cur_logno - 1, 0) * ((longlong)log_file_size) +
+     MY_MAX(end_logno - cur_logno - 1, 0) * ((longlong)log_file_size) +
      end_offset);
   if (initial_remainder == (ulonglong)(-1))
     initial_remainder= local_remainder;
-  percentage_done= (uint) ((initial_remainder - local_remainder) * ULL(100) /
+  percentage_done= (uint) ((initial_remainder - local_remainder) * 100ULL /
                            initial_remainder);
   if ((percentage_done - percentage_printed) >= 10)
   {

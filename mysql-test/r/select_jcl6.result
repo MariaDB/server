@@ -524,7 +524,7 @@ insert into tmp select * from t3;
 insert into t3 select * from tmp;
 alter table t3 add t2nr int not null auto_increment primary key first;
 drop table tmp;
-SET SQL_BIG_TABLES=1;
+SET BIG_TABLES=1;
 select distinct concat(fld3," ",fld3) as namn from t2,t3 where t2.fld1=t3.t2nr order by namn limit 10;
 namn
 Abraham Abraham
@@ -537,7 +537,7 @@ ammonium ammonium
 analyzable analyzable
 animals animals
 animized animized
-SET SQL_BIG_TABLES=0;
+SET BIG_TABLES=0;
 select distinct concat(fld3," ",fld3) from t2,t3 where t2.fld1=t3.t2nr order by fld3 limit 10;
 concat(fld3," ",fld3)
 Abraham Abraham
@@ -574,7 +574,7 @@ attendants	1
 bedlam	1
 bedpost	1
 boasted	1
-SET SQL_BIG_TABLES=1;
+SET BIG_TABLES=1;
 select distinct fld3,count(*) from t2 group by companynr,fld3 limit 10;
 fld3	count(*)
 affixed	1
@@ -587,7 +587,7 @@ attendants	1
 bedlam	1
 bedpost	1
 boasted	1
-SET SQL_BIG_TABLES=0;
+SET BIG_TABLES=0;
 select distinct fld3,repeat("a",length(fld3)),count(*) from t2 group by companynr,fld3 limit 100,10;
 fld3	repeat("a",length(fld3))	count(*)
 circus	aaaaaa	1
@@ -2932,8 +2932,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 1	SIMPLE	t1	hash_ALL	NULL	#hash#$hj	5	test.t2.a	5	Using where; Using join buffer (flat, BNLH join)
 DROP TABLE t1,t2;
-select x'10' + 0, X'10' + 0, b'10' + 0, B'10' + 0;
-x'10' + 0	X'10' + 0	b'10' + 0	B'10' + 0
+select x'3136' + 0, X'3136' + 0, b'10' + 0, B'10' + 0;
+x'3136' + 0	X'3136' + 0	b'10' + 0	B'10' + 0
 16	16	2	2
 create table t1 (f1 varchar(6) default NULL, f2 int(6) primary key not null);
 create table t2 (f3 varchar(5) not null, f4 varchar(5) not null, UNIQUE KEY UKEY (f3,f4));
@@ -4186,18 +4186,24 @@ str_to_date('2007-10-00','%Y-%m-%d') between '2007/09/01 00:00:00'
 set SQL_MODE=TRADITIONAL;
 select str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34';
 str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34'
-1
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2007-10-00 12:34' for function str_to_date
 select str_to_date('2007-10-01 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34';
 str_to_date('2007-10-01 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34'
 0
 select str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-01 12:34';
 str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-01 12:34'
-0
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2007-10-00 12:34' for function str_to_date
 select str_to_date('2007-10-00','%Y-%m-%d') between '2007/09/01'
                                                 and '2007/10/20';
 str_to_date('2007-10-00','%Y-%m-%d') between '2007/09/01'
                                                 and '2007/10/20'
-1
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2007-10-00' for function str_to_date
 set SQL_MODE=DEFAULT;
 select str_to_date('2007-10-00','%Y-%m-%d') between '' and '2007/10/20';
 str_to_date('2007-10-00','%Y-%m-%d') between '' and '2007/10/20'
@@ -5130,6 +5136,7 @@ SELECT 1 FROM t1 GROUP BY 1;
 1
 1
 drop table t1;
+set sql_buffer_result= 0;
 #
 # Bug #58422: Incorrect result when OUTER JOIN'ing 
 # with an empty table
@@ -5313,6 +5320,60 @@ INSERT INTO t2 VALUES (3),(4);
 SELECT * FROM t1, t2 WHERE a=3 AND a=b;
 a	b
 drop table t1,t2;
+#
+# Bug mdev-4250: wrong transformation of WHERE condition with OR
+#
+CREATE TABLE t1 (pk int PRIMARY KEY, a int);
+INSERT INTO t1 VALUES (3,0), (2,0), (4,1), (5,0), (1,0);
+SELECT * FROM t1 WHERE (1=2 OR t1.pk=2) AND t1.a <> 0;
+pk	a
+EXPLAIN EXTENDED 
+SELECT * FROM t1 WHERE (1=2 OR t1.pk=2) AND t1.a <> 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1003	select 2 AS `pk`,0 AS `a` from `test`.`t1` where ((0 <> 0))
+DROP TABLE t1;
+SELECT * FROM mysql.time_zone 
+WHERE ( NOT (Use_leap_seconds <= Use_leap_seconds AND Time_zone_id != 1) 
+AND Time_zone_id = Time_zone_id 
+OR Time_zone_id <> Time_zone_id ) 
+AND Use_leap_seconds <> 'N';
+Time_zone_id	Use_leap_seconds
+#
+# Bug mdev-4274: result of simplification of OR badly merged
+#                into embedding AND  
+#
+CREATE TABLE t1 (a int, b int, INDEX idx(b)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (8,8);
+CREATE TABLE t2 (c int, INDEX idx(c)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (8), (9);
+EXPLAIN EXTENDED
+SELECT * FROM t1 INNER JOIN t2 ON ( c = a ) 
+WHERE 1 IS NULL OR b < 33 AND b = c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	system	idx	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t2	ref	idx	idx	5	const	1	100.00	Using index
+Warnings:
+Note	1003	select 8 AS `a`,8 AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where ((`test`.`t2`.`c` = 8) and 1)
+SELECT * FROM t1 INNER JOIN t2 ON ( c = a ) 
+WHERE 1 IS NULL OR b < 33 AND b = c;
+a	b	c
+8	8	8
+DROP TABLE t1,t2;
+#
+# Bug mdev-4413: another manifestations of bug mdev-2474
+#                (valgrind complains)
+#
+CREATE TABLE t1 (a int, b int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (7,1);
+CREATE TABLE t2 (c int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (0), (8);
+SELECT * FROM t1, t2 
+WHERE c = a AND
+( 0 OR ( b BETWEEN 45 AND 300 OR a > 45 AND a < 100 ) AND b = c );
+a	b	c
+DROP TABLE t1, t2;
 End of 5.3 tests
 set join_cache_level=default;
 show variables like 'join_cache_level';

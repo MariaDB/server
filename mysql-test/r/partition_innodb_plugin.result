@@ -67,7 +67,7 @@ LOCK TABLE t1 WRITE;
 # ALTER fails because COMPRESSED/KEY_BLOCK_SIZE
 # are incompatible with innodb_file_per_table = OFF;
 ALTER TABLE t1 ADD PARTITION PARTITIONS 1;
-ERROR HY000: Got error 140 "Wrong create options" from storage engine
+ERROR HY000: Got error 140 "Wrong create options" from storage engine InnoDB
 t1#P#p0.ibd
 t1.frm
 t1.par
@@ -76,18 +76,18 @@ t1.par
 SET innodb_strict_mode = OFF;
 ALTER TABLE t1 ADD PARTITION PARTITIONS 2;
 Warnings:
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=4.
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=4.
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
 t1.frm
 t1.par
 ALTER TABLE t1 REBUILD PARTITION p0;
 Warnings:
-Warning	140	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
 UNLOCK TABLES;
 SHOW CREATE TABLE t1;
 Table	Create Table

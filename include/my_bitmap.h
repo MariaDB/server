@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 #ifndef _my_bitmap_h_
 #define _my_bitmap_h_
@@ -63,6 +63,7 @@ extern uint bitmap_set_next(MY_BITMAP *map);
 extern uint bitmap_get_first(const MY_BITMAP *map);
 extern uint bitmap_get_first_set(const MY_BITMAP *map);
 extern uint bitmap_bits_set(const MY_BITMAP *map);
+extern uint bitmap_get_next_set(const MY_BITMAP *map, uint bitmap_bit);
 extern void bitmap_free(MY_BITMAP *map);
 extern void bitmap_set_above(MY_BITMAP *map, uint from_byte, uint use_bit);
 extern void bitmap_set_prefix(MY_BITMAP *map, uint prefix_size);

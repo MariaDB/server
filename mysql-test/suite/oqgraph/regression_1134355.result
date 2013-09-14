@@ -36,9 +36,9 @@ SELECT * FROM graph WHERE destid=2 and origid=1;
 latch	origid	destid	weight	seq	linkid
 NULL	1	2	1	NULL	NULL
 alter table graph ORIGID = 'another_id';
-ERROR HY000: Table storage engine for 'graph' doesn't have this option
+ERROR HY000: Storage engine OQGRAPH of the table `test`.`graph` doesn't have this option
 alter table graph ORIGID = 'something_else';
-ERROR HY000: Table storage engine for 'graph' doesn't have this option
+ERROR HY000: Storage engine OQGRAPH of the table `test`.`graph` doesn't have this option
 DELETE FROM graph_base;
 FLUSH TABLES;
 TRUNCATE TABLE graph_base;

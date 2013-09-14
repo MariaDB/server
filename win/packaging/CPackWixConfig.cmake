@@ -9,7 +9,7 @@ IF(ESSENTIALS)
  ENDIF()
 ELSE()
   SET(CPACK_COMPONENTS_USED 
-    "Server;Client;Development;SharedLibraries;Embedded;Documentation;IniFiles;Readme;Debuginfo;Common")
+    "Server;Client;Development;SharedLibraries;Embedded;Documentation;IniFiles;Readme;Debuginfo;Common;connect-engine")
 ENDIF()
 
 SET( WIX_FEATURE_MySQLServer_EXTRA_FEATURES "DBInstance;SharedClientServerComponents")
@@ -61,6 +61,12 @@ SET(CPACK_COMPONENT_GROUP_MYSQLSERVER_DESCRIPTION "Install server")
  SET(CPACK_COMPONENT_DATAFILES_DISPLAY_NAME "Server data files")
  SET(CPACK_COMPONENT_DATAFILES_DESCRIPTION "Server data files" )
  SET(CPACK_COMPONENT_DATAFILES_HIDDEN 1)
+ 
+ #Subfeature "Connect Engine" 
+ SET(CPACK_COMPONENT_CONNECT-ENGINE_GROUP "MySQLServer")
+ SET(CPACK_COMPONENT_CONNECT-ENGINE_DISPLAY_NAME "Server data files")
+ SET(CPACK_COMPONENT_CONNECT-ENGINE_DESCRIPTION "Server data files" )
+ SET(CPACK_COMPONENT_CONNECT-ENGINE_HIDDEN 1)
  
  
 #Feature "Devel"

@@ -1,5 +1,5 @@
 /* Copyright (c) 2003 TXT DataKonsult Ab
-   Copyright (c) 2009-2011, Monty Program Ab
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -29,11 +29,11 @@
 #include "strings_def.h"
 #include <my_sys.h>            /* Needed for MY_ERRNO_ERANGE */
 
-#define MAX_NEGATIVE_NUMBER	((ulonglong) LL(0x8000000000000000))
+#define MAX_NEGATIVE_NUMBER	((ulonglong) 0x8000000000000000ULL)
 #define INIT_CNT  9
-#define LFACTOR   ULL(1000000000)
-#define LFACTOR1  ULL(10000000000)
-#define LFACTOR2  ULL(100000000000)
+#define LFACTOR   1000000000ULL
+#define LFACTOR1  10000000000ULL
+#define LFACTOR2  100000000000ULL
 
 static unsigned long lfactor[9]=
 {

@@ -35,7 +35,6 @@ C_MODE_START
 ICP_RESULT index_cond_func_maria(void *arg);
 C_MODE_END
 
-extern ulong maria_sort_buffer_size;
 extern TYPELIB maria_recover_typelib;
 extern ulonglong maria_recover_options;
 
@@ -60,7 +59,6 @@ public:
   ~ha_maria() {}
   handler *clone(const char *name, MEM_ROOT *mem_root);
   const char *index_type(uint key_number);
-  const char **bas_ext() const;
   ulonglong table_flags() const
   { return int_table_flags; }
   ulong index_flags(uint inx, uint part, bool all_parts) const;

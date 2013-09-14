@@ -1,6 +1,5 @@
-/*
-   Copyright (c) 2003, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab.
+/* Copyright (c) 2003, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /*
   This file is included by both libmysql.c (the MySQL client C API)
@@ -36,7 +35,7 @@
 */ 
 
 #include <my_global.h>
-
+#include <my_default.h>
 #include "mysql.h"
 
 /* Remove client convenience wrappers */
@@ -803,7 +802,7 @@ restart:
       len-=2;
       if (protocol_41(mysql) && pos[0] == '#')
       {
-	strmake(net->sqlstate, pos+1, SQLSTATE_LENGTH);
+	strmake_buf(net->sqlstate, pos+1);
 	pos+= SQLSTATE_LENGTH+1;
       }
       else
@@ -919,7 +918,9 @@ void free_old_query(MYSQL *mysql)
   if (mysql->fields)
     free_root(&mysql->field_alloc,MYF(0));
  /* Assume rowlength < 8192 */
-  init_alloc_root(&mysql->field_alloc, 8192, 0, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&mysql->field_alloc, 8192, 0,
+                  MYF(mysql->options.use_thread_specific_memory ?
+                      MY_THREAD_SPECIFIC : 0));
   mysql->fields= 0;
   mysql->field_count= 0;			/* For API */
   mysql->warning_count= 0;
@@ -1169,6 +1170,7 @@ static const char *default_options[]=
   "multi-results", "multi-statements", "multi-queries", "secure-auth",
   "report-data-truncation", "plugin-dir", "default-auth",
   "bind-address", "ssl-crl", "ssl-crlpath",
+  "enable-cleartext-plugin",
   NullS
 };
 enum option_id {
@@ -1181,6 +1183,7 @@ enum option_id {
   OPT_multi_results, OPT_multi_statements, OPT_multi_queries, OPT_secure_auth, 
   OPT_report_data_truncation, OPT_plugin_dir, OPT_default_auth, 
   OPT_bind_address, OPT_ssl_crl, OPT_ssl_crlpath,
+  OPT_enable_cleartext_plugin,
   OPT_keep_this_one_last
 };
 
@@ -1422,12 +1425,14 @@ void mysql_read_default_options(struct st_mysql_options *options,
                                     opt_arg));
               break;
             }
-            convert_dirname(buff, buff2, NULL);
+            convert_dirname(buff2, buff, NULL);
             EXTENSION_SET_STRING(options, plugin_dir, buff2_ptr);
           }
           break;
         case OPT_default_auth:
           EXTENSION_SET_STRING(options, default_auth, opt_arg);
+          break;
+        case OPT_enable_cleartext_plugin:
           break;
 	default:
 	  DBUG_PRINT("warning",("unknown option: %s",option[0]));
@@ -1611,7 +1616,9 @@ MYSQL_DATA *cli_read_rows(MYSQL *mysql,MYSQL_FIELD *mysql_fields,
     DBUG_RETURN(0);
   }
   /* Assume rowlength < 8192 */
-  init_alloc_root(&result->alloc, 8192, 0, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&result->alloc, 8192, 0,
+                  MYF(mysql->options.use_thread_specific_memory ?
+                      MY_THREAD_SPECIFIC : 0));
   result->alloc.min_malloc=sizeof(MYSQL_ROWS);
   prev_ptr= &result->data;
   result->rows=0;
@@ -2239,7 +2246,10 @@ mysql_autodetect_character_set(MYSQL *mysql)
 #ifdef __WIN__
   char cpbuf[64];
   {
-    my_snprintf(cpbuf, sizeof(cpbuf), "cp%d", (int) GetConsoleCP());
+    UINT cp= GetConsoleCP();
+    if (cp == 0)
+      cp= GetACP();
+    my_snprintf(cpbuf, sizeof(cpbuf), "cp%d", (int)cp);
     csname= my_os_charset_to_mysql_charset(cpbuf);
   }
 #elif defined(HAVE_SETLOCALE) && defined(HAVE_NL_LANGINFO)
@@ -2249,7 +2259,8 @@ mysql_autodetect_character_set(MYSQL *mysql)
   }
 #endif
 
-  my_free(mysql->options.charset_name);
+  if (mysql->options.charset_name)
+    my_free(mysql->options.charset_name);
   if (!(mysql->options.charset_name= my_strdup(csname, MYF(MY_WME))))
     return 1;
   return 0;
@@ -2616,8 +2627,6 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   DBUG_PRINT("info",("Server version = '%s'  capabilites: %lu  status: %u  client_flag: %lu",
 		     mysql->server_version, mysql->server_capabilities,
 		     mysql->server_status, mysql->client_flag));
-
-  compile_time_assert(MYSQL_USERNAME_LENGTH == USERNAME_LENGTH);
 
   /* This needs to be changed as it's not useful with big packets */
   if (mysql->user[0])
@@ -3168,7 +3177,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
 
     bzero((char*) &UNIXaddr, sizeof(UNIXaddr));
     UNIXaddr.sun_family= AF_UNIX;
-    strmake(UNIXaddr.sun_path, unix_socket, sizeof(UNIXaddr.sun_path)-1);
+    strmake_buf(UNIXaddr.sun_path, unix_socket);
     if (connect_sync_or_async(mysql, net, sock,
                               (struct sockaddr *) &UNIXaddr, sizeof(UNIXaddr)))
     {
@@ -3462,6 +3471,15 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     mysql->unix_socket=0;
   strmov(mysql->server_version,(char*) net->read_pos+1);
   mysql->port=port;
+
+  /*
+    remove the rpl hack from the version string,
+    see RPL_VERSION_HACK comment
+  */
+  if ((mysql->server_capabilities & CLIENT_PLUGIN_AUTH) &&
+      strncmp(mysql->server_version, RPL_VERSION_HACK,
+              sizeof(RPL_VERSION_HACK) - 1) == 0)
+    mysql->server_version+= sizeof(RPL_VERSION_HACK) - 1;
 
   if (pkt_end >= end + SCRAMBLE_LENGTH - SCRAMBLE_LENGTH_323 + 1)
   {
@@ -4247,6 +4265,9 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
   case MYSQL_OPT_RECONNECT:
     mysql->reconnect= *(my_bool *) arg;
     break;
+  case MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY:
+    mysql->options.use_thread_specific_memory= *(my_bool *) arg;
+    break;
   case MYSQL_OPT_SSL_VERIFY_SERVER_CERT:
     if (*(my_bool*) arg)
       mysql->options.client_flag|= CLIENT_SSL_VERIFY_SERVER_CERT;
@@ -4258,6 +4279,8 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
     break;
   case MYSQL_DEFAULT_AUTH:
     EXTENSION_SET_STRING(&mysql->options, default_auth, arg);
+    break;
+  case MYSQL_ENABLE_CLEARTEXT_PLUGIN:
     break;
   case MYSQL_PROGRESS_CALLBACK:
     if (!mysql->options.extension)

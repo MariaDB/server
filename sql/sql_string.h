@@ -2,8 +2,8 @@
 #define SQL_STRING_INCLUDED
 
 /*
-   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2011, Monty Program Ab
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,9 +34,13 @@ typedef struct st_mem_root MEM_ROOT;
 
 int sortcmp(const String *a,const String *b, CHARSET_INFO *cs);
 String *copy_if_not_alloced(String *a,String *b,uint32 arg_length);
-uint32 copy_and_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
-			const char *from, uint32 from_length,
-			CHARSET_INFO *from_cs, uint *errors);
+inline uint32 copy_and_convert(char *to, uint32 to_length,
+                               const CHARSET_INFO *to_cs,
+                               const char *from, uint32 from_length,
+                               const CHARSET_INFO *from_cs, uint *errors)
+{
+  return my_convert(to, to_length, to_cs, from, from_length, from_cs, errors);
+}
 uint32 well_formed_copy_nchars(CHARSET_INFO *to_cs,
                                char *to, uint to_length,
                                CHARSET_INFO *from_cs,
@@ -323,6 +327,7 @@ public:
       DBUG_ASSERT(!s.uses_buffer_owned_by(this));
       free();
       Ptr=s.Ptr ; str_length=s.str_length ; Alloced_length=s.Alloced_length;
+      str_charset=s.str_charset;
     }
     return *this;
   }
@@ -377,6 +382,16 @@ public:
       Ptr[str_length++]=chr;
     }
     return 0;
+  }
+  bool append_hex(const char *src, uint32 srclen)
+  {
+    for (const char *end= src + srclen ; src != end ; src++)
+    {
+      if (append(_dig_vec_lower[((uchar) *src) >> 4]) ||
+          append(_dig_vec_lower[((uchar) *src) & 0x0F]))
+        return true;
+    }
+    return false;
   }
   bool fill(uint32 max_length,char fill);
   void strip_sp();
@@ -476,7 +491,7 @@ public:
     return FALSE;
   }
   void print(String *print);
-  void append_for_single_quote(const char *st, uint len);
+  bool append_for_single_quote(const char *st, uint len);
 
   /* Swap two string objects. Efficient way to exchange data without memcpy. */
   void swap(String &s);

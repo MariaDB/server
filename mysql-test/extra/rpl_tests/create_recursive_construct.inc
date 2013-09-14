@@ -325,8 +325,8 @@ if ($CRC_RET_stmt_sidef) {
     SHOW BINLOG EVENTS;
     --die Wrong number of warnings.
   }
-  # There should be no events after format description and binlog checkpoint.
-  --let $binlog_event= query_get_value(SHOW BINLOG EVENTS, Event_type, 3)
+  # There should be no events after format description, Gtid list, and binlog checkpoint.
+  --let $binlog_event= query_get_value(SHOW BINLOG EVENTS, Event_type, 4)
   if ($binlog_event != No such row) {
     --enable_query_log
     --echo ******** Failure! Something was written to the binlog despite SQL_LOG_BIN=0 ********
@@ -346,14 +346,14 @@ if ($CRC_RET_stmt_sidef) {
     SHOW BINLOG EVENTS;
     --die Warnings printed
   }
-  --let $event_type= query_get_value(SHOW BINLOG EVENTS, Event_type, 4)
-  # The first event is format_description, the second is Binlog_checkpoint,
-  # the third Query_event('BEGIN'), and the fourth should be our Query
-  # for 'INSERT DELAYED' unsafe_type 3, which is safe after
+  --let $event_type= query_get_value(SHOW BINLOG EVENTS, Event_type, 5)
+  # The first event is format_description, the second is Gtid list, the
+  # third is Binlog_checkpoint, the fourth Gtid, and the fifth should be
+  # our Query for 'INSERT DELAYED' unsafe_type 3, which is safe after
   # the fix of bug#54579.
   if (`SELECT $unsafe_type = 3 AND '$event_type' != 'Query'`) {
     --enable_query_log
-    --echo ******** Failure! Event number 4 was a '$event_type', not a 'Query'. ********
+    --echo ******** Failure! Event number 5 was a '$event_type', not a 'Query'. ********
     SHOW BINLOG EVENTS;
     --die Wrong events in binlog.
   }

@@ -1,0 +1,28 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+let $PORT= `select @@port`;
+
+--echo #
+--echo # Checking XCOL tables
+--echo #
+CREATE TABLE chlist (
+mother char(12) NOT NULL COMMENT 'The mother of the listed children',
+children varchar(30) DEFAULT NULL COMMENT 'The comma separated list of children'
+) ENGINE=CONNECT;
+INSERT INTO chlist VALUES('Sophia','Vivian, Antony');
+INSERT INTO chlist VALUES('Lisbeth','Lucy,Charles,Diana');
+INSERT INTO chlist VALUES('Corinne',NULL);
+INSERT INTO chlist VALUES('Claude','Marc');
+INSERT INTO chlist VALUES('Janet','Arthur,Sandra,Peter,John');
+SELECT * FROM chlist;
+
+--replace_result $PORT PORT
+--eval CREATE TABLE child ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=chlist OPTION_LIST='colname=children,port=$PORT'
+SELECT * FROM child;
+SELECT * FROM child ORDER BY mother;
+SELECT * FROM child ORDER BY children;
+SELECT mother FROM child;
+SELECT mother, COUNT(*) FROM child GROUP BY mother;
+SELECT mother, COUNT(children) FROM child GROUP BY mother;
+
+DROP TABLE child;
+DROP TABLE chlist;

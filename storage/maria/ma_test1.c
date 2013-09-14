@@ -55,7 +55,6 @@ static void create_key(uchar *key,uint rownr);
 static void create_record(uchar *record,uint rownr);
 static void update_record(uchar *record);
 
-
 /*
   These are here only for testing of recovery with undo. We are not
   including maria_def.h here as this test is also to be an example of
@@ -506,6 +505,7 @@ end:
       break;
     }
     printf("Dying on request without maria_commit()/maria_close()\n");
+    sf_leaking_memory= 1;
     exit(0);
   }
 
@@ -514,6 +514,7 @@ end:
   if (maria_close(file))
     goto err;
   maria_end();
+  my_uuid_end();
   my_end(MY_CHECK_ERROR);
 
   return (0);
@@ -631,7 +632,7 @@ static void create_record(uchar *record,uint rownr)
     uint tmp;
     uchar *ptr;;
     sprintf((char*) blob_record,"... row: %d", rownr);
-    strappend((char*) blob_record,max(MAX_REC_LENGTH-rownr,10),' ');
+    strappend((char*) blob_record,MY_MAX(MAX_REC_LENGTH-rownr,10),' ');
     tmp=strlen((char*) blob_record);
     int4store(pos,tmp);
     ptr=blob_record;

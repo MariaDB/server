@@ -26,9 +26,6 @@
 #include "handler.h"                            /* handler */
 #include "table.h"                              /* TABLE_SHARE */
 
-struct TABLE_SHARE;
-typedef struct st_ha_create_information HA_CREATE_INFO;
-
 #define HA_RECOVER_DEFAULT	1	/* Automatic recover active */
 #define HA_RECOVER_BACKUP	2	/* Make a backupfile on recover */
 #define HA_RECOVER_FORCE	4	/* Recover even if we loose rows */
@@ -57,7 +54,6 @@ class ha_myisam: public handler
   ~ha_myisam() {}
   handler *clone(const char *name, MEM_ROOT *mem_root);
   const char *index_type(uint key_number);
-  const char **bas_ext() const;
   ulonglong table_flags() const { return int_table_flags; }
   int index_init(uint idx, bool sorted);
   int index_end();

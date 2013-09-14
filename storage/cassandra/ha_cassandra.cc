@@ -110,7 +110,7 @@ static MYSQL_THDVAR_ULONG(rnd_batch_size, PLUGIN_VAR_RQCMDARG,
 static MYSQL_THDVAR_ULONG(failure_retries, PLUGIN_VAR_RQCMDARG,
   "Number of times to retry Cassandra calls that failed due to timeouts or "
   "network communication problems. The default, 0, means not to retry.",
-  NULL, NULL, /*default*/ 0, /*min*/ 0, /*max*/ 1024*1024*1024, 0);
+  NULL, NULL, /*default*/ 3, /*min*/ 1, /*max*/ 1024*1024*1024, 0);
 
 /* These match values in enum_cassandra_consistency_level */
 const char *cassandra_consistency_level[] =
@@ -369,16 +369,6 @@ ha_cassandra::ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg)
 {}
 
 
-static const char *ha_cassandra_exts[] = {
-  NullS
-};
-
-const char **ha_cassandra::bas_ext() const
-{
-  return ha_cassandra_exts;
-}
-
-
 int ha_cassandra::connect_and_check_options(TABLE *table_arg)
 {
   ha_table_option_struct *options= table_arg->s->option_struct;
@@ -519,7 +509,7 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
   DBUG_ENTER("ha_cassandra::create");
 
   if (table_arg->s->keys != 1 || table_arg->s->primary_key !=0 ||
-      table_arg->key_info[0].key_parts != 1 ||
+      table_arg->key_info[0].user_defined_key_parts != 1 ||
       table_arg->key_info[0].key_part[0].fieldnr != 1)
   {
     my_error(ER_WRONG_COLUMN_NAME, MYF(0),
@@ -1383,6 +1373,7 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
       /* fall through: */
     case MYSQL_TYPE_VAR_STRING:
     case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_BLOB:
     {
       /*
         Cassandra's "varint" type is a binary-encoded arbitary-length
@@ -2050,6 +2041,12 @@ void ha_cassandra::start_bulk_insert(ha_rows rows, uint flags)
 int ha_cassandra::end_bulk_insert()
 {
   DBUG_ENTER("ha_cassandra::end_bulk_insert");
+  
+  if (!doing_insert_batch)
+  {
+    /* SQL layer can make end_bulk_insert call without start_bulk_insert call */
+    DBUG_RETURN(0);
+  }
 
   /* Flush out the insert buffer */
   doing_insert_batch= false;
@@ -2219,6 +2216,7 @@ int ha_cassandra::reset()
   {
     se->set_consistency_levels(THDVAR(table->in_use, read_consistency),
                                THDVAR(table->in_use, write_consistency));
+    se->set_n_retries(THDVAR(table->in_use, failure_retries));
   }
   return 0;
 }
@@ -2344,7 +2342,7 @@ int ha_cassandra::multi_range_read_explain_info(uint mrr_mode, char *str, size_t
   if (!(mrr_mode & HA_MRR_USE_DEFAULT_IMPL))
   {
     uint mrr_str_len= strlen(mrr_str);
-    uint copy_len= min(mrr_str_len, size);
+    uint copy_len= MY_MIN(mrr_str_len, size);
     memcpy(str, mrr_str, size);
     return copy_len;
   }
@@ -2578,21 +2576,23 @@ struct st_mysql_storage_engine cassandra_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
 static SHOW_VAR cassandra_status_variables[]= {
-  {"Cassandra_row_inserts",
+  {"row_inserts",
     (char*) &cassandra_counters.row_inserts,         SHOW_LONG},
-  {"Cassandra_row_insert_batches",
+  {"row_insert_batches",
     (char*) &cassandra_counters.row_insert_batches,  SHOW_LONG},
 
-  {"Cassandra_multiget_keys_scanned",
+  {"multiget_keys_scanned",
     (char*) &cassandra_counters.multiget_keys_scanned, SHOW_LONG},
-  {"Cassandra_multiget_reads",
+  {"multiget_reads",
     (char*) &cassandra_counters.multiget_reads,      SHOW_LONG},
-  {"Cassandra_multiget_rows_read",
+  {"multiget_rows_read",
     (char*) &cassandra_counters.multiget_rows_read,  SHOW_LONG},
 
-  {"Cassandra_timeout_exceptions",
+  {"network_exceptions",
+    (char*) &cassandra_counters.network_exceptions, SHOW_LONG},
+  {"timeout_exceptions",
     (char*) &cassandra_counters.timeout_exceptions, SHOW_LONG},
-  {"Cassandra_unavailable_exceptions",
+  {"unavailable_exceptions",
     (char*) &cassandra_counters.unavailable_exceptions, SHOW_LONG},
   {NullS, NullS, SHOW_LONG}
 };

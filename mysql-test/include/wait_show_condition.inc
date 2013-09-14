@@ -127,5 +127,6 @@ if (!$found)
   echo #         field          : $field;
   echo #         condition      : $condition;
   echo #         max_run_time   : $max_run_time;
+  eval $show_statement;  
 }
 

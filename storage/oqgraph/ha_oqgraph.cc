@@ -26,6 +26,10 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
+#define MYSQL_SERVER	// to have THD
+#include <mysql/plugin.h>
+#include "sql_class.h"
+
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -33,8 +37,13 @@
 #include "ha_oqgraph.h"
 #include "graphcore.h"
 
-#define MYSQL_SERVER	// to have THD
-#include <mysql/plugin.h>
+#include <sql_error.h>
+#if MYSQL_VERSION_ID	>= 100004
+// Interim workaround for rename in sql_error.h from this point
+#define MYSQL_ERROR Sql_condition
+#endif
+
+
 #include "table.h"
 #include "field.h"
 #include "key.h"
@@ -44,7 +53,7 @@
 #include "my_dbug.h"
 
 // Uncomment this for extra debug, but expect a performance hit in large queries
-//#define VERBOSE_DEBUG
+#define VERBOSE_DEBUG
 #ifdef VERBOSE_DEBUG
 #else
 #undef DBUG_PRINT
@@ -199,7 +208,7 @@ static bool oqgraph_init()
   // 'Fixes' bug 1134355  
   // HTON_NO_FLAGS;
   
-  hton->table_options= oqgraph_table_option_list;
+  hton->table_options= (ha_create_table_option*)oqgraph_table_option_list;
   oqgraph_init_done= TRUE;
   return 0;
 }
@@ -389,7 +398,7 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
       push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Incorrect keys algorithm on key %d.", i);
       DBUG_RETURN(-1);
     }
-    if (key->key_parts == 3)
+    if (key->user_defined_key_parts == 3)
     {
       /* KEY (latch, origid, destid) USING HASH */
       /* KEY (latch, destid, origid) USING HASH */
@@ -417,6 +426,10 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
 
 ha_oqgraph::ha_oqgraph(handlerton *hton, TABLE_SHARE *table_arg)
   : handler(hton, table_arg)
+  , have_table_share(false)
+  , origid(NULL)
+  , destid(NULL)
+  , weight(NULL)
   , graph_share(0)
   , graph(0)
   , error_message("", 0, &my_charset_latin1)
@@ -469,17 +482,30 @@ void ha_oqgraph::fprint_error(const char* fmt, ...)
   va_end(ap);
 }
 
-
+/**
+ * Open the OQGRAPH engine 'table'.
+ *
+ * An OQGRAPH table is effectively similar to a view over the underlying backing table,
+ * attribute 'data_table', but where the result returned by a query depends on the
+ * value of the 'latch' column specified to the query.  Therefore, 
+ * when mysqld opens us, we need to open the corresponding backing table 'data_table'
+ *
+ */
 int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 {
   DBUG_ENTER("ha_oqgraph::open");
-  DBUG_PRINT( "oq-debug", ("open(name=%s,mode=%d)", name, mode));
+
+  DBUG_PRINT( "oq-debug", ("open(name=%s,mode=%d,test_if_locked=%u)", name, mode, test_if_locked));
+
+  assert(!have_table_share);
+  assert(graph == NULL);
 
   THD* thd = current_thd;
   oqgraph_table_option_struct *options=
     reinterpret_cast<oqgraph_table_option_struct*>(table->s->option_struct);
 
   // Catch cases where table was not constructed properly
+  // Note - need to return -1 so our error text gets reported
   if (!options) {
     fprint_error("Invalid OQGRAPH backing store (null attributes)");
     DBUG_RETURN(-1);
@@ -502,69 +528,99 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   error_message.length(0);
 
+  origid= destid= weight= 0;
+
+  init_tmp_table_share( thd, share, table->s->db.str, table->s->db.length, options->table_name, "");
+
+  // What I think this code is doing:
+  // * Our OQGRAPH table is `database_blah/name`
+  // * We point p --> /name (or if table happened to be simply `name`, to `name`, dont know if this is possible)
+  // * plen seems to be then set to length of `database_blah/options_data_table_name`
+  // * then we set share->normalized_path.str and share->path.str to `database_blah/options_data_table_name`
+  // * I assume that this verbiage is needed so  the memory used by share->path.str is set in the share mem root
+  // * because otherwise one could simply build the string more simply using malloc and pass it instead of "" above  
   const char* p= strend(name)-1;
   while (p > name && *p != '\\' && *p != '/')
     --p;
-    
-  init_tmp_table_share(
-      thd, share, table->s->db.str, table->s->db.length,
-      options->table_name, "");
-
   size_t tlen= strlen(options->table_name);
   size_t plen= (int)(p - name) + tlen + 1;
 
-  share->path.str= (char*)
-      alloc_root(&share->mem_root, plen);
-
+  share->path.str= (char*)alloc_root(&share->mem_root, plen);
   strmov(strnmov(share->path.str, name, (int)(p - name) + 1), options->table_name);
 
   share->normalized_path.str= share->path.str;
   share->path.length= share->normalized_path.length= plen;
 
-  origid= destid= weight= 0;
-
   DBUG_PRINT( "oq-debug", ("share:(normalized_path=%s,path.length=%zu)", 
               share->normalized_path.str, share->path.length));
-  while (open_table_def(thd, share, 0))
+
+  int open_def_flags = 0;
+#if MYSQL_VERSION_ID	>= 100002
+  open_def_flags = GTS_TABLE;
+#endif
+  // We want to open the definition for the given backing table
+  // Once can assume this loop exists because sometimes open_table_def() fails for a reason other than not exist
+  // and not 'exist' is valid, because we use ha_create_table_from_engine() to force it to 'exist'
+  // But, ha_create_table_from_engine() is removed in MariaDB 10.0.4 (?)
+  // Looking inside most recent ha_create_table_from_engine(), it also calls open_table_def() so maybe this whole thing is redundant...
+  // Or perhaps it is needed if the backing store is a temporary table or maybe if has no records as yet...?
+  // Lets try without this, and see if all the tests pass...
+  while (open_table_def(thd, share, open_def_flags))
   {
-    if (thd->is_error() && thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE)
+#if MYSQL_VERSION_ID	< 100002
+    if (thd->is_error() && thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE)
     {
       free_table_share(share);
-      DBUG_RETURN(thd->stmt_da->sql_errno());
+      DBUG_RETURN(thd->get_stmt_da()->sql_errno());
     }
 
     if (ha_create_table_from_engine(thd, table->s->db.str, options->table_name))
     {
       free_table_share(share);
-      DBUG_RETURN(thd->stmt_da->sql_errno());
+      DBUG_RETURN(thd->get_stmt_da()->sql_errno());
     }
     /*mysql_reset_errors(thd, 1);*/
     thd->clear_error();
     continue;
+#else
+    open_table_error(share, OPEN_FRM_OPEN_ERROR, ENOENT);
+    free_table_share(share);
+    if (thd->is_error()) 
+      DBUG_RETURN(thd->get_stmt_da()->sql_errno());
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+#endif
   }
+
 
   if (int err= share->error)
   {
-    open_table_error(share, share->error, share->open_errno, share->errarg);
+    open_table_error(share, share->error, share->open_errno);
     free_table_share(share);
     DBUG_RETURN(err);
   }
 
   if (share->is_view)
   {
-    open_table_error(share, 1, EMFILE, 0);
     free_table_share(share);
-    fprint_error("VIEWs are not supported for an OQGRAPH backing store");
+    fprint_error("VIEWs are not supported for an OQGRAPH backing store.");
     DBUG_RETURN(-1);
   }
 
-  if (int err= open_table_from_share(thd, share, "",
+  if (enum open_frm_error err= open_table_from_share(thd, share, "",
                             (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
                                     HA_GET_INDEX | HA_TRY_READ_ONLY),
                             READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD,
                             thd->open_options, edges, FALSE))
   {
-    open_table_error(share, err, EMFILE, 0);
+    open_table_error(share, err, EMFILE); // NOTE - EMFILE is probably bogus, it reports as too many open files (!)
+    free_table_share(share);
+    DBUG_RETURN(-1);
+  }
+
+
+  if (!edges->file)
+  {
+    fprint_error("Some error occurred opening table '%s'", options->table_name);
     free_table_share(share);
     DBUG_RETURN(-1);
   }
@@ -582,13 +638,6 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   // We expect fields origid, destid and optionally weight
   origid= destid= weight= 0;
-
-  if (!edges->file)
-  {
-    fprint_error("Some error occurred opening table '%s'", options->table_name);
-    free_table_share(share);
-    DBUG_RETURN(-1);
-  }
 
   for (Field **field= edges->field; *field; ++field)
   {
@@ -608,7 +657,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   }
 
   if (!origid) {
-    fprint_error("Invalid OQGRAPH backing store ('%s'.origid attribute not set to a valid column of '%s')", p, options->table_name);
+    fprint_error("Invalid OQGRAPH backing store ('%s.origid' attribute not set to a valid column of '%s')", p+1, options->table_name);
     closefrm(edges, 0);
     free_table_share(share);
     DBUG_RETURN(-1);
@@ -633,7 +682,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   }
 
   if (!destid) {
-    fprint_error("Invalid OQGRAPH backing store ('%s'.destid attribute not set to a valid column of '%s')", p, options->table_name);
+    fprint_error("Invalid OQGRAPH backing store ('%s.destid' attribute not set to a valid column of '%s')", p+1, options->table_name);
     closefrm(edges, 0);
     free_table_share(share);
     DBUG_RETURN(-1);
@@ -641,7 +690,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   
   // Make sure origid column != destid column
   if (strcmp( origid->field_name, destid->field_name)==0) {
-    fprint_error("Invalid OQGRAPH backing store ('%s'.destid attribute set to same column as origid attribute)", p, options->table_name);
+    fprint_error("Invalid OQGRAPH backing store ('%s.destid' attribute set to same column as origid attribute)", p+1, options->table_name);
     closefrm(edges, 0);
     free_table_share(share);
     DBUG_RETURN(-1);
@@ -665,7 +714,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   }
 
   if (!weight && options->weight) {
-    fprint_error("Invalid OQGRAPH backing store ('%s'.weight attribute not set to a valid column of '%s')", p, options->table_name);
+    fprint_error("Invalid OQGRAPH backing store ('%s.weight' attribute not set to a valid column of '%s')", p+1, options->table_name);
     closefrm(edges, 0);
     free_table_share(share);
     DBUG_RETURN(-1);
@@ -681,23 +730,24 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   ref_length= oqgraph::sizeof_ref;
 
   graph = oqgraph::create(graph_share);
+  have_table_share = true;
+
   DBUG_RETURN(0);
 }
 
 int ha_oqgraph::close(void)
 {
-  DBUG_ENTER("ha_oqgraph::close");
-
   oqgraph::free(graph); graph= 0;
   oqgraph::free(graph_share); graph_share= 0;
 
-  if (share)
+  if (have_table_share)
   {
     if (edges->file)
       closefrm(edges, 0);
     free_table_share(share);
+    have_table_share = false;
   }
-  DBUG_RETURN(0);
+  return 0;
 }
 
 void ha_oqgraph::update_key_stats()
@@ -710,7 +760,7 @@ void ha_oqgraph::update_key_stats()
     if (key->algorithm != HA_KEY_ALG_BTREE)
     {
       if (key->flags & HA_NOSAME)
-        key->rec_per_key[key->key_parts-1]= 1;
+        key->rec_per_key[key->user_defined_key_parts-1]= 1;
       else
       {
         //unsigned vertices= graph->vertices_count();
@@ -719,7 +769,7 @@ void ha_oqgraph::update_key_stats()
         //if (no_records < 2)
         uint
           no_records= 2;
-        key->rec_per_key[key->key_parts-1]= no_records;
+        key->rec_per_key[key->user_defined_key_parts-1]= no_records;
       }
     }
   }
@@ -746,22 +796,21 @@ int ha_oqgraph::delete_row(const byte * buf)
 int ha_oqgraph::index_read(byte * buf, const byte * key, uint key_len,
 			enum ha_rkey_function find_flag)
 {
-  DBUG_ENTER("ha_oqgraph::index_read");
   DBUG_ASSERT(inited==INDEX);
-  graph->row_ref((void*) ref);	// reset before we have a cursor, so the memory is inited, avoiding the sefgault in position() when select with order by (bug #1133093)
-  DBUG_RETURN( index_read_idx(buf, active_index, key, key_len, find_flag));
+  // reset before we have a cursor, so the memory is not junk, avoiding the sefgault in position() when select with order by (bug #1133093)
+  graph->init_row_ref(ref);
+  return index_read_idx(buf, active_index, key, key_len, find_flag);
 }
 
 int ha_oqgraph::index_next_same(byte *buf, const byte *key, uint key_len)
 {
   int res;
-  DBUG_ENTER("ha_oqgraph::index_next_same");
   open_query::row row;
   DBUG_ASSERT(inited==INDEX);
   if (!(res= graph->fetch_row(row)))
     res= fill_record(buf, row);
   table->status= res ? STATUS_NOT_FOUND : 0;
-  DBUG_RETURN(error_code(res));
+  return error_code(res);
 }
 
 #define LATCH_WAS CODE 0
@@ -817,7 +866,6 @@ static int parse_latch_string_to_legacy_int(const String& value, int &latch)
 int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
 			    uint key_len, enum ha_rkey_function find_flag)
 {
-  DBUG_ENTER("ha_oqgraph::index_read_idx");
   Field **field= table->field;
   KEY *key_info= table->key_info + index;
   int res;
@@ -861,7 +909,7 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
 	  field[2]->move_field_offset(-ptrdiff);
 	}
 	dbug_tmp_restore_column_map(table->read_set, old_map);
-        DBUG_RETURN(error_code(oqgraph::NO_MORE_DATA));
+        return error_code(oqgraph::NO_MORE_DATA);
       }
     }
     latchp= &latch;
@@ -910,7 +958,7 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
     res= fill_record(buf, row);
   }
   table->status = res ? STATUS_NOT_FOUND : 0;
-  DBUG_RETURN( error_code(res));
+  return error_code(res);
 }
 
 int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
@@ -1002,6 +1050,7 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
 
 int ha_oqgraph::rnd_init(bool scan)
 {
+  edges->file->info(HA_STATUS_VARIABLE); // Fix for bug 1195735, hang after truncate table - ensure we operate with up to date count
   edges->prepare_for_position();
   return error_code(graph->random(scan));
 }
@@ -1009,8 +1058,9 @@ int ha_oqgraph::rnd_init(bool scan)
 int ha_oqgraph::rnd_next(byte *buf)
 {
   int res;
-  open_query::row row;
-  if (!(res= graph->fetch_row(row))) // FIXME - this called after DELETE FROM graph_base; hangs...
+  open_query::row row = {};
+
+  if (!(res= graph->fetch_row(row)))
     res= fill_record(buf, row);
   table->status= res ? STATUS_NOT_FOUND: 0;
   return error_code(res);
@@ -1052,8 +1102,7 @@ int ha_oqgraph::info(uint flag)
 
 int ha_oqgraph::extra(enum ha_extra_function operation)
 {
-  DBUG_ENTER("ha_oqgraph::extra");
-  DBUG_RETURN(edges->file->extra(operation));
+  return edges->file->extra(operation);
 }
 
 int ha_oqgraph::delete_all_rows()
@@ -1063,8 +1112,16 @@ int ha_oqgraph::delete_all_rows()
 
 int ha_oqgraph::external_lock(THD *thd, int lock_type)
 {
-  DBUG_ENTER("ha_oqgraph::external_lock");
-  DBUG_RETURN(edges->file->ha_external_lock(thd, lock_type));
+  // This method is also called to _unlock_ (lock_type == F_UNLCK)
+  // Which means we need to release things before we let the underlying backing table lock go...
+  if (lock_type == F_UNLCK) {
+    // If we have an index open on the backing table, we need to close it out here
+    // this means destroying any open cursor first.
+    // Then we can let the unlock go through to the backing table
+    graph->release_cursor();
+  }
+
+  return edges->file->ha_external_lock(thd, lock_type);
 }
 
 
@@ -1072,8 +1129,7 @@ THR_LOCK_DATA **ha_oqgraph::store_lock(THD *thd,
 				       THR_LOCK_DATA **to,
 				       enum thr_lock_type lock_type)
 {
-  DBUG_ENTER("ha_oqgraph::store_lock");
-  DBUG_RETURN(edges->file->store_lock(thd, to, lock_type));
+  return edges->file->store_lock(thd, to, lock_type);
 }
 
 /*
@@ -1083,8 +1139,7 @@ THR_LOCK_DATA **ha_oqgraph::store_lock(THD *thd,
 
 int ha_oqgraph::delete_table(const char *)
 {
-  DBUG_ENTER("ha_oqgraph::delete_table");
-  DBUG_RETURN(0);
+  return 0;
 }
 
 int ha_oqgraph::rename_table(const char *, const char *)
@@ -1096,7 +1151,6 @@ int ha_oqgraph::rename_table(const char *, const char *)
 ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
                                   key_range *max_key)
 {
-  DBUG_ENTER("ha_oqgraph::records_in_range");
   KEY *key=table->key_info+inx;
 #ifdef VERBOSE_DEBUG  
   {
@@ -1177,27 +1231,27 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
       if (latch != oqgraph::NO_SEARCH) {
         // Invalid key type... 
         // Don't assert, in case the user used alter table on us
-        DBUG_RETURN(HA_POS_ERROR);			// Can only use exact keys
+        return HA_POS_ERROR;			// Can only use exact keys
       }
       unsigned N = graph->vertices_count();
       DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u (vertices)", N));
-      DBUG_RETURN(N);
+      return N;
     }
-    DBUG_RETURN(HA_POS_ERROR);			// Can only use exact keys
+    return HA_POS_ERROR;			// Can only use exact keys
   }
 
   if (stats.records <= 1) {
     DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u (stats)", (unsigned)stats.records));
-    DBUG_RETURN(stats.records);
+    return stats.records;
   }
 
   /* Assert that info() did run. We need current statistics here. */
   //DBUG_ASSERT(key_stat_version == share->key_stat_version);
-  //ha_rows result= key->rec_per_key[key->key_parts-1];
+  //ha_rows result= key->rec_per_key[key->user_defined_key_parts-1];
   ha_rows result= 10;
   DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u", (unsigned)result));
 
-  DBUG_RETURN(result);
+  return result;
 }
 
 
@@ -1221,9 +1275,7 @@ int ha_oqgraph::create(const char *name, TABLE *table_arg,
 
 void ha_oqgraph::update_create_info(HA_CREATE_INFO *create_info)
 {
-  DBUG_ENTER("ha_oqgraph::update_create_info");
   table->file->info(HA_STATUS_AUTO);
-  DBUG_VOID_RETURN;
 }
 
 struct st_mysql_storage_engine oqgraph_storage_engine=

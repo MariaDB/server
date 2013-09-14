@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -40,7 +40,6 @@ Created 2011/04/18 Sunny Bains
 #include "srv0srv.h"
 #include "sync0sync.h"
 #include "trx0trx.h"
-#include "ha_prototypes.h"
 
 #include "mysql/plugin.h"
 
@@ -73,13 +72,11 @@ UNIV_INTERN ulong	srv_thread_concurrency	= 0;
 /** This mutex protects srv_conc data structures */
 static os_fast_mutex_t	srv_conc_mutex;
 
-/** Slot for a thread waiting in the concurrency control queue. */
-typedef struct srv_conc_slot_struct	srv_conc_slot_t;
-
 /** Concurrency list node */
-typedef UT_LIST_NODE_T(srv_conc_slot_t)	srv_conc_node_t;
+typedef UT_LIST_NODE_T(struct srv_conc_slot_t)	srv_conc_node_t;
 
-struct srv_conc_slot_struct{
+/** Slot for a thread waiting in the concurrency control queue. */
+struct srv_conc_slot_t{
 	os_event_t	event;		/*!< event to wait */
 	ibool		reserved;	/*!< TRUE if slot
 					reserved */
@@ -106,10 +103,8 @@ UNIV_INTERN mysql_pfs_key_t	srv_conc_mutex_key;
 
 #endif /* !HAVE_ATOMIC_BUILTINS */
 
-typedef struct srv_conc_struct srv_conc_t;
-
 /** Variables tracking the active and waiting threads. */
-struct srv_conc_struct {
+struct srv_conc_t {
 	char		pad[64  - (sizeof(ulint) + sizeof(lint))];
 
 	/** Number of transactions that have declared_to_be_inside_innodb set.
@@ -148,7 +143,7 @@ srv_conc_init(void)
 	for (i = 0; i < OS_THREAD_MAX_N; i++) {
 		srv_conc_slot_t*	conc_slot = &srv_conc_slots[i];
 
-		conc_slot->event = os_event_create(NULL);
+		conc_slot->event = os_event_create();
 		ut_a(conc_slot->event);
 	}
 #endif /* !HAVE_ATOMIC_BUILTINS */
@@ -224,9 +219,7 @@ srv_conc_enter_innodb_with_atomics(
 					(void) os_atomic_decrement_lint(
 						&srv_conc.n_waiting, 1);
 
-					thd_wait_end(
-						static_cast<THD*>(
-							trx->mysql_thd));
+					thd_wait_end(trx->mysql_thd);
 				}
 
 				if (srv_adaptive_max_sleep_delay > 0) {
@@ -262,9 +255,7 @@ srv_conc_enter_innodb_with_atomics(
 				trx_search_latch_release_if_reserved(trx);
 			}
 
-			thd_wait_begin(
-				static_cast<THD*>(trx->mysql_thd),
-				THD_WAIT_USER_LOCK);
+			thd_wait_begin(trx->mysql_thd, THD_WAIT_USER_LOCK);
 
 			notified_mysql = TRUE;
 		}
@@ -477,10 +468,10 @@ retry:
 #endif /* UNIV_SYNC_DEBUG */
 	trx->op_info = "waiting in InnoDB queue";
 
-	thd_wait_begin(static_cast<THD*>(trx->mysql_thd), THD_WAIT_USER_LOCK);
+	thd_wait_begin(trx->mysql_thd, THD_WAIT_USER_LOCK);
 
 	os_event_wait(slot->event);
-	thd_wait_end(static_cast<THD*>(trx->mysql_thd));
+	thd_wait_end(trx->mysql_thd);
 
 	trx->op_info = "";
 

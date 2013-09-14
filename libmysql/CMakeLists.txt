@@ -141,13 +141,14 @@ mysql_load_plugin
 mysql_load_plugin_v
 mysql_plugin_options
 # Async API
+mysql_get_timeout_value
+mysql_get_timeout_value_ms
+mysql_get_socket
 mysql_autocommit_cont
 mysql_autocommit_start
 mysql_change_user_cont
 mysql_change_user_start
 mysql_close_cont
-mysql_close_slow_part_cont
-mysql_close_slow_part_start
 mysql_close_start
 mysql_commit_cont
 mysql_commit_start
@@ -262,17 +263,26 @@ IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
   
   IF(RPM)
     # Fedora & Co declared following functions as part of API 
-    # These functions are alias of another function (given mysql_ prefix=. The 
-    # renaming is handled in rpm_support.cc below
     SET(CLIENT_API_EXTRA
       mysql_default_charset_info
       mysql_get_charset
       mysql_get_charset_by_csname
       mysql_net_realloc
       mysql_client_errors
-    )
+
+      #  Also export the non-renamed variants
+      # (in case someone wants to rebuild mysqli-php or something similar)
+      # See MDEV-4127
+      default_charset_info
+      get_charset
+      get_charset_by_csname
+      net_realloc
+      client_errors
+      THR_KEY_mysys
+    )  
+  
     # Add special script to fix symbols renames by Fedora
-    SET(CLIENT_SOURCES_EXTRA ${CLIENT_SOURCES} rpm_support.cc)
+    SET(CLIENT_SOURCES_EXTRA rpm_support.cc)
     SET(VERSION_SCRIPT_TEMPLATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/libmysql_rpm_version.in)	  
   ELSEIF(DEB)
@@ -324,7 +334,8 @@ SET(CLIENT_SOURCES
   ../sql-common/client.c 
   ../sql-common/mysql_async.c
   ../sql-common/my_time.c 
-  ../sql-common/client_plugin.c 
+  ../sql-common/client_plugin.c
+  ../sql-common/client_authentication.cc
   ../sql/net_serv.cc
   ../sql-common/pack.c 
   ../sql/password.c
@@ -334,7 +345,7 @@ ADD_CONVENIENCE_LIBRARY(clientlib ${CLIENT_SOURCES})
 DTRACE_INSTRUMENT(clientlib)
 ADD_DEPENDENCIES(clientlib GenError)
 
-SET(LIBS clientlib dbug strings vio mysys ${ZLIB_LIBRARY} ${SSL_LIBRARIES} ${LIBDL})
+SET(LIBS clientlib dbug strings vio mysys mysys_ssl ${ZLIB_LIBRARY} ${SSL_LIBRARIES} ${LIBDL})
 
 # Merge several convenience libraries into one big mysqlclient
 # and link them together into shared library.
@@ -361,7 +372,7 @@ IF(UNIX)
 ENDIF()
 
 IF(NOT DISABLE_SHARED)
-  MERGE_LIBRARIES(libmysql SHARED ${LIBS} EXPORTS ${CLIENT_API_FUNCTIONS} COMPONENT SharedLibraries)
+  MERGE_LIBRARIES(libmysql SHARED ${LIBS} EXPORTS ${CLIENT_API_FUNCTIONS} ${CLIENT_API_EXTRA} COMPONENT SharedLibraries)
   IF(UNIX)
     # libtool compatability
     IF(CMAKE_SYSTEM_NAME MATCHES "FreeBSD" OR APPLE)

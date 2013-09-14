@@ -423,8 +423,10 @@ int federatedx_io_mysql::actual_query(const char *buffer, uint length)
 
   if (!mysql.net.vio)
   {
+    my_bool my_true= 1;
+
     if (!(mysql_init(&mysql)))
-    DBUG_RETURN(-1);
+      DBUG_RETURN(-1);
   
     /*
 	BUG# 17044 Federated Storage Engine is not UTF8 clean
@@ -433,6 +435,8 @@ int federatedx_io_mysql::actual_query(const char *buffer, uint length)
     */
     /* this sets the csname like 'set names utf8' */
     mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, get_charsetname());
+    mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
+                  (char*) &my_true);
 
     if (!mysql_real_connect(&mysql,
                             get_hostname(),
@@ -599,6 +603,11 @@ bool federatedx_io_mysql::table_metadata(ha_statistics *stats,
   return 0;
 
 error:
+  if (!mysql_errno(&mysql))
+  {
+    mysql.net.last_errno= ER_NO_SUCH_TABLE;
+    strmake_buf(mysql.net.last_error, "Remote table does not exist");
+  }
   free_result(result);
   return 1;
 }

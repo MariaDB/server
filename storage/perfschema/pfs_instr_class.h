@@ -16,7 +16,10 @@
 #ifndef PFS_INSTR_CLASS_H
 #define PFS_INSTR_CLASS_H
 
+#include "my_global.h"
 #include "mysql_com.h"                          /* NAME_LEN */
+#include "lf.h"
+#include "pfs_global.h"
 
 /**
   @file storage/perfschema/pfs_instr_class.h
@@ -112,7 +115,6 @@ extern uint mutex_class_start;
 extern uint rwlock_class_start;
 extern uint cond_class_start;
 extern uint file_class_start;
-extern uint table_class_start;
 extern uint socket_class_start;
 extern uint wait_class_max;
 
@@ -166,13 +168,10 @@ struct PFS_instr_class
 struct PFS_mutex;
 
 /** Instrumentation metadata for a MUTEX. */
-struct PFS_mutex_class : public PFS_instr_class
+struct PFS_ALIGNED PFS_mutex_class : public PFS_instr_class
 {
-  /**
-    Lock statistics.
-    This statistic is not exposed in user visible tables yet.
-  */
-  PFS_single_stat m_lock_stat;
+  /** Mutex usage statistics. */
+  PFS_mutex_stat m_mutex_stat;
   /** Singleton instance. */
   PFS_mutex *m_singleton;
 };
@@ -180,18 +179,10 @@ struct PFS_mutex_class : public PFS_instr_class
 struct PFS_rwlock;
 
 /** Instrumentation metadata for a RWLOCK. */
-struct PFS_rwlock_class : public PFS_instr_class
+struct PFS_ALIGNED PFS_rwlock_class : public PFS_instr_class
 {
-  /**
-    Read lock statistics.
-    This statistic is not exposed in user visible tables yet.
-  */
-  PFS_single_stat m_read_lock_stat;
-  /**
-    Write lock statistics.
-    This statistic is not exposed in user visible tables yet.
-  */
-  PFS_single_stat m_write_lock_stat;
+  /** Rwlock usage statistics. */
+  PFS_rwlock_stat m_rwlock_stat;
   /** Singleton instance. */
   PFS_rwlock *m_singleton;
 };
@@ -199,7 +190,7 @@ struct PFS_rwlock_class : public PFS_instr_class
 struct PFS_cond;
 
 /** Instrumentation metadata for a COND. */
-struct PFS_cond_class : public PFS_instr_class
+struct PFS_ALIGNED PFS_cond_class : public PFS_instr_class
 {
   /**
     Condition usage statistics.
@@ -211,7 +202,7 @@ struct PFS_cond_class : public PFS_instr_class
 };
 
 /** Instrumentation metadata of a thread. */
-struct PFS_thread_class
+struct PFS_ALIGNED PFS_thread_class
 {
   /** True if this thread instrument is enabled. */
   bool m_enabled;
@@ -249,7 +240,7 @@ struct PFS_table_key
 };
 
 /** Instrumentation metadata for a table share. */
-struct PFS_table_share
+struct PFS_ALIGNED PFS_table_share
 {
 public:
   uint32 get_version()
@@ -318,12 +309,30 @@ public:
   /** Table statistics. */
   PFS_table_stat m_table_stat;
   /** Index names. */
-  PFS_table_key m_keys[MAX_KEY];
+  PFS_table_key m_keys[MAX_INDEXES];
 
 private:
   /** Number of opened table handles. */
   int m_refcount;
 };
+
+/** Statistics for the IDLE instrument. */
+extern PFS_single_stat global_idle_stat;
+/** Statistics for dropped table io. */
+extern PFS_table_io_stat global_table_io_stat;
+/** Statistics for dropped table lock. */
+extern PFS_table_lock_stat global_table_lock_stat;
+
+inline uint sanitize_index_count(uint count)
+{
+  if (likely(count <= MAX_INDEXES))
+    return count;
+  return 0;
+}
+
+#define GLOBAL_TABLE_IO_EVENT_INDEX 0
+#define GLOBAL_TABLE_LOCK_EVENT_INDEX 1
+#define GLOBAL_IDLE_EVENT_INDEX 2
 
 /**
   Instrument controlling all table io.
@@ -345,7 +354,7 @@ extern PFS_instr_class global_idle_class;
 struct PFS_file;
 
 /** Instrumentation metadata for a file. */
-struct PFS_file_class : public PFS_instr_class
+struct PFS_ALIGNED PFS_file_class : public PFS_instr_class
 {
   /** File usage statistics. */
   PFS_file_stat m_file_stat;
@@ -354,21 +363,21 @@ struct PFS_file_class : public PFS_instr_class
 };
 
 /** Instrumentation metadata for a stage. */
-struct PFS_stage_class : public PFS_instr_class
+struct PFS_ALIGNED PFS_stage_class : public PFS_instr_class
 {
   /** Stage usage statistics. */
   PFS_stage_stat m_stage_stat;
 };
 
 /** Instrumentation metadata for a statement. */
-struct PFS_statement_class : public PFS_instr_class
+struct PFS_ALIGNED PFS_statement_class : public PFS_instr_class
 {
 };
 
 struct  PFS_socket;
 
 /** Instrumentation metadata for a socket. */
-struct PFS_socket_class : public PFS_instr_class
+struct PFS_ALIGNED PFS_socket_class : public PFS_instr_class
 {
   /** Socket usage statistics. */
   PFS_socket_stat m_socket_stat;
@@ -483,11 +492,14 @@ extern PFS_cond_class *cond_class_array;
 extern PFS_file_class *file_class_array;
 extern PFS_table_share *table_share_array;
 
+void reset_events_waits_by_class();
 void reset_file_class_io();
 void reset_socket_class_io();
 
 /** Update derived flags for all table shares. */
 void update_table_share_derived_flags(PFS_thread *thread);
+
+extern LF_HASH table_share_hash;
 
 /** @} */
 #endif

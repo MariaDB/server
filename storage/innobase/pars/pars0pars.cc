@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -859,7 +859,8 @@ pars_retrieve_table_def(
 		sym_node->resolved = TRUE;
 		sym_node->token_type = SYM_TABLE_REF_COUNTED;
 
-		sym_node->table = dict_table_open_on_name(sym_node->name, TRUE);
+		sym_node->table = dict_table_open_on_name(
+			sym_node->name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
 
 		ut_a(sym_node->table != NULL);
 	}
@@ -1115,8 +1116,8 @@ pars_function_declaration(
 	sym_node->token_type = SYM_FUNCTION;
 
 	/* Check that the function exists. */
-	ut_a(pars_info_get_user_func(pars_sym_tab_global->info,
-				     sym_node->name));
+	ut_a(pars_info_lookup_user_func(
+		pars_sym_tab_global->info, sym_node->name));
 
 	return(sym_node);
 }
@@ -1782,8 +1783,9 @@ pars_fetch_statement(
 	} else {
 		pars_resolve_exp_variables_and_types(NULL, user_func);
 
-		node->func = pars_info_get_user_func(pars_sym_tab_global->info,
-						     user_func->name);
+		node->func = pars_info_lookup_user_func(
+			pars_sym_tab_global->info, user_func->name);
+
 		ut_a(node->func);
 
 		node->into_list = NULL;
@@ -1941,9 +1943,23 @@ pars_create_table(
 	const dtype_t*	dtype;
 	ulint		n_cols;
 	ulint		flags = 0;
+	ulint		flags2 = 0;
 
 	if (compact != NULL) {
+
+		/* System tables currently only use the REDUNDANT row
+		format therefore the check for srv_file_per_table should be
+		safe for now. */
+
 		flags |= DICT_TF_COMPACT;
+
+		/* FIXME: Ideally this should be part of the SQL syntax
+		or use some other mechanism. We want to reduce dependency
+		on global variables. There is an inherent race here but
+		that has always existed around this variable. */
+		if (srv_file_per_table) {
+			flags2 |= DICT_TF2_USE_TABLESPACE;
+		}
 	}
 
 	if (block_size != NULL) {
@@ -1974,10 +1990,8 @@ pars_create_table(
 
 	n_cols = que_node_list_get_len(column_defs);
 
-	/* As the InnoDB SQL parser is for internal use only,
-	for creating some system tables, this function will only
-	create tables in the old (not compact) record format. */
-	table = dict_mem_table_create(table_sym->name, 0, n_cols, flags, 0);
+	table = dict_mem_table_create(
+		table_sym->name, 0, n_cols, flags, flags2);
 
 #ifdef UNIV_DEBUG
 	if (not_fit_in_memory != NULL) {
@@ -1998,7 +2012,7 @@ pars_create_table(
 		column = static_cast<sym_node_t*>(que_node_get_next(column));
 	}
 
-	node = tab_create_graph_create(table, pars_sym_tab_global->heap);
+	node = tab_create_graph_create(table, pars_sym_tab_global->heap, true);
 
 	table_sym->resolved = TRUE;
 	table_sym->token_type = SYM_TABLE;
@@ -2052,7 +2066,7 @@ pars_create_index(
 		column = static_cast<sym_node_t*>(que_node_get_next(column));
 	}
 
-	node = ind_create_graph_create(index, pars_sym_tab_global->heap);
+	node = ind_create_graph_create(index, pars_sym_tab_global->heap, true);
 
 	table_sym->resolved = TRUE;
 	table_sym->token_type = SYM_TABLE;
@@ -2251,7 +2265,7 @@ que_thr_t*
 pars_complete_graph_for_exec(
 /*=========================*/
 	que_node_t*	node,	/*!< in: root node for an incomplete
-				query graph */
+				query graph, or NULL for dummy graph */
 	trx_t*		trx,	/*!< in: transaction handle */
 	mem_heap_t*	heap)	/*!< in: memory heap from which allocated */
 {
@@ -2265,7 +2279,9 @@ pars_complete_graph_for_exec(
 
 	thr->child = node;
 
-	que_node_set_parent(node, thr);
+	if (node) {
+		que_node_set_parent(node, thr);
+	}
 
 	trx->graph = NULL;
 
@@ -2478,7 +2494,7 @@ pars_info_bind_int8_literal(
 	const char*		name,	/* in: name */
 	const ib_uint64_t*	val)	/* in: value */
 {
-        pars_bound_lit_t*	pbl;
+	pars_bound_lit_t*	pbl;
 
 	pbl = pars_info_lookup_bound_lit(info, name);
 
@@ -2516,6 +2532,33 @@ pars_info_add_ull_literal(
 	mach_write_to_8(buf, val);
 
 	pars_info_add_literal(info, name, buf, 8, DATA_FIXBINARY, 0);
+}
+
+/****************************************************************//**
+If the literal value already exists then it rebinds otherwise it
+creates a new entry. */
+UNIV_INTERN
+void
+pars_info_bind_ull_literal(
+/*=======================*/
+	pars_info_t*		info,		/*!< in: info struct */
+	const char*		name,		/*!< in: name */
+	const ib_uint64_t*	val)		/*!< in: value */
+{
+	pars_bound_lit_t*	pbl;
+
+	pbl = pars_info_lookup_bound_lit(info, name);
+
+	if (!pbl) {
+		pars_info_add_literal(
+			info, name, val, sizeof(*val), DATA_FIXBINARY, 0);
+	} else {
+
+		pbl->address = val;
+		pbl->length = sizeof(*val);
+
+		sym_tab_rebind_lit(pbl->node, val, sizeof(*val));
+	}
 }
 
 /****************************************************************//**
@@ -2602,19 +2645,6 @@ pars_info_get_bound_id(
 	const char*		name)	/* in: bound id name to find */
 {
 	return(pars_info_lookup_bound_id(info, name));
-}
-
-/****************************************************************//**
-Get user function with the given name.
-@return	user func, or NULL if not found */
-UNIV_INTERN
-pars_user_func_t*
-pars_info_get_user_func(
-/*====================*/
-	pars_info_t*		info,	/*!< in: info struct */
-	const char*		name)	/*!< in: function name to find*/
-{
-	return(pars_info_lookup_user_func(info, name));
 }
 
 /****************************************************************//**

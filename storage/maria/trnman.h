@@ -56,7 +56,7 @@ struct st_ma_transaction
   uint16               flags;         /**< Various flags */
 };
 
-#define TRANSACTION_LOGGED_LONG_ID ULL(0x8000000000000000)
+#define TRANSACTION_LOGGED_LONG_ID 0x8000000000000000ULL
 #define MAX_TRID (~(TrID)0)
 
 extern WT_RESOURCE_TYPE ma_rc_dup_unique;

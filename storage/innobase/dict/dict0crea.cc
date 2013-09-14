@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -43,6 +43,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "usr0sess.h"
 #include "ut0vec.h"
 #include "dict0priv.h"
+#include "fts0priv.h"
 
 /*****************************************************************//**
 Based on a table object, this function builds the entry to be inserted
@@ -244,8 +245,8 @@ dict_create_sys_columns_tuple(
 /***************************************************************//**
 Builds a table definition to insert.
 @return	DB_SUCCESS or error code */
-static
-ulint
+static __attribute__((nonnull, warn_unused_result))
+dberr_t
 dict_build_table_def_step(
 /*======================*/
 	que_thr_t*	thr,	/*!< in: query thread */
@@ -253,9 +254,8 @@ dict_build_table_def_step(
 {
 	dict_table_t*	table;
 	dtuple_t*	row;
-	ulint		error;
-	const char*	path_or_name;
-	ibool		is_path;
+	dberr_t		error;
+	const char*	path;
 	mtr_t		mtr;
 	ulint		space = 0;
 	bool		use_tablespace;
@@ -263,7 +263,7 @@ dict_build_table_def_step(
 	ut_ad(mutex_own(&(dict_sys->mutex)));
 
 	table = node->table;
-	use_tablespace = !!(table->flags2 & DICT_TF2_USE_TABLESPACE);
+	use_tablespace = DICT_TF2_FLAG_IS_SET(table, DICT_TF2_USE_TABLESPACE);
 
 	dict_hdr_get_new_id(&table->id, NULL, NULL);
 
@@ -273,6 +273,11 @@ dict_build_table_def_step(
 		/* This table will not use the system tablespace.
 		Get a new space id. */
 		dict_hdr_get_new_id(NULL, NULL, &space);
+
+		DBUG_EXECUTE_IF(
+			"ib_create_table_fail_out_of_space_ids",
+			space = ULINT_UNDEFINED;
+		);
 
 		if (UNIV_UNLIKELY(space == ULINT_UNDEFINED)) {
 			return(DB_ERROR);
@@ -286,26 +291,19 @@ dict_build_table_def_step(
 		- page 3 will contain the root of the clustered index of the
 		table we create here. */
 
-		if (table->dir_path_of_temp_table) {
-			/* We place tables created with CREATE TEMPORARY
-			TABLE in the tmp dir of mysqld server */
-
-			path_or_name = table->dir_path_of_temp_table;
-			is_path = TRUE;
-		} else {
-			path_or_name = table->name;
-			is_path = FALSE;
-		}
+		path = table->data_dir_path ? table->data_dir_path
+					    : table->dir_path_of_temp_table;
 
 		ut_ad(dict_table_get_format(table) <= UNIV_FORMAT_MAX);
 		ut_ad(!dict_table_zip_size(table)
 		      || dict_table_get_format(table) >= UNIV_FORMAT_B);
 
 		error = fil_create_new_single_table_tablespace(
-			space, path_or_name, is_path,
+			space, table->name, path,
 			dict_tf_to_fsp_flags(table->flags),
 			table->flags2,
 			FIL_IBD_FILE_INITIAL_SIZE);
+
 		table->space = (unsigned int) space;
 
 		if (error != DB_SUCCESS) {
@@ -333,10 +331,9 @@ dict_build_table_def_step(
 }
 
 /***************************************************************//**
-Builds a column definition to insert.
-@return	DB_SUCCESS */
+Builds a column definition to insert. */
 static
-ulint
+void
 dict_build_col_def_step(
 /*====================*/
 	tab_node_t*	node)	/*!< in: table create node */
@@ -346,8 +343,6 @@ dict_build_col_def_step(
 	row = dict_create_sys_columns_tuple(node->table, node->col_no,
 					    node->heap);
 	ins_node_set_new_row(node->col_def, row);
-
-	return(DB_SUCCESS);
 }
 
 /*****************************************************************//**
@@ -571,8 +566,8 @@ dict_create_search_tuple(
 /***************************************************************//**
 Builds an index definition row to insert.
 @return	DB_SUCCESS or error code */
-static
-ulint
+static __attribute__((nonnull, warn_unused_result))
+dberr_t
 dict_build_index_def_step(
 /*======================*/
 	que_thr_t*	thr,	/*!< in: query thread */
@@ -595,7 +590,10 @@ dict_build_index_def_step(
 		return(DB_TABLE_NOT_FOUND);
 	}
 
-	trx->table_id = table->id;
+	if (!trx->table_id) {
+		/* Record only the first table id. */
+		trx->table_id = table->id;
+	}
 
 	node->table = table;
 
@@ -616,15 +614,16 @@ dict_build_index_def_step(
 
 	/* Note that the index was created by this transaction. */
 	index->trx_id = trx->id;
+	ut_ad(table->def_trx_id <= trx->id);
+	table->def_trx_id = trx->id;
 
 	return(DB_SUCCESS);
 }
 
 /***************************************************************//**
-Builds a field definition row to insert.
-@return	DB_SUCCESS */
+Builds a field definition row to insert. */
 static
-ulint
+void
 dict_build_field_def_step(
 /*======================*/
 	ind_node_t*	node)	/*!< in: index create node */
@@ -637,15 +636,13 @@ dict_build_field_def_step(
 	row = dict_create_sys_fields_tuple(index, node->field_no, node->heap);
 
 	ins_node_set_new_row(node->field_def, row);
-
-	return(DB_SUCCESS);
 }
 
 /***************************************************************//**
 Creates an index tree for the index if it is not a member of a cluster.
 @return	DB_SUCCESS or DB_OUT_OF_FILE_SPACE */
-static
-ulint
+static __attribute__((nonnull, warn_unused_result))
+dberr_t
 dict_create_index_tree_step(
 /*========================*/
 	ind_node_t*	node)	/*!< in: index create node */
@@ -653,7 +650,6 @@ dict_create_index_tree_step(
 	dict_index_t*	index;
 	dict_table_t*	sys_indexes;
 	dtuple_t*	search_tuple;
-	ulint		zip_size;
 	btr_pcur_t	pcur;
 	mtr_t		mtr;
 
@@ -682,25 +678,37 @@ dict_create_index_tree_step(
 
 	btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 
-	zip_size = dict_table_zip_size(index->table);
 
-	node->page_no = btr_create(index->type, index->space, zip_size,
-				   index->id, index, &mtr);
-	/* printf("Created a new index tree in space %lu root page %lu\n",
-	index->space, node->page_no); */
+	dberr_t		err = DB_SUCCESS;
+	ulint		zip_size = dict_table_zip_size(index->table);
 
-	page_rec_write_field(btr_pcur_get_rec(&pcur),
-			     DICT_FLD__SYS_INDEXES__PAGE_NO,
-			     node->page_no, &mtr);
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
+	if (node->index->table->ibd_file_missing
+	    || dict_table_is_discarded(node->index->table)) {
 
-	if (node->page_no == FIL_NULL) {
+		node->page_no = FIL_NULL;
+	} else {
+		node->page_no = btr_create(
+			index->type, index->space, zip_size,
+			index->id, index, &mtr);
 
-		return(DB_OUT_OF_FILE_SPACE);
+		if (node->page_no == FIL_NULL) {
+			err = DB_OUT_OF_FILE_SPACE;
+		}
+
+		DBUG_EXECUTE_IF("ib_import_create_index_failure_1",
+				node->page_no = FIL_NULL;
+				err = DB_OUT_OF_FILE_SPACE; );
 	}
 
-	return(DB_SUCCESS);
+	page_rec_write_field(
+		btr_pcur_get_rec(&pcur), DICT_FLD__SYS_INDEXES__PAGE_NO,
+		node->page_no, &mtr);
+
+	btr_pcur_close(&pcur);
+
+	mtr_commit(&mtr);
+
+	return(err);
 }
 
 /*******************************************************************//**
@@ -883,7 +891,7 @@ create:
 	for (index = UT_LIST_GET_FIRST(table->indexes);
 	     index;
 	     index = UT_LIST_GET_NEXT(indexes, index)) {
-		if (index->id == index_id) {
+		if (index->id == index_id && !(index->type & DICT_FTS)) {
 			root_page_no = btr_create(type, space, zip_size,
 						  index_id, index, mtr);
 			index->page = (unsigned int) root_page_no;
@@ -910,7 +918,9 @@ tab_create_graph_create(
 /*====================*/
 	dict_table_t*	table,	/*!< in: table to create, built as a memory data
 				structure */
-	mem_heap_t*	heap)	/*!< in: heap where created */
+	mem_heap_t*	heap,	/*!< in: heap where created */
+	bool		commit)	/*!< in: true if the commit node should be
+				added to the query graph */
 {
 	tab_node_t*	node;
 
@@ -932,8 +942,12 @@ tab_create_graph_create(
 					heap);
 	node->col_def->common.parent = node;
 
-	node->commit_node = trx_commit_node_create(heap);
-	node->commit_node->common.parent = node;
+	if (commit) {
+		node->commit_node = trx_commit_node_create(heap);
+		node->commit_node->common.parent = node;
+	} else {
+		node->commit_node = 0;
+	}
 
 	return(node);
 }
@@ -947,7 +961,9 @@ ind_create_graph_create(
 /*====================*/
 	dict_index_t*	index,	/*!< in: index to create, built as a memory data
 				structure */
-	mem_heap_t*	heap)	/*!< in: heap where created */
+	mem_heap_t*	heap,	/*!< in: heap where created */
+	bool		commit)	/*!< in: true if the commit node should be
+				added to the query graph */
 {
 	ind_node_t*	node;
 
@@ -970,8 +986,12 @@ ind_create_graph_create(
 					  dict_sys->sys_fields, heap);
 	node->field_def->common.parent = node;
 
-	node->commit_node = trx_commit_node_create(heap);
-	node->commit_node->common.parent = node;
+	if (commit) {
+		node->commit_node = trx_commit_node_create(heap);
+		node->commit_node->common.parent = node;
+	} else {
+		node->commit_node = 0;
+	}
 
 	return(node);
 }
@@ -986,7 +1006,7 @@ dict_create_table_step(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	tab_node_t*	node;
-	ulint		err	= DB_ERROR;
+	dberr_t		err	= DB_ERROR;
 	trx_t*		trx;
 
 	ut_ad(thr);
@@ -1025,12 +1045,7 @@ dict_create_table_step(
 
 		if (node->col_no < (node->table)->n_def) {
 
-			err = dict_build_col_def_step(node);
-
-			if (err != DB_SUCCESS) {
-
-				goto function_exit;
-			}
+			dict_build_col_def_step(node);
 
 			node->col_no++;
 
@@ -1063,7 +1078,7 @@ dict_create_table_step(
 	}
 
 function_exit:
-	trx->error_state = (enum db_err) err;
+	trx->error_state = err;
 
 	if (err == DB_SUCCESS) {
 		/* Ok: do nothing */
@@ -1093,7 +1108,7 @@ dict_create_index_step(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	ind_node_t*	node;
-	ulint		err	= DB_ERROR;
+	dberr_t		err	= DB_ERROR;
 	trx_t*		trx;
 
 	ut_ad(thr);
@@ -1130,12 +1145,7 @@ dict_create_index_step(
 
 		if (node->field_no < (node->index)->n_fields) {
 
-			err = dict_build_field_def_step(node);
-
-			if (err != DB_SUCCESS) {
-
-				goto function_exit;
-			}
+			dict_build_field_def_step(node);
 
 			node->field_no++;
 
@@ -1172,7 +1182,37 @@ dict_create_index_step(
 
 		err = dict_create_index_tree_step(node);
 
+		DBUG_EXECUTE_IF("ib_dict_create_index_tree_fail",
+				err = DB_OUT_OF_MEMORY;);
+
 		if (err != DB_SUCCESS) {
+			/* If this is a FTS index, we will need to remove
+			it from fts->cache->indexes list as well */
+			if ((node->index->type & DICT_FTS)
+			    && node->table->fts) {
+				fts_index_cache_t*	index_cache;
+
+				rw_lock_x_lock(
+					&node->table->fts->cache->init_lock);
+
+				index_cache = (fts_index_cache_t*)
+					 fts_find_index_cache(
+						node->table->fts->cache,
+						node->index);
+
+				if (index_cache->words) {
+					rbt_free(index_cache->words);
+					index_cache->words = 0;
+				}
+
+				ib_vector_remove(
+					node->table->fts->cache->indexes,
+					*reinterpret_cast<void**>(index_cache));
+
+				rw_lock_x_unlock(
+					&node->table->fts->cache->init_lock);
+			}
+
 			dict_index_remove_from_cache(node->table, node->index);
 			node->index = NULL;
 
@@ -1180,6 +1220,11 @@ dict_create_index_step(
 		}
 
 		node->index->page = node->page_no;
+		/* These should have been set in
+		dict_build_index_def_step() and
+		dict_index_add_to_cache(). */
+		ut_ad(node->index->trx_id == trx->id);
+		ut_ad(node->index->table->def_trx_id == trx->id);
 		node->state = INDEX_COMMIT_WORK;
 	}
 
@@ -1197,7 +1242,7 @@ dict_create_index_step(
 	}
 
 function_exit:
-	trx->error_state = static_cast<enum db_err>(err);
+	trx->error_state = err;
 
 	if (err == DB_SUCCESS) {
 		/* Ok: do nothing */
@@ -1217,69 +1262,83 @@ function_exit:
 }
 
 /****************************************************************//**
-Check whether the system foreign key tables exist. Additionally, If
-they exist then move them to non-LRU end of the table LRU list.
-@return TRUE if they exist. */
+Check whether a system table exists.  Additionally, if it exists,
+move it to the non-LRU end of the table LRU list.  This is oly used
+for system tables that can be upgraded or added to an older database,
+which include SYS_FOREIGN, SYS_FOREIGN_COLS, SYS_TABLESPACES and
+SYS_DATAFILES.
+@return DB_SUCCESS if the sys table exists, DB_CORRUPTION if it exists
+but is not current, DB_TABLE_NOT_FOUND if it does not exist*/
 static
-ibool
-dict_check_sys_foreign_tables_exist(void)
-/*=====================================*/
+dberr_t
+dict_check_if_system_table_exists(
+/*==============================*/
+	const char*	tablename,	/*!< in: name of table */
+	ulint		num_fields,	/*!< in: number of fields */
+	ulint		num_indexes)	/*!< in: number of indexes */
 {
-	dict_table_t*	sys_foreign;
-	ibool		exists = FALSE;
-	dict_table_t*	sys_foreign_cols;
+	dict_table_t*	sys_table;
+	dberr_t		error = DB_SUCCESS;
 
 	ut_a(srv_get_active_thread_type() == SRV_NONE);
 
 	mutex_enter(&dict_sys->mutex);
 
-	sys_foreign = dict_table_get_low("SYS_FOREIGN");
-	sys_foreign_cols = dict_table_get_low("SYS_FOREIGN_COLS");
+	sys_table = dict_table_get_low(tablename);
 
-	if (sys_foreign != NULL
-	    && sys_foreign_cols != NULL
-	    && UT_LIST_GET_LEN(sys_foreign->indexes) == 3
-	    && UT_LIST_GET_LEN(sys_foreign_cols->indexes) == 1) {
+	if (sys_table == NULL) {
+		error = DB_TABLE_NOT_FOUND;
 
-		/* Foreign constraint system tables have already been
-		created, and they are ok. Ensure that they can't be
-		evicted from the table LRU cache.  */
+	} else if (UT_LIST_GET_LEN(sys_table->indexes) != num_indexes
+		   || sys_table->n_cols != num_fields) {
+		error = DB_CORRUPTION;
 
-		dict_table_move_from_lru_to_non_lru(sys_foreign);
-		dict_table_move_from_lru_to_non_lru(sys_foreign_cols);
+	} else {
+		/* This table has already been created, and it is OK.
+		Ensure that it can't be evicted from the table LRU cache. */
 
-		exists = TRUE;
+		dict_table_move_from_lru_to_non_lru(sys_table);
 	}
 
 	mutex_exit(&dict_sys->mutex);
 
-	return(exists);
+	return(error);
 }
 
 /****************************************************************//**
 Creates the foreign key constraints system tables inside InnoDB
-at database creation or database start if they are not found or are
+at server bootstrap or server start if they are not found or are
 not of the right form.
 @return	DB_SUCCESS or error code */
 UNIV_INTERN
-ulint
+dberr_t
 dict_create_or_check_foreign_constraint_tables(void)
 /*================================================*/
 {
 	trx_t*		trx;
-	ulint		error;
-	ibool		success;
-	ibool		srv_file_per_table_backup;
+	my_bool		srv_file_per_table_backup;
+	dberr_t		err;
+	dberr_t		sys_foreign_err;
+	dberr_t		sys_foreign_cols_err;
 
 	ut_a(srv_get_active_thread_type() == SRV_NONE);
 
 	/* Note: The master thread has not been started at this point. */
 
-	if (dict_check_sys_foreign_tables_exist()) {
+
+	sys_foreign_err = dict_check_if_system_table_exists(
+		"SYS_FOREIGN", DICT_NUM_FIELDS__SYS_FOREIGN + 1, 3);
+	sys_foreign_cols_err = dict_check_if_system_table_exists(
+		"SYS_FOREIGN_COLS", DICT_NUM_FIELDS__SYS_FOREIGN_COLS + 1, 1);
+
+	if (sys_foreign_err == DB_SUCCESS
+	    && sys_foreign_cols_err == DB_SUCCESS) {
 		return(DB_SUCCESS);
 	}
 
 	trx = trx_allocate_for_mysql();
+
+	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 
 	trx->op_info = "creating foreign key sys tables";
 
@@ -1287,23 +1346,23 @@ dict_create_or_check_foreign_constraint_tables(void)
 
 	/* Check which incomplete table definition to drop. */
 
-	if (dict_table_get_low("SYS_FOREIGN") != NULL) {
-		fprintf(stderr,
-			"InnoDB: dropping incompletely created"
-			" SYS_FOREIGN table\n");
+	if (sys_foreign_err == DB_CORRUPTION) {
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"Dropping incompletely created "
+			"SYS_FOREIGN table.");
 		row_drop_table_for_mysql("SYS_FOREIGN", trx, TRUE);
 	}
 
-	if (dict_table_get_low("SYS_FOREIGN_COLS") != NULL) {
-		fprintf(stderr,
-			"InnoDB: dropping incompletely created"
-			" SYS_FOREIGN_COLS table\n");
+	if (sys_foreign_cols_err == DB_CORRUPTION) {
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"Dropping incompletely created "
+			"SYS_FOREIGN_COLS table.");
 
 		row_drop_table_for_mysql("SYS_FOREIGN_COLS", trx, TRUE);
 	}
 
-	fprintf(stderr,
-		"InnoDB: Creating foreign key constraint system tables\n");
+	ib_logf(IB_LOG_LEVEL_WARN,
+		"Creating foreign key constraint system tables.");
 
 	/* NOTE: in dict_load_foreigns we use the fact that
 	there are 2 secondary indexes on SYS_FOREIGN, and they
@@ -1315,50 +1374,50 @@ dict_create_or_check_foreign_constraint_tables(void)
 	VARBINARY, like in other InnoDB system tables, to get a clean
 	design. */
 
-	srv_file_per_table_backup = (ibool) srv_file_per_table;
+	srv_file_per_table_backup = srv_file_per_table;
 
 	/* We always want SYSTEM tables to be created inside the system
 	tablespace. */
 
 	srv_file_per_table = 0;
 
-	error = que_eval_sql(NULL,
-			     "PROCEDURE CREATE_FOREIGN_SYS_TABLES_PROC () IS\n"
-			     "BEGIN\n"
-			     "CREATE TABLE\n"
-			     "SYS_FOREIGN(ID CHAR, FOR_NAME CHAR,"
-			     " REF_NAME CHAR, N_COLS INT);\n"
-			     "CREATE UNIQUE CLUSTERED INDEX ID_IND"
-			     " ON SYS_FOREIGN (ID);\n"
-			     "CREATE INDEX FOR_IND"
-			     " ON SYS_FOREIGN (FOR_NAME);\n"
-			     "CREATE INDEX REF_IND"
-			     " ON SYS_FOREIGN (REF_NAME);\n"
-			     "CREATE TABLE\n"
-			     "SYS_FOREIGN_COLS(ID CHAR, POS INT,"
-			     " FOR_COL_NAME CHAR, REF_COL_NAME CHAR);\n"
-			     "CREATE UNIQUE CLUSTERED INDEX ID_IND"
-			     " ON SYS_FOREIGN_COLS (ID, POS);\n"
-			     "END;\n"
-			     , FALSE, trx);
+	err = que_eval_sql(
+		NULL,
+		"PROCEDURE CREATE_FOREIGN_SYS_TABLES_PROC () IS\n"
+		"BEGIN\n"
+		"CREATE TABLE\n"
+		"SYS_FOREIGN(ID CHAR, FOR_NAME CHAR,"
+		" REF_NAME CHAR, N_COLS INT);\n"
+		"CREATE UNIQUE CLUSTERED INDEX ID_IND"
+		" ON SYS_FOREIGN (ID);\n"
+		"CREATE INDEX FOR_IND"
+		" ON SYS_FOREIGN (FOR_NAME);\n"
+		"CREATE INDEX REF_IND"
+		" ON SYS_FOREIGN (REF_NAME);\n"
+		"CREATE TABLE\n"
+		"SYS_FOREIGN_COLS(ID CHAR, POS INT,"
+		" FOR_COL_NAME CHAR, REF_COL_NAME CHAR);\n"
+		"CREATE UNIQUE CLUSTERED INDEX ID_IND"
+		" ON SYS_FOREIGN_COLS (ID, POS);\n"
+		"END;\n",
+		FALSE, trx);
 
-	if (error != DB_SUCCESS) {
-		fprintf(stderr, "InnoDB: error %lu in creation\n",
-			(ulong) error);
+	if (err != DB_SUCCESS) {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Creation of SYS_FOREIGN and SYS_FOREIGN_COLS "
+			"has failed with error %lu.  Tablespace is full. "
+			"Dropping incompletely created tables.",
+			(ulong) err);
 
-		ut_a(error == DB_OUT_OF_FILE_SPACE
-		     || error == DB_TOO_MANY_CONCURRENT_TRXS);
-
-		fprintf(stderr,
-			"InnoDB: creation failed\n"
-			"InnoDB: tablespace is full\n"
-			"InnoDB: dropping incompletely created"
-			" SYS_FOREIGN tables\n");
+		ut_ad(err == DB_OUT_OF_FILE_SPACE
+		      || err == DB_TOO_MANY_CONCURRENT_TRXS);
 
 		row_drop_table_for_mysql("SYS_FOREIGN", trx, TRUE);
 		row_drop_table_for_mysql("SYS_FOREIGN_COLS", trx, TRUE);
 
-		error = DB_MUST_GET_MORE_FILE_SPACE;
+		if (err == DB_OUT_OF_FILE_SPACE) {
+			err = DB_MUST_GET_MORE_FILE_SPACE;
+		}
 	}
 
 	trx_commit_for_mysql(trx);
@@ -1367,28 +1426,31 @@ dict_create_or_check_foreign_constraint_tables(void)
 
 	trx_free_for_mysql(trx);
 
-	if (error == DB_SUCCESS) {
-		fprintf(stderr,
-			"InnoDB: Foreign key constraint system tables"
-			" created\n");
+	srv_file_per_table = srv_file_per_table_backup;
+
+	if (err == DB_SUCCESS) {
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Foreign key constraint system tables created");
 	}
 
 	/* Note: The master thread has not been started at this point. */
 	/* Confirm and move to the non-LRU part of the table LRU list. */
+	sys_foreign_err = dict_check_if_system_table_exists(
+		"SYS_FOREIGN", DICT_NUM_FIELDS__SYS_FOREIGN + 1, 3);
+	ut_a(sys_foreign_err == DB_SUCCESS);
 
-	success = dict_check_sys_foreign_tables_exist();
-	ut_a(success);
+	sys_foreign_cols_err = dict_check_if_system_table_exists(
+		"SYS_FOREIGN_COLS", DICT_NUM_FIELDS__SYS_FOREIGN_COLS + 1, 1);
+	ut_a(sys_foreign_cols_err == DB_SUCCESS);
 
-	srv_file_per_table = (my_bool) srv_file_per_table_backup;
-
-	return(error);
+	return(err);
 }
 
 /****************************************************************//**
 Evaluate the given foreign key SQL statement.
 @return	error code or DB_SUCCESS */
-static
-ulint
+static __attribute__((nonnull, warn_unused_result))
+dberr_t
 dict_foreign_eval_sql(
 /*==================*/
 	pars_info_t*	info,	/*!< in: info struct, or NULL */
@@ -1397,8 +1459,8 @@ dict_foreign_eval_sql(
 	dict_foreign_t*	foreign,/*!< in: foreign */
 	trx_t*		trx)	/*!< in: transaction */
 {
-	ulint		error;
-	FILE*		ef	= dict_foreign_err_file;
+	dberr_t	error;
+	FILE*	ef	= dict_foreign_err_file;
 
 	error = que_eval_sql(info, sql, FALSE, trx);
 
@@ -1453,8 +1515,8 @@ dict_foreign_eval_sql(
 Add a single foreign key field definition to the data dictionary tables in
 the database.
 @return	error code or DB_SUCCESS */
-static
-ulint
+static __attribute__((nonnull, warn_unused_result))
+dberr_t
 dict_create_add_foreign_field_to_dictionary(
 /*========================================*/
 	ulint		field_nr,	/*!< in: foreign field number */
@@ -1492,17 +1554,17 @@ databasename/tablename_ibfk_NUMBER, where the numbers start from 1, and
 are given locally for this table, that is, the number is not global, as in
 the old format constraints < 4.0.18 it used to be.
 @return	error code or DB_SUCCESS */
-static
-ulint
+UNIV_INTERN
+dberr_t
 dict_create_add_foreign_to_dictionary(
 /*==================================*/
 	ulint*		id_nr,	/*!< in/out: number to use in id generation;
 				incremented if used */
 	dict_table_t*	table,	/*!< in: table */
 	dict_foreign_t*	foreign,/*!< in: foreign */
-	trx_t*		trx)	/*!< in: transaction */
+	trx_t*		trx)	/*!< in/out: dictionary transaction */
 {
-	ulint		error;
+	dberr_t		error;
 	ulint		i;
 
 	pars_info_t*	info = pars_info_create();
@@ -1553,12 +1615,6 @@ dict_create_add_foreign_to_dictionary(
 		}
 	}
 
-	trx->op_info = "committing foreign key definitions";
-
-	trx_commit(trx);
-
-	trx->op_info = "";
-
 	return(error);
 }
 
@@ -1566,7 +1622,7 @@ dict_create_add_foreign_to_dictionary(
 Adds foreign key definitions to data dictionary tables in the database.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
-ulint
+dberr_t
 dict_create_add_foreigns_to_dictionary(
 /*===================================*/
 	ulint		start_id,/*!< in: if we are actually doing ALTER TABLE
@@ -1582,7 +1638,7 @@ dict_create_add_foreigns_to_dictionary(
 {
 	dict_foreign_t*	foreign;
 	ulint		number	= start_id + 1;
-	ulint		error;
+	dberr_t		error;
 
 	ut_ad(mutex_own(&(dict_sys->mutex)));
 
@@ -1607,5 +1663,188 @@ dict_create_add_foreigns_to_dictionary(
 		}
 	}
 
+	trx->op_info = "committing foreign key definitions";
+
+	trx_commit(trx);
+
+	trx->op_info = "";
+
 	return(DB_SUCCESS);
+}
+
+/****************************************************************//**
+Creates the tablespaces and datafiles system tables inside InnoDB
+at server bootstrap or server start if they are not found or are
+not of the right form.
+@return	DB_SUCCESS or error code */
+UNIV_INTERN
+dberr_t
+dict_create_or_check_sys_tablespace(void)
+/*=====================================*/
+{
+	trx_t*		trx;
+	my_bool		srv_file_per_table_backup;
+	dberr_t		err;
+	dberr_t		sys_tablespaces_err;
+	dberr_t		sys_datafiles_err;
+
+	ut_a(srv_get_active_thread_type() == SRV_NONE);
+
+	/* Note: The master thread has not been started at this point. */
+
+	sys_tablespaces_err = dict_check_if_system_table_exists(
+		"SYS_TABLESPACES", DICT_NUM_FIELDS__SYS_TABLESPACES + 1, 1);
+	sys_datafiles_err = dict_check_if_system_table_exists(
+		"SYS_DATAFILES", DICT_NUM_FIELDS__SYS_DATAFILES + 1, 1);
+
+	if (sys_tablespaces_err == DB_SUCCESS
+	    && sys_datafiles_err == DB_SUCCESS) {
+		return(DB_SUCCESS);
+	}
+
+	trx = trx_allocate_for_mysql();
+
+	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
+
+	trx->op_info = "creating tablepace and datafile sys tables";
+
+	row_mysql_lock_data_dictionary(trx);
+
+	/* Check which incomplete table definition to drop. */
+
+	if (sys_tablespaces_err == DB_CORRUPTION) {
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"Dropping incompletely created "
+			"SYS_TABLESPACES table.");
+		row_drop_table_for_mysql("SYS_TABLESPACES", trx, TRUE);
+	}
+
+	if (sys_datafiles_err == DB_CORRUPTION) {
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"Dropping incompletely created "
+			"SYS_DATAFILES table.");
+
+		row_drop_table_for_mysql("SYS_DATAFILES", trx, TRUE);
+	}
+
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"Creating tablespace and datafile system tables.");
+
+	/* We always want SYSTEM tables to be created inside the system
+	tablespace. */
+	srv_file_per_table_backup = srv_file_per_table;
+	srv_file_per_table = 0;
+
+	err = que_eval_sql(
+		NULL,
+		"PROCEDURE CREATE_SYS_TABLESPACE_PROC () IS\n"
+		"BEGIN\n"
+		"CREATE TABLE SYS_TABLESPACES(\n"
+		" SPACE INT, NAME CHAR, FLAGS INT);\n"
+		"CREATE UNIQUE CLUSTERED INDEX SYS_TABLESPACES_SPACE"
+		" ON SYS_TABLESPACES (SPACE);\n"
+		"CREATE TABLE SYS_DATAFILES(\n"
+		" SPACE INT, PATH CHAR);\n"
+		"CREATE UNIQUE CLUSTERED INDEX SYS_DATAFILES_SPACE"
+		" ON SYS_DATAFILES (SPACE);\n"
+		"END;\n",
+		FALSE, trx);
+
+	if (err != DB_SUCCESS) {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Creation of SYS_TABLESPACES and SYS_DATAFILES "
+			"has failed with error %lu.  Tablespace is full. "
+			"Dropping incompletely created tables.",
+			(ulong) err);
+
+		ut_a(err == DB_OUT_OF_FILE_SPACE
+		     || err == DB_TOO_MANY_CONCURRENT_TRXS);
+
+		row_drop_table_for_mysql("SYS_TABLESPACES", trx, TRUE);
+		row_drop_table_for_mysql("SYS_DATAFILES", trx, TRUE);
+
+		if (err == DB_OUT_OF_FILE_SPACE) {
+			err = DB_MUST_GET_MORE_FILE_SPACE;
+		}
+	}
+
+	trx_commit_for_mysql(trx);
+
+	row_mysql_unlock_data_dictionary(trx);
+
+	trx_free_for_mysql(trx);
+
+	srv_file_per_table = srv_file_per_table_backup;
+
+	if (err == DB_SUCCESS) {
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Tablespace and datafile system tables created.");
+	}
+
+	/* Note: The master thread has not been started at this point. */
+	/* Confirm and move to the non-LRU part of the table LRU list. */
+
+	sys_tablespaces_err = dict_check_if_system_table_exists(
+		"SYS_TABLESPACES", DICT_NUM_FIELDS__SYS_TABLESPACES + 1, 1);
+	ut_a(sys_tablespaces_err == DB_SUCCESS);
+
+	sys_datafiles_err = dict_check_if_system_table_exists(
+		"SYS_DATAFILES", DICT_NUM_FIELDS__SYS_DATAFILES + 1, 1);
+	ut_a(sys_datafiles_err == DB_SUCCESS);
+
+	return(err);
+}
+
+/********************************************************************//**
+Add a single tablespace definition to the data dictionary tables in the
+database.
+@return	error code or DB_SUCCESS */
+UNIV_INTERN
+dberr_t
+dict_create_add_tablespace_to_dictionary(
+/*=====================================*/
+	ulint		space,		/*!< in: tablespace id */
+	const char*	name,		/*!< in: tablespace name */
+	ulint		flags,		/*!< in: tablespace flags */
+	const char*	path,		/*!< in: tablespace path */
+	trx_t*		trx,		/*!< in/out: transaction */
+	bool		commit)		/*!< in: if true then commit the
+					transaction */
+{
+	dberr_t		error;
+
+	pars_info_t*	info = pars_info_create();
+
+	ut_a(space > TRX_SYS_SPACE);
+
+	pars_info_add_int4_literal(info, "space", space);
+
+	pars_info_add_str_literal(info, "name", name);
+
+	pars_info_add_int4_literal(info, "flags", flags);
+
+	pars_info_add_str_literal(info, "path", path);
+
+	error = que_eval_sql(info,
+			     "PROCEDURE P () IS\n"
+			     "BEGIN\n"
+			     "INSERT INTO SYS_TABLESPACES VALUES"
+			     "(:space, :name, :flags);\n"
+			     "INSERT INTO SYS_DATAFILES VALUES"
+			     "(:space, :path);\n"
+			     "END;\n",
+			     FALSE, trx);
+
+	if (error != DB_SUCCESS) {
+		return(error);
+	}
+
+	if (commit) {
+		trx->op_info = "committing tablespace and datafile definition";
+		trx_commit(trx);
+	}
+
+	trx->op_info = "";
+
+	return(error);
 }

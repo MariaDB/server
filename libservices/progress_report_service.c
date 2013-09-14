@@ -14,4 +14,4 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #include <service_versions.h>
-SERVICE_VERSION *progress_report_service= (void*)VERSION_progress_report;
+SERVICE_VERSION progress_report_service= (void*)VERSION_progress_report;

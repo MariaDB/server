@@ -496,12 +496,6 @@ io_handler_thread(
 }
 #endif /* !UNIV_HOTBACKUP */
 
-#ifdef __WIN__
-#define SRV_PATH_SEPARATOR	'\\'
-#else
-#define SRV_PATH_SEPARATOR	'/'
-#endif
-
 /*********************************************************************//**
 Normalizes a directory path for Windows: converts slashes to backslashes. */
 UNIV_INTERN
@@ -1047,6 +1041,7 @@ skip_size_check:
 		}
 
 		if (ret == FALSE) {
+
 			/* We open the data file */
 
 			files[i] = os_file_create(innodb_file_data_key,
@@ -1089,6 +1084,7 @@ skip_size_check:
 				min_arch_log_no, max_arch_log_no,
 #endif /* UNIV_LOG_ARCHIVE */
 				min_flushed_lsn, max_flushed_lsn);
+
 			one_opened = TRUE;
 		} else {
 			/* We created the data file and now write it full of
@@ -1155,6 +1151,11 @@ void
 init_log_online(void)
 /*=================*/
 {
+	if (UNIV_UNLIKELY(srv_force_recovery > 0)) {
+		srv_track_changed_pages = FALSE;
+		return;
+	}
+
 	if (srv_track_changed_pages) {
 
 		log_online_read_init();

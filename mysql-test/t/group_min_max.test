@@ -1204,6 +1204,64 @@ drop table t1;
 
 --echo End of 5.1 tests
 
+--echo #
+--echo # MDEV-765 lp:825075 - Wrong result with GROUP BY + multipart key + MIN/MAX loose scan
+--echo #
+
+CREATE TABLE t1 (a varchar(1), b varchar(1), KEY (b,a));
+INSERT INTO t1 VALUES
+('0',NULL),('9',NULL),('8','c'),('4','d'),('7','d'),(NULL,'f'),
+('7','f'),('8','g'),(NULL,'j');
+
+explain
+SELECT max(a) , b FROM t1 WHERE a IS NULL OR b = 'z' GROUP BY b; 
+SELECT max(a) , b FROM t1 WHERE a IS NULL OR b = 'z' GROUP BY b; 
+
+explain
+SELECT b, min(a) FROM t1 WHERE a = '7' OR b = 'z' GROUP BY b;
+SELECT b, min(a) FROM t1 WHERE a = '7' OR b = 'z' GROUP BY b;
+
+explain
+SELECT b, min(a) FROM t1 WHERE (a = b OR b = 'd' OR b is NULL) GROUP BY b;
+SELECT b, min(a) FROM t1 WHERE (a = b OR b = 'd' OR b is NULL) GROUP BY b;
+
+explain
+SELECT b, min(a) FROM t1 WHERE a > ('0' = b) AND b = 'z' GROUP BY b;
+SELECT b, min(a) FROM t1 WHERE a > ('0' = b) AND b = 'z' GROUP BY b;
+
+explain
+SELECT b, min(a) FROM t1 WHERE a > '0' AND (b < (a = '7')) GROUP BY b;
+SELECT b, min(a) FROM t1 WHERE a > '0' AND (b < (a = '7')) GROUP BY b;
+
+explain
+SELECT b, min(a) FROM t1 WHERE (a > '0' AND (a > '1' OR b = 'd')) GROUP BY b;
+SELECT b, min(a) FROM t1 WHERE (a > '0' AND (a > '1' OR b = 'd')) GROUP BY b;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-4140 Wrong result with GROUP BY + multipart key + MIN/MAX loose scan and a subquery
+--echo #
+
+CREATE TABLE t1 (a int, b int, KEY (b, a)) ;
+INSERT INTO t1 VALUES (0,99),(9,99),(4,0),(7,0),(99,0),(7,0),(8,0),(99,0),(1,0);
+CREATE TABLE t2 (c int) ;
+INSERT INTO t2 VALUES (0),(1);
+
+EXPLAIN
+SELECT MIN(a), b FROM t1 WHERE a > 0 GROUP BY b;
+SELECT MIN(a), b FROM t1 WHERE a > 0 GROUP BY b;
+EXPLAIN
+SELECT MIN(a), b FROM t1 WHERE a > ( SELECT c FROM t2 WHERE c = 0 ) GROUP BY b;
+SELECT MIN(a), b FROM t1 WHERE a > ( SELECT c FROM t2 WHERE c = 0 ) GROUP BY b;
+# this test is for 5.5 to ensure that the subquery is expensive
+EXPLAIN
+SELECT MIN(a), b FROM t1 WHERE a > ( SELECT min(c) FROM t2, t1 t1a, t1 t1b WHERE c = 0 ) GROUP BY b;
+SELECT MIN(a), b FROM t1 WHERE a > ( SELECT min(c) FROM t2, t1 t1a, t1 t1b WHERE c = 0 ) GROUP BY b;
+
+drop table t1, t2;
+
+--echo End of 5.3 tests
 
 --echo #
 --echo # WL#3220 (Loose index scan for COUNT DISTINCT)
@@ -1343,3 +1401,49 @@ explain SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
 drop table t1;
 --echo # End of test#50539.
 
+--echo #
+--echo # MDEV-4219 A simple select query returns random data (upstream bug#68473)
+--echo #
+
+--disable_warnings
+drop table if exists faulty;
+--enable_warnings
+
+# MySQL's test case
+
+CREATE TABLE faulty (
+a int(11) unsigned NOT NULL AUTO_INCREMENT,
+b int(11) unsigned NOT NULL,
+c datetime NOT NULL,
+PRIMARY KEY (a),
+UNIQUE KEY b_and_c (b,c)
+);
+
+INSERT INTO faulty (b, c) VALUES
+(1801, '2013-02-15 09:00:00'),
+(1802, '2013-02-28 09:00:00'),
+(1802, '2013-03-01 09:00:00'),
+(5,    '1990-02-15 09:00:00'),
+(5,    '2013-02-15 09:00:00'),
+(5,    '2009-02-15 17:00:00');
+
+EXPLAIN
+SELECT DISTINCT b, c FROM faulty WHERE b='1802' ORDER BY c;
+SELECT DISTINCT b, c FROM faulty WHERE b='1802' ORDER BY c;
+
+drop table faulty;
+
+# MariaDB test case
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 (a, b) VALUES (1,1), (1,2), (1,3);
+INSERT INTO t1 SELECT a + 1, b FROM t1;
+INSERT INTO t1 SELECT a + 2, b FROM t1;
+
+CREATE INDEX break_it ON t1 (a, b);
+
+EXPLAIN
+SELECT distinct a, b FROM t1 where a = '3' ORDER BY b; 
+SELECT distinct a, b FROM t1 where a = '3' ORDER BY b; 
+
+drop table t1;

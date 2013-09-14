@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2011 Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -138,7 +138,7 @@ static bool check_fields(THD *thd, List<Item> &items)
 
   while ((item= it++))
   {
-    if (!(field= item->filed_for_view_update()))
+    if (!(field= item->field_for_view_update()))
     {
       /* item has name, because it comes from VIEW SELECT list */
       my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
@@ -527,7 +527,10 @@ int mysql_update(THD *thd,
 
       /* If quick select is used, initialize it before retrieving rows. */
       if (select && select->quick && select->quick->reset())
+      {
+        close_cached_file(&tempfile);
         goto err;
+      }
       table->file->try_semi_consistent_read(1);
 
       /*
@@ -579,13 +582,18 @@ int mysql_update(THD *thd,
 	}
 	else
         {
-	  table->file->unlock_row();
+          /*
+            Don't try unlocking the row if skip_record reported an error since in
+            this case the transaction might have been rolled back already.
+          */
           if (error < 0)
           {
             /* Fatal error from select->skip_record() */
             error= 1;
             break;
           }
+          else
+            table->file->unlock_row();
         }
       }
       if (thd->killed && !error)
@@ -822,9 +830,18 @@ int mysql_update(THD *thd,
         }
       }
     }
-    else
+    /*
+      Don't try unlocking the row if skip_record reported an error since in
+      this case the transaction might have been rolled back already.
+    */
+    else if (!thd->is_error())
       table->file->unlock_row();
-    thd->warning_info->inc_current_row_for_warning();
+    else
+    {
+      error= 1;
+      break;
+    }
+    thd->get_stmt_da()->inc_current_row_for_warning();
     if (thd->is_error())
     {
       error= 1;
@@ -932,7 +949,7 @@ int mysql_update(THD *thd,
     char buff[MYSQL_ERRMSG_SIZE];
     my_snprintf(buff, sizeof(buff), ER(ER_UPDATE_INFO), (ulong) found,
                 (ulong) updated,
-                (ulong) thd->warning_info->statement_warn_count());
+                (ulong) thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
           id, buff);
     DBUG_PRINT("info",("%ld records updated", (long) updated));
@@ -1117,7 +1134,7 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
             // The primary key can cover multiple columns
             KEY key_info= table1->key_info[table1->s->primary_key];
             KEY_PART_INFO *key_part= key_info.key_part;
-            KEY_PART_INFO *key_part_end= key_part + key_info.key_parts;
+            KEY_PART_INFO *key_part_end= key_part + key_info.user_defined_key_parts;
 
             for (;key_part != key_part_end; ++key_part)
             {
@@ -1573,6 +1590,15 @@ int multi_update::prepare(List<Item> &not_used_values,
   DBUG_RETURN(thd->is_fatal_error != 0);
 }
 
+void multi_update::update_used_tables()
+{
+  Item *item;
+  List_iterator_fast<Item> it(*values);
+  while ((item= it++))
+  {
+    item->update_used_tables();
+  }
+}
 
 /*
   Check if table is safe to update on fly
@@ -1981,7 +2007,7 @@ int multi_update::send_data(List<Item> &not_used_values)
             create_internal_tmp_table_from_heap(thd, tmp_table,
                                          tmp_table_param[offset].start_recinfo,
                                          &tmp_table_param[offset].recinfo,
-                                         error, 1))
+                                         error, 1, NULL))
         {
           do_update= 0;
           DBUG_RETURN(1);			// Not a table_is_full error

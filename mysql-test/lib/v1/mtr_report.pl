@@ -312,7 +312,7 @@ sub mtr_report_stats ($) {
 		/Slave: The incident LOST_EVENTS occured on the master/ or
 		/Slave: Unknown error.* 1105/ or
 		/Slave: Can't drop database.* database doesn't exist/ or
-                /Slave SQL:.*(?:Error_code: \d+|Query:.*)/ or
+                /Slave SQL:.*(?:error.* \d+|Query:.*)/ or
 		/Sort aborted/ or
 		/Time-out in NDB/ or
 		/One can only use the --user.*root/ or
@@ -361,7 +361,7 @@ sub mtr_report_stats ($) {
 		# rpl_extrColmaster_*.test, the slave thread produces warnings
 		# when it get updates to a table that has more columns on the
 		# master
-		/Slave: Unknown column 'c7' in 't15' Error_code: 1054/ or
+		/Slave: Unknown column 'c7' in 't15' error.* 1054/ or
 		/Slave: Can't DROP 'c7'.* 1091/ or
 		/Slave: Key column 'c6'.* 1072/ or
 
@@ -370,8 +370,8 @@ sub mtr_report_stats ($) {
 
 		# rpl_idempotency.test produces warnings for the slave.
 		($testname eq 'rpl.rpl_idempotency' and
-		 (/Slave: Can\'t find record in \'t1\' Error_code: 1032/ or
-                  /Slave: Cannot add or update a child row: a foreign key constraint fails .* Error_code: 1452/
+		 (/Slave: Can\'t find record in \'t1\' error.* 1032/ or
+                  /Slave: Cannot add or update a child row: a foreign key constraint fails .* error.* 1452/
 		 )) or
 
 		# These tests does "kill" on queries, causing sporadic errors when writing to logs
@@ -389,7 +389,7 @@ sub mtr_report_stats ($) {
 
                 # rpl_temporary has an error on slave that can be ignored
                 ($testname eq 'rpl.rpl_temporary' and
-                 (/Slave: Can\'t find record in \'user\' Error_code: 1032/
+                 (/Slave: Can\'t find record in \'user\' error.* 1032/
                  )) or
                 # Test case for Bug#31590 produces the following error:
                 /Out of sort memory; increase server sort buffer size/ or

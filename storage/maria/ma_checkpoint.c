@@ -563,7 +563,7 @@ pthread_handler_t ma_checkpoint_background(void *arg)
   DBUG_ASSERT(interval > 0);
 
 #ifdef HAVE_PSI_THREAD_INTERFACE
-  PSI_CALL(set_thread_user_host)(0,0,0,0);
+  PSI_THREAD_CALL(set_thread_user_host)(0,0,0,0);
 #endif
 
   /*
@@ -762,12 +762,10 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
   struct st_state_copy *state_copies= NULL, /**< fixed-size cache of states */
     *state_copies_end, /**< cache ends here */
     *state_copy; /**< iterator in cache */
-  TRANSLOG_ADDRESS state_copies_horizon; /**< horizon of states' _copies_ */
+  TRANSLOG_ADDRESS UNINIT_VAR(state_copies_horizon); /**< horizon of states' _copies_ */
   struct st_filter_param filter_param;
   PAGECACHE_FLUSH_FILTER filter;
   DBUG_ENTER("collect_tables");
-
-  LINT_INIT(state_copies_horizon);
 
   /* let's make a list of distinct shares */
   mysql_mutex_lock(&THR_LOCK_maria);
@@ -861,11 +859,11 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
     my_malloc(STATE_COPIES * sizeof(struct st_state_copy), MYF(MY_WME));
   dfiles= (PAGECACHE_FILE *)my_realloc((uchar *)dfiles,
                                        /* avoid size of 0 for my_realloc */
-                                       max(1, nb) * sizeof(PAGECACHE_FILE),
+                                       MY_MAX(1, nb) * sizeof(PAGECACHE_FILE),
                                        MYF(MY_WME | MY_ALLOW_ZERO_PTR));
   kfiles= (PAGECACHE_FILE *)my_realloc((uchar *)kfiles,
                                        /* avoid size of 0 for my_realloc */
-                                       max(1, nb) * sizeof(PAGECACHE_FILE),
+                                       MY_MAX(1, nb) * sizeof(PAGECACHE_FILE),
                                        MYF(MY_WME | MY_ALLOW_ZERO_PTR));
   if (unlikely((state_copies == NULL) ||
                (dfiles == NULL) || (kfiles == NULL)))
@@ -898,7 +896,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
         Collect and cache a bunch of states. We do this for many states at a
         time, to not lock/unlock the log's lock too often.
       */
-      uint j, bound= min(nb, i + STATE_COPIES);
+      uint j, bound= MY_MIN(nb, i + STATE_COPIES);
       state_copy= state_copies;
       /* part of the state is protected by log's lock */
       translog_lock();

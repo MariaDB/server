@@ -1139,7 +1139,7 @@ void my_net_local_init(NET *net)
   my_net_set_read_timeout(net, CLIENT_NET_READ_TIMEOUT);
   my_net_set_write_timeout(net, CLIENT_NET_WRITE_TIMEOUT);
   net->retry_count=  1;
-  net->max_packet_size= max(net_buffer_length, max_allowed_packet);
+  net->max_packet_size= MY_MAX(net_buffer_length, max_allowed_packet);
 }
 
 /*
@@ -2131,7 +2131,14 @@ int cli_stmt_execute(MYSQL_STMT *stmt)
       DBUG_RETURN(1);
     }
 
-    net_clear(net, 1);				/* Sets net->write_pos */
+    if (net->vio)
+      net_clear(net, 1);          /* Sets net->write_pos */
+    else
+    {
+      set_stmt_errmsg(stmt, net);
+      DBUG_RETURN(1);             
+    }
+
     /* Reserve place for null-marker bytes */
     null_count= (stmt->param_count+7) /8;
     if (my_realloc_str(net, null_count + 1))
@@ -3194,7 +3201,9 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value,
   case MYSQL_TYPE_TIME:
   {
     MYSQL_TIME *tm= (MYSQL_TIME *)buffer;
-    str_to_time(value, length, tm, TIME_FUZZY_DATE, &err);
+    MYSQL_TIME_STATUS status;
+    str_to_time(value, length, tm, 0, &status);
+    err= status.warnings;
     *param->error= test(err);
     break;
   }
@@ -3203,7 +3212,9 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value,
   case MYSQL_TYPE_TIMESTAMP:
   {
     MYSQL_TIME *tm= (MYSQL_TIME *)buffer;
-    (void) str_to_datetime(value, length, tm, TIME_FUZZY_DATE, &err);
+    MYSQL_TIME_STATUS status;
+    (void) str_to_datetime(value, length, tm, 0, &status);
+    err= status.warnings;
     *param->error= test(err) && (param->buffer_type == MYSQL_TYPE_DATE &&
                                  tm->time_type != MYSQL_TIMESTAMP_DATE);
     break;
@@ -3228,7 +3239,7 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value,
       copy_length= end - start;
       /* We've got some data beyond offset: copy up to buffer_length bytes */
       if (param->buffer_length)
-        memcpy(buffer, start, min(copy_length, param->buffer_length));
+        memcpy(buffer, start, MY_MIN(copy_length, param->buffer_length));
     }
     else
       copy_length= 0;
@@ -3326,9 +3337,7 @@ static void fetch_long_with_conversion(MYSQL_BIND *param, MYSQL_FIELD *field,
   case MYSQL_TYPE_DATETIME:
   {
     int error;
-    value= number_to_datetime(value, 0,
-                              (MYSQL_TIME *) buffer, TIME_FUZZY_DATE,
-                              &error);
+    value= number_to_datetime(value, 0, (MYSQL_TIME *) buffer, 0, &error);
     *param->error= test(error);
     break;
   }
@@ -3455,7 +3464,7 @@ static void fetch_float_with_conversion(MYSQL_BIND *param, MYSQL_FIELD *field,
     size_t len;
     if (field->decimals >= NOT_FIXED_DEC)
       len= my_gcvt(value, type,
-                   (int) min(sizeof(buff)-1, param->buffer_length),
+                   (int) MY_MIN(sizeof(buff)-1, param->buffer_length),
                    buff, NULL);
     else
       len= my_fcvt(value, (int) field->decimals, buff, NULL);
@@ -3765,7 +3774,7 @@ static void fetch_result_bin(MYSQL_BIND *param,
                              uchar **row)
 {
   ulong length= net_field_length(row);
-  ulong copy_length= min(length, param->buffer_length);
+  ulong copy_length= MY_MIN(length, param->buffer_length);
   memcpy(param->buffer, (char *)*row, copy_length);
   *param->length= length;
   *param->error= copy_length < length;
@@ -3777,7 +3786,7 @@ static void fetch_result_str(MYSQL_BIND *param,
                              uchar **row)
 {
   ulong length= net_field_length(row);
-  ulong copy_length= min(length, param->buffer_length);
+  ulong copy_length= MY_MIN(length, param->buffer_length);
   memcpy(param->buffer, (char *)*row, copy_length);
   /* Add an end null if there is room in the buffer */
   if (copy_length != param->buffer_length)

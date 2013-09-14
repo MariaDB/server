@@ -91,7 +91,7 @@ void myisamchk_init(HA_CHECK *param)
   param->opt_follow_links=1;
   param->keys_in_use= ~(ulonglong) 0;
   param->search_after_block=HA_OFFSET_ERROR;
-  param->use_buffers=USE_BUFFER_INIT;
+  param->use_buffers= KEY_BUFFER_INIT;
   param->read_buffer_length=READ_BUFFER_INIT;
   param->write_buffer_length=READ_BUFFER_INIT;
   param->sort_buffer_length=SORT_BUFFER_INIT;
@@ -1946,7 +1946,13 @@ int mi_sort_index(HA_CHECK *param, register MI_INFO *info, char * name)
        key++,keyinfo++)
   {
     if (! mi_is_key_active(info->s->state.key_map, key))
+    {
+      /* Since the key is not active, this should not be read, but we
+      initialize it anyway to silence a Valgrind warn when passing that
+      chunk of memory to pwrite(). */
+      index_pos[key]= HA_OFFSET_ERROR;
       continue;
+    }
 
     if (share->state.key_root[key] != HA_OFFSET_ERROR)
     {
@@ -2145,7 +2151,7 @@ int filecopy(HA_CHECK *param, File to,File from,my_off_t start,
   ulong buff_length;
   DBUG_ENTER("filecopy");
 
-  buff_length=(ulong) min(param->write_buffer_length,length);
+  buff_length=(ulong) MY_MIN(param->write_buffer_length,length);
   if (!(buff=my_malloc(buff_length,MYF(0))))
   {
     buff=tmp_buff; buff_length=IO_SIZE;
@@ -2303,7 +2309,7 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
                   MYF(param->malloc_flags));
 
   if (share->data_file_type == DYNAMIC_RECORD)
-    length=max(share->base.min_pack_length+1,share->base.min_block_length);
+    length=MY_MAX(share->base.min_pack_length+1,share->base.min_block_length);
   else if (share->data_file_type == COMPRESSED_RECORD)
     length=share->base.min_block_length;
   else
@@ -2392,7 +2398,7 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
           (see _create_index_by_sort)
         */
         sort_info.max_records= 10 *
-                               max(param->sort_buffer_length, MIN_SORT_BUFFER) /
+                               MY_MAX(param->sort_buffer_length, MIN_SORT_BUFFER) /
                                sort_param.key_length;
       }
 
@@ -2759,7 +2765,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
     mysql_file_seek(param->read_cache.file, 0L, MY_SEEK_END, MYF(0));
 
   if (share->data_file_type == DYNAMIC_RECORD)
-    rec_length=max(share->base.min_pack_length+1,share->base.min_block_length);
+    rec_length=MY_MAX(share->base.min_pack_length+1,share->base.min_block_length);
   else if (share->data_file_type == COMPRESSED_RECORD)
     rec_length=share->base.min_block_length;
   else
@@ -3984,7 +3990,7 @@ word_init_ft_buf:
   ft_buf->buf=ft_buf->lastkey+a_len;
   /*
     32 is just a safety margin here
-    (at least max(val_len, sizeof(nod_flag)) should be there).
+    (at least MY_MAX(val_len, sizeof(nod_flag)) should be there).
     May be better performance could be achieved if we'd put
       (sort_info->keyinfo->block_length-32)/XXX
       instead.

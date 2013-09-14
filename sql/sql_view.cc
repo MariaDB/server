@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2011 Monty Program Ab
+   Copyright (c) 2011, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 */
 
 #define MYSQL_LEX 1
@@ -33,7 +33,7 @@
 #include "sp_head.h"
 #include "sp.h"
 #include "sp_cache.h"
-#include "datadict.h"   // dd_frm_type()
+#include "datadict.h"   // dd_frm_is_view()
 
 #define MD5_BUFF_LENGTH 33
 
@@ -211,16 +211,12 @@ static void make_valid_column_names(List<Item> &item_list)
 static bool
 fill_defined_view_parts (THD *thd, TABLE_LIST *view)
 {
-  char key[MAX_DBKEY_LENGTH];
-  uint key_length;
   LEX *lex= thd->lex;
   TABLE_LIST decoy;
 
   memcpy (&decoy, view, sizeof (TABLE_LIST));
-  key_length= create_table_def_key(thd, key, view, 0);
-
-  if (tdc_open_view(thd, &decoy, decoy.alias, key, key_length,
-                    thd->mem_root, OPEN_VIEW_NO_PARSE))
+  if (tdc_open_view(thd, &decoy, decoy.alias, thd->mem_root,
+                    OPEN_VIEW_NO_PARSE))
     return TRUE;
 
   if (!lex->definer)
@@ -354,7 +350,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
     while ((item= it++))
     {
       Item_field *field;
-      if ((field= item->filed_for_view_update()))
+      if ((field= item->field_for_view_update()))
       {
         /*
          any_privileges may be reset later by the Item_field::set_field
@@ -436,7 +432,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
 
-  if (open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
+  if (open_temporary_tables(thd, lex->query_tables) ||
+      open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
   {
     view= lex->unlink_first_table(&link_to_local);
     res= TRUE;
@@ -515,7 +512,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       if (!is_acl_user(lex->definer->host.str,
                        lex->definer->user.str))
       {
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_NO_SUCH_USER,
                             ER(ER_NO_SUCH_USER),
                             lex->definer->user.str,
@@ -640,7 +637,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       Item *item;
       while ((item= it++))
       {
-        Item_field *fld= item->filed_for_view_update();
+        Item_field *fld= item->field_for_view_update();
         uint priv= (get_column_grant(thd, &view->grant, view->db,
                                      view->table_name, item->name) &
                     VIEW_ANY_ACL);
@@ -669,6 +666,15 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 #endif
 
   res= mysql_register_view(thd, view, mode);
+
+  /*
+    View TABLE_SHARE must be removed from the table definition cache in order to
+    make ALTER VIEW work properly. Otherwise, we would not be able to detect
+    meta-data changes after ALTER VIEW.
+  */
+
+  if (!res)
+    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, view->db, view->table_name, false);
 
   if (mysql_bin_log.is_open())
   {
@@ -871,7 +877,7 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   view->source= thd->lex->create_view_select;
 
   if (!thd->make_lex_string(&view->select_stmt, view_query.ptr(),
-                            view_query.length(), false))
+                            view_query.length()))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     error= -1;
@@ -891,7 +897,7 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   if (lex->create_view_algorithm == VIEW_ALGORITHM_MERGE &&
       !lex->can_be_merged())
   {
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_WARN_VIEW_MERGE,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_WARN_VIEW_MERGE,
                  ER(ER_WARN_VIEW_MERGE));
     lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED;
   }
@@ -1004,7 +1010,7 @@ loop_out:
                  view->view_creation_ctx->get_connection_cl()->name);
 
   if (!thd->make_lex_string(&view->view_body_utf8, is_query.ptr(),
-                            is_query.length(), false))
+                            is_query.length()))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     error= -1;
@@ -1156,9 +1162,10 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     TODO: when VIEWs will be stored in cache, table mem_root should
     be used here
   */
-  if (parser->parse((uchar*)table, thd->mem_root, view_parameters,
-                    required_view_parameters, &file_parser_dummy_hook))
-    goto err;
+  if ((result= parser->parse((uchar*)table, thd->mem_root,
+                             view_parameters, required_view_parameters,
+                             &file_parser_dummy_hook)))
+    goto end;
 
   /*
     check old format view .frm
@@ -1168,7 +1175,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     DBUG_ASSERT(!table->definer.host.str &&
                 !table->definer.user.length &&
                 !table->definer.host.length);
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_VIEW_FRM_NO_USER, ER(ER_VIEW_FRM_NO_USER),
                         table->db, table->table_name);
     get_default_definer(thd, &table->definer);
@@ -1221,6 +1228,11 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     now Lex placed in statement memory
   */
   table->view= lex= thd->lex= (LEX*) new(thd->mem_root) st_lex_local;
+  if (!table->view)
+  {
+    result= true;
+    goto end;
+  }
 
   {
     char old_db_buf[SAFE_NAME_LEN+1];
@@ -1564,7 +1576,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
             lex->select_lex.order_list.elements &&
             !table->select_lex->master_unit()->is_union())
         {
-          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                               ER_VIEW_ORDERBY_IGNORED,
                               ER(ER_VIEW_ORDERBY_IGNORED),
                               table->db, table->table_name);
@@ -1646,7 +1658,6 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
   String non_existant_views;
   char *wrong_object_db= NULL, *wrong_object_name= NULL;
   bool error= FALSE;
-  enum legacy_db_type not_used;
   bool some_views_deleted= FALSE;
   bool something_wrong= FALSE;
   DBUG_ENTER("mysql_drop_view");
@@ -1663,41 +1674,39 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     DBUG_RETURN(TRUE);
   }
 
-  if (lock_table_names(thd, views, 0, thd->variables.lock_wait_timeout,
-                       MYSQL_OPEN_SKIP_TEMPORARY))
+  if (lock_table_names(thd, views, 0, thd->variables.lock_wait_timeout, 0))
     DBUG_RETURN(TRUE);
 
   for (view= views; view; view= view->next_local)
   {
-    frm_type_enum type= FRMTYPE_ERROR;
+    bool not_exist;
     build_table_filename(path, sizeof(path) - 1,
                          view->db, view->table_name, reg_ext, 0);
 
-    if (access(path, F_OK) || 
-        FRMTYPE_VIEW != (type= dd_frm_type(thd, path, &not_used)))
+    if ((not_exist= my_access(path, F_OK)) || !dd_frm_is_view(thd, path))
     {
       char name[FN_REFLEN];
       my_snprintf(name, sizeof(name), "%s.%s", view->db, view->table_name);
-      if (thd->lex->drop_if_exists)
+      if (thd->lex->check_exists)
       {
-	push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 			    ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR),
 			    name);
 	continue;
       }
-      if (type == FRMTYPE_TABLE)
+      if (not_exist)
+      {
+        if (non_existant_views.length())
+          non_existant_views.append(',');
+        non_existant_views.append(String(view->table_name,system_charset_info));
+      }
+      else
       {
         if (!wrong_object_name)
         {
           wrong_object_db= view->db;
           wrong_object_name= view->table_name;
         }
-      }
-      else
-      {
-        if (non_existant_views.length())
-          non_existant_views.append(',');
-        non_existant_views.append(String(view->table_name,system_charset_info));
       }
       continue;
     }
@@ -1707,9 +1716,8 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     some_views_deleted= TRUE;
 
     /*
-      For a view, there is a TABLE_SHARE object, but its
-      ref_count never goes above 1. Remove it from the table
-      definition cache, in case the view was cached.
+      For a view, there is a TABLE_SHARE object.
+      Remove it from the table definition cache, in case the view was cached.
     */
     tdc_remove_table(thd, TDC_RT_REMOVE_ALL, view->db, view->table_name,
                      FALSE);
@@ -1816,7 +1824,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
     if ((key_info->flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME)
     {
       KEY_PART_INFO *key_part= key_info->key_part;
-      KEY_PART_INFO *key_part_end= key_part + key_info->key_parts;
+      KEY_PART_INFO *key_part_end= key_part + key_info->user_defined_key_parts;
 
       /* check that all key parts are used */
       for (;;)
@@ -1825,7 +1833,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
         for (k= trans; k < end_of_trans; k++)
         {
           Item_field *field;
-          if ((field= k->item->filed_for_view_update()) &&
+          if ((field= k->item->field_for_view_update()) &&
               field->field == key_part->field)
             break;
         }
@@ -1847,7 +1855,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
       for (fld= trans; fld < end_of_trans; fld++)
       {
         Item_field *field;
-        if ((field= fld->item->filed_for_view_update()) &&
+        if ((field= fld->item->field_for_view_update()) &&
             field->field == *field_ptr)
           break;
       }
@@ -1861,7 +1869,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
         if (thd->variables.updatable_views_with_limit)
         {
           /* update allowed, but issue warning */
-          push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+          push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                        ER_WARN_VIEW_WITHOUT_KEY, ER(ER_WARN_VIEW_WITHOUT_KEY));
           DBUG_RETURN(FALSE);
         }
@@ -1901,7 +1909,7 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
   for (Field_translator *entry= trans; entry < trans_end; entry++)
   {
     Item_field *fld;
-    if ((fld= entry->item->filed_for_view_update()))
+    if ((fld= entry->item->field_for_view_update()))
       list->push_back(fld);
     else
     {

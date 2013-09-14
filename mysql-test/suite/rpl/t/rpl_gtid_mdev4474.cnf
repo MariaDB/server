@@ -1,0 +1,11 @@
+!include suite/rpl/rpl_1slave_base.cnf
+!include include/default_client.cnf
+
+
+[mysqld.1]
+log-slave-updates
+loose-innodb
+
+[mysqld.2]
+log-slave-updates
+loose-innodb

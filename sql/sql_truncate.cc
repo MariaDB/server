@@ -18,9 +18,8 @@
 #include "sql_class.h"   // THD
 #include "sql_base.h"    // open_and_lock_tables
 #include "sql_table.h"   // write_bin_log
-#include "sql_handler.h" // mysql_ha_rm_tables
 #include "datadict.h"    // dd_recreate_table()
-#include "lock.h"        // MYSQL_OPEN_TEMPORARY_ONLY
+#include "lock.h"        // MYSQL_OPEN_* flags
 #include "sql_acl.h"     // DROP_ACL
 #include "sql_parse.h"   // check_one_table_access()
 #include "sql_truncate.h"
@@ -186,12 +185,12 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
   @retval  > 0  Error code.
 */
 
-int Truncate_statement::handler_truncate(THD *thd, TABLE_LIST *table_ref,
-                                         bool is_tmp_table)
+int Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
+                                             bool is_tmp_table)
 {
   int error= 0;
   uint flags;
-  DBUG_ENTER("Truncate_statement::handler_truncate");
+  DBUG_ENTER("Sql_cmd_truncate_table::handler_truncate");
 
   /*
     Can't recreate, the engine must mechanically delete all rows
@@ -199,9 +198,7 @@ int Truncate_statement::handler_truncate(THD *thd, TABLE_LIST *table_ref,
   */
 
   /* If it is a temporary table, no need to take locks. */
-  if (is_tmp_table)
-    flags= MYSQL_OPEN_TEMPORARY_ONLY;
-  else
+  if (!is_tmp_table)
   {
     /* We don't need to load triggers. */
     DBUG_ASSERT(table_ref->trg_event_map == 0);
@@ -216,7 +213,7 @@ int Truncate_statement::handler_truncate(THD *thd, TABLE_LIST *table_ref,
       the MDL lock taken above and otherwise there is no way to
       wait for FLUSH TABLES in deadlock-free fashion.
     */
-    flags= MYSQL_OPEN_IGNORE_FLUSH | MYSQL_OPEN_SKIP_TEMPORARY;
+    flags= MYSQL_OPEN_IGNORE_FLUSH;
     /*
       Even though we have an MDL lock on the table here, we don't
       pass MYSQL_OPEN_HAS_MDL_LOCK to open_and_lock_tables
@@ -258,28 +255,19 @@ static bool recreate_temporary_table(THD *thd, TABLE *table)
 {
   bool error= TRUE;
   TABLE_SHARE *share= table->s;
-  HA_CREATE_INFO create_info;
   handlerton *table_type= table->s->db_type();
   DBUG_ENTER("recreate_temporary_table");
-
-  memset(&create_info, 0, sizeof(create_info));
-  create_info.options|= HA_LEX_CREATE_TMP_TABLE;
 
   table->file->info(HA_STATUS_AUTO | HA_STATUS_NO_LOCK);
 
   /* Don't free share. */
   close_temporary_table(thd, table, FALSE, FALSE);
 
-  /*
-    We must use share->normalized_path.str since for temporary tables it
-    differs from what dd_recreate_table() would generate based
-    on table and schema names.
-  */
-  ha_create_table(thd, share->normalized_path.str, share->db.str,
-                  share->table_name.str, &create_info, 1);
+  dd_recreate_table(thd, share->db.str, share->table_name.str,
+                    share->normalized_path.str);
 
-  if (open_table_uncached(thd, share->path.str, share->db.str,
-                          share->table_name.str, TRUE))
+  if (open_table_uncached(thd, table_type, share->path.str, share->db.str,
+                          share->table_name.str, true, true))
   {
     error= FALSE;
     thd->thread_specific_used= TRUE;
@@ -307,11 +295,11 @@ static bool recreate_temporary_table(THD *thd, TABLE *table)
   @retval  TRUE   Error.
 */
 
-bool Truncate_statement::lock_table(THD *thd, TABLE_LIST *table_ref,
-                                    bool *hton_can_recreate)
+bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
+                                        bool *hton_can_recreate)
 {
   TABLE *table= NULL;
-  DBUG_ENTER("Truncate_statement::lock_table");
+  DBUG_ENTER("Sql_cmd_truncate_table::lock_table");
 
   /* Lock types are set in the parser. */
   DBUG_ASSERT(table_ref->lock_type == TL_WRITE);
@@ -346,13 +334,30 @@ bool Truncate_statement::lock_table(THD *thd, TABLE_LIST *table_ref,
     /* Acquire an exclusive lock. */
     DBUG_ASSERT(table_ref->next_global == NULL);
     if (lock_table_names(thd, table_ref, NULL,
-                         thd->variables.lock_wait_timeout,
-                         MYSQL_OPEN_SKIP_TEMPORARY))
+                         thd->variables.lock_wait_timeout, 0))
       DBUG_RETURN(TRUE);
 
-    if (dd_check_storage_engine_flag(thd, table_ref->db, table_ref->table_name,
-                                     HTON_CAN_RECREATE, hton_can_recreate))
+    handlerton *hton;
+    if (!ha_table_exists(thd, table_ref->db, table_ref->table_name, &hton) ||
+        hton == view_pseudo_hton)
+    {
+      my_error(ER_NO_SUCH_TABLE, MYF(0), table_ref->db, table_ref->table_name);
       DBUG_RETURN(TRUE);
+    }
+
+    if (!hton)
+    {
+      /*
+        The table exists, but its storage engine is unknown, perhaps not
+        loaded at the moment. We need to open and parse the frm to know the
+        storage engine in question, so let's proceed with the truncation and
+        try to open the table. This will produce the correct error message
+        about unknown engine.
+      */
+      *hton_can_recreate= false;
+    }
+    else
+      *hton_can_recreate= hton->flags & HTON_CAN_RECREATE;
   }
 
   /*
@@ -369,7 +374,7 @@ bool Truncate_statement::lock_table(THD *thd, TABLE_LIST *table_ref,
     m_ticket_downgrade= table->mdl_ticket;
     /* Close if table is going to be recreated. */
     if (*hton_can_recreate)
-      close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED);
+      close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
   }
   else
   {
@@ -396,29 +401,31 @@ bool Truncate_statement::lock_table(THD *thd, TABLE_LIST *table_ref,
   @retval  TRUE   Error.
 */
 
-bool Truncate_statement::truncate_table(THD *thd, TABLE_LIST *table_ref)
+bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 {
   int error;
-  TABLE *table;
   bool binlog_stmt;
-  DBUG_ENTER("Truncate_statement::truncate_table");
+  DBUG_ENTER("Sql_cmd_truncate_table::truncate_table");
+
+  DBUG_ASSERT((!table_ref->table) ||
+              (table_ref->table && table_ref->table->s));
 
   /* Initialize, or reinitialize in case of reexecution (SP). */
   m_ticket_downgrade= NULL;
 
-  /* Remove table from the HANDLER's hash. */
-  mysql_ha_rm_tables(thd, table_ref);
-
   /* If it is a temporary table, no need to take locks. */
-  if ((table= find_temporary_table(thd, table_ref)))
+  if (is_temporary_table(table_ref))
   {
+    TABLE *tmp_table= table_ref->table;
+
     /* In RBR, the statement is not binlogged if the table is temporary. */
     binlog_stmt= !thd->is_current_stmt_binlog_format_row();
 
     /* Note that a temporary table cannot be partitioned. */
-    if (ha_check_storage_engine_flag(table->s->db_type(), HTON_CAN_RECREATE))
+    if (ha_check_storage_engine_flag(tmp_table->s->db_type(),
+                                     HTON_CAN_RECREATE))
     {
-      if ((error= recreate_temporary_table(thd, table)))
+      if ((error= recreate_temporary_table(thd, tmp_table)))
         binlog_stmt= FALSE; /* No need to binlog failed truncate-by-recreate. */
 
       DBUG_ASSERT(! thd->transaction.stmt.modified_non_trans_table);
@@ -498,7 +505,7 @@ bool Truncate_statement::truncate_table(THD *thd, TABLE_LIST *table_ref)
     to a shared one.
   */
   if (m_ticket_downgrade)
-    m_ticket_downgrade->downgrade_exclusive_lock(MDL_SHARED_NO_READ_WRITE);
+    m_ticket_downgrade->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
 
   DBUG_RETURN(error);
 }
@@ -512,11 +519,11 @@ bool Truncate_statement::truncate_table(THD *thd, TABLE_LIST *table_ref)
   @return FALSE on success.
 */
 
-bool Truncate_statement::execute(THD *thd)
+bool Sql_cmd_truncate_table::execute(THD *thd)
 {
   bool res= TRUE;
   TABLE_LIST *first_table= thd->lex->select_lex.table_list.first;
-  DBUG_ENTER("Truncate_statement::execute");
+  DBUG_ENTER("Sql_cmd_truncate_table::execute");
 
   if (check_one_table_access(thd, DROP_ACL, first_table))
     DBUG_RETURN(res);

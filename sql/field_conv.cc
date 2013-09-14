@@ -133,7 +133,7 @@ set_field_to_null(Field *field)
   field->reset();
   switch (field->table->in_use->count_cuted_fields) {
   case CHECK_FIELD_WARN:
-    field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN, WARN_DATA_TRUNCATED, 1);
+    field->set_warning(Sql_condition::WARN_LEVEL_WARN, WARN_DATA_TRUNCATED, 1);
     /* fall through */
   case CHECK_FIELD_IGNORE:
     return 0;
@@ -202,7 +202,7 @@ set_field_to_null_with_conversions(Field *field, bool no_conversions)
   }
   switch (field->table->in_use->count_cuted_fields) {
   case CHECK_FIELD_WARN:
-    field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN, ER_BAD_NULL_ERROR, 1);
+    field->set_warning(Sql_condition::WARN_LEVEL_WARN, ER_BAD_NULL_ERROR, 1);
     /* fall through */
   case CHECK_FIELD_IGNORE:
     return 0;
@@ -272,7 +272,7 @@ static void do_copy_nullable_row_to_notnull(Copy_field *copy)
   if (*copy->null_row ||
       (copy->from_null_ptr && (*copy->from_null_ptr & copy->from_bit)))
   {
-    copy->to_field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN,
+    copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                 WARN_DATA_TRUNCATED, 1);
     copy->to_field->reset();
   }
@@ -288,7 +288,7 @@ static void do_copy_not_null(Copy_field *copy)
 {
   if (*copy->from_null_ptr & copy->from_bit)
   {
-    copy->to_field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN,
+    copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                 WARN_DATA_TRUNCATED, 1);
     copy->to_field->reset();
   }
@@ -419,7 +419,7 @@ static void do_field_decimal(Copy_field *copy)
 static void do_field_temporal(Copy_field *copy)
 {
   MYSQL_TIME ltime;
-  copy->from_field->get_date(&ltime, TIME_FUZZY_DATE);
+  copy->from_field->get_date(&ltime, 0);
   copy->to_field->store_time_dec(&ltime, copy->from_field->decimals());
 }
 
@@ -440,7 +440,7 @@ static void do_cut_string(Copy_field *copy)
                      (char*) copy->from_ptr + copy->from_length,
                      MY_SEQ_SPACES) < copy->from_length - copy->to_length)
   {
-    copy->to_field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN,
+    copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                 WARN_DATA_TRUNCATED, 1);
   }
 }
@@ -471,7 +471,7 @@ static void do_cut_string_complex(Copy_field *copy)
                      (char*) from_end,
                      MY_SEQ_SPACES) < (copy->from_length - copy_length))
   {
-    copy->to_field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN,
+    copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                 WARN_DATA_TRUNCATED, 1);
   }
 
@@ -510,7 +510,7 @@ static void do_varstring1(Copy_field *copy)
     length=copy->to_length - 1;
     if (copy->from_field->table->in_use->count_cuted_fields &&
         copy->to_field)
-      copy->to_field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN,
+      copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                   WARN_DATA_TRUNCATED, 1);
   }
   *(uchar*) copy->to_ptr= (uchar) length;
@@ -531,7 +531,7 @@ static void do_varstring1_mb(Copy_field *copy)
   if (length < from_length)
   {
     if (current_thd->count_cuted_fields)
-      copy->to_field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN,
+      copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                   WARN_DATA_TRUNCATED, 1);
   }
   *copy->to_ptr= (uchar) length;
@@ -547,7 +547,7 @@ static void do_varstring2(Copy_field *copy)
     length=copy->to_length-HA_KEY_BLOB_LENGTH;
     if (copy->from_field->table->in_use->count_cuted_fields &&
         copy->to_field)
-      copy->to_field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN,
+      copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                   WARN_DATA_TRUNCATED, 1);
   }
   int2store(copy->to_ptr,length);
@@ -569,7 +569,7 @@ static void do_varstring2_mb(Copy_field *copy)
   if (length < from_length)
   {
     if (current_thd->count_cuted_fields)
-      copy->to_field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN,
+      copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                   WARN_DATA_TRUNCATED, 1);
   }  
   int2store(copy->to_ptr, length);
@@ -712,8 +712,8 @@ Copy_field::get_copy_func(Field *to,Field *from)
     if (from_length != to_length)
     {
       // Correct pointer to point at char pointer
-      to_ptr+=   to_length - to->table->s->blob_ptr_size;
-      from_ptr+= from_length- from->table->s->blob_ptr_size;
+      to_ptr+=   to_length - portable_sizeof_char_ptr;
+      from_ptr+= from_length - portable_sizeof_char_ptr;
       return do_copy_blob;
     }
   }
@@ -829,7 +829,7 @@ Copy_field::get_copy_func(Field *to,Field *from)
 int field_conv(Field *to,Field *from)
 {
   if (to->real_type() == from->real_type() &&
-      !(to->type() == MYSQL_TYPE_BLOB && to->table->copy_blobs))
+      !(to->flags & BLOB_FLAG && to->table->copy_blobs))
   {
     if (to->pack_length() == from->pack_length() &&
         !(to->flags & UNSIGNED_FLAG && !(from->flags & UNSIGNED_FLAG)) &&
@@ -840,8 +840,7 @@ int field_conv(Field *to,Field *from)
         (to->real_type() != MYSQL_TYPE_NEWDECIMAL ||
          to->field_length == from->field_length) &&
         from->charset() == to->charset() &&
-        (!(to->table->in_use->variables.sql_mode &
-           (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE | MODE_INVALID_DATES)) ||
+        (!sql_mode_for_dates(to->table->in_use) ||
          (to->type() != MYSQL_TYPE_DATE &&
           to->type() != MYSQL_TYPE_DATETIME)) &&
         (from->real_type() != MYSQL_TYPE_VARCHAR ||
@@ -858,7 +857,7 @@ int field_conv(Field *to,Field *from)
       return 0;
     }
   }
-  if (to->type() == MYSQL_TYPE_BLOB)
+  if (to->flags & BLOB_FLAG)
   {						// Be sure the value is stored
     Field_blob *blob=(Field_blob*) to;
     from->val_str(&blob->value);
@@ -890,7 +889,7 @@ int field_conv(Field *to,Field *from)
   if (from->cmp_type() == TIME_RESULT)
   {
     MYSQL_TIME ltime;
-    if (from->get_date(&ltime, TIME_FUZZY_DATE))
+    if (from->get_date(&ltime, 0))
       return to->reset();
     else
       return to->store_time_dec(&ltime, from->decimals());

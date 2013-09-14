@@ -29,6 +29,21 @@ SET(THIRD_PARTY_DOWNLOAD_LOCATION "@THIRD_PARTY_DOWNLOAD_LOCATION@")
 SET(THIRD_PARTY_FEATURE_CONDITION "@THIRD_PARTY_FEATURE_CONDITION@")
 SET(LIBMYSQL_LOCATION "@LIBMYSQL_LOCATION@")
 
+
+MACRO(MAKE_WIX_IDENTIFIER str varname)
+  STRING(REPLACE "/" "." ${varname} "${str}")
+  STRING(REGEX REPLACE "[^a-zA-Z_0-9.]" "_" ${varname} "${${varname}}")
+  STRING(LENGTH "${${varname}}" len)
+  # Identifier should be smaller than 72 character
+  # We have to cut down the length to 70 chars, since we add 2 char prefix
+  # pretty often
+  IF(len GREATER 70)
+     MATH(EXPR diff "${len}-67")
+     STRING(SUBSTRING "${${varname}}" ${diff} 67 shortstr)
+     SET(${varname} "___${shortstr}")
+  ENDIF()
+ENDMACRO()
+
 SET($ENV{VS_UNICODE_OUTPUT} "")
 IF(LIBMYSQL_LOCATION AND CMAKE_CFG_INTDIR) 
  # resolve libmysql full path
@@ -191,6 +206,7 @@ FOREACH(f ${WIX_FEATURES})
      Level='${Level}' ${DISPLAY} >"
   )
  FOREACH(c ${${f}_COMPONENTS})
+   
    STRING(TOUPPER "${c}" c_upper)
    IF (CPACK_COMPONENT_${c_upper}_DISPLAY_NAME)
     SET(TITLE ${CPACK_COMPONENT_${c_upper}_DISPLAY_NAME})
@@ -208,10 +224,12 @@ FOREACH(f ${WIX_FEATURES})
    ELSE()
     SET(Level 1)
    ENDIF()
+   MAKE_WIX_IDENTIFIER("${c}" cg)
+   
    IF(CPACK_COMPONENT_${c_upper}_HIDDEN)
    SET(CPACK_WIX_FEATURES
    "${CPACK_WIX_FEATURES} 
-     <ComponentGroupRef Id='componentgroup.${c}'/>")
+     <ComponentGroupRef Id='componentgroup.${cg}'/>")
    ELSE()
    SET(CPACK_WIX_FEATURES
    "${CPACK_WIX_FEATURES} 
@@ -221,7 +239,7 @@ FOREACH(f ${WIX_FEATURES})
        ConfigurableDirectory='INSTALLDIR'
        AllowAdvertise='no'
        Level='${Level}'>
-       <ComponentGroupRef Id='componentgroup.${c}'/>
+       <ComponentGroupRef Id='componentgroup.${cg}'/>
     </Feature>")
   ENDIF()
   
@@ -247,21 +265,6 @@ MACRO(GENERATE_GUID VarName)
  OUTPUT_VARIABLE ${VarName}
  OUTPUT_STRIP_TRAILING_WHITESPACE)
 ENDMACRO()
-
-MACRO(MAKE_WIX_IDENTIFIER str varname)
-  STRING(REPLACE "/" "." ${varname} "${str}")
-  STRING(REGEX REPLACE "[^a-zA-Z_0-9.]" "_" ${varname} "${${varname}}")
-  STRING(LENGTH "${${varname}}" len)
-  # Identifier should be smaller than 72 character
-  # We have to cut down the length to 70 chars, since we add 2 char prefix
-  # pretty often
-  IF(len GREATER 70)
-     MATH(EXPR diff "${len}-67")
-     STRING(SUBSTRING "${${varname}}" ${diff} 67 shortstr)
-     SET(${varname} "___${shortstr}")
-  ENDIF()
-ENDMACRO()
-
 
 
 FUNCTION(TRAVERSE_FILES dir topdir file file_comp  dir_root)
@@ -354,6 +357,7 @@ GET_FILENAME_COMPONENT(abs . ABSOLUTE)
 FOREACH(d ${DIRS})
   GET_FILENAME_COMPONENT(d ${d} ABSOLUTE)
   GET_FILENAME_COMPONENT(d_name ${d} NAME)
+  MAKE_WIX_IDENTIFIER("${d_name}" d_name)
   FILE(WRITE ${abs}/${d_name}_component_group.wxs 
   "<ComponentGroup Id='componentgroup.${d_name}'>")
   SET(COMP_NAME ${d_name})

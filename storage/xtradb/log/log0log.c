@@ -265,13 +265,12 @@ log_check_tracking_margin(
 }
 
 /************************************************************//**
-Opens the log for log_write_low. The log must be closed with log_close and
-released with log_release.
+Opens the log for log_write_low. The log must be closed with log_close.
 @return	start lsn of the log record */
 UNIV_INTERN
 ib_uint64_t
-log_reserve_and_open(
-/*=================*/
+log_open(
+/*=====*/
 	ulint	len)	/*!< in: length of data to be catenated */
 {
 	log_t*	log			= log_sys;
@@ -284,7 +283,6 @@ log_reserve_and_open(
 
 	ut_a(len < log->buf_size / 2);
 loop:
-	mutex_enter(&(log->mutex));
 	ut_ad(!recv_no_log_write);
 
 	/* Calculate an upper limit for the space the string may take in the
@@ -305,6 +303,8 @@ loop:
 
 		ut_ad(++count < 50);
 
+		mutex_enter(&(log->mutex));
+
 		goto loop;
 	}
 
@@ -317,6 +317,8 @@ loop:
 		mutex_exit(&(log->mutex));
 
 		os_thread_sleep(10000);
+
+		mutex_enter(&(log->mutex));
 
 		goto loop;
 	}
@@ -337,6 +339,8 @@ loop:
 			log_archive_do(TRUE, &dummy);
 
 			ut_ad(++count < 50);
+
+			mutex_enter(&(log->mutex));
 
 			goto loop;
 		}
@@ -494,9 +498,12 @@ log_close(void)
 
 		if (tracked_lsn_age >= log->log_group_capacity) {
 
-			fprintf(stderr, " InnoDB: Error: the age of the "
+			fprintf(stderr, "InnoDB: Error: the age of the "
 				"oldest untracked record exceeds the log "
 				"group capacity!\n");
+			fprintf(stderr, "InnoDB: Error: stopping the log "
+				"tracking thread at LSN %llu\n", tracked_lsn);
+			srv_track_changed_pages = FALSE;
 		}
 	}
 
@@ -2390,7 +2397,8 @@ loop:
 }
 
 /******************************************************//**
-Reads a specified log segment to a buffer. */
+Reads a specified log segment to a buffer.  Optionally releases the log mutex
+before the I/O.  */
 UNIV_INTERN
 void
 log_group_read_log_seg(
@@ -2399,7 +2407,9 @@ log_group_read_log_seg(
 	byte*		buf,		/*!< in: buffer where to read */
 	log_group_t*	group,		/*!< in: log group */
 	ib_uint64_t	start_lsn,	/*!< in: read area start */
-	ib_uint64_t	end_lsn)	/*!< in: read area end */
+	ib_uint64_t	end_lsn,	/*!< in: read area end */
+	ibool		release_mutex)	/*!< in: whether the log_sys->mutex
+					should be released before the read */
 {
 	ulint	len;
 	ulint	source_offset;
@@ -2429,6 +2439,10 @@ loop:
 
 	log_sys->n_log_ios++;
 
+	if (release_mutex) {
+		mutex_exit(&(log_sys->mutex));
+	}
+
 	fil_io(OS_FILE_READ | OS_FILE_LOG, sync, group->space_id, 0,
 	       source_offset / UNIV_PAGE_SIZE, source_offset % UNIV_PAGE_SIZE,
 	       len, buf, NULL);
@@ -2438,6 +2452,9 @@ loop:
 
 	if (start_lsn != end_lsn) {
 
+		if (release_mutex) {
+			mutex_enter(&(log_sys->mutex));
+		}
 		goto loop;
 	}
 }
@@ -2929,7 +2946,7 @@ arch_none:
 
 	log_group_read_log_seg(LOG_ARCHIVE, log_sys->archive_buf,
 			       UT_LIST_GET_FIRST(log_sys->log_groups),
-			       start_lsn, limit_lsn);
+			       start_lsn, limit_lsn, FALSE);
 
 	mutex_exit(&(log_sys->mutex));
 

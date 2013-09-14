@@ -105,7 +105,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       cache_size= (extra_arg ? *(ulong*) extra_arg :
 		   my_default_record_cache_size);
       if (!(init_io_cache(&info->rec_cache, info->dfile.file,
-			 (uint) min(share->state.state.data_file_length+1,
+			 (uint) MY_MIN(share->state.state.data_file_length+1,
 				    cache_size),
 			  READ_CACHE,0L,(pbool) (info->lock_type != F_UNLCK),
 			  MYF(share->write_flag & MY_WAIT_IF_FULL))))

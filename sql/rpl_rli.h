@@ -263,7 +263,9 @@ public:
      thread is running).
    */
   
-  enum {UNTIL_NONE= 0, UNTIL_MASTER_POS, UNTIL_RELAY_POS} until_condition;
+  enum {
+    UNTIL_NONE= 0, UNTIL_MASTER_POS, UNTIL_RELAY_POS, UNTIL_GTID
+  } until_condition;
   char until_log_name[FN_REFLEN];
   ulonglong until_log_pos;
   /* extension extracted from log_name and converted to int */
@@ -277,6 +279,8 @@ public:
     UNTIL_LOG_NAMES_CMP_UNKNOWN= -2, UNTIL_LOG_NAMES_CMP_LESS= -1,
     UNTIL_LOG_NAMES_CMP_EQUAL= 0, UNTIL_LOG_NAMES_CMP_GREATER= 1
   } until_log_names_cmp_result;
+  /* Condition for UNTIL master_gtid_pos. */
+  slave_connection_state until_gtid_pos;
 
   char cached_charset[6];
   /*
@@ -306,6 +310,14 @@ public:
    */ 
   char slave_patternload_file[FN_REFLEN]; 
   size_t slave_patternload_file_size;  
+
+  /*
+    Current GTID being processed.
+    The sub_id gives the binlog order within one domain_id. A zero sub_id
+    means that there is no active GTID.
+  */
+  uint64 gtid_sub_id;
+  rpl_gtid current_gtid;
 
   Relay_log_info(bool is_slave_recovery);
   ~Relay_log_info();
@@ -346,6 +358,8 @@ public:
   bool is_until_satisfied(THD *thd, Log_event *ev);
   inline ulonglong until_pos()
   {
+    DBUG_ASSERT(until_condition == UNTIL_MASTER_POS ||
+                until_condition == UNTIL_RELAY_POS);
     return ((until_condition == UNTIL_MASTER_POS) ? group_master_log_pos :
 	    group_relay_log_pos);
   }
@@ -445,7 +459,7 @@ public:
     the <code>Seconds_behind_master</code> field.
   */
   void stmt_done(my_off_t event_log_pos,
-                 time_t event_creation_time);
+                 time_t event_creation_time, THD *thd);
 
 
   /**
@@ -583,5 +597,9 @@ private:
 // Defined in rpl_rli.cc
 int init_relay_log_info(Relay_log_info* rli, const char* info_fname);
 
+
+extern struct rpl_slave_state rpl_global_gtid_slave_state;
+
+int rpl_load_gtid_slave_state(THD *thd);
 
 #endif /* RPL_RLI_H */

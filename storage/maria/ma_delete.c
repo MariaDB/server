@@ -112,6 +112,7 @@ int maria_delete(MARIA_HA *info,const uchar *record)
   info->state->checksum-= info->cur_row.checksum;
   info->state->records--;
   info->update= HA_STATE_CHANGED+HA_STATE_DELETED+HA_STATE_ROW_CHANGED;
+  info->row_changes++;
   share->state.changed|= (STATE_NOT_OPTIMIZED_ROWS | STATE_NOT_MOVABLE |
                           STATE_NOT_ZEROFILLED);
   info->state->changed=1;
@@ -987,7 +988,7 @@ static int underflow(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
         */
         if (_ma_log_add(anc_page, anc_length, keypos,
                         anc_key_inserted.move_length +
-                        max(anc_key_inserted.changed_length -
+                        MY_MAX(anc_key_inserted.changed_length -
                             anc_key_inserted.move_length,
                             key_deleted.changed_length),
                         anc_key_inserted.move_length -
@@ -1229,7 +1230,7 @@ static int underflow(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
       */
       if (_ma_log_add(anc_page, anc_length, keypos,
                       anc_key_inserted.move_length +
-                      max(anc_key_inserted.changed_length -
+                      MY_MAX(anc_key_inserted.changed_length -
                           anc_key_inserted.move_length,
                           key_deleted.changed_length),
                       anc_key_inserted.move_length -
@@ -1570,7 +1571,7 @@ my_bool _ma_log_delete(MARIA_PAGE *ma_page, const uchar *key_pos,
       current_size != share->max_index_block_size)
   {
     /* Append data that didn't fit on the page before */
-    uint length= (min(ma_page->size, share->max_index_block_size) -
+    uint length= (MY_MIN(ma_page->size, share->max_index_block_size) -
                   current_size);
     uchar *data= ma_page->buff + current_size;
 

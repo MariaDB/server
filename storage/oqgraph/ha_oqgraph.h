@@ -44,6 +44,7 @@ namespace open_query
 class ha_oqgraph: public handler
 {
   TABLE_SHARE share[1];
+  bool have_table_share;
   TABLE edges[1];
   Field *origid;
   Field *destid;
@@ -62,15 +63,15 @@ public:
   ha_oqgraph(TABLE *table);
   Table_flags table_flags() const;
 #endif
-  ~ha_oqgraph();
+  virtual ~ha_oqgraph();
   const char *index_type(uint inx)
   {
     return "HASH";
   }
   /* Rows also use a fixed-size format */
   enum row_type get_row_type() const { return ROW_TYPE_FIXED; }
-  const char **bas_ext() const;
   ulong index_flags(uint inx, uint part, bool all_parts) const;
+  const char **bas_ext() const;
   uint max_supported_keys()          const { return MAX_KEY; }
   uint max_supported_key_part_length() const { return MAX_KEY_LENGTH; }
   double scan_time() { return (double) 1000000000; }

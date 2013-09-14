@@ -18,11 +18,9 @@
   Performance schema storage engine (implementation).
 */
 
-#include "my_global.h"
+#include "sql_plugin.h"
 #include "my_pthread.h"
 #include "my_atomic.h"
-#include "sql_plugin.h"
-#include "mysql/plugin.h"
 #include "ha_perfschema.h"
 #include "pfs_engine_table.h"
 #include "pfs_column_values.h"
@@ -166,6 +164,8 @@ static struct st_mysql_show_var pfs_status_vars[]=
     (char*) &statement_class_lost, SHOW_LONG},
   {"Performance_schema_digest_lost",
     (char*) &digest_lost, SHOW_LONG},
+  {"Performance_schema_session_connect_attrs_lost",
+    (char*) &session_connect_attrs_lost, SHOW_LONG},
   {NullS, NullS, SHOW_LONG}
 };
 
@@ -217,15 +217,6 @@ ha_perfschema::ha_perfschema(handlerton *hton, TABLE_SHARE *share)
 ha_perfschema::~ha_perfschema()
 {}
 
-static const char *ha_pfs_exts[]= {
-  NullS
-};
-
-const char **ha_perfschema::bas_ext() const
-{
-  return ha_pfs_exts;
-}
-
 int ha_perfschema::open(const char *name, int mode, uint test_if_locked)
 {
   DBUG_ENTER("ha_perfschema::open");
@@ -256,12 +247,12 @@ int ha_perfschema::write_row(uchar *buf)
   int result;
 
   DBUG_ENTER("ha_perfschema::write_row");
+  if (!pfs_initialized)
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 
-  ha_statistic_increment(&SSV::ha_write_count);
   DBUG_ASSERT(m_table_share);
-
+  ha_statistic_increment(&SSV::ha_write_count);
   result= m_table_share->write_row(table, buf, table->field);
-
   DBUG_RETURN(result);
 }
 
@@ -279,7 +270,9 @@ void ha_perfschema::use_hidden_primary_key(void)
 int ha_perfschema::update_row(const uchar *old_data, uchar *new_data)
 {
   DBUG_ENTER("ha_perfschema::update_row");
-
+  if (!pfs_initialized)
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  
   DBUG_ASSERT(m_table);
   ha_statistic_increment(&SSV::ha_update_count);
   int result= m_table->update_row(table, old_data, new_data, table->field);
@@ -289,6 +282,8 @@ int ha_perfschema::update_row(const uchar *old_data, uchar *new_data)
 int ha_perfschema::delete_row(const uchar *buf)
 {
   DBUG_ENTER("ha_perfschema::delete_row");
+  if (!pfs_initialized)
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 
   DBUG_ASSERT(m_table);
   ha_statistic_increment(&SSV::ha_delete_count);
@@ -329,6 +324,8 @@ int ha_perfschema::rnd_end(void)
 int ha_perfschema::rnd_next(uchar *buf)
 {
   DBUG_ENTER("ha_perfschema::rnd_next");
+  if (!pfs_initialized)
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
 
   DBUG_ASSERT(m_table);
   ha_statistic_increment(&SSV::ha_read_rnd_next_count);
@@ -355,6 +352,8 @@ void ha_perfschema::position(const uchar *record)
 int ha_perfschema::rnd_pos(uchar *buf, uchar *pos)
 {
   DBUG_ENTER("ha_perfschema::rnd_pos");
+  if (!pfs_initialized)
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
 
   DBUG_ASSERT(m_table);
   ha_statistic_increment(&SSV::ha_read_rnd_count);
@@ -380,6 +379,8 @@ int ha_perfschema::delete_all_rows(void)
   int result;
 
   DBUG_ENTER("ha_perfschema::delete_all_rows");
+  if (!pfs_initialized)
+    DBUG_RETURN(0);
 
   DBUG_ASSERT(m_table_share);
   if (m_table_share->m_delete_all_rows)

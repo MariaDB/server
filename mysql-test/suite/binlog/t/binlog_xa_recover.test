@@ -117,8 +117,7 @@ connection con4;
 --error 2006,2013
 reap;
 
---remove_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 restart-group_commit_binlog_pos.test
 EOF
 
@@ -212,8 +211,7 @@ SET SESSION debug_dbug="+d,crash_commit_after_log";
 --error 2006,2013
 INSERT INTO t1 VALUES (14, NULL);
 
---remove_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 restart-group_commit_binlog_pos.test
 EOF
 
@@ -257,8 +255,7 @@ SET SESSION debug_dbug="+d,crash_before_write_checkpoint_event";
 --error 2006,2013
 INSERT INTO t1 VALUES (24, REPEAT("x", 4100));
 
---remove_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 restart-group_commit_binlog_pos.test
 EOF
 
