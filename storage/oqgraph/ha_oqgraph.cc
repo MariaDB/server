@@ -646,7 +646,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     if ((*field)->cmp_type() != INT_RESULT ||
         !((*field)->flags & NOT_NULL_FLAG))
     {
-      fprint_error("Column '%s.%s' is not a not-null integer type",
+      fprint_error("Column '%s.%s' (origid) is not a not-null integer type",
           options->table_name, options->origid);
       closefrm(edges, 0);
       free_table_share(share);
@@ -671,7 +671,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     if ((*field)->type() != origid->type() ||
         !((*field)->flags & NOT_NULL_FLAG))
     {
-      fprint_error("Column '%s.%s' is not a not-null integer type",
+      fprint_error("Column '%s.%s' (destid) is not a not-null integer type or is a different type to origid attribute.",
           options->table_name, options->destid);
       closefrm(edges, 0);
       free_table_share(share);
@@ -703,7 +703,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     if ((*field)->result_type() != REAL_RESULT ||
         !((*field)->flags & NOT_NULL_FLAG))
     {
-      fprint_error("Column '%s.%s' is not a not-null real type",
+      fprint_error("Column '%s.%s' (weight) is not a not-null real type",
           options->table_name, options->weight);
       closefrm(edges, 0);
       free_table_share(share);
@@ -1050,7 +1050,7 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
 
 int ha_oqgraph::rnd_init(bool scan)
 {
-  edges->file->info(HA_STATUS_VARIABLE); // Fix for bug 1195735, hang after truncate table - ensure we operate with up to date count
+  edges->file->info(HA_STATUS_VARIABLE|HA_STATUS_CONST); // Fix for bug 1195735, hang after truncate table - ensure we operate with up to date count
   edges->prepare_for_position();
   return error_code(graph->random(scan));
 }

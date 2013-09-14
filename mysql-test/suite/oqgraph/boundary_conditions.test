@@ -51,19 +51,19 @@ SELECT * FROM graph WHERE latch=0 and destid=2 and origid=1;
 SELECT * FROM graph WHERE latch=0 and origid=1;
 SELECT * FROM graph WHERE latch=0 and destid=1;
 SELECT * FROM graph WHERE latch=0 and origid=666;
-SELECT * FROM graph WHERE latch=0 and origid=NULL;
+SELECT * FROM graph WHERE latch=0 and origid is NULL;
 SELECT * FROM graph WHERE latch=1 ;
 SELECT * FROM graph WHERE latch=1 and destid=2 and origid=1;
 SELECT * FROM graph WHERE latch=1 and origid=1;
 SELECT * FROM graph WHERE latch=1 and destid=1;
 SELECT * FROM graph WHERE latch=1 and origid=666;
-SELECT * FROM graph WHERE latch=1 and origid=NULL;
+SELECT * FROM graph WHERE latch=1 and origid is NULL;
 SELECT * FROM graph WHERE latch=2 ;
 SELECT * FROM graph WHERE latch=2 and destid=2 and origid=1;
 SELECT * FROM graph WHERE latch=2 and origid=1;
 SELECT * FROM graph WHERE latch=2 and destid=1;
 SELECT * FROM graph WHERE latch=2 and origid=666;
-SELECT * FROM graph WHERE latch=2 and origid=NULL;
+SELECT * FROM graph WHERE latch=2 and origid is NULL;
 
 --echo # Should this return an error? it seems we treat it as just another bogus latch
 SELECT * FROM graph WHERE latch='ThisExceeds32Characters456789012';
@@ -73,7 +73,7 @@ SELECT * FROM graph WHERE latch='bogus' and destid=2 and origid=1;
 SELECT * FROM graph WHERE latch='bogus' and origid=1;
 SELECT * FROM graph WHERE latch='bogus' and destid=1;
 SELECT * FROM graph WHERE latch='bogus' and origid=666;
-SELECT * FROM graph WHERE latch='bogus' and origid=NULL;
+SELECT * FROM graph WHERE latch='bogus' and origid is NULL;
 #-- Note the next line couter-intuitively produces no warning
 SELECT * FROM graph WHERE latch='666';
 SELECT * FROM graph WHERE latch='666' and destid=2 and origid=1;
@@ -81,13 +81,13 @@ SELECT * FROM graph WHERE latch='666' and origid=1;
 SELECT * FROM graph WHERE latch='666' and destid=1;
 SELECT * FROM graph WHERE latch='666' and origid=666;
 #-- Note the next line couter-intuitively produces no warning
-SELECT * FROM graph WHERE latch='666' and origid=NULL;
+SELECT * FROM graph WHERE latch='666' and origid is NULL;
 SELECT * FROM graph WHERE latch='-1';
 SELECT * FROM graph WHERE latch='-1' and destid=2 and origid=1;
 SELECT * FROM graph WHERE latch='-1' and origid=1;
 SELECT * FROM graph WHERE latch='-1' and destid=1;
 SELECT * FROM graph WHERE latch='-1' and origid=666;
-SELECT * FROM graph WHERE latch='-1' and origid=NULL;
+SELECT * FROM graph WHERE latch='-1' and origid is NULL;
 
 --echo # Make sure we dont crash if someone passed in a UTF string
 #-- Note the next line couter-intuitively produces no warning
@@ -97,18 +97,19 @@ SELECT * FROM graph WHERE latch='Ω Ohms Tennis Ball 〄' and origid=1;
 SELECT * FROM graph WHERE latch='Ω Ohms Tennis Ball 〄' and destid=1;
 SELECT * FROM graph WHERE latch='Ω Ohms Tennis Ball 〄' and origid=666;
 #-- Note the next line couter-intuitively produces no warning
-SELECT * FROM graph WHERE latch='Ω Ohms Tennis Ball 〄' and origid=NULL;
+SELECT * FROM graph WHERE latch='Ω Ohms Tennis Ball 〄' and origid is NULL;
 
 #--echo # Expect no result, because of NULL latch
 #-- FIXME - in v2 according to http://openquery.com/graph/doc NULL latch should
 #-- FIXME - return same as select * from graph;
 #--https://bugs.launchpad.net/oqgraph/+bug/1196021
-#SELECT * FROM graph WHERE latch=NULL;
-#SELECT * FROM graph WHERE latch=NULL and destid=2 and origid=1;
-#SELECT * FROM graph WHERE latch=NULL and origid=1;
-#SELECT * FROM graph WHERE latch=NULL and destid=1;
-#SELECT * FROM graph WHERE latch=NULL and origid=666;
-#SELECT * FROM graph WHERE latch=NULL and origid=NULL;
+--echo # Return all edges when latch is NULL
+SELECT * FROM graph WHERE latch is NULL;
+SELECT * FROM graph WHERE latch is NULL and destid=2 and origid=1;
+SELECT * FROM graph WHERE latch is NULL and origid=1;
+SELECT * FROM graph WHERE latch is NULL and destid=1;
+SELECT * FROM graph WHERE latch is NULL and origid=666;
+SELECT * FROM graph WHERE latch is NULL and origid is NULL;
 
 #-- what happens if we have two links the same? primay key violation...
 --error 1062
@@ -116,17 +117,18 @@ INSERT INTO graph_base(from_id, to_id) VALUES (1,2);
 
 DELETE FROM graph_base;
 #-- Uncomment the following after fixing https://bugs.launchpad.net/oqgraph/+bug/1195735
-#-- FIXME SELECT * FROM graph;
+SELECT * FROM graph;
 
 FLUSH TABLES;
 
 TRUNCATE TABLE graph_base;
 #-- Uncomment the following after fixing https://bugs.launchpad.net/oqgraph/+bug/xxxxxxx - Causes the later select to not fail!
 #-- For now dont report a separate bug as it may be a manifestation of https://bugs.launchpad.net/oqgraph/+bug/1195735
-#-- FIXME SELECT * FROM graph;
+SELECT * FROM graph;
 
 #-- Expect error if we pull the table out from under
 DROP TABLE graph_base;
+FLUSH TABLES;
 
 --error S42S02
 SELECT * FROM graph WHERE latch='dijkstras' AND origid=1 AND destid=6;
