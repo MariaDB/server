@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -25,7 +25,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "sql_plugin.h"
 #include "sql_priv.h"
 /*
   It is necessary to include set_var.h instead of item.h because there
@@ -41,6 +41,7 @@
 #include "sql_acl.h"                            // EXECUTE_ACL
 #include "mysqld.h"                             // LOCK_short_uuid_generator
 #include "rpl_mi.h"
+#include "sql_time.h"
 #include <m_ctype.h>
 #include <hash.h>
 #include <time.h>
@@ -52,8 +53,6 @@
 #include "sp.h"
 #include "set_var.h"
 #include "debug_sync.h"
-#include <mysql/plugin.h>
-#include <mysql/service_thd_wait.h>
 
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
 #define sp_restore_security_context(A,B) while (0) {}
@@ -225,7 +224,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
       with_field= with_field || item->with_field;
       used_tables_cache|=     item->used_tables();
       const_item_cache&=      item->const_item();
-      with_subselect|=        item->with_subselect;
+      with_subselect|=        item->has_subquery();
     }
   }
   fix_length_and_dec();
@@ -635,7 +634,7 @@ void Item_func::count_decimal_length()
     set_if_bigger(max_int_part, args[i]->decimal_int_part());
     set_if_smaller(unsigned_flag, args[i]->unsigned_flag);
   }
-  int precision= min(max_int_part + decimals, DECIMAL_MAX_PRECISION);
+  int precision= MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
   fix_char_length(my_decimal_precision_to_length_no_truncation(precision,
                                                                decimals,
                                                                unsigned_flag));
@@ -695,7 +694,7 @@ void Item_func::signal_divide_by_null()
 {
   THD *thd= current_thd;
   if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
                  ER(ER_DIVISION_BY_ZERO));
   null_value= 1;
 }
@@ -769,13 +768,14 @@ void Item_num_op::find_num_type(void)
   {
     hybrid_type= DECIMAL_RESULT;
     result_precision();
+    fix_decimals();
   }
   else
   {
     DBUG_ASSERT(r0 == INT_RESULT && r1 == INT_RESULT);
-    decimals= 0;
     hybrid_type=INT_RESULT;
     result_precision();
+    decimals= 0;
   }
   DBUG_PRINT("info", ("Type: %s",
              (hybrid_type == REAL_RESULT ? "REAL_RESULT" :
@@ -1027,13 +1027,11 @@ longlong Item_func_signed::val_int_from_str(int *error)
   value= cs->cset->strtoll10(cs, start, &end, error);
   if (*error > 0 || end != start+ length)
   {
-    char err_buff[128];
-    String err_tmp(err_buff,(uint32) sizeof(err_buff), system_charset_info);
-    err_tmp.copy(start, length, system_charset_info);
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    ErrConvString err(res);
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
                         ER(ER_TRUNCATED_WRONG_VALUE), "INTEGER",
-                        err_tmp.c_ptr());
+                        err.ptr());
   }
   return value;
 }
@@ -1067,7 +1065,7 @@ longlong Item_func_signed::val_int()
   return value;
 
 err:
-  push_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+  push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
                "Cast to signed converted positive out-of-range integer to "
                "it's negative complement");
   return value;
@@ -1123,7 +1121,7 @@ longlong Item_func_unsigned::val_int()
   return value;
 
 err:
-  push_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+  push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
                "Cast to unsigned converted negative integer to it's "
                "positive complement");
   return value;
@@ -1191,7 +1189,7 @@ my_decimal *Item_decimal_typecast::val_decimal(my_decimal *dec)
   return dec;
 
 err:
-  push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_WARN_DATA_OUT_OF_RANGE,
                       ER(ER_WARN_DATA_OUT_OF_RANGE),
                       name, 1L);
@@ -1233,7 +1231,7 @@ double Item_double_typecast::val_real()
   if ((error= truncate_double(&tmp, max_length, decimals, 0, DBL_MAX)))
   {
     push_warning_printf(current_thd,
-                        MYSQL_ERROR::WARN_LEVEL_WARN,
+                        Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_DATA_OUT_OF_RANGE,
                         ER(ER_WARN_DATA_OUT_OF_RANGE),
                         name, 1);
@@ -1371,10 +1369,10 @@ my_decimal *Item_func_plus::decimal_op(my_decimal *decimal_value)
 */
 void Item_func_additive_op::result_precision()
 {
-  decimals= max(args[0]->decimals, args[1]->decimals);
+  decimals= MY_MAX(args[0]->decimals, args[1]->decimals);
   int arg1_int= args[0]->decimal_precision() - args[0]->decimals;
   int arg2_int= args[1]->decimal_precision() - args[1]->decimals;
-  int precision= max(arg1_int, arg2_int) + 1 + decimals;
+  int precision= MY_MAX(arg1_int, arg2_int) + 1 + decimals;
 
   /* Integer operations keep unsigned_flag if one of arguments is unsigned */
   if (result_type() == INT_RESULT)
@@ -1612,9 +1610,9 @@ void Item_func_mul::result_precision()
     unsigned_flag= args[0]->unsigned_flag | args[1]->unsigned_flag;
   else
     unsigned_flag= args[0]->unsigned_flag & args[1]->unsigned_flag;
-  decimals= min(args[0]->decimals + args[1]->decimals, DECIMAL_MAX_SCALE);
+  decimals= MY_MIN(args[0]->decimals + args[1]->decimals, DECIMAL_MAX_SCALE);
   uint est_prec = args[0]->decimal_precision() + args[1]->decimal_precision();
-  uint precision= min(est_prec, DECIMAL_MAX_PRECISION);
+  uint precision= MY_MIN(est_prec, DECIMAL_MAX_PRECISION);
   max_length= my_decimal_precision_to_length_no_truncation(precision, decimals,
                                                            unsigned_flag);
 }
@@ -1666,7 +1664,7 @@ my_decimal *Item_func_div::decimal_op(my_decimal *decimal_value)
 
 void Item_func_div::result_precision()
 {
-  uint precision=min(args[0]->decimal_precision() + 
+  uint precision=MY_MIN(args[0]->decimal_precision() + 
                      args[1]->decimals + prec_increment,
                      DECIMAL_MAX_PRECISION);
 
@@ -1675,7 +1673,7 @@ void Item_func_div::result_precision()
     unsigned_flag= args[0]->unsigned_flag | args[1]->unsigned_flag;
   else
     unsigned_flag= args[0]->unsigned_flag & args[1]->unsigned_flag;
-  decimals= min(args[0]->decimals + prec_increment, DECIMAL_MAX_SCALE);
+  decimals= MY_MIN(args[0]->decimals + prec_increment, DECIMAL_MAX_SCALE);
   max_length= my_decimal_precision_to_length_no_truncation(precision, decimals,
                                                            unsigned_flag);
 }
@@ -1689,7 +1687,7 @@ void Item_func_div::fix_length_and_dec()
   switch (hybrid_type) {
   case REAL_RESULT:
   {
-    decimals=max(args[0]->decimals,args[1]->decimals)+prec_increment;
+    decimals=MY_MAX(args[0]->decimals,args[1]->decimals)+prec_increment;
     set_if_smaller(decimals, NOT_FIXED_DEC);
     uint tmp=float_length(decimals);
     if (decimals == NOT_FIXED_DEC)
@@ -1708,6 +1706,7 @@ void Item_func_div::fix_length_and_dec()
     break;
   case DECIMAL_RESULT:
     result_precision();
+    fix_decimals();
     break;
   case STRING_RESULT:
   case ROW_RESULT:
@@ -1878,8 +1877,8 @@ my_decimal *Item_func_mod::decimal_op(my_decimal *decimal_value)
 
 void Item_func_mod::result_precision()
 {
-  decimals= max(args[0]->decimals, args[1]->decimals);
-  max_length= max(args[0]->max_length, args[1]->max_length);
+  decimals= MY_MAX(args[0]->decimals, args[1]->decimals);
+  max_length= MY_MAX(args[0]->max_length, args[1]->max_length);
 }
 
 
@@ -1907,6 +1906,16 @@ longlong Item_func_neg::int_op()
   if (args[0]->unsigned_flag &&
       (ulonglong) value > (ulonglong) LONGLONG_MAX + 1)
     return raise_integer_overflow();
+
+  if (value == LONGLONG_MIN)
+  {
+    if (args[0]->unsigned_flag != unsigned_flag)
+      /* negation of LONGLONG_MIN is LONGLONG_MIN. */
+      return LONGLONG_MIN; 
+    else
+      return raise_integer_overflow();
+  }
+
   return check_integer_overflow(-value, !args[0]->unsigned_flag && value < 0);
 }
 
@@ -2203,7 +2212,7 @@ longlong Item_func_shift_left::val_int()
     return 0;
   }
   null_value=0;
-  return (shift < sizeof(longlong)*8 ? (longlong) res : LL(0));
+  return (shift < sizeof(longlong)*8 ? (longlong) res : 0);
 }
 
 longlong Item_func_shift_right::val_int()
@@ -2218,7 +2227,7 @@ longlong Item_func_shift_right::val_int()
     return 0;
   }
   null_value=0;
-  return (shift < sizeof(longlong)*8 ? (longlong) res : LL(0));
+  return (shift < sizeof(longlong)*8 ? (longlong) res : 0);
 }
 
 
@@ -2424,7 +2433,7 @@ void Item_func_round::fix_length_and_dec()
 
   if (args[0]->decimals == NOT_FIXED_DEC)
   {
-    decimals= min(decimals_to_set, NOT_FIXED_DEC);
+    decimals= MY_MIN(decimals_to_set, NOT_FIXED_DEC);
     max_length= float_length(decimals);
     hybrid_type= REAL_RESULT;
     return;
@@ -2434,7 +2443,7 @@ void Item_func_round::fix_length_and_dec()
   case REAL_RESULT:
   case STRING_RESULT:
     hybrid_type= REAL_RESULT;
-    decimals= min(decimals_to_set, NOT_FIXED_DEC);
+    decimals= MY_MIN(decimals_to_set, NOT_FIXED_DEC);
     max_length= float_length(decimals);
     break;
   case INT_RESULT:
@@ -2451,13 +2460,13 @@ void Item_func_round::fix_length_and_dec()
   case DECIMAL_RESULT:
   {
     hybrid_type= DECIMAL_RESULT;
-    decimals_to_set= min(DECIMAL_MAX_SCALE, decimals_to_set);
+    decimals_to_set= MY_MIN(DECIMAL_MAX_SCALE, decimals_to_set);
     int decimals_delta= args[0]->decimals - decimals_to_set;
     int precision= args[0]->decimal_precision();
     int length_increase= ((decimals_delta <= 0) || truncate) ? 0:1;
 
     precision-= decimals_delta - length_increase;
-    decimals= min(decimals_to_set, DECIMAL_MAX_SCALE);
+    decimals= MY_MIN(decimals_to_set, DECIMAL_MAX_SCALE);
     max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                              decimals,
                                                              unsigned_flag);
@@ -2568,7 +2577,7 @@ my_decimal *Item_func_round::decimal_op(my_decimal *decimal_value)
   my_decimal val, *value= args[0]->val_decimal(&val);
   longlong dec= args[1]->val_int();
   if (dec >= 0 || args[1]->unsigned_flag)
-    dec= min((ulonglong) dec, decimals);
+    dec= MY_MIN((ulonglong) dec, decimals);
   else if (dec < INT_MIN)
     dec= INT_MIN;
     
@@ -2767,6 +2776,12 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
       min_max= res;
   }
   unpack_time(min_max, ltime);
+
+  if (!(fuzzy_date & TIME_TIME_ONLY) &&
+      ((null_value= check_date_with_warn(ltime, fuzzy_date,
+                                         MYSQL_TIMESTAMP_ERROR))))
+    return true;
+
   if (compare_as_dates->field_type() == MYSQL_TYPE_DATE)
   {
     ltime->time_type= MYSQL_TIMESTAMP_DATE;
@@ -2830,7 +2845,7 @@ double Item_func_min_max::val_real()
   if (compare_as_dates)
   {
     MYSQL_TIME ltime;
-    if (get_date(&ltime, TIME_FUZZY_DATE))
+    if (get_date(&ltime, 0))
       return 0;
 
     return TIME_to_double(&ltime);
@@ -2859,7 +2874,7 @@ longlong Item_func_min_max::val_int()
   if (compare_as_dates)
   {
     MYSQL_TIME ltime;
-    if (get_date(&ltime, TIME_FUZZY_DATE))
+    if (get_date(&ltime, 0))
       return 0;
 
     return TIME_to_ulonglong(&ltime);
@@ -2889,7 +2904,7 @@ my_decimal *Item_func_min_max::val_decimal(my_decimal *dec)
   if (compare_as_dates)
   {
     MYSQL_TIME ltime;
-    if (get_date(&ltime, TIME_FUZZY_DATE))
+    if (get_date(&ltime, 0))
       return 0;
 
     return date2my_decimal(&ltime, dec);
@@ -3151,7 +3166,7 @@ void Item_func_find_in_set::fix_length_and_dec()
 			      find->length(), 0);
 	enum_bit=0;
 	if (enum_value)
-	  enum_bit=LL(1) << (enum_value-1);
+	  enum_bit=1LL << (enum_value-1);
       }
     }
   }
@@ -3232,7 +3247,7 @@ longlong Item_func_find_in_set::val_int()
                wc == (my_wc_t) separator)
         return (longlong) ++position;
       else
-        return LL(0);
+        return 0;
     }
   }
   return 0;
@@ -3428,7 +3443,7 @@ udf_handler::fix_fields(THD *thd, Item_result_field *func,
       free_udf(u_d);
       DBUG_RETURN(TRUE);
     }
-    func->max_length=min(initid.max_length,MAX_BLOB_WIDTH);
+    func->max_length=MY_MIN(initid.max_length,MAX_BLOB_WIDTH);
     func->maybe_null=initid.maybe_null;
     const_item_cache=initid.const_item;
     /* 
@@ -3437,7 +3452,7 @@ udf_handler::fix_fields(THD *thd, Item_result_field *func,
     */  
     if (!const_item_cache && !used_tables_cache)
       used_tables_cache= RAND_TABLE_BIT;
-    func->decimals=min(initid.decimals,NOT_FIXED_DEC);
+    func->decimals=MY_MIN(initid.decimals,NOT_FIXED_DEC);
   }
   initialized=1;
   if (error)
@@ -3592,23 +3607,6 @@ void Item_udf_func::print(String *str, enum_query_type query_type)
 }
 
 
-longlong Item_func_udf_float::val_int()
-{
-  DBUG_ASSERT(fixed == 1);
-  return (longlong) rint(Item_func_udf_float::val_real());
-}
-
-
-my_decimal *Item_func_udf_float::val_decimal(my_decimal *dec_buf)
-{
-  double res=val_real();
-  if (null_value)
-    return NULL;
-  double2my_decimal(E_DEC_FATAL_ERROR, res, dec_buf);
-  return dec_buf;
-}
-
-
 double Item_func_udf_float::val_real()
 {
   double res;
@@ -3738,32 +3736,6 @@ String *Item_func_udf_str::val_str(String *str)
   return res;
 }
 
-double Item_func_udf_str::val_real()
-{
-  int err_not_used;
-  char *end_not_used;
-  String *res;
-  res= val_str(&str_value);
-  return res ? my_strntod(res->charset(),(char*) res->ptr(), 
-                          res->length(), &end_not_used, &err_not_used) : 0.0;
-}
-longlong Item_func_udf_str::val_int()
-{
-  int err_not_used;
-  String *res;  res=val_str(&str_value);
-  return res ? my_strntoll(res->charset(),res->ptr(),res->length(),10,
-                           (char**) 0, &err_not_used) : (longlong) 0;
-}
-
-my_decimal *Item_func_udf_str::val_decimal(my_decimal *dec_buf)
-{
-  String *res=val_str(&str_value);
-  if (!res)
-    return NULL;
-  string2my_decimal(E_DEC_FATAL_ERROR, res, dec_buf);
-  return dec_buf;
-}
-
 
 /**
   @note
@@ -3781,120 +3753,6 @@ udf_handler::~udf_handler()
 bool udf_handler::get_arguments() { return 0; }
 #endif /* HAVE_DLOPEN */
 
-/*
-** User level locks
-*/
-
-mysql_mutex_t LOCK_user_locks;
-static HASH hash_user_locks;
-
-class User_level_lock
-{
-  uchar *key;
-  size_t key_length;
-
-public:
-  int count;
-  bool locked;
-  mysql_cond_t cond;
-  my_thread_id thread_id;
-  void set_thread(THD *thd) { thread_id= thd->thread_id; }
-
-  User_level_lock(const uchar *key_arg,uint length, ulong id) 
-    :key_length(length),count(1),locked(1), thread_id(id)
-  {
-    key= (uchar*) my_memdup(key_arg,length,MYF(0));
-    mysql_cond_init(key_user_level_lock_cond, &cond, NULL);
-    if (key)
-    {
-      if (my_hash_insert(&hash_user_locks,(uchar*) this))
-      {
-	my_free(key);
-	key=0;
-      }
-    }
-  }
-  ~User_level_lock()
-  {
-    if (key)
-    {
-      my_hash_delete(&hash_user_locks,(uchar*) this);
-      my_free(key);
-    }
-    mysql_cond_destroy(&cond);
-  }
-  inline bool initialized() { return key != 0; }
-  friend void item_user_lock_release(User_level_lock *ull);
-  friend uchar *ull_get_key(const User_level_lock *ull, size_t *length,
-                            my_bool not_used);
-};
-
-uchar *ull_get_key(const User_level_lock *ull, size_t *length,
-                   my_bool not_used __attribute__((unused)))
-{
-  *length= ull->key_length;
-  return ull->key;
-}
-
-#ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key key_LOCK_user_locks;
-
-static PSI_mutex_info all_user_mutexes[]=
-{
-  { &key_LOCK_user_locks, "LOCK_user_locks", PSI_FLAG_GLOBAL}
-};
-
-static void init_user_lock_psi_keys(void)
-{
-  const char* category= "sql";
-  int count;
-
-  if (PSI_server == NULL)
-    return;
-
-  count= array_elements(all_user_mutexes);
-  PSI_server->register_mutex(category, all_user_mutexes, count);
-}
-#endif
-
-static bool item_user_lock_inited= 0;
-
-void item_user_lock_init(void)
-{
-#ifdef HAVE_PSI_INTERFACE
-  init_user_lock_psi_keys();
-#endif
-
-  mysql_mutex_init(key_LOCK_user_locks, &LOCK_user_locks, MY_MUTEX_INIT_SLOW);
-  my_hash_init(&hash_user_locks,system_charset_info,
-	    16,0,0,(my_hash_get_key) ull_get_key,NULL,0);
-  item_user_lock_inited= 1;
-}
-
-void item_user_lock_free(void)
-{
-  if (item_user_lock_inited)
-  {
-    item_user_lock_inited= 0;
-    my_hash_free(&hash_user_locks);
-    mysql_mutex_destroy(&LOCK_user_locks);
-  }
-}
-
-void item_user_lock_release(User_level_lock *ull)
-{
-  ull->locked=0;
-  ull->thread_id= 0;
-  if (--ull->count)
-    mysql_cond_signal(&ull->cond);
-  else
-    delete ull;
-}
-
-/**
-  Wait until we are at or past the given position in the master binlog
-  on the slave.
-*/
 
 longlong Item_master_pos_wait::val_int()
 {
@@ -3934,7 +3792,7 @@ longlong Item_master_pos_wait::val_int()
     connection_name= thd->variables.default_master_connection;
 
   if (!(mi= master_info_index->get_master_info(&connection_name,
-                                               MYSQL_ERROR::WARN_LEVEL_WARN)))
+                                               Sql_condition::WARN_LEVEL_WARN)))
     goto err;
   if ((event_count = mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
   {
@@ -3996,7 +3854,7 @@ class Interruptible_wait
 
 
 /** Time to wait before polling the connection status. */
-const ulonglong Interruptible_wait::m_interrupt_interval= 5 * ULL(1000000000);
+const ulonglong Interruptible_wait::m_interrupt_interval= 5 * 1000000000ULL;
 
 
 /**
@@ -4041,7 +3899,136 @@ int Interruptible_wait::wait(mysql_cond_t *cond, mysql_mutex_t *mutex)
 
 
 /**
-  Get a user level lock.  If the thread has an old lock this is first released.
+  For locks with EXPLICIT duration, MDL returns a new ticket
+  every time a lock is granted. This allows to implement recursive
+  locks without extra allocation or additional data structures, such
+  as below. However, if there are too many tickets in the same
+  MDL_context, MDL_context::find_ticket() is getting too slow,
+  since it's using a linear search.
+  This is why a separate structure is allocated for a user
+  level lock, and before requesting a new lock from MDL,
+  GET_LOCK() checks thd->ull_hash if such lock is already granted,
+  and if so, simply increments a reference counter.
+*/
+
+class User_level_lock
+{
+public:
+  MDL_ticket *lock;
+  int refs;
+};
+
+
+/** Extract a hash key from User_level_lock. */
+
+uchar *ull_get_key(const uchar *ptr, size_t *length,
+                   my_bool not_used __attribute__((unused)))
+{
+  User_level_lock *ull = (User_level_lock*) ptr;
+  MDL_key *key = ull->lock->get_key();
+  *length= key->length();
+  return (uchar*) key->ptr();
+}
+
+
+/**
+  Release all user level locks for this THD.
+*/
+
+void mysql_ull_cleanup(THD *thd)
+{
+  User_level_lock *ull;
+  DBUG_ENTER("mysql_ull_cleanup");
+
+  for (uint i= 0; i < thd->ull_hash.records; i++)
+  {
+    ull = (User_level_lock*) my_hash_element(&thd->ull_hash, i);
+    thd->mdl_context.release_lock(ull->lock);
+    my_free(ull);
+  }
+
+  my_hash_free(&thd->ull_hash);
+
+  DBUG_VOID_RETURN;
+}
+
+
+/**
+  Set explicit duration for metadata locks corresponding to
+  user level locks to protect them from being released at the end
+  of transaction.
+*/
+
+void mysql_ull_set_explicit_lock_duration(THD *thd)
+{
+  User_level_lock *ull;
+  DBUG_ENTER("mysql_ull_set_explicit_lock_duration");
+
+  for (uint i= 0; i < thd->ull_hash.records; i++)
+  {
+    ull= (User_level_lock*) my_hash_element(&thd->ull_hash, i);
+    thd->mdl_context.set_lock_duration(ull->lock, MDL_EXPLICIT);
+  }
+  DBUG_VOID_RETURN;
+}
+
+
+/**
+  When MDL detects a lock wait timeout, it pushes
+  an error into the statement diagnostics area.
+  For GET_LOCK(), lock wait timeout is not an error,
+  but a special return value (0). NULL is returned in
+  case of error.
+  Capture and suppress lock wait timeout.
+*/
+
+class Lock_wait_timeout_handler: public Internal_error_handler
+{
+public:
+  Lock_wait_timeout_handler() :m_lock_wait_timeout(false) {}
+
+  bool m_lock_wait_timeout;
+
+  bool handle_condition(THD * /* thd */, uint sql_errno,
+                        const char * /* sqlstate */,
+                        Sql_condition::enum_warning_level /* level */,
+                        const char *message,
+                        Sql_condition ** /* cond_hdl */);
+};
+
+bool
+Lock_wait_timeout_handler::
+handle_condition(THD * /* thd */, uint sql_errno,
+                 const char * /* sqlstate */,
+                 Sql_condition::enum_warning_level /* level */,
+                 const char *message,
+                 Sql_condition ** /* cond_hdl */)
+{
+  if (sql_errno == ER_LOCK_WAIT_TIMEOUT)
+  {
+    m_lock_wait_timeout= true;
+    return true;                                /* condition handled */
+  }
+  return false;
+}
+
+
+static int ull_name_ok(String *name)
+{
+  if (!name || !name->length())
+    return 0;
+
+  if (name->length() > NAME_LEN)
+  {
+    my_error(ER_TOO_LONG_IDENT, MYF(0), name->c_ptr_safe());
+    return 0;
+  }
+  return 1;
+}
+
+
+/**
+  Get a user level lock.
 
   @retval
     1    : Got lock
@@ -4054,14 +4041,13 @@ int Interruptible_wait::wait(mysql_cond_t *cond, mysql_mutex_t *mutex)
 longlong Item_func_get_lock::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  String *res=args[0]->val_str(&value);
+  String *res= args[0]->val_str(&value);
   ulonglong timeout= args[1]->val_int();
-  THD *thd=current_thd;
+  THD *thd= current_thd;
   User_level_lock *ull;
-  int error;
-  Interruptible_wait timed_cond(thd);
   DBUG_ENTER("Item_func_get_lock::val_int");
 
+  null_value= 1;
   /*
     In slave thread no need to get locks, everything is serialized. Anyway
     there is no way to make GET_LOCK() work on slave like it did on master
@@ -4070,103 +4056,70 @@ longlong Item_func_get_lock::val_int()
     it's not guaranteed to be same as on master.
   */
   if (thd->slave_thread)
-    DBUG_RETURN(1);
-
-  mysql_mutex_lock(&LOCK_user_locks);
-
-  if (!res || !res->length())
   {
-    mysql_mutex_unlock(&LOCK_user_locks);
-    null_value=1;
-    DBUG_RETURN(0);
+    null_value= 0;
+    DBUG_RETURN(1);
   }
+
+  if (!ull_name_ok(res))
+    DBUG_RETURN(0);
+
   DBUG_PRINT("info", ("lock %.*s, thd=%ld", res->length(), res->ptr(),
                       (long) thd->real_id));
-  null_value=0;
-
-  if (thd->ull)
+  /* HASH entries are of type User_level_lock. */
+  if (! my_hash_inited(&thd->ull_hash) &&
+        my_hash_init(&thd->ull_hash, &my_charset_bin,
+                     16 /* small hash */, 0, 0, ull_get_key, NULL, 0))
   {
-    item_user_lock_release(thd->ull);
-    thd->ull=0;
+    DBUG_RETURN(0);
   }
 
-  if (!(ull= ((User_level_lock *) my_hash_search(&hash_user_locks,
-                                                 (uchar*) res->ptr(),
-                                                 (size_t) res->length()))))
+  MDL_request ull_request;
+  ull_request.init(MDL_key::USER_LOCK, res->c_ptr_safe(), "",
+                   MDL_SHARED_NO_WRITE, MDL_EXPLICIT);
+  MDL_key *ull_key = &ull_request.key;
+
+
+  if ((ull= (User_level_lock*)
+       my_hash_search(&thd->ull_hash, ull_key->ptr(), ull_key->length())))
   {
-    ull= new User_level_lock((uchar*) res->ptr(), (size_t) res->length(),
-                             thd->thread_id);
-    if (!ull || !ull->initialized())
-    {
-      delete ull;
-      mysql_mutex_unlock(&LOCK_user_locks);
-      null_value=1;				// Probably out of memory
-      DBUG_RETURN(0);
-    }
-    ull->set_thread(thd);
-    thd->ull=ull;
-    mysql_mutex_unlock(&LOCK_user_locks);
-    DBUG_PRINT("info", ("made new lock"));
-    DBUG_RETURN(1);				// Got new lock
+    /* Recursive lock */
+    ull->refs++;
+    null_value = 0;
+    DBUG_RETURN(1);
   }
-  ull->count++;
-  DBUG_PRINT("info", ("ull->count=%d", ull->count));
 
-  /*
-    Structure is now initialized.  Try to get the lock.
-    Set up control struct to allow others to abort locks.
-  */
-  THD_STAGE_INFO(thd, stage_user_lock);
-  thd->mysys_var->current_mutex= &LOCK_user_locks;
-  thd->mysys_var->current_cond=  &ull->cond;
-
-  timed_cond.set_timeout(timeout * ULL(1000000000));
-
-  error= 0;
-  thd_wait_begin(thd, THD_WAIT_USER_LOCK);
-  while (ull->locked && !thd->killed)
+  Lock_wait_timeout_handler lock_wait_timeout_handler;
+  thd->push_internal_handler(&lock_wait_timeout_handler);
+  bool error= thd->mdl_context.acquire_lock(&ull_request, timeout);
+  (void) thd->pop_internal_handler();
+  if (error)
   {
-    DBUG_PRINT("info", ("waiting on lock"));
-    error= timed_cond.wait(&ull->cond, &LOCK_user_locks);
-    if (error == ETIMEDOUT || error == ETIME)
-    {
-      DBUG_PRINT("info", ("lock wait timeout"));
-      break;
-    }
-    error= 0;
+    if (lock_wait_timeout_handler.m_lock_wait_timeout)
+      null_value= 0;
+    DBUG_RETURN(0);
   }
-  thd_wait_end(thd);
 
-  if (ull->locked)
+  ull= (User_level_lock*) my_malloc(sizeof(User_level_lock),
+                                    MYF(MY_WME|MY_THREAD_SPECIFIC));
+  if (ull == NULL)
   {
-    if (!--ull->count)
-    {
-      DBUG_ASSERT(0);
-      delete ull;				// Should never happen
-    }
-    if (!error)                                 // Killed (thd->killed != 0)
-    {
-      error=1;
-      null_value=1;				// Return NULL
-    }
+    thd->mdl_context.release_lock(ull_request.ticket);
+    DBUG_RETURN(0);
   }
-  else                                          // We got the lock
+
+  ull->lock= ull_request.ticket;
+  ull->refs= 1;
+
+  if (my_hash_insert(&thd->ull_hash, (uchar*) ull))
   {
-    ull->locked=1;
-    ull->set_thread(thd);
-    ull->thread_id= thd->thread_id;
-    thd->ull=ull;
-    error=0;
-    DBUG_PRINT("info", ("got the lock"));
+    thd->mdl_context.release_lock(ull->lock);
+    my_free(ull);
+    DBUG_RETURN(0);
   }
-  mysql_mutex_unlock(&LOCK_user_locks);
+  null_value= 0;
 
-  mysql_mutex_lock(&thd->mysys_var->mutex);
-  thd->mysys_var->current_mutex= 0;
-  thd->mysys_var->current_cond=  0;
-  mysql_mutex_unlock(&thd->mysys_var->mutex);
-
-  DBUG_RETURN(!error ? 1 : 0);
+  DBUG_RETURN(1);
 }
 
 
@@ -4181,43 +4134,86 @@ longlong Item_func_get_lock::val_int()
 longlong Item_func_release_lock::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  String *res=args[0]->val_str(&value);
-  User_level_lock *ull;
-  longlong result;
-  THD *thd=current_thd;
+  String *res= args[0]->val_str(&value);
+  THD *thd= current_thd;
   DBUG_ENTER("Item_func_release_lock::val_int");
-  if (!res || !res->length())
+  null_value= 1;
+
+  if (!ull_name_ok(res))
+    DBUG_RETURN(0);
+
+  DBUG_PRINT("info", ("lock %.*s", res->length(), res->ptr()));
+
+  MDL_key ull_key;
+  ull_key.mdl_key_init(MDL_key::USER_LOCK, res->c_ptr_safe(), "");
+
+  User_level_lock *ull;
+
+  if (!(ull=
+        (User_level_lock*) my_hash_search(&thd->ull_hash,
+                                          ull_key.ptr(), ull_key.length())))
   {
-    null_value=1;
+    null_value= thd->mdl_context.get_lock_owner(&ull_key) == 0;
     DBUG_RETURN(0);
   }
-  DBUG_PRINT("info", ("lock %.*s", res->length(), res->ptr()));
-  null_value=0;
+  null_value= 0;
+  if (--ull->refs == 0)
+  {
+    my_hash_delete(&thd->ull_hash, (uchar*) ull);
+    thd->mdl_context.release_lock(ull->lock);
+    my_free(ull);
+  }
+  DBUG_RETURN(1);
+}
 
-  result=0;
-  mysql_mutex_lock(&LOCK_user_locks);
-  if (!(ull= ((User_level_lock*) my_hash_search(&hash_user_locks,
-                                                (const uchar*) res->ptr(),
-                                                (size_t) res->length()))))
-  {
-    null_value=1;
-  }
-  else
-  {
-    DBUG_PRINT("info", ("ull->locked=%d ull->thread=%lu thd=%lu", 
-                        (int) ull->locked,
-                        (long)ull->thread_id,
-                        (long)thd->thread_id));
-    if (ull->locked && current_thd->thread_id == ull->thread_id)
-    {
-      DBUG_PRINT("info", ("release lock"));
-      result=1;					// Release is ok
-      item_user_lock_release(ull);
-      thd->ull=0;
-    }
-  }
-  mysql_mutex_unlock(&LOCK_user_locks);
-  DBUG_RETURN(result);
+
+/**
+  Check a user level lock.
+
+  Sets null_value=TRUE on error.
+
+  @retval
+    1		Available
+  @retval
+    0		Already taken, or error
+*/
+
+longlong Item_func_is_free_lock::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  String *res= args[0]->val_str(&value);
+  THD *thd= current_thd;
+  null_value= 1;
+
+  if (!ull_name_ok(res))
+    return 0;
+
+  MDL_key ull_key;
+  ull_key.mdl_key_init(MDL_key::USER_LOCK, res->c_ptr_safe(), "");
+
+  null_value= 0;
+  return thd->mdl_context.get_lock_owner(&ull_key) == 0;
+}
+
+
+longlong Item_func_is_used_lock::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  String *res= args[0]->val_str(&value);
+  THD *thd= current_thd;
+  null_value= 1;
+
+  if (!ull_name_ok(res))
+    return 0;
+
+  MDL_key ull_key;
+  ull_key.mdl_key_init(MDL_key::USER_LOCK, res->c_ptr_safe(), "");
+  ulong thread_id = thd->mdl_context.get_lock_owner(&ull_key);
+  if (thread_id == 0)
+    return 0;
+
+  null_value= 0;
+  return thread_id;
 }
 
 
@@ -4272,7 +4268,7 @@ longlong Item_func_benchmark::val_int()
     {
       char buff[22];
       llstr(((longlong) loop_count), buff);
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
                           "count", buff, "benchmark");
     }
@@ -4318,6 +4314,54 @@ void Item_func_benchmark::print(String *str, enum_query_type query_type)
 }
 
 
+mysql_mutex_t LOCK_item_func_sleep;
+
+#ifdef HAVE_PSI_INTERFACE
+static PSI_mutex_key key_LOCK_item_func_sleep;
+
+static PSI_mutex_info item_func_sleep_mutexes[]=
+{
+  { &key_LOCK_item_func_sleep, "LOCK_user_locks", PSI_FLAG_GLOBAL}
+};
+
+
+static void init_item_func_sleep_psi_keys(void)
+{
+  const char* category= "sql";
+  int count;
+
+  if (PSI_server == NULL)
+    return;
+
+  count= array_elements(item_func_sleep_mutexes);
+  PSI_server->register_mutex(category, item_func_sleep_mutexes, count);
+}
+#endif
+
+static bool item_func_sleep_inited= 0;
+
+
+void item_func_sleep_init(void)
+{
+#ifdef HAVE_PSI_INTERFACE
+  init_item_func_sleep_psi_keys();
+#endif
+
+  mysql_mutex_init(key_LOCK_item_func_sleep, &LOCK_item_func_sleep, MY_MUTEX_INIT_SLOW);
+  item_func_sleep_inited= 1;
+}
+
+
+void item_func_sleep_free(void)
+{
+  if (item_func_sleep_inited)
+  {
+    item_func_sleep_inited= 0;
+    mysql_mutex_destroy(&LOCK_item_func_sleep);
+  }
+}
+
+
 /** This function is just used to create tests with time gaps. */
 
 longlong Item_func_sleep::val_int()
@@ -4346,23 +4390,23 @@ longlong Item_func_sleep::val_int()
   timed_cond.set_timeout((ulonglong) (timeout * 1000000000.0));
 
   mysql_cond_init(key_item_func_sleep_cond, &cond, NULL);
-  mysql_mutex_lock(&LOCK_user_locks);
+  mysql_mutex_lock(&LOCK_item_func_sleep);
 
   THD_STAGE_INFO(thd, stage_user_sleep);
-  thd->mysys_var->current_mutex= &LOCK_user_locks;
+  thd->mysys_var->current_mutex= &LOCK_item_func_sleep;
   thd->mysys_var->current_cond=  &cond;
 
   error= 0;
   thd_wait_begin(thd, THD_WAIT_SLEEP);
   while (!thd->killed)
   {
-    error= timed_cond.wait(&cond, &LOCK_user_locks);
+    error= timed_cond.wait(&cond, &LOCK_item_func_sleep);
     if (error == ETIMEDOUT || error == ETIME)
       break;
     error= 0;
   }
   thd_wait_end(thd);
-  mysql_mutex_unlock(&LOCK_user_locks);
+  mysql_mutex_unlock(&LOCK_item_func_sleep);
   mysql_mutex_lock(&thd->mysys_var->mutex);
   thd->mysys_var->current_mutex= 0;
   thd->mysys_var->current_cond=  0;
@@ -4698,7 +4742,7 @@ double user_var_entry::val_real(bool *null_value)
 longlong user_var_entry::val_int(bool *null_value) const
 {
   if ((*null_value= (value == 0)))
-    return LL(0);
+    return 0;
 
   switch (type) {
   case REAL_RESULT:
@@ -4722,7 +4766,7 @@ longlong user_var_entry::val_int(bool *null_value) const
     DBUG_ASSERT(0);				// Impossible
     break;
   }
-  return LL(0);					// Impossible
+  return 0;					// Impossible
 }
 
 
@@ -4860,7 +4904,7 @@ void Item_func_set_user_var::save_item_result(Item *item)
 {
   DBUG_ENTER("Item_func_set_user_var::save_item_result");
 
-  switch (cached_result_type) {
+  switch (args[0]->result_type()) {
   case REAL_RESULT:
     save_result.vreal= item->val_result();
     break;
@@ -5215,7 +5259,7 @@ longlong Item_func_get_user_var::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   if (!var_entry)
-    return LL(0);				// No such variable
+    return 0;				// No such variable
   return (var_entry->val_int(&null_value));
 }
 
@@ -5427,7 +5471,7 @@ enum Item_result Item_func_get_user_var::result_type() const
 void Item_func_get_user_var::print(String *str, enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("(@"));
-  str->append(name.str,name.length);
+  append_identifier(current_thd, str, name.str, name.length);
   str->append(')');
 }
 
@@ -5697,28 +5741,18 @@ enum_field_types Item_func_get_system_var::field_type() const
 }
 
 
-/*
-  Uses var, var_type, component, cache_present, used_query_id, thd,
-  cached_llval, null_value, cached_null_value
-*/
-#define get_sys_var_safe(type) \
-do { \
-  type value; \
-  mysql_mutex_lock(&LOCK_global_system_variables); \
-  value= *(type*) var->value_ptr(thd, var_type, &component); \
-  mysql_mutex_unlock(&LOCK_global_system_variables); \
-  cache_present |= GET_SYS_VAR_CACHE_LONG; \
-  used_query_id= thd->query_id; \
-  cached_llval= null_value ? 0 : (longlong) value; \
-  cached_null_value= null_value; \
-  return cached_llval; \
-} while (0)
-
-
 longlong Item_func_get_system_var::val_int()
 {
   THD *thd= current_thd;
 
+  DBUG_EXECUTE_IF("simulate_non_gtid_aware_master",
+                  {
+                    if (0 == strcmp("gtid_domain_id", var->name.str))
+                    {
+                      my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str);
+                      return 0;
+                    }
+                  });
   if (cache_present && thd->query_id == used_query_id)
   {
     if (cache_present & GET_SYS_VAR_CACHE_LONG)
@@ -5748,51 +5782,11 @@ longlong Item_func_get_system_var::val_int()
     }
   }
 
-  switch (var->show_type())
-  {
-    case SHOW_SINT:     get_sys_var_safe (int);
-    case SHOW_SLONG:    get_sys_var_safe (long);
-    case SHOW_SLONGLONG:get_sys_var_safe (longlong);
-    case SHOW_UINT:     get_sys_var_safe (uint);
-    case SHOW_ULONG:    get_sys_var_safe (ulong);
-    case SHOW_ULONGLONG:get_sys_var_safe (ulonglong);
-    case SHOW_HA_ROWS:  get_sys_var_safe (ha_rows);
-    case SHOW_BOOL:     get_sys_var_safe (bool);
-    case SHOW_MY_BOOL:  get_sys_var_safe (my_bool);
-    case SHOW_DOUBLE:
-      {
-        double dval= val_real();
-
-        used_query_id= thd->query_id;
-        cached_llval= (longlong) dval;
-        cache_present|= GET_SYS_VAR_CACHE_LONG;
-        return cached_llval;
-      }
-    case SHOW_CHAR:
-    case SHOW_CHAR_PTR:
-    case SHOW_LEX_STRING:
-      {
-        String *str_val= val_str(NULL);
-
-        if (str_val && str_val->length())
-          cached_llval= longlong_from_string_with_check (system_charset_info,
-                                                          str_val->c_ptr(), 
-                                                          str_val->c_ptr() + 
-                                                          str_val->length());
-        else
-        {
-          null_value= TRUE;
-          cached_llval= 0;
-        }
-
-        cache_present|= GET_SYS_VAR_CACHE_LONG;
-        return cached_llval;
-      }
-
-    default:            
-      my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str); 
-      return 0;                               // keep the compiler happy
-  }
+  cached_llval= var->val_int(&null_value, thd, var_type, &component);
+  cache_present |= GET_SYS_VAR_CACHE_LONG;
+  used_query_id= thd->query_id;
+  cached_null_value= null_value;
+  return cached_llval;
 }
 
 
@@ -5825,61 +5819,10 @@ String* Item_func_get_system_var::val_str(String* str)
     }
   }
 
-  str= &cached_strval;
-  switch (var->show_type())
-  {
-    case SHOW_CHAR:
-    case SHOW_CHAR_PTR:
-    case SHOW_LEX_STRING:
-    {
-      mysql_mutex_lock(&LOCK_global_system_variables);
-      char *cptr= var->show_type() == SHOW_CHAR ? 
-        (char*) var->value_ptr(thd, var_type, &component) :
-        *(char**) var->value_ptr(thd, var_type, &component);
-      if (cptr)
-      {
-        size_t len= var->show_type() == SHOW_LEX_STRING ?
-          ((LEX_STRING*)(var->value_ptr(thd, var_type, &component)))->length :
-          strlen(cptr);
-        if (str->copy(cptr, len, collation.collation))
-        {
-          null_value= TRUE;
-          str= NULL;
-        }
-      }
-      else
-      {
-        null_value= TRUE;
-        str= NULL;
-      }
-      mysql_mutex_unlock(&LOCK_global_system_variables);
-      break;
-    }
-
-    case SHOW_SINT:
-    case SHOW_SLONG:
-    case SHOW_SLONGLONG:
-    case SHOW_UINT:
-    case SHOW_ULONG:
-    case SHOW_ULONGLONG:
-    case SHOW_HA_ROWS:
-    case SHOW_BOOL:
-    case SHOW_MY_BOOL:
-      str->set (val_int(), collation.collation);
-      break;
-    case SHOW_DOUBLE:
-      str->set_real (val_real(), decimals, collation.collation);
-      break;
-
-    default:
-      my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str);
-      str= NULL;
-      break;
-  }
-
+  str= var->val_str(&cached_strval, thd, var_type, &component);
   cache_present|= GET_SYS_VAR_CACHE_STRING;
   used_query_id= thd->query_id;
-  cached_null_value= null_value;
+  cached_null_value= null_value= !str;
   return str;
 }
 
@@ -5917,58 +5860,11 @@ double Item_func_get_system_var::val_real()
     }
   }
 
-  switch (var->show_type())
-  {
-    case SHOW_DOUBLE:
-      mysql_mutex_lock(&LOCK_global_system_variables);
-      cached_dval= *(double*) var->value_ptr(thd, var_type, &component);
-      mysql_mutex_unlock(&LOCK_global_system_variables);
-      used_query_id= thd->query_id;
-      cached_null_value= null_value;
-      if (null_value)
-        cached_dval= 0;
-      cache_present|= GET_SYS_VAR_CACHE_DOUBLE;
-      return cached_dval;
-    case SHOW_CHAR:
-    case SHOW_LEX_STRING:
-    case SHOW_CHAR_PTR:
-      {
-        mysql_mutex_lock(&LOCK_global_system_variables);
-        char *cptr= var->show_type() == SHOW_CHAR ? 
-          (char*) var->value_ptr(thd, var_type, &component) :
-          *(char**) var->value_ptr(thd, var_type, &component);
-        if (cptr)
-          cached_dval= double_from_string_with_check (system_charset_info, 
-                                                cptr, cptr + strlen (cptr));
-        else
-        {
-          null_value= TRUE;
-          cached_dval= 0;
-        }
-        mysql_mutex_unlock(&LOCK_global_system_variables);
-        used_query_id= thd->query_id;
-        cached_null_value= null_value;
-        cache_present|= GET_SYS_VAR_CACHE_DOUBLE;
-        return cached_dval;
-      }
-    case SHOW_SINT:
-    case SHOW_SLONG:
-    case SHOW_SLONGLONG:
-    case SHOW_UINT:
-    case SHOW_ULONG:
-    case SHOW_ULONGLONG:
-    case SHOW_HA_ROWS:
-    case SHOW_BOOL:
-    case SHOW_MY_BOOL:
-        cached_dval= (double) val_int();
-        cache_present|= GET_SYS_VAR_CACHE_DOUBLE;
-        used_query_id= thd->query_id;
-        cached_null_value= null_value;
-        return cached_dval;
-    default:
-      my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str);
-      return 0;
-  }
+  cached_dval= var->val_real(&null_value, thd, var_type, &component);
+  cache_present |= GET_SYS_VAR_CACHE_DOUBLE;
+  used_query_id= thd->query_id;
+  cached_null_value= null_value;
+  return cached_dval;
 }
 
 
@@ -6054,15 +5950,12 @@ void Item_func_match::init_search(bool no_order)
 {
   DBUG_ENTER("Item_func_match::init_search");
 
+  if (!table->file->get_table()) // the handler isn't opened yet
+    DBUG_VOID_RETURN;
+
   /* Check if init_search() has been called before */
   if (ft_handler)
   {
-    /*
-      We should reset ft_handler as it is cleaned up
-      on destruction of FT_SELECT object
-      (necessary in case of re-execution of subquery).
-      TODO: FT_SELECT should not clean up ft_handler.
-    */
     if (join_key)
       table->file->ft_handler= ft_handler;
     DBUG_VOID_RETURN;
@@ -6071,10 +5964,10 @@ void Item_func_match::init_search(bool no_order)
   if (key == NO_SUCH_KEY)
   {
     List<Item> fields;
-    fields.push_back(new Item_string(" ",1, cmp_collation.collation));
-    for (uint i=1; i < arg_count; i++)
+    fields.push_back(new Item_string(" ", 1, cmp_collation.collation));
+    for (uint i= 1; i < arg_count; i++)
       fields.push_back(args[i]);
-    concat_ws=new Item_func_concat_ws(fields);
+    concat_ws= new Item_func_concat_ws(fields);
     /*
       Above function used only to get value and do not need fix_fields for it:
       Item_string - basic constant
@@ -6086,10 +5979,10 @@ void Item_func_match::init_search(bool no_order)
 
   if (master)
   {
-    join_key=master->join_key=join_key|master->join_key;
+    join_key= master->join_key= join_key | master->join_key;
     master->init_search(no_order);
-    ft_handler=master->ft_handler;
-    join_key=master->join_key;
+    ft_handler= master->ft_handler;
+    join_key= master->join_key;
     DBUG_VOID_RETURN;
   }
 
@@ -6099,7 +5992,7 @@ void Item_func_match::init_search(bool no_order)
   if (!(ft_tmp=key_item()->val_str(&value)))
   {
     ft_tmp= &value;
-    value.set("",0,cmp_collation.collation);
+    value.set("", 0, cmp_collation.collation);
   }
 
   if (ft_tmp->charset() != cmp_collation.collation)
@@ -6112,7 +6005,11 @@ void Item_func_match::init_search(bool no_order)
 
   if (join_key && !no_order)
     flags|=FT_SORTED;
-  ft_handler=table->file->ft_init_ext(flags, key, ft_tmp);
+
+  if (key != NO_SUCH_KEY)
+    THD_STAGE_INFO(table->in_use, stage_fulltext_initialization);
+
+  ft_handler= table->file->ft_init_ext(flags, key, ft_tmp);
 
   if (join_key)
     table->file->ft_handler=ft_handler;
@@ -6172,7 +6069,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
   table=((Item_field *)item)->field->table;
   if (!(table->file->ha_table_flags() & HA_CAN_FULLTEXT))
   {
-    my_error(ER_TABLE_CANT_HANDLE_FT, MYF(0));
+    my_error(ER_TABLE_CANT_HANDLE_FT, MYF(0), table->file->table_type());
     return 1;
   }
   table->fulltext_searched=1;
@@ -6185,6 +6082,13 @@ bool Item_func_match::fix_index()
   Item_field *item;
   uint ft_to_key[MAX_KEY], ft_cnt[MAX_KEY], fts=0, keynr;
   uint max_cnt=0, mkeys=0, i;
+
+  /*
+    We will skip execution if the item is not fixed
+    with fix_field
+  */
+  if (!fixed)
+    return false;
 
   if (key == NO_SUCH_KEY)
     return 0;
@@ -6214,7 +6118,7 @@ bool Item_func_match::fix_index()
     for (keynr=0 ; keynr < fts ; keynr++)
     {
       KEY *ft_key=&table->key_info[ft_to_key[keynr]];
-      uint key_parts=ft_key->key_parts;
+      uint key_parts=ft_key->user_defined_key_parts;
 
       for (uint part=0 ; part < key_parts ; part++)
       {
@@ -6246,7 +6150,7 @@ bool Item_func_match::fix_index()
   {
     // partial keys doesn't work
     if (max_cnt < arg_count-1 ||
-        max_cnt < table->key_info[ft_to_key[keynr]].key_parts)
+        max_cnt < table->key_info[ft_to_key[keynr]].user_defined_key_parts)
       continue;
 
     key=ft_to_key[keynr];
@@ -6390,61 +6294,6 @@ Item *get_system_var(THD *thd, enum_var_type var_type, LEX_STRING name,
 
   return new Item_func_get_system_var(var, var_type, component_name,
                                       NULL, 0);
-}
-
-
-/**
-  Check a user level lock.
-
-  Sets null_value=TRUE on error.
-
-  @retval
-    1		Available
-  @retval
-    0		Already taken, or error
-*/
-
-longlong Item_func_is_free_lock::val_int()
-{
-  DBUG_ASSERT(fixed == 1);
-  String *res=args[0]->val_str(&value);
-  User_level_lock *ull;
-
-  null_value=0;
-  if (!res || !res->length())
-  {
-    null_value=1;
-    return 0;
-  }
-  
-  mysql_mutex_lock(&LOCK_user_locks);
-  ull= (User_level_lock *) my_hash_search(&hash_user_locks, (uchar*) res->ptr(),
-                                          (size_t) res->length());
-  mysql_mutex_unlock(&LOCK_user_locks);
-  if (!ull || !ull->locked)
-    return 1;
-  return 0;
-}
-
-longlong Item_func_is_used_lock::val_int()
-{
-  DBUG_ASSERT(fixed == 1);
-  String *res=args[0]->val_str(&value);
-  User_level_lock *ull;
-
-  null_value=1;
-  if (!res || !res->length())
-    return 0;
-  
-  mysql_mutex_lock(&LOCK_user_locks);
-  ull= (User_level_lock *) my_hash_search(&hash_user_locks, (uchar*) res->ptr(),
-                                          (size_t) res->length());
-  mysql_mutex_unlock(&LOCK_user_locks);
-  if (!ull || !ull->locked)
-    return 0;
-
-  null_value=0;
-  return ull->thread_id;
 }
 
 
@@ -6898,7 +6747,7 @@ ulonglong uuid_value;
 
 void uuid_short_init()
 {
-  uuid_value= ((((ulonglong) server_id) << 56) + 
+  uuid_value= ((((ulonglong) global_system_variables.server_id) << 56) +
                (((ulonglong) server_start_time) << 24));
 }
 

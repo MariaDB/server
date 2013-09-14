@@ -13,6 +13,7 @@ db
 event
 func
 general_log
+gtid_slave_pos
 help_category
 help_keyword
 help_relation
@@ -21,15 +22,11 @@ host
 index_stats
 innodb_index_stats
 innodb_table_stats
-ndb_binlog_index
 plugin
 proc
 procs_priv
 proxies_priv
 servers
-slave_master_info
-slave_relay_log_info
-slave_worker_info
 slow_log
 table_stats
 tables_priv

@@ -1,0 +1,35 @@
+--- suite/archive/discover.result	2013-04-08 00:06:37.000000000 +0200
++++ /usr/home/serg/Abk/mysql/10.0-serg/storage/test_sql_discovery/mysql-test/archive/discover.reject	2013-04-08 00:07:02.000000000 +0200
+@@ -42,6 +42,7 @@
+ t1	BASE TABLE
+ t2	BASE TABLE
+ t1.ARZ
++t1.frm
+ t2.ARZ
+ t2.frm
+ #
+@@ -60,6 +61,7 @@
+ flush tables;
+ rename table t2 to t0;
+ t0.ARZ
++t0.frm
+ t1.ARZ
+ t1.frm
+ #
+@@ -77,6 +79,7 @@
+ flush tables;
+ drop table t1;
+ t0.ARZ
++t0.frm
+ #
+ # discover of table non-existance on drop
+ #
+@@ -86,7 +89,7 @@
+ drop table t0;
+ show status like 'Handler_discover';
+ Variable_name	Value
+-Handler_discover	6
++Handler_discover	7
+ #
+ # Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
+ #

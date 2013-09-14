@@ -696,7 +696,7 @@ void JOIN_CACHE::set_constants()
   pack_length_with_blob_ptrs= pack_length + blobs*sizeof(uchar *);
   min_buff_size= 0;
   min_records= 1;
-  buff_size= max(join->thd->variables.join_buff_size,
+  buff_size= MY_MAX(join->thd->variables.join_buff_size,
                  get_min_join_buffer_size());
   size_of_rec_ofs= offset_size(buff_size);
   size_of_rec_len= blobs ? size_of_rec_ofs : offset_size(len); 
@@ -775,7 +775,7 @@ ulong JOIN_CACHE::get_min_join_buffer_size()
          tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
     {
       len+= tab->get_max_used_fieldlength();
-      len_last=+ tab->get_used_fieldlength();
+      len_last+= tab->get_used_fieldlength();
     }
     size_t len_addon= get_record_max_affix_length() +
                       get_max_key_addon_space_per_record();
@@ -2739,7 +2739,7 @@ int JOIN_CACHE_HASHED::init_hash_table()
   key_entries= 0;
 
   /* Calculate the minimal possible value of size_of_key_ofs greater than 1 */
-  uint max_size_of_key_ofs= max(2, get_size_of_rec_offset());  
+  uint max_size_of_key_ofs= MY_MAX(2, get_size_of_rec_offset());  
   for (size_of_key_ofs= 2;
        size_of_key_ofs <= max_size_of_key_ofs;
        size_of_key_ofs+= 2)
@@ -3812,8 +3812,8 @@ uint JOIN_TAB_SCAN_MRR::aux_buffer_incr(ulong recno)
   uint incr= 0;
   TABLE_REF *ref= &join_tab->ref;
   TABLE *tab= join_tab->table;
-  uint rec_per_key=
-    tab->key_info[ref->key].actual_rec_per_key(ref->key_parts-1);
+  ha_rows rec_per_key=
+    (ha_rows) tab->key_info[ref->key].actual_rec_per_key(ref->key_parts-1);
   set_if_bigger(rec_per_key, 1);
   if (recno == 1)
     incr=  ref->key_length + tab->file->ref_length;

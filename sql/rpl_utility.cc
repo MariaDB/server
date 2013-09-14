@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2006, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -108,12 +109,15 @@ max_display_length_for_field(enum_field_types sql_type, unsigned int metadata)
 
   case MYSQL_TYPE_DATE:
   case MYSQL_TYPE_TIME:
+  case MYSQL_TYPE_TIME2:
     return 3;
 
   case MYSQL_TYPE_TIMESTAMP:
+  case MYSQL_TYPE_TIMESTAMP2:
     return 4;
 
   case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_DATETIME2:
     return 8;
 
   case MYSQL_TYPE_BIT:
@@ -261,11 +265,20 @@ uint32 table_def::calc_field_size(uint col, uchar *master_data) const
   case MYSQL_TYPE_TIME:
     length= 3;
     break;
+  case MYSQL_TYPE_TIME2:
+    length= my_time_binary_length(m_field_metadata[col]);
+    break;
   case MYSQL_TYPE_TIMESTAMP:
     length= 4;
     break;
+  case MYSQL_TYPE_TIMESTAMP2:
+    length= my_timestamp_binary_length(m_field_metadata[col]);
+    break;
   case MYSQL_TYPE_DATETIME:
     length= 8;
+    break;
+  case MYSQL_TYPE_DATETIME2:
+    length= my_datetime_binary_length(m_field_metadata[col]);
     break;
   case MYSQL_TYPE_BIT:
   {
@@ -375,6 +388,7 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
     break;
 
   case MYSQL_TYPE_TIMESTAMP:
+  case MYSQL_TYPE_TIMESTAMP2:
     str->set_ascii(STRING_WITH_LEN("timestamp"));
     break;
 
@@ -392,10 +406,12 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
     break;
 
   case MYSQL_TYPE_TIME:
+  case MYSQL_TYPE_TIME2:
     str->set_ascii(STRING_WITH_LEN("time"));
     break;
 
   case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_DATETIME2:
     str->set_ascii(STRING_WITH_LEN("datetime"));
     break;
 
@@ -521,9 +537,9 @@ bool is_conversion_ok(int order, Relay_log_info *rli)
   bool allow_non_lossy, allow_lossy;
 
   allow_non_lossy = slave_type_conversions_options &
-                    (ULL(1) << SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY);
+                    (1ULL << SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY);
   allow_lossy= slave_type_conversions_options &
-               (ULL(1) << SLAVE_TYPE_CONVERSIONS_ALL_LOSSY);
+               (1ULL << SLAVE_TYPE_CONVERSIONS_ALL_LOSSY);
 
   DBUG_PRINT("enter", ("order: %d, flags:%s%s", order,
                        allow_non_lossy ? " ALL_NON_LOSSY" : "",
@@ -613,6 +629,23 @@ can_convert_field_to(Field *field,
       DBUG_RETURN(is_conversion_ok(*order_var, rli));
     else
       DBUG_RETURN(false);
+  }
+  else if (metadata == 0 &&
+           ((field->real_type() == MYSQL_TYPE_TIMESTAMP2 &&
+             source_type == MYSQL_TYPE_TIMESTAMP) ||
+            (field->real_type() == MYSQL_TYPE_TIME2 &&
+             source_type == MYSQL_TYPE_TIME) ||
+            (field->real_type() == MYSQL_TYPE_DATETIME2 &&
+             source_type == MYSQL_TYPE_DATETIME)))
+  {
+    /*
+      TS-TODO: conversion from FSP1>FSP2.
+      Can do non-lossy conversion
+      from old TIME, TIMESTAMP, DATETIME
+      to MySQL56 TIME(0), TIMESTAMP(0), DATETIME(0).
+    */
+    *order_var= -1;
+    DBUG_RETURN(true);
   }
   else if (!slave_type_conversions_options)
     DBUG_RETURN(false);
@@ -738,6 +771,9 @@ can_convert_field_to(Field *field,
   case MYSQL_TYPE_NULL:
   case MYSQL_TYPE_ENUM:
   case MYSQL_TYPE_SET:
+  case MYSQL_TYPE_TIMESTAMP2:
+  case MYSQL_TYPE_DATETIME2:
+  case MYSQL_TYPE_TIME2:
     DBUG_RETURN(false);
   }
   DBUG_RETURN(false);                                 // To keep GCC happy
@@ -779,7 +815,7 @@ table_def::compatible_with(THD *thd, Relay_log_info *rli,
   /*
     We only check the initial columns for the tables.
   */
-  uint const cols_to_check= min(table->s->fields, size());
+  uint const cols_to_check= MY_MIN(table->s->fields, size());
   TABLE *tmp_table= NULL;
 
   for (uint col= 0 ; col < cols_to_check ; ++col)
@@ -878,8 +914,13 @@ TABLE *table_def::create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *
   DBUG_ENTER("table_def::create_conversion_table");
 
   List<Create_field> field_list;
-
-  for (uint col= 0 ; col < size() ; ++col)
+  /*
+    At slave, columns may differ. So we should create
+    MY_MIN(columns@master, columns@slave) columns in the
+    conversion table.
+  */
+  uint const cols_to_create= MY_MIN(target_table->s->fields, size());
+  for (uint col= 0 ; col < cols_to_create; ++col)
   {
     Create_field *field_def=
       (Create_field*) alloc_root(thd->mem_root, sizeof(Create_field));
@@ -933,7 +974,7 @@ TABLE *table_def::create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *
 
     DBUG_PRINT("debug", ("sql_type: %d, target_field: '%s', max_length: %d, decimals: %d,"
                          " maybe_null: %d, unsigned_flag: %d, pack_length: %u",
-                         type(col), target_table->field[col]->field_name,
+                         binlog_type(col), target_table->field[col]->field_name,
                          max_length, decimals, TRUE, FALSE, pack_length));
     field_def->init_for_tmp_table(type(col),
                                   max_length,
@@ -987,7 +1028,7 @@ table_def::table_def(unsigned char *types, ulong size,
     int index= 0;
     for (unsigned int i= 0; i < m_size; i++)
     {
-      switch (m_type[i]) {
+      switch (binlog_type(i)) {
       case MYSQL_TYPE_TINY_BLOB:
       case MYSQL_TYPE_BLOB:
       case MYSQL_TYPE_MEDIUM_BLOB:
@@ -1036,6 +1077,11 @@ table_def::table_def(unsigned char *types, ulong size,
         m_field_metadata[i]= x;
         break;
       }
+      case MYSQL_TYPE_TIME2:
+      case MYSQL_TYPE_DATETIME2:
+      case MYSQL_TYPE_TIMESTAMP2:
+        m_field_metadata[i]= field_metadata[index++];
+        break;
       default:
         m_field_metadata[i]= 0;
         break;
@@ -1167,6 +1213,7 @@ void Deferred_log_events::rewind()
       Log_event *ev= *(Log_event **) dynamic_array_ptr(&array, i);
       delete ev;
     }
+    last_added= NULL;
     if (array.elements > array.max_element)
       freeze_size(&array);
     reset_dynamic(&array);

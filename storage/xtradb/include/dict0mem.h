@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -127,7 +127,7 @@ This could result in rescursive calls and out of stack error eventually.
 DICT_FK_MAX_RECURSIVE_LOAD defines the maximum number of recursive loads,
 when exceeded, the child table will not be loaded. It will be loaded when
 the foreign constraint check needs to be run. */
-#define DICT_FK_MAX_RECURSIVE_LOAD	255
+#define DICT_FK_MAX_RECURSIVE_LOAD	20
 
 /** Similarly, when tables are chained together with foreign key constraints
 with on cascading delete/update clause, delete from parent table could
@@ -377,10 +377,15 @@ struct dict_index_struct{
 	unsigned	type:DICT_IT_BITS;
 				/*!< index type (DICT_CLUSTERED, DICT_UNIQUE,
 				DICT_UNIVERSAL, DICT_IBUF, DICT_CORRUPT) */
-	unsigned	trx_id_offset:10;/*!< position of the trx id column
+#define MAX_KEY_LENGTH_BITS 12
+	unsigned	trx_id_offset:MAX_KEY_LENGTH_BITS;
+				/*!< position of the trx id column
 				in a clustered index record, if the fields
 				before it are known to be of a fixed size,
 				0 otherwise */
+#if (1<<MAX_KEY_LENGTH_BITS) < MAX_KEY_LENGTH
+# error (1<<MAX_KEY_LENGTH_BITS) < MAX_KEY_LENGTH
+#endif
 	unsigned	n_user_defined_cols:10;
 				/*!< number of columns the user defined to
 				be in the index: in the internal
@@ -602,7 +607,13 @@ struct dict_table_struct{
 				/*!< flag: TRUE if the maximum length of
 				a single row exceeds BIG_ROW_SIZE;
 				initialized in dict_table_add_to_cache() */
-				/** Statistics for query optimization */
+				/** Statistics for query optimization.
+				The following stat_* members are usually
+				protected by dict_table_stats_lock(). In
+				some exceptional cases (performance critical
+				code paths) we access or modify stat_n_rows
+				and stat_modified_counter without any
+				protection. */
 				/* @{ */
 	unsigned	stat_initialized:1; /*!< TRUE if statistics have
 				been calculated the first time

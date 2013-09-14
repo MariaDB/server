@@ -76,7 +76,7 @@ bool init_errmessage(void)
                  &errmsgs, ER_ERROR_LAST - ER_ERROR_FIRST + 1) &&
       !errmsgs)
   {
-    free(errmsgs);
+    my_free(errmsgs);
     
     if (org_errmsgs)
     {
@@ -99,7 +99,7 @@ bool init_errmessage(void)
     }
   }
   else
-    free(org_errmsgs);                        // Free old language
+    my_free(org_errmsgs);                        // Free old language
 
   /* Register messages for use with my_error(). */
   if (my_error_register(get_server_errmsgs, ER_ERROR_FIRST, ER_ERROR_LAST))
@@ -146,8 +146,8 @@ bool read_texts(const char *file_name, const char *language,
                 const char ***point, uint error_messages)
 {
   register uint i;
-  uint count,funktpos,textcount;
-  size_t length;
+  uint count,funktpos;
+  size_t offset, length;
   File file;
   char name[FN_REFLEN];
   char lang_path[FN_REFLEN];
@@ -186,9 +186,8 @@ bool read_texts(const char *file_name, const char *language,
     goto err;
   funktpos=2;
   if (head[0] != (uchar) 254 || head[1] != (uchar) 254 ||
-      head[2] != 2 || head[3] != 2)
+      head[2] != 2 || head[3] != 3)
     goto err; /* purecov: inspected */
-  textcount=head[4];
 
   error_message_charset_info= system_charset_info;
   length=uint4korr(head+6); count=uint2korr(head+10);
@@ -203,7 +202,7 @@ Error message file '%s' had only %d error messages, but it should contain at lea
   }
 
   if (!(*point= (const char**)
-	my_malloc((size_t) (max(length,count*2)+count*sizeof(char*)),MYF(0))))
+	my_malloc((size_t) (MY_MAX(length,count*2)+count*sizeof(char*)),MYF(0))))
   {
     funktpos=3;					/* purecov: inspected */
     goto err;					/* purecov: inspected */
@@ -212,18 +211,15 @@ Error message file '%s' had only %d error messages, but it should contain at lea
 
   if (mysql_file_read(file, buff, (size_t) count*2, MYF(MY_NABP)))
     goto err;
-  for (i=0, pos= buff ; i< count ; i++)
+  for (i=0, offset=0, pos= buff ; i< count ; i++)
   {
-    (*point)[i]= (char*) buff+uint2korr(pos);
+    (*point)[i]= (char*) buff+offset;
+    offset+= uint2korr(pos);
     pos+=2;
   }
   if (mysql_file_read(file, buff, length, MYF(MY_NABP)))
     goto err;
 
-  for (i=1 ; i < textcount ; i++)
-  {
-    point[i]= *point +uint2korr(head+10+i+i);
-  }
   (void) mysql_file_close(file, MYF(0));
 
   i= check_error_mesg(file_name, *point);

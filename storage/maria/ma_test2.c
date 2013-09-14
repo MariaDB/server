@@ -698,7 +698,7 @@ int main(int argc, char *argv[])
     goto err2;
   }
 
-  for (i=min(2,keys) ; i-- > 0 ;)
+  for (i=MY_MIN(2,keys) ; i-- > 0 ;)
   {
     if (maria_rsame(file,read_record2,(int) i)) goto err;
     if (bcmp(read_record,read_record2,reclength) != 0)
@@ -971,6 +971,7 @@ end:
       break;
     }
     printf("Dying on request without maria_commit()/maria_close()\n");
+    sf_leaking_memory= 1; /* no memory leak reports here */
     exit(0);
   }
   if (maria_commit(file))
@@ -1017,6 +1018,7 @@ reads:      %10lu\n",
   }
   maria_end();
   my_free(blob_buffer);
+  my_uuid_end();
   my_end(silent ? MY_CHECK_ERROR : MY_CHECK_ERROR | MY_GIVE_INFO);
   return(0);
 err:
@@ -1029,6 +1031,8 @@ err2:
     maria_close(file);
   }
   maria_end();
+  my_uuid_end();
+  my_end(0);
   return(1);
 } /* main */
 

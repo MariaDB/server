@@ -75,16 +75,6 @@ ha_heap::ha_heap(handlerton *hton, TABLE_SHARE *table_arg)
   internal_table(0)
 {}
 
-
-static const char *ha_heap_exts[] = {
-  NullS
-};
-
-const char **ha_heap::bas_ext() const
-{
-  return ha_heap_exts;
-}
-
 /*
   Hash index statistics is updated (copied from HP_KEYDEF::hash_buckets to 
   rec_per_key) after 1/HEAP_STATS_UPDATE_THRESHOLD fraction of table records 
@@ -221,14 +211,14 @@ void ha_heap::update_key_stats()
     if (key->algorithm != HA_KEY_ALG_BTREE)
     {
       if (key->flags & HA_NOSAME)
-        key->rec_per_key[key->key_parts-1]= 1;
+        key->rec_per_key[key->user_defined_key_parts-1]= 1;
       else
       {
         ha_rows hash_buckets= file->s->keydef[i].hash_buckets;
         uint no_records= hash_buckets ? (uint) (file->s->records/hash_buckets) : 2;
         if (no_records < 2)
           no_records= 2;
-        key->rec_per_key[key->key_parts-1]= no_records;
+        key->rec_per_key[key->user_defined_key_parts-1]= no_records;
       }
     }
   }
@@ -611,7 +601,7 @@ ha_rows ha_heap::records_in_range(uint inx, key_range *min_key,
 
   /* Assert that info() did run. We need current statistics here. */
   DBUG_ASSERT(key_stat_version == file->s->key_stat_version);
-  return key->rec_per_key[key->key_parts-1];
+  return key->rec_per_key[key->user_defined_key_parts-1];
 }
 
 
@@ -630,7 +620,7 @@ heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   bzero(hp_create_info, sizeof(*hp_create_info));
 
   for (key= parts= 0; key < keys; key++)
-    parts+= table_arg->key_info[key].key_parts;
+    parts+= table_arg->key_info[key].user_defined_key_parts;
 
   if (!(keydef= (HP_KEYDEF*) my_malloc(keys * sizeof(HP_KEYDEF) +
 				       parts * sizeof(HA_KEYSEG),
@@ -641,9 +631,9 @@ heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   {
     KEY *pos= table_arg->key_info+key;
     KEY_PART_INFO *key_part=     pos->key_part;
-    KEY_PART_INFO *key_part_end= key_part + pos->key_parts;
+    KEY_PART_INFO *key_part_end= key_part + pos->user_defined_key_parts;
 
-    keydef[key].keysegs=   (uint) pos->key_parts;
+    keydef[key].keysegs=   (uint) pos->user_defined_key_parts;
     keydef[key].flag=      (pos->flags & (HA_NOSAME | HA_NULL_ARE_EQUAL));
     keydef[key].seg=       seg;
 

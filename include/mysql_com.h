@@ -24,15 +24,38 @@
 #define HOSTNAME_LENGTH 60
 #define SYSTEM_CHARSET_MBMAXLEN 3
 #define NAME_CHAR_LEN	64              /* Field/table name length */
-#define USERNAME_CHAR_LENGTH 16
+#define USERNAME_CHAR_LENGTH 128
 #define NAME_LEN                (NAME_CHAR_LEN*SYSTEM_CHARSET_MBMAXLEN)
 #define USERNAME_LENGTH         (USERNAME_CHAR_LENGTH*SYSTEM_CHARSET_MBMAXLEN)
+#define DEFINER_CHAR_LENGTH     (USERNAME_CHAR_LENGTH + HOSTNAME_LENGTH + 1)
+#define DEFINER_LENGTH          (USERNAME_LENGTH + HOSTNAME_LENGTH + 1)
 
 #define MYSQL_AUTODETECT_CHARSET_NAME "auto"
 
 #define MYSQL50_TABLE_NAME_PREFIX         "#mysql50#"
 #define MYSQL50_TABLE_NAME_PREFIX_LENGTH  (sizeof(MYSQL50_TABLE_NAME_PREFIX)-1)
 #define SAFE_NAME_LEN (NAME_LEN + MYSQL50_TABLE_NAME_PREFIX_LENGTH)
+
+/*
+  MDEV-4088
+
+  MySQL (and MariaDB 5.x before the fix) was using the first character of the
+  server version string (as sent in the first handshake protocol packet) to
+  decide on the replication event formats. And for 10.x the first character
+  is "1", which the slave thought comes from some ancient 1.x version
+  (ignoring the fact that the first ever MySQL version was 3.x).
+
+  To support replication to these old clients, we fake the version in the
+  first handshake protocol packet to start from "5.5.5-" (for example,
+  it might be "5.5.5-10.0.1-MariaDB-debug-log".
+
+  On the client side we remove this fake version prefix to restore the
+  correct server version. The version "5.5.5" did not support
+  pluggable authentication, so any version starting from "5.5.5-" and
+  claiming to support pluggable auth, must be using this fake prefix.
+*/
+/* this version must be the one that *does not* support pluggable auth */
+#define RPL_VERSION_HACK "5.5.5-"
 
 #define SERVER_VERSION_LENGTH 60
 #define SQLSTATE_LENGTH 5
@@ -41,10 +64,11 @@
 /*
   Maximum length of comments
 */
-#define TABLE_COMMENT_INLINE_MAXLEN 180 /* pre 6.0: 60 characters */
+#define TABLE_COMMENT_INLINE_MAXLEN 180 /* pre 5.5: 60 characters */
 #define TABLE_COMMENT_MAXLEN 2048
 #define COLUMN_COMMENT_MAXLEN 1024
 #define INDEX_COMMENT_MAXLEN 1024
+#define TABLE_PARTITION_COMMENT_MAXLEN 1024
 
 /*
   USER_HOST_BUFF_SIZE -- length of string buffer, that is enough to contain
@@ -119,48 +143,55 @@ enum enum_server_command
 #define BINCMP_FLAG	131072		/* Intern: Used by sql_yacc */
 #define GET_FIXED_FIELDS_FLAG (1 << 18) /* Used to get fields in item tree */
 #define FIELD_IN_PART_FUNC_FLAG (1 << 19)/* Field part of partition func */
-#define FIELD_IN_ADD_INDEX (1<< 20)	/* Intern: Field used in ADD INDEX */
+
+/**
+  Intern: Field in TABLE object for new version of altered table,
+          which participates in a newly added index.
+*/
+#define FIELD_IN_ADD_INDEX (1 << 20)
 #define FIELD_IS_RENAMED (1<< 21)       /* Intern: Field is being renamed */
-#define FIELD_FLAGS_STORAGE_MEDIA 22    /* Field storage media, bit 22-23,
-                                           reserved by MySQL Cluster */
-#define FIELD_FLAGS_COLUMN_FORMAT 24    /* Field column format, bit 24-25,
-                                           reserved by MySQL Cluster */
-#define HAS_EXPLICIT_VALUE (1 << 26)    /* An INSERT/UPDATE operation supplied
+#define FIELD_FLAGS_STORAGE_MEDIA 22    /* Field storage media, bit 22-23 */
+#define FIELD_FLAGS_STORAGE_MEDIA_MASK (3 << FIELD_FLAGS_STORAGE_MEDIA)
+#define FIELD_FLAGS_COLUMN_FORMAT 24    /* Field column format, bit 24-25 */
+#define FIELD_FLAGS_COLUMN_FORMAT_MASK (3 << FIELD_FLAGS_COLUMN_FORMAT)
+#define FIELD_IS_DROPPED (1<< 26)       /* Intern: Field is being dropped */
+#define HAS_EXPLICIT_VALUE (1 << 27)    /* An INSERT/UPDATE operation supplied
                                           an explicit default value */
 
-#define REFRESH_GRANT           (1UL << 0)  /* Refresh grant tables */
-#define REFRESH_LOG             (1UL << 1)  /* Start on new log file */
-#define REFRESH_TABLES          (1UL << 2)  /* close all tables */
-#define REFRESH_HOSTS           (1UL << 3)  /* Flush host cache */
-#define REFRESH_STATUS          (1UL << 4)  /* Flush status variables */
-#define REFRESH_THREADS         (1UL << 5)  /* Flush thread cache */
-#define REFRESH_SLAVE           (1UL << 6)  /* Reset master info and restart slave
+#define REFRESH_GRANT           (1ULL << 0)  /* Refresh grant tables */
+#define REFRESH_LOG             (1ULL << 1)  /* Start on new log file */
+#define REFRESH_TABLES          (1ULL << 2)  /* close all tables */
+#define REFRESH_HOSTS           (1ULL << 3)  /* Flush host cache */
+#define REFRESH_STATUS          (1ULL << 4)  /* Flush status variables */
+#define REFRESH_THREADS         (1ULL << 5)  /* Flush thread cache */
+#define REFRESH_SLAVE           (1ULL << 6)  /* Reset master info and restart slave
                                              thread */
-#define REFRESH_MASTER          (1UL << 7)  /* Remove all bin logs in the index
+#define REFRESH_MASTER          (1ULL << 7)  /* Remove all bin logs in the index
                                              and truncate the index */
 
 /* The following can't be set with mysql_refresh() */
-#define REFRESH_ERROR_LOG       (1UL << 8)  /* Rotate only the erorr log */
-#define REFRESH_ENGINE_LOG      (1UL << 9)  /* Flush all storage engine logs */
-#define REFRESH_BINARY_LOG      (1UL << 10) /* Flush the binary log */
-#define REFRESH_RELAY_LOG       (1UL << 11) /* Flush the relay log */
-#define REFRESH_GENERAL_LOG     (1UL << 12) /* Flush the general log */
-#define REFRESH_SLOW_LOG        (1UL << 13) /* Flush the slow query log */
+#define REFRESH_ERROR_LOG       (1ULL << 8)  /* Rotate only the erorr log */
+#define REFRESH_ENGINE_LOG      (1ULL << 9)  /* Flush all storage engine logs */
+#define REFRESH_BINARY_LOG      (1ULL << 10) /* Flush the binary log */
+#define REFRESH_RELAY_LOG       (1ULL << 11) /* Flush the relay log */
+#define REFRESH_GENERAL_LOG     (1ULL << 12) /* Flush the general log */
+#define REFRESH_SLOW_LOG        (1ULL << 13) /* Flush the slow query log */
 
-#define REFRESH_READ_LOCK       (1UL << 14) /* Lock tables for read */
-#define REFRESH_CHECKPOINT      (1UL << 15) /* With REFRESH_READ_LOCK: block checkpoints too */
+#define REFRESH_READ_LOCK       (1ULL << 14) /* Lock tables for read */
+#define REFRESH_CHECKPOINT      (1ULL << 15) /* With REFRESH_READ_LOCK: block checkpoints too */
 
-#define REFRESH_QUERY_CACHE     (1UL << 16) /* clear the query cache */
-#define REFRESH_QUERY_CACHE_FREE (1UL << 17) /* pack query cache */
-#define REFRESH_DES_KEY_FILE    (1UL << 18)
-#define REFRESH_USER_RESOURCES  (1UL << 19)
+#define REFRESH_QUERY_CACHE     (1ULL << 16) /* clear the query cache */
+#define REFRESH_QUERY_CACHE_FREE (1ULL << 17) /* pack query cache */
+#define REFRESH_DES_KEY_FILE    (1ULL << 18)
+#define REFRESH_USER_RESOURCES  (1ULL << 19)
+#define REFRESH_FOR_EXPORT      (1ULL << 20) /* FLUSH TABLES ... FOR EXPORT */
 
-#define REFRESH_TABLE_STATS     (1UL << 20) /* Refresh table stats hash table */
-#define REFRESH_INDEX_STATS     (1UL << 21) /* Refresh index stats hash table */
-#define REFRESH_USER_STATS      (1UL << 22) /* Refresh user stats hash table */
-#define REFRESH_CLIENT_STATS    (1UL << 23) /* Refresh client stats hash table */
+#define REFRESH_TABLE_STATS     (1ULL << 27) /* Refresh table stats hash table */
+#define REFRESH_INDEX_STATS     (1ULL << 28) /* Refresh index stats hash table */
+#define REFRESH_USER_STATS      (1ULL << 29) /* Refresh user stats hash table */
+#define REFRESH_CLIENT_STATS    (1ULL << 30) /* Refresh client stats hash table */
 
-#define REFRESH_FAST            (1UL << 31) /* Intern flag */
+#define REFRESH_FAST            (1ULL << 31) /* Intern flag */
 
 #define CLIENT_LONG_PASSWORD	1	/* new more secure passwords */
 #define CLIENT_FOUND_ROWS	2	/* Found instead of affected rows */
@@ -183,8 +214,15 @@ enum enum_server_command
 #define CLIENT_PS_MULTI_RESULTS (1UL << 18) /* Multi-results in PS-protocol */
 
 #define CLIENT_PLUGIN_AUTH  (1UL << 19) /* Client supports plugin authentication */
-#define CLIENT_PROGRESS  (1UL << 29)   /* Client support progress indicator */
 
+#define CLIENT_PLUGIN_AUTH  (1UL << 19) /* Client supports plugin authentication */
+#define CLIENT_CONNECT_ATTRS (1UL << 20) /* Client supports connection attributes */
+/* Enable authentication response packet to be larger than 255 bytes. */
+#define CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA (1UL << 21)
+/* Don't close the connection for a connection with expired password. */
+#define CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS (1UL << 22)
+
+#define CLIENT_PROGRESS  (1UL << 29)   /* Client support progress indicator */
 #define CLIENT_SSL_VERIFY_SERVER_CERT (1UL << 30)
 /*
   It used to be that if mysql_real_connect() failed, it would delete any
@@ -227,6 +265,12 @@ enum enum_server_command
                            CLIENT_REMEMBER_OPTIONS | \
                            CLIENT_PROGRESS | \
                            CLIENT_PLUGIN_AUTH)
+
+/*
+  To be added later:
+  CLIENT_CONNECT_ATTRS, CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA,
+  CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS
+*/
 
 /*
   Switch off the flags that are optional and depending on build flags
@@ -375,6 +419,16 @@ enum enum_field_types { MYSQL_TYPE_DECIMAL, MYSQL_TYPE_TINY,
 			MYSQL_TYPE_DATETIME, MYSQL_TYPE_YEAR,
 			MYSQL_TYPE_NEWDATE, MYSQL_TYPE_VARCHAR,
 			MYSQL_TYPE_BIT,
+                        /*
+                          mysql-5.6 compatibility temporal types.
+                          They're only used internally for reading RBR
+                          mysql-5.6 binary log events and mysql-5.6 frm files.
+                          They're never sent to the client.
+                        */
+                        MYSQL_TYPE_TIMESTAMP2,
+                        MYSQL_TYPE_DATETIME2,
+                        MYSQL_TYPE_TIME2,
+                        
                         MYSQL_TYPE_NEWDECIMAL=246,
 			MYSQL_TYPE_ENUM=247,
 			MYSQL_TYPE_SET=248,

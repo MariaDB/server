@@ -10,10 +10,10 @@
 #include <inttypes.h>
 #include <netinet/in.h>
 
-#include <Thrift.h>
-#include <TApplicationException.h>
-#include <protocol/TProtocol.h>
-#include <transport/TTransport.h>
+#include <thrift/Thrift.h>
+#include <thrift/TApplicationException.h>
+#include <thrift/protocol/TProtocol.h>
+#include <thrift/transport/TTransport.h>
 
 
 

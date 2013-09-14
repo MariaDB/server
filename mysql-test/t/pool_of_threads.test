@@ -17,7 +17,10 @@ SET optimizer_switch=@save_optimizer_switch;
 # First set two connections running, and check that extra connection
 # on normal port fails due to--thread-pool-max_threads=2
 connection default;
-send SELECT sleep(5);
+
+# Sleep for slightly longer than 5 sec to trigger MDEV-4566 
+# (abort in interruptible wait connection check)
+send SELECT sleep(5.5); 
 --sleep  1 
 
 connect(con2,localhost,root,,);

@@ -45,7 +45,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 
 TABLE_FIELD_DEF
 table_hosts::m_field_def=
-{ 3, field_types };
+{ 3, field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_hosts::m_share=

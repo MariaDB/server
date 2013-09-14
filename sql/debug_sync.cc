@@ -1,4 +1,4 @@
-/* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
+/* Copyright (c) 2009, 2011, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -10,8 +10,8 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   along with this program; if not, write to the Free Software Foundation,
+   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
 /* see include/mysql/service_debug_sync.h for debug sync documentation */
 
@@ -38,7 +38,7 @@
 */
 struct st_debug_sync_action
 {
-  ulong         activation_count;       /* max(hit_limit, execute) */
+  ulong         activation_count;       /* MY_MAX(hit_limit, execute) */
   ulong         hit_limit;              /* hits before kill query */
   ulong         execute;                /* executes before self-clear */
   ulong         timeout;                /* wait_for timeout */
@@ -82,8 +82,6 @@ struct st_debug_sync_globals
 };
 static st_debug_sync_globals debug_sync_global; /* All globals in one object */
 
-extern uint opt_debug_sync_timeout;
-
 /**
   Callbacks from C files.
 */
@@ -112,14 +110,11 @@ static void init_debug_sync_psi_keys(void)
   const char* category= "sql";
   int count;
 
-  if (PSI_server == NULL)
-    return;
-
   count= array_elements(all_debug_sync_mutexes);
-  PSI_server->register_mutex(category, all_debug_sync_mutexes, count);
+  mysql_mutex_register(category, all_debug_sync_mutexes, count);
 
   count= array_elements(all_debug_sync_conds);
-  PSI_server->register_cond(category, all_debug_sync_conds, count);
+  mysql_cond_register(category, all_debug_sync_conds, count);
 }
 #endif /* HAVE_PSI_INTERFACE */
 
@@ -741,7 +736,7 @@ static bool debug_sync_set_action(THD *thd, st_debug_sync_action *action)
   DBUG_ASSERT(action);
   DBUG_ASSERT(ds_control);
 
-  action->activation_count= max(action->hit_limit, action->execute);
+  action->activation_count= MY_MAX(action->hit_limit, action->execute);
   if (!action->activation_count)
   {
     debug_sync_remove_action(ds_control, action);
@@ -783,7 +778,7 @@ static bool debug_sync_set_action(THD *thd, st_debug_sync_action *action)
       point decremented it to 0. In this case the following happened:
 
       - an error message was reported with my_error() and
-      - the statement was killed with thd->killed= KILL_QUERY.
+      - the statement was killed with thd->killed= THD::KILL_QUERY.
 
       If a statement reports an error, it must not call send_ok().
       The calling functions will not call send_ok(), if we return TRUE
@@ -985,7 +980,7 @@ static bool debug_sync_eval_action(THD *thd, char *action_str)
   DBUG_ENTER("debug_sync_eval_action");
   DBUG_ASSERT(thd);
   DBUG_ASSERT(action_str);
-  DBUG_PRINT("debug_sync", ("action_str='%s'", action_str));
+  DBUG_PRINT("debug_sync", ("action_str: '%s'", action_str));
 
   /*
     Get debug sync point name. Or a special command.
@@ -1450,8 +1445,13 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
                         sig_wait, sig_glob, error));});
         if (error == ETIMEDOUT || error == ETIME)
         {
-          push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+          // We should not make the statement fail, even if in strict mode.
+          const bool save_abort_on_warning= thd->abort_on_warning;
+          thd->abort_on_warning= false;
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                        ER_DEBUG_SYNC_TIMEOUT, ER(ER_DEBUG_SYNC_TIMEOUT));
+          thd->abort_on_warning= save_abort_on_warning;
+          DBUG_EXECUTE_IF("debug_sync_abort_on_timeout", DBUG_ABORT(););
           break;
         }
         error= 0;
@@ -1521,9 +1521,10 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
 static void debug_sync(THD *thd, const char *sync_point_name, size_t name_len)
 {
   if (!thd)
-    thd= current_thd;
-  if (!thd)
-    return;
+  {
+    if (!(thd= current_thd))
+      return;
+  }
 
   st_debug_sync_control *ds_control= thd->debug_sync_control;
   st_debug_sync_action  *action;

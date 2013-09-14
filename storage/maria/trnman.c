@@ -580,7 +580,6 @@ int trnman_can_read_from(TRN *trn, TrID trid)
 {
   TRN **found;
   my_bool can;
-  LF_REQUIRE_PINS(3);
 
   if (trid < trn->min_read_from)
     return 1; /* Row is visible by all transactions in the system */
@@ -621,7 +620,6 @@ int trnman_can_read_from(TRN *trn, TrID trid)
 TRN *trnman_trid_to_trn(TRN *trn, TrID trid)
 {
   TRN **found;
-  LF_REQUIRE_PINS(3);
 
   if (trid < trn->min_read_from)
     return 0; /* it's committed eons ago */
@@ -877,7 +875,7 @@ TrID trnman_get_min_safe_trid()
 {
   TrID trid;
   mysql_mutex_lock(&LOCK_trn_list);
-  trid= min(active_list_min.next->min_read_from,
+  trid= MY_MIN(active_list_min.next->min_read_from,
             global_trid_generator);
   mysql_mutex_unlock(&LOCK_trn_list);
   return trid;

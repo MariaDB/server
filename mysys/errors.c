@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2010, Oracle and/or its affiliates
-   Copyright (c) 1995, 2012 Monty Program Ab
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates
+   Copyright (c) 1995, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ const char *globerrs[GLOBERRS]=
   "File '%s' (fileno: %d) was not closed",
   "Can't change ownership of the file '%s' (Errcode: %M)",
   "Can't change permissions of the file '%s' (Errcode: %M)",
-  "Can't seek in file '%s' (Errcode: %M)"
+  "Can't seek in file '%s' (Errcode: %M)",
   "Can't change mode for file '%s' to 0x%lx (Errcode: %M)",
   "Warning: Can't copy ownership for file '%s' (Errcode: %M)"
 };
@@ -108,12 +108,12 @@ void init_glob_errs()
 void wait_for_free_space(const char *filename, int errors)
 {
   if (errors == 0)
-    my_error(EE_DISK_FULL,MYF(ME_BELL | ME_NOREFRESH),
+    my_error(EE_DISK_FULL,MYF(ME_BELL | ME_NOREFRESH | ME_JUST_WARNING),
              filename,my_errno,MY_WAIT_FOR_USER_TO_FIX_PANIC);
   if (!(errors % MY_WAIT_GIVE_USER_A_MESSAGE))
     my_printf_error(EE_DISK_FULL,
                     "Retry in %d secs. Message reprinted in %d secs",
-                    MYF(ME_BELL | ME_NOREFRESH),
+                    MYF(ME_BELL | ME_NOREFRESH | ME_JUST_WARNING),
                     MY_WAIT_FOR_USER_TO_FIX_PANIC,
                     MY_WAIT_GIVE_USER_A_MESSAGE * MY_WAIT_FOR_USER_TO_FIX_PANIC );
   (void) sleep(MY_WAIT_FOR_USER_TO_FIX_PANIC);

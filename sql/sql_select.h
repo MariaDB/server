@@ -1,8 +1,8 @@
 #ifndef SQL_SELECT_INCLUDED
 #define SQL_SELECT_INCLUDED
 
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008-2011 Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -283,6 +283,9 @@ typedef struct st_join_table {
   /* Copy of POSITION::records_read, set by get_best_combination() */
   double       records_read;
   
+  /* The selectivity of the conditions that can be pushed to the table */ 
+  double        cond_selectivity;  
+  
   /* Startup cost for execution */
   double        startup_cost;
     
@@ -514,6 +517,16 @@ typedef struct st_join_table {
   bool preread_init();
 
   bool is_sjm_nest() { return test(bush_children); }
+
+  bool access_from_tables_is_allowed(table_map used_tables,
+                                     table_map sjm_lookup_tables)
+  {
+    table_map used_sjm_lookup_tables= used_tables & sjm_lookup_tables;
+    return !used_sjm_lookup_tables ||
+           (emb_sj_nest && 
+            !(used_sjm_lookup_tables & ~emb_sj_nest->sj_inner_tables));
+  }
+
 } JOIN_TAB;
 
 
@@ -753,6 +766,9 @@ typedef struct st_position :public Sql_alloc
   */
   double records_read;
 
+  /* The selectivity of the pushed down conditions */
+  double cond_selectivity; 
+
   /* 
     Cost accessing the table in course of the entire complete join execution,
     i.e. cost of one access method use (e.g. 'range' or 'ref' scan ) times 
@@ -964,6 +980,11 @@ public:
   bool     hash_join;
   bool	   do_send_rows;
   table_map const_table_map;
+  /** 
+    Bitmap of semijoin tables that the current partial plan decided
+    to materialize and access by lookups
+  */
+  table_map sjm_lookup_tables;
   /*
     Constant tables for which we have found a row (as opposed to those for
     which we didn't).
@@ -1295,8 +1316,15 @@ public:
     outer_ref_cond= pseudo_bits_cond= NULL;
     in_to_exists_where= NULL;
     in_to_exists_having= NULL;
-
     pre_sort_join_tab= NULL;
+    emb_sjm_nest= NULL;
+    sjm_lookup_tables= 0;
+    /* 
+      The following is needed because JOIN::cleanup(true) may be called for 
+      joins for which JOIN::optimize was aborted with an error before a proper
+      query plan was produced
+    */
+    table_access_tabs= NULL; 
   }
 
   int prepare(Item ***rref_pointer_array, TABLE_LIST *tables, uint wind_num,
@@ -1795,6 +1823,8 @@ void eliminate_tables(JOIN *join);
 /* Index Condition Pushdown entry point function */
 void push_index_cond(JOIN_TAB *tab, uint keyno);
 
+#define OPT_LINK_EQUAL_FIELDS    1
+
 /****************************************************************************
   Temporary table support for SQL Runtime
  ***************************************************************************/
@@ -1812,14 +1842,28 @@ void free_tmp_table(THD *thd, TABLE *entry);
 bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
                                          TMP_ENGINE_COLUMNDEF *start_recinfo,
                                          TMP_ENGINE_COLUMNDEF **recinfo, 
-                                         int error, bool ignore_last_dupp_key_error);
+                                         int error, bool ignore_last_dupp_key_error,
+                                         bool *is_duplicate);
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
                                TMP_ENGINE_COLUMNDEF *start_recinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo, 
-                               ulonglong options, my_bool big_tables);
+                               ulonglong options);
 bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
 double prev_record_reads(POSITION *positions, uint idx, table_map found_ref);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
+
+struct st_cond_statistic
+{
+  Item *cond;
+  Field *field_arg;
+  ulong positive;
+};
+typedef struct st_cond_statistic COND_STATISTIC;
+
+ulong check_selectivity(THD *thd,
+                        ulong rows_to_read,
+                        TABLE *table,
+                        List<COND_STATISTIC> *conds);
 
 #endif /* SQL_SELECT_INCLUDED */

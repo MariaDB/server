@@ -26,6 +26,7 @@
 #include "sql_base.h"
 #include "key.h"
 #include "sql_statistics.h"
+#include "opt_range.h"
 #include "my_atomic.h"
 
 /*
@@ -249,12 +250,13 @@ public:
   and column_name with column_name taken out of the only parameter f of the
   Field* type passed to this method. After this get_stat_values looks
   for a row by the set key value. If the row is found the values of statistical 
-  data columns min_value, max_value, nulls_ratio, avg_length, avg_frequency
-  are read into internal structures. Values of nulls_ratio, avg_length,
-  avg_frequency are read into the corresponding fields of the read_stat
-  structure from the Field object f, while values from min_value and max_value
-  are copied into the min_value and  max_value record buffers attached to the
-  TABLE structure for table t.
+  data columns min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+  hist_size, hist_type, histogram are read into internal structures. Values
+  of nulls_ratio, avg_length, avg_frequency, hist_size, hist_type, histogram
+  are read into the corresponding fields of the read_stat  structure from
+  the Field object f, while values from min_value and max_value  are copied
+  into the min_value and  max_value record buffers attached to the TABLE
+   structure for table t.
   If the value of a statistical column in the found row is null, then the
   corresponding flag in the f->read_stat.column_stat_nulls bitmap is set off.
   Otherwise the flag is set on. If no row is found for the column the all flags
@@ -335,7 +337,7 @@ protected:
 
   void store_record_for_lookup()
   {
-    store_record(stat_table, record[0]);
+    DBUG_ASSERT(record[0] == stat_table->record[0]);
   }
 
   bool update_record()
@@ -867,11 +869,12 @@ public:
 
     @details
     This implementation of a purely virtual method sets the value of the
-    columns 'min_value', 'max_value', 'nulls_ratio', 'avg_length' and
-    'avg_frequency' of the stistical table columns_stat according to the
-    contents of the bitmap write_stat.column_stat_nulls and the values
-    of the fields min_value, max_value, nulls_ratio, avg_length and
-    avg_frequency of the structure write_stat from the Field structure
+    columns 'min_value', 'max_value', 'nulls_ratio', 'avg_length',
+    'avg_frequency', 'hist_size', 'hist_type' and 'histogram'  of the 
+    stistical table columns_stat according to the contents of the bitmap
+    write_stat.column_stat_nulls and the values of the fields min_value,
+    max_value, nulls_ratio, avg_length, avg_frequency, hist_size, hist_type
+    and histogram of the structure write_stat from the Field structure
     for the field 'table_field'.
     The value of the k-th column in the table columns_stat is set to NULL
     if the k-th bit in the bitmap 'column_stat_nulls' is set to 1. 
@@ -888,7 +891,7 @@ public:
     char buff[MAX_FIELD_WIDTH];
     String val(buff, sizeof(buff), &my_charset_utf8_bin);
 
-    for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_AVG_FREQUENCY; i++)
+    for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HISTOGRAM; i++)
     {  
       Field *stat_field= stat_table->field[i];
       if (table_field->collected_stats->is_null(i))
@@ -923,7 +926,21 @@ public:
           break;
         case COLUMN_STAT_AVG_FREQUENCY:
           stat_field->store(table_field->collected_stats->get_avg_frequency());
-          break;            
+          break; 
+        case COLUMN_STAT_HIST_SIZE:
+          stat_field->store(table_field->collected_stats->histogram.get_size());
+          break;
+        case COLUMN_STAT_HIST_TYPE:
+          stat_field->store(table_field->collected_stats->histogram.get_type() +
+                            1);
+          break;
+        case COLUMN_STAT_HISTOGRAM:
+          const char * col_histogram=
+          (const char *) (table_field->collected_stats->histogram.get_values());
+	  stat_field->store(col_histogram,
+                            table_field->collected_stats->histogram.get_size(),
+                            &my_charset_bin);
+          break;           
         }
       }
     }
@@ -936,14 +953,15 @@ public:
 
     @details
     This implementation of a purely virtual method first looks for a record
-    the statistical table column_stats by its primary key set the record
+    in the statistical table column_stats by its primary key set in the record
     buffer with the help of Column_stat::set_key_fields. Then, if the row is
     found, the function reads the values of the columns 'min_value',
-    'max_value', 'nulls_ratio', 'avg_length' and 'avg_frequency' of the
-    table column_stat and sets accordingly the value of the bitmap 
-    read_stat.column_stat_nulls' and the values of the fields min_value,
-    max_value, nulls_ratio, avg_length and avg_frequency of the structure
-    read_stat from the Field structure for the field 'table_field'.
+    'max_value', 'nulls_ratio', 'avg_length', 'avg_frequency', 'hist_size' and
+    'hist_type" of the  table column_stat and sets accordingly the value of
+    the bitmap  read_stat.column_stat_nulls' and the values of the fields
+    min_value, max_value, nulls_ratio, avg_length, avg_frequency, hist_size and
+    hist_type of the structure read_stat from the Field structure for the field
+    'table_field'.
   */    
 
   void get_stat_values()
@@ -960,7 +978,7 @@ public:
       char buff[MAX_FIELD_WIDTH];
       String val(buff, sizeof(buff), &my_charset_utf8_bin);
 
-      for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_AVG_FREQUENCY; i++)
+      for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HIST_TYPE; i++)
       {  
         Field *stat_field= stat_table->field[i];
 
@@ -992,10 +1010,49 @@ public:
             break;
           case COLUMN_STAT_AVG_FREQUENCY:
             table_field->read_stats->set_avg_frequency(stat_field->val_real());
+            break;
+          case COLUMN_STAT_HIST_SIZE:
+            table_field->read_stats->histogram.set_size(stat_field->val_int());
+            break;            
+          case COLUMN_STAT_HIST_TYPE:
+            Histogram_type hist_type= (Histogram_type) (stat_field->val_int() -
+                                                        1);
+            table_field->read_stats->histogram.set_type(hist_type);
             break;            
           }
         }
       }
+    }
+  }
+
+
+  /** 
+    @brief
+    Read histogram from of column_stats
+
+    @details
+    This method first looks for a record in the statistical table column_stats
+    by its primary key set the record buffer with the help of
+    Column_stat::set_key_fields. Then, if the row is found, the function reads
+    the value of the column 'histogram' of the  table column_stat and sets
+    accordingly the corresponding bit in the bitmap read_stat.column_stat_nulls.
+    The method assumes that the value of histogram size and the pointer to
+    the histogram location has been already set in the fields size and values
+    of read_stats->histogram.
+  */    
+
+  void get_histogram_value()
+  {
+    if (find_stat())
+    {
+      char buff[MAX_FIELD_WIDTH];
+      String val(buff, sizeof(buff), &my_charset_utf8_bin);
+      uint fldno= COLUMN_STAT_HISTOGRAM;
+      Field *stat_field= stat_table->field[fldno];
+      table_field->read_stats->set_not_null(fldno);
+      stat_field->val_str(&val);
+      memcpy(table_field->read_stats->histogram.get_values(),
+             val.ptr(), table_field->read_stats->histogram.get_size());
     }
   }
 
@@ -1200,6 +1257,76 @@ public:
 
 };
 
+/*
+  Histogram_builder is a helper class that is used to build histograms
+  for columns
+*/
+
+class Histogram_builder
+{
+  Field *column;           /* table field for which the histogram is built */
+  uint col_length;         /* size of this field                           */
+  ha_rows records;         /* number of records the histogram is built for */
+  Field *min_value;        /* pointer to the minimal value for the field   */
+  Field *max_value;        /* pointer to the maximal value for the field   */
+  Histogram *histogram;    /* the histogram location                       */
+  uint hist_width;         /* the number of points in the histogram        */
+  double bucket_capacity;  /* number of rows in a bucket of the histogram  */ 
+  uint curr_bucket;        /* number of the current bucket to be built     */
+  ulonglong count;         /* number of values retrieved                   */
+  ulonglong count_distinct;    /* number of distinct values retrieved      */
+
+public: 
+  Histogram_builder(Field *col, uint col_len, ha_rows rows)
+    : column(col), col_length(col_len), records(rows)
+  {
+    Column_statistics *col_stats= col->collected_stats;
+    min_value= col_stats->min_value;
+    max_value= col_stats->max_value;
+    histogram= &col_stats->histogram;
+    hist_width= histogram->get_width();
+    bucket_capacity= (double) records / (hist_width + 1);
+    curr_bucket= 0;
+    count= 0;
+    count_distinct= 0;    
+  }
+
+  ulonglong get_count_distinct() { return count_distinct; }
+
+  int next(void *elem, element_count elem_cnt)
+  {
+    count_distinct++;
+    count+= elem_cnt;
+    if (curr_bucket == hist_width)
+      return 0;
+    if (count > bucket_capacity * (curr_bucket + 1))
+    {
+      column->store_field_value((uchar *) elem, col_length);
+      histogram->set_value(curr_bucket,
+                           column->pos_in_interval(min_value, max_value)); 
+      curr_bucket++;
+      while (curr_bucket != hist_width &&
+             count > bucket_capacity * (curr_bucket + 1))
+      {
+        histogram->set_prev_value(curr_bucket);
+	curr_bucket++;
+      }
+    }
+    return 0;
+  }
+};
+
+
+C_MODE_START
+
+int histogram_build_walk(void *elem, element_count elem_cnt, void *arg)
+{
+  Histogram_builder *hist_builder= (Histogram_builder *) arg;
+  return hist_builder->next(elem, elem_cnt);
+}
+
+C_MODE_END
+
 
 /*
   The class Count_distinct_field is a helper class used to calculate
@@ -1220,6 +1347,8 @@ protected:
   uint tree_key_length; /* The length of the keys for the elements of 'tree */
 
 public:
+  
+  Count_distinct_field() {}
 
   /**
     @param
@@ -1238,28 +1367,11 @@ public:
 
   Count_distinct_field(Field *field, uint max_heap_table_size)
   {
-    qsort_cmp2 compare_key;
-    void* cmp_arg;
-    enum enum_field_types f_type= field->type();
-
     table_field= field;
     tree_key_length= field->pack_length();
 
-    if ((f_type == MYSQL_TYPE_VARCHAR) ||
-	(!field->binary() && (f_type == MYSQL_TYPE_STRING ||
-                              f_type == MYSQL_TYPE_VAR_STRING)))
-    {
-      compare_key= (qsort_cmp2) simple_str_key_cmp;
-      cmp_arg= (void*) field;      
-    }
-    else
-    {
-      cmp_arg= (void*) &tree_key_length;
-      compare_key= (qsort_cmp2) simple_raw_key_cmp;
-    }
-        
-    tree= new Unique(compare_key, cmp_arg,
-                     tree_key_length, max_heap_table_size);
+    tree= new Unique((qsort_cmp2) simple_str_key_cmp, (void*) field,
+                     tree_key_length, max_heap_table_size, 1);
   }
 
   virtual ~Count_distinct_field()
@@ -1299,8 +1411,47 @@ public:
     tree->walk(table_field->table, count_distinct_walk, (void*) &count);
     return count;
   }
+
+  /*
+    @brief
+    Build the histogram for the elements accumulated in the container of 'tree'
+  */
+  ulonglong get_value_with_histogram(ha_rows rows)
+  {
+    Histogram_builder hist_builder(table_field, tree_key_length, rows);
+    tree->walk(table_field->table,  histogram_build_walk, (void *) &hist_builder);
+    return hist_builder.get_count_distinct();
+  }
+
+  /*
+    @brief
+    Get the size of the histogram in bytes built for table_field
+  */
+  uint get_hist_size()
+  {
+    return table_field->collected_stats->histogram.get_size();
+  }
+
+  /*
+    @brief
+    Get the pointer to the histogram built for table_field
+  */
+  uchar *get_histogram()
+  {
+    return table_field->collected_stats->histogram.get_values();
+  }
+
 };
 
+
+static
+int simple_ulonglong_key_cmp(void* arg, uchar* key1, uchar* key2)
+{
+  ulonglong *val1= (ulonglong *) key1;
+  ulonglong *val2= (ulonglong *) key2;
+  return *val1 > *val2 ? 1 : *val1 == *val2 ? 0 : -1; 
+}
+  
 
 /* 
   The class Count_distinct_field_bit is derived from the class 
@@ -1311,8 +1462,17 @@ public:
 class Count_distinct_field_bit: public Count_distinct_field
 {
 public:
+
   Count_distinct_field_bit(Field *field, uint max_heap_table_size)
-    :Count_distinct_field(field, max_heap_table_size) {}
+  {
+    table_field= field;
+    tree_key_length= sizeof(ulonglong);
+
+    tree= new Unique((qsort_cmp2) simple_ulonglong_key_cmp,
+                     (void*) &tree_key_length,
+                     tree_key_length, max_heap_table_size, 1);
+  }
+
   bool add()
   {
     longlong val= table_field->val_int();   
@@ -1388,7 +1548,7 @@ public:
     is_single_comp_pk= FALSE;
     uint pk= table->s->primary_key;
     if ((uint) (table->key_info - key_info) == pk &&
-        table->key_info[pk].key_parts == 1)
+        table->key_info[pk].user_defined_key_parts == 1)
     {
       prefixes= 1;
       is_single_comp_pk= TRUE;
@@ -1671,13 +1831,27 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   ulong *idx_avg_frequency= (ulong*) alloc_root(&table->mem_root,
                                                 sizeof(ulong) * key_parts);
 
-  if (!table_stats || !column_stats || !index_stats || !idx_avg_frequency)
+  uint columns= 0;
+  for (field_ptr= table->field; *field_ptr; field_ptr++)
+  {
+    if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
+      columns++;
+  }
+  uint hist_size= thd->variables.histogram_size;
+  Histogram_type hist_type= (Histogram_type) (thd->variables.histogram_type);
+  uchar *histogram= NULL;
+  if (hist_size > 0)
+    histogram= (uchar *) alloc_root(&table->mem_root, hist_size * columns);
+
+  if (!table_stats || !column_stats || !index_stats || !idx_avg_frequency ||
+      (hist_size && !histogram))
     DBUG_RETURN(1);
 
   table->collected_stats= table_stats;
   table_stats->column_stats= column_stats;
   table_stats->index_stats= index_stats;
   table_stats->idx_avg_frequency= idx_avg_frequency;
+  table_stats->histograms= histogram;
   
   memset(column_stats, 0, sizeof(Column_statistics) * (fields+1));
 
@@ -1686,6 +1860,13 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
     (*field_ptr)->collected_stats= column_stats;
     (*field_ptr)->collected_stats->max_value= NULL;
     (*field_ptr)->collected_stats->min_value= NULL;
+    if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
+    {
+      column_stats->histogram.set_size(hist_size);
+      column_stats->histogram.set_type(hist_type);
+      column_stats->histogram.set_values(histogram);
+      histogram+= hist_size;
+    }
   }
 
   memset(idx_avg_frequency, 0, sizeof(ulong) * key_parts);
@@ -1790,7 +1971,6 @@ inline bool statistics_for_command_is_needed(THD *thd)
   @note
   Currently the function always is called with the parameter is_safe set
   to FALSE. 
-
 */      
 
 int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share, 
@@ -1810,12 +1990,12 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
     DBUG_RETURN(1);
 
   if (!is_safe)
-    mysql_mutex_lock(&table_share->LOCK_ha_data);
+    mysql_mutex_lock(&table_share->LOCK_share);
 
   if (stats_cb->stats_can_be_read)
   {
     if (!is_safe)
-      mysql_mutex_unlock(&table_share->LOCK_ha_data);
+      mysql_mutex_unlock(&table_share->LOCK_share);
     DBUG_RETURN(0);
   }
 
@@ -1827,7 +2007,7 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
     if (!table_stats)
     {
       if (!is_safe)
-        mysql_mutex_unlock(&table_share->LOCK_ha_data);
+        mysql_mutex_unlock(&table_share->LOCK_share);
       DBUG_RETURN(1);
     }
     memset(table_stats, 0, sizeof(Table_statistics));
@@ -1900,12 +2080,83 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
     stats_cb->stats_can_be_read= TRUE;
 
   if (!is_safe)
-    mysql_mutex_unlock(&table_share->LOCK_ha_data);
-
+    mysql_mutex_unlock(&table_share->LOCK_share);
 
   DBUG_RETURN(0);
 }
 
+
+/**
+  @brief 
+  Allocate memory for the histogram used by a table share
+
+  @param
+  thd         Thread handler
+  @param
+  table_share Table share for which the memory for histogram data is allocated
+  @param
+  is_safe     TRUE <-> at any time only one thread can perform the function
+
+  @note
+  The function allocates the memory for the histogram built for a table in the
+  table's share memory with the intention to read the data there from the
+  system persistent statistical table mysql.column_stats,
+  The memory is allocated in the table_share's mem_root.
+  If the parameter is_safe is TRUE then it is guaranteed that at any given time
+  only one thread is executed the code of the function.
+
+  @retval
+  0     If the memory for all statistical data has been successfully allocated  
+  @retval
+  1     Otherwise
+
+  @note
+  Currently the function always is called with the parameter is_safe set
+  to FALSE. 
+*/      
+
+static
+int alloc_histograms_for_table_share(THD* thd, TABLE_SHARE *table_share, 
+                                     bool is_safe)
+{
+  TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
+
+  DBUG_ENTER("alloc_histograms_for_table_share");
+
+  if (!is_safe)
+    mysql_mutex_lock(&table_share->LOCK_share);
+
+  if (stats_cb->histograms_can_be_read)
+  {
+    if (!is_safe)
+      mysql_mutex_unlock(&table_share->LOCK_share);
+    DBUG_RETURN(0);
+  }
+
+  Table_statistics *table_stats= stats_cb->table_stats;
+  ulong total_hist_size= table_stats->total_hist_size;
+
+  if (total_hist_size && !table_stats->histograms)
+  {
+    uchar *histograms= (uchar *) alloc_root(&stats_cb->mem_root,
+                                            total_hist_size);
+    if (!histograms)
+    {
+      if (!is_safe)
+        mysql_mutex_unlock(&table_share->LOCK_share);
+      DBUG_RETURN(1);
+    }
+    memset(histograms, 0, total_hist_size);
+    table_stats->histograms= histograms;
+    stats_cb->histograms_can_be_read= TRUE;
+  }
+
+  if (!is_safe)
+    mysql_mutex_unlock(&table_share->LOCK_share);
+
+  DBUG_RETURN(0);
+
+}
 
 /**
   @brief
@@ -1926,7 +2177,7 @@ void Column_statistics_collected::init(THD *thd, Field *table_field)
   
   is_single_pk_col= FALSE;
 
-  if (pk != MAX_KEY && table->key_info[pk].key_parts == 1 &&
+  if (pk != MAX_KEY && table->key_info[pk].user_defined_key_parts == 1 &&
       table->key_info[pk].key_part[0].fieldnr == table_field->field_index + 1)
     is_single_pk_col= TRUE;  
   
@@ -2005,14 +2256,29 @@ void Column_statistics_collected::finish(ha_rows rows)
      set_not_null(COLUMN_STAT_AVG_LENGTH);
   }
   if (count_distinct)
-  { 
-    ulonglong distincts= count_distinct->get_value();
+  {
+    ulonglong distincts;
+    uint hist_size= count_distinct->get_hist_size();
+    if (hist_size == 0)
+      distincts= count_distinct->get_value();
+    else
+      distincts= count_distinct->get_value_with_histogram(rows - nulls);
     if (distincts)
     {
       val= (double) (rows - nulls) / distincts;
       set_avg_frequency(val); 
       set_not_null(COLUMN_STAT_AVG_FREQUENCY);
     }
+    else
+      hist_size= 0;
+    histogram.set_size(hist_size);
+    set_not_null(COLUMN_STAT_HIST_SIZE);
+    if (hist_size && distincts)
+    {
+      set_not_null(COLUMN_STAT_HIST_TYPE);
+      histogram.set_values(count_distinct->get_histogram());
+      set_not_null(COLUMN_STAT_HISTOGRAM);
+    } 
     delete count_distinct;
     count_distinct= NULL;
   }
@@ -2233,16 +2499,19 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
     table->collected_stats->cardinality= rows;
   }
 
+  bitmap_clear_all(table->write_set);
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
     table_field= *field_ptr;
     if (!bitmap_is_set(table->read_set, table_field->field_index))
       continue;
+    bitmap_set_bit(table->write_set, table_field->field_index); 
     if (!rc)
       table_field->collected_stats->finish(rows);
     else
       table_field->collected_stats->cleanup();
   }
+bitmap_clear_all(table->write_set);
 
   if (!rc)
   {
@@ -2420,6 +2689,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   Field **field_ptr;
   KEY *key_info, *key_info_end;
   TABLE_SHARE *table_share= table->s;
+  Table_statistics *read_stats= table_share->stats_cb.table_stats;
 
   DBUG_ENTER("read_statistics_for_table");
 
@@ -2431,16 +2701,18 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
    
   /* Read statistics from the statistical table column_stats */
   stat_table= stat_tables[COLUMN_STAT].table;
+  ulong total_hist_size= 0;
   Column_stat column_stat(stat_table, table);
   for (field_ptr= table_share->field; *field_ptr; field_ptr++)
   {
     table_field= *field_ptr;
     column_stat.set_key_fields(table_field);
     column_stat.get_stat_values();
+    total_hist_size+= table_field->read_stats->histogram.get_size();
   }
+  read_stats->total_hist_size= total_hist_size;
 
   /* Read statistics from the statistical table index_stats */
-  Table_statistics *read_stats= table_share->stats_cb.table_stats;
   stat_table= stat_tables[INDEX_STAT].table;
   Index_stat index_stat(stat_table, table);
   for (key_info= table_share->key_info,
@@ -2455,12 +2727,12 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
     }
    
     key_part_map ext_key_part_map= key_info->ext_key_part_map;
-    if (key_info->key_parts != key_info->ext_key_parts &&
-        key_info->read_stats->get_avg_frequency(key_info->key_parts) == 0)
+    if (key_info->user_defined_key_parts != key_info->ext_key_parts &&
+        key_info->read_stats->get_avg_frequency(key_info->user_defined_key_parts) == 0)
     {
       KEY *pk_key_info= table_share->key_info + table_share->primary_key;
-      uint k= key_info->key_parts;
-      uint pk_parts= pk_key_info->key_parts;
+      uint k= key_info->user_defined_key_parts;
+      uint pk_parts= pk_key_info->user_defined_key_parts;
       ha_rows n_rows= read_stats->cardinality;
       double k_dist= n_rows / key_info->read_stats->get_avg_frequency(k-1);
       uint m= 0;
@@ -2558,16 +2830,87 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
       TABLE_SHARE *table_share= tl->table->s;
       if (table_share && 
           table_share->stats_cb.stats_can_be_read &&
-          !table_share->stats_cb.stats_is_read)
+          (!table_share->stats_cb.stats_is_read ||
+           (!table_share->stats_cb.histograms_are_read &&
+            thd->variables.optimizer_use_condition_selectivity > 3)))
         return TRUE;
       if (table_share->stats_cb.stats_is_read)
         tl->table->stats_is_read= TRUE;
+      if (table_share->stats_cb.histograms_are_read)
+        tl->table->histograms_are_read= TRUE;
     } 
   }
 
   return FALSE;
 }
 
+
+/**
+  @brief
+  Read histogram for a table from the persistent statistical tables
+
+  @param
+  thd         The thread handle
+  @param
+  table       The table to read histograms for
+  @param
+  stat_tables The array of TABLE_LIST objects for statistical tables
+
+  @details
+  For the statistical table columns_stats the function looks for the rows
+  from this table that contain statistical data on 'table'. If such rows
+  are found the histograms from them are read into the memory allocated
+  for histograms of 'table'. Later at the query processing these histogram
+  are supposed to be used by the optimizer. 
+  The parameter stat_tables should point to an array of TABLE_LIST
+  objects for all statistical tables linked into a list. All statistical
+  tables are supposed to be opened.  
+  The function is called by read_statistics_for_tables_if_needed().
+
+  @retval
+  0         If data has been successfully read for the table  
+  @retval
+  1         Otherwise
+
+  @note
+  Objects of the helper Column_stat are employed read histogram
+  from the statistical table column_stats now.        
+*/
+
+static
+int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
+{
+  TABLE_SHARE *table_share= table->s;
+  
+  DBUG_ENTER("read_histograms_for_table");
+
+  if (!table_share->stats_cb.histograms_can_be_read)
+  {
+    (void) alloc_histograms_for_table_share(thd, table_share, FALSE);
+  }
+  if (table_share->stats_cb.histograms_can_be_read &&
+      !table_share->stats_cb.histograms_are_read)
+  {
+    Field **field_ptr;
+    uchar *histogram= table_share->stats_cb.table_stats->histograms;
+    TABLE *stat_table= stat_tables[COLUMN_STAT].table;
+    Column_stat column_stat(stat_table, table);
+    for (field_ptr= table_share->field; *field_ptr; field_ptr++)
+    {
+      Field *table_field= *field_ptr;
+      uint hist_size= table_field->read_stats->histogram.get_size();
+      if (hist_size)
+      {
+        column_stat.set_key_fields(table_field);
+        table_field->read_stats->histogram.set_values(histogram);
+        column_stat.get_histogram_value();
+        histogram+= hist_size;
+      }
+    }
+  }
+ 
+  DBUG_RETURN(0);
+}
 
 /**
   @brief
@@ -2596,7 +2939,7 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
   TABLE_LIST stat_tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
 
-  DBUG_ENTER("read_statistics_for_table_if_needed");
+  DBUG_ENTER("read_statistics_for_tables_if_needed");
 
   DEBUG_SYNC(thd, "statistics_read_start");
 
@@ -2623,6 +2966,14 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
       }
       if (table_share->stats_cb.stats_is_read)
         tl->table->stats_is_read= TRUE;
+      if (thd->variables.optimizer_use_condition_selectivity > 3 && 
+          table_share && !table_share->stats_cb.histograms_are_read)
+      {
+        (void) read_histograms_for_table(thd, tl->table, stat_tables);
+        table_share->stats_cb.histograms_are_read= TRUE;
+      }
+      if (table_share->stats_cb.stats_is_read)
+        tl->table->histograms_are_read= TRUE;
     }
   }  
 
@@ -2842,7 +3193,7 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   }
   else
   {
-    for (uint i= key_info->key_parts; i < key_info->ext_key_parts; i++)
+    for (uint i= key_info->user_defined_key_parts; i < key_info->ext_key_parts; i++)
     {
       index_stat.set_key_fields(key_info, i+1);
       if (index_stat.find_next_stat_for_prefix(4))
@@ -2990,7 +3341,10 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
   int rc= 0;
 
   DBUG_ENTER("rename_column_in_stat_tables");
-   
+  
+  if (tab->s->tmp_table != NO_TMP_TABLE)
+    DBUG_RETURN(0);
+
   if (open_single_stat_table(thd, &tables, &stat_table_name[1],
                              &open_tables_backup, TRUE))
   {
@@ -3053,4 +3407,153 @@ void set_statistics_for_table(THD *thd, TABLE *table)
        key_info->read_stats->avg_frequency_is_inited() &&
        key_info->read_stats->get_avg_frequency(0) > 0.5);
   }
+}
+
+
+/**
+  @brief
+  Get the average frequency for a column 
+
+  @param
+  field       The column whose average frequency is required
+
+  @retval
+  The required average frequency
+*/
+
+double get_column_avg_frequency(Field * field)
+{
+  double res;
+  TABLE *table= field->table;
+
+  /* 
+    Statistics is shared by table instances and  is accessed through
+    the table share. If table->s->field is not set for 'table', then
+    no column statistics is available for the table .
+  */
+  if (!table->s->field)
+  {
+    res= table->stat_records();
+    return res;
+  }
+ 
+  Column_statistics *col_stats= table->s->field[field->field_index]->read_stats;
+
+  if (!col_stats)
+    res= table->stat_records();
+  else
+    res= col_stats->get_avg_frequency();
+  return res;
+} 
+
+
+/**
+  @brief
+  Estimate the number of rows in a column range using data from stat tables 
+
+  @param
+  field       The column whose range cardinality is to be estimated
+  @param
+  min_endp    The left end of the range whose cardinality is required 
+  @param
+  max_endp    The right end of the range whose cardinality is required 
+  @param
+  range_flag  The range flags
+
+  @details
+  The function gets an estimate of the number of rows in a column range
+  using the statistical data from the table column_stats.
+
+  @retval
+  The required estimate of the rows in the column range
+*/
+
+double get_column_range_cardinality(Field *field,
+                                    key_range *min_endp,
+                                    key_range *max_endp,
+                                    uint range_flag)
+{
+  double res;
+  TABLE *table= field->table;
+  Column_statistics *col_stats= table->field[field->field_index]->read_stats;
+  double tab_records= table->stat_records();
+
+  if (!col_stats)
+    return tab_records;
+
+  double col_nulls= tab_records * col_stats->get_nulls_ratio();
+
+  double col_non_nulls= tab_records - col_nulls;
+
+  bool nulls_incl= field->null_ptr && min_endp && min_endp->key[0] &&
+                   !(range_flag & NEAR_MIN);
+
+  if (col_non_nulls < 1)
+    res= 0;
+  else if (min_endp && max_endp && min_endp->length == max_endp->length &&
+           !memcmp(min_endp->key, max_endp->key, min_endp->length))
+  { 
+    if (nulls_incl)
+    {
+      /* This is null single point range */
+      res= col_nulls;
+    }
+    else
+    {
+      double avg_frequency= col_stats->get_avg_frequency();
+      res= avg_frequency;   
+      if (avg_frequency > 1.0 + 0.000001 && 
+          col_stats->min_value && col_stats->max_value)
+      {
+        Histogram *hist= &col_stats->histogram;
+        if (hist->is_available())
+        {
+          double pos= field->pos_in_interval(col_stats->min_value,
+                                             col_stats->max_value);
+          res= col_non_nulls * 
+	       hist->point_selectivity(pos,
+                                       avg_frequency / col_non_nulls);
+        }
+      }
+    }
+  }  
+  else 
+  {
+    if (col_stats->min_value && col_stats->max_value)
+    {
+      double sel, min_mp_pos, max_mp_pos;
+
+      if (min_endp && !(field->null_ptr && min_endp->key[0]))
+      {
+        store_key_image_to_rec(field, (uchar *) min_endp->key,
+                               min_endp->length);
+        min_mp_pos= field->pos_in_interval(col_stats->min_value,
+                                           col_stats->max_value);
+      }
+      else
+        min_mp_pos= 0.0;
+      if (max_endp)
+      {
+        store_key_image_to_rec(field, (uchar *) max_endp->key,
+                               max_endp->length);
+        max_mp_pos= field->pos_in_interval(col_stats->min_value,
+                                           col_stats->max_value);
+      }
+      else
+        max_mp_pos= 1.0;
+
+      Histogram *hist= &col_stats->histogram;
+      if (!hist->is_available())
+        sel= (max_mp_pos - min_mp_pos);
+      else
+        sel= hist->range_selectivity(min_mp_pos, max_mp_pos);
+      res= col_non_nulls * sel;
+      set_if_bigger(res, col_stats->get_avg_frequency());
+    }
+    else
+      res= col_non_nulls;
+    if (nulls_incl)
+      res+= col_nulls;
+  }
+  return res;
 }

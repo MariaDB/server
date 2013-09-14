@@ -3,7 +3,6 @@
 # Taken FROM the select test
 #
 -- source include/have_archive.inc
--- source include/have_binlog_format_mixed_or_statement.inc
 
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
@@ -13,6 +12,7 @@ DROP TABLE if exists t1,t2,t3,t4,t5,t6;
 --enable_warnings
 
 SET storage_engine=ARCHIVE;
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 CREATE TABLE t1 (
   Period smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
@@ -1644,40 +1644,17 @@ DROP TABLE t1,t2;
 #
 # BUG#47012 archive tables are not upgradeable, and server crashes on any access
 #
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
-
-# Remove files to handle possible restart of test
-flush tables;
-remove_files_wildcard $MYSQLD_DATADIR/test t1.*;
-
 copy_file std_data/bug47012.frm $MYSQLD_DATADIR/test/t1.frm;
 copy_file std_data/bug47012.ARZ $MYSQLD_DATADIR/test/t1.ARZ;
 copy_file std_data/bug47012.ARM $MYSQLD_DATADIR/test/t1.ARM;
 
---error ER_TABLE_NEEDS_UPGRADE
 SHOW CREATE TABLE t1;
 
---error ER_TABLE_NEEDS_UPGRADE
 SELECT * FROM t1;
 
---error ER_TABLE_NEEDS_UPGRADE
 INSERT INTO t1 (col1, col2) VALUES (1, "value");
 
 REPAIR TABLE t1;
-SHOW CREATE TABLE t1;
-SELECT * FROM t1;
-DROP TABLE t1;
-remove_file $MYSQLD_DATADIR/test/t1.ARM;
-
---echo #
---echo # BUG#48757 - missing .ARZ file causes server crash
---echo #
-CREATE TABLE t1(a INT) ENGINE=ARCHIVE;
-FLUSH TABLE t1;
---remove_file $MYSQLD_DATADIR/test/t1.ARZ
---error ER_FILE_NOT_FOUND
-SELECT * FROM t1;
---error ER_BAD_TABLE_ERROR
 DROP TABLE t1;
 
 --echo #
@@ -1712,33 +1689,6 @@ REPAIR TABLE t1 EXTENDED;
 SELECT * FROM t1;
 DROP TABLE t1;
 
---echo #
---echo # Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
---echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
-CREATE TABLE t1 (a int) ENGINE=ARCHIVE;
-SHOW CREATE TABLE t1;
-INSERT INTO t1 VALUES (1);
-OPTIMIZE TABLE t1;
-let $MYSQLD_DATADIR= `select @@datadir`;
-remove_file $MYSQLD_DATADIR/test/t1.frm;
-FLUSH TABLES;
-INSERT INTO t1 VALUES (2);
-SELECT * FROM t1 ORDER BY a;
-SHOW CREATE TABLE t1;
-DROP TABLE t1;
-
---echo #
---echo # BUG#58205 - Valgrind failure in fn_format when called from
---echo #             archive_discover
---echo #
-CREATE TABLE `a/../`(a INT) ENGINE=ARCHIVE;
-remove_file $MYSQLD_DATADIR/test/a@002f@002e@002e@002f.frm;
-DROP TABLE `a/../`;
 
 --echo #
 --echo # BUG#57162 - valgrind errors, random data when returning
@@ -1755,6 +1705,35 @@ SELECT * FROM t1 ORDER BY f LIMIT 1;
 DROP TABLE t1;
 SET sort_buffer_size=DEFAULT;
 
+--echo #
+--echo # BUG#11756687 - 48633: ARCHIVE TABLES ARE NOT UPGRADEABLE
+--echo #
+copy_file std_data/bug48633.frm $MYSQLD_DATADIR/test/t1.frm;
+copy_file std_data/bug48633.ARZ $MYSQLD_DATADIR/test/t1.ARZ;
+copy_file std_data/bug48633.ARM $MYSQLD_DATADIR/test/t1.ARM;
+SHOW CREATE TABLE t1;
+# Test first table scan
+SELECT * FROM t1;
+# Test second table scan
+SELECT * FROM t1;
+# Test table close
+FLUSH TABLE t1;
+SELECT * FROM t1;
+# Test check
+CHECK TABLE t1;
+SELECT * FROM t1;
+# Test insert
+INSERT INTO t1 VALUES(3, 'text', 'varchar', 'blob1', 'blob2');
+SELECT * FROM t1;
+# Test table close after insert
+FLUSH TABLE t1;
+SELECT * FROM t1;
+# Test repair
+REPAIR TABLE t1;
+SELECT * FROM t1;
+# Test check table after upgrade
+CHECK TABLE t1;
+DROP TABLE t1;
 
 --echo #
 --echo # BUG#11758979 - 51252: ARCHIVE TABLES STILL FAIL UNDER STRESS
@@ -1771,12 +1750,35 @@ OPTIMIZE TABLE t1;
 DROP TABLE t1;
 
 --echo #
+--echo # Bug#13907676: HA_ARCHIVE::INFO
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=ARCHIVE;
+CREATE TABLE t2 SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t1, t2;
+
+--echo #
 --echo # BUG#917689 Using wrong archive table causes crash
 --echo #
 create table t1 (a int, b char(50)) engine=archive;
+select * from t1; # open the table to create the frm
+flush tables;     # and close the table again
 --remove_file $MYSQLD_DATADIR/test/t1.ARZ
 copy_file std_data/t917689.ARZ $MYSQLD_DATADIR/test/t1.ARZ;
---error 1194
+--error ER_CRASHED_ON_USAGE
 select * from t1;
 show warnings;
 drop table t1;
+
+#
+# temporary archive
+#
+create temporary table t1 (a int) engine=archive;
+insert t1 values (1),(2),(3);
+select * from t1;
+show create table t1;
+alter table t1 add column b varchar(10);
+select * from t1;
+show create table t1;
+drop table t1;
+

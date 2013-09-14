@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+   Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /***************************************************************************
  This is a test sample to test the new features in MySQL client-server
@@ -6204,7 +6204,7 @@ static void test_date_dt()
 static void test_pure_coverage()
 {
   MYSQL_STMT *stmt;
-  MYSQL_BIND my_bind[1];
+  MYSQL_BIND my_bind[2];
   int        rc;
   ulong      length;
 
@@ -8880,7 +8880,7 @@ static void test_parse_error_and_bad_length()
   DIE_UNLESS(rc);
   if (!opt_silent)
     fprintf(stdout, "Got error (as expected): '%s'\n", mysql_error(mysql));
-  rc= mysql_real_query(mysql, "SHOW DATABASES", 100);
+  rc= mysql_real_query(mysql, STRING_WITH_LEN("SHOW DATABASES\0AAAAAAAA"));
   DIE_UNLESS(rc);
   if (!opt_silent)
     fprintf(stdout, "Got error (as expected): '%s'\n", mysql_error(mysql));
@@ -8891,7 +8891,7 @@ static void test_parse_error_and_bad_length()
     fprintf(stdout, "Got error (as expected): '%s'\n", mysql_error(mysql));
   stmt= mysql_stmt_init(mysql);
   DIE_UNLESS(stmt);
-  rc= mysql_stmt_prepare(stmt, "SHOW DATABASES", 100);
+  rc= mysql_stmt_prepare(stmt, STRING_WITH_LEN("SHOW DATABASES\0AAAAAAA"));
   DIE_UNLESS(rc != 0);
   if (!opt_silent)
     fprintf(stdout, "Got error (as expected): '%s'\n", mysql_stmt_error(stmt));
@@ -9862,11 +9862,11 @@ static void test_bug3035()
   const uint32 uint32_max= 4294967295U;
 
   /* it might not work okay everyplace */
-  const longlong int64_max= LL(9223372036854775807);
+  const longlong int64_max= 9223372036854775807LL;
   const longlong int64_min= -int64_max - 1;
 
   const ulonglong uint64_min= 0U;
-  const ulonglong uint64_max= ULL(18446744073709551615);
+  const ulonglong uint64_max= 18446744073709551615ULL;
 
   const char *stmt_text;
 
@@ -12533,7 +12533,7 @@ static void test_truncation()
 
   /* double -> longlong, negative fp number to signed integer: no loss */
   DIE_UNLESS(my_bind++ < bind_array + bind_count);
-  DIE_UNLESS(! *my_bind->error && * (longlong*) my_bind->buffer == LL(-12345678910));
+  DIE_UNLESS(! *my_bind->error && * (longlong*) my_bind->buffer == -12345678910LL);
 
   /* big numeric string -> number */
   DIE_UNLESS(my_bind++ < bind_array + bind_count);
@@ -14535,7 +14535,7 @@ static void test_bug12925()
 {
   myheader("test_bug12925");
   if (opt_getopt_ll_test)
-    DIE_UNLESS(opt_getopt_ll_test == LL(25600*1024*1024));
+    DIE_UNLESS(opt_getopt_ll_test == 25600LL*1024*1024);
 }
 
 
@@ -16903,13 +16903,14 @@ static void test_bug31418()
 */
 
 #define LARGE_BUFFER_SIZE 2048
+#define OLD_USERNAME_CHAR_LENGTH 16
 
 static void test_bug31669()
 {
   int rc;
   static char buff[LARGE_BUFFER_SIZE+1];
 #ifndef EMBEDDED_LIBRARY
-  static char user[USERNAME_CHAR_LENGTH+1];
+  static char user[OLD_USERNAME_CHAR_LENGTH+1];
   static char db[NAME_CHAR_LEN+1];
   static char query[LARGE_BUFFER_SIZE*2];
 #endif
@@ -16926,7 +16927,8 @@ static void test_bug31669()
   rc= mysql_change_user(conn, "", "", "");
   DIE_UNLESS(rc);
 
-  memset(buff, 'a', sizeof(buff));
+  memset(buff, 'a', sizeof(buff) -  1);
+  buff[sizeof(buff) -  1]= 0;
 
   mysql_close(conn);
   conn= client_connect(0, MYSQL_PROTOCOL_TCP, 0);
@@ -16945,7 +16947,7 @@ static void test_bug31669()
   myquery(rc);
 
   memset(user, 'b', sizeof(user));
-  user[USERNAME_CHAR_LENGTH]= 0;
+  user[OLD_USERNAME_CHAR_LENGTH]= 0;
   memset(buff, 'c', sizeof(buff));
   buff[LARGE_BUFFER_SIZE]= 0;
   strxmov(query, "GRANT ALL PRIVILEGES ON *.* TO '", user, "'@'%' IDENTIFIED BY "
@@ -16964,11 +16966,11 @@ static void test_bug31669()
   rc= mysql_change_user(conn, user, buff, db);
   DIE_UNLESS(!rc);
 
-  user[USERNAME_CHAR_LENGTH-1]= 'a';
+  user[OLD_USERNAME_CHAR_LENGTH-1]= 'a';
   rc= mysql_change_user(conn, user, buff, db);
   DIE_UNLESS(rc);
 
-  user[USERNAME_CHAR_LENGTH-1]= 'b';
+  user[OLD_USERNAME_CHAR_LENGTH-1]= 'b';
   buff[LARGE_BUFFER_SIZE-1]= 'd';
   rc= mysql_change_user(conn, user, buff, db);
   DIE_UNLESS(rc);
@@ -17340,11 +17342,10 @@ static void test_wl4166_3()
   rc= mysql_stmt_execute(stmt);
   check_execute(stmt, rc);
   /*
-    Sic: only one warning, instead of two. The warning
-    about data truncation when assigning a parameter is lost.
+    The warning about data truncation when assigning a parameter is lost.
     This is a bug.
   */
-  my_process_warnings(mysql, 1);
+  my_process_warnings(mysql, 0);
 
   verify_col_data("t1", "year", "0000-00-00 00:00:00");
 
@@ -17738,7 +17739,11 @@ static void test_bug43560(void)
     fprintf(stdout, "Skipping test_bug43560: server not DEBUG version\n");
     DBUG_VOID_RETURN;
   }
-
+  if (opt_unix_socket)
+  {
+    fprintf(stdout, "Skipping test_bug43560: connected via UNIX socket\n");
+    DBUG_VOID_RETURN;
+  }
   /*
     Set up a separate connection for this test to avoid messing up the
     general MYSQL object used in other subtests. Use TCP protocol to avoid
@@ -18769,6 +18774,76 @@ static void test_bug11754979()
   DBUG_VOID_RETURN;
 }
 
+static void test_ps_sp_out_params()
+{
+  MYSQL *my;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[1];
+  char buffer[20];
+  int status, rc;
+
+  myheader("test_ps_sp_out_params");
+  my= mysql_client_init(NULL);
+
+  if (!mysql_real_connect(my, opt_host, opt_user,
+                               opt_password, current_db, opt_port,
+                               opt_unix_socket, CLIENT_MULTI_RESULTS))
+    DIE("mysql_real_connect failed");
+
+  rc= mysql_query(my, "DROP PROCEDURE IF EXISTS p1");
+  myquery(rc);
+
+  rc= mysql_query(my,
+    "CREATE PROCEDURE p1(OUT out_param VARCHAR(19)) "
+    "BEGIN"
+    " SELECT 'foo' FROM DUAL;"
+    " SET out_param='foo';"
+    " SELECT 'foo' FROM DUAL;"
+    "END");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(my);
+
+  rc= mysql_stmt_prepare(stmt, "CALL P1(?)", 10);
+  DIE_UNLESS(rc==0);
+
+  DIE_UNLESS(mysql_stmt_param_count(stmt) == 1);
+
+  memset(bind, 0, sizeof(MYSQL_BIND));
+  bind[0].buffer= buffer;
+  bind[0].buffer_length= sizeof(buffer);
+  bind[0].buffer_type= MYSQL_TYPE_STRING;
+
+  mysql_stmt_bind_param(stmt, bind);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  do {
+    if (mysql_stmt_field_count(stmt))
+    {
+      /* since server sends a status packet at the end,
+         there must follow at least one additional packet */
+      DIE_UNLESS(mysql_more_results(stmt->mysql));
+
+      mysql_stmt_bind_result(stmt, bind);
+
+      rc= mysql_stmt_fetch(stmt);
+      DIE_UNLESS(rc== 0);
+
+      DIE_UNLESS(strcmp(buffer, "foo") == 0);
+    }
+    status= mysql_stmt_next_result(stmt);
+  } while (status == 0);
+
+  rc= mysql_stmt_reset(stmt);
+  DIE_UNLESS(rc== 0);
+
+  mysql_stmt_close(stmt);
+  mysql_close(my);
+
+  printf("end\n");
+}
 
 /*
   Bug#13001491: MYSQL_REFRESH CRASHES WHEN STORED ROUTINES ARE RUN CONCURRENTLY.
@@ -18849,6 +18924,109 @@ static void test_bug13001491()
   myquery(rc);
 }
 
+static void test_mdev4326()
+{
+  MYSQL_STMT   *stmt;
+  MYSQL_BIND    bind;
+  char query[]= "SELECT * FROM mysql.user LIMIT ?";
+  char str_data[]= "1";
+  unsigned long length= 0;
+  int int_data= 1;
+  int rc, count;
+  my_bool is_null= 0;
+  my_bool error= 0;
+  myheader("test_mdev4326");
+
+  rc= mysql_change_user(mysql, opt_user, opt_password, "mysql");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "SET GLOBAL general_log = 1");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  /* Numeric parameter test */
+
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
+  check_execute(stmt, rc);
+  check_stmt(stmt);
+  verify_param_count(stmt, 1);
+
+  memset((char *)&bind, 0, sizeof(bind));
+  bind.buffer_type= MYSQL_TYPE_LONG;
+  bind.buffer= (char *)&int_data;
+  bind.is_null= &is_null;
+  bind.length= &length;
+  bind.error= &error;
+
+  rc= mysql_stmt_bind_param(stmt, &bind);
+  check_execute(stmt, rc);
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  count= 0;
+  while (!(rc= mysql_stmt_fetch(stmt)))
+    count++;
+  DIE_UNLESS(count == 1);
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  count= 0;
+  while (!(rc= mysql_stmt_fetch(stmt)))
+    count++;
+  DIE_UNLESS(count == 1);
+  int_data= 0;
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  count= 0;
+  while (!(rc= mysql_stmt_fetch(stmt)))
+    count++;
+  DIE_UNLESS(count == 0);
+  rc= mysql_stmt_close(stmt);
+  check_execute(stmt, rc);
+
+  /* String parameter test */
+
+  stmt= mysql_stmt_init(mysql);
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
+  check_execute(stmt, rc);
+  check_stmt(stmt);
+  verify_param_count(stmt, 1);
+
+  memset((char *)&bind, 0, sizeof(bind));
+  bind.buffer_type= MYSQL_TYPE_STRING;
+  bind.buffer= (char *)str_data;
+  length= bind.buffer_length= sizeof(str_data);
+  bind.is_null= &is_null;
+  bind.length= &length;
+  bind.error= &error;
+
+  rc= mysql_stmt_bind_param(stmt, &bind);
+  check_execute(stmt, rc);
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  count= 0;
+  while (!(rc= mysql_stmt_fetch(stmt)))
+    count++;
+  DIE_UNLESS(count == 1);
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  count= 0;
+  while (!(rc= mysql_stmt_fetch(stmt)))
+    count++;
+  DIE_UNLESS(count == 1);
+  str_data[0]= '0';
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  count= 0;
+  while (!(rc= mysql_stmt_fetch(stmt)))
+    count++;
+  DIE_UNLESS(count == 0);
+  rc= mysql_stmt_close(stmt);
+  check_execute(stmt, rc);
+
+  rc= mysql_change_user(mysql, opt_user, opt_password, current_db);
+  myquery(rc);
+}
 
 static struct my_tests_st my_tests[]= {
   { "disable_query_logs", disable_query_logs },
@@ -19114,6 +19292,8 @@ static struct my_tests_st my_tests[]= {
   { "test_progress_reporting", test_progress_reporting },
   { "test_bug11754979", test_bug11754979 },
   { "test_bug13001491", test_bug13001491 },
+  { "test_mdev4326", test_mdev4326 },
+  { "test_ps_sp_out_params", test_ps_sp_out_params },
   { 0, 0 }
 };
 

@@ -27,7 +27,7 @@ srand(999);
 
 my %valmap = ();
 
-my $sth = $dbh->prepare("insert into $table values (?,?,?)");
+my $sth = $dbh->prepare("insert ignore into $table values (?,?,?)");
 for (my $i = 0; $i < $tablesize; ++$i) {
   my $k = $i;
   my ($s1, $s2) = ("", "");

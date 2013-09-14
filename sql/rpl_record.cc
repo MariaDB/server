@@ -287,7 +287,7 @@ unpack_row(Relay_log_info const *rli,
         else
         {
           f->set_default();
-          push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_BAD_NULL_ERROR, ER(ER_BAD_NULL_ERROR),
                               f->field_name);
         }
@@ -362,7 +362,7 @@ unpack_row(Relay_log_info const *rli,
   /*
     throw away master's extra fields
   */
-  uint max_cols= min(tabledef->size(), cols->n_bits);
+  uint max_cols= MY_MIN(tabledef->size(), cols->n_bits);
   for (; i < max_cols; i++)
   {
     if (bitmap_is_set(cols, i))
@@ -447,7 +447,7 @@ int prepare_record(TABLE *const table, const uint skip, const bool check)
     {
       f->set_default();
       push_warning_printf(current_thd,
-                          MYSQL_ERROR::WARN_LEVEL_WARN,
+                          Sql_condition::WARN_LEVEL_WARN,
                           ER_NO_DEFAULT_FOR_FIELD,
                           ER(ER_NO_DEFAULT_FOR_FIELD),
                           f->field_name);

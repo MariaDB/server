@@ -1,4 +1,4 @@
-/* Copyright (c) 2000-2007 MySQL AB, 2009 Sun Microsystems, Inc.
+/* Copyright (c) 2000-2005, 2007 MySQL AB, 2009 Sun Microsystems, Inc.
    Use is subject to license terms.
 
    This program is free software; you can redistribute it and/or modify
@@ -43,10 +43,31 @@ struct _ft_vft
   void      (*reinit_search)(FT_INFO *);
 };
 
+typedef struct st_ft_info_ext FT_INFO_EXT;
+struct _ft_vft_ext
+{
+  uint      (*get_version)();        // Extended API version
+  ulonglong (*get_flags)();
+  ulonglong (*get_docid)(FT_INFO_EXT *);
+  ulonglong (*count_matches)(FT_INFO_EXT *);
+};
+
+/* Flags for extended FT API */
+#define FTS_ORDERED_RESULT                (1LL << 1)
+#define FTS_DOCID_IN_RESULT               (1LL << 2)
+
+#define FTS_DOC_ID_COL_NAME "FTS_DOC_ID"
+
 #ifndef FT_CORE
 struct st_ft_info
 {
   struct _ft_vft *please; /* INTERCAL style :-) */
+};
+
+struct st_ft_info_ext
+{
+  struct _ft_vft     *please; /* INTERCAL style :-) */
+  struct _ft_vft_ext *could_you;
 };
 #endif
 

@@ -60,12 +60,14 @@
 
 *****************************************************************************/
 
-#include <password.h>
 #include <my_global.h>
 #include <my_sys.h>
 #include <m_string.h>
+#include <password.h>
+#include <mysql.h>
+#include <my_rnd.h>
 #include <sha1.h>
-#include "mysql.h"
+#include <crypt_genhash_impl.h>
 
 /************ MySQL 3.23-4.0 authentication routines: untouched ***********/
 
@@ -372,6 +374,47 @@ my_crypt(char *to, const uchar *s1, const uchar *s2, uint len)
 }
 
 
+#if defined(HAVE_OPENSSL)
+void my_make_scrambled_password(char *to, const char *password,
+                                size_t pass_len)
+{
+
+  char salt[CRYPT_SALT_LENGTH + 1];
+  
+  generate_user_salt(salt, CRYPT_SALT_LENGTH + 1);
+  my_crypt_genhash(to,
+                     CRYPT_MAX_PASSWORD_SIZE,
+                     password,
+                     pass_len,
+                     salt,
+                     0);
+
+}
+#endif
+/**
+  Compute two stage SHA1 hash of the password :
+
+    hash_stage1=sha1("password")
+    hash_stage2=sha1(hash_stage1)
+
+  @param password    [IN]   Password string.
+  @param pass_len    [IN]   Length of the password.
+  @param hash_stage1 [OUT]  sha1(password)
+  @param hash_stage2 [OUT]  sha1(hash_stage1)
+*/
+
+inline static
+void compute_two_stage_sha1_hash(const char *password, size_t pass_len,
+                                 uint8 *hash_stage1, uint8 *hash_stage2)
+{
+  /* Stage 1: hash password */
+  compute_sha1_hash(hash_stage1, password, pass_len);
+
+  /* Stage 2 : hash first stage's output. */
+  compute_sha1_hash(hash_stage2, (const char *) hash_stage1, SHA1_HASH_SIZE);
+}
+
+
 /*
     MySQL 4.1.1 password hashing: SHA conversion (see RFC 2289, 3174) twice
     applied to the password string, and then produced octet sequence is
@@ -379,27 +422,20 @@ my_crypt(char *to, const uchar *s1, const uchar *s2, uint len)
     The result of this function is used as return value from PASSWORD() and
     is stored in the database.
   SYNOPSIS
-    my_make_scrambled_password()
+    my_make_scrambled_password_sha1()
     buf       OUT buffer of size 2*SHA1_HASH_SIZE + 2 to store hex string
     password  IN  password string
     pass_len  IN  length of password string
 */
 
-void my_make_scrambled_password(char *to, const char *password,
-                                size_t pass_len)
+void my_make_scrambled_password_sha1(char *to, const char *password,
+                                     size_t pass_len)
 {
-  SHA1_CONTEXT sha1_context;
   uint8 hash_stage2[SHA1_HASH_SIZE];
 
-  mysql_sha1_reset(&sha1_context);
-  /* stage 1: hash password */
-  mysql_sha1_input(&sha1_context, (uint8 *) password, (uint) pass_len);
-  mysql_sha1_result(&sha1_context, (uint8 *) to);
-  /* stage 2: hash stage1 output */
-  mysql_sha1_reset(&sha1_context);
-  mysql_sha1_input(&sha1_context, (uint8 *) to, SHA1_HASH_SIZE);
-  /* separate buffer is used to pass 'to' in octet2hex */
-  mysql_sha1_result(&sha1_context, hash_stage2);
+  /* Two stage SHA1 hash of the password. */
+  compute_two_stage_sha1_hash(password, pass_len, (uint8 *) to, hash_stage2);
+
   /* convert hash_stage2 to hex string */
   *to++= PVERSION41_CHAR;
   octet2hex(to, (const char*) hash_stage2, SHA1_HASH_SIZE);
@@ -419,7 +455,7 @@ void my_make_scrambled_password(char *to, const char *password,
 
 void make_scrambled_password(char *to, const char *password)
 {
-  my_make_scrambled_password(to, password, strlen(password));
+  my_make_scrambled_password_sha1(to, password, strlen(password));
 }
 
 
@@ -443,24 +479,16 @@ void make_scrambled_password(char *to, const char *password)
 void
 scramble(char *to, const char *message, const char *password)
 {
-  SHA1_CONTEXT sha1_context;
   uint8 hash_stage1[SHA1_HASH_SIZE];
   uint8 hash_stage2[SHA1_HASH_SIZE];
 
-  mysql_sha1_reset(&sha1_context);
-  /* stage 1: hash password */
-  mysql_sha1_input(&sha1_context, (uint8 *) password, (uint) strlen(password));
-  mysql_sha1_result(&sha1_context, hash_stage1);
-  /* stage 2: hash stage 1; note that hash_stage2 is stored in the database */
-  mysql_sha1_reset(&sha1_context);
-  mysql_sha1_input(&sha1_context, hash_stage1, SHA1_HASH_SIZE);
-  mysql_sha1_result(&sha1_context, hash_stage2);
+  /* Two stage SHA1 hash of the password. */
+  compute_two_stage_sha1_hash(password, strlen(password), hash_stage1,
+                              hash_stage2);
+
   /* create crypt string as sha1(message, hash_stage2) */;
-  mysql_sha1_reset(&sha1_context);
-  mysql_sha1_input(&sha1_context, (const uint8 *) message, SCRAMBLE_LENGTH);
-  mysql_sha1_input(&sha1_context, hash_stage2, SHA1_HASH_SIZE);
-  /* xor allows 'from' and 'to' overlap: lets take advantage of it */
-  mysql_sha1_result(&sha1_context, (uint8 *) to);
+  compute_sha1_hash_multi((uint8 *) to, message, SCRAMBLE_LENGTH,
+                          (const char *) hash_stage2, SHA1_HASH_SIZE);
   my_crypt(to, (const uchar *) to, hash_stage1, SCRAMBLE_LENGTH);
 }
 
@@ -472,7 +500,7 @@ scramble(char *to, const char *message, const char *password)
     null-terminated, reply and hash_stage2 must be at least SHA1_HASH_SIZE
     long (if not, something fishy is going on).
   SYNOPSIS
-    check_scramble()
+    check_scramble_sha1()
     scramble     clients' reply, presumably produced by scramble()
     message      original random string, previously sent to client
                  (presumably second argument of scramble()), must be 
@@ -486,27 +514,30 @@ scramble(char *to, const char *message, const char *password)
 */
 
 my_bool
-check_scramble(const uchar *scramble_arg, const char *message,
-               const uint8 *hash_stage2)
+check_scramble_sha1(const uchar *scramble_arg, const char *message,
+                    const uint8 *hash_stage2)
 {
-  SHA1_CONTEXT sha1_context;
   uint8 buf[SHA1_HASH_SIZE];
   uint8 hash_stage2_reassured[SHA1_HASH_SIZE];
 
-  mysql_sha1_reset(&sha1_context);
   /* create key to encrypt scramble */
-  mysql_sha1_input(&sha1_context, (const uint8 *) message, SCRAMBLE_LENGTH);
-  mysql_sha1_input(&sha1_context, hash_stage2, SHA1_HASH_SIZE);
-  mysql_sha1_result(&sha1_context, buf);
+  compute_sha1_hash_multi(buf, message, SCRAMBLE_LENGTH,
+                          (const char *) hash_stage2, SHA1_HASH_SIZE);
   /* encrypt scramble */
-    my_crypt((char *) buf, buf, scramble_arg, SCRAMBLE_LENGTH);
+  my_crypt((char *) buf, buf, scramble_arg, SCRAMBLE_LENGTH);
+
   /* now buf supposedly contains hash_stage1: so we can get hash_stage2 */
-  mysql_sha1_reset(&sha1_context);
-  mysql_sha1_input(&sha1_context, buf, SHA1_HASH_SIZE);
-  mysql_sha1_result(&sha1_context, hash_stage2_reassured);
+  compute_sha1_hash(hash_stage2_reassured, (const char *) buf, SHA1_HASH_SIZE);
+
   return test(memcmp(hash_stage2, hash_stage2_reassured, SHA1_HASH_SIZE));
 }
 
+my_bool
+check_scramble(const uchar *scramble_arg, const char *message,
+               const uint8 *hash_stage2)
+{
+  return check_scramble_sha1(scramble_arg, message, hash_stage2);
+}
 
 /*
   Convert scrambled password from asciiz hex string to binary form.

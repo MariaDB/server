@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,6 +37,7 @@
 /* That one is necessary for defines of OPTION_NO_FOREIGN_KEY_CHECKS etc */
 #include "sql_priv.h"
 #include "log_event.h"
+#include "compat56.h"
 #include "sql_common.h"
 #include "my_dir.h"
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
@@ -206,10 +207,8 @@ void print_annotate_event(PRINT_EVENT_INFO *print_event_info)
   }
 }
 
-static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
-                                          const char* logname);
-static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
-                                           const char* logname);
+static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *, const char*);
+static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *, const char*);
 static Exit_status dump_log_entries(const char* logname);
 static Exit_status safe_connect();
 
@@ -818,6 +817,98 @@ write_event_header_and_base64(Log_event *ev, FILE *result_file,
 }
 
 
+static bool print_base64(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
+{
+  /*
+    These events must be printed in base64 format, if printed.
+    base64 format requires a FD event to be safe, so if no FD
+    event has been printed, we give an error.  Except if user
+    passed --short-form, because --short-form disables printing
+    row events.
+  */
+  if (!print_event_info->printed_fd_event && !short_form &&
+      opt_base64_output_mode != BASE64_OUTPUT_DECODE_ROWS)
+  {
+    const char* type_str= ev->get_type_str();
+    if (opt_base64_output_mode == BASE64_OUTPUT_NEVER)
+      error("--base64-output=never specified, but binlog contains a "
+            "%s event which must be printed in base64.",
+            type_str);
+    else
+      error("malformed binlog: it does not contain any "
+            "Format_description_log_event. I now found a %s event, which "
+            "is not safe to process without a "
+            "Format_description_log_event.",
+            type_str);
+    return 1;
+  }
+  ev->print(result_file, print_event_info);
+  return print_event_info->head_cache.error == -1;
+}
+
+
+static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
+                            ulong table_id, bool is_stmt_end)
+{
+  Table_map_log_event *ignored_map= 
+    print_event_info->m_table_map_ignored.get_table(table_id);
+  bool skip_event= (ignored_map != NULL);
+
+  /* 
+     end of statement check:
+       i) destroy/free ignored maps
+      ii) if skip event
+            a) since we are skipping the last event,
+               append END-MARKER(') to body cache (if required)
+
+            b) flush cache now
+   */
+  if (is_stmt_end)
+  {
+    /* 
+      Now is safe to clear ignored map (clear_tables will also
+      delete original table map events stored in the map).
+    */
+    if (print_event_info->m_table_map_ignored.count() > 0)
+      print_event_info->m_table_map_ignored.clear_tables();
+
+    /* 
+      If there is a kept Annotate event and all corresponding
+      rbr-events were filtered away, the Annotate event was not
+      freed and it is just the time to do it.
+    */
+      free_annotate_event();
+
+    /* 
+       One needs to take into account an event that gets
+       filtered but was last event in the statement. If this is
+       the case, previous rows events that were written into
+       IO_CACHEs still need to be copied from cache to
+       result_file (as it would happen in ev->print(...) if
+       event was not skipped).
+    */
+    if (skip_event)
+    {
+      // append END-MARKER(') with delimiter
+      IO_CACHE *const body_cache= &print_event_info->body_cache;
+      if (my_b_tell(body_cache))
+        my_b_printf(body_cache, "'%s\n", print_event_info->delimiter);
+
+      // flush cache
+      if ((copy_event_cache_to_file_and_reinit(&print_event_info->head_cache, result_file) ||
+          copy_event_cache_to_file_and_reinit(&print_event_info->body_cache, result_file)))
+        return 1;
+    }
+  }
+
+  /* skip the event check */
+  if (skip_event)
+    return 0;
+
+  return print_base64(print_event_info, ev);
+}
+
+
 /**
   Print the given event, and either delete it or delegate the deletion
   to someone else.
@@ -1130,86 +1221,29 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         error("Could not rewrite database name");
         goto err;
       }
+      if (print_base64(print_event_info, ev))
+        goto err;
+      break;
     }
     case WRITE_ROWS_EVENT:
     case DELETE_ROWS_EVENT:
     case UPDATE_ROWS_EVENT:
+    {
+      Rows_log_event *e= (Rows_log_event*) ev;
+      if (print_row_event(print_event_info, ev, e->get_table_id(),
+                          e->get_flags(Rows_log_event::STMT_END_F)))
+        goto err;
+      break;
+    }
     case PRE_GA_WRITE_ROWS_EVENT:
     case PRE_GA_DELETE_ROWS_EVENT:
     case PRE_GA_UPDATE_ROWS_EVENT:
     {
-      if (ev_type != TABLE_MAP_EVENT)
-      {
-        Rows_log_event *e= (Rows_log_event*) ev;
-        Table_map_log_event *ignored_map= 
-          print_event_info->m_table_map_ignored.get_table(e->get_table_id());
-        bool skip_event= (ignored_map != NULL);
-
-        /* 
-           end of statement check:
-             i) destroy/free ignored maps
-            ii) if skip event, flush cache now
-         */
-        if (e->get_flags(Rows_log_event::STMT_END_F))
-        {
-          /* 
-            Now is safe to clear ignored map (clear_tables will also
-            delete original table map events stored in the map).
-          */
-          if (print_event_info->m_table_map_ignored.count() > 0)
-            print_event_info->m_table_map_ignored.clear_tables();
-
-          /*
-            If there is a kept Annotate event and all corresponding
-            rbr-events were filtered away, the Annotate event was not
-            freed and it is just the time to do it.
-          */
-          free_annotate_event();
-
-          /* 
-             One needs to take into account an event that gets
-             filtered but was last event in the statement. If this is
-             the case, previous rows events that were written into
-             IO_CACHEs still need to be copied from cache to
-             result_file (as it would happen in ev->print(...) if
-             event was not skipped).
-          */
-          if (skip_event)
-          {
-            if ((copy_event_cache_to_file_and_reinit(&print_event_info->head_cache, result_file) ||
-                copy_event_cache_to_file_and_reinit(&print_event_info->body_cache, result_file)))
-              goto err;
-          }
-        }
-
-        /* skip the event check */
-        if (skip_event)
-          goto end;
-      }
-      /*
-        These events must be printed in base64 format, if printed.
-        base64 format requires a FD event to be safe, so if no FD
-        event has been printed, we give an error.  Except if user
-        passed --short-form, because --short-form disables printing
-        row events.
-      */
-      if (!print_event_info->printed_fd_event && !short_form &&
-          opt_base64_output_mode != BASE64_OUTPUT_DECODE_ROWS)
-      {
-        const char* type_str= ev->get_type_str();
-        if (opt_base64_output_mode == BASE64_OUTPUT_NEVER)
-          error("--base64-output=never specified, but binlog contains a "
-                "%s event which must be printed in base64.",
-                type_str);
-        else
-          error("malformed binlog: it does not contain any "
-                "Format_description_log_event. I now found a %s event, which "
-                "is not safe to process without a "
-                "Format_description_log_event.",
-                type_str);
+      Old_rows_log_event *e= (Old_rows_log_event*) ev;
+      if (print_row_event(print_event_info, ev, e->get_table_id(),
+                          e->get_flags(Old_rows_log_event::STMT_END_F)))
         goto err;
-      }
-      /* FALL THROUGH */
+      break;
     }
     default:
       print_skip_replication_statement(print_event_info, ev);
@@ -1516,13 +1550,14 @@ the mysql command line client.\n\n");
 
 static my_time_t convert_str_to_timestamp(const char* str)
 {
-  int was_cut;
+  MYSQL_TIME_STATUS status;
   MYSQL_TIME l_time;
   long dummy_my_timezone;
   uint dummy_in_dst_time_gap;
+  
   /* We require a total specification (date AND time) */
-  if (str_to_datetime(str, (uint) strlen(str), &l_time, 0, &was_cut) !=
-      MYSQL_TIMESTAMP_DATETIME || was_cut)
+  if (str_to_datetime(str, (uint) strlen(str), &l_time, 0, &status) ||
+      l_time.time_type != MYSQL_TIMESTAMP_DATETIME || status.warnings)
   {
     error("Incorrect date and time argument: %s", str);
     exit(1);
@@ -2310,7 +2345,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       my_off_t length,tmp;
       for (length= start_position_mot ; length > 0 ; length-=tmp)
       {
-	tmp=min(length,sizeof(buff));
+	tmp= MY_MIN(length,sizeof(buff));
 	if (my_b_read(file, buff, (uint) tmp))
         {
           error("Failed reading from file.");
@@ -2444,6 +2479,8 @@ int main(int argc, char** argv)
   else
     load_processor.init_by_cur_dir();
 
+  fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;\n");
+
   fprintf(result_file,
 	  "/*!40019 SET @@session.max_insert_delayed_threads=0*/;\n");
 
@@ -2494,6 +2531,8 @@ int main(int argc, char** argv)
             "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n"
             "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n");
 
+  fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;\n");
+
   if (tmpdir.list)
     free_tmpdir(&tmpdir);
   if (result_file != stdout)
@@ -2533,3 +2572,4 @@ void *sql_alloc(size_t size)
 #include "sql_string.cc"
 #include "sql_list.cc"
 #include "rpl_filter.cc"
+#include "compat56.cc"

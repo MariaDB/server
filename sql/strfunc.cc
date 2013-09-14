@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /* Some useful string utility functions used by the MySQL server */
 
@@ -86,7 +86,7 @@ ulonglong find_set(TYPELIB *lib, const char *str, uint length, CHARSET_INFO *cs,
         *set_warning= 1;
       }
       else
-        found|= ((longlong) 1 << (find - 1));
+        found|= 1ULL << (find - 1);
       if (pos >= end)
         break;
       start= pos + mblen;
@@ -265,27 +265,22 @@ uint check_word(TYPELIB *lib, const char *val, const char *end,
 */
 
 
-uint strconvert(CHARSET_INFO *from_cs, const char *from,
+uint strconvert(CHARSET_INFO *from_cs, const char *from, uint from_length,
                 CHARSET_INFO *to_cs, char *to, uint to_length, uint *errors)
 {
   int cnvres;
   my_wc_t wc;
   char *to_start= to;
   uchar *to_end= (uchar*) to + to_length - 1;
+  const uchar *from_end= (const uchar*) from + from_length;
   my_charset_conv_mb_wc mb_wc= from_cs->cset->mb_wc;
   my_charset_conv_wc_mb wc_mb= to_cs->cset->wc_mb;
   uint error_count= 0;
 
   while (1)
   {
-    /*
-      Using 'from + 10' is safe:
-      - it is enough to scan a single character in any character set.
-      - if remaining string is shorter than 10, then mb_wc will return
-        with error because of unexpected '\0' character.
-    */
     if ((cnvres= (*mb_wc)(from_cs, &wc,
-                          (uchar*) from, (uchar*) from + 10)) > 0)
+                          (uchar*) from, from_end)) > 0)
     {
       if (!wc)
         break;

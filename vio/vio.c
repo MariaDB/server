@@ -249,6 +249,7 @@ Vio *mysql_socket_vio_new(MYSQL_SOCKET mysql_socket, enum enum_vio_type type, ui
   if ((vio = (Vio*) my_malloc(sizeof(*vio),MYF(MY_WME))))
   {
     vio_init(vio, type, sd, flags);
+    vio->desc= (vio->type == VIO_TYPE_SOCKET ? "socket" : "TCP/IP");
     vio->mysql_socket= mysql_socket;
   }
   DBUG_RETURN(vio);
@@ -278,6 +279,7 @@ Vio *vio_new_win32pipe(HANDLE hPipe)
   if ((vio = (Vio*) my_malloc(sizeof(Vio),MYF(MY_WME))))
   {
     vio_init(vio, VIO_TYPE_NAMEDPIPE, 0, VIO_LOCALHOST);
+    vio->desc= "named pipe";
     /* Create an object for event notification. */
     vio->overlapped.hEvent= CreateEvent(NULL, FALSE, FALSE, NULL);
     if (vio->overlapped.hEvent == NULL)
@@ -286,7 +288,6 @@ Vio *vio_new_win32pipe(HANDLE hPipe)
       DBUG_RETURN(NULL);
     }
     vio->hPipe= hPipe;
-    strmov(vio->desc, "named pipe");
   }
   DBUG_RETURN(vio);
 }
@@ -302,6 +303,7 @@ Vio *vio_new_win32shared_memory(HANDLE handle_file_map, HANDLE handle_map,
   if ((vio = (Vio*) my_malloc(sizeof(Vio),MYF(MY_WME))))
   {
     vio_init(vio, VIO_TYPE_SHARED_MEMORY, 0, VIO_LOCALHOST);
+    vio->desc= "shared memory";
     vio->handle_file_map= handle_file_map;
     vio->handle_map= handle_map;
     vio->event_server_wrote= event_server_wrote;
@@ -311,7 +313,6 @@ Vio *vio_new_win32shared_memory(HANDLE handle_file_map, HANDLE handle_map,
     vio->event_conn_closed= event_conn_closed;
     vio->shared_memory_remain= 0;
     vio->shared_memory_pos= handle_map;
-    strmov(vio->desc, "shared memory");
   }
   DBUG_RETURN(vio);
 }

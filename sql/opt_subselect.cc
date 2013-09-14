@@ -666,6 +666,9 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         8. No execution method was already chosen (by a prepared statement)
         9. Parent select is not a table-less select
         10. Neither parent nor child select have STRAIGHT_JOIN option.
+        11. It is first optimisation (the subquery could be moved from ON
+        clause during first optimisation and then be considered for SJ
+        on the second when it is too late)
     */
     if (optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN) &&
         in_subs &&                                                    // 1
@@ -679,7 +682,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         select_lex->outer_select()->leaf_tables.elements &&           // 9
         !((join->select_options |                                     // 10
            select_lex->outer_select()->join->select_options)          // 10
-          & SELECT_STRAIGHT_JOIN))                                    // 10
+          & SELECT_STRAIGHT_JOIN) &&                                  // 10
+        select_lex->first_cond_optimization)                          // 11
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
@@ -1509,6 +1513,9 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   */
   parent_lex->leaf_tables.concat(&subq_lex->leaf_tables);
 
+  if (subq_lex->options & OPTION_SCHEMA_TABLE)
+    parent_lex->options |= OPTION_SCHEMA_TABLE;
+
   /*
     Same as above for next_local chain
     (a theory: a next_local chain always starts with ::leaf_tables
@@ -1725,6 +1732,9 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
     make_join_statistics() and co. can find it.
   */
   parent_lex->leaf_tables.push_back(jtbm);
+
+  if (subq_pred->unit->first_select()->options & OPTION_SCHEMA_TABLE)
+    parent_lex->options |= OPTION_SCHEMA_TABLE;
 
   /*
     Same as above for TABLE_LIST::next_local chain
@@ -2175,7 +2185,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           double rows= 1.0;
           while ((tableno = tm_it.next_bit()) != Table_map_iterator::BITMAP_END)
             rows *= join->map2table[tableno]->table->quick_condition_rows;
-          sjm->rows= min(sjm->rows, rows);
+          sjm->rows= MY_MIN(sjm->rows, rows);
         }
         memcpy(sjm->positions, join->best_positions + join->const_tables, 
                sizeof(POSITION) * n_tables);
@@ -2370,7 +2380,7 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
           keyuse++;
         } while (keyuse->key == key && keyuse->table == table);
 
-        if (bound_parts == PREV_BITS(uint, keyinfo->key_parts))
+        if (bound_parts == PREV_BITS(uint, keyinfo->user_defined_key_parts))
           return TRUE;
       }
       else
@@ -2545,6 +2555,10 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
           /* Mark strategy as used */ 
           (*strategy)->mark_used();
           pos->sj_strategy= sj_strategy;
+          if (sj_strategy == SJ_OPT_MATERIALIZE)
+            join->sjm_lookup_tables |= handled_fanout;
+          else
+            join->sjm_lookup_tables &= ~handled_fanout;
           *current_read_time= read_time;
           *current_record_count= rec_count;
           join->cur_dups_producing_tables &= ~handled_fanout;
@@ -3069,6 +3083,13 @@ void restore_prev_sj_state(const table_map remaining_tables,
                                   const JOIN_TAB *tab, uint idx)
 {
   TABLE_LIST *emb_sj_nest;
+
+  if (tab->emb_sj_nest)
+  {
+    table_map subq_tables= tab->emb_sj_nest->sj_inner_tables;
+    tab->join->sjm_lookup_tables &= ~subq_tables;
+  }
+
   if ((emb_sj_nest= tab->emb_sj_nest))
   {
     /* If we're removing the last SJ-inner table, remove the sj-nest */
@@ -3246,6 +3267,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
   uint tablenr;
   table_map remaining_tables= 0;
   table_map handled_tabs= 0;
+  join->sjm_lookup_tables= 0;
   for (tablenr= table_count - 1 ; tablenr != join->const_tables - 1; tablenr--)
   {
     POSITION *pos= join->best_positions + tablenr;
@@ -3271,6 +3293,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       first= tablenr - sjm->tables + 1;
       join->best_positions[first].n_sj_tables= sjm->tables;
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE;
+      join->sjm_lookup_tables|= s->table->map;
     }
     else if (pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
     {
@@ -3521,7 +3544,7 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
     KEY           *tmp_key; /* The only index on the temporary table. */
     uint          tmp_key_parts; /* Number of keyparts in tmp_key. */
     tmp_key= sjm->table->key_info;
-    tmp_key_parts= tmp_key->key_parts;
+    tmp_key_parts= tmp_key->user_defined_key_parts;
     
     /*
       Create/initialize everything we will need to index lookups into the
@@ -3885,7 +3908,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
                         &tmpname, (uint) strlen(path)+1,
                         &group_buff, (!using_unique_constraint ?
                                       uniq_tuple_length_arg : 0),
-                        &bitmaps, bitmap_buffer_size(1)*3,
+                        &bitmaps, bitmap_buffer_size(1)*5,
                         NullS))
   {
     if (temp_pool_slot != MY_BIT_NONE)
@@ -3919,7 +3942,6 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, tmpname, tmpname);
   share->blob_field= blob_field;
-  share->blob_ptr_size= portable_sizeof_char_ptr;
   share->table_charset= NULL;
   share->primary_key= MAX_KEY;               // Indicate no primary key
   share->keys_for_keyread.init();
@@ -3971,6 +3993,12 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   }
   if (!table->file)
     goto err;
+
+  if (table->file->set_ha_share_ref(&share->ha_share))
+  {
+    delete table->file;
+    goto err;
+  }
 
   null_count=1;
   
@@ -4041,7 +4069,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     share->max_rows= ~(ha_rows) 0;
   else
     share->max_rows= (ha_rows) (((share->db_type() == heap_hton) ?
-                                 min(thd->variables.tmp_table_size,
+                                 MY_MIN(thd->variables.tmp_table_size,
                                      thd->variables.max_heap_table_size) :
                                  thd->variables.tmp_table_size) /
 			         share->reclength);
@@ -4057,7 +4085,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     table->key_info=keyinfo;
     keyinfo->key_part=key_part_info;
     keyinfo->flags=HA_NOSAME;
-    keyinfo->usable_key_parts= keyinfo->key_parts= 1;
+    keyinfo->usable_key_parts= keyinfo->user_defined_key_parts= 1;
     keyinfo->key_length=0;
     keyinfo->rec_per_key=0;
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
@@ -4091,7 +4119,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   recinfo++;
   if (share->db_type() == TMP_ENGINE_HTON)
   {
-    if (create_internal_tmp_table(table, keyinfo, start_recinfo, &recinfo, 0, 0))
+    if (create_internal_tmp_table(table, keyinfo, start_recinfo, &recinfo, 0))
       goto err;
   }
   if (open_tmp_table(table))
@@ -4211,9 +4239,13 @@ int SJ_TMP_TABLE::sj_weedout_check_row(THD *thd)
     /* create_internal_tmp_table_from_heap will generate error if needed */
     if (!tmp_table->file->is_fatal_error(error, HA_CHECK_DUP))
       DBUG_RETURN(1); /* Duplicate */
+
+    bool is_duplicate;
     if (create_internal_tmp_table_from_heap(thd, tmp_table, start_recinfo,
-                                            &recinfo, error, 1))
+                                            &recinfo, error, 1, &is_duplicate))
       DBUG_RETURN(-1);
+    if (is_duplicate)
+      DBUG_RETURN(1);
   }
   DBUG_RETURN(0);
 }
@@ -5153,7 +5185,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
           0 or 1 record. Examples of both cases:
 
             select * from ot where col in (select ... from it where 2>3) 
-            select * from ot where col in (select min(it.key) from it)
+            select * from ot where col in (select MY_MIN(it.key) from it)
           
           in this case, the subquery predicate has not been setup for
           materialization. In particular, there is no materialized temp.table.

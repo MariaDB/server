@@ -1,0 +1,2 @@
+--plugin-load=$HA_SEQUENCE_SO
+--loose-sequence

@@ -179,7 +179,7 @@ int oqgraph3::cursor::restore_position()
     if (int rc= table.file->ha_index_read_map(
                     table.record[0], (const uchar*) _key.data(),
                     (key_part_map)(1 << _parts) - 1,
-                    table.s->key_info[_index].key_parts == _parts ?
+                    table.s->key_info[_index].user_defined_key_parts == _parts ?
                         HA_READ_KEY_EXACT : HA_READ_KEY_OR_NEXT))
     {
       table.file->ha_index_end();
@@ -235,7 +235,7 @@ int oqgraph3::cursor::restore_position()
 }
 
 oqgraph3::vertex_id oqgraph3::cursor::get_origid()
-{
+{ 
   if (_origid)
     return *_origid;
 
@@ -286,8 +286,11 @@ int oqgraph3::cursor::seek_next()
 
   if (_index < 0)
   {
-    if (int rc= table.file->ha_rnd_next(table.record[0]))
-    {
+    // We need to skip over any deleted records we encounter beyond the start of the table. Bug 796647b
+    int rc;
+    while ( ((rc= table.file->ha_rnd_next(table.record[0]))) != 0) {
+      if (rc == HA_ERR_RECORD_DELETED)
+        continue;
       table.file->ha_rnd_end();
       return clear_position(rc);
     }
@@ -439,7 +442,7 @@ int oqgraph3::cursor::seek_to(
                  *key_end= key_info + table.s->keys;
           key_info < key_end; ++key_info, ++i)
       {
-        if (key_info->key_parts < 2)
+        if (key_info->user_defined_key_parts < 2)
           continue;
         if (!((key_info->key_part[0].offset == target_fieldpos &&
                key_info->key_part[1].offset == source_fieldpos) ||
@@ -490,7 +493,7 @@ int oqgraph3::cursor::seek_to(
     if (int rc= table.file->ha_index_read_map(
             table.record[0], (uchar*) _key.data(),
             (key_part_map) ((1U << _parts) - 1),
-            table.s->key_info[_index].key_parts == _parts ?
+            table.s->key_info[_index].user_defined_key_parts == _parts ?
                 HA_READ_KEY_EXACT : HA_READ_KEY_OR_NEXT))
     {
       table.file->ha_index_end();
@@ -509,10 +512,14 @@ int oqgraph3::cursor::seek_to(
   }
   else
   {
-    if (int rc= table.file->ha_rnd_init(true))
+    int rc;
+    if ((rc= table.file->ha_rnd_init(true)))
       return clear_position(rc);
-    if (int rc= table.file->ha_rnd_next(table.record[0]))
-    {
+
+    // We need to skip over any deleted records we encounter at the start of the table. Bug 796647c
+    while ( ((rc= table.file->ha_rnd_next(table.record[0]))) != 0) {
+      if (rc == HA_ERR_RECORD_DELETED)
+        continue;
       table.file->ha_rnd_end();
       return clear_position(rc);
     }

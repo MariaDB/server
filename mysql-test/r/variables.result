@@ -78,7 +78,7 @@ explain extended select @t1:=(@t2:=1)+@t3:=4,@t1,@t2,@t3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select (@t1:=((@t2:=1) + (@t3:=4))) AS `@t1:=(@t2:=1)+@t3:=4`,(@t1) AS `@t1`,(@t2) AS `@t2`,(@t3) AS `@t3`
+Note	1003	select (@t1:=((@t2:=1) + (@t3:=4))) AS `@t1:=(@t2:=1)+@t3:=4`,(@`t1`) AS `@t1`,(@`t2`) AS `@t2`,(@`t3`) AS `@t3`
 select @t5;
 @t5
 1.23456
@@ -561,11 +561,9 @@ select @@sql_auto_is_null;
 @@sql_auto_is_null
 0
 set sql_big_selects=1;
-set sql_big_tables=1;
 set sql_buffer_result=1;
 set sql_log_bin=1;
 set sql_log_off=1;
-set sql_low_priority_updates=1;
 set sql_quote_show_create=1;
 set sql_safe_updates=1;
 set sql_select_limit=1;
@@ -761,9 +759,6 @@ select ifnull(@@character_set_results,"really null");
 ifnull(@@character_set_results,"really null")
 really null
 set names latin1;
-select @@have_innodb;
-@@have_innodb
-#
 *** Various tests with LC_TIME_NAMES
 *** LC_TIME_NAMES: testing case insensitivity
 set @@lc_time_names='ru_ru';
@@ -1483,16 +1478,6 @@ SELECT @@GLOBAL.server_id;
 @@GLOBAL.server_id
 0
 SET GLOBAL server_id = @old_server_id;
-SELECT @@GLOBAL.INIT_CONNECT, @@GLOBAL.INIT_CONNECT IS NULL;
-@@GLOBAL.INIT_CONNECT	@@GLOBAL.INIT_CONNECT IS NULL
-	1
-CREATE TABLE t1 (a INT);
-INSERT INTO t1 VALUES ();
-SET @bug42778= @@sql_safe_updates;
-SET @@sql_safe_updates= 0;
-DELETE FROM t1 ORDER BY (@@GLOBAL.INIT_CONNECT) ASC LIMIT 10;
-SET @@sql_safe_updates= @bug42778;
-DROP TABLE t1;
 #
 # BUG#10206 - InnoDB: Transaction requiring Max_BinLog_Cache_size > 4GB always rollsback
 #
@@ -1501,7 +1486,7 @@ SET @old_max_binlog_cache_size = @@GLOBAL.max_binlog_cache_size;
 SET GLOBAL max_binlog_cache_size = 5 * 1024 * 1024 * 1024;
 SELECT @@GLOBAL.max_binlog_cache_size;
 @@GLOBAL.max_binlog_cache_size
-5368709120
+max_size
 SET GLOBAL max_binlog_cache_size = @old_max_binlog_cache_size;
 #
 # Bug #37168 : Missing variable - skip_name_resolve
@@ -1800,4 +1785,8 @@ set session collation_connection=2048;
 ERROR HY000: Unknown collation: '2048'
 set session collation_database=2048;
 ERROR HY000: Unknown collation: '2048'
+set session rand_seed1=DEFAULT;
+ERROR 42000: Variable 'rand_seed1' doesn't have a default value
+set autocommit = values(v);
+ERROR 42S22: Unknown column 'v' in 'field list'
 End of 5.5 tests

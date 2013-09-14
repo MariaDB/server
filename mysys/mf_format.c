@@ -46,7 +46,7 @@ char * fn_format(char * to, const char *name, const char *dir,
   else if ((flag & MY_RELATIVE_PATH) && !test_if_hard_path(dev))
   {
     /* Put 'dir' before the given path */
-    strmake(buff,dev,sizeof(buff)-1);
+    strmake_buf(buff, dev);
     pos=convert_dirname(dev,dir,NullS);
     strmake(pos,buff,sizeof(buff)-1- (int) (pos-dev));
   }
@@ -85,7 +85,7 @@ char * fn_format(char * to, const char *name, const char *dir,
     tmp_length= strlength(startpos);
     DBUG_PRINT("error",("dev: '%s'  ext: '%s'  length: %u",dev,ext,
                         (uint) length));
-    (void) strmake(to,startpos,min(tmp_length,FN_REFLEN-1));
+    (void) strmake(to,startpos,MY_MIN(tmp_length,FN_REFLEN-1));
   }
   else
   {

@@ -426,6 +426,7 @@ int federatedx_db_init(void *p)
   federatedx_hton->savepoint_release= ha_federatedx::savepoint_release;
   federatedx_hton->commit= ha_federatedx::commit;
   federatedx_hton->rollback= ha_federatedx::rollback;
+  federatedx_hton->discover_table_structure= ha_federatedx::discover_assisted;
   federatedx_hton->create= federatedx_create_handler;
   federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED;
 
@@ -516,16 +517,17 @@ err:
 }
 
 
-static int parse_url_error(FEDERATEDX_SHARE *share, TABLE *table, int error_num)
+static int parse_url_error(FEDERATEDX_SHARE *share, TABLE_SHARE *table_s,
+                           int error_num)
 {
   char buf[FEDERATEDX_QUERY_BUFFER_SIZE];
   int buf_len;
   DBUG_ENTER("ha_federatedx parse_url_error");
 
-  buf_len= min(table->s->connect_string.length,
-               FEDERATEDX_QUERY_BUFFER_SIZE-1);
-  strmake(buf, table->s->connect_string.str, buf_len);
-  my_error(error_num, MYF(0), buf);
+  buf_len= MY_MIN(table_s->connect_string.length,
+                  FEDERATEDX_QUERY_BUFFER_SIZE-1);
+  strmake(buf, table_s->connect_string.str, buf_len);
+  my_error(error_num, MYF(0), buf, 14);
   DBUG_RETURN(error_num);
 }
 
@@ -537,7 +539,6 @@ static int parse_url_error(FEDERATEDX_SHARE *share, TABLE *table, int error_num)
 int get_connection(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share)
 {
   int error_num= ER_FOREIGN_SERVER_DOESNT_EXIST;
-  char error_buffer[FEDERATEDX_QUERY_BUFFER_SIZE];
   FOREIGN_SERVER *server, server_buffer;
   DBUG_ENTER("ha_federatedx::get_connection");
 
@@ -585,9 +586,8 @@ int get_connection(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share)
   DBUG_RETURN(0);
 
 error:
-  sprintf(error_buffer, "server name: '%s' doesn't exist!",
-          share->connection_string);
-  my_error(error_num, MYF(0), error_buffer);
+  my_printf_error(error_num, "server name: '%s' doesn't exist!",
+                  MYF(0), share->connection_string);
   DBUG_RETURN(error_num);
 }
 
@@ -646,8 +646,8 @@ error:
 
 */
 
-static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share, TABLE *table,
-                     uint table_create_flag)
+static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share,
+                     TABLE_SHARE *table_s, uint table_create_flag)
 {
   uint error_num= (table_create_flag ?
                    ER_FOREIGN_DATA_STRING_INVALID_CANT_CREATE :
@@ -657,11 +657,11 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share, TABLE *table,
   share->port= 0;
   share->socket= 0;
   DBUG_PRINT("info", ("share at %lx", (long unsigned int) share));
-  DBUG_PRINT("info", ("Length: %u", (uint) table->s->connect_string.length));
-  DBUG_PRINT("info", ("String: '%.*s'", (int) table->s->connect_string.length,
-                      table->s->connect_string.str));
-  share->connection_string= strmake_root(mem_root, table->s->connect_string.str,
-                                       table->s->connect_string.length);
+  DBUG_PRINT("info", ("Length: %u", (uint) table_s->connect_string.length));
+  DBUG_PRINT("info", ("String: '%.*s'", (int) table_s->connect_string.length,
+                      table_s->connect_string.str));
+  share->connection_string= strmake_root(mem_root, table_s->connect_string.str,
+                                       table_s->connect_string.length);
 
   DBUG_PRINT("info",("parse_url alloced share->connection_string %lx",
                      (long unsigned int) share->connection_string));
@@ -714,9 +714,9 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share, TABLE *table,
         Connection specifies everything but, resort to
         expecting remote and foreign table names to match
       */
-      share->table_name= strmake_root(mem_root, table->s->table_name.str,
+      share->table_name= strmake_root(mem_root, table_s->table_name.str,
                                       (share->table_name_length=
-                                       table->s->table_name.length));
+                                       table_s->table_name.length));
       DBUG_PRINT("info", 
                  ("internal format, default table_name "
                   "share->connection_string: %s  share->table_name: %s",
@@ -730,7 +730,7 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share, TABLE *table,
   {
     share->parsed= TRUE;
     // Add a null for later termination of table name
-    share->connection_string[table->s->connect_string.length]= 0;
+    share->connection_string[table_s->connect_string.length]= 0;
     share->scheme= share->connection_string;
     DBUG_PRINT("info",("parse_url alloced share->scheme: %lx",
                        (ulong) share->scheme));
@@ -764,7 +764,7 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share, TABLE *table,
         user:@hostname:port/db/table
         Then password is a null string, so set to NULL
       */
-      if ((share->password[0] == '\0'))
+      if (share->password[0] == '\0')
         share->password= NULL;
     }
 
@@ -817,7 +817,7 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share, TABLE *table,
   DBUG_RETURN(0);
 
 error:
-  DBUG_RETURN(parse_url_error(share, table, error_num));
+  DBUG_RETURN(parse_url_error(share, table_s, error_num));
 }
 
 /*****************************************************************************
@@ -1237,16 +1237,16 @@ bool ha_federatedx::create_where_from_key(String *to,
         tmp.append(STRING_WITH_LEN(" ("));
     }
 
-    for (key_part= key_info->key_part,
-         remainder= key_info->key_parts,
-         length= ranges[i]->length,
-         ptr= ranges[i]->key; ;
+    for (key_part=  key_info->key_part,
+           remainder= key_info->user_defined_key_parts,
+           length= ranges[i]->length,
+           ptr= ranges[i]->key; ;
          remainder--,
-         key_part++)
+           key_part++)
     {
       Field *field= key_part->field;
       uint store_length= key_part->store_length;
-      uint part_length= min(store_length, length);
+      uint part_length= MY_MIN(store_length, length);
       needs_quotes= field->str_needs_quotes();
       DBUG_DUMP("key, start of loop", ptr, length);
 
@@ -1583,7 +1583,7 @@ static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
 
   tmp_share.share_key= table_name;
   tmp_share.share_key_length= strlen(table_name);
-  if (parse_url(&mem_root, &tmp_share, table, 0))
+  if (parse_url(&mem_root, &tmp_share, table->s, 0))
     goto error;
 
   /* TODO: change tmp_share.scheme to LEX_STRING object */
@@ -1719,22 +1719,6 @@ ha_rows ha_federatedx::records_in_range(uint inx, key_range *start_key,
   DBUG_ENTER("ha_federatedx::records_in_range");
   DBUG_RETURN(FEDERATEDX_RECORDS_IN_RANGE);
 }
-/*
-  If frm_error() is called then we will use this to to find out
-  what file extentions exist for the storage engine. This is
-  also used by the default rename_table and delete_table method
-  in handler.cc.
-*/
-
-const char **ha_federatedx::bas_ext() const
-{
-  static const char *ext[]=
-  {
-    NullS
-  };
-  return ext;
-}
-
 
 federatedx_txn *ha_federatedx::get_txn(THD *thd, bool no_create)
 {
@@ -3366,7 +3350,7 @@ int ha_federatedx::create(const char *name, TABLE *table_arg,
   federatedx_io *tmp_io= NULL;
   DBUG_ENTER("ha_federatedx::create");
 
-  if ((retval= parse_url(thd->mem_root, &tmp_share, table_arg, 1)))
+  if ((retval= parse_url(thd->mem_root, &tmp_share, table_arg->s, 1)))
     goto error;
 
   /* loopback socket connections hang due to LOCK_open mutex */
@@ -3437,7 +3421,7 @@ int ha_federatedx::stash_remote_error()
   if (!io)
     DBUG_RETURN(remote_error_number);
   remote_error_number= io->error_code();
-  strmake(remote_error_buf, io->error_str(), sizeof(remote_error_buf)-1);
+  strmake_buf(remote_error_buf, io->error_str());
   if (remote_error_number == ER_DUP_ENTRY ||
       remote_error_number == ER_DUP_KEY)
     DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);
@@ -3588,6 +3572,75 @@ int ha_federatedx::rollback(handlerton *hton, MYSQL_THD thd, bool all)
   DBUG_RETURN(return_val);
 }
 
+
+/*
+  Federated supports assisted discovery, like
+  CREATE TABLE t1 CONNECTION="mysql://joe:pass@192.168.1.111/federated/t1";
+  but not a fully automatic discovery where a table magically appear
+  on any use (like, on SELECT * from t1).
+*/
+int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
+                                TABLE_SHARE *table_s, HA_CREATE_INFO *info)
+{
+  int error= HA_ERR_NO_CONNECTION;
+  FEDERATEDX_SHARE tmp_share;
+  CHARSET_INFO *cs= system_charset_info;
+  MYSQL mysql;
+  char buf[1024];
+  String query(buf, sizeof(buf), cs);
+  MYSQL_RES *res;
+  MYSQL_ROW rdata;
+  ulong *rlen;
+  my_bool my_true= 1;
+
+  if (parse_url(thd->mem_root, &tmp_share, table_s, 1))
+    return HA_WRONG_CREATE_OPTION;
+
+  mysql_init(&mysql);
+  mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, cs->csname);
+  mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
+                (char*) &my_true);
+
+  if (!mysql_real_connect(&mysql, tmp_share.hostname, tmp_share.username,
+                          tmp_share.password, tmp_share.database,
+                          tmp_share.port, tmp_share.socket, 0))
+    goto err1;
+  
+  if (mysql_real_query(&mysql, STRING_WITH_LEN("SET SQL_MODE=NO_TABLE_OPTIONS")))
+    goto err1;
+
+  query.copy(STRING_WITH_LEN("SHOW CREATE TABLE "), cs);
+  append_ident(&query, tmp_share.table_name, 
+               tmp_share.table_name_length, ident_quote_char);
+
+  if (mysql_real_query(&mysql, query.ptr(), query.length()))
+    goto err1;
+
+  if (!((res= mysql_store_result(&mysql))))
+    goto err1;
+
+  if (!(rdata= mysql_fetch_row(res)) || !((rlen= mysql_fetch_lengths(res))))
+    goto err2;
+
+  query.copy(rdata[1], rlen[1], cs);
+  query.append(STRING_WITH_LEN(" CONNECTION='"), cs);
+  query.append_for_single_quote(table_s->connect_string.str,
+                                table_s->connect_string.length);
+  query.append('\'');
+
+  error= table_s->init_from_sql_statement_string(thd, true,
+                                                 query.ptr(), query.length());
+
+err2:
+  mysql_free_result(res);
+err1:
+  if (error)
+    my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), mysql_error(&mysql));
+  mysql_close(&mysql);
+  return error;
+}
+
+
 struct st_mysql_storage_engine federatedx_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -3601,10 +3654,10 @@ maria_declare_plugin(federatedx)
   PLUGIN_LICENSE_GPL,
   federatedx_db_init, /* Plugin Init */
   federatedx_done, /* Plugin Deinit */
-  0x0200 /* 2.0 */,
+  0x0201 /* 2.1 */,
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
-  "2.0",                      /* string version */
+  "2.1",                      /* string version */
   MariaDB_PLUGIN_MATURITY_BETA /* maturity */
 }
 maria_declare_plugin_end;

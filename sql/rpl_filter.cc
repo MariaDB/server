@@ -156,14 +156,15 @@ Rpl_filter::db_ok(const char* db)
     DBUG_RETURN(1); // Ok to replicate if the user puts no constraints
 
   /*
-    If the user has specified restrictions on which databases to replicate
-    and db was not selected, do not replicate.
+    Previous behaviour "if the user has specified restrictions on which
+    databases to replicate and db was not selected, do not replicate" has
+    been replaced with "do replicate".
+    Since the filtering criteria is not equal to "NULL" the statement should
+    be logged into binlog.
   */
   if (!db)
-  {
-    DBUG_PRINT("exit", ("Don't replicate"));
-    DBUG_RETURN(0);
-  }
+    DBUG_RETURN(1);
+
   if (!do_db.is_empty()) // if the do's are not empty
   {
     I_List_iterator<i_string> it(do_db);
@@ -733,6 +734,18 @@ Rpl_filter::get_rewrite_db(const char* db, size_t *new_len)
   return db;
 }
 
+
+void
+Rpl_filter::copy_rewrite_db(Rpl_filter *from)
+{
+  I_List_iterator<i_string_pair> it(from->rewrite_db);
+  i_string_pair* tmp;
+  DBUG_ASSERT(rewrite_db.is_empty());
+
+  /* TODO: Add memory checking here and in all add_xxxx functions ! */
+  while ((tmp=it++))
+    add_db_rewrite(tmp->key, tmp->val);
+}
 
 I_List<i_string>*
 Rpl_filter::get_do_db()

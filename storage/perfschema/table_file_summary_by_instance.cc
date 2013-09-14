@@ -165,7 +165,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 
 TABLE_FIELD_DEF
 table_file_summary_by_instance::m_field_def=
-{ 25, field_types };
+{ 25, field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_file_summary_by_instance::m_share=

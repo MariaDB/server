@@ -8,7 +8,8 @@ HandlerSocketプラグインのビルド方法(RPMを使わない方法)
   $ ./configure --with-mysql-source=/work/mysql-5.1.50 --with-mysql-bindir=/work/mysql-5.1.50-linux-x86_64-glibc23/bin  --with-mysql-plugindir=/work/mysql-5.1.50-linux-x86_64-glibc23/lib/plugin
 
 ここで--with-mysql-sourceにはMySQLのソースコードのトップディレク
-トリを指定します。--with-mysql-bindirにはインストール済みのMySQL
+トリを指定します(そこにVERSIONファイルかconfigure.inファイルがなく
+てはなりません)。--with-mysql-bindirにはインストール済みのMySQL
 のmysql_configコマンドが有るディレクトリを指定します。
 その後以下のようにビルド・インストールします。
 

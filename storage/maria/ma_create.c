@@ -51,6 +51,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
        base_pos,long_varchar_count,varchar_length,
        unique_key_parts,fulltext_keys,offset, not_block_record_extra_length;
   uint max_field_lengths, extra_header_size, column_nr;
+  uint internal_table= flags & HA_CREATE_INTERNAL_TABLE;
   ulong reclength, real_reclength,min_pack_length;
   char filename[FN_REFLEN], linkname[FN_REFLEN], *linkname_ptr;
   ulong pack_reclength;
@@ -713,7 +714,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     got from MAI file header (see also mariapack.c:save_state)
   */
   share.base.key_reflength=
-    maria_get_pointer_length(max(ci->key_file_length,tmp),3);
+    maria_get_pointer_length(MY_MAX(ci->key_file_length,tmp),3);
   share.base.keys= share.state.header.keys= keys;
   share.state.header.uniques= uniques;
   share.state.header.fulltext_keys= fulltext_keys;
@@ -780,7 +781,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     share.base.min_block_length=
       (share.base.pack_reclength+3 < MARIA_EXTEND_BLOCK_LENGTH &&
        ! share.base.blobs) ?
-      max(share.base.pack_reclength,MARIA_MIN_BLOCK_LENGTH) :
+      MY_MAX(share.base.pack_reclength,MARIA_MIN_BLOCK_LENGTH) :
       MARIA_EXTEND_BLOCK_LENGTH;
   }
   else if (datafile_type == STATIC_RECORD)
@@ -789,7 +790,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   if (! (flags & HA_DONT_TOUCH_DATA))
     share.state.create_time= time((time_t*) 0);
 
-  mysql_mutex_lock(&THR_LOCK_maria);
+  if (!internal_table)
+    mysql_mutex_lock(&THR_LOCK_maria);
 
   /*
     NOTE: For test_if_reopen() we need a real path name. Hence we need
@@ -854,7 +856,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     NOTE: The filename is compared against unique_file_name of every
     open table. Hence we need a real path here.
   */
-  if (_ma_test_if_reopen(filename))
+  if (!internal_table && _ma_test_if_reopen(filename))
   {
     my_printf_error(HA_ERR_TABLE_EXIST, "Aria table '%s' is in use "
                     "(most likely by a MERGE table). Try FLUSH TABLES.",
@@ -1171,7 +1173,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     if (mysql_file_close(dfile,MYF(0)))
       goto err;
   }
-  mysql_mutex_unlock(&THR_LOCK_maria);
+  if (!internal_table)
+    mysql_mutex_unlock(&THR_LOCK_maria);
   res= 0;
   my_free((char*) rec_per_key_part);
   errpos=0;
@@ -1180,7 +1183,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   DBUG_RETURN(res);
 
 err:
-  mysql_mutex_unlock(&THR_LOCK_maria);
+  if (!internal_table)
+    mysql_mutex_unlock(&THR_LOCK_maria);
 
 err_no_lock:
   save_errno=my_errno;
@@ -1215,19 +1219,19 @@ uint maria_get_pointer_length(ulonglong file_length, uint def)
   if (file_length)				/* If not default */
   {
 #ifdef NOT_YET_READY_FOR_8_BYTE_POINTERS
-    if (file_length >= (ULL(1) << 56))
+    if (file_length >= (1ULL << 56))
       def=8;
     else
 #endif
-      if (file_length >= (ULL(1) << 48))
+      if (file_length >= (1ULL << 48))
       def=7;
-    else if (file_length >= (ULL(1) << 40))
+    else if (file_length >= (1ULL << 40))
       def=6;
-    else if (file_length >= (ULL(1) << 32))
+    else if (file_length >= (1ULL << 32))
       def=5;
-    else if (file_length >= (ULL(1) << 24))
+    else if (file_length >= (1ULL << 24))
       def=4;
-    else if (file_length >= (ULL(1) << 16))
+    else if (file_length >= (1ULL << 16))
       def=3;
     else
       def=2;

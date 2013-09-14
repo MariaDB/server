@@ -46,6 +46,7 @@ table_name not like 'ndb_%' AND table_name not like 'innodb_%' AND
 table_name not like 'pbxt_%' AND table_name not like 'xtradb_%';
 select * from v1;
 c
+ALL_PLUGINS
 CHARACTER_SETS
 CLIENT_STATISTICS
 COLLATIONS
@@ -87,6 +88,7 @@ db
 event
 func
 general_log
+gtid_slave_pos
 help_category
 help_keyword
 help_relation
@@ -802,6 +804,7 @@ information_schema	PARTITIONS	PARTITION_EXPRESSION
 information_schema	PARTITIONS	SUBPARTITION_EXPRESSION
 information_schema	PARTITIONS	PARTITION_DESCRIPTION
 information_schema	PLUGINS	PLUGIN_DESCRIPTION
+information_schema	ALL_PLUGINS	PLUGIN_DESCRIPTION
 information_schema	PROCESSLIST	INFO
 information_schema	ROUTINES	DTD_IDENTIFIER
 information_schema	ROUTINES	ROUTINE_DEFINITION
@@ -1180,7 +1183,7 @@ group by column_type order by num;
 column_type	group_concat(table_schema, '.', table_name)	num
 varchar(27)	information_schema.COLUMNS	1
 varchar(7)	information_schema.ROUTINES,information_schema.VIEWS	2
-varchar(20)	information_schema.FILES,information_schema.FILES,information_schema.PLUGINS,information_schema.PLUGINS,information_schema.PLUGINS,information_schema.PROFILING	6
+varchar(20)	information_schema.FILES,information_schema.FILES,information_schema.PLUGINS,information_schema.PLUGINS,information_schema.PLUGINS,information_schema.ALL_PLUGINS,information_schema.ALL_PLUGINS,information_schema.ALL_PLUGINS,information_schema.PROFILING	9
 create table t1(f1 char(1) not null, f2 char(9) not null)
 default character set utf8;
 select CHARACTER_MAXIMUM_LENGTH, CHARACTER_OCTET_LENGTH from

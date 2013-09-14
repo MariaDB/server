@@ -1,0 +1,30 @@
+change master '' to master_port=MYPORT_1, master_host='127.0.0.1', master_user='root';
+change master 'master2' to master_port=MYPORT_2, master_host='127.0.0.1', master_user='root';
+start all slaves;
+Warnings:
+Note	1937	SLAVE 'master2' started
+Note	1937	SLAVE '' started
+set default_master_connection = '';
+include/wait_for_slave_to_start.inc
+set default_master_connection = 'master2';
+include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+create table t1 (a varchar(10) character set utf8);
+load data infile '../../std_data/loaddata6.dat' into table t1;
+create table t2 (a varchar(10) character set utf8);
+load data infile '../../std_data/loaddata6.dat' into table t2;
+select count(*) from t1;
+count(*)
+1
+select count(*) from t2;
+count(*)
+1
+drop table t1;
+drop table t2;
+stop all slaves;
+Warnings:
+Note	1938	SLAVE 'master2' stopped
+Note	1938	SLAVE '' stopped
+include/reset_master_slave.inc
+include/reset_master_slave.inc
+include/reset_master_slave.inc

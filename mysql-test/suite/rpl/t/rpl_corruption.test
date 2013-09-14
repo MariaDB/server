@@ -24,7 +24,7 @@ call mtr.add_suppression('Slave I/O: Relay log write failure: could not queue ev
 call mtr.add_suppression('event read from binlog did not pass crc check');
 call mtr.add_suppression('Replication event checksum verification failed');
 call mtr.add_suppression('Event crc check failed! Most likely there is event corruption');
-call mtr.add_suppression('Slave SQL: Error initializing relay log position: I/O error reading event at position .*, Error_code: 1593');
+call mtr.add_suppression('Slave SQL: Error initializing relay log position: I/O error reading event at position .*, error.* 1593');
 
 SET @old_master_verify_checksum = @@master_verify_checksum;
 
@@ -100,19 +100,20 @@ let $wait_condition=
   SELECT COUNT(*)=0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE command = 'Binlog Dump';
 --source include/wait_condition.inc
 
-SET GLOBAL debug_dbug="+d,corrupt_read_log_event2";
+SET GLOBAL debug_dbug="+d,corrupt_read_log_event2_set";
 --connection slave
 START SLAVE IO_THREAD;
 let $slave_io_errno= 1236;
+--let $slave_timeout= 10
 --source include/wait_for_slave_io_error.inc
 --connection master
-SET GLOBAL debug_dbug="-d,corrupt_read_log_event2";
+SET GLOBAL debug_dbug="-d,corrupt_read_log_event2_set";
 
 # Emulate corruption on master without crc checking on master
 --echo # 4. Master read a corrupted event from binlog and send it to slave
 --connection master
 SET GLOBAL master_verify_checksum=0;
-SET GLOBAL debug_dbug="+d,corrupt_read_log_event2";
+SET GLOBAL debug_dbug="+d,corrupt_read_log_event2_set";
 --connection slave
 START SLAVE IO_THREAD;
 # When the checksum error is detected, the slave sets error code 1913
@@ -122,7 +123,7 @@ START SLAVE IO_THREAD;
 let $slave_io_errno= 1595,1913;
 --source include/wait_for_slave_io_error.inc
 --connection master
-SET GLOBAL debug_dbug="-d,corrupt_read_log_event2";
+SET GLOBAL debug_dbug="-d,corrupt_read_log_event2_set";
 SET GLOBAL debug_dbug= "";
 SET GLOBAL master_verify_checksum=1;
 

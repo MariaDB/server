@@ -2,7 +2,7 @@ drop table if exists t1;
 select @@global.aria_page_checksum;
 @@global.aria_page_checksum
 1
-# iteration 1
+# iteration 1a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -20,7 +20,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 2
+# iteration 2a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -38,7 +38,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 3
+# iteration 3a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -56,7 +56,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 4
+# iteration 4a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -74,7 +74,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 5
+# iteration 5a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -92,7 +92,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 6
+# iteration 6a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -110,7 +110,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 7
+# iteration 7a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -128,7 +128,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 8
+# iteration 8a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -146,7 +146,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 9
+# iteration 9a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -164,7 +164,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 10
+# iteration 10a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -182,7 +182,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 11
+# iteration 11a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -200,7 +200,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 12
+# iteration 12a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -218,7 +218,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 13
+# iteration 13a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -236,7 +236,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 14
+# iteration 14a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -254,7 +254,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 15
+# iteration 15a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -272,7 +272,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 16
+# iteration 16a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -290,7 +290,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 17
+# iteration 17a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -308,7 +308,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 18
+# iteration 18a
 set global aria_page_checksum = 0 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -326,7 +326,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 19
+# iteration 19a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -344,7 +344,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 20
+# iteration 20a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -362,7 +362,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 21
+# iteration 21a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -380,7 +380,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 22
+# iteration 22a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -398,7 +398,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 23
+# iteration 23a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -416,7 +416,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 24
+# iteration 24a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria  ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -434,7 +434,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 25
+# iteration 25a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -452,7 +452,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 26
+# iteration 26a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -470,7 +470,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 27
+# iteration 27a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -488,7 +488,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 28
+# iteration 28a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -506,7 +506,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 29
+# iteration 29a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -524,7 +524,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 30
+# iteration 30a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=0 ;
 show create table t1 /* expecting PAGE_CHECKSUM=0 */ ;
@@ -542,7 +542,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 31
+# iteration 31a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -560,7 +560,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 32
+# iteration 32a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -578,7 +578,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 33
+# iteration 33a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -596,7 +596,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 34
+# iteration 34a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -614,7 +614,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 35
+# iteration 35a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -632,7 +632,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 Page checksums are not used
 drop table t1;
-# iteration 36
+# iteration 36a
 set global aria_page_checksum = 1 ;
 create table t1(a int) engine=aria PAGE_CHECKSUM=1 ;
 show create table t1 /* expecting PAGE_CHECKSUM=1 */ ;
@@ -650,7 +650,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Page checksums are used
 drop table t1;
-# iteration 1
+# iteration 1b
 create table t1(a int) engine=aria  ;
 show create table t1;
 Table	Create Table
@@ -666,7 +666,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Crashsafe:           yes
 drop table t1;
-# iteration 2
+# iteration 2b
 create table t1(a int) engine=aria  ;
 show create table t1;
 Table	Create Table
@@ -682,7 +682,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=0
 Crashsafe:           no
 drop table t1;
-# iteration 3
+# iteration 3b
 create table t1(a int) engine=aria  ;
 show create table t1;
 Table	Create Table
@@ -698,7 +698,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=1
 Crashsafe:           yes
 drop table t1;
-# iteration 4
+# iteration 4b
 create table t1(a int) engine=aria  ;
 show create table t1;
 Table	Create Table
@@ -714,7 +714,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 Crashsafe:           yes
 drop table t1;
-# iteration 5
+# iteration 5b
 create table t1(a int) engine=aria  ;
 show create table t1;
 Table	Create Table
@@ -730,7 +730,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=0
 Crashsafe:           no
 drop table t1;
-# iteration 6
+# iteration 6b
 create table t1(a int) engine=aria  ;
 show create table t1;
 Table	Create Table
@@ -746,7 +746,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=1
 Crashsafe:           yes
 drop table t1;
-# iteration 7
+# iteration 7b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
 Table	Create Table
@@ -762,7 +762,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=0
 Crashsafe:           no
 drop table t1;
-# iteration 8
+# iteration 8b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
 Table	Create Table
@@ -778,7 +778,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=0
 Crashsafe:           no
 drop table t1;
-# iteration 9
+# iteration 9b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
 Table	Create Table
@@ -794,7 +794,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=1
 Crashsafe:           yes
 drop table t1;
-# iteration 10
+# iteration 10b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
 Table	Create Table
@@ -810,7 +810,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=0
 Crashsafe:           no
 drop table t1;
-# iteration 11
+# iteration 11b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
 Table	Create Table
@@ -826,7 +826,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=0
 Crashsafe:           no
 drop table t1;
-# iteration 12
+# iteration 12b
 create table t1(a int) engine=aria transactional=0 ;
 show create table t1;
 Table	Create Table
@@ -842,7 +842,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=1
 Crashsafe:           yes
 drop table t1;
-# iteration 13
+# iteration 13b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
 Table	Create Table
@@ -858,7 +858,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=1
 Crashsafe:           yes
 drop table t1;
-# iteration 14
+# iteration 14b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
 Table	Create Table
@@ -874,7 +874,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=0
 Crashsafe:           no
 drop table t1;
-# iteration 15
+# iteration 15b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
 Table	Create Table
@@ -890,7 +890,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=1
 Crashsafe:           yes
 drop table t1;
-# iteration 16
+# iteration 16b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
 Table	Create Table
@@ -906,7 +906,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=1
 Crashsafe:           yes
 drop table t1;
-# iteration 17
+# iteration 17b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
 Table	Create Table
@@ -922,7 +922,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=0
 Crashsafe:           no
 drop table t1;
-# iteration 18
+# iteration 18b
 create table t1(a int) engine=aria transactional=1 ;
 show create table t1;
 Table	Create Table

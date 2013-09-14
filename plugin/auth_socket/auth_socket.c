@@ -85,23 +85,6 @@ static struct st_mysql_auth socket_auth_handler=
   socket_auth
 };
 
-mysql_declare_plugin(socket_auth)
-{
-  MYSQL_AUTHENTICATION_PLUGIN,
-  &socket_auth_handler,
-  "unix_socket",
-  "Sergei Golubchik",
-  "Unix Socket based authentication",
-  PLUGIN_LICENSE_GPL,
-  NULL,
-  NULL,
-  0x0100,
-  NULL,
-  NULL,
-  NULL,
-  0,
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(socket_auth)
 {
   MYSQL_AUTHENTICATION_PLUGIN,

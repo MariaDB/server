@@ -144,24 +144,6 @@ static struct st_mysql_audit descriptor =
   { MYSQL_AUDIT_GENERAL_CLASSMASK }
 };
 
-mysql_declare_plugin(sql_errlog)
-{
-  MYSQL_AUDIT_PLUGIN,
-  &descriptor,
-  "SQL_ERROR_LOG",
-  "Alexey Botchkov",
-  "Log SQL level errors to a file with rotation",
-  PLUGIN_LICENSE_GPL,
-  sql_error_log_init,
-  sql_error_log_deinit,
-  0x0100,
-  NULL,
-  vars,
-  NULL,
-  0
-}
-mysql_declare_plugin_end;
-
 maria_declare_plugin(sql_errlog)
 {
   MYSQL_AUDIT_PLUGIN,

@@ -177,7 +177,7 @@ INSERT INTO global_suppressions VALUES
  ("The path specified for the variable .* is not a directory or cannot be written:"),
  ("Master server does not support or not configured semi-sync replication, fallback to asynchronous"),
  (": The MySQL server is running with the --secure-backup-file-priv option so it cannot execute this statement"),
- ("Slave: Unknown table 't1' Error_code: 1051"),
+ ("Slave: Unknown table 't1' error.* 1051"),
 
  /* Maria storage engine dependent tests */
 

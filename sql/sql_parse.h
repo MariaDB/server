@@ -34,6 +34,7 @@ enum enum_mysql_completiontype {
 };
 
 extern "C" int test_if_data_home_dir(const char *dir);
+int error_if_data_home_dir(const char *path, const char *what);
 
 bool multi_update_precheck(THD *thd, TABLE_LIST *tables);
 bool multi_delete_precheck(THD *thd, TABLE_LIST *tables);
@@ -46,9 +47,8 @@ bool insert_precheck(THD *thd, TABLE_LIST *tables);
 bool create_table_precheck(THD *thd, TABLE_LIST *tables,
                            TABLE_LIST *create_table);
 
-bool parse_sql(THD *thd,
-               Parser_state *parser_state,
-               Object_creation_ctx *creation_ctx);
+bool parse_sql(THD *thd, Parser_state *parser_state,
+               Object_creation_ctx *creation_ctx, bool do_pfs_digest=false);
 
 void free_items(Item *item);
 void cleanup_items(Item *item);
@@ -147,6 +147,15 @@ inline bool check_identifier_name(LEX_STRING *str)
   return check_identifier_name(str, NAME_CHAR_LEN, 0, "");
 }
 
+
+/*
+  check_access() is needed for the connect engine.
+  It cannot be inlined - it must be exported.
+*/
+bool check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
+                  GRANT_INTERNAL_INFO *grant_internal_info,
+                  bool dont_check_global_grants, bool no_errors);
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool check_one_table_access(THD *thd, ulong privilege, TABLE_LIST *tables);
 bool check_single_table_access(THD *thd, ulong privilege,
@@ -155,9 +164,6 @@ bool check_routine_access(THD *thd,ulong want_access,char *db,char *name,
 			  bool is_proc, bool no_errors);
 bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table);
 bool check_some_routine_access(THD *thd, const char *db, const char *name, bool is_proc);
-bool check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
-                  GRANT_INTERNAL_INFO *grant_internal_info,
-                  bool dont_check_global_grants, bool no_errors);
 bool check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
                         bool any_combination_of_privileges_will_do,
                         uint number,
@@ -179,13 +185,6 @@ inline bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table)
 inline bool check_some_routine_access(THD *thd, const char *db,
                                       const char *name, bool is_proc)
 { return false; }
-inline bool check_access(THD *, ulong, const char *, ulong *save_priv,
-                         GRANT_INTERNAL_INFO *, bool, bool)
-{
-  if (save_priv)
-    *save_priv= GLOBAL_ACLS;
-  return false;
-}
 inline bool
 check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
                    bool any_combination_of_privileges_will_do,
@@ -196,7 +195,7 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
 
 /* These were under the INNODB_COMPATIBILITY_HOOKS */
 
-bool check_global_access(THD *thd, ulong want_access);
+bool check_global_access(THD *thd, ulong want_access, bool no_errors= false);
 
 inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {

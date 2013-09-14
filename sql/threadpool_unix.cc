@@ -29,14 +29,14 @@
 #ifdef __linux__
 #include <sys/epoll.h>
 typedef struct epoll_event native_event;
-#endif
-#if defined (__FreeBSD__) || defined (__APPLE__)
+#elif defined(HAVE_KQUEUE)
 #include <sys/event.h>
 typedef struct kevent native_event;
-#endif
-#if defined (__sun)
+#elif defined (__sun)
 #include <port.h>
 typedef port_event_t native_event;
+#else
+#error threadpool is not available on this platform
 #endif
 
 /** Maximum number of native events a listener can read in one go */
@@ -52,6 +52,7 @@ static bool threadpool_started= false;
 */
  
  
+#ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_group_mutex;
 static PSI_mutex_key key_timer_mutex;
 static PSI_mutex_info mutex_list[]=
@@ -79,6 +80,9 @@ static PSI_thread_info	thread_list[] =
 /* Macro to simplify performance schema registration */ 
 #define PSI_register(X) \
  if(PSI_server) PSI_server->register_ ## X("threadpool", X ## _list, array_elements(X ## _list))
+#else
+#define PSI_register(X) /* no-op */
+#endif
 
 
 struct thread_group_t;
@@ -285,7 +289,21 @@ static void *native_event_get_userdata(native_event *event)
   return event->data.ptr;
 }
 
-#elif defined (__FreeBSD__) || defined (__APPLE__)
+#elif defined(HAVE_KQUEUE)
+
+/* 
+  NetBSD is incompatible with other BSDs , last parameter in EV_SET macro
+  (udata, user data) needs to be intptr_t, whereas it needs to be void* 
+  everywhere else.
+*/
+
+#ifdef __NetBSD__
+#define MY_EV_SET(a, b, c, d, e, f, g) EV_SET(a, b, c, d, e, f, (intptr_t)g)
+#else
+#define MY_EV_SET(a, b, c, d, e, f, g) EV_SET(a, b, c, d, e, f, g)
+#endif
+
+
 int io_poll_create()
 {
   return kqueue();
@@ -294,7 +312,7 @@ int io_poll_create()
 int io_poll_start_read(int pollfd, int fd, void *data)
 {
   struct kevent ke;
-  EV_SET(&ke, fd, EVFILT_READ, EV_ADD|EV_ONESHOT, 
+  MY_EV_SET(&ke, fd, EVFILT_READ, EV_ADD|EV_ONESHOT, 
          0, 0, data);
   return kevent(pollfd, &ke, 1, 0, 0, 0); 
 }
@@ -303,7 +321,7 @@ int io_poll_start_read(int pollfd, int fd, void *data)
 int io_poll_associate_fd(int pollfd, int fd, void *data)
 {
   struct kevent ke;
-  EV_SET(&ke, fd, EVFILT_READ, EV_ADD|EV_ONESHOT, 
+  MY_EV_SET(&ke, fd, EVFILT_READ, EV_ADD|EV_ONESHOT, 
          0, 0, data);
   return io_poll_start_read(pollfd,fd, data); 
 }
@@ -312,7 +330,7 @@ int io_poll_associate_fd(int pollfd, int fd, void *data)
 int io_poll_disassociate_fd(int pollfd, int fd)
 {
   struct kevent ke;
-  EV_SET(&ke,fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+  MY_EV_SET(&ke,fd, EVFILT_READ, EV_DELETE, 0, 0, 0);
   return kevent(pollfd, &ke, 1, 0, 0, 0);
 }
 
@@ -337,7 +355,7 @@ int io_poll_wait(int pollfd, struct kevent *events, int maxevents, int timeout_m
 
 static void* native_event_get_userdata(native_event *event)
 {
-  return event->udata;
+  return (void *)event->udata;
 }
 
 #elif defined (__sun)
@@ -386,8 +404,6 @@ static void* native_event_get_userdata(native_event *event)
 {
   return event->portev_user;
 }
-#else
-#error not ported yet to this OS
 #endif
 
 
@@ -1247,11 +1263,12 @@ static void connection_abort(connection_t *connection)
   DBUG_ENTER("connection_abort");
   thread_group_t *group= connection->thread_group;
   
+  threadpool_remove_connection(connection->thd); 
+  
   mysql_mutex_lock(&group->mutex);
   group->connection_count--;
   mysql_mutex_unlock(&group->mutex);
-
-  threadpool_remove_connection(connection->thd); 
+  
   my_free(connection);
   DBUG_VOID_RETURN;
 }

@@ -19,7 +19,7 @@
 #include "semisync_master.h"
 #include "sql_class.h"                          // THD
 
-ReplSemiSyncMaster repl_semisync;
+static ReplSemiSyncMaster repl_semisync;
 
 C_MODE_START
 
@@ -415,6 +415,7 @@ static int semi_sync_master_plugin_deinit(void *p)
     sql_print_error("unregister_binlog_transmit_observer failed");
     return 1;
   }
+  repl_semisync.cleanup();
   sql_print_information("unregister_replicator OK");
   return 0;
 }
@@ -426,7 +427,7 @@ struct Mysql_replication semi_sync_master_plugin= {
 /*
   Plugin library descriptor
 */
-mysql_declare_plugin(semi_sync_master)
+maria_declare_plugin(semisync_master)
 {
   MYSQL_REPLICATION_PLUGIN,
   &semi_sync_master_plugin,
@@ -439,7 +440,8 @@ mysql_declare_plugin(semi_sync_master)
   0x0100 /* 1.0 */,
   semi_sync_master_status_vars,	/* status variables */
   semi_sync_master_system_vars,	/* system variables */
-  NULL,                         /* config options */
-  0,                            /* flags */
+  "1.0",
+  MariaDB_PLUGIN_MATURITY_UNKNOWN
 }
-mysql_declare_plugin_end;
+maria_declare_plugin_end;
+

@@ -557,7 +557,7 @@ let $cleanup_stmt= ;
 --source include/check_ftwrl_compatible.inc
 deallocate prepare stmt1;
 
-call mtr.add_suppression("Slave SQL.*Can.t execute the query because you have a conflicting read lock., Error_code: 1223");
+call mtr.add_suppression("Slave SQL.*Can.t execute the query because you have a conflicting read lock., error.* 1223");
 
 --echo #
 --echo # 9.2.b) EXECUTE for statement which is incompatible with FTWRL
@@ -708,11 +708,10 @@ let $cleanup_stmt1= create table t2_base(j int);
 --source include/check_ftwrl_incompatible.inc
 
 --echo # 13.1.b) DROP TABLES which affects only temporary tables
---echo #         in theory can be compatible with FTWRL.
---echo #         In practice it is not yet.
+--echo #         is compatible with FTWRL.
 let $statement= drop table t2_temp;
-let $cleanup_stmt1= create temporary table t2_temp(j int);
---source include/check_ftwrl_incompatible.inc
+let $cleanup_stmt= create temporary table t2_temp(j int);
+--source include/check_ftwrl_compatible.inc
 
 --echo #
 --echo # 13.1.c) DROP TEMPORARY TABLES should be compatible with FTWRL.
@@ -1902,35 +1901,10 @@ let $statement= analyze table t3_temp_trans;
 let $cleanup_stmt= ;
 --source include/check_ftwrl_compatible.inc
 --echo #
---echo # 39.2.c) Some statements do implicit commit and not
---echo #         considered read-only. As result they are 
---echo #         not compatible with FTWRL.
---echo #
-flush tables with read lock;
---echo # Implicit commits are allowed under FTWRL.
-alter table t3_temp_trans add column c1 int;
-unlock tables;
---echo #
---echo # Switching to connection '$con_aux1'.
-connection $con_aux1;
-flush tables with read lock;
---echo # Switching to connection 'default'.
-connection default;
---send alter table t3_temp_trans drop column c1
---echo # Switching to connection '$con_aux1'.
-connection $con_aux1;
---echo # Check that ALTER TABLE is blocked.
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
-        info = "alter table t3_temp_trans drop column c1";
---source include/wait_condition.inc
-unlock tables;
---echo # Switching to connection 'default'.
-connection default;
---echo # Reap ALTER TABLE
---reap
-
+--echo # And ALTER TABLE:
+let $statement= alter table t3_temp_trans add column c1 int;
+let $cleanup_stmt= alter table t3_temp_trans drop column c1;
+--source include/check_ftwrl_compatible.inc
 
 --echo #
 --echo # 40) Test effect of implicit commit for DDL which is otherwise

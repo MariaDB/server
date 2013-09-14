@@ -165,6 +165,37 @@ SELECT
      WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL AND t1.d IS NOT NULL)
   AS 'ARITY 3';
 
+
+DELETE FROM mysql.column_stats;
+
+set histogram_size=4;
+ANALYZE TABLE t1;
+
+SELECT db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+DELETE FROM mysql.column_stats;
+
+set histogram_size=8;
+set histogram_type='DOUBLE_PREC_HB';
+ANALYZE TABLE t1;
+
+SELECT db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+DELETE FROM mysql.column_stats;
+
+set histogram_size= 0;
+set histogram_type=default;
+ANALYZE TABLE t1;
+
+
 CREATE TABLE t3 (
   a int NOT NULL PRIMARY KEY,
   b varchar(32),
@@ -533,9 +564,27 @@ SELECT UPPER(db_name), UPPER(table_name),
        index_name, prefix_arity, avg_frequency
   FROM mysql.index_stats;
 
-use test;
+use world;
+set use_stat_tables='preferably';
+--disable_result_log
+set histogram_size=100;
+set histogram_type='SINGLE_PREC_HB';
+ANALYZE TABLE CountryLanguage;
+set histogram_size=254;
+set histogram_type='DOUBLE_PREC_HB';
+ANALYZE TABLE City;
+FLUSH TABLES;
+--enable_result_log
 
+--query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='COUNTRYLANGUAGE' and UPPER(column_name) = 'PERCENTAGE';
+--query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='CITY' and UPPER(column_name) = 'POPULATION';
+
+set histogram_type=default;
+set histogram_size=default;
+
+use test;
 DROP DATABASE world;
+
 SELECT UPPER(db_name), UPPER(table_name), cardinality
   FROM mysql.table_stats;
 SELECT UPPER(db_name), UPPER(table_name), 
@@ -559,6 +608,96 @@ DELETE FROM mysql.table_stats;
 DELETE FROM mysql.column_stats;
 DELETE FROM mysql.index_stats;
   
+--echo #
+--echo # Bug mdev-4357: empty string as a value of the HIST_SIZE column 
+--echo #                from mysql.column_stats
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+
+set histogram_size=10;
+
+analyze table t1  persistent for all;
+
+select db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+set histogram_size=default;
+
+drop table t1;
+
+--echo #
+--echo # Bug mdev-4359: wrong setting of the HIST_SIZE column 
+--echo # (see also mdev-4357)         from mysql.column_stats
+--echo #
+
+create table t1 ( a int);
+insert into t1 values (1),(2),(3),(4),(5);
+
+set histogram_size=10;
+set histogram_type='double_prec_hb';
+
+show variables like 'histogram%';
+
+analyze table t1 persistent for all;
+
+select db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+set histogram_size=default;
+set histogram_type=default;
+
+drop table t1;
+
+--echo #
+--echo # Bug mdev-4369: histogram for a column with many distinct values 
+--echo #
+
+
+CREATE TABLE t1 (id int);
+CREATE TABLE t2 (id int);
+
+INSERT INTO t1 (id) VALUES (1), (1), (1),(1);
+INSERT INTO t1 (id) SELECT id FROM t1;
+INSERT INTO t1 SELECT id+1 FROM t1;
+INSERT INTO t1 SELECT id+2 FROM t1;
+INSERT INTO t1 SELECT id+4 FROM t1;
+INSERT INTO t1 SELECT id+8 FROM t1;
+INSERT INTO t1 SELECT id+16 FROM t1;
+INSERT INTO t1 SELECT id+32 FROM t1;
+INSERT INTO t1 SELECT id+64 FROM t1;
+INSERT INTO t1 SELECT id+128 FROM t1;
+INSERT INTO t1 SELECT id+256 FROM t1;
+INSERT INTO t1 SELECT id+512 FROM t1;
+
+INSERT INTO t2 SELECT id FROM t1 ORDER BY id*rand();
+
+SELECT COUNT(*) FROM t2;
+SELECT COUNT(DISTINCT id) FROM t2;
+
+set @@tmp_table_size=1024*16;
+set @@max_heap_table_size=1024*16;
+
+set histogram_size=63;
+
+analyze table t2 persistent for all;
+
+select db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+set histogram_size=default;
+
+drop table t1, t2;
+
 set use_stat_tables=@save_use_stat_tables;
 
-    

@@ -56,7 +56,6 @@ drop table t1;
 --echo #
 
 # need the --skip-innodb option present for the test to succeed
-SHOW VARIABLES LIKE 'have_innodb';
 SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
  and SUPPORT='YES';
 

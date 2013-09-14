@@ -254,18 +254,18 @@ static void init_block(HP_BLOCK *block, uint reclength, ulong min_records,
     If not min_records and max_records are given, optimize for 1000 rows
   */
   if (!min_records)
-    min_records= min(1000, max_records);
+    min_records= MY_MIN(1000, max_records);
   if (!max_records)
-    max_records= max(min_records, 1000);
+    max_records= MY_MAX(min_records, 1000);
 
   /*
     We don't want too few records_in_block as otherwise the overhead of
     of the HP_PTRS block will be too notable
   */
-  records_in_block= max(1000, min_records);
-  records_in_block= min(records_in_block, max_records);
+  records_in_block= MY_MAX(1000, min_records);
+  records_in_block= MY_MIN(records_in_block, max_records);
   /* If big max_records is given, allocate bigger blocks */
-  records_in_block= max(records_in_block, max_records / 10);
+  records_in_block= MY_MAX(records_in_block, max_records / 10);
   /* We don't want too few blocks per row either */
   if (records_in_block < 10)
     records_in_block= 10;

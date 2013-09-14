@@ -1,0 +1,4 @@
+create table innodb_table_monitor (a int) engine=InnoDB;
+Warnings:
+Warning	131	Using innodb_table_monitor is deprecated and it may be removed in future releases. Please use the InnoDB INFORMATION_SCHEMA tables instead, see http://dev.mysql.com/doc/refman/5.6/en/innodb-i_s-tables.html
+drop table innodb_table_monitor;

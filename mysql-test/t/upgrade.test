@@ -33,18 +33,17 @@ drop database `mysqltest-1`;
 #
 # Bug#17142: Crash if create with encoded name
 #
---disable_warnings
-drop table if exists `txu@0023p@0023p1`;
-drop table if exists `txu#p#p1`;
---enable_warnings
 create table `txu#p#p1` (s1 int);
 insert into `txu#p#p1` values (1);
 --error 1146
 select * from `txu@0023p@0023p1`;
---error ER_TABLE_EXISTS_ERROR
 create table `txu@0023p@0023p1` (s1 int);
+show tables;
+insert into `txu@0023p@0023p1` values (2);
+select * from `txu@0023p@0023p1`;
 select * from `txu#p#p1`;
 drop table `txu#p#p1`;
+drop table `txu@0023p@0023p1`;
 
 --echo #
 --echo # Bug#37631 Incorrect key file for table after upgrading from 5.0 to 5.1

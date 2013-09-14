@@ -29,7 +29,7 @@ Request and Response
   lines) at one time, and receive responses for them at one time.
 
 ----------------------------------------------------------------------------
-'open_index' request
+Opening index
 
 The 'open_index' request has the following syntax.
 
@@ -74,23 +74,21 @@ FILETER is a sequence of the following parameters.
   HandlerSocket supports '=', '>', '>=', '<', and '<='.
 - <vlen> indicates the length of the trailing parameters <v1> ... <vn>. This
   must be smaller than or equal to the number of index columns specified by
-  the <columns> parameter of the corresponding 'open_index' request.
+  the <indexname> parameter of the corresponding 'open_index' request.
 - <v1> ... <vn> specify the index column values to fetch.
 - LIM is optional. <limit> and <offset> are numbers. When omitted, it works
   as if 1 and 0 are specified. These parameter works like LIMIT of SQL.
   These values don't include the number of records skipped by a filter.
 - IN is optional. It works like WHERE ... IN syntax of SQL. <icol> must be
-  smaller than or equal to the number of index columns specified by the
-  <columns> parameter of the corresponding 'open_index' request. If IN is
-  specified in a find request, the <icol>-th parameter value of <v1> ...
-  <vn> is ignored.
-  smaller than or equal to the number of index columns specified by the
+  smaller than the number of index columns specified by the <indexname>
+  parameter of the corresponding 'open_index' request. If IN is specified in
+  a find request, the <icol>-th parameter value of <v1> ...  <vn> is ignored.
 - FILTERs are optional. A FILTER specifies a filter. <ftyp> is either 'F'
   (filter) or 'W' (while). <fop> specifies the comparison operation to use.
-  <fcol> must be smaller than or equal to the number of columns specified by
-  the <fcolumns> parameter of the corresponding 'open_index' request.
-  Multiple filters can be specified, and work as the logical AND of them.
-  The difference of 'F' and 'W' is that, when a record does not meet the
+  <fcol> must be smaller than the number of columns specified by the
+  <fcolumns> parameter of the corresponding 'open_index' request. Multiple
+  filters can be specified, and work as the logical AND of them. The
+  difference of 'F' and 'W' is that, when a record does not meet the
   specified condition, 'F' simply skips the record, and 'W' stops the loop.
 
 ----------------------------------------------------------------------------
@@ -112,8 +110,8 @@ MOD is a sequence of the following parameters.
   <mk> must be smaller than or equal to the length of <columns> specified by
   the corresponding 'open_index' request. If <mop> is 'D', these parameters
   are ignored. If <mop> is '+' or '-', values must be numeric. If <mop> is
-  '-' and it attempts to change column values from negative to positive or
-  positive to negative, it is not modified.
+  '-' and it attempts to change a column value from negative to positive or
+  positive to negative, the column value is not modified.
 
 ----------------------------------------------------------------------------
 Inserting data
@@ -187,12 +185,21 @@ syntax.
    0 1 <nummod>
 
 - <nummod> is the number of modified rows.
+- As an exception, if the '?' suffix is specified in <mop>, a response has
+  the syntax of a response for 'find' instead.
 
 ----------------------------------------------------------------------------
 Response for 'insert'
 
 If 'insert' is succeeded, HanderSocket returns a line of the following
 syntax.
+
+   0 1
+
+----------------------------------------------------------------------------
+Response for 'auth'
+
+If 'auth' is succeeded, HanderSocket returns a line of the following syntax.
 
    0 1
 

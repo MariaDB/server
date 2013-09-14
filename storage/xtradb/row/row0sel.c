@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -57,6 +57,8 @@ Created 12/19/1997 Heikki Tuuri
 #include "read0read.h"
 #include "buf0lru.h"
 #include "ha_prototypes.h"
+#include "m_string.h" /* for my_sys.h */
+#include "my_sys.h" /* DEBUG_SYNC_C */
 
 #include "my_compare.h" /* enum icp_result */
 
@@ -2489,6 +2491,9 @@ row_sel_convert_mysql_key_to_innobase(
 		dfield++;
 	}
 
+	DBUG_EXECUTE_IF("innodb_srch_key_buffer_full",
+		ut_a(buf == (original_buf + buf_len)););
+
 	ut_a(buf <= original_buf + buf_len);
 
 	/* We set the length of tuple to n_fields: we assume that the memory
@@ -3641,13 +3646,13 @@ row_search_for_mysql(
 	should_release = 0;
 	for (i = 0; i < btr_search_index_num; i++) {
 		/* we should check all latches (fix Bug#791030) */
-		if (rw_lock_get_writer(btr_search_latch_part[i])
-		    != RW_LOCK_NOT_LOCKED) {
+		if (UNIV_UNLIKELY(rw_lock_get_writer(btr_search_latch_part[i])
+				  != RW_LOCK_NOT_LOCKED)) {
 			should_release |= ((ulint)1 << i);
 		}
 	}
 
-	if (should_release) {
+	if (UNIV_UNLIKELY(should_release)) {
 
 		/* There is an x-latch request on the adaptive hash index:
 		release the s-latch to reduce starvation and wait for
@@ -3949,9 +3954,9 @@ release_search_latch_if_needed:
 		trx->has_search_latch = FALSE;
 	}
 
-	ut_ad(prebuilt->sql_stat_start || trx->conc_state == TRX_ACTIVE);
-	ut_ad(trx->conc_state == TRX_NOT_STARTED
-	      || trx->conc_state == TRX_ACTIVE);
+	ut_ad(prebuilt->sql_stat_start || trx->state == TRX_ACTIVE);
+	ut_ad(trx->state == TRX_NOT_STARTED
+	      || trx->state == TRX_ACTIVE);
 	ut_ad(prebuilt->sql_stat_start
 	      || prebuilt->select_lock_type != LOCK_NONE
 	      || trx->read_view);
@@ -4124,16 +4129,23 @@ wait_table_again:
 	}
 
 rec_loop:
+	DEBUG_SYNC_C("row_search_rec_loop");
+	if (trx_is_interrupted(trx)) {
+		btr_pcur_store_position(pcur, &mtr);
+		err = DB_INTERRUPTED;
+		goto normal_return;
+	}
+
 	/*-------------------------------------------------------------*/
 	/* PHASE 4: Look for matching records in a loop */
 
 	rec = btr_pcur_get_rec(pcur);
 
-	if (srv_pass_corrupt_table && !rec) {
+	SRV_CORRUPT_TABLE_CHECK(rec,
+	{
 		err = DB_CORRUPTION;
 		goto lock_wait_or_error;
-	}
-	ut_a(rec);
+	});
 
 	ut_ad(!!page_rec_is_comp(rec) == comp);
 #ifdef UNIV_SEARCH_DEBUG
@@ -4270,8 +4282,9 @@ wrong_offs:
 
 	offsets = rec_get_offsets(rec, index, offsets, ULINT_UNDEFINED, &heap);
 
-	if (UNIV_UNLIKELY(srv_force_recovery > 0)
-	    || (srv_pass_corrupt_table == 2 && index->table->is_corrupt)) {
+	if (UNIV_UNLIKELY(srv_force_recovery > 0
+			  || (index->table->is_corrupt &&
+			      srv_pass_corrupt_table == 2))) {
 		if (!rec_validate(rec, offsets)
 		    || !btr_index_rec_validate(rec, index, FALSE)) {
 			fprintf(stderr,
@@ -5084,8 +5097,10 @@ row_search_check_if_query_cache_permitted(
 		if (trx->isolation_level >= TRX_ISO_REPEATABLE_READ
 		    && !trx->read_view) {
 
-			trx->read_view = read_view_open_now(
-				trx->id, trx->global_read_view_heap);
+			trx->read_view =
+				read_view_open_now(trx->id,
+						   trx->prebuilt_view, TRUE);
+			trx->prebuilt_view = trx->read_view;
 			trx->global_read_view = trx->read_view;
 		}
 	}
@@ -5118,11 +5133,15 @@ row_search_autoinc_read_column(
 
 	rec_offs_init(offsets_);
 
-	offsets = rec_get_offsets(rec, index, offsets, ULINT_UNDEFINED, &heap);
+	offsets = rec_get_offsets(rec, index, offsets, col_no + 1, &heap);
+
+	if (rec_offs_nth_sql_null(offsets, col_no)) {
+		/* There is no non-NULL value in the auto-increment column. */
+		value = 0;
+		goto func_exit;
+	}
 
 	data = rec_get_nth_field(rec, offsets, col_no, &len);
-
-	ut_a(len != UNIV_SQL_NULL);
 
 	switch (mtype) {
 	case DATA_INT:
@@ -5144,12 +5163,13 @@ row_search_autoinc_read_column(
 		ut_error;
 	}
 
-	if (UNIV_LIKELY_NULL(heap)) {
-		mem_heap_free(heap);
-	}
-
 	if (!unsigned_type && (ib_int64_t) value < 0) {
 		value = 0;
+	}
+
+func_exit:
+	if (UNIV_LIKELY_NULL(heap)) {
+		mem_heap_free(heap);
 	}
 
 	return(value);

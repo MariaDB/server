@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2004, 2012, Oracle and/or its affiliates
+   Copyright (c) 2010, 2013 Monty Program Ab.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -25,6 +26,7 @@
 #include <myisam.h>                             // T_EXTEND
 
 #include "ha_archive.h"
+#include "discover.h"
 #include <my_dir.h>
 
 #include <mysql/plugin.h>
@@ -95,16 +97,26 @@
      inserts a lot faster, but would mean highly arbitrary reads.
 
     -Brian
+
+  Archive file format versions:
+  <5.1.5 - v.1
+  5.1.5-5.1.15 - v.2
+  >5.1.15 - v.3
 */
 
-/* Variables for archive share methods */
-mysql_mutex_t archive_mutex;
-static HASH archive_open_tables;
 
 /* The file extension */
 #define ARZ ".ARZ"               // The data file
 #define ARN ".ARN"               // Files used during an optimize call
 #define ARM ".ARM"               // Meta file (deprecated)
+
+/* 5.0 compatibility */
+#define META_V1_OFFSET_CHECK_HEADER  0
+#define META_V1_OFFSET_VERSION       1
+#define META_V1_OFFSET_ROWS_RECORDED 2
+#define META_V1_OFFSET_CHECK_POINT   10
+#define META_V1_OFFSET_CRASHED       18
+#define META_V1_LENGTH               19
 
 /*
   uchar + uchar
@@ -120,10 +132,7 @@ extern "C" PSI_file_key arch_key_file_data;
 static handler *archive_create_handler(handlerton *hton, 
                                        TABLE_SHARE *table, 
                                        MEM_ROOT *mem_root);
-int archive_discover(handlerton *hton, THD* thd, const char *db, 
-                     const char *name,
-                     uchar **frmblob, 
-                     size_t *frmlen);
+int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share);
 
 /*
   Number of rows that will force a bulk insert.
@@ -142,31 +151,19 @@ static handler *archive_create_handler(handlerton *hton,
   return new (mem_root) ha_archive(hton, table);
 }
 
-/*
-  Used for hash table that tracks open tables.
-*/
-static uchar* archive_get_key(ARCHIVE_SHARE *share, size_t *length,
-                             my_bool not_used __attribute__((unused)))
-{
-  *length=share->table_name_length;
-  return (uchar*) share->table_name;
-}
-
 #ifdef HAVE_PSI_INTERFACE
-PSI_mutex_key az_key_mutex_archive_mutex, az_key_mutex_ARCHIVE_SHARE_mutex;
+PSI_mutex_key az_key_mutex_Archive_share_mutex;
 
 static PSI_mutex_info all_archive_mutexes[]=
 {
-  { &az_key_mutex_archive_mutex, "archive_mutex", PSI_FLAG_GLOBAL},
-  { &az_key_mutex_ARCHIVE_SHARE_mutex, "ARCHIVE_SHARE::mutex", 0}
+  { &az_key_mutex_Archive_share_mutex, "Archive_share::mutex", 0}
 };
 
-PSI_file_key arch_key_file_metadata, arch_key_file_data, arch_key_file_frm;
+PSI_file_key arch_key_file_metadata, arch_key_file_data;
 static PSI_file_info all_archive_files[]=
 {
     { &arch_key_file_metadata, "metadata", 0},
-    { &arch_key_file_data, "data", 0},
-    { &arch_key_file_frm, "FRM", 0}
+    { &arch_key_file_data, "data", 0}
 };
 
 static void init_archive_psi_keys(void)
@@ -198,6 +195,16 @@ static void init_archive_psi_keys(void)
     TRUE        Error
 */
 
+/*
+  We just implement one additional file extension.
+  ARM is here just to properly drop 5.0 tables.
+*/
+static const char *ha_archive_exts[] = {
+  ARZ,
+  ARM,
+  NullS
+};
+
 int archive_db_init(void *p)
 {
   DBUG_ENTER("archive_db_init");
@@ -212,41 +219,27 @@ int archive_db_init(void *p)
   archive_hton->db_type= DB_TYPE_ARCHIVE_DB;
   archive_hton->create= archive_create_handler;
   archive_hton->flags= HTON_NO_FLAGS;
-  archive_hton->discover= archive_discover;
+  archive_hton->discover_table= archive_discover;
+  archive_hton->tablefile_extensions= ha_archive_exts;
 
-  if (mysql_mutex_init(az_key_mutex_archive_mutex,
-                       &archive_mutex, MY_MUTEX_INIT_FAST))
-    goto error;
-  if (my_hash_init(&archive_open_tables, table_alias_charset, 32, 0, 0,
-                (my_hash_get_key) archive_get_key, 0, 0))
-  {
-    mysql_mutex_destroy(&archive_mutex);
-  }
-  else
-  {
-    DBUG_RETURN(FALSE);
-  }
-error:
-  DBUG_RETURN(TRUE);
+  DBUG_RETURN(0);
 }
 
-/*
-  Release the archive handler.
 
-  SYNOPSIS
-    archive_db_done()
-    void
-
-  RETURN
-    FALSE       OK
-*/
-
-int archive_db_done(void *p)
+Archive_share::Archive_share()
 {
-  my_hash_free(&archive_open_tables);
-  mysql_mutex_destroy(&archive_mutex);
-
-  return 0;
+  crashed= false;
+  in_optimize= false;
+  archive_write_open= false;
+  dirty= false;
+  DBUG_PRINT("ha_archive", ("Archive_share: %p",
+                            this));
+  thr_lock_init(&lock);
+  /*
+    We will use this lock for rows.
+  */
+  mysql_mutex_init(az_key_mutex_Archive_share_mutex,
+                   &mutex, MY_MUTEX_INIT_FAST);
 }
 
 
@@ -261,22 +254,20 @@ ha_archive::ha_archive(handlerton *hton, TABLE_SHARE *table_arg)
   archive_reader_open= FALSE;
 }
 
-int archive_discover(handlerton *hton, THD* thd, const char *db, 
-                     const char *name,
-                     uchar **frmblob, 
-                     size_t *frmlen)
+int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share)
 {
   DBUG_ENTER("archive_discover");
-  DBUG_PRINT("archive_discover", ("db: %s, name: %s", db, name)); 
+  DBUG_PRINT("archive_discover", ("db: '%s'  name: '%s'", share->db.str,
+                                  share->table_name.str)); 
   azio_stream frm_stream;
   char az_file[FN_REFLEN];
-  char *frm_ptr;
+  uchar *frm_ptr;
   MY_STAT file_stat; 
 
-  build_table_filename(az_file, sizeof(az_file) - 1, db, name, ARZ, 0);
+  strxmov(az_file, share->normalized_path.str, ARZ, NullS);
 
   if (!(mysql_file_stat(/* arch_key_file_data */ 0, az_file, &file_stat, MYF(0))))
-    goto err;
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
 
   if (!(azopen(&frm_stream, az_file, O_RDONLY|O_BINARY)))
   {
@@ -286,19 +277,120 @@ int archive_discover(handlerton *hton, THD* thd, const char *db,
   }
 
   if (frm_stream.frm_length == 0)
-    goto err;
+    DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
 
-  frm_ptr= (char *)my_malloc(sizeof(char) * frm_stream.frm_length, MYF(0));
-  azread_frm(&frm_stream, frm_ptr);
+  frm_ptr= (uchar *)my_malloc(sizeof(char) * frm_stream.frm_length,
+                              MYF(MY_THREAD_SPECIFIC | MY_WME));
+  if (!frm_ptr)
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+  if (azread_frm(&frm_stream, frm_ptr))
+    goto ret;
+
   azclose(&frm_stream);
 
-  *frmlen= frm_stream.frm_length;
-  *frmblob= (uchar*) frm_ptr;
+  my_errno= share->init_from_binary_frm_image(thd, 1,
+                                              frm_ptr, frm_stream.frm_length);
+ret:
+  my_free(frm_ptr);
+  DBUG_RETURN(my_errno);
+}
 
+/**
+  @brief Read version 1 meta file (5.0 compatibility routine).
+
+  @return Completion status
+    @retval  0 Success
+    @retval !0 Failure
+*/
+
+int Archive_share::read_v1_metafile()
+{
+  char file_name[FN_REFLEN];
+  uchar buf[META_V1_LENGTH];
+  File fd;
+  DBUG_ENTER("Archive_share::read_v1_metafile");
+
+  fn_format(file_name, data_file_name, "", ARM, MY_REPLACE_EXT);
+  if ((fd= mysql_file_open(arch_key_file_metadata, file_name, O_RDONLY, MYF(0))) == -1)
+    DBUG_RETURN(-1);
+
+  if (mysql_file_read(fd, buf, sizeof(buf), MYF(0)) != sizeof(buf))
+  {
+    mysql_file_close(fd, MYF(0));
+    DBUG_RETURN(-1);
+  }
+  
+  rows_recorded= uint8korr(buf + META_V1_OFFSET_ROWS_RECORDED);
+  crashed= buf[META_V1_OFFSET_CRASHED];
+  mysql_file_close(fd, MYF(0));
   DBUG_RETURN(0);
-err:
-  my_errno= 0;
-  DBUG_RETURN(1);
+}
+
+
+/**
+  @brief Write version 1 meta file (5.0 compatibility routine).
+
+  @return Completion status
+    @retval  0 Success
+    @retval !0 Failure
+*/
+
+int Archive_share::write_v1_metafile()
+{
+  char file_name[FN_REFLEN];
+  uchar buf[META_V1_LENGTH];
+  File fd;
+  DBUG_ENTER("Archive_share::write_v1_metafile");
+
+  buf[META_V1_OFFSET_CHECK_HEADER]= ARCHIVE_CHECK_HEADER;
+  buf[META_V1_OFFSET_VERSION]= 1;
+  int8store(buf + META_V1_OFFSET_ROWS_RECORDED, rows_recorded);
+  int8store(buf + META_V1_OFFSET_CHECK_POINT, (ulonglong) 0);
+  buf[META_V1_OFFSET_CRASHED]= crashed;
+
+  fn_format(file_name, data_file_name, "", ARM, MY_REPLACE_EXT);
+  if ((fd= mysql_file_open(arch_key_file_metadata, file_name, O_WRONLY, MYF(0))) == -1)
+    DBUG_RETURN(-1);
+
+  if (mysql_file_write(fd, buf, sizeof(buf), MYF(0)) != sizeof(buf))
+  {
+    mysql_file_close(fd, MYF(0));
+    DBUG_RETURN(-1);
+  }
+  
+  mysql_file_close(fd, MYF(0));
+  DBUG_RETURN(0);
+}
+
+/**
+  @brief Pack version 1 row (5.0 compatibility routine).
+
+  @param[in]  record  the record to pack
+
+  @return Length of packed row
+*/
+
+unsigned int ha_archive::pack_row_v1(uchar *record)
+{
+  uint *blob, *end;
+  uchar *pos;
+  DBUG_ENTER("pack_row_v1");
+  memcpy(record_buffer->buffer, record, table->s->reclength);
+  pos= record_buffer->buffer + table->s->reclength;
+  for (blob= table->s->blob_field, end= blob + table->s->blob_fields;
+       blob != end; blob++)
+  {
+    uint32 length= ((Field_blob *) table->field[*blob])->get_length();
+    if (length)
+    {
+      uchar *data_ptr;
+      ((Field_blob *) table->field[*blob])->get_ptr(&data_ptr);
+      memcpy(pos, data_ptr, length);
+      pos+= length;
+    }
+  }
+  DBUG_RETURN(pos - record_buffer->buffer);
 }
 
 /*
@@ -353,153 +445,102 @@ int ha_archive::read_data_header(azio_stream *file_to_read)
 
   See ha_example.cc for a longer description.
 */
-ARCHIVE_SHARE *ha_archive::get_share(const char *table_name, int *rc)
+Archive_share *ha_archive::get_share(const char *table_name, int *rc)
 {
-  uint length;
+  Archive_share *tmp_share;
+
   DBUG_ENTER("ha_archive::get_share");
 
-  mysql_mutex_lock(&archive_mutex);
-  length=(uint) strlen(table_name);
-
-  if (!(share=(ARCHIVE_SHARE*) my_hash_search(&archive_open_tables,
-                                              (uchar*) table_name,
-                                              length)))
+  lock_shared_ha_data();
+  if (!(tmp_share= static_cast<Archive_share*>(get_ha_share_ptr())))
   {
-    char *tmp_name;
     azio_stream archive_tmp;
 
-    if (!my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
-                          &share, sizeof(*share),
-                          &tmp_name, length+1,
-                          NullS)) 
-    {
-      mysql_mutex_unlock(&archive_mutex);
-      *rc= HA_ERR_OUT_OF_MEM;
-      DBUG_RETURN(NULL);
-    }
+    tmp_share= new Archive_share;
 
-    share->use_count= 0;
-    share->table_name_length= length;
-    share->table_name= tmp_name;
-    share->crashed= FALSE;
-    share->archive_write_open= FALSE;
-    fn_format(share->data_file_name, table_name, "",
+    if (!tmp_share)
+    {
+      *rc= HA_ERR_OUT_OF_MEM;
+      goto err;
+    }
+    DBUG_PRINT("ha_archive", ("new Archive_share: %p",
+                              tmp_share));
+
+    fn_format(tmp_share->data_file_name, table_name, "",
               ARZ, MY_REPLACE_EXT | MY_UNPACK_FILENAME);
-    strmov(share->table_name, table_name);
-    DBUG_PRINT("ha_archive", ("Data File %s", 
-                        share->data_file_name));
-    /*
-      We will use this lock for rows.
-    */
-    mysql_mutex_init(az_key_mutex_ARCHIVE_SHARE_mutex,
-                     &share->mutex, MY_MUTEX_INIT_FAST);
-    
+    strmov(tmp_share->table_name, table_name);
+    DBUG_PRINT("ha_archive", ("Data File %s",
+                        tmp_share->data_file_name));
+
     /*
       We read the meta file, but do not mark it dirty. Since we are not
       doing a write we won't mark it dirty (and we won't open it for
       anything but reading... open it for write and we will generate null
       compression writes).
     */
-    if (!(azopen(&archive_tmp, share->data_file_name, O_RDONLY|O_BINARY)))
+    if (!(azopen(&archive_tmp, tmp_share->data_file_name, O_RDONLY|O_BINARY)))
     {
-      *rc= my_errno ? my_errno : -1;
-      mysql_mutex_unlock(&archive_mutex);
-      mysql_mutex_destroy(&share->mutex);
-      my_free(share);
-      DBUG_RETURN(NULL);
+      delete tmp_share;
+      *rc= my_errno ? my_errno : HA_ERR_CRASHED;
+      tmp_share= NULL;
+      goto err;
     }
-    share->version= archive_tmp.version;
-    if (archive_tmp.version == ARCHIVE_VERSION)
-    {
-      stats.auto_increment_value= archive_tmp.auto_increment + 1;
-      share->rows_recorded= (ha_rows)archive_tmp.rows;
-      share->crashed= archive_tmp.dirty;
-    }
-    else
-    {
-      /* Used by repair */
-      share->rows_recorded= ~(ha_rows) 0;
-      stats.auto_increment_value= 0;
-    }
-    /*
-      If archive version is less than 3, It should be upgraded before
-      use.
-    */
-    if (archive_tmp.version < ARCHIVE_VERSION)
-      *rc= HA_ERR_TABLE_NEEDS_UPGRADE;
+    stats.auto_increment_value= archive_tmp.auto_increment + 1;
+    tmp_share->rows_recorded= (ha_rows)archive_tmp.rows;
+    tmp_share->crashed= archive_tmp.dirty;
+    share= tmp_share;
+    if (archive_tmp.version == 1)
+      share->read_v1_metafile();
+    else if (frm_compare(&archive_tmp))
+      *rc= HA_ERR_TABLE_DEF_CHANGED;
+
     azclose(&archive_tmp);
 
-    (void) my_hash_insert(&archive_open_tables, (uchar*) share);
-    thr_lock_init(&share->lock);
+    set_ha_share_ptr(static_cast<Handler_share*>(tmp_share));
   }
-  share->use_count++;
-  DBUG_PRINT("ha_archive", ("archive table %.*s has %d open handles now", 
-                      share->table_name_length, share->table_name,
-                      share->use_count));
-  if (share->crashed)
+  if (tmp_share->crashed)
     *rc= HA_ERR_CRASHED_ON_USAGE;
-  mysql_mutex_unlock(&archive_mutex);
+err:
+  unlock_shared_ha_data();
 
-  DBUG_RETURN(share);
+  DBUG_ASSERT(tmp_share || *rc);
+
+  DBUG_RETURN(tmp_share);
 }
 
 
-/* 
-  Free the share.
-  See ha_example.cc for a description.
-*/
-int ha_archive::free_share()
+int Archive_share::init_archive_writer()
 {
-  int rc= 0;
-  DBUG_ENTER("ha_archive::free_share");
-  DBUG_PRINT("ha_archive",
-             ("archive table %.*s has %d open handles on entrance", 
-              share->table_name_length, share->table_name,
-              share->use_count));
-
-  mysql_mutex_lock(&archive_mutex);
-  if (!--share->use_count)
-  {
-    my_hash_delete(&archive_open_tables, (uchar*) share);
-    thr_lock_delete(&share->lock);
-    mysql_mutex_destroy(&share->mutex);
-    /* 
-      We need to make sure we don't reset the crashed state.
-      If we open a crashed file, wee need to close it as crashed unless
-      it has been repaired.
-      Since we will close the data down after this, we go on and count
-      the flush on close;
-    */
-    if (share->archive_write_open)
-    {
-      if (azclose(&(share->archive_write)))
-        rc= 1;
-    }
-    my_free(share);
-  }
-  mysql_mutex_unlock(&archive_mutex);
-
-  DBUG_RETURN(rc);
-}
-
-int ha_archive::init_archive_writer()
-{
-  DBUG_ENTER("ha_archive::init_archive_writer");
-  /* 
+  DBUG_ENTER("Archive_share::init_archive_writer");
+  /*
     It is expensive to open and close the data files and since you can't have
     a gzip file that can be both read and written we keep a writer open
     that is shared amoung all open tables.
   */
-  if (!(azopen(&(share->archive_write), share->data_file_name, 
+  if (!(azopen(&archive_write, data_file_name,
                O_RDWR|O_BINARY)))
   {
     DBUG_PRINT("ha_archive", ("Could not open archive write file"));
-    share->crashed= TRUE;
+    crashed= true;
     DBUG_RETURN(1);
   }
-  share->archive_write_open= TRUE;
+  archive_write_open= true;
 
   DBUG_RETURN(0);
+}
+
+
+void Archive_share::close_archive_writer()
+{
+  mysql_mutex_assert_owner(&mutex);
+  if (archive_write_open)
+  {
+    if (archive_write.version == 1)
+      (void) write_v1_metafile();
+    azclose(&archive_write);
+    archive_write_open= false;
+    dirty= false;
+  }
 }
 
 
@@ -512,7 +553,8 @@ int ha_archive::init_archive_reader()
   /* 
     It is expensive to open and close the data files and since you can't have
     a gzip file that can be both read and written we keep a writer open
-    that is shared amoung all open tables.
+    that is shared amoung all open tables, but have one reader open for
+    each handler instance.
   */
   if (!archive_reader_open)
   {
@@ -526,20 +568,6 @@ int ha_archive::init_archive_reader()
   }
 
   DBUG_RETURN(0);
-}
-
-
-/*
-  We just implement one additional file extension.
-*/
-static const char *ha_archive_exts[] = {
-  ARZ,
-  NullS
-};
-
-const char **ha_archive::bas_ext() const
-{
-  return ha_archive_exts;
 }
 
 
@@ -557,33 +585,21 @@ int ha_archive::open(const char *name, int mode, uint open_options)
   DBUG_PRINT("ha_archive", ("archive table was opened for crash: %s", 
                       (open_options & HA_OPEN_FOR_REPAIR) ? "yes" : "no"));
   share= get_share(name, &rc);
+  if (!share)
+    DBUG_RETURN(rc);
 
- /*
-    Allow open on crashed table in repair mode only.
-    Block open on 5.0 ARCHIVE table. Though we have almost all
-    routines to access these tables, they were not well tested.
-    For now we have to refuse to open such table to avoid
-    potential data loss.
-  */
+  /* Allow open on crashed table in repair mode only. */
   switch (rc)
   {
   case 0:
     break;
+  case HA_ERR_TABLE_DEF_CHANGED:
   case HA_ERR_CRASHED_ON_USAGE:
-    DBUG_PRINT("ha_archive", ("archive table was crashed"));
     if (open_options & HA_OPEN_FOR_REPAIR)
     {
       rc= 0;
       break;
     }
-    /* fall through */
-  case HA_ERR_TABLE_NEEDS_UPGRADE:
-    if (open_options & HA_OPEN_FOR_REPAIR)
-    {
-      rc= 0;
-      break;
-    }
-    free_share();
     /* fall through */
   default:
     DBUG_RETURN(rc);
@@ -595,12 +611,16 @@ int ha_archive::open(const char *name, int mode, uint open_options)
                                       ARCHIVE_ROW_HEADER_SIZE);
 
   if (!record_buffer)
-  {
-    free_share();
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  }
 
   thr_lock_data_init(&share->lock, &lock, NULL);
+
+  DBUG_PRINT("ha_archive", ("archive table was crashed %s", 
+                      rc == HA_ERR_CRASHED_ON_USAGE ? "yes" : "no"));
+  if (rc == HA_ERR_CRASHED_ON_USAGE && open_options & HA_OPEN_FOR_REPAIR)
+  {
+    DBUG_RETURN(0);
+  }
 
   DBUG_RETURN(rc);
 }
@@ -636,8 +656,6 @@ int ha_archive::close(void)
     if (azclose(&archive))
       rc= 1;
   }
-  /* then also close share */
-  rc|= free_share();
 
   DBUG_RETURN(rc);
 }
@@ -655,9 +673,21 @@ int ha_archive::close(void)
 int ha_archive::frm_copy(azio_stream *src, azio_stream *dst)
 {
   int rc= 0;
-  char *frm_ptr;
+  uchar *frm_ptr;
 
-  if (!(frm_ptr= (char *) my_malloc(src->frm_length, MYF(0))))
+  if (!src->frm_length)
+  {
+    size_t frm_len;
+    if (!table_share->read_frm_image((const uchar**) &frm_ptr, &frm_len))
+    {
+      azwrite_frm(dst, frm_ptr, frm_len);
+      table_share->free_frm_image(frm_ptr);
+    }
+    return 0;
+  }
+
+  if (!(frm_ptr= (uchar *) my_malloc(src->frm_length,
+                                     MYF(MY_THREAD_SPECIFIC | MY_WME))))
     return HA_ERR_OUT_OF_MEM;
 
   /* Write file offset is set to the end of the file. */
@@ -668,6 +698,25 @@ int ha_archive::frm_copy(azio_stream *src, azio_stream *dst)
   my_free(frm_ptr);
 
   return rc;
+}
+
+
+/**
+  Compare frm blob with the on-disk frm file
+
+  @param  s     The azio stream.
+
+  @return Zero if equal, non-zero otherwise.
+*/
+
+int ha_archive::frm_compare(azio_stream *s)
+{
+  if (!s->frmver_length)
+    return 0; // Old pre-10.0 archive table. Never rediscover.
+
+  LEX_CUSTRING *ver= &table->s->tabledef_version;
+  return ver->length != s->frmver_length ||
+         memcmp(ver->str,  s->frmver, ver->length);
 }
 
 
@@ -687,9 +736,8 @@ int ha_archive::create(const char *name, TABLE *table_arg,
   char linkname[FN_REFLEN];
   int error;
   azio_stream create_stream;            /* Archive file we are working with */
-  File frm_file;                   /* File handler for readers */
-  MY_STAT file_stat;  // Stat information for the data file
-  uchar *frm_ptr;
+  const uchar *frm_ptr;
+  size_t frm_len;
 
   DBUG_ENTER("ha_archive::create");
 
@@ -699,7 +747,7 @@ int ha_archive::create(const char *name, TABLE *table_arg,
   {
     KEY *pos= table_arg->key_info+key;
     KEY_PART_INFO *key_part=     pos->key_part;
-    KEY_PART_INFO *key_part_end= key_part + pos->key_parts;
+    KEY_PART_INFO *key_part_end= key_part + pos->user_defined_key_parts;
 
     for (; key_part != key_part_end; key_part++)
     {
@@ -707,7 +755,7 @@ int ha_archive::create(const char *name, TABLE *table_arg,
 
       if (!(field->flags & AUTO_INCREMENT_FLAG))
       {
-        error= -1;
+        error= HA_WRONG_CREATE_OPTION;
         DBUG_PRINT("ha_archive", ("Index error in creating archive table"));
         goto error;
       }
@@ -738,56 +786,40 @@ int ha_archive::create(const char *name, TABLE *table_arg,
     There is a chance that the file was "discovered". In this case
     just use whatever file is there.
   */
-  if (!(mysql_file_stat(/* arch_key_file_data */ 0, name_buff, &file_stat, MYF(0))))
+  my_errno= 0;
+  if (!(azopen(&create_stream, name_buff, O_CREAT|O_RDWR|O_BINARY)))
   {
-    my_errno= 0;
-    if (!(azopen(&create_stream, name_buff, O_CREAT|O_RDWR|O_BINARY)))
-    {
-      error= errno;
-      goto error2;
-    }
-
-    if (linkname[0])
-      my_symlink(name_buff, linkname, MYF(0));
-    fn_format(name_buff, name, "", ".frm",
-              MY_REPLACE_EXT | MY_UNPACK_FILENAME);
-
-    /*
-      Here is where we open up the frm and pass it to archive to store 
-    */
-    if ((frm_file= mysql_file_open(arch_key_file_frm, name_buff, O_RDONLY, MYF(0))) >= 0)
-    {
-      if (!mysql_file_fstat(frm_file, &file_stat, MYF(MY_WME)))
-      {
-        frm_ptr= (uchar *)my_malloc(sizeof(uchar) * (size_t)file_stat.st_size, MYF(0));
-        if (frm_ptr)
-        {
-          mysql_file_read(frm_file, frm_ptr, (size_t)file_stat.st_size, MYF(0));
-          azwrite_frm(&create_stream, (char *)frm_ptr, (size_t)file_stat.st_size);
-          my_free(frm_ptr);
-        }
-      }
-      mysql_file_close(frm_file, MYF(0));
-    }
-
-    if (create_info->comment.str)
-      azwrite_comment(&create_stream, create_info->comment.str, 
-                      create_info->comment.length);
-
-    /* 
-      Yes you need to do this, because the starting value 
-      for the autoincrement may not be zero.
-    */
-    create_stream.auto_increment= stats.auto_increment_value ?
-                                    stats.auto_increment_value - 1 : 0;
-    if (azclose(&create_stream))
-    {
-      error= errno;
-      goto error2;
-    }
+    error= errno;
+    goto error2;
   }
-  else
-    my_errno= 0;
+
+  if (linkname[0])
+    my_symlink(name_buff, linkname, MYF(0));
+
+  /*
+    Here is where we open up the frm and pass it to archive to store 
+  */
+  if (!table_arg->s->read_frm_image(&frm_ptr, &frm_len))
+  {
+    azwrite_frm(&create_stream, frm_ptr, frm_len);
+    table_arg->s->free_frm_image(frm_ptr);
+  }
+
+  if (create_info->comment.str)
+    azwrite_comment(&create_stream, create_info->comment.str, 
+                    create_info->comment.length);
+
+  /* 
+    Yes you need to do this, because the starting value 
+    for the autoincrement may not be zero.
+  */
+  create_stream.auto_increment= stats.auto_increment_value ?
+                                  stats.auto_increment_value - 1 : 0;
+  if (azclose(&create_stream))
+  {
+    error= errno;
+    goto error2;
+  }
 
   DBUG_PRINT("ha_archive", ("Creating File %s", name_buff));
   DBUG_PRINT("ha_archive", ("Creating Link %s", linkname));
@@ -812,7 +844,7 @@ int ha_archive::real_write_row(uchar *buf, azio_stream *writer)
   DBUG_ENTER("ha_archive::real_write_row");
 
   /* We pack the row for writing */
-  r_pack_length= pack_row(buf);
+  r_pack_length= pack_row(buf, writer);
 
   written= azwrite(writer, record_buffer->buffer, r_pack_length);
   if (written != r_pack_length)
@@ -853,7 +885,7 @@ uint32 ha_archive::max_row_length(const uchar *buf)
 }
 
 
-unsigned int ha_archive::pack_row(uchar *record)
+unsigned int ha_archive::pack_row(uchar *record, azio_stream *writer)
 {
   uchar *ptr;
 
@@ -862,6 +894,9 @@ unsigned int ha_archive::pack_row(uchar *record)
 
   if (fix_rec_buff(max_row_length(record)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM); /* purecov: inspected */
+
+  if (writer->version == 1)
+    DBUG_RETURN(pack_row_v1(record));
 
   /* Copy null bits */
   memcpy(record_buffer->buffer+ARCHIVE_ROW_HEADER_SIZE, 
@@ -906,10 +941,11 @@ int ha_archive::write_row(uchar *buf)
 
   mysql_mutex_lock(&share->mutex);
 
-  if (!share->archive_write_open)
-    if (init_archive_writer())
-      DBUG_RETURN(errno);
-
+  if (!share->archive_write_open && share->init_archive_writer())
+  {
+    rc= errno;
+    goto error;
+  }
 
   if (table->next_number_field && record == table->record[0])
   {
@@ -939,7 +975,8 @@ int ha_archive::write_row(uchar *buf)
         First we create a buffer that we can use for reading rows, and can pass
         to get_row().
       */
-      if (!(read_buf= (uchar*) my_malloc(table->s->reclength, MYF(MY_WME))))
+      if (!(read_buf= (uchar*) my_malloc(table->s->reclength,
+                                         MYF(MY_THREAD_SPECIFIC | MY_WME))))
       {
         rc= HA_ERR_OUT_OF_MEM;
         goto error;
@@ -989,7 +1026,6 @@ int ha_archive::write_row(uchar *buf)
 error:
   mysql_mutex_unlock(&share->mutex);
   my_free(read_buf);
-
   DBUG_RETURN(rc);
 }
 
@@ -1373,11 +1409,26 @@ end:
   DBUG_RETURN(rc);
 }
 
+
+/**
+  @brief Check for upgrade
+
+  @param[in]  check_opt  check options
+
+  @return Completion status
+    @retval HA_ADMIN_OK            No upgrade required
+    @retval HA_ADMIN_CORRUPT       Cannot read meta-data
+    @retval HA_ADMIN_NEEDS_UPGRADE Upgrade required
+*/
+
 int ha_archive::check_for_upgrade(HA_CHECK_OPT *check_opt)
 {
-  if (share->version < ARCHIVE_VERSION)
-    return HA_ADMIN_NEEDS_ALTER;
-  return 0;
+  DBUG_ENTER("ha_archive::check_for_upgrade");
+  if (init_archive_reader())
+    DBUG_RETURN(HA_ADMIN_CORRUPT);
+  if (archive.version < ARCHIVE_VERSION)
+    DBUG_RETURN(HA_ADMIN_NEEDS_UPGRADE);
+  DBUG_RETURN(HA_ADMIN_OK);
 }
 
 
@@ -1412,7 +1463,10 @@ int ha_archive::optimize(THD* thd, HA_CHECK_OPT* check_opt)
   mysql_mutex_lock(&share->mutex);
 
   if (init_archive_reader())
+  {
+    mysql_mutex_unlock(&share->mutex);
     DBUG_RETURN(errno);
+  }
 
   // now we close both our writer and our reader for the rename
   if (share->archive_write_open)
@@ -1464,7 +1518,7 @@ int ha_archive::optimize(THD* thd, HA_CHECK_OPT* check_opt)
       share->rows_recorded= 0;
       stats.auto_increment_value= 1;
       share->archive_write.auto_increment= 0;
-      my_bitmap_map *org_bitmap= dbug_tmp_use_all_columns(table, table->read_set);
+      my_bitmap_map *org_bitmap= tmp_use_all_columns(table, table->read_set);
 
       while (!(rc= get_row(&archive, table->record[0])))
       {
@@ -1485,7 +1539,7 @@ int ha_archive::optimize(THD* thd, HA_CHECK_OPT* check_opt)
         }
       }
 
-      dbug_tmp_restore_column_map(table->read_set, org_bitmap);
+      tmp_restore_column_map(table->read_set, org_bitmap);
       share->rows_recorded= (ha_rows)writer.rows;
     }
 
@@ -1573,6 +1627,7 @@ THR_LOCK_DATA **ha_archive::store_lock(THD *thd,
 
 void ha_archive::update_create_info(HA_CREATE_INFO *create_info)
 {
+  char tmp_real_path[FN_REFLEN];
   DBUG_ENTER("ha_archive::update_create_info");
 
   ha_archive::info(HA_STATUS_AUTO);
@@ -1581,8 +1636,8 @@ void ha_archive::update_create_info(HA_CREATE_INFO *create_info)
     create_info->auto_increment_value= stats.auto_increment_value;
   }
 
-  if (!(my_readlink(share->real_path, share->data_file_name, MYF(0))))
-    create_info->data_file_name= share->real_path;
+  if (!(my_readlink(tmp_real_path, share->data_file_name, MYF(0))))
+    create_info->data_file_name= sql_strdup(tmp_real_path);
 
   DBUG_VOID_RETURN;
 }
@@ -1595,19 +1650,13 @@ int ha_archive::info(uint flag)
 {
   DBUG_ENTER("ha_archive::info");
 
-  /* 
-    If dirty, we lock, and then reset/flush the data.
-    I found that just calling azflush() doesn't always work.
-  */
   mysql_mutex_lock(&share->mutex);
-  if (share->dirty == TRUE)
+  if (share->dirty)
   {
-    if (share->dirty == TRUE)
-    {
-      DBUG_PRINT("ha_archive", ("archive flushing out rows for scan"));
-      azflush(&(share->archive_write), Z_SYNC_FLUSH);
-      share->dirty= FALSE;
-    }
+    DBUG_PRINT("ha_archive", ("archive flushing out rows for scan"));
+    DBUG_ASSERT(share->archive_write_open);
+    azflush(&(share->archive_write), Z_SYNC_FLUSH);
+    share->dirty= FALSE;
   }
 
   /* 
@@ -1683,7 +1732,10 @@ int ha_archive::end_bulk_insert()
 {
   DBUG_ENTER("ha_archive::end_bulk_insert");
   bulk_insert= FALSE;
-  share->dirty= TRUE;
+  mysql_mutex_lock(&share->mutex);
+  if (share->archive_write_open)
+    share->dirty= true;
+  mysql_mutex_unlock(&share->mutex);
   DBUG_RETURN(0);
 }
 
@@ -1806,26 +1858,23 @@ void ha_archive::destroy_record_buffer(archive_record_buffer *r)
   DBUG_VOID_RETURN;
 }
 
+/*
+  In archive *any* ALTER should cause a table to be rebuilt,
+  no ALTER can be frm-only.
+  Because after any change to the frm file archive must update the
+  frm image in the ARZ file. And this cannot be done in-place, it
+  requires ARZ file to be recreated from scratch
+*/
+bool ha_archive::check_if_incompatible_data(HA_CREATE_INFO *info,
+                                            uint table_changes)
+{
+  return COMPATIBLE_DATA_NO;
+}
+
+
 struct st_mysql_storage_engine archive_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(archive)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &archive_storage_engine,
-  "ARCHIVE",
-  "Brian Aker, MySQL AB",
-  "Archive storage engine",
-  PLUGIN_LICENSE_GPL,
-  archive_db_init, /* Plugin Init */
-  archive_db_done, /* Plugin Deinit */
-  0x0300 /* 3.0 */,
-  NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
-  NULL,                       /* config options                  */
-  0,                          /* flags                           */
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(archive)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -1835,7 +1884,7 @@ maria_declare_plugin(archive)
   "Archive storage engine",
   PLUGIN_LICENSE_GPL,
   archive_db_init, /* Plugin Init */
-  archive_db_done, /* Plugin Deinit */
+  NULL, /* Plugin Deinit */
   0x0300 /* 3.0 */,
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */

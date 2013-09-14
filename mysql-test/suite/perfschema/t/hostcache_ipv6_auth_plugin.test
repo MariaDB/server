@@ -14,9 +14,9 @@
 --source include/have_perfschema.inc
 --source include/have_plugin_auth.inc
 
-flush status;
-flush hosts;
-select @@global.debug;
+# Enforce a clean state
+--source ../include/wait_for_pfs_thread_count.inc
+--source ../include/hostcache_set_state.inc
 
 CREATE USER 'plug'@'santa.claus.ipv6.example.com'
   IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
@@ -30,7 +30,7 @@ select current_user();
 disconnect con1;
 
 --connection default
-set global debug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6";
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6";
 uninstall plugin test_plugin_server;
 
 --disable_query_log
@@ -49,9 +49,8 @@ connect (con3,"::1",plug,plug_dest,test,$MASTER_MYPORT,,,auth_test_plugin);
 --connection default
 --source ../include/hostcache_dump.inc
 
-#--replace_result $PLUGIN_AUTH PLUGIN_AUTH
-#eval install plugin test_plugin_server soname '$PLUGIN_AUTH';
-install plugin test_plugin_server soname 'auth_test_plugin';
+--replace_result $AUTH_TEST_PLUGIN_SO PLUGIN_AUTH
+eval install plugin test_plugin_server soname '$AUTH_TEST_PLUGIN_SO';
 
 --disable_query_log
 --error ER_ACCESS_DENIED_ERROR
@@ -87,5 +86,5 @@ REVOKE PROXY ON 'plug_dest'@'santa.claus.ipv6.example.com'
 DROP USER 'plug'@'santa.claus.ipv6.example.com';
 DROP USER 'plug_dest'@'santa.claus.ipv6.example.com';
 
-set global debug= default;
+set global debug_dbug= default;
 

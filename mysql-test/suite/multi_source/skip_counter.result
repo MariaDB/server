@@ -37,7 +37,7 @@ select @@global.sql_slave_skip_counter;
 select @@session.sql_slave_skip_counter;
 @@session.sql_slave_skip_counter
 0
-set global sql_slave_skip_counter= 3;
+set global sql_slave_skip_counter= 5;
 set default_master_connection = 'master1';
 select @@session.sql_slave_skip_counter;
 @@session.sql_slave_skip_counter
@@ -51,7 +51,7 @@ Warning	1617	There is no master connection 'qqq'
 set default_master_connection = 'master2';
 select @@session.sql_slave_skip_counter;
 @@session.sql_slave_skip_counter
-3
+5
 select @@global.max_relay_log_size;
 @@global.max_relay_log_size
 1073741824
