@@ -101,6 +101,15 @@ public:
     const char *alias,
     uint alias_length
   );
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  int open_item_sum_func(
+    Item_sum *item_sum,
+    ha_spider *spider,
+    spider_string *str,
+    const char *alias,
+    uint alias_length
+  );
+#endif
   int append_escaped_util(
     spider_string *to,
     String *from
@@ -134,6 +143,10 @@ public:
   bool is_null();
   int val_int();
   double val_real();
+  my_decimal *val_decimal(
+    my_decimal *decimal_value,
+    CHARSET_INFO *access_charset
+  );
   SPIDER_DB_ROW *clone();
   int store_to_tmp_table(
     TABLE *tmp_table,
@@ -845,12 +858,31 @@ public:
     const char *alias,
     uint alias_length
   );
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  int append_sum_select_part(
+    ulong sql_type,
+    const char *alias,
+    uint alias_length
+  );
+  int append_sum_select(
+    spider_string *str,
+    const char *alias,
+    uint alias_length
+  );
+#endif
   void set_order_pos(
     ulong sql_type
   );
   void set_order_to_pos(
     ulong sql_type
   );
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  int append_group_by(
+    spider_string *str,
+    const char *alias,
+    uint alias_length
+  );
+#endif
   int append_key_order_for_merge_with_alias_part(
     const char *alias,
     uint alias_length,

@@ -227,6 +227,11 @@ public:
 #ifdef INFO_KIND_FORCE_LIMIT_BEGIN
   longlong           info_limit;
 #endif
+  spider_index_rnd_init prev_index_rnd_init;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  SPIDER_ITEM_HLD    *direct_aggregate_item_first;
+  SPIDER_ITEM_HLD    *direct_aggregate_item_current;
+#endif
 
   /* for fulltext search */
   bool               ft_init_and_first;
@@ -697,6 +702,9 @@ public:
     uint info_type,
     void *info
   );
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  void return_record_by_parent();
+#endif
   TABLE *get_table();
   void set_ft_discard_bitmap();
   void set_searched_bitmap();
@@ -918,6 +926,13 @@ public:
     ulong sql_type,
     bool test_flg
   );
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  int append_sum_select_sql_part(
+    ulong sql_type,
+    const char *alias,
+    uint alias_length
+  );
+#endif
   int append_match_select_sql_part(
     ulong sql_type,
     const char *alias,

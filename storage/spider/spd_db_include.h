@@ -28,6 +28,7 @@
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100004
 #define SPIDER_HAS_TIME_STATUS
+#define SPIDER_HAS_DECIMAL_OPERATION_RESULTS_VALUE_TYPE
 #endif
 
 class spider_db_conn;
@@ -189,6 +190,12 @@ enum spider_bulk_upd_start {
   SPD_BU_NOT_START,
   SPD_BU_START_BY_INDEX_OR_RND_INIT,
   SPD_BU_START_BY_BULK_INIT
+};
+
+enum spider_index_rnd_init {
+  SPD_NONE,
+  SPD_INDEX,
+  SPD_RND
 };
 
 struct st_spider_ft_info;
@@ -645,6 +652,15 @@ public:
     const char *alias,
     uint alias_length
   ) = 0;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  virtual int open_item_sum_func(
+    Item_sum *item_sum,
+    ha_spider *spider,
+    spider_string *str,
+    const char *alias,
+    uint alias_length
+  ) = 0;
+#endif
   virtual int append_escaped_util(
     spider_string *to,
     String *from
@@ -674,6 +690,10 @@ public:
   virtual bool is_null() = 0;
   virtual int val_int() = 0;
   virtual double val_real() = 0;
+  virtual my_decimal *val_decimal(
+    my_decimal *decimal_value,
+    CHARSET_INFO *access_charset
+  ) = 0;
   virtual SPIDER_DB_ROW *clone() = 0;
   virtual int store_to_tmp_table(
     TABLE *tmp_table,
@@ -1121,6 +1141,13 @@ public:
     const char *alias,
     uint alias_length
   ) = 0;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  virtual int append_sum_select_part(
+    ulong sql_type,
+    const char *alias,
+    uint alias_length
+  ) = 0;
+#endif
   virtual void set_order_pos(
     ulong sql_type
   ) = 0;
@@ -1475,6 +1502,9 @@ typedef struct st_spider_position
   uint                   pos_mode;
   bool                   use_position;
   bool                   mrr_with_cnt;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  bool                   direct_aggregate;
+#endif
   uint                   sql_kind;
   uchar                  *position_bitmap;
   st_spider_ft_info      *ft_first;
@@ -1579,6 +1609,12 @@ typedef struct st_spider_result_list
   spider_bulk_upd_start   bulk_update_start;
   bool                    check_direct_order_limit;
   bool                    direct_order_limit;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  bool                    direct_aggregate;
+  bool                    snap_mrr_with_cnt;
+  bool                    snap_direct_aggregate;
+  SPIDER_DB_ROW           *snap_row;
+#endif
   bool                    set_split_read;
   bool                    insert_dup_update_pushdown;
   longlong                split_read_base;

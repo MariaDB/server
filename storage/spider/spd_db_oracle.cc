@@ -23,6 +23,9 @@
 #include "probes_mysql.h"
 #include "sql_partition.h"
 #include "sql_analyse.h"
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+#include "sql_select.h"
+#endif
 #endif
 
 #ifdef HAVE_ORACLE_OCI
@@ -464,6 +467,26 @@ double spider_db_oracle_row::val_real()
   DBUG_ENTER("spider_db_oracle_row::val_real");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN((*ind != -1) ? my_atof(*val) : 0.0);
+}
+
+my_decimal *spider_db_oracle_row::val_decimal(
+  my_decimal *decimal_value,
+  CHARSET_INFO *access_charset
+) {
+  DBUG_ENTER("spider_db_oracle_row::val_decimal");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (*ind == -1)
+    DBUG_RETURN(NULL);
+
+#ifdef SPIDER_HAS_DECIMAL_OPERATION_RESULTS_VALUE_TYPE
+  decimal_operation_results(str2my_decimal(0, *val, *rlen, access_charset,
+    decimal_value), "", "");
+#else
+  decimal_operation_results(str2my_decimal(0, *val, *rlen, access_charset,
+    decimal_value));
+#endif
+
+  DBUG_RETURN(decimal_value);
 }
 
 SPIDER_DB_ROW *spider_db_oracle_row::clone()
@@ -3658,6 +3681,81 @@ int spider_db_oracle_util::open_item_func(
   DBUG_RETURN(0);
 }
 
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+int spider_db_oracle_util::open_item_sum_func(
+  Item_sum *item_sum,
+  ha_spider *spider,
+  spider_string *str,
+  const char *alias,
+  uint alias_length
+) {
+  uint dbton_id = spider_dbton_oracle.dbton_id;
+  uint roop_count, item_count = item_sum->get_arg_count();
+  int error_num;
+  DBUG_ENTER("spider_db_oracle_util::open_item_sum_func");
+  DBUG_PRINT("info",("spider Sumfunctype = %d", item_sum->sum_func()));
+  switch (item_sum->sum_func())
+  {
+    case Item_sum::COUNT_FUNC:
+    case Item_sum::SUM_FUNC:
+    case Item_sum::MIN_FUNC:
+    case Item_sum::MAX_FUNC:
+      {
+        const char *func_name = item_sum->func_name();
+        uint func_name_length = strlen(func_name);
+        Item *item, **args = item_sum->get_args();
+        if (str)
+        {
+          if (str->reserve(func_name_length))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str->q_append(func_name, func_name_length);
+        }
+        if (item_count)
+        {
+          item_count--;
+          for (roop_count = 0; roop_count < item_count; roop_count++)
+          {
+            item = args[roop_count];
+            if ((error_num = spider_db_print_item_type(item, spider, str,
+              alias, alias_length, dbton_id)))
+              DBUG_RETURN(error_num);
+            if (str)
+            {
+              if (str->reserve(SPIDER_SQL_COMMA_LEN))
+                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+            }
+          }
+          item = args[roop_count];
+          if ((error_num = spider_db_print_item_type(item, spider, str,
+            alias, alias_length, dbton_id)))
+            DBUG_RETURN(error_num);
+        }
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_CLOSE_PAREN_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
+            SPIDER_SQL_CLOSE_PAREN_LEN);
+        }
+      }
+      break;
+    case Item_sum::COUNT_DISTINCT_FUNC:
+    case Item_sum::SUM_DISTINCT_FUNC:
+    case Item_sum::AVG_FUNC:
+    case Item_sum::AVG_DISTINCT_FUNC:
+    case Item_sum::STD_FUNC:
+    case Item_sum::VARIANCE_FUNC:
+    case Item_sum::SUM_BIT_FUNC:
+    case Item_sum::UDF_SUM_FUNC:
+    case Item_sum::GROUP_CONCAT_FUNC:
+    default:
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+  }
+  DBUG_RETURN(0);
+}
+#endif
+
 size_t spider_db_oracle_util::escape_string(
   char *to,
   const char *from,
@@ -6001,6 +6099,13 @@ int spider_oracle_handler::append_select_columns_with_alias(
   int error_num;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   DBUG_ENTER("spider_oracle_handler::append_select_columns_with_alias");
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  if (
+    result_list->direct_aggregate &&
+    (error_num = append_sum_select(str, alias, alias_length))
+  )
+    DBUG_RETURN(error_num);
+#endif
   if ((error_num = append_match_select(str, alias, alias_length)))
     DBUG_RETURN(error_num);
   if (!spider->select_column_mode)
@@ -7065,6 +7170,55 @@ int spider_oracle_handler::append_match_select(
   DBUG_RETURN(0);
 }
 
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+int spider_oracle_handler::append_sum_select_part(
+  ulong sql_type,
+  const char *alias,
+  uint alias_length
+) {
+  int error_num;
+  spider_string *str;
+  DBUG_ENTER("spider_oracle_handler::append_sum_select_part");
+  DBUG_PRINT("info",("spider this=%p", this));
+  switch (sql_type)
+  {
+    case SPIDER_SQL_TYPE_SELECT_SQL:
+      str = &sql;
+      break;
+    default:
+      DBUG_RETURN(0);
+  }
+  error_num = append_sum_select(str, alias, alias_length);
+  DBUG_RETURN(error_num);
+}
+
+int spider_oracle_handler::append_sum_select(
+  spider_string *str,
+  const char *alias,
+  uint alias_length
+) {
+  int error_num;
+  st_select_lex *select_lex;
+  DBUG_ENTER("spider_oracle_handler::append_sum_select");
+  DBUG_PRINT("info",("spider this=%p", this));
+  select_lex = spider_get_select_lex(spider);
+  JOIN *join = select_lex->join;
+  Item_sum **item_sum_ptr;
+  for (item_sum_ptr = join->sum_funcs; *item_sum_ptr; ++item_sum_ptr)
+  {
+    if ((error_num = spider_db_oracle_utility.open_item_sum_func(*item_sum_ptr,
+      spider, str, alias, alias_length)))
+    {
+      DBUG_RETURN(error_num);
+    }
+    if (str->reserve(SPIDER_SQL_COMMA_LEN))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+  DBUG_RETURN(0);
+}
+#endif
+
 void spider_oracle_handler::set_order_pos(
   ulong sql_type
 ) {
@@ -7117,6 +7271,40 @@ void spider_oracle_handler::set_order_to_pos(
   DBUG_VOID_RETURN;
 }
 
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+int spider_oracle_handler::append_group_by(
+  spider_string *str,
+  const char *alias,
+  uint alias_length
+) {
+  int error_num;
+  st_select_lex *select_lex;
+  DBUG_ENTER("spider_oracle_handler::append_group_by");
+  DBUG_PRINT("info",("spider this=%p", this));
+  select_lex = spider_get_select_lex(spider);
+  ORDER *group = (ORDER *) select_lex->group_list.first;
+  if (group)
+  {
+    if (str->reserve(SPIDER_SQL_GROUP_LEN))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    str->q_append(SPIDER_SQL_GROUP_STR, SPIDER_SQL_GROUP_LEN);
+    for (; group; group = group->next)
+    {
+      if ((error_num = spider_db_print_item_type((*group->item), spider, str,
+        alias, alias_length, spider_dbton_oracle.dbton_id)))
+      {
+        DBUG_RETURN(error_num);
+      }
+      if (str->reserve(SPIDER_SQL_COMMA_LEN))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+    }
+    str->length(str->length() - SPIDER_SQL_COMMA_LEN);
+  }
+  DBUG_RETURN(0);
+}
+#endif
+
 int spider_oracle_handler::append_key_order_for_merge_with_alias_part(
   const char *alias,
   uint alias_length,
@@ -7161,6 +7349,14 @@ int spider_oracle_handler::append_key_order_for_merge_with_alias(
   uint key_name_length;
   DBUG_ENTER("spider_oracle_handler::append_key_order_for_merge_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  if (spider->result_list.direct_aggregate)
+  {
+    int error_num;
+    if ((error_num = append_group_by(str, alias, alias_length)))
+      DBUG_RETURN(error_num);
+  }
+#endif
   if (
     spider->result_list.direct_order_limit ||
     spider->result_list.internal_limit < 9223372036854775807LL ||
@@ -7383,6 +7579,13 @@ int spider_oracle_handler::append_key_order_for_direct_order_limit_with_alias(
   longlong offset_limit;
   DBUG_ENTER("spider_oracle_handler::append_key_order_for_direct_order_limit_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  if (spider->result_list.direct_aggregate)
+  {
+    if ((error_num = append_group_by(str, alias, alias_length)))
+      DBUG_RETURN(error_num);
+  }
+#endif
   spider_get_select_limit(spider, &select_lex, &select_limit,
     &offset_limit);
   if (
@@ -7601,6 +7804,14 @@ int spider_oracle_handler::append_key_order_with_alias(
   uint key_name_length;
   DBUG_ENTER("spider_oracle_handler::append_key_order_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  if (spider->result_list.direct_aggregate)
+  {
+    int error_num;
+    if ((error_num = append_group_by(str, alias, alias_length)))
+      DBUG_RETURN(error_num);
+  }
+#endif
   if (
     spider->result_list.direct_order_limit ||
     spider->result_list.internal_limit < 9223372036854775807LL ||
