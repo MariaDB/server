@@ -140,6 +140,7 @@ public:
   int                multi_range_num;
   bool               have_second_range;
   KEY_MULTI_RANGE    mrr_second_range;
+  spider_string      *mrr_key_buff;
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   range_id_t         *multi_range_keys;
 #else

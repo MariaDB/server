@@ -84,6 +84,7 @@ ha_spider::ha_spider(
 #endif
 #ifdef HA_MRR_USE_DEFAULT_IMPL
   multi_range_keys = NULL;
+  mrr_key_buff = NULL;
 #endif
   append_tblnm_alias = NULL;
   is_clone = FALSE;
@@ -177,6 +178,7 @@ ha_spider::ha_spider(
 #endif
 #ifdef HA_MRR_USE_DEFAULT_IMPL
   multi_range_keys = NULL;
+  mrr_key_buff = NULL;
 #endif
   append_tblnm_alias = NULL;
   is_clone = FALSE;
@@ -616,6 +618,11 @@ int ha_spider::close()
     DBUG_PRINT("info",("spider free multi_range_keys=%p", multi_range_keys));
     spider_free(spider_current_trx, multi_range_keys, MYF(0));
     multi_range_keys = NULL;
+  }
+  if (mrr_key_buff)
+  {
+    delete [] mrr_key_buff;
+    mrr_key_buff = NULL;
   }
 #endif
 #ifdef HA_CAN_BULK_ACCESS
@@ -4660,6 +4667,10 @@ int ha_spider::read_multi_range_first_internal(
     bool tmp_high_priority = high_priority;
     bool have_multi_range;
 #ifdef HA_MRR_USE_DEFAULT_IMPL
+    const uchar *first_mrr_start_key;
+    const uchar *first_mrr_end_key;
+    uint first_mrr_start_key_length;
+    uint first_mrr_end_key_length;
     have_second_range = FALSE;
 #endif
     if (keyread)
@@ -4690,6 +4701,15 @@ int ha_spider::read_multi_range_first_internal(
 #endif
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     DBUG_PRINT("info",("spider alloc multi_range_keys=%p", multi_range_keys));
+    if (!mrr_key_buff)
+    {
+      if (!(mrr_key_buff = new spider_string[2]))
+      {
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      }
+      for (roop_count = 0; roop_count < 2; roop_count++)
+        mrr_key_buff[roop_count].init_calc_mem(235);
+    }
 #else
     multi_range_ranges = ranges;
 #endif
@@ -4709,6 +4729,28 @@ int ha_spider::read_multi_range_first_internal(
       DBUG_RETURN(HA_ERR_END_OF_FILE);
     }
     DBUG_PRINT("info",("spider range_res4=%d", range_res));
+    mrr_key_buff[0].length(0);
+    first_mrr_start_key = mrr_cur_range.start_key.key;
+    first_mrr_start_key_length = mrr_cur_range.start_key.length;
+    if (first_mrr_start_key_length)
+    {
+      if (mrr_key_buff[0].reserve(first_mrr_start_key_length))
+        DBUG_RETURN(HA_ERR_END_OF_FILE);
+      mrr_key_buff[0].q_append((const char *) first_mrr_start_key,
+        first_mrr_start_key_length);
+      mrr_cur_range.start_key.key = (const uchar *) mrr_key_buff[0].ptr();
+    }
+    mrr_key_buff[1].length(0);
+    first_mrr_end_key = mrr_cur_range.end_key.key;
+    first_mrr_end_key_length = mrr_cur_range.end_key.length;
+    if (first_mrr_end_key_length)
+    {
+      if (mrr_key_buff[1].reserve(first_mrr_end_key_length))
+        DBUG_RETURN(HA_ERR_END_OF_FILE);
+      mrr_key_buff[1].q_append((const char *) first_mrr_end_key,
+        first_mrr_end_key_length);
+      mrr_cur_range.end_key.key = (const uchar *) mrr_key_buff[1].ptr();
+    }
 #else
     multi_range_curr = ranges;
     multi_range_end = ranges + range_count;
@@ -5966,11 +6008,42 @@ int ha_spider::read_multi_range_next(
       DBUG_RETURN(0);
     }
 
+#ifdef HA_MRR_USE_DEFAULT_IMPL
+    const uchar *first_mrr_start_key;
+    const uchar *first_mrr_end_key;
+    uint first_mrr_start_key_length;
+    uint first_mrr_end_key_length;
+#endif
     if (!result_list.tmp_table_join_break_after_get_next)
     {
 #ifdef HA_MRR_USE_DEFAULT_IMPL
       range_res = mrr_funcs.next(mrr_iter, &mrr_cur_range);
       DBUG_PRINT("info",("spider range_res4=%d", range_res));
+      if (!range_res)
+      {
+        mrr_key_buff[0].length(0);
+        first_mrr_start_key = mrr_cur_range.start_key.key;
+        first_mrr_start_key_length = mrr_cur_range.start_key.length;
+        if (first_mrr_start_key_length)
+        {
+          if (mrr_key_buff[0].reserve(first_mrr_start_key_length))
+            DBUG_RETURN(HA_ERR_END_OF_FILE);
+          mrr_key_buff[0].q_append((const char *) first_mrr_start_key,
+            first_mrr_start_key_length);
+          mrr_cur_range.start_key.key = (const uchar *) mrr_key_buff[0].ptr();
+        }
+        mrr_key_buff[1].length(0);
+        first_mrr_end_key = mrr_cur_range.end_key.key;
+        first_mrr_end_key_length = mrr_cur_range.end_key.length;
+        if (first_mrr_end_key_length)
+        {
+          if (mrr_key_buff[1].reserve(first_mrr_end_key_length))
+            DBUG_RETURN(HA_ERR_END_OF_FILE);
+          mrr_key_buff[1].q_append((const char *) first_mrr_end_key,
+            first_mrr_end_key_length);
+          mrr_cur_range.end_key.key = (const uchar *) mrr_key_buff[1].ptr();
+        }
+      }
 #else
       if (multi_range_curr < multi_range_end)
         multi_range_curr++;
