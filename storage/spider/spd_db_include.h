@@ -1371,6 +1371,13 @@ public:
   virtual void copy_minimum_select_bitmap(
     uchar *bitmap
   ) = 0;
+  virtual int init_union_table_name_pos() = 0;
+  virtual int set_union_table_name_pos() = 0;
+  virtual int reset_union_table_name(
+    spider_string *str,
+    int link_idx,
+    ulong sql_type
+  ) = 0;
 };
 
 class spider_db_copy_table

@@ -914,4 +914,11 @@ public:
   void copy_minimum_select_bitmap(
     uchar *bitmap
   );
+  int init_union_table_name_pos();
+  int set_union_table_name_pos();
+  int reset_union_table_name(
+    spider_string *str,
+    int link_idx,
+    ulong sql_type
+  );
 };

@@ -118,7 +118,7 @@
 #define SPIDER_TMP_SHARE_LONG_COUNT         15
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           236
+#define SPIDER_MEM_CALC_LIST_NUM           240
 
 #define SPIDER_BACKUP_DASTATUS \
   bool da_status; if (thd) da_status = thd->is_error(); else da_status = FALSE;
@@ -1149,6 +1149,14 @@ typedef struct st_spider_bulk_access_link
   st_spider_bulk_access_link *next;
 } SPIDER_BULK_ACCESS_LINK;
 #endif
+
+#define SPIDER_INT_HLD_TGT_SIZE 100
+typedef struct st_spider_int_hld
+{
+  uint tgt_num;
+  int tgt[SPIDER_INT_HLD_TGT_SIZE];
+  st_spider_int_hld *next;
+} SPIDER_INT_HLD;
 
 char *spider_create_string(
   const char *str,

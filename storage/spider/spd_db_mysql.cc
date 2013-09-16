@@ -4552,6 +4552,8 @@ spider_mysql_handler::spider_mysql_handler(
   tmp_sql_pos4(0),
   tmp_sql_pos5(0),
   reading_from_bulk_tmp_table(FALSE),
+  union_table_name_pos_first(NULL),
+  union_table_name_pos_current(NULL),
   mysql_share(db_share),
   link_for_hash(NULL)
 {
@@ -4566,6 +4568,12 @@ spider_mysql_handler::~spider_mysql_handler()
 {
   DBUG_ENTER("spider_mysql_handler::~spider_mysql_handler");
   DBUG_PRINT("info",("spider this=%p", this));
+  while (union_table_name_pos_first)
+  {
+    SPIDER_INT_HLD *tmp_pos = union_table_name_pos_first;
+    union_table_name_pos_first = tmp_pos->next;
+    spider_free(spider_current_trx, tmp_pos, MYF(0));
+  }
   if (link_for_hash)
   {
     spider_free(spider_current_trx, link_for_hash, MYF(0));
@@ -9114,14 +9122,14 @@ int spider_mysql_handler::set_sql_for_exec(
       uint table_name_lengths[2], table_alias_lengths[2];
       tgt_table_name_str.init_calc_mem(104);
       tgt_table_name_str.length(0);
-      if (result_list->tmp_table_join)
+      if (result_list->tmp_table_join && spider->bka_mode != 2)
       {
         create_tmp_bka_table_name(tmp_table_name, &tmp_table_name_length,
           link_idx);
         append_table_name_with_adjusting(&tgt_table_name_str, link_idx,
           SPIDER_SQL_TYPE_TMP_SQL);
         table_names[0] = tmp_table_name;
-        table_names[1] = tgt_table_name_str.c_ptr();
+        table_names[1] = tgt_table_name_str.ptr();
         table_name_lengths[0] = tmp_table_name_length;
         table_name_lengths[1] = tgt_table_name_str.length();
         table_aliases[0] = SPIDER_SQL_A_STR;
@@ -9134,10 +9142,15 @@ int spider_mysql_handler::set_sql_for_exec(
         exec_sql = &result_list->sqls[link_idx];
         if (exec_sql->copy(sql))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        else {
+        else if (result_list->use_union)
+        {
+          if ((error_num = reset_union_table_name(exec_sql, link_idx,
+            SPIDER_SQL_TYPE_SELECT_SQL)))
+            DBUG_RETURN(error_num);
+        } else {
           tmp_pos = exec_sql->length();
           exec_sql->length(table_name_pos);
-          if (result_list->tmp_table_join)
+          if (result_list->tmp_table_join && spider->bka_mode != 2)
           {
             if ((error_num = spider_db_mysql_utility.append_from_with_alias(
               exec_sql, table_names, table_name_lengths,
@@ -9145,6 +9158,7 @@ int spider_mysql_handler::set_sql_for_exec(
               &table_name_pos, TRUE))
             )
               DBUG_RETURN(error_num);
+            exec_sql->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
           } else {
             append_table_name_with_adjusting(exec_sql, link_idx,
               SPIDER_SQL_TYPE_SELECT_SQL);
@@ -9155,7 +9169,7 @@ int spider_mysql_handler::set_sql_for_exec(
       if (sql_type & SPIDER_SQL_TYPE_TMP_SQL)
       {
         exec_tmp_sql = &result_list->tmp_sqls[link_idx];
-        if (result_list->tmp_table_join)
+        if (result_list->tmp_table_join && spider->bka_mode != 2)
         {
           if (exec_tmp_sql->copy(tmp_sql))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -10741,6 +10755,77 @@ void spider_mysql_handler::copy_minimum_select_bitmap(
       ((uchar *) table->write_set->bitmap)[roop_count]));
   }
   DBUG_VOID_RETURN;
+}
+
+int spider_mysql_handler::init_union_table_name_pos()
+{
+  DBUG_ENTER("spider_mysql_handler::init_union_table_name_pos");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (!union_table_name_pos_first)
+  {
+    if (!spider_bulk_malloc(spider_current_trx, 236, MYF(MY_WME),
+      &union_table_name_pos_first, sizeof(SPIDER_INT_HLD),
+      NullS)
+    ) {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    union_table_name_pos_first->next = NULL;
+  }
+  union_table_name_pos_current = union_table_name_pos_first;
+  union_table_name_pos_current->tgt_num = 0;
+  DBUG_RETURN(0);
+}
+
+int spider_mysql_handler::set_union_table_name_pos()
+{
+  DBUG_ENTER("spider_mysql_handler::set_union_table_name_pos");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (union_table_name_pos_current->tgt_num >= SPIDER_INT_HLD_TGT_SIZE)
+  {
+    if (!union_table_name_pos_current->next)
+    {
+      if (!spider_bulk_malloc(spider_current_trx, 237, MYF(MY_WME),
+        &union_table_name_pos_current->next, sizeof(SPIDER_INT_HLD),
+        NullS)
+      ) {
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      }
+      union_table_name_pos_current->next->next = NULL;
+    }
+    union_table_name_pos_current = union_table_name_pos_current->next;
+    union_table_name_pos_current->tgt_num = 0;
+  }
+  union_table_name_pos_current->tgt[union_table_name_pos_current->tgt_num] =
+    table_name_pos;
+  ++union_table_name_pos_current->tgt_num;
+  DBUG_RETURN(0);
+}
+
+int spider_mysql_handler::reset_union_table_name(
+  spider_string *str,
+  int link_idx,
+  ulong sql_type
+) {
+  DBUG_ENTER("spider_mysql_handler::reset_union_table_name");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (!union_table_name_pos_current)
+    DBUG_RETURN(0);
+
+  SPIDER_INT_HLD *tmp_pos = union_table_name_pos_first;
+  uint cur_num, pos_backup = str->length();
+  while(TRUE)
+  {
+    for (cur_num = 0; cur_num < tmp_pos->tgt_num; ++cur_num)
+    {
+      str->length(tmp_pos->tgt[cur_num]);
+      append_table_name_with_adjusting(str, link_idx, sql_type);
+    }
+    if (tmp_pos == union_table_name_pos_current)
+      break;
+    tmp_pos = tmp_pos->next;
+  }
+  str->length(pos_backup);
+  DBUG_RETURN(0);
 }
 
 spider_mysql_copy_table::spider_mysql_copy_table(

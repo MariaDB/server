@@ -521,6 +521,8 @@ class spider_mysql_handler: public spider_db_handler
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   SPIDER_DB_HS_STRING_REF_BUFFER hs_upds;
 #endif
+  SPIDER_INT_HLD          *union_table_name_pos_first;
+  SPIDER_INT_HLD          *union_table_name_pos_current;
 public:
   spider_mysql_share      *mysql_share;
   SPIDER_LINK_FOR_HASH    *link_for_hash;
@@ -1248,6 +1250,13 @@ public:
   );
   void copy_minimum_select_bitmap(
     uchar *bitmap
+  );
+  int init_union_table_name_pos();
+  int set_union_table_name_pos();
+  int reset_union_table_name(
+    spider_string *str,
+    int link_idx,
+    ulong sql_type
   );
 };
 
