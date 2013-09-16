@@ -644,5 +644,8 @@ KILL QUERY ID @id;
 connection default;
 reap;
 
+--error ER_NO_SUCH_QUERY
+KILL QUERY ID 0;
+
 SET DEBUG_SYNC = 'RESET';
 DROP FUNCTION MY_KILL;
