@@ -6854,11 +6854,11 @@ uint
 kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type type)
 {
   THD *tmp;
-  uint error=ER_NO_SUCH_THREAD;
+  uint error= (type == KILL_TYPE_QUERY ? ER_NO_SUCH_QUERY : ER_NO_SUCH_THREAD);
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lld  signal: %u", id, (uint) kill_signal));
 
-  if ((tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY)))
+  if (id && (tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY)))
   {
     /*
       If we're SUPER, we can KILL anything, including system-threads.
