@@ -1043,4 +1043,6 @@ public:
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   bool support_bulk_access_hs() const;
 #endif
+  int init_union_table_name_pos_sql();
+  int set_union_table_name_pos_sql();
 };

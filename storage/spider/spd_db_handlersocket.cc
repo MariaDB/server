@@ -5415,4 +5415,31 @@ void spider_handlersocket_handler::copy_minimum_select_bitmap(
   }
   DBUG_VOID_RETURN;
 }
+
+int spider_handlersocket_handler::init_union_table_name_pos()
+{
+  DBUG_ENTER("spider_handlersocket_handler::init_union_table_name_pos");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);
+}
+
+int spider_handlersocket_handler::set_union_table_name_pos()
+{
+  DBUG_ENTER("spider_handlersocket_handler::set_union_table_name_pos");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);
+}
+
+int spider_handlersocket_handler::reset_union_table_name(
+  spider_string *str,
+  int link_idx,
+  ulong sql_type
+) {
+  DBUG_ENTER("spider_handlersocket_handler::reset_union_table_name");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);
+}
 #endif
