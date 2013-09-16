@@ -1696,13 +1696,13 @@ int spider_parse_connect_info(
   partition_element *sub_elem;
 #endif
   DBUG_ENTER("spider_parse_connect_info");
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 #if MYSQL_VERSION_ID < 50500
   DBUG_PRINT("info",("spider partition_info=%s", table_share->partition_info));
 #else
   DBUG_PRINT("info",("spider partition_info=%s",
     table_share->partition_info_str));
 #endif
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   DBUG_PRINT("info",("spider part_info=%p", part_info));
 #endif
   DBUG_PRINT("info",("spider s->db=%s", table_share->db.str));
