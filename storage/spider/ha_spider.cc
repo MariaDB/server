@@ -312,9 +312,9 @@ int ha_spider::open(
   bool create_pt_handler_share = FALSE, pt_handler_mutex = FALSE,
     may_be_clone = FALSE;
   ha_spider **pt_handler_share_handlers;
-#endif
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value;
+#endif
 #endif
   DBUG_ENTER("ha_spider::open");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -602,8 +602,10 @@ error_hash_insert:
     searched_bitmap = NULL;
   }
 error_searched_bitmap_alloc:
+#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (pt_handler_mutex)
     pthread_mutex_unlock(&partition_share->pt_handler_mutex);
+#endif
   spider_free_share(share);
   share = NULL;
 error_get_share:
@@ -8033,7 +8035,9 @@ int ha_spider::info(
     if (flag & HA_STATUS_AUTO)
     {
       if (
+#ifdef WITH_PARTITION_STORAGE_ENGINE
         share->partition_share &&
+#endif
         tmp_auto_increment_mode == 1 &&
         !share->auto_increment_init
       ) {

@@ -1,5 +1,4 @@
 # This test tests for using functions
---let $SKIP_REASON=
 --disable_warnings
 --disable_query_log
 --disable_result_log
@@ -25,28 +24,6 @@ if ($USE_CHILD_GROUP2)
   USE auto_test_remote2;
 }
 --enable_warnings
-
-if ($SKIP_REASON)
-{
-  --echo deinit
-  --disable_warnings
-  --connection master_1
-  DROP DATABASE IF EXISTS auto_test_local;
-  if ($USE_CHILD_GROUP2)
-  {
-    --connection child2_1
-    DROP DATABASE IF EXISTS auto_test_remote;
-    --connection child2_2
-    DROP DATABASE IF EXISTS auto_test_remote2;
-  }
-  --disable_query_log
-  --disable_result_log
-  --source test_deinit.inc
-  --enable_result_log
-  --enable_query_log
-  --enable_warnings
-  --skip $SKIP_REASON
-}
 
 --echo
 --echo test select 1
