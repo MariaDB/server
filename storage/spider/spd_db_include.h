@@ -998,6 +998,10 @@ public:
     const key_range *start_key
   ) = 0;
   virtual int reuse_tmp_table_and_sql_for_bka() = 0;
+  virtual int append_union_table_and_sql_for_bka(
+    const key_range *start_key
+  ) = 0;
+  virtual int reuse_union_table_and_sql_for_bka() = 0;
   virtual int append_insert_for_recovery(
     ulong sql_type,
     int link_idx
@@ -1072,7 +1076,17 @@ public:
   virtual int append_values_terminator_part(
     ulong sql_type
   ) = 0;
+  virtual int append_union_table_connector_part(
+    ulong sql_type
+  ) = 0;
+  virtual int append_union_table_terminator_part(
+    ulong sql_type
+  ) = 0;
   virtual int append_key_column_values_part(
+    const key_range *start_key,
+    ulong sql_type
+  ) = 0;
+  virtual int append_key_column_values_with_name_part(
     const key_range *start_key,
     ulong sql_type
   ) = 0;
@@ -1154,6 +1168,10 @@ public:
     ulong sql_type,
     uint multi_range_cnt,
     bool with_comma
+  ) = 0;
+  virtual int append_multi_range_cnt_with_name_part(
+    ulong sql_type,
+    uint multi_range_cnt
   ) = 0;
   virtual int append_open_handler_part(
     ulong sql_type,

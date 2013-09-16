@@ -660,6 +660,10 @@ public:
     int tmp_table_name_length,
     int *db_name_pos
   );
+  int append_union_table_and_sql_for_bka(
+    const key_range *start_key
+  );
+  int reuse_union_table_and_sql_for_bka();
   int append_insert_for_recovery(
     ulong sql_type,
     int link_idx
@@ -804,11 +808,31 @@ public:
   int append_values_terminator(
     spider_string *str
   );
+  int append_union_table_connector_part(
+    ulong sql_type
+  );
+  int append_union_table_connector(
+    spider_string *str
+  );
+  int append_union_table_terminator_part(
+    ulong sql_type
+  );
+  int append_union_table_terminator(
+    spider_string *str
+  );
   int append_key_column_values_part(
     const key_range *start_key,
     ulong sql_type
   );
   int append_key_column_values(
+    spider_string *str,
+    const key_range *start_key
+  );
+  int append_key_column_values_with_name_part(
+    const key_range *start_key,
+    ulong sql_type
+  );
+  int append_key_column_values_with_name(
     spider_string *str,
     const key_range *start_key
   );
@@ -991,6 +1015,14 @@ public:
     spider_string *str,
     uint multi_range_cnt,
     bool with_comma
+  );
+  int append_multi_range_cnt_with_name_part(
+    ulong sql_type,
+    uint multi_range_cnt
+  );
+  int append_multi_range_cnt_with_name(
+    spider_string *str,
+    uint multi_range_cnt
   );
   int append_open_handler_part(
     ulong sql_type,
