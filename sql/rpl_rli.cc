@@ -59,7 +59,6 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    abort_pos_wait(0), slave_run_id(0), sql_thd(0),
    inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
-   tables_to_lock(0), tables_to_lock_count(0),
    last_event_start_time(0), m_flags(0),
    row_stmt_start_timestamp(0), long_find_row_note_printed(false)
 {
@@ -135,8 +134,6 @@ int init_relay_log_info(Relay_log_info* rli,
   rli->abort_pos_wait=0;
   rli->log_space_limit= relay_log_space_limit;
   rli->log_space_total= 0;
-  rli->tables_to_lock= 0;
-  rli->tables_to_lock_count= 0;
 
   char pattern[FN_REFLEN];
   (void) my_realpath(pattern, slave_load_tmpdir, 0);
@@ -1261,129 +1258,6 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
 }
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-void Relay_log_info::cleanup_context(THD *thd, bool error)
-{
-  DBUG_ENTER("Relay_log_info::cleanup_context");
-
-  /*
-    In parallel replication, different THDs can be used from different
-    parallel threads. But in single-threaded mode, only the THD of the main
-    SQL thread is allowed.
-  */
-  DBUG_ASSERT(opt_slave_parallel_threads > 0 || sql_thd == thd);
-  /*
-    1) Instances of Table_map_log_event, if ::do_apply_event() was called on them,
-    may have opened tables, which we cannot be sure have been closed (because
-    maybe the Rows_log_event have not been found or will not be, because slave
-    SQL thread is stopping, or relay log has a missing tail etc). So we close
-    all thread's tables. And so the table mappings have to be cancelled.
-    2) Rows_log_event::do_apply_event() may even have started statements or
-    transactions on them, which we need to rollback in case of error.
-    3) If finding a Format_description_log_event after a BEGIN, we also need
-    to rollback before continuing with the next events.
-    4) so we need this "context cleanup" function.
-  */
-  if (error)
-  {
-    trans_rollback_stmt(thd); // if a "statement transaction"
-    trans_rollback(thd);      // if a "real transaction"
-  }
-  m_table_map.clear_tables();
-  slave_close_thread_tables(thd);
-  if (error)
-    thd->mdl_context.release_transactional_locks();
-  clear_flag(IN_STMT);
-  /*
-    Cleanup for the flags that have been set at do_apply_event.
-  */
-  thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
-  thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
-
-  /*
-    Reset state related to long_find_row notes in the error log:
-    - timestamp
-    - flag that decides whether the slave prints or not
-  */
-  reset_row_stmt_start_timestamp();
-  unset_long_find_row_note_printed();
-
-  DBUG_VOID_RETURN;
-}
-
-void Relay_log_info::clear_tables_to_lock()
-{
-  DBUG_ENTER("Relay_log_info::clear_tables_to_lock()");
-#ifndef DBUG_OFF
-  /**
-    When replicating in RBR and MyISAM Merge tables are involved
-    open_and_lock_tables (called in do_apply_event) appends the 
-    base tables to the list of tables_to_lock. Then these are 
-    removed from the list in close_thread_tables (which is called 
-    before we reach this point).
-
-    This assertion just confirms that we get no surprises at this
-    point.
-   */
-  uint i=0;
-  for (TABLE_LIST *ptr= tables_to_lock ; ptr ; ptr= ptr->next_global, i++) ;
-  DBUG_ASSERT(i == tables_to_lock_count);
-#endif  
-
-  while (tables_to_lock)
-  {
-    uchar* to_free= reinterpret_cast<uchar*>(tables_to_lock);
-    if (tables_to_lock->m_tabledef_valid)
-    {
-      tables_to_lock->m_tabledef.table_def::~table_def();
-      tables_to_lock->m_tabledef_valid= FALSE;
-    }
-
-    /*
-      If blob fields were used during conversion of field values 
-      from the master table into the slave table, then we need to 
-      free the memory used temporarily to store their values before
-      copying into the slave's table.
-    */
-    if (tables_to_lock->m_conv_table)
-      free_blobs(tables_to_lock->m_conv_table);
-
-    tables_to_lock=
-      static_cast<RPL_TABLE_LIST*>(tables_to_lock->next_global);
-    tables_to_lock_count--;
-    my_free(to_free);
-  }
-  DBUG_ASSERT(tables_to_lock == NULL && tables_to_lock_count == 0);
-  DBUG_VOID_RETURN;
-}
-
-void Relay_log_info::slave_close_thread_tables(THD *thd)
-{
-  DBUG_ENTER("Relay_log_info::slave_close_thread_tables(THD *thd)");
-  thd->stmt_da->can_overwrite_status= TRUE;
-  thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
-  thd->stmt_da->can_overwrite_status= FALSE;
-
-  close_thread_tables(thd);
-  /*
-    - If inside a multi-statement transaction,
-    defer the release of metadata locks until the current
-    transaction is either committed or rolled back. This prevents
-    other statements from modifying the table for the entire
-    duration of this transaction.  This provides commit ordering
-    and guarantees serializability across multiple transactions.
-    - If in autocommit mode, or outside a transactional context,
-    automatically release metadata locks of the current statement.
-  */
-  if (! thd->in_multi_stmt_transaction_mode())
-    thd->mdl_context.release_transactional_locks();
-  else
-    thd->mdl_context.release_statement_locks();
-
-  clear_tables_to_lock();
-  DBUG_VOID_RETURN;
-}
-
-
 int
 rpl_load_gtid_slave_state(THD *thd)
 {
@@ -1539,7 +1413,8 @@ end:
 rpl_group_info::rpl_group_info(Relay_log_info *rli_)
   : rli(rli_), thd(0), gtid_sub_id(0), wait_commit_sub_id(0),
     wait_commit_group_info(0), wait_start_sub_id(0), parallel_entry(0),
-    deferred_events(NULL), m_annotate_event(0)
+    deferred_events(NULL), m_annotate_event(0), tables_to_lock(0),
+    tables_to_lock_count(0)
 {
   bzero(&current_gtid, sizeof(current_gtid));
 }
@@ -1612,5 +1487,127 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
     break;
   }
 }
+
+
+void rpl_group_info::cleanup_context(THD *thd, bool error)
+{
+  DBUG_ENTER("Relay_log_info::cleanup_context");
+
+  DBUG_ASSERT(this->thd == thd);
+  /*
+    1) Instances of Table_map_log_event, if ::do_apply_event() was called on them,
+    may have opened tables, which we cannot be sure have been closed (because
+    maybe the Rows_log_event have not been found or will not be, because slave
+    SQL thread is stopping, or relay log has a missing tail etc). So we close
+    all thread's tables. And so the table mappings have to be cancelled.
+    2) Rows_log_event::do_apply_event() may even have started statements or
+    transactions on them, which we need to rollback in case of error.
+    3) If finding a Format_description_log_event after a BEGIN, we also need
+    to rollback before continuing with the next events.
+    4) so we need this "context cleanup" function.
+  */
+  if (error)
+  {
+    trans_rollback_stmt(thd); // if a "statement transaction"
+    trans_rollback(thd);      // if a "real transaction"
+  }
+  m_table_map.clear_tables();
+  slave_close_thread_tables(thd);
+  if (error)
+    thd->mdl_context.release_transactional_locks();
+  /* ToDo: This must clear the flag in rgi, not rli. */
+  rli->clear_flag(Relay_log_info::IN_STMT);
+  /*
+    Cleanup for the flags that have been set at do_apply_event.
+  */
+  thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
+  thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
+
+  /*
+    Reset state related to long_find_row notes in the error log:
+    - timestamp
+    - flag that decides whether the slave prints or not
+  */
+  rli->reset_row_stmt_start_timestamp();
+  rli->unset_long_find_row_note_printed();
+
+  DBUG_VOID_RETURN;
+}
+
+
+void rpl_group_info::clear_tables_to_lock()
+{
+  DBUG_ENTER("Relay_log_info::clear_tables_to_lock()");
+#ifndef DBUG_OFF
+  /**
+    When replicating in RBR and MyISAM Merge tables are involved
+    open_and_lock_tables (called in do_apply_event) appends the 
+    base tables to the list of tables_to_lock. Then these are 
+    removed from the list in close_thread_tables (which is called 
+    before we reach this point).
+
+    This assertion just confirms that we get no surprises at this
+    point.
+   */
+  uint i=0;
+  for (TABLE_LIST *ptr= tables_to_lock ; ptr ; ptr= ptr->next_global, i++) ;
+  DBUG_ASSERT(i == tables_to_lock_count);
+#endif  
+
+  while (tables_to_lock)
+  {
+    uchar* to_free= reinterpret_cast<uchar*>(tables_to_lock);
+    if (tables_to_lock->m_tabledef_valid)
+    {
+      tables_to_lock->m_tabledef.table_def::~table_def();
+      tables_to_lock->m_tabledef_valid= FALSE;
+    }
+
+    /*
+      If blob fields were used during conversion of field values 
+      from the master table into the slave table, then we need to 
+      free the memory used temporarily to store their values before
+      copying into the slave's table.
+    */
+    if (tables_to_lock->m_conv_table)
+      free_blobs(tables_to_lock->m_conv_table);
+
+    tables_to_lock=
+      static_cast<RPL_TABLE_LIST*>(tables_to_lock->next_global);
+    tables_to_lock_count--;
+    my_free(to_free);
+  }
+  DBUG_ASSERT(tables_to_lock == NULL && tables_to_lock_count == 0);
+  DBUG_VOID_RETURN;
+}
+
+
+void rpl_group_info::slave_close_thread_tables(THD *thd)
+{
+  DBUG_ENTER("Relay_log_info::slave_close_thread_tables(THD *thd)");
+  thd->stmt_da->can_overwrite_status= TRUE;
+  thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
+  thd->stmt_da->can_overwrite_status= FALSE;
+
+  close_thread_tables(thd);
+  /*
+    - If inside a multi-statement transaction,
+    defer the release of metadata locks until the current
+    transaction is either committed or rolled back. This prevents
+    other statements from modifying the table for the entire
+    duration of this transaction.  This provides commit ordering
+    and guarantees serializability across multiple transactions.
+    - If in autocommit mode, or outside a transactional context,
+    automatically release metadata locks of the current statement.
+  */
+  if (! thd->in_multi_stmt_transaction_mode())
+    thd->mdl_context.release_transactional_locks();
+  else
+    thd->mdl_context.release_statement_locks();
+
+  clear_tables_to_lock();
+  DBUG_VOID_RETURN;
+}
+
 
 #endif

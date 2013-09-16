@@ -130,7 +130,7 @@ const ulong checksum_version_product_mariadb=
   checksum_version_split_mariadb[2];
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-static int rows_event_stmt_cleanup(Relay_log_info const *rli, THD* thd);
+static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD* thd);
 
 static const char *HA_ERR(int i)
 {
@@ -3854,7 +3854,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   DBUG_PRINT("info", ("log_pos: %lu", (ulong) log_pos));
 
   clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
-  if (strcmp("COMMIT", query) == 0 && rli->tables_to_lock)
+  if (strcmp("COMMIT", query) == 0 && rgi->tables_to_lock)
   {
     /*
       Cleaning-up the last statement context:
@@ -3863,7 +3863,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     */
     int error;
     char llbuff[22];
-    if ((error= rows_event_stmt_cleanup(const_cast<Relay_log_info*>(rli), thd)))
+    if ((error= rows_event_stmt_cleanup(rgi, thd)))
     {
       const_cast<Relay_log_info*>(rli)->report(ERROR_LEVEL, error,
                   "Error in cleaning up after an event preceeding the commit; "
@@ -3883,7 +3883,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   }
   else
   {
-    const_cast<Relay_log_info*>(rli)->slave_close_thread_tables(thd);
+    rgi->slave_close_thread_tables(thd);
   }
 
   /*
@@ -4835,7 +4835,7 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
                 "or ROLLBACK in relay log). A probable cause is that "
                 "the master died while writing the transaction to "
                 "its binary log, thus rolled back too."); 
-    const_cast<Relay_log_info*>(rli)->cleanup_context(thd, 1);
+    rgi->cleanup_context(thd, 1);
   }
 
   /*
@@ -5533,7 +5533,7 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
 
   /* see Query_log_event::do_apply_event() and BUG#13360 */
-  DBUG_ASSERT(!rli->m_table_map.count());
+  DBUG_ASSERT(!rgi->m_table_map.count());
   /*
     Usually lex_start() is called by mysql_parse(), but we need it here
     as the present method does not call mysql_parse().
@@ -9089,7 +9089,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
      */
     DBUG_ASSERT(get_flags(STMT_END_F));
 
-    const_cast<Relay_log_info*>(rli)->slave_close_thread_tables(thd);
+    rgi->slave_close_thread_tables(thd);
     thd->clear_error();
     DBUG_RETURN(0);
   }
@@ -9151,7 +9151,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     /* A small test to verify that objects have consistent types */
     DBUG_ASSERT(sizeof(thd->variables.option_bits) == sizeof(OPTION_RELAXED_UNIQUE_CHECKS));
 
-    if (open_and_lock_tables(thd, rli->tables_to_lock, FALSE, 0))
+    if (open_and_lock_tables(thd, rgi->tables_to_lock, FALSE, 0))
     {
       uint actual_error= thd->stmt_da->sql_errno();
       if (thd->is_slave_error || thd->is_fatal_error)
@@ -9168,7 +9168,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                      "unexpected success or fatal error"));
         thd->is_slave_error= 1;
       }
-      const_cast<Relay_log_info*>(rli)->slave_close_thread_tables(thd);
+      rgi->slave_close_thread_tables(thd);
       DBUG_RETURN(actual_error);
     }
 
@@ -9182,7 +9182,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 
     {
       DBUG_PRINT("debug", ("Checking compability of tables to lock - tables_to_lock: %p",
-                           rli->tables_to_lock));
+                           rgi->tables_to_lock));
 
       /**
         When using RBR and MyISAM MERGE tables the base tables that make
@@ -9196,8 +9196,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         NOTE: The base tables are added here are removed when 
               close_thread_tables is called.
        */
-      RPL_TABLE_LIST *ptr= rli->tables_to_lock;
-      for (uint i= 0 ; ptr && (i < rli->tables_to_lock_count);
+      RPL_TABLE_LIST *ptr= rgi->tables_to_lock;
+      for (uint i= 0 ; ptr && (i < rgi->tables_to_lock_count);
            ptr= static_cast<RPL_TABLE_LIST*>(ptr->next_global), i++)
       {
         DBUG_ASSERT(ptr->m_tabledef_valid);
@@ -9213,7 +9213,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
             having severe errors which should not be skiped.
           */
           thd->is_slave_error= 1;
-          const_cast<Relay_log_info*>(rli)->slave_close_thread_tables(thd);
+          rgi->slave_close_thread_tables(thd);
           DBUG_RETURN(ERR_BAD_TABLE_DEF);
         }
         DBUG_PRINT("debug", ("Table: %s.%s is compatible with master"
@@ -9238,18 +9238,18 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       Rows_log_event, we can invalidate the query cache for the
       associated table.
      */
-    TABLE_LIST *ptr= rli->tables_to_lock;
-    for (uint i=0 ;  ptr && (i < rli->tables_to_lock_count); ptr= ptr->next_global, i++)
-      const_cast<Relay_log_info*>(rli)->m_table_map.set_table(ptr->table_id, ptr->table);
+    TABLE_LIST *ptr= rgi->tables_to_lock;
+    for (uint i=0 ;  ptr && (i < rgi->tables_to_lock_count); ptr= ptr->next_global, i++)
+      rgi->m_table_map.set_table(ptr->table_id, ptr->table);
 
 #ifdef HAVE_QUERY_CACHE
-    query_cache.invalidate_locked_for_write(thd, rli->tables_to_lock);
+    query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
 #endif
   }
 
   TABLE* 
     table= 
-    m_table= const_cast<Relay_log_info*>(rli)->m_table_map.get_table(m_table_id);
+    m_table= rgi->m_table_map.get_table(m_table_id);
 
   DBUG_PRINT("debug", ("m_table: 0x%lx, m_table_id: %lu", (ulong) m_table, m_table_id));
 
@@ -9331,7 +9331,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       if (!table->in_use)
         table->in_use= thd;
 
-      error= do_exec_row(rli);
+      error= do_exec_row(rgi);
 
       if (error)
         DBUG_PRINT("info", ("error: %s", HA_ERR(error)));
@@ -9371,7 +9371,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                           (ulong) m_curr_row, (ulong) m_curr_row_end, (ulong) m_rows_end));
 
       if (!m_curr_row_end && !error)
-        error= unpack_current_row(rli);
+        error= unpack_current_row(rgi);
   
       // at this moment m_curr_row_end should be set
       DBUG_ASSERT(error || m_curr_row_end != NULL); 
@@ -9432,7 +9432,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     DBUG_RETURN(error);
   }
 
-  if (get_flags(STMT_END_F) && (error= rows_event_stmt_cleanup(rli, thd)))
+  if (get_flags(STMT_END_F) && (error= rows_event_stmt_cleanup(rgi, thd)))
     slave_rows_error_report(ERROR_LEVEL,
                             thd->is_error() ? 0 : error,
                             rli, thd, table,
@@ -9466,7 +9466,7 @@ Rows_log_event::do_shall_skip(Relay_log_info *rli)
    @retval  non-zero  Error at the commit.
  */
 
-static int rows_event_stmt_cleanup(Relay_log_info const *rli, THD * thd)
+static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
 {
   int error;
   {
@@ -9520,7 +9520,7 @@ static int rows_event_stmt_cleanup(Relay_log_info const *rli, THD * thd)
     */
     thd->reset_current_stmt_binlog_format_row();
 
-    const_cast<Relay_log_info*>(rli)->cleanup_context(thd, 0);
+    rgi->cleanup_context(thd, 0);
   }
   return error;
 }
@@ -10259,10 +10259,11 @@ enum enum_tbl_map_status
             rli->tables_to_lock.
 */
 static enum_tbl_map_status
-check_table_map(Relay_log_info const *rli, RPL_TABLE_LIST *table_list)
+check_table_map(rpl_group_info *rgi, RPL_TABLE_LIST *table_list)
 {
   DBUG_ENTER("check_table_map");
   enum_tbl_map_status res= OK_TO_PROCESS;
+  Relay_log_info *rli= rgi->rli;
 
   if (rli->sql_thd->slave_thread /* filtering is for slave only */ &&
       (!rli->mi->rpl_filter->db_ok(table_list->db) ||
@@ -10270,8 +10271,8 @@ check_table_map(Relay_log_info const *rli, RPL_TABLE_LIST *table_list)
     res= FILTERED_OUT;
   else
   {
-    RPL_TABLE_LIST *ptr= static_cast<RPL_TABLE_LIST*>(rli->tables_to_lock);
-    for(uint i=0 ; ptr && (i< rli->tables_to_lock_count); 
+    RPL_TABLE_LIST *ptr= static_cast<RPL_TABLE_LIST*>(rgi->tables_to_lock);
+    for(uint i=0 ; ptr && (i< rgi->tables_to_lock_count); 
         ptr= static_cast<RPL_TABLE_LIST*>(ptr->next_local), i++)
     {
       if (ptr->table_id == table_list->table_id)
@@ -10303,7 +10304,6 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   Rpl_filter *filter;
   Relay_log_info const *rli= rgi->rli;
   DBUG_ENTER("Table_map_log_event::do_apply_event(Relay_log_info*)");
-  DBUG_ASSERT(rli->sql_thd == thd);
 
   /* Step the query id to mark what columns that are actually used. */
   thd->set_query_id(next_query_id());
@@ -10328,7 +10328,7 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   table_list->updating= 1;
   table_list->required_type= FRMTYPE_TABLE;
   DBUG_PRINT("debug", ("table: %s is mapped to %u", table_list->table_name, table_list->table_id));
-  enum_tbl_map_status tblmap_status= check_table_map(rli, table_list);
+  enum_tbl_map_status tblmap_status= check_table_map(rgi, table_list);
   if (tblmap_status == OK_TO_PROCESS)
   {
     DBUG_ASSERT(thd->lex->query_tables != table_list);
@@ -10354,9 +10354,9 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
       We record in the slave's information that the table should be
       locked by linking the table into the list of tables to lock.
     */
-    table_list->next_global= table_list->next_local= rli->tables_to_lock;
-    const_cast<Relay_log_info*>(rli)->tables_to_lock= table_list;
-    const_cast<Relay_log_info*>(rli)->tables_to_lock_count++;
+    table_list->next_global= table_list->next_local= rgi->tables_to_lock;
+    rgi->tables_to_lock= table_list;
+    rgi->tables_to_lock_count++;
     /* 'memory' is freed in clear_tables_to_lock */
   }
   else  // FILTERED_OUT, SAME_ID_MAPPING_*
@@ -10709,7 +10709,7 @@ is_duplicate_key_error(int errcode)
 */ 
 
 int
-Rows_log_event::write_row(const Relay_log_info *const rli,
+Rows_log_event::write_row(rpl_group_info *rgi,
                           const bool overwrite)
 {
   DBUG_ENTER("write_row");
@@ -10724,7 +10724,7 @@ Rows_log_event::write_row(const Relay_log_info *const rli,
                  table->file->ht->db_type != DB_TYPE_NDBCLUSTER);
 
   /* unpack row into table->record[0] */
-  if ((error= unpack_current_row(rli)))
+  if ((error= unpack_current_row(rgi)))
     DBUG_RETURN(error);
 
   if (m_curr_row == m_rows_buf)
@@ -10841,7 +10841,7 @@ Rows_log_event::write_row(const Relay_log_info *const rli,
     if (!get_flags(COMPLETE_ROWS_F))
     {
       restore_record(table,record[1]);
-      error= unpack_current_row(rli);
+      error= unpack_current_row(rgi);
     }
 
 #ifndef DBUG_OFF
@@ -10907,10 +10907,10 @@ Rows_log_event::write_row(const Relay_log_info *const rli,
 #endif
 
 int
-Write_rows_log_event::do_exec_row(const Relay_log_info *const rli)
+Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
 {
   DBUG_ASSERT(m_table != NULL);
-  int error= write_row(rli, slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT);
+  int error= write_row(rgi, slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT);
 
   if (error && !thd->is_error())
   {
@@ -11214,7 +11214,7 @@ void issue_long_find_row_warning(Log_event_type type,
   for any following update/delete command.
 */
 
-int Rows_log_event::find_row(const Relay_log_info *rli)
+int Rows_log_event::find_row(rpl_group_info *rgi)
 {
   DBUG_ENTER("Rows_log_event::find_row");
 
@@ -11232,7 +11232,7 @@ int Rows_log_event::find_row(const Relay_log_info *rli)
   */
   
   prepare_record(table, m_width, FALSE);
-  error= unpack_current_row(rli);
+  error= unpack_current_row(rgi);
 
 #ifndef DBUG_OFF
   DBUG_PRINT("info",("looking for the following record"));
@@ -11497,7 +11497,7 @@ int Rows_log_event::find_row(const Relay_log_info *rli)
 end:
   if (is_table_scan || is_index_scan)
     issue_long_find_row_warning(get_type_code(), m_table->alias.c_ptr(), 
-                                is_index_scan, rli);
+                                is_index_scan, rgi->rli);
   table->default_column_bitmaps();
   DBUG_RETURN(error);
 }
@@ -11565,12 +11565,12 @@ Delete_rows_log_event::do_after_row_operations(const Slave_reporting_capability 
   return error;
 }
 
-int Delete_rows_log_event::do_exec_row(const Relay_log_info *const rli)
+int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 {
   int error;
   DBUG_ASSERT(m_table != NULL);
 
-  if (!(error= find_row(rli))) 
+  if (!(error= find_row(rgi))) 
   { 
     /*
       Delete the record found, located in record[0]
@@ -11691,11 +11691,11 @@ Update_rows_log_event::do_after_row_operations(const Slave_reporting_capability 
 }
 
 int 
-Update_rows_log_event::do_exec_row(const Relay_log_info *const rli)
+Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 {
   DBUG_ASSERT(m_table != NULL);
 
-  int error= find_row(rli); 
+  int error= find_row(rgi); 
   if (error)
   {
     /*
@@ -11703,7 +11703,7 @@ Update_rows_log_event::do_exec_row(const Relay_log_info *const rli)
       able to skip to the next pair of updates
     */
     m_curr_row= m_curr_row_end;
-    unpack_current_row(rli);
+    unpack_current_row(rgi);
     return error;
   }
 
@@ -11722,7 +11722,7 @@ Update_rows_log_event::do_exec_row(const Relay_log_info *const rli)
 
   m_curr_row= m_curr_row_end;
   /* this also updates m_curr_row_end */
-  if ((error= unpack_current_row(rli)))
+  if ((error= unpack_current_row(rgi)))
     goto err;
 
   /*

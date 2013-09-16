@@ -361,27 +361,6 @@ public:
 	    group_relay_log_pos);
   }
 
-  RPL_TABLE_LIST *tables_to_lock;           /* RBR: Tables to lock  */
-  uint tables_to_lock_count;        /* RBR: Count of tables to lock */
-  table_mapping m_table_map;      /* RBR: Mapping table-id to table */
-
-  bool get_table_data(TABLE *table_arg, table_def **tabledef_var, TABLE **conv_table_var) const
-  {
-    DBUG_ASSERT(tabledef_var && conv_table_var);
-    for (TABLE_LIST *ptr= tables_to_lock ; ptr != NULL ; ptr= ptr->next_global)
-      if (ptr->table == table_arg)
-      {
-        *tabledef_var= &static_cast<RPL_TABLE_LIST*>(ptr)->m_tabledef;
-        *conv_table_var= static_cast<RPL_TABLE_LIST*>(ptr)->m_conv_table;
-        DBUG_PRINT("debug", ("Fetching table data for table %s.%s:"
-                             " tabledef: %p, conv_table: %p",
-                             table_arg->s->db.str, table_arg->s->table_name.str,
-                             *tabledef_var, *conv_table_var));
-        return true;
-      }
-    return false;
-  }
-
   /*
     Last charset (6 bytes) seen by slave SQL thread is cached here; it helps
     the thread save 3 get_charset() per Query_log_event if the charset is not
@@ -390,10 +369,6 @@ public:
   */
   void cached_charset_invalidate();
   bool cached_charset_compare(char *charset) const;
-
-  void cleanup_context(THD *, bool);
-  void slave_close_thread_tables(THD *);
-  void clear_tables_to_lock();
 
   /*
     Used to defer stopping the SQL thread to give it a chance
@@ -588,6 +563,10 @@ struct rpl_group_info
 
   Annotate_rows_log_event *m_annotate_event;
 
+  RPL_TABLE_LIST *tables_to_lock;           /* RBR: Tables to lock  */
+  uint tables_to_lock_count;        /* RBR: Count of tables to lock */
+  table_mapping m_table_map;      /* RBR: Mapping table-id to table */
+
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
 
@@ -649,6 +628,26 @@ struct rpl_group_info
     }
   }
 
+  bool get_table_data(TABLE *table_arg, table_def **tabledef_var, TABLE **conv_table_var) const
+  {
+    DBUG_ASSERT(tabledef_var && conv_table_var);
+    for (TABLE_LIST *ptr= tables_to_lock ; ptr != NULL ; ptr= ptr->next_global)
+      if (ptr->table == table_arg)
+      {
+        *tabledef_var= &static_cast<RPL_TABLE_LIST*>(ptr)->m_tabledef;
+        *conv_table_var= static_cast<RPL_TABLE_LIST*>(ptr)->m_conv_table;
+        DBUG_PRINT("debug", ("Fetching table data for table %s.%s:"
+                             " tabledef: %p, conv_table: %p",
+                             table_arg->s->db.str, table_arg->s->table_name.str,
+                             *tabledef_var, *conv_table_var));
+        return true;
+      }
+    return false;
+  }
+
+  void clear_tables_to_lock();
+  void cleanup_context(THD *, bool);
+  void slave_close_thread_tables(THD *);
 };
 
 

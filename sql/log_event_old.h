@@ -195,15 +195,15 @@ protected:
   const uchar *m_curr_row_end; /* One-after the end of the current row */
   uchar    *m_key;      /* Buffer to keep key value during searches */
 
-  int find_row(const Relay_log_info *const);
-  int write_row(const Relay_log_info *const, const bool);
+  int find_row(rpl_group_info *);
+  int write_row(rpl_group_info *, const bool);
 
   // Unpack the current row into m_table->record[0]
-  int unpack_current_row(const Relay_log_info *const rli)
+  int unpack_current_row(rpl_group_info *rgi)
   { 
     DBUG_ASSERT(m_table);
     ASSERT_OR_RETURN_ERROR(m_curr_row < m_rows_end, HA_ERR_CORRUPT_EVENT);
-    int const result= ::unpack_row(rli, m_table, m_width, m_curr_row,
+    int const result= ::unpack_row(rgi, m_table, m_width, m_curr_row,
                                    m_rows_end, &m_cols,
                                    &m_curr_row_end, &m_master_reclength);
     ASSERT_OR_RETURN_ERROR(m_curr_row_end <= m_rows_end, HA_ERR_CORRUPT_EVENT);
@@ -267,7 +267,7 @@ private:
       0 if execution succeeded, 1 if execution failed.
       
   */
-  virtual int do_exec_row(const Relay_log_info *const rli) = 0;
+  virtual int do_exec_row(rpl_group_info *rgi) = 0;
 #endif /* !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION) */
 
   /********** END OF CUT & PASTE FROM Rows_log_event **********/
@@ -324,7 +324,7 @@ private:
     RETURN VALUE
       Error code, if something went wrong, 0 otherwise.
    */
-  virtual int do_prepare_row(THD*, Relay_log_info const*, TABLE*,
+  virtual int do_prepare_row(THD*, rpl_group_info*, TABLE*,
                              uchar const *row_start,
                              uchar const **row_end) = 0;
 
@@ -387,7 +387,7 @@ private:
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(const Relay_log_info *const);
+  virtual int do_exec_row(rpl_group_info *);
 #endif
   /********** END OF CUT & PASTE FROM Write_rows_log_event **********/
 
@@ -409,7 +409,7 @@ private:
   // primitives for old version of do_apply_event()
   virtual int do_before_row_operations(TABLE *table);
   virtual int do_after_row_operations(TABLE *table, int error);
-  virtual int do_prepare_row(THD*, Relay_log_info const*, TABLE*,
+  virtual int do_prepare_row(THD*, rpl_group_info*, TABLE*,
                              uchar const *row_start, uchar const **row_end);
   virtual int do_exec_row(TABLE *table);
 
@@ -463,7 +463,7 @@ protected:
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(const Relay_log_info *const);
+  virtual int do_exec_row(rpl_group_info *);
 #endif /* !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION) */
   /********** END OF CUT & PASTE FROM Update_rows_log_event **********/
 
@@ -487,7 +487,7 @@ private:
   // primitives for old version of do_apply_event()
   virtual int do_before_row_operations(TABLE *table);
   virtual int do_after_row_operations(TABLE *table, int error);
-  virtual int do_prepare_row(THD*, Relay_log_info const*, TABLE*,
+  virtual int do_prepare_row(THD*, rpl_group_info*, TABLE*,
                              uchar const *row_start, uchar const **row_end);
   virtual int do_exec_row(TABLE *table);
 #endif /* !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION) */
@@ -538,7 +538,7 @@ protected:
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(const Relay_log_info *const);
+  virtual int do_exec_row(rpl_group_info *);
 #endif
   /********** END CUT & PASTE FROM Delete_rows_log_event **********/
 
@@ -562,7 +562,7 @@ private:
   // primitives for old version of do_apply_event()
   virtual int do_before_row_operations(TABLE *table);
   virtual int do_after_row_operations(TABLE *table, int error);
-  virtual int do_prepare_row(THD*, Relay_log_info const*, TABLE*,
+  virtual int do_prepare_row(THD*, rpl_group_info*, TABLE*,
                              uchar const *row_start, uchar const **row_end);
   virtual int do_exec_row(TABLE *table);
 #endif

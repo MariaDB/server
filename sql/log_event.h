@@ -4256,16 +4256,16 @@ protected:
   uint      m_key_nr;   /* Key number */
 
   int find_key(); // Find a best key to use in find_row()
-  int find_row(const Relay_log_info *const);
-  int write_row(const Relay_log_info *const, const bool);
+  int find_row(rpl_group_info *);
+  int write_row(rpl_group_info *, const bool);
 
   // Unpack the current row into m_table->record[0]
-  int unpack_current_row(const Relay_log_info *const rli)
+  int unpack_current_row(rpl_group_info *rgi)
   {
     DBUG_ASSERT(m_table);
 
     ASSERT_OR_RETURN_ERROR(m_curr_row < m_rows_end, HA_ERR_CORRUPT_EVENT);
-    int const result= ::unpack_row(rli, m_table, m_width, m_curr_row,
+    int const result= ::unpack_row(rgi, m_table, m_width, m_curr_row,
                                    m_rows_end, &m_cols,
                                    &m_curr_row_end, &m_master_reclength);
     if (m_curr_row_end > m_rows_end)
@@ -4331,7 +4331,7 @@ private:
       0 if execution succeeded, 1 if execution failed.
       
   */
-  virtual int do_exec_row(const Relay_log_info *const rli) = 0;
+  virtual int do_exec_row(rpl_group_info *rli) = 0;
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
 
   friend class Old_rows_log_event;
@@ -4387,7 +4387,7 @@ private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(const Relay_log_info *const);
+  virtual int do_exec_row(rpl_group_info *);
 #endif
 };
 
@@ -4461,7 +4461,7 @@ protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(const Relay_log_info *const);
+  virtual int do_exec_row(rpl_group_info *);
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
 };
 
@@ -4526,7 +4526,7 @@ protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(const Relay_log_info *const);
+  virtual int do_exec_row(rpl_group_info *);
 #endif
 };
 
