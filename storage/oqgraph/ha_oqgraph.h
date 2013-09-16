@@ -110,6 +110,11 @@ public:
 
   void fprint_error(const char* fmt, ...);
 
+#if MYSQL_VERSION_ID < 100000
+  // Allow compatibility for build with 5.5.32
+  virtual const char *table_type() const { return hton_name(ht)->str; }
+#endif
+
 private:
   int oqgraph_check_table_structure (TABLE *table_arg);
 

@@ -43,6 +43,14 @@
 #define MYSQL_ERROR Sql_condition
 #endif
 
+#if MYSQL_VERSION_ID	< 100000
+// Allow compatibility with build for 5.5.32
+#define user_defined_key_parts key_parts
+#define open_table_error(a,b,c) open_table_error(a,b,c,0)
+#define enum_open_frm_error int
+#else
+#define enum_open_frm_error enum open_frm_error
+#endif
 
 #include "table.h"
 #include "field.h"
@@ -107,7 +115,7 @@ static uint32 findLongestLatch() {
   return len;
 }
 
-static const char *latchToCode(int latch) {
+const char *oqlatchToCode(int latch) {
   for (const oqgraph_latch_op_table* k=latch_ops_table; k && k->key; k++) {
     if (k->latch == latch) {
       return k->key;
@@ -568,16 +576,16 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   while (open_table_def(thd, share, open_def_flags))
   {
 #if MYSQL_VERSION_ID	< 100002
-    if (thd->is_error() && thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE)
+    if (thd->is_error() && thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE)
     {
       free_table_share(share);
-      DBUG_RETURN(thd->get_stmt_da()->sql_errno());
+      DBUG_RETURN(thd->stmt_da->sql_errno());
     }
 
     if (ha_create_table_from_engine(thd, table->s->db.str, options->table_name))
     {
       free_table_share(share);
-      DBUG_RETURN(thd->get_stmt_da()->sql_errno());
+      DBUG_RETURN(thd->stmt_da->sql_errno());
     }
     /*mysql_reset_errors(thd, 1);*/
     thd->clear_error();
@@ -606,7 +614,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     DBUG_RETURN(-1);
   }
 
-  if (enum open_frm_error err= open_table_from_share(thd, share, "",
+  if (enum_open_frm_error err= open_table_from_share(thd, share, "",
                             (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
                                     HA_GET_INDEX | HA_TRY_READ_ONLY),
                             READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD,
