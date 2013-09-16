@@ -72,6 +72,7 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   /* ToDo: Access to thd, and what about rli, split out a parallel part? */
   mysql_mutex_lock(&rli->data_lock);
   err= apply_event_and_update_pos(qev->ev, thd, rgi, rpt);
+  thd->rgi_slave= NULL;
   /* ToDo: error handling. */
 }
 
@@ -487,12 +488,22 @@ rpl_parallel_thread_pool::get_thread(rpl_parallel_entry *entry)
 }
 
 
+static void
+free_rpl_parallel_entry(void *element)
+{
+  rpl_parallel_entry *e= (rpl_parallel_entry *)element;
+  mysql_cond_destroy(&e->COND_parallel_entry);
+  mysql_mutex_destroy(&e->LOCK_parallel_entry);
+  my_free(e);
+}
+
+
 rpl_parallel::rpl_parallel() :
   current(NULL)
 {
   my_hash_init(&domain_hash, &my_charset_bin, 32,
                offsetof(rpl_parallel_entry, domain_id), sizeof(uint32),
-               NULL, NULL, HASH_UNIQUE);
+               NULL, free_rpl_parallel_entry, HASH_UNIQUE);
 }
 
 
@@ -667,6 +678,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
     qev->rgi= serial_rgi;
     rpt_handle_event(qev, NULL);
     delete_or_keep_event_post_apply(serial_rgi, typ, qev->ev);
+    my_free(qev);
 
     return false;
   }

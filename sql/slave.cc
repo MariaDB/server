@@ -3307,7 +3307,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           else
           {
             exec_res= 0;
-            rli->cleanup_context(thd, 1);
+            serial_rgi->cleanup_context(thd, 1);
             /* chance for concurrent connection to get more locks */
             slave_sleep(thd, min(rli->trans_retries, MAX_SLAVE_RETRY_PAUSE),
                        sql_slave_killed, rli);
@@ -3983,7 +3983,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   Master_info *mi= ((Master_info*)arg);
   Relay_log_info* rli = &mi->rli;
   const char *errmsg;
-  rpl_group_info serial_rgi(rli);
+  rpl_group_info *serial_rgi;
 
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
@@ -3992,10 +3992,11 @@ pthread_handler_t handle_slave_sql(void *arg)
   LINT_INIT(saved_master_log_pos);
   LINT_INIT(saved_log_pos);
 
+  serial_rgi= new rpl_group_info(rli);
   thd = new THD; // note that contructor of THD uses DBUG_ !
   thd->thread_stack = (char*)&thd; // remember where our stack is
   thd->rpl_filter = mi->rpl_filter;
-  serial_rgi.thd= thd;
+  serial_rgi->thd= thd;
 
   DBUG_ASSERT(rli->inited);
   DBUG_ASSERT(rli->mi == mi);
@@ -4025,10 +4026,10 @@ pthread_handler_t handle_slave_sql(void *arg)
     goto err_during_init;
   }
   thd->init_for_queries();
-  thd->rgi_slave= &serial_rgi;
-  if ((serial_rgi.deferred_events_collecting= mi->rpl_filter->is_on()))
+  thd->rgi_slave= serial_rgi;
+  if ((serial_rgi->deferred_events_collecting= mi->rpl_filter->is_on()))
   {
-    serial_rgi.deferred_events= new Deferred_log_events(rli);
+    serial_rgi->deferred_events= new Deferred_log_events(rli);
   }
 
   thd->temporary_tables = rli->save_temporary_tables; // restore temp tables
@@ -4211,7 +4212,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
       saved_skip= 0;
     }
     
-    if (exec_relay_log_event(thd, rli, &serial_rgi))
+    if (exec_relay_log_event(thd, rli, serial_rgi))
     {
       DBUG_PRINT("info", ("exec_relay_log_event() failed"));
       // do not scare the user if SQL thread was simply killed or stopped
@@ -4338,7 +4339,7 @@ the slave SQL thread with \"SLAVE START\". We stopped at log \
     must "proactively" clear playgrounds:
   */
   thd->clear_error();
-  rli->cleanup_context(thd, 1);
+  serial_rgi->cleanup_context(thd, 1);
   /*
     Some extra safety, which should not been needed (normally, event deletion
     should already have done these assignments (each event which sets these
@@ -4379,6 +4380,7 @@ err_during_init:
   mysql_mutex_lock(&LOCK_thread_count);
   THD_CHECK_SENTRY(thd);
   delete thd;
+  delete serial_rgi;
   mysql_mutex_unlock(&LOCK_thread_count);
  /*
   Note: the order of the broadcast and unlock calls below (first broadcast, then unlock)

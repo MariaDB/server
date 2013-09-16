@@ -273,7 +273,7 @@ void mysql_client_binlog_statement(THD* thd)
 
 end:
   thd->variables.option_bits= thd_options;
-  rli->slave_close_thread_tables(thd);
+  rgi->slave_close_thread_tables(thd);
   my_free(buf);
   DBUG_VOID_RETURN;
 }
