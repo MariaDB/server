@@ -126,6 +126,10 @@ ha_spider::ha_spider(
   init_ha_mem_root = FALSE;
 */
 #endif
+  prev_index_rnd_init = SPD_NONE;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  direct_aggregate_item_first = NULL;
+#endif
   result_link_idx = 0;
   result_list.have_sql_kind_backup = FALSE;
   result_list.sqls = NULL;
@@ -144,6 +148,9 @@ ha_spider::ha_spider(
   result_list.set_split_read = FALSE;
   result_list.insert_dup_update_pushdown = FALSE;
   result_list.tmp_pos_row_first = NULL;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  result_list.direct_aggregate = FALSE;
+#endif
   DBUG_VOID_RETURN;
 }
 
@@ -220,6 +227,10 @@ ha_spider::ha_spider(
   init_ha_mem_root = FALSE;
 */
 #endif
+  prev_index_rnd_init = SPD_NONE;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  direct_aggregate_item_first = NULL;
+#endif
   result_link_idx = 0;
   result_list.have_sql_kind_backup = FALSE;
   result_list.sqls = NULL;
@@ -238,6 +249,9 @@ ha_spider::ha_spider(
   result_list.set_split_read = FALSE;
   result_list.insert_dup_update_pushdown = FALSE;
   result_list.tmp_pos_row_first = NULL;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  result_list.direct_aggregate = FALSE;
+#endif
   ref_length = sizeof(SPIDER_POSITION);
   DBUG_VOID_RETURN;
 }
@@ -639,6 +653,18 @@ int ha_spider::close()
       delete_bulk_access_link(bulk_access_link_first);
       bulk_access_link_first = bulk_access_link_current;
     } while (bulk_access_link_first);
+  }
+#endif
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  while (direct_aggregate_item_first)
+  {
+    direct_aggregate_item_current = direct_aggregate_item_first->next;
+    if (direct_aggregate_item_first->item)
+    {
+      delete direct_aggregate_item_first->item;
+    }
+    spider_free(spider_current_trx, direct_aggregate_item_first, MYF(0));
+    direct_aggregate_item_first = direct_aggregate_item_current;
   }
 #endif
   if (is_clone)
@@ -1539,6 +1565,19 @@ int ha_spider::reset()
     } while (bulk_access_link_first);
   }
 #endif
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  direct_aggregate_item_current = direct_aggregate_item_first;
+  while (direct_aggregate_item_current)
+  {
+    if (direct_aggregate_item_current->item)
+    {
+      delete direct_aggregate_item_current->item;
+      direct_aggregate_item_current->item = NULL;
+    }
+    direct_aggregate_item_current = direct_aggregate_item_current->next;
+  }
+  result_list.direct_aggregate = FALSE;
+#endif
   store_error_num = 0;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (
@@ -1714,6 +1753,7 @@ int ha_spider::reset()
 #ifdef INFO_KIND_FORCE_LIMIT_BEGIN
   info_limit = 9223372036854775807LL;
 #endif
+  prev_index_rnd_init = SPD_NONE;
   result_list.have_sql_kind_backup = FALSE;
   result_list.direct_order_limit = FALSE;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -1861,6 +1901,7 @@ int ha_spider::index_init(
     DBUG_RETURN(error_num);
 #endif
   result_list.check_direct_order_limit = FALSE;
+  prev_index_rnd_init = SPD_INDEX;
   DBUG_RETURN(0);
 }
 
@@ -5136,6 +5177,10 @@ int ha_spider::read_multi_range_first_internal(
           DBUG_RETURN(error_num);
         result_list.use_union = TRUE;
 
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+        bool direct_aggregate_backup = result_list.direct_aggregate;
+        result_list.direct_aggregate = FALSE;
+#endif
         if (result_list.direct_order_limit)
         {
           if ((error_num =
@@ -5147,6 +5192,9 @@ int ha_spider::read_multi_range_first_internal(
             NULL, 0, SPIDER_SQL_TYPE_SELECT_SQL)))
             DBUG_RETURN(error_num);
         }
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+        result_list.direct_aggregate = direct_aggregate_backup;
+#endif
         if ((error_num = append_limit_sql_part(
           result_list.internal_offset,
           result_list.limit_num,
@@ -6486,6 +6534,10 @@ int ha_spider::read_multi_range_next(
           DBUG_RETURN(error_num);
         result_list.use_union = TRUE;
 
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+        bool direct_aggregate_backup = result_list.direct_aggregate;
+        result_list.direct_aggregate = FALSE;
+#endif
         if (result_list.direct_order_limit)
         {
           if ((error_num =
@@ -6497,6 +6549,9 @@ int ha_spider::read_multi_range_next(
             NULL, 0, SPIDER_SQL_TYPE_SELECT_SQL)))
             DBUG_RETURN(error_num);
         }
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+        result_list.direct_aggregate = direct_aggregate_backup;
+#endif
         if ((error_num = append_limit_sql_part(
           result_list.internal_offset,
           result_list.limit_num,
@@ -6882,6 +6937,7 @@ int ha_spider::rnd_init(
   int error_num;
   DBUG_ENTER("ha_spider::rnd_init");
   DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_PRINT("info",("spider scan=%s", scan ? "TRUE" : "FALSE"));
   pushed_pos = NULL;
   if (result_list.lock_type == F_WRLCK)
     check_and_start_bulk_update(SPD_BU_START_BY_INDEX_OR_RND_INIT);
@@ -6895,7 +6951,8 @@ int ha_spider::rnd_init(
     pk_update = FALSE;
     if (
       result_list.current &&
-      !result_list.low_mem_read
+      !result_list.low_mem_read &&
+      prev_index_rnd_init == SPD_RND
     ) {
       result_list.current = result_list.first;
       spider_db_set_pos_to_first_row(&result_list);
@@ -6978,6 +7035,7 @@ int ha_spider::rnd_init(
       result_list.check_direct_order_limit = FALSE;
     }
   }
+  prev_index_rnd_init = SPD_RND;
   DBUG_RETURN(0);
 }
 
@@ -10708,6 +10766,16 @@ int ha_spider::info_push(
   DBUG_RETURN(error_num);
 }
 
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+void ha_spider::return_record_by_parent()
+{
+  DBUG_ENTER("ha_spider::return_record_by_parent");
+  DBUG_PRINT("info",("spider this=%p", this));
+  spider_db_refetch_for_item_sum_funcs(this);
+  DBUG_VOID_RETURN;
+}
+#endif
+
 TABLE *ha_spider::get_table()
 {
   DBUG_ENTER("ha_spider::get_table");
@@ -12919,6 +12987,32 @@ int ha_spider::append_condition_sql_part(
   }
   DBUG_RETURN(0);
 }
+
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+int ha_spider::append_sum_select_sql_part(
+  ulong sql_type,
+  const char *alias,
+  uint alias_length
+) {
+  int error_num;
+  uint roop_count, dbton_id;
+  spider_db_handler *dbton_hdl;
+  DBUG_ENTER("ha_spider::append_sum_select_sql_part");
+  for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
+  {
+    dbton_id = share->use_sql_dbton_ids[roop_count];
+    dbton_hdl = dbton_handler[dbton_id];
+    if (
+      dbton_hdl->first_link_idx >= 0 &&
+      (error_num = dbton_hdl->append_sum_select_part(sql_type,
+        alias, alias_length))
+    ) {
+      DBUG_RETURN(error_num);
+    }
+  }
+  DBUG_RETURN(0);
+}
+#endif
 
 int ha_spider::append_match_select_sql_part(
   ulong sql_type,
