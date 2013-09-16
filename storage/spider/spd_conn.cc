@@ -2293,7 +2293,7 @@ void *spider_bg_conn_action(
               spider_db_set_names(spider, conn, conn->link_idx)))
             {
               if (
-                result_list->tmp_table_join &&
+                result_list->tmp_table_join && spider->bka_mode != 2 &&
                 spider_bit_is_set(result_list->tmp_table_join_first,
                   conn->link_idx)
               ) {

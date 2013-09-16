@@ -3823,6 +3823,23 @@ int spider_handlersocket_handler::reuse_tmp_table_and_sql_for_bka()
   DBUG_RETURN(0);
 }
 
+int spider_handlersocket_handler::append_union_table_and_sql_for_bka(
+  const key_range *start_key
+) {
+  DBUG_ENTER("spider_handlersocket_handler::append_union_table_and_sql_for_bka");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);
+}
+
+int spider_handlersocket_handler::reuse_union_table_and_sql_for_bka()
+{
+  DBUG_ENTER("spider_handlersocket_handler::reuse_union_table_and_sql_for_bka");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);
+}
+
 int spider_handlersocket_handler::append_insert_for_recovery(
   ulong sql_type,
   int link_idx
@@ -4131,11 +4148,39 @@ int spider_handlersocket_handler::append_values_terminator_part(
   DBUG_RETURN(0);
 }
 
+int spider_handlersocket_handler::append_union_table_connector_part(
+  ulong sql_type
+) {
+  DBUG_ENTER("spider_handlersocket_handler::append_union_table_connector_part");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);
+}
+
+int spider_handlersocket_handler::append_union_table_terminator_part(
+  ulong sql_type
+) {
+  DBUG_ENTER("spider_handlersocket_handler::append_union_table_terminator_part");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);
+}
+
 int spider_handlersocket_handler::append_key_column_values_part(
   const key_range *start_key,
   ulong sql_type
 ) {
   DBUG_ENTER("spider_handlersocket_handler::append_key_column_values_part");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);
+}
+
+int spider_handlersocket_handler::append_key_column_values_with_name_part(
+  const key_range *start_key,
+  ulong sql_type
+) {
+  DBUG_ENTER("spider_handlersocket_handler::append_key_column_values_with_name_part");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_RETURN(0);
@@ -4395,6 +4440,16 @@ int spider_handlersocket_handler::append_multi_range_cnt_part(
   bool with_comma
 ) {
   DBUG_ENTER("spider_handlersocket_handler::append_multi_range_cnt_part");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);
+}
+
+int spider_handlersocket_handler::append_multi_range_cnt_with_name_part(
+  ulong sql_type,
+  uint multi_range_cnt
+) {
+  DBUG_ENTER("spider_handlersocket_handler::append_multi_range_cnt_with_name_part");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_RETURN(0);

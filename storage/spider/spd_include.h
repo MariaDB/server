@@ -118,7 +118,7 @@
 #define SPIDER_TMP_SHARE_LONG_COUNT         15
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           233
+#define SPIDER_MEM_CALC_LIST_NUM           235
 
 #define SPIDER_BACKUP_DASTATUS \
   bool da_status; if (thd) da_status = thd->is_error(); else da_status = FALSE;

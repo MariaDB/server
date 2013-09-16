@@ -4809,21 +4809,42 @@ int ha_spider::read_multi_range_first_internal(
         result_list.limit_num =
           result_list.internal_limit >= result_list.split_read ?
           result_list.split_read : result_list.internal_limit;
-        if (!result_list.tmp_reuse_sql)
+        if (bka_mode == 2)
         {
-          if ((error_num = append_tmp_table_and_sql_for_bka(
+          if (!result_list.tmp_reuse_sql)
+          {
+            if ((error_num = append_union_table_and_sql_for_bka(
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-            &mrr_cur_range.start_key
+              &mrr_cur_range.start_key
 #else
-            &multi_range_curr->start_key
+              &multi_range_curr->start_key
 #endif
-          ))) {
-            DBUG_RETURN(error_num);
+            ))) {
+              DBUG_RETURN(error_num);
+            }
+          } else {
+            if ((error_num = reuse_union_table_and_sql_for_bka()))
+            {
+              DBUG_RETURN(error_num);
+            }
           }
         } else {
-          if ((error_num = reuse_tmp_table_and_sql_for_bka()))
+          if (!result_list.tmp_reuse_sql)
           {
-            DBUG_RETURN(error_num);
+            if ((error_num = append_tmp_table_and_sql_for_bka(
+#ifdef HA_MRR_USE_DEFAULT_IMPL
+              &mrr_cur_range.start_key
+#else
+              &multi_range_curr->start_key
+#endif
+            ))) {
+              DBUG_RETURN(error_num);
+            }
+          } else {
+            if ((error_num = reuse_tmp_table_and_sql_for_bka()))
+            {
+              DBUG_RETURN(error_num);
+            }
           }
         }
 
@@ -4859,21 +4880,56 @@ int ha_spider::read_multi_range_first_internal(
           multi_range_keys[multi_range_cnt] = (char *) mrr_cur_range.ptr;
 #endif
 #endif
-          if ((error_num = append_multi_range_cnt_sql_part(
-            SPIDER_SQL_TYPE_TMP_SQL, multi_range_cnt, TRUE)))
-            DBUG_RETURN(error_num);
-          if ((error_num = append_key_column_values_sql_part(
+          if (bka_mode == 2)
+          {
+            if ((error_num = spider_db_append_select(this)))
+              DBUG_RETURN(error_num);
+            if (multi_range_cnt == 0)
+            {
+              if ((error_num = append_multi_range_cnt_with_name_sql_part(
+                SPIDER_SQL_TYPE_SELECT_SQL, multi_range_cnt)))
+                DBUG_RETURN(error_num);
+              if ((error_num = append_key_column_values_with_name_sql_part(
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-            &mrr_cur_range.start_key,
+                &mrr_cur_range.start_key,
 #else
-            &multi_range_curr->start_key,
+                &multi_range_curr->start_key,
 #endif
-            SPIDER_SQL_TYPE_TMP_SQL)))
-            DBUG_RETURN(error_num);
+                SPIDER_SQL_TYPE_SELECT_SQL)))
+                DBUG_RETURN(error_num);
+            } else {
+              if ((error_num = append_multi_range_cnt_sql_part(
+                SPIDER_SQL_TYPE_SELECT_SQL, multi_range_cnt, TRUE)))
+                DBUG_RETURN(error_num);
+              if ((error_num = append_key_column_values_sql_part(
+#ifdef HA_MRR_USE_DEFAULT_IMPL
+                &mrr_cur_range.start_key,
+#else
+                &multi_range_curr->start_key,
+#endif
+                SPIDER_SQL_TYPE_SELECT_SQL)))
+                DBUG_RETURN(error_num);
+            }
+            if ((error_num = append_union_table_connector_sql_part(
+              SPIDER_SQL_TYPE_SELECT_SQL)))
+              DBUG_RETURN(error_num);
+          } else {
+            if ((error_num = append_multi_range_cnt_sql_part(
+              SPIDER_SQL_TYPE_TMP_SQL, multi_range_cnt, TRUE)))
+              DBUG_RETURN(error_num);
+            if ((error_num = append_key_column_values_sql_part(
+#ifdef HA_MRR_USE_DEFAULT_IMPL
+              &mrr_cur_range.start_key,
+#else
+              &multi_range_curr->start_key,
+#endif
+              SPIDER_SQL_TYPE_TMP_SQL)))
+              DBUG_RETURN(error_num);
+            if ((error_num =
+              append_values_connector_sql_part(SPIDER_SQL_TYPE_TMP_SQL)))
+              DBUG_RETURN(error_num);
+          }
 
-          if ((error_num =
-            append_values_connector_sql_part(SPIDER_SQL_TYPE_TMP_SQL)))
-            DBUG_RETURN(error_num);
           multi_range_cnt++;
           if (multi_range_cnt >= (uint) result_list.multi_split_read)
             break;
@@ -4898,9 +4954,16 @@ int ha_spider::read_multi_range_first_internal(
 #ifdef HA_MRR_USE_DEFAULT_IMPL
         while (!range_res);
 #endif
-        if ((error_num =
-          append_values_terminator_sql_part(SPIDER_SQL_TYPE_TMP_SQL)))
-          DBUG_RETURN(error_num);
+        if (bka_mode == 2)
+        {
+          if ((error_num = append_union_table_terminator_sql_part(
+            SPIDER_SQL_TYPE_SELECT_SQL)))
+            DBUG_RETURN(error_num);
+        } else {
+          if ((error_num =
+            append_values_terminator_sql_part(SPIDER_SQL_TYPE_TMP_SQL)))
+            DBUG_RETURN(error_num);
+        }
         result_list.use_union = FALSE;
 
         if ((error_num = append_limit_sql_part(
@@ -5184,7 +5247,7 @@ int ha_spider::read_multi_range_first_internal(
               break;
             }
             if (
-              result_list.tmp_table_join &&
+              result_list.tmp_table_join && bka_mode != 2 &&
               spider_bit_is_set(result_list.tmp_table_join_first, roop_count)
             ) {
               spider_clear_bit(result_list.tmp_table_join_first, roop_count);
@@ -6062,21 +6125,42 @@ int ha_spider::read_multi_range_next(
           result_list.split_read ?
           result_list.split_read :
           result_list.internal_limit - result_list.record_num;
-        if (!result_list.tmp_reuse_sql)
+        if (bka_mode == 2)
         {
-          if ((error_num = append_tmp_table_and_sql_for_bka(
+          if (!result_list.tmp_reuse_sql)
+          {
+            if ((error_num = append_union_table_and_sql_for_bka(
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-            &mrr_cur_range.start_key
+              &mrr_cur_range.start_key
 #else
-            &multi_range_curr->start_key
+              &multi_range_curr->start_key
 #endif
-          ))) {
-            DBUG_RETURN(error_num);
+            ))) {
+              DBUG_RETURN(error_num);
+            }
+          } else {
+            if ((error_num = reuse_union_table_and_sql_for_bka()))
+            {
+              DBUG_RETURN(error_num);
+            }
           }
         } else {
-          if ((error_num = reuse_tmp_table_and_sql_for_bka()))
+          if (!result_list.tmp_reuse_sql)
           {
-            DBUG_RETURN(error_num);
+            if ((error_num = append_tmp_table_and_sql_for_bka(
+#ifdef HA_MRR_USE_DEFAULT_IMPL
+              &mrr_cur_range.start_key
+#else
+              &multi_range_curr->start_key
+#endif
+            ))) {
+              DBUG_RETURN(error_num);
+            }
+          } else {
+            if ((error_num = reuse_tmp_table_and_sql_for_bka()))
+            {
+              DBUG_RETURN(error_num);
+            }
           }
         }
 
@@ -6112,21 +6196,56 @@ int ha_spider::read_multi_range_next(
           multi_range_keys[multi_range_cnt] = (char *) mrr_cur_range.ptr;
 #endif
 #endif
-          if ((error_num = append_multi_range_cnt_sql_part(
-            SPIDER_SQL_TYPE_TMP_SQL, multi_range_cnt, TRUE)))
-            DBUG_RETURN(error_num);
-          if ((error_num = append_key_column_values_sql_part(
+          if (bka_mode == 2)
+          {
+            if ((error_num = spider_db_append_select(this)))
+              DBUG_RETURN(error_num);
+            if (multi_range_cnt == 0)
+            {
+              if ((error_num = append_multi_range_cnt_with_name_sql_part(
+                SPIDER_SQL_TYPE_SELECT_SQL, multi_range_cnt)))
+                DBUG_RETURN(error_num);
+              if ((error_num = append_key_column_values_with_name_sql_part(
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-            &mrr_cur_range.start_key,
+                &mrr_cur_range.start_key,
 #else
-            &multi_range_curr->start_key,
+                &multi_range_curr->start_key,
 #endif
-            SPIDER_SQL_TYPE_TMP_SQL)))
-            DBUG_RETURN(error_num);
+                SPIDER_SQL_TYPE_SELECT_SQL)))
+                DBUG_RETURN(error_num);
+            } else {
+              if ((error_num = append_multi_range_cnt_sql_part(
+                SPIDER_SQL_TYPE_SELECT_SQL, multi_range_cnt, TRUE)))
+                DBUG_RETURN(error_num);
+              if ((error_num = append_key_column_values_sql_part(
+#ifdef HA_MRR_USE_DEFAULT_IMPL
+                &mrr_cur_range.start_key,
+#else
+                &multi_range_curr->start_key,
+#endif
+                SPIDER_SQL_TYPE_SELECT_SQL)))
+                DBUG_RETURN(error_num);
+            }
+            if ((error_num = append_union_table_connector_sql_part(
+              SPIDER_SQL_TYPE_SELECT_SQL)))
+              DBUG_RETURN(error_num);
+          } else {
+            if ((error_num = append_multi_range_cnt_sql_part(
+              SPIDER_SQL_TYPE_TMP_SQL, multi_range_cnt, TRUE)))
+              DBUG_RETURN(error_num);
+            if ((error_num = append_key_column_values_sql_part(
+#ifdef HA_MRR_USE_DEFAULT_IMPL
+              &mrr_cur_range.start_key,
+#else
+              &multi_range_curr->start_key,
+#endif
+              SPIDER_SQL_TYPE_TMP_SQL)))
+              DBUG_RETURN(error_num);
 
-          if ((error_num =
-            append_values_connector_sql_part(SPIDER_SQL_TYPE_TMP_SQL)))
-            DBUG_RETURN(error_num);
+            if ((error_num =
+              append_values_connector_sql_part(SPIDER_SQL_TYPE_TMP_SQL)))
+              DBUG_RETURN(error_num);
+          }
           multi_range_cnt++;
           if (multi_range_cnt >= (uint) result_list.multi_split_read)
             break;
@@ -6151,9 +6270,16 @@ int ha_spider::read_multi_range_next(
 #ifdef HA_MRR_USE_DEFAULT_IMPL
         while (!range_res);
 #endif
-        if ((error_num =
-          append_values_terminator_sql_part(SPIDER_SQL_TYPE_TMP_SQL)))
-          DBUG_RETURN(error_num);
+        if (bka_mode == 2)
+        {
+          if ((error_num = append_union_table_terminator_sql_part(
+            SPIDER_SQL_TYPE_SELECT_SQL)))
+            DBUG_RETURN(error_num);
+        } else {
+          if ((error_num =
+            append_values_terminator_sql_part(SPIDER_SQL_TYPE_TMP_SQL)))
+            DBUG_RETURN(error_num);
+        }
         result_list.use_union = FALSE;
 
         if ((error_num = append_limit_sql_part(
@@ -6433,7 +6559,7 @@ int ha_spider::read_multi_range_next(
               break;
             }
             if (
-              result_list.tmp_table_join &&
+              result_list.tmp_table_join && bka_mode != 2 &&
               spider_bit_is_set(result_list.tmp_table_join_first, roop_count)
             ) {
               spider_clear_bit(result_list.tmp_table_join_first, roop_count);
@@ -12040,6 +12166,47 @@ int ha_spider::reuse_tmp_table_and_sql_for_bka()
   DBUG_RETURN(0);
 }
 
+int ha_spider::append_union_table_and_sql_for_bka(
+  const key_range *start_key
+) {
+  int error_num;
+  uint roop_count, dbton_id;
+  spider_db_handler *dbton_hdl;
+  DBUG_ENTER("ha_spider::append_union_table_and_sql_for_bka");
+  for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
+  {
+    dbton_id = share->use_sql_dbton_ids[roop_count];
+    dbton_hdl = dbton_handler[dbton_id];
+    if (
+      dbton_hdl->first_link_idx >= 0 &&
+      (error_num = dbton_hdl->append_union_table_and_sql_for_bka(start_key))
+    ) {
+      DBUG_RETURN(error_num);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+int ha_spider::reuse_union_table_and_sql_for_bka()
+{
+  int error_num;
+  uint roop_count, dbton_id;
+  spider_db_handler *dbton_hdl;
+  DBUG_ENTER("ha_spider::reuse_union_table_and_sql_for_bka");
+  for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
+  {
+    dbton_id = share->use_sql_dbton_ids[roop_count];
+    dbton_hdl = dbton_handler[dbton_id];
+    if (
+      dbton_hdl->first_link_idx >= 0 &&
+      (error_num = dbton_hdl->reuse_union_table_and_sql_for_bka())
+    ) {
+      DBUG_RETURN(error_num);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
 int ha_spider::append_insert_sql_part()
 {
   int error_num;
@@ -12481,6 +12648,50 @@ int ha_spider::append_values_terminator_sql_part(
   DBUG_RETURN(0);
 }
 
+int ha_spider::append_union_table_connector_sql_part(
+  ulong sql_type
+) {
+  int error_num;
+  uint roop_count, dbton_id;
+  spider_db_handler *dbton_hdl;
+  DBUG_ENTER("ha_spider::append_union_table_connector_sql_part");
+  for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
+  {
+    dbton_id = share->use_sql_dbton_ids[roop_count];
+    dbton_hdl = dbton_handler[dbton_id];
+    if (
+      dbton_hdl->first_link_idx >= 0 &&
+      (error_num =
+        dbton_hdl->append_union_table_connector_part(sql_type))
+    ) {
+      DBUG_RETURN(error_num);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+int ha_spider::append_union_table_terminator_sql_part(
+  ulong sql_type
+) {
+  int error_num;
+  uint roop_count, dbton_id;
+  spider_db_handler *dbton_hdl;
+  DBUG_ENTER("ha_spider::append_union_table_terminator_sql_part");
+  for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
+  {
+    dbton_id = share->use_sql_dbton_ids[roop_count];
+    dbton_hdl = dbton_handler[dbton_id];
+    if (
+      dbton_hdl->first_link_idx >= 0 &&
+      (error_num =
+        dbton_hdl->append_union_table_terminator_part(sql_type))
+    ) {
+      DBUG_RETURN(error_num);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
 int ha_spider::append_key_column_values_sql_part(
   const key_range *start_key,
   ulong sql_type
@@ -12497,6 +12708,30 @@ int ha_spider::append_key_column_values_sql_part(
       dbton_hdl->first_link_idx >= 0 &&
       (error_num =
         dbton_hdl->append_key_column_values_part(start_key, sql_type))
+    ) {
+      DBUG_RETURN(error_num);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+int ha_spider::append_key_column_values_with_name_sql_part(
+  const key_range *start_key,
+  ulong sql_type
+) {
+  int error_num;
+  uint roop_count, dbton_id;
+  spider_db_handler *dbton_hdl;
+  DBUG_ENTER("ha_spider::append_key_column_values_with_name_sql_part");
+  for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
+  {
+    dbton_id = share->use_sql_dbton_ids[roop_count];
+    dbton_hdl = dbton_handler[dbton_id];
+    if (
+      dbton_hdl->first_link_idx >= 0 &&
+      (error_num =
+        dbton_hdl->append_key_column_values_with_name_part(
+          start_key, sql_type))
     ) {
       DBUG_RETURN(error_num);
     }
@@ -13044,6 +13279,29 @@ int ha_spider::append_multi_range_cnt_sql_part(
       dbton_hdl->first_link_idx >= 0 &&
       (error_num = dbton_hdl->append_multi_range_cnt_part(
         sql_type, multi_range_cnt, with_comma))
+    ) {
+      DBUG_RETURN(error_num);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+int ha_spider::append_multi_range_cnt_with_name_sql_part(
+  ulong sql_type,
+  uint multi_range_cnt
+) {
+  int error_num;
+  uint roop_count, dbton_id;
+  spider_db_handler *dbton_hdl;
+  DBUG_ENTER("ha_spider::append_multi_range_cnt_with_name_sql_part");
+  for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
+  {
+    dbton_id = share->use_sql_dbton_ids[roop_count];
+    dbton_hdl = dbton_handler[dbton_id];
+    if (
+      dbton_hdl->first_link_idx >= 0 &&
+      (error_num = dbton_hdl->append_multi_range_cnt_with_name_part(
+        sql_type, multi_range_cnt))
     ) {
       DBUG_RETURN(error_num);
     }

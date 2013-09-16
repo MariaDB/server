@@ -1900,7 +1900,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONGLONG("bsr", bgs_second_read, 0);
 #endif
           SPIDER_PARAM_STR("bke", bka_engine);
-          SPIDER_PARAM_INT_WITH_MAX("bkm", bka_mode, 0, 1);
+          SPIDER_PARAM_INT_WITH_MAX("bkm", bka_mode, 0, 2);
           SPIDER_PARAM_INT("bsz", bulk_size, 0);
           SPIDER_PARAM_INT_WITH_MAX("bum", bulk_update_mode, 0, 2);
           SPIDER_PARAM_INT("bus", bulk_update_size, 0);
@@ -2056,7 +2056,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT("bgs_mode", bgs_mode, 0);
 #endif
           SPIDER_PARAM_STR_LIST("ssl_cert", tgt_ssl_certs);
-          SPIDER_PARAM_INT_WITH_MAX("bka_mode", bka_mode, 0, 1);
+          SPIDER_PARAM_INT_WITH_MAX("bka_mode", bka_mode, 0, 2);
           error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
           my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
             MYF(0), tmp_ptr);
