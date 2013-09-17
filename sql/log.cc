@@ -6757,6 +6757,18 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry)
     {
       if (list->wakeup_subsequent_commits_running)
       {
+        /*
+          ToDo: We should not need a full lock/unlock of LOCK_wait_commit
+          here. All we need is a single (full) memory barrier, to ensure that
+          the reads of the list above are not reordered with the write of
+          wakeup_subsequent_commits_running, or with the writes to the list
+          from other threads that is allowed to happen after
+          wakeup_subsequent_commits_running has been set to false.
+
+          We do not currently have explicit memory barrier primitives in the
+          source tree, but if we get them the below mysql_mutex_lock() could
+          be replaced with a full memory barrier just before the loop.
+        */
         mysql_mutex_lock(&list->LOCK_wait_commit);
         list->wakeup_subsequent_commits_running= false;
         mysql_mutex_unlock(&list->LOCK_wait_commit);
