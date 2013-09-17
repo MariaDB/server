@@ -500,7 +500,7 @@ int mysql_update(THD *thd,
   if (thd->lex->describe)
     goto exit_without_my_ok;
 
-  query_plan.save_query_plan_footprint(thd->lex->query_plan_footprint);
+  query_plan.save_qpf(thd->lex->query_plan_footprint);
   thd->apc_target.enable();
   apc_target_enabled= true;
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
@@ -1031,10 +1031,9 @@ err:
 
 exit_without_my_ok:
   DBUG_ASSERT(!apc_target_enabled);
-  query_plan.save_query_plan_footprint(thd->lex->query_plan_footprint);
+  query_plan.save_qpf(thd->lex->query_plan_footprint);
   
   select_send *result;
-  //bool printed_anything;
   if (!(result= new select_send()))
     return 1;                               /* purecov: inspected */
   List<Item> dummy; /* note: looked in 5.6 and they too use a dummy list like this */

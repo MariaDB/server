@@ -361,7 +361,7 @@ public:
   StringBuffer<32> used_partitions;
   bool used_partitions_set;
   
-  /* Empty strings means "NULL" will be printed */
+  /* Empty string means "NULL" will be printed */
   StringBuffer<32> possible_keys_str;
   
   /*
@@ -375,7 +375,8 @@ public:
   QPF_index_use key;
   
   /*
-    when type==JT_HASH_NEXT, this stores the real index.
+    when type==JT_HASH_NEXT, 'key' stores the hash join pseudo-key.
+    hash_next_key stores the table's key.
   */
   QPF_index_use hash_next_key;
   

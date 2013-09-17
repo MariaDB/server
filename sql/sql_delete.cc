@@ -51,7 +51,7 @@
     invoked on a running DELETE statement.
 */
 
-void Delete_plan::save_query_plan_footprint(QPF_query *query)
+void Delete_plan::save_qpf(QPF_query *query)
 {
   QPF_delete* qpf= new QPF_delete;
 
@@ -63,22 +63,22 @@ void Delete_plan::save_query_plan_footprint(QPF_query *query)
   else
   {
     qpf->deleting_all_rows= false;
-    Update_plan::save_query_plan_footprint_intern(query, qpf);
+    Update_plan::save_qpf_intern(query, qpf);
   }
 
   query->upd_del_plan= qpf;
 }
 
 
-void Update_plan::save_query_plan_footprint(QPF_query *query)
+void Update_plan::save_qpf(QPF_query *query)
 {
   QPF_update* qpf= new QPF_update;
-  save_query_plan_footprint_intern(query, qpf);
+  save_qpf_intern(query, qpf);
   query->upd_del_plan= qpf;
 }
 
 
-void Update_plan::save_query_plan_footprint_intern(QPF_query *query, QPF_update *qpf)
+void Update_plan::save_qpf_intern(QPF_query *query, QPF_update *qpf)
 {
   qpf->select_type= "SIMPLE";
   qpf->table_name.append(table->pos_in_table_list->alias);
@@ -116,7 +116,6 @@ void Update_plan::save_query_plan_footprint_intern(QPF_query *query, QPF_update 
   qpf->using_where= test(select && select->cond);
   qpf->using_filesort= using_filesort;
 
-  //using_filesort is already set
   make_possible_keys_line(table, possible_keys, &qpf->possible_keys_line);
 
   /* Calculate key_len */
@@ -141,6 +140,7 @@ void Update_plan::save_query_plan_footprint_intern(QPF_query *query, QPF_update 
   }
 
   bool skip= updating_a_view;
+
   /* Save subquery children */
   for (SELECT_LEX_UNIT *unit= select_lex->first_inner_unit();
        unit;
@@ -157,11 +157,6 @@ void Update_plan::save_query_plan_footprint_intern(QPF_query *query, QPF_update 
     */
     if (!(unit->item && unit->item->eliminated))
       qpf->add_child(unit->first_select()->select_number);
-    
-    //TODO: temporary?:
-    //  A: yes. optimizing children subqueries has caused them to save QPFs,
-    //  automatically.
-    //unit->save_qpf(query);
   }
 }
 
@@ -423,7 +418,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (thd->lex->describe)
     goto exit_without_my_ok;
 
-  query_plan.save_query_plan_footprint(thd->lex->query_plan_footprint);
+  query_plan.save_qpf(thd->lex->query_plan_footprint);
   thd->apc_target.enable();
 
   DBUG_EXECUTE_IF("show_explain_probe_delete_exec_start", 
@@ -656,7 +651,7 @@ cleanup:
   
   /* Special exits */
 exit_without_my_ok:
-  query_plan.save_query_plan_footprint(thd->lex->query_plan_footprint);
+  query_plan.save_qpf(thd->lex->query_plan_footprint);
 
   select_send *result2;
   if (!(result2= new select_send()))
