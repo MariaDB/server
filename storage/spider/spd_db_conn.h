@@ -421,6 +421,23 @@ int spider_db_append_key_where(
   ha_spider *spider
 );
 
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+int spider_db_refetch_for_item_sum_funcs(
+  ha_spider *spider
+);
+
+int spider_db_fetch_for_item_sum_funcs(
+  SPIDER_DB_ROW *row,
+  ha_spider *spider
+);
+
+int spider_db_fetch_for_item_sum_func(
+  SPIDER_DB_ROW *row,
+  Item_sum *item_sum,
+  ha_spider *spider
+);
+#endif
+
 int spider_db_append_match_fetch(
   ha_spider *spider,
   st_spider_ft_info *ft_first,
@@ -792,6 +809,17 @@ int spider_db_open_item_func(
   uint alias_length,
   uint dbton_id
 );
+
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+int spider_db_open_item_sum_func(
+  Item_sum *item_sum,
+  ha_spider *spider,
+  spider_string *str,
+  const char *alias,
+  uint alias_length,
+  uint dbton_id
+);
+#endif
 
 int spider_db_open_item_ident(
   Item_ident *item_ident,
