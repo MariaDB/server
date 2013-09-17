@@ -507,6 +507,14 @@ rpl_parallel::rpl_parallel() :
 }
 
 
+void
+rpl_parallel::reset()
+{
+  my_hash_reset(&domain_hash);
+  current= NULL;
+}
+
+
 rpl_parallel::~rpl_parallel()
 {
   my_hash_free(&domain_hash);

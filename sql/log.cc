@@ -6623,6 +6623,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry)
     return false;
 
   /* Now enqueue ourselves in the group commit queue. */
+  DEBUG_SYNC(entry->thd, "commit_before_enqueue");
   entry->thd->clear_wakeup_ready();
   mysql_mutex_lock(&LOCK_prepare_ordered);
   orig_queue= group_commit_queue;
