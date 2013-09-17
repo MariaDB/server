@@ -2397,8 +2397,8 @@ public:
   /* Set this plan to be a plan to do nothing because of impossible WHRE*/
   void set_impossible_where() { impossible_where= true; }
 
-  void save_query_plan_footprint(QPF_query *query);
-  void save_query_plan_footprint_intern(QPF_query *query, QPF_update *qpf);
+  void save_qpf(QPF_query *query);
+  void save_qpf_intern(QPF_query *query, QPF_update *qpf);
   virtual ~Update_plan() {}
 
   Update_plan() : impossible_where(false), using_filesort(false) {}
@@ -2422,7 +2422,7 @@ public:
     table_rows= rows_arg;
   }
 
-  void save_query_plan_footprint(QPF_query *query);
+  void save_qpf(QPF_query *query);
 };
 
 

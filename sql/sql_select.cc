@@ -22517,8 +22517,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
                    bool distinct, const char *message)
 {
   QPF_node *qp_node;
-  const bool on_the_fly= true;
- 
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
   THD *thd=join->thd;
   const CHARSET_INFO *cs= system_charset_info;
@@ -22535,7 +22533,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   {
     QPF_select *qp_sel;
     qp_node= qp_sel= new (output->mem_root) QPF_select;
-    join->select_lex->set_explain_type(on_the_fly);
+    join->select_lex->set_explain_type(true);
 
     qp_sel->select_id= join->select_lex->select_number;
     qp_sel->select_type= join->select_lex->type;
@@ -22554,10 +22552,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
     qp_node= qp_sel= new (output->mem_root) QPF_select;
     table_map used_tables=0;
 
-    if (on_the_fly)
-      join->select_lex->set_explain_type(on_the_fly);
-
-    //bool printing_materialize_nest= FALSE;
+    join->select_lex->set_explain_type(true);
     uint select_id= join->select_lex->select_number;
 
     qp_sel->select_id= join->select_lex->select_number;
@@ -22568,13 +22563,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
     for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
          tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
     {
-      if (tab->bush_root_tab)
-      {
-        JOIN_TAB *first_sibling= tab->bush_root_tab->bush_children->start;
-        select_id= first_sibling->emb_sj_nest->sj_subq_pred->get_identifier();
-        //printing_materialize_nest= TRUE;
-      }
-      
       TABLE *table=tab->table;
       TABLE_LIST *table_list= tab->table->pos_in_table_list;
       char buff4[512];
@@ -22615,9 +22603,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
         qpt->sjm_nest_select_id= 0;
 
       /* select_type */
-      //const char* stype= printing_materialize_nest? "MATERIALIZED" : 
-      //                                              join->select_lex->type;
-      //item_list.push_back(new Item_string(stype, strlen(stype), cs));
       qp_sel->select_type= join->select_lex->type;
 
       /* table */
@@ -22684,8 +22669,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
       append_possible_keys(&qpt->possible_keys_str, table, tab->keys);
 
       /* Build "key", "key_len", and "ref" */
-
-      // tmp4 holds ref
       if (tab_type == JT_NEXT)
       {
 	key_info= table->key_info+tab->index;

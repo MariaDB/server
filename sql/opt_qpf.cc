@@ -81,14 +81,13 @@ void QPF_query::add_node(QPF_node *node)
     QPF_select *sel= (QPF_select*)node;
     if (sel->select_id == (int)UINT_MAX)
     {
-      //TODO this is a "fake select" from a UNION.
-      DBUG_ASSERT(0);
+      DBUG_ASSERT(0); // this is a "fake select" from a UNION.
     }
     else
     {
       uint select_id= sel->select_id;
       QPF_select *old_node;
-      //DBUG_ASSERT(!get_select(select_id));
+
       if (selects.elements() <= select_id)
         selects.resize(max(select_id+1, selects.elements()*2), NULL);
 
@@ -115,7 +114,7 @@ int QPF_query::print_explain(select_result_sink *output,
   }
   else
   {
-    // Start printing from id=1
+    /* Start printing from node with id=1 */
     QPF_node *node= get_node(1);
     return node->print_explain(this, output, explain_flags);
   }
@@ -264,8 +263,6 @@ QPF_select::~QPF_select()
 int QPF_select::print_explain(QPF_query *query, select_result_sink *output,
                               uint8 explain_flags)
 {
-  //output->unit.offset_limit_cnt= 0; 
-
   if (message)
   {
     List<Item> item_list;
@@ -328,7 +325,6 @@ int QPF_table_access::print_explain(select_result_sink *output, uint8 explain_fl
 
   List<Item> item_list;
   Item *item_null= new Item_null();
-  //const CHARSET_INFO *cs= system_charset_info;
   
   if (sjm_nest_select_id)
     select_id= sjm_nest_select_id;
