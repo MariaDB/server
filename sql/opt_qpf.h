@@ -1,3 +1,20 @@
+/*
+   Copyright (c) 2013 Monty Program Ab
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+
+
 /**************************************************************************************
  
   Query Plan Footprint (QPF) structures
@@ -286,6 +303,41 @@ typedef struct st_qpf_bka_type
 
 
 /*
+  Data about how an index is used by some access method
+*/
+class QPF_index_use : public Sql_alloc
+{
+public:
+  const char *key_name;
+  uint key_len;
+  /* will add #keyparts here if we implement EXPLAIN FORMAT=JSON */
+};
+
+
+/*
+  QPF for quick range selects, as well as index_merge select
+*/
+class QPF_quick_select : public Sql_alloc
+{
+public:
+  int quick_type;
+  
+  /* This is used when quick_type == QUICK_SELECT_I::QS_TYPE_RANGE */
+  QPF_index_use range;
+  
+  /* Used in all other cases */
+  List<QPF_quick_select> children;
+  
+  void print_extra(String *str);
+  void print_key(String *str);
+  void print_key_len(String *str);
+private:
+  void print_extra_recursive(String *str);
+  const char *get_name_by_type();
+};
+
+
+/*
   Query Plan Footprint for a JOIN_TAB.
 */
 class QPF_table_access : public Sql_alloc
@@ -302,29 +354,33 @@ public:
   int sjm_nest_select_id;
 
   /* id and 'select_type' are cared-of by the parent QPF_select */
-  TABLE *table;
-  StringBuffer<64> table_name;
+  StringBuffer<32> table_name;
 
   enum join_type type;
 
-  StringBuffer<64> used_partitions;
+  StringBuffer<32> used_partitions;
   bool used_partitions_set;
-
-  key_map possible_keys;
-  StringBuffer<64> possible_keys_str;
   
-  /* Not used? */
-  uint key_no;
-  uint key_length;
+  /* Empty strings means "NULL" will be printed */
+  StringBuffer<32> possible_keys_str;
+  
+  /*
+    Index use: key name and length.
+    Note: that when one is accessing I_S tables, those may show use of 
+    non-existant indexes.
 
-  bool key_set; /* not set means 'NULL' should be printed */
-  StringBuffer<64> key;
-
-  bool key_len_set; /* not set means 'NULL' should be printed */
-  StringBuffer<64> key_len;
-
+    key.key_name == NULL means 'NULL' will be shown in tabular output.
+    key.key_len == (uint)-1 means 'NULL' will be shown in tabular output.
+  */
+  QPF_index_use key;
+  
+  /*
+    when type==JT_HASH_NEXT, this stores the real index.
+  */
+  QPF_index_use hash_next_key;
+  
   bool ref_set; /* not set means 'NULL' should be printed */
-  StringBuffer<64> ref;
+  StringBuffer<32> ref;
 
   bool rows_set; /* not set means 'NULL' should be printed */
   ha_rows rows;
@@ -339,7 +395,7 @@ public:
   Dynamic_array<enum Extra_tag> extra_tags;
 
   // Valid if ET_USING tag is present
-  StringBuffer<64> quick_info;
+  QPF_quick_select *quick_info;
 
   // Valid if ET_USING_INDEX_FOR_GROUP_BY is present
   bool loose_scan_is_scanning;
@@ -348,13 +404,12 @@ public:
   key_map range_checked_map;
 
   // valid with ET_USING_MRR
-  StringBuffer<64> mrr_type;
+  StringBuffer<32> mrr_type;
 
   // valid with ET_USING_JOIN_BUFFER
   QPF_BKA_TYPE bka_type;
   
-  //TABLE *firstmatch_table;
-  StringBuffer<64> firstmatch_table_name;
+  StringBuffer<32> firstmatch_table_name;
 
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     uint select_id, const char *select_type,

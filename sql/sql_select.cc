@@ -11172,7 +11172,8 @@ void JOIN::cleanup(bool full)
   if (full)
   {
     /* Save it again */
-#if 0    psergey-todo: remove?
+#if 0
+    psergey-todo: remove?
     if (select_lex->select_number != UINT_MAX && 
         select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
         have_query_plan != QEP_NOT_PRESENT_YET && 
@@ -22576,20 +22577,12 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
       
       TABLE *table=tab->table;
       TABLE_LIST *table_list= tab->table->pos_in_table_list;
-      char buff2[512], buff3[512], buff4[512];
-      char keylen_str_buf[64];
+      char buff4[512];
       my_bool key_read;
       char table_name_buffer[SAFE_NAME_LEN];
-      String tmp2(buff2,sizeof(buff2),cs);
-      String tmp3(buff3,sizeof(buff3),cs);
       String tmp4(buff4,sizeof(buff4),cs);
-      char hash_key_prefix[]= "#hash#";
       KEY *key_info= 0;
       uint key_len= 0;
-      bool is_hj= tab->type == JT_HASH || tab->type ==JT_HASH_NEXT;
-
-      tmp2.length(0);
-      tmp3.length(0);
       tmp4.length(0);
       quick_type= -1;
       QUICK_SELECT_I *quick= NULL;
@@ -22611,6 +22604,9 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
 
       QPF_table_access *qpt= new (output->mem_root) QPF_table_access;
       qp_sel->add_table(qpt);
+      qpt->key.key_name= NULL;
+      qpt->key.key_len= (uint)-1;
+      qpt->quick_info= NULL;
       
       /* id */
       if (tab->bush_root_tab)
@@ -22685,13 +22681,10 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
       qpt->type= tab_type;
 
       /* Build "possible_keys" value */
-      qpt->possible_keys= tab->keys;
       append_possible_keys(&qpt->possible_keys_str, table, tab->keys);
 
       /* Build "key", "key_len", and "ref" */
 
-      // tmp2 holds key_name
-      // tmp3 holds key_length
       // tmp4 holds ref
       if (tab_type == JT_NEXT)
       {
@@ -22703,16 +22696,22 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
 	key_info= tab->get_keyinfo_by_key_no(tab->ref.key);
         key_len= tab->ref.key_length;
       }
-
-      if (key_info)
+      
+      /*
+        In STRAIGHT_JOIN queries, there can be join tabs with JT_CONST type
+        that still have quick selects.
+      */
+      if (tab->select && tab->select->quick && tab_type != JT_CONST)
       {
-        register uint length;
-        if (is_hj)
-          tmp2.append(hash_key_prefix, strlen(hash_key_prefix), cs);
-        tmp2.append(key_info->name,  strlen(key_info->name), cs);
-        length= (longlong10_to_str(key_len, keylen_str_buf, 10) - 
-                 keylen_str_buf);
-        tmp3.append(keylen_str_buf, length, cs);
+        qpt->quick_info= new QPF_quick_select;
+        tab->select->quick->save_info(qpt->quick_info);
+      }
+
+      if (key_info) /* 'index' or 'ref' access */
+      {
+        qpt->key.key_name= key_info->name;
+        qpt->key.key_len=  key_len;
+
         if (tab->ref.key_parts && tab_type != JT_FT)
 	{
           store_key **ref=tab->ref.key_copy;
@@ -22731,45 +22730,15 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
           }
         }
       }
-
-      if (is_hj && tab_type != JT_HASH)
+  
+      if (tab_type == JT_HASH_NEXT) /* full index scan + hash join */
       {
-        tmp2.append(':');
-        tmp3.append(':');
+        qpt->hash_next_key.key_name= table->key_info[tab->index].name;
+        qpt->hash_next_key.key_len=  table->key_info[tab->index].key_length;
       }
 
-      if (tab_type == JT_HASH_NEXT)
+      if (key_info)
       {
-        register uint length;
-	key_info= table->key_info+tab->index;
-        key_len= key_info->key_length;
-        tmp2.append(key_info->name,  strlen(key_info->name), cs);
-        length= (longlong10_to_str(key_len, keylen_str_buf, 10) - 
-                 keylen_str_buf);
-        tmp3.append(keylen_str_buf, length, cs);
-      }
-
-      if (tab->type != JT_CONST && tab->select && quick)
-        tab->select->quick->add_keys_and_lengths(&tmp2, &tmp3);
-
-      if (key_info || (tab->select && quick))
-      {
-        if (tmp2.length())
-        {
-          qpt->key.copy(tmp2);
-          qpt->key_set= true;
-        }
-        else
-          qpt->key_set= false;
-
-        if (tmp3.length())
-        {
-          qpt->key_len.copy(tmp3);
-          qpt->key_len_set= true;
-        }
-        else
-          qpt->key_len_set= false;
-
         if (key_info && tab_type != JT_NEXT)
         {
           qpt->ref.copy(tmp4);
@@ -22786,37 +22755,37 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
         {
           const char *tmp_buff;
           int f_idx;
+          StringBuffer<64> key_name_buf;
           if (table_list->has_db_lookup_value)
           {
+            /* The "key" has the name of the column referring to the database */
             f_idx= table_list->schema_table->idx_field1;
             tmp_buff= table_list->schema_table->fields_info[f_idx].field_name;
-            tmp2.append(tmp_buff, strlen(tmp_buff), cs);
+            key_name_buf.append(tmp_buff, strlen(tmp_buff), cs);
           }          
           if (table_list->has_table_lookup_value)
           {
             if (table_list->has_db_lookup_value)
-              tmp2.append(',');
+              key_name_buf.append(',');
+
             f_idx= table_list->schema_table->idx_field2;
             tmp_buff= table_list->schema_table->fields_info[f_idx].field_name;
-            tmp2.append(tmp_buff, strlen(tmp_buff), cs);
+            key_name_buf.append(tmp_buff, strlen(tmp_buff), cs);
           }
-          if (tmp2.length())
-          {
-            qpt->key.copy(tmp2);
-            qpt->key_set= true;
-          }
-          else
-            qpt->key_set= false;
-        }
-        else
-          qpt->key_set= false;
 
-	qpt->key_len_set= false;
+          size_t len;
+          if ((len= key_name_buf.length()))
+          {
+            char *ptr= (char*)thd->alloc(len+1);
+            memcpy(ptr, key_name_buf.c_ptr_safe(), len+1);
+            qpt->key.key_name= ptr;
+            qpt->key.key_len= -1;
+          }
+        }
 	qpt->ref_set= false;
       }
       
       /* "rows" */
-
       if (table_list /* SJM bushes don't have table_list */ &&
           table_list->schema_table)
       {
@@ -22888,7 +22857,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
             quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE)
         {
           qpt->push_extra(ET_USING);
-          tab->select->quick->add_info_string(&qpt->quick_info);
         }
 	if (tab->select)
 	{
