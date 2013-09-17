@@ -6309,7 +6309,7 @@ longlong Item_func_dyncol_exists::val_int()
   /* We do not change the string, so could do this trick */
   col.str= (char *)str->ptr();
   rc= ((name == NULL) ?
-       mariadb_dyncol_exists(&col, (uint) num) :
+       mariadb_dyncol_exists_num(&col, (uint) num) :
        mariadb_dyncol_exists_named(&col, name));
   if (rc < 0)
   {
