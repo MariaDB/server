@@ -5754,6 +5754,19 @@ wait_for_commit::wakeup_subsequent_commits2()
     waiter= next;
   }
 
+  /*
+    ToDo: We should not need a full lock/unlock of LOCK_wait_commit here. All
+    we need is a (full) memory barrier, to ensure that the reads of the list
+    above are not reordered with the write of
+    wakeup_subsequent_commits_running, or with the writes to the list from
+    other threads that is allowed to happen after
+    wakeup_subsequent_commits_running has been set to false.
+
+    We do not currently have explicit memory barrier primitives in the source
+    tree, but if we get them the below mysql_mutex_lock() could be replaced
+    with a full memory barrier. It is probably not important, the lock is not
+    contented and will likely be in the CPU cache since we took it just before.
+  */
   mysql_mutex_lock(&LOCK_wait_commit);
   wakeup_subsequent_commits_running= false;
   mysql_mutex_unlock(&LOCK_wait_commit);
