@@ -11940,78 +11940,106 @@ void QUICK_SELECT_I::add_key_name(String *str, bool *first)
 }
  
 
-void QUICK_RANGE_SELECT::add_info_string(String *str)
+void QUICK_RANGE_SELECT::save_info(QPF_quick_select *qpf)
 {
-  bool first= TRUE;
-  
-  add_key_name(str, &first);
+  qpf->quick_type= QS_TYPE_RANGE;
+  qpf->range.key_name= head->key_info[index].name;
+  qpf->range.key_len= max_used_key_length;
 }
 
-void QUICK_INDEX_MERGE_SELECT::add_info_string(String *str)
-{
-  QUICK_RANGE_SELECT *quick;
-  bool first= TRUE;
-  List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
 
-  str->append(STRING_WITH_LEN("sort_union("));
+void QUICK_GROUP_MIN_MAX_SELECT::save_info(QPF_quick_select *qpf)
+{
+  qpf->quick_type= QS_TYPE_GROUP_MIN_MAX;
+  qpf->range.key_name= head->key_info[index].name;
+  qpf->range.key_len= max_used_key_length;
+}
+
+
+void QUICK_INDEX_SORT_SELECT::save_info(QPF_quick_select *qpf)
+{
+  qpf->quick_type= get_type();
+
+  QUICK_RANGE_SELECT *quick;
+  QPF_quick_select *child_qpf;
+  List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
   while ((quick= it++))
   {
-    quick->add_key_name(str, &first);
+    child_qpf= new QPF_quick_select;
+    qpf->children.push_back(child_qpf);
+    quick->save_info(child_qpf);
   }
+
   if (pk_quick_select)
-    pk_quick_select->add_key_name(str, &first);
-  str->append(')');
+  {
+    child_qpf= new QPF_quick_select;
+    qpf->children.push_back(child_qpf);
+    pk_quick_select->save_info(child_qpf);
+  }
 }
 
-void QUICK_INDEX_INTERSECT_SELECT::add_info_string(String *str)
+/*
+  Same as QUICK_INDEX_SORT_SELECT::save_info(), but primary key is printed
+  first
+*/
+void QUICK_INDEX_INTERSECT_SELECT::save_info(QPF_quick_select *qpf)
 {
-  QUICK_RANGE_SELECT *quick;
-  bool first= TRUE;
-  List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
+  qpf->quick_type= get_type();
+  QPF_quick_select *child_qpf;
 
-  str->append(STRING_WITH_LEN("sort_intersect("));
   if (pk_quick_select)
-    pk_quick_select->add_key_name(str, &first);
+  {
+    child_qpf= new QPF_quick_select;
+    qpf->children.push_back(child_qpf);
+    pk_quick_select->save_info(child_qpf);
+  }
+
+  QUICK_RANGE_SELECT *quick;
+  List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
   while ((quick= it++))
   {
-    quick->add_key_name(str, &first);
+    child_qpf= new QPF_quick_select;
+    qpf->children.push_back(child_qpf);
+    quick->save_info(child_qpf);
   }
-  str->append(')');
+
 }
 
-void QUICK_ROR_INTERSECT_SELECT::add_info_string(String *str)
+
+void QUICK_ROR_INTERSECT_SELECT::save_info(QPF_quick_select *qpf)
 {
-  bool first= TRUE;
+  qpf->quick_type= get_type();
+
   QUICK_SELECT_WITH_RECORD *qr;
   List_iterator_fast<QUICK_SELECT_WITH_RECORD> it(quick_selects);
-
-  str->append(STRING_WITH_LEN("intersect("));
   while ((qr= it++))
   {
-    qr->quick->add_key_name(str, &first);
+    QPF_quick_select *child_qpf= new QPF_quick_select;
+    qpf->children.push_back(child_qpf);
+    qr->quick->save_info(child_qpf);
   }
+
   if (cpk_quick)
-    cpk_quick->add_key_name(str, &first);
-  str->append(')');
+  {
+    QPF_quick_select *child_qpf= new QPF_quick_select;
+    qpf->children.push_back(child_qpf);
+    cpk_quick->save_info(child_qpf);
+  }
 }
 
 
-void QUICK_ROR_UNION_SELECT::add_info_string(String *str)
+void QUICK_ROR_UNION_SELECT::save_info(QPF_quick_select *qpf)
 {
-  QUICK_SELECT_I *quick;
-  bool first= TRUE;
-  List_iterator_fast<QUICK_SELECT_I> it(quick_selects);
+  qpf->quick_type= get_type();
 
-  str->append(STRING_WITH_LEN("union("));
+  QUICK_SELECT_I *quick;
+  List_iterator_fast<QUICK_SELECT_I> it(quick_selects);
   while ((quick= it++))
   {
-    if (first)
-      first= FALSE;
-    else
-      str->append(',');
-    quick->add_info_string(str);
+    QPF_quick_select *child_qpf= new QPF_quick_select;
+    qpf->children.push_back(child_qpf);
+    quick->save_info(child_qpf);
   }
-  str->append(')');
 }
 
 

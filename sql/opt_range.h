@@ -52,7 +52,7 @@ typedef struct st_key_part {
   Field::imagetype image_type;
 } KEY_PART;
 
-
+class QPF_quick_select;
 /*
   A "MIN_TUPLE < tbl.key_tuple < MAX_TUPLE" interval. 
   
@@ -345,13 +345,8 @@ public:
 
   void add_key_name(String *str, bool *first);
 
-  /*
-    Append text representation of quick select structure (what and how is
-    merged) to str. The result is added to "Extra" field in EXPLAIN output.
-    This function is implemented only by quick selects that merge other quick
-    selects output and/or can produce output suitable for merging.
-  */
-  virtual void add_info_string(String *str) {}
+  /* Save information about quick select's query plan */
+  virtual void save_info(QPF_quick_select *qpf)= 0;
 
   /*
     Return 1 if any index used by this quick select
@@ -478,7 +473,7 @@ public:
   { file->position(record); }
   int get_type() { return QS_TYPE_RANGE; }
   void add_keys_and_lengths(String *key_names, String *used_lengths);
-  void add_info_string(String *str);
+  void save_info(QPF_quick_select *qpf);
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
 #endif
@@ -615,6 +610,7 @@ public:
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
 #endif
+  void save_info(QPF_quick_select *qpf);
 
   bool push_quick_back(QUICK_RANGE_SELECT *quick_sel_range);
 
@@ -663,7 +659,6 @@ public:
   int get_next();
   int get_type() { return QS_TYPE_INDEX_MERGE; }
   void add_keys_and_lengths(String *key_names, String *used_lengths);
-  void add_info_string(String *str);
 };
 
 class QUICK_INDEX_INTERSECT_SELECT : public QUICK_INDEX_SORT_SELECT
@@ -679,7 +674,7 @@ public:
   int get_next();
   int get_type() { return QS_TYPE_INDEX_INTERSECT; }
   void add_keys_and_lengths(String *key_names, String *used_lengths);
-  void add_info_string(String *str);
+  void save_info(QPF_quick_select *qpf);
 };
 
 
@@ -717,7 +712,7 @@ public:
   bool unique_key_range() { return false; }
   int get_type() { return QS_TYPE_ROR_INTERSECT; }
   void add_keys_and_lengths(String *key_names, String *used_lengths);
-  void add_info_string(String *str);
+  void save_info(QPF_quick_select *qpf);
   bool is_keys_used(const MY_BITMAP *fields);
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
@@ -796,7 +791,7 @@ public:
   bool unique_key_range() { return false; }
   int get_type() { return QS_TYPE_ROR_UNION; }
   void add_keys_and_lengths(String *key_names, String *used_lengths);
-  void add_info_string(String *str);
+  void save_info(QPF_quick_select *qpf);
   bool is_keys_used(const MY_BITMAP *fields);
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
@@ -945,6 +940,7 @@ public:
 #endif
   bool is_agg_distinct() { return have_agg_distinct; }
   bool loose_scan_is_scanning() { return is_index_scan; }
+  void save_info(QPF_quick_select *qpf);
 };
 
 

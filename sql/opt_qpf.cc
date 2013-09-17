@@ -1,6 +1,18 @@
 /*
-   TODO MP AB copyright
-*/
+   Copyright (c) 2013 Monty Program Ab
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation				// gcc: Class implementation
@@ -309,6 +321,11 @@ int QPF_table_access::print_explain(select_result_sink *output, uint8 explain_fl
                                     uint select_id, const char *select_type,
                                     bool using_temporary, bool using_filesort)
 {
+  const CHARSET_INFO *cs= system_charset_info;
+  const char *hash_key_prefix= "#hash#";
+  bool is_hj= (type == JT_HASH || type == JT_HASH_NEXT || 
+               type == JT_HASH_RANGE || type == JT_HASH_INDEX_MERGE);
+
   List<Item> item_list;
   Item *item_null= new Item_null();
   //const CHARSET_INFO *cs= system_charset_info;
@@ -349,14 +366,62 @@ int QPF_table_access::print_explain(select_result_sink *output, uint8 explain_fl
     item_list.push_back(item_null); 
 
   /* `key` */
-  if (key_set)
-    push_string(&item_list, &key);
+  StringBuffer<64> key_str;
+  if (key.key_name)
+  {
+    if (is_hj)
+      key_str.append(hash_key_prefix, strlen(hash_key_prefix), cs);
+
+    key_str.append(key.key_name);
+
+    if (is_hj && type != JT_HASH)
+      key_str.append(':');
+  }
+  
+  if (quick_info)
+  {
+    StringBuffer<64> buf2;
+    quick_info->print_key(&buf2);
+    key_str.append(buf2);
+  }
+  if (type == JT_HASH_NEXT)
+    key_str.append(hash_next_key.key_name);
+  
+  if (key_str.length() > 0)
+    push_string(&item_list, &key_str);
   else
     item_list.push_back(item_null); 
 
   /* `key_len` */
-  if (key_len_set)
-    push_string(&item_list, &key_len);
+  StringBuffer<64> key_len_str;
+
+  if (key.key_len != (uint)-1)
+  {
+    char buf[64];
+    size_t length;
+    length= longlong10_to_str(key.key_len, buf, 10) - buf;
+    key_len_str.append(buf, length);
+    if (is_hj && type != JT_HASH)
+      key_len_str.append(':');
+  }
+
+  if (quick_info)
+  {
+    StringBuffer<64> buf2;
+    quick_info->print_key_len(&buf2);
+    key_len_str.append(buf2);
+  } 
+
+  if (type == JT_HASH_NEXT)
+  {
+    char buf[64];
+    size_t length;
+    length= longlong10_to_str(hash_next_key.key_len, buf, 10) - buf;
+    key_len_str.append(buf, length);
+  }
+
+  if (key_len_str.length() > 0)
+    push_string(&item_list, &key_len_str);
   else
     item_list.push_back(item_null);
 
@@ -416,7 +481,6 @@ int QPF_table_access::print_explain(select_result_sink *output, uint8 explain_fl
     extra_buf.append(STRING_WITH_LEN("Using filesort"));
   }
 
-  const CHARSET_INFO *cs= system_charset_info;
   item_list.push_back(new Item_string(extra_buf.ptr(), extra_buf.length(), cs));
 
   if (output->send_data(item_list))
@@ -476,7 +540,7 @@ void QPF_table_access::append_tag_name(String *str, enum Extra_tag tag)
     {
       // quick select
       str->append(STRING_WITH_LEN("Using "));
-      str->append(quick_info);
+      quick_info->print_extra(str);
       break;
     }
     case ET_RANGE_CHECKED_FOR_EACH_RECORD:
@@ -531,6 +595,127 @@ void QPF_table_access::append_tag_name(String *str, enum Extra_tag tag)
     }
     default:
      str->append(extra_tag_text[tag]);
+  }
+}
+
+
+/* 
+  This is called for top-level QPF_quick_select only. The point of this
+  function is:
+  - index_merge should print $index_merge_type (child, ...)
+  - 'range'  should not print anything.
+*/
+
+void QPF_quick_select::print_extra(String *str)
+{
+  if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
+      quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC ||
+      quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
+  {
+    /* print nothing */
+  }
+  else
+    print_extra_recursive(str);
+}
+
+
+void QPF_quick_select::print_extra_recursive(String *str)
+{
+  if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
+      quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC)
+  {
+    str->append(range.key_name);
+  }
+  else
+  {
+    str->append(get_name_by_type());
+    str->append('(');
+    List_iterator_fast<QPF_quick_select> it (children);
+    QPF_quick_select* child;
+    bool first= true;
+    while ((child = it++))
+    {
+      if (first)
+        first= false;
+      else
+        str->append(',');
+
+      child->print_extra_recursive(str);
+    }
+    str->append(')');
+  }
+}
+
+
+const char * QPF_quick_select::get_name_by_type()
+{
+  switch (quick_type) {
+    case QUICK_SELECT_I::QS_TYPE_INDEX_MERGE:
+      return "sort_union";
+    case QUICK_SELECT_I::QS_TYPE_ROR_UNION:
+      return "union";
+    case QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT:
+      return "intersect";
+    case QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT:
+      return "sort_intersect";
+    default:
+      DBUG_ASSERT(0);
+      return "Oops";
+  }
+}
+
+
+/*
+  This prints a comma-separated list of used indexes, ignoring nesting
+*/
+
+void QPF_quick_select::print_key(String *str)
+{
+  if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
+      quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC || 
+      quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
+  {
+    if (str->length() > 0)
+      str->append(',');
+    str->append(range.key_name);
+  }
+  else
+  {
+    List_iterator_fast<QPF_quick_select> it (children);
+    QPF_quick_select* child;
+    while ((child = it++))
+    {
+      child->print_key(str);
+    }
+  }
+}
+
+
+/*
+  This prints a comma-separated list of used key_lengths, ignoring nesting
+*/
+
+void QPF_quick_select::print_key_len(String *str)
+{
+  if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
+      quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC ||
+      quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
+  {
+    char buf[64];
+    size_t length;
+    length= longlong10_to_str(range.key_len, buf, 10) - buf;
+    if (str->length() > 0)
+      str->append(',');
+    str->append(buf, length);
+  }
+  else
+  {
+    List_iterator_fast<QPF_quick_select> it (children);
+    QPF_quick_select* child;
+    while ((child = it++))
+    {
+      child->print_key_len(str);
+    }
   }
 }
 
