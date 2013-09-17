@@ -2724,10 +2724,10 @@ int spider_db_fetch_table(
       }
     }
 
-    DBUG_PRINT("info", ("spider direct_aggregate=%s",
-      result_list->direct_aggregate ? "TRUE" : "FALSE"));
     DBUG_PRINT("info", ("spider row=%p", row));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
+    DBUG_PRINT("info", ("spider direct_aggregate=%s",
+      result_list->direct_aggregate ? "TRUE" : "FALSE"));
     result_list->snap_mrr_with_cnt = spider->mrr_with_cnt;
     result_list->snap_direct_aggregate = result_list->direct_aggregate;
     result_list->snap_row = row;
@@ -2907,10 +2907,10 @@ int spider_db_fetch_key(
     }
   }
 
-  DBUG_PRINT("info", ("spider direct_aggregate=%s",
-    result_list->direct_aggregate ? "TRUE" : "FALSE"));
   DBUG_PRINT("info", ("spider row=%p", row));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  DBUG_PRINT("info", ("spider direct_aggregate=%s",
+    result_list->direct_aggregate ? "TRUE" : "FALSE"));
   result_list->snap_mrr_with_cnt = spider->mrr_with_cnt;
   result_list->snap_direct_aggregate = result_list->direct_aggregate;
   result_list->snap_row = row;
@@ -3007,10 +3007,10 @@ int spider_db_fetch_minimum_columns(
     }
   }
 
-  DBUG_PRINT("info", ("spider direct_aggregate=%s",
-    result_list->direct_aggregate ? "TRUE" : "FALSE"));
   DBUG_PRINT("info", ("spider row=%p", row));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  DBUG_PRINT("info", ("spider direct_aggregate=%s",
+    result_list->direct_aggregate ? "TRUE" : "FALSE"));
   result_list->snap_mrr_with_cnt = spider->mrr_with_cnt;
   result_list->snap_direct_aggregate = result_list->direct_aggregate;
   result_list->snap_row = row;
@@ -4822,10 +4822,10 @@ int spider_db_seek_tmp_table(
 */
   }
 
-  DBUG_PRINT("info", ("spider direct_aggregate=%s",
-    pos->direct_aggregate ? "TRUE" : "FALSE"));
   DBUG_PRINT("info", ("spider row=%p", row));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  DBUG_PRINT("info", ("spider direct_aggregate=%s",
+    pos->direct_aggregate ? "TRUE" : "FALSE"));
   spider->result_list.snap_mrr_with_cnt = pos->mrr_with_cnt;
   spider->result_list.snap_direct_aggregate = pos->direct_aggregate;
   spider->result_list.snap_row = row;
@@ -4910,10 +4910,10 @@ int spider_db_seek_tmp_key(
 */
   }
 
-  DBUG_PRINT("info", ("spider direct_aggregate=%s",
-    pos->direct_aggregate ? "TRUE" : "FALSE"));
   DBUG_PRINT("info", ("spider row=%p", row));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  DBUG_PRINT("info", ("spider direct_aggregate=%s",
+    pos->direct_aggregate ? "TRUE" : "FALSE"));
   spider->result_list.snap_mrr_with_cnt = pos->mrr_with_cnt;
   spider->result_list.snap_direct_aggregate = pos->direct_aggregate;
   spider->result_list.snap_row = row;
@@ -4991,10 +4991,10 @@ int spider_db_seek_tmp_minimum_columns(
 */
   }
 
-  DBUG_PRINT("info", ("spider direct_aggregate=%s",
-    pos->direct_aggregate ? "TRUE" : "FALSE"));
   DBUG_PRINT("info", ("spider row=%p", row));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  DBUG_PRINT("info", ("spider direct_aggregate=%s",
+    pos->direct_aggregate ? "TRUE" : "FALSE"));
   spider->result_list.snap_mrr_with_cnt = pos->mrr_with_cnt;
   spider->result_list.snap_direct_aggregate = pos->direct_aggregate;
   spider->result_list.snap_row = row;
