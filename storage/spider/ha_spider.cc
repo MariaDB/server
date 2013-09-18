@@ -1191,6 +1191,7 @@ THR_LOCK_DATA **ha_spider::store_lock(
         lock_type = TL_READ;
       if (
         lock_type >= TL_WRITE_CONCURRENT_INSERT && lock_type <= TL_WRITE &&
+        lock_type != TL_WRITE_DELAYED &&
         !thd->in_lock_tables && !thd_tablespace_op(thd)
       )
         lock_type = TL_WRITE_ALLOW_WRITE;
