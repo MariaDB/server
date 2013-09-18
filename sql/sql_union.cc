@@ -83,7 +83,7 @@ int select_union::send_data(List<Item> &values)
       */
       return -1;
     }
-    bool is_duplicate;
+    bool is_duplicate= FALSE;
     /* create_internal_tmp_table_from_heap will generate error if needed */
     if (table->file->is_fatal_error(write_err, HA_CHECK_DUP) &&
         create_internal_tmp_table_from_heap(thd, table,
@@ -129,6 +129,7 @@ bool select_union::flush()
       table_alias        name of the temporary table
       bit_fields_as_long convert bit fields to ulonglong
       create_table       whether to physically create result table
+      keep_row_order     keep rows in order as they were inserted
 
   DESCRIPTION
     Create a temporary table that is used to store the result of a UNION,
@@ -143,7 +144,8 @@ bool
 select_union::create_result_table(THD *thd_arg, List<Item> *column_types,
                                   bool is_union_distinct, ulonglong options,
                                   const char *alias,
-                                  bool bit_fields_as_long, bool create_table)
+                                  bool bit_fields_as_long, bool create_table,
+                                  bool keep_row_order)
 {
   DBUG_ASSERT(table == 0);
   tmp_table_param.init();
@@ -153,7 +155,7 @@ select_union::create_result_table(THD *thd_arg, List<Item> *column_types,
   if (! (table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                  (ORDER*) 0, is_union_distinct, 1,
                                  options, HA_POS_ERROR, alias,
-                                 !create_table)))
+                                 !create_table, keep_row_order)))
     return TRUE;
 
   table->keys_in_use_for_query.clear_all();

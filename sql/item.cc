@@ -297,7 +297,8 @@ String *Item::val_string_from_decimal(String *str)
 String *Item::val_string_from_date(String *str)
 {
   MYSQL_TIME ltime;
-  if (get_date(&ltime, 0) ||
+  if (get_date(&ltime,
+               field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0) ||
       str->alloc(MAX_DATE_STRING_REP_LENGTH))
   {
     null_value= 1;
@@ -533,6 +534,44 @@ uint Item::decimal_precision() const
     return min(prec, DECIMAL_MAX_PRECISION);
   }
   return min(max_char_length(), DECIMAL_MAX_PRECISION);
+}
+
+
+#if MARIADB_VERSION_ID < 1000000
+static uint ms_to_precision(uint ms)
+{
+  uint cut, precision;
+  for (cut= 10, precision= 6 ; precision > 0 ; cut*= 10, precision--)
+  {
+    if (ms % cut)
+      return precision;
+  }
+  return 0;
+}
+#else
+#error Change the code to use MYSQL_TIME_STATUS::precision instead.
+#endif
+
+
+uint Item::temporal_precision(enum_field_types type)
+{
+  if (const_item() && result_type() == STRING_RESULT &&
+      !is_temporal_type(field_type()))
+  {
+    MYSQL_TIME ltime;
+    String buf, *tmp;
+    int was_cut;
+    DBUG_ASSERT(fixed);
+    if ((tmp= val_str(&buf)) &&
+        (type == MYSQL_TYPE_TIME ?
+         str_to_time(tmp->charset(), tmp->ptr(), tmp->length(),
+                     &ltime, TIME_TIME_ONLY, &was_cut) :
+         str_to_datetime(tmp->charset(), tmp->ptr(), tmp->length(),
+                         &ltime, TIME_FUZZY_DATES, &was_cut)) >
+        MYSQL_TIMESTAMP_ERROR)
+      return min(ms_to_precision(ltime.second_part), TIME_SECOND_PART_DIGITS);
+  }
+  return min(decimals, TIME_SECOND_PART_DIGITS);
 }
 
 
