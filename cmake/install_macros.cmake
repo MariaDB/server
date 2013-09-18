@@ -174,9 +174,9 @@ FUNCTION(INSTALL_DOCUMENTATION)
   ENDIF()
 
   IF(RPM)
-    SET(destination "${destination}/MariaDB-${group}-${VERSION}")
+    SET(destination "${destination}/MariaDB-Galera-${group}-${VERSION}")
   ELSEIF(DEB)
-    SET(destination "${destination}/mariadb-${group}-${MAJOR_VERSION}.${MINOR_VERSION}")
+    SET(destination "${destination}/mariadb-galera-${group}-${MAJOR_VERSION}.${MINOR_VERSION}")
   ENDIF()
 
   INSTALL(FILES ${files} DESTINATION ${destination} COMPONENT ${ARG_COMPONENT})

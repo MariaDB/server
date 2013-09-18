@@ -177,7 +177,7 @@ install: build
 	       $(TMP)/usr/share/mysql/mysql-log-rotate \
 	       $(TMP)/usr/share/mysql/mysql.server \
 	       $(TMP)/usr/share/mysql/binary-configure
-	nm -n $(BUILDDIR)/sql/mysqld |gzip -9 > $(TMP)/usr/share/doc/mariadb-server-5.5/mysqld.sym.gz
+	nm -n $(BUILDDIR)/sql/mysqld |gzip -9 > $(TMP)/usr/share/doc/mariadb-galera-server-5.5/mysqld.sym.gz
 	install -m 0755 debian/additions/echo_stderr $(TMP)/usr/share/mysql/
 	install -m 0755 debian/additions/debian-start $(TMP)/etc/mysql/
 	install -m 0755 debian/additions/debian-start.inc.sh $(TMP)/usr/share/mysql/
