@@ -1358,6 +1358,15 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
     /* Handle the case where we have an OUTER JOIN without a WHERE */
     conds=new Item_int((longlong) 1,1);	// Always true
   }
+
+  if (impossible_where)
+  {
+    zero_result_cause=
+      "Impossible WHERE noticed after reading const tables";
+    select_lex->mark_const_derived(zero_result_cause);
+    goto setup_subq_exit;
+  }
+
   select= make_select(*table, const_table_map,
                       const_table_map, conds, 1, &error);
   if (error)
@@ -1462,6 +1471,12 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
               new store_key_const_item(*tab->ref.key_copy[key_copy_index],
                                        item);
           }
+          else if (item->const_item())
+	  {
+            tab->ref.key_copy[key_copy_index]=
+              new store_key_item(*tab->ref.key_copy[key_copy_index],
+                                 item, TRUE);
+          }            
           else
           {
             store_key_field *field_copy= ((store_key_field *)key_copy);
@@ -3751,6 +3766,18 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     }
   }
 
+  join->impossible_where= false;
+  if (conds && const_count)
+  { 
+    conds= remove_eq_conds(join->thd, conds, &join->cond_value);
+    if (join->cond_value == Item::COND_FALSE)
+    {
+      join->impossible_where= true;
+      conds=new Item_int((longlong) 0,1);
+    }
+    join->conds= conds;      
+  }
+
   /* Calc how many (possible) matched records in each table */
 
   for (s=stat ; s < stat_end ; s++)
@@ -5212,8 +5239,23 @@ static void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array)
   Optionally (if out_args is supplied) will push the arguments of 
   AGGFN(DISTINCT) to the list
 
+  Check for every COUNT(DISTINCT), AVG(DISTINCT) or
+  SUM(DISTINCT). These can be resolved by Loose Index Scan as long
+  as all the aggregate distinct functions refer to the same
+  fields. Thus:
+
+  SELECT AGGFN(DISTINCT a, b), AGGFN(DISTINCT b, a)... => can use LIS
+  SELECT AGGFN(DISTINCT a),    AGGFN(DISTINCT a)   ... => can use LIS
+  SELECT AGGFN(DISTINCT a, b), AGGFN(DISTINCT a)   ... => cannot use LIS
+  SELECT AGGFN(DISTINCT a),    AGGFN(DISTINCT b)   ... => cannot use LIS
+  etc.
+
   @param      join       the join to check
-  @param[out] out_args   list of aggregate function arguments
+  @param[out] out_args   Collect the arguments of the aggregate functions
+                         to a list. We don't worry about duplicates as
+                         these will be sorted out later in
+                         get_best_group_min_max.
+
   @return                does the query qualify for indexed AGGFN(DISTINCT)
     @retval   true       it does
     @retval   false      AGGFN(DISTINCT) must apply distinct in it.
@@ -5224,6 +5266,7 @@ is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args)
 {
   Item_sum **sum_item_ptr;
   bool result= false;
+  Field_map first_aggdistinct_fields;
 
   if (join->table_count != 1 ||                    /* reference more than 1 table */
       join->select_distinct ||                /* or a DISTINCT */
@@ -5236,6 +5279,7 @@ is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args)
   for (sum_item_ptr= join->sum_funcs; *sum_item_ptr; sum_item_ptr++)
   {
     Item_sum *sum_item= *sum_item_ptr;
+    Field_map cur_aggdistinct_fields;
     Item *expr;
     /* aggregate is not AGGFN(DISTINCT) or more than 1 argument to it */
     switch (sum_item->sum_func())
@@ -5265,15 +5309,23 @@ is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args)
       if (expr->real_item()->type() != Item::FIELD_ITEM)
         return false;
 
-      /* 
-        If we came to this point the AGGFN(DISTINCT) loose index scan
-        optimization is applicable 
-      */
+      Item_field* item= static_cast<Item_field*>(expr->real_item());
       if (out_args)
-        out_args->push_back((Item_field *) expr->real_item());
+        out_args->push_back(item);
+
+      cur_aggdistinct_fields.set_bit(item->field->field_index);
       result= true;
     }
+    /*
+      If there are multiple aggregate functions, make sure that they all
+      refer to exactly the same set of columns.
+    */
+    if (first_aggdistinct_fields.is_clear_all())
+      first_aggdistinct_fields.merge(cur_aggdistinct_fields);
+    else if (first_aggdistinct_fields != cur_aggdistinct_fields)
+      return false;
   }
+
   return result;
 }
 
@@ -8706,14 +8758,13 @@ static void add_not_null_conds(JOIN *join)
           Item *item= tab->ref.items[keypart];
           Item *notnull;
           Item *real= item->real_item();
-          if (real->basic_const_item())
+	  if (real->const_item() && real->type() != Item::FIELD_ITEM && 
+              !real->is_expensive())
           {
             /*
               It could be constant instead of field after constant
               propagation.
             */
-            DBUG_ASSERT(real->is_expensive() || // prevent early expensive eval
-                        !real->is_null()); // NULLs are not propagated
             continue;
           }
           DBUG_ASSERT(real->type() == Item::FIELD_ITEM);
@@ -9300,19 +9351,18 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	  else
 	  {
 	    sel->needed_reg=tab->needed_reg;
-	    sel->quick_keys.clear_all();
 	  }
+	  sel->quick_keys= tab->table->quick_keys;
 	  if (!sel->quick_keys.is_subset(tab->checked_keys) ||
               !sel->needed_reg.is_subset(tab->checked_keys))
 	  {
-	    tab->keys=sel->quick_keys;
-            tab->keys.merge(sel->needed_reg);
 	    tab->use_quick= (!sel->needed_reg.is_clear_all() &&
-			     (select->quick_keys.is_clear_all() ||
-			      (select->quick &&
-			       (select->quick->records >= 100L)))) ?
+			     (sel->quick_keys.is_clear_all() ||
+			      (sel->quick &&
+			       (sel->quick->records >= 100L)))) ?
 	      2 : 1;
 	    sel->read_tables= used_tables & ~current_map;
+            sel->quick_keys.clear_all();
 	  }
 	  if (i != join->const_tables && tab->use_quick != 2 &&
               !tab->first_inner)
@@ -10737,6 +10787,11 @@ void JOIN_TAB::cleanup()
     {
       if (table->pos_in_table_list->jtbm_subselect->is_jtbm_const_tab)
       {
+        /*
+          Set this to NULL so that cleanup_empty_jtbm_semi_joins() doesn't
+          attempt to make another free_tmp_table call.
+        */
+        table->pos_in_table_list->table= NULL;
         free_tmp_table(join->thd, table);
         table= NULL;
       }
@@ -11160,6 +11215,7 @@ void JOIN::cleanup(bool full)
   }
   if (full)
   {
+    cleanup_empty_jtbm_semi_joins(this);
     /* 
       Ensure that the following delete_elements() would not be called
       twice for the same list.
@@ -13904,22 +13960,230 @@ optimize_cond(JOIN *join, COND *conds,
 
 
 /**
-  Handles the recursive job  remove_eq_conds()
+  @brief
+  Propagate multiple equalities to the sub-expressions of a condition
 
-  Remove const and eq items. Return new item, or NULL if no condition
-  cond_value is set to according:
-  COND_OK    query is possible (field = constant)
-  COND_TRUE  always true	( 1 = 1 )
-  COND_FALSE always false	( 1 = 2 )
+  @param thd             thread handle
+  @param cond            the condition where equalities are to be propagated
+  @param *new_equalities the multiple equalities to be propagated
+  @param inherited        path to all inherited multiple equality items
+  @param[out] is_simplifiable_cond   'cond' may be simplified after the
+                                      propagation of the equalities
+ 
+  @details
+  The function recursively traverses the tree of the condition 'cond' and
+  for each its AND sub-level of any depth the function merges the multiple
+  equalities from the list 'new_equalities' into the multiple equalities
+  attached to the AND item created for this sub-level.
+  The function also [re]sets references to the equalities formed by the
+  merges of multiple equalities in all field items occurred in 'cond'
+  that are encountered in the equalities.
+  If the result of any merge of multiple equalities is an impossible
+  condition the function returns TRUE in the parameter is_simplifiable_cond.   
+*/
 
-  SYNOPSIS
-    internal_remove_eq_conds()
-    thd 			THD environment
-    cond                        the condition to handle
-    cond_value                  the resulting value of the condition
+void propagate_new_equalities(THD *thd, Item *cond,
+                              List<Item_equal> *new_equalities,
+                              COND_EQUAL *inherited,
+                              bool *is_simplifiable_cond)
+{
+  if (cond->type() == Item::COND_ITEM)
+  {
+    bool and_level= ((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC;
+    if (and_level)
+    {
+      Item_cond_and *cond_and= (Item_cond_and *) cond; 
+      List<Item_equal> *cond_equalities= &cond_and->cond_equal.current_level;
+      cond_and->cond_equal.upper_levels= inherited;
+      if (!cond_equalities->is_empty() && cond_equalities != new_equalities)
+      {
+        Item_equal *equal_item;
+        List_iterator<Item_equal> it(*new_equalities);
+	while ((equal_item= it++))
+	{
+          equal_item->merge_into_list(cond_equalities, true, true);
+        }
+        List_iterator<Item_equal> ei(*cond_equalities);
+        while ((equal_item= ei++))
+	{
+          if (equal_item->const_item() && !equal_item->val_int())
+	  {
+            *is_simplifiable_cond= true;
+            return;
+          }
+        }
+      }
+    }
 
-  RETURN
-    *COND with the simplified condition
+    Item *item;
+    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+    while ((item= li++))
+    {
+      COND_EQUAL *new_inherited= and_level && item->type() == Item::COND_ITEM ?
+	                           &((Item_cond_and *) cond)->cond_equal :
+                                   inherited;
+      propagate_new_equalities(thd, item, new_equalities, new_inherited,
+                               is_simplifiable_cond);
+    }
+  }
+  else if (cond->type() == Item::FUNC_ITEM && 
+           ((Item_cond*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
+  {
+    Item_equal *equal_item;
+    List_iterator<Item_equal> it(*new_equalities);
+    Item_equal *equality= (Item_equal *) cond;
+    equality->upper_levels= inherited;
+    while ((equal_item= it++))
+    {
+      equality->merge_with_check(equal_item, true);
+    }
+    if (equality->const_item() && !equality->val_int())
+      *is_simplifiable_cond= true;
+  }
+  else
+  {
+    uchar* is_subst_valid= (uchar *) Item::ANY_SUBST;
+    cond= cond->compile(&Item::subst_argument_checker,
+                        &is_subst_valid, 
+                        &Item::equal_fields_propagator,
+                        (uchar *) inherited);
+    cond->update_used_tables();
+  }          
+} 
+
+/*
+  Check if cond_is_datetime_is_null() is true for the condition cond, or 
+  for any of its AND/OR-children
+*/
+bool cond_has_datetime_is_null(Item *cond)
+{
+  if (cond_is_datetime_is_null(cond))
+    return true;
+
+  if (cond->type() == Item::COND_ITEM)
+  {
+    List<Item> *cond_arg_list= ((Item_cond*) cond)->argument_list();
+    List_iterator<Item> li(*cond_arg_list);
+    Item *item;
+    while ((item= li++))
+    {
+      if (cond_has_datetime_is_null(item))
+        return true;
+    }
+  }
+  return false;
+}
+
+/*
+  Check if passed condtition has for of
+
+    not_null_date_col IS NULL
+
+  where not_null_date_col has a datte or datetime type
+*/
+
+bool cond_is_datetime_is_null(Item *cond)
+{
+  if (cond->type() == Item::FUNC_ITEM &&
+      ((Item_func*) cond)->functype() == Item_func::ISNULL_FUNC)
+  {
+    Item **args= ((Item_func_isnull*) cond)->arguments();
+    if (args[0]->type() == Item::FIELD_ITEM)
+    {
+      Field *field=((Item_field*) args[0])->field;
+
+      if (((field->type() == MYSQL_TYPE_DATE) ||
+           (field->type() == MYSQL_TYPE_DATETIME)) &&
+          (field->flags & NOT_NULL_FLAG))
+      {
+        return TRUE;
+      }
+    }
+  }
+  return FALSE;
+}
+
+
+/**
+  @brief
+  Evaluate all constant boolean sub-expressions in a condition
+ 
+  @param thd        thread handle
+  @param cond       condition where where to evaluate constant sub-expressions
+  @param[out] cond_value : the returned value of the condition 
+                           (TRUE/FALSE/UNKNOWN:
+                           Item::COND_TRUE/Item::COND_FALSE/Item::COND_OK)
+  @return
+   the item that is the result of the substitution of all inexpensive constant
+   boolean sub-expressions into cond, or,
+   NULL if the condition is constant and is evaluated to FALSE.
+
+  @details
+  This function looks for all inexpensive constant boolean sub-expressions in
+  the given condition 'cond' and substitutes them for their values.
+  For example, the condition 2 > (5 + 1) or a < (10 / 2)
+  will be transformed to the condition a < (10 / 2).
+  Note that a constant sub-expression is evaluated only if it is constant and
+  inexpensive. A sub-expression with an uncorrelated subquery may be evaluated
+  only if the subquery is considered as inexpensive.
+  The function does not evaluate a constant sub-expression if it is not on one
+  of AND/OR levels of the condition 'cond'. For example, the subquery in the
+  condition a > (select max(b) from t1 where b > 5) will never be evaluated
+  by this function. 
+  If a constant boolean sub-expression is evaluated to TRUE then:
+    - when the sub-expression is a conjunct of an AND formula it is simply
+      removed from this formula
+    - when the sub-expression is a disjunct of an OR formula the whole OR
+      formula is converted to TRUE 
+  If a constant boolean sub-expression is evaluated to FALSE then:
+    - when the sub-expression is a disjunct of an OR formula it is simply
+      removed from this formula
+    - when the sub-expression is a conjuct of an AND formula the whole AND
+      formula is converted to FALSE
+  When a disjunct/conjunct is removed from an OR/AND formula it might happen
+  that there is only one conjunct/disjunct remaining. In this case this
+  remaining disjunct/conjunct must be merged into underlying AND/OR formula,
+  because AND/OR levels must alternate in the same way as they alternate
+  after fix_fields() is called for the original condition.
+  The specifics of merging a formula f into an AND formula A appears
+  when A contains multiple equalities and f contains multiple equalities.
+  In this case the multiple equalities from f and A have to be merged.
+  After this the resulting multiple equalities have to be propagated into
+  the all AND/OR levels of the formula A (see propagate_new_equalities()).
+  The propagation of multiple equalities might result in forming multiple
+  equalities that are always FALSE. This, in its turn, might trigger further
+  simplification of the condition.
+
+  @note
+  EXAMPLE 1:
+  SELECT * FROM t1 WHERE (b = 1 OR a = 1) AND (b = 5 AND a = 5 OR 1 != 1);
+  First 1 != 1 will be removed from the second conjunct:
+  => SELECT * FROM t1 WHERE (b = 1 OR a = 1) AND (b = 5 AND a = 5);
+  Then (b = 5 AND a = 5) will be merged into the top level condition:
+  => SELECT * FROM t1 WHERE (b = 1 OR a = 1) AND (b = 5) AND (a = 5);
+  Then (b = 5), (a = 5)  will be propagated into the disjuncs of 
+  (b = 1 OR a = 1):
+  => SELECT * FROM t1 WHERE ((b = 1) AND (b = 5) AND (a = 5) OR
+                             (a = 1) AND (b = 5) AND (a = 5)) AND
+                            (b = 5) AND (a = 5)
+  => SELECT * FROM t1 WHERE ((FALSE AND (a = 5)) OR
+                             (FALSE AND (b = 5))) AND
+                             (b = 5) AND (a = 5)
+  After this an additional call of remove_eq_conds() converts it
+  to FALSE
+
+  EXAMPLE 2:  
+  SELECT * FROM t1 WHERE (b = 1 OR a = 5) AND (b = 5 AND a = 5 OR 1 != 1);
+  => SELECT * FROM t1 WHERE (b = 1 OR a = 5) AND (b = 5 AND a = 5);
+  => SELECT * FROM t1 WHERE (b = 1 OR a = 5) AND (b = 5) AND (a = 5);
+  => SELECT * FROM t1 WHERE ((b = 1) AND (b = 5) AND (a = 5) OR
+                             (a = 5) AND (b = 5) AND (a = 5)) AND
+                            (b = 5) AND (a = 5)
+  => SELECT * FROM t1 WHERE ((FALSE AND (a = 5)) OR
+                             ((b = 5) AND (a = 5))) AND
+                             (b = 5) AND (a = 5)
+  After this an additional call of  remove_eq_conds() converts it to
+ =>  SELECT * FROM t1 WHERE (b = 5) AND (a = 5)                            
 */
 
 static COND *
@@ -13927,9 +14191,11 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
 {
   if (cond->type() == Item::COND_ITEM)
   {
+    List<Item_equal> new_equalities;
     bool and_level= ((Item_cond*) cond)->functype()
       == Item_func::COND_AND_FUNC;
-    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+    List<Item> *cond_arg_list= ((Item_cond*) cond)->argument_list();
+    List_iterator<Item> li(*cond_arg_list);
     Item::cond_result tmp_cond_value;
     bool should_fix_fields=0;
 
@@ -13939,92 +14205,86 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
     {
       Item *new_item=internal_remove_eq_conds(thd, item, &tmp_cond_value);
       if (!new_item)
+      {
+        /* This can happen only when item is converted to TRUE or FALSE */
 	li.remove();
+      }
       else if (item != new_item)
       {
-        if (and_level)
-	{
-          /*
-            Take a special care of multiple equality predicates
-            that may be part of 'cond' and 'new_item'.
-            Those multiple equalities that have common members
-            must be merged.
-	  */  
-          Item_cond_and *cond_and= (Item_cond_and *) cond;
-          List<Item_equal> *cond_equal_items=
-            &cond_and->cond_equal.current_level;
-          List<Item> *cond_and_list= cond_and->argument_list();
-
-          if (new_item->type() == Item::COND_ITEM && 
-              ((Item_cond*) new_item)->functype() == Item_func::COND_AND_FUNC)
-          {
-            Item_cond_and *new_item_and= (Item_cond_and *) new_item;
-            List<Item_equal> *new_item_equal_items=
-              &new_item_and->cond_equal.current_level;
-            List<Item> *new_item_and_list= new_item_and->argument_list();
-            cond_and_list->disjoin((List<Item>*) cond_equal_items);
-            new_item_and_list->disjoin((List<Item>*) new_item_equal_items);
-            Item_equal *equal_item;
-            List_iterator<Item_equal> it(*new_item_equal_items);
-	    while ((equal_item= it++))
-	    {
-              equal_item->merge_into_list(cond_equal_items);
-            }
-            if (new_item_and_list->is_empty())
-              li.remove();
-            else
-	    {
-              Item *list_item;
-              Item *new_list_item; 
-              uint cnt= new_item_and_list->elements;     
-              List_iterator<Item> it(*new_item_and_list);
-              while ((list_item= it++))
-	      {
-                uchar* is_subst_valid= (uchar *) Item::ANY_SUBST;
-                new_list_item= 
-                  list_item->compile(&Item::subst_argument_checker,
-                                         &is_subst_valid, 
-                                         &Item::equal_fields_propagator,
-                                         (uchar *) &cond_and->cond_equal);
-                if (new_list_item != list_item)
-                  it.replace(new_list_item);
-                new_list_item->update_used_tables();
-              }              
-              li.replace(*new_item_and_list);
-              for (cnt--; cnt; cnt--)
-                item= li++;  
-            }
-            cond_and_list->concat((List<Item>*) cond_equal_items); 
-          }
-          else if (new_item->type() == Item::FUNC_ITEM && 
-                   ((Item_cond*) new_item)->functype() ==
-                   Item_func::MULT_EQUAL_FUNC)
+        /* 
+          This can happen when:
+          - item was an OR formula converted to one disjunct
+          - item was an AND formula converted to one conjunct
+          In these cases the disjunct/conjunct must be merged into the
+          argument list of cond.
+	*/
+        if (new_item->type() == Item::COND_ITEM &&
+            item->type() == Item::COND_ITEM)
+        {
+          DBUG_ASSERT(((Item_cond *) cond)->functype() == 
+                      ((Item_cond *) new_item)->functype());          
+	  List<Item> *new_item_arg_list=
+            ((Item_cond *) new_item)->argument_list();
+          if (and_level)
 	  {
-            cond_and_list->disjoin((List<Item>*) cond_equal_items);
-            ((Item_equal *) new_item)->merge_into_list(cond_equal_items);
-            li.remove();
-            cond_and_list->concat((List<Item>*) cond_equal_items); 
+            /*
+              If new_item is an AND formula then multiple equalities
+              of new_item_arg_list must merged into multiple equalities
+              of cond_arg_list. 
+	    */
+            List<Item_equal> *new_item_equalities=
+              &((Item_cond_and *) new_item)->cond_equal.current_level;
+            if (!new_item_equalities->is_empty())
+	    {
+              /*
+                Cut the multiple equalities from the new_item_arg_list and
+                append them on the list new_equalities. Later the equalities
+                from this list will be merged into the multiple equalities
+                of cond_arg_list all together.
+	      */
+              new_item_arg_list->disjoin((List<Item> *) new_item_equalities);
+              new_equalities.concat(new_item_equalities);
+            }
           }
-          else
-            li.replace(new_item);
+          if (new_item_arg_list->is_empty())
+	    li.remove();
+	  else
+	  {
+            uint cnt= new_item_arg_list->elements;
+            li.replace(*new_item_arg_list);
+            /* Make iterator li ignore new items */
+            for (cnt--; cnt; cnt--)
+              li++;
+            should_fix_fields= 1;
+          }
+        }
+        else if (and_level && 
+                 new_item->type() == Item::FUNC_ITEM && 
+                 ((Item_cond*) new_item)->functype() ==
+                  Item_func::MULT_EQUAL_FUNC)
+	{
+          li.remove();
+          new_equalities.push_back((Item_equal *) new_item);
         }
         else
-	{ 
+	{
           if (new_item->type() == Item::COND_ITEM &&
               ((Item_cond*) new_item)->functype() == 
               ((Item_cond*) cond)->functype())
 	  {
-            List<Item> *arg_list= ((Item_cond*) new_item)->argument_list();
-            uint cnt= arg_list->elements;
-            li.replace(*arg_list);
-            for ( cnt--; cnt; cnt--)
-              item= li++;
+	    List<Item> *new_item_arg_list=
+              ((Item_cond *) new_item)->argument_list();
+            uint cnt= new_item_arg_list->elements;
+            li.replace(*new_item_arg_list);
+            /* Make iterator li ignore new items */
+            for (cnt--; cnt; cnt--)
+              li++;
           }
-	  else
+          else
             li.replace(new_item);
+          should_fix_fields= 1;
         } 
-	should_fix_fields=1;
-      }
+      }   
       if (*cond_value == Item::COND_UNDEF)
 	*cond_value=tmp_cond_value;
       switch (tmp_cond_value) {
@@ -14050,6 +14310,55 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
 	break; /* purecov: deadcode */
       }
     }
+    if (!new_equalities.is_empty())
+    {
+      DBUG_ASSERT(and_level);
+      /* 
+        Merge multiple equalities that were cut from the results of 
+        simplification of OR formulas converted into AND formulas.
+        These multiple equalities are to be merged into the
+        multiple equalities of  cond_arg_list.
+      */
+      COND_EQUAL *cond_equal= &((Item_cond_and *) cond)->cond_equal;
+      List<Item_equal> *cond_equalities= &cond_equal->current_level;
+      cond_arg_list->disjoin((List<Item> *) cond_equalities);
+      Item_equal *equality;
+      List_iterator_fast<Item_equal> it(new_equalities);
+      while ((equality= it++))
+      {
+	equality->upper_levels= cond_equal->upper_levels;
+        equality->merge_into_list(cond_equalities, false, false);
+        List_iterator_fast<Item_equal> ei(*cond_equalities);
+        while ((equality= ei++))
+	{
+          if (equality->const_item() && !equality->val_int())
+	  {
+            *cond_value= Item::COND_FALSE;
+            return (COND*) 0;
+          }
+        }
+      }
+      cond_arg_list->concat((List<Item> *) cond_equalities);
+      /* 
+        Propagate the newly formed multiple equalities to
+        the all AND/OR levels of cond 
+      */
+      bool is_simplifiable_cond= false;
+      propagate_new_equalities(thd, cond, cond_equalities,
+                               cond_equal->upper_levels,
+                               &is_simplifiable_cond);
+      /*
+        If the above propagation of multiple equalities brings us
+        to multiple equalities that are always FALSE then try to
+        simplify the condition with remove_eq_cond() again.
+      */ 
+      if (is_simplifiable_cond)
+      {
+        if (!(cond= internal_remove_eq_conds(thd, cond, cond_value)))
+          return cond;
+      } 
+      should_fix_fields= 1;
+    }
     if (should_fix_fields)
       cond->update_used_tables();
 
@@ -14063,53 +14372,45 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
       return item;
     }
   }
-  else if (cond->type() == Item::FUNC_ITEM &&
-	   ((Item_func*) cond)->functype() == Item_func::ISNULL_FUNC)
+  else if (cond_is_datetime_is_null(cond))
   {
-    Item_func_isnull *func=(Item_func_isnull*) cond;
-    Item **args= func->arguments();
-    if (args[0]->type() == Item::FIELD_ITEM)
+    /* fix to replace 'NULL' dates with '0' (shreeve@uci.edu) */
+    /*
+      See BUG#12594011
+      Documentation says that
+      SELECT datetime_notnull d FROM t1 WHERE d IS NULL
+      shall return rows where d=='0000-00-00'
+
+      Thus, for DATE and DATETIME columns defined as NOT NULL,
+      "date_notnull IS NULL" has to be modified to
+      "date_notnull IS NULL OR date_notnull == 0" (if outer join)
+      "date_notnull == 0"                         (otherwise)
+
+    */
+    Item **args= ((Item_func_isnull*) cond)->arguments();
+    Field *field=((Item_field*) args[0])->field;
+
+    Item *item0= new(thd->mem_root) Item_int((longlong)0, 1);
+    Item *eq_cond= new(thd->mem_root) Item_func_eq(args[0], item0);
+    if (!eq_cond)
+      return cond;
+
+        if (field->table->pos_in_table_list->is_inner_table_of_outer_join())
     {
-      Field *field=((Item_field*) args[0])->field;
-      /* fix to replace 'NULL' dates with '0' (shreeve@uci.edu) */
-      /*
-        See BUG#12594011
-        Documentation says that
-        SELECT datetime_notnull d FROM t1 WHERE d IS NULL
-        shall return rows where d=='0000-00-00'
-
-        Thus, for DATE and DATETIME columns defined as NOT NULL,
-        "date_notnull IS NULL" has to be modified to
-        "date_notnull IS NULL OR date_notnull == 0" (if outer join)
-        "date_notnull == 0"                         (otherwise)
-
-      */
-      if (((field->type() == MYSQL_TYPE_DATE) ||
-           (field->type() == MYSQL_TYPE_DATETIME)) &&
-          (field->flags & NOT_NULL_FLAG))
-      {
-        Item *item0= new(thd->mem_root) Item_int((longlong)0, 1);
-        Item *eq_cond= new(thd->mem_root) Item_func_eq(args[0], item0);
-        if (!eq_cond)
-          return cond;
-
-        if (field->table->pos_in_table_list->outer_join)
-        {
-          // outer join: transform "col IS NULL" to "col IS NULL or col=0"
-          Item *or_cond= new(thd->mem_root) Item_cond_or(eq_cond, cond);
-          if (!or_cond)
-            return cond;
-          cond= or_cond;
-        }
-        else
-        {
-          // not outer join: transform "col IS NULL" to "col=0"
-          cond= eq_cond;
-        }
-
-        cond->fix_fields(thd, &cond);
-      }
+      // outer join: transform "col IS NULL" to "col IS NULL or col=0"
+      Item *or_cond= new(thd->mem_root) Item_cond_or(eq_cond, cond);
+      if (!or_cond)
+        return cond;
+      cond= or_cond;
     }
+    else
+    {
+      // not outer join: transform "col IS NULL" to "col=0"
+      cond= eq_cond;
+    }
+
+    cond->fix_fields(thd, &cond);
+
     if (cond->const_item() && !cond->is_expensive())
     {
       *cond_value= eval_const_cond(cond) ? Item::COND_TRUE : Item::COND_FALSE;
@@ -14214,7 +14515,7 @@ remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
 }
 
 
-/* 
+/**
   Check if equality can be used in removing components of GROUP BY/DISTINCT
   
   @param    l          the left comparison argument (a field if any)
@@ -14793,7 +15094,8 @@ TABLE *
 create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 		 ORDER *group, bool distinct, bool save_sum_fields,
 		 ulonglong select_options, ha_rows rows_limit,
-                 const char *table_alias, bool do_not_open)
+                 const char *table_alias, bool do_not_open,
+                 bool keep_row_order)
 {
   MEM_ROOT *mem_root_save, own_root;
   TABLE *table;
@@ -15602,6 +15904,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   share->db_record_offset= 1;
   table->used_for_duplicate_elimination= (param->sum_func_count == 0 &&
                                           (table->group || table->distinct));
+  table->keep_row_order= keep_row_order;
 
   if (!do_not_open)
   {
@@ -15939,7 +16242,8 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
                            table->no_rows ? NO_RECORD :
                            (share->reclength < 64 &&
                             !share->blob_fields ? STATIC_RECORD :
-                            table->used_for_duplicate_elimination ?
+                            table->used_for_duplicate_elimination ||
+                            table->keep_row_order ?
                             DYNAMIC_RECORD : BLOCK_RECORD),
                            share->keys, &keydef,
                            (uint) (*recinfo-start_recinfo),
@@ -17195,7 +17499,7 @@ int report_error(TABLE *table, int error)
     print them to the .err log
   */
   if (error != HA_ERR_LOCK_DEADLOCK && error != HA_ERR_LOCK_WAIT_TIMEOUT
-      && !table->in_use->killed)
+      && error != HA_ERR_TABLE_DEF_CHANGED && !table->in_use->killed)
   {
     push_warning_printf(table->in_use, MYSQL_ERROR::WARN_LEVEL_WARN, error,
                         "Got error %d when reading table %`s.%`s",
@@ -17574,6 +17878,11 @@ join_read_always_key(JOIN_TAB *tab)
 
   if (cp_buffer_from_ref(tab->join->thd, table, &tab->ref))
     return -1;
+  if ((error= table->file->prepare_index_key_scan_map(tab->ref.key_buff, make_prev_keypart_map(tab->ref.key_parts)))) 
+  {
+    report_error(table,error);
+    return -1;
+  }
   if ((error= table->file->ha_index_read_map(table->record[0],
                                              tab->ref.key_buff,
                                              make_prev_keypart_map(tab->ref.key_parts),
@@ -17607,6 +17916,11 @@ join_read_last_key(JOIN_TAB *tab)
 
   if (cp_buffer_from_ref(tab->join->thd, table, &tab->ref))
     return -1;
+  if ((error= table->file->prepare_index_key_scan_map(tab->ref.key_buff, make_prev_keypart_map(tab->ref.key_parts)))) 
+  {
+    report_error(table,error);
+    return -1;
+  }
   if ((error= table->file->ha_index_read_map(table->record[0],
                                             tab->ref.key_buff,
                                      make_prev_keypart_map(tab->ref.key_parts),
@@ -21343,22 +21657,20 @@ change_to_use_tmp_fields(THD *thd, Item **ref_pointer_array,
       if (field != NULL)
       {
         /*
-          Replace "@:=<expression>" with "@:=<tmp table column>". Otherwise,
-          we would re-evaluate <expression>, and if expression were
-          a subquery, this would access already-unlocked tables.
-        */
+          Replace "@:=<expression>" with "@:=<tmp table column>". Otherwise, we
+          would re-evaluate <expression>, and if expression were a subquery, this
+          would access already-unlocked tables.
+         */
         Item_func_set_user_var* suv=
-          new Item_func_set_user_var((Item_func_set_user_var*) item);
+          new Item_func_set_user_var(thd, (Item_func_set_user_var*) item);
         Item_field *new_field= new Item_field(field);
-        if (!suv || !new_field || suv->fix_fields(thd, (Item**)&suv))
+        if (!suv || !new_field)
           DBUG_RETURN(true);                  // Fatal error
-        ((Item *)suv)->name= item->name;
         /*
-          We are replacing the argument of Item_func_set_user_var after its
-          value has been read. The argument's null_value should be set by
-          now, so we must set it explicitly for the replacement argument
-          since the null_value may be read without any preceeding call to
-          val_*().
+         We are replacing the argument of Item_func_set_user_var after its value
+         has been read.  The argument's null_value should be set by now, so we
+         must set it explicitly for the replacement argument since the null_value
+         may be read without any preceeding call to val_*().
         */
         new_field->update_null_value();
         List<Item> list;
@@ -21389,15 +21701,15 @@ change_to_use_tmp_fields(THD *thd, Item **ref_pointer_array,
         ifield->db_name= iref->db_name;
       }
 #ifndef DBUG_OFF
-	if (!item_field->name)
-	{
-	  char buff[256];
-	  String str(buff,sizeof(buff),&my_charset_bin);
-	  str.length(0);
-          str.extra_allocation(1024);
-	  item->print(&str, QT_ORDINARY);
-	  item_field->name= sql_strmake(str.ptr(),str.length());
-	}
+      if (!item_field->name)
+      {
+        char buff[256];
+        String str(buff,sizeof(buff),&my_charset_bin);
+        str.length(0);
+        str.extra_allocation(1024);
+        item->print(&str, QT_ORDINARY);
+        item_field->name= sql_strmake(str.ptr(),str.length());
+      }
 #endif
     }
     else

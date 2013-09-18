@@ -30,7 +30,7 @@
 #include "sp.h"
 #include "sql_select.h"
 
-static int lex_one_token(void *arg, void *yythd);
+static int lex_one_token(void *arg, THD *thd);
 
 /*
   We are using pointer to this variable for distinguishing between assignment
@@ -959,9 +959,8 @@ bool consume_comment(Lex_input_stream *lip, int remaining_recursions_permitted)
 				(which can't be followed by a signed number)
 */
 
-int MYSQLlex(void *arg, void *yythd)
+int MYSQLlex(void *arg, THD *thd)
 {
-  THD *thd= (THD *)yythd;
   Lex_input_stream *lip= & thd->m_parser_state->m_lip;
   YYSTYPE *yylval=(YYSTYPE*) arg;
   int token;
@@ -979,7 +978,7 @@ int MYSQLlex(void *arg, void *yythd)
     return token;
   }
 
-  token= lex_one_token(arg, yythd);
+  token= lex_one_token(arg, thd);
 
   switch(token) {
   case WITH:
@@ -990,7 +989,7 @@ int MYSQLlex(void *arg, void *yythd)
       to transform the grammar into a LALR(1) grammar,
       which sql_yacc.yy can process.
     */
-    token= lex_one_token(arg, yythd);
+    token= lex_one_token(arg, thd);
     switch(token) {
     case CUBE_SYM:
       return WITH_CUBE_SYM;
@@ -1013,14 +1012,13 @@ int MYSQLlex(void *arg, void *yythd)
   return token;
 }
 
-int lex_one_token(void *arg, void *yythd)
+int lex_one_token(void *arg, THD *thd)
 {
   reg1	uchar c;
   bool comment_closed;
   int	tokval, result_state;
   uint length;
   enum my_lex_states state;
-  THD *thd= (THD *)yythd;
   Lex_input_stream *lip= & thd->m_parser_state->m_lip;
   LEX *lex= thd->lex;
   YYSTYPE *yylval=(YYSTYPE*) arg;
@@ -3787,10 +3785,7 @@ void SELECT_LEX::mark_as_belong_to_derived(TABLE_LIST *derived)
   TABLE_LIST *tl;
   List_iterator<TABLE_LIST> ti(leaf_tables);
   while ((tl= ti++))
-  {
-    tl->open_type= OT_BASE_ONLY;
     tl->belong_to_derived= derived;
-  }
 }
 
 
