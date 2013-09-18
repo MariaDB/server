@@ -1173,6 +1173,11 @@ public:
   bool cleaned;
   DYNAMIC_ARRAY keyuse;
   Item::cond_result cond_value, having_value;
+  /**
+    Impossible where after reading const tables 
+    (set in make_join_statistics())
+  */
+  bool impossible_where; 
   List<Item> all_fields; ///< to store all fields that used in query
   ///Above list changed to use temporary table
   List<Item> tmp_all_fields1, tmp_all_fields2, tmp_all_fields3;
@@ -1825,6 +1830,8 @@ ORDER *simple_remove_const(ORDER *order, COND *where);
 bool const_expression_in_where(COND *cond, Item *comp_item,
                                Field *comp_field= NULL,
                                Item **const_item= NULL);
+bool cond_is_datetime_is_null(Item *cond);
+bool cond_has_datetime_is_null(Item *cond);
 
 /* Table elimination entry point function */
 void eliminate_tables(JOIN *join);
@@ -1846,7 +1853,8 @@ void push_index_cond(JOIN_TAB *tab, uint keyno);
 TABLE *create_tmp_table(THD *thd,TMP_TABLE_PARAM *param,List<Item> &fields,
 			ORDER *group, bool distinct, bool save_sum_fields,
 			ulonglong select_options, ha_rows rows_limit,
-			const char* alias, bool do_not_open=FALSE);
+			const char* alias, bool do_not_open=FALSE,
+                        bool keep_row_order= FALSE);
 void free_tmp_table(THD *thd, TABLE *entry);
 bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
                                          ENGINE_COLUMNDEF *start_recinfo,

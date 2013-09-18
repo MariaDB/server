@@ -1146,7 +1146,7 @@ bool Deferred_log_events::is_empty()
 bool Deferred_log_events::execute(Relay_log_info *rli)
 {
   bool res= false;
-
+  DBUG_ENTER("Deferred_log_events::execute");
   DBUG_ASSERT(rli->deferred_events_collecting);
 
   rli->deferred_events_collecting= false;
@@ -1157,7 +1157,7 @@ bool Deferred_log_events::execute(Relay_log_info *rli)
     res= ev->apply_event(rli);
   }
   rli->deferred_events_collecting= true;
-  return res;
+  DBUG_RETURN(res);
 }
 
 void Deferred_log_events::rewind()

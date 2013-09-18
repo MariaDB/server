@@ -99,7 +99,8 @@ void mysql_audit_general_log(THD *thd, time_t time,
 
     mysql_audit_notify(thd, MYSQL_AUDIT_GENERAL_CLASS, MYSQL_AUDIT_GENERAL_LOG,
                        0, time, user, userlen, cmd, cmdlen,
-                       query, querylen, clientcs, 0);
+                       query, querylen, clientcs, (ha_rows) 0,
+                       thd->db, thd->db_length);
   }
 }
 
@@ -145,7 +146,8 @@ void mysql_audit_general(THD *thd, uint event_subtype,
 
     mysql_audit_notify(thd, MYSQL_AUDIT_GENERAL_CLASS, event_subtype,
                        error_code, time, user, userlen, msg, msglen,
-                       query.str(), query.length(), query.charset(), rows);
+                       query.str(), query.length(), query.charset(), rows,
+                       thd->db, thd->db_length);
   }
 }
 
@@ -175,10 +177,18 @@ void mysql_audit_notify_connection_disconnect(THD *thd, int errcode)
 {
   if (mysql_audit_connection_enabled())
   {
+    const Security_context *sctx= thd->security_ctx;
     mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS,
                        MYSQL_AUDIT_CONNECTION_DISCONNECT,
                        errcode, thd->thread_id,
-                       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                       sctx->user, sctx->user ? strlen(sctx->user) : 0,
+                       sctx->priv_user, strlen(sctx->priv_user),
+                       sctx->external_user,
+                       sctx->external_user ?  strlen(sctx->external_user) : 0,
+                       sctx->proxy_user, strlen(sctx->proxy_user),
+                       sctx->host, sctx->host ? strlen(sctx->host) : 0,
+                       sctx->ip, sctx->ip ? strlen(sctx->ip) : 0,
+                       thd->db, thd->db ? strlen(thd->db) : 0);
   }
 }
 

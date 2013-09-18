@@ -1,5 +1,5 @@
-/* Copyright (c) 2011,2013  Monty Program Ab;
-   Copyright (c) 2011,2012 Oleksandr Byelkin
+/* Copyright (c) 2011, 2013, Monty Program Ab
+   Copyright (c) 2011, 2012, Oleksandr Byelkin
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -3604,8 +3604,9 @@ create_new_string:
 */
 
 
-int dynamic_column_update(DYNAMIC_COLUMN *str, uint column_nr,
-                          DYNAMIC_COLUMN_VALUE *value)
+enum enum_dyncol_func_result
+dynamic_column_update(DYNAMIC_COLUMN *str, uint column_nr,
+                      DYNAMIC_COLUMN_VALUE *value)
 {
   return dynamic_column_update_many(str, 1, &column_nr, value);
 }
