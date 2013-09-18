@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2001, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2001, 2013, Oracle and/or its affiliates.
    Copyright (c) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -306,7 +306,7 @@ C_MODE_END
 #define ulonglong2double(A) my_ulonglong2double(A)
 #define my_off_t2double(A)  my_ulonglong2double(A)
 C_MODE_START
-inline double my_ulonglong2double(unsigned long long A) { return (double A); }
+inline double my_ulonglong2double(unsigned long long A) { return (double)A; }
 C_MODE_END
 #endif /* _AIX */
 
@@ -399,8 +399,7 @@ C_MODE_END
 #define compile_time_assert(X)                                  \
   do                                                            \
   {                                                             \
-    typedef char compile_time_assert[(X) ? 1 : -1]              \
-                                       __attribute__((unused)); \
+    typedef char compile_time_assert[(X) ? 1 : -1] __attribute__((unused)); \
   } while(0)
 #endif
 
@@ -1507,5 +1506,12 @@ static inline double rint(double x)
 #undef HAVE_SMEM				/* No shared memory */
 
 #endif /* EMBEDDED_LIBRARY */
+
+/*
+  Define default tmpdir if not already set.
+*/
+#if !defined(DEFAULT_TMPDIR)
+#define DEFAULT_TMPDIR P_tmpdir
+#endif
 
 #endif /* my_global_h */
