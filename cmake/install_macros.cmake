@@ -32,7 +32,7 @@ MACRO (INSTALL_DSYM_DIRECTORIES targets)
       # It's a dirty hack, but cmake too stupid and mysql cmake files too buggy */
       STRING(REPLACE "liblibmysql.dylib" "libmysqlclient.${SHARED_LIB_MAJOR_VERSION}.dylib" location ${location})
       IF(type MATCHES "EXECUTABLE" OR type MATCHES "MODULE" OR type MATCHES "SHARED_LIBRARY")
-        INSTALL(DIRECTORY "${location}.dSYM" DESTINATION ${INSTALL_LOCATION} COMPONENT Debuginfo)
+        INSTALL(DIRECTORY "${location}.dSYM" DESTINATION ${ARG_DESTINATION} COMPONENT Debuginfo)
       ENDIF()
     ENDFOREACH()
   ENDIF()
