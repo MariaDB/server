@@ -7597,6 +7597,12 @@ FT_INFO *ha_spider::ft_init_ext(
   DBUG_PRINT("info",("spider flags=%u", flags));
   DBUG_PRINT("info",("spider inx=%u", inx));
   DBUG_PRINT("info",("spider key=%s", key->c_ptr_safe()));
+  if (inx == NO_SUCH_KEY)
+  {
+    my_error(ER_FT_MATCHING_KEY_NOT_FOUND, MYF(0));
+    DBUG_RETURN(NULL);
+  }
+
   tmp_ft_info = ft_current;
   if (ft_current)
     ft_current = ft_current->next;
@@ -7611,7 +7617,7 @@ FT_INFO *ha_spider::ft_init_ext(
       spider_malloc(spider_current_trx, 2, sizeof(st_spider_ft_info),
         MYF(MY_WME | MY_ZEROFILL))))
     {
-      store_error_num = HA_ERR_OUT_OF_MEM;
+      my_error(HA_ERR_OUT_OF_MEM, MYF(0));
       DBUG_RETURN(NULL);
     }
     if (tmp_ft_info)
