@@ -6573,11 +6573,12 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
 */
 
 bool
-MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry)
+MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 {
-  group_commit_entry *orig_queue;
+  group_commit_entry *entry, *orig_queue;
   wait_for_commit *list, *cur, *last;
   wait_for_commit *wfc;
+  DBUG_ENTER("MYSQL_BIN_LOG::queue_for_group_commit");
 
   /*
     Check if we need to wait for another transaction to commit before us.
@@ -6587,8 +6588,8 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry)
     another safe check under lock, to avoid the race where the other
     transaction wakes us up between the check and the wait.
   */
-  wfc= entry->thd->wait_for_commit_ptr;
-  entry->queued_by_other= false;
+  wfc= orig_entry->thd->wait_for_commit_ptr;
+  orig_entry->queued_by_other= false;
   if (wfc && wfc->waiting_for_commit)
   {
     mysql_mutex_lock(&wfc->LOCK_wait_commit);
@@ -6604,12 +6605,15 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry)
         get us included in its own group commit. If this happens, the
         queued_by_other flag is set.
       */
-      wfc->opaque_pointer= entry;
+      wfc->opaque_pointer= orig_entry;
+      DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior");
       do
       {
         mysql_cond_wait(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit);
       } while (wfc->waiting_for_commit);
       wfc->opaque_pointer= NULL;
+      DBUG_PRINT("info", ("After waiting for prior commit, queued_by_other=%d",
+                 orig_entry->queued_by_other));
     }
     mysql_mutex_unlock(&wfc->LOCK_wait_commit);
   }
@@ -6619,12 +6623,12 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry)
     commit queue (and possibly already done the entire binlog commit for us),
     then there is nothing else to do.
   */
-  if (entry->queued_by_other)
-    return false;
+  if (orig_entry->queued_by_other)
+    DBUG_RETURN(false);
 
   /* Now enqueue ourselves in the group commit queue. */
-  DEBUG_SYNC(entry->thd, "commit_before_enqueue");
-  entry->thd->clear_wakeup_ready();
+  DEBUG_SYNC(orig_entry->thd, "commit_before_enqueue");
+  orig_entry->thd->clear_wakeup_ready();
   mysql_mutex_lock(&LOCK_prepare_ordered);
   orig_queue= group_commit_queue;
 
@@ -6657,6 +6661,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry)
   list= wfc;
   cur= list;
   last= list;
+  entry= orig_entry;
   for (;;)
   {
     /* Add the entry to the group commit queue. */
@@ -6783,9 +6788,11 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *entry)
   if (opt_binlog_commit_wait_count > 0)
     mysql_cond_signal(&COND_prepare_ordered);
   mysql_mutex_unlock(&LOCK_prepare_ordered);
-  DEBUG_SYNC(entry->thd, "commit_after_release_LOCK_prepare_ordered");
+  DEBUG_SYNC(orig_entry->thd, "commit_after_release_LOCK_prepare_ordered");
 
-  return orig_queue == NULL;
+  DBUG_PRINT("info", ("Queued for group commit as %s\n",
+                      (orig_queue == NULL) ? "leader" : "participant"));
+  DBUG_RETURN(orig_queue == NULL);
 }
 
 bool
