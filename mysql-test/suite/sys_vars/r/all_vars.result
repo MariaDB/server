@@ -22,6 +22,7 @@ wsrep_dbug_option
 wsrep_debug
 wsrep_drupal_282555_workaround
 wsrep_forced_binlog_format
+wsrep_load_data_splitting
 wsrep_log_conflicts
 wsrep_max_ws_rows
 wsrep_max_ws_size
