@@ -3442,6 +3442,26 @@ public:
 };
 
 
+/*
+  This is a select_result_sink which stores the data in text form.
+*/
+
+class select_result_text_buffer : public select_result_sink
+{
+public:
+  select_result_text_buffer(THD *thd_arg) : thd(thd_arg) {}
+  int send_data(List<Item> &items);
+  bool send_result_set_metadata(List<Item> &fields, uint flag);
+
+  void save_to(String *res);
+private:
+  int append_row(List<Item> &items, bool send_names);
+
+  THD *thd;
+  List<char*> rows;
+  int n_columns;
+};
+
 
 /*
   Base class for select_result descendands which intercept and

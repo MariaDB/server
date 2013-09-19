@@ -1529,7 +1529,6 @@ void log_slow_statement(THD *thd)
 {
   DBUG_ENTER("log_slow_statement");
 
-  delete_qpf_query(thd->lex);
 
   /*
     The following should never be true with our current code base,
@@ -1567,6 +1566,8 @@ void log_slow_statement(THD *thd)
                    thd->utime_after_query);
     thd_proc_info(thd, 0);
   }
+
+  delete_qpf_query(thd->lex);
   DBUG_VOID_RETURN;
 }
 

@@ -2377,6 +2377,86 @@ int select_result_explain_buffer::send_data(List<Item> &items)
   DBUG_RETURN(test(res));
 }
 
+bool select_result_text_buffer::send_result_set_metadata(List<Item> &fields, uint flag)
+{
+  n_columns= fields.elements;
+  return append_row(fields, true /*send item names */);
+  return send_data(fields);
+}
+
+
+int select_result_text_buffer::send_data(List<Item> &items)
+{
+  return append_row(items, false /*send item values */);
+}
+
+int select_result_text_buffer::append_row(List<Item> &items, bool send_names)
+{
+  List_iterator<Item> it(items);
+  Item *item;
+  char **row;
+  int column= 0;
+
+  if (!(row= (char**) thd->alloc(sizeof(char*) * n_columns)))
+    return true;
+  rows.push_back(row);
+
+  while ((item= it++))
+  {
+    DBUG_ASSERT(column < n_columns);
+    StringBuffer<32> buf;
+    const char *data_ptr; 
+    size_t data_len;
+    if (send_names)
+    {
+      data_ptr= item->name;
+      data_len= strlen(item->name);
+    }
+    else
+    {
+      String *res;
+      res= item->val_str(&buf);
+      if (item->null_value)
+      {
+        data_ptr= "NULL";
+        data_len=4;
+      }
+      else
+      {
+        data_ptr= res->c_ptr_safe();
+        data_len= res->length();
+      }
+    }
+
+    char *ptr= (char*)thd->alloc(data_len + 1);
+    memcpy(ptr, data_ptr, data_len + 1);
+    row[column]= ptr;
+
+    column++;
+  }
+  return false;
+}
+
+
+void select_result_text_buffer::save_to(String *res)
+{
+  List_iterator<char*> it(rows);
+  char **row;
+  res->append("#\n");
+  while ((row= it++))
+  {
+    res->append("#  ");
+    for (int i=0; i < n_columns; i++)
+    {
+      if (i)
+        res->append('\t');
+      res->append(row[i]);
+    }
+    res->append("\n");
+  }
+  res->append("#\n");
+}
+
 
 /*
   Store the SHOW EXPLAIN output in the temporary table.

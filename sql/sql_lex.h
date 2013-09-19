@@ -622,6 +622,7 @@ class QPF_query;
 
 void delete_qpf_query(LEX *lex);
 void create_qpf_query(LEX *lex, MEM_ROOT *mem_root);
+void print_qpf_query(LEX *lex, THD *thd, String *str);
 
 class st_select_lex_unit: public st_select_lex_node {
 protected:
