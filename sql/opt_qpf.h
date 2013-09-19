@@ -230,6 +230,9 @@ public:
   /* Produce a tabular EXPLAIN output */
   int print_explain(select_result_sink *output, uint8 explain_flags);
   
+  /* Return tabular EXPLAIN output as a text string */
+  bool print_explain_str(THD *thd, String *out_str);
+
   /* If true, at least part of EXPLAIN can be printed */
   bool have_query_plan() { return upd_del_plan!= NULL || get_node(1) != NULL; }
   MEM_ROOT *mem_root;

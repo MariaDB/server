@@ -18,6 +18,7 @@
 #define LOG_SLOW_VERBOSITY_INIT           0
 #define LOG_SLOW_VERBOSITY_INNODB         1 << 0
 #define LOG_SLOW_VERBOSITY_QUERY_PLAN     1 << 1
+#define LOG_SLOW_VERBOSITY_EXPLAIN        1 << 2
 
 #define QPLAN_INIT            QPLAN_QC_NO
 

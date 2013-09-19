@@ -120,6 +120,23 @@ int QPF_query::print_explain(select_result_sink *output,
   }
 }
 
+void print_qpf_query(LEX *lex, THD *thd, String *str)
+{
+  lex->query_plan_footprint->print_explain_str(thd, str);
+}
+
+bool QPF_query::print_explain_str(THD *thd, String *out_str)
+{
+  List<Item> fields;
+  thd->make_explain_field_list(fields);
+
+  select_result_text_buffer output_buf(thd);
+  output_buf.send_result_set_metadata(fields, thd->lex->describe);
+  print_explain(&output_buf, 0);
+  output_buf.save_to(out_str);
+  return false;
+}
+
 
 static void push_str(List<Item> *item_list, const char *str)
 {
