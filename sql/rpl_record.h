@@ -21,7 +21,7 @@
 #include <rpl_reporting.h>
 #include "my_global.h"                          /* uchar */
 
-class rpl_group_info;
+struct rpl_group_info;
 struct TABLE;
 typedef struct st_bitmap MY_BITMAP;
 
