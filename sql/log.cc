@@ -2830,8 +2830,8 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
     {
       StringBuffer<128> buf;
       DBUG_ASSERT(!thd->free_list);
-      print_qpf_query(thd->lex, thd, &buf);
-      my_b_printf(&log_file, "%s", buf.c_ptr_safe());
+      if (!print_qpf_query(thd->lex, thd, &buf))
+        my_b_printf(&log_file, "%s", buf.c_ptr_safe());
       thd->free_items();
     }
     if (thd->db && strcmp(thd->db, db))

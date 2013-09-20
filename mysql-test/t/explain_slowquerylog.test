@@ -1,0 +1,20 @@
+#
+# This is a test for EXPLAINs being written into slow query log.
+# For now, we just run the queries and hope not to crash.
+# 
+#
+--disable_warnings
+drop table if exists t0,t1;
+--enable_warnings
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+explain select * from t0 where a < 3;
+
+--echo # 
+--echo # MDEV-5045: Server crashes in QPF_query::print_explain with log_slow_verbosity='query_plan,explain'
+--echo # 
+set autocommit=1;
+
+drop table t0;
