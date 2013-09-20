@@ -1442,13 +1442,19 @@ affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= DEFAULT;
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index 'i2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= COPY;
 affected rows: 2
-info: Records: 2  Duplicates: 0  Warnings: 0
+info: Records: 2  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index 'i3' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= INPLACE;
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index 'i4' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 ALTER TABLE t1 ADD INDEX i5(b), ALGORITHM= INVALID;
 ERROR HY000: Unknown ALGORITHM 'INVALID'
 ALTER TABLE m1 ENABLE KEYS;
@@ -1471,13 +1477,19 @@ affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= DEFAULT;
 affected rows: 2
-info: Records: 2  Duplicates: 0  Warnings: 0
+info: Records: 2  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index 'i2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= COPY;
 affected rows: 2
-info: Records: 2  Duplicates: 0  Warnings: 0
+info: Records: 2  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index 'i3' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= INPLACE;
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index 'i4' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 SET SESSION old_alter_table= 0;
 affected rows: 0
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
@@ -1497,13 +1509,19 @@ affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 ADD INDEX i2(b), LOCK= NONE;
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index 'i2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 ALTER TABLE t1 ADD INDEX i3(b), LOCK= SHARED;
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index 'i3' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 ALTER TABLE t1 ADD INDEX i4(b), LOCK= EXCLUSIVE;
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index 'i4' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 ALTER TABLE t1 ADD INDEX i5(b), LOCK= INVALID;
 ERROR HY000: Unknown LOCK type 'INVALID'
 ALTER TABLE m1 ENABLE KEYS, LOCK= DEFAULT;
@@ -1521,18 +1539,26 @@ affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= INPLACE, LOCK= SHARED;
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index 'i2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= INPLACE, LOCK= EXCLUSIVE;
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index 'i3' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= COPY, LOCK= NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED.
 ALTER TABLE t1 ADD INDEX i5(b), ALGORITHM= COPY, LOCK= SHARED;
 affected rows: 2
-info: Records: 2  Duplicates: 0  Warnings: 0
+info: Records: 2  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index 'i5' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 ALTER TABLE t1 ADD INDEX i6(b), ALGORITHM= COPY, LOCK= EXCLUSIVE;
 affected rows: 2
-info: Records: 2  Duplicates: 0  Warnings: 0
+info: Records: 2  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index 'i6' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= NONE;
 ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= SHARED;
