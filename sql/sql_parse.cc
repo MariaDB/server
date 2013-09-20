@@ -121,6 +121,7 @@
 static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables);
 static void sql_kill(THD *thd, longlong id, killed_state state, killed_type type);
 static void sql_kill_user(THD *thd, LEX_USER *user, killed_state state);
+static bool lock_tables_precheck(THD *thd, TABLE_LIST *tables);
 static bool execute_show_status(THD *, TABLE_LIST *);
 static bool execute_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
 
@@ -3728,8 +3729,7 @@ end_with_restore_list:
     if (open_temporary_tables(thd, all_tables))
       goto error;
 
-    if (check_table_access(thd, LOCK_TABLES_ACL | SELECT_ACL, all_tables,
-                           FALSE, UINT_MAX, FALSE))
+    if (lock_tables_precheck(thd, all_tables))
       goto error;
 
     thd->variables.option_bits|= OPTION_TABLE_LOCK;
@@ -7897,6 +7897,35 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
 
 err:
   DBUG_RETURN(error);
+}
+
+
+/**
+  Check privileges for LOCK TABLES statement.
+
+  @param thd     Thread context.
+  @param tables  List of tables to be locked.
+
+  @retval FALSE - Success.
+  @retval TRUE  - Failure.
+*/
+
+static bool lock_tables_precheck(THD *thd, TABLE_LIST *tables)
+{
+  TABLE_LIST *first_not_own_table= thd->lex->first_not_own_table();
+
+  for (TABLE_LIST *table= tables; table != first_not_own_table && table;
+       table= table->next_global)
+  {
+    if (is_temporary_table(table))
+      continue;
+
+    if (check_table_access(thd, LOCK_TABLES_ACL | SELECT_ACL, table,
+                           FALSE, 1, FALSE))
+      return TRUE;
+  }
+
+  return FALSE;
 }
 
 
