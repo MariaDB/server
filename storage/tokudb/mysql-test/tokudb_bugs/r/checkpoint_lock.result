@@ -15,6 +15,6 @@ flush logs;;
 select DB, command, state, info from information_schema.processlist;
 DB	command	state	info
 test	Query	executing	select DB, command, state, info from information_schema.processlist
-test	Query	NULL	flush logs
+test	Query	init	flush logs
 set tokudb_checkpoint_lock=0;
 set global tokudb_checkpoint_on_flush_logs=OFF;

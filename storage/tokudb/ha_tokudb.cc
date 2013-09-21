@@ -369,7 +369,7 @@ static inline bool do_ignore_flag_optimization(THD* thd, TABLE* table, bool opt_
 }
 
 static inline uint get_key_parts(const KEY *key) {
-#if 50609 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699
+#if 50609 <= MYSQL_VERSION_ID
     return key->user_defined_key_parts;
 #else
     return key->key_parts;
@@ -1733,7 +1733,7 @@ int ha_tokudb::initialize_share(
         goto exit;
     }
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID < 100004
+#if defined(MARIADB_BASE_VERSION)
     // a hack to support frm-only ALTER TABLE in MariaDB 5.5
     // in 10.0 there's a proper fix with the new discovery and online alter
     if (thd_sql_command(thd) == SQLCOM_ALTER_TABLE) {

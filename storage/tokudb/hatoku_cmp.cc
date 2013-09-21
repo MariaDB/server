@@ -116,7 +116,7 @@ bool field_valid_for_tokudb_table(Field* field) {
     case MYSQL_TYPE_TIMESTAMP:
     case MYSQL_TYPE_DOUBLE:
     case MYSQL_TYPE_FLOAT:
-#if 50600 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699
+#if 50600 <= MYSQL_VERSION_ID
     case MYSQL_TYPE_DATETIME2:
     case MYSQL_TYPE_TIMESTAMP2:
     case MYSQL_TYPE_TIME2:
@@ -263,7 +263,7 @@ TOKU_TYPE mysql_to_toku_type (Field* field) {
     case MYSQL_TYPE_FLOAT:
         ret_val = toku_type_float;
         goto exit;
-#if 50600 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699
+#if 50600 <= MYSQL_VERSION_ID
     case MYSQL_TYPE_DATETIME2:
     case MYSQL_TYPE_TIMESTAMP2:
     case MYSQL_TYPE_TIME2:
@@ -3199,7 +3199,7 @@ bool fields_are_same_type(
     case MYSQL_TYPE_NEWDATE:
     case MYSQL_TYPE_TIME:
     case MYSQL_TYPE_TIMESTAMP:
-#if 50600 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699
+#if 50600 <= MYSQL_VERSION_ID
     case MYSQL_TYPE_DATETIME2:
     case MYSQL_TYPE_TIMESTAMP2:
     case MYSQL_TYPE_TIME2:

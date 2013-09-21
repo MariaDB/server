@@ -94,6 +94,10 @@ PATENT RIGHTS GRANT:
 /**
  * Multi Range Read interface, DS-MRR calls
  */
+#if MYSQL_VERSION_ID >= 100000
+#define COST_VECT Cost_estimate
+#endif
+
 
 int ha_tokudb::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
                                        uint n_ranges, uint mode, 

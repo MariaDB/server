@@ -1,6 +1,6 @@
 drop table if exists t2970;
 Warnings:
-Note	1051	Unknown table 't2970'
+Note	1051	Unknown table 'test.t2970'
 create table t2970 (a int, b int, c int, d int, key(a), key(a,b));
 insert into t2970 values (1,1,1,1),(1,2,3,4);
 explain select a,count(b),max(b) from t2970 where a > 0 group by a order by a;
