@@ -2479,7 +2479,8 @@ int select_send::send_data(List<Item> &items)
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("select_send::send_data");
 
-  if (unit->offset_limit_cnt)
+  /* unit is not set when using 'delete ... returning' */
+  if (unit && unit->offset_limit_cnt)
   {						// using limit offset,count
     unit->offset_limit_cnt--;
     DBUG_RETURN(FALSE);
@@ -3636,7 +3637,8 @@ select_materialize_with_stats::
 create_result_table(THD *thd_arg, List<Item> *column_types,
                     bool is_union_distinct, ulonglong options,
                     const char *table_alias, bool bit_fields_as_long,
-                    bool create_table)
+                    bool create_table,
+                    bool keep_row_order)
 {
   DBUG_ASSERT(table == 0);
   tmp_table_param.field_count= column_types->elements;
@@ -3644,7 +3646,8 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
 
   if (! (table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                  (ORDER*) 0, is_union_distinct, 1,
-                                 options, HA_POS_ERROR, (char*) table_alias)))
+                                 options, HA_POS_ERROR, (char*) table_alias,
+                                 keep_row_order)))
     return TRUE;
 
   col_stat= (Column_statistics*) table->in_use->alloc(table->s->fields *

@@ -632,5 +632,20 @@ connection con4;
 select 1;
 connection default;
 
+--echo #
+--echo # MDEV-4911 - add KILL query id, and add query id information to
+--echo #             processlist
+--echo #
+send SELECT SLEEP(1000);
+connection con1;
+let $wait_condition= SELECT @id:=QUERY_ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO='SELECT SLEEP(1000)';
+source include/wait_condition.inc;
+KILL QUERY ID @id;
+connection default;
+reap;
+
+--error ER_NO_SUCH_QUERY
+KILL QUERY ID 0;
+
 SET DEBUG_SYNC = 'RESET';
 DROP FUNCTION MY_KILL;

@@ -32,6 +32,7 @@ BEGIN
      AND variable_name != 'INNODB_IBUF_MAX_SIZE'
      AND variable_name != 'INNODB_USE_NATIVE_AIO'
      AND variable_name not like 'GTID%POS'
+     AND variable_name != 'GTID_BINLOG_STATE'
    ORDER BY variable_name;
 
   -- Dump all databases, there should be none

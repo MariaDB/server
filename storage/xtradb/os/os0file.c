@@ -1658,8 +1658,8 @@ try_again:
 		}
 	}
 
-	if (srv_use_atomic_writes && type == OS_DATA_FILE && 
-		os_file_set_atomic_writes(file, name)) {
+	if (srv_use_atomic_writes && type == OS_DATA_FILE &&
+		!os_file_set_atomic_writes(file, name)) {
 			 CloseHandle(file);
 			*success = FALSE;
 			file = INVALID_HANDLE_VALUE;
@@ -1786,7 +1786,7 @@ try_again:
 #endif /* USE_FILE_LOCK */
 
 	if (srv_use_atomic_writes && type == OS_DATA_FILE
-	    && os_file_set_atomic_writes(name, file)) {
+	    && !os_file_set_atomic_writes(name, file)) {
 
 		*success = FALSE;
 		close(file);
@@ -3773,6 +3773,10 @@ os_aio_free(void)
 	ut_free(os_aio_segment_wait_events);
 	os_aio_segment_wait_events = 0;
 	os_aio_n_segments = 0;
+#ifdef _WIN32
+	completion_port = 0;
+	read_completion_port = 0;
+#endif
 }
 
 #ifdef WIN_ASYNC_IO

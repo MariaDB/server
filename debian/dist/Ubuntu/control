@@ -14,6 +14,8 @@ Package: libmariadbclient18
 Section: libs
 Architecture: any
 Depends: mariadb-common, libmysqlclient18 (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
+Conflicts: mariadb-server-5.5 (<< 5.5.33), mariadb-galera-server-5.5 (<< 5.5.33),
+           mariadb-server-5.1, mariadb-server-5.2, mariadb-server-5.3
 Description: MariaDB database client library
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -158,10 +160,11 @@ Description: MariaDB database core server files
 
 Package: mariadb-test-10.0
 Section: database
-Architecture: all
+Architecture: any
 Depends: mariadb-server-10.0 (= ${source:Version}), mariadb-client-10.0 (= ${source:Version})
 Conflicts: mariadb-test (<< ${source:Version}),
-    mariadb-test-5.1, mariadb-test-5.2, mariadb-test-5.3
+    mariadb-test-5.1, mariadb-test-5.2, mariadb-test-5.3,
+    mariadb-server-5.5 (<< 5.5.33), mariadb-galera-server-5.5 (<< 5.5.33)
 Replaces: mariadb-test (<< ${source:Version}),
     mariadb-test-5.1, mariadb-test-5.2, mariadb-test-5.3
 Description: MariaDB database regression test suite
@@ -232,9 +235,18 @@ Description: MariaDB database regression test suite (metapackage depending on th
 
 Package: mariadb-connect-engine-10.0
 Section: database
-Architecture: all
+Architecture: any
 Depends: mariadb-server-10.0, unixODBC-dev, libxml2-dev
 Description: Connect storage engine for MariaDB
  Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
  connections to ODBC tables and remote MySQL tables, as well as a number of
  other interesting features.
+
+Package: mariadb-tokudb-engine-10.0
+Section: database
+Architecture: any
+Depends: mariadb-server-10.0
+Description: TokuDB storage engine for MariaDB
+ TokuDB is a highly scalable, zero maintenance downtime, ACID and MVCC
+ compliant MariaDB Storage Engine that offers powerful indexing-based query
+ acceleration. http://www.tokutek.com/products/tokudb-for-mysql/

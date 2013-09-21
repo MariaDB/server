@@ -456,7 +456,8 @@ extern int killed_errno(killed_state killed);
 enum killed_type
 {
   KILL_TYPE_ID,
-  KILL_TYPE_USER
+  KILL_TYPE_USER,
+  KILL_TYPE_QUERY
 };
 
 #include "sql_lex.h"				/* Must be here */
@@ -3944,7 +3945,8 @@ public:
                                    bool is_distinct, ulonglong options,
                                    const char *alias, 
                                    bool bit_fields_as_long,
-                                   bool create_table);
+                                   bool create_table,
+                                   bool keep_row_order= FALSE);
   TMP_TABLE_PARAM *get_tmp_table_param() { return &tmp_table_param; }
 };
 
@@ -4014,7 +4016,8 @@ public:
                            bool is_distinct, ulonglong options,
                            const char *alias, 
                            bool bit_fields_as_long,
-                           bool create_table);
+                           bool create_table,
+                           bool keep_row_order= FALSE);
   bool init_result_table(ulonglong select_options);
   int send_data(List<Item> &items);
   void cleanup();

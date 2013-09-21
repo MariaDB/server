@@ -1471,7 +1471,10 @@ static bool mysql_test_delete(Prepared_statement *stmt,
     goto error;
   }
 
-  DBUG_RETURN(mysql_prepare_delete(thd, table_list, &lex->select_lex.where));
+  DBUG_RETURN(mysql_prepare_delete(thd, table_list, 
+                                   lex->select_lex.with_wild, 
+                                   lex->select_lex.item_list,
+                                   &lex->select_lex.where));
 error:
   DBUG_RETURN(TRUE);
 }

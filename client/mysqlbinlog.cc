@@ -2562,6 +2562,7 @@ void *sql_alloc(size_t size)
   the server
 */
 
+#include "rpl_tblmap.cc"
 #undef TABLE
 #include "my_decimal.h"
 #include "decimal.c"

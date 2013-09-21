@@ -103,12 +103,6 @@ ELSEIF(DEB)
   SET(WITH_SSL system CACHE STRING "")
   SET(WITH_ZLIB system CACHE STRING "")
   SET(WITH_LIBWRAP ON)
-  # Note, CONNECT engine should not be compiled statically
-  # because it requires unixODBC and libxml2 as dependencies
-  SET(WITH_ARCHIVE 1)
-  SET(WITH_BLACKHOLE 1)
-  SET(WITH_FEDERATEDX 1)
-  SET(WITH_SPHINX 1)
   SET(HAVE_EMBEDDED_PRIVILEGE_CONTROL ON)
 ELSE()
   SET(WITH_SSL bundled CACHE STRING "")

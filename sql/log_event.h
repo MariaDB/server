@@ -41,7 +41,6 @@
 #include "rpl_utility.h"
 #include "hash.h"
 #include "rpl_tblmap.h"
-#include "rpl_tblmap.cc"
 #endif
 
 #ifdef MYSQL_SERVER
@@ -1253,6 +1252,7 @@ public:
 #endif
   virtual Log_event_type get_type_code() = 0;
   virtual bool is_valid() const = 0;
+  virtual my_off_t get_header_len(my_off_t len) { return len; }
   void set_artificial_event() { flags |= LOG_EVENT_ARTIFICIAL_F; }
   void set_relay_log_event() { flags |= LOG_EVENT_RELAY_LOG_F; }
   bool is_artificial_event() const { return flags & LOG_EVENT_ARTIFICIAL_F; }
@@ -2469,6 +2469,8 @@ public:
                      const Format_description_log_event* description_event);
   ~Start_log_event_v3() {}
   Log_event_type get_type_code() { return START_EVENT_V3;}
+  my_off_t get_header_len(my_off_t l __attribute__((unused)))
+  { return LOG_EVENT_MINIMAL_HEADER_LEN; }
 #ifdef MYSQL_SERVER
   bool write(IO_CACHE* file);
 #endif
@@ -2984,6 +2986,8 @@ public:
       my_free((void*) new_log_ident);
   }
   Log_event_type get_type_code() { return ROTATE_EVENT;}
+  my_off_t get_header_len(my_off_t l __attribute__((unused)))
+  { return LOG_EVENT_MINIMAL_HEADER_LEN; }
   int get_data_size() { return  ident_len + ROTATE_HEADER_LEN;}
   bool is_valid() const { return new_log_ident != 0; }
 #ifdef MYSQL_SERVER
@@ -3118,7 +3122,7 @@ public:
   static bool peek(const char *event_start, size_t event_len,
                    uint8 checksum_alg,
                    uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
-                   uchar *flags2);
+                   uchar *flags2, const Format_description_log_event *fdev);
 #endif
 };
 
@@ -3197,12 +3201,15 @@ public:
   uint32 count;
   uint32 gl_flags;
   struct rpl_gtid *list;
+  uint64 *sub_id_list;
 
   static const uint element_size= 4+4+8;
   static const uint32 FLAG_UNTIL_REACHED= (1<<28);
+  static const uint32 FLAG_IGN_GTIDS= (1<<29);
 
 #ifdef MYSQL_SERVER
   Gtid_list_log_event(rpl_binlog_state *gtid_set, uint32 gl_flags);
+  Gtid_list_log_event(slave_connection_state *gtid_set, uint32 gl_flags);
 #ifdef HAVE_REPLICATION
   void pack_info(THD *thd, Protocol *protocol);
 #endif
@@ -3211,7 +3218,7 @@ public:
 #endif
   Gtid_list_log_event(const char *buf, uint event_len,
                       const Format_description_log_event *description_event);
-  ~Gtid_list_log_event() { my_free(list); }
+  ~Gtid_list_log_event() { my_free(list); my_free(sub_id_list); }
   Log_event_type get_type_code() { return GTID_LIST_EVENT; }
   int get_data_size() {
     /*
@@ -3229,7 +3236,8 @@ public:
 #endif
   static bool peek(const char *event_start, uint32 event_len,
                    uint8 checksum_alg,
-                   rpl_gtid **out_gtid_list, uint32 *out_list_len);
+                   rpl_gtid **out_gtid_list, uint32 *out_list_len,
+                   const Format_description_log_event *fdev);
 };
 
 

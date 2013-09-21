@@ -1,4 +1,5 @@
-/* Copyright (c) 2002, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2002, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -140,6 +141,7 @@ public:
     option.u_max_value= (uchar**)max_var_ptr();
     if (max_var_ptr())
       *max_var_ptr()= max_val;
+
     global_var(T)= def_val;
     SYSVAR_ASSERT(size == sizeof(T));
     SYSVAR_ASSERT(min_val < max_val);
@@ -431,7 +433,10 @@ public:
   void cleanup()
   {
     if (flags & ALLOCATED)
+    {
       my_free(global_var(char*));
+      global_var(char *)= NULL;
+    }
     flags&= ~ALLOCATED;
   }
   static bool do_string_check(THD *thd, set_var *var, CHARSET_INFO *charset)
@@ -993,13 +998,14 @@ public:
           on_update_function on_update_func=0,
           const char *substitute=0)
     : sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
-              getopt.arg_type, SHOW_DOUBLE, (longlong) double2ulonglong(def_val),
+              getopt.arg_type, SHOW_DOUBLE,
+              (longlong) getopt_double2ulonglong(def_val),
               lock, binlog_status_arg, on_check_func, on_update_func,
               substitute)
   {
     option.var_type= GET_DOUBLE;
-    option.min_value= (longlong) double2ulonglong(min_val);
-    option.max_value= (longlong) double2ulonglong(max_val);
+    option.min_value= (longlong) getopt_double2ulonglong(min_val);
+    option.max_value= (longlong) getopt_double2ulonglong(max_val);
     global_var(double)= (double)option.def_value;
     SYSVAR_ASSERT(min_val < max_val);
     SYSVAR_ASSERT(min_val <= def_val);
@@ -1031,7 +1037,7 @@ public:
   void session_save_default(THD *thd, set_var *var)
   { var->save_result.double_value= global_var(double); }
   void global_save_default(THD *thd, set_var *var)
-  { var->save_result.double_value= (double)option.def_value; }
+  { var->save_result.double_value= getopt_ulonglong2double(option.def_value); }
 };
 
 /**
@@ -2159,6 +2165,47 @@ class Sys_var_gtid_slave_pos: public sys_var
 {
 public:
   Sys_var_gtid_slave_pos(const char *name_arg,
+          const char *comment, int flag_args, ptrdiff_t off, size_t size,
+          CMD_LINE getopt)
+    : sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
+              getopt.arg_type, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
+              NULL, NULL, NULL)
+  {
+    option.var_type= GET_STR;
+  }
+  bool do_check(THD *thd, set_var *var);
+  bool session_update(THD *thd, set_var *var)
+  {
+    DBUG_ASSERT(false);
+    return true;
+  }
+  bool global_update(THD *thd, set_var *var);
+  bool check_update_type(Item_result type) { return type != STRING_RESULT; }
+  void session_save_default(THD *thd, set_var *var)
+  {
+    DBUG_ASSERT(false);
+  }
+  void global_save_default(THD *thd, set_var *var)
+  {
+    /* Record the attempt to use default so we can error. */
+    var->value= 0;
+  }
+  uchar *session_value_ptr(THD *thd, LEX_STRING *base)
+  {
+    DBUG_ASSERT(false);
+    return NULL;
+  }
+  uchar *global_value_ptr(THD *thd, LEX_STRING *base);
+};
+
+
+/**
+  Class for @@global.gtid_binlog_state.
+*/
+class Sys_var_gtid_binlog_state: public sys_var
+{
+public:
+  Sys_var_gtid_binlog_state(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt)
     : sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
