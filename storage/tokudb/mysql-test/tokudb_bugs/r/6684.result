@@ -1,10 +1,10 @@
 use test;
 drop table if exists site;
 Warnings:
-Note	1051	Unknown table 'site'
+Note	1051	Unknown table 'test.site'
 drop table if exists screenshot;
 Warnings:
-Note	1051	Unknown table 'screenshot'
+Note	1051	Unknown table 'test.screenshot'
 CREATE TABLE `site` (
 `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
 `title` varchar(200) NOT NULL DEFAULT '',

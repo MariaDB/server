@@ -316,7 +316,7 @@ static void tokudb_cleanup_log_files(void);
 static int tokudb_end(handlerton * hton, ha_panic_function type);
 static bool tokudb_flush_logs(handlerton * hton);
 static bool tokudb_show_status(handlerton * hton, THD * thd, stat_print_fn * print, enum ha_stat_type);
-static void tokudb_handle_fatal_signal(handlerton *hton, THD *thd, int sig);
+static void tokudb_handle_fatal_signal(handlerton *hton, THD *thd, int sig) __attribute__ ((__unused__));
 static int tokudb_close_connection(handlerton * hton, THD * thd);
 static int tokudb_commit(handlerton * hton, THD * thd, bool all);
 static int tokudb_rollback(handlerton * hton, THD * thd, bool all);
@@ -331,7 +331,7 @@ static int tokudb_rollback_to_savepoint(handlerton * hton, THD * thd, void *save
 static int tokudb_savepoint(handlerton * hton, THD * thd, void *savepoint);
 static int tokudb_release_savepoint(handlerton * hton, THD * thd, void *savepoint);
 static int tokudb_discover_table(handlerton *hton, THD* thd, TABLE_SHARE *ts);
-static int tokudb_discover(handlerton *hton, THD* thd, const char *db, const char *name, uchar **frmblob, size_t *frmlen);
+static int tokudb_discover(handlerton *hton, THD* thd, const char *db, const char *name, uchar **frmblob, size_t *frmlen) __attribute__ ((__unused__));
 static int tokudb_discover2(handlerton *hton, THD* thd, const char *db, const char *name, bool translate_name,uchar **frmblob, size_t *frmlen);
 static int tokudb_discover3(handlerton *hton, THD* thd, const char *db, const char *name, char *path, uchar **frmblob, size_t *frmlen);
 handlerton *tokudb_hton;

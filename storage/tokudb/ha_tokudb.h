@@ -615,8 +615,9 @@ public:
     int cmp_ref(const uchar * ref1, const uchar * ref2);
     bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes);
 
-// MariaDB MRR introduced in 5.5
 #ifdef MARIADB_BASE_VERSION
+// MariaDB MRR introduced in 5.5
+#if MYSQL_VERSION_ID < 50600
     int multi_range_read_init(RANGE_SEQ_IF* seq,
                               void* seq_init_param,
                               uint n_ranges, uint mode,
@@ -631,10 +632,21 @@ public:
                                   uint *flags, COST_VECT *cost);
     int multi_range_read_explain_info(uint mrr_mode,
                                       char *str, size_t size);
+#else
+// MariaDB MRR introduced in 10.0
+    int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
+                              uint n_ranges, uint mode, HANDLER_BUFFER *buf);
+    int multi_range_read_next(range_id_t *range_info);
+    ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
+                                        void *seq_init_param, 
+                                        uint n_ranges, uint *bufsz,
+                                        uint *flags, Cost_estimate *cost);
+    ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys, uint key_parts,
+                                  uint *bufsz, uint *flags, Cost_estimate *cost);
+    int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
 #endif
-
-// MariaDB MRR introduced in 5.6
-#if !defined(MARIADB_BASE_VERSION)
+#else
+// MySQL MRR introduced in 5.6
 #if 50600 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699
     int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
                               uint n_ranges, uint mode, HANDLER_BUFFER *buf);
