@@ -2141,7 +2141,6 @@ master_def:
         | MASTER_PASSWORD_SYM EQ TEXT_STRING_sys
           {
             Lex->mi.password = $3.str;
-            Lex->contains_plaintext_password= true;
           }
         | MASTER_PORT_SYM EQ ulong_num
           {
@@ -2479,7 +2478,6 @@ server_option:
         | PASSWORD TEXT_STRING_sys
           {
             Lex->server_options.password= $2.str;
-            Lex->contains_plaintext_password= true;
           }
         | SOCKET_SYM TEXT_STRING_sys
           {
@@ -9645,14 +9643,12 @@ function_call_conflict:
         | OLD_PASSWORD '(' expr ')'
           {
             $$=  new (thd->mem_root) Item_func_old_password($3);
-            Lex->contains_plaintext_password= true;
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | PASSWORD '(' expr ')'
           {
             Item* i1;
-            Lex->contains_plaintext_password= true;
             if (thd->variables.old_passwords == 1)
               i1= new (thd->mem_root) Item_func_old_password($3);
             else
@@ -14649,7 +14645,6 @@ text_or_password:
             }
             if ($$ == NULL)
               MYSQL_YYABORT;
-            Lex->contains_plaintext_password= true;
           }
         | OLD_PASSWORD '(' TEXT_STRING ')'
           {
@@ -14658,7 +14653,6 @@ text_or_password:
               $3.str;
             if ($$ == NULL)
               MYSQL_YYABORT;
-            Lex->contains_plaintext_password= true;
           }
         ;
 
