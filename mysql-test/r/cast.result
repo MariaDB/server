@@ -780,7 +780,7 @@ SELECT CAST(CAST('20:05:05' AS TIME) as date);
 CAST(CAST('20:05:05' AS TIME) as date)
 NULL
 Warnings:
-Warning	1292	Truncated incorrect date value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '20:05:05'
 set sql_mode=DEFAULT;
 create table t1 (f1 time, f2 date, f3 datetime);
 insert into t1 values ('11:22:33','2011-12-13','2011-12-13 11:22:33');

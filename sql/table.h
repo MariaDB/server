@@ -987,6 +987,9 @@ struct st_cond_statistic;
 #define      CHECK_ROW_FOR_NULLS_TO_REJECT   (1 << 0)
 #define      REJECT_ROW_DUE_TO_NULL_FIELDS   (1 << 1)
 
+/* Bitmap of table's fields */
+typedef Bitmap<MAX_FIELDS> Field_map;
+
 struct TABLE
 {
   TABLE() {}                               /* Remove gcc warning */
@@ -1186,6 +1189,10 @@ public:
   */
   bool distinct;
   bool const_table,no_rows, used_for_duplicate_elimination;
+  /**
+    Forces DYNAMIC Aria row format for internal temporary tables.
+  */
+  bool keep_row_order;
 
   /**
      If set, the optimizer has found that row retrieval should access index 
@@ -2179,6 +2186,16 @@ struct TABLE_LIST
   bool change_refs_to_fields();
 
   bool single_table_updatable();
+
+  bool is_inner_table_of_outer_join()
+  {
+    for (TABLE_LIST *tbl= this; tbl; tbl= tbl->embedding)
+    {
+      if (tbl->outer_join)
+        return true;
+    }
+    return false;
+  } 
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);

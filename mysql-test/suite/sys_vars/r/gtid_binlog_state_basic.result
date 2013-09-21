@@ -1,0 +1,11 @@
+SELECT @@GLOBAL.gtid_slave_pos;
+@@GLOBAL.gtid_slave_pos
+
+SET gtid_binlog_state= '';
+ERROR HY000: Variable 'gtid_binlog_state' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION gtid_binlog_state= '';
+ERROR HY000: Variable 'gtid_binlog_state' is a GLOBAL variable and should be set with SET GLOBAL
+SET GLOBAL gtid_binlog_state= DEFAULT;
+ERROR 42000: Variable 'gtid_binlog_state' doesn't have a default value
+SELECT @@session.gtid_binlog_state;
+ERROR HY000: Variable 'gtid_binlog_state' is a GLOBAL variable

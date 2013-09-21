@@ -577,7 +577,7 @@ void test_empty_string()
   uint number_of_uint;
   int rc;
   uint ids[1]= {1};
-  DYNAMIC_COLUMN_VALUE vals[0];
+  DYNAMIC_COLUMN_VALUE vals[1];
   /* empty string */
   bzero(&str, sizeof(str));
 

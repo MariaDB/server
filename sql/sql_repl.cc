@@ -884,6 +884,28 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
 }
 
 
+static void
+give_error_start_pos_missing_in_binlog(int *err, const char **errormsg,
+                                       rpl_gtid *error_gtid)
+{
+  rpl_gtid binlog_gtid;
+
+  if (mysql_bin_log.lookup_domain_in_binlog_state(error_gtid->domain_id,
+                                                  &binlog_gtid) &&
+      binlog_gtid.seq_no >= error_gtid->seq_no)
+  {
+    *errormsg= "Requested slave GTID state not found in binlog. The slave has "
+      "probably diverged due to executing errorneous transactions";
+    *err= ER_GTID_POSITION_NOT_FOUND_IN_BINLOG2;
+  }
+  else
+  {
+    *errormsg= "Requested slave GTID state not found in binlog";
+    *err= ER_GTID_POSITION_NOT_FOUND_IN_BINLOG;
+  }
+}
+
+
 /*
   Check the start GTID state requested by the slave against our binlog state.
 
@@ -894,43 +916,51 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
 static int
 check_slave_start_position(THD *thd, slave_connection_state *st,
                            const char **errormsg, rpl_gtid *error_gtid,
-                           slave_connection_state *until_gtid_state,
-                           HASH *fake_gtid_hash)
+                           slave_connection_state *until_gtid_state)
 {
   uint32 i;
   int err;
-  rpl_gtid **delete_list= NULL;
+  slave_connection_state::entry **delete_list= NULL;
   uint32 delete_idx= 0;
-  bool slave_state_loaded= false;
+
+  if (rpl_load_gtid_slave_state(thd))
+  {
+    *errormsg= "Failed to load replication slave GTID state";
+    err= ER_CANNOT_LOAD_SLAVE_GTID_STATE;
+    goto end;
+  }
 
   for (i= 0; i < st->hash.records; ++i)
   {
-    rpl_gtid *slave_gtid= (rpl_gtid *)my_hash_element(&st->hash, i);
+    slave_connection_state::entry *slave_gtid_entry=
+      (slave_connection_state::entry *)my_hash_element(&st->hash, i);
+    rpl_gtid *slave_gtid= &slave_gtid_entry->gtid;
     rpl_gtid master_gtid;
     rpl_gtid master_replication_gtid;
     rpl_gtid start_gtid;
+    bool start_at_own_slave_pos=
+      rpl_global_gtid_slave_state.domain_to_gtid(slave_gtid->domain_id,
+                                                 &master_replication_gtid) &&
+      slave_gtid->server_id == master_replication_gtid.server_id &&
+      slave_gtid->seq_no == master_replication_gtid.seq_no;
 
     if (mysql_bin_log.find_in_binlog_state(slave_gtid->domain_id,
                                            slave_gtid->server_id,
                                            &master_gtid) &&
         master_gtid.seq_no >= slave_gtid->seq_no)
-      continue;
-
-    if (!slave_state_loaded)
     {
-      if (rpl_load_gtid_slave_state(thd))
-      {
-        *errormsg= "Failed to load replication slave GTID state";
-        err= ER_CANNOT_LOAD_SLAVE_GTID_STATE;
-        goto end;
-      }
-      slave_state_loaded= true;
+      /*
+        If connecting slave requests to start at the GTID we last applied when
+        we were ourselves a slave, then this GTID may not exist in our binlog
+        (in case of --log-slave-updates=0). So set the flag to disable the
+        error about missing GTID in the binlog in this case.
+      */
+      if (start_at_own_slave_pos)
+        slave_gtid_entry->flags|= slave_connection_state::START_OWN_SLAVE_POS;
+      continue;
     }
 
-    if (!rpl_global_gtid_slave_state.domain_to_gtid(slave_gtid->domain_id,
-                                                    &master_replication_gtid) ||
-        slave_gtid->server_id != master_replication_gtid.server_id ||
-        slave_gtid->seq_no != master_replication_gtid.seq_no)
+    if (!start_at_own_slave_pos)
     {
       rpl_gtid domain_gtid;
       rpl_gtid *until_gtid;
@@ -942,7 +972,12 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
           We do not have anything in this domain, neither in the binlog nor
           in the slave state. So we are probably one master in a multi-master
           setup, and this domain is served by a different master.
+
+          But set a flag so that if we then ever _do_ happen to encounter
+          anything in this domain, then we will re-check that the requested
+          slave position exists, and give the error at that time if not.
         */
+        slave_gtid_entry->flags|= slave_connection_state::START_ON_EMPTY_DOMAIN;
         continue;
       }
 
@@ -966,9 +1001,8 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
         continue;
       }
 
-      *errormsg= "Requested slave GTID state not found in binlog";
       *error_gtid= *slave_gtid;
-      err= ER_GTID_POSITION_NOT_FOUND_IN_BINLOG;
+      give_error_start_pos_missing_in_binlog(&err, errormsg, error_gtid);
       goto end;
     }
 
@@ -999,7 +1033,6 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
                                            &start_gtid) &&
         start_gtid.seq_no > slave_gtid->seq_no)
     {
-      rpl_gtid *fake_gtid;
       /*
         Start replication within this domain at the first GTID that we logged
         ourselves after becoming a master.
@@ -1009,20 +1042,7 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
         --gtid-strict-mode.
       */
       slave_gtid->server_id= global_system_variables.server_id;
-      if (!(fake_gtid= (rpl_gtid *)my_malloc(sizeof(*fake_gtid), MYF(0))))
-      {
-        *errormsg= "Out of memory while checking slave start position";
-        err= ER_OUT_OF_RESOURCES;
-        goto end;
-      }
-      *fake_gtid= *slave_gtid;
-      if (my_hash_insert(fake_gtid_hash, (uchar *)fake_gtid))
-      {
-        my_free(fake_gtid);
-        *errormsg= "Out of memory while checking slave start position";
-        err= ER_OUT_OF_RESOURCES;
-        goto end;
-      }
+      slave_gtid_entry->flags|= slave_connection_state::START_OWN_SLAVE_POS;
     }
     else if (mysql_bin_log.lookup_domain_in_binlog_state(slave_gtid->domain_id,
                                                          &start_gtid))
@@ -1042,7 +1062,7 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
       */
       if (!delete_list)
       {
-        if (!(delete_list= (rpl_gtid **)
+        if (!(delete_list= (slave_connection_state::entry **)
               my_malloc(sizeof(*delete_list) * st->hash.records, MYF(MY_WME))))
         {
           *errormsg= "Out of memory while checking slave start position";
@@ -1050,7 +1070,7 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
           goto end;
         }
       }
-      delete_list[delete_idx++]= slave_gtid;
+      delete_list[delete_idx++]= slave_gtid_entry;
     }
   }
 
@@ -1058,7 +1078,7 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
   if (delete_list)
   {
     for (i= 0; i < delete_idx; ++i)
-      st->remove(delete_list[i]);
+      st->remove(&(delete_list[i]->gtid));
   }
   err= 0;
 
@@ -1249,6 +1269,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
   uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   int err;
   String packet;
+  Format_description_log_event *fdev= NULL;
 
   if (gtid_state->load((const rpl_gtid *)NULL, 0))
   {
@@ -1259,6 +1280,13 @@ gtid_state_from_pos(const char *name, uint32 offset,
 
   if ((file= open_binlog(&cache, name, &errormsg)) == (File)-1)
     return errormsg;
+
+  if (!(fdev= new Format_description_log_event(3)))
+  {
+    errormsg= "Out of memory initializing format_description event "
+      "while scanning binlog to find start position";
+    goto end;
+  }
 
   /*
     First we need to find the initial GTID_LIST_EVENT. We need this even
@@ -1295,6 +1323,8 @@ gtid_state_from_pos(const char *name, uint32 offset,
     typ= (Log_event_type)(uchar)packet[EVENT_TYPE_OFFSET];
     if (typ == FORMAT_DESCRIPTION_EVENT)
     {
+      Format_description_log_event *tmp;
+
       if (found_format_description_event)
       {
         errormsg= "Duplicate format description log event found while "
@@ -1304,6 +1334,15 @@ gtid_state_from_pos(const char *name, uint32 offset,
 
       current_checksum_alg= get_checksum_alg(packet.ptr(), packet.length());
       found_format_description_event= true;
+      if (!(tmp= new Format_description_log_event(packet.ptr(), packet.length(),
+                                                  fdev)))
+      {
+        errormsg= "Corrupt Format_description event found or out-of-memory "
+          "while searching for old-style position in binlog";
+        goto end;
+      }
+      delete fdev;
+      fdev= tmp;
     }
     else if (typ != FORMAT_DESCRIPTION_EVENT && !found_format_description_event)
     {
@@ -1328,7 +1367,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       }
       status= Gtid_list_log_event::peek(packet.ptr(), packet.length(),
                                         current_checksum_alg,
-                                        &gtid_list, &list_len);
+                                        &gtid_list, &list_len, fdev);
       if (status)
       {
         errormsg= "Error reading Gtid_list_log_event while searching "
@@ -1356,7 +1395,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       uchar flags2;
       if (Gtid_log_event::peek(packet.ptr(), packet.length(),
                                current_checksum_alg, &gtid.domain_id,
-                               &gtid.server_id, &gtid.seq_no, &flags2))
+                               &gtid.server_id, &gtid.seq_no, &flags2, fdev))
       {
         errormsg= "Corrupt gtid_log_event found while scanning binlog to find "
           "initial slave position";
@@ -1379,6 +1418,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
   }
 
 end:
+  delete fdev;
   end_io_cache(&cache);
   mysql_file_close(file, MYF(MY_WME));
 
@@ -1482,7 +1522,8 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                     enum_gtid_until_state *gtid_until_group,
                     rpl_binlog_state *until_binlog_state,
                     bool slave_gtid_strict_mode, rpl_gtid *error_gtid,
-                    bool *send_fake_gtid_list, HASH *fake_gtid_hash)
+                    bool *send_fake_gtid_list,
+                    Format_description_log_event *fdev)
 {
   my_off_t pos;
   size_t len= packet->length();
@@ -1496,7 +1537,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
     if (ev_offset > len ||
         Gtid_list_log_event::peek(packet->ptr()+ev_offset, len - ev_offset,
                                   current_checksum_alg,
-                                  &gtid_list, &list_len))
+                                  &gtid_list, &list_len, fdev))
     {
       my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       return "Failed to read Gtid_list_log_event: corrupt binlog";
@@ -1514,6 +1555,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
   if (event_type == GTID_EVENT && using_gtid_state)
   {
     uchar flags2;
+    slave_connection_state::entry *gtid_entry;
     rpl_gtid *gtid;
 
     if (gtid_state->count() > 0 || until_gtid_state)
@@ -1524,7 +1566,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
           Gtid_log_event::peek(packet->ptr()+ev_offset, len - ev_offset,
                                current_checksum_alg,
                                &event_gtid.domain_id, &event_gtid.server_id,
-                               &event_gtid.seq_no, &flags2))
+                               &event_gtid.seq_no, &flags2, fdev))
       {
         my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
         return "Failed to read Gtid_log_event: corrupt binlog";
@@ -1551,9 +1593,28 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
 
       if (gtid_state->count() > 0)
       {
-        gtid= gtid_state->find(event_gtid.domain_id);
-        if (gtid != NULL)
+        gtid_entry= gtid_state->find_entry(event_gtid.domain_id);
+        if (gtid_entry != NULL)
         {
+          gtid= &gtid_entry->gtid;
+          if (gtid_entry->flags & slave_connection_state::START_ON_EMPTY_DOMAIN)
+          {
+            rpl_gtid master_gtid;
+            if (!mysql_bin_log.find_in_binlog_state(gtid->domain_id,
+                                                    gtid->server_id,
+                                                    &master_gtid) ||
+                master_gtid.seq_no < gtid->seq_no)
+            {
+              int err;
+              const char *errormsg;
+              *error_gtid= *gtid;
+              give_error_start_pos_missing_in_binlog(&err, &errormsg, error_gtid);
+              my_errno= err;
+              return errormsg;
+            }
+            gtid_entry->flags&= ~(uint32)slave_connection_state::START_ON_EMPTY_DOMAIN;
+          }
+
           /* Skip this event group if we have not yet reached slave start pos. */
           if (event_gtid.server_id != gtid->server_id ||
               event_gtid.seq_no <= gtid->seq_no)
@@ -1563,8 +1624,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
               event_gtid.seq_no >= gtid->seq_no)
           {
             if (slave_gtid_strict_mode && event_gtid.seq_no > gtid->seq_no &&
-                !my_hash_search(fake_gtid_hash,
-                                (const uchar *)&event_gtid.domain_id, 0))
+                !(gtid_entry->flags & slave_connection_state::START_OWN_SLAVE_POS))
             {
               /*
                 In strict mode, it is an error if the slave requests to start
@@ -1839,10 +1899,10 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   rpl_binlog_state until_binlog_state;
   bool slave_gtid_strict_mode= false;
   bool send_fake_gtid_list= false;
-  HASH fake_gtid_hash;
 
   uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
+  Format_description_log_event *fdev= NULL;
 
 #ifndef DBUG_OFF
   int left_events = max_binlog_dump_events;
@@ -1853,9 +1913,6 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   bzero((char*) &log,sizeof(log));
   bzero(&error_gtid, sizeof(error_gtid));
-  my_hash_init(&fake_gtid_hash, &my_charset_bin, 32,
-               offsetof(rpl_gtid, domain_id), sizeof(uint32), NULL, my_free,
-               HASH_UNIQUE);
   /* 
      heartbeat_period from @master_heartbeat_period user variable
   */
@@ -1921,6 +1978,13 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   }
 #endif
 
+  if (!(fdev= new Format_description_log_event(3)))
+  {
+    errmsg= "Out of memory initializing format_description event";
+    my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+    goto err;
+  }
+
   if (!mysql_bin_log.is_open())
   {
     errmsg = "Binary log is not open";
@@ -1955,8 +2019,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
       goto err;
     }
     if ((error= check_slave_start_position(thd, &gtid_state, &errmsg,
-                                           &error_gtid, until_gtid_state,
-                                           &fake_gtid_hash)))
+                                           &error_gtid, until_gtid_state)))
     {
       my_errno= error;
       goto err;
@@ -2085,6 +2148,8 @@ impossible position";
                    (*packet)[EVENT_TYPE_OFFSET+ev_offset]));
        if ((*packet)[EVENT_TYPE_OFFSET+ev_offset] == FORMAT_DESCRIPTION_EVENT)
        {
+         Format_description_log_event *tmp;
+
          current_checksum_alg= get_checksum_alg(packet->ptr() + ev_offset,
                                                 packet->length() - ev_offset);
          DBUG_ASSERT(current_checksum_alg == BINLOG_CHECKSUM_ALG_OFF ||
@@ -2102,6 +2167,18 @@ impossible position";
                              "slaves that cannot process them");
            goto err;
          }
+
+         if (!(tmp= new Format_description_log_event(packet->ptr()+ev_offset,
+                                                     packet->length()-ev_offset,
+                                                     fdev)))
+         {
+           my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+           errmsg= "Corrupt Format_description event found or out-of-memory";
+           goto err;
+         }
+         delete fdev;
+         fdev= tmp;
+
          (*packet)[FLAGS_OFFSET+ev_offset] &= ~LOG_EVENT_BINLOG_IN_USE_F;
          /*
            mark that this event with "log_pos=0", so the slave
@@ -2219,6 +2296,8 @@ impossible position";
 #endif
       if (event_type == FORMAT_DESCRIPTION_EVENT)
       {
+        Format_description_log_event *tmp;
+
         current_checksum_alg= get_checksum_alg(packet->ptr() + ev_offset,
                                                packet->length() - ev_offset);
         DBUG_ASSERT(current_checksum_alg == BINLOG_CHECKSUM_ALG_OFF ||
@@ -2236,6 +2315,17 @@ impossible position";
                             "slaves that cannot process them");
           goto err;
         }
+
+        if (!(tmp= new Format_description_log_event(packet->ptr()+ev_offset,
+                                                    packet->length()-ev_offset,
+                                                    fdev)))
+        {
+          my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+          errmsg= "Corrupt Format_description event found or out-of-memory";
+          goto err;
+        }
+        delete fdev;
+        fdev= tmp;
 
         (*packet)[FLAGS_OFFSET+ev_offset] &= ~LOG_EVENT_BINLOG_IN_USE_F;
       }
@@ -2261,7 +2351,7 @@ impossible position";
                                         until_gtid_state, &gtid_until_group,
                                         &until_binlog_state,
                                         slave_gtid_strict_mode, &error_gtid,
-                                        &send_fake_gtid_list, &fake_gtid_hash)))
+                                        &send_fake_gtid_list, fdev)))
       {
         errmsg= tmp_msg;
         goto err;
@@ -2467,8 +2557,7 @@ impossible position";
                                             &gtid_skip_group, until_gtid_state,
                                             &gtid_until_group, &until_binlog_state,
                                             slave_gtid_strict_mode, &error_gtid,
-                                            &send_fake_gtid_list,
-                                            &fake_gtid_hash)))
+                                            &send_fake_gtid_list, fdev)))
           {
             errmsg= tmp_msg;
             goto err;
@@ -2558,7 +2647,6 @@ impossible position";
 end:
   end_io_cache(&log);
   mysql_file_close(file, MYF(MY_WME));
-  my_hash_free(&fake_gtid_hash);
 
   RUN_HOOK(binlog_transmit, transmit_stop, (thd, flags));
   my_eof(thd);
@@ -2567,6 +2655,7 @@ end:
   thd->current_linfo = 0;
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->variables.max_allowed_packet= old_max_allowed_packet;
+  delete fdev;
   DBUG_VOID_RETURN;
 
 err:
@@ -2591,6 +2680,18 @@ err:
     my_snprintf(error_text, sizeof(error_text),
                 "Error: connecting slave requested to start from GTID "
                 "%u-%u-%llu, which is not in the master's binlog",
+                error_gtid.domain_id, error_gtid.server_id, error_gtid.seq_no);
+    /* Use this error code so slave will know not to try reconnect. */
+    my_errno = ER_MASTER_FATAL_ERROR_READING_BINLOG;
+  }
+  else if (my_errno == ER_GTID_POSITION_NOT_FOUND_IN_BINLOG2)
+  {
+    my_snprintf(error_text, sizeof(error_text),
+                "Error: connecting slave requested to start from GTID "
+                "%u-%u-%llu, which is not in the master's binlog. Since the "
+                "master's binlog contains GTIDs with higher sequence numbers, "
+                "it probably means that the slave has diverged due to "
+                "executing extra errorneous transactions",
                 error_gtid.domain_id, error_gtid.server_id, error_gtid.seq_no);
     /* Use this error code so slave will know not to try reconnect. */
     my_errno = ER_MASTER_FATAL_ERROR_READING_BINLOG;
@@ -2629,8 +2730,8 @@ err:
   mysql_mutex_unlock(&LOCK_thread_count);
   if (file >= 0)
     mysql_file_close(file, MYF(MY_WME));
-  my_hash_free(&fake_gtid_hash);
   thd->variables.max_allowed_packet= old_max_allowed_packet;
+  delete fdev;
 
   my_message(my_errno, error_text, MYF(0));
   DBUG_VOID_RETURN;
@@ -3434,7 +3535,7 @@ err:
   @retval 0 success
   @retval 1 error
 */
-int reset_master(THD* thd)
+int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len)
 {
   if (!mysql_bin_log.is_open())
   {
@@ -3443,7 +3544,7 @@ int reset_master(THD* thd)
     return 1;
   }
 
-  if (mysql_bin_log.reset_logs(thd, 1))
+  if (mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len))
     return 1;
   RUN_HOOK(binlog_transmit, after_reset_master, (thd, 0 /* flags */));
   return 0;
@@ -3893,7 +3994,7 @@ rpl_append_gtid_state(String *dest, bool use_binlog)
 
 
 /*
-  Load the current GITD position into a slave_connection_state, for use when
+  Load the current GTID position into a slave_connection_state, for use when
   connecting to a master server with GTID.
 
   If the flag use_binlog is true, then the contents of the binary log (if

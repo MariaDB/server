@@ -1,5 +1,5 @@
-/* Copyright (c) 2011,2013  Monty Program Ab;
-   Copyright (c) 2011,2012 Oleksandr Byelkin
+/* Copyright (c) 2011, 2013, Monty Program Ab
+   Copyright (c) 2011, 2012, Oleksandr Byelkin
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -1920,7 +1920,8 @@ static size_t get_length_interval(uchar *entry, uchar *entry_next,
   if (entry_next >= header_end)
     return (last_offset - offset);
   if (type_and_offset_read_num(&type_next, &offset_next,
-                               entry_next + COLUMN_NUMBER_SIZE, offset_size))
+                               entry_next + COLUMN_NUMBER_SIZE, offset_size) ||
+      (offset_next > last_offset))
     return DYNCOL_OFFSET_ERROR;
   return (offset_next - offset);
 }
@@ -1947,13 +1948,15 @@ static size_t hdr_interval_length(DYN_HEADER *hdr, uchar *next_entry)
 
   if ((*fmt->type_and_offset_read)(&hdr->type, &hdr->offset,
                                    hdr->entry + fmt->fixed_hdr_entry,
-                                   hdr->offset_size))
+                                   hdr->offset_size) ||
+      hdr->data_size < hdr->offset)
     return DYNCOL_OFFSET_ERROR;
   if (next_entry == hdr->header + hdr->header_size)
     return hdr->data_size - hdr->offset;
   if ((*fmt->type_and_offset_read)(&next_entry_type, &next_entry_offset,
                                    next_entry + fmt->fixed_hdr_entry,
-                                   hdr->offset_size))
+                                   hdr->offset_size) ||
+      hdr->data_size < next_entry_offset)
     return DYNCOL_OFFSET_ERROR;
   return (next_entry_offset - hdr->offset);
 }
@@ -3609,8 +3612,9 @@ create_new_string:
 */
 
 
-int dynamic_column_update(DYNAMIC_COLUMN *str, uint column_nr,
-                          DYNAMIC_COLUMN_VALUE *value)
+enum enum_dyncol_func_result
+dynamic_column_update(DYNAMIC_COLUMN *str, uint column_nr,
+                      DYNAMIC_COLUMN_VALUE *value)
 {
   return dynamic_column_update_many(str, 1, &column_nr, value);
 }
