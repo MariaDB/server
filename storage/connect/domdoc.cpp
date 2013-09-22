@@ -592,6 +592,18 @@ PXNODE DOMNODELIST::GetItem(PGLOBAL g, int n, PXNODE np)
 
   }  // end of GetItem
 
+/******************************************************************/
+/*  Reset the pointer on the deleted item.                        */
+/******************************************************************/
+bool DOMNODELIST::DropItem(PGLOBAL g, int n)
+  {
+  if (Listp == NULL || Listp->length <= n)
+    return true;
+
+//Listp->item[n] = NULL;  La propriété n'a pas de méthode 'set'
+  return false;
+  }  // end of DeleteItem
+
 /* ----------------------- class DOMATTR ------------------------ */
 
 /******************************************************************/

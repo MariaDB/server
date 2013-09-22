@@ -1093,7 +1093,8 @@ PTDB ha_connect::GetTDB(PGLOBAL g)
 
   if (!xp->CheckQuery(valid_query_id) && tdbp
                       && !stricmp(tdbp->GetName(), table_name)
-                      && tdbp->GetMode() == xmod) {
+                      && (tdbp->GetMode() == xmod 
+                       || tdbp->GetAmType() == TYPE_AM_XML)) {
     tp= tdbp;
     tp->SetMode(xmod);
   } else if ((tp= CntGetTDB(g, table_name, xmod, this)))
@@ -2658,8 +2659,9 @@ int ha_connect::delete_all_rows()
   PGLOBAL g= xp->g;
   DBUG_ENTER("ha_connect::delete_all_rows");
 
-  // Close and reopen the table so it will be deleted
-  rc= CloseTable(g);
+  if (tdbp && tdbp->GetAmType() != TYPE_AM_XML)
+    // Close and reopen the table so it will be deleted
+    rc= CloseTable(g);
 
   if (!(OpenTable(g))) {
     if (CntDeleteRow(g, tdbp, true)) {
