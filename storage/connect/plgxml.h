@@ -147,6 +147,7 @@ class XMLNODELIST : public BLOCK {
   // Properties
   virtual int    GetLength(void) = 0;
   virtual PXNODE GetItem(PGLOBAL, int, PXNODE = NULL) = 0;
+  virtual bool   DropItem(PGLOBAL, int) = 0;
 
  protected:
   // Constructor

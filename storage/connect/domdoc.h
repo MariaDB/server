@@ -104,8 +104,9 @@ class DOMNODELIST : public XMLNODELIST {
   friend class DOMNODE;
  public:
   // Methods
-  virtual int   GetLength(void) {return Listp->length;}
+  virtual int    GetLength(void) {return Listp->length;}
   virtual PXNODE GetItem(PGLOBAL g, int n, PXNODE np);
+  virtual bool   DropItem(PGLOBAL g, int n);
 
  protected:
   // Constructor
