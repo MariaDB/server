@@ -13,7 +13,6 @@ struct rpl_parallel_thread {
   bool delay_start;
   bool running;
   bool stop;
-  bool free;
   mysql_mutex_t LOCK_rpl_thread;
   mysql_cond_t COND_rpl_thread;
   struct rpl_parallel_thread *next;             /* For free list. */

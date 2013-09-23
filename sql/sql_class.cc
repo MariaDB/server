@@ -5631,8 +5631,8 @@ wait_for_commit::wakeup()
   */
   mysql_mutex_lock(&LOCK_wait_commit);
   waiting_for_commit= false;
-  mysql_cond_signal(&COND_wait_commit);
   mysql_mutex_unlock(&LOCK_wait_commit);
+  mysql_cond_signal(&COND_wait_commit);
 }
 
 
