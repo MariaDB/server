@@ -1105,3 +1105,74 @@
    fun:_nss_dns_gethostbyaddr_r
    fun:gethostbyaddr_r
 }
+
+
+{
+  ConnectSE: unixODBC SQLAllocEnv leaves some "still reachable" pointers
+  Memcheck:Leak
+   fun:malloc
+   fun:strdup
+   ...
+   obj:*/libodbc.so*
+   fun:_ZN7ODBConn10GetDriversEP7_qryres
+}
+
+{
+  ConnectSE: unixODBC SQLAllocEnv leaves some "still reachable" pointers
+  Memcheck:Leak
+   fun:calloc
+   ...
+   obj:*/libodbc.so*
+   fun:_ZN7ODBConn10GetDriversEP7_qryres
+}
+
+{
+  ConnectSE: unixODBC SQLDriverConnect leaves some "still reachable" pointers
+  Memcheck:Leak
+   fun:malloc
+   fun:strdup
+   ...
+   obj:*/libodbc.so*
+   fun:SQLDriverConnect
+   fun:_ZN7ODBConn7ConnectEj
+   fun:_ZN7ODBConn4OpenEPcj
+   fun:_Z11ODBCColumnsP7_globalPcS1_S1_b
+   fun:_ZL26connect_assisted_discoveryP10handlertonP3THDP11TABLE_SHAREP14HA_CREATE_INFO
+}
+
+{
+  ConnectSE: unixODBC SQLDriverConnect leaves some "still reachable" pointers
+  Memcheck:Leak
+   fun:calloc
+   ...
+   obj:*/libodbc.so*
+   fun:SQLDriverConnect
+   fun:_ZN7ODBConn7ConnectEj
+   fun:_ZN7ODBConn4OpenEPcj
+   fun:_Z11ODBCColumnsP7_globalPcS1_S1_b
+   fun:_ZL26connect_assisted_discoveryP10handlertonP3THDP11TABLE_SHAREP14HA_CREATE_INFO
+}
+
+{
+  ConnectSE: unixODBC SQLDriverConnect leaves some "still reachable" pointers
+  Memcheck:Leak
+   fun:malloc
+   ...
+   obj:*/libodbc.so*
+   fun:SQLDriverConnect
+   fun:_ZN7ODBConn7ConnectEj
+   fun:_ZN7ODBConn4OpenEPcj
+   fun:_Z11ODBCColumnsP7_globalPcS1_S1_b
+   fun:_ZL26connect_assisted_discoveryP10handlertonP3THDP11TABLE_SHAREP14HA_CREATE_INFO
+}
+
+{
+  ConnectSE: unixODBC dlopen leaves some "still reachable"
+  Memcheck:Leak
+  fun:malloc
+  fun:expand_dynamic_string_token
+  ...
+  obj:*/libltdl.so*
+  ...
+  obj:*/libodbc.so*
+}
