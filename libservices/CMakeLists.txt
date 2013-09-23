@@ -23,7 +23,8 @@ SET(MYSQLSERVICES_SOURCES
   progress_report_service.c
   debug_sync_service.c
   my_sha1_service.c
-  kill_statement_service.c)
+  kill_statement_service.c
+  logger_service.c)
 
 ADD_CONVENIENCE_LIBRARY(mysqlservices ${MYSQLSERVICES_SOURCES})
 INSTALL(TARGETS mysqlservices DESTINATION ${INSTALL_LIBDIR} COMPONENT Development)

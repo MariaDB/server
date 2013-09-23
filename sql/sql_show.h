@@ -121,7 +121,7 @@ enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table);
 
 /* These functions were under INNODB_COMPATIBILITY_HOOKS */
 int get_quote_char_for_identifier(THD *thd, const char *name, uint length);
-THD *find_thread_by_id(ulong id);
+THD *find_thread_by_id(longlong id, bool query_id= false);
 
 class select_result_explain_buffer;
 /*

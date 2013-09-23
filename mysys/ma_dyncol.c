@@ -1,5 +1,5 @@
-/* Copyright (c) 2011,2013  Monty Program Ab;
-   Copyright (c) 2011,2012 Oleksandr Byelkin
+/* Copyright (c) 2011, 2013, Monty Program Ab
+   Copyright (c) 2011, 2012, Oleksandr Byelkin
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -1618,15 +1618,22 @@ dynamic_new_column_store(DYNAMIC_COLUMN *str,
 
   if (!(columns_order= malloc(sizeof(void*)*column_count)))
     return ER_DYNCOL_RESOURCE;
-  if (new_str)
+  if (new_str || str->str == 0)
   {
-    if (dynamic_column_init_named(str,
-                                  fmt->fixed_hdr +
-                                  hdr->header_size +
-                                  hdr->nmpool_size +
-                                  hdr->data_size +
-                                  DYNCOL_SYZERESERVE))
-      goto err;
+    if (column_count)
+    {
+      if (dynamic_column_init_named(str,
+                                    fmt->fixed_hdr +
+                                    hdr->header_size +
+                                    hdr->nmpool_size +
+                                    hdr->data_size +
+                                    DYNCOL_SYZERESERVE))
+        goto err;
+    }
+    else
+    {
+      mariadb_dyncol_init(str);
+    }
   }
   else
   {
@@ -1782,7 +1789,7 @@ dynamic_column_create_many_internal_fmt(DYNAMIC_COLUMN *str,
   if (new_str)
   {
     /* to make dynstr_free() working in case of errors */
-    bzero(str, sizeof(DYNAMIC_COLUMN));
+    mariadb_dyncol_init(str);
   }
 
   if ((rc= calc_var_sizes(&header, column_count, column_keys, values)) < 0)
@@ -1831,13 +1838,13 @@ dynamic_column_create_many(DYNAMIC_COLUMN *str,
 */
 
 enum enum_dyncol_func_result
-mariadb_dyncol_create_many(DYNAMIC_COLUMN *str,
-                           uint column_count,
-                           uint *column_numbers,
-                           DYNAMIC_COLUMN_VALUE *values,
-                           my_bool new_string)
+mariadb_dyncol_create_many_num(DYNAMIC_COLUMN *str,
+                               uint column_count,
+                               uint *column_numbers,
+                               DYNAMIC_COLUMN_VALUE *values,
+                               my_bool new_string)
 {
-  DBUG_ENTER("mariadb_dyncol_create_many");
+  DBUG_ENTER("mariadb_dyncol_create_many_num");
   DBUG_RETURN(dynamic_column_create_many_internal_fmt(str, column_count,
                                                       column_numbers, values,
                                                       new_string, FALSE));
@@ -1913,7 +1920,8 @@ static size_t get_length_interval(uchar *entry, uchar *entry_next,
   if (entry_next >= header_end)
     return (last_offset - offset);
   if (type_and_offset_read_num(&type_next, &offset_next,
-                               entry_next + COLUMN_NUMBER_SIZE, offset_size))
+                               entry_next + COLUMN_NUMBER_SIZE, offset_size) ||
+      (offset_next > last_offset))
     return DYNCOL_OFFSET_ERROR;
   return (offset_next - offset);
 }
@@ -1940,13 +1948,15 @@ static size_t hdr_interval_length(DYN_HEADER *hdr, uchar *next_entry)
 
   if ((*fmt->type_and_offset_read)(&hdr->type, &hdr->offset,
                                    hdr->entry + fmt->fixed_hdr_entry,
-                                   hdr->offset_size))
+                                   hdr->offset_size) ||
+      hdr->data_size < hdr->offset)
     return DYNCOL_OFFSET_ERROR;
   if (next_entry == hdr->header + hdr->header_size)
     return hdr->data_size - hdr->offset;
   if ((*fmt->type_and_offset_read)(&next_entry_type, &next_entry_offset,
                                    next_entry + fmt->fixed_hdr_entry,
-                                   hdr->offset_size))
+                                   hdr->offset_size) ||
+      hdr->data_size < next_entry_offset)
     return DYNCOL_OFFSET_ERROR;
   return (next_entry_offset - hdr->offset);
 }
@@ -2192,8 +2202,8 @@ dynamic_column_get(DYNAMIC_COLUMN *str, uint column_nr,
 }
 
 enum enum_dyncol_func_result
-mariadb_dyncol_get(DYNAMIC_COLUMN *str, uint column_nr,
-                   DYNAMIC_COLUMN_VALUE *store_it_here)
+mariadb_dyncol_get_num(DYNAMIC_COLUMN *str, uint column_nr,
+                       DYNAMIC_COLUMN_VALUE *store_it_here)
 {
   return dynamic_column_get_internal(str, store_it_here, column_nr, NULL);
 }
@@ -2321,7 +2331,7 @@ dynamic_column_exists(DYNAMIC_COLUMN *str, uint column_nr)
 }
 
 enum enum_dyncol_func_result
-mariadb_dyncol_exists(DYNAMIC_COLUMN *str, uint column_nr)
+mariadb_dyncol_exists_num(DYNAMIC_COLUMN *str, uint column_nr)
 {
   return dynamic_column_exists_internal(str, column_nr, NULL);
 }
@@ -2431,14 +2441,15 @@ dynamic_column_list(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_uint)
   @return ER_DYNCOL_* return code
 */
 enum enum_dyncol_func_result
-mariadb_dyncol_list(DYNAMIC_COLUMN *str, uint *count, uint **nums)
+mariadb_dyncol_list_num(DYNAMIC_COLUMN *str, uint *count, uint **nums)
 {
   DYN_HEADER header;
   uchar *read;
   uint i;
   enum enum_dyncol_func_result rc;
 
-  (*nums)= 0;                                   /* In case of errors */
+  (*nums)= 0; (*count)= 0;                      /* In case of errors */
+
   if (str->length == 0)
     return ER_DYNCOL_OK;                        /* no columns */
 
@@ -2833,11 +2844,11 @@ dynamic_column_update_copy(DYNAMIC_COLUMN *str, PLAN *plan,
       }
     }
   }
-  dynamic_column_column_free(str);
+  mariadb_dyncol_free(str);
   *str= tmp;
   return ER_DYNCOL_OK;
 err:
-  dynamic_column_column_free(&tmp);
+  mariadb_dyncol_free(&tmp);
   return ER_DYNCOL_FORMAT;
 }
 
@@ -3249,10 +3260,10 @@ dynamic_column_update_many(DYNAMIC_COLUMN *str,
 }
 
 enum enum_dyncol_func_result
-mariadb_dyncol_update_many(DYNAMIC_COLUMN *str,
-                           uint add_column_count,
-                           uint *column_numbers,
-                           DYNAMIC_COLUMN_VALUE *values)
+mariadb_dyncol_update_many_num(DYNAMIC_COLUMN *str,
+                               uint add_column_count,
+                               uint *column_numbers,
+                               DYNAMIC_COLUMN_VALUE *values)
 {
   return dynamic_column_update_many_fmt(str, add_column_count, column_numbers,
                                         values, FALSE);
@@ -3601,8 +3612,9 @@ create_new_string:
 */
 
 
-int dynamic_column_update(DYNAMIC_COLUMN *str, uint column_nr,
-                          DYNAMIC_COLUMN_VALUE *value)
+enum enum_dyncol_func_result
+dynamic_column_update(DYNAMIC_COLUMN *str, uint column_nr,
+                      DYNAMIC_COLUMN_VALUE *value)
 {
   return dynamic_column_update_many(str, 1, &column_nr, value);
 }
@@ -4319,8 +4331,21 @@ mariadb_dyncol_column_count(DYNAMIC_COLUMN *str, uint *column_count)
   DYN_HEADER header;
   enum enum_dyncol_func_result rc;
 
+  *(column_count)= 0;
+  if (str->length == 0)
+    return ER_DYNCOL_OK;
+
   if ((rc= init_read_hdr(&header, str)) < 0)
     return rc;
   *column_count= header.column_count;
   return rc;
+}
+/**
+ Free dynamic column
+
+ @param str The packed string
+*/
+void mariadb_dyncol_free(DYNAMIC_COLUMN *str)
+{
+  dynstr_free(str);
 }

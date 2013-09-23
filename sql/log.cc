@@ -3719,7 +3719,8 @@ err:
     1   error
 */
 
-bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
+bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log,
+                               rpl_gtid *init_state, uint32 init_state_len)
 {
   LOG_INFO linfo;
   bool error=0;
@@ -3738,6 +3739,14 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
 
   if (!is_relay_log)
   {
+    if (init_state && !is_empty_state())
+    {
+      my_error(ER_BINLOG_MUST_BE_EMPTY, MYF(0));
+      mysql_mutex_unlock(&LOCK_index);
+      mysql_mutex_unlock(&LOCK_log);
+      DBUG_RETURN(1);
+    }
+
     /*
       Mark that a RESET MASTER is in progress.
       This ensures that a binlog checkpoint will not try to write binlog
@@ -3855,7 +3864,10 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
 
   if (!is_relay_log)
   {
-    rpl_global_gtid_binlog_state.reset();
+    if (init_state)
+      rpl_global_gtid_binlog_state.load(init_state, init_state_len);
+    else
+      rpl_global_gtid_binlog_state.reset();
   }
 
   /* Start logging with a new file */
@@ -4810,12 +4822,23 @@ end:
 }
 
 
-bool MYSQL_BIN_LOG::append(Log_event* ev)
+bool
+MYSQL_BIN_LOG::append(Log_event *ev)
+{
+  bool res;
+  mysql_mutex_lock(&LOCK_log);
+  res= append_no_lock(ev);
+  mysql_mutex_unlock(&LOCK_log);
+  return res;
+}
+
+
+bool MYSQL_BIN_LOG::append_no_lock(Log_event* ev)
 {
   bool error = 0;
-  mysql_mutex_lock(&LOCK_log);
   DBUG_ENTER("MYSQL_BIN_LOG::append");
 
+  mysql_mutex_assert_owner(&LOCK_log);
   DBUG_ASSERT(log_file.type == SEQ_READ_APPEND);
   /*
     Log_event::write() is smart enough to use my_b_write() or
@@ -4833,7 +4856,6 @@ bool MYSQL_BIN_LOG::append(Log_event* ev)
   if (my_b_append_tell(&log_file) > max_size)
     error= new_file_without_locking();
 err:
-  mysql_mutex_unlock(&LOCK_log);
   signal_update();				// Safe as we don't call close
   DBUG_RETURN(error);
 }
@@ -5537,6 +5559,30 @@ MYSQL_BIN_LOG::append_state_pos(String *str)
   err= rpl_global_gtid_binlog_state.append_pos(str);
   mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
   return err;
+}
+
+
+bool
+MYSQL_BIN_LOG::append_state(String *str)
+{
+  bool err;
+
+  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+  err= rpl_global_gtid_binlog_state.append_state(str);
+  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+  return err;
+}
+
+
+bool
+MYSQL_BIN_LOG::is_empty_state()
+{
+  bool res;
+
+  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+  res= (rpl_global_gtid_binlog_state.count() == 0);
+  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+  return res;
 }
 
 

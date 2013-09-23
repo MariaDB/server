@@ -155,5 +155,31 @@ SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	COUNT(*)
 0	2
 1	2
+*** MDEV-4650: show variables; ERROR 1946 (HY000): Failed to load replication slave GTID position ***
+SET sql_log_bin=0;
+RENAME TABLE mysql.gtid_slave_pos TO mysql.gtid_slave_pos_old;
+SET sql_log_bin=1;
+SHOW VARIABLES;
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	
+SET GLOBAL gtid_slave_pos = '0-1-2';
+Got one of the listed errors
+SHOW WARNINGS;
+Level	Code	Message
+Error	1146	Table 'mysql.gtid_slave_pos' doesn't exist
+Error	1946	Failed to load replication slave GTID position from table mysql.gtid_slave_pos
+SET sql_log_bin=0;
+RENAME TABLE mysql.gtid_slave_pos_old TO mysql.gtid_slave_pos;
+CALL mtr.add_suppression("Failed to load slave replication state from table mysql.gtid_slave_pos");
+SET sql_log_bin=1;
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	
+SET GLOBAL gtid_slave_pos = '0-1-2';
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+Variable_name	Value
+gtid_slave_pos	0-1-2
+include/start_slave.inc
 DROP TABLE t1;
 include/rpl_end.inc

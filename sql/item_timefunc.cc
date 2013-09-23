@@ -1290,7 +1290,19 @@ bool get_interval_value(Item *args,interval_type int_type, INTERVAL *interval)
   String str_value(buf, sizeof(buf), &my_charset_bin);
 
   bzero((char*) interval,sizeof(*interval));
-  if ((int) int_type <= INTERVAL_MICROSECOND)
+  if (int_type == INTERVAL_SECOND && args->decimals)
+  {
+    my_decimal decimal_value, *val;
+    ulonglong second;
+    ulong second_part;
+    if (!(val= args->val_decimal(&decimal_value)))
+      return true;
+    interval->neg= my_decimal2seconds(val, &second, &second_part);
+    interval->second= second;
+    interval->second_part= second_part;
+    return false;
+  }
+  else if ((int) int_type <= INTERVAL_MICROSECOND)
   {
     value= args->val_int();
     if (args->null_value)
@@ -1435,25 +1447,28 @@ bool get_interval_value(Item *args,interval_type int_type, INTERVAL *interval)
 
 void Item_temporal_func::fix_length_and_dec()
 { 
-  static const uint max_time_type_width[5]=
-  { MAX_DATETIME_WIDTH, MAX_DATETIME_WIDTH, MAX_DATE_WIDTH,
-    MAX_DATETIME_WIDTH, MIN_TIME_WIDTH };
-
+  uint char_length= mysql_temporal_int_part_length(field_type());
+  /*
+    We set maybe_null to 1 as default as any bad argument with date or
+    time can get us to return NULL.
+  */ 
   set_persist_maybe_null(1);
-  max_length= max_time_type_width[mysql_type_to_time_type(field_type())+2];
   if (decimals)
   {
     if (decimals == NOT_FIXED_DEC)
-      max_length+= TIME_SECOND_PART_DIGITS + 1;
+      char_length+= TIME_SECOND_PART_DIGITS + 1;
     else
     {
       set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
-      max_length+= decimals + 1;
+      char_length+= decimals + 1;
     }
   }
   sql_mode= current_thd->variables.sql_mode &
                  (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
-  collation.set(&my_charset_numeric, DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
+  collation.set(field_type() == MYSQL_TYPE_STRING ?
+                default_charset() : &my_charset_numeric,
+                DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
+  fix_char_length(char_length);
 }
 
 String *Item_temporal_func::val_str(String *str)
@@ -1481,6 +1496,23 @@ double Item_temporal_func::val_real()
   if (get_date(&ltime, sql_mode))
     return 0;
   return TIME_to_double(&ltime);
+}
+
+
+String *Item_temporal_hybrid_func::val_str_ascii(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  MYSQL_TIME ltime;
+
+  if (get_date(&ltime, 0) ||
+      (null_value= my_TIME_to_str(&ltime, str, decimals)))
+    return (String *) 0;
+
+  /* Check that the returned timestamp type matches to the function type */
+  DBUG_ASSERT(cached_field_type == MYSQL_TYPE_STRING ||
+              ltime.time_type == MYSQL_TIMESTAMP_NONE ||
+              mysql_type_to_time_type(cached_field_type) == ltime.time_type);
+  return str;
 }
 
 
@@ -1929,7 +1961,7 @@ bool Item_func_from_unixtime::get_date(MYSQL_TIME *ltime,
 
 void Item_func_convert_tz::fix_length_and_dec()
 {
-  decimals= args[0]->decimals;
+  decimals= args[0]->temporal_precision(MYSQL_TYPE_DATETIME);
   Item_temporal_func::fix_length_and_dec();
 }
 
@@ -2000,28 +2032,40 @@ void Item_date_add_interval::fix_length_and_dec()
   */
   cached_field_type= MYSQL_TYPE_STRING;
   arg0_field_type= args[0]->field_type();
+  uint interval_dec= 0;
+  if (int_type == INTERVAL_MICROSECOND ||
+      (int_type >= INTERVAL_DAY_MICROSECOND &&
+       int_type <= INTERVAL_SECOND_MICROSECOND))
+    interval_dec= TIME_SECOND_PART_DIGITS;
+  else if (int_type == INTERVAL_SECOND && args[1]->decimals > 0)
+    interval_dec= MY_MIN(args[1]->decimals, TIME_SECOND_PART_DIGITS);
+
   if (arg0_field_type == MYSQL_TYPE_DATETIME ||
       arg0_field_type == MYSQL_TYPE_TIMESTAMP)
+  {
+    decimals= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_DATETIME), interval_dec);
     cached_field_type= MYSQL_TYPE_DATETIME;
+  }
   else if (arg0_field_type == MYSQL_TYPE_DATE)
   {
     if (int_type <= INTERVAL_DAY || int_type == INTERVAL_YEAR_MONTH)
       cached_field_type= arg0_field_type;
     else
+    {
+      decimals= interval_dec;
       cached_field_type= MYSQL_TYPE_DATETIME;
+    }
   }
   else if (arg0_field_type == MYSQL_TYPE_TIME)
   {
+    decimals= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_TIME), interval_dec);
     if (int_type >= INTERVAL_DAY && int_type != INTERVAL_YEAR_MONTH)
       cached_field_type= arg0_field_type;
     else
       cached_field_type= MYSQL_TYPE_DATETIME;
   }
-  if (int_type == INTERVAL_MICROSECOND || int_type >= INTERVAL_DAY_MICROSECOND)
-    decimals= 6;
   else
-    decimals= args[0]->decimals;
-
+    decimals= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_DATETIME), interval_dec);
   Item_temporal_func::fix_length_and_dec();
 }
 
@@ -2032,7 +2076,9 @@ bool Item_date_add_interval::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   INTERVAL interval;
 
-  if (args[0]->get_date(ltime, 0) ||
+  if (args[0]->get_date(ltime,
+                        cached_field_type == MYSQL_TYPE_TIME ?
+                        TIME_TIME_ONLY : 0) ||
       get_interval_value(args[1], int_type, &interval))
     return (null_value=1);
 
@@ -2423,7 +2469,9 @@ bool Item_time_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   if (ltime->time_type != MYSQL_TIMESTAMP_TIME)
     ltime->year= ltime->month= ltime->day= 0;
   ltime->time_type= MYSQL_TIMESTAMP_TIME;
-  return 0;
+  return (fuzzy_date & TIME_TIME_ONLY) ? 0 :
+         (null_value= check_date_with_warn(ltime, fuzzy_date,
+                                           MYSQL_TIMESTAMP_ERROR)); 
 }
 
 
@@ -2531,10 +2579,19 @@ void Item_func_add_time::fix_length_and_dec()
   arg0_field_type= args[0]->field_type();
   if (arg0_field_type == MYSQL_TYPE_DATE ||
       arg0_field_type == MYSQL_TYPE_DATETIME ||
-      arg0_field_type == MYSQL_TYPE_TIMESTAMP)
+      arg0_field_type == MYSQL_TYPE_TIMESTAMP ||
+      is_date)
+  {
     cached_field_type= MYSQL_TYPE_DATETIME;
+    decimals= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_DATETIME),
+                     args[1]->temporal_precision(MYSQL_TYPE_TIME));
+  }
   else if (arg0_field_type == MYSQL_TYPE_TIME)
+  {
     cached_field_type= MYSQL_TYPE_TIME;
+    decimals= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_TIME),
+                     args[1]->temporal_precision(MYSQL_TYPE_TIME));
+  }
   Item_temporal_func::fix_length_and_dec();
 }
 
@@ -2715,13 +2772,14 @@ bool Item_func_maketime::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   DBUG_ASSERT(fixed == 1);
   bool overflow= 0;
-
   longlong hour=   args[0]->val_int();
   longlong minute= args[1]->val_int();
-  longlong second= args[2]->val_int();
+  ulonglong second;
+  ulong microsecond;
+  bool neg= args[2]->get_seconds(&second, &microsecond);
 
   if (args[0]->null_value || args[1]->null_value || args[2]->null_value ||
-       minute < 0 || minute > 59 || second < 0 || second > 59)
+       minute < 0 || minute > 59 || neg || second > 59)
     return (null_value= 1);
 
   bzero(ltime, sizeof(*ltime));
@@ -2743,6 +2801,7 @@ bool Item_func_maketime::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     ltime->hour=   (uint) ((hour < 0 ? -hour : hour));
     ltime->minute= (uint) minute;
     ltime->second= (uint) second;
+    ltime->second_part= microsecond;
   }
   else
   {
