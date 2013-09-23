@@ -265,10 +265,6 @@ public:
   virtual Item *expr_cache_insert_transformer(uchar *thd_arg);
   bool is_expensive_processor(uchar *arg);
   bool is_expensive();
-  virtual void set_join_tab_idx(int join_tab_idx_arg)
-  { args[1]->set_join_tab_idx(join_tab_idx_arg); }
-  virtual int get_join_tab_idx()
-  { return args[1]->get_join_tab_idx(); }
   virtual void get_cache_parameters(List<Item> &parameters);
   bool is_top_level_item();
   bool eval_not_null_tables(uchar *opt_arg);

@@ -660,6 +660,9 @@ public:
                                            subselect */
   DTCollation collation;
   Item_result cmp_context;              /* Comparison context */
+  /* tables in the QEP where this predicate should be pushed to */
+  //table_map pushdown_tables;
+
   // alloc & destruct is done as start of select using sql_alloc
   Item();
   /*
@@ -1008,6 +1011,7 @@ public:
     have to be updated in update_used_tables()
   */
   virtual table_map not_null_tables() const { return used_tables(); }
+
   /*
     Returns true if this is a simple constant item like an integer, not
     a constant expression. Used in the optimizer to propagate basic constants.
@@ -1204,6 +1208,22 @@ public:
   virtual bool exists2in_processor(uchar *opt_arg) { return 0; }
   virtual bool find_selective_predicates_list_processor(uchar *opt_arg)
   { return 0; }
+
+  /**
+    Set the join tab index to the minimal (left-most) JOIN_TAB to which this
+    Item is attached. The number is an index in depth_first_tab() traversal
+    order.
+  */
+  virtual bool set_join_tab_idx_processor(uchar *join_tab_idx_arg)
+  {
+    /*
+      Items can participate in several pushdown conditions attached to
+      different join tabs. The join tab index property identifies the
+      left-most join tab in the join plan.
+    */
+    set_join_tab_idx(*((int*) join_tab_idx_arg));
+    return false;
+  }
 
   /* To call bool function for all arguments */
   struct bool_func_call_args
@@ -1502,7 +1522,7 @@ public:
   virtual Item_equal *find_item_equal(COND_EQUAL *cond_equal) { return NULL; }
   /**
     Set the join tab index to the minimal (left-most) JOIN_TAB to which this
-    Item is attached. The number is an index in depth_first_tab() traversal
+    Item is attached. The number is an index is depth_first_tab() traversal
     order.
   */
   virtual void set_join_tab_idx(int join_tab_idx_arg)

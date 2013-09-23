@@ -200,14 +200,12 @@ int join_read_always_key_or_null(JOIN_TAB *tab);
 int join_read_next_same_or_null(READ_RECORD *info);
 static COND *make_cond_for_table(THD *thd, Item *cond,table_map table,
                                  table_map used_table,
-                                 int join_tab_idx_arg,
                                  bool exclude_expensive_cond,
                                  bool retain_ref_cond);
 static COND *make_cond_for_table_from_pred(THD *thd, Item *root_cond,
                                            Item *cond,
                                            table_map tables,
                                            table_map used_table,
-                                           int join_tab_idx_arg,
                                            bool exclude_expensive_cond,
                                            bool retain_ref_cond);
 
@@ -1301,8 +1299,7 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
       if (conds && !(thd->lex->describe & DESCRIBE_EXTENDED))
       {
         COND *table_independent_conds=
-          make_cond_for_table(thd, conds, PSEUDO_TABLE_BITS, 0, -1,
-                              FALSE, FALSE);
+          make_cond_for_table(thd, conds, PSEUDO_TABLE_BITS, 0, FALSE, FALSE);
         DBUG_EXECUTE("where",
                      print_where(table_independent_conds,
                                  "where after opt_sum_query()",
@@ -2920,8 +2917,7 @@ void JOIN::exec_inner()
 			      curr_table->table->map);
 
       Item* sort_table_cond= make_cond_for_table(thd, curr_join->tmp_having,
-						 used_tables,
-						 (table_map)0, -1,
+						 used_tables, (table_map)0,
 						 FALSE, FALSE);
       if (sort_table_cond)
       {
@@ -2961,7 +2957,7 @@ void JOIN::exec_inner()
                                          QT_ORDINARY););
 	curr_join->tmp_having= make_cond_for_table(thd, curr_join->tmp_having,
 						   ~ (table_map) 0,
-						   ~used_tables, -1,
+						   ~used_tables,
 						   FALSE, FALSE);
 	DBUG_EXECUTE("where",print_where(curr_join->tmp_having,
                                          "having after sort",
@@ -7600,8 +7596,7 @@ best_extension_by_limited_search(JOIN      *join,
           in order to minimize the number of subquery evaluations.
         */
         if (optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_STATIC_PUSHDOWN) &&
-            join->conds && join->conds->with_subselect
-            /* && join->conds->is_expensive()*/)
+            join->conds && join->conds->is_expensive())
         {
           /*
             Find and store the POSITION with the least partial result cardinality
@@ -7614,57 +7609,30 @@ best_extension_by_limited_search(JOIN      *join,
                p_pos--)
           {
             if (!min_pos ||
-                p_pos->partial_join_cardinality <=
-                min_pos->partial_join_cardinality)
+                p_pos->partial_join_cardinality <= min_pos->partial_join_cardinality)
               min_pos= p_pos;
             p_pos->least_card_pos= min_pos;
           }
 
           /*
-            Make subquery predicates be dependent on the table that is in the
-            partial join with the least cardinality.
-
-            TODO: this is a non-generic solution that works only for subquery
-            predicates, but not for other potentially expensive predicates.
-            However it is fast, because it traversers a list of all subqueries
-            instead of traversing the WHERE clause expression tree.
+            Make expensive predicates dependent on the table that is in the
+            partial join with the least cardinality after the left-most join
+            where the predicate can be pushed.
           */
-          for (SELECT_LEX_UNIT *un= join->select_lex->first_inner_unit(); un;
-               un= un->next_unit())
+          if (is_cond_and(join->conds))
           {
-            Item_subselect *subs_predicate= un->item;
-            table_map subs_tables;
-            POSITION *last_pos;
-
-            if (!subs_predicate)
-              continue;
-
-            subs_tables= subs_predicate->used_tables();
-            last_pos= NULL;
-            /* Find the last query plan node on which the subquery depends. */
-            for (POSITION *p_pos= join->positions + idx,
-                   *p_end= join->positions + join->const_tables;
-                 p_pos >= p_end ;
-                 p_pos--)
+            List_iterator<Item> and_parts_it(*((Item_cond*) join->conds)->argument_list());
+            Item *and_part;
+            while ((and_part= and_parts_it++))
             {
-              if (p_pos->table->table->map & subs_tables)
-                last_pos= p_pos;
+              if (!and_part->is_expensive())
+                continue;
+              current_read_time+= join->static_condition_pushdown(and_part, idx);
             }
-            /*
-              Remember the position where the subquery is pushed,
-              update the cost of the POSITION where the subquery is pushed to,
-              recompute the total cost of the query plan.
-            */
-            if (last_pos && last_pos->least_card_pos)
-            {
-              double subs_cost;
-              uint least_card_idx= last_pos->least_card_pos - join->positions;
-              subs_predicate->set_cur_join_tab_idx(least_card_idx);
-              subs_cost= last_pos->least_card_pos->partial_join_cardinality *
-                         subs_predicate->get_cost();
-              last_pos->least_card_pos->read_time+= subs_cost;
-              current_read_time+= subs_cost;
-            }
+          }
+          else
+          {
+            current_read_time+= join->static_condition_pushdown(join->conds, idx);
           }
         }
 
@@ -7677,18 +7645,42 @@ best_extension_by_limited_search(JOIN      *join,
           /*
             Store the current best choice of pushdown POSITIONs for all subqueries
           */
-          for (SELECT_LEX_UNIT *un= join->select_lex->first_inner_unit(); un;
-               un= un->next_unit())
+          if (join->conds)
           {
-            Item_subselect *subs_predicate= un->item;
-            if (subs_predicate)
+            if (is_cond_and(join->conds))
             {
-              /* reset the value first so it can be set */
-              subs_predicate->set_join_tab_idx(-1);
-              subs_predicate->set_join_tab_idx(subs_predicate->get_cur_join_tab_idx());
+              List_iterator<Item> and_parts_it(*((Item_cond*) join->conds)->argument_list());
+              Item *and_part;
+              while ((and_part= and_parts_it++))
+              {
+                and_part->set_join_tab_idx(-1);
+                and_part->set_join_tab_idx(and_part->get_cur_join_tab_idx());
+              }
+            }
+            else
+            {
+              join->conds->set_join_tab_idx(-1);
+              join->conds->set_join_tab_idx(join->conds->get_cur_join_tab_idx());
             }
           }
         }
+        else
+        {
+          /* Restore the table dependencies of all subquery predicates. */
+          if (join->conds)
+          {
+            if (is_cond_and(join->conds))
+            {
+              List_iterator<Item> and_parts_it(*((Item_cond*) join->conds)->argument_list());
+              Item *and_part;
+              while ((and_part= and_parts_it++))
+                and_part->set_cur_join_tab_idx(-1);
+            }
+            else
+              join->conds->set_cur_join_tab_idx(-1);
+          }
+        }
+
         DBUG_EXECUTE("opt", print_plan(join, idx+1,
                                        current_record_count,
                                        read_time,
@@ -7697,14 +7689,6 @@ best_extension_by_limited_search(JOIN      *join,
       }
       restore_prev_nj_state(s);
       restore_prev_sj_state(remaining_tables, s, idx);
-      /* Restore the table dependencies of all subquery predicates. */
-      for (SELECT_LEX_UNIT *un= join->select_lex->first_inner_unit(); un;
-           un= un->next_unit())
-      {
-        Item_subselect *subs_predicate= un->item;
-        if (subs_predicate)
-          subs_predicate->set_cur_join_tab_idx(-1);
-      }
     }
   }
   DBUG_RETURN(FALSE);
@@ -7905,7 +7889,7 @@ int JOIN_TAB::make_scan_filter()
   if (cond &&
       (tmp= make_cond_for_table(join->thd, cond,
                                join->const_table_map | table->map,
-			       table->map, -1, FALSE, TRUE)))
+			       table->map, FALSE, TRUE)))
   {
      DBUG_EXECUTE("where",print_where(tmp,"cache", QT_ORDINARY););
      if (!(cache_select=
@@ -8308,25 +8292,41 @@ get_best_combination(JOIN *join)
 
   used_tables= OUTER_REF_TABLE_BIT;		// Outer row is already read
 
+/*
   if (optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_STATIC_PUSHDOWN))
   {
-    for (SELECT_LEX_UNIT *un= join->select_lex->first_inner_unit(); un;
-         un= un->next_unit())
+    int idx;
+    table_map map;
+
+    if (is_cond_and(join->conds))
     {
-      Item_subselect *subs_predicate= un->item;
-      int idx;
-      table_map map;
-      if (!subs_predicate)
-        continue;
-      idx= subs_predicate->get_join_tab_idx();
+      List_iterator<Item> and_parts_it(*((Item_cond*) join->conds)->argument_list());
+      Item *and_part;
+      while ((and_part= and_parts_it++))
+      {
+        if (!and_part->is_expensive())
+          continue;
+        idx= and_part->get_join_tab_idx();
+        if (idx >= 0)
+        {
+          DBUG_ASSERT((uint)idx < join->table_count);
+          map= join->best_positions[idx].table->table->map;
+          and_part->pushdown_tables |= map;
+        }
+      }
+    }
+    else
+    {
+      idx= join->conds->get_join_tab_idx();
       if (idx >= 0)
       {
         DBUG_ASSERT((uint)idx < join->table_count);
         map= join->best_positions[idx].table->table->map;
-        subs_predicate->add_pushdown_table(map);
+        ((Item*)join->conds)->pushdown_tables |= map;
       }
     }
   }
+*/
 
   fix_semijoin_strategies_for_picked_join_order(join);
   
@@ -9290,7 +9290,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         join->exec_const_cond=
 	  make_cond_for_table(thd, cond,
                               join->const_table_map,
-                              (table_map) 0, -1, FALSE, FALSE);
+                              (table_map) 0, FALSE, FALSE);
         /* Add conditions added by add_not_null_conds(). */
         for (uint i= 0 ; i < join->const_tables ; i++)
           add_cond_and_fix(thd, &join->exec_const_cond,
@@ -9312,7 +9312,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                                     join->const_table_map |
                                                     OUTER_REF_TABLE_BIT,
                                                     OUTER_REF_TABLE_BIT,
-                                                    -1, FALSE, FALSE);
+                                                    FALSE, FALSE);
           if (outer_ref_cond)
           {
             add_cond_and_fix(thd, &outer_ref_cond, join->outer_ref_cond);
@@ -9326,7 +9326,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                 join->const_table_map |
                                 PSEUDO_TABLE_BITS,
                                 PSEUDO_TABLE_BITS,
-                                -1, FALSE, FALSE);
+                                FALSE, FALSE);
           if (pseudo_bits_cond)
           {
             add_cond_and_fix(thd, &pseudo_bits_cond,
@@ -9423,8 +9423,10 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         }
         else
          {
-	  tmp= make_cond_for_table(thd, cond, used_tables, current_map, i,
+	  tmp= make_cond_for_table(thd, cond, used_tables, current_map,
                                    FALSE, FALSE);
+          if (tmp)
+            tmp->walk(&Item::set_join_tab_idx_processor, 0, (uchar*) &i);
          }
         /* Add conditions added by add_not_null_conds(). */
         if (tab->select_cond)
@@ -9505,7 +9507,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             {
               COND *push_cond= 
               make_cond_for_table(thd, tmp, current_map, current_map,
-                                  -1, FALSE, FALSE);
+                                  FALSE, FALSE);
               if (push_cond)
               {
                 /* Push condition to handler */
@@ -9677,7 +9679,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           JOIN_TAB *cond_tab= join_tab->first_inner;
           COND *tmp= make_cond_for_table(thd, *join_tab->on_expr_ref,
                                          join->const_table_map,
-                                         (table_map) 0, -1, FALSE, FALSE);
+                                         (table_map) 0, FALSE, FALSE);
           if (!tmp)
             continue;
           tmp= new Item_func_trig_cond(tmp, &cond_tab->not_null_compl);
@@ -9723,11 +9725,11 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           current_map= tab->table->map;
           used_tables2|= current_map;
           /*
-            psergey: have put the -1 below. It's bad, will need to fix it.
+            psergey: After pushdown, set the join_tab_idx of tmp_cond to the
+            right join tab (tab - first_tab)?
           */
           COND *tmp_cond= make_cond_for_table(thd, on_expr, used_tables2,
-                                              current_map, /*(tab - first_tab)*/ -1,
-					      FALSE, FALSE);
+                                              current_map, FALSE, FALSE);
           bool is_sjm_lookup_tab= FALSE;
           if (tab->bush_children)
           {
@@ -19232,12 +19234,10 @@ bool test_if_ref(Item *root_cond, Item_field *left_item,Item *right_item)
 static Item *
 make_cond_for_table(THD *thd, Item *cond, table_map tables,
                     table_map used_table,
-                    int join_tab_idx_arg,
                     bool exclude_expensive_cond __attribute__((unused)),
 		    bool retain_ref_cond)
 {
   return make_cond_for_table_from_pred(thd, cond, cond, tables, used_table,
-                                       join_tab_idx_arg,
                                        exclude_expensive_cond,
                                        retain_ref_cond);
 }
@@ -19262,7 +19262,6 @@ static int compare_items_by_cost(Item* it1, Item* it2, void *arg)
 static Item *
 make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
                               table_map tables, table_map used_table,
-                              int join_tab_idx_arg,
                               bool exclude_expensive_cond __attribute__
                               ((unused)),
                               bool retain_ref_cond)
@@ -19285,7 +19284,6 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
       {
 	Item *fix=make_cond_for_table_from_pred(thd, root_cond, item, 
                                                 tables, used_table,
-						join_tab_idx_arg,
                                                 exclude_expensive_cond,
                                                 retain_ref_cond);
 	if (fix)
@@ -19325,7 +19323,6 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
       {
 	Item *fix=make_cond_for_table_from_pred(thd, root_cond, item,
                                                 tables, 0L,
-                                                join_tab_idx_arg,
                                                 exclude_expensive_cond,
                                                 retain_ref_cond);
 	if (!fix)
@@ -19360,7 +19357,6 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
 
   if (cond->marker == 2 || cond->eq_cmp_result() == Item::COND_OK)
   {
-    cond->set_join_tab_idx(join_tab_idx_arg);
     return cond;				// Not boolean op
   }
 
@@ -19383,7 +19379,6 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
     }
   }
   cond->marker=2;
-  cond->set_join_tab_idx(join_tab_idx_arg);
   return cond;
 }
 
@@ -24495,6 +24490,48 @@ void JOIN::cache_const_exprs()
                                  (uchar *)&cache_flag);
     }
   }
+}
+
+
+double JOIN::static_condition_pushdown(Item *pushed_cond, uint idx)
+{
+  table_map cond_tables= pushed_cond->used_tables();
+  POSITION *last_pos= NULL;
+  POSITION *opt_pos;
+  double pushed_cond_cost;
+
+  DBUG_ASSERT(pushed_cond->is_expensive());
+
+  if (!cond_tables || cond_tables == OUTER_REF_TABLE_BIT)
+    return 0;
+
+  /*
+    Find the last join_tab on which the subquery depends. This is the
+    earliest join_tab where the condition can be pushed.
+  */
+  for (POSITION *p_pos= positions + idx, *p_end= positions + const_tables;
+       p_pos >= p_end ; p_pos--)
+  {
+    if (p_pos->table->table->map & cond_tables)
+    {
+      last_pos= p_pos;
+      break;
+    }
+  }
+
+  DBUG_ASSERT(last_pos);
+  opt_pos= last_pos->least_card_pos;
+  /* Remember the optimal position where the subquery should be pushed. */
+  pushed_cond->set_cur_join_tab_idx(opt_pos - positions);
+
+  /*
+    Update the cost of the POSITION where the subquery is pushed to,
+    and the total cost of the query plan.
+  */
+  pushed_cond_cost= opt_pos->partial_join_cardinality * pushed_cond->get_cost();
+  opt_pos->read_time+= pushed_cond_cost;
+
+  return pushed_cond_cost;
 }
 
 

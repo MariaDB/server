@@ -55,8 +55,6 @@ protected:
   subselect_engine *old_engine;
   /* cache of used external tables */
   table_map used_tables_cache;
-  /* tables in the QEP where this predicate should be pushed to */
-  table_map pushdown_tables;
   /* allowed number of columns (1 for single value subqueries) */
   uint max_columns;
   /* where subquery is placed */
@@ -185,7 +183,7 @@ public:
   void make_const()
   { 
     used_tables_cache= 0;
-    pushdown_tables= 0;
+    //pushdown_tables= 0;
     const_item_cache= 0;
     forced_const= TRUE; 
   }
@@ -194,7 +192,6 @@ public:
   table_map not_null_tables() const { return 0; }
   bool const_item() const;
   inline table_map get_used_tables_cache() { return used_tables_cache; }
-  void add_pushdown_table(table_map map) { pushdown_tables |= map; }
   Item *get_tmp_table_item(THD *thd);
   void update_used_tables();
   virtual void print(String *str, enum_query_type query_type);
