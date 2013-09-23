@@ -7058,3 +7058,5 @@ ER_NO_SUCH_QUERY
         eng "Unknown query id: %lld"
         ger "Unbekannte Abfrage-ID: %lld"
         rus "Неизвестный номер запроса: %lld"
+ER_BAD_BASE64_DATA
+	eng "Bad base64 data as position %u"

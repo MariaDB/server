@@ -103,7 +103,8 @@ call mtr.add_suppression("Slave SQL.*Column 1 of table .test.char128_utf8. canno
 BINLOG '';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
 BINLOG '123';
+ERROR HY000: Decoding of base64 string failed
 BINLOG '-2079193929';
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+ERROR HY000: Decoding of base64 string failed
 BINLOG 'xç↓%~∙D╒ƒ╡';
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+ERROR HY000: Decoding of base64 string failed
