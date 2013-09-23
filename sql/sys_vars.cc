@@ -1439,9 +1439,6 @@ Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, LEX_STRING *base)
   String str(buf, sizeof(buf), system_charset_info);
   char *p;
 
-  if (!rpl_global_gtid_slave_state.loaded)
-    return NULL;
-
   str.length(0);
   if ((opt_bin_log && mysql_bin_log.append_state_pos(&str)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
@@ -1489,7 +1486,7 @@ Sys_var_gtid_slave_pos::do_check(THD *thd, set_var *var)
 
   DBUG_ASSERT(var->type == OPT_GLOBAL);
 
-  if (!rpl_global_gtid_slave_state.loaded)
+  if (rpl_load_gtid_slave_state(thd))
   {
     my_error(ER_CANNOT_LOAD_SLAVE_GTID_STATE, MYF(0), "mysql",
              rpl_gtid_slave_state_table_name.str);
@@ -1554,11 +1551,17 @@ Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, LEX_STRING *base)
   String str;
   char *p;
 
-  if (!rpl_global_gtid_slave_state.loaded)
-    return NULL;
-
   str.length(0);
-  if (rpl_append_gtid_state(&str, false) ||
+  /*
+    If the mysql.rpl_slave_pos table could not be loaded, then we cannot
+    easily automatically try to reload it here - we may be inside a statement
+    that already has tables locked and so opening more tables is problematic.
+
+    But if the table is not loaded (eg. missing mysql_upgrade_db or some such),
+    then the slave state must be empty anyway.
+  */
+  if ((rpl_global_gtid_slave_state.loaded &&
+       rpl_append_gtid_state(&str, false)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
@@ -1584,6 +1587,107 @@ static Sys_var_mybool Sys_gtid_strict_mode(
        "generate an out-of-order binlog if executed.",
        GLOBAL_VAR(opt_gtid_strict_mode),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+
+struct gtid_binlog_state_data { rpl_gtid *list; uint32 list_len; };
+
+bool
+Sys_var_gtid_binlog_state::do_check(THD *thd, set_var *var)
+{
+  String str, *res;
+  struct gtid_binlog_state_data *data;
+  rpl_gtid *list;
+  uint32 list_len;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!(res= var->value->val_str(&str)))
+    return true;
+  if (thd->in_active_multi_stmt_transaction())
+  {
+    my_error(ER_CANT_DO_THIS_DURING_AN_TRANSACTION, MYF(0));
+    return true;
+  }
+  if (!mysql_bin_log.is_open())
+  {
+    my_error(ER_FLUSH_MASTER_BINLOG_CLOSED, MYF(0));
+    return true;
+  }
+  if (!mysql_bin_log.is_empty_state())
+  {
+    my_error(ER_BINLOG_MUST_BE_EMPTY, MYF(0));
+    return true;
+  }
+  if (res->length() == 0)
+    list= NULL;
+  else if (!(list= gtid_parse_string_to_list(res->ptr(), res->length(),
+                                             &list_len)))
+  {
+    my_error(ER_INCORRECT_GTID_STATE, MYF(0));
+    return true;
+  }
+  if (!(data= (gtid_binlog_state_data *)my_malloc(sizeof(*data), MYF(0))))
+  {
+    my_free(list);
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  data->list= list;
+  data->list_len= list_len;
+  var->save_result.ptr= data;
+  return false;
+}
+
+
+bool
+Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
+{
+  bool res;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!var->value)
+  {
+    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
+    return true;
+  }
+
+  struct gtid_binlog_state_data *data=
+    (struct gtid_binlog_state_data *)var->save_result.ptr;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  res= (0 != reset_master(thd, data->list, data->list_len));
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  my_free(data->list);
+  my_free(data);
+  return res;
+}
+
+
+uchar *
+Sys_var_gtid_binlog_state::global_value_ptr(THD *thd, LEX_STRING *base)
+{
+  char buf[512];
+  String str(buf, sizeof(buf), system_charset_info);
+  char *p;
+
+  str.length(0);
+  if ((opt_bin_log && mysql_bin_log.append_state(&str)) ||
+      !(p= thd->strmake(str.ptr(), str.length())))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return NULL;
+  }
+
+  return (uchar *)p;
+}
+
+
+static unsigned char opt_gtid_binlog_state_dummy;
+static Sys_var_gtid_binlog_state Sys_gtid_binlog_state(
+       "gtid_binlog_state",
+       "The internal GTID state of the binlog, used to keep track of all "
+       "GTIDs ever logged to the binlog.",
+       GLOBAL_VAR(opt_gtid_binlog_state_dummy), NO_CMD_LINE);
 #endif
 
 

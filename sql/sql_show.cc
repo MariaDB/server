@@ -2628,6 +2628,9 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
       table->field[13]->store((longlong) tmp->get_examined_row_count(), TRUE);
       table->field[13]->set_notnull();
 
+      /* QUERY_ID */
+      table->field[14]->store(tmp->query_id, TRUE);
+
       if (schema_table_store_record(thd, table))
       {
         mysql_mutex_unlock(&LOCK_thread_count);
@@ -8686,6 +8689,7 @@ ST_FIELD_INFO processlist_fields_info[]=
    SKIP_OPEN_TABLE},
   {"MEMORY_USED", 7, MYSQL_TYPE_LONG, 0, 0, "Memory_used", SKIP_OPEN_TABLE},
   {"EXAMINED_ROWS", 7, MYSQL_TYPE_LONG, 0, 0, "Examined_rows", SKIP_OPEN_TABLE},
+  {"QUERY_ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 
