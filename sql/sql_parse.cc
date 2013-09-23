@@ -1525,6 +1525,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 }
 
 
+/*
+  @note
+    This function must call delete_qpf_query().
+*/
 void log_slow_statement(THD *thd)
 {
   DBUG_ENTER("log_slow_statement");
@@ -1543,7 +1547,10 @@ void log_slow_statement(THD *thd)
   if (!thd->enable_slow_log ||
       (thd->variables.log_slow_filter
         && !(thd->variables.log_slow_filter & thd->query_plan_flags)))
+  {
+    delete_qpf_query(thd->lex);
     DBUG_VOID_RETURN; 
+  }
  
   if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
        ((thd->server_status &
@@ -4799,13 +4806,7 @@ finish:
 #endif
   }
   lex->unit.cleanup();
-  //psergey-todo: print EXPLAIN here? After the above JOIN::cleanup calls?
-  // how do we print EXPLAIN extended, then?
-  if (lex->describe)
-  {
-    DBUG_ASSERT(lex->query_plan_footprint);
-    ///..
-  }
+
   /* Free tables */
   thd_proc_info(thd, "closing tables");
   close_thread_tables(thd);

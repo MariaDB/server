@@ -9,3 +9,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 # 
 set autocommit=1;
 drop table t0;
+# 
+# MDEV-5047 virtual THD::~THD(): Assertion `status_var.memory_used == 0' fails on disconnect
+# 
+ALTER TABLE nonexisting ENABLE KEYS;
+ERROR 42S02: Table 'test.nonexisting' doesn't exist
+SHOW WARNINGS;
+Level	Code	Message
+Error	1146	Table 'test.nonexisting' doesn't exist
+SELECT 1;
+1
+1
