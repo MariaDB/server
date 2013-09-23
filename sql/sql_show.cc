@@ -349,7 +349,7 @@ bool mysqld_show_authors(THD *thd)
 
   field_list.push_back(new Item_empty_string("Name",40));
   field_list.push_back(new Item_empty_string("Location",40));
-  field_list.push_back(new Item_empty_string("Comment",80));
+  field_list.push_back(new Item_empty_string("Comment",512));
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -383,7 +383,7 @@ bool mysqld_show_contributors(THD *thd)
 
   field_list.push_back(new Item_empty_string("Name",40));
   field_list.push_back(new Item_empty_string("Location",40));
-  field_list.push_back(new Item_empty_string("Comment",80));
+  field_list.push_back(new Item_empty_string("Comment", 512));
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

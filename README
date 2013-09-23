@@ -3,9 +3,13 @@ This is a release of MariaDB.
 MariaDB is designed as a drop-in replacement of MySQL(R) with more
 features, new storage engines, fewer bugs, and better performance.
 
-MariaDB is brought to you by many of the original developers of MySQL
-who now work for Monty Program Ab, and by many people in the
-community.
+MariaDB is brought to you by the MariaDB foundation.
+Please read the file CREDITS for details about the MariaDB foundation,
+and who is developing MariaDB.
+
+MariaDB is developed by many of the original developers of MySQL who
+now work for MariadB foundation and SkySQL Ab, and by many people in
+the community.
 
 MySQL, which is the base of MariaDB, is a product and trademark of Oracle
 Corporation, Inc. For a list of developers and other contributors,
@@ -13,9 +17,11 @@ see the Credits appendix.  You can also do 'SHOW authors' to get a
 list of active contributors.
 
 A description of the MariaDB project and a manual can be found at:
-http://kb.askmonty.org/
-http://kb.askmonty.org/en/mariadb-versus-mysql-features/
-http://kb.askmonty.org/en/mariadb-versus-mysql-compatibility/
+http://mariadb.org/
+https://mariadb.com/kb/en/
+https://mariadb.com/kb/en/mariadb-vs-mysql-features/
+https://mariadb.com/kb/en/mariadb-versus-mysql-features/
+https://mariadb.com/kb/en/mariadb-versus-mysql-compatibility/
 
 As MariaDB is a full replacement of MySQL, the MySQL manual at
 http://dev.mysql.com/doc is generally applicable.
