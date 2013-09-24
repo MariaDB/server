@@ -173,6 +173,7 @@ my $DEFAULT_SUITES= join(',', map { "$_-" } qw(
     handler
     heap
     innodb
+    innodb_fts
     maria
     multi_source
     optimizer_unfixed_bugs
