@@ -27,24 +27,16 @@ static char base64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 /**
  * Maximum length base64_needed_encoded_length()
- * can handle without signed integer overflow: (x + 2) / 3 * 4
+ * can handle without signed integer overflow.
  */
 int
 base64_encode_max_arg_length()
 {
-#if (SIZEOF_INT == 8)
   /*
-    (6827690988321067803 + 2) / 3 + 4 ->   9223372036854775805  Okey
-    (6827690988321067804 + 2) / 3 + 4 ->  -9223372036854775807  Overflow
-  */
-  return 0x5EC0D4C77B03531BLL; /* 6827690988321067803 */
-#else
-  /*
-    1589695686 ->  2147483646 (7FFFFFFE)
-    1589695687 -> -2147483645
+    base64_needed_encoded_length(1589695686) ->  2147483646 (7FFFFFFE)
+    base64_needed_encoded_length(1589695687) -> -2147483645
   */
   return 0x5EC0D4C6; /* 1589695686 */
-#endif
 }
 
 
@@ -67,11 +59,7 @@ base64_needed_encoded_length(int length_of_data)
 int
 base64_decode_max_arg_length()
 {
-#if (SIZEOF_INT == 8)
-  return 0x7FFFFFFFFFFFFFFFLL;
-#else
   return 0x7FFFFFFF;
-#endif
 }
 
 
