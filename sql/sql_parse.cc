@@ -1493,7 +1493,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   thd->update_all_stats();
 
   log_slow_statement(thd);
-  /* psergey-todo: this is the place we could print EXPLAIN to slow query log */
 
   thd_proc_info(thd, "cleaning up");
   thd->reset_query();
@@ -3351,9 +3350,8 @@ end_with_restore_list:
         else
         {
           result->reset_offset_limit(); 
-          thd->lex->query_plan_footprint->print_explain(result, thd->lex->describe);
-          //delete thd->lex->query_plan_footprint;
-          //thd->lex->query_plan_footprint= NULL;
+          thd->lex->query_plan_footprint->print_explain(result, 
+                                                        thd->lex->describe);
         }
       
         if (res)
@@ -4881,9 +4879,14 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       if (!(result= new select_send()))
         return 1;                               /* purecov: inspected */
       thd->send_explain_fields(result);
-      //thd->lex->query_plan_footprint= new QPF_query;
+        
+      /*
+        This will call optimize() for all parts of query. The query plan is
+        printed out below.
+      */
       res= mysql_explain_union(thd, &thd->lex->unit, result);
-
+      
+      /* Print EXPLAIN only if we don't have an error */
       if (!res)
       {
         /* 
@@ -4891,32 +4894,23 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           top-level LIMIT
         */        
         result->reset_offset_limit(); 
-        thd->lex->query_plan_footprint->print_explain(result, thd->lex->describe);
+        thd->lex->query_plan_footprint->print_explain(result,
+                                                      thd->lex->describe);
+        if (lex->describe & DESCRIBE_EXTENDED)
+        {
+          char buff[1024];
+          String str(buff,(uint32) sizeof(buff), system_charset_info);
+          str.length(0);
+          /*
+            The warnings system requires input in utf8, @see
+            mysqld_show_warnings().
+          */
+          thd->lex->unit.print(&str, QT_TO_SYSTEM_CHARSET);
+          push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+                       ER_YES, str.c_ptr_safe());
+        }
       }
-      //delete thd->lex->query_plan_footprint;
-      //thd->lex->query_plan_footprint= NULL;
 
-      //psergey-todo: here, produce the EXPLAIN output.
-      //  mysql_explain_union() itself is only responsible for calling
-      //  optimize() for all parts of the query.
-
-      /*
-        The code which prints the extended description is not robust
-        against malformed queries, so skip it if we have an error.
-      */
-      if (!res && (lex->describe & DESCRIBE_EXTENDED))
-      {
-        char buff[1024];
-        String str(buff,(uint32) sizeof(buff), system_charset_info);
-        str.length(0);
-        /*
-          The warnings system requires input in utf8, @see
-          mysqld_show_warnings().
-        */
-        thd->lex->unit.print(&str, QT_TO_SYSTEM_CHARSET);
-        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
-                     ER_YES, str.c_ptr_safe());
-      }
       if (res)
         result->abort_result_set();
       else
