@@ -63,7 +63,7 @@ ALTER TABLE foo compression=TOKUDB_LZMA, change b c int;
 
 --replace_regex /MariaDB/XYZ/ /MySQL/XYZ/
 --error ER_UNSUPPORTED_EXTENSION
-ALTER TABLE foo auto_increment=100000, ROW_FORMAT=TOKUDB_LZMA;
+ALTER TABLE foo auto_increment=100000, compression=TOKUDB_LZMA;
 
 DROP TABLE foo;
 

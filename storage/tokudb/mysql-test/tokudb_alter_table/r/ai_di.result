@@ -16,7 +16,7 @@ select sum(a) from foo;
 sum(a)
 9
 alter table foo add unique index b(b), drop index a;
-ERROR 23000: Duplicate entry '30' for key 'b'
+ERROR 23000: Can't write; duplicate key in table 'foo'
 select * from foo;
 a	b	c
 1	10	100

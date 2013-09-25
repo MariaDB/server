@@ -6,13 +6,7 @@ select * from t1;
 a
 1
 xa end 'a','ab';
-select * from t1;
-a
-1
 xa prepare 'a','ab';
-select * from t1;
-a
-1
 xa commit 'a','ab';
 select * from t1;
 a
@@ -24,15 +18,7 @@ a
 1
 2
 xa end 'a','ab';
-select * from t1;
-a
-1
-2
 xa prepare 'a','ab';
-select * from t1;
-a
-1
-2
 xa rollback 'a','ab';
 select * from t1;
 a

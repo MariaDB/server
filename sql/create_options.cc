@@ -115,6 +115,8 @@ static bool report_unknown_option(THD *thd, engine_option_value *val,
   DBUG_RETURN(FALSE);
 }
 
+#define value_ptr(STRUCT,OPT)    ((char*)(STRUCT) + (OPT)->offset)
+
 static bool set_one_value(ha_create_table_option *opt,
                           THD *thd, const LEX_STRING *value, void *base,
                           bool suppress_warning,
@@ -131,7 +133,7 @@ static bool set_one_value(ha_create_table_option *opt,
     DBUG_ASSERT(0); // HA_OPTION_TYPE_SYSVAR's are replaced in resolve_sysvars()
   case HA_OPTION_TYPE_ULL:
     {
-      ulonglong *val= (ulonglong*)((char*)base + opt->offset);
+      ulonglong *val= (ulonglong*)value_ptr(base, opt);
       if (!value->str)
       {
         *val= opt->def_value;
@@ -155,7 +157,7 @@ static bool set_one_value(ha_create_table_option *opt,
     }
   case HA_OPTION_TYPE_STRING:
     {
-      char **val= (char **)((char *)base + opt->offset);
+      char **val= (char **)value_ptr(base, opt);
       if (!value->str)
       {
         *val= 0;
@@ -168,7 +170,7 @@ static bool set_one_value(ha_create_table_option *opt,
     }
   case HA_OPTION_TYPE_ENUM:
     {
-      uint *val= (uint *)((char *)base + opt->offset), num;
+      uint *val= (uint *)value_ptr(base, opt), num;
 
       *val= (uint) opt->def_value;
       if (!value->str)
@@ -200,7 +202,7 @@ static bool set_one_value(ha_create_table_option *opt,
     }
   case HA_OPTION_TYPE_BOOL:
     {
-      bool *val= (bool *)((char *)base + opt->offset);
+      bool *val= (bool *)value_ptr(base, opt);
       *val= opt->def_value;
 
       if (!value->str)
@@ -284,7 +286,7 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
     *option_struct= alloc_root(root, option_struct_size);
   }
 
-  for (opt= rules; opt && opt->name; opt++)
+  for (opt= rules; rules && opt->name; opt++)
   {
     bool seen=false;
     for (val= *option_list; val; val= val->next)
@@ -362,7 +364,7 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
 */
 static bool resolve_sysvars(handlerton *hton, ha_create_table_option *rules)
 {
-  for (ha_create_table_option *opt= rules; opt && opt->name; opt++)
+  for (ha_create_table_option *opt= rules; rules && opt->name; opt++)
   {
     if (opt->type == HA_OPTION_TYPE_SYSVAR)
     {
@@ -428,7 +430,7 @@ bool resolve_sysvar_table_options(handlerton *hton)
 */
 static void free_sysvars(handlerton *hton, ha_create_table_option *rules)
 {
-  for (ha_create_table_option *opt= rules; opt && opt->name; opt++)
+  for (ha_create_table_option *opt= rules; rules && opt->name; opt++)
   {
     if (opt->var)
     {
@@ -488,6 +490,26 @@ bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share)
   }
 
   DBUG_RETURN(FALSE);
+}
+
+
+bool engine_options_differ(void *old_struct, void *new_struct,
+                           ha_create_table_option *rules)
+{
+  ha_create_table_option *opt;
+  for (opt= rules; rules && opt->name; opt++)
+  {
+    char **old_val= (char**)value_ptr(old_struct, opt);
+    char **new_val= (char**)value_ptr(new_struct, opt);
+    int neq;
+    if (opt->type == HA_OPTION_TYPE_STRING)
+      neq= (*old_val && *new_val) ? strcmp(*old_val, *new_val) :  *old_val != *new_val;
+    else
+      neq= memcmp(old_val, new_val, ha_option_type_sizeof[opt->type]);
+    if (neq)
+      return true;
+  }
+  return false;
 }
 
 

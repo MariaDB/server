@@ -62,7 +62,7 @@ alter table foo auto_increment=100000, change b b bigint;
 ERROR 42000: Table 'foo' uses an extension that doesn't exist in this XYZ version
 alter table foo auto_increment=100000, change b c int;
 ERROR 42000: Table 'foo' uses an extension that doesn't exist in this XYZ version
-alter table foo auto_increment=100000, ROW_FORMAT=TOKUDB_LZMA;
+alter table foo auto_increment=100000, COMPRESSION=TOKUDB_LZMA;
 ERROR 42000: Table 'foo' uses an extension that doesn't exist in this XYZ version
 alter table foo auto_increment=100000, change b b int DEFAULT 111;
 ERROR 42000: Table 'foo' uses an extension that doesn't exist in this XYZ version

@@ -25,7 +25,7 @@ while ($1)
 }
 
 insert into t1 values (5,52,18,5,5,5,2,5,5);
---error ER_DUP_ENTRY
+--error ER_DUP_KEY
 create unique index foo on t1 (c,r);
 select * from t1;
 

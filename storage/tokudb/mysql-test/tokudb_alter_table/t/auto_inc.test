@@ -48,7 +48,7 @@ alter table foo auto_increment=100000, change b c int;
 
 --replace_regex /MariaDB/XYZ/ /MySQL/XYZ/
 --error ER_UNSUPPORTED_EXTENSION
-alter table foo auto_increment=100000, ROW_FORMAT=TOKUDB_LZMA;
+alter table foo auto_increment=100000, COMPRESSION=TOKUDB_LZMA;
 
 --replace_regex /MariaDB/XYZ/ /MySQL/XYZ/
 --error ER_UNSUPPORTED_EXTENSION

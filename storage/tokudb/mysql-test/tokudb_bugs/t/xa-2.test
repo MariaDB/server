@@ -1,5 +1,5 @@
 -- source include/have_tokudb.inc
---source include/not_5_5.inc
+#--source include/not_5_5.inc
 
 --disable_warnings
 drop table if exists t1;
@@ -13,9 +13,7 @@ xa begin 'a','ab';
 insert into t1 values (1);
 select * from t1;
 xa end 'a','ab';
-select * from t1;
 xa prepare 'a','ab';
-select * from t1;
 xa commit 'a','ab';
 select * from t1;
 
@@ -23,9 +21,7 @@ xa begin 'a','ab';
 insert into t1 values (2);
 select * from t1;
 xa end 'a','ab';
-select * from t1;
 xa prepare 'a','ab';
-select * from t1;
 xa rollback 'a','ab';
 select * from t1;
 
