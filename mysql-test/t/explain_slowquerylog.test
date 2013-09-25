@@ -28,3 +28,10 @@ SHOW WARNINGS;
 --disconnect con1
 --connection default
 SELECT 1;
+
+--echo #
+--echo # MDEV-5060 Server crashes on EXPLAIN EXTENDED or EXPLAIN PARTITIONS with explain in slow_log
+--echo #
+EXPLAIN PARTITIONS SELECT 1 ;
+
+
