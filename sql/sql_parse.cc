@@ -3322,8 +3322,7 @@ end_with_restore_list:
           delete result;
           result= NULL;
         }
-        select_lex->set_explain_type(FALSE);
-        //thd->lex->query_plan_footprint= new QPF_query;
+        //select_lex->set_explain_type(FALSE);
       }
       else
         result= new multi_delete(aux_tables, lex->table_count);
