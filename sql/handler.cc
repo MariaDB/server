@@ -1506,17 +1506,6 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   int error= 0;
   Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
   DBUG_ENTER("commit_one_phase_2");
-#ifdef WITH_WSREP
-#ifdef WSREP_PROC_INFO
-  char info[64]= { 0, };
-  snprintf (info, sizeof(info) - 1, "ha_commit_one_phase(%lld)",
-            (long long)thd->wsrep_trx_seqno);
-#else
-  const char info[]="ha_commit_one_phase()";
-#endif /* WSREP_PROC_INFO */
-  char* tmp_info= NULL;
-  if (WSREP(thd)) tmp_info= (char *)thd_proc_info(thd, info);
-#endif /* WITH_WSREP */
 
   if (ha_info)
   {
@@ -1550,9 +1539,6 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     thd->transaction.cleanup(thd);
 #else
     thd->transaction.cleanup();
-#endif /* WITH_WSREP */
-#ifdef WITH_WSREP
-  if (WSREP(thd)) thd_proc_info(thd, tmp_info);
 #endif /* WITH_WSREP */
 
   DBUG_RETURN(error);

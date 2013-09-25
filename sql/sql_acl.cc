@@ -1926,7 +1926,7 @@ bool change_password(THD *thd, const char *host, const char *user,
   Rpl_filter *rpl_filter= thd->rpl_filter;
   /* Buffer should be extended when password length is extended. */
   char buff[512];
-  ulong query_length;
+  ulong query_length=0;
   enum_binlog_format save_binlog_format;
   uint new_password_len= (uint) strlen(new_password);
   bool result= 1;

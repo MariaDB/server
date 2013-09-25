@@ -11999,7 +11999,7 @@ Log_event* wsrep_read_log_event(
     goto err;
   }
 
-  res= Log_event::read_log_event(buf, data_len, &error, description_event, FALSE);
+  res= Log_event::read_log_event(buf, data_len, &error, description_event, false);
 
 err:
   if (!res)

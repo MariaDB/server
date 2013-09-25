@@ -280,6 +280,7 @@ public:
   {
     compute_statistics();
     truncate(0);
+    WSREP_ERROR("::jan_reset:: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", pending(), cache_log.pos_in_file, cache_log.current_pos, cache_log.request_pos, cache_log.write_pos);
     changes_to_non_trans_temp_table_flag= FALSE;
     incident= FALSE;
     before_stmt_pos= MY_OFF_T_UNDEF;
@@ -577,7 +578,7 @@ void thd_binlog_trx_reset(THD * thd)
   {
     binlog_cache_mngr *const cache_mngr=
       (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-    if (cache_mngr) cache_mngr->reset(TRUE, TRUE);
+    if (cache_mngr) cache_mngr->reset(false, true);
  }
   thd->clear_binlog_table_maps();
 }
@@ -1811,6 +1812,9 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
   int error= 0;
   DBUG_ENTER("binlog_flush_cache");
 
+    WSREP_ERROR("::jan_BINLOG_FLUSH_CACHE:: TRX: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->trx_cache.pending(), cache_mngr->trx_cache.cache_log.pos_in_file, cache_mngr->trx_cache.cache_log.current_pos, cache_mngr->trx_cache.cache_log.request_pos, cache_mngr->trx_cache.cache_log.write_pos);
+    WSREP_ERROR("::jan_BINLOG_FLUSH_CACHE:: STMT: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->stmt_cache.pending(), cache_mngr->stmt_cache.cache_log.pos_in_file, cache_mngr->stmt_cache.cache_log.current_pos, cache_mngr->stmt_cache.cache_log.request_pos, cache_mngr->stmt_cache.cache_log.write_pos);
+
   if ((using_stmt && !cache_mngr->stmt_cache.empty()) ||
       (using_trx && !cache_mngr->trx_cache.empty()))
   {
@@ -1875,6 +1879,8 @@ binlog_commit_flush_stmt_cache(THD *thd, bool all,
     return 0;
   }
 #endif
+    WSREP_ERROR("::jan_BINLOG_COMMIT_FLUSH_STMT_CACHE:: TRX: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->trx_cache.pending(), cache_mngr->trx_cache.cache_log.pos_in_file, cache_mngr->trx_cache.cache_log.current_pos, cache_mngr->trx_cache.cache_log.request_pos, cache_mngr->trx_cache.cache_log.write_pos);
+    WSREP_ERROR("::jan_BINLOG_COMMIT_FLUSH_STMT_CACHE:: STMT: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->stmt_cache.pending(), cache_mngr->stmt_cache.cache_log.pos_in_file, cache_mngr->stmt_cache.cache_log.current_pos, cache_mngr->stmt_cache.cache_log.request_pos, cache_mngr->stmt_cache.cache_log.write_pos);
   Query_log_event end_evt(thd, STRING_WITH_LEN("COMMIT"),
                           FALSE, TRUE, TRUE, 0);
   return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, FALSE));
@@ -1892,6 +1898,8 @@ binlog_commit_flush_stmt_cache(THD *thd, bool all,
 static inline int
 binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr)
 {
+    WSREP_ERROR("::jan_BINLOG_COMMIT_FLUSH_TRX_CACHE:: TRX: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->trx_cache.pending(), cache_mngr->trx_cache.cache_log.pos_in_file, cache_mngr->trx_cache.cache_log.current_pos, cache_mngr->trx_cache.cache_log.request_pos, cache_mngr->trx_cache.cache_log.write_pos);
+    WSREP_ERROR("::jan_BINLOG_COMMIT_FLUSH_TRX_CACHE:: STMT: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->stmt_cache.pending(), cache_mngr->stmt_cache.cache_log.pos_in_file, cache_mngr->stmt_cache.cache_log.current_pos, cache_mngr->stmt_cache.cache_log.request_pos, cache_mngr->stmt_cache.cache_log.write_pos);
   Query_log_event end_evt(thd, STRING_WITH_LEN("COMMIT"),
                           TRUE, TRUE, TRUE, 0);
   return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE));
@@ -1910,6 +1918,9 @@ static inline int
 binlog_rollback_flush_trx_cache(THD *thd, bool all,
                                 binlog_cache_mngr *cache_mngr)
 {
+    WSREP_ERROR("::jan_BINLOG_ROLLBACK_FLUSH_TRX_CACHE:: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->trx_cache.pending(), cache_mngr->trx_cache.cache_log.pos_in_file, cache_mngr->trx_cache.cache_log.current_pos, cache_mngr->trx_cache.cache_log.request_pos, cache_mngr->trx_cache.cache_log.write_pos);
+    WSREP_ERROR("::jan_BINLOG_ROLLBACK_FLUSH_TRX_CACHE:: STMT: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->stmt_cache.pending(), cache_mngr->stmt_cache.cache_log.pos_in_file, cache_mngr->stmt_cache.cache_log.current_pos, cache_mngr->stmt_cache.cache_log.request_pos, cache_mngr->stmt_cache.cache_log.write_pos);
+
   Query_log_event end_evt(thd, STRING_WITH_LEN("ROLLBACK"),
                           TRUE, TRUE, TRUE, 0);
   return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE));
@@ -1929,6 +1940,9 @@ static inline int
 binlog_commit_flush_xid_caches(THD *thd, binlog_cache_mngr *cache_mngr,
                                bool all, my_xid xid)
 {
+    WSREP_ERROR("::jan_BINLOG_COMMIT_FLUSH_XID_CACHES:: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->trx_cache.pending(), cache_mngr->trx_cache.cache_log.pos_in_file, cache_mngr->trx_cache.cache_log.current_pos, cache_mngr->trx_cache.cache_log.request_pos, cache_mngr->trx_cache.cache_log.write_pos);
+    WSREP_ERROR("::jan_BINLOG_COMMIT_FLUSH_XID_CACHES:: STMT: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->stmt_cache.pending(), cache_mngr->stmt_cache.cache_log.pos_in_file, cache_mngr->stmt_cache.cache_log.current_pos, cache_mngr->stmt_cache.cache_log.request_pos, cache_mngr->stmt_cache.cache_log.write_pos);
+
   if (xid)
   {
     Xid_log_event end_evt(thd, xid, TRUE);
@@ -1970,6 +1984,9 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
     equals to true.
   */
   bool const is_transactional= TRUE;
+
+    WSREP_ERROR("::jan_BINLOG_TRUNCATE_TRX_CACHE:: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->trx_cache.pending(), cache_mngr->trx_cache.cache_log.pos_in_file, cache_mngr->trx_cache.cache_log.current_pos, cache_mngr->trx_cache.cache_log.request_pos, cache_mngr->trx_cache.cache_log.write_pos);
+    WSREP_ERROR("::jan_BINLOG_TRUNCATE_TRX_CACHE:: STMT: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->stmt_cache.pending(), cache_mngr->stmt_cache.cache_log.pos_in_file, cache_mngr->stmt_cache.cache_log.current_pos, cache_mngr->stmt_cache.cache_log.request_pos, cache_mngr->stmt_cache.cache_log.write_pos);
 
   DBUG_PRINT("info", ("thd->options={ %s %s}, transaction: %s",
                       FLAGSTR(thd->variables.option_bits, OPTION_NOT_AUTOCOMMIT),
@@ -2034,6 +2051,10 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
   if (!cache_mngr) DBUG_RETURN(0);
 #endif /* WITH_WSREP */
 
+    WSREP_ERROR("::jan_BINLOG_COMMIT:: TRX: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->trx_cache.pending(), cache_mngr->trx_cache.cache_log.pos_in_file, cache_mngr->trx_cache.cache_log.current_pos, cache_mngr->trx_cache.cache_log.request_pos, cache_mngr->trx_cache.cache_log.write_pos);
+    WSREP_ERROR("::jan_COMMIT:: STMT: STMT: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->stmt_cache.pending(), cache_mngr->stmt_cache.cache_log.pos_in_file, cache_mngr->stmt_cache.cache_log.current_pos, cache_mngr->stmt_cache.cache_log.request_pos, cache_mngr->stmt_cache.cache_log.write_pos);
+
+
   DBUG_PRINT("debug",
              ("all: %d, in_transaction: %s, all.modified_non_trans_table: %s, stmt.modified_non_trans_table: %s",
               all,
@@ -2092,6 +2113,10 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
 #ifdef WITH_WSREP
   if (!cache_mngr) DBUG_RETURN(0);
 #endif /* WITH_WSREP */
+
+    WSREP_ERROR("::jan_BINLOG_ROLLBACK::TRX: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->trx_cache.pending(), cache_mngr->trx_cache.cache_log.pos_in_file, cache_mngr->trx_cache.cache_log.current_pos, cache_mngr->trx_cache.cache_log.request_pos, cache_mngr->trx_cache.cache_log.write_pos);
+    WSREP_ERROR("::jan_BINLOG_ROLLBACK:: STMT: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->stmt_cache.pending(), cache_mngr->stmt_cache.cache_log.pos_in_file, cache_mngr->stmt_cache.cache_log.current_pos, cache_mngr->stmt_cache.cache_log.request_pos, cache_mngr->stmt_cache.cache_log.write_pos);
+
 
   DBUG_PRINT("debug", ("all: %s, all.modified_non_trans_table: %s, stmt.modified_non_trans_table: %s",
                        YESNO(all),
@@ -5473,6 +5498,8 @@ MYSQL_BIN_LOG::remove_pending_rows_event(THD *thd, bool is_transactional)
 
   DBUG_ASSERT(cache_mngr);
 
+    WSREP_ERROR("::jan_REMOVE_PENDING_ROWS_EVENT:: TRX: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->trx_cache.pending(), cache_mngr->trx_cache.cache_log.pos_in_file, cache_mngr->trx_cache.cache_log.current_pos, cache_mngr->trx_cache.cache_log.request_pos, cache_mngr->trx_cache.cache_log.write_pos);
+    WSREP_ERROR("::jan_REMOVE_PENDING_ROWS_EVENT:: STMT: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->stmt_cache.pending(), cache_mngr->stmt_cache.cache_log.pos_in_file, cache_mngr->stmt_cache.cache_log.current_pos, cache_mngr->stmt_cache.cache_log.request_pos, cache_mngr->stmt_cache.cache_log.write_pos);
   binlog_cache_data *cache_data=
     cache_mngr->get_binlog_cache_data(use_trans_cache(thd, is_transactional));
 
@@ -5512,6 +5539,8 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
 
+    WSREP_ERROR("::jan_FLUSH_AND_SET_PENDING_ROWS_EVENT:: TRX: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->trx_cache.pending(), cache_mngr->trx_cache.cache_log.pos_in_file, cache_mngr->trx_cache.cache_log.current_pos, cache_mngr->trx_cache.cache_log.request_pos, cache_mngr->trx_cache.cache_log.write_pos);
+    WSREP_ERROR("::jan_FLUSH_AND_SET_PENDING_ROWS_EVENT:: STMT: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->stmt_cache.pending(), cache_mngr->stmt_cache.cache_log.pos_in_file, cache_mngr->stmt_cache.cache_log.current_pos, cache_mngr->stmt_cache.cache_log.request_pos, cache_mngr->stmt_cache.cache_log.write_pos);
   DBUG_ASSERT(cache_mngr);
 
   binlog_cache_data *cache_data=
@@ -6759,6 +6788,10 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   entry.using_trx_cache= using_trx_cache;
   entry.need_unlog= false;
   ha_info= all ? thd->transaction.all.ha_list : thd->transaction.stmt.ha_list;
+
+    WSREP_ERROR("::jan_WRITE_TRANSACTIONS_TO_BINLOG:: TRX: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->trx_cache.pending(), cache_mngr->trx_cache.cache_log.pos_in_file, cache_mngr->trx_cache.cache_log.current_pos, cache_mngr->trx_cache.cache_log.request_pos, cache_mngr->trx_cache.cache_log.write_pos);
+    WSREP_ERROR("::jan_WRITE_TRANSACTION_TO_BINLOG:: STMT: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->stmt_cache.pending(), cache_mngr->stmt_cache.cache_log.pos_in_file, cache_mngr->stmt_cache.cache_log.current_pos, cache_mngr->stmt_cache.cache_log.request_pos, cache_mngr->stmt_cache.cache_log.write_pos);
+
   for (; ha_info; ha_info= ha_info->next())
   {
     if (ha_info->is_started() && ha_info->ht() != binlog_hton &&
@@ -6957,6 +6990,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     {
       binlog_cache_mngr *cache_mngr= current->cache_mngr;
 
+    WSREP_ERROR("::jan_TRX_GROUP_COMMIT_LEADER:: TRX: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->trx_cache.pending(), cache_mngr->trx_cache.cache_log.pos_in_file, cache_mngr->trx_cache.cache_log.current_pos, cache_mngr->trx_cache.cache_log.request_pos, cache_mngr->trx_cache.cache_log.write_pos);
+    WSREP_ERROR("::jan_TRX_GROUP_COMMIT_LEADER:: STMT: Pending %p pos %llu, pos_in_file %llu current_pos %llu request_pos %llu write_pos %llu", cache_mngr->stmt_cache.pending(), cache_mngr->stmt_cache.cache_log.pos_in_file, cache_mngr->stmt_cache.cache_log.current_pos, cache_mngr->stmt_cache.cache_log.request_pos, cache_mngr->stmt_cache.cache_log.write_pos);
       /*
         We already checked before that at least one cache is non-empty; if both
         are empty we would have skipped calling into here.

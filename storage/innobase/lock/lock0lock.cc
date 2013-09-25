@@ -50,9 +50,9 @@ Created 5/7/1996 Heikki Tuuri
 #include "dict0boot.h"
 
 #ifdef WITH_WSREP
-#include "wsrep_mysqld.h"
 extern my_bool wsrep_debug;
 extern my_bool wsrep_log_conflicts;
+#include "ha_prototypes.h"
 #endif
 /* Restricts the length of search we will do in the waits-for
 graph of transactions */
@@ -1583,7 +1583,7 @@ lock_rec_other_has_expl_req(
 
 #ifdef WITH_WSREP
 static void 
-wsrep_kill_victim(const trx_t *trx, const lock_t *lock) {
+wsrep_kill_victim(trx_t *trx, lock_t *lock) {
 	int bf_this  = wsrep_thd_is_brute_force(trx->mysql_thd);
 	int bf_other = 
 		wsrep_thd_is_brute_force(lock->trx->mysql_thd);
@@ -1591,6 +1591,7 @@ wsrep_kill_victim(const trx_t *trx, const lock_t *lock) {
 		(bf_this && bf_other && wsrep_trx_order_before(
 			trx->mysql_thd, lock->trx->mysql_thd))) {
           
+          //		if (lock->trx->que_state == TRX_QUE_LOCK_WAIT) {
 		if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 			if (wsrep_debug)
 				fprintf(stderr, "WSREP: BF victim waiting\n");
@@ -1624,7 +1625,7 @@ wsrep_kill_victim(const trx_t *trx, const lock_t *lock) {
 				}
 			}
 			wsrep_innobase_kill_one_trx(
-				(const trx_t*)trx, lock->trx, TRUE);
+				trx, lock->trx, TRUE);
 		}
 	}
 }
@@ -1659,7 +1660,7 @@ lock_rec_other_has_conflicting(
 
 		if (lock_rec_has_to_wait(trx, mode, lock, is_supremum)) {
 #ifdef WITH_WSREP
-			wsrep_kill_victim(trx, lock);
+                        wsrep_kill_victim((trx_t*)trx, (ib_lock_t*)lock);
 #endif
 			return(lock);
 		}
@@ -1879,18 +1880,14 @@ lock_rec_create(
 
 #ifdef WITH_WSREP
 	if (c_lock && wsrep_thd_is_brute_force(trx->mysql_thd)) {
-	  //hash_node_t *hash 	= c_lock->hash;
-	  lock_t *hash 	= (lock_t *)c_lock->hash;
-		lock_t *prev 		= NULL;
+          lock_t *hash = (lock_t*)c_lock->hash;
+		lock_t *prev = NULL;
 
-		while (hash 						&&
-		       wsrep_thd_is_brute_force(
-				((lock_t *)hash)->trx->mysql_thd) 	&&
-		       wsrep_trx_order_before(
-				((lock_t *)hash)->trx->mysql_thd, 
-				trx->mysql_thd)) {
+		while (hash &&
+                       wsrep_thd_is_brute_force(((lock_t*)hash)->trx->mysql_thd) &&
+                       wsrep_trx_order_before(((lock_t*)hash)->trx->mysql_thd, trx->mysql_thd)){
 			prev = hash;
-			hash = (lock_t *)hash->hash;
+			hash = (lock_t*)hash->hash;
 		}
 		lock->hash = hash;
 		if (prev) {
@@ -1902,24 +1899,30 @@ lock_rec_create(
 		 * delayed conflict resolution '...kill_one_trx' was not called,
 		 * if victim was waiting for some other lock
 		 */
-		if (c_lock && c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT){
+                //		if (c_lock && c_lock->trx->que_state == TRX_QUE_LOCK_WAIT) {
+		if (c_lock && c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+                  //			c_lock->trx->was_chosen_as_deadlock_victim = TRUE;
 			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
 
-			if (wsrep_debug && 
-			    c_lock->trx->lock.wait_lock != c_lock) {
+			//if (wsrep_debug && c_lock->trx->wait_lock != c_lock) {
+			if (wsrep_debug && c_lock->trx->lock.wait_lock != c_lock) {
 				fprintf(stderr, "WSREP: c_lock != wait lock\n");
 				lock_rec_print(stderr, c_lock);
+				// lock_rec_print(stderr, c_lock->trx->wait_lock);
 				lock_rec_print(stderr, c_lock->trx->lock.wait_lock);
 			}
 
-			trx->lock.que_state = TRX_QUE_LOCK_WAIT;
+			// trx->que_state = TRX_QUE_LOCK_WAIT;
+			lock->trx->lock.que_state = TRX_QUE_LOCK_WAIT;
 			lock_set_lock_and_trx_wait(lock, trx);
 
+			// lock_cancel_waiting_and_release(c_lock->trx->wait_lock);
 			lock_cancel_waiting_and_release(c_lock->trx->lock.wait_lock);
 
 			/* trx might not wait for c_lock, but some other lock
 			   does not matter if wait_lock was released above
 			 */
+			//if (c_lock->trx->wait_lock == c_lock) {
 			if (c_lock->trx->lock.wait_lock == c_lock) {
 				lock_reset_lock_and_trx_wait(lock);
 			}
@@ -1940,6 +1943,7 @@ lock_rec_create(
 	HASH_INSERT(lock_t, hash, lock_sys->rec_hash,
 		    lock_rec_fold(space, page_no), lock);
 #endif
+
 	if (!caller_owns_trx_mutex) {
 		trx_mutex_enter(trx);
 	}
@@ -2035,19 +2039,17 @@ lock_rec_enqueue_waiting(
 		to be granted, note that we already own
 		the trx mutex. */
 #ifdef WITH_WSREP
-		if (wsrep_on(trx->mysql_thd) && 
-		    trx->lock.was_chosen_as_deadlock_victim) {
-			return(DB_DEADLOCK);
+          if (wsrep_on(trx->mysql_thd) && c_lock->trx->lock.was_chosen_as_deadlock_victim) {
+		  return(DB_DEADLOCK);
 		}
-		lock = lock_rec_create(
-			c_lock,
-			type_mode | LOCK_WAIT, block, heap_no,
-			index, trx, TRUE);
+		/* Enqueue the lock request that will wait to be granted */
+		lock = lock_rec_create(c_lock, type_mode | LOCK_WAIT, 
+				       block, heap_no, index, trx, TRUE);
 #else
 		lock = lock_rec_create(
 			type_mode | LOCK_WAIT, block, heap_no,
 			index, trx, TRUE);
-#endif /* WITH_WSREP */
+#endif /*WITH_WSREP */
 	} else {
 		ut_ad(lock->type_mode & LOCK_WAIT);
 		ut_ad(lock->type_mode & LOCK_CONV_BY_OTHER);
@@ -2218,13 +2220,13 @@ lock_rec_add_to_queue(
 
 somebody_waits:
 #ifdef WITH_WSREP
-	return(lock_rec_create(NULL,
-			type_mode, block, heap_no, index, trx,
-			caller_owns_trx_mutex));
-#else
 	return(lock_rec_create(
-			type_mode, block, heap_no, index, trx,
-			caller_owns_trx_mutex));
+                        NULL, type_mode, block, heap_no, index, trx,
+                        caller_owns_trx_mutex));
+#else
+ 	return(lock_rec_create(
+                        type_mode, block, heap_no, index, trx, 
+                        caller_owns_trx_mutex));
 #endif
 }
 
@@ -2292,12 +2294,13 @@ lock_rec_lock_fast(
 		if (!impl) {
 			/* Note that we don't own the trx mutex. */
 #ifdef WITH_WSREP
-			lock = lock_rec_create(NULL,
-				mode, block, heap_no, index, trx, FALSE);
+                    lock = lock_rec_create(
+                                NULL, mode, block, heap_no, index, trx, FALSE);
 #else
-			lock = lock_rec_create(
+		    lock = lock_rec_create(
 				mode, block, heap_no, index, trx, FALSE);
 #endif
+
 		}
 		status = LOCK_REC_SUCCESS_CREATED;
 	} else {
@@ -2349,10 +2352,10 @@ lock_rec_lock_slow(
 	dict_index_t*		index,	/*!< in: index of record */
 	que_thr_t*		thr)	/*!< in: query thread */
 {
-	trx_t*			trx;
 #ifdef WITH_WSREP
-	lock_t 			*c_lock;
+	lock_t *c_lock;
 #endif
+	trx_t*			trx;
 	lock_t*			lock;
 	dberr_t			err = DB_SUCCESS;
 
@@ -2400,16 +2403,16 @@ lock_rec_lock_slow(
 
 		/* The trx already has a strong enough lock on rec: do
 		nothing */
-
 #ifdef WITH_WSREP
-	} else if ((c_lock = (lock_t *)lock_rec_other_has_conflicting(
-			static_cast<enum lock_mode>(mode),
-			block, heap_no, trx))) {
+	} else if ((c_lock = (ib_lock_t*)lock_rec_other_has_conflicting(
+                        static_cast<enum lock_mode>(mode), 
+                        block, heap_no, trx))) {
 #else
 	} else if (lock_rec_other_has_conflicting(
 			static_cast<enum lock_mode>(mode),
 			block, heap_no, trx)) {
 #endif
+
 		/* If another transaction has a non-gap conflicting
 		request in the queue, as this transaction does not
 		have a lock strong enough already granted on the
@@ -2418,12 +2421,14 @@ lock_rec_lock_slow(
 		ut_ad(lock == NULL);
 enqueue_waiting:
 #ifdef WITH_WSREP
-		err = lock_rec_enqueue_waiting(c_lock,
-			mode, block, heap_no, lock, index, thr);
+		err = lock_rec_enqueue_waiting(
+                        c_lock, mode, block, heap_no,
+			lock, index, thr);
 #else
 		err = lock_rec_enqueue_waiting(
 			mode, block, heap_no, lock, index, thr);
-#endif /* WITH_WSREP */
+#endif
+
 	} else if (!impl) {
 		/* Set the requested lock on the record, note that
 		we already own the transaction mutex. */
@@ -2479,12 +2484,15 @@ lock_rec_lock(
 	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == LOCK_REC_NOT_GAP
 #endif /* WITH_WSREP */
 	      || mode - (LOCK_MODE_MASK & mode) == 0);
-	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
+
 #ifdef WITH_WSREP
 	if (wsrep_thd_is_brute_force(thr_get_trx(thr)->mysql_thd)) {
 		mode |= WSREP_BF;
 	}
 #endif
+
+	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
+
 	/* We try a simplified and faster subroutine for the most
 	common cases */
 	switch (lock_rec_lock_fast(impl, mode, block, heap_no, index, thr)) {
@@ -3928,20 +3936,19 @@ lock_deadlock_select_victim(
 	if (trx_weight_ge(ctx->wait_lock->trx, ctx->start)) {
 		/* The joining  transaction is 'smaller',
 		choose it as the victim and roll it back. */
-
 #ifdef WITH_WSREP
-	if (wsrep_thd_is_brute_force(ctx->start->mysql_thd))
-		return(ctx->wait_lock->trx);
-	else
-#endif /* WITH_WSREP */
+		if (!wsrep_thd_is_brute_force(ctx->start->mysql_thd)) {
+		    return(ctx->start);
+		}
+#else
+		return(ctx->start);
+#endif
+	}
+#ifdef WITH_WSREP
+	if (wsrep_thd_is_brute_force(ctx->wait_lock->trx->mysql_thd)) {
 		return(ctx->start);
 	}
-
-#ifdef WITH_WSREP
-	if (wsrep_thd_is_brute_force(ctx->wait_lock->trx->mysql_thd))
-		return(ctx->start);
-	else
-#endif /* WITH_WSREP */
+#endif
 	return(ctx->wait_lock->trx);
 }
 
@@ -4091,11 +4098,6 @@ lock_deadlock_search(
 			ctx->too_deep = TRUE;
 
 			/* Select the joining transaction as the victim. */
-#ifdef WITH_WSREP
-			if (wsrep_thd_is_brute_force(ctx->start->mysql_thd))
-				return(ctx->wait_lock->trx->id);
-			else
-#endif /* WITH_WSREP */
 			return(ctx->start->id);
 
 		} else if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
@@ -4111,11 +4113,6 @@ lock_deadlock_search(
 
 				ctx->too_deep = TRUE;
 
-#ifdef WITH_WSREP
-			if (wsrep_thd_is_brute_force(ctx->start->mysql_thd))
-				return(lock->trx->id);
-			else
-#endif /* WITH_WSREP */
 				return(ctx->start->id);
 			}
 
@@ -4246,20 +4243,12 @@ lock_deadlock_check_and_resolve(
 		if (ctx.too_deep) {
 
 			ut_a(trx == ctx.start);
-#ifdef WITH_WSREP
-			if (!wsrep_thd_is_brute_force(ctx.start->mysql_thd))
-			{
-#endif /* WITH_WSREP */
 			ut_a(victim_trx_id == trx->id);
 
 			if (!srv_read_only_mode) {
 				lock_deadlock_joining_trx_print(trx, lock);
 			}
 
-#ifdef WITH_WSREP
-			} else
-			  /* BF processor */;
-#endif /* WITH_WSREP */
 			MONITOR_INC(MONITOR_DEADLOCK);
 
 		} else if (victim_trx_id != 0 && victim_trx_id != trx->id) {
@@ -4297,7 +4286,7 @@ lock_t*
 lock_table_create(
 /*==============*/
 #ifdef WITH_WSREP
-	lock_t*		c_lock, /* conflicting lock */
+	lock_t*		c_lock, /*!< in: conflicting lock */
 #endif
 	dict_table_t*	table,	/*!< in/out: database table
 				in dictionary cache */
@@ -4343,6 +4332,7 @@ lock_table_create(
 	ut_ad(table->n_ref_count > 0 || !table->can_be_evicted);
 
 	UT_LIST_ADD_LAST(trx_locks, trx->lock.trx_locks, lock);
+
 #ifdef WITH_WSREP
 	if (c_lock && wsrep_thd_is_brute_force(trx->mysql_thd)) {
         	UT_LIST_INSERT_AFTER(
@@ -4351,6 +4341,7 @@ lock_table_create(
         	UT_LIST_ADD_LAST(un_member.tab_lock.locks, table->locks, lock);
         }
 
+	// if (c_lock && c_lock->trx->que_state == TRX_QUE_LOCK_WAIT) {
 	if (c_lock && c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 		if (wsrep_debug)
 			fprintf(stderr, "WSREP: table c_lock in wait: %llu\n", 
@@ -4358,9 +4349,10 @@ lock_table_create(
 		c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
 		lock_cancel_waiting_and_release(c_lock);
 	}
+
 #else
 	UT_LIST_ADD_LAST(un_member.tab_lock.locks, table->locks, lock);
-#endif /* WITH_WSREP */
+#endif
 
 	if (UNIV_UNLIKELY(type_mode & LOCK_WAIT)) {
 
@@ -4518,7 +4510,7 @@ dberr_t
 lock_table_enqueue_waiting(
 /*=======================*/
 #ifdef WITH_WSREP
-	lock_t*		c_lock, /* conflicting lock */
+	lock_t*		c_lock, /*!< in: conflicting lock */
 #endif
 	ulint		mode,	/*!< in: lock mode this transaction is
 				requesting */
@@ -4564,12 +4556,12 @@ lock_table_enqueue_waiting(
 	/* Enqueue the lock request that will wait to be granted */
 
 #ifdef WITH_WSREP
-	if (trx->lock.was_chosen_as_deadlock_victim) {
+	if (c_lock->trx->lock.was_chosen_as_deadlock_victim) {
 		return(DB_DEADLOCK);
 	}
 	lock = lock_table_create(c_lock, table, mode | LOCK_WAIT, trx);
 #else
-	lock = lock_table_create(table, mode | LOCK_WAIT, trx);
+ 	lock = lock_table_create(table, mode | LOCK_WAIT, trx);
 #endif
 
 	/* Release the mutex to obey the latching order.
@@ -4647,6 +4639,7 @@ lock_table_other_has_incompatible(
 				fprintf(stderr, "WSREP: table lock abort");
 			wsrep_kill_victim((trx_t *)trx, (lock_t *)lock);
 #endif
+
 			return(lock);
 		}
 	}
@@ -4669,6 +4662,9 @@ lock_table(
 	enum lock_mode	mode,	/*!< in: lock mode */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
+#ifdef WITH_WSREP
+	lock_t *c_lock = NULL;
+#endif
 	trx_t*		trx;
 	dberr_t		err;
 	const lock_t*	wait_for;
@@ -4699,8 +4695,13 @@ lock_table(
 	/* We have to check if the new lock is compatible with any locks
 	other transactions have in the table lock queue. */
 
+#ifdef WITH_WSREP
+	wait_for = lock_table_other_has_incompatible(
+                trx, LOCK_WAIT, table, mode);
+#else
 	wait_for = lock_table_other_has_incompatible(
 		trx, LOCK_WAIT, table, mode);
+#endif
 
 	trx_mutex_enter(trx);
 
@@ -4709,17 +4710,16 @@ lock_table(
 
 	if (wait_for != NULL) {
 #ifdef WITH_WSREP
-	  err = lock_table_enqueue_waiting((lock_t *)wait_for, 
-			mode | flags, table, thr);
+                err = lock_table_enqueue_waiting((ib_lock_t*)wait_for, mode | flags, table, thr);
 #else
 		err = lock_table_enqueue_waiting(mode | flags, table, thr);
-#endif /* WITH_WSREP */
+#endif
 	} else {
 #ifdef WITH_WSREP
-	  lock_table_create((lock_t *)wait_for, table, mode | flags, trx);
+	        lock_table_create(c_lock, table, mode | flags, trx);
 #else
 		lock_table_create(table, mode | flags, trx);
-#endif /* WITH_WSREP */
+#endif
 
 		ut_a(!flags || mode == LOCK_S || mode == LOCK_X);
 
@@ -6222,28 +6222,29 @@ lock_rec_insert_check_and_lock(
 	on the successor, which produced an unnecessary deadlock. */
 
 #ifdef WITH_WSREP
-	if ((c_lock = (lock_t *)lock_rec_other_has_conflicting(
+	if ((c_lock = (ib_lock_t*)lock_rec_other_has_conflicting(
 		    static_cast<enum lock_mode>(
-			    LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION),
+                            LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION | WSREP_BF),
 		    block, next_rec_heap_no, trx))) {
 #else
 	if (lock_rec_other_has_conflicting(
 		    static_cast<enum lock_mode>(
 			    LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION),
 		    block, next_rec_heap_no, trx)) {
-#endif /* WITH_WSREP */
+#endif
+
 		/* Note that we may get DB_SUCCESS also here! */
 		trx_mutex_enter(trx);
 
 #ifdef WITH_WSREP
-		err = lock_rec_enqueue_waiting(c_lock,
-			LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION,
+		err = lock_rec_enqueue_waiting(c_lock, 
+                        LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION,
 			block, next_rec_heap_no, NULL, index, thr);
 #else
 		err = lock_rec_enqueue_waiting(
 			LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION,
 			block, next_rec_heap_no, NULL, index, thr);
-#endif /* WITH_WSREP */
+#endif
 
 		trx_mutex_exit(trx);
 	} else {

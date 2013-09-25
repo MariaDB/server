@@ -1116,6 +1116,9 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
                          FALSE, UINT_MAX, FALSE))
     goto error;
   thd->enable_slow_log= opt_log_slow_admin_statements;
+#ifdef WITH_WSREP
+  WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL);
+#endif
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt,
                          "analyze", lock_type, 1, 0, 0, 0,
                          &handler::ha_analyze, 0);
@@ -1171,7 +1174,6 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
   thd->enable_slow_log= opt_log_slow_admin_statements;
-  WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL)
   res= (specialflag & SPECIAL_NO_NEW_FUNC) ?
  
     mysql_recreate_table(thd, first_table) :

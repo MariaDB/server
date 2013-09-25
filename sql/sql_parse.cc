@@ -972,7 +972,7 @@ bool do_command(THD *thd)
   }
 
   if ((WSREP(thd)  && packet_length == packet_error) ||
-      (!WSREP(thd) && (packet_length= my_net_read(net)) == packet_error))
+      (!WSREP(thd) && (packet_length == packet_error)))
 #else
   if (packet_length == packet_error)
 #endif /* WITH_WSREP */
@@ -3240,6 +3240,12 @@ case SQLCOM_PREPARE:
       /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
       if (create_info.tmp_table())
         thd->variables.option_bits|= OPTION_KEEP_LOG;
+#ifdef WITH_WSREP
+      if (!thd->is_current_stmt_binlog_format_row() ||
+	  !(create_info.options & HA_LEX_CREATE_TMP_TABLE))
+          WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
+                                 NULL)
+#endif /* WITH_WSREP */
       /* regular create */
       if (create_info.options & HA_LEX_CREATE_TABLE_LIKE)
       {
@@ -3249,13 +3255,6 @@ case SQLCOM_PREPARE:
       }
       else
       {
-#ifdef WITH_WSREP
-      if (!thd->is_current_stmt_binlog_format_row() ||
-	  !(create_info.options & HA_LEX_CREATE_TMP_TABLE))
-       WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
-                                 NULL)
-#endif /* WITH_WSREP */
-
         /* Regular CREATE TABLE */
         res= mysql_create_table(thd, create_table,
                                 &create_info, &alter_info);
