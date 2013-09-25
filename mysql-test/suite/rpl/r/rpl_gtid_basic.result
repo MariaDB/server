@@ -162,4 +162,42 @@ BINLOG_GTID_POS('master-bin.000001',18446744073709551616)
 NULL
 Warnings:
 Warning	1916	Got overflow when converting '18446744073709551616' to INT. Value truncated.
+*** Some tests of @@GLOBAL.gtid_binlog_state ***
+include/stop_slave.inc
+SET @old_state= @@GLOBAL.gtid_binlog_state;
+SET GLOBAL gtid_binlog_state = '';
+ERROR HY000: This operation is not allowed if any GTID has been logged to the binary log. Run RESET MASTER first to erase the log
+RESET MASTER;
+SET GLOBAL gtid_binlog_state = '';
+FLUSH LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+SET GLOBAL gtid_binlog_state = '0-1-10,1-2-20,0-3-30';
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000001	#	Gtid_list	#	#	[1-2-20,0-1-10,0-3-30]
+master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+SELECT @@GLOBAL.gtid_binlog_pos;
+@@GLOBAL.gtid_binlog_pos
+1-2-20,0-3-30
+SELECT @@GLOBAL.gtid_binlog_state;
+@@GLOBAL.gtid_binlog_state
+1-2-20,0-1-10,0-3-30
+SET GLOBAL gtid_binlog_state = @old_state;
+ERROR HY000: This operation is not allowed if any GTID has been logged to the binary log. Run RESET MASTER first to erase the log
+RESET MASTER;
+SET GLOBAL gtid_binlog_state = @old_state;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+include/start_slave.inc
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
 include/rpl_end.inc

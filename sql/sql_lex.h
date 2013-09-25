@@ -2404,7 +2404,6 @@ struct LEX: public Query_tables_list
   bool sp_lex_in_use;	/* Keep track on lex usage in SPs for error handling */
   bool all_privileges;
   bool proxy_priv;
-  bool contains_plaintext_password;
 
   sp_pcontext *spcont;
 
@@ -2812,7 +2811,7 @@ extern void lex_start(THD *thd);
 extern void lex_end(LEX *lex);
 void end_lex_with_single_table(THD *thd, TABLE *table, LEX *old_lex);
 int init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex);
-extern int MYSQLlex(void *arg, void *yythd);
+extern int MYSQLlex(void *arg, THD *thd);
 
 extern void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str);
 

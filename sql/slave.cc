@@ -2238,34 +2238,66 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
 
   DBUG_ASSERT(thd == mi->io_thd);
   mysql_mutex_lock(log_lock);
-  if (rli->ign_master_log_name_end[0])
+  if (rli->ign_master_log_name_end[0] || rli->ign_gtids.count())
   {
-    DBUG_PRINT("info",("writing a Rotate event to track down ignored events"));
-    Rotate_log_event *ev= new Rotate_log_event(rli->ign_master_log_name_end,
-                                               0, rli->ign_master_log_pos_end,
-                                               Rotate_log_event::DUP_NAME);
-    rli->ign_master_log_name_end[0]= 0;
-    /* can unlock before writing as slave SQL thd will soon see our Rotate */
-    mysql_mutex_unlock(log_lock);
-    if (likely((bool)ev))
+    Rotate_log_event *rev= NULL;
+    Gtid_list_log_event *glev= NULL;
+    if (rli->ign_master_log_name_end[0])
     {
-      ev->server_id= 0; // don't be ignored by slave SQL thread
-      if (unlikely(rli->relay_log.append(ev)))
+      rev= new Rotate_log_event(rli->ign_master_log_name_end,
+                                0, rli->ign_master_log_pos_end,
+                                Rotate_log_event::DUP_NAME);
+      rli->ign_master_log_name_end[0]= 0;
+      if (unlikely(!(bool)rev))
+        mi->report(ERROR_LEVEL, ER_SLAVE_CREATE_EVENT_FAILURE,
+                   ER(ER_SLAVE_CREATE_EVENT_FAILURE),
+                   "Rotate_event (out of memory?),"
+                   " SHOW SLAVE STATUS may be inaccurate");
+    }
+    if (rli->ign_gtids.count())
+    {
+      glev= new Gtid_list_log_event(&rli->ign_gtids,
+                                    Gtid_list_log_event::FLAG_IGN_GTIDS);
+      rli->ign_gtids.reset();
+      if (unlikely(!(bool)glev))
+        mi->report(ERROR_LEVEL, ER_SLAVE_CREATE_EVENT_FAILURE,
+                   ER(ER_SLAVE_CREATE_EVENT_FAILURE),
+                   "Gtid_list_event (out of memory?),"
+                   " gtid_slave_pos may be inaccurate");
+    }
+
+    /* Can unlock before writing as slave SQL thd will soon see our event. */
+    mysql_mutex_unlock(log_lock);
+    if (rev)
+    {
+      DBUG_PRINT("info",("writing a Rotate event to track down ignored events"));
+      rev->server_id= 0; // don't be ignored by slave SQL thread
+      if (unlikely(rli->relay_log.append(rev)))
         mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE,
                    ER(ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
                    "failed to write a Rotate event"
                    " to the relay log, SHOW SLAVE STATUS may be"
                    " inaccurate");
+      delete rev;
+    }
+    if (glev)
+    {
+      DBUG_PRINT("info",("writing a Gtid_list event to track down ignored events"));
+      glev->server_id= 0; // don't be ignored by slave SQL thread
+      glev->set_artificial_event(); // Don't mess up Exec_Master_Log_Pos
+      if (unlikely(rli->relay_log.append(glev)))
+        mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE,
+                   ER(ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
+                   "failed to write a Gtid_list event to the relay log, "
+                   "gtid_slave_pos may be inaccurate");
+      delete glev;
+    }
+    if (likely (rev || glev))
+    {
       rli->relay_log.harvest_bytes_written(&rli->log_space_total);
       if (flush_master_info(mi, TRUE, TRUE))
         sql_print_error("Failed to flush master info file");
-      delete ev;
     }
-    else
-      mi->report(ERROR_LEVEL, ER_SLAVE_CREATE_EVENT_FAILURE,
-                 ER(ER_SLAVE_CREATE_EVENT_FAILURE),
-                 "Rotate_event (out of memory?),"
-                 " SHOW SLAVE STATUS may be inaccurate");
   }
   else
     mysql_mutex_unlock(log_lock);
@@ -3121,6 +3153,12 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli)
     rli->slave_skip_counter--;
   }
   mysql_mutex_unlock(&rli->data_lock);
+  DBUG_EXECUTE_IF("inject_slave_sql_before_apply_event",
+    {
+      DBUG_ASSERT(!debug_sync_set_action
+                  (thd, STRING_WITH_LEN("now WAIT_FOR continue")));
+      DBUG_SET_INITIAL("-d,inject_slave_sql_before_apply_event");
+    };);
   if (reason == Log_event::EVENT_SKIP_NOT)
     exec_res= ev->apply_event(rli);
 
@@ -3183,6 +3221,14 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli)
                   llstr(rli->group_relay_log_pos, buf));
       DBUG_RETURN(2);
     }
+  }
+  else
+  {
+    /*
+      Make sure we do not errorneously update gtid_slave_pos with a lingering
+      GTID from this failed event group (MDEV-4906).
+    */
+    rli->gtid_sub_id= 0;
   }
 
   DBUG_RETURN(exec_res ? 1 : 0);
@@ -4119,6 +4165,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   rli->trans_retries= 0; // start from "no error"
   DBUG_PRINT("info", ("rli->trans_retries: %lu", rli->trans_retries));
 
+  rli->gtid_sub_id= 0;
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
                          rli->group_relay_log_pos,
@@ -4840,6 +4887,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   ulong s_id;
   bool unlock_data_lock= TRUE;
   bool gtid_skip_enqueue= false;
+  bool got_gtid_event= false;
+  rpl_gtid event_gtid;
 
   /*
     FD_q must have been prepared for the first R_a event
@@ -4902,8 +4951,6 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     unlock_data_lock= FALSE;
     goto err;
   }
-
-  LINT_INIT(inc_pos);
 
   if (mi->rli.relay_log.description_event_for_queue->binlog_version<4 &&
       (uchar)buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT /* a way to escape */)
@@ -5158,6 +5205,15 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   {
     uchar dummy_flag;
 
+    if (Gtid_log_event::peek(buf, event_len, checksum_alg,
+                             &event_gtid.domain_id, &event_gtid.server_id,
+                             &event_gtid.seq_no, &dummy_flag,
+                             rli->relay_log.description_event_for_queue))
+    {
+      error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
+      goto err;
+    }
+    got_gtid_event= true;
     if (mi->using_gtid == Master_info::USE_GTID_NO)
       goto default_action;
     if (unlikely(!mi->gtid_event_seen))
@@ -5165,8 +5221,6 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       mi->gtid_event_seen= true;
       if (mi->gtid_reconnect_event_skip_count)
       {
-        rpl_gtid gtid;
-
         /*
           If we are reconnecting, and we need to skip a partial event group
           already queued to the relay log before the reconnect, then we check
@@ -5175,21 +5229,14 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
 
           The only way we should be able to receive a different GTID than what
           we expect is if the binlog on the master (or more likely the whole
-          master server) was replaced with a different one, one the same IP
+          master server) was replaced with a different one, on the same IP
           address, _and_ the new master happens to have domains in a different
           order so we get the GTID from a different domain first. Still, it is
           best to protect against this case.
         */
-        if (Gtid_log_event::peek(buf, event_len, checksum_alg,
-                                 &gtid.domain_id, &gtid.server_id,
-                                 &gtid.seq_no, &dummy_flag))
-        {
-          error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
-          goto err;
-        }
-        if (gtid.domain_id != mi->last_queued_gtid.domain_id ||
-            gtid.server_id != mi->last_queued_gtid.server_id ||
-            gtid.seq_no != mi->last_queued_gtid.seq_no)
+        if (event_gtid.domain_id != mi->last_queued_gtid.domain_id ||
+            event_gtid.server_id != mi->last_queued_gtid.server_id ||
+            event_gtid.seq_no != mi->last_queued_gtid.seq_no)
         {
           bool first;
           error= ER_SLAVE_UNEXPECTED_MASTER_SWITCH;
@@ -5199,7 +5246,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
                                           &first);
           error_msg.append(STRING_WITH_LEN(", received: "));
           first= true;
-          rpl_slave_state_tostring_helper(&error_msg, &gtid, &first);
+          rpl_slave_state_tostring_helper(&error_msg, &event_gtid, &first);
           goto err;
         }
       }
@@ -5219,15 +5266,9 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       mi->gtid_current_pos.update(&mi->last_queued_gtid);
       mi->events_queued_since_last_gtid= 0;
     }
-    if (Gtid_log_event::peek(buf, event_len, checksum_alg,
-                             &mi->last_queued_gtid.domain_id,
-                             &mi->last_queued_gtid.server_id,
-                             &mi->last_queued_gtid.seq_no, &dummy_flag))
-    {
-      error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
-      goto err;
-    }
+    mi->last_queued_gtid= event_gtid;
     ++mi->events_queued_since_last_gtid;
+    inc_pos= event_len;
   }
   break;
 
@@ -5279,6 +5320,36 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
 
   mysql_mutex_lock(log_lock);
   s_id= uint4korr(buf + SERVER_ID_OFFSET);
+  /*
+    Write the event to the relay log, unless we reconnected in the middle
+    of an event group and now need to skip the initial part of the group that
+    we already wrote before reconnecting.
+  */
+  if (unlikely(gtid_skip_enqueue))
+  {
+    mi->master_log_pos+= inc_pos;
+    if ((uchar)buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT &&
+        s_id == mi->master_id)
+    {
+      /*
+        If we write this master's description event in the middle of an event
+        group due to GTID reconnect, SQL thread will think that master crashed
+        in the middle of the group and roll back the first half, so we must not.
+
+        But we still have to write an artificial copy of the masters description
+        event, to override the initial slave-version description event so that
+        SQL thread has the right information for parsing the events it reads.
+      */
+      rli->relay_log.description_event_for_queue->created= 0;
+      rli->relay_log.description_event_for_queue->set_artificial_event();
+      if (rli->relay_log.append_no_lock
+          (rli->relay_log.description_event_for_queue))
+        error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
+      else
+        rli->relay_log.harvest_bytes_written(&rli->log_space_total);
+    }
+  }
+  else
   if ((s_id == global_system_variables.server_id &&
        !mi->rli.replicate_same_server_id) ||
       /*
@@ -5321,6 +5392,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       memcpy(rli->ign_master_log_name_end, mi->master_log_name, FN_REFLEN);
       DBUG_ASSERT(rli->ign_master_log_name_end[0]);
       rli->ign_master_log_pos_end= mi->master_log_pos;
+      if (got_gtid_event)
+        rli->ign_gtids.update(&event_gtid);
     }
     rli->relay_log.signal_update(); // the slave SQL thread needs to re-check
     DBUG_PRINT("info", ("master_log_pos: %lu, event originating from %u server, ignored",
@@ -5328,16 +5401,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   }
   else
   {
-    /*
-      Write the event to the relay log, unless we reconnected in the middle
-      of an event group and now need to skip the initial part of the group that
-      we already wrote before reconnecting.
-    */
-    if (unlikely(gtid_skip_enqueue))
-    {
-      mi->master_log_pos+= inc_pos;
-    }
-    else if (likely(!(rli->relay_log.appendv(buf,event_len,0))))
+    if (likely(!(rli->relay_log.appendv(buf,event_len,0))))
     {
       mi->master_log_pos+= inc_pos;
       DBUG_PRINT("info", ("master_log_pos: %lu", (ulong) mi->master_log_pos));
@@ -5348,6 +5412,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
     }
     rli->ign_master_log_name_end[0]= 0; // last event is not ignored
+    if (got_gtid_event)
+      rli->ign_gtids.remove_if_present(&event_gtid);
     if (save_buf != NULL)
       buf= save_buf;
   }
@@ -5951,6 +6017,25 @@ static Log_event* next_event(Relay_log_info* rli)
             goto err;
           }
           ev->server_id= 0; // don't be ignored by slave SQL thread
+          DBUG_RETURN(ev);
+        }
+
+        if (rli->ign_gtids.count())
+        {
+          /* We generate and return a Gtid_list, to update gtid_slave_pos. */
+          DBUG_PRINT("info",("seeing ignored end gtids"));
+          ev= new Gtid_list_log_event(&rli->ign_gtids,
+                                      Gtid_list_log_event::FLAG_IGN_GTIDS);
+          rli->ign_gtids.reset();
+          mysql_mutex_unlock(log_lock);
+          if (unlikely(!ev))
+          {
+            errmsg= "Slave SQL thread failed to create a Gtid_list event "
+              "(out of memory?), gtid_slave_pos may be inaccurate";
+            goto err;
+          }
+          ev->server_id= 0; // don't be ignored by slave SQL thread
+          ev->set_artificial_event(); // Don't mess up Exec_Master_Log_Pos
           DBUG_RETURN(ev);
         }
 

@@ -2136,7 +2136,12 @@ corruption:
 		if (index->online_log->head.blocks) {
 #ifdef HAVE_FTRUNCATE
 			/* Truncate the file in order to save space. */
-			ftruncate(index->online_log->fd, 0);
+			if (ftruncate(index->online_log->fd, 0) == -1) {
+				fprintf(stderr, "InnoDB: Error: Truncate of file "
+					"\'%s\' failed with error %d:%s\n",
+					index->name + 1, errno, strerror(errno));
+				goto corruption;
+			}
 #endif /* HAVE_FTRUNCATE */
 			index->online_log->head.blocks
 				= index->online_log->tail.blocks = 0;
@@ -2922,7 +2927,12 @@ corruption:
 		if (index->online_log->head.blocks) {
 #ifdef HAVE_FTRUNCATE
 			/* Truncate the file in order to save space. */
-			ftruncate(index->online_log->fd, 0);
+			if (ftruncate(index->online_log->fd, 0) == -1) {
+				fprintf(stderr, "InnoDB: Error: Truncate of file "
+					"\'%s\' failed with error %d:%s\n",
+					index->name + 1, errno, strerror(errno));
+				goto corruption;
+			}
 #endif /* HAVE_FTRUNCATE */
 			index->online_log->head.blocks
 				= index->online_log->tail.blocks = 0;

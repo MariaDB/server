@@ -111,7 +111,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 static mysql_mutex_t innobase_share_mutex;
 /** to force correct commit order in binlog */
 static ulong commit_threads = 0;
-static mysql_mutex_t commit_threads_m;
 static mysql_cond_t commit_cond;
 static mysql_mutex_t commit_cond_m;
 static mysql_mutex_t pending_checkpoint_mutex;
@@ -275,13 +274,11 @@ const struct _ft_vft_ext ft_vft_ext_result = {innobase_fts_get_version,
 /* Keys to register pthread mutexes/cond in the current file with
 performance schema */
 static mysql_pfs_key_t	innobase_share_mutex_key;
-static mysql_pfs_key_t	commit_threads_m_key;
 static mysql_pfs_key_t	commit_cond_mutex_key;
 static mysql_pfs_key_t	commit_cond_key;
 static mysql_pfs_key_t	pending_checkpoint_mutex_key;
 
 static PSI_mutex_info	all_pthread_mutexes[] = {
-	{&commit_threads_m_key, "commit_threads_m", 0},
 	{&commit_cond_mutex_key, "commit_cond_mutex", 0},
 	{&innobase_share_mutex_key, "innobase_share_mutex", 0}
 };
@@ -2790,7 +2787,7 @@ innobase_init(
 
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
-	innobase_hton->flags = HTON_NO_FLAGS;
+        innobase_hton->flags = HTON_EXTENDED_KEYS;
 
 	innobase_hton->release_temporary_latches =
 		innobase_release_temporary_latches;
@@ -3197,6 +3194,7 @@ innobase_change_buffering_inited_ok:
 	srv_use_posix_fallocate = (ibool) innobase_use_fallocate;
 #endif
 	srv_use_atomic_writes = (ibool) innobase_use_atomic_writes;
+
 	if (innobase_use_atomic_writes) {
 		fprintf(stderr, "InnoDB: using atomic writes.\n");
 
@@ -3211,13 +3209,13 @@ innobase_change_buffering_inited_ok:
 #ifndef _WIN32
 		if(!innobase_file_flush_method ||
 			!strstr(innobase_file_flush_method, "O_DIRECT")) {
-			innobase_file_flush_method = 
+			innobase_file_flush_method =
 				srv_file_flush_method_str = (char*)"O_DIRECT";
 			fprintf(stderr, "InnoDB: using O_DIRECT due to atomic writes.\n");
 		}
 #endif
 #ifdef HAVE_POSIX_FALLOCATE
-		/* Due to a bug in directFS, using atomics needs  
+		/* Due to a bug in directFS, using atomics needs
 		 * posix_fallocate to extend the file
 		 * pwrite()  past end of the file won't work
 		 */
@@ -3280,8 +3278,6 @@ innobase_change_buffering_inited_ok:
 	mysql_mutex_init(innobase_share_mutex_key,
 			 &innobase_share_mutex,
 			 MY_MUTEX_INIT_FAST);
-	mysql_mutex_init(commit_threads_m_key,
-			 &commit_threads_m, MY_MUTEX_INIT_FAST);
 	mysql_mutex_init(commit_cond_mutex_key,
 			 &commit_cond_m, MY_MUTEX_INIT_FAST);
 	mysql_cond_init(commit_cond_key, &commit_cond, NULL);
@@ -3349,7 +3345,6 @@ innobase_end(
 		srv_free_paths_and_sizes();
 		my_free(internal_innobase_data_file_path);
 		mysql_mutex_destroy(&innobase_share_mutex);
-		mysql_mutex_destroy(&commit_threads_m);
 		mysql_mutex_destroy(&commit_cond_m);
 		mysql_cond_destroy(&commit_cond);
 		mysql_mutex_destroy(&pending_checkpoint_mutex);
@@ -16892,7 +16887,11 @@ ib_senderrf(
 	str[size - 1] = 0x0;
 	vsnprintf(str, size, format, args);
 #elif HAVE_VASPRINTF
-	(void) vasprintf(&str, format, args);
+	if (vasprintf(&str, format, args) == -1) {
+		/* In case of failure use a fixed length string */
+		str = static_cast<char*>(malloc(BUFSIZ));
+		my_vsnprintf(str, BUFSIZ, format, args);
+	}
 #else
 	/* Use a fixed length string. */
 	str = static_cast<char*>(malloc(BUFSIZ));
@@ -16968,7 +16967,11 @@ ib_errf(
 	str[size - 1] = 0x0;
 	vsnprintf(str, size, format, args);
 #elif HAVE_VASPRINTF
-	(void) vasprintf(&str, format, args);
+	if (vasprintf(&str, format, args) == -1) {
+		/* In case of failure use a fixed length string */
+		str = static_cast<char*>(malloc(BUFSIZ));
+		my_vsnprintf(str, BUFSIZ, format, args);
+	}
 #else
 	/* Use a fixed length string. */
 	str = static_cast<char*>(malloc(BUFSIZ));
@@ -17002,7 +17005,11 @@ ib_logf(
 	str[size - 1] = 0x0;
 	vsnprintf(str, size, format, args);
 #elif HAVE_VASPRINTF
-	(void) vasprintf(&str, format, args);
+	if (vasprintf(&str, format, args) == -1) {
+		/* In case of failure use a fixed length string */
+		str = static_cast<char*>(malloc(BUFSIZ));
+		my_vsnprintf(str, BUFSIZ, format, args);
+	}
 #else
 	/* Use a fixed length string. */
 	str = static_cast<char*>(malloc(BUFSIZ));

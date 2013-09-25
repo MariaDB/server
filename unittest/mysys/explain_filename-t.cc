@@ -65,7 +65,7 @@ int main(int argc __attribute__((unused)),char *argv[])
 {
   MY_INIT(argv[0]);
   setup();
-  plan(NO_PLAN);
+  plan(22);
 
   test_1("test/t1.ibd",
          "Database \"test\", Table \"t1.ibd\"",
@@ -160,6 +160,6 @@ int main(int argc __attribute__((unused)),char *argv[])
          EXPLAIN_PARTITIONS_AS_COMMENT);
 
   my_end(0);
-  return 0;
+  return exit_status();
 }
 

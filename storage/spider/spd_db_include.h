@@ -25,8 +25,10 @@
 #define SPIDER_HAS_APPEND_FOR_SINGLE_QUOTE
 #define SPIDER_HAS_SHOW_SIMPLE_FUNC
 #endif
-#if 0 && defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100003
-#define SPIDER_GENERATE_PARTITION_SYNTAX_HAS_CURRENT_COMMENT_START
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100004
+#define SPIDER_HAS_TIME_STATUS
+#define SPIDER_HAS_DECIMAL_OPERATION_RESULTS_VALUE_TYPE
 #endif
 
 class spider_db_conn;
@@ -188,6 +190,12 @@ enum spider_bulk_upd_start {
   SPD_BU_NOT_START,
   SPD_BU_START_BY_INDEX_OR_RND_INIT,
   SPD_BU_START_BY_BULK_INIT
+};
+
+enum spider_index_rnd_init {
+  SPD_NONE,
+  SPD_INDEX,
+  SPD_RND
 };
 
 struct st_spider_ft_info;
@@ -644,6 +652,15 @@ public:
     const char *alias,
     uint alias_length
   ) = 0;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  virtual int open_item_sum_func(
+    Item_sum *item_sum,
+    ha_spider *spider,
+    spider_string *str,
+    const char *alias,
+    uint alias_length
+  ) = 0;
+#endif
   virtual int append_escaped_util(
     spider_string *to,
     String *from
@@ -653,8 +670,9 @@ public:
 class spider_db_row
 {
 public:
+  uint dbton_id;
   SPIDER_DB_ROW *next_pos;
-  spider_db_row() : next_pos(NULL) {}
+  spider_db_row(uint in_dbton_id) : dbton_id(in_dbton_id), next_pos(NULL) {}
   virtual ~spider_db_row() {}
   virtual int store_to_field(
     Field *field,
@@ -672,6 +690,10 @@ public:
   virtual bool is_null() = 0;
   virtual int val_int() = 0;
   virtual double val_real() = 0;
+  virtual my_decimal *val_decimal(
+    my_decimal *decimal_value,
+    CHARSET_INFO *access_charset
+  ) = 0;
   virtual SPIDER_DB_ROW *clone() = 0;
   virtual int store_to_tmp_table(
     TABLE *tmp_table,
@@ -693,7 +715,8 @@ public:
 class spider_db_result
 {
 public:
-  spider_db_result() {}
+  uint dbton_id;
+  spider_db_result(uint in_dbton_id) : dbton_id(in_dbton_id) {}
   virtual ~spider_db_result() {}
   virtual bool has_result() = 0;
   virtual void free_result() = 0;
@@ -995,6 +1018,10 @@ public:
     const key_range *start_key
   ) = 0;
   virtual int reuse_tmp_table_and_sql_for_bka() = 0;
+  virtual int append_union_table_and_sql_for_bka(
+    const key_range *start_key
+  ) = 0;
+  virtual int reuse_union_table_and_sql_for_bka() = 0;
   virtual int append_insert_for_recovery(
     ulong sql_type,
     int link_idx
@@ -1069,7 +1096,17 @@ public:
   virtual int append_values_terminator_part(
     ulong sql_type
   ) = 0;
+  virtual int append_union_table_connector_part(
+    ulong sql_type
+  ) = 0;
+  virtual int append_union_table_terminator_part(
+    ulong sql_type
+  ) = 0;
   virtual int append_key_column_values_part(
+    const key_range *start_key,
+    ulong sql_type
+  ) = 0;
+  virtual int append_key_column_values_with_name_part(
     const key_range *start_key,
     ulong sql_type
   ) = 0;
@@ -1104,6 +1141,13 @@ public:
     const char *alias,
     uint alias_length
   ) = 0;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  virtual int append_sum_select_part(
+    ulong sql_type,
+    const char *alias,
+    uint alias_length
+  ) = 0;
+#endif
   virtual void set_order_pos(
     ulong sql_type
   ) = 0;
@@ -1151,6 +1195,10 @@ public:
     ulong sql_type,
     uint multi_range_cnt,
     bool with_comma
+  ) = 0;
+  virtual int append_multi_range_cnt_with_name_part(
+    ulong sql_type,
+    uint multi_range_cnt
   ) = 0;
   virtual int append_open_handler_part(
     ulong sql_type,
@@ -1344,6 +1392,19 @@ public:
   virtual bool support_use_handler(
     int use_handler
   ) = 0;
+  virtual bool minimum_select_bit_is_set(
+    uint field_index
+  ) = 0;
+  virtual void copy_minimum_select_bitmap(
+    uchar *bitmap
+  ) = 0;
+  virtual int init_union_table_name_pos() = 0;
+  virtual int set_union_table_name_pos() = 0;
+  virtual int reset_union_table_name(
+    spider_string *str,
+    int link_idx,
+    ulong sql_type
+  ) = 0;
 };
 
 class spider_db_copy_table
@@ -1441,6 +1502,9 @@ typedef struct st_spider_position
   uint                   pos_mode;
   bool                   use_position;
   bool                   mrr_with_cnt;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  bool                   direct_aggregate;
+#endif
   uint                   sql_kind;
   uchar                  *position_bitmap;
   st_spider_ft_info      *ft_first;
@@ -1545,6 +1609,12 @@ typedef struct st_spider_result_list
   spider_bulk_upd_start   bulk_update_start;
   bool                    check_direct_order_limit;
   bool                    direct_order_limit;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  bool                    direct_aggregate;
+  bool                    snap_mrr_with_cnt;
+  bool                    snap_direct_aggregate;
+  SPIDER_DB_ROW           *snap_row;
+#endif
   bool                    set_split_read;
   bool                    insert_dup_update_pushdown;
   longlong                split_read_base;

@@ -378,6 +378,7 @@ sub main {
   mtr_report("Logging: $0 ", join(" ", @ARGV));
 
  $DEFAULT_SUITES.= ',' . join(',', qw(
+    connect
     query_response_time
     sequence
     spider
@@ -2079,7 +2080,17 @@ sub executable_setup () {
   }
   else
   {
-    $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mysqltest");
+    if ( defined $ENV{'MYSQL_TEST'} )
+    {
+      $exe_mysqltest=$ENV{'MYSQL_TEST'};
+      print "===========================================================\n";
+      print "WARNING:The mysqltest binary is fetched from $exe_mysqltest\n";
+      print "===========================================================\n";
+    }
+    else
+    {
+      $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mysqltest");
+    }
   }
 
 }

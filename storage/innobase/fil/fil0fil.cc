@@ -4782,6 +4782,23 @@ retry:
 	start_page_no = space->size;
 	file_start_page_no = space->size - node->size;
 
+#ifdef HAVE_POSIX_FALLOCATE
+	if (srv_use_posix_fallocate) {
+		ulint n_pages = size_after_extend - start_page_no;
+
+		success = os_file_set_size(node->name, node->handle,
+			n_pages * page_size);
+
+		mutex_enter(&fil_system->mutex);
+		if (success) {
+			node->size += n_pages;
+			space->size += n_pages;
+			os_has_said_disk_full = FALSE;
+		}
+		goto complete_io;
+	}
+#endif
+
 	/* Extend at most 64 pages at a time */
 	buf_size = ut_min(64, size_after_extend - start_page_no) * page_size;
 	buf2 = static_cast<byte*>(mem_alloc(buf_size + page_size));
@@ -4835,10 +4852,15 @@ retry:
 
 	space->size += pages_added;
 	node->size += pages_added;
-	node->being_extended = FALSE;
 
+#ifdef HAVE_POSIX_FALLOCATE
+complete_io:
+	fil_node_complete_io(node, fil_system, OS_FILE_READ);
+#else
 	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
+#endif
 
+	node->being_extended = FALSE;
 	*actual_size = space->size;
 
 #ifndef UNIV_HOTBACKUP
