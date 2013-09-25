@@ -540,6 +540,7 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
       if ((Xerr = xmlGetLastError()))
         xmlResetError(Xerr);
 
+      Nlist = NULL;
       } // endif Nlist
 
     if (Xop) {
@@ -548,6 +549,7 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
       if ((Xerr = xmlGetLastError()))
         xmlResetError(Xerr);
 
+      Xop = NULL;
       } // endif Xop
 
     if (NlXop) {
@@ -556,6 +558,7 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
       if ((Xerr = xmlGetLastError()))
         xmlResetError(Xerr);
 
+      NlXop = NULL;
       } // endif NlXop
 
     if (Ctxp) {
@@ -564,6 +567,7 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
       if ((Xerr = xmlGetLastError()))
         xmlResetError(Xerr);
 
+      Ctxp = NULL;
       } // endif Ctxp
 
 //  } // endif Count
