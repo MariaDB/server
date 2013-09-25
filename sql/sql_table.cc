@@ -5747,6 +5747,10 @@ static bool fill_alter_inplace_info(THD *thd,
          new_key->user_defined_key_parts))
       goto index_changed;
 
+    if (engine_options_differ(table_key->option_struct, new_key->option_struct,
+                              table->file->ht->index_options))
+      goto index_changed;
+
     /*
       Check that the key parts remain compatible between the old and
       new tables.
@@ -8045,11 +8049,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   {
     Alter_inplace_info ha_alter_info(create_info, alter_info,
                                      key_info, key_count,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-                                     thd->work_part_info,
-#else
-                                     NULL,
-#endif
+                                     IF_PARTITIONING(thd->work_part_info, NULL),
                                      ignore);
     TABLE *altered_table= NULL;
     bool use_inplace= true;
@@ -8170,15 +8170,14 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
     if (use_inplace)
     {
+      table->s->frm_image= &frm;
+      int res= mysql_inplace_alter_table(thd, table_list, table, altered_table,
+                                         &ha_alter_info, inplace_supported,
+                                         &target_mdl_request, &alter_ctx);
       my_free(const_cast<uchar*>(frm.str));
-      if (mysql_inplace_alter_table(thd, table_list, table,
-                                    altered_table,
-                                    &ha_alter_info,
-                                    inplace_supported, &target_mdl_request,
-                                    &alter_ctx))
-      {
+
+      if (res)
         DBUG_RETURN(true);
-      }
 
       goto end_inplace;
     }

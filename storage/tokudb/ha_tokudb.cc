@@ -1733,7 +1733,7 @@ int ha_tokudb::initialize_share(
         goto exit;
     }
 
-#if defined(MARIADB_BASE_VERSION)
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID < 100004
     // a hack to support frm-only ALTER TABLE in MariaDB 5.5
     // in 10.0 there's a proper fix with the new discovery and online alter
     if (thd_sql_command(thd) == SQLCOM_ALTER_TABLE) {
@@ -2152,7 +2152,7 @@ int ha_tokudb::write_frm_data(DB* db, DB_TXN* txn, const char* frm_name) {
 
     error = 0;
 cleanup:
-    my_free(frm_data, MYF(MY_ALLOW_ZERO_PTR));
+    table_share->free_frm_image(frm_data);
     TOKUDB_DBUG_RETURN(error);
 }
 
@@ -2216,7 +2216,7 @@ int ha_tokudb::verify_frm_data(const char* frm_name, DB_TXN* txn) {
 
     error = 0;
 cleanup:
-    my_free(mysql_frm_data, MYF(MY_ALLOW_ZERO_PTR));
+    table_share->free_frm_image(mysql_frm_data);
     my_free(stored_frm.data, MYF(MY_ALLOW_ZERO_PTR));
     TOKUDB_DBUG_RETURN(error);
 }

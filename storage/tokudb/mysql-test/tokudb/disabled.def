@@ -1,35 +1,3 @@
-change_column_auto_inc: No online ALTER in MariaDB 5.5
-change_column_bin: No online ALTER in MariaDB 5.5
-change_column_bin_key: No online ALTER in MariaDB 5.5
-change_column_bin_rename: No online ALTER in MariaDB 5.5
-change_column_blob: No online ALTER in MariaDB 5.5
-change_column_char: No online ALTER in MariaDB 5.5
-change_column_char_binary: No online ALTER in MariaDB 5.5
-change_column_char_charbinary: No online ALTER in MariaDB 5.5
-change_column_char_charset: No online ALTER in MariaDB 5.5
-change_column_char_key: No online ALTER in MariaDB 5.5
-change_column_char_null: No online ALTER in MariaDB 5.5
-change_column_char_rename: No online ALTER in MariaDB 5.5
-change_column_int: No online ALTER in MariaDB 5.5
-change_column_int_key: No online ALTER in MariaDB 5.5
-change_column_int_not_supported: No online ALTER in MariaDB 5.5
-change_column_int_rename: No online ALTER in MariaDB 5.5
-change_column_multiple_columns: No online ALTER in MariaDB 5.5
-change_column_text: No online ALTER in MariaDB 5.5
-change_column_varbin: No online ALTER in MariaDB 5.5
-change_column_varbin_default: No online ALTER in MariaDB 5.5
-change_column_varbin_key: No online ALTER in MariaDB 5.5
-change_column_varbin_null: No online ALTER in MariaDB 5.5
-change_column_varbin_rename: No online ALTER in MariaDB 5.5
-change_column_varbin_varchar: No online ALTER in MariaDB 5.5
-change_column_varchar: No online ALTER in MariaDB 5.5
-change_column_varchar_charset: No online ALTER in MariaDB 5.5
-change_column_varchar_default: No online ALTER in MariaDB 5.5
-change_column_varchar_key: No online ALTER in MariaDB 5.5
-change_column_varchar_null: No online ALTER in MariaDB 5.5
-change_column_varchar_prefix_a: No online ALTER in MariaDB 5.5
-change_column_varchar_rename: No online ALTER in MariaDB 5.5
-change_column_varchar_varbin: No online ALTER in MariaDB 5.5
 fast_update_binlog_mixed: No UPSERT in MariaDB 5.5
 fast_update_binlog_row: No UPSERT in MariaDB 5.5
 fast_update_binlog_statement: No UPSERT in MariaDB 5.5
@@ -54,7 +22,6 @@ fast_upsert_int: No UPSERT in MariaDB 5.5
 fast_upsert_key: No UPSERT in MariaDB 5.5
 fast_upsert_sqlmode: No UPSERT in MariaDB 5.5
 fast_upsert_values: No UPSERT in MariaDB 5.5
-hotindex-del-1: No online ALTER in MariaDB 5.5
-mvcc-19: No online ALTER in MariaDB 5.5
-mvcc-20: No online ALTER in MariaDB 5.5
 mvcc-27: No online OPTIMIZE in MariaDB 5.5
+mvcc-19: how this could work, if alter needs an exclusive mdl lock?
+mvcc-20: how this could work, if alter needs an exclusive mdl lock?

@@ -1,7 +1,7 @@
 SET DEFAULT_STORAGE_ENGINE='tokudb';
 DROP TABLE IF EXISTS foo,bar;
 set session tokudb_disable_slow_alter=ON;
-create table foo (aa int, bb int, cc int, dd int, ee int, a int, b varchar(20), c int, d int, e int, primary key (e), key(d), unique key(c), clustering key (b))engine=TokuDB;
+create table foo (aa int, bb int, cc int, dd int, ee int, a int, b varchar(20), c int, d int, e int, primary key (e), key(d), unique key(c), key (b) clustering=yes)engine=TokuDB;
 create table bar (a int) engine=TokuDB;
 alter table foo drop primary key;
 ERROR 42000: Table 'foo' uses an extension that doesn't exist in this XYZ version
@@ -20,9 +20,9 @@ ERROR 42000: Table 'foo' uses an extension that doesn't exist in this XYZ versio
 alter table foo drop primary key, add primary key (b), drop column aa;
 ERROR 42000: Table 'foo' uses an extension that doesn't exist in this XYZ version
 alter table foo add fulltext key(b);
-ERROR HY000: The used table type doesn't support FULLTEXT indexes
+ERROR HY000: The storage engine TokuDB doesn't support FULLTEXT indexes
 alter table foo add spatial key (aa);
-ERROR HY000: The used table type doesn't support SPATIAL indexes
+ERROR HY000: The storage engine TokuDB doesn't support SPATIAL indexes
 alter table foo alter column cc set default 101010;
 alter table foo alter column cc set default NULL;
 alter table foo alter column cc drop default;
@@ -62,7 +62,7 @@ foo	CREATE TABLE `foo` (
   PRIMARY KEY (`e`),
   UNIQUE KEY `c` (`c`),
   KEY `d` (`d`),
-  CLUSTERING KEY `b` (`b`)
+  KEY `b` (`b`) `clustering`=yes
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
 alter table foo change column aa aa int NOT NULL;
 ERROR 42000: Table 'foo' uses an extension that doesn't exist in this XYZ version

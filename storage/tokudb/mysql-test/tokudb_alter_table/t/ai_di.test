@@ -15,7 +15,7 @@ select * from foo;
 explain select sum(a) from foo;
 select sum(a) from foo;
 
---error ER_DUP_ENTRY
+--error ER_DUP_KEY
 alter table foo add unique index b(b), drop index a;
 
 select * from foo;
