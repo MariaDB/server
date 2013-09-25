@@ -22553,8 +22553,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
     table_map used_tables=0;
 
     join->select_lex->set_explain_type(true);
-    uint select_id= join->select_lex->select_number;
-
     qp_sel->select_id= join->select_lex->select_number;
     qp_sel->select_type= join->select_lex->type;
 
@@ -22563,6 +22561,15 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
     for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
          tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
     {
+      uint select_id;
+      if (tab->bush_root_tab)
+      {
+        JOIN_TAB *first_sibling= tab->bush_root_tab->bush_children->start;
+        select_id= first_sibling->emb_sj_nest->sj_subq_pred->get_identifier();
+      }
+      else
+        select_id= join->select_lex->select_number;
+      
       TABLE *table=tab->table;
       TABLE_LIST *table_list= tab->table->pos_in_table_list;
       char buff4[512];
