@@ -45,12 +45,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/ft-index/toku_include)
 SET(TOKUDB_PLUGIN_DYNAMIC "ha_tokudb")
 SET(TOKUDB_SOURCES ha_tokudb.cc)
 MYSQL_ADD_PLUGIN(tokudb ${TOKUDB_SOURCES} STORAGE_ENGINE MODULE_ONLY
-    COMPONENT "tokudb-engine"
+    COMPONENT "tokudb-engine" CONFIG tokudb.cnf
     LINK_LIBRARIES tokufractaltree_static tokuportability_static z stdc++)
 SET(CMAKE_MODULE_LINKER_FLAGS_RELEASE "${CMAKE_MODULE_LINKER_FLAGS_RELEASE} -flto -fuse-linker-plugin")
-
-IF (INSTALL_SYSCONF2DIR)
-  INSTALL(FILES tokudb.cnf DESTINATION ${INSTALL_SYSCONF2DIR} COMPONENT tokudb-engine)
-  SET(CPACK_RPM_tokudb-engine_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*" PARENT_SCOPE)
-ENDIF(INSTALL_SYSCONF2DIR)
 
