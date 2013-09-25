@@ -3173,6 +3173,7 @@ end_with_restore_list:
   case SQLCOM_INSERT_SELECT:
   {
     select_result *sel_result;
+    bool explain= test(lex->describe);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     if ((res= insert_precheck(thd, all_tables)))
       break;
@@ -3205,7 +3206,10 @@ end_with_restore_list:
 
     if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
     {
-      MYSQL_INSERT_SELECT_START(thd->query());
+      if (!explain)
+      {
+        MYSQL_INSERT_SELECT_START(thd->query());
+      }
       /*
         Only the INSERT table should be merged. Other will be handled by
         select.
@@ -3242,8 +3246,22 @@ end_with_restore_list:
         }
         delete sel_result;
       }
+
+      if (!res && explain)
+      {
+        select_result *result= new select_send();
+        LEX *lex= thd->lex;
+        if (thd->send_explain_fields(result) ||
+            lex->query_plan_footprint->print_explain(result, lex->describe) ||
+            result->send_eof())
+          res= 1;
+      }
+
       /* revert changes for SP */
-      MYSQL_INSERT_SELECT_DONE(res, (ulong) thd->get_row_count_func());
+      if (!explain)
+      {
+        MYSQL_INSERT_SELECT_DONE(res, (ulong) thd->get_row_count_func());
+      }
       select_lex->table_list.first= first_table;
     }
     /*
@@ -3322,7 +3340,6 @@ end_with_restore_list:
           delete result;
           result= NULL;
         }
-        //select_lex->set_explain_type(FALSE);
       }
       else
         result= new multi_delete(aux_tables, lex->table_count);
