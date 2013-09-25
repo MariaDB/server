@@ -2,41 +2,40 @@ drop table if exists t1,t2,t3;
 create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
 alter online table t1 modify b int default 5;
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 alter online table t1 change b new_name int;
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 alter online table t1 modify e enum('a','b','c');
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 alter online table t1 comment "new comment";
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 alter online table t1 rename to t2;
-alter online table t2 rename to t1;
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 drop table t1;
 create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
 alter online table t1 modify b int default 5;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
 alter online table t1 change b new_name int;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
 alter online table t1 modify e enum('a','b','c');
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
 alter online table t1 comment "new comment";
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
 alter online table t1 rename to t2;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
-drop table t1;
+drop table t2;
 create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
 alter online table t1 drop column b, add b int;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
 alter online table t1 modify b bigint;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
 alter online table t1 modify e enum('c','a','b');
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
 alter online table t1 modify c varchar(50);
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
 alter online table t1 modify c varchar(100);
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
 alter online table t1 add f int;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
 alter online table t1 engine=memory;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED.
 alter table t1 engine=innodb;
 alter table t1 add index (b);
 alter online table t1 add index c (c);
@@ -45,28 +44,20 @@ drop table t1;
 create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
 alter online table t1 drop column b, add b int;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
 alter online table t1 modify b bigint;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
 alter online table t1 modify e enum('c','a','b');
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
 alter online table t1 modify c varchar(50);
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
 alter online table t1 modify c varchar(100);
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
 alter online table t1 add f int;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
 alter online table t1 engine=memory;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
 alter table t1 engine=innodb;
 alter table t1 add index (b);
 alter online table t1 add index c (c);
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
 alter online table t1 drop index b;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
 drop table t1;
 create table t1 (a int not null primary key, b int, c varchar(80));
 create table t2 (a int not null primary key, b int, c varchar(80));
 create table t3 (a int not null primary key, b int, c varchar(80)) engine=merge UNION=(t1);
 alter online table t3 union=(t1,t2);
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 drop table t1,t2,t3;

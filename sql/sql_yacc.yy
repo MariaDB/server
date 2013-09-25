@@ -7617,8 +7617,8 @@ alter_option:
 	  IGNORE_SYM { Lex->ignore= 1;}
         | ONLINE_SYM
           {
-            Lex->alter_info.requested_algorithm=
-              Alter_info::ALTER_TABLE_ALGORITHM_INPLACE;
+            Lex->alter_info.requested_lock=
+              Alter_info::ALTER_TABLE_LOCK_NONE;
           }
 
 
