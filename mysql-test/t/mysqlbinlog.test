@@ -598,7 +598,7 @@ eval SET GLOBAL SERVER_ID = $old_server_id;
 --echo # MDEV-4645: Incorrect reads of frozen binlog events;
 --echo # FDE corrupted in relay log
 --echo #
---let TZ=Europe/Helsinki
+--let TZ=GMT
 --exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_checksum.binlog
 --exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_group_id.binlog
 --exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_group_id_checksum.binlog
