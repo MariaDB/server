@@ -122,10 +122,12 @@ int QPF_query::print_explain(select_result_sink *output,
   }
 }
 
+
 bool print_qpf_query(LEX *lex, THD *thd, String *str)
 {
   return lex->query_plan_footprint->print_explain_str(thd, str);
 }
+
 
 bool QPF_query::print_explain_str(THD *thd, String *out_str)
 {
@@ -134,7 +136,7 @@ bool QPF_query::print_explain_str(THD *thd, String *out_str)
 
   select_result_text_buffer output_buf(thd);
   output_buf.send_result_set_metadata(fields, thd->lex->describe);
-  if (print_explain(&output_buf, 0))
+  if (print_explain(&output_buf, thd->lex->describe))
     return true;
   output_buf.save_to(out_str);
   return false;
