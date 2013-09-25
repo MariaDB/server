@@ -331,7 +331,8 @@ static int tokudb_rollback_to_savepoint(handlerton * hton, THD * thd, void *save
 static int tokudb_savepoint(handlerton * hton, THD * thd, void *savepoint);
 static int tokudb_release_savepoint(handlerton * hton, THD * thd, void *savepoint);
 static int tokudb_discover_table(handlerton *hton, THD* thd, TABLE_SHARE *ts);
-static int tokudb_discover(handlerton *hton, THD* thd, const char *db, const char *name, uchar **frmblob, size_t *frmlen) __attribute__ ((__unused__));
+static int tokudb_discover_table_existence(handlerton *hton, const char *db, const char *name);
+static int tokudb_discover(handlerton *hton, THD* thd, const char *db, const char *name, uchar **frmblob, size_t *frmlen);
 static int tokudb_discover2(handlerton *hton, THD* thd, const char *db, const char *name, bool translate_name,uchar **frmblob, size_t *frmlen);
 static int tokudb_discover3(handlerton *hton, THD* thd, const char *db, const char *name, char *path, uchar **frmblob, size_t *frmlen);
 handlerton *tokudb_hton;
@@ -498,6 +499,7 @@ static int tokudb_init_func(void *p) {
     tokudb_hton->savepoint_release = tokudb_release_savepoint;
 
     tokudb_hton->discover_table = tokudb_discover_table;
+    tokudb_hton->discover_table_existence = tokudb_discover_table_existence;
 #if defined(MYSQL_HANDLERTON_INCLUDE_DISCOVER2)
     tokudb_hton->discover2 = tokudb_discover2;
 #endif
@@ -1156,6 +1158,14 @@ static int tokudb_discover_table(handlerton *hton, THD* thd, TABLE_SHARE *ts) {
   my_free(frmblob);
   // discover_table should returns HA_ERR_NO_SUCH_TABLE for "not exists"
   return res == ENOENT ? HA_ERR_NO_SUCH_TABLE : res;
+}
+
+static int tokudb_discover_table_existence(handlerton *hton, const char *db, const char *name) {
+  uchar *frmblob = 0;
+  size_t frmlen;
+  int res= tokudb_discover(hton, current_thd, db, name, &frmblob, &frmlen);
+  my_free(frmblob);
+  return res != ENOENT;
 }
 
 static int tokudb_discover(handlerton *hton, THD* thd, const char *db, const char *name, uchar **frmblob, size_t *frmlen) {
