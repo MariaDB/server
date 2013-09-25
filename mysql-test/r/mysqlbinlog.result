@@ -923,7 +923,7 @@ SET GLOBAL SERVER_ID = 1;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 # at 4
-#130807 23:29:20 server id 1  end_log_pos 106 
+#130807 20:29:20 server id 1  end_log_pos 106 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #        4  |20 ae 02 52 |0f   |01 00 00 00 |66 00 00 00 |6a 00 00 00 |00 01
@@ -935,14 +935,14 @@ DELIMITER /*!*/;
 #       57  04 04 04 04 12 00 00 53  00 04 1a 08 00 00 00 08  |.......S........|
 #       67  08 08 02                                          |...|
 #
-# Event: 	Start: binlog v 4, server v 5.1.63-google-debug-log created 130807 23:29:20 at startup
+# Event: 	Start: binlog v 4, server v 5.1.63-google-debug-log created 130807 20:29:20 at startup
 ROLLBACK/*!*/;
 BINLOG '
 IK4CUg8BAAAAZgAAAGoAAAAAAQQANS4xLjYzLWdvb2dsZS1kZWJ1Zy1sb2cAAAAAAAAAAAAAAAAA
 AAAAAAAAAAAAAAAAAAAgrgJSFzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 '/*!*/;
 # at 106
-#130807 23:29:24 server id 1  end_log_pos 207 
+#130807 20:29:24 server id 1  end_log_pos 207 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #       6a  |24 ae 02 52 |02   |01 00 00 00 |65 00 00 00 |cf 00 00 00 |00 00
@@ -966,7 +966,7 @@ SET @@session.collation_database=DEFAULT/*!*/;
 create table test.t1 (id int not null)
 /*!*/;
 # at 207
-#130807 23:29:26 server id 1  end_log_pos 305 
+#130807 20:29:26 server id 1  end_log_pos 305 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #       cf  |26 ae 02 52 |02   |01 00 00 00 |62 00 00 00 |31 01 00 00 |00 00
@@ -982,7 +982,7 @@ SET TIMESTAMP=1375907366/*!*/;
 insert into test.t1 (id) values (1)
 /*!*/;
 # at 305
-#130807 23:29:28 server id 1  end_log_pos 386 
+#130807 20:29:28 server id 1  end_log_pos 386 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #      131  |28 ae 02 52 |02   |01 00 00 00 |51 00 00 00 |82 01 00 00 |00 00
@@ -1006,7 +1006,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 # at 4
-#130807 23:25:35 server id 1  end_log_pos 106 
+#130807 20:25:35 server id 1  end_log_pos 106 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #        4  |3f ad 02 52 |0f   |01 00 00 00 |66 00 00 00 |6a 00 00 00 |00 00
@@ -1018,14 +1018,14 @@ DELIMITER /*!*/;
 #       57  04 04 04 04 12 00 00 53  00 04 1a 08 00 00 00 08  |.......S........|
 #       67  08 08 02                                          |...|
 #
-# Event: 	Start: binlog v 4, server v 5.1.63-google-debug-log created 130807 23:25:35 at startup
+# Event: 	Start: binlog v 4, server v 5.1.63-google-debug-log created 130807 20:25:35 at startup
 ROLLBACK/*!*/;
 BINLOG '
 P60CUg8BAAAAZgAAAGoAAAAAAAQANS4xLjYzLWdvb2dsZS1kZWJ1Zy1sb2cAAAAAAAAAAAAAAAAA
 AAAAAAAAAAAAAAAAAAA/rQJSGzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 '/*!*/;
 # at 106
-#130807 23:25:41 server id 1  end_log_pos 211 
+#130807 20:25:41 server id 1  end_log_pos 211 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #       6a  |45 ad 02 52 |02   |01 00 00 00 |69 00 00 00 |d3 00 00 00 |00 00
@@ -1049,7 +1049,7 @@ SET @@session.collation_database=DEFAULT/*!*/;
 create table test.t1 (id int not null)
 /*!*/;
 # at 211
-#130807 23:25:44 server id 1  end_log_pos 313 
+#130807 20:25:44 server id 1  end_log_pos 313 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #       d3  |48 ad 02 52 |02   |01 00 00 00 |66 00 00 00 |39 01 00 00 |00 00
@@ -1065,7 +1065,7 @@ SET TIMESTAMP=1375907144/*!*/;
 insert into test.t1 (id) values (1)
 /*!*/;
 # at 313
-#130807 23:25:48 server id 1  end_log_pos 398 
+#130807 20:25:48 server id 1  end_log_pos 398 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #      139  |4c ad 02 52 |02   |01 00 00 00 |55 00 00 00 |8e 01 00 00 |00 00
@@ -1089,7 +1089,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 # at 4
-#130807 23:20:55 server id 1  end_log_pos 106 
+#130807 20:20:55 server id 1  end_log_pos 106 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #        4  |27 ac 02 52 |0f   |01 00 00 00 |66 00 00 00 |6a 00 00 00 |00 01
@@ -1101,14 +1101,14 @@ DELIMITER /*!*/;
 #       57  04 04 04 04 12 00 00 53  00 04 1a 08 00 00 00 08  |.......S........|
 #       67  08 08 02                                          |...|
 #
-# Event: 	Start: binlog v 4, server v 5.1.63-google-debug-log created 130807 23:20:55 at startup
+# Event: 	Start: binlog v 4, server v 5.1.63-google-debug-log created 130807 20:20:55 at startup
 ROLLBACK/*!*/;
 BINLOG '
 J6wCUg8BAAAAZgAAAGoAAAAAAQQANS4xLjYzLWdvb2dsZS1kZWJ1Zy1sb2cAAAAAAAAAAAAAAAAA
 AAAAAAAAAAAAAAAAAAAnrAJSHzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 '/*!*/;
 # at 106
-#130807 23:21:19 server id 1  end_log_pos 215 
+#130807 20:21:19 server id 1  end_log_pos 215 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #       6a  |3f ac 02 52 |02   |01 00 00 00 |6d 00 00 00 |d7 00 00 00 |00 00
@@ -1132,7 +1132,7 @@ SET @@session.collation_database=DEFAULT/*!*/;
 create table test.t1 (id int not null)
 /*!*/;
 # at 215
-#130807 23:21:31 server id 1  end_log_pos 321 
+#130807 20:21:31 server id 1  end_log_pos 321 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #       d7  |4b ac 02 52 |02   |01 00 00 00 |6a 00 00 00 |41 01 00 00 |00 00
@@ -1148,7 +1148,7 @@ SET TIMESTAMP=1375906891/*!*/;
 insert into test.t1 (id) values (1)
 /*!*/;
 # at 321
-#130807 23:21:41 server id 1  end_log_pos 410 
+#130807 20:21:41 server id 1  end_log_pos 410 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #      141  |55 ac 02 52 |02   |01 00 00 00 |59 00 00 00 |9a 01 00 00 |00 00
@@ -1172,7 +1172,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 # at 4
-#130807 23:38:51 server id 1  end_log_pos 106 
+#130807 20:38:51 server id 1  end_log_pos 106 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #        4  |5b b0 02 52 |0f   |01 00 00 00 |66 00 00 00 |6a 00 00 00 |00 00
@@ -1184,14 +1184,14 @@ DELIMITER /*!*/;
 #       57  04 04 04 04 12 00 00 53  00 04 1a 08 00 00 00 08  |.......S........|
 #       67  08 08 02                                          |...|
 #
-# Event: 	Start: binlog v 4, server v 5.1.63-google-debug-log created 130807 23:38:51 at startup
+# Event: 	Start: binlog v 4, server v 5.1.63-google-debug-log created 130807 20:38:51 at startup
 ROLLBACK/*!*/;
 BINLOG '
 W7ACUg8BAAAAZgAAAGoAAAAAAAQANS4xLjYzLWdvb2dsZS1kZWJ1Zy1sb2cAAAAAAAAAAAAAAAAA
 AAAAAAAAAAAAAAAAAABbsAJSEzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 '/*!*/;
 # at 106
-#130807 23:38:53 server id 1  end_log_pos 203 
+#130807 20:38:53 server id 1  end_log_pos 203 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #       6a  |5d b0 02 52 |02   |01 00 00 00 |61 00 00 00 |cb 00 00 00 |00 00
@@ -1215,7 +1215,7 @@ SET @@session.collation_database=DEFAULT/*!*/;
 create table test.t1 (id int not null)
 /*!*/;
 # at 203
-#130807 23:38:55 server id 1  end_log_pos 297 
+#130807 20:38:55 server id 1  end_log_pos 297 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #       cb  |5f b0 02 52 |02   |01 00 00 00 |5e 00 00 00 |29 01 00 00 |00 00
@@ -1231,7 +1231,7 @@ SET TIMESTAMP=1375907935/*!*/;
 insert into test.t1 (id) values (1)
 /*!*/;
 # at 297
-#130807 23:38:57 server id 1  end_log_pos 374 
+#130807 20:38:57 server id 1  end_log_pos 374 
 # Position
 #           |Timestamp   |Type |Master ID   |Size        |Master Pos  |Flags
 #      129  |61 b0 02 52 |02   |01 00 00 00 |4d 00 00 00 |76 01 00 00 |00 00
