@@ -2099,6 +2099,23 @@ os_file_set_size(
 
 	current_size = 0;
 
+#ifdef HAVE_POSIX_FALLOCATE
+	if (srv_use_posix_fallocate) {
+
+		if (posix_fallocate(file, current_size, size) == -1) {
+
+			fprintf(stderr, "InnoDB: Error: preallocating file "
+				"space for file \'%s\' failed.  Current size "
+				"%lu, desired size %lu\n",
+				name, current_size, size);
+			os_file_handle_error_no_exit(name, "posix_fallocate", FALSE);
+			return(FALSE);
+		}
+		return(TRUE);
+	}
+#endif
+
+
 	/* Write up to 1 megabyte at a time. */
 	buf_size = ut_min(64, (ulint) (size / UNIV_PAGE_SIZE))
 		* UNIV_PAGE_SIZE;

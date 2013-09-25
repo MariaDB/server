@@ -109,8 +109,8 @@ ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 ADD_DEPENDENCIES(sql GenServerSource)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
-  mysys mysys_ssl dbug strings vio regex
-  ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
+  mysys mysys_ssl dbug strings vio regex ${LIBJEMALLOC}
+  ${LIBWRAP} ${LIBCRYPT} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT}
   ${SSL_LIBRARIES})
 
 IF(WIN32)

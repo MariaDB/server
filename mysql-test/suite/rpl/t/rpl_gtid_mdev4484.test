@@ -18,10 +18,14 @@ INSERT INTO t1 VALUES (1);
 --source include/stop_slave.inc
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,gtid_slave_pos_simulate_failed_delete";
---source include/start_slave.inc
 SET sql_log_bin= 0;
 CALL mtr.add_suppression("Can't find file");
+# Since we inject an error updating mysql.gtid_slave_pos, we will get different
+# output depending on whether it is InnoDB or MyISAM (roll back or no roll
+# back). So fix it to make sure we are consistent.
+ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
 SET sql_log_bin= 1;
+--source include/start_slave.inc
 
 --connection master
 INSERT INTO t1 VALUES (2);

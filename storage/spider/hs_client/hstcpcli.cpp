@@ -77,6 +77,8 @@ struct hstcpcli : public hstcpcli_i, private noncopyable {
   virtual size_t get_response_end_offset() { return response_end_offset; }
   virtual const char *get_readbuf_begin() { return readbuf.begin(); }
   virtual const char *get_readbuf_end() { return readbuf.end(); }
+  virtual const char *get_writebuf_begin() { return writebuf.begin(); }
+  virtual size_t get_writebuf_size() { return writebuf.size(); }
   virtual void write_error_to_log(const char *func_name, const char *file_name,
     ulong line_no);
  private:

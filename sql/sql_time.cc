@@ -267,7 +267,7 @@ to_ascii(CHARSET_INFO *cs,
 /* Character set-aware version of str_to_time() */
 bool
 str_to_time(CHARSET_INFO *cs, const char *str,uint length,
-                 MYSQL_TIME *l_time, ulonglong fuzzydate, MYSQL_TIME_STATUS *status)
+            MYSQL_TIME *l_time, ulonglong fuzzydate, MYSQL_TIME_STATUS *status)
 {
   char cnv[32];
   if ((cs->state & MY_CS_NONASCII) != 0)
@@ -812,6 +812,23 @@ const char *get_date_time_format_str(KNOWN_DATE_TIME_FORMAT *format,
     return 0;
   }
 }
+
+
+/**
+  Convert TIME/DATE/DATETIME value to String.
+  @param l_time   DATE value
+  @param OUT str  String to convert to
+  @param dec      Number of fractional digits.
+*/
+bool my_TIME_to_str(const MYSQL_TIME *ltime, String *str, uint dec)
+{
+  if (str->alloc(MAX_DATE_STRING_REP_LENGTH))
+    return true;
+  str->set_charset(&my_charset_numeric);
+  str->length(my_TIME_to_str(ltime, const_cast<char*>(str->ptr()), dec));
+  return false;
+}
+
 
 void make_truncated_value_warning(THD *thd,
                                   Sql_condition::enum_warning_level level,

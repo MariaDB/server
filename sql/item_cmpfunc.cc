@@ -2006,7 +2006,7 @@ void Item_func_interval::fix_length_and_dec()
     for (uint i= 1; not_null_consts && i < rows; i++)
     {
       Item *el= row->element_index(i);
-      not_null_consts&= el->const_item() & !el->is_null();
+      not_null_consts&= el->const_item() && !el->is_null();
     }
 
     if (not_null_consts &&
@@ -2416,12 +2416,13 @@ void
 Item_func_ifnull::fix_length_and_dec()
 {
   uint32 char_length;
-  agg_result_type(&hybrid_type, args, 2);
+  agg_result_type(&cached_result_type, args, 2);
+  cached_field_type= agg_field_type(args, 2);
   maybe_null=args[1]->maybe_null;
   decimals= MY_MAX(args[0]->decimals, args[1]->decimals);
   unsigned_flag= args[0]->unsigned_flag && args[1]->unsigned_flag;
 
-  if (hybrid_type == DECIMAL_RESULT || hybrid_type == INT_RESULT) 
+  if (cached_result_type == DECIMAL_RESULT || cached_result_type == INT_RESULT) 
   {
     int len0= args[0]->max_char_length() - args[0]->decimals
       - (args[0]->unsigned_flag ? 0 : 1);
@@ -2434,9 +2435,9 @@ Item_func_ifnull::fix_length_and_dec()
   else
     char_length= MY_MAX(args[0]->max_char_length(), args[1]->max_char_length());
 
-  switch (hybrid_type) {
+  switch (cached_result_type) {
   case STRING_RESULT:
-    if (agg_arg_charsets_for_comparison(collation, args, arg_count))
+    if (count_string_result_length(cached_field_type, args, arg_count))
       return;
     break;
   case DECIMAL_RESULT:
@@ -2451,7 +2452,6 @@ Item_func_ifnull::fix_length_and_dec()
     DBUG_ASSERT(0);
   }
   fix_char_length(char_length);
-  cached_field_type= agg_field_type(args, 2);
 }
 
 
@@ -2464,11 +2464,6 @@ uint Item_func_ifnull::decimal_precision() const
   return MY_MIN(precision, DECIMAL_MAX_PRECISION);
 }
 
-
-enum_field_types Item_func_ifnull::field_type() const 
-{
-  return cached_field_type;
-}
 
 Field *Item_func_ifnull::tmp_table_field(TABLE *table)
 {
@@ -2540,6 +2535,18 @@ Item_func_ifnull::str_op(String *str)
     return 0;
   res->set_charset(collation.collation);
   return res;
+}
+
+
+bool Item_func_ifnull::date_op(MYSQL_TIME *ltime, uint fuzzydate)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (!args[0]->get_date(ltime, fuzzydate & ~TIME_FUZZY_DATES))
+    return (null_value= false);
+  if (!args[1]->get_date(ltime, fuzzydate & ~TIME_FUZZY_DATES))
+    return (null_value= false);
+  bzero((char*) ltime,sizeof(*ltime));
+  return null_value= !(fuzzydate & TIME_FUZZY_DATES);
 }
 
 
@@ -2637,20 +2644,20 @@ Item_func_if::fix_length_and_dec()
   }
 
   agg_result_type(&cached_result_type, args + 1, 2);
+  cached_field_type= agg_field_type(args + 1, 2);
   maybe_null= args[1]->maybe_null || args[2]->maybe_null;
   decimals= MY_MAX(args[1]->decimals, args[2]->decimals);
   unsigned_flag=args[1]->unsigned_flag && args[2]->unsigned_flag;
 
   if (cached_result_type == STRING_RESULT)
   {
-    if (agg_arg_charsets_for_string_result(collation, args + 1, 2))
-      return;
+    count_string_result_length(cached_field_type, args + 1, 2);
+    return;
   }
   else
   {
     collation.set_numeric(); // Number
   }
-  cached_field_type= agg_field_type(args + 1, 2);
 
   uint32 char_length;
   if ((cached_result_type == DECIMAL_RESULT )
@@ -2680,7 +2687,7 @@ uint Item_func_if::decimal_precision() const
 
 
 double
-Item_func_if::val_real()
+Item_func_if::real_op()
 {
   DBUG_ASSERT(fixed == 1);
   Item *arg= args[0]->val_bool() ? args[1] : args[2];
@@ -2690,7 +2697,7 @@ Item_func_if::val_real()
 }
 
 longlong
-Item_func_if::val_int()
+Item_func_if::int_op()
 {
   DBUG_ASSERT(fixed == 1);
   Item *arg= args[0]->val_bool() ? args[1] : args[2];
@@ -2700,7 +2707,7 @@ Item_func_if::val_int()
 }
 
 String *
-Item_func_if::val_str(String *str)
+Item_func_if::str_op(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   Item *arg= args[0]->val_bool() ? args[1] : args[2];
@@ -2713,13 +2720,21 @@ Item_func_if::val_str(String *str)
 
 
 my_decimal *
-Item_func_if::val_decimal(my_decimal *decimal_value)
+Item_func_if::decimal_op(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
   Item *arg= args[0]->val_bool() ? args[1] : args[2];
   my_decimal *value= arg->val_decimal(decimal_value);
   null_value= arg->null_value;
   return value;
+}
+
+
+bool Item_func_if::date_op(MYSQL_TIME *ltime, uint fuzzydate)
+{
+  DBUG_ASSERT(fixed == 1);
+  Item *arg= args[0]->val_bool() ? args[1] : args[2];
+  return (null_value= arg->get_date(ltime, fuzzydate));
 }
 
 
@@ -2881,7 +2896,7 @@ Item *Item_func_case::find_item(String *str)
 }
 
 
-String *Item_func_case::val_str(String *str)
+String *Item_func_case::str_op(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   String *res;
@@ -2899,7 +2914,7 @@ String *Item_func_case::val_str(String *str)
 }
 
 
-longlong Item_func_case::val_int()
+longlong Item_func_case::int_op()
 {
   DBUG_ASSERT(fixed == 1);
   char buff[MAX_FIELD_WIDTH];
@@ -2917,7 +2932,7 @@ longlong Item_func_case::val_int()
   return res;
 }
 
-double Item_func_case::val_real()
+double Item_func_case::real_op()
 {
   DBUG_ASSERT(fixed == 1);
   char buff[MAX_FIELD_WIDTH];
@@ -2936,7 +2951,7 @@ double Item_func_case::val_real()
 }
 
 
-my_decimal *Item_func_case::val_decimal(my_decimal *decimal_value)
+my_decimal *Item_func_case::decimal_op(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
   char buff[MAX_FIELD_WIDTH];
@@ -2953,6 +2968,18 @@ my_decimal *Item_func_case::val_decimal(my_decimal *decimal_value)
   res= item->val_decimal(decimal_value);
   null_value= item->null_value;
   return res;
+}
+
+
+bool Item_func_case::date_op(MYSQL_TIME *ltime, uint fuzzydate)
+{
+  DBUG_ASSERT(fixed == 1);
+  char buff[MAX_FIELD_WIDTH];
+  String dummy_str(buff, sizeof(buff), default_charset());
+  Item *item= find_item(&dummy_str);
+  if (!item)
+    return (null_value= true);
+  return (null_value= item->get_date(ltime, fuzzydate));
 }
 
 
@@ -3023,7 +3050,10 @@ void Item_func_case::fix_length_and_dec()
 
   if (!(agg= (Item**) sql_alloc(sizeof(Item*)*(ncases+1))))
     return;
-  
+
+  if (else_expr_num == -1 || args[else_expr_num]->maybe_null)
+    maybe_null= 1;
+
   /*
     Aggregate all THEN and ELSE expression types
     and collations when string result
@@ -3036,9 +3066,11 @@ void Item_func_case::fix_length_and_dec()
     agg[nagg++]= args[else_expr_num];
   
   agg_result_type(&cached_result_type, agg, nagg);
+  cached_field_type= agg_field_type(agg, nagg);
+
   if (cached_result_type == STRING_RESULT)
   {
-    if (agg_arg_charsets_for_string_result(collation, agg, nagg))
+    if (count_string_result_length(cached_field_type, agg, nagg))
       return;
     /*
       Copy all THEN and ELSE items back to args[] array.
@@ -3051,11 +3083,22 @@ void Item_func_case::fix_length_and_dec()
       change_item_tree_if_needed(thd, &args[else_expr_num], agg[nagg++]);
   }
   else
+  {
     collation.set_numeric();
+    max_length=0;
+    decimals=0;
+    unsigned_flag= TRUE;
+    for (uint i= 0; i < ncases; i+= 2)
+      agg_num_lengths(args[i + 1]);
+    if (else_expr_num != -1) 
+      agg_num_lengths(args[else_expr_num]);
+    max_length= my_decimal_precision_to_length_no_truncation(max_length +
+                                                             decimals, decimals,
+                                               unsigned_flag);
+  }
   
-  cached_field_type= agg_field_type(agg, nagg);
   /*
-    Aggregate first expression and all THEN expression types
+    Aggregate first expression and all WHEN expression types
     and collations when string comparison
   */
   if (first_expr_num != -1)
@@ -3140,30 +3183,6 @@ void Item_func_case::fix_length_and_dec()
     for (i= 0; i < ncases; i+= 2)
       args[i]->cmp_context= item_cmp_type(left_result_type,
                                           args[i]->result_type());
-  }
-
-  if (else_expr_num == -1 || args[else_expr_num]->maybe_null)
-    maybe_null=1;
-  
-  max_length=0;
-  decimals=0;
-  unsigned_flag= TRUE;
-  if (cached_result_type == STRING_RESULT)
-  {
-    for (uint i= 0; i < ncases; i+= 2)
-      agg_str_lengths(args[i + 1]);
-    if (else_expr_num != -1)
-      agg_str_lengths(args[else_expr_num]);
-  }
-  else
-  {
-    for (uint i= 0; i < ncases; i+= 2)
-      agg_num_lengths(args[i + 1]);
-    if (else_expr_num != -1) 
-      agg_num_lengths(args[else_expr_num]);
-    max_length= my_decimal_precision_to_length_no_truncation(max_length +
-                                                             decimals, decimals,
-                                               unsigned_flag);
   }
 }
 
@@ -3272,18 +3291,18 @@ double Item_func_coalesce::real_op()
 }
 
 
-bool Item_func_coalesce::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+bool Item_func_coalesce::date_op(MYSQL_TIME *ltime,uint fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   null_value= 0;
   for (uint i= 0; i < arg_count; i++)
   {
-    bool res= args[i]->get_date(ltime, fuzzydate);
+    bool res= args[i]->get_date(ltime, fuzzydate & ~TIME_FUZZY_DATES);
     if (!args[i]->null_value)
       return res;
   }
-  null_value=1;
-  return 1;
+  bzero((char*) ltime,sizeof(*ltime));
+  return null_value|= !(fuzzydate & TIME_FUZZY_DATES);
 }
 
 
@@ -3305,21 +3324,11 @@ my_decimal *Item_func_coalesce::decimal_op(my_decimal *decimal_value)
 void Item_func_coalesce::fix_length_and_dec()
 {
   cached_field_type= agg_field_type(args, arg_count);
-  agg_result_type(&hybrid_type, args, arg_count);
-  Item_result cmp_type;
-  agg_cmp_type(&cmp_type, args, arg_count);
-  ///< @todo let result_type() return TIME_RESULT and remove this special case
-  if (cmp_type == TIME_RESULT)
-  {
-    count_real_length();
-    return;
-  }
-  switch (hybrid_type) {
+  agg_result_type(&cached_result_type, args, arg_count);
+  switch (cached_result_type) {
   case STRING_RESULT:
-    decimals= NOT_FIXED_DEC;
-    if (agg_arg_charsets_for_string_result(collation, args, arg_count))
-      return;
-    count_only_length();
+    if (count_string_result_length(cached_field_type, args, arg_count))
+      return;          
     break;
   case DECIMAL_RESULT:
     count_decimal_length();
@@ -3328,7 +3337,7 @@ void Item_func_coalesce::fix_length_and_dec()
     count_real_length();
     break;
   case INT_RESULT:
-    count_only_length();
+    count_only_length(args, arg_count);
     decimals= 0;
     break;
   case ROW_RESULT:
@@ -4341,12 +4350,32 @@ Item_cond::fix_fields(THD *thd, Item **ref)
       return TRUE; /* purecov: inspected */
     used_tables_cache|=     item->used_tables();
     if (item->const_item())
-      and_tables_cache= (table_map) 0;
+    {
+      if (!item->is_expensive() && !cond_has_datetime_is_null(item) && 
+          item->val_int() == 0)
+      {
+        /* 
+          This is "... OR false_cond OR ..." 
+          In this case, false_cond has no effect on cond_or->not_null_tables()
+        */
+      }
+      else
+      {
+        /* 
+          This is  "... OR const_cond OR ..."
+          In this case, cond_or->not_null_tables()=0, because the condition
+          const_cond might evaluate to true (regardless of whether some tables
+          were NULL-complemented).
+        */
+        and_tables_cache= (table_map) 0;
+      }
+    }
     else
     {
       table_map tmp_table_map= item->not_null_tables();
       not_null_tables_cache|= tmp_table_map;
       and_tables_cache&= tmp_table_map;
+
       const_item_cache= FALSE;
     } 
   
@@ -4374,7 +4403,26 @@ Item_cond::eval_not_null_tables(uchar *opt_arg)
   {
     table_map tmp_table_map;
     if (item->const_item())
-      and_tables_cache= (table_map) 0;
+    {
+      if (!item->is_expensive() && !cond_has_datetime_is_null(item) && 
+          item->val_int() == 0)
+      {
+        /* 
+          This is "... OR false_cond OR ..." 
+          In this case, false_cond has no effect on cond_or->not_null_tables()
+        */
+      }
+      else
+      {
+        /* 
+          This is  "... OR const_cond OR ..."
+          In this case, cond_or->not_null_tables()=0, because the condition
+          some_cond_or might be true regardless of what tables are 
+          NULL-complemented.
+        */
+        and_tables_cache= (table_map) 0;
+      }
+    }
     else
     {
       tmp_table_map= item->not_null_tables();
@@ -4752,6 +4800,8 @@ Item *and_expressions(Item *a, Item *b, Item **org_item)
 longlong Item_func_isnull::val_int()
 {
   DBUG_ASSERT(fixed == 1);
+  if (const_item() && !args[0]->maybe_null)
+    return 0;
   return args[0]->is_null() ? 1: 0;
 }
 
@@ -4759,6 +4809,8 @@ longlong Item_is_not_null_test::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   DBUG_ENTER("Item_is_not_null_test::val_int");
+  if (const_item() && !args[0]->maybe_null)
+    DBUG_RETURN(1);
   if (args[0]->is_null())
   {
     DBUG_PRINT("info", ("null"));
@@ -5041,23 +5093,13 @@ int Item_func_regex::regcomp(bool send_error)
 }
 
 
-bool
-Item_func_regex::fix_fields(THD *thd, Item **ref)
+void
+Item_func_regex::fix_length_and_dec()
 {
-  DBUG_ASSERT(fixed == 0);
-  if ((!args[0]->fixed &&
-       args[0]->fix_fields(thd, args)) || args[0]->check_cols(1) ||
-      (!args[1]->fixed &&
-       args[1]->fix_fields(thd, args + 1)) || args[1]->check_cols(1))
-    return TRUE;				/* purecov: inspected */
-  with_sum_func=args[0]->with_sum_func || args[1]->with_sum_func;
-  with_field= args[0]->with_field || args[1]->with_field;
-  with_subselect= args[0]->has_subquery() || args[1]->has_subquery();
-  max_length= 1;
-  decimals= 0;
+  Item_bool_func::fix_length_and_dec();
 
   if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
-    return TRUE;
+    return;
 
   regex_lib_flags= (cmp_collation.collation->state &
                     (MY_CS_BINSORT | MY_CS_CSSORT)) ?
@@ -5071,28 +5113,21 @@ Item_func_regex::fix_fields(THD *thd, Item **ref)
                      &my_charset_utf8_general_ci :
                      cmp_collation.collation;
 
-  used_tables_cache=args[0]->used_tables() | args[1]->used_tables();
-  not_null_tables_cache= (args[0]->not_null_tables() |
-			  args[1]->not_null_tables());
-  const_item_cache=args[0]->const_item() && args[1]->const_item();
   if (!regex_compiled && args[1]->const_item())
   {
     int comp_res= regcomp(TRUE);
     if (comp_res == -1)
     {						// Will always return NULL
       set_persist_maybe_null(1);
-      fixed= 1;
-      return FALSE;
+      return;
     }
     else if (comp_res)
-      return TRUE;
+      return; /* Error */
     regex_is_const= 1;
     maybe_null= args[0]->maybe_null;
   }
   else
     set_persist_maybe_null(1);
-  fixed= 1;
-  return FALSE;
 }
 
 
@@ -5768,10 +5803,12 @@ void Item_equal::merge(Item_equal *item)
   @brief
   Merge members of another Item_equal object into this one
   
-  @param item    multiple equality whose members are to be merged
+  @param item         multiple equality whose members are to be merged
+  @param save_merged  keep the list of equalities in 'item' intact
+                      (e.g. for other merges)
 
   @details
-  If the Item_equal 'item' happened to have some elements of the list
+  If the Item_equal 'item' happens to have some elements of the list
   of equal items belonging to 'this' object then the function merges
   the equal items from 'item' into this list.
   If both lists contains constants and they are different then
@@ -5786,24 +5823,45 @@ void Item_equal::merge(Item_equal *item)
   The method 'merge' just joins the list of equal items belonging to 'item'
   to the list of equal items belonging to this object assuming that the lists
   are disjoint. It would be more correct to call the method 'join'.
-  The method 'merge_with_check' really merges two lists of equal items if they
-  have common members.  
+  The method 'merge_into_with_check' really merges two lists of equal items if
+  they have common members.  
 */
   
-bool Item_equal::merge_with_check(Item_equal *item)
+bool Item_equal::merge_with_check(Item_equal *item, bool save_merged)
 {
   bool intersected= FALSE;
-  Item_equal_fields_iterator_slow fi(*this);
+  Item_equal_fields_iterator_slow fi(*item);
+  
   while (fi++)
   {
-    if (item->contains(fi.get_curr_field()))
+    if (contains(fi.get_curr_field()))
     {
-      fi.remove();
       intersected= TRUE;
+      if (!save_merged)
+        fi.remove();
     }
   }
   if (intersected)
-    item->merge(this);
+  {
+    if (!save_merged)
+      merge(item);
+    else
+    {
+      Item *c= item->get_const();
+      if (c)
+        add_const(c);
+      if (!cond_false)
+      {
+        Item *item;
+        fi.rewind();
+        while ((item= fi++))
+	{
+          if (!contains(fi.get_curr_field()))
+            add(item);
+        }
+      }
+    }         
+  }
   return intersected;
 }
 
@@ -5812,17 +5870,25 @@ bool Item_equal::merge_with_check(Item_equal *item)
   @brief
   Merge this object into a list of Item_equal objects 
   
-  @param list   the list of Item_equal objects to merge into
+  @param list                 the list of Item_equal objects to merge into
+  @param save_merged          keep the list of equalities in 'this' intact
+                              (e.g. for other merges)
+  @param only_intersected     do not merge if there are no common members
+                              in any of Item_equal objects from the list
+                              and this Item_equal
 
   @details
   If the list of equal items from 'this' object contains common members
   with the lists of equal items belonging to Item_equal objects from 'list'
   then all involved Item_equal objects e1,...,ek are merged into one 
-  Item equal that replaces e1,...,ek in the 'list'. Otherwise this
+  Item equal that replaces e1,...,ek in the 'list'. Otherwise, in the case
+  when the value of the parameter only_if_intersected is false, this
   Item_equal is joined to the 'list'.
 */
 
-void Item_equal::merge_into_list(List<Item_equal> *list)
+void Item_equal::merge_into_list(List<Item_equal> *list,
+                                 bool save_merged,
+                                 bool only_intersected)
 {
   Item_equal *item;
   List_iterator<Item_equal> it(*list);
@@ -5831,16 +5897,16 @@ void Item_equal::merge_into_list(List<Item_equal> *list)
   {
     if (!merge_into)
     {
-      if (merge_with_check(item))
+      if (item->merge_with_check(this, save_merged))
         merge_into= item;
     }
     else
     {
-      if (item->merge_with_check(merge_into))
+      if (merge_into->merge_with_check(item, false))
         it.remove();
     }
   }
-  if (!merge_into)
+  if (!only_intersected && !merge_into)
     list->push_back(this);
 }
 
@@ -6326,7 +6392,7 @@ longlong Item_func_dyncol_exists::val_int()
   /* We do not change the string, so could do this trick */
   col.str= (char *)str->ptr();
   rc= ((name == NULL) ?
-       mariadb_dyncol_exists(&col, (uint) num) :
+       mariadb_dyncol_exists_num(&col, (uint) num) :
        mariadb_dyncol_exists_named(&col, name));
   if (rc < 0)
   {

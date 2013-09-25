@@ -78,7 +78,9 @@ XMLDEF::XMLDEF(void)
   DefNs = NULL;
   Attrib = NULL;
   Hdattr = NULL;
+  Coltype = 1;
   Limit = 0;
+  Header = 0;
   Xpand = false;
   Usedom = false;
   } // end of XMLDEF constructor
@@ -338,17 +340,14 @@ PCOL TDBXML::InsertSpecialColumn(PGLOBAL g, PCOL colp)
 /***********************************************************************/
 /*  LoadTableFile: Load and parse an XML file.                         */
 /***********************************************************************/
-int TDBXML::LoadTableFile(PGLOBAL g)
+int TDBXML::LoadTableFile(PGLOBAL g, char *filename)
   {
-  char    filename[_MAX_PATH];
   int     rc = RC_OK, type = (Usedom) ? TYPE_FB_XML : TYPE_FB_XML2;
   PFBLOCK fp = NULL;
   PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
 
-  /*********************************************************************/
-  /*  We used the file name relative to recorded datapath.             */
-  /*********************************************************************/
-  PlugSetPath(filename, Xfile, GetPath());
+  if (Docp)
+    return rc;               // Already done
 
   if (trace)
     htrc("TDBXML: loading %s\n", filename);
@@ -397,6 +396,7 @@ int TDBXML::LoadTableFile(PGLOBAL g)
       } else
         rc = (errno == ENOENT) ? RC_NF : RC_INFO;
 
+      // Cannot make a Xblock until document is made
       return rc;
       } // endif Docp
 
@@ -418,9 +418,8 @@ int TDBXML::LoadTableFile(PGLOBAL g)
 /***********************************************************************/
 bool TDBXML::Initialize(PGLOBAL g)
   {
-  char       tabpath[64];
-  int        rc;
-  PXMLCOL   colp;
+  int     rc;
+  PXMLCOL colp;
 
   if (Void)
     return false;
@@ -440,8 +439,13 @@ bool TDBXML::Initialize(PGLOBAL g)
 #else
   if (!Root) {
 #endif
+    char tabpath[64], filename[_MAX_PATH];
+
+    //  We used the file name relative to recorded datapath
+    PlugSetPath(filename, Xfile, GetPath());
+
     // Load or re-use the table file
-    rc = LoadTableFile(g);
+    rc = LoadTableFile(g, filename);
 
     if (rc == RC_OK) {
       // Get root node
@@ -502,6 +506,9 @@ bool TDBXML::Initialize(PGLOBAL g)
           strcpy(g->Message, MSG(NEW_DOC_FAILED));
           goto error;
           } // endif NewDoc
+
+        //  Now we can link the Xblock
+        To_Xb = Docp->LinkXblock(g, Mode, rc, filename);
 
         // Add a CONNECT comment node
 //      sprintf(buf, MSG(CREATED_PLUGDB), version);
@@ -893,12 +900,21 @@ int TDBXML::DeleteDB(PGLOBAL g, int irc)
       if ((RowNode = Nlist->GetItem(g, Irow, RowNode)) == NULL) {
         sprintf(g->Message, MSG(MISSING_ROWNODE), Irow);
         return RC_FX;
-      } else
+      } else {
         TabNode->DeleteChild(g, RowNode);
+
+        if (Nlist->DropItem(g, Irow))
+          return RC_FX;
+
+      } // endif RowNode
 
     Changed = true;
   } else if (irc != RC_EF) {
     TabNode->DeleteChild(g, RowNode);
+
+    if (Nlist->DropItem(g, Irow))
+      return RC_FX;
+
     Changed = true;
   } // endif's irc
 

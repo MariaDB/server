@@ -429,7 +429,8 @@ enum legacy_db_type
   DB_TYPE_PBXT=23,
   DB_TYPE_PERFORMANCE_SCHEMA=28,
   DB_TYPE_ARIA=42,
-  DB_TYPE_FIRST_DYNAMIC=43,
+  DB_TYPE_TOKUDB=43,
+  DB_TYPE_FIRST_DYNAMIC=44,
   DB_TYPE_DEFAULT=127 // Must be last
 };
 /*
@@ -886,8 +887,8 @@ enum ha_option_type { HA_OPTION_TYPE_ULL,    /* unsigned long long */
   HA_xOPTION_STRING(name, ha_index_option_struct, field)
 #define HA_IOPTION_ENUM(name, field, values, def)                    \
   HA_xOPTION_ENUM(name, ha_index_option_struct, field, values, def)
-#define HA_IOPTION_BOOL(name, field, values, def)                    \
-  HA_xOPTION_BOOL(name, ha_index_option_struct, field, values, def)
+#define HA_IOPTION_BOOL(name, field, def)                            \
+  HA_xOPTION_BOOL(name, ha_index_option_struct, field, def)
 #define HA_IOPTION_SYSVAR(name, field, sysvar)                       \
   HA_xOPTION_SYSVAR(name, ha_index_option_struct, field, sysvar)
 #define HA_IOPTION_END HA_xOPTION_END
@@ -1366,6 +1367,7 @@ static inline sys_var *find_hton_sysvar(handlerton *hton, st_mysql_sys_var *var)
   Schema which have no meaning for replication.
 */
 #define HTON_NO_BINLOG_ROW_OPT       (1 << 9)
+#define HTON_EXTENDED_KEYS           (1 <<10) //supports extended keys
 
 class Ha_trx_info;
 
@@ -2547,6 +2549,16 @@ public:
   }
   /* This is called after index_init() if we need to do a index scan */
   virtual int prepare_index_scan() { return 0; }
+  virtual int prepare_index_key_scan_map(const uchar * key, key_part_map keypart_map)
+  {
+    uint key_len= calculate_key_len(table, active_index, key, keypart_map);
+    return  prepare_index_key_scan(key, key_len);
+  }
+  virtual int prepare_index_key_scan( const uchar * key, uint key_len )
+  { return 0; }
+  virtual int prepare_range_scan(const key_range *start_key, const key_range *end_key)
+  { return 0; }
+
   int ha_rnd_init(bool scan) __attribute__ ((warn_unused_result))
   {
     DBUG_EXECUTE_IF("ha_rnd_init_fail", return HA_ERR_TABLE_DEF_CHANGED;);

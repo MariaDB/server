@@ -46,7 +46,7 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report);
 bool change_master(THD* thd, Master_info* mi, bool *master_info_added);
 bool mysql_show_binlog_events(THD* thd);
 int reset_slave(THD *thd, Master_info* mi);
-int reset_master(THD* thd);
+int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len);
 bool purge_master_logs(THD* thd, const char* to_log);
 bool purge_master_logs_before_date(THD* thd, time_t purge_time);
 bool log_in_use(const char* log_name);

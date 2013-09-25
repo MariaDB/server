@@ -78,7 +78,7 @@ String my_empty_string("",default_charset_info);
   Normally conversion does not happen, and val_str_ascii() is immediately
   returned instead.
 */
-String *Item_str_func::val_str_from_val_str_ascii(String *str, String *str2)
+String *Item_func::val_str_from_val_str_ascii(String *str, String *str2)
 {
   DBUG_ASSERT(fixed == 1);
 
@@ -4220,11 +4220,11 @@ String *Item_func_dyncol_create::val_str(String *str)
     if ((rc= ((names || force_names) ?
               mariadb_dyncol_create_many_named(&col, column_count, keys_str,
                                                vals, TRUE) :
-              mariadb_dyncol_create_many(&col, column_count, keys_num,
-                                         vals, TRUE))))
+              mariadb_dyncol_create_many_num(&col, column_count, keys_num,
+                                             vals, TRUE))))
     {
       dynamic_column_error_message(rc);
-      dynamic_column_column_free(&col);
+      mariadb_dyncol_free(&col);
       res= NULL;
       null_value= TRUE;
     }
@@ -4363,11 +4363,11 @@ String *Item_func_dyncol_add::val_str(String *str)
   if ((rc= ((names || force_names) ?
             mariadb_dyncol_update_many_named(&col, column_count,
                                              keys_str, vals) :
-            mariadb_dyncol_update_many(&col, column_count,
-                                       keys_num, vals))))
+            mariadb_dyncol_update_many_num(&col, column_count,
+                                           keys_num, vals))))
   {
     dynamic_column_error_message(rc);
-    dynamic_column_column_free(&col);
+    mariadb_dyncol_free(&col);
     goto null;
   }
 
@@ -4470,7 +4470,7 @@ bool Item_dyncol_get::get_dyn_value(DYNAMIC_COLUMN_VALUE *val, String *tmp)
   dyn_str.str=   (char*) res->ptr();
   dyn_str.length= res->length();
   if ((rc= ((name == NULL) ?
-            mariadb_dyncol_get(&dyn_str, (uint) num, val) :
+            mariadb_dyncol_get_num(&dyn_str, (uint) num, val) :
             mariadb_dyncol_get_named(&dyn_str, name, val))))
   {
     dynamic_column_error_message(rc);
