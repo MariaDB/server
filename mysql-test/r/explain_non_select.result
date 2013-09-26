@@ -127,3 +127,14 @@ explain replace into t1 select * from t0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	8	
 drop table t0, t1;
+#
+# MDEV-5067: Valgrind warnings (Invalid read) in QPF_table_access::print_explain
+#
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (7),(0),(9);
+SELECT * FROM t1 INNER JOIN ( SELECT DISTINCT * FROM t1 ) AS sq ON (sq.i = t1.i);
+i	i
+7	7
+0	0
+9	9
+DROP TABLE t1;
