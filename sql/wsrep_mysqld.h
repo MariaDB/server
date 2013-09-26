@@ -93,6 +93,7 @@ extern long        wsrep_max_protocol_version;
 extern long        wsrep_protocol_version;
 extern ulong       wsrep_forced_binlog_format;
 extern ulong       wsrep_OSU_method_options;
+extern my_bool     wsrep_desync;
 extern my_bool     wsrep_recovery;
 extern my_bool     wsrep_replicate_myisam;
 extern my_bool     wsrep_log_conflicts;
@@ -172,6 +173,9 @@ extern bool wsrep_sst_donor_update           UPDATE_ARGS;
 
 extern bool wsrep_slave_threads_check        CHECK_ARGS;
 extern bool wsrep_slave_threads_update       UPDATE_ARGS;
+
+extern bool wsrep_desync_check               CHECK_ARGS;
+extern bool wsrep_desync_update              UPDATE_ARGS;
 
 extern bool  wsrep_before_SE(); // initialize wsrep before storage
                                 // engines (true) or after (false)
@@ -349,6 +353,7 @@ extern long      wsrep_max_ws_rows;
 extern int       wsrep_to_isolation;
 extern my_bool wsrep_certify_nonPK;
 extern mysql_mutex_t LOCK_wsrep_slave_threads;
+extern mysql_mutex_t LOCK_wsrep_desync;
 
 extern PSI_mutex_key key_LOCK_wsrep_ready;
 extern PSI_mutex_key key_COND_wsrep_ready;
@@ -363,6 +368,7 @@ extern PSI_cond_key  key_COND_wsrep_rollback;
 extern PSI_mutex_key key_LOCK_wsrep_replaying;
 extern PSI_cond_key  key_COND_wsrep_replaying;
 extern PSI_mutex_key key_LOCK_wsrep_slave_threads;
+extern PSI_mutex_key key_LOCK_wsrep_desync;
 
 struct TABLE_LIST;
 int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,

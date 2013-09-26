@@ -331,9 +331,17 @@ wsrep_run_wsrep_commit(
   }
   if (WSREP_UNDEFINED_TRX_ID == thd->wsrep_trx_handle.trx_id)
   {
-    WSREP_WARN("SQL statement was ineffective: %s\n => Skipping replication", thd->query());
-  } 
-  else if (!rcode) 
+    WSREP_WARN("SQL statement was ineffective, THD: %lu, buf: %d\n"
+	       "QUERY: %s\n"
+	       " => Skipping replication", 
+	       thd->thread_id, data_len, thd->query());
+    if (wsrep_debug)
+    {
+      wsrep_write_rbr_buf(thd, rbr_data, data_len);
+    }
+    rcode = WSREP_TRX_FAIL;
+  }
+  else if (!rcode)
   {
     rcode = wsrep->pre_commit(
                               wsrep,
@@ -343,13 +351,14 @@ wsrep_run_wsrep_commit(
                               data_len,
                               (thd->wsrep_PA_safe) ? WSREP_FLAG_PA_SAFE : 0ULL,
                               &thd->wsrep_trx_seqno);
-    if (rcode == WSREP_TRX_MISSING) {
+    switch (rcode) {
+    case WSREP_TRX_MISSING:
       WSREP_WARN("Transaction missing in provider, thd: %ld, SQL: %s",
                  thd->thread_id, thd->query());
       wsrep_write_rbr_buf(thd, rbr_data, data_len);
-
       rcode = WSREP_OK;
-    } else if (rcode == WSREP_BF_ABORT) {
+      break;
+    case  WSREP_BF_ABORT:
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       thd->wsrep_conflict_state = MUST_REPLAY;
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
@@ -358,8 +367,11 @@ wsrep_run_wsrep_commit(
       WSREP_DEBUG("replaying increased: %d, thd: %lu",
                   wsrep_replaying, thd->thread_id);
       mysql_mutex_unlock(&LOCK_wsrep_replaying);
+      break;
+    default:
+      thd->wsrep_seqno_changed = true;
+      break;
     }
-    thd->wsrep_seqno_changed = true;
   } else {
     WSREP_ERROR("I/O error reading from thd's binlog iocache: "
                 "errno=%d, io cache code=%d", my_errno, cache->error);

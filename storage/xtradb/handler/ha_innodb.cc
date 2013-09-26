@@ -8268,8 +8268,10 @@ wsrep_append_foreign_key(
 		UT_LIST_GET_FIRST(foreign->foreign_table->indexes);
 	int i = 0;
 	while (idx != NULL && idx != idx_target) {
+		if (innobase_strcasecmp (idx->name, innobase_index_reserve_name) != 0) {
+			i++;
+		}
 		idx = UT_LIST_GET_NEXT(indexes, idx);
-		i++;
 	}
 	ut_a(idx);
 	key[0] = (char)i;
