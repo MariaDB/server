@@ -25,7 +25,7 @@
 
 #include "thr_malloc.h"                         /* sql_calloc */
 #include "item_func.h"             /* Item_int_func, Item_bool_func */
-#include "my_regex.h"
+#include <pcre.h>                 /* pcre header file */
 
 extern Item_result item_cmp_type(Item_result a,Item_result b);
 class Item_bool_func2;
@@ -1484,23 +1484,101 @@ public:
 };
 
 
+class Regexp_processor_pcre
+{
+  pcre *m_pcre;
+  bool m_conversion_is_needed;
+  bool m_is_const;
+  int m_library_flags;
+  CHARSET_INFO *m_data_charset;
+  CHARSET_INFO *m_library_charset;
+  String m_prev_pattern;
+  int m_pcre_exec_rc;
+  int m_SubStrVec[30];
+  uint m_subpatterns_needed;
+public:
+  String *convert_if_needed(String *src, String *converter);
+  String subject_converter;
+  String pattern_converter;
+  String replace_converter;
+  Regexp_processor_pcre() :
+    m_pcre(NULL), m_conversion_is_needed(true), m_is_const(0),
+    m_library_flags(0),
+    m_data_charset(&my_charset_utf8_general_ci),
+    m_library_charset(&my_charset_utf8_general_ci),
+    m_subpatterns_needed(0)
+  {}
+  void init(CHARSET_INFO *data_charset, int extra_flags, uint nsubpatterns)
+  {
+    m_library_flags= PCRE_UCP | extra_flags |
+                    (data_charset != &my_charset_bin ? PCRE_UTF8 : 0) |
+                    ((data_charset->state &
+                     (MY_CS_BINSORT | MY_CS_CSSORT)) ? 0 : PCRE_CASELESS);
+
+    // Convert text data to utf-8.
+    m_library_charset= data_charset == &my_charset_bin ?
+                       &my_charset_bin : &my_charset_utf8_general_ci;
+
+    m_conversion_is_needed= (data_charset != &my_charset_bin) &&
+                            !my_charset_same(data_charset, m_library_charset);
+    m_subpatterns_needed= nsubpatterns;
+  }
+  void fix_owner(Item_func *owner, Item *subject_arg, Item *pattern_arg);
+  bool compile(String *pattern, bool send_error);
+  bool compile(Item *item, bool send_error);
+  bool recompile(Item *item)
+  {
+    return !m_is_const && compile(item, false);
+  }
+  bool exec(const char *str, int length, int offset);
+  bool exec(String *str, int offset, uint n_result_offsets_to_convert);
+  bool exec(Item *item, int offset, uint n_result_offsets_to_convert);
+  bool match() const { return m_pcre_exec_rc < 0 ? 0 : 1; }
+  int nsubpatterns() const { return m_pcre_exec_rc <= 0 ? 0 : m_pcre_exec_rc; }
+  int subpattern_start(int n) const
+  {
+    return m_pcre_exec_rc <= 0 ? 0 : m_SubStrVec[n * 2];
+  }
+  int subpattern_end(int n) const
+  {
+    return m_pcre_exec_rc <= 0 ? 0 : m_SubStrVec[n * 2 + 1];
+  }
+  int subpattern_length(int n) const
+  {
+    return subpattern_end(n) - subpattern_start(n);
+  }
+  void cleanup()
+  {
+    if (m_pcre)
+    {
+      pcre_free(m_pcre);
+      m_pcre= NULL;
+    }
+    m_prev_pattern.length(0);
+  }
+  bool is_compiled() const { return m_pcre != NULL; }
+  bool is_const() const { return m_is_const; }
+  void set_const(bool arg) { m_is_const= arg; }
+  CHARSET_INFO * library_charset() const { return m_library_charset; }
+};
+
+
 class Item_func_regex :public Item_bool_func
 {
-  my_regex_t preg;
-  bool regex_compiled;
-  bool regex_is_const;
-  String prev_regexp;
+  Regexp_processor_pcre re;
   DTCollation cmp_collation;
-  CHARSET_INFO *regex_lib_charset;
-  int regex_lib_flags;
-  String conv;
-  int regcomp(bool send_error);
 public:
-  Item_func_regex(Item *a,Item *b) :Item_bool_func(a,b),
-    regex_compiled(0),regex_is_const(0) {}
-  void cleanup();
+  Item_func_regex(Item *a,Item *b) :Item_bool_func(a,b)
+  {}
+  void cleanup()
+  {
+    DBUG_ENTER("Item_func_regex::cleanup");
+    Item_bool_func::cleanup();
+    re.cleanup();
+    DBUG_VOID_RETURN;
+  }
   longlong val_int();
-  bool fix_fields(THD *thd, Item **ref);
+  void fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
 
   virtual inline void print(String *str, enum_query_type query_type)
@@ -1509,6 +1587,26 @@ public:
   }
 
   CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
+};
+
+
+class Item_func_regexp_instr :public Item_int_func
+{
+  Regexp_processor_pcre re;
+  DTCollation cmp_collation;
+public:
+  Item_func_regexp_instr(Item *a, Item *b) :Item_int_func(a, b)
+  {}
+  void cleanup()
+  {
+    DBUG_ENTER("Item_func_regexp_instr::cleanup");
+    Item_int_func::cleanup();
+    re.cleanup();
+    DBUG_VOID_RETURN;
+  }
+  longlong val_int();
+  void fix_length_and_dec();
+  const char *func_name() const { return "regexp_instr"; }
 };
 
 

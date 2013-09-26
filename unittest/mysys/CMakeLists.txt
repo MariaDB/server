@@ -14,7 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
-                    ${CMAKE_SOURCE_DIR}/regex
+                    ${CMAKE_SOURCE_DIR}/pcre
                     ${CMAKE_SOURCE_DIR}/extra/yassl/include)
 
 MY_ADD_TESTS(bitmap base64 my_vsnprintf my_atomic my_rdtsc lf my_malloc

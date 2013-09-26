@@ -1898,7 +1898,7 @@ void clean_up(bool print_message)
   delete global_rpl_filter;
   end_ssl();
   vio_end();
-  my_regex_end();
+  //my_regex_end();
 #if defined(ENABLED_DEBUG_SYNC)
   /* End the debug sync facility. See debug_sync.cc. */
   debug_sync_end();
@@ -3904,10 +3904,10 @@ static int init_common_variables()
     return 1;
   item_init();
 #ifndef EMBEDDED_LIBRARY
-  my_regex_init(&my_charset_latin1, check_enough_stack_size);
+  //my_regex_init(&my_charset_latin1, check_enough_stack_size);
   my_string_stack_guard= check_enough_stack_size;
 #else
-  my_regex_init(&my_charset_latin1, NULL);
+  //my_regex_init(&my_charset_latin1, NULL);
 #endif
   /*
     Process a comma-separated character set list and choose

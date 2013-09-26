@@ -195,6 +195,49 @@ public:
 };
 
 
+class Item_func_regexp_replace :public Item_str_func
+{
+  Regexp_processor_pcre re;
+  bool append_replacement(String *str,
+                          const LEX_CSTRING *source,
+                          const LEX_CSTRING *replace);
+public:
+  Item_func_regexp_replace(Item *a, Item *b, Item *c) 
+    :Item_str_func(a, b, c)
+    {}
+  void cleanup()
+  {
+    DBUG_ENTER("Item_func_regex::cleanup");
+    Item_str_func::cleanup();
+    re.cleanup();
+    DBUG_VOID_RETURN;
+  }
+  String *val_str(String *str);
+  void fix_length_and_dec();
+  const char *func_name() const { return "regexp_replace"; }
+};
+
+
+class Item_func_regexp_substr :public Item_str_func
+{
+  Regexp_processor_pcre re;
+public:
+  Item_func_regexp_substr(Item *a, Item *b) 
+    :Item_str_func(a, b)
+    {}
+  void cleanup()
+  {
+    DBUG_ENTER("Item_func_regex::cleanup");
+    Item_str_func::cleanup();
+    re.cleanup();
+    DBUG_VOID_RETURN;
+  }
+  String *val_str(String *str);
+  void fix_length_and_dec();
+  const char *func_name() const { return "regexp_substr"; }
+};
+
+
 class Item_func_insert :public Item_str_func
 {
   String tmp_value;
