@@ -22599,8 +22599,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
 
       QPF_table_access *qpt= new (output->mem_root) QPF_table_access;
       qp_sel->add_table(qpt);
-      qpt->key.key_name= NULL;
-      qpt->key.key_len= (uint)-1;
+      qpt->key.set(thd->mem_root, NULL, (uint)-1);
       qpt->quick_info= NULL;
       
       /* id */
@@ -22694,13 +22693,12 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
       if (tab->select && tab->select->quick && tab_type != JT_CONST)
       {
         qpt->quick_info= new QPF_quick_select;
-        tab->select->quick->save_info(qpt->quick_info);
+        tab->select->quick->save_info(thd->mem_root, qpt->quick_info);
       }
 
       if (key_info) /* 'index' or 'ref' access */
       {
-        qpt->key.key_name= key_info->name;
-        qpt->key.key_len=  key_len;
+        qpt->key.set(thd->mem_root, key_info->name, key_len);
 
         if (tab->ref.key_parts && tab_type != JT_FT)
 	{
@@ -22723,8 +22721,9 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   
       if (tab_type == JT_HASH_NEXT) /* full index scan + hash join */
       {
-        qpt->hash_next_key.key_name= table->key_info[tab->index].name;
-        qpt->hash_next_key.key_len=  table->key_info[tab->index].key_length;
+        qpt->hash_next_key.set(thd->mem_root, 
+                               table->key_info[tab->index].name, 
+                               table->key_info[tab->index].key_length);
       }
 
       if (key_info)
@@ -22763,14 +22762,8 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
             key_name_buf.append(tmp_buff, strlen(tmp_buff), cs);
           }
 
-          size_t len;
-          if ((len= key_name_buf.length()))
-          {
-            char *ptr= (char*)thd->alloc(len+1);
-            memcpy(ptr, key_name_buf.c_ptr_safe(), len+1);
-            qpt->key.key_name= ptr;
-            qpt->key.key_len= -1;
-          }
+          if (key_name_buf.length())
+            qpt->key.set(thd->mem_root, key_name_buf.c_ptr_safe(), -1);
         }
 	qpt->ref_set= false;
       }

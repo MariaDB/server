@@ -310,10 +310,26 @@ typedef struct st_qpf_bka_type
 */
 class QPF_index_use : public Sql_alloc
 {
-public:
-  const char *key_name;
+  char *key_name;
   uint key_len;
   /* will add #keyparts here if we implement EXPLAIN FORMAT=JSON */
+public:
+
+  void set(MEM_ROOT *root, const char *key_name_arg, uint key_len_arg)
+  {
+    if (key_name_arg)
+    {
+      size_t name_len= strlen(key_name_arg);
+      if ((key_name= (char*)alloc_root(root, name_len+1)))
+        memcpy(key_name, key_name_arg, name_len+1);
+    }
+    else
+      key_name= NULL;
+    key_len= key_len_arg;
+  }
+
+  inline const char *get_key_name() { return key_name; }
+  inline uint get_key_len() { return key_len; }
 };
 
 

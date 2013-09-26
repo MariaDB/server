@@ -385,12 +385,12 @@ int QPF_table_access::print_explain(select_result_sink *output, uint8 explain_fl
 
   /* `key` */
   StringBuffer<64> key_str;
-  if (key.key_name)
+  if (key.get_key_name())
   {
     if (is_hj)
       key_str.append(hash_key_prefix, strlen(hash_key_prefix), cs);
 
-    key_str.append(key.key_name);
+    key_str.append(key.get_key_name());
 
     if (is_hj && type != JT_HASH)
       key_str.append(':');
@@ -403,7 +403,7 @@ int QPF_table_access::print_explain(select_result_sink *output, uint8 explain_fl
     key_str.append(buf2);
   }
   if (type == JT_HASH_NEXT)
-    key_str.append(hash_next_key.key_name);
+    key_str.append(hash_next_key.get_key_name());
   
   if (key_str.length() > 0)
     push_string(&item_list, &key_str);
@@ -413,11 +413,11 @@ int QPF_table_access::print_explain(select_result_sink *output, uint8 explain_fl
   /* `key_len` */
   StringBuffer<64> key_len_str;
 
-  if (key.key_len != (uint)-1)
+  if (key.get_key_len() != (uint)-1)
   {
     char buf[64];
     size_t length;
-    length= longlong10_to_str(key.key_len, buf, 10) - buf;
+    length= longlong10_to_str(key.get_key_len(), buf, 10) - buf;
     key_len_str.append(buf, length);
     if (is_hj && type != JT_HASH)
       key_len_str.append(':');
@@ -434,7 +434,7 @@ int QPF_table_access::print_explain(select_result_sink *output, uint8 explain_fl
   {
     char buf[64];
     size_t length;
-    length= longlong10_to_str(hash_next_key.key_len, buf, 10) - buf;
+    length= longlong10_to_str(hash_next_key.get_key_len(), buf, 10) - buf;
     key_len_str.append(buf, length);
   }
 
@@ -642,7 +642,7 @@ void QPF_quick_select::print_extra_recursive(String *str)
   if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
       quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC)
   {
-    str->append(range.key_name);
+    str->append(range.get_key_name());
   }
   else
   {
@@ -695,7 +695,7 @@ void QPF_quick_select::print_key(String *str)
   {
     if (str->length() > 0)
       str->append(',');
-    str->append(range.key_name);
+    str->append(range.get_key_name());
   }
   else
   {
@@ -721,7 +721,7 @@ void QPF_quick_select::print_key_len(String *str)
   {
     char buf[64];
     size_t length;
-    length= longlong10_to_str(range.key_len, buf, 10) - buf;
+    length= longlong10_to_str(range.get_key_len(), buf, 10) - buf;
     if (str->length() > 0)
       str->append(',');
     str->append(buf, length);
