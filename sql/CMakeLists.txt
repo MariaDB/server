@@ -25,7 +25,6 @@ ${CMAKE_BINARY_DIR}/sql
 SET(GEN_SOURCES
 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h 
 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
 ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h 
 )
 
@@ -92,6 +91,7 @@ SET (SQL_SOURCE
                my_apc.cc my_apc.h
                rpl_gtid.cc
                table_cache.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 			   )
