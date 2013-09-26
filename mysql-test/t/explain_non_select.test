@@ -106,4 +106,12 @@ explain replace into t1 select * from t0;
 
 drop table t0, t1;
 
+--echo #
+--echo # MDEV-5067: Valgrind warnings (Invalid read) in QPF_table_access::print_explain
+--echo #
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (7),(0),(9);
 
+SELECT * FROM t1 INNER JOIN ( SELECT DISTINCT * FROM t1 ) AS sq ON (sq.i = t1.i);
+
+DROP TABLE t1;
