@@ -16,7 +16,7 @@
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}
                     ${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/sql
-                    ${CMAKE_SOURCE_DIR}/regex
+                    ${CMAKE_SOURCE_DIR}/pcre
                     ${CMAKE_SOURCE_DIR}/extra/yassl/include)
 
 ADD_DEFINITIONS(-DMYSQL_SERVER)

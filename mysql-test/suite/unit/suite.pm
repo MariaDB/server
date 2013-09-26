@@ -10,14 +10,23 @@ sub list_cases {
 
 sub start_test {
   my ($self, $tinfo)= @_;
-  my $args=[ ];
+  my $args;
+  my $path;
+  my $cmd = $self->{ctests}->{$tinfo->{shortname}};
+
+  if ($cmd =~ /[ "'><%!*?]/) {
+    ($path, $args) = ('/bin/sh', [ '-c', $cmd ])
+  } else {
+    ($path, $args) = ($cmd, , [ ])
+  }
+
 
   my $oldpwd=getcwd();
   chdir $::opt_vardir;
   my $proc=My::SafeProcess->new
            (
             name          => $tinfo->{shortname},
-            path          => $self->{ctests}->{$tinfo->{shortname}},
+            path          => $path,
             args          => \$args,
             append        => 1,
             output        => $::path_current_testlog,
