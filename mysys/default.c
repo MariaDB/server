@@ -111,15 +111,9 @@ static my_bool find_wsrep_new_cluster (int* argc, char* argv[])
     {
       ret= TRUE;
       *argc -= 1;
-      if (*argc == i)
-      { // last argument, just zero it up
-        argv[i]= NULL;
-      }
-      else
-      { // not the last argument, copy the last one over and zero that up.
-        argv[i]= argv[*argc];
-        argv[*argc]= NULL;
-      }
+      /* preserve the order of remaining arguments */
+      memmove(&argv[i], &argv[i + 1], (*argc - i)*sizeof(argv[i]));
+      argv[*argc]= NULL;
     }
   }
 

@@ -947,9 +947,6 @@ have_sleep=1
 # maximum number of wsrep restarts
 max_wsrep_restarts=0
 
-# maximum number of wsrep restarts
-max_wsrep_restarts=0
-
 while true
 do
   rm -f "$pid_file"	# Some extra safety

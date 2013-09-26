@@ -67,6 +67,15 @@ check_pid_and_port()
 MAGIC_FILE="$WSREP_SST_OPT_DATA/rsync_sst_complete"
 rm -rf "$MAGIC_FILE"
 
+SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd -P)
+WSREP_LOG_DIR=${WSREP_LOG_DIR:-$($SCRIPT_DIR/my_print_defaults --defaults-file "$WSREP_SST_OPT_CONF" mysqld server mysqld-5.5 \
+	| grep -- '--innodb[-_]log[-_]group[-_]home[-_]dir=' | cut -b 29- )}
+if [ -n "${WSREP_LOG_DIR:-""}" ]; then
+    WSREP_LOG_DIR=$(cd $WSREP_SST_OPT_DATA; mkdir -p "$WSREP_LOG_DIR"; cd $WSREP_LOG_DIR; pwd -P)
+else
+    WSREP_LOG_DIR=$(cd $WSREP_SST_OPT_DATA; pwd -P)
+fi
+
 # Old filter - include everything except selected
 # FILTER=(--exclude '*.err' --exclude '*.pid' --exclude '*.sock' \
 #         --exclude '*.conf' --exclude core --exclude 'galera.*' \
@@ -74,9 +83,8 @@ rm -rf "$MAGIC_FILE"
 #         --exclude '*.[0-9][0-9][0-9][0-9][0-9][0-9]' --exclude '*.index')
 
 # New filter - exclude everything except dirs (schemas) and innodb files
-FILTER=(-f '- lost+found' -f '+ /ib_lru_dump' -f '+ /ibdata*' -f '+ /ib_logfile*' -f '+ */' -f '-! */*')
-# Old versions of rsync have a bug transferring filter rules to daemon, so specify filter rules directly to daemon
-FILTER_DAEMON="- lost+found  + /ib_lru_dump  + /ibdata*  + ib_logfile*  + */  -! */*"
+FILTER=(-f '- /lost+found' -f '- /.fseventsd' -f '- /.Trashes'
+        -f '+ /ib_lru_dump' -f '+ /ibdata*' -f '+ /*/' -f '- /*')
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
@@ -107,54 +115,58 @@ then
 
         # first, the normal directories, so that we can detect incompatible protocol
         RC=0
-        rsync --archive --no-times --ignore-times --inplace --delete --quiet \
-              --no-recursive --dirs \
+        rsync --owner --group --perms --links --specials \
+              --ignore-times --inplace --dirs --delete --quiet \
               $WHOLE_FILE_OPT "${FILTER[@]}" "$WSREP_SST_OPT_DATA/" \
-              rsync://$WSREP_SST_OPT_ADDR-with_filter || RC=$?
+              rsync://$WSREP_SST_OPT_ADDR >&2 || RC=$?
 
-        [ $RC -ne 0 ] && wsrep_log_error "rsync returned code $RC:"
+        if [ "$RC" -ne 0 ]; then
+            wsrep_log_error "rsync returned code $RC:"
 
-        case $RC in
-        0)  RC=0   # Success
-            ;;
-        12) RC=71  # EPROTO
-            wsrep_log_error \
-                 "rsync server on the other end has incompatible protocol. " \
-                 "Make sure you have the same version of rsync on all nodes."
-            ;;
-        22) RC=12  # ENOMEM
-            ;;
-        *)  RC=255 # unknown error
-            ;;
-        esac
+            case $RC in
+            12) RC=71  # EPROTO
+                wsrep_log_error \
+                "rsync server on the other end has incompatible protocol. " \
+                "Make sure you have the same version of rsync on all nodes."
+                ;;
+            22) RC=12  # ENOMEM
+                ;;
+            *)  RC=255 # unknown error
+                ;;
+            esac
+            exit $RC
+        fi
 
-        [ $RC -ne 0 ] && exit $RC
+        # second, we transfer InnoDB log files
+        rsync --owner --group --perms --links --specials \
+              --ignore-times --inplace --dirs --delete --quiet \
+              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' -f '- **' "$WSREP_LOG_DIR/" \
+              rsync://$WSREP_SST_OPT_ADDR-log_dir >&2 || RC=$?
+
+        if [ $RC -ne 0 ]; then
+            wsrep_log_error "rsync innodb_log_group_home_dir returned code $RC:"
+            exit 255 # unknown error
+        fi
 
         # then, we parallelize the transfer of database directories, use . so that pathconcatenation works
-        pushd "$WSREP_SST_OPT_DATA" 1>/dev/null
+        pushd "$WSREP_SST_OPT_DATA" >/dev/null
 
         count=1
         [ "$OS" == "Linux" ] && count=$(grep -c processor /proc/cpuinfo)
         [ "$OS" == "Darwin" -o "$OS" == "FreeBSD" ] && count=$(sysctl -n hw.ncpu)
 
         find . -maxdepth 1 -mindepth 1 -type d -print0 | xargs -I{} -0 -P $count \
-           rsync --archive --no-times --ignore-times --inplace --delete --quiet \
-              $WHOLE_FILE_OPT "$WSREP_SST_OPT_DATA"/{}/ \
-              rsync://$WSREP_SST_OPT_ADDR/{} || RC=$?
+             rsync --owner --group --perms --links --specials \
+             --ignore-times --inplace --recursive --delete --quiet \
+	     $WHOLE_FILE_OPT --exclude '*/ib_logfile*' "$WSREP_SST_OPT_DATA"/{}/ \
+             rsync://$WSREP_SST_OPT_ADDR/{} >&2 || RC=$?
 
-        popd 1>/dev/null
+        popd >/dev/null
 
-        [ $RC -ne 0 ] && wsrep_log_error "find/rsync returned code $RC:"
-
-        case $RC in
-        0)  RC=0   # Success
-            ;;
-        *)  RC=255 # unknown error
-            ;;
-        esac
-
-        [ $RC -ne 0 ] && exit $RC
-
+        if [ $RC -ne 0 ]; then
+            wsrep_log_error "find/rsync returned code $RC:"
+            exit 255 # unknown error
+        fi
 
     else # BYPASS
         wsrep_log_info "Bypassing state dump."
@@ -203,19 +215,14 @@ then
 cat << EOF > "$RSYNC_CONF"
 pid file = $RSYNC_PID
 use chroot = no
-[$MODULE-with_filter]
-    path = $WSREP_SST_OPT_DATA
-    read only = no
-    timeout = 300
-    uid = $MYUID
-    gid = $MYGID
-    filter = $FILTER_DAEMON
+read only = no
+timeout = 300
+uid = $MYUID
+gid = $MYGID
 [$MODULE]
     path = $WSREP_SST_OPT_DATA
-    read only = no
-    timeout = 300
-    uid = $MYUID
-    gid = $MYGID
+[$MODULE-log_dir]
+    path = $WSREP_LOG_DIR
 EOF
 
 #    rm -rf "$DATA"/ib_logfile* # we don't want old logs around
