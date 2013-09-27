@@ -25,6 +25,7 @@
 
 #include "thr_malloc.h"                         /* sql_calloc */
 #include "item_func.h"             /* Item_int_func, Item_bool_func */
+#define PCRE_STATIC 1             /* Important on Windows */
 #include <pcre.h>                 /* pcre header file */
 
 extern Item_result item_cmp_type(Item_result a,Item_result b);
