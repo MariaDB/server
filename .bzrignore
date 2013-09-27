@@ -1148,6 +1148,7 @@ packaging/solaris/postinstall-solaris
 extra/jemalloc/jemalloc-*
 extra/jemalloc/build
 *.tdb
+pcre/config.h
 pcre/CTestCustom.ctest
 pcre/pcre_grep_test.sh
 pcre/pcre_scanner_unittest
