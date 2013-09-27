@@ -11,8 +11,6 @@ Vcs-Browser: http://bazaar.launchpad.net/~maria-captains/maria/5.5/files
 Vcs-Bzr: bzr://lp:maria
 
 Package: mariadb-galera-server-5.5
-Conflicts: mariadb-server-5.5 (<< 5.5.33), mariadb-galera-server-5.5 (<< 5.5.33),
-           mariadb-server-5.1, mariadb-server-5.2, mariadb-server-5.3
 Architecture: any
 Suggests: tinyca, mailx, mariadb-test
 Recommends: libhtml-template-perl
