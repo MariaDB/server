@@ -36,8 +36,7 @@ ENDIF(UNIX)
 
 MYSQL_ADD_EXECUTABLE(mysqltest mysqltest.cc COMPONENT Test)
 SET_SOURCE_FILES_PROPERTIES(mysqltest.cc PROPERTIES COMPILE_FLAGS "-DTHREADS")
-TARGET_LINK_LIBRARIES(mysqltest mysqlclient pcre)
-TARGET_LINK_LIBRARIES(mysqltest mysqlclient pcreposix)
+TARGET_LINK_LIBRARIES(mysqltest mysqlclient pcre pcreposix)
 SET_TARGET_PROPERTIES(mysqltest PROPERTIES ENABLE_EXPORTS TRUE)
 
 
