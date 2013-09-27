@@ -151,6 +151,13 @@ The following options may be given as the first argument:
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
+ --dynamic-pushdown-cost-ratio=# 
+ The ratio (in %) by which a new placement of the
+ predicate in the planmust improve the plan cost in order
+ to trigger dynamic pushdown.
+ --dynamic-pushdown-max-evals=# 
+ The number of times a dynamic condition must be evaluated
+ in order to trigger dynamic pushdown
  --engine-condition-pushdown 
  Push supported query conditions to the storage engine.
  Deprecated, use --optimizer-switch instead.
@@ -519,8 +526,9 @@ The following options may be given as the first argument:
  outer_join_with_cache, partial_match_rowid_merge,
  partial_match_table_scan, semijoin, semijoin_with_cache,
  subquery_cache, table_elimination, extended_keys,
- exists_to_in, expensive_pred_static_pushdown} and val is
- one of {on, off, default}
+ exists_to_in, expensive_pred_static_pushdown,
+ expensive_pred_dynamic_pushdown} and val is one of {on,
+ off, default}
  --optimizer-use-condition-selectivity=# 
  Controls selectivity of which conditions the optimizer
  takes into account to calculate cardinality of a partial
@@ -953,6 +961,8 @@ delayed-insert-limit 100
 delayed-insert-timeout 300
 delayed-queue-size 1000
 div-precision-increment 4
+dynamic-pushdown-cost-ratio 25
+dynamic-pushdown-max-evals 100
 engine-condition-pushdown FALSE
 event-scheduler OFF
 expensive-subquery-limit 100

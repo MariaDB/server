@@ -583,7 +583,7 @@ class Item {
     cur_join_tab_idx is used during join optimization to determine the best
     position where to push an expression.
   */
-  int join_tab_idx, cur_join_tab_idx;
+  int join_tab_idx;
 
 public:
   static void *operator new(size_t size) throw ()
@@ -1486,6 +1486,17 @@ public:
     Perhaps this cost should be smaller or 0.
   */
   virtual double get_cost() { return (1 / (double)TIME_FOR_COMPARE); }
+  /* The default execution-time cost of an Item is its compile-time cost. */
+  virtual double exec_cost() { return get_cost(); }
+
+
+  /**
+    Return true if this Item must be wrapped in a dynamic condition.
+  */
+  bool needs_dynamic_cond()
+  {
+    return (with_subselect && !const_item() && is_expensive());
+  }
 
   virtual Field::geometry_type get_geometry_type() const
     { return Field::GEOM_GEOMETRY; };
@@ -1531,11 +1542,6 @@ public:
       join_tab_idx= join_tab_idx_arg;
   }
   virtual int get_join_tab_idx() { return join_tab_idx; }
-  virtual void set_cur_join_tab_idx(int join_tab_idx_arg)
-  {
-    cur_join_tab_idx= join_tab_idx_arg;
-  }
-  virtual int get_cur_join_tab_idx() { return cur_join_tab_idx; }
 
   table_map view_used_tables(TABLE_LIST *view)
   {
@@ -4481,5 +4487,9 @@ public:
   }
   void close() {}
 };
+
+#ifndef DBUG_OFF
+const char *dbug_print_item(Item *item);
+#endif /*DBUG_OFF*/
 
 #endif /* SQL_ITEM_INCLUDED */

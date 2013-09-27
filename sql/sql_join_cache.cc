@@ -2080,6 +2080,7 @@ enum_nested_loop_state JOIN_CACHE::join_records(bool skip_last)
   if (outer_join_first_inner && !join_tab->first_unmatched)
     join_tab->not_null_compl= TRUE;   
 
+  *(join->cur_exec_tab)= join_tab;
   if (!join_tab->first_unmatched)
   {
     /* Find all records from join_tab that match records from join buffer */

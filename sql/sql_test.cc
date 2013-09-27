@@ -365,7 +365,11 @@ print_plan(JOIN* join, uint idx, double record_count, double read_time,
       pos= join->best_positions[i];
       table= pos.table->table;
       if (table)
+      {
         fputs(table->s->table_name.str, DBUG_FILE);
+        fprintf(DBUG_FILE, "(records_read: %.2f, read_time: %.2f)",
+                pos.records_read, pos.read_time);
+      }
       fputc(' ', DBUG_FILE);
     }
   }
@@ -377,10 +381,11 @@ print_plan(JOIN* join, uint idx, double record_count, double read_time,
   {
     join_table= (*plan_nodes);
     fputs(join_table->table->s->table_name.str, DBUG_FILE);
-    fprintf(DBUG_FILE, "(%lu,%lu,%lu)",
-            (ulong) join_table->found_records,
-            (ulong) join_table->records,
-            (ulong) join_table->read_time);
+    fprintf(DBUG_FILE, "(found_records: %llu, records_read: %llu, records: %llu, read_time: %.2f)",
+            (ulonglong) join_table->found_records,
+            (ulonglong) join_table->records_read,
+            (ulonglong) join_table->records,
+                        join_table->read_time);
     fputc(' ', DBUG_FILE);
   }
   fputc('\n', DBUG_FILE);

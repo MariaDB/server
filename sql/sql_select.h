@@ -307,6 +307,12 @@ typedef struct st_join_table {
     
   double        partial_join_cardinality;
 
+  /* Execution-time counters of actual cardinality and selectivity. */
+  /* The cardinality of the partial join represented by this JOIN_TAB. */
+  double exec_partial_join_records;
+  /* Estimate of the fanout of this join based on execution-time counters. */
+  double exec_fanout;
+
   table_map	dependent,key_dependent;
   /*
      1 - use quick select
@@ -385,6 +391,12 @@ typedef struct st_join_table {
      NULL - Not doing a loose scan on this join tab.
   */
   struct st_join_table *loosescan_match_tab;
+
+  /*
+    The JOIN_TAB after this one with the least partial join cardinality.
+    Valid only after the join optimization phase.
+  */
+  st_join_table *least_card_tab;
   
   /* TRUE <=> we are inside LooseScan range */
   bool inside_loosescan_range;
@@ -1273,6 +1285,10 @@ public:
   TABLE *table_reexec[1];                       // make_simple_join()
   JOIN_TAB *join_tab_reexec;                    // make_simple_join()
   /* end of allocation caching storage */
+  /*
+    The index of the current partial join being processed during query execution.
+  */
+  JOIN_TAB **cur_exec_tab;
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
@@ -1284,7 +1300,7 @@ public:
   void init(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
   {
-    join_tab= join_tab_save= 0;
+    join_tab= join_tab_save= table_access_tabs= 0;
     table= 0;
     table_count= 0;
     top_join_tab_count= 0;
@@ -1362,6 +1378,7 @@ public:
       query plan was produced
     */
     table_access_tabs= NULL; 
+    cur_exec_tab= NULL;
   }
 
   /*
@@ -1493,7 +1510,8 @@ public:
 
   /* defined in opt_subselect.cc */
   bool transform_max_min_subquery();
-  double static_condition_pushdown(Item *cond, uint idx);
+  double static_pushdown_cost(Item *cond, uint idx);
+  bool setup_dynamic_conditions();
   /* True if this JOIN is a subquery under an IN predicate. */
   bool is_in_subquery()
   {

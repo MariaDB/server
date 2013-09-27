@@ -1837,6 +1837,7 @@ export const char *optimizer_switch_names[]=
   "extended_keys",
   "exists_to_in",
   "expensive_pred_static_pushdown",
+  "expensive_pred_dynamic_pushdown",
   "default", NullS
 };
 /** propagates changes to @@engine_condition_pushdown */
@@ -1879,8 +1880,9 @@ static Sys_var_flagset Sys_optimizer_switch(
         "subquery_cache, "
         "table_elimination, "
         "extended_keys, "
-       "exists_to_in, "
-       "expensive_pred_static_pushdown"
+        "exists_to_in, "
+        "expensive_pred_static_pushdown, "
+        "expensive_pred_dynamic_pushdown"
        "} and val is one of {on, off, default}",
        SESSION_VAR(optimizer_switch), CMD_LINE(REQUIRED_ARG),
        optimizer_switch_names, DEFAULT(OPTIMIZER_SWITCH_DEFAULT),
@@ -4245,6 +4247,36 @@ static Sys_var_harows Sys_expensive_subquery_limit(
        "executed during optimization and used for constant optimization",
        SESSION_VAR(expensive_subquery_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, HA_POS_ERROR), DEFAULT(100), BLOCK_SIZE(1));
+
+static Sys_var_harows Sys_dynamic_pushdown_max_evals(
+       "dynamic_pushdown_max_evals",
+       "The number of times a dynamic condition must be evaluated in "
+       "order to trigger dynamic pushdown",
+       SESSION_VAR(dynamic_pushdown_max_evals), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, HA_POS_ERROR), DEFAULT(100), BLOCK_SIZE(1));
+
+static Sys_var_uint Sys_dynamic_pushdown_cost_ratio(
+       "dynamic_pushdown_cost_ratio",
+       "The ratio (in %) by which a new placement of the predicate in the plan"
+       "must improve the plan cost in order to trigger dynamic pushdown.",
+       SESSION_VAR(dynamic_pushdown_cost_ratio), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 100), DEFAULT(25), BLOCK_SIZE(1));
+
+static Sys_var_uint Sys_dynamic_pushdown_sampling_probability(
+       "dynamic_pushdown_sampling_probability",
+       "The probability (in %) with which to evaluate this condition in order"
+       "to estimate its selectivity.",
+       SESSION_VAR(dynamic_pushdown_sampling_probability), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 100), DEFAULT(3), BLOCK_SIZE(1));
+
+static Sys_var_uint Sys_dynamic_pushdown_max_selectivity(
+       "dynamic_pushdown_max_selectivity",
+       "If a predicate's selectivity is below this limit, it is considered"
+       "sufficiently selective to re-filter all records in a partial blocked join."
+       "The selectivity itself is estimated by sampling the predicate with"
+       "probability 'dynamic_pushdown_sampling_probability'.",
+       SESSION_VAR(dynamic_pushdown_max_selectivity), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 100), DEFAULT(25), BLOCK_SIZE(1));
 
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 {

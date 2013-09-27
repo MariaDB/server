@@ -508,6 +508,10 @@ typedef struct system_variables
   ulong optimizer_search_depth;
   ulong optimizer_selectivity_sampling_limit;
   ulong optimizer_use_condition_selectivity;
+  ha_rows dynamic_pushdown_max_evals;
+  uint dynamic_pushdown_cost_ratio;
+  uint dynamic_pushdown_sampling_probability;
+  uint dynamic_pushdown_max_selectivity;
   ulong use_stat_tables;
   ulong histogram_size;
   ulong histogram_type;

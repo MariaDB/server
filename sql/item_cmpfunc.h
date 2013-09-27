@@ -126,6 +126,12 @@ public:
   bool is_bool_func() { return 1; }
   void fix_length_and_dec() { decimals=0; max_length=1; }
   uint decimal_precision() const { return 1; }
+  /*
+    The execution logic must guarantee that these methods are called only
+    for classes that provide real implementations. In this way we can use
+    polymorphism without implementing the methods for all subclasses.
+  */
+  virtual double exec_selectivity() { DBUG_ASSERT(FALSE); return 0; }
 };
 
 
@@ -499,6 +505,130 @@ public:
     const_item_cache= false;
     used_tables_cache|= OUTER_REF_TABLE_BIT;
   }
+};
+
+
+/**
+  Item wrapper that collects execution-time statistics about its child Item.
+
+  This class can be used only during execution.
+*/
+
+class Item_func_collect_stats : public Item_bool_func
+{
+protected:
+  double count_true;  /* The number of times the predicate was true. */
+  double count_evals; /* The number of times the predicate was evaluated. */
+public:
+  Item_func_collect_stats(Item *cond)
+    : Item_bool_func(cond), count_true(0), count_evals(0)
+  {
+    DBUG_ASSERT(cond && cond->fixed);
+    /*
+      It doesn't make sense to wrap an item that is already capable of
+      collecting execution-time statistitcs.
+    */
+    DBUG_ASSERT(cond->type() != Item::FUNC_ITEM ||
+                (((Item_func*)cond)->functype() != Item_func::EXEC_STATS_FUNC &&
+                 ((Item_func*)cond)->functype() != Item_func::DYNAMIC_COND_FUNC));
+    fixed= true;
+  }
+  enum Functype functype() const { return EXEC_STATS_FUNC; };
+  const char *func_name() const { return "exec_stats"; };
+  bool const_item() const { return FALSE; }
+  longlong val_int()
+  {
+    longlong res= args[0]->val_int();
+    ++count_evals;
+    if (res)
+      ++count_true;
+    return res;
+  }
+  virtual double exec_selectivity();
+  virtual double exec_cost();
+
+#ifndef DBUG_OFF
+  void dbug_print_stats();
+#endif
+};
+
+
+/**
+  A wrapper class that allows to change dynamically (during execution) the
+  JOIN_TAB that a condition is attached to.
+*/
+
+class Item_func_dynamic_cond : public Item_func_collect_stats
+{
+protected:
+  List<Item_subselect> subqueries;
+  /* The join_tab where the condition is currently 'pushed'.*/
+  st_join_table *active_tab;
+  /* The join_tab currently being executed. */
+  st_join_table **exec_tab;
+  /* The boundaries of the sub-plan where this predicate can be pushed. */
+  st_join_table *first_tab, *last_tab;
+  /*
+    The relative access cost based on optimizer estimates. This is the cost
+    of all access methods per one record from the first table in the plan.
+  */
+  double rel_access_cost;
+  /*
+    The number of times a dynamic condition must be evaluated in
+    order to trigger dynamic pushdown". Cached copy of system variable
+    dynamic_pushdown_max_evals.
+  */
+  ha_rows max_evals;
+  /*
+    The ratio by which a new placement of the predicate in the plan
+    must improve the plan cost in order to trigger dynamic pushdown.
+    Derived from system variable dynamic_pushdown_cost_ratio.
+  */
+  double cost_ratio;
+  /*
+    The probability with which to evaluate this condition in order to
+    estimate its selectivity.
+  */
+  double sampling_probability;
+  /*
+    If this predicate's selectivity is below this limit, it is considered
+    sufficiently selective to re-filter all records in a partial join.
+    The selectivity itself is estimated by sampling the predicate with
+    'sampling_probability'.
+  */
+  double max_selectivity;
+  /*
+    Random number generator state.
+    @todo Consider making it static.
+  */
+  struct my_rnd_struct rand;
+  /*
+    The result of the last evaluation, -1 denotes an invalid result which
+    requires a re-evaluation. This member is needed because the same Item
+    may be evaluated more than once for the same partial join record due to:
+    - sampling - then the item is "active" both for the left-most pushdown
+      join_tab, and for the "active" join_tab.
+    - moving the item to a later join_tab.
+  */
+  longlong last_res;
+ 
+protected:
+  bool is_active()
+  {
+    DBUG_ASSERT(*exec_tab);
+    return (active_tab == *exec_tab);
+  }
+public:
+  Item_func_dynamic_cond(Item *cond, st_join_table *atab, st_join_table **ctab);
+  longlong val_int();
+  enum Functype functype() const { return DYNAMIC_COND_FUNC; };
+  const char *func_name() const { return "dyncond"; };
+  bool walk(Item_processor processor, bool walk_subquery, uchar *argument);
+  virtual double exec_selectivity();
+  virtual double exec_cost();
+  void choose_best_join_tab();
+
+  virtual void print(String *str, enum_query_type query_type);
 };
 
 
@@ -1687,6 +1817,7 @@ public:
   Item *compile(Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);
   bool eval_not_null_tables(uchar *opt_arg);
+  virtual double exec_cost();
 };
 
 template <template<class> class LI, class T> class Item_equal_iterator;
@@ -2002,6 +2133,9 @@ public:
 
 inline bool is_cond_and(Item *item)
 {
+  if (!item)
+    return FALSE;
+
   if (item->type() != Item::COND_ITEM)
     return FALSE;
 

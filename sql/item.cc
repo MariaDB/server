@@ -467,7 +467,7 @@ Item::Item():
   with_subselect= 0;
   cmp_context= IMPOSSIBLE_RESULT;
    /* Initially this item is not attached to any JOIN_TAB. */
-  join_tab_idx= cur_join_tab_idx= -1;
+  join_tab_idx= -1;
 
   /* Put item in free list so that we can free all items at end */
   THD *thd= current_thd;
@@ -497,7 +497,6 @@ Item::Item():
 */
 Item::Item(THD *thd, Item *item):
   join_tab_idx(item->join_tab_idx),
-  cur_join_tab_idx(item->cur_join_tab_idx),
   is_expensive_cache(-1),
   rsize(0),
   str_value(item->str_value),
@@ -624,7 +623,7 @@ void Item::cleanup()
   DBUG_PRINT("enter", ("this: %p", this));
   fixed=0;
   marker= 0;
-  join_tab_idx= cur_join_tab_idx= -1;
+  join_tab_idx= -1;
   if (orig_name)
     name= orig_name;
   DBUG_VOID_RETURN;

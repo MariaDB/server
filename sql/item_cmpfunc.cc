@@ -4705,6 +4705,17 @@ void Item_cond::neg_arguments(THD *thd)
 }
 
 
+double Item_cond::exec_cost()
+{
+  List_iterator_fast<Item> li(list);
+  Item *item;
+  double cost= 0;
+  while ((item= li++))
+    cost+= item->exec_cost();
+  return cost;
+}
+
+
 void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
 {
   List_iterator<Item> li(list);
@@ -6488,4 +6499,296 @@ longlong Item_func_dyncol_exists::val_int()
 null:
   null_value= TRUE;
   return 0;
+}
+
+
+double Item_func_collect_stats::exec_cost()
+{
+  return args[0]->exec_cost();
+}
+
+
+double Item_func_collect_stats::exec_selectivity()
+{
+  return count_evals ? count_true / count_evals : 0;
+}
+
+
+#ifndef DBUG_OFF
+void Item_func_collect_stats::dbug_print_stats()
+{
+  char buff[1024];
+  String str(buff,(uint32) sizeof(buff), system_charset_info);
+  str.length(0);
+  str.extra_allocation(1024);
+  print(&str, QT_ORDINARY);
+
+  (void) fprintf(DBUG_FILE, "    sel: %2.2f, cond_evals: %f, cond_true: %f (",
+                 exec_selectivity(), count_evals, count_true);
+  (void) fputs(str.c_ptr_safe(),DBUG_FILE);
+  (void) fprintf(DBUG_FILE, ")\n");
+
+  if (is_cond_and(args[0]))
+  {
+    List_iterator<Item> and_parts_it(*((Item_cond*) args[0])->argument_list());
+    Item *and_part;
+    (void) fprintf(DBUG_FILE, "  Individual conjunct selectivity: {\n");
+    while ((and_part= and_parts_it++))
+    {
+      if (and_part->type() == Item::FUNC_ITEM &&
+          (((Item_func*)and_part)->functype() == Item_func::DYNAMIC_COND_FUNC ||
+           ((Item_func*)and_part)->functype() == Item_func::EXEC_STATS_FUNC))
+      {
+        Item_func_collect_stats *stat_cond= (Item_func_collect_stats*) and_part;
+        stat_cond->dbug_print_stats();
+      }
+    }
+    (void) fprintf(DBUG_FILE, "}\n");
+  }
+}
+#endif /*DBUG_OFF*/
+
+
+Item_func_dynamic_cond::Item_func_dynamic_cond(Item *cond, JOIN_TAB *atab, JOIN_TAB **ctab)
+  : Item_func_collect_stats(cond)
+{
+  JOIN *join= atab->join;
+  JOIN_TAB *cur_tab;
+  THD *thd= atab->table->in_use;
+
+  active_tab= atab;
+  exec_tab= ctab;
+  max_evals= thd->variables.dynamic_pushdown_max_evals;
+  cost_ratio= (double) thd->variables.dynamic_pushdown_cost_ratio / 100.0;
+  sampling_probability= (double) thd->variables.dynamic_pushdown_sampling_probability / 100.0;
+  max_selectivity= (double) thd->variables.dynamic_pushdown_max_selectivity / 100.0;
+
+  /* Collect the set of all subqueries referenced inside 'cond'. */
+  cond->walk(&Item::collect_item_subselect_processor, 0,
+             (uchar*) &subqueries);
+
+  /* Find the boundaries between which the predicate can be moved. */
+  if (active_tab->bush_root_tab)
+  {
+    first_tab= active_tab->bush_root_tab->bush_children->start;
+    last_tab= active_tab->bush_root_tab->bush_children->end;
+  }
+  else
+  {
+    first_tab= join->join_tab + join->const_tables;
+    last_tab= join->join_tab + join->top_join_tab_count;
+  }
+
+  DBUG_ASSERT(active_tab >= first_tab && active_tab < last_tab);
+
+  /* Precompute some cost information that is static at execution time. */
+  first_tab->exec_fanout= 1;
+  for (cur_tab= first_tab; cur_tab < last_tab; cur_tab++)
+    rel_access_cost+= cur_tab->read_time;
+  rel_access_cost/= first_tab->records_read;
+
+  /* Copied from Item_func_rand::seed_random, what are the right args? */
+  my_rnd_init(&rand, (uint32) (0x10001L+55555555L),
+              (uint32) (0x10000001L));
+  last_res= -1;
+}
+
+
+longlong Item_func_dynamic_cond::val_int()
+{
+  longlong res= 1;
+  THD *thd= active_tab->join->thd;
+
+  DBUG_ASSERT(active_tab >= first_tab && active_tab < last_tab);
+  DBUG_ASSERT(!(*exec_tab) || (active_tab->join == (*exec_tab)->join));
+  DBUG_ASSERT(!(*exec_tab) || (*exec_tab >= first_tab && *exec_tab < last_tab));
+
+  if (is_active())
+  {
+    /*
+      If the active tab is the same as the first tab, this method must
+      re-evaluate on each call (that is, not use the cached last_res).
+    */
+    DBUG_ASSERT(*exec_tab > first_tab || last_res == -1);
+    /*
+      If this dynamic condition is attached to the JOIN_TAB currently being
+      executed, evaluate the wrapper condition.
+    */
+    if (last_res == -1)
+    {
+      last_res= Item_func_collect_stats::val_int();
+      /* Choose the best JOIN_TAB where to attach this dynamic condition. */
+      if (optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_DYNAMIC_PUSHDOWN) &&
+          ((ulonglong) count_evals % max_evals == 0))
+        choose_best_join_tab();
+    }
+    res= last_res;
+    last_res= -1;
+  }
+  else if (optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_DYNAMIC_PUSHDOWN) &&
+           (*exec_tab == first_tab) && my_rnd(&rand) <= sampling_probability)
+  {
+    /*
+      If dynamic pushdown is used, evaluate the condition to collect statistics
+      about its selectivity. The result is returned so it can be used to
+      filter join records during sampling.
+    */
+    DBUG_ASSERT(last_res == -1);
+    res= last_res= Item_func_collect_stats::val_int();
+  }
+  return res;
+}
+
+
+/**
+*/
+
+bool Item_func_dynamic_cond::walk(Item_processor processor, bool walk_subquery,
+                                  uchar *argument)
+{
+  return is_active() ?
+         Item_func::walk(processor, walk_subquery, argument) : false;
+}
+
+
+/**
+  Compute the execution-time selectivity of the condition based on counters.
+*/
+
+double Item_func_dynamic_cond::exec_selectivity()
+{
+  return is_active() ? Item_func_collect_stats::exec_selectivity() : 1;
+}
+
+
+/**
+  Compute the total cost of all subqueries wrapped in this dynamic condition.
+
+  @todo
+  Currently the method returns the compile-time cost. It should instead
+  recompute the cost in the same way as choose_best_join_tab() using execution
+  time statistics.
+*/
+
+double Item_func_dynamic_cond::exec_cost()
+{
+  if (is_active())
+  {
+    double cost= 0;
+    Item_subselect *subs;
+    List_iterator_fast<Item_subselect> subs_it(subqueries);
+    while ((subs= subs_it++))
+      cost+= subs->get_cost();
+    return cost;
+  }
+  else
+    return 0;
+}
+
+
+/**
+  Choose the JOIN_TAB in the query plan, where to attach this condition so that
+  that the total plan cost is minimal.
+*/
+
+void Item_func_dynamic_cond::choose_best_join_tab()
+{
+  JOIN_TAB *cur_tab, *best_tab;
+
+  /* The current JOI_TAB where this dynamic cond is attached. */
+  JOIN_TAB *active_tab_save= active_tab;
+  /* The JOIN_TAB that is being executed. */
+  JOIN_TAB *exec_tab_save= *exec_tab;
+  double join_fanout;
+  double cond_cost;
+  double cond_sel;
+  double rel_plan_cost;
+  double best_plan_cost= DBL_MAX;
+
+  /*
+    Update the execution-time approximations of partial join fanouts.
+
+    TODO: this is very inexact approach, because even if there is a fanout
+    estimate for join_tab J_i, it will be incomparable to the estimate of the
+    previous join tabs if not all rows of J_[i-1] were joined with J_i.
+  */
+  first_tab->exec_fanout= first_tab->exec_partial_join_records ?
+                          /* use the execution-time counter */
+                          first_tab->exec_partial_join_records :
+                          /* use the optimize-time estimate */
+                          first_tab->records_read;
+  for (cur_tab= first_tab + 1; cur_tab < last_tab; cur_tab++)
+  {
+    /*
+      If an execution time counter is present, use it, otherwise use the
+      optimize-time estimate.
+    */
+    if (cur_tab->exec_partial_join_records)
+      cur_tab->exec_fanout= cur_tab->exec_partial_join_records /
+                            (cur_tab-1)->exec_partial_join_records;
+    else
+      cur_tab->exec_fanout= cur_tab->records_read;
+  }
+
+  /*
+    Compute the cost of each alternative plan where this dynamic condition is
+    pushed to each possible JOIN_TAB. Currently we only consider moving the
+    condition later in the join plan, that is, to any JOIN_TAB after active_tab.
+
+    This condition is 'moved' from one JOIN_TAB to the next by looping through
+    all possible 'active_tab' values, starting from the current one.
+  */
+  for (active_tab= active_tab_save; active_tab < last_tab; active_tab++)
+  {
+    rel_plan_cost= 0;
+
+    /* Recompute the plan cost for the current active_tab. */
+    for (cur_tab= first_tab; cur_tab < last_tab; cur_tab++)
+    {
+      Item_func_collect_stats *pushed_cond;
+      cond_cost= 0;
+      cond_sel= 0;
+      join_fanout= cur_tab->exec_fanout;
+
+      /*
+        Set the current execution tab. This affects all dynamic conditions of
+        the current JOIN.
+      */
+      *exec_tab= cur_tab;
+
+      if (cur_tab->select_cond)
+      {
+        /*
+          If a top-level AND condition contains an expensive non-constant
+          subquery, each of the AND terms is wrapped in an item that collectes
+          execution statistics.
+        */
+        DBUG_ASSERT(cur_tab->select_cond->type() == Item::FUNC_ITEM &&
+                    (((Item_func*)cur_tab->select_cond)->functype() == Item_func::DYNAMIC_COND_FUNC ||
+                     ((Item_func*)cur_tab->select_cond)->functype() == Item_func::EXEC_STATS_FUNC));
+
+        pushed_cond= (Item_func_collect_stats*) cur_tab->select_cond;
+        cond_cost+= pushed_cond->exec_cost();
+        cond_sel*=  pushed_cond->exec_selectivity();
+      }
+        
+      rel_plan_cost+= rel_access_cost + join_fanout * cond_sel * cond_cost;
+    }
+
+    if (rel_plan_cost / best_plan_cost < cost_ratio)
+    {
+      best_plan_cost= rel_plan_cost;
+      best_tab= active_tab;
+    }
+  }
+
+  active_tab= best_tab;
+  *exec_tab= exec_tab_save;
+}
+
+
+void Item_func_dynamic_cond::print(String *str, enum_query_type query_type)
+{
+  if (is_active())
+    Item_bool_func::print(str, query_type);
 }

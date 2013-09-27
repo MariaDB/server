@@ -673,6 +673,26 @@ void Explain_table_access::append_tag_name(String *str, enum explain_extra_tag t
         str->append(" (scanning)");
       break;
     }
+    case ET_USING_WHERE:
+    {
+      str->append(extra_tag_text[tag]);
+      /* Add the id's of the subselects to the table they are pushed to. */
+      List<Item_subselect> subs_list;
+      tab->select_cond->walk(&Item::collect_item_subselect_processor, 0,
+                             (uchar*) &subs_list);
+      if (subs_list.elements)
+      {
+        List_iterator_fast<Item_subselect> subs_it(subs_list);
+        Item_subselect *subs;
+        str->append(STRING_WITH_LEN("; Subqueries:"));
+        while ((subs= subs_it++))
+        {
+          str->append(STRING_WITH_LEN(" "));
+          str->append_ulonglong(subs->get_select_lex()->select_number);
+        }
+      }
+    }
+
     default:
      str->append(extra_tag_text[tag]);
   }
