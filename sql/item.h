@@ -1495,7 +1495,14 @@ public:
   */
   bool needs_dynamic_cond()
   {
-    return (with_subselect && !const_item() && is_expensive());
+    /*
+      @todo Do not check if a subquery is expensive, because even subqueries
+      that the optimizer reports to be cheap, are actually quite expensive to
+      re-evaluate multiple times. For instance the scalar SQ of DBT3-Q20
+      reports only ~7 examined rows, but still it is very beneficial to move
+      it to later JOIN_TAB in the query plan.
+    */
+    return (with_subselect && !const_item() /* && is_expensive() */);
   }
 
   virtual Field::geometry_type get_geometry_type() const

@@ -7645,8 +7645,11 @@ best_extension_by_limited_search(JOIN      *join,
           in order to minimize the number of subquery evaluations.
         */
         if (optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_STATIC_PUSHDOWN) &&
-            join->conds && join->conds->is_expensive())
+            join->conds && join->conds->with_subselect
+            /* @todo This is not a reliable estimate:
+               && join->conds->is_expensive()*/)
         {
+          bool may_benefit_from_static_pushdown= false;
           /*
             Find and store the POSITION with the least partial result cardinality
             between the current and last POSITION in the query plan.
@@ -7661,6 +7664,8 @@ best_extension_by_limited_search(JOIN      *join,
                 p_pos->partial_join_cardinality <= min_pos->partial_join_cardinality)
               min_pos= p_pos;
             p_pos->least_card_pos= min_pos;
+            if (p_pos->least_card_pos != p_pos)
+              may_benefit_from_static_pushdown= true;
           }
 
           /*
@@ -7668,19 +7673,24 @@ best_extension_by_limited_search(JOIN      *join,
             partial join with the least cardinality after the left-most join
             where the predicate can be pushed.
           */
-          if (is_cond_and(join->conds))
+          if (may_benefit_from_static_pushdown)
           {
-            List_iterator<Item> and_parts_it(*((Item_cond*) join->conds)->argument_list());
-            Item *and_part;
-            while ((and_part= and_parts_it++))
+            if (is_cond_and(join->conds))
             {
-              if (!and_part->is_expensive())
-                continue;
-              current_read_time+= join->static_pushdown_cost(and_part, idx);
+              List_iterator<Item> and_parts_it(*((Item_cond*) join->conds)->argument_list());
+              Item *and_part;
+              while ((and_part= and_parts_it++))
+              {
+                if (!and_part->with_subselect
+                    /* @todo This is not a reliable estimate:
+                       !and_part->is_expensive()*/)
+                  continue;
+                current_read_time+= join->static_pushdown_cost(and_part, idx);
+              }
             }
+            else
+              current_read_time+= join->static_pushdown_cost(join->conds, idx);
           }
-          else
-            current_read_time+= join->static_pushdown_cost(join->conds, idx);
         }
 
         if (current_read_time < join->best_read)
@@ -8301,42 +8311,6 @@ get_best_combination(JOIN *join)
   join->hash_join= FALSE;
 
   used_tables= OUTER_REF_TABLE_BIT;		// Outer row is already read
-
-/*
-  if (optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_STATIC_PUSHDOWN))
-  {
-    int idx;
-    table_map map;
-
-    if (is_cond_and(join->conds))
-    {
-      List_iterator<Item> and_parts_it(*((Item_cond*) join->conds)->argument_list());
-      Item *and_part;
-      while ((and_part= and_parts_it++))
-      {
-        if (!and_part->is_expensive())
-          continue;
-        idx= and_part->get_join_tab_idx();
-        if (idx >= 0)
-        {
-          DBUG_ASSERT((uint)idx < join->table_count);
-          map= join->best_positions[idx].table->table->map;
-          and_part->pushdown_tables |= map;
-        }
-      }
-    }
-    else
-    {
-      idx= join->conds->get_join_tab_idx();
-      if (idx >= 0)
-      {
-        DBUG_ASSERT((uint)idx < join->table_count);
-        map= join->best_positions[idx].table->table->map;
-        ((Item*)join->conds)->pushdown_tables |= map;
-      }
-    }
-  }
-*/
 
   fix_semijoin_strategies_for_picked_join_order(join);
   
@@ -24538,7 +24512,8 @@ double JOIN::static_pushdown_cost(Item *pushed_cond, uint idx)
   POSITION *opt_pos;
   double pushed_cond_cost;
 
-  DBUG_ASSERT(pushed_cond->is_expensive());
+  DBUG_ASSERT(pushed_cond->with_subselect
+              /*pushed_cond->is_expensive()*/);
 
   if (!cond_tables || cond_tables == OUTER_REF_TABLE_BIT || idx <= const_tables)
     return 0;
