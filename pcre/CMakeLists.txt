@@ -78,8 +78,6 @@ OPTION(PCRE_SUPPORT_UNICODE_PROPERTIES "Unicode properties" ON)
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
 
-#INSTALL(FILES "my_regex.h" DESTINATION ${INSTALL_INCLUDEDIR}/private COMPONENT Development)
-
 # external packages
 FIND_PACKAGE( BZip2 )
 FIND_PACKAGE( ZLIB )
@@ -127,8 +125,6 @@ OPTION(PCRE_BUILD_PCRE8 "Build 8 bit PCRE library" ON)
 OPTION(PCRE_BUILD_PCRE16 "Build 16 bit PCRE library" OFF)
 
 OPTION(PCRE_BUILD_PCRE32 "Build 32 bit PCRE library" OFF)
-
-OPTION(PCRE_BUILD_PCRECPP "Build the PCRE C++ library (pcrecpp)." ON)
 
 SET(PCRE_EBCDIC OFF CACHE BOOL
     "Use EBCDIC coding instead of ASCII. (This is rarely used outside of mainframe systems.)")
@@ -267,11 +263,6 @@ ENDIF(PCRE_BUILD_PCRE16)
 IF(PCRE_BUILD_PCRE32)
         SET(SUPPORT_PCRE32 1)
 ENDIF(PCRE_BUILD_PCRE32)
-
-IF(PCRE_BUILD_PCRECPP AND NOT PCRE_BUILD_PCRE8)
-        MESSAGE(STATUS "** PCRE_BUILD_PCRE8 must be enabled for the C++ library support")
-        SET(PCRE_BUILD_PCRECPP OFF)
-ENDIF(PCRE_BUILD_PCRECPP AND NOT PCRE_BUILD_PCRE8)
 
 IF(PCRE_BUILD_PCREGREP AND NOT PCRE_BUILD_PCRE8)
         MESSAGE(STATUS "** PCRE_BUILD_PCRE8 must be enabled for the pcregrep program")
@@ -418,18 +409,6 @@ CONFIGURE_FILE(pcre.h.in
                ${PROJECT_BINARY_DIR}/pcre.h
                @ONLY)
 
-# What about pcre-config and libpcre.pc?
-
-IF(PCRE_BUILD_PCRECPP)
-        CONFIGURE_FILE(pcre_stringpiece.h.in
-                       ${PROJECT_BINARY_DIR}/pcre_stringpiece.h
-                       @ONLY)
-
-        CONFIGURE_FILE(pcrecpparg.h.in
-                       ${PROJECT_BINARY_DIR}/pcrecpparg.h
-                       @ONLY)
-ENDIF(PCRE_BUILD_PCRECPP)
-
 # Character table generation
 
 OPTION(PCRE_REBUILD_CHARTABLES "Rebuild char tables" OFF)
@@ -563,19 +542,6 @@ SET(PCREPOSIX_SOURCES
 ENDIF(EXISTS ${PROJECT_SOURCE_DIR}/pcreposix.rc)
 ENDIF(MINGW AND NOT PCRE_STATIC)
 
-SET(PCRECPP_HEADERS
-  pcrecpp.h
-  pcre_scanner.h
-  ${PROJECT_BINARY_DIR}/pcrecpparg.h
-  ${PROJECT_BINARY_DIR}/pcre_stringpiece.h
-)
-
-SET(PCRECPP_SOURCES
-        pcrecpp.cc
-        pcre_scanner.cc
-        pcre_stringpiece.cc
-)
-
 # Build setup
 
 ADD_DEFINITIONS(-DHAVE_CONFIG_H)
@@ -658,28 +624,6 @@ ENDIF(MINGW AND NOT PCRE_STATIC)
 
 ENDIF(PCRE_BUILD_PCRE32)
 
-# pcrecpp
-IF(PCRE_BUILD_PCRECPP)
-ADD_LIBRARY(pcrecpp ${PCRECPP_HEADERS} ${PCRECPP_SOURCES})
-SET(targets ${targets} pcrecpp)
-TARGET_LINK_LIBRARIES(pcrecpp pcre)
-
-  IF(MINGW AND NOT PCRE_STATIC)
-    IF(NON_STANDARD_LIB_PREFIX)
-      SET_TARGET_PROPERTIES(pcrecpp
-                            PROPERTIES PREFIX ""
-      )
-    ENDIF(NON_STANDARD_LIB_PREFIX)
-
-    IF(NON_STANDARD_LIB_SUFFIX)
-      SET_TARGET_PROPERTIES(pcrecpp
-                          PROPERTIES SUFFIX "-0.dll"
-      )
-    ENDIF(NON_STANDARD_LIB_SUFFIX)
-  ENDIF(MINGW AND NOT PCRE_STATIC)
-ENDIF(PCRE_BUILD_PCRECPP)
-
-
 # Executables
 
 # Removed by PH (2008-01-23) because pcredemo shouldn't really be built
@@ -740,25 +684,6 @@ IF(PCRE_BUILD_TESTS)
     ENDIF(PCRE_BUILD_PCRE32)
     TARGET_LINK_LIBRARIES(pcre_jit_test ${PCRE_JIT_TEST_LIBS})
   ENDIF(PCRE_SUPPORT_JIT)
-
-  IF(PCRE_BUILD_PCRECPP)
-    ADD_EXECUTABLE(pcrecpp_unittest pcrecpp_unittest.cc)
-    SET(targets ${targets} pcrecpp_unittest)
-    TARGET_LINK_LIBRARIES(pcrecpp_unittest pcrecpp)
-    IF(MINGW AND NON_STANDARD_LIB_NAMES AND NOT PCRE_STATIC)
-      SET_TARGET_PROPERTIES(pcrecpp
-                        PROPERTIES PREFIX ""
-      )
-    ENDIF(MINGW AND NON_STANDARD_LIB_NAMES AND NOT PCRE_STATIC)
-
-    ADD_EXECUTABLE(pcre_scanner_unittest pcre_scanner_unittest.cc)
-    SET(targets ${targets} pcre_scanner_unittest)
-    TARGET_LINK_LIBRARIES(pcre_scanner_unittest pcrecpp)
-
-    ADD_EXECUTABLE(pcre_stringpiece_unittest pcre_stringpiece_unittest.cc)
-    SET(targets ${targets} pcre_stringpiece_unittest)
-    TARGET_LINK_LIBRARIES(pcre_stringpiece_unittest pcrecpp)
-  ENDIF(PCRE_BUILD_PCRECPP)
 
   # exes in Debug location tested by the RunTest shell script
   # via "make test"
@@ -852,44 +777,7 @@ echo RunTest.bat tests successfully completed
     ADD_TEST(pcre_jit_test         pcre_jit_test)
   ENDIF(PCRE_SUPPORT_JIT)
 
-  IF(PCRE_BUILD_PCRECPP)
-    ADD_TEST(pcrecpp_test          pcrecpp_unittest)
-    ADD_TEST(pcre_scanner_test     pcre_scanner_unittest)
-    ADD_TEST(pcre_stringpiece_test pcre_stringpiece_unittest)
-  ENDIF(PCRE_BUILD_PCRECPP)
-
 ENDIF(PCRE_BUILD_TESTS)
-
-# Installation
-SET(CMAKE_INSTALL_ALWAYS 1)
-
-INSTALL(TARGETS ${targets}
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
-
-INSTALL(FILES ${PCRE_HEADERS} ${PCREPOSIX_HEADERS} DESTINATION include)
-
-FILE(GLOB html ${PROJECT_SOURCE_DIR}/doc/html/*.html)
-FILE(GLOB man1 ${PROJECT_SOURCE_DIR}/doc/*.1)
-FILE(GLOB man3 ${PROJECT_SOURCE_DIR}/doc/*.3)
-
-IF(PCRE_BUILD_PCRECPP)
-        INSTALL(FILES ${PCRECPP_HEADERS} DESTINATION include)
-ELSE(PCRE_BUILD_PCRECPP)
-        # Remove pcrecpp.3
-        FOREACH(man ${man3})
-                GET_FILENAME_COMPONENT(man_tmp ${man} NAME)
-                IF(NOT man_tmp STREQUAL "pcrecpp.3")
-                        SET(man3_new ${man3} ${man})
-                ENDIF(NOT man_tmp STREQUAL "pcrecpp.3")
-        ENDFOREACH(man ${man3})
-        SET(man3 ${man3_new})
-ENDIF(PCRE_BUILD_PCRECPP)
-
-INSTALL(FILES ${man1} DESTINATION man/man1)
-INSTALL(FILES ${man3} DESTINATION man/man3)
-INSTALL(FILES ${html} DESTINATION share/doc/pcre/html)
 
 # help, only for nice output
 IF(BUILD_SHARED_LIBS)
@@ -919,7 +807,6 @@ IF(PCRE_SHOW_REPORT)
   MESSAGE(STATUS "  Build 8 bit PCRE library ........ : ${PCRE_BUILD_PCRE8}")
   MESSAGE(STATUS "  Build 16 bit PCRE library ....... : ${PCRE_BUILD_PCRE16}")
   MESSAGE(STATUS "  Build 32 bit PCRE library ....... : ${PCRE_BUILD_PCRE32}")
-  MESSAGE(STATUS "  Build C++ library ............... : ${PCRE_BUILD_PCRECPP}")
   MESSAGE(STATUS "  Enable JIT compiling support .... : ${PCRE_SUPPORT_JIT}")
   MESSAGE(STATUS "  Enable UTF support .............. : ${PCRE_SUPPORT_UTF}")
   MESSAGE(STATUS "  Unicode properties .............. : ${PCRE_SUPPORT_UNICODE_PROPERTIES}")
