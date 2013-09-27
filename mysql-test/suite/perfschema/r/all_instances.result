@@ -68,6 +68,7 @@ wait/synch/mutex/sql/LOCK_thread_count
 wait/synch/mutex/sql/LOCK_user_conn
 wait/synch/mutex/sql/LOCK_user_locks
 wait/synch/mutex/sql/LOCK_uuid_short_generator
+wait/synch/mutex/sql/LOCK_wsrep_desync
 wait/synch/mutex/sql/LOCK_wsrep_ready
 wait/synch/mutex/sql/LOCK_wsrep_replaying
 wait/synch/mutex/sql/LOCK_wsrep_rollback

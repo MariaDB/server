@@ -20,6 +20,7 @@ wsrep_convert_lock_to_trx
 wsrep_data_home_dir
 wsrep_dbug_option
 wsrep_debug
+wsrep_desync
 wsrep_drupal_282555_workaround
 wsrep_forced_binlog_format
 wsrep_load_data_splitting

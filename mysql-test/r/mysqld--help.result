@@ -874,6 +874,7 @@ The following options may be given as the first argument:
  --wsrep-dbug-option=name 
  DBUG options to provider library
  --wsrep-debug       To enable debug level logging
+ --wsrep-desync      To desynchronize the node from the cluster
  --wsrep-drupal-282555-workaround 
  To use a workaround forbad autoincrement value
  --wsrep-forced-binlog-format=name 
@@ -1182,6 +1183,7 @@ wsrep-convert-LOCK-to-trx FALSE
 wsrep-data-home-dir 
 wsrep-dbug-option 
 wsrep-debug FALSE
+wsrep-desync FALSE
 wsrep-drupal-282555-workaround FALSE
 wsrep-forced-binlog-format NONE
 wsrep-load-data-splitting TRUE
