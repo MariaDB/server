@@ -11,3 +11,6 @@
 ##############################################################################
 partition_value_myisam : CAST() in partitioning function is currently not supported
 partition_value_innodb : CAST() in partitioning function is currently not supported
+parts.partition_mgm_lc1_archive : MDEV-5077 2013-09-27 svoj Cannot exchange partition with archive table
+parts.partition_exchange_archive: MDEV-5077 2013-09-27 svoj Cannot exchange partition with archive table
+parts.partition_mgm_lc0_archive : MDEV-5077 2013-09-27 svoj Cannot exchange partition with archive table
