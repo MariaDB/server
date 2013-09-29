@@ -728,6 +728,12 @@ typedef struct st_spider_share
 #ifdef HA_CAN_BULK_ACCESS
   int                bulk_access_free;
 #endif
+#ifdef HA_CAN_FORCE_BULK_UPDATE
+  int                force_bulk_update;
+#endif
+#ifdef HA_CAN_FORCE_BULK_DELETE
+  int                force_bulk_delete;
+#endif
 
   int                bka_mode;
   char               *bka_engine;

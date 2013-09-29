@@ -3979,7 +3979,7 @@ int spider_trx_check_link_idx_failed(
   uint *conn_link_idx = spider->conn_link_idx;
   int link_count = share->link_count;
   uchar *conn_can_fo = spider->conn_can_fo;
-  DBUG_ENTER("spider_trx_set_link_idx_for_all");
+  DBUG_ENTER("spider_trx_check_link_idx_failed");
   for (roop_count = 0; roop_count < link_count; roop_count++)
   {
     if (
