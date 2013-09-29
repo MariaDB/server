@@ -8222,11 +8222,11 @@ static inline wsrep_status_t wsrep_apply_rbr(
       DBUG_RETURN(WSREP_FATAL);
     }
 
-    if (ev->get_type_code() != TABLE_MAP_EVENT &&
+    if ((ev->get_type_code() == WRITE_ROWS_EVENT  ||
+	 ev->get_type_code() == UPDATE_ROWS_EVENT ||
+	 ev->get_type_code() == DELETE_ROWS_EVENT) &&
         ((Rows_log_event *) ev)->get_flags(Rows_log_event::STMT_END_F))
     {
-      // TODO: combine with commit on higher level common for the query ws
-
       thd->wsrep_rli->cleanup_context(thd, 0);
 
       if (error == 0)
