@@ -1878,8 +1878,9 @@ int ha_spider::index_init(
   if (result_list.lock_type == F_WRLCK)
   {
     pk_update = FALSE;
+/*
     check_and_start_bulk_update(SPD_BU_START_BY_INDEX_OR_RND_INIT);
-
+*/
     if (
       update_request &&
       share->have_recovery_link &&
@@ -1941,6 +1942,7 @@ int ha_spider::index_end()
   }
 #endif
   active_index = MAX_KEY;
+/*
 #ifdef INFO_KIND_FORCE_LIMIT_BEGIN
   info_limit = 9223372036854775807LL;
 #endif
@@ -1950,6 +1952,9 @@ int ha_spider::index_end()
       SPD_BU_START_BY_INDEX_OR_RND_INIT)) ||
     (error_num = spider_trx_check_link_idx_failed(this))
   )
+    DBUG_RETURN(check_error_mode(error_num));
+*/
+  if ((error_num = drop_tmp_tables()))
     DBUG_RETURN(check_error_mode(error_num));
   result_list.use_union = FALSE;
   DBUG_RETURN(0);
@@ -6942,9 +6947,10 @@ int ha_spider::rnd_init(
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider scan=%s", scan ? "TRUE" : "FALSE"));
   pushed_pos = NULL;
+/*
   if (result_list.lock_type == F_WRLCK)
     check_and_start_bulk_update(SPD_BU_START_BY_INDEX_OR_RND_INIT);
-
+*/
   rnd_scan_and_first = scan;
   if (
     scan &&
@@ -7054,10 +7060,13 @@ int ha_spider::pre_rnd_init(
 
 int ha_spider::rnd_end()
 {
+/*
   int error_num;
   backup_error_status();
+*/
   DBUG_ENTER("ha_spider::rnd_end");
   DBUG_PRINT("info",("spider this=%p", this));
+/*
 #ifdef INFO_KIND_FORCE_LIMIT_BEGIN
   info_limit = 9223372036854775807LL;
 #endif
@@ -7067,6 +7076,7 @@ int ha_spider::rnd_end()
     (error_num = spider_trx_check_link_idx_failed(this))
   )
     DBUG_RETURN(check_error_mode(error_num));
+*/
   DBUG_RETURN(0);
 }
 
@@ -8666,6 +8676,12 @@ ulonglong ha_spider::table_flags() const
     SPIDER_CAN_BG_SEARCH |
     SPIDER_CAN_BG_INSERT |
     SPIDER_CAN_BG_UPDATE |
+#ifdef HA_CAN_FORCE_BULK_UPDATE
+    (share && share->force_bulk_update ? HA_CAN_FORCE_BULK_UPDATE : 0) |
+#endif
+#ifdef HA_CAN_FORCE_BULK_DELETE
+    (share && share->force_bulk_delete ? HA_CAN_FORCE_BULK_DELETE : 0) |
+#endif
     (share ? share->additional_table_flags : 0)
   ;
   DBUG_RETURN(flags);
@@ -11094,27 +11110,43 @@ bool ha_spider::check_and_start_bulk_update(
     THD *thd = ha_thd();
     int bulk_update_mode = spider_param_bulk_update_mode(thd,
       share->bulk_update_mode);
+/*
     longlong split_read = spider_split_read_param(this);
+*/
     result_list.bulk_update_size = spider_param_bulk_update_size(thd,
       share->bulk_update_size);
+/*
 #ifndef WITHOUT_SPIDER_BG_SEARCH
     int bgs_mode = spider_param_bgs_mode(thd, share->bgs_mode);
 #endif
+*/
     if (!support_bulk_update_sql())
     {
       result_list.bulk_update_mode = 0;
+      DBUG_PRINT("info",("spider result_list.bulk_update_mode=%d 1",
+        result_list.bulk_update_mode));
+/*
     } else if (
 #ifndef WITHOUT_SPIDER_BG_SEARCH
       bgs_mode ||
 #endif
       split_read != 9223372036854775807LL
-    )
+    ) {
       result_list.bulk_update_mode = 2;
-    else {
+      DBUG_PRINT("info",("spider result_list.bulk_update_mode=%d 2",
+        result_list.bulk_update_mode));
+*/
+    } else {
       if (result_list.bulk_update_start == SPD_BU_NOT_START)
+      {
         result_list.bulk_update_mode = bulk_update_mode;
-      else
+        DBUG_PRINT("info",("spider result_list.bulk_update_mode=%d 3",
+          result_list.bulk_update_mode));
+      } else {
         result_list.bulk_update_mode = 1;
+        DBUG_PRINT("info",("spider result_list.bulk_update_mode=%d 4",
+          result_list.bulk_update_mode));
+      }
     }
     result_list.bulk_update_start = bulk_upd_start;
     DBUG_RETURN(FALSE);
