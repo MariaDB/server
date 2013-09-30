@@ -3478,7 +3478,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
           table->reginfo.impossible_range= 1;
           goto free_alloc;
         }          
-        else 
+        else
         {
           rows= records_in_column_ranges(&param, idx, *key);
           if (rows != HA_POS_ERROR)

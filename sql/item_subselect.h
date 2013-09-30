@@ -183,7 +183,6 @@ public:
   void make_const()
   { 
     used_tables_cache= 0;
-    //pushdown_tables= 0;
     const_item_cache= 0;
     forced_const= TRUE; 
   }

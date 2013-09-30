@@ -1286,7 +1286,8 @@ public:
   JOIN_TAB *join_tab_reexec;                    // make_simple_join()
   /* end of allocation caching storage */
   /*
-    The index of the current partial join being processed during query execution.
+    Pointer to the current partial join being processed during query execution.
+    Has meaning only during execution.
   */
   JOIN_TAB **cur_exec_tab;
 

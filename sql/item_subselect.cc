@@ -959,12 +959,6 @@ void Item_subselect::update_used_tables()
       if (!(used_tables_cache & ~engine->upper_select_const_tables()))
         const_item_cache= 1;
     }
-    /*
-      TODO: when merged with dynamic pushdown, pushdown_tables should not be
-      added to the used tables. Instead, dynamic pushdown could use this table
-      as the initial dynamic position, or it may ignore this estimate altogether.
-    used_tables_cache|= pushdown_tables;
-    */
   }
 }
 

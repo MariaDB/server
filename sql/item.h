@@ -579,9 +579,6 @@ class Item {
     evaluated when the join loop reaches the corresponding JOIN_TAB.
 
     If join_tab_idx < 0, this means that there is no corresponding JOIN_TAB.
-
-    cur_join_tab_idx is used during join optimization to determine the best
-    position where to push an expression.
   */
   int join_tab_idx;
 
@@ -660,8 +657,6 @@ public:
                                            subselect */
   DTCollation collation;
   Item_result cmp_context;              /* Comparison context */
-  /* tables in the QEP where this predicate should be pushed to */
-  //table_map pushdown_tables;
 
   // alloc & destruct is done as start of select using sql_alloc
   Item();
@@ -1011,7 +1006,6 @@ public:
     have to be updated in update_used_tables()
   */
   virtual table_map not_null_tables() const { return used_tables(); }
-
   /*
     Returns true if this is a simple constant item like an integer, not
     a constant expression. Used in the optimizer to propagate basic constants.
