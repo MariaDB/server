@@ -57,6 +57,10 @@ struct rpl_parallel_entry {
   uint64 last_committed_sub_id;
   mysql_mutex_t LOCK_parallel_entry;
   mysql_cond_t COND_parallel_entry;
+  /*
+    The sub_id of the last event group in this replication domain that was
+    queued for execution by a worker thread.
+  */
   uint64 current_sub_id;
   rpl_group_info *current_group_info;
   /*
