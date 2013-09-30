@@ -647,11 +647,12 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
         still executing the first ones, to be able to start executing a large
         event group without having to wait for the end to be fetched from the
         master. And we continue to queue up more events after the first group,
-        avoiding the overhead of worker threads constantly entering and
-        leaving the worker thread free list.
+        so that we can continue to process subsequent parts of the relay log in
+        parallel without having to wait for previous long-running events to
+        complete.
 
         But if the worker thread is idle at any point, it may return to the
-        idle list or be servicing a different request. So check this, and
+        idle list or start servicing a different request. So check this, and
         allocate a new thread if the old one is no longer processing for us.
       */
       cur_thread= e->rpl_thread;
