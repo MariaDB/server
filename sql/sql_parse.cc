@@ -8049,6 +8049,9 @@ static void wsrep_client_rollback(THD *thd)
   /* Release transactional metadata locks. */
   thd->mdl_context.release_transactional_locks();
 
+  /* release explicit MDL locks */
+  thd->mdl_context.release_explicit_locks();
+
   if (thd->get_binlog_table_maps()) 
   {
     WSREP_DEBUG("clearing binlog table map for BF abort (%ld)", thd->thread_id);

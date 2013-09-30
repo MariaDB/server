@@ -9433,11 +9433,13 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
   {
     mysql_mutex_assert_owner(&LOCK_open);
   }
-
+#ifdef WITH_WSREP
+  /* if thd was BF aborted, exclusive locks were canceled */
+#else
   DBUG_ASSERT(remove_type == TDC_RT_REMOVE_UNUSED ||
               thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
                                              MDL_EXCLUSIVE));
-
+#endif /* WITH_WSREP */
   key_length= create_table_def_key(key, db, table_name);
 
   if ((share= (TABLE_SHARE*) my_hash_search(&table_def_cache,(uchar*) key,
