@@ -45,7 +45,7 @@
 #include <stdarg.h>
 #include <violite.h>
 #define PCRE_STATIC 1  /* Important on Windows */
-#include <pcreposix.h> /* pcreposix regex library */
+#include "pcreposix.h" /* pcreposix regex library */
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
 #endif
