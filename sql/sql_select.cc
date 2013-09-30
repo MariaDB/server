@@ -7649,7 +7649,6 @@ best_extension_by_limited_search(JOIN      *join,
             /* @todo This is not a reliable estimate:
                && join->conds->is_expensive()*/)
         {
-          bool may_benefit_from_static_pushdown= false;
           /*
             Find and store the POSITION with the least partial result cardinality
             between the current and last POSITION in the query plan.
@@ -7664,8 +7663,6 @@ best_extension_by_limited_search(JOIN      *join,
                 p_pos->partial_join_cardinality <= min_pos->partial_join_cardinality)
               min_pos= p_pos;
             p_pos->least_card_pos= min_pos;
-            if (p_pos->least_card_pos != p_pos)
-              may_benefit_from_static_pushdown= true;
           }
 
           /*
@@ -7673,24 +7670,21 @@ best_extension_by_limited_search(JOIN      *join,
             partial join with the least cardinality after the left-most join
             where the predicate can be pushed.
           */
-          if (may_benefit_from_static_pushdown)
+          if (is_cond_and(join->conds))
           {
-            if (is_cond_and(join->conds))
+            List_iterator<Item> and_parts_it(*((Item_cond*) join->conds)->argument_list());
+            Item *and_part;
+            while ((and_part= and_parts_it++))
             {
-              List_iterator<Item> and_parts_it(*((Item_cond*) join->conds)->argument_list());
-              Item *and_part;
-              while ((and_part= and_parts_it++))
-              {
-                if (!and_part->with_subselect
-                    /* @todo This is not a reliable estimate:
-                       !and_part->is_expensive()*/)
-                  continue;
-                current_read_time+= join->static_pushdown_cost(and_part, idx);
-              }
+              if (!and_part->with_subselect
+                  /* @todo This is not a reliable estimate:
+                     !and_part->is_expensive()*/)
+                continue;
+              current_read_time+= join->static_pushdown_cost(and_part, idx);
             }
-            else
-              current_read_time+= join->static_pushdown_cost(join->conds, idx);
           }
+          else
+            current_read_time+= join->static_pushdown_cost(join->conds, idx);
         }
 
         if (current_read_time < join->best_read)
@@ -24540,7 +24534,8 @@ double JOIN::static_pushdown_cost(Item *pushed_cond, uint idx)
     Update the cost of the POSITION where the subquery is pushed to,
     and the total cost of the query plan.
   */
-  pushed_cond_cost= opt_pos->partial_join_cardinality * pushed_cond->get_cost();
+  pushed_cond->walk(&Item::sum_cost_processor, false, (uchar*) &pushed_cond_cost);
+  pushed_cond_cost= opt_pos->partial_join_cardinality * pushed_cond_cost;
   opt_pos->read_time+= pushed_cond_cost;
 
   return pushed_cond_cost;
