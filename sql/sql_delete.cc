@@ -183,7 +183,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   bool          const_cond_result;
   ha_rows	deleted= 0;
   bool          reverse= FALSE;
-  bool          err= true;
   ORDER *order= (ORDER *) ((order_list && order_list->elements) ?
                            order_list->first : NULL);
   SELECT_LEX   *select_lex= &thd->lex->select_lex;
@@ -659,7 +658,7 @@ exit_without_my_ok:
   List<Item> dummy; /* note: looked in 5.6 and they too use a dummy list like this */
   result2->prepare(dummy, &thd->lex->unit);
   thd->send_explain_fields(result2);
-  int err2= thd->lex->query_plan_footprint->print_explain(result2, 0 /* explain flags*/);
+  int err2= thd->lex->query_plan_footprint->print_explain(result2, thd->lex->describe);
 
   if (err2)
     result2->abort_result_set();
@@ -669,7 +668,7 @@ exit_without_my_ok:
   delete select;
   free_underlaid_joins(thd, select_lex);
   //table->set_keyread(false);
-  DBUG_RETURN((err || thd->is_error() || thd->killed) ? 1 : 0);
+  DBUG_RETURN((err2 || thd->is_error() || thd->killed) ? 1 : 0);
 }
 
 
