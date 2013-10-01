@@ -3278,7 +3278,6 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
 }
 
 
-#ifndef EMBEDDED_LIBRARY
 extern "C" void *my_str_malloc_mysqld(size_t size);
 extern "C" void my_str_free_mysqld(void *ptr);
 
@@ -3292,7 +3291,24 @@ void my_str_free_mysqld(void *ptr)
 {
   my_free(ptr);
 }
-#endif /* EMBEDDED_LIBRARY */
+
+
+/*
+   Initialize my_str_malloc() and my_str_free()
+*/
+static void init_libstrings()
+{
+  my_str_malloc= &my_str_malloc_mysqld;
+  my_str_free= &my_str_free_mysqld;
+}
+
+
+static void init_pcre()
+{
+  pcre_malloc= pcre_stack_malloc= my_str_malloc_mysqld;
+  pcre_free= pcre_stack_free= my_str_free_mysqld;
+}
+
 
 
 #ifdef __WIN__
@@ -3600,6 +3616,7 @@ static int init_common_variables()
   set_current_thd(0);
   set_malloc_size_cb(my_malloc_size_cb_func);
 
+  init_libstrings();
   tzset();			// Set tzname
 
   sf_leaking_memory= 0; // no memory leaks from now on
@@ -3902,6 +3919,7 @@ static int init_common_variables()
   if (item_create_init())
     return 1;
   item_init();
+  init_pcre();
 #ifndef EMBEDDED_LIBRARY
   my_string_stack_guard= check_enough_stack_size;
 #endif
@@ -5057,12 +5075,6 @@ int mysqld_main(int argc, char **argv)
     FreeConsole();				// Remove window
   }
 #endif
-
-  /*
-   Initialize my_str_malloc() and my_str_free()
-  */
-  my_str_malloc= &my_str_malloc_mysqld;
-  my_str_free= &my_str_free_mysqld;
 
   /*
     init signals & alarm
