@@ -708,4 +708,40 @@ drop table t1;
 set use_stat_tables=@save_use_stat_tables;
 
 
+--echo #
+--echo # Bug mdev-4429: join with  range condition whose selectivity == 0   
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+CREATE TABLE language (lang_group INT, lang VARCHAR(16) PRIMARY KEY);
+INSERT INTO language VALUES 
+  (1,'Chinese'),(6,'English'),(1,'French'),
+  (1,'German'),(1,'Italian'),(0,'Japanese');
+
+CREATE TABLE country (code varchar(3) PRIMARY KEY,
+                      country_group INT DEFAULT NULL);
+INSERT INTO country VALUES ('USA',3),('FRA',5);
+
+CREATE TABLE continent (cont_group INT, cont varchar(16) PRIMARY KEY);
+INSERT INTO continent VALUES
+  (1,'N.America'),(1,'S.America'),(3,'Australia'),
+  (4,'Africa'),(5,'Antarctica'),(6,'Eurasia');
+
+SET use_stat_tables=PREFERABLY;
+ANALYZE TABLE country, language, continent;
+FLUSH TABLES;
+SET optimizer_use_condition_selectivity=3;
+
+SELECT * FROM language, country, continent
+  WHERE country_group = lang_group AND lang_group IS NULL;
+EXPLAIN EXTENDED
+SELECT * FROM language, country, continent
+  WHERE country_group = lang_group AND lang_group IS NULL;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+drop table language, country, continent;
+
 set use_stat_tables=@save_use_stat_tables;
+
+

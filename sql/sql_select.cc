@@ -7174,7 +7174,8 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     {
       if (!(next_field->table->map & rem_tables) && next_field->table != table)
       { 
-        sel/= field->cond_selectivity;
+        if (field->cond_selectivity > 0)
+          sel/= field->cond_selectivity;
         break;
       }
     }
