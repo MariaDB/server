@@ -1039,8 +1039,8 @@ exit_without_my_ok:
   List<Item> dummy; /* note: looked in 5.6 and they too use a dummy list like this */
   result->prepare(dummy, &thd->lex->unit);
   thd->send_explain_fields(result);
-  int err2= thd->lex->query_plan_footprint->print_explain(result, 0 /* explain flags*/);
-
+  int err2= thd->lex->query_plan_footprint->print_explain(result,
+                                                          thd->lex->describe);
   if (err2)
     result->abort_result_set();
   else
@@ -1048,7 +1048,7 @@ exit_without_my_ok:
 
   delete select;
   free_underlaid_joins(thd, select_lex);
-  DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
+  DBUG_RETURN((err2 || thd->is_error()) ? 1 : 0);
 }
 
 /*
@@ -1518,7 +1518,7 @@ bool mysql_multi_update(THD *thd,
   {
     if (explain)
     {
-      thd->lex->query_plan_footprint->print_explain(output, 0);
+      thd->lex->query_plan_footprint->print_explain(output, thd->lex->describe);
       output->send_eof(); 
       delete output;
     }

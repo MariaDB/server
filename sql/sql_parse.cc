@@ -3332,18 +3332,7 @@ end_with_restore_list:
 
     if (!thd->is_fatal_error)
     {
-      if (explain)
-      {
-        result= new select_send();
-        if (thd->send_explain_fields(result))
-        {
-          delete result;
-          result= NULL;
-        }
-      }
-      else
-        result= new multi_delete(aux_tables, lex->table_count);
-
+      result= new multi_delete(aux_tables, lex->table_count);
       if (result)
       {
         res= mysql_select(thd, &select_lex->ref_pointer_array,
@@ -3362,20 +3351,22 @@ end_with_restore_list:
         if (!explain)
         {
           MYSQL_MULTI_DELETE_DONE(res, del_result->num_deleted());
+          if (res)
+            result->abort_result_set(); /* for both DELETE and EXPLAIN DELETE */
         }
         else
         {
-          result->reset_offset_limit(); 
-          thd->lex->query_plan_footprint->print_explain(result, 
-                                                        thd->lex->describe);
-        }
-      
-        if (res)
-          result->abort_result_set(); /* for both DELETE and EXPLAIN DELETE */
-        else
-        {
-          if (explain)
-            result->send_eof(); 
+          if (!res)
+          {
+            select_result *result= new select_send();
+            LEX *lex= thd->lex;
+            if (thd->send_explain_fields(result) ||
+                lex->query_plan_footprint->print_explain(result, lex->describe) ||
+                result->send_eof())
+              res= 1;
+          }
+          else
+            result->abort_result_set(); /* for both DELETE and EXPLAIN DELETE */
         }
         delete result;
       }

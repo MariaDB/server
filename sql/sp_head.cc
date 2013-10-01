@@ -313,14 +313,26 @@ sp_get_flags_for_command(LEX *lex)
     flags= sp_head::HAS_COMMIT_OR_ROLLBACK;
     break;
   case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
   {
-    if (lex->select_lex.item_list.is_empty())
+    /* 
+      DELETE normally doesn't return resultset, but there are two exceptions:
+       - DELETE ... RETURNING
+       - EXPLAIN DELETE ...
+    */
+    if (lex->select_lex.item_list.is_empty() && !lex->describe)
       flags= 0;
     else
-    {
-      /* This is DELETE ... RETURNING ...  */
       flags= sp_head::MULTI_RESULTS; 
-    }
+    break;
+  }
+  case SQLCOM_UPDATE:
+  case SQLCOM_UPDATE_MULTI:
+  {
+    if (!lex->describe)
+      flags= 0;
+    else
+      flags= sp_head::MULTI_RESULTS; 
     break;
   }
   default:
@@ -2988,7 +3000,6 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   }
 
   reinit_stmt_before_use(thd, m_lex);
-  // not here, but inside every instr: create_qpf_query(m_lex);
 
   if (open_tables)
     res= instr->exec_open_and_lock_tables(thd, m_lex->query_tables);

@@ -22990,10 +22990,13 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
        unit= unit->next_unit())
   {
     /* 
-      Display subqueries only if they are not parts of eliminated WHERE/ON
-      clauses.
+      Display subqueries only if 
+      (1) they are not parts of ON clauses that were eliminated by table 
+          elimination.
+      (2) they are not merged derived tables
     */
-    if (!(unit->item && unit->item->eliminated))
+    if (!(unit->item && unit->item->eliminated) &&                    // (1)
+        (!unit->derived || unit->derived->is_materialized_derived())) // (2)
     {
       qp_node->add_child(unit->first_select()->select_number);
     }
