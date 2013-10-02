@@ -1157,6 +1157,7 @@ pcre/pcre_test.sh
 pcre/pcrecpp_unittest
 pcre/pcregrep
 pcre/pcretest
+pcre/pcre.h
 testNinput
 teststderr
 testtemp1
