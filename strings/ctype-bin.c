@@ -69,7 +69,7 @@ static const uchar bin_char_array[] =
 
 static my_bool 
 my_coll_init_8bit_bin(struct charset_info_st *cs,
-                      void *(*alloc)(size_t) __attribute__((unused)))
+                      MY_CHARSET_LOADER *loader __attribute__((unused)))
 {
   cs->max_sort_char=255; 
   return FALSE;
@@ -571,11 +571,10 @@ struct charset_info_st my_charset_bin =
     bin_char_array,		/* to_lower      */
     bin_char_array,		/* to_upper      */
     NULL,			/* sort_order    */
-    NULL,			/* contractions */
-    NULL,			/* sort_order_big*/
+    NULL,			/* uca           */
     NULL,			/* tab_to_uni    */
     NULL,			/* tab_from_uni  */
-    my_unicase_default,         /* caseinfo     */
+    &my_unicase_default,        /* caseinfo     */
     NULL,			/* state_map    */
     NULL,			/* ident_map    */
     1,				/* strxfrm_multiply */

@@ -24,6 +24,7 @@
 #ifdef HAVE_UCA_COLLATIONS
 
 #ifdef HAVE_CHARSET_ucs2
+extern struct charset_info_st my_charset_ucs2_german2_uca_ci;
 extern struct charset_info_st my_charset_ucs2_icelandic_uca_ci;
 extern struct charset_info_st my_charset_ucs2_latvian_uca_ci;
 extern struct charset_info_st my_charset_ucs2_romanian_uca_ci;
@@ -48,6 +49,7 @@ extern struct charset_info_st my_charset_ucs2_croatian_uca_ci;
 
 
 #ifdef HAVE_CHARSET_utf32
+extern struct charset_info_st my_charset_utf32_german2_uca_ci;
 extern struct charset_info_st my_charset_utf32_icelandic_uca_ci;
 extern struct charset_info_st my_charset_utf32_latvian_uca_ci;
 extern struct charset_info_st my_charset_utf32_romanian_uca_ci;
@@ -72,6 +74,7 @@ extern struct charset_info_st my_charset_utf32_croatian_uca_ci;
 
 
 #ifdef HAVE_CHARSET_utf16
+extern struct charset_info_st my_charset_utf16_german2_uca_ci;
 extern struct charset_info_st my_charset_utf16_icelandic_uca_ci;
 extern struct charset_info_st my_charset_utf16_latvian_uca_ci;
 extern struct charset_info_st my_charset_utf16_romanian_uca_ci;
@@ -96,6 +99,7 @@ extern struct charset_info_st my_charset_utf16_croatian_uca_ci;
 
 
 #ifdef HAVE_CHARSET_utf8
+extern struct charset_info_st my_charset_utf8_german2_uca_ci;
 extern struct charset_info_st my_charset_utf8_icelandic_uca_ci;
 extern struct charset_info_st my_charset_utf8_latvian_uca_ci;
 extern struct charset_info_st my_charset_utf8_romanian_uca_ci;
@@ -122,6 +126,7 @@ extern struct charset_info_st my_charset_utf8_general_cs;
 #endif
 
 #ifdef HAVE_CHARSET_utf8mb4
+extern struct charset_info_st my_charset_utf8mb4_german2_uca_ci;
 extern struct charset_info_st my_charset_utf8mb4_icelandic_uca_ci;
 extern struct charset_info_st my_charset_utf8mb4_latvian_uca_ci;
 extern struct charset_info_st my_charset_utf8mb4_romanian_uca_ci;
@@ -211,6 +216,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
   add_compiled_collation(&my_charset_ucs2_general_mysql500_ci);
 #ifdef HAVE_UCA_COLLATIONS
   add_compiled_collation(&my_charset_ucs2_unicode_ci);
+  add_compiled_collation(&my_charset_ucs2_german2_uca_ci);
   add_compiled_collation(&my_charset_ucs2_icelandic_uca_ci);
   add_compiled_collation(&my_charset_ucs2_latvian_uca_ci);
   add_compiled_collation(&my_charset_ucs2_romanian_uca_ci);
@@ -248,6 +254,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
 #endif
 #ifdef HAVE_UCA_COLLATIONS
   add_compiled_collation(&my_charset_utf8_unicode_ci);
+  add_compiled_collation(&my_charset_utf8_german2_uca_ci);
   add_compiled_collation(&my_charset_utf8_icelandic_uca_ci);
   add_compiled_collation(&my_charset_utf8_latvian_uca_ci);
   add_compiled_collation(&my_charset_utf8_romanian_uca_ci);
@@ -277,6 +284,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
   add_compiled_collation(&my_charset_utf8mb4_bin);
 #ifdef HAVE_UCA_COLLATIONS
   add_compiled_collation(&my_charset_utf8mb4_unicode_ci);
+  add_compiled_collation(&my_charset_utf8mb4_german2_uca_ci);
   add_compiled_collation(&my_charset_utf8mb4_icelandic_uca_ci);
   add_compiled_collation(&my_charset_utf8mb4_latvian_uca_ci);
   add_compiled_collation(&my_charset_utf8mb4_romanian_uca_ci);
@@ -308,6 +316,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
   add_compiled_collation(&my_charset_utf16le_bin);
 #ifdef HAVE_UCA_COLLATIONS
   add_compiled_collation(&my_charset_utf16_unicode_ci);
+  add_compiled_collation(&my_charset_utf16_german2_uca_ci);
   add_compiled_collation(&my_charset_utf16_icelandic_uca_ci);
   add_compiled_collation(&my_charset_utf16_latvian_uca_ci);
   add_compiled_collation(&my_charset_utf16_romanian_uca_ci);
@@ -337,6 +346,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
   add_compiled_collation(&my_charset_utf32_bin);
 #ifdef HAVE_UCA_COLLATIONS
   add_compiled_collation(&my_charset_utf32_unicode_ci);
+  add_compiled_collation(&my_charset_utf32_german2_uca_ci);
   add_compiled_collation(&my_charset_utf32_icelandic_uca_ci);
   add_compiled_collation(&my_charset_utf32_latvian_uca_ci);
   add_compiled_collation(&my_charset_utf32_romanian_uca_ci);

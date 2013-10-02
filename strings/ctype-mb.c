@@ -62,11 +62,11 @@ size_t my_casedn_str_mb(CHARSET_INFO * cs, char *str)
 }
 
 
-static inline MY_UNICASE_INFO*
-get_case_info_for_ch(CHARSET_INFO *cs, uint page, uint offs)
+static inline MY_UNICASE_CHARACTER*
+get_case_info_for_ch(const CHARSET_INFO *cs, uint page, uint offs)
 {
-  MY_UNICASE_INFO *p;
-  return cs->caseinfo ? ((p= cs->caseinfo[page]) ? &p[offs] : NULL) :  NULL;
+  MY_UNICASE_CHARACTER *p;
+  return cs->caseinfo && (p= cs->caseinfo->page[page]) ? &p[offs] : NULL;
 }
 
 
@@ -89,7 +89,7 @@ size_t my_caseup_mb(CHARSET_INFO * cs, char *src, size_t srclen,
   {
     if ((l=my_ismbchar(cs, src, srcend)))
     {
-      MY_UNICASE_INFO *ch;
+      MY_UNICASE_CHARACTER *ch;
       if ((ch= get_case_info_for_ch(cs, (uchar) src[0], (uchar) src[1])))
       {
         *src++= ch->toupper >> 8;
@@ -124,7 +124,7 @@ size_t my_casedn_mb(CHARSET_INFO * cs, char *src, size_t srclen,
   {
     if ((l= my_ismbchar(cs, src, srcend)))
     {
-      MY_UNICASE_INFO *ch;
+      MY_UNICASE_CHARACTER *ch;
       if ((ch= get_case_info_for_ch(cs, (uchar) src[0], (uchar) src[1])))
       {
         *src++= ch->tolower >> 8;
@@ -168,7 +168,7 @@ my_casefold_mb_varlen(CHARSET_INFO *cs,
     size_t mblen= my_ismbchar(cs, src, srcend);
     if (mblen)
     {
-      MY_UNICASE_INFO *ch;
+      MY_UNICASE_CHARACTER *ch;
       if ((ch= get_case_info_for_ch(cs, (uchar) src[0], (uchar) src[1])))
       {
         int code= is_upper ? ch->toupper : ch->tolower;
@@ -696,7 +696,7 @@ my_bool my_like_range_mb(CHARSET_INFO *cs,
   char *min_end= min_str + res_length;
   char *max_end= max_str + res_length;
   size_t maxcharlen= res_length / cs->mbmaxlen;
-  my_bool have_contractions= my_cs_have_contractions(cs);
+  const MY_CONTRACTIONS *contractions= my_charset_get_contractions(cs, 0);
 
   for (; ptr != end && min_str != min_end && maxcharlen ; maxcharlen--)
   {
@@ -764,8 +764,8 @@ fill_max_and_min:
         'ab\min\min\min\min' and 'ab\max\max\max\max'.
 
       */
-      if (have_contractions && ptr + 1 < end &&
-          my_cs_can_be_contraction_head(cs, (uchar) *ptr))
+      if (contractions && ptr + 1 < end &&
+          my_uca_can_be_contraction_head(contractions, (uchar) *ptr))
       {
         /* Ptr[0] is a contraction head. */
         
@@ -787,8 +787,8 @@ fill_max_and_min:
           is not a contraction, then we put only ptr[0],
           and continue with ptr[1] on the next loop.
         */
-        if (my_cs_can_be_contraction_tail(cs, (uchar) ptr[1]) &&
-            my_cs_contraction2_weight(cs, (uchar) ptr[0], (uchar) ptr[1]))
+        if (my_uca_can_be_contraction_tail(contractions, (uchar) ptr[1]) &&
+            my_uca_contraction2_weight(contractions, (uchar) ptr[0], ptr[1]))
         {
           /* Contraction found */
           if (maxcharlen == 1 || min_str + 1 >= min_end)
@@ -853,7 +853,7 @@ my_like_range_generic(CHARSET_INFO *cs,
   char *max_end= max_str + res_length;
   size_t charlen= res_length / cs->mbmaxlen;
   size_t res_length_diff;
-  my_bool have_contractions= my_cs_have_contractions(cs);
+  const MY_CONTRACTIONS *contractions= my_charset_get_contractions(cs, 0);
 
   for ( ; charlen > 0; charlen--)
   {
@@ -921,8 +921,8 @@ my_like_range_generic(CHARSET_INFO *cs,
       goto pad_min_max;
     }
 
-    if (have_contractions &&
-        my_cs_can_be_contraction_head(cs, wc) &&
+    if (contractions &&
+        my_uca_can_be_contraction_head(contractions, wc) &&
         (res= cs->cset->mb_wc(cs, &wc2, (uchar*) ptr, (uchar*) end)) > 0)
     {
       const uint16 *weight;
@@ -933,8 +933,8 @@ my_like_range_generic(CHARSET_INFO *cs,
         goto pad_min_max;
       }
 
-      if (my_cs_can_be_contraction_tail(cs, wc2) &&
-          (weight= my_cs_contraction2_weight(cs, wc, wc2)) && weight[0])
+      if (my_uca_can_be_contraction_tail(contractions, wc2) &&
+          (weight= my_uca_contraction2_weight(contractions, wc, wc2)) && weight[0])
       {
         /* Contraction found */
         if (charlen == 1)

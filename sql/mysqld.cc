@@ -1286,7 +1286,7 @@ struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
   @param level          log message level
   @param format         log message format string
 */
-
+C_MODE_START
 static void buffered_option_error_reporter(enum loglevel level,
                                            const char *format, ...)
 {
@@ -1298,6 +1298,33 @@ static void buffered_option_error_reporter(enum loglevel level,
   va_end(args);
   buffered_logs.buffer(level, buffer);
 }
+
+
+/**
+  Character set and collation error reporter that prints to sql error log.
+  @param level          log message level
+  @param format         log message format string
+
+  This routine is used to print character set and collation
+  warnings and errors inside an already running mysqld server,
+  e.g. when a character set or collation is requested for the very first time
+  and its initialization does not go well for some reasons.
+
+  Note: At early mysqld initialization stage,
+  when error log is not yet available,
+  we use buffered_option_error_reporter() instead,
+  to print general character set subsystem initialization errors,
+  such as Index.xml syntax problems, bad XML tag hierarchy, etc.
+*/
+static void charset_error_reporter(enum loglevel level,
+                                   const char *format, ...)
+{
+  va_list args;
+  va_start(args, format);
+  vprint_msg_to_log(level, format, args);
+  va_end(args);                      
+}
+C_MODE_END
 
 struct passwd *user_info;
 static pthread_t select_thread;
@@ -3377,6 +3404,7 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
 #ifndef EMBEDDED_LIBRARY
 extern "C" void *my_str_malloc_mysqld(size_t size);
 extern "C" void my_str_free_mysqld(void *ptr);
+extern "C" void *my_str_realloc_mysqld(void *ptr, size_t size);
 
 void *my_str_malloc_mysqld(size_t size)
 {
@@ -3387,6 +3415,11 @@ void *my_str_malloc_mysqld(size_t size)
 void my_str_free_mysqld(void *ptr)
 {
   my_free(ptr);
+}
+
+void *my_str_realloc_mysqld(void *ptr, size_t size)
+{
+  return my_realloc(ptr, size, MYF(MY_FAE));
 }
 #endif /* EMBEDDED_LIBRARY */
 
@@ -4543,6 +4576,15 @@ static int init_server_components()
   buffered_logs.cleanup();
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
+#ifndef EMBEDDED_LIBRARY
+  /*
+    Now that the logger is available, redirect character set
+    errors directly to the logger
+    (instead of the buffered_logs used at the server startup time).
+  */
+  my_charset_error_reporter= charset_error_reporter;
+#endif
+
   if (xid_cache_init())
   {
     sql_print_error("Out of memory");
@@ -5221,10 +5263,11 @@ int mysqld_main(int argc, char **argv)
 #endif
 
   /*
-   Initialize my_str_malloc() and my_str_free()
+   Initialize my_str_malloc(), my_str_realloc() and my_str_free()
   */
   my_str_malloc= &my_str_malloc_mysqld;
   my_str_free= &my_str_free_mysqld;
+  my_str_realloc= &my_str_realloc_mysqld;
 
   /*
     init signals & alarm

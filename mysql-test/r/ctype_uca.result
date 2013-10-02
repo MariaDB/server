@@ -2240,6 +2240,112 @@ Z,z,Ź,ź,Ż,ż
 ǁ
 ǂ
 ǃ
+select group_concat(c1 order by c1) from t1 group by c1 collate utf8_german2_ci;
+group_concat(c1 order by c1)
+÷
+×
+A,a,À,Á,Â,Ã,Å,à,á,â,ã,å,Ā,ā,Ă,ă,Ą,ą,Ǎ,ǎ,Ǟ,ǟ,Ǡ,ǡ,Ǻ,ǻ
+AA,Aa,aA,aa
+Ä,Æ,ä,æ
+Ǣ,ǣ,Ǽ,ǽ
+B,b
+ƀ
+Ɓ
+Ƃ,ƃ
+C,c,Ç,ç,Ć,ć,Ĉ,ĉ,Ċ,ċ,Č,č
+CH,Ch,cH,ch
+Ƈ,ƈ
+D,d,Ď,ď
+DZ,Dz,DŽ,Dž,dZ,dz,dŽ,dž,Ǆ,ǅ,ǆ,Ǳ,ǲ,ǳ
+Đ,đ
+Ɖ
+Ɗ
+Ƌ,ƌ
+Ð,ð
+E,e,È,É,Ê,Ë,è,é,ê,ë,Ē,ē,Ĕ,ĕ,Ė,ė,Ę,ę,Ě,ě
+Ǝ,ǝ
+Ə
+Ɛ
+F,f
+Ƒ,ƒ
+G,g,Ĝ,ĝ,Ğ,ğ,Ġ,ġ,Ģ,ģ,Ǧ,ǧ,Ǵ,ǵ
+Ǥ,ǥ
+Ɠ
+Ɣ
+Ƣ,ƣ
+H,h,Ĥ,ĥ
+ƕ,Ƕ
+Ħ,ħ
+I,i,Ì,Í,Î,Ï,ì,í,î,ï,Ĩ,ĩ,Ī,ī,Ĭ,ĭ,Į,į,İ,Ǐ,ǐ
+IJ,Ij,iJ,ij,Ĳ,ĳ
+ı
+Ɨ
+Ɩ
+J,j,Ĵ,ĵ,ǰ
+K,k,Ķ,ķ,Ǩ,ǩ
+Ƙ,ƙ
+L,l,Ĺ,ĺ,Ļ,ļ,Ľ,ľ
+Ŀ,ŀ
+LJ,Lj,lJ,lj,Ǉ,ǈ,ǉ
+LL,Ll,lL,ll
+Ł,ł
+ƚ
+ƛ
+M,m
+N,n,Ñ,ñ,Ń,ń,Ņ,ņ,Ň,ň,Ǹ,ǹ
+NJ,Nj,nJ,nj,Ǌ,ǋ,ǌ
+Ɲ
+ƞ
+Ŋ,ŋ
+O,o,Ò,Ó,Ô,Õ,ò,ó,ô,õ,Ō,ō,Ŏ,ŏ,Ő,ő,Ơ,ơ,Ǒ,ǒ,Ǫ,ǫ,Ǭ,ǭ
+OE,Oe,oE,oe,Ö,ö,Œ,œ
+Ø,ø,Ǿ,ǿ
+Ɔ
+Ɵ
+P,p
+Ƥ,ƥ
+Q,q
+ĸ
+R,r,Ŕ,ŕ,Ŗ,ŗ,Ř,ř
+RR,Rr,rR,rr
+Ʀ
+S,s,Ś,ś,Ŝ,ŝ,Ş,ş,Š,š,ſ
+SS,Ss,sS,ss,ß
+Ʃ
+ƪ
+T,t,Ţ,ţ,Ť,ť
+ƾ
+Ŧ,ŧ
+ƫ
+Ƭ,ƭ
+Ʈ
+U,u,Ù,Ú,Û,ù,ú,û,Ũ,ũ,Ū,ū,Ŭ,ŭ,Ů,ů,Ű,ű,Ų,ų,Ư,ư,Ǔ,ǔ,Ǖ,ǖ,Ǘ,ǘ,Ǚ,ǚ,Ǜ,ǜ
+Ü,ü
+Ɯ
+Ʊ
+V,v
+Ʋ
+W,w,Ŵ,ŵ
+X,x
+Y,y,Ý,ý,ÿ,Ŷ,ŷ,Ÿ
+Ƴ,ƴ
+Z,z,Ź,ź,Ż,ż,Ž,ž
+ƍ
+Ƶ,ƶ
+Ʒ,Ǯ,ǯ
+Ƹ,ƹ
+ƺ
+Þ,þ
+ƿ,Ƿ
+ƻ
+Ƨ,ƨ
+Ƽ,ƽ
+Ƅ,ƅ
+ŉ
+ǀ
+ǁ
+ǂ
+ǃ
 drop table t1;
 SET NAMES utf8;
 CREATE TABLE t1 (c varchar(255) NOT NULL COLLATE utf8_general_ci, INDEX (c));
@@ -3191,4 +3297,46 @@ a	c1
 drop table t1;
 #
 # End of 5.5 tests
+#
+#
+# WL#4013 Unicode german2 collation
+#
+SET collation_connection=utf8_german2_ci;
+drop table if exists t1;
+create table t1 as select repeat(' ', 64) as s1;
+select collation(s1) from t1;
+collation(s1)
+utf8_german2_ci
+delete from t1;
+insert into t1 values ('a'),('ae'),(_latin1 0xE4);
+insert into t1 values ('o'),('oe'),(_latin1 0xF6);
+insert into t1 values ('s'),('ss'),(_latin1 0xDF);
+insert into t1 values ('u'),('ue'),(_latin1 0xFC);
+select s1, hex(s1) from t1 order by s1, binary s1;
+s1	hex(s1)
+a	61
+ae	6165
+ä	C3A4
+o	6F
+oe	6F65
+ö	C3B6
+s	73
+ss	7373
+ß	C39F
+u	75
+ue	7565
+ü	C3BC
+select group_concat(s1 order by binary s1) from t1 group by s1;
+group_concat(s1 order by binary s1)
+a
+ae,ä
+o
+oe,ö
+s
+ss,ß
+u
+ue,ü
+drop table t1;
+#
+# End of 5.6 tests
 #

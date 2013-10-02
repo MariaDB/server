@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 #include "strings_def.h"
+#include "m_string.h"
 #include "my_xml.h"
 
 
@@ -207,25 +208,71 @@ static int my_xml_value(MY_XML_PARSER *st, const char *str, size_t len)
 }
 
 
+/**
+  Ensure the attr buffer is wide enough to hold the new value
+
+  Expand and/or allocate dynamic buffer as needed to hold the concatenated
+  path and the terminating zero.
+
+  @attr st   the parser instance
+  @attr len  the length of the attribute to be added
+  @return state
+  @retval 1  failed
+  @retval 0  success
+*/
+static int my_xml_attr_ensure_space(MY_XML_PARSER *st, size_t len)
+{
+  size_t ofs= st->attr.end - st->attr.start;
+  len++; // Add terminating zero.
+  if (ofs + len > st->attr.buffer_size)
+  {
+    st->attr.buffer_size= (SIZE_T_MAX - len) / 2 > st->attr.buffer_size ?
+                            st->attr.buffer_size * 2 + len : SIZE_T_MAX;
+
+    if (!st->attr.buffer)
+    {
+      st->attr.buffer= (char *) my_str_malloc(st->attr.buffer_size);
+      if (st->attr.buffer)
+        memcpy(st->attr.buffer, st->attr.static_buffer, ofs + 1 /*term. zero */);
+    }
+    else
+      st->attr.buffer= (char *) my_str_realloc(st->attr.buffer,
+                                               st->attr.buffer_size);
+    st->attr.start= st->attr.buffer;
+    st->attr.end= st->attr.start + ofs;
+    
+    return st->attr.buffer ? MY_XML_OK : MY_XML_ERROR;
+  }
+  return MY_XML_OK;
+}
+
+
+/** rewind the attr buffer to initial state */
+static void my_xml_attr_rewind(MY_XML_PARSER *p)
+{
+  /* keep the buffer already allocated */
+  p->attr.end= p->attr.start;
+}
+
+
 static int my_xml_enter(MY_XML_PARSER *st, const char *str, size_t len)
 {
-  if ((size_t) (st->attrend-st->attr+len+1) > sizeof(st->attr))
-  {
-    sprintf(st->errstr,"To deep XML");
+  if (my_xml_attr_ensure_space(st, len + 1 /* the separator char */))
     return MY_XML_ERROR;
-  }
-  if (st->attrend > st->attr)
+
+  if (st->attr.end > st->attr.start)
   {
-    st->attrend[0]= '/';
-    st->attrend++;
+    st->attr.end[0]= '/';
+    st->attr.end++;
   }
-  memcpy(st->attrend,str,len);
-  st->attrend+=len;
-  st->attrend[0]='\0';
+  memcpy(st->attr.end, str, len);
+  st->attr.end+= len;
+  st->attr.end[0]= '\0';
   if (st->flags & MY_XML_FLAG_RELATIVE_NAMES)
     return st->enter ? st->enter(st, str, len) : MY_XML_OK;
   else
-    return st->enter ?  st->enter(st,st->attr,st->attrend-st->attr) : MY_XML_OK;
+    return st->enter ?
+      st->enter(st, st->attr.start, st->attr.end - st->attr.start) : MY_XML_OK;
 }
 
 
@@ -246,8 +293,8 @@ static int my_xml_leave(MY_XML_PARSER *p, const char *str, size_t slen)
   int  rc;
 
   /* Find previous '/' or beginning */
-  for (e=p->attrend; (e>p->attr) && (e[0] != '/') ; e--);
-  glen = (size_t) ((e[0] == '/') ? (p->attrend-e-1) : p->attrend-e);
+  for (e= p->attr.end; (e > p->attr.start) && (e[0] != '/') ; e--);
+  glen= (size_t) ((e[0] == '/') ? (p->attr.end - e - 1) : p->attr.end - e);
   
   if (str && (slen != glen))
   {
@@ -265,11 +312,12 @@ static int my_xml_leave(MY_XML_PARSER *p, const char *str, size_t slen)
   if (p->flags & MY_XML_FLAG_RELATIVE_NAMES)
     rc= p->leave_xml ? p->leave_xml(p, str, slen) : MY_XML_OK;
   else
-    rc= (p->leave_xml ?  p->leave_xml(p,p->attr,p->attrend-p->attr) :
+    rc= (p->leave_xml ? 
+         p->leave_xml(p, p->attr.start, p->attr.end - p->attr.start) :
          MY_XML_OK);
   
   *e='\0';
-  p->attrend=e;
+  p->attr.end= e;
   
   return rc;
 }
@@ -277,7 +325,9 @@ static int my_xml_leave(MY_XML_PARSER *p, const char *str, size_t slen)
 
 int my_xml_parse(MY_XML_PARSER *p,const char *str, size_t len)
 {
-  p->attrend=p->attr;
+
+  my_xml_attr_rewind(p);
+
   p->beg=str;
   p->cur=str;
   p->end=str+len;
@@ -432,7 +482,7 @@ gt:
     }
   }
 
-  if (p->attr[0])
+  if (p->attr.start[0])
   {
     sprintf(p->errstr,"unexpected END-OF-INPUT");
     return MY_XML_ERROR;
@@ -443,12 +493,22 @@ gt:
 
 void my_xml_parser_create(MY_XML_PARSER *p)
 {
-  bzero((void*)p,sizeof(p[0]));
+  memset(p, 0, sizeof(p[0]));
+  /*
+    Use static buffer while it's sufficient.
+  */
+  p->attr.start= p->attr.end= p->attr.static_buffer;
+  p->attr.buffer_size= sizeof(p->attr.static_buffer);
 }
 
 
-void my_xml_parser_free(MY_XML_PARSER *p  __attribute__((unused)))
+void my_xml_parser_free(MY_XML_PARSER *p)
 {
+  if (p->attr.buffer)
+  {
+    my_str_free(p->attr.buffer);
+    p->attr.buffer= NULL;
+  }
 }
 
 

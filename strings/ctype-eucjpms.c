@@ -203,7 +203,7 @@ static uint mbcharlen_eucjpms(CHARSET_INFO *cs __attribute__((unused)),uint c)
 
 /* Case info pages for JIS-X-0208 range */
 
-static MY_UNICASE_INFO cA2[256]=
+static MY_UNICASE_CHARACTER cA2[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -324,7 +324,7 @@ static MY_UNICASE_INFO cA2[256]=
 };
 
 
-static MY_UNICASE_INFO cA3[256]=
+static MY_UNICASE_CHARACTER cA3[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -445,7 +445,7 @@ static MY_UNICASE_INFO cA3[256]=
 };
 
 
-static MY_UNICASE_INFO cA6[256]=
+static MY_UNICASE_CHARACTER cA6[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -566,7 +566,7 @@ static MY_UNICASE_INFO cA6[256]=
 };
 
 
-static MY_UNICASE_INFO cA7[256]=
+static MY_UNICASE_CHARACTER cA7[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -687,7 +687,7 @@ static MY_UNICASE_INFO cA7[256]=
 };
 
 
-static MY_UNICASE_INFO cAD[256]=
+static MY_UNICASE_CHARACTER cAD[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -810,7 +810,7 @@ static MY_UNICASE_INFO cAD[256]=
 
 /* Case info pages for JIS-X-0212 range */
 
-static MY_UNICASE_INFO c8FA6[256]=
+static MY_UNICASE_CHARACTER c8FA6[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -931,7 +931,7 @@ static MY_UNICASE_INFO c8FA6[256]=
 };
 
 
-static MY_UNICASE_INFO c8FA7[256]=
+static MY_UNICASE_CHARACTER c8FA7[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -1052,7 +1052,7 @@ static MY_UNICASE_INFO c8FA7[256]=
 };
 
 
-static MY_UNICASE_INFO c8FA9[256]=
+static MY_UNICASE_CHARACTER c8FA9[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -1173,7 +1173,7 @@ static MY_UNICASE_INFO c8FA9[256]=
 };
 
 
-static MY_UNICASE_INFO c8FAA[256]=
+static MY_UNICASE_CHARACTER c8FAA[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -1294,7 +1294,7 @@ static MY_UNICASE_INFO c8FAA[256]=
 };
 
 
-static MY_UNICASE_INFO c8FAB[256]=
+static MY_UNICASE_CHARACTER c8FAB[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -1415,7 +1415,7 @@ static MY_UNICASE_INFO c8FAB[256]=
 };
 
 
-static MY_UNICASE_INFO c8FF3[256]=
+static MY_UNICASE_CHARACTER c8FF3[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -1536,7 +1536,7 @@ static MY_UNICASE_INFO c8FF3[256]=
 };
 
 
-static MY_UNICASE_INFO c8FF4[256]=
+static MY_UNICASE_CHARACTER c8FF4[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -1657,7 +1657,7 @@ static MY_UNICASE_INFO c8FF4[256]=
 };
 
 
-static MY_UNICASE_INFO *my_caseinfo_eucjpms[512]=
+static MY_UNICASE_CHARACTER *my_caseinfo_pages_eucjpms[512]=
 {
   /* JIS-X-0208 */
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, /* 0 */
@@ -1729,7 +1729,14 @@ static MY_UNICASE_INFO *my_caseinfo_eucjpms[512]=
 };
 
 
-static const uint16 jisx0208_eucjpms_to_unicode[65536]=
+static MY_UNICASE_INFO my_caseinfo_eucjpms=
+{
+  0x0FFFF,
+  my_caseinfo_pages_eucjpms
+};
+
+
+static uint16 jisx0208_eucjpms_to_unicode[65536]=
 {
       0x0000,      0x0001,      0x0002,      0x0003, /* 0000 */
       0x0004,      0x0005,      0x0006,      0x0007,
@@ -67559,11 +67566,10 @@ struct charset_info_st my_charset_eucjpms_japanese_ci=
     to_lower_eucjpms,
     to_upper_eucjpms,
     sort_order_eucjpms,
-    NULL,		/* sort_order_big*/
-    NULL,		/* contractions */
+    NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
-    my_caseinfo_eucjpms,/* caseinfo     */
+    &my_caseinfo_eucjpms,/* caseinfo    */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
@@ -67592,11 +67598,10 @@ struct charset_info_st my_charset_eucjpms_bin=
     to_lower_eucjpms,
     to_upper_eucjpms,
     NULL,		/* sort_order   */
-    NULL,		/* contractions */
-    NULL,		/* sort_order_big*/
+    NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
-    my_caseinfo_eucjpms,/* caseinfo     */
+    &my_caseinfo_eucjpms,/* caseinfo    */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
