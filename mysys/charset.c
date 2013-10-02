@@ -214,6 +214,8 @@ copy_uca_collation(struct charset_info_st *to, CHARSET_INFO *from)
   to->max_sort_char= from->max_sort_char;
   to->mbminlen= from->mbminlen;
   to->mbmaxlen= from->mbmaxlen;
+  to->caseup_multiply= from->caseup_multiply;
+  to->casedn_multiply= from->casedn_multiply;
   to->state|= MY_CS_AVAILABLE | MY_CS_LOADED |
               MY_CS_STRNXFRM  | MY_CS_UNICODE;
 }
@@ -349,6 +351,7 @@ static int add_collation(struct charset_info_st *cs)
   return MY_XML_OK;
 }
 
+
 /**
   Report character set initialization errors and warnings.
   Be silent by default: no warnings on the client side.
@@ -361,13 +364,53 @@ default_reporter(enum loglevel level  __attribute__ ((unused)),
 }
 my_error_reporter my_charset_error_reporter= default_reporter;
 
+
+/**
+  Wrappers for memory functions my_malloc (and friends)
+  with C-compatbile API without extra "myf" argument.
+*/
+static void *
+my_once_alloc_c(size_t size)
+{ return my_once_alloc(size, MYF(MY_WME)); }
+
+
+static void *
+my_malloc_c(size_t size)
+{ return my_malloc(size, MYF(MY_WME)); }
+
+
+static void *
+my_realloc_c(void *old, size_t size)
+{ return my_realloc(old, size, MYF(MY_WME|MY_ALLOW_ZERO_PTR)); }
+
+
+/**
+  Initialize character set loader to use mysys memory management functions.
+  @param loader  Loader to initialize
+*/
+void
+my_charset_loader_init_mysys(MY_CHARSET_LOADER *loader)
+{
+  loader->error[0]= '\0';
+  loader->once_alloc= my_once_alloc_c;
+  loader->malloc= my_malloc_c;
+  loader->realloc= my_realloc_c;
+  loader->free= my_free;
+  loader->reporter= my_charset_error_reporter;
+  loader->add_collation= add_collation;
+}
+
+
 #define MY_MAX_ALLOWED_BUF 1024*1024
 #define MY_CHARSET_INDEX "Index.xml"
 
 const char *charsets_dir= NULL;
 
 
-static my_bool my_read_charset_file(const char *filename, myf myflags)
+static my_bool
+my_read_charset_file(MY_CHARSET_LOADER *loader,
+                     const char *filename,
+                     myf myflags)
 {
   uchar *buf;
   int  fd;
@@ -386,14 +429,11 @@ static my_bool my_read_charset_file(const char *filename, myf myflags)
   if (tmp_len != len)
     goto error;
   
-  if (my_parse_charset_xml((char*) buf,len,add_collation))
+  if (my_parse_charset_xml(loader, (char *) buf, len))
   {
-#ifdef NOT_YET
-    printf("ERROR at line %d pos %d '%s'\n",
-	   my_xml_error_lineno(&p)+1,
-	   my_xml_error_pos(&p),
-	   my_xml_error_string(&p));
-#endif
+    my_printf_error(EE_UNKNOWN_CHARSET, "Error while parsing '%s': %s\n",
+                    MYF(0), filename, loader->error);
+    goto error;
   }
   
   my_free(buf);
@@ -437,11 +477,6 @@ void add_compiled_collation(struct charset_info_st *cs)
   cs->state|= MY_CS_AVAILABLE;
 }
 
-static void *cs_alloc(size_t size)
-{
-  return my_once_alloc(size, MYF(MY_WME));
-}
-
 
 static my_pthread_once_t charsets_initialized= MY_PTHREAD_ONCE_INIT;
 static my_pthread_once_t charsets_template= MY_PTHREAD_ONCE_INIT;
@@ -450,6 +485,7 @@ static void init_available_charsets(void)
 {
   char fname[FN_REFLEN + sizeof(MY_CHARSET_INDEX)];
   struct charset_info_st **cs;
+  MY_CHARSET_LOADER loader;
 
   bzero((char*) &all_charsets,sizeof(all_charsets));
   init_compiled_charsets(MYF(0));
@@ -468,8 +504,9 @@ static void init_available_charsets(void)
     }
   }
 
+  my_charset_loader_init_mysys(&loader);
   strmov(get_charsets_dir(fname), MY_CHARSET_INDEX);
-  my_read_charset_file(fname, MYF(0));
+  my_read_charset_file(&loader, fname, MYF(0));
 }
 
 
@@ -558,7 +595,8 @@ const char *get_charset_name(uint charset_number)
 }
 
 
-static CHARSET_INFO *get_internal_charset(uint cs_number, myf flags)
+static CHARSET_INFO *
+get_internal_charset(MY_CHARSET_LOADER *loader, uint cs_number, myf flags)
 {
   char  buf[FN_REFLEN];
   struct charset_info_st *cs;
@@ -578,17 +616,21 @@ static CHARSET_INFO *get_internal_charset(uint cs_number, myf flags)
 
     if (!(cs->state & (MY_CS_COMPILED|MY_CS_LOADED))) /* if CS is not in memory */
     {
+      MY_CHARSET_LOADER loader;
       strxmov(get_charsets_dir(buf), cs->csname, ".xml", NullS);
-      my_read_charset_file(buf,flags);
+      my_charset_loader_init_mysys(&loader);
+      my_read_charset_file(&loader, buf, flags);
     }
 
     if (cs->state & MY_CS_AVAILABLE)
     {
       if (!(cs->state & MY_CS_READY))
       {
-        if ((cs->cset->init && cs->cset->init(cs, cs_alloc)) ||
-            (cs->coll->init && cs->coll->init(cs, cs_alloc)))
+        if ((cs->cset->init && cs->cset->init(cs, loader)) ||
+            (cs->coll->init && cs->coll->init(cs, loader)))
+        {
           cs= NULL;
+        }
         else
           cs->state|= MY_CS_READY;
       }
@@ -605,6 +647,8 @@ static CHARSET_INFO *get_internal_charset(uint cs_number, myf flags)
 CHARSET_INFO *get_charset(uint cs_number, myf flags)
 {
   CHARSET_INFO *cs;
+  MY_CHARSET_LOADER loader;
+
   if (cs_number == default_charset_info->number)
     return default_charset_info;
 
@@ -612,8 +656,9 @@ CHARSET_INFO *get_charset(uint cs_number, myf flags)
  
   if (cs_number >= array_elements(all_charsets)) 
     return NULL;
-  
-  cs=get_internal_charset(cs_number, flags);
+
+  my_charset_loader_init_mysys(&loader);
+  cs= get_internal_charset(&loader, cs_number, flags);
 
   if (!cs && (flags & MY_WME))
   {
@@ -626,29 +671,58 @@ CHARSET_INFO *get_charset(uint cs_number, myf flags)
   return cs;
 }
 
-CHARSET_INFO *get_charset_by_name(const char *cs_name, myf flags)
+
+/**
+  Find collation by name: extended version of get_charset_by_name()
+  to return error messages to the caller.
+  @param   loader  Character set loader
+  @param   name    Collation name
+  @param   flags   Flags
+  @return          NULL on error, pointer to collation on success
+*/
+
+CHARSET_INFO *
+my_collation_get_by_name(MY_CHARSET_LOADER *loader,
+                         const char *name, myf flags)
 {
   uint cs_number;
   CHARSET_INFO *cs;
   my_pthread_once(&charsets_initialized, init_available_charsets);
 
-  cs_number=get_collation_number(cs_name);
-  cs= cs_number ? get_internal_charset(cs_number,flags) : NULL;
+  cs_number= get_collation_number(name);
+  my_charset_loader_init_mysys(loader);
+  cs= cs_number ? get_internal_charset(loader, cs_number, flags) : NULL;
 
   if (!cs && (flags & MY_WME))
   {
     char index_file[FN_REFLEN + sizeof(MY_CHARSET_INDEX)];
     strmov(get_charsets_dir(index_file),MY_CHARSET_INDEX);
-    my_error(EE_UNKNOWN_COLLATION, MYF(ME_BELL), cs_name, index_file);
+    my_error(EE_UNKNOWN_COLLATION, MYF(ME_BELL), name, index_file);
   }
-
   return cs;
 }
 
 
-CHARSET_INFO *get_charset_by_csname(const char *cs_name,
-				    uint cs_flags,
-				    myf flags)
+CHARSET_INFO *get_charset_by_name(const char *cs_name, myf flags)
+{
+  MY_CHARSET_LOADER loader;
+  my_charset_loader_init_mysys(&loader);
+  return my_collation_get_by_name(&loader, cs_name, flags);
+}
+
+
+/**
+  Find character set by name: extended version of get_charset_by_csname()
+  to return error messages to the caller.
+  @param   loader   Character set loader
+  @param   name     Collation name
+  @param   cs_flags Character set flags (e.g. default or binary collation)
+  @param   flags    Flags
+  @return           NULL on error, pointer to collation on success
+*/
+CHARSET_INFO *
+my_charset_get_by_name(MY_CHARSET_LOADER *loader,
+                       const char *cs_name, uint cs_flags, myf flags)
 {
   uint cs_number;
   CHARSET_INFO *cs;
@@ -658,7 +732,7 @@ CHARSET_INFO *get_charset_by_csname(const char *cs_name,
   my_pthread_once(&charsets_initialized, init_available_charsets);
 
   cs_number= get_charset_number(cs_name, cs_flags);
-  cs= cs_number ? get_internal_charset(cs_number, flags) : NULL;
+  cs= cs_number ? get_internal_charset(loader, cs_number, flags) : NULL;
 
   if (!cs && (flags & MY_WME))
   {
@@ -668,6 +742,15 @@ CHARSET_INFO *get_charset_by_csname(const char *cs_name,
   }
 
   DBUG_RETURN(cs);
+}
+
+
+CHARSET_INFO *
+get_charset_by_csname(const char *cs_name, uint cs_flags, myf flags)
+{
+  MY_CHARSET_LOADER loader;
+  my_charset_loader_init_mysys(&loader);
+  return my_charset_get_by_name(&loader, cs_name, cs_flags, flags);
 }
 
 
@@ -868,8 +951,11 @@ CHARSET_INFO *fs_character_set()
       As we're now interested in cp932 only,
       let's just detect it using strcmp().
     */
-    fs_cset_cache= !strcmp(buf, "cp932") ?
-                   &my_charset_cp932_japanese_ci : &my_charset_bin;
+    fs_cset_cache= 
+                #ifdef HAVE_CHARSET_cp932
+                        !strcmp(buf, "cp932") ? &my_charset_cp932_japanese_ci : 
+                #endif
+                        &my_charset_bin;
   }
   return fs_cset_cache;
 }

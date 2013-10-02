@@ -60,7 +60,7 @@
 
 #include "my_uctype.h"
 
-static MY_UNICASE_INFO plane00[]={
+static MY_UNICASE_CHARACTER plane00[]={
   {0x0000,0x0000,0x0000},  {0x0001,0x0001,0x0001},
   {0x0002,0x0002,0x0002},  {0x0003,0x0003,0x0003},
   {0x0004,0x0004,0x0004},  {0x0005,0x0005,0x0005},
@@ -196,7 +196,7 @@ static MY_UNICASE_INFO plane00[]={
   Almost similar to plane00, but maps sorting order
   for U+00DF to 0x00DF instead of 0x0053.
 */
-static MY_UNICASE_INFO plane00_mysql500[]={
+static MY_UNICASE_CHARACTER plane00_mysql500[]={
   {0x0000,0x0000,0x0000},  {0x0001,0x0001,0x0001},
   {0x0002,0x0002,0x0002},  {0x0003,0x0003,0x0003},
   {0x0004,0x0004,0x0004},  {0x0005,0x0005,0x0005},
@@ -328,7 +328,7 @@ static MY_UNICASE_INFO plane00_mysql500[]={
 };
 
 
-static MY_UNICASE_INFO plane01[]={
+static MY_UNICASE_CHARACTER plane01[]={
   {0x0100,0x0101,0x0041},  {0x0100,0x0101,0x0041},
   {0x0102,0x0103,0x0041},  {0x0102,0x0103,0x0041},
   {0x0104,0x0105,0x0041},  {0x0104,0x0105,0x0041},
@@ -459,7 +459,7 @@ static MY_UNICASE_INFO plane01[]={
   {0x01FE,0x01FF,0x00D8},  {0x01FE,0x01FF,0x00D8}
 };
 
-static MY_UNICASE_INFO plane02[]={
+static MY_UNICASE_CHARACTER plane02[]={
   {0x0200,0x0201,0x0041},  {0x0200,0x0201,0x0041},
   {0x0202,0x0203,0x0041},  {0x0202,0x0203,0x0041},
   {0x0204,0x0205,0x0045},  {0x0204,0x0205,0x0045},
@@ -590,7 +590,7 @@ static MY_UNICASE_INFO plane02[]={
   {0x02FE,0x02FE,0x02FE},  {0x02FF,0x02FF,0x02FF}
 };
 
-static MY_UNICASE_INFO plane03[]={
+static MY_UNICASE_CHARACTER plane03[]={
   {0x0300,0x0300,0x0300},  {0x0301,0x0301,0x0301},
   {0x0302,0x0302,0x0302},  {0x0303,0x0303,0x0303},
   {0x0304,0x0304,0x0304},  {0x0305,0x0305,0x0305},
@@ -721,7 +721,7 @@ static MY_UNICASE_INFO plane03[]={
   {0x03FE,0x03FE,0x03FE},  {0x03FF,0x03FF,0x03FF}
 };
 
-static MY_UNICASE_INFO plane04[]={
+static MY_UNICASE_CHARACTER plane04[]={
   {0x0400,0x0450,0x0415},  {0x0401,0x0451,0x0415},
   {0x0402,0x0452,0x0402},  {0x0403,0x0453,0x0413},
   {0x0404,0x0454,0x0404},  {0x0405,0x0455,0x0405},
@@ -852,7 +852,7 @@ static MY_UNICASE_INFO plane04[]={
   {0x04FE,0x04FE,0x04FE},  {0x04FF,0x04FF,0x04FF}
 };
 
-static MY_UNICASE_INFO plane05[]={
+static MY_UNICASE_CHARACTER plane05[]={
   {0x0500,0x0500,0x0500},  {0x0501,0x0501,0x0501},
   {0x0502,0x0502,0x0502},  {0x0503,0x0503,0x0503},
   {0x0504,0x0504,0x0504},  {0x0505,0x0505,0x0505},
@@ -983,7 +983,7 @@ static MY_UNICASE_INFO plane05[]={
   {0x05FE,0x05FE,0x05FE},  {0x05FF,0x05FF,0x05FF}
 };
 
-static MY_UNICASE_INFO plane1E[]={
+static MY_UNICASE_CHARACTER plane1E[]={
   {0x1E00,0x1E01,0x0041},  {0x1E00,0x1E01,0x0041},
   {0x1E02,0x1E03,0x0042},  {0x1E02,0x1E03,0x0042},
   {0x1E04,0x1E05,0x0042},  {0x1E04,0x1E05,0x0042},
@@ -1114,7 +1114,7 @@ static MY_UNICASE_INFO plane1E[]={
   {0x1EFE,0x1EFE,0x1EFE},  {0x1EFF,0x1EFF,0x1EFF}
 };
 
-static MY_UNICASE_INFO plane1F[]={
+static MY_UNICASE_CHARACTER plane1F[]={
   {0x1F08,0x1F00,0x0391},  {0x1F09,0x1F01,0x0391},
   {0x1F0A,0x1F02,0x0391},  {0x1F0B,0x1F03,0x0391},
   {0x1F0C,0x1F04,0x0391},  {0x1F0D,0x1F05,0x0391},
@@ -1245,7 +1245,7 @@ static MY_UNICASE_INFO plane1F[]={
   {0x1FFE,0x1FFE,0x1FFE},  {0x1FFF,0x1FFF,0x1FFF}
 };
 
-static MY_UNICASE_INFO plane21[]={
+static MY_UNICASE_CHARACTER plane21[]={
   {0x2100,0x2100,0x2100},  {0x2101,0x2101,0x2101},
   {0x2102,0x2102,0x2102},  {0x2103,0x2103,0x2103},
   {0x2104,0x2104,0x2104},  {0x2105,0x2105,0x2105},
@@ -1376,7 +1376,7 @@ static MY_UNICASE_INFO plane21[]={
   {0x21FE,0x21FE,0x21FE},  {0x21FF,0x21FF,0x21FF}
 };
 
-static MY_UNICASE_INFO plane24[]={
+static MY_UNICASE_CHARACTER plane24[]={
   {0x2400,0x2400,0x2400},  {0x2401,0x2401,0x2401},
   {0x2402,0x2402,0x2402},  {0x2403,0x2403,0x2403},
   {0x2404,0x2404,0x2404},  {0x2405,0x2405,0x2405},
@@ -1507,7 +1507,7 @@ static MY_UNICASE_INFO plane24[]={
   {0x24FE,0x24FE,0x24FE},  {0x24FF,0x24FF,0x24FF}
 };
 
-static MY_UNICASE_INFO planeFF[]={
+static MY_UNICASE_CHARACTER planeFF[]={
   {0xFF00,0xFF00,0xFF00},  {0xFF01,0xFF01,0xFF01},
   {0xFF02,0xFF02,0xFF02},  {0xFF03,0xFF03,0xFF03},
   {0xFF04,0xFF04,0xFF04},  {0xFF05,0xFF05,0xFF05},
@@ -1638,7 +1638,9 @@ static MY_UNICASE_INFO planeFF[]={
   {0xFFFE,0xFFFE,0xFFFE},  {0xFFFF,0xFFFF,0xFFFF}
 };
 
-MY_UNICASE_INFO *const my_unicase_default[256]={
+
+static MY_UNICASE_CHARACTER *my_unicase_pages_default[256]=
+{
  plane00, plane01, plane02, plane03, plane04, plane05,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
@@ -1671,14 +1673,20 @@ MY_UNICASE_INFO *const my_unicase_default[256]={
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL, planeFF
+};
 
+
+MY_UNICASE_INFO my_unicase_default=
+{
+  0xFFFF,
+  my_unicase_pages_default
 };
 
 
 /*
   Reproduce old utf8_general_ci behaviour before we fixed Bug#27877.
 */
-MY_UNICASE_INFO *const my_unicase_mysql500[256]={
+MY_UNICASE_CHARACTER *my_unicase_pages_mysql500[256]={
  plane00_mysql500,
           plane01, plane02, plane03, plane04, plane05,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
@@ -1716,6 +1724,13 @@ MY_UNICASE_INFO *const my_unicase_mysql500[256]={
 };
 
 
+MY_UNICASE_INFO my_unicase_mysql500=
+{
+  0xFFFF,
+  my_unicase_pages_mysql500
+};
+
+
 /*
   Turkish lower/upper mapping:
   1. LOWER(0x0049 LATIN CAPITAL LETTER I) -> 
@@ -1724,7 +1739,7 @@ MY_UNICASE_INFO *const my_unicase_mysql500[256]={
            0x0130 LATIN CAPITAL LETTER I WITH DOT ABOVE
 */
 
-static MY_UNICASE_INFO turk00[]=
+static MY_UNICASE_CHARACTER turk00[]=
 {
   {0x0000,0x0000,0x0000},  {0x0001,0x0001,0x0001},
   {0x0002,0x0002,0x0002},  {0x0003,0x0003,0x0003},
@@ -1858,7 +1873,7 @@ static MY_UNICASE_INFO turk00[]=
 
 
 
-MY_UNICASE_INFO *const my_unicase_turkish[256]=
+static MY_UNICASE_CHARACTER *my_unicase_pages_turkish[256]=
 {
   turk00, plane01, plane02, plane03, plane04, plane05,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
@@ -1895,14 +1910,23 @@ MY_UNICASE_INFO *const my_unicase_turkish[256]=
 };
 
 
-static inline void
-my_tosort_unicode(MY_UNICASE_INFO * const* uni_plane, my_wc_t *wc)
+MY_UNICASE_INFO my_unicase_turkish=
 {
-  int page= *wc >> 8;
-  if (page < 256)
+  0xFFFF,
+  my_unicase_pages_turkish
+};
+
+
+static inline void
+my_tosort_unicode(MY_UNICASE_INFO *uni_plane, my_wc_t *wc, uint flags)
+{
+  if (*wc <= uni_plane->maxchar)
   {
-    if (uni_plane[page])
-      *wc= uni_plane[page][*wc & 0xFF].sort;
+    MY_UNICASE_CHARACTER *page;
+    if ((page= uni_plane->page[*wc >> 8]))
+      *wc= (flags & MY_CS_LOWER_SORT) ?
+           page[*wc & 0xFF].tolower :
+           page[*wc & 0xFF].sort;
   }
   else
   {
@@ -1925,7 +1949,7 @@ int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
                             const char *str,const char *str_end,
                             const char *wildstr,const char *wildend,
                             int escape, int w_one, int w_many,
-                            MY_UNICASE_INFO *const *weights, int recurse_level)
+                            MY_UNICASE_INFO *weights, int recurse_level)
 {
   int result= -1;                             /* Not found, using wildcards */
   my_wc_t s_wc, w_wc;
@@ -1974,8 +1998,8 @@ int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
       {
         if (weights)
         {
-          my_tosort_unicode(weights, &s_wc);
-          my_tosort_unicode(weights, &w_wc);
+          my_tosort_unicode(weights, &s_wc, cs->state);
+          my_tosort_unicode(weights, &w_wc, cs->state);
         }
         if (s_wc != w_wc)
           return 1;                               /* No match */
@@ -2045,8 +2069,8 @@ int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
             return 1;
           if (weights)
           {
-            my_tosort_unicode(weights, &s_wc);
-            my_tosort_unicode(weights, &w_wc);
+            my_tosort_unicode(weights, &s_wc, cs->state);
+            my_tosort_unicode(weights, &w_wc, cs->state);
           }
           
           if (s_wc == w_wc)
@@ -2074,7 +2098,7 @@ my_wildcmp_unicode(CHARSET_INFO *cs,
                    const char *str,const char *str_end,
                    const char *wildstr,const char *wildend,
                    int escape, int w_one, int w_many,
-                   MY_UNICASE_INFO *const *weights)
+                   MY_UNICASE_INFO *weights)
 {
   return my_wildcmp_unicode_impl(cs, str, str_end,
                                  wildstr, wildend,
@@ -2099,7 +2123,7 @@ my_strnxfrm_unicode(CHARSET_INFO *cs,
   uchar *de= dst + dstlen;
   uchar *de_beg= de - 1;
   const uchar *se = src + srclen;
-  MY_UNICASE_INFO * const*uni_plane= (cs->state & MY_CS_BINSORT) ?
+  MY_UNICASE_INFO *uni_plane= (cs->state & MY_CS_BINSORT) ?
                                       NULL : cs->caseinfo;
   DBUG_ASSERT(src);
   
@@ -2110,7 +2134,7 @@ my_strnxfrm_unicode(CHARSET_INFO *cs,
     src+=res;
 
     if (uni_plane)
-      my_tosort_unicode(uni_plane, &wc);
+      my_tosort_unicode(uni_plane, &wc, cs->state);
 
     *dst++= (uchar) (wc >> 8);
     if (dst < de)
@@ -2476,20 +2500,45 @@ static int my_uni_utf8_no_range(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+static inline void
+my_tolower_utf8mb3(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
+{
+  MY_UNICASE_CHARACTER *page;
+  if ((page= uni_plane->page[(*wc >> 8) & 0xFF]))
+    *wc= page[*wc & 0xFF].tolower;
+}
+
+
+static inline void
+my_toupper_utf8mb3(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
+{
+  MY_UNICASE_CHARACTER *page;
+  if ((page= uni_plane->page[(*wc >> 8) & 0xFF]))
+    *wc= page[*wc & 0xFF].toupper;
+}
+
+
+static inline void
+my_tosort_utf8mb3(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
+{
+  MY_UNICASE_CHARACTER *page;
+  if ((page= uni_plane->page[(*wc >> 8) & 0xFF]))
+    *wc= page[*wc & 0xFF].sort;
+}
+
 static size_t my_caseup_utf8(CHARSET_INFO *cs, char *src, size_t srclen,
                              char *dst, size_t dstlen)
 {
   my_wc_t wc;
   int srcres, dstres;
   char *srcend= src + srclen, *dstend= dst + dstlen, *dst0= dst;
-  MY_UNICASE_INFO *const *uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(src != dst || cs->caseup_multiply == 1);
 
   while ((src < srcend) &&
          (srcres= my_utf8_uni(cs, &wc, (uchar *) src, (uchar*) srcend)) > 0)
   {
-    int plane= (wc>>8) & 0xFF;
-    wc= uni_plane[plane] ? uni_plane[plane][wc & 0xFF].toupper : wc;
+    my_toupper_utf8mb3(uni_plane, &wc);
     if ((dstres= my_uni_utf8(cs, wc, (uchar*) dst, (uchar*) dstend)) <= 0)
       break;
     src+= srcres;
@@ -2505,7 +2554,7 @@ static void my_hash_sort_utf8(CHARSET_INFO *cs, const uchar *s, size_t slen,
   my_wc_t wc;
   int res;
   const uchar *e=s+slen;
-  MY_UNICASE_INFO *const *uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
 
   /*
     Remove end space. We have to do this to be able to compare
@@ -2516,8 +2565,7 @@ static void my_hash_sort_utf8(CHARSET_INFO *cs, const uchar *s, size_t slen,
 
   while ((s < e) && (res=my_utf8_uni(cs,&wc, (uchar *)s, (uchar*)e))>0 )
   {
-    int plane = (wc>>8) & 0xFF;
-    wc = uni_plane[plane] ? uni_plane[plane][wc & 0xFF].sort : wc;
+    my_tosort_unicode(uni_plane, &wc, cs->state);
     n1[0]^= (((n1[0] & 63)+n2[0])*(wc & 0xFF))+ (n1[0] << 8);
     n2[0]+=3;
     n1[0]^= (((n1[0] & 63)+n2[0])*(wc >> 8))+ (n1[0] << 8);
@@ -2532,14 +2580,13 @@ static size_t my_caseup_str_utf8(CHARSET_INFO *cs, char *src)
   my_wc_t wc;
   int srcres, dstres;
   char *dst= src, *dst0= src;
-  MY_UNICASE_INFO *const *uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(cs->caseup_multiply == 1);
 
   while (*src &&
          (srcres= my_utf8_uni_no_range(cs, &wc, (uchar *) src)) > 0)
   {
-    int plane= (wc>>8) & 0xFF;
-    wc= uni_plane[plane] ? uni_plane[plane][wc & 0xFF].toupper : wc;
+    my_toupper_utf8mb3(uni_plane, &wc);
     if ((dstres= my_uni_utf8_no_range(cs, wc, (uchar*) dst)) <= 0)
       break;
     src+= srcres;
@@ -2556,14 +2603,13 @@ static size_t my_casedn_utf8(CHARSET_INFO *cs, char *src, size_t srclen,
   my_wc_t wc;
   int srcres, dstres;
   char *srcend= src + srclen, *dstend= dst + dstlen, *dst0= dst;
-  MY_UNICASE_INFO *const *uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(src != dst || cs->casedn_multiply == 1);
 
   while ((src < srcend) &&
          (srcres= my_utf8_uni(cs, &wc, (uchar*) src, (uchar*)srcend)) > 0)
   {
-    int plane= (wc>>8) & 0xFF;
-    wc= uni_plane[plane] ? uni_plane[plane][wc & 0xFF].tolower : wc;
+    my_tolower_utf8mb3(uni_plane, &wc);
     if ((dstres= my_uni_utf8(cs, wc, (uchar*) dst, (uchar*) dstend)) <= 0)
       break;
     src+= srcres;
@@ -2578,14 +2624,13 @@ static size_t my_casedn_str_utf8(CHARSET_INFO *cs, char *src)
   my_wc_t wc;
   int srcres, dstres;
   char *dst= src, *dst0= src;
-  MY_UNICASE_INFO *const *uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(cs->casedn_multiply == 1);
 
   while (*src &&
          (srcres= my_utf8_uni_no_range(cs, &wc, (uchar *) src)) > 0)
   {
-    int plane= (wc>>8) & 0xFF;
-    wc= uni_plane[plane] ? uni_plane[plane][wc & 0xFF].tolower : wc;
+    my_tolower_utf8mb3(uni_plane, &wc);
     if ((dstres= my_uni_utf8_no_range(cs, wc, (uchar*) dst)) <= 0)
       break;
     src+= srcres;
@@ -2621,11 +2666,10 @@ static int my_strnncoll_utf8(CHARSET_INFO *cs,
   my_wc_t UNINIT_VAR(s_wc), UNINIT_VAR(t_wc);
   const uchar *se=s+slen;
   const uchar *te=t+tlen;
-  MY_UNICASE_INFO *const *uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
 
   while ( s < se && t < te )
   {
-    int plane;
     s_res=my_utf8_uni(cs,&s_wc, s, se);
     t_res=my_utf8_uni(cs,&t_wc, t, te);
 
@@ -2635,10 +2679,9 @@ static int my_strnncoll_utf8(CHARSET_INFO *cs,
       return bincmp(s, se, t, te);
     }
 
-    plane=(s_wc>>8) & 0xFF;
-    s_wc = uni_plane[plane] ? uni_plane[plane][s_wc & 0xFF].sort : s_wc;
-    plane=(t_wc>>8) & 0xFF;
-    t_wc = uni_plane[plane] ? uni_plane[plane][t_wc & 0xFF].sort : t_wc;
+    my_tosort_unicode(uni_plane, &s_wc, cs->state);
+    my_tosort_unicode(uni_plane, &t_wc, cs->state);
+
     if ( s_wc != t_wc )
     {
       return  s_wc > t_wc ? 1 : -1;
@@ -2690,7 +2733,7 @@ static int my_strnncollsp_utf8(CHARSET_INFO *cs,
   int s_res, t_res, res;
   my_wc_t UNINIT_VAR(s_wc), UNINIT_VAR(t_wc);
   const uchar *se= s+slen, *te= t+tlen;
-  MY_UNICASE_INFO *const *uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
 
 #ifndef VARCHAR_WITH_DIFF_ENDSPACE_ARE_DIFFERENT_FOR_UNIQUE
   diff_if_only_endspace_difference= 0;
@@ -2698,7 +2741,6 @@ static int my_strnncollsp_utf8(CHARSET_INFO *cs,
 
   while ( s < se && t < te )
   {
-    int plane;
     s_res=my_utf8_uni(cs,&s_wc, s, se);
     t_res=my_utf8_uni(cs,&t_wc, t, te);
 
@@ -2708,10 +2750,9 @@ static int my_strnncollsp_utf8(CHARSET_INFO *cs,
       return bincmp(s, se, t, te);
     }
 
-    plane=(s_wc>>8) & 0xFF;
-    s_wc = uni_plane[plane] ? uni_plane[plane][s_wc & 0xFF].sort : s_wc;
-    plane=(t_wc>>8) & 0xFF;
-    t_wc = uni_plane[plane] ? uni_plane[plane][t_wc & 0xFF].sort : t_wc;
+    my_tosort_unicode(uni_plane, &s_wc, cs->state);
+    my_tosort_unicode(uni_plane, &t_wc, cs->state);
+    
     if ( s_wc != t_wc )
     {
       return  s_wc > t_wc ? 1 : -1;
@@ -2778,7 +2819,7 @@ static int my_strnncollsp_utf8(CHARSET_INFO *cs,
 static
 int my_strcasecmp_utf8(CHARSET_INFO *cs, const char *s, const char *t)
 {
-  MY_UNICASE_INFO *const *uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   while (s[0] && t[0])
   {
     my_wc_t s_wc,t_wc;
@@ -2795,7 +2836,7 @@ int my_strcasecmp_utf8(CHARSET_INFO *cs, const char *s, const char *t)
     }
     else
     {
-      int plane, res;
+      int res;
       
       /*
         Scan a multibyte character.
@@ -2823,8 +2864,7 @@ int my_strcasecmp_utf8(CHARSET_INFO *cs, const char *s, const char *t)
       s+= res;
       
       /* Convert Unicode code into weight according to collation */
-      plane=(s_wc>>8) & 0xFF;
-      s_wc = uni_plane[plane] ? uni_plane[plane][s_wc & 0xFF].tolower : s_wc;
+      my_tolower_utf8mb3(uni_plane, &s_wc);
     }
     
     
@@ -2838,15 +2878,13 @@ int my_strcasecmp_utf8(CHARSET_INFO *cs, const char *s, const char *t)
     }
     else
     {
-      int plane;
       int res=my_utf8_uni(cs,&t_wc, (const uchar*)t, (const uchar*) t + 3);
       if (res <= 0)
         return strcmp(s, t);
       t+= res;
       
       /* Convert code into weight */
-      plane=(t_wc>>8) & 0xFF;
-      t_wc = uni_plane[plane] ? uni_plane[plane][t_wc & 0xFF].tolower : t_wc;
+      my_tolower_utf8mb3(uni_plane, &t_wc);
     }
     
     /* Now we have two weights, let's compare them */
@@ -2863,7 +2901,7 @@ int my_wildcmp_utf8(CHARSET_INFO *cs,
 		    const char *wildstr,const char *wildend,
 		    int escape, int w_one, int w_many)
 {
-  MY_UNICASE_INFO *const *uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   return my_wildcmp_unicode(cs,str,str_end,wildstr,wildend,
                             escape,w_one,w_many,uni_plane); 
 }
@@ -2966,11 +3004,10 @@ struct charset_info_st my_charset_utf8_general_ci=
     to_lower_utf8,      /* to_lower     */
     to_upper_utf8,      /* to_upper     */
     to_upper_utf8,      /* sort_order   */
-    NULL,               /* contractions */
-    NULL,               /* sort_order_big*/
+    NULL,               /* uca          */
     NULL,               /* tab_to_uni   */
     NULL,               /* tab_from_uni */
-    my_unicase_default, /* caseinfo     */
+    &my_unicase_default,/* caseinfo     */
     NULL,               /* state_map    */
     NULL,               /* ident_map    */
     1,                  /* strxfrm_multiply */
@@ -2999,11 +3036,10 @@ struct charset_info_st my_charset_utf8_general_mysql500_ci=
   to_lower_utf8,                                /* to_lower         */
   to_upper_utf8,                                /* to_upper         */
   to_upper_utf8,                                /* sort_order       */
-  NULL,                                         /* contractions     */
-  NULL,                                         /* sort_order_big   */
+  NULL,                                         /* uca              */
   NULL,                                         /* tab_to_uni       */
   NULL,                                         /* tab_from_uni     */
-  my_unicase_mysql500,                          /* caseinfo         */
+  &my_unicase_mysql500,                         /* caseinfo         */
   NULL,                                         /* state_map        */
   NULL,                                         /* ident_map        */
   1,                                            /* strxfrm_multiply */
@@ -3032,11 +3068,10 @@ struct charset_info_st my_charset_utf8_bin=
     to_lower_utf8,      /* to_lower     */
     to_upper_utf8,      /* to_upper     */
     NULL,               /* sort_order   */
-    NULL,               /* contractions */
-    NULL,               /* sort_order_big*/
+    NULL,               /* uca          */
     NULL,               /* tab_to_uni   */
     NULL,               /* tab_from_uni */
-    my_unicase_default, /* caseinfo     */
+    &my_unicase_default,/* caseinfo     */
     NULL,               /* state_map    */
     NULL,               /* ident_map    */
     1,                  /* strxfrm_multiply */
@@ -3117,7 +3152,7 @@ static int my_strnncollsp_utf8_cs(CHARSET_INFO *cs,
   const uchar *se= s + slen;
   const uchar *te= t + tlen;
   int save_diff= 0;
-  MY_UNICASE_INFO *const *uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
 
 #ifndef VARCHAR_WITH_DIFF_ENDSPACE_ARE_DIFFERENT_FOR_UNIQUE
   diff_if_only_endspace_difference= 0;
@@ -3125,7 +3160,6 @@ static int my_strnncollsp_utf8_cs(CHARSET_INFO *cs,
     
   while ( s < se && t < te )
   {
-    int plane;
     s_res=my_utf8_uni(cs,&s_wc, s, se);
     t_res=my_utf8_uni(cs,&t_wc, t, te);
     
@@ -3139,10 +3173,10 @@ static int my_strnncollsp_utf8_cs(CHARSET_INFO *cs,
     {
       save_diff = ((int)s_wc) - ((int)t_wc);
     }
-    plane=(s_wc>>8) & 0xFF;
-    s_wc = uni_plane[plane] ? uni_plane[plane][s_wc & 0xFF].sort : s_wc;
-    plane=(t_wc>>8) & 0xFF;
-    t_wc = uni_plane[plane] ? uni_plane[plane][t_wc & 0xFF].sort : t_wc;
+
+    my_tosort_unicode(uni_plane, &s_wc, cs->state);
+    my_tosort_unicode(uni_plane, &t_wc, cs->state);
+
     if ( s_wc != t_wc )
     {
       return  ((int) s_wc) - ((int) t_wc);
@@ -4521,11 +4555,10 @@ struct charset_info_st my_charset_filename=
     to_lower_utf8,      /* to_lower     */
     to_upper_utf8,      /* to_upper     */
     to_upper_utf8,      /* sort_order   */
-    NULL,               /* contractions */
-    NULL,               /* sort_order_big*/
+    NULL,               /* uca          */
     NULL,               /* tab_to_uni   */
     NULL,               /* tab_from_uni */
-    my_unicase_default, /* caseinfo     */
+    &my_unicase_default,/* caseinfo     */
     NULL,               /* state_map    */
     NULL,               /* ident_map    */
     1,                  /* strxfrm_multiply */
@@ -4887,20 +4920,26 @@ my_wc_mb_utf8mb4_no_range(CHARSET_INFO *cs __attribute__((unused)),
 
 
 static inline void
-my_tolower_utf8mb4(MY_UNICASE_INFO * const* uni_plane, my_wc_t *wc)
+my_tolower_utf8mb4(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
 {
-  int page= *wc >> 8;
-  if (page < 256 && uni_plane[page])
-    *wc= uni_plane[page][*wc & 0xFF].tolower;
+  if (*wc <= uni_plane->maxchar)
+  {
+    MY_UNICASE_CHARACTER *page;
+    if ((page= uni_plane->page[(*wc >> 8)]))
+      *wc= page[*wc & 0xFF].tolower;
+  }
 }
 
 
 static inline void
-my_toupper_utf8mb4(MY_UNICASE_INFO * const* uni_plane, my_wc_t *wc)
+my_toupper_utf8mb4(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
 {
-  int page= *wc >> 8;
-  if (page < 256 && uni_plane[page])
-    *wc= uni_plane[page][*wc & 0xFF].toupper;
+  if (*wc <= uni_plane->maxchar)
+  {
+    MY_UNICASE_CHARACTER *page;
+    if ((page= uni_plane->page[(*wc >> 8)]))
+      *wc= page[*wc & 0xFF].toupper;
+  }
 }
 
 
@@ -4911,7 +4950,7 @@ my_caseup_utf8mb4(CHARSET_INFO *cs, char *src, size_t srclen,
   my_wc_t wc;
   int srcres, dstres;
   char *srcend= src + srclen, *dstend= dst + dstlen, *dst0= dst;
-  MY_UNICASE_INFO * const* uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(src != dst || cs->caseup_multiply == 1);
 
   while ((src < srcend) &&
@@ -4943,7 +4982,7 @@ my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
   my_wc_t wc;
   int res;
   const uchar *e= s + slen;
-  MY_UNICASE_INFO * const* uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
 
   /*
     Remove end space. We do this to be able to compare
@@ -4954,7 +4993,7 @@ my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
 
   while ((res= my_mb_wc_utf8mb4(cs, &wc, (uchar*) s, (uchar*) e)) > 0)
   {
-    my_tosort_unicode(uni_plane, &wc);
+    my_tosort_unicode(uni_plane, &wc, cs->state);
     my_hash_add(n1, n2, (uint) (wc & 0xFF));
     my_hash_add(n1, n2, (uint) (wc >> 8)  & 0xFF);
     if (wc > 0xFFFF)
@@ -4979,7 +5018,7 @@ my_caseup_str_utf8mb4(CHARSET_INFO *cs, char *src)
   my_wc_t wc;
   int srcres, dstres;
   char *dst= src, *dst0= src;
-  MY_UNICASE_INFO * const* uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(cs->caseup_multiply == 1);
 
   while (*src &&
@@ -5004,7 +5043,7 @@ my_casedn_utf8mb4(CHARSET_INFO *cs,
   my_wc_t wc;
   int srcres, dstres;
   char *srcend= src + srclen, *dstend= dst + dstlen, *dst0= dst;
-  MY_UNICASE_INFO * const* uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(src != dst || cs->casedn_multiply == 1);
 
   while ((src < srcend) &&
@@ -5027,7 +5066,7 @@ my_casedn_str_utf8mb4(CHARSET_INFO *cs, char *src)
   my_wc_t wc;
   int srcres, dstres;
   char *dst= src, *dst0= src;
-  MY_UNICASE_INFO * const* uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(cs->casedn_multiply == 1);
 
   while (*src &&
@@ -5069,7 +5108,7 @@ my_strnncoll_utf8mb4(CHARSET_INFO *cs,
   my_wc_t s_wc,t_wc;
   const uchar *se= s + slen;
   const uchar *te= t + tlen;
-  MY_UNICASE_INFO * const* uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   LINT_INIT(s_wc);
   LINT_INIT(t_wc);
 
@@ -5084,9 +5123,9 @@ my_strnncoll_utf8mb4(CHARSET_INFO *cs,
       return bincmp_utf8mb4(s, se, t, te);
     }
 
-    my_tosort_unicode(uni_plane, &s_wc);
-    my_tosort_unicode(uni_plane, &t_wc);
-    
+    my_tosort_unicode(uni_plane, &s_wc, cs->state);
+    my_tosort_unicode(uni_plane, &t_wc, cs->state);
+
     if ( s_wc != t_wc )
     {
       return s_wc > t_wc ? 1 : -1;
@@ -5136,7 +5175,7 @@ my_strnncollsp_utf8mb4(CHARSET_INFO *cs,
   int res;
   my_wc_t s_wc, t_wc;
   const uchar *se= s + slen, *te= t + tlen;
-  MY_UNICASE_INFO * const* uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   LINT_INIT(s_wc);
   LINT_INIT(t_wc);
 
@@ -5155,8 +5194,8 @@ my_strnncollsp_utf8mb4(CHARSET_INFO *cs,
       return bincmp_utf8mb4(s, se, t, te);
     }
 
-    my_tosort_unicode(uni_plane, &s_wc);
-    my_tosort_unicode(uni_plane, &t_wc);
+    my_tosort_unicode(uni_plane, &s_wc, cs->state);
+    my_tosort_unicode(uni_plane, &t_wc, cs->state);
 
     if ( s_wc != t_wc )
     {
@@ -5220,7 +5259,7 @@ my_strnncollsp_utf8mb4(CHARSET_INFO *cs,
 static int
 my_strcasecmp_utf8mb4(CHARSET_INFO *cs, const char *s, const char *t)
 {
-  MY_UNICASE_INFO * const* uni_plane= cs->caseinfo;
+  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   while (s[0] && t[0])
   {
     my_wc_t s_wc,t_wc;
@@ -5399,11 +5438,10 @@ struct charset_info_st my_charset_utf8mb4_general_ci=
   to_lower_utf8mb4,   /* to_lower     */
   to_upper_utf8mb4,   /* to_upper     */
   to_upper_utf8mb4,   /* sort_order   */
-  NULL,               /* contractions */
-  NULL,               /* sort_order_big*/
+  NULL,               /* uca          */
   NULL,               /* tab_to_uni   */
   NULL,               /* tab_from_uni */
-  my_unicase_default, /* caseinfo     */
+  &my_unicase_default,/* caseinfo     */
   NULL,               /* state_map    */
   NULL,               /* ident_map    */
   1,                  /* strxfrm_multiply */
@@ -5432,11 +5470,10 @@ struct charset_info_st my_charset_utf8mb4_bin=
   to_lower_utf8mb4,   /* to_lower     */
   to_upper_utf8mb4,   /* to_upper     */
   NULL,               /* sort_order   */
-  NULL,               /* contractions */
-  NULL,               /* sort_order_big*/
+  NULL,               /* uca          */
   NULL,               /* tab_to_uni   */
   NULL,               /* tab_from_uni */
-  my_unicase_default, /* caseinfo     */
+  &my_unicase_default,/* caseinfo     */
   NULL,               /* state_map    */
   NULL,               /* ident_map    */
   1,                  /* strxfrm_multiply */

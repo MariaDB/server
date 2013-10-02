@@ -1163,12 +1163,12 @@ static int pcmp(const void * f, const void * s)
   return res;
 }
 
-static my_bool create_fromuni(struct charset_info_st *cs,
-                              void *(*alloc)(size_t))
+static my_bool
+create_fromuni(struct charset_info_st *cs,
+               MY_CHARSET_LOADER *loader)
 {
   uni_idx	idx[PLANE_NUM];
   int		i,n;
-  struct my_uni_idx_st *tab_from_uni;
   
   /*
     Check that Unicode map is loaded.
@@ -1217,7 +1217,8 @@ static my_bool create_fromuni(struct charset_info_st *cs,
     
     numchars=idx[i].uidx.to-idx[i].uidx.from+1;
     if (!(idx[i].uidx.tab= tab= (uchar*)
-          alloc(numchars * sizeof(*idx[i].uidx.tab))))
+                                (loader->once_alloc) (numchars *
+                                                      sizeof(*idx[i].uidx.tab))))
       return TRUE;
     
     bzero(tab,numchars*sizeof(*tab));
@@ -1235,25 +1236,25 @@ static my_bool create_fromuni(struct charset_info_st *cs,
   
   /* Allocate and fill reverse table for each plane */
   n=i;
-  if (!(cs->tab_from_uni= tab_from_uni= (struct my_uni_idx_st*)
-        alloc(sizeof(MY_UNI_IDX)*(n+1))))
+  if (!(cs->tab_from_uni= (MY_UNI_IDX *)
+                          (loader->once_alloc)(sizeof(MY_UNI_IDX) * (n + 1))))
     return TRUE;
 
   for (i=0; i< n; i++)
-    tab_from_uni[i]= idx[i].uidx;
+    ((struct my_uni_idx_st*)cs->tab_from_uni)[i]= idx[i].uidx;
   
   /* Set end-of-list marker */
-  bzero(&tab_from_uni[i],sizeof(MY_UNI_IDX));
+  bzero((char*) &cs->tab_from_uni[i],sizeof(MY_UNI_IDX));
   return FALSE;
 }
 
-static my_bool my_cset_init_8bit(struct charset_info_st *cs,
-                                 void *(*alloc)(size_t))
+static my_bool
+my_cset_init_8bit(struct charset_info_st *cs, MY_CHARSET_LOADER *loader)
 {
   cs->caseup_multiply= 1;
   cs->casedn_multiply= 1;
   cs->pad_char= ' ';
-  return create_fromuni(cs, alloc);
+  return create_fromuni(cs, loader);
 }
 
 static void set_max_sort_char(struct charset_info_st *cs)
@@ -1276,7 +1277,7 @@ static void set_max_sort_char(struct charset_info_st *cs)
 }
 
 static my_bool my_coll_init_simple(struct charset_info_st *cs,
-                                   void *(*alloc)(size_t) __attribute__((unused)))
+                                   MY_CHARSET_LOADER *loader __attribute__((unused)))
 {
   set_max_sort_char(cs);
   return FALSE;

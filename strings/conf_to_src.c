@@ -145,12 +145,35 @@ static int add_collation(struct charset_info_st *cs)
 }
 
 
+static void
+default_reporter(enum loglevel level  __attribute__ ((unused)),
+                 const char *format  __attribute__ ((unused)),
+                 ...)
+{
+}
+
+
+static void
+my_charset_loader_init(MY_CHARSET_LOADER *loader)
+{
+  loader->error[0]= '\0';
+  loader->once_alloc= malloc;
+  loader->malloc= malloc;
+  loader->realloc= realloc;
+  loader->free= free;
+  loader->reporter= default_reporter;
+  loader->add_collation= add_collation;
+}
+
+
 static int my_read_charset_file(const char *filename)
 {
   char buf[MAX_BUF];
   int  fd;
   uint len;
+  MY_CHARSET_LOADER loader;
   
+  my_charset_loader_init(&loader);
   if ((fd=open(filename,O_RDONLY)) < 0)
   {
     fprintf(stderr,"Can't open '%s'\n",filename);
@@ -161,14 +184,10 @@ static int my_read_charset_file(const char *filename)
   DBUG_ASSERT(len < MAX_BUF);
   close(fd);
   
-  if (my_parse_charset_xml(buf,len,add_collation))
+  if (my_parse_charset_xml(&loader, buf, len))
   {
-#if 0
-    printf("ERROR at line %d pos %d '%s'\n",
-	   my_xml_error_lineno(&p)+1,
-	   my_xml_error_pos(&p),
-	   my_xml_error_string(&p));
-#endif
+    fprintf(stderr, "Error while parsing '%s': %s\n", filename, loader.error);
+    exit(1);
   }
   
   return FALSE;
@@ -207,8 +226,7 @@ void dispcset(FILE *f,CHARSET_INFO *cs)
       fprintf(f,"  sort_order_%s,            /* sort_order    */\n",cs->name);
     else
       fprintf(f,"  NULL,                     /* sort_order    */\n");
-    fprintf(f,"  NULL,                       /* contractions  */\n");
-    fprintf(f,"  NULL,                       /* sort_order_big*/\n");
+    fprintf(f,"  NULL,                       /* uca           */\n");
     fprintf(f,"  to_uni_%s,                  /* to_uni        */\n",cs->name);
   }
   else
@@ -221,13 +239,12 @@ void dispcset(FILE *f,CHARSET_INFO *cs)
     fprintf(f,"  NULL,                       /* lower         */\n");
     fprintf(f,"  NULL,                       /* upper         */\n");
     fprintf(f,"  NULL,                       /* sort order    */\n");
-    fprintf(f,"  NULL,                       /* contractions  */\n");
-    fprintf(f,"  NULL,                       /* sort_order_big*/\n");
+    fprintf(f,"  NULL,                       /* uca           */\n");
     fprintf(f,"  NULL,                       /* to_uni        */\n");
   }
 
   fprintf(f,"  NULL,                       /* from_uni      */\n");
-  fprintf(f,"  my_unicase_default,         /* caseinfo      */\n");
+  fprintf(f,"  &my_unicase_default,        /* caseinfo      */\n");
   fprintf(f,"  NULL,                       /* state map     */\n");
   fprintf(f,"  NULL,                       /* ident map     */\n");
   fprintf(f,"  1,                          /* strxfrm_multiply*/\n");

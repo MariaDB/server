@@ -411,10 +411,19 @@ select * from information_schema.collations where id>256 order by id;
 COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN
 utf8mb4_test_ci	utf8mb4	326			8
 utf16_test_ci	utf16	327			8
+utf8mb4_test_400_ci	utf8mb4	328			8
+utf8_bengali_standard_ci	utf8	336			8
+utf8_bengali_traditional_ci	utf8	337			8
 utf8_phone_ci	utf8	352			8
 utf8_test_ci	utf8	353			8
+utf8_5624_1	utf8	354			8
+utf8_5624_2	utf8	355			8
+utf8_5624_3	utf8	356			8
+utf8_5624_4	utf8	357			8
 ucs2_test_ci	ucs2	358			8
 ucs2_vn_ci	ucs2	359			8
+ucs2_5624_1	ucs2	360			8
+utf8_5624_5	utf8	368			8
 utf32_test_ci	utf32	391			8
 utf8_maxuserid_ci	utf8	2047			8
 show collation like '%test%';
@@ -423,6 +432,7 @@ latin1_test	latin1	99		Yes	1
 utf8_test_ci	utf8	353			8
 ucs2_test_ci	ucs2	358			8
 utf8mb4_test_ci	utf8mb4	326			8
+utf8mb4_test_400_ci	utf8mb4	328			8
 utf16_test_ci	utf16	327			8
 utf32_test_ci	utf32	391			8
 show collation like 'ucs2_vn_ci';
@@ -449,3 +459,631 @@ SHOW COLLATION LIKE 'utf8_phone_ci';
 Collation	Charset	Id	Default	Compiled	Sortlen
 utf8_phone_ci	utf8	352			8
 SET NAMES utf8;
+SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a));
+hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci)	hex(lower(@a))
+F0909080	F0909080
+SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a));
+hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_400_ci)	hex(upper(@a))
+F09090A8	F09090A8
+SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a));
+hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_400_ci)	hex(lower(@a))
+E2B080	E2B080
+SELECT hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a));
+hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_400_ci)	hex(upper(@a))
+E2B0B0	E2B0B0
+#
+# WL#5624 Collation customization improvements
+#
+SET NAMES utf8 COLLATE utf8_5624_1;
+CREATE TABLE t1 AS SELECT REPEAT(' ', 16) AS a LIMIT 0;
+INSERT INTO t1 VALUES ('012345'),('001234'),('000123'),('000012'),('000001');
+INSERT INTO t1 VALUES ('12345'),('01234'),('00123'),('00012'),('00001');
+INSERT INTO t1 VALUES ('1234'),('0123'),('0012'),('0001');
+INSERT INTO t1 VALUES ('123'),('012'),('001');
+INSERT INTO t1 VALUES ('12'),('01');
+INSERT INTO t1 VALUES ('1'),('9');
+INSERT INTO t1 VALUES ('ГАИ'),('ГИБДД');
+INSERT INTO t1 VALUES ('a'),('b'),('c'),('d'),('e');
+INSERT INTO t1 VALUES ('cz'),('Ċ'),('ċ');
+INSERT INTO t1 VALUES ('f'),('fz'),('g'),('Ġ'),('ġ');
+INSERT INTO t1 VALUES ('h'),('hz'),('GĦ'),('Għ'),('gĦ'),('għ');
+INSERT INTO t1 VALUES ('i'),('iz'),('Ħ'),('ħ');
+INSERT INTO t1 VALUES ('y'),('yz'),('z'),('Ż'),('ż');
+INSERT INTO t1 VALUES ('ā'),('Ā'),('á'),('Á'),('à'),('À');
+INSERT INTO t1 VALUES ('ē'),('é'),('ě'),('ê'),('Ē'),('É'),('Ě'),('Ê');
+INSERT INTO t1 VALUES ('a'),('~'),('!'),('@'),('#'),('$'),('%'),('^');
+INSERT INTO t1 VALUES ('('),(')'),('-'),('+'),('|'),('='),(':'),(';');
+INSERT INTO t1 VALUES ('"'),('\''),('?');
+INSERT INTO t1 VALUES ('ch'),('k'),('cs'),('ccs'),('cscs');
+INSERT INTO t1 VALUES ('aa-'),('ab-'),('ac-'),('ad-'),('ae-'),('af-'),('az-');
+INSERT INTO t1 VALUES ('lp-fni'),('lp-lni');
+INSERT INTO t1 VALUES ('lp-fpi'),('lp-lpi');
+INSERT INTO t1 VALUES ('lp-fsi'),('lp-lsi');
+INSERT INTO t1 VALUES ('lp-fti'),('lp-lti');
+INSERT INTO t1 VALUES ('lp-ft'),('lp-lt');
+INSERT INTO t1 VALUES ('lp-fv'),('lp-lv');
+INSERT INTO t1 VALUES ('lb-fni'),('lb-lni');
+INSERT INTO t1 VALUES ('lb-fv'),('lb-lv');
+INSERT INTO t1 VALUES (_ucs2 0x3106),(_ucs2 0x3110), (_ucs2 0x3111), (_ucs2 0x3112);
+INSERT INTO t1 VALUES (_ucs2 0x32A3), (_ucs2 0x3231);
+INSERT INTO t1 VALUES (_ucs2 0x84D9), (_ucs2 0x98F5), (_ucs2 0x7CF3), (_ucs2 0x5497);
+SELECT a FROM t1 ORDER BY a, LENGTH(a), BINARY a;
+a
+lp-ft
+lp-lt
+lp-fpi
+lp-fsi
+lp-fti
+lp-lpi
+lp-lsi
+lp-lti
+lb-fv
+lb-fni
+lp-fv
+lp-fni
+-
+=
+|
+lb-lv
+lp-lv
+1
+01
+001
+0001
+00001
+000001
+12
+012
+0012
+00012
+000012
+123
+0123
+00123
+000123
+1234
+01234
+001234
+12345
+012345
+9
+~
+!
+@
+#
+$
+%
+^
+(
+)
++
+:
+;
+"
+'
+?
+a
+a
+aa-
+ab-
+ac-
+ad-
+ae-
+af-
+az-
+b
+À
+Á
+à
+á
+Ā
+ā
+c
+k
+ch
+cs
+ccs
+cscs
+cz
+Ċ
+ċ
+d
+É
+Ê
+é
+ê
+Ē
+ē
+Ě
+ě
+e
+f
+fz
+Ġ
+ġ
+g
+GĦ
+Għ
+gĦ
+għ
+h
+hz
+Ħ
+ħ
+i
+iz
+y
+yz
+Ż
+ż
+z
+ГАИ
+ГИБДД
+lb-lni
+lp-lni
+ㄆ
+ㄐ
+ㄑ
+ㄒ
+㊣
+㈱
+蓙
+飵
+糳
+咗
+#
+# WL#5624, the same test with UCS2
+#
+ALTER TABLE t1 CONVERT TO CHARACTER SET ucs2 COLLATE ucs2_5624_1;
+SELECT a FROM t1 ORDER BY a, LENGTH(a), BINARY(a);
+a
+lp-ft
+lp-lt
+lp-fpi
+lp-fsi
+lp-fti
+lp-lpi
+lp-lsi
+lp-lti
+lb-fv
+lb-fni
+lp-fv
+lp-fni
+-
+=
+|
+lb-lv
+lp-lv
+1
+01
+001
+0001
+00001
+000001
+12
+012
+0012
+00012
+000012
+123
+0123
+00123
+000123
+1234
+01234
+001234
+12345
+012345
+9
+~
+!
+@
+#
+$
+%
+^
+(
+)
++
+:
+;
+"
+'
+?
+a
+a
+aa-
+ab-
+ac-
+ad-
+ae-
+af-
+az-
+b
+À
+Á
+à
+á
+Ā
+ā
+c
+k
+ch
+cs
+ccs
+cscs
+cz
+Ċ
+ċ
+d
+É
+Ê
+é
+ê
+Ē
+ē
+Ě
+ě
+e
+f
+fz
+Ġ
+ġ
+g
+GĦ
+Għ
+gĦ
+għ
+h
+hz
+Ħ
+ħ
+i
+iz
+y
+yz
+Ż
+ż
+z
+ГАИ
+ГИБДД
+lb-lni
+lp-lni
+ㄆ
+ㄐ
+ㄑ
+ㄒ
+㊣
+㈱
+蓙
+飵
+糳
+咗
+DROP TABLE t1;
+#
+# WL#5624, unsupported features
+#
+SET NAMES utf8 COLLATE utf8_5624_2;
+ERROR HY000: Unknown collation: 'utf8_5624_2'
+SHOW WARNINGS;
+Level	Code	Message
+Error	1273	Unknown collation: 'utf8_5624_2'
+Warning	1273	Syntax error at '[strength tertiary]'
+#
+# WL#5624, reset before primary ignorable
+#
+SET NAMES utf8 COLLATE utf8_5624_3;
+ERROR HY000: Unknown collation: 'utf8_5624_3'
+SHOW WARNINGS;
+Level	Code	Message
+Error	1273	Unknown collation: 'utf8_5624_3'
+Warning	1273	Can't reset before a primary ignorable character U+A48C
+#
+# WL#5624, \u without hex digits is equal to {'\', 'u'}
+#
+SET NAMES utf8 COLLATE utf8_5624_4;
+CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
+INSERT INTO t1 VALUES ('\\'),('u'),('x'),('X');
+SELECT a FROM t1 ORDER BY a, LENGTH(a), BINARY(a);
+a
+\
+x
+u
+X
+DROP TABLE t1;
+#
+# WL#5624, testing Bengali collations
+#
+SET NAMES utf8, collation_connection=utf8_bengali_standard_ci;
+CREATE TABLE t1 AS SELECT REPEAT (' ', 10) AS a LIMIT 0;
+INSERT INTO t1 VALUES (_ucs2 0x09FA), (_ucs2 0x09F8), (_ucs2 0x09F9), (_ucs2 0x09F2);
+INSERT INTO t1 VALUES (_ucs2 0x09DC), (_ucs2 0x09A109BC);
+INSERT INTO t1 VALUES (_ucs2 0x09A2), (_ucs2 0x09DD), (_ucs2 0x09A209BC);
+INSERT INTO t1 VALUES (_ucs2 0x09A3);
+SELECT HEX(CONVERT(a USING ucs2)), HEX(a)
+FROM t1 ORDER BY a, BINARY a;
+HEX(CONVERT(a USING ucs2))	HEX(a)
+09FA	E0A7BA
+09F8	E0A7B8
+09F9	E0A7B9
+09F2	E0A7B2
+09A109BC	E0A6A1E0A6BC
+09DC	E0A79C
+09A2	E0A6A2
+09A209BC	E0A6A2E0A6BC
+09DD	E0A79D
+09A3	E0A6A3
+DROP TABLE t1;
+SET NAMES utf8, collation_connection=utf8_bengali_traditional_ci;
+CREATE TABLE t1 AS SELECT REPEAT (' ', 10) AS a LIMIT 0;
+INSERT INTO t1 VALUES
+(_ucs2 0x0985),(_ucs2 0x0986),(_ucs2 0x0987),(_ucs2 0x0988),
+(_ucs2 0x0989),(_ucs2 0x098A),(_ucs2 0x098B),(_ucs2 0x09E0),
+(_ucs2 0x098C),(_ucs2 0x09E1),(_ucs2 0x098F),(_ucs2 0x0990),
+(_ucs2 0x0993);
+INSERT INTO t1 VALUES
+(_ucs2 0x0994),(_ucs2 0x0982),(_ucs2 0x0983),(_ucs2 0x0981),
+(_ucs2 0x099509CD), (_ucs2 0x099609CD), (_ucs2 0x099709CD), (_ucs2 0x099809CD),
+(_ucs2 0x099909CD), (_ucs2 0x099A09CD), (_ucs2 0x099B09CD), (_ucs2 0x099C09CD),
+(_ucs2 0x099D09CD), (_ucs2 0x099E09CD), (_ucs2 0x099F09CD), (_ucs2 0x09A009CD),
+(_ucs2 0x09A109CD), (_ucs2 0x09A209CD), (_ucs2 0x09A309CD),
+(_ucs2 0x09CE), (_ucs2 0x09A409CD200D), (_ucs2 0x09A409CD),
+(_ucs2 0x09A509CD),(_ucs2 0x09A609CD),
+(_ucs2 0x09A709CD), (_ucs2 0x09A809CD), (_ucs2 0x09AA09CD), (_ucs2 0x09AB09CD),
+(_ucs2 0x09AC09CD), (_ucs2 0x09AD09CD), (_ucs2 0x09AE09CD), (_ucs2 0x09AF09CD),
+(_ucs2 0x09B009CD), (_ucs2 0x09F009CD), (_ucs2 0x09B209CD), (_ucs2 0x09F109CD),
+(_ucs2 0x09B609CD), (_ucs2 0x09B709CD), (_ucs2 0x09B809CD), (_ucs2 0x09B909CD);
+INSERT INTO t1 VALUES 
+(_ucs2 0x099509CD0985),(_ucs2 0x0995),
+(_ucs2 0x099509CD0986),(_ucs2 0x099509BE),
+(_ucs2 0x099509CD0987),(_ucs2 0x099509BF),
+(_ucs2 0x099509CD0988),(_ucs2 0x099509C0),
+(_ucs2 0x099509CD0989),(_ucs2 0x099509C1),
+(_ucs2 0x099509CD098A),(_ucs2 0x099509C2),
+(_ucs2 0x099509CD098B),(_ucs2 0x099509C3),
+(_ucs2 0x099509CD09E0),(_ucs2 0x099509C4),
+(_ucs2 0x099509CD098C),(_ucs2 0x099509E2),
+(_ucs2 0x099509CD09E1),(_ucs2 0x099509E3),
+(_ucs2 0x099509CD098F),(_ucs2 0x099509C7),
+(_ucs2 0x099509CD0990),(_ucs2 0x099509C8),
+(_ucs2 0x099509CD0993),(_ucs2 0x099509CB),
+(_ucs2 0x099509CD0994),(_ucs2 0x099509CC);
+SELECT HEX(CONVERT(a USING ucs2)), HEX(a)
+FROM t1 ORDER BY a, BINARY(a);
+HEX(CONVERT(a USING ucs2))	HEX(a)
+0985	E0A685
+0986	E0A686
+0987	E0A687
+0988	E0A688
+0989	E0A689
+098A	E0A68A
+098B	E0A68B
+09E0	E0A7A0
+098C	E0A68C
+09E1	E0A7A1
+098F	E0A68F
+0990	E0A690
+0993	E0A693
+0994	E0A694
+0982	E0A682
+0983	E0A683
+0981	E0A681
+099509CD	E0A695E0A78D
+0995	E0A695
+099509CD0985	E0A695E0A78DE0A685
+099509BE	E0A695E0A6BE
+099509CD0986	E0A695E0A78DE0A686
+099509BF	E0A695E0A6BF
+099509CD0987	E0A695E0A78DE0A687
+099509C0	E0A695E0A780
+099509CD0988	E0A695E0A78DE0A688
+099509C1	E0A695E0A781
+099509CD0989	E0A695E0A78DE0A689
+099509C2	E0A695E0A782
+099509CD098A	E0A695E0A78DE0A68A
+099509C3	E0A695E0A783
+099509CD098B	E0A695E0A78DE0A68B
+099509C4	E0A695E0A784
+099509CD09E0	E0A695E0A78DE0A7A0
+099509CD098C	E0A695E0A78DE0A68C
+099509E2	E0A695E0A7A2
+099509CD09E1	E0A695E0A78DE0A7A1
+099509E3	E0A695E0A7A3
+099509C7	E0A695E0A787
+099509CD098F	E0A695E0A78DE0A68F
+099509C8	E0A695E0A788
+099509CD0990	E0A695E0A78DE0A690
+099509CB	E0A695E0A78B
+099509CD0993	E0A695E0A78DE0A693
+099509CC	E0A695E0A78C
+099509CD0994	E0A695E0A78DE0A694
+099609CD	E0A696E0A78D
+099709CD	E0A697E0A78D
+099809CD	E0A698E0A78D
+099909CD	E0A699E0A78D
+099A09CD	E0A69AE0A78D
+099B09CD	E0A69BE0A78D
+099C09CD	E0A69CE0A78D
+099D09CD	E0A69DE0A78D
+099E09CD	E0A69EE0A78D
+099F09CD	E0A69FE0A78D
+09A009CD	E0A6A0E0A78D
+09A109CD	E0A6A1E0A78D
+09A209CD	E0A6A2E0A78D
+09A309CD	E0A6A3E0A78D
+09A409CD	E0A6A4E0A78D
+09A409CD200D	E0A6A4E0A78DE2808D
+09CE	E0A78E
+09A509CD	E0A6A5E0A78D
+09A609CD	E0A6A6E0A78D
+09A709CD	E0A6A7E0A78D
+09A809CD	E0A6A8E0A78D
+09AA09CD	E0A6AAE0A78D
+09AB09CD	E0A6ABE0A78D
+09AC09CD	E0A6ACE0A78D
+09AD09CD	E0A6ADE0A78D
+09AE09CD	E0A6AEE0A78D
+09AF09CD	E0A6AFE0A78D
+09B009CD	E0A6B0E0A78D
+09F009CD	E0A7B0E0A78D
+09B209CD	E0A6B2E0A78D
+09F109CD	E0A7B1E0A78D
+09B609CD	E0A6B6E0A78D
+09B709CD	E0A6B7E0A78D
+09B809CD	E0A6B8E0A78D
+09B909CD	E0A6B9E0A78D
+SELECT
+GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a)
+FROM t1 GROUP BY a ORDER BY a;
+GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a)
+0985
+0986
+0987
+0988
+0989
+098A
+098B
+09E0
+098C
+09E1
+098F
+0990
+0993
+0994
+0982
+0983
+0981
+099509CD
+0995,099509CD0985
+099509BE,099509CD0986
+099509BF,099509CD0987
+099509C0,099509CD0988
+099509C1,099509CD0989
+099509C2,099509CD098A
+099509C3,099509CD098B
+099509C4,099509CD09E0
+099509E2,099509CD098C
+099509E3,099509CD09E1
+099509C7,099509CD098F
+099509C8,099509CD0990
+099509CB,099509CD0993
+099509CC,099509CD0994
+099609CD
+099709CD
+099809CD
+099909CD
+099A09CD
+099B09CD
+099C09CD
+099D09CD
+099E09CD
+099F09CD
+09A009CD
+09A109CD
+09A209CD
+09A309CD
+09CE,09A409CD,09A409CD200D
+09A509CD
+09A609CD
+09A709CD
+09A809CD
+09AA09CD
+09AB09CD
+09AC09CD
+09AD09CD
+09AE09CD
+09AF09CD
+09B009CD
+09F009CD
+09B209CD
+09F109CD
+09B609CD
+09B709CD
+09B809CD
+09B909CD
+DROP TABLE t1;
+#
+# WL#5624, shift after, using expansion
+#
+SET NAMES utf8 COLLATE utf8_5624_5;
+CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
+INSERT INTO t1 VALUES ('0'),('1'),('0z'),(_ucs2 0x0030FF9D);
+INSERT INTO t1 VALUES ('a'),('b'),('c'),('d'),('e'),('f'),('g'),('h'),('i');
+INSERT INTO t1 VALUES ('j'),('k'),('l'),('m'),('n'),('o'),('p'),('q'),('r');
+INSERT INTO t1 VALUES ('s'),('t'),('u'),('v'),('w'),('x'),('y'),('z');
+INSERT INTO t1 VALUES ('aa'),('aaa');
+INSERT INTO t1 VALUES ('A'),('B'),('C'),('D'),('E'),('F'),('G'),('H'),('I');
+INSERT INTO t1 VALUES ('J'),('K'),('L'),('M'),('N'),('O'),('P'),('Q'),('R');
+INSERT INTO t1 VALUES ('S'),('T'),('U'),('V'),('W'),('X'),('Y'),('Z');
+INSERT INTO t1 VALUES ('AA'),('AAA');
+SELECT a FROM t1 ORDER BY a, LENGTH(a), BINARY(a);
+a
+0
+0z
+0ﾝ
+a
+b
+c
+d
+e
+f
+g
+h
+i
+j
+k
+l
+m
+n
+o
+p
+q
+r
+s
+t
+u
+v
+w
+x
+y
+z
+aa
+aaa
+A
+B
+C
+D
+E
+F
+G
+H
+I
+J
+K
+L
+M
+N
+O
+P
+Q
+R
+S
+T
+U
+V
+W
+X
+Y
+Z
+AA
+AAA
+1
+DROP TABLE t1;
+#
+# End of WL#5624
+#
+#
+# Bug#14197426 PARSE ERRORS IN LOADABLE UCA / LDML COLLATIONS ARE SILENTLY IGNORED
+#
+# Search for occurrences of [ERROR] Syntax error at '[strength tertiary]'
+Occurances : 1
