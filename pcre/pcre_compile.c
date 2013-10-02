@@ -7107,6 +7107,12 @@ unsigned int orig_bracount;
 unsigned int max_bracount;
 branch_chain bc;
 
+if (pcre_stack_guard && pcre_stack_guard())
+{
+  *errorcodeptr= ERR23;
+  return FALSE;
+}
+ 
 bc.outer = bcptr;
 bc.current_branch = code;
 
