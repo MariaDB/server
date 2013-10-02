@@ -16,6 +16,7 @@
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}
                     ${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/sql
+                    ${CMAKE_BINARY_DIR}/pcre
                     ${CMAKE_SOURCE_DIR}/pcre
                     ${CMAKE_SOURCE_DIR}/extra/yassl/include)
 

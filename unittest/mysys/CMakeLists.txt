@@ -14,6 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
+                    ${CMAKE_BINARY_DIR}/pcre
                     ${CMAKE_SOURCE_DIR}/pcre
                     ${CMAKE_SOURCE_DIR}/extra/yassl/include)
 
