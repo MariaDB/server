@@ -166,7 +166,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
     // Get type, type name, and precision
     fld = myc.GetCharField(1);
     prec = 0;
-    len = 256;            // Default for text or blob
+    len = 255;            // Default for text or blob
 
     if ((nf = sscanf(fld, "%[^(](%d,%d", cmd, &len, &prec)) < 1) {
       sprintf(g->Message, MSG(BAD_FIELD_TYPE), fld);

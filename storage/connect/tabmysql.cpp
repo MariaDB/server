@@ -507,6 +507,9 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g)
   if (To_Filter)
     strcat(strcat(Query, " WHERE "), To_Filter);
 
+  if (trace)
+    htrc("Query=%s\n", Query);
+
   // Now we know how much to suballocate
   PlugSubAlloc(g, NULL, strlen(Query) + 1);
   return FALSE;
