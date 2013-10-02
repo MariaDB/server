@@ -127,11 +127,13 @@ SET(PCRE_NO_RECURSE ON CACHE BOOL
 SET(PCRE_POSIX_MALLOC_THRESHOLD "10" CACHE STRING
     "Threshold for malloc() usage. See POSIX_MALLOC_THRESHOLD in config.h.in for details.")
 
-SET(PCRE_SUPPORT_JIT OFF CACHE BOOL
-    "Enable support for Just-in-time compiling.")
+#MARIADB
+#SET(PCRE_SUPPORT_JIT OFF CACHE BOOL
+#    "Enable support for Just-in-time compiling.")
 
-SET(PCRE_SUPPORT_PCREGREP_JIT ON CACHE BOOL
-    "Enable use of Just-in-time compiling in pcregrep.")
+#MARIADB
+#SET(PCRE_SUPPORT_PCREGREP_JIT ON CACHE BOOL
+#    "Enable use of Just-in-time compiling in pcregrep.")
 
 SET(PCRE_SUPPORT_UNICODE_PROPERTIES OFF CACHE BOOL
     "Enable support for Unicode properties (if set, UTF support will be enabled as well).")
@@ -139,7 +141,7 @@ SET(PCRE_SUPPORT_UNICODE_PROPERTIES OFF CACHE BOOL
 SET(PCRE_SUPPORT_BSR_ANYCRLF OFF CACHE BOOL
     "ON=Backslash-R matches only LF CR and CRLF, OFF=Backslash-R matches all Unicode Linebreaks")
 
-OPTION(PCRE_SHOW_REPORT    "Show the final configuration report" ON)
+OPTION(PCRE_SHOW_REPORT    "Show the final configuration report" OFF)
 OPTION(PCRE_BUILD_PCREGREP "Build pcregrep" ON)
 OPTION(PCRE_BUILD_TESTS    "Build the tests" ON)
 
@@ -191,13 +193,15 @@ IF(PCRE_SUPPORT_UNICODE_PROPERTIES)
         SET(SUPPORT_UCP 1)
 ENDIF(PCRE_SUPPORT_UNICODE_PROPERTIES)
 
-IF(PCRE_SUPPORT_JIT)
-        SET(SUPPORT_JIT 1)
-ENDIF(PCRE_SUPPORT_JIT)
+#MARIADB
+#IF(PCRE_SUPPORT_JIT)
+#        SET(SUPPORT_JIT 1)
+#ENDIF(PCRE_SUPPORT_JIT)
 
-IF(PCRE_SUPPORT_PCREGREP_JIT)
-        SET(SUPPORT_PCREGREP_JIT 1)
-ENDIF(PCRE_SUPPORT_PCREGREP_JIT)
+#MARIADB
+#IF(PCRE_SUPPORT_PCREGREP_JIT)
+#        SET(SUPPORT_PCREGREP_JIT 1)
+#ENDIF(PCRE_SUPPORT_PCREGREP_JIT)
 
 SET(NEWLINE "")
 
@@ -336,13 +340,14 @@ IF(PCRE_BUILD_TESTS)
   LIST(APPEND PCRETEST_LIBS pcreposix pcre)
   TARGET_LINK_LIBRARIES(pcretest ${PCRETEST_LIBS})
 
-  IF(PCRE_SUPPORT_JIT)
-    ADD_EXECUTABLE(pcre_jit_test pcre_jit_test.c)
-    SET(targets ${targets} pcre_jit_test)
-    SET(PCRE_JIT_TEST_LIBS )
-    LIST(APPEND PCRE_JIT_TEST_LIBS pcre)
-    TARGET_LINK_LIBRARIES(pcre_jit_test ${PCRE_JIT_TEST_LIBS})
-  ENDIF(PCRE_SUPPORT_JIT)
+#MARIADB
+#  IF(PCRE_SUPPORT_JIT)
+#    ADD_EXECUTABLE(pcre_jit_test pcre_jit_test.c)
+#    SET(targets ${targets} pcre_jit_test)
+#    SET(PCRE_JIT_TEST_LIBS )
+#    LIST(APPEND PCRE_JIT_TEST_LIBS pcre)
+#    TARGET_LINK_LIBRARIES(pcre_jit_test ${PCRE_JIT_TEST_LIBS})
+#  ENDIF(PCRE_SUPPORT_JIT)
 
   # exes in Debug location tested by the RunTest shell script
   # via "make test"
@@ -432,9 +437,10 @@ echo RunTest.bat tests successfully completed
 
   # Changed to accommodate testing whichever location was just built
 
-  IF(PCRE_SUPPORT_JIT)
-    ADD_TEST(pcre_jit_test         pcre_jit_test)
-  ENDIF(PCRE_SUPPORT_JIT)
+#MARIADB
+#  IF(PCRE_SUPPORT_JIT)
+#    ADD_TEST(pcre_jit_test         pcre_jit_test)
+#  ENDIF(PCRE_SUPPORT_JIT)
 
 ENDIF(PCRE_BUILD_TESTS)
 
@@ -452,7 +458,7 @@ IF(PCRE_SHOW_REPORT)
   MESSAGE(STATUS "")
   MESSAGE(STATUS "  C compiler ...................... : ${CMAKE_C_COMPILER}")
   MESSAGE(STATUS "  C compiler flags ................ : ${CMAKE_C_FLAGS}${cfsp}${CMAKE_C_FLAGS_${buildtype}}")
-  MESSAGE(STATUS "  Enable JIT compiling support .... : ${PCRE_SUPPORT_JIT}")
+#  MESSAGE(STATUS "  Enable JIT compiling support .... : ${PCRE_SUPPORT_JIT}")
   MESSAGE(STATUS "  Unicode properties .............. : ${PCRE_SUPPORT_UNICODE_PROPERTIES}")
   MESSAGE(STATUS "  Newline char/sequence ........... : ${PCRE_NEWLINE}")
   MESSAGE(STATUS "  \\R matches only ANYCRLF ......... : ${PCRE_SUPPORT_BSR_ANYCRLF}")
@@ -462,7 +468,7 @@ IF(PCRE_SHOW_REPORT)
   MESSAGE(STATUS "  Match limit ..................... : ${PCRE_MATCH_LIMIT}")
   MESSAGE(STATUS "  Match limit recursion ........... : ${PCRE_MATCH_LIMIT_RECURSION}")
   MESSAGE(STATUS "  Build pcregrep .................. : ${PCRE_BUILD_PCREGREP}")
-  MESSAGE(STATUS "  Enable JIT in pcregrep .......... : ${PCRE_SUPPORT_PCREGREP_JIT}")
+#  MESSAGE(STATUS "  Enable JIT in pcregrep .......... : ${PCRE_SUPPORT_PCREGREP_JIT}")
   MESSAGE(STATUS "  Buffer size for pcregrep ........ : ${PCREGREP_BUFSIZE}")
   MESSAGE(STATUS "  Build tests (implies pcretest  .. : ${PCRE_BUILD_TESTS}")
   MESSAGE(STATUS "               and pcregrep)")
