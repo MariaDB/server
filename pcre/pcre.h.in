@@ -486,6 +486,7 @@ PCRE_EXP_DECL void  (*pcre_free)(void *);
 PCRE_EXP_DECL void *(*pcre_stack_malloc)(size_t);
 PCRE_EXP_DECL void  (*pcre_stack_free)(void *);
 PCRE_EXP_DECL int   (*pcre_callout)(pcre_callout_block *);
+PCRE_EXP_DECL int   (*pcre_stack_guard)(void);
 
 PCRE_EXP_DECL void *(*pcre16_malloc)(size_t);
 PCRE_EXP_DECL void  (*pcre16_free)(void *);
@@ -504,6 +505,7 @@ PCRE_EXP_DECL void  pcre_free(void *);
 PCRE_EXP_DECL void *pcre_stack_malloc(size_t);
 PCRE_EXP_DECL void  pcre_stack_free(void *);
 PCRE_EXP_DECL int   pcre_callout(pcre_callout_block *);
+PCRE_EXP_DECL int   pcre_stack_guard(void);
 
 PCRE_EXP_DECL void *pcre16_malloc(size_t);
 PCRE_EXP_DECL void  pcre16_free(void *);
