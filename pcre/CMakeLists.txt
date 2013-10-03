@@ -374,7 +374,7 @@ MESSAGE(\" \")
 srcdir=${PROJECT_SOURCE_DIR}
 pcretest=${PCRETEST_EXE}
 cd ${PCRETEST_DIR}
-source ${PROJECT_SOURCE_DIR}/RunTest
+. ${PROJECT_SOURCE_DIR}/RunTest
 if test \"$?\" != \"0\"; then exit 1; fi
 # End
 ")
@@ -391,7 +391,7 @@ srcdir=${PROJECT_SOURCE_DIR}
 pcregrep=${PCREGREP_EXE}
 pcretest=${PCRETEST_EXE}
 cd ${PCRETEST_DIR}
-source ${PROJECT_SOURCE_DIR}/RunGrepTest
+. ${PROJECT_SOURCE_DIR}/RunGrepTest
 if test \"$?\" != \"0\"; then exit 1; fi
 # End
 ")
