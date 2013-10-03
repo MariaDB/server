@@ -554,6 +554,7 @@ oqgraph3::graph::graph(
   : _ref_count(0)
   , _cursor(0)
   , _stale(false)
+  , _rnd_pos((size_t)-1)
   , _table(table)
   , _source(source)
   , _target(target)
