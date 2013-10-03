@@ -54,6 +54,9 @@
 #ifndef PFS_STATEMENTS_STACK_SIZE
   #define PFS_STATEMENTS_STACK_SIZE 10
 #endif
+#ifndef PFS_CONNECT_ATTRS_SIZE
+  #define PFS_SESSION_CONNECT_ATTRS_SIZE 2048
+#endif
 
 struct PFS_sizing_hints
 {
