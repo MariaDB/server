@@ -3293,24 +3293,6 @@ void my_str_free_mysqld(void *ptr)
 }
 
 
-/*
-   Initialize my_str_malloc() and my_str_free()
-*/
-static void init_libstrings()
-{
-  my_str_malloc= &my_str_malloc_mysqld;
-  my_str_free= &my_str_free_mysqld;
-}
-
-
-static void init_pcre()
-{
-  pcre_malloc= pcre_stack_malloc= my_str_malloc_mysqld;
-  pcre_free= pcre_stack_free= my_str_free_mysqld;
-}
-
-
-
 #ifdef __WIN__
 
 pthread_handler_t handle_shutdown(void *arg)
@@ -3366,6 +3348,30 @@ check_enough_stack_size(int recurse_level)
   return check_enough_stack_size_slow();
 }
 #endif
+
+
+
+/*
+   Initialize my_str_malloc() and my_str_free()
+*/
+static void init_libstrings()
+{
+  my_str_malloc= &my_str_malloc_mysqld;
+  my_str_free= &my_str_free_mysqld;
+#ifndef EMBEDDED_LIBRARY
+  my_string_stack_guard= check_enough_stack_size;
+#endif
+}
+
+
+static void init_pcre()
+{
+  pcre_malloc= pcre_stack_malloc= my_str_malloc_mysqld;
+  pcre_free= pcre_stack_free= my_str_free_mysqld;
+#ifndef EMBEDDED_LIBRARY
+  pcre_stack_guard= check_enough_stack_size_slow;
+#endif
+}
 
 
 /**
@@ -3928,10 +3934,6 @@ static int init_common_variables()
     return 1;
   item_init();
   init_pcre();
-#ifndef EMBEDDED_LIBRARY
-  my_string_stack_guard= check_enough_stack_size;
-  pcre_stack_guard= check_enough_stack_size_slow;
-#endif
   /*
     Process a comma-separated character set list and choose
     the first available character set. This is mostly for
