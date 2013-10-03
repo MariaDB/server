@@ -700,9 +700,12 @@ namespace open_query
   // Because otherwise things can happen and we havent freed a resource since the end of the last query...
   void oqgraph::release_cursor() throw() {
     if (share->g._cursor) {
+      // Make sure refs all freed before deleting share->g._cursor
+      share->g._rnd_cursor = 0;      
+      delete cursor; cursor = 0;
       delete share->g._cursor;
+      share->g._cursor = NULL;
     }
-    delete cursor; cursor= 0;
     row_info= empty_row;
   }
 
