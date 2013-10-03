@@ -8217,6 +8217,56 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
                       mpvio->acl_user->plugin.str));
   DBUG_RETURN(0);
 }
+
+static bool
+read_client_connect_attrs(char **ptr, char *end,
+                          const CHARSET_INFO *from_cs)
+{
+  size_t length, length_length;
+  size_t max_bytes_available= end - *ptr;
+  /* not enough bytes to hold the length */
+  if ((*ptr) >= (end - 1))
+    return true;
+
+  /* read the length */
+  if (max_bytes_available >= 9)
+  {
+    char *ptr_save= *ptr;
+    length= net_field_length_ll((uchar **) ptr);
+    length_length= *ptr - ptr_save;
+    DBUG_ASSERT(length_length <= 9);
+  }
+  else
+  {
+    /* to avoid reading unallocated and uninitialized memory */
+    char buf[10]={'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0',},
+         *len_ptr= buf;
+    memcpy(buf, *ptr, max_bytes_available);
+    length= net_field_length_ll((uchar **) &len_ptr);
+    length_length= len_ptr - buf;
+    *ptr+= length_length;
+    if (max_bytes_available < length_length)
+      return true;
+  }
+  max_bytes_available-= length_length;
+
+  /* length says there're more data than can fit into the packet */
+  if (length > max_bytes_available)
+    return true;
+
+  /* impose an artificial length limit of 64k */
+  if (length > 65535)
+    return true;
+
+#ifdef HAVE_PSI_THREAD_INTERFACE
+  if (PSI_THREAD_CALL(set_thread_connect_attrs)(*ptr, length, from_cs) &&
+      current_thd->variables.log_warnings)
+    sql_print_warning("Connection attributes of length %lu were truncated",
+                      (unsigned long) length);
+#endif
+  return false;
+}
+
 #endif
 
 /* the packet format is described in send_change_user_packet() */
@@ -8269,13 +8319,14 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
 
   uint db_len= strlen(db);
 
-  char *ptr= db + db_len + 1;
+  char *next_field= db + db_len + 1;
 
-  if (ptr + 1 < end)
+  if (next_field + 1 < end)
   {
-    if (thd_init_client_charset(thd, uint2korr(ptr)))
+    if (thd_init_client_charset(thd, uint2korr(next_field)))
       DBUG_RETURN(1);
     thd->update_charset();
+    next_field+= 2;
   }
 
   /* Convert database and user names to utf8 */
@@ -8318,13 +8369,13 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   char *client_plugin;
   if (thd->client_capabilities & CLIENT_PLUGIN_AUTH)
   {
-    client_plugin= ptr + 2;
-    if (client_plugin >= end)
+    if (next_field >= end)
     {
       my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
       DBUG_RETURN(1);
     }
-    client_plugin= fix_plugin_ptr(client_plugin);
+    client_plugin= fix_plugin_ptr(next_field);
+    next_field+= strlen(next_field) + 1;
   }
   else
   {
@@ -8343,6 +8394,11 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
         mpvio->acl_user->plugin= old_password_plugin_name;
     }
   }
+
+  if ((mpvio->thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
+      read_client_connect_attrs(&next_field, end,
+                                mpvio->thd->charset()))
+    return packet_error;
 
   DBUG_PRINT("info", ("client_plugin=%s, restart", client_plugin));
   /* 
@@ -8482,7 +8538,8 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   /* strlen() can't be easily deleted without changing protocol */
   db_len= db ? strlen(db) : 0;
 
-  char *client_plugin= passwd + passwd_len + (db ? db_len + 1 : 0);
+  char *next_field;
+  char *client_plugin= next_field= passwd + passwd_len + (db ? db_len + 1 : 0);
 
   /* Since 4.1 all database names are stored in utf8 */
   if (db)
@@ -8549,6 +8606,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
       (client_plugin < (char *)net->read_pos + pkt_len))
   {
     client_plugin= fix_plugin_ptr(client_plugin);
+    next_field+= strlen(next_field) + 1;
   }
   else
   {
@@ -8570,7 +8628,12 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
         mpvio->acl_user->plugin= old_password_plugin_name;
     }
   }
-  
+
+  if ((thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
+      read_client_connect_attrs(&next_field, ((char *)net->read_pos) + pkt_len,
+                                mpvio->thd->charset()))
+    return packet_error;
+
   /*
     if the acl_user needs a different plugin to authenticate
     (specified in GRANT ... AUTHENTICATED VIA plugin_name ..)

@@ -5648,6 +5648,10 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
   verbose_msg("Connecting to server %s:%d (socket %s) as '%s'"
               ", connection '%s', attempt %d ...", 
               host, port, sock, user, name, failed_attempts);
+
+  mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
+  mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
+                 "program_name", "mysqltest");
   while(!mysql_real_connect(mysql, host,user, pass, db, port, sock,
                             CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS))
   {
@@ -5748,7 +5752,9 @@ int connect_n_handle_errors(struct st_command *command,
     replace_dynstr_append(ds, command->query);
     dynstr_append_mem(ds, ";\n", 2);
   }
-  
+
+  mysql_options(con, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
+  mysql_options4(con, MYSQL_OPT_CONNECT_ATTR_ADD, "program_name", "mysqltest");
   while (!mysql_real_connect(con, host, user, pass, db, port, sock ? sock: 0,
                           CLIENT_MULTI_STATEMENTS))
   {
