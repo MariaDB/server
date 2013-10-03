@@ -32,6 +32,25 @@ SELECT 'à' RLIKE '\\x{00C0}' COLLATE utf8_bin;
 SELECT 'À' RLIKE '\\x{00C0}' COLLATE utf8_bin;
 'À' RLIKE '\\x{00C0}' COLLATE utf8_bin
 1
+CREATE TABLE t1 (s VARCHAR(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES ('a'),('A');
+CREATE TABLE t2 (p VARCHAR(10) CHARACTER SET utf8);
+INSERT INTO t2 VALUES ('a'),('(?i)a'),('(?-i)a'),('A'),('(?i)A'),('(?-i)A');
+SELECT s,p,s RLIKE p, s COLLATE utf8_bin RLIKE p FROM t1,t2 ORDER BY BINARY s, BINARY p;
+s	p	s RLIKE p	s COLLATE utf8_bin RLIKE p
+A	(?-i)A	1	1
+A	(?-i)a	0	0
+A	(?i)A	1	1
+A	(?i)a	1	1
+A	A	1	1
+A	a	1	0
+a	(?-i)A	0	0
+a	(?-i)a	1	1
+a	(?i)A	1	1
+a	(?i)a	1	1
+a	A	1	0
+a	a	1	1
+DROP TABLE t1,t2;
 CREATE TABLE t1 (ch VARCHAR(22)) CHARACTER SET utf8;
 CREATE TABLE t2 (class VARCHAR(32)) CHARACTER SET utf8;
 INSERT INTO t1 VALUES ('Я'),('Σ'),('A'),('À');

@@ -22,6 +22,15 @@ SELECT 'À' RLIKE '\\x{00E0}' COLLATE utf8_bin;
 SELECT 'à' RLIKE '\\x{00C0}' COLLATE utf8_bin;
 SELECT 'À' RLIKE '\\x{00C0}' COLLATE utf8_bin;
 
+# Checking how (?i) and (?-i) affect case sensitivity
+CREATE TABLE t1 (s VARCHAR(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES ('a'),('A');
+CREATE TABLE t2 (p VARCHAR(10) CHARACTER SET utf8);
+INSERT INTO t2 VALUES ('a'),('(?i)a'),('(?-i)a'),('A'),('(?i)A'),('(?-i)A');
+SELECT s,p,s RLIKE p, s COLLATE utf8_bin RLIKE p FROM t1,t2 ORDER BY BINARY s, BINARY p;
+DROP TABLE t1,t2;
+
+
 # Checking Unicode character classes
 CREATE TABLE t1 (ch VARCHAR(22)) CHARACTER SET utf8;
 CREATE TABLE t2 (class VARCHAR(32)) CHARACTER SET utf8;
