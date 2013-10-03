@@ -505,8 +505,8 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   DBUG_PRINT( "oq-debug", ("open(name=%s,mode=%d,test_if_locked=%u)", name, mode, test_if_locked));
 
-  assert(!have_table_share);
-  assert(graph == NULL);
+  DBUG_ASSERT(!have_table_share);
+  DBUG_ASSERT(graph == NULL);
 
   THD* thd = current_thd;
   oqgraph_table_option_struct *options=
@@ -956,7 +956,7 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
     
   
   DBUG_PRINT( "oq-debug", ("index_read_idx ::>> search(latch:%s,%ld,%ld)", 
-          latchToCode(latch), orig_idp?(long)*orig_idp:-1, dest_idp?(long)*dest_idp:-1));
+          oqlatchToCode(latch), orig_idp?(long)*orig_idp:-1, dest_idp?(long)*dest_idp:-1));
   
   res= graph->search(latchp, orig_idp, dest_idp);
 
@@ -989,7 +989,7 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
   }
 
   DBUG_PRINT( "oq-debug", ("fill_record() ::>> %s,%ld,%ld,%lf,%ld,%ld", 
-          row.latch_indicator ? latchToCode((int)row.latch) : "-",
+          row.latch_indicator ? oqlatchToCode((int)row.latch) : "-",
           row.orig_indicator ? (long)row.orig : -1,
           row.dest_indicator ? (long)row.dest : -1,
           row.weight_indicator ? (double)row.weight : -1,
