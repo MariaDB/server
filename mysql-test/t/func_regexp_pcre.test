@@ -144,6 +144,13 @@ SELECT '1' RLIKE '\\S';
 SELECT '!' RLIKE '\\S';
 SELECT '.' RLIKE '\\S';
 
+# checking 0x00 bytes
+# Bug#70470 REGEXP fails to find matches after NUL character
+SELECT 'abc\0def' REGEXP 'def';
+SELECT 'abc\0def' REGEXP 'abc\\x{00}def';
+SELECT HEX(REGEXP_SUBSTR('abc\0def','abc\\x{00}def'));
+
+
 --echo #
 --echo # Checking REGEXP_REPLACE
 --echo #

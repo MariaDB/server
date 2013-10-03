@@ -414,6 +414,15 @@ SELECT '!' RLIKE '\\S';
 SELECT '.' RLIKE '\\S';
 '.' RLIKE '\\S'
 1
+SELECT 'abc\0def' REGEXP 'def';
+'abc\0def' REGEXP 'def'
+1
+SELECT 'abc\0def' REGEXP 'abc\\x{00}def';
+'abc\0def' REGEXP 'abc\\x{00}def'
+1
+SELECT HEX(REGEXP_SUBSTR('abc\0def','abc\\x{00}def'));
+HEX(REGEXP_SUBSTR('abc\0def','abc\\x{00}def'))
+61626300646566
 #
 # Checking REGEXP_REPLACE
 #
