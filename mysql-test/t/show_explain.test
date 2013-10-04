@@ -1128,9 +1128,44 @@ set names default;
 --error ER_SET_CONSTANTS_ONLY 
 show explain for foo;
 
+--echo #
+--echo # MDEV-411: SHOW EXPLAIN: For dependent subquery EXPLAIN produces type=index, key, 'Using where; Using index', 
+--echo #           while SHOW EXPLAIN says type=ALL, no key, 'Range checked for each record'
+--echo #
+CREATE TABLE t1 (a INT NOT NULL, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (7),(0);
+
+CREATE TABLE t2 (b INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (0),(8);
+
+explain
+SELECT SUM(b) FROM ( SELECT * FROM t1 ) AS alias1, t2 
+WHERE b <= ANY ( 
+  SELECT a FROM t1 
+  WHERE a = b + SLEEP(0.2) OR a >= ( SELECT SUM(b) FROM t2 ));
+
+
+set @show_explain_probe_select_id=1;
+set debug_dbug='+d,show_explain_probe_join_exec_start';
+
+send
+SELECT SUM(b) FROM ( SELECT * FROM t1 ) AS alias1, t2 
+WHERE b <= ANY ( 
+  SELECT a FROM t1 
+  WHERE a = b + SLEEP(0.2) OR a >= ( SELECT SUM(b) FROM t2 ));
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+
+set debug_dbug=@old_debug;
+DROP TABLE t1,t2;
+
 --echo # End
 drop table t0;
-
 connection default;
 disconnect con1;
 set debug_sync='RESET';

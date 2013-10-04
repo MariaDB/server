@@ -1130,6 +1130,45 @@ set names default;
 #
 show explain for foo;
 ERROR HY000: You may only use constant expressions in this statement
+#
+# MDEV-411: SHOW EXPLAIN: For dependent subquery EXPLAIN produces type=index, key, 'Using where; Using index', 
+#           while SHOW EXPLAIN says type=ALL, no key, 'Range checked for each record'
+#
+CREATE TABLE t1 (a INT NOT NULL, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (7),(0);
+CREATE TABLE t2 (b INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (0),(8);
+explain
+SELECT SUM(b) FROM ( SELECT * FROM t1 ) AS alias1, t2 
+WHERE b <= ANY ( 
+SELECT a FROM t1 
+WHERE a = b + SLEEP(0.2) OR a >= ( SELECT SUM(b) FROM t2 ));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	a	4	NULL	2	Using index
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	a	NULL	NULL	NULL	2	Range checked for each record (index map: 0x1)
+4	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	
+set @show_explain_probe_select_id=1;
+set debug_dbug='+d,show_explain_probe_join_exec_start';
+SELECT SUM(b) FROM ( SELECT * FROM t1 ) AS alias1, t2 
+WHERE b <= ANY ( 
+SELECT a FROM t1 
+WHERE a = b + SLEEP(0.2) OR a >= ( SELECT SUM(b) FROM t2 ));
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	a	4	NULL	2	Using index
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	a	NULL	NULL	NULL	2	Range checked for each record (index map: 0x1)
+4	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	
+Warnings:
+Note	1003	SELECT SUM(b) FROM ( SELECT * FROM t1 ) AS alias1, t2 
+WHERE b <= ANY ( 
+SELECT a FROM t1 
+WHERE a = b + SLEEP(0.2) OR a >= ( SELECT SUM(b) FROM t2 ))
+SUM(b)
+0
+set debug_dbug=@old_debug;
+DROP TABLE t1,t2;
 # End
 drop table t0;
 set debug_sync='RESET';
