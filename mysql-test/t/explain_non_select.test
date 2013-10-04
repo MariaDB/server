@@ -1,6 +1,8 @@
 #
 # MariaDB tests for EXPLAIN UPDATE/DELETE.
 #
+--source include/have_partition.inc
+
 --disable_warnings
 drop table if exists t0, t1;
 --enable_warnings
@@ -115,3 +117,22 @@ INSERT INTO t1 VALUES (7),(0),(9);
 SELECT * FROM t1 INNER JOIN ( SELECT DISTINCT * FROM t1 ) AS sq ON (sq.i = t1.i);
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-5093, MDEV-5094: EXPLAIN PARTITIONS and EXPLAIN EXTENDED do not
+--echo #  work for EXPLAIN UPDATE.
+--echo #
+create table t1 (i int);
+explain partitions update t1 set i = 3;
+
+create table t2 (a int, b int) partition by hash(a) partitions 5;
+insert into t2 values (0,0),(1,1),(2,2),(3,3),(4,4);
+
+explain partitions update t2 set b=3 where a in (3,4);
+explain partitions delete from t2 where a in (3,4);
+
+explain extended update t2 set b=3 where a in (3,4);
+explain extended delete from t2 where a in (3,4);
+
+drop table t1,t2;
+

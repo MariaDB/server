@@ -796,7 +796,7 @@ int QPF_update::print_explain(QPF_query *query, select_result_sink *output,
                     1, /* id */
                     select_type,
                     table_name.c_ptr(), 
-                    // partitions,
+                    used_partitions_set? used_partitions.c_ptr() : NULL,
                     jtype,
                     possible_keys_line.length()? possible_keys_line.c_ptr(): NULL,
                     key_str.length()? key_str.c_ptr() : NULL,

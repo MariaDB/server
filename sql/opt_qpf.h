@@ -454,6 +454,9 @@ public:
 
   const char *select_type;
 
+  StringBuffer<32> used_partitions;
+  bool used_partitions_set;
+
   bool impossible_where;
   StringBuffer<64> table_name;
 

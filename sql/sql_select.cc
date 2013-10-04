@@ -22331,7 +22331,7 @@ int print_explain_row(select_result_sink *result,
                       uint select_number,
                       const char *select_type,
                       const char *table_name,
-                      //const char *partitions, (todo)
+                      const char *partitions,
                       enum join_type jtype,
                       const char *possible_keys,
                       const char *index,
@@ -22351,7 +22351,15 @@ int print_explain_row(select_result_sink *result,
   item_list.push_back(new Item_string(table_name,
                                       strlen(table_name), cs));
   if (options & DESCRIBE_PARTITIONS)
-    item_list.push_back(item_null); // psergey-todo: produce proper value
+  {
+    if (partitions)
+    {
+      item_list.push_back(new Item_string(partitions,
+                                          strlen(partitions), cs));
+    }
+    else
+      item_list.push_back(item_null);
+  }
   
   const char *jtype_str= join_type_str[jtype];
   item_list.push_back(new Item_string(jtype_str,
@@ -22377,8 +22385,9 @@ int print_explain_row(select_result_sink *result,
   item_list.push_back(new Item_int(rows, 
                                    MY_INT64_NUM_DECIMAL_DIGITS));
   /* 'filtered' */
+  const double filtered=100.0;
   if (options & DESCRIBE_EXTENDED)
-    item_list.push_back(item_null);
+    item_list.push_back(new Item_float(filtered, 2));
   
   /* 'Extra' */
   item_list.push_back(new Item_string(extra, strlen(extra), cs));
@@ -22489,7 +22498,7 @@ void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res)
 
 
 ///////////////////////////////////////////////////////////////////////////////
-
+// TODO: join with make_possible_keys_line ?
 void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
 {
   uint j;
