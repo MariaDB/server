@@ -771,15 +771,15 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
 
   if (acl_authenticate(thd, 0, end - buf))
   {
-    x_free(thd->security_ctx->user);
+    my_free(thd->security_ctx->user);
     goto err;
   }
   return 0;
 
 err:
-  strmake_buf(net->last_error, thd->main_da.message());
+  strmake_buf(net->last_error, thd->get_stmt_da()->message());
   memcpy(net->sqlstate,
-         mysql_errno_to_sqlstate(thd->main_da.sql_errno()),
+         mysql_errno_to_sqlstate(thd->get_stmt_da()->sql_errno()),
          sizeof(net->sqlstate)-1);
   return 1;
 }
