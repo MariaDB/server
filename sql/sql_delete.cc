@@ -40,7 +40,7 @@
 #include "records.h"                            // init_read_record,
 #include "sql_derived.h"                        // mysql_handle_list_of_derived
                                                 // end_read_record
-
+#include "sql_partition.h"       // make_used_partitions_str
 
 /*
   @brief
@@ -92,7 +92,24 @@ void Update_plan::save_qpf_intern(QPF_query *query, QPF_update *qpf)
 
   select_lex->set_explain_type(TRUE);
   qpf->select_type= select_lex->type;
-  
+  /* Partitions */
+  {
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    partition_info *part_info;
+    if ((part_info= table->part_info))
+    {          
+      make_used_partitions_str(part_info, &qpf->used_partitions);
+      qpf->used_partitions_set= true;
+    }
+    else
+      qpf->used_partitions_set= false;
+#else
+    /* just produce empty column if partitioning is not compiled in */
+    qpf->used_partitions_set= false;
+#endif
+  }
+
+
   /* Set jtype */
   if (select && select->quick)
   {

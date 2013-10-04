@@ -1853,7 +1853,7 @@ int print_explain_row(select_result_sink *result,
                       uint select_number,
                       const char *select_type,
                       const char *table_name,
-                      //const char *partitions, (todo)
+                      const char *partitions,
                       enum join_type jtype,
                       const char *possible_keys,
                       const char *index,
