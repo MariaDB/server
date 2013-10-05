@@ -83,14 +83,22 @@ void Update_plan::save_explain_data_intern(Explain_query *query,
 {
   explain->select_type= "SIMPLE";
   explain->table_name.append(table->pos_in_table_list->alias);
+  
+  explain->impossible_where= false;
+  explain->no_partitions= false;
+
   if (impossible_where)
   {
     explain->impossible_where= true;
     return;
   }
-  
-  explain->impossible_where= false;
 
+  if (no_partitions)
+  {
+    explain->no_partitions= true;
+    return;
+  }
+  
   select_lex->set_explain_type(TRUE);
   explain->select_type= select_lex->type;
   /* Partitions */
@@ -139,7 +147,8 @@ void Update_plan::save_explain_data_intern(Explain_query *query,
   /* Calculate key_len */
   if (select && select->quick)
   {
-    select->quick->add_keys_and_lengths(&explain->key_str, &explain->key_len_str);
+    select->quick->add_keys_and_lengths(&explain->key_str, 
+                                        &explain->key_len_str);
   }
   else
   {
@@ -356,8 +365,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (prune_partitions(thd, table, conds))
   {
     free_underlaid_joins(thd, select_lex);
-    // No matching record
-    //psergey-explain-todo: No-partitions used EXPLAIN here..
+
+    query_plan.set_no_partitions();
+    if (thd->lex->describe)
+      goto exit_without_my_ok;
+
     my_ok(thd, 0);
     DBUG_RETURN(0);
   }

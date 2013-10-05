@@ -2380,8 +2380,10 @@ class Update_plan
 {
 protected:
   bool impossible_where;
+  bool no_partitions;
 public:
   bool updating_a_view;
+
   TABLE *table;
   SQL_SELECT *select;
   uint index;
@@ -2395,14 +2397,17 @@ public:
   key_map possible_keys;
   bool using_filesort;
   
-  /* Set this plan to be a plan to do nothing because of impossible WHRE*/
+  /* Set this plan to be a plan to do nothing because of impossible WHERE */
   void set_impossible_where() { impossible_where= true; }
+  void set_no_partitions() { no_partitions= true; }
 
   void save_explain_data(Explain_query *query);
   void save_explain_data_intern(Explain_query *query, Explain_update *eu);
   virtual ~Update_plan() {}
 
-  Update_plan() : impossible_where(false), using_filesort(false) {}
+  Update_plan() : 
+    impossible_where(false), no_partitions(false), using_filesort(false) 
+  {}
 };
 
 
