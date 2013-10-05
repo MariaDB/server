@@ -314,8 +314,6 @@ int mysql_update(THD *thd,
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
     DBUG_RETURN(1);
   }
-  
-  //psergey-todo: Ugly, discuss with Sanja
   query_plan.updating_a_view= test(table_list->view);
   
   /* Calculate "table->covering_keys" based on the WHERE */

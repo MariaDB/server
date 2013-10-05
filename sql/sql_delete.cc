@@ -245,8 +245,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   table->map=1;
   query_plan.select_lex= &thd->lex->select_lex;
   query_plan.table= table;
-
-  //psergey-todo: Ugly, discuss with Sanja
   query_plan.updating_a_view= test(table_list->view);
 
   if (mysql_prepare_delete(thd, table_list, select_lex->with_wild,

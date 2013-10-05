@@ -2382,6 +2382,13 @@ protected:
   bool impossible_where;
   bool no_partitions;
 public:
+  /*
+    When single-table UPDATE updates a VIEW, that VIEW's select is still
+    listed as the first child.  When we print EXPLAIN, it looks like a
+    subquery.
+    In order to get rid of it, updating_a_view=TRUE means that first child
+    select should not be shown when printing EXPLAIN.
+  */
   bool updating_a_view;
 
   TABLE *table;
