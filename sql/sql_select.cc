@@ -2328,14 +2328,6 @@ void join_save_qpf(JOIN *join)
 
 void JOIN::exec()
 {
-  /*
-    Enable SHOW EXPLAIN only if we're in the top-level query.
-  */
-  
-  /*
-    psergey: we can produce SHOW explain at this point. This means, we're ready
-    to save the query plan.
-  */
   thd->apc_target.enable();
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_start", 
                   if (dbug_user_var_equals_int(thd, 
@@ -2343,7 +2335,6 @@ void JOIN::exec()
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
-
   exec_inner();
 
   if (!exec_saved_explain)
@@ -22505,15 +22496,15 @@ int JOIN::save_explain_data(Explain_query *output, bool need_tmp_table,
 
   if (message)
   {
-    Explain_select *qp_sel;
-    qp_node= qp_sel= new (output->mem_root) Explain_select;
+    Explain_select *xpl_sel;
+    qp_node= xpl_sel= new (output->mem_root) Explain_select;
     join->select_lex->set_explain_type(true);
 
-    qp_sel->select_id= join->select_lex->select_number;
-    qp_sel->select_type= join->select_lex->type;
-    qp_sel->message= message;
-    /* Setting qp_sel->message means that all other members are invalid */
-    output->add_node(qp_sel);
+    xpl_sel->select_id= join->select_lex->select_number;
+    xpl_sel->select_type= join->select_lex->type;
+    xpl_sel->message= message;
+    /* Setting xpl_sel->message means that all other members are invalid */
+    output->add_node(xpl_sel);
   }
   else if (join->select_lex == join->unit->fake_select_lex)
   {
@@ -22522,13 +22513,13 @@ int JOIN::save_explain_data(Explain_query *output, bool need_tmp_table,
   else if (!join->select_lex->master_unit()->derived ||
            join->select_lex->master_unit()->derived->is_materialized_derived())
   {
-    Explain_select *qp_sel;
-    qp_node= qp_sel= new (output->mem_root) Explain_select;
+    Explain_select *xpl_sel;
+    qp_node= xpl_sel= new (output->mem_root) Explain_select;
     table_map used_tables=0;
 
     join->select_lex->set_explain_type(true);
-    qp_sel->select_id= join->select_lex->select_number;
-    qp_sel->select_type= join->select_lex->type;
+    xpl_sel->select_id= join->select_lex->select_number;
+    xpl_sel->select_type= join->select_lex->type;
 
     JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
 
@@ -22572,7 +22563,7 @@ int JOIN::save_explain_data(Explain_query *output, bool need_tmp_table,
       }
 
       Explain_table_access *qpt= new (output->mem_root) Explain_table_access;
-      qp_sel->add_table(qpt);
+      xpl_sel->add_table(qpt);
       qpt->key.set(thd->mem_root, NULL, (uint)-1);
       qpt->quick_info= NULL;
       
@@ -22583,7 +22574,7 @@ int JOIN::save_explain_data(Explain_query *output, bool need_tmp_table,
         qpt->sjm_nest_select_id= 0;
 
       /* select_type */
-      qp_sel->select_type= join->select_lex->type;
+      xpl_sel->select_type= join->select_lex->type;
 
       /* table */
       if (table->derived_select_number)
@@ -22893,12 +22884,12 @@ int JOIN::save_explain_data(Explain_query *output, bool need_tmp_table,
 	if (need_tmp_table)
 	{
 	  need_tmp_table=0;
-          qp_sel->using_temporary= true;
+          xpl_sel->using_temporary= true;
 	}
 	if (need_order)
 	{
 	  need_order=0;
-          qp_sel->using_filesort= true;
+          xpl_sel->using_filesort= true;
 	}
 	if (distinct & test_all_bits(used_tables,
                                      join->select_list_used_tables))
@@ -22956,7 +22947,7 @@ int JOIN::save_explain_data(Explain_query *output, bool need_tmp_table,
       // For next iteration
       used_tables|=table->map;
     }
-    output->add_node(qp_sel);
+    output->add_node(xpl_sel);
   }
 
   for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
