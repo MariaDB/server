@@ -460,6 +460,7 @@ public:
   bool used_partitions_set;
 
   bool impossible_where;
+  bool no_partitions;
   StringBuffer<64> table_name;
 
   enum join_type jtype;

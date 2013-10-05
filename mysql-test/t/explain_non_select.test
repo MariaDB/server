@@ -136,3 +136,22 @@ explain extended delete from t2 where a in (3,4);
 
 drop table t1,t2;
 
+--echo #
+--echo #  Check the special case where partition pruning removed all partitions
+--echo #
+
+create table t1 (a int, b int) 
+partition by range (a) (
+ partition p0 values less than (10),
+ partition p1 values less than (20),
+ partition p2 values less than (30)
+);
+insert into t1 values (9,9), (19,19), (29,29);
+
+explain partitions select * from t1 where a in (32,33);
+
+explain partitions delete from t1 where a in (32,33);
+
+explain partitions update t1 set b=12345 where a in (32,33);
+
+drop table t1;

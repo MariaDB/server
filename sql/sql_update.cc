@@ -403,6 +403,11 @@ int mysql_update(THD *thd,
   if (prune_partitions(thd, table, conds))
   {
     free_underlaid_joins(thd, select_lex);
+
+    query_plan.set_no_partitions();
+    if (thd->lex->describe)
+      goto exit_without_my_ok;
+
     my_ok(thd);				// No matching records
     DBUG_RETURN(0);
   }

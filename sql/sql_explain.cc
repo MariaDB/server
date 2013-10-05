@@ -766,9 +766,11 @@ int Explain_update::print_explain(Explain_query *query,
                                   uint8 explain_flags)
 {
   StringBuffer<64> extra_str;
-  if (impossible_where)
+  if (impossible_where || no_partitions)
   {
-    const char *msg= "Impossible where";
+    const char *msg= impossible_where ? 
+                     "Impossible where" : 
+                     "No matching rows after partition pruning";
     int res= print_explain_message_line(output, explain_flags,
                                         1 /*select number*/,
                                         select_type, msg);
