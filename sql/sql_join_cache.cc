@@ -2568,22 +2568,22 @@ finish:
     none
 */ 
 
-void JOIN_CACHE::save_explain_data(struct st_explain_bka_type *qpf)
+void JOIN_CACHE::save_explain_data(struct st_explain_bka_type *explain)
 {
-  qpf->incremental= test(prev_cache);
+  explain->incremental= test(prev_cache);
 
   switch (get_join_alg()) {
   case BNL_JOIN_ALG:
-    qpf->join_alg= "BNL";
+    explain->join_alg= "BNL";
     break;
   case BNLH_JOIN_ALG:
-    qpf->join_alg= "BNLH";
+    explain->join_alg= "BNLH";
     break;
   case BKA_JOIN_ALG:
-    qpf->join_alg= "BKA";
+    explain->join_alg= "BKA";
     break;
   case BKAH_JOIN_ALG:
-    qpf->join_alg= "BKAH";
+    explain->join_alg= "BKAH";
     break;
   default:
     DBUG_ASSERT(0);
@@ -2613,17 +2613,17 @@ static void add_mrr_explain_info(String *str, uint mrr_mode, handler *file)
   }
 }
 
-void JOIN_CACHE_BKA::save_explain_data(struct st_explain_bka_type *qpf)
+void JOIN_CACHE_BKA::save_explain_data(struct st_explain_bka_type *explain)
 {
-  JOIN_CACHE::save_explain_data(qpf); 
-  add_mrr_explain_info(&qpf->mrr_type, mrr_mode, join_tab->table->file);
+  JOIN_CACHE::save_explain_data(explain); 
+  add_mrr_explain_info(&explain->mrr_type, mrr_mode, join_tab->table->file);
 }
 
 
-void JOIN_CACHE_BKAH::save_explain_data(struct st_explain_bka_type *qpf)
+void JOIN_CACHE_BKAH::save_explain_data(struct st_explain_bka_type *explain)
 {
-  JOIN_CACHE::save_explain_data(qpf); 
-  add_mrr_explain_info(&qpf->mrr_type, mrr_mode, join_tab->table->file);
+  JOIN_CACHE::save_explain_data(explain); 
+  add_mrr_explain_info(&explain->mrr_type, mrr_mode, join_tab->table->file);
 }
 
 

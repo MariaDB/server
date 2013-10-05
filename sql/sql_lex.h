@@ -2369,7 +2369,7 @@ class Delete_plan;
 class SQL_SELECT;
 
 class Explain_query;
-class QPF_update;
+class Explain_update;
 
 /* 
   Query plan of a single-table UPDATE.
@@ -2399,7 +2399,7 @@ public:
   void set_impossible_where() { impossible_where= true; }
 
   void save_explain_data(Explain_query *query);
-  void save_explain_data_intern(Explain_query *query, QPF_update *qpf);
+  void save_explain_data_intern(Explain_query *query, Explain_update *eu);
   virtual ~Update_plan() {}
 
   Update_plan() : impossible_where(false), using_filesort(false) {}

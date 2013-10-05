@@ -511,7 +511,8 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
 
 
 /*
-  Elements in this array match members of enum Extra_tag, defined in opt_qpf.h.
+  Elements in this array match members of enum Extra_tag, defined in
+  sql_explain.h
 */
 
 const char * extra_tag_text[]=
@@ -740,8 +741,9 @@ void Explain_quick_select::print_key_len(String *str)
 }
 
 
-int QPF_delete::print_explain(Explain_query *query, select_result_sink *output, 
-                              uint8 explain_flags)
+int Explain_delete::print_explain(Explain_query *query, 
+                                  select_result_sink *output,
+                                  uint8 explain_flags)
 {
   if (deleting_all_rows)
   {
@@ -754,13 +756,14 @@ int QPF_delete::print_explain(Explain_query *query, select_result_sink *output,
   }
   else
   {
-    return QPF_update::print_explain(query, output, explain_flags);
+    return Explain_update::print_explain(query, output, explain_flags);
   }
 }
 
 
-int QPF_update::print_explain(Explain_query *query, select_result_sink *output, 
-                              uint8 explain_flags)
+int Explain_update::print_explain(Explain_query *query, 
+                                  select_result_sink *output,
+                                  uint8 explain_flags)
 {
   StringBuffer<64> extra_str;
   if (impossible_where)

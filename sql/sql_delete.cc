@@ -53,59 +53,60 @@
 
 void Delete_plan::save_explain_data(Explain_query *query)
 {
-  QPF_delete* qpf= new QPF_delete;
+  Explain_delete* explain= new Explain_delete;
 
   if (deleting_all_rows)
   {
-    qpf->deleting_all_rows= true;
-    qpf->select_type= "SIMPLE";
+    explain->deleting_all_rows= true;
+    explain->select_type= "SIMPLE";
   }
   else
   {
-    qpf->deleting_all_rows= false;
-    Update_plan::save_explain_data_intern(query, qpf);
+    explain->deleting_all_rows= false;
+    Update_plan::save_explain_data_intern(query, explain);
   }
 
-  query->upd_del_plan= qpf;
+  query->upd_del_plan= explain;
 }
 
 
 void Update_plan::save_explain_data(Explain_query *query)
 {
-  QPF_update* qpf= new QPF_update;
-  save_explain_data_intern(query, qpf);
-  query->upd_del_plan= qpf;
+  Explain_update* explain= new Explain_update;
+  save_explain_data_intern(query, explain);
+  query->upd_del_plan= explain;
 }
 
 
-void Update_plan::save_explain_data_intern(Explain_query *query, QPF_update *qpf)
+void Update_plan::save_explain_data_intern(Explain_query *query, 
+                                           Explain_update *explain)
 {
-  qpf->select_type= "SIMPLE";
-  qpf->table_name.append(table->pos_in_table_list->alias);
+  explain->select_type= "SIMPLE";
+  explain->table_name.append(table->pos_in_table_list->alias);
   if (impossible_where)
   {
-    qpf->impossible_where= true;
+    explain->impossible_where= true;
     return;
   }
   
-  qpf->impossible_where= false;
+  explain->impossible_where= false;
 
   select_lex->set_explain_type(TRUE);
-  qpf->select_type= select_lex->type;
+  explain->select_type= select_lex->type;
   /* Partitions */
   {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     partition_info *part_info;
     if ((part_info= table->part_info))
     {          
-      make_used_partitions_str(part_info, &qpf->used_partitions);
-      qpf->used_partitions_set= true;
+      make_used_partitions_str(part_info, &explain->used_partitions);
+      explain->used_partitions_set= true;
     }
     else
-      qpf->used_partitions_set= false;
+      explain->used_partitions_set= false;
 #else
     /* just produce empty column if partitioning is not compiled in */
-    qpf->used_partitions_set= false;
+    explain->used_partitions_set= false;
 #endif
   }
 
@@ -118,42 +119,43 @@ void Update_plan::save_explain_data_intern(Explain_query *query, QPF_update *qpf
         (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
         (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT) ||
         (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION))
-      qpf->jtype= JT_INDEX_MERGE;
+      explain->jtype= JT_INDEX_MERGE;
     else
-      qpf->jtype= JT_RANGE;
+      explain->jtype= JT_RANGE;
   }
   else
   {
     if (index == MAX_KEY)
-      qpf->jtype= JT_ALL;
+      explain->jtype= JT_ALL;
     else
-      qpf->jtype= JT_NEXT;
+      explain->jtype= JT_NEXT;
   }
 
-  qpf->using_where= test(select && select->cond);
-  qpf->using_filesort= using_filesort;
+  explain->using_where= test(select && select->cond);
+  explain->using_filesort= using_filesort;
 
-  make_possible_keys_line(table, possible_keys, &qpf->possible_keys_line);
+  make_possible_keys_line(table, possible_keys, &explain->possible_keys_line);
 
   /* Calculate key_len */
   if (select && select->quick)
   {
-    select->quick->add_keys_and_lengths(&qpf->key_str, &qpf->key_len_str);
+    select->quick->add_keys_and_lengths(&explain->key_str, &explain->key_len_str);
   }
   else
   {
     if (index != MAX_KEY)
     {
-      qpf->key_str.append(table->key_info[index].name);
+      explain->key_str.append(table->key_info[index].name);
     }
     // key_len stays NULL
   }
-  qpf->rows= select ? select->records : table_rows;
+  explain->rows= select ? select->records : table_rows;
 
   if (select && select->quick && 
       select->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
   {
-    explain_append_mrr_info((QUICK_RANGE_SELECT*)select->quick, &qpf->mrr_type);
+    explain_append_mrr_info((QUICK_RANGE_SELECT*)select->quick, 
+                            &explain->mrr_type);
   }
 
   bool skip= updating_a_view;
@@ -173,7 +175,7 @@ void Update_plan::save_explain_data_intern(Explain_query *query, QPF_update *qpf
       clauses.
     */
     if (!(unit->item && unit->item->eliminated))
-      qpf->add_child(unit->first_select()->select_number);
+      explain->add_child(unit->first_select()->select_number);
   }
 }
 
