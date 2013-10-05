@@ -198,7 +198,7 @@ int rr_sequential(READ_RECORD *info);
 int rr_sequential_and_unpack(READ_RECORD *info);
 
 
-#include "opt_qpf.h"
+#include "sql_explain.h"
 
 /**************************************************************************************
  * New EXPLAIN structures END

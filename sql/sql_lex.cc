@@ -3516,14 +3516,14 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
         inner_join->select_options= save_options;
         un->thd->lex->current_select= save_select;
 
-        Explain_query *qpf;
-        if ((qpf= inner_join->thd->lex->explain))
+        Explain_query *eq;
+        if ((eq= inner_join->thd->lex->explain))
         {
-          Explain_select *qp_sel;
-          if ((qp_sel= qpf->get_select(inner_join->select_lex->select_number)))
+          Explain_select *expl_sel;
+          if ((expl_sel= eq->get_select(inner_join->select_lex->select_number)))
           {
             sl->set_explain_type(TRUE);
-            qp_sel->select_type= sl->type;
+            expl_sel->select_type= sl->type;
           }
         }
 
