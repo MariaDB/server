@@ -51,7 +51,7 @@
     invoked on a running DELETE statement.
 */
 
-void Delete_plan::save_qpf(QPF_query *query)
+void Delete_plan::save_explain_data(Explain_query *query)
 {
   QPF_delete* qpf= new QPF_delete;
 
@@ -63,22 +63,22 @@ void Delete_plan::save_qpf(QPF_query *query)
   else
   {
     qpf->deleting_all_rows= false;
-    Update_plan::save_qpf_intern(query, qpf);
+    Update_plan::save_explain_data_intern(query, qpf);
   }
 
   query->upd_del_plan= qpf;
 }
 
 
-void Update_plan::save_qpf(QPF_query *query)
+void Update_plan::save_explain_data(Explain_query *query)
 {
   QPF_update* qpf= new QPF_update;
-  save_qpf_intern(query, qpf);
+  save_explain_data_intern(query, qpf);
   query->upd_del_plan= qpf;
 }
 
 
-void Update_plan::save_qpf_intern(QPF_query *query, QPF_update *qpf)
+void Update_plan::save_explain_data_intern(Explain_query *query, QPF_update *qpf)
 {
   qpf->select_type= "SIMPLE";
   qpf->table_name.append(table->pos_in_table_list->alias);
@@ -434,7 +434,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (thd->lex->describe)
     goto exit_without_my_ok;
 
-  query_plan.save_qpf(thd->lex->query_plan_footprint);
+  query_plan.save_explain_data(thd->lex->explain);
   thd->apc_target.enable();
 
   DBUG_EXECUTE_IF("show_explain_probe_delete_exec_start", 
@@ -667,7 +667,7 @@ cleanup:
   
   /* Special exits */
 exit_without_my_ok:
-  query_plan.save_qpf(thd->lex->query_plan_footprint);
+  query_plan.save_explain_data(thd->lex->explain);
 
   select_send *result2;
   if (!(result2= new select_send()))
@@ -675,7 +675,7 @@ exit_without_my_ok:
   List<Item> dummy; /* note: looked in 5.6 and they too use a dummy list like this */
   result2->prepare(dummy, &thd->lex->unit);
   thd->send_explain_fields(result2);
-  int err2= thd->lex->query_plan_footprint->print_explain(result2, thd->lex->describe);
+  int err2= thd->lex->explain->print_explain(result2, thd->lex->describe);
 
   if (err2)
     result2->abort_result_set();

@@ -500,7 +500,7 @@ int mysql_update(THD *thd,
   if (thd->lex->describe)
     goto exit_without_my_ok;
 
-  query_plan.save_qpf(thd->lex->query_plan_footprint);
+  query_plan.save_explain_data(thd->lex->explain);
   thd->apc_target.enable();
   apc_target_enabled= true;
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
@@ -1031,7 +1031,7 @@ err:
 
 exit_without_my_ok:
   DBUG_ASSERT(!apc_target_enabled);
-  query_plan.save_qpf(thd->lex->query_plan_footprint);
+  query_plan.save_explain_data(thd->lex->explain);
   
   select_send *result;
   if (!(result= new select_send()))
@@ -1039,7 +1039,7 @@ exit_without_my_ok:
   List<Item> dummy; /* note: looked in 5.6 and they too use a dummy list like this */
   result->prepare(dummy, &thd->lex->unit);
   thd->send_explain_fields(result);
-  int err2= thd->lex->query_plan_footprint->print_explain(result,
+  int err2= thd->lex->explain->print_explain(result,
                                                           thd->lex->describe);
   if (err2)
     result->abort_result_set();
@@ -1518,7 +1518,7 @@ bool mysql_multi_update(THD *thd,
   {
     if (explain)
     {
-      thd->lex->query_plan_footprint->print_explain(output, thd->lex->describe);
+      thd->lex->explain->print_explain(output, thd->lex->describe);
       output->send_eof(); 
       delete output;
     }

@@ -17,33 +17,35 @@
 
 /**************************************************************************************
  
-  Query Plan Footprint (QPF) structures
+  Data structures for producing EXPLAIN outputs.
 
   These structures
-  - Can be produced in-expensively from query plan.
-  - Store sufficient information to produce either a tabular or a json EXPLAIN
-    output
+  - Can be produced inexpensively from query plan.
+  - Store sufficient information to produce a tabular and/or a json EXPLAIN
   - Have methods that produce a tabular output.
- 
+
 *************************************************************************************/
 
-class QPF_query;
+
+const int FAKE_SELECT_LEX_ID= (int)UINT_MAX;
+
+class Explain_query;
 
 /* 
   A node can be either a SELECT, or a UNION.
 */
-class QPF_node : public Sql_alloc
+class Explain_node : public Sql_alloc
 {
 public:
-  enum qpf_node_type {QPF_UNION, QPF_SELECT, QPF_UPDATE, QPF_DELETE };
-  virtual enum qpf_node_type get_type()= 0;
+  enum explain_node_type {EXPLAIN_UNION, EXPLAIN_SELECT, EXPLAIN_UPDATE, EXPLAIN_DELETE };
+  virtual enum explain_node_type get_type()= 0;
 
 
   virtual int get_select_id()= 0;
 
   /* 
-    A node may have children nodes. When a node's QPF (Query Plan Footprint) is
-    created, children nodes may not yet have QPFs.  This is why we store ids.
+    A node may have children nodes. When a node's explain structure is 
+    created, children nodes may not yet have QPFs. This is why we store ids.
   */
   Dynamic_array<int> children;
   void add_child(int select_no)
@@ -51,20 +53,20 @@ public:
     children.append(select_no);
   }
 
-  virtual int print_explain(QPF_query *query, select_result_sink *output, 
+  virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags)=0;
   
-  int print_explain_for_children(QPF_query *query, select_result_sink *output, 
+  int print_explain_for_children(Explain_query *query, select_result_sink *output, 
                                  uint8 explain_flags);
-  virtual ~QPF_node(){}
+  virtual ~Explain_node(){}
 };
 
 
-class QPF_table_access;
+class Explain_table_access;
 
 
 /*
-  Query Plan Footprint of a SELECT.
+  EXPLAIN structure for a SELECT.
   
   A select can be:
   1. A degenerate case. In this case, message!=NULL, and it contains a 
@@ -74,27 +76,27 @@ class QPF_table_access;
 
   In the non-degenerate case, a SELECT may have a GROUP BY/ORDER BY operation.
 
-  In both cases, the select may have children nodes. class QPF_node provides
+  In both cases, the select may have children nodes. class Explain_node provides
   a way get node's children.
 */
 
-class QPF_select : public QPF_node
+class Explain_select : public Explain_node
 {
 public:
-  enum qpf_node_type get_type() { return QPF_SELECT; }
+  enum explain_node_type get_type() { return EXPLAIN_SELECT; }
 
-  QPF_select() : 
+  Explain_select() : 
     message(NULL), join_tabs(NULL),
     using_temporary(false), using_filesort(false)
   {}
   
-  ~QPF_select();
+  ~Explain_select();
 
-  bool add_table(QPF_table_access *tab)
+  bool add_table(Explain_table_access *tab)
   {
     if (!join_tabs)
     {
-      join_tabs= (QPF_table_access**) my_malloc(sizeof(QPF_table_access*) *
+      join_tabs= (Explain_table_access**) my_malloc(sizeof(Explain_table_access*) *
                                                 MAX_TABLES, MYF(0));
       n_join_tabs= 0;
     }
@@ -115,31 +117,31 @@ public:
   const char *message;
   
   /*
-    A flat array of Query Plan Footprints. The order is "just like EXPLAIN
+    A flat array of Explain structs for tables. The order is "just like EXPLAIN
     would print them".
   */
-  QPF_table_access** join_tabs;
+  Explain_table_access** join_tabs;
   uint n_join_tabs;
 
   /* Global join attributes. In tabular form, they are printed on the first row */
   bool using_temporary;
   bool using_filesort;
   
-  int print_explain(QPF_query *query, select_result_sink *output, 
+  int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags);
 };
 
 
 /* 
-  Query Plan Footprint of a UNION.
+  Explain structure for a UNION.
 
   A UNION may or may not have "Using filesort".
 */
 
-class QPF_union : public QPF_node
+class Explain_union : public Explain_node
 {
 public:
-  enum qpf_node_type get_type() { return QPF_UNION; }
+  enum explain_node_type get_type() { return EXPLAIN_UNION; }
 
   int get_select_id()
   {
@@ -163,7 +165,7 @@ public:
   {
     union_members.append(select_no);
   }
-  int print_explain(QPF_query *query, select_result_sink *output, 
+  int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags);
 
   const char *fake_select_type;
@@ -174,7 +176,7 @@ class QPF_delete;
 
 
 /*
-  Query Plan Footprint (QPF) for a query (i.e. a statement).
+  Explain structure for a query (i.e. a statement).
 
   This should be able to survive when the query plan was deleted. Currently, 
   we do not intend for it survive until after query's MEM_ROOT is freed. It
@@ -208,21 +210,21 @@ class QPF_delete;
     
 */
 
-class QPF_query : public Sql_alloc
+class Explain_query : public Sql_alloc
 {
 public:
-  QPF_query();
-  ~QPF_query();
+  Explain_query();
+  ~Explain_query();
   /* Add a new node */
-  void add_node(QPF_node *node);
+  void add_node(Explain_node *node);
 
   /* This will return a select, or a union */
-  QPF_node *get_node(uint select_id);
+  Explain_node *get_node(uint select_id);
 
   /* This will return a select (even if there is a union with this id) */
-  QPF_select *get_select(uint select_id);
+  Explain_select *get_select(uint select_id);
   
-  QPF_union *get_union(uint select_id);
+  Explain_union *get_union(uint select_id);
   
   /* QPF_delete inherits from QPF_update */
   QPF_update *upd_del_plan;
@@ -237,8 +239,8 @@ public:
   bool have_query_plan() { return upd_del_plan!= NULL || get_node(1) != NULL; }
   MEM_ROOT *mem_root;
 private:
-  Dynamic_array<QPF_union*> unions;
-  Dynamic_array<QPF_select*> selects;
+  Dynamic_array<Explain_union*> unions;
+  Dynamic_array<Explain_select*> selects;
   
   /* 
     Debugging aid: count how many times add_node() was called. Ideally, it
@@ -252,10 +254,10 @@ private:
 
 /* 
   Some of the tags have matching text. See extra_tag_text for text names, and 
-  QPF_table_access::append_tag_name() for code to convert from tag form to text
+  Explain_table_access::append_tag_name() for code to convert from tag form to text
   form.
 */
-enum Extra_tag
+enum explain_extra_tag
 {
   ET_none= 0, /* not-a-tag */
   ET_USING_INDEX_CONDITION,
@@ -296,19 +298,19 @@ enum Extra_tag
 };
 
 
-typedef struct st_qpf_bka_type
+typedef struct st_explain_bka_type
 {
   bool incremental;
   const char *join_alg;
   StringBuffer<64> mrr_type;
 
-} QPF_BKA_TYPE;
+} EXPLAIN_BKA_TYPE;
 
 
 /*
   Data about how an index is used by some access method
 */
-class QPF_index_use : public Sql_alloc
+class Explain_index_use : public Sql_alloc
 {
   char *key_name;
   uint key_len;
@@ -336,16 +338,16 @@ public:
 /*
   QPF for quick range selects, as well as index_merge select
 */
-class QPF_quick_select : public Sql_alloc
+class Explain_quick_select : public Sql_alloc
 {
 public:
   int quick_type;
   
   /* This is used when quick_type == QUICK_SELECT_I::QS_TYPE_RANGE */
-  QPF_index_use range;
+  Explain_index_use range;
   
   /* Used in all other cases */
-  List<QPF_quick_select> children;
+  List<Explain_quick_select> children;
   
   void print_extra(String *str);
   void print_key(String *str);
@@ -359,20 +361,20 @@ private:
 /*
   Query Plan Footprint for a JOIN_TAB.
 */
-class QPF_table_access : public Sql_alloc
+class Explain_table_access : public Sql_alloc
 {
 public:
-  void push_extra(enum Extra_tag extra_tag);
+  void push_extra(enum explain_extra_tag extra_tag);
 
   /* Internals */
 public:
   /* 
-    0 means this tab is not inside SJM nest and should use QPF_select's id
+    0 means this tab is not inside SJM nest and should use Explain_select's id
     other value means the tab is inside an SJM nest.
   */
   int sjm_nest_select_id;
 
-  /* id and 'select_type' are cared-of by the parent QPF_select */
+  /* id and 'select_type' are cared-of by the parent Explain_select */
   StringBuffer<32> table_name;
 
   enum join_type type;
@@ -391,13 +393,13 @@ public:
     key.key_name == NULL means 'NULL' will be shown in tabular output.
     key.key_len == (uint)-1 means 'NULL' will be shown in tabular output.
   */
-  QPF_index_use key;
+  Explain_index_use key;
   
   /*
     when type==JT_HASH_NEXT, 'key' stores the hash join pseudo-key.
     hash_next_key stores the table's key.
   */
-  QPF_index_use hash_next_key;
+  Explain_index_use hash_next_key;
   
   bool ref_set; /* not set means 'NULL' should be printed */
   StringBuffer<32> ref;
@@ -412,10 +414,10 @@ public:
     Contents of the 'Extra' column. Some are converted into strings, some have
     parameters, values for which are stored below.
   */
-  Dynamic_array<enum Extra_tag> extra_tags;
+  Dynamic_array<enum explain_extra_tag> extra_tags;
 
   // Valid if ET_USING tag is present
-  QPF_quick_select *quick_info;
+  Explain_quick_select *quick_info;
 
   // Valid if ET_USING_INDEX_FOR_GROUP_BY is present
   bool loose_scan_is_scanning;
@@ -427,7 +429,7 @@ public:
   StringBuffer<32> mrr_type;
 
   // valid with ET_USING_JOIN_BUFFER
-  QPF_BKA_TYPE bka_type;
+  EXPLAIN_BKA_TYPE bka_type;
   
   StringBuffer<32> firstmatch_table_name;
 
@@ -435,21 +437,21 @@ public:
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
 private:
-  void append_tag_name(String *str, enum Extra_tag tag);
+  void append_tag_name(String *str, enum explain_extra_tag tag);
 };
 
 
 /*
   Query Plan Footprint for single-table UPDATE. 
   
-  This is similar to QPF_table_access, except that it is more restrictive.
+  This is similar to Explain_table_access, except that it is more restrictive.
   Also, it can have UPDATE operation options, but currently there aren't any.
 */
 
-class QPF_update : public QPF_node
+class QPF_update : public Explain_node
 {
 public:
-  virtual enum qpf_node_type get_type() { return QPF_UPDATE; }
+  virtual enum explain_node_type get_type() { return EXPLAIN_UPDATE; }
   virtual int get_select_id() { return 1; /* always root */ }
 
   const char *select_type;
@@ -471,7 +473,7 @@ public:
 
   bool using_filesort;
 
-  virtual int print_explain(QPF_query *query, select_result_sink *output, 
+  virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags);
 };
 
@@ -489,10 +491,10 @@ public:
   */
   bool deleting_all_rows;
 
-  virtual enum qpf_node_type get_type() { return QPF_DELETE; }
+  virtual enum explain_node_type get_type() { return EXPLAIN_DELETE; }
   virtual int get_select_id() { return 1; /* always root */ }
 
-  virtual int print_explain(QPF_query *query, select_result_sink *output, 
+  virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags);
 };
 
