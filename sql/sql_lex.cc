@@ -4264,12 +4264,12 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
     const char *msg="Query plan already deleted";
     first->set_explain_type(TRUE/* on_the_fly */);
 
-    Explain_select *qp_sel= new (output->mem_root)Explain_select;
-    qp_sel->select_id= first->select_number;
-    qp_sel->select_type= first->type;
-    qp_sel->message= msg;
-    output->add_node(qp_sel);
-    eu->add_select(qp_sel->select_id);
+    Explain_select *explain= new (output->mem_root)Explain_select;
+    explain->select_id= first->select_number;
+    explain->select_type= first->type;
+    explain->message= msg;
+    output->add_node(explain);
+    eu->add_select(explain->select_id);
     return 0;
   }
 

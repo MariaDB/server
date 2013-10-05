@@ -172,7 +172,7 @@ public:
   bool using_filesort;
 };
 
-class QPF_delete;
+class Explain_delete;
 
 
 /*
@@ -226,8 +226,8 @@ public:
   
   Explain_union *get_union(uint select_id);
   
-  /* QPF_delete inherits from QPF_update */
-  QPF_update *upd_del_plan;
+  /* Explain_delete inherits from Explain_update */
+  Explain_update *upd_del_plan;
 
   /* Produce a tabular EXPLAIN output */
   int print_explain(select_result_sink *output, uint8 explain_flags);
@@ -448,7 +448,7 @@ private:
   Also, it can have UPDATE operation options, but currently there aren't any.
 */
 
-class QPF_update : public Explain_node
+class Explain_update : public Explain_node
 {
 public:
   virtual enum explain_node_type get_type() { return EXPLAIN_UPDATE; }
@@ -479,10 +479,10 @@ public:
 
 
 /* 
-  Query Plan Footprint for a single-table DELETE.
+  Explain data of a single-table DELETE.
 */
 
-class QPF_delete: public QPF_update
+class Explain_delete: public Explain_update
 {
 public:
   /*
