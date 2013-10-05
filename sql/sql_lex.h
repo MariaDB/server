@@ -618,11 +618,11 @@ class select_result;
 class JOIN;
 class select_union;
 class Procedure;
-class QPF_query;
+class Explain_query;
 
-void delete_qpf_query(LEX *lex);
-void create_qpf_query(LEX *lex, MEM_ROOT *mem_root);
-bool print_qpf_query(LEX *lex, THD *thd, String *str);
+void delete_explain_query(LEX *lex);
+void create_explain_query(LEX *lex, MEM_ROOT *mem_root);
+bool print_explain_query(LEX *lex, THD *thd, String *str);
 
 class st_select_lex_unit: public st_select_lex_node {
 protected:
@@ -734,8 +734,8 @@ public:
 
   List<Item> *get_unit_column_types();
 
-  int save_union_qpf(QPF_query *output);
-  int save_union_qpf_part2(QPF_query *output);
+  int save_union_explain(Explain_query *output);
+  int save_union_explain_part2(Explain_query *output);
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
@@ -2368,7 +2368,7 @@ protected:
 class Delete_plan;
 class SQL_SELECT;
 
-class QPF_query;
+class Explain_query;
 class QPF_update;
 
 /* 
@@ -2398,8 +2398,8 @@ public:
   /* Set this plan to be a plan to do nothing because of impossible WHRE*/
   void set_impossible_where() { impossible_where= true; }
 
-  void save_qpf(QPF_query *query);
-  void save_qpf_intern(QPF_query *query, QPF_update *qpf);
+  void save_explain_data(Explain_query *query);
+  void save_explain_data_intern(Explain_query *query, QPF_update *qpf);
   virtual ~Update_plan() {}
 
   Update_plan() : impossible_where(false), using_filesort(false) {}
@@ -2423,7 +2423,7 @@ public:
     table_rows= rows_arg;
   }
 
-  void save_qpf(QPF_query *query);
+  void save_explain_data(Explain_query *query);
 };
 
 
@@ -2439,7 +2439,7 @@ struct LEX: public Query_tables_list
   SELECT_LEX *all_selects_list;
   
   /* Query Plan Footprint of a currently running select  */
-  QPF_query *query_plan_footprint;
+  Explain_query *explain;
 
   char *length,*dec,*change;
   LEX_STRING name;

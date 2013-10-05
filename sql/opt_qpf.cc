@@ -22,14 +22,14 @@
 #include "sql_select.h"
 
 
-QPF_query::QPF_query()
+Explain_query::Explain_query()
 {
   upd_del_plan= NULL;
   operations= 0;
 }
 
 
-QPF_query::~QPF_query()
+Explain_query::~Explain_query()
 {
   delete upd_del_plan;
   uint i;
@@ -40,37 +40,37 @@ QPF_query::~QPF_query()
 }
 
 
-QPF_node *QPF_query::get_node(uint select_id)
+Explain_node *Explain_query::get_node(uint select_id)
 {
-  QPF_union *u;
+  Explain_union *u;
   if ((u= get_union(select_id)))
     return u;
   else
     return get_select(select_id);
 }
 
-QPF_union *QPF_query::get_union(uint select_id)
+Explain_union *Explain_query::get_union(uint select_id)
 {
   return (unions.elements() > select_id) ? unions.at(select_id) : NULL;
 }
 
-QPF_select *QPF_query::get_select(uint select_id)
+Explain_select *Explain_query::get_select(uint select_id)
 {
   return (selects.elements() > select_id) ? selects.at(select_id) : NULL;
 }
 
 
-void QPF_query::add_node(QPF_node *node)
+void Explain_query::add_node(Explain_node *node)
 {
   operations++;
-  if (node->get_type() == QPF_node::QPF_UNION)
+  if (node->get_type() == Explain_node::EXPLAIN_UNION)
   {
-    QPF_union *u= (QPF_union*)node;
+    Explain_union *u= (Explain_union*)node;
     uint select_id= u->get_select_id();
     if (unions.elements() <= select_id)
       unions.resize(max(select_id+1, unions.elements()*2), NULL);
 
-    QPF_union *old_node;
+    Explain_union *old_node;
     if ((old_node= get_union(select_id)))
       delete old_node;
 
@@ -78,15 +78,15 @@ void QPF_query::add_node(QPF_node *node)
   }
   else
   {
-    QPF_select *sel= (QPF_select*)node;
-    if (sel->select_id == (int)UINT_MAX)
+    Explain_select *sel= (Explain_select*)node;
+    if (sel->select_id == FAKE_SELECT_LEX_ID)
     {
       DBUG_ASSERT(0); // this is a "fake select" from a UNION.
     }
     else
     {
       uint select_id= sel->select_id;
-      QPF_select *old_node;
+      Explain_select *old_node;
 
       if (selects.elements() <= select_id)
         selects.resize(max(select_id+1, selects.elements()*2), NULL);
@@ -104,7 +104,7 @@ void QPF_query::add_node(QPF_node *node)
   The main entry point to print EXPLAIN of the entire query
 */
 
-int QPF_query::print_explain(select_result_sink *output, 
+int Explain_query::print_explain(select_result_sink *output, 
                              uint8 explain_flags)
 {
   if (upd_del_plan)
@@ -115,7 +115,7 @@ int QPF_query::print_explain(select_result_sink *output,
   else
   {
     /* Start printing from node with id=1 */
-    QPF_node *node= get_node(1);
+    Explain_node *node= get_node(1);
     if (!node)
       return 1; /* No query plan */
     return node->print_explain(this, output, explain_flags);
@@ -123,13 +123,13 @@ int QPF_query::print_explain(select_result_sink *output,
 }
 
 
-bool print_qpf_query(LEX *lex, THD *thd, String *str)
+bool print_explain_query(LEX *lex, THD *thd, String *str)
 {
-  return lex->query_plan_footprint->print_explain_str(thd, str);
+  return lex->explain->print_explain_str(thd, str);
 }
 
 
-bool QPF_query::print_explain_str(THD *thd, String *out_str)
+bool Explain_query::print_explain_str(THD *thd, String *out_str)
 {
   List<Item> fields;
   thd->make_explain_field_list(fields);
@@ -157,13 +157,14 @@ static void push_string(List<Item> *item_list, String *str)
 }
 
 
-int QPF_union::print_explain(QPF_query *query, select_result_sink *output, 
-                             uint8 explain_flags)
+int Explain_union::print_explain(Explain_query *query, 
+                                 select_result_sink *output,
+                                 uint8 explain_flags)
 {
   /* print all UNION children, in order */
   for (int i= 0; i < (int) union_members.elements(); i++)
   {
-    QPF_select *sel= query->get_select(union_members.at(i));
+    Explain_select *sel= query->get_select(union_members.at(i));
     sel->print_explain(query, output, explain_flags);
   }
 
@@ -257,13 +258,13 @@ int QPF_union::print_explain(QPF_query *query, select_result_sink *output,
   Print EXPLAINs for all children nodes (i.e. for subqueries)
 */
 
-int QPF_node::print_explain_for_children(QPF_query *query, 
+int Explain_node::print_explain_for_children(Explain_query *query, 
                                          select_result_sink *output,
                                          uint8 explain_flags)
 {
   for (int i= 0; i < (int) children.elements(); i++)
   {
-    QPF_node *node= query->get_node(children.at(i));
+    Explain_node *node= query->get_node(children.at(i));
     if (node->print_explain(query, output, explain_flags))
       return 1;
   }
@@ -271,7 +272,7 @@ int QPF_node::print_explain_for_children(QPF_query *query,
 }
 
 
-QPF_select::~QPF_select()
+Explain_select::~Explain_select()
 {
   if (join_tabs)
   {
@@ -282,8 +283,9 @@ QPF_select::~QPF_select()
 } 
 
 
-int QPF_select::print_explain(QPF_query *query, select_result_sink *output,
-                              uint8 explain_flags)
+int Explain_select::print_explain(Explain_query *query, 
+                                  select_result_sink *output,
+                                  uint8 explain_flags)
 {
   if (message)
   {
@@ -330,13 +332,13 @@ int QPF_select::print_explain(QPF_query *query, select_result_sink *output,
 }
 
 
-void QPF_table_access::push_extra(enum Extra_tag extra_tag)
+void Explain_table_access::push_extra(enum explain_extra_tag extra_tag)
 {
   extra_tags.append(extra_tag);
 }
 
 
-int QPF_table_access::print_explain(select_result_sink *output, uint8 explain_flags, 
+int Explain_table_access::print_explain(select_result_sink *output, uint8 explain_flags, 
                                     uint select_id, const char *select_type,
                                     bool using_temporary, bool using_filesort)
 {
@@ -551,7 +553,7 @@ const char * extra_tag_text[]=
 };
 
 
-void QPF_table_access::append_tag_name(String *str, enum Extra_tag tag)
+void Explain_table_access::append_tag_name(String *str, enum explain_extra_tag tag)
 {
   switch (tag) {
     case ET_USING:
@@ -618,13 +620,13 @@ void QPF_table_access::append_tag_name(String *str, enum Extra_tag tag)
 
 
 /* 
-  This is called for top-level QPF_quick_select only. The point of this
+  This is called for top-level Explain_quick_select only. The point of this
   function is:
   - index_merge should print $index_merge_type (child, ...)
   - 'range'  should not print anything.
 */
 
-void QPF_quick_select::print_extra(String *str)
+void Explain_quick_select::print_extra(String *str)
 {
   if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
       quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC ||
@@ -637,7 +639,7 @@ void QPF_quick_select::print_extra(String *str)
 }
 
 
-void QPF_quick_select::print_extra_recursive(String *str)
+void Explain_quick_select::print_extra_recursive(String *str)
 {
   if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
       quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC)
@@ -648,8 +650,8 @@ void QPF_quick_select::print_extra_recursive(String *str)
   {
     str->append(get_name_by_type());
     str->append('(');
-    List_iterator_fast<QPF_quick_select> it (children);
-    QPF_quick_select* child;
+    List_iterator_fast<Explain_quick_select> it (children);
+    Explain_quick_select* child;
     bool first= true;
     while ((child = it++))
     {
@@ -665,7 +667,7 @@ void QPF_quick_select::print_extra_recursive(String *str)
 }
 
 
-const char * QPF_quick_select::get_name_by_type()
+const char * Explain_quick_select::get_name_by_type()
 {
   switch (quick_type) {
     case QUICK_SELECT_I::QS_TYPE_INDEX_MERGE:
@@ -687,7 +689,7 @@ const char * QPF_quick_select::get_name_by_type()
   This prints a comma-separated list of used indexes, ignoring nesting
 */
 
-void QPF_quick_select::print_key(String *str)
+void Explain_quick_select::print_key(String *str)
 {
   if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
       quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC || 
@@ -699,8 +701,8 @@ void QPF_quick_select::print_key(String *str)
   }
   else
   {
-    List_iterator_fast<QPF_quick_select> it (children);
-    QPF_quick_select* child;
+    List_iterator_fast<Explain_quick_select> it (children);
+    Explain_quick_select* child;
     while ((child = it++))
     {
       child->print_key(str);
@@ -713,7 +715,7 @@ void QPF_quick_select::print_key(String *str)
   This prints a comma-separated list of used key_lengths, ignoring nesting
 */
 
-void QPF_quick_select::print_key_len(String *str)
+void Explain_quick_select::print_key_len(String *str)
 {
   if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
       quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC ||
@@ -728,8 +730,8 @@ void QPF_quick_select::print_key_len(String *str)
   }
   else
   {
-    List_iterator_fast<QPF_quick_select> it (children);
-    QPF_quick_select* child;
+    List_iterator_fast<Explain_quick_select> it (children);
+    Explain_quick_select* child;
     while ((child = it++))
     {
       child->print_key_len(str);
@@ -738,7 +740,7 @@ void QPF_quick_select::print_key_len(String *str)
 }
 
 
-int QPF_delete::print_explain(QPF_query *query, select_result_sink *output, 
+int QPF_delete::print_explain(Explain_query *query, select_result_sink *output, 
                               uint8 explain_flags)
 {
   if (deleting_all_rows)
@@ -757,7 +759,7 @@ int QPF_delete::print_explain(QPF_query *query, select_result_sink *output,
 }
 
 
-int QPF_update::print_explain(QPF_query *query, select_result_sink *output, 
+int QPF_update::print_explain(Explain_query *query, select_result_sink *output, 
                               uint8 explain_flags)
 {
   StringBuffer<64> extra_str;
@@ -809,18 +811,18 @@ int QPF_update::print_explain(QPF_query *query, select_result_sink *output,
 }
 
 
-void delete_qpf_query(LEX *lex)
+void delete_explain_query(LEX *lex)
 {
-  delete lex->query_plan_footprint;
-  lex->query_plan_footprint= NULL;
+  delete lex->explain;
+  lex->explain= NULL;
 }
 
 
-void create_qpf_query(LEX *lex, MEM_ROOT *mem_root)
+void create_explain_query(LEX *lex, MEM_ROOT *mem_root)
 {
-  DBUG_ASSERT(!lex->query_plan_footprint);
-  lex->query_plan_footprint= new QPF_query;
+  DBUG_ASSERT(!lex->explain);
+  lex->explain= new Explain_query;
   DBUG_ASSERT(mem_root == current_thd->mem_root);
-  lex->query_plan_footprint->mem_root= mem_root;
+  lex->explain->mem_root= mem_root;
 }
 

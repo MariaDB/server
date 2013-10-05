@@ -11940,37 +11940,39 @@ void QUICK_SELECT_I::add_key_name(String *str, bool *first)
 }
  
 
-void QUICK_RANGE_SELECT::save_info(MEM_ROOT *alloc, QPF_quick_select *qpf)
+void QUICK_RANGE_SELECT::save_info(MEM_ROOT *alloc, Explain_quick_select *qpf)
 {
   qpf->quick_type= QS_TYPE_RANGE;
   qpf->range.set(alloc, head->key_info[index].name, max_used_key_length);
 }
 
 
-void QUICK_GROUP_MIN_MAX_SELECT::save_info(MEM_ROOT *alloc, QPF_quick_select *qpf)
+void QUICK_GROUP_MIN_MAX_SELECT::save_info(MEM_ROOT *alloc, 
+                                           Explain_quick_select *qpf)
 {
   qpf->quick_type= QS_TYPE_GROUP_MIN_MAX;
   qpf->range.set(alloc, head->key_info[index].name, max_used_key_length);
 }
 
 
-void QUICK_INDEX_SORT_SELECT::save_info(MEM_ROOT *alloc, QPF_quick_select *qpf)
+void QUICK_INDEX_SORT_SELECT::save_info(MEM_ROOT *alloc, 
+                                        Explain_quick_select *qpf)
 {
   qpf->quick_type= get_type();
 
   QUICK_RANGE_SELECT *quick;
-  QPF_quick_select *child_qpf;
+  Explain_quick_select *child_qpf;
   List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
   while ((quick= it++))
   {
-    child_qpf= new QPF_quick_select;
+    child_qpf= new Explain_quick_select;
     qpf->children.push_back(child_qpf);
     quick->save_info(alloc, child_qpf);
   }
 
   if (pk_quick_select)
   {
-    child_qpf= new QPF_quick_select;
+    child_qpf= new Explain_quick_select;
     qpf->children.push_back(child_qpf);
     pk_quick_select->save_info(alloc, child_qpf);
   }
@@ -11980,14 +11982,15 @@ void QUICK_INDEX_SORT_SELECT::save_info(MEM_ROOT *alloc, QPF_quick_select *qpf)
   Same as QUICK_INDEX_SORT_SELECT::save_info(), but primary key is printed
   first
 */
-void QUICK_INDEX_INTERSECT_SELECT::save_info(MEM_ROOT *alloc, QPF_quick_select *qpf)
+void QUICK_INDEX_INTERSECT_SELECT::save_info(MEM_ROOT *alloc, 
+                                             Explain_quick_select *qpf)
 {
   qpf->quick_type= get_type();
-  QPF_quick_select *child_qpf;
+  Explain_quick_select *child_qpf;
 
   if (pk_quick_select)
   {
-    child_qpf= new QPF_quick_select;
+    child_qpf= new Explain_quick_select;
     qpf->children.push_back(child_qpf);
     pk_quick_select->save_info(alloc, child_qpf);
   }
@@ -11996,7 +11999,7 @@ void QUICK_INDEX_INTERSECT_SELECT::save_info(MEM_ROOT *alloc, QPF_quick_select *
   List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
   while ((quick= it++))
   {
-    child_qpf= new QPF_quick_select;
+    child_qpf= new Explain_quick_select;
     qpf->children.push_back(child_qpf);
     quick->save_info(alloc, child_qpf);
   }
@@ -12004,7 +12007,8 @@ void QUICK_INDEX_INTERSECT_SELECT::save_info(MEM_ROOT *alloc, QPF_quick_select *
 }
 
 
-void QUICK_ROR_INTERSECT_SELECT::save_info(MEM_ROOT *alloc, QPF_quick_select *qpf)
+void QUICK_ROR_INTERSECT_SELECT::save_info(MEM_ROOT *alloc, 
+                                           Explain_quick_select *qpf)
 {
   qpf->quick_type= get_type();
 
@@ -12012,21 +12016,22 @@ void QUICK_ROR_INTERSECT_SELECT::save_info(MEM_ROOT *alloc, QPF_quick_select *qp
   List_iterator_fast<QUICK_SELECT_WITH_RECORD> it(quick_selects);
   while ((qr= it++))
   {
-    QPF_quick_select *child_qpf= new QPF_quick_select;
+    Explain_quick_select *child_qpf= new Explain_quick_select;
     qpf->children.push_back(child_qpf);
     qr->quick->save_info(alloc, child_qpf);
   }
 
   if (cpk_quick)
   {
-    QPF_quick_select *child_qpf= new QPF_quick_select;
+    Explain_quick_select *child_qpf= new Explain_quick_select;
     qpf->children.push_back(child_qpf);
     cpk_quick->save_info(alloc, child_qpf);
   }
 }
 
 
-void QUICK_ROR_UNION_SELECT::save_info(MEM_ROOT *alloc, QPF_quick_select *qpf)
+void QUICK_ROR_UNION_SELECT::save_info(MEM_ROOT *alloc, 
+                                       Explain_quick_select *qpf)
 {
   qpf->quick_type= get_type();
 
@@ -12034,7 +12039,7 @@ void QUICK_ROR_UNION_SELECT::save_info(MEM_ROOT *alloc, QPF_quick_select *qpf)
   List_iterator_fast<QUICK_SELECT_I> it(quick_selects);
   while ((quick= it++))
   {
-    QPF_quick_select *child_qpf= new QPF_quick_select;
+    Explain_quick_select *child_qpf= new Explain_quick_select;
     qpf->children.push_back(child_qpf);
     quick->save_info(alloc, child_qpf);
   }

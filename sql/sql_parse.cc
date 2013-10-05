@@ -598,7 +598,7 @@ static void handle_bootstrap_impl(THD *thd)
 #if defined(ENABLED_PROFILING)
     thd->profiling.finish_current_query();
 #endif
-    delete_qpf_query(thd->lex);
+    delete_explain_query(thd->lex);
 
     if (bootstrap_error)
       break;
@@ -1526,7 +1526,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
 /*
   @note
-    This function must call delete_qpf_query().
+    This function must call delete_explain_query().
 */
 void log_slow_statement(THD *thd)
 {
@@ -1547,7 +1547,7 @@ void log_slow_statement(THD *thd)
       (thd->variables.log_slow_filter
         && !(thd->variables.log_slow_filter & thd->query_plan_flags)))
   {
-    delete_qpf_query(thd->lex);
+    delete_explain_query(thd->lex);
     DBUG_VOID_RETURN; 
   }
  
@@ -1573,7 +1573,7 @@ void log_slow_statement(THD *thd)
     thd_proc_info(thd, 0);
   }
 
-  delete_qpf_query(thd->lex);
+  delete_explain_query(thd->lex);
   DBUG_VOID_RETURN;
 }
 
@@ -2201,7 +2201,7 @@ mysql_execute_command(THD *thd)
     thd->mdl_context.release_transactional_locks();
   }
   
-  create_qpf_query(thd->lex, thd->mem_root);
+  create_explain_query(thd->lex, thd->mem_root);
 
 #ifndef DBUG_OFF
   if (lex->sql_command != SQLCOM_SET_OPTION)
@@ -3252,7 +3252,7 @@ end_with_restore_list:
         select_result *result= new select_send();
         LEX *lex= thd->lex;
         if (thd->send_explain_fields(result) ||
-            lex->query_plan_footprint->print_explain(result, lex->describe) ||
+            lex->explain->print_explain(result, lex->describe) ||
             result->send_eof())
           res= 1;
       }
@@ -3361,7 +3361,7 @@ end_with_restore_list:
             select_result *result= new select_send();
             LEX *lex= thd->lex;
             if (thd->send_explain_fields(result) ||
-                lex->query_plan_footprint->print_explain(result, lex->describe) ||
+                lex->explain->print_explain(result, lex->describe) ||
                 result->send_eof())
               res= 1;
           }
@@ -4901,8 +4901,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           top-level LIMIT
         */        
         result->reset_offset_limit(); 
-        thd->lex->query_plan_footprint->print_explain(result,
-                                                      thd->lex->describe);
+        thd->lex->explain->print_explain(result, thd->lex->describe);
         if (lex->describe & DESCRIBE_EXTENDED)
         {
           char buff[1024];

@@ -258,7 +258,7 @@ typedef struct st_join_table {
   JOIN_TAB_RANGE *bush_children;
   
   /* Special content for EXPLAIN 'Extra' column or NULL if none */
-  enum Extra_tag info;
+  enum explain_extra_tag info;
 
   /* 
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
@@ -1336,7 +1336,7 @@ public:
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
 
-    exec_qpf_saved= false;
+    exec_saved_explain= false;
     /* 
       The following is needed because JOIN::cleanup(true) may be called for 
       joins for which JOIN::optimize was aborted with an error before a proper
@@ -1344,7 +1344,13 @@ public:
     */
     table_access_tabs= NULL; 
   }
-  bool exec_qpf_saved;
+
+  /*
+    TRUE <=> There was a JOIN::exec() call, which saved this JOIN's EXPLAIN.
+    The idea is that we also save at the end of JOIN::optimize(), but that
+    might not be the final plan.
+  */
+  bool exec_saved_explain;
 
   int prepare(Item ***rref_pointer_array, TABLE_LIST *tables, uint wind_num,
 	      COND *conds, uint og_num, ORDER *order, ORDER *group,
@@ -1470,8 +1476,8 @@ public:
   {
     return (unit->item && unit->item->is_in_predicate());
   }
-  int save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
-               bool distinct, const char *message);
+  int save_explain_data(Explain_query *output, bool need_tmp_table, 
+                        bool need_order, bool distinct, const char *message);
 private:
   /**
     TRUE if the query contains an aggregate function but has no GROUP

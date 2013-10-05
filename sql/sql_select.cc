@@ -2305,9 +2305,8 @@ void join_save_qpf(JOIN *join)
       join->have_query_plan != JOIN::QEP_NOT_PRESENT_YET && 
       join->have_query_plan != JOIN::QEP_DELETED &&  // this happens when there was no QEP ever, but then
                                          //cleanup() is called multiple times
-
-      thd->lex->query_plan_footprint && // for "SET" command in SPs.
-      !thd->lex->query_plan_footprint->get_select(join->select_lex->select_number))
+      thd->lex->explain && // for "SET" command in SPs.
+      !thd->lex->explain->get_select(join->select_lex->select_number))
   {
     const char *message= NULL;
 
@@ -2317,12 +2316,12 @@ void join_save_qpf(JOIN *join)
       message= join->zero_result_cause ? join->zero_result_cause : "No tables used";
     }
 
-    join->save_qpf(thd->lex->query_plan_footprint,
-             join->need_tmp, // need_tmp_table
-             !join->skip_sort_order && !join->no_order &&
-             (join->order || join->group_list), // bool need_order
-             join->select_distinct, // bool distinct
-             message); // message
+    join->save_explain_data(thd->lex->explain,
+                            join->need_tmp,
+                            !join->skip_sort_order && !join->no_order &&
+                            (join->order || join->group_list),
+                            join->select_distinct,
+                            message);
   }
 }
 
@@ -2347,34 +2346,29 @@ void JOIN::exec()
 
   exec_inner();
 
-  if (!exec_qpf_saved)
+  if (!exec_saved_explain)
   {
     if (select_lex->select_number != UINT_MAX && 
         select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
         have_query_plan != QEP_NOT_PRESENT_YET && 
         have_query_plan != QEP_DELETED &&  // this happens when there was no QEP ever, but then
                                            //cleanup() is called multiple times
-
-        thd->lex->query_plan_footprint //&& // for "SET" command in SPs.
-        /*!thd->lex->query_plan_footprint->get_select(select_lex->select_number)*/)
+        thd->lex->explain)// for "SET" command in SPs.
     {
       const char *message= NULL;
-
       if (!table_count || !tables_list || zero_result_cause)
       {
         /* It's a degenerate join */
         message= zero_result_cause ? zero_result_cause : "No tables used";
       }
 
-      save_qpf(thd->lex->query_plan_footprint,
-               need_tmp, // need_tmp_table
-         //      !skip_sort_order && !no_order &&
-         //      (order || group_list), // bool need_order
-               order != 0 && !skip_sort_order,
-               select_distinct, // bool distinct
-               message); // message
+      save_explain_data(thd->lex->explain,
+                        need_tmp,
+                        order != 0 && !skip_sort_order,
+                        select_distinct,
+                        message);
     }
-    exec_qpf_saved= true;
+    exec_saved_explain= true;
   }
 
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
@@ -11170,37 +11164,7 @@ void JOIN::cleanup(bool full)
   DBUG_PRINT("enter", ("full %u", (uint) full));
   
   if (full)
-  {
-    /* Save it again */
-#if 0
-    psergey-todo: remove?
-    if (select_lex->select_number != UINT_MAX && 
-        select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
-        have_query_plan != QEP_NOT_PRESENT_YET && 
-        have_query_plan != QEP_DELETED &&  // this happens when there was no QEP ever, but then
-                                           //cleanup() is called multiple times
-
-        thd->lex->query_plan_footprint //&& // for "SET" command in SPs.
-        /*!thd->lex->query_plan_footprint->get_select(select_lex->select_number)*/)
-    {
-      const char *message= NULL;
-
-      if (!table_count || !tables_list || zero_result_cause)
-      {
-        /* It's a degenerate join */
-        message= zero_result_cause ? zero_result_cause : "No tables used";
-      }
-
-      save_qpf(thd->lex->query_plan_footprint,
-               need_tmp, // need_tmp_table
-               !skip_sort_order && !no_order &&
-               (order || group_list), // bool need_order
-               select_distinct, // bool distinct
-               message); // message
-    }
-#endif
-    have_query_plan= QEP_DELETED; //psergey: this is a problem!
-  }
+    have_query_plan= QEP_DELETED;
 
   if (table)
   {
@@ -22522,16 +22486,17 @@ void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
     Currently, this function may be called multiple times
 */
 
-int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
-                   bool distinct, const char *message)
+int JOIN::save_explain_data(Explain_query *output, bool need_tmp_table, 
+                            bool need_order, bool distinct, 
+                            const char *message)
 {
-  QPF_node *qp_node;
+  Explain_node *qp_node;
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
   THD *thd=join->thd;
   const CHARSET_INFO *cs= system_charset_info;
   int quick_type;
   int error= 0;
-  DBUG_ENTER("JOIN::save_qpf");
+  DBUG_ENTER("JOIN::save_explain_data");
   DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
 		      (ulong)join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));
@@ -22540,8 +22505,8 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
 
   if (message)
   {
-    QPF_select *qp_sel;
-    qp_node= qp_sel= new (output->mem_root) QPF_select;
+    Explain_select *qp_sel;
+    qp_node= qp_sel= new (output->mem_root) Explain_select;
     join->select_lex->set_explain_type(true);
 
     qp_sel->select_id= join->select_lex->select_number;
@@ -22552,13 +22517,13 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   }
   else if (join->select_lex == join->unit->fake_select_lex)
   {
-    /* Do nothing, QPF_union will create and print fake_select_lex */
+    /* Do nothing, Explain_union will create and print fake_select_lex */
   }
   else if (!join->select_lex->master_unit()->derived ||
            join->select_lex->master_unit()->derived->is_materialized_derived())
   {
-    QPF_select *qp_sel;
-    qp_node= qp_sel= new (output->mem_root) QPF_select;
+    Explain_select *qp_sel;
+    qp_node= qp_sel= new (output->mem_root) Explain_select;
     table_map used_tables=0;
 
     join->select_lex->set_explain_type(true);
@@ -22606,7 +22571,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
         tab= pre_sort_join_tab;
       }
 
-      QPF_table_access *qpt= new (output->mem_root) QPF_table_access;
+      Explain_table_access *qpt= new (output->mem_root) Explain_table_access;
       qp_sel->add_table(qpt);
       qpt->key.set(thd->mem_root, NULL, (uint)-1);
       qpt->quick_info= NULL;
@@ -22701,7 +22666,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
       */
       if (tab->select && tab->select->quick && tab_type != JT_CONST)
       {
-        qpt->quick_info= new QPF_quick_select;
+        qpt->quick_info= new Explain_quick_select;
         tab->select->quick->save_info(thd->mem_root, qpt->quick_info);
       }
 
@@ -22981,7 +22946,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
         if (tab->cache)
 	{
           qpt->push_extra(ET_USING_JOIN_BUFFER);
-          tab->cache->save_qpf(&qpt->bka_type);
+          tab->cache->save_explain_data(&qpt->bka_type);
         }
       }
       
@@ -23039,9 +23004,9 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
   DBUG_ENTER("select_describe");
   
   /* Update the QPF with latest values of using_temporary, using_filesort */
-  QPF_select *qp;
+  Explain_select *qp;
   uint select_nr= join->select_lex->select_number;
-  if ((qp= thd->lex->query_plan_footprint->get_select(select_nr)))
+  if ((qp= thd->lex->explain->get_select(select_nr)))
   {
     qp->using_temporary= need_tmp_table;
     qp->using_filesort= need_order;
@@ -23095,7 +23060,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 
   if (unit->is_union())
   {
-    unit->fake_select_lex->select_number= UINT_MAX; // jost for initialization
+    unit->fake_select_lex->select_number= FAKE_SELECT_LEX_ID; // jost for initialization
     unit->fake_select_lex->type= "UNION RESULT";
     unit->fake_select_lex->options|= SELECT_DESCRIBE;
     if (!(res= unit->prepare(thd, result, SELECT_NO_UNLOCK | SELECT_DESCRIBE)))

@@ -448,7 +448,7 @@ void lex_start(THD *thd)
 
   lex->thd= lex->unit.thd= thd;
   
-  lex->query_plan_footprint= NULL;
+  lex->explain= NULL;
 
   lex->context_stack.empty();
   lex->unit.init_query();
@@ -2572,7 +2572,7 @@ void Query_tables_list::destroy_query_tables_list()
 */
 
 LEX::LEX()
-  : query_plan_footprint(NULL),
+  : explain(NULL),
     result(0), option_type(OPT_DEFAULT), is_lex_started(0),
    limit_rows_examined_cnt(ULONGLONG_MAX)
 {
@@ -3515,18 +3515,18 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
         is_correlated_unit|= sl->is_correlated;
         inner_join->select_options= save_options;
         un->thd->lex->current_select= save_select;
-        /// psergey:
-        QPF_query *qpf;
-        if ((qpf= inner_join->thd->lex->query_plan_footprint))
+
+        Explain_query *qpf;
+        if ((qpf= inner_join->thd->lex->explain))
         {
-          QPF_select *qp_sel;
+          Explain_select *qp_sel;
           if ((qp_sel= qpf->get_select(inner_join->select_lex->select_number)))
           {
             sl->set_explain_type(TRUE);
             qp_sel->select_type= sl->type;
           }
         }
-        ///
+
         if (empty_union_result)
         {
           /*
@@ -4215,9 +4215,9 @@ int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
                        bool *printed_anything)
 {
   int res;
-  if (query_plan_footprint && query_plan_footprint->have_query_plan())
+  if (explain && explain->have_query_plan())
   {
-    res= query_plan_footprint->print_explain(output, explain_flags);
+    res= explain->print_explain(output, explain_flags);
     *printed_anything= true;
   }
   else
@@ -4230,10 +4230,10 @@ int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
 
 
 /*
-  Save query plan of a UNION. The only variable member is whether the union has
-  "Using filesort".
+  Save explain structures of a UNION. The only variable member is whether the 
+  union has "Using filesort".
 
-  There is also save_union_qpf_part2() function, which is called before we read
+  There is also save_union_explain_part2() function, which is called before we read
   UNION's output.
 
   The reason for it is examples like this:
@@ -4245,10 +4245,10 @@ int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
   stage in execution.
 */
 
-int st_select_lex_unit::save_union_qpf(QPF_query *output)
+int st_select_lex_unit::save_union_explain(Explain_query *output)
 {
   SELECT_LEX *first= first_select();
-  QPF_union *qpfu= new (output->mem_root) QPF_union;
+  Explain_union *eu= new (output->mem_root) Explain_union;
 
   /*
     TODO: The following code should be eliminated. If we have a capability to
@@ -4264,30 +4264,34 @@ int st_select_lex_unit::save_union_qpf(QPF_query *output)
     const char *msg="Query plan already deleted";
     first->set_explain_type(TRUE/* on_the_fly */);
 
-    QPF_select *qp_sel= new (output->mem_root)QPF_select;
+    Explain_select *qp_sel= new (output->mem_root)Explain_select;
     qp_sel->select_id= first->select_number;
     qp_sel->select_type= first->type;
     qp_sel->message= msg;
     output->add_node(qp_sel);
-    qpfu->add_select(qp_sel->select_id);
+    eu->add_select(qp_sel->select_id);
     return 0;
   }
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
-    qpfu->add_select(sl->select_number);
+    eu->add_select(sl->select_number);
 
   // Save the UNION node
-  output->add_node(qpfu);
+  output->add_node(eu);
 
-  qpfu->fake_select_type= "UNION RESULT";
-  qpfu->using_filesort= test(global_parameters->order_list.first);
+  eu->fake_select_type= "UNION RESULT";
+  eu->using_filesort= test(global_parameters->order_list.first);
   return 0;
 }
 
 
-int st_select_lex_unit::save_union_qpf_part2(QPF_query *output)
+/*
+  @see  st_select_lex_unit::save_union_explain
+*/
+
+int st_select_lex_unit::save_union_explain_part2(Explain_query *output)
 {
-  QPF_union *qpfu= output->get_union(first_select()->select_number);
+  Explain_union *eu= output->get_union(first_select()->select_number);
   if (fake_select_lex)
   {
     for (SELECT_LEX_UNIT *unit= fake_select_lex->first_inner_unit(); 
@@ -4295,7 +4299,7 @@ int st_select_lex_unit::save_union_qpf_part2(QPF_query *output)
     {
       if (!(unit->item && unit->item->eliminated))
       {
-        qpfu->add_child(unit->first_select()->select_number);
+        eu->add_child(unit->first_select()->select_number);
       }
     }
   }

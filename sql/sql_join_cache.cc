@@ -2568,7 +2568,7 @@ finish:
     none
 */ 
 
-void JOIN_CACHE::save_qpf(struct st_qpf_bka_type *qpf)
+void JOIN_CACHE::save_explain_data(struct st_explain_bka_type *qpf)
 {
   qpf->incremental= test(prev_cache);
 
@@ -2613,16 +2613,16 @@ static void add_mrr_explain_info(String *str, uint mrr_mode, handler *file)
   }
 }
 
-void JOIN_CACHE_BKA::save_qpf(struct st_qpf_bka_type *qpf)
+void JOIN_CACHE_BKA::save_explain_data(struct st_explain_bka_type *qpf)
 {
-  JOIN_CACHE::save_qpf(qpf); 
+  JOIN_CACHE::save_explain_data(qpf); 
   add_mrr_explain_info(&qpf->mrr_type, mrr_mode, join_tab->table->file);
 }
 
 
-void JOIN_CACHE_BKAH::save_qpf(struct st_qpf_bka_type *qpf)
+void JOIN_CACHE_BKAH::save_explain_data(struct st_explain_bka_type *qpf)
 {
-  JOIN_CACHE::save_qpf(qpf); 
+  JOIN_CACHE::save_explain_data(qpf); 
   add_mrr_explain_info(&qpf->mrr_type, mrr_mode, join_tab->table->file);
 }
 

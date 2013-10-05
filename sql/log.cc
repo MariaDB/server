@@ -2826,11 +2826,11 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                      thd->query_plan_fsort_passes) == (size_t) -1)
        tmp_errno= errno;
     if (thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_EXPLAIN &&
-        thd->lex->query_plan_footprint)
+        thd->lex->explain)
     {
       StringBuffer<128> buf;
       DBUG_ASSERT(!thd->free_list);
-      if (!print_qpf_query(thd->lex, thd, &buf))
+      if (!print_explain_query(thd->lex, thd, &buf))
         my_b_printf(&log_file, "%s", buf.c_ptr_safe());
       thd->free_items();
     }

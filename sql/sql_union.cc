@@ -630,8 +630,8 @@ bool st_select_lex_unit::exec()
   
   saved_error= optimize();
 
-  if (!was_executed && thd->lex->query_plan_footprint)
-    save_union_qpf(thd->lex->query_plan_footprint);
+  if (!was_executed && thd->lex->explain)
+    save_union_explain(thd->lex->explain);
 
   if (uncacheable || !item || !item->assigned() || describe)
   {
@@ -780,8 +780,8 @@ bool st_select_lex_unit::exec()
         if (!fake_select_lex->ref_pointer_array)
           fake_select_lex->n_child_sum_items+= global_parameters->n_sum_items;
         
-        if (!was_executed && thd->lex->query_plan_footprint)
-          save_union_qpf_part2(thd->lex->query_plan_footprint);
+        if (!was_executed && thd->lex->explain)
+          save_union_explain_part2(thd->lex->explain);
 
         saved_error= mysql_select(thd, &fake_select_lex->ref_pointer_array,
                               &result_table_list,
