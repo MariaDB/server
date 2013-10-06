@@ -6550,7 +6550,7 @@ unicode:
         | UNICODE_SYM BINARY
           {
             if (!(Lex->charset= mysqld_collation_get_by_name("ucs2_bin")))
-              my_error(ER_UNKNOWN_COLLATION, MYF(0), "ucs2_bin");
+              MYSQL_YYABORT;
           }
         | BINARY UNICODE_SYM
           {
