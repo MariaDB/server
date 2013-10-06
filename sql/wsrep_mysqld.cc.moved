@@ -570,7 +570,7 @@ int wsrep_init()
   return rcode;
 }
 
-extern "C" int wsrep_on(void *);
+extern int wsrep_on(void *);
 
 void wsrep_init_startup (bool first)
 {
@@ -858,14 +858,15 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
     ka->keys_len= 0;
 
     extern TABLE* find_temporary_table(THD*, const TABLE_LIST*);
+    extern TABLE* find_temporary_table(THD*, const char *, const char *);
 
     if (db || table)
     {
         TABLE_LIST tmp_table;
         bzero((char*) &tmp_table,sizeof(tmp_table));
-        tmp_table.table_name= (char*)db;
-        tmp_table.db= (char*)table;
-        if (!table || !find_temporary_table(thd, &tmp_table))
+        tmp_table.table_name= (char*)table;
+        tmp_table.db= (char*)db;
+        if (!table || !find_temporary_table(thd, db, table))
         {
             if (!(ka->keys= (wsrep_key_t*)my_malloc(sizeof(wsrep_key_t), MYF(0))))
             {
@@ -896,8 +897,10 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
         if (!find_temporary_table(thd, table))
         {
             wsrep_key_t* tmp;
+	    /* In drop table both db and table can be NULL and table_list
+            contains tables, but ka->keys is not yet allocated ? */
             tmp= (wsrep_key_t*)my_realloc(
-                ka->keys, (ka->keys_len + 1) * sizeof(wsrep_key_t), MYF(0));
+                ka->keys, (ka->keys_len + 1) * sizeof(wsrep_key_t), MYF(MY_ALLOW_ZERO_PTR));
             if (!tmp)
             {
                 sql_print_error("Can't allocate memory for key_array");
@@ -1277,10 +1280,10 @@ void wsrep_to_isolation_end(THD *thd) {
       msg,                                                                     \
       req->thread_id, (long long)req->wsrep_trx_seqno,                         \
       req->wsrep_exec_mode, req->wsrep_query_state, req->wsrep_conflict_state, \
-      req->command, req->lex->sql_command, req->query(),                       \
+      req->get_command(), req->lex->sql_command, req->query(),		\
       gra->thread_id, (long long)gra->wsrep_trx_seqno,                         \
       gra->wsrep_exec_mode, gra->wsrep_query_state, gra->wsrep_conflict_state, \
-      gra->command, gra->lex->sql_command, gra->query());
+      gra->get_command(), gra->lex->sql_command, gra->query());
 
 bool
 wsrep_grant_mdl_exception(MDL_context *requestor_ctx,

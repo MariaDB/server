@@ -140,6 +140,9 @@ extern bool wsrep_prepare_key_for_innodb(const uchar *cache_key,
                                          wsrep_key_part_t* key,
                                          size_t* key_len);
 
+extern handlerton * wsrep_hton;
+extern handlerton * binlog_hton;
+extern void wsrep_cleanup_transaction(THD *thd);
 #endif /* WITH_WSREP */
 /** to protect innobase_open_files */
 static mysql_mutex_t innobase_share_mutex;
@@ -7144,7 +7147,8 @@ ha_innobase::write_row(
 	     || sql_command == SQLCOM_OPTIMIZE
 	     || sql_command == SQLCOM_CREATE_INDEX
 #ifdef WITH_WSREP
-	     || (wsrep_on(user_thd) && sql_command == SQLCOM_LOAD)
+	     || (wsrep_on(user_thd) && wsrep_load_data_splitting &&
+		 sql_command == SQLCOM_LOAD)
 #endif /* WITH_WSREP */
 	     || sql_command == SQLCOM_DROP_INDEX)
 	    && num_write_row >= 10000) {
@@ -7187,6 +7191,20 @@ no_commit:
 			*/
 			;
 		} else if (src_table == prebuilt->table) {
+#ifdef WITH_WSREP
+			switch (wsrep_run_wsrep_commit(user_thd, wsrep_hton, 1))
+			{
+			case WSREP_TRX_OK:
+				break;
+			case WSREP_TRX_ROLLBACK:
+			case WSREP_TRX_ERROR:
+				DBUG_RETURN(1);
+			}
+
+			binlog_hton->commit(binlog_hton, user_thd, 1);
+
+			wsrep_cleanup_transaction(user_thd);
+#endif /* WITH_WSREP */
 			/* Source table is not in InnoDB format:
 			no need to re-acquire locks on it. */
 
@@ -7197,6 +7215,18 @@ no_commit:
 			/* We will need an IX lock on the destination table. */
 			prebuilt->sql_stat_start = TRUE;
 		} else {
+#ifdef WITH_WSREP
+			switch (wsrep_run_wsrep_commit(user_thd, wsrep_hton, 1))
+			{
+			case WSREP_TRX_OK:
+				break;
+			case WSREP_TRX_ROLLBACK:
+			case WSREP_TRX_ERROR:
+				DBUG_RETURN(1);
+			}
+			binlog_hton->commit(binlog_hton, user_thd, 1);
+			wsrep_cleanup_transaction(user_thd);
+#endif /* WITH_WSREP */
 			/* Ensure that there are no other table locks than
 			LOCK_IX and LOCK_AUTO_INC on the destination table. */
 

@@ -41,6 +41,9 @@
 #include "sql_statistics.h"
 #include "discover.h"
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
+#ifdef WITH_WSREP
+#include "ha_partition.h"
+#endif /* WITH_WSREP */
 
 /* INFORMATION_SCHEMA name */
 LEX_STRING INFORMATION_SCHEMA_NAME= {C_STRING_WITH_LEN("information_schema")};
@@ -3903,6 +3906,12 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   insert_values= 0;
   fulltext_searched= 0;
   file->ha_start_of_new_statement();
+#ifdef WITH_WSREP
+  if (file->ht->db_type == DB_TYPE_PARTITION_DB)
+  {
+    ((ha_partition*)file)->wsrep_reset_files();
+  }
+#endif
   reginfo.impossible_range= 0;
   created= TRUE;
   cond_selectivity= 1.0;

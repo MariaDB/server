@@ -1558,6 +1558,8 @@ void THD::init(void)
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_mysql_replicated  = 0;
   wsrep_bf_thd = NULL;
+  wsrep_TOI_pre_query     = NULL;
+  wsrep_TOI_pre_query_len = 0;
 #endif
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;
