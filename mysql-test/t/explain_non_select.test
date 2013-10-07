@@ -155,3 +155,18 @@ explain partitions delete from t1 where a in (32,33);
 explain partitions update t1 set b=12345 where a in (32,33);
 
 drop table t1;
+
+--echo #
+--echo # Tests for EXPLAIN INSERT ... VALUES 
+--echo #
+create table t1 (a int, key(a));
+explain insert into t1 values (1),(2),(3);
+insert into t1 values (1),(2),(3);
+
+create table t2 (a int, b int);
+explain insert into t2 values 
+  (10, 1+(select max(a)   from t1)),
+  (11, 1+(select max(a+1) from t1));
+
+drop table t1,t2;
+

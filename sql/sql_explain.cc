@@ -22,9 +22,8 @@
 #include "sql_select.h"
 
 
-Explain_query::Explain_query()
+Explain_query::Explain_query() : upd_del_plan(NULL), insert_plan(NULL)
 {
-  upd_del_plan= NULL;
   operations= 0;
 }
 
@@ -32,6 +31,7 @@ Explain_query::Explain_query()
 Explain_query::~Explain_query()
 {
   delete upd_del_plan;
+  delete insert_plan;
   uint i;
   for (i= 0 ; i < unions.elements(); i++)
     delete unions.at(i);
@@ -101,15 +101,43 @@ void Explain_query::add_node(Explain_node *node)
 
 
 /*
+  Send EXPLAIN output to the client.
+*/
+
+int Explain_query::send_explain(THD *thd)
+{
+  select_result *result;
+  LEX *lex= thd->lex;
+ 
+  if (!(result= new select_send()) || 
+      thd->send_explain_fields(result))
+    return 1;
+
+  int res;
+  if ((res= print_explain(result, lex->describe)))
+    result->abort_result_set();
+  else
+    result->send_eof();
+
+  return res;
+}
+
+
+/*
   The main entry point to print EXPLAIN of the entire query
 */
 
 int Explain_query::print_explain(select_result_sink *output, 
-                             uint8 explain_flags)
+                                 uint8 explain_flags)
 {
   if (upd_del_plan)
   {
     upd_del_plan->print_explain(this, output, explain_flags);
+    return 0;
+  }
+  else if (insert_plan)
+  {
+    insert_plan->print_explain(this, output, explain_flags);
     return 0;
   }
   else
@@ -681,7 +709,7 @@ const char * Explain_quick_select::get_name_by_type()
       return "sort_intersect";
     default:
       DBUG_ASSERT(0);
-      return "Oops";
+      return "unknown quick select type";
   }
 }
 
@@ -809,8 +837,29 @@ int Explain_update::print_explain(Explain_query *query,
                     key_str.length()? key_str.c_ptr() : NULL,
                     key_len_str.length() ? key_len_str.c_ptr() : NULL,
                     NULL, /* 'ref' is always NULL in single-table EXPLAIN DELETE */
-                    rows,
+                    &rows,
                     extra_str.c_ptr());
+
+  return print_explain_for_children(query, output, explain_flags);
+}
+
+
+int Explain_insert::print_explain(Explain_query *query, select_result_sink *output, 
+                                  uint8 explain_flags)
+{
+  const char *select_type="INSERT";
+  print_explain_row(output, explain_flags, 
+                    1, /* id */
+                    select_type,
+                    table_name.c_ptr(), 
+                    NULL, // partitions
+                    JT_ALL,
+                    NULL, // possible_keys
+                    NULL, // key
+                    NULL, // key_len
+                    NULL, // ref
+                    NULL, // rows
+                    NULL);
 
   return print_explain_for_children(query, output, explain_flags);
 }

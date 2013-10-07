@@ -1865,7 +1865,7 @@ int print_explain_row(select_result_sink *result,
                       const char *index,
                       const char *key_len,
                       const char *ref,
-                      ha_rows rows,
+                      ha_rows *rows,
                       const char *extra);
 void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line);
 

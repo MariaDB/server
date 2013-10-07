@@ -22238,7 +22238,10 @@ int print_explain_message_line(select_result_sink *result,
   if (options & DESCRIBE_EXTENDED)
     item_list.push_back(item_null);
 
-  item_list.push_back(new Item_string(message,strlen(message),cs));
+  if (message)
+    item_list.push_back(new Item_string(message,strlen(message),cs));
+  else
+    item_list.push_back(item_null);
 
   if (result->send_data(item_list))
     return 1;
@@ -22292,7 +22295,7 @@ int print_explain_row(select_result_sink *result,
                       const char *index,
                       const char *key_len,
                       const char *ref,
-                      ha_rows rows,
+                      ha_rows *rows,
                       const char *extra)
 {
   const CHARSET_INFO *cs= system_charset_info;
@@ -22337,15 +22340,24 @@ int print_explain_row(select_result_sink *result,
   item_list.push_back(item);
 
   /* 'rows' */
-  item_list.push_back(new Item_int(rows, 
-                                   MY_INT64_NUM_DECIMAL_DIGITS));
+  if (rows)
+  {
+    item_list.push_back(new Item_int(*rows, 
+                                     MY_INT64_NUM_DECIMAL_DIGITS));
+  }
+  else
+    item_list.push_back(item_null);
+
   /* 'filtered' */
   const double filtered=100.0;
   if (options & DESCRIBE_EXTENDED)
     item_list.push_back(new Item_float(filtered, 2));
   
   /* 'Extra' */
-  item_list.push_back(new Item_string(extra, strlen(extra), cs));
+  if (extra)
+    item_list.push_back(new Item_string(extra, strlen(extra), cs));
+  else
+    item_list.push_back(item_null);
 
   if (result->send_data(item_list))
     return 1;
