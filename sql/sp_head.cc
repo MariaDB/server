@@ -328,6 +328,10 @@ sp_get_flags_for_command(LEX *lex)
   }
   case SQLCOM_UPDATE:
   case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_INSERT:
+  case SQLCOM_REPLACE:
+  case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_INSERT_SELECT:
   {
     if (!lex->describe)
       flags= 0;

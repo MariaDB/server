@@ -680,20 +680,8 @@ cleanup:
   /* Special exits */
 exit_without_my_ok:
   query_plan.save_explain_data(thd->lex->explain);
+  int err2= thd->lex->explain->send_explain(thd);
 
-  select_send *result2;
-  if (!(result2= new select_send()))
-    return 1;                               /* purecov: inspected */
-  List<Item> dummy; /* note: looked in 5.6 and they too use a dummy list like this */
-  result2->prepare(dummy, &thd->lex->unit);
-  thd->send_explain_fields(result2);
-  int err2= thd->lex->explain->print_explain(result2, thd->lex->describe);
-
-  if (err2)
-    result2->abort_result_set();
-  else
-    result2->send_eof();
-  
   delete select;
   free_underlaid_joins(thd, select_lex);
   //table->set_keyread(false);

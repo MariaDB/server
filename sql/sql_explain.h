@@ -37,10 +37,16 @@ class Explain_query;
 class Explain_node : public Sql_alloc
 {
 public:
-  enum explain_node_type {EXPLAIN_UNION, EXPLAIN_SELECT, EXPLAIN_UPDATE, EXPLAIN_DELETE };
+  enum explain_node_type 
+  {
+    EXPLAIN_UNION, 
+    EXPLAIN_SELECT, 
+    EXPLAIN_UPDATE,
+    EXPLAIN_DELETE, 
+    EXPLAIN_INSERT
+  };
+
   virtual enum explain_node_type get_type()= 0;
-
-
   virtual int get_select_id()= 0;
 
   /* 
@@ -172,8 +178,10 @@ public:
   bool using_filesort;
 };
 
-class Explain_delete;
 
+class Explain_update;
+class Explain_delete;
+class Explain_insert;
 
 /*
   Explain structure for a query (i.e. a statement).
@@ -229,14 +237,20 @@ public:
   /* Explain_delete inherits from Explain_update */
   Explain_update *upd_del_plan;
 
+  /* Query "plan" for INSERTs */
+  Explain_insert *insert_plan;
+
   /* Produce a tabular EXPLAIN output */
   int print_explain(select_result_sink *output, uint8 explain_flags);
+  
+  /* Send tabular EXPLAIN to the client */
+  int send_explain(THD *thd);
   
   /* Return tabular EXPLAIN output as a text string */
   bool print_explain_str(THD *thd, String *out_str);
 
   /* If true, at least part of EXPLAIN can be printed */
-  bool have_query_plan() { return upd_del_plan!= NULL || get_node(1) != NULL; }
+  bool have_query_plan() { return insert_plan || upd_del_plan|| get_node(1) != NULL; }
   MEM_ROOT *mem_root;
 private:
   Dynamic_array<Explain_union*> unions;
@@ -445,7 +459,7 @@ private:
 
 
 /*
-  Query Plan Footprint for single-table UPDATE. 
+  EXPLAIN structure for single-table UPDATE. 
   
   This is similar to Explain_table_access, except that it is more restrictive.
   Also, it can have UPDATE operation options, but currently there aren't any.
@@ -482,8 +496,28 @@ public:
 };
 
 
+/*
+  EXPLAIN data structure for an INSERT.
+  
+  At the moment this doesn't do much as we don't really have any query plans
+  for INSERT statements.
+*/
+
+class Explain_insert : public Explain_node
+{
+public:
+  StringBuffer<64> table_name;
+
+  enum explain_node_type get_type() { return EXPLAIN_INSERT; }
+  int get_select_id() { return 1; /* always root */ }
+
+  int print_explain(Explain_query *query, select_result_sink *output, 
+                    uint8 explain_flags);
+};
+
+
 /* 
-  Explain data of a single-table DELETE.
+  EXPLAIN data of a single-table DELETE.
 */
 
 class Explain_delete: public Explain_update

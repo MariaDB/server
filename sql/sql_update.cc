@@ -948,7 +948,7 @@ int mysql_update(THD *thd,
   if (!transactional_table && updated > 0)
     thd->transaction.stmt.modified_non_trans_table= TRUE;
 
-  thd->apc_target.disable(); //psergey-todo.
+  thd->apc_target.disable();
   apc_target_enabled= false;
   end_read_record(&info);
   delete select;
@@ -1035,19 +1035,8 @@ err:
 exit_without_my_ok:
   DBUG_ASSERT(!apc_target_enabled);
   query_plan.save_explain_data(thd->lex->explain);
-  
-  select_send *result;
-  if (!(result= new select_send()))
-    return 1;                               /* purecov: inspected */
-  List<Item> dummy; /* note: looked in 5.6 and they too use a dummy list like this */
-  result->prepare(dummy, &thd->lex->unit);
-  thd->send_explain_fields(result);
-  int err2= thd->lex->explain->print_explain(result,
-                                                          thd->lex->describe);
-  if (err2)
-    result->abort_result_set();
-  else
-    result->send_eof();
+
+  int err2= thd->lex->explain->send_explain(thd);
 
   delete select;
   free_underlaid_joins(thd, select_lex);

@@ -3245,14 +3245,7 @@ end_with_restore_list:
       }
 
       if (!res && explain)
-      {
-        select_result *result= new select_send();
-        LEX *lex= thd->lex;
-        if (thd->send_explain_fields(result) ||
-            lex->explain->print_explain(result, lex->describe) ||
-            result->send_eof())
-          res= 1;
-      }
+        res= thd->lex->explain->send_explain(thd);
 
       /* revert changes for SP */
       MYSQL_INSERT_SELECT_DONE(res, (ulong) thd->get_row_count_func());
@@ -3341,14 +3334,7 @@ end_with_restore_list:
         else
         {
           if (explain)
-          {
-            select_result *result= new select_send();
-            LEX *lex= thd->lex;
-            if (thd->send_explain_fields(result) ||
-                lex->explain->print_explain(result, lex->describe) ||
-                result->send_eof())
-              res= 1;
-          }
+            res= thd->lex->explain->send_explain(thd);
         }
         delete result;
       }
