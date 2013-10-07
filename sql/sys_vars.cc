@@ -2971,6 +2971,8 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     if (trans_commit_stmt(thd) || trans_commit(thd))
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
+      thd->mdl_context.release_transactional_locks();
+      WSREP_DEBUG("autocommit, MDL TRX lock released: %lu", thd->thread_id);
       return true;
     }
     /*
@@ -4252,6 +4254,15 @@ static Sys_var_enum Sys_wsrep_OSU_method(
        wsrep_OSU_method_names, DEFAULT(WSREP_OSU_TOI),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(0));
+
+static PolyLock_mutex PLock_wsrep_desync(&LOCK_wsrep_desync);
+static Sys_var_mybool Sys_wsrep_desync (
+       "wsrep_desync", "To desynchronize the node from the cluster",
+       GLOBAL_VAR(wsrep_desync), 
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       &PLock_wsrep_desync, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_desync_check),
+       ON_UPDATE(wsrep_desync_update));
 
 static Sys_var_enum Sys_wsrep_forced_binlog_format(
        "wsrep_forced_binlog_format", "binlog format to take effect over user's choice",

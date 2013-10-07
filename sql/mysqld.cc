@@ -738,6 +738,7 @@ wsrep_aborting_thd_t wsrep_aborting_thd= NULL;
 mysql_mutex_t LOCK_wsrep_replaying;
 mysql_cond_t  COND_wsrep_replaying;
 mysql_mutex_t LOCK_wsrep_slave_threads;
+mysql_mutex_t LOCK_wsrep_desync;
 int wsrep_replaying= 0;
 static void wsrep_close_threads(THD* thd);
 #endif
@@ -881,7 +882,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
 PSI_mutex_key key_LOCK_wsrep_rollback, key_LOCK_wsrep_thd, 
   key_LOCK_wsrep_replaying, key_LOCK_wsrep_ready, key_LOCK_wsrep_sst, 
   key_LOCK_wsrep_sst_thread, key_LOCK_wsrep_sst_init,
-  key_LOCK_wsrep_slave_threads;
+  key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync;
 #endif
 PSI_mutex_key key_RELAYLOG_LOCK_index;
 PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state;
@@ -966,6 +967,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_wsrep_thd, "THD::LOCK_wsrep_thd", 0},
   { &key_LOCK_wsrep_replaying, "LOCK_wsrep_replaying", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_slave_threads, "LOCK_wsrep_slave_threads", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_desync, "LOCK_wsrep_desync", PSI_FLAG_GLOBAL},
 #endif
   { &key_LOCK_thread_count, "LOCK_thread_count", PSI_FLAG_GLOBAL},
   { &key_LOCK_thread_cache, "LOCK_thread_cache", PSI_FLAG_GLOBAL},
@@ -2217,6 +2219,7 @@ static void clean_up_mutexes()
   (void) mysql_mutex_destroy(&LOCK_wsrep_replaying);
   (void) mysql_cond_destroy(&COND_wsrep_replaying);
   (void) mysql_mutex_destroy(&LOCK_wsrep_slave_threads);
+  (void) mysql_mutex_destroy(&LOCK_wsrep_desync);
 #endif
   mysql_mutex_destroy(&LOCK_server_started);
   mysql_cond_destroy(&COND_server_started);
@@ -4482,6 +4485,8 @@ static int init_thread_environment()
   mysql_cond_init(key_COND_wsrep_replaying, &COND_wsrep_replaying, NULL);
   mysql_mutex_init(key_LOCK_wsrep_slave_threads, 
 		   &LOCK_wsrep_slave_threads, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_wsrep_desync, 
+		   &LOCK_wsrep_desync, MY_MUTEX_INIT_FAST);
 #endif
 
   DBUG_RETURN(0);

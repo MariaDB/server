@@ -417,6 +417,8 @@ case "$mode" in
     fi
     exit $r
     ;;
+  'bootstrap')
+      echo $echo_n "Bootstrapping the cluster"
   *)
       # usage
       basename=`basename "$0"`

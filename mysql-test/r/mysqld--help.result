@@ -1016,10 +1016,15 @@ The following options may be given as the first argument:
  --wsrep-dbug-option=name 
  DBUG options to provider library
  --wsrep-debug       To enable debug level logging
+ --wsrep-desync      To desynchronize the node from the cluster
  --wsrep-drupal-282555-workaround 
  To use a workaround forbad autoincrement value
  --wsrep-forced-binlog-format=name 
  binlog format to take effect over user's choice
+ --wsrep-load-data-splitting 
+ To commit LOAD DATA transaction after every 10K rows
+ inserted
+ (Defaults to on; use --skip-wsrep-load-data-splitting to disable.)
  --wsrep-log-conflicts 
  To log multi-master conflicts
  --wsrep-max-ws-rows=# 
@@ -1360,8 +1365,10 @@ wsrep-convert-LOCK-to-trx FALSE
 wsrep-data-home-dir 
 wsrep-dbug-option 
 wsrep-debug FALSE
+wsrep-desync FALSE
 wsrep-drupal-282555-workaround FALSE
 wsrep-forced-binlog-format NONE
+wsrep-load-data-splitting TRUE
 wsrep-log-conflicts FALSE
 wsrep-max-ws-rows 131072
 wsrep-max-ws-size 1073741824
@@ -1379,7 +1386,7 @@ wsrep-slave-threads 1
 wsrep-sst-auth (No default value)
 wsrep-sst-donor 
 wsrep-sst-donor-rejects-queries FALSE
-wsrep-sst-method mysqldump
+wsrep-sst-method rsync
 wsrep-sst-receive-address AUTO
 wsrep-start-position 00000000-0000-0000-0000-000000000000:-1
 
