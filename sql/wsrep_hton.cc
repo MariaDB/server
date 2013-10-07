@@ -49,7 +49,7 @@ void wsrep_cleanup_transaction(THD *thd)
 	{
 	  DBUG_PRINT("wsrep", ("set committed fail"));
 	  WSREP_WARN("set committed fail: %llu %d", 
-		     (long long)thd->real_id, thd->stmt_da->status());
+		     (long long)thd->real_id, thd->get_stmt_da()->status());
 	}
       }
       //else
@@ -194,9 +194,9 @@ wsrep_run_wsrep_commit(
   IO_CACHE *cache;
   int replay_round= 0;
 
-  if (thd->stmt_da->is_error()) {
+  if (thd->get_stmt_da()->is_error()) {
     WSREP_ERROR("commit issue, error: %d %s", 
-                thd->stmt_da->sql_errno(), thd->stmt_da->message());
+                thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
   }
 
   DBUG_ENTER("wsrep_run_wsrep_commit");
@@ -308,8 +308,8 @@ wsrep_run_wsrep_commit(
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     thd->wsrep_exec_mode = LOCAL_COMMIT;
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-    if (thd->stmt_da->is_ok()              && 
-        thd->stmt_da->affected_rows() > 0  &&
+    if (thd->get_stmt_da()->is_ok()              && 
+        thd->get_stmt_da()->affected_rows() > 0  &&
         !binlog_filter->is_on())
     {
       WSREP_DEBUG("empty rbr buffer, query: %s, "
@@ -317,7 +317,7 @@ wsrep_run_wsrep_commit(
                  "changed tables: %d, " 
                  "sql_log_bin: %d, "
 		 "wsrep status (%d %d %d)",
-                 thd->query(), thd->stmt_da->affected_rows(),
+                 thd->query(), thd->get_stmt_da()->affected_rows(),
                  stmt_has_updated_trans_table(thd), thd->variables.sql_log_bin,
 		 thd->wsrep_exec_mode, thd->wsrep_query_state, 
 		 thd->wsrep_conflict_state);

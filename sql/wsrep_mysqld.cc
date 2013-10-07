@@ -571,7 +571,7 @@ int wsrep_init()
   return rcode;
 }
 
-extern "C" int wsrep_on(void *);
+extern int wsrep_on(void *);
 
 void wsrep_init_startup (bool first)
 {
@@ -1284,10 +1284,10 @@ void wsrep_to_isolation_end(THD *thd) {
       msg,                                                                     \
       req->thread_id, (long long)req->wsrep_trx_seqno,                         \
       req->wsrep_exec_mode, req->wsrep_query_state, req->wsrep_conflict_state, \
-      req->command, req->lex->sql_command, req->query(),                       \
+      req->get_command(), req->lex->sql_command, req->query(),	               \
       gra->thread_id, (long long)gra->wsrep_trx_seqno,                         \
       gra->wsrep_exec_mode, gra->wsrep_query_state, gra->wsrep_conflict_state, \
-      gra->command, gra->lex->sql_command, gra->query());
+      gra->get_command(), gra->lex->sql_command, gra->query());
 
 bool
 wsrep_grant_mdl_exception(MDL_context *requestor_ctx,

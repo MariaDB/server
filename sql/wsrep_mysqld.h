@@ -317,7 +317,8 @@ void wsrep_rollback_process(THD *thd);
 void wsrep_brute_force_killer(THD *thd);
 int  wsrep_hire_brute_force_killer(THD *thd, uint64_t trx_id);
 extern "C" bool wsrep_consistency_check(void *thd_ptr);
-extern "C" int wsrep_thd_is_brute_force(void *thd_ptr);
+//extern "C" int wsrep_thd_is_brute_force(void *thd_ptr);
+extern int wsrep_thd_is_brute_force(void *thd_ptr);
 extern "C" int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, 
                                my_bool signal);
 extern "C" int wsrep_thd_in_locking_session(void *thd_ptr);

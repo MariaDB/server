@@ -476,11 +476,11 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
   bool new_wsrep_desync = var->value->val_bool();
   if (wsrep_desync == new_wsrep_desync) {
     if (new_wsrep_desync) {
-      push_warning (thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
                    ER_WRONG_VALUE_FOR_VAR,
                    "'wsrep_desync' is already ON.");
     } else {
-      push_warning (thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
                    ER_WRONG_VALUE_FOR_VAR,
                    "'wsrep_desync' is already OFF.");
     }
