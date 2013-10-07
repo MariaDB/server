@@ -6029,7 +6029,7 @@ wsrep_store_key_val_for_row(
 	char*		buff_start	= buff;
 	enum_field_types mysql_type;
 	Field*		field;
-	
+
 	DBUG_ENTER("store_key_val_for_row");
 
 	bzero(buff, buff_len);
@@ -7944,9 +7944,12 @@ func_exit:
 	if (!error && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
             wsrep_on(user_thd)) {
 
+		WSREP_DEBUG("WSREP: UPDATE_ROW_KEY");
+
 		DBUG_PRINT("wsrep", ("update row key"));
 
 		if (wsrep_append_keys(user_thd, false, old_row, new_row)) {
+			WSREP_DEBUG("WSREP: UPDATE_ROW_KEY FAILED");
 			DBUG_PRINT("wsrep", ("row key failed"));
 			err = HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
@@ -9426,10 +9429,10 @@ ha_innobase::wsrep_append_keys(
 	trx_t *trx = thd_to_trx(thd);
 
 	if (table_share && table_share->tmp_table  != NO_TMP_TABLE) {
-		WSREP_DEBUG("skipping tmp table DML: THD: %lu tmp: %d SQL: %s", 
+		WSREP_DEBUG("skipping tmp table DML: THD: %lu tmp: %d SQL: %s",
 			    wsrep_thd_thread_id(thd),
 			    table_share->tmp_table,
-			    (wsrep_thd_query(thd)) ? 
+			    (wsrep_thd_query(thd)) ?
 			    wsrep_thd_query(thd) : "void");
 		DBUG_RETURN(0);
 	}
@@ -9446,18 +9449,20 @@ ha_innobase::wsrep_append_keys(
 
 		if (!is_null) {
 			int rcode = wsrep_append_key(
-				thd, trx, table_share, table, keyval, 
+				thd, trx, table_share, table, keyval,
 				len, shared);
 			if (rcode) DBUG_RETURN(rcode);
 		}
 		else
 		{
-			WSREP_DEBUG("NULL key skipped (proto 0): %s", 
+			WSREP_DEBUG("NULL key skipped (proto 0): %s",
 				    wsrep_thd_query(thd));
 		}
 	} else {
 		ut_a(table->s->keys <= 256);
 		uint i;
+		WSREP_DEBUG("WSREP: append key");
+
 		for (i=0; i<table->s->keys; ++i) {
 			uint	len;
 			char 	keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
@@ -9476,27 +9481,27 @@ ha_innobase::wsrep_append_keys(
 			  		key_appended = true;
 
 				len = wsrep_store_key_val_for_row(
-					table, i, key0, key_info->key_length, 
+					table, i, key0, key_info->key_length,
 					record0, &is_null);
 				if (!is_null) {
 					int rcode = wsrep_append_key(
-						thd, trx, table_share, table, 
+						thd, trx, table_share, table,
 						keyval0, len+1, shared);
 					if (rcode) DBUG_RETURN(rcode);
 				}
 				else
 				{
-					WSREP_DEBUG("NULL key skipped: %s", 
+					WSREP_DEBUG("NULL key skipped: %s",
 						    wsrep_thd_query(thd));
 				}
 				if (record1) {
 					len = wsrep_store_key_val_for_row(
-						table, i, key1, key_info->key_length, 
+						table, i, key1, key_info->key_length,
 						record1, &is_null);
 					if (!is_null && memcmp(key0, key1, len)) {
 						int rcode = wsrep_append_key(
-							thd, trx, table_share, 
-							table, 
+							thd, trx, table_share,
+							table,
 							keyval1, len+1, shared);
 						if (rcode) DBUG_RETURN(rcode);
 					}
@@ -9510,6 +9515,7 @@ ha_innobase::wsrep_append_keys(
 		uchar digest[16];
 		int rcode;
 
+		WSREP_DEBUG("WSREP: append key 2");
 		wsrep_calc_row_hash(digest, record0, table, prebuilt, thd);
 		if ((rcode = wsrep_append_key(thd, trx, table_share, table, 
 					      (const char*) digest, 16, 
@@ -16864,8 +16870,10 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 
 	if (victim_trx)
 	{
-		int rcode = wsrep_innobase_kill_one_trx(bf_trx, victim_trx, 
+		mutex_enter(&trx_sys->mutex);
+		int rcode = wsrep_innobase_kill_one_trx(bf_trx, victim_trx,
 							signal);
+		mutex_exit(&trx_sys->mutex);
 		wsrep_srv_conc_cancel_wait(victim_trx);
 		DBUG_RETURN(rcode);
 	} else {
@@ -16905,7 +16913,9 @@ wsrep_fake_trx_id(
 	handlerton	*hton,
 	THD		*thd)	/*!< in: user thread handle */
 {
+	mutex_enter(&trx_sys->mutex);
 	trx_id_t trx_id = trx_sys_get_new_trx_id();
+	mutex_exit(&trx_sys->mutex);
 
 	(void *)wsrep_trx_handle_for_id(wsrep_thd_trx_handle(thd), trx_id);
 }
