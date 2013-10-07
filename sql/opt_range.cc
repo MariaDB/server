@@ -11940,110 +11940,134 @@ void QUICK_SELECT_I::add_key_name(String *str, bool *first)
 }
  
 
-void QUICK_RANGE_SELECT::save_info(MEM_ROOT *alloc,
-                                   Explain_quick_select *explain)
+Explain_quick_select* QUICK_RANGE_SELECT::get_explain(MEM_ROOT *alloc)
 {
-  explain->quick_type= QS_TYPE_RANGE;
-  explain->range.set(alloc, head->key_info[index].name, max_used_key_length);
+  Explain_quick_select *res;
+  if ((res= new (alloc) Explain_quick_select(QS_TYPE_RANGE)))
+    res->range.set(alloc, head->key_info[index].name, max_used_key_length);
+  return res;
 }
 
 
-void QUICK_GROUP_MIN_MAX_SELECT::save_info(MEM_ROOT *alloc, 
-                                           Explain_quick_select *explain)
+Explain_quick_select* QUICK_GROUP_MIN_MAX_SELECT::get_explain(MEM_ROOT *alloc)
 {
-  explain->quick_type= QS_TYPE_GROUP_MIN_MAX;
-  explain->range.set(alloc, head->key_info[index].name, max_used_key_length);
+  Explain_quick_select *res;
+  if ((res= new (alloc) Explain_quick_select(QS_TYPE_GROUP_MIN_MAX)))
+    res->range.set(alloc, head->key_info[index].name, max_used_key_length);
+  return res;
 }
 
 
-void QUICK_INDEX_SORT_SELECT::save_info(MEM_ROOT *alloc, 
-                                        Explain_quick_select *explain)
+Explain_quick_select* QUICK_INDEX_SORT_SELECT::get_explain(MEM_ROOT *alloc)
 {
-  explain->quick_type= get_type();
+  Explain_quick_select *res;
+  if (!(res= new (alloc) Explain_quick_select(get_type())))
+    return NULL;
 
   QUICK_RANGE_SELECT *quick;
-  Explain_quick_select *child_qpf;
+  Explain_quick_select *child_explain;
   List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
   while ((quick= it++))
   {
-    child_qpf= new Explain_quick_select;
-    explain->children.push_back(child_qpf);
-    quick->save_info(alloc, child_qpf);
+    if ((child_explain= quick->get_explain(alloc)))
+      res->children.push_back(child_explain);
+    else
+      return NULL;
   }
 
   if (pk_quick_select)
   {
-    child_qpf= new Explain_quick_select;
-    explain->children.push_back(child_qpf);
-    pk_quick_select->save_info(alloc, child_qpf);
+    if ((child_explain= pk_quick_select->get_explain(alloc)))
+      res->children.push_back(child_explain);
+    else
+      return NULL;
   }
+  return res;
 }
+
 
 /*
-  Same as QUICK_INDEX_SORT_SELECT::save_info(), but primary key is printed
+  Same as QUICK_INDEX_SORT_SELECT::get_explain(), but primary key is printed
   first
 */
-void QUICK_INDEX_INTERSECT_SELECT::save_info(MEM_ROOT *alloc, 
-                                             Explain_quick_select *explain)
+
+Explain_quick_select* QUICK_INDEX_INTERSECT_SELECT::get_explain(MEM_ROOT *alloc)
 {
-  explain->quick_type= get_type();
-  Explain_quick_select *child_qpf;
+  Explain_quick_select *res;
+  Explain_quick_select *child_explain;
+
+  if (!(res= new (alloc) Explain_quick_select(get_type())))
+    return NULL;
 
   if (pk_quick_select)
   {
-    child_qpf= new Explain_quick_select;
-    explain->children.push_back(child_qpf);
-    pk_quick_select->save_info(alloc, child_qpf);
+    if ((child_explain= pk_quick_select->get_explain(alloc)))
+      res->children.push_back(child_explain);
+    else
+      return NULL;
   }
 
   QUICK_RANGE_SELECT *quick;
   List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
   while ((quick= it++))
   {
-    child_qpf= new Explain_quick_select;
-    explain->children.push_back(child_qpf);
-    quick->save_info(alloc, child_qpf);
+    if ((child_explain= quick->get_explain(alloc)))
+      res->children.push_back(child_explain);
+    else
+      return NULL;
   }
-
+  return res;
 }
 
 
-void QUICK_ROR_INTERSECT_SELECT::save_info(MEM_ROOT *alloc, 
-                                           Explain_quick_select *explain)
+Explain_quick_select* QUICK_ROR_INTERSECT_SELECT::get_explain(MEM_ROOT *alloc)
 {
-  explain->quick_type= get_type();
+  Explain_quick_select *res;
+  Explain_quick_select *child_explain;
+
+  if (!(res= new (alloc) Explain_quick_select(get_type())))
+    return NULL;
 
   QUICK_SELECT_WITH_RECORD *qr;
   List_iterator_fast<QUICK_SELECT_WITH_RECORD> it(quick_selects);
   while ((qr= it++))
   {
-    Explain_quick_select *child_qpf= new Explain_quick_select;
-    explain->children.push_back(child_qpf);
-    qr->quick->save_info(alloc, child_qpf);
+    if ((child_explain= qr->quick->get_explain(alloc)))
+      res->children.push_back(child_explain);
+    else
+      return NULL;
   }
 
   if (cpk_quick)
   {
-    Explain_quick_select *child_qpf= new Explain_quick_select;
-    explain->children.push_back(child_qpf);
-    cpk_quick->save_info(alloc, child_qpf);
+    if ((child_explain= cpk_quick->get_explain(alloc)))
+      res->children.push_back(child_explain);
+    else
+      return NULL;
   }
+  return res;
 }
 
 
-void QUICK_ROR_UNION_SELECT::save_info(MEM_ROOT *alloc, 
-                                       Explain_quick_select *explain)
+Explain_quick_select* QUICK_ROR_UNION_SELECT::get_explain(MEM_ROOT *alloc)
 {
-  explain->quick_type= get_type();
+  Explain_quick_select *res;
+  Explain_quick_select *child_explain;
+
+  if (!(res= new (alloc) Explain_quick_select(get_type())))
+    return NULL;
 
   QUICK_SELECT_I *quick;
   List_iterator_fast<QUICK_SELECT_I> it(quick_selects);
   while ((quick= it++))
   {
-    Explain_quick_select *child_qpf= new Explain_quick_select;
-    explain->children.push_back(child_qpf);
-    quick->save_info(alloc, child_qpf);
+    if ((child_explain= quick->get_explain(alloc)))
+      res->children.push_back(child_explain);
+    else
+      return NULL;
   }
+
+  return res;
 }
 
 

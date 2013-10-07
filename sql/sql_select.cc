@@ -22657,8 +22657,7 @@ int JOIN::save_explain_data(Explain_query *output, bool need_tmp_table,
       */
       if (tab->select && tab->select->quick && tab_type != JT_CONST)
       {
-        eta->quick_info= new Explain_quick_select;
-        tab->select->quick->save_info(thd->mem_root, eta->quick_info);
+        eta->quick_info= tab->select->quick->get_explain(thd->mem_root);
       }
 
       if (key_info) /* 'index' or 'ref' access */
