@@ -3206,10 +3206,7 @@ end_with_restore_list:
 
     if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
     {
-      if (!explain)
-      {
-        MYSQL_INSERT_SELECT_START(thd->query());
-      }
+      MYSQL_INSERT_SELECT_START(thd->query());
       /*
         Only the INSERT table should be merged. Other will be handled by
         select.
@@ -3258,10 +3255,7 @@ end_with_restore_list:
       }
 
       /* revert changes for SP */
-      if (!explain)
-      {
-        MYSQL_INSERT_SELECT_DONE(res, (ulong) thd->get_row_count_func());
-      }
+      MYSQL_INSERT_SELECT_DONE(res, (ulong) thd->get_row_count_func());
       select_lex->table_list.first= first_table;
     }
     /*
@@ -3316,17 +3310,10 @@ end_with_restore_list:
     if ((res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
       break;
 
-    if (!explain)
-    {
-      MYSQL_MULTI_DELETE_START(thd->query());
-    }
-
+    MYSQL_MULTI_DELETE_START(thd->query());
     if ((res= mysql_multi_delete_prepare(thd)))
     {
-      if (!explain)
-      {
-        MYSQL_MULTI_DELETE_DONE(1, 0);
-      }
+      MYSQL_MULTI_DELETE_DONE(1, 0);
       goto error;
     }
 
@@ -3348,15 +3335,12 @@ end_with_restore_list:
                           result, unit, select_lex);
         res|= thd->is_error();
 
-        if (!explain)
-        {
-          MYSQL_MULTI_DELETE_DONE(res, del_result->num_deleted());
-          if (res)
-            result->abort_result_set(); /* for both DELETE and EXPLAIN DELETE */
-        }
+        MYSQL_MULTI_DELETE_DONE(res, del_result->num_deleted());
+        if (res)
+          result->abort_result_set(); /* for both DELETE and EXPLAIN DELETE */
         else
         {
-          if (!res)
+          if (explain)
           {
             select_result *result= new select_send();
             LEX *lex= thd->lex;
@@ -3365,8 +3349,6 @@ end_with_restore_list:
                 result->send_eof())
               res= 1;
           }
-          else
-            result->abort_result_set(); /* for both DELETE and EXPLAIN DELETE */
         }
         delete result;
       }
@@ -3374,10 +3356,7 @@ end_with_restore_list:
     else
     {
       res= TRUE;                                // Error
-      if (!explain)
-      {
-        MYSQL_MULTI_DELETE_DONE(1, 0);
-      }
+      MYSQL_MULTI_DELETE_DONE(1, 0);
     }
     break;
   }
