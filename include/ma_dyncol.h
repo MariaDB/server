@@ -33,6 +33,24 @@
 #include <my_decimal_limits.h>
 #include <mysql_time.h>
 
+#ifndef _my_sys_h
+typedef struct st_dynamic_string
+{
+    char *str;
+    size_t length,max_length,alloc_increment;
+} DYNAMIC_STRING;
+#endif
+
+#ifndef MY_GLOBAL_INCLUDED
+struct st_mysql_lex_string
+{
+  char *str;
+  size_t length;
+};
+typedef struct st_mysql_lex_string MYSQL_LEX_STRING;
+typedef struct st_mysql_lex_string LEX_STRING;
+#endif
+
 /*
   Limits of implementation
 */
