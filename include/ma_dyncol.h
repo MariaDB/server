@@ -28,6 +28,9 @@
 
 #ifndef ma_dyncol_h
 #define ma_dyncol_h
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <decimal.h>
 #include <my_decimal_limits.h>
@@ -230,4 +233,7 @@ mariadb_dyncol_column_count(DYNAMIC_COLUMN *str, uint *column_count);
 */
 void mariadb_dyncol_prepare_decimal(DYNAMIC_COLUMN_VALUE *value);
 
+#ifdef __cplusplus
+}
+#endif
 #endif
