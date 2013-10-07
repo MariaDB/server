@@ -2553,16 +2553,16 @@ finish:
 
 
 /*
-  Add a comment on the join algorithm employed by the join cache 
+  Save data on the join algorithm employed by the join cache 
 
   SYNOPSIS
-    print_explain_comment()
+    save_explain_data()
       str  string to add the comment on the employed join algorithm to
 
   DESCRIPTION
-    This function adds info on the type of the used join buffer (flat or
+    This function puts info about the type of the used join buffer (flat or
     incremental) and on the type of the the employed join algorithm (BNL,
-    BNLH, BKA or BKAH) to the the end of the sring str.
+    BNLH, BKA or BKAH) to the data structure
 
   RETURN VALUE
     none
