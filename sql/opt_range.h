@@ -346,7 +346,7 @@ public:
   void add_key_name(String *str, bool *first);
 
   /* Save information about quick select's query plan */
-  virtual void save_info(MEM_ROOT *alloc, Explain_quick_select *explain)= 0;
+  virtual Explain_quick_select* get_explain(MEM_ROOT *alloc)= 0;
 
   /*
     Return 1 if any index used by this quick select
@@ -473,7 +473,7 @@ public:
   { file->position(record); }
   int get_type() { return QS_TYPE_RANGE; }
   void add_keys_and_lengths(String *key_names, String *used_lengths);
-  void save_info(MEM_ROOT *alloc, Explain_quick_select *explain);
+  Explain_quick_select *get_explain(MEM_ROOT *alloc);
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
 #endif
@@ -610,7 +610,7 @@ public:
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
 #endif
-  void save_info(MEM_ROOT *alloc, Explain_quick_select *explain);
+  Explain_quick_select *get_explain(MEM_ROOT *alloc);
 
   bool push_quick_back(QUICK_RANGE_SELECT *quick_sel_range);
 
@@ -674,7 +674,7 @@ public:
   int get_next();
   int get_type() { return QS_TYPE_INDEX_INTERSECT; }
   void add_keys_and_lengths(String *key_names, String *used_lengths);
-  void save_info(MEM_ROOT *alloc, Explain_quick_select *explain);
+  Explain_quick_select *get_explain(MEM_ROOT *alloc);
 };
 
 
@@ -712,7 +712,7 @@ public:
   bool unique_key_range() { return false; }
   int get_type() { return QS_TYPE_ROR_INTERSECT; }
   void add_keys_and_lengths(String *key_names, String *used_lengths);
-  void save_info(MEM_ROOT *alloc, Explain_quick_select *explain);
+  Explain_quick_select *get_explain(MEM_ROOT *alloc);
   bool is_keys_used(const MY_BITMAP *fields);
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
@@ -791,7 +791,7 @@ public:
   bool unique_key_range() { return false; }
   int get_type() { return QS_TYPE_ROR_UNION; }
   void add_keys_and_lengths(String *key_names, String *used_lengths);
-  void save_info(MEM_ROOT *alloc, Explain_quick_select *explain);
+  Explain_quick_select *get_explain(MEM_ROOT *alloc);
   bool is_keys_used(const MY_BITMAP *fields);
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
@@ -940,7 +940,7 @@ public:
 #endif
   bool is_agg_distinct() { return have_agg_distinct; }
   bool loose_scan_is_scanning() { return is_index_scan; }
-  void save_info(MEM_ROOT *alloc, Explain_quick_select *explain);
+  Explain_quick_select *get_explain(MEM_ROOT *alloc);
 };
 
 

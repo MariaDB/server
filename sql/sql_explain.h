@@ -341,7 +341,10 @@ public:
 class Explain_quick_select : public Sql_alloc
 {
 public:
-  int quick_type;
+  Explain_quick_select(int quick_type_arg) : quick_type(quick_type_arg) 
+  {}
+
+  const int quick_type;
   
   /* This is used when quick_type == QUICK_SELECT_I::QS_TYPE_RANGE */
   Explain_index_use range;
