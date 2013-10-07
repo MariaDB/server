@@ -2951,7 +2951,12 @@ void MDL_context::release_locks_stored_before(enum_mdl_duration duration,
   DBUG_VOID_RETURN;
 }
 
-
+#ifdef WITH_WSREP
+void MDL_context::release_explicit_locks()
+{
+  release_locks_stored_before(MDL_EXPLICIT, NULL);
+}
+#endif
 /**
   Release all explicit locks in the context which correspond to the
   same name/object as this lock request.

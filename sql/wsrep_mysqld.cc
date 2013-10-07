@@ -714,7 +714,7 @@ bool wsrep_start_replication()
     uint64_t caps = wsrep->capabilities (wsrep);
 
     wsrep_incremental_data_collection =
-        (caps & WSREP_CAP_WRITE_SET_INCREMENTS);
+        !!(caps & WSREP_CAP_WRITE_SET_INCREMENTS);
 
     char* opts= wsrep->options_get(wsrep);
     if (opts)
@@ -1254,6 +1254,12 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
     if (!ret)
     {
       thd->wsrep_exec_mode= TOTAL_ORDER;
+      /* It makes sense to set auto_increment_* to defaults in TOI operations */
+      if (wsrep_auto_increment_control)
+      {
+        thd->variables.auto_increment_offset = 1;
+        thd->variables.auto_increment_increment = 1;
+      }
     }
   }
   return ret;
