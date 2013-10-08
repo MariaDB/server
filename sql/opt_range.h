@@ -982,6 +982,8 @@ class SQL_SELECT :public Sql_alloc {
   key_map quick_keys;		// Possible quick keys
   key_map needed_reg;		// Possible quick keys after prev tables.
   table_map const_tables,read_tables;
+  /* See PARAM::possible_keys */
+  key_map possible_keys;
   bool	free_cond; /* Currently not used and always FALSE */
 
   SQL_SELECT();

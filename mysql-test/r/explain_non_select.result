@@ -13,7 +13,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 # DELETE without WHERE is a special case:
 explain delete from t0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Deleting all rows
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	8	Deleting all rows
 create table t1 (a int, b int, filler char(100), key(a), key(b));
 insert into t1 
 select A.a+10*B.a + 10*C.a, A.a+10*B.a + 10*C.a, 'filler' 
@@ -65,10 +65,10 @@ select A.a+10*B.a + 10*C.a, A.a+10*B.a + 10*C.a, 'filler'
 from t0 A, t0 B, t0 C;
 explain update t1 set a=a+1 where 3>4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 explain update t1 set a=a+1 where a=3 and a=4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 # This should use an index,  possible_keys=NULL because there is no WHERE
 explain update t1 set a=a+1 order by a limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
