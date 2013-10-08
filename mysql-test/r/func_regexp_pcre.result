@@ -234,6 +234,12 @@ class	ch	ch RLIKE class
 \p{Tamil}	㐗	0
 \p{Tamil}	갷	0
 DROP TABLE t1, t2;
+SELECT 0xFF RLIKE '\\w';
+0xFF RLIKE '\\w'
+0
+SELECT 0xFF RLIKE '(*UCP)\\w';
+0xFF RLIKE '(*UCP)\\w'
+1
 SELECT '\n' RLIKE '(*CR)';
 '\n' RLIKE '(*CR)'
 1

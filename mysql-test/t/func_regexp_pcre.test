@@ -46,6 +46,10 @@ INSERT INTO t2 VALUES ('[[:alpha:]]'),('[[:digit:]]');
 SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY class, BINARY ch;
 DROP TABLE t1, t2;
 
+# Checking that UCP is disabled by default for binary data
+SELECT 0xFF RLIKE '\\w';
+SELECT 0xFF RLIKE '(*UCP)\\w';
+
 # newline character
 SELECT '\n' RLIKE '(*CR)';
 SELECT '\n' RLIKE '(*LF)';

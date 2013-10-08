@@ -1511,8 +1511,9 @@ public:
   {}
   void init(CHARSET_INFO *data_charset, int extra_flags, uint nsubpatterns)
   {
-    m_library_flags= PCRE_UCP | extra_flags |
-                    (data_charset != &my_charset_bin ? PCRE_UTF8 : 0) |
+    m_library_flags= extra_flags |
+                    (data_charset != &my_charset_bin ?
+                     (PCRE_UTF8 | PCRE_UCP) : 0) |
                     ((data_charset->state &
                      (MY_CS_BINSORT | MY_CS_CSSORT)) ? 0 : PCRE_CASELESS);
 
