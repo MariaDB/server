@@ -701,6 +701,7 @@ err:
 }
 
 
+#ifdef NO_EMBEDDED_ACCESS_CHECKS
 static void
 emb_transfer_connect_attrs(MYSQL *mysql)
 {
@@ -723,7 +724,6 @@ emb_transfer_connect_attrs(MYSQL *mysql)
 }
 
 
-#ifdef NO_EMBEDDED_ACCESS_CHECKS
 int check_embedded_connection(MYSQL *mysql, const char *db)
 {
   int result;
@@ -766,8 +766,9 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
     (mysql->options.extension) ?
     mysql->options.extension->connection_attributes_length : 0;
 
-  buf= my_alloca(USERNAME_LENGTH + SCRAMBLE_LENGTH + 1 + 2*NAME_LEN + 2 +
-                 connect_attrs_len + 2);
+  buf= (char *)my_alloca(USERNAME_LENGTH + SCRAMBLE_LENGTH + 1 +
+                         2*NAME_LEN + 2 +
+                         connect_attrs_len + 2);
   if (mysql->options.client_ip)
   {
     sctx->host= my_strdup(mysql->options.client_ip, MYF(0));
@@ -801,7 +802,8 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
   int2store(end, (ushort) mysql->charset->number);
   end+= 2;
 
-  end= strmake(end, "mysql_native_password", NAME_LEN) + 1;
+  // There is no pluging compatibility in the embedded server
+  //end= strmake(end, "mysql_native_password", NAME_LEN) + 1;
 
   /* the server does the same as the client */
   mysql->server_capabilities= mysql->client_flag;

@@ -8398,7 +8398,10 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   if ((mpvio->thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
       read_client_connect_attrs(&next_field, end,
                                 mpvio->thd->charset()))
-    return packet_error;
+  {
+    my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
+    DBUG_RETURN(packet_error);
+  }
 
   DBUG_PRINT("info", ("client_plugin=%s, restart", client_plugin));
   /* 
