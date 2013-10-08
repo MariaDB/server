@@ -861,6 +861,14 @@ class PARAM : public RANGE_OPT_PARAM
 {
 public:
   ha_rows quick_rows[MAX_KEY];
+
+  /*
+    This will collect 'possible keys' based on the range optimization.
+    
+    Queries with a JOIN object actually use ref optimizer (see add_key_field)
+    to collect possible_keys. This is used by single table UPDATE/DELETE.
+  */
+  key_map possible_keys;
   longlong baseflag;
   uint max_key_part, range_count;
 
@@ -2955,6 +2963,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     read_time= (double) records + scan_time + 1; // Force to use index
   else if (read_time <= 2.0 && !force_quick_range)
     DBUG_RETURN(0);				/* No need for quick select */
+  
+  possible_keys.clear_all();
 
   DBUG_PRINT("info",("Time to scan table: %g", read_time));
 
@@ -2986,6 +2996,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.using_real_indexes= TRUE;
     param.remove_jump_scans= TRUE;
     param.force_default_mrr= ordered_output;
+    param.possible_keys.clear_all();
 
     thd->no_errors=1;				// Don't warn about NULL
     init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
@@ -3197,12 +3208,14 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         quick= NULL;
       }
     }
+    possible_keys= param.possible_keys;
 
   free_mem:
     free_root(&alloc,MYF(0));			// Return memory & allocator
     thd->mem_root= param.old_root;
     thd->no_errors=0;
   }
+
 
   DBUG_EXECUTE("info", print_quick(quick, &needed_reg););
 
@@ -10467,6 +10480,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   if (rows != HA_POS_ERROR)
   {
     param->quick_rows[keynr]= rows;
+    param->possible_keys.set_bit(keynr);
     if (update_tbl_stats)
     {
       param->table->quick_keys.set_bit(keynr);

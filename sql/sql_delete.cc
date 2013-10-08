@@ -436,7 +436,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   }
 
   query_plan.select= select;
-  query_plan.possible_keys= table->quick_keys;
+  query_plan.possible_keys= select? select->possible_keys: key_map(0);
   query_plan.table_rows= table->file->stats.records;
   
   /*

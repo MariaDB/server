@@ -492,8 +492,8 @@ int mysql_update(THD *thd,
      - if we're running EXPLAIN UPDATE, get out
   */
   query_plan.select= select;
-  query_plan.possible_keys= table->quick_keys;
   query_plan.table_rows= table->file->stats.records;
+  query_plan.possible_keys= select? select->possible_keys: key_map(0);
   
   /*
     Ok, we have generated a query plan for the UPDATE.
