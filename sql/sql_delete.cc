@@ -59,6 +59,7 @@ void Delete_plan::save_explain_data(Explain_query *query)
   {
     explain->deleting_all_rows= true;
     explain->select_type= "SIMPLE";
+    explain->rows= table_rows;
   }
   else
   {
