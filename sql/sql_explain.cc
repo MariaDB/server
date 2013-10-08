@@ -778,7 +778,7 @@ int Explain_delete::print_explain(Explain_query *query,
     const char *msg= "Deleting all rows";
     int res= print_explain_message_line(output, explain_flags,
                                         1 /*select number*/,
-                                        select_type, msg);
+                                        select_type, &rows, msg);
     return res;
 
   }
@@ -797,11 +797,13 @@ int Explain_update::print_explain(Explain_query *query,
   if (impossible_where || no_partitions)
   {
     const char *msg= impossible_where ? 
-                     "Impossible where" : 
+                     "Impossible WHERE" : 
                      "No matching rows after partition pruning";
     int res= print_explain_message_line(output, explain_flags,
                                         1 /*select number*/,
-                                        select_type, msg);
+                                        select_type, 
+                                        NULL, /* rows */
+                                        msg);
     return res;
   }
 

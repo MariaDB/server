@@ -22222,6 +22222,7 @@ int print_explain_message_line(select_result_sink *result,
                                uint8 options,
                                uint select_number,
                                const char *select_type,
+                               ha_rows *rows,
                                const char *message)
 {
   const CHARSET_INFO *cs= system_charset_info;
@@ -22231,13 +22232,31 @@ int print_explain_message_line(select_result_sink *result,
   item_list.push_back(new Item_int((int32) select_number));
   item_list.push_back(new Item_string(select_type,
                                       strlen(select_type), cs));
-  for (uint i=0 ; i < 7; i++)
-    item_list.push_back(item_null);
+  /* `table` */
+  item_list.push_back(item_null);
+  
+  /* `partitions` */
   if (options & DESCRIBE_PARTITIONS)
     item_list.push_back(item_null);
+  
+  /* type, possible_keys, key, key_len, ref */
+  for (uint i=0 ; i < 5; i++)
+    item_list.push_back(item_null);
+
+  /* `rows` */
+  if (rows)
+  {
+    item_list.push_back(new Item_int(*rows, 
+                                     MY_INT64_NUM_DECIMAL_DIGITS));
+  }
+  else
+    item_list.push_back(item_null);
+
+  /* `filtered` */
   if (options & DESCRIBE_EXTENDED)
     item_list.push_back(item_null);
 
+  /* `Extra` */
   if (message)
     item_list.push_back(new Item_string(message,strlen(message),cs));
   else

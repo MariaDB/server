@@ -1852,6 +1852,7 @@ int print_explain_message_line(select_result_sink *result,
                                uint8 options,
                                uint select_number,
                                const char *select_type,
+                               ha_rows *rows,
                                const char *message);
 void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res);
 int print_explain_row(select_result_sink *result,
