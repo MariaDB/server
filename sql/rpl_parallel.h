@@ -76,6 +76,7 @@ struct rpl_parallel_entry {
 struct rpl_parallel {
   HASH domain_hash;
   rpl_parallel_entry *current;
+  bool sql_thread_stopping;
 
   rpl_parallel();
   ~rpl_parallel();
