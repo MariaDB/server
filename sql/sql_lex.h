@@ -2390,6 +2390,9 @@ public:
     select should not be shown when printing EXPLAIN.
   */
   bool updating_a_view;
+   
+  /* Allocate things there */
+  MEM_ROOT *mem_root;
 
   TABLE *table;
   SQL_SELECT *select;
@@ -2403,6 +2406,7 @@ public:
   
   key_map possible_keys;
   bool using_filesort;
+  bool using_io_buffer;
   
   /* Set this plan to be a plan to do nothing because of impossible WHERE */
   void set_impossible_where() { impossible_where= true; }
@@ -2412,8 +2416,10 @@ public:
   void save_explain_data_intern(Explain_query *query, Explain_update *eu);
   virtual ~Update_plan() {}
 
-  Update_plan() : 
-    impossible_where(false), no_partitions(false), using_filesort(false) 
+  Update_plan(MEM_ROOT *mem_root_arg) : 
+    impossible_where(false), no_partitions(false), 
+    mem_root(mem_root_arg), 
+    using_filesort(false), using_io_buffer(false)
   {}
 };
 
@@ -2425,8 +2431,10 @@ class Delete_plan : public Update_plan
 public:
 
   /* Construction functions */
-  Delete_plan() : 
-    deleting_all_rows(false)  {}
+  Delete_plan(MEM_ROOT *mem_root_arg) : 
+    Update_plan(mem_root_arg), 
+    deleting_all_rows(false)
+  {}
 
   /* Set this query plan to be a plan to make a call to h->delete_all_rows() */
   void set_delete_all_rows(ha_rows rows_arg) 

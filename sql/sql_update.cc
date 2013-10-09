@@ -276,7 +276,7 @@ int mysql_update(THD *thd,
   ulonglong     id;
   List<Item> all_fields;
   killed_state killed_status= NOT_KILLED;
-  Update_plan query_plan;
+  Update_plan query_plan(thd->mem_root);
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
   bool apc_target_enabled= false; // means was enabled *by code this function*
@@ -495,6 +495,17 @@ int mysql_update(THD *thd,
   query_plan.table_rows= table->file->stats.records;
   query_plan.possible_keys= select? select->possible_keys: key_map(0);
   
+  if (used_key_is_modified || order ||
+      partition_key_modified(table, table->write_set))
+  {
+    if (order && (need_sort || used_key_is_modified))
+      query_plan.using_filesort= true;
+    else
+      query_plan.using_io_buffer= true;
+  }
+
+  query_plan.save_explain_data(thd->lex->explain);
+
   /*
     Ok, we have generated a query plan for the UPDATE.
      - if we're running EXPLAIN UPDATE, goto produce explain output 
@@ -502,16 +513,12 @@ int mysql_update(THD *thd,
   */
   if (thd->lex->describe)
     goto exit_without_my_ok;
-
-  query_plan.save_explain_data(thd->lex->explain);
   thd->apc_target.enable();
   apc_target_enabled= true;
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
                   dbug_serve_apcs(thd, 1););
-
-
-  if (used_key_is_modified || order ||
-      partition_key_modified(table, table->write_set))
+  
+  if (query_plan.using_filesort || query_plan.using_io_buffer)
   {
     /*
       We can't update table directly;  We must first search after all
@@ -528,7 +535,7 @@ int mysql_update(THD *thd,
       table->use_all_columns();
 
     /* note: We avoid sorting if we sort on the used index */
-    if (order && (need_sort || used_key_is_modified))
+    if (query_plan.using_filesort)
     {
       /*
 	Doing an ORDER BY;  Let filesort find and sort the rows we are going
@@ -1034,7 +1041,6 @@ err:
 
 exit_without_my_ok:
   DBUG_ASSERT(!apc_target_enabled);
-  query_plan.save_explain_data(thd->lex->explain);
 
   int err2= thd->lex->explain->send_explain(thd);
 
