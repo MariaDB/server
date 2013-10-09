@@ -486,10 +486,13 @@ public:
   StringBuffer<128> key_len_str;
   StringBuffer<64> mrr_type;
   
+  Explain_quick_select *quick_info;
+
   bool using_where;
   ha_rows rows;
 
   bool using_filesort;
+  bool using_io_buffer;
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags);

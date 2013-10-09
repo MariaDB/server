@@ -793,6 +793,8 @@ int Explain_update::print_explain(Explain_query *query,
                                   select_result_sink *output,
                                   uint8 explain_flags)
 {
+  StringBuffer<64> key_buf;
+  StringBuffer<64> key_len_buf;
   StringBuffer<64> extra_str;
   if (impossible_where || no_partitions)
   {
@@ -807,8 +809,32 @@ int Explain_update::print_explain(Explain_query *query,
     return res;
   }
 
+  
+  if (quick_info)
+  {
+    quick_info->print_key(&key_buf);
+    quick_info->print_key_len(&key_len_buf);
+
+    StringBuffer<64> quick_buf;
+    quick_info->print_extra(&quick_buf);
+    if (quick_buf.length())
+    {
+      extra_str.append(STRING_WITH_LEN("Using "));
+      extra_str.append(quick_buf);
+    }
+  }
+  else
+  {
+    key_buf.copy(key_str);
+    key_len_buf.copy(key_len_str);
+  }
+
   if (using_where)
+  {
+    if (extra_str.length() !=0)
+      extra_str.append(STRING_WITH_LEN("; "));
     extra_str.append(STRING_WITH_LEN("Using where"));
+  }
 
   if (mrr_type.length() != 0)
   {
@@ -816,12 +842,19 @@ int Explain_update::print_explain(Explain_query *query,
       extra_str.append(STRING_WITH_LEN("; "));
     extra_str.append(mrr_type);
   }
-
+  
   if (using_filesort)
   {
     if (extra_str.length() !=0)
       extra_str.append(STRING_WITH_LEN("; "));
     extra_str.append(STRING_WITH_LEN("Using filesort"));
+  }
+
+  if (using_io_buffer)
+  {
+    if (extra_str.length() !=0)
+      extra_str.append(STRING_WITH_LEN("; "));
+    extra_str.append(STRING_WITH_LEN("Using buffer"));
   }
 
   /* 
@@ -836,8 +869,8 @@ int Explain_update::print_explain(Explain_query *query,
                     used_partitions_set? used_partitions.c_ptr() : NULL,
                     jtype,
                     possible_keys_line.length()? possible_keys_line.c_ptr(): NULL,
-                    key_str.length()? key_str.c_ptr() : NULL,
-                    key_len_str.length() ? key_len_str.c_ptr() : NULL,
+                    key_buf.length()? key_buf.c_ptr() : NULL,
+                    key_len_buf.length() ? key_len_buf.c_ptr() : NULL,
                     NULL, /* 'ref' is always NULL in single-table EXPLAIN DELETE */
                     &rows,
                     extra_str.c_ptr());
@@ -846,7 +879,8 @@ int Explain_update::print_explain(Explain_query *query,
 }
 
 
-int Explain_insert::print_explain(Explain_query *query, select_result_sink *output, 
+int Explain_insert::print_explain(Explain_query *query, 
+                                  select_result_sink *output, 
                                   uint8 explain_flags)
 {
   const char *select_type="INSERT";

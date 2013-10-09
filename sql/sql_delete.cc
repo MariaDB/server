@@ -142,14 +142,16 @@ void Update_plan::save_explain_data_intern(Explain_query *query,
 
   explain->using_where= test(select && select->cond);
   explain->using_filesort= using_filesort;
+  explain->using_io_buffer= using_io_buffer;
 
   make_possible_keys_line(table, possible_keys, &explain->possible_keys_line);
+
+  explain->quick_info= NULL;
 
   /* Calculate key_len */
   if (select && select->quick)
   {
-    select->quick->add_keys_and_lengths(&explain->key_str, 
-                                        &explain->key_len_str);
+    explain->quick_info= select->quick->get_explain(mem_root);
   }
   else
   {
@@ -218,7 +220,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   killed_state killed_status= NOT_KILLED;
   THD::enum_binlog_query_type query_type= THD::ROW_QUERY_TYPE;
   bool with_select= !select_lex->item_list.is_empty();
-  Delete_plan query_plan;
+  Delete_plan query_plan(thd->mem_root);
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
   DBUG_ENTER("mysql_delete");
