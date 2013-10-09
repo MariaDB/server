@@ -158,8 +158,11 @@ void Update_plan::save_explain_data_intern(Explain_query *query,
     if (index != MAX_KEY)
     {
       explain->key_str.append(table->key_info[index].name);
+      char buf[64];
+      size_t length;
+      length= longlong10_to_str(table->key_info[index].key_length, buf, 10) - buf;
+      explain->key_len_str.append(buf, length);
     }
-    // key_len stays NULL
   }
   explain->rows= scanned_rows;
 
