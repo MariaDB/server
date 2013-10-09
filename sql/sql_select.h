@@ -1833,7 +1833,8 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
                                SELECT_LEX *select_lex, uint8 select_options);
 
 uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
-                         ha_rows limit, bool *need_sort, bool *reverse);
+                         ha_rows limit, ha_rows *scanned_limit, 
+                         bool *need_sort, bool *reverse);
 ORDER *simple_remove_const(ORDER *order, COND *where);
 bool const_expression_in_where(COND *cond, Item *comp_item,
                                Field *comp_field= NULL,

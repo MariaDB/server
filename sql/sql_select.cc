@@ -24126,6 +24126,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   @param       table           Table to find a key
   @param       select          Pointer to access/update select->quick (if any)
   @param       limit           LIMIT clause parameter 
+  @param [out] scanned_limit   How many records we expect to scan
+                               Valid if *need_sort=FALSE.
   @param [out] need_sort       TRUE if filesort needed
   @param [out] reverse
     TRUE if the key is reversed again given ORDER (undefined if key == MAX_KEY)
@@ -24143,7 +24145,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
 */
 
 uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
-                         ha_rows limit, bool *need_sort, bool *reverse)
+                         ha_rows limit, ha_rows *scanned_limit,
+                         bool *need_sort, bool *reverse)
 {
   if (!order)
   {
@@ -24185,6 +24188,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
         {
           select->set_quick(reverse_quick);
           *need_sort= FALSE;
+          *scanned_limit= select->quick->records;
           return select->quick->index;
         }
         else
@@ -24213,6 +24217,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
         !is_key_used(table, key, table->write_set))
     {
       *need_sort= FALSE;
+      *scanned_limit= limit;
       *reverse= (direction < 0);
       return key;
     }
