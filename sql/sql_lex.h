@@ -2397,7 +2397,7 @@ public:
   TABLE *table;
   SQL_SELECT *select;
   uint index;
-  ha_rows table_rows; /* Use if select==NULL */
+  ha_rows scanned_rows;
   /*
     Top-level select_lex. Most of its fields are not used, we need it only to
     get to the subqueries.
@@ -2440,7 +2440,7 @@ public:
   void set_delete_all_rows(ha_rows rows_arg) 
   { 
     deleting_all_rows= true;
-    table_rows= rows_arg;
+    scanned_rows= rows_arg;
   }
 
   void save_explain_data(Explain_query *query);

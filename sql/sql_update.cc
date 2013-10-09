@@ -456,6 +456,7 @@ int mysql_update(THD *thd,
 
   table->update_const_key_parts(conds);
   order= simple_remove_const(order, conds);
+  query_plan.scanned_rows= select? select->records: table->file->stats.records;
         
   if (select && select->quick && select->quick->unique_key_range())
   { // Single row select (always "ordered"): Ok to use with key field UPDATE
@@ -465,8 +466,12 @@ int mysql_update(THD *thd,
   }
   else
   {
+    ha_rows scanned_limit= query_plan.scanned_rows;
     query_plan.index= get_index_for_order(order, table, select, limit,
-                                          &need_sort, &reverse);
+                                          &scanned_limit, &need_sort, &reverse);
+    if (!need_sort)
+      query_plan.scanned_rows= scanned_limit;
+
     if (select && select->quick)
     {
       DBUG_ASSERT(need_sort || query_plan.index == select->quick->index);
@@ -492,7 +497,6 @@ int mysql_update(THD *thd,
      - if we're running EXPLAIN UPDATE, get out
   */
   query_plan.select= select;
-  query_plan.table_rows= table->file->stats.records;
   query_plan.possible_keys= select? select->possible_keys: key_map(0);
   
   if (used_key_is_modified || order ||
@@ -504,7 +508,6 @@ int mysql_update(THD *thd,
       query_plan.using_io_buffer= true;
   }
 
-  query_plan.save_explain_data(thd->lex->explain);
 
   /*
     Ok, we have generated a query plan for the UPDATE.
@@ -513,6 +516,8 @@ int mysql_update(THD *thd,
   */
   if (thd->lex->describe)
     goto exit_without_my_ok;
+  query_plan.save_explain_data(thd->lex->explain);
+
   thd->apc_target.enable();
   apc_target_enabled= true;
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
@@ -1041,6 +1046,7 @@ err:
 
 exit_without_my_ok:
   DBUG_ASSERT(!apc_target_enabled);
+  query_plan.save_explain_data(thd->lex->explain);
 
   int err2= thd->lex->explain->send_explain(thd);
 

@@ -59,7 +59,7 @@ void Delete_plan::save_explain_data(Explain_query *query)
   {
     explain->deleting_all_rows= true;
     explain->select_type= "SIMPLE";
-    explain->rows= table_rows;
+    explain->rows= scanned_rows;
   }
   else
   {
@@ -161,7 +161,7 @@ void Update_plan::save_explain_data_intern(Explain_query *query,
     }
     // key_len stays NULL
   }
-  explain->rows= select ? select->records : table_rows;
+  explain->rows= scanned_rows;
 
   if (select && select->quick && 
       select->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
@@ -421,6 +421,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (options & OPTION_QUICK)
     (void) table->file->extra(HA_EXTRA_QUICK);
 
+  query_plan.scanned_rows= select? select->records: table->file->stats.records;
   if (order)
   {
     table->update_const_key_parts(conds);
@@ -432,14 +433,19 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       query_plan.index= MAX_KEY;
     }
     else
+    {
+      ha_rows scanned_limit= query_plan.scanned_rows;
       query_plan.index= get_index_for_order(order, table, select, limit,
+                                            &scanned_limit,
                                             &query_plan.using_filesort, 
                                             &reverse);
+      if (!query_plan.using_filesort)
+        query_plan.scanned_rows= scanned_limit;
+    }
   }
 
   query_plan.select= select;
   query_plan.possible_keys= select? select->possible_keys: key_map(0);
-  query_plan.table_rows= table->file->stats.records;
   
   /*
     Ok, we have generated a query plan for the DELETE.
