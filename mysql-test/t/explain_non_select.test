@@ -169,4 +169,3 @@ explain insert into t2 values
   (11, 1+(select max(a+1) from t1));
 
 drop table t1,t2;
-
