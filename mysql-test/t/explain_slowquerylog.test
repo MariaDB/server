@@ -35,3 +35,15 @@ SELECT 1;
 EXPLAIN PARTITIONS SELECT 1 ;
 
 
+--echo #
+--echo # MDEV-5106: Server crashes in Explain_union::print_explain on ER_TOO_BIG_SELECT with explain in slow log
+--echo #
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+(1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+SET max_join_size = 10;
+--error ER_TOO_BIG_SELECT
+( SELECT ta.* FROM t1 ta, t1 tb ) UNION ( SELECT * FROM t1 );
+SELECT 'Server still alive?' as 'Yes';
+
+DROP TABLE t1;

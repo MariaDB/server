@@ -157,6 +157,10 @@ bool print_explain_query(LEX *lex, THD *thd, String *str)
 }
 
 
+/* 
+  Return tabular EXPLAIN output as a text string
+*/
+
 bool Explain_query::print_explain_str(THD *thd, String *out_str)
 {
   List<Item> fields;

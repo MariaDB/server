@@ -630,7 +630,7 @@ bool st_select_lex_unit::exec()
   
   saved_error= optimize();
 
-  if (!was_executed && thd->lex->explain)
+  if (!saved_error && !was_executed && thd->lex->explain)
     save_union_explain(thd->lex->explain);
 
   if (uncacheable || !item || !item->assigned() || describe)
