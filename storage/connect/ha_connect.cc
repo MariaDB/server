@@ -1133,13 +1133,14 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
         break;
       } // endswitch xmode
 
-  if (xmod != MODE_INSERT) {
+  if (xmod != MODE_INSERT || tdbp->GetAmType() == TYPE_AM_ODBC
+                          || tdbp->GetAmType() == TYPE_AM_MYSQL) {
     // Get the list of used fields (columns)
     char        *p;
     unsigned int k1, k2, n1, n2;
     Field*      *field;
     Field*       fp;
-    MY_BITMAP   *map= table->read_set;
+    MY_BITMAP   *map= (xmod == MODE_INSERT) ? table->write_set : table->read_set;
     MY_BITMAP   *ump= (xmod == MODE_UPDATE) ? table->write_set : NULL;
 
     k1= k2= 0;
@@ -1374,7 +1375,8 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
          fp->option_struct->special)
       continue;            // Is a virtual column possible here ???
 
-    if (xmod == MODE_INSERT ||
+    if ((xmod == MODE_INSERT && tdbp->GetAmType() != TYPE_AM_MYSQL
+                             && tdbp->GetAmType() != TYPE_AM_ODBC) ||
         bitmap_is_set(table->write_set, fp->field_index)) {
       for (colp= tp->GetSetCols(); colp; colp= colp->GetNext())
         if (!stricmp(colp->GetName(), fp->field_name))
@@ -3464,7 +3466,7 @@ static bool add_field(String *sql, const char *field_name, int typ, int len,
 {
   bool error= false;
   const char *type= PLGtoMYSQLtype(typ, dbf);
-        type= PLGtoMYSQLtype(typ, true);
+//        type= PLGtoMYSQLtype(typ, true);         ?????
 
   error|= sql->append('`');
   error|= sql->append(field_name);
@@ -3948,7 +3950,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     else
       return HA_ERR_INTERNAL_ERROR;           // Should never happen
 
-    if (src && ttp != TAB_PIVOT) {
+    if (src && ttp != TAB_PIVOT && ttp != TAB_ODBC) {
       qrp= SrcColumns(g, host, db, user, pwd, src, port);
 
       if (qrp && ttp == TAB_OCCUR)
@@ -3966,7 +3968,12 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         switch (fnc) {
           case FNC_NO:
           case FNC_COL:
-            qrp= ODBCColumns(g, dsn, (char *) tab, NULL, fnc == FNC_COL);
+            if (src) {
+              qrp= ODBCSrcCols(g, dsn, (char*)src);
+              src= NULL;     // for next tests
+            } else 
+              qrp= ODBCColumns(g, dsn, (char *) tab, NULL, fnc == FNC_COL);
+
             break;
           case FNC_TABLE:
             qrp= ODBCTables(g, dsn, (char *) tab, true);
