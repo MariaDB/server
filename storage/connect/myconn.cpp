@@ -89,7 +89,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
   static unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 256, 32, 32};
   char   *fld, *fmt, cmd[128];
   int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
-  int    len, type, prec, rc, k = 0;
+  int     len, type, prec, rc, k = 0;
   PQRYRES qrp;
   PCOLRES crp;
   MYSQLC  myc;
