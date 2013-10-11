@@ -198,3 +198,24 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	SUBQUERY	t1	index	NULL	a	5	NULL	3	Using index
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 drop table t1,t2;
+#
+# MDEV-5122: "Commands out of sync", "Malformed packet" or client hang up on unique key violation
+#
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 't1'
+drop function if exists f1;
+create table t1 (a int, unique(a));
+create function f1(x int)
+returns int
+begin
+insert into t1 values(x),(x);
+return 10;
+end|
+select f1(100);
+ERROR 23000: Duplicate entry '100' for key 'a'
+select 'OK';
+OK
+OK
+drop function f1;
+drop table t1;
