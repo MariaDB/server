@@ -898,7 +898,8 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
         {
             wsrep_key_t* tmp;
             tmp= (wsrep_key_t*)my_realloc(
-                ka->keys, (ka->keys_len + 1) * sizeof(wsrep_key_t), MYF(0));
+       	        ka->keys, (ka->keys_len + 1) * sizeof(wsrep_key_t), 
+                MYF(MY_ALLOW_ZERO_PTR));
             if (!tmp)
             {
                 sql_print_error("Can't allocate memory for key_array");
