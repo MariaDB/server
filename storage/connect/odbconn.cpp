@@ -1,5 +1,5 @@
 /************ Odbconn C++ Functions Source Code File (.CPP) ************/
-/*  Name: ODBCONN.CPP  Version 1.6                                     */
+/*  Name: ODBCONN.CPP  Version 1.7                                     */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          1998-2013    */
 /*                                                                     */
@@ -229,7 +229,6 @@ static void ResetNullValues(CATPARM *cap)
 /***********************************************************************/
 /*  ODBCColumns: constructs the result blocks containing all columns   */
 /*  of an ODBC table that will be retrieved by GetData commands.       */
-/*  Note: The first two columns (Qualifier, Owner) are ignored.        */
 /***********************************************************************/
 PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
                                           char *colpat, bool info)
@@ -317,6 +316,17 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
   /************************************************************************/
   return qrp;
   } // end of ODBCColumns
+
+/**************************************************************************/
+/*  ODBCSrcCols: constructs the result blocks containing the              */
+/*  description of all the columns of a Srcdef option.                    */
+/**************************************************************************/
+PQRYRES ODBCSrcCols(PGLOBAL g, char *dsn, char *src)
+  {
+  ODBConn *ocp = new(g) ODBConn(g, NULL);
+
+  return ocp->GetMetaData(g, dsn, src);
+  } // end of ODBCSrcCols
 
 #if 0
 /**************************************************************************/
@@ -804,6 +814,17 @@ void DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
 
   } // end of BuildErrorMessage
 
+const char *DBX::GetErrorMessage(int i)
+  {
+    if (i < 0 || i >= MAX_NUM_OF_MSG)
+      return "No ODBC error";
+    else if (m_ErrMsg[i])
+      return m_ErrMsg[i];
+    else
+      return (m_Msg) ? m_Msg : "Unknown error";
+
+  } // end of GetErrorMessage
+
 /***********************************************************************/
 /*  ODBConn construction/destruction.                                  */
 /***********************************************************************/
@@ -822,7 +843,7 @@ ODBConn::ODBConn(PGLOBAL g, TDBODBC *tdbp)
   m_Catver = (tdbp) ? tdbp->Catver : 0;
   m_Connect = NULL;
   m_Updatable = true;
-//m_Transactions = false;
+  m_Transact = false;
   m_IDQuoteChar = '\'';
 //*m_ErrMsg = '\0';
   } // end of ODBConn
@@ -1208,8 +1229,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
   void    *buffer;
   bool     b;
   UWORD    n;
-  SWORD    ncol, len, tp;
-  SQLLEN   afrw;
+  SWORD    len, tp, ncol = 0;
   ODBCCOL *colp;
   RETCODE  rc;
   HSTMT    hstmt;
@@ -1244,26 +1264,44 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
     if (trace)
       htrc("ExecDirect hstmt=%p %.64s\n", hstmt, sql);
 
-    do {
-      rc = SQLExecDirect(hstmt, (PUCHAR)sql, SQL_NTS);
-      } while (rc == SQL_STILL_EXECUTING);
-
-    if (!Check(rc))
-      ThrowDBX(rc, "SQLExecDirect", hstmt);
-
-    do {
-      rc = SQLNumResultCols(hstmt, &ncol);
-      } while (rc == SQL_STILL_EXECUTING);
-
-    if (ncol == 0) {
-      // Update or Delete statement
-      rc = SQLRowCount(hstmt, &afrw);
+    if (m_Tdb->Srcdef) {
+      // Be sure this is a query returning a result set
+      do {
+        rc = SQLPrepare(hstmt, (PUCHAR)sql, SQL_NTS);
+        } while (rc == SQL_STILL_EXECUTING);
 
       if (!Check(rc))
-        ThrowDBX(rc, "SQLRowCount", hstmt);
+        ThrowDBX(rc, "SQLPrepare", hstmt);
 
-      return afrw;
-      } // endif ncol
+      if (!Check(rc = SQLNumResultCols(hstmt, &ncol)))
+        ThrowDBX(rc, "SQLNumResultCols", hstmt);
+
+      if (ncol == 0) {
+        strcpy(g->Message, "This Srcdef does not return a result set");
+        return -1;
+        } // endif ncol
+
+      // Ok, now we can proceed
+      do {
+        rc = SQLExecute(hstmt);
+        } while (rc == SQL_STILL_EXECUTING);
+
+      if (!Check(rc))
+        ThrowDBX(rc, "SQLExecute", hstmt);
+
+    } else {
+      do {
+        rc = SQLExecDirect(hstmt, (PUCHAR)sql, SQL_NTS);
+        } while (rc == SQL_STILL_EXECUTING);
+
+      if (!Check(rc))
+        ThrowDBX(rc, "SQLExecDirect", hstmt);
+
+      do {
+        rc = SQLNumResultCols(hstmt, &ncol);
+        } while (rc == SQL_STILL_EXECUTING);
+
+    } // endif Srcdef
 
     for (n = 0, colp = tocols; colp; colp = (PODBCCOL)colp->GetNext())
       if (!colp->IsSpecial())
@@ -1411,9 +1449,32 @@ int ODBConn::PrepareSQL(char *sql)
   {
   PGLOBAL& g = m_G;
   bool     b;
+  UINT     txn = 0;
   SWORD    nparm;
   RETCODE  rc;
   HSTMT    hstmt;
+
+  if (m_Tdb->GetMode() != MODE_READ) {
+    // Does the data source support transactions
+    rc = SQLGetInfo(m_hdbc, SQL_TXN_CAPABLE, &txn, 0, NULL);
+
+    if (Check(rc) && txn != SQL_TC_NONE) try {
+      rc = SQLSetConnectAttr(m_hdbc, SQL_ATTR_AUTOCOMMIT,
+                                     SQL_AUTOCOMMIT_OFF, SQL_IS_UINTEGER);
+      
+      if (!Check(rc))
+        ThrowDBX(SQL_INVALID_HANDLE, "SQLSetConnectAttr");
+
+      m_Transact = true;
+    } catch(DBX *x) {
+      if (trace)
+        for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
+          htrc(x->m_ErrMsg[i]);
+
+      strcpy(g->Message, x->GetErrorMessage(0));
+    } // end try/catch
+
+    } // endif Mode
 
   try {
     b = false;
@@ -1454,13 +1515,19 @@ int ODBConn::PrepareSQL(char *sql)
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
         htrc(x->m_ErrMsg[i]);
 
-    strcpy(m_G->Message, x->GetErrorMessage(0));
+    strcpy(g->Message, x->GetErrorMessage(0));
 
     if (b)
       SQLCancel(hstmt);
 
     rc = SQLFreeStmt(hstmt, SQL_DROP);
     m_hstmt = NULL;
+
+    if (m_Transact) {
+      rc = SQLEndTran(SQL_HANDLE_DBC, m_hdbc, SQL_ROLLBACK);
+      m_Transact = false;
+      } // endif m_Transact
+
     return -1;
   } // end try/catch
 
@@ -1469,27 +1536,59 @@ int ODBConn::PrepareSQL(char *sql)
   } // end of PrepareSQL
 
 /***********************************************************************/
-/*  Bind a parameter for inserting.                                    */
+/*  Execute a prepared statement.                                      */
 /***********************************************************************/
-bool ODBConn::ExecuteSQL(void)
+int ODBConn::ExecuteSQL(bool x)
   {
-  RETCODE rc;
+  PGLOBAL& g = m_G;
+  SWORD    ncol = 0;
+  RETCODE  rc;
+  SQLLEN   afrw = -1;
 
   try {
-    rc = SQLExecute(m_hstmt);
+    do {
+      rc = SQLExecute(m_hstmt);
+      } while (rc == SQL_STILL_EXECUTING);
 
     if (!Check(rc))
       ThrowDBX(rc, "SQLExecute", m_hstmt);
+
+    if (!Check(SQLNumResultCols(m_hstmt, &ncol)))
+      ThrowDBX(rc, "SQLNumResultCols", m_hstmt);
+
+    if (ncol) {
+      if (x) {
+        afrw = ncol;
+        strcpy(g->Message, "Result set column number");
+      } else {
+        // This should never happen while inserting
+        strcpy(g->Message, "Logical error while inserting");
+      } // endif ncol
+
+    } else {
+      // Insert, Update or Delete statement
+      if (!Check(SQLRowCount(m_hstmt, &afrw)))
+        ThrowDBX(rc, "SQLRowCount", m_hstmt);
+
+      if (x)
+        strcpy(g->Message, "Affected rows");
+
+    } // endif ncol
 
   } catch(DBX *x) {
     strcpy(m_G->Message, x->GetErrorMessage(0));
     SQLCancel(m_hstmt);
     rc = SQLFreeStmt(m_hstmt, SQL_DROP);
     m_hstmt = NULL;
-    return true;
+
+    if (m_Transact) {
+      rc = SQLEndTran(SQL_HANDLE_DBC, m_hdbc, SQL_ROLLBACK);
+      m_Transact = false;
+      } // endif m_Transact
+
   } // end try/catch
 
-  return false;
+  return (int)afrw;
   } // end of ExecuteSQL
 
 /***********************************************************************/
@@ -1540,6 +1639,132 @@ bool ODBConn::BindParam(ODBCCOL *colp)
 
   return false;
   } // end of BindParam
+
+/**************************************************************************/
+/*  GetMetaData: constructs the result blocks containing the              */
+/*  description of all the columns of an SQL command.                     */
+/**************************************************************************/
+PQRYRES ODBConn::GetMetaData(PGLOBAL g, char *dsn, char *src)
+  {
+  static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_INT,
+                          TYPE_SHORT,  TYPE_SHORT};
+  static XFLD fldtyp[] = {FLD_NAME,  FLD_TYPE, FLD_PREC,
+                          FLD_SCALE, FLD_NULL};
+  static unsigned int length[] = {0, 6, 10, 6, 6};
+  unsigned char cn[60];
+  int     qcol = 5;
+  short   nl, type, prec, nul, cns = (short)sizeof(cn);
+  PQRYRES qrp = NULL;
+  PCOLRES crp;
+  USHORT  i;
+  ULONG   n;
+  SWORD   ncol;
+  RETCODE rc;
+  HSTMT   hstmt;
+
+  if (Open(dsn, 2) < 1)        // 2 is openReadOnly
+    return NULL;
+
+  try {
+    rc = SQLAllocStmt(m_hdbc, &hstmt);
+
+    if (!Check(rc))
+      ThrowDBX(SQL_INVALID_HANDLE, "SQLAllocStmt");
+
+    OnSetOptions(hstmt);
+
+    do {
+      rc = SQLPrepare(hstmt, (PUCHAR)src, SQL_NTS);
+//    rc = SQLExecDirect(hstmt, (PUCHAR)src, SQL_NTS);
+      } while (rc == SQL_STILL_EXECUTING);
+
+    if (!Check(rc))
+      ThrowDBX(rc, "SQLExecDirect", hstmt);
+
+    do {
+      rc = SQLNumResultCols(hstmt, &ncol);
+      } while (rc == SQL_STILL_EXECUTING);
+
+    if (!Check(rc))
+      ThrowDBX(rc, "SQLNumResultCols", hstmt);
+
+    if (ncol) for (i = 1; i <= ncol; i++) {
+      do {
+        rc = SQLDescribeCol(hstmt, i, NULL, 0, &nl, NULL, NULL, NULL, NULL); 
+        } while (rc == SQL_STILL_EXECUTING);
+
+      if (!Check(rc))
+        ThrowDBX(rc, "SQLDescribeCol", hstmt);
+
+      length[0] = max(length[0], (UINT)nl);
+      } // endfor i
+
+  } catch(DBX *x) {
+    strcpy(g->Message, x->GetErrorMessage(0));
+    goto err;
+  } // end try/catch
+
+  if (!ncol) {
+    strcpy(g->Message, "Invalid Srcdef");
+    goto err;
+    } // endif ncol
+
+  /************************************************************************/
+  /*  Allocate the structures used to refer to the result set.            */
+  /************************************************************************/
+  qrp = PlgAllocResult(g, qcol, ncol, IDS_COLUMNS + 3,
+                          buftyp, fldtyp, length, false, true);
+
+  // Some columns must be renamed
+  for (i = 0, crp = qrp->Colresp; crp; crp = crp->Next)
+    switch (++i) {
+      case 3: crp->Name = "Precision"; break;
+      case 4: crp->Name = "Scale";     break;
+      case 5: crp->Name = "Nullable";  break;
+      } // endswitch i
+
+  /************************************************************************/
+  /*  Now get the results into blocks.                                    */
+  /************************************************************************/
+  try {
+    for (i = 0; i < ncol; i++) {
+      do {
+        rc = SQLDescribeCol(hstmt, i+1, cn, cns, &nl, &type, &n, &prec, &nul); 
+        } while (rc == SQL_STILL_EXECUTING);
+
+      if (!Check(rc))
+        ThrowDBX(rc, "SQLDescribeCol", hstmt);
+      else
+        qrp->Nblin++;
+
+      crp = qrp->Colresp;                    // Column_Name
+      crp->Kdata->SetValue((char*)cn, i);
+      crp = crp->Next;                       // Data_Type
+      crp->Kdata->SetValue(type, i);
+      crp = crp->Next;                       // Precision (length)
+      crp->Kdata->SetValue((int)n, i);
+      crp = crp->Next;                       // Scale
+      crp->Kdata->SetValue(prec, i);
+      crp = crp->Next;                       // Nullable
+      crp->Kdata->SetValue(nul, i);
+      } // endfor i
+
+  } catch(DBX *x) {
+    strcpy(g->Message, x->GetErrorMessage(0));
+    qrp = NULL;
+  } // end try/catch
+
+  /* Cleanup */
+ err:
+  SQLCancel(hstmt);
+  rc = SQLFreeStmt(hstmt, SQL_DROP);
+  Close();
+
+  /************************************************************************/
+  /*  Return the result pointer for use by GetData routines.              */
+  /************************************************************************/
+  return qrp;
+  } // end of GetMetaData
 
 /***********************************************************************/
 /*  Get the list of Data Sources and set it in qrp.                    */
@@ -1844,6 +2069,11 @@ void ODBConn::Close()
     } // endif m_hstmt
 
   if (m_hdbc != SQL_NULL_HDBC) {
+    if (m_Transact) {
+      rc = SQLEndTran(SQL_HANDLE_DBC, m_hdbc, SQL_COMMIT);
+      m_Transact = false;
+      } // endif m_Transact
+
     rc = SQLDisconnect(m_hdbc);
 
     if (trace && rc != SQL_SUCCESS)
