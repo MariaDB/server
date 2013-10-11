@@ -1657,7 +1657,7 @@ PQRYRES ODBConn::GetMetaData(PGLOBAL g, char *dsn, char *src)
   PQRYRES qrp = NULL;
   PCOLRES crp;
   USHORT  i;
-  ULONG   n;
+  SQLULEN n;
   SWORD   ncol;
   RETCODE rc;
   HSTMT   hstmt;
