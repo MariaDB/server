@@ -91,8 +91,7 @@ class DBX : public BLOCK {
   // Implementation (use ThrowDBX to create)
   RETCODE GetRC(void) {return m_RC;}
   PSZ     GetMsg(void) {return m_Msg;}
-  const char *GetErrorMessage(int i)
-  {return (i >=0 && i < MAX_NUM_OF_MSG) ? m_ErrMsg[i] : "No ODBC error";}
+  const char *GetErrorMessage(int i);
 
  protected:
   void    BuildErrorMessage(ODBConn* pdb, HSTMT hstmt = SQL_NULL_HSTMT);
@@ -107,6 +106,7 @@ class DBX : public BLOCK {
 /*  ODBConn class.                                                     */
 /***********************************************************************/
 class ODBConn : public BLOCK {
+  friend class TDBODBC;
   friend class DBX;
   friend PQRYRES GetColumnInfo(PGLOBAL, char*&, char *, int, PVBLK&);
  private:
@@ -142,11 +142,12 @@ class ODBConn : public BLOCK {
   int  ExecDirectSQL(char *sql, ODBCCOL *tocols);
   int  Fetch(void);
   int  PrepareSQL(char *sql);
-  bool ExecuteSQL(void);
+  int  ExecuteSQL(bool x);
   bool BindParam(ODBCCOL *colp);
   int  GetCatInfo(CATPARM *cap);
   bool GetDataSources(PQRYRES qrp);
   bool GetDrivers(PQRYRES qrp);
+  PQRYRES GetMetaData(PGLOBAL g, char *dsn, char *src);
 
  public:
   // Set special options
@@ -185,5 +186,6 @@ class ODBConn : public BLOCK {
   int      m_Catver;
   PSZ      m_Connect;
   bool     m_Updatable;
+  bool     m_Transact;
   char     m_IDQuoteChar;
   }; // end of ODBConn class definition
