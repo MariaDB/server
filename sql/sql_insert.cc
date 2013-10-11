@@ -819,8 +819,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   save_insert_query_plan(thd, table_list);
   if (thd->lex->describe)
   {
-    retval= 0;
-    goto exit_without_my_ok;
+    retval= thd->lex->explain->send_explain(thd);
+    goto free_and_exit;
   }
 
   /*
@@ -1170,15 +1170,14 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   DBUG_RETURN(FALSE);
 
 abort:
-exit_without_my_ok:
 #ifndef EMBEDDED_LIBRARY
   if (lock_type == TL_WRITE_DELAYED)
     end_delayed_insert(thd);
 #endif
   if (table != NULL)
     table->file->ha_release_auto_increment();
-  retval= thd->lex->explain->send_explain(thd);
 
+free_and_exit:
   if (!joins_freed)
     free_underlaid_joins(thd, &thd->lex->select_lex);
   thd->abort_on_warning= 0;

@@ -169,3 +169,32 @@ explain insert into t2 values
   (11, 1+(select max(a+1) from t1));
 
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-5122: "Commands out of sync", "Malformed packet" or client hang up on unique key violation
+--echo #
+drop table if exists t1;
+
+--disable_warnings
+drop function if exists f1;
+--enable_warnings
+
+create table t1 (a int, unique(a));
+
+delimiter |;
+create function f1(x int)
+  returns int
+begin
+  insert into t1 values(x),(x);
+  return 10;
+end|
+delimiter ;|
+
+--error ER_DUP_ENTRY
+select f1(100);
+select 'OK';
+
+drop function f1;
+drop table t1;
+
+
