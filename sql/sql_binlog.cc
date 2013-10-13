@@ -99,6 +99,7 @@ void mysql_client_binlog_statement(THD* thd)
   }
   if (!(rgi= thd->rgi_fake))
     rgi= thd->rgi_fake= new rpl_group_info(rli);
+  rgi->thd= thd;
 
   const char *error= 0;
   char *buf= (char *) my_malloc(decoded_len, MYF(MY_WME));
@@ -115,7 +116,7 @@ void mysql_client_binlog_statement(THD* thd)
     goto end;
   }
 
-  rli->sql_thd= thd;
+  rli->sql_driver_thd= thd;
   rli->no_storage= TRUE;
 
   for (char const *strptr= thd->lex->comment.str ;
@@ -200,8 +201,6 @@ void mysql_client_binlog_statement(THD* thd)
         }
       }
 
-      rgi->rli= rli;
-      rgi->thd= thd;
       ev= Log_event::read_log_event(bufptr, event_len, &error,
                                     rli->relay_log.description_event_for_exec,
                                     0);

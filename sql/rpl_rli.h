@@ -59,14 +59,14 @@ class Relay_log_info : public Slave_reporting_capability
 {
 public:
   /**
-     Flags for the state of the replication.
-   */
+     Flags for the state of reading the relay log. Note that these are
+     bit masks.
+  */
   enum enum_state_flag {
-    /** The replication thread is inside a statement */
-    IN_STMT,
-
-    /** Flag counter.  Should always be last */
-    STATE_FLAGS_COUNT
+    /** We are inside a group of events forming a statement */
+    IN_STMT=1,
+    /** We have inside a transaction */
+    IN_TRANSACTION=2
   };
 
   /*
@@ -131,9 +131,14 @@ public:
   IO_CACHE info_file;
 
   /*
-    When we restart slave thread we need to have access to the previously
-    created temporary tables. Modified only on init/end and by the SQL
-    thread, read only by SQL thread.
+    List of temporary tables used by this connection.
+    This is updated when a temporary table is created or dropped by
+    a replication thread.
+
+    Not reset when replication ends, to allow one to access the tables
+    when replication restarts.
+
+    Protected by data_lock.
   */
   TABLE *save_temporary_tables;
 
@@ -141,13 +146,13 @@ public:
     standard lock acquisition order to avoid deadlocks:
     run_lock, data_lock, relay_log.LOCK_log, relay_log.LOCK_index
   */
-  mysql_mutex_t data_lock, run_lock, sleep_lock;
+  mysql_mutex_t data_lock, run_lock;
   /*
     start_cond is broadcast when SQL thread is started
     stop_cond - when stopped
     data_cond - when data protected by data_lock changes
   */
-  mysql_cond_t start_cond, stop_cond, data_cond, sleep_cond;
+  mysql_cond_t start_cond, stop_cond, data_cond;
   /* parent Master_info structure */
   Master_info *mi;
 
@@ -164,8 +169,8 @@ public:
       - an autocommiting query + its associated events (INSERT_ID,
     TIMESTAMP...)
     We need these rli coordinates :
-    - relay log name and position of the beginning of the group we currently are
-    executing. Needed to know where we have to restart when replication has
+    - relay log name and position of the beginning of the group we currently
+    are executing. Needed to know where we have to restart when replication has
     stopped in the middle of a group (which has been rolled back by the slave).
     - relay log name and position just after the event we have just
     executed. This event is part of the current group.
@@ -239,7 +244,13 @@ public:
   ulong max_relay_log_size;
   mysql_mutex_t log_space_lock;
   mysql_cond_t log_space_cond;
-  THD * sql_thd;
+  /*
+    THD for the main sql thread, the one that starts threads to process
+    slave requests. If there is only one thread, then this THD is also
+    used for SQL processing.
+    A kill sent to this THD will kill the replication.
+  */
+  THD *sql_driver_thd;
 #ifndef DBUG_OFF
   int events_till_abort;
 #endif  
@@ -399,6 +410,25 @@ public:
                  time_t event_creation_time, THD *thd,
                  rpl_group_info *rgi);
 
+  /**
+     Is the replication inside a group?
+
+     The reader of the relay log is inside a group if either:
+     - The IN_TRANSACTION flag is set, meaning we're inside a transaction
+     - The IN_STMT flag is set, meaning we have read at least one row from
+       a multi-event entry.
+
+     This flag reflects the state of the log 'just now', ie after the last
+     read event would be executed.
+     This allow us to test if we can stop replication before reading
+     the next entry.
+
+     @retval true Replication thread is currently inside a group
+     @retval false Replication thread is currently not inside a group
+   */
+  bool is_in_group() const {
+    return (m_flags & (IN_STMT | IN_TRANSACTION));
+  }
 
   /**
      Set the value of a replication state flag.
@@ -407,7 +437,7 @@ public:
    */
   void set_flag(enum_state_flag flag)
   {
-    m_flags |= (1UL << flag);
+    m_flags|= flag;
   }
 
   /**
@@ -419,7 +449,7 @@ public:
    */
   bool get_flag(enum_state_flag flag)
   {
-    return m_flags & (1UL << flag);
+    return m_flags & flag;
   }
 
   /**
@@ -429,22 +459,7 @@ public:
    */
   void clear_flag(enum_state_flag flag)
   {
-    m_flags &= ~(1UL << flag);
-  }
-
-  /**
-     Is the replication inside a group?
-
-     Replication is inside a group if either:
-     - The OPTION_BEGIN flag is set, meaning we're inside a transaction
-     - The RLI_IN_STMT flag is set, meaning we're inside a statement
-
-     @retval true Replication thread is currently inside a group
-     @retval false Replication thread is currently not inside a group
-   */
-  bool is_in_group() const {
-    return (sql_thd->variables.option_bits & OPTION_BEGIN) ||
-      (m_flags & (1UL << IN_STMT));
+    m_flags&= ~flag;
   }
 
   time_t get_row_stmt_start_timestamp()
@@ -482,7 +497,12 @@ public:
 
 private:
 
-  /* ToDo: This must be moved to rpl_group_info. */
+  /*
+    Holds the state of the data in the relay log.
+    We need this to ensure that we are not in the middle of a
+    statement or inside BEGIN ... COMMIT when should rotate the
+    relay log.
+  */
   uint32 m_flags;
 
   /*
@@ -503,8 +523,11 @@ private:
   together.
 
   In parallel replication, there will be one rpl_group_info object for
-  each running thd. All rpl_group_info will share the same Relay_log_info.
+  each running sql thread, each having their own thd.
+
+  All rpl_group_info will share the same Relay_log_info.
 */
+
 struct rpl_group_info
 {
   Relay_log_info *rli;
@@ -566,6 +589,8 @@ struct rpl_group_info
   RPL_TABLE_LIST *tables_to_lock;           /* RBR: Tables to lock  */
   uint tables_to_lock_count;        /* RBR: Count of tables to lock */
   table_mapping m_table_map;      /* RBR: Mapping table-id to table */
+  mysql_mutex_t sleep_lock;
+  mysql_cond_t sleep_cond;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();

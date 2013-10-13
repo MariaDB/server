@@ -5597,6 +5597,24 @@ THD::signal_wakeup_ready()
 }
 
 
+void THD::rgi_lock_temporary_tables()
+{
+  mysql_mutex_lock(&rgi_slave->rli->data_lock);
+  temporary_tables= rgi_slave->rli->save_temporary_tables;
+}
+
+void THD::rgi_unlock_temporary_tables()
+{
+  rgi_slave->rli->save_temporary_tables= temporary_tables;
+  mysql_mutex_unlock(&rgi_slave->rli->data_lock);
+}
+
+bool THD::rgi_have_temporary_tables()
+{
+  return rgi_slave->rli->save_temporary_tables != 0;
+}
+
+
 wait_for_commit::wait_for_commit()
   : subsequent_commits_list(0), next_subsequent_commit(0), waitee(0),
     opaque_pointer(0),

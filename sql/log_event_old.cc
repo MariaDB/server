@@ -205,17 +205,6 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
     /* A small test to verify that objects have consistent types */
     DBUG_ASSERT(sizeof(ev_thd->variables.option_bits) == sizeof(OPTION_RELAXED_UNIQUE_CHECKS));
 
-    /*
-      Now we are in a statement and will stay in a statement until we
-      see a STMT_END_F.
-
-      We set this flag here, before actually applying any rows, in
-      case the SQL thread is stopped and we need to detect that we're
-      inside a statement and halting abruptly might cause problems
-      when restarting.
-     */
-    const_cast<Relay_log_info*>(rli)->set_flag(Relay_log_info::IN_STMT);
-
     error= do_before_row_operations(table);
     while (error == 0 && row_start < ev->m_rows_end)
     {
@@ -1613,17 +1602,6 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
     /* A small test to verify that objects have consistent types */
     DBUG_ASSERT(sizeof(thd->variables.option_bits) == sizeof(OPTION_RELAXED_UNIQUE_CHECKS));
 
-    /*
-      Now we are in a statement and will stay in a statement until we
-      see a STMT_END_F.
-
-      We set this flag here, before actually applying any rows, in
-      case the SQL thread is stopped and we need to detect that we're
-      inside a statement and halting abruptly might cause problems
-      when restarting.
-     */
-    const_cast<Relay_log_info*>(rli)->set_flag(Relay_log_info::IN_STMT);
-
      if ( m_width == table->s->fields && bitmap_is_set_all(&m_cols))
       set_flags(COMPLETE_ROWS_F);
 
@@ -1820,17 +1798,17 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
 
 
 Log_event::enum_skip_reason
-Old_rows_log_event::do_shall_skip(Relay_log_info *rli)
+Old_rows_log_event::do_shall_skip(rpl_group_info *rgi)
 {
   /*
     If the slave skip counter is 1 and this event does not end a
     statement, then we should not start executing on the next event.
     Otherwise, we defer the decision to the normal skipping logic.
   */
-  if (rli->slave_skip_counter == 1 && !get_flags(STMT_END_F))
+  if (rgi->rli->slave_skip_counter == 1 && !get_flags(STMT_END_F))
     return Log_event::EVENT_SKIP_IGNORE;
   else
-    return Log_event::do_shall_skip(rli);
+    return Log_event::do_shall_skip(rgi);
 }
 
 int

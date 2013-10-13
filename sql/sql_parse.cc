@@ -3955,6 +3955,7 @@ end_with_restore_list:
     break;
 
   case SQLCOM_BEGIN:
+    DBUG_PRINT("info", ("Executing SQLCOM_BEGIN  thd: %p", thd));
     if (trans_begin(thd, lex->start_transaction_opt))
       goto error;
     my_ok(thd);

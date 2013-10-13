@@ -6554,9 +6554,6 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   the commit and wake them up. This way, all transactions in the queue get
   committed in a single disk operation.
 
-  The return value of this function is TRUE if queued as the first entry in
-  the queue (meaning this is the leader), FALSE otherwise.
-
   The main work in this function is when the commit in one transaction has
   been marked to wait for the commit of another transaction to happen
   first. This is used to support in-order parallel replication, where
@@ -6570,6 +6567,10 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   transactions already prepared to commit but just waiting for the first one
   to commit. If so, we add those to the queue as well, transitively for all
   waiters.
+
+  @retval  TRUE   If queued as the first entry in the queue (meaning this
+                  is the leader)
+  @retval FALSE   Otherwise                  
 */
 
 bool
@@ -6657,7 +6658,11 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     The end result is a breath-first traversal of the tree of waiters,
     re-using the next_subsequent_commit pointers in place of extra stack
     space in a recursive traversal.
+
+    The temporary list created in next_subsequent_commit is not
+    used by the caller or any other function.
   */
+
   list= wfc;
   cur= list;
   last= list;
@@ -7239,6 +7244,7 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   Note that this function may release and re-acquire LOCK_log and
   LOCK_prepare_ordered if it needs to wait.
 */
+
 void
 MYSQL_BIN_LOG::wait_for_sufficient_commits()
 {

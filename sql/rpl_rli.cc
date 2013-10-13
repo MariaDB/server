@@ -56,7 +56,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
 #endif
    group_master_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
    last_master_timestamp(0), slave_skip_counter(0),
-   abort_pos_wait(0), slave_run_id(0), sql_thd(0),
+   abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
    inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
    last_event_start_time(0), m_flags(0),
@@ -85,12 +85,10 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
                    &data_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_relay_log_info_log_space_lock,
                    &log_space_lock, MY_MUTEX_INIT_FAST);
-  mysql_mutex_init(key_relay_log_info_sleep_lock, &sleep_lock, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_relay_log_info_data_cond, &data_cond, NULL);
   mysql_cond_init(key_relay_log_info_start_cond, &start_cond, NULL);
   mysql_cond_init(key_relay_log_info_stop_cond, &stop_cond, NULL);
   mysql_cond_init(key_relay_log_info_log_space_cond, &log_space_cond, NULL);
-  mysql_cond_init(key_relay_log_info_sleep_cond, &sleep_cond, NULL);
   relay_log.init_pthread_objects();
   DBUG_VOID_RETURN;
 }
@@ -103,12 +101,10 @@ Relay_log_info::~Relay_log_info()
   mysql_mutex_destroy(&run_lock);
   mysql_mutex_destroy(&data_lock);
   mysql_mutex_destroy(&log_space_lock);
-  mysql_mutex_destroy(&sleep_lock);
   mysql_cond_destroy(&data_cond);
   mysql_cond_destroy(&start_cond);
   mysql_cond_destroy(&stop_cond);
   mysql_cond_destroy(&log_space_cond);
-  mysql_cond_destroy(&sleep_cond);
   relay_log.cleanup();
   DBUG_VOID_RETURN;
 }
@@ -523,6 +519,8 @@ int init_relay_log_pos(Relay_log_info* rli,const char* log,
   }
 
   rli->group_relay_log_pos = rli->event_relay_log_pos = pos;
+  rli->clear_flag(Relay_log_info::IN_STMT);
+  rli->clear_flag(Relay_log_info::IN_TRANSACTION);
 
   /*
     Test to see if the previous run was with the skip of purging
@@ -935,6 +933,9 @@ void Relay_log_info::close_temporary_tables()
   for (table=save_temporary_tables ; table ; table=next)
   {
     next=table->next;
+
+    /* Reset in_use as the table may have been created by another thd */
+    table->in_use=0;
     /*
       Don't ask for disk deletion. For now, anyway they will be deleted when
       slave restarts, but it is a better intention to not delete them.
@@ -1094,9 +1095,9 @@ bool Relay_log_info::is_until_satisfied(THD *thd, Log_event *ev)
         !replicate_same_server_id)
       DBUG_RETURN(FALSE);
     log_name= group_master_log_name;
-    log_pos= (!ev)? group_master_log_pos :
-      ((thd->variables.option_bits & OPTION_BEGIN || !ev->log_pos) ?
-       group_master_log_pos : ev->log_pos - ev->data_written);
+    log_pos= ((!ev)? group_master_log_pos :
+              (get_flag(IN_TRANSACTION) || !ev->log_pos) ?
+              group_master_log_pos : ev->log_pos - ev->data_written);
   }
   else
   { /* until_condition == UNTIL_RELAY_POS */
@@ -1195,7 +1196,7 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
 #ifndef DBUG_OFF
   extern uint debug_not_change_ts_if_art_event;
 #endif
-  clear_flag(IN_STMT);
+  DBUG_ENTER("Relay_log_info::stmt_done");
 
   DBUG_ASSERT(rgi->rli == this);
   /*
@@ -1203,6 +1204,9 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
     inc_event_relay_log_pos(). We only have to check for OPTION_BEGIN
     (not OPTION_NOT_AUTOCOMMIT) as transactions are logged with
     BEGIN/COMMIT, not with SET AUTOCOMMIT= .
+
+    We can't use rgi->rli->get_flag(IN_TRANSACTION) here as OPTION_BEGIN
+    is also used for single row transactions.
 
     CAUTION: opt_using_transactions means innodb || bdb ; suppose the
     master supports InnoDB and BDB, but the slave supports only BDB,
@@ -1221,7 +1225,8 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
     middle of the "transaction". START SLAVE will resume at BEGIN
     while the MyISAM table has already been updated.
   */
-  if ((rgi->thd->variables.option_bits & OPTION_BEGIN) && opt_using_transactions)
+  if ((rgi->thd->variables.option_bits & OPTION_BEGIN) &&
+      opt_using_transactions)
     inc_event_relay_log_pos();
   else
   {
@@ -1255,6 +1260,7 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
           IF_DBUG(debug_not_change_ts_if_art_event > 0, 1)))
         last_master_timestamp= event_creation_time;
   }
+  DBUG_VOID_RETURN;
 }
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
@@ -1417,12 +1423,17 @@ rpl_group_info::rpl_group_info(Relay_log_info *rli_)
     tables_to_lock_count(0)
 {
   bzero(&current_gtid, sizeof(current_gtid));
+  mysql_mutex_init(key_rpl_group_info_sleep_lock, &sleep_lock,
+                   MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_rpl_group_info_sleep_cond, &sleep_cond, NULL);
 }
 
 
 rpl_group_info::~rpl_group_info()
 {
   free_annotate_event();
+  mysql_mutex_destroy(&sleep_lock);
+  mysql_cond_destroy(&sleep_cond);
 }
 
 
@@ -1492,7 +1503,8 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
 void rpl_group_info::cleanup_context(THD *thd, bool error)
 {
   DBUG_ENTER("Relay_log_info::cleanup_context");
-
+  DBUG_PRINT("enter", ("error: %d", (int) error));
+  
   DBUG_ASSERT(this->thd == thd);
   /*
     1) Instances of Table_map_log_event, if ::do_apply_event() was called on them,
@@ -1514,9 +1526,20 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
   m_table_map.clear_tables();
   slave_close_thread_tables(thd);
   if (error)
+  {
     thd->mdl_context.release_transactional_locks();
-  /* ToDo: This must clear the flag in rgi, not rli. */
-  rli->clear_flag(Relay_log_info::IN_STMT);
+
+    if (thd == rli->sql_driver_thd)
+    {
+      /*
+        Reset flags. This is needed to handle incident events and errors in
+        the relay log noticed by the sql driver thread.
+      */
+      rli->clear_flag(Relay_log_info::IN_STMT);
+      rli->clear_flag(Relay_log_info::IN_TRANSACTION);
+    }
+  }
+
   /*
     Cleanup for the flags that have been set at do_apply_event.
   */

@@ -65,6 +65,7 @@ int
 rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
 {
   uint64 sub_id;
+  DBUG_ENTER("rpl_slave_state::record_and_update_gtid");
 
   /*
     Update the GTID position, if we have it and did not already update
@@ -74,10 +75,10 @@ rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
   {
     rgi->gtid_sub_id= 0;
     if (record_gtid(thd, &rgi->current_gtid, sub_id, false, false))
-      return 1;
+      DBUG_RETURN(1);
     update_state_hash(sub_id, &rgi->current_gtid);
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
@@ -310,6 +311,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   element *elem;
   ulonglong thd_saved_option= thd->variables.option_bits;
   Query_tables_list lex_backup;
+  DBUG_ENTER("record_gtid");
 
   if (unlikely(!loaded))
   {
@@ -320,7 +322,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
       We already complained loudly about this, but we can try to continue
       until the DBA fixes it.
     */
-    return 0;
+    DBUG_RETURN(0);
   }
 
   if (!in_statement)
@@ -329,7 +331,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   DBUG_EXECUTE_IF("gtid_inject_record_gtid",
                   {
                     my_error(ER_CANNOT_UPDATE_GTID_STATE, MYF(0));
-                    return 1;
+                    DBUG_RETURN(1);
                   } );
 
   thd->lex->reset_n_backup_query_tables_list(&lex_backup);
@@ -347,8 +349,11 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
 
   table->no_replicate= 1;
   if (!in_transaction)
+  {
+    DBUG_PRINT("info", ("resetting OPTION_BEGIN"));
     thd->variables.option_bits&=
       ~(ulonglong)(OPTION_NOT_AUTOCOMMIT|OPTION_BEGIN);
+  }
 
   bitmap_set_all(table->write_set);
 
@@ -457,7 +462,7 @@ end:
   }
   thd->lex->restore_backup_query_tables_list(&lex_backup);
   thd->variables.option_bits= thd_saved_option;
-  return err;
+  DBUG_RETURN(err);
 }
 
 
