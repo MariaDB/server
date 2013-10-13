@@ -43,11 +43,6 @@
      slave rolls back the transaction; parallel execution needs to be able
      to deal with this wrt. commit_orderer and such.
 
-   - Relay_log_info::is_in_group(). This needs to be handled correctly in all
-     callers. I think it needs to be split into two, one version in
-     Relay_log_info to be used from next_event() in slave.cc, one to be used in
-     per-transaction stuff.
-
    - We should fail if we connect to the master with opt_slave_parallel_threads
      greater than zero and master does not support GTID. Just to avoid a bunch
      of potential problems, we won't be able to do any parallel replication
@@ -71,6 +66,7 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
 
   /* ToDo: Access to thd, and what about rli, split out a parallel part? */
   mysql_mutex_lock(&rli->data_lock);
+  qev->ev->thd= thd;
   err= apply_event_and_update_pos(qev->ev, thd, rgi, rpt);
   thd->rgi_slave= NULL;
   /* ToDo: error handling. */
@@ -234,8 +230,8 @@ handle_rpl_parallel_thread(void *arg)
         ((group_standalone && !Log_event::is_part_of_group(event_type)) ||
          event_type == XID_EVENT ||
          (event_type == QUERY_EVENT &&
-          (!strcmp("COMMIT", ((Query_log_event *)events->ev)->query) ||
-           !strcmp("ROLLBACK", ((Query_log_event *)events->ev)->query))));
+          (((Query_log_event *)events->ev)->is_commit() ||
+           ((Query_log_event *)events->ev)->is_rollback())));
 
       delete_or_keep_event_post_apply(rgi, event_type, events->ev);
       my_free(events);
@@ -612,6 +608,11 @@ rpl_parallel::wait_for_done()
 }
 
 
+/*
+  do_event() is executed by the sql_driver_thd thread.
+  It's main purpose is to find a thread that can exectue the query.
+*/
+
 bool
 rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
 {
@@ -718,9 +719,9 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
       if (!cur_thread)
       {
         /*
-          Nothing else is currently running in this domain. We can spawn a new
-          thread to do this event group in parallel with anything else that might
-          be running in other domains.
+          Nothing else is currently running in this domain. We can
+          spawn a new thread to do this event group in parallel with
+          anything else that might be running in other domains.
         */
         cur_thread= e->rpl_thread= global_rpl_thread_pool.get_thread(e);
         /* get_thread() returns with the LOCK_rpl_thread locked. */

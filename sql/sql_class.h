@@ -3371,6 +3371,27 @@ private:
   bool wakeup_ready;
   mysql_mutex_t LOCK_wakeup_ready;
   mysql_cond_t COND_wakeup_ready;
+
+  /* Protect against add/delete of temporary tables in parallel replication */
+  void rgi_lock_temporary_tables();
+  void rgi_unlock_temporary_tables();
+  bool rgi_have_temporary_tables();
+public:
+  inline void lock_temporary_tables()
+  {
+    if (rgi_slave)
+      rgi_lock_temporary_tables();
+  }
+  inline void unlock_temporary_tables()
+  {
+    if (rgi_slave)
+      rgi_unlock_temporary_tables();
+  }    
+  inline bool have_temporary_tables()
+  {
+    return (temporary_tables ||
+            (rgi_slave && rgi_have_temporary_tables()));
+  }
 };
 
 

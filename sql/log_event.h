@@ -1342,9 +1342,9 @@ public:
 
      @see do_shall_skip
    */
-  enum_skip_reason shall_skip(Relay_log_info *rli)
+  enum_skip_reason shall_skip(rpl_group_info *rgi)
   {
-    return do_shall_skip(rli);
+    return do_shall_skip(rgi);
   }
 
 
@@ -1352,6 +1352,7 @@ public:
     Check if an event is non-final part of a stand-alone event group,
     such as Intvar_log_event (such events should be processed as part
     of the following event group, not individually).
+    See also is_part_of_group()
   */
   static bool is_part_of_group(enum Log_event_type ev_type)
   {
@@ -1375,6 +1376,11 @@ public:
       return false;
     }
   }
+  /*
+    Same as above, but works on the object. In addition this is true for all
+    rows event except the last one.
+  */
+  virtual bool is_part_of_group() { return 0; }
 
   static bool is_group_event(enum Log_event_type ev_type)
   {
@@ -1408,14 +1414,14 @@ protected:
 
      A typical usage is:
      @code
-     enum_skip_reason do_shall_skip(Relay_log_info *rli) {
-       return continue_group(rli);
+     enum_skip_reason do_shall_skip(rpl_group_info *rgi) {
+       return continue_group(rgi);
      }
      @endcode
 
      @return Skip reason
    */
-  enum_skip_reason continue_group(Relay_log_info *rli);
+  enum_skip_reason continue_group(rpl_group_info *rgi);
 
   /**
     Primitive to apply an event to the database.
@@ -1493,7 +1499,7 @@ protected:
      The event shall be skipped because the slave skip counter was
      non-zero. The caller shall decrease the counter by one.
    */
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -1985,7 +1991,7 @@ public:
 
 public:        /* !!! Public in this patch to allow old usage */
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
   virtual int do_apply_event(rpl_group_info *rgi);
   virtual int do_update_pos(rpl_group_info *rgi);
 
@@ -2017,6 +2023,9 @@ public:        /* !!! Public in this patch to allow old usage */
       !strncasecmp(query, "SAVEPOINT", 9) ||
       !strncasecmp(query, "ROLLBACK", 8);
   }
+  bool is_begin()    { return !strcmp(query, "BEGIN"); }
+  bool is_commit()   { return !strcmp(query, "COMMIT"); }
+  bool is_rollback() { return !strcmp(query, "ROLLBACK"); }
 };
 
 
@@ -2501,7 +2510,7 @@ public:
 protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info*)
+  virtual enum_skip_reason do_shall_skip(rpl_group_info*)
   {
     /*
       Events from ourself should be skipped, but they should not
@@ -2598,7 +2607,7 @@ protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(rpl_group_info *rgi);
   virtual int do_update_pos(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -2672,12 +2681,13 @@ Intvar_log_event(THD* thd_arg,uchar type_arg, ulonglong val_arg,
   bool write(IO_CACHE* file);
 #endif
   bool is_valid() const { return 1; }
+  bool is_part_of_group() { return 1; }
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(rpl_group_info *rgi);
   virtual int do_update_pos(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -2751,12 +2761,13 @@ class Rand_log_event: public Log_event
   bool write(IO_CACHE* file);
 #endif
   bool is_valid() const { return 1; }
+  bool is_part_of_group() { return 1; }
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(rpl_group_info *rgi);
   virtual int do_update_pos(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -2804,7 +2815,7 @@ class Xid_log_event: public Log_event
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(rpl_group_info *rgi);
-  enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -2867,12 +2878,13 @@ public:
   void set_deferred() { deferred= true; }
 #endif
   bool is_valid() const { return name != 0; }
+  bool is_part_of_group() { return 1; }
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(rpl_group_info *rgi);
   virtual int do_update_pos(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -2906,7 +2918,7 @@ public:
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_update_pos(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli)
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi)
   {
     /*
       Events from ourself should be skipped, but they should not
@@ -3008,7 +3020,7 @@ public:
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_update_pos(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -3121,7 +3133,7 @@ public:
   void pack_info(THD *thd, Protocol *protocol);
   virtual int do_apply_event(rpl_group_info *rgi);
   virtual int do_update_pos(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 #else
   void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
@@ -3497,7 +3509,7 @@ public:
   Log_event_type get_type_code() { return BEGIN_LOAD_QUERY_EVENT; }
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -3619,6 +3631,7 @@ public:
   virtual int get_data_size();
   virtual Log_event_type get_type_code();
   virtual bool is_valid() const;
+  virtual bool is_part_of_group() { return 1; }
 
 #ifndef MYSQL_CLIENT
   virtual bool write_data_header(IO_CACHE*);
@@ -3637,7 +3650,7 @@ public:
 private:
   virtual int do_apply_event(rpl_group_info *rgi);
   virtual int do_update_pos(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info*);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info*);
 #endif
 
 private:
@@ -4030,6 +4043,7 @@ public:
 
   virtual Log_event_type get_type_code() { return TABLE_MAP_EVENT; }
   virtual bool is_valid() const { return m_memory != NULL; /* we check malloc */ }
+  virtual bool is_part_of_group() { return 1; }
 
   virtual int get_data_size() { return (uint) m_data_size; } 
 #ifdef MYSQL_SERVER
@@ -4052,7 +4066,7 @@ private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(rpl_group_info *rgi);
   virtual int do_update_pos(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 
 #ifdef MYSQL_SERVER
@@ -4195,6 +4209,7 @@ public:
   {
     return m_rows_buf && m_cols.bitmap;
   }
+  bool is_part_of_group() { return get_flags(STMT_END_F) != 0; }
 
   uint     m_row_count;         /* The number of rows added to the event */
 
@@ -4280,7 +4295,7 @@ private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(rpl_group_info *rgi);
   virtual int do_update_pos(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 
   /*
     Primitive to prepare for a sequence of row executions.

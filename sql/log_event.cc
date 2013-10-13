@@ -940,6 +940,8 @@ Log_event::Log_event(const char* buf,
 int Log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
+  DBUG_ENTER("Log_event::do_update_pos");
+
   /*
     rli is null when (as far as I (Guilhem) know) the caller is
     Load_log_event::do_apply_event *and* that one is called from
@@ -973,13 +975,14 @@ int Log_event::do_update_pos(rpl_group_info *rgi)
                     if (debug_not_change_ts_if_art_event == 0)
                       debug_not_change_ts_if_art_event= 2; );
   }
-  return 0;                                   // Cannot fail currently
+  DBUG_RETURN(0);                                  // Cannot fail currently
 }
 
 
 Log_event::enum_skip_reason
-Log_event::do_shall_skip(Relay_log_info *rli)
+Log_event::do_shall_skip(rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   DBUG_PRINT("info", ("ev->server_id: %lu, ::server_id: %lu,"
                       " rli->replicate_same_server_id: %d,"
                       " rli->slave_skip_counter: %lu",
@@ -2525,11 +2528,11 @@ void Log_event::print_timestamp(IO_CACHE* file, time_t* ts)
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 inline Log_event::enum_skip_reason
-Log_event::continue_group(Relay_log_info *rli)
+Log_event::continue_group(rpl_group_info *rgi)
 {
-  if (rli->slave_skip_counter == 1)
+  if (rgi->rli->slave_skip_counter == 1)
     return Log_event::EVENT_SKIP_IGNORE;
-  return Log_event::do_shall_skip(rli);
+  return Log_event::do_shall_skip(rgi);
 }
 #endif
 
@@ -4263,11 +4266,13 @@ int Query_log_event::do_update_pos(rpl_group_info *rgi)
 
 
 Log_event::enum_skip_reason
-Query_log_event::do_shall_skip(Relay_log_info *rli)
+Query_log_event::do_shall_skip(rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Query_log_event::do_shall_skip");
   DBUG_PRINT("debug", ("query: %s; q_len: %d", query, q_len));
   DBUG_ASSERT(query && q_len > 0);
+  DBUG_ASSERT(thd == rgi->thd);
 
   /*
     An event skipped due to @@skip_replication must not be counted towards the
@@ -4279,19 +4284,19 @@ Query_log_event::do_shall_skip(Relay_log_info *rli)
 
   if (rli->slave_skip_counter > 0)
   {
-    if (strcmp("BEGIN", query) == 0)
+    if (is_begin())
     {
       thd->variables.option_bits|= OPTION_BEGIN;
-      DBUG_RETURN(Log_event::continue_group(rli));
+      DBUG_RETURN(Log_event::continue_group(rgi));
     }
 
-    if (strcmp("COMMIT", query) == 0 || strcmp("ROLLBACK", query) == 0)
+    if (is_commit() || is_rollback())
     {
       thd->variables.option_bits&= ~OPTION_BEGIN;
       DBUG_RETURN(Log_event::EVENT_SKIP_COUNT);
     }
   }
-  DBUG_RETURN(Log_event::do_shall_skip(rli));
+  DBUG_RETURN(Log_event::do_shall_skip(rgi));
 }
 
 
@@ -4465,7 +4470,7 @@ int Start_log_event_v3::do_apply_event(rpl_group_info *rgi)
 {
   DBUG_ENTER("Start_log_event_v3::do_apply_event");
   int error= 0;
-  Relay_log_info const *rli= rgi->rli;
+  Relay_log_info *rli= rgi->rli;
 
   switch (binlog_version)
   {
@@ -4479,23 +4484,13 @@ int Start_log_event_v3::do_apply_event(rpl_group_info *rgi)
     */
     if (created)
     {
-      error= close_temporary_tables(thd);
+      rli->close_temporary_tables();
+      
       /*
         The following is only false if we get here with a BINLOG statement
       */
       if (rli->mi)
         cleanup_load_tmpdir(&rli->mi->cmp_connection_name);
-    }
-    else
-    {
-      /*
-        Set all temporary tables thread references to the current thread
-        as they may point to the "old" SQL slave thread in case of its
-        restart.
-      */
-      TABLE *table;
-      for (table= thd->temporary_tables; table; table= table->next)
-        table->in_use= thd;
     }
     break;
 
@@ -4511,7 +4506,7 @@ int Start_log_event_v3::do_apply_event(rpl_group_info *rgi)
         Can distinguish, based on the value of 'created': this event was
         generated at master startup.
       */
-      error= close_temporary_tables(thd);
+      rli->close_temporary_tables();
     }
     /*
       Otherwise, can't distinguish a Start_log_event generated at
@@ -4895,7 +4890,7 @@ int Format_description_log_event::do_update_pos(rpl_group_info *rgi)
 }
 
 Log_event::enum_skip_reason
-Format_description_log_event::do_shall_skip(Relay_log_info *rli)
+Format_description_log_event::do_shall_skip(rpl_group_info *rgi)
 {
   return Log_event::EVENT_SKIP_NOT;
 }
@@ -5970,8 +5965,8 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
     flush_relay_log_info(rli);
     
     /*
-      Reset thd->variables.option_bits and sql_mode etc, because this could be the signal of
-      a master's downgrade from 5.0 to 4.0.
+      Reset thd->variables.option_bits and sql_mode etc, because this could
+      be the signal of a master's downgrade from 5.0 to 4.0.
       However, no need to reset description_event_for_exec: indeed, if the next
       master is 5.0 (even 5.0.1) we will soon get a Format_desc; if the next
       master is 4.0 then the events are in the slave's format (conversion).
@@ -5991,9 +5986,9 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
 
 
 Log_event::enum_skip_reason
-Rotate_log_event::do_shall_skip(Relay_log_info *rli)
+Rotate_log_event::do_shall_skip(rpl_group_info *rgi)
 {
-  enum_skip_reason reason= Log_event::do_shall_skip(rli);
+  enum_skip_reason reason= Log_event::do_shall_skip(rgi);
 
   switch (reason) {
   case Log_event::EVENT_SKIP_NOT:
@@ -6302,8 +6297,9 @@ Gtid_log_event::do_update_pos(rpl_group_info *rgi)
 
 
 Log_event::enum_skip_reason
-Gtid_log_event::do_shall_skip(Relay_log_info *rli)
+Gtid_log_event::do_shall_skip(rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   /*
     An event skipped due to @@skip_replication must not be counted towards the
     number of events to be skipped due to @@sql_slave_skip_counter.
@@ -6315,10 +6311,13 @@ Gtid_log_event::do_shall_skip(Relay_log_info *rli)
   if (rli->slave_skip_counter > 0)
   {
     if (!(flags2 & FL_STANDALONE))
+    {
       thd->variables.option_bits|= OPTION_BEGIN;
-    return Log_event::continue_group(rli);
+      DBUG_ASSERT(rgi->rli->get_flag(Relay_log_info::IN_TRANSACTION));
+    }
+    return Log_event::continue_group(rgi);
   }
-  return Log_event::do_shall_skip(rli);
+  return Log_event::do_shall_skip(rgi);
 }
 
 
@@ -6707,13 +6706,6 @@ void Intvar_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 
 int Intvar_log_event::do_apply_event(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
-  /*
-    We are now in a statement until the associated query log event has
-    been processed.
-   */
-  rli->set_flag(Relay_log_info::IN_STMT);
-
   if (rgi->deferred_events_collecting)
     return rgi->deferred_events->add(this);
 
@@ -6738,7 +6730,7 @@ int Intvar_log_event::do_update_pos(rpl_group_info *rgi)
 
 
 Log_event::enum_skip_reason
-Intvar_log_event::do_shall_skip(Relay_log_info *rli)
+Intvar_log_event::do_shall_skip(rpl_group_info *rgi)
 {
   /*
     It is a common error to set the slave skip counter to 1 instead of
@@ -6748,7 +6740,7 @@ Intvar_log_event::do_shall_skip(Relay_log_info *rli)
     that we do not change the value of the slave skip counter since it
     will be decreased by the following insert event.
   */
-  return continue_group(rli);
+  return continue_group(rgi);
 }
 
 #endif
@@ -6818,13 +6810,6 @@ void Rand_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 int Rand_log_event::do_apply_event(rpl_group_info *rgi)
 {
-  Relay_log_info const *rli= rgi->rli;
-  /*
-    We are now in a statement until the associated query log event has
-    been processed.
-   */
-  const_cast<Relay_log_info*>(rli)->set_flag(Relay_log_info::IN_STMT);
-
   if (rgi->deferred_events_collecting)
     return rgi->deferred_events->add(this);
 
@@ -6842,7 +6827,7 @@ int Rand_log_event::do_update_pos(rpl_group_info *rgi)
 
 
 Log_event::enum_skip_reason
-Rand_log_event::do_shall_skip(Relay_log_info *rli)
+Rand_log_event::do_shall_skip(rpl_group_info *rgi)
 {
   /*
     It is a common error to set the slave skip counter to 1 instead of
@@ -6852,7 +6837,7 @@ Rand_log_event::do_shall_skip(Relay_log_info *rli)
     that we do not change the value of the slave skip counter since it
     will be decreased by the following insert event.
   */
-  return continue_group(rli);
+  return continue_group(rgi);
 }
 
 /**
@@ -6998,14 +6983,16 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
 }
 
 Log_event::enum_skip_reason
-Xid_log_event::do_shall_skip(Relay_log_info *rli)
+Xid_log_event::do_shall_skip(rpl_group_info *rgi)
 {
   DBUG_ENTER("Xid_log_event::do_shall_skip");
-  if (rli->slave_skip_counter > 0) {
+  if (rgi->rli->slave_skip_counter > 0)
+  {
+    DBUG_ASSERT(!rgi->rli->get_flag(Relay_log_info::IN_TRANSACTION));
     thd->variables.option_bits&= ~OPTION_BEGIN;
     DBUG_RETURN(Log_event::EVENT_SKIP_COUNT);
   }
-  DBUG_RETURN(Log_event::do_shall_skip(rli));
+  DBUG_RETURN(Log_event::do_shall_skip(rgi));
 }
 #endif /* !MYSQL_CLIENT */
 
@@ -7418,7 +7405,6 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
 {
   Item *it= 0;
   CHARSET_INFO *charset;
-  Relay_log_info const *rli= rgi->rli;
   DBUG_ENTER("User_var_log_event::do_apply_event");
 
   if (rgi->deferred_events_collecting)
@@ -7434,12 +7420,6 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
   user_var_name.length= name_len;
   double real_val;
   longlong int_val;
-
-  /*
-    We are now in a statement until the associated query log event has
-    been processed.
-   */
-  const_cast<Relay_log_info*>(rli)->set_flag(Relay_log_info::IN_STMT);
 
   if (is_null)
   {
@@ -7511,7 +7491,7 @@ int User_var_log_event::do_update_pos(rpl_group_info *rgi)
 }
 
 Log_event::enum_skip_reason
-User_var_log_event::do_shall_skip(Relay_log_info *rli)
+User_var_log_event::do_shall_skip(rpl_group_info *rgi)
 {
   /*
     It is a common error to set the slave skip counter to 1 instead
@@ -7521,7 +7501,7 @@ User_var_log_event::do_shall_skip(Relay_log_info *rli)
     that we do not change the value of the slave skip counter since it
     will be decreased by the following insert event.
   */
-  return continue_group(rli);
+  return continue_group(rgi);
 }
 #endif /* !MYSQL_CLIENT */
 
@@ -7724,9 +7704,11 @@ void Stop_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   Start_log_event_v3::do_apply_event(), not here. Because if we come
   here, the master was sane.
 */
+
 int Stop_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
+  DBUG_ENTER("Stop_log_event::do_update_pos");
   /*
     We do not want to update master_log pos because we get a rotate event
     before stop, so by now group_master_log_name is set to the next log.
@@ -7734,7 +7716,7 @@ int Stop_log_event::do_update_pos(rpl_group_info *rgi)
     could give false triggers in MASTER_POS_WAIT() that we have reached
     the target position when in fact we have not.
   */
-  if (thd->variables.option_bits & OPTION_BEGIN)
+  if (rli->get_flag(Relay_log_info::IN_TRANSACTION))
     rli->inc_event_relay_log_pos();
   else
   {
@@ -7742,7 +7724,7 @@ int Stop_log_event::do_update_pos(rpl_group_info *rgi)
     rli->inc_group_relay_log_pos(0);
     flush_relay_log_info(rli);
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 #endif /* !MYSQL_CLIENT */
@@ -8514,13 +8496,13 @@ int Begin_load_query_log_event::get_create_or_append() const
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 Log_event::enum_skip_reason
-Begin_load_query_log_event::do_shall_skip(Relay_log_info *rli)
+Begin_load_query_log_event::do_shall_skip(rpl_group_info *rgi)
 {
   /*
     If the slave skip counter is 1, then we should not start executing
     on the next event.
   */
-  return continue_group(rli);
+  return continue_group(rgi);
 }
 #endif
 
@@ -9272,17 +9254,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
     thd->set_time(when, when_sec_part);
 
-    /*
-      Now we are in a statement and will stay in a statement until we
-      see a STMT_END_F.
-
-      We set this flag here, before actually applying any rows, in
-      case the SQL thread is stopped and we need to detect that we're
-      inside a statement and halting abruptly might cause problems
-      when restarting.
-     */
-    const_cast<Relay_log_info*>(rli)->set_flag(Relay_log_info::IN_STMT);
-
      if ( m_width == table->s->fields && bitmap_is_set_all(&m_cols))
       set_flags(COMPLETE_ROWS_F);
 
@@ -9442,17 +9413,17 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 }
 
 Log_event::enum_skip_reason
-Rows_log_event::do_shall_skip(Relay_log_info *rli)
+Rows_log_event::do_shall_skip(rpl_group_info *rgi)
 {
   /*
     If the slave skip counter is 1 and this event does not end a
     statement, then we should not start executing on the next event.
     Otherwise, we defer the decision to the normal skipping logic.
   */
-  if (rli->slave_skip_counter == 1 && !get_flags(STMT_END_F))
+  if (rgi->rli->slave_skip_counter == 1 && !get_flags(STMT_END_F))
     return Log_event::EVENT_SKIP_IGNORE;
   else
-    return Log_event::do_shall_skip(rli);
+    return Log_event::do_shall_skip(rgi);
 }
 
 /**
@@ -9469,6 +9440,8 @@ Rows_log_event::do_shall_skip(Relay_log_info *rli)
 static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
 {
   int error;
+  DBUG_ENTER("rows_event_stmt_cleanup");
+
   {
     /*
       This is the end of a statement or transaction, so close (and
@@ -9520,9 +9493,16 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
     */
     thd->reset_current_stmt_binlog_format_row();
 
+    /*
+      Reset modified_non_trans_table that we have set in
+      rows_log_event::do_apply_event()
+    */
+    if (!thd->in_multi_stmt_transaction_mode())
+      thd->transaction.all.modified_non_trans_table= 0;
+
     rgi->cleanup_context(thd, 0);
   }
-  return error;
+  DBUG_RETURN(error);
 }
 
 /**
@@ -9795,9 +9775,9 @@ int Annotate_rows_log_event::do_update_pos(rpl_group_info *rgi)
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 Log_event::enum_skip_reason
-Annotate_rows_log_event::do_shall_skip(Relay_log_info *rli)
+Annotate_rows_log_event::do_shall_skip(rpl_group_info *rgi)
 {
-  return continue_group(rli);
+  return continue_group(rgi);
 }
 #endif
 
@@ -10265,7 +10245,7 @@ check_table_map(rpl_group_info *rgi, RPL_TABLE_LIST *table_list)
   enum_tbl_map_status res= OK_TO_PROCESS;
   Relay_log_info *rli= rgi->rli;
 
-  if (rli->sql_thd->slave_thread /* filtering is for slave only */ &&
+  if (rgi->thd->slave_thread /* filtering is for slave only */ &&
       (!rli->mi->rpl_filter->db_ok(table_list->db) ||
        (rli->mi->rpl_filter->is_on() && !rli->mi->rpl_filter->tables_ok("", table_list))))
     res= FILTERED_OUT;
@@ -10316,7 +10296,7 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   /* call from mysql_client_binlog_statement() will not set rli->mi */
-  filter= rli->sql_thd->slave_thread ? rli->mi->rpl_filter : global_rpl_filter;
+  filter= rgi->thd->slave_thread ? rli->mi->rpl_filter : global_rpl_filter;
   strmov(db_mem, filter->get_rewrite_db(m_dbnam, &dummy_len));
   strmov(tname_mem, m_tblnam);
 
@@ -10404,13 +10384,13 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 }
 
 Log_event::enum_skip_reason
-Table_map_log_event::do_shall_skip(Relay_log_info *rli)
+Table_map_log_event::do_shall_skip(rpl_group_info *rgi)
 {
   /*
     If the slave skip counter is 1, then we should not start executing
     on the next event.
   */
-  return continue_group(rli);
+  return continue_group(rgi);
 }
 
 int Table_map_log_event::do_update_pos(rpl_group_info *rgi)

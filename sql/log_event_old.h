@@ -145,6 +145,7 @@ public:
   {
     return m_rows_buf && m_cols.bitmap;
   }
+  bool is_part_of_group() { return 1; }
 
   uint     m_row_count;         /* The number of rows added to the event */
 
@@ -216,7 +217,7 @@ private:
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(rpl_group_info *rgi);
   virtual int do_update_pos(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 
   /*
     Primitive to prepare for a sequence of row executions.

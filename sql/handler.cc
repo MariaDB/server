@@ -1247,6 +1247,8 @@ int ha_commit_trans(THD *thd, bool all)
   bool need_prepare_ordered, need_commit_ordered;
   my_xid xid;
   DBUG_ENTER("ha_commit_trans");
+  DBUG_PRINT("info",("thd: %p  option_bits: %lu  all: %d",
+                     thd, (ulong) thd->variables.option_bits, all));
 
   /* Just a random warning to test warnings pushed during autocommit. */
   DBUG_EXECUTE_IF("warn_during_ha_commit_trans",
@@ -1306,6 +1308,8 @@ int ha_commit_trans(THD *thd, bool all)
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans && (rw_ha_count > 0);
   MDL_request mdl_request;
+  DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
+                      is_real_trans, rw_trans, rw_ha_count));
 
   if (rw_trans)
   {
