@@ -610,9 +610,9 @@ void thd_set_ha_data(THD *thd, const struct handlerton *hton,
   @see thd_wakeup_subsequent_commits() definition in plugin.h
 */
 extern "C"
-void thd_wakeup_subsequent_commits(THD *thd)
+void thd_wakeup_subsequent_commits(THD *thd, int wakeup_error)
 {
-  thd->wakeup_subsequent_commits();
+  thd->wakeup_subsequent_commits(wakeup_error);
 }
 
 
@@ -5618,7 +5618,8 @@ bool THD::rgi_have_temporary_tables()
 wait_for_commit::wait_for_commit()
   : subsequent_commits_list(0), next_subsequent_commit(0), waitee(0),
     opaque_pointer(0),
-    waiting_for_commit(false), wakeup_subsequent_commits_running(false)
+    waiting_for_commit(false), wakeup_error(0),
+    wakeup_subsequent_commits_running(false)
 {
   mysql_mutex_init(key_LOCK_wait_commit, &LOCK_wait_commit, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wait_commit, &COND_wait_commit, 0);
@@ -5633,7 +5634,7 @@ wait_for_commit::~wait_for_commit()
 
 
 void
-wait_for_commit::wakeup()
+wait_for_commit::wakeup(int wakeup_error)
 {
   /*
     We signal each waiter on their own condition and mutex (rather than using
@@ -5649,6 +5650,7 @@ wait_for_commit::wakeup()
   */
   mysql_mutex_lock(&LOCK_wait_commit);
   waiting_for_commit= false;
+  this->wakeup_error= wakeup_error;
   mysql_mutex_unlock(&LOCK_wait_commit);
   mysql_cond_signal(&COND_wait_commit);
 }
@@ -5675,6 +5677,7 @@ void
 wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
 {
   waiting_for_commit= true;
+  wakeup_error= 0;
   DBUG_ASSERT(!this->waitee /* No prior registration allowed */);
   this->waitee= waitee;
 
@@ -5704,7 +5707,7 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
   with register_wait_for_prior_commit(). If the commit already completed,
   returns immediately.
 */
-void
+int
 wait_for_commit::wait_for_prior_commit2()
 {
   mysql_mutex_lock(&LOCK_wait_commit);
@@ -5712,6 +5715,7 @@ wait_for_commit::wait_for_prior_commit2()
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
   mysql_mutex_unlock(&LOCK_wait_commit);
   waitee= NULL;
+  return wakeup_error;
 }
 
 
@@ -5755,7 +5759,7 @@ wait_for_commit::wait_for_prior_commit2()
 */
 
 void
-wait_for_commit::wakeup_subsequent_commits2()
+wait_for_commit::wakeup_subsequent_commits2(int wakeup_error)
 {
   wait_for_commit *waiter;
 
@@ -5772,7 +5776,7 @@ wait_for_commit::wakeup_subsequent_commits2()
       once the wakeup is done, the field could be invalidated at any time.
     */
     wait_for_commit *next= waiter->next_subsequent_commit;
-    waiter->wakeup();
+    waiter->wakeup(wakeup_error);
     waiter= next;
   }
 

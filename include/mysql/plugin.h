@@ -716,7 +716,7 @@ void thd_set_ha_data(MYSQL_THD thd, const struct handlerton *hton,
   thd_wakeup_subsequent_commits() is only needed when no transaction
   coordinator is used, meaning a single storage engine and no binary log.
 */
-void thd_wakeup_subsequent_commits(MYSQL_THD thd);
+void thd_wakeup_subsequent_commits(MYSQL_THD thd, int wakeup_error);
 
 #ifdef __cplusplus
 }
