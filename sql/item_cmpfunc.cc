@@ -1435,6 +1435,7 @@ bool Item_in_optimizer::eval_not_null_tables(uchar *opt_arg)
   return FALSE;
 }
 
+
 bool Item_in_optimizer::fix_left(THD *thd)
 {
   if ((!args[0]->fixed && args[0]->fix_fields(thd, args)) ||
@@ -2203,6 +2204,15 @@ bool Item_func_between::eval_not_null_tables(uchar *opt_arg)
                            args[2]->not_null_tables()));
   return 0;
 }  
+
+
+bool Item_func_between::count_sargable_conds(uchar *arg)
+{
+  SELECT_LEX *sel= (SELECT_LEX *) arg;
+  sel->cond_count++;
+  sel->between_count++;
+  return 0;
+}
 
 
 void Item_func_between::fix_after_pullout(st_select_lex *new_parent, Item **ref)
@@ -4802,6 +4812,7 @@ longlong Item_func_isnull::val_int()
   return args[0]->is_null() ? 1: 0;
 }
 
+
 longlong Item_is_not_null_test::val_int()
 {
   DBUG_ASSERT(fixed == 1);
@@ -5005,6 +5016,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
   }
   return FALSE;
 }
+
 
 void Item_func_like::cleanup()
 {
@@ -5696,7 +5708,8 @@ Item_equal::Item_equal(Item *f1, Item *f2, bool with_const_item)
   equal_items.push_back(f1);
   equal_items.push_back(f2);
   compare_as_dates= with_const_item && f2->cmp_type() == TIME_RESULT;
-  upper_levels= NULL;  
+  upper_levels= NULL;
+  sargable= TRUE; 
 }
 
 
@@ -5727,6 +5740,7 @@ Item_equal::Item_equal(Item_equal *item_equal)
   compare_as_dates= item_equal->compare_as_dates;
   cond_false= item_equal->cond_false;
   upper_levels= item_equal->upper_levels;
+  sargable= TRUE;
 }
 
 
@@ -6126,6 +6140,14 @@ void Item_equal::update_used_tables()
   }
 }
 
+
+bool Item_equal::count_sargable_conds(uchar *arg)
+{
+  SELECT_LEX *sel= (SELECT_LEX *) arg;
+  uint m= equal_items.elements;
+  sel->cond_count+= m*(m-1);
+  return 0;
+}
 
 
 /**
