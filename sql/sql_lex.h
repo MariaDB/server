@@ -1031,6 +1031,10 @@ public:
 
   void clear_index_hints(void) { index_hints= NULL; }
   bool is_part_of_union() { return master_unit()->is_union(); }
+  bool is_top_level_node() 
+  { 
+    return (select_number == 1) && !is_part_of_union();
+  }
   bool optimize_unflattened_subqueries(bool const_only);
   /* Set the EXPLAIN type for this subquery. */
   void set_explain_type(bool on_the_fly);

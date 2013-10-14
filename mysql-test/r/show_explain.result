@@ -181,6 +181,8 @@ set debug_dbug='+d,show_explain_probe_join_exec_start';
 set @foo= (select max(a) from t0 where sin(a) >0);
 show explain for $thr2;
 ERROR HY000: Target is not running an EXPLAINable command
+kill query $thr2;
+ERROR 70100: Query execution was interrupted
 set debug_dbug=@old_debug;
 #
 # Attempt SHOW EXPLAIN for an UPDATE
@@ -405,13 +407,8 @@ set debug_dbug='+d,show_explain_probe_join_exec_end';
 SELECT * FROM v1, t2;
 show explain for $thr2;
 ERROR HY000: Target is not running an EXPLAINable command
-a	b
-8	4
-8	5
-8	6
-8	7
-8	8
-8	9
+kill query $thr2;
+ERROR 70100: Query execution was interrupted
 set debug_dbug=@old_debug;
 DROP VIEW v1;
 DROP TABLE t2, t3;

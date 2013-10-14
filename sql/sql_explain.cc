@@ -22,7 +22,8 @@
 #include "sql_select.h"
 
 
-Explain_query::Explain_query() : upd_del_plan(NULL), insert_plan(NULL)
+Explain_query::Explain_query(THD *thd_arg) : 
+  upd_del_plan(NULL), insert_plan(NULL), thd(thd_arg), apc_enabled(false)
 {
   operations= 0;
 }
@@ -30,6 +31,9 @@ Explain_query::Explain_query() : upd_del_plan(NULL), insert_plan(NULL)
 
 Explain_query::~Explain_query()
 {
+  if (apc_enabled)
+    thd->apc_target.disable();
+
   delete upd_del_plan;
   delete insert_plan;
   uint i;
@@ -62,11 +66,12 @@ Explain_select *Explain_query::get_select(uint select_id)
 
 void Explain_query::add_node(Explain_node *node)
 {
+  uint select_id;
   operations++;
   if (node->get_type() == Explain_node::EXPLAIN_UNION)
   {
     Explain_union *u= (Explain_union*)node;
-    uint select_id= u->get_select_id();
+    select_id= u->get_select_id();
     if (unions.elements() <= select_id)
       unions.resize(max(select_id+1, unions.elements()*2), NULL);
 
@@ -85,7 +90,7 @@ void Explain_query::add_node(Explain_node *node)
     }
     else
     {
-      uint select_id= sel->select_id;
+      select_id= sel->select_id;
       Explain_select *old_node;
 
       if (selects.elements() <= select_id)
@@ -99,6 +104,27 @@ void Explain_query::add_node(Explain_node *node)
   }
 }
 
+
+void Explain_query::add_insert_plan(Explain_insert *insert_plan_arg)
+{
+  insert_plan= insert_plan_arg;
+  query_plan_ready();
+}
+
+
+void Explain_query::add_upd_del_plan(Explain_update *upd_del_plan_arg)
+{
+  upd_del_plan= upd_del_plan_arg;
+  query_plan_ready();
+}
+
+
+void Explain_query::query_plan_ready()
+{
+  if (!apc_enabled)
+    thd->apc_target.enable();
+  apc_enabled= true;
+}
 
 /*
   Send EXPLAIN output to the client.
@@ -915,7 +941,7 @@ void delete_explain_query(LEX *lex)
 void create_explain_query(LEX *lex, MEM_ROOT *mem_root)
 {
   DBUG_ASSERT(!lex->explain);
-  lex->explain= new Explain_query;
+  lex->explain= new Explain_query(lex->thd);
   DBUG_ASSERT(mem_root == current_thd->mem_root);
   lex->explain->mem_root= mem_root;
 }
