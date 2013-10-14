@@ -4250,29 +4250,6 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
   SELECT_LEX *first= first_select();
   Explain_union *eu= new (output->mem_root) Explain_union;
 
-  /*
-    TODO: The following code should be eliminated. If we have a capability to
-    save Query Plan Footprints, we should just save them, and never need to 
-    print "query plan already deleted".
-  */
-  if (first && !first->next_select() && !first->join)
-  {
-    /*
-      If there is only one child, 'first', and it has join==NULL, emit "not in
-      EXPLAIN state" error.
-    */
-    const char *msg="Query plan already deleted";
-    first->set_explain_type(TRUE/* on_the_fly */);
-
-    Explain_select *explain= new (output->mem_root)Explain_select;
-    explain->select_id= first->select_number;
-    explain->select_type= first->type;
-    explain->message= msg;
-    output->add_node(explain);
-    eu->add_select(explain->select_id);
-    return 0;
-  }
-
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
     eu->add_select(sl->select_number);
 
