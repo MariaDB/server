@@ -10136,14 +10136,6 @@ void init_server_psi_keys(void)
   count= array_elements(com_statement_info);
   mysql_statement_register(category, com_statement_info, count);
 
-#ifdef WITH_WSREP /* WSREP AFTER SE */
-  if (wsrep_recovery)
-  {
-    select_thread_in_use= 0;
-    wsrep_recover();
-    unireg_abort(0);
-  }
-#endif /* WITH_WSREP */
   /*
     When a new packet is received,
     it is instrumented as "statement/com/".
