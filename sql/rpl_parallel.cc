@@ -9,10 +9,6 @@
 
   ToDo list:
 
-   - Review every field in Relay_log_info, and all code that accesses it.
-     Split out the necessary parts into rpl_group_info, to avoid conflicts
-     between parallel execution of events. (Such as deferred events ...)
-
    - Error handling. If we fail in one of multiple parallel executions, we
      need to make a best effort to complete prior transactions and roll back
      following transactions, so slave binlog position will be correct.
@@ -43,10 +39,11 @@
      slave rolls back the transaction; parallel execution needs to be able
      to deal with this wrt. commit_orderer and such.
 
-   - We should fail if we connect to the master with opt_slave_parallel_threads
-     greater than zero and master does not support GTID. Just to avoid a bunch
-     of potential problems, we won't be able to do any parallel replication
-     in this case anyway.
+   - We should notice if the master doesn't support GTID, and then run in
+     single threaded mode against that master. This is needed to be able to
+     support multi-master-replication with old and new masters.
+
+   - Retry of failed transactions is not yet implemented for the parallel case.
 */
 
 struct rpl_parallel_thread_pool global_rpl_thread_pool;
@@ -56,7 +53,7 @@ static int
 rpt_handle_event(rpl_parallel_thread::queued_event *qev,
                  struct rpl_parallel_thread *rpt)
 {
-  int err;
+  int err __attribute__((unused));
   rpl_group_info *rgi= qev->rgi;
   Relay_log_info *rli= rgi->rli;
   THD *thd= rgi->thd;
@@ -69,6 +66,9 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   qev->ev->thd= thd;
   err= apply_event_and_update_pos(qev->ev, thd, rgi, rpt);
   thd->rgi_slave= NULL;
+
+  thread_safe_increment64(&rli->executed_entries,
+                          &slave_executed_entries_lock);
   /* ToDo: error handling. */
   return err;
 }
@@ -617,7 +617,10 @@ rpl_parallel::wait_for_done()
 
 /*
   do_event() is executed by the sql_driver_thd thread.
-  It's main purpose is to find a thread that can exectue the query.
+  It's main purpose is to find a thread that can execute the query.
+
+  @retval false 	ok, event was accepted
+  @retval true          error
 */
 
 bool
@@ -643,7 +646,10 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
       rli->abort_slave)
     sql_thread_stopping= true;
   if (sql_thread_stopping)
+  {
+    /* QQ: Need a better comment why we return false here */
     return false;
+  }
 
   if (!(qev= (rpl_parallel_thread::queued_event *)my_malloc(sizeof(*qev),
                                                             MYF(0))))

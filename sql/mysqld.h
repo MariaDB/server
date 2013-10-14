@@ -367,6 +367,7 @@ extern mysql_cond_t COND_manager;
 extern int32 thread_running;
 extern int32 thread_count;
 extern my_atomic_rwlock_t thread_running_lock, thread_count_lock;
+extern my_atomic_rwlock_t slave_executed_entries_lock;
 
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
             *opt_ssl_key;
@@ -504,6 +505,20 @@ inline void thread_safe_decrement32(int32 *value, my_atomic_rwlock_t *lock)
 {
   my_atomic_rwlock_wrlock(lock);
   (void) my_atomic_add32(value, -1);
+  my_atomic_rwlock_wrunlock(lock);
+}
+
+inline void thread_safe_increment64(int64 *value, my_atomic_rwlock_t *lock)
+{
+  my_atomic_rwlock_wrlock(lock);
+  (void) my_atomic_add64(value, 1);
+  my_atomic_rwlock_wrunlock(lock);
+}
+
+inline void thread_safe_decrement64(int64 *value, my_atomic_rwlock_t *lock)
+{
+  my_atomic_rwlock_wrlock(lock);
+  (void) my_atomic_add64(value, -1);
   my_atomic_rwlock_wrunlock(lock);
 }
 

@@ -1034,9 +1034,9 @@ static bool sql_slave_killed(rpl_group_info *rgi)
           @c last_event_start_time the timer.
         */
 
-        if (rli->last_event_start_time == 0)
-          rli->last_event_start_time= my_time(0);
-        ret= difftime(my_time(0), rli->last_event_start_time) <=
+        if (rgi->last_event_start_time == 0)
+          rgi->last_event_start_time= my_time(0);
+        ret= difftime(my_time(0), rgi->last_event_start_time) <=
           SLAVE_WAIT_GROUP_DONE ? FALSE : TRUE;
 
         DBUG_EXECUTE_IF("stop_slave_middle_group", 
@@ -1070,7 +1070,7 @@ static bool sql_slave_killed(rpl_group_info *rgi)
     }
   }
   if (ret)
-    rli->last_event_start_time= 0;
+    rgi->last_event_start_time= 0;
   
   DBUG_RETURN(ret);
 }
@@ -3047,10 +3047,10 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
   DBUG_PRINT("exec_event",("%s(type_code: %d; server_id: %d)",
                            ev->get_type_str(), ev->get_type_code(),
                            ev->server_id));
-  DBUG_PRINT("info", ("thd->options: %s%s; rli->last_event_start_time: %lu",
+  DBUG_PRINT("info", ("thd->options: %s%s; rgi->last_event_start_time: %lu",
                       FLAGSTR(thd->variables.option_bits, OPTION_NOT_AUTOCOMMIT),
                       FLAGSTR(thd->variables.option_bits, OPTION_BEGIN),
-                      (ulong) rli->last_event_start_time));
+                      (ulong) rgi->last_event_start_time));
 
   /*
     Execute the event to change the database and update the binary
@@ -3385,14 +3385,16 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 	  Note, if lock wait timeout (innodb_lock_wait_timeout exceeded)
 	  there is no rollback since 5.0.13 (ref: manual).
           We have to not only seek but also
-          a) init_master_info(), to seek back to hot relay log's start for later
-          (for when we will come back to this hot log after re-processing the
-          possibly existing old logs where BEGIN is: check_binlog_magic() will
-          then need the cache to be at position 0 (see comments at beginning of
+
+          a) init_master_info(), to seek back to hot relay log's start
+          for later (for when we will come back to this hot log after
+          re-processing the possibly existing old logs where BEGIN is:
+          check_binlog_magic() will then need the cache to be at
+          position 0 (see comments at beginning of
           init_master_info()).
           b) init_relay_log_pos(), because the BEGIN may be an older relay log.
         */
-        if (rli->trans_retries < slave_trans_retries)
+        if (serial_rgi->trans_retries < slave_trans_retries)
         {
           if (init_master_info(rli->mi, 0, 0, 0, SLAVE_SQL))
             sql_print_error("Failed to initialize the master info structure");
@@ -3407,15 +3409,17 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
             exec_res= 0;
             serial_rgi->cleanup_context(thd, 1);
             /* chance for concurrent connection to get more locks */
-            slave_sleep(thd, min(rli->trans_retries, MAX_SLAVE_RETRY_PAUSE),
+            slave_sleep(thd, min(serial_rgi->trans_retries,
+                                 MAX_SLAVE_RETRY_PAUSE),
                         sql_slave_killed, serial_rgi);
+            serial_rgi->trans_retries++;
             mysql_mutex_lock(&rli->data_lock); // because of SHOW STATUS
-            rli->trans_retries++;
             rli->retried_trans++;
             statistic_increment(slave_retried_transactions, LOCK_status);
             mysql_mutex_unlock(&rli->data_lock);
             DBUG_PRINT("info", ("Slave retries transaction "
-                                "rli->trans_retries: %lu", rli->trans_retries));
+                                "rgi->trans_retries: %lu",
+                                serial_rgi->trans_retries));
           }
         }
         else
@@ -3434,11 +3438,13 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           event, the execution will proceed as usual; in the case of a
           non-transient error, the slave will stop with an error.
          */
-        rli->trans_retries= 0; // restart from fresh
-        DBUG_PRINT("info", ("Resetting retry counter, rli->trans_retries: %lu",
-                            rli->trans_retries));
+        serial_rgi->trans_retries= 0; // restart from fresh
+        DBUG_PRINT("info", ("Resetting retry counter, rgi->trans_retries: %lu",
+                            serial_rgi->trans_retries));
       }
     }
+    thread_safe_increment64(&rli->executed_entries,
+                            &slave_executed_entries_lock);
     DBUG_RETURN(exec_res);
   }
   mysql_mutex_unlock(&rli->data_lock);
@@ -4179,8 +4185,6 @@ pthread_handler_t handle_slave_sql(void *arg)
   mysql_mutex_lock(&rli->log_space_lock);
   rli->ignore_log_space_limit= 0;
   mysql_mutex_unlock(&rli->log_space_lock);
-  rli->trans_retries= 0; // start from "no error"
-  DBUG_PRINT("info", ("rli->trans_retries: %lu", rli->trans_retries));
 
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
@@ -4406,7 +4410,6 @@ the slave SQL thread with \"SLAVE START\". We stopped at log \
       }
       goto err;
     }
-    rli->executed_entries++;
   }
 
   if (opt_slave_parallel_threads > 0)

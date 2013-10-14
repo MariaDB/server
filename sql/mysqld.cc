@@ -492,6 +492,7 @@ my_atomic_rwlock_t global_query_id_lock;
 my_atomic_rwlock_t thread_running_lock;
 my_atomic_rwlock_t thread_count_lock;
 my_atomic_rwlock_t statistics_lock;
+my_atomic_rwlock_t slave_executed_entries_lock;
 ulong aborted_threads, aborted_connects;
 ulong delayed_insert_timeout, delayed_insert_limit, delayed_queue_size;
 ulong delayed_insert_threads, delayed_insert_writes, delayed_rows_in_use;
@@ -1939,6 +1940,7 @@ void clean_up(bool print_message)
   my_atomic_rwlock_destroy(&thread_running_lock);
   my_atomic_rwlock_destroy(&thread_count_lock);
   my_atomic_rwlock_destroy(&statistics_lock); 
+  my_atomic_rwlock_destroy(&slave_executed_entries_lock);
   free_charsets();
   mysql_mutex_lock(&LOCK_thread_count);
   DBUG_PRINT("quit", ("got thread count lock"));
@@ -7550,6 +7552,7 @@ static int mysql_init_variables(void)
   my_atomic_rwlock_init(&thread_running_lock);
   my_atomic_rwlock_init(&thread_count_lock);
   my_atomic_rwlock_init(&statistics_lock);
+  my_atomic_rwlock_init(slave_executed_entries_lock);
   strmov(server_version, MYSQL_SERVER_VERSION);
   threads.empty();
   thread_cache.empty();

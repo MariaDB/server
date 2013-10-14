@@ -59,8 +59,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
    inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
-   last_event_start_time(0), m_flags(0),
-   row_stmt_start_timestamp(0), long_find_row_note_printed(false)
+   m_flags(0)
 {
   DBUG_ENTER("Relay_log_info::Relay_log_info");
 
@@ -1420,7 +1419,8 @@ rpl_group_info::rpl_group_info(Relay_log_info *rli_)
   : rli(rli_), thd(0), gtid_sub_id(0), wait_commit_sub_id(0),
     wait_commit_group_info(0), wait_start_sub_id(0), parallel_entry(0),
     deferred_events(NULL), m_annotate_event(0), tables_to_lock(0),
-    tables_to_lock_count(0)
+    tables_to_lock_count(0), trans_retries(0), last_event_start_time(0),
+    row_stmt_start_timestamp(0), long_find_row_note_printed(false)
 {
   bzero(&current_gtid, sizeof(current_gtid));
   mysql_mutex_init(key_rpl_group_info_sleep_lock, &sleep_lock,
@@ -1551,8 +1551,8 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
     - timestamp
     - flag that decides whether the slave prints or not
   */
-  rli->reset_row_stmt_start_timestamp();
-  rli->unset_long_find_row_note_printed();
+  reset_row_stmt_start_timestamp();
+  unset_long_find_row_note_printed();
 
   DBUG_VOID_RETURN;
 }
