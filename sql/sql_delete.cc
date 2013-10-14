@@ -66,8 +66,8 @@ void Delete_plan::save_explain_data(Explain_query *query)
     explain->deleting_all_rows= false;
     Update_plan::save_explain_data_intern(query, explain);
   }
-
-  query->upd_del_plan= explain;
+ 
+  query->add_upd_del_plan(explain);
 }
 
 
@@ -75,7 +75,7 @@ void Update_plan::save_explain_data(Explain_query *query)
 {
   Explain_update* explain= new Explain_update;
   save_explain_data_intern(query, explain);
-  query->upd_del_plan= explain;
+  query->add_upd_del_plan(explain);
 }
 
 
@@ -459,7 +459,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     goto exit_without_my_ok;
 
   query_plan.save_explain_data(thd->lex->explain);
-  thd->apc_target.enable();
 
   DBUG_EXECUTE_IF("show_explain_probe_delete_exec_start", 
                   dbug_serve_apcs(thd, 1););
@@ -486,7 +485,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       {
         delete select;
         free_underlaid_joins(thd, &thd->lex->select_lex);
-        thd->apc_target.disable();
         DBUG_RETURN(TRUE);
       }
       thd->examined_row_count+= examined_rows;
@@ -505,7 +503,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   {
     delete select;
     free_underlaid_joins(thd, select_lex);
-    thd->apc_target.disable();
     DBUG_RETURN(TRUE);
   }
   if (query_plan.index == MAX_KEY || (select && select->quick))
@@ -514,7 +511,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     {
       delete select;
       free_underlaid_joins(thd, select_lex);
-      thd->apc_target.disable();
       DBUG_RETURN(TRUE);
     }
   }
@@ -624,7 +620,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (options & OPTION_QUICK)
     (void) table->file->extra(HA_EXTRA_NORMAL);
 
-  thd->apc_target.disable();
 cleanup:
   /*
     Invalidate the table in the query cache if something changed. This must

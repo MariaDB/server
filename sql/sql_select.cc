@@ -2298,8 +2298,6 @@ JOIN::save_join_tab()
 void join_save_qpf(JOIN *join)
 {
   THD *thd= join->thd;
-//TODO: why not call st_select_lex::save_qpf here?
-
   if (join->select_lex->select_number != UINT_MAX && 
       join->select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
       join->have_query_plan != JOIN::QEP_NOT_PRESENT_YET && 
@@ -2315,7 +2313,7 @@ void join_save_qpf(JOIN *join)
       /* It's a degenerate join */
       message= join->zero_result_cause ? join->zero_result_cause : "No tables used";
     }
-
+    
     join->save_explain_data(thd->lex->explain,
                             join->need_tmp,
                             !join->skip_sort_order && !join->no_order &&
@@ -2328,7 +2326,6 @@ void join_save_qpf(JOIN *join)
 
 void JOIN::exec()
 {
-  thd->apc_target.enable();
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_start", 
                   if (dbug_user_var_equals_int(thd, 
                                                "show_explain_probe_select_id", 
@@ -2368,7 +2365,6 @@ void JOIN::exec()
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
-  thd->apc_target.disable();
 }
 
 
@@ -22996,6 +22992,10 @@ int JOIN::save_explain_data(Explain_query *output, bool need_tmp_table,
       explain_node->add_child(unit->first_select()->select_number);
     }
   }
+
+  if (!error && select_lex->is_top_level_node())
+    output->query_plan_ready();
+    
 
   DBUG_RETURN(error);
 }

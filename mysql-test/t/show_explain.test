@@ -224,7 +224,9 @@ connection default;
 --source include/wait_condition.inc
 --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
+evalp kill query $thr2;
 connection con1;
+--error ER_QUERY_INTERRUPTED
 reap;
 set debug_dbug=@old_debug;
 
@@ -399,7 +401,9 @@ connection default;
 --source include/wait_condition.inc
 --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
+evalp kill query $thr2;
 connection con1;
+--error ER_QUERY_INTERRUPTED
 reap;
 set debug_dbug=@old_debug;
 DROP VIEW v1;

@@ -221,10 +221,13 @@ class Explain_insert;
 class Explain_query : public Sql_alloc
 {
 public:
-  Explain_query();
+  Explain_query(THD *thd);
   ~Explain_query();
+
   /* Add a new node */
   void add_node(Explain_node *node);
+  void add_insert_plan(Explain_insert *insert_plan_arg);
+  void add_upd_del_plan(Explain_update *upd_del_plan_arg);
 
   /* This will return a select, or a union */
   Explain_node *get_node(uint select_id);
@@ -233,13 +236,7 @@ public:
   Explain_select *get_select(uint select_id);
   
   Explain_union *get_union(uint select_id);
-  
-  /* Explain_delete inherits from Explain_update */
-  Explain_update *upd_del_plan;
-
-  /* Query "plan" for INSERTs */
-  Explain_insert *insert_plan;
-
+ 
   /* Produce a tabular EXPLAIN output */
   int print_explain(select_result_sink *output, uint8 explain_flags);
   
@@ -251,11 +248,22 @@ public:
 
   /* If true, at least part of EXPLAIN can be printed */
   bool have_query_plan() { return insert_plan || upd_del_plan|| get_node(1) != NULL; }
+
+  void query_plan_ready();
+
   MEM_ROOT *mem_root;
 private:
+  /* Explain_delete inherits from Explain_update */
+  Explain_update *upd_del_plan;
+
+  /* Query "plan" for INSERTs */
+  Explain_insert *insert_plan;
+
   Dynamic_array<Explain_union*> unions;
   Dynamic_array<Explain_select*> selects;
   
+  THD *thd; // for APC start/stop
+  bool apc_enabled;
   /* 
     Debugging aid: count how many times add_node() was called. Ideally, it
     should be one, we currently allow O(1) query plan saves for each

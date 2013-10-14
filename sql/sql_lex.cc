@@ -4276,11 +4276,15 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
     eu->add_select(sl->select_number);
 
+  eu->fake_select_type= "UNION RESULT";
+  eu->using_filesort= test(global_parameters->order_list.first);
+
   // Save the UNION node
   output->add_node(eu);
 
-  eu->fake_select_type= "UNION RESULT";
-  eu->using_filesort= test(global_parameters->order_list.first);
+  if (eu->get_select_id() == 1)
+    output->query_plan_ready();
+
   return 0;
 }
 

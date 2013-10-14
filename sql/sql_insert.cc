@@ -461,7 +461,8 @@ void upgrade_lock_type(THD *thd, thr_lock_type *lock_type,
     if (specialflag & (SPECIAL_NO_NEW_FUNC | SPECIAL_SAFE_MODE) ||
         thd->variables.max_insert_delayed_threads == 0 ||
         thd->locked_tables_mode > LTM_LOCK_TABLES ||
-        thd->lex->uses_stored_routines())
+        thd->lex->uses_stored_routines() /*||
+        thd->lex->describe*/)
     {
       *lock_type= TL_WRITE;
       return;
@@ -649,7 +650,7 @@ static void save_insert_query_plan(THD* thd, TABLE_LIST *table_list)
   Explain_insert* explain= new Explain_insert;
   explain->table_name.append(table_list->table->alias);
 
-  thd->lex->explain->insert_plan= explain;
+  thd->lex->explain->add_insert_plan(explain);
   
   /* See Update_plan::updating_a_view for details */
   bool skip= test(table_list->view);
