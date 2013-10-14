@@ -52,7 +52,7 @@
 struct rpl_parallel_thread_pool global_rpl_thread_pool;
 
 
-static void
+static int
 rpt_handle_event(rpl_parallel_thread::queued_event *qev,
                  struct rpl_parallel_thread *rpt)
 {
@@ -70,6 +70,7 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   err= apply_event_and_update_pos(qev->ev, thd, rgi, rpt);
   thd->rgi_slave= NULL;
   /* ToDo: error handling. */
+  return err;
 }
 
 
@@ -104,6 +105,7 @@ handle_rpl_parallel_thread(void *arg)
   bool group_standalone= true;
   bool in_event_group= false;
   uint64 event_gtid_sub_id= 0;
+  int err;
 
   struct rpl_parallel_thread *rpt= (struct rpl_parallel_thread *)arg;
 
@@ -139,6 +141,7 @@ handle_rpl_parallel_thread(void *arg)
     mysql_cond_wait(&rpt->COND_rpl_thread, &rpt->LOCK_rpl_thread);
 
   rpt->running= true;
+  mysql_cond_signal(&rpt->COND_rpl_thread);
 
   while (!rpt->stop && !thd->killed)
   {
@@ -163,6 +166,7 @@ handle_rpl_parallel_thread(void *arg)
       uint64 wait_start_sub_id;
       bool end_of_group;
 
+      err= 0;
       /* Handle a new event group, which will be initiated by a GTID event. */
       if (event_type == GTID_EVENT)
       {
@@ -221,9 +225,9 @@ handle_rpl_parallel_thread(void *arg)
         everything is stopped and cleaned up correctly.
       */
       if (!sql_worker_killed(thd, rgi, in_event_group))
-        rpt_handle_event(events, rpt);
+        err= rpt_handle_event(events, rpt);
       else
-        thd->wait_for_prior_commit();
+        err= thd->wait_for_prior_commit();
 
       end_of_group=
         in_event_group &&
@@ -272,7 +276,7 @@ handle_rpl_parallel_thread(void *arg)
         }
         mysql_mutex_unlock(&entry->LOCK_parallel_entry);
 
-        rgi->commit_orderer.wakeup_subsequent_commits();
+        rgi->commit_orderer.wakeup_subsequent_commits(err);
         delete rgi;
       }
 
@@ -431,6 +435,9 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
     mysql_mutex_lock(&pool->threads[i]->LOCK_rpl_thread);
     pool->threads[i]->delay_start= false;
     mysql_cond_signal(&pool->threads[i]->COND_rpl_thread);
+    while (!pool->threads[i]->running)
+      mysql_cond_wait(&pool->threads[i]->COND_rpl_thread,
+                      &pool->threads[i]->LOCK_rpl_thread);
     mysql_mutex_unlock(&pool->threads[i]->LOCK_rpl_thread);
   }
 

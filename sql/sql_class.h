@@ -1614,6 +1614,8 @@ struct wait_for_commit
     cleared.
   */
   bool waiting_for_commit;
+  /* The wakeup error code from the waitee. 0 means no error. */
+  int wakeup_error;
   /*
     Flag set when wakeup_subsequent_commits_running() is active, see comments
     on that function for details.
@@ -1621,16 +1623,18 @@ struct wait_for_commit
   bool wakeup_subsequent_commits_running;
 
   void register_wait_for_prior_commit(wait_for_commit *waitee);
-  void wait_for_prior_commit()
+  int wait_for_prior_commit()
   {
     /*
       Quick inline check, to avoid function call and locking in the common case
       where no wakeup is registered, or a registered wait was already signalled.
     */
     if (waiting_for_commit)
-      wait_for_prior_commit2();
+      return wait_for_prior_commit2();
+    else
+      return wakeup_error;
   }
-  void wakeup_subsequent_commits()
+  void wakeup_subsequent_commits(int wakeup_error)
   {
     /*
       Do the check inline, so only the wakeup case takes the cost of a function
@@ -1645,7 +1649,7 @@ struct wait_for_commit
       prevent a waiter from arriving just after releasing the lock.
     */
     if (subsequent_commits_list)
-      wakeup_subsequent_commits2();
+      wakeup_subsequent_commits2(wakeup_error);
   }
   void unregister_wait_for_prior_commit()
   {
@@ -1653,10 +1657,10 @@ struct wait_for_commit
       unregister_wait_for_prior_commit2();
   }
 
-  void wakeup();
+  void wakeup(int wakeup_error);
 
-  void wait_for_prior_commit2();
-  void wakeup_subsequent_commits2();
+  int wait_for_prior_commit2();
+  void wakeup_subsequent_commits2(int wakeup_error);
   void unregister_wait_for_prior_commit2();
 
   wait_for_commit();
@@ -3308,15 +3312,21 @@ public:
   void signal_wakeup_ready();
 
   wait_for_commit *wait_for_commit_ptr;
-  void wait_for_prior_commit()
+  int wait_for_prior_commit()
   {
     if (wait_for_commit_ptr)
-      wait_for_commit_ptr->wait_for_prior_commit();
+    {
+      int err= wait_for_commit_ptr->wait_for_prior_commit();
+      if (err)
+        my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+      return err;
+    }
+    return 0;
   }
-  void wakeup_subsequent_commits()
+  void wakeup_subsequent_commits(int wakeup_error)
   {
     if (wait_for_commit_ptr)
-      wait_for_commit_ptr->wakeup_subsequent_commits();
+      wait_for_commit_ptr->wakeup_subsequent_commits(wakeup_error);
   }
 
 private:

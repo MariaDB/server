@@ -6743,7 +6743,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
             cur->wakeup_subsequent_commits_running= true;
             mysql_mutex_unlock(&cur->LOCK_wait_commit);
           }
-          waiter->wakeup();
+          waiter->wakeup(0);
         }
         waiter= next;
       }
@@ -6849,7 +6849,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
         field.
       */
       if (next->queued_by_other)
-        next->thd->wait_for_commit_ptr->wakeup();
+        next->thd->wait_for_commit_ptr->wakeup(entry->error);
       else
         next->thd->signal_wakeup_ready();
     }
@@ -7145,7 +7145,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     if (current != leader)                      // Don't wake up ourself
     {
       if (current->queued_by_other)
-        current->thd->wait_for_commit_ptr->wakeup();
+        current->thd->wait_for_commit_ptr->wakeup(current->error);
       else
         current->thd->signal_wakeup_ready();
     }
@@ -7844,7 +7844,8 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
     mysql_mutex_unlock(&LOCK_prepare_ordered);
   }
 
-  thd->wait_for_prior_commit();
+  if (thd->wait_for_prior_commit())
+    return 0;
 
   cookie= 0;
   if (xid)
