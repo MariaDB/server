@@ -820,7 +820,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   if (thd->lex->describe)
   {
     retval= thd->lex->explain->send_explain(thd);
-    goto free_and_exit;
+    goto abort;
   }
 
   /*
@@ -1177,7 +1177,6 @@ abort:
   if (table != NULL)
     table->file->ha_release_auto_increment();
 
-free_and_exit:
   if (!joins_freed)
     free_underlaid_joins(thd, &thd->lex->select_lex);
   thd->abort_on_warning= 0;
