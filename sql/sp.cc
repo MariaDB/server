@@ -1167,6 +1167,9 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
     ret= SP_OK;
     if (table->file->ha_write_row(table->record[0]))
       ret= SP_WRITE_ROW_FAILED;
+    /* Make change permanent and avoid 'table is marked as crashed' errors */
+    table->file->extra(HA_EXTRA_FLUSH);
+
     if (ret == SP_OK)
       sp_cache_invalidate();
 
@@ -1256,6 +1259,8 @@ sp_drop_routine(THD *thd, stored_procedure_type type, sp_name *name)
   {
     if (table->file->ha_delete_row(table->record[0]))
       ret= SP_DELETE_ROW_FAILED;
+    /* Make change permanent and avoid 'table is marked as crashed' errors */
+    table->file->extra(HA_EXTRA_FLUSH);
   }
 
   if (ret == SP_OK)
@@ -1366,6 +1371,8 @@ sp_update_routine(THD *thd, stored_procedure_type type, sp_name *name,
       ret= SP_WRITE_ROW_FAILED;
     else
       ret= 0;
+    /* Make change permanent and avoid 'table is marked as crashed' errors */
+    table->file->extra(HA_EXTRA_FLUSH);
   }
 
   if (ret == SP_OK)
@@ -1540,7 +1547,11 @@ sp_drop_db_routines(THD *thd, char *db)
     if (nxtres != HA_ERR_END_OF_FILE)
       ret= SP_KEY_NOT_FOUND;
     if (deleted)
+    {
       sp_cache_invalidate();
+      /* Make change permanent and avoid 'table is marked as crashed' errors */
+      table->file->extra(HA_EXTRA_FLUSH);
+    }
   }
   table->file->ha_index_end();
 
