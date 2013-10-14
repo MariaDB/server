@@ -1740,7 +1740,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
       problem.  When WL#2975 is implemented, just remove the member
       Relay_log_info::last_event_start_time and all its occurrences.
     */
-    const_cast<Relay_log_info*>(rli)->last_event_start_time= my_time(0);
+    rgi->last_event_start_time= my_time(0);
   }
 
   if (get_flags(STMT_END_F))

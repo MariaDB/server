@@ -9293,7 +9293,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       set the initial time of this ROWS statement if it was not done
       before in some other ROWS event. 
      */
-    const_cast<Relay_log_info*>(rli)->set_row_stmt_start_timestamp();
+    rgi->set_row_stmt_start_timestamp();
 
     while (error == 0 && m_curr_row < m_rows_end)
     {
@@ -11133,13 +11133,13 @@ static inline
 void issue_long_find_row_warning(Log_event_type type, 
                                  const char *table_name,
                                  bool is_index_scan,
-                                 const Relay_log_info *rli)
+                                 rpl_group_info *rgi)
 {
   if ((global_system_variables.log_warnings > 1 && 
-      !const_cast<Relay_log_info*>(rli)->is_long_find_row_note_printed()))
+       !rgi->is_long_find_row_note_printed()))
   {
     time_t now= my_time(0);
-    time_t stmt_ts= const_cast<Relay_log_info*>(rli)->get_row_stmt_start_timestamp();
+    time_t stmt_ts= rgi->get_row_stmt_start_timestamp();
     
     DBUG_EXECUTE_IF("inject_long_find_row_note", 
                     stmt_ts-=(LONG_FIND_ROW_THRESHOLD*2););
@@ -11148,7 +11148,7 @@ void issue_long_find_row_warning(Log_event_type type,
 
     if (delta > LONG_FIND_ROW_THRESHOLD)
     {
-      const_cast<Relay_log_info*>(rli)->set_long_find_row_note_printed();
+      rgi->set_long_find_row_note_printed();
       const char* evt_type= type == DELETE_ROWS_EVENT ? " DELETE" : "n UPDATE";
       const char* scan_type= is_index_scan ? "scanning an index" : "scanning the table";
 
@@ -11477,7 +11477,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 end:
   if (is_table_scan || is_index_scan)
     issue_long_find_row_warning(get_type_code(), m_table->alias.c_ptr(), 
-                                is_index_scan, rgi->rli);
+                                is_index_scan, rgi);
   table->default_column_bitmaps();
   DBUG_RETURN(error);
 }

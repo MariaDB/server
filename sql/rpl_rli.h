@@ -298,14 +298,16 @@ public:
 
   char cached_charset[6];
   /*
-    trans_retries varies between 0 to slave_transaction_retries and counts how
-    many times the slave has retried the present transaction; gets reset to 0
-    when the transaction finally succeeds. retried_trans is a cumulative
-    counter: how many times the slave has retried a transaction (any) since
-    slave started.
+    retried_trans is a cumulative counter: how many times the slave
+    has retried a transaction (any) since slave started.
+    Protected by data_lock.
   */
-  ulong trans_retries, retried_trans;
-  ulong executed_entries;                       /* For SLAVE STATUS */
+  ulong retried_trans;
+  /*
+    Number of executed events for SLAVE STATUS.
+    Protected by slave_executed_entries_lock
+  */
+  int64 executed_entries;
 
   /*
     If the end of the hot relay log is made of master's events ignored by the
@@ -381,13 +383,6 @@ public:
   void cached_charset_invalidate();
   bool cached_charset_compare(char *charset) const;
 
-  /*
-    Used to defer stopping the SQL thread to give it a chance
-    to finish up the current group of events.
-    The timestamp is set and reset in @c sql_slave_killed().
-  */
-  time_t last_event_start_time;
-   
   /**
     Helper function to do after statement completion.
 
@@ -462,39 +457,6 @@ public:
     m_flags&= ~flag;
   }
 
-  time_t get_row_stmt_start_timestamp()
-  {
-    return row_stmt_start_timestamp;
-  }
-
-  time_t set_row_stmt_start_timestamp()
-  {
-    if (row_stmt_start_timestamp == 0)
-      row_stmt_start_timestamp= my_time(0);
-
-    return row_stmt_start_timestamp;
-  }
-
-  void reset_row_stmt_start_timestamp()
-  {
-    row_stmt_start_timestamp= 0;
-  }
-
-  void set_long_find_row_note_printed()
-  {
-    long_find_row_note_printed= true;
-  }
-
-  void unset_long_find_row_note_printed()
-  {
-    long_find_row_note_printed= false;
-  }
-
-  bool is_long_find_row_note_printed()
-  {
-    return long_find_row_note_printed;
-  }
-
 private:
 
   /*
@@ -504,13 +466,6 @@ private:
     relay log.
   */
   uint32 m_flags;
-
-  /*
-    Runtime state for printing a note when slave is taking
-    too long while processing a row event.
-   */
-  time_t row_stmt_start_timestamp;
-  bool long_find_row_note_printed;
 };
 
 
@@ -591,6 +546,29 @@ struct rpl_group_info
   table_mapping m_table_map;      /* RBR: Mapping table-id to table */
   mysql_mutex_t sleep_lock;
   mysql_cond_t sleep_cond;
+
+  /*
+    trans_retries varies between 0 to slave_transaction_retries and counts how
+    many times the slave has retried the present transaction; gets reset to 0
+    when the transaction finally succeeds.
+  */
+  ulong trans_retries;
+
+  /*
+    Used to defer stopping the SQL thread to give it a chance
+    to finish up the current group of events.
+    The timestamp is set and reset in @c sql_slave_killed().
+  */
+  time_t last_event_start_time;
+
+private:
+  /*
+    Runtime state for printing a note when slave is taking
+    too long while processing a row event.
+   */
+  time_t row_stmt_start_timestamp;
+  bool long_find_row_note_printed;
+public:
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
@@ -673,6 +651,39 @@ struct rpl_group_info
   void clear_tables_to_lock();
   void cleanup_context(THD *, bool);
   void slave_close_thread_tables(THD *);
+
+  time_t get_row_stmt_start_timestamp()
+  {
+    return row_stmt_start_timestamp;
+  }
+
+  time_t set_row_stmt_start_timestamp()
+  {
+    if (row_stmt_start_timestamp == 0)
+      row_stmt_start_timestamp= my_time(0);
+
+    return row_stmt_start_timestamp;
+  }
+
+  void reset_row_stmt_start_timestamp()
+  {
+    row_stmt_start_timestamp= 0;
+  }
+
+  void set_long_find_row_note_printed()
+  {
+    long_find_row_note_printed= true;
+  }
+
+  void unset_long_find_row_note_printed()
+  {
+    long_find_row_note_printed= false;
+  }
+
+  bool is_long_find_row_note_printed()
+  {
+    return long_find_row_note_printed;
+  }
 };
 
 
