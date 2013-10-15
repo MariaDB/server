@@ -903,7 +903,7 @@ int Explain_update::print_explain(Explain_query *query,
                     key_len_buf.length() ? key_len_buf.c_ptr() : NULL,
                     NULL, /* 'ref' is always NULL in single-table EXPLAIN DELETE */
                     &rows,
-                    extra_str.c_ptr());
+                    extra_str.c_ptr_safe());
 
   return print_explain_for_children(query, output, explain_flags);
 }
