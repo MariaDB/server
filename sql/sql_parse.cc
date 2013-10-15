@@ -3288,7 +3288,7 @@ end_with_restore_list:
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     TABLE_LIST *aux_tables= thd->lex->auxiliary_table_list.first;
     bool explain= test(lex->describe);
-    select_result *result;
+    multi_delete *result;
 
     if ((res= multi_delete_precheck(thd, all_tables)))
       break;
@@ -3328,7 +3328,7 @@ end_with_restore_list:
                           result, unit, select_lex);
         res|= thd->is_error();
 
-        MYSQL_MULTI_DELETE_DONE(res, del_result->num_deleted());
+        MYSQL_MULTI_DELETE_DONE(res, result->num_deleted());
         if (res)
           result->abort_result_set(); /* for both DELETE and EXPLAIN DELETE */
         else
