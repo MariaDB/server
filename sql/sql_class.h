@@ -3410,6 +3410,11 @@ public:
   void begin_dataset() {}
 #endif
   virtual void update_used_tables() {}
+
+  void reset_offset_limit()
+  {
+    unit->offset_limit_cnt= 0;
+  }
 };
 
 
@@ -3437,6 +3442,26 @@ public:
   int send_data(List<Item> &items);
 };
 
+
+/*
+  This is a select_result_sink which stores the data in text form.
+*/
+
+class select_result_text_buffer : public select_result_sink
+{
+public:
+  select_result_text_buffer(THD *thd_arg) : thd(thd_arg) {}
+  int send_data(List<Item> &items);
+  bool send_result_set_metadata(List<Item> &fields, uint flag);
+
+  void save_to(String *res);
+private:
+  int append_row(List<Item> &items, bool send_names);
+
+  THD *thd;
+  List<char*> rows;
+  int n_columns;
+};
 
 
 /*
@@ -4159,7 +4184,9 @@ class multi_update :public select_result_interceptor
      so that afterward send_error() needs to find out that.
   */
   bool error_handled;
-
+  
+  /* Need this to protect against multiple prepare() calls */
+  bool prepared;
 public:
   multi_update(TABLE_LIST *ut, List<TABLE_LIST> *leaves_list,
 	       List<Item> *fields, List<Item> *values,

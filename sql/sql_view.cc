@@ -1300,8 +1300,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
       underlying tables.
       Skip this step if we are opening view for prelocking only.
     */
-    if (!table->prelocking_placeholder &&
-        (old_lex->sql_command == SQLCOM_SELECT && old_lex->describe))
+    if (!table->prelocking_placeholder && (old_lex->describe))
     {
       /*
         The user we run EXPLAIN as (either the connected user who issued

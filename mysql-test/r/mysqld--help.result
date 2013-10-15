@@ -344,7 +344,7 @@ The following options may be given as the first argument:
  log if it is open.
  --log-slow-verbosity=name 
  log-slow-verbosity=[value[,value ...]] where value is one
- of 'innodb', 'query_plan'
+ of 'innodb', 'query_plan', 'explain' 
  --log-tc=name       Path to transaction coordinator log (used for
  transactions that affect more than one storage engine,
  when binary log is disabled).

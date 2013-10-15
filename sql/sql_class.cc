@@ -2089,6 +2089,7 @@ int THD::send_explain_fields(select_result *result)
 {
   List<Item> field_list;
   make_explain_field_list(field_list);
+  result->prepare(field_list, NULL);
   return (result->send_result_set_metadata(field_list,
                                            Protocol::SEND_NUM_ROWS | 
                                            Protocol::SEND_EOF));

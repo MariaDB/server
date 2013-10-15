@@ -461,7 +461,8 @@ void upgrade_lock_type(THD *thd, thr_lock_type *lock_type,
     if (specialflag & (SPECIAL_NO_NEW_FUNC | SPECIAL_SAFE_MODE) ||
         thd->variables.max_insert_delayed_threads == 0 ||
         thd->locked_tables_mode > LTM_LOCK_TABLES ||
-        thd->lex->uses_stored_routines())
+        thd->lex->uses_stored_routines() /*||
+        thd->lex->describe*/)
     {
       *lock_type= TL_WRITE;
       return;
@@ -644,6 +645,36 @@ create_insert_stmt_from_insert_delayed(THD *thd, String *buf)
 }
 
 
+static void save_insert_query_plan(THD* thd, TABLE_LIST *table_list)
+{
+  Explain_insert* explain= new Explain_insert;
+  explain->table_name.append(table_list->table->alias);
+
+  thd->lex->explain->add_insert_plan(explain);
+  
+  /* See Update_plan::updating_a_view for details */
+  bool skip= test(table_list->view);
+
+  /* Save subquery children */
+  for (SELECT_LEX_UNIT *unit= thd->lex->select_lex.first_inner_unit();
+       unit;
+       unit= unit->next_unit())
+  {
+    if (skip)
+    {
+      skip= false;
+      continue;
+    }
+    /* 
+      Table elimination doesn't work for INSERTS, but let's still have this
+      here for consistency
+    */
+    if (!(unit->item && unit->item->eliminated))
+      explain->add_child(unit->first_select()->select_number);
+  }
+}
+
+
 /**
   INSERT statement implementation
 
@@ -660,6 +691,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
                   enum_duplicates duplic,
 		  bool ignore)
 {
+  bool retval= true;
   int error, res;
   bool transactional_table, joins_freed= FALSE;
   bool changed;
@@ -780,6 +812,17 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
  
   /* Restore the current context. */
   ctx_state.restore_state(context, table_list);
+  
+  if (thd->lex->unit.first_select()->optimize_unflattened_subqueries(false))
+  {
+    goto abort;
+  }
+  save_insert_query_plan(thd, table_list);
+  if (thd->lex->describe)
+  {
+    retval= thd->lex->explain->send_explain(thd);
+    goto abort;
+  }
 
   /*
     Fill in the given fields and dump it to the table file
@@ -1134,10 +1177,11 @@ abort:
 #endif
   if (table != NULL)
     table->file->ha_release_auto_increment();
+
   if (!joins_freed)
     free_underlaid_joins(thd, &thd->lex->select_lex);
   thd->abort_on_warning= 0;
-  DBUG_RETURN(TRUE);
+  DBUG_RETURN(retval);
 }
 
 
