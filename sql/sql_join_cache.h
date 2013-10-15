@@ -63,6 +63,7 @@ typedef struct st_cache_field {
 
 class JOIN_TAB_SCAN;
 
+struct st_explain_bka_type;
 
 /*
   JOIN_CACHE is the base class to support the implementations of 
@@ -657,7 +658,7 @@ public:
   enum_nested_loop_state join_records(bool skip_last);
 
   /* Add a comment on the join algorithm employed by the join cache */
-  virtual void print_explain_comment(String *str);
+  virtual void save_explain_data(struct st_explain_bka_type *explain);
 
   THD *thd();
 
@@ -1335,7 +1336,7 @@ public:
   /* Check index condition of the joined table for a record from BKA cache */
   bool skip_index_tuple(range_id_t range_info);
 
-  void print_explain_comment(String *str);
+  void save_explain_data(struct st_explain_bka_type *explain);
 };
 
 
@@ -1426,5 +1427,5 @@ public:
   /* Check index condition of the joined table for a record from BKAH cache */
   bool skip_index_tuple(range_id_t range_info);
 
-  void print_explain_comment(String *str);
+  void save_explain_data(struct st_explain_bka_type *explain);
 };

@@ -6,7 +6,7 @@ filter='\.cc$\|\.c$\|\.h$\|sql_yacc\.yy$'
 list="find . -type f"
 bzr root >/dev/null 2>/dev/null && list="bzr ls --from-root -R --kind=file --versioned"
 
-$list |grep $filter |while read f; 
+$list |grep $filter | grep -v gen-cpp |while read f; 
 do
 	 etags -o TAGS --append $f
 done

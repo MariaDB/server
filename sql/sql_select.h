@@ -198,6 +198,12 @@ int rr_sequential(READ_RECORD *info);
 int rr_sequential_and_unpack(READ_RECORD *info);
 
 
+#include "sql_explain.h"
+
+/**************************************************************************************
+ * New EXPLAIN structures END
+ *************************************************************************************/
+
 class JOIN_CACHE;
 class SJ_TMP_TABLE;
 class JOIN_TAB_RANGE;
@@ -252,7 +258,8 @@ typedef struct st_join_table {
   JOIN_TAB_RANGE *bush_children;
   
   /* Special content for EXPLAIN 'Extra' column or NULL if none */
-  const char	*info;
+  enum explain_extra_tag info;
+
   /* 
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
     column, or 0 if there is no info.
@@ -1334,6 +1341,8 @@ public:
     pre_sort_join_tab= NULL;
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
+
+    exec_saved_explain= false;
     /* 
       The following is needed because JOIN::cleanup(true) may be called for 
       joins for which JOIN::optimize was aborted with an error before a proper
@@ -1341,6 +1350,13 @@ public:
     */
     table_access_tabs= NULL; 
   }
+
+  /*
+    TRUE <=> There was a JOIN::exec() call, which saved this JOIN's EXPLAIN.
+    The idea is that we also save at the end of JOIN::optimize(), but that
+    might not be the final plan.
+  */
+  bool exec_saved_explain;
 
   int prepare(Item ***rref_pointer_array, TABLE_LIST *tables, uint wind_num,
 	      COND *conds, uint og_num, ORDER *order, ORDER *group,
@@ -1466,11 +1482,11 @@ public:
   {
     return (unit->item && unit->item->is_in_predicate());
   }
-
-  int print_explain(select_result_sink *result, uint8 explain_flags,
-                     bool on_the_fly,
-                     bool need_tmp_table, bool need_order,
-                     bool distinct,const char *message);
+  void save_explain_data(Explain_query *output, bool can_overwrite,
+                         bool need_tmp_table, bool need_order, bool distinct);
+  int save_explain_data_intern(Explain_query *output, bool need_tmp_table,
+                               bool need_order, bool distinct,
+                               const char *message);
 private:
   /**
     TRUE if the query contains an aggregate function but has no GROUP
@@ -1826,7 +1842,8 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
                                SELECT_LEX *select_lex, uint8 select_options);
 
 uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
-                         ha_rows limit, bool *need_sort, bool *reverse);
+                         ha_rows limit, ha_rows *scanned_limit, 
+                         bool *need_sort, bool *reverse);
 ORDER *simple_remove_const(ORDER *order, COND *where);
 bool const_expression_in_where(COND *cond, Item *comp_item,
                                Field *comp_field= NULL,
@@ -1841,6 +1858,29 @@ void eliminate_tables(JOIN *join);
 void push_index_cond(JOIN_TAB *tab, uint keyno);
 
 #define OPT_LINK_EQUAL_FIELDS    1
+
+/* EXPLAIN-related utility functions */
+int print_explain_message_line(select_result_sink *result, 
+                               uint8 options,
+                               uint select_number,
+                               const char *select_type,
+                               ha_rows *rows,
+                               const char *message);
+void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res);
+int print_explain_row(select_result_sink *result,
+                      uint8 options,
+                      uint select_number,
+                      const char *select_type,
+                      const char *table_name,
+                      const char *partitions,
+                      enum join_type jtype,
+                      const char *possible_keys,
+                      const char *index,
+                      const char *key_len,
+                      const char *ref,
+                      ha_rows *rows,
+                      const char *extra);
+void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line);
 
 /****************************************************************************
   Temporary table support for SQL Runtime

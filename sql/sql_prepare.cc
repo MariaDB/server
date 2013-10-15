@@ -2491,6 +2491,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
     object and because of this can be used in different threads.
   */
   lex->thd= thd;
+  DBUG_ASSERT(!lex->explain);
 
   if (lex->empty_field_list_on_rset)
   {
@@ -3930,6 +3931,8 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
 
   if (! cursor)
     cleanup_stmt();
+
+  delete_explain_query(thd->lex);
 
   thd->set_statement(&stmt_backup);
   thd->stmt_arena= old_stmt_arena;

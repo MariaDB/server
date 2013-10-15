@@ -1655,6 +1655,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         definer_opt no_definer definer
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
         vcol_opt_attribute_list vcol_attribute
+        explainable_command
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -11969,11 +11970,19 @@ describe:
           }
         | describe_command opt_extended_describe
           { Lex->describe|= DESCRIBE_NORMAL; }
-          select
+          explainable_command
           {
             LEX *lex=Lex;
             lex->select_lex.options|= SELECT_DESCRIBE;
           }
+        ;
+
+explainable_command:
+          select
+        | insert
+        | replace
+        | update
+        | delete
         ;
 
 describe_command:
