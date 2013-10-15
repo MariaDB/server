@@ -1435,6 +1435,7 @@ bool Item_in_optimizer::eval_not_null_tables(uchar *opt_arg)
   return FALSE;
 }
 
+
 bool Item_in_optimizer::fix_left(THD *thd)
 {
   if ((!args[0]->fixed && args[0]->fix_fields(thd, args)) ||
@@ -2203,6 +2204,15 @@ bool Item_func_between::eval_not_null_tables(uchar *opt_arg)
                            args[2]->not_null_tables()));
   return 0;
 }  
+
+
+bool Item_func_between::count_sargable_conds(uchar *arg)
+{
+  SELECT_LEX *sel= (SELECT_LEX *) arg;
+  sel->cond_count++;
+  sel->between_count++;
+  return 0;
+}
 
 
 void Item_func_between::fix_after_pullout(st_select_lex *new_parent, Item **ref)
@@ -4802,6 +4812,7 @@ longlong Item_func_isnull::val_int()
   return args[0]->is_null() ? 1: 0;
 }
 
+
 longlong Item_is_not_null_test::val_int()
 {
   DBUG_ASSERT(fixed == 1);
@@ -5006,6 +5017,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
   return FALSE;
 }
 
+
 void Item_func_like::cleanup()
 {
   canDoTurboBM= FALSE;
@@ -5034,60 +5046,143 @@ bool Item_func_like::find_selective_predicates_list_processor(uchar *arg)
 }
 
 
+
+/**
+  Convert string to lib_charset, if needed.
+*/
+String *Regexp_processor_pcre::convert_if_needed(String *str, String *converter)
+{
+  if (m_conversion_is_needed)
+  {
+    uint dummy_errors;
+    if (converter->copy(str->ptr(), str->length(), str->charset(),
+                        m_library_charset, &dummy_errors))
+      return NULL;
+    str= converter;
+  }
+  return str;
+}
+
+
 /**
   @brief Compile regular expression.
 
+  @param[in]    pattern        the pattern to compile from.
   @param[in]    send_error     send error message if any.
 
   @details Make necessary character set conversion then 
   compile regular expression passed in the args[1].
 
-  @retval    0     success.
-  @retval    1     error occurred.
-  @retval   -1     given null regular expression.
+  @retval    false  success.
+  @retval    true   error occurred.
  */
 
-int Item_func_regex::regcomp(bool send_error)
+bool Regexp_processor_pcre::compile(String *pattern, bool send_error)
 {
-  char buff[MAX_FIELD_WIDTH];
-  String tmp(buff,sizeof(buff),&my_charset_bin);
-  String *res= args[1]->val_str(&tmp);
-  int error;
+  const char *pcreErrorStr;
+  int pcreErrorOffset;
 
-  if (args[1]->null_value)
-    return -1;
-
-  if (regex_compiled)
+  if (is_compiled())
   {
-    if (!stringcmp(res, &prev_regexp))
-      return 0;
-    prev_regexp.copy(*res);
-    my_regfree(&preg);
-    regex_compiled= 0;
+    if (!stringcmp(pattern, &m_prev_pattern))
+      return false;
+    m_prev_pattern.copy(*pattern);
+    pcre_free(m_pcre);
+    m_pcre= NULL;
   }
 
-  if (cmp_collation.collation != regex_lib_charset)
-  {
-    /* Convert UCS2 strings to UTF8 */
-    uint dummy_errors;
-    if (conv.copy(res->ptr(), res->length(), res->charset(),
-                  regex_lib_charset, &dummy_errors))
-      return 1;
-    res= &conv;
-  }
+  if (!(pattern= convert_if_needed(pattern, &pattern_converter)))
+    return true;
 
-  if ((error= my_regcomp(&preg, res->c_ptr_safe(),
-                         regex_lib_flags, regex_lib_charset)))
+  m_pcre= pcre_compile(pattern->c_ptr_safe(), m_library_flags,
+                       &pcreErrorStr, &pcreErrorOffset, NULL);
+
+  if (m_pcre == NULL)
   {
     if (send_error)
     {
-      (void) my_regerror(error, &preg, buff, sizeof(buff));
+      char buff[MAX_FIELD_WIDTH];
+      my_snprintf(buff, sizeof(buff), "%s at offset %d", pcreErrorStr, pcreErrorOffset);
       my_error(ER_REGEXP_ERROR, MYF(0), buff);
     }
-    return 1;
+    return true;
   }
-  regex_compiled= 1;
-  return 0;
+  return false;
+}
+
+
+bool Regexp_processor_pcre::compile(Item *item, bool send_error)
+{
+  char buff[MAX_FIELD_WIDTH];
+  String tmp(buff, sizeof(buff), &my_charset_bin);
+  String *pattern= item->val_str(&tmp);
+  if (item->null_value || compile(pattern, send_error))
+    return true;
+  return false;
+}
+
+
+bool Regexp_processor_pcre::exec(const char *str, int length, int offset)
+{
+  m_pcre_exec_rc= pcre_exec(m_pcre, NULL, str, length,
+                            offset, 0, m_SubStrVec, m_subpatterns_needed * 3);
+  return false;
+}
+
+
+bool Regexp_processor_pcre::exec(String *str, int offset,
+                                  uint n_result_offsets_to_convert)
+{
+  if (!(str= convert_if_needed(str, &subject_converter)))
+    return true;
+  m_pcre_exec_rc= pcre_exec(m_pcre, NULL, str->c_ptr_safe(), str->length(),
+                            offset, 0, m_SubStrVec, m_subpatterns_needed * 3);
+  if (m_pcre_exec_rc > 0)
+  {
+    uint i;
+    for (i= 0; i < n_result_offsets_to_convert; i++)
+    {
+      /*
+        Convert byte offset into character offset.
+      */
+      m_SubStrVec[i]= (int) str->charset()->cset->numchars(str->charset(),
+                                                           str->ptr(),
+                                                           str->ptr() +
+                                                           m_SubStrVec[i]);
+    }
+  }
+  return false;
+}
+
+
+bool Regexp_processor_pcre::exec(Item *item, int offset,
+                                uint n_result_offsets_to_convert)
+{
+  char buff[MAX_FIELD_WIDTH];
+  String tmp(buff,sizeof(buff),&my_charset_bin);
+  String *res= item->val_str(&tmp);
+  if (item->null_value)
+    return true;
+  return exec(res, offset, n_result_offsets_to_convert);
+}
+
+
+void Regexp_processor_pcre::fix_owner(Item_func *owner,
+                                      Item *subject_arg,
+                                      Item *pattern_arg)
+{
+  if (!is_compiled() && pattern_arg->const_item())
+  {
+    if (compile(pattern_arg, true))
+    {
+      owner->maybe_null= 1; // Will always return NULL
+      return;
+    }
+    set_const(true);
+    owner->maybe_null= subject_arg->maybe_null;
+  }
+  else
+    owner->maybe_null= 1;
 }
 
 
@@ -5099,74 +5194,45 @@ Item_func_regex::fix_length_and_dec()
   if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
     return;
 
-  regex_lib_flags= (cmp_collation.collation->state &
-                    (MY_CS_BINSORT | MY_CS_CSSORT)) ?
-                   REG_EXTENDED | REG_NOSUB :
-                   REG_EXTENDED | REG_NOSUB | REG_ICASE;
-  /*
-    If the case of UCS2 and other non-ASCII character sets,
-    we will convert patterns and strings to UTF8.
-  */
-  regex_lib_charset= (cmp_collation.collation->mbminlen > 1) ?
-                     &my_charset_utf8_general_ci :
-                     cmp_collation.collation;
-
-  if (!regex_compiled && args[1]->const_item())
-  {
-    int comp_res= regcomp(TRUE);
-    if (comp_res == -1)
-    {						// Will always return NULL
-      maybe_null= 1;
-      return;
-    }
-    else if (comp_res)
-      return; /* Error */
-    regex_is_const= 1;
-    maybe_null= args[0]->maybe_null;
-  }
-  else
-    maybe_null=1;
+  re.init(cmp_collation.collation, 0, 0);
+  re.fix_owner(this, args[0], args[1]);
 }
 
 
 longlong Item_func_regex::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  char buff[MAX_FIELD_WIDTH];
-  String tmp(buff,sizeof(buff),&my_charset_bin);
-  String *res= args[0]->val_str(&tmp);
-
-  if ((null_value= (args[0]->null_value ||
-                    (!regex_is_const && regcomp(FALSE)))))
+  if ((null_value= re.recompile(args[1])))
     return 0;
 
-  if (cmp_collation.collation != regex_lib_charset)
-  {
-    /* Convert UCS2 strings to UTF8 */
-    uint dummy_errors;
-    if (conv.copy(res->ptr(), res->length(), res->charset(),
-                  regex_lib_charset, &dummy_errors))
-    {
-      null_value= 1;
-      return 0;
-    }
-    res= &conv;
-  }
-  return my_regexec(&preg,res->c_ptr_safe(),0,(my_regmatch_t*) 0,0) ? 0 : 1;
+  if ((null_value= re.exec(args[0], 0, 0)))
+    return 0;
+
+  return re.match();
 }
 
 
-void Item_func_regex::cleanup()
+void
+Item_func_regexp_instr::fix_length_and_dec()
 {
-  DBUG_ENTER("Item_func_regex::cleanup");
-  Item_bool_func::cleanup();
-  if (regex_compiled)
-  {
-    my_regfree(&preg);
-    regex_compiled=0;
-    prev_regexp.length(0);
-  }
-  DBUG_VOID_RETURN;
+  if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
+    return;
+
+  re.init(cmp_collation.collation, 0, 1);
+  re.fix_owner(this, args[0], args[1]);
+}
+
+
+longlong Item_func_regexp_instr::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  if ((null_value= re.recompile(args[1])))
+    return 0;
+
+  if ((null_value= re.exec(args[0], 0, 1)))
+    return 0;
+
+  return re.match() ? re.subpattern_start(0) + 1 : 0;
 }
 
 
@@ -5642,7 +5708,8 @@ Item_equal::Item_equal(Item *f1, Item *f2, bool with_const_item)
   equal_items.push_back(f1);
   equal_items.push_back(f2);
   compare_as_dates= with_const_item && f2->cmp_type() == TIME_RESULT;
-  upper_levels= NULL;  
+  upper_levels= NULL;
+  sargable= TRUE; 
 }
 
 
@@ -5673,6 +5740,7 @@ Item_equal::Item_equal(Item_equal *item_equal)
   compare_as_dates= item_equal->compare_as_dates;
   cond_false= item_equal->cond_false;
   upper_levels= item_equal->upper_levels;
+  sargable= TRUE;
 }
 
 
@@ -6072,6 +6140,14 @@ void Item_equal::update_used_tables()
   }
 }
 
+
+bool Item_equal::count_sargable_conds(uchar *arg)
+{
+  SELECT_LEX *sel= (SELECT_LEX *) arg;
+  uint m= equal_items.elements;
+  sel->cond_count+= m*(m-1);
+  return 0;
+}
 
 
 /**

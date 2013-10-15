@@ -1338,6 +1338,187 @@ void Item_func_replace::fix_length_and_dec()
 }
 
 
+/*********************************************************************/
+void Item_func_regexp_replace::fix_length_and_dec()
+{
+  if (agg_arg_charsets_for_string_result_with_comparison(collation, args, 3))
+    return;
+  max_length= MAX_BLOB_WIDTH;
+  re.init(collation.collation, 0, 10);
+  re.fix_owner(this, args[0], args[1]);
+}
+
+
+/*
+  Traverse through the replacement string and append to "str".
+  Sub-pattern references \0 .. \9 are recognized, which are replaced
+  to the chunks of the source string.
+*/
+bool Item_func_regexp_replace::append_replacement(String *str,
+                                                  const LEX_CSTRING *source,
+                                                  const LEX_CSTRING *replace)
+{
+  const char *beg= replace->str;
+  const char *end= beg + replace->length;
+  CHARSET_INFO *cs= re.library_charset();
+
+  for ( ; ; )
+  {
+    my_wc_t wc;
+    int cnv, n;
+
+    if ((cnv= cs->cset->mb_wc(cs, &wc, (const uchar *) beg,
+                                       (const uchar *) end)) < 1)
+      break; /* End of line */
+    beg+= cnv;
+
+    if (wc != '\\')
+    {
+      if (str->append(beg - cnv, cnv, cs))
+        return true;
+      continue;
+    }
+
+    if ((cnv= cs->cset->mb_wc(cs, &wc, (const uchar *) beg,
+                                       (const uchar *) end)) < 1)
+      break; /* End of line */
+    beg+= cnv;
+
+    if ((n= ((int) wc) - '0') >= 0 && n <= 9 && n < re.nsubpatterns())
+    {
+      /* A valid sub-pattern reference found */
+      int pbeg= re.subpattern_start(n), plength= re.subpattern_end(n) - pbeg;
+      if (str->append(source->str + pbeg, plength, cs))
+        return true;
+    }
+    else
+    {
+      /*
+         A non-digit character following after '\'.
+         Just add the character itself.
+       */
+      if (str->append(beg - cnv, cnv, cs))
+        return false;
+    }
+  }
+  return false;
+}
+
+
+String *Item_func_regexp_replace::val_str(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  char buff0[MAX_FIELD_WIDTH];
+  char buff2[MAX_FIELD_WIDTH];
+  String tmp0(buff0,sizeof(buff0),&my_charset_bin);
+  String tmp2(buff2,sizeof(buff2),&my_charset_bin);
+  String *source= args[0]->val_str(&tmp0);
+  String *replace= args[2]->val_str(&tmp2);
+  LEX_CSTRING src, rpl;
+  int startoffset= 0;
+
+  if ((null_value= (args[0]->null_value || args[2]->null_value ||
+                    re.recompile(args[1]))))
+    return (String *) 0;
+
+  if (!(source= re.convert_if_needed(source, &re.subject_converter)) ||
+      !(replace= re.convert_if_needed(replace, &re.replace_converter)))
+    goto err;
+
+  src= source->lex_cstring();
+  rpl= replace->lex_cstring();
+
+  str->length(0);
+  str->set_charset(collation.collation);
+
+  for ( ; ; ) // Iterate through all matches
+  {
+
+    if (re.exec(src.str, src.length, startoffset))
+      goto err;
+
+    if (!re.match() || re.subpattern_length(0) == 0)
+    {
+      /* 
+        No match or an empty match.
+        Append the rest of the source string
+        starting from startoffset until the end of the source.
+      */
+      if (str->append(src.str + startoffset, src.length - startoffset, re.library_charset()))
+        goto err;
+      return str;
+    }
+
+    /*
+      Append prefix, the part before the matching pattern.
+      starting from startoffset until the next match
+    */
+    if (str->append(src.str + startoffset, re.subpattern_start(0) - startoffset, re.library_charset()))
+      goto err;
+
+    // Append replacement
+    if (append_replacement(str, &src, &rpl))
+      goto err;
+
+    // Set the new start point as the end of previous match
+    startoffset= re.subpattern_end(0);
+  }
+  return str;
+
+err:
+  null_value= true;
+  return (String *) 0;
+}
+
+
+void Item_func_regexp_substr::fix_length_and_dec()
+{
+  if (agg_arg_charsets_for_string_result_with_comparison(collation, args, 2))
+    return;
+  fix_char_length(args[0]->max_char_length());
+  re.init(collation.collation, 0, 10);
+  re.fix_owner(this, args[0], args[1]);
+}
+
+
+String *Item_func_regexp_substr::val_str(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  char buff0[MAX_FIELD_WIDTH];
+  String tmp0(buff0,sizeof(buff0),&my_charset_bin);
+  String *source= args[0]->val_str(&tmp0);
+
+  if ((null_value= (args[0]->null_value || re.recompile(args[1]))))
+    return (String *) 0;
+
+  if (!(source= re.convert_if_needed(source, &re.subject_converter)))
+    goto err;
+
+  str->length(0);
+  str->set_charset(collation.collation);
+
+  if (re.exec(source->ptr(), source->length(), 0))
+    goto err;
+
+  if (!re.match())
+    return str;
+
+  if (str->append(source->ptr() + re.subpattern_start(0),
+                  re.subpattern_end(0) - re.subpattern_start(0),
+                  re.library_charset()))
+    goto err;
+
+  return str;
+
+err:
+  null_value= true;
+  return (String *) 0;
+}
+
+
+/************************************************************************/
+
+
 String *Item_func_insert::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);

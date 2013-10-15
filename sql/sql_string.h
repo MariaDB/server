@@ -164,6 +164,11 @@ public:
     LEX_STRING lex_string = { (char*) ptr(), length() };
     return lex_string;
   }
+  LEX_CSTRING lex_cstring() const
+  {
+    LEX_CSTRING lex_cstring = { ptr(), length() };
+    return lex_cstring;
+  }
 
   void set(String &str,uint32 offset,uint32 arg_length)
   {

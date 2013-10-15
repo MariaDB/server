@@ -15,7 +15,8 @@
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/libmysqld/include
-                    ${CMAKE_SOURCE_DIR}/regex
+                    ${CMAKE_BINARY_DIR}/pcre
+                    ${CMAKE_SOURCE_DIR}/pcre
                     ${CMAKE_SOURCE_DIR}/sql
                     ${MY_READLINE_INCLUDE_DIR}
                     )
@@ -34,7 +35,7 @@ ENDIF(UNIX)
 
 MYSQL_ADD_EXECUTABLE(mysqltest_embedded ../../client/mysqltest.cc
   COMPONENT Test)
-TARGET_LINK_LIBRARIES(mysqltest_embedded mysqlserver)
+TARGET_LINK_LIBRARIES(mysqltest_embedded mysqlserver pcre pcreposix)
 
 IF(CMAKE_GENERATOR MATCHES "Xcode")
 # It does not seem possible to tell Xcode the resulting target might need

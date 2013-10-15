@@ -316,26 +316,26 @@ NULL
 drop table t1;
 set names utf8mb4;
 set names utf8mb4;
-select  'вася'  rlike '[[:<:]]вася[[:>:]]';
-'вася'  rlike '[[:<:]]вася[[:>:]]'
+select  'вася'  rlike '\\bвася\\b';
+'вася'  rlike '\\bвася\\b'
 1
-select  'вася ' rlike '[[:<:]]вася[[:>:]]';
-'вася ' rlike '[[:<:]]вася[[:>:]]'
+select  'вася ' rlike '\\bвася\\b';
+'вася ' rlike '\\bвася\\b'
 1
-select ' вася'  rlike '[[:<:]]вася[[:>:]]';
-' вася'  rlike '[[:<:]]вася[[:>:]]'
+select ' вася'  rlike '\\bвася\\b';
+' вася'  rlike '\\bвася\\b'
 1
-select ' вася ' rlike '[[:<:]]вася[[:>:]]';
-' вася ' rlike '[[:<:]]вася[[:>:]]'
+select ' вася ' rlike '\\bвася\\b';
+' вася ' rlike '\\bвася\\b'
 1
-select  'васяz' rlike '[[:<:]]вася[[:>:]]';
-'васяz' rlike '[[:<:]]вася[[:>:]]'
+select  'васяz' rlike '\\bвася\\b';
+'васяz' rlike '\\bвася\\b'
 0
-select 'zвася'  rlike '[[:<:]]вася[[:>:]]';
-'zвася'  rlike '[[:<:]]вася[[:>:]]'
+select 'zвася'  rlike '\\bвася\\b';
+'zвася'  rlike '\\bвася\\b'
 0
-select 'zвасяz' rlike '[[:<:]]вася[[:>:]]';
-'zвасяz' rlike '[[:<:]]вася[[:>:]]'
+select 'zвасяz' rlike '\\bвася\\b';
+'zвасяz' rlike '\\bвася\\b'
 0
 CREATE TABLE t1 (a enum ('Y', 'N') DEFAULT 'N' COLLATE utf8mb4_unicode_ci);
 ALTER TABLE t1 ADD COLUMN b CHAR(20);

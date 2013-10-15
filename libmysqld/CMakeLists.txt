@@ -22,7 +22,8 @@ ${CMAKE_SOURCE_DIR}/libmysql
 ${CMAKE_SOURCE_DIR}/libmysqld
 ${CMAKE_SOURCE_DIR}/sql
 ${CMAKE_BINARY_DIR}/sql 
-${CMAKE_SOURCE_DIR}/regex
+${CMAKE_BINARY_DIR}/pcre
+${CMAKE_SOURCE_DIR}/pcre
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${SSL_INTERNAL_INCLUDE_DIRS}
@@ -122,7 +123,7 @@ ENDIF()
 
 
 SET(LIBS 
-  dbug strings regex mysys mysys_ssl vio 
+  dbug strings mysys mysys_ssl pcre vio 
   ${ZLIB_LIBRARY} ${SSL_LIBRARIES} 
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
   ${MYSQLD_STATIC_PLUGIN_LIBS}

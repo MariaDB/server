@@ -25,7 +25,8 @@
 
 #include "thr_malloc.h"                         /* sql_calloc */
 #include "item_func.h"             /* Item_int_func, Item_bool_func */
-#include "my_regex.h"
+#define PCRE_STATIC 1             /* Important on Windows */
+#include "pcre.h"                 /* pcre header file */
 
 extern Item_result item_cmp_type(Item_result a,Item_result b);
 class Item_bool_func2;
@@ -371,7 +372,8 @@ protected:
 
 public:
   Item_bool_func2(Item *a,Item *b)
-    :Item_int_func(a,b), cmp(tmp_arg, tmp_arg+1), abort_on_null(FALSE) {}
+    :Item_int_func(a,b), cmp(tmp_arg, tmp_arg+1),
+     abort_on_null(FALSE) { sargable= TRUE; }
   void fix_length_and_dec();
   int set_cmp_func()
   {
@@ -676,7 +678,7 @@ public:
   /* TRUE <=> arguments will be compared as dates. */
   Item *compare_as_dates;
   Item_func_between(Item *a, Item *b, Item *c)
-    :Item_func_opt_neg(a, b, c), compare_as_dates(FALSE) {}
+    :Item_func_opt_neg(a, b, c), compare_as_dates(FALSE) { sargable= TRUE; }
   longlong val_int();
   optimize_type select_optimize() const { return OPTIMIZE_KEY; }
   enum Functype functype() const   { return BETWEEN; }
@@ -689,6 +691,7 @@ public:
   uint decimal_precision() const { return 1; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  bool count_sargable_conds(uchar *arg);
 };
 
 
@@ -1294,10 +1297,11 @@ public:
 
   Item_func_in(List<Item> &list)
     :Item_func_opt_neg(list), array(0), have_null(0),
-    arg_types_compatible(FALSE)
+     arg_types_compatible(FALSE)
   {
     bzero(&cmp_items, sizeof(cmp_items));
     allowed_arg_cols= 0;  // Fetch this value from first argument
+    sargable= TRUE;
   }
   longlong val_int();
   bool fix_fields(THD *, Item **);
@@ -1363,7 +1367,7 @@ public:
 class Item_func_isnull :public Item_bool_func
 {
 public:
-  Item_func_isnull(Item *a) :Item_bool_func(a) {}
+  Item_func_isnull(Item *a) :Item_bool_func(a) { sargable= TRUE; }
   longlong val_int();
   enum Functype functype() const { return ISNULL_FUNC; }
   void fix_length_and_dec()
@@ -1425,7 +1429,8 @@ class Item_func_isnotnull :public Item_bool_func
 {
   bool abort_on_null;
 public:
-  Item_func_isnotnull(Item *a) :Item_bool_func(a), abort_on_null(0) {}
+  Item_func_isnotnull(Item *a) :Item_bool_func(a), abort_on_null(0)
+  { sargable= TRUE; }
   longlong val_int();
   enum Functype functype() const { return ISNOTNULL_FUNC; }
   void fix_length_and_dec()
@@ -1484,21 +1489,100 @@ public:
 };
 
 
+class Regexp_processor_pcre
+{
+  pcre *m_pcre;
+  bool m_conversion_is_needed;
+  bool m_is_const;
+  int m_library_flags;
+  CHARSET_INFO *m_data_charset;
+  CHARSET_INFO *m_library_charset;
+  String m_prev_pattern;
+  int m_pcre_exec_rc;
+  int m_SubStrVec[30];
+  uint m_subpatterns_needed;
+public:
+  String *convert_if_needed(String *src, String *converter);
+  String subject_converter;
+  String pattern_converter;
+  String replace_converter;
+  Regexp_processor_pcre() :
+    m_pcre(NULL), m_conversion_is_needed(true), m_is_const(0),
+    m_library_flags(0),
+    m_data_charset(&my_charset_utf8_general_ci),
+    m_library_charset(&my_charset_utf8_general_ci),
+    m_subpatterns_needed(0)
+  {}
+  void init(CHARSET_INFO *data_charset, int extra_flags, uint nsubpatterns)
+  {
+    m_library_flags= extra_flags |
+                    (data_charset != &my_charset_bin ?
+                     (PCRE_UTF8 | PCRE_UCP) : 0) |
+                    ((data_charset->state &
+                     (MY_CS_BINSORT | MY_CS_CSSORT)) ? 0 : PCRE_CASELESS);
+
+    // Convert text data to utf-8.
+    m_library_charset= data_charset == &my_charset_bin ?
+                       &my_charset_bin : &my_charset_utf8_general_ci;
+
+    m_conversion_is_needed= (data_charset != &my_charset_bin) &&
+                            !my_charset_same(data_charset, m_library_charset);
+    m_subpatterns_needed= nsubpatterns;
+  }
+  void fix_owner(Item_func *owner, Item *subject_arg, Item *pattern_arg);
+  bool compile(String *pattern, bool send_error);
+  bool compile(Item *item, bool send_error);
+  bool recompile(Item *item)
+  {
+    return !m_is_const && compile(item, false);
+  }
+  bool exec(const char *str, int length, int offset);
+  bool exec(String *str, int offset, uint n_result_offsets_to_convert);
+  bool exec(Item *item, int offset, uint n_result_offsets_to_convert);
+  bool match() const { return m_pcre_exec_rc < 0 ? 0 : 1; }
+  int nsubpatterns() const { return m_pcre_exec_rc <= 0 ? 0 : m_pcre_exec_rc; }
+  int subpattern_start(int n) const
+  {
+    return m_pcre_exec_rc <= 0 ? 0 : m_SubStrVec[n * 2];
+  }
+  int subpattern_end(int n) const
+  {
+    return m_pcre_exec_rc <= 0 ? 0 : m_SubStrVec[n * 2 + 1];
+  }
+  int subpattern_length(int n) const
+  {
+    return subpattern_end(n) - subpattern_start(n);
+  }
+  void cleanup()
+  {
+    if (m_pcre)
+    {
+      pcre_free(m_pcre);
+      m_pcre= NULL;
+    }
+    m_prev_pattern.length(0);
+  }
+  bool is_compiled() const { return m_pcre != NULL; }
+  bool is_const() const { return m_is_const; }
+  void set_const(bool arg) { m_is_const= arg; }
+  CHARSET_INFO * library_charset() const { return m_library_charset; }
+};
+
+
 class Item_func_regex :public Item_bool_func
 {
-  my_regex_t preg;
-  bool regex_compiled;
-  bool regex_is_const;
-  String prev_regexp;
+  Regexp_processor_pcre re;
   DTCollation cmp_collation;
-  CHARSET_INFO *regex_lib_charset;
-  int regex_lib_flags;
-  String conv;
-  int regcomp(bool send_error);
 public:
-  Item_func_regex(Item *a,Item *b) :Item_bool_func(a,b),
-    regex_compiled(0),regex_is_const(0) {}
-  void cleanup();
+  Item_func_regex(Item *a,Item *b) :Item_bool_func(a,b)
+  {}
+  void cleanup()
+  {
+    DBUG_ENTER("Item_func_regex::cleanup");
+    Item_bool_func::cleanup();
+    re.cleanup();
+    DBUG_VOID_RETURN;
+  }
   longlong val_int();
   void fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
@@ -1509,6 +1593,26 @@ public:
   }
 
   CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
+};
+
+
+class Item_func_regexp_instr :public Item_int_func
+{
+  Regexp_processor_pcre re;
+  DTCollation cmp_collation;
+public:
+  Item_func_regexp_instr(Item *a, Item *b) :Item_int_func(a, b)
+  {}
+  void cleanup()
+  {
+    DBUG_ENTER("Item_func_regexp_instr::cleanup");
+    Item_int_func::cleanup();
+    re.cleanup();
+    DBUG_VOID_RETURN;
+  }
+  longlong val_int();
+  void fix_length_and_dec();
+  const char *func_name() const { return "regexp_instr"; }
 };
 
 
@@ -1717,7 +1821,7 @@ public:
   inline Item_equal()
     : Item_bool_func(), with_const(FALSE), eval_item(0), cond_false(0),
       context_field(NULL)
-  { const_item_cache=0 ;}
+  { const_item_cache=0; sargable= TRUE; }
   Item_equal(Item *f1, Item *f2, bool with_const_item);
   Item_equal(Item_equal *item_equal);
   /* Currently the const item is always the first in the list of equal items */
@@ -1750,6 +1854,7 @@ public:
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
   void set_link_equal_fields(bool flag) { link_equal_fields= flag; }
   friend class Item_equal_fields_iterator;
+  bool count_sargable_conds(uchar *arg);
   friend class Item_equal_iterator<List_iterator_fast,Item>;
   friend class Item_equal_iterator<List_iterator,Item>;
   friend Item *eliminate_item_equal(COND *cond, COND_EQUAL *upper_levels,
