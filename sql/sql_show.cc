@@ -2442,10 +2442,10 @@ void select_result_text_buffer::save_to(String *res)
 {
   List_iterator<char*> it(rows);
   char **row;
-  res->append("#\n");
+  res->append("## <explain>\n");
   while ((row= it++))
   {
-    res->append("#  ");
+    res->append("##   ");
     for (int i=0; i < n_columns; i++)
     {
       if (i)
@@ -2454,7 +2454,7 @@ void select_result_text_buffer::save_to(String *res)
     }
     res->append("\n");
   }
-  res->append("#\n");
+  res->append("## </explain>\n");
 }
 
 
