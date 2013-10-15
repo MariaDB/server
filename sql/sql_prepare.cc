@@ -3931,8 +3931,21 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
 
   if (! cursor)
     cleanup_stmt();
-
-  delete_explain_query(thd->lex);
+  
+  /*
+    EXECUTE command has its own dummy "explain data". We don't need it,
+    instead, we want to keep the query plan of the statement that was 
+    executed.
+  */
+  if (!stmt_backup.lex->explain || 
+      !stmt_backup.lex->explain->have_query_plan())
+  {
+    delete_explain_query(stmt_backup.lex);
+    stmt_backup.lex->explain = thd->lex->explain;
+    thd->lex->explain= NULL;
+  }
+  else
+    delete_explain_query(thd->lex);
 
   thd->set_statement(&stmt_backup);
   thd->stmt_arena= old_stmt_arena;
