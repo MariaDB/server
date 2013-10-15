@@ -2018,7 +2018,6 @@ void clean_up(bool print_message)
   delete global_rpl_filter;
   end_ssl();
   vio_end();
-  my_regex_end();
 #if defined(ENABLED_DEBUG_SYNC)
   /* End the debug sync facility. See debug_sync.cc. */
   debug_sync_end();
@@ -3401,7 +3400,6 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
 }
 
 
-#ifndef EMBEDDED_LIBRARY
 extern "C" void *my_str_malloc_mysqld(size_t size);
 extern "C" void my_str_free_mysqld(void *ptr);
 extern "C" void *my_str_realloc_mysqld(void *ptr, size_t size);
@@ -3421,7 +3419,6 @@ void *my_str_realloc_mysqld(void *ptr, size_t size)
 {
   return my_realloc(ptr, size, MYF(MY_FAE));
 }
-#endif /* EMBEDDED_LIBRARY */
 
 
 #ifdef __WIN__
@@ -3453,24 +3450,57 @@ sizeof(load_default_groups)/sizeof(load_default_groups[0]);
 /**
   This function is used to check for stack overrun for pathological
   cases of  regular expressions and 'like' expressions.
-  The call to current_thd is  quite expensive, so we try to avoid it
-  for the normal cases.
+*/
+extern "C" int
+check_enough_stack_size_slow()
+{
+  uchar stack_top;
+  THD *my_thd= current_thd;
+  if (my_thd != NULL)
+    return check_stack_overrun(my_thd, STACK_MIN_SIZE * 2, &stack_top);
+  return 0;
+}
+
+
+/*
+  The call to current_thd in check_enough_stack_size_slow is quite expensive,
+  so we try to avoid it for the normal cases.
   The size of  each stack frame for the wildcmp() routines is ~128 bytes,
   so checking  *every* recursive call is not necessary.
  */
 extern "C" int
 check_enough_stack_size(int recurse_level)
 {
-  uchar stack_top;
   if (recurse_level % 16 != 0)
     return 0;
-
-  THD *my_thd= current_thd;
-  if (my_thd != NULL)
-    return check_stack_overrun(my_thd, STACK_MIN_SIZE * 2, &stack_top);
-  return 0;
+  return check_enough_stack_size_slow();
 }
 #endif
+
+
+
+/*
+   Initialize my_str_malloc() and my_str_free()
+*/
+static void init_libstrings()
+{
+  my_str_malloc= &my_str_malloc_mysqld;
+  my_str_free= &my_str_free_mysqld;
+  my_str_realloc= &my_str_realloc_mysqld;
+#ifndef EMBEDDED_LIBRARY
+  my_string_stack_guard= check_enough_stack_size;
+#endif
+}
+
+
+static void init_pcre()
+{
+  pcre_malloc= pcre_stack_malloc= my_str_malloc_mysqld;
+  pcre_free= pcre_stack_free= my_str_free_mysqld;
+#ifndef EMBEDDED_LIBRARY
+  pcre_stack_guard= check_enough_stack_size_slow;
+#endif
+}
 
 
 /**
@@ -3799,6 +3829,7 @@ static int init_common_variables()
   set_current_thd(0);
   set_malloc_size_cb(my_malloc_size_cb_func);
 
+  init_libstrings();
   tzset();			// Set tzname
 
   sf_leaking_memory= 0; // no memory leaks from now on
@@ -4101,12 +4132,7 @@ static int init_common_variables()
   if (item_create_init())
     return 1;
   item_init();
-#ifndef EMBEDDED_LIBRARY
-  my_regex_init(&my_charset_latin1, check_enough_stack_size);
-  my_string_stack_guard= check_enough_stack_size;
-#else
-  my_regex_init(&my_charset_latin1, NULL);
-#endif
+  init_pcre();
   /*
     Process a comma-separated character set list and choose
     the first available character set. This is mostly for
@@ -5261,13 +5287,6 @@ int mysqld_main(int argc, char **argv)
     FreeConsole();				// Remove window
   }
 #endif
-
-  /*
-   Initialize my_str_malloc(), my_str_realloc() and my_str_free()
-  */
-  my_str_malloc= &my_str_malloc_mysqld;
-  my_str_free= &my_str_free_mysqld;
-  my_str_realloc= &my_str_realloc_mysqld;
 
   /*
     init signals & alarm

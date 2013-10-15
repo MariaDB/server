@@ -2005,9 +2005,10 @@ int JOIN::init_execution()
       JOIN_TAB *last_join_tab= join_tab + top_join_tab_count - 1;
       do
       {
-	if (used_tables & last_join_tab->table->map)
+	if (used_tables & last_join_tab->table->map ||
+            last_join_tab->use_join_cache)
 	  break;
-	last_join_tab->not_used_in_distinct=1;
+	last_join_tab->shortcut_for_distinct= true;
       } while (last_join_tab-- != join_tab);
       /* Optimize "select distinct b from t1 order by key_part_1 limit #" */
       if (order && skip_sort_order)
@@ -4976,6 +4977,33 @@ static void add_key_fields_for_nj(JOIN *join, TABLE_LIST *nested_join_table,
 }
 
 
+void count_cond_for_nj(SELECT_LEX *sel, TABLE_LIST *nested_join_table)
+{
+  List_iterator<TABLE_LIST> li(nested_join_table->nested_join->join_list);
+  List_iterator<TABLE_LIST> li2(nested_join_table->nested_join->join_list);
+  bool have_another = FALSE;
+  TABLE_LIST *table;
+
+  while ((table= li++) || (have_another && (li=li2, have_another=FALSE,
+                                            (table= li++))))
+  if (table->nested_join)
+  {
+    if (!table->on_expr)
+    {
+      /* It's a semi-join nest. Walk into it as if it wasn't a nest */
+      have_another= TRUE;
+      li2= li;
+      li= List_iterator<TABLE_LIST>(table->nested_join->join_list); 
+    }
+    else
+      count_cond_for_nj(sel, table); 
+  }
+  if (nested_join_table->on_expr)
+    nested_join_table->on_expr->walk(&Item::count_sargable_conds, 
+                                     0, (uchar*) sel);
+    
+}
+
 /**
   Update keyuse array with all possible keys we can use to fetch rows.
   
@@ -5006,6 +5034,27 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   KEY_FIELD *key_fields, *end, *field;
   uint sz;
   uint m= MY_MAX(select_lex->max_equal_elems,1);
+
+  SELECT_LEX *sel=thd->lex->current_select; 
+  sel->cond_count= 0;
+  sel->between_count= 0; 
+  if (cond)
+    cond->walk(&Item::count_sargable_conds, 0, (uchar*) sel);
+  for (i=0 ; i < tables ; i++)
+  {
+    if (*join_tab[i].on_expr_ref)
+      (*join_tab[i].on_expr_ref)->walk(&Item::count_sargable_conds,
+                                       0, (uchar*) sel);
+  }
+  {
+    List_iterator<TABLE_LIST> li(*join_tab->join->join_list);
+    TABLE_LIST *table;
+    while ((table= li++))
+    {
+      if (table->nested_join)
+        count_cond_for_nj(sel, table);
+    }
+  }
   
   /* 
     We use the same piece of memory to store both  KEY_FIELD 
@@ -5029,8 +5078,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
     substitutions.
   */ 
   sz= MY_MAX(sizeof(KEY_FIELD),sizeof(SARGABLE_PARAM))*
-      (((thd->lex->current_select->cond_count+1)*2 +
-	thd->lex->current_select->between_count)*m+1);
+    ((sel->cond_count*2 + sel->between_count)*m+1);
   if (!(key_fields=(KEY_FIELD*)	thd->alloc(sz)))
     return TRUE; /* purecov: inspected */
   and_level= 0;
@@ -8658,6 +8706,7 @@ JOIN::make_simple_join(JOIN *parent, TABLE *temp_table)
   join_tab->keys.init();
   join_tab->keys.set_all();                     /* test everything in quick */
   join_tab->ref.key = -1;
+  join_tab->shortcut_for_distinct= false;
   join_tab->read_first_record= join_init_read_record;
   join_tab->join= this;
   join_tab->ref.key_parts= 0;
@@ -12011,13 +12060,10 @@ static bool check_row_equality(THD *thd, Item *left_row, Item_row *right_row,
                                        (Item_row *) left_item,
                                        (Item_row *) right_item,
 			               cond_equal, eq_list);
-      if (!is_converted)
-        thd->lex->current_select->cond_count++;      
     }
     else
     { 
       is_converted= check_simple_equality(left_item, right_item, 0, cond_equal);
-      thd->lex->current_select->cond_count++;
     }  
  
     if (!is_converted)
@@ -12076,7 +12122,6 @@ static bool check_equality(THD *thd, Item *item, COND_EQUAL *cond_equal,
     if (left_item->type() == Item::ROW_ITEM &&
         right_item->type() == Item::ROW_ITEM)
     {
-      thd->lex->current_select->cond_count--;
       return check_row_equality(thd,
                                 (Item_row *) left_item,
                                 (Item_row *) right_item,
@@ -17181,7 +17226,7 @@ static enum_nested_loop_state
 evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
                      int error)
 {
-  bool not_used_in_distinct=join_tab->not_used_in_distinct;
+  bool shortcut_for_distinct= join_tab->shortcut_for_distinct;
   ha_rows found_records=join->found_records;
   COND *select_cond= join_tab->select_cond;
   bool select_cond_result= TRUE;
@@ -17346,7 +17391,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
         was not in the field list;  In this case we can abort if
         we found a row, as no new rows can be added to the result.
       */
-      if (not_used_in_distinct && found_records != join->found_records)
+      if (shortcut_for_distinct && found_records != join->found_records)
         DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
     }
     else
