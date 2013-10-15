@@ -4181,7 +4181,9 @@ class multi_update :public select_result_interceptor
      so that afterward send_error() needs to find out that.
   */
   bool error_handled;
-
+  
+  /* Need this to protect against multiple prepare() calls */
+  bool prepared;
 public:
   multi_update(TABLE_LIST *ut, List<TABLE_LIST> *leaves_list,
 	       List<Item> *fields, List<Item> *values,
