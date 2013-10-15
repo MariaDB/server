@@ -2641,6 +2641,8 @@ Sort_scan	1
 #
 EXPLAIN UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT * FROM (SELECT b FROM t2 ORDER BY b LIMIT 2,2) x);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
 2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	3	
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	Using filesort
@@ -2648,6 +2650,8 @@ FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT * FROM (SELECT b FROM t2 ORDER BY b LIMIT 2,2) x);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	3	100.00	
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
