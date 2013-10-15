@@ -249,6 +249,10 @@ DROP TABLE t1;
 SET NAMES utf8 COLLATE utf8_5624_2;
 SHOW WARNINGS;
 
+--error ER_UNKNOWN_COLLATION
+SELECT _utf8'test' COLLATE utf8_5624_2;
+SHOW WARNINGS;
+
 --echo #
 --echo # WL#5624, reset before primary ignorable
 --echo #
@@ -353,7 +357,7 @@ DROP TABLE t1;
 --let $out_file= $MYSQLTEST_VARDIR/tmp/ctype_ldml_log.err
 --let OUTF= $out_file
 # Error messages are not seen in error log in embedded version
---let EMBEDDED=`SELECT version() LIKE '%embedded%'`
+--let EMBEDDED=`SELECT IF(version() LIKE '%embedded%',2,0)`
 --echo # Search for occurrences of [ERROR] Syntax error at '[strength tertiary]'
 
 perl;

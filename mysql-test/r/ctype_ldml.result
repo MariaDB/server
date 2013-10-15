@@ -769,6 +769,12 @@ SHOW WARNINGS;
 Level	Code	Message
 Error	1273	Unknown collation: 'utf8_5624_2'
 Warning	1273	Syntax error at '[strength tertiary]'
+SELECT _utf8'test' COLLATE utf8_5624_2;
+ERROR HY000: Unknown collation: 'utf8_5624_2'
+SHOW WARNINGS;
+Level	Code	Message
+Error	1273	Unknown collation: 'utf8_5624_2'
+Warning	1273	Syntax error at '[strength tertiary]'
 #
 # WL#5624, reset before primary ignorable
 #
@@ -1086,4 +1092,4 @@ DROP TABLE t1;
 # Bug#14197426 PARSE ERRORS IN LOADABLE UCA / LDML COLLATIONS ARE SILENTLY IGNORED
 #
 # Search for occurrences of [ERROR] Syntax error at '[strength tertiary]'
-Occurances : 1
+Occurances : 2
