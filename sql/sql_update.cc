@@ -1464,32 +1464,14 @@ bool mysql_multi_update(THD *thd,
                         multi_update **result)
 {
   bool res;
-  select_result *output;
-  bool explain= test(thd->lex->describe);
   DBUG_ENTER("mysql_multi_update");
   
-  if (explain)
+  if (!(*result= new multi_update(table_list,
+                                 &thd->lex->select_lex.leaf_tables,
+                                 fields, values,
+                                 handle_duplicates, ignore)))
   {
-    /* Handle EXPLAIN UPDATE */
-    if (!(output= new select_send()) ||
-        thd->send_explain_fields(output))
-    {
-      delete output;
-      DBUG_RETURN(TRUE);
-    }
-    select_lex->set_explain_type(FALSE);
-    *result= NULL; /* no multi_update object */
-  }
-  else
-  {
-    if (!(*result= new multi_update(table_list,
-                                   &thd->lex->select_lex.leaf_tables,
-                                   fields, values,
-                                   handle_duplicates, ignore)))
-    {
-      DBUG_RETURN(TRUE);
-    }
-    output= *result;
+    DBUG_RETURN(TRUE);
   }
 
   thd->abort_on_warning= test(thd->variables.sql_mode &
@@ -1504,7 +1486,7 @@ bool mysql_multi_update(THD *thd,
                     (ORDER *)NULL,
                     options | SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
                     OPTION_SETUP_TABLES_DONE,
-                    output, unit, select_lex);
+                    *result, unit, select_lex);
 
   DBUG_PRINT("info",("res: %d  report_error: %d", res, (int) thd->is_error()));
   res|= thd->is_error();
@@ -1512,12 +1494,8 @@ bool mysql_multi_update(THD *thd,
     (*result)->abort_result_set();
   else
   {
-    if (explain)
-    {
-      thd->lex->explain->print_explain(output, thd->lex->describe);
-      output->send_eof(); 
-      delete output;
-    }
+    if (thd->lex->describe)
+      res= thd->lex->explain->send_explain(thd);
   }
   thd->abort_on_warning= 0;
   DBUG_RETURN(res);
@@ -1533,7 +1511,7 @@ multi_update::multi_update(TABLE_LIST *table_list,
    tmp_tables(0), updated(0), found(0), fields(field_list),
    values(value_list), table_count(0), copy_field(0),
    handle_duplicates(handle_duplicates_arg), do_update(1), trans_safe(1),
-   transactional_tables(0), ignore(ignore_arg), error_handled(0)
+   transactional_tables(0), ignore(ignore_arg), error_handled(0), prepared(0)
 {}
 
 
@@ -1555,6 +1533,10 @@ int multi_update::prepare(List<Item> &not_used_values,
   uint leaf_table_count= 0;
   List_iterator<TABLE_LIST> ti(*leaves);
   DBUG_ENTER("multi_update::prepare");
+
+  if (prepared)
+    DBUG_RETURN(0);
+  prepared= true;
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;
   thd->cuted_fields=0L;
