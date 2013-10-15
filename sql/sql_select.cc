@@ -1002,8 +1002,6 @@ err:
   DBUG_RETURN(res);				/* purecov: inspected */
 }
 
-void join_save_qpf(JOIN *join);
-
 int JOIN::optimize()
 {
   bool was_optimized= optimized;
@@ -1023,7 +1021,10 @@ int JOIN::optimize()
   if (was_optimized != optimized && !res && have_query_plan != QEP_DELETED)
   {
     have_query_plan= QEP_AVAILABLE;
-    join_save_qpf(this);
+    save_explain_data(thd->lex->explain, false /* can overwrite */,
+                      need_tmp,
+                      !skip_sort_order && !no_order && (order || group_list),
+                      select_distinct);
   }
   return res;
 }
@@ -2295,31 +2296,27 @@ JOIN::save_join_tab()
 }
 
 
-void join_save_qpf(JOIN *join)
+void JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
+                             bool need_tmp_table, bool need_order, 
+                             bool distinct)
 {
-  THD *thd= join->thd;
-  if (join->select_lex->select_number != UINT_MAX && 
-      join->select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
-      join->have_query_plan != JOIN::QEP_NOT_PRESENT_YET && 
-      join->have_query_plan != JOIN::QEP_DELETED &&  // this happens when there was no QEP ever, but then
-                                         //cleanup() is called multiple times
-      thd->lex->explain && // for "SET" command in SPs.
-      !thd->lex->explain->get_select(join->select_lex->select_number))
+  if (select_lex->select_number != UINT_MAX && 
+      select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
+      have_query_plan != JOIN::QEP_NOT_PRESENT_YET && 
+      have_query_plan != JOIN::QEP_DELETED &&  // this happens when there was 
+                                               // no QEP ever, but then
+                                               //cleanup() is called multiple times
+      output && // for "SET" command in SPs.
+      (can_overwrite? true: !output->get_select(select_lex->select_number)))
   {
     const char *message= NULL;
-
-    if (!join->table_count || !join->tables_list || join->zero_result_cause)
+    if (!table_count || !tables_list || zero_result_cause)
     {
       /* It's a degenerate join */
-      message= join->zero_result_cause ? join->zero_result_cause : "No tables used";
+      message= zero_result_cause ? zero_result_cause : "No tables used";
     }
-    
-    join->save_explain_data(thd->lex->explain,
-                            join->need_tmp,
-                            !join->skip_sort_order && !join->no_order &&
-                            (join->order || join->group_list),
-                            join->select_distinct,
-                            message);
+    save_explain_data_intern(thd->lex->explain, need_tmp_table, need_order,
+                             distinct, message);
   }
 }
 
@@ -2336,26 +2333,10 @@ void JOIN::exec()
 
   if (!exec_saved_explain)
   {
-    if (select_lex->select_number != UINT_MAX && 
-        select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
-        have_query_plan != QEP_NOT_PRESENT_YET && 
-        have_query_plan != QEP_DELETED &&  // this happens when there was no QEP ever, but then
-                                           //cleanup() is called multiple times
-        thd->lex->explain)// for "SET" command in SPs.
-    {
-      const char *message= NULL;
-      if (!table_count || !tables_list || zero_result_cause)
-      {
-        /* It's a degenerate join */
-        message= zero_result_cause ? zero_result_cause : "No tables used";
-      }
-
-      save_explain_data(thd->lex->explain,
-                        need_tmp,
-                        order != 0 && !skip_sort_order,
-                        select_distinct,
-                        message);
-    }
+    save_explain_data(thd->lex->explain, true /* can overwrite */,
+                      need_tmp,
+                      order != 0 && !skip_sort_order,
+                      select_distinct);
     exec_saved_explain= true;
   }
 
@@ -22497,6 +22478,7 @@ void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
   }
 }
 
+
 /*
   Save Query Plan Footprint
 
@@ -22504,9 +22486,9 @@ void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
     Currently, this function may be called multiple times
 */
 
-int JOIN::save_explain_data(Explain_query *output, bool need_tmp_table, 
-                            bool need_order, bool distinct, 
-                            const char *message)
+int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
+                                   bool need_order, bool distinct, 
+                                   const char *message)
 {
   Explain_node *explain_node;
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
@@ -22514,7 +22496,7 @@ int JOIN::save_explain_data(Explain_query *output, bool need_tmp_table,
   const CHARSET_INFO *cs= system_charset_info;
   int quick_type;
   int error= 0;
-  DBUG_ENTER("JOIN::save_explain_data");
+  DBUG_ENTER("JOIN::save_explain_data_intern");
   DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
 		      (ulong)join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));

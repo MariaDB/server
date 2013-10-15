@@ -1476,8 +1476,11 @@ public:
   {
     return (unit->item && unit->item->is_in_predicate());
   }
-  int save_explain_data(Explain_query *output, bool need_tmp_table, 
-                        bool need_order, bool distinct, const char *message);
+  void save_explain_data(Explain_query *output, bool can_overwrite,
+                         bool need_tmp_table, bool need_order, bool distinct);
+  int save_explain_data_intern(Explain_query *output, bool need_tmp_table,
+                               bool need_order, bool distinct,
+                               const char *message);
 private:
   /**
     TRUE if the query contains an aggregate function but has no GROUP
