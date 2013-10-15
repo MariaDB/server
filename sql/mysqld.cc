@@ -10149,7 +10149,7 @@ void init_server_psi_keys(void)
   stmt_info_new_packet.m_key= 0;
   stmt_info_new_packet.m_name= "";
   stmt_info_new_packet.m_flags= PSI_FLAG_MUTABLE;
-  mysql_statement_register(category, & stmt_info_new_packet, 1);
+  mysql_statement_register(category, &stmt_info_new_packet, 1);
 #endif
 }
 

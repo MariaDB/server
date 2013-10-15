@@ -1880,7 +1880,7 @@ lock_rec_create(
 
 #ifdef WITH_WSREP
 	if (c_lock && wsrep_thd_is_brute_force(trx->mysql_thd)) {
-          lock_t *hash = (lock_t*)c_lock->hash;
+		lock_t *hash = (lock_t*)c_lock->hash;
 		lock_t *prev = NULL;
 
 		while (hash &&
@@ -1899,9 +1899,10 @@ lock_rec_create(
 		 * delayed conflict resolution '...kill_one_trx' was not called,
 		 * if victim was waiting for some other lock
 		 */
-                //		if (c_lock && c_lock->trx->que_state == TRX_QUE_LOCK_WAIT) {
+                // if (c_lock && c_lock->trx->que_state == TRX_QUE_LOCK_WAIT) {
 		if (c_lock && c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
-                  //			c_lock->trx->was_chosen_as_deadlock_victim = TRUE;
+			trx_t* c_trx = c_lock->trx;
+			// c_lock->trx->was_chosen_as_deadlock_victim = TRUE;
 			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
 
 			//if (wsrep_debug && c_lock->trx->wait_lock != c_lock) {
@@ -1917,7 +1918,13 @@ lock_rec_create(
 			lock_set_lock_and_trx_wait(lock, trx);
 
 			// lock_cancel_waiting_and_release(c_lock->trx->wait_lock);
+			if (trx != c_trx) {
+				trx_mutex_enter(c_trx);
+			}
 			lock_cancel_waiting_and_release(c_lock->trx->lock.wait_lock);
+			if (trx != c_trx) {
+				trx_mutex_exit(c_trx);
+			}
 
 			/* trx might not wait for c_lock, but some other lock
 			   does not matter if wait_lock was released above

@@ -9461,7 +9461,6 @@ ha_innobase::wsrep_append_keys(
 	} else {
 		ut_a(table->s->keys <= 256);
 		uint i;
-		WSREP_DEBUG("WSREP: append key");
 
 		for (i=0; i<table->s->keys; ++i) {
 			uint	len;
@@ -9515,7 +9514,6 @@ ha_innobase::wsrep_append_keys(
 		uchar digest[16];
 		int rcode;
 
-		WSREP_DEBUG("WSREP: append key 2");
 		wsrep_calc_row_hash(digest, record0, table, prebuilt, thd);
 		if ((rcode = wsrep_append_key(thd, trx, table_share, table, 
 					      (const char*) digest, 16, 

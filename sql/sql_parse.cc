@@ -1082,6 +1082,7 @@ bool do_command(THD *thd)
   if (WSREP(thd)) {
     while (thd->wsrep_conflict_state== RETRY_AUTOCOMMIT)
     {
+      WSREP_DEBUG("Retry autocommit for: %s\n", thd->wsrep_retry_query);
       return_value= dispatch_command(command, thd, thd->wsrep_retry_query, 
 				     thd->wsrep_retry_query_len);
     }
@@ -3244,12 +3245,6 @@ case SQLCOM_PREPARE:
       /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
       if (create_info.tmp_table())
         thd->variables.option_bits|= OPTION_KEEP_LOG;
-#ifdef WITH_WSREP
-      if (!thd->is_current_stmt_binlog_format_row() ||
-	      !(create_info.options & HA_LEX_CREATE_TMP_TABLE))
-          WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
-                                   NULL)
-#endif /* WITH_WSREP */
       /* regular create */
       if (create_info.options & HA_LEX_CREATE_TABLE_LIKE)
       {
@@ -3259,6 +3254,12 @@ case SQLCOM_PREPARE:
       }
       else
       {
+#ifdef WITH_WSREP
+      if (!thd->is_current_stmt_binlog_format_row() ||
+	      !(create_info.options & HA_LEX_CREATE_TMP_TABLE))
+          WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
+                                   NULL)
+#endif /* WITH_WSREP */
         /* Regular CREATE TABLE */
         res= mysql_create_table(thd, create_table,
                                 &create_info, &alter_info);
@@ -6671,6 +6672,11 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
     if (thd->wsrep_conflict_state== RETRY_AUTOCOMMIT)
     {
       thd->wsrep_conflict_state= NO_CONFLICT;
+      /* Performance Schema Interface instrumentation, begin */
+      thd->m_statement_psi= MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
+	      com_statement_info[thd->get_command()].m_key);
+      MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(),
+	                       thd->query_length());
     }
     mysql_parse(thd, rawbuf, length, parser_state);
 
@@ -6701,6 +6707,9 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
           WSREP_DEBUG("wsrep retrying AC query: %s", 
                       (thd->query()) ? thd->query() : "void");
 
+	  /* Performance Schema Interface instrumentation, end */
+	  MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+	  thd->m_statement_psi= NULL;
           close_thread_tables(thd);
 
           thd->wsrep_conflict_state= RETRY_AUTOCOMMIT;
@@ -6800,6 +6809,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
         MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
                                sql_statement_info[thd->lex->sql_command].
                                m_key);
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       if (mqh_used && thd->user_connect &&
 	  check_mqh(thd, lex->sql_command))
