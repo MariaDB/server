@@ -21,8 +21,8 @@
 
   These structures
   - Can be produced inexpensively from query plan.
-  - Store sufficient information to produce a tabular and/or a json EXPLAIN
-  - Have methods that produce a tabular output.
+  - Store sufficient information to produce tabular EXPLAIN output (the goal is 
+    to be able to produce JSON also)
 
 *************************************************************************************/
 
