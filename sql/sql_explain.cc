@@ -219,6 +219,8 @@ int Explain_union::print_explain(Explain_query *query,
                                  select_result_sink *output,
                                  uint8 explain_flags)
 {
+  char table_name_buffer[SAFE_NAME_LEN];
+
   /* print all UNION children, in order */
   for (int i= 0; i < (int) union_members.elements(); i++)
   {
@@ -238,7 +240,6 @@ int Explain_union::print_explain(Explain_query *query,
 
   /* `table` column: something like "<union1,2>" */
   {
-    char table_name_buffer[SAFE_NAME_LEN];
     uint childno= 0;
     uint len= 6, lastop= 0;
     memcpy(table_name_buffer, STRING_WITH_LEN("<union"));
