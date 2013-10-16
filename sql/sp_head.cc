@@ -313,14 +313,30 @@ sp_get_flags_for_command(LEX *lex)
     flags= sp_head::HAS_COMMIT_OR_ROLLBACK;
     break;
   case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
   {
-    if (lex->select_lex.item_list.is_empty())
+    /* 
+      DELETE normally doesn't return resultset, but there are two exceptions:
+       - DELETE ... RETURNING
+       - EXPLAIN DELETE ...
+    */
+    if (lex->select_lex.item_list.is_empty() && !lex->describe)
       flags= 0;
     else
-    {
-      /* This is DELETE ... RETURNING ...  */
       flags= sp_head::MULTI_RESULTS; 
-    }
+    break;
+  }
+  case SQLCOM_UPDATE:
+  case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_INSERT:
+  case SQLCOM_REPLACE:
+  case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_INSERT_SELECT:
+  {
+    if (!lex->describe)
+      flags= 0;
+    else
+      flags= sp_head::MULTI_RESULTS; 
     break;
   }
   default:
@@ -2944,6 +2960,8 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     else if (! thd->in_sub_stmt)
       thd->mdl_context.release_statement_locks();
   }
+  //TODO: why is this here if log_slow_query is in sp_instr_stmt_execute? 
+  delete_explain_query(m_lex);
 
   if (m_lex->query_tables_own_last)
   {
@@ -3165,6 +3183,7 @@ sp_instr_set::exec_core(THD *thd, uint *nextp)
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
     }
   }
+  delete_explain_query(thd->lex);
 
   *nextp = m_ip+1;
   return res;

@@ -117,6 +117,7 @@ public:
   */
   Elem& at(size_t idx)
   {
+    DBUG_ASSERT(idx < array.elements);
     return *(((Elem*)array.buffer) + idx);
   }
   /// Const variant of at(), which cannot change data
@@ -197,6 +198,23 @@ public:
   void set(uint idx, const Elem &el)
   {
     set_dynamic(&array, &el, idx);
+  }
+
+  bool resize(size_t new_size, Elem default_val)
+  {
+    size_t old_size= elements();
+    if (allocate_dynamic(&array, new_size))
+      return true;
+    
+    if (new_size > old_size)
+    {
+      set_dynamic(&array, (uchar*)&default_val, new_size - 1);
+      /*for (size_t i= old_size; i != new_size; i++)
+      {
+        at(i)= default_val;
+      }*/
+    }
+    return false;
   }
 
   ~Dynamic_array()

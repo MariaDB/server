@@ -997,20 +997,35 @@ err:
   DBUG_RETURN(res);				/* purecov: inspected */
 }
 
-
 int JOIN::optimize()
 {
+  bool was_optimized= optimized;
   int res= optimize_inner();
   /*
     If we're inside a non-correlated subquery, this function may be 
     called for the second time after the subquery has been executed
     and deleted. The second call will not produce a valid query plan, it will
     short-circuit because optimized==TRUE.
+
+    "was_optimized != optimized" is here to handle this case:
+      - first optimization starts, gets an error (from a const. cheap
+        subquery), returns 1
+      - another JOIN::optimize() call made, and now join->optimize() will
+        return 0, even though we never had a query plan.
   */
-  if (!res && have_query_plan != QEP_DELETED)
+  if (was_optimized != optimized && !res && have_query_plan != QEP_DELETED)
+  {
+    create_explain_query_if_not_exists(thd->lex, thd->mem_root);
     have_query_plan= QEP_AVAILABLE;
+    save_explain_data(thd->lex->explain, false /* can overwrite */,
+                      need_tmp,
+                      !skip_sort_order && !no_order && (order || group_list),
+                      select_distinct);
+  }
   return res;
 }
+
+
 /**
   global select optimisation.
 
@@ -1613,8 +1628,10 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
     JOIN_TAB *tab= &join_tab[const_tables];
     bool all_order_fields_used;
     if (order)
+    {
       skip_sort_order= test_if_skip_sort_order(tab, order, select_limit, 1, 
         &tab->table->keys_in_use_for_order_by);
+    }
     if ((group_list=create_distinct_group(thd, select_lex->ref_pointer_array,
                                           order, fields_list, all_fields,
 				          &all_order_fields_used)))
@@ -2292,20 +2309,49 @@ JOIN::save_join_tab()
 }
 
 
+void JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
+                             bool need_tmp_table, bool need_order, 
+                             bool distinct)
+{
+  if (select_lex->select_number != UINT_MAX && 
+      select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
+      have_query_plan != JOIN::QEP_NOT_PRESENT_YET && 
+      have_query_plan != JOIN::QEP_DELETED &&  // this happens when there was 
+                                               // no QEP ever, but then
+                                               //cleanup() is called multiple times
+      output && // for "SET" command in SPs.
+      (can_overwrite? true: !output->get_select(select_lex->select_number)))
+  {
+    const char *message= NULL;
+    if (!table_count || !tables_list || zero_result_cause)
+    {
+      /* It's a degenerate join */
+      message= zero_result_cause ? zero_result_cause : "No tables used";
+    }
+    save_explain_data_intern(thd->lex->explain, need_tmp_table, need_order,
+                             distinct, message);
+  }
+}
+
+
 void JOIN::exec()
 {
-  /*
-    Enable SHOW EXPLAIN only if we're in the top-level query.
-  */
-  thd->apc_target.enable();
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_start", 
                   if (dbug_user_var_equals_int(thd, 
                                                "show_explain_probe_select_id", 
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
-
   exec_inner();
+
+  if (!exec_saved_explain)
+  {
+    save_explain_data(thd->lex->explain, true /* can overwrite */,
+                      need_tmp,
+                      order != 0 && !skip_sort_order,
+                      select_distinct);
+    exec_saved_explain= true;
+  }
 
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
                   if (dbug_user_var_equals_int(thd, 
@@ -2313,8 +2359,6 @@ void JOIN::exec()
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
-
-  thd->apc_target.disable();
 }
 
 
@@ -3880,7 +3924,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	if (*s->on_expr_ref)
 	{
 	  /* Generate empty row */
-	  s->info= "Impossible ON condition";
+	  s->info= ET_IMPOSSIBLE_ON_CONDITION;
 	  found_const_table_map|= s->table->map;
 	  s->type= JT_CONST;
 	  mark_as_null_row(s->table);		// All fields are NULL
@@ -11188,7 +11232,8 @@ void JOIN::cleanup(bool full)
   DBUG_ENTER("JOIN::cleanup");
   DBUG_PRINT("enter", ("full %u", (uint) full));
   
-  have_query_plan= QEP_DELETED;
+  if (full)
+    have_query_plan= QEP_DELETED;
 
   if (table)
   {
@@ -17583,7 +17628,7 @@ join_read_const_table(JOIN_TAB *tab, POSITION *pos)
   {
     if ((error=join_read_system(tab)))
     {						// Info for DESCRIBE
-      tab->info="const row not found";
+      tab->info= ET_CONST_ROW_NOT_FOUND;
       /* Mark for EXPLAIN that the row was not found */
       pos->records_read=0.0;
       pos->ref_depend_map= 0;
@@ -17609,7 +17654,7 @@ join_read_const_table(JOIN_TAB *tab, POSITION *pos)
     table->disable_keyread();
     if (error)
     {
-      tab->info="unique row not found";
+      tab->info= ET_UNIQUE_ROW_NOT_FOUND;
       /* Mark for EXPLAIN that the row was not found */
       pos->records_read=0.0;
       pos->ref_depend_map= 0;
@@ -22476,31 +22521,166 @@ void JOIN::clear()
 /*
   Print an EXPLAIN line with all NULLs and given message in the 'Extra' column
 */
+
 int print_explain_message_line(select_result_sink *result, 
-                               SELECT_LEX *select_lex,
-                               bool on_the_fly,
                                uint8 options,
+                               uint select_number,
+                               const char *select_type,
+                               ha_rows *rows,
                                const char *message)
 {
   const CHARSET_INFO *cs= system_charset_info;
   Item *item_null= new Item_null();
   List<Item> item_list;
 
-  if (on_the_fly)
-    select_lex->set_explain_type(on_the_fly);
-
-  item_list.push_back(new Item_int((int32)
-                                   select_lex->select_number));
-  item_list.push_back(new Item_string(select_lex->type,
-                                      strlen(select_lex->type), cs));
-  for (uint i=0 ; i < 7; i++)
-    item_list.push_back(item_null);
+  item_list.push_back(new Item_int((int32) select_number));
+  item_list.push_back(new Item_string(select_type,
+                                      strlen(select_type), cs));
+  /* `table` */
+  item_list.push_back(item_null);
+  
+  /* `partitions` */
   if (options & DESCRIBE_PARTITIONS)
     item_list.push_back(item_null);
+  
+  /* type, possible_keys, key, key_len, ref */
+  for (uint i=0 ; i < 5; i++)
+    item_list.push_back(item_null);
+
+  /* `rows` */
+  if (rows)
+  {
+    item_list.push_back(new Item_int(*rows, 
+                                     MY_INT64_NUM_DECIMAL_DIGITS));
+  }
+  else
+    item_list.push_back(item_null);
+
+  /* `filtered` */
   if (options & DESCRIBE_EXTENDED)
     item_list.push_back(item_null);
 
-  item_list.push_back(new Item_string(message,strlen(message),cs));
+  /* `Extra` */
+  if (message)
+    item_list.push_back(new Item_string(message,strlen(message),cs));
+  else
+    item_list.push_back(item_null);
+
+  if (result->send_data(item_list))
+    return 1;
+  return 0;
+}
+
+
+/*
+  Make a comma-separated list of possible_keys names and add it into the string
+*/ 
+
+void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line)
+{
+  if (!possible_keys.is_clear_all())
+  {
+    uint j;
+    for (j=0 ; j < table->s->keys ; j++)
+    {
+      if (possible_keys.is_set(j))
+      {
+        if (line->length())
+          line->append(',');
+        line->append(table->key_info[j].name, 
+                     strlen(table->key_info[j].name),
+                     system_charset_info);
+      }
+    }
+  }
+}
+
+/*
+  Print an EXPLAIN output row, based on information provided in the parameters
+
+  @note
+    Parameters that may have NULL value in EXPLAIN output, should be passed
+    (char*)NULL.
+
+  @return 
+    0  - OK
+    1  - OOM Error
+*/
+
+int print_explain_row(select_result_sink *result,
+                      uint8 options,
+                      uint select_number,
+                      const char *select_type,
+                      const char *table_name,
+                      const char *partitions,
+                      enum join_type jtype,
+                      const char *possible_keys,
+                      const char *index,
+                      const char *key_len,
+                      const char *ref,
+                      ha_rows *rows,
+                      const char *extra)
+{
+  const CHARSET_INFO *cs= system_charset_info;
+  Item *item_null= new Item_null();
+  List<Item> item_list;
+  Item *item;
+
+  item_list.push_back(new Item_int((int32) select_number));
+  item_list.push_back(new Item_string(select_type,
+                                      strlen(select_type), cs));
+  item_list.push_back(new Item_string(table_name,
+                                      strlen(table_name), cs));
+  if (options & DESCRIBE_PARTITIONS)
+  {
+    if (partitions)
+    {
+      item_list.push_back(new Item_string(partitions,
+                                          strlen(partitions), cs));
+    }
+    else
+      item_list.push_back(item_null);
+  }
+  
+  const char *jtype_str= join_type_str[jtype];
+  item_list.push_back(new Item_string(jtype_str,
+                                      strlen(jtype_str), cs));
+  
+  item= possible_keys? new Item_string(possible_keys, strlen(possible_keys),
+                                      cs) : item_null;
+  item_list.push_back(item);
+  
+  /* 'index */
+  item= index ? new Item_string(index, strlen(index), cs) : item_null;
+  item_list.push_back(item);
+  
+  /* 'key_len */
+  item= key_len ? new Item_string(key_len, strlen(key_len), cs) : item_null;
+  item_list.push_back(item);
+  
+  /* 'ref' */
+  item= ref ? new Item_string(ref, strlen(ref), cs) : item_null;
+  item_list.push_back(item);
+
+  /* 'rows' */
+  if (rows)
+  {
+    item_list.push_back(new Item_int(*rows, 
+                                     MY_INT64_NUM_DECIMAL_DIGITS));
+  }
+  else
+    item_list.push_back(item_null);
+
+  /* 'filtered' */
+  const double filtered=100.0;
+  if (options & DESCRIBE_EXTENDED)
+    item_list.push_back(new Item_float(filtered, 2));
+  
+  /* 'Extra' */
+  if (extra)
+    item_list.push_back(new Item_string(extra, strlen(extra), cs));
+  else
+    item_list.push_back(item_null);
 
   if (result->send_data(item_list))
     return 1;
@@ -22587,102 +22767,118 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
 }
 
 
-/**
-  EXPLAIN handling.
-
-  Produce lines explaining execution of *this* select (not including children
-  selects)
-  @param on_the_fly TRUE <=> we're being executed on-the-fly, so don't make 
-                    modifications to any select's data structures
+/*
+  Append MRR information from quick select to the given string
 */
 
-int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
-                         bool on_the_fly,
-                         bool need_tmp_table, bool need_order,
-                         bool distinct, const char *message)
+void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res)
 {
-  List<Item> field_list;
-  List<Item> item_list;
+  char mrr_str_buf[128];
+  mrr_str_buf[0]=0;
+  int len;
+  handler *h= quick->head->file;
+  len= h->multi_range_read_explain_info(quick->mrr_flags, mrr_str_buf,
+                                        sizeof(mrr_str_buf));
+  if (len > 0)
+  {
+    //res->append(STRING_WITH_LEN("; "));
+    res->append(mrr_str_buf, len);
+  }
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// TODO: join with make_possible_keys_line ?
+void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
+{
+  uint j;
+  for (j=0 ; j < table->s->keys ; j++)
+  {
+    if (possible_keys.is_set(j))
+    {
+      if (str->length())
+        str->append(',');
+      str->append(table->key_info[j].name, 
+                  strlen(table->key_info[j].name),
+                  system_charset_info);
+    }
+  }
+}
+
+
+/*
+  Save Query Plan Footprint
+
+  @note
+    Currently, this function may be called multiple times
+*/
+
+int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
+                                   bool need_order, bool distinct, 
+                                   const char *message)
+{
+  Explain_node *explain_node;
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
   THD *thd=join->thd;
-  Item *item_null= new Item_null();
-  CHARSET_INFO *cs= system_charset_info;
+  const CHARSET_INFO *cs= system_charset_info;
   int quick_type;
   int error= 0;
-  DBUG_ENTER("JOIN::print_explain");
+  DBUG_ENTER("JOIN::save_explain_data_intern");
   DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
 		      (ulong)join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));
-  DBUG_ASSERT(on_the_fly? have_query_plan == QEP_AVAILABLE: TRUE);
+  DBUG_ASSERT(have_query_plan == QEP_AVAILABLE);
   /* Don't log this into the slow query log */
 
-  if (!on_the_fly)
-  {
-    thd->server_status&= ~(SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED);
-    join->unit->offset_limit_cnt= 0;
-  }
-
-  /* 
-    NOTE: the number/types of items pushed into item_list must be in sync with
-    EXPLAIN column types as they're "defined" in THD::send_explain_fields()
-  */
   if (message)
   {
-    if (print_explain_message_line(result, join->select_lex, on_the_fly, 
-                                   explain_flags, message))
-      error= 1;
+    Explain_select *xpl_sel;
+    explain_node= xpl_sel= new (output->mem_root) Explain_select;
+    join->select_lex->set_explain_type(true);
 
+    xpl_sel->select_id= join->select_lex->select_number;
+    xpl_sel->select_type= join->select_lex->type;
+    xpl_sel->message= message;
+    /* Setting xpl_sel->message means that all other members are invalid */
+    output->add_node(xpl_sel);
   }
   else if (join->select_lex == join->unit->fake_select_lex)
   {
-    if (print_fake_select_lex_join(result, on_the_fly, 
-                                   join->select_lex, 
-                                   explain_flags))
-      error= 1;
+    /* Do nothing, Explain_union will create and print fake_select_lex */
   }
   else if (!join->select_lex->master_unit()->derived ||
            join->select_lex->master_unit()->derived->is_materialized_derived())
   {
+    Explain_select *xpl_sel;
+    explain_node= xpl_sel= new (output->mem_root) Explain_select;
     table_map used_tables=0;
-    //if (!join->select_lex->type)
-    if (on_the_fly)
-      join->select_lex->set_explain_type(on_the_fly);
 
-    bool printing_materialize_nest= FALSE;
-    uint select_id= join->select_lex->select_number;
+    join->select_lex->set_explain_type(true);
+    xpl_sel->select_id= join->select_lex->select_number;
+    xpl_sel->select_type= join->select_lex->type;
+
     JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
 
     for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
          tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
     {
+      uint select_id;
       if (tab->bush_root_tab)
       {
         JOIN_TAB *first_sibling= tab->bush_root_tab->bush_children->start;
         select_id= first_sibling->emb_sj_nest->sj_subq_pred->get_identifier();
-        printing_materialize_nest= TRUE;
       }
-
+      else
+        select_id= join->select_lex->select_number;
+      
       TABLE *table=tab->table;
       TABLE_LIST *table_list= tab->table->pos_in_table_list;
-      char buff[512]; 
-      char buff1[512], buff2[512], buff3[512], buff4[512];
-      char keylen_str_buf[64];
+      char buff4[512];
       my_bool key_read;
-      String extra(buff, sizeof(buff),cs);
       char table_name_buffer[SAFE_NAME_LEN];
-      String tmp1(buff1,sizeof(buff1),cs);
-      String tmp2(buff2,sizeof(buff2),cs);
-      String tmp3(buff3,sizeof(buff3),cs);
       String tmp4(buff4,sizeof(buff4),cs);
-      char hash_key_prefix[]= "#hash#";
       KEY *key_info= 0;
       uint key_len= 0;
-      bool is_hj= tab->type == JT_HASH || tab->type ==JT_HASH_NEXT;
-
-      extra.length(0);
-      tmp1.length(0);
-      tmp2.length(0);
-      tmp3.length(0);
       tmp4.length(0);
       quick_type= -1;
       QUICK_SELECT_I *quick= NULL;
@@ -22702,14 +22898,64 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
         tab= pre_sort_join_tab;
       }
 
-      item_list.empty();
-      /* id */
-      item_list.push_back(new Item_uint((uint32)select_id));
-      /* select_type */
-      const char* stype= printing_materialize_nest? "MATERIALIZED" : 
-                                                    join->select_lex->type;
-      item_list.push_back(new Item_string(stype, strlen(stype), cs));
+      Explain_table_access *eta= new (output->mem_root) Explain_table_access;
+      xpl_sel->add_table(eta);
+      eta->key.set(thd->mem_root, NULL, (uint)-1);
+      eta->quick_info= NULL;
       
+      /* id */
+      if (tab->bush_root_tab)
+        eta->sjm_nest_select_id= select_id;
+      else
+        eta->sjm_nest_select_id= 0;
+
+      /* select_type */
+      xpl_sel->select_type= join->select_lex->type;
+
+      /* table */
+      if (table->derived_select_number)
+      {
+	/* Derived table name generation */
+	int len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
+			     "<derived%u>",
+			     table->derived_select_number);
+	eta->table_name.copy(table_name_buffer, len, cs);
+      }
+      else if (tab->bush_children)
+      {
+        JOIN_TAB *ctab= tab->bush_children->start;
+        /* table */
+        int len= my_snprintf(table_name_buffer, 
+                             sizeof(table_name_buffer)-1,
+                             "<subquery%d>", 
+                             ctab->emb_sj_nest->sj_subq_pred->get_identifier());
+	eta->table_name.copy(table_name_buffer, len, cs);
+      }
+      else
+      {
+        TABLE_LIST *real_table= table->pos_in_table_list;
+	eta->table_name.copy(real_table->alias, strlen(real_table->alias), cs);
+      }
+
+      /* "partitions" column */
+      {
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+        partition_info *part_info;
+        if (!table->derived_select_number && 
+            (part_info= table->part_info))
+        {          
+          make_used_partitions_str(part_info, &eta->used_partitions);
+          eta->used_partitions_set= true;
+        }
+        else
+          eta->used_partitions_set= false;
+#else
+        /* just produce empty column if partitioning is not compiled in */
+        eta->used_partitions_set= false;
+#endif
+      }
+
+      /* "type" column */
       enum join_type tab_type= tab->type;
       if ((tab->type == JT_ALL || tab->type == JT_HASH) &&
            tab->select && tab->select->quick && tab->use_quick != 2)
@@ -22724,77 +22970,12 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
         else
 	  tab_type= tab->type == JT_ALL ? JT_RANGE : JT_HASH_RANGE;
       }
+      eta->type= tab_type;
 
-      /* table */
-      if (table->derived_select_number)
-      {
-	/* Derived table name generation */
-	int len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
-			     "<derived%u>",
-			     table->derived_select_number);
-	item_list.push_back(new Item_string(table_name_buffer, len, cs));
-      }
-      else if (tab->bush_children)
-      {
-        JOIN_TAB *ctab= tab->bush_children->start;
-        /* table */
-        int len= my_snprintf(table_name_buffer, 
-                             sizeof(table_name_buffer)-1,
-                             "<subquery%d>", 
-                             ctab->emb_sj_nest->sj_subq_pred->get_identifier());
-	item_list.push_back(new Item_string(table_name_buffer, len, cs));
-      }
-      else
-      {
-        TABLE_LIST *real_table= table->pos_in_table_list;
-	item_list.push_back(new Item_string(real_table->alias,
-                                            strlen(real_table->alias), cs));
-      }
-      /* "partitions" column */
-      if (explain_flags & DESCRIBE_PARTITIONS)
-      {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-        partition_info *part_info;
-        if (!table->derived_select_number && 
-            (part_info= table->part_info))
-        {          
-          Item_string *item_str= new Item_string(cs);
-          make_used_partitions_str(part_info, &item_str->str_value);
-          item_list.push_back(item_str);
-        }
-        else
-          item_list.push_back(item_null);
-#else
-        /* just produce empty column if partitioning is not compiled in */
-        item_list.push_back(item_null); 
-#endif
-      }
-      /* "type" column */
-      item_list.push_back(new Item_string(join_type_str[tab_type],
-					  strlen(join_type_str[tab_type]),
-					  cs));
-      /* Build "possible_keys" value and add it to item_list */
-      if (!tab->keys.is_clear_all())
-      {
-        uint j;
-        for (j=0 ; j < table->s->keys ; j++)
-        {
-          if (tab->keys.is_set(j))
-          {
-            if (tmp1.length())
-              tmp1.append(',');
-            tmp1.append(table->key_info[j].name, 
-			strlen(table->key_info[j].name),
-			system_charset_info);
-          }
-        }
-      }
-      if (tmp1.length())
-	item_list.push_back(new Item_string(tmp1.ptr(),tmp1.length(),cs));
-      else
-	item_list.push_back(item_null);
+      /* Build "possible_keys" value */
+      append_possible_keys(&eta->possible_keys_str, table, tab->keys);
 
-      /* Build "key", "key_len", and "ref" values and add them to item_list */
+      /* Build "key", "key_len", and "ref" */
       if (tab_type == JT_NEXT)
       {
 	key_info= table->key_info+tab->index;
@@ -22805,15 +22986,20 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
 	key_info= tab->get_keyinfo_by_key_no(tab->ref.key);
         key_len= tab->ref.key_length;
       }
-      if (key_info)
+      
+      /*
+        In STRAIGHT_JOIN queries, there can be join tabs with JT_CONST type
+        that still have quick selects.
+      */
+      if (tab->select && tab->select->quick && tab_type != JT_CONST)
       {
-        register uint length;
-        if (is_hj)
-          tmp2.append(hash_key_prefix, strlen(hash_key_prefix), cs);
-        tmp2.append(key_info->name,  strlen(key_info->name), cs);
-        length= (longlong10_to_str(key_len, keylen_str_buf, 10) - 
-                 keylen_str_buf);
-        tmp3.append(keylen_str_buf, length, cs);
+        eta->quick_info= tab->select->quick->get_explain(thd->mem_root);
+      }
+
+      if (key_info) /* 'index' or 'ref' access */
+      {
+        eta->key.set(thd->mem_root, key_info->name, key_len);
+
         if (tab->ref.key_parts && tab_type != JT_FT)
 	{
           store_key **ref=tab->ref.key_copy;
@@ -22832,37 +23018,23 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
           }
         }
       }
-      if (is_hj && tab_type != JT_HASH)
+  
+      if (tab_type == JT_HASH_NEXT) /* full index scan + hash join */
       {
-        tmp2.append(':');
-        tmp3.append(':');
+        eta->hash_next_key.set(thd->mem_root, 
+                               table->key_info[tab->index].name, 
+                               table->key_info[tab->index].key_length);
       }
-      if (tab_type == JT_HASH_NEXT)
+
+      if (key_info)
       {
-        register uint length;
-	key_info= table->key_info+tab->index;
-        key_len= key_info->key_length;
-        tmp2.append(key_info->name,  strlen(key_info->name), cs);
-        length= (longlong10_to_str(key_len, keylen_str_buf, 10) - 
-                 keylen_str_buf);
-        tmp3.append(keylen_str_buf, length, cs);
-      }         
-      if (tab->type != JT_CONST && tab->select && quick)
-        tab->select->quick->add_keys_and_lengths(&tmp2, &tmp3);
-      if (key_info || (tab->select && quick))
-      {
-        if (tmp2.length())
-          item_list.push_back(new Item_string(tmp2.ptr(),tmp2.length(),cs));
-        else
-          item_list.push_back(item_null);
-        if (tmp3.length())
-          item_list.push_back(new Item_string(tmp3.ptr(),tmp3.length(),cs));
-        else
-          item_list.push_back(item_null);
         if (key_info && tab_type != JT_NEXT)
-          item_list.push_back(new Item_string(tmp4.ptr(),tmp4.length(),cs));
+        {
+          eta->ref.copy(tmp4);
+          eta->ref_set= true;
+        }
         else
-          item_list.push_back(item_null);
+          eta->ref_set= false;
       }
       else
       {
@@ -22872,66 +23044,61 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
         {
           const char *tmp_buff;
           int f_idx;
+          StringBuffer<64> key_name_buf;
           if (table_list->has_db_lookup_value)
           {
+            /* The "key" has the name of the column referring to the database */
             f_idx= table_list->schema_table->idx_field1;
             tmp_buff= table_list->schema_table->fields_info[f_idx].field_name;
-            tmp2.append(tmp_buff, strlen(tmp_buff), cs);
+            key_name_buf.append(tmp_buff, strlen(tmp_buff), cs);
           }          
           if (table_list->has_table_lookup_value)
           {
             if (table_list->has_db_lookup_value)
-              tmp2.append(',');
+              key_name_buf.append(',');
+
             f_idx= table_list->schema_table->idx_field2;
             tmp_buff= table_list->schema_table->fields_info[f_idx].field_name;
-            tmp2.append(tmp_buff, strlen(tmp_buff), cs);
+            key_name_buf.append(tmp_buff, strlen(tmp_buff), cs);
           }
-          if (tmp2.length())
-            item_list.push_back(new Item_string(tmp2.ptr(),tmp2.length(),cs));
-          else
-            item_list.push_back(item_null);
+
+          if (key_name_buf.length())
+            eta->key.set(thd->mem_root, key_name_buf.c_ptr_safe(), -1);
         }
-        else
-          item_list.push_back(item_null);
-	item_list.push_back(item_null);
-	item_list.push_back(item_null);
+	eta->ref_set= false;
       }
       
-      /* Add "rows" field to item_list. */
+      /* "rows" */
       if (table_list /* SJM bushes don't have table_list */ &&
           table_list->schema_table)
       {
-        /* in_rows */
-        if (explain_flags & DESCRIBE_EXTENDED)
-          item_list.push_back(item_null);
-        /* rows */
-        item_list.push_back(item_null);
+        /* I_S tables have rows=extra=NULL */
+        eta->rows_set= false;
+        eta->filtered_set= false;
       }
       else
       {
         double examined_rows= tab->get_examined_rows();
 
-        item_list.push_back(new Item_int((longlong) (ulonglong) examined_rows, 
-                                         MY_INT64_NUM_DECIMAL_DIGITS));
+        eta->rows_set= true;
+        eta->rows= examined_rows;
 
-        /* Add "filtered" field to item_list. */
-        if (explain_flags & DESCRIBE_EXTENDED)
+        /* "filtered"  */
+        float f= 0.0; 
+        if (examined_rows)
         {
-          float f= 0.0; 
-          if (examined_rows)
-	  {
-            double pushdown_cond_selectivity= tab->cond_selectivity;	      
-            if (pushdown_cond_selectivity == 1.0)
-              f= (float) (100.0 * tab->records_read / examined_rows);
-            else
-              f= (float) (100.0 * pushdown_cond_selectivity);
-          }
- 	  set_if_smaller(f, 100.0);
-          item_list.push_back(new Item_float(f, 2));
+          double pushdown_cond_selectivity= tab->cond_selectivity;	      
+          if (pushdown_cond_selectivity == 1.0)
+            f= (float) (100.0 * tab->records_read / examined_rows);
+          else
+            f= (float) (100.0 * pushdown_cond_selectivity);
         }
+        set_if_smaller(f, 100.0);
+        eta->filtered_set= true;
+        eta->filtered= f;
       }
 
-      /* Build "Extra" field and add it to item_list. */
+      /* Build "Extra" field and save it */
       key_read=table->key_read;
       if ((tab_type == JT_NEXT || tab_type == JT_CONST) &&
           table->covering_keys.is_set(tab->index))
@@ -22941,24 +23108,17 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
         key_read=1;
         
       if (tab->info)
-	item_list.push_back(new Item_string(tab->info,strlen(tab->info),cs));
+      {
+        eta->push_extra(tab->info);
+      }
       else if (tab->packed_info & TAB_INFO_HAVE_VALUE)
       {
         if (tab->packed_info & TAB_INFO_USING_INDEX)
-          extra.append(STRING_WITH_LEN("; Using index"));
+          eta->push_extra(ET_USING_INDEX);
         if (tab->packed_info & TAB_INFO_USING_WHERE)
-          extra.append(STRING_WITH_LEN("; Using where"));
+          eta->push_extra(ET_USING_WHERE);
         if (tab->packed_info & TAB_INFO_FULL_SCAN_ON_NULL)
-          extra.append(STRING_WITH_LEN("; Full scan on NULL key"));
-        /* Skip initial "; "*/
-        const char *str= extra.ptr();
-        uint32 len= extra.length();
-        if (len)
-        {
-          str += 2;
-          len -= 2;
-        }
-	item_list.push_back(new Item_string(str, len, cs));
+          eta->push_extra(ET_FULL_SCAN_ON_NULL_KEY);
       }
       else
       {
@@ -22970,28 +23130,23 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
 
         if (keyno != MAX_KEY && keyno == table->file->pushed_idx_cond_keyno &&
             table->file->pushed_idx_cond)
-          extra.append(STRING_WITH_LEN("; Using index condition"));
+          eta->push_extra(ET_USING_INDEX_CONDITION);
         else if (tab->cache_idx_cond)
-          extra.append(STRING_WITH_LEN("; Using index condition(BKA)"));
+          eta->push_extra(ET_USING_INDEX_CONDITION_BKA);
 
         if (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
             quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT ||
             quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
             quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE)
         {
-          extra.append(STRING_WITH_LEN("; Using "));
-          tab->select->quick->add_info_string(&extra);
+          eta->push_extra(ET_USING);
         }
 	if (tab->select)
 	{
 	  if (tab->use_quick == 2)
 	  {
-            /* 4 bits per 1 hex digit + terminating '\0' */
-            char buf[MAX_KEY / 4 + 1];
-            extra.append(STRING_WITH_LEN("; Range checked for each "
-                                         "record (index map: 0x"));
-            extra.append(tab->keys.print(buf));
-            extra.append(')');
+            eta->push_extra(ET_RANGE_CHECKED_FOR_EACH_RECORD);
+            eta->range_checked_map= tab->keys;
 	  }
 	  else if (tab->select->cond)
           {
@@ -23003,16 +23158,19 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
                   HA_MUST_USE_TABLE_CONDITION_PUSHDOWN)) &&
                 pushed_cond)
             {
-              extra.append(STRING_WITH_LEN("; Using where with pushed "
-                                           "condition"));
+              eta->push_extra(ET_USING_WHERE_WITH_PUSHED_CONDITION);
+              /*
+              psergey-todo: what to do? This was useful with NDB only.
+
               if (explain_flags & DESCRIBE_EXTENDED)
               {
                 extra.append(STRING_WITH_LEN(": "));
                 ((COND *)pushed_cond)->print(&extra, QT_ORDINARY);
               }
+              */
             }
             else
-              extra.append(STRING_WITH_LEN("; Using where"));
+              eta->push_extra(ET_USING_WHERE);
           }
 	}
         if (table_list /* SJM bushes don't have table_list */ &&
@@ -23020,19 +23178,20 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
             table_list->schema_table->i_s_requested_object & OPTIMIZE_I_S_TABLE)
         {
           if (!table_list->table_open_method)
-            extra.append(STRING_WITH_LEN("; Skip_open_table"));
+            eta->push_extra(ET_SKIP_OPEN_TABLE);
           else if (table_list->table_open_method == OPEN_FRM_ONLY)
-            extra.append(STRING_WITH_LEN("; Open_frm_only"));
+            eta->push_extra(ET_OPEN_FRM_ONLY);
           else
-            extra.append(STRING_WITH_LEN("; Open_full_table"));
+            eta->push_extra(ET_OPEN_FULL_TABLE);
+          /* psergey-note: the following has a bug.*/
           if (table_list->has_db_lookup_value &&
               table_list->has_table_lookup_value)
-            extra.append(STRING_WITH_LEN("; Scanned 0 databases"));
+            eta->push_extra(ET_SCANNED_0_DATABASES);
           else if (table_list->has_db_lookup_value ||
                    table_list->has_table_lookup_value)
-            extra.append(STRING_WITH_LEN("; Scanned 1 database"));
+            eta->push_extra(ET_SCANNED_1_DATABASE);
           else
-            extra.append(STRING_WITH_LEN("; Scanned all databases"));
+            eta->push_extra(ET_SCANNED_ALL_DATABASES);
         }
 	if (key_read)
         {
@@ -23040,69 +23199,52 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
           {
             QUICK_GROUP_MIN_MAX_SELECT *qgs= 
               (QUICK_GROUP_MIN_MAX_SELECT *) tab->select->quick;
-            extra.append(STRING_WITH_LEN("; Using index for group-by"));
-            qgs->append_loose_scan_type(&extra);
+            eta->push_extra(ET_USING_INDEX_FOR_GROUP_BY);
+            eta->loose_scan_is_scanning= qgs->loose_scan_is_scanning();
           }
           else
-            extra.append(STRING_WITH_LEN("; Using index"));
+            eta->push_extra(ET_USING_INDEX);
         }
 	if (table->reginfo.not_exists_optimize)
-	  extra.append(STRING_WITH_LEN("; Not exists"));
+          eta->push_extra(ET_NOT_EXISTS);
 
-        /*
-        if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE &&
-            !(((QUICK_RANGE_SELECT*)(tab->select->quick))->mrr_flags &
-             HA_MRR_USE_DEFAULT_IMPL))
-        {
-	  extra.append(STRING_WITH_LEN("; Using MRR"));
-        }
-        */
         if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE)
         {
-          char mrr_str_buf[128];
-          mrr_str_buf[0]=0;
-          int len;
-          uint mrr_flags= 
-            ((QUICK_RANGE_SELECT*)(tab->select->quick))->mrr_flags;
-          len= table->file->multi_range_read_explain_info(mrr_flags,
-                                                          mrr_str_buf,
-                                                          sizeof(mrr_str_buf));
-          if (len > 0)
-          {
-            extra.append(STRING_WITH_LEN("; "));
-            extra.append(mrr_str_buf, len);
-          }
+          explain_append_mrr_info((QUICK_RANGE_SELECT*)(tab->select->quick),
+                                  &eta->mrr_type);
+          if (eta->mrr_type.length() > 0)
+            eta->push_extra(ET_USING_MRR);
         }
 
 	if (need_tmp_table)
 	{
 	  need_tmp_table=0;
-	  extra.append(STRING_WITH_LEN("; Using temporary"));
+          xpl_sel->using_temporary= true;
 	}
 	if (need_order)
 	{
 	  need_order=0;
-	  extra.append(STRING_WITH_LEN("; Using filesort"));
+          xpl_sel->using_filesort= true;
 	}
 	if (distinct & test_all_bits(used_tables,
                                      join->select_list_used_tables))
-	  extra.append(STRING_WITH_LEN("; Distinct"));
+          eta->push_extra(ET_DISTINCT);
         if (tab->loosescan_match_tab)
         {
-          extra.append(STRING_WITH_LEN("; LooseScan"));
+          eta->push_extra(ET_LOOSESCAN);
         }
 
         if (tab->first_weedout_table)
-          extra.append(STRING_WITH_LEN("; Start temporary"));
+          eta->push_extra(ET_START_TEMPORARY);
         if (tab->check_weed_out_table)
-          extra.append(STRING_WITH_LEN("; End temporary"));
+          eta->push_extra(ET_END_TEMPORARY);
         else if (tab->do_firstmatch)
         {
           if (tab->do_firstmatch == /*join->join_tab*/ first_top_tab - 1)
-            extra.append(STRING_WITH_LEN("; FirstMatch"));
+            eta->push_extra(ET_FIRST_MATCH);
           else
           {
-            extra.append(STRING_WITH_LEN("; FirstMatch("));
+            eta->push_extra(ET_FIRST_MATCH);
             TABLE *prev_table=tab->do_firstmatch->table;
             if (prev_table->derived_select_number)
             {
@@ -23111,11 +23253,10 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
               int len= my_snprintf(namebuf, sizeof(namebuf)-1,
                                    "<derived%u>",
                                    prev_table->derived_select_number);
-              extra.append(namebuf, len);
+              eta->firstmatch_table_name.append(namebuf, len);
             }
             else
-              extra.append(prev_table->pos_in_table_list->alias);
-            extra.append(STRING_WITH_LEN(")"));
+              eta->firstmatch_table_name.append(prev_table->pos_in_table_list->alias);
           }
         }
 
@@ -23123,26 +23264,16 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
         {
           if (tab->ref.cond_guards[part])
           {
-            extra.append(STRING_WITH_LEN("; Full scan on NULL key"));
+            eta->push_extra(ET_FULL_SCAN_ON_NULL_KEY);
             break;
           }
         }
 
         if (tab->cache)
 	{
-          extra.append(STRING_WITH_LEN("; Using join buffer"));
-          tab->cache->print_explain_comment(&extra);
+          eta->push_extra(ET_USING_JOIN_BUFFER);
+          tab->cache->save_explain_data(&eta->bka_type);
         }
-        
-        /* Skip initial "; "*/
-        const char *str= extra.ptr();
-        uint32 len= extra.length();
-        if (len)
-        {
-          str += 2;
-          len -= 2;
-        }
-	item_list.push_back(new Item_string(str, len, cs));
       }
       
       if (saved_join_tab)
@@ -23150,16 +23281,49 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
 
       // For next iteration
       used_tables|=table->map;
-      if (result->send_data(item_list))
-	error= 1;
+    }
+    output->add_node(xpl_sel);
+  }
+
+  for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
+       unit;
+       unit= unit->next_unit())
+  {
+    /* 
+      Display subqueries only if 
+      (1) they are not parts of ON clauses that were eliminated by table 
+          elimination.
+      (2) they are not merged derived tables
+    */
+    if (!(unit->item && unit->item->eliminated) &&                    // (1)
+        (!unit->derived || unit->derived->is_materialized_derived())) // (2)
+    {
+      explain_node->add_child(unit->first_select()->select_number);
     }
   }
+
+  if (!error && select_lex->is_top_level_node())
+    output->query_plan_ready();
+    
+
   DBUG_RETURN(error);
 }
 
 
 /*
-  See st_select_lex::print_explain() for the SHOW EXPLAIN counterpart
+  This function serves as "shortcut point" for EXPLAIN queries.
+  
+  The EXPLAIN statement executes just like its SELECT counterpart would
+  execute, except that JOIN::exec() will call select_describe() instead of
+  actually executing the query.
+
+  Inside select_describe():
+  - Query plan is updated with latest QEP choices made at the start of
+    JOIN::exec().
+  - the proces of "almost execution" is invoked for the children subqueries.
+
+  Overall, select_describe() is a legacy of old EXPLAIN implementation and
+  should be removed.
 */ 
 
 static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
@@ -23168,10 +23332,15 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
   THD *thd=join->thd;
   select_result *result=join->result;
   DBUG_ENTER("select_describe");
-  join->error= join->print_explain(result, thd->lex->describe, 
-                                   FALSE, /* Not on-the-fly */
-                                   need_tmp_table, need_order, distinct, 
-                                   message);
+  
+  /* Update the QPF with latest values of using_temporary, using_filesort */
+  Explain_select *explain_sel;
+  uint select_nr= join->select_lex->select_number;
+  if ((explain_sel= thd->lex->explain->get_select(select_nr)))
+  {
+    explain_sel->using_temporary= need_tmp_table;
+    explain_sel->using_filesort= need_order;
+  }
 
   for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
        unit;
@@ -23221,7 +23390,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 
   if (unit->is_union())
   {
-    unit->fake_select_lex->select_number= UINT_MAX; // jost for initialization
+    unit->fake_select_lex->select_number= FAKE_SELECT_LEX_ID; // jost for initialization
     unit->fake_select_lex->type= "UNION RESULT";
     unit->fake_select_lex->options|= SELECT_DESCRIBE;
     if (!(res= unit->prepare(thd, result, SELECT_NO_UNLOCK | SELECT_DESCRIBE)))
@@ -24282,6 +24451,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   @param       table           Table to find a key
   @param       select          Pointer to access/update select->quick (if any)
   @param       limit           LIMIT clause parameter 
+  @param [out] scanned_limit   How many records we expect to scan
+                               Valid if *need_sort=FALSE.
   @param [out] need_sort       TRUE if filesort needed
   @param [out] reverse
     TRUE if the key is reversed again given ORDER (undefined if key == MAX_KEY)
@@ -24299,7 +24470,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
 */
 
 uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
-                         ha_rows limit, bool *need_sort, bool *reverse)
+                         ha_rows limit, ha_rows *scanned_limit,
+                         bool *need_sort, bool *reverse)
 {
   if (!order)
   {
@@ -24341,6 +24513,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
         {
           select->set_quick(reverse_quick);
           *need_sort= FALSE;
+          *scanned_limit= select->quick->records;
           return select->quick->index;
         }
         else
@@ -24369,6 +24542,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
         !is_key_used(table, key, table->write_set))
     {
       *need_sort= FALSE;
+      *scanned_limit= limit;
       *reverse= (direction < 0);
       return key;
     }

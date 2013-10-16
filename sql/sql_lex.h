@@ -534,7 +534,12 @@ class select_result;
 class JOIN;
 class select_union;
 class Procedure;
+class Explain_query;
 
+void delete_explain_query(LEX *lex);
+void create_explain_query(LEX *lex, MEM_ROOT *mem_root);
+void create_explain_query_if_not_exists(LEX *lex, MEM_ROOT *mem_root);
+bool print_explain_query(LEX *lex, THD *thd, String *str);
 
 class st_select_lex_unit: public st_select_lex_node {
 protected:
@@ -645,8 +650,9 @@ public:
   friend int subselect_union_engine::exec();
 
   List<Item> *get_unit_column_types();
-  int print_explain(select_result_sink *output, uint8 explain_flags,
-                    bool *printed_anything);
+
+  int save_union_explain(Explain_query *output);
+  int save_union_explain_part2(Explain_query *output);
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
@@ -943,6 +949,10 @@ public:
 
   void clear_index_hints(void) { index_hints= NULL; }
   bool is_part_of_union() { return master_unit()->is_union(); }
+  bool is_top_level_node() 
+  { 
+    return (select_number == 1) && !is_part_of_union();
+  }
   bool optimize_unflattened_subqueries(bool const_only);
   /* Set the EXPLAIN type for this subquery. */
   void set_explain_type(bool on_the_fly);
@@ -971,8 +981,7 @@ public:
   bool save_prep_leaf_tables(THD *thd);
 
   bool is_merged_child_of(st_select_lex *ancestor);
-  int print_explain(select_result_sink *output, uint8 explain_flags, 
-                    bool *printed_anything);
+
   /*
     For MODE_ONLY_FULL_GROUP_BY we need to maintain two flags:
      - Non-aggregated fields are used in this select.
@@ -2209,6 +2218,89 @@ protected:
   LEX *m_lex;
 };
 
+
+class Delete_plan;
+class SQL_SELECT;
+
+class Explain_query;
+class Explain_update;
+
+/* 
+  Query plan of a single-table UPDATE.
+  (This is actually a plan for single-table DELETE also)
+*/
+
+class Update_plan
+{
+protected:
+  bool impossible_where;
+  bool no_partitions;
+public:
+  /*
+    When single-table UPDATE updates a VIEW, that VIEW's select is still
+    listed as the first child.  When we print EXPLAIN, it looks like a
+    subquery.
+    In order to get rid of it, updating_a_view=TRUE means that first child
+    select should not be shown when printing EXPLAIN.
+  */
+  bool updating_a_view;
+   
+  /* Allocate things there */
+  MEM_ROOT *mem_root;
+
+  TABLE *table;
+  SQL_SELECT *select;
+  uint index;
+  ha_rows scanned_rows;
+  /*
+    Top-level select_lex. Most of its fields are not used, we need it only to
+    get to the subqueries.
+  */
+  SELECT_LEX *select_lex;
+  
+  key_map possible_keys;
+  bool using_filesort;
+  bool using_io_buffer;
+  
+  /* Set this plan to be a plan to do nothing because of impossible WHERE */
+  void set_impossible_where() { impossible_where= true; }
+  void set_no_partitions() { no_partitions= true; }
+
+  void save_explain_data(Explain_query *query);
+  void save_explain_data_intern(Explain_query *query, Explain_update *eu);
+  virtual ~Update_plan() {}
+
+  Update_plan(MEM_ROOT *mem_root_arg) : 
+    impossible_where(false), no_partitions(false), 
+    mem_root(mem_root_arg), 
+    using_filesort(false), using_io_buffer(false)
+  {}
+};
+
+
+/* Query plan of a single-table DELETE */
+class Delete_plan : public Update_plan
+{
+  bool deleting_all_rows;
+public:
+
+  /* Construction functions */
+  Delete_plan(MEM_ROOT *mem_root_arg) : 
+    Update_plan(mem_root_arg), 
+    deleting_all_rows(false)
+  {}
+
+  /* Set this query plan to be a plan to make a call to h->delete_all_rows() */
+  void set_delete_all_rows(ha_rows rows_arg) 
+  { 
+    deleting_all_rows= true;
+    scanned_rows= rows_arg;
+  }
+
+  void save_explain_data(Explain_query *query);
+};
+
+
 /* The state of the lex parsing. This is saved in the THD struct */
 
 struct LEX: public Query_tables_list
@@ -2219,6 +2311,9 @@ struct LEX: public Query_tables_list
   SELECT_LEX *current_select;
   /* list of all SELECT_LEX */
   SELECT_LEX *all_selects_list;
+  
+  /* Query Plan Footprint of a currently running select  */
+  Explain_query *explain;
 
   char *length,*dec,*change;
   LEX_STRING name;
@@ -2636,6 +2731,9 @@ struct LEX: public Query_tables_list
     }
     return FALSE;
   }
+
+  int print_explain(select_result_sink *output, uint8 explain_flags,
+                    bool *printed_anything);
 };
 
 

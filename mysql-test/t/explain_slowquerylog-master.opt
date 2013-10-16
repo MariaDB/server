@@ -1,0 +1,1 @@
+--slow-query-log --long-query-time=0.00000 --log-slow-verbosity=query_plan,explain

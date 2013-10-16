@@ -4289,11 +4289,12 @@ static Sys_var_ulong Sys_log_slow_rate_limit(
        SESSION_VAR(log_slow_rate_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1));
 
-static const char *log_slow_verbosity_names[]= { "innodb", "query_plan", 0 };
+static const char *log_slow_verbosity_names[]= { "innodb", "query_plan", 
+                                                 "explain", 0 };
 static Sys_var_set Sys_log_slow_verbosity(
        "log_slow_verbosity",
        "log-slow-verbosity=[value[,value ...]] where value is one of "
-       "'innodb', 'query_plan'",
+       "'innodb', 'query_plan', 'explain' ",
        SESSION_VAR(log_slow_verbosity), CMD_LINE(REQUIRED_ARG),
        log_slow_verbosity_names, DEFAULT(LOG_SLOW_VERBOSITY_INIT));
 

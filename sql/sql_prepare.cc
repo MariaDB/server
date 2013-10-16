@@ -2523,6 +2523,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
     object and because of this can be used in different threads.
   */
   lex->thd= thd;
+  DBUG_ASSERT(!lex->explain);
 
   if (lex->empty_field_list_on_rset)
   {
@@ -3966,6 +3967,21 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
 
   if (! cursor)
     cleanup_stmt();
+  
+  /*
+    EXECUTE command has its own dummy "explain data". We don't need it,
+    instead, we want to keep the query plan of the statement that was 
+    executed.
+  */
+  if (!stmt_backup.lex->explain || 
+      !stmt_backup.lex->explain->have_query_plan())
+  {
+    delete_explain_query(stmt_backup.lex);
+    stmt_backup.lex->explain = thd->lex->explain;
+    thd->lex->explain= NULL;
+  }
+  else
+    delete_explain_query(thd->lex);
 
   thd->set_statement(&stmt_backup);
   thd->stmt_arena= old_stmt_arena;

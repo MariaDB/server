@@ -758,6 +758,7 @@ static void handle_bootstrap_impl(THD *thd)
 #if defined(ENABLED_PROFILING)
     thd->profiling.finish_current_query();
 #endif
+    delete_explain_query(thd->lex);
 
     if (bootstrap_error)
       break;
@@ -981,7 +982,9 @@ bool do_command(THD *thd)
   my_net_set_read_timeout(net, thd->variables.net_read_timeout);
 
   DBUG_ASSERT(packet_length);
+  DBUG_ASSERT(!thd->apc_target.is_enabled());
   return_value= dispatch_command(command, thd, packet+1, (uint) (packet_length-1));
+  DBUG_ASSERT(!thd->apc_target.is_enabled());
 
 out:
   /* The statement instrumentation must be closed in all cases. */
@@ -1303,6 +1306,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       ulong length= (ulong)(packet_end - beginning_of_next_stmt);
 
       log_slow_statement(thd);
+      DBUG_ASSERT(!thd->apc_target.is_enabled());
 
       /* Remove garbage at start of query */
       while (length > 0 && my_isspace(thd->charset(), *beginning_of_next_stmt))
@@ -1729,9 +1733,14 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 }
 
 
+/*
+  @note
+    This function must call delete_explain_query().
+*/
 void log_slow_statement(THD *thd)
 {
   DBUG_ENTER("log_slow_statement");
+
 
   /*
     The following should never be true with our current code base,
@@ -1741,11 +1750,15 @@ void log_slow_statement(THD *thd)
   if (unlikely(thd->in_sub_stmt))
     DBUG_VOID_RETURN;                           // Don't set time for sub stmt
 
+
   /* Follow the slow log filter configuration. */ 
   if (!thd->enable_slow_log ||
       (thd->variables.log_slow_filter
         && !(thd->variables.log_slow_filter & thd->query_plan_flags)))
+  {
+    delete_explain_query(thd->lex);
     DBUG_VOID_RETURN; 
+  }
  
   if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
        ((thd->server_status &
@@ -1767,6 +1780,8 @@ void log_slow_statement(THD *thd)
     slow_log_print(thd, thd->query(), thd->query_length(), 
                    thd->utime_after_query);
   }
+
+  delete_explain_query(thd->lex);
   DBUG_VOID_RETURN;
 }
 
@@ -2393,7 +2408,7 @@ mysql_execute_command(THD *thd)
     /* Release metadata locks acquired in this transaction. */
     thd->mdl_context.release_transactional_locks();
   }
-
+  
 #ifndef DBUG_OFF
   if (lex->sql_command != SQLCOM_SET_OPTION)
     DEBUG_SYNC(thd,"before_execute_sql_command");
@@ -3413,6 +3428,7 @@ end_with_restore_list:
   case SQLCOM_INSERT_SELECT:
   {
     select_result *sel_result;
+    bool explain= test(lex->describe);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     if ((res= insert_precheck(thd, all_tables)))
       break;
@@ -3482,6 +3498,10 @@ end_with_restore_list:
         }
         delete sel_result;
       }
+
+      if (!res && explain)
+        res= thd->lex->explain->send_explain(thd);
+
       /* revert changes for SP */
       MYSQL_INSERT_SELECT_DONE(res, (ulong) thd->get_row_count_func());
       select_lex->table_list.first= first_table;
@@ -3522,7 +3542,8 @@ end_with_restore_list:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     TABLE_LIST *aux_tables= thd->lex->auxiliary_table_list.first;
-    multi_delete *del_result;
+    bool explain= test(lex->describe);
+    multi_delete *result;
 
     if ((res= multi_delete_precheck(thd, all_tables)))
       break;
@@ -3544,25 +3565,34 @@ end_with_restore_list:
       goto error;
     }
 
-    if (!thd->is_fatal_error &&
-        (del_result= new multi_delete(aux_tables, lex->table_count)))
+    if (!thd->is_fatal_error)
     {
-      res= mysql_select(thd, &select_lex->ref_pointer_array,
-			select_lex->get_table_list(),
-			select_lex->with_wild,
-			select_lex->item_list,
-			select_lex->where,
-			0, (ORDER *)NULL, (ORDER *)NULL, (Item *)NULL,
-			(ORDER *)NULL,
-			(select_lex->options | thd->variables.option_bits |
-			SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
-                        OPTION_SETUP_TABLES_DONE) & ~OPTION_BUFFER_RESULT,
-			del_result, unit, select_lex);
-      res|= thd->is_error();
-      MYSQL_MULTI_DELETE_DONE(res, del_result->num_deleted());
-      if (res)
-        del_result->abort_result_set();
-      delete del_result;
+      result= new multi_delete(aux_tables, lex->table_count);
+      if (result)
+      {
+        res= mysql_select(thd, &select_lex->ref_pointer_array,
+                          select_lex->get_table_list(),
+                          select_lex->with_wild,
+                          select_lex->item_list,
+                          select_lex->where,
+                          0, (ORDER *)NULL, (ORDER *)NULL, (Item *)NULL,
+                          (ORDER *)NULL,
+                          (select_lex->options | thd->variables.option_bits |
+                          SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
+                          OPTION_SETUP_TABLES_DONE) & ~OPTION_BUFFER_RESULT,
+                          result, unit, select_lex);
+        res|= thd->is_error();
+
+        MYSQL_MULTI_DELETE_DONE(res, result->num_deleted());
+        if (res)
+          result->abort_result_set(); /* for both DELETE and EXPLAIN DELETE */
+        else
+        {
+          if (explain)
+            res= thd->lex->explain->send_explain(thd);
+        }
+        delete result;
+      }
     }
     else
     {
@@ -5021,8 +5051,8 @@ finish:
     ha_maria::implicit_commit(thd, FALSE);
 #endif
   }
-
   lex->unit.cleanup();
+
   /* Free tables */
   THD_STAGE_INFO(thd, stage_closing_tables);
   close_thread_tables(thd);
@@ -5096,24 +5126,37 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       if (!(result= new select_send()))
         return 1;                               /* purecov: inspected */
       thd->send_explain_fields(result);
-      res= mysql_explain_union(thd, &thd->lex->unit, result);
+        
       /*
-        The code which prints the extended description is not robust
-        against malformed queries, so skip it if we have an error.
+        This will call optimize() for all parts of query. The query plan is
+        printed out below.
       */
-      if (!res && (lex->describe & DESCRIBE_EXTENDED))
+      res= mysql_explain_union(thd, &thd->lex->unit, result);
+      
+      /* Print EXPLAIN only if we don't have an error */
+      if (!res)
       {
-        char buff[1024];
-        String str(buff,(uint32) sizeof(buff), system_charset_info);
-        str.length(0);
-        /*
-          The warnings system requires input in utf8, @see
-          mysqld_show_warnings().
-        */
-        thd->lex->unit.print(&str, QT_TO_SYSTEM_CHARSET);
-        push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
-                     ER_YES, str.c_ptr_safe());
+        /* 
+          Do like the original select_describe did: remove OFFSET from the
+          top-level LIMIT
+        */        
+        result->reset_offset_limit(); 
+        thd->lex->explain->print_explain(result, thd->lex->describe);
+        if (lex->describe & DESCRIBE_EXTENDED)
+        {
+          char buff[1024];
+          String str(buff,(uint32) sizeof(buff), system_charset_info);
+          str.length(0);
+          /*
+            The warnings system requires input in utf8, @see
+            mysqld_show_warnings().
+          */
+          thd->lex->unit.print(&str, QT_TO_SYSTEM_CHARSET);
+          push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                       ER_YES, str.c_ptr_safe());
+        }
       }
+
       if (res)
         result->abort_result_set();
       else

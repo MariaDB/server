@@ -2841,6 +2841,15 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                       "Yes" : "No"),
                      thd->query_plan_fsort_passes) == (size_t) -1)
        tmp_errno= errno;
+    if (thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_EXPLAIN &&
+        thd->lex->explain)
+    {
+      StringBuffer<128> buf;
+      DBUG_ASSERT(!thd->free_list);
+      if (!print_explain_query(thd->lex, thd, &buf))
+        my_b_printf(&log_file, "%s", buf.c_ptr_safe());
+      thd->free_items();
+    }
     if (thd->db && strcmp(thd->db, db))
     {						// Database changed
       if (my_b_printf(&log_file,"use %s;\n",thd->db) == (size_t) -1)
