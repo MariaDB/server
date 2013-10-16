@@ -396,7 +396,7 @@ and not exists (select * from orders where o_custkey = c_custkey)
 group by cntrycode
 order by cntrycode;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	customer	ALL	NULL	NULL	NULL	NULL	150	100.00	Using where; Using temporary; Using filesort
+1	PRIMARY	customer	ALL	NULL	NULL	NULL	NULL	150	100.00	Using where; Using temporary; Using filesort
 4	DEPENDENT SUBQUERY	orders	ref	i_o_custkey	i_o_custkey	5	dbt3_s001.customer.c_custkey	15	100.00	Using index
 3	SUBQUERY	customer	ALL	NULL	NULL	NULL	NULL	150	100.00	Using where
 Warnings:
@@ -437,7 +437,7 @@ and not exists (select * from orders where o_custkey = c_custkey)
 group by cntrycode
 order by cntrycode;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	customer	ALL	NULL	NULL	NULL	NULL	150	100.00	Using where; Using temporary; Using filesort
+1	PRIMARY	customer	ALL	NULL	NULL	NULL	NULL	150	100.00	Using where; Using temporary; Using filesort
 4	DEPENDENT SUBQUERY	orders	ref	i_o_custkey	i_o_custkey	5	dbt3_s001.customer.c_custkey	15	100.00	Using index
 3	SUBQUERY	customer	ALL	NULL	NULL	NULL	NULL	150	91.00	Using where
 Warnings:

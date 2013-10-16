@@ -447,6 +447,8 @@ void lex_start(THD *thd)
   DBUG_ENTER("lex_start");
 
   lex->thd= lex->unit.thd= thd;
+  
+  DBUG_ASSERT(!lex->explain);
 
   lex->context_stack.empty();
   lex->unit.init_query();
@@ -2533,7 +2535,8 @@ void Query_tables_list::destroy_query_tables_list()
 */
 
 LEX::LEX()
-  :result(0), option_type(OPT_DEFAULT), is_lex_started(0),
+  : explain(NULL),
+    result(0), option_type(OPT_DEFAULT), is_lex_started(0),
    limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
@@ -3476,6 +3479,18 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
         is_correlated_unit|= sl->is_correlated;
         inner_join->select_options= save_options;
         un->thd->lex->current_select= save_select;
+
+        Explain_query *eq;
+        if ((eq= inner_join->thd->lex->explain))
+        {
+          Explain_select *expl_sel;
+          if ((expl_sel= eq->get_select(inner_join->select_lex->select_number)))
+          {
+            sl->set_explain_type(TRUE);
+            expl_sel->select_type= sl->type;
+          }
+        }
+
         if (empty_union_result)
         {
           /*
@@ -4152,114 +4167,85 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
   return all_merged;
 }
 
+/* 
+  This is used by SHOW EXPLAIN. It assuses query plan has been already 
+  collected into QPF structures and we only need to print it out.
+*/
 
-int print_explain_message_line(select_result_sink *result, 
-                               SELECT_LEX *select_lex,
-                               bool on_the_fly,
-                               uint8 options,
-                               const char *message);
-
-
-int st_select_lex::print_explain(select_result_sink *output, 
-                                 uint8 explain_flags,
-                                 bool *printed_anything)
+int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
+                       bool *printed_anything)
 {
   int res;
-  if (join && join->have_query_plan == JOIN::QEP_AVAILABLE)
+  if (explain && explain->have_query_plan())
   {
-    /*
-      There is a number of reasons join can be marked as degenerate, so all
-      three conditions below can happen simultaneously, or individually:
-    */
-    *printed_anything= TRUE;
-    if (!join->table_count || !join->tables_list || join->zero_result_cause)
-    {
-      /* It's a degenerate join */
-      const char *cause= join->zero_result_cause ? join-> zero_result_cause : 
-                                                   "No tables used";
-      res= join->print_explain(output, explain_flags, TRUE, FALSE, FALSE, 
-                               FALSE, cause);
-    }
-    else
-    {
-      res= join->print_explain(output, explain_flags, TRUE,
-                               join->need_tmp, // need_tmp_table
-                               !join->skip_sort_order && !join->no_order &&
-                               (join->order || join->group_list), // bool need_order
-                               join->select_distinct, // bool distinct
-                               NULL); //const char *message
-    }
-    if (res)
-      goto err;
-
-    for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
-         unit;
-         unit= unit->next_unit())
-    {
-      /* 
-        Display subqueries only if they are not parts of eliminated WHERE/ON
-        clauses.
-      */
-      if (!(unit->item && unit->item->eliminated))
-      {
-        if ((res= unit->print_explain(output, explain_flags, printed_anything)))
-          goto err;
-      }
-    }
+    res= explain->print_explain(output, explain_flags);
+    *printed_anything= true;
   }
   else
   {
-    const char *msg;
-    if (!join)
-      DBUG_ASSERT(0); /* Seems not to be possible */
-
-    /* Not printing anything useful, don't touch *printed_anything here */
-    if (join->have_query_plan == JOIN::QEP_NOT_PRESENT_YET)
-      msg= "Not yet optimized";
-    else
-    {
-      DBUG_ASSERT(join->have_query_plan == JOIN::QEP_DELETED);
-      msg= "Query plan already deleted";
-    }
-    res= print_explain_message_line(output, this, TRUE /* on_the_fly */,
-                                    0, msg);
+    res= 0;
+    *printed_anything= false;
   }
-err:
   return res;
 }
 
 
-int st_select_lex_unit::print_explain(select_result_sink *output, 
-                                      uint8 explain_flags, bool *printed_anything)
+/*
+  Save explain structures of a UNION. The only variable member is whether the 
+  union has "Using filesort".
+
+  There is also save_union_explain_part2() function, which is called before we read
+  UNION's output.
+
+  The reason for it is examples like this:
+
+     SELECT col1 FROM t1 UNION SELECT col2 FROM t2 ORDER BY (select ... from t3 ...)
+
+  Here, the (select ... from t3 ...) subquery must be a child of UNION's
+  st_select_lex. However, it is not connected as child until a very late 
+  stage in execution.
+*/
+
+int st_select_lex_unit::save_union_explain(Explain_query *output)
 {
-  int res= 0;
   SELECT_LEX *first= first_select();
-  
-  if (first && !first->next_select() && !first->join)
-  {
-    /*
-      If there is only one child, 'first', and it has join==NULL, emit "not in
-      EXPLAIN state" error.
-    */
-    const char *msg="Query plan already deleted";
-    res= print_explain_message_line(output, first, TRUE /* on_the_fly */,
-                                    0, msg);
-    return 0;
-  }
+  Explain_union *eu= new (output->mem_root) Explain_union;
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
-  {
-    if ((res= sl->print_explain(output, explain_flags, printed_anything)))
-      break;
-  }
+    eu->add_select(sl->select_number);
 
-  /* Note: fake_select_lex->join may be NULL or non-NULL at this point */
+  eu->fake_select_type= "UNION RESULT";
+  eu->using_filesort= test(global_parameters->order_list.first);
+
+  // Save the UNION node
+  output->add_node(eu);
+
+  if (eu->get_select_id() == 1)
+    output->query_plan_ready();
+
+  return 0;
+}
+
+
+/*
+  @see  st_select_lex_unit::save_union_explain
+*/
+
+int st_select_lex_unit::save_union_explain_part2(Explain_query *output)
+{
+  Explain_union *eu= output->get_union(first_select()->select_number);
   if (fake_select_lex)
   {
-    res= print_fake_select_lex_join(output, TRUE /* on the fly */,
-                                    fake_select_lex, explain_flags);
+    for (SELECT_LEX_UNIT *unit= fake_select_lex->first_inner_unit(); 
+         unit; unit= unit->next_unit())
+    {
+      if (!(unit->item && unit->item->eliminated))
+      {
+        eu->add_child(unit->first_select()->select_number);
+      }
+    }
   }
-  return res;
+  return 0;
 }
 
 
