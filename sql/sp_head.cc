@@ -3246,7 +3246,6 @@ sp_instr_set::execute(THD *thd, uint *nextp)
 int
 sp_instr_set::exec_core(THD *thd, uint *nextp)
 {
-  create_explain_query(thd->lex, thd->mem_root);
   int res= thd->spcont->set_variable(thd, m_offset, &m_value);
 
   if (res)

@@ -228,6 +228,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   query_plan.using_filesort= FALSE;
   DBUG_ENTER("mysql_delete");
 
+  create_explain_query(thd->lex, thd->mem_root);
   if (open_and_lock_tables(thd, table_list, TRUE, 0))
     DBUG_RETURN(TRUE);
 
@@ -457,7 +458,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   */
   if (thd->lex->describe)
     goto exit_without_my_ok;
-
+  
   query_plan.save_explain_data(thd->lex->explain);
 
   DBUG_EXECUTE_IF("show_explain_probe_delete_exec_start", 

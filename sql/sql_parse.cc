@@ -2201,8 +2201,6 @@ mysql_execute_command(THD *thd)
     thd->mdl_context.release_transactional_locks();
   }
   
-  create_explain_query(thd->lex, thd->mem_root);
-
 #ifndef DBUG_OFF
   if (lex->sql_command != SQLCOM_SET_OPTION)
     DEBUG_SYNC(thd,"before_execute_sql_command");
