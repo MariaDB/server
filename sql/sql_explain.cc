@@ -946,3 +946,9 @@ void create_explain_query(LEX *lex, MEM_ROOT *mem_root)
   lex->explain->mem_root= mem_root;
 }
 
+void create_explain_query_if_not_exists(LEX *lex, MEM_ROOT *mem_root)
+{
+  if (!lex->explain)
+    create_explain_query(lex, mem_root);
+}
+

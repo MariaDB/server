@@ -448,7 +448,7 @@ void lex_start(THD *thd)
 
   lex->thd= lex->unit.thd= thd;
   
-  lex->explain= NULL;
+  DBUG_ASSERT(!lex->explain);
 
   lex->context_stack.empty();
   lex->unit.init_query();

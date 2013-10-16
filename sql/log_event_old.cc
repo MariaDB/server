@@ -86,6 +86,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, const Relay_log_info 
       call might reset the value of current_stmt_binlog_format, so
       we need to do any changes to that value after this function.
     */
+    delete_explain_query(thd->lex);
     lex_start(ev_thd);
     mysql_reset_thd_for_next_command(ev_thd, 0);
 

@@ -281,6 +281,7 @@ int mysql_update(THD *thd,
   query_plan.using_filesort= FALSE;
   DBUG_ENTER("mysql_update");
 
+  create_explain_query(thd->lex, thd->mem_root);
   if (open_tables(thd, &table_list, &table_count, 0))
     DBUG_RETURN(1);
 

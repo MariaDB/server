@@ -1020,6 +1020,7 @@ int JOIN::optimize()
   */
   if (was_optimized != optimized && !res && have_query_plan != QEP_DELETED)
   {
+    create_explain_query_if_not_exists(thd->lex, thd->mem_root);
     have_query_plan= QEP_AVAILABLE;
     save_explain_data(thd->lex->explain, false /* can overwrite */,
                       need_tmp,
