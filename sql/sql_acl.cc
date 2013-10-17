@@ -2089,14 +2089,26 @@ void rebuild_role_grants(void)
     Reset every user's and role's role_grants array
   */
   for (uint i=0; i < acl_users.elements; i++) {
-    ACL_USER * user = dynamic_element(&acl_users, i, ACL_USER *);
+    ACL_USER *user= dynamic_element(&acl_users, i, ACL_USER *);
     reset_dynamic(&user->role_grants);
   }
   my_hash_iterate(&acl_roles,
                   (my_hash_walk_action) acl_user_reset_grant, NULL);
 
-  my_hash_iterate(&acl_roles_mappings,
-                  (my_hash_walk_action) roles_mappings_walk_action, 0);
+  /*
+    Rebuild the direct links between users and roles in ACL_USER::role_grants
+  */
+  for (uint i=0; i < acl_roles.records; i++) {
+    ROLE_GRANT_PAIR *mapping= (ROLE_GRANT_PAIR*)
+                                my_hash_element(&acl_roles_mappings, i);
+    /*
+       The invariant chosen is that acl_roles_mappings should _always_
+       only contain valid entries, referencing correct user and role grants.
+       If add_role_user_mapping detects an invalid entry, it will not add
+       the mapping into the ACL_USER::role_grants array.
+    */
+     DBUG_ASSERT(add_role_user_mapping(mapping));
+  }
 }
 /* Return true if there is no users that can match the given host */
 
