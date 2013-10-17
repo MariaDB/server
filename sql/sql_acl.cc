@@ -218,7 +218,7 @@ public:
   acl_host_and_ip host;
   uint hostname_length;
   USER_RESOURCES user_resource;
-  char *user;
+  LEX_STRING user;
   uint8 salt[SCRAMBLE_LENGTH + 1];       // scrambled password in binary form
   uint8 salt_len;        // 0 - no password, 4 - 3.20, 8 - 4.0,  20 - 4.1.1 
   enum SSL_type ssl_type;
@@ -232,7 +232,8 @@ public:
     if (!dst)
       return 0;
     *dst= *this;
-    dst->user= safe_strdup_root(root, user);
+    dst->user.str= safe_strdup_root(root, user.str);
+    dst->user.length= user.length;
     dst->ssl_cipher= safe_strdup_root(root, ssl_cipher);
     dst->x509_issuer= safe_strdup_root(root, x509_issuer);
     dst->x509_subject= safe_strdup_root(root, x509_subject);
@@ -523,8 +524,8 @@ static uchar* acl_entry_get_key(acl_entry *entry, size_t *length,
 uchar* acl_role_get_key(ACL_USER *entry, size_t *length,
                                 my_bool not_used __attribute__((unused)))
 {
-  *length=(uint) (entry->user ? strlen(entry->user) : 0);
-  return (uchar*) entry->user;
+  *length=(uint) entry->user.length;
+  return (uchar*) entry->user.str;
 }
 
 #define IP_ADDR_STRLEN (3 + 1 + 3 + 1 + 3 + 1 + 3)
@@ -744,7 +745,7 @@ set_user_plugin (ACL_USER *user, int password_len)
     return FALSE;
   default:
     sql_print_warning("Found invalid password for user: '%s@%s'; "
-                      "Ignoring user", user->user ? user->user : "",
+                      "Ignoring user", user->user.str ? user->user.str : "",
                       user->host.hostname ? user->host.hostname : "");
     return TRUE;
   }
@@ -900,7 +901,9 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     bool is_role= FALSE;
     bzero(&user, sizeof(user));
     update_hostname(&user.host, get_field(&mem, table->field[0]));
-    user.user= get_field(&mem, table->field[1]);
+    char *username= get_field(&mem, table->field[1]);
+    user.user.str= username;
+    user.user.length= username? strlen(username) : 0;
 
     /* If the user entry is a role, skip password and hostname checks
        A user can not log in with a role so some checks are not necessary
@@ -912,7 +915,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     {
       sql_print_warning("'user' entry '%s@%s' "
                         "ignored in --skip-name-resolve mode.",
-			user.user ? user.user : "",
+                        user.user.str ? user.user.str : "",
 			user.host.hostname ? user.host.hostname : "");
       continue;
     }
@@ -1016,7 +1019,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
               sql_print_warning("'user' entry '%s@%s' has both a password "
                                 "and an authentication plugin specified. The "
                                 "password will be ignored.",
-                                user.user ? user.user : "",
+                                user.user.str ? user.user.str : "",
                                 user.host.hostname ? user.host.hostname : "");
             }
             user.auth_string.str= get_field(&mem, table->field[next_field++]);
@@ -1046,12 +1049,12 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 #endif
       }
       if (is_role) {
-        sql_print_information("Found role %s", user.user);
+        sql_print_information("Found role %s", user.user.str);
         my_hash_insert(&acl_roles, (uchar*) user.copy(&mem));
       }
       else
       {
-        sql_print_information("Found user %s", user.user);
+        sql_print_information("Found user %s", user.user.str);
         (void) push_dynamic(&acl_users,(uchar*) &user);
       }
       if (!user.host.hostname ||
@@ -1206,8 +1209,8 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 
 //      push_dynamic(&role_grants, (uchar*) &p);
       sql_print_information("Found user %s@%s having role granted %s@%s\n",
-                            user->user, user->host.hostname,
-                            role->user, role->host.hostname);
+                            user->user.str, user->host.hostname,
+                            role->user.str, role->host.hostname);
     }
 
     end_read_record(&read_record_info);
@@ -1547,8 +1550,8 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
   for (i=0 ; i < acl_users.elements ; i++)
   {
     ACL_USER *acl_user_tmp= dynamic_element(&acl_users,i,ACL_USER*);
-    if ((!acl_user_tmp->user && !user[0]) ||
-        (acl_user_tmp->user && strcmp(user, acl_user_tmp->user) == 0))
+    if ((!acl_user_tmp->user.str && !user[0]) ||
+        (acl_user_tmp->user.str && strcmp(user, acl_user_tmp->user.str) == 0))
     {
       if (compare_hostname(&acl_user_tmp->host, host, ip))
       {
@@ -1579,7 +1582,7 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
     }
     sctx->master_access= acl_user->access;
 
-    if (acl_user->user)
+    if (acl_user->user.str)
       strmake_buf(sctx->priv_user, user);
     else
       *sctx->priv_user= 0;
@@ -1617,8 +1620,8 @@ static void acl_update_user(const char *user, const char *host,
   for (uint i=0 ; i < acl_users.elements ; i++)
   {
     ACL_USER *acl_user=dynamic_element(&acl_users,i,ACL_USER*);
-    if ((!acl_user->user && !user[0]) ||
-	(acl_user->user && !strcmp(user,acl_user->user)))
+    if ((!acl_user->user.str && !user[0]) ||
+        (acl_user->user.str && !strcmp(user,acl_user->user.str)))
     {
       if ((!acl_user->host.hostname && !host[0]) ||
 	  (acl_user->host.hostname &&
@@ -1683,7 +1686,8 @@ static void acl_insert_user(const char *user, const char *host,
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  acl_user.user=*user ? strdup_root(&mem,user) : 0;
+  acl_user.user.str=*user ? strdup_root(&mem,user) : 0;
+  acl_user.user.length= strlen(user);
   update_hostname(&acl_user.host, *host ? strdup_root(&mem, host): 0);
   if (plugin->str[0])
   {
@@ -2120,7 +2124,7 @@ bool change_password(THD *thd, const char *host, const char *user,
 
   if (update_user_table(thd, table,
 			acl_user->host.hostname ? acl_user->host.hostname : "",
-			acl_user->user ? acl_user->user : "",
+                        acl_user->user.str ? acl_user->user.str : "",
 			new_password, new_password_len))
   {
     mysql_mutex_unlock(&acl_cache->lock); /* purecov: deadcode */
@@ -2134,7 +2138,7 @@ bool change_password(THD *thd, const char *host, const char *user,
   {
     query_length=
       sprintf(buff,"SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
-              acl_user->user ? acl_user->user : "",
+              acl_user->user.str ? acl_user->user.str : "",
               acl_user->host.hostname ? acl_user->host.hostname : "",
               new_password);
     thd->clear_error();
@@ -2192,12 +2196,12 @@ find_acl_user(const char *host, const char *user, my_bool exact)
   {
     ACL_USER *acl_user=dynamic_element(&acl_users,i,ACL_USER*);
     DBUG_PRINT("info",("strcmp('%s','%s'), compare_hostname('%s','%s'),",
-                       user, acl_user->user ? acl_user->user : "",
+                       user, acl_user->user.str ? acl_user->user.str : "",
                        host,
                        acl_user->host.hostname ? acl_user->host.hostname :
                        ""));
-    if ((!acl_user->user && !user[0]) ||
-	(acl_user->user && !strcmp(user,acl_user->user)))
+    if ((!acl_user->user.str && !user[0]) ||
+        (acl_user->user.str && !strcmp(user,acl_user->user.str)))
     {
       if (exact ? !my_strcasecmp(system_charset_info, host,
                                  acl_user->host.hostname ?
@@ -5996,7 +6000,7 @@ ACL_USER *check_acl_user(LEX_USER *user_name,
   {
     const char *user,*host;
     acl_user= dynamic_element(&acl_users, counter, ACL_USER*);
-    if (!(user=acl_user->user))
+    if (!(user=acl_user->user.str))
       user= "";
     if (!(host=acl_user->host.hostname))
       host= "";
@@ -6304,7 +6308,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     switch (struct_no) {
     case USER_ACL:
       acl_user= dynamic_element(&acl_users, idx, ACL_USER*);
-      user= acl_user->user;
+      user= acl_user->user.str;
       host= acl_user->host.hostname;
     break;
 
@@ -6382,7 +6386,8 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     {
       switch ( struct_no ) {
       case USER_ACL:
-        acl_user->user= strdup_root(&mem, user_to->user.str);
+        acl_user->user.str= strdup_root(&mem, user_to->user.str);
+        acl_user->user.length= user_to->user.length;
         acl_user->host.hostname= strdup_root(&mem, user_to->host.str);
         break;
 
@@ -7480,7 +7485,7 @@ int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
   {
     const char *user,*host, *is_grantable="YES";
     acl_user=dynamic_element(&acl_users,counter,ACL_USER*);
-    if (!(user=acl_user->user))
+    if (!(user=acl_user->user.str))
       user= "";
     if (!(host=acl_user->host.hostname))
       host= "";
@@ -8282,8 +8287,9 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
   for (uint i=0; i < acl_users.elements; i++)
   {
     ACL_USER *acl_user_tmp= dynamic_element(&acl_users, i, ACL_USER*);
-    if ((!acl_user_tmp->user || !strcmp(sctx->user, acl_user_tmp->user)) &&
-        compare_hostname(&acl_user_tmp->host, sctx->host, sctx->ip))
+    if ((!acl_user_tmp->user.str ||
+         !strcmp(sctx->user, acl_user_tmp->user.str)) &&
+         compare_hostname(&acl_user_tmp->host, sctx->host, sctx->ip))
     {
       mpvio->acl_user= acl_user_tmp->copy(mpvio->thd->mem_root);
       break;
@@ -8340,8 +8346,8 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
   mpvio->auth_info.user_name_length= strlen(sctx->user);
   mpvio->auth_info.auth_string= mpvio->acl_user->auth_string.str;
   mpvio->auth_info.auth_string_length= (unsigned long) mpvio->acl_user->auth_string.length;
-  strmake_buf(mpvio->auth_info.authenticated_as, mpvio->acl_user->user ?
-              mpvio->acl_user->user : "");
+  strmake_buf(mpvio->auth_info.authenticated_as, mpvio->acl_user->user.str ?
+              mpvio->acl_user->user.str : "");
 
   DBUG_PRINT("info", ("exit: user=%s, auth_string=%s, authenticated as=%s"
                       "plugin=%s",
@@ -9202,7 +9208,7 @@ bool acl_authenticate(THD *thd, uint connect_errors,
   {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     bool is_proxy_user= FALSE;
-    const char *auth_user = acl_user->user ? acl_user->user : "";
+    const char *auth_user = acl_user->user.str ? acl_user->user.str : "";
     ACL_PROXY_USER *proxy_user;
     /* check if the user is allowed to proxy as another user */
     proxy_user= acl_find_proxy_user(auth_user, sctx->host, sctx->ip,
@@ -9242,8 +9248,8 @@ bool acl_authenticate(THD *thd, uint connect_errors,
 #endif
 
     sctx->master_access= acl_user->access;
-    if (acl_user->user)
-      strmake_buf(sctx->priv_user, acl_user->user);
+    if (acl_user->user.str)
+      strmake_buf(sctx->priv_user, acl_user->user.str);
     else
       *sctx->priv_user= 0;
 
