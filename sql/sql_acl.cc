@@ -553,15 +553,6 @@ uchar* acl_role_get_key(ACL_USER *entry, size_t *length,
 
 static DYNAMIC_ARRAY acl_hosts, acl_users, acl_dbs, acl_proxy_users;
 static HASH acl_roles;
-/* XXX
-   ***** Potential optimization *****
-   role_grants could potentially be a HASH with keys as usernames and values
-   as a DYNAMIC_ARRAY of pointers to granted roles
-   XXX
-   ***** Implementation choice for now *****
-   An array representing mappings between acl_users and acl_roles;
-*/
-static DYNAMIC_ARRAY role_grants;
 static MEM_ROOT mem, memex;
 static bool initialized=0;
 static bool allow_all_hosts=1;
@@ -1187,8 +1178,10 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
      */
     if (!initialized)
       mysql_mutex_lock(&acl_cache->lock);
-    (void) my_init_dynamic_array(&role_grants,sizeof(ROLE_GRANT_PAIR), 50, 100,
+
+/*   (void) my_init_dynamic_array(&role_grants,sizeof(ROLE_GRANT_PAIR), 50, 100,
                                  MYF(0));
+*/
     while (!(read_record_info.read_record(&read_record_info)))
     {
       ROLE_GRANT_PAIR p;
@@ -1211,12 +1204,14 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
         continue;
       }
 
-      push_dynamic(&role_grants, (uchar*) &p);
+//      push_dynamic(&role_grants, (uchar*) &p);
       sql_print_information("Found user %s@%s having role granted %s@%s\n",
                             user->user, user->host.hostname,
                             role->user, role->host.hostname);
     }
+
     end_read_record(&read_record_info);
+
     if (!initialized)
       mysql_mutex_unlock(&acl_cache->lock);
 
@@ -1241,7 +1236,6 @@ void acl_free(bool end)
   delete_dynamic(&acl_dbs);
   delete_dynamic(&acl_wild_hosts);
   delete_dynamic(&acl_proxy_users);
-  delete_dynamic(&role_grants);
   my_hash_free(&acl_roles);
   my_hash_free(&acl_check_hosts);
   plugin_unlock(0, native_password_plugin);
@@ -1279,6 +1273,7 @@ my_bool acl_reload(THD *thd)
 {
   TABLE_LIST tables[5];
   DYNAMIC_ARRAY old_acl_hosts, old_acl_users, old_acl_dbs, old_acl_proxy_users;
+  HASH old_acl_roles;
   MEM_ROOT old_mem;
   bool old_initialized;
   my_bool return_val= TRUE;
@@ -1334,6 +1329,7 @@ my_bool acl_reload(THD *thd)
 
   old_acl_hosts= acl_hosts;
   old_acl_users= acl_users;
+  old_acl_roles= acl_roles;
   old_acl_proxy_users= acl_proxy_users;
   old_acl_dbs= acl_dbs;
   old_mem= mem;
@@ -1346,6 +1342,7 @@ my_bool acl_reload(THD *thd)
     acl_free();				/* purecov: inspected */
     acl_hosts= old_acl_hosts;
     acl_users= old_acl_users;
+    acl_roles= old_acl_roles;
     acl_proxy_users= old_acl_proxy_users;
     acl_dbs= old_acl_dbs;
     mem= old_mem;
@@ -1358,6 +1355,7 @@ my_bool acl_reload(THD *thd)
     delete_dynamic(&old_acl_users);
     delete_dynamic(&old_acl_proxy_users);
     delete_dynamic(&old_acl_dbs);
+    my_hash_free(&old_acl_roles);
   }
   if (old_initialized)
     mysql_mutex_unlock(&acl_cache->lock);
