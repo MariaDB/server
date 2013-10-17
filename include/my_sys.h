@@ -335,6 +335,9 @@ struct st_my_file_info
 
 extern struct st_my_file_info *my_file_info;
 
+/* Free function pointer */
+typedef void (*FREE_FUNC)(void *);
+
 typedef struct st_dynamic_array
 {
   uchar *buffer;

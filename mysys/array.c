@@ -321,7 +321,24 @@ void delete_dynamic_element(DYNAMIC_ARRAY *array, uint idx)
           (array->elements-idx)*array->size_of_element);
 }
 
+/*
+  Wrapper around delete_dynamic, calling a FREE function on every
+  element, before releasing the memory
 
+  SYNOPSIS
+    delete_dynamic_recursive()
+      array
+      f          The function to be called on every element before
+                 deleting the array;
+*/
+void delete_dynamic_recursive(DYNAMIC_ARRAY *array, FREE_FUNC f) {
+  uint i;
+  char *ptr= (char*) array->buffer;
+  for (i= 0; i < array->elements; i++, ptr+= array->size_of_element) {
+    f(ptr);
+  }
+  delete_dynamic(array);
+}
 /*
   Free unused memory
 
