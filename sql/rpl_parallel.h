@@ -23,6 +23,7 @@ struct rpl_parallel_thread {
     queued_event *next;
     Log_event *ev;
     rpl_group_info *rgi;
+    ulonglong future_event_relay_log_pos;
   } *event_queue, *last_in_queue;
 };
 

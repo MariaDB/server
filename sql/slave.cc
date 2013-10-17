@@ -3331,7 +3331,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                         rli->abort_slave= 1;
                         mysql_mutex_unlock(&rli->data_lock);
                         delete ev;
-                        rli->inc_event_relay_log_pos();
+                        serial_rgi->inc_event_relay_log_pos();
                         DBUG_RETURN(0);
                       };);
     }
@@ -3360,6 +3360,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       DBUG_RETURN(1);
     }
 
+    serial_rgi->future_event_relay_log_pos= rli->future_event_relay_log_pos;
     exec_res= apply_event_and_update_pos(ev, thd, serial_rgi, NULL);
 
     delete_or_keep_event_post_apply(serial_rgi, typ, ev);

@@ -351,13 +351,9 @@ public:
     if (until_condition==UNTIL_MASTER_POS)
       until_log_names_cmp_result= UNTIL_LOG_NAMES_CMP_UNKNOWN;
   }
-  
-  inline void inc_event_relay_log_pos()
-  {
-    event_relay_log_pos= future_event_relay_log_pos;
-  }
 
   void inc_group_relay_log_pos(ulonglong log_pos,
+			       rpl_group_info *rgi,
 			       bool skip_lock=0);
 
   int wait_for_pos(THD* thd, String* log_name, longlong log_pos, 
@@ -561,6 +557,8 @@ struct rpl_group_info
   */
   time_t last_event_start_time;
 
+  ulonglong future_event_relay_log_pos;
+
 private:
   /*
     Runtime state for printing a note when slave is taking
@@ -683,6 +681,13 @@ public:
   bool is_long_find_row_note_printed()
   {
     return long_find_row_note_printed;
+  }
+
+  inline void inc_event_relay_log_pos()
+  {
+    if (opt_slave_parallel_threads == 0 ||
+        rli->event_relay_log_pos < future_event_relay_log_pos)
+      rli->event_relay_log_pos= future_event_relay_log_pos;
   }
 };
 

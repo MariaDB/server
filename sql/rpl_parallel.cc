@@ -64,6 +64,7 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   /* ToDo: Access to thd, and what about rli, split out a parallel part? */
   mysql_mutex_lock(&rli->data_lock);
   qev->ev->thd= thd;
+  rgi->future_event_relay_log_pos= qev->future_event_relay_log_pos;
   err= apply_event_and_update_pos(qev->ev, thd, rgi, rpt);
   thd->rgi_slave= NULL;
 
@@ -659,6 +660,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
   }
   qev->ev= ev;
   qev->next= NULL;
+  qev->future_event_relay_log_pos= rli->future_event_relay_log_pos;
 
   if (typ == GTID_EVENT)
   {

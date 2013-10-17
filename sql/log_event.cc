@@ -3881,7 +3881,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
       future-change-proof addon, e.g if COMMIT handling will start checking
       invariants like IN_STMT flag must be off at committing the transaction.
     */
-    const_cast<Relay_log_info*>(rli)->inc_event_relay_log_pos();
+    rgi->inc_event_relay_log_pos();
     const_cast<Relay_log_info*>(rli)->clear_flag(Relay_log_info::IN_STMT);
   }
   else
@@ -4249,7 +4249,6 @@ end:
 
 int Query_log_event::do_update_pos(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
   /*
     Note that we will not increment group* positions if we are just
     after a SET ONE_SHOT, because SET ONE_SHOT should not be separated
@@ -4257,7 +4256,7 @@ int Query_log_event::do_update_pos(rpl_group_info *rgi)
   */
   if (thd->one_shot_set)
   {
-    rli->inc_event_relay_log_pos();
+    rgi->inc_event_relay_log_pos();
     return 0;
   }
   else
@@ -4864,7 +4863,6 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
 
 int Format_description_log_event::do_update_pos(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
   if (server_id == (uint32) global_system_variables.server_id)
   {
     /*
@@ -4880,7 +4878,7 @@ int Format_description_log_event::do_update_pos(rpl_group_info *rgi)
       Intvar_log_event instead of starting at a Table_map_log_event or
       the Intvar_log_event respectively.
      */
-    rli->inc_event_relay_log_pos();
+    rgi->inc_event_relay_log_pos();
     return 0;
   }
   else
@@ -5955,7 +5953,7 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
                         (ulong) rli->group_master_log_pos));
     memcpy(rli->group_master_log_name, new_log_ident, ident_len+1);
     rli->notify_group_master_log_name_update();
-    rli->inc_group_relay_log_pos(pos, TRUE /* skip_lock */);
+    rli->inc_group_relay_log_pos(pos, rgi, TRUE /* skip_lock */);
     DBUG_PRINT("info", ("new group_master_log_name: '%s'  "
                         "new group_master_log_pos: %lu",
                         rli->group_master_log_name,
@@ -5978,7 +5976,7 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
       thd->variables.auto_increment_offset= 1;
   }
   else
-    rli->inc_event_relay_log_pos();
+    rgi->inc_event_relay_log_pos();
 
 
   DBUG_RETURN(0);
@@ -6290,8 +6288,7 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 int
 Gtid_log_event::do_update_pos(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
-  rli->inc_event_relay_log_pos();
+  rgi->inc_event_relay_log_pos();
   return 0;
 }
 
@@ -6723,8 +6720,7 @@ int Intvar_log_event::do_apply_event(rpl_group_info *rgi)
 
 int Intvar_log_event::do_update_pos(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
-  rli->inc_event_relay_log_pos();
+  rgi->inc_event_relay_log_pos();
   return 0;
 }
 
@@ -6820,8 +6816,7 @@ int Rand_log_event::do_apply_event(rpl_group_info *rgi)
 
 int Rand_log_event::do_update_pos(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
-  rli->inc_event_relay_log_pos();
+  rgi->inc_event_relay_log_pos();
   return 0;
 }
 
@@ -7485,8 +7480,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
 
 int User_var_log_event::do_update_pos(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
-  rli->inc_event_relay_log_pos();
+  rgi->inc_event_relay_log_pos();
   return 0;
 }
 
@@ -7717,11 +7711,11 @@ int Stop_log_event::do_update_pos(rpl_group_info *rgi)
     the target position when in fact we have not.
   */
   if (rli->get_flag(Relay_log_info::IN_TRANSACTION))
-    rli->inc_event_relay_log_pos();
+    rgi->inc_event_relay_log_pos();
   else
   {
     rpl_global_gtid_slave_state.record_and_update_gtid(thd, rgi);
-    rli->inc_group_relay_log_pos(0);
+    rli->inc_group_relay_log_pos(0, rgi);
     flush_relay_log_info(rli);
   }
   DBUG_RETURN(0);
@@ -9543,7 +9537,7 @@ Rows_log_event::do_update_pos(rpl_group_info *rgi)
   }
   else
   {
-    rli->inc_event_relay_log_pos();
+    rgi->inc_event_relay_log_pos();
   }
 
   DBUG_RETURN(error);
@@ -9767,8 +9761,7 @@ int Annotate_rows_log_event::do_apply_event(rpl_group_info *rgi)
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int Annotate_rows_log_event::do_update_pos(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
-  rli->inc_event_relay_log_pos();
+  rgi->inc_event_relay_log_pos();
   return 0;
 }
 #endif
@@ -10395,8 +10388,7 @@ Table_map_log_event::do_shall_skip(rpl_group_info *rgi)
 
 int Table_map_log_event::do_update_pos(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
-  rli->inc_event_relay_log_pos();
+  rgi->inc_event_relay_log_pos();
   return 0;
 }
 
@@ -11930,11 +11922,21 @@ bool rpl_get_position_info(const char **log_file_name, ulonglong *log_pos,
   return FALSE;
 #else
   const Relay_log_info *rli= &(active_mi->rli);
-  *log_file_name= rli->group_master_log_name;
-  *log_pos= rli->group_master_log_pos +
-    (rli->future_event_relay_log_pos - rli->group_relay_log_pos);
-  *group_relay_log_name= rli->group_relay_log_name;
-  *relay_log_pos= rli->future_event_relay_log_pos;
+  if (opt_slave_parallel_threads == 0)
+  {
+    *log_file_name= rli->group_master_log_name;
+    *log_pos= rli->group_master_log_pos +
+      (rli->future_event_relay_log_pos - rli->group_relay_log_pos);
+    *group_relay_log_name= rli->group_relay_log_name;
+    *relay_log_pos= rli->future_event_relay_log_pos;
+  }
+  else
+  {
+    *log_file_name= "";
+    *log_pos= 0;
+    *group_relay_log_name= "";
+    *relay_log_pos= 0;
+  }
   return TRUE;
 #endif
 }
