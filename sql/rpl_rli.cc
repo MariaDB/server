@@ -869,17 +869,33 @@ improper_arguments: %d  timed_out: %d",
 
 
 void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
-                                                bool skip_lock)
+                                             rpl_group_info *rgi,
+                                             bool skip_lock)
 {
   DBUG_ENTER("Relay_log_info::inc_group_relay_log_pos");
 
   if (!skip_lock)
     mysql_mutex_lock(&data_lock);
-  inc_event_relay_log_pos();
-  group_relay_log_pos= event_relay_log_pos;
-  strmake_buf(group_relay_log_name,event_relay_log_name);
-
-  notify_group_relay_log_name_update();
+  rgi->inc_event_relay_log_pos();
+  if (opt_slave_parallel_threads > 0)
+  {
+    /* In case of parallel replication, do not update the position backwards. */
+    int cmp= strcmp(group_relay_log_name, event_relay_log_name);
+    if (cmp < 0)
+    {
+      group_relay_log_pos= event_relay_log_pos;
+      strmake_buf(group_relay_log_name, event_relay_log_name);
+      notify_group_relay_log_name_update();
+    } else if (cmp == 0 && group_relay_log_pos < event_relay_log_pos)
+      group_relay_log_pos= event_relay_log_pos;
+  }
+  else
+  {
+    /* Non-parallel case. */
+    group_relay_log_pos= event_relay_log_pos;
+    strmake_buf(group_relay_log_name, event_relay_log_name);
+    notify_group_relay_log_name_update();
+  }
 
   /*
     If the slave does not support transactions and replicates a transaction,
@@ -1226,10 +1242,10 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
   */
   if ((rgi->thd->variables.option_bits & OPTION_BEGIN) &&
       opt_using_transactions)
-    inc_event_relay_log_pos();
+    rgi->inc_event_relay_log_pos();
   else
   {
-    inc_group_relay_log_pos(event_master_log_pos);
+    inc_group_relay_log_pos(event_master_log_pos, rgi);
     if (rpl_global_gtid_slave_state.record_and_update_gtid(thd, rgi))
     {
       report(WARNING_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,

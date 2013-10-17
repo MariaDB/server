@@ -1839,7 +1839,7 @@ Old_rows_log_event::do_update_pos(rpl_group_info *rgi)
   }
   else
   {
-    rli->inc_event_relay_log_pos();
+    rgi->inc_event_relay_log_pos();
   }
 
   DBUG_RETURN(error);
