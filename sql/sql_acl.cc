@@ -539,7 +539,6 @@ typedef struct st_role_grant
   char *u_uname;
   char *u_hname;
   char *r_uname;
-  char *r_hname;
   LEX_STRING hashkey;
 } ROLE_GRANT_PAIR;
 
@@ -1237,28 +1236,24 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
                                                       sizeof(ROLE_GRANT_PAIR));
       mapping->u_hname= get_field(&mem, table->field[0]);
       mapping->u_uname= get_field(&mem, table->field[1]);
-      mapping->r_hname= get_field(&mem, table->field[2]);
-      mapping->r_uname= get_field(&mem, table->field[3]);
+      mapping->r_uname= get_field(&mem, table->field[2]);
 
-      size_t len[4] = {mapping->u_hname ? strlen(mapping->u_hname) : 0,
+      size_t len[3] = {mapping->u_hname ? strlen(mapping->u_hname) : 0,
                        mapping->u_uname ? strlen(mapping->u_uname) : 0,
-                       mapping->r_hname ? strlen(mapping->r_hname) : 0,
                        mapping->r_uname ? strlen(mapping->r_uname) : 0};
-      char *buff= (char *)alloc_root(&mem, len[0] + len[1] + len[2] + len[3] + 1);
+      char *buff= (char *)alloc_root(&mem, len[0] + len[1] + len[2] + 1);
       memcpy(buff,                            mapping->u_hname, len[0]);
       memcpy(buff + len[0],                   mapping->u_uname, len[1]);
-      memcpy(buff + len[0] + len[1],          mapping->r_hname, len[2]);
-      memcpy(buff + len[0] + len[1] + len[2], mapping->r_uname, len[3]);
-      buff[len[0] + len[1] + len[2] + len[3]] = '\0';
+      memcpy(buff + len[0] + len[1] + len[2], mapping->r_uname, len[2]);
+      buff[len[0] + len[1] + len[2]] = '\0';
       mapping->hashkey.str = buff;
-      mapping->hashkey.length = len[0] + len[1] + len[2] + len[3];
+      mapping->hashkey.length = len[0] + len[1] + len[2];
 
       if (add_role_user_mapping(mapping) == 1) {
-        sql_print_error("Invalid roles_mapping table entry '%s@%s', '%s@%s'",
+        sql_print_error("Invalid roles_mapping table entry user:'%s@%s', rolename:'%s'",
                         mapping->u_uname ? mapping->u_uname : "",
                         mapping->u_hname ? mapping->u_hname : "",
-                        mapping->r_uname ? mapping->r_uname : "",
-                        mapping->r_hname ? mapping->r_hname : "");
+                        mapping->r_uname ? mapping->r_uname : "");
         continue;
       }
 
