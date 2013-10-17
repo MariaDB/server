@@ -51,7 +51,6 @@
 #include "hostname.h"
 #include "sql_db.h"
 #include "sql_array.h"
-#include "sql_hset.h"
 
 #include "sql_plugin_compat.h"
 
