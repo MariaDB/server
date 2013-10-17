@@ -489,6 +489,7 @@ static SYMBOL symbols[] = {
   { "REVOKE",		SYM(REVOKE)},
   { "RIGHT",		SYM(RIGHT)},
   { "RLIKE",		SYM(REGEXP)},	/* Like in mSQL2 */
+  { "ROLE",             SYM(ROLE_SYM)},
   { "ROLLBACK",		SYM(ROLLBACK_SYM)},
   { "ROLLUP",		SYM(ROLLUP_SYM)},
   { "ROUTINE",		SYM(ROUTINE_SYM)},
