@@ -1689,7 +1689,10 @@ bool acl_setrole(THD *thd, char *rolename)
     acl_user= find_acl_user(thd->security_ctx->host, thd->security_ctx->user,
                              FALSE);
     if (acl_user == NULL)
+    {
+      my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename);
       result= -1;
+    }
     else
       thd->security_ctx->master_access= acl_user->access;
 
@@ -1697,6 +1700,7 @@ bool acl_setrole(THD *thd, char *rolename)
   }
 
   if (role == NULL) {
+    my_error(ER_INVALID_ROLE, MYF(0), rolename);
     result= -1;
     goto end;
   }
@@ -1719,6 +1723,7 @@ bool acl_setrole(THD *thd, char *rolename)
 
   if (!is_granted)
   {
+    my_error(ER_INVALID_ROLE, MYF(0), rolename);
     result= 1;
     goto end;
   }
