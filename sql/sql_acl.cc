@@ -6287,8 +6287,7 @@ static int handle_grant_table(TABLE_LIST *tables, uint table_no, bool drop,
 
   if (table_no == 6)
   {
-    result= handle_roles_mappings_table(tables[6].table, drop,
-                                        user_from, user_to);
+    result= handle_roles_mappings_table(table, drop, user_from, user_to);
     DBUG_RETURN(result);
   }
 
