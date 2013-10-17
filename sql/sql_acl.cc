@@ -542,7 +542,16 @@ static uchar* acl_entry_get_key(acl_entry *entry, size_t *length,
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
 #define NORMAL_HANDSHAKE_SIZE   6
 
-static DYNAMIC_ARRAY acl_hosts, acl_users, acl_dbs, acl_proxy_users;
+static DYNAMIC_ARRAY acl_hosts, acl_users, acl_dbs, acl_proxy_users, acl_roles;
+/* XXX
+   ***** Potential optimization *****
+   role_grants could potentially be a HASH with keys as usernames and values
+   as a DYNAMIC_ARRAY of pointers to granted roles
+   XXX
+   ***** Implementation choice for now *****
+   An array representing mappings between acl_users and acl_roles;
+*/
+static DYNAMIC_ARRAY role_grants;
 static MEM_ROOT mem, memex;
 static bool initialized=0;
 static bool allow_all_hosts=1;
@@ -576,6 +585,11 @@ enum enum_acl_lists
   PROXY_USERS_ACL
 };
 
+typedef struct st_role_grant
+{
+  ACL_USER *user;
+  ACL_USER *role;
+} ROLE_GRANT_PAIR;
 /*
   Convert scrambled password to binary form, according to scramble type, 
   Binary form is stored in user.salt.
@@ -829,6 +843,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 
   table->use_all_columns();
   (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER), 50, 100, MYF(0));
+  (void) my_init_dynamic_array(&acl_roles,sizeof(ACL_USER), 50, 100, MYF(0));
   username_char_length= min(table->field[1]->char_length(), USERNAME_CHAR_LENGTH);
   password_length= table->field[2]->field_length /
     table->field[2]->charset()->mbmaxlen;
@@ -875,11 +890,20 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   while (!(read_record_info.read_record(&read_record_info)))
   {
     ACL_USER user;
+    bool is_role= FALSE;
     bzero(&user, sizeof(user));
     update_hostname(&user.host, get_field(&mem, table->field[0]));
     user.user= get_field(&mem, table->field[1]);
-    DBUG_PRINT("info", ("user_entry %s", user.user));
-    if (check_no_resolve && hostname_requires_resolving(user.host.hostname))
+
+    /* If the user entry is a role, skip password and hostname checks
+       A user can not log in with a role so some checks are not necessary
+     */
+    if (!user.host.hostname) {
+      is_role= TRUE;
+    }
+
+    if (!is_role && check_no_resolve &&
+        hostname_requires_resolving(user.host.hostname))
     {
       sql_print_warning("'user' entry '%s@%s' "
                         "ignored in --skip-name-resolve mode.",
@@ -894,7 +918,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     user.auth_string.length= password_len;
     set_user_salt(&user, password, password_len);
 
-    if (set_user_plugin(&user, password_len))
+    if (!is_role && set_user_plugin(&user, password_len))
       continue;
     
     {
@@ -974,7 +998,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
           user.user_resource.user_conn= ptr ? atoi(ptr) : 0;
         }
 
-        if (table->s->fields >= 41)
+        if (!is_role && table->s->fields >= 41)
         {
           /* We may have plugin & auth_String fields */
           char *tmpstr= get_field(&mem, table->field[next_field++]);
@@ -1016,7 +1040,13 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
           user.access|= SUPER_ACL | EXECUTE_ACL;
 #endif
       }
-      (void) push_dynamic(&acl_users,(uchar*) &user);
+      if (is_role) {
+        (void) push_dynamic(&acl_roles,(uchar*) &user);
+      }
+      else
+      {
+        (void) push_dynamic(&acl_users,(uchar*) &user);
+      }
       if (!user.host.hostname ||
 	  (user.host.hostname[0] == wild_many && !user.host.hostname[1]))
         allow_all_hosts=1;			// Anyone can connect
