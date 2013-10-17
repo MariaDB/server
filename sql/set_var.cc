@@ -872,6 +872,25 @@ int set_var_password::update(THD *thd)
 }
 
 /*****************************************************************************
+  Functions to handle SET ROLE
+*****************************************************************************/
+int set_var_role::check(THD *thd)
+{
+  /* nothing to check */
+  return 0;
+}
+
+int set_var_role::update(THD *thd)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  return acl_setrole(thd, this->role.str);
+#else
+  return 0;
+#endif
+}
+
+
+/*****************************************************************************
   Functions to handle SET NAMES and SET CHARACTER SET
 *****************************************************************************/
 
