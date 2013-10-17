@@ -1260,6 +1260,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  RETURN_SYM                    /* SQL-2003-R */
 %token  REVOKE                        /* SQL-2003-R */
 %token  RIGHT                         /* SQL-2003-R */
+%token  ROLE_SYM
 %token  ROLLBACK_SYM                  /* SQL-2003-R */
 %token  ROLLUP_SYM                    /* SQL-2003-R */
 %token  ROUTINE_SYM                   /* SQL-2003-N */
@@ -1686,6 +1687,8 @@ END_OF_INPUT
         THEN_SYM WHEN_SYM DIV_SYM MOD_SYM OR2_SYM AND_AND_SYM DELETE_SYM
 
 %type <is_not_empty> opt_union_order_or_limit
+
+%type <NONE> ROLE_SYM
 
 %%
 
@@ -13490,6 +13493,7 @@ keyword_sp:
         | RESOURCES                {}
         | RESUME_SYM               {}
         | RETURNS_SYM              {}
+        | ROLE_SYM                 {}
         | ROLLUP_SYM               {}
         | ROUTINE_SYM              {}
         | ROWS_SYM                 {}
@@ -13837,6 +13841,12 @@ option_value:
             var= new set_var_collation_client(cs3, cs3, cs3);
             if (var == NULL)
               MYSQL_YYABORT;
+            lex->var_list.push_back(var);
+          }
+        | ROLE_SYM ident_or_text
+          {
+            LEX *lex = Lex;
+            set_var_role *var= new set_var_role($2);
             lex->var_list.push_back(var);
           }
         | PASSWORD equal text_or_password
