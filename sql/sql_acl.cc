@@ -1772,6 +1772,8 @@ static void acl_insert_user(const char *user, const char *host,
   acl_user.ssl_cipher=	ssl_cipher   ? strdup_root(&mem,ssl_cipher) : 0;
   acl_user.x509_issuer= x509_issuer  ? strdup_root(&mem,x509_issuer) : 0;
   acl_user.x509_subject=x509_subject ? strdup_root(&mem,x509_subject) : 0;
+  (void) my_init_dynamic_array(&acl_user.role_grants, sizeof(ACL_USER *),
+                               50, 100, MYF(0));
 
   (void) push_dynamic(&acl_users,(uchar*) &acl_user);
   if (!acl_user.host.hostname ||
@@ -6474,6 +6476,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       elements--;
       switch ( struct_no ) {
       case USER_ACL:
+        free_acl_user(dynamic_element(&acl_users, idx, ACL_USER*));
         delete_dynamic_element(&acl_users, idx);
         break;
 
