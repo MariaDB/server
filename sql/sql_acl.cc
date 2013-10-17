@@ -2007,7 +2007,7 @@ void rebuild_check_host(void)
 
 
 my_bool acl_user_reset_grant(ACL_USER *user,
-                                    void * not_used __attribute__((unused)))
+                             void * not_used __attribute__((unused)))
 {
   reset_dynamic(&user->role_grants);
   return 0;
@@ -6023,7 +6023,7 @@ void get_mqh(const char *user, const char *host, USER_CONN *uc)
   SYNOPSIS
     open_grant_tables()
     thd                         The current thread.
-    tables (out)                The 4 elements array for the opened tables.
+    tables (out)                The 7 elements array for the opened tables.
 
   DESCRIPTION
     Tables are numbered as follows:
@@ -6031,6 +6031,9 @@ void get_mqh(const char *user, const char *host, USER_CONN *uc)
     1 db
     2 tables_priv
     3 columns_priv
+    4 columns_priv
+    5 proxies_priv
+    6 roles_mapping
 
   RETURN
     1           Skip GRANT handling during replication.
@@ -6038,7 +6041,7 @@ void get_mqh(const char *user, const char *host, USER_CONN *uc)
     < 0         Error.
 */
 
-#define GRANT_TABLES 6
+#define GRANT_TABLES 7
 int open_grant_tables(THD *thd, TABLE_LIST *tables)
 {
   Rpl_filter *rpl_filter= thd->rpl_filter;
@@ -6066,13 +6069,19 @@ int open_grant_tables(THD *thd, TABLE_LIST *tables)
   (tables+5)->init_one_table(C_STRING_WITH_LEN("mysql"),
                              C_STRING_WITH_LEN("proxies_priv"),
                              "proxies_priv", TL_WRITE);
-  tables[5].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
+  (tables+5)->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
+  (tables+6)->init_one_table(C_STRING_WITH_LEN("mysql"),
+                             C_STRING_WITH_LEN("roles_mapping"),
+                             "roles_mapping", TL_WRITE);
+  (tables+6)->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
+
 
   tables->next_local= tables->next_global= tables + 1;
   (tables+1)->next_local= (tables+1)->next_global= tables + 2;
   (tables+2)->next_local= (tables+2)->next_global= tables + 3;
   (tables+3)->next_local= (tables+3)->next_global= tables + 4;
   (tables+4)->next_local= (tables+4)->next_global= tables + 5;
+  (tables+5)->next_local= (tables+5)->next_global= tables + 6;
 
 #ifdef HAVE_REPLICATION
   /*
