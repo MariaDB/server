@@ -6340,7 +6340,6 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
     }
     table->file->ha_rnd_end();
   }
-end:
   DBUG_RETURN(result);
 }
 /*
