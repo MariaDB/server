@@ -1267,26 +1267,17 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 
     (void) my_hash_init2(&acl_roles_mappings,50,system_charset_info,
                          0,0,0, (my_hash_get_key) acl_role_map_get_key, 0,0);
+    MEM_ROOT temp_root;
+    init_alloc_root(&temp_root, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
     while (!(read_record_info.read_record(&read_record_info)))
     {
-      ROLE_GRANT_PAIR *mapping = (ROLE_GRANT_PAIR *)alloc_root(
+      ROLE_GRANT_PAIR *mapping= (ROLE_GRANT_PAIR *)alloc_root(
                                                       &mem,
                                                       sizeof(ROLE_GRANT_PAIR));
-      mapping->u_hname= get_field(&mem, table->field[0]);
-      mapping->u_uname= get_field(&mem, table->field[1]);
-      mapping->r_uname= get_field(&mem, table->field[2]);
-
-      size_t len[3] = {mapping->u_hname ? strlen(mapping->u_hname) : 0,
-                       mapping->u_uname ? strlen(mapping->u_uname) : 0,
-                       mapping->r_uname ? strlen(mapping->r_uname) : 0};
-      char *buff= (char *)alloc_root(&mem, len[0] + len[1] + len[2] + 1);
-      memcpy(buff,                            mapping->u_hname, len[0]);
-      memcpy(buff + len[0],                   mapping->u_uname, len[1]);
-      memcpy(buff + len[0] + len[1] + len[2], mapping->r_uname, len[2]);
-      buff[len[0] + len[1] + len[2]] = '\0';
-      mapping->hashkey.str = buff;
-      mapping->hashkey.length = len[0] + len[1] + len[2];
-
+      char *hostname= get_field(&temp_root, table->field[0]);
+      char *username= get_field(&temp_root, table->field[1]);
+      char *rolename= get_field(&temp_root, table->field[2]);
+      init_role_grant_pair(&mem, mapping, username, hostname, rolename);
       if (add_role_user_mapping(mapping) == 1) {
         sql_print_error("Invalid roles_mapping table entry user:'%s@%s', rolename:'%s'",
                         mapping->u_uname ? mapping->u_uname : "",
@@ -1298,7 +1289,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       my_hash_insert(&acl_roles_mappings, (uchar*) mapping);
 
     }
-
+    free_root(&temp_root, MYF(0));
     end_read_record(&read_record_info);
 
     if (!initialized)
