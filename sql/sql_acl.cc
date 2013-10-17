@@ -6246,7 +6246,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
   /*
     First we need to find out if the user_from represents a user, or a role.
 
-    If the user_from has a hostname different than '' it can not be a user.
+    If the user_from has a hostname different than '' it can not be a role.
     If the user_from has an empty hostname, it _could_ be a role, but it is
     not mandatory.
 
