@@ -51,6 +51,7 @@
 #include "hostname.h"
 #include "sql_db.h"
 #include "sql_array.h"
+#include "sql_hset.h"
 
 #include "sql_plugin_compat.h"
 
@@ -520,6 +521,13 @@ static uchar* acl_entry_get_key(acl_entry *entry, size_t *length,
   return (uchar*) entry->key;
 }
 
+uchar* acl_role_get_key(ACL_USER *entry, size_t *length,
+                                my_bool not_used __attribute__((unused)))
+{
+  *length=(uint) (entry->user ? strlen(entry->user) : 0);
+  return (uchar*) entry->user;
+}
+
 #define IP_ADDR_STRLEN (3 + 1 + 3 + 1 + 3 + 1 + 3)
 #define ACL_KEY_LENGTH (IP_ADDR_STRLEN + 1 + NAME_LEN + \
                         1 + USERNAME_LENGTH + 1)
@@ -542,7 +550,10 @@ static uchar* acl_entry_get_key(acl_entry *entry, size_t *length,
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
 #define NORMAL_HANDSHAKE_SIZE   6
 
-static DYNAMIC_ARRAY acl_hosts, acl_users, acl_dbs, acl_proxy_users, acl_roles;
+#define ROLE_ASSIGN_COLUMN_IDX  42
+
+static DYNAMIC_ARRAY acl_hosts, acl_users, acl_dbs, acl_proxy_users;
+static HASH acl_roles;
 /* XXX
    ***** Potential optimization *****
    role_grants could potentially be a HASH with keys as usernames and values
@@ -560,14 +571,14 @@ static DYNAMIC_ARRAY acl_wild_hosts;
 static hash_filo *acl_cache;
 static uint grant_version=0; /* Version of priv tables. incremented by acl_load */
 static ulong get_access(TABLE *form,uint fieldnr, uint *next_field=0);
+static bool check_is_role(TABLE *form);
 static int acl_compare(ACL_ACCESS *a,ACL_ACCESS *b);
 static ulong get_sort(uint count,...);
 static void init_check_host(void);
 static void rebuild_check_host(void);
 static ACL_USER *find_acl_user(const char *host, const char *user,
                                my_bool exact);
-static ACL_USER *find_acl_role(const char *host, const char *user,
-                               my_bool exact);
+static ACL_USER *find_acl_role(const char *user);
 static bool update_user_table(THD *thd, TABLE *table, const char *host,
                               const char *user, const char *new_password,
                               uint new_password_len);
@@ -847,7 +858,9 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 
   table->use_all_columns();
   (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER), 50, 100, MYF(0));
-  (void) my_init_dynamic_array(&acl_roles,sizeof(ACL_USER), 50, 100, MYF(0));
+  (void) my_hash_init2(&acl_roles,50,system_charset_info,
+                   0,0,0, (my_hash_get_key) acl_role_get_key, 0,0);
+
   username_char_length= min(table->field[1]->char_length(), USERNAME_CHAR_LENGTH);
   password_length= table->field[2]->field_length /
     table->field[2]->charset()->mbmaxlen;
@@ -902,9 +915,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     /* If the user entry is a role, skip password and hostname checks
        A user can not log in with a role so some checks are not necessary
      */
-    if (!user.host.hostname) {
-      is_role= TRUE;
-    }
+    is_role= check_is_role(table);
 
     if (!is_role && check_no_resolve &&
         hostname_requires_resolving(user.host.hostname))
@@ -1046,7 +1057,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       }
       if (is_role) {
         sql_print_information("Found role %s", user.user);
-        (void) push_dynamic(&acl_roles,(uchar*) &user);
+        my_hash_insert(&acl_roles, (uchar*) &user);
       }
       else
       {
@@ -1169,7 +1180,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     table->use_all_columns();
     /* account for every role mapping */
 
-    /* acquire lock for the find_acl_user/role functions
+    /* acquire lock for the find_acl_user functions
       XXX
       Perhaps new wrapper functions should be created that do not check
       for the lock in this case as it either is already taken or
@@ -1186,12 +1197,10 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       p.user_username= get_field(&mem, table->field[1]);
       p.role_hostname= get_field(&mem, table->field[2]);
       p.role_username= get_field(&mem, table->field[3]);
-      ACL_USER *user = find_acl_user((p.user_hostname) ? p.user_hostname: "",
+      ACL_USER *user= find_acl_user((p.user_hostname) ? p.user_hostname: "",
                                      (p.user_username) ? p.user_username: "",
                                      TRUE);
-      ACL_USER *role = find_acl_role((p.role_hostname) ? p.role_hostname: "",
-                                     (p.role_username) ? p.role_username: "",
-                                     TRUE);
+      ACL_USER *role= find_acl_role(p.role_username ? p.role_username: "");
       if (user == NULL || role == NULL)
       {
         sql_print_error("Invalid roles_mapping table entry '%s@%s', '%s@%s'",
@@ -1395,6 +1404,38 @@ static ulong get_access(TABLE *form, uint fieldnr, uint *next_field)
   if (next_field)
     *next_field=fieldnr;
   return access_bits;
+}
+
+/*
+  Check if a user entry in the user table is marked as being a role entry
+
+  IMPLEMENTATION
+  Access the coresponding column and check the coresponding ENUM of the form
+  ENUM('N', 'Y')
+
+  SYNOPSIS
+    check_is_role()
+    form      an open table to read the entry from.
+              The record should be already read in table->record[0]
+
+  RETURN VALUE
+    TRUE      if the user is marked as a role
+    FALSE     otherwise
+*/
+
+static inline bool check_is_role(TABLE *form)
+{
+  char buff[2];
+  String res(buff, sizeof(buff), &my_charset_latin1);
+  /* Table version does not support roles */
+  if (form->s->fields <= 42)
+    return FALSE;
+
+  form->field[ROLE_ASSIGN_COLUMN_IDX]->val_str(&res);
+  if (my_toupper(&my_charset_latin1, res[0]) == 'Y')
+    return TRUE;
+
+  return FALSE;
 }
 
 
@@ -2138,22 +2179,19 @@ bool is_acl_user(const char *host, const char *user)
 
 
 /*
-  Find first entry that matches the current user or role
+  Find first entry that matches the current user
 */
 static ACL_USER *
-find_acl_user_table_entry(const char *host, const char *user, my_bool exact,
-                          my_bool is_role)
+find_acl_user(const char *host, const char *user, my_bool exact)
 {
-
   DBUG_ENTER("find_acl_user");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'",host,user));
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  DYNAMIC_ARRAY *target = (is_role) ? &acl_roles : &acl_users;
-  for (uint i=0 ; i < target->elements ; i++)
+  for (uint i=0 ; i < acl_users.elements ; i++)
   {
-    ACL_USER *acl_user=dynamic_element(target,i,ACL_USER*);
+    ACL_USER *acl_user=dynamic_element(&acl_users,i,ACL_USER*);
     DBUG_PRINT("info",("strcmp('%s','%s'), compare_hostname('%s','%s'),",
                        user, acl_user->user ? acl_user->user : "",
                        host,
@@ -2174,16 +2212,22 @@ find_acl_user_table_entry(const char *host, const char *user, my_bool exact,
   DBUG_RETURN(0);
 }
 
+/*
+  Find first entry that matches the current user
+*/
 static ACL_USER *
-find_acl_role(const char *host, const char *user, my_bool exact)
+find_acl_role(const char *user)
 {
-  return find_acl_user_table_entry(host, user, exact, TRUE);
+  DBUG_ENTER("find_acl_role");
+  DBUG_PRINT("enter",("user: '%s'", user));
+
+  mysql_mutex_assert_owner(&acl_cache->lock);
+
+  DBUG_RETURN((ACL_USER *)my_hash_search(&acl_roles, (uchar *)user,
+                                         user ? strlen(user) : 0));
 }
-static ACL_USER *
-find_acl_user(const char *host, const char *user, my_bool exact)
-{
-  return find_acl_user_table_entry(host, user, exact, FALSE);
-}
+
+
 
 
 /*
