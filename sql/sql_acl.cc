@@ -6230,11 +6230,79 @@ static int modify_grant_table(TABLE *table, Field *host_field,
   DBUG_RETURN(error);
 }
 
+/*
+  Handle the roles_mappings privilege table
+
+
+*/
 static int handle_roles_mappings_table(TABLE *table, bool drop,
                                        LEX_USER *user_from, LEX_USER *user_to)
 {
+  /*
+    First we need to find out if the user_from represents a user, or a role.
+
+    If the user_from has a hostname different than '' it can not be a user.
+    If the user_from has an empty hostname, it _could_ be a role, but it is
+    not mandatory.
+
+    In this case perform a quick lookup in acl_roles to see if
+    it is already there. If it is not found, than the user fields are updated,
+    otherwise the role field gets updated.
+  */
+  DBUG_ENTER("handle_roles_mappings_table");
+
+  int error;
+  int result= 0;
+  bool is_role= FALSE;
+  THD *thd= current_thd;
+  char *host, *user;
+  Field *host_field= table->field[0];
+  Field *user_field= table->field[1];
+  Field *role_field= table->field[2];
+
+  if (!user_from->host.length && find_acl_role(user_from->user.str))
+  {
+      is_role= TRUE;
+  }
+
+  table->use_all_columns();
+  if (!is_role)
+  {
+    if ((error= table->file->ha_rnd_init(1)))
+    {
+      table->file->print_error(error, MYF(0));
+      result= -1;
+    }
+    else
+    {
+      while((error= table->file->ha_rnd_next(table->record[0])) !=
+            HA_ERR_END_OF_FILE)
+      {
+        if (error)
+        {
+          DBUG_PRINT("info", ("scan error: %d", error));
+          continue;
+        }
+        if (! (host= get_field(thd->mem_root, host_field)))
+          host= "";
+        if (! (user= get_field(thd->mem_root, user_field)))
+          user= "";
+
+        if (strcmp(user_from->user.str, user) ||
+            my_strcasecmp(system_charset_info, user_from->host.str, host))
+          continue;
+        result= ((drop || user_to) &&
+                 modify_grant_table(table, host_field, user_field, user_to)) ?
+          -1 : result ? result : 1; /* Error or keep result or found. */
+
+      }
+      table->file->ha_rnd_end();
+    }
+
+  }
+
   /* TODO */
-  return 0;
+  DBUG_RETURN(result);
 }
 /*
   Handle a privilege table.
