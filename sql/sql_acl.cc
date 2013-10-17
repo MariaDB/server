@@ -2055,7 +2055,12 @@ my_bool add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
                               TRUE);
   ACL_USER *role= find_acl_role(mapping->r_uname ? mapping->r_uname: "");
   if (user == NULL || role == NULL)
+  {
+    DBUG_PRINT("warning", ("Invalid add_role_user_mapping '%s'@'%s' %s",
+                           mapping->u_uname, mapping->u_hname,
+                           mapping->r_uname));
     return 1;
+  }
 
   push_dynamic(&user->role_grants, (uchar*) role);
   push_dynamic(&role->role_grants, (uchar*) user);
