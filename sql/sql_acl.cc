@@ -230,6 +230,7 @@ public:
     if the instance of the class represents a user, or a user if the
     instance of the class represents a role.
   */
+  //TODO this array does not get freed automatically when acl_users is freed
   DYNAMIC_ARRAY role_grants;
 
   ACL_USER *copy(MEM_ROOT *root)
@@ -597,10 +598,8 @@ enum enum_acl_lists
 
 typedef struct st_role_grant
 {
-  char *user_username;
-  char *user_hostname;
-  char *role_username;
-  char *role_hostname;
+  char *username;
+  char *hostname;
 } ROLE_GRANT_PAIR;
 /*
   Convert scrambled password to binary form, according to scramble type,
@@ -1054,6 +1053,10 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
           user.access|= SUPER_ACL | EXECUTE_ACL;
 #endif
       }
+
+      (void) my_init_dynamic_array(&user.role_grants,sizeof(ROLE_GRANT_PAIR),
+                                   50, 100, MYF(0));
+
       if (is_role) {
         sql_print_information("Found role %s", user.user.str);
         my_hash_insert(&acl_roles, (uchar*) user.copy(&mem));
@@ -1188,32 +1191,31 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     if (!initialized)
       mysql_mutex_lock(&acl_cache->lock);
 
-/*   (void) my_init_dynamic_array(&role_grants,sizeof(ROLE_GRANT_PAIR), 50, 100,
-                                 MYF(0));
-*/
     while (!(read_record_info.read_record(&read_record_info)))
     {
-      ROLE_GRANT_PAIR p;
-      p.user_hostname= get_field(&mem, table->field[0]);
-      p.user_username= get_field(&mem, table->field[1]);
-      p.role_hostname= get_field(&mem, table->field[2]);
-      p.role_username= get_field(&mem, table->field[3]);
-      ACL_USER *user= find_acl_user((p.user_hostname) ? p.user_hostname: "",
-                                     (p.user_username) ? p.user_username: "",
+      ROLE_GRANT_PAIR role_ref;
+      ROLE_GRANT_PAIR user_ref;
+      user_ref.hostname= get_field(&mem, table->field[0]);
+      user_ref.username= get_field(&mem, table->field[1]);
+      role_ref.hostname= get_field(&mem, table->field[2]);
+      role_ref.username= get_field(&mem, table->field[3]);
+      ACL_USER *user= find_acl_user((user_ref.hostname) ? user_ref.hostname: "",
+                                     (user_ref.username) ? user_ref.username: "",
                                      TRUE);
-      ACL_USER *role= find_acl_role(p.role_username ? p.role_username: "");
+      ACL_USER *role= find_acl_role(role_ref.username ? role_ref.username: "");
       if (user == NULL || role == NULL)
       {
         sql_print_error("Invalid roles_mapping table entry '%s@%s', '%s@%s'",
-                        p.user_username ? p.user_username : "",
-                        p.user_hostname ? p.user_hostname : "",
-                        p.role_username ? p.role_username : "",
-                        p.role_hostname ? p.role_hostname : "",
+                        user_ref.username ? user_ref.username : "",
+                        user_ref.hostname ? user_ref.hostname : "",
+                        role_ref.username ? role_ref.username : "",
+                        role_ref.hostname ? role_ref.hostname : "",
                         user, role);
         continue;
       }
 
-//      push_dynamic(&role_grants, (uchar*) &p);
+      push_dynamic(&user->role_grants, (uchar*) &role_ref);
+      push_dynamic(&role->role_grants, (uchar*) &user_ref);
       sql_print_information("Found user %s@%s having role granted %s@%s\n",
                             user->user.str, user->host.hostname,
                             role->user.str, role->host.hostname);
