@@ -6587,7 +6587,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       case FUNC_PRIVILEGES_HASH:
         {
           /*
-            Save old hash key and its length to be able properly update
+            Save old hash key and its length to be able to properly update
             element position in hash.
           */
           char *old_key= grant_name->hash_key;
@@ -6624,10 +6624,11 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
         acl_proxy_user->set_user (&mem, user_to->user.str);
         acl_proxy_user->set_host (&mem, user_to->host.str);
         break;
+
       case ROLES_MAPPINGS_HASH:
         {
           /*
-            Save old hash key and its length to be able properly update
+            Save old hash key and its length to be able to properly update
             element position in hash.
           */
           char *old_key= role_grant_pair->hashkey.str;
@@ -6639,8 +6640,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 
           my_hash_update(roles_mappings_hash, (uchar*) role_grant_pair,
                          (uchar*) old_key, old_key_length);
-
-
+          break;
         }
 
       }
