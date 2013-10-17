@@ -4295,9 +4295,14 @@ end:
 		} else {
 			if (old_is_tmp && !new_is_tmp) {
 				/* After ALTER TABLE the table statistics
-				needs to be rebuilt.  It will be rebuilt
-				when the table is loaded again. */
-				table->stat_initialized = FALSE;
+				needs to be rebuilt.  Even if we close
+				table below there could be other
+				transactions using this table (e.g.
+				SELECT * FROM INFORMATION_SCHEMA.`TABLE_CONSTRAINTS`),
+				thus we can't remove table from dictionary cache
+				here. Therefore, we initialize the
+				transient statistics here. */
+				dict_stats_update_transient(table);
 			}
 		}
 	}
