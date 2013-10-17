@@ -658,7 +658,8 @@ enum enum_acl_lists
   COLUMN_PRIVILEGES_HASH,
   PROC_PRIVILEGES_HASH,
   FUNC_PRIVILEGES_HASH,
-  PROXY_USERS_ACL
+  PROXY_USERS_ACL,
+  ROLES_MAPPINGS_HASH
 };
 
 static
@@ -6220,6 +6221,12 @@ static int modify_grant_table(TABLE *table, Field *host_field,
   DBUG_RETURN(error);
 }
 
+static int handle_roles_mappings_table(TABLE *table, bool drop,
+                                       LEX_USER *user_from, LEX_USER *user_to)
+{
+  /* TODO */
+  return 0;
+}
 /*
   Handle a privilege table.
 
@@ -6268,6 +6275,13 @@ static int handle_grant_table(TABLE_LIST *tables, uint table_no, bool drop,
   uint key_prefix_length;
   DBUG_ENTER("handle_grant_table");
   THD *thd= current_thd;
+
+  if (table_no == 6)
+  {
+    result= handle_roles_mappings_table(tables[6].table, drop,
+                                        user_from, user_to);
+    DBUG_RETURN(result);
+  }
 
   table->use_all_columns();
   if (! table_no) // mysql.user table
@@ -6376,7 +6390,7 @@ static int handle_grant_table(TABLE_LIST *tables, uint table_no, bool drop,
 /**
   Handle an in-memory privilege structure.
 
-  @param struct_no  The number of the structure to handle (0..5).
+  @param struct_no  The number of the structure to handle (0..6).
   @param drop       If user_from is to be dropped.
   @param user_from  The the user to be searched/dropped/renamed.
   @param user_to    The new name for the user if to be renamed, NULL otherwise.
@@ -6394,6 +6408,7 @@ static int handle_grant_table(TABLE_LIST *tables, uint table_no, bool drop,
     3 PROC_PRIVILEGES_HASH
     4 FUNC_PRIVILEGES_HASH
     5 PROXY_USERS_ACL
+    6 ROLES_MAPPINGS_HASH
 
   @retval > 0  At least one element matched.
   @retval 0    OK, but no element matched.
@@ -6411,7 +6426,9 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   ACL_DB *acl_db= NULL;
   ACL_PROXY_USER *acl_proxy_user= NULL;
   GRANT_NAME *grant_name= NULL;
+  ROLE_GRANT_PAIR *role_grant_pair;
   HASH *grant_name_hash= NULL;
+  HASH *roles_mappings_hash= NULL;
   DBUG_ENTER("handle_grant_struct");
   DBUG_PRINT("info",("scan struct: %u  search: '%s'@'%s'",
                      struct_no, user_from->user.str, user_from->host.str));
@@ -6443,6 +6460,10 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     break;
   case PROXY_USERS_ACL:
     elements= acl_proxy_users.elements;
+    break;
+  case ROLES_MAPPINGS_HASH:
+    roles_mappings_hash= &acl_roles_mappings;
+    elements= roles_mappings_hash->records;
     break;
   default:
     DBUG_ASSERT(0);
@@ -6484,6 +6505,12 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       acl_proxy_user= dynamic_element(&acl_proxy_users, idx, ACL_PROXY_USER*);
       user= acl_proxy_user->get_user();
       host= acl_proxy_user->get_host();
+      break;
+
+    case ROLES_MAPPINGS_HASH:
+      role_grant_pair= (ROLE_GRANT_PAIR *) my_hash_element(roles_mappings_hash, idx);
+      user= role_grant_pair->u_uname;
+      host= role_grant_pair->u_hname;
       break;
 
     default:
@@ -6533,6 +6560,10 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 
       case PROXY_USERS_ACL:
         delete_dynamic_element(&acl_proxy_users, idx);
+        break;
+
+      case ROLES_MAPPINGS_HASH:
+        my_hash_delete(roles_mappings_hash, (uchar*) role_grant_pair);
         break;
 
       }
@@ -6593,7 +6624,27 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
         acl_proxy_user->set_user (&mem, user_to->user.str);
         acl_proxy_user->set_host (&mem, user_to->host.str);
         break;
+      case ROLES_MAPPINGS_HASH:
+        {
+          /*
+            Save old hash key and its length to be able properly update
+            element position in hash.
+          */
+          char *old_key= role_grant_pair->hashkey.str;
+          size_t old_key_length= role_grant_pair->hashkey.length;
+
+          init_role_grant_pair(&mem, role_grant_pair,
+                               user_to->user.str, user_to->host.str,
+                               role_grant_pair->r_uname);
+
+          my_hash_update(roles_mappings_hash, (uchar*) role_grant_pair,
+                         (uchar*) old_key, old_key_length);
+
+
+        }
+
       }
+
     }
     else
     {
@@ -6752,6 +6803,24 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
         result= 1; /* At least one record/element found. */
     }
   }
+
+  /* Handle roles_mappings table. */
+  if (tables[6].table)
+  {
+    if ((found= handle_grant_table(tables, 6, drop, user_from, user_to)) < 0)
+    {
+      /* Handle of table failed, don't touch the in-memory array. */
+      result= -1;
+    }
+    else
+    {
+      /* Handle acl_roles_mappings array */
+      if ((handle_grant_struct(ROLES_MAPPINGS_HASH, drop, user_from, user_to) && !result) ||
+          found)
+        result= 1; /* At least one record/element found */
+    }
+  }
+
  end:
   DBUG_RETURN(result);
 }
