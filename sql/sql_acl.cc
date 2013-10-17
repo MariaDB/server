@@ -1057,7 +1057,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       }
       if (is_role) {
         sql_print_information("Found role %s", user.user);
-        my_hash_insert(&acl_roles, (uchar*) &user);
+        my_hash_insert(&acl_roles, (uchar*) user.copy(&mem));
       }
       else
       {
@@ -1242,6 +1242,8 @@ void acl_free(bool end)
   delete_dynamic(&acl_dbs);
   delete_dynamic(&acl_wild_hosts);
   delete_dynamic(&acl_proxy_users);
+  delete_dynamic(&role_grants);
+  my_hash_free(&acl_roles);
   my_hash_free(&acl_check_hosts);
   plugin_unlock(0, native_password_plugin);
   plugin_unlock(0, old_password_plugin);
