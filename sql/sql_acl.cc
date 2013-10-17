@@ -6251,7 +6251,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
     not mandatory.
 
     In this case perform a quick lookup in acl_roles to see if
-    it is already there. If it is not found, than the user fields are updated,
+    it is already there. If it is not found, then the user fields are updated,
     otherwise the role field gets updated.
   */
   DBUG_ENTER("handle_roles_mappings_table");
@@ -6266,9 +6266,15 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
   Field *role_field= table->field[2];
 
   if (!user_from->host.length && find_acl_role(user_from->user.str))
-  {
       is_role= TRUE;
-  }
+
+  /*
+     Check if user_to is a valid role. If it is not a valid role, the change
+     fails.
+  */
+  if (is_role && user_to && user_to->host.length)
+    DBUG_RETURN(-1);
+
 
   table->use_all_columns();
   if ((error= table->file->ha_rnd_init(1)))
@@ -6334,7 +6340,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
     }
     table->file->ha_rnd_end();
   }
-  /* TODO */
+end:
   DBUG_RETURN(result);
 }
 /*
