@@ -850,7 +850,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   table->use_all_columns();
   (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER), 50, 100, MYF(0));
   (void) my_hash_init2(&acl_roles,50,system_charset_info,
-                   0,0,0, (my_hash_get_key) acl_role_get_key, 0,0);
+                       0,0,0, (my_hash_get_key) acl_role_get_key, 0,0);
 
   username_char_length= min(table->field[1]->char_length(), USERNAME_CHAR_LENGTH);
   password_length= table->field[2]->field_length /
@@ -9279,10 +9279,10 @@ bool acl_authenticate(THD *thd, uint connect_errors,
          acl_user->user_resource.updates ||
          acl_user->user_resource.conn_per_hour ||
          acl_user->user_resource.user_conn || max_user_connections_checking) &&
-        get_or_create_user_conn(thd,
-          (opt_old_style_user_limits ? sctx->user : sctx->priv_user),
-          (opt_old_style_user_limits ? sctx->host_or_ip : sctx->priv_host),
-          &acl_user->user_resource))
+         get_or_create_user_conn(thd,
+           (opt_old_style_user_limits ? sctx->user : sctx->priv_user),
+           (opt_old_style_user_limits ? sctx->host_or_ip : sctx->priv_host),
+           &acl_user->user_resource))
       DBUG_RETURN(1); // The error is set by get_or_create_user_conn()
   }
   else
@@ -9292,7 +9292,7 @@ bool acl_authenticate(THD *thd, uint connect_errors,
       (thd->user_connect->user_resources.conn_per_hour ||
        thd->user_connect->user_resources.user_conn ||
        max_user_connections_checking) &&
-      check_for_max_user_connections(thd, thd->user_connect))
+       check_for_max_user_connections(thd, thd->user_connect))
   {
     /* Ensure we don't decrement thd->user_connections->connections twice */
     thd->user_connect= 0;
