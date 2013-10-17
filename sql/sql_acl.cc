@@ -739,8 +739,9 @@ set_user_plugin (ACL_USER *user, int password_len)
   SYNOPSIS
     acl_load()
       thd     Current thread
-      tables  List containing open "mysql.host", "mysql.user" and
-              "mysql.db" tables.
+      tables  List containing open "mysql.host", "mysql.user",
+              "mysql.db", "mysql.proxies_priv" and "mysql.roles_mapping"
+              tables.
 
   RETURN VALUES
     FALSE  Success
@@ -877,6 +878,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     bzero(&user, sizeof(user));
     update_hostname(&user.host, get_field(&mem, table->field[0]));
     user.user= get_field(&mem, table->field[1]);
+    DBUG_PRINT("info", ("user_entry %s", user.user));
     if (check_no_resolve && hostname_requires_resolving(user.host.hostname))
     {
       sql_print_warning("'user' entry '%s@%s' "
@@ -1123,6 +1125,37 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   }
   freeze_size(&acl_proxy_users);
 
+  if (tables[4].table)
+  {
+    if (init_read_record(&read_record_info, thd, table= tables[4].table,
+                         NULL, 1, 1, FALSE))
+      goto end;
+    table->use_all_columns();
+    /* account for every role mapping */
+    mysql_mutex_lock(&acl_cache->lock);
+    while (!(read_record_info.read_record(&read_record_info)))
+    {
+      char *user_hostname= get_field(&mem, table->field[0]);
+      char *user_username= get_field(&mem, table->field[1]);
+      char *role_hostname= get_field(&mem, table->field[2]);
+      char *role_username= get_field(&mem, table->field[3]);
+      ACL_USER *user = find_acl_user(user_hostname, user_username, TRUE);
+      ACL_USER *role = find_acl_user(role_hostname, role_username, TRUE);
+      if (user == NULL || role == NULL)
+      {
+        sql_print_error("Warning: Invalid roles_mapping table entry");
+        continue;
+      }
+      /* TEMPORARY */
+      sql_print_information("Found user %s@%s having role granted %s@%s\n",
+                            user->user, user->host.hostname,
+                            role->user, role->host.hostname);
+    }
+    end_read_record(&read_record_info);
+    mysql_mutex_unlock(&acl_cache->lock);
+
+  }
+
   init_check_host();
 
   initialized=1;
@@ -1176,7 +1209,7 @@ void acl_free(bool end)
 
 my_bool acl_reload(THD *thd)
 {
-  TABLE_LIST tables[4];
+  TABLE_LIST tables[5];
   DYNAMIC_ARRAY old_acl_hosts, old_acl_users, old_acl_dbs, old_acl_proxy_users;
   MEM_ROOT old_mem;
   bool old_initialized;
@@ -1196,12 +1229,25 @@ my_bool acl_reload(THD *thd)
   tables[3].init_one_table(C_STRING_WITH_LEN("mysql"),
                            C_STRING_WITH_LEN("proxies_priv"), 
                            "proxies_priv", TL_READ);
+  tables[4].init_one_table(C_STRING_WITH_LEN("mysql"),
+                           C_STRING_WITH_LEN("roles_mapping"),
+                           "roles_mapping", TL_READ);
   tables[0].next_local= tables[0].next_global= tables + 1;
   tables[1].next_local= tables[1].next_global= tables + 2;
   tables[2].next_local= tables[2].next_global= tables + 3;
+  tables[3].next_local= tables[3].next_global= tables + 4;
   tables[0].open_type= tables[1].open_type= tables[2].open_type= 
-  tables[3].open_type= OT_BASE_ONLY;
+  tables[3].open_type= tables[4].open_type= OT_BASE_ONLY;
   tables[3].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
+  /*
+    TODO should there be an OPEN_IF_EXISTS strategy aswell for roles_mapping?
+    I would say yes because the user table implies the existance of the
+    roles_mapping table only in versions starting from now on
+    Vicentiu
+  */
+  tables[0].open_strategy= tables[3].open_strategy=
+  tables[4].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
+ 
 
   if (open_and_lock_tables(thd, tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {
