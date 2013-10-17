@@ -2081,6 +2081,7 @@ my_bool add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
 
 void rebuild_role_grants(void)
 {
+  DBUG_ENTER("rebuild_role_grants");
   /*
     Reset every user's and role's role_grants array
   */
@@ -2094,17 +2095,20 @@ void rebuild_role_grants(void)
   /*
     Rebuild the direct links between users and roles in ACL_USER::role_grants
   */
-  for (uint i=0; i < acl_roles.records; i++) {
+  for (uint i=0; i < acl_roles_mappings.records; i++) {
     ROLE_GRANT_PAIR *mapping= (ROLE_GRANT_PAIR*)
                                 my_hash_element(&acl_roles_mappings, i);
+    my_bool status = add_role_user_mapping(mapping);
     /*
        The invariant chosen is that acl_roles_mappings should _always_
        only contain valid entries, referencing correct user and role grants.
        If add_role_user_mapping detects an invalid entry, it will not add
        the mapping into the ACL_USER::role_grants array.
     */
-     DBUG_ASSERT(add_role_user_mapping(mapping));
+     DBUG_ASSERT(status == 0);
   }
+
+  DBUG_VOID_RETURN;
 }
 /* Return true if there is no users that can match the given host */
 
