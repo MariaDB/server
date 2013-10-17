@@ -250,7 +250,7 @@ public:
       dst->plugin.str= strmake_root(root, plugin.str, plugin.length);
     dst->auth_string.str= safe_strdup_root(root, auth_string.str);
     dst->host.hostname= safe_strdup_root(root, host.hostname);
-    dst->role_grants= this->role_grants;
+    bzero(&dst->role_grants, sizeof(role_grants));
     return dst;
   }
 };
@@ -261,7 +261,6 @@ public:
   acl_host_and_ip host;
   char *user,*db;
 };
-
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static void update_hostname(acl_host_and_ip *host, const char *hostname);
@@ -528,11 +527,27 @@ static uchar* acl_entry_get_key(acl_entry *entry, size_t *length,
   return (uchar*) entry->key;
 }
 
-uchar* acl_role_get_key(ACL_USER *entry, size_t *length,
-                                my_bool not_used __attribute__((unused)))
+static uchar* acl_role_get_key(ACL_USER *entry, size_t *length,
+                               my_bool not_used __attribute__((unused)))
 {
   *length=(uint) entry->user.length;
   return (uchar*) entry->user.str;
+}
+
+typedef struct st_role_grant
+{
+  char *u_uname;
+  char *u_hname;
+  char *r_uname;
+  char *r_hname;
+  LEX_STRING hashkey;
+} ROLE_GRANT_PAIR;
+
+static uchar* acl_role_map_get_key(ROLE_GRANT_PAIR *entry, size_t *length,
+                                  my_bool not_used __attribute__((unused)))
+{
+  *length=(uint) entry->hashkey.length;
+  return (uchar*) entry->hashkey.str;
 }
 
 #define IP_ADDR_STRLEN (3 + 1 + 3 + 1 + 3 + 1 + 3)
@@ -561,6 +576,13 @@ uchar* acl_role_get_key(ACL_USER *entry, size_t *length,
 
 static DYNAMIC_ARRAY acl_hosts, acl_users, acl_dbs, acl_proxy_users;
 static HASH acl_roles;
+/*
+  An hash containing mappings user <--> role
+
+  A hash is used so as to make updates quickly
+  The hashkey used represents all the entries combined
+*/
+static HASH acl_roles_mappings;
 static MEM_ROOT mem, memex;
 static bool initialized=0;
 static bool allow_all_hosts=1;
@@ -584,6 +606,11 @@ static bool update_user_table(THD *thd, TABLE *table, const char *host,
 static my_bool acl_load(THD *thd, TABLE_LIST *tables);
 static my_bool grant_load(THD *thd, TABLE_LIST *tables);
 static inline void get_grantor(THD *thd, char* grantor);
+static my_bool acl_user_reset_grant(ACL_USER *user,
+                                    void * not_used __attribute__((unused)));
+static my_bool add_role_user_mapping(ROLE_GRANT_PAIR *entry,
+                                     void * not_used __attribute__((unused)));
+
 /*
  Enumeration of various ACL's and Hashes used in handle_grant_struct()
 */
@@ -596,12 +623,6 @@ enum enum_acl_lists
   FUNC_PRIVILEGES_HASH,
   PROXY_USERS_ACL
 };
-
-typedef struct st_role_grant
-{
-  char *username;
-  char *hostname;
-} ROLE_GRANT_PAIR;
 
 static
 void
@@ -863,7 +884,8 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   table->use_all_columns();
   (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER), 50, 100, MYF(0));
   (void) my_hash_init2(&acl_roles,50,system_charset_info,
-                       0,0,0, (my_hash_get_key) acl_role_get_key, 0,0);
+                       0,0,0, (my_hash_get_key) acl_role_get_key,
+                       (void (*)(void *))free_acl_user, 0);
 
   username_char_length= min(table->field[1]->char_length(), USERNAME_CHAR_LENGTH);
   password_length= table->field[2]->field_length /
@@ -1062,17 +1084,23 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 #endif
       }
 
-      (void) my_init_dynamic_array(&user.role_grants,sizeof(ROLE_GRANT_PAIR),
+      (void) my_init_dynamic_array(&user.role_grants,sizeof(ACL_USER *),
                                    50, 100, MYF(0));
 
       if (is_role) {
-        sql_print_information("Found role %s", user.user.str);
-        my_hash_insert(&acl_roles, (uchar*) user.copy(&mem));
+        DBUG_PRINT("info", ("Found role %s", user.user.str));
+        ACL_USER *entry= user.copy(&mem);
+        entry->role_grants = user.role_grants;
+        my_hash_insert(&acl_roles, (uchar *)entry);
+        HASH_SEARCH_STATE t;
+        entry= (ACL_USER *) my_hash_first(&acl_roles,
+                             (uchar *)entry->user.str, entry->user.length, &t);
+
         continue;
       }
       else
       {
-        sql_print_information("Found user %s", user.user.str);
+        DBUG_PRINT("info", ("Found user %s", user.user.str));
         (void) push_dynamic(&acl_users,(uchar*) &user);
       }
       if (!user.host.hostname ||
@@ -1200,34 +1228,42 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     if (!initialized)
       mysql_mutex_lock(&acl_cache->lock);
 
+    (void) my_hash_init2(&acl_roles_mappings,50,system_charset_info,
+                         0,0,0, (my_hash_get_key) acl_role_map_get_key, 0,0);
     while (!(read_record_info.read_record(&read_record_info)))
     {
-      ROLE_GRANT_PAIR role_ref;
-      ROLE_GRANT_PAIR user_ref;
-      user_ref.hostname= get_field(&mem, table->field[0]);
-      user_ref.username= get_field(&mem, table->field[1]);
-      role_ref.hostname= get_field(&mem, table->field[2]);
-      role_ref.username= get_field(&mem, table->field[3]);
-      ACL_USER *user= find_acl_user((user_ref.hostname) ? user_ref.hostname: "",
-                                     (user_ref.username) ? user_ref.username: "",
-                                     TRUE);
-      ACL_USER *role= find_acl_role(role_ref.username ? role_ref.username: "");
-      if (user == NULL || role == NULL)
-      {
+      ROLE_GRANT_PAIR *mapping = (ROLE_GRANT_PAIR *)alloc_root(
+                                                      &mem,
+                                                      sizeof(ROLE_GRANT_PAIR));
+      mapping->u_hname= get_field(&mem, table->field[0]);
+      mapping->u_uname= get_field(&mem, table->field[1]);
+      mapping->r_hname= get_field(&mem, table->field[2]);
+      mapping->r_uname= get_field(&mem, table->field[3]);
+
+      size_t len[4] = {mapping->u_hname ? strlen(mapping->u_hname) : 0,
+                       mapping->u_uname ? strlen(mapping->u_uname) : 0,
+                       mapping->r_hname ? strlen(mapping->r_hname) : 0,
+                       mapping->r_uname ? strlen(mapping->r_uname) : 0};
+      char *buff= (char *)alloc_root(&mem, len[0] + len[1] + len[2] + len[3] + 1);
+      memcpy(buff,                            mapping->u_hname, len[0]);
+      memcpy(buff + len[0],                   mapping->u_uname, len[1]);
+      memcpy(buff + len[0] + len[1],          mapping->r_hname, len[2]);
+      memcpy(buff + len[0] + len[1] + len[2], mapping->r_uname, len[3]);
+      buff[len[0] + len[1] + len[2] + len[3]] = '\0';
+      mapping->hashkey.str = buff;
+      mapping->hashkey.length = len[0] + len[1] + len[2] + len[3];
+
+      if (add_role_user_mapping(mapping, NULL) == 1) {
         sql_print_error("Invalid roles_mapping table entry '%s@%s', '%s@%s'",
-                        user_ref.username ? user_ref.username : "",
-                        user_ref.hostname ? user_ref.hostname : "",
-                        role_ref.username ? role_ref.username : "",
-                        role_ref.hostname ? role_ref.hostname : "",
-                        user, role);
+                        mapping->u_uname ? mapping->u_uname : "",
+                        mapping->u_hname ? mapping->u_hname : "",
+                        mapping->r_uname ? mapping->r_uname : "",
+                        mapping->r_hname ? mapping->r_hname : "");
         continue;
       }
 
-      push_dynamic(&user->role_grants, (uchar*) &role_ref);
-      push_dynamic(&role->role_grants, (uchar*) &user_ref);
-      sql_print_information("Found user %s@%s having role granted %s@%s\n",
-                            user->user.str, user->host.hostname,
-                            role->user.str, role->host.hostname);
+      my_hash_insert(&acl_roles_mappings, (uchar*) mapping);
+
     }
 
     end_read_record(&read_record_info);
@@ -1250,14 +1286,15 @@ end:
 
 void acl_free(bool end)
 {
+  my_hash_free(&acl_roles);
   free_root(&mem,MYF(0));
   delete_dynamic(&acl_hosts);
-  delete_dynamic_recursive(&acl_users, (FREE_FUNC)free_acl_user);
+  delete_dynamic_recursive(&acl_users, (FREE_FUNC) free_acl_user);
   delete_dynamic(&acl_dbs);
   delete_dynamic(&acl_wild_hosts);
   delete_dynamic(&acl_proxy_users);
-  my_hash_free(&acl_roles);
   my_hash_free(&acl_check_hosts);
+  my_hash_free(&acl_roles_mappings);
   plugin_unlock(0, native_password_plugin);
   plugin_unlock(0, old_password_plugin);
   if (!end)
@@ -1293,7 +1330,7 @@ my_bool acl_reload(THD *thd)
 {
   TABLE_LIST tables[5];
   DYNAMIC_ARRAY old_acl_hosts, old_acl_users, old_acl_dbs, old_acl_proxy_users;
-  HASH old_acl_roles;
+  HASH old_acl_roles, old_acl_roles_mappings;
   MEM_ROOT old_mem;
   bool old_initialized;
   my_bool return_val= TRUE;
@@ -1350,6 +1387,7 @@ my_bool acl_reload(THD *thd)
   old_acl_hosts= acl_hosts;
   old_acl_users= acl_users;
   old_acl_roles= acl_roles;
+  old_acl_roles_mappings= acl_roles_mappings;
   old_acl_proxy_users= acl_proxy_users;
   old_acl_dbs= acl_dbs;
   old_mem= mem;
@@ -1363,6 +1401,7 @@ my_bool acl_reload(THD *thd)
     acl_hosts= old_acl_hosts;
     acl_users= old_acl_users;
     acl_roles= old_acl_roles;
+    acl_roles_mappings= old_acl_roles_mappings;
     acl_proxy_users= old_acl_proxy_users;
     acl_dbs= old_acl_dbs;
     mem= old_mem;
@@ -1370,12 +1409,14 @@ my_bool acl_reload(THD *thd)
   }
   else
   {
+    my_hash_free(&old_acl_roles);
     free_root(&old_mem,MYF(0));
     delete_dynamic(&old_acl_hosts);
     delete_dynamic_recursive(&old_acl_users, (FREE_FUNC) free_acl_user);
     delete_dynamic(&old_acl_proxy_users);
     delete_dynamic(&old_acl_dbs);
-    my_hash_free(&old_acl_roles);
+    my_hash_free(&old_acl_roles_mappings);
+    my_hash_free(&old_acl_roles_mappings);
   }
   if (old_initialized)
     mysql_mutex_unlock(&acl_cache->lock);
@@ -1916,8 +1957,7 @@ static void init_check_host(void)
                                acl_users.elements, 1, MYF(0));
   (void) my_hash_init(&acl_check_hosts,system_charset_info,
                       acl_users.elements, 0, 0,
-                      (my_hash_get_key) check_get_key,
-                      (void (*)(void *))free_acl_user, 0);
+                      (my_hash_get_key) check_get_key, 0, 0);
   if (!allow_all_hosts)
   {
     for (uint i=0 ; i < acl_users.elements ; i++)
@@ -1972,7 +2012,55 @@ void rebuild_check_host(void)
   init_check_host();
 }
 
+/*
+  Rebuild the role grants every time the acl_users is modified
 
+  The role grants in the ACL_USER class need to be rebuilt, as they contain
+  pointers to elements of the acl_users array.
+*/
+
+my_bool acl_user_reset_grant(ACL_USER *user,
+                                    void * not_used __attribute__((unused)))
+{
+  reset_dynamic(&user->role_grants);
+  return 0;
+}
+
+my_bool add_role_user_mapping(ROLE_GRANT_PAIR *mapping,
+                                     void * not_used __attribute__((unused)))
+{
+  ACL_USER *user= find_acl_user((mapping->u_hname) ? mapping->u_hname: "",
+                              (mapping->u_uname) ? mapping->u_uname: "",
+                              TRUE);
+  ACL_USER *role= find_acl_role(mapping->r_uname ? mapping->r_uname: "");
+  if (user == NULL || role == NULL)
+    return 1;
+
+  push_dynamic(&user->role_grants, (uchar*) role);
+  push_dynamic(&role->role_grants, (uchar*) user);
+
+  DBUG_PRINT("info", ("Found user %s@%s having role granted %s@%s\n",
+                        user->user.str, user->host.hostname,
+                        role->user.str, role->host.hostname));
+  return 0;
+}
+
+
+void rebuild_role_grants(void)
+{
+  /*
+    Reset every user's and role's role_grants array
+  */
+  for (uint i=0; i < acl_users.elements; i++) {
+    ACL_USER * user = dynamic_element(&acl_users, i, ACL_USER *);
+    reset_dynamic(&user->role_grants);
+  }
+  my_hash_iterate(&acl_roles,
+                  (my_hash_walk_action) acl_user_reset_grant, NULL);
+
+  my_hash_iterate(&acl_roles_mappings,
+                  (my_hash_walk_action) add_role_user_mapping, NULL);
+}
 /* Return true if there is no users that can match the given host */
 
 bool acl_check_host(const char *host, const char *ip)
