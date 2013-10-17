@@ -6563,3 +6563,9 @@ ER_NO_SUCH_QUERY
         eng "Unknown query id: %lld"
         ger "Unbekannte Abfrage-ID: %lld"
         rus "Неизвестный номер запроса: %lld"
+ER_INVALID_ROLE
+	eng "The role '%s' has not been granted or is invalid."
+	rum "Rolul '%s' este invalid sau nu a fost acordat."
+ER_INVALID_CURRENT_USER
+	eng "The current user is invalid."
+	rum "Utilizatorul curent este invalid."
