@@ -596,6 +596,7 @@ static int acl_compare(ACL_ACCESS *a,ACL_ACCESS *b);
 static ulong get_sort(uint count,...);
 static void init_check_host(void);
 static void rebuild_check_host(void);
+static void rebuild_role_grants(void);
 static void free_acl_user(ACL_USER *acl_user);
 static ACL_USER *find_acl_user(const char *host, const char *user,
                                my_bool exact);
@@ -1784,6 +1785,9 @@ static void acl_insert_user(const char *user, const char *host,
 
   /* Rebuild 'acl_check_hosts' since 'acl_users' has been modified */
   rebuild_check_host();
+  /* Rebuild every user's role_grants because the acl_user has been modified
+     and some grants might now be invalid */
+  rebuild_role_grants();
 }
 
 
@@ -6858,6 +6862,9 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list)
 
   /* Rebuild 'acl_check_hosts' since 'acl_users' has been modified */
   rebuild_check_host();
+  /* Rebuild every user's role_grants because the acl_user has been modified
+     and some grants might now be invalid */
+  rebuild_role_grants();
 
   mysql_mutex_unlock(&acl_cache->lock);
 
@@ -6937,6 +6944,9 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
 
   /* Rebuild 'acl_check_hosts' since 'acl_users' has been modified */
   rebuild_check_host();
+  /* Rebuild every user's role_grants because the acl_user has been modified
+     and some grants might now be invalid */
+  rebuild_role_grants();
 
   mysql_mutex_unlock(&acl_cache->lock);
 
