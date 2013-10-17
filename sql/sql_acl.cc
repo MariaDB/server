@@ -1358,13 +1358,6 @@ my_bool acl_reload(THD *thd)
   tables[3].next_local= tables[3].next_global= tables + 4;
   tables[0].open_type= tables[1].open_type= tables[2].open_type= 
   tables[3].open_type= tables[4].open_type= OT_BASE_ONLY;
-  tables[3].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
-  /*
-    TODO should there be an OPEN_IF_EXISTS strategy aswell for roles_mapping?
-    I would say yes because the user table implies the existance of the
-    roles_mapping table only in versions starting from now on
-    Vicentiu
-  */
   tables[0].open_strategy= tables[3].open_strategy=
   tables[4].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
  
