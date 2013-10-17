@@ -1618,6 +1618,99 @@ set local query_cache_type= on;
 select @@query_cache_size, @@global.query_cache_type, @@local.query_cache_type;
 
 --echo #
+--echo # MDEV-4981: Account for queries handled by query-cache in
+--echo # USER_STATISTICS (and in HOST_STATISTICS)
+--echo #
+
+SET GLOBAL userstat=1;
+set GLOBAL query_cache_size=1355776;
+FLUSH USER_STATISTICS;
+FLUSH CLIENT_STATISTICS;
+reset query cache;
+flush status;
+
+create table t1 (a int);
+insert into t1 values (1);
+select * from t1;
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.CLIENT_STATISTICS
+where CLIENT="localhost";
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.USER_STATISTICS
+where USER="root";
+show status like "Qcache_hits";
+select * from t1;
+select * from t1;
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.CLIENT_STATISTICS
+where CLIENT="localhost";
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.USER_STATISTICS
+where USER="root";
+show status like "Qcache_hits";
+
+drop table t1;
+FLUSH USER_STATISTICS;
+FLUSH CLIENT_STATISTICS;
+flush status;
+
+create table t1 (a int);
+select * from t1;
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.CLIENT_STATISTICS
+where CLIENT="localhost";
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.USER_STATISTICS
+where USER="root";
+show status like "Qcache_hits";
+select * from t1;
+select * from t1;
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.CLIENT_STATISTICS
+where CLIENT="localhost";
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.USER_STATISTICS
+where USER="root";
+show status like "Qcache_hits";
+
+FLUSH USER_STATISTICS;
+FLUSH CLIENT_STATISTICS;
+flush status;
+
+create procedure p1()
+  select * from t1;
+call p1;
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.CLIENT_STATISTICS
+where CLIENT="localhost";
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.USER_STATISTICS
+where USER="root";
+show status like "Qcache_hits";
+call p1;
+call p1;
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.CLIENT_STATISTICS
+where CLIENT="localhost";
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.USER_STATISTICS
+where USER="root";
+show status like "Qcache_hits";
+
+FLUSH USER_STATISTICS;
+FLUSH CLIENT_STATISTICS;
+flush status;
+
+SET GLOBAL query_cache_size= 0;
+call p1;
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.CLIENT_STATISTICS
+where CLIENT="localhost";
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.USER_STATISTICS
+where USER="root";
+show status like "Qcache_hits";
+call p1;
+call p1;
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.CLIENT_STATISTICS
+where CLIENT="localhost";
+select SELECT_COMMANDS,ROWS_SENT,EMPTY_QUERIES from INFORMATION_SCHEMA.USER_STATISTICS
+where USER="root";
+show status like "Qcache_hits";
+drop procedure p1;
+drop table t1;
+set GLOBAL query_cache_size=1355776;
+SET GLOBAL userstat=default;
+
+--echo End of 5.5 tests
+
+--echo #
 --echo # Bug#12977203: SERVER CRASH ON A DERIVED TABLE WITH QUERY CACHE ENABLED
 --echo #
 SET @qc= @@query_cache_size;
@@ -1626,9 +1719,6 @@ CREATE TABLE t1 (f1 blob);
 SELECT COUNT(*) FROM (SELECT * FROM t1 ) tt;
 DROP TABLE t1;
 SET GLOBAL query_cache_size= @qc;
---echo #
-
---echo End of 5.5 tests
 
 --echo #
 --echo # MDEV-617 LP:671189 - Query cache is not used for tables or

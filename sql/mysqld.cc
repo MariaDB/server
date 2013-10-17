@@ -2825,6 +2825,9 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
     mysql_mutex_unlock(&LOCK_thread_count);
   }
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
+#ifndef EMBEDDED_LIBRARY
+  ERR_remove_state(0);
+#endif
   my_thread_end();
 
   pthread_exit(0);
@@ -4463,6 +4466,7 @@ static void init_ssl()
 					  opt_ssl_cipher, &error,
                                           opt_ssl_crl, opt_ssl_crlpath);
     DBUG_PRINT("info",("ssl_acceptor_fd: 0x%lx", (long) ssl_acceptor_fd));
+    ERR_remove_state(0);
     if (!ssl_acceptor_fd)
     {
       sql_print_warning("Failed to setup SSL");
