@@ -2011,12 +2011,6 @@ void rebuild_check_host(void)
   init_check_host();
 }
 
-/*
-  Rebuild the role grants every time the acl_users is modified
-
-  The role grants in the ACL_USER class need to be rebuilt, as they contain
-  pointers to elements of the acl_users array.
-*/
 
 my_bool acl_user_reset_grant(ACL_USER *user,
                                     void * not_used __attribute__((unused)))
@@ -2058,6 +2052,14 @@ static my_bool roles_mappings_walk_action(ROLE_GRANT_PAIR *mapping,
   }
   return 0;
 }
+
+/*
+  Rebuild the role grants every time the acl_users is modified
+
+  The role grants in the ACL_USER class need to be rebuilt, as they contain
+  pointers to elements of the acl_users array.
+*/
+
 void rebuild_role_grants(void)
 {
   /*
