@@ -2035,7 +2035,12 @@ void rebuild_check_host(void)
   init_check_host();
 }
 
+/*
+  Reset a users role_grants dynamic array.
 
+  The function can is used as a walk action for hash elements aswell.
+
+*/
 my_bool acl_user_reset_grant(ACL_USER *user,
                              void * not_used __attribute__((unused)))
 {
@@ -2087,7 +2092,7 @@ void rebuild_role_grants(void)
   */
   for (uint i=0; i < acl_users.elements; i++) {
     ACL_USER *user= dynamic_element(&acl_users, i, ACL_USER *);
-    reset_dynamic(&user->role_grants);
+    acl_user_reset_grant(user, NULL);
   }
   my_hash_iterate(&acl_roles,
                   (my_hash_walk_action) acl_user_reset_grant, NULL);
@@ -6255,7 +6260,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
   int result= 0;
   bool is_role= FALSE;
   THD *thd= current_thd;
-  char *host, *user;
+  const char *host, *user, *role;
   Field *host_field= table->field[0];
   Field *user_field= table->field[1];
   Field *role_field= table->field[2];
@@ -6266,23 +6271,24 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
   }
 
   table->use_all_columns();
-  if (!is_role)
+  if ((error= table->file->ha_rnd_init(1)))
   {
-    if ((error= table->file->ha_rnd_init(1)))
+    table->file->print_error(error, MYF(0));
+    result= -1;
+  }
+  else
+  {
+    while((error= table->file->ha_rnd_next(table->record[0])) !=
+          HA_ERR_END_OF_FILE)
     {
-      table->file->print_error(error, MYF(0));
-      result= -1;
-    }
-    else
-    {
-      while((error= table->file->ha_rnd_next(table->record[0])) !=
-            HA_ERR_END_OF_FILE)
+      if (error)
       {
-        if (error)
-        {
-          DBUG_PRINT("info", ("scan error: %d", error));
-          continue;
-        }
+        DBUG_PRINT("info", ("scan error: %d", error));
+        continue;
+      }
+      if (!is_role)
+      {
+
         if (! (host= get_field(thd->mem_root, host_field)))
           host= "";
         if (! (user= get_field(thd->mem_root, user_field)))
@@ -6291,16 +6297,43 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
         if (strcmp(user_from->user.str, user) ||
             my_strcasecmp(system_charset_info, user_from->host.str, host))
           continue;
+
         result= ((drop || user_to) &&
                  modify_grant_table(table, host_field, user_field, user_to)) ?
           -1 : result ? result : 1; /* Error or keep result or found. */
-
       }
-      table->file->ha_rnd_end();
+      else
+      {
+        if (! (role= get_field(thd->mem_root, role_field)))
+          role= "";
+
+        if (strcmp(user_from->user.str, role))
+          continue;
+
+        error= 0;
+
+        if (drop) /* drop if requested */
+        {
+          if ((error= table->file->ha_delete_row(table->record[0])))
+            table->file->print_error(error, MYF(0));
+        }
+        else if (user_to)
+        {
+          store_record(table, record[1]);
+          role_field->store(user_to->user.str, user_to->user.length,
+                            system_charset_info);
+          if ((error= table->file->ha_update_row(table->record[1],
+                                                 table->record[0])) &&
+              error != HA_ERR_RECORD_IS_THE_SAME)
+            table->file->print_error(error, MYF(0));
+        }
+
+        /* Error or keep result or found. */
+        result= error ? -1 : result ? result : 1;
+      }
     }
-
+    table->file->ha_rnd_end();
   }
-
   /* TODO */
   DBUG_RETURN(result);
 }
