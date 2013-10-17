@@ -5176,7 +5176,8 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
   /* Count number of empty select queries */
   if (!thd->get_sent_row_count())
     status_var_increment(thd->status_var.empty_queries);
-  status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
+  else
+    status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
   return res;
 }
 
@@ -6340,6 +6341,8 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     thd->m_statement_psi=
       MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
                              sql_statement_info[SQLCOM_SELECT].m_key);
+    status_var_increment(thd->status_var.com_stat[SQLCOM_SELECT]);
+    thd->update_stats();
   }
   DBUG_VOID_RETURN;
 }
