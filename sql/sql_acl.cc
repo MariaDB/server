@@ -552,35 +552,35 @@ static uchar* acl_role_map_get_key(ROLE_GRANT_PAIR *entry, size_t *length,
 static void init_role_grant_pair(MEM_ROOT *mem, ROLE_GRANT_PAIR *entry,
                                  char *username, char *hostname, char *rolename)
 {
-      size_t len[3] = {username ? strlen(username) : 0,
-                       hostname ? strlen(hostname) : 0,
-                       rolename ? strlen(rolename) : 0};
+      size_t uname_l = username ? strlen(username) : 0;
+      size_t hname_l = hostname ? strlen(hostname) : 0;
+      size_t rname_l = rolename ? strlen(rolename) : 0;
       /*
         Create a buffer that holds all 3 NULL terminated strings in succession
         To save memory space, the same buffer is used as the hashkey
       */
-      size_t bufflen = len[0] + len[1] + len[2] + 3; //add the '\0' aswell
+      size_t bufflen = uname_l + hname_l + rname_l + 3; //add the '\0' aswell
       char *buff= (char *)alloc_root(mem, bufflen);
       /*
         Offsets in the buffer for all 3 strings
       */
       char *username_pos= buff;
-      char *hostname_pos= buff + len[0] + 1;
-      char *rolename_pos= buff + len[0] + len[1] + 2;
+      char *hostname_pos= buff + uname_l + 1;
+      char *rolename_pos= buff + uname_l + hname_l + 2;
 
-      if (username)
-        memcpy(username_pos, username, len[0]);
-      username_pos[len[0]]= '\0';         //#1 string terminator
+      if (username) //prevent undefined behaviour
+        memcpy(username_pos, username, uname_l);
+      username_pos[uname_l]= '\0';         //#1 string terminator
       entry->u_uname= username_pos;
 
-      if (hostname)
-        memcpy(hostname_pos, hostname, len[1]);
-      hostname_pos[len[1]]= '\0';         //#2 string terminator
+      if (hostname) //prevent undefined behaviour
+        memcpy(hostname_pos, hostname, hname_l);
+      hostname_pos[hname_l]= '\0';         //#2 string terminator
       entry->u_hname= hostname_pos;
 
-      if (rolename)
-        memcpy(rolename_pos, rolename, len[2]);
-      rolename_pos[len[2]]= '\0';         //#3 string terminator
+      if (rolename) //prevent undefined behaviour
+        memcpy(rolename_pos, rolename, rname_l);
+      rolename_pos[rname_l]= '\0';         //#3 string terminator
       entry->r_uname= rolename_pos;
 
       entry->hashkey.str = buff;
