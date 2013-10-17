@@ -51,6 +51,11 @@ ADD x509_subject BLOB NOT NULL;
 ALTER TABLE user MODIFY ssl_type enum('','ANY','X509', 'SPECIFIED') NOT NULL;
 
 #
+# Add roles to the user table
+ALTER TABLE user
+ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+
+#
 # tables_priv
 #
 ALTER TABLE tables_priv
