@@ -1672,6 +1672,67 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
   DBUG_RETURN(res);
 }
 
+bool acl_setrole(THD *thd, char *rolename)
+{
+  bool is_granted;
+  int result= 0;
+
+  /* clear role privileges */
+  mysql_mutex_lock(&acl_cache->lock);
+
+  ACL_USER *role= find_acl_role(rolename);
+  ACL_USER *acl_user;
+
+  if (!strcasecmp(rolename, "NONE")) {
+    /* have to clear the privileges */
+    /* get the current user */
+    acl_user= find_acl_user(thd->security_ctx->host, thd->security_ctx->user,
+                             FALSE);
+    if (acl_user == NULL)
+      result= -1;
+    else
+      thd->security_ctx->master_access= acl_user->access;
+
+    goto end;
+  }
+
+  if (role == NULL) {
+    result= -1;
+    goto end;
+  }
+
+  for (uint i=0 ; i < role->role_grants.elements ; i++)
+  {
+    acl_user= *(dynamic_element(&role->role_grants, i, ACL_USER**));
+    if ((!acl_user->user.str && !thd->security_ctx->user[0]) ||
+        (acl_user->user.str && !strcmp(thd->security_ctx->user,
+                                       acl_user->user.str)))
+    {
+      if (compare_hostname(&acl_user->host, thd->security_ctx->host,
+                                            thd->security_ctx->host))
+      {
+        is_granted= TRUE;
+        break;
+      }
+    }
+  }
+
+  if (!is_granted)
+  {
+    result= 1;
+    goto end;
+  }
+
+  /* merge the privileges */
+  thd->security_ctx->master_access= acl_user->access | role->access;
+  /* mark the current role */
+  strcpy(thd->security_ctx->priv_role, rolename);
+
+end:
+  mysql_mutex_unlock(&acl_cache->lock);
+  return result;
+}
+
 static uchar* check_get_key(ACL_USER *buff, size_t *length,
                             my_bool not_used __attribute__((unused)))
 {
