@@ -230,7 +230,6 @@ public:
     if the instance of the class represents a user, or a user if the
     instance of the class represents a role.
   */
-  //TODO this array does not get freed automatically when acl_users is freed
   DYNAMIC_ARRAY role_grants;
 
   ACL_USER *copy(MEM_ROOT *root)
@@ -251,6 +250,7 @@ public:
       dst->plugin.str= strmake_root(root, plugin.str, plugin.length);
     dst->auth_string.str= safe_strdup_root(root, auth_string.str);
     dst->host.hostname= safe_strdup_root(root, host.hostname);
+    dst->role_grants= this->role_grants;
     return dst;
   }
 };
@@ -574,6 +574,7 @@ static int acl_compare(ACL_ACCESS *a,ACL_ACCESS *b);
 static ulong get_sort(uint count,...);
 static void init_check_host(void);
 static void rebuild_check_host(void);
+static void free_acl_user(ACL_USER *acl_user);
 static ACL_USER *find_acl_user(const char *host, const char *user,
                                my_bool exact);
 static ACL_USER *find_acl_role(const char *user);
@@ -601,6 +602,13 @@ typedef struct st_role_grant
   char *username;
   char *hostname;
 } ROLE_GRANT_PAIR;
+
+static
+void
+free_acl_user(ACL_USER *user)
+{
+  delete_dynamic(&(user->role_grants));
+}
 /*
   Convert scrambled password to binary form, according to scramble type,
   Binary form is stored in user.salt.
@@ -1060,6 +1068,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       if (is_role) {
         sql_print_information("Found role %s", user.user.str);
         my_hash_insert(&acl_roles, (uchar*) user.copy(&mem));
+        continue;
       }
       else
       {
@@ -1243,7 +1252,7 @@ void acl_free(bool end)
 {
   free_root(&mem,MYF(0));
   delete_dynamic(&acl_hosts);
-  delete_dynamic(&acl_users);
+  delete_dynamic_recursive(&acl_users, (FREE_FUNC)free_acl_user);
   delete_dynamic(&acl_dbs);
   delete_dynamic(&acl_wild_hosts);
   delete_dynamic(&acl_proxy_users);
@@ -1363,7 +1372,7 @@ my_bool acl_reload(THD *thd)
   {
     free_root(&old_mem,MYF(0));
     delete_dynamic(&old_acl_hosts);
-    delete_dynamic(&old_acl_users);
+    delete_dynamic_recursive(&old_acl_users, (FREE_FUNC) free_acl_user);
     delete_dynamic(&old_acl_proxy_users);
     delete_dynamic(&old_acl_dbs);
     my_hash_free(&old_acl_roles);
@@ -1907,7 +1916,8 @@ static void init_check_host(void)
                                acl_users.elements, 1, MYF(0));
   (void) my_hash_init(&acl_check_hosts,system_charset_info,
                       acl_users.elements, 0, 0,
-                      (my_hash_get_key) check_get_key, 0, 0);
+                      (my_hash_get_key) check_get_key,
+                      (void (*)(void *))free_acl_user, 0);
   if (!allow_all_hosts)
   {
     for (uint i=0 ; i < acl_users.elements ; i++)
