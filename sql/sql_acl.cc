@@ -608,8 +608,7 @@ static my_bool grant_load(THD *thd, TABLE_LIST *tables);
 static inline void get_grantor(THD *thd, char* grantor);
 static my_bool acl_user_reset_grant(ACL_USER *user,
                                     void * not_used __attribute__((unused)));
-static my_bool add_role_user_mapping(ROLE_GRANT_PAIR *entry,
-                                     void * not_used __attribute__((unused)));
+static my_bool add_role_user_mapping(ROLE_GRANT_PAIR *entry);
 
 /*
  Enumeration of various ACL's and Hashes used in handle_grant_struct()
@@ -1253,7 +1252,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       mapping->hashkey.str = buff;
       mapping->hashkey.length = len[0] + len[1] + len[2] + len[3];
 
-      if (add_role_user_mapping(mapping, NULL) == 1) {
+      if (add_role_user_mapping(mapping) == 1) {
         sql_print_error("Invalid roles_mapping table entry '%s@%s', '%s@%s'",
                         mapping->u_uname ? mapping->u_uname : "",
                         mapping->u_hname ? mapping->u_hname : "",
@@ -2026,8 +2025,12 @@ my_bool acl_user_reset_grant(ACL_USER *user,
   return 0;
 }
 
-my_bool add_role_user_mapping(ROLE_GRANT_PAIR *mapping,
-                                     void * not_used __attribute__((unused)))
+/*
+   Add a the coresponding pointers present in the mapping to the entries in
+   acl_users and acl_roles
+*/
+
+my_bool add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
 {
   ACL_USER *user= find_acl_user((mapping->u_hname) ? mapping->u_hname: "",
                               (mapping->u_uname) ? mapping->u_uname: "",
@@ -2046,6 +2049,15 @@ my_bool add_role_user_mapping(ROLE_GRANT_PAIR *mapping,
 }
 
 
+static my_bool roles_mappings_walk_action(ROLE_GRANT_PAIR *mapping,
+                                   void * not_used __attribute__((unused)))
+{
+  if (add_role_user_mapping(mapping)) {
+    //the mapping is invalid, the mapping can be safely deleted
+    my_hash_delete(&acl_roles_mappings, (uchar*) mapping);
+  }
+  return 0;
+}
 void rebuild_role_grants(void)
 {
   /*
@@ -2059,7 +2071,7 @@ void rebuild_role_grants(void)
                   (my_hash_walk_action) acl_user_reset_grant, NULL);
 
   my_hash_iterate(&acl_roles_mappings,
-                  (my_hash_walk_action) add_role_user_mapping, NULL);
+                  (my_hash_walk_action) roles_mappings_walk_action, 0);
 }
 /* Return true if there is no users that can match the given host */
 
