@@ -566,6 +566,8 @@ static void init_check_host(void);
 static void rebuild_check_host(void);
 static ACL_USER *find_acl_user(const char *host, const char *user,
                                my_bool exact);
+static ACL_USER *find_acl_role(const char *host, const char *user,
+                               my_bool exact);
 static bool update_user_table(THD *thd, TABLE *table, const char *host,
                               const char *user, const char *new_password,
                               uint new_password_len);
@@ -587,8 +589,10 @@ enum enum_acl_lists
 
 typedef struct st_role_grant
 {
-  ACL_USER *user;
-  ACL_USER *role;
+  char *user_username;
+  char *user_hostname;
+  char *role_username;
+  char *role_hostname;
 } ROLE_GRANT_PAIR;
 /*
   Convert scrambled password to binary form, according to scramble type, 
@@ -1041,10 +1045,12 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 #endif
       }
       if (is_role) {
+        sql_print_information("Found role %s", user.user);
         (void) push_dynamic(&acl_roles,(uchar*) &user);
       }
       else
       {
+        sql_print_information("Found user %s", user.user);
         (void) push_dynamic(&acl_users,(uchar*) &user);
       }
       if (!user.host.hostname ||
@@ -1162,27 +1168,49 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       goto end;
     table->use_all_columns();
     /* account for every role mapping */
-    mysql_mutex_lock(&acl_cache->lock);
+
+    /* acquire lock for the find_acl_user/role functions
+      XXX
+      Perhaps new wrapper functions should be created that do not check
+      for the lock in this case as it either is already taken or
+      it's the first initialisation so no race conditions possible
+     */
+    if (!initialized)
+      mysql_mutex_lock(&acl_cache->lock);
+    (void) my_init_dynamic_array(&role_grants,sizeof(ROLE_GRANT_PAIR), 50, 100,
+                                 MYF(0));
     while (!(read_record_info.read_record(&read_record_info)))
     {
-      char *user_hostname= get_field(&mem, table->field[0]);
-      char *user_username= get_field(&mem, table->field[1]);
-      char *role_hostname= get_field(&mem, table->field[2]);
-      char *role_username= get_field(&mem, table->field[3]);
-      ACL_USER *user = find_acl_user(user_hostname, user_username, TRUE);
-      ACL_USER *role = find_acl_user(role_hostname, role_username, TRUE);
+      ROLE_GRANT_PAIR p;
+      p.user_hostname= get_field(&mem, table->field[0]);
+      p.user_username= get_field(&mem, table->field[1]);
+      p.role_hostname= get_field(&mem, table->field[2]);
+      p.role_username= get_field(&mem, table->field[3]);
+      ACL_USER *user = find_acl_user((p.user_hostname) ? p.user_hostname: "",
+                                     (p.user_username) ? p.user_username: "",
+                                     TRUE);
+      ACL_USER *role = find_acl_role((p.role_hostname) ? p.role_hostname: "",
+                                     (p.role_username) ? p.role_username: "",
+                                     TRUE);
       if (user == NULL || role == NULL)
       {
-        sql_print_error("Warning: Invalid roles_mapping table entry");
+        sql_print_error("Invalid roles_mapping table entry '%s@%s', '%s@%s'",
+                        p.user_username ? p.user_username : "",
+                        p.user_hostname ? p.user_hostname : "",
+                        p.role_username ? p.role_username : "",
+                        p.role_hostname ? p.role_hostname : "",
+                        user, role);
         continue;
       }
-      /* TEMPORARY */
+
+      push_dynamic(&role_grants, (uchar*) &p);
       sql_print_information("Found user %s@%s having role granted %s@%s\n",
                             user->user, user->host.hostname,
                             role->user, role->host.hostname);
     }
     end_read_record(&read_record_info);
-    mysql_mutex_unlock(&acl_cache->lock);
+    if (!initialized)
+      mysql_mutex_unlock(&acl_cache->lock);
 
   }
 
@@ -2110,20 +2138,22 @@ bool is_acl_user(const char *host, const char *user)
 
 
 /*
-  Find first entry that matches the current user
+  Find first entry that matches the current user or role
 */
-
 static ACL_USER *
-find_acl_user(const char *host, const char *user, my_bool exact)
+find_acl_user_table_entry(const char *host, const char *user, my_bool exact,
+                          my_bool is_role)
 {
+
   DBUG_ENTER("find_acl_user");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'",host,user));
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  for (uint i=0 ; i < acl_users.elements ; i++)
+  DYNAMIC_ARRAY *target = (is_role) ? &acl_roles : &acl_users;
+  for (uint i=0 ; i < target->elements ; i++)
   {
-    ACL_USER *acl_user=dynamic_element(&acl_users,i,ACL_USER*);
+    ACL_USER *acl_user=dynamic_element(target,i,ACL_USER*);
     DBUG_PRINT("info",("strcmp('%s','%s'), compare_hostname('%s','%s'),",
                        user, acl_user->user ? acl_user->user : "",
                        host,
@@ -2142,6 +2172,17 @@ find_acl_user(const char *host, const char *user, my_bool exact)
     }
   }
   DBUG_RETURN(0);
+}
+
+static ACL_USER *
+find_acl_role(const char *host, const char *user, my_bool exact)
+{
+  return find_acl_user_table_entry(host, user, exact, TRUE);
+}
+static ACL_USER *
+find_acl_user(const char *host, const char *user, my_bool exact)
+{
+  return find_acl_user_table_entry(host, user, exact, FALSE);
 }
 
 
