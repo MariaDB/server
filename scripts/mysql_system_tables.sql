@@ -44,10 +44,7 @@ set @had_user_table= @@warning_count != 0;
 CREATE TABLE IF NOT EXISTS roles_mapping (
 	HostFk char(60) binary DEFAULT '' NOT NULL,
 	UserFk char(16) binary DEFAULT '' NOT NULL,
-	RoleHostFK char(60) binary DEFAULT '' NOT NULL,
-	RoleUserFk char(16) binary DEFAULT '' NOT NULL,
-	CONSTRAINT FOREIGN KEY (HostFk, UserFk) REFERENCES user (Host, User),
-	CONSTRAINT FOREIGN KEY (RoleHostFk, RoleUserFk) REFERENCES user (Host, User)
+	RoleFk char(16) binary DEFAULT '' NOT NULL
 );
 
 
