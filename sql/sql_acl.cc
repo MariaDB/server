@@ -2066,16 +2066,6 @@ my_bool add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
 }
 
 
-static my_bool roles_mappings_walk_action(ROLE_GRANT_PAIR *mapping,
-                                   void * not_used __attribute__((unused)))
-{
-  if (add_role_user_mapping(mapping)) {
-    //the mapping is invalid, the mapping can be safely deleted
-    my_hash_delete(&acl_roles_mappings, (uchar*) mapping);
-  }
-  return 0;
-}
-
 /*
   Rebuild the role grants every time the acl_users is modified
 
