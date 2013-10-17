@@ -2067,8 +2067,8 @@ my_bool add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
     return 1;
   }
 
-  push_dynamic(&user->role_grants, (uchar*) role);
-  push_dynamic(&role->role_grants, (uchar*) user);
+  push_dynamic(&user->role_grants, (uchar*) &role);
+  push_dynamic(&role->role_grants, (uchar*) &user);
 
   DBUG_PRINT("info", ("Found user %s@%s having role granted %s@%s\n",
                         user->user.str, user->host.hostname,
