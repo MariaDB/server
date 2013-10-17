@@ -1041,6 +1041,8 @@ public:
   char   proxy_user[USERNAME_LENGTH + MAX_HOSTNAME + 5];
   /* The host privilege we are using */
   char   priv_host[MAX_HOSTNAME];
+  /* The role privilege we are using */
+  char   priv_role[USERNAME_LENGTH];
   /* The external user (if available) */
   char   *external_user;
   /* points to host if host is available, otherwise points to ip */
