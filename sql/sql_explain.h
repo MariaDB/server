@@ -384,7 +384,7 @@ private:
 
 
 /*
-  Query Plan Footprint for a JOIN_TAB.
+  EXPLAIN data structure for a single JOIN_TAB.
 */
 class Explain_table_access : public Sql_alloc
 {
