@@ -1840,7 +1840,7 @@ bool sp_process_definer(THD *thd)
     Query_arena original_arena;
     Query_arena *ps_arena= thd->activate_stmt_arena_if_needed(&original_arena);
 
-    lex->definer= create_default_definer(thd);
+    lex->definer= create_default_definer(thd, false);
 
     if (ps_arena)
       thd->restore_active_arena(ps_arena, &original_arena);
@@ -1854,20 +1854,24 @@ bool sp_process_definer(THD *thd)
   }
   else
   {
+    LEX_USER *d= lex->definer= get_current_user(thd, lex->definer);
+    if (!d)
+      DBUG_RETURN(TRUE);
+
     /*
-      If the specified definer differs from the current user, we
+      If the specified definer differs from the current user or role, we
       should check that the current user has SUPER privilege (in order
       to create a stored routine under another user one must have
       SUPER privilege).
     */
-    if ((strcmp(lex->definer->user.str, thd->security_ctx->priv_user) ||
-         my_strcasecmp(system_charset_info, lex->definer->host.str,
-                       thd->security_ctx->priv_host)) &&
-        check_global_access(thd, SUPER_ACL, true))
-    {
-      my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "SUPER");
+    bool curuser= !strcmp(d->user.str, thd->security_ctx->priv_user);
+    bool currole= !curuser && !strcmp(d->user.str, thd->security_ctx->priv_role);
+    bool curuserhost= curuser && d->host.str &&
+                  !my_strcasecmp(system_charset_info, d->host.str,
+                                 thd->security_ctx->priv_host);
+    if (!curuserhost && !currole &&
+        check_global_access(thd, SUPER_ACL, false))
       DBUG_RETURN(TRUE);
-    }
   }
 
   /* Check that the specified definer exists. Emit a warning if not. */
@@ -3783,7 +3787,7 @@ end_with_restore_list:
       goto error;
 
     /* Replicate current user as grantor */
-    thd->binlog_invoker();
+    thd->binlog_invoker(false);
 
     if (thd->security_ctx->user)              // If not replication
     {
@@ -7686,15 +7690,22 @@ Item *negate_expression(THD *thd, Item *expr)
   @param[out] definer   definer
 */
  
-void get_default_definer(THD *thd, LEX_USER *definer)
+void get_default_definer(THD *thd, LEX_USER *definer, bool role)
 {
   const Security_context *sctx= thd->security_ctx;
 
-  definer->user.str= (char *) sctx->priv_user;
+  if (role)
+  {
+    definer->user.str= const_cast<char*>(sctx->priv_role);
+    definer->host= empty_lex_str;
+  }
+  else
+  {
+    definer->user.str= const_cast<char*>(sctx->priv_user);
+    definer->host.str= const_cast<char*>(sctx->priv_host);
+    definer->host.length= strlen(definer->host.str);
+  }
   definer->user.length= strlen(definer->user.str);
-
-  definer->host.str= (char *) sctx->priv_host;
-  definer->host.length= strlen(definer->host.str);
 
   definer->password= null_lex_str;
   definer->plugin= empty_lex_str;
@@ -7713,16 +7724,22 @@ void get_default_definer(THD *thd, LEX_USER *definer)
     - On error, return 0.
 */
 
-LEX_USER *create_default_definer(THD *thd)
+LEX_USER *create_default_definer(THD *thd, bool role)
 {
   LEX_USER *definer;
 
   if (! (definer= (LEX_USER*) thd->alloc(sizeof(LEX_USER))))
     return 0;
 
-  thd->get_definer(definer);
+  thd->get_definer(definer, role);
 
-  return definer;
+  if (role && definer->user.length == 0)
+  {
+    my_error(ER_MALFORMED_DEFINER, MYF(0));
+    return 0;
+  }
+  else
+    return definer;
 }
 
 
@@ -7754,27 +7771,6 @@ LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name)
   definer->password.length= 0;
 
   return definer;
-}
-
-
-/**
-  Retuns information about user or current user.
-
-  @param[in] thd          thread handler
-  @param[in] user         user
-
-  @return
-    - On success, return a valid pointer to initialized
-    LEX_USER, which contains user information.
-    - On error, return 0.
-*/
-
-LEX_USER *get_current_user(THD *thd, LEX_USER *user)
-{
-  if (user->user.str == current_user.str)  // current_user
-    return create_default_definer(thd);
-
-  return user;
 }
 
 

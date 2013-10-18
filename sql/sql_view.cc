@@ -822,7 +822,7 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
     goto err;   
   }
 
-  view->file_version= 1;
+  view->file_version= 2;
   view->calc_md5(md5);
   if (!(view->md5.str= (char*) thd->memdup(md5, 32)))
   {
@@ -1113,8 +1113,16 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
                         ER_VIEW_FRM_NO_USER, ER(ER_VIEW_FRM_NO_USER),
                         table->db, table->table_name);
-    get_default_definer(thd, &table->definer);
+    get_default_definer(thd, &table->definer, false);
   }
+  
+  /*
+    since 10.0.5 definer.host can never be "" for a User, but it's
+    always "" for a Role. Before 10.0.5 it could be "" for a User,
+    but roles didn't exist. file_version helps.
+  */
+  if (!table->definer.host.str[0] && table->file_version < 2)
+    table->definer.host= host_not_specified; // User, not Role
 
   /*
     Initialize view definition context by character set names loaded from

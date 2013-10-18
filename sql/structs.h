@@ -190,6 +190,14 @@ typedef int *(*update_var)(THD *, struct st_mysql_show_var *);
 
 typedef struct	st_lex_user {
   LEX_STRING user, host, password, plugin, auth;
+  bool is_role() { return user.str[0] && !host.str[0]; }
+  void set_lex_string(LEX_STRING *l, char *buf)
+  {
+    if (is_role())
+      *l= user;
+    else
+      l->length= strxmov(l->str= buf, user.str, "@", host.str, NullS) - buf;
+  }
 } LEX_USER;
 
 /*

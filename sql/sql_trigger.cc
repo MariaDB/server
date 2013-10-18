@@ -763,9 +763,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     definer_user= lex->definer->user;
     definer_host= lex->definer->host;
 
-    trg_definer->str= trg_definer_holder;
-    trg_definer->length= strxmov(trg_definer->str, definer_user.str, "@",
-                                 definer_host.str, NullS) - trg_definer->str;
+    lex->definer->set_lex_string(trg_definer, trg_definer_holder);
   }
   else
   {

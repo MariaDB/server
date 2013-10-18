@@ -938,7 +938,7 @@ THD::THD()
   thr_lock_info_init(&lock_info); /* safety: will be reset after start */
 
   m_internal_handler= NULL;
-  m_binlog_invoker= FALSE;
+  m_binlog_invoker= INVOKER_NONE;
   arena_for_cached_items= 0;
   memset(&invoker_user, 0, sizeof(invoker_user));
   memset(&invoker_host, 0, sizeof(invoker_host));
@@ -1890,7 +1890,7 @@ void THD::cleanup_after_query()
   where= THD::DEFAULT_WHERE;
   /* reset table map for multi-table update */
   table_map_for_update= 0;
-  m_binlog_invoker= FALSE;
+  m_binlog_invoker= INVOKER_NONE;
 
 #ifndef EMBEDDED_LIBRARY
   if (rli_slave)
@@ -4341,9 +4341,9 @@ void THD::leave_locked_tables_mode()
   locked_tables_mode= LTM_NONE;
 }
 
-void THD::get_definer(LEX_USER *definer)
+void THD::get_definer(LEX_USER *definer, bool role)
 {
-  binlog_invoker();
+  binlog_invoker(role);
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   if (slave_thread && has_invoker())
   {
@@ -4355,7 +4355,7 @@ void THD::get_definer(LEX_USER *definer)
   }
   else
 #endif
-    get_default_definer(this, definer);
+    get_default_definer(this, definer, role);
 }
 
 
