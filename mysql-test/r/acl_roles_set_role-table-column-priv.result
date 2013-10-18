@@ -40,7 +40,7 @@ GRANT USAGE ON *.* TO 'test_user'@'localhost'
 GRANT test_role1 TO 'test_user'@'localhost'
 GRANT test_role2 TO 'test_role1'
 select * from mysql.roles_mapping;
-ERROR 42000:  command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for column 'HostFk' in table 'roles_mapping'
 select RoleFk from mysql.roles_mapping;
 RoleFk
 test_role1

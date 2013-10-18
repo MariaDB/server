@@ -18,6 +18,7 @@ plugin
 proc
 procs_priv
 proxies_priv
+roles_mapping
 servers
 slow_log
 table_stats
@@ -124,6 +125,7 @@ user	CREATE TABLE `user` (
   `max_updates` int(11) unsigned NOT NULL DEFAULT '0',
   `max_connections` int(11) unsigned NOT NULL DEFAULT '0',
   `max_user_connections` int(11) NOT NULL DEFAULT '0',
+  `is_role` enum('N','Y') COLLATE utf8_bin NOT NULL DEFAULT 'N',
   `plugin` char(64) CHARACTER SET latin1 NOT NULL DEFAULT '',
   `authentication_string` text COLLATE utf8_bin NOT NULL,
   PRIMARY KEY (`Host`,`User`)

@@ -32,7 +32,7 @@ select current_user(), current_role();
 --sorted_result
 show grants;
 
---error ER_TABLEACCESS_DENIED_ERROR
+--error ER_COLUMNACCESS_DENIED_ERROR
 select * from mysql.roles_mapping;
 
 --sorted_result

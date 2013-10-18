@@ -6057,9 +6057,12 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
                                              table_name, TRUE) : NULL;
     grant->version= grant_version;		/* purecov: inspected */
   }
-  if (!(grant_table= grant->grant_table_user) &&
-      !(grant_table_role= grant->grant_table_role))
-    goto err;					/* purecov: deadcode */
+
+  grant_table= grant->grant_table_user;
+  grant_table_role= grant->grant_table_role;
+
+  if (!grant_table && !grant_table_role)
+    goto err;
 
   if (grant_table)
   {
@@ -6187,14 +6190,12 @@ bool check_grant_all_columns(THD *thd, ulong want_access_arg,
                              Field_iterator_table_ref *fields)
 {
   Security_context *sctx= thd->security_ctx;
-  ulong want_access= want_access_arg;
+  ulong UNINIT_VAR(want_access);
   const char *table_name= NULL;
-
   const char* db_name;
   GRANT_INFO *grant;
-  /* Initialized only to make gcc happy */
-  GRANT_TABLE *grant_table= NULL;
-  GRANT_TABLE *grant_table_role= NULL;
+  GRANT_TABLE *UNINIT_VAR(grant_table);
+  GRANT_TABLE *UNINIT_VAR(grant_table_role);
   /*
      Flag that gets set if privilege checking has to be performed on column
      level.
@@ -6238,16 +6239,14 @@ bool check_grant_all_columns(THD *thd, ulong want_access_arg,
 
     if (want_access)
     {
+      ulong have_access= 0;
       if (grant_table)
       {
         GRANT_COLUMN *grant_column=
           column_hash_search(grant_table, field_name,
                              (uint) strlen(field_name));
         if (grant_column)
-        {
-          using_column_privileges= TRUE;
-          want_access&= ~grant_column->rights;
-        }
+          have_access= grant_column->rights;
       }
       if (grant_table_role)
       {
@@ -6255,13 +6254,12 @@ bool check_grant_all_columns(THD *thd, ulong want_access_arg,
           column_hash_search(grant_table_role, field_name,
                              (uint) strlen(field_name));
         if (grant_column)
-        {
-          using_column_privileges= TRUE;
-          want_access&= ~grant_column->rights;
-        }
+          have_access|= grant_column->rights;
       }
 
-      if (!want_access)
+      if (have_access)
+        using_column_privileges= TRUE;
+      if (want_access & ~have_access)
         goto err;
     }
   }
@@ -6580,8 +6578,10 @@ ulong get_column_grant(THD *thd, GRANT_INFO *grant,
     grant->version= grant_version;              /* purecov: inspected */
   }
 
-  if (!(grant_table= grant->grant_table_user) &&
-      !(grant_table_role= grant->grant_table_role))
+  grant_table= grant->grant_table_user;
+  grant_table_role= grant->grant_table_role;
+
+  if (!grant_table && !grant_table_role)
     priv= grant->privilege;
   else
   {
