@@ -1837,6 +1837,65 @@ static uchar* check_get_key(ACL_USER *buff, size_t *length,
   return (uchar*) buff->host.hostname;
 }
 
+static void acl_update_role(const char *rolename,
+                            ulong privileges)
+{
+  ACL_ROLE *role;
+  ulong unused;
+  mysql_mutex_assert_owner(&acl_cache->lock);
+
+  role= find_acl_role(rolename);
+  if (!role)
+  {
+    return;
+  }
+
+  /*
+     Changing privileges of a role causes all other roles that had
+     this role granted to them to have their rights invalidated.
+
+     We need to rebuild all roles' related access bits.
+  */
+
+  role->initial_role_access= privileges;
+  role->flags&= ~ROLE_GRANTS_FINAL;
+  role->access= role->initial_role_access;
+  get_role_access(role, &unused);
+
+  for (uint i= 0; i < role->parent_grantee.elements; i++)
+  {
+    ACL_USER_BASE *acl_user_base;
+    ACL_ROLE *grantee;
+    acl_user_base= *(dynamic_element(&role->parent_grantee, i, ACL_USER_BASE**));
+    if (acl_user_base->flags & IS_ROLE)
+    {
+      grantee= (ACL_ROLE *)acl_user_base;
+      grantee->flags&= ~ROLE_GRANTS_FINAL;
+      grantee->access= grantee->initial_role_access;
+    }
+  }
+  /*
+     This needs to be run again after resetting the ROLE_GRANTS_FINAL flag,
+     because otherwise diamond shaped grants will interfere with the reset
+     process.
+
+     Example: RoleA -> RoleB; RoleA -> RoleC; RoleB -> RoleC;
+     We are updating RoleC, and we reset RoleA first. If we were to run
+     get_role_access without resetting RoleB on RoleA, we would get the old
+     privileges from RoleC via RoleB into RoleA.
+  */
+  for (uint i= 0; i < role->parent_grantee.elements; i++)
+  {
+    ACL_USER_BASE *acl_user_base;
+    ACL_ROLE *grantee;
+    acl_user_base= *(dynamic_element(&role->parent_grantee, i, ACL_USER_BASE**));
+    if (acl_user_base->flags & IS_ROLE)
+    {
+      grantee= (ACL_ROLE *)acl_user_base;
+      get_role_access(grantee, &unused);
+    }
+  }
+}
 
 static void acl_update_user(const char *user, const char *host,
 			    const char *password, uint password_len,
@@ -1850,6 +1909,12 @@ static void acl_update_user(const char *user, const char *host,
 			    const LEX_STRING *auth)
 {
   mysql_mutex_assert_owner(&acl_cache->lock);
+
+  if (host[0] == '\0' && find_acl_role(user))
+  {
+    acl_update_role(user, privileges);
+    return;
+  }
 
   for (uint i=0 ; i < acl_users.elements ; i++)
   {
@@ -3180,10 +3245,10 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
       if ((error=
            table->file->ha_update_row(table->record[1],table->record[0])) &&
           error != HA_ERR_RECORD_IS_THE_SAME)
-      {						// This should never happen
-        table->file->print_error(error,MYF(0));	/* purecov: deadcode */
-        error= -1;				/* purecov: deadcode */
-        goto end;				/* purecov: deadcode */
+      {                                         // This should never happen
+        table->file->print_error(error,MYF(0)); /* purecov: deadcode */
+        error= -1;                              /* purecov: deadcode */
+        goto end;                               /* purecov: deadcode */
       }
       else
         error= 0;
