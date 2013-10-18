@@ -648,7 +648,12 @@ static void init_role_grant_pair(MEM_ROOT *mem, ROLE_GRANT_PAIR *entry,
 #define ROLE_ASSIGN_COLUMN_IDX  42
 /* various flags valid for ACL_USER */
 #define IS_ROLE                 (1L << 0)
+/* Flag to mark that a ROLE has been visited in a DEPTH_FIRST_SEARCH */
 #define ROLE_VISITED            (1L << 1)
+/*
+   Flag to mark that the ROLE's access bits are final, having been inherited
+   from other granted roles
+ */
 #define ROLE_GRANTS_FINAL       (1L << 2)
 
 
@@ -2236,6 +2241,7 @@ my_bool acl_user_reset_grant(ACL_USER *user,
 my_bool get_role_access(ACL_ROLE *role, ulong *access)
 {
   DBUG_ENTER("get_role_access");
+  DBUG_PRINT("enter",("role: '%s'", role->user.str));
   DBUG_ASSERT(role);
   DBUG_ASSERT(access);
   /*
@@ -2252,6 +2258,7 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
   if (role->flags & ROLE_GRANTS_FINAL)
   {
     *access= role->access;
+    DBUG_PRINT("exit", ("Role access: %lu", *access));
     DBUG_RETURN(FALSE);
   }
 
@@ -2267,7 +2274,7 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
   state.node_data= role;
   role->flags|= ROLE_VISITED;
 
-  (void) my_init_dynamic_array(&stack,sizeof(NODE_STATE), 20, 50, MYF(0));
+  (void) my_init_dynamic_array(&stack, sizeof(NODE_STATE), 20, 50, MYF(0));
   push_dynamic(&stack, &state);
 
   while (stack.elements)
@@ -2277,8 +2284,9 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
 
     DBUG_ASSERT(curr_state->node_data->flags & ROLE_VISITED);
 
-    ACL_ROLE *current= state.node_data;
+    ACL_ROLE *current= curr_state->node_data;
     ACL_ROLE *neighbour= NULL;
+    DBUG_PRINT("info", ("Examining role %s", current->user.str));
     /*
       Iterate through the neighbours until a first valid jump-to
       neighbour is found
@@ -2289,11 +2297,13 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
          i < current->role_grants.elements && found == FALSE; i++)
     {
       neighbour= *(dynamic_element(&current->role_grants, i, ACL_ROLE**));
+      DBUG_PRINT("info", ("Examining neighbour role %s", neighbour->user.str));
 
       /* check if it forms a cycle */
       if (neighbour->flags & ROLE_VISITED)
       {
         /* TODO the edge needs to be ignored */
+        DBUG_PRINT("info", ("Found cycle"));
         continue;
       }
 
@@ -2303,6 +2313,7 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
       */
       if (neighbour->flags & ROLE_GRANTS_FINAL)
       {
+        DBUG_PRINT("info", ("Neighbour access is final, merging"));
         current->access|= neighbour->access;
         continue;
       }
@@ -2313,6 +2324,7 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
          pointer is valid
       */
       found= TRUE;
+      break;
     }
 
     if (found)
@@ -2344,6 +2356,9 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
       curr_state->node_data->flags|= ROLE_GRANTS_FINAL;
       /* Add the own role's rights once it's finished exploring */
       curr_state->node_data->access|= curr_state->node_data->initial_role_access;
+      DBUG_PRINT("info",
+                 ("Setting final access for node: %s %lu",
+                  curr_state->node_data->user.str, curr_state->node_data->access));
     }
   }
 
@@ -2352,7 +2367,8 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
   delete_dynamic(&stack);
   /* Finally set the access */
   *access= role->access;
-  DBUG_RETURN(0);
+  DBUG_PRINT("exit", ("Role access: %lu", *access));
+  DBUG_RETURN(FALSE);
 }
 
 /*
