@@ -29,9 +29,9 @@ create procedure mysql.test_proc (OUT param1 INT)
 begin
 select COUNT(*) into param1 from mysql.roles_mapping;
 end|
-grant execute on function mysql.test_func to test_role2@'';
-grant execute on procedure mysql.test_proc to test_role2@'';
-grant execute on mysql.* to test_role3@'';
+grant execute on function mysql.test_func to test_role2;
+grant execute on procedure mysql.test_proc to test_role2;
+grant execute on mysql.* to test_role3;
 flush privileges;
 show grants;
 Grants for test_user@localhost
@@ -97,9 +97,9 @@ SELECT test_func('AABBCCDD');
 test_func('AABBCCDD')
 Test string: AABBCCDD
 drop user 'test_user'@'localhost';
-revoke execute on function mysql.test_func from test_role2@'';
-revoke execute on procedure mysql.test_proc from test_role2@'';
-revoke execute on mysql.* from test_role3@'';
+revoke execute on function mysql.test_func from test_role2;
+revoke execute on procedure mysql.test_proc from test_role2;
+revoke execute on mysql.* from test_role3;
 delete from mysql.user where user like'test_%';
 delete from mysql.roles_mapping where RoleFk like 'test%';
 drop function mysql.test_func;

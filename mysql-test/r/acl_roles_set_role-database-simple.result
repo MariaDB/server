@@ -1,6 +1,5 @@
 create user 'test_user'@'localhost';
-create user 'test_role1'@'';
-update mysql.user set is_role='Y' where user='test_role1';
+create role test_role1;
 insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
 'test_user',
 'test_role1');
@@ -12,9 +11,9 @@ select * from mysql.roles_mapping;
 HostFk	UserFk	RoleFk
 localhost	test_user	test_role1
 flush privileges;
-grant select on mysql.* to test_role1@'';
-grant insert, delete on mysql.roles_mapping to test_role1@'';
-grant reload on *.* to test_role1@'';
+grant select on mysql.* to test_role1;
+grant insert, delete on mysql.roles_mapping to test_role1;
+grant reload on *.* to test_role1;
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 select current_user(), current_role();
@@ -51,8 +50,8 @@ ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 'ro
 delete from mysql.roles_mapping where RoleFk='test_role2';
 ERROR 42000: DELETE command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 drop user 'test_user'@'localhost';
-revoke select on mysql.* from test_role1@'';
-revoke insert, delete on mysql.roles_mapping from test_role1@'';
-delete from mysql.user where user='test_role1';
+revoke select on mysql.* from test_role1;
+revoke insert, delete on mysql.roles_mapping from test_role1;
+drop role test_role1;
 delete from mysql.roles_mapping where RoleFk='test_role1';
 flush privileges;
