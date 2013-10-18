@@ -5469,12 +5469,11 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     if (!(~tl->grant.privilege & want_access))
       continue;
 
-    if (want_access & ~((grant_table ? grant_table->cols : 0) |
+    if ((want_access&= ~((grant_table ? grant_table->cols : 0) |
                         (grant_table_role ? grant_table_role->cols : 0) |
-                        tl->grant.privilege))
+                        tl->grant.privilege)))
     {
-      want_access &= ~(grant_table->cols | tl->grant.privilege);
-      goto err;					// impossible
+      goto err;                                 // impossible
     }
   }
   if (locked)
