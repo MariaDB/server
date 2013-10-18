@@ -2237,7 +2237,7 @@ my_bool get_role_access(ACL_USER *role, ulong *access)
     {
       neighbour= *(dynamic_element(&current->role_grants, i, ACL_USER**));
       /* check if the neighbour is a role; pass if not*/
-      if (!(neighbour->flags & ~IS_ROLE))
+      if (!(neighbour->flags & IS_ROLE))
         continue;
 
       /* check if it forms a cycle */
