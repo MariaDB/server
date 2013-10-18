@@ -130,6 +130,16 @@ public:
     return (insert_dynamic(&array, (uchar*)&el));
   }
 
+  bool push(Elem &el)
+  {
+    return append(el);
+  }
+
+  Elem *pop()
+  {
+    return (Elem*)pop_dynamic(&array);
+  }
+
   size_t elements()
   {
     return array.elements;
@@ -167,6 +177,12 @@ public:
   void sort(CMP_FUNC cmp_func)
   {
     my_qsort(array.buffer, array.elements, sizeof(Elem), (qsort_cmp)cmp_func);
+  }
+
+  typedef int (*CMP_FUNC2)(const Elem *el1, const Elem *el2, void *);
+  void sort(CMP_FUNC2 cmp_func, void *data)
+  {
+    my_qsort2(array.buffer, array.elements, sizeof(Elem), (qsort2_cmp)cmp_func, data);
   }
 };
 
