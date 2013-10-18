@@ -3256,8 +3256,12 @@ static int replace_db_table(TABLE *table, const char *db,
   /* Check if there is such a user in user table in memory? */
   if (!find_user_no_anon(combo.host.str,combo.user.str, FALSE))
   {
-    my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH), MYF(0));
-    DBUG_RETURN(-1);
+    /* The user could be a role, check if the user is registered as a role */
+    if (!combo.host.length && !find_acl_role(combo.user.str))
+    {
+      my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH), MYF(0));
+      DBUG_RETURN(-1);
+    }
   }
 
   table->use_all_columns();
