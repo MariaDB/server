@@ -2250,6 +2250,7 @@ ulong acl_get(const char *host, const char *ip,
           db_access=acl_db->access;
           if (acl_db->host.hostname)
             goto exit;                          // Fully specified. Take it
+          /* the host table is not used for roles */
           if ((!host || !host[0]) && !acl_db->host.hostname && find_acl_role(user))
             goto exit;
           break; /* purecov: tested */
