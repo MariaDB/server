@@ -636,7 +636,8 @@ static void rebuild_check_host(void);
 static void rebuild_role_grants(void);
 static void free_acl_user(ACL_USER *acl_user);
 static ACL_USER *find_user_no_anon(const char *host, const char *user,
-                               my_bool exact);
+                                   my_bool exact);
+static ACL_USER *find_user(const char *host, const char *user, const char *ip);
 static ACL_USER *find_acl_role(const char *user);
 static bool update_user_table(THD *thd, TABLE *table, const char *host,
                               const char *user, const char *new_password,
@@ -2409,6 +2410,26 @@ bool is_acl_user(const char *host, const char *user)
   res= find_user_no_anon(host, user, TRUE) != NULL;
   mysql_mutex_unlock(&acl_cache->lock);
   return res;
+}
+
+
+static ACL_USER *
+find_user(const char *host, const char *user, const char *ip)
+{
+  ACL_USER *result= NULL;
+  mysql_mutex_assert_owner(&acl_cache->lock);
+  for (uint i=0; i < acl_users.elements; i++)
+  {
+    ACL_USER *acl_user_tmp= dynamic_element(&acl_users, i, ACL_USER*);
+    if ((!acl_user_tmp->user.str ||
+         !strcmp(user, acl_user_tmp->user.str)) &&
+         compare_hostname(&acl_user_tmp->host, host, ip))
+    {
+      result= acl_user_tmp;
+      break;
+    }
+  }
+  return result;
 }
 
 
@@ -8703,17 +8724,11 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
   DBUG_ASSERT(mpvio->acl_user == 0);
 
   mysql_mutex_lock(&acl_cache->lock);
-  for (uint i=0; i < acl_users.elements; i++)
-  {
-    ACL_USER *acl_user_tmp= dynamic_element(&acl_users, i, ACL_USER*);
-    if ((!acl_user_tmp->user.str ||
-         !strcmp(sctx->user, acl_user_tmp->user.str)) &&
-         compare_hostname(&acl_user_tmp->host, sctx->host, sctx->ip))
-    {
-      mpvio->acl_user= acl_user_tmp->copy(mpvio->thd->mem_root);
-      break;
-    }
-  }
+
+  ACL_USER *user= find_user(sctx->host, sctx->user, sctx->ip);
+  if (user)
+    mpvio->acl_user= user->copy(&mem);
+
   mysql_mutex_unlock(&acl_cache->lock);
 
   if (!mpvio->acl_user)
