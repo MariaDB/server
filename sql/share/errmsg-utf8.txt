@@ -6572,5 +6572,3 @@ ER_INVALID_CURRENT_USER
 ER_INVALID_ROLE_COMMAND
 	eng "Unable to execute role related command. The user table is in invalid format."
 	rum "Comanda asupra rolurilor nu poate fi executate. Tabelul "user" este in format invalid."
-ER_ROLE_AS_USER
-	eng "The role '%s' is marked as a user '%s'@''

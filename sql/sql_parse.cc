@@ -3728,22 +3728,26 @@ end_with_restore_list:
   }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   case SQLCOM_CREATE_USER:
+  case SQLCOM_CREATE_ROLE:
   {
     if (check_access(thd, INSERT_ACL, "mysql", NULL, NULL, 1, 1) &&
         check_global_access(thd,CREATE_USER_ACL))
       break;
     /* Conditionally writes to binlog */
-    if (!(res= mysql_create_user(thd, lex->users_list)))
+    if (!(res= mysql_create_user(thd, lex->users_list,
+                                 lex->sql_command == SQLCOM_CREATE_ROLE)))
       my_ok(thd);
     break;
   }
   case SQLCOM_DROP_USER:
+  case SQLCOM_DROP_ROLE:
   {
     if (check_access(thd, DELETE_ACL, "mysql", NULL, NULL, 1, 1) &&
         check_global_access(thd,CREATE_USER_ACL))
       break;
     /* Conditionally writes to binlog */
-    if (!(res= mysql_drop_user(thd, lex->users_list)))
+    if (!(res= mysql_drop_user(thd, lex->users_list,
+                               lex->sql_command == SQLCOM_DROP_ROLE)))
       my_ok(thd);
     break;
   }
@@ -3754,26 +3758,6 @@ end_with_restore_list:
       break;
     /* Conditionally writes to binlog */
     if (!(res= mysql_rename_user(thd, lex->users_list)))
-      my_ok(thd);
-    break;
-  }
-  case SQLCOM_CREATE_ROLE:
-  {
-    if (check_access(thd, INSERT_ACL, "mysql", NULL, NULL, 1, 1) &&
-        check_global_access(thd,CREATE_USER_ACL))
-      break;
-    /* Conditionally writes to binlog */
-    if (!(res= mysql_create_role(thd, lex->users_list)))
-      my_ok(thd);
-    break;
-  }
-  case SQLCOM_DROP_ROLE:
-  {
-    if (check_access(thd, DELETE_ACL, "mysql", NULL, NULL, 1, 1) &&
-        check_global_access(thd,CREATE_USER_ACL))
-      break;
-    /* Conditionally writes to binlog */
-    if (!(res= mysql_drop_role(thd, lex->users_list)))
       my_ok(thd);
     break;
   }
