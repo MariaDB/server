@@ -4106,7 +4106,7 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
                                          fix_rights_for_column(priv))))
       {
         /* Don't use this entry */
-        privs= cols= 0;                       /* purecov: deadcode */
+        privs= cols= init_privs= init_cols=0;   /* purecov: deadcode */
         return;				/* purecov: deadcode */
       }
       if (my_hash_insert(&hash_columns, (uchar *) mem_check))
@@ -5396,6 +5396,7 @@ static my_bool grant_load_procs_priv(TABLE *p_table)
       }
 
       mem_check->privs= fix_rights_for_procedure(mem_check->privs);
+      mem_check->init_privs= mem_check->privs;
       if (! mem_check->ok())
         delete mem_check;
       else if (my_hash_insert(hash, (uchar*) mem_check))
@@ -5788,7 +5789,7 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
                                    tl->get_table_name(),
                                    FALSE);
     if (sctx->priv_role[0])
-      grant_table_role= table_hash_search("", "", tl->get_db_name(),
+      grant_table_role= table_hash_search("", NULL, tl->get_db_name(),
                                           sctx->priv_role,
                                           tl->get_table_name(),
                                           TRUE);
@@ -5889,7 +5890,7 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
 			sctx->priv_user,
 			table_name, 0);         /* purecov: inspected */
     grant->grant_table_role=
-      sctx->priv_role[0] ? table_hash_search("", "", db_name,
+      sctx->priv_role[0] ? table_hash_search("", NULL, db_name,
                                              sctx->priv_role,
                                              table_name, TRUE) : NULL;
     grant->version= grant_version;		/* purecov: inspected */
@@ -6061,7 +6062,7 @@ bool check_grant_all_columns(THD *thd, ulong want_access_arg,
                               sctx->priv_user,
                               table_name, 0);	/* purecov: inspected */
           grant->grant_table_role=
-            sctx->priv_role[0] ? table_hash_search("", "", db_name,
+            sctx->priv_role[0] ? table_hash_search("", NULL, db_name,
                                                    sctx->priv_role,
                                                    table_name, TRUE) : NULL;
           grant->version= grant_version;	/* purecov: inspected */
@@ -6140,6 +6141,12 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
     {
       return FALSE;
     }
+    if (sctx->priv_role[0] && strcmp(item->user, sctx->priv_role) == 0 &&
+        strcmp(item->db, db) == 0 &&
+        (!item->host.hostname || !item->host.hostname[0]))
+    {
+      return FALSE; /* Found current role match */
+    }
   }
 
   return TRUE;
@@ -6152,11 +6159,12 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
   Return 1 if access is denied
 */
 
-bool check_grant_db(THD *thd,const char *db)
+bool check_grant_db(THD *thd, const char *db)
 {
   Security_context *sctx= thd->security_ctx;
   char helping [SAFE_NAME_LEN + USERNAME_LENGTH+2], *end;
-  uint len;
+  char helping2 [SAFE_NAME_LEN + USERNAME_LENGTH+2];
+  uint len, len2;
   bool error= TRUE;
 
   end= strmov(helping, sctx->priv_user) + 1;
@@ -6166,6 +6174,18 @@ bool check_grant_db(THD *thd,const char *db)
     return 1;                           // no privileges for an invalid db name
 
   len= (uint) (end - helping) + 1;
+
+  /*
+     If a role is set, we need to check for privileges
+     here aswell
+  */
+  if (sctx->priv_role[0])
+  {
+    end= strmov(helping2, sctx->priv_role) + 1;
+    end= strnmov(end, db, helping2 + sizeof(helping2) - end);
+    len2= (uint) (end - helping2) + 1;
+  }
+
 
   mysql_rwlock_rdlock(&LOCK_grant);
 
@@ -6179,6 +6199,14 @@ bool check_grant_db(THD *thd,const char *db)
         compare_hostname(&grant_table->host, sctx->host, sctx->ip))
     {
       error= FALSE; /* Found match. */
+      break;
+    }
+    if (sctx->priv_role[0] &&
+        len2 < grant_table->key_length &&
+        !memcmp(grant_table->hash_key,helping,len) &&
+        (!grant_table->host.hostname || !grant_table->host.hostname[0]))
+    {
+      error= FALSE; /* Found role match */
       break;
     }
   }
@@ -6217,6 +6245,7 @@ bool check_grant_routine(THD *thd, ulong want_access,
   Security_context *sctx= thd->security_ctx;
   char *user= sctx->priv_user;
   char *host= sctx->priv_host;
+  char *role= sctx->priv_role;
   DBUG_ENTER("check_grant_routine");
 
   want_access&= ~sctx->master_access;
@@ -6230,6 +6259,12 @@ bool check_grant_routine(THD *thd, ulong want_access,
     if ((grant_proc= routine_hash_search(host, sctx->ip, table->db, user,
 					 table->table_name, is_proc, 0)))
       table->grant.privilege|= grant_proc->privs;
+    if (role[0]) /* current role set check */
+    {
+      if ((grant_proc= routine_hash_search("", NULL, table->db, role,
+                                           table->table_name, is_proc, 0)))
+      table->grant.privilege|= grant_proc->privs;
+    }
 
     if (want_access & ~table->grant.privilege)
     {
@@ -6287,6 +6322,15 @@ bool check_routine_level_acl(THD *thd, const char *db, const char *name,
                                        sctx->priv_user,
                                        name, is_proc, 0)))
     no_routine_acl= !(grant_proc->privs & SHOW_PROC_ACLS);
+
+  if (sctx->priv_role[0]) /* current set role check */
+  {
+    if ((grant_proc= routine_hash_search("",
+                                         NULL, db,
+                                         sctx->priv_role,
+                                         name, is_proc, 0)))
+      no_routine_acl= !(grant_proc->privs & SHOW_PROC_ACLS);
+  }
   mysql_rwlock_unlock(&LOCK_grant);
   return no_routine_acl;
 }
