@@ -14309,13 +14309,6 @@ grant_command:
             lex->sql_command= SQLCOM_GRANT;
             lex->type= TYPE_ENUM_PROXY;
           }
-        | grant_privileges TO_SYM grant_list
-          {
-            LEX *lex= Lex;
-            lex->sql_command= SQLCOM_GRANT_ROLE;
-            lex->type= 0;
-            printf("Need to grant privileges to a role / user\n");
-          }
         | grant_role TO_SYM grant_list_with_roles
           {
             LEX *lex= Lex;
