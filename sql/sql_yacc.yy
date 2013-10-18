@@ -2218,6 +2218,10 @@ create:
           {
             Lex->sql_command = SQLCOM_CREATE_USER;
           }
+        | CREATE ROLE_SYM clear_privileges role_list
+          {
+            Lex->sql_command = SQLCOM_CREATE_ROLE;
+          }
         | CREATE LOGFILE_SYM GROUP_SYM logfile_group_info 
           {
             Lex->alter_tablespace_info->ts_cmd_type= CREATE_LOGFILE_GROUP;
@@ -14318,6 +14322,12 @@ grant_command:
           }
 
         ;
+
+role_list:
+          grant_role
+          {}
+        | role_list ',' grant_role
+          {}
 
 grant_role:
           IDENT_sys             {$$=$1;}
