@@ -231,6 +231,15 @@ public:
     instance of the class represents a role.
   */
   DYNAMIC_ARRAY role_grants;
+  /*
+    In case of granting a role to a role, the access bits are merged together
+    via a bit OR operation and placed in the ACL_USER::access field.
+
+    When rebuilding role_grants via the rebuild_role_grant function,
+    the ACL_USER::access field needs to be reset aswell. The field
+    initial_role_access holds the initial grants present in the table row.
+  */
+  ulong initial_role_access;
 
   ACL_USER *copy(MEM_ROOT *root)
   {
@@ -1130,6 +1139,8 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
         DBUG_PRINT("info", ("Found role %s", user.user.str));
         ACL_USER *entry= user.copy(&mem);
         entry->role_grants = user.role_grants;
+        /* set initial role access the same as the table row privileges */
+        entry->initial_role_access = entry->access;
         my_hash_insert(&acl_roles, (uchar *)entry);
         HASH_SEARCH_STATE t;
         entry= (ACL_USER *) my_hash_first(&acl_roles,
