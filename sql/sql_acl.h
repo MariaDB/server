@@ -175,6 +175,9 @@ extern bool mysql_user_table_is_in_short_password_format;
 
 extern const char *HOST_NOT_SPECIFIED;
 extern const char *NONE_ROLE;
+extern LEX_USER current_user;
+extern LEX_USER current_role;
+extern LEX_USER current_user_and_current_role;
 
 
 static inline int access_denied_error_code(int passwd_used)
@@ -227,7 +230,7 @@ ulong get_table_grant(THD *thd, TABLE_LIST *table);
 ulong get_column_grant(THD *thd, GRANT_INFO *grant,
                        const char *db_name, const char *table_name,
                        const char *field_name);
-bool mysql_show_grants(THD *thd, LEX_USER *user, bool print_current_role);
+bool mysql_show_grants(THD *thd, LEX_USER *user);
 void get_privilege_desc(char *to, uint max_length, ulong access);
 void get_mqh(const char *user, const char *host, USER_CONN *uc);
 bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);

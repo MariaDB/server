@@ -910,6 +910,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  CUBE_SYM                      /* SQL-2003-R */
 %token  CURDATE                       /* MYSQL-FUNC */
 %token  CURRENT_USER                  /* SQL-2003-R */
+%token  CURRENT_ROLE                  /* SQL-2003-R */
 %token  CURRENT_POS_SYM
 %token  CURSOR_SYM                    /* SQL-2003-R */
 %token  CURSOR_NAME_SYM               /* SQL-2003-N */
@@ -11757,12 +11758,8 @@ show_param:
         | GRANTS
           {
             LEX *lex=Lex;
-            lex->sql_command= SQLCOM_SHOW_GRANTS_SELF;
-            LEX_USER *curr_user;
-            if (!(curr_user= (LEX_USER*) lex->thd->alloc(sizeof(st_lex_user))))
-              MYSQL_YYABORT;
-            bzero(curr_user, sizeof(st_lex_user));
-            lex->grant_user= curr_user;
+            lex->sql_command= SQLCOM_SHOW_GRANTS;
+            lex->grant_user= &current_user_and_current_role;
           }
         | GRANTS FOR_SYM user
           {
@@ -11770,6 +11767,12 @@ show_param:
             lex->sql_command= SQLCOM_SHOW_GRANTS;
             lex->grant_user=$3;
             lex->grant_user->password=null_lex_str;
+          }
+        | GRANTS FOR_SYM CURRENT_ROLE optional_braces
+          {
+            LEX *lex=Lex;
+            lex->sql_command= SQLCOM_SHOW_GRANTS;
+            lex->grant_user= &current_role;
           }
         | CREATE DATABASE opt_if_not_exists ident
           {
@@ -13201,14 +13204,7 @@ user:
           }
         | CURRENT_USER optional_braces
           {
-            if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
-              MYSQL_YYABORT;
-            /*
-              empty LEX_USER means current_user and
-              will be handled in the  get_current_user() function
-              later
-            */
-            bzero($$, sizeof(LEX_USER));
+            $$= &current_user;
           }
         ;
 
