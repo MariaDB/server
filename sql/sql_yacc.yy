@@ -14271,6 +14271,14 @@ revoke_command:
             lex->sql_command= SQLCOM_REVOKE;
             lex->type= TYPE_ENUM_PROXY;
           } 
+        | grant_role FROM grant_list_with_roles
+          {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_REVOKE_ROLE;
+            lex->type= 0;
+            printf("The rolename to be revoked is: %s\n", $1.str);
+          }
+
         ;
 
 grant:
