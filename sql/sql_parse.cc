@@ -419,6 +419,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_DROP_USER]|=         CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_RENAME_USER]|=       CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_CREATE_ROLE]|=       CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_DROP_ROLE]|=         CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_REVOKE_ALL]=         CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_REVOKE]|=            CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_REVOKE_ROLE]|=       CF_AUTO_COMMIT_TRANS;
@@ -518,7 +519,8 @@ static void handle_bootstrap_impl(THD *thd)
 
   thd_proc_info(thd, 0);
   thd->security_ctx->user= (char*) my_strdup("boot", MYF(MY_WME));
-  thd->security_ctx->priv_user[0]= thd->security_ctx->priv_host[0]=0;
+  thd->security_ctx->priv_user[0]= thd->security_ctx->priv_host[0]=
+    thd->security_ctx->priv_role[0]= 0;
   /*
     Make the "client" handle multiple results. This is necessary
     to enable stored procedures with SELECTs and Dynamic SQL

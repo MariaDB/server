@@ -326,12 +326,12 @@ void delete_dynamic_element(DYNAMIC_ARRAY *array, uint idx)
   element, before releasing the memory
 
   SYNOPSIS
-    delete_dynamic_recursive()
+    delete_dynamic_with_callback()
       array
       f          The function to be called on every element before
                  deleting the array;
 */
-void delete_dynamic_recursive(DYNAMIC_ARRAY *array, FREE_FUNC f) {
+void delete_dynamic_with_callback(DYNAMIC_ARRAY *array, FREE_FUNC f) {
   uint i;
   char *ptr= (char*) array->buffer;
   for (i= 0; i < array->elements; i++, ptr+= array->size_of_element) {

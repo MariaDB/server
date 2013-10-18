@@ -794,7 +794,7 @@ extern my_bool allocate_dynamic(DYNAMIC_ARRAY *array, uint max_elements);
 extern void get_dynamic(DYNAMIC_ARRAY *array,uchar * element,uint array_index);
 extern void delete_dynamic(DYNAMIC_ARRAY *array);
 extern void delete_dynamic_element(DYNAMIC_ARRAY *array, uint array_index);
-extern void delete_dynamic_recursive(DYNAMIC_ARRAY *array, FREE_FUNC f);
+extern void delete_dynamic_with_callback(DYNAMIC_ARRAY *array, FREE_FUNC f);
 extern void freeze_size(DYNAMIC_ARRAY *array);
 extern int  get_index_dynamic(DYNAMIC_ARRAY *array, uchar * element);
 #define dynamic_array_ptr(array,array_index) ((array)->buffer+(array_index)*(array)->size_of_element)
