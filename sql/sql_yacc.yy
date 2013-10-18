@@ -1570,7 +1570,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <symbol> keyword keyword_sp
 
-%type <lex_user> user grant_user grant_role
+%type <lex_user> user grant_user grant_role user_or_role
 
 %type <charset>
         opt_collate
@@ -1624,7 +1624,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_option opt_place
         opt_attribute opt_attribute_list attribute column_list column_list_id
         opt_column_list grant_privileges grant_ident grant_list grant_option
-        object_privilege object_privilege_list user_list rename_list
+        object_privilege object_privilege_list user_list user_and_role_list
+        rename_list
         clear_privileges flush_options flush_option
         opt_with_read_lock flush_options_list
         equal optional_braces
@@ -13208,6 +13209,16 @@ user:
           }
         ;
 
+user_or_role:
+          user
+          {
+            $$=$1;
+          }
+        | CURRENT_ROLE optional_braces
+          {
+            $$= &current_role;
+          }
+
 /* Keyword that we allow for identifiers (except SP labels) */
 keyword:
           keyword_sp            {}
@@ -14240,8 +14251,8 @@ revoke_command:
             lex->users_list.push_front ($3);
             lex->sql_command= SQLCOM_REVOKE;
             lex->type= TYPE_ENUM_PROXY;
-          } 
-        | grant_role FROM grant_list
+          }
+        | grant_role FROM user_and_role_list
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_REVOKE_ROLE;
@@ -14294,11 +14305,13 @@ grant_command:
             lex->sql_command= SQLCOM_GRANT;
             lex->type= TYPE_ENUM_PROXY;
           }
-        | grant_role TO_SYM grant_list
+        | grant_role TO_SYM user_and_role_list
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_GRANT_ROLE;
-            lex->type= 0;
+            /* The first role is the one that is granted */
+            if (Lex->users_list.push_front($1))
+              MYSQL_YYABORT;
           }
 
         ;
@@ -14332,6 +14345,10 @@ grant_role:
                                          username_char_length,
                                          system_charset_info, 0))
               MYSQL_YYABORT;
+          }
+        | CURRENT_ROLE optional_braces
+          {
+            $$=&current_role;
           }
         ;
 
@@ -14516,6 +14533,19 @@ grant_list:
               MYSQL_YYABORT;
           }
         | grant_list ',' grant_user
+          {
+            if (Lex->users_list.push_back($3))
+              MYSQL_YYABORT;
+          }
+        ;
+
+user_and_role_list:
+          user_or_role
+          {
+            if (Lex->users_list.push_back($1))
+              MYSQL_YYABORT;
+          }
+        | user_and_role_list ',' user_or_role
           {
             if (Lex->users_list.push_back($3))
               MYSQL_YYABORT;

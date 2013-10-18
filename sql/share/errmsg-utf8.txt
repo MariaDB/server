@@ -6569,3 +6569,9 @@ ER_INVALID_ROLE
 ER_INVALID_CURRENT_USER
 	eng "The current user is invalid."
 	rum "Utilizatorul curent este invalid."
+ER_RESERVED_ROLE
+	eng "Role name '%s' is reserved."
+	rum "Numele de rol '%s' este rezervat."
+ER_CANNOT_GRANT_ROLE
+	eng "Cannot grant role '%s' to: %s."
+	rum "Rolul '%s' nu poate fi acordat catre: %s."
