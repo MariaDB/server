@@ -1204,7 +1204,6 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       if (is_role) {
         DBUG_PRINT("info", ("Found role %s", user.user.str));
         ACL_ROLE *entry= new (&mem) ACL_ROLE(&user, &mem);
-          //create_role_from_user(&mem, &user);
         entry->role_grants = user.role_grants;
         (void) my_init_dynamic_array(&entry->parent_grantee,
                                      sizeof(ACL_USER_BASE *), 50, 100, MYF(0));
