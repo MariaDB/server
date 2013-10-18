@@ -13,8 +13,8 @@ flush privileges;
 use mysql;
 select * from roles_mapping;
 HostFk	UserFk	RoleFk
-localhost	test_user	test_role1
 	test_role1	test_role2
+localhost	test_user	test_role1
 rename user 'test_user'@'localhost' to 'test_user_rm'@'newhost';
 select user, host from user where user like 'test%';
 user	host
@@ -23,8 +23,8 @@ test_role2
 test_user_rm	newhost
 select * from roles_mapping;
 HostFk	UserFk	RoleFk
-newhost	test_user_rm	test_role1
 	test_role1	test_role2
+newhost	test_user_rm	test_role1
 rename user 'test_role2'@'' to 'test_role2_rm'@'';
 select user, host from user where user like 'test%';
 user	host
@@ -33,8 +33,8 @@ test_role2_rm
 test_user_rm	newhost
 select * from roles_mapping;
 HostFk	UserFk	RoleFk
-newhost	test_user_rm	test_role1
 	test_role1	test_role2_rm
+newhost	test_user_rm	test_role1
 rename user 'test_role1'@'' to 'test_role1_rm'@'';
 select user, host from user where user like 'test%';
 user	host
@@ -43,8 +43,8 @@ test_role2_rm
 test_user_rm	newhost
 select * from roles_mapping;
 HostFk	UserFk	RoleFk
-newhost	test_user_rm	test_role1_rm
 	test_role1_rm	test_role2_rm
+newhost	test_user_rm	test_role1_rm
 delete from mysql.roles_mapping;
 delete from mysql.user where user like 'test%';
 flush privileges;
