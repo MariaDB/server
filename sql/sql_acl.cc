@@ -1144,9 +1144,6 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
         /* set initial role access the same as the table row privileges */
         entry->initial_role_access = entry->access;
         my_hash_insert(&acl_roles, (uchar *)entry);
-        HASH_SEARCH_STATE t;
-        entry= (ACL_USER *) my_hash_first(&acl_roles,
-                             (uchar *)entry->user.str, entry->user.length, &t);
 
         continue;
       }
