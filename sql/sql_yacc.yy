@@ -11001,6 +11001,10 @@ drop:
           {
             Lex->sql_command = SQLCOM_DROP_USER;
           }
+        | DROP ROLE_SYM clear_privileges opt_if_exists role_list
+          {
+            Lex->sql_command = SQLCOM_DROP_ROLE;
+          }
         | DROP VIEW_SYM opt_if_exists
           {
             LEX *lex= Lex;
