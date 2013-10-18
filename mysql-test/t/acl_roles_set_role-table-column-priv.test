@@ -11,8 +11,6 @@ select * from mysql.roles_mapping;
 
 grant select (Role) on mysql.roles_mapping to test_role2;
 
-flush privileges;
-
 change_user 'test_user';
 
 --error ER_TABLEACCESS_DENIED_ERROR

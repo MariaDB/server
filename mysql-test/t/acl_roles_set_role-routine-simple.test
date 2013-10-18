@@ -29,8 +29,6 @@ grant execute on procedure mysql.test_proc to test_role2;
 
 grant execute on mysql.* to test_role3;
 
-flush privileges;
-
 change_user 'test_user';
 --sorted_result
 show grants;
