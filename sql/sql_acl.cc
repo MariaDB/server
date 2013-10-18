@@ -658,7 +658,10 @@ static my_bool acl_user_reset_grant(ACL_USER *user,
                                     void * not_used __attribute__((unused)));
 static my_bool acl_role_reset_grant(ACL_USER *role,
                                     void * not_used __attribute__((unused)));
+static my_bool acl_role_propagate_grants(ACL_USER *role,
+                                         void * not_used __attribute__((unused)));
 static int add_role_user_mapping(ROLE_GRANT_PAIR *mapping);
+static my_bool get_role_access(ACL_USER *role, ulong *access, my_bool use_initial);
 
 /*
  Enumeration of various ACL's and Hashes used in handle_grant_struct()
@@ -1298,6 +1301,9 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 
     free_root(&temp_root, MYF(0));
     end_read_record(&read_record_info);
+
+    my_hash_iterate(&acl_roles,
+                    (my_hash_walk_action) acl_role_propagate_grants, NULL);
 
     if (!initialized)
       mysql_mutex_unlock(&acl_cache->lock);
@@ -2119,6 +2125,15 @@ void rebuild_check_host(void)
   init_check_host();
 }
 
+static my_bool acl_role_propagate_grants(ACL_USER *role,
+                                         void * not_used __attribute__((unused)))
+{
+  ulong access;
+  get_role_access(role, &access, TRUE);
+  role->access= access;
+  return 0;
+}
+
 /*
   Reset a role role_grants dynamic array.
   Also, the role's access bits are reset to the ones present in the table.
@@ -2144,6 +2159,60 @@ my_bool acl_user_reset_grant(ACL_USER *user,
 {
   reset_dynamic(&user->role_grants);
   return 0;
+}
+
+/*
+  The function scans through all roles granted to the role passed as argument
+  and places the permissions in the access variable.
+
+  Return values:
+    TRUE: Error or invalid parameteres
+    FALSE: All ok;
+*/
+my_bool get_role_access(ACL_USER *role, ulong *access, my_bool use_initial)
+{
+  DBUG_ENTER("get_role_access");
+  if (!role || !access)
+    DBUG_RETURN(1);
+
+  ulong result= 0;
+  HASH explored;        /* temporary hash table to hold all explored roles */
+  List<ACL_USER *> queue;
+
+  (void) my_hash_init2(&explored,50,system_charset_info,
+                       0,0,0, (my_hash_get_key) acl_role_get_key,
+                       NULL, 0);
+  my_hash_insert(&explored, (uchar*) role);
+  queue.push_back(&role);
+  while (!queue.is_empty())
+  {
+    ACL_USER *current= *queue.pop();
+    result|= (use_initial) ? current->initial_role_access : current->access;
+    for (uint i=0 ; i < current->role_grants.elements ; i++)
+    {
+      ACL_USER *neighbour= *(dynamic_element(&current->role_grants,
+                                             i, ACL_USER**));
+      /* check if the neighbour is a role; pass if not*/
+      if (neighbour->host.hostname ||
+          !find_acl_role(neighbour->user.str ? current->user.str : ""))
+        continue;
+
+      /* check if it was already explored */
+      HASH_SEARCH_STATE t;
+      if (my_hash_first(&explored, (uchar *)neighbour->user.str,
+                        neighbour->user.length, &t))
+        continue;
+
+      /* add it to the TO-DO exploration queue */
+      queue.push_back(&neighbour);
+      my_hash_insert(&explored, (uchar *)neighbour);
+    }
+  }
+
+  my_hash_free(&explored);
+
+  *access= result;
+  DBUG_RETURN(0);
 }
 
 /*
@@ -2229,6 +2298,9 @@ void rebuild_role_grants(void)
     */
      DBUG_ASSERT(status >= 0);
   }
+
+  my_hash_iterate(&acl_roles,
+                  (my_hash_walk_action) acl_role_propagate_grants, NULL);
 
   DBUG_VOID_RETURN;
 }
