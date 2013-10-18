@@ -2580,7 +2580,6 @@ struct LEX: public Query_tables_list
     this command.
   */
   bool parse_vcol_expr;
-  bool with_persistent_for_clause; // uses PERSISTENT FOR clause (in ANALYZE)
 
   enum SSL_type ssl_type;			/* defined in violite.h */
   enum enum_duplicates duplicates;
@@ -2589,6 +2588,8 @@ struct LEX: public Query_tables_list
   union {
     enum ha_rkey_function ha_rkey_mode;
     enum xa_option_words xa_opt;
+    bool with_admin_option;                     // GRANT role
+    bool with_persistent_for_clause; // uses PERSISTENT FOR clause (in ANALYZE)
   };
   enum enum_var_type option_type;
   enum enum_view_create_mode create_view_mode;

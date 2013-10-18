@@ -1,0 +1,19 @@
+create user foo@localhost;
+create role role1;
+create role role2 with admin current_user;
+create role role3 with admin current_role;
+create role role4 with admin root@localhost;
+create role role5 with admin foo@localhost;
+create role role6 with admin foo@bar;
+create user bar with admin current_user;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'admin current_user' at line 1
+grant role1 to foo@localhost with admin option;
+grant role2 to role1;
+grant role3 to role4 with admin option;
+grant select on *.* to foo@localhost with admin option;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'admin option' at line 1
+revoke role1 from foo@localhost;
+revoke admin option for role3 from role4;
+revoke admin option for role2 from role1;
+drop role role1, role2, role3, role4, role5, role6;
+drop user foo@localhost;

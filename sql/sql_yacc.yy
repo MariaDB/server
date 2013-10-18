@@ -800,7 +800,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
    MYSQL-FUNC : MySQL extention, function
    INTERNAL   : Not a real token, lex optimization
    OPERATOR   : SQL operator
-   FUTURE-USE : Reserved for futur use
+   FUTURE-USE : Reserved for future use
 
    This makes the code grep-able, and helps maintenance.
 */
@@ -809,6 +809,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  ACCESSIBLE_SYM
 %token  ACTION                        /* SQL-2003-N */
 %token  ADD                           /* SQL-2003-R */
+%token  ADMIN_SYM                     /* SQL-2003-N */
 %token  ADDDATE_SYM                   /* MYSQL-FUNC */
 %token  AFTER_SYM                     /* SQL-2003-N */
 %token  AGAINST
@@ -1571,6 +1572,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <symbol> keyword keyword_sp
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
+                 admin_option_for_role
 
 %type <charset>
         opt_collate
@@ -1601,7 +1603,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         show describe load alter optimize keycache preload flush
         reset purge begin commit rollback savepoint release
         slave master_def master_defs master_file_def slave_until_opts
-        repair analyze
+        repair analyze opt_with_admin opt_with_admin_option
         analyze_table_list analyze_table_elem_spec
         opt_persistent_stat_clause persistent_stat_spec
         persistent_column_stat_spec persistent_index_stat_spec
@@ -2218,7 +2220,7 @@ create:
           {
             Lex->sql_command = SQLCOM_CREATE_USER;
           }
-        | CREATE ROLE_SYM clear_privileges role_list
+        | CREATE ROLE_SYM clear_privileges role_list opt_with_admin
           {
             Lex->sql_command = SQLCOM_CREATE_ROLE;
           }
@@ -13297,6 +13299,7 @@ keyword:
 keyword_sp:
           ACTION                   {}
         | ADDDATE_SYM              {}
+        | ADMIN_SYM                {}
         | AFTER_SYM                {}
         | AGAINST                  {}
         | AGGREGATE_SYM            {}
@@ -14257,16 +14260,20 @@ revoke_command:
             lex->sql_command= SQLCOM_REVOKE;
             lex->type= TYPE_ENUM_PROXY;
           }
-        | grant_role FROM user_and_role_list
+        | admin_option_for_role FROM user_and_role_list
           {
-            LEX *lex= Lex;
-            lex->sql_command= SQLCOM_REVOKE_ROLE;
-            /* The first role is the one that is revoked */
+            Lex->sql_command= SQLCOM_REVOKE_ROLE;
             if (Lex->users_list.push_front($1))
               MYSQL_YYABORT;
           }
-
         ;
+
+admin_option_for_role:
+        ADMIN_SYM OPTION FOR_SYM grant_role
+        { Lex->with_admin_option= true; $$= $4; }
+      | grant_role
+        { Lex->with_admin_option= false; $$= $1; }
+      ;
 
 grant:
           GRANT clear_privileges grant_command
@@ -14312,7 +14319,7 @@ grant_command:
             lex->sql_command= SQLCOM_GRANT;
             lex->type= TYPE_ENUM_PROXY;
           }
-        | grant_role TO_SYM user_and_role_list
+        | grant_role TO_SYM user_and_role_list opt_with_admin_option
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_GRANT_ROLE;
@@ -14322,6 +14329,14 @@ grant_command:
           }
 
         ;
+
+opt_with_admin:
+           /* nothing */               { Lex->definer = 0; }
+         | WITH ADMIN_SYM user_or_role { Lex->definer = $3; }
+
+opt_with_admin_option:
+           /* nothing */               { Lex->with_admin_option= false; }
+         | WITH ADMIN_SYM OPTION       { Lex->with_admin_option= true; }
 
 role_list:
           grant_role
