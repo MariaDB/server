@@ -189,6 +189,7 @@ LEX_STRING *default_auth_plugin_name= &native_password_plugin_name;
   usernames. Example: userA  -- userA@%
 */
 LEX_STRING host_not_specified= { C_STRING_WITH_LEN("%") };
+
 /*
   Constant used in the SET ROLE NONE command
 */
@@ -359,16 +360,14 @@ public:
        bool with_grant_arg)
   {
     user= (user_arg && *user_arg) ? user_arg : NULL;
-    update_hostname (&host,
-                     (host_arg && *host_arg) ? host_arg : NULL);
+    update_hostname (&host, (host_arg && *host_arg) ? host_arg : NULL);
     proxied_user= (proxied_user_arg && *proxied_user_arg) ?
       proxied_user_arg : NULL;
     update_hostname (&proxied_host,
                      (proxied_host_arg && *proxied_host_arg) ?
                      proxied_host_arg : NULL);
     with_grant= with_grant_arg;
-    sort= get_sort(4, host.hostname, user,
-                   proxied_host.hostname, proxied_user);
+    sort= get_sort(4, host.hostname, user, proxied_host.hostname, proxied_user);
   }
 
   void init(MEM_ROOT *mem, const char *host_arg, const char *user_arg,
@@ -432,16 +431,9 @@ public:
                         "compare_hostname(%s,%s,%s) &&"
                         "wild_compare (%s,%s) &&"
                         "wild_compare (%s,%s)",
-                        host.hostname ? host.hostname : "<NULL>",
-                        host_arg ? host_arg : "<NULL>",
-                        ip_arg ? ip_arg : "<NULL>",
-                        proxied_host.hostname ? proxied_host.hostname : "<NULL>",
-                        host_arg ? host_arg : "<NULL>",
-                        ip_arg ? ip_arg : "<NULL>",
-                        user_arg ? user_arg : "<NULL>",
-                        user ? user : "<NULL>",
-                        proxied_user_arg ? proxied_user_arg : "<NULL>",
-                        proxied_user ? proxied_user : "<NULL>"));
+                        host.hostname, host_arg, ip_arg, proxied_host.hostname,
+                        host_arg, ip_arg, user_arg, user,
+                        proxied_user_arg, proxied_user));
     DBUG_RETURN(compare_hostname(&host, host_arg, ip_arg) &&
                 compare_hostname(&proxied_host, host_arg, ip_arg) &&
                 (!user ||
@@ -465,21 +457,16 @@ public:
                         "strcmp(%s,%s) &&"
                         "wild_compare (%s,%s) &&"
                         "wild_compare (%s,%s)",
-                        user ? user : "<NULL>",
-                        grant->user ? grant->user : "<NULL>",
-                        proxied_user ? proxied_user : "<NULL>",
-                        grant->proxied_user ? grant->proxied_user : "<NULL>",
-                        host.hostname ? host.hostname : "<NULL>",
-                        grant->host.hostname ? grant->host.hostname : "<NULL>",
-                        proxied_host.hostname ? proxied_host.hostname : "<NULL>",
-                        grant->proxied_host.hostname ?
-                        grant->proxied_host.hostname : "<NULL>"));
+                        user, grant->user, proxied_user, grant->proxied_user,
+                        host.hostname, grant->host.hostname,
+                        proxied_host.hostname, grant->proxied_host.hostname));
 
-    DBUG_RETURN(auth_element_equals(user, grant->user) &&
-                auth_element_equals(proxied_user, grant->proxied_user) &&
-                auth_element_equals(host.hostname, grant->host.hostname) &&
-                auth_element_equals(proxied_host.hostname,
-                                    grant->proxied_host.hostname));
+    bool res= auth_element_equals(user, grant->user) &&
+              auth_element_equals(proxied_user, grant->proxied_user) &&
+              auth_element_equals(host.hostname, grant->host.hostname) &&
+              auth_element_equals(proxied_host.hostname,
+                                  grant->proxied_host.hostname);
+    DBUG_RETURN(res);
   }
 
 
@@ -524,10 +511,8 @@ public:
   {
     DBUG_ENTER("ACL_PROXY_USER::store_pk");
     DBUG_PRINT("info", ("host=%s, user=%s, proxied_host=%s, proxied_user=%s",
-                        host->str ? host->str : "<NULL>",
-                        user->str ? user->str : "<NULL>",
-                        proxied_host->str ? proxied_host->str : "<NULL>",
-                        proxied_user->str ? proxied_user->str : "<NULL>"));
+                        host->str, user->str,
+                        proxied_host->str, proxied_user->str));
     if (table->field[MYSQL_PROXIES_PRIV_HOST]->store(host->str,
                                                    host->length,
                                                    system_charset_info))
@@ -5124,10 +5109,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     }
     else if (tables[2].table)
     {
-      if ((replace_column_table(grant_table, tables[2].table, *Str,
-				columns,
-				db_name, table_name,
-				rights, revoke_grant)))
+      if (replace_column_table(grant_table, tables[2].table, *Str, columns,
+                               db_name, table_name, rights, revoke_grant))
       {
 	result= TRUE;
       }
@@ -5744,11 +5727,9 @@ static my_bool grant_load_procs_priv(TABLE *p_table)
                                                            THR_MALLOC);
   DBUG_ENTER("grant_load_procs_priv");
   (void) my_hash_init(&proc_priv_hash, &my_charset_utf8_bin,
-                      0,0,0, (my_hash_get_key) get_grant_table,
-                      0,0);
+                      0,0,0, (my_hash_get_key) get_grant_table, 0,0);
   (void) my_hash_init(&func_priv_hash, &my_charset_utf8_bin,
-                      0,0,0, (my_hash_get_key) get_grant_table,
-                      0,0);
+                      0,0,0, (my_hash_get_key) get_grant_table, 0,0);
 
   if (p_table->file->ha_index_init(0, 1))
     DBUG_RETURN(TRUE);
@@ -7926,7 +7907,7 @@ static int modify_grant_table(TABLE *table, Field *host_field,
   privileges, column privileges, function and procedures privileges
 */
 
-void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source)
+static void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source)
 {
   DBUG_ASSERT(source->flags & ROLE_GRANTS_FINAL);
 
@@ -8110,8 +8091,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
   Field *role_field= table->field[2];
 
   DBUG_PRINT("info", ("Rewriting entry in roles_mappings table: %s@%s",
-                      user_from->user.str,
-                      user_from->host.str));
+                      user_from->user.str, user_from->host.str));
   table->use_all_columns();
   if ((error= table->file->ha_rnd_init(1)))
   {
@@ -8199,6 +8179,8 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
     2 tables_priv
     3 columns_priv
     4 procs_priv
+    5 proxies_priv
+    6 roles_mapping
 
   RETURN
     > 0         At least one record matched.
@@ -8214,8 +8196,8 @@ static int handle_grant_table(TABLE_LIST *tables, uint table_no, bool drop,
   TABLE *table= tables[table_no].table;
   Field *host_field= table->field[0];
   Field *user_field= table->field[table_no && table_no != 5 ? 2 : 1];
-  char *host_str= user_from->host.str;
-  char *user_str= user_from->user.str;
+  const char *host_str= user_from->host.str;
+  const char *user_str= user_from->user.str;
   const char *host;
   const char *user;
   uchar user_key[MAX_KEY_LENGTH];
@@ -8366,9 +8348,9 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   int result= 0;
   int idx;
   int elements;
-  const char *user;
-  const char *host;
-  const char *role;
+  const char *UNINIT_VAR(user);
+  const char *UNINIT_VAR(host);
+  const char *UNINIT_VAR(role);
   uint role_not_matched= 1;
   ACL_USER *acl_user= NULL;
   ACL_ROLE *acl_role= NULL;
@@ -8382,14 +8364,14 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   DBUG_PRINT("info",("scan struct: %u  search: '%s'@'%s'",
                      struct_no, user_from->user.str, user_from->host.str));
 
-  LINT_INIT(user);
-  LINT_INIT(host);
-  LINT_INIT(role);
-
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  /* No point in querying ROLE ACL if the user_from is not a role */
+  /* No point in querying ROLE ACL if user_from is not a role */
   if (struct_no == ROLE_ACL && user_from->host.length)
+    DBUG_RETURN(0);
+
+  /* same. no roles in PROXY_USERS_ACL */
+  if (struct_no == PROXY_USERS_ACL && !user_from->host.length)
     DBUG_RETURN(0);
 
   if (struct_no == ROLE_ACL) //no need to scan the structures in this case
@@ -10201,9 +10183,7 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
   Security_context *sctx= thd->security_ctx;
   DBUG_ENTER("fill_effective_table_privileges");
   DBUG_PRINT("enter", ("Host: '%s', Ip: '%s', User: '%s', table: `%s`.`%s`",
-                       sctx->priv_host, (sctx->ip ? sctx->ip : "(NULL)"),
-                       (sctx->priv_user ? sctx->priv_user : "(NULL)"),
-                       db, table));
+                       sctx->priv_host, sctx->ip, sctx->priv_user, db, table));
   /* --skip-grants */
   if (!initialized)
   {

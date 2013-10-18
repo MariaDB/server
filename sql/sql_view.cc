@@ -39,8 +39,7 @@
 
 const LEX_STRING view_type= { C_STRING_WITH_LEN("VIEW") };
 
-static int mysql_register_view(THD *thd, TABLE_LIST *view,
-			       enum_view_create_mode mode);
+static int mysql_register_view(THD *, TABLE_LIST *, enum_view_create_mode);
 
 /*
   Make a unique name for an anonymous view column
@@ -466,60 +465,9 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   }
 
   sp_cache_invalidate();
+  if (sp_process_definer(thd))
+    goto err;
 
-  if (!lex->definer)
-  {
-    /*
-      DEFINER-clause is missing; we have to create default definer in
-      persistent arena to be PS/SP friendly.
-      If this is an ALTER VIEW then the current user should be set as
-      the definer.
-    */
-    Query_arena original_arena;
-    Query_arena *ps_arena = thd->activate_stmt_arena_if_needed(&original_arena);
-
-    if (!(lex->definer= create_default_definer(thd)))
-      res= TRUE;
-
-    if (ps_arena)
-      thd->restore_active_arena(ps_arena, &original_arena);
-
-    if (res)
-      goto err;
-  }
-
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  /*
-    check definer of view:
-      - same as current user
-      - current user has SUPER_ACL
-  */
-  if (lex->definer &&
-      (strcmp(lex->definer->user.str, thd->security_ctx->priv_user) != 0 ||
-       my_strcasecmp(system_charset_info,
-                     lex->definer->host.str,
-                     thd->security_ctx->priv_host) != 0))
-  {
-    if (!(thd->security_ctx->master_access & SUPER_ACL))
-    {
-      my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "SUPER");
-      res= TRUE;
-      goto err;
-    }
-    else
-    {
-      if (!is_acl_user(lex->definer->host.str,
-                       lex->definer->user.str))
-      {
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
-                            ER_NO_SUCH_USER,
-                            ER(ER_NO_SUCH_USER),
-                            lex->definer->user.str,
-                            lex->definer->host.str);
-      }
-    }
-  }
-#endif
   /*
     check that tables are not temporary  and this VIEW do not used in query
     (it is possible with ALTERing VIEW).
@@ -1069,18 +1017,15 @@ err:
 bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
                      uint flags)
 {
-  SELECT_LEX *end, *view_select;
+  SELECT_LEX *end, *UNINIT_VAR(view_select);
   LEX *old_lex, *lex;
   Query_arena *arena, backup;
   TABLE_LIST *top_view= table->top_table();
-  bool parse_status;
+  bool UNINIT_VAR(parse_status);
   bool result, view_is_mergeable;
   TABLE_LIST *UNINIT_VAR(view_main_select_tables);
   DBUG_ENTER("mysql_make_view");
   DBUG_PRINT("info", ("table: 0x%lx (%s)", (ulong) table, table->table_name));
-
-  LINT_INIT(parse_status);
-  LINT_INIT(view_select);
 
   if (table->view)
   {

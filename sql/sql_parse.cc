@@ -1804,7 +1804,6 @@ static void reset_one_shot_variables(THD *thd)
 }
 
 
-static
 bool sp_process_definer(THD *thd)
 {
   DBUG_ENTER("sp_process_definer");
@@ -3766,9 +3765,6 @@ end_with_restore_list:
     if (check_access(thd, UPDATE_ACL, "mysql", NULL, NULL, 1, 1) &&
         check_global_access(thd,CREATE_USER_ACL))
       break;
-
-    /* Replicate current user as grantor */
-    thd->binlog_invoker();
 
     /* Conditionally writes to binlog */
     if (!(res = mysql_revoke_all(thd, lex->users_list)))

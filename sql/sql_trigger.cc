@@ -663,46 +663,8 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     return 1;
   }
 
-  if (!lex->definer)
-  {
-    /*
-      DEFINER-clause is missing.
-
-      If we are in slave thread, this means that we received CREATE TRIGGER
-      from the master, that does not support definer in triggers. So, we
-      should mark this trigger as non-SUID. Note that this does not happen
-      when we parse triggers' definitions during opening .TRG file.
-      LEX::definer is ignored in that case.
-
-      Otherwise, we should use CURRENT_USER() as definer.
-
-      NOTE: when CREATE TRIGGER statement is allowed to be executed in PS/SP,
-      it will be required to create the definer below in persistent MEM_ROOT
-      of PS/SP.
-    */
-
-    if (!thd->slave_thread)
-    {
-      if (!(lex->definer= create_default_definer(thd)))
-        return 1;
-    }
-  }
-
-  /*
-    If the specified definer differs from the current user, we should check
-    that the current user has SUPER privilege (in order to create trigger
-    under another user one must have SUPER privilege).
-  */
-  
-  if (lex->definer &&
-      (strcmp(lex->definer->user.str, thd->security_ctx->priv_user) ||
-       my_strcasecmp(system_charset_info,
-                     lex->definer->host.str,
-                     thd->security_ctx->priv_host)))
-  {
-    if (check_global_access(thd, SUPER_ACL))
-      return TRUE;
-  }
+  if (sp_process_definer(thd))
+    return 1;
 
   /*
     Let us check if all references to fields in old/new versions of row in
@@ -794,20 +756,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
 
   *trg_sql_mode= thd->variables.sql_mode;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (lex->definer && !is_acl_user(lex->definer->host.str,
-                                   lex->definer->user.str))
-  {
-    push_warning_printf(thd,
-                        MYSQL_ERROR::WARN_LEVEL_NOTE,
-                        ER_NO_SUCH_USER,
-                        ER(ER_NO_SUCH_USER),
-                        lex->definer->user.str,
-                        lex->definer->host.str);
-  }
-#endif /* NO_EMBEDDED_ACCESS_CHECKS */
-
-  if (lex->definer)
+  if (lex->sphead->m_chistics->suid != SP_IS_NOT_SUID)
   {
     /* SUID trigger. */
 
@@ -854,7 +803,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
 
   stmt_query->append(STRING_WITH_LEN("CREATE "));
 
-  if (trg_definer)
+  if (lex->sphead->m_chistics->suid != SP_IS_NOT_SUID)
   {
     /*
       Append definer-clause if the trigger is SUID (a usual trigger in

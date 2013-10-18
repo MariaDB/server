@@ -50,7 +50,8 @@ db_load_routine(THD *thd, stored_procedure_type type, sp_name *name,
                 sp_head **sphp,
                 ulonglong sql_mode, const char *params, const char *returns,
                 const char *body, st_sp_chistics &chistics,
-                const char *definer, longlong created, longlong modified,
+                LEX_STRING *definer_user_name, LEX_STRING *definer_host_name,
+                longlong created, longlong modified,
                 Stored_program_creation_ctx *creation_ctx);
 
 static const
@@ -548,6 +549,10 @@ db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
   ulonglong sql_mode, saved_mode= thd->variables.sql_mode;
   Open_tables_backup open_tables_state_backup;
   Stored_program_creation_ctx *creation_ctx;
+  char definer_user_name_holder[USERNAME_LENGTH + 1];
+  LEX_STRING definer_user_name= { definer_user_name_holder, USERNAME_LENGTH };
+  char definer_host_name_holder[HOSTNAME_LENGTH + 1];
+  LEX_STRING definer_host_name= { definer_host_name_holder, HOSTNAME_LENGTH };
 
   DBUG_ENTER("db_find_routine");
   DBUG_PRINT("enter", ("type: %d name: %.*s",
@@ -657,9 +662,14 @@ db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
   close_system_tables(thd, &open_tables_state_backup);
   table= 0;
 
+  parse_user(definer, strlen(definer),
+             definer_user_name.str, &definer_user_name.length,
+             definer_host_name.str, &definer_host_name.length);
+
   ret= db_load_routine(thd, type, name, sphp,
                        sql_mode, params, returns, body, chistics,
-                       definer, created, modified, creation_ctx);
+                       &definer_user_name, &definer_host_name,
+                       created, modified, creation_ctx);
  done:
   /* 
     Restore the time zone flag as the timezone usage in proc table
@@ -804,7 +814,8 @@ db_load_routine(THD *thd, stored_procedure_type type,
                 sp_name *name, sp_head **sphp,
                 ulonglong sql_mode, const char *params, const char *returns,
                 const char *body, st_sp_chistics &chistics,
-                const char *definer, longlong created, longlong modified,
+                LEX_STRING *definer_user_name, LEX_STRING *definer_host_name,
+                longlong created, longlong modified,
                 Stored_program_creation_ctx *creation_ctx)
 {
   LEX *old_lex= thd->lex, newlex;
@@ -814,21 +825,11 @@ db_load_routine(THD *thd, stored_procedure_type type,
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
   bool cur_db_changed;
   Bad_db_error_handler db_not_exists_handler;
-  char definer_user_name_holder[USERNAME_LENGTH + 1];
-  LEX_STRING definer_user_name= { definer_user_name_holder,
-                                  USERNAME_LENGTH };
-
-  char definer_host_name_holder[HOSTNAME_LENGTH + 1];
-  LEX_STRING definer_host_name= { definer_host_name_holder, HOSTNAME_LENGTH };
 
   int ret= 0;
 
   thd->lex= &newlex;
   newlex.current_select= NULL;
-
-  parse_user(definer, strlen(definer),
-             definer_user_name.str, &definer_user_name.length,
-             definer_host_name.str, &definer_host_name.length);
 
   defstr.set_charset(creation_ctx->get_client_cs());
 
@@ -845,7 +846,7 @@ db_load_routine(THD *thd, stored_procedure_type type,
                      params, strlen(params),
                      returns, strlen(returns),
                      body, strlen(body),
-                     &chistics, &definer_user_name, &definer_host_name,
+                     &chistics, definer_user_name, definer_host_name,
                      sql_mode))
   {
     ret= SP_INTERNAL_ERROR;
@@ -895,7 +896,7 @@ db_load_routine(THD *thd, stored_procedure_type type,
       goto end;
     }
 
-    (*sphp)->set_definer(&definer_user_name, &definer_host_name);
+    (*sphp)->set_definer(definer_user_name, definer_host_name);
     (*sphp)->set_info(created, modified, &chistics, sql_mode);
     (*sphp)->set_creation_ctx(creation_ctx);
     (*sphp)->optimize();
@@ -1648,7 +1649,6 @@ sp_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
     ulong level;
     sp_head *new_sp;
     const char *returns= "";
-    char definer[USER_HOST_BUFF_SIZE];
 
     /*
       String buffer for RETURNS data type must have system charset;
@@ -1685,8 +1685,6 @@ sp_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
       DBUG_RETURN(0);
     }
 
-    strxmov(definer, sp->m_definer_user.str, "@",
-            sp->m_definer_host.str, NullS);
     if (type == TYPE_ENUM_FUNCTION)
     {
       sp_returns_type(thd, retstr, sp);
@@ -1694,7 +1692,8 @@ sp_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
     }
     if (db_load_routine(thd, type, name, &new_sp,
                         sp->m_sql_mode, sp->m_params.str, returns,
-                        sp->m_body.str, *sp->m_chistics, definer,
+                        sp->m_body.str, *sp->m_chistics,
+                        &sp->m_definer_user, &sp->m_definer_host,
                         sp->m_created, sp->m_modified,
                         sp->get_creation_ctx()) == SP_OK)
     {
