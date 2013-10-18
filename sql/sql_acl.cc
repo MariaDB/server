@@ -309,6 +309,9 @@ static bool compare_hostname(const acl_host_and_ip *host, const char *hostname,
 			     const char *ip);
 static bool show_proxy_grants (THD *thd, LEX_USER *user,
                                char *buff, size_t buffsize);
+static bool show_global_privileges(THD *thd, LEX_USER *lex_user,
+                                   ACL_USER_BASE *acl_entry, bool handle_as_role,
+                                   char *buff, size_t buffsize);
 
 class ACL_PROXY_USER :public ACL_ACCESS
 {
@@ -6297,122 +6300,11 @@ bool mysql_show_grants(THD *thd,LEX_USER *lex_user)
   }
 
   /* Add first global access grants */
+  if (show_global_privileges(thd, lex_user, acl_user, FALSE, buff, sizeof(buff)))
   {
-    String global(buff,sizeof(buff),system_charset_info);
-    global.length(0);
-    global.append(STRING_WITH_LEN("GRANT "));
-
-    want_access= acl_user->access;
-    if (test_all_bits(want_access, (GLOBAL_ACLS & ~ GRANT_ACL)))
-      global.append(STRING_WITH_LEN("ALL PRIVILEGES"));
-    else if (!(want_access & ~GRANT_ACL))
-      global.append(STRING_WITH_LEN("USAGE"));
-    else
-    {
-      bool found=0;
-      ulong j,test_access= want_access & ~GRANT_ACL;
-      for (counter=0, j = SELECT_ACL;j <= GLOBAL_ACLS;counter++,j <<= 1)
-      {
-	if (test_access & j)
-	{
-	  if (found)
-	    global.append(STRING_WITH_LEN(", "));
-	  found=1;
-	  global.append(command_array[counter],command_lengths[counter]);
-	}
-      }
-    }
-    global.append (STRING_WITH_LEN(" ON *.* TO '"));
-    global.append(lex_user->user.str, lex_user->user.length,
-		  system_charset_info);
-    global.append (STRING_WITH_LEN("'@'"));
-    global.append(lex_user->host.str,lex_user->host.length,
-		  system_charset_info);
-    global.append ('\'');
-    if (acl_user->plugin.str == native_password_plugin_name.str ||
-        acl_user->plugin.str == old_password_plugin_name.str)
-    {
-      if (acl_user->auth_string.length)
-      {
-        DBUG_ASSERT(acl_user->salt_len);
-        global.append(STRING_WITH_LEN(" IDENTIFIED BY PASSWORD '"));
-        global.append(acl_user->auth_string.str, acl_user->auth_string.length);
-        global.append('\'');
-      }
-    }
-    else
-    {
-        global.append(STRING_WITH_LEN(" IDENTIFIED VIA "));
-        global.append(acl_user->plugin.str, acl_user->plugin.length);
-        if (acl_user->auth_string.length)
-        {
-          global.append(STRING_WITH_LEN(" USING '"));
-          global.append(acl_user->auth_string.str, acl_user->auth_string.length);
-          global.append('\'');
-        }
-    }
-    /* "show grants" SSL related stuff */
-    if (acl_user->ssl_type == SSL_TYPE_ANY)
-      global.append(STRING_WITH_LEN(" REQUIRE SSL"));
-    else if (acl_user->ssl_type == SSL_TYPE_X509)
-      global.append(STRING_WITH_LEN(" REQUIRE X509"));
-    else if (acl_user->ssl_type == SSL_TYPE_SPECIFIED)
-    {
-      int ssl_options = 0;
-      global.append(STRING_WITH_LEN(" REQUIRE "));
-      if (acl_user->x509_issuer)
-      {
-	ssl_options++;
-	global.append(STRING_WITH_LEN("ISSUER \'"));
-	global.append(acl_user->x509_issuer,strlen(acl_user->x509_issuer));
-	global.append('\'');
-      }
-      if (acl_user->x509_subject)
-      {
-	if (ssl_options++)
-	  global.append(' ');
-	global.append(STRING_WITH_LEN("SUBJECT \'"));
-	global.append(acl_user->x509_subject,strlen(acl_user->x509_subject),
-                      system_charset_info);
-	global.append('\'');
-      }
-      if (acl_user->ssl_cipher)
-      {
-	if (ssl_options++)
-	  global.append(' ');
-	global.append(STRING_WITH_LEN("CIPHER '"));
-	global.append(acl_user->ssl_cipher,strlen(acl_user->ssl_cipher),
-                      system_charset_info);
-	global.append('\'');
-      }
-    }
-    if ((want_access & GRANT_ACL) ||
-	(acl_user->user_resource.questions ||
-         acl_user->user_resource.updates ||
-         acl_user->user_resource.conn_per_hour ||
-         acl_user->user_resource.user_conn))
-    {
-      global.append(STRING_WITH_LEN(" WITH"));
-      if (want_access & GRANT_ACL)
-	global.append(STRING_WITH_LEN(" GRANT OPTION"));
-      add_user_option(&global, acl_user->user_resource.questions,
-		      "MAX_QUERIES_PER_HOUR", 0);
-      add_user_option(&global, acl_user->user_resource.updates,
-		      "MAX_UPDATES_PER_HOUR", 0);
-      add_user_option(&global, acl_user->user_resource.conn_per_hour,
-		      "MAX_CONNECTIONS_PER_HOUR", 0);
-      add_user_option(&global, acl_user->user_resource.user_conn,
-		      "MAX_USER_CONNECTIONS", 1);
-    }
-    protocol->prepare_for_resend();
-    protocol->store(global.ptr(),global.length(),global.charset());
-    if (protocol->write())
-    {
-      error= -1;
-      goto end;
-    }
-  }
-
+    error= -1;
+    goto end;
+  };
   /* Add database access */
   for (counter=0 ; counter < acl_dbs.elements ; counter++)
   {
@@ -6623,6 +6515,136 @@ end:
 
   my_eof(thd);
   DBUG_RETURN(error);
+}
+
+static bool show_global_privileges(THD *thd, LEX_USER *lex_user,
+                                  ACL_USER_BASE *acl_entry, bool handle_as_role,
+                                  char *buff, size_t buffsize)
+{
+  uint counter;
+  ulong want_access;
+  Protocol *protocol= thd->protocol;
+
+  String global(buff,sizeof(buff),system_charset_info);
+  global.length(0);
+  global.append(STRING_WITH_LEN("GRANT "));
+
+  want_access= acl_entry->access;
+  if (test_all_bits(want_access, (GLOBAL_ACLS & ~ GRANT_ACL)))
+    global.append(STRING_WITH_LEN("ALL PRIVILEGES"));
+  else if (!(want_access & ~GRANT_ACL))
+    global.append(STRING_WITH_LEN("USAGE"));
+  else
+  {
+    bool found=0;
+    ulong j,test_access= want_access & ~GRANT_ACL;
+    for (counter=0, j = SELECT_ACL;j <= GLOBAL_ACLS;counter++,j <<= 1)
+    {
+      if (test_access & j)
+      {
+        if (found)
+          global.append(STRING_WITH_LEN(", "));
+        found=1;
+        global.append(command_array[counter],command_lengths[counter]);
+      }
+    }
+  }
+  global.append (STRING_WITH_LEN(" ON *.* TO '"));
+  global.append(lex_user->user.str, lex_user->user.length,
+                system_charset_info);
+
+  if (!handle_as_role)
+  {
+    ACL_USER *acl_user= (ACL_USER *)acl_entry;
+
+    global.append (STRING_WITH_LEN("'@'"));
+    global.append(lex_user->host.str, lex_user->host.length,
+                  system_charset_info);
+    global.append ('\'');
+
+    if (acl_user->plugin.str == native_password_plugin_name.str ||
+        acl_user->plugin.str == old_password_plugin_name.str)
+    {
+      if (acl_user->auth_string.length)
+      {
+        DBUG_ASSERT(acl_user->salt_len);
+        global.append(STRING_WITH_LEN(" IDENTIFIED BY PASSWORD '"));
+        global.append(acl_user->auth_string.str, acl_user->auth_string.length);
+        global.append('\'');
+      }
+    }
+    else
+    {
+      global.append(STRING_WITH_LEN(" IDENTIFIED VIA "));
+      global.append(acl_user->plugin.str, acl_user->plugin.length);
+      if (acl_user->auth_string.length)
+      {
+        global.append(STRING_WITH_LEN(" USING '"));
+        global.append(acl_user->auth_string.str, acl_user->auth_string.length);
+        global.append('\'');
+      }
+    }
+    /* "show grants" SSL related stuff */
+    if (acl_user->ssl_type == SSL_TYPE_ANY)
+      global.append(STRING_WITH_LEN(" REQUIRE SSL"));
+    else if (acl_user->ssl_type == SSL_TYPE_X509)
+      global.append(STRING_WITH_LEN(" REQUIRE X509"));
+    else if (acl_user->ssl_type == SSL_TYPE_SPECIFIED)
+    {
+      int ssl_options = 0;
+      global.append(STRING_WITH_LEN(" REQUIRE "));
+      if (acl_user->x509_issuer)
+      {
+        ssl_options++;
+        global.append(STRING_WITH_LEN("ISSUER \'"));
+        global.append(acl_user->x509_issuer,strlen(acl_user->x509_issuer));
+        global.append('\'');
+      }
+      if (acl_user->x509_subject)
+      {
+        if (ssl_options++)
+          global.append(' ');
+        global.append(STRING_WITH_LEN("SUBJECT \'"));
+        global.append(acl_user->x509_subject,strlen(acl_user->x509_subject),
+                      system_charset_info);
+        global.append('\'');
+      }
+      if (acl_user->ssl_cipher)
+      {
+        if (ssl_options++)
+          global.append(' ');
+        global.append(STRING_WITH_LEN("CIPHER '"));
+        global.append(acl_user->ssl_cipher,strlen(acl_user->ssl_cipher),
+                      system_charset_info);
+        global.append('\'');
+      }
+    }
+    if ((want_access & GRANT_ACL) ||
+        (acl_user->user_resource.questions ||
+         acl_user->user_resource.updates ||
+         acl_user->user_resource.conn_per_hour ||
+         acl_user->user_resource.user_conn))
+    {
+      global.append(STRING_WITH_LEN(" WITH"));
+      if (want_access & GRANT_ACL)
+        global.append(STRING_WITH_LEN(" GRANT OPTION"));
+      add_user_option(&global, acl_user->user_resource.questions,
+                      "MAX_QUERIES_PER_HOUR", 0);
+      add_user_option(&global, acl_user->user_resource.updates,
+                      "MAX_UPDATES_PER_HOUR", 0);
+      add_user_option(&global, acl_user->user_resource.conn_per_hour,
+                      "MAX_CONNECTIONS_PER_HOUR", 0);
+      add_user_option(&global, acl_user->user_resource.user_conn,
+                      "MAX_USER_CONNECTIONS", 1);
+    }
+  }
+  protocol->prepare_for_resend();
+  protocol->store(global.ptr(),global.length(),global.charset());
+  if (protocol->write())
+    return TRUE;
+
+  return FALSE;
+
 }
 
 static int show_routine_grants(THD* thd, LEX_USER *lex_user, HASH *hash,
