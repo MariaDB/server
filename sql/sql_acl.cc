@@ -2019,16 +2019,6 @@ static void acl_update_user(const char *user, const char *host,
 {
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  if (host[0] == '\0')
-  {
-    ACL_ROLE *acl_role= find_acl_role(user);
-    if (acl_role)
-    {
-      acl_update_role_entry(acl_role, privileges);
-      return;
-    }
-  }
-
   for (uint i=0 ; i < acl_users.elements ; i++)
   {
     ACL_USER *acl_user=dynamic_element(&acl_users,i,ACL_USER*);
@@ -5008,12 +4998,16 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       result= TRUE;
       continue;
     }
-    find_and_mark_as_role(Str);
+
+    bool handle_as_role= FALSE;
+    if (find_and_mark_as_role(Str))
+      handle_as_role= TRUE;
+
     /* Create user if needed */
     error=replace_user_table(thd, tables[0].table, *Str,
 			     0, revoke_grant, create_new_users,
                              test(thd->variables.sql_mode &
-                                  MODE_NO_AUTO_CREATE_USER), 0);
+                                  MODE_NO_AUTO_CREATE_USER), handle_as_role);
     if (error)
     {
       result= TRUE;				// Remember error
@@ -5215,12 +5209,16 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
       result= TRUE;
       continue;
     }
-    find_and_mark_as_role(Str);
+
+    bool handle_as_role= FALSE;
+    if (find_and_mark_as_role(Str))
+      handle_as_role=TRUE;
+
     /* Create user if needed */
     error=replace_user_table(thd, tables[0].table, *Str,
 			     0, revoke_grant, create_new_users,
                              test(thd->variables.sql_mode &
-                                  MODE_NO_AUTO_CREATE_USER), 0);
+                                  MODE_NO_AUTO_CREATE_USER), handle_as_role);
     if (error)
     {
       result= TRUE;				// Remember error
@@ -5566,12 +5564,14 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     if (tmp_Str->user.str == current_user.str && tmp_Str->password.str)
       Str->password= tmp_Str->password;
 
-    find_and_mark_as_role(Str);
+    bool handle_as_role= FALSE;
+    if (find_and_mark_as_role(Str))
+      handle_as_role= TRUE;
 
     if (replace_user_table(thd, tables[0].table, *Str,
                            (!db ? rights : 0), revoke_grant, create_new_users,
                            test(thd->variables.sql_mode &
-                                MODE_NO_AUTO_CREATE_USER), 0))
+                                MODE_NO_AUTO_CREATE_USER), handle_as_role))
       result= -1;
     else if (db)
     {
