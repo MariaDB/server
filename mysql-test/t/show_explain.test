@@ -1167,9 +1167,37 @@ reap;
 
 set debug_dbug=@old_debug;
 DROP TABLE t1,t2;
+drop table t0;
+
+--echo #
+--echo # MDEV-5148: Server crashes in print_explain on killing EXPLAIN EXTENDED
+--echo #
+create table t0 (a int not null);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (a int, b int);
+insert into t1 select a,a from t0;
+
+create table t2 as select * from t1;
+
+set @show_explain_probe_select_id=2;
+set debug_dbug='+d,show_explain_probe_best_ext_lim_search';
+send
+explain 
+select * from t0 
+where not exists ( select 1 from t1, t2 where t1.b=t2.b and t2.a=t0.a) and a is null;
+
+connection default;
+--source include/wait_condition.inc
+evalp kill query $thr2;
+
+connection con1;
+--error ER_QUERY_INTERRUPTED
+reap;
+
+drop table t0,t1,t2;
 
 --echo # End
-drop table t0;
 connection default;
 disconnect con1;
 set debug_sync='RESET';
