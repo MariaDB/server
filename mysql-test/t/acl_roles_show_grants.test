@@ -24,21 +24,25 @@ select user, host from mysql.db;
 grant select on mysql.* to test_role2;
 flush privileges;
 
+--sorted_result
 select * from information_schema.applicable_roles;
 
 change_user 'test_user';
 
+--sorted_result
 select * from information_schema.applicable_roles;
 
 --sorted_result
 show grants;
 select current_user(), current_role();
 set role test_role1;
+--sorted_result
 select * from information_schema.enabled_roles;
 select current_user(), current_role();
 --sorted_result
 show grants;
 set role none;
+--sorted_result
 select * from information_schema.enabled_roles;
 select current_user(), current_role();
 --sorted_result
@@ -60,6 +64,7 @@ show grants for CURRENT_ROLE;
 show grants for CURRENT_ROLE();
 
 set role test_role2;
+--sorted_result
 select * from information_schema.enabled_roles;
 select current_user(), current_role();
 --sorted_result

@@ -31,8 +31,8 @@ select * from information_schema.applicable_roles;
 GRANTEE	ROLE_NAME	IS_GRANTABLE
 select * from information_schema.applicable_roles;
 GRANTEE	ROLE_NAME	IS_GRANTABLE
-test_user@localhost	test_role1	YES
 test_role1	test_role2	YES
+test_user@localhost	test_role1	YES
 test_user@localhost	test_role2	YES
 show grants;
 Grants for test_user@localhost
@@ -45,8 +45,8 @@ test_user@localhost	NULL
 set role test_role1;
 select * from information_schema.enabled_roles;
 ROLE_NAME
-test_role2
 test_role1
+test_role2
 select current_user(), current_role();
 current_user()	current_role()
 test_user@localhost	test_role1
