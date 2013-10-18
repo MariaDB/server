@@ -6,9 +6,15 @@ create user foo@localhost;
 
 create role role1;
 create role role2 with admin current_user;
+--error ER_MALFORMED_DEFINER
 create role role3 with admin current_role;
+create role role3 with admin role1;
 create role role4 with admin root@localhost;
 create role role5 with admin foo@localhost;
+--error ER_NO_SUCH_USER
+create role role6 with admin foo@bar;
+
+create user foo@bar;
 create role role6 with admin foo@bar;
 
 --error ER_PARSE_ERROR
@@ -62,5 +68,5 @@ show grants for role4;
 # cleanup
 ########################################
 drop role role1, role2, role3, role4, role5, role6;
-drop user foo@localhost;
+drop user foo@localhost, foo@bar;
 
