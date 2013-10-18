@@ -42,7 +42,7 @@ use mysql;
 ERROR 42000: Access denied for user 'test_user'@'localhost' to database 'mysql'
 select current_user(), current_role();
 current_user()	current_role()
-test_user@localhost	NONE
+test_user@localhost	NULL
 set role test_role1;
 select current_user(), current_role();
 current_user()	current_role()
@@ -68,7 +68,7 @@ GRANT test_role3 TO 'test_user'@'localhost'
 set role none;
 select current_user(), current_role();
 current_user()	current_role()
-test_user@localhost	NONE
+test_user@localhost	NULL
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'

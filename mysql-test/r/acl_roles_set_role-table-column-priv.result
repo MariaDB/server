@@ -26,7 +26,7 @@ GRANT USAGE ON *.* TO 'test_user'@'localhost'
 GRANT test_role1 TO 'test_user'@'localhost'
 select current_user(), current_role();
 current_user()	current_role()
-test_user@localhost	NONE
+test_user@localhost	NULL
 set role test_role1;
 select current_user(), current_role();
 current_user()	current_role()
@@ -57,7 +57,7 @@ use mysql;
 set role none;
 select current_user(), current_role();
 current_user()	current_role()
-test_user@localhost	NONE
+test_user@localhost	NULL
 select RoleFk from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 drop user 'test_user'@'localhost';
