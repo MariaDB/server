@@ -5,9 +5,12 @@
 --source include/master-slave.inc
 
 create role role1;
-grant execute on test.* to role1;
-grant role1 to current_user;
+create role role2;
+grant execute on test.* to role2;
+grant role2 to role1;
 set role role1;
+--sorted_result
+show grants;
 
 create definer=current_user procedure pcu() select current_user;
 create definer=root@localhost procedure pu() select "root@localhost";
@@ -23,6 +26,10 @@ sync_slave_with_master;
 connection slave;
 echo [connection slave];
 
+set role role1;
+--sorted_result
+show grants;
+
 show create procedure pcu;
 show create procedure pu;
 show create procedure pcr;
@@ -35,6 +42,7 @@ drop procedure pu;
 drop procedure pcr;
 drop procedure pr;
 drop role role1;
+drop role role2;
 
 --source include/rpl_end.inc
 
