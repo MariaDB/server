@@ -314,6 +314,8 @@ static bool show_global_privileges(THD *thd, LEX_USER *lex_user,
                                    char *buff, size_t buffsize);
 static bool show_database_privileges(THD *thd, LEX_USER *lex_user,
                                      char *buff, size_t buffsize);
+static bool show_table_and_column_privileges(THD *thd, LEX_USER *lex_user,
+                                             char *buff, size_t buffsize);
 
 class ACL_PROXY_USER :public ACL_ACCESS
 {
@@ -6255,7 +6257,6 @@ static int show_routine_grants(THD *thd, LEX_USER *lex_user, HASH *hash,
 
 bool mysql_show_grants(THD *thd,LEX_USER *lex_user)
 {
-  uint counter,index;
   int  error = 0;
   ACL_USER *acl_user;
   char buff[1024];
@@ -6305,6 +6306,7 @@ bool mysql_show_grants(THD *thd,LEX_USER *lex_user)
     error= -1;
     goto end;
   };
+
   /* Add database access */
   if (show_database_privileges(thd, lex_user, buff, sizeof(buff)))
   {
@@ -6313,118 +6315,10 @@ bool mysql_show_grants(THD *thd,LEX_USER *lex_user)
   }
 
   /* Add table & column access */
-  for (index=0 ; index < column_priv_hash.records ; index++)
+  if (show_table_and_column_privileges(thd, lex_user, buff, sizeof(buff)))
   {
-    const char *user, *host;
-    GRANT_TABLE *grant_table= (GRANT_TABLE*)
-      my_hash_element(&column_priv_hash, index);
-
-    if (!(user=grant_table->user))
-      user= "";
-    if (!(host= grant_table->host.hostname))
-      host= "";
-
-    /*
-      We do not make SHOW GRANTS case-sensitive here (like REVOKE),
-      but make it case-insensitive because that's the way they are
-      actually applied, and showing fewer privileges than are applied
-      would be wrong from a security point of view.
-    */
-
-    if (!strcmp(lex_user->user.str,user) &&
-	!my_strcasecmp(system_charset_info, lex_user->host.str, host))
-    {
-      ulong table_access= grant_table->privs;
-      if ((table_access | grant_table->cols) != 0)
-      {
-	String global(buff, sizeof(buff), system_charset_info);
-	ulong test_access= (table_access | grant_table->cols) & ~GRANT_ACL;
-
-	global.length(0);
-	global.append(STRING_WITH_LEN("GRANT "));
-
-	if (test_all_bits(table_access, (TABLE_ACLS & ~GRANT_ACL)))
-	  global.append(STRING_WITH_LEN("ALL PRIVILEGES"));
-	else if (!test_access)
-	  global.append(STRING_WITH_LEN("USAGE"));
-	else
-	{
-          /* Add specific column access */
-	  int found= 0;
-	  ulong j;
-
-	  for (counter= 0, j= SELECT_ACL; j <= TABLE_ACLS; counter++, j<<= 1)
-	  {
-	    if (test_access & j)
-	    {
-	      if (found)
-		global.append(STRING_WITH_LEN(", "));
-	      found= 1;
-	      global.append(command_array[counter],command_lengths[counter]);
-
-	      if (grant_table->cols)
-	      {
-		uint found_col= 0;
-		for (uint col_index=0 ;
-		     col_index < grant_table->hash_columns.records ;
-		     col_index++)
-		{
-		  GRANT_COLUMN *grant_column = (GRANT_COLUMN*)
-                    my_hash_element(&grant_table->hash_columns,col_index);
-		  if (grant_column->rights & j)
-		  {
-		    if (!found_col)
-		    {
-		      found_col= 1;
-		      /*
-			If we have a duplicated table level privilege, we
-			must write the access privilege name again.
-		      */
-		      if (table_access & j)
-		      {
-			global.append(STRING_WITH_LEN(", "));
-			global.append(command_array[counter],
-				      command_lengths[counter]);
-		      }
-		      global.append(STRING_WITH_LEN(" ("));
-		    }
-		    else
-		      global.append(STRING_WITH_LEN(", "));
-		    global.append(grant_column->column,
-				  grant_column->key_length,
-				  system_charset_info);
-		  }
-		}
-		if (found_col)
-		  global.append(')');
-	      }
-	    }
-	  }
-	}
-	global.append(STRING_WITH_LEN(" ON "));
-	append_identifier(thd, &global, grant_table->db,
-			  strlen(grant_table->db));
-	global.append('.');
-	append_identifier(thd, &global, grant_table->tname,
-			  strlen(grant_table->tname));
-	global.append(STRING_WITH_LEN(" TO '"));
-	global.append(lex_user->user.str, lex_user->user.length,
-		      system_charset_info);
-	global.append(STRING_WITH_LEN("'@'"));
-	// host and lex_user->host are equal except for case
-	global.append(host, strlen(host), system_charset_info);
-	global.append('\'');
-	if (table_access & GRANT_ACL)
-	  global.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
-	protocol->prepare_for_resend();
-	protocol->store(global.ptr(),global.length(),global.charset());
-	if (protocol->write())
-	{
-	  error= -1;
-	  break;
-	}
-      }
-    }
+    error= -1;
+    goto end;
   }
 
   if (show_routine_grants(thd, lex_user, &proc_priv_hash,
@@ -6663,6 +6557,127 @@ static bool show_database_privileges(THD *thd, LEX_USER *lex_user,
 
 }
 
+static bool show_table_and_column_privileges(THD *thd, LEX_USER *lex_user,
+                                             char *buff, size_t buffsize)
+{
+  uint counter, index;
+  Protocol *protocol= thd->protocol;
+
+  for (index=0 ; index < column_priv_hash.records ; index++)
+  {
+    const char *user, *host;
+    GRANT_TABLE *grant_table= (GRANT_TABLE*)
+      my_hash_element(&column_priv_hash, index);
+
+    if (!(user=grant_table->user))
+      user= "";
+    if (!(host= grant_table->host.hostname))
+      host= "";
+
+    /*
+      We do not make SHOW GRANTS case-sensitive here (like REVOKE),
+      but make it case-insensitive because that's the way they are
+      actually applied, and showing fewer privileges than are applied
+      would be wrong from a security point of view.
+    */
+
+    if (!strcmp(lex_user->user.str,user) &&
+        !my_strcasecmp(system_charset_info, lex_user->host.str, host))
+    {
+      ulong table_access= grant_table->privs;
+      if ((table_access | grant_table->cols) != 0)
+      {
+        String global(buff, sizeof(buff), system_charset_info);
+        ulong test_access= (table_access | grant_table->cols) & ~GRANT_ACL;
+
+        global.length(0);
+        global.append(STRING_WITH_LEN("GRANT "));
+
+        if (test_all_bits(table_access, (TABLE_ACLS & ~GRANT_ACL)))
+          global.append(STRING_WITH_LEN("ALL PRIVILEGES"));
+        else if (!test_access)
+          global.append(STRING_WITH_LEN("USAGE"));
+        else
+        {
+          /* Add specific column access */
+          int found= 0;
+          ulong j;
+
+          for (counter= 0, j= SELECT_ACL; j <= TABLE_ACLS; counter++, j<<= 1)
+          {
+            if (test_access & j)
+            {
+              if (found)
+                global.append(STRING_WITH_LEN(", "));
+              found= 1;
+              global.append(command_array[counter],command_lengths[counter]);
+
+              if (grant_table->cols)
+              {
+                uint found_col= 0;
+                for (uint col_index=0 ;
+                     col_index < grant_table->hash_columns.records ;
+                     col_index++)
+                {
+                  GRANT_COLUMN *grant_column = (GRANT_COLUMN*)
+                    my_hash_element(&grant_table->hash_columns,col_index);
+                  if (grant_column->rights & j)
+                  {
+                    if (!found_col)
+                    {
+                      found_col= 1;
+                      /*
+                        If we have a duplicated table level privilege, we
+                        must write the access privilege name again.
+                      */
+                      if (table_access & j)
+                      {
+                        global.append(STRING_WITH_LEN(", "));
+                        global.append(command_array[counter],
+                                      command_lengths[counter]);
+                      }
+                      global.append(STRING_WITH_LEN(" ("));
+                    }
+                    else
+                      global.append(STRING_WITH_LEN(", "));
+                    global.append(grant_column->column,
+                                  grant_column->key_length,
+                                  system_charset_info);
+                  }
+                }
+                if (found_col)
+                  global.append(')');
+              }
+            }
+          }
+        }
+        global.append(STRING_WITH_LEN(" ON "));
+        append_identifier(thd, &global, grant_table->db,
+                          strlen(grant_table->db));
+        global.append('.');
+        append_identifier(thd, &global, grant_table->tname,
+                          strlen(grant_table->tname));
+        global.append(STRING_WITH_LEN(" TO '"));
+        global.append(lex_user->user.str, lex_user->user.length,
+                      system_charset_info);
+        global.append(STRING_WITH_LEN("'@'"));
+        // host and lex_user->host are equal except for case
+        global.append(host, strlen(host), system_charset_info);
+        global.append('\'');
+        if (table_access & GRANT_ACL)
+          global.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
+        protocol->prepare_for_resend();
+        protocol->store(global.ptr(),global.length(),global.charset());
+        if (protocol->write())
+        {
+          return TRUE;
+        }
+      }
+    }
+  }
+  return FALSE;
+
+}
 
 static int show_routine_grants(THD* thd, LEX_USER *lex_user, HASH *hash,
                                const char *type, int typelen,
