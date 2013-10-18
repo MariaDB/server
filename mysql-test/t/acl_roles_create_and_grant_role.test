@@ -1,0 +1,14 @@
+create role r1;
+grant r1 to root@localhost;
+create user u1;
+set role r1;
+
+grant r1 to u1;
+select * from mysql.roles_mapping;
+
+drop user u1;
+select * from mysql.roles_mapping;
+show grants;
+drop role r1;
+select * from mysql.roles_mapping;
+show grants;

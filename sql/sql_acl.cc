@@ -3749,6 +3749,7 @@ replace_roles_mapping_table(TABLE *table, ROLE_GRANT_PAIR *pair,
 
   uchar row_key[MAX_KEY_LENGTH];
   int error;
+  ROLE_GRANT_PAIR *hash_entry;
   table->use_all_columns();
   table->field[0]->store(pair->u_hname, strlen(pair->u_hname),
                          system_charset_info);
@@ -3776,6 +3777,16 @@ replace_roles_mapping_table(TABLE *table, ROLE_GRANT_PAIR *pair,
                           pair->u_hname, pair->u_uname, pair->r_uname));
       goto table_error;
     }
+    /* find the entry to delete from the hash */
+    hash_entry= (ROLE_GRANT_PAIR *)my_hash_search(&acl_roles_mappings,
+                                                  (uchar *)pair->hashkey.str,
+                                                  pair->hashkey.length);
+    /*
+       This should always return something, as the check was performed
+       earlier
+     */
+    DBUG_ASSERT(hash_entry != NULL);
+    my_hash_delete(&acl_roles_mappings, (uchar*)hash_entry);
   }
   else
   {
@@ -3783,7 +3794,23 @@ replace_roles_mapping_table(TABLE *table, ROLE_GRANT_PAIR *pair,
     {
       DBUG_PRINT("info", ("error inserting row '%s' '%s' '%s'",
                           pair->u_hname, pair->u_uname, pair->r_uname));
-      goto table_error;
+      if (table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
+        goto table_error;
+    }
+    /* don't add duplicate entries */
+    if (!my_hash_search(&acl_roles_mappings,
+                        (uchar *)pair->hashkey.str,
+                        pair->hashkey.length))
+    {
+      /* allocate a new entry that will go in the hash */
+      hash_entry= (ROLE_GRANT_PAIR *)alloc_root(&mem, sizeof(ROLE_GRANT_PAIR));
+      init_role_grant_pair(&mem, hash_entry,
+                           pair->u_uname, pair->u_hname, pair->r_uname);
+      my_hash_insert(&acl_roles_mappings, (uchar*) hash_entry);
+    }
+    else
+    {
+      DBUG_RETURN(1);
     }
   }
 
@@ -5346,6 +5373,9 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     DBUG_RETURN(TRUE);                          /* purecov: deadcode */
   }
 
+  MEM_ROOT temp_root;
+  init_alloc_root(&temp_root, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+
   while ((user= user_list++))
   {
     role_as_user= NULL;
@@ -5383,12 +5413,12 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       hostname= user->host.str;
     }
 
-    ROLE_GRANT_PAIR *mapping= (ROLE_GRANT_PAIR *)
-                                alloc_root(&mem, sizeof(ROLE_GRANT_PAIR));
+    ROLE_GRANT_PAIR *mapping, *hash_entry;
+    mapping= (ROLE_GRANT_PAIR *)
+      alloc_root(&temp_root, sizeof(ROLE_GRANT_PAIR));
 
-    init_role_grant_pair(&mem, mapping,
+    init_role_grant_pair(&temp_root, mapping,
                          username, hostname, rolename);
-
     if (!revoke)
     {
       int res= add_role_user_mapping(mapping);
@@ -5417,6 +5447,17 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     }
     else
     {
+      hash_entry = (ROLE_GRANT_PAIR *) my_hash_search(&acl_roles_mappings,
+                                                      (uchar *)mapping->hashkey.str,
+                                                      mapping->hashkey.length);
+
+      /* grant was already removed or never existed */
+      if (!hash_entry)
+      {
+        append_user(&wrong_users, username, hostname, role_as_user != NULL);
+        result= 1;
+        continue;
+      }
       /* revoke a role grant */
       int res= remove_role_user_mapping(mapping);
       if (res == -1)
@@ -5454,13 +5495,27 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       acl_update_role_entry(role_as_user, role_as_user->initial_role_access);
     }
   }
+
+  free_root(&temp_root, MYF(0));
+
   mysql_mutex_unlock(&acl_cache->lock);
   mysql_rwlock_unlock(&LOCK_grant);
 
   if (result)
-    my_error(ER_CANNOT_GRANT_ROLE, MYF(0),
-             rolename,
-             wrong_users.c_ptr_safe());
+  {
+    if (!revoke)
+    {
+      my_error(ER_CANNOT_GRANT_ROLE, MYF(0),
+               rolename,
+               wrong_users.c_ptr_safe());
+    }
+    else
+    {
+      my_error(ER_CANNOT_REVOKE_ROLE, MYF(0),
+               rolename,
+               wrong_users.c_ptr_safe());
+    }
+  }
 
   DBUG_RETURN(result);
 }

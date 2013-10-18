@@ -6575,3 +6575,6 @@ ER_RESERVED_ROLE
 ER_CANNOT_GRANT_ROLE
 	eng "Cannot grant role '%s' to: %s."
 	rum "Rolul '%s' nu poate fi acordat catre: %s."
+ER_CANNOT_REVOKE_ROLE
+	eng "Cannot revoke role '%s' from: %s."
+	rum "Rolul '%s' nu poate fi revocat de la: %s."
