@@ -188,17 +188,19 @@ LEX_STRING *default_auth_plugin_name= &native_password_plugin_name;
   Constant used for differentiating specified user names and non specified
   usernames. Example: userA  -- userA@%
 */
-const char *HOST_NOT_SPECIFIED= "%";
+LEX_STRING host_not_specified= { C_STRING_WITH_LEN("%") };
 /*
   Constant used in the SET ROLE NONE command
 */
-const char *NONE_ROLE= "NONE";
+LEX_STRING none_role= { C_STRING_WITH_LEN("NONE") };
 /*
-  Constants, used in the SHOW GRANTS command
+  Constants, used in the SHOW GRANTS command.
+  Their actual string values are irrelevant, they're always compared
+  as pointers to these string constants.
 */
-LEX_USER current_user;
-LEX_USER current_role;
-LEX_USER current_user_and_current_role;
+LEX_STRING current_user= { C_STRING_WITH_LEN("*current_user") };
+LEX_STRING current_role= { C_STRING_WITH_LEN("*current_role") };
+LEX_STRING current_user_and_current_role= { C_STRING_WITH_LEN("*current_user_and_current_role") };
 
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -5178,7 +5180,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
 
   List_iterator <LEX_USER> user_list(list);
   granted_role= user_list++;
-  if (granted_role == &current_role)
+  if (granted_role->user.str == current_role.str)
   {
     rolename= thd->security_ctx->priv_role;
     if (!rolename[0])
@@ -5206,7 +5208,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
   {
     handle_as_role= FALSE;
     /* current_role is treated slightly different */
-    if (user == &current_role)
+    if (user->user.str == current_role.str)
     {
       handle_as_role= TRUE;
       /* current_role is NONE */
@@ -5223,7 +5225,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
         continue;
       }
       /* can not grant current_role to current_role */
-      if (granted_role == &current_role)
+      if (granted_role->user.str == current_role.str)
       {
         append_user(&wrong_users, thd->security_ctx->priv_role, "", TRUE);
         result= 1;
@@ -5236,7 +5238,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
     {
       username= user->user.str;
       hostname= user->host.str;
-      if (hostname == HOST_NOT_SPECIFIED)
+      if (user->host.str == host_not_specified.str)
       {
         if ((role_as_user= find_acl_role(username)))
         {
@@ -5388,7 +5390,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
       They did GRANT ... TO CURRENT_USER() IDENTIFIED BY ... !
       Get the current user, and shallow-copy the new password to them!
     */
-    if (!tmp_Str->user.str && tmp_Str->password.str)
+    if (tmp_Str->user.str == current_user.str && tmp_Str->password.str)
       Str->password= tmp_Str->password;
     if (replace_user_table(thd, tables[0].table, *Str,
                            (!db ? rights : 0), revoke_grant, create_new_users,
@@ -6708,23 +6710,24 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
 
   mysql_rwlock_rdlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
-  if (lex_user == &current_user || lex_user == &current_role ||
-      lex_user == &current_user_and_current_role)
+  if (lex_user->user.str == current_user.str ||
+      lex_user->user.str == current_role.str ||
+      lex_user->user.str == current_user_and_current_role.str)
   {
     username= thd->security_ctx->priv_user;
     hostname= thd->security_ctx->priv_host;
     rolename= thd->security_ctx->priv_role;
   }
 
-  if (lex_user == &current_user)
+  if (lex_user->user.str == current_user.str)
   {
     print_user_entry= TRUE;
   }
-  else if (lex_user == &current_role)
+  else if (lex_user->user.str == current_role.str)
   {
     print_role_entry= TRUE;
   }
-  else if (lex_user == &current_user_and_current_role)
+  else if (lex_user->user.str == current_user_and_current_role.str)
   {
     print_user_entry= TRUE;
     print_role_entry= TRUE;
@@ -6732,7 +6735,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   else
   {
     /* this lex_user could represent a role */
-    if (lex_user->host.str == HOST_NOT_SPECIFIED &&
+    if (lex_user->host.str == host_not_specified.str &&
         find_acl_role(lex_user->user.str))
     {
       rolename= lex_user->user.str;
@@ -6854,7 +6857,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     }
     else
     {
-      if (lex_user == &current_role)
+      if (lex_user->user.str == current_role.str)
       {
         mysql_mutex_unlock(&acl_cache->lock);
         mysql_rwlock_unlock(&LOCK_grant);

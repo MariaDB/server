@@ -1570,7 +1570,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <symbol> keyword keyword_sp
 
-%type <lex_user> user grant_user grant_role user_or_role
+%type <lex_user> user grant_user grant_role user_or_role current_role
 
 %type <charset>
         opt_collate
@@ -11766,22 +11766,16 @@ show_param:
           }
         | GRANTS
           {
-            LEX *lex=Lex;
-            lex->sql_command= SQLCOM_SHOW_GRANTS;
-            lex->grant_user= &current_user_and_current_role;
+            Lex->sql_command= SQLCOM_SHOW_GRANTS;
+            if (!(Lex->grant_user= (LEX_USER*)thd->alloc(sizeof(LEX_USER))))
+              MYSQL_YYABORT;
+            Lex->grant_user->user= current_user_and_current_role;
           }
-        | GRANTS FOR_SYM user
+        | GRANTS FOR_SYM user_or_role
           {
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_SHOW_GRANTS;
             lex->grant_user=$3;
-            lex->grant_user->password=null_lex_str;
-          }
-        | GRANTS FOR_SYM CURRENT_ROLE optional_braces
-          {
-            LEX *lex=Lex;
-            lex->sql_command= SQLCOM_SHOW_GRANTS;
-            lex->grant_user= &current_role;
           }
         | CREATE DATABASE opt_if_not_exists ident
           {
@@ -13179,8 +13173,7 @@ user:
             if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
               MYSQL_YYABORT;
             $$->user = $1;
-            $$->host.str= (char *)HOST_NOT_SPECIFIED;
-            $$->host.length= 1;
+            $$->host= host_not_specified;
             $$->password= null_lex_str; 
             $$->plugin= empty_lex_str;
             $$->auth= empty_lex_str;
@@ -13213,19 +13206,13 @@ user:
           }
         | CURRENT_USER optional_braces
           {
-            $$= &current_user;
+            if (!($$=(LEX_USER*)thd->calloc(sizeof(LEX_USER))))
+              MYSQL_YYABORT;
+            $$->user= current_user;
           }
         ;
 
-user_or_role:
-          user
-          {
-            $$=$1;
-          }
-        | CURRENT_ROLE optional_braces
-          {
-            $$= &current_role;
-          }
+user_or_role: user | current_role;
 
 /* Keyword that we allow for identifiers (except SP labels) */
 keyword:
@@ -14337,14 +14324,22 @@ role_list:
           }
         ;
 
+current_role:
+          CURRENT_ROLE optional_braces
+          {
+            if (!($$=(LEX_USER*) thd->alloc(sizeof(LEX_USER))))
+              MYSQL_YYABORT;
+            $$->user= current_role;
+          }
+          ;
+
 grant_role:
           ident_or_text
           {
             if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
               MYSQL_YYABORT;
             $$->user = $1;
-            $$->host.str= (char *)HOST_NOT_SPECIFIED;
-            $$->host.length= 1;
+            $$->host= host_not_specified;
             $$->password= null_lex_str; 
             $$->plugin= empty_lex_str;
             $$->auth= empty_lex_str;
@@ -14354,10 +14349,7 @@ grant_role:
                                          system_charset_info, 0))
               MYSQL_YYABORT;
           }
-        | CURRENT_ROLE optional_braces
-          {
-            $$=&current_role;
-          }
+        | current_role
         ;
 
 opt_table:

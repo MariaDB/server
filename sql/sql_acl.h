@@ -173,11 +173,11 @@ enum mysql_db_table_field
 extern const TABLE_FIELD_DEF mysql_db_table_def;
 extern bool mysql_user_table_is_in_short_password_format;
 
-extern const char *HOST_NOT_SPECIFIED;
-extern const char *NONE_ROLE;
-extern LEX_USER current_user;
-extern LEX_USER current_role;
-extern LEX_USER current_user_and_current_role;
+extern LEX_STRING host_not_specified;
+extern LEX_STRING none_role;
+extern LEX_STRING current_user;
+extern LEX_STRING current_role;
+extern LEX_STRING current_user_and_current_role;
 
 
 static inline int access_denied_error_code(int passwd_used)

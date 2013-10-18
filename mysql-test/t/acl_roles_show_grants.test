@@ -40,6 +40,7 @@ select current_user(), current_role();
 --sorted_result
 show grants;
 
+--sorted_result
 show grants for test_user@localhost;
 --error ER_DBACCESS_DENIED_ERROR
 show grants for test_role1;
