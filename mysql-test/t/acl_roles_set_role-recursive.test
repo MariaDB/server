@@ -31,7 +31,7 @@ select * from mysql.roles_mapping;
 show grants;
 set role test_role1;
 show grants;
-select * from mysql.roles_mapping;
+select * from mysql.roles_mapping where HostFk='';
 
 show grants;
 set role none;
@@ -50,7 +50,7 @@ select * from mysql.roles_mapping;
 show grants;
 set role test_role1;
 show grants;
-select * from mysql.roles_mapping;
+select * from mysql.roles_mapping where HostFk='';
 
 show grants;
 set role none;
