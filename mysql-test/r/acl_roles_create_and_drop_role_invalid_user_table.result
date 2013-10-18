@@ -1,0 +1,14 @@
+use mysql;
+alter table user drop column is_role;
+flush privileges;
+create role test_role;
+ERROR HY000: Column count of mysql.user is wrong. Expected 43, found 42. Created with MariaDB 100003, now running 100003. Please use mysql_upgrade to fix this error.
+drop role test_role;
+ERROR HY000: Operation DROP ROLE failed for 'test_role'
+alter table user add column is_role enum('N', 'Y') default 'N' not null
+COLLATE utf8_general_ci
+after authentication_string;
+update user set is_role='N';
+flush privileges;
+create role test_role;
+drop role test_role;

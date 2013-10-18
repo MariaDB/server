@@ -3128,7 +3128,9 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
   /* if the user table is not up to date, we can't handle role updates */
   if (table->s->fields <= 42 && handle_as_role)
   {
-    my_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE, MYF(0));
+    my_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE, MYF(0), table->alias.c_ptr(),
+             43, table->s->fields,
+             static_cast<int>(table->s->mysql_version), MYSQL_VERSION_ID);
     DBUG_RETURN(-1);
   }
 
