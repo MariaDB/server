@@ -1706,6 +1706,7 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
     goto end;
   }
 
+  /* According to SQL standard, the same error message must be presented */
   if (role == NULL) {
     my_error(ER_INVALID_ROLE, MYF(0), rolename);
     result= -1;
@@ -1728,6 +1729,7 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
     }
   }
 
+  /* According to SQL standard, the same error message must be presented */
   if (!is_granted)
   {
     my_error(ER_INVALID_ROLE, MYF(0), rolename);
@@ -7635,8 +7637,8 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   if ((au= find_user_no_anon(combo->host.str=(char*)sctx->ip,
                              combo->user.str,FALSE)))
     goto found_acl;
-  if((au= find_user_no_anon(combo->host.str=(char*)"%",
-                            combo->user.str, FALSE)))
+  if ((au= find_user_no_anon(combo->host.str=(char*)"%",
+                             combo->user.str, FALSE)))
     goto found_acl;
 
   mysql_mutex_unlock(&acl_cache->lock);
