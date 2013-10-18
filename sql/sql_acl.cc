@@ -7137,6 +7137,23 @@ end:
   DBUG_RETURN(error);
 }
 
+static ROLE_GRANT_PAIR *find_role_grant_pair(const LEX_STRING *u,
+                                             const LEX_STRING *h,
+                                             const LEX_STRING *r)
+{
+  char buf[1024];
+  String pair_key(buf, sizeof(buf), &my_charset_bin);
+
+  size_t key_length= u->length + h->length + r->length + 3;
+  pair_key.alloc(key_length);
+
+  strmov(strmov(strmov(const_cast<char*>(pair_key.ptr()),
+                       u->str) + 1, h->str) + 1, r->str);
+
+  return (ROLE_GRANT_PAIR *)
+    my_hash_search(&acl_roles_mappings, (uchar*)pair_key.ptr(), key_length);
+}
+
 static bool show_role_grants(THD *thd,
                              const char *username,
                              const char *hostname,
@@ -7145,9 +7162,7 @@ static bool show_role_grants(THD *thd,
 {
   uint counter;
   Protocol *protocol= thd->protocol;
-  uint hostname_length = strlen(hostname);
-  char buf[1024];
-  String pair_key(buf, sizeof(buf), system_charset_info);
+  LEX_STRING host= {const_cast<char*>(hostname), strlen(hostname)};
 
   String grant(buff,sizeof(buff),system_charset_info);
   for (counter= 0; counter < acl_entry->role_grants.elements; counter++)
@@ -7164,20 +7179,12 @@ static bool show_role_grants(THD *thd,
     if (!(acl_entry->flags & IS_ROLE))
     {
       grant.append(STRING_WITH_LEN("'@'"));
-      grant.append(hostname, hostname_length,
-                   system_charset_info);
+      grant.append(&host);
     }
     grant.append('\'');
 
-    size_t key_length= acl_entry->user.length + hostname_length +
-                       acl_role->user.length + 3;
-    pair_key.alloc(key_length);
-    strmov(strmov(strmov(const_cast<char*>(pair_key.ptr()),
-         acl_entry->user.str) + 1, hostname) + 1, acl_role->user.str);
-
     ROLE_GRANT_PAIR *pair=
-      (ROLE_GRANT_PAIR *)my_hash_search(&acl_roles_mappings,
-                                        (uchar*)pair_key.ptr(), key_length);
+      find_role_grant_pair(&acl_entry->user, &host, &acl_role->user);
     DBUG_ASSERT(pair);
 
     if (pair->with_admin)
@@ -9764,20 +9771,23 @@ fill_schema_enabled_roles_insert(ACL_ROLE *unused __attribute__((unused)),
   /*return*/ schema_table_store_record(table->in_use, table);
 }
 
-static int fill_schema_applicable_roles_insert_data(ACL_USER_BASE *grantee,
-                                              LEX_STRING *name, TABLE *table);
+static int fill_schema_applicable_roles_insert_data(ACL_USER_BASE *,
+                         const LEX_STRING *, const LEX_STRING *, TABLE *);
 
 static void
 fill_schema_applicable_roles_insert(ACL_ROLE *unused __attribute__((unused)),
                                     ACL_ROLE *role, void *context_data)
 {
-  /*return*/ fill_schema_applicable_roles_insert_data(role, &role->user,
+  /*return*/ fill_schema_applicable_roles_insert_data(role, &empty_lex_str,
+                                                      &role->user,
                                                       (TABLE*)context_data);
 }
 
 static int
 fill_schema_applicable_roles_insert_data(ACL_USER_BASE *grantee,
-                                         LEX_STRING *name, TABLE *table)
+                                         const LEX_STRING *host,
+                                         const LEX_STRING *used_and_host,
+                                         TABLE *table)
 {
   CHARSET_INFO *cs= system_charset_info;
 
@@ -9785,9 +9795,17 @@ fill_schema_applicable_roles_insert_data(ACL_USER_BASE *grantee,
   {
     ACL_ROLE *role= *(dynamic_element(&grantee->role_grants, i, ACL_ROLE**));
     restore_record(table, s->default_values);
-    table->field[0]->store(name->str, name->length, cs);
+    table->field[0]->store(used_and_host->str, used_and_host->length, cs);
     table->field[1]->store(role->user.str, role->user.length, cs);
-    table->field[2]->store(STRING_WITH_LEN("YES"), cs); // TODO FIXME
+
+    ROLE_GRANT_PAIR *pair=
+      find_role_grant_pair(&grantee->user, host, &role->user);
+    DBUG_ASSERT(pair);
+
+    if (pair->with_admin)
+      table->field[2]->store(STRING_WITH_LEN("YES"), cs);
+    else
+      table->field[2]->store(STRING_WITH_LEN("NO"), cs);
     if (schema_table_store_record(table->in_use, table))
       return 1;
     if (! (grantee->flags & IS_ROLE))
@@ -9841,9 +9859,10 @@ int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond)
     char buff[USER_HOST_BUFF_SIZE+10];
     DBUG_ASSERT(user->user.length + user->hostname_length +2 < sizeof(buff));
     char *end= strxmov(buff, user->user.str, "@", user->host.hostname, NULL);
+    LEX_STRING host= { user->host.hostname, user->hostname_length };
     LEX_STRING name= { buff, (size_t)(end - buff) };
 
-    int res= fill_schema_applicable_roles_insert_data(user, &name, table);
+    int res= fill_schema_applicable_roles_insert_data(user, &host, &name, table);
 
     mysql_mutex_unlock(&acl_cache->lock);
     mysql_rwlock_unlock(&LOCK_grant);

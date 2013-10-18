@@ -49,6 +49,8 @@ show grants for foo@localhost;
 show grants for role1;
 --sorted_result
 show grants for role4;
+--sorted_result
+select * from information_schema.applicable_roles;
 
 grant role2 to role1 with admin option;
 revoke role1 from foo@localhost;
@@ -70,6 +72,8 @@ show grants for foo@localhost;
 show grants for role1;
 --sorted_result
 show grants for role4;
+--sorted_result
+select * from information_schema.applicable_roles;
 
 ########################################
 # cleanup

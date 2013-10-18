@@ -71,6 +71,14 @@ Grants for role4
 GRANT USAGE ON *.* TO 'role3'
 GRANT USAGE ON *.* TO 'role4'
 GRANT role3 TO 'role4' WITH ADMIN OPTION
+select * from information_schema.applicable_roles;
+GRANTEE	ROLE_NAME	IS_GRANTABLE
+role1	role2	NO
+role1	role3	YES
+role4	role3	YES
+root@localhost	role1	YES
+root@localhost	role2	YES
+root@localhost	role4	YES
 grant role2 to role1 with admin option;
 revoke role1 from foo@localhost;
 revoke admin option for role3 from role4;
@@ -121,5 +129,13 @@ Grants for role4
 GRANT USAGE ON *.* TO 'role3'
 GRANT USAGE ON *.* TO 'role4'
 GRANT role3 TO 'role4'
+select * from information_schema.applicable_roles;
+GRANTEE	ROLE_NAME	IS_GRANTABLE
+role1	role2	YES
+role1	role3	YES
+role4	role3	NO
+root@localhost	role1	YES
+root@localhost	role2	YES
+root@localhost	role4	YES
 drop role role1, role2, role3, role4, role5, role6;
 drop user foo@localhost;
