@@ -3866,9 +3866,9 @@ end_with_restore_list:
       else
       {
         /* Conditionally writes to binlog */
-        res = mysql_grant(thd, select_lex->db, lex->users_list, lex->grant,
-                          lex->sql_command == SQLCOM_REVOKE,
-                          lex->type == TYPE_ENUM_PROXY);
+        res= mysql_grant(thd, select_lex->db, lex->users_list, lex->grant,
+                         lex->sql_command == SQLCOM_REVOKE,
+                         lex->type == TYPE_ENUM_PROXY);
       }
       if (!res)
       {
@@ -3890,8 +3890,15 @@ end_with_restore_list:
   case SQLCOM_REVOKE_ROLE:
   case SQLCOM_GRANT_ROLE:
   {
-    /* TODO Implement grant */
-    my_ok(thd);
+    /* TODO access check */
+
+    if (thd->security_ctx->user)              // If not replication
+    {
+      if (!(res= mysql_grant_role(thd, lex->users_list)))
+        my_ok(thd);
+    }
+    else
+      my_ok(thd);
     break;
   }
 #endif /*!NO_EMBEDDED_ACCESS_CHECKS*/

@@ -742,6 +742,9 @@ static my_bool acl_role_propagate_grants(ACL_ROLE *role,
                                          void * not_used __attribute__((unused)));
 static int add_role_user_mapping(ROLE_GRANT_PAIR *mapping);
 
+static void reset_role_db_privileges(ACL_ROLE *role);
+static void reset_role_table_and_column_privileges(ACL_ROLE *role);
+static void reset_role_routine_grant_privileges(ACL_ROLE *role);
 static void role_explore_create_list(ACL_ROLE *unused,
                                      ACL_ROLE *role,
                                      void *context_data);
@@ -751,6 +754,9 @@ static bool role_explore_merge_if_final(ACL_ROLE *current, ACL_ROLE *neighbour,
 static void role_explore_set_final_access_bits(ACL_ROLE *parent,
                                                ACL_ROLE *current,
                                                void *unused);
+static bool role_explore_detect_cycle(ACL_ROLE *current,
+                                      ACL_ROLE *neighbour,
+                                      void *context_data);
 static int traverse_role_graph(ACL_ROLE *role,
                                void *context_data,
                                bool (*on_start) (ACL_ROLE *role,
@@ -1926,17 +1932,11 @@ static uchar* check_get_key(ACL_USER *buff, size_t *length,
   return (uchar*) buff->host.hostname;
 }
 
-static void acl_update_role(const char *rolename,
-                            ulong privileges)
-{
-  ACL_ROLE *role;
-  mysql_mutex_assert_owner(&acl_cache->lock);
 
-  role= find_acl_role(rolename);
-  if (!role)
-  {
-    return;
-  }
+static void acl_update_role_entry(ACL_ROLE *role, ulong privileges)
+{
+
+  mysql_mutex_assert_owner(&acl_cache->lock);
 
   /*
      Changing privileges of a role causes all other roles that had
@@ -1993,6 +1993,20 @@ static void acl_update_role(const char *rolename,
   }
 }
 
+
+static void acl_update_role(const char *rolename,
+                            ulong privileges)
+{
+  mysql_mutex_assert_owner(&acl_cache->lock);
+  ACL_ROLE *role= find_acl_role(rolename);
+  if (!role)
+  {
+    return;
+  }
+  acl_update_role_entry(role, privileges);
+}
+
+
 static void acl_update_user(const char *user, const char *host,
 			    const char *password, uint password_len,
 			    enum SSL_type ssl_type,
@@ -2006,10 +2020,14 @@ static void acl_update_user(const char *user, const char *host,
 {
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  if (host[0] == '\0' && find_acl_role(user))
+  if (host[0] == '\0')
   {
-    acl_update_role(user, privileges);
-    return;
+    ACL_ROLE *acl_role= find_acl_role(user);
+    if (acl_role)
+    {
+      acl_update_role_entry(acl_role, privileges);
+      return;
+    }
   }
 
   for (uint i=0 ; i < acl_users.elements ; i++)
@@ -2071,6 +2089,12 @@ static void acl_insert_role(const char *rolename, ulong privileges)
 
   mysql_mutex_assert_owner(&acl_cache->lock);
   entry= new (&mem) ACL_ROLE(rolename, privileges, &mem);
+  (void) my_init_dynamic_array(&entry->parent_grantee,
+                               sizeof(ACL_USER_BASE *), 50, 100, MYF(0));
+  (void) my_init_dynamic_array(&entry->role_grants,sizeof(ACL_ROLE *),
+                               50, 100, MYF(0));
+
+
 
   my_hash_insert(&acl_roles, (uchar *)entry);
 }
@@ -2416,6 +2440,7 @@ my_bool acl_user_reset_grant(ACL_USER *user,
   return 0;
 }
 
+
 static void role_explore_create_list(ACL_ROLE *unused __attribute__((unused)),
                                      ACL_ROLE *role, void *context_data)
 {
@@ -2433,6 +2458,16 @@ static bool role_explore_start_access_check(ACL_ROLE *role,
   */
   if (role->flags & ROLE_GRANTS_FINAL)
     return TRUE;
+  /*
+    This function is called when the node is first opened by DFS.
+    If it's ROLE_GRANTS were not final, then it means that it's existing
+    privilege entries should be placed on their initial grant access state.
+  */
+
+  reset_role_db_privileges(role);
+  reset_role_table_and_column_privileges(role);
+  reset_role_routine_grant_privileges(role);
+
   return FALSE;
 }
 
@@ -2462,6 +2497,13 @@ static void role_explore_set_final_access_bits(ACL_ROLE *parent,
   {
     merge_role_grant_privileges(parent, current);
   }
+}
+
+static bool role_explore_detect_cycle(ACL_ROLE *unused __attribute__((unused)),
+                                      ACL_ROLE *unused2 __attribute__((unused)),
+                                      void *unused3 __attribute__((unused)))
+{
+  return TRUE;
 }
 
 /*
@@ -2560,7 +2602,6 @@ static int traverse_role_graph(ACL_ROLE *role,
       if (neighbour->flags & ROLE_VISITED)
       {
         DBUG_PRINT("info", ("Found cycle"));
-        /* TODO the edge needs to be ignored */
         if (on_cycle && on_cycle(current, neighbour, context_data))
         {
           result= 2;
@@ -5102,6 +5143,155 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
   DBUG_RETURN(result);
 }
 
+static void append_user(String *str, const char *u, const char *h,
+                        bool handle_as_role)
+{
+  if (str->length())
+    str->append(',');
+  str->append('\'');
+  str->append(u);
+  /* hostname part is not relevant for roles, it is always empty */
+  if (!handle_as_role)
+  {
+    str->append(STRING_WITH_LEN("'@'"));
+    str->append(h);
+  }
+  str->append('\'');
+}
+
+bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
+{
+  DBUG_ENTER("mysql_grant_role");
+  /*
+     The first entry in the list is the granted role. Need at least two
+     entries for the command to be valid
+   */
+  DBUG_ASSERT(list.elements >= 2);
+  bool result= 0;
+  String wrong_users;
+  LEX_USER *user, *granted_role;
+  char *rolename;
+  char *username;
+  char *hostname;
+  bool handle_as_role;
+  ACL_ROLE *role, *role_as_user;
+
+  List_iterator <LEX_USER> user_list(list);
+  granted_role= user_list++;
+  if (granted_role == &current_role)
+  {
+    rolename= thd->security_ctx->priv_role;
+    if (!rolename[0])
+    {
+      my_error(ER_RESERVED_ROLE, MYF(0), "NONE");
+      DBUG_RETURN(TRUE);
+    }
+  }
+  else
+  {
+    rolename= granted_role->user.str;
+  }
+
+  mysql_rwlock_wrlock(&LOCK_grant);
+  mysql_mutex_lock(&acl_cache->lock);
+  if (!(role= find_acl_role(rolename)))
+  {
+    my_error(ER_INVALID_ROLE, MYF(0), rolename);
+    mysql_mutex_unlock(&acl_cache->lock);
+    mysql_rwlock_unlock(&LOCK_grant);
+    DBUG_RETURN(TRUE);
+  }
+
+  while ((user= user_list++))
+  {
+    handle_as_role= FALSE;
+    /* current_role is treated slightly different */
+    if (user == &current_role)
+    {
+      handle_as_role= TRUE;
+      /* current_role is NONE */
+      if (!thd->security_ctx->priv_role[0])
+      {
+        append_user(&wrong_users, "NONE", "", TRUE);
+        result= 1;
+        continue;
+      }
+      if (!(role_as_user= find_acl_role(thd->security_ctx->priv_role)))
+      {
+        append_user(&wrong_users, thd->security_ctx->priv_role, "", TRUE);
+        result= 1;
+        continue;
+      }
+      /* can not grant current_role to current_role */
+      if (granted_role == &current_role)
+      {
+        append_user(&wrong_users, thd->security_ctx->priv_role, "", TRUE);
+        result= 1;
+        continue;
+      }
+      username= thd->security_ctx->priv_role;
+      hostname= (char *)"";
+    }
+    else
+    {
+      username= user->user.str;
+      hostname= user->host.str;
+      if (hostname == HOST_NOT_SPECIFIED)
+      {
+        if ((role_as_user= find_acl_role(username)))
+        {
+          handle_as_role= TRUE;
+          hostname= (char *)"";
+        }
+      }
+    }
+
+    ROLE_GRANT_PAIR *mapping= (ROLE_GRANT_PAIR *)
+      alloc_root(&mem,
+                 sizeof(ROLE_GRANT_PAIR));
+
+    /* TODO write into roles_mapping table */
+    init_role_grant_pair(&mem, mapping,
+                         username, hostname, rolename);
+    int res= add_role_user_mapping(mapping);
+    if (res == -1)
+    {
+      append_user(&wrong_users, username, hostname, handle_as_role);
+      result= 1;
+      continue;
+    }
+
+    /*
+       Check if this grant would cause a cycle. It only needs to be run
+       if we're granting a role to a role
+     */
+    if (handle_as_role &&
+        traverse_role_graph(role, NULL, NULL, NULL, role_explore_detect_cycle,
+                            NULL) == 2)
+    {
+      append_user(&wrong_users, username, hostname, TRUE);
+      result= 1;
+      continue;
+    }
+
+    /* only need to propagate grants when granting a role to a role */
+    if (handle_as_role)
+    {
+      acl_update_role_entry(role_as_user, role_as_user->initial_role_access);
+    }
+  }
+  mysql_mutex_unlock(&acl_cache->lock);
+  mysql_rwlock_unlock(&LOCK_grant);
+
+  if (result)
+    my_error(ER_CANNOT_GRANT_ROLE, MYF(0),
+             rolename,
+             wrong_users.c_ptr_safe());
+
+
+  DBUG_RETURN(result);
+}
+
 
 bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
                  ulong rights, bool revoke_grant, bool is_proxy)
@@ -7187,6 +7377,96 @@ static int show_routine_grants(THD* thd,
   return error;
 }
 
+static void reset_role_db_privileges(ACL_ROLE *role)
+{
+  char *rolename= role->user.str;
+  for (uint i=0 ; i < acl_dbs.elements; i++)
+  {
+    ACL_DB *acl_db= dynamic_element(&acl_dbs,i,ACL_DB*);
+    if (acl_db->user && (!acl_db->host.hostname || !acl_db->host.hostname[0])
+        && (!strcmp(rolename, acl_db->user)))
+    {
+      acl_db->access= acl_db->initial_access;
+    }
+    /* this is only an inherited entry that needs to be removed */
+    if (!acl_db->access)
+    {
+      delete_dynamic_element(&acl_dbs, i);
+      i--;
+    }
+  }
+}
+
+static void reset_role_table_and_column_privileges(ACL_ROLE *role)
+{
+  char *rolename= role->user.str;
+  for (uint i=0 ; i < column_priv_hash.records ; i++)
+  {
+    GRANT_TABLE *grant_table= (GRANT_TABLE *)
+      my_hash_element(&column_priv_hash, i);
+    if (grant_table->user && (!grant_table->host.hostname ||
+                              !grant_table->host.hostname[0]) &&
+        !strcmp(rolename, grant_table->user))
+    {
+      grant_table->privs= grant_table->init_privs;
+      grant_table->cols= grant_table->init_cols;
+      if (grant_table->privs | grant_table->cols)
+      {
+        for (uint j=0 ; j < grant_table->hash_columns.records ; j++)
+        {
+          GRANT_COLUMN *grant_column= (GRANT_COLUMN *)
+            my_hash_element(&grant_table->hash_columns, j);
+          if (grant_column->init_rights == 0)
+          {
+            my_hash_delete(&grant_table->hash_columns, (uchar *)grant_column);
+            j--;
+          }
+          else
+          {
+            grant_column->rights= grant_column->init_rights;
+          }
+        }
+      }
+      else
+      {
+        /* delete the record altogether as we have no privileges left */
+        my_hash_delete(&column_priv_hash, (uchar *)grant_table);
+        i--;
+      }
+    }
+  }
+}
+
+static void reset_role_routine_grant_privileges(ACL_ROLE *role)
+{
+  char *rolename= role->user.str;
+  for (uint is_proc= 0; is_proc < 2; is_proc++) {
+    HASH *hash;
+    if (is_proc)
+      hash= &proc_priv_hash;
+    else
+      hash= &func_priv_hash;
+
+    for (uint i=0 ; i < hash->records ; i++)
+    {
+      GRANT_NAME *grant_name= (GRANT_NAME *) my_hash_element(hash, i);
+      if (grant_name->user && (!grant_name->host.hostname ||
+                               !grant_name->host.hostname[0]) &&
+          !strcmp(rolename, grant_name->user))
+      {
+        if (grant_name->init_privs == 0)
+        {
+          my_hash_delete(hash, (uchar *)grant_name);
+          i--;
+        }
+        else
+        {
+          grant_name->privs= grant_name->init_privs;
+        }
+      }
+    }
+  }
+}
 /*
   Make a clear-text version of the requested privilege.
 */
@@ -8321,7 +8601,6 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
  end:
   DBUG_RETURN(result);
 }
-
 
 static void append_user(String *str, LEX_USER *user, bool handle_as_role)
 {
