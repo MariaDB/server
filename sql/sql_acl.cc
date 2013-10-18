@@ -316,8 +316,10 @@ static bool show_global_privileges(THD *thd, LEX_USER *lex_user,
                                    ACL_USER_BASE *acl_entry, bool handle_as_role,
                                    char *buff, size_t buffsize);
 static bool show_database_privileges(THD *thd, LEX_USER *lex_user,
+                                     bool handle_as_role,
                                      char *buff, size_t buffsize);
 static bool show_table_and_column_privileges(THD *thd, LEX_USER *lex_user,
+                                             bool handle_as_role,
                                              char *buff, size_t buffsize);
 
 class ACL_PROXY_USER :public ACL_ACCESS
@@ -3884,6 +3886,7 @@ public:
   acl_host_and_ip host;
   char *db, *user, *tname, *hash_key;
   ulong privs;
+  ulong init_privs; /* privileges found in physical table */
   ulong sort;
   size_t key_length;
   GRANT_NAME(const char *h, const char *d,const char *u,
@@ -3901,7 +3904,9 @@ class GRANT_TABLE :public GRANT_NAME
 {
 public:
   ulong cols;
+  ulong init_cols; /* privileges found in physical table */
   HASH hash_columns;
+  HASH init_hash_columns;
 
   GRANT_TABLE(const char *h, const char *d,const char *u,
               const char *t, ulong p, ulong c);
@@ -6354,6 +6359,7 @@ static uint command_lengths[]=
 
 static int show_routine_grants(THD *thd, LEX_USER *lex_user, HASH *hash,
                                const char *type, int typelen,
+                               bool handle_as_role,
                                char *buff, int buffsize);
 
 
@@ -6364,7 +6370,32 @@ static int show_routine_grants(THD *thd, LEX_USER *lex_user, HASH *hash,
    Send to client grant-like strings depicting user@host privileges
 */
 
-bool mysql_show_grants(THD *thd,LEX_USER *lex_user)
+bool print_grants_for_role(THD *thd, ACL_ROLE * role,
+                           char *buff, size_t buffsize)
+{
+  LEX_USER lex_user;
+  lex_user.user= role->user;
+  if (show_global_privileges(thd, &lex_user, role, TRUE, buff, buffsize))
+    return TRUE;
+
+  if (show_database_privileges(thd, &lex_user, TRUE, buff, buffsize))
+    return TRUE;
+
+  if (show_table_and_column_privileges(thd, &lex_user, TRUE, buff, buffsize))
+    return TRUE;
+
+  if (show_routine_grants(thd, &lex_user, &proc_priv_hash,
+                          STRING_WITH_LEN("PROCEDURE"), TRUE, buff, buffsize))
+    return TRUE;
+
+  if (show_routine_grants(thd, &lex_user, &func_priv_hash,
+                          STRING_WITH_LEN("FUNCTION"), TRUE, buff, buffsize))
+    return TRUE;
+
+  return FALSE;
+
+}
+bool mysql_show_grants(THD *thd, LEX_USER *lex_user, bool print_current_role)
 {
   int  error = 0;
   ACL_USER *acl_user;
@@ -6424,28 +6455,28 @@ bool mysql_show_grants(THD *thd,LEX_USER *lex_user)
   };
 
   /* Add database access */
-  if (show_database_privileges(thd, lex_user, buff, sizeof(buff)))
+  if (show_database_privileges(thd, lex_user, FALSE, buff, sizeof(buff)))
   {
     error= -1;
     goto end;
   }
 
   /* Add table & column access */
-  if (show_table_and_column_privileges(thd, lex_user, buff, sizeof(buff)))
+  if (show_table_and_column_privileges(thd, lex_user, FALSE, buff, sizeof(buff)))
   {
     error= -1;
     goto end;
   }
 
   if (show_routine_grants(thd, lex_user, &proc_priv_hash,
-                          STRING_WITH_LEN("PROCEDURE"), buff, sizeof(buff)))
+                          STRING_WITH_LEN("PROCEDURE"), FALSE, buff, sizeof(buff)))
   {
     error= -1;
     goto end;
   }
 
   if (show_routine_grants(thd, lex_user, &func_priv_hash,
-                          STRING_WITH_LEN("FUNCTION"), buff, sizeof(buff)))
+                          STRING_WITH_LEN("FUNCTION"), FALSE, buff, sizeof(buff)))
   {
     error= -1;
     goto end;
@@ -6455,6 +6486,32 @@ bool mysql_show_grants(THD *thd,LEX_USER *lex_user)
   {
     error= -1;
     goto end;
+  }
+
+  if (print_current_role)
+  {
+    ACL_ROLE *role= find_acl_role(thd->security_ctx->priv_role);
+    if (role)
+    {
+      DYNAMIC_ARRAY role_list;
+      (void) my_init_dynamic_array(&role_list,sizeof(ACL_ROLE *),
+                                   50, 100, MYF(0));
+      /* get a list of all inherited roles */
+      traverse_role_graph(role,
+                          &role_list, NULL, NULL, NULL,
+                          role_explore_create_list);
+      for (uint i= 0; i < role_list.elements; i++)
+      {
+        if (print_grants_for_role(thd,
+                                  *dynamic_element(&role_list, i, ACL_ROLE **),
+                                  buff, sizeof(buff)))
+        {
+          error= -1;
+          goto end;
+        }
+      }
+      delete_dynamic(&role_list);
+    }
   }
 
 end:
@@ -6513,7 +6570,10 @@ static bool show_global_privileges(THD *thd, LEX_USER *lex_user,
   global.length(0);
   global.append(STRING_WITH_LEN("GRANT "));
 
-  want_access= acl_entry->access;
+  if (handle_as_role)
+    want_access= ((ACL_ROLE *)acl_entry)->initial_role_access;
+  else
+    want_access= acl_entry->access;
   if (test_all_bits(want_access, (GLOBAL_ACLS & ~ GRANT_ACL)))
     global.append(STRING_WITH_LEN("ALL PRIVILEGES"));
   else if (!(want_access & ~GRANT_ACL))
@@ -6632,6 +6692,7 @@ static bool show_global_privileges(THD *thd, LEX_USER *lex_user,
 }
 
 static bool show_database_privileges(THD *thd, LEX_USER *lex_user,
+                                     bool handle_as_role,
                                      char *buff, size_t buffsize)
 {
   ACL_DB *acl_db;
@@ -6659,7 +6720,12 @@ static bool show_database_privileges(THD *thd, LEX_USER *lex_user,
     if (!strcmp(lex_user->user.str,user) &&
         !my_strcasecmp(system_charset_info, lex_user->host.str, host))
     {
-      want_access=acl_db->access;
+      /* do not print inherited access bits, the role bits present in the
+         table are what matters */
+      if (handle_as_role)
+        want_access=acl_db->initial_access;
+      else
+        want_access=acl_db->access;
       if (want_access)
       {
         String db(buff,sizeof(buff),system_charset_info);
@@ -6690,9 +6756,12 @@ static bool show_database_privileges(THD *thd, LEX_USER *lex_user,
         db.append (STRING_WITH_LEN(".* TO '"));
         db.append(lex_user->user.str, lex_user->user.length,
                   system_charset_info);
-        db.append (STRING_WITH_LEN("'@'"));
-        // host and lex_user->host are equal except for case
-        db.append(host, strlen(host), system_charset_info);
+        if (!handle_as_role)
+        {
+          db.append (STRING_WITH_LEN("'@'"));
+          // host and lex_user->host are equal except for case
+          db.append(host, strlen(host), system_charset_info);
+        }
         db.append ('\'');
         if (want_access & GRANT_ACL)
           db.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
@@ -6710,6 +6779,7 @@ static bool show_database_privileges(THD *thd, LEX_USER *lex_user,
 }
 
 static bool show_table_and_column_privileges(THD *thd, LEX_USER *lex_user,
+                                             bool handle_as_role,
                                              char *buff, size_t buffsize)
 {
   uint counter, index;
@@ -6736,11 +6806,23 @@ static bool show_table_and_column_privileges(THD *thd, LEX_USER *lex_user,
     if (!strcmp(lex_user->user.str,user) &&
         !my_strcasecmp(system_charset_info, lex_user->host.str, host))
     {
-      ulong table_access= grant_table->privs;
-      if ((table_access | grant_table->cols) != 0)
+      ulong table_access;
+      ulong cols_access;
+      if (handle_as_role)
+      {
+        table_access= grant_table->init_privs;
+        cols_access= grant_table->init_cols;
+      }
+      else
+      {
+        table_access= grant_table->privs;
+        cols_access= grant_table->cols;
+      }
+
+      if ((table_access | cols_access) != 0)
       {
         String global(buff, sizeof(buff), system_charset_info);
-        ulong test_access= (table_access | grant_table->cols) & ~GRANT_ACL;
+        ulong test_access= (table_access | cols_access) & ~GRANT_ACL;
 
         global.length(0);
         global.append(STRING_WITH_LEN("GRANT "));
@@ -6767,12 +6849,18 @@ static bool show_table_and_column_privileges(THD *thd, LEX_USER *lex_user,
               if (grant_table->cols)
               {
                 uint found_col= 0;
+                HASH *hash_columns;
+                if (handle_as_role)
+                  hash_columns= &grant_table->init_hash_columns;
+                else
+                  hash_columns= &grant_table->hash_columns;
+
                 for (uint col_index=0 ;
-                     col_index < grant_table->hash_columns.records ;
+                     col_index < hash_columns->records ;
                      col_index++)
                 {
                   GRANT_COLUMN *grant_column = (GRANT_COLUMN*)
-                    my_hash_element(&grant_table->hash_columns,col_index);
+                    my_hash_element(hash_columns,col_index);
                   if (grant_column->rights & j)
                   {
                     if (!found_col)
@@ -6812,9 +6900,12 @@ static bool show_table_and_column_privileges(THD *thd, LEX_USER *lex_user,
         global.append(STRING_WITH_LEN(" TO '"));
         global.append(lex_user->user.str, lex_user->user.length,
                       system_charset_info);
-        global.append(STRING_WITH_LEN("'@'"));
-        // host and lex_user->host are equal except for case
-        global.append(host, strlen(host), system_charset_info);
+        if (!handle_as_role)
+        {
+          global.append(STRING_WITH_LEN("'@'"));
+          // host and lex_user->host are equal except for case
+          global.append(host, strlen(host), system_charset_info);
+        }
         global.append('\'');
         if (table_access & GRANT_ACL)
           global.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
@@ -6833,6 +6924,7 @@ static bool show_table_and_column_privileges(THD *thd, LEX_USER *lex_user,
 
 static int show_routine_grants(THD* thd, LEX_USER *lex_user, HASH *hash,
                                const char *type, int typelen,
+                               bool handle_as_role,
                                char *buff, int buffsize)
 {
   uint counter, index;
@@ -6859,7 +6951,12 @@ static int show_routine_grants(THD* thd, LEX_USER *lex_user, HASH *hash,
     if (!strcmp(lex_user->user.str,user) &&
 	!my_strcasecmp(system_charset_info, lex_user->host.str, host))
     {
-      ulong proc_access= grant_proc->privs;
+      ulong proc_access;
+      if (handle_as_role)
+        proc_access= grant_proc->init_privs;
+      else
+        proc_access= grant_proc->privs;
+
       if (proc_access != 0)
       {
 	String global(buff, buffsize, system_charset_info);
@@ -6898,9 +6995,12 @@ static int show_routine_grants(THD* thd, LEX_USER *lex_user, HASH *hash,
 	global.append(STRING_WITH_LEN(" TO '"));
 	global.append(lex_user->user.str, lex_user->user.length,
 		      system_charset_info);
-	global.append(STRING_WITH_LEN("'@'"));
-	// host and lex_user->host are equal except for case
-	global.append(host, strlen(host), system_charset_info);
+        if (!handle_as_role)
+        {
+          global.append(STRING_WITH_LEN("'@'"));
+          // host and lex_user->host are equal except for case
+          global.append(host, strlen(host), system_charset_info);
+        }
 	global.append('\'');
 	if (proc_access & GRANT_ACL)
 	  global.append(STRING_WITH_LEN(" WITH GRANT OPTION"));

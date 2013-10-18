@@ -341,6 +341,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_EXPLAIN]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROCESSLIST]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_GRANTS]=      CF_STATUS_COMMAND;
+  sql_command_flags[SQLCOM_SHOW_GRANTS_SELF]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE_DB]=   CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE]=  CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_MASTER_STAT]= CF_STATUS_COMMAND;
@@ -3990,6 +3991,7 @@ end_with_restore_list:
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   case SQLCOM_SHOW_GRANTS:
+  case SQLCOM_SHOW_GRANTS_SELF:
   {
     LEX_USER *grant_user= get_current_user(thd, lex->grant_user);
     if (!grant_user)
@@ -3998,7 +4000,9 @@ end_with_restore_list:
 	 !strcmp(thd->security_ctx->priv_user, grant_user->user.str)) ||
         !check_access(thd, SELECT_ACL, "mysql", NULL, NULL, 1, 0))
     {
-      res = mysql_show_grants(thd, grant_user);
+      res = mysql_show_grants(thd, grant_user,
+                             (lex->sql_command == SQLCOM_SHOW_GRANTS_SELF) ?
+                              TRUE : FALSE);
     }
     break;
   }

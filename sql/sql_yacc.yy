@@ -11757,7 +11757,7 @@ show_param:
         | GRANTS
           {
             LEX *lex=Lex;
-            lex->sql_command= SQLCOM_SHOW_GRANTS;
+            lex->sql_command= SQLCOM_SHOW_GRANTS_SELF;
             LEX_USER *curr_user;
             if (!(curr_user= (LEX_USER*) lex->thd->alloc(sizeof(st_lex_user))))
               MYSQL_YYABORT;
