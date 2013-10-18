@@ -367,6 +367,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_RENAME_USER]=       CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_DROP_USER]=         CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_GRANT]=             CF_CHANGES_DATA;
+  sql_command_flags[SQLCOM_GRANT_ROLE]=        CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_REVOKE]=            CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_OPTIMIZE]=          CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_CREATE_FUNCTION]=   CF_CHANGES_DATA;
@@ -418,6 +419,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_REVOKE_ALL]=         CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_REVOKE]|=            CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_GRANT]|=             CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_GRANT_ROLE]|=        CF_AUTO_COMMIT_TRANS;
 
   sql_command_flags[SQLCOM_ASSIGN_TO_KEYCACHE]= CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_PRELOAD_KEYS]=       CF_AUTO_COMMIT_TRANS;
@@ -3875,6 +3877,12 @@ end_with_restore_list:
 	}
       }
     }
+    break;
+  }
+  case SQLCOM_GRANT_ROLE:
+  {
+    /* TODO Implement grant */
+    my_ok(thd);
     break;
   }
 #endif /*!NO_EMBEDDED_ACCESS_CHECKS*/

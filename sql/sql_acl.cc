@@ -2275,7 +2275,7 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
   role->flags|= ROLE_VISITED;
 
   (void) my_init_dynamic_array(&stack, sizeof(NODE_STATE), 20, 50, MYF(0));
-  push_dynamic(&stack, &state);
+  push_dynamic(&stack, (uchar*)&state);
 
   while (stack.elements)
   {
@@ -2343,7 +2343,7 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
       neighbour->flags|= ROLE_VISITED;
       state.neigh_idx= 0;
       state.node_data= neighbour;
-      push_dynamic(&stack, &state);
+      push_dynamic(&stack, (uchar*)&state);
     }
     else
     {
