@@ -1,0 +1,81 @@
+#create a user with no privileges
+create user 'test_user'@'localhost';
+create user 'test_role1'@'';
+create user 'test_role2'@'';
+
+update mysql.user set is_role='Y' where user='test_role1';
+update mysql.user set is_role='Y' where user='test_role2';
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+                                                                 'test_user',
+                                                                 'test_role1');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+                                                                 'test_user',
+                                                                 'test_role2');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
+                                                                 'test_role1',
+                                                                 'test_role2');
+--sorted_result
+select user, host from mysql.user where user not like 'root';
+--sorted_result
+select * from mysql.roles_mapping;
+flush privileges;
+
+--sorted_result
+select user, host from mysql.db;
+
+grant select on mysql.* to test_role2@'';
+flush privileges;
+
+change_user 'test_user';
+
+--sorted_result
+show grants;
+set role test_role1;
+--sorted_result
+show grants;
+set role none;
+--sorted_result
+show grants;
+
+--error ER_DBACCESS_DENIED_ERROR
+show grants for test_user@localhost;
+--error ER_DBACCESS_DENIED_ERROR
+show grants for test_role1;
+--error ER_DBACCESS_DENIED_ERROR
+show grants for test_role2;
+--sorted_result
+show grants for CURRENT_USER;
+--sorted_result
+show grants for CURRENT_USER();
+--error ER_NONEXISTING_GRANT
+show grants for CURRENT_ROLE;
+--error ER_NONEXISTING_GRANT
+show grants for CURRENT_ROLE();
+
+set role test_role2;
+--sorted_result
+show grants;
+--sorted_result
+show grants for test_user@localhost;
+--sorted_result
+show grants for test_role1;
+--sorted_result
+show grants for test_role2;
+--sorted_result
+show grants for CURRENT_USER;
+--sorted_result
+show grants for CURRENT_USER();
+--sorted_result
+show grants for CURRENT_ROLE;
+--sorted_result
+show grants for CURRENT_ROLE();
+
+
+change_user 'root';
+drop user 'test_user'@'localhost';
+revoke select on mysql.* from test_role2@'';
+delete from mysql.user where user='test_role1';
+delete from mysql.user where user='test_role2';
+delete from mysql.roles_mapping where RoleFk='test_role1';
+delete from mysql.roles_mapping where RoleFk='test_role2';
+flush privileges;
