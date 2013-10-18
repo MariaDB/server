@@ -3894,7 +3894,9 @@ end_with_restore_list:
 
     if (thd->security_ctx->user)              // If not replication
     {
-      if (!(res= mysql_grant_role(thd, lex->users_list)))
+      if (!(res= mysql_grant_role(thd, lex->users_list,
+                                  lex->sql_command == SQLCOM_GRANT_ROLE ? 0 : 1
+                                  )))
         my_ok(thd);
     }
     else

@@ -204,7 +204,7 @@ int check_change_password(THD *thd, const char *host, const char *user,
 bool change_password(THD *thd, const char *host, const char *user,
                      char *password);
 
-bool mysql_grant_role(THD *thd, List<LEX_USER> &user_list);
+bool mysql_grant_role(THD *thd, List<LEX_USER> &user_list, bool revoke);
 bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &user_list,
                  ulong rights, bool revoke, bool is_proxy);
 int mysql_table_grant(THD *thd, TABLE_LIST *table, List <LEX_USER> &user_list,

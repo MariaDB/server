@@ -2741,6 +2741,62 @@ int add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
   return result;
 }
 
+int remove_role_user_mapping(ROLE_GRANT_PAIR *mapping)
+{
+  ACL_USER_BASE *user= find_user_no_anon((mapping->u_hname) ? mapping->u_hname: "",
+                                    (mapping->u_uname) ? mapping->u_uname: "",
+                                    TRUE);
+  ACL_ROLE *role= find_acl_role(mapping->r_uname ? mapping->r_uname: "");
+
+
+  int result= 0;
+  uint idx_user, idx_role;
+  bool deleted_role= FALSE, deleted_user= FALSE;
+
+  if (user == NULL || role == NULL)
+  {
+    /* There still exists the possibility that the user is actually a role */
+    if (user == NULL && role && (!mapping->u_hname || !mapping->u_hname[0])
+        && /* in this case the grantee is a role */
+        ((user= find_acl_role(mapping->u_uname ? mapping->u_uname: ""))))
+    {
+      result= 1;
+    }
+    else
+    {
+      DBUG_PRINT("warning", ("Invalid remove_role_user_mapping '%s'@'%s' %s %p %p",
+                             mapping->u_uname, mapping->u_hname,
+                             mapping->r_uname, user, role));
+
+      return -1;
+    }
+  }
+
+  /* scan both arrays to find and delete both links */
+  for (idx_user=0; idx_user < user->role_grants.elements; idx_user++)
+  {
+    if (role == *dynamic_element(&user->role_grants, idx_user, ACL_ROLE**))
+    {
+      delete_dynamic_element(&user->role_grants, idx_user);
+      deleted_user= TRUE;
+    }
+  }
+
+  for (idx_role=0; idx_role < role->parent_grantee.elements; idx_role++)
+  {
+    if (user == *dynamic_element(&role->parent_grantee, idx_role,
+                                 ACL_USER_BASE**))
+    {
+      delete_dynamic_element(&role->parent_grantee, idx_role);
+      deleted_role= TRUE;
+    }
+  }
+
+  /* we should always get to delete from both arrays */
+  DBUG_ASSERT(deleted_role && deleted_user);
+  return result;
+}
+
 
 /*
   Rebuild the role grants every time the acl_users is modified
@@ -3695,6 +3751,60 @@ abort:
   DBUG_RETURN(-1);
 }
 
+static int
+replace_roles_mapping_table(TABLE *table, ROLE_GRANT_PAIR *pair,
+                            bool revoke_grant)
+{
+  DBUG_ENTER("replace_roles_mapping_table");
+
+  uchar row_key[MAX_KEY_LENGTH];
+  int error;
+  table->use_all_columns();
+  table->field[0]->store(pair->u_hname, strlen(pair->u_hname),
+                         system_charset_info);
+  table->field[1]->store(pair->u_uname, strlen(pair->u_uname),
+                         system_charset_info);
+  table->field[2]->store(pair->r_uname, strlen(pair->r_uname),
+                         system_charset_info);
+  key_copy(row_key, table->record[0], table->key_info,
+           table->key_info->key_length);
+
+  if (table->file->ha_index_read_idx_map(table->record[0], 0, row_key,
+                                         HA_WHOLE_KEY, HA_READ_KEY_EXACT))
+  {
+    /* No match */
+    if (revoke_grant)
+    {
+      DBUG_RETURN(1);
+    }
+  }
+  if (revoke_grant)
+  {
+    if ((error= table->file->ha_delete_row(table->record[0])))
+    {
+      DBUG_PRINT("info", ("error deleting row '%s' '%s' '%s'",
+                          pair->u_hname, pair->u_uname, pair->r_uname));
+      goto table_error;
+    }
+  }
+  else
+  {
+    if ((error= table->file->ha_write_row(table->record[0])))
+    {
+      DBUG_PRINT("info", ("error inserting row '%s' '%s' '%s'",
+                          pair->u_hname, pair->u_uname, pair->r_uname));
+      goto table_error;
+    }
+  }
+
+  /* all ok */
+  DBUG_RETURN(0);
+
+table_error:
+  DBUG_PRINT("info", ("table error"));
+  table->file->print_error(error, MYF(0));
+  DBUG_RETURN(1);
+}
 
 static void
 acl_update_proxy_user(ACL_PROXY_USER *new_value, bool is_revoke)
@@ -5183,7 +5293,7 @@ static void append_user(String *str, const char *u, const char *h,
 }
 
 
-bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
+bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 {
   DBUG_ENTER("mysql_grant_role");
   /*
@@ -5215,14 +5325,27 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
     rolename= granted_role->user.str;
   }
 
+  TABLE_LIST tables;
+  tables.init_one_table(C_STRING_WITH_LEN("mysql"),
+                        C_STRING_WITH_LEN("roles_mapping"),
+                        "roles_mapping", TL_WRITE);
+
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
   if (!(role= find_acl_role(rolename)))
   {
-    my_error(ER_INVALID_ROLE, MYF(0), rolename);
     mysql_mutex_unlock(&acl_cache->lock);
     mysql_rwlock_unlock(&LOCK_grant);
+    my_error(ER_INVALID_ROLE, MYF(0), rolename);
     DBUG_RETURN(TRUE);
+  }
+
+  if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
+  {                                             // Should never happen
+    mysql_mutex_unlock(&acl_cache->lock);
+    mysql_rwlock_unlock(&LOCK_grant);
+    my_error(ER_NO_SUCH_TABLE, MYF(0), "mysql", "roles_mapping");
+    DBUG_RETURN(TRUE);                          /* purecov: deadcode */
   }
 
   while ((user= user_list++))
@@ -5244,6 +5367,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
         result= 1;
         continue;
       }
+
       /* can not grant current_role to current_role */
       if (granted_role->user.str == current_role.str)
       {
@@ -5264,31 +5388,69 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
     ROLE_GRANT_PAIR *mapping= (ROLE_GRANT_PAIR *)
                                 alloc_root(&mem, sizeof(ROLE_GRANT_PAIR));
 
-    /* TODO write into roles_mapping table */
     init_role_grant_pair(&mem, mapping,
                          username, hostname, rolename);
-    int res= add_role_user_mapping(mapping);
-    if (res == -1)
+
+    if (!revoke)
     {
-      append_user(&wrong_users, username, hostname, role_as_user != NULL);
+      int res= add_role_user_mapping(mapping);
+      /* role or user does not exist*/
+      if (res == -1)
+      {
+        append_user(&wrong_users, username, hostname, role_as_user != NULL);
+        result= 1;
+        continue;
+      }
+
+      /*
+        Check if this grant would cause a cycle. It only needs to be run
+        if we're granting a role to a role
+       */
+      if (role_as_user &&
+          traverse_role_graph(role, NULL, NULL, NULL, role_explore_detect_cycle,
+                              NULL) == 2)
+      {
+        append_user(&wrong_users, username, hostname, TRUE);
+        result= 1;
+        /* need to rollback the mapping added previously */
+        remove_role_user_mapping(mapping);
+        continue;
+      }
+    }
+    else
+    {
+      /* revoke a role grant */
+      int res= remove_role_user_mapping(mapping);
+      if (res == -1)
+      {
+        append_user(&wrong_users, username, hostname, role_as_user != NULL);
+        result= 1;
+        continue;
+      }
+    }
+
+    /* write into the roles_mapping table */
+    if (replace_roles_mapping_table(tables.table, mapping, revoke))
+    {
+      append_user(&wrong_users, username, hostname, TRUE);
       result= 1;
+      if (!revoke)
+      {
+        /* need to rollback the mapping added previously */
+        remove_role_user_mapping(mapping);
+      }
+      else
+      {
+        /* need to rollback the mapping deleted previously */
+        add_role_user_mapping(mapping);
+      }
       continue;
     }
 
     /*
-       Check if this grant would cause a cycle. It only needs to be run
-       if we're granting a role to a role
-     */
-    if (role_as_user &&
-        traverse_role_graph(role, NULL, NULL, NULL, role_explore_detect_cycle,
-                            NULL) == 2)
-    {
-      append_user(&wrong_users, username, hostname, TRUE);
-      result= 1;
-      continue;
-    }
-
-    /* only need to propagate grants when granting a role to a role */
+       Only need to propagate grants when granting/revoking a role to/from
+       a role
+    */
     if (role_as_user)
     {
       acl_update_role_entry(role_as_user, role_as_user->initial_role_access);
@@ -5301,7 +5463,6 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
     my_error(ER_CANNOT_GRANT_ROLE, MYF(0),
              rolename,
              wrong_users.c_ptr_safe());
-
 
   DBUG_RETURN(result);
 }

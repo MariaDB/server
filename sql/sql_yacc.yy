@@ -14251,7 +14251,9 @@ revoke_command:
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_REVOKE_ROLE;
-            lex->type= 0;
+            /* The first role is the one that is revoked */
+            if (Lex->users_list.push_front($1))
+              MYSQL_YYABORT;
           }
 
         ;
