@@ -3791,38 +3791,54 @@ end_with_restore_list:
 
     if (thd->security_ctx->user)              // If not replication
     {
-      LEX_USER *user, *tmp_user;
+      LEX_USER *user;
       bool first_user= TRUE;
 
       List_iterator <LEX_USER> user_list(lex->users_list);
-      while ((tmp_user= user_list++))
+      while ((user= user_list++))
       {
-        if (!(user= get_current_user(thd, tmp_user)))
-          goto error;
         if (specialflag & SPECIAL_NO_RESOLVE &&
             hostname_requires_resolving(user->host.str))
           push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
                               ER_WARN_HOSTNAME_WONT_WORK,
                               ER(ER_WARN_HOSTNAME_WONT_WORK));
-        // Are we trying to change a password of another user
-        DBUG_ASSERT(user->host.str != 0);
 
         /*
           GRANT/REVOKE PROXY has the target user as a first entry in the list. 
          */
         if (lex->type == TYPE_ENUM_PROXY && first_user)
         {
+          if (!(user= get_current_user(thd, user)) || !user->host.str)
+            goto error;
+
           first_user= FALSE;
           if (acl_check_proxy_grant_access (thd, user->host.str, user->user.str,
                                         lex->grant & GRANT_ACL))
             goto error;
         } 
-        else if (is_acl_user(user->host.str, user->user.str) &&
-                 user->password.str &&
-                 check_change_password (thd, user->host.str, user->user.str, 
-                                        user->password.str, 
-                                        user->password.length))
-          goto error;
+        else if (user->password.str)
+        {
+          // Are we trying to change a password of another user?
+          const char *hostname= user->host.str, *username=user->user.str;
+          bool userok;
+          if (username == current_user.str)
+          {
+            username= thd->security_ctx->priv_user;
+            hostname= thd->security_ctx->priv_host;
+            userok= true;
+          }
+          else
+          {
+            if (!hostname)
+              hostname= host_not_specified.str;
+            userok= is_acl_user(hostname, username);
+          }
+
+          if (userok && check_change_password (thd, hostname, username, 
+                                               user->password.str, 
+                                               user->password.length))
+            goto error;
+        }
       }
     }
     if (first_table)
