@@ -1,0 +1,54 @@
+create role r1;
+create user u1;
+grant r1 to u1;
+show grants for u1;
+Grants for u1@%
+GRANT r1 TO 'u1'@'%'
+GRANT USAGE ON *.* TO 'u1'@'%'
+create user u2;
+show grants for u1;
+Grants for u1@%
+GRANT r1 TO 'u1'@'%'
+GRANT USAGE ON *.* TO 'u1'@'%'
+show grants for u2;
+Grants for u2@%
+GRANT USAGE ON *.* TO 'u2'@'%'
+select * from mysql.roles_mapping;
+HostFk	UserFk	RoleFk
+%	u1	r1
+revoke r1 from u1;
+revoke r1 from u1;
+ERROR HY000: Cannot revoke role 'r1' from: 'u1'@'%'.
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%'
+select * from mysql.roles_mapping;
+HostFk	UserFk	RoleFk
+grant r1 to u1;
+grant r1 to u1;
+ERROR HY000: Cannot grant role 'r1' to: 'u1'.
+show grants for u1;
+Grants for u1@%
+GRANT r1 TO 'u1'@'%'
+GRANT USAGE ON *.* TO 'u1'@'%'
+select * from mysql.roles_mapping;
+HostFk	UserFk	RoleFk
+%	u1	r1
+drop role r1;
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%'
+select * from mysql.roles_mapping;
+HostFk	UserFk	RoleFk
+create role r1;
+grant r1 to u1;
+select * from mysql.roles_mapping;
+HostFk	UserFk	RoleFk
+%	u1	r1
+drop user u1;
+show grants for u1;
+ERROR 42000: There is no such grant defined for user 'u1' on host '%'
+select * from mysql.roles_mapping;
+HostFk	UserFk	RoleFk
+drop role r1;
+drop user u2;
