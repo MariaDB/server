@@ -656,7 +656,9 @@ static my_bool grant_load(THD *thd, TABLE_LIST *tables);
 static inline void get_grantor(THD *thd, char* grantor);
 static my_bool acl_user_reset_grant(ACL_USER *user,
                                     void * not_used __attribute__((unused)));
-static my_bool add_role_user_mapping(ROLE_GRANT_PAIR *entry);
+static my_bool acl_role_reset_grant(ACL_USER *role,
+                                    void * not_used __attribute__((unused)));
+static int add_role_user_mapping(ROLE_GRANT_PAIR *mapping);
 
 /*
  Enumeration of various ACL's and Hashes used in handle_grant_struct()
@@ -1295,8 +1297,8 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       }
 
       my_hash_insert(&acl_roles_mappings, (uchar*) mapping);
-
     }
+
     free_root(&temp_root, MYF(0));
     end_read_record(&read_record_info);
 
@@ -2121,10 +2123,24 @@ void rebuild_check_host(void)
 }
 
 /*
+  Reset a role role_grants dynamic array.
+  Also, the role's access bits are reset to the ones present in the table.
+
+  The function can be used as a walk action for hash elements aswell.
+*/
+my_bool acl_role_reset_grant(ACL_USER *role,
+                             void * not_used __attribute__((unused)))
+{
+  reset_dynamic(&role->role_grants);
+  /* Also reset the role access bits */
+  role->access= role->initial_role_access;
+  return 0;
+}
+
+/*
   Reset a users role_grants dynamic array.
 
-  The function can is used as a walk action for hash elements aswell.
-
+  The function can be used as a walk action for hash elements aswell.
 */
 my_bool acl_user_reset_grant(ACL_USER *user,
                              void * not_used __attribute__((unused)))
@@ -2180,7 +2196,7 @@ void rebuild_role_grants(void)
     acl_user_reset_grant(user, NULL);
   }
   my_hash_iterate(&acl_roles,
-                  (my_hash_walk_action) acl_user_reset_grant, NULL);
+                  (my_hash_walk_action) acl_role_reset_grant, NULL);
 
   /*
     Rebuild the direct links between users and roles in ACL_USER::role_grants
