@@ -9,14 +9,11 @@ update mysql.user set is_role='Y' where user='test_role2';
 insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
 'test_role1',
 'test_role2');
-select user, host from mysql.user;
+flush privileges;
+select user, host from mysql.user where user not like 'root';
 user	host
 test_role1	
 test_role2	
-root	127.0.0.1
-root	::1
-root	Arrakis
-root	localhost
 test_user	localhost
 select * from mysql.roles_mapping;
 HostFk	UserFk	RoleFk
@@ -81,8 +78,7 @@ GRANT USAGE ON *.* TO 'test_user'@'localhost'
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 delete from mysql.user where user='test_role1';
-delete from mysql.roles_mapping where UserFk like 'test_role1';
 delete from mysql.user where user='test_role2';
-delete from mysql.roles_mapping where UserFk like 'test_role2';
-drop user 'test_user'@'localhost';
+delete from mysql.roles_mapping;
 flush privileges;
+drop user 'test_user'@'localhost';

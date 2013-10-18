@@ -4,13 +4,9 @@ update mysql.user set is_role='Y' where user='test_role1';
 insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
 'test_user',
 'test_role1');
-select user, host from mysql.user;
+select user, host from mysql.user where user not like 'root';
 user	host
 test_role1	
-root	127.0.0.1
-root	::1
-root	Arrakis
-root	localhost
 test_user	localhost
 select * from mysql.roles_mapping;
 HostFk	UserFk	RoleFk
