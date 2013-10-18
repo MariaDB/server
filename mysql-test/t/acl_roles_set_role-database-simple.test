@@ -2,12 +2,11 @@
 create user 'test_user'@'localhost';
 create role test_role1;
 
-insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role1');
+grant test_role1 to test_user@localhost;
 --sorted_result
 select user, host from mysql.user where user not like 'root';
 --sorted_result
 select * from mysql.roles_mapping;
-flush privileges;
 
 grant select on mysql.* to test_role1;
 grant insert, delete on mysql.roles_mapping to test_role1;
@@ -25,7 +24,7 @@ select current_user(), current_role();
 select * from mysql.roles_mapping;
 --error ER_TABLEACCESS_DENIED_ERROR
 insert into mysql.user (user, host) values ('Dummy', 'Dummy');
-insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role2');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role2', 'N');
 delete from mysql.roles_mapping where Role='test_role2';
 
 use mysql;
@@ -40,7 +39,7 @@ select * from mysql.roles_mapping;
 --error ER_TABLEACCESS_DENIED_ERROR
 insert into mysql.user (user, host) values ('Dummy', 'Dummy');
 --error ER_TABLEACCESS_DENIED_ERROR
-insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role2');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role2', 'N');
 --error ER_TABLEACCESS_DENIED_ERROR
 delete from mysql.roles_mapping where Role='test_role2';
 
