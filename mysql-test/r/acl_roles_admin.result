@@ -34,6 +34,22 @@ Host	User	Role	Admin_option
 	role4	role3	Y
 localhost	foo	role1	Y
 localhost	foo	role2	N
+flush privileges;
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT role1 TO 'foo'@'localhost' WITH ADMIN OPTION
+GRANT role2 TO 'foo'@'localhost'
+show grants for role1;
+Grants for role1
+GRANT USAGE ON *.* TO 'role1'
+GRANT USAGE ON *.* TO 'role2'
+GRANT role2 TO 'role1'
+show grants for role4;
+Grants for role4
+GRANT USAGE ON *.* TO 'role3'
+GRANT USAGE ON *.* TO 'role4'
+GRANT role3 TO 'role4' WITH ADMIN OPTION
 grant role2 to role1 with admin option;
 revoke role1 from foo@localhost;
 revoke admin option for role3 from role4;
@@ -57,5 +73,20 @@ Host	User	Role	Admin_option
 	role1	role2	Y
 	role4	role3	N
 localhost	foo	role2	N
+flush privileges;
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT role2 TO 'foo'@'localhost'
+show grants for role1;
+Grants for role1
+GRANT USAGE ON *.* TO 'role1'
+GRANT USAGE ON *.* TO 'role2'
+GRANT role2 TO 'role1' WITH ADMIN OPTION
+show grants for role4;
+Grants for role4
+GRANT USAGE ON *.* TO 'role3'
+GRANT USAGE ON *.* TO 'role4'
+GRANT role3 TO 'role4'
 drop role role1, role2, role3, role4, role5, role6;
 drop user foo@localhost;
