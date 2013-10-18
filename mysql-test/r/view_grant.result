@@ -531,13 +531,13 @@ drop user mysqltest_1@localhost;
 drop database mysqltest;
 create definer=some_user@`` sql security invoker view v1 as select 1;
 Warnings:
-Note	1449	The user specified as a definer ('some_user'@'') does not exist
+Note	1449	The user specified as a definer ('some_user'@'%') does not exist
 create definer=some_user@localhost sql security invoker view v2 as select 1;
 Warnings:
 Note	1449	The user specified as a definer ('some_user'@'localhost') does not exist
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`some_user`@`` SQL SECURITY INVOKER VIEW `v1` AS select 1 AS `1`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`some_user`@`%` SQL SECURITY INVOKER VIEW `v1` AS select 1 AS `1`	latin1	latin1_swedish_ci
 show create view v2;
 View	Create View	character_set_client	collation_connection
 v2	CREATE ALGORITHM=UNDEFINED DEFINER=`some_user`@`localhost` SQL SECURITY INVOKER VIEW `v2` AS select 1 AS `1`	latin1	latin1_swedish_ci

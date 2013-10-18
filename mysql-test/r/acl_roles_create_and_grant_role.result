@@ -15,7 +15,7 @@ show grants;
 Grants for root@localhost
 GRANT r1 TO 'root'@'localhost'
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
-GRANT PROXY ON ''@'' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO 'r1'
 drop role r1;
 select * from mysql.roles_mapping;
@@ -23,4 +23,4 @@ HostFk	UserFk	RoleFk
 show grants;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
-GRANT PROXY ON ''@'' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION

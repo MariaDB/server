@@ -404,9 +404,7 @@ public:
   }
   void set_host(MEM_ROOT *mem, const char *host_arg)
   {
-    update_hostname(&host,
-                    (host_arg && *host_arg) ?
-                    strdup_root(mem, host_arg) : NULL);
+    update_hostname(&host, safe_strdup_root(mem, host_arg));
   }
 
   bool check_validity(bool check_no_resolve)
@@ -1319,14 +1317,17 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   while (!(read_record_info.read_record(&read_record_info)))
   {
     ACL_DB db;
-    update_hostname(&db.host,get_field(&mem, table->field[MYSQL_DB_FIELD_HOST]));
+    db.user=get_field(&mem, table->field[MYSQL_DB_FIELD_USER]);
+    const char *hostname= get_field(&mem, table->field[MYSQL_DB_FIELD_HOST]);
+    if (!hostname && find_acl_role(db.user))
+      hostname= "";
+    update_hostname(&db.host, hostname);
     db.db=get_field(&mem, table->field[MYSQL_DB_FIELD_DB]);
     if (!db.db)
     {
       sql_print_warning("Found an entry in the 'db' table with empty database name; Skipped");
       continue;
     }
-    db.user=get_field(&mem, table->field[MYSQL_DB_FIELD_USER]);
     if (check_no_resolve && hostname_requires_resolving(db.host.hostname))
     {
       sql_print_warning("'db' entry '%s %s@%s' "
@@ -1750,8 +1751,7 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
   DBUG_ENTER("acl_getroot");
 
   DBUG_PRINT("enter", ("Host: '%s', Ip: '%s', User: '%s', db: '%s'",
-                       (host ? host : "(NULL)"), (ip ? ip : "(NULL)"),
-                       user, (db ? db : "(NULL)")));
+                       host, ip, user, db));
   sctx->user= user;
   sctx->host= host;
   sctx->ip= ip;
@@ -2105,7 +2105,7 @@ static void acl_insert_user(const char *user, const char *host,
 
   acl_user.user.str=*user ? strdup_root(&mem,user) : 0;
   acl_user.user.length= strlen(user);
-  update_hostname(&acl_user.host, *host ? strdup_root(&mem, host): 0);
+  update_hostname(&acl_user.host, safe_strdup_root(&mem, host));
   if (plugin->str[0])
   {
     acl_user.plugin= *plugin;
@@ -2207,7 +2207,7 @@ static void acl_insert_db(const char *user, const char *host, const char *db,
   ACL_DB acl_db;
   mysql_mutex_assert_owner(&acl_cache->lock);
   acl_db.user=strdup_root(&mem,user);
-  update_hostname(&acl_db.host, *host ? strdup_root(&mem,host) : 0);
+  update_hostname(&acl_db.host, safe_strdup_root(&mem, host));
   acl_db.db=strdup_root(&mem,db);
   acl_db.access=privileges;
   if (set_initial_access)
@@ -3161,10 +3161,11 @@ static const char *calc_ip(const char *ip, long *val, char end)
 
 static void update_hostname(acl_host_and_ip *host, const char *hostname)
 {
+  // fix historical undocumented convention that empty host is the same as '%'
+  hostname=const_cast<char*>(hostname ? hostname : host_not_specified.str);
   host->hostname=(char*) hostname;             // This will not be modified!
-  if (!hostname ||
-      (!(hostname=calc_ip(hostname,&host->ip,'/')) ||
-       !(hostname=calc_ip(hostname+1,&host->ip_mask,'\0'))))
+  if (!(hostname= calc_ip(hostname,&host->ip,'/')) ||
+      !(hostname= calc_ip(hostname+1,&host->ip_mask,'\0')))
   {
     host->ip= host->ip_mask=0;			// Not a masked ip
   }
@@ -4154,11 +4155,18 @@ GRANT_TABLE::GRANT_TABLE(GRANT_TABLE *source, char *u)
 
 GRANT_NAME::GRANT_NAME(TABLE *form, bool is_routine)
 {
-  update_hostname(&host, get_field(&memex, form->field[0]));
-  db=    get_field(&memex,form->field[1]);
   user=  get_field(&memex,form->field[2]);
   if (!user)
     user= (char*) "";
+
+  const char *hostname= get_field(&memex, form->field[0]);
+  mysql_mutex_lock(&acl_cache->lock);
+  if (!hostname && find_acl_role(user))
+    hostname= "";
+  mysql_mutex_unlock(&acl_cache->lock);
+  update_hostname(&host, hostname);
+
+  db=    get_field(&memex,form->field[1]);
   sort=  get_sort(3, host.hostname, db, user);
   tname= get_field(&memex,form->field[3]);
   if (!db || !tname)
@@ -8896,6 +8904,9 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
         continue;
       }
     }
+
+    if (!user_name->host.str)
+      user_name->host= host_not_specified;
 
     /*
       Search all in-memory structures and grant tables

@@ -116,7 +116,7 @@ ERROR 42000: There is no such grant defined for user 'grant_plug' on host '%'
 in grant_plug_dest_con
 ## testing what an ordinary user can grant 
 this should fail : no rights to grant all
-GRANT PROXY ON ''@'' TO grant_plug;
+GRANT PROXY ON ''@'%%' TO grant_plug;
 ERROR 28000: Access denied for user 'grant_plug_dest'@'localhost'
 this should fail : not the same user
 GRANT PROXY ON grant_plug TO grant_plug_dest;
@@ -139,15 +139,15 @@ ERROR 42000: You are not allowed to create a user with GRANT
 in default connection
 # test what root can grant
 should work : root has PROXY to all users
-GRANT PROXY ON ''@'' TO grant_plug;
-REVOKE PROXY ON ''@'' FROM grant_plug;
+GRANT PROXY ON ''@'%%' TO grant_plug;
+REVOKE PROXY ON ''@'%%' FROM grant_plug;
 should work : root has PROXY to all users
-GRANT PROXY ON ''@'' TO proxy_admin IDENTIFIED BY 'test' 
+GRANT PROXY ON ''@'%%' TO proxy_admin IDENTIFIED BY 'test' 
 WITH GRANT OPTION;
 need USAGE : PROXY doesn't contain it.
 GRANT USAGE on *.* TO proxy_admin;
 in proxy_admin_con;
-should work : proxy_admin has proxy to ''@''
+should work : proxy_admin has proxy to ''@'%%'
 GRANT PROXY ON future_user TO grant_plug;
 in default connection
 SHOW GRANTS FOR grant_plug;
@@ -234,25 +234,25 @@ DROP USER plug_dest;
 #  Bug #56798 : Wrong credentials assigned when using a proxy user.
 #
 GRANT ALL PRIVILEGES ON *.* TO power_user;
-GRANT USAGE ON anonymous_db.* TO ''@''
+GRANT USAGE ON anonymous_db.* TO ''@'%%'
   IDENTIFIED WITH 'test_plugin_server' AS 'power_user';
-GRANT PROXY ON power_user TO ''@'';
+GRANT PROXY ON power_user TO ''@'%%';
 CREATE DATABASE confidential_db;
 SELECT user(),current_user(),@@proxy_user;
 user()	current_user()	@@proxy_user
-test_login_user@localhost	power_user@%	''@''
+test_login_user@localhost	power_user@%	''@'%%'
 DROP USER power_user;
-DROP USER ''@'';
+DROP USER ''@'%%';
 DROP DATABASE confidential_db;
 # Test case #2 (crash with double grant proxy)
-CREATE USER ''@'' IDENTIFIED WITH 'test_plugin_server' AS 'standard_user';
+CREATE USER ''@'%%' IDENTIFIED WITH 'test_plugin_server' AS 'standard_user';
 CREATE USER standard_user;
 CREATE DATABASE shared;
 GRANT ALL PRIVILEGES ON shared.* TO standard_user;
-GRANT PROXY ON standard_user TO ''@'';
+GRANT PROXY ON standard_user TO ''@'%%';
 #should not crash
-GRANT PROXY ON standard_user TO ''@'';
-DROP USER ''@'';
+GRANT PROXY ON standard_user TO ''@'%%';
+DROP USER ''@'%%';
 DROP USER standard_user;
 DROP DATABASE shared;
 #
