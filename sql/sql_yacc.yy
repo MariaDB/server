@@ -783,10 +783,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 197 shift/reduce conflicts.
+  Currently there are 198 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 197
+%expect 198
 
 /*
    Comments for TOKENS.
@@ -1650,7 +1650,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         spatial_key_options fulltext_key_options normal_key_opt 
         fulltext_key_opt spatial_key_opt fulltext_key_opts spatial_key_opts
 	keep_gcc_happy
-        key_using_alg
+        key_using_alg shutdown
         part_column_list
         server_def server_options_list server_option
         definer_opt no_definer definer
