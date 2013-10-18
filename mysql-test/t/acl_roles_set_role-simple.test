@@ -1,0 +1,27 @@
+
+#create a user with no privileges
+create user 'test_user'@'localhost';
+create user 'test_role1'@'';
+#manualy create role
+update mysql.user set is_role='Y' where user='test_role1';
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+                                                                 'test_user',
+                                                                 'test_role1');
+select user, host from mysql.user;
+select * from mysql.roles_mapping;
+grant select on *.* to 'test_role1'@'';
+select * from mysql.user where user='test_role1';
+flush privileges;
+
+change_user 'test_user';
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+
+set role 'test_role1';
+select * from mysql.roles_mapping;
+
+change_user 'root';
+delete from mysql.user where user='test_role1';
+delete from mysql.roles_mapping where UserFk='test_role1';
+drop user 'test_user'@'localhost';
