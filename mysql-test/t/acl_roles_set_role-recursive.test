@@ -1,0 +1,63 @@
+
+#create a user with no privileges
+create user 'test_user'@'localhost';
+create user 'test_role1'@'';
+#manualy create role
+update mysql.user set is_role='Y' where user='test_role1';
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+                                                                 'test_user',
+                                                                 'test_role1');
+create user 'test_role2'@'';
+#manualy create role
+update mysql.user set is_role='Y' where user='test_role2';
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
+                                                                 'test_role1',
+                                                                 'test_role2');
+select user, host from mysql.user;
+select * from mysql.roles_mapping;
+grant select on *.* to 'test_role2'@'';
+select * from mysql.user where user like 'test_role%';
+flush privileges;
+
+change_user 'test_user';
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+
+show grants;
+set role test_role1;
+show grants;
+select * from mysql.roles_mapping;
+
+show grants;
+set role none;
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+
+show grants;
+--error ER_INVALID_ROLE
+set role test_role2;
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+
+#Make sure that this still works after an ER_INVALID_ROLE error
+show grants;
+set role test_role1;
+show grants;
+select * from mysql.roles_mapping;
+
+show grants;
+set role none;
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+
+change_user 'root';
+delete from mysql.user where user='test_role1';
+delete from mysql.roles_mapping where UserFk like 'test_role1';
+delete from mysql.user where user='test_role2';
+delete from mysql.roles_mapping where UserFk like 'test_role2';
+drop user 'test_user'@'localhost';
+flush privileges;
