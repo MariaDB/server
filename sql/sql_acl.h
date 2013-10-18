@@ -394,4 +394,9 @@ bool acl_check_proxy_grant_access (THD *thd, const char *host, const char *user,
                                    bool with_grant);
 int acl_setrole(THD *thd, char *rolename, ulonglong access);
 int acl_check_setrole(THD *thd, char *rolename, ulonglong *access);
+
+#ifndef DBUG_OFF
+extern ulong role_global_merges, role_db_merges, role_table_merges,
+             role_column_merges, role_routine_merges;
+#endif
 #endif /* SQL_ACL_INCLUDED */

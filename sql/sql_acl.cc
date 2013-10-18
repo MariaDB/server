@@ -44,13 +44,13 @@
 #include "sp.h"
 #include "transaction.h"
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_TIMEOUT
-#include "records.h"             // init_read_record, end_read_record
 #include <sql_common.h>
 #include <mysql/plugin_auth.h>
 #include "sql_connect.h"
 #include "hostname.h"
 #include "sql_db.h"
 #include "sql_array.h"
+#include "sql_hset.h"
 
 #include "sql_plugin_compat.h"
 
@@ -296,6 +296,12 @@ public:
     initial_role_access holds the initial grants present in the table row.
   */
   ulong initial_role_access;
+  /*
+    In subgraph traversal, when we need to traverse only a part of the graph
+    (e.g. all direct and indirect grantees of a role X), the counter holds the
+    number of affected neighbour nodes.
+  */
+  uint  counter;
   DYNAMIC_ARRAY parent_grantee; // array of backlinks to elements granted
 
   ACL_ROLE(ACL_USER * user, MEM_ROOT *mem);
@@ -595,11 +601,10 @@ struct ROLE_GRANT_PAIR : public Sql_alloc
 /*
   Struct to hold the state of a node during a Depth First Search exploration
 */
-class NODE_STATE
+struct NODE_STATE
 {
-public:
-  ACL_ROLE *node_data; /* pointer to the node data */
-  uint neigh_idx;      /* the neighbour that needs to be evaluated next */
+  ACL_USER_BASE *node_data; /* pointer to the node data */
+  uint neigh_idx;           /* the neighbour that needs to be evaluated next */
 };
 
 static uchar* acl_role_map_get_key(ROLE_GRANT_PAIR *entry, size_t *length,
@@ -683,19 +688,15 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, char *username,
 #define ROLE_ASSIGN_COLUMN_IDX  42
 /* various flags valid for ACL_USER */
 #define IS_ROLE                 (1L << 0)
-/* Flag to mark that a ROLE has been visited in a DEPTH_FIRST_SEARCH */
-#define ROLE_VISITED            (1L << 1)
+/* Flag to mark that a ROLE is on the recursive DEPTH_FIRST_SEARCH stack */
+#define ROLE_ON_STACK            (1L << 1)
 /*
-  Flag to mark that a ROLE and all it's children (granted roles) have
+  Flag to mark that a ROLE and all it's neighbours have
   been visited
- */
+*/
 #define ROLE_EXPLORED           (1L << 2)
-/*
-   Flag to mark that the ROLE's access bits are final, having been inherited
-   from other granted roles
- */
-#define ROLE_GRANTS_FINAL       (1L << 3)
-
+/* Flag to mark that on_node was already called for this role */
+#define ROLE_OPENED             (1L << 3)
 
 static DYNAMIC_ARRAY acl_hosts, acl_users, acl_dbs, acl_proxy_users;
 static HASH acl_roles;
@@ -733,28 +734,17 @@ static bool update_user_table(THD *thd, TABLE *table, const char *host,
 static my_bool acl_load(THD *thd, TABLE_LIST *tables);
 static my_bool grant_load(THD *thd, TABLE_LIST *tables);
 static inline void get_grantor(THD *thd, char* grantor);
-static my_bool acl_user_reset_grant(ACL_USER *, void *);
-static my_bool acl_role_reset_grant(ACL_ROLE *, void *);
-static my_bool acl_role_propagate_grants(ACL_ROLE *, void *);
-static bool add_role_user_mapping(ROLE_GRANT_PAIR *mapping);
 static bool add_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role);
 static bool add_role_user_mapping(const char *uname, const char *hname, const char *rname);
 
-static void reset_role_db_privileges(ACL_ROLE *role);
-static void reset_role_table_and_column_privileges(ACL_ROLE *role);
-static void reset_role_routine_grant_privileges(ACL_ROLE *role);
-static void role_explore_create_list(ACL_ROLE *, ACL_ROLE *, void *);
-static bool role_explore_start_access_check(ACL_ROLE *role, void *unused);
-static bool role_explore_merge_if_final(ACL_ROLE *, ACL_ROLE *, void *);
-static void role_explore_set_final_access_bits(ACL_ROLE *, ACL_ROLE *, void *);
-static bool role_explore_detect_cycle(ACL_ROLE *, ACL_ROLE *, void *);
-static int traverse_role_graph(ACL_ROLE *, void *,
-                               bool (*)(ACL_ROLE *, void *),
-                               bool (*)(ACL_ROLE *, ACL_ROLE *, void *),
-                               bool (*)(ACL_ROLE *, ACL_ROLE *, void *),
-                               void (*)(ACL_ROLE *, ACL_ROLE *, void *));
+#define ROLE_CYCLE_FOUND 2
+static int traverse_role_graph_up(ACL_ROLE *, void *,
+                                  int (*) (ACL_ROLE *, void *),
+                                  int (*) (ACL_ROLE *, ACL_ROLE *, void *));
 
-static void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source);
+static int traverse_role_graph_down(ACL_USER_BASE *, void *,
+                             int (*) (ACL_USER_BASE *, void *),
+                             int (*) (ACL_USER_BASE *, ACL_ROLE *, void *));
 
 /*
  Enumeration of various ACL's and Hashes used in handle_grant_struct()
@@ -771,7 +761,7 @@ enum enum_acl_lists
   ROLES_MAPPINGS_HASH
 };
 
-ACL_ROLE::ACL_ROLE(ACL_USER *user, MEM_ROOT *root)
+ACL_ROLE::ACL_ROLE(ACL_USER *user, MEM_ROOT *root) : counter(0)
 {
 
   access= user->access;
@@ -785,7 +775,7 @@ ACL_ROLE::ACL_ROLE(ACL_USER *user, MEM_ROOT *root)
 }
 
 ACL_ROLE::ACL_ROLE(const char * rolename, ulong privileges, MEM_ROOT *root) :
-  initial_role_access(privileges)
+  initial_role_access(privileges), counter(0)
 {
   this->access= initial_role_access;
   this->user.str= safe_strdup_root(root, rolename);
@@ -1851,7 +1841,7 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
 
 int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
 {
-  bool is_granted;
+  bool is_granted= FALSE;
   int result= 0;
 
   /* clear role privileges */
@@ -1859,7 +1849,7 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
 
   ACL_ROLE *role= find_acl_role(rolename);
   ACL_USER_BASE *acl_user_base;
-  ACL_USER *acl_user;
+  ACL_USER *UNINIT_VAR(acl_user);
 
   if (!strcasecmp(rolename, "NONE")) {
     /* have to clear the privileges */
@@ -1953,85 +1943,11 @@ static uchar* check_get_key(ACL_USER *buff, size_t *length,
   return (uchar*) buff->host.hostname;
 }
 
-
-static void acl_update_role_entry(ACL_ROLE *role, ulong privileges)
-{
-
-  mysql_mutex_assert_owner(&acl_cache->lock);
-
-  /*
-     Changing privileges of a role causes all other roles that had
-     this role granted to them to have their rights invalidated.
-
-     We need to rebuild all roles' related access bits.
-  */
-
-  role->initial_role_access= privileges;
-  role->flags&= ~ROLE_GRANTS_FINAL;
-  role->access= role->initial_role_access;
-  traverse_role_graph(role,
-                      NULL,
-                      role_explore_start_access_check,
-                      role_explore_merge_if_final, NULL,
-                      role_explore_set_final_access_bits);
-
-  for (uint i= 0; i < role->parent_grantee.elements; i++)
-  {
-    ACL_USER_BASE *acl_user_base;
-    ACL_ROLE *grantee;
-    acl_user_base= *(dynamic_element(&role->parent_grantee, i, ACL_USER_BASE**));
-    if (acl_user_base->flags & IS_ROLE)
-    {
-      grantee= (ACL_ROLE *)acl_user_base;
-      grantee->flags&= ~ROLE_GRANTS_FINAL;
-      grantee->access= grantee->initial_role_access;
-    }
-  }
-  /*
-     This needs to be run again after resetting the ROLE_GRANTS_FINAL flag,
-     because otherwise diamond shaped grants will interfere with the reset
-     process.
-
-     Example: RoleA -> RoleB; RoleA -> RoleC; RoleB -> RoleC;
-     We are updating RoleC, and we reset RoleA first. If we were to run
-     traverse_role_graph without resetting RoleB on RoleA, we would get the old
-     privileges from RoleC via RoleB into RoleA.
-  */
-  for (uint i= 0; i < role->parent_grantee.elements; i++)
-  {
-    ACL_USER_BASE *acl_user_base;
-    ACL_ROLE *grantee;
-    acl_user_base= *(dynamic_element(&role->parent_grantee, i, ACL_USER_BASE**));
-    if (acl_user_base->flags & IS_ROLE)
-    {
-      grantee= (ACL_ROLE *)acl_user_base;
-      traverse_role_graph(grantee,
-                          NULL,
-                          role_explore_start_access_check,
-                          role_explore_merge_if_final, NULL,
-                          role_explore_set_final_access_bits);
-    }
-  }
-}
-
-
-static void acl_update_role(const char *rolename)
-{
-  mysql_mutex_assert_owner(&acl_cache->lock);
-  ACL_ROLE *role= find_acl_role(rolename);
-  if (!role)
-    return;
-  acl_update_role_entry(role, role->initial_role_access);
-}
-
-
 static void acl_update_role(const char *rolename, ulong privileges)
 {
-  mysql_mutex_assert_owner(&acl_cache->lock);
   ACL_ROLE *role= find_acl_role(rolename);
-  if (!role)
-    return;
-  acl_update_role_entry(role, privileges);
+  if (role)
+    role->initial_role_access= role->access= privileges;
 }
 
 
@@ -2152,6 +2068,7 @@ static void acl_insert_user(const char *user, const char *host,
     set_user_plugin(&acl_user, password_len);
   }
 
+  acl_user.flags= 0;
   acl_user.access=privileges;
   acl_user.user_resource = *mqh;
   acl_user.sort=get_sort(2,acl_user.host.hostname,acl_user.user);
@@ -2180,7 +2097,7 @@ static void acl_insert_user(const char *user, const char *host,
 
 
 static void acl_update_db(const char *user, const char *host, const char *db,
-                          ulong privileges, bool set_initial_access)
+                          ulong privileges)
 {
   mysql_mutex_assert_owner(&acl_cache->lock);
 
@@ -2202,8 +2119,7 @@ static void acl_update_db(const char *user, const char *host, const char *db,
 	  if (privileges)
           {
             acl_db->access= privileges;
-            if (set_initial_access)
-              acl_db->initial_access= acl_db->access;
+            acl_db->initial_access= acl_db->access;
           }
 	  else
 	    delete_dynamic_element(&acl_dbs,i);
@@ -2223,8 +2139,6 @@ static void acl_update_db(const char *user, const char *host, const char *db,
     host		Host name
     db			Database name
     privileges		Bitmap of privileges
-    set_initial_access  If marked true, will set the initial_access field
-                        to be set to the same value as privileges.
 
   NOTES
     acl_cache->lock must be locked when calling this
@@ -2239,10 +2153,7 @@ static void acl_insert_db(const char *user, const char *host, const char *db,
   update_hostname(&acl_db.host, safe_strdup_root(&mem, host));
   acl_db.db=strdup_root(&mem,db);
   acl_db.access=privileges;
-  if (set_initial_access)
-    acl_db.initial_access= acl_db.access;
-  else
-    acl_db.initial_access= 0;
+  acl_db.initial_access= set_initial_access ? acl_db.access : 0;
   acl_db.sort=get_sort(3,acl_db.host.hostname,acl_db.db,acl_db.user);
   (void) push_dynamic(&acl_dbs,(uchar*) &acl_db);
   my_qsort((uchar*) dynamic_element(&acl_dbs,0,ACL_DB*),acl_dbs.elements,
@@ -2418,296 +2329,20 @@ void rebuild_check_host(void)
   init_check_host();
 }
 
-static my_bool acl_role_propagate_grants(ACL_ROLE *role,
-                                         void * not_used __attribute__((unused)))
-{
-  traverse_role_graph(role,
-                      NULL,
-                      role_explore_start_access_check,
-                      role_explore_merge_if_final, NULL,
-                      role_explore_set_final_access_bits);
-  return 0;
-}
-
 /*
   Reset a role role_grants dynamic array.
   Also, the role's access bits are reset to the ones present in the table.
 
   The function can be used as a walk action for hash elements aswell.
 */
-my_bool acl_role_reset_grant(ACL_ROLE *role,
-                             void * not_used __attribute__((unused)))
+static my_bool acl_role_reset_role_arrays(void *ptr,
+                                    void * not_used __attribute__((unused)))
 {
+  ACL_ROLE *role= (ACL_ROLE *)ptr;
   reset_dynamic(&role->role_grants);
   reset_dynamic(&role->parent_grantee);
-  /* Also reset the role access bits */
-  role->access= role->initial_role_access;
-  role->flags&= ~ROLE_GRANTS_FINAL;
+  role->counter= 0;
   return 0;
-}
-
-/*
-  Reset a users role_grants dynamic array.
-
-  The function can be used as a walk action for hash elements aswell.
-*/
-my_bool acl_user_reset_grant(ACL_USER *user,
-                             void * not_used __attribute__((unused)))
-{
-  reset_dynamic(&user->role_grants);
-  return 0;
-}
-
-
-static void role_explore_create_list(ACL_ROLE *unused __attribute__((unused)),
-                                     ACL_ROLE *role, void *context_data)
-{
-  DYNAMIC_ARRAY *list= (DYNAMIC_ARRAY *)context_data;
-  push_dynamic(list, (uchar*)&role);
-}
-
-static bool role_explore_start_access_check(ACL_ROLE *role,
-                                            void *unused __attribute__((unused)))
-{
-  /*
-    There exists the possibility that the role's access bits are final
-    and we can just get the access bits without doing the more expensive
-    search operation
-  */
-  if (role->flags & ROLE_GRANTS_FINAL)
-    return TRUE;
-  /*
-    This function is called when the node is first opened by DFS.
-    If it's ROLE_GRANTS were not final, then it means that it's existing
-    privilege entries should be placed on their initial grant access state.
-  */
-
-  reset_role_db_privileges(role);
-  reset_role_table_and_column_privileges(role);
-  reset_role_routine_grant_privileges(role);
-
-  return FALSE;
-}
-
-static bool role_explore_merge_if_final(ACL_ROLE *current, ACL_ROLE *neighbour,
-                                        void *unused __attribute__((unused)))
-{
-  if (neighbour->flags & ROLE_GRANTS_FINAL)
-  {
-    DBUG_PRINT("info", ("Neighbour access is final, merging"));
-    merge_role_grant_privileges(current, neighbour);
-    return TRUE;
-  }
-  return FALSE;
-}
-
-static void role_explore_set_final_access_bits(ACL_ROLE *parent,
-                                               ACL_ROLE *current,
-                                               void *unused __attribute__((unused)))
-{
-  current->flags|= ROLE_GRANTS_FINAL;
-  /* Add the own role's rights once it's finished exploring */
-  current->access|= current->initial_role_access;
-  DBUG_PRINT("info",
-             ("Setting final access for node: %s %lu",
-              current->user.str, current->access));
-  if (parent)
-  {
-    merge_role_grant_privileges(parent, current);
-  }
-}
-
-static bool role_explore_detect_cycle(ACL_ROLE *unused __attribute__((unused)),
-                                      ACL_ROLE *unused2 __attribute__((unused)),
-                                      void *unused3 __attribute__((unused)))
-{
-  return TRUE;
-}
-
-/*
-  The function scans through all roles granted to the role passed as argument
-  and places the permissions in the access variable. The traverse method is
-  a DEPTH FIRST SEARCH.
-
-  The functions passed as parameters (if they are not NULL) are called during
-  specific events:
-
-  on_start  - called before initializing the stack.
-  on_open   - called the first time a neighbour is opened.
-  on_cycle  - called when an an attempt was made to open an already opened
-              neighbour
-  on_finish - called when a node has had all it's neighbours explored
-
-  NOTES:
-  If on_start returns TRUE, the whole exploration stops.
-  If on_open returns TRUE, the neighbour is ignored and not placed on the stack
-  If on_cycle returns TRUE, the whole exploration stops.
-
-
-  Return values:
-    0: Exploration finished after complete exploration;
-    1: Exploration finished due to on_start returning TRUE;
-    2: Exploration finished due to on_cycle returning TRUE;
-*/
-static int traverse_role_graph(ACL_ROLE *role,
-                               void *context_data,
-                               bool (*on_start) (ACL_ROLE *role,
-                                                 void *context_data),
-                               bool (*on_open)  (ACL_ROLE *current,
-                                                 ACL_ROLE *neighbour,
-                                                 void *context_data),
-                               bool (*on_cycle) (ACL_ROLE *current,
-                                                 ACL_ROLE *neighbour,
-                                                 void *context_data),
-                               void (*on_finish)(ACL_ROLE *parent,
-                                                 ACL_ROLE *current,
-                                                 void *context_data))
-{
-
-  DBUG_ENTER("traverse_role_graph");
-  DBUG_ASSERT(role);
-  DBUG_PRINT("enter",("role: '%s'", role->user.str));
-  /*
-     The search operation should always leave the ROLE_VISITED and ROLE_EXPLORED
-     flags clean for all nodes involved in the search
-  */
-  DBUG_ASSERT(!(role->flags & ROLE_VISITED));
-  DBUG_ASSERT(!(role->flags & ROLE_EXPLORED));
-  mysql_mutex_assert_owner(&acl_cache->lock);
-
-  if (on_start && on_start(role, context_data))
-    DBUG_RETURN(1);
-
-  /*
-     Stack used to simulate the recursive calls of DFS.
-     It uses a DYNAMIC_ARRAY to reduce the number of
-     malloc calls to a minimum
-  */
-  DYNAMIC_ARRAY stack;
-  DYNAMIC_ARRAY to_clear;
-  NODE_STATE state;     /* variable used to insert elements in the stack */
-  uint result= 0;
-
-  state.neigh_idx= 0;
-  state.node_data= role;
-  role->flags|= ROLE_VISITED;
-
-  (void) my_init_dynamic_array(&stack, sizeof(NODE_STATE), 20, 50, MYF(0));
-  (void) my_init_dynamic_array(&to_clear, sizeof(ACL_ROLE *), 20, 50, MYF(0));
-  push_dynamic(&stack, (uchar*)&state);
-  push_dynamic(&to_clear, (uchar*)&role);
-
-  while (stack.elements)
-  {
-    NODE_STATE *curr_state= dynamic_element(&stack, stack.elements - 1,
-                                            NODE_STATE *);
-
-    DBUG_ASSERT(curr_state->node_data->flags & ROLE_VISITED);
-
-    ACL_ROLE *current= curr_state->node_data;
-    ACL_ROLE *neighbour= NULL;
-    DBUG_PRINT("info", ("Examining role %s", current->user.str));
-    /*
-      Iterate through the neighbours until a first valid jump-to
-      neighbour is found
-    */
-    my_bool found= FALSE;
-    uint i;
-    for (i= curr_state->neigh_idx; i < current->role_grants.elements; i++)
-    {
-      neighbour= *(dynamic_element(&current->role_grants, i, ACL_ROLE**));
-      DBUG_PRINT("info", ("Examining neighbour role %s", neighbour->user.str));
-
-      /* check if it forms a cycle */
-      if (neighbour->flags & ROLE_VISITED)
-      {
-        DBUG_PRINT("info", ("Found cycle"));
-        if (on_cycle && on_cycle(current, neighbour, context_data))
-        {
-          result= 2;
-          goto end;
-        }
-        continue;
-      }
-
-      /*
-         Check if it was already explored, in that case, move on
-      */
-      if (neighbour->flags & ROLE_EXPLORED)
-        continue;
-      /*
-         Set the current state search index to the next index
-         this needs to be done before inserting, so as to make sure that the
-         pointer is valid
-      */
-      found= TRUE;
-      break;
-    }
-
-    /* found states that we have found a node to jump next into */
-    if (found)
-    {
-      /*
-         we're going to have to take a look at the same neighbour again
-         once it is done being explored, thus, set the neigh_idx to "i"
-         which is the current neighbour that will be added on the stack
-      */
-      curr_state->neigh_idx= i;
-      push_dynamic(&to_clear, (uchar*)&neighbour);
-
-      /* some sanity checks */
-      DBUG_ASSERT(!(neighbour->flags & ROLE_VISITED));
-      if (on_open && on_open(current, neighbour, context_data))
-      {
-        /* on_open returned TRUE, mark the neighbour as being explored */
-        neighbour->flags|= ROLE_EXPLORED;
-        continue;
-      }
-
-      /* add the neighbour on the stack */
-      neighbour->flags|= ROLE_VISITED;
-      state.neigh_idx= 0;
-      state.node_data= neighbour;
-      push_dynamic(&stack, (uchar*)&state);
-    }
-    else
-    {
-      /* Make sure we got a correct node */
-      DBUG_ASSERT(curr_state->node_data->flags & ROLE_VISITED);
-      /* Finished with exploring the current node, pop it off the stack */
-      curr_state= (NODE_STATE *)pop_dynamic(&stack);
-      curr_state->node_data->flags&= ~ROLE_VISITED; /* clear the visited bit */
-      curr_state->node_data->flags|= ROLE_EXPLORED;
-      if (on_finish)
-      {
-        NODE_STATE *parent= NULL;
-        if (stack.elements)
-        {
-          parent= dynamic_element(&stack, stack.elements - 1, NODE_STATE *);
-          on_finish(parent->node_data, curr_state->node_data, context_data);
-        }
-        else
-        {
-          /* no parent node, this is the starting node */
-          on_finish(NULL, curr_state->node_data, context_data);
-        }
-      }
-    }
-  }
-
-
-end:
-  /* Cleanup */
-  for (uint i= 0; i < to_clear.elements; i++)
-  {
-    ACL_ROLE *current= *dynamic_element(&to_clear, i,
-                                        ACL_ROLE **);
-    DBUG_ASSERT(current->flags & (ROLE_EXPLORED | ROLE_VISITED));
-    current->flags&= ~(ROLE_EXPLORED | ROLE_VISITED);
-  }
-  delete_dynamic(&stack);
-  delete_dynamic(&to_clear);
-  DBUG_RETURN(result);
 }
 
 /*
@@ -2732,8 +2367,15 @@ static void undo_add_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role)
   DBUG_ASSERT(grantee == *(ACL_USER_BASE**)pop);
 }
 
+/*
+  this helper is used when building role_grants and parent_grantee arrays
+  from scratch.
+
+  this happens either on initial loading of data from tables, in acl_load().
+  or in rebuild_role_grants after acl_role_reset_role_arrays().
+*/
 static bool add_role_user_mapping(const char *uname, const char *hname,
-                                 const char *rname)
+                                  const char *rname)
 {
   ACL_USER_BASE *grantee= find_acl_user_base(uname, hname);
   ACL_ROLE *role= find_acl_role(rname);
@@ -2741,12 +2383,14 @@ static bool add_role_user_mapping(const char *uname, const char *hname,
   if (grantee == NULL || role == NULL)
     return 1;
 
+  /*
+    because all arrays are rebuilt completely, and counters were also reset,
+    we can increment them here, and after the rebuild all counters will
+    have correct values (equal to the number of roles granted).
+  */
+  if (grantee->flags & IS_ROLE)
+    ((ACL_ROLE*)grantee)->counter++;
   return add_role_user_mapping(grantee, role);
-}
-
-static bool add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
-{
-  return add_role_user_mapping(mapping->u_uname, mapping->u_hname, mapping->r_uname);
 }
 
 static void remove_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role)
@@ -2782,6 +2426,22 @@ static void remove_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role)
 }
 
 
+my_bool add_role_user_mapping_action(void *ptr, void *unused __attribute__((unused)))
+{
+  ROLE_GRANT_PAIR *pair= (ROLE_GRANT_PAIR*)ptr;
+  my_bool status __attribute__((unused));
+  status= add_role_user_mapping(pair->u_uname, pair->u_hname, pair->r_uname);
+  /*
+     The invariant chosen is that acl_roles_mappings should _always_
+     only contain valid entries, referencing correct user and role grants.
+     If add_role_user_mapping detects an invalid entry, it will not add
+     the mapping into the ACL_USER::role_grants array.
+  */
+  DBUG_ASSERT(status >= 0);
+  return 0;
+}
+
+
 /*
   Rebuild the role grants every time the acl_users is modified
 
@@ -2797,34 +2457,18 @@ void rebuild_role_grants(void)
   */
   for (uint i=0; i < acl_users.elements; i++) {
     ACL_USER *user= dynamic_element(&acl_users, i, ACL_USER *);
-    acl_user_reset_grant(user, NULL);
+    reset_dynamic(&user->role_grants);
   }
-  my_hash_iterate(&acl_roles,
-                  (my_hash_walk_action) acl_role_reset_grant, NULL);
+  my_hash_iterate(&acl_roles, acl_role_reset_role_arrays, NULL);
 
-  /*
-    Rebuild the direct links between users and roles in ACL_USER::role_grants
-  */
-  for (uint i=0; i < acl_roles_mappings.records; i++) {
-    ROLE_GRANT_PAIR *mapping= (ROLE_GRANT_PAIR*)
-                                my_hash_element(&acl_roles_mappings, i);
-    my_bool status = add_role_user_mapping(mapping);
-    /*
-       The invariant chosen is that acl_roles_mappings should _always_
-       only contain valid entries, referencing correct user and role grants.
-       If add_role_user_mapping detects an invalid entry, it will not add
-       the mapping into the ACL_USER::role_grants array.
-    */
-     DBUG_ASSERT(status >= 0);
-  }
-
-  my_hash_iterate(&acl_roles,
-                  (my_hash_walk_action) acl_role_propagate_grants, NULL);
+  /* Rebuild the direct links between users and roles in ACL_USER::role_grants */
+  my_hash_iterate(&acl_roles_mappings, add_role_user_mapping_action, NULL);
 
   DBUG_VOID_RETURN;
 }
-/* Return true if there is no users that can match the given host */
 
+
+/* Return true if there is no users that can match the given host */
 bool acl_check_host(const char *host, const char *ip)
 {
   if (allow_all_hosts)
@@ -3123,8 +2767,9 @@ find_acl_role(const char *user)
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  DBUG_RETURN((ACL_ROLE *)my_hash_search(&acl_roles, (uchar *)user,
-                                         user ? strlen(user) : 0));
+  ACL_ROLE *r= (ACL_ROLE *)my_hash_search(&acl_roles, (uchar *)user,
+                                          user ? strlen(user) : 0);
+  DBUG_RETURN(r);
 }
 
 
@@ -3737,10 +3382,10 @@ static int replace_db_table(TABLE *table, const char *db,
 
   acl_cache->clear(1);				// Clear privilege cache
   if (old_row_exists)
-    acl_update_db(combo.user.str,combo.host.str,db,rights, TRUE);
+    acl_update_db(combo.user.str,combo.host.str,db,rights);
   else
   if (rights)
-    acl_insert_db(combo.user.str,combo.host.str,db,rights, TRUE);
+    acl_insert_db(combo.user.str,combo.host.str,db,rights, 1);
   DBUG_RETURN(0);
 
   /* This could only happen if the grant tables got corrupted */
@@ -4027,11 +3672,9 @@ public:
     column= (char*) memdup_root(&memex,c.ptr(), key_length=c.length());
   }
 
-  GRANT_COLUMN(GRANT_COLUMN *source) : rights (source->rights), init_rights(0)
-  {
-    column= (char *) memdup_root(&memex, source->column,
-                                 key_length=source->key_length);
-  }
+  /* this constructor assumes thas source->column is allocated in memex */
+  GRANT_COLUMN(GRANT_COLUMN *source) : column(source->column),
+    rights (source->rights), init_rights(0), key_length(source->key_length) { }
 };
 
 
@@ -4040,29 +3683,6 @@ static uchar* get_key_column(GRANT_COLUMN *buff, size_t *length,
 {
   *length=buff->key_length;
   return (uchar*) buff->column;
-}
-
-static void merge_grant_table_hash_columns(HASH *target, HASH *source)
-{
-  MEM_ROOT *memex_ptr= &memex;
-  for (uint i=0 ; i < source->records ; i++)
-  {
-    GRANT_COLUMN *source_col = (GRANT_COLUMN *)my_hash_element(source, i);
-    GRANT_COLUMN *target_col = (GRANT_COLUMN *)
-                                 my_hash_search(target,
-                                                (uchar *)source_col->column,
-                                                source_col->key_length);
-    /* target has the column in the hashtable */
-    if (target_col)
-    {
-      target_col->rights|= source_col->rights;
-    }
-    else
-    {
-      GRANT_COLUMN *target_col = new (memex_ptr) GRANT_COLUMN(source_col);
-      my_hash_insert(target, (uchar *)target_col);
-    }
-  }
 }
 
 /* same as merge_grant_table_hash_columns, but without
@@ -4115,6 +3735,11 @@ public:
   GRANT_TABLE(GRANT_TABLE *source, char *u);
   ~GRANT_TABLE();
   bool ok() { return privs != 0 || cols != 0; }
+  void init_hash()
+  {
+    my_hash_init2(&hash_columns, 4, system_charset_info,
+                  0, 0, 0, (my_hash_get_key) get_key_column, 0, 0);
+  }
 };
 
 
@@ -4160,8 +3785,7 @@ GRANT_TABLE::GRANT_TABLE(const char *h, const char *d,const char *u,
                 	 const char *t, ulong p, ulong c)
   :GRANT_NAME(h,d,u,t,p, FALSE), cols(c)
 {
-  (void) my_hash_init2(&hash_columns,4,system_charset_info,
-                   0,0,0, (my_hash_get_key) get_key_column,0,0);
+  init_hash();
 }
 
 /*
@@ -4174,8 +3798,7 @@ GRANT_TABLE::GRANT_TABLE(GRANT_TABLE *source, char *u)
 {
   this->init_cols= 0;
   this->init_privs= 0;
-  (void) my_hash_init2(&hash_columns,4,system_charset_info,
-                   0,0,0, (my_hash_get_key) get_key_column,0,0);
+  init_hash();
   copy_grant_table_hash_columns(&hash_columns, &source->hash_columns);
 }
 
@@ -4239,8 +3862,7 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
   */
   init_cols= cols;
 
-  (void) my_hash_init2(&hash_columns,4,system_charset_info,
-                   0,0,0, (my_hash_get_key) get_key_column,0,0);
+  init_hash();
 
   if (cols)
   {
@@ -4320,7 +3942,7 @@ static uchar* get_grant_table(GRANT_NAME *buff, size_t *length,
 
 void free_grant_table(GRANT_TABLE *grant_table)
 {
-  my_hash_free(&grant_table->hash_columns);
+  grant_table->~GRANT_TABLE();
 }
 
 
@@ -4867,6 +4489,842 @@ table_error:
 }
 
 
+/*****************************************************************
+  Role privilege propagation and graph traversal functionality
+
+  According to the SQL standard, a role can be granted to a role,
+  thus role grants can create an arbitrarily complex directed acyclic
+  graph (a standard explicitly specifies that cycles are not allowed).
+
+  When a privilege is granted to a role, it becomes available to all grantees.
+  The code below recursively traverses a DAG of role grants, propagating
+  privilege changes.
+
+  The traversal function can work both ways, from roles to grantees or
+  from grantees to roles. The first is used for privilege propagation,
+  the second - for SHOW GRANTS and I_S.APPLICABLE_ROLES
+
+  The role propagation code is smart enough to propagate only privilege
+  changes to one specific database, table, or routine, if only they
+  were changed (like in GRANT ... ON ... TO ...) or it can propagate
+  everything (on startup or after FLUSH PRIVILEGES).
+
+  It traverses only a subgraph that's accessible from the modified role,
+  only visiting roles that can be possibly affected by the GRANT statement.
+
+  Additionally, it stops traversal early, if this particular GRANT statement
+  didn't result in any changes of privileges (e.g. both role1 and role2
+  are granted to the role3, both role1 and role2 have SELECT privilege.
+  if SELECT is revoked from role1 it won't change role3 privileges,
+  so we won't traverse from role3 to its grantees).
+******************************************************************/
+struct PRIVS_TO_MERGE
+{
+  enum what { ALL, GLOBAL, DB, TABLE_COLUMN, PROC, FUNC } what;
+  const char *db, *name;
+};
+
+static int init_role_for_merging(ACL_ROLE *role, void *context)
+{
+  role->counter= 0;
+  return 0;
+}
+
+static int count_subgraph_nodes(ACL_ROLE *role, ACL_ROLE *grantee, void *context)
+{
+  grantee->counter++;
+  return 0;
+}
+
+static int merge_role_privileges(ACL_ROLE *, ACL_ROLE *, void *);
+
+#ifndef DBUG_OFF
+/* status variables, only visible in SHOW STATUS after -#d,role_merge_stats */
+ulong role_global_merges= 0, role_db_merges= 0, role_table_merges= 0,
+      role_column_merges= 0, role_routine_merges= 0;
+#endif
+
+/**
+  rebuild privileges of all affected roles
+
+  entry point into role privilege propagation. after privileges of the
+  'role' were changed, this function rebuilds privileges of all affected roles
+  as necessary.
+*/
+static void propagate_role_grants(ACL_ROLE *role,
+                                  enum PRIVS_TO_MERGE::what what,
+                                  const char *db, const char *name)
+{
+
+  mysql_mutex_assert_owner(&acl_cache->lock);
+  PRIVS_TO_MERGE data= { what, db, name };
+
+  /*
+     Changing privileges of a role causes all other roles that had
+     this role granted to them to have their rights invalidated.
+
+     We need to rebuild all roles' related access bits.
+
+     This cannot be a simple depth-first search, instead we have to merge
+     privieges for all roles granted to a specific grantee, *before*
+     merging privileges for this grantee. In other words, we must visit all
+     parent nodes of a specific node, before descencing into this node.
+     And not just "all parent nodes", but only parent nodes that are part of
+     the subgraph we're inderested in. For example, if both role1 and role2
+     are granted to role3, then role3 has two parent nodes. But when granting
+     a privilege to role1, we're only looking at a subgraph that includes
+     role1 and role3 (role2 cannot be possibly affected by that grant
+     statement). In this subgraph role3 has only one parent.
+
+     Thus, we do two graph traversals here. First we only count parents that
+     are part of the subgraph. On the second traversal we decrement the counter
+     and actually merge privileges for a node when a counter drops to zero.
+  */
+  traverse_role_graph_up(role, &data, init_role_for_merging, count_subgraph_nodes);
+  traverse_role_graph_up(role, &data, NULL, merge_role_privileges);
+}
+
+
+/**
+  Traverse the role grant graph and invoke callbacks at the specified points. 
+  
+  @param user           user or role to start traversal from
+  @param context        opaque parameter to pass to callbacks
+  @param offset         offset to ACL_ROLE::parent_grantee or to
+                        ACL_USER_BASE::role_grants. Depending on this value,
+                        traversal will go from roles to grantees or from
+                        grantees to roles.
+  @param on_node        called when a node is visited for the first time.
+                        Returning a value <0 will abort the traversal.
+  @param on_edge        called for every edge in the graph, when traversal
+                        goes from a node to a neighbour node.
+                        Returning <0 will abort the traversal. Returning >0
+                        will make the traversal not to follow this edge.
+
+  @note
+  The traverse method is a DEPTH FIRST SEARCH, but callbacks can influence
+  that (on_edge returning >0 value).
+
+  @note
+  This function should not be called directly, use
+  traverse_role_graph_up() and traverse_role_graph_down() instead.
+
+  @retval 0                 traversal finished successfully
+  @retval ROLE_CYCLE_FOUND  traversal aborted, cycle detected
+  @retval <0                traversal was aborted, because a callback returned
+                            this error code
+*/
+static int traverse_role_graph_impl(ACL_USER_BASE *user, void *context,
+       off_t offset,
+       int (*on_node) (ACL_USER_BASE *role, void *context),
+       int (*on_edge) (ACL_USER_BASE *current, ACL_ROLE *neighbour, void *context))
+{
+
+  DBUG_ENTER("traverse_role_graph_impl");
+  DBUG_ASSERT(user);
+  DBUG_PRINT("enter",("role: '%s'", user->user.str));
+  /*
+     The search operation should always leave the ROLE_ON_STACK and
+     ROLE_EXPLORED flags clean for all nodes involved in the search
+  */
+  DBUG_ASSERT(!(user->flags & ROLE_ON_STACK));
+  DBUG_ASSERT(!(user->flags & ROLE_EXPLORED));
+  mysql_mutex_assert_owner(&acl_cache->lock);
+
+  /*
+     Stack used to simulate the recursive calls of DFS.
+     It uses a Dynamic_array to reduce the number of
+     malloc calls to a minimum
+  */
+  Dynamic_array<NODE_STATE> stack(20,50);
+  Dynamic_array<ACL_USER_BASE *> to_clear(20,50);
+  NODE_STATE state;     /* variable used to insert elements in the stack */
+  int result= 0;
+
+  state.neigh_idx= 0;
+  state.node_data= user;
+  user->flags|= ROLE_ON_STACK;
+
+  stack.push(state);
+  to_clear.push(user);
+
+  user->flags|= ROLE_OPENED;
+  if (on_node && ((result= on_node(user, context)) < 0))
+    goto end;
+
+  while (stack.elements())
+  {
+    NODE_STATE *curr_state= stack.back() - 1;
+
+    DBUG_ASSERT(curr_state->node_data->flags & ROLE_ON_STACK);
+
+    ACL_USER_BASE *current= curr_state->node_data;
+    ACL_USER_BASE *neighbour= NULL;
+    DBUG_PRINT("info", ("Examining role %s", current->user.str));
+    /*
+      Iterate through the neighbours until a first valid jump-to
+      neighbour is found
+    */
+    my_bool found= FALSE;
+    uint i;
+    DYNAMIC_ARRAY *array= (DYNAMIC_ARRAY *)(((char*)current) + offset);
+
+    DBUG_ASSERT(array == &current->role_grants || current->flags & IS_ROLE);
+    for (i= curr_state->neigh_idx; i < array->elements; i++)
+    {
+      neighbour= *(dynamic_element(array, i, ACL_ROLE**));
+      if (!(neighbour->flags & IS_ROLE))
+        continue;
+
+      DBUG_PRINT("info", ("Examining neighbour role %s", neighbour->user.str));
+
+      /* check if it forms a cycle */
+      if (neighbour->flags & ROLE_ON_STACK)
+      {
+        DBUG_PRINT("info", ("Found cycle"));
+        result= ROLE_CYCLE_FOUND;
+        goto end;
+      }
+
+      if (!(neighbour->flags & ROLE_OPENED))
+      {
+        neighbour->flags|= ROLE_OPENED;
+        to_clear.push(neighbour);
+        if (on_node && ((result= on_node(neighbour, context)) < 0))
+          goto end;
+      }
+
+      if (on_edge)
+      {
+        result= on_edge(current, (ACL_ROLE*)neighbour, context);
+        if (result < 0)
+          goto end;
+        if (result > 0)
+          continue;
+      }
+
+      /* Check if it was already explored, in that case, move on */
+      if (neighbour->flags & ROLE_EXPLORED)
+        continue;
+
+      found= TRUE;
+      break;
+    }
+
+    /* found states that we have found a node to jump next into */
+    if (found)
+    {
+      curr_state->neigh_idx= i + 1;
+
+      /* some sanity checks */
+      DBUG_ASSERT(!(neighbour->flags & ROLE_ON_STACK));
+
+      /* add the neighbour on the stack */
+      neighbour->flags|= ROLE_ON_STACK;
+      state.neigh_idx= 0;
+      state.node_data= neighbour;
+      stack.push(state);
+    }
+    else
+    {
+      /* Make sure we got a correct node */
+      DBUG_ASSERT(curr_state->node_data->flags & ROLE_ON_STACK);
+      /* Finished with exploring the current node, pop it off the stack */
+      curr_state= stack.pop();
+      curr_state->node_data->flags&= ~ROLE_ON_STACK; /* clear the on-stack bit */
+      curr_state->node_data->flags|= ROLE_EXPLORED;
+    }
+  }
+
+end:
+  /* Cleanup */
+  for (uint i= 0; i < to_clear.elements(); i++)
+  {
+    ACL_USER_BASE *current= to_clear.at(i);
+    DBUG_ASSERT(current->flags & (ROLE_EXPLORED | ROLE_ON_STACK | ROLE_OPENED));
+    current->flags&= ~(ROLE_EXPLORED | ROLE_ON_STACK | ROLE_OPENED);
+  }
+  DBUG_RETURN(result);
+}
+
+/**
+  Traverse the role grant graph, going from a role to its grantees.
+
+  This is used to propagate changes in privileges, for example,
+  when GRANT or REVOKE is issued for a role.
+*/
+
+static int traverse_role_graph_up(ACL_ROLE *role, void *context,
+       int (*on_node) (ACL_ROLE *role, void *context),
+       int (*on_edge) (ACL_ROLE *current, ACL_ROLE *neighbour, void *context))
+{
+  return traverse_role_graph_impl(role, context,
+                    my_offsetof(ACL_ROLE, parent_grantee),
+                    (int (*)(ACL_USER_BASE *, void *))on_node,
+                    (int (*) (ACL_USER_BASE *, ACL_ROLE *, void *))on_edge);
+}
+
+/**
+  Traverse the role grant graph, going from a user or a role to granted roles.
+
+  This is used, for example, to print all grants available to a user or a role
+  (as in SHOW GRANTS).
+*/
+
+static int traverse_role_graph_down(ACL_USER_BASE *user, void *context,
+       int (*on_node) (ACL_USER_BASE *role, void *context),
+       int (*on_edge) (ACL_USER_BASE *current, ACL_ROLE *neighbour, void *context))
+{
+  return traverse_role_graph_impl(user, context,
+                             my_offsetof(ACL_USER_BASE, role_grants),
+                             on_node, on_edge);
+}
+
+/*
+  To find all db/table/routine privilege for a specific role
+  we need to scan the array of privileges it can be big.
+  But the set of privileges granted to a role in question (or
+  to roles directly granted to the role in question) is supposedly
+  much smaller.
+
+  We put a role and all roles directly granted to it in a hash, and iterate
+  the (suposedly long) array of privileges, filtering out "interesting"
+  entries using the role hash. We put all these "interesting"
+  entries in a (suposedly small) dynamic array and them use it for merging.
+*/
+static uchar* role_key(const ACL_ROLE *role, size_t *klen, my_bool)
+{
+  *klen= role->user.length;
+  return (uchar*) role->user.str;
+}
+typedef Hash_set<ACL_ROLE> role_hash_t;
+
+static bool merge_role_global_privileges(ACL_ROLE *grantee)
+{
+  ulong old= grantee->access;
+  grantee->access= grantee->initial_role_access;
+
+  DBUG_EXECUTE_IF("role_merge_stats", role_global_merges++;);
+
+  for (uint i= 0; i < grantee->role_grants.elements; i++)
+  {
+    ACL_ROLE *r= *dynamic_element(&grantee->role_grants, i, ACL_ROLE**);
+    grantee->access|= r->access;
+  }
+  return old != grantee->access;
+}
+
+static int db_name_sort(ACL_DB * const *db1, ACL_DB * const *db2)
+{
+  return strcmp((*db1)->db, (*db2)->db);
+}
+
+/**
+  update ACL_DB for given database and a given role with merged privileges
+
+  @param merged ACL_DB of the role in question (or NULL if it wasn't found)
+  @param first  first ACL_DB in an array for the database in question
+  @param access new privileges for the given role on the gived database
+  @param role   the name of the given role
+
+  @return a bitmap of
+          1 - privileges were changed
+          2 - ACL_DB was added
+          4 - ACL_DB was deleted
+*/
+static int update_role_db(ACL_DB *merged, ACL_DB **first, ulong access, char *role)
+{
+  if (!first)
+    return 0;
+
+  DBUG_EXECUTE_IF("role_merge_stats", role_db_merges++;);
+
+  if (merged == NULL)
+  {
+    /*
+      there's no ACL_DB for this role (all db grants come from granted roles)
+      we need to create it
+
+      Note that we cannot use acl_insert_db() now:
+      1. it'll sort elements in the acl_dbs, so the pointers will become invalid
+      2. we may need many of them, no need to sort every time
+    */
+    DBUG_ASSERT(access);
+    ACL_DB acl_db;
+    acl_db.user= role;
+    acl_db.host.hostname= const_cast<char*>("");
+    acl_db.db= first[0]->db;
+    acl_db.access= access;
+    acl_db.initial_access= 0;
+    acl_db.sort=get_sort(3, "", acl_db.db, role);
+    push_dynamic(&acl_dbs,(uchar*) &acl_db);
+    return 2;
+  }
+  else if (access == 0)
+  {
+    /*
+      there is ACL_DB but the role has no db privileges granted
+      (all privileges were coming from granted roles, and now those roles
+      were dropped or had their privileges revoked).
+      we need to remove this ACL_DB entry
+
+      Note, that we cannot delete now:
+      1. it'll shift elements in the acl_dbs, so the pointers will become invalid
+      2. it's O(N) operation, and we may need many of them
+      so we only mark elements deleted and will delete later.
+    */
+    merged->sort= 0; // lower than any valid ACL_DB sort value, will be sorted last
+    return 4;
+  }
+  else if (merged->access != access)
+  {
+    /* this is easy */
+    merged->access= access;
+    return 1;
+  }
+  return 0;
+}
+
+/**
+  merges db privileges from roles granted to the role 'grantee'.
+
+  @return true if database privileges of the 'grantee' were changed
+
+*/
+static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
+                                     role_hash_t *rhash)
+{
+  Dynamic_array<ACL_DB *> dbs; 
+
+  /*
+    Supposedly acl_dbs can be huge, but only a handful of db grants
+    apply to grantee or roles directly granted to grantee.
+
+    Collect these applicable db grants.
+  */
+  for (uint i=0 ; i < acl_dbs.elements ; i++)
+  {
+    ACL_DB *db= dynamic_element(&acl_dbs,i,ACL_DB*);
+    if (db->host.hostname[0])
+      continue;
+    if (dbname && strcmp(db->db, dbname))
+      continue;
+    ACL_ROLE *r= rhash->find(db->user, strlen(db->user));
+    if (!r)
+      continue;
+    dbs.append(db);
+  }
+  dbs.sort(db_name_sort);
+
+  /*
+    Because dbs array is sorted by the db name, all grants for the same db
+    (that should be merged) are sorted together. The grantee's ACL_DB element
+    is not necessarily the first and may be not present at all.
+  */
+  ACL_DB **first= NULL, *UNINIT_VAR(merged);
+  ulong UNINIT_VAR(access), update_flags= 0;
+  for (ACL_DB **cur= dbs.front(); cur < dbs.back(); cur++)
+  {
+    if (!first || (!dbname && strcmp(cur[0]->db, cur[-1]->db)))
+    { // new db name series
+      update_flags|= update_role_db(merged, first, access, grantee->user.str);
+      merged= NULL;
+      access= 0;
+      first= cur;
+    }
+    if (strcmp(cur[0]->user, grantee->user.str) == 0)
+      access|= (merged= cur[0])->initial_access;
+    else
+      access|= cur[0]->access;
+  }
+  update_flags|= update_role_db(merged, first, access, grantee->user.str);
+
+  /*
+    to make this code a bit simpler, we sort on deletes, to move
+    deleted elements to the end of the array. strictly speaking it's
+    unnecessary, it'd be faster to remove them in one O(N) array scan.
+    
+    on the other hand, qsort on almost sorted array is pretty fast anyway...
+  */
+  if (update_flags & (2|4))
+  { // inserted or deleted, need to sort
+    my_qsort((uchar*) dynamic_element(&acl_dbs,0,ACL_DB*),acl_dbs.elements,
+             sizeof(ACL_DB),(qsort_cmp) acl_compare);
+  }
+  if (update_flags & 4)
+  { // deleted, trim the end
+    while (acl_dbs.elements &&
+           dynamic_element(&acl_dbs, acl_dbs.elements-1, ACL_DB*)->sort == 0)
+      acl_dbs.elements--;
+  }
+  return update_flags;
+}
+
+static int table_name_sort(GRANT_TABLE * const *tbl1, GRANT_TABLE * const *tbl2)
+{
+  int res = strcmp((*tbl1)->db, (*tbl2)->db);
+  if (res) return res;
+  return strcmp((*tbl1)->tname, (*tbl2)->tname);
+}
+
+/**
+  merges column privileges for the entry 'merged'
+
+  @param merged GRANT_TABLE to merge the privileges into
+  @param cur    first entry in the array of GRANT_TABLE's for a given table
+  @param last   last entry in the array of GRANT_TABLE's for a given table,
+                all entries between cur and last correspond to the *same* table
+
+  @return 1 if the _set of columns_ in 'merged' was changed
+          (not if the _set of privileges_ was changed).
+*/
+static int update_role_columns(GRANT_TABLE *merged,
+                               GRANT_TABLE **cur, GRANT_TABLE **last)
+
+{
+  ulong rights __attribute__((unused))= 0;
+  int changed= 0;
+  if (!merged->cols)
+  {
+    changed= merged->hash_columns.records > 0;
+    my_hash_reset(&merged->hash_columns);
+    return changed;
+  }
+
+  DBUG_EXECUTE_IF("role_merge_stats", role_column_merges++;);
+
+  HASH *mh= &merged->hash_columns;
+  for (uint i=0 ; i < mh->records ; i++)
+  {
+    GRANT_COLUMN *col = (GRANT_COLUMN *)my_hash_element(mh, i);
+    col->rights= col->init_rights;
+  }
+
+  for (; cur < last; cur++)
+  {
+    if (*cur == merged)
+      continue;
+    HASH *ch= &cur[0]->hash_columns;
+    for (uint i=0 ; i < ch->records ; i++)
+    {
+      GRANT_COLUMN *ccol = (GRANT_COLUMN *)my_hash_element(ch, i);
+      GRANT_COLUMN *mcol = (GRANT_COLUMN *)my_hash_search(mh,
+                                  (uchar *)ccol->column, ccol->key_length);
+      if (mcol)
+        mcol->rights|= ccol->rights;
+      else
+      {
+        changed= 1;
+        my_hash_insert(mh, (uchar*)new (&memex) GRANT_COLUMN(ccol));
+      }
+    }
+  }
+
+  for (uint i=0 ; i < mh->records ; i++)
+  {
+    GRANT_COLUMN *col = (GRANT_COLUMN *)my_hash_element(mh, i);
+    rights|= col->rights;
+    if (!col->rights)
+    {
+      changed= 1;
+      my_hash_delete(mh, (uchar*)col);
+    }
+  }
+  DBUG_ASSERT(rights == merged->cols);
+  return changed;
+}
+
+/**
+  update GRANT_TABLE for a given table and a given role with merged privileges
+
+  @param merged GRANT_TABLE of the role in question (or NULL if it wasn't found)
+  @param first  first GRANT_TABLE in an array for the table in question
+  @param last   last entry in the array of GRANT_TABLE's for a given table,
+                all entries between first and last correspond to the *same* table
+  @param privs  new table-level privileges for 'merged'
+  @param cols   new OR-ed column-level privileges for 'merged'
+  @param role   the name of the given role
+
+  @return a bitmap of
+          1 - privileges were changed
+          2 - GRANT_TABLE was added
+          4 - GRANT_TABLE was deleted
+*/
+static int update_role_table_columns(GRANT_TABLE *merged,
+                                      GRANT_TABLE **first, GRANT_TABLE **last,
+                                      ulong privs, ulong cols, char *role)
+{
+  if (!first)
+    return 0;
+
+  DBUG_EXECUTE_IF("role_merge_stats", role_table_merges++;);
+
+  if (merged == NULL)
+  {
+    /*
+      there's no GRANT_TABLE for this role (all table grants come from granted
+      roles) we need to create it
+    */
+    DBUG_ASSERT(privs | cols);
+    merged= new (&memex) GRANT_TABLE("", first[0]->db, role, first[0]->tname,
+                                     privs, cols);
+    merged->init_privs= merged->init_cols= 0;
+    update_role_columns(merged, first, last);
+    my_hash_insert(&column_priv_hash,(uchar*) merged);
+    return 2;
+  }
+  else if ((privs | cols) == 0)
+  {
+    /*
+      there is GRANT_TABLE object but the role has no table or column
+      privileges granted (all privileges were coming from granted roles, and
+      now those roles were dropped or had their privileges revoked).
+      we need to remove this GRANT_TABLE
+    */
+    DBUG_EXECUTE_IF("role_merge_stats", role_column_merges+= test(merged->cols););
+    my_hash_delete(&column_priv_hash,(uchar*) merged);
+    return 4;
+  }
+  else
+  {
+    bool changed= merged->cols != cols || merged->privs != privs;
+    /*
+      note that 'changed' above is a sufficient, but not necessary condition.
+      even if neither cols nor privs have changed, the set of columns
+      could've been changed, and we have to return 1 even if changed==0
+    */
+    merged->cols= cols;
+    merged->privs= privs;
+    return update_role_columns(merged, first, last) || changed;
+  }
+}
+
+/**
+  merges table privileges from roles granted to the role 'grantee'.
+
+  @return true if table privileges of the 'grantee' were changed
+
+*/
+static bool merge_role_table_and_column_privileges(ACL_ROLE *grantee,
+                        const char *db, const char *tname, role_hash_t *rhash)
+{
+  Dynamic_array<GRANT_TABLE *> grants;
+  DBUG_ASSERT(test(db) == test(tname)); // both must be set, or neither
+
+  /*
+    first, collect table/column privileges granted to
+    roles in question.
+  */
+  for (uint i=0 ; i < column_priv_hash.records ; i++)
+  {
+    GRANT_TABLE *grant= (GRANT_TABLE *) my_hash_element(&column_priv_hash, i);
+    if (grant->host.hostname[0])
+      continue;
+    if (tname && (strcmp(grant->db, db) || strcmp(grant->tname, tname)))
+      continue;
+    ACL_ROLE *r= rhash->find(grant->user, strlen(grant->user));
+    if (!r)
+      continue;
+    grants.append(grant);
+  }
+  grants.sort(table_name_sort);
+
+  GRANT_TABLE **first= NULL, *UNINIT_VAR(merged), **cur;
+  ulong UNINIT_VAR(privs), UNINIT_VAR(cols), update_flags= 0;
+  for (cur= grants.front(); cur < grants.back(); cur++)
+  {
+    if (!first ||
+        (!tname && (strcmp(cur[0]->db, cur[-1]->db) ||
+                   strcmp(cur[0]->tname, cur[-1]->tname))))
+    { // new db.tname series
+      update_flags|= update_role_table_columns(merged, first, cur,
+                                               privs, cols, grantee->user.str);
+      merged= NULL;
+      privs= cols= 0;
+      first= cur;
+    }
+    if (strcmp(cur[0]->user, grantee->user.str) == 0)
+    {
+      merged= cur[0];
+      cols|= cur[0]->init_cols;
+      privs|= cur[0]->init_privs;
+    }
+    else
+    {
+      cols|= cur[0]->cols;
+      privs|= cur[0]->privs;
+    }
+  }
+  update_flags|= update_role_table_columns(merged, first, cur,
+                                           privs, cols, grantee->user.str);
+
+  return update_flags;
+}
+
+static int routine_name_sort(GRANT_NAME * const *r1, GRANT_NAME * const *r2)
+{
+  int res= strcmp((*r1)->db, (*r2)->db);
+  if (res) return res;
+  return strcmp((*r1)->tname, (*r2)->tname);
+}
+
+/**
+  update GRANT_NAME for a given routine and a given role with merged privileges
+
+  @param merged GRANT_NAME of the role in question (or NULL if it wasn't found)
+  @param first  first GRANT_NAME in an array for the routine in question
+  @param privs  new routine-level privileges for 'merged'
+  @param role   the name of the given role
+  @param hash   proc_priv_hash or func_priv_hash
+
+  @return a bitmap of
+          1 - privileges were changed
+          2 - GRANT_NAME was added
+          4 - GRANT_NAME was deleted
+*/
+static int update_role_routines(GRANT_NAME *merged, GRANT_NAME **first,
+                                ulong privs, char *role, HASH *hash)
+{
+  if (!first)
+    return 0;
+
+  if (merged == NULL)
+  {
+    /*
+      there's no GRANT_NAME for this role (all routine grants come from granted
+      roles) we need to create it
+    */
+    DBUG_ASSERT(privs);
+    merged= new (&memex) GRANT_NAME("", first[0]->db, role, first[0]->tname,
+                                    privs, true);
+    merged->init_privs= 0; // all privs are inherited
+    my_hash_insert(hash, (uchar *)merged);
+    return 2;
+  }
+  else if (privs == 0)
+  {
+    /*
+      there is GRANT_NAME but the role has no privileges granted
+      (all privileges were coming from granted roles, and now those roles
+      were dropped or had their privileges revoked).
+      we need to remove this entry
+    */
+    my_hash_delete(hash, (uchar*)merged);
+    return 4;
+  }
+  else if (merged->privs != privs)
+  {
+    /* this is easy */
+    merged->privs= privs;
+    return 1;
+  }
+  return 0;
+}
+
+/**
+  merges routine privileges from roles granted to the role 'grantee'.
+
+  @return true if routine privileges of the 'grantee' were changed
+
+*/
+static bool merge_role_routine_grant_privileges(ACL_ROLE *grantee,
+            const char *db, const char *tname, role_hash_t *rhash, HASH *hash)
+{
+  ulong update_flags= 0;
+
+  DBUG_ASSERT(test(db) == test(tname)); // both must be set, or neither
+
+  DBUG_EXECUTE_IF("role_merge_stats", role_routine_merges++;);
+
+  Dynamic_array<GRANT_NAME *> grants; 
+
+  /* first, collect routine privileges granted to roles in question */
+  for (uint i=0 ; i < hash->records ; i++)
+  {
+    GRANT_NAME *grant= (GRANT_NAME *) my_hash_element(hash, i);
+    if (tname && (strcmp(grant->db, db) || strcmp(grant->tname, tname)))
+      continue;
+    if (grant->host.hostname[0])
+      continue;
+    ACL_ROLE *r= rhash->find(grant->user, strlen(grant->user));
+    if (!r)
+      continue;
+    grants.append(grant);
+  }
+  grants.sort(routine_name_sort);
+
+  GRANT_NAME **first= NULL, *UNINIT_VAR(merged);
+  ulong UNINIT_VAR(privs);
+  for (GRANT_NAME **cur= grants.front(); cur < grants.back(); cur++)
+  {
+    if (!first ||
+        (!tname && (strcmp(cur[0]->db, cur[-1]->db) ||
+                    strcmp(cur[0]->tname, cur[-1]->tname))))
+    { // new db.tname series
+      update_flags|= update_role_routines(merged, first, privs,
+                                          grantee->user.str, hash);
+      merged= NULL;
+      privs= 0;
+      first= cur;
+    }
+    if (strcmp(cur[0]->user, grantee->user.str) == 0)
+    {
+      merged= cur[0];
+      privs|= cur[0]->init_privs;
+    }
+    else
+    {
+      privs|= cur[0]->privs;
+    }
+  }
+  update_flags|= update_role_routines(merged, first, privs,
+                                      grantee->user.str, hash);
+  return update_flags;
+}
+
+/**
+  update privileges of the 'grantee' from all roles, granted to it
+*/
+static int merge_role_privileges(ACL_ROLE *role, ACL_ROLE *grantee, void *context)
+{
+  PRIVS_TO_MERGE *data= (PRIVS_TO_MERGE *)context;
+
+  if (--grantee->counter)
+    return 1; // don't recurse into grantee just yet
+
+  /* if we'll do db/table/routine privileges, create a hash of role names */
+  role_hash_t role_hash(role_key);
+  if (data->what != PRIVS_TO_MERGE::GLOBAL)
+  {
+    role_hash.insert(grantee);
+    for (uint i= 0; i < grantee->role_grants.elements; i++)
+      role_hash.insert(*dynamic_element(&grantee->role_grants, i, ACL_ROLE**));
+  }
+
+  bool all= data->what == PRIVS_TO_MERGE::ALL;
+  bool changed= false;
+  if (all || data->what == PRIVS_TO_MERGE::GLOBAL)
+    changed|= merge_role_global_privileges(grantee);
+  if (all || data->what == PRIVS_TO_MERGE::DB)
+    changed|= merge_role_db_privileges(grantee, data->db, &role_hash);
+  if (all || data->what == PRIVS_TO_MERGE::TABLE_COLUMN)
+    changed|= merge_role_table_and_column_privileges(grantee,
+                                             data->db, data->name, &role_hash);
+  if (all || data->what == PRIVS_TO_MERGE::PROC)
+    changed|= merge_role_routine_grant_privileges(grantee,
+                            data->db, data->name, &role_hash, &proc_priv_hash);
+  if (all || data->what == PRIVS_TO_MERGE::FUNC)
+    changed|= merge_role_routine_grant_privileges(grantee,
+                            data->db, data->name, &role_hash, &func_priv_hash);
+
+  return !changed; // don't recurse into the subgraph if privs didn't change
+}
+
+/*****************************************************************
+  End of the role privilege propagation and graph traversal code
+******************************************************************/
+
+
 /*
   Store table level and column level grants in the privilege tables
 
@@ -5126,7 +5584,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       }
     }
     if (Str->is_role())
-      acl_update_role(Str->user.str);
+      propagate_role_grants(find_acl_role(Str->user.str),
+                            PRIVS_TO_MERGE::TABLE_COLUMN, db_name, table_name);
   }
 
   thd->mem_root= old_root;
@@ -5290,7 +5749,9 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
       continue;
     }
     if (Str->is_role())
-      acl_update_role(Str->user.str);
+      propagate_role_grants(find_acl_role(Str->user.str),
+                            is_proc ? PRIVS_TO_MERGE::PROC : PRIVS_TO_MERGE::FUNC,
+                            db_name, table_name);
   }
   thd->mem_root= old_root;
   mysql_mutex_unlock(&acl_cache->lock);
@@ -5322,28 +5783,26 @@ static void append_user(String *str, const char *u, const char *h)
   str->append('\'');
 }
 
-struct IS_GRANTABLE_DATA
+static int can_grant_role_callback(ACL_USER_BASE *grantee,
+                                   ACL_ROLE *role, void *data)
 {
-  ACL_ROLE *role;
-  bool grantable;
-};
+  ROLE_GRANT_PAIR *pair;
 
-static void can_grant_role_callback(ACL_ROLE *unuser __attribute__((unused)),
-                                    ACL_ROLE *grantee, void *context_data)
-{
-  IS_GRANTABLE_DATA *data= (IS_GRANTABLE_DATA*)context_data;
-  for (uint i= 0; i < grantee->role_grants.elements; i++)
+  if (role != (ACL_ROLE*)data)
+    return 0; // keep searching
+
+  if (grantee->flags & IS_ROLE)
+    pair= find_role_grant_pair(&grantee->user, &empty_lex_str, &role->user);
+  else
   {
-    ACL_ROLE *r= *(dynamic_element(&grantee->role_grants, i, ACL_ROLE**));
-
-    if (r == data->role)
-    {
-      ROLE_GRANT_PAIR *pair=
-        find_role_grant_pair(&grantee->user, &empty_lex_str, &r->user);
-      if (pair->with_admin)
-        data->grantable= true;
-    }
+    ACL_USER *user= (ACL_USER *)grantee;
+    LEX_STRING host= { user->host.hostname, user->hostname_length };
+    pair= find_role_grant_pair(&user->user, &host, &role->user);
   }
+  if (!pair->with_admin)
+    return 0; // keep searching
+
+  return -1; // abort the traversal
 }
 
 
@@ -5361,26 +5820,8 @@ static bool can_grant_role(THD *thd, ACL_ROLE *role)
   if (!grantee)
     return false;
 
-  LEX_STRING host= { grantee->host.hostname, grantee->hostname_length };
-  IS_GRANTABLE_DATA data= { role, false };
-
-  for (uint i= 0; i < grantee->role_grants.elements; i++)
-  {
-    ACL_ROLE *r= *(dynamic_element(&grantee->role_grants, i, ACL_ROLE**));
-
-    if (r == role)
-    {
-      ROLE_GRANT_PAIR *pair=
-        find_role_grant_pair(&grantee->user, &host, &r->user);
-      if (pair->with_admin)
-        return true;
-    }
-
-    traverse_role_graph(r, &data, NULL, NULL, NULL, can_grant_role_callback);
-    if (data.grantable)
-      return true;
-  }
-  return false;
+  return traverse_role_graph_down(grantee, role, NULL,
+                                  can_grant_role_callback) == -1;
 }
 
 
@@ -5526,14 +5967,12 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
         /*
           Check if this grant would cause a cycle. It only needs to be run
           if we're granting a role to a role
-         */
+        */
         if (role_as_user &&
-            traverse_role_graph(role, NULL, NULL, NULL,
-                                role_explore_detect_cycle, NULL) == 2)
+            traverse_role_graph_down(role, 0, 0, 0) == ROLE_CYCLE_FOUND)
         {
           append_user(&wrong_users, username.str, "");
           result= 1;
-          /* need to remove the mapping added previously */
           undo_add_role_user_mapping(grantee, role);
           continue;
         }
@@ -5585,9 +6024,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
        a role
     */
     if (role_as_user)
-    {
-      acl_update_role_entry(role_as_user, role_as_user->initial_role_access);
-    }
+      propagate_role_grants(role_as_user, PRIVS_TO_MERGE::ALL, 0, 0);
   }
 
   mysql_mutex_unlock(&acl_cache->lock);
@@ -5743,6 +6180,10 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
                                     revoke_grant))
         result= -1;
     }
+    if (Str->is_role())
+      propagate_role_grants(find_acl_role(Str->user.str),
+                            db ? PRIVS_TO_MERGE::DB : PRIVS_TO_MERGE::GLOBAL,
+                            db, 0);
   }
   mysql_mutex_unlock(&acl_cache->lock);
 
@@ -6039,6 +6480,19 @@ static my_bool grant_reload_procs_priv(THD *thd)
 }
 
 
+my_bool role_propagate_grants_action(void *ptr, void *unused __attribute__((unused)))
+{
+  ACL_ROLE *role= (ACL_ROLE *)ptr;
+  if (role->counter)
+    return 0;
+
+  mysql_mutex_assert_owner(&acl_cache->lock);
+  PRIVS_TO_MERGE data= { PRIVS_TO_MERGE::ALL, 0, 0 };
+  traverse_role_graph_up(role, &data, NULL, merge_role_privileges);
+  return 0;
+}
+
+
 /**
   @brief Reload information about table and column level privileges if possible
 
@@ -6116,8 +6570,7 @@ my_bool grant_reload(THD *thd)
 
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
-  my_hash_iterate(&acl_roles,
-                  (my_hash_walk_action) acl_role_propagate_grants, NULL);
+  my_hash_iterate(&acl_roles, role_propagate_grants_action, NULL);
   mysql_mutex_unlock(&acl_cache->lock);
 
   grant_version++;
@@ -6649,7 +7102,7 @@ bool check_grant_db(THD *thd, const char *db)
   Security_context *sctx= thd->security_ctx;
   char helping [SAFE_NAME_LEN + USERNAME_LENGTH+2], *end;
   char helping2 [SAFE_NAME_LEN + USERNAME_LENGTH+2];
-  uint len, len2;
+  uint len, UNINIT_VAR(len2);
   bool error= TRUE;
 
   end= strmov(helping, sctx->priv_user) + 1;
@@ -6965,32 +7418,44 @@ static uint command_lengths[]=
 };
 
 
-bool print_grants_for_role(THD *thd, ACL_ROLE * role,
-                           char *buff, size_t buffsize)
+bool print_grants_for_role(THD *thd, ACL_ROLE * role)
 {
+  char buff[1024];
+
   if (show_role_grants(thd, role->user.str, "", role, buff, sizeof(buff)))
     return TRUE;
 
-  if (show_global_privileges(thd, role, TRUE, buff, buffsize))
+  if (show_global_privileges(thd, role, TRUE, buff, sizeof(buff)))
     return TRUE;
 
-  if (show_database_privileges(thd, role->user.str, "", buff, buffsize))
+  if (show_database_privileges(thd, role->user.str, "", buff, sizeof(buff)))
     return TRUE;
 
-  if (show_table_and_column_privileges(thd, role->user.str, "", buff, buffsize))
+  if (show_table_and_column_privileges(thd, role->user.str, "", buff, sizeof(buff)))
     return TRUE;
 
   if (show_routine_grants(thd, role->user.str, "", &proc_priv_hash,
-                          STRING_WITH_LEN("PROCEDURE"), buff, buffsize))
+                          STRING_WITH_LEN("PROCEDURE"), buff, sizeof(buff)))
     return TRUE;
 
   if (show_routine_grants(thd, role->user.str, "", &func_priv_hash,
-                          STRING_WITH_LEN("FUNCTION"), buff, buffsize))
+                          STRING_WITH_LEN("FUNCTION"), buff, sizeof(buff)))
     return TRUE;
 
   return FALSE;
 
 }
+
+
+static int show_grants_callback(ACL_USER_BASE *role, void *data)
+{
+  THD *thd= (THD *)data;
+  DBUG_ASSERT(role->flags & IS_ROLE);
+  if (print_grants_for_role(thd, (ACL_ROLE *)role))
+    return -1;
+  return 0;
+}
+
 
 /*
   SHOW GRANTS;  Send grants for a user to the client
@@ -7002,7 +7467,7 @@ bool print_grants_for_role(THD *thd, ACL_ROLE * role,
 bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
 {
   int  error = 0;
-  ACL_USER *acl_user;
+  ACL_USER *UNINIT_VAR(acl_user);
   ACL_ROLE *acl_role= NULL;
   char buff[1024];
   Protocol *protocol= thd->protocol;
@@ -7011,7 +7476,6 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   char *rolename= NULL;
   DBUG_ENTER("mysql_show_grants");
 
-  LINT_INIT(acl_user);
   if (!initialized)
   {
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
@@ -7136,24 +7600,8 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     acl_role= find_acl_role(rolename);
     if (acl_role)
     {
-      DYNAMIC_ARRAY role_list;
-      (void) my_init_dynamic_array(&role_list,sizeof(ACL_ROLE *),
-                                   50, 100, MYF(0));
       /* get a list of all inherited roles */
-      traverse_role_graph(acl_role,
-                          &role_list, NULL, NULL, NULL,
-                          role_explore_create_list);
-      for (uint i= 0; i < role_list.elements; i++)
-      {
-        if (print_grants_for_role(thd,
-                                  *dynamic_element(&role_list, i, ACL_ROLE **),
-                                  buff, sizeof(buff)))
-        {
-          error= -1;
-          goto end;
-        }
-      }
-      delete_dynamic(&role_list);
+      traverse_role_graph_down(acl_role, thd, show_grants_callback, NULL);
     }
     else
     {
@@ -7698,96 +8146,6 @@ static int show_routine_grants(THD* thd,
 }
 
 
-static void reset_role_db_privileges(ACL_ROLE *role)
-{
-  char *rolename= role->user.str;
-  for (uint i=0 ; i < acl_dbs.elements; i++)
-  {
-    ACL_DB *acl_db= dynamic_element(&acl_dbs,i,ACL_DB*);
-    if (acl_db->user && (!acl_db->host.hostname || !acl_db->host.hostname[0])
-        && (!strcmp(rolename, acl_db->user)))
-    {
-      acl_db->access= acl_db->initial_access;
-    }
-    /* this is only an inherited entry that needs to be removed */
-    if (!acl_db->access)
-    {
-      delete_dynamic_element(&acl_dbs, i);
-      i--;
-    }
-  }
-}
-
-static void reset_role_table_and_column_privileges(ACL_ROLE *role)
-{
-  char *rolename= role->user.str;
-  for (uint i=0 ; i < column_priv_hash.records ; i++)
-  {
-    GRANT_TABLE *grant_table= (GRANT_TABLE *)
-      my_hash_element(&column_priv_hash, i);
-    if (grant_table->user && (!grant_table->host.hostname ||
-                              !grant_table->host.hostname[0]) &&
-        !strcmp(rolename, grant_table->user))
-    {
-      grant_table->privs= grant_table->init_privs;
-      grant_table->cols= grant_table->init_cols;
-      if (grant_table->privs | grant_table->cols)
-      {
-        for (uint j=0 ; j < grant_table->hash_columns.records ; j++)
-        {
-          GRANT_COLUMN *grant_column= (GRANT_COLUMN *)
-            my_hash_element(&grant_table->hash_columns, j);
-          if (grant_column->init_rights == 0)
-          {
-            my_hash_delete(&grant_table->hash_columns, (uchar *)grant_column);
-            j--;
-          }
-          else
-          {
-            grant_column->rights= grant_column->init_rights;
-          }
-        }
-      }
-      else
-      {
-        /* delete the record altogether as we have no privileges left */
-        my_hash_delete(&column_priv_hash, (uchar *)grant_table);
-        i--;
-      }
-    }
-  }
-}
-
-static void reset_role_routine_grant_privileges(ACL_ROLE *role)
-{
-  char *rolename= role->user.str;
-  for (uint is_proc= 0; is_proc < 2; is_proc++) {
-    HASH *hash;
-    if (is_proc)
-      hash= &proc_priv_hash;
-    else
-      hash= &func_priv_hash;
-
-    for (uint i=0 ; i < hash->records ; i++)
-    {
-      GRANT_NAME *grant_name= (GRANT_NAME *) my_hash_element(hash, i);
-      if (grant_name->user && (!grant_name->host.hostname ||
-                               !grant_name->host.hostname[0]) &&
-          !strcmp(rolename, grant_name->user))
-      {
-        if (grant_name->init_privs == 0)
-        {
-          my_hash_delete(hash, (uchar *)grant_name);
-          i--;
-        }
-        else
-        {
-          grant_name->privs= grant_name->init_privs;
-        }
-      }
-    }
-  }
-}
 /*
   Make a clear-text version of the requested privilege.
 */
@@ -8001,179 +8359,6 @@ static int modify_grant_table(TABLE *table, Field *host_field,
   }
 
   DBUG_RETURN(error);
-}
-
-/*
-  The function merges access bits from a granted role to a grantee.
-
-  It creates data structures if they don't exist for the grantee.
-  This includes data structures related to database privileges, tables
-  privileges, column privileges, function and procedures privileges
-
-  TODO only merge those privileges that were changed
-  (e.g. only table/column privileges after mysql_table_grant, only routine
-  privileges after mysql_routine_grant)
-*/
-
-static void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source)
-{
-  DBUG_ASSERT(source->flags & ROLE_GRANTS_FINAL);
-
-  /* Merge global access rights */
-  target->access|= source->access;
-
-  /* Merge database privileges */
-  DYNAMIC_ARRAY target_objs, source_objs; /* arrays of pointers to priv objects */
-
-  /* elements of the arrays */
-  ACL_DB *target_db, *source_db;
-  GRANT_TABLE *target_table, *source_table;
-  GRANT_NAME *target_name, *source_name;
-  MEM_ROOT *memex_ptr = &memex;
-
-  (void) my_init_dynamic_array(&target_objs,sizeof(void *), 50, 100, MYF(0));
-  (void) my_init_dynamic_array(&source_objs,sizeof(void *), 50, 100, MYF(0));
-
-  /* get all acl_db elements for the source and the target */
-  for (uint i=0 ; i < acl_dbs.elements ; i++)
-  {
-    ACL_DB *acl_db= dynamic_element(&acl_dbs,i,ACL_DB*);
-    if (acl_db->user && (!acl_db->host.hostname || !acl_db->host.hostname[0]))
-    {
-      if (!strcmp(target->user.str, acl_db->user))
-        push_dynamic(&target_objs, (uchar*)&acl_db);
-      if (!strcmp(source->user.str, acl_db->user))
-        push_dynamic(&source_objs, (uchar*)&acl_db);
-    }
-  }
-
-  for (uint i=0 ; i < source_objs.elements; i++)
-  {
-    source_db= (ACL_DB *)*dynamic_element(&source_objs, i, void **);
-    target_db= NULL;
-    for (uint j=0; j < target_objs.elements; j++)
-    {
-      ACL_DB *acl_db= (ACL_DB *)*dynamic_element(&target_objs, i, void **);
-      if (!strcmp(source_db->db, acl_db->db)) /* only need to compare DB here */
-        target_db= acl_db;
-    }
-
-    /* acl_db element found for the target, only need to update acces bits */
-    if (target_db)
-    {
-      target_db->access|= source_db->access;
-    }
-    else
-    {
-      /*
-         Need to create an acl_db element as this role inherits database
-         privileges
-      */
-      acl_insert_db(target->user.str, "", source_db->db,
-                    source_db->access, FALSE);
-    }
-  }
-
-  reset_dynamic(&source_objs);
-  reset_dynamic(&target_objs);
-
-  /* Merge table and column privileges */
-  for (uint i=0 ; i < column_priv_hash.records ; i++)
-  {
-    GRANT_TABLE *grant_table= (GRANT_TABLE *)
-      my_hash_element(&column_priv_hash, i);
-    if (grant_table->user && (!grant_table->host.hostname ||
-                              !grant_table->host.hostname[0]))
-    {
-      if (!strcmp(target->user.str, grant_table->user))
-        push_dynamic(&target_objs, (uchar*)&grant_table);
-      if (!strcmp(source->user.str, grant_table->user))
-        push_dynamic(&source_objs, (uchar*)&grant_table);
-    }
-  }
-
-
-  for (uint i=0 ; i < source_objs.elements; i++)
-  {
-    source_table= (GRANT_TABLE *)*dynamic_element(&source_objs, i, void **);
-    target_table= NULL;
-    for (uint j=0; j < target_objs.elements; j++)
-    {
-      GRANT_TABLE *grant_table= (GRANT_TABLE *)*dynamic_element(&target_objs, i,
-                                                                void **);
-      if (!strcmp(source_table->db, grant_table->db) &&
-          !strcmp(source_table->tname, grant_table->tname))
-        target_table= grant_table;
-    }
-
-    if (target_table)
-    {
-      target_table->privs|= source_table->privs;
-      target_table->cols|= source_table->cols;
-      merge_grant_table_hash_columns(&target_table->hash_columns,
-                                     &source_table->hash_columns);
-    }
-    else
-    {
-      target_table= new (memex_ptr) GRANT_TABLE(source_table, target->user.str);
-      my_hash_insert(&column_priv_hash, (uchar *) target_table);
-    }
-
-  }
-
-  reset_dynamic(&source_objs);
-  reset_dynamic(&target_objs);
-
-  /* Merge function and procedure privileges */
-  for (uint is_proc= 0; is_proc < 2; is_proc++) {
-    HASH *hash;
-    if (is_proc)
-      hash= &proc_priv_hash;
-    else
-      hash= &func_priv_hash;
-
-    for (uint i=0 ; i < hash->records ; i++)
-    {
-      GRANT_NAME *grant_name= (GRANT_NAME *) my_hash_element(hash, i);
-      if (grant_name->user && (!grant_name->host.hostname ||
-                               !grant_name->host.hostname[0]))
-      {
-        if (!strcmp(target->user.str, grant_name->user))
-          push_dynamic(&target_objs, (uchar*)&grant_name);
-        if (!strcmp(source->user.str, grant_name->user))
-          push_dynamic(&source_objs, (uchar*)&grant_name);
-      }
-    }
-
-    for (uint i=0 ; i < source_objs.elements; i++)
-    {
-      source_name= (GRANT_NAME *)*dynamic_element(&source_objs, i, void **);
-      target_name= NULL;
-      for (uint j=0; j < target_objs.elements; j++)
-      {
-        GRANT_NAME *grant_name= (GRANT_NAME *)*dynamic_element(&target_objs, i,
-                                                                  void **);
-        if (!strcmp(source_name->db, grant_name->db) &&
-            !strcmp(source_name->tname, grant_name->tname))
-          target_name= grant_name;
-      }
-
-      if (target_name)
-      {
-        target_name->privs|= source_name->privs;
-      }
-      else
-      {
-        target_name= new (memex_ptr) GRANT_NAME(source_name, target->user.str,
-                                                is_proc);
-        my_hash_insert(hash, (uchar *) target_name);
-      }
-    }
-  }
-
-  /* cleanup */
-  delete_dynamic(&source_objs);
-  delete_dynamic(&target_objs);
 }
 
 /*
@@ -8466,7 +8651,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   ACL_DB *acl_db= NULL;
   ACL_PROXY_USER *acl_proxy_user= NULL;
   GRANT_NAME *grant_name= NULL;
-  ROLE_GRANT_PAIR *role_grant_pair;
+  ROLE_GRANT_PAIR *UNINIT_VAR(role_grant_pair);
   HASH *grant_name_hash= NULL;
   HASH *roles_mappings_hash= NULL;
   DBUG_ENTER("handle_grant_struct");
@@ -9787,60 +9972,54 @@ show_proxy_grants(THD *thd, const char *username, const char *hostname,
   return error;
 }
 
-
-static void
-fill_schema_enabled_roles_insert(ACL_ROLE *unused __attribute__((unused)),
-                                 ACL_ROLE *role, void *context_data)
+static int enabled_roles_insert(ACL_USER_BASE *role, void *context_data)
 {
   TABLE *table= (TABLE*) context_data;
+  DBUG_ASSERT(role->flags & IS_ROLE);
+
   restore_record(table, s->default_values);
   table->field[0]->set_notnull();
   table->field[0]->store(role->user.str, role->user.length,
                          system_charset_info);
-  /*return*/ schema_table_store_record(table->in_use, table);
+  if (schema_table_store_record(table->in_use, table))
+    return -1;
+  return 0;
 }
 
-static int fill_schema_applicable_roles_insert_data(ACL_USER_BASE *,
-                         const LEX_STRING *, const LEX_STRING *, TABLE *);
-
-static void
-fill_schema_applicable_roles_insert(ACL_ROLE *unused __attribute__((unused)),
-                                    ACL_ROLE *role, void *context_data)
+struct APPLICABLE_ROLES_DATA
 {
-  /*return*/ fill_schema_applicable_roles_insert_data(role, &empty_lex_str,
-                                                      &role->user,
-                                                      (TABLE*)context_data);
-}
+  TABLE *table;
+  const LEX_STRING host;
+  const LEX_STRING used_and_host;
+  ACL_USER_BASE *user;
+};
 
 static int
-fill_schema_applicable_roles_insert_data(ACL_USER_BASE *grantee,
-                                         const LEX_STRING *host,
-                                         const LEX_STRING *used_and_host,
-                                         TABLE *table)
+applicable_roles_insert(ACL_USER_BASE *grantee, ACL_ROLE *role, void *ptr)
 {
+  APPLICABLE_ROLES_DATA *data= (APPLICABLE_ROLES_DATA *)ptr;
   CHARSET_INFO *cs= system_charset_info;
+  TABLE *table= data->table;
+  bool is_role= grantee != data->user;
+  const LEX_STRING *used_and_host= is_role ? &grantee->user
+                                           : &data->used_and_host;
+  const LEX_STRING *host= is_role ? &empty_lex_str : &data->host;
 
-  for (uint i= 0; i < grantee->role_grants.elements; i++)
-  {
-    ACL_ROLE *role= *(dynamic_element(&grantee->role_grants, i, ACL_ROLE**));
-    restore_record(table, s->default_values);
-    table->field[0]->store(used_and_host->str, used_and_host->length, cs);
-    table->field[1]->store(role->user.str, role->user.length, cs);
+  restore_record(table, s->default_values);
+  table->field[0]->store(used_and_host->str, used_and_host->length, cs);
+  table->field[1]->store(role->user.str, role->user.length, cs);
 
-    ROLE_GRANT_PAIR *pair=
-      find_role_grant_pair(&grantee->user, host, &role->user);
-    DBUG_ASSERT(pair);
+  ROLE_GRANT_PAIR *pair=
+    find_role_grant_pair(&grantee->user, host, &role->user);
+  DBUG_ASSERT(pair);
 
-    if (pair->with_admin)
-      table->field[2]->store(STRING_WITH_LEN("YES"), cs);
-    else
-      table->field[2]->store(STRING_WITH_LEN("NO"), cs);
-    if (schema_table_store_record(table->in_use, table))
-      return 1;
-    if (! (grantee->flags & IS_ROLE))
-      traverse_role_graph(role, table, NULL, NULL, NULL,
-                          fill_schema_applicable_roles_insert);
-  }
+  if (pair->with_admin)
+    table->field[2]->store(STRING_WITH_LEN("YES"), cs);
+  else
+    table->field[2]->store(STRING_WITH_LEN("NO"), cs);
+
+  if (schema_table_store_record(table->in_use, table))
+    return -1;
   return 0;
 }
 
@@ -9855,12 +10034,13 @@ int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
     mysql_rwlock_rdlock(&LOCK_grant);
     mysql_mutex_lock(&acl_cache->lock);
     ACL_ROLE *acl_role= find_acl_role(thd->security_ctx->priv_role);
-    DBUG_ASSERT(acl_role);
-    traverse_role_graph(acl_role, table, NULL, NULL, NULL,
-                        fill_schema_enabled_roles_insert);
-    mysql_mutex_unlock(&acl_cache->lock);
-    mysql_rwlock_unlock(&LOCK_grant);
-    return 0;
+    if (acl_role)
+    {
+      traverse_role_graph_down(acl_role, table, enabled_roles_insert, NULL);
+      mysql_mutex_unlock(&acl_cache->lock);
+      mysql_rwlock_unlock(&LOCK_grant);
+      return 0;
+    }
   }
 #endif
 
@@ -9888,10 +10068,12 @@ int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond)
     char buff[USER_HOST_BUFF_SIZE+10];
     DBUG_ASSERT(user->user.length + user->hostname_length +2 < sizeof(buff));
     char *end= strxmov(buff, user->user.str, "@", user->host.hostname, NULL);
-    LEX_STRING host= { user->host.hostname, user->hostname_length };
-    LEX_STRING name= { buff, (size_t)(end - buff) };
+    APPLICABLE_ROLES_DATA data= { table,
+      { user->host.hostname, user->hostname_length },
+      { buff, (size_t)(end - buff) }, user
+    };
 
-    int res= fill_schema_applicable_roles_insert_data(user, &host, &name, table);
+    int res= traverse_role_graph_down(user, &data, 0, applicable_roles_insert);
 
     mysql_mutex_unlock(&acl_cache->lock);
     mysql_rwlock_unlock(&LOCK_grant);

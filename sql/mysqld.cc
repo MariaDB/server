@@ -7183,6 +7183,42 @@ static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
+#ifndef DBUG_OFF
+static int debug_status_func(THD *thd, SHOW_VAR *var, char *buff)
+{
+#define add_var(X,Y,Z)                  \
+  v->name= X;                           \
+  v->value= (char*)Y;                   \
+  v->type= Z;                           \
+  v++;
+
+  var->type= SHOW_ARRAY;
+  var->value= buff;
+
+  SHOW_VAR *v= (SHOW_VAR *)buff;
+
+  if (_db_keyword_(0, "role_merge_stats", 1))
+  {
+    static SHOW_VAR roles[]= {
+      {"global",  (char*) &role_global_merges,  SHOW_ULONG},
+      {"db",      (char*) &role_db_merges,      SHOW_ULONG},
+      {"table",   (char*) &role_table_merges,   SHOW_ULONG},
+      {"column",  (char*) &role_column_merges,  SHOW_ULONG},
+      {"routine", (char*) &role_routine_merges, SHOW_ULONG},
+      {NullS, NullS, SHOW_LONG}
+    };
+
+    add_var("role_merges", roles, SHOW_ARRAY);
+  }
+
+  v->name= 0;
+
+#undef add_var
+
+  return 0;
+}
+#endif
+
 #ifdef HAVE_POOL_OF_THREADS
 int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff)
 {
@@ -7216,6 +7252,9 @@ SHOW_VAR status_vars[]= {
   {"Created_tmp_disk_tables",  (char*) offsetof(STATUS_VAR, created_tmp_disk_tables), SHOW_LONG_STATUS},
   {"Created_tmp_files",	       (char*) &my_tmp_file_created,	SHOW_LONG},
   {"Created_tmp_tables",       (char*) offsetof(STATUS_VAR, created_tmp_tables), SHOW_LONG_STATUS},
+#ifndef DBUG_OFF
+  {"Debug",                    (char*) &debug_status_func,  SHOW_FUNC},
+#endif
   {"Delayed_errors",           (char*) &delayed_insert_errors,  SHOW_LONG},
   {"Delayed_insert_threads",   (char*) &delayed_insert_threads, SHOW_LONG_NOFLUSH},
   {"Delayed_writes",           (char*) &delayed_insert_writes,  SHOW_LONG},
