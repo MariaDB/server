@@ -8,12 +8,54 @@ create role role6 with admin foo@bar;
 create user bar with admin current_user;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'admin current_user' at line 1
 grant role1 to foo@localhost with admin option;
+grant role2 to foo@localhost;
 grant role2 to role1;
 grant role3 to role4 with admin option;
 grant select on *.* to foo@localhost with admin option;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'admin option' at line 1
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT role1 TO 'foo'@'localhost' WITH ADMIN OPTION
+GRANT role2 TO 'foo'@'localhost'
+show grants for role1;
+Grants for role1
+GRANT USAGE ON *.* TO 'role1'
+GRANT USAGE ON *.* TO 'role2'
+GRANT role2 TO 'role1'
+show grants for role4;
+Grants for role4
+GRANT USAGE ON *.* TO 'role3'
+GRANT USAGE ON *.* TO 'role4'
+GRANT role3 TO 'role4' WITH ADMIN OPTION
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+	role1	role2	N
+	role4	role3	Y
+localhost	foo	role1	Y
+localhost	foo	role2	N
+grant role2 to role1 with admin option;
 revoke role1 from foo@localhost;
 revoke admin option for role3 from role4;
-revoke admin option for role2 from role1;
+revoke admin option for role2 from foo@localhost;
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT role2 TO 'foo'@'localhost'
+show grants for role1;
+Grants for role1
+GRANT USAGE ON *.* TO 'role1'
+GRANT USAGE ON *.* TO 'role2'
+GRANT role2 TO 'role1' WITH ADMIN OPTION
+show grants for role4;
+Grants for role4
+GRANT USAGE ON *.* TO 'role3'
+GRANT USAGE ON *.* TO 'role4'
+GRANT role3 TO 'role4'
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+	role1	role2	Y
+	role4	role3	N
+localhost	foo	role2	N
 drop role role1, role2, role3, role4, role5, role6;
 drop user foo@localhost;

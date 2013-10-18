@@ -580,8 +580,10 @@ struct ROLE_GRANT_PAIR : public Sql_alloc
   char *u_hname;
   char *r_uname;
   LEX_STRING hashkey;
+  bool with_admin;
 
-  bool init(MEM_ROOT *mem, char *username, char *hostname, char *rolename);
+  bool init(MEM_ROOT *mem, char *username, char *hostname, char *rolename,
+            bool with_admin_option);
 };
 
 /*
@@ -602,7 +604,8 @@ static uchar* acl_role_map_get_key(ROLE_GRANT_PAIR *entry, size_t *length,
 }
 
 bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, char *username,
-                           char *hostname, char *rolename)
+                           char *hostname, char *rolename,
+                           bool with_admin_option)
 {
   if (!this)
     return true;
@@ -643,6 +646,8 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, char *username,
 
   hashkey.str = buff;
   hashkey.length = bufflen;
+
+  with_admin= with_admin_option;
 
   return false;
 }
@@ -1404,7 +1409,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       char *username= get_field(&temp_root, table->field[1]);
       char *rolename= get_field(&temp_root, table->field[2]);
 
-      if (mapping->init(&mem, username, hostname, rolename))
+      if (mapping->init(&mem, username, hostname, rolename, false))
         continue;
 
       if (add_role_user_mapping(mapping) == -1) {
@@ -3760,15 +3765,26 @@ abort:
   DBUG_RETURN(-1);
 }
 
+/**
+  Updates the mysql.roles_mapping table and the acl_roles_mappings hash.
+
+  @param table          TABLE to update
+  @param pair           granted role, grantee, with_admin flag. allocated
+                        in a temporary MEM_ROOT
+  @param existing       the entry in the acl_roles_mappings hash or NULL.
+                        it is never NULL if revoke_grant is true.
+                        it is NULL when a new pair is added, it's not NULL
+                        when an existing pair is updated.
+  @param revoke_grant   true for REVOKE, false for GRANT
+*/
 static int
 replace_roles_mapping_table(TABLE *table, ROLE_GRANT_PAIR *pair,
-                            bool revoke_grant)
+                            ROLE_GRANT_PAIR *existing, bool revoke_grant)
 {
   DBUG_ENTER("replace_roles_mapping_table");
 
   uchar row_key[MAX_KEY_LENGTH];
   int error;
-  ROLE_GRANT_PAIR *hash_entry;
   table->use_all_columns();
   table->field[0]->store(pair->u_hname, strlen(pair->u_hname),
                          system_charset_info);
@@ -3776,62 +3792,66 @@ replace_roles_mapping_table(TABLE *table, ROLE_GRANT_PAIR *pair,
                          system_charset_info);
   table->field[2]->store(pair->r_uname, strlen(pair->r_uname),
                          system_charset_info);
-  table->field[3]->store(1);
-  key_copy(row_key, table->record[0], table->key_info,
-           table->key_info->key_length);
 
-  if (table->file->ha_index_read_idx_map(table->record[0], 0, row_key,
-                                         HA_WHOLE_KEY, HA_READ_KEY_EXACT))
+  if (existing) // delete or update
   {
-    /* No match */
-    if (revoke_grant)
+    key_copy(row_key, table->record[0], table->key_info,
+             table->key_info->key_length);
+    if (table->file->ha_index_read_idx_map(table->record[1], 0, row_key,
+                                           HA_WHOLE_KEY, HA_READ_KEY_EXACT))
     {
+      /* No match */
       DBUG_RETURN(1);
     }
-  }
-  if (revoke_grant)
-  {
-    if ((error= table->file->ha_delete_row(table->record[0])))
+    if (revoke_grant && !pair->with_admin) 
     {
-      DBUG_PRINT("info", ("error deleting row '%s' '%s' '%s'",
-                          pair->u_hname, pair->u_uname, pair->r_uname));
-      goto table_error;
-    }
-    /* find the entry to delete from the hash */
-    hash_entry= (ROLE_GRANT_PAIR *)my_hash_search(&acl_roles_mappings,
-                                                  (uchar *)pair->hashkey.str,
-                                                  pair->hashkey.length);
-    /*
-       This should always return something, as the check was performed
-       earlier
-     */
-    DBUG_ASSERT(hash_entry != NULL);
-    my_hash_delete(&acl_roles_mappings, (uchar*)hash_entry);
-  }
-  else
-  {
-    if ((error= table->file->ha_write_row(table->record[0])))
-    {
-      DBUG_PRINT("info", ("error inserting row '%s' '%s' '%s'",
-                          pair->u_hname, pair->u_uname, pair->r_uname));
-      if (table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
+      if ((error= table->file->ha_delete_row(table->record[1])))
+      {
+        DBUG_PRINT("info", ("error deleting row '%s' '%s' '%s'",
+                            pair->u_hname, pair->u_uname, pair->r_uname));
         goto table_error;
-    }
-    /* don't add duplicate entries */
-    if (!my_hash_search(&acl_roles_mappings,
-                        (uchar *)pair->hashkey.str,
-                        pair->hashkey.length))
-    {
-      /* allocate a new entry that will go in the hash */
-      hash_entry= new (&mem) ROLE_GRANT_PAIR;
-      if (hash_entry->init(&mem, pair->u_uname, pair->u_hname, pair->r_uname))
-        DBUG_RETURN(1);
-      my_hash_insert(&acl_roles_mappings, (uchar*) hash_entry);
+      }
+      /*
+         This should always return something, as the check was performed
+         earlier
+      */
+      my_hash_delete(&acl_roles_mappings, (uchar*)existing);
     }
     else
     {
-      DBUG_RETURN(1);
+      if (revoke_grant)
+        existing->with_admin= false;
+      else
+        existing->with_admin|= pair->with_admin;
+
+      table->field[3]->store(existing->with_admin + 1);
+
+      if ((error= table->file->ha_update_row(table->record[1], table->record[0])))
+      {
+        DBUG_PRINT("info", ("error updating row '%s' '%s' '%s'",
+                            pair->u_hname, pair->u_uname, pair->r_uname));
+        goto table_error;
+      }
     }
+    DBUG_RETURN(0);
+  }
+
+  table->field[3]->store(pair->with_admin + 1);
+
+  if ((error= table->file->ha_write_row(table->record[0])))
+  {
+    DBUG_PRINT("info", ("error inserting row '%s' '%s' '%s'",
+                        pair->u_hname, pair->u_uname, pair->r_uname));
+    goto table_error;
+  }
+  else
+  {
+    /* allocate a new entry that will go in the hash */
+    ROLE_GRANT_PAIR *hash_entry= new (&mem) ROLE_GRANT_PAIR;
+    if (hash_entry->init(&mem, pair->u_uname, pair->u_hname, pair->r_uname,
+                         pair->with_admin))
+      DBUG_RETURN(1);
+    my_hash_insert(&acl_roles_mappings, (uchar*) hash_entry);
   }
 
   /* all ok */
@@ -5420,43 +5440,51 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       username= user->user.str;
     }
 
-    ROLE_GRANT_PAIR *mapping= new (&temp_root) ROLE_GRANT_PAIR, *hash_entry;
+    ROLE_GRANT_PAIR *hash_entry, *mapping= new (&temp_root) ROLE_GRANT_PAIR;
 
-    if (mapping->init(&temp_root, username, hostname, rolename))
+    if (mapping->init(&temp_root, username, hostname, rolename,
+                      thd->lex->with_admin_option))
       continue;
+
+    hash_entry = (ROLE_GRANT_PAIR *)
+      my_hash_search(&acl_roles_mappings, (uchar *)mapping->hashkey.str,
+                                          mapping->hashkey.length);
 
     if (!revoke)
     {
-      int res= add_role_user_mapping(mapping);
-      /* role or user does not exist*/
-      if (res == -1)
+      if (hash_entry)
       {
-        append_user(&wrong_users, username, hostname);
-        result= 1;
-        continue;
+        // perhaps, updating an existing grant, adding WITH ADMIN OPTION
       }
-
-      /*
-        Check if this grant would cause a cycle. It only needs to be run
-        if we're granting a role to a role
-       */
-      if (role_as_user &&
-          traverse_role_graph(role, NULL, NULL, NULL, role_explore_detect_cycle,
-                              NULL) == 2)
+      else
       {
-        append_user(&wrong_users, username, "");
-        result= 1;
-        /* need to rollback the mapping added previously */
-        remove_role_user_mapping(mapping);
-        continue;
+        int res= add_role_user_mapping(mapping);
+        /* role or user does not exist*/
+        if (res == -1)
+        {
+          append_user(&wrong_users, username, hostname);
+          result= 1;
+          continue;
+        }
+
+        /*
+          Check if this grant would cause a cycle. It only needs to be run
+          if we're granting a role to a role
+         */
+        if (role_as_user &&
+            traverse_role_graph(role, NULL, NULL, NULL, role_explore_detect_cycle,
+                                NULL) == 2)
+        {
+          append_user(&wrong_users, username, "");
+          result= 1;
+          /* need to rollback the mapping added previously */
+          remove_role_user_mapping(mapping);
+          continue;
+        }
       }
     }
     else
     {
-      hash_entry = (ROLE_GRANT_PAIR *) my_hash_search(&acl_roles_mappings,
-                                                      (uchar *)mapping->hashkey.str,
-                                                      mapping->hashkey.length);
-
       /* grant was already removed or never existed */
       if (!hash_entry)
       {
@@ -5464,18 +5492,25 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
         result= 1;
         continue;
       }
-      /* revoke a role grant */
-      int res= remove_role_user_mapping(mapping);
-      if (res == -1)
+      if (mapping->with_admin)
       {
-        append_user(&wrong_users, username, hostname);
-        result= 1;
-        continue;
+        // only revoking an admin option, not the complete grant
+      }
+      else
+      {
+        /* revoke a role grant */
+        int res= remove_role_user_mapping(mapping);
+        if (res == -1)
+        {
+          append_user(&wrong_users, username, hostname);
+          result= 1;
+          continue;
+        }
       }
     }
 
     /* write into the roles_mapping table */
-    if (replace_roles_mapping_table(tables.table, mapping, revoke))
+    if (replace_roles_mapping_table(tables.table, mapping, hash_entry, revoke))
     {
       append_user(&wrong_users, username, "");
       result= 1;
@@ -7000,7 +7035,6 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
       DBUG_RETURN(TRUE);
     }
 
-
     /* Show granted roles to acl_user */
     if (show_role_grants(thd, username, hostname, acl_user, buff, sizeof(buff)))
     {
@@ -7105,6 +7139,8 @@ static bool show_role_grants(THD *thd,
   uint counter;
   Protocol *protocol= thd->protocol;
   uint hostname_length = strlen(hostname);
+  char buf[1024];
+  String pair_key(buf, sizeof(buf), system_charset_info);
 
   String grant(buff,sizeof(buff),system_charset_info);
   for (counter= 0; counter < acl_entry->role_grants.elements; counter++)
@@ -7125,6 +7161,21 @@ static bool show_role_grants(THD *thd,
                    system_charset_info);
     }
     grant.append('\'');
+
+    size_t key_length= acl_entry->user.length + hostname_length +
+                       acl_role->user.length + 3;
+    pair_key.alloc(key_length);
+    strmov(strmov(strmov(const_cast<char*>(pair_key.ptr()),
+         acl_entry->user.str) + 1, hostname) + 1, acl_role->user.str);
+
+    ROLE_GRANT_PAIR *pair=
+      (ROLE_GRANT_PAIR *)my_hash_search(&acl_roles_mappings,
+                                        (uchar*)pair_key.ptr(), key_length);
+    DBUG_ASSERT(pair);
+
+    if (pair->with_admin)
+      grant.append(STRING_WITH_LEN(" WITH ADMIN OPTION"));
+
     protocol->prepare_for_resend();
     protocol->store(grant.ptr(),grant.length(),grant.charset());
     if (protocol->write())
@@ -8632,11 +8683,11 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
           if (role_not_matched)
             oom= role_grant_pair->init(&mem, user_to->user.str,
                                        user_to->host.str,
-                                       role_grant_pair->r_uname);
+                                       role_grant_pair->r_uname, false);
           else
             oom= role_grant_pair->init(&mem, role_grant_pair->u_uname,
                                        role_grant_pair->u_hname,
-                                       user_to->user.str);
+                                       user_to->user.str, false);
           if (oom)
             DBUG_RETURN(-1);
 
