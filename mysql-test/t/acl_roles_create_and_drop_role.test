@@ -1,11 +1,17 @@
 connect (mysql, localhost, root,,);
 use mysql;
 
+#test valid syntax
+--error ER_PARSE_ERROR
+create role test_role1@host1;
+--error ER_PARSE_ERROR
+create role test_role2@host2, test_role1@host1;
+
 create role test_role1;
 create role test_role2, test_role3;
 
 --sorted_result
-select user, host, is_role from user where user like 'test';
+select user, host, is_role from user where user like 'test%';
 
 drop role test_role1;
 drop role test_role2, test_role3;
@@ -18,7 +24,7 @@ create role test_role1;
 create role test_role1, test_role2;
 
 --sorted_result
-select user, host, is_role from user where user like 'test';
+select user, host, is_role from user where user like 'test%';
 
 drop role test_role1;
 --error ER_CANNOT_USER
@@ -26,6 +32,14 @@ drop role test_role1;
 --error ER_CANNOT_USER
 drop role test_role1, test_role2;
 
+#test that we can not drop users when calling drop role
+--error ER_CANNOT_USER
+drop role root;
+create user dummy@'';
+--error ER_CANNOT_USER
+drop role dummy;
+drop user dummy@'';
+
 --sorted_result
-select user, host, is_role from user where user like 'test';
+select user, host, is_role from user where user like 'test%';
 disconnect mysql;

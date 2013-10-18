@@ -3128,7 +3128,7 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
   /* if the user table is not up to date, we can't handle role updates */
   if (table->s->fields <= 42 && handle_as_role)
   {
-    my_error(ER_INVALID_ROLE_COMMAND, MYF(0));
+    my_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE, MYF(0));
     DBUG_RETURN(-1);
   }
 
@@ -3296,7 +3296,6 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
     {
       if (old_row_exists && !check_is_role(table))
       {
-        my_error(ER_ROLE_AS_USER, MYF(0), combo.user.str, combo.user.str);
         goto end;
       }
       table->field[ROLE_ASSIGN_COLUMN_IDX]->store("Y", 1, system_charset_info);
@@ -7151,7 +7150,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   /* test if the current query targets a role */
   is_role= (!user_from->host.length &&
             (acl_role= find_acl_role(user_from->user.str))) ? TRUE : FALSE;
-  if (is_role && (struct_no != ROLE_ACL || struct_no != ROLES_MAPPINGS_HASH))
+  if (is_role && struct_no != ROLE_ACL && struct_no != ROLES_MAPPINGS_HASH)
   {
     DBUG_RETURN(0);
   }
@@ -7590,26 +7589,20 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
 }
 
 
-static void append_user(String *str, LEX_USER *user)
+static void append_user(String *str, LEX_USER *user, bool handle_as_role)
 {
   if (str->length())
     str->append(',');
   str->append('\'');
   str->append(user->user.str);
-  str->append(STRING_WITH_LEN("'@'"));
-  str->append(user->host.str);
+  /* hostname part is not relevant for roles, it is always empty */
+  if (!handle_as_role)
+  {
+    str->append(STRING_WITH_LEN("'@'"));
+    str->append(user->host.str);
+  }
   str->append('\'');
 }
-
-static void append_role(String *str, LEX_USER *user)
-{
-  if (str->length())
-    str->append(',');
-  str->append('\'');
-  str->append(user->user.str);
-  str->append('\'');
-}
-
 
 /*
   Create a list of users.
@@ -7618,13 +7611,14 @@ static void append_role(String *str, LEX_USER *user)
     mysql_create_user()
     thd                         The current thread.
     list                        The users to create.
+    handle_as_role              Handle the user list as roles if true
 
   RETURN
     FALSE       OK.
     TRUE        Error.
 */
 
-bool mysql_create_user(THD *thd, List <LEX_USER> &list)
+bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 {
   int result;
   String wrong_users;
@@ -7633,6 +7627,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list)
   TABLE_LIST tables[GRANT_TABLES];
   bool some_users_created= FALSE;
   DBUG_ENTER("mysql_create_user");
+  DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
 
   /* CREATE USER may be skipped on replication client. */
   if ((result= open_grant_tables(thd, tables)))
@@ -7643,27 +7638,45 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list)
 
   while ((tmp_user_name= user_list++))
   {
-    if (!(user_name= get_current_user(thd, tmp_user_name)))
+    if (handle_as_role)
     {
-      result= TRUE;
-      continue;
+      user_name= tmp_user_name;
+      user_name->host.str= (char *)"";
+      user_name->host.length= 0;
+      /* role already exists */
+      if (find_acl_role(user_name->user.str))
+      {
+        append_user(&wrong_users, user_name, TRUE);
+        result = TRUE;
+        continue;
+      }
+    }
+    else
+    {
+      if (!(user_name= get_current_user(thd, tmp_user_name)))
+      {
+        result= TRUE;
+        continue;
+      }
     }
 
     /*
       Search all in-memory structures and grant tables
-      for a mention of the new user name.
+      for a mention of the new user/role name.
     */
     if (handle_grant_data(tables, 0, user_name, NULL))
     {
-      append_user(&wrong_users, user_name);
+      append_user(&wrong_users, user_name, handle_as_role);
+
       result= TRUE;
       continue;
     }
 
     some_users_created= TRUE;
-    if (replace_user_table(thd, tables[0].table, *user_name, 0, 0, 1, 0, 0))
+    if (replace_user_table(thd, tables[0].table, *user_name, 0, 0, 1, 0,
+                           handle_as_role))
     {
-      append_user(&wrong_users, user_name);
+      append_user(&wrong_users, user_name, handle_as_role);
       result= TRUE;
     }
   }
@@ -7671,7 +7684,9 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list)
   mysql_mutex_unlock(&acl_cache->lock);
 
   if (result)
-    my_error(ER_CANNOT_USER, MYF(0), "CREATE USER", wrong_users.c_ptr_safe());
+    my_error(ER_CANNOT_USER, MYF(0),
+             (handle_as_role) ? "CREATE ROLE" : "CREATE USER",
+             wrong_users.c_ptr_safe());
 
   if (some_users_created)
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
@@ -7679,70 +7694,6 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list)
   mysql_rwlock_unlock(&LOCK_grant);
   DBUG_RETURN(result);
 }
-
-/*
-  Create a list of roles.
-
-  SYNOPSIS
-    mysql_create_role()
-    thd                         The current thread.
-    list                        The users to create.
-
-  RETURN
-    FALSE       OK.
-    TRUE        Error.
-*/
-
-bool mysql_create_role(THD *thd, List <LEX_USER> &list)
-{
-  int result;
-  String wrong_users;
-  LEX_USER *role_name;
-  List_iterator <LEX_USER> role_list(list);
-  TABLE_LIST tables[GRANT_TABLES];
-  bool some_users_created= FALSE;
-  DBUG_ENTER("mysql_create_role");
-
-  if ((result= open_grant_tables(thd, tables)))
-    DBUG_RETURN(result != 1);
-
-  mysql_rwlock_wrlock(&LOCK_grant);
-  mysql_mutex_lock(&acl_cache->lock);
-
-  while ((role_name= role_list++))
-  {
-    role_name->host.str= (char *)"";
-    role_name->host.length= 0;
-    /*
-      Search all in-memory structures and grant tables
-      for a mention of the new user name.
-    */
-    if (handle_grant_data(tables, 0, role_name, NULL))
-    {
-      append_role(&wrong_users, role_name);
-      result= TRUE;
-      continue;
-    }
-    some_users_created= TRUE;
-    if (replace_user_table(thd, tables[0].table, *role_name, 0, 0, 1, 0, 1))
-    {
-      append_role(&wrong_users, role_name);
-      result= TRUE;
-    }
-  }
-
-  mysql_mutex_unlock(&acl_cache->lock);
-
-  if (result)
-    my_error(ER_CANNOT_USER, MYF(0), "CREATE ROLE", wrong_users.c_ptr_safe());
-
-  if (some_users_created)
-    result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
-
-  mysql_rwlock_unlock(&LOCK_grant);
-DBUG_RETURN(result);
-}
-
 
 /*
   Drop a list of users and all their privileges.
@@ -7757,7 +7708,7 @@ DBUG_RETURN(result);
     TRUE        Error.
 */
 
-bool mysql_drop_user(THD *thd, List <LEX_USER> &list)
+bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 {
   int result;
   String wrong_users;
@@ -7767,6 +7718,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list)
   bool some_users_deleted= FALSE;
   ulonglong old_sql_mode= thd->variables.sql_mode;
   DBUG_ENTER("mysql_drop_user");
+  DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
 
   /* DROP USER may be skipped on replication client. */
   if ((result= open_grant_tables(thd, tables)))
@@ -7779,22 +7731,44 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list)
 
   while ((tmp_user_name= user_list++))
   {
-    if (!(user_name= get_current_user(thd, tmp_user_name)))
+    if (handle_as_role)
     {
-      result= TRUE;
-      continue;
+
+      user_name= tmp_user_name;
+      user_name->host.str= (char *)"";
+      user_name->host.length= 0;
+      if (!find_acl_role(user_name->user.str))
+      {
+        append_user(&wrong_users, user_name, TRUE);
+        result= TRUE;
+        continue;
+      }
     }
+    else
+    {
+      if (!(user_name= get_current_user(thd, tmp_user_name)))
+      {
+        result= TRUE;
+        continue;
+      }
+    }
+
     if (handle_grant_data(tables, 1, user_name, NULL) <= 0)
     {
-      append_user(&wrong_users, user_name);
+      append_user(&wrong_users, user_name, handle_as_role);
       result= TRUE;
       continue;
     }
+
     some_users_deleted= TRUE;
   }
 
-  /* Rebuild 'acl_check_hosts' since 'acl_users' has been modified */
-  rebuild_check_host();
+  if (!handle_as_role)
+  {
+    /* Rebuild 'acl_check_hosts' since 'acl_users' has been modified */
+    rebuild_check_host();
+  }
+
   /* Rebuild every user's role_grants because the acl_user has been modified
      and some grants might now be invalid */
   rebuild_role_grants();
@@ -7802,70 +7776,9 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list)
   mysql_mutex_unlock(&acl_cache->lock);
 
   if (result)
-    my_error(ER_CANNOT_USER, MYF(0), "DROP USER", wrong_users.c_ptr_safe());
-
-  if (some_users_deleted)
-    result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
-
-  mysql_rwlock_unlock(&LOCK_grant);
-  thd->variables.sql_mode= old_sql_mode;
-  DBUG_RETURN(result);
-}
-
-/*
-  Drop a list of roles and all their privileges.
-
-  SYNOPSIS
-    mysql_drop_role()
-    thd                         The current thread.
-    list                        The roles to drop.
-
-  RETURN
-    FALSE       OK.
-    TRUE        Error.
-*/
-bool mysql_drop_role(THD *thd, List <LEX_USER> &list)
-{
-  int result;
-  String wrong_users;
-  LEX_USER *role_name;
-  List_iterator <LEX_USER> user_list(list);
-  TABLE_LIST tables[GRANT_TABLES];
-  bool some_users_deleted= FALSE;
-  ulonglong old_sql_mode= thd->variables.sql_mode;
-  DBUG_ENTER("mysql_drop_role");
-
-  /* DROP USER may be skipped on replication client. */
-  if ((result= open_grant_tables(thd, tables)))
-    DBUG_RETURN(result != 1);
-
-  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
-
-  mysql_rwlock_wrlock(&LOCK_grant);
-  mysql_mutex_lock(&acl_cache->lock);
-
-  while ((role_name= user_list++))
-  {
-    role_name->host.str= (char *)"";
-    role_name->host.length= 0;
-
-    if (handle_grant_data(tables, 1, role_name, NULL) <= 0)
-    {
-      append_role(&wrong_users, role_name);
-      result= TRUE;
-      continue;
-    }
-    some_users_deleted= TRUE;
-  }
-
-  /* Rebuild every user's role_grants because the acl_role has been modified
-     and some grants might now be invalid */
-  rebuild_role_grants();
-
-  mysql_mutex_unlock(&acl_cache->lock);
-
-  if (result)
-    my_error(ER_CANNOT_USER, MYF(0), "DROP ROLE", wrong_users.c_ptr_safe());
+    my_error(ER_CANNOT_USER, MYF(0),
+             (handle_as_role) ? "DROP ROLE" : "DROP USER",
+             wrong_users.c_ptr_safe());
 
   if (some_users_deleted)
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
@@ -7930,7 +7843,8 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
     if (handle_grant_data(tables, 0, user_to, NULL) ||
         handle_grant_data(tables, 0, user_from, user_to) <= 0)
     {
-      append_user(&wrong_users, user_from);
+      /* NOTE TODO renaming roles is not yet implemented */
+      append_user(&wrong_users, user_from, FALSE);
       result= TRUE;
       continue;
     }
