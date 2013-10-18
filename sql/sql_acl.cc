@@ -1458,7 +1458,7 @@ void acl_free(bool end)
   my_hash_free(&acl_roles);
   free_root(&mem,MYF(0));
   delete_dynamic(&acl_hosts);
-  delete_dynamic_recursive(&acl_users, (FREE_FUNC) free_acl_user);
+  delete_dynamic_with_callback(&acl_users, (FREE_FUNC) free_acl_user);
   delete_dynamic(&acl_dbs);
   delete_dynamic(&acl_wild_hosts);
   delete_dynamic(&acl_proxy_users);
@@ -1574,10 +1574,9 @@ my_bool acl_reload(THD *thd)
     my_hash_free(&old_acl_roles);
     free_root(&old_mem,MYF(0));
     delete_dynamic(&old_acl_hosts);
-    delete_dynamic_recursive(&old_acl_users, (FREE_FUNC) free_acl_user);
+    delete_dynamic_with_callback(&old_acl_users, (FREE_FUNC) free_acl_user);
     delete_dynamic(&old_acl_proxy_users);
     delete_dynamic(&old_acl_dbs);
-    my_hash_free(&old_acl_roles_mappings);
     my_hash_free(&old_acl_roles_mappings);
   }
   if (old_initialized)
@@ -2407,9 +2406,9 @@ static void remove_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role)
   {
     if (role == *dynamic_element(&grantee->role_grants, idx_user, ACL_ROLE**))
     {
+      DBUG_ASSERT(!deleted_user);
       delete_dynamic_element(&grantee->role_grants, idx_user);
-      deleted_user= true;
-      break;
+      IF_DBUG(deleted_user= true, break);
     }
   }
 
@@ -2418,9 +2417,9 @@ static void remove_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role)
     if (grantee == *dynamic_element(&role->parent_grantee, idx_role,
                                     ACL_USER_BASE**))
     {
+      DBUG_ASSERT(!deleted_role);
       delete_dynamic_element(&role->parent_grantee, idx_role);
-      deleted_role= true;
-      break;
+      IF_DBUG(deleted_role= true, break);
     }
   }
 
@@ -4535,16 +4534,29 @@ static void propagate_role_grants(ACL_ROLE *role,
      privieges for all roles granted to a specific grantee, *before*
      merging privileges for this grantee. In other words, we must visit all
      parent nodes of a specific node, before descencing into this node.
-     And not just "all parent nodes", but only parent nodes that are part of
-     the subgraph we're inderested in. For example, if both role1 and role2
-     are granted to role3, then role3 has two parent nodes. But when granting
-     a privilege to role1, we're only looking at a subgraph that includes
-     role1 and role3 (role2 cannot be possibly affected by that grant
-     statement). In this subgraph role3 has only one parent.
 
-     Thus, we do two graph traversals here. First we only count parents that
-     are part of the subgraph. On the second traversal we decrement the counter
-     and actually merge privileges for a node when a counter drops to zero.
+     For example, if role1 is granted to role2 and role3, and role3 is
+     granted to role2, after "GRANT ... role1", we cannot merge privileges
+     for role2, until role3 is merged.  The counter will be 0 for role1, 2
+     for role2, 1 for role3. Traversal will start from role1, go to role2,
+     decrement the counter, backtrack, go to role3, merge it, go to role2
+     again, merge it.
+
+     And the counter is not just "all parent nodes", but only parent nodes
+     that are part of the subgraph we're interested in. For example, if
+     both roleA and roleB are granted to roleC, then roleC has two parent
+     nodes. But when granting a privilege to roleA, we're only looking at a
+     subgraph that includes roleA and roleC (roleB cannot be possibly
+     affected by that grant statement). In this subgraph roleC has only one
+     parent.
+
+     (on the other hand, in acl_load we want to update all roles, and
+     the counter is exactly equal to the number of all parent nodes)
+
+     Thus, we do two graph traversals here. First we only count parents
+     that are part of the subgraph. On the second traversal we decrement
+     the counter and actually merge privileges for a node when a counter
+     drops to zero.
   */
   traverse_role_graph_up(role, &data, init_role_for_merging, count_subgraph_nodes);
   traverse_role_graph_up(role, &data, NULL, merge_role_privileges);
@@ -5251,7 +5263,8 @@ static bool merge_role_routine_grant_privileges(ACL_ROLE *grantee,
 /**
   update privileges of the 'grantee' from all roles, granted to it
 */
-static int merge_role_privileges(ACL_ROLE *role, ACL_ROLE *grantee, void *context)
+static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
+                                 ACL_ROLE *grantee, void *context)
 {
   PRIVS_TO_MERGE *data= (PRIVS_TO_MERGE *)context;
 
@@ -5824,6 +5837,9 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
                         C_STRING_WITH_LEN("roles_mapping"),
                         "roles_mapping", TL_WRITE);
 
+  if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
+    DBUG_RETURN(TRUE);                          /* purecov: deadcode */
+
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
   if (!(role= find_acl_role(rolename.str)))
@@ -5841,14 +5857,6 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     my_error(ER_ACCESS_DENIED_NO_PASSWORD_ERROR, MYF(0),
              thd->security_ctx->priv_user, thd->security_ctx->priv_host);
     DBUG_RETURN(TRUE);
-  }
-
-  if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
-  {                                             // Should never happen
-    mysql_mutex_unlock(&acl_cache->lock);
-    mysql_rwlock_unlock(&LOCK_grant);
-    my_error(ER_NO_SUCH_TABLE, MYF(0), "mysql", "roles_mapping");
-    DBUG_RETURN(TRUE);                          /* purecov: deadcode */
   }
 
   while ((user= user_list++))
