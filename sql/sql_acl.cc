@@ -318,8 +318,7 @@ static bool compare_hostname(const acl_host_and_ip *host, const char *hostname,
 static bool show_proxy_grants (THD *thd,
                                const char *username, const char *hostname,
                                char *buff, size_t buffsize);
-static bool show_role_grants(THD *thd,
-                             const char *username, const char *hostname,
+static bool show_role_grants(THD *thd, const char *username, const char *hostname,
                              ACL_USER_BASE *acl_entry,
                              char *buff, size_t buffsize);
 static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
@@ -726,8 +725,7 @@ static void rebuild_check_host(void);
 static void rebuild_role_grants(void);
 static void free_acl_user(ACL_USER *acl_user);
 static void free_acl_role(ACL_ROLE *acl_role);
-static ACL_USER *find_user_no_anon(const char *host, const char *user,
-                                   my_bool exact);
+static ACL_USER *find_user_no_anon(const char *host, const char *user, bool exact);
 static ACL_USER *find_user(const char *host, const char *user, const char *ip);
 static ACL_ROLE *find_acl_role(const char *user);
 static bool update_user_table(THD *thd, TABLE *table, const char *host,
@@ -3034,7 +3032,7 @@ find_user(const char *host, const char *user, const char *ip)
   Find first entry that matches the current user
 */
 static ACL_USER *
-find_user_no_anon(const char *host, const char *user, my_bool exact)
+find_user_no_anon(const char *host, const char *user, bool exact)
 {
   DBUG_ENTER("find_user_no_anon");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'",host,user));
@@ -9472,6 +9470,39 @@ fill_schema_enabled_roles_insert(ACL_ROLE *unused __attribute__((unused)),
   /*return*/ schema_table_store_record(table->in_use, table);
 }
 
+static int fill_schema_applicable_roles_insert_data(ACL_USER_BASE *grantee,
+                                              LEX_STRING *name, TABLE *table);
+
+static void
+fill_schema_applicable_roles_insert(ACL_ROLE *unused __attribute__((unused)),
+                                    ACL_ROLE *role, void *context_data)
+{
+  /*return*/ fill_schema_applicable_roles_insert_data(role, &role->user,
+                                                      (TABLE*)context_data);
+}
+
+static int
+fill_schema_applicable_roles_insert_data(ACL_USER_BASE *grantee,
+                                         LEX_STRING *name, TABLE *table)
+{
+  CHARSET_INFO *cs= system_charset_info;
+
+  for (uint i= 0; i < grantee->role_grants.elements; i++)
+  {
+    ACL_ROLE *role= *(dynamic_element(&grantee->role_grants, i, ACL_ROLE**));
+    restore_record(table, s->default_values);
+    table->field[0]->store(name->str, name->length, cs);
+    table->field[1]->store(role->user.str, role->user.length, cs);
+    table->field[2]->store(STRING_WITH_LEN("YES"), cs); // TODO FIXME
+    if (schema_table_store_record(table->in_use, table))
+      return 1;
+    if (! (grantee->flags & IS_ROLE))
+      traverse_role_graph(role, table, NULL, NULL, NULL,
+                          fill_schema_applicable_roles_insert);
+  }
+  return 0;
+}
+
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
 
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
@@ -9495,6 +9526,39 @@ int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
   restore_record(table, s->default_values);
   table->field[0]->set_null();
   return schema_table_store_record(table->in_use, table);
+}
+
+
+/*
+  This shows all roles granted to current user
+  and recursively all roles granted to those roles
+*/
+int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  if (initialized)
+  {
+    TABLE *table= tables->table;
+    Security_context *sctx= thd->security_ctx;
+    mysql_rwlock_rdlock(&LOCK_grant);
+    mysql_mutex_lock(&acl_cache->lock);
+    ACL_USER *user= find_user_no_anon(sctx->priv_host, sctx->priv_user, true);
+
+    char buff[USER_HOST_BUFF_SIZE+10];
+    DBUG_ASSERT(user->user.length + user->hostname_length +2 < sizeof(buff));
+    char *end= strxmov(buff, user->user.str, "@", user->host.hostname, NULL);
+    LEX_STRING name= { buff, end - buff };
+    
+    int res= fill_schema_applicable_roles_insert_data(user, &name, table);
+
+    mysql_mutex_unlock(&acl_cache->lock);
+    mysql_rwlock_unlock(&LOCK_grant);
+
+    return res;
+  }
+#endif
+
+  return 0;
 }
 
 

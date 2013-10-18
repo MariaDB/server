@@ -24,7 +24,11 @@ select user, host from mysql.db;
 grant select on mysql.* to test_role2;
 flush privileges;
 
+select * from information_schema.applicable_roles;
+
 change_user 'test_user';
+
+select * from information_schema.applicable_roles;
 
 --sorted_result
 show grants;

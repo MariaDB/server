@@ -594,6 +594,7 @@ struct TABLE;
 enum enum_schema_tables
 {
   SCH_ALL_PLUGINS,
+  SCH_APPLICABLE_ROLES,
   SCH_CHARSETS,
   SCH_CLIENT_STATS,
   SCH_COLLATIONS,
