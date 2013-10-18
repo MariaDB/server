@@ -13,7 +13,7 @@ select user, host from mysql.user where user not like 'root';
 --sorted_result
 select * from mysql.roles_mapping;
 
-grant select (RoleFk) on mysql.roles_mapping to test_role2@'';
+grant select (RoleFk) on mysql.roles_mapping to test_role2;
 
 flush privileges;
 
@@ -53,7 +53,7 @@ select RoleFk from mysql.roles_mapping;
 change_user 'root';
 drop user 'test_user'@'localhost';
 select * from mysql.tables_priv;
-revoke select on mysql.roles_mapping from test_role2@'';
+revoke select on mysql.roles_mapping from test_role2;
 delete from mysql.user where user like'test_%';
 delete from mysql.roles_mapping where RoleFk like 'test%';
 

@@ -16,7 +16,7 @@ select * from mysql.roles_mapping;
 HostFk	UserFk	RoleFk
 	test_role1	test_role2
 localhost	test_user	test_role1
-grant select (RoleFk) on mysql.roles_mapping to test_role2@'';
+grant select (RoleFk) on mysql.roles_mapping to test_role2;
 flush privileges;
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
@@ -64,7 +64,7 @@ drop user 'test_user'@'localhost';
 select * from mysql.tables_priv;
 Host	Db	User	Table_name	Grantor	Timestamp	Table_priv	Column_priv
 	mysql	test_role2	roles_mapping	root@localhost	0000-00-00 00:00:00		Select
-revoke select on mysql.roles_mapping from test_role2@'';
+revoke select on mysql.roles_mapping from test_role2;
 delete from mysql.user where user like'test_%';
 delete from mysql.roles_mapping where RoleFk like 'test%';
 flush privileges;

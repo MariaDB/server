@@ -1,8 +1,6 @@
 create user 'test_user'@'localhost';
-create user 'test_role1'@'';
-create user 'test_role2'@'';
-update mysql.user set is_role='Y' where user='test_role1';
-update mysql.user set is_role='Y' where user='test_role2';
+create role test_role1;
+create role test_role2;
 insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
 'test_user',
 'test_role1');
@@ -27,7 +25,7 @@ select user, host from mysql.db;
 user	host
 	%
 	%
-grant select on mysql.* to test_role2@'';
+grant select on mysql.* to test_role2;
 flush privileges;
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
@@ -59,7 +57,7 @@ HostFk	UserFk	RoleFk
 localhost	test_user	test_role1
 localhost	test_user	test_role2
 drop user 'test_user'@'localhost';
-revoke select on mysql.* from test_role2@'';
+revoke select on mysql.* from test_role2;
 delete from mysql.user where user='test_role1';
 delete from mysql.user where user='test_role2';
 delete from mysql.roles_mapping where RoleFk='test_role1';

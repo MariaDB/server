@@ -4709,6 +4709,26 @@ table_error:
 
 
 /*
+  A user name specified without a host can be either a
+  username@% (where '@%' is added automatically by the parser)
+  or a role name. Treat it as a role, if such a role exists.
+*/
+static ACL_ROLE *find_and_mark_as_role(LEX_USER *user)
+{
+  if (user->host.str == host_not_specified.str)
+  {
+    ACL_ROLE *role= find_acl_role(user->user.str);
+    if (role)
+    {
+      user->host= empty_lex_str;
+      return role;
+    }
+  }
+  return NULL;
+}
+
+
+/*
   Store table level and column level grants in the privilege tables
 
   SYNOPSIS
@@ -4879,6 +4899,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       result= TRUE;
       continue;
     }
+    find_and_mark_as_role(Str);
     /* Create user if needed */
     error=replace_user_table(thd, tables[0].table, *Str,
 			     0, revoke_grant, create_new_users,
@@ -5085,6 +5106,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
       result= TRUE;
       continue;
     }
+    find_and_mark_as_role(Str);
     /* Create user if needed */
     error=replace_user_table(thd, tables[0].table, *Str,
 			     0, revoke_grant, create_new_users,
@@ -5161,6 +5183,7 @@ static void append_user(String *str, const char *u, const char *h,
   str->append('\'');
 }
 
+
 bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
 {
   DBUG_ENTER("mysql_grant_role");
@@ -5175,7 +5198,6 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
   char *rolename;
   char *username;
   char *hostname;
-  bool handle_as_role;
   ACL_ROLE *role, *role_as_user;
 
   List_iterator <LEX_USER> user_list(list);
@@ -5206,11 +5228,10 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
 
   while ((user= user_list++))
   {
-    handle_as_role= FALSE;
+    role_as_user= NULL;
     /* current_role is treated slightly different */
     if (user->user.str == current_role.str)
     {
-      handle_as_role= TRUE;
       /* current_role is NONE */
       if (!thd->security_ctx->priv_role[0])
       {
@@ -5236,21 +5257,13 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
     }
     else
     {
+      role_as_user= find_and_mark_as_role(user);
       username= user->user.str;
       hostname= user->host.str;
-      if (user->host.str == host_not_specified.str)
-      {
-        if ((role_as_user= find_acl_role(username)))
-        {
-          handle_as_role= TRUE;
-          hostname= (char *)"";
-        }
-      }
     }
 
     ROLE_GRANT_PAIR *mapping= (ROLE_GRANT_PAIR *)
-      alloc_root(&mem,
-                 sizeof(ROLE_GRANT_PAIR));
+                                alloc_root(&mem, sizeof(ROLE_GRANT_PAIR));
 
     /* TODO write into roles_mapping table */
     init_role_grant_pair(&mem, mapping,
@@ -5258,7 +5271,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
     int res= add_role_user_mapping(mapping);
     if (res == -1)
     {
-      append_user(&wrong_users, username, hostname, handle_as_role);
+      append_user(&wrong_users, username, hostname, role_as_user != NULL);
       result= 1;
       continue;
     }
@@ -5267,7 +5280,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
        Check if this grant would cause a cycle. It only needs to be run
        if we're granting a role to a role
      */
-    if (handle_as_role &&
+    if (role_as_user &&
         traverse_role_graph(role, NULL, NULL, NULL, role_explore_detect_cycle,
                             NULL) == 2)
     {
@@ -5277,7 +5290,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list)
     }
 
     /* only need to propagate grants when granting a role to a role */
-    if (handle_as_role)
+    if (role_as_user)
     {
       acl_update_role_entry(role_as_user, role_as_user->initial_role_access);
     }
@@ -5392,6 +5405,9 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     */
     if (tmp_Str->user.str == current_user.str && tmp_Str->password.str)
       Str->password= tmp_Str->password;
+
+    find_and_mark_as_role(Str);
+
     if (replace_user_table(thd, tables[0].table, *Str,
                            (!db ? rights : 0), revoke_grant, create_new_users,
                            test(thd->variables.sql_mode &
@@ -6694,8 +6710,6 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   ACL_ROLE *acl_role= NULL;
   char buff[1024];
   Protocol *protocol= thd->protocol;
-  bool print_user_entry= FALSE;
-  bool print_role_entry= FALSE;
   char *username= NULL;
   char *hostname= NULL;
   char *rolename= NULL;
@@ -6710,51 +6724,41 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
 
   mysql_rwlock_rdlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
-  if (lex_user->user.str == current_user.str ||
-      lex_user->user.str == current_role.str ||
-      lex_user->user.str == current_user_and_current_role.str)
+
+  if (lex_user->user.str == current_user.str)
+  {
+    username= thd->security_ctx->priv_user;
+    hostname= thd->security_ctx->priv_host;
+  }
+  else if (lex_user->user.str == current_role.str)
+  {
+    rolename= thd->security_ctx->priv_role;
+  }
+  else if (lex_user->user.str == current_user_and_current_role.str)
   {
     username= thd->security_ctx->priv_user;
     hostname= thd->security_ctx->priv_host;
     rolename= thd->security_ctx->priv_role;
   }
-
-  if (lex_user->user.str == current_user.str)
-  {
-    print_user_entry= TRUE;
-  }
-  else if (lex_user->user.str == current_role.str)
-  {
-    print_role_entry= TRUE;
-  }
-  else if (lex_user->user.str == current_user_and_current_role.str)
-  {
-    print_user_entry= TRUE;
-    print_role_entry= TRUE;
-  }
   else
   {
-    /* this lex_user could represent a role */
-    if (lex_user->host.str == host_not_specified.str &&
-        find_acl_role(lex_user->user.str))
+    if (find_and_mark_as_role(lex_user))
     {
       rolename= lex_user->user.str;
-      hostname= (char *)"";
-      print_role_entry= TRUE;
     }
     else
     {
       username= lex_user->user.str;
       hostname= lex_user->host.str;
-      print_user_entry= TRUE;
     }
   }
+  DBUG_ASSERT(rolename || username);
 
   Item_string *field=new Item_string("",0,&my_charset_latin1);
   List<Item> field_list;
   field->name=buff;
   field->max_length=1024;
-  if (print_user_entry == FALSE)
+  if (!username)
     strxmov(buff,"Grants for ",rolename, NullS);
   else
     strxmov(buff,"Grants for ",username,"@",hostname, NullS);
@@ -6768,7 +6772,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     DBUG_RETURN(TRUE);
   }
 
-  if (print_user_entry)
+  if (username)
   {
     acl_user= find_user_no_anon(hostname, username, TRUE);
     if (!acl_user)
@@ -6831,7 +6835,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     }
   }
 
-  if (print_role_entry)
+  if (rolename)
   {
     acl_role= find_acl_role(rolename);
     if (acl_role)
@@ -6862,7 +6866,8 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
         mysql_mutex_unlock(&acl_cache->lock);
         mysql_rwlock_unlock(&LOCK_grant);
         my_error(ER_NONEXISTING_GRANT, MYF(0),
-                 username, hostname);
+                 thd->security_ctx->priv_user,
+                 thd->security_ctx->priv_host);
         DBUG_RETURN(TRUE);
       }
     }
