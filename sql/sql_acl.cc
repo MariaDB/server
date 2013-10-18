@@ -3134,7 +3134,7 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
     DBUG_RETURN(-1);
   }
 
-   table->use_all_columns();
+  table->use_all_columns();
   table->field[0]->store(combo.host.str,combo.host.length,
                          system_charset_info);
   table->field[1]->store(combo.user.str,combo.user.length,
