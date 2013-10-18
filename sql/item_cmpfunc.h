@@ -534,7 +534,7 @@ public:
     fixed= true;
   }
   enum Functype functype() const { return EXEC_STATS_FUNC; };
-  const char *func_name() const { return "exec_stats"; };
+  const char *func_name() const { return "statcond"; };
   bool const_item() const { return FALSE; }
   longlong val_int()
   {
@@ -544,11 +544,12 @@ public:
       ++count_true;
     return res;
   }
-  virtual double exec_selectivity();
   virtual double exec_cost();
+  virtual double exec_selectivity();
+  bool add_pred(Item_func_collect_stats *new_pred);
 
 #ifndef DBUG_OFF
-  void dbug_print_stats();
+  virtual void dbug_print_stats();
 #endif
 };
 
@@ -629,6 +630,9 @@ public:
   void choose_best_join_tab();
 
   virtual void print(String *str, enum_query_type query_type);
+#ifndef DBUG_OFF
+  virtual void dbug_print_stats();
+#endif
 };
 
 

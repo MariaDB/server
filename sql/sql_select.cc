@@ -352,22 +352,31 @@ void print_execution_stats(JOIN *join)
   {
     if (tab->bush_root_tab)
       continue; /* TODO: how to process nested tabs?*/
+
+    *(join->cur_exec_tab)= tab;
+
     fprintf(DBUG_FILE, "%s: actual_card: %f, est_card: %g, est_sel: %f\n",
             tab->table->alias.c_ptr(),
             tab->exec_partial_join_records,
             tab->partial_join_cardinality,
             tab->cond_selectivity);
 
-    if (!tab->select_cond)
-      continue;
-
-    fprintf(DBUG_FILE, "  dynamic_cond_stats:\n");
-    if (tab->select_cond->type() == Item::FUNC_ITEM &&
-        (((Item_func*)tab->select_cond)->functype() == Item_func::DYNAMIC_COND_FUNC ||
-         ((Item_func*)tab->select_cond)->functype() == Item_func::EXEC_STATS_FUNC))
+    if (!tab->select_cond && !(tab->cache_select && tab->cache_select->cond))
     {
-      Item_func_collect_stats *stat_cond= (Item_func_collect_stats*) tab->select_cond;
-      stat_cond->dbug_print_stats();
+      fprintf(DBUG_FILE, "  <no pushed condition>\n");
+    }
+    else
+    {
+      if (tab->select_cond)
+      {
+        fprintf(DBUG_FILE, "  select_cond:\n");
+        tab->select_cond->dbug_print_stats();
+      }
+      if (tab->cache_select && tab->cache_select->cond)
+      {
+        fprintf(DBUG_FILE, "  cache_select->cond:\n");
+        tab->cache_select->cond->dbug_print_stats();
+      }
     }
   }
   fprintf(DBUG_FILE, "}\n");
@@ -7644,7 +7653,7 @@ best_extension_by_limited_search(JOIN      *join,
           For each subquery find the partial join with the least cardinality
           in order to minimize the number of subquery evaluations.
         */
-        if (optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_STATIC_PUSHDOWN) &&
+        if (optimizer_flag(thd, OPTIMIZER_SWITCH_STATIC_COND_PUSHDOWN) &&
             join->conds && join->conds->with_subselect
             /* @todo This is not a reliable estimate:
                && join->conds->is_expensive()*/)
@@ -24543,6 +24552,76 @@ double JOIN::static_pushdown_cost(Item *pushed_cond, uint idx)
 
 
 /**
+  @param pred      the predicate to be wrapped in Item_func_dynamic_cond
+  @param init_tab  the initial 'active' JOIN_TAB where the dynamic predicate
+                   is pushed to
+  @param cur_tab   pointer to the JOIN_TAB* that stores the current JOIN_TAB
+                   during execution
+*/
+static Item_func_collect_stats *
+wrap_with_dynamic_conds(Item *pred, JOIN_TAB *init_tab, JOIN_TAB **active_tab_ptr,
+                        List<Item_func_dynamic_cond> &cur_dynamic_conds)
+{
+  Item_func_collect_stats *wrapped_cond;
+
+  /* Do not wrap already wrapped predicates. */
+  DBUG_ASSERT(pred->type() != Item::FUNC_ITEM ||
+              (((Item_func*)pred)->functype() != Item_func::DYNAMIC_COND_FUNC &&
+               ((Item_func*)pred)->functype() != Item_func::EXEC_STATS_FUNC));
+
+  if (is_cond_and(pred))
+  {
+    List_iterator<Item> and_parts_it(*((Item_cond*) pred)->argument_list());
+    Item *and_part;
+    while ((and_part= and_parts_it++))
+    {
+      if (and_part->needs_dynamic_cond())
+      {
+        /* 
+           TODO:
+           If the leftmost join_tab where the dynamic condion can be pushed
+           is in fact the last join table, do not wrap the condition since
+           it has nowhere to move.
+        */
+        if (!(wrapped_cond= new Item_func_dynamic_cond(and_part,
+                                                       init_tab, active_tab_ptr)))
+          return NULL;
+        cur_dynamic_conds.push_back((Item_func_dynamic_cond*) wrapped_cond);
+      }
+      else
+      {
+        if (!(wrapped_cond= new Item_func_collect_stats(and_part)))
+          return NULL;
+      }
+      and_parts_it.replace(wrapped_cond);
+    }
+    if (!(wrapped_cond= new Item_func_collect_stats(pred)))
+      return NULL;
+  }
+  else if (pred->needs_dynamic_cond())
+  {
+    /* 
+       TODO:
+       If the leftmost join_tab where the dynamic condion can be pushed
+       is in fact the last join table, do not wrap the condition since
+       it has nowhere to move.
+    */
+    if (!(wrapped_cond= new Item_func_dynamic_cond(pred,
+                                                   init_tab, active_tab_ptr)))
+      return NULL;
+    cur_dynamic_conds.push_back((Item_func_dynamic_cond*) wrapped_cond);
+  }
+  else
+  {
+    if (!(wrapped_cond= new Item_func_collect_stats(pred)))
+      return NULL;
+  }
+
+  return wrapped_cond;
+}
+
+
+/**
   Make expensive subqueries dynamically pushdownable.
 */
 
@@ -24551,15 +24630,18 @@ bool JOIN::setup_dynamic_conditions()
   List<Item_func_dynamic_cond> prev_dynamic_conds;
   List<Item_func_dynamic_cond> cur_dynamic_conds;
   bool do_static_pushdown= false, do_dynamic_pushdown= false;
-  JOIN_TAB *first_tab, *last_tab, *min_tab, *tab;
+  JOIN_TAB *first_tab, *last_tab, *min_tab, *tab, *prev_tab;
+  double partial_join_record_length= 0;
 
-  if (!(optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_STATIC_PUSHDOWN) ||
-        optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_DYNAMIC_PUSHDOWN)) || !conds ||
-      (table_count - const_tables < 2))
+  if (!(optimizer_flag(thd, OPTIMIZER_SWITCH_STATIC_COND_PUSHDOWN) ||
+        optimizer_flag(thd, OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN) ||
+        optimizer_flag(thd, OPTIMIZER_SWITCH_RECORD_COND_STATISTICS)) ||
+      !conds || (table_count - const_tables < 2))
     return false;
 
   first_tab= join_tab + const_tables;
   last_tab= join_tab + top_join_tab_count;
+  prev_tab= NULL;
 
   /*
     Update the least cardinality join_tab for each tab for the chosen join order.
@@ -24568,7 +24650,7 @@ bool JOIN::setup_dynamic_conditions()
   min_tab= NULL;
   for (tab= last_tab - 1; tab >= first_tab; tab--)
   {
-    if (optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_STATIC_PUSHDOWN))
+    if (optimizer_flag(thd, OPTIMIZER_SWITCH_STATIC_COND_PUSHDOWN))
     {
       if (!min_tab ||
           tab->partial_join_cardinality <= min_tab->partial_join_cardinality)
@@ -24583,16 +24665,20 @@ bool JOIN::setup_dynamic_conditions()
     }
     else
     {
-      /* Only dynamic pushdown, push conditions to the left-most possible tab. */
+      /*
+        Either dynamic pushdown or statistics collection, push conditions to
+        the left-most possible tab.
+      */
       tab->least_card_tab= tab;
     }
 
-    if (optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_DYNAMIC_PUSHDOWN) &&
+    if (optimizer_flag(thd, OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN) &&
         tab->select_cond && tab->select_cond->needs_dynamic_cond())
       do_dynamic_pushdown= true;
   }
 
-  if (!do_static_pushdown && !do_dynamic_pushdown)
+  if (!(do_static_pushdown || do_dynamic_pushdown ||
+        optimizer_flag(thd, OPTIMIZER_SWITCH_RECORD_COND_STATISTICS)))
     return false;
 
   /*
@@ -24602,59 +24688,54 @@ bool JOIN::setup_dynamic_conditions()
   */
   for (tab= first_tab; tab < last_tab; tab++)
   {
-    Item_func_collect_stats *wrapped_cond;
+    Item_func_collect_stats *wrapped_select_cond= NULL, *cur_wrapped_cond;
 
-    if (tab->select_cond)
+    if (tab->select_cond &&
+        !(wrapped_select_cond=
+          wrap_with_dynamic_conds(tab->select_cond, tab->least_card_tab,
+                                  cur_exec_tab, cur_dynamic_conds)))
+      return true;
+
+    if (tab->cache_select && tab->cache_select->cond && tab->cache &&
+        (tab->cache->get_join_alg() == JOIN_CACHE::BNL_JOIN_ALG ||
+         tab->cache->get_join_alg() == JOIN_CACHE::BNLH_JOIN_ALG))
     {
-      if (is_cond_and(tab->select_cond))
+      DBUG_ASSERT(prev_tab);
+      double records_in_join_buffer= (double) thd->variables.join_buff_size /
+                                     partial_join_record_length;
+      /*
+        Estimate the number of times join_tab->cache_select->cond will
+        be evaluated.
+      */
+      double cache_select_evaluations=
+        (prev_tab->partial_join_cardinality / records_in_join_buffer) *
+        tab->records_read;
+
+      /*
+        If some partial join later in the plan has smaller cardinality than the
+        number of times the scan filter will be evaluated, then move the scan
+        filter condition to that join.
+      */
+      if (cache_select_evaluations > tab->least_card_tab->partial_join_cardinality)
       {
-        List_iterator<Item> and_parts_it(*((Item_cond*) tab->select_cond)->argument_list());
-        Item *and_part;
-        while ((and_part= and_parts_it++))
-        {
-          if (and_part->needs_dynamic_cond())
-          {
-            /* 
-               TODO:
-               If the leftmost join_tab where the dynamic condion can be pushed
-               is in fact the last join table, do not wrap the condition since
-               it has nowhere to move.
-            */
-            if (!(wrapped_cond= new Item_func_dynamic_cond(and_part,
-                                                           tab->least_card_tab,
-                                                           cur_exec_tab)))
-              return true;
-            cur_dynamic_conds.push_back((Item_func_dynamic_cond*)wrapped_cond);
-          }
-          else
-          {
-            if (!(wrapped_cond= new Item_func_collect_stats(and_part)))
-              return true;
-          }
-          and_parts_it.replace(wrapped_cond);
-        }
-      }
-      else if (tab->select_cond->needs_dynamic_cond())
-      {
-        /* 
-           TODO:
-           If the leftmost join_tab where the dynamic condion can be pushed
-           is in fact the last join table, do not wrap the condition since
-           it has nowhere to move.
+        /*
+          Make cache_select a dynamic condition that is activated for the
+          join with the least cardinality. Subsequent loops for the next
+          join_tabs in the plan will add this condition to their pushdown
+          conditions. This allows to 'move' back cache_selec->cond to its
+          original join as a scan filter condition that is evaluated before
+          the join pushdown condition.
         */
-        if (!(wrapped_cond= new Item_func_dynamic_cond(tab->select_cond,
-                                                       tab->least_card_tab,
-                                                       cur_exec_tab)))
+        if (!(tab->cache_select->cond=
+              wrap_with_dynamic_conds(tab->cache_select->cond,
+                                      tab->least_card_tab,
+                                      cur_exec_tab, cur_dynamic_conds)))
           return true;
-        tab->set_select_cond(wrapped_cond, __LINE__);
-        cur_dynamic_conds.push_back((Item_func_dynamic_cond*)wrapped_cond);
+        tab->cache_select->cond->quick_fix_field();
       }
-      else
-      {
-        if (!(wrapped_cond= new Item_func_collect_stats(tab->select_cond)))
-          return true;
-        tab->set_select_cond(wrapped_cond, __LINE__);
-      }
+      else if (!(tab->cache_select->cond=
+                 new Item_func_collect_stats(tab->cache_select->cond)))
+        return true;
     }
 
     /*
@@ -24662,36 +24743,29 @@ bool JOIN::setup_dynamic_conditions()
       current JOIN_TAB. This allows to "move" a dynamic condition
       from one tab to another by enabling it for the corrseponding tab.
     */
-    List_iterator_fast<Item_func_dynamic_cond> dyn_cond_it(prev_dynamic_conds);
-    while ((wrapped_cond= dyn_cond_it++))
+    if (!prev_dynamic_conds.is_empty())
     {
-      if (is_cond_and(tab->select_cond))
-        ((Item_cond_and*)tab->select_cond)->add(wrapped_cond);
-      else
-      {
-        tab->set_select_cond(and_items(tab->select_cond, wrapped_cond), __LINE__);
-        tab->select_cond->quick_fix_field();
-      }
+      List_iterator_fast<Item_func_dynamic_cond> dyn_cond_it(prev_dynamic_conds);
+      if (!wrapped_select_cond)
+        wrapped_select_cond= dyn_cond_it++;
+      while ((cur_wrapped_cond= dyn_cond_it++))
+        wrapped_select_cond->add_pred(cur_wrapped_cond);
     }
     prev_dynamic_conds.concat(&cur_dynamic_conds);
     cur_dynamic_conds.empty();
 
-    /*
-      If the top-level condition attached to this JOIN_TAB is not wrapped in a
-      condition that can collect statistics, wrap it into one.
-    */
-    if (tab->select_cond &&
-        !(tab->select_cond->type() == Item::FUNC_ITEM &&
-          (((Item_func*)tab->select_cond)->functype() == Item_func::DYNAMIC_COND_FUNC ||
-           ((Item_func*)tab->select_cond)->functype() == Item_func::EXEC_STATS_FUNC)))
+    if (wrapped_select_cond)
     {
-      if (!(wrapped_cond= new Item_func_collect_stats(tab->select_cond)))
-        return true;
-      tab->set_select_cond(wrapped_cond, __LINE__);
+      wrapped_select_cond->quick_fix_field();
+      /*
+        Different join algorithms use either tab->select_cond or
+        tab->select->cond. Set both to the same dynamic condition.
+      */
+      tab->set_cond(wrapped_select_cond);
     }
 
-    if (tab->select_cond)
-      tab->select_cond->quick_fix_field();
+    prev_tab= tab;
+    partial_join_record_length+= tab->get_used_fieldlength();
   }
 
   return false;

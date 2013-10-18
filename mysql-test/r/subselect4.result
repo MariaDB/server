@@ -2396,7 +2396,7 @@ drop table t1, t2, t3;
 #
 # MDEV-4407 SQ pushdown: Wrong result (extra rows) with IN and EXISTS subqueries, optimizer_use_condition_selectivity>1
 #
-SET optimizer_switch='expensive_pred_static_pushdown=on';
+SET optimizer_switch='static_cond_pushdown=on';
 SET optimizer_use_condition_selectivity=3;
 SET use_stat_tables=PREFERABLY;
 CREATE TABLE t1 (a INT, b INT, KEY(b)) ENGINE=MyISAM;
@@ -2504,15 +2504,15 @@ i1	c1	i2	c2
 drop table t1, t2;
 #
 # MDEV-4659 SQ pushdown: Valgrind warnings (Conditional jump or move depends on uninitialised value) in best_extension_by_limited_search /
-# greedy_search with expensive_pred_static_pushdown=on
+# greedy_search with static_cond_pushdown=on
 #
-SET optimizer_switch='expensive_pred_static_pushdown=on';
+SET optimizer_switch='static_cond_pushdown=on';
 CREATE TABLE t1 (i INT) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (8),(18);
 SELECT 1 FROM t1 WHERE i IN ( SELECT 8 UNION SELECT 8 );
 1
 1
-SET optimizer_switch='expensive_pred_static_pushdown=off';
+SET optimizer_switch='static_cond_pushdown=off';
 drop table t1;
 SET optimizer_switch=@@global.optimizer_switch;
 SET optimizer_use_condition_selectivity=default;

@@ -1,0 +1,3 @@
+set @@join_cache_level=0;
+--source include/condition_pushdown.inc
+set @@join_cache_level=default;

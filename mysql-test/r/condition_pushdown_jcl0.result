@@ -1,0 +1,154 @@
+set @@join_cache_level=0;
+set @@optimizer_switch = "static_cond_pushdown=on";
+set @@use_stat_tables='preferably';
+set @@optimizer_use_condition_selectivity=4;
+drop table if exists t0, t1 ,t2, t3, sq;
+Warnings:
+Note	1051	Unknown table 't0'
+Note	1051	Unknown table 't1'
+Note	1051	Unknown table 't2'
+Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'sq'
+create table t0 (z1 char(64));
+create table t1 (a1 char(64), a2 char(64), a3 char(64), a4 char(64));
+create table t2 (b1 char(64), b2 char(64), b3 char(64), b4 char(64));
+create table t3 (c1 char(64), c2 char(64), c3 char(64), c4 char(64));
+create table sq (s1 char(64));
+insert into t0 values ('11'),('22'),('33'),('44'),('55'), ('66'),('77'),('88'),('99'),('10');
+insert into t1 select z1, z1, z1, z1 from t0;
+insert into t2 select z1, z1, z1, z1 from t0;
+insert into t3 select z1, z1, z1, z1 from t0;
+insert into sq select z1 from t0;
+analyze table t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+test.t2	analyze	status	OK
+test.t3	analyze	status	OK
+veryfy estimated predicate selectivities
+explain extended
+SELECT count(*) from t2 where b2 < '6' and b3 < '4' and b4 < '2';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	2.62	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t2` where ((`test`.`t2`.`b2` < '6') and (`test`.`t2`.`b3` < '4') and (`test`.`t2`.`b4` < '2'))
+uncorrelated SQ, 2-way join
+explain extended
+SELECT count(*)
+FROM t1 straight_join t2
+WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
+a2 < (select count(*) from sq where s1 > 0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	2.62	Using where; Subqueries: 2
+2	SUBQUERY	sq	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` straight_join `test`.`t2` where ((`test`.`t2`.`b1` = `test`.`t1`.`a1`) and (`test`.`t2`.`b2` < '6') and (`test`.`t2`.`b3` < '4') and (`test`.`t2`.`b4` < '2') and (`test`.`t1`.`a2` < (select count(0) from `test`.`sq` where (`test`.`sq`.`s1` > 0))))
+SELECT count(*)
+FROM t1 straight_join t2
+WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
+a2 < (select count(*) from sq where s1 > 0);
+count(*)
+0
+correlated SQ, 2-way join
+explain extended
+SELECT count(*)
+FROM t1 straight_join t2
+WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
+a2 < (select count(*) from sq where s1 > a1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	2.62	Using where; Subqueries: 2
+2	DEPENDENT SUBQUERY	sq	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` straight_join `test`.`t2` where ((`test`.`t2`.`b1` = `test`.`t1`.`a1`) and (`test`.`t2`.`b2` < '6') and (`test`.`t2`.`b3` < '4') and (`test`.`t2`.`b4` < '2') and (`test`.`t1`.`a2` < <expr_cache><`test`.`t1`.`a1`>((select count(0) from `test`.`sq` where (`test`.`sq`.`s1` > `test`.`t1`.`a1`)))))
+SELECT count(*)
+FROM t1 straight_join t2
+WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
+a2 < (select count(*) from sq where s1 > a1);
+count(*)
+0
+2 correlated SQ, 2-way join
+explain extended
+SELECT count(*)
+FROM t1 straight_join t2
+WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
+a2 < (select count(*) from sq where s1 > a1) and
+b2 < (select count(*) from sq where s1 > b1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	2.62	Using where; Subqueries: 3 2
+3	DEPENDENT SUBQUERY	sq	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+2	DEPENDENT SUBQUERY	sq	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t2.b1' of SELECT #3 was resolved in SELECT #1
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` straight_join `test`.`t2` where ((`test`.`t2`.`b1` = `test`.`t1`.`a1`) and (`test`.`t2`.`b2` < '6') and (`test`.`t2`.`b3` < '4') and (`test`.`t2`.`b4` < '2') and (`test`.`t1`.`a2` < <expr_cache><`test`.`t1`.`a1`>((select count(0) from `test`.`sq` where (`test`.`sq`.`s1` > `test`.`t1`.`a1`)))) and (`test`.`t2`.`b2` < <expr_cache><`test`.`t2`.`b1`>((select count(0) from `test`.`sq` where (`test`.`sq`.`s1` > `test`.`t2`.`b1`)))))
+SELECT count(*)
+FROM t1 straight_join t2
+WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
+a2 < (select count(*) from sq where s1 > a1) and
+b2 < (select count(*) from sq where s1 > b1);
+count(*)
+0
+2 correlated SQ, , 2-way join, one SQ inside an OR
+explain extended
+SELECT count(*)
+FROM t1 straight_join t2
+WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
+(a2 < (select count(*) from sq where s1 > a1) or a1 > 0) and
+b2 < (select count(*) from sq where s1 > b1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	2.62	Using where; Subqueries: 3 2
+3	DEPENDENT SUBQUERY	sq	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+2	DEPENDENT SUBQUERY	sq	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t2.b1' of SELECT #3 was resolved in SELECT #1
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` straight_join `test`.`t2` where ((`test`.`t2`.`b1` = `test`.`t1`.`a1`) and (`test`.`t2`.`b2` < '6') and (`test`.`t2`.`b3` < '4') and (`test`.`t2`.`b4` < '2') and ((`test`.`t1`.`a2` < <expr_cache><`test`.`t1`.`a1`>((select count(0) from `test`.`sq` where (`test`.`sq`.`s1` > `test`.`t1`.`a1`)))) or (`test`.`t1`.`a1` > 0)) and (`test`.`t2`.`b2` < <expr_cache><`test`.`t2`.`b1`>((select count(0) from `test`.`sq` where (`test`.`sq`.`s1` > `test`.`t2`.`b1`)))))
+uncorrelated SQ, 3-way join
+the number of buffer refills > partial join size of t3, move
+join_tab->cache_select->cond to t3
+set @@join_buffer_size=128;
+explain extended
+SELECT count(*)
+FROM t1 straight_join t2 straight_join t3
+WHERE a1 = b1 and b2 = c1 and c2 < '6' and c3 < '4' and c4 < '2' and
+b2 <= (select count(*) from sq where s1 > 0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	2.62	Using where; Subqueries: 2
+2	SUBQUERY	sq	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` straight_join `test`.`t2` straight_join `test`.`t3` where ((`test`.`t2`.`b1` = `test`.`t1`.`a1`) and (`test`.`t3`.`c1` = `test`.`t2`.`b2`) and (`test`.`t3`.`c2` < '6') and (`test`.`t3`.`c3` < '4') and (`test`.`t3`.`c4` < '2') and (`test`.`t2`.`b2` <= (select count(0) from `test`.`sq` where (`test`.`sq`.`s1` > 0))))
+SELECT count(*)
+FROM t1 straight_join t2 straight_join t3
+WHERE a1 = b1 and b2 = c1 and c2 < '6' and c3 < '4' and c4 < '2' and
+b2 <= (select count(*) from sq where s1 > 0);
+count(*)
+1
+the number of buffer refills < partial join size of t3
+set @@join_buffer_size=default;
+explain extended
+SELECT count(*)
+FROM t1 straight_join t2 straight_join t3
+WHERE a1 = b1 and b2 = c1 and c2 < '6' and c3 < '4' and c4 < '2' and
+b2 <= (select count(*) from sq where s1 > 0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	2.62	Using where; Subqueries: 2
+2	SUBQUERY	sq	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` straight_join `test`.`t2` straight_join `test`.`t3` where ((`test`.`t2`.`b1` = `test`.`t1`.`a1`) and (`test`.`t3`.`c1` = `test`.`t2`.`b2`) and (`test`.`t3`.`c2` < '6') and (`test`.`t3`.`c3` < '4') and (`test`.`t3`.`c4` < '2') and (`test`.`t2`.`b2` <= (select count(0) from `test`.`sq` where (`test`.`sq`.`s1` > 0))))
+SELECT count(*)
+FROM t1 straight_join t2 straight_join t3
+WHERE a1 = b1 and b2 = c1 and c2 < '6' and c3 < '4' and c4 < '2' and
+b2 <= (select count(*) from sq where s1 > 0);
+count(*)
+1
+drop table t0, t1 ,t2, t3, sq;
+set @@optimizer_switch = default;
+set @@join_cache_level=default;

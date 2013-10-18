@@ -1570,6 +1570,9 @@ public:
   */
   virtual void under_not(Item_func_not * upper
                          __attribute__((unused))) {};
+#ifndef DBUG_OFF
+  virtual void dbug_print_stats() {};
+#endif /*DBUG_OFF*/
 };
 
 

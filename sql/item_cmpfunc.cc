@@ -6514,6 +6514,49 @@ double Item_func_collect_stats::exec_selectivity()
 }
 
 
+bool Item_func_collect_stats::add_pred(Item_func_collect_stats *new_pred)
+{
+  bool res= true;
+  if (is_cond_and(args[0]))
+  {
+    Item_cond_and* item_and= (Item_cond_and*) args[0];
+    if (is_cond_and(new_pred->args[0]))
+      item_and->add_at_end(((Item_cond_and*)new_pred->args[0])->argument_list());
+    else
+      res= item_and->add(new_pred);
+  }
+  else
+  {
+    Item_cond_and *new_arg;
+    Item_func_collect_stats *wrapped_arg;
+
+    /* Do not wrap already wrapped predicates. */
+    DBUG_ASSERT(args[0]->type() != Item::FUNC_ITEM ||
+                (((Item_func*)args[0])->functype() != Item_func::DYNAMIC_COND_FUNC &&
+                 ((Item_func*)args[0])->functype() != Item_func::EXEC_STATS_FUNC));
+
+    if (!(wrapped_arg= new Item_func_collect_stats(args[0])))
+      return true;
+
+    if (is_cond_and(new_pred->args[0]))
+    {
+      List<Item> *new_and_args= ((Item_cond_and*)new_pred->args[0])->argument_list();
+      if (!(new_arg= new Item_cond_and(*new_and_args)) ||
+          new_arg->add_at_head(wrapped_arg))
+        return true;
+    }
+    else
+    {
+      if (!(new_arg= new Item_cond_and(wrapped_arg, new_pred)))
+        return true;
+    }
+    args[0]= new_arg;
+    res= false;
+  }
+  return res;
+}
+
+
 #ifndef DBUG_OFF
 void Item_func_collect_stats::dbug_print_stats()
 {
@@ -6523,16 +6566,16 @@ void Item_func_collect_stats::dbug_print_stats()
   str.extra_allocation(1024);
   print(&str, QT_ORDINARY);
 
-  (void) fprintf(DBUG_FILE, "    sel: %2.2f, cond_evals: %f, cond_true: %f (",
-                 exec_selectivity(), count_evals, count_true);
+  (void) fprintf(DBUG_FILE, "    sel: %2.2f, cond_evals: %f, cond_true: %f , cond: %p (",
+                 Item_func_collect_stats::exec_selectivity(), count_evals, count_true, this);
   (void) fputs(str.c_ptr_safe(),DBUG_FILE);
   (void) fprintf(DBUG_FILE, ")\n");
 
   if (is_cond_and(args[0]))
   {
-    List_iterator<Item> and_parts_it(*((Item_cond*) args[0])->argument_list());
+    List_iterator<Item> and_parts_it(*(((Item_cond*) args[0])->argument_list()));
     Item *and_part;
-    (void) fprintf(DBUG_FILE, "  Individual conjunct selectivity: {\n");
+    (void) fprintf(DBUG_FILE, "  conjunct stats: {\n");
     while ((and_part= and_parts_it++))
     {
       if (and_part->type() == Item::FUNC_ITEM &&
@@ -6543,7 +6586,7 @@ void Item_func_collect_stats::dbug_print_stats()
         stat_cond->dbug_print_stats();
       }
     }
-    (void) fprintf(DBUG_FILE, "}\n");
+    (void) fprintf(DBUG_FILE, "  }\n");
   }
 }
 #endif /*DBUG_OFF*/
@@ -6618,14 +6661,14 @@ longlong Item_func_dynamic_cond::val_int()
     {
       last_res= Item_func_collect_stats::val_int();
       /* Choose the best JOIN_TAB where to attach this dynamic condition. */
-      if (optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_DYNAMIC_PUSHDOWN) &&
+      if (optimizer_flag(thd, OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN) &&
           ((ulonglong) count_evals % max_evals == 0))
         choose_best_join_tab();
     }
     res= last_res;
     last_res= -1;
   }
-  else if (optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_DYNAMIC_PUSHDOWN) &&
+  else if (optimizer_flag(thd, OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN) &&
            (*exec_tab == first_tab) && my_rnd(&rand) <= sampling_probability)
   {
     /*
@@ -6693,7 +6736,7 @@ double Item_func_dynamic_cond::exec_cost()
 
 void Item_func_dynamic_cond::choose_best_join_tab()
 {
-  JOIN_TAB *cur_tab, *best_tab;
+  JOIN_TAB *cur_tab, *best_tab= active_tab;
 
   /* The current JOI_TAB where this dynamic cond is attached. */
   JOIN_TAB *active_tab_save= active_tab;
@@ -6789,6 +6832,23 @@ void Item_func_dynamic_cond::choose_best_join_tab()
 
 void Item_func_dynamic_cond::print(String *str, enum_query_type query_type)
 {
+  str->append(func_name());
   if (is_active())
-    Item_bool_func::print(str, query_type);
+    str->append("([active] ");
+  else
+    str->append("([inactive] ");
+  args[0]->print(str, query_type);
+  str->append(')');
 }
+
+
+#ifndef DBUG_OFF
+void Item_func_dynamic_cond::dbug_print_stats()
+{
+  THD *thd= active_tab->join->thd;
+  if (optimizer_flag(thd, OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN) || is_active())
+    Item_func_collect_stats::dbug_print_stats();
+  else
+    (void) fprintf(DBUG_FILE, "    <inactive conditions have no stats>\n");
+}
+#endif
