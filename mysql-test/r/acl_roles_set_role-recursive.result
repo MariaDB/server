@@ -34,49 +34,59 @@ ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'ro
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
 set role test_role1;
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
 select * from mysql.roles_mapping where HostFk='';
 HostFk	UserFk	RoleFk
 	test_role1	test_role2
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
 set role none;
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
 set role test_role2;
 ERROR HY000: The role 'test_role2' has not been granted or is invalid.
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
 set role test_role1;
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
 select * from mysql.roles_mapping where HostFk='';
 HostFk	UserFk	RoleFk
 	test_role1	test_role2
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
 set role none;
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 delete from mysql.user where user='test_role1';

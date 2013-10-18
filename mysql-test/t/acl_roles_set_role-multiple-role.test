@@ -57,13 +57,16 @@ change_user 'test_user';
 --error ER_TABLEACCESS_DENIED_ERROR
 select * from mysql.roles_mapping;
 
+--sorted_result
 show grants;
 set role r_sel;
+--sorted_result
 show grants;
 --sorted_result
 select * from mysql.roles_mapping;
 
 set role r_ins;
+--sorted_result
 show grants;
 --error ER_TABLEACCESS_DENIED_ERROR
 select * from mysql.roles_mapping;
