@@ -5203,8 +5203,8 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
       {
         db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user, db,
                            db_is_pattern);
-	if (sctx->priv_role)
-	  db_access|= acl_get("", "", sctx->priv_role, db, db_is_pattern);
+        if (sctx->priv_role[0])
+          db_access|= acl_get("", "", sctx->priv_role, db, db_is_pattern);
       }
       else
       {
@@ -5252,7 +5252,7 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
   {
     db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user, db,
                        db_is_pattern);
-    if (sctx->priv_role)
+    if (sctx->priv_role[0])
     {
       db_access|= acl_get("", "", sctx->priv_role, db, db_is_pattern);
     }
