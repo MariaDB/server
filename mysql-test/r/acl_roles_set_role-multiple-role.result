@@ -68,13 +68,13 @@ Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
 select * from mysql.roles_mapping;
 HostFk	UserFk	RoleFk
-localhost	test_user	r_sel
-localhost	test_user	r_ins
-localhost	test_user	r_upd
-localhost	test_user	r_del
 localhost	test_user	r_crt
+localhost	test_user	r_del
 localhost	test_user	r_drp
+localhost	test_user	r_ins
 localhost	test_user	r_rld
+localhost	test_user	r_sel
+localhost	test_user	r_upd
 set role r_ins;
 show grants;
 Grants for test_user@localhost
