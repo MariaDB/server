@@ -63,10 +63,10 @@ Comp_creator *comp_ne_creator(bool invert);
 
 int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
                          enum enum_schema_tables schema_table_idx);
-void get_default_definer(THD *thd, LEX_USER *definer);
-LEX_USER *create_default_definer(THD *thd);
+void get_default_definer(THD *thd, LEX_USER *definer, bool role);
+LEX_USER *create_default_definer(THD *thd, bool role);
 LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name);
-LEX_USER *get_current_user(THD *thd, LEX_USER *user);
+LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock=true);
 bool sp_process_definer(THD *thd);
 bool check_string_byte_length(LEX_STRING *str, const char *err_msg,
                               uint max_byte_length);

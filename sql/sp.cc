@@ -662,9 +662,14 @@ db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
   close_system_tables(thd, &open_tables_state_backup);
   table= 0;
 
-  parse_user(definer, strlen(definer),
-             definer_user_name.str, &definer_user_name.length,
-             definer_host_name.str, &definer_host_name.length);
+  if (parse_user(definer, strlen(definer),
+                 definer_user_name.str, &definer_user_name.length,
+                 definer_host_name.str, &definer_host_name.length) &&
+      definer_user_name.length && !definer_host_name.length)
+  {
+    // 'user@' -> 'user@%'
+    definer_host_name= host_not_specified;
+  }
 
   ret= db_load_routine(thd, type, name, sphp,
                        sql_mode, params, returns, body, chistics,
@@ -975,7 +980,8 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
 {
   int ret;
   TABLE *table;
-  char definer[USER_HOST_BUFF_SIZE];
+  char definer_buf[USER_HOST_BUFF_SIZE];
+  LEX_STRING definer;
   ulonglong saved_mode= thd->variables.sql_mode;
   MDL_key::enum_mdl_namespace mdl_type= type == TYPE_ENUM_FUNCTION ?
                                         MDL_key::FUNCTION : MDL_key::PROCEDURE;
@@ -1012,8 +1018,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
     restore_record(table, s->default_values); // Get default values for fields
 
     /* NOTE: all needed privilege checks have been already done. */
-    strxnmov(definer, sizeof(definer)-1, thd->lex->definer->user.str, "@",
-            thd->lex->definer->host.str, NullS);
+    thd->lex->definer->set_lex_string(&definer, definer_buf);
 
     if (table->s->fields < MYSQL_PROC_FIELD_COUNT)
     {
@@ -1088,7 +1093,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
 
     store_failed= store_failed ||
       table->field[MYSQL_PROC_FIELD_DEFINER]->
-        store(definer, (uint)strlen(definer), system_charset_info);
+        store(definer.str, definer.length, system_charset_info);
 
     ((Field_timestamp *)table->field[MYSQL_PROC_FIELD_CREATED])->set_time();
     ((Field_timestamp *)table->field[MYSQL_PROC_FIELD_MODIFIED])->set_time();

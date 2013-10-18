@@ -5489,9 +5489,8 @@ ER_PS_NO_RECURSION
 ER_SP_CANT_SET_AUTOCOMMIT
         eng "Not allowed to set autocommit from a stored function or trigger"
         ger "Es ist nicht erlaubt, innerhalb einer gespeicherten Funktion oder eines Triggers AUTOCOMMIT zu setzen"
-ER_MALFORMED_DEFINER
-        eng "Definer is not fully qualified"
-        ger "Definierer des View ist nicht vollständig spezifiziert"
+ER_MALFORMED_DEFINER 0L000
+        eng "Invalid definer"
 ER_VIEW_FRM_NO_USER
         eng "View '%-.192s'.'%-.192s' has no definer information (old table format). Current user is used as definer. Please recreate the view!"
         ger "View '%-.192s'.'%-.192s' hat keine Definierer-Information (altes Tabellenformat). Der aktuelle Benutzer wird als Definierer verwendet. Bitte erstellen Sie den View neu"

@@ -2549,8 +2549,13 @@ sp_head::set_definer(const char *definer, uint definerlen)
   char host_name_holder[HOSTNAME_LENGTH + 1];
   LEX_STRING host_name= { host_name_holder, HOSTNAME_LENGTH };
 
-  parse_user(definer, definerlen, user_name.str, &user_name.length,
-             host_name.str, &host_name.length);
+  if (parse_user(definer, definerlen, user_name.str, &user_name.length,
+                 host_name.str, &host_name.length) &&
+      user_name.length && !host_name.length)
+  {
+    // 'user@' -> 'user@%'
+    host_name= host_not_specified;
+  }
 
   set_definer(&user_name, &host_name);
 }

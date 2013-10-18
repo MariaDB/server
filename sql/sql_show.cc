@@ -2064,8 +2064,11 @@ void append_definer(THD *thd, String *buffer, const LEX_STRING *definer_user,
 {
   buffer->append(STRING_WITH_LEN("DEFINER="));
   append_identifier(thd, buffer, definer_user->str, definer_user->length);
-  buffer->append('@');
-  append_identifier(thd, buffer, definer_host->str, definer_host->length);
+  if (definer_host->str[0])
+  {
+    buffer->append('@');
+    append_identifier(thd, buffer, definer_host->str, definer_host->length);
+  }
   buffer->append(' ');
 }
 

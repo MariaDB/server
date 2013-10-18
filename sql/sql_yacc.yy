@@ -13173,7 +13173,7 @@ user:
             if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
               MYSQL_YYABORT;
             $$->user = $1;
-            $$->host= host_not_specified;
+            $$->host= null_lex_str; // User or Role, see get_current_user()
             $$->password= null_lex_str; 
             $$->plugin= empty_lex_str;
             $$->auth= empty_lex_str;
@@ -14351,7 +14351,7 @@ grant_role:
             if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
               MYSQL_YYABORT;
             $$->user = $1;
-            $$->host= host_not_specified;
+            $$->host= empty_lex_str;
             $$->password= null_lex_str; 
             $$->plugin= empty_lex_str;
             $$->auth= empty_lex_str;
@@ -15044,9 +15044,9 @@ no_definer:
         ;
 
 definer:
-          DEFINER_SYM EQ user
+          DEFINER_SYM EQ user_or_role
           {
-            thd->lex->definer= get_current_user(thd, $3);
+            thd->lex->definer= $3;
           }
         ;
 
