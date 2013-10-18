@@ -60,6 +60,7 @@ select * from mysql.roles_mapping;
 show grants;
 set role r_sel;
 show grants;
+--sorted_result
 select * from mysql.roles_mapping;
 
 set role r_ins;
@@ -104,6 +105,7 @@ set role r_sel;
 
 create table mysql.random_test_table (id INT);
 insert into mysql.random_test_table values (1);
+--sorted_result
 select * from mysql.random_test_table;
 delete from mysql.roles_mapping where RoleFk='r_ins';
 flush privileges;
