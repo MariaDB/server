@@ -299,6 +299,7 @@ class ACL_DB :public ACL_ACCESS
 public:
   acl_host_and_ip host;
   char *user,*db;
+  ulong initial_access; /* access bits present in the table */
 };
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -712,6 +713,7 @@ static my_bool acl_role_propagate_grants(ACL_ROLE *role,
                                          void * not_used __attribute__((unused)));
 static int add_role_user_mapping(ROLE_GRANT_PAIR *mapping);
 static my_bool get_role_access(ACL_ROLE *role, ulong *access);
+static void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source);
 
 /*
  Enumeration of various ACL's and Hashes used in handle_grant_struct()
@@ -1279,6 +1281,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     }
     db.access=get_access(table,3);
     db.access=fix_rights_for_db(db.access);
+    db.initial_access= db.access;
     if (lower_case_table_names)
     {
       /*
@@ -2079,7 +2082,7 @@ static void acl_insert_user(const char *user, const char *host,
 
 
 static void acl_update_db(const char *user, const char *host, const char *db,
-			  ulong privileges)
+                          ulong privileges, bool set_initial_access)
 {
   mysql_mutex_assert_owner(&acl_cache->lock);
 
@@ -2099,7 +2102,11 @@ static void acl_update_db(const char *user, const char *host, const char *db,
 
 	{
 	  if (privileges)
-	    acl_db->access=privileges;
+          {
+            acl_db->access= privileges;
+            if (set_initial_access)
+              acl_db->initial_access= acl_db->access;
+          }
 	  else
 	    delete_dynamic_element(&acl_dbs,i);
 	}
@@ -2118,13 +2125,15 @@ static void acl_update_db(const char *user, const char *host, const char *db,
     host		Host name
     db			Database name
     privileges		Bitmap of privileges
+    set_initial_access  If marked true, will set the initial_access field
+                        to be set to the same value as privileges.
 
   NOTES
     acl_cache->lock must be locked when calling this
 */
 
 static void acl_insert_db(const char *user, const char *host, const char *db,
-			  ulong privileges)
+                          ulong privileges, bool set_initial_access)
 {
   ACL_DB acl_db;
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -2132,6 +2141,10 @@ static void acl_insert_db(const char *user, const char *host, const char *db,
   update_hostname(&acl_db.host, *host ? strdup_root(&mem,host) : 0);
   acl_db.db=strdup_root(&mem,db);
   acl_db.access=privileges;
+  if (set_initial_access)
+    acl_db.initial_access= acl_db.access;
+  else
+    acl_db.initial_access= 0;
   acl_db.sort=get_sort(3,acl_db.host.hostname,acl_db.db,acl_db.user);
   (void) push_dynamic(&acl_dbs,(uchar*) &acl_db);
   my_qsort((uchar*) dynamic_element(&acl_dbs,0,ACL_DB*),acl_dbs.elements,
@@ -2344,6 +2357,81 @@ my_bool acl_user_reset_grant(ACL_USER *user,
 }
 
 /*
+  The function merges access bits from a granted role to a grantee.
+
+  It creates data structures if they don't exist for the grantee.
+  This includes data structures related to database privileges, tables
+  privileges, column privileges, function and procedures privileges
+*/
+
+void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source)
+{
+  DBUG_ASSERT(source->flags & ROLE_GRANTS_FINAL);
+
+  /* Merge global access rights */
+  target->access|= source->access;
+
+  /* Merge database privileges */
+  DYNAMIC_ARRAY target_dbs, source_dbs; /* arrays of pointers to ACL_DB elements */
+  ACL_DB *target_db, *source_db; /* elements of the arrays */
+
+  (void) my_init_dynamic_array(&target_dbs,sizeof(ACL_DB *), 50, 100, MYF(0));
+  (void) my_init_dynamic_array(&source_dbs,sizeof(ACL_DB *), 50, 100, MYF(0));
+
+  /* get all acl_db elements for the source and the target */
+  for (uint i=0 ; i < acl_dbs.elements ; i++)
+  {
+    ACL_DB *acl_db= dynamic_element(&acl_dbs,i,ACL_DB*);
+    if (acl_db->user && !acl_db->host.hostname)
+    {
+      if (!strcmp(target->user.str, acl_db->user))
+        push_dynamic(&target_dbs, (uchar*)&acl_db);
+      if (!strcmp(source->user.str, acl_db->user))
+        push_dynamic(&source_dbs, (uchar*)&acl_db);
+    }
+  }
+
+  for (uint i=0 ; i < source_dbs.elements; i++)
+  {
+    source_db= *dynamic_element(&source_dbs, i, ACL_DB **);
+    target_db= NULL;
+    for (uint j=0; j < target_dbs.elements; j++)
+    {
+      ACL_DB *acl_db= *dynamic_element(&target_dbs, i, ACL_DB **);
+      if (!strcmp(source_db->db, acl_db->db)) /* only need to compare DB here */
+        target_db= acl_db;
+    }
+
+    /* acl_db element found for the target, only need to update acces bits */
+    if (target_db)
+    {
+      target_db->access|= source_db->access;
+    }
+    else
+    {
+      /*
+         Need to create an acl_db element as this role inherits database
+         privileges
+      */
+      acl_insert_db(target->user.str, "", source_db->db,
+                    source_db->access, FALSE);
+    }
+  }
+
+  delete_dynamic(&source_dbs);
+  delete_dynamic(&target_dbs);
+
+  /* Merge table privileges */
+  /* TODO */
+
+  /* Merge column privileges */
+  /* TODO */
+
+  /* Merge function and procedure privileges */
+  /* TODO */
+}
+
+/*
   The function scans through all roles granted to the role passed as argument
   and places the permissions in the access variable.
 
@@ -2380,7 +2468,7 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
      It uses a DYNAMIC_ARRAY to reduce the number of
      malloc calls to a minimum
   */
-  DYNAMIC_ARRAY stack;  
+  DYNAMIC_ARRAY stack;
   NODE_STATE state;     /* variable used to insert elements in the stack */
 
   state.neigh_idx= 0;
@@ -2427,7 +2515,7 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
       if (neighbour->flags & ROLE_GRANTS_FINAL)
       {
         DBUG_PRINT("info", ("Neighbour access is final, merging"));
-        current->access|= neighbour->access;
+        merge_role_grant_privileges(current, neighbour);
         continue;
       }
 
@@ -3474,10 +3562,10 @@ static int replace_db_table(TABLE *table, const char *db,
 
   acl_cache->clear(1);				// Clear privilege cache
   if (old_row_exists)
-    acl_update_db(combo.user.str,combo.host.str,db,rights);
+    acl_update_db(combo.user.str,combo.host.str,db,rights, TRUE);
   else
   if (rights)
-    acl_insert_db(combo.user.str,combo.host.str,db,rights);
+    acl_insert_db(combo.user.str,combo.host.str,db,rights, TRUE);
   DBUG_RETURN(0);
 
   /* This could only happen if the grant tables got corrupted */

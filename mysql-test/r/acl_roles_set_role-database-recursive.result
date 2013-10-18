@@ -1,0 +1,55 @@
+create user 'test_user'@'localhost';
+create user 'test_role1'@'';
+create user 'test_role2'@'';
+update mysql.user set is_role='Y' where user='test_role1';
+update mysql.user set is_role='Y' where user='test_role2';
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+'test_user',
+'test_role1');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+'test_user',
+'test_role2');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
+'test_role1',
+'test_role2');
+select user, host from mysql.user where user not like 'root';
+user	host
+test_role1	
+test_role2	
+test_user	localhost
+select * from mysql.roles_mapping;
+HostFk	UserFk	RoleFk
+	test_role1	test_role2
+localhost	test_user	test_role1
+localhost	test_user	test_role2
+flush privileges;
+select user, host from mysql.db;
+user	host
+	%
+	%
+grant select on mysql.* to test_role2@'';
+flush privileges;
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+set role test_role1;
+select * from mysql.roles_mapping;
+HostFk	UserFk	RoleFk
+	test_role1	test_role2
+localhost	test_user	test_role1
+localhost	test_user	test_role2
+set role none;
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+set role test_role2;
+select * from mysql.roles_mapping;
+HostFk	UserFk	RoleFk
+	test_role1	test_role2
+localhost	test_user	test_role1
+localhost	test_user	test_role2
+drop user 'test_user'@'localhost';
+revoke select on mysql.* from test_role2@'';
+delete from mysql.user where user='test_role1';
+delete from mysql.user where user='test_role2';
+delete from mysql.roles_mapping where RoleFk='test_role1';
+delete from mysql.roles_mapping where RoleFk='test_role2';
+flush privileges;
