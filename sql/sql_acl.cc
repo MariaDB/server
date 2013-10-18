@@ -241,9 +241,7 @@ public:
 
   uchar flags;           // field used to store various state information
   LEX_STRING user;
-  /*
-    list to hold references to granted roles (ACL_USER instances)
-  */
+  /* list to hold references to granted roles (ACL_ROLE instances) */
   DYNAMIC_ARRAY role_grants;
 };
 
@@ -721,8 +719,6 @@ static ulong get_sort(uint count,...);
 static void init_check_host(void);
 static void rebuild_check_host(void);
 static void rebuild_role_grants(void);
-static void free_acl_user(ACL_USER *acl_user);
-static void free_acl_role(ACL_ROLE *acl_role);
 static ACL_USER *find_user_no_anon(const char *host, const char *user, bool exact);
 static ACL_USER *find_user(const char *host, const char *user, const char *ip);
 static ACL_ROLE *find_acl_role(const char *user);
@@ -734,7 +730,6 @@ static bool update_user_table(THD *thd, TABLE *table, const char *host,
 static my_bool acl_load(THD *thd, TABLE_LIST *tables);
 static my_bool grant_load(THD *thd, TABLE_LIST *tables);
 static inline void get_grantor(THD *thd, char* grantor);
-static bool add_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role);
 static bool add_role_user_mapping(const char *uname, const char *hname, const char *rname);
 
 #define ROLE_CYCLE_FOUND 2
@@ -786,16 +781,12 @@ ACL_ROLE::ACL_ROLE(const char * rolename, ulong privileges, MEM_ROOT *root) :
 }
 
 
-static
-void
-free_acl_user(ACL_USER *user)
+static void free_acl_user(ACL_USER *user)
 {
   delete_dynamic(&(user->role_grants));
 }
 
-static
-void
-free_acl_role(ACL_ROLE *role)
+static void free_acl_role(ACL_ROLE *role)
 {
   delete_dynamic(&(role->role_grants));
   delete_dynamic(&(role->parent_grantee));
@@ -806,8 +797,7 @@ free_acl_role(ACL_ROLE *role)
   Binary form is stored in user.salt.
 */
 
-static
-void
+static void
 set_user_salt(ACL_USER *acl_user, const char *password, uint password_len)
 {
   if (password_len == SCRAMBLED_PASSWORD_CHAR_LENGTH)
@@ -945,8 +935,7 @@ my_bool acl_init(bool dont_read_acl_tables)
   Choose from either native or old password plugins when assigning a password
 */
 
-static bool
-set_user_plugin (ACL_USER *user, int password_len)
+static bool set_user_plugin (ACL_USER *user, int password_len)
 {
   switch (password_len)
   {
@@ -1911,7 +1900,9 @@ end:
   return result;
 }
 
-int acl_setrole(THD *thd, char *rolename, ulonglong access) {
+
+int acl_setrole(THD *thd, char *rolename, ulonglong access)
+{
   /* merge the privileges */
   Security_context *sctx= thd->security_ctx;
   sctx->master_access= access;
@@ -1935,13 +1926,13 @@ int acl_setrole(THD *thd, char *rolename, ulonglong access) {
 }
 
 
-
 static uchar* check_get_key(ACL_USER *buff, size_t *length,
                             my_bool not_used __attribute__((unused)))
 {
   *length=buff->hostname_length;
   return (uchar*) buff->host.hostname;
 }
+
 
 static void acl_update_role(const char *rolename, ulong privileges)
 {
@@ -2017,6 +2008,7 @@ static void acl_update_user(const char *user, const char *host,
   }
 }
 
+
 static void acl_insert_role(const char *rolename, ulong privileges)
 {
   ACL_ROLE *entry;
@@ -2028,10 +2020,9 @@ static void acl_insert_role(const char *rolename, ulong privileges)
   (void) my_init_dynamic_array(&entry->role_grants,sizeof(ACL_ROLE *),
                                50, 100, MYF(0));
 
-
-
   my_hash_insert(&acl_roles, (uchar *)entry);
 }
+
 
 static void acl_insert_user(const char *user, const char *host,
 			    const char *password, uint password_len,
@@ -2159,7 +2150,6 @@ static void acl_insert_db(const char *user, const char *host, const char *db,
   my_qsort((uchar*) dynamic_element(&acl_dbs,0,ACL_DB*),acl_dbs.elements,
 	   sizeof(ACL_DB),(qsort_cmp) acl_compare);
 }
-
 
 
 /*
@@ -2426,7 +2416,7 @@ static void remove_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role)
 }
 
 
-my_bool add_role_user_mapping_action(void *ptr, void *unused __attribute__((unused)))
+static my_bool add_role_user_mapping_action(void *ptr, void *unused __attribute__((unused)))
 {
   ROLE_GRANT_PAIR *pair= (ROLE_GRANT_PAIR*)ptr;
   my_bool status __attribute__((unused));
@@ -2449,7 +2439,7 @@ my_bool add_role_user_mapping_action(void *ptr, void *unused __attribute__((unus
   pointers to elements of the acl_users array.
 */
 
-void rebuild_role_grants(void)
+static void rebuild_role_grants(void)
 {
   DBUG_ENTER("rebuild_role_grants");
   /*
@@ -2703,8 +2693,7 @@ bool is_acl_user(const char *host, const char *user)
 }
 
 
-static ACL_USER *
-find_user(const char *host, const char *user, const char *ip)
+static ACL_USER *find_user(const char *host, const char *user, const char *ip)
 {
   ACL_USER *result= NULL;
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -2758,8 +2747,7 @@ find_user_no_anon(const char *host, const char *user, bool exact)
 /*
   Find first entry that matches the current user
 */
-static ACL_ROLE *
-find_acl_role(const char *user)
+static ACL_ROLE *find_acl_role(const char *user)
 {
   DBUG_ENTER("find_acl_role");
   DBUG_PRINT("enter",("user: '%s'", user));
@@ -3685,21 +3673,6 @@ static uchar* get_key_column(GRANT_COLUMN *buff, size_t *length,
   return (uchar*) buff->column;
 }
 
-/* same as merge_grant_table_hash_columns, but without
-   the existing hash check */
-static void copy_grant_table_hash_columns(HASH *target, HASH *source)
-{
-
-  MEM_ROOT *memex_ptr= &memex;
-  for (uint i=0 ; i < source->records ; i++)
-  {
-    GRANT_COLUMN *source_col = (GRANT_COLUMN *)my_hash_element(source, i);
-    GRANT_COLUMN *target_col = new (memex_ptr) GRANT_COLUMN(source_col);
-    my_hash_insert(target, (uchar *)target_col);
-  }
-}
-
-
 class GRANT_NAME :public Sql_alloc
 {
 public:
@@ -3712,8 +3685,6 @@ public:
   GRANT_NAME(const char *h, const char *d,const char *u,
              const char *t, ulong p, bool is_routine);
   GRANT_NAME (TABLE *form, bool is_routine);
-  /* copy from an inherited GRANT_NAME */
-  GRANT_NAME(GRANT_NAME *source, char *u, bool is_routine);
   virtual ~GRANT_NAME() {};
   virtual bool ok() { return privs != 0; }
   void set_user_details(const char *h, const char *d,
@@ -3732,7 +3703,6 @@ public:
   GRANT_TABLE(const char *h, const char *d,const char *u,
               const char *t, ulong p, ulong c);
   GRANT_TABLE (TABLE *form, TABLE *col_privs);
-  GRANT_TABLE(GRANT_TABLE *source, char *u);
   ~GRANT_TABLE();
   bool ok() { return privs != 0 || cols != 0; }
   void init_hash()
@@ -3775,12 +3745,6 @@ GRANT_NAME::GRANT_NAME(const char *h, const char *d,const char *u,
   set_user_details(h, d, u, t, is_routine);
 }
 
-GRANT_NAME::GRANT_NAME(GRANT_NAME *source, char *u, bool is_routine)
-  :db(0), tname(0), privs(source->privs), init_privs(0)
-{
-  set_user_details("", source->db, u, source->tname, is_routine);
-}
-
 GRANT_TABLE::GRANT_TABLE(const char *h, const char *d,const char *u,
                 	 const char *t, ulong p, ulong c)
   :GRANT_NAME(h,d,u,t,p, FALSE), cols(c)
@@ -3792,17 +3756,6 @@ GRANT_TABLE::GRANT_TABLE(const char *h, const char *d,const char *u,
   create a new GRANT_TABLE entry for role inheritance. init_* fields are set
   to 0
 */
-GRANT_TABLE::GRANT_TABLE(GRANT_TABLE *source, char *u)
-  :GRANT_NAME("", source->db, u, source->tname,
-              source->privs, FALSE), cols(source->cols)
-{
-  this->init_cols= 0;
-  this->init_privs= 0;
-  init_hash();
-  copy_grant_table_hash_columns(&hash_columns, &source->hash_columns);
-}
-
-
 GRANT_NAME::GRANT_NAME(TABLE *form, bool is_routine)
 {
   user= safe_str(get_field(&memex,form->field[2]));
@@ -3940,7 +3893,7 @@ static uchar* get_grant_table(GRANT_NAME *buff, size_t *length,
 }
 
 
-void free_grant_table(GRANT_TABLE *grant_table)
+static void free_grant_table(GRANT_TABLE *grant_table)
 {
   grant_table->~GRANT_TABLE();
 }
@@ -3997,7 +3950,7 @@ static GRANT_NAME *name_hash_search(HASH *name_hash,
 }
 
 
-inline GRANT_NAME *
+static GRANT_NAME *
 routine_hash_search(const char *host, const char *ip, const char *db,
                  const char *user, const char *tname, bool proc, bool exact)
 {
@@ -4007,7 +3960,7 @@ routine_hash_search(const char *host, const char *ip, const char *db,
 }
 
 
-inline GRANT_TABLE *
+static GRANT_TABLE *
 table_hash_search(const char *host, const char *ip, const char *db,
 		  const char *user, const char *tname, bool exact)
 {
@@ -4016,7 +3969,7 @@ table_hash_search(const char *host, const char *ip, const char *db,
 }
 
 
-inline GRANT_COLUMN *
+static GRANT_COLUMN *
 column_hash_search(GRANT_TABLE *t, const char *cname, uint length)
 {
   return (GRANT_COLUMN*) my_hash_search(&t->hash_columns,
@@ -7418,7 +7371,7 @@ static uint command_lengths[]=
 };
 
 
-bool print_grants_for_role(THD *thd, ACL_ROLE * role)
+static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
 {
   char buff[1024];
 
@@ -7466,7 +7419,7 @@ static int show_grants_callback(ACL_USER_BASE *role, void *data)
 
 bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
 {
-  int  error = 0;
+  int  error = -1;
   ACL_USER *UNINIT_VAR(acl_user);
   ACL_ROLE *acl_role= NULL;
   char buff[1024];
@@ -7548,51 +7501,30 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
 
     /* Show granted roles to acl_user */
     if (show_role_grants(thd, username, hostname, acl_user, buff, sizeof(buff)))
-    {
-      error= -1;
       goto end;
-    }
 
     /* Add first global access grants */
     if (show_global_privileges(thd, acl_user, FALSE, buff, sizeof(buff)))
-    {
-      error= -1;
       goto end;
-    };
 
     /* Add database access */
     if (show_database_privileges(thd, username, hostname, buff, sizeof(buff)))
-    {
-      error= -1;
       goto end;
-    }
 
     /* Add table & column access */
     if (show_table_and_column_privileges(thd, username, hostname, buff, sizeof(buff)))
-    {
-      error= -1;
       goto end;
-    }
 
     if (show_routine_grants(thd, username, hostname, &proc_priv_hash,
                             STRING_WITH_LEN("PROCEDURE"), buff, sizeof(buff)))
-    {
-      error= -1;
       goto end;
-    }
 
     if (show_routine_grants(thd, username, hostname, &func_priv_hash,
                             STRING_WITH_LEN("FUNCTION"), buff, sizeof(buff)))
-    {
-      error= -1;
       goto end;
-    }
 
     if (show_proxy_grants(thd, username, hostname, buff, sizeof(buff)))
-    {
-      error= -1;
       goto end;
-    }
   }
 
   if (rolename)
@@ -7617,6 +7549,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     }
   }
 
+  error= 0;
 end:
   mysql_mutex_unlock(&acl_cache->lock);
   mysql_rwlock_unlock(&LOCK_grant);
@@ -7642,10 +7575,8 @@ static ROLE_GRANT_PAIR *find_role_grant_pair(const LEX_STRING *u,
     my_hash_search(&acl_roles_mappings, (uchar*)pair_key.ptr(), key_length);
 }
 
-static bool show_role_grants(THD *thd,
-                             const char *username,
-                             const char *hostname,
-                             ACL_USER_BASE *acl_entry,
+static bool show_role_grants(THD *thd, const char *username,
+                             const char *hostname, ACL_USER_BASE *acl_entry,
                              char *buff, size_t buffsize)
 {
   uint counter;
@@ -7823,8 +7754,7 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
 
 }
 
-static bool show_database_privileges(THD *thd,
-                                     const char *username,
+static bool show_database_privileges(THD *thd, const char *username,
                                      const char *hostname,
                                      char *buff, size_t buffsize)
 {
@@ -7911,8 +7841,7 @@ static bool show_database_privileges(THD *thd,
 
 }
 
-static bool show_table_and_column_privileges(THD *thd,
-                                             const char *username,
+static bool show_table_and_column_privileges(THD *thd, const char *username,
                                              const char *hostname,
                                              char *buff, size_t buffsize)
 {
@@ -8213,7 +8142,7 @@ void get_mqh(const char *user, const char *host, USER_CONN *uc)
 */
 
 #define GRANT_TABLES 7
-int open_grant_tables(THD *thd, TABLE_LIST *tables)
+static int open_grant_tables(THD *thd, TABLE_LIST *tables)
 {
   Rpl_filter *rpl_filter= thd->rpl_filter;
   DBUG_ENTER("open_grant_tables");
