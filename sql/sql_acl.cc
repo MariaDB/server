@@ -1080,7 +1080,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 
   table->use_all_columns();
   (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER), 50, 100, MYF(0));
-  (void) my_hash_init2(&acl_roles,50,system_charset_info,
+  (void) my_hash_init2(&acl_roles,50, &my_charset_utf8_bin,
                        0,0,0, (my_hash_get_key) acl_role_get_key,
                        (void (*)(void *))free_acl_role, 0);
 
@@ -2576,7 +2576,7 @@ static int traverse_role_graph(ACL_ROLE *role,
   (void) my_init_dynamic_array(&stack, sizeof(NODE_STATE), 20, 50, MYF(0));
   (void) my_init_dynamic_array(&to_clear, sizeof(ACL_ROLE *), 20, 50, MYF(0));
   push_dynamic(&stack, (uchar*)&state);
-  push_dynamic(&to_clear, (uchar*)role);
+  push_dynamic(&to_clear, (uchar*)&role);
 
   while (stack.elements)
   {
@@ -9548,8 +9548,8 @@ int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond)
     char buff[USER_HOST_BUFF_SIZE+10];
     DBUG_ASSERT(user->user.length + user->hostname_length +2 < sizeof(buff));
     char *end= strxmov(buff, user->user.str, "@", user->host.hostname, NULL);
-    LEX_STRING name= { buff, end - buff };
-    
+    LEX_STRING name= { buff, (size_t)(end - buff) };
+
     int res= fill_schema_applicable_roles_insert_data(user, &name, table);
 
     mysql_mutex_unlock(&acl_cache->lock);
