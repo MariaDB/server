@@ -212,23 +212,33 @@ public:
   char *db;
 };
 
-class ACL_USER :public ACL_ACCESS
+class ACL_USER_BASE :public ACL_ACCESS
+{
+
+public:
+  static void *operator new(size_t size, MEM_ROOT *mem_root)
+  { return (void*) alloc_root(mem_root, size); }
+
+  uchar flags;           // field used to store various state information
+  LEX_STRING user;
+  /*
+    list to hold references to granted roles (ACL_USER instances)
+  */
+  DYNAMIC_ARRAY role_grants;
+};
+
+class ACL_USER :public ACL_USER_BASE
 {
 public:
   acl_host_and_ip host;
   uint hostname_length;
   USER_RESOURCES user_resource;
-  LEX_STRING user;
   uint8 salt[SCRAMBLE_LENGTH + 1];       // scrambled password in binary form
   uint8 salt_len;        // 0 - no password, 4 - 3.20, 8 - 4.0,  20 - 4.1.1
   enum SSL_type ssl_type;
   const char *ssl_cipher, *x509_issuer, *x509_subject;
   LEX_STRING plugin;
   LEX_STRING auth_string;
-  /*
-    list to hold references to granted roles (ACL_USER instances)
-  */
-  DYNAMIC_ARRAY role_grants;
 
   ACL_USER *copy(MEM_ROOT *root)
   {
@@ -254,10 +264,9 @@ public:
 
 };
 
-class ACL_ROLE :public ACL_USER
+class ACL_ROLE :public ACL_USER_BASE
 {
 public:
-  uchar flags;           // field used to store various state information
   /*
     In case of granting a role to a role, the access bits are merged together
     via a bit OR operation and placed in the ACL_USER::access field.
@@ -268,6 +277,8 @@ public:
   */
   ulong initial_role_access;
   DYNAMIC_ARRAY parent_grantee; // array of backlinks to elements granted
+
+  ACL_ROLE(ACL_USER * user, MEM_ROOT *mem);
 
 };
 
@@ -699,35 +710,25 @@ enum enum_acl_lists
   ROLES_MAPPINGS_HASH
 };
 
-static ACL_ROLE *create_role_from_user(MEM_ROOT *root, ACL_USER *user)
+ACL_ROLE::ACL_ROLE(ACL_USER *user, MEM_ROOT *root)
 {
-  ACL_ROLE *dst= (ACL_ROLE *) alloc_root(root, sizeof(ACL_ROLE));
-  if (!dst)
-    return 0;
-  *(ACL_USER *)dst= *user;
-  dst->user.str= safe_strdup_root(root, user->user.str);
-  dst->user.length= user->user.length;
-  dst->ssl_cipher= safe_strdup_root(root, user->ssl_cipher);
-  dst->x509_issuer= safe_strdup_root(root, user->x509_issuer);
-  dst->x509_subject= safe_strdup_root(root, user->x509_subject);
-  if (user->plugin.str == native_password_plugin_name.str ||
-      user->plugin.str == old_password_plugin_name.str)
-    dst->plugin= user->plugin;
-  else
-    dst->plugin.str= strmake_root(root, user->plugin.str, user->plugin.length);
-  dst->auth_string.str= safe_strdup_root(root, user->auth_string.str);
-  dst->host.hostname= safe_strdup_root(root, user->host.hostname);
-  bzero(&dst->role_grants, sizeof(dst->role_grants));
-  bzero(&dst->parent_grantee, sizeof(dst->parent_grantee));
-  dst->flags= 0;
-  return dst;
+
+  access= user->access;
+  sort= user->sort;
+  this->user.str= safe_strdup_root(root, user->user.str);
+  this->user.length= user->user.length;
+  bzero(&role_grants, sizeof(role_grants));
+  bzero(&parent_grantee, sizeof(parent_grantee));
+  flags= IS_ROLE;
 }
+
 static
 void
 free_acl_user(ACL_USER *user)
 {
   delete_dynamic(&(user->role_grants));
 }
+
 static
 void
 free_acl_role(ACL_ROLE *role)
@@ -1196,10 +1197,11 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 
       if (is_role) {
         DBUG_PRINT("info", ("Found role %s", user.user.str));
-        ACL_ROLE *entry= create_role_from_user(&mem, &user);
+        ACL_ROLE *entry= new (&mem) ACL_ROLE(&user, &mem);
+          //create_role_from_user(&mem, &user);
         entry->role_grants = user.role_grants;
-        (void) my_init_dynamic_array(&entry->parent_grantee, sizeof(ACL_USER *),
-                                     50, 100, MYF(0));
+        (void) my_init_dynamic_array(&entry->parent_grantee,
+                                     sizeof(ACL_USER_BASE *), 50, 100, MYF(0));
         /* set initial role access the same as the table row privileges */
         entry->initial_role_access= entry->access;
         my_hash_insert(&acl_roles, (uchar *)entry);
@@ -1749,6 +1751,7 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
   mysql_mutex_lock(&acl_cache->lock);
 
   ACL_ROLE *role= find_acl_role(rolename);
+  ACL_USER_BASE *acl_user_base;
   ACL_USER *acl_user;
 
   if (!strcasecmp(rolename, "NONE")) {
@@ -1776,7 +1779,11 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
 
   for (uint i=0 ; i < role->parent_grantee.elements ; i++)
   {
-    acl_user= *(dynamic_element(&role->parent_grantee, i, ACL_USER**));
+    acl_user_base= *(dynamic_element(&role->parent_grantee, i, ACL_USER_BASE**));
+    if (acl_user_base->flags & IS_ROLE)
+      continue;
+
+    acl_user= (ACL_USER *)acl_user_base;
     if ((!acl_user->user.str && !thd->security_ctx->user[0]) ||
         (acl_user->user.str && !strcmp(thd->security_ctx->user,
                                        acl_user->user.str)))
@@ -2359,10 +2366,12 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
 */
 int add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
 {
-  ACL_USER *user= find_user_no_anon((mapping->u_hname) ? mapping->u_hname: "",
+
+  ACL_USER_BASE *user= find_user_no_anon((mapping->u_hname) ? mapping->u_hname: "",
                                     (mapping->u_uname) ? mapping->u_uname: "",
                                     TRUE);
   ACL_ROLE *role= find_acl_role(mapping->r_uname ? mapping->r_uname: "");
+
 
   int result= 0;
 
@@ -2388,10 +2397,11 @@ int add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
   push_dynamic(&user->role_grants, (uchar*) &role);
   push_dynamic(&role->parent_grantee, (uchar*) &user);
 
-  DBUG_PRINT("info", ("Found %s %s@%s having role granted %s@%s\n",
+  DBUG_PRINT("info", ("Found %s %s@%s having role granted %s\n",
                         (result) ? "role" : "user",
-                        user->user.str, user->host.hostname,
-                        role->user.str, role->host.hostname));
+                        user->user.str,
+                        (result) ? "" : ((ACL_USER *)user)->host.hostname,
+                        role->user.str));
   return result;
 }
 
