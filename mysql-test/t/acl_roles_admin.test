@@ -30,7 +30,7 @@ create user bar with admin current_user;
 grant role1 to foo@localhost with admin option;
 grant role2 to foo@localhost;
 grant role2 to role1;
-grant role3 to role4 with admin option;
+grant role4 to role3 with admin option;
 --error ER_PARSE_ERROR
 grant select on *.* to foo@localhost with admin option;
 
@@ -54,8 +54,9 @@ select * from information_schema.applicable_roles;
 
 grant role2 to role1 with admin option;
 revoke role1 from foo@localhost;
-revoke admin option for role3 from role4;
+revoke admin option for role4 from role3;
 revoke admin option for role2 from foo@localhost;
+revoke admin option for role1 from root@localhost;
 
 --sorted_result
 show grants for foo@localhost;
@@ -74,6 +75,22 @@ show grants for role1;
 show grants for role4;
 --sorted_result
 select * from information_schema.applicable_roles;
+
+# Now, root@localhost don't have admin option for role1:
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+grant role1 to role4;
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+grant role1 to role4 with admin option;
+# but role3 is grantable
+grant role3 to role2;
+revoke role3 from role2;
+
+# now, a diamond
+grant role4 to role2 with admin option;
+revoke role2 from current_user;
+revoke role4 from current_user;
+grant role4 to current_user;
+
 
 ########################################
 # cleanup
