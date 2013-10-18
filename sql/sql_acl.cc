@@ -1443,9 +1443,6 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     free_root(&temp_root, MYF(0));
     end_read_record(&read_record_info);
 
-    my_hash_iterate(&acl_roles,
-                    (my_hash_walk_action) acl_role_propagate_grants, NULL);
-
     if (!initialized)
       mysql_mutex_unlock(&acl_cache->lock);
 
@@ -2417,78 +2414,6 @@ my_bool acl_user_reset_grant(ACL_USER *user,
 {
   reset_dynamic(&user->role_grants);
   return 0;
-}
-
-/*
-  The function merges access bits from a granted role to a grantee.
-
-  It creates data structures if they don't exist for the grantee.
-  This includes data structures related to database privileges, tables
-  privileges, column privileges, function and procedures privileges
-*/
-
-void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source)
-{
-  DBUG_ASSERT(source->flags & ROLE_GRANTS_FINAL);
-
-  /* Merge global access rights */
-  target->access|= source->access;
-
-  /* Merge database privileges */
-  DYNAMIC_ARRAY target_dbs, source_dbs; /* arrays of pointers to ACL_DB elements */
-  ACL_DB *target_db, *source_db; /* elements of the arrays */
-
-  (void) my_init_dynamic_array(&target_dbs,sizeof(ACL_DB *), 50, 100, MYF(0));
-  (void) my_init_dynamic_array(&source_dbs,sizeof(ACL_DB *), 50, 100, MYF(0));
-
-  /* get all acl_db elements for the source and the target */
-  for (uint i=0 ; i < acl_dbs.elements ; i++)
-  {
-    ACL_DB *acl_db= dynamic_element(&acl_dbs,i,ACL_DB*);
-    if (acl_db->user && !acl_db->host.hostname)
-    {
-      if (!strcmp(target->user.str, acl_db->user))
-        push_dynamic(&target_dbs, (uchar*)&acl_db);
-      if (!strcmp(source->user.str, acl_db->user))
-        push_dynamic(&source_dbs, (uchar*)&acl_db);
-    }
-  }
-
-  for (uint i=0 ; i < source_dbs.elements; i++)
-  {
-    source_db= *dynamic_element(&source_dbs, i, ACL_DB **);
-    target_db= NULL;
-    for (uint j=0; j < target_dbs.elements; j++)
-    {
-      ACL_DB *acl_db= *dynamic_element(&target_dbs, i, ACL_DB **);
-      if (!strcmp(source_db->db, acl_db->db)) /* only need to compare DB here */
-        target_db= acl_db;
-    }
-
-    /* acl_db element found for the target, only need to update acces bits */
-    if (target_db)
-    {
-      target_db->access|= source_db->access;
-    }
-    else
-    {
-      /*
-         Need to create an acl_db element as this role inherits database
-         privileges
-      */
-      acl_insert_db(target->user.str, "", source_db->db,
-                    source_db->access, FALSE);
-    }
-  }
-
-  delete_dynamic(&source_dbs);
-  delete_dynamic(&target_dbs);
-
-  /* Merge table and column privileges */
-
-
-  /* Merge function and procedure privileges */
-  /* TODO */
 }
 
 static void role_explore_create_list(ACL_ROLE *unused __attribute__((unused)),
@@ -3904,6 +3829,12 @@ public:
   {
     column= (char*) memdup_root(&memex,c.ptr(), key_length=c.length());
   }
+
+  GRANT_COLUMN(GRANT_COLUMN *source) : rights (source->rights), init_rights(0)
+  {
+    column= (char *) memdup_root(&memex, source->column,
+                                 key_length=source->key_length);
+  }
 };
 
 
@@ -3912,6 +3843,43 @@ static uchar* get_key_column(GRANT_COLUMN *buff, size_t *length,
 {
   *length=buff->key_length;
   return (uchar*) buff->column;
+}
+
+static void merge_grant_table_hash_columns(HASH *target, HASH *source)
+{
+  MEM_ROOT *memex_ptr= &memex;
+  for (uint i=0 ; i < source->records ; i++)
+  {
+    GRANT_COLUMN *source_col = (GRANT_COLUMN *)my_hash_element(source, i);
+    GRANT_COLUMN *target_col = (GRANT_COLUMN *)
+                                 my_hash_search(target,
+                                                (uchar *)source_col->column,
+                                                source_col->key_length);
+    /* target has the column in the hashtable */
+    if (target_col)
+    {
+      target_col->rights|= source_col->rights;
+    }
+    else
+    {
+      GRANT_COLUMN *target_col = new (memex_ptr) GRANT_COLUMN(source_col);
+      my_hash_insert(target, (uchar *)target_col);
+    }
+  }
+}
+
+/* same as merge_grant_table_hash_columns, but without
+   the existing hash check */
+static void copy_grant_table_hash_columns(HASH *target, HASH *source)
+{
+
+  MEM_ROOT *memex_ptr= &memex;
+  for (uint i=0 ; i < source->records ; i++)
+  {
+    GRANT_COLUMN *source_col = (GRANT_COLUMN *)my_hash_element(source, i);
+    GRANT_COLUMN *target_col = new (memex_ptr) GRANT_COLUMN(source_col);
+    my_hash_insert(target, (uchar *)target_col);
+  }
 }
 
 
@@ -3945,6 +3913,7 @@ public:
   GRANT_TABLE(const char *h, const char *d,const char *u,
               const char *t, ulong p, ulong c);
   GRANT_TABLE (TABLE *form, TABLE *col_privs);
+  GRANT_TABLE(GRANT_TABLE *source, char *u);
   ~GRANT_TABLE();
   bool ok() { return privs != 0 || cols != 0; }
 };
@@ -3988,6 +3957,21 @@ GRANT_TABLE::GRANT_TABLE(const char *h, const char *d,const char *u,
 {
   (void) my_hash_init2(&hash_columns,4,system_charset_info,
                    0,0,0, (my_hash_get_key) get_key_column,0,0);
+}
+
+/*
+  create a new GRANT_TABLE entry for role inheritance. init_* fields are set
+  to 0
+*/
+GRANT_TABLE::GRANT_TABLE(GRANT_TABLE *source, char *u)
+  :GRANT_NAME("", source->db, u, source->tname,
+              source->privs, FALSE), cols(source->cols)
+{
+  this->init_cols= 0;
+  this->init_privs= 0;
+  (void) my_hash_init2(&hash_columns,4,system_charset_info,
+                   0,0,0, (my_hash_get_key) get_key_column,0,0);
+  copy_grant_table_hash_columns(&hash_columns, &source->hash_columns);
 }
 
 
@@ -5611,6 +5595,11 @@ my_bool grant_reload(THD *thd)
     return_val= 1;
 
   mysql_rwlock_wrlock(&LOCK_grant);
+  mysql_mutex_lock(&acl_cache->lock);
+  my_hash_iterate(&acl_roles,
+                  (my_hash_walk_action) acl_role_propagate_grants, NULL);
+  mysql_mutex_unlock(&acl_cache->lock);
+
   grant_version++;
   mysql_rwlock_unlock(&LOCK_grant);
 
@@ -6044,24 +6033,27 @@ bool check_grant_all_columns(THD *thd, ulong want_access_arg,
         }
 
         grant_table= grant->grant_table_user;
-        DBUG_ASSERT (grant_table);
         grant_table_role= grant->grant_table_role;
+        DBUG_ASSERT (grant_table || grant_table_role);
       }
     }
 
     if (want_access)
     {
-      GRANT_COLUMN *grant_column=
-        column_hash_search(grant_table, field_name,
-                           (uint) strlen(field_name));
-      if (grant_column)
+      if (grant_table)
       {
-        using_column_privileges= TRUE;
-        want_access&= ~grant_column->rights;
+        GRANT_COLUMN *grant_column=
+          column_hash_search(grant_table, field_name,
+                             (uint) strlen(field_name));
+        if (grant_column)
+        {
+          using_column_privileges= TRUE;
+          want_access&= ~grant_column->rights;
+        }
       }
       if (grant_table_role)
       {
-        grant_column=
+        GRANT_COLUMN *grant_column=
           column_hash_search(grant_table_role, field_name,
                              (uint) strlen(field_name));
         if (grant_column)
@@ -6178,7 +6170,7 @@ bool check_grant_db(THD *thd, const char *db)
     }
     if (sctx->priv_role[0] &&
         len2 < grant_table->key_length &&
-        !memcmp(grant_table->hash_key,helping,len) &&
+        !memcmp(grant_table->hash_key,helping2,len) &&
         (!grant_table->host.hostname || !grant_table->host.hostname[0]))
     {
       error= FALSE; /* Found role match */
@@ -7402,9 +7394,128 @@ static int modify_grant_table(TABLE *table, Field *host_field,
 }
 
 /*
+  The function merges access bits from a granted role to a grantee.
+
+  It creates data structures if they don't exist for the grantee.
+  This includes data structures related to database privileges, tables
+  privileges, column privileges, function and procedures privileges
+*/
+
+void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source)
+{
+  DBUG_ASSERT(source->flags & ROLE_GRANTS_FINAL);
+
+  /* Merge global access rights */
+  target->access|= source->access;
+
+  /* Merge database privileges */
+  DYNAMIC_ARRAY target_objs, source_objs; /* arrays of pointers to priv objects */
+
+  /* elements of the arrays */
+  ACL_DB *target_db, *source_db;
+  GRANT_TABLE *target_table, *source_table;
+  MEM_ROOT *memex_ptr = &memex;
+
+  (void) my_init_dynamic_array(&target_objs,sizeof(void *), 50, 100, MYF(0));
+  (void) my_init_dynamic_array(&source_objs,sizeof(void *), 50, 100, MYF(0));
+
+  /* get all acl_db elements for the source and the target */
+  for (uint i=0 ; i < acl_dbs.elements ; i++)
+  {
+    ACL_DB *acl_db= dynamic_element(&acl_dbs,i,ACL_DB*);
+    if (acl_db->user && (!acl_db->host.hostname || !acl_db->host.hostname[0]))
+    {
+      if (!strcmp(target->user.str, acl_db->user))
+        push_dynamic(&target_objs, (uchar*)&acl_db);
+      if (!strcmp(source->user.str, acl_db->user))
+        push_dynamic(&source_objs, (uchar*)&acl_db);
+    }
+  }
+
+  for (uint i=0 ; i < source_objs.elements; i++)
+  {
+    source_db= (ACL_DB *)*dynamic_element(&source_objs, i, void **);
+    target_db= NULL;
+    for (uint j=0; j < target_objs.elements; j++)
+    {
+      ACL_DB *acl_db= (ACL_DB *)*dynamic_element(&target_objs, i, void **);
+      if (!strcmp(source_db->db, acl_db->db)) /* only need to compare DB here */
+        target_db= acl_db;
+    }
+
+    /* acl_db element found for the target, only need to update acces bits */
+    if (target_db)
+    {
+      target_db->access|= source_db->access;
+    }
+    else
+    {
+      /*
+         Need to create an acl_db element as this role inherits database
+         privileges
+      */
+      acl_insert_db(target->user.str, "", source_db->db,
+                    source_db->access, FALSE);
+    }
+  }
+
+  reset_dynamic(&source_objs);
+  reset_dynamic(&target_objs);
+
+  /* Merge table and column privileges */
+  for (uint i=0 ; i < column_priv_hash.records ; i++)
+  {
+    GRANT_TABLE *grant_table= (GRANT_TABLE *)
+      my_hash_element(&column_priv_hash, i);
+    if (grant_table->user && (!grant_table->host.hostname ||
+                              !grant_table->host.hostname[0]))
+    {
+      if (!strcmp(target->user.str, grant_table->user))
+        push_dynamic(&target_objs, (uchar*)&grant_table);
+      if (!strcmp(source->user.str, grant_table->user))
+        push_dynamic(&source_objs, (uchar*)&grant_table);
+    }
+  }
+
+
+  for (uint i=0 ; i < source_objs.elements; i++)
+  {
+    source_table= (GRANT_TABLE *)*dynamic_element(&source_objs, i, void **);
+    target_table= NULL;
+    for (uint j=0; j < target_objs.elements; j++)
+    {
+      GRANT_TABLE *grant_table= (GRANT_TABLE *)*dynamic_element(&target_objs, i,
+                                                                void **);
+      if (!strcmp(source_table->db, grant_table->db) &&
+          !strcmp(source_table->tname, grant_table->tname))
+        target_table= grant_table;;
+    }
+
+    if (target_table)
+    {
+      target_table->privs|= source_table->privs;
+      target_table->cols|= source_table->cols;
+      merge_grant_table_hash_columns(&target_table->hash_columns,
+                                     &source_table->hash_columns);
+    }
+    else
+    {
+      target_table= new (memex_ptr) GRANT_TABLE(source_table, target->user.str);
+      my_hash_insert(&column_priv_hash, (uchar *) target_table);
+    }
+
+  }
+
+  /* Merge function and procedure privileges */
+  /* TODO */
+
+  /* cleanup */
+  delete_dynamic(&source_objs);
+  delete_dynamic(&target_objs);
+}
+
+/*
   Handle the roles_mappings privilege table
-
-
 */
 static int handle_roles_mappings_table(TABLE *table, bool drop,
                                        LEX_USER *user_from, LEX_USER *user_to)
