@@ -312,6 +312,8 @@ static bool show_proxy_grants (THD *thd, LEX_USER *user,
 static bool show_global_privileges(THD *thd, LEX_USER *lex_user,
                                    ACL_USER_BASE *acl_entry, bool handle_as_role,
                                    char *buff, size_t buffsize);
+static bool show_database_privileges(THD *thd, LEX_USER *lex_user,
+                                     char *buff, size_t buffsize);
 
 class ACL_PROXY_USER :public ACL_ACCESS
 {
@@ -6253,11 +6255,9 @@ static int show_routine_grants(THD *thd, LEX_USER *lex_user, HASH *hash,
 
 bool mysql_show_grants(THD *thd,LEX_USER *lex_user)
 {
-  ulong want_access;
   uint counter,index;
   int  error = 0;
   ACL_USER *acl_user;
-  ACL_DB *acl_db;
   char buff[1024];
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("mysql_show_grants");
@@ -6306,72 +6306,10 @@ bool mysql_show_grants(THD *thd,LEX_USER *lex_user)
     goto end;
   };
   /* Add database access */
-  for (counter=0 ; counter < acl_dbs.elements ; counter++)
+  if (show_database_privileges(thd, lex_user, buff, sizeof(buff)))
   {
-    const char *user, *host;
-
-    acl_db=dynamic_element(&acl_dbs,counter,ACL_DB*);
-    if (!(user=acl_db->user))
-      user= "";
-    if (!(host=acl_db->host.hostname))
-      host= "";
-
-    /*
-      We do not make SHOW GRANTS case-sensitive here (like REVOKE),
-      but make it case-insensitive because that's the way they are
-      actually applied, and showing fewer privileges than are applied
-      would be wrong from a security point of view.
-    */
-
-    if (!strcmp(lex_user->user.str,user) &&
-	!my_strcasecmp(system_charset_info, lex_user->host.str, host))
-    {
-      want_access=acl_db->access;
-      if (want_access)
-      {
-	String db(buff,sizeof(buff),system_charset_info);
-	db.length(0);
-	db.append(STRING_WITH_LEN("GRANT "));
-
-	if (test_all_bits(want_access,(DB_ACLS & ~GRANT_ACL)))
-	  db.append(STRING_WITH_LEN("ALL PRIVILEGES"));
-	else if (!(want_access & ~GRANT_ACL))
-	  db.append(STRING_WITH_LEN("USAGE"));
-	else
-	{
-	  int found=0, cnt;
-	  ulong j,test_access= want_access & ~GRANT_ACL;
-	  for (cnt=0, j = SELECT_ACL; j <= DB_ACLS; cnt++,j <<= 1)
-	  {
-	    if (test_access & j)
-	    {
-	      if (found)
-		db.append(STRING_WITH_LEN(", "));
-	      found = 1;
-	      db.append(command_array[cnt],command_lengths[cnt]);
-	    }
-	  }
-	}
-	db.append (STRING_WITH_LEN(" ON "));
-	append_identifier(thd, &db, acl_db->db, strlen(acl_db->db));
-	db.append (STRING_WITH_LEN(".* TO '"));
-	db.append(lex_user->user.str, lex_user->user.length,
-		  system_charset_info);
-	db.append (STRING_WITH_LEN("'@'"));
-	// host and lex_user->host are equal except for case
-	db.append(host, strlen(host), system_charset_info);
-	db.append ('\'');
-	if (want_access & GRANT_ACL)
-	  db.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
-	protocol->prepare_for_resend();
-	protocol->store(db.ptr(),db.length(),db.charset());
-	if (protocol->write())
-	{
-	  error= -1;
-	  goto end;
-	}
-      }
-    }
+    error= -1;
+    goto end;
   }
 
   /* Add table & column access */
@@ -6646,6 +6584,85 @@ static bool show_global_privileges(THD *thd, LEX_USER *lex_user,
   return FALSE;
 
 }
+
+static bool show_database_privileges(THD *thd, LEX_USER *lex_user,
+                                     char *buff, size_t buffsize)
+{
+  ACL_DB *acl_db;
+  ulong want_access;
+  uint counter;
+  Protocol *protocol= thd->protocol;
+
+  for (counter=0 ; counter < acl_dbs.elements ; counter++)
+  {
+    const char *user, *host;
+
+    acl_db=dynamic_element(&acl_dbs,counter,ACL_DB*);
+    if (!(user=acl_db->user))
+      user= "";
+    if (!(host=acl_db->host.hostname))
+      host= "";
+
+    /*
+      We do not make SHOW GRANTS case-sensitive here (like REVOKE),
+      but make it case-insensitive because that's the way they are
+      actually applied, and showing fewer privileges than are applied
+      would be wrong from a security point of view.
+    */
+
+    if (!strcmp(lex_user->user.str,user) &&
+        !my_strcasecmp(system_charset_info, lex_user->host.str, host))
+    {
+      want_access=acl_db->access;
+      if (want_access)
+      {
+        String db(buff,sizeof(buff),system_charset_info);
+        db.length(0);
+        db.append(STRING_WITH_LEN("GRANT "));
+
+        if (test_all_bits(want_access,(DB_ACLS & ~GRANT_ACL)))
+          db.append(STRING_WITH_LEN("ALL PRIVILEGES"));
+        else if (!(want_access & ~GRANT_ACL))
+          db.append(STRING_WITH_LEN("USAGE"));
+        else
+        {
+          int found=0, cnt;
+          ulong j,test_access= want_access & ~GRANT_ACL;
+          for (cnt=0, j = SELECT_ACL; j <= DB_ACLS; cnt++,j <<= 1)
+          {
+            if (test_access & j)
+            {
+              if (found)
+                db.append(STRING_WITH_LEN(", "));
+              found = 1;
+              db.append(command_array[cnt],command_lengths[cnt]);
+            }
+          }
+        }
+        db.append (STRING_WITH_LEN(" ON "));
+        append_identifier(thd, &db, acl_db->db, strlen(acl_db->db));
+        db.append (STRING_WITH_LEN(".* TO '"));
+        db.append(lex_user->user.str, lex_user->user.length,
+                  system_charset_info);
+        db.append (STRING_WITH_LEN("'@'"));
+        // host and lex_user->host are equal except for case
+        db.append(host, strlen(host), system_charset_info);
+        db.append ('\'');
+        if (want_access & GRANT_ACL)
+          db.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
+        protocol->prepare_for_resend();
+        protocol->store(db.ptr(),db.length(),db.charset());
+        if (protocol->write())
+        {
+          return TRUE;
+        }
+      }
+    }
+  }
+  return FALSE;
+
+}
+
 
 static int show_routine_grants(THD* thd, LEX_USER *lex_user, HASH *hash,
                                const char *type, int typelen,
