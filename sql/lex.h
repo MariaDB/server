@@ -59,6 +59,7 @@ static SYMBOL symbols[] = {
   { "ACCESSIBLE",	SYM(ACCESSIBLE_SYM)},
   { "ACTION",		SYM(ACTION)},
   { "ADD",		SYM(ADD)},
+  { "ADMIN",            SYM(ADMIN_SYM)},
   { "AFTER",		SYM(AFTER_SYM)},
   { "AGAINST",          SYM(AGAINST)},
   { "AGGREGATE",	SYM(AGGREGATE_SYM)},

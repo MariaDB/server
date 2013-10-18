@@ -1,0 +1,32 @@
+create user foo@localhost;
+
+########################################
+# syntax tests
+########################################
+
+create role role1;
+create role role2 with admin current_user;
+create role role3 with admin current_role;
+create role role4 with admin root@localhost;
+create role role5 with admin foo@localhost;
+create role role6 with admin foo@bar;
+
+--error ER_PARSE_ERROR
+create user bar with admin current_user;
+
+grant role1 to foo@localhost with admin option;
+grant role2 to role1;
+grant role3 to role4 with admin option;
+--error ER_PARSE_ERROR
+grant select on *.* to foo@localhost with admin option;
+
+revoke role1 from foo@localhost;
+revoke admin option for role3 from role4;
+revoke admin option for role2 from role1;
+
+########################################
+# cleanup
+########################################
+drop role role1, role2, role3, role4, role5, role6;
+drop user foo@localhost;
+
