@@ -10202,11 +10202,18 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
     DBUG_VOID_RETURN;                         // it is slave
   }
 
-  /* db privileges */
-  grant->privilege|= acl_get(sctx->host, sctx->ip, sctx->priv_user, db, 0);
-  /* db privileges for role */
-  if (sctx->priv_role[0])
-    grant->privilege|= acl_get("", "", sctx->priv_role, db, 0);
+  if (!thd->db || strcmp(db, thd->db))
+  {
+    /* db privileges */
+    grant->privilege|= acl_get(sctx->host, sctx->ip, sctx->priv_user, db, 0);
+    /* db privileges for role */
+    if (sctx->priv_role[0])
+      grant->privilege|= acl_get("", "", sctx->priv_role, db, 0);
+  }
+  else
+  {
+    grant->privilege|= sctx->db_access;
+  }
 
   /* table privileges */
   mysql_rwlock_rdlock(&LOCK_grant);
