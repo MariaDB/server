@@ -635,7 +635,7 @@ static void init_check_host(void);
 static void rebuild_check_host(void);
 static void rebuild_role_grants(void);
 static void free_acl_user(ACL_USER *acl_user);
-static ACL_USER *find_acl_user(const char *host, const char *user,
+static ACL_USER *find_user_no_anon(const char *host, const char *user,
                                my_bool exact);
 static ACL_USER *find_acl_role(const char *user);
 static bool update_user_table(THD *thd, TABLE *table, const char *host,
@@ -1257,12 +1257,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     table->use_all_columns();
     /* account for every role mapping */
 
-    /* acquire lock for the find_acl_user functions
-      XXX
-      Perhaps new wrapper functions should be created that do not check
-      for the lock in this case as it either is already taken or
-      it's the first initialisation so no race conditions possible
-     */
+    /* acquire lock for the find_user_no_anon functions */
     if (!initialized)
       mysql_mutex_lock(&acl_cache->lock);
 
@@ -1686,8 +1681,8 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
   if (!strcasecmp(rolename, "NONE")) {
     /* have to clear the privileges */
     /* get the current user */
-    acl_user= find_acl_user(thd->security_ctx->host, thd->security_ctx->user,
-                             FALSE);
+    acl_user= find_user_no_anon(thd->security_ctx->host, thd->security_ctx->user,
+                                FALSE);
     if (acl_user == NULL)
     {
       my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename);
@@ -2131,9 +2126,9 @@ my_bool acl_user_reset_grant(ACL_USER *user,
 
 my_bool add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
 {
-  ACL_USER *user= find_acl_user((mapping->u_hname) ? mapping->u_hname: "",
-                              (mapping->u_uname) ? mapping->u_uname: "",
-                              TRUE);
+  ACL_USER *user= find_user_no_anon((mapping->u_hname) ? mapping->u_hname: "",
+                                    (mapping->u_uname) ? mapping->u_uname: "",
+                                    TRUE);
   ACL_USER *role= find_acl_role(mapping->r_uname ? mapping->r_uname: "");
   if (user == NULL || role == NULL)
   {
@@ -2338,7 +2333,7 @@ bool change_password(THD *thd, const char *host, const char *user,
 
   mysql_mutex_lock(&acl_cache->lock);
   ACL_USER *acl_user;
-  if (!(acl_user= find_acl_user(host, user, TRUE)))
+  if (!(acl_user= find_user_no_anon(host, user, TRUE)))
   {
     mysql_mutex_unlock(&acl_cache->lock);
     my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH), MYF(0));
@@ -2411,7 +2406,7 @@ bool is_acl_user(const char *host, const char *user)
     return TRUE;
 
   mysql_mutex_lock(&acl_cache->lock);
-  res= find_acl_user(host, user, TRUE) != NULL;
+  res= find_user_no_anon(host, user, TRUE) != NULL;
   mysql_mutex_unlock(&acl_cache->lock);
   return res;
 }
@@ -2421,9 +2416,9 @@ bool is_acl_user(const char *host, const char *user)
   Find first entry that matches the current user
 */
 static ACL_USER *
-find_acl_user(const char *host, const char *user, my_bool exact)
+find_user_no_anon(const char *host, const char *user, my_bool exact)
 {
-  DBUG_ENTER("find_acl_user");
+  DBUG_ENTER("find_user_no_anon");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'",host,user));
 
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -2961,7 +2956,7 @@ static int replace_db_table(TABLE *table, const char *db,
   }
 
   /* Check if there is such a user in user table in memory? */
-  if (!find_acl_user(combo.host.str,combo.user.str, FALSE))
+  if (!find_user_no_anon(combo.host.str,combo.user.str, FALSE))
   {
     my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH), MYF(0));
     DBUG_RETURN(-1);
@@ -3110,7 +3105,7 @@ replace_proxies_priv_table(THD *thd, TABLE *table, const LEX_USER *user,
   }
 
   /* Check if there is such a user in user table in memory? */
-  if (!find_acl_user(user->host.str,user->user.str, FALSE))
+  if (!find_user_no_anon(user->host.str,user->user.str, FALSE))
   {
     my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH), MYF(0));
     DBUG_RETURN(-1);
@@ -3743,7 +3738,7 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
     The following should always succeed as new users are created before
     this function is called!
   */
-  if (!find_acl_user(combo.host.str,combo.user.str, FALSE))
+  if (!find_user_no_anon(combo.host.str,combo.user.str, FALSE))
   {
     my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH),
                MYF(0));	/* purecov: deadcode */
@@ -5655,7 +5650,7 @@ bool mysql_show_grants(THD *thd,LEX_USER *lex_user)
   mysql_rwlock_rdlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
 
-  acl_user= find_acl_user(lex_user->host.str, lex_user->user.str, TRUE);
+  acl_user= find_user_no_anon(lex_user->host.str, lex_user->user.str, TRUE);
   if (!acl_user)
   {
     mysql_mutex_unlock(&acl_cache->lock);
@@ -6131,7 +6126,7 @@ void get_mqh(const char *user, const char *host, USER_CONN *uc)
 
   mysql_mutex_lock(&acl_cache->lock);
 
-  if (initialized && (acl_user= find_acl_user(host,user, FALSE)))
+  if (initialized && (acl_user= find_user_no_anon(host,user, FALSE)))
     uc->user_resources= acl_user->user_resource;
   else
     bzero((char*) &uc->user_resources, sizeof(uc->user_resources));
@@ -7287,7 +7282,7 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
       result= -1;
       continue;
     }
-    if (!find_acl_user(lex_user->host.str, lex_user->user.str, TRUE))
+    if (!find_user_no_anon(lex_user->host.str, lex_user->user.str, TRUE))
     {
       result= -1;
       continue;
@@ -7599,13 +7594,17 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
 
   mysql_mutex_lock(&acl_cache->lock);
 
-  if ((au= find_acl_user(combo->host.str=(char*)sctx->host_or_ip,combo->user.str,FALSE)))
+  if ((au= find_user_no_anon(combo->host.str=(char*)sctx->host_or_ip,
+                             combo->user.str,FALSE)))
     goto found_acl;
-  if ((au= find_acl_user(combo->host.str=(char*)sctx->host, combo->user.str,FALSE)))
+  if ((au= find_user_no_anon(combo->host.str=(char*)sctx->host,
+                             combo->user.str,FALSE)))
     goto found_acl;
-  if ((au= find_acl_user(combo->host.str=(char*)sctx->ip, combo->user.str,FALSE)))
+  if ((au= find_user_no_anon(combo->host.str=(char*)sctx->ip,
+                             combo->user.str,FALSE)))
     goto found_acl;
-  if((au= find_acl_user(combo->host.str=(char*)"%", combo->user.str, FALSE)))
+  if((au= find_user_no_anon(combo->host.str=(char*)"%",
+                            combo->user.str, FALSE)))
     goto found_acl;
 
   mysql_mutex_unlock(&acl_cache->lock);
@@ -8691,7 +8690,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
    Finds a user and copies it into mpvio. Creates a fake user
    if no matching user account is found.
 
-   @note find_acl_user is not the same, because it doesn't take into
+   @note find_user_no_anon is not the same, because it doesn't take into
    account the case when user is not empty, but acl_user->user is empty
 
    @retval 0    found
@@ -9652,9 +9651,10 @@ bool acl_authenticate(THD *thd, uint connect_errors,
 
       /* we're proxying : find the proxy user definition */
       mysql_mutex_lock(&acl_cache->lock);
-      acl_proxy_user= find_acl_user(proxy_user->get_proxied_host() ?
-                                    proxy_user->get_proxied_host() : "",
-                                    mpvio.auth_info.authenticated_as, TRUE);
+      acl_proxy_user= find_user_no_anon(proxy_user->get_proxied_host() ?
+                                          proxy_user->get_proxied_host() : "",
+                                        mpvio.auth_info.authenticated_as,
+                                        TRUE);
       if (!acl_proxy_user)
       {
         if (!thd->is_error())
