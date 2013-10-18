@@ -3895,6 +3895,8 @@ public:
   GRANT_NAME(const char *h, const char *d,const char *u,
              const char *t, ulong p, bool is_routine);
   GRANT_NAME (TABLE *form, bool is_routine);
+  /* copy from an inherited GRANT_NAME */
+  GRANT_NAME(GRANT_NAME *source, char *u, bool is_routine);
   virtual ~GRANT_NAME() {};
   virtual bool ok() { return privs != 0; }
   void set_user_details(const char *h, const char *d,
@@ -3949,6 +3951,12 @@ GRANT_NAME::GRANT_NAME(const char *h, const char *d,const char *u,
   :db(0), tname(0), privs(p), init_privs(p)
 {
   set_user_details(h, d, u, t, is_routine);
+}
+
+GRANT_NAME::GRANT_NAME(GRANT_NAME *source, char *u, bool is_routine)
+  :db(0), tname(0), privs(source->privs), init_privs(0)
+{
+  set_user_details("", source->db, u, source->tname, is_routine);
 }
 
 GRANT_TABLE::GRANT_TABLE(const char *h, const char *d,const char *u,
@@ -7414,6 +7422,7 @@ void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source)
   /* elements of the arrays */
   ACL_DB *target_db, *source_db;
   GRANT_TABLE *target_table, *source_table;
+  GRANT_NAME *target_name, *source_name;
   MEM_ROOT *memex_ptr = &memex;
 
   (void) my_init_dynamic_array(&target_objs,sizeof(void *), 50, 100, MYF(0));
@@ -7488,7 +7497,7 @@ void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source)
                                                                 void **);
       if (!strcmp(source_table->db, grant_table->db) &&
           !strcmp(source_table->tname, grant_table->tname))
-        target_table= grant_table;;
+        target_table= grant_table;
     }
 
     if (target_table)
@@ -7506,8 +7515,55 @@ void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source)
 
   }
 
+  reset_dynamic(&source_objs);
+  reset_dynamic(&target_objs);
+
   /* Merge function and procedure privileges */
-  /* TODO */
+  for (uint is_proc= 0; is_proc < 2; is_proc++) {
+    HASH *hash;
+    if (is_proc)
+      hash= &proc_priv_hash;
+    else
+      hash= &func_priv_hash;
+
+    for (uint i=0 ; i < hash->records ; i++)
+    {
+      GRANT_NAME *grant_name= (GRANT_NAME *) my_hash_element(hash, i);
+      if (grant_name->user && (!grant_name->host.hostname ||
+                               !grant_name->host.hostname[0]))
+      {
+        if (!strcmp(target->user.str, grant_name->user))
+          push_dynamic(&target_objs, (uchar*)&grant_name);
+        if (!strcmp(source->user.str, grant_name->user))
+          push_dynamic(&source_objs, (uchar*)&grant_name);
+      }
+    }
+
+    for (uint i=0 ; i < source_objs.elements; i++)
+    {
+      source_name= (GRANT_NAME *)*dynamic_element(&source_objs, i, void **);
+      target_name= NULL;
+      for (uint j=0; j < target_objs.elements; j++)
+      {
+        GRANT_NAME *grant_name= (GRANT_NAME *)*dynamic_element(&target_objs, i,
+                                                                  void **);
+        if (!strcmp(source_name->db, grant_name->db) &&
+            !strcmp(source_name->tname, grant_name->tname))
+          target_name= grant_name;
+      }
+
+      if (target_name)
+      {
+        target_name->privs|= source_name->privs;
+      }
+      else
+      {
+        target_name= new (memex_ptr) GRANT_NAME(source_name, target->user.str,
+                                                is_proc);
+        my_hash_insert(hash, (uchar *) target_name);
+      }
+    }
+  }
 
   /* cleanup */
   delete_dynamic(&source_objs);

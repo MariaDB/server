@@ -1,0 +1,100 @@
+create user 'test_user'@'localhost';
+create role test_role1;
+create role test_role2;
+create role test_role3;
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+'test_user',
+'test_role1');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+'test_user',
+'test_role3');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
+'test_role1',
+'test_role2');
+select user, host from mysql.user where user not like 'root';
+user	host
+test_role1	
+test_role2	
+test_role3	
+test_user	localhost
+select * from mysql.roles_mapping;
+HostFk	UserFk	RoleFk
+	test_role1	test_role2
+localhost	test_user	test_role1
+localhost	test_user	test_role3
+create function mysql.test_func (s CHAR(20))
+returns CHAR(50) DETERMINISTIC
+return concat('Test string: ',s);
+create procedure mysql.test_proc (OUT param1 INT)
+begin
+select COUNT(*) into param1 from mysql.roles_mapping;
+end|
+grant execute on function mysql.test_func to test_role2@'';
+grant execute on procedure mysql.test_proc to test_role2@'';
+grant execute on mysql.* to test_role3@'';
+flush privileges;
+show grants;
+Grants for test_user@localhost
+GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
+GRANT test_role3 TO 'test_user'@'localhost'
+use mysql;
+ERROR 42000: Access denied for user 'test_user'@'localhost' to database 'mysql'
+set role test_role1;
+use mysql;
+call test_proc(@a);
+SELECT @a;
+@a
+3
+SELECT test_func('AABBCCDD');
+test_func('AABBCCDD')
+Test string: AABBCCDD
+show grants;
+Grants for test_user@localhost
+GRANT EXECUTE ON FUNCTION `mysql`.`test_func` TO 'test_role2'
+GRANT EXECUTE ON PROCEDURE `mysql`.`test_proc` TO 'test_role2'
+GRANT USAGE ON *.* TO 'test_role1'
+GRANT USAGE ON *.* TO 'test_role2'
+GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
+GRANT test_role2 TO 'test_role1'
+GRANT test_role3 TO 'test_user'@'localhost'
+set role none;
+show grants;
+Grants for test_user@localhost
+GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
+GRANT test_role3 TO 'test_user'@'localhost'
+call test_proc(@a);
+ERROR 42000: execute command denied to user 'test_user'@'localhost' for routine 'mysql.test_proc'
+SELECT test_func('AABBCCDD');
+ERROR 42000: execute command denied to user 'test_user'@'localhost' for routine 'mysql.test_func'
+set role test_role3;
+show grants;
+Grants for test_user@localhost
+GRANT EXECUTE ON `mysql`.* TO 'test_role3'
+GRANT USAGE ON *.* TO 'test_role3'
+GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT test_role1 TO 'test_user'@'localhost'
+GRANT test_role3 TO 'test_user'@'localhost'
+call test_proc(@a);
+SELECT @a;
+@a
+3
+SELECT test_func('AABBCCDD');
+test_func('AABBCCDD')
+Test string: AABBCCDD
+drop user 'test_user'@'localhost';
+revoke execute on function mysql.test_func from test_role2@'';
+revoke execute on procedure mysql.test_proc from test_role2@'';
+revoke execute on mysql.* from test_role3@'';
+delete from mysql.user where user like'test_%';
+delete from mysql.roles_mapping where RoleFk like 'test%';
+drop function mysql.test_func;
+Warnings:
+Warning	1403	There is no such grant defined for user 'test_role1' on host '' on routine 'test_func'
+drop procedure mysql.test_proc;
+Warnings:
+Warning	1403	There is no such grant defined for user 'test_role1' on host '' on routine 'test_proc'
+Warning	1403	There is no such grant defined for user 'test_role1' on host '' on routine 'test_proc'
+flush privileges;
