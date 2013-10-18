@@ -6846,13 +6846,8 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
                                        LEX_USER *user_from, LEX_USER *user_to)
 {
   /*
-    The first thing that needs to be checked is what we are renaming,
-    a user, or a role. In order to do this, perform a hash lookup over
-    acl_roles to find if a key exists.
-
-    If the renaming involves renaming a role, all entries
-    (HostFK, UserFk) that match user_from will be renamed,
-    as well as all RoleFk entries that match.
+    All entries (HostFK, UserFk) that match user_from will be renamed,
+    as well as all RoleFk entries that match if user_from.host.str == ""
 
     Otherwise, only matching (HostFk, UserFk) will be renamed.
   */
@@ -6862,16 +6857,11 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
   int result= 0;
   THD *thd= current_thd;
   const char *host, *user, *role;
-  my_bool is_role= FALSE;
   Field *host_field= table->field[0];
   Field *user_field= table->field[1];
   Field *role_field= table->field[2];
 
-  if (!user_from->host.length && find_acl_role(user_from->user.str))
-    is_role= TRUE;
-
-  DBUG_PRINT("info", ("Rewriting %s entry in roles_mappings table: %s %s",
-                      is_role ? "role" : "user",
+  DBUG_PRINT("info", ("Rewriting entry in roles_mappings table: %s@%s",
                       user_from->user.str,
                       user_from->host.str));
   table->use_all_columns();
@@ -6897,11 +6887,11 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
         user= "";
 
       if (!(strcmp(user_from->user.str, user) ||
-          my_strcasecmp(system_charset_info, user_from->host.str, host)))
+            my_strcasecmp(system_charset_info, user_from->host.str, host)))
         result= ((drop || user_to) &&
                  modify_grant_table(table, host_field, user_field, user_to)) ?
           -1 : result ? result : 1; /* Error or keep result or found. */
-      if (is_role)
+      else
       {
         if (! (role= get_field(thd->mem_root, role_field)))
           role= "";
@@ -6935,6 +6925,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
   }
   DBUG_RETURN(result);
 }
+
 /*
   Handle a privilege table.
 
@@ -7130,7 +7121,6 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   const char *user;
   const char *host;
   const char *role;
-  my_bool is_role= FALSE;
   uint role_not_matched= 1;
   ACL_USER *acl_user= NULL;
   ACL_ROLE *acl_role= NULL;
@@ -7146,20 +7136,22 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 
   LINT_INIT(user);
   LINT_INIT(host);
+  LINT_INIT(role);
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  /* test if the current query targets a role */
-  is_role= (!user_from->host.length &&
-            (acl_role= find_acl_role(user_from->user.str))) ? TRUE : FALSE;
-  if (is_role && struct_no != ROLE_ACL && struct_no != ROLES_MAPPINGS_HASH)
-  {
+  /* No point in querying ROLE ACL if the user_from is not a role */
+  if (struct_no == ROLE_ACL && user_from->host.length)
     DBUG_RETURN(0);
-  }
-  else if (struct_no == ROLE_ACL) //no need to scan the structures in this case
+
+  if (struct_no == ROLE_ACL) //no need to scan the structures in this case
   {
-    if (!is_role || (!drop && !user_to))
-      DBUG_RETURN(is_role);
+    acl_role= find_acl_role(user_from->user.str);
+    if (!acl_role)
+      DBUG_RETURN(0);
+
+    if (!drop && !user_to) //role was found
+      DBUG_RETURN(1);
 
     /* this calls for a role update */
     char *old_key= acl_role->user.str;
@@ -7269,9 +7261,9 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
                        struct_no, idx, user, host));
 #endif
 
-    if (strcmp(user_from->user.str, user) ||
-        my_strcasecmp(system_charset_info, user_from->host.str, host) ||
-        (is_role && (role_not_matched= strcmp(user_from->user.str, role)))
+    if ((strcmp(user_from->user.str, user) ||
+        my_strcasecmp(system_charset_info, user_from->host.str, host)) &&
+        (role_not_matched= strcmp(user_from->user.str, role))
         )
       continue;
 
