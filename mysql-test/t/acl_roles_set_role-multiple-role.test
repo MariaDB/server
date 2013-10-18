@@ -1,0 +1,119 @@
+#create a user with no privileges
+create user 'test_user'@'localhost';
+
+create user 'r_sel'@'';
+create user 'r_ins'@'';
+create user 'r_upd'@'';
+create user 'r_del'@'';
+create user 'r_crt'@'';
+create user 'r_drp'@'';
+create user 'r_rld'@'';
+update mysql.user set Select_priv='Y' where user like 'r_sel';
+update mysql.user set Insert_priv='Y' where user like 'r_ins';
+update mysql.user set Update_priv='Y' where user like 'r_upd';
+update mysql.user set Delete_priv='Y' where user like 'r_del';
+update mysql.user set Create_priv='Y' where user like 'r_crt';
+update mysql.user set Drop_priv  ='Y' where user like 'r_drp';
+update mysql.user set Reload_priv='Y' where user like 'r_rld';
+
+update mysql.user set is_role='Y' where user like 'r\_%';
+
+select * from mysql.user where user='r_sel';
+select * from mysql.user where user='r_ins';
+select * from mysql.user where user='r_upd';
+select * from mysql.user where user='r_del';
+select * from mysql.user where user='r_crt';
+select * from mysql.user where user='r_drp';
+select * from mysql.user where user='r_rld';
+
+#####################################
+#set up roles mapping
+#####################################
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+                                                                 'test_user',
+                                                                 'r_sel');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+                                                                 'test_user',
+                                                                 'r_ins');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+                                                                 'test_user',
+                                                                 'r_upd');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+                                                                 'test_user',
+                                                                 'r_del');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+                                                                 'test_user',
+                                                                 'r_crt');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+                                                                 'test_user',
+                                                                 'r_drp');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+                                                                 'test_user',
+                                                                 'r_rld');
+flush privileges;
+
+change_user 'test_user';
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+
+show grants;
+set role r_sel;
+show grants;
+select * from mysql.roles_mapping;
+
+set role r_ins;
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
+                                                                 'r_sel',
+                                                                 'r_rld');
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+flush privileges;
+set role r_rld;
+flush privileges;
+set role r_sel;
+flush privileges;
+set role none;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+flush privileges;
+
+set role r_ins;
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
+                                                                 'r_sel',
+                                                                 'r_upd');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
+                                                                 'r_sel',
+                                                                 'r_del');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
+                                                                 'r_sel',
+                                                                 'r_crt');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
+                                                                 'r_sel',
+                                                                 'r_drp');
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
+                                                                 'r_del',
+                                                                 'r_ins');
+set role r_rld;
+flush privileges;
+set role r_sel;
+update mysql.roles_mapping set RoleFk='r_ins' where RoleFk='r_ins_wrong';
+flush privileges;
+set role r_sel;
+
+create table mysql.random_test_table (id INT);
+insert into mysql.random_test_table values (1);
+select * from mysql.random_test_table;
+delete from mysql.roles_mapping where RoleFk='r_ins';
+flush privileges;
+set role r_sel;
+--error ER_TABLEACCESS_DENIED_ERROR
+insert into mysql.random_test_table values (1);
+drop table mysql.random_test_table;
+
+change_user 'root';
+delete from mysql.user where user like 'r\_%';
+delete from mysql.roles_mapping where RoleFk like 'r\_%';
+flush privileges;
+drop user 'test_user'@'localhost';
