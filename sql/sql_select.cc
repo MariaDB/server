@@ -3200,7 +3200,7 @@ mysql_select(THD *thd, Item ***rref_pointer_array,
 	     select_result *result, SELECT_LEX_UNIT *unit,
 	     SELECT_LEX *select_lex)
 {
-  bool err;
+  int err= 0;
   bool free_join= 1;
   DBUG_ENTER("mysql_select");
 
@@ -3294,7 +3294,7 @@ err:
     err|= select_lex->cleanup();
     DBUG_RETURN(err || thd->is_error());
   }
-  DBUG_RETURN(join->error);
+  DBUG_RETURN(join->error ? join->error: err);
 }
 
 
@@ -7412,6 +7412,14 @@ best_extension_by_limited_search(JOIN      *join,
   DBUG_ENTER("best_extension_by_limited_search");
 
   THD *thd= join->thd;
+
+  DBUG_EXECUTE_IF("show_explain_probe_best_ext_lim_search", 
+                  if (dbug_user_var_equals_int(thd, 
+                                               "show_explain_probe_select_id", 
+                                               join->select_lex->select_number))
+                        dbug_serve_apcs(thd, 1);
+                 );
+
   if (thd->check_killed())  // Abort
     DBUG_RETURN(TRUE);
 
