@@ -8944,12 +8944,15 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 {
   int result;
   String wrong_users;
-  LEX_USER *user_name, *admin;
+  LEX_USER *user_name;
   List_iterator <LEX_USER> user_list(list);
   TABLE_LIST tables[GRANT_TABLES];
   bool some_users_created= FALSE;
   DBUG_ENTER("mysql_create_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
+
+  if (handle_as_role && sp_process_definer(thd))
+    DBUG_RETURN(TRUE);
 
   /* CREATE USER may be skipped on replication client. */
   if ((result= open_grant_tables(thd, tables)))
@@ -8957,32 +8960,6 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
-
-  if (handle_as_role)
-  {
-    if (thd->lex->definer)
-      admin= get_current_user(thd, thd->lex->definer, false);
-    else
-      admin= create_default_definer(thd, false);
-    if (!admin)
-    {
-      mysql_mutex_unlock(&acl_cache->lock);
-      mysql_rwlock_unlock(&LOCK_grant);
-      DBUG_RETURN(TRUE);
-    }
-    bool exists;
-    if (admin->is_role())
-      exists= find_acl_role(admin->user.str);
-    else
-      exists= find_user_no_anon(admin->host.str, admin->user.str, TRUE);
-    if (!exists)
-    {
-      my_error(ER_NO_SUCH_USER, MYF(0), admin->user.str, admin->host.str);
-      mysql_mutex_unlock(&acl_cache->lock);
-      mysql_rwlock_unlock(&LOCK_grant);
-      DBUG_RETURN(TRUE);
-    }
-  }
 
   while ((user_name= user_list++))
   {
@@ -9014,8 +8991,8 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     {
       ROLE_GRANT_PAIR *pair= new (thd->mem_root) ROLE_GRANT_PAIR;
 
-      if (pair->init(thd->mem_root, admin->user.str, admin->host.str,
-                     user_name->user.str, true))
+      if (pair->init(thd->mem_root, thd->lex->definer->user.str,
+                     thd->lex->definer->host.str, user_name->user.str, true))
       {
         result= TRUE;
         break;
