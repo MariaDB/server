@@ -759,8 +759,7 @@ static void role_explore_set_final_access_bits(ACL_ROLE *parent,
 static bool role_explore_detect_cycle(ACL_ROLE *current,
                                       ACL_ROLE *neighbour,
                                       void *context_data);
-static int traverse_role_graph(ACL_ROLE *role,
-                               void *context_data,
+static int traverse_role_graph(ACL_ROLE *role, void *context_data,
                                bool (*on_start) (ACL_ROLE *role,
                                                  void *context_data),
                                bool (*on_open)  (ACL_ROLE *current,
@@ -2557,6 +2556,7 @@ static int traverse_role_graph(ACL_ROLE *role,
   */
   DBUG_ASSERT(!(role->flags & ROLE_VISITED));
   DBUG_ASSERT(!(role->flags & ROLE_EXPLORED));
+  mysql_mutex_assert_owner(&acl_cache->lock);
 
   if (on_start && on_start(role, context_data))
     DBUG_RETURN(1);
@@ -7385,6 +7385,7 @@ static int show_routine_grants(THD* thd,
   return error;
 }
 
+
 static void reset_role_db_privileges(ACL_ROLE *role)
 {
   char *rolename= role->user.str;
@@ -9459,7 +9460,42 @@ show_proxy_grants(THD *thd, const char *username, const char *hostname,
 }
 
 
+static void
+fill_schema_enabled_roles_insert(ACL_ROLE *unused __attribute__((unused)),
+                                 ACL_ROLE *role, void *context_data)
+{
+  TABLE *table= (TABLE*) context_data;
+  restore_record(table, s->default_values);
+  table->field[0]->set_notnull();
+  table->field[0]->store(role->user.str, role->user.length,
+                         system_charset_info);
+  /*return*/ schema_table_store_record(table->in_use, table);
+}
+
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
+
+int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  TABLE *table= tables->table;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  if (thd->security_ctx->priv_role[0])
+  {
+    mysql_rwlock_rdlock(&LOCK_grant);
+    mysql_mutex_lock(&acl_cache->lock);
+    ACL_ROLE *acl_role= find_acl_role(thd->security_ctx->priv_role);
+    DBUG_ASSERT(acl_role);
+    traverse_role_graph(acl_role, table, NULL, NULL, NULL,
+                        fill_schema_enabled_roles_insert);
+    mysql_mutex_unlock(&acl_cache->lock);
+    mysql_rwlock_unlock(&LOCK_grant);
+    return 0;
+  }
+#endif
+
+  restore_record(table, s->default_values);
+  table->field[0]->set_null();
+  return schema_table_store_record(table->in_use, table);
+}
 
 
 int wild_case_compare(CHARSET_INFO *cs, const char *str,const char *wildstr)
