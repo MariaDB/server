@@ -184,6 +184,17 @@ static LEX_STRING old_password_plugin_name= {
 /// @todo make it configurable
 LEX_STRING *default_auth_plugin_name= &native_password_plugin_name;
 
+/*
+  Constant used for differentiating specified user names and non specified
+  usernames. Example: userA  -- userA@%
+*/
+const char *HOST_NOT_SPECIFIED= "%";
+/*
+  Constant used in the SET ROLE NONE command
+*/
+const char *NONE_ROLE= "NONE";
+
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static plugin_ref old_password_plugin;
 #endif
