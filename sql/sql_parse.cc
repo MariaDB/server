@@ -3761,6 +3761,12 @@ end_with_restore_list:
     my_ok(thd);
     break;
   }
+  case SQLCOM_DROP_ROLE:
+  {
+    /* TODO */
+    my_ok(thd);
+    break;
+  }
   case SQLCOM_REVOKE_ALL:
   {
     if (check_access(thd, UPDATE_ACL, "mysql", NULL, NULL, 1, 1) &&
