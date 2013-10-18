@@ -71,7 +71,7 @@ GRANT r_sel TO 'test_user'@'localhost'
 GRANT r_upd TO 'test_user'@'localhost'
 select current_user(), current_role();
 current_user()	current_role()
-test_user@localhost	NONE
+test_user@localhost	NULL
 set role r_sel;
 select current_user(), current_role();
 current_user()	current_role()
@@ -131,7 +131,7 @@ flush privileges;
 set role none;
 select current_user(), current_role();
 current_user()	current_role()
-test_user@localhost	NONE
+test_user@localhost	NULL
 flush privileges;
 ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
 set role r_ins;

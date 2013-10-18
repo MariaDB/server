@@ -37,7 +37,7 @@ GRANT USAGE ON *.* TO 'test_user'@'localhost'
 GRANT test_role1 TO 'test_user'@'localhost'
 select current_user(), current_role();
 current_user()	current_role()
-test_user@localhost	NONE
+test_user@localhost	NULL
 set role test_role1;
 select current_user(), current_role();
 current_user()	current_role()
@@ -62,7 +62,7 @@ GRANT test_role2 TO 'test_role1'
 set role none;
 select current_user(), current_role();
 current_user()	current_role()
-test_user@localhost	NONE
+test_user@localhost	NULL
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
@@ -77,7 +77,7 @@ set role test_role2;
 ERROR HY000: The role 'test_role2' has not been granted or is invalid.
 select current_user(), current_role();
 current_user()	current_role()
-test_user@localhost	NONE
+test_user@localhost	NULL
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
@@ -112,7 +112,7 @@ GRANT test_role2 TO 'test_role1'
 set role none;
 select current_user(), current_role();
 current_user()	current_role()
-test_user@localhost	NONE
+test_user@localhost	NULL
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'

@@ -2345,19 +2345,16 @@ bool Item_func_current_role::fix_fields(THD *thd, Item **ref)
   Security_context *ctx= context->security_ctx
                           ? context->security_ctx : thd->security_ctx;
 
-  LEX_STRING role;
   if (ctx->priv_role[0])
   {
-    role.str= ctx->priv_role;
-    role.length= strlen(role.str);
+    if (str_value.copy(ctx->priv_role, strlen(ctx->priv_role),
+                       system_charset_info))
+      return 1;
+
+    str_value.mark_as_const();
+    return 0;
   }
-  else
-    role= none_role;
-
-  if (str_value.copy(role.str, role.length, system_charset_info))
-    return 1;
-
-  str_value.mark_as_const();
+  null_value= maybe_null= 1;
   return 0;
 }
 
