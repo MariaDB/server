@@ -1682,8 +1682,8 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
   if (!strcasecmp(rolename, "NONE")) {
     /* have to clear the privileges */
     /* get the current user */
-    acl_user= find_user_no_anon(thd->security_ctx->host, thd->security_ctx->user,
-                                FALSE);
+    acl_user= find_user(thd->security_ctx->host, thd->security_ctx->user,
+                        thd->security_ctx->ip);
     if (acl_user == NULL)
     {
       my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename);
