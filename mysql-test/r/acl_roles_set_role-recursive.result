@@ -38,6 +38,8 @@ GRANT test_role1 TO 'test_user'@'localhost'
 set role test_role1;
 show grants;
 Grants for test_user@localhost
+GRANT SELECT ON *.* TO 'test_role2'
+GRANT USAGE ON *.* TO 'test_role1'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
 GRANT test_role1 TO 'test_user'@'localhost'
 select * from mysql.roles_mapping where HostFk='';
@@ -45,6 +47,8 @@ HostFk	UserFk	RoleFk
 	test_role1	test_role2
 show grants;
 Grants for test_user@localhost
+GRANT SELECT ON *.* TO 'test_role2'
+GRANT USAGE ON *.* TO 'test_role1'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
 GRANT test_role1 TO 'test_user'@'localhost'
 set role none;
@@ -73,6 +77,8 @@ GRANT test_role1 TO 'test_user'@'localhost'
 set role test_role1;
 show grants;
 Grants for test_user@localhost
+GRANT SELECT ON *.* TO 'test_role2'
+GRANT USAGE ON *.* TO 'test_role1'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
 GRANT test_role1 TO 'test_user'@'localhost'
 select * from mysql.roles_mapping where HostFk='';
@@ -80,6 +86,8 @@ HostFk	UserFk	RoleFk
 	test_role1	test_role2
 show grants;
 Grants for test_user@localhost
+GRANT SELECT ON *.* TO 'test_role2'
+GRANT USAGE ON *.* TO 'test_role1'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
 GRANT test_role1 TO 'test_user'@'localhost'
 set role none;

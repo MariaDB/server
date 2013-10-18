@@ -730,11 +730,15 @@ static my_bool acl_role_propagate_grants(ACL_ROLE *role,
                                          void * not_used __attribute__((unused)));
 static int add_role_user_mapping(ROLE_GRANT_PAIR *mapping);
 
-static void role_explore_create_list(ACL_ROLE *role, void *context_data);
+static void role_explore_create_list(ACL_ROLE *unused,
+                                     ACL_ROLE *role,
+                                     void *context_data);
 static bool role_explore_start_access_check(ACL_ROLE *role, void *unused);
 static bool role_explore_merge_if_final(ACL_ROLE *current, ACL_ROLE *neighbour,
                                         void *unused);
-static void role_explore_set_final_access_bits(ACL_ROLE *current, void *unused);
+static void role_explore_set_final_access_bits(ACL_ROLE *parent,
+                                               ACL_ROLE *current,
+                                               void *unused);
 static int traverse_role_graph(ACL_ROLE *role,
                                void *context_data,
                                bool (*on_start) (ACL_ROLE *role,
@@ -745,7 +749,8 @@ static int traverse_role_graph(ACL_ROLE *role,
                                bool (*on_cycle) (ACL_ROLE *current,
                                                  ACL_ROLE *neighbour,
                                                  void *context_data),
-                               void (*on_finish)(ACL_ROLE *current,
+                               void (*on_finish)(ACL_ROLE *parent,
+                                                 ACL_ROLE *current,
                                                  void *context_data));
 
 static void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source);
@@ -2477,7 +2482,8 @@ void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source)
   /* TODO */
 }
 
-static void role_explore_create_list(ACL_ROLE *role, void *context_data)
+static void role_explore_create_list(ACL_ROLE *unused __attribute__((unused)),
+                                     ACL_ROLE *role, void *context_data)
 {
   DYNAMIC_ARRAY *list= (DYNAMIC_ARRAY *)context_data;
   push_dynamic(list, (uchar*)&role);
@@ -2508,7 +2514,8 @@ static bool role_explore_merge_if_final(ACL_ROLE *current, ACL_ROLE *neighbour,
   return FALSE;
 }
 
-static void role_explore_set_final_access_bits(ACL_ROLE *current,
+static void role_explore_set_final_access_bits(ACL_ROLE *parent,
+                                               ACL_ROLE *current,
                                                void *unused __attribute__((unused)))
 {
   current->flags|= ROLE_GRANTS_FINAL;
@@ -2517,6 +2524,10 @@ static void role_explore_set_final_access_bits(ACL_ROLE *current,
   DBUG_PRINT("info",
              ("Setting final access for node: %s %lu",
               current->user.str, current->access));
+  if (parent)
+  {
+    merge_role_grant_privileges(parent, current);
+  }
 }
 
 /*
@@ -2554,7 +2565,8 @@ static int traverse_role_graph(ACL_ROLE *role,
                                bool (*on_cycle) (ACL_ROLE *current,
                                                  ACL_ROLE *neighbour,
                                                  void *context_data),
-                               void (*on_finish)(ACL_ROLE *current,
+                               void (*on_finish)(ACL_ROLE *parent,
+                                                 ACL_ROLE *current,
                                                  void *context_data))
 {
 
@@ -2672,7 +2684,19 @@ static int traverse_role_graph(ACL_ROLE *role,
       curr_state->node_data->flags|= ROLE_EXPLORED;
       push_dynamic(&to_clear, (uchar*)&curr_state->node_data);
       if (on_finish)
-        on_finish(curr_state->node_data, context_data);
+      {
+        NODE_STATE *parent= NULL;
+        if (stack.elements)
+        {
+          parent= dynamic_element(&stack, stack.elements - 1, NODE_STATE *);
+          on_finish(parent->node_data, curr_state->node_data, context_data);
+        }
+        else
+        {
+          /* no parent node, this is the starting node */
+          on_finish(NULL, curr_state->node_data, context_data);
+        }
+      }
     }
   }
 
@@ -6597,12 +6621,13 @@ static bool show_global_privileges(THD *thd, LEX_USER *lex_user,
   global.append (STRING_WITH_LEN(" ON *.* TO '"));
   global.append(lex_user->user.str, lex_user->user.length,
                 system_charset_info);
+  global.append('\'');
 
   if (!handle_as_role)
   {
     ACL_USER *acl_user= (ACL_USER *)acl_entry;
 
-    global.append (STRING_WITH_LEN("'@'"));
+    global.append (STRING_WITH_LEN("@'"));
     global.append(lex_user->host.str, lex_user->host.length,
                   system_charset_info);
     global.append ('\'');
@@ -6683,6 +6708,7 @@ static bool show_global_privileges(THD *thd, LEX_USER *lex_user,
                       "MAX_USER_CONNECTIONS", 1);
     }
   }
+
   protocol->prepare_for_resend();
   protocol->store(global.ptr(),global.length(),global.charset());
   if (protocol->write())
@@ -7656,11 +7682,20 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
                        struct_no, idx, user, host));
 #endif
 
-    if ((strcmp(user_from->user.str, user) ||
-        my_strcasecmp(system_charset_info, user_from->host.str, host)) &&
-        (role_not_matched= strcmp(user_from->user.str, role))
-        )
+    if (struct_no == ROLES_MAPPINGS_HASH)
+    {
+      role_not_matched= strcmp(user_from->user.str, role);
+      if (role_not_matched &&
+          (strcmp(user_from->user.str, user) ||
+           my_strcasecmp(system_charset_info, user_from->host.str, host)))
       continue;
+    }
+    else
+    {
+      if (strcmp(user_from->user.str, user) ||
+          my_strcasecmp(system_charset_info, user_from->host.str, host))
+        continue;
+    }
 
     result= 1; /* At least one element found. */
     if ( drop )
