@@ -25,7 +25,9 @@ select * from mysql.roles_mapping;
 --sorted_result
 show grants;
 
+select current_user(), current_role();
 set role test_role1;
+select current_user(), current_role();
 
 --sorted_result
 show grants;
@@ -39,6 +41,7 @@ show grants;
 use mysql;
 
 set role none;
+select current_user(), current_role();
 
 --sorted_result
 --error ER_TABLEACCESS_DENIED_ERROR

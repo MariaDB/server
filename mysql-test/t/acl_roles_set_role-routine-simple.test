@@ -44,7 +44,9 @@ show grants;
 
 --error ER_DBACCESS_DENIED_ERROR
 use mysql;
+select current_user(), current_role();
 set role test_role1;
+select current_user(), current_role();
 use mysql;
 
 call test_proc(@a);
@@ -55,6 +57,7 @@ SELECT test_func('AABBCCDD');
 --sorted_result
 show grants;
 set role none;
+select current_user(), current_role();
 --sorted_result
 show grants;
 
@@ -65,6 +68,7 @@ call test_proc(@a);
 SELECT test_func('AABBCCDD');
 
 set role test_role3;
+select current_user(), current_role();
 --sorted_result
 show grants;
 call test_proc(@a);
