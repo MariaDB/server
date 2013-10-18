@@ -36,6 +36,10 @@ select current_user(), current_role();
 current_user()	current_role()
 test_user@localhost	NULL
 set role test_role1;
+select * from information_schema.enabled_roles;
+ROLE_NAME
+test_role2
+test_role1
 select current_user(), current_role();
 current_user()	current_role()
 test_user@localhost	test_role1
@@ -49,6 +53,9 @@ GRANT test_role1 TO 'test_user'@'localhost'
 GRANT test_role2 TO 'test_role1'
 GRANT test_role2 TO 'test_user'@'localhost'
 set role none;
+select * from information_schema.enabled_roles;
+ROLE_NAME
+NULL
 select current_user(), current_role();
 current_user()	current_role()
 test_user@localhost	NULL
@@ -81,6 +88,9 @@ ERROR 42000: There is no such grant defined for user 'test_user' on host 'localh
 show grants for CURRENT_ROLE();
 ERROR 42000: There is no such grant defined for user 'test_user' on host 'localhost'
 set role test_role2;
+select * from information_schema.enabled_roles;
+ROLE_NAME
+test_role2
 select current_user(), current_role();
 current_user()	current_role()
 test_user@localhost	test_role2
