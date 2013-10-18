@@ -574,13 +574,16 @@ static uchar* acl_role_get_key(ACL_ROLE *entry, size_t *length,
   return (uchar*) entry->user.str;
 }
 
-typedef struct st_role_grant
+struct ROLE_GRANT_PAIR : public Sql_alloc
 {
   char *u_uname;
   char *u_hname;
   char *r_uname;
   LEX_STRING hashkey;
-} ROLE_GRANT_PAIR;
+
+  bool init(MEM_ROOT *mem, char *username, char *hostname, char *rolename);
+};
+
 /*
   Struct to hold the state of a node during a Depth First Search exploration
 */
@@ -598,42 +601,50 @@ static uchar* acl_role_map_get_key(ROLE_GRANT_PAIR *entry, size_t *length,
   return (uchar*) entry->hashkey.str;
 }
 
-static void init_role_grant_pair(MEM_ROOT *mem, ROLE_GRANT_PAIR *entry,
-                                 char *username, char *hostname, char *rolename)
+bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, char *username,
+                           char *hostname, char *rolename)
 {
-      size_t uname_l = username ? strlen(username) : 0;
-      size_t hname_l = hostname ? strlen(hostname) : 0;
-      size_t rname_l = rolename ? strlen(rolename) : 0;
-      /*
-        Create a buffer that holds all 3 NULL terminated strings in succession
-        To save memory space, the same buffer is used as the hashkey
-      */
-      size_t bufflen = uname_l + hname_l + rname_l + 3; //add the '\0' aswell
-      char *buff= (char *)alloc_root(mem, bufflen);
-      /*
-        Offsets in the buffer for all 3 strings
-      */
-      char *username_pos= buff;
-      char *hostname_pos= buff + uname_l + 1;
-      char *rolename_pos= buff + uname_l + hname_l + 2;
+  if (!this)
+    return true;
 
-      if (username) //prevent undefined behaviour
-        memcpy(username_pos, username, uname_l);
-      username_pos[uname_l]= '\0';         //#1 string terminator
-      entry->u_uname= username_pos;
+  size_t uname_l = username ? strlen(username) : 0;
+  size_t hname_l = hostname ? strlen(hostname) : 0;
+  size_t rname_l = rolename ? strlen(rolename) : 0;
+  /*
+    Create a buffer that holds all 3 NULL terminated strings in succession
+    To save memory space, the same buffer is used as the hashkey
+  */
+  size_t bufflen = uname_l + hname_l + rname_l + 3; //add the '\0' aswell
+  char *buff= (char *)alloc_root(mem, bufflen);
+  if (!buff)
+    return true;
 
-      if (hostname) //prevent undefined behaviour
-        memcpy(hostname_pos, hostname, hname_l);
-      hostname_pos[hname_l]= '\0';         //#2 string terminator
-      entry->u_hname= hostname_pos;
+  /*
+    Offsets in the buffer for all 3 strings
+  */
+  char *username_pos= buff;
+  char *hostname_pos= buff + uname_l + 1;
+  char *rolename_pos= buff + uname_l + hname_l + 2;
 
-      if (rolename) //prevent undefined behaviour
-        memcpy(rolename_pos, rolename, rname_l);
-      rolename_pos[rname_l]= '\0';         //#3 string terminator
-      entry->r_uname= rolename_pos;
+  if (username) //prevent undefined behaviour
+    memcpy(username_pos, username, uname_l);
+  username_pos[uname_l]= '\0';         //#1 string terminator
+  u_uname= username_pos;
 
-      entry->hashkey.str = buff;
-      entry->hashkey.length = bufflen;
+  if (hostname) //prevent undefined behaviour
+    memcpy(hostname_pos, hostname, hname_l);
+  hostname_pos[hname_l]= '\0';         //#2 string terminator
+  u_hname= hostname_pos;
+
+  if (rolename) //prevent undefined behaviour
+    memcpy(rolename_pos, rolename, rname_l);
+  rolename_pos[rname_l]= '\0';         //#3 string terminator
+  r_uname= rolename_pos;
+
+  hashkey.str = buff;
+  hashkey.length = bufflen;
+
+  return false;
 }
 
 #define IP_ADDR_STRLEN (3 + 1 + 3 + 1 + 3 + 1 + 3)
@@ -1388,13 +1399,14 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     init_alloc_root(&temp_root, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
     while (!(read_record_info.read_record(&read_record_info)))
     {
-      ROLE_GRANT_PAIR *mapping= (ROLE_GRANT_PAIR *)alloc_root(
-                                                      &mem,
-                                                      sizeof(ROLE_GRANT_PAIR));
+      ROLE_GRANT_PAIR *mapping= new (&mem) ROLE_GRANT_PAIR;
       char *hostname= get_field(&temp_root, table->field[0]);
       char *username= get_field(&temp_root, table->field[1]);
       char *rolename= get_field(&temp_root, table->field[2]);
-      init_role_grant_pair(&mem, mapping, username, hostname, rolename);
+
+      if (mapping->init(&mem, username, hostname, rolename))
+        continue;
+
       if (add_role_user_mapping(mapping) == -1) {
         sql_print_error("Invalid roles_mapping table entry user:'%s@%s', rolename:'%s'",
                         mapping->u_uname ? mapping->u_uname : "",
@@ -3811,9 +3823,9 @@ replace_roles_mapping_table(TABLE *table, ROLE_GRANT_PAIR *pair,
                         pair->hashkey.length))
     {
       /* allocate a new entry that will go in the hash */
-      hash_entry= (ROLE_GRANT_PAIR *)alloc_root(&mem, sizeof(ROLE_GRANT_PAIR));
-      init_role_grant_pair(&mem, hash_entry,
-                           pair->u_uname, pair->u_hname, pair->r_uname);
+      hash_entry= new (&mem) ROLE_GRANT_PAIR;
+      if (hash_entry->init(&mem, pair->u_uname, pair->u_hname, pair->r_uname))
+        DBUG_RETURN(1);
       my_hash_insert(&acl_roles_mappings, (uchar*) hash_entry);
     }
     else
@@ -5408,12 +5420,11 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       username= user->user.str;
     }
 
-    ROLE_GRANT_PAIR *mapping, *hash_entry;
-    mapping= (ROLE_GRANT_PAIR *)
-      alloc_root(&temp_root, sizeof(ROLE_GRANT_PAIR));
+    ROLE_GRANT_PAIR *mapping= new (&temp_root) ROLE_GRANT_PAIR, *hash_entry;
 
-    init_role_grant_pair(&temp_root, mapping,
-                         username, hostname, rolename);
+    if (mapping->init(&temp_root, username, hostname, rolename))
+      continue;
+
     if (!revoke)
     {
       int res= add_role_user_mapping(mapping);
@@ -8432,7 +8443,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     break;
   default:
     DBUG_ASSERT(0);
-    return -1;
+    DBUG_RETURN(-1);
   }
 
 #ifdef EXTRA_DEBUG
@@ -8616,16 +8627,18 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
           */
           char *old_key= role_grant_pair->hashkey.str;
           size_t old_key_length= role_grant_pair->hashkey.length;
+          bool oom;
 
           if (role_not_matched)
-            init_role_grant_pair(&mem, role_grant_pair,
-                                 user_to->user.str, user_to->host.str,
-                                 role_grant_pair->r_uname);
+            oom= role_grant_pair->init(&mem, user_to->user.str,
+                                       user_to->host.str,
+                                       role_grant_pair->r_uname);
           else
-            init_role_grant_pair(&mem, role_grant_pair,
-                                 role_grant_pair->u_uname,
-                                 role_grant_pair->u_hname,
-                                 user_to->user.str);
+            oom= role_grant_pair->init(&mem, role_grant_pair->u_uname,
+                                       role_grant_pair->u_hname,
+                                       user_to->user.str);
+          if (oom)
+            DBUG_RETURN(-1);
 
           my_hash_update(roles_mappings_hash, (uchar*) role_grant_pair,
                          (uchar*) old_key, old_key_length);
