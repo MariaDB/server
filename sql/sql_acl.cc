@@ -867,6 +867,15 @@ static bool fix_user_plugin_ptr(ACL_USER *user)
   return false;
 }
 
+static bool get_YN_as_bool(Field *field)
+{
+  char buff[2];
+  String res(buff,sizeof(buff),&my_charset_latin1);
+  field->val_str(&res);
+  return res[0] == 'Y' || res[0] == 'y';
+}
+
+
 /*
   Initialize structures responsible for user/db-level privilege checking and
   load privilege information for them from tables in the 'mysql' database.
@@ -1408,8 +1417,9 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       char *hostname= get_field(&temp_root, table->field[0]);
       char *username= get_field(&temp_root, table->field[1]);
       char *rolename= get_field(&temp_root, table->field[2]);
+      bool with_grant_option= get_YN_as_bool(table->field[3]);
 
-      if (mapping->init(&mem, username, hostname, rolename, false))
+      if (mapping->init(&mem, username, hostname, rolename, with_grant_option))
         continue;
 
       if (add_role_user_mapping(mapping) == -1) {
@@ -1429,6 +1439,11 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     if (!initialized)
       mysql_mutex_unlock(&acl_cache->lock);
 
+  }
+  else
+  {
+    sql_print_error("Missing system table mysql.roles_mapping; "
+                    "please run mysql_upgrade to create it");
   }
 
   init_check_host();
@@ -1576,7 +1591,6 @@ end:
   DBUG_RETURN(return_val);
 }
 
-
 /*
   Get all access bits from table after fieldnr
 
@@ -1608,8 +1622,7 @@ static ulong get_access(TABLE *form, uint fieldnr, uint *next_field)
 	 ((Field_enum*) (*pos))->typelib->count == 2 ;
        pos++, fieldnr++, bit<<=1)
   {
-    (*pos)->val_str(&res);
-    if (my_toupper(&my_charset_latin1, res[0]) == 'Y')
+    if (get_YN_as_bool(*pos))
       access_bits|= bit;
   }
   if (next_field)
@@ -1634,7 +1647,7 @@ static ulong get_access(TABLE *form, uint fieldnr, uint *next_field)
     FALSE     otherwise
 */
 
-static inline bool check_is_role(TABLE *form)
+static bool check_is_role(TABLE *form)
 {
   char buff[2];
   String res(buff, sizeof(buff), &my_charset_latin1);
@@ -1642,8 +1655,7 @@ static inline bool check_is_role(TABLE *form)
   if (form->s->fields <= 42)
     return FALSE;
 
-  form->field[ROLE_ASSIGN_COLUMN_IDX]->val_str(&res);
-  if (my_toupper(&my_charset_latin1, res[0]) == 'Y')
+  if (get_YN_as_bool(form->field[ROLE_ASSIGN_COLUMN_IDX]))
     return TRUE;
 
   return FALSE;

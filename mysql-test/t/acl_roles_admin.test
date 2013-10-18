@@ -29,6 +29,13 @@ show grants for role1;
 show grants for role4;
 --sorted_result
 select * from mysql.roles_mapping;
+flush privileges;
+--sorted_result
+show grants for foo@localhost;
+--sorted_result
+show grants for role1;
+--sorted_result
+show grants for role4;
 
 grant role2 to role1 with admin option;
 revoke role1 from foo@localhost;
@@ -43,6 +50,13 @@ show grants for role1;
 show grants for role4;
 --sorted_result
 select * from mysql.roles_mapping;
+flush privileges;
+--sorted_result
+show grants for foo@localhost;
+--sorted_result
+show grants for role1;
+--sorted_result
+show grants for role4;
 
 ########################################
 # cleanup
