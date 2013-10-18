@@ -6614,38 +6614,34 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
                                        LEX_USER *user_from, LEX_USER *user_to)
 {
   /*
-    First we need to find out if the user_from represents a user, or a role.
+    The first thing that needs to be checked is what we are renaming,
+    a user, or a role. In order to do this, perform a hash lookup over
+    acl_roles to find if a key exists.
 
-    If the user_from has a hostname different than '' it can not be a role.
-    If the user_from has an empty hostname, it _could_ be a role, but it is
-    not mandatory.
+    If the renaming involves renaming a role, all entries
+    (HostFK, UserFk) that match user_from will be renamed,
+    as well as all RoleFk entries that match.
 
-    In this case perform a quick lookup in acl_roles to see if
-    it is already there. If it is not found, then the user fields are updated,
-    otherwise the role field gets updated.
+    Otherwise, only matching (HostFk, UserFk) will be renamed.
   */
   DBUG_ENTER("handle_roles_mappings_table");
 
   int error;
   int result= 0;
-  bool is_role= FALSE;
   THD *thd= current_thd;
   const char *host, *user, *role;
+  my_bool is_role= FALSE;
   Field *host_field= table->field[0];
   Field *user_field= table->field[1];
   Field *role_field= table->field[2];
 
   if (!user_from->host.length && find_acl_role(user_from->user.str))
-      is_role= TRUE;
+    is_role= TRUE;
 
-  /*
-     Check if user_to is a valid role. If it is not a valid role, the change
-     fails.
-  */
-  if (is_role && user_to && user_to->host.length)
-    DBUG_RETURN(-1);
-
-
+  DBUG_PRINT("info", ("Rewriting %s entry in roles_mappings table: %s %s",
+                      is_role ? "role" : "user",
+                      user_from->user.str,
+                      user_from->host.str));
   table->use_all_columns();
   if ((error= table->file->ha_rnd_init(1)))
   {
@@ -6662,23 +6658,18 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
         DBUG_PRINT("info", ("scan error: %d", error));
         continue;
       }
-      if (!is_role)
-      {
 
-        if (! (host= get_field(thd->mem_root, host_field)))
-          host= "";
-        if (! (user= get_field(thd->mem_root, user_field)))
-          user= "";
+      if (! (host= get_field(thd->mem_root, host_field)))
+        host= "";
+      if (! (user= get_field(thd->mem_root, user_field)))
+        user= "";
 
-        if (strcmp(user_from->user.str, user) ||
-            my_strcasecmp(system_charset_info, user_from->host.str, host))
-          continue;
-
+      if (!(strcmp(user_from->user.str, user) ||
+          my_strcasecmp(system_charset_info, user_from->host.str, host)))
         result= ((drop || user_to) &&
                  modify_grant_table(table, host_field, user_field, user_to)) ?
           -1 : result ? result : 1; /* Error or keep result or found. */
-      }
-      else
+      if (is_role)
       {
         if (! (role= get_field(thd->mem_root, role_field)))
           role= "";
