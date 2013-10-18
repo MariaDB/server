@@ -1288,7 +1288,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       char *username= get_field(&temp_root, table->field[1]);
       char *rolename= get_field(&temp_root, table->field[2]);
       init_role_grant_pair(&mem, mapping, username, hostname, rolename);
-      if (add_role_user_mapping(mapping) == 1) {
+      if (add_role_user_mapping(mapping) == -1) {
         sql_print_error("Invalid roles_mapping table entry user:'%s@%s', rolename:'%s'",
                         mapping->u_uname ? mapping->u_uname : "",
                         mapping->u_hname ? mapping->u_hname : "",
@@ -2152,29 +2152,48 @@ my_bool acl_user_reset_grant(ACL_USER *user,
 /*
    Add a the coresponding pointers present in the mapping to the entries in
    acl_users and acl_roles
-*/
 
-my_bool add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
+   Return values:
+     0: The entry is valid and was added.
+    -1: The entry is invalid and was not added.
+     1: The entry represents a mapping between two roles.
+*/
+int add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
 {
   ACL_USER *user= find_user_no_anon((mapping->u_hname) ? mapping->u_hname: "",
                                     (mapping->u_uname) ? mapping->u_uname: "",
                                     TRUE);
   ACL_USER *role= find_acl_role(mapping->r_uname ? mapping->r_uname: "");
+
+  int result= 0;
+
   if (user == NULL || role == NULL)
   {
-    DBUG_PRINT("warning", ("Invalid add_role_user_mapping '%s'@'%s' %s",
-                           mapping->u_uname, mapping->u_hname,
-                           mapping->r_uname));
-    return 1;
+    /* There still exists the possibility that the user is actually a role */
+    if (user == NULL && role && (!mapping->u_hname || !mapping->u_hname[0])
+        && /* in this case the grantee is a role */
+        ((user= find_acl_role(mapping->u_uname ? mapping->u_uname: ""))))
+    {
+      result= 1;
+    }
+    else
+    {
+      DBUG_PRINT("warning", ("Invalid add_role_user_mapping '%s'@'%s' %s",
+                             mapping->u_uname, mapping->u_hname,
+                             mapping->r_uname));
+
+      return -1;
+    }
   }
 
   push_dynamic(&user->role_grants, (uchar*) &role);
   push_dynamic(&role->role_grants, (uchar*) &user);
 
-  DBUG_PRINT("info", ("Found user %s@%s having role granted %s@%s\n",
+  DBUG_PRINT("info", ("Found %s %s@%s having role granted %s@%s\n",
+                        (result) ? "role" : "user",
                         user->user.str, user->host.hostname,
                         role->user.str, role->host.hostname));
-  return 0;
+  return result;
 }
 
 
@@ -2211,7 +2230,7 @@ void rebuild_role_grants(void)
        If add_role_user_mapping detects an invalid entry, it will not add
        the mapping into the ACL_USER::role_grants array.
     */
-     DBUG_ASSERT(status == 0);
+     DBUG_ASSERT(status >= 0);
   }
 
   DBUG_VOID_RETURN;
