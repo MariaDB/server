@@ -3759,14 +3759,22 @@ end_with_restore_list:
   }
   case SQLCOM_CREATE_ROLE:
   {
-    /* TODO */
-    my_ok(thd);
+    if (check_access(thd, INSERT_ACL, "mysql", NULL, NULL, 1, 1) &&
+        check_global_access(thd,CREATE_USER_ACL))
+      break;
+    /* Conditionally writes to binlog */
+    if (!(res= mysql_create_role(thd, lex->users_list)))
+      my_ok(thd);
     break;
   }
   case SQLCOM_DROP_ROLE:
   {
-    /* TODO */
-    my_ok(thd);
+    if (check_access(thd, DELETE_ACL, "mysql", NULL, NULL, 1, 1) &&
+        check_global_access(thd,CREATE_USER_ACL))
+      break;
+    /* Conditionally writes to binlog */
+    if (!(res= mysql_drop_role(thd, lex->users_list)))
+      my_ok(thd);
     break;
   }
   case SQLCOM_REVOKE_ALL:

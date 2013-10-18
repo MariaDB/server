@@ -1,0 +1,31 @@
+connect (mysql, localhost, root,,);
+use mysql;
+
+create role test_role1;
+create role test_role2, test_role3;
+
+--sorted_result
+select user, host, is_role from user where user like 'test';
+
+drop role test_role1;
+drop role test_role2, test_role3;
+
+
+create role test_role1;
+--error ER_CANNOT_USER
+create role test_role1;
+--error ER_CANNOT_USER
+create role test_role1, test_role2;
+
+--sorted_result
+select user, host, is_role from user where user like 'test';
+
+drop role test_role1;
+--error ER_CANNOT_USER
+drop role test_role1;
+--error ER_CANNOT_USER
+drop role test_role1, test_role2;
+
+--sorted_result
+select user, host, is_role from user where user like 'test';
+disconnect mysql;

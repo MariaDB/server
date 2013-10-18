@@ -1459,7 +1459,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         NCHAR_STRING opt_component key_cache_name
         sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
         opt_constraint constraint opt_ident opt_if_not_exists_ident
-        grant_role
 
 %type <lex_str_ptr>
         opt_table_alias
@@ -1570,7 +1569,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <symbol> keyword keyword_sp
 
-%type <lex_user> user grant_user
+%type <lex_user> user grant_user grant_role
 
 %type <charset>
         opt_collate
@@ -14251,7 +14250,6 @@ revoke_command:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_REVOKE_ROLE;
             lex->type= 0;
-            printf("The rolename to be revoked is: %s\n", $1.str);
           }
 
         ;
@@ -14305,20 +14303,40 @@ grant_command:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_GRANT_ROLE;
             lex->type= 0;
-            printf("The rolename to be granted is: %s\n", $1.str);
           }
 
         ;
 
 role_list:
           grant_role
-          {}
+          {
+            if (Lex->users_list.push_back($1))
+              MYSQL_YYABORT;
+          }
         | role_list ',' grant_role
-          {}
+          {
+            if (Lex->users_list.push_back($3))
+              MYSQL_YYABORT;
+          }
+        ;
 
 grant_role:
-          IDENT_sys             {$$=$1;}
-        | TEXT_STRING_sys       {$$=$1;}
+          ident_or_text
+          {
+            if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
+              MYSQL_YYABORT;
+            $$->user = $1;
+            $$->host.str= (char *)HOST_NOT_SPECIFIED;
+            $$->host.length= 1;
+            $$->password= null_lex_str; 
+            $$->plugin= empty_lex_str;
+            $$->auth= empty_lex_str;
+
+            if (check_string_char_length(&$$->user, ER(ER_USERNAME),
+                                         username_char_length,
+                                         system_charset_info, 0))
+              MYSQL_YYABORT;
+          }
         ;
 
 opt_table:
