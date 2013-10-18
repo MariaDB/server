@@ -13884,10 +13884,9 @@ option_value:
               my_error(ER_SP_BAD_VAR_SHADOW, MYF(0), pw.str);
               MYSQL_YYABORT;
             }
-            if (!(user=(LEX_USER*) thd->alloc(sizeof(LEX_USER))))
+            if (!(user=(LEX_USER*) thd->calloc(sizeof(LEX_USER))))
               MYSQL_YYABORT;
-            user->host=null_lex_str;
-            user->user.str=thd->security_ctx->user;
+            user->user= current_user;
             set_var_password *var= new set_var_password(user, $3);
             if (var == NULL)
               MYSQL_YYABORT;
