@@ -707,6 +707,7 @@ static my_bool get_role_access(ACL_ROLE *role, ulong *access);
 enum enum_acl_lists
 {
   USER_ACL= 0,
+  ROLE_ACL,
   DB_ACL,
   COLUMN_PRIVILEGES_HASH,
   PROC_PRIVILEGES_HASH,
@@ -6905,7 +6906,11 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   int elements;
   const char *user;
   const char *host;
+  const char *role;
+  my_bool is_role= FALSE;
+  uint role_not_matched= 1;
   ACL_USER *acl_user= NULL;
+  ACL_ROLE *acl_role= NULL;
   ACL_DB *acl_db= NULL;
   ACL_PROXY_USER *acl_proxy_user= NULL;
   GRANT_NAME *grant_name= NULL;
@@ -6920,6 +6925,35 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   LINT_INIT(host);
 
   mysql_mutex_assert_owner(&acl_cache->lock);
+
+  /* test if the current query targets a role */
+  is_role= (!user_from->host.length &&
+            (acl_role= find_acl_role(user_from->user.str))) ? TRUE : FALSE;
+  if (is_role && (struct_no != ROLE_ACL || struct_no != ROLES_MAPPINGS_HASH))
+  {
+    DBUG_RETURN(0);
+  }
+  else if (struct_no == ROLE_ACL) //no need to scan the structures in this case
+  {
+    if (!is_role || (!drop && !user_to))
+      DBUG_RETURN(is_role);
+
+    /* this calls for a role update */
+    char *old_key= acl_role->user.str;
+    size_t old_key_length= acl_role->user.length;
+    if (drop)
+    {
+      my_hash_delete(&acl_roles, (uchar*) acl_role);
+      DBUG_RETURN(1);
+    }
+    acl_role->user.str= strdup_root(&mem, user_to->user.str);
+    acl_role->user.length= user_to->user.length;
+
+    my_hash_update(&acl_roles, (uchar*) acl_role, (uchar*) old_key,
+                   old_key_length);
+    DBUG_RETURN(1);
+
+  }
 
   /* Get the number of elements in the in-memory structure. */
   switch (struct_no) {
@@ -6994,6 +7028,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       role_grant_pair= (ROLE_GRANT_PAIR *) my_hash_element(roles_mappings_hash, idx);
       user= role_grant_pair->u_uname;
       host= role_grant_pair->u_hname;
+      role= role_grant_pair->r_uname;
       break;
 
     default:
@@ -7003,13 +7038,18 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       user= "";
     if (! host)
       host= "";
+    if (! role)
+      role= "";
 
 #ifdef EXTRA_DEBUG
     DBUG_PRINT("loop",("scan struct: %u  index: %u  user: '%s'  host: '%s'",
                        struct_no, idx, user, host));
 #endif
+
     if (strcmp(user_from->user.str, user) ||
-        my_strcasecmp(system_charset_info, user_from->host.str, host))
+        my_strcasecmp(system_charset_info, user_from->host.str, host) ||
+        (is_role && (role_not_matched= strcmp(user_from->user.str, role)))
+        )
       continue;
 
     result= 1; /* At least one element found. */
@@ -7049,6 +7089,9 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
         my_hash_delete(roles_mappings_hash, (uchar*) role_grant_pair);
         break;
 
+      default:
+        DBUG_ASSERT(0);
+        break;
       }
     }
     else if ( user_to )
@@ -7117,15 +7160,24 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
           char *old_key= role_grant_pair->hashkey.str;
           size_t old_key_length= role_grant_pair->hashkey.length;
 
-          init_role_grant_pair(&mem, role_grant_pair,
-                               user_to->user.str, user_to->host.str,
-                               role_grant_pair->r_uname);
+          if (role_not_matched)
+            init_role_grant_pair(&mem, role_grant_pair,
+                                 user_to->user.str, user_to->host.str,
+                                 role_grant_pair->r_uname);
+          else
+            init_role_grant_pair(&mem, role_grant_pair,
+                                 role_grant_pair->u_uname,
+                                 role_grant_pair->u_hname,
+                                 user_to->user.str);
 
           my_hash_update(roles_mappings_hash, (uchar*) role_grant_pair,
                          (uchar*) old_key, old_key_length);
           break;
         }
 
+      default:
+        DBUG_ASSERT(0);
+        break;
       }
 
     }
@@ -7184,6 +7236,13 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   {
     /* Handle user array. */
     if ((handle_grant_struct(USER_ACL, drop, user_from, user_to)) || found)
+    {
+      result= 1; /* At least one record/element found. */
+      /* If search is requested, we do not need to search further. */
+      if (! drop && ! user_to)
+        goto end;
+    }
+    if ((handle_grant_struct(ROLE_ACL, drop, user_from, user_to)) || found)
     {
       result= 1; /* At least one record/element found. */
       /* If search is requested, we do not need to search further. */
