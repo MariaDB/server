@@ -4004,11 +4004,11 @@ end_with_restore_list:
 
     if (grant_user->user.str &&
         !strcmp(thd->security_ctx->priv_user, grant_user->user.str))
-      grant_user= &current_user;
+      grant_user->user= current_user;
 
-    if (grant_user == &current_user ||
-        grant_user == &current_role ||
-        grant_user == &current_user_and_current_role ||
+    if (grant_user->user.str == current_user.str ||
+        grant_user->user.str == current_role.str ||
+        grant_user->user.str == current_user_and_current_role.str ||
         !check_access(thd, SELECT_ACL, "mysql", NULL, NULL, 1, 0))
     {
       res = mysql_show_grants(thd, grant_user);
@@ -7757,7 +7757,7 @@ LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name)
 
 LEX_USER *get_current_user(THD *thd, LEX_USER *user)
 {
-  if (user == &current_user)  // current_user
+  if (user->user.str == current_user.str)  // current_user
     return create_default_definer(thd);
 
   return user;

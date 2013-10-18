@@ -841,12 +841,9 @@ int set_var_password::check(THD *thd)
       user->host.length= strlen(thd->security_ctx->priv_host);
     }
     else
-    {
-      user->host.str= (char *)"%";
-      user->host.length= 1;
-    }
+      user->host= host_not_specified;
   }
-  if (!user->user.str)
+  if (user->user.str == current_user.str)
   {
     DBUG_ASSERT(thd->security_ctx->user);
     user->user.str= (char *) thd->security_ctx->user;
