@@ -1478,7 +1478,7 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
             sctx->priv_user,
             new_db_file_name.str,
             FALSE) | sctx->master_access;
-  if (sctx->priv_role)
+  if (sctx->priv_role[0])
   {
     /* include a possible currently set role for access */
     db_access|= acl_get("", "", sctx->priv_role, new_db_file_name.str, FALSE);
