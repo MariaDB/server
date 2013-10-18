@@ -14,6 +14,9 @@ test_user	localhost
 select * from mysql.roles_mapping;
 Host	User	Role	Admin_option
 	test_role1	test_role2	N
+localhost	root	test_role1	Y
+localhost	root	test_role2	Y
+localhost	root	test_role3	Y
 localhost	test_user	test_role1	N
 localhost	test_user	test_role3	N
 create function mysql.test_func (s CHAR(20))
@@ -44,7 +47,7 @@ use mysql;
 call test_proc(@a);
 SELECT @a;
 @a
-3
+6
 SELECT test_func('AABBCCDD');
 test_func('AABBCCDD')
 Test string: AABBCCDD
@@ -85,7 +88,7 @@ GRANT test_role3 TO 'test_user'@'localhost'
 call test_proc(@a);
 SELECT @a;
 @a
-3
+6
 SELECT test_func('AABBCCDD');
 test_func('AABBCCDD')
 Test string: AABBCCDD

@@ -3798,12 +3798,15 @@ replace_roles_mapping_table(TABLE *table, ROLE_GRANT_PAIR *pair,
   uchar row_key[MAX_KEY_LENGTH];
   int error;
   table->use_all_columns();
+  restore_record(table, s->default_values);
   table->field[0]->store(pair->u_hname, strlen(pair->u_hname),
                          system_charset_info);
   table->field[1]->store(pair->u_uname, strlen(pair->u_uname),
                          system_charset_info);
   table->field[2]->store(pair->r_uname, strlen(pair->r_uname),
                          system_charset_info);
+
+  DBUG_ASSERT(!revoke_grant || existing);
 
   if (existing) // delete or update
   {
@@ -7874,11 +7877,13 @@ int open_grant_tables(THD *thd, TABLE_LIST *tables)
       account in tests.
     */
     tables[0].updating= tables[1].updating= tables[2].updating=
-      tables[3].updating= tables[4].updating= tables[5].updating= 1;
+      tables[3].updating= tables[4].updating= tables[5].updating=
+      tables[6].updating= 1;
     if (!(thd->spcont || rpl_filter->tables_ok(0, tables)))
       DBUG_RETURN(1);
     tables[0].updating= tables[1].updating= tables[2].updating=
-      tables[3].updating= tables[4].updating= tables[5].updating= 0;
+      tables[3].updating= tables[4].updating= tables[5].updating=
+      tables[6].updating= 0;
   }
 #endif
 

@@ -21,6 +21,7 @@ select * from mysql.roles_mapping;
 select current_user(), current_role();
 set role test_role1;
 select current_user(), current_role();
+--sorted_result
 select * from mysql.roles_mapping;
 --error ER_TABLEACCESS_DENIED_ERROR
 insert into mysql.user (user, host) values ('Dummy', 'Dummy');

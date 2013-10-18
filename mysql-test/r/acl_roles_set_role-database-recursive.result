@@ -12,6 +12,8 @@ test_user	localhost
 select * from mysql.roles_mapping;
 Host	User	Role	Admin_option
 	test_role1	test_role2	N
+localhost	root	test_role1	Y
+localhost	root	test_role2	Y
 localhost	test_user	test_role1	N
 localhost	test_user	test_role2	N
 select user, host from mysql.db;
@@ -32,6 +34,8 @@ test_user@localhost	test_role1
 select * from mysql.roles_mapping;
 Host	User	Role	Admin_option
 	test_role1	test_role2	N
+localhost	root	test_role1	Y
+localhost	root	test_role2	Y
 localhost	test_user	test_role1	N
 localhost	test_user	test_role2	N
 set role none;
@@ -47,6 +51,8 @@ test_user@localhost	test_role2
 select * from mysql.roles_mapping;
 Host	User	Role	Admin_option
 	test_role1	test_role2	N
+localhost	root	test_role1	Y
+localhost	root	test_role2	Y
 localhost	test_user	test_role1	N
 localhost	test_user	test_role2	N
 drop user 'test_user'@'localhost';

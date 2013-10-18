@@ -53,6 +53,13 @@ GRANT r_sel TO 'test_user'@'localhost'
 GRANT r_upd TO 'test_user'@'localhost'
 select * from mysql.roles_mapping;
 Host	User	Role	Admin_option
+localhost	root	r_crt	Y
+localhost	root	r_del	Y
+localhost	root	r_drp	Y
+localhost	root	r_ins	Y
+localhost	root	r_rld	Y
+localhost	root	r_sel	Y
+localhost	root	r_upd	Y
 localhost	test_user	r_crt	N
 localhost	test_user	r_del	N
 localhost	test_user	r_drp	N
