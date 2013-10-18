@@ -1,0 +1,49 @@
+create user 'test_user'@'localhost';
+create user 'test_role1'@'';
+update mysql.user set is_role='Y' where user='test_role1';
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+'test_user',
+'test_role1');
+select user, host from mysql.user where user not like 'root';
+user	host
+test_role1	
+test_user	localhost
+select * from mysql.roles_mapping;
+HostFk	UserFk	RoleFk
+localhost	test_user	test_role1
+flush privileges;
+grant select on mysql.* to test_role1@'';
+grant insert, delete on mysql.roles_mapping to test_role1@'';
+grant reload on *.* to test_role1@'';
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+set role test_role1;
+select * from mysql.roles_mapping;
+HostFk	UserFk	RoleFk
+localhost	test_user	test_role1
+insert into mysql.user (user, host) values ('Dummy', 'Dummy');
+ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 'user'
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+'test_user',
+'test_role2');
+delete from mysql.roles_mapping where RoleFk='test_role2';
+use mysql;
+set role none;
+use mysql;
+ERROR 42000: Access denied for user 'test_user'@'localhost' to database 'mysql'
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+insert into mysql.user (user, host) values ('Dummy', 'Dummy');
+ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 'user'
+insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
+'test_user',
+'test_role2');
+ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+delete from mysql.roles_mapping where RoleFk='test_role2';
+ERROR 42000: DELETE command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+drop user 'test_user'@'localhost';
+revoke select on mysql.* from test_role1@'';
+revoke insert, delete on mysql.roles_mapping from test_role1@'';
+delete from mysql.user where user='test_role1';
+delete from mysql.roles_mapping where RoleFk='test_role1';
+flush privileges;
