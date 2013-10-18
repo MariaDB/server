@@ -4042,9 +4042,12 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
   */
   if (!find_user_no_anon(combo.host.str,combo.user.str, FALSE))
   {
-    my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH),
-               MYF(0));	/* purecov: deadcode */
-    DBUG_RETURN(-1);				/* purecov: deadcode */
+    if (!combo.host.length && !find_acl_role(combo.user.str))
+    {
+      my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH),
+                 MYF(0)); /* purecov: deadcode */
+      DBUG_RETURN(-1);                            /* purecov: deadcode */
+    }
   }
 
   table->use_all_columns();
