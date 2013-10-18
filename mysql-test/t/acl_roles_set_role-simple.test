@@ -29,6 +29,6 @@ select * from mysql.roles_mapping;
 
 change_user 'root';
 delete from mysql.user where user='test_role1';
-delete from mysql.roles_mapping where UserFk='test_role1';
-drop user 'test_user'@'localhost';
+delete from mysql.roles_mapping where RoleFk='test_role1';
 flush privileges;
+drop user 'test_user'@'localhost';

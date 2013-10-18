@@ -16,9 +16,11 @@ insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
 flush privileges;
 
 select user, host from mysql.user where user not like 'root';
-select * from mysql.roles_mapping;
+select * from mysql.roles_mapping where UserFk like 'test_user';
+select * from mysql.roles_mapping where UserFk like 'test_role1';
 grant select on *.* to 'test_role2'@'';
-select * from mysql.user where user like 'test_role%';
+select * from mysql.user where user like 'test_role1';
+select * from mysql.user where user like 'test_role2';
 flush privileges;
 
 change_user 'test_user';
