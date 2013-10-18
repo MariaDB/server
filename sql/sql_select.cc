@@ -10555,7 +10555,6 @@ void JOIN_TAB::remove_redundant_bnl_scan_conds()
          cache->get_join_alg() == JOIN_CACHE::BNLH_JOIN_ALG)))
     return;
 
-
   /*
     select->cond is not processed separately. This method assumes it is always
     the same as select_cond.
