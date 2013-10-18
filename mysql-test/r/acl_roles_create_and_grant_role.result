@@ -4,12 +4,12 @@ create user u1;
 set role r1;
 grant r1 to u1;
 select * from mysql.roles_mapping;
-HostFk	UserFk	RoleFk
+Host	User	Role
 %	u1	r1
 localhost	root	r1
 drop user u1;
 select * from mysql.roles_mapping;
-HostFk	UserFk	RoleFk
+Host	User	Role
 localhost	root	r1
 show grants;
 Grants for root@localhost
@@ -19,7 +19,7 @@ GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO 'r1'
 drop role r1;
 select * from mysql.roles_mapping;
-HostFk	UserFk	RoleFk
+Host	User	Role
 show grants;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION

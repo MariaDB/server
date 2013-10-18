@@ -2,18 +2,14 @@ create user 'test_user'@'localhost';
 create role test_role1;
 create role test_role2;
 
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-                                                                 'test_user',
-                                                                 'test_role1');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
-                                                                 'test_role1',
-                                                                 'test_role2');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role1');
+insert into mysql.roles_mapping values ('', 'test_role1', 'test_role2');
 --sorted_result
 select user, host from mysql.user where user not like 'root';
 --sorted_result
 select * from mysql.roles_mapping;
 
-grant select (RoleFk) on mysql.roles_mapping to test_role2;
+grant select (Role) on mysql.roles_mapping to test_role2;
 
 flush privileges;
 
@@ -36,7 +32,7 @@ show grants;
 select * from mysql.roles_mapping;
 
 --sorted_result
-select RoleFk from mysql.roles_mapping;
+select Role from mysql.roles_mapping;
 
 --sorted_result
 show grants;
@@ -48,13 +44,13 @@ select current_user(), current_role();
 
 --sorted_result
 --error ER_TABLEACCESS_DENIED_ERROR
-select RoleFk from mysql.roles_mapping;
+select Role from mysql.roles_mapping;
 
 change_user 'root';
 drop user 'test_user'@'localhost';
 select * from mysql.tables_priv;
 revoke select on mysql.roles_mapping from test_role2;
 delete from mysql.user where user like'test_%';
-delete from mysql.roles_mapping where RoleFk like 'test%';
+delete from mysql.roles_mapping where Role like 'test%';
 
 flush privileges;

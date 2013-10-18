@@ -1,19 +1,15 @@
 create user 'test_user'@'localhost';
 create role test_role1;
 create role test_role2;
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-'test_user',
-'test_role1');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
-'test_role1',
-'test_role2');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role1');
+insert into mysql.roles_mapping values ('', 'test_role1', 'test_role2');
 select user, host from mysql.user where user not like 'root';
 user	host
 test_role1	
 test_role2	
 test_user	localhost
 select * from mysql.roles_mapping;
-HostFk	UserFk	RoleFk
+Host	User	Role
 	test_role1	test_role2
 localhost	test_user	test_role1
 grant select on mysql.roles_mapping to test_role2;
@@ -40,7 +36,7 @@ GRANT USAGE ON *.* TO 'test_user'@'localhost'
 GRANT test_role1 TO 'test_user'@'localhost'
 GRANT test_role2 TO 'test_role1'
 select * from mysql.roles_mapping;
-HostFk	UserFk	RoleFk
+Host	User	Role
 	test_role1	test_role2
 localhost	test_user	test_role1
 show grants;
@@ -64,5 +60,5 @@ Host	Db	User	Table_name	Grantor	Timestamp	Table_priv	Column_priv
 	mysql	test_role2	roles_mapping	root@localhost	0000-00-00 00:00:00	Select	
 revoke select on mysql.roles_mapping from test_role2;
 delete from mysql.user where user like'test_%';
-delete from mysql.roles_mapping where RoleFk like 'test%';
+delete from mysql.roles_mapping where Role like 'test%';
 flush privileges;

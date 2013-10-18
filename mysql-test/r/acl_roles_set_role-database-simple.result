@@ -1,14 +1,12 @@
 create user 'test_user'@'localhost';
 create role test_role1;
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-'test_user',
-'test_role1');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role1');
 select user, host from mysql.user where user not like 'root';
 user	host
 test_role1	
 test_user	localhost
 select * from mysql.roles_mapping;
-HostFk	UserFk	RoleFk
+Host	User	Role
 localhost	test_user	test_role1
 flush privileges;
 grant select on mysql.* to test_role1;
@@ -24,14 +22,12 @@ select current_user(), current_role();
 current_user()	current_role()
 test_user@localhost	test_role1
 select * from mysql.roles_mapping;
-HostFk	UserFk	RoleFk
+Host	User	Role
 localhost	test_user	test_role1
 insert into mysql.user (user, host) values ('Dummy', 'Dummy');
 ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 'user'
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-'test_user',
-'test_role2');
-delete from mysql.roles_mapping where RoleFk='test_role2';
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role2');
+delete from mysql.roles_mapping where Role='test_role2';
 use mysql;
 set role none;
 select current_user(), current_role();
@@ -43,15 +39,13 @@ select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 insert into mysql.user (user, host) values ('Dummy', 'Dummy');
 ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 'user'
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-'test_user',
-'test_role2');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role2');
 ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
-delete from mysql.roles_mapping where RoleFk='test_role2';
+delete from mysql.roles_mapping where Role='test_role2';
 ERROR 42000: DELETE command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 drop user 'test_user'@'localhost';
 revoke select on mysql.* from test_role1;
 revoke insert, delete on mysql.roles_mapping from test_role1;
 drop role test_role1;
-delete from mysql.roles_mapping where RoleFk='test_role1';
+delete from mysql.roles_mapping where Role='test_role1';
 flush privileges;

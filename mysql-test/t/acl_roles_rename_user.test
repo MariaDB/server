@@ -2,13 +2,9 @@
 #create a user with no privileges
 create user test_user@localhost;
 create role test_role1;
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-                                                                 'test_user',
-                                                                 'test_role1');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role1');
 create role test_role2;
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
-                                                                 'test_role1',
-                                                                 'test_role2');
+insert into mysql.roles_mapping values ('', 'test_role1', 'test_role2');
 flush privileges;
 
 use mysql;

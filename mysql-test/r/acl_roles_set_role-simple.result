@@ -1,15 +1,13 @@
 create user 'test_user'@'localhost';
 create user 'test_role1'@'';
 update mysql.user set is_role='Y' where user='test_role1';
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-'test_user',
-'test_role1');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role1');
 select user, host from mysql.user where user not like 'root';
 user	host
 test_role1	%
 test_user	localhost
 select * from mysql.roles_mapping;
-HostFk	UserFk	RoleFk
+Host	User	Role
 localhost	test_user	test_role1
 grant select on *.* to 'test_role1'@'';
 select * from mysql.user where user='test_role1';
@@ -35,7 +33,7 @@ GRANT SELECT ON *.* TO 'test_role1'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
 GRANT test_role1 TO 'test_user'@'localhost'
 select * from mysql.roles_mapping;
-HostFk	UserFk	RoleFk
+Host	User	Role
 localhost	test_user	test_role1
 set role none;
 select current_user(), current_role();
@@ -44,6 +42,6 @@ test_user@localhost	NULL
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 delete from mysql.user where user='test_role1';
-delete from mysql.roles_mapping where RoleFk='test_role1';
+delete from mysql.roles_mapping where Role='test_role1';
 flush privileges;
 drop user 'test_user'@'localhost';

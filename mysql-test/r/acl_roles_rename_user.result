@@ -1,16 +1,12 @@
 create user test_user@localhost;
 create role test_role1;
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-'test_user',
-'test_role1');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role1');
 create role test_role2;
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
-'test_role1',
-'test_role2');
+insert into mysql.roles_mapping values ('', 'test_role1', 'test_role2');
 flush privileges;
 use mysql;
 select * from roles_mapping;
-HostFk	UserFk	RoleFk
+Host	User	Role
 	test_role1	test_role2
 localhost	test_user	test_role1
 rename user 'test_user'@'localhost' to 'test_user_rm'@'newhost';
@@ -20,7 +16,7 @@ test_role1
 test_role2	
 test_user_rm	newhost
 select * from roles_mapping;
-HostFk	UserFk	RoleFk
+Host	User	Role
 	test_role1	test_role2
 newhost	test_user_rm	test_role1
 delete from mysql.roles_mapping;

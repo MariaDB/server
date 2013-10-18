@@ -3,15 +3,9 @@ create user 'test_user'@'localhost';
 create role test_role1;
 create role test_role2;
 
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-                                                                 'test_user',
-                                                                 'test_role1');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-                                                                 'test_user',
-                                                                 'test_role2');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
-                                                                 'test_role1',
-                                                                 'test_role2');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role1');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role2');
+insert into mysql.roles_mapping values ('', 'test_role1', 'test_role2');
 --sorted_result
 select user, host from mysql.user where user not like 'root';
 --sorted_result
@@ -48,6 +42,6 @@ drop user 'test_user'@'localhost';
 revoke select on mysql.* from test_role2;
 delete from mysql.user where user='test_role1';
 delete from mysql.user where user='test_role2';
-delete from mysql.roles_mapping where RoleFk='test_role1';
-delete from mysql.roles_mapping where RoleFk='test_role2';
+delete from mysql.roles_mapping where Role='test_role1';
+delete from mysql.roles_mapping where Role='test_role2';
 flush privileges;

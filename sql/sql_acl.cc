@@ -8072,10 +8072,10 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
                                        LEX_USER *user_from, LEX_USER *user_to)
 {
   /*
-    All entries (HostFK, UserFk) that match user_from will be renamed,
-    as well as all RoleFk entries that match if user_from.host.str == ""
+    All entries (Host, User) that match user_from will be renamed,
+    as well as all Role entries that match if user_from.host.str == ""
 
-    Otherwise, only matching (HostFk, UserFk) will be renamed.
+    Otherwise, only matching (Host, User) will be renamed.
   */
   DBUG_ENTER("handle_roles_mappings_table");
 
