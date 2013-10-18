@@ -99,6 +99,7 @@ plugin
 proc
 procs_priv
 proxies_priv
+roles_mapping
 servers
 slow_log
 t1
@@ -706,6 +707,7 @@ max_questions	select,insert,update,references
 max_connections	select,insert,update,references
 max_user_connections	select,insert,update,references
 authentication_string	select,insert,update,references
+is_role	select,insert,update,references
 use test;
 create function sub1(i int) returns int
 return i+1;
