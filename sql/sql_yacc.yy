@@ -2218,7 +2218,7 @@ create:
           {
             Lex->sql_command = SQLCOM_CREATE_USER;
           }
-        | CREATE ROLE_SYM clear_privileges role_list
+        | CREATE ROLE_SYM clear_privileges opt_if_not_exists role_list
           {
             Lex->sql_command = SQLCOM_CREATE_ROLE;
           }
