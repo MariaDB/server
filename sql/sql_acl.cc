@@ -221,26 +221,14 @@ public:
   LEX_STRING user;
   uint8 salt[SCRAMBLE_LENGTH + 1];       // scrambled password in binary form
   uint8 salt_len;        // 0 - no password, 4 - 3.20, 8 - 4.0,  20 - 4.1.1
-  uchar flags;           // field used to store various state information
   enum SSL_type ssl_type;
   const char *ssl_cipher, *x509_issuer, *x509_subject;
   LEX_STRING plugin;
   LEX_STRING auth_string;
   /*
     list to hold references to granted roles (ACL_USER instances)
-    if the instance of the class represents a user, or a user if the
-    instance of the class represents a role.
   */
   DYNAMIC_ARRAY role_grants;
-  /*
-    In case of granting a role to a role, the access bits are merged together
-    via a bit OR operation and placed in the ACL_USER::access field.
-
-    When rebuilding role_grants via the rebuild_role_grant function,
-    the ACL_USER::access field needs to be reset aswell. The field
-    initial_role_access holds the initial grants present in the table row.
-  */
-  ulong initial_role_access;
 
   ACL_USER *copy(MEM_ROOT *root)
   {
@@ -263,6 +251,24 @@ public:
     bzero(&dst->role_grants, sizeof(role_grants));
     return dst;
   }
+
+};
+
+class ACL_ROLE :public ACL_USER
+{
+public:
+  uchar flags;           // field used to store various state information
+  /*
+    In case of granting a role to a role, the access bits are merged together
+    via a bit OR operation and placed in the ACL_USER::access field.
+
+    When rebuilding role_grants via the rebuild_role_grant function,
+    the ACL_USER::access field needs to be reset aswell. The field
+    initial_role_access holds the initial grants present in the table row.
+  */
+  ulong initial_role_access;
+  DYNAMIC_ARRAY parent_grantee; // array of backlinks to elements granted
+
 };
 
 class ACL_DB :public ACL_ACCESS
@@ -554,11 +560,11 @@ typedef struct st_role_grant
 /*
   Struct to hold the state of a node during a Depth First Search exploration
 */
-template <class T> class NODE_STATE
+class NODE_STATE
 {
 public:
-  T *node_data;                  /* pointer to the node data */
-  uint neigh_idx;    /* the neighbour that needs to be evaluated next */
+  ACL_ROLE *node_data; /* pointer to the node data */
+  uint neigh_idx;      /* the neighbour that needs to be evaluated next */
 };
 
 static uchar* acl_role_map_get_key(ROLE_GRANT_PAIR *entry, size_t *length,
@@ -659,10 +665,11 @@ static void init_check_host(void);
 static void rebuild_check_host(void);
 static void rebuild_role_grants(void);
 static void free_acl_user(ACL_USER *acl_user);
+static void free_acl_role(ACL_ROLE *acl_role);
 static ACL_USER *find_user_no_anon(const char *host, const char *user,
                                    my_bool exact);
 static ACL_USER *find_user(const char *host, const char *user, const char *ip);
-static ACL_USER *find_acl_role(const char *user);
+static ACL_ROLE *find_acl_role(const char *user);
 static bool update_user_table(THD *thd, TABLE *table, const char *host,
                               const char *user, const char *new_password,
                               uint new_password_len);
@@ -671,12 +678,12 @@ static my_bool grant_load(THD *thd, TABLE_LIST *tables);
 static inline void get_grantor(THD *thd, char* grantor);
 static my_bool acl_user_reset_grant(ACL_USER *user,
                                     void * not_used __attribute__((unused)));
-static my_bool acl_role_reset_grant(ACL_USER *role,
+static my_bool acl_role_reset_grant(ACL_ROLE *role,
                                     void * not_used __attribute__((unused)));
-static my_bool acl_role_propagate_grants(ACL_USER *role,
+static my_bool acl_role_propagate_grants(ACL_ROLE *role,
                                          void * not_used __attribute__((unused)));
 static int add_role_user_mapping(ROLE_GRANT_PAIR *mapping);
-static my_bool get_role_access(ACL_USER *role, ulong *access);
+static my_bool get_role_access(ACL_ROLE *role, ulong *access);
 
 /*
  Enumeration of various ACL's and Hashes used in handle_grant_struct()
@@ -692,13 +699,42 @@ enum enum_acl_lists
   ROLES_MAPPINGS_HASH
 };
 
+static ACL_ROLE *create_role_from_user(MEM_ROOT *root, ACL_USER *user)
+{
+  ACL_ROLE *dst= (ACL_ROLE *) alloc_root(root, sizeof(ACL_ROLE));
+  if (!dst)
+    return 0;
+  *(ACL_USER *)dst= *user;
+  dst->user.str= safe_strdup_root(root, user->user.str);
+  dst->user.length= user->user.length;
+  dst->ssl_cipher= safe_strdup_root(root, user->ssl_cipher);
+  dst->x509_issuer= safe_strdup_root(root, user->x509_issuer);
+  dst->x509_subject= safe_strdup_root(root, user->x509_subject);
+  if (user->plugin.str == native_password_plugin_name.str ||
+      user->plugin.str == old_password_plugin_name.str)
+    dst->plugin= user->plugin;
+  else
+    dst->plugin.str= strmake_root(root, user->plugin.str, user->plugin.length);
+  dst->auth_string.str= safe_strdup_root(root, user->auth_string.str);
+  dst->host.hostname= safe_strdup_root(root, user->host.hostname);
+  bzero(&dst->role_grants, sizeof(dst->role_grants));
+  bzero(&dst->parent_grantee, sizeof(dst->parent_grantee));
+  dst->flags= 0;
+  return dst;
+}
 static
 void
 free_acl_user(ACL_USER *user)
 {
   delete_dynamic(&(user->role_grants));
 }
-/*
+static
+void
+free_acl_role(ACL_ROLE *role)
+{
+  delete_dynamic(&(role->role_grants));
+  delete_dynamic(&(role->parent_grantee));
+}/*
   Convert scrambled password to binary form, according to scramble type,
   Binary form is stored in user.salt.
 */
@@ -953,7 +989,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER), 50, 100, MYF(0));
   (void) my_hash_init2(&acl_roles,50,system_charset_info,
                        0,0,0, (my_hash_get_key) acl_role_get_key,
-                       (void (*)(void *))free_acl_user, 0);
+                       (void (*)(void *))free_acl_role, 0);
 
   username_char_length= min(table->field[1]->char_length(), USERNAME_CHAR_LENGTH);
   password_length= table->field[2]->field_length /
@@ -1008,9 +1044,10 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     user.user.str= username;
     user.user.length= username? strlen(username) : 0;
 
-    /* If the user entry is a role, skip password and hostname checks
+    /*
+       If the user entry is a role, skip password and hostname checks
        A user can not log in with a role so some checks are not necessary
-     */
+    */
     is_role= check_is_role(table);
 
     if (!is_role && check_no_resolve &&
@@ -1152,15 +1189,17 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 #endif
       }
 
-      (void) my_init_dynamic_array(&user.role_grants,sizeof(ACL_USER *),
+      (void) my_init_dynamic_array(&user.role_grants,sizeof(ACL_ROLE *),
                                    50, 100, MYF(0));
 
       if (is_role) {
         DBUG_PRINT("info", ("Found role %s", user.user.str));
-        ACL_USER *entry= user.copy(&mem);
+        ACL_ROLE *entry= create_role_from_user(&mem, &user);
         entry->role_grants = user.role_grants;
+        (void) my_init_dynamic_array(&entry->parent_grantee, sizeof(ACL_USER *),
+                                     50, 100, MYF(0));
         /* set initial role access the same as the table row privileges */
-        entry->initial_role_access = entry->access;
+        entry->initial_role_access= entry->access;
         my_hash_insert(&acl_roles, (uchar *)entry);
 
         continue;
@@ -1707,7 +1746,7 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
   /* clear role privileges */
   mysql_mutex_lock(&acl_cache->lock);
 
-  ACL_USER *role= find_acl_role(rolename);
+  ACL_ROLE *role= find_acl_role(rolename);
   ACL_USER *acl_user;
 
   if (!strcasecmp(rolename, "NONE")) {
@@ -1733,9 +1772,9 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
     goto end;
   }
 
-  for (uint i=0 ; i < role->role_grants.elements ; i++)
+  for (uint i=0 ; i < role->parent_grantee.elements ; i++)
   {
-    acl_user= *(dynamic_element(&role->role_grants, i, ACL_USER**));
+    acl_user= *(dynamic_element(&role->parent_grantee, i, ACL_USER**));
     if ((!acl_user->user.str && !thd->security_ctx->user[0]) ||
         (acl_user->user.str && !strcmp(thd->security_ctx->user,
                                        acl_user->user.str)))
@@ -2140,7 +2179,7 @@ void rebuild_check_host(void)
   init_check_host();
 }
 
-static my_bool acl_role_propagate_grants(ACL_USER *role,
+static my_bool acl_role_propagate_grants(ACL_ROLE *role,
                                          void * not_used __attribute__((unused)))
 {
   ulong access;
@@ -2154,10 +2193,11 @@ static my_bool acl_role_propagate_grants(ACL_USER *role,
 
   The function can be used as a walk action for hash elements aswell.
 */
-my_bool acl_role_reset_grant(ACL_USER *role,
+my_bool acl_role_reset_grant(ACL_ROLE *role,
                              void * not_used __attribute__((unused)))
 {
   reset_dynamic(&role->role_grants);
+  reset_dynamic(&role->parent_grantee);
   /* Also reset the role access bits */
   role->access= role->initial_role_access;
   role->flags&= ~ROLE_GRANTS_FINAL;
@@ -2184,13 +2224,15 @@ my_bool acl_user_reset_grant(ACL_USER *user,
     TRUE: Error or invalid parameteres
     FALSE: All ok;
 */
-my_bool get_role_access(ACL_USER *role, ulong *access)
+my_bool get_role_access(ACL_ROLE *role, ulong *access)
 {
   DBUG_ENTER("get_role_access");
   DBUG_ASSERT(role);
   DBUG_ASSERT(access);
-  /* the search operation should always leave the ROLE_VISITED flag clean
-     for all nodes involved in the search */
+  /*
+     The search operation should always leave the ROLE_VISITED flag clean
+     for all nodes involved in the search
+  */
   DBUG_ASSERT(!(role->flags & ROLE_VISITED));
 
   /*
@@ -2204,41 +2246,40 @@ my_bool get_role_access(ACL_USER *role, ulong *access)
     DBUG_RETURN(FALSE);
   }
 
-  DYNAMIC_ARRAY stack;  /* stack used to simulate the recursive calls of DFS
-                         * used a DYNAMIC_ARRAY to reduce the number of
-                         * malloc calls to a minimum */
-  NODE_STATE<ACL_USER> state; /* variable used to insert elements in the stack */
+  /*
+     Stack used to simulate the recursive calls of DFS.
+     It uses a DYNAMIC_ARRAY to reduce the number of
+     malloc calls to a minimum
+  */
+  DYNAMIC_ARRAY stack;  
+  NODE_STATE state;     /* variable used to insert elements in the stack */
 
   state.neigh_idx= 0;
   state.node_data= role;
   role->flags|= ROLE_VISITED;
 
-  (void) my_init_dynamic_array(&stack,sizeof(NODE_STATE<ACL_USER>),
-                               20, 50, MYF(0));
-  insert_dynamic(&stack, &state);
-
+  (void) my_init_dynamic_array(&stack,sizeof(NODE_STATE), 20, 50, MYF(0));
+  push_dynamic(&stack, &state);
 
   while (stack.elements)
   {
-    NODE_STATE<ACL_USER> *curr_state= dynamic_element(&stack,
-                                                      stack.elements - 1,
-                                                      NODE_STATE<ACL_USER> *);
+    NODE_STATE *curr_state= dynamic_element(&stack, stack.elements - 1,
+                                            NODE_STATE *);
 
     DBUG_ASSERT(curr_state->node_data->flags & ROLE_VISITED);
 
-    ACL_USER *current= state.node_data;
-    ACL_USER *neighbour= NULL;
-    /* iterate through the neighbours until a first valid jump-to
-       neighbour is found */
+    ACL_ROLE *current= state.node_data;
+    ACL_ROLE *neighbour= NULL;
+    /*
+      Iterate through the neighbours until a first valid jump-to
+      neighbour is found
+    */
     my_bool found= FALSE;
     uint i;
     for (i= curr_state->neigh_idx;
          i < current->role_grants.elements && found == FALSE; i++)
     {
-      neighbour= *(dynamic_element(&current->role_grants, i, ACL_USER**));
-      /* check if the neighbour is a role; pass if not*/
-      if (!(neighbour->flags & IS_ROLE))
-        continue;
+      neighbour= *(dynamic_element(&current->role_grants, i, ACL_ROLE**));
 
       /* check if it forms a cycle */
       if (neighbour->flags & ROLE_VISITED)
@@ -2247,26 +2288,31 @@ my_bool get_role_access(ACL_USER *role, ulong *access)
         continue;
       }
 
-      /* check if it was already explored, in that case, just set the rights
-         and move on */
+      /*
+         Check if it was already explored, in that case, just set the rights
+         and move on
+      */
       if (neighbour->flags & ROLE_GRANTS_FINAL)
       {
         current->access|= neighbour->access;
         continue;
       }
 
-      /* set the current state search index to the next index
+      /*
+         Set the current state search index to the next index
          this needs to be done before inserting, so as to make sure that the
          pointer is valid
-       */
+      */
       found= TRUE;
     }
 
     if (found)
     {
-      /* we're going to have to take a look at the same neighbour again
+      /*
+         we're going to have to take a look at the same neighbour again
          once it is done being explored, thus, set the neigh_idx to "i"
-         which is the current neighbour that will be added on the stack*/
+         which is the current neighbour that will be added on the stack
+      */
       curr_state->neigh_idx= i;
 
       /* some sanity checks */
@@ -2276,29 +2322,26 @@ my_bool get_role_access(ACL_USER *role, ulong *access)
       neighbour->flags|= ROLE_VISITED;
       state.neigh_idx= 0;
       state.node_data= neighbour;
-      insert_dynamic(&stack, &state);
+      push_dynamic(&stack, &state);
     }
     else
     {
-      /* make sure we got a correct node */
+      /* Make sure we got a correct node */
       DBUG_ASSERT(!(curr_state->node_data->flags & ROLE_GRANTS_FINAL));
       DBUG_ASSERT(curr_state->node_data->flags & ROLE_VISITED);
-      /*
-        if we have finished with exploring the current node, pop it off the
-        stack
-       */
-      curr_state= (NODE_STATE<ACL_USER> *)pop_dynamic(&stack);
+      /* Finished with exploring the current node, pop it off the stack */
+      curr_state= (NODE_STATE *)pop_dynamic(&stack);
       curr_state->node_data->flags&= ~ROLE_VISITED; /* clear the visited bit */
       curr_state->node_data->flags|= ROLE_GRANTS_FINAL;
-      /* add the own role's rights once it's finished exploring */
+      /* Add the own role's rights once it's finished exploring */
       curr_state->node_data->access|= curr_state->node_data->initial_role_access;
     }
   }
 
 
-  /* cleanup */
+  /* Cleanup */
   delete_dynamic(&stack);
-  /* finally set the access */
+  /* Finally set the access */
   *access= role->access;
   DBUG_RETURN(0);
 }
@@ -2317,7 +2360,7 @@ int add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
   ACL_USER *user= find_user_no_anon((mapping->u_hname) ? mapping->u_hname: "",
                                     (mapping->u_uname) ? mapping->u_uname: "",
                                     TRUE);
-  ACL_USER *role= find_acl_role(mapping->r_uname ? mapping->r_uname: "");
+  ACL_ROLE *role= find_acl_role(mapping->r_uname ? mapping->r_uname: "");
 
   int result= 0;
 
@@ -2341,13 +2384,7 @@ int add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
   }
 
   push_dynamic(&user->role_grants, (uchar*) &role);
-  /*
-     Only add the other link if the grant is between a user
-     and a role, otherwise, the grant is unidirectional,
-     so as to prevent cycles in the grant role to role graph.
-   */
-  if (!result) 
-    push_dynamic(&role->role_grants, (uchar*) &user);
+  push_dynamic(&role->parent_grantee, (uchar*) &user);
 
   DBUG_PRINT("info", ("Found %s %s@%s having role granted %s@%s\n",
                         (result) ? "role" : "user",
@@ -2681,7 +2718,7 @@ find_user_no_anon(const char *host, const char *user, my_bool exact)
 /*
   Find first entry that matches the current user
 */
-static ACL_USER *
+static ACL_ROLE *
 find_acl_role(const char *user)
 {
   DBUG_ENTER("find_acl_role");
@@ -2689,7 +2726,7 @@ find_acl_role(const char *user)
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  DBUG_RETURN((ACL_USER *)my_hash_search(&acl_roles, (uchar *)user,
+  DBUG_RETURN((ACL_ROLE *)my_hash_search(&acl_roles, (uchar *)user,
                                          user ? strlen(user) : 0));
 }
 
