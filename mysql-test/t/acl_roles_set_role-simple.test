@@ -4,9 +4,7 @@ create user 'test_user'@'localhost';
 create user 'test_role1'@'';
 #manualy create role
 update mysql.user set is_role='Y' where user='test_role1';
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-                                                                 'test_user',
-                                                                 'test_role1');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role1');
 --sorted_result
 select user, host from mysql.user where user not like 'root';
 --sorted_result
@@ -38,6 +36,6 @@ select * from mysql.roles_mapping;
 
 change_user 'root';
 delete from mysql.user where user='test_role1';
-delete from mysql.roles_mapping where RoleFk='test_role1';
+delete from mysql.roles_mapping where Role='test_role1';
 flush privileges;
 drop user 'test_user'@'localhost';

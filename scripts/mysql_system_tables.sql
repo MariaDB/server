@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS user (   Host char(60) binary DEFAULT '' NOT NULL, Us
 -- Remember for later if user table already existed
 set @had_user_table= @@warning_count != 0;
 
-CREATE TABLE IF NOT EXISTS roles_mapping (HostFk char(60) binary DEFAULT '' NOT NULL, UserFk char(16) binary DEFAULT '' NOT NULL, RoleFk char(16) binary DEFAULT '' NOT NULL, unique index (HostFk, UserFk, RoleFk));
+CREATE TABLE IF NOT EXISTS roles_mapping (Host char(60) binary DEFAULT '' NOT NULL, User char(16) binary DEFAULT '' NOT NULL, Role char(16) binary DEFAULT '' NOT NULL, unique index (Host, User, Role));
 
 CREATE TABLE IF NOT EXISTS func (  name char(64) binary DEFAULT '' NOT NULL, ret tinyint(1) DEFAULT '0' NOT NULL, dl char(128) DEFAULT '' NOT NULL, type enum ('function','aggregate') COLLATE utf8_general_ci NOT NULL, PRIMARY KEY (name) ) engine=MyISAM CHARACTER SET utf8 COLLATE utf8_bin   comment='User defined functions';
 

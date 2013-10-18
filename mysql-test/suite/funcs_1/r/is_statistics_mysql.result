@@ -54,9 +54,9 @@ def	mysql	proxies_priv	0	mysql	PRIMARY	1	Host	A	#CARD#	NULL	NULL		BTREE
 def	mysql	proxies_priv	0	mysql	PRIMARY	2	User	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	proxies_priv	0	mysql	PRIMARY	3	Proxied_host	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	proxies_priv	0	mysql	PRIMARY	4	Proxied_user	A	#CARD#	NULL	NULL		BTREE		
-def	mysql	roles_mapping	0	mysql	HostFk	1	HostFk	A	#CARD#	NULL	NULL		BTREE		
-def	mysql	roles_mapping	0	mysql	HostFk	2	UserFk	A	#CARD#	NULL	NULL		BTREE		
-def	mysql	roles_mapping	0	mysql	HostFk	3	RoleFk	A	#CARD#	NULL	NULL		BTREE		
+def	mysql	roles_mapping	0	mysql	Host	1	Host	A	#CARD#	NULL	NULL		BTREE		
+def	mysql	roles_mapping	0	mysql	Host	2	User	A	#CARD#	NULL	NULL		BTREE		
+def	mysql	roles_mapping	0	mysql	Host	3	Role	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	servers	0	mysql	PRIMARY	1	Server_name	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	tables_priv	1	mysql	Grantor	1	Grantor	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	tables_priv	0	mysql	PRIMARY	1	Host	A	#CARD#	NULL	NULL		BTREE		

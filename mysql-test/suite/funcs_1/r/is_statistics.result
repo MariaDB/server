@@ -132,9 +132,9 @@ def	mysql	proxies_priv	mysql	PRIMARY
 def	mysql	proxies_priv	mysql	PRIMARY
 def	mysql	proxies_priv	mysql	PRIMARY
 def	mysql	proxies_priv	mysql	Grantor
-def	mysql	roles_mapping	mysql	HostFk
-def	mysql	roles_mapping	mysql	HostFk
-def	mysql	roles_mapping	mysql	HostFk
+def	mysql	roles_mapping	mysql	Host
+def	mysql	roles_mapping	mysql	Host
+def	mysql	roles_mapping	mysql	Host
 def	mysql	servers	mysql	PRIMARY
 def	mysql	table_stats	mysql	PRIMARY
 def	mysql	table_stats	mysql	PRIMARY

@@ -35,27 +35,13 @@ Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	D
 select * from mysql.user where user='r_rld';
 Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	is_role
 %	r_rld		N	N	N	N	N	N	Y	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N					0	0	0	0			Y
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-'test_user',
-'r_sel');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-'test_user',
-'r_ins');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-'test_user',
-'r_upd');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-'test_user',
-'r_del');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-'test_user',
-'r_crt');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-'test_user',
-'r_drp');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-'test_user',
-'r_rld');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_sel');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_ins');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_upd');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_del');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_crt');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_drp');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_rld');
 flush privileges;
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
@@ -88,7 +74,7 @@ GRANT r_rld TO 'test_user'@'localhost'
 GRANT r_sel TO 'test_user'@'localhost'
 GRANT r_upd TO 'test_user'@'localhost'
 select * from mysql.roles_mapping;
-HostFk	UserFk	RoleFk
+Host	User	Role
 localhost	test_user	r_crt
 localhost	test_user	r_del
 localhost	test_user	r_drp
@@ -113,9 +99,7 @@ GRANT r_sel TO 'test_user'@'localhost'
 GRANT r_upd TO 'test_user'@'localhost'
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
-'r_sel',
-'r_rld');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_rld');
 flush privileges;
 ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
 set role r_rld;
@@ -138,21 +122,11 @@ set role r_ins;
 select current_user(), current_role();
 current_user()	current_role()
 test_user@localhost	r_ins
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
-'r_sel',
-'r_upd');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
-'r_sel',
-'r_del');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
-'r_sel',
-'r_crt');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
-'r_sel',
-'r_drp');
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
-'r_del',
-'r_ins');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_upd');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_del');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_crt');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_drp');
+insert into mysql.roles_mapping values ('', 'r_del', 'r_ins');
 set role r_rld;
 select current_user(), current_role();
 current_user()	current_role()
@@ -162,7 +136,7 @@ set role r_sel;
 select current_user(), current_role();
 current_user()	current_role()
 test_user@localhost	r_sel
-update mysql.roles_mapping set RoleFk='r_ins' where RoleFk='r_ins_wrong';
+update mysql.roles_mapping set Role='r_ins' where Role='r_ins_wrong';
 flush privileges;
 set role r_sel;
 select current_user(), current_role();
@@ -173,7 +147,7 @@ insert into mysql.random_test_table values (1);
 select * from mysql.random_test_table;
 id
 1
-delete from mysql.roles_mapping where RoleFk='r_ins';
+delete from mysql.roles_mapping where Role='r_ins';
 flush privileges;
 set role r_sel;
 select current_user(), current_role();
@@ -183,6 +157,6 @@ insert into mysql.random_test_table values (1);
 ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 'random_test_table'
 drop table mysql.random_test_table;
 delete from mysql.user where user like 'r\_%';
-delete from mysql.roles_mapping where RoleFk like 'r\_%';
+delete from mysql.roles_mapping where Role like 'r\_%';
 flush privileges;
 drop user 'test_user'@'localhost';

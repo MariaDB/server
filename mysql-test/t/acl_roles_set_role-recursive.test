@@ -4,23 +4,19 @@ create user 'test_user'@'localhost';
 create user 'test_role1'@'';
 #manualy create role
 update mysql.user set is_role='Y' where user='test_role1';
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
-                                                                 'test_user',
-                                                                 'test_role1');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role1');
 create user 'test_role2'@'';
 #manualy create role
 update mysql.user set is_role='Y' where user='test_role2';
-insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('',
-                                                                 'test_role1',
-                                                                 'test_role2');
+insert into mysql.roles_mapping values ('', 'test_role1', 'test_role2');
 flush privileges;
 
 --sorted_result
 select user, host from mysql.user where user not like 'root';
 --sorted_result
-select * from mysql.roles_mapping where UserFk like 'test_user';
+select * from mysql.roles_mapping where User like 'test_user';
 --sorted_result
-select * from mysql.roles_mapping where UserFk like 'test_role1';
+select * from mysql.roles_mapping where User like 'test_role1';
 grant select on *.* to 'test_role2'@'';
 --sorted_result
 select * from mysql.user where user like 'test_role1';
@@ -40,7 +36,7 @@ set role test_role1;
 select current_user(), current_role();
 --sorted_result
 show grants;
-select * from mysql.roles_mapping where HostFk='';
+select * from mysql.roles_mapping where Host='';
 
 --sorted_result
 show grants;
@@ -69,7 +65,7 @@ select current_user(), current_role();
 --sorted_result
 show grants;
 --sorted_result
-select * from mysql.roles_mapping where HostFk='';
+select * from mysql.roles_mapping where Host='';
 
 --sorted_result
 show grants;
