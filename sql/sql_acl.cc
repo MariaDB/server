@@ -734,7 +734,9 @@ free_acl_role(ACL_ROLE *role)
 {
   delete_dynamic(&(role->role_grants));
   delete_dynamic(&(role->parent_grantee));
-}/*
+}
+
+/*
   Convert scrambled password to binary form, according to scramble type,
   Binary form is stored in user.salt.
 */
