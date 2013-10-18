@@ -5404,9 +5404,6 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     DBUG_RETURN(TRUE);                          /* purecov: deadcode */
   }
 
-  MEM_ROOT temp_root;
-  init_alloc_root(&temp_root, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
-
   while ((user= user_list++))
   {
     role_as_user= NULL;
@@ -5452,9 +5449,9 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       username= user->user.str;
     }
 
-    ROLE_GRANT_PAIR *hash_entry, *mapping= new (&temp_root) ROLE_GRANT_PAIR;
+    ROLE_GRANT_PAIR *hash_entry, *mapping= new (thd->mem_root) ROLE_GRANT_PAIR;
 
-    if (mapping->init(&temp_root, username, hostname, rolename,
+    if (mapping->init(thd->mem_root, username, hostname, rolename,
                       thd->lex->with_admin_option))
       continue;
 
@@ -5548,8 +5545,6 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       acl_update_role_entry(role_as_user, role_as_user->initial_role_access);
     }
   }
-
-  free_root(&temp_root, MYF(0));
 
   mysql_mutex_unlock(&acl_cache->lock);
   mysql_rwlock_unlock(&LOCK_grant);
@@ -8949,7 +8944,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 {
   int result;
   String wrong_users;
-  LEX_USER *user_name;
+  LEX_USER *user_name, *admin;
   List_iterator <LEX_USER> user_list(list);
   TABLE_LIST tables[GRANT_TABLES];
   bool some_users_created= FALSE;
@@ -8962,6 +8957,32 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
+
+  if (handle_as_role)
+  {
+    if (thd->lex->definer)
+      admin= get_current_user(thd, thd->lex->definer, false);
+    else
+      admin= create_default_definer(thd, false);
+    if (!admin)
+    {
+      mysql_mutex_unlock(&acl_cache->lock);
+      mysql_rwlock_unlock(&LOCK_grant);
+      DBUG_RETURN(TRUE);
+    }
+    bool exists;
+    if (admin->is_role())
+      exists= find_acl_role(admin->user.str);
+    else
+      exists= find_user_no_anon(admin->host.str, admin->user.str, TRUE);
+    if (!exists)
+    {
+      my_error(ER_NO_SUCH_USER, MYF(0), admin->user.str, admin->host.str);
+      mysql_mutex_unlock(&acl_cache->lock);
+      mysql_rwlock_unlock(&LOCK_grant);
+      DBUG_RETURN(TRUE);
+    }
+  }
 
   while ((user_name= user_list++))
   {
@@ -8985,6 +9006,27 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     {
       append_user(&wrong_users, user_name);
       result= TRUE;
+      continue;
+    }
+
+    // every created role is automatically granted to its creator-admin
+    if (handle_as_role)
+    {
+      ROLE_GRANT_PAIR *pair= new (thd->mem_root) ROLE_GRANT_PAIR;
+
+      if (pair->init(thd->mem_root, admin->user.str, admin->host.str,
+                     user_name->user.str, true))
+      {
+        result= TRUE;
+        break;
+      }
+      add_role_user_mapping(pair);
+      if (replace_roles_mapping_table(tables[6].table, pair, NULL, false))
+      {
+        append_user(&wrong_users, user_name);
+        remove_role_user_mapping(pair);
+        result= TRUE;
+      }
     }
   }
 
