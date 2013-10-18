@@ -1,41 +1,32 @@
 #create a user with no privileges
 create user 'test_user'@'localhost';
 
-create user 'r_sel'@'';
-create user 'r_ins'@'';
-create user 'r_upd'@'';
-create user 'r_del'@'';
-create user 'r_crt'@'';
-create user 'r_drp'@'';
-create user 'r_rld'@'';
-update mysql.user set Select_priv='Y' where user like 'r_sel';
-update mysql.user set Insert_priv='Y' where user like 'r_ins';
-update mysql.user set Update_priv='Y' where user like 'r_upd';
-update mysql.user set Delete_priv='Y' where user like 'r_del';
-update mysql.user set Create_priv='Y' where user like 'r_crt';
-update mysql.user set Drop_priv  ='Y' where user like 'r_drp';
-update mysql.user set Reload_priv='Y' where user like 'r_rld';
+create role r_sel;
+create role r_ins;
+create role r_upd;
+create role r_del;
+create role r_crt;
+create role r_drp;
+create role r_rld;
 
-update mysql.user set is_role='Y' where user like 'r\_%';
-
-select * from mysql.user where user='r_sel';
-select * from mysql.user where user='r_ins';
-select * from mysql.user where user='r_upd';
-select * from mysql.user where user='r_del';
-select * from mysql.user where user='r_crt';
-select * from mysql.user where user='r_drp';
-select * from mysql.user where user='r_rld';
+grant select on *.* to r_sel;
+grant insert on *.* to r_ins;
+grant update on *.* to r_upd;
+grant delete on *.* to r_del;
+grant create on *.* to r_crt;
+grant drop   on *.* to r_drp;
+grant reload on *.* to r_rld;
 
 #####################################
 #set up roles mapping
 #####################################
-insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_sel');
-insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_ins');
-insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_upd');
-insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_del');
-insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_crt');
-insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_drp');
-insert into mysql.roles_mapping values ('localhost', 'test_user', 'r_rld');
+grant r_sel to test_user@localhost;
+grant r_ins to test_user@localhost;
+grant r_upd to test_user@localhost;
+grant r_del to test_user@localhost;
+grant r_crt to test_user@localhost;
+grant r_drp to test_user@localhost;
+grant r_rld to test_user@localhost;
 flush privileges;
 
 change_user 'test_user';
@@ -59,7 +50,7 @@ select current_user(), current_role();
 show grants;
 --error ER_TABLEACCESS_DENIED_ERROR
 select * from mysql.roles_mapping;
-insert into mysql.roles_mapping values ('', 'r_sel', 'r_rld');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_rld', 'N');
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 flush privileges;
 set role r_rld;
@@ -75,11 +66,11 @@ flush privileges;
 
 set role r_ins;
 select current_user(), current_role();
-insert into mysql.roles_mapping values ('', 'r_sel', 'r_upd');
-insert into mysql.roles_mapping values ('', 'r_sel', 'r_del');
-insert into mysql.roles_mapping values ('', 'r_sel', 'r_crt');
-insert into mysql.roles_mapping values ('', 'r_sel', 'r_drp');
-insert into mysql.roles_mapping values ('', 'r_del', 'r_ins');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_upd', 'N');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_del', 'N');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_crt', 'N');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_drp', 'N');
+insert into mysql.roles_mapping values ('', 'r_del', 'r_ins', 'N');
 set role r_rld;
 select current_user(), current_role();
 flush privileges;

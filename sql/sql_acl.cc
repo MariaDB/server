@@ -3774,6 +3774,7 @@ replace_roles_mapping_table(TABLE *table, ROLE_GRANT_PAIR *pair,
                          system_charset_info);
   table->field[2]->store(pair->r_uname, strlen(pair->r_uname),
                          system_charset_info);
+  table->field[3]->store(1);
   key_copy(row_key, table->record[0], table->key_info,
            table->key_info->key_length);
 

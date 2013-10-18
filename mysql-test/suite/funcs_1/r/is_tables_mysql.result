@@ -443,11 +443,11 @@ AUTO_INCREMENT	NULL
 CREATE_TIME	#CRT#
 UPDATE_TIME	#UT#
 CHECK_TIME	#CT#
-TABLE_COLLATION	latin1_swedish_ci
+TABLE_COLLATION	utf8_bin
 CHECKSUM	NULL
 CREATE_OPTIONS	#CO#
 TABLE_COMMENT	#TC#
-user_comment	
+user_comment	Granted roles
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
