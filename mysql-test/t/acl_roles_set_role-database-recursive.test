@@ -31,13 +31,17 @@ change_user 'test_user';
 --error ER_TABLEACCESS_DENIED_ERROR
 select * from mysql.roles_mapping;
 
+select current_user(), current_role();
 set role test_role1;
+select current_user(), current_role();
 --sorted_result
 select * from mysql.roles_mapping;
 set role none;
+select current_user(), current_role();
 --error ER_TABLEACCESS_DENIED_ERROR
 select * from mysql.roles_mapping;
 set role test_role2;
+select current_user(), current_role();
 --sorted_result
 select * from mysql.roles_mapping;
 

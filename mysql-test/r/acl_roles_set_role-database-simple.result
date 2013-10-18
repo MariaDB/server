@@ -17,7 +17,13 @@ grant insert, delete on mysql.roles_mapping to test_role1@'';
 grant reload on *.* to test_role1@'';
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	NONE
 set role test_role1;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	test_role1
 select * from mysql.roles_mapping;
 HostFk	UserFk	RoleFk
 localhost	test_user	test_role1
@@ -29,6 +35,9 @@ insert into mysql.roles_mapping (HostFk, UserFk, RoleFk) values ('localhost',
 delete from mysql.roles_mapping where RoleFk='test_role2';
 use mysql;
 set role none;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	NONE
 use mysql;
 ERROR 42000: Access denied for user 'test_user'@'localhost' to database 'mysql'
 select * from mysql.roles_mapping;

@@ -35,7 +35,9 @@ select * from mysql.roles_mapping;
 
 --sorted_result
 show grants;
+select current_user(), current_role();
 set role test_role1;
+select current_user(), current_role();
 --sorted_result
 show grants;
 select * from mysql.roles_mapping where HostFk='';
@@ -43,6 +45,7 @@ select * from mysql.roles_mapping where HostFk='';
 --sorted_result
 show grants;
 set role none;
+select current_user(), current_role();
 --sorted_result
 show grants;
 --error ER_TABLEACCESS_DENIED_ERROR
@@ -52,6 +55,7 @@ select * from mysql.roles_mapping;
 show grants;
 --error ER_INVALID_ROLE
 set role test_role2;
+select current_user(), current_role();
 --sorted_result
 show grants;
 --error ER_TABLEACCESS_DENIED_ERROR
@@ -61,6 +65,7 @@ select * from mysql.roles_mapping;
 --sorted_result
 show grants;
 set role test_role1;
+select current_user(), current_role();
 --sorted_result
 show grants;
 --sorted_result
@@ -69,6 +74,7 @@ select * from mysql.roles_mapping where HostFk='';
 --sorted_result
 show grants;
 set role none;
+select current_user(), current_role();
 --sorted_result
 show grants;
 --error ER_TABLEACCESS_DENIED_ERROR

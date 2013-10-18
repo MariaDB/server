@@ -8648,6 +8648,14 @@ function_call_keyword:
             Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
             Lex->safe_to_cache_query= 0;
           }
+        | CURRENT_ROLE optional_braces
+          {
+            $$= new (thd->mem_root) Item_func_current_role(Lex->current_context());
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+            Lex->safe_to_cache_query= 0;
+          }
         | DATE_SYM '(' expr ')'
           {
             $$= new (thd->mem_root) Item_date_typecast($3);

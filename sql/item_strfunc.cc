@@ -2332,14 +2332,26 @@ bool Item_func_current_user::fix_fields(THD *thd, Item **ref)
   if (Item_func_sysconst::fix_fields(thd, ref))
     return TRUE;
 
-  Security_context *ctx=
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-                         (context->security_ctx
-                          ? context->security_ctx : thd->security_ctx);
-#else
-                         thd->security_ctx;
-#endif /*NO_EMBEDDED_ACCESS_CHECKS*/
+  Security_context *ctx= context->security_ctx
+                          ? context->security_ctx : thd->security_ctx;
   return init(ctx->priv_user, ctx->priv_host);
+}
+
+bool Item_func_current_role::fix_fields(THD *thd, Item **ref)
+{
+  if (Item_func_sysconst::fix_fields(thd, ref))
+    return 1;
+
+  Security_context *ctx= context->security_ctx
+                          ? context->security_ctx : thd->security_ctx;
+
+  const char *role= ctx->priv_role[0] ? ctx->priv_role : NONE_ROLE;
+
+  if (str_value.copy(role, strlen(role), system_charset_info))
+    return 1;
+
+  str_value.mark_as_const();
+  return 0;
 }
 
 
