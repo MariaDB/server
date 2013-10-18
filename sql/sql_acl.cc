@@ -3980,7 +3980,7 @@ void GRANT_NAME::set_user_details(const char *h, const char *d,
 
 GRANT_NAME::GRANT_NAME(const char *h, const char *d,const char *u,
                        const char *t, ulong p, bool is_routine)
-  :db(0), tname(0), privs(p)
+  :db(0), tname(0), privs(p), init_privs(p)
 {
   set_user_details(h, d, u, t, is_routine);
 }
@@ -3991,6 +3991,9 @@ GRANT_TABLE::GRANT_TABLE(const char *h, const char *d,const char *u,
 {
   (void) my_hash_init2(&hash_columns,4,system_charset_info,
                    0,0,0, (my_hash_get_key) get_key_column,0,0);
+  (void) my_hash_init2(&init_hash_columns,4,system_charset_info,
+                   0,0,0, (my_hash_get_key) get_key_column,0,0);
+
 }
 
 
@@ -4022,6 +4025,7 @@ GRANT_NAME::GRANT_NAME(TABLE *form, bool is_routine)
   strmov(strmov(strmov(hash_key,user)+1,db)+1,tname);
   privs = (ulong) form->field[6]->val_int();
   privs = fix_rights_for_table(privs);
+  init_privs= privs;
 }
 
 
@@ -4038,10 +4042,24 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
     return;
   }
   cols= (ulong) form->field[7]->val_int();
-  cols =  fix_rights_for_column(cols);
+  cols= fix_rights_for_column(cols);
+  /*
+    Initial columns privileges are the same as column privileges on creation.
+    In case of roles, the cols privilege bits can get inherited and thus
+    cause the cols field to change. The init_cols field is always the same
+    as the physical table entry
+  */
+  init_cols= cols;
 
   (void) my_hash_init2(&hash_columns,4,system_charset_info,
                    0,0,0, (my_hash_get_key) get_key_column,0,0);
+
+  /*
+    The same inheritance scheme is true for hash_columns in case of roles.
+    Init_hash_columns always holds the init_hash_columns
+  */
+  (void) my_hash_init2(&init_hash_columns,4,system_charset_info,
+                       0,0,0, (my_hash_get_key) get_key_column,0,0);
   if (cols)
   {
     uint key_prefix_len;
@@ -4064,6 +4082,7 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
     if (col_privs->file->ha_index_init(0, 1))
     {
       cols= 0;
+      init_cols= 0;
       return;
     }
 
@@ -4071,7 +4090,8 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
                                            (key_part_map)15,
                                            HA_READ_KEY_EXACT))
     {
-      cols = 0; /* purecov: deadcode */
+      cols= 0; /* purecov: deadcode */
+      init_cols= 0;
       col_privs->file->ha_index_end();
       return;
     }
@@ -4086,13 +4106,28 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
                                          fix_rights_for_column(priv))))
       {
         /* Don't use this entry */
-        privs = cols = 0;			/* purecov: deadcode */
+        privs= cols= 0;                       /* purecov: deadcode */
         return;				/* purecov: deadcode */
       }
       if (my_hash_insert(&hash_columns, (uchar *) mem_check))
       {
         /* Invalidate this entry */
-        privs= cols= 0;
+        privs= cols= init_privs= init_cols=0;
+        return;
+      }
+
+      /* add an entry into the init_hash_columns hash aswell */
+      if (!(mem_check = new GRANT_COLUMN(*res,
+                                         fix_rights_for_column(priv))))
+      {
+        /* Don't use this entry */
+        privs= cols= init_privs= init_cols=0;    /* purecov: deadcode */
+        return;                         /* purecov: deadcode */
+      }
+      if (my_hash_insert(&init_hash_columns, (uchar *) mem_check))
+      {
+        /* Invalidate this entry */
+        privs= cols= init_privs= init_cols=0;
         return;
       }
     } while (!col_privs->file->ha_index_next(col_privs->record[0]) &&
@@ -4105,6 +4140,7 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
 GRANT_TABLE::~GRANT_TABLE()
 {
   my_hash_free(&hash_columns);
+  my_hash_free(&init_hash_columns);
 }
 
 
@@ -4522,6 +4558,9 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
 
   if (rights | col_rights)
   {
+    grant_table->init_privs= rights;
+    grant_table->init_cols=  col_rights;
+
     grant_table->privs= rights;
     grant_table->cols=	col_rights;
   }
@@ -4642,6 +4681,7 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
 
   if (rights)
   {
+    grant_name->init_privs= rights;
     grant_name->privs= rights;
   }
   else
@@ -6394,7 +6434,7 @@ static uint command_lengths[]=
 };
 
 
-static int show_routine_grants(THD *thd, 
+static int show_routine_grants(THD *thd,
                                const char *username,
                                const char *hostname,
                                HASH *hash,
