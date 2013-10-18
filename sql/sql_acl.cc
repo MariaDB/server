@@ -2484,11 +2484,8 @@ void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source)
   delete_dynamic(&source_dbs);
   delete_dynamic(&target_dbs);
 
-  /* Merge table privileges */
-  /* TODO */
+  /* Merge table and column privileges */
 
-  /* Merge column privileges */
-  /* TODO */
 
   /* Merge function and procedure privileges */
   /* TODO */
@@ -3901,8 +3898,9 @@ class GRANT_COLUMN :public Sql_alloc
 public:
   char *column;
   ulong rights;
+  ulong init_rights;
   uint key_length;
-  GRANT_COLUMN(String &c,  ulong y) :rights (y)
+  GRANT_COLUMN(String &c,  ulong y) :rights (y), init_rights(y)
   {
     column= (char*) memdup_root(&memex,c.ptr(), key_length=c.length());
   }
@@ -3943,7 +3941,6 @@ public:
   ulong cols;
   ulong init_cols; /* privileges found in physical table */
   HASH hash_columns;
-  HASH init_hash_columns;
 
   GRANT_TABLE(const char *h, const char *d,const char *u,
               const char *t, ulong p, ulong c);
@@ -3991,9 +3988,6 @@ GRANT_TABLE::GRANT_TABLE(const char *h, const char *d,const char *u,
 {
   (void) my_hash_init2(&hash_columns,4,system_charset_info,
                    0,0,0, (my_hash_get_key) get_key_column,0,0);
-  (void) my_hash_init2(&init_hash_columns,4,system_charset_info,
-                   0,0,0, (my_hash_get_key) get_key_column,0,0);
-
 }
 
 
@@ -4054,12 +4048,6 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
   (void) my_hash_init2(&hash_columns,4,system_charset_info,
                    0,0,0, (my_hash_get_key) get_key_column,0,0);
 
-  /*
-    The same inheritance scheme is true for hash_columns in case of roles.
-    Init_hash_columns always holds the init_hash_columns
-  */
-  (void) my_hash_init2(&init_hash_columns,4,system_charset_info,
-                       0,0,0, (my_hash_get_key) get_key_column,0,0);
   if (cols)
   {
     uint key_prefix_len;
@@ -4115,21 +4103,6 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
         privs= cols= init_privs= init_cols=0;
         return;
       }
-
-      /* add an entry into the init_hash_columns hash aswell */
-      if (!(mem_check = new GRANT_COLUMN(*res,
-                                         fix_rights_for_column(priv))))
-      {
-        /* Don't use this entry */
-        privs= cols= init_privs= init_cols=0;    /* purecov: deadcode */
-        return;                         /* purecov: deadcode */
-      }
-      if (my_hash_insert(&init_hash_columns, (uchar *) mem_check))
-      {
-        /* Invalidate this entry */
-        privs= cols= init_privs= init_cols=0;
-        return;
-      }
     } while (!col_privs->file->ha_index_next(col_privs->record[0]) &&
              !key_cmp_if_same(col_privs,key,0,key_prefix_len));
     col_privs->file->ha_index_end();
@@ -4140,7 +4113,6 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
 GRANT_TABLE::~GRANT_TABLE()
 {
   my_hash_free(&hash_columns);
-  my_hash_free(&init_hash_columns);
 }
 
 
@@ -4410,7 +4382,10 @@ static int replace_column_table(GRANT_TABLE *g_t,
 	    goto end;				/* purecov: deadcode */
 	  }
 	  if (grant_column)
-	    grant_column->rights  = privileges; // Update hash
+          {
+            grant_column->rights  = privileges; // Update hash
+            grant_column->init_rights = privileges;
+          }
 	}
 	else
 	{
@@ -7045,10 +7020,7 @@ static bool show_table_and_column_privileges(THD *thd,
               {
                 uint found_col= 0;
                 HASH *hash_columns;
-                if (handle_as_role)
-                  hash_columns= &grant_table->init_hash_columns;
-                else
-                  hash_columns= &grant_table->hash_columns;
+                hash_columns= &grant_table->hash_columns;
 
                 for (uint col_index=0 ;
                      col_index < hash_columns->records ;
@@ -7056,7 +7028,8 @@ static bool show_table_and_column_privileges(THD *thd,
                 {
                   GRANT_COLUMN *grant_column = (GRANT_COLUMN*)
                     my_hash_element(hash_columns,col_index);
-                  if (grant_column->rights & j)
+                  if ((!handle_as_role && (grant_column->rights & j)) ||
+                      (handle_as_role && (grant_column->init_rights & j)))
                   {
                     if (!found_col)
                     {
