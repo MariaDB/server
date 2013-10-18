@@ -22,10 +22,20 @@ Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	D
 flush privileges;
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
-set role 'test_role1';
+show grants;
+Grants for test_user@localhost
+GRANT USAGE ON *.* TO 'test_user'@'localhost'
+set role test_role1;
+show grants;
+Grants for test_user@localhost
+GRANT USAGE ON *.* TO 'test_user'@'localhost'
 select * from mysql.roles_mapping;
 HostFk	UserFk	RoleFk
 localhost	test_user	test_role1
+set role none;
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 delete from mysql.user where user='test_role1';
 delete from mysql.roles_mapping where UserFk='test_role1';
 drop user 'test_user'@'localhost';
+flush privileges;
