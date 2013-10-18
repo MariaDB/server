@@ -587,7 +587,6 @@ flush privileges;
 
 # Create some users with different hostnames
 create user mysqltest_8@'';
-create user mysqltest_8;
 create user mysqltest_8@host8;
 
 # Try to create them again
@@ -614,7 +613,6 @@ select * from t1;
 disconnect conn3;
 connection master;
 revoke select on mysqltest.* from mysqltest_8@'';
-revoke select on mysqltest.* from mysqltest_8;
 show grants for mysqltest_8@'';
 show grants for mysqltest_8;
 select * from  information_schema.schema_privileges
@@ -642,7 +640,6 @@ select * from t1;
 disconnect conn4;
 connection master;
 revoke update (a) on t1 from mysqltest_8@'';
-revoke update (a) on t1 from mysqltest_8;
 show grants for mysqltest_8@'';
 show grants for mysqltest_8;
 select * from  information_schema.column_privileges;
@@ -664,7 +661,6 @@ select * from t1;
 disconnect conn5;
 connection master;
 revoke update on t1 from mysqltest_8@'';
-revoke update on t1 from mysqltest_8;
 show grants for mysqltest_8@'';
 show grants for mysqltest_8;
 select * from  information_schema.table_privileges;
@@ -692,10 +688,6 @@ show grants for mysqltest_8;
 drop user mysqltest_8@'';
 --error ER_NONEXISTING_GRANT
 show grants for mysqltest_8@'';
-show grants for mysqltest_8;
-select * from  information_schema.user_privileges
-where grantee like "'mysqltest_8'%";
-drop user mysqltest_8;
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
 connect (conn6,localhost,mysqltest_8,,);
