@@ -13,7 +13,6 @@ Host	User	Role	Admin_option
 	test_role1	test_role2	N
 localhost	test_user	test_role1	N
 grant select on mysql.roles_mapping to test_role2;
-flush privileges;
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 show grants;

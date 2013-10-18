@@ -709,41 +709,24 @@ static bool update_user_table(THD *thd, TABLE *table, const char *host,
 static my_bool acl_load(THD *thd, TABLE_LIST *tables);
 static my_bool grant_load(THD *thd, TABLE_LIST *tables);
 static inline void get_grantor(THD *thd, char* grantor);
-static my_bool acl_user_reset_grant(ACL_USER *user,
-                                    void * not_used __attribute__((unused)));
-static my_bool acl_role_reset_grant(ACL_ROLE *role,
-                                    void * not_used __attribute__((unused)));
-static my_bool acl_role_propagate_grants(ACL_ROLE *role,
-                                         void * not_used __attribute__((unused)));
+static my_bool acl_user_reset_grant(ACL_USER *, void *);
+static my_bool acl_role_reset_grant(ACL_ROLE *, void *);
+static my_bool acl_role_propagate_grants(ACL_ROLE *, void *);
 static int add_role_user_mapping(ROLE_GRANT_PAIR *mapping);
 
 static void reset_role_db_privileges(ACL_ROLE *role);
 static void reset_role_table_and_column_privileges(ACL_ROLE *role);
 static void reset_role_routine_grant_privileges(ACL_ROLE *role);
-static void role_explore_create_list(ACL_ROLE *unused,
-                                     ACL_ROLE *role,
-                                     void *context_data);
+static void role_explore_create_list(ACL_ROLE *, ACL_ROLE *, void *);
 static bool role_explore_start_access_check(ACL_ROLE *role, void *unused);
-static bool role_explore_merge_if_final(ACL_ROLE *current, ACL_ROLE *neighbour,
-                                        void *unused);
-static void role_explore_set_final_access_bits(ACL_ROLE *parent,
-                                               ACL_ROLE *current,
-                                               void *unused);
-static bool role_explore_detect_cycle(ACL_ROLE *current,
-                                      ACL_ROLE *neighbour,
-                                      void *context_data);
-static int traverse_role_graph(ACL_ROLE *role, void *context_data,
-                               bool (*on_start) (ACL_ROLE *role,
-                                                 void *context_data),
-                               bool (*on_open)  (ACL_ROLE *current,
-                                                 ACL_ROLE *neighbour,
-                                                 void *context_data),
-                               bool (*on_cycle) (ACL_ROLE *current,
-                                                 ACL_ROLE *neighbour,
-                                                 void *context_data),
-                               void (*on_finish)(ACL_ROLE *parent,
-                                                 ACL_ROLE *current,
-                                                 void *context_data));
+static bool role_explore_merge_if_final(ACL_ROLE *, ACL_ROLE *, void *);
+static void role_explore_set_final_access_bits(ACL_ROLE *, ACL_ROLE *, void *);
+static bool role_explore_detect_cycle(ACL_ROLE *, ACL_ROLE *, void *);
+static int traverse_role_graph(ACL_ROLE *, void *,
+                               bool (*)(ACL_ROLE *, void *),
+                               bool (*)(ACL_ROLE *, ACL_ROLE *, void *),
+                               bool (*)(ACL_ROLE *, ACL_ROLE *, void *),
+                               void (*)(ACL_ROLE *, ACL_ROLE *, void *));
 
 static void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source);
 
@@ -1999,15 +1982,22 @@ static void acl_update_role_entry(ACL_ROLE *role, ulong privileges)
 }
 
 
-static void acl_update_role(const char *rolename,
-                            ulong privileges)
+static void acl_update_role(const char *rolename)
 {
   mysql_mutex_assert_owner(&acl_cache->lock);
   ACL_ROLE *role= find_acl_role(rolename);
   if (!role)
-  {
     return;
-  }
+  acl_update_role_entry(role, role->initial_role_access);
+}
+
+
+static void acl_update_role(const char *rolename, ulong privileges)
+{
+  mysql_mutex_assert_owner(&acl_cache->lock);
+  ACL_ROLE *role= find_acl_role(rolename);
+  if (!role)
+    return;
   acl_update_role_entry(role, privileges);
 }
 
@@ -5117,7 +5107,10 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 	result= TRUE;
       }
     }
+    if (Str->is_role())
+      acl_update_role(Str->user.str);
   }
+
   thd->mem_root= old_root;
   mysql_mutex_unlock(&acl_cache->lock);
 
@@ -5278,6 +5271,8 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
       result= TRUE;
       continue;
     }
+    if (Str->is_role())
+      acl_update_role(Str->user.str);
   }
   thd->mem_root= old_root;
   mysql_mutex_unlock(&acl_cache->lock);
@@ -7903,6 +7898,10 @@ static int modify_grant_table(TABLE *table, Field *host_field,
   It creates data structures if they don't exist for the grantee.
   This includes data structures related to database privileges, tables
   privileges, column privileges, function and procedures privileges
+
+  TODO only merge those privileges that were changed
+  (e.g. only table/column privileges after mysql_table_grant, only routine
+  privileges after mysql_routine_grant)
 */
 
 static void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source)
