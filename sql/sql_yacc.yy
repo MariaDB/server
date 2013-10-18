@@ -2218,7 +2218,7 @@ create:
           {
             Lex->sql_command = SQLCOM_CREATE_USER;
           }
-        | CREATE ROLE_SYM clear_privileges opt_if_not_exists role_list
+        | CREATE ROLE_SYM clear_privileges role_list
           {
             Lex->sql_command = SQLCOM_CREATE_ROLE;
           }
@@ -11009,7 +11009,7 @@ drop:
           {
             Lex->sql_command = SQLCOM_DROP_USER;
           }
-        | DROP ROLE_SYM clear_privileges opt_if_exists role_list
+        | DROP ROLE_SYM clear_privileges role_list
           {
             Lex->sql_command = SQLCOM_DROP_ROLE;
           }
