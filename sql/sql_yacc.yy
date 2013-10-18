@@ -14221,13 +14221,13 @@ revoke:
         ;
 
 revoke_command:
-          grant_privileges ON opt_table grant_ident FROM user_list
+          grant_privileges ON opt_table grant_ident FROM user_and_role_list
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_REVOKE;
             lex->type= 0;
           }
-        | grant_privileges ON FUNCTION_SYM grant_ident FROM user_list
+        | grant_privileges ON FUNCTION_SYM grant_ident FROM user_and_role_list
           {
             LEX *lex= Lex;
             if (lex->columns.elements)
@@ -14238,7 +14238,7 @@ revoke_command:
             lex->sql_command= SQLCOM_REVOKE;
             lex->type= TYPE_ENUM_FUNCTION;
           }
-        | grant_privileges ON PROCEDURE_SYM grant_ident FROM user_list
+        | grant_privileges ON PROCEDURE_SYM grant_ident FROM user_and_role_list
           {
             LEX *lex= Lex;
             if (lex->columns.elements)
@@ -14249,7 +14249,7 @@ revoke_command:
             lex->sql_command= SQLCOM_REVOKE;
             lex->type= TYPE_ENUM_PROCEDURE;
           }
-        | ALL opt_privileges ',' GRANT OPTION FROM user_list
+        | ALL opt_privileges ',' GRANT OPTION FROM user_and_role_list
           {
             Lex->sql_command = SQLCOM_REVOKE_ALL;
           }
@@ -14319,7 +14319,7 @@ grant_command:
             lex->sql_command= SQLCOM_GRANT;
             lex->type= TYPE_ENUM_PROXY;
           }
-        | grant_role TO_SYM user_and_role_list opt_with_admin_option
+        | grant_role TO_SYM grant_list opt_with_admin_option
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_GRANT_ROLE;
@@ -14627,7 +14627,7 @@ grant_user:
             $1->plugin= $4;
             $1->auth= $6;
           }
-        | user
+        | user_or_role
           { $$= $1; $1->password= null_lex_str; }
         ;
 

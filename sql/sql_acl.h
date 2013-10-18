@@ -174,7 +174,6 @@ extern const TABLE_FIELD_DEF mysql_db_table_def;
 extern bool mysql_user_table_is_in_short_password_format;
 
 extern LEX_STRING host_not_specified;
-extern LEX_STRING none_role;
 extern LEX_STRING current_user;
 extern LEX_STRING current_role;
 extern LEX_STRING current_user_and_current_role;
