@@ -1672,7 +1672,7 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
   DBUG_RETURN(res);
 }
 
-bool acl_setrole(THD *thd, char *rolename)
+int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
 {
   bool is_granted;
   int result= 0;
@@ -1693,8 +1693,8 @@ bool acl_setrole(THD *thd, char *rolename)
       my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename);
       result= -1;
     }
-    else
-      thd->security_ctx->master_access= acl_user->access;
+    else if (access)
+      *access= acl_user->access;
 
     goto end;
   }
@@ -1728,15 +1728,25 @@ bool acl_setrole(THD *thd, char *rolename)
     goto end;
   }
 
-  /* merge the privileges */
-  thd->security_ctx->master_access= acl_user->access | role->access;
-  /* mark the current role */
-  strcpy(thd->security_ctx->priv_role, rolename);
-
+  if (access)
+  {
+    *access = acl_user->access | role->access;
+  }
 end:
   mysql_mutex_unlock(&acl_cache->lock);
   return result;
 }
+
+int acl_setrole(THD *thd, char *rolename, ulonglong access) {
+  /* merge the privileges */
+  thd->security_ctx->master_access= access;
+  /* mark the current role */
+  strmake(thd->security_ctx->priv_role, rolename,
+          sizeof(thd->security_ctx->priv_role)-1);
+  return 0;
+}
+
+
 
 static uchar* check_get_key(ACL_USER *buff, size_t *length,
                             my_bool not_used __attribute__((unused)))

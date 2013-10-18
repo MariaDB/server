@@ -382,5 +382,6 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
 
 bool acl_check_proxy_grant_access (THD *thd, const char *host, const char *user,
                                    bool with_grant);
-bool acl_setrole(THD *thd, char *rolename);
+int acl_setrole(THD *thd, char *rolename, ulonglong access);
+int acl_check_setrole(THD *thd, char *rolename, ulonglong *access);
 #endif /* SQL_ACL_INCLUDED */

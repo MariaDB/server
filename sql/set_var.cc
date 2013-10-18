@@ -876,14 +876,20 @@ int set_var_password::update(THD *thd)
 *****************************************************************************/
 int set_var_role::check(THD *thd)
 {
-  /* nothing to check */
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  ulonglong access;
+  int status= acl_check_setrole(thd, base.str, &access);
+  save_result.ulonglong_value= access;
+  return status;
+#else
   return 0;
+#endif
 }
 
 int set_var_role::update(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  return acl_setrole(thd, this->role.str);
+  return acl_setrole(thd, base.str, save_result.ulonglong_value);
 #else
   return 0;
 #endif
