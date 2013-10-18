@@ -2576,6 +2576,7 @@ static int traverse_role_graph(ACL_ROLE *role,
   (void) my_init_dynamic_array(&stack, sizeof(NODE_STATE), 20, 50, MYF(0));
   (void) my_init_dynamic_array(&to_clear, sizeof(ACL_ROLE *), 20, 50, MYF(0));
   push_dynamic(&stack, (uchar*)&state);
+  push_dynamic(&to_clear, (uchar*)role);
 
   while (stack.elements)
   {
@@ -2624,6 +2625,7 @@ static int traverse_role_graph(ACL_ROLE *role,
       break;
     }
 
+    /* found states that we have found a node to jump next into */
     if (found)
     {
       /*
@@ -2632,6 +2634,7 @@ static int traverse_role_graph(ACL_ROLE *role,
          which is the current neighbour that will be added on the stack
       */
       curr_state->neigh_idx= i;
+      push_dynamic(&to_clear, (uchar*)&neighbour);
 
       /* some sanity checks */
       DBUG_ASSERT(!(neighbour->flags & ROLE_VISITED));
@@ -2639,7 +2642,6 @@ static int traverse_role_graph(ACL_ROLE *role,
       {
         /* on_open returned TRUE, mark the neighbour as being explored */
         neighbour->flags|= ROLE_EXPLORED;
-        push_dynamic(&to_clear, (uchar*)&neighbour);
         continue;
       }
 
@@ -2657,7 +2659,6 @@ static int traverse_role_graph(ACL_ROLE *role,
       curr_state= (NODE_STATE *)pop_dynamic(&stack);
       curr_state->node_data->flags&= ~ROLE_VISITED; /* clear the visited bit */
       curr_state->node_data->flags|= ROLE_EXPLORED;
-      push_dynamic(&to_clear, (uchar*)&curr_state->node_data);
       if (on_finish)
       {
         NODE_STATE *parent= NULL;
@@ -2682,8 +2683,8 @@ end:
   {
     ACL_ROLE *current= *dynamic_element(&to_clear, i,
                                         ACL_ROLE **);
-    DBUG_ASSERT(current->flags & ROLE_EXPLORED);
-    current->flags&= ~ROLE_EXPLORED;
+    DBUG_ASSERT(current->flags & (ROLE_EXPLORED | ROLE_VISITED));
+    current->flags&= ~(ROLE_EXPLORED | ROLE_VISITED);
   }
   delete_dynamic(&stack);
   delete_dynamic(&to_clear);
