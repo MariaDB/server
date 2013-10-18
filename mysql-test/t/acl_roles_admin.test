@@ -15,14 +15,34 @@ create role role6 with admin foo@bar;
 create user bar with admin current_user;
 
 grant role1 to foo@localhost with admin option;
+grant role2 to foo@localhost;
 grant role2 to role1;
 grant role3 to role4 with admin option;
 --error ER_PARSE_ERROR
 grant select on *.* to foo@localhost with admin option;
 
+--sorted_result
+show grants for foo@localhost;
+--sorted_result
+show grants for role1;
+--sorted_result
+show grants for role4;
+--sorted_result
+select * from mysql.roles_mapping;
+
+grant role2 to role1 with admin option;
 revoke role1 from foo@localhost;
 revoke admin option for role3 from role4;
-revoke admin option for role2 from role1;
+revoke admin option for role2 from foo@localhost;
+
+--sorted_result
+show grants for foo@localhost;
+--sorted_result
+show grants for role1;
+--sorted_result
+show grants for role4;
+--sorted_result
+select * from mysql.roles_mapping;
 
 ########################################
 # cleanup
