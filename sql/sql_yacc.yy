@@ -1570,7 +1570,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <symbol> keyword keyword_sp
 
-%type <lex_user> user specified_user grant_user role
+%type <lex_user> user grant_user
 
 %type <charset>
         opt_collate
@@ -1624,7 +1624,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_option opt_place
         opt_attribute opt_attribute_list attribute column_list column_list_id
         opt_column_list grant_privileges grant_ident grant_list grant_option
-        grant_list_with_roles
         object_privilege object_privilege_list user_list rename_list
         clear_privileges flush_options flush_option
         opt_with_read_lock flush_options_list
@@ -13163,8 +13162,24 @@ ident_or_text:
         | LEX_HOSTNAME { $$=$1;}
         ;
 
-specified_user:
-          ident_or_text '@' ident_or_text
+user:
+          ident_or_text
+          {
+            if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
+              MYSQL_YYABORT;
+            $$->user = $1;
+            $$->host.str= (char *)HOST_NOT_SPECIFIED;
+            $$->host.length= 1;
+            $$->password= null_lex_str; 
+            $$->plugin= empty_lex_str;
+            $$->auth= empty_lex_str;
+
+            if (check_string_char_length(&$$->user, ER(ER_USERNAME),
+                                         username_char_length,
+                                         system_charset_info, 0))
+              MYSQL_YYABORT;
+          }
+        | ident_or_text '@' ident_or_text
           {
             if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
               MYSQL_YYABORT;
@@ -13195,46 +13210,6 @@ specified_user:
               later
             */
             bzero($$, sizeof(LEX_USER));
-          }
-        ;
-
-user:
-          ident_or_text
-          {
-            if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
-              MYSQL_YYABORT;
-            $$->user = $1;
-            $$->host.str= (char *) "%";
-            $$->host.length= 1;
-            $$->password= null_lex_str; 
-            $$->plugin= empty_lex_str;
-            $$->auth= empty_lex_str;
-
-            if (check_string_char_length(&$$->user, ER(ER_USERNAME),
-                                         username_char_length,
-                                         system_charset_info, 0))
-              MYSQL_YYABORT;
-          }
-        |
-          specified_user {$$ = $1;}
-        ;
-
-role:
-          ident_or_text
-          {
-            if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
-              MYSQL_YYABORT;
-            $$->user = $1;
-            $$->host.str= (char *) "";
-            $$->host.length= 0;
-            $$->password= null_lex_str;
-            $$->plugin= empty_lex_str;
-            $$->auth= empty_lex_str;
-
-            if (check_string_char_length(&$$->user, ER(ER_USERNAME),
-                                         username_char_length,
-                                         system_charset_info, 0))
-              MYSQL_YYABORT;
           }
         ;
 
@@ -14271,7 +14246,7 @@ revoke_command:
             lex->sql_command= SQLCOM_REVOKE;
             lex->type= TYPE_ENUM_PROXY;
           } 
-        | grant_role FROM grant_list_with_roles
+        | grant_role FROM grant_list
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_REVOKE_ROLE;
@@ -14325,7 +14300,7 @@ grant_command:
             lex->sql_command= SQLCOM_GRANT;
             lex->type= TYPE_ENUM_PROXY;
           }
-        | grant_role TO_SYM grant_list_with_roles
+        | grant_role TO_SYM grant_list
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_GRANT_ROLE;
@@ -14519,30 +14494,6 @@ user_list:
               MYSQL_YYABORT;
           }
         ;
-
-grant_list_with_roles:
-          role
-          {
-            if (Lex->users_list.push_back($1))
-              MYSQL_YYABORT;
-          }
-        | specified_user
-          {
-            if (Lex->users_list.push_back($1))
-              MYSQL_YYABORT;
-          }
-        | grant_list_with_roles ',' role
-          {
-            if (Lex->users_list.push_back($3))
-              MYSQL_YYABORT;
-          }
-        | grant_list_with_roles ',' specified_user
-          {
-            if (Lex->users_list.push_back($3))
-              MYSQL_YYABORT;
-          }
-        ;
-
 
 grant_list:
           grant_user
