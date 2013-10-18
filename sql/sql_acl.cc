@@ -543,7 +543,7 @@ static uchar* acl_entry_get_key(acl_entry *entry, size_t *length,
   return (uchar*) entry->key;
 }
 
-static uchar* acl_role_get_key(ACL_USER *entry, size_t *length,
+static uchar* acl_role_get_key(ACL_ROLE *entry, size_t *length,
                                my_bool not_used __attribute__((unused)))
 {
   *length=(uint) entry->user.length;
@@ -2377,9 +2377,9 @@ int add_role_user_mapping(ROLE_GRANT_PAIR *mapping)
     }
     else
     {
-      DBUG_PRINT("warning", ("Invalid add_role_user_mapping '%s'@'%s' %s",
+      DBUG_PRINT("warning", ("Invalid add_role_user_mapping '%s'@'%s' %s %p %p",
                              mapping->u_uname, mapping->u_hname,
-                             mapping->r_uname));
+                             mapping->r_uname, user, role));
 
       return -1;
     }
@@ -2725,6 +2725,7 @@ find_acl_role(const char *user)
 {
   DBUG_ENTER("find_acl_role");
   DBUG_PRINT("enter",("user: '%s'", user));
+  DBUG_PRINT("info", ("Hash elements: %ld", acl_roles.records));
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
