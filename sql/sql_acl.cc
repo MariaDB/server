@@ -5769,6 +5769,10 @@ static int can_grant_role_callback(ACL_USER_BASE *grantee,
 static bool can_grant_role(THD *thd, ACL_ROLE *role)
 {
   Security_context *sctx= thd->security_ctx;
+
+  if (!sctx->user) // replication
+    return true;
+
   ACL_USER *grantee= find_user_no_anon(sctx->priv_host, sctx->priv_user, true);
   if (!grantee)
     return false;
@@ -5981,21 +5985,14 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   }
 
   mysql_mutex_unlock(&acl_cache->lock);
-  mysql_rwlock_unlock(&LOCK_grant);
 
   if (result)
-  {
-    if (!revoke)
-    {
-      my_error(ER_CANNOT_GRANT_ROLE, MYF(0), rolename.str,
-               wrong_users.c_ptr_safe());
-    }
-    else
-    {
-      my_error(ER_CANNOT_REVOKE_ROLE, MYF(0), rolename.str,
-               wrong_users.c_ptr_safe());
-    }
-  }
+    my_error(revoke ? ER_CANNOT_REVOKE_ROLE : ER_CANNOT_GRANT_ROLE, MYF(0),
+             rolename.str, wrong_users.c_ptr_safe());
+  else
+    result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+
+  mysql_rwlock_unlock(&LOCK_grant);
 
   DBUG_RETURN(result);
 }
