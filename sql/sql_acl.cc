@@ -6205,103 +6205,6 @@ my_bool grant_init()
 
 
 /**
-  @brief Helper function to grant_reload_procs_priv
-
-  Reads the procs_priv table into memory hash.
-
-  @param table A pointer to the procs_priv table structure.
-
-  @see grant_reload
-  @see grant_reload_procs_priv
-
-  @return Error state
-    @retval TRUE An error occurred
-    @retval FALSE Success
-*/
-
-static my_bool grant_load_procs_priv(TABLE *p_table)
-{
-  MEM_ROOT *memex_ptr;
-  my_bool return_val= 1;
-  bool check_no_resolve= specialflag & SPECIAL_NO_RESOLVE;
-  MEM_ROOT **save_mem_root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**,
-                                                           THR_MALLOC);
-  DBUG_ENTER("grant_load_procs_priv");
-  (void) my_hash_init(&proc_priv_hash, &my_charset_utf8_bin,
-                      0,0,0, (my_hash_get_key) get_grant_table, 0,0);
-  (void) my_hash_init(&func_priv_hash, &my_charset_utf8_bin,
-                      0,0,0, (my_hash_get_key) get_grant_table, 0,0);
-
-  if (p_table->file->ha_index_init(0, 1))
-    DBUG_RETURN(TRUE);
-
-  p_table->use_all_columns();
-
-  if (!p_table->file->ha_index_first(p_table->record[0]))
-  {
-    memex_ptr= &memex;
-    my_pthread_setspecific_ptr(THR_MALLOC, &memex_ptr);
-    do
-    {
-      GRANT_NAME *mem_check;
-      HASH *hash;
-      if (!(mem_check=new (memex_ptr) GRANT_NAME(p_table, TRUE)))
-      {
-        /* This could only happen if we are out memory */
-        goto end_unlock;
-      }
-
-      if (check_no_resolve)
-      {
-	if (hostname_requires_resolving(mem_check->host.hostname))
-	{
-          sql_print_warning("'procs_priv' entry '%s %s@%s' "
-                            "ignored in --skip-name-resolve mode.",
-                            mem_check->tname, mem_check->user,
-                            safe_str(mem_check->host.hostname));
-          continue;
-        }
-      }
-      if (p_table->field[4]->val_int() == TYPE_ENUM_PROCEDURE)
-      {
-        hash= &proc_priv_hash;
-      }
-      else
-      if (p_table->field[4]->val_int() == TYPE_ENUM_FUNCTION)
-      {
-        hash= &func_priv_hash;
-      }
-      else
-      {
-        sql_print_warning("'procs_priv' entry '%s' "
-                          "ignored, bad routine type",
-                          mem_check->tname);
-        continue;
-      }
-
-      mem_check->privs= fix_rights_for_procedure(mem_check->privs);
-      mem_check->init_privs= mem_check->privs;
-      if (! mem_check->ok())
-        delete mem_check;
-      else if (my_hash_insert(hash, (uchar*) mem_check))
-      {
-        delete mem_check;
-        goto end_unlock;
-      }
-    }
-    while (!p_table->file->ha_index_next(p_table->record[0]));
-  }
-  /* Return ok */
-  return_val= 0;
-
-end_unlock:
-  p_table->file->ha_index_end();
-  my_pthread_setspecific_ptr(THR_MALLOC, save_mem_root_ptr);
-  DBUG_RETURN(return_val);
-}
-
-
-/**
   @brief Initialize structures responsible for table/column-level privilege
     checking and load information about grants from open privilege tables.
 
@@ -6320,7 +6223,7 @@ static my_bool grant_load(THD *thd, TABLE_LIST *tables)
 {
   MEM_ROOT *memex_ptr;
   my_bool return_val= 1;
-  TABLE *t_table= 0, *c_table= 0;
+  TABLE *t_table, *c_table, *p_table;
   bool check_no_resolve= specialflag & SPECIAL_NO_RESOLVE;
   MEM_ROOT **save_mem_root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**,
                                                            THR_MALLOC);
@@ -6332,9 +6235,15 @@ static my_bool grant_load(THD *thd, TABLE_LIST *tables)
   (void) my_hash_init(&column_priv_hash, &my_charset_utf8_bin,
                       0,0,0, (my_hash_get_key) get_grant_table,
                       (my_hash_free_key) free_grant_table,0);
+  (void) my_hash_init(&proc_priv_hash, &my_charset_utf8_bin,
+                      0,0,0, (my_hash_get_key) get_grant_table, 0,0);
+  (void) my_hash_init(&func_priv_hash, &my_charset_utf8_bin,
+                      0,0,0, (my_hash_get_key) get_grant_table, 0,0);
+  init_sql_alloc(&memex, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
-  t_table = tables[0].table;
-  c_table = tables[1].table;
+  t_table= tables[0].table;
+  c_table= tables[1].table;
+  p_table= tables[2].table; // this can be NULL
 
   if (t_table->file->ha_index_init(0, 1))
     goto end_index_init;
@@ -6342,10 +6251,11 @@ static my_bool grant_load(THD *thd, TABLE_LIST *tables)
   t_table->use_all_columns();
   c_table->use_all_columns();
 
+  memex_ptr= &memex;
+  my_pthread_setspecific_ptr(THR_MALLOC, &memex_ptr);
+
   if (!t_table->file->ha_index_first(t_table->record[0]))
   {
-    memex_ptr= &memex;
-    my_pthread_setspecific_ptr(THR_MALLOC, &memex_ptr);
     do
     {
       GRANT_TABLE *mem_check;
@@ -6379,66 +6289,77 @@ static my_bool grant_load(THD *thd, TABLE_LIST *tables)
     while (!t_table->file->ha_index_next(t_table->record[0]));
   }
 
-  return_val=0;					// Return ok
+  return_val= 0;
 
+  if (p_table)
+  {
+    if (p_table->file->ha_index_init(0, 1))
+      goto end_unlock;
+
+    p_table->use_all_columns();
+
+    if (!p_table->file->ha_index_first(p_table->record[0]))
+    {
+      do
+      {
+        GRANT_NAME *mem_check;
+        HASH *hash;
+        if (!(mem_check=new (memex_ptr) GRANT_NAME(p_table, TRUE)))
+        {
+          /* This could only happen if we are out memory */
+          goto end_unlock_p;
+        }
+
+        if (check_no_resolve)
+        {
+          if (hostname_requires_resolving(mem_check->host.hostname))
+          {
+            sql_print_warning("'procs_priv' entry '%s %s@%s' "
+                              "ignored in --skip-name-resolve mode.",
+                              mem_check->tname, mem_check->user,
+                              safe_str(mem_check->host.hostname));
+            continue;
+          }
+        }
+        if (p_table->field[4]->val_int() == TYPE_ENUM_PROCEDURE)
+        {
+          hash= &proc_priv_hash;
+        }
+        else
+        if (p_table->field[4]->val_int() == TYPE_ENUM_FUNCTION)
+        {
+          hash= &func_priv_hash;
+        }
+        else
+        {
+          sql_print_warning("'procs_priv' entry '%s' "
+                            "ignored, bad routine type",
+                            mem_check->tname);
+          continue;
+        }
+
+        mem_check->privs= fix_rights_for_procedure(mem_check->privs);
+        mem_check->init_privs= mem_check->privs;
+        if (! mem_check->ok())
+          delete mem_check;
+        else if (my_hash_insert(hash, (uchar*) mem_check))
+        {
+          delete mem_check;
+          goto end_unlock_p;
+        }
+      }
+      while (!p_table->file->ha_index_next(p_table->record[0]));
+    }
+  }
+
+end_unlock_p:
+  if (p_table)
+    p_table->file->ha_index_end();
 end_unlock:
   t_table->file->ha_index_end();
   my_pthread_setspecific_ptr(THR_MALLOC, save_mem_root_ptr);
 end_index_init:
   thd->variables.sql_mode= old_sql_mode;
-  DBUG_RETURN(return_val);
-}
-
-
-/**
-  @brief Helper function to grant_reload. Reloads procs_priv table is it
-    exists.
-
-  @param thd A pointer to the thread handler object.
-
-  @see grant_reload
-
-  @return Error state
-    @retval FALSE Success
-    @retval TRUE An error has occurred.
-*/
-
-static my_bool grant_reload_procs_priv(THD *thd)
-{
-  HASH old_proc_priv_hash, old_func_priv_hash;
-  TABLE_LIST table;
-  my_bool return_val= FALSE;
-  DBUG_ENTER("grant_reload_procs_priv");
-
-  table.init_one_table("mysql", 5, "procs_priv",
-                       strlen("procs_priv"), "procs_priv",
-                       TL_READ);
-  table.open_type= OT_BASE_ONLY;
-
-  if (open_and_lock_tables(thd, &table, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
-    DBUG_RETURN(TRUE);
-
-  mysql_rwlock_wrlock(&LOCK_grant);
-  /* Save a copy of the current hash if we need to undo the grant load */
-  old_proc_priv_hash= proc_priv_hash;
-  old_func_priv_hash= func_priv_hash;
-
-  if ((return_val= grant_load_procs_priv(table.table)))
-  {
-    /* Error; Reverting to old hash */
-    DBUG_PRINT("error",("Reverting to old privileges"));
-    grant_free();
-    proc_priv_hash= old_proc_priv_hash;
-    func_priv_hash= old_func_priv_hash;
-  }
-  else
-  {
-    my_hash_free(&old_proc_priv_hash);
-    my_hash_free(&old_func_priv_hash);
-  }
-  mysql_rwlock_unlock(&LOCK_grant);
-
-  close_mysql_tables(thd);
   DBUG_RETURN(return_val);
 }
 
@@ -6473,8 +6394,8 @@ my_bool role_propagate_grants_action(void *ptr, void *unused __attribute__((unus
 
 my_bool grant_reload(THD *thd)
 {
-  TABLE_LIST tables[2];
-  HASH old_column_priv_hash;
+  TABLE_LIST tables[3];
+  HASH old_column_priv_hash, old_proc_priv_hash, old_func_priv_hash;
   MEM_ROOT old_mem;
   my_bool return_val= 1;
   DBUG_ENTER("grant_reload");
@@ -6489,8 +6410,13 @@ my_bool grant_reload(THD *thd)
   tables[1].init_one_table(C_STRING_WITH_LEN("mysql"),
                            C_STRING_WITH_LEN("columns_priv"),
                            "columns_priv", TL_READ);
+  tables[2].init_one_table(C_STRING_WITH_LEN("mysql"),
+                           C_STRING_WITH_LEN("procs_priv"),
+                          "procs_priv", TL_READ);
   tables[0].next_local= tables[0].next_global= tables+1;
-  tables[0].open_type= tables[1].open_type= OT_BASE_ONLY;
+  tables[1].next_local= tables[1].next_global= tables+2;
+  tables[0].open_type= tables[1].open_type= tables[2].open_type= OT_BASE_ONLY;
+  tables[2].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
 
   /*
     To avoid deadlocks we should obtain table locks before
@@ -6500,44 +6426,41 @@ my_bool grant_reload(THD *thd)
     goto end;
 
   mysql_rwlock_wrlock(&LOCK_grant);
+  grant_version++;
   old_column_priv_hash= column_priv_hash;
+  old_proc_priv_hash= proc_priv_hash;
+  old_func_priv_hash= func_priv_hash;
 
   /*
     Create a new memory pool but save the current memory pool to make an undo
     opertion possible in case of failure.
   */
   old_mem= memex;
-  init_sql_alloc(&memex, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   if ((return_val= grant_load(thd, tables)))
   {						// Error. Revert to old hash
     DBUG_PRINT("error",("Reverting to old privileges"));
     grant_free();				/* purecov: deadcode */
     column_priv_hash= old_column_priv_hash;	/* purecov: deadcode */
+    proc_priv_hash= old_proc_priv_hash;
+    func_priv_hash= old_func_priv_hash;
     memex= old_mem;				/* purecov: deadcode */
   }
   else
   {
     my_hash_free(&old_column_priv_hash);
+    my_hash_free(&old_proc_priv_hash);
+    my_hash_free(&old_func_priv_hash);
     free_root(&old_mem,MYF(0));
   }
-  mysql_rwlock_unlock(&LOCK_grant);
-  close_mysql_tables(thd);
 
-  /*
-    It is OK failing to load procs_priv table because we may be
-    working with 4.1 privilege tables.
-  */
-  if (grant_reload_procs_priv(thd))
-    return_val= 1;
-
-  mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
   my_hash_iterate(&acl_roles, role_propagate_grants_action, NULL);
   mysql_mutex_unlock(&acl_cache->lock);
 
-  grant_version++;
   mysql_rwlock_unlock(&LOCK_grant);
+
+  close_mysql_tables(thd);
 
 end:
   DBUG_RETURN(return_val);
