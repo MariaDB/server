@@ -309,6 +309,9 @@ static bool compare_hostname(const acl_host_and_ip *host, const char *hostname,
 			     const char *ip);
 static bool show_proxy_grants (THD *thd, LEX_USER *user,
                                char *buff, size_t buffsize);
+static bool show_role_grants(THD *thd, LEX_USER *lex_user,
+                             ACL_USER_BASE *acl_entry,
+                             char *buff, size_t buffsize);
 static bool show_global_privileges(THD *thd, LEX_USER *lex_user,
                                    ACL_USER_BASE *acl_entry, bool handle_as_role,
                                    char *buff, size_t buffsize);
@@ -6300,6 +6303,13 @@ bool mysql_show_grants(THD *thd,LEX_USER *lex_user)
     DBUG_RETURN(TRUE);
   }
 
+  /* Show granted roles to acl_user */
+  if (show_role_grants(thd, lex_user, acl_user, buff, sizeof(buff)))
+  {
+    error= -1;
+    goto end;
+  }
+
   /* Add first global access grants */
   if (show_global_privileges(thd, lex_user, acl_user, FALSE, buff, sizeof(buff)))
   {
@@ -6347,6 +6357,42 @@ end:
 
   my_eof(thd);
   DBUG_RETURN(error);
+}
+
+static bool show_role_grants(THD *thd, LEX_USER *lex_user,
+                                   ACL_USER_BASE *acl_entry,
+                                   char *buff, size_t buffsize)
+{
+  uint counter;
+  Protocol *protocol= thd->protocol;
+
+  String grant(buff,sizeof(buff),system_charset_info);
+  for (counter= 0; counter < acl_entry->role_grants.elements; counter++)
+  {
+    grant.length(0);
+    grant.append(STRING_WITH_LEN("GRANT "));
+    ACL_ROLE *acl_role= *(dynamic_element(&acl_entry->role_grants, counter,
+                                          ACL_ROLE**));
+    grant.append(acl_role->user.str, acl_role->user.length,
+                  system_charset_info);
+    grant.append(STRING_WITH_LEN(" TO '"));
+    grant.append(lex_user->user.str, lex_user->user.length,
+                  system_charset_info);
+    if (!(acl_entry->flags & IS_ROLE))
+    {
+      grant.append(STRING_WITH_LEN("'@'"));
+      grant.append(lex_user->host.str, lex_user->host.length,
+                   system_charset_info);
+    }
+    grant.append('\'');
+    protocol->prepare_for_resend();
+    protocol->store(grant.ptr(),grant.length(),grant.charset());
+    if (protocol->write())
+    {
+      return TRUE;
+    }
+  }
+  return FALSE;
 }
 
 static bool show_global_privileges(THD *thd, LEX_USER *lex_user,
