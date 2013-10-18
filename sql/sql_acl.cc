@@ -191,10 +191,6 @@ LEX_STRING *default_auth_plugin_name= &native_password_plugin_name;
 LEX_STRING host_not_specified= { C_STRING_WITH_LEN("%") };
 
 /*
-  Constant used in the SET ROLE NONE command
-*/
-LEX_STRING none_role= { C_STRING_WITH_LEN("NONE") };
-/*
   Constants, used in the SHOW GRANTS command.
   Their actual string values are irrelevant, they're always compared
   as pointers to these string constants.
@@ -781,6 +777,16 @@ ACL_ROLE::ACL_ROLE(const char * rolename, ulong privileges, MEM_ROOT *root) :
 }
 
 
+static bool is_invalid_role_name(const char *str)
+{
+  if (strcasecmp(str, "PUBLIC") && strcasecmp(str, "NONE"))
+    return false;
+
+  my_error(ER_INVALID_ROLE, MYF(0), str);
+  return true;
+}
+
+
 static void free_acl_user(ACL_USER *user)
 {
   delete_dynamic(&(user->role_grants));
@@ -1115,6 +1121,12 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     */
     is_role= check_is_role(table);
 
+    if (is_role && is_invalid_role_name(username))
+    {
+      thd->clear_error();
+      continue;
+    }
+
     if (!is_role && check_no_resolve &&
         hostname_requires_resolving(user.host.hostname))
     {
@@ -1254,14 +1266,15 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       }
 
       (void) my_init_dynamic_array(&user.role_grants,sizeof(ACL_ROLE *),
-                                   50, 100, MYF(0));
+                                   8, 8, MYF(0));
 
-      if (is_role) {
+      if (is_role)
+      {
         DBUG_PRINT("info", ("Found role %s", user.user.str));
         ACL_ROLE *entry= new (&mem) ACL_ROLE(&user, &mem);
         entry->role_grants = user.role_grants;
         (void) my_init_dynamic_array(&entry->parent_grantee,
-                                     sizeof(ACL_USER_BASE *), 50, 100, MYF(0));
+                                     sizeof(ACL_USER_BASE *), 8, 8, MYF(0));
         my_hash_insert(&acl_roles, (uchar *)entry);
 
         continue;
@@ -1830,17 +1843,17 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
 
 int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
 {
+  ACL_ROLE *role;
+  ACL_USER_BASE *acl_user_base;
+  ACL_USER *UNINIT_VAR(acl_user);
   bool is_granted= FALSE;
   int result= 0;
 
   /* clear role privileges */
   mysql_mutex_lock(&acl_cache->lock);
 
-  ACL_ROLE *role= find_acl_role(rolename);
-  ACL_USER_BASE *acl_user_base;
-  ACL_USER *UNINIT_VAR(acl_user);
-
-  if (!strcasecmp(rolename, "NONE")) {
+  if (!strcasecmp(rolename, "NONE"))
+  {
     /* have to clear the privileges */
     /* get the current user */
     acl_user= find_user(thd->security_ctx->host, thd->security_ctx->user,
@@ -1855,6 +1868,8 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
 
     goto end;
   }
+
+  role= find_acl_role(rolename);
 
   /* According to SQL standard, the same error message must be presented */
   if (role == NULL) {
@@ -1907,20 +1922,18 @@ int acl_setrole(THD *thd, char *rolename, ulonglong access)
   Security_context *sctx= thd->security_ctx;
   sctx->master_access= access;
   if (thd->db)
-  {
-    sctx->db_access= acl_get(sctx->host,
-                             sctx->ip, sctx->user, thd->db, FALSE);
-    sctx->db_access= acl_get("", "", rolename, thd->db, FALSE);
-  }
+    sctx->db_access= acl_get(sctx->host, sctx->ip, sctx->user, thd->db, FALSE);
+
   if (!strcasecmp(rolename, "NONE"))
   {
     thd->security_ctx->priv_role[0]= 0;
   }
   else
   {
+    if (thd->db)
+      sctx->db_access|= acl_get("", "", rolename, thd->db, FALSE);
     /* mark the current role */
-    strmake(thd->security_ctx->priv_role, rolename,
-            sizeof(thd->security_ctx->priv_role)-1);
+    strmake_buf(thd->security_ctx->priv_role, rolename);
   }
   return 0;
 }
@@ -2016,9 +2029,9 @@ static void acl_insert_role(const char *rolename, ulong privileges)
   mysql_mutex_assert_owner(&acl_cache->lock);
   entry= new (&mem) ACL_ROLE(rolename, privileges, &mem);
   (void) my_init_dynamic_array(&entry->parent_grantee,
-                               sizeof(ACL_USER_BASE *), 50, 100, MYF(0));
+                               sizeof(ACL_USER_BASE *), 8, 8, MYF(0));
   (void) my_init_dynamic_array(&entry->role_grants,sizeof(ACL_ROLE *),
-                               50, 100, MYF(0));
+                               8, 8, MYF(0));
 
   my_hash_insert(&acl_roles, (uchar *)entry);
 }
@@ -2070,7 +2083,7 @@ static void acl_insert_user(const char *user, const char *host,
   acl_user.x509_issuer= x509_issuer  ? strdup_root(&mem,x509_issuer) : 0;
   acl_user.x509_subject=x509_subject ? strdup_root(&mem,x509_subject) : 0;
   (void) my_init_dynamic_array(&acl_user.role_grants, sizeof(ACL_USER *),
-                               50, 100, MYF(0));
+                               8, 8, MYF(0));
 
   (void) push_dynamic(&acl_users,(uchar*) &acl_user);
   if (!acl_user.host.hostname ||
@@ -5800,20 +5813,11 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 
   List_iterator <LEX_USER> user_list(list);
   granted_role= user_list++;
-  if (granted_role->user.str == current_role.str)
-  {
-    rolename.str= thd->security_ctx->priv_role;
-    if (!rolename.str[0])
-    {
-      my_error(ER_RESERVED_ROLE, MYF(0), "NONE");
-      DBUG_RETURN(TRUE);
-    }
-    rolename.length= strlen(rolename.str);
-  }
-  else
-  {
-    rolename= granted_role->user;
-  }
+  if (!(granted_role= get_current_user(thd, granted_role)))
+    DBUG_RETURN(TRUE);
+
+  DBUG_ASSERT(granted_role->is_role());
+  rolename= granted_role->user;
 
   TABLE_LIST tables;
   tables.init_one_table(C_STRING_WITH_LEN("mysql"),
@@ -5856,6 +5860,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       /* current_role is NONE */
       if (!thd->security_ctx->priv_role[0])
       {
+        my_error(ER_INVALID_ROLE, MYF(0), "NONE");
         append_user(&wrong_users, "NONE", "");
         result= 1;
         continue;
@@ -5894,7 +5899,15 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       if ((role_as_user= find_acl_role(user->user.str)))
         hostname= empty_lex_str;
       else
+      {
+        if (is_invalid_role_name(username.str))
+        {
+          append_user(&wrong_users, username.str, "");
+          result= 1;
+          continue;
+        }
         hostname= host_not_specified;
+      }
     }
 
     ROLE_GRANT_PAIR *hash_entry= find_role_grant_pair(&username, &hostname,
@@ -7453,6 +7466,13 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   else
   {
     lex_user= get_current_user(thd, lex_user, false);
+    if (!lex_user)
+    {
+      mysql_mutex_unlock(&acl_cache->lock);
+      mysql_rwlock_unlock(&LOCK_grant);
+      DBUG_RETURN(TRUE);
+    }
+
     if (lex_user->is_role())
     {
       rolename= lex_user->user.str;
@@ -9111,6 +9131,13 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
   while ((user_name= user_list++))
   {
+    if (handle_as_role && is_invalid_role_name(user_name->user.str))
+    {
+      append_user(&wrong_users, user_name);
+      result= TRUE;
+      continue;
+    }
+
     if (!user_name->host.str)
       user_name->host= host_not_specified;
 
@@ -10509,6 +10536,9 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
     // to be reexecution friendly we have to make a copy
     LEX_USER *dup= (LEX_USER*) thd->memdup(user, sizeof(*user));
     if (!dup)
+      return 0;
+
+    if (is_invalid_role_name(user->user.str))
       return 0;
 
     if (lock)
