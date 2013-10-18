@@ -674,10 +674,15 @@ static void init_role_grant_pair(MEM_ROOT *mem, ROLE_GRANT_PAIR *entry,
 /* Flag to mark that a ROLE has been visited in a DEPTH_FIRST_SEARCH */
 #define ROLE_VISITED            (1L << 1)
 /*
+  Flag to mark that a ROLE and all it's children (granted roles) have
+  been visited
+ */
+#define ROLE_EXPLORED           (1L << 2)
+/*
    Flag to mark that the ROLE's access bits are final, having been inherited
    from other granted roles
  */
-#define ROLE_GRANTS_FINAL       (1L << 2)
+#define ROLE_GRANTS_FINAL       (1L << 3)
 
 
 static DYNAMIC_ARRAY acl_hosts, acl_users, acl_dbs, acl_proxy_users;
@@ -722,7 +727,25 @@ static my_bool acl_role_reset_grant(ACL_ROLE *role,
 static my_bool acl_role_propagate_grants(ACL_ROLE *role,
                                          void * not_used __attribute__((unused)));
 static int add_role_user_mapping(ROLE_GRANT_PAIR *mapping);
-static my_bool get_role_access(ACL_ROLE *role, ulong *access);
+
+static void role_explore_create_list(ACL_ROLE *role, void *context_data);
+static bool role_explore_start_access_check(ACL_ROLE *role, void *unused);
+static bool role_explore_merge_if_final(ACL_ROLE *current, ACL_ROLE *neighbour,
+                                        void *unused);
+static void role_explore_set_final_access_bits(ACL_ROLE *current, void *unused);
+static int traverse_role_graph(ACL_ROLE *role,
+                               void *context_data,
+                               bool (*on_start) (ACL_ROLE *role,
+                                                 void *context_data),
+                               bool (*on_open)  (ACL_ROLE *current,
+                                                 ACL_ROLE *neighbour,
+                                                 void *context_data),
+                               bool (*on_cycle) (ACL_ROLE *current,
+                                                 ACL_ROLE *neighbour,
+                                                 void *context_data),
+                               void (*on_finish)(ACL_ROLE *current,
+                                                 void *context_data));
+
 static void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source);
 
 /*
@@ -1891,7 +1914,6 @@ static void acl_update_role(const char *rolename,
                             ulong privileges)
 {
   ACL_ROLE *role;
-  ulong unused;
   mysql_mutex_assert_owner(&acl_cache->lock);
 
   role= find_acl_role(rolename);
@@ -1910,7 +1932,11 @@ static void acl_update_role(const char *rolename,
   role->initial_role_access= privileges;
   role->flags&= ~ROLE_GRANTS_FINAL;
   role->access= role->initial_role_access;
-  get_role_access(role, &unused);
+  traverse_role_graph(role,
+                      NULL,
+                      role_explore_start_access_check,
+                      role_explore_merge_if_final, NULL,
+                      role_explore_set_final_access_bits);
 
   for (uint i= 0; i < role->parent_grantee.elements; i++)
   {
@@ -1931,7 +1957,7 @@ static void acl_update_role(const char *rolename,
 
      Example: RoleA -> RoleB; RoleA -> RoleC; RoleB -> RoleC;
      We are updating RoleC, and we reset RoleA first. If we were to run
-     get_role_access without resetting RoleB on RoleA, we would get the old
+     traverse_role_graph without resetting RoleB on RoleA, we would get the old
      privileges from RoleC via RoleB into RoleA.
   */
   for (uint i= 0; i < role->parent_grantee.elements; i++)
@@ -1942,7 +1968,11 @@ static void acl_update_role(const char *rolename,
     if (acl_user_base->flags & IS_ROLE)
     {
       grantee= (ACL_ROLE *)acl_user_base;
-      get_role_access(grantee, &unused);
+      traverse_role_graph(grantee,
+                          NULL,
+                          role_explore_start_access_check,
+                          role_explore_merge_if_final, NULL,
+                          role_explore_set_final_access_bits);
     }
   }
 }
@@ -2332,8 +2362,11 @@ void rebuild_check_host(void)
 static my_bool acl_role_propagate_grants(ACL_ROLE *role,
                                          void * not_used __attribute__((unused)))
 {
-  ulong access;
-  get_role_access(role, &access);
+  traverse_role_graph(role,
+                      NULL,
+                      role_explore_start_access_check,
+                      role_explore_merge_if_final, NULL,
+                      role_explore_set_final_access_bits);
   return 0;
 }
 
@@ -2441,37 +2474,99 @@ void merge_role_grant_privileges(ACL_ROLE *target, ACL_ROLE *source)
   /* TODO */
 }
 
-/*
-  The function scans through all roles granted to the role passed as argument
-  and places the permissions in the access variable.
-
-  Return values:
-    TRUE: Error or invalid parameteres
-    FALSE: All ok;
-*/
-my_bool get_role_access(ACL_ROLE *role, ulong *access)
+static void role_explore_create_list(ACL_ROLE *role, void *context_data)
 {
-  DBUG_ENTER("get_role_access");
-  DBUG_PRINT("enter",("role: '%s'", role->user.str));
-  DBUG_ASSERT(role);
-  DBUG_ASSERT(access);
-  /*
-     The search operation should always leave the ROLE_VISITED flag clean
-     for all nodes involved in the search
-  */
-  DBUG_ASSERT(!(role->flags & ROLE_VISITED));
+  DYNAMIC_ARRAY *list= (DYNAMIC_ARRAY *)context_data;
+  push_dynamic(list, (uchar*)&role);
+}
 
+static bool role_explore_start_access_check(ACL_ROLE *role,
+                                            void *unused __attribute__((unused)))
+{
   /*
     There exists the possibility that the role's access bits are final
     and we can just get the access bits without doing the more expensive
     search operation
   */
   if (role->flags & ROLE_GRANTS_FINAL)
+    return TRUE;
+  return FALSE;
+}
+
+static bool role_explore_merge_if_final(ACL_ROLE *current, ACL_ROLE *neighbour,
+                                        void *unused __attribute__((unused)))
+{
+  if (neighbour->flags & ROLE_GRANTS_FINAL)
   {
-    *access= role->access;
-    DBUG_PRINT("exit", ("Role access: %lu", *access));
-    DBUG_RETURN(FALSE);
+    DBUG_PRINT("info", ("Neighbour access is final, merging"));
+    merge_role_grant_privileges(current, neighbour);
+    return TRUE;
   }
+  return FALSE;
+}
+
+static void role_explore_set_final_access_bits(ACL_ROLE *current,
+                                               void *unused __attribute__((unused)))
+{
+  current->flags|= ROLE_GRANTS_FINAL;
+  /* Add the own role's rights once it's finished exploring */
+  current->access|= current->initial_role_access;
+  DBUG_PRINT("info",
+             ("Setting final access for node: %s %lu",
+              current->user.str, current->access));
+}
+
+/*
+  The function scans through all roles granted to the role passed as argument
+  and places the permissions in the access variable. The traverse method is
+  a DEPTH FIRST SEARCH.
+
+  The functions passed as parameters (if they are not NULL) are called during
+  specific events:
+
+  on_start  - called before initializing the stack.
+  on_open   - called the first time a neighbour is opened.
+  on_cycle  - called when an an attempt was made to open an already opened
+              neighbour
+  on_finish - called when a node has had all it's neighbours explored
+
+  NOTES:
+  If on_start returns TRUE, the whole exploration stops.
+  If on_open returns TRUE, the neighbour is ignored and not placed on the stack
+  If on_cycle returns TRUE, the whole exploration stops.
+
+
+  Return values:
+    0: Exploration finished after complete exploration;
+    1: Exploration finished due to on_start returning TRUE;
+    2: Exploration finished due to on_cycle returning TRUE;
+*/
+static int traverse_role_graph(ACL_ROLE *role,
+                               void *context_data,
+                               bool (*on_start) (ACL_ROLE *role,
+                                                 void *context_data),
+                               bool (*on_open)  (ACL_ROLE *current,
+                                                 ACL_ROLE *neighbour,
+                                                 void *context_data),
+                               bool (*on_cycle) (ACL_ROLE *current,
+                                                 ACL_ROLE *neighbour,
+                                                 void *context_data),
+                               void (*on_finish)(ACL_ROLE *current,
+                                                 void *context_data))
+{
+
+  DBUG_ENTER("traverse_role_graph");
+  DBUG_ASSERT(role);
+  DBUG_PRINT("enter",("role: '%s'", role->user.str));
+  /*
+     The search operation should always leave the ROLE_VISITED and ROLE_EXPLORED
+     flags clean for all nodes involved in the search
+  */
+  DBUG_ASSERT(!(role->flags & ROLE_VISITED));
+  DBUG_ASSERT(!(role->flags & ROLE_EXPLORED));
+
+  if (on_start && on_start(role, context_data))
+    DBUG_RETURN(1);
 
   /*
      Stack used to simulate the recursive calls of DFS.
@@ -2479,13 +2574,16 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
      malloc calls to a minimum
   */
   DYNAMIC_ARRAY stack;
+  DYNAMIC_ARRAY to_clear;
   NODE_STATE state;     /* variable used to insert elements in the stack */
+  uint result= 0;
 
   state.neigh_idx= 0;
   state.node_data= role;
   role->flags|= ROLE_VISITED;
 
   (void) my_init_dynamic_array(&stack, sizeof(NODE_STATE), 20, 50, MYF(0));
+  (void) my_init_dynamic_array(&to_clear, sizeof(ACL_ROLE *), 20, 50, MYF(0));
   push_dynamic(&stack, (uchar*)&state);
 
   while (stack.elements)
@@ -2504,8 +2602,7 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
     */
     my_bool found= FALSE;
     uint i;
-    for (i= curr_state->neigh_idx;
-         i < current->role_grants.elements && found == FALSE; i++)
+    for (i= curr_state->neigh_idx; i < current->role_grants.elements; i++)
     {
       neighbour= *(dynamic_element(&current->role_grants, i, ACL_ROLE**));
       DBUG_PRINT("info", ("Examining neighbour role %s", neighbour->user.str));
@@ -2513,22 +2610,21 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
       /* check if it forms a cycle */
       if (neighbour->flags & ROLE_VISITED)
       {
-        /* TODO the edge needs to be ignored */
         DBUG_PRINT("info", ("Found cycle"));
+        /* TODO the edge needs to be ignored */
+        if (on_cycle && on_cycle(current, neighbour, context_data))
+        {
+          result= 2;
+          goto end;
+        }
         continue;
       }
 
       /*
-         Check if it was already explored, in that case, just set the rights
-         and move on
+         Check if it was already explored, in that case, move on
       */
-      if (neighbour->flags & ROLE_GRANTS_FINAL)
-      {
-        DBUG_PRINT("info", ("Neighbour access is final, merging"));
-        merge_role_grant_privileges(current, neighbour);
+      if (neighbour->flags & ROLE_EXPLORED)
         continue;
-      }
-
       /*
          Set the current state search index to the next index
          this needs to be done before inserting, so as to make sure that the
@@ -2549,7 +2645,14 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
 
       /* some sanity checks */
       DBUG_ASSERT(!(neighbour->flags & ROLE_VISITED));
-      DBUG_ASSERT(!(neighbour->flags & ROLE_GRANTS_FINAL));
+      if (on_open && on_open(current, neighbour, context_data))
+      {
+        /* on_open returned TRUE, mark the neighbour as being explored */
+        neighbour->flags|= ROLE_EXPLORED;
+        push_dynamic(&to_clear, (uchar*)&neighbour);
+        continue;
+      }
+
       /* add the neighbour on the stack */
       neighbour->flags|= ROLE_VISITED;
       state.neigh_idx= 0;
@@ -2559,27 +2662,30 @@ my_bool get_role_access(ACL_ROLE *role, ulong *access)
     else
     {
       /* Make sure we got a correct node */
-      DBUG_ASSERT(!(curr_state->node_data->flags & ROLE_GRANTS_FINAL));
       DBUG_ASSERT(curr_state->node_data->flags & ROLE_VISITED);
       /* Finished with exploring the current node, pop it off the stack */
       curr_state= (NODE_STATE *)pop_dynamic(&stack);
       curr_state->node_data->flags&= ~ROLE_VISITED; /* clear the visited bit */
-      curr_state->node_data->flags|= ROLE_GRANTS_FINAL;
-      /* Add the own role's rights once it's finished exploring */
-      curr_state->node_data->access|= curr_state->node_data->initial_role_access;
-      DBUG_PRINT("info",
-                 ("Setting final access for node: %s %lu",
-                  curr_state->node_data->user.str, curr_state->node_data->access));
+      curr_state->node_data->flags|= ROLE_EXPLORED;
+      push_dynamic(&to_clear, (uchar*)&curr_state->node_data);
+      if (on_finish)
+        on_finish(curr_state->node_data, context_data);
     }
   }
 
 
+end:
   /* Cleanup */
+  for (uint i= 0; i < to_clear.elements; i++)
+  {
+    ACL_ROLE *current= *dynamic_element(&to_clear, i,
+                                        ACL_ROLE **);
+    DBUG_ASSERT(current->flags & ROLE_EXPLORED);
+    current->flags&= ~ROLE_EXPLORED;
+  }
   delete_dynamic(&stack);
-  /* Finally set the access */
-  *access= role->access;
-  DBUG_PRINT("exit", ("Role access: %lu", *access));
-  DBUG_RETURN(FALSE);
+  delete_dynamic(&to_clear);
+  DBUG_RETURN(result);
 }
 
 /*
