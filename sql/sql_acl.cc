@@ -5322,6 +5322,67 @@ static void append_user(String *str, const char *u, const char *h)
   str->append('\'');
 }
 
+struct IS_GRANTABLE_DATA
+{
+  ACL_ROLE *role;
+  bool grantable;
+};
+
+static void can_grant_role_callback(ACL_ROLE *unuser __attribute__((unused)),
+                                    ACL_ROLE *grantee, void *context_data)
+{
+  IS_GRANTABLE_DATA *data= (IS_GRANTABLE_DATA*)context_data;
+  for (uint i= 0; i < grantee->role_grants.elements; i++)
+  {
+    ACL_ROLE *r= *(dynamic_element(&grantee->role_grants, i, ACL_ROLE**));
+
+    if (r == data->role)
+    {
+      ROLE_GRANT_PAIR *pair=
+        find_role_grant_pair(&grantee->user, &empty_lex_str, &r->user);
+      if (pair->with_admin)
+        data->grantable= true;
+    }
+  }
+}
+
+
+/*
+  One can only grant a role if SELECT * FROM I_S.APPLICABLE_ROLES shows this
+  role as grantable.
+  
+  What this really means - we need to traverse role graph for the current user
+  looking for our role being granted with the admin option.
+*/
+static bool can_grant_role(THD *thd, ACL_ROLE *role)
+{
+  Security_context *sctx= thd->security_ctx;
+  ACL_USER *grantee= find_user_no_anon(sctx->priv_host, sctx->priv_user, true);
+  if (!grantee)
+    return false;
+
+  LEX_STRING host= { grantee->host.hostname, grantee->hostname_length };
+  IS_GRANTABLE_DATA data= { role, false };
+
+  for (uint i= 0; i < grantee->role_grants.elements; i++)
+  {
+    ACL_ROLE *r= *(dynamic_element(&grantee->role_grants, i, ACL_ROLE**));
+
+    if (r == role)
+    {
+      ROLE_GRANT_PAIR *pair=
+        find_role_grant_pair(&grantee->user, &host, &r->user);
+      if (pair->with_admin)
+        return true;
+    }
+
+    traverse_role_graph(r, &data, NULL, NULL, NULL, can_grant_role_callback);
+    if (data.grantable)
+      return true;
+  }
+  return false;
+}
+
 
 bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 {
@@ -5368,6 +5429,15 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     mysql_mutex_unlock(&acl_cache->lock);
     mysql_rwlock_unlock(&LOCK_grant);
     my_error(ER_INVALID_ROLE, MYF(0), rolename.str);
+    DBUG_RETURN(TRUE);
+  }
+
+  if (!can_grant_role(thd, role))
+  {
+    mysql_mutex_unlock(&acl_cache->lock);
+    mysql_rwlock_unlock(&LOCK_grant);
+    my_error(ER_ACCESS_DENIED_NO_PASSWORD_ERROR, MYF(0),
+             thd->security_ctx->priv_user, thd->security_ctx->priv_host);
     DBUG_RETURN(TRUE);
   }
 
