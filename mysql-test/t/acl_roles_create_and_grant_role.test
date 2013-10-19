@@ -1,3 +1,5 @@
+source include/not_embedded.inc;
+
 create role r1;
 grant r1 to root@localhost;
 create user u1;

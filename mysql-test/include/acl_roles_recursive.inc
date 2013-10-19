@@ -14,6 +14,8 @@
 # smallest possible number of nodes and doesn't merge privileges that
 # didn't change)
 #
+source include/not_embedded.inc;
+
 create user foo@localhost;
 create role role1;
 create role role2;
