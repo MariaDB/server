@@ -1,3 +1,5 @@
+source include/not_embedded.inc;
+
 create role role1;
 
 --error ER_INVALID_ROLE

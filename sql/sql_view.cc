@@ -1246,7 +1246,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     TABLE_LIST *view_tables= lex->query_tables;
     TABLE_LIST *view_tables_tail= 0;
     TABLE_LIST *tbl;
-    Security_context *security_ctx;
+    Security_context *security_ctx= 0;
 
     /*
       Check rights to run commands (EXPLAIN SELECT & SHOW CREATE) which show
@@ -1421,6 +1421,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     if (view_select->options & OPTION_TO_QUERY_CACHE)
       old_lex->select_lex.options|= OPTION_TO_QUERY_CACHE;
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (table->view_suid)
     {
       /*
@@ -1441,6 +1442,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
       */
       security_ctx= table->security_ctx;
     }
+#endif
 
     /* Assign the context to the tables referenced in the view */
     if (view_tables)

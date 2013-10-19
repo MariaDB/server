@@ -311,6 +311,18 @@ public:
   ulong initial_access; /* access bits present in the table */
 };
 
+static char *safe_str(char *str)
+{ return str ? str : const_cast<char*>(""); }
+
+static const char *safe_str(const char *str)
+{ return str ? str : ""; }
+
+#ifndef DBUG_OFF
+/* status variables, only visible in SHOW STATUS after -#d,role_merge_stats */
+ulong role_global_merges= 0, role_db_merges= 0, role_table_merges= 0,
+      role_column_merges= 0, role_routine_merges= 0;
+#endif
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static void update_hostname(acl_host_and_ip *host, const char *hostname);
 static ulong get_sort(uint count,...);
@@ -327,12 +339,6 @@ static bool show_table_and_column_privileges(THD *, const char *, const char *,
                                              char *, size_t);
 static int show_routine_grants(THD *, const char *, const char *, HASH *,
                                const char *, int, char *, int);
-
-static char *safe_str(char *str)
-{ return str ? str : const_cast<char*>(""); }
-
-static const char *safe_str(const char *str)
-{ return str ? str : ""; }
 
 class ACL_PROXY_USER :public ACL_ACCESS
 {
@@ -4502,12 +4508,6 @@ static int count_subgraph_nodes(ACL_ROLE *role, ACL_ROLE *grantee, void *context
 }
 
 static int merge_role_privileges(ACL_ROLE *, ACL_ROLE *, void *);
-
-#ifndef DBUG_OFF
-/* status variables, only visible in SHOW STATUS after -#d,role_merge_stats */
-ulong role_global_merges= 0, role_db_merges= 0, role_table_merges= 0,
-      role_column_merges= 0, role_routine_merges= 0;
-#endif
 
 /**
   rebuild privileges of all affected roles
@@ -10469,6 +10469,7 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
     if (!dup)
       return 0;
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (is_invalid_role_name(user->user.str))
       return 0;
 
@@ -10480,6 +10481,8 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
       dup->host= host_not_specified;
     if (lock)
       mysql_mutex_unlock(&acl_cache->lock);
+#endif
+
     return dup;
   }
 

@@ -1,3 +1,5 @@
+source include/not_embedded.inc;
+
 connect (mysql, localhost, root,,);
 use mysql;
 create user 'test'@'localhost';

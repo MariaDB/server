@@ -1,3 +1,5 @@
+source include/not_embedded.inc;
+
 #create a user with no privileges
 create user test_user@localhost;
 create role test_role1;

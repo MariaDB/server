@@ -1,3 +1,4 @@
+source include/not_embedded.inc;
 
 create role r1;
 create user u1;
