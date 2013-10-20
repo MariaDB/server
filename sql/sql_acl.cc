@@ -219,7 +219,11 @@ struct acl_host_and_ip
   long ip, ip_mask;                      // Used with masked ip:s
 };
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
 static bool compare_hostname(const acl_host_and_ip *, const char *, const char *);
+#else
+#define compare_hostname(X,Y,Z) 0
+#endif
 
 class ACL_ACCESS {
 public:
@@ -1919,7 +1923,7 @@ int acl_setrole(THD *thd, char *rolename, ulonglong access)
 {
   /* merge the privileges */
   Security_context *sctx= thd->security_ctx;
-  sctx->master_access= access;
+  sctx->master_access= static_cast<ulong>(access);
   if (thd->db)
     sctx->db_access= acl_get(sctx->host, sctx->ip, sctx->user, thd->db, FALSE);
 
@@ -4824,6 +4828,7 @@ static int update_role_db(ACL_DB *merged, ACL_DB **first, ulong access, char *ro
     ACL_DB acl_db;
     acl_db.user= role;
     acl_db.host.hostname= const_cast<char*>("");
+    acl_db.host.ip= acl_db.host.ip_mask= 0;
     acl_db.db= first[0]->db;
     acl_db.access= access;
     acl_db.initial_access= 0;
