@@ -205,6 +205,12 @@ static plugin_ref old_password_plugin;
 #endif
 static plugin_ref native_password_plugin;
 
+static char *safe_str(char *str)
+{ return str ? str : const_cast<char*>(""); }
+
+static const char *safe_str(const char *str)
+{ return str ? str : ""; }
+
 /* Classes */
 
 struct acl_host_and_ip
@@ -212,6 +218,8 @@ struct acl_host_and_ip
   char *hostname;
   long ip, ip_mask;                      // Used with masked ip:s
 };
+
+static bool compare_hostname(const acl_host_and_ip *, const char *, const char *);
 
 class ACL_ACCESS {
 public:
@@ -276,6 +284,25 @@ public:
     return dst;
   }
 
+  int cmp(const char *user2, const char *host2)
+  {
+    CHARSET_INFO *cs= system_charset_info;
+    int res;
+    res= strcmp(safe_str(user.str), safe_str(user2));
+    if (!res)
+      res= my_strcasecmp(cs, host.hostname, host2);
+    return res;
+  }
+
+  bool eq(const char *user2, const char *host2) { return !cmp(user2, host2); }
+
+  bool wild_eq(const char *user2, const char *host2, const char *ip2 = 0)
+  {
+    if (strcmp(safe_str(user.str), safe_str(user2)))
+      return false;
+
+    return compare_hostname(&host, host2, ip2 ? ip2 : host2);
+  }
 };
 
 class ACL_ROLE :public ACL_USER_BASE
@@ -311,12 +338,6 @@ public:
   ulong initial_access; /* access bits present in the table */
 };
 
-static char *safe_str(char *str)
-{ return str ? str : const_cast<char*>(""); }
-
-static const char *safe_str(const char *str)
-{ return str ? str : ""; }
-
 #ifndef DBUG_OFF
 /* status variables, only visible in SHOW STATUS after -#d,role_merge_stats */
 ulong role_global_merges= 0, role_db_merges= 0, role_table_merges= 0,
@@ -326,7 +347,6 @@ ulong role_global_merges= 0, role_db_merges= 0, role_table_merges= 0,
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static void update_hostname(acl_host_and_ip *host, const char *hostname);
 static ulong get_sort(uint count,...);
-static bool compare_hostname(const acl_host_and_ip *, const char *, const char *);
 static bool show_proxy_grants (THD *, const char *, const char *,
                                char *, size_t);
 static bool show_role_grants(THD *, const char *, const char *,
@@ -721,8 +741,8 @@ static ulong get_sort(uint count,...);
 static void init_check_host(void);
 static void rebuild_check_host(void);
 static void rebuild_role_grants(void);
-static ACL_USER *find_user_no_anon(const char *host, const char *user, bool exact);
-static ACL_USER *find_user(const char *host, const char *user, const char *ip);
+static ACL_USER *find_user_exact(const char *host, const char *user);
+static ACL_USER *find_user_wild(const char *host, const char *user, const char *ip= 0);
 static ACL_ROLE *find_acl_role(const char *user);
 static ROLE_GRANT_PAIR *find_role_grant_pair(const LEX_STRING *u, const LEX_STRING *h, const LEX_STRING *r);
 static ACL_USER_BASE *find_acl_user_base(const char *user, const char *host);
@@ -1030,8 +1050,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
                           "case that has been forced to lowercase because "
                           "lower_case_table_names is set. It will not be "
                           "possible to remove this privilege using REVOKE.",
-                          safe_str(host.host.hostname),
-                          safe_str(host.db));
+                          host.host.hostname, host.db);
     }
     host.access= get_access(table,2);
     host.access= fix_rights_for_db(host.access);
@@ -1406,7 +1425,6 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     table->use_all_columns();
     /* account for every role mapping */
 
-    /* acquire lock for the find_user_no_anon functions */
     if (!initialized)
       mysql_mutex_lock(&acl_cache->lock);
 
@@ -1764,29 +1782,11 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
 
   if (host[0]) // User, not Role
   {
-    /*
-       Find acl entry in user database.
-       This is specially tailored to suit the check we do for CALL of
-       a stored procedure; user is set to what is actually a
-       priv_user, which can be ''.
-    */
-    for (i=0 ; i < acl_users.elements ; i++)
-    {
-      ACL_USER *acl_user_tmp= dynamic_element(&acl_users,i,ACL_USER*);
-      if ((!acl_user_tmp->user.str && !user[0]) ||
-          (acl_user_tmp->user.str && strcmp(user, acl_user_tmp->user.str) == 0))
-      {
-        if (compare_hostname(&acl_user_tmp->host, host, ip))
-        {
-          acl_user= acl_user_tmp;
-          res= 0;
-          break;
-        }
-      }
-    }
+    acl_user= find_user_wild(host, user, ip);
 
     if (acl_user)
     {
+      res= 0;
       for (i=0 ; i < acl_dbs.elements ; i++)
       {
         ACL_DB *acl_db= dynamic_element(&acl_dbs, i, ACL_DB*);
@@ -1861,8 +1861,8 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
   {
     /* have to clear the privileges */
     /* get the current user */
-    acl_user= find_user(thd->security_ctx->host, thd->security_ctx->user,
-                        thd->security_ctx->ip);
+    acl_user= find_user_exact(thd->security_ctx->priv_host,
+                              thd->security_ctx->priv_user);
     if (acl_user == NULL)
     {
       my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename);
@@ -1890,16 +1890,10 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
       continue;
 
     acl_user= (ACL_USER *)acl_user_base;
-    if ((!acl_user->user.str && !thd->security_ctx->user[0]) ||
-        (acl_user->user.str && !strcmp(thd->security_ctx->user,
-                                       acl_user->user.str)))
+    if (acl_user->wild_eq(thd->security_ctx->user, thd->security_ctx->host))
     {
-      if (compare_hostname(&acl_user->host, thd->security_ctx->host,
-                                            thd->security_ctx->host))
-      {
-        is_granted= TRUE;
-        break;
-      }
+      is_granted= TRUE;
+      break;
     }
   }
 
@@ -1976,52 +1970,46 @@ static void acl_update_user(const char *user, const char *host,
   for (uint i=0 ; i < acl_users.elements ; i++)
   {
     ACL_USER *acl_user=dynamic_element(&acl_users,i,ACL_USER*);
-    if ((!acl_user->user.str && !user[0]) ||
-        (acl_user->user.str && !strcmp(user,acl_user->user.str)))
+    if (acl_user->eq(user, host))
     {
-      if ((!acl_user->host.hostname && !host[0]) ||
-	  (acl_user->host.hostname &&
-           !my_strcasecmp(system_charset_info, host, acl_user->host.hostname)))
+      if (plugin->str[0])
       {
-        if (plugin->str[0])
-        {
-          acl_user->plugin= *plugin;
-          acl_user->auth_string.str= auth->str ?
-            strmake_root(&mem, auth->str, auth->length) : const_cast<char*>("");
-          acl_user->auth_string.length= auth->length;
-          if (fix_user_plugin_ptr(acl_user))
-            acl_user->plugin.str= strmake_root(&mem, plugin->str, plugin->length);
-        }
-        else
-          if (password[0])
-          {
-            acl_user->auth_string.str= strmake_root(&mem, password, password_len);
-            acl_user->auth_string.length= password_len;
-            set_user_salt(acl_user, password, password_len);
-            set_user_plugin(acl_user, password_len);
-          }
-	acl_user->access=privileges;
-	if (mqh->specified_limits & USER_RESOURCES::QUERIES_PER_HOUR)
-	  acl_user->user_resource.questions=mqh->questions;
-	if (mqh->specified_limits & USER_RESOURCES::UPDATES_PER_HOUR)
-	  acl_user->user_resource.updates=mqh->updates;
-	if (mqh->specified_limits & USER_RESOURCES::CONNECTIONS_PER_HOUR)
-	  acl_user->user_resource.conn_per_hour= mqh->conn_per_hour;
-	if (mqh->specified_limits & USER_RESOURCES::USER_CONNECTIONS)
-	  acl_user->user_resource.user_conn= mqh->user_conn;
-	if (ssl_type != SSL_TYPE_NOT_SPECIFIED)
-	{
-	  acl_user->ssl_type= ssl_type;
-	  acl_user->ssl_cipher= (ssl_cipher ? strdup_root(&mem,ssl_cipher) :
-				 0);
-	  acl_user->x509_issuer= (x509_issuer ? strdup_root(&mem,x509_issuer) :
-				  0);
-	  acl_user->x509_subject= (x509_subject ?
-				   strdup_root(&mem,x509_subject) : 0);
-	}
-        /* search complete: */
-	break;
+        acl_user->plugin= *plugin;
+        acl_user->auth_string.str= auth->str ?
+          strmake_root(&mem, auth->str, auth->length) : const_cast<char*>("");
+        acl_user->auth_string.length= auth->length;
+        if (fix_user_plugin_ptr(acl_user))
+          acl_user->plugin.str= strmake_root(&mem, plugin->str, plugin->length);
       }
+      else
+        if (password[0])
+        {
+          acl_user->auth_string.str= strmake_root(&mem, password, password_len);
+          acl_user->auth_string.length= password_len;
+          set_user_salt(acl_user, password, password_len);
+          set_user_plugin(acl_user, password_len);
+        }
+      acl_user->access=privileges;
+      if (mqh->specified_limits & USER_RESOURCES::QUERIES_PER_HOUR)
+        acl_user->user_resource.questions=mqh->questions;
+      if (mqh->specified_limits & USER_RESOURCES::UPDATES_PER_HOUR)
+        acl_user->user_resource.updates=mqh->updates;
+      if (mqh->specified_limits & USER_RESOURCES::CONNECTIONS_PER_HOUR)
+        acl_user->user_resource.conn_per_hour= mqh->conn_per_hour;
+      if (mqh->specified_limits & USER_RESOURCES::USER_CONNECTIONS)
+        acl_user->user_resource.user_conn= mqh->user_conn;
+      if (ssl_type != SSL_TYPE_NOT_SPECIFIED)
+      {
+        acl_user->ssl_type= ssl_type;
+        acl_user->ssl_cipher= (ssl_cipher ? strdup_root(&mem,ssl_cipher) :
+                               0);
+        acl_user->x509_issuer= (x509_issuer ? strdup_root(&mem,x509_issuer) :
+                                0);
+        acl_user->x509_subject= (x509_subject ?
+                                 strdup_root(&mem,x509_subject) : 0);
+      }
+      /* search complete: */
+      break;
     }
   }
 }
@@ -2627,7 +2615,7 @@ bool change_password(THD *thd, const char *host, const char *user,
 
   mysql_mutex_lock(&acl_cache->lock);
   ACL_USER *acl_user;
-  if (!(acl_user= find_user_no_anon(host, user, TRUE)))
+  if (!(acl_user= find_user_exact(host, user)))
   {
     mysql_mutex_unlock(&acl_cache->lock);
     my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH), MYF(0));
@@ -2702,7 +2690,7 @@ bool is_acl_user(const char *host, const char *user)
   mysql_mutex_lock(&acl_cache->lock);
 
   if (*host) // User
-    res= find_user_no_anon(host, user, TRUE) != NULL;
+    res= find_user_exact(host, user) != NULL;
   else // Role
     res= find_acl_role(user) != NULL;
 
@@ -2711,7 +2699,12 @@ bool is_acl_user(const char *host, const char *user)
 }
 
 
-static ACL_USER *find_user(const char *host, const char *user, const char *ip)
+/*
+  unlike find_user_exact and find_user_wild,
+  this function finds anonymous users too, it's when a
+  user is not empty, but priv_user (acl_user->user) is empty.
+*/
+static ACL_USER *find_user_or_anon(const char *host, const char *user, const char *ip)
 {
   ACL_USER *result= NULL;
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -2733,33 +2726,33 @@ static ACL_USER *find_user(const char *host, const char *user, const char *ip)
 /*
   Find first entry that matches the current user
 */
-static ACL_USER *
-find_user_no_anon(const char *host, const char *user, bool exact)
+static ACL_USER * find_user_exact(const char *host, const char *user)
 {
-  DBUG_ENTER("find_user_no_anon");
-  DBUG_PRINT("enter",("host: '%s'  user: '%s'",host,user));
-
   mysql_mutex_assert_owner(&acl_cache->lock);
 
   for (uint i=0 ; i < acl_users.elements ; i++)
   {
     ACL_USER *acl_user=dynamic_element(&acl_users,i,ACL_USER*);
-    DBUG_PRINT("info",("strcmp('%s','%s'), compare_hostname('%s','%s'),",
-                       user, safe_str(acl_user->user.str),
-                       host,
-                       safe_str(acl_user->host.hostname)));
-    if ((!acl_user->user.str && !user[0]) ||
-        (acl_user->user.str && !strcmp(user,acl_user->user.str)))
-    {
-      if (exact ? !my_strcasecmp(system_charset_info, host,
-                                 safe_str(acl_user->host.hostname)) :
-          compare_hostname(&acl_user->host,host,host))
-      {
-	DBUG_RETURN(acl_user);
-      }
-    }
+    if (acl_user->eq(user, host))
+      return acl_user;
   }
-  DBUG_RETURN(0);
+  return 0;
+}
+
+/*
+  Find first entry that matches the current user
+*/
+static ACL_USER * find_user_wild(const char *host, const char *user, const char *ip)
+{
+  mysql_mutex_assert_owner(&acl_cache->lock);
+
+  for (uint i=0 ; i < acl_users.elements ; i++)
+  {
+    ACL_USER *acl_user=dynamic_element(&acl_users,i,ACL_USER*);
+    if (acl_user->wild_eq(user, host, ip))
+      return acl_user;
+  }
+  return 0;
 }
 
 /*
@@ -2782,7 +2775,7 @@ static ACL_ROLE *find_acl_role(const char *user)
 static ACL_USER_BASE *find_acl_user_base(const char *user, const char *host)
 {
   if (*host)
-    return find_user_no_anon(host, user, TRUE);
+    return find_user_exact(host, user);
 
   return find_acl_role(user);
 }
@@ -3313,7 +3306,7 @@ static int replace_db_table(TABLE *table, const char *db,
   }
 
   /* Check if there is such a user in user table in memory? */
-  if (!find_user_no_anon(combo.host.str,combo.user.str, FALSE))
+  if (!find_user_wild(combo.host.str,combo.user.str))
   {
     /* The user could be a role, check if the user is registered as a role */
     if (!combo.host.length && !find_acl_role(combo.user.str))
@@ -3565,7 +3558,7 @@ replace_proxies_priv_table(THD *thd, TABLE *table, const LEX_USER *user,
   }
 
   /* Check if there is such a user in user table in memory? */
-  if (!find_user_no_anon(user->host.str,user->user.str, FALSE))
+  if (!find_user_wild(user->host.str,user->user.str))
   {
     my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH), MYF(0));
     DBUG_RETURN(-1);
@@ -4229,7 +4222,7 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
     The following should always succeed as new users are created before
     this function is called!
   */
-  if (!find_user_no_anon(combo.host.str,combo.user.str, FALSE))
+  if (!find_user_wild(combo.host.str,combo.user.str))
   {
     if (!combo.host.length && !find_acl_role(combo.user.str))
     {
@@ -5799,7 +5792,7 @@ static bool can_grant_role(THD *thd, ACL_ROLE *role)
   if (!sctx->user) // replication
     return true;
 
-  ACL_USER *grantee= find_user_no_anon(sctx->priv_host, sctx->priv_user, true);
+  ACL_USER *grantee= find_user_exact(sctx->priv_host, sctx->priv_user);
   if (!grantee)
     return false;
 
@@ -5923,7 +5916,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     ACL_USER_BASE *grantee= role_as_user;
 
     if (!grantee)
-      grantee= find_user_no_anon(hostname.str, username.str, true);
+      grantee= find_user_exact(hostname.str, username.str);
 
     if (!grantee)
     {
@@ -7436,7 +7429,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
 
   if (username)
   {
-    acl_user= find_user_no_anon(hostname, username, TRUE);
+    acl_user= find_user_exact(hostname, username);
     if (!acl_user)
     {
       mysql_mutex_unlock(&acl_cache->lock);
@@ -8057,7 +8050,7 @@ void get_mqh(const char *user, const char *host, USER_CONN *uc)
 
   mysql_mutex_lock(&acl_cache->lock);
 
-  if (initialized && (acl_user= find_user_no_anon(host,user, FALSE)))
+  if (initialized && (acl_user= find_user_wild(host,user)))
     uc->user_resources= acl_user->user_resource;
   else
     bzero((char*) &uc->user_resources, sizeof(uc->user_resources));
@@ -8161,8 +8154,7 @@ static int open_grant_tables(THD *thd, TABLE_LIST *tables)
   DBUG_RETURN(0);
 }
 
-ACL_USER *check_acl_user(LEX_USER *user_name,
-			 uint *acl_acl_userdx)
+ACL_USER *check_acl_user(LEX_USER *user_name, uint *acl_acl_userdx)
 {
   ACL_USER *acl_user= 0;
   uint counter;
@@ -8171,13 +8163,8 @@ ACL_USER *check_acl_user(LEX_USER *user_name,
 
   for (counter= 0 ; counter < acl_users.elements ; counter++)
   {
-    const char *user,*host;
     acl_user= dynamic_element(&acl_users, counter, ACL_USER*);
-    user= safe_str(acl_user->user.str);
-    host=acl_user->host.hostname;
-
-    if (!strcmp(user_name->user.str,user) &&
-	!my_strcasecmp(system_charset_info, user_name->host.str, host))
+    if(acl_user->eq(user_name->user.str, user_name->host.str))
       break;
   }
   if (counter == acl_users.elements)
@@ -8875,7 +8862,7 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
           goto end;
       }
       else
-      if (find_user_no_anon(user_from->host.str, user_from->user.str, TRUE))
+      if (find_user_exact(user_from->host.str, user_from->user.str))
         goto end; // looking for a role, found a user
     }
     else
@@ -9337,7 +9324,7 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
       result= -1;
       continue;
     }
-    if (!find_user_no_anon(lex_user->host.str, lex_user->user.str, TRUE))
+    if (!find_user_exact(lex_user->host.str, lex_user->user.str))
     {
       result= -1;
       continue;
@@ -9640,17 +9627,13 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
 
   mysql_mutex_lock(&acl_cache->lock);
 
-  if ((au= find_user_no_anon(combo->host.str=(char*)sctx->host_or_ip,
-                             combo->user.str,FALSE)))
+  if ((au= find_user_wild(combo->host.str=(char*)sctx->host_or_ip, combo->user.str)))
     goto found_acl;
-  if ((au= find_user_no_anon(combo->host.str=(char*)sctx->host,
-                             combo->user.str,FALSE)))
+  if ((au= find_user_wild(combo->host.str=(char*)sctx->host, combo->user.str)))
     goto found_acl;
-  if ((au= find_user_no_anon(combo->host.str=(char*)sctx->ip,
-                             combo->user.str,FALSE)))
+  if ((au= find_user_wild(combo->host.str=(char*)sctx->ip, combo->user.str)))
     goto found_acl;
-  if ((au= find_user_no_anon(combo->host.str=(char*)"%",
-                             combo->user.str, FALSE)))
+  if ((au= find_user_wild(combo->host.str=(char*)"%", combo->user.str)))
     goto found_acl;
 
   mysql_mutex_unlock(&acl_cache->lock);
@@ -9947,7 +9930,7 @@ int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond)
     Security_context *sctx= thd->security_ctx;
     mysql_rwlock_rdlock(&LOCK_grant);
     mysql_mutex_lock(&acl_cache->lock);
-    ACL_USER *user= find_user_no_anon(sctx->priv_host, sctx->priv_user, true);
+    ACL_USER *user= find_user_exact(sctx->priv_host, sctx->priv_user);
 
     char buff[USER_HOST_BUFF_SIZE+10];
     DBUG_ASSERT(user->user.length + user->hostname_length +2 < sizeof(buff));
@@ -10902,9 +10885,6 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
    Finds a user and copies it into mpvio. Creates a fake user
    if no matching user account is found.
 
-   @note find_user_no_anon is not the same, because it doesn't take into
-   account the case when user is not empty, but acl_user->user is empty
-
    @retval 0    found
    @retval 1    error
 */
@@ -10916,7 +10896,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
 
   mysql_mutex_lock(&acl_cache->lock);
 
-  ACL_USER *user= find_user(sctx->host, sctx->user, sctx->ip);
+  ACL_USER *user= find_user_or_anon(sctx->host, sctx->user, sctx->ip);
   if (user)
     mpvio->acl_user= user->copy(&mem);
 
@@ -11856,9 +11836,8 @@ bool acl_authenticate(THD *thd, uint connect_errors,
 
       /* we're proxying : find the proxy user definition */
       mysql_mutex_lock(&acl_cache->lock);
-      acl_proxy_user= find_user_no_anon(safe_str(proxy_user->get_proxied_host()),
-                                        mpvio.auth_info.authenticated_as,
-                                        TRUE);
+      acl_proxy_user= find_user_exact(safe_str(proxy_user->get_proxied_host()),
+                                     mpvio.auth_info.authenticated_as);
       if (!acl_proxy_user)
       {
         if (!thd->is_error())
