@@ -1678,8 +1678,8 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
       DBUG_RETURN(1);
     lex->query_tables_last= query_tables_last;
     break;
-  }
 #endif
+  }
   case SCH_PROFILES:
     /* 
       Mark this current profiling record to be discarded.  We don't
