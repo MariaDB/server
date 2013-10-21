@@ -106,7 +106,7 @@ C_MODE_END
   tested and approved.
 */
 static bool find_best(JOIN *join,table_map rest_tables,uint index,
-		      double record_count,double read_time);
+		      double record_count,double read_time, uint use_cond_selectivity);
 static uint cache_record_length(JOIN *join,uint index);
 bool get_best_combination(JOIN *join);
 static store_key *get_store_key(THD *thd,
@@ -6373,8 +6373,11 @@ choose_plan(JOIN *join, table_map join_tables)
         the greedy version. Will be removed when greedy_search is approved.
       */
       join->best_read= DBL_MAX;
-      if (find_best(join, join_tables, join->const_tables, 1.0, 0.0))
+      if (find_best(join, join_tables, join->const_tables, 1.0, 0.0,
+                    use_cond_selectivity))
+      {
         DBUG_RETURN(TRUE);
+      }
     } 
     else
     {
@@ -7582,7 +7585,7 @@ best_extension_by_limited_search(JOIN      *join,
 */
 static bool
 find_best(JOIN *join,table_map rest_tables,uint idx,double record_count,
-	  double read_time)
+	  double read_time, uint use_cond_selectivity)
 {
   DBUG_ENTER("find_best");
   THD *thd= join->thd;
@@ -7633,20 +7636,30 @@ find_best(JOIN *join,table_map rest_tables,uint idx,double record_count,
       advance_sj_state(join, rest_tables, idx, &current_record_count, 
                        &current_read_time, &loose_scan_pos);
 
-      if (best_record_count > current_record_count ||
+      double pushdown_cond_selectivity= 1.0;
+      if (use_cond_selectivity > 1)
+        pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
+				                          rest_tables &
+                                                          ~real_table_bit);
+      join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
+      double partial_join_cardinality= current_record_count *
+                                        pushdown_cond_selectivity;
+
+      if (best_record_count > partial_join_cardinality ||
 	  best_read_time > current_read_time ||
 	  (idx == join->const_tables && s->table == join->sort_by_table))
       {
-	if (best_record_count >= current_record_count &&
+	if (best_record_count >= partial_join_cardinality &&
 	    best_read_time >= current_read_time &&
 	    (!(s->key_dependent & rest_tables) || records < 2.0))
 	{
-	  best_record_count=current_record_count;
+	  best_record_count= partial_join_cardinality;
 	  best_read_time=current_read_time;
 	}
 	swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
 	if (find_best(join,rest_tables & ~real_table_bit,idx+1,
-                      current_record_count,current_read_time))
+                      partial_join_cardinality,current_read_time,
+                      use_cond_selectivity))
           DBUG_RETURN(TRUE);
 	swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
       }
