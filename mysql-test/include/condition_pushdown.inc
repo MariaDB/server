@@ -27,46 +27,52 @@ explain extended
 SELECT count(*)
 FROM t1 straight_join t2
 WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
-      a2 < (select count(*) from sq where s1 > 0);
+      a2 <= (select count(*) from sq where s1 > 0);
 
 SELECT count(*)
 FROM t1 straight_join t2
 WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
-      a2 < (select count(*) from sq where s1 > 0);
+      a2 <= (select count(*) from sq where s1 > 0);
 
 --echo correlated SQ, 2-way join
 explain extended
 SELECT count(*)
 FROM t1 straight_join t2
 WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
-      a2 < (select count(*) from sq where s1 > a1);
+      a2 <= (select count(*) from sq where s1 >= a1);
 
 SELECT count(*)
 FROM t1 straight_join t2
 WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
-      a2 < (select count(*) from sq where s1 > a1);
+      a2 <= (select count(*) from sq where s1 >= a1);
 
 --echo 2 correlated SQ, 2-way join
 explain extended
 SELECT count(*)
 FROM t1 straight_join t2
 WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
-      a2 < (select count(*) from sq where s1 > a1) and
-      b2 < (select count(*) from sq where s1 > b1);
+      a2 <= (select count(*) from sq where s1 >= a1) and
+      b2 <= (select count(*) from sq where s1 >= b1);
 
 SELECT count(*)
 FROM t1 straight_join t2
 WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
-      a2 < (select count(*) from sq where s1 > a1) and
-      b2 < (select count(*) from sq where s1 > b1);
+      a2 <= (select count(*) from sq where s1 >= a1) and
+      b2 <= (select count(*) from sq where s1 >= b1);
 
 --echo 2 correlated SQ, , 2-way join, one SQ inside an OR
 explain extended
 SELECT count(*)
 FROM t1 straight_join t2
 WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
-      (a2 < (select count(*) from sq where s1 > a1) or a1 > 0) and
-      b2 < (select count(*) from sq where s1 > b1);
+      (a2 <= (select count(*) from sq where s1 >= a1) or a1 > 0) and
+      b2 <= (select count(*) from sq where s1 >= b1);
+
+SELECT count(*)
+FROM t1 straight_join t2
+WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
+      (a2 <= (select count(*) from sq where s1 >= a1) or a1 > 0) and
+      b2 <= (select count(*) from sq where s1 >= b1);
 
 --echo uncorrelated SQ, 3-way join
 

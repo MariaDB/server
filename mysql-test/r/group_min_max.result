@@ -1358,7 +1358,7 @@ explain select a1,a2,b,min(c),max(c) from t1
 where exists ( select * from t2 where t2.c = t1.c )
 group by a1,a2,b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
+1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Subqueries: 2; Using index
 2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
 select a1,a2,b,min(c),max(c) from t1
 where exists ( select * from t2 where t2.c = t1.c )
@@ -1410,7 +1410,7 @@ explain select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2 where t1.b > 'a' and t2.c > 'b1' )
 group by a1,a2,b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
+1	PRIMARY	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Subqueries: 2; Using index for group-by
 2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
 select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2 where t1.b > 'a' and t2.c > 'b1' )
@@ -1432,7 +1432,7 @@ where t2.c in (select c from t3 where t3.c > t1.b) and
 t2.c > 'b1' )
 group by a1,a2,b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
+1	PRIMARY	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Subqueries: 2; Using index for group-by
 2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
 2	DEPENDENT SUBQUERY	t3	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index; FirstMatch(t2)
 select a1,a2,b,c,min(c), max(c) from t1
@@ -1462,7 +1462,7 @@ explain select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2 where t1.c > 'a' and t2.c > 'b1' )
 group by a1,a2,b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
+1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Subqueries: 2; Using index
 2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
 select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2 where t1.c > 'a' and t2.c > 'b1' )
@@ -1492,7 +1492,7 @@ where t2.c in (select c from t3 where t3.c > t1.c) and
 t2.c > 'b1' )
 group by a1,a2,b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
+1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Subqueries: 2; Using index
 2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
 2	DEPENDENT SUBQUERY	t3	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index; FirstMatch(t2)
 select a1,a2,b,c,min(c), max(c) from t1
@@ -2444,7 +2444,7 @@ EXPLAIN SELECT 1 FROM t1 AS t1_outer1 JOIN t1 AS t1_outer2
 ON t1_outer1.a = (SELECT max(b) FROM t1 GROUP BY a HAVING a < 2) 
 AND t1_outer1.b = t1_outer2.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1_outer1	ref	a	a	5	const	1	Using where; Using index
+1	PRIMARY	t1_outer1	ref	a	a	5	const	1	Using where; Subqueries: 2; Using index
 1	PRIMARY	t1_outer2	index	NULL	a	10	NULL	15	Using where; Using index; Using join buffer (flat, BNL join)
 2	SUBQUERY	t1	range	NULL	a	5	NULL	8	Using index for group-by
 EXPLAIN SELECT (SELECT (SELECT max(b) FROM t1 GROUP BY a HAVING a < 2) x
@@ -2994,7 +2994,7 @@ SELECT alias1.* FROM t1, (SELECT * FROM t1) AS alias1
 WHERE EXISTS ( SELECT DISTINCT b FROM t1 WHERE b <= alias1.a ) ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	b	5	NULL	10	Using index
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	Using where; Subqueries: 3; Using join buffer (flat, BNL join)
 3	DEPENDENT SUBQUERY	t1	index	b	b	5	NULL	10	Using where; Using index
 SELECT alias1.* FROM t1, (SELECT * FROM t1) AS alias1
 WHERE EXISTS ( SELECT DISTINCT b FROM t1 WHERE b <= alias1.a ) ;
@@ -3104,7 +3104,7 @@ SELECT alias1.* FROM t1, t1 AS alias1
 WHERE EXISTS ( SELECT DISTINCT b FROM t1 WHERE b <= alias1.a ) ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	b	5	NULL	10	Using index
-1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	10	Using where; Subqueries: 2; Using join buffer (flat, BNL join)
 2	DEPENDENT SUBQUERY	t1	index	b	b	5	NULL	10	Using where; Using index
 SELECT alias1.* FROM t1, t1 AS alias1
 WHERE EXISTS ( SELECT DISTINCT b FROM t1 WHERE b <= alias1.a ) ;
@@ -3292,7 +3292,7 @@ MIN(a)	b
 EXPLAIN
 SELECT MIN(a), b FROM t1 WHERE a > ( SELECT c FROM t2 WHERE c = 0 ) GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	NULL	b	10	NULL	10	Using where; Using index for group-by
+1	PRIMARY	t1	range	NULL	b	10	NULL	10	Using where; Subqueries: 2; Using index for group-by
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT MIN(a), b FROM t1 WHERE a > ( SELECT c FROM t2 WHERE c = 0 ) GROUP BY b;
 MIN(a)	b
@@ -3301,7 +3301,7 @@ MIN(a)	b
 EXPLAIN
 SELECT MIN(a), b FROM t1 WHERE a > ( SELECT min(c) FROM t2, t1 t1a, t1 t1b WHERE c = 0 ) GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	b	10	NULL	9	Using where; Using index
+1	PRIMARY	t1	index	NULL	b	10	NULL	9	Using where; Subqueries: 2; Using index
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	SUBQUERY	t1a	index	NULL	b	10	NULL	9	Using index; Using join buffer (flat, BNL join)
 2	SUBQUERY	t1b	index	NULL	b	10	NULL	9	Using index; Using join buffer (incremental, BNL join)

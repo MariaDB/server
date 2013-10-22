@@ -4179,6 +4179,7 @@ SET SESSION join_buffer_size = 2176;
 
 EXPLAIN
 SELECT STRAIGHT_JOIN * FROM t2, (t1 LEFT JOIN (t3,t4) ON t1.f1 = t4.f1), t5, t6;
+--sorted_result
 SELECT STRAIGHT_JOIN * FROM t2, (t1 LEFT JOIN (t3,t4) ON t1.f1 = t4.f1), t5, t6;
 
 SET SESSION join_buffer_size = DEFAULT;

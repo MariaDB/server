@@ -1919,6 +1919,9 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
     }
   }
 
+  if (setup_dynamic_conditions())
+    DBUG_RETURN(1);
+
   tmp_having= having;
   if (select_options & SELECT_DESCRIBE)
   {
@@ -2112,10 +2115,6 @@ int JOIN::init_execution()
     if (select_lex->uncacheable && init_save_join_tab())
       DBUG_RETURN(-1);                         /* purecov: inspected */
   }
-
-
-  if (setup_dynamic_conditions())
-    DBUG_RETURN(1);
 
   DBUG_RETURN(0);
 }
@@ -23179,8 +23178,8 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
   DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
 		      (ulong)join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));
-  DBUG_ASSERT(on_the_fly? (have_query_plan == QEP_EXPLAINABLE ||
-                           have_query_plan == QEP_EXECUTABLE) : TRUE);
+  DBUG_ASSERT(have_query_plan == QEP_EXPLAINABLE ||
+              have_query_plan == QEP_EXECUTABLE);
   /* Don't log this into the slow query log */
 
   if (message)
@@ -23211,9 +23210,6 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     xpl_sel->select_type= join->select_lex->type;
 
     JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
-
-    if (!join->initialized && join->setup_dynamic_conditions())
-      return 1;
 
     for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
          tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
@@ -23529,8 +23525,19 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
             else
             {
               eta->push_extra(ET_USING_WHERE);
-              // @todo timour merge - where does new explain call print() ?
               *cur_exec_tab= tab;
+              /* Collect the subselects references in the pushdown condition. */
+              eta->subs_list.empty();
+              if (tab->select_cond)
+                tab->select_cond->walk(&Item::collect_item_subselect_processor, 0,
+                                       (uchar*) &(eta->subs_list));
+              /*
+                Notice that collect_item_subselect_processor skips duplicate
+                entries.
+              */
+              if (tab->cache_select && tab->cache_select->cond)
+                tab->cache_select->cond->walk(&Item::collect_item_subselect_processor, 0,
+                                              (uchar*) &(eta->subs_list));
             }
           }
 	}

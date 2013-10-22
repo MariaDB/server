@@ -64,7 +64,7 @@ WHERE (Code IN (select Country from City where City.Population > 100000) OR
 Name LIKE 'L%') AND
 surfacearea > 1000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	Country	ALL	Name,SurfaceArea	NULL	NULL	NULL	239	Using where
+1	PRIMARY	Country	ALL	Name,SurfaceArea	NULL	NULL	NULL	239	Using where; Subqueries: 2
 2	MATERIALIZED	City	ALL	Population,Country	NULL	NULL	NULL	4080	Using where
 SELECT Name FROM Country
 WHERE (Code IN (select Country from City where City.Population > 100000) OR
@@ -110,7 +110,7 @@ WHERE (Code IN (select Country from City where City.Population > 100000) OR
 Name LIKE 'L%') AND
 surfacearea > 10*1000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	Country	range	Name,SurfaceArea	SurfaceArea	4	NULL	5	Using index condition; Using where; Rowid-ordered scan
+1	PRIMARY	Country	range	Name,SurfaceArea	SurfaceArea	4	NULL	5	Using index condition; Using where; Subqueries: 2; Rowid-ordered scan
 2	DEPENDENT SUBQUERY	City	index_subquery	Population,Country	Country	3	func	18	Using where
 SELECT Name FROM Country
 WHERE (Code IN (select Country from City where City.Population > 100000) OR
@@ -133,7 +133,7 @@ Country.SurfaceArea < 3000 AND Country.SurfaceArea > 10 AND
 City.name LIKE '%Island%');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	ALL	PRIMARY,SurfaceArea	NULL	NULL	NULL	239	Using where
-1	PRIMARY	City	ref	Country	Country	3	world.Country.Code	18	Using where
+1	PRIMARY	City	ref	Country	Country	3	world.Country.Code	18	Using where; Subqueries: 2
 2	MATERIALIZED	CountryLanguage	ALL	Percentage,Language	NULL	NULL	NULL	984	Using where
 SELECT *
 FROM Country, City
@@ -157,7 +157,7 @@ Country.SurfaceArea < 3000 AND Country.SurfaceArea > 10 AND
 (select Language from CountryLanguage where Percentage > 50) OR
 Country.name LIKE '%Island%');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	Country	ALL	PRIMARY,SurfaceArea	NULL	NULL	NULL	239	Using where
+1	PRIMARY	Country	ALL	PRIMARY,SurfaceArea	NULL	NULL	NULL	239	Using where; Subqueries: 2
 1	PRIMARY	City	ref	Country	Country	3	world.Country.Code	18	
 2	DEPENDENT SUBQUERY	CountryLanguage	index_subquery	Percentage,Language	Language	30	func	2	Using where
 SELECT *
@@ -203,9 +203,9 @@ OR
 (select Country, Language from CountryLanguage));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	ALL	PRIMARY,SurfaceArea	NULL	NULL	NULL	239	Using where
-1	PRIMARY	City	ref	Country	Country	3	world.Country.Code	18	Using where
+1	PRIMARY	City	ref	Country	Country	3	world.Country.Code	18	Using where; Subqueries: 3, 2
 3	MATERIALIZED	CountryLanguage	index	PRIMARY,Language	PRIMARY	33	NULL	984	Using index
-2	DEPENDENT SUBQUERY	CountryLanguage	unique_subquery	PRIMARY,Percentage,Language	PRIMARY	33	func,func	1	Using where
+2	MATERIALIZED	CountryLanguage	ALL	PRIMARY,Percentage,Language	NULL	NULL	NULL	984	Using where
 SELECT City.Name, Country.Name
 FROM City,Country
 WHERE City.Country = Country.Code AND
@@ -232,7 +232,7 @@ select count(*) from City
 where City.id not in (select capital from Country
 where capital is not null and population < 100000);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	City	index	NULL	PRIMARY	4	NULL	4080	Using where; Using index
+1	PRIMARY	City	index	NULL	PRIMARY	4	NULL	4080	Using where; Subqueries: 2; Using index
 2	MATERIALIZED	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 
 Q2.2e:
@@ -247,7 +247,7 @@ AND CountryLanguage.Language = 'French'
   AND Code = Country;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	CountryLanguage	ref	PRIMARY,Language	Language	30	const	20	Using index condition
-1	PRIMARY	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using where
+1	PRIMARY	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	CountryLanguage	unique_subquery	PRIMARY,Language	PRIMARY	33	func,const	1	Using index; Using where
 SELECT Country.Name
 FROM Country, CountryLanguage 
@@ -287,7 +287,7 @@ AND (CountryLanguage.Language = 'French' OR CountryLanguage.Language = 'Spanish'
 AND Code = Country;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	CountryLanguage	range	PRIMARY,Language	Language	30	NULL	60	Using index condition; Using where; Rowid-ordered scan
-1	PRIMARY	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using where
+1	PRIMARY	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using where; Subqueries: 2
 2	MATERIALIZED	CountryLanguage	ref	PRIMARY,Language	Language	30	const	47	Using index condition
 SELECT Country.Name
 FROM Country, CountryLanguage 
@@ -366,7 +366,7 @@ where (Language, Country) NOT IN
 FROM City LEFT JOIN Country ON (Country = Code and City.Population < 10000))
 AND Language IN ('English','Spanish');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	CountryLanguage	range	Language	Language	30	NULL	72	Using index condition; Using where; Rowid-ordered scan
+1	PRIMARY	CountryLanguage	range	Language	Language	30	NULL	72	Using index condition; Using where; Subqueries: 2; Rowid-ordered scan
 2	DEPENDENT SUBQUERY	City	ref	CityName	CityName	35	func	1	Using index condition
 2	DEPENDENT SUBQUERY	Country	eq_ref	PRIMARY	PRIMARY	3	world.City.Country	1	Using where; Using index
 select count(*)
@@ -389,7 +389,7 @@ where (Language, Country) NOT IN
 FROM City LEFT JOIN Country ON (Country = Code)
 HAVING City.Name LIKE "Santa%");
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	CountryLanguage	index	NULL	PRIMARY	33	NULL	984	Using where; Using index
+1	PRIMARY	CountryLanguage	index	NULL	PRIMARY	33	NULL	984	Using where; Subqueries: 2; Using index
 2	MATERIALIZED	City	ALL	NULL	NULL	NULL	NULL	4080	
 2	MATERIALIZED	Country	eq_ref	PRIMARY	PRIMARY	3	world.City.Country	1	Using index
 select count(*)
@@ -417,7 +417,7 @@ OR
 WHERE Code = Country GROUP BY Code)
 order by Country;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	CountryLanguage	index	NULL	PRIMARY	33	NULL	984	Using where; Using index
+1	PRIMARY	CountryLanguage	index	NULL	PRIMARY	33	NULL	984	Using where; Subqueries: 2, 3; Using index
 3	MATERIALIZED	Country	index	PRIMARY	PRIMARY	3	NULL	239	Using index
 3	MATERIALIZED	CountryLanguage	ref	PRIMARY	PRIMARY	3	world.Country.Code	4	Using index
 2	MATERIALIZED	Country	index	PRIMARY	PRIMARY	3	NULL	239	Using index
@@ -447,7 +447,7 @@ GROUP BY name HAVING Count(*) > 2) OR
 capital is null);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
-1	PRIMARY	City	eq_ref	PRIMARY	PRIMARY	4	world.Country.Capital	1	Using where
+1	PRIMARY	City	eq_ref	PRIMARY	PRIMARY	4	world.Country.Capital	1	Using where; Subqueries: 2
 2	MATERIALIZED	City	index	NULL	CityName	35	NULL	4080	Using index
 select * from Country, City
 where capital = id and
@@ -468,7 +468,7 @@ FROM Country
 WHERE Country.Code NOT IN
 (SELECT Country FROM City GROUP BY Name HAVING COUNT(Name) = 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
+1	PRIMARY	Country	ALL	NULL	NULL	NULL	NULL	239	Using where; Subqueries: 2
 2	MATERIALIZED	City	ALL	NULL	NULL	NULL	NULL	4080	Using temporary
 SELECT Name
 FROM Country
@@ -557,7 +557,7 @@ SELECT Name, round(Population/1000)
 FROM City
 WHERE Country = "IND" AND Population < 100000);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	City	ALL	NULL	NULL	NULL	NULL	4080	Using where
+1	PRIMARY	City	ALL	NULL	NULL	NULL	NULL	4080	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	City	ref	Population,Country,CityName	CityName	35	func	1	Using where
 3	DEPENDENT UNION	City	ref	Population,Country,CityName	CityName	35	func	1	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	

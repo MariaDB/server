@@ -158,6 +158,15 @@ The following options may be given as the first argument:
  --dynamic-pushdown-max-evals=# 
  The number of times a dynamic condition must be evaluated
  in order to trigger dynamic pushdown
+ --dynamic-pushdown-max-selectivity=# 
+ If a predicate's selectivity is below this limit, it is
+ considered sufficiently selective to re-filter all
+ records in a partial blocked join.The selectivity itself
+ is estimated by sampling the predicate with probability
+ 'dynamic_pushdown_sampling_probability'.
+ --dynamic-pushdown-sampling-probability=# 
+ The probability (in %) with which to evaluate this
+ condition in orderto estimate its selectivity.
  --engine-condition-pushdown 
  Push supported query conditions to the storage engine.
  Deprecated, use --optimizer-switch instead.
@@ -526,9 +535,9 @@ The following options may be given as the first argument:
  outer_join_with_cache, partial_match_rowid_merge,
  partial_match_table_scan, semijoin, semijoin_with_cache,
  subquery_cache, table_elimination, extended_keys,
- exists_to_in, expensive_pred_static_pushdown,
- expensive_pred_dynamic_pushdown} and val is one of {on,
- off, default}
+ exists_to_in, static_cond_pushdown,
+ dynamic_cond_pushdown, record_cond_statistics} and val is
+ one of {on, off, default}
  --optimizer-use-condition-selectivity=# 
  Controls selectivity of which conditions the optimizer
  takes into account to calculate cardinality of a partial
@@ -963,6 +972,8 @@ delayed-queue-size 1000
 div-precision-increment 4
 dynamic-pushdown-cost-ratio 25
 dynamic-pushdown-max-evals 100
+dynamic-pushdown-max-selectivity 25
+dynamic-pushdown-sampling-probability 3
 engine-condition-pushdown FALSE
 event-scheduler OFF
 expensive-subquery-limit 100

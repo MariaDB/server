@@ -19,8 +19,8 @@ SELECT 1 FROM t1
 WHERE NOT EXISTS (SELECT 1 FROM t2 WHERE 1 = (SELECT MIN(t2.b) FROM t3))
 ORDER BY count(*);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	a	5	NULL	2	Using where; Using index; Using temporary
-2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	index	NULL	a	5	NULL	2	Using where; Subqueries: 2; Using index; Using temporary
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 3
 3	DEPENDENT SUBQUERY	t3	system	NULL	NULL	NULL	NULL	0	const row not found
 # should not crash the next statement
 SELECT 1 FROM t1
@@ -131,7 +131,7 @@ a	b
 EXPLAIN
 SELECT * FROM t1 WHERE ( a, b ) NOT IN ( SELECT c, d FROM t2 ) IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT * FROM t1 WHERE ( a, b ) NOT IN ( SELECT c, d FROM t2 ) IS NULL;
 a	b
@@ -224,7 +224,7 @@ INSERT INTO t2d VALUES (0,0), (1,1), (2,2), (3,3);
 EXPLAIN
 SELECT * FROM t1 WHERE NULL NOT IN (SELECT t2a.i FROM t2a WHERE t2a.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2a	unique_subquery	PRIMARY	PRIMARY	8	const,test.t1.pk	1	Using index; Using where; Full scan on NULL key
 SELECT * FROM t1 WHERE NULL NOT IN (SELECT t2a.i FROM t2a WHERE t2a.pk = t1.pk);
 pk	i
@@ -245,7 +245,7 @@ pk	NULL NOT IN (SELECT t2a.i FROM t2a  WHERE t2a.pk = t1.pk)
 EXPLAIN
 SELECT * FROM t1 WHERE NULL NOT IN (SELECT t2b.i FROM t2b WHERE t2b.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2b	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT * FROM t1 WHERE NULL NOT IN (SELECT t2b.i FROM t2b WHERE t2b.pk = t1.pk);
 pk	i
@@ -264,7 +264,7 @@ pk	NULL NOT IN (SELECT t2b.i FROM t2b  WHERE t2b.pk = t1.pk)
 EXPLAIN
 SELECT * FROM t1 WHERE NULL NOT IN (SELECT t2c.i FROM t2c WHERE t2c.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2c	index_subquery	it2c	it2c	8	const,test.t1.pk	2	Using index; Using where; Full scan on NULL key
 SELECT * FROM t1 WHERE NULL NOT IN (SELECT t2c.i FROM t2c WHERE t2c.pk = t1.pk);
 pk	i
@@ -283,7 +283,7 @@ pk	NULL NOT IN (SELECT t2c.i FROM t2c  WHERE t2c.pk = t1.pk)
 EXPLAIN
 SELECT * FROM t1 WHERE NULL NOT IN (SELECT t2d.i FROM t2d WHERE t2d.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2d	const	PRIMARY	PRIMARY	4	const	1	Using where; Full scan on NULL key
 SELECT * FROM t1 WHERE NULL NOT IN (SELECT t2d.i FROM t2d WHERE t2d.pk = t1.pk);
 pk	i
@@ -302,7 +302,7 @@ pk	NULL NOT IN (SELECT t2d.i FROM t2d  WHERE t2d.pk = t1.pk)
 EXPLAIN
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2a	unique_subquery	PRIMARY	PRIMARY	8	const,test.t1.pk	1	Using index; Using where; Full scan on NULL key
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk);
 pk	i
@@ -318,7 +318,7 @@ NULL
 EXPLAIN
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2b.i, t2b.pk FROM t2b WHERE t2b.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2b	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2b.i, t2b.pk FROM t2b WHERE t2b.pk = t1.pk);
 pk	i
@@ -334,7 +334,7 @@ NULL
 EXPLAIN
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2c	index_subquery	it2c	it2c	8	const,test.t1.pk	2	Using index; Using where; Full scan on NULL key
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk);
 pk	i
@@ -350,7 +350,7 @@ NULL
 EXPLAIN
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2d.i, t2d.pk FROM t2d WHERE t2d.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2d	const	PRIMARY	PRIMARY	4	const	1	Using where; Full scan on NULL key
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2d.i, t2d.pk FROM t2d WHERE t2d.pk = t1.pk);
 pk	i
@@ -752,8 +752,8 @@ WHERE f3 = (
 SELECT t1.f3 FROM t1
 WHERE ( t1.f10 ) IN ( SELECT max(f11) FROM t2 GROUP BY f11 ));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ref	f3	f3	5	const	0	Using where
-2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ref	f3	f3	5	const	0	Using where; Subqueries: 2
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 3
 3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using temporary
 SELECT * FROM t1
 WHERE f3 = (
@@ -766,8 +766,8 @@ WHERE f3 = (
 SELECT f3 FROM t1
 WHERE ( f10, f10 ) IN ( SELECT max(f11), f11 FROM t2 GROUP BY f11 ));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ref	f3	f3	5	const	0	Using where
-2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ref	f3	f3	5	const	0	Using where; Subqueries: 2
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 3
 3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using temporary
 SELECT * FROM t1
 WHERE f3 = (
@@ -1349,7 +1349,7 @@ ON SUBQUERY2_t3.f2)
 GROUP BY t1.f4 ORDER BY t1.f1 LIMIT 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	Using temporary; Using filesort
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	11	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	11	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	SUBQUERY2_t1	system	NULL	NULL	NULL	NULL	1	
 2	DEPENDENT SUBQUERY	SUBQUERY2_t2	index	NULL	f4	5	NULL	11	Using index
 2	DEPENDENT SUBQUERY	SUBQUERY2_t3	ALL	NULL	NULL	NULL	NULL	11	Using where; Using join buffer (flat, BNL join)
@@ -1374,7 +1374,7 @@ FROM t3 AS SQ1_t1 JOIN t3 AS SQ1_t3 ON SQ1_t3.f4
 GROUP BY SQ1_t1.f4));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 3
 3	SUBQUERY	SQ1_t1	index	NULL	f4	5	NULL	2	Using index; Using temporary
 3	SUBQUERY	SQ1_t3	index	f4	f4	5	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE
@@ -1672,7 +1672,7 @@ FROM t0 AS alias1
 RIGHT JOIN t0 AS alias2 ON alias2.f10
 WHERE ( alias2.f1 , alias2.f2 ) IN ( SELECT max(f2) , f1 FROM t0 GROUP BY f2 , f1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 2
 1	PRIMARY	alias1	index	NULL	PRIMARY	4	NULL	2	Using where; Using index
 2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	2	Using temporary
 SELECT alias2.f1 , alias2.f2
@@ -1706,7 +1706,7 @@ FROM t0 AS alias1
 RIGHT JOIN t0 AS alias2 ON alias2.f10
 WHERE ( alias2.f1 , alias2.f2 ) IN ( SELECT max(f2) , f1 FROM t0 GROUP BY f2 , f1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 2
 1	PRIMARY	alias1	index	NULL	PRIMARY	4	NULL	2	Using where; Using index
 2	MATERIALIZED	t0	ALL	NULL	NULL	NULL	NULL	2	Using temporary
 SELECT alias2.f1 , alias2.f2
@@ -1747,7 +1747,7 @@ INSERT INTO t2 VALUES (1, 2);
 SET @@optimizer_switch = 'in_to_exists=on,materialization=off,semijoin=off';
 EXPLAIN SELECT * FROM t1 WHERE a1 IN (SELECT b1 FROM t2 WHERE b1 = b2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT * FROM t1 WHERE a1 IN (SELECT b1 FROM t2 WHERE b1 = b2);
 a1	a2
@@ -1767,7 +1767,7 @@ SELECT f2 FROM t1 WHERE ( f2 ) IN ( SELECT t3.f2 FROM t3 JOIN t2 ON t2.f1 = 1 )
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 3
 3	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
 3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 SELECT STRAIGHT_JOIN (
@@ -1835,7 +1835,7 @@ WHERE t2.f2 = (SELECT f2 FROM t3
 WHERE EXISTS (SELECT DISTINCT f1 FROM t4))
 AND t2.f2 = t1.f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ref	f1	f1	5	const	0	Using where
+1	PRIMARY	t1	ref	f1	f1	5	const	0	Using where; Subqueries: 2
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	
 3	SUBQUERY	t4	index	NULL	f1	5	NULL	2	Using index
@@ -1852,7 +1852,7 @@ WHERE t2.f2 = (SELECT f2 FROM t3
 WHERE EXISTS (SELECT DISTINCT f1 FROM t4) LIMIT 1)
 AND t2.f2 = t1.f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ref	f1	f1	5	const	0	Using where
+1	PRIMARY	t1	ref	f1	f1	5	const	0	Using where; Subqueries: 2
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	
 3	SUBQUERY	t4	index	NULL	f1	5	NULL	2	Using index
@@ -1897,7 +1897,7 @@ WHERE SUBQUERY2_t2.col_varchar_nokey IN
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	index	NULL	col_int_key	5	NULL	2	Using index
 2	SUBQUERY	SUBQUERY2_t1	index	NULL	col_int_key	5	NULL	2	Using index
-2	SUBQUERY	SUBQUERY2_t2	ALL	col_varchar_key	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+2	SUBQUERY	SUBQUERY2_t2	ALL	col_varchar_key	NULL	NULL	NULL	2	Using where; Subqueries: 3; Using join buffer (flat, BNL join)
 3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	
 SELECT col_int_key
 FROM t2
@@ -1922,7 +1922,7 @@ WHERE SUBQUERY2_t2.col_varchar_nokey IN
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	index	NULL	col_int_key	5	NULL	2	Using index
 2	SUBQUERY	SUBQUERY2_t1	index	NULL	col_int_key	5	NULL	2	Using index
-2	SUBQUERY	SUBQUERY2_t2	ALL	col_varchar_key	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+2	SUBQUERY	SUBQUERY2_t2	ALL	col_varchar_key	NULL	NULL	NULL	2	Using where; Subqueries: 3; Using join buffer (flat, BNL join)
 3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT col_int_key
 FROM t2
@@ -1950,7 +1950,7 @@ set @@optimizer_switch='materialization=on,in_to_exists=off,semijoin=off,subquer
 EXPLAIN SELECT * FROM t1 JOIN v2 ON t1.f2 > 'a' WHERE v2.f3 IN ( SELECT f2 FROM t1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 2; Using join buffer (flat, BNL join)
 2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	
 PREPARE st1 FROM "SELECT * FROM t1 JOIN v2 ON t1.f2 > 'a' WHERE v2.f3 IN ( SELECT f2 FROM t1 )";
 EXECUTE st1;
@@ -1965,7 +1965,7 @@ set @@optimizer_switch='materialization=off,in_to_exists=on,semijoin=off,subquer
 EXPLAIN SELECT * FROM t1 JOIN v2 ON t1.f2 > 'a' WHERE v2.f3 IN ( SELECT f2 FROM t1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 2; Using join buffer (flat, BNL join)
 2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 PREPARE st2 FROM "SELECT * FROM t1 JOIN v2 ON t1.f2 > 'a' WHERE v2.f3 IN ( SELECT f2 FROM t1 )";
 EXECUTE st2;
@@ -1980,7 +1980,7 @@ set @@optimizer_switch='materialization=on,in_to_exists=on,semijoin=off,subquery
 EXPLAIN SELECT * FROM t1 JOIN v2 ON t1.f2 > 'a' WHERE v2.f3 IN ( SELECT f2 FROM t1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 2; Using join buffer (flat, BNL join)
 2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	
 PREPARE st3 FROM "SELECT * FROM t1 JOIN v2 ON t1.f2 > 'a' WHERE v2.f3 IN ( SELECT f2 FROM t1 )";
 EXECUTE st3;
@@ -2258,7 +2258,7 @@ SELECT a3 FROM t3 WHERE b2 = b1 AND b2 <= b1 ORDER BY b3
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 3
 3	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT * FROM t1 WHERE a1 IN ( 
 SELECT a2 FROM t2 WHERE a2 IN ( 
@@ -2327,7 +2327,7 @@ INSERT INTO t1 (x) VALUES (0),(0),(0);
 EXPLAIN
 SELECT x FROM t1 WHERE id > (SELECT MAX(id) - 1000 FROM t1) ORDER BY x LIMIT 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	PRIMARY	PRIMARY	4	NULL	3	Using where; Using filesort
+1	PRIMARY	t1	range	PRIMARY	PRIMARY	4	NULL	3	Using where; Subqueries: 2; Using filesort
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 SELECT x FROM t1 WHERE id > (SELECT MAX(id) - 1000 FROM t1) ORDER BY x LIMIT 1;
 x
@@ -2356,7 +2356,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	16	100.00	
 Warnings:
 Note	1276	Field or reference 'b' of SELECT #4 was resolved in SELECT #1
-Note	1003	select count(0) AS `cnt` from `test`.`t1` where (<cache>(<nop>(<in_optimizer>(9,((select max(`test`.`t1`.`a`) from `test`.`t1`) > 9)))) or <expr_cache><9>(exists(select 1 from `test`.`t3` `t3_1` join `test`.`t3` `t3_2` where ((`test`.`t3_2`.`c` = `test`.`t3_1`.`c`) and (`test`.`t3_1`.`c` <> 9))))) order by count(0)
+Note	1003	select count(0) AS `cnt` from `test`.`t1` where (0 or <expr_cache><9>(exists(select 1 from `test`.`t3` `t3_1` join `test`.`t3` `t3_2` where ((`test`.`t3_2`.`c` = `test`.`t3_1`.`c`) and (`test`.`t3_1`.`c` <> 9))))) order by count(0)
 SELECT  COUNT(*) AS cnt FROM t1, ( SELECT b FROM t2 ) AS t2_sq
 WHERE b < ANY ( SELECT a FROM t1, t2 ) 
 OR EXISTS ( SELECT 1 FROM t3 t3_1, t3 t3_2 WHERE t3_2.c = t3_1.c AND t3_2.c <> b )  
@@ -2377,7 +2377,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	16	100.00	
 Warnings:
 Note	1276	Field or reference 'b' of SELECT #4 was resolved in SELECT #1
-Note	1003	select count(9) AS `COUNT(b)` from `test`.`t1` where (<cache>(<nop>(<in_optimizer>(9,((select max(`test`.`t1`.`a`) from `test`.`t1`) > 9)))) or <expr_cache><9>(exists(select 1 from `test`.`t3` `t3_1` join `test`.`t3` `t3_2` where (`test`.`t3_2`.`c` <> 9)))) group by `test`.`t1`.`a`
+Note	1003	select count(9) AS `COUNT(b)` from `test`.`t1` where (0 or <expr_cache><9>(exists(select 1 from `test`.`t3` `t3_1` join `test`.`t3` `t3_2` where (`test`.`t3_2`.`c` <> 9)))) group by `test`.`t1`.`a`
 SELECT COUNT(b)
 FROM t1, (SELECT b FROM t2) AS t2_sq
 WHERE b < ANY (SELECT a FROM t1)
@@ -2408,8 +2408,8 @@ FLUSH TABLES;
 EXPLAIN
 SELECT * FROM t1 AS outer_t1 WHERE b IN ( SELECT a FROM t1 WHERE b != 1 ) AND EXISTS ( SELECT 1 FROM t1 WHERE b < outer_t1.a );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	outer_t1	ALL	b	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+1	PRIMARY	outer_t1	ALL	b	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t1	ALL	b	NULL	NULL	NULL	4	Using where
 3	DEPENDENT SUBQUERY	t1	index	b	b	5	NULL	4	Using where; Using index
 SELECT * FROM t1 AS outer_t1 WHERE b IN ( SELECT a FROM t1 WHERE b != 1 ) AND EXISTS ( SELECT 1 FROM t1 WHERE b < outer_t1.a );
@@ -2433,11 +2433,14 @@ SELECT c FROM t1 AS inner_t1, t3
 WHERE (inner_t1.a = 7 AND inner_t1.a != outer_t1.a) OR
 (2) IN (SELECT a FROM t1 WHERE 0));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	outer_t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	inner_t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(outer_t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
 3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1276	Field or reference 'test.outer_t1.a' of SELECT #2 was resolved in SELECT #1
-Note	1003	select `test`.`outer_t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` `outer_t1` semi join (`test`.`t1` `inner_t1`) join `test`.`t2` where ((`test`.`outer_t1`.`a` = 7) and (`test`.`t2`.`b` = 7) and (`test`.`inner_t1`.`a` = 7) and 0)
+Note	1003	select `test`.`outer_t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` `outer_t1` semi join (`test`.`t1` `inner_t1`) join `test`.`t2` where ((`test`.`outer_t1`.`a` = 7) and (`test`.`t2`.`b` = 7) and (`test`.`inner_t1`.`a` = 7) and (7 <> `test`.`outer_t1`.`a`))
 SELECT * FROM t1 AS outer_t1, t2 
 WHERE outer_t1.a = b AND outer_t1.a IN ( 
 SELECT c FROM t1 AS inner_t1, t3 
@@ -2481,7 +2484,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 3
 2	MATERIALIZED	t4	index	c4	c4	2	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
 3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used

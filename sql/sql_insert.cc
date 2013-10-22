@@ -814,7 +814,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   /* Restore the current context. */
   ctx_state.restore_state(context, table_list);
   
-  if (thd->lex->unit.first_select()->optimize_unflattened_subqueries(false))
+  if (thd->lex->unit.first_select()->optimize_subqueries(&Item_subselect::has_single_strategy))
   {
     goto abort;
   }

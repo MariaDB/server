@@ -2391,6 +2391,8 @@ enum_nested_loop_state JOIN_CACHE::generate_full_extensions(uchar *rec_ptr)
   {    
     int res= 0;
 
+    join_tab->exec_partial_join_records++;
+
     if (!join_tab->check_weed_out_table || 
         !(res= join_tab->check_weed_out_table->sj_weedout_check_row(join->thd)))
     {

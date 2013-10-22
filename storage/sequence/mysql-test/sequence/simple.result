@@ -231,7 +231,7 @@ seq
 explain select seq from seq_2_to_50 s1 where 0 not in
 (select s1.seq % s2.seq from seq_2_to_50 s2 where s2.seq <= sqrt(s1.seq));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	s1	index	NULL	PRIMARY	8	NULL	49	Using where; Using index
+1	PRIMARY	s1	index	NULL	PRIMARY	8	NULL	49	Using where; Subqueries: 2; Using index
 2	DEPENDENT SUBQUERY	s2	index	PRIMARY	PRIMARY	8	NULL	49	Using where; Using index
 select year(dt) from
 (select '1901-02-28' + interval seq year as dt from seq_0_to_99) as seqdt

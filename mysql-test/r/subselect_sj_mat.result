@@ -345,7 +345,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	16	func,func	1	100.00	
 5	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 5	MATERIALIZED	t2i	index	it2i1,it2i2,it2i3	it2i3	18	NULL	5	80.00	Using where; Using index; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Subqueries: 3 4
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Subqueries: 3, 4
 4	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 Warnings:
@@ -368,7 +368,7 @@ where (c1, c2) in (select b1, b2 from t2i where b2 > '0'));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	PRIMARY	<subquery5>	eq_ref	distinct_key	distinct_key	16	func,func	1	100.00	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Subqueries: 3 4; Start temporary; End temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Subqueries: 3, 4; Start temporary; End temporary; Using join buffer (flat, BNL join)
 5	MATERIALIZED	t3c	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 5	MATERIALIZED	t2i	index	it2i1,it2i2,it2i3	it2i3	18	NULL	5	80.00	Using where; Using index; Using join buffer (flat, BNL join)
 4	MATERIALIZED	t3b	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
@@ -507,7 +507,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 1	PRIMARY	t2i	ref	it2i1,it2i2,it2i3	it2i3	18	test.t1.a1,test.t1.a2	2	100.00	Using index; Start temporary
 1	PRIMARY	t3c	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; End temporary; Using join buffer (flat, BNL join)
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Subqueries: 3 4; Start temporary; End temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Subqueries: 3, 4; Start temporary; End temporary; Using join buffer (flat, BNL join)
 4	MATERIALIZED	t3b	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 3	DEPENDENT SUBQUERY	t3a	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 Warnings:
@@ -1598,7 +1598,7 @@ insert into t2_1024 values
 (concat('1 - 03', repeat('x', @suffix_len)), concat('2 - 03', repeat('x', @suffix_len)));
 explain select left(a1,7), left(a2,7) from t1_1024 where (a1,3) in (select substring(b1,1,1024), count(*) from t2_1024 where b1 > '0');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1_1024	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t1_1024	ALL	NULL	NULL	NULL	NULL	3	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2_1024	ALL	NULL	NULL	NULL	NULL	3	Using where
 select left(a1,7), left(a2,7) from t1_1024 where (a1,3) in (select substring(b1,1,1024), count(*) from t2_1024 where b1 > '0');
 left(a1,7)	left(a2,7)
@@ -1971,8 +1971,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	index	c	c	5	NULL	8	Using index
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	
-2	MATERIALIZED	s2	ref	d	d	4	const	2	Using where; Using index
-2	MATERIALIZED	s1	ALL	c	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+2	MATERIALIZED	s2	ref	d	d	4	const	2	Using where; Subqueries: 3; Using index
+2	MATERIALIZED	s1	ALL	c	NULL	NULL	NULL	8	Using where; Subqueries: 3; Using join buffer (flat, BNL join)
 3	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	8	
 SELECT a, c FROM t1, t2
 WHERE (a, c) IN (SELECT s1.b, s1.c FROM t2 AS s1, t2 AS s2
@@ -1991,8 +1991,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	index	c	c	5	NULL	8	Using index
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	
-2	MATERIALIZED	s2	ref	d	d	4	const	2	Using where; Using index
-2	MATERIALIZED	s1	hash_ALL	c	#hash#$hj	5	const	8	Using where; Using join buffer (flat, BNLH join)
+2	MATERIALIZED	s2	ref	d	d	4	const	2	Using where; Subqueries: 3; Using index
+2	MATERIALIZED	s1	hash_ALL	c	#hash#$hj	5	const	8	Using where; Subqueries: 3; Using join buffer (flat, BNLH join)
 3	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	8	
 SELECT a, c FROM t1, t2
 WHERE (a, c) IN (SELECT s1.b, s1.c FROM t2 AS s1, t2 AS s2

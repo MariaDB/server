@@ -4273,9 +4273,9 @@ static Sys_var_uint Sys_dynamic_pushdown_sampling_probability(
 
 static Sys_var_uint Sys_dynamic_pushdown_max_selectivity(
        "dynamic_pushdown_max_selectivity",
-       "If a predicate's selectivity is below this limit, it is considered"
+       "If a predicate's selectivity is below this limit, it is considered "
        "sufficiently selective to re-filter all records in a partial blocked join."
-       "The selectivity itself is estimated by sampling the predicate with"
+       "The selectivity itself is estimated by sampling the predicate with "
        "probability 'dynamic_pushdown_sampling_probability'.",
        SESSION_VAR(dynamic_pushdown_max_selectivity), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 100), DEFAULT(25), BLOCK_SIZE(1));

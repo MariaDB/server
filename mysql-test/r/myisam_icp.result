@@ -434,7 +434,7 @@ EXPLAIN
 SELECT * FROM t1
 WHERE pk IN (SELECT it.pk FROM t2 JOIN t2 AS it ON it.i=it.i WHERE it.pk-t1.i<10);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	it	eq_ref	PRIMARY	PRIMARY	4	func	1	Using index condition
 2	DEPENDENT SUBQUERY	t2	index	NULL	PRIMARY	4	NULL	3	Using where; Using index; Using join buffer (flat, BNL join)
 SELECT * FROM t1
@@ -794,8 +794,8 @@ WHERE c = g
 AND (EXISTS (SELECT * FROM t1, t2 WHERE a = f  AND h <= t.e AND a > t.b)
 OR a = 0 AND h < 'z' );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	ALL	PRIMARY,c	NULL	NULL	NULL	64	Using where
-1	PRIMARY	t2	ref	g	g	5	test.t.c	19	Using where
+1	PRIMARY	t	ALL	PRIMARY,c	NULL	NULL	NULL	64	Using where; Subqueries: 2
+1	PRIMARY	t2	ref	g	g	5	test.t.c	19	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t1	index	PRIMARY	PRIMARY	4	NULL	64	Using where; Using index
 2	DEPENDENT SUBQUERY	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using index condition; Using where
 SELECT COUNT(*) FROM t1 AS t, t2
@@ -941,7 +941,7 @@ WHERE
 t2.b NOT IN (SELECT t4.b FROM t3 STRAIGHT_JOIN t4 WHERE t4.b <= 2 AND t4.c = t3.c);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Subqueries: 2
 2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	
 2	MATERIALIZED	t4	range	b	b	5	NULL	1	Using index condition; Using where; Rowid-ordered scan; Using join buffer (flat, BNL join)
 SELECT * FROM t1 LEFT JOIN t2 ON t1.c=t2.b

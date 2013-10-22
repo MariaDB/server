@@ -2041,7 +2041,7 @@ SELECT STRAIGHT_JOIN t1.id1, t1.num3, t3.text1, t3.id4, t2.id3, t4.dummy
   FROM t1 JOIN  t2 JOIN  t3 JOIN  t4 JOIN  t5 
     WHERE t1.id1=t5.id1 AND t1.id2=t5.id2 and  t4.id2=t1.id2 AND
           t5.enum2='Active' AND t3.id4=t2.id4 AND t2.id3=t1.id3 AND t3.text1<'D';
-
+--sorted_result
 SELECT STRAIGHT_JOIN t1.id1, t1.num3, t3.text1, t3.id4, t2.id3, t4.dummy
   FROM t1 JOIN  t2 JOIN  t3 JOIN  t4 JOIN  t5 
     WHERE t1.id1=t5.id1 AND t1.id2=t5.id2 and  t4.id2=t1.id2 AND

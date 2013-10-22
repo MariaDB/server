@@ -402,12 +402,12 @@ bool Item_subselect::set_fake_select_as_master_processor(uchar *arg)
 
 bool Item_subselect::collect_item_subselect_processor(uchar * arg)
 {
-  List<Item_subselect> *subs_list= (List<Item_subselect>*) arg;
-  List_iterator<Item_subselect> subs_list_it(*subs_list);
-  Item_subselect *cur_subs;
+  List<Item> *subs_list= (List<Item>*) arg;
+  List_iterator<Item> subs_list_it(*subs_list);
+  Item *cur_subs;
   while ((cur_subs= subs_list_it++))
   {
-    if (cur_subs->eq(this, 1))
+    if (this == cur_subs || cur_subs->eq(this, 1))
       return false; /* Already in the set. */
   }
   subs_list->push_back(this);

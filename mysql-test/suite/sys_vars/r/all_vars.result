@@ -12,5 +12,7 @@ left join t1 on variable_name=test_name where test_name is null;
 there should be *no* variables listed below:
 dynamic_pushdown_cost_ratio
 dynamic_pushdown_max_evals
+dynamic_pushdown_max_selectivity
+dynamic_pushdown_sampling_probability
 drop table t1;
 drop table t2;

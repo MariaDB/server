@@ -269,7 +269,7 @@ explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 4);
@@ -282,7 +282,7 @@ select * from t1
 where c1 IN (select * from t2 where c2 > ' ')
 LIMIT ROWS EXAMINED 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ')
@@ -296,7 +296,7 @@ select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
 LIMIT ROWS EXAMINED 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
@@ -310,7 +310,7 @@ select * from t1i
 where c1 IN (select * from t2i where c2 > ' ')
 LIMIT ROWS EXAMINED 9;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1i	index	NULL	PRIMARY	2	NULL	4	Using where; Using index
+1	PRIMARY	t1i	index	NULL	PRIMARY	2	NULL	4	Using where; Subqueries: 2; Using index
 2	DEPENDENT SUBQUERY	t2i	unique_subquery	PRIMARY	PRIMARY	2	func	1	Using index; Using where
 select * from t1i
 where c1 IN (select * from t2i where c2 > ' ')
@@ -354,7 +354,7 @@ explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 13);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 13);
@@ -366,7 +366,7 @@ explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ') LIMIT ROWS EXAMINED 13;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ') LIMIT ROWS EXAMINED 13;
@@ -379,7 +379,7 @@ select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
 LIMIT ROWS EXAMINED 13;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 2
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
@@ -392,7 +392,7 @@ explain
 select * from t1i
 where c1 IN (select * from t2i where c2 > ' ') LIMIT ROWS EXAMINED 17;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1i	index	NULL	PRIMARY	2	NULL	4	Using where; Using index
+1	PRIMARY	t1i	index	NULL	PRIMARY	2	NULL	4	Using where; Subqueries: 2; Using index
 2	MATERIALIZED	t2i	index	PRIMARY	PRIMARY	2	NULL	4	Using where; Using index
 select * from t1i
 where c1 IN (select * from t2i where c2 > ' ') LIMIT ROWS EXAMINED 17;
@@ -439,7 +439,7 @@ from (select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)) as tmp
 LIMIT ROWS EXAMINED 11;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Subqueries: 3
 3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 select *
 from (select * from t1
@@ -733,7 +733,7 @@ LIMIT ROWS EXAMINED 120;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
 1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	7	Using join buffer (flat, BNL join)
-1	PRIMARY	alias3	index	NULL	c	5	NULL	7	Using where; Using index; Using join buffer (incremental, BNL join)
+1	PRIMARY	alias3	index	NULL	c	5	NULL	7	Using where; Subqueries: 2; Using index; Using join buffer (incremental, BNL join)
 2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	

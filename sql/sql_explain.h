@@ -458,6 +458,8 @@ public:
   
   StringBuffer<32> firstmatch_table_name;
 
+  List<Item> subs_list;
+
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
