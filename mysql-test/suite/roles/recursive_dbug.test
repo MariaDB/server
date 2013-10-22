@@ -8,7 +8,7 @@ show status like 'debug%';
 set @old_dbug=@@global.debug_dbug;
 set global debug_dbug="+d,role_merge_stats";
 
-source include/acl_roles_recursive.inc; 
+source recursive.inc; 
 
 set global debug_dbug=@old_dbug;
 

@@ -181,6 +181,7 @@ my $DEFAULT_SUITES= join(',', map { "$_-" } qw(
     percona
     perfschema
     plugins
+    roles
     rpl
     sphinx
     sys_vars
