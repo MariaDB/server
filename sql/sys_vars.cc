@@ -4228,6 +4228,8 @@ static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 #ifndef EMBEDDED_LIBRARY
       delete thd->rli_fake;
       thd->rli_fake= NULL;
+      delete thd->rgi_fake;
+      thd->rgi_fake= NULL;
 #endif
     }
     else if (previous_val && val)

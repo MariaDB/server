@@ -64,7 +64,11 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   /* ToDo: Access to thd, and what about rli, split out a parallel part? */
   mysql_mutex_lock(&rli->data_lock);
   qev->ev->thd= thd;
+  strcpy(rgi->event_relay_log_name_buf, qev->event_relay_log_name);
+  rgi->event_relay_log_name= rgi->event_relay_log_name_buf;
+  rgi->event_relay_log_pos= qev->event_relay_log_pos;
   rgi->future_event_relay_log_pos= qev->future_event_relay_log_pos;
+  strcpy(rgi->future_event_master_log_name, qev->future_event_master_log_name);
   err= apply_event_and_update_pos(qev->ev, thd, rgi, rpt);
   thd->rgi_slave= NULL;
 
@@ -660,7 +664,10 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
   }
   qev->ev= ev;
   qev->next= NULL;
+  strcpy(qev->event_relay_log_name, rli->event_relay_log_name);
+  qev->event_relay_log_pos= rli->event_relay_log_pos;
   qev->future_event_relay_log_pos= rli->future_event_relay_log_pos;
+  strcpy(qev->future_event_master_log_name, rli->future_event_master_log_name);
 
   if (typ == GTID_EVENT)
   {
@@ -674,6 +681,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
       delete rgi;
       return true;
     }
+    rgi->is_parallel_exec = true;
     if ((rgi->deferred_events_collecting= rli->mi->rpl_filter->is_on()))
       rgi->deferred_events= new Deferred_log_events(rli);
 
@@ -783,6 +791,14 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
       have GTID, like a MariaDB 5.5 or MySQL master.
     */
     qev->rgi= serial_rgi;
+    /* Handle master log name change, seen in Rotate_log_event. */
+    if (typ == ROTATE_EVENT)
+    {
+      Rotate_log_event *rev= static_cast<Rotate_log_event *>(qev->ev);
+      memcpy(rli->future_event_master_log_name,
+             rev->new_log_ident, rev->ident_len+1);
+    }
+
     rpt_handle_event(qev, NULL);
     delete_or_keep_event_post_apply(serial_rgi, typ, qev->ev);
     my_free(qev);
