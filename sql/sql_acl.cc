@@ -2393,36 +2393,32 @@ static bool add_role_user_mapping(const char *uname, const char *hname,
   return add_role_user_mapping(grantee, role);
 }
 
-static void remove_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role)
+/*
+  This helper function is used to removes roles and grantees
+  from the corresponding cross-reference arrays. see remove_role_user_mapping().
+  as such, it asserts that a element to delete is present in the array,
+  and is present only once.
+*/
+static void remove_ptr_from_dynarray(DYNAMIC_ARRAY *array, void *ptr)
 {
-  uint idx_user, idx_role;
-  bool deleted_role __attribute__((unused))= false,
-       deleted_user __attribute__((unused))= false;
-
-  /* scan both arrays to find and delete both links */
-  for (idx_user=0; idx_user < grantee->role_grants.elements; idx_user++)
+  bool found __attribute__((unused))= false;
+  for (uint i= 0; i < array->elements; i++)
   {
-    if (role == *dynamic_element(&grantee->role_grants, idx_user, ACL_ROLE**))
+    if (ptr == *dynamic_element(array, i, void**))
     {
-      DBUG_ASSERT(!deleted_user);
-      delete_dynamic_element(&grantee->role_grants, idx_user);
-      IF_DBUG(deleted_user= true, break);
+      DBUG_ASSERT(!found);
+      delete_dynamic_element(array, i);
+      IF_DBUG(found= true, break);
     }
   }
+  DBUG_ASSERT(found);
+}
 
-  for (idx_role=0; idx_role < role->parent_grantee.elements; idx_role++)
-  {
-    if (grantee == *dynamic_element(&role->parent_grantee, idx_role,
-                                    ACL_USER_BASE**))
-    {
-      DBUG_ASSERT(!deleted_role);
-      delete_dynamic_element(&role->parent_grantee, idx_role);
-      IF_DBUG(deleted_role= true, break);
-    }
-  }
-
-  /* we should always get to delete from both arrays */
-  DBUG_ASSERT(deleted_role && deleted_user);
+static void remove_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role,
+                                     int grantee_idx=-1, int role_idx=-1)
+{
+  remove_ptr_from_dynarray(&grantee->role_grants, role);
+  remove_ptr_from_dynarray(&role->parent_grantee, grantee);
 }
 
 
@@ -8492,14 +8488,6 @@ static int handle_grant_table(TABLE_LIST *tables, uint table_no, bool drop,
     Delete from grant structure if drop is true.
     Update in grant structure if drop is false and user_to is not NULL.
     Search in grant structure if drop is false and user_to is NULL.
-    Structures are enumerated as follows:
-    0 ACL_USER
-    1 ACL_DB
-    2 COLUMN_PRIVILEGES_HASH
-    3 PROC_PRIVILEGES_HASH
-    4 FUNC_PRIVILEGES_HASH
-    5 PROXY_USERS_ACL
-    6 ROLES_MAPPINGS_HASH
 
   @retval > 0  At least one element matched.
   @retval 0    OK, but no element matched.
@@ -8551,6 +8539,21 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     size_t old_key_length= acl_role->user.length;
     if (drop)
     {
+      // delete the role from cross-reference arrays
+      for (uint i=0; i < acl_role->role_grants.elements; i++)
+      {
+        ACL_ROLE *grant= *dynamic_element(&acl_role->role_grants,
+                                          i, ACL_ROLE**);
+        remove_ptr_from_dynarray(&grant->parent_grantee, acl_role);
+      }
+
+      for (uint i=0; i < acl_role->parent_grantee.elements; i++)
+      {
+        ACL_USER_BASE *grantee= *dynamic_element(&acl_role->parent_grantee,
+                                                 i, ACL_USER_BASE**);
+        remove_ptr_from_dynarray(&grantee->role_grants, acl_role);
+      }
+
       my_hash_delete(&acl_roles, (uchar*) acl_role);
       DBUG_RETURN(1);
     }
@@ -9184,11 +9187,13 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   {
     /* Rebuild 'acl_check_hosts' since 'acl_users' has been modified */
     rebuild_check_host();
-  }
 
-  /* Rebuild every user's role_grants because the acl_user has been modified
-     and some grants might now be invalid */
-  rebuild_role_grants();
+    /*
+      Rebuild every user's role_grants because the acl_users has been modified
+      and pointers to ACL_USER's might now be invalid
+    */
+    rebuild_role_grants();
+  }
 
   mysql_mutex_unlock(&acl_cache->lock);
 
