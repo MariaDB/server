@@ -166,7 +166,7 @@ static const struct wordvalue doubles[] = {
  */
 
 #define ADD_TO_RESULT(dest, len, totlen, value)			\
-if ((totlen) < (len)) { dest[totlen] = value; } (totlen++);
+{ if ((totlen) < (len)) { dest[totlen++]= value; } }
 #define IS_END(p, src, len)	(((char *)p - (char *)src) >= (len))
 
 #define NEXT_CMP_VALUE(src, p, store, pass, value, len)		\
@@ -287,13 +287,26 @@ int my_strnncollsp_czech(CHARSET_INFO * cs,
 
 
 /*
+  Returns the number of bytes required for strnxfrm().
+*/
+static size_t
+my_strnxfrmlen_czech(CHARSET_INFO *cs
+                     __attribute__((unused)), size_t len)
+{
+  return len * 4 + 4;
+}
+    
+
+/*
   Function strnxfrm, actually strxfrm, with Czech sorting, which expect
   the length of the strings being specified
 */
 
-static size_t my_strnxfrm_czech(CHARSET_INFO *cs __attribute__((unused)), 
-                                uchar *dest, size_t len,
-                                const uchar *src, size_t srclen)
+static size_t
+my_strnxfrm_czech(CHARSET_INFO *cs __attribute__((unused)), 
+                  uchar *dest, size_t len,
+                  uint nweights_arg __attribute__((unused)),
+                  const uchar *src, size_t srclen, uint flags)
 {
   int value;
   const uchar *p, * store;
@@ -301,15 +314,23 @@ static size_t my_strnxfrm_czech(CHARSET_INFO *cs __attribute__((unused)),
   size_t totlen = 0;
   p = src;	store = src;
 
+  if (!(flags & 0x0F)) /* All levels by default */                              
+    flags|= 0x0F;
+
   do
   {
+    int add= (1 << pass) & flags; /* If this level is needed */
     NEXT_CMP_VALUE(src, p, store, pass, value, (int)srclen);
-    ADD_TO_RESULT(dest, len, totlen, value);
+    if (add)
+      ADD_TO_RESULT(dest, len, totlen, value);
   }
   while (value);
-  if (len > totlen)
-    bfill(dest + totlen, len - totlen, ' ');
-  return len;
+  if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && len > totlen)
+  {
+    memset(dest + totlen, ' ', len - totlen);
+    totlen= len;
+  }
+  return totlen;
 }
 
 #undef IS_END
@@ -592,7 +613,7 @@ static MY_COLLATION_HANDLER my_collation_latin2_czech_ci_handler =
   my_strnncoll_czech,
   my_strnncollsp_czech,
   my_strnxfrm_czech,
-  my_strnxfrmlen_simple,
+  my_strnxfrmlen_czech,
   my_like_range_czech,
   my_wildcmp_bin,
   my_strcasecmp_8bit,
@@ -628,6 +649,7 @@ struct charset_info_st my_charset_latin2_czech_ci =
     0,			/* max_sort_char */
     ' ',                /* pad char      */
     0,                  /* escape_with_backslash_is_dangerous */
+    4,                  /* levels_for_order   */
     &my_charset_8bit_handler,
     &my_collation_latin2_czech_ci_handler
 };

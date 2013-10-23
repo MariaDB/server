@@ -1163,29 +1163,6 @@ static int my_strnncollsp_sjis(CHARSET_INFO *cs __attribute__((unused)),
 
 
 
-static size_t my_strnxfrm_sjis(CHARSET_INFO *cs __attribute__((unused)),
-                               uchar *dest, size_t len,
-                               const uchar *src, size_t srclen)
-{
-  uchar *d_end = dest + len;
-  uchar *s_end = (uchar*) src + srclen;
-  while (dest < d_end && src < s_end)
-  {
-    if (ismbchar_sjis(cs,(char*) src, (char*) s_end))
-    {
-      *dest++ = *src++;
-      if (dest < d_end && src < s_end)
-	*dest++ = *src++;
-    }
-    else
-      *dest++ = sort_order_sjis[(uchar)*src++];
-  }
-  if (len > srclen)
-    bfill(dest, len - srclen, ' ');
-  return len;
-}
-
-
 /* SJIS->Unicode conversion table */
 static uint16 sjis_to_unicode[65536]=
 {
@@ -34156,7 +34133,7 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
   NULL,			/* init */
   my_strnncoll_sjis,
   my_strnncollsp_sjis,
-  my_strnxfrm_sjis,
+  my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
   my_wildcmp_mb,	/* wildcmp  */
@@ -34226,6 +34203,7 @@ struct charset_info_st my_charset_sjis_japanese_ci=
     0xFCFC,		/* max_sort_char */
     ' ',                /* pad char      */
     1,                  /* escape_with_backslash_is_dangerous */
+    1,                  /* levels_for_order   */
     &my_charset_handler,
     &my_collation_ci_handler
 };
@@ -34257,6 +34235,7 @@ struct charset_info_st my_charset_sjis_bin=
     0xFCFC,		/* max_sort_char */
     ' ',                /* pad char      */
     1,                  /* escape_with_backslash_is_dangerous */
+    1,                  /* levels_for_order   */
     &my_charset_handler,
     &my_collation_mb_bin_handler
 };

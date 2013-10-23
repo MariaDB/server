@@ -249,6 +249,7 @@ SET @test_collation='utf16_swedish_ci';
 SET collation_connection='utf16_unicode_ci';
 -- source include/ctype_filesort.inc
 -- source include/ctype_like_escape.inc
+-- source include/ctype_german.inc
 
 --echo End of 4.1 tests
 
@@ -294,4 +295,28 @@ SET collation_connection=utf16_czech_ci;
 
 --echo #
 --echo # End of 5.5 tests
+--echo #
+
+
+
+--echo #
+--echo # Start of 5.6 tests
+--echo #
+
+--echo #
+--echo # WL#3664 WEIGHT_STRING
+--echo #
+
+set collation_connection=utf16_unicode_ci;
+--source include/weight_string.inc
+--source include/weight_string_euro.inc
+select hex(weight_string(_utf16 0xD800DC00 collate utf16_unicode_ci));
+select hex(weight_string(_utf16 0xD800DC01 collate utf16_unicode_ci));
+--source include/weight_string_l1.inc
+
+set @@collation_connection=utf16_czech_ci;
+--source include/weight_string_chde.inc
+
+--echo #
+--echo # End of 5.6 tests
 --echo #

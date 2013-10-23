@@ -494,6 +494,7 @@ static SYMBOL symbols[] = {
   { "RETURN",           SYM(RETURN_SYM)},
   { "RETURNING",        SYM(RETURNING_SYM)},
   { "RETURNS",		SYM(RETURNS_SYM)},
+  { "REVERSE",		SYM(REVERSE_SYM)},
   { "REVOKE",		SYM(REVOKE)},
   { "RIGHT",		SYM(RIGHT)},
   { "RLIKE",		SYM(REGEXP)},	/* Like in mSQL2 */
@@ -647,6 +648,7 @@ static SYMBOL symbols[] = {
   { "WAIT",		SYM(WAIT_SYM)},
   { "WARNINGS",		SYM(WARNINGS)},
   { "WEEK",		SYM(WEEK_SYM)},
+  { "WEIGHT_STRING",	SYM(WEIGHT_STRING_SYM)},
   { "WHEN",		SYM(WHEN_SYM)},
   { "WHERE",		SYM(WHERE)},
   { "WHILE",            SYM(WHILE_SYM)},

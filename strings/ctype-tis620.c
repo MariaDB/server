@@ -617,18 +617,26 @@ ret:
   Ret: Conveted string size
 */
 
-static
-size_t my_strnxfrm_tis620(CHARSET_INFO *cs __attribute__((unused)),
-                          uchar *dest, size_t len,
-                          const uchar *src, size_t srclen)
+static size_t
+my_strnxfrm_tis620(const CHARSET_INFO *cs,
+                   uchar *dst, size_t dstlen, uint nweights,
+                   const uchar *src, size_t srclen, uint flags)
 {
-  size_t dstlen= len;
-  len= (size_t) (strmake((char*) dest, (char*) src, MY_MIN(len, srclen)) -
-                 (char*) dest);
-  len= thai2sortable(dest, len);
-  if (dstlen > len)
-    bfill(dest + len, dstlen - len, ' ');
-  return dstlen;
+  size_t len, dstlen0= dstlen;
+  len= (uint) (strmake((char*) dst, (char*) src, MY_MIN(dstlen, srclen)) -
+	               (char*) dst);
+  len= thai2sortable(dst, len);
+  set_if_smaller(dstlen, nweights);
+  set_if_smaller(len, dstlen); 
+  len= my_strxfrm_pad_desc_and_reverse(cs, dst, dst + len, dst + dstlen,
+                                       dstlen - len, flags, 0);
+  if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && len < dstlen0)
+  {
+    uint fill_length= dstlen0 - len;
+    cs->cset->fill(cs, (char*) dst + len, fill_length, cs->pad_char);
+    len= dstlen0;
+  }
+  return len;
 }
 
 
@@ -909,6 +917,7 @@ struct charset_info_st my_charset_tis620_thai_ci=
     255,		/* max_sort_char */
     ' ',                /* pad char      */
     0,                  /* escape_with_backslash_is_dangerous */
+    1,                  /* levels_for_order   */
     &my_charset_handler,
     &my_collation_ci_handler
 };
@@ -940,6 +949,7 @@ struct charset_info_st my_charset_tis620_bin=
     255,		/* max_sort_char */
     ' ',                /* pad char      */
     0,                  /* escape_with_backslash_is_dangerous */
+    1,                  /* levels_for_order   */
     &my_charset_handler,
     &my_collation_8bit_bin_handler
 };

@@ -583,6 +583,43 @@ drop table t1;
 --echo #
 
 --echo #
+--echo # Start of 5.6 tests
+--echo #
+
+--echo #
+--echo # WL#3664 WEIGHT_STRING
+--echo #
+
+set collation_connection=ucs2_unicode_ci;
+--source include/weight_string.inc
+--source include/weight_string_euro.inc
+--source include/weight_string_l1.inc
+
+set @@collation_connection=utf8_unicode_ci;
+--source include/weight_string.inc
+--source include/weight_string_euro.inc
+--source include/weight_string_l1.inc
+
+set @@collation_connection=utf8_czech_ci;
+--source include/weight_string_chde.inc
+
+set @@collation_connection=ucs2_czech_ci;
+--source include/weight_string_chde.inc
+
+--echo #
+--echo # Bug#33077 weight of supplementary characters is not 0xfffd
+--echo #
+select hex(weight_string(_utf8mb4 0xF0908080 /* U+10000 */ collate utf8mb4_unicode_ci));
+
+--echo #
+--echo # Bug#53064 garbled data when using utf8_german2_ci collation
+--echo #
+CREATE TABLE t1 (s1 VARCHAR(10) COLLATE utf8_german2_ci); 
+INSERT INTO t1 VALUES ('a'),('ae'),('af');                 
+SELECT s1,hex(s1),hex(weight_string(s1)) FROM t1 ORDER BY s1; 
+DROP TABLE t1;
+
+--echo #
 --echo # WL#4013 Unicode german2 collation
 --echo #
 SET collation_connection=utf8_german2_ci;

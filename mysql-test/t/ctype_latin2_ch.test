@@ -30,3 +30,35 @@ select * from t1 where tt like '%AA%';
 # End of 4.1 tests
 
 drop table t1;
+
+
+--echo #
+--echo # Start of 5.6 tests
+--echo #
+
+--echo #
+--echo # WL#3664 WEIGHT_STRING
+--echo #
+
+set names latin2 collate latin2_czech_cs;
+--source include/ctype_pad_space.inc
+# We can not use ctype_filesort.inc because
+# order of SPACE and TAB is not strict
+#--source include/ctype_filesort.inc
+
+--echo #
+--echo # Note:
+--echo # latin2_czech_cs does not support WEIGHT_STRING in full extent
+--echo #
+--source include/weight_string.inc
+--source include/weight_string_chde.inc
+--source include/weight_string_l1.inc
+--source include/weight_string_l2.inc
+--source include/weight_string_l3.inc
+--source include/weight_string_l4.inc
+--source include/weight_string_l12.inc
+--source include/weight_string_l14.inc
+
+--echo #
+--echo # End of 5.6 tests
+--echo #

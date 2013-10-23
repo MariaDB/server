@@ -6631,6 +6631,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -6663,6 +6664,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -6695,6 +6697,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -6727,6 +6730,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -6759,6 +6763,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -6791,6 +6796,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -6823,6 +6829,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -6855,6 +6862,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -6887,6 +6895,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -6919,6 +6928,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -6951,6 +6961,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -6983,6 +6994,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7015,6 +7027,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7047,6 +7060,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7079,6 +7093,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7111,6 +7126,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7143,6 +7159,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7175,6 +7192,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7207,6 +7225,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7239,6 +7258,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7271,6 +7291,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7303,6 +7324,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7335,6 +7357,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7367,6 +7390,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7399,6 +7423,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7431,6 +7456,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7463,6 +7489,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7495,6 +7522,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7527,6 +7555,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -7559,6 +7588,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7591,6 +7621,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7623,6 +7654,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7655,6 +7687,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -7687,6 +7720,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7719,6 +7753,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7751,6 +7786,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -7783,6 +7819,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7815,6 +7852,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -7847,6 +7885,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -7879,6 +7918,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -7911,6 +7951,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -7943,6 +7984,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -7975,6 +8017,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8007,6 +8050,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8039,6 +8083,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8071,6 +8116,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8103,6 +8149,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8135,6 +8182,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8167,6 +8215,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8199,6 +8248,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8231,6 +8281,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8263,6 +8314,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8295,6 +8347,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8327,6 +8380,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8359,6 +8413,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8391,6 +8446,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8423,6 +8479,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8455,6 +8512,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -8487,6 +8545,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_bin_handler,
 }
@@ -8519,6 +8578,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -8551,6 +8611,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }
@@ -8582,6 +8643,7 @@ struct charset_info_st compiled_charsets[] = {
   255,                        /* max_sort_char */
   ' ',                        /* pad_char      */
   0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
 }

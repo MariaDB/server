@@ -307,6 +307,7 @@
     <alias>l1</alias>
     <alias>latin1</alias>
     <collation name="latin1_test" id="99" order="test"/>
+    <collation name="latin1_test2" id="332" order="test"/>
   </charset>
 
   <charset name="utf8">

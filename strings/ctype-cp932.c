@@ -1794,30 +1794,6 @@ static int my_strnncollsp_cp932(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-
-static size_t my_strnxfrm_cp932(CHARSET_INFO *cs __attribute__((unused)),
-                                uchar *dest, size_t len,
-                                const uchar *src, size_t srclen)
-{
-  uchar *d_end = dest + len;
-  uchar *s_end = (uchar*) src + srclen;
-  while (dest < d_end && src < s_end)
-  {
-    if (ismbchar_cp932(cs,(char*) src, (char*) s_end))
-    {
-      *dest++ = *src++;
-      if (dest < d_end && src < s_end)
-	*dest++ = *src++;
-    }
-    else
-      *dest++ = sort_order_cp932[(uchar)*src++];
-  }
-  if (len > srclen)
-    bfill(dest, len - srclen, ' ');
-  return len;
-}
-
-
 static const uint16 cp932_to_unicode[65536]=
 {
       0x0000,      0x0001,      0x0002,      0x0003, /* 0000 */
@@ -34785,7 +34761,7 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
   NULL,			/* init */
   my_strnncoll_cp932,
   my_strnncollsp_cp932,
-  my_strnxfrm_cp932,
+  my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
   my_wildcmp_mb,	/* wildcmp  */
@@ -34855,6 +34831,7 @@ struct charset_info_st my_charset_cp932_japanese_ci=
     0xFCFC,		/* max_sort_char */
     ' ',                /* pad char      */
     1,                  /* escape_with_backslash_is_dangerous */
+    1,                  /* levels_for_order   */
     &my_charset_handler,
     &my_collation_ci_handler
 };
@@ -34886,6 +34863,7 @@ struct charset_info_st my_charset_cp932_bin=
     0xFCFC,		/* max_sort_char */
     ' ',                /* pad char      */
     1,                  /* escape_with_backslash_is_dangerous */
+    1,                  /* levels_for_order   */
     &my_charset_handler,
     &my_collation_mb_bin_handler
 };

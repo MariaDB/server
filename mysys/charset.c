@@ -251,7 +251,8 @@ static int add_collation(struct charset_info_st *cs)
         return MY_XML_ERROR;
 
       newcs->caseup_multiply= newcs->casedn_multiply= 1;
-
+      newcs->levels_for_order= 1;
+      
       if (!strcmp(cs->csname,"ucs2") )
       {
 #if defined(HAVE_CHARSET_ucs2) && defined(HAVE_UCA_COLLATIONS)
@@ -296,6 +297,7 @@ static int add_collation(struct charset_info_st *cs)
         simple_cs_init_functions(newcs);
         newcs->mbminlen= 1;
         newcs->mbmaxlen= 1;
+        newcs->strxfrm_multiply= 1;
         if (simple_cs_is_full(newcs))
         {
           newcs->state |= MY_CS_LOADED;

@@ -182,6 +182,8 @@ SHOW COLLATION LIKE 'utf8_phone_ci';
 SET NAMES utf8;
 
 # make sure utf8mb4_test_400_ci is Unicode-4.0.0 based
+SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci));
+SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_400_ci));
 SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a));
 SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a));
 SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a));
@@ -233,12 +235,12 @@ INSERT INTO t1 VALUES ('lb-fv'),('lb-lv');
 INSERT INTO t1 VALUES (_ucs2 0x3106),(_ucs2 0x3110), (_ucs2 0x3111), (_ucs2 0x3112);
 INSERT INTO t1 VALUES (_ucs2 0x32A3), (_ucs2 0x3231);
 INSERT INTO t1 VALUES (_ucs2 0x84D9), (_ucs2 0x98F5), (_ucs2 0x7CF3), (_ucs2 0x5497);
-SELECT a FROM t1 ORDER BY a, LENGTH(a), BINARY a;
+SELECT a, HEX(WEIGHT_STRING(a)) FROM t1 ORDER BY a, LENGTH(a), BINARY a;
 --echo #
 --echo # WL#5624, the same test with UCS2
 --echo #
 ALTER TABLE t1 CONVERT TO CHARACTER SET ucs2 COLLATE ucs2_5624_1;
-SELECT a FROM t1 ORDER BY a, LENGTH(a), BINARY(a);
+SELECT a, HEX(WEIGHT_STRING(a)) FROM t1 ORDER BY a, LENGTH(a), BINARY(a);
 DROP TABLE t1;
 
 --echo #
@@ -266,7 +268,7 @@ SHOW WARNINGS;
 SET NAMES utf8 COLLATE utf8_5624_4;
 CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 INSERT INTO t1 VALUES ('\\'),('u'),('x'),('X');
-SELECT a FROM t1 ORDER BY a, LENGTH(a), BINARY(a);
+SELECT a, HEX(WEIGHT_STRING(a)) FROM t1 ORDER BY a, LENGTH(a), BINARY(a);
 DROP TABLE t1;
 
 --echo #
@@ -278,7 +280,7 @@ INSERT INTO t1 VALUES (_ucs2 0x09FA), (_ucs2 0x09F8), (_ucs2 0x09F9), (_ucs2 0x0
 INSERT INTO t1 VALUES (_ucs2 0x09DC), (_ucs2 0x09A109BC);
 INSERT INTO t1 VALUES (_ucs2 0x09A2), (_ucs2 0x09DD), (_ucs2 0x09A209BC);
 INSERT INTO t1 VALUES (_ucs2 0x09A3);
-SELECT HEX(CONVERT(a USING ucs2)), HEX(a)
+SELECT HEX(WEIGHT_STRING(a)), HEX(CONVERT(a USING ucs2)), HEX(a)
 FROM t1 ORDER BY a, BINARY a;
 DROP TABLE t1;
 
@@ -319,9 +321,9 @@ INSERT INTO t1 VALUES
  (_ucs2 0x099509CD0993),(_ucs2 0x099509CB),
  (_ucs2 0x099509CD0994),(_ucs2 0x099509CC);
 
-SELECT HEX(CONVERT(a USING ucs2)), HEX(a)
+SELECT HEX(WEIGHT_STRING(a)), HEX(CONVERT(a USING ucs2)), HEX(a)
 FROM t1 ORDER BY a, BINARY(a);
-SELECT
+SELECT HEX(WEIGHT_STRING(a)) as wa,
 GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a)
 FROM t1 GROUP BY a ORDER BY a;
 DROP TABLE t1;
@@ -341,7 +343,7 @@ INSERT INTO t1 VALUES ('J'),('K'),('L'),('M'),('N'),('O'),('P'),('Q'),('R');
 INSERT INTO t1 VALUES ('S'),('T'),('U'),('V'),('W'),('X'),('Y'),('Z');
 INSERT INTO t1 VALUES ('AA'),('AAA');
 
-SELECT a FROM t1 ORDER BY a, LENGTH(a), BINARY(a);
+SELECT a, HEX(WEIGHT_STRING(a)) FROM t1 ORDER BY a, LENGTH(a), BINARY(a);
 DROP TABLE t1;
 
 

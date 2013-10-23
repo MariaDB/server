@@ -932,8 +932,12 @@ static void make_sortkey(register Sort_param *param,
             memcpy(param->tmp_buffer,from,length);
             from=param->tmp_buffer;
           }
-          tmp_length= my_strnxfrm(cs,to,sort_field->length,
-                                  (uchar*) from, length);
+          tmp_length= cs->coll->strnxfrm(cs, to, sort_field->length,
+                                         item->max_char_length() * 
+                                         cs->strxfrm_multiply,
+                                         (uchar*) from, length,
+                                         MY_STRXFRM_PAD_WITH_SPACE |
+                                         MY_STRXFRM_PAD_TO_MAXLEN);
           DBUG_ASSERT(tmp_length == sort_field->length);
         }
         else
