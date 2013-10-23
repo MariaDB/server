@@ -185,6 +185,10 @@ public:
   char event_relay_log_name[FN_REFLEN];
   ulonglong event_relay_log_pos;
   ulonglong future_event_relay_log_pos;
+  /*
+    The master log name for current event. Only used in parallel replication.
+  */
+  char future_event_master_log_name[FN_REFLEN];
 
 #ifdef HAVE_valgrind
   bool is_fake; /* Mark that this is a fake relay log info structure */
@@ -215,18 +219,6 @@ public:
     disk space.
    */
   bool sql_force_rotate_relay;
-
-  /*
-    When it commits, InnoDB internally stores the master log position it has
-    processed so far; the position to store is the one of the end of the
-    committing event (the COMMIT query event, or the event if in autocommit
-    mode).
-  */
-#if MYSQL_VERSION_ID < 40100
-  ulonglong future_master_log_pos;
-#else
-  ulonglong future_group_master_log_pos;
-#endif
 
   time_t last_master_timestamp;
 
@@ -557,7 +549,15 @@ struct rpl_group_info
   */
   time_t last_event_start_time;
 
+  char *event_relay_log_name;
+  char event_relay_log_name_buf[FN_REFLEN];
+  ulonglong event_relay_log_pos;
   ulonglong future_event_relay_log_pos;
+  /*
+    The master log name for current event. Only used in parallel replication.
+  */
+  char future_event_master_log_name[FN_REFLEN];
+  bool is_parallel_exec;
 
 private:
   /*
@@ -685,7 +685,7 @@ public:
 
   inline void inc_event_relay_log_pos()
   {
-    if (opt_slave_parallel_threads == 0 ||
+    if (!is_parallel_exec ||
         rli->event_relay_log_pos < future_event_relay_log_pos)
       rli->event_relay_log_pos= future_event_relay_log_pos;
   }

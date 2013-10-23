@@ -3843,17 +3843,6 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   thd->variables.auto_increment_increment= auto_increment_increment;
   thd->variables.auto_increment_offset=    auto_increment_offset;
 
-  /*
-    InnoDB internally stores the master log position it has executed so far,
-    i.e. the position just after the COMMIT event.
-    When InnoDB will want to store, the positions in rli won't have
-    been updated yet, so group_master_log_* will point to old BEGIN
-    and event_master_log* will point to the beginning of current COMMIT.
-    But log_pos of the COMMIT Query event is what we want, i.e. the pos of the
-    END of the current log event (COMMIT). We save it in rli so that InnoDB can
-    access it.
-  */
-  const_cast<Relay_log_info*>(rli)->future_group_master_log_pos= log_pos;
   DBUG_PRINT("info", ("log_pos: %lu", (ulong) log_pos));
 
   clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
@@ -3882,7 +3871,6 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
       invariants like IN_STMT flag must be off at committing the transaction.
     */
     rgi->inc_event_relay_log_pos();
-    const_cast<Relay_log_info*>(rli)->clear_flag(Relay_log_info::IN_STMT);
   }
   else
   {
@@ -5535,16 +5523,6 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   thd->lex->local_file= local_fname;
   mysql_reset_thd_for_next_command(thd, 0);
 
-  if (!use_rli_only_for_errors)
-  {
-    /*
-      Saved for InnoDB, see comment in
-      Query_log_event::do_apply_event()
-    */
-    const_cast<Relay_log_info*>(rli)->future_group_master_log_pos= log_pos;
-    DBUG_PRINT("info", ("log_pos: %lu", (ulong) log_pos));
-  }
- 
    /*
     We test replicate_*_db rules. Note that we have already prepared
     the file to load, even if we are going to ignore and delete it
@@ -5940,11 +5918,16 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
     correspond to the beginning of the transaction.  Starting from
     5.0.0, there also are some rotates from the slave itself, in the
     relay log, which shall not change the group positions.
+
+    In parallel replication, rotate event is executed out-of-band with normal
+    events, so we cannot update group_master_log_name or _pos here, it will
+    be updated with the next normal event instead.
   */
   if ((server_id != global_system_variables.server_id ||
        rli->replicate_same_server_id) &&
       !is_relay_log_event() &&
-      !rli->is_in_group())
+      !rli->is_in_group() &&
+      !rgi->is_parallel_exec)
   {
     mysql_mutex_lock(&rli->data_lock);
     DBUG_PRINT("info", ("old group_master_log_name: '%s'  "
@@ -7712,7 +7695,7 @@ int Stop_log_event::do_update_pos(rpl_group_info *rgi)
   */
   if (rli->get_flag(Relay_log_info::IN_TRANSACTION))
     rgi->inc_event_relay_log_pos();
-  else
+  else if (!rgi->is_parallel_exec)
   {
     rpl_global_gtid_slave_state.record_and_update_gtid(thd, rgi);
     rli->inc_group_relay_log_pos(0, rgi);
@@ -8408,7 +8391,6 @@ int Execute_load_log_event::do_apply_event(rpl_group_info *rgi)
     calls mysql_load()).
   */
 
-  const_cast<Relay_log_info*>(rli)->future_group_master_log_pos= log_pos;
   if (lev->do_apply_event(0,rgi,1)) 
   {
     /*

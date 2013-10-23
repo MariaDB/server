@@ -877,7 +877,9 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
   if (!skip_lock)
     mysql_mutex_lock(&data_lock);
   rgi->inc_event_relay_log_pos();
-  if (opt_slave_parallel_threads > 0)
+  DBUG_PRINT("info", ("log_pos: %lu  group_master_log_pos: %lu",
+                      (long) log_pos, (long) group_master_log_pos));
+  if (rgi->is_parallel_exec)
   {
     /* In case of parallel replication, do not update the position backwards. */
     int cmp= strcmp(group_relay_log_name, event_relay_log_name);
@@ -888,6 +890,18 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
       notify_group_relay_log_name_update();
     } else if (cmp == 0 && group_relay_log_pos < event_relay_log_pos)
       group_relay_log_pos= event_relay_log_pos;
+
+    cmp= strcmp(group_master_log_name, rgi->future_event_master_log_name);
+    if (cmp <= 0)
+    {
+      if (cmp < 0)
+      {
+        strcpy(group_master_log_name, rgi->future_event_master_log_name);
+        notify_group_master_log_name_update();
+      }
+      if (group_master_log_pos < log_pos)
+        group_master_log_pos= log_pos;
+    }
   }
   else
   {
@@ -895,6 +909,8 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     group_relay_log_pos= event_relay_log_pos;
     strmake_buf(group_relay_log_name, event_relay_log_name);
     notify_group_relay_log_name_update();
+    if (log_pos) // 3.23 binlogs don't have log_posx
+      group_master_log_pos= log_pos;
   }
 
   /*
@@ -927,12 +943,6 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     the relay log is not "val".
     With the end_log_pos solution, we avoid computations involving lengthes.
   */
-  DBUG_PRINT("info", ("log_pos: %lu  group_master_log_pos: %lu",
-                      (long) log_pos, (long) group_master_log_pos));
-  if (log_pos) // 3.23 binlogs don't have log_posx
-  {
-    group_master_log_pos= log_pos;
-  }
   mysql_cond_broadcast(&data_cond);
   if (!skip_lock)
     mysql_mutex_unlock(&data_lock);
@@ -1436,6 +1446,7 @@ rpl_group_info::rpl_group_info(Relay_log_info *rli_)
     wait_commit_group_info(0), wait_start_sub_id(0), parallel_entry(0),
     deferred_events(NULL), m_annotate_event(0), tables_to_lock(0),
     tables_to_lock_count(0), trans_retries(0), last_event_start_time(0),
+    is_parallel_exec(false),
     row_stmt_start_timestamp(0), long_find_row_note_printed(false)
 {
   bzero(&current_gtid, sizeof(current_gtid));
