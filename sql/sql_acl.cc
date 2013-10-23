@@ -8539,6 +8539,9 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     size_t old_key_length= acl_role->user.length;
     if (drop)
     {
+      /* all grants must be revoked from this role by now. propagate this */
+      propagate_role_grants(acl_role, PRIVS_TO_MERGE::ALL, 0, 0);
+
       // delete the role from cross-reference arrays
       for (uint i=0; i < acl_role->role_grants.elements; i++)
       {
@@ -8847,46 +8850,20 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   int result= 0;
   int found;
   bool handle_as_role= user_from->is_role();
+  bool search_only= !drop && !user_to;
   DBUG_ENTER("handle_grant_data");
 
   if (user_to)
     DBUG_ASSERT(handle_as_role == user_to->is_role());
 
-  /* Handle user table. */
-  if ((found= handle_grant_table(tables, 0, drop, user_from, user_to)) < 0)
+  if (search_only)
   {
-    /* Handle of table failed, don't touch the in-memory array. */
-    result= -1;
-  }
-  else
-  {
-    if (handle_as_role)
-    {
-      if ((handle_grant_struct(ROLE_ACL, drop, user_from, user_to)) || found)
-      {
-        result= 1; /* At least one record/element found. */
-        /* If search is requested, we do not need to search further. */
-        if (! drop && ! user_to)
-          goto end;
-      }
-      else
-      if (find_user_exact(user_from->host.str, user_from->user.str))
-        goto end; // looking for a role, found a user
-    }
-    else
-    {
-      /* Handle user array. */
-      if ((handle_grant_struct(USER_ACL, drop, user_from, user_to)) || found)
-      {
-        result= 1; /* At least one record/element found. */
-        /* If search is requested, we do not need to search further. */
-        if (! drop && ! user_to)
-          goto end;
-      }
-      else
-      if (find_acl_role(user_from->user.str))
-        goto end; // looking for a user, found a role
-    }
+    /* quickly search in-memory structures first */
+    if (handle_as_role && find_acl_role(user_from->user.str))
+      DBUG_RETURN(1); // found
+
+    if (!handle_as_role && find_user_exact(user_from->host.str, user_from->user.str))
+      DBUG_RETURN(1); // found
   }
 
   /* Handle db table. */
@@ -8898,12 +8875,12 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   else
   {
     /* Handle db array. */
-    if (((handle_grant_struct(DB_ACL, drop, user_from, user_to) && ! result) ||
-         found) && ! result)
+    if ((handle_grant_struct(DB_ACL, drop, user_from, user_to) || found)
+        && ! result)
     {
       result= 1; /* At least one record/element found. */
       /* If search is requested, we do not need to search further. */
-      if (! drop && ! user_to)
+      if (search_only)
         goto end;
     }
   }
@@ -8917,21 +8894,21 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   else
   {
     /* Handle procs array. */
-    if (((handle_grant_struct(PROC_PRIVILEGES_HASH, drop, user_from, user_to) && ! result) ||
-         found) && ! result)
+    if ((handle_grant_struct(PROC_PRIVILEGES_HASH, drop, user_from, user_to) || found)
+        && ! result)
     {
       result= 1; /* At least one record/element found. */
       /* If search is requested, we do not need to search further. */
-      if (! drop && ! user_to)
+      if (search_only)
         goto end;
     }
     /* Handle funcs array. */
-    if (((handle_grant_struct(FUNC_PRIVILEGES_HASH, drop, user_from, user_to) && ! result) ||
-         found) && ! result)
+    if ((handle_grant_struct(FUNC_PRIVILEGES_HASH, drop, user_from, user_to) || found)
+        && ! result)
     {
       result= 1; /* At least one record/element found. */
       /* If search is requested, we do not need to search further. */
-      if (! drop && ! user_to)
+      if (search_only)
         goto end;
     }
   }
@@ -8948,7 +8925,7 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
     {
       result= 1; /* At least one record found. */
       /* If search is requested, we do not need to search further. */
-      if (! drop && ! user_to)
+      if (search_only)
         goto end;
     }
 
@@ -8961,9 +8938,11 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
     else
     {
       /* Handle columns hash. */
-      if (((handle_grant_struct(COLUMN_PRIVILEGES_HASH, drop, user_from, user_to) && ! result) ||
-           found) && ! result)
+      if ((handle_grant_struct(COLUMN_PRIVILEGES_HASH, drop, user_from, user_to) || found)
+          && ! result)
         result= 1; /* At least one record/element found. */
+      if (search_only)
+        goto end;
     }
   }
 
@@ -8978,9 +8957,11 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
     else
     {
       /* Handle proxies_priv array. */
-      if ((handle_grant_struct(PROXY_USERS_ACL, drop, user_from, user_to) && !result) ||
-          found)
+      if ((handle_grant_struct(PROXY_USERS_ACL, drop, user_from, user_to) || found)
+          && ! result)
         result= 1; /* At least one record/element found. */
+      if (search_only)
+        goto end;
     }
   }
 
@@ -8995,13 +8976,31 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
     else
     {
       /* Handle acl_roles_mappings array */
-      if ((handle_grant_struct(ROLES_MAPPINGS_HASH, drop, user_from, user_to) && !result) ||
-          found)
+      if ((handle_grant_struct(ROLES_MAPPINGS_HASH, drop, user_from, user_to) || found)
+          && ! result)
         result= 1; /* At least one record/element found */
+      if (search_only)
+        goto end;
     }
   }
 
- end:
+  /* Handle user table. */
+  if ((found= handle_grant_table(tables, 0, drop, user_from, user_to)) < 0)
+  {
+    /* Handle of table failed, don't touch the in-memory array. */
+    result= -1;
+  }
+  else
+  {
+    enum enum_acl_lists what= handle_as_role ? ROLE_ACL : USER_ACL;
+    if (((handle_grant_struct(what, drop, user_from, user_to)) || found) && !result)
+    {
+      result= 1; /* At least one record/element found. */
+      DBUG_ASSERT(! search_only);
+    }
+  }
+
+end:
   DBUG_RETURN(result);
 }
 
