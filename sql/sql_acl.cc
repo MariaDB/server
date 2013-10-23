@@ -9921,6 +9921,7 @@ int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
 */
 int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond)
 {
+  int res= 0;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (initialized)
   {
@@ -9929,25 +9930,25 @@ int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond)
     mysql_rwlock_rdlock(&LOCK_grant);
     mysql_mutex_lock(&acl_cache->lock);
     ACL_USER *user= find_user_exact(sctx->priv_host, sctx->priv_user);
+    if (user)
+    {
+      char buff[USER_HOST_BUFF_SIZE+10];
+      DBUG_ASSERT(user->user.length + user->hostname_length +2 < sizeof(buff));
+      char *end= strxmov(buff, user->user.str, "@", user->host.hostname, NULL);
+      APPLICABLE_ROLES_DATA data= { table,
+        { user->host.hostname, user->hostname_length },
+        { buff, (size_t)(end - buff) }, user
+      };
 
-    char buff[USER_HOST_BUFF_SIZE+10];
-    DBUG_ASSERT(user->user.length + user->hostname_length +2 < sizeof(buff));
-    char *end= strxmov(buff, user->user.str, "@", user->host.hostname, NULL);
-    APPLICABLE_ROLES_DATA data= { table,
-      { user->host.hostname, user->hostname_length },
-      { buff, (size_t)(end - buff) }, user
-    };
-
-    int res= traverse_role_graph_down(user, &data, 0, applicable_roles_insert);
+      res= traverse_role_graph_down(user, &data, 0, applicable_roles_insert);
+    }
 
     mysql_mutex_unlock(&acl_cache->lock);
     mysql_rwlock_unlock(&LOCK_grant);
-
-    return res;
   }
 #endif
 
-  return 0;
+  return res;
 }
 
 
