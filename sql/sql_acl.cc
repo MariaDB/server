@@ -9911,12 +9911,11 @@ int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
     mysql_mutex_lock(&acl_cache->lock);
     ACL_ROLE *acl_role= find_acl_role(thd->security_ctx->priv_role);
     if (acl_role)
-    {
       traverse_role_graph_down(acl_role, table, enabled_roles_insert, NULL);
-      mysql_mutex_unlock(&acl_cache->lock);
-      mysql_rwlock_unlock(&LOCK_grant);
+    mysql_mutex_unlock(&acl_cache->lock);
+    mysql_rwlock_unlock(&LOCK_grant);
+    if (acl_role)
       return 0;
-    }
   }
 #endif
 
