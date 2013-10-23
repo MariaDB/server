@@ -8882,6 +8882,7 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
       /* If search is requested, we do not need to search further. */
       if (search_only)
         goto end;
+      acl_cache->clear(1);
     }
   }
 
