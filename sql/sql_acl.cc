@@ -1022,8 +1022,6 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 
   grant_version++; /* Privileges updated */
 
-  acl_cache->clear(1);				// Clear locked hostname cache
-
   init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
   if (init_read_record(&read_record_info,thd,table= tables[0].table,NULL,1,0, 
                        FALSE))
@@ -1429,9 +1427,6 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     table->use_all_columns();
     /* account for every role mapping */
 
-    if (!initialized)
-      mysql_mutex_lock(&acl_cache->lock);
-
     (void) my_hash_init2(&acl_roles_mappings,50,system_charset_info,
                          0,0,0, (my_hash_get_key) acl_role_map_get_key, 0,0);
     MEM_ROOT temp_root;
@@ -1459,10 +1454,6 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 
     free_root(&temp_root, MYF(0));
     end_read_record(&read_record_info);
-
-    if (!initialized)
-      mysql_mutex_unlock(&acl_cache->lock);
-
   }
   else
   {
@@ -1529,7 +1520,6 @@ my_bool acl_reload(THD *thd)
   DYNAMIC_ARRAY old_acl_hosts, old_acl_users, old_acl_dbs, old_acl_proxy_users;
   HASH old_acl_roles, old_acl_roles_mappings;
   MEM_ROOT old_mem;
-  bool old_initialized;
   my_bool return_val= TRUE;
   DBUG_ENTER("acl_reload");
 
@@ -1571,8 +1561,8 @@ my_bool acl_reload(THD *thd)
     goto end;
   }
 
-  if ((old_initialized=initialized))
-    mysql_mutex_lock(&acl_cache->lock);
+  acl_cache->clear(0);
+  mysql_mutex_lock(&acl_cache->lock);
 
   old_acl_hosts= acl_hosts;
   old_acl_users= acl_users;
@@ -1607,8 +1597,7 @@ my_bool acl_reload(THD *thd)
     delete_dynamic(&old_acl_dbs);
     my_hash_free(&old_acl_roles_mappings);
   }
-  if (old_initialized)
-    mysql_mutex_unlock(&acl_cache->lock);
+  mysql_mutex_unlock(&acl_cache->lock);
 end:
   close_mysql_tables(thd);
   DBUG_RETURN(return_val);
