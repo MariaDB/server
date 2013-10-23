@@ -38,3 +38,17 @@ insert into t1 values ('u'),('ue'),(_latin1 0xFC);
 select s1, hex(s1) from t1 order by s1, binary s1;
 select group_concat(s1 order by binary s1) from t1 group by s1;
 drop table t1;
+
+
+#
+# Check filesort for 'S' and "U+00DF SHARP S",
+# for field and for item.
+#
+CREATE TABLE t1 AS SELECT REPEAT('a',1) AS a, 1 AS b LIMIT 0;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('s',0),(_latin1 0xDF,1);
+SELECT * FROM t1 ORDER BY a, b;
+SELECT * FROM t1 ORDER BY a DESC, b;
+SELECT * FROM t1 ORDER BY CONCAT(a), b;
+SELECT * FROM t1 ORDER BY CONCAT(a) DESC, b;
+DROP TABLE t1;

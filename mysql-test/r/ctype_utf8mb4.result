@@ -977,6 +977,31 @@ ss
 u,ü
 ue
 drop table t1;
+CREATE TABLE t1 AS SELECT REPEAT('a',1) AS a, 1 AS b LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(1) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
+  `b` int(1) NOT NULL DEFAULT '0'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('s',0),(_latin1 0xDF,1);
+SELECT * FROM t1 ORDER BY a, b;
+a	b
+s	0
+ß	1
+SELECT * FROM t1 ORDER BY a DESC, b;
+a	b
+s	0
+ß	1
+SELECT * FROM t1 ORDER BY CONCAT(a), b;
+a	b
+s	0
+ß	1
+SELECT * FROM t1 ORDER BY CONCAT(a) DESC, b;
+a	b
+s	0
+ß	1
+DROP TABLE t1;
 SET collation_connection='utf8mb4_bin';
 create table t1 select repeat('a',4000) a;
 delete from t1;

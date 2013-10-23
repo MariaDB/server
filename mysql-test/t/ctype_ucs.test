@@ -846,6 +846,20 @@ DROP TABLE t1;
 --echo #
 
 --echo #
+--echo # WL#3664 WEIGHT_STRING
+--echo #
+
+set collation_connection=ucs2_general_ci;
+--source include/weight_string.inc
+--source include/weight_string_euro.inc
+--source include/weight_string_l1.inc
+
+set collation_connection=ucs2_bin;
+--source include/weight_string.inc
+--source include/weight_string_euro.inc
+--source include/weight_string_l1.inc
+
+--echo #
 --echo # Bug#59145 valgrind warnings for uninitialized values in my_strtoll10_mb2
 --echo #
 SET NAMES latin1;
