@@ -95,6 +95,8 @@ pr1
 pr1
 drop role role1;
 flush tables;
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
 select * from mysqltest1.t1;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 select a from mysqltest1.t2;
