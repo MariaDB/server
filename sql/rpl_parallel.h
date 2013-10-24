@@ -27,7 +27,29 @@ struct rpl_parallel_thread {
     char event_relay_log_name[FN_REFLEN];
     char future_event_master_log_name[FN_REFLEN];
     ulonglong event_relay_log_pos;
+    size_t event_size;
   } *event_queue, *last_in_queue;
+  uint64 queued_size;
+
+  void enqueue(queued_event *qev)
+  {
+    if (last_in_queue)
+      last_in_queue->next= qev;
+    else
+      event_queue= qev;
+    last_in_queue= qev;
+    queued_size+= qev->event_size;
+  }
+
+  void dequeue(queued_event *list)
+  {
+    queued_event *tmp;
+
+    DBUG_ASSERT(list == event_queue);
+    event_queue= last_in_queue= NULL;
+    for (tmp= list; tmp; tmp= tmp->next)
+      queued_size-= tmp->event_size;
+  }
 };
 
 
@@ -87,7 +109,8 @@ struct rpl_parallel {
   void reset();
   rpl_parallel_entry *find(uint32 domain_id);
   void wait_for_done();
-  bool do_event(rpl_group_info *serial_rgi, Log_event *ev);
+  bool do_event(rpl_group_info *serial_rgi, Log_event *ev,
+                ulonglong event_size);
 };
 
 

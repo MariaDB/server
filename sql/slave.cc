@@ -156,7 +156,7 @@ static int safe_reconnect(THD* thd, MYSQL* mysql, Master_info* mi,
                           bool suppress_warnings);
 static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                              bool reconnect, bool suppress_warnings);
-static Log_event* next_event(rpl_group_info* rgi);
+static Log_event* next_event(rpl_group_info* rgi, ulonglong *event_size);
 static int queue_event(Master_info* mi,const char* buf,ulong event_len);
 static int terminate_slave_thread(THD *thd,
                                   mysql_mutex_t *term_lock,
@@ -3273,6 +3273,7 @@ inline void update_state_of_relay_log(Relay_log_info *rli, Log_event *ev)
 static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                                 rpl_group_info *serial_rgi)
 {
+  ulonglong event_size;
   DBUG_ENTER("exec_relay_log_event");
 
   /*
@@ -3282,7 +3283,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
   */
   mysql_mutex_lock(&rli->data_lock);
 
-  Log_event * ev = next_event(serial_rgi);
+  Log_event *ev= next_event(serial_rgi, &event_size);
 
   if (sql_slave_killed(serial_rgi))
   {
@@ -3344,7 +3345,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     */
 
     if (opt_slave_parallel_threads > 0 && rli->slave_skip_counter == 0)
-      DBUG_RETURN(rli->parallel.do_event(serial_rgi, ev));
+      DBUG_RETURN(rli->parallel.do_event(serial_rgi, ev, event_size));
 
     /*
       For GTID, allocate a new sub_id for the given domain_id.
@@ -5836,8 +5837,10 @@ static IO_CACHE *reopen_relay_log(Relay_log_info *rli, const char **errmsg)
   @return The event read, or NULL on error.  If an error occurs, the
   error is reported through the sql_print_information() or
   sql_print_error() functions.
+
+  The size of the read event (in bytes) is returned in *event_size.
 */
-static Log_event* next_event(rpl_group_info *rgi)
+static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
 {
   Log_event* ev;
   Relay_log_info *rli= rgi->rli;
@@ -5848,6 +5851,7 @@ static Log_event* next_event(rpl_group_info *rgi)
   DBUG_ENTER("next_event");
 
   DBUG_ASSERT(thd != 0 && thd == rli->sql_driver_thd);
+  *event_size= 0;
 
 #ifndef DBUG_OFF
   if (abort_slave_event_count && !rli->events_till_abort--)
@@ -5932,11 +5936,13 @@ static Log_event* next_event(rpl_group_info *rgi)
                                        opt_slave_sql_verify_checksum)))
 
     {
+      ulonglong old_pos= rli->future_event_relay_log_pos;
       /*
         read it while we have a lock, to avoid a mutex lock in
         inc_event_relay_log_pos()
       */
       rli->future_event_relay_log_pos= my_b_tell(cur_log);
+      *event_size= rli->future_event_relay_log_pos - old_pos;
 
       if (hot_log)
         mysql_mutex_unlock(log_lock);
