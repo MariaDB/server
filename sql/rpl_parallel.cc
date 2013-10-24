@@ -14,20 +14,14 @@
      following transactions, so slave binlog position will be correct.
      And all the retry logic for temporary errors like deadlock.
 
-   - Stopping the slave needs to handle stopping all parallel executions. And
-     the logic in sql_slave_killed() that waits for current event group to
-     complete needs to be extended appropriately...
-
-   - Audit the use of Relay_log_info::data_lock. Make sure it is held
-     correctly in all needed places also when using parallel replication.
-
    - We need some user-configurable limit on how far ahead the SQL thread will
      fetch and queue events for parallel execution (otherwise if slave gets
      behind we will fill up memory with pending malloc()'ed events).
 
-   - Fix update of relay-log.info and master.info. In non-GTID replication,
-     they must be serialised to preserve correctness. In GTID replication, we
-     should not update them at all except at slave thread stop.
+   - In GTID replication, we should not need to update master.info and
+     relay-log.info on disk at all except at slave thread stop. They are not
+     used to know where to restart, the updates are not crash-safe, and it
+     could negatively affect performance.
 
    - All the waits (eg. in struct wait_for_commit and in
      rpl_parallel_thread_pool::get_thread()) need to be killable. And on kill,
@@ -38,10 +32,6 @@
      crashes in the middle of writing the event group to the binlog. The
      slave rolls back the transaction; parallel execution needs to be able
      to deal with this wrt. commit_orderer and such.
-
-   - We should notice if the master doesn't support GTID, and then run in
-     single threaded mode against that master. This is needed to be able to
-     support multi-master-replication with old and new masters.
 
    - Retry of failed transactions is not yet implemented for the parallel case.
 */
