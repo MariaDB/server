@@ -4200,6 +4200,7 @@ pthread_handler_t handle_slave_sql(void *arg)
                 "Error initializing relay log position: %s", errmsg);
     goto err;
   }
+  strcpy(rli->future_event_master_log_name, rli->group_master_log_name);
   THD_CHECK_SENTRY(thd);
 #ifndef DBUG_OFF
   {
