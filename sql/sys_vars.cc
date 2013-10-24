@@ -1479,6 +1479,16 @@ static Sys_var_ulong Sys_slave_parallel_threads(
        VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
        ON_UPDATE(fix_slave_parallel_threads));
+
+
+static Sys_var_ulong Sys_slave_parallel_max_queued(
+       "slave_parallel_max_queued",
+       "Limit on how much memory SQL threads should use per parallel "
+       "replication thread when reading ahead in the relay log looking for "
+       "opportunities for parallel replication. Only used when "
+       "--slave-parallel-threads > 0.",
+       GLOBAL_VAR(opt_slave_parallel_max_queued), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,2147483647), DEFAULT(131072), BLOCK_SIZE(1));
 #endif
 
 

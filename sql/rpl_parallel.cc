@@ -14,10 +14,6 @@
      following transactions, so slave binlog position will be correct.
      And all the retry logic for temporary errors like deadlock.
 
-   - We need some user-configurable limit on how far ahead the SQL thread will
-     fetch and queue events for parallel execution (otherwise if slave gets
-     behind we will fill up memory with pending malloc()'ed events).
-
    - In GTID replication, we should not need to update master.info and
      relay-log.info on disk at all except at slave thread stop. They are not
      used to know where to restart, the updates are not crash-safe, and it
@@ -32,6 +28,7 @@
      crashes in the middle of writing the event group to the binlog. The
      slave rolls back the transaction; parallel execution needs to be able
      to deal with this wrt. commit_orderer and such.
+     See Format_description_log_event::do_apply_event().
 
    - Retry of failed transactions is not yet implemented for the parallel case.
 */
@@ -147,8 +144,9 @@ handle_rpl_parallel_thread(void *arg)
                     "Waiting for work from SQL thread");
     while (!(events= rpt->event_queue) && !rpt->stop && !thd->killed)
       mysql_cond_wait(&rpt->COND_rpl_thread, &rpt->LOCK_rpl_thread);
-    rpt->event_queue= rpt->last_in_queue= NULL;
+    rpt->dequeue(events);
     thd->exit_cond(old_msg);
+    mysql_cond_signal(&rpt->COND_rpl_thread);
 
   more_events:
     while (events)
@@ -286,7 +284,7 @@ handle_rpl_parallel_thread(void *arg)
         This is faster than having to wakeup the pool manager thread to give us
         a new event.
       */
-      rpt->event_queue= rpt->last_in_queue= NULL;
+      rpt->dequeue(events);
       mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
       goto more_events;
     }
@@ -619,7 +617,8 @@ rpl_parallel::wait_for_done()
 */
 
 bool
-rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
+rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
+                       ulonglong event_size)
 {
   rpl_parallel_entry *e;
   rpl_parallel_thread *cur_thread;
@@ -653,6 +652,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
     return true;
   }
   qev->ev= ev;
+  qev->event_size= event_size;
   qev->next= NULL;
   strcpy(qev->event_relay_log_name, rli->event_relay_log_name);
   qev->event_relay_log_pos= rli->event_relay_log_pos;
@@ -715,17 +715,33 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
       if (cur_thread)
       {
         mysql_mutex_lock(&cur_thread->LOCK_rpl_thread);
-        if (cur_thread->current_entry != e)
+        for (;;)
         {
-          /*
-            The worker thread became idle, and returned to the free list and
-            possibly was allocated to a different request. This also means
-            that everything previously queued has already been executed, else
-            the worker thread would not have become idle. So we should
-            allocate a new worker thread.
-          */
-          mysql_mutex_unlock(&cur_thread->LOCK_rpl_thread);
-          e->rpl_thread= cur_thread= NULL;
+          if (cur_thread->current_entry != e)
+          {
+            /*
+              The worker thread became idle, and returned to the free list and
+              possibly was allocated to a different request. This also means
+              that everything previously queued has already been executed,
+              else the worker thread would not have become idle. So we should
+              allocate a new worker thread.
+            */
+            mysql_mutex_unlock(&cur_thread->LOCK_rpl_thread);
+            e->rpl_thread= cur_thread= NULL;
+            break;
+          }
+          else if (cur_thread->queued_size <= opt_slave_parallel_max_queued)
+            break;                        // The thread is ready to queue into
+          else
+          {
+            /*
+              We have reached the limit of how much memory we are allowed to
+              use for queuing events, so wait for the thread to consume some
+              of its queue.
+            */
+            mysql_cond_wait(&cur_thread->COND_rpl_thread,
+                            &cur_thread->LOCK_rpl_thread);
+          }
         }
       }
 
@@ -819,11 +835,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev)
   /*
     Queue the event for processing.
   */
-  if (cur_thread->last_in_queue)
-    cur_thread->last_in_queue->next= qev;
-  else
-    cur_thread->event_queue= qev;
-  cur_thread->last_in_queue= qev;
+  cur_thread->enqueue(qev);
   mysql_mutex_unlock(&cur_thread->LOCK_rpl_thread);
   mysql_cond_signal(&cur_thread->COND_rpl_thread);
 
