@@ -3901,7 +3901,8 @@ Stopping slave I/O thread due to out-of-memory error from master");
         goto err;
       }
 
-      if (flush_master_info(mi, TRUE, TRUE))
+      if (mi->using_gtid != Master_info::USE_GTID_NO &&
+          flush_master_info(mi, TRUE, TRUE))
       {
         sql_print_error("Failed to flush master info file");
         goto err;
@@ -3978,6 +3979,8 @@ err:
     mi->mysql=0;
   }
   write_ignored_events_info_to_relay_log(thd, mi);
+  if (mi->using_gtid != Master_info::USE_GTID_NO)
+    flush_master_info(mi, TRUE, TRUE);
   thd_proc_info(thd, "Slave io thread waiting for slave mutex on exit");
   mysql_mutex_lock(&mi->run_lock);
 
@@ -4462,6 +4465,8 @@ the slave SQL thread with \"SLAVE START\". We stopped at log \
   thd->catalog= 0;
   thd->reset_query();
   thd->reset_db(NULL, 0);
+  if (rli->mi->using_gtid != Master_info::USE_GTID_NO)
+    flush_relay_log_info(rli);
   thd_proc_info(thd, "Sql driver thread waiting for slave mutex on exit");
   mysql_mutex_lock(&rli->run_lock);
 err_during_init:
