@@ -100,8 +100,6 @@ ODBCDEF::ODBCDEF(void)
 /***********************************************************************/
 bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  int    dop = ODBConn::noOdbcDialog;    // Default for options
-
   Desc = Connect = Cat->GetStringCatInfo(g, "Connect", "");
   Tabname = Cat->GetStringCatInfo(g, "Name",
                  (Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
@@ -111,8 +109,8 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Srcdef = Cat->GetStringCatInfo(g, "Srcdef", NULL);
   Qchar = Cat->GetStringCatInfo(g, "Qchar", "");
   Catver = Cat->GetIntCatInfo("Catver", 2);
-  Options = Cat->GetIntCatInfo("Options", dop);
   Xsrc = Cat->GetBoolCatInfo("Execsrc", FALSE);
+  Options = ODBConn::noOdbcDialog;
   Pseudo = 2;    // FILID is Ok but not ROWID
   return false;
   } // end of DefineAM
@@ -534,8 +532,12 @@ void TDBODBC::ResetSize(void)
 int TDBODBC::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
+    // Make MariaDB happy
+    MaxSize = 100;
+#if 0
+    // This is unuseful and takes time
     if (Srcdef) {
-      // Give a reasonable guess
+      // Return a reasonable guess
       MaxSize = 100;
       return MaxSize;
       } // endif Srcdef
@@ -558,7 +560,7 @@ int TDBODBC::GetMaxSize(PGLOBAL g)
 
     if ((MaxSize = Ocp->GetResultSize(Count, Cnp)) < 0)
       return -3;
-
+#endif // 0
     } // endif MaxSize
 
   return MaxSize;

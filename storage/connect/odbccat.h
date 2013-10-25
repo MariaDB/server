@@ -1,6 +1,7 @@
 /***********************************************************************/
 /*  ODBC catalog function prototypes.                                  */
 /***********************************************************************/
+char   *ODBCCheckConnection(PGLOBAL g, char *dsn, int cop);
 PQRYRES ODBCDataSources(PGLOBAL g, bool info);
 PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
                                           char *colpat, bool info);

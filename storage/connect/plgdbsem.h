@@ -583,5 +583,6 @@ FILE *global_fopen(GLOBAL *g, int msgid, const char *path, const char *mode);
 int global_open(GLOBAL *g, int msgid, const char *filename, int flags);
 int global_open(GLOBAL *g, int msgid, const char *filename, int flags, int mode);
 DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir);
+char *MakeEscape(PGLOBAL g, char* str, char q);
 
 bool PushWarning(PGLOBAL, PTDBASE);
