@@ -13,6 +13,7 @@
 #if defined(WIN32)
 //nclude <io.h>
 //nclude <fcntl.h>
+#include <direct.h>                      // for getcwd
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif
@@ -172,10 +173,36 @@ int TranslateSQLType(int stp, int prec, int& len)
   } // end of TranslateSQLType
 
 /***********************************************************************/
-/*  ODBConn static members initialization.                             */
+/*  ODBCCheckConnection: Check completeness of connection string.      */
 /***********************************************************************/
-//HENV ODBConn::m_henv = SQL_NULL_HENV;
-//int  ODBConn::m_nAlloc = 0;        // per-Appl reference to HENV above
+char *ODBCCheckConnection(PGLOBAL g, char *dsn, int cop)
+  {
+  char    *newdsn, dir[_MAX_PATH], buf[_MAX_PATH];
+  int      rc;
+  DWORD    options = ODBConn::openReadOnly;
+  ODBConn *ocp = new(g) ODBConn(g, NULL);
+
+  (void) getcwd(dir, sizeof(dir) - 1);
+
+  switch (cop) {
+    case 1: options |= ODBConn::forceOdbcDialog; break;
+    case 2: options |= ODBConn::noOdbcDialog;    break;
+    } // endswitch cop
+
+  if (ocp->Open(dsn, options) < 1)
+    newdsn = NULL;
+  else
+    newdsn = ocp->GetConnect();
+
+  (void) getcwd(buf, sizeof(buf) - 1);
+
+  // Some data sources change the current directory
+  if (strcmp(dir, buf))
+    rc = chdir(dir);
+
+  ocp->Close();
+  return newdsn;         // Return complete connection string
+  } // end of ODBCCheckConnection
 
 /***********************************************************************/
 /*  Allocate the structure used to refer to the result set.            */
@@ -254,7 +281,7 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
   if (!info) {
     ocp = new(g) ODBConn(g, NULL);
 
-    if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
+    if (ocp->Open(dsn, 10) < 1)  // openReadOnly + noODBCdialog
       return NULL;
 
     // We fix a MySQL limit because some data sources return 32767
@@ -1662,7 +1689,7 @@ PQRYRES ODBConn::GetMetaData(PGLOBAL g, char *dsn, char *src)
   RETCODE rc;
   HSTMT   hstmt;
 
-  if (Open(dsn, 2) < 1)        // 2 is openReadOnly
+  if (Open(dsn, 10) < 1)   // openReadOnly + noOdbcDialog
     return NULL;
 
   try {

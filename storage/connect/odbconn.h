@@ -115,7 +115,7 @@ class ODBConn : public BLOCK {
  public:
   ODBConn(PGLOBAL g, TDBODBC *tdbp);
 
-  enum DOP {                      // Db Open oPtions
+  static enum DOP {               // Db Open oPtions
     traceSQL =        0x0001,     // Trace SQL calls
     openReadOnly =    0x0002,     // Open database read only
     useCursorLib =    0x0004,     // Use ODBC cursor lib

@@ -732,6 +732,34 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
   } /* end of EvalLikePattern */
 
 /***********************************************************************/
+/*  MakeEscape: Escape some characters in a string.                    */
+/***********************************************************************/
+char *MakeEscape(PGLOBAL g, char* str, char q)
+  {
+  char *bufp;
+  int i, k, n = 0, len = (int)strlen(str);
+
+  for (i = 0; i < len; i++)
+    if (str[i] == q || str[i] == '\\')
+      n++;
+
+  if (!n)
+    return str;
+  else
+    bufp = (char*)PlugSubAlloc(g, NULL, len + n + 1);
+
+  for (i = k = 0; i < len; i++) {
+    if (str[i] == q || str[i] == '\\')
+      bufp[k++] = '\\';
+
+    bufp[k++] = str[i];
+    } // endfor i
+
+  bufp[k] = 0;
+  return bufp;
+  } /* end of MakeEscape */
+
+/***********************************************************************/
 /*  PlugConvertConstant: convert a Plug constant to an Xobject.        */
 /***********************************************************************/
 void PlugConvertConstant(PGLOBAL g, void* & value, short& type)

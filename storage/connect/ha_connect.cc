@@ -3616,6 +3616,7 @@ static int init_table_share(THD *thd,
 static int init_table_share(THD* thd, 
                             TABLE_SHARE *table_s, 
                             HA_CREATE_INFO *create_info,
+//                          char *dsn,
                             String *sql)
 {
   bool oom= false;
@@ -3674,10 +3675,12 @@ static int init_table_share(THD* thd,
     } // endfor opt
 
   if (create_info->connect_string.length) {
+//if (dsn) {
     oom|= sql->append(' ');
     oom|= sql->append("CONNECTION='");
     oom|= sql->append_for_single_quote(create_info->connect_string.str,
                                        create_info->connect_string.length);
+//  oom|= sql->append_for_single_quote(dsn, strlen(dsn));
     oom|= sql->append('\'');
 
     if (oom)
@@ -3737,13 +3740,13 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 {
   char        spc= ',', qch= 0;
   const char *fncn= "?";
-  const char *user, *fn, *db, *host, *pwd, *prt, *sep, *tbl, *src;
+  const char *user, *fn, *db, *host, *pwd, *prt, *sep, *tbl, *src, *cnp;
   const char *col, *ocl, *rnk, *pic, *fcl;
   char       *tab, *dsn; 
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
 #endif   // WIN32
-  int         port= 0, hdr= 0, mxr= 0, rc= 0;
+  int         port= 0, hdr= 0, mxr= 0, rc= 0, cop= 0;
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool        bif, ok= false, dbf= false;
   TABTYPE     ttp= TAB_UNDEF;
@@ -3764,7 +3767,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
 
-  user= host= pwd= prt= tbl= src= col= ocl= pic= fcl= rnk= dsn= NULL;
+  user= host= pwd= prt= tbl= src= col= ocl= pic= fcl= rnk= cnp= dsn= NULL;
 
   // Get the useful create options
   ttp= GetTypeID(topt->type);
@@ -3782,23 +3785,25 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   col= topt->colist;
 
   if (topt->oplist) {
-    host= GetListOption(g,"host", topt->oplist, "localhost");
-    user= GetListOption(g,"user", topt->oplist, "root");
+    host= GetListOption(g, "host", topt->oplist, "localhost");
+    user= GetListOption(g, "user", topt->oplist, "root");
     // Default value db can come from the DBNAME=xxx option.
-    db= GetListOption(g,"database", topt->oplist, db);
-    col= GetListOption(g,"colist", topt->oplist, col);
-    ocl= GetListOption(g,"occurcol", topt->oplist, NULL);
-    pic= GetListOption(g,"pivotcol", topt->oplist, NULL);
-    fcl= GetListOption(g,"fnccol", topt->oplist, NULL);
-    rnk= GetListOption(g,"rankcol", topt->oplist, NULL);
-    pwd= GetListOption(g,"password", topt->oplist);
-    prt= GetListOption(g,"port", topt->oplist);
+    db= GetListOption(g, "database", topt->oplist, db);
+    col= GetListOption(g, "colist", topt->oplist, col);
+    ocl= GetListOption(g, "occurcol", topt->oplist, NULL);
+    pic= GetListOption(g, "pivotcol", topt->oplist, NULL);
+    fcl= GetListOption(g, "fnccol", topt->oplist, NULL);
+    rnk= GetListOption(g, "rankcol", topt->oplist, NULL);
+    pwd= GetListOption(g, "password", topt->oplist);
+    prt= GetListOption(g, "port", topt->oplist);
     port= (prt) ? atoi(prt) : 0;
 #if defined(WIN32)
-    nsp= GetListOption(g,"namespace", topt->oplist);
-    cls= GetListOption(g,"class", topt->oplist);
+    nsp= GetListOption(g, "namespace", topt->oplist);
+    cls= GetListOption(g, "class", topt->oplist);
 #endif   // WIN32
     mxr= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
+    cnp= GetListOption(g, "createopt", topt->oplist);
+    cop= (cnp) ? atoi(cnp) : 0;
   } else {
     host= "localhost";
     user= "root";
@@ -3854,8 +3859,20 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   switch (ttp) {
 #if defined(ODBC_SUPPORT)
     case TAB_ODBC:
-      if (!(dsn= create_info->connect_string.str)
-                 && !(fnc & (FNC_DSN | FNC_DRIVER)))
+      dsn= create_info->connect_string.str;
+
+      if (fnc & (FNC_DSN | FNC_DRIVER))
+        ok= true;
+      else if (!stricmp(thd->main_security_ctx.host, "localhost")
+                && cop != 2) {
+        if ((dsn = ODBCCheckConnection(g, dsn, cop)) != NULL) {
+          create_info->connect_string.str= dsn;
+          create_info->connect_string.length= strlen(dsn);
+          ok= true;
+
+          } // endif dsn
+
+      } else if (!dsn)
         sprintf(g->Message, "Missing %s connection string", topt->type);
       else
         ok= true;
@@ -4139,6 +4156,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #else   // !NEW_WAY
     if (!rc)
       rc= init_table_share(thd, table_s, create_info, &sql);
+//    rc= init_table_share(thd, table_s, create_info, dsn, &sql);
 #endif   // !NEW_WAY
 
     return rc;
