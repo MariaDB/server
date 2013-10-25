@@ -3546,9 +3546,14 @@ void Item_func_weight_string::fix_length_and_dec()
     Use result_length if it was given explicitly in constructor,
     otherwise calculate max_length using argument's max_length
     and "nweights".
-  */  
-  max_length= result_length ? result_length :
-              cs->mbmaxlen * MY_MAX(args[0]->max_length, nweights);
+  */
+  if (!(max_length= result_length))
+  {
+    uint char_length;
+    char_length= ((cs->state & MY_CS_STRNXFRM_BAD_NWEIGHTS) || !nweights) ?
+                 args[0]->max_char_length() : nweights;
+    max_length= cs->coll->strnxfrmlen(cs, char_length * cs->mbmaxlen);
+  }
   maybe_null= 1;
 }
 
@@ -3570,9 +3575,35 @@ String *Item_func_weight_string::val_str(String *str)
     explicitly, otherwise calculate result length
     from argument and "nweights".
   */
-  tmp_length= result_length ? result_length :
-              cs->coll->strnxfrmlen(cs, cs->mbmaxlen *
-                                    MY_MAX(res->length(), nweights));
+  if (!(tmp_length= result_length))
+  {
+    uint char_length;
+    if (cs->state & MY_CS_STRNXFRM_BAD_NWEIGHTS)
+    {
+      /*
+        latin2_czech_cs and cp1250_czech_cs do not support
+        the "nweights" limit in strnxfrm(). Use the full length.
+      */
+      char_length= res->length();
+    }
+    else
+    {
+      /*
+        If we don't need to pad the result with spaces, then it should be
+        OK to calculate character length of the argument approximately:
+        "res->length() / cs->mbminlen" can return a number that is 
+        bigger than the real number of characters in the string, so
+        we'll allocate a little bit more memory but avoid calling
+        the slow res->numchars().
+        In case if we do need to pad with spaces, we call res->numchars()
+        to know the true number of characters.
+      */
+      if (!(char_length= nweights))
+        char_length= (flags & MY_STRXFRM_PAD_WITH_SPACE) ?
+                      res->numchars() : (res->length() / cs->mbminlen);
+    }
+    tmp_length= cs->coll->strnxfrmlen(cs, char_length * cs->mbmaxlen);
+  }
 
   if(tmp_length > current_thd->variables.max_allowed_packet)
   {

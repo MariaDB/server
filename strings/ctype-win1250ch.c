@@ -691,7 +691,7 @@ static MY_COLLATION_HANDLER my_collation_czech_ci_handler =
 struct charset_info_st my_charset_cp1250_czech_ci =
 {
   34,0,0,                                     /* number    */
-  MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_CSSORT, /* state     */
+  MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_CSSORT|MY_CS_STRNXFRM_BAD_NWEIGHTS, /* state     */
   "cp1250",                                   /* cs name   */
   "cp1250_czech_cs",                          /* name      */
   "",                                         /* comment   */

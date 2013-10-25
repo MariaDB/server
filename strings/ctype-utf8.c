@@ -2219,6 +2219,16 @@ my_strnxfrm_unicode(CHARSET_INFO *cs,
 
 
 /*
+  For BMP-only collations that use 2 bytes per weight.
+*/
+size_t
+my_strnxfrmlen_unicode(CHARSET_INFO *cs, size_t len)
+{
+  
+  return ((len + cs->mbmaxlen - 1) / cs->mbmaxlen) * 2;
+}
+
+/*
   Store sorting weights using 3 bytes per character.
   This function is shared between utf8mb4_bin, utf16_bin, utf32_bin.
 */
@@ -2989,13 +2999,6 @@ int my_wildcmp_utf8(CHARSET_INFO *cs,
 }
 
 
-static
-size_t my_strnxfrmlen_utf8(CHARSET_INFO *cs __attribute__((unused)),
-                           size_t len)
-{
-  return (len * 2 + 2) / 3;
-}
-
 static uint my_ismbchar_utf8(CHARSET_INFO *cs,const char *b, const char *e)
 {
   my_wc_t wc;
@@ -3032,7 +3035,7 @@ static MY_COLLATION_HANDLER my_collation_utf8_general_ci_handler =
     my_strnncoll_utf8,
     my_strnncollsp_utf8,
     my_strnxfrm_unicode,
-    my_strnxfrmlen_utf8,
+    my_strnxfrmlen_unicode,
     my_like_range_mb,
     my_wildcmp_utf8,
     my_strcasecmp_utf8,
@@ -3048,7 +3051,7 @@ static MY_COLLATION_HANDLER my_collation_utf8_bin_handler =
     my_strnncoll_mb_bin,
     my_strnncollsp_mb_bin,
     my_strnxfrm_unicode,
-    my_strnxfrmlen_utf8,
+    my_strnxfrmlen_unicode,
     my_like_range_mb,
     my_wildcmp_mb_bin,
     my_strcasecmp_mb_bin,
@@ -3328,7 +3331,7 @@ static MY_COLLATION_HANDLER my_collation_cs_handler =
     my_strnncoll_utf8_cs,
     my_strnncollsp_utf8_cs,
     my_strnxfrm_unicode,
-    my_strnxfrmlen_utf8,
+    my_strnxfrmlen_unicode,
     my_like_range_simple,
     my_wildcmp_mb,
     my_strcasecmp_utf8,
@@ -4601,7 +4604,7 @@ static MY_COLLATION_HANDLER my_collation_filename_handler =
     my_strnncoll_utf8,
     my_strnncollsp_utf8,
     my_strnxfrm_unicode,
-    my_strnxfrmlen_utf8,
+    my_strnxfrmlen_unicode,
     my_like_range_mb,
     my_wildcmp_utf8,
     my_strcasecmp_utf8,
@@ -5428,14 +5431,6 @@ my_wildcmp_utf8mb4(CHARSET_INFO *cs,
 }
 
 
-static size_t
-my_strnxfrmlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)), size_t len)
-{
-  /* TODO: fix when working on WL "Unicode new version" */
-  return (len * 2 + 2) / 4;
-}
-
-
 static uint
 my_ismbchar_utf8mb4(CHARSET_INFO *cs, const char *b, const char *e)
 {
@@ -5468,7 +5463,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
   my_strnncoll_utf8mb4,
   my_strnncollsp_utf8mb4,
   my_strnxfrm_unicode,
-  my_strnxfrmlen_utf8mb4,
+  my_strnxfrmlen_unicode,
   my_like_range_mb,
   my_wildcmp_utf8mb4,
   my_strcasecmp_utf8mb4,

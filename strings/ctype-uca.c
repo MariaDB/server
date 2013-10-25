@@ -9484,6 +9484,12 @@ static size_t my_strnxfrm_any_uca(CHARSET_INFO *cs,
                          dst, dstlen, nweights, src, srclen, flags);
 }
 
+static size_t my_strnxfrmlen_any_uca(CHARSET_INFO *cs, size_t len)
+{
+  /* UCA uses 2 bytes per weight */
+  return (len + cs->mbmaxlen - 1) / cs->mbmaxlen * cs->strxfrm_multiply * 2;
+}
+
 
 #ifdef HAVE_CHARSET_ucs2
 /*
@@ -9529,7 +9535,7 @@ MY_COLLATION_HANDLER my_collation_ucs2_uca_handler =
   my_strnncoll_ucs2_uca,
   my_strnncollsp_ucs2_uca,
   my_strnxfrm_ucs2_uca,
-  my_strnxfrmlen_simple,
+  my_strnxfrmlen_any_uca,
   my_like_range_generic,
   my_wildcmp_uca,
   NULL,
@@ -10260,7 +10266,7 @@ MY_COLLATION_HANDLER my_collation_any_uca_handler =
     my_strnncoll_any_uca,
     my_strnncollsp_any_uca,
     my_strnxfrm_any_uca,
-    my_strnxfrmlen_simple,
+    my_strnxfrmlen_any_uca,
     my_like_range_mb,
     my_wildcmp_uca,
     NULL,
@@ -11733,7 +11739,7 @@ MY_COLLATION_HANDLER my_collation_utf32_uca_handler =
     my_strnncoll_any_uca,
     my_strnncollsp_any_uca,
     my_strnxfrm_any_uca,
-    my_strnxfrmlen_simple,
+    my_strnxfrmlen_any_uca,
     my_like_range_generic,
     my_wildcmp_uca,
     NULL,
@@ -12464,7 +12470,7 @@ MY_COLLATION_HANDLER my_collation_utf16_uca_handler =
     my_strnncoll_any_uca,
     my_strnncollsp_any_uca,
     my_strnxfrm_any_uca,
-    my_strnxfrmlen_simple,
+    my_strnxfrmlen_any_uca,
     my_like_range_generic,
     my_wildcmp_uca,
     NULL,
