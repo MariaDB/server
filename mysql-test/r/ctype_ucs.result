@@ -752,40 +752,95 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+"BEGIN ctype_german.inc"
 drop table if exists t1;
 create table t1 as select repeat(' ', 64) as s1;
 select collation(s1) from t1;
 collation(s1)
 ucs2_general_ci
 delete from t1;
+INSERT INTO t1 VALUES ('ud'),('uf');
+INSERT INTO t1 VALUES ('od'),('of');
+INSERT INTO t1 VALUES ('e');
+INSERT INTO t1 VALUES ('ad'),('af');
 insert into t1 values ('a'),('ae'),(_latin1 0xE4);
 insert into t1 values ('o'),('oe'),(_latin1 0xF6);
 insert into t1 values ('s'),('ss'),(_latin1 0xDF);
 insert into t1 values ('u'),('ue'),(_latin1 0xFC);
+INSERT INTO t1 VALUES (_latin1 0xE6), (_latin1 0xC6);
+INSERT INTO t1 VALUES (_latin1 0x9C), (_latin1 0x8C);
 select s1, hex(s1) from t1 order by s1, binary s1;
 s1	hex(s1)
 a	0061
 ä	00E4
+ad	00610064
 ae	00610065
+af	00610066
+e	0065
 o	006F
 ö	00F6
+od	006F0064
 oe	006F0065
+of	006F0066
 s	0073
 ß	00DF
 ss	00730073
 u	0075
 ü	00FC
+ud	00750064
 ue	00750065
+uf	00750066
+Æ	00C6
+æ	00E6
+Œ	0152
+œ	0153
 select group_concat(s1 order by binary s1) from t1 group by s1;
 group_concat(s1 order by binary s1)
 a,ä
+ad
 ae
+af
+e
 o,ö
+od
 oe
+of
 s,ß
 ss
 u,ü
+ud
 ue
+uf
+Æ,æ
+Œ,œ
+SELECT s1, hex(s1), hex(weight_string(s1)) FROM t1 ORDER BY s1, BINARY(s1);
+s1	hex(s1)	hex(weight_string(s1))
+a	0061	0041
+ä	00E4	0041
+ad	00610064	00410044
+ae	00610065	00410045
+af	00610066	00410046
+e	0065	0045
+o	006F	004F
+ö	00F6	004F
+od	006F0064	004F0044
+oe	006F0065	004F0045
+of	006F0066	004F0046
+s	0073	0053
+ß	00DF	0053
+ss	00730073	00530053
+u	0075	0055
+ü	00FC	0055
+ud	00750064	00550044
+ue	00750065	00550045
+uf	00750066	00550046
+Æ	00C6	00C6
+æ	00E6	00C6
+Œ	0152	0152
+œ	0153	0152
+SELECT s1, hex(s1) FROM t1 WHERE s1='ae' ORDER BY s1, BINARY(s1);
+s1	hex(s1)
+ae	00610065
 drop table t1;
 CREATE TABLE t1 AS SELECT REPEAT('a',1) AS a, 1 AS b LIMIT 0;
 SHOW CREATE TABLE t1;
@@ -812,6 +867,7 @@ a	b
 s	0
 ß	1
 DROP TABLE t1;
+"END ctype_german.inc"
 CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);

@@ -2,47 +2,8 @@ DROP TABLE IF EXISTS t1;
 #
 # Start of 5.5 tests
 #
-set names utf8;
-set collation_connection=utf32_unicode_ci;
-select hex('a'), hex('a ');
-hex('a')	hex('a ')
-00000061	0000006100000020
-select 'a' = 'a', 'a' = 'a ', 'a ' = 'a';
-'a' = 'a'	'a' = 'a '	'a ' = 'a'
-1	1	1
-select 'a\0' = 'a', 'a\0' < 'a', 'a\0' > 'a';
-'a\0' = 'a'	'a\0' < 'a'	'a\0' > 'a'
-1	0	0
-select 'a' = 'a\0', 'a' < 'a\0', 'a' > 'a\0';
-'a' = 'a\0'	'a' < 'a\0'	'a' > 'a\0'
-1	0	0
-select 'a\0' = 'a ', 'a\0' < 'a ', 'a\0' > 'a ';
-'a\0' = 'a '	'a\0' < 'a '	'a\0' > 'a '
-1	0	0
-select 'a ' = 'a\0', 'a ' < 'a\0', 'a ' > 'a\0';
-'a ' = 'a\0'	'a ' < 'a\0'	'a ' > 'a\0'
-1	0	0
-select 'a  a' > 'a', 'a  \0' < 'a';
-'a  a' > 'a'	'a  \0' < 'a'
-1	0
-select binary 'a  a' > 'a', binary 'a  \0' > 'a', binary 'a\0' > 'a';
-binary 'a  a' > 'a'	binary 'a  \0' > 'a'	binary 'a\0' > 'a'
-1	1	1
-select 'c' like '\_' as want0;
-want0
-0
-CREATE TABLE t (
-c char(20) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARACTER SET utf32 COLLATE=utf32_unicode_ci;
-INSERT INTO t VALUES ('a'),('ab'),('aba');
-ALTER TABLE t ADD INDEX (c);
-SELECT c FROM t WHERE c LIKE 'a%';
-c
-a
-ab
-aba
-DROP TABLE t;
-create table t1 (c1 char(10) character set utf32 collate utf32_bin);
+SET NAMES utf8mb4;
+CREATE TABLE t1 (c1 CHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin);
 insert into t1 values ('A'),('a');
 insert into t1 values ('B'),('b');
 insert into t1 values ('C'),('c');
@@ -198,8 +159,8 @@ insert into t1 values ('NJ'),('Nj'),('nj'),('nJ');
 insert into t1 values ('OE'),('Oe'),('oe'),('oE');
 insert into t1 values ('SS'),('Ss'),('ss'),('sS');
 insert into t1 values ('RR'),('Rr'),('rr'),('rR');
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_unicode_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_unicode_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÄÅàáâãäåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -303,8 +264,8 @@ ZzŹźŻżŽž
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_icelandic_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_icelandic_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÂÃàâãĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -417,8 +378,8 @@ ZzŹźŻżŽž
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_latvian_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_latvian_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÄÅàáâãäåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -532,8 +493,8 @@ ZzŹźŻż
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_romanian_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_romanian_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÃÄÅàáãäåĀāĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -642,8 +603,8 @@ ZzŹźŻżŽž
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_slovenian_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_slovenian_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÄÅàáâãäåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -751,8 +712,8 @@ ZzŹźŻż
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_polish_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_polish_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÄÅàáâãäåĀāĂăǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -864,8 +825,8 @@ ZzŽž
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_estonian_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_estonian_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÅàáâãåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -978,8 +939,8 @@ YyÝýÿŶŷŸ
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_spanish_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_spanish_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÄÅàáâãäåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -1084,8 +1045,8 @@ ZzŹźŻżŽž
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_swedish_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_swedish_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃàáâãĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -1192,8 +1153,8 @@ ZzŹźŻżŽž
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_turkish_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_turkish_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÄÅàáâãäåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -1303,8 +1264,8 @@ ZzŹźŻżŽž
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_czech_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_czech_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÄÅàáâãäåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -1414,8 +1375,8 @@ ZzŹźŻż
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_danish_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_danish_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃàáâãĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -1522,8 +1483,8 @@ AAAaaaÅå
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_lithuanian_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_lithuanian_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÄÅàáâãäåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -1631,8 +1592,8 @@ ZzŹźŻż
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_slovak_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_slovak_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÅàáâãåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -1743,8 +1704,8 @@ ZzŹźŻż
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_spanish2_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_spanish2_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÄÅàáâãäåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -1851,8 +1812,8 @@ ZzŹźŻżŽž
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_roman_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_roman_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÄÅàáâãäåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -1959,8 +1920,8 @@ ZzŹźŻżŽž
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_esperanto_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_esperanto_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÄÅàáâãäåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -2070,8 +2031,8 @@ ZzŹźŻżŽž
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_hungarian_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_hungarian_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÄÅàáâãäåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -2177,8 +2138,121 @@ ZzŹźŻżŽž
 ǁ
 ǂ
 ǃ
-select group_concat(c1 order by binary c1 separator '') from t1 group by c1 collate utf32_german2_ci;
-group_concat(c1 order by binary c1 separator '')
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_croatian_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
+÷
+×
+AaÀÁÂÃÄÅàáâãäåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
+AAAaaAaa
+AEAeaEae
+ÆæǢǣǼǽ
+Bb
+ƀ
+Ɓ
+Ƃƃ
+CcÇçĈĉĊċ
+CHChcHch
+Čč
+Ćć
+Ƈƈ
+DdĎď
+DZDzdZdzǱǲǳ
+dŽ
+DŽDždžǄǅǆ
+Đđ
+Ɖ
+Ɗ
+Ƌƌ
+Ðð
+EeÈÉÊËèéêëĒēĔĕĖėĘęĚěẸẹẺẻẼẽẾếỀềỂểỄễỆệ
+Ǝǝ
+Ə
+Ɛ
+Ff
+Ƒƒ
+GgĜĝĞğĠġĢģǦǧǴǵ
+Ǥǥ
+Ɠ
+Ɣ
+Ƣƣ
+HhĤĥ
+ƕǶ
+Ħħ
+IiÌÍÎÏìíîïĨĩĪīĬĭĮįİǏǐỈỉỊị
+IJIjiJijĲĳ
+ı
+Ɨ
+Ɩ
+JjĴĵǰ
+KkĶķǨǩ
+Ƙƙ
+LlĹĺĻļĽľ
+Ŀŀ
+lJ
+LLLllLll
+LJLjljǇǈǉ
+Łł
+ƚ
+ƛ
+Mm
+NnÑñŃńŅņŇňǸǹ
+nJ
+NJNjnjǊǋǌ
+Ɲ
+ƞ
+Ŋŋ
+OoÒÓÔÕÖòóôõöŌōŎŏŐőƠơǑǒǪǫǬǭỌọỎỏỐốỒồỔổỖỗỘộỚớỜờỞởỠỡỢợ
+OEOeoEoeŒœ
+ØøǾǿ
+Ɔ
+Ɵ
+Pp
+Ƥƥ
+Qq
+ĸ
+RrŔŕŖŗŘř
+RRRrrRrr
+Ʀ
+SsŚśŜŝŞşſ
+SSSssSssß
+Šš
+Ʃ
+ƪ
+TtŢţŤť
+ƾ
+Ŧŧ
+ƫ
+Ƭƭ
+Ʈ
+UuÙÚÛÜùúûüŨũŪūŬŭŮůŰűŲųƯưǓǔǕǖǗǘǙǚǛǜỤụỦủỨứỪừỬửỮữỰự
+Ɯ
+Ʊ
+Vv
+Ʋ
+WwŴŵ
+Xx
+YyÝýÿŶŷŸ
+Ƴƴ
+ZzŹźŻż
+ƍ
+Žž
+Ƶƶ
+ƷǮǯ
+Ƹƹ
+ƺ
+Þþ
+ƿǷ
+ƻ
+Ƨƨ
+Ƽƽ
+Ƅƅ
+ŉ
+ǀ
+ǁ
+ǂ
+ǃ
+SELECT GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '') FROM t1 GROUP BY c1 COLLATE utf8mb4_german2_ci;
+GROUP_CONCAT(c1 ORDER BY c1 SEPARATOR '')
 ÷
 ×
 AaÀÁÂÃÅàáâãåĀāĂăĄąǍǎǞǟǠǡǺǻẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặ
@@ -2283,363 +2357,14 @@ ZzŹźŻżŽž
 ǁ
 ǂ
 ǃ
-drop table t1;
-SET NAMES utf8;
-CREATE TABLE t1 (c varchar(200) CHARACTER SET utf32 COLLATE utf32_general_ci NOT NULL, INDEX (c));
-INSERT INTO t1 VALUES (_ucs2 0x039C03C903B403B11F770308);
-SELECT * FROM t1 WHERE c LIKE _utf32 0x0000039C00000025 COLLATE utf32_general_ci;
-c
-Μωδαί̈
-INSERT INTO t1 VALUES (CONVERT(_ucs2 0x039C03C903B4 USING utf8));
-SELECT * FROM t1 WHERE c LIKE _utf32 0x0000039C00000025
-COLLATE utf32_general_ci ORDER BY c;
-c
-Μωδ
-Μωδαί̈
 DROP TABLE t1;
-CREATE TABLE t1 (c varchar(200) CHARACTER SET utf32 COLLATE utf32_unicode_ci NOT NULL, INDEX (c));
-INSERT INTO t1 VALUES (_ucs2 0x039C03C903B403B11F770308);
-SELECT * FROM t1 WHERE c LIKE _utf32 0x0000039C00000025 COLLATE utf32_unicode_ci;
-c
-Μωδαί̈
-INSERT INTO t1 VALUES (_ucs2 0x039C03C903B4);
-SELECT * FROM t1 WHERE c LIKE _utf32 0x0000039C00000025
-COLLATE utf32_unicode_ci ORDER BY c;
-c
-Μωδ
-Μωδαί̈
-DROP TABLE t1;
-CREATE TABLE t1 (c varchar(200) CHARACTER SET utf32 COLLATE utf32_unicode_ci NOT NULL, INDEX (c));
-INSERT INTO t1 VALUES (_ucs2 0x039C03C903B403B11F770308);
-SELECT * FROM t1 WHERE c LIKE CONVERT(_ucs2 0x039C0025 USING utf32) COLLATE utf32_unicode_ci;
-c
-Μωδαί̈
-INSERT INTO t1 VALUES (CONVERT(_ucs2 0x039C03C903B4 USING utf8));
-SELECT * FROM t1 WHERE c LIKE CONVERT(_ucs2 0x039C0025 USING utf32)
-COLLATE utf32_unicode_ci ORDER BY c;
-c
-Μωδ
-Μωδαί̈
-DROP TABLE t1;
-SET NAMES utf8;
-SET @test_character_set='utf32';
-SET @test_collation='utf32_swedish_ci';
-SET @safe_character_set_server= @@character_set_server;
-SET @safe_collation_server= @@collation_server;
-SET @safe_character_set_client= @@character_set_client;
-SET @safe_character_set_results= @@character_set_results;
-SET character_set_server= @test_character_set;
-SET collation_server= @test_collation;
-CREATE DATABASE d1;
-USE d1;
-CREATE TABLE t1 (c CHAR(10), KEY(c));
-SHOW FULL COLUMNS FROM t1;
-Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-c	char(10)	utf32_swedish_ci	YES	MUL	NULL			
-INSERT INTO t1 VALUES ('aaa'),('aaaa'),('aaaaa');
-SELECT c as want3results FROM t1 WHERE c LIKE 'aaa%';
-want3results
-aaa
-aaaa
-aaaaa
-DROP TABLE t1;
-CREATE TABLE t1 (c1 varchar(15), KEY c1 (c1(2)));
-SHOW FULL COLUMNS FROM t1;
-Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-c1	varchar(15)	utf32_swedish_ci	YES	MUL	NULL			
-INSERT INTO t1 VALUES ('location'),('loberge'),('lotre'),('boabab');
-SELECT c1 as want3results from t1 where c1 like 'l%';
-want3results
-location
-loberge
-lotre
-SELECT c1 as want3results from t1 where c1 like 'lo%';
-want3results
-location
-loberge
-lotre
-SELECT c1 as want1result  from t1 where c1 like 'loc%';
-want1result
-location
-SELECT c1 as want1result  from t1 where c1 like 'loca%';
-want1result
-location
-SELECT c1 as want1result  from t1 where c1 like 'locat%';
-want1result
-location
-SELECT c1 as want1result  from t1 where c1 like 'locati%';
-want1result
-location
-SELECT c1 as want1result  from t1 where c1 like 'locatio%';
-want1result
-location
-SELECT c1 as want1result  from t1 where c1 like 'location%';
-want1result
-location
-DROP TABLE t1;
-create table t1 (a set('a') not null);
-insert into t1 values (),();
-Warnings:
-Warning	1364	Field 'a' doesn't have a default value
-select cast(a as char(1)) from t1;
-cast(a as char(1))
-
-
-select a sounds like a from t1;
-a sounds like a
-1
-1
-select 1 from t1 order by cast(a as char(1));
-1
-1
-1
-drop table t1;
-set names utf8;
-create table t1 (
-name varchar(10),
-level smallint unsigned);
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `name` varchar(10) COLLATE utf32_swedish_ci DEFAULT NULL,
-  `level` smallint(5) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_swedish_ci
-insert into t1 values ('string',1);
-select concat(name,space(level)), concat(name, repeat(' ',level)) from t1;
-concat(name,space(level))	concat(name, repeat(' ',level))
-string 	string 
-drop table t1;
-DROP DATABASE d1;
-USE test;
-SET character_set_server= @safe_character_set_server;
-SET collation_server= @safe_collation_server;
-SET character_set_client= @safe_character_set_client;
-SET character_set_results= @safe_character_set_results;
-SET collation_connection='utf32_unicode_ci';
-create table t1 select repeat('a',4000) a;
-delete from t1;
-insert into t1 values ('a'), ('a '), ('a\t');
-select collation(a),hex(a) from t1 order by a;
-collation(a)	hex(a)
-utf32_unicode_ci	0000006100000009
-utf32_unicode_ci	00000061
-utf32_unicode_ci	0000006100000020
-drop table t1;
-select @@collation_connection;
-@@collation_connection
-utf32_unicode_ci
-create table t1 ROW_FORMAT=DYNAMIC select repeat('a',50) as c1 ;
-insert into t1 values('abcdef');
-insert into t1 values('_bcdef');
-insert into t1 values('a_cdef');
-insert into t1 values('ab_def');
-insert into t1 values('abc_ef');
-insert into t1 values('abcd_f');
-insert into t1 values('abcde_');
-select c1 as c1u from t1 where c1 like 'ab\_def';
-c1u
-ab_def
-select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
-c2h
-ab_def
-drop table t1;
-"BEGIN ctype_german.inc"
-drop table if exists t1;
-create table t1 as select repeat(' ', 64) as s1;
-select collation(s1) from t1;
-collation(s1)
-utf32_unicode_ci
-delete from t1;
-INSERT INTO t1 VALUES ('ud'),('uf');
-INSERT INTO t1 VALUES ('od'),('of');
-INSERT INTO t1 VALUES ('e');
-INSERT INTO t1 VALUES ('ad'),('af');
-insert into t1 values ('a'),('ae'),(_latin1 0xE4);
-insert into t1 values ('o'),('oe'),(_latin1 0xF6);
-insert into t1 values ('s'),('ss'),(_latin1 0xDF);
-insert into t1 values ('u'),('ue'),(_latin1 0xFC);
-INSERT INTO t1 VALUES (_latin1 0xE6), (_latin1 0xC6);
-INSERT INTO t1 VALUES (_latin1 0x9C), (_latin1 0x8C);
-select s1, hex(s1) from t1 order by s1, binary s1;
-s1	hex(s1)
-a	00000061
-ä	000000E4
-ad	0000006100000064
-ae	0000006100000065
-af	0000006100000066
-Æ	000000C6
-æ	000000E6
-e	00000065
-o	0000006F
-ö	000000F6
-od	0000006F00000064
-oe	0000006F00000065
-Œ	00000152
-œ	00000153
-of	0000006F00000066
-s	00000073
-ss	0000007300000073
-ß	000000DF
-u	00000075
-ü	000000FC
-ud	0000007500000064
-ue	0000007500000065
-uf	0000007500000066
-select group_concat(s1 order by binary s1) from t1 group by s1;
-group_concat(s1 order by binary s1)
-a,ä
-ad
-ae
-af
-Æ,æ
-e
-o,ö
-od
-oe,Œ,œ
-of
-s
-ss,ß
-u,ü
-ud
-ue
-uf
-SELECT s1, hex(s1), hex(weight_string(s1)) FROM t1 ORDER BY s1, BINARY(s1);
-s1	hex(s1)	hex(weight_string(s1))
-a	00000061	0E33
-ä	000000E4	0E33
-ad	0000006100000064	0E330E6D
-ae	0000006100000065	0E330E8B
-af	0000006100000066	0E330EB9
-Æ	000000C6	0E38
-æ	000000E6	0E38
-e	00000065	0E8B
-o	0000006F	0F82
-ö	000000F6	0F82
-od	0000006F00000064	0F820E6D
-oe	0000006F00000065	0F820E8B
-Œ	00000152	0F820E8B
-œ	00000153	0F820E8B
-of	0000006F00000066	0F820EB9
-s	00000073	0FEA
-ss	0000007300000073	0FEA0FEA
-ß	000000DF	0FEA0FEA
-u	00000075	101F
-ü	000000FC	101F
-ud	0000007500000064	101F0E6D
-ue	0000007500000065	101F0E8B
-uf	0000007500000066	101F0EB9
-SELECT s1, hex(s1) FROM t1 WHERE s1='ae' ORDER BY s1, BINARY(s1);
-s1	hex(s1)
-ae	0000006100000065
-drop table t1;
-CREATE TABLE t1 AS SELECT REPEAT('a',1) AS a, 1 AS b LIMIT 0;
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf32 COLLATE utf32_unicode_ci NOT NULL DEFAULT '',
-  `b` int(1) NOT NULL DEFAULT '0'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES ('s',0),(_latin1 0xDF,1);
-SELECT * FROM t1 ORDER BY a, b;
-a	b
-s	0
-ß	1
-SELECT * FROM t1 ORDER BY a DESC, b;
-a	b
-ß	1
-s	0
-SELECT * FROM t1 ORDER BY CONCAT(a), b;
-a	b
-s	0
-ß	1
-SELECT * FROM t1 ORDER BY CONCAT(a) DESC, b;
-a	b
-ß	1
-s	0
-DROP TABLE t1;
-"END ctype_german.inc"
-End of 4.1 tests
-CREATE TABLE t1 (id int, a varchar(30) character set utf32);
-INSERT INTO t1 VALUES (1, _ucs2 0x01310069), (2, _ucs2 0x01310131);
-INSERT INTO t1 VALUES (3, _ucs2 0x00690069), (4, _ucs2 0x01300049);
-INSERT INTO t1 VALUES (5, _ucs2 0x01300130), (6, _ucs2 0x00490049);
-SELECT a, length(a) la, @l:=lower(a) l, length(@l) ll, @u:=upper(a) u, length(@u) lu
-FROM t1 ORDER BY id;
-a	la	l	ll	u	lu
-ıi	8	ıi	8	II	8
-ıı	8	ıı	8	II	8
-ii	8	ii	8	II	8
-İI	8	ii	8	İI	8
-İİ	8	ii	8	İİ	8
-II	8	ii	8	II	8
-ALTER TABLE t1 MODIFY a VARCHAR(30) character set utf32 collate utf32_turkish_ci;
-SELECT a, length(a) la, @l:=lower(a) l, length(@l) ll, @u:=upper(a) u, length(@u) lu
-FROM t1 ORDER BY id;
-a	la	l	ll	u	lu
-ıi	8	ıi	8	Iİ	8
-ıı	8	ıı	8	II	8
-ii	8	ii	8	İİ	8
-İI	8	iı	8	İI	8
-İİ	8	ii	8	İİ	8
-II	8	ıı	8	II	8
-DROP TABLE t1;
-CREATE TABLE t1 (
-c1 text character set utf32 collate utf32_polish_ci NOT NULL
-) ENGINE=MyISAM;
-insert into t1 values (''),('a');
-SELECT COUNT(*), c1 FROM t1 GROUP BY c1;
-COUNT(*)	c1
-1	
-1	a
-DROP TABLE IF EXISTS t1;
-set collation_connection=utf32_unicode_ci;
-drop table if exists t1;
-create table t1 as
-select repeat(' ', 64) as s1, repeat(' ',64) as s2
-union
-select null, null;
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `s1` varchar(64) CHARACTER SET utf32 COLLATE utf32_unicode_ci DEFAULT NULL,
-  `s2` varchar(64) CHARACTER SET utf32 COLLATE utf32_unicode_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-delete from t1;
-insert into t1 values('aaa','aaa');
-insert into t1 values('aaa|qqq','qqq');
-insert into t1 values('gheis','^[^a-dXYZ]+$');
-insert into t1 values('aab','^aa?b');
-insert into t1 values('Baaan','^Ba*n');
-insert into t1 values('aaa','qqq|aaa');
-insert into t1 values('qqq','qqq|aaa');
-insert into t1 values('bbb','qqq|aaa');
-insert into t1 values('bbb','qqq');
-insert into t1 values('aaa','aba');
-insert into t1 values(null,'abc');
-insert into t1 values('def',null);
-insert into t1 values(null,null);
-insert into t1 values('ghi','ghi[');
-select HIGH_PRIORITY s1 regexp s2 from t1;
-s1 regexp s2
-0
-0
-0
-1
-1
-1
-1
-1
-1
-1
-NULL
-NULL
-NULL
-NULL
-drop table t1;
-SET collation_connection=utf32_czech_ci;
+#
+# Start of 5.5 tests
+#
+SET collation_connection=utf8mb4_czech_ci;
 SELECT @@collation_connection;
 @@collation_connection
-utf32_czech_ci
+utf8mb4_czech_ci
 #
 # Bug#57737 Character sets: search fails with like, contraction, index
 #
@@ -2665,7 +2390,7 @@ ch
 DROP TABLE t1;
 SELECT @@collation_connection;
 @@collation_connection
-utf32_czech_ci
+utf8mb4_czech_ci
 #
 # Bug#57737 Character sets: search fails with like, contraction, index
 # Part#2 - ignorable characters
@@ -2674,560 +2399,14 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS s1 LIMIT 0;
 INSERT INTO t1 VALUES ('a\0\0\0\0\0\t'),('a'),('b'),('c'),('d'),('e');
 SELECT HEX(s1) FROM t1 WHERE s1 LIKE 'a%';
 HEX(s1)
-00000061000000000000000000000000000000000000000000000009
-00000061
+61000000000009
+61
 ALTER TABLE t1 ADD KEY s1 (s1);
 SELECT HEX(s1) FROM t1 WHERE s1 LIKE 'a%';
 HEX(s1)
-00000061000000000000000000000000000000000000000000000009
-00000061
+61000000000009
+61
 DROP TABLE t1;
-#
-# Bug #12319710 : INVALID MEMORY READ AND/OR CRASH IN 
-#   MY_UCA_CHARCMP WITH UTF32
-#
-SET collation_connection=utf32_unicode_ci;
-CREATE TABLE t1 (a TEXT CHARACTER SET utf32 COLLATE utf32_turkish_ci NOT NULL);
-INSERT INTO t1 VALUES ('a'), ('b');
-CREATE TABLE t2 (b VARBINARY(5) NOT NULL);
-#insert chars outside of BMP
-INSERT INTO t2 VALUEs (0x082837),(0x082837);
-#test for read-out-of-bounds with non-BMP chars as a LIKE pattern
-SELECT * FROM t1,t2 WHERE a LIKE b;
-a	b
-#test the original statement
-SELECT 1 FROM t1 AS t1_0 NATURAL LEFT OUTER JOIN t2 AS t2_0
-RIGHT JOIN t1 AS t1_1 ON t1_0.a LIKE t2_0.b;
-1
-1
-1
-DROP TABLE t1,t2;
 #
 # End of 5.5 tests
-#
-#
-# Start of 5.6 tests
-#
-#
-# WL#3664 WEIGHT_STRING
-#
-set collation_connection=utf32_unicode_ci;
-select @@collation_connection;
-@@collation_connection
-utf32_unicode_ci
-CREATE TABLE t1 AS SELECT 'a' AS a;
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf32 COLLATE utf32_unicode_ci NOT NULL DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `ws` varbinary(16) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT HEX(WEIGHT_STRING(a)) FROM t1;
-HEX(WEIGHT_STRING(a))
-0E33
-SELECT HEX(ws) FROM t2;
-HEX(ws)
-0E33
-DROP TABLE t2;
-DROP TABLE t1;
-CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET utf32 COLLATE utf32_unicode_ci NOT NULL DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `ws` varbinary(80) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT HEX(WEIGHT_STRING(a)) FROM t1;
-HEX(WEIGHT_STRING(a))
-0E330E330E330E330E33
-SELECT HEX(ws) FROM t2;
-HEX(ws)
-0E330E330E330E330E33
-DROP TABLE t2;
-CREATE TABLE t2 AS SELECT WEIGHT_STRING(a AS CHAR(3)) AS ws FROM t1;
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `ws` varbinary(48) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
-HEX(WEIGHT_STRING(a AS CHAR(3)))
-0E330E330E33
-SELECT HEX(ws) FROM t2;
-HEX(ws)
-0E330E330E33
-DROP TABLE t2;
-CREATE TABLE t2 AS SELECT WEIGHT_STRING(a AS CHAR(10)) AS ws FROM t1;
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `ws` varbinary(160) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
-HEX(WEIGHT_STRING(a AS CHAR(10)))
-0E330E330E330E330E3302090209020902090209
-SELECT HEX(ws) FROM t2;
-HEX(ws)
-0E330E330E330E330E3302090209020902090209
-DROP TABLE t2;
-DROP TABLE t1;
-select hex(weight_string('a'));
-hex(weight_string('a'))
-0E33
-select hex(weight_string('A'));
-hex(weight_string('A'))
-0E33
-select hex(weight_string('abc'));
-hex(weight_string('abc'))
-0E330E4A0E60
-select hex(weight_string('abc' as char(2)));
-hex(weight_string('abc' as char(2)))
-0E330E4A
-select hex(weight_string('abc' as char(3)));
-hex(weight_string('abc' as char(3)))
-0E330E4A0E60
-select hex(weight_string('abc' as char(5)));
-hex(weight_string('abc' as char(5)))
-0E330E4A0E6002090209
-select hex(weight_string('abc', 1, 2, 0xC0));
-hex(weight_string('abc', 1, 2, 0xC0))
-0E
-select hex(weight_string('abc', 2, 2, 0xC0));
-hex(weight_string('abc', 2, 2, 0xC0))
-0E33
-select hex(weight_string('abc', 3, 2, 0xC0));
-hex(weight_string('abc', 3, 2, 0xC0))
-0E330E
-select hex(weight_string('abc', 4, 2, 0xC0));
-hex(weight_string('abc', 4, 2, 0xC0))
-0E330E4A
-select hex(weight_string('abc', 5, 2, 0xC0));
-hex(weight_string('abc', 5, 2, 0xC0))
-0E330E4A02
-select hex(weight_string('abc',25, 2, 0xC0));
-hex(weight_string('abc',25, 2, 0xC0))
-0E330E4A020902090209020902090209020902090209020902
-select hex(weight_string('abc', 1, 3, 0xC0));
-hex(weight_string('abc', 1, 3, 0xC0))
-0E
-select hex(weight_string('abc', 2, 3, 0xC0));
-hex(weight_string('abc', 2, 3, 0xC0))
-0E33
-select hex(weight_string('abc', 3, 3, 0xC0));
-hex(weight_string('abc', 3, 3, 0xC0))
-0E330E
-select hex(weight_string('abc', 4, 3, 0xC0));
-hex(weight_string('abc', 4, 3, 0xC0))
-0E330E4A
-select hex(weight_string('abc', 5, 3, 0xC0));
-hex(weight_string('abc', 5, 3, 0xC0))
-0E330E4A0E
-select hex(weight_string('abc',25, 3, 0xC0));
-hex(weight_string('abc',25, 3, 0xC0))
-0E330E4A0E6002090209020902090209020902090209020902
-select hex(weight_string('abc', 1, 4, 0xC0));
-hex(weight_string('abc', 1, 4, 0xC0))
-0E
-select hex(weight_string('abc', 2, 4, 0xC0));
-hex(weight_string('abc', 2, 4, 0xC0))
-0E33
-select hex(weight_string('abc', 3, 4, 0xC0));
-hex(weight_string('abc', 3, 4, 0xC0))
-0E330E
-select hex(weight_string('abc', 4, 4, 0xC0));
-hex(weight_string('abc', 4, 4, 0xC0))
-0E330E4A
-select hex(weight_string('abc', 5, 4, 0xC0));
-hex(weight_string('abc', 5, 4, 0xC0))
-0E330E4A0E
-select hex(weight_string('abc',25, 4, 0xC0));
-hex(weight_string('abc',25, 4, 0xC0))
-0E330E4A0E6002090209020902090209020902090209020902
-select @@collation_connection;
-@@collation_connection
-utf32_unicode_ci
-select hex(weight_string(cast(_latin1 0x80 as char)));
-hex(weight_string(cast(_latin1 0x80 as char)))
-0E23
-select hex(weight_string(cast(_latin1 0x808080 as char)));
-hex(weight_string(cast(_latin1 0x808080 as char)))
-0E230E230E23
-select hex(weight_string(cast(_latin1 0x808080 as char) as char(2)));
-hex(weight_string(cast(_latin1 0x808080 as char) as char(2)))
-0E230E23
-select hex(weight_string(cast(_latin1 0x808080 as char) as char(3)));
-hex(weight_string(cast(_latin1 0x808080 as char) as char(3)))
-0E230E230E23
-select hex(weight_string(cast(_latin1 0x808080 as char) as char(5)));
-hex(weight_string(cast(_latin1 0x808080 as char) as char(5)))
-0E230E230E2302090209
-select hex(weight_string(cast(_latin1 0x808080 as char), 1, 2, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 1, 2, 0xC0))
-0E
-select hex(weight_string(cast(_latin1 0x808080 as char), 2, 2, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 2, 2, 0xC0))
-0E23
-select hex(weight_string(cast(_latin1 0x808080 as char), 3, 2, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 3, 2, 0xC0))
-0E230E
-select hex(weight_string(cast(_latin1 0x808080 as char), 4, 2, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 4, 2, 0xC0))
-0E230E23
-select hex(weight_string(cast(_latin1 0x808080 as char), 5, 2, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 5, 2, 0xC0))
-0E230E2302
-select hex(weight_string(cast(_latin1 0x808080 as char),25, 2, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char),25, 2, 0xC0))
-0E230E23020902090209020902090209020902090209020902
-select hex(weight_string(cast(_latin1 0x808080 as char), 1, 3, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 1, 3, 0xC0))
-0E
-select hex(weight_string(cast(_latin1 0x808080 as char), 2, 3, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 2, 3, 0xC0))
-0E23
-select hex(weight_string(cast(_latin1 0x808080 as char), 3, 3, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 3, 3, 0xC0))
-0E230E
-select hex(weight_string(cast(_latin1 0x808080 as char), 4, 3, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 4, 3, 0xC0))
-0E230E23
-select hex(weight_string(cast(_latin1 0x808080 as char), 5, 3, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 5, 3, 0xC0))
-0E230E230E
-select hex(weight_string(cast(_latin1 0x808080 as char),25, 3, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char),25, 3, 0xC0))
-0E230E230E2302090209020902090209020902090209020902
-select hex(weight_string(cast(_latin1 0x808080 as char), 1, 4, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 1, 4, 0xC0))
-0E
-select hex(weight_string(cast(_latin1 0x808080 as char), 2, 4, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 2, 4, 0xC0))
-0E23
-select hex(weight_string(cast(_latin1 0x808080 as char), 3, 4, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 3, 4, 0xC0))
-0E230E
-select hex(weight_string(cast(_latin1 0x808080 as char), 4, 4, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 4, 4, 0xC0))
-0E230E23
-select hex(weight_string(cast(_latin1 0x808080 as char), 5, 4, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char), 5, 4, 0xC0))
-0E230E230E
-select hex(weight_string(cast(_latin1 0x808080 as char),25, 4, 0xC0));
-hex(weight_string(cast(_latin1 0x808080 as char),25, 4, 0xC0))
-0E230E230E2302090209020902090209020902090209020902
-select hex(weight_string(_utf32 0x10000 collate utf32_unicode_ci));
-hex(weight_string(_utf32 0x10000 collate utf32_unicode_ci))
-FFFD
-select hex(weight_string(_utf32 0x10001 collate utf32_unicode_ci));
-hex(weight_string(_utf32 0x10001 collate utf32_unicode_ci))
-FFFD
-select @@collation_connection;
-@@collation_connection
-utf32_unicode_ci
-select hex(weight_string('a' LEVEL 1));
-hex(weight_string('a' LEVEL 1))
-0E33
-select hex(weight_string('A' LEVEL 1));
-hex(weight_string('A' LEVEL 1))
-0E33
-select hex(weight_string('abc' LEVEL 1));
-hex(weight_string('abc' LEVEL 1))
-0E330E4A0E60
-select hex(weight_string('abc' as char(2) LEVEL 1));
-hex(weight_string('abc' as char(2) LEVEL 1))
-0E330E4A
-select hex(weight_string('abc' as char(3) LEVEL 1));
-hex(weight_string('abc' as char(3) LEVEL 1))
-0E330E4A0E60
-select hex(weight_string('abc' as char(5) LEVEL 1));
-hex(weight_string('abc' as char(5) LEVEL 1))
-0E330E4A0E6002090209
-select hex(weight_string('abc' as char(5) LEVEL 1 REVERSE));
-hex(weight_string('abc' as char(5) LEVEL 1 REVERSE))
-09020902600E4A0E330E
-select hex(weight_string('abc' as char(5) LEVEL 1 DESC));
-hex(weight_string('abc' as char(5) LEVEL 1 DESC))
-F1CCF1B5F19FFDF6FDF6
-select hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE));
-hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE))
-F6FDF6FD9FF1B5F1CCF1
-set @@collation_connection=utf32_czech_ci;
-select @@collation_connection;
-@@collation_connection
-utf32_czech_ci
-select collation(cast(_latin1 0xDF as char));
-collation(cast(_latin1 0xDF as char))
-utf32_czech_ci
-select hex(weight_string('s'));
-hex(weight_string('s'))
-0FEA
-select hex(weight_string(cast(_latin1 0xDF as char)));
-hex(weight_string(cast(_latin1 0xDF as char)))
-0FEA0FEA
-select hex(weight_string(cast(_latin1 0xDF as char) as char(1)));
-hex(weight_string(cast(_latin1 0xDF as char) as char(1)))
-0FEA
-select hex(weight_string('c'));
-hex(weight_string('c'))
-0E60
-select hex(weight_string('h'));
-hex(weight_string('h'))
-0EE1
-select hex(weight_string('ch'));
-hex(weight_string('ch'))
-0EE2
-select hex(weight_string('i'));
-hex(weight_string('i'))
-0EFB
-select hex(weight_string(cast(_latin1 0x6368DF as char)));
-hex(weight_string(cast(_latin1 0x6368DF as char)))
-0EE20FEA0FEA
-select hex(weight_string(cast(_latin1 0x6368DF as char) as char(1)));
-hex(weight_string(cast(_latin1 0x6368DF as char) as char(1)))
-0EE2
-select hex(weight_string(cast(_latin1 0x6368DF as char) as char(2)));
-hex(weight_string(cast(_latin1 0x6368DF as char) as char(2)))
-0EE20FEA
-select hex(weight_string(cast(_latin1 0x6368DF as char) as char(3)));
-hex(weight_string(cast(_latin1 0x6368DF as char) as char(3)))
-0EE20FEA0FEA
-select hex(weight_string(cast(_latin1 0x6368DF as char) as char(4)));
-hex(weight_string(cast(_latin1 0x6368DF as char) as char(4)))
-0EE20FEA0FEA0209
-select hex(weight_string(cast(_latin1 0xDF6368 as char)));
-hex(weight_string(cast(_latin1 0xDF6368 as char)))
-0FEA0FEA0EE2
-select hex(weight_string(cast(_latin1 0xDF6368 as char) as char(1)));
-hex(weight_string(cast(_latin1 0xDF6368 as char) as char(1)))
-0FEA
-select hex(weight_string(cast(_latin1 0xDF6368 as char) as char(2)));
-hex(weight_string(cast(_latin1 0xDF6368 as char) as char(2)))
-0FEA0FEA
-select hex(weight_string(cast(_latin1 0xDF6368 as char) as char(3)));
-hex(weight_string(cast(_latin1 0xDF6368 as char) as char(3)))
-0FEA0FEA0EE2
-select hex(weight_string(cast(_latin1 0xDF6368 as char) as char(4)));
-hex(weight_string(cast(_latin1 0xDF6368 as char) as char(4)))
-0FEA0FEA0EE20209
-select hex(weight_string(cast(_latin1 0x6368DF as char), 1, 2, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char), 1, 2, 0xC0))
-0E
-select hex(weight_string(cast(_latin1 0x6368DF as char), 2, 2, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char), 2, 2, 0xC0))
-0EE2
-select hex(weight_string(cast(_latin1 0x6368DF as char), 3, 2, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char), 3, 2, 0xC0))
-0EE20F
-select hex(weight_string(cast(_latin1 0x6368DF as char), 4, 2, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char), 4, 2, 0xC0))
-0EE20FEA
-select hex(weight_string(cast(_latin1 0x6368DF as char),25, 2, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char),25, 2, 0xC0))
-0EE20FEA020902090209020902090209020902090209020902
-select hex(weight_string(cast(_latin1 0x6368DF as char), 1, 3, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char), 1, 3, 0xC0))
-0E
-select hex(weight_string(cast(_latin1 0x6368DF as char), 2, 3, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char), 2, 3, 0xC0))
-0EE2
-select hex(weight_string(cast(_latin1 0x6368DF as char), 3, 3, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char), 3, 3, 0xC0))
-0EE20F
-select hex(weight_string(cast(_latin1 0x6368DF as char), 4, 3, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char), 4, 3, 0xC0))
-0EE20FEA
-select hex(weight_string(cast(_latin1 0x6368DF as char),25, 3, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char),25, 3, 0xC0))
-0EE20FEA0FEA02090209020902090209020902090209020902
-select hex(weight_string(cast(_latin1 0x6368DF as char), 1, 4, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char), 1, 4, 0xC0))
-0E
-select hex(weight_string(cast(_latin1 0x6368DF as char), 2, 4, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char), 2, 4, 0xC0))
-0EE2
-select hex(weight_string(cast(_latin1 0x6368DF as char), 3, 4, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char), 3, 4, 0xC0))
-0EE20F
-select hex(weight_string(cast(_latin1 0x6368DF as char), 4, 4, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char), 4, 4, 0xC0))
-0EE20FEA
-select hex(weight_string(cast(_latin1 0x6368DF as char),25, 4, 0xC0));
-hex(weight_string(cast(_latin1 0x6368DF as char),25, 4, 0xC0))
-0EE20FEA0FEA02090209020902090209020902090209020902
-select hex(weight_string(cast(_latin1 0xDF6368 as char), 1, 2,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char), 1, 2,0xC0))
-0F
-select hex(weight_string(cast(_latin1 0xDF6368 as char), 2, 2,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char), 2, 2,0xC0))
-0FEA
-select hex(weight_string(cast(_latin1 0xDF6368 as char), 3, 2,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char), 3, 2,0xC0))
-0FEA0F
-select hex(weight_string(cast(_latin1 0xDF6368 as char), 4, 2,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char), 4, 2,0xC0))
-0FEA0FEA
-select hex(weight_string(cast(_latin1 0xDF6368 as char),25, 2,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char),25, 2,0xC0))
-0FEA0FEA020902090209020902090209020902090209020902
-select hex(weight_string(cast(_latin1 0xDF6368 as char), 1, 3,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char), 1, 3,0xC0))
-0F
-select hex(weight_string(cast(_latin1 0xDF6368 as char), 2, 3,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char), 2, 3,0xC0))
-0FEA
-select hex(weight_string(cast(_latin1 0xDF6368 as char), 3, 3,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char), 3, 3,0xC0))
-0FEA0F
-select hex(weight_string(cast(_latin1 0xDF6368 as char), 4, 3,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char), 4, 3,0xC0))
-0FEA0FEA
-select hex(weight_string(cast(_latin1 0xDF6368 as char),25, 3,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char),25, 3,0xC0))
-0FEA0FEA0EE202090209020902090209020902090209020902
-select hex(weight_string(cast(_latin1 0xDF6368 as char), 1, 4,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char), 1, 4,0xC0))
-0F
-select hex(weight_string(cast(_latin1 0xDF6368 as char), 2, 4,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char), 2, 4,0xC0))
-0FEA
-select hex(weight_string(cast(_latin1 0xDF6368 as char), 3, 4,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char), 3, 4,0xC0))
-0FEA0F
-select hex(weight_string(cast(_latin1 0xDF6368 as char), 4, 4,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char), 4, 4,0xC0))
-0FEA0FEA
-select hex(weight_string(cast(_latin1 0xDF6368 as char),25, 4,0xC0));
-hex(weight_string(cast(_latin1 0xDF6368 as char),25, 4,0xC0))
-0FEA0FEA0EE202090209020902090209020902090209020902
-SET NAMES utf8;
-SET collation_connection=utf32_german2_ci;
-"BEGIN ctype_german.inc"
-drop table if exists t1;
-create table t1 as select repeat(' ', 64) as s1;
-select collation(s1) from t1;
-collation(s1)
-utf32_german2_ci
-delete from t1;
-INSERT INTO t1 VALUES ('ud'),('uf');
-INSERT INTO t1 VALUES ('od'),('of');
-INSERT INTO t1 VALUES ('e');
-INSERT INTO t1 VALUES ('ad'),('af');
-insert into t1 values ('a'),('ae'),(_latin1 0xE4);
-insert into t1 values ('o'),('oe'),(_latin1 0xF6);
-insert into t1 values ('s'),('ss'),(_latin1 0xDF);
-insert into t1 values ('u'),('ue'),(_latin1 0xFC);
-INSERT INTO t1 VALUES (_latin1 0xE6), (_latin1 0xC6);
-INSERT INTO t1 VALUES (_latin1 0x9C), (_latin1 0x8C);
-select s1, hex(s1) from t1 order by s1, binary s1;
-s1	hex(s1)
-a	00000061
-ad	0000006100000064
-ae	0000006100000065
-Æ	000000C6
-ä	000000E4
-æ	000000E6
-af	0000006100000066
-e	00000065
-o	0000006F
-od	0000006F00000064
-oe	0000006F00000065
-ö	000000F6
-Œ	00000152
-œ	00000153
-of	0000006F00000066
-s	00000073
-ss	0000007300000073
-ß	000000DF
-u	00000075
-ud	0000007500000064
-ue	0000007500000065
-ü	000000FC
-uf	0000007500000066
-select group_concat(s1 order by binary s1) from t1 group by s1;
-group_concat(s1 order by binary s1)
-a
-ad
-ae,Æ,ä,æ
-af
-e
-o
-od
-oe,ö,Œ,œ
-of
-s
-ss,ß
-u
-ud
-ue,ü
-uf
-SELECT s1, hex(s1), hex(weight_string(s1)) FROM t1 ORDER BY s1, BINARY(s1);
-s1	hex(s1)	hex(weight_string(s1))
-a	00000061	0E33
-ad	0000006100000064	0E330E6D
-ae	0000006100000065	0E330E8B
-Æ	000000C6	0E330E8B
-ä	000000E4	0E330E8B
-æ	000000E6	0E330E8B
-af	0000006100000066	0E330EB9
-e	00000065	0E8B
-o	0000006F	0F82
-od	0000006F00000064	0F820E6D
-oe	0000006F00000065	0F820E8B
-ö	000000F6	0F820E8B
-Œ	00000152	0F820E8B
-œ	00000153	0F820E8B
-of	0000006F00000066	0F820EB9
-s	00000073	0FEA
-ss	0000007300000073	0FEA0FEA
-ß	000000DF	0FEA0FEA
-u	00000075	101F
-ud	0000007500000064	101F0E6D
-ue	0000007500000065	101F0E8B
-ü	000000FC	101F0E8B
-uf	0000007500000066	101F0EB9
-SELECT s1, hex(s1) FROM t1 WHERE s1='ae' ORDER BY s1, BINARY(s1);
-s1	hex(s1)
-ae	0000006100000065
-Æ	000000C6
-ä	000000E4
-æ	000000E6
-drop table t1;
-CREATE TABLE t1 AS SELECT REPEAT('a',1) AS a, 1 AS b LIMIT 0;
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf32 COLLATE utf32_german2_ci NOT NULL DEFAULT '',
-  `b` int(1) NOT NULL DEFAULT '0'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES ('s',0),(_latin1 0xDF,1);
-SELECT * FROM t1 ORDER BY a, b;
-a	b
-s	0
-ß	1
-SELECT * FROM t1 ORDER BY a DESC, b;
-a	b
-ß	1
-s	0
-SELECT * FROM t1 ORDER BY CONCAT(a), b;
-a	b
-s	0
-ß	1
-SELECT * FROM t1 ORDER BY CONCAT(a) DESC, b;
-a	b
-ß	1
-s	0
-DROP TABLE t1;
-"END ctype_german.inc"
-#
-# End of 5.6 tests
 #
