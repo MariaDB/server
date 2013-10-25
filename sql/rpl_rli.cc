@@ -1274,9 +1274,12 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
         DBA aware of the problem in the error log.
       */
     }
-    DBUG_EXECUTE_IF("inject_crash_before_flush_rli", DBUG_SUICIDE(););
-    flush_relay_log_info(this);
-    DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
+    if (mi->using_gtid == Master_info::USE_GTID_NO)
+    {
+      DBUG_EXECUTE_IF("inject_crash_before_flush_rli", DBUG_SUICIDE(););
+      flush_relay_log_info(this);
+      DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
+    }
     /*
       Note that Rotate_log_event::do_apply_event() does not call this
       function, so there is no chance that a fake rotate event resets

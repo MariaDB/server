@@ -14,10 +14,7 @@
      following transactions, so slave binlog position will be correct.
      And all the retry logic for temporary errors like deadlock.
 
-   - In GTID replication, we should not need to update master.info and
-     relay-log.info on disk at all except at slave thread stop. They are not
-     used to know where to restart, the updates are not crash-safe, and it
-     could negatively affect performance.
+   - Retry of failed transactions is not yet implemented for the parallel case.
 
    - All the waits (eg. in struct wait_for_commit and in
      rpl_parallel_thread_pool::get_thread()) need to be killable. And on kill,
@@ -29,8 +26,6 @@
      slave rolls back the transaction; parallel execution needs to be able
      to deal with this wrt. commit_orderer and such.
      See Format_description_log_event::do_apply_event().
-
-   - Retry of failed transactions is not yet implemented for the parallel case.
 */
 
 struct rpl_parallel_thread_pool global_rpl_thread_pool;
