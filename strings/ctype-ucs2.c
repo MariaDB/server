@@ -1626,7 +1626,7 @@ static MY_COLLATION_HANDLER my_collation_utf16_general_ci_handler =
   my_strnncoll_utf16,
   my_strnncollsp_utf16,
   my_strnxfrm_unicode,
-  my_strnxfrmlen_simple,
+  my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf16_ci,
   my_strcasecmp_mb2_or_mb4,
@@ -2200,13 +2200,6 @@ my_strnncollsp_utf32(CHARSET_INFO *cs,
 }
 
 
-static size_t
-my_strnxfrmlen_utf32(CHARSET_INFO *cs __attribute__((unused)), size_t len)
-{
-  return len / 2;
-}
-
-
 static uint
 my_ismbchar_utf32(CHARSET_INFO *cs __attribute__((unused)),
                   const char *b __attribute__((unused)),
@@ -2721,7 +2714,7 @@ static MY_COLLATION_HANDLER my_collation_utf32_general_ci_handler =
   my_strnncoll_utf32,
   my_strnncollsp_utf32,
   my_strnxfrm_unicode,
-  my_strnxfrmlen_utf32,
+  my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf32_ci,
   my_strcasecmp_mb2_or_mb4,
@@ -3340,7 +3333,7 @@ static MY_COLLATION_HANDLER my_collation_ucs2_general_ci_handler =
     my_strnncoll_ucs2,
     my_strnncollsp_ucs2,
     my_strnxfrm_unicode,
-    my_strnxfrmlen_simple,
+    my_strnxfrmlen_unicode,
     my_like_range_generic,
     my_wildcmp_ucs2_ci,
     my_strcasecmp_mb2_or_mb4,
@@ -3356,7 +3349,7 @@ static MY_COLLATION_HANDLER my_collation_ucs2_bin_handler =
     my_strnncoll_ucs2_bin,
     my_strnncollsp_ucs2_bin,
     my_strnxfrm_unicode,
-    my_strnxfrmlen_simple,
+    my_strnxfrmlen_unicode,
     my_like_range_generic,
     my_wildcmp_ucs2_bin,
     my_strcasecmp_mb2_or_mb4,

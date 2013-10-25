@@ -188,6 +188,7 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
 #define MY_CS_NONASCII  8192   /* if not ASCII-compatible        */
 #define MY_CS_UNICODE_SUPPLEMENT 16384 /* Non-BMP Unicode characters */
 #define MY_CS_LOWER_SORT 32768 /* If use lower case as weight   */
+#define MY_CS_STRNXFRM_BAD_NWEIGHTS 0x10000 /* strnxfrm ignores "nweights" */
 #define MY_CHARSET_UNDEFINED 0
 
 /* Character repertoire flags */
@@ -672,6 +673,7 @@ size_t my_strnxfrm_mb(CHARSET_INFO *,
 size_t my_strnxfrm_unicode(CHARSET_INFO *,
                            uchar *dst, size_t dstlen, uint nweights,
                            const uchar *src, size_t srclen, uint flags);
+size_t  my_strnxfrmlen_unicode(CHARSET_INFO *, size_t); 
 
 size_t my_strnxfrm_unicode_full_bin(CHARSET_INFO *,
                                     uchar *dst, size_t dstlen, uint nweights,

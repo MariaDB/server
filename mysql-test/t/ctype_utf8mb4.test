@@ -1829,6 +1829,26 @@ DROP TABLE t1;
 --echo # End of 5.5 tests
 --echo #
 
+
+--echo #
+--echo # WL#3664 WEIGHT_STRING
+--echo #
+
+set names utf8mb4;
+--source include/weight_string.inc
+--source include/weight_string_euro.inc
+--source include/weight_string_l1.inc
+
+set @@collation_connection=utf8mb4_bin;
+--source include/weight_string.inc
+--source include/weight_string_euro.inc
+--source include/weight_string_l1.inc
+
+--echo #
+--echo # End of 5.6 tests
+--echo #
+
+
 --echo #
 --echo # End of tests
 --echo #
