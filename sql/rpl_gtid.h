@@ -60,7 +60,6 @@ struct rpl_slave_state
   struct element
   {
     struct list_element *list;
-    uint64 last_sub_id;
     uint32 domain_id;
 
     list_element *grab_list() { list_element *l= list; list= NULL; return l; }
@@ -68,8 +67,6 @@ struct rpl_slave_state
     {
       l->next= list;
       list= l;
-      if (last_sub_id < l->sub_id)
-        last_sub_id= l->sub_id;
     }
   };
 
@@ -78,6 +75,7 @@ struct rpl_slave_state
   /* Mutex protecting access to the state. */
   mysql_mutex_t LOCK_slave_state;
 
+  uint64 last_sub_id;
   bool inited;
   bool loaded;
 

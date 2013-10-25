@@ -83,7 +83,7 @@ rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
 
 
 rpl_slave_state::rpl_slave_state()
-  : inited(false), loaded(false)
+  : last_sub_id(0), inited(false), loaded(false)
 {
   my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
                sizeof(uint32), NULL, my_free, HASH_UNIQUE);
@@ -153,6 +153,9 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
   list_elem->seq_no= seq_no;
 
   elem->add(list_elem);
+  if (last_sub_id < sub_id)
+    last_sub_id= sub_id;
+
   return 0;
 }
 
@@ -169,7 +172,6 @@ rpl_slave_state::get_element(uint32 domain_id)
   if (!(elem= (element *)my_malloc(sizeof(*elem), MYF(MY_WME))))
     return NULL;
   elem->list= NULL;
-  elem->last_sub_id= 0;
   elem->domain_id= domain_id;
   if (my_hash_insert(&hash, (uchar *)elem))
   {
@@ -469,13 +471,10 @@ end:
 uint64
 rpl_slave_state::next_subid(uint32 domain_id)
 {
-  uint32 sub_id= 0;
-  element *elem;
+  uint32 sub_id;
 
   lock();
-  elem= get_element(domain_id);
-  if (elem)
-    sub_id= ++elem->last_sub_id;
+  sub_id= ++last_sub_id;
   unlock();
 
   return sub_id;

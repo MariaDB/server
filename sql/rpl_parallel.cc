@@ -657,8 +657,10 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   if (typ == GTID_EVENT)
   {
     Gtid_log_event *gtid_ev= static_cast<Gtid_log_event *>(ev);
+    uint32 domain_id= (rli->mi->using_gtid == Master_info::USE_GTID_NO ?
+                       0 : gtid_ev->domain_id);
 
-    if (!(e= find(gtid_ev->domain_id)) ||
+    if (!(e= find(domain_id)) ||
         !(rgi= new rpl_group_info(rli)) ||
         event_group_new_gtid(rgi, gtid_ev))
     {
