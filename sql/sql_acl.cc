@@ -4334,12 +4334,19 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
   int old_row_exists= 1;
   int error=0;
   ulong store_proc_rights;
+  HASH *hash= is_proc ? &proc_priv_hash : &func_priv_hash;
   DBUG_ENTER("replace_routine_table");
 
   if (!initialized)
   {
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
     DBUG_RETURN(-1);
+  }
+
+  if (revoke_grant && !grant_name->init_privs) // only inherited role privs
+  {
+    my_hash_delete(hash, (uchar*) grant_name);
+    DBUG_RETURN(0);
   }
 
   get_grantor(thd, grantor);
@@ -4433,8 +4440,7 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
   }
   else
   {
-    my_hash_delete(is_proc ? &proc_priv_hash : &func_priv_hash,(uchar*)
-                   grant_name);
+    my_hash_delete(hash, (uchar*) grant_name);
   }
   DBUG_RETURN(0);
 
@@ -5685,7 +5691,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
 
     grant_name= routine_hash_search(Str->host.str, NullS, db_name,
                                     Str->user.str, table_name, is_proc, 1);
-    if (!grant_name)
+    if (!grant_name || !grant_name->init_privs)
     {
       if (revoke_grant)
       {
@@ -9435,10 +9441,6 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
 	if (!strcmp(lex_user->user.str,user) &&
             !strcmp(lex_user->host.str, host))
 	{
-          /* only inherited rights, nothing to do here */
-          if (!grant_proc->init_privs)
-            continue;
-
 	  if (replace_routine_table(thd,grant_proc,tables[4].table,*lex_user,
 				  grant_proc->db,
 				  grant_proc->tname,
