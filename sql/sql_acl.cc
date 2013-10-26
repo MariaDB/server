@@ -2385,7 +2385,7 @@ static bool add_role_user_mapping(const char *uname, const char *hname,
 /*
   This helper function is used to removes roles and grantees
   from the corresponding cross-reference arrays. see remove_role_user_mapping().
-  as such, it asserts that a element to delete is present in the array,
+  as such, it asserts that an element to delete is present in the array,
   and is present only once.
 */
 static void remove_ptr_from_dynarray(DYNAMIC_ARRAY *array, void *ptr)
@@ -4371,6 +4371,9 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
       The following should never happen as we first check the in memory
       grant tables for the user.  There is however always a small change that
       the user has modified the grant tables directly.
+
+      Also, there is also a second posibility that this routine entry
+      is created for a role by being inherited from a granted role.
     */
     if (revoke_grant)
     { // no row, no revoke
@@ -9323,7 +9326,10 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
       result= -1;
       continue;
     }
-    if (!find_user_exact(lex_user->host.str, lex_user->user.str))
+
+    /* This is not a role and the user could not be found */
+    if (!lex_user->is_role() &&
+        !find_user_exact(lex_user->host.str, lex_user->user.str))
     {
       result= -1;
       continue;
@@ -9429,6 +9435,10 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
 	if (!strcmp(lex_user->user.str,user) &&
             !strcmp(lex_user->host.str, host))
 	{
+          /* only inherited rights, nothing to do here */
+          if (!grant_proc->init_privs)
+            continue;
+
 	  if (replace_routine_table(thd,grant_proc,tables[4].table,*lex_user,
 				  grant_proc->db,
 				  grant_proc->tname,
@@ -9443,6 +9453,59 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
 	counter++;
       }
     } while (revoked);
+
+    ACL_USER_BASE *user_or_role;
+    /* remove role grants */
+    if (lex_user->is_role())
+    {
+      /* this can not fail due to get_current_user already having searched for it */
+      user_or_role= find_acl_role(lex_user->user.str);
+    }
+    else
+    {
+      user_or_role= find_user_exact(lex_user->host.str, lex_user->user.str);
+    }
+    /*
+      Find every role grant pair matching the role_grants array and remove it,
+      both from the acl_roles_mappings and the roles_mapping table
+    */
+    for (counter= 0; counter < user_or_role->role_grants.elements; counter++)
+    {
+      ACL_ROLE *role_grant= *dynamic_element(&user_or_role->role_grants,
+                                             counter, ACL_ROLE**);
+      ROLE_GRANT_PAIR *pair = find_role_grant_pair(&lex_user->user,
+                                                   &lex_user->host,
+                                                   &role_grant->user);
+      if (replace_roles_mapping_table(tables[6].table,
+                                      &lex_user->user,
+                                      &lex_user->host,
+                                      &role_grant->user, false, pair, true))
+      {
+        result= -1; //Something went wrong
+      }
+      /*
+        Delete from the parent_grantee array of the roles granted,
+        the entry pointing to this user_or_role
+      */
+      remove_ptr_from_dynarray(&role_grant->parent_grantee, user_or_role);
+    }
+    /* TODO
+       How to handle an error in the replace_roles_mapping_table, in
+       regards to the privileges held in memory
+    */
+
+    /* Finally, clear the role_grants array */
+    if (counter == user_or_role->role_grants.elements)
+    {
+      reset_dynamic(&user_or_role->role_grants);
+    }
+    /*
+      If we are revoking from a role, we need to update all the parent grantees
+    */
+    if (lex_user->is_role())
+    {
+      propagate_role_grants((ACL_ROLE *)user_or_role, PRIVS_TO_MERGE::ALL, 0, 0);
+    }
   }
 
   mysql_mutex_unlock(&acl_cache->lock);
