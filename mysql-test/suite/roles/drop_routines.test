@@ -3,15 +3,12 @@ source include/not_embedded.inc;
 create role r1;
 create role r2;
 create role r3;
-create role r4;
 create user u1;
 
 #CREATE A CHAIN OF ROLES
 grant r2 to r1;
 grant r3 to r2;
-grant r4 to r3;
 grant r1 to u1;
-grant r4 to r1;
 
 --sorted_result
 show grants for u1;
@@ -27,7 +24,6 @@ create function mysql.test_func (s CHAR(20))
 returns CHAR(50) DETERMINISTIC
 return concat('Test string: ',s);
 
-
 delimiter |;
 create procedure mysql.test_proc (OUT param1 INT)
 begin
@@ -37,7 +33,9 @@ delimiter ;|
 
 grant execute on function mysql.test_func to r2;
 grant execute on procedure mysql.test_proc to r3;
-grant execute on mysql.* to r4;
+
+--error ER_NONEXISTING_PROC_GRANT
+revoke execute on procedure mysql.test_proc from r2;
 
 --sorted_result
 show grants for r1;
@@ -45,17 +43,27 @@ show grants for r1;
 show grants for r2;
 --sorted_result
 show grants for r3;
---sorted_result
-show grants for r4;
 
 drop function mysql.test_func;
 drop procedure mysql.test_proc;
 
-# HERE there are func_priv_hash and proc_priv hash entries inherited from other roles that are not
-# deleted. These remain and could affect privilege checks
+create function mysql.test_func (s CHAR(20))
+returns CHAR(50) DETERMINISTIC
+return concat('Test string: ',s);
 
 --sorted_result
-show grants for r1;
+show grants for r2;
 
-drop role r1, r2, r3, r4;
+--connect (u1,localhost,u1,,)
+
+--error ER_PROCACCESS_DENIED_ERROR
+select mysql.test_func("none");
+set role r1;
+--error ER_PROCACCESS_DENIED_ERROR
+select mysql.test_func("r1");
+
+connection default;
+
+drop function mysql.test_func;
+drop role r1, r2, r3;
 drop user u1;
