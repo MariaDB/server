@@ -3740,7 +3740,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 {
   char        spc= ',', qch= 0;
   const char *fncn= "?";
-  const char *user, *fn, *db, *host, *pwd, *prt, *sep, *tbl, *src, *cnp;
+  const char *user, *fn, *db, *host, *pwd, *prt, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl;
   char       *tab, *dsn; 
 #if defined(WIN32)
@@ -3767,7 +3767,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
 
-  user= host= pwd= prt= tbl= src= col= ocl= pic= fcl= rnk= cnp= dsn= NULL;
+  user= host= pwd= prt= tbl= src= col= ocl= pic= fcl= rnk= dsn= NULL;
 
   // Get the useful create options
   ttp= GetTypeID(topt->type);
@@ -3802,8 +3802,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     cls= GetListOption(g, "class", topt->oplist);
 #endif   // WIN32
     mxr= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
-    cnp= GetListOption(g, "createopt", topt->oplist);
-    cop= (cnp) ? atoi(cnp) : 0;
+    cop= atoi(GetListOption(g, "createopt", topt->oplist, "0"));
   } else {
     host= "localhost";
     user= "root";
