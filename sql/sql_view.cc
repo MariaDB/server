@@ -822,6 +822,10 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
     goto err;   
   }
 
+  /*
+    version 1 - before 10.0.5
+    version 2 - empty definer_host means a role
+  */
   view->file_version= 2;
   view->calc_md5(md5);
   if (!(view->md5.str= (char*) thd->memdup(md5, 32)))

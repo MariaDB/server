@@ -1,6 +1,7 @@
 #
 # MDEV-5176 Server crashes in fill_schema_applicable_roles on select from APPLICABLE_ROLES after a suicide
 #
+--source include/not_embedded.inc
 
 grant create user on *.* to foo@localhost;
 --connect (foo,localhost,foo,,)
