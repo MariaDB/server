@@ -40,7 +40,7 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   // Methods
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE m);
-          bool ParseURL(PGLOBAL g, char *url);
+          bool ParseURL(PGLOBAL g, char *url, bool b = true);
           bool GetServerInfo(PGLOBAL g, const char *server_name);
 
  protected:

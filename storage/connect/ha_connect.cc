@@ -3722,6 +3722,25 @@ static void add_option(THD* thd, HA_CREATE_INFO *create_info,
 #endif   // NEW_WAY
 } // end of add_option
 
+// Used to check whether a MYSQL table is created on itself
+static bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host, 
+                      const char *db, char *tab, const char *src, int port)
+{
+  if (src)
+    return false;
+  else if (host && stricmp(host, "localhost") && strcmp(host, "127.0.0.1"))
+    return false;
+  else if (db && stricmp(db, s->db.str))
+    return false;
+  else if (tab && stricmp(tab, s->table_name.str))
+    return false;
+  else if (port && port != GetDefaultPort())
+    return false;
+
+  strcpy(g->Message, "This MySQL table is defined on itself");
+  return true;
+} // end of CheckSelf
+
 /**
   @brief
   connect_assisted_discovery() is called when creating a table with no columns.
@@ -3740,7 +3759,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 {
   char        spc= ',', qch= 0;
   const char *fncn= "?";
-  const char *user, *fn, *db, *host, *pwd, *prt, *sep, *tbl, *src;
+  const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl;
   char       *tab, *dsn; 
 #if defined(WIN32)
@@ -3767,7 +3786,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
 
-  user= host= pwd= prt= tbl= src= col= ocl= pic= fcl= rnk= dsn= NULL;
+  user= host= pwd= tbl= src= col= ocl= pic= fcl= rnk= dsn= NULL;
 
   // Get the useful create options
   ttp= GetTypeID(topt->type);
@@ -3795,14 +3814,13 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     fcl= GetListOption(g, "fnccol", topt->oplist, NULL);
     rnk= GetListOption(g, "rankcol", topt->oplist, NULL);
     pwd= GetListOption(g, "password", topt->oplist);
-    prt= GetListOption(g, "port", topt->oplist);
-    port= (prt) ? atoi(prt) : 0;
 #if defined(WIN32)
     nsp= GetListOption(g, "namespace", topt->oplist);
     cls= GetListOption(g, "class", topt->oplist);
 #endif   // WIN32
+    port= atoi(GetListOption(g, "port", topt->oplist, "0"));
     mxr= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
-    cop= atoi(GetListOption(g, "createopt", topt->oplist, "0"));
+    cop= atoi(GetListOption(g, "checkdsn", topt->oplist, "0"));
   } else {
     host= "localhost";
     user= "root";
@@ -3848,7 +3866,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         } // endif p
 
     } else if (ttp != TAB_ODBC || !(fnc & (FNC_TABLE | FNC_COL)))
-      tab= (char*)create_info->alias;
+      tab= table_s->table_name.str;              // Default value
 
 #if defined(NEW_WAY)
     add_option(thd, create_info, "tabname", tab);
@@ -3863,12 +3881,10 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       if (fnc & (FNC_DSN | FNC_DRIVER))
         ok= true;
       else if (!stricmp(thd->main_security_ctx.host, "localhost")
-                && cop != 2) {
+                && cop == 1) {
         if ((dsn = ODBCCheckConnection(g, dsn, cop)) != NULL) {
-          create_info->connect_string.str= dsn;
-          create_info->connect_string.length= strlen(dsn);
+          thd->make_lex_string(&create_info->connect_string, dsn, strlen(dsn));
           ok= true;
-
           } // endif dsn
 
       } else if (!dsn)
@@ -3893,30 +3909,45 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     case TAB_MYSQL:
       ok= true;
 
-      if ((dsn= create_info->connect_string.str)) {
+      if (create_info->connect_string.str) {
+        int     len= create_info->connect_string.length;
         PMYDEF  mydef= new(g) MYSQLDEF();
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
-        dsn= (char*)PlugSubAlloc(g, NULL, strlen(dsn) + 1);
-        strncpy(dsn, create_info->connect_string.str,
-                     create_info->connect_string.length);
-        dsn[create_info->connect_string.length]= 0;
+        dsn= (char*)PlugSubAlloc(g, NULL, len + 1);
+        strncpy(dsn, create_info->connect_string.str, len);
+        dsn[len]= 0;
         mydef->SetName(create_info->alias);
         mydef->SetCat(cat);
 
-        if (!mydef->ParseURL(g, dsn)) {
-          host= mydef->GetHostname();
-          user= mydef->GetUsername();
-          pwd=  mydef->GetPassword();
-          db=   mydef->GetDatabase();
-          tab=  mydef->GetTabname();
-          port= mydef->GetPortnumber();
+        if (!mydef->ParseURL(g, dsn, false)) {
+          if (mydef->GetHostname())
+            host= mydef->GetHostname();
+
+          if (mydef->GetUsername())
+            user= mydef->GetUsername();
+
+          if (mydef->GetPassword())
+            pwd=  mydef->GetPassword();
+
+          if (mydef->GetDatabase())
+            db= mydef->GetDatabase();
+
+          if (mydef->GetTabname())
+            tab= mydef->GetTabname();
+
+          if (mydef->GetPortnumber())
+            port= mydef->GetPortnumber();
+
         } else
           ok= false;
 
       } else if (!user)
         user= "root";
+
+      if (CheckSelf(g, table_s, host, db, tab, src, port))
+        ok= false;
 
       break;
 #endif   // MYSQL_SUPPORT
@@ -4276,6 +4307,54 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
         } // endif tabname
 
+      case TAB_MYSQL:
+       {const char *src= options->srcdef;
+        char *host, *db, *tab= (char*)options->tabname;
+        int   port;
+
+        host= GetListOption(g, "host", options->oplist, NULL);
+        db= GetListOption(g, "database", options->oplist, NULL);
+        port= atoi(GetListOption(g, "port", options->oplist, "0"));
+
+        if (create_info->connect_string.str) {
+          char   *dsn;
+          int     len= create_info->connect_string.length;
+          PMYDEF  mydef= new(g) MYSQLDEF();
+          PDBUSER dup= PlgGetUser(g);
+          PCATLG  cat= (dup) ? dup->Catalog : NULL;
+
+          dsn= (char*)PlugSubAlloc(g, NULL, len + 1);
+          strncpy(dsn, create_info->connect_string.str, len);
+          dsn[len]= 0;
+          mydef->SetName(create_info->alias);
+          mydef->SetCat(cat);
+
+          if (!mydef->ParseURL(g, dsn, false)) {
+            if (mydef->GetHostname())
+              host= mydef->GetHostname();
+
+            if (mydef->GetDatabase())
+              db= mydef->GetDatabase();
+
+            if (mydef->GetTabname())
+              tab= mydef->GetTabname();
+
+            if (mydef->GetPortnumber())
+              port= mydef->GetPortnumber();
+
+          } else {
+            my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+            DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+          } // endif ParseURL
+
+          } // endif connect_string
+
+        if (CheckSelf(g, table_arg->s, host, db, tab, src, port)) {
+          my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+          DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+          } // endif CheckSelf
+
+       }break; 
       default: /* do nothing */;
         break;
      } // endswitch ttp
