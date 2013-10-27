@@ -1113,7 +1113,7 @@ bool ODBConn::Connect(DWORD Options)
   if (hWnd == NULL)
     hWnd = GetDesktopWindow();
 #else   // !WIN32
-  HWND    hWnd = NULL;
+  HWND    hWnd = 1;
 #endif  // !WIN32
   PGLOBAL& g = m_G;
   PDBUSER dup = PlgGetUser(g);
