@@ -172,7 +172,7 @@ bool MYSQLDEF::GetServerInfo(PGLOBAL g, const char *server_name)
 /*   true        error                                                 */
 /*                                                                     */
 /***********************************************************************/
-bool MYSQLDEF::ParseURL(PGLOBAL g, char *url)
+bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
   {
   if ((!strstr(url, "://") && (!strchr(url, '@')))) {
     // No :// or @ in connection string. Must be a straight
@@ -249,34 +249,41 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url)
     if ((Database = strchr(Hostname, '/'))) {
       *Database++ = 0;
 
-      if ((Tabname = strchr(Database, '/')))
+      if ((Tabname = strchr(Database, '/'))) {
         *Tabname++ = 0;
 
-      // Make sure there's not an extra /
-      if ((strchr(Tabname, '/'))) {
-        strcpy(g->Message, "Syntax error in URL");
-        return true;
-        } // endif /
+        // Make sure there's not an extra /
+        if ((strchr(Tabname, '/'))) {
+          strcpy(g->Message, "Syntax error in URL");
+          return true;
+          } // endif /
+
+        } // endif Tabname
         
       } // endif database
 
     if ((sport = strchr(Hostname, ':')))
       *sport++ = 0;
 
-    Portnumber = (sport && sport[0]) ? atoi(sport) : GetDefaultPort();
+    // For unspecified values, get the values of old style options
+    // but only if called from MYSQLDEF, else set them to NULL
+    Portnumber = (sport && sport[0]) ? atoi(sport) 
+               : (b) ? Cat->GetIntCatInfo("Port", GetDefaultPort()) : 0;
 
     if (Username[0] == 0)
-      Username = Cat->GetStringCatInfo(g, "User", "*");
+      Username = (b) ? Cat->GetStringCatInfo(g, "User", "*") : NULL;
 
     if (Hostname[0] == 0)
-      Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
+      Hostname = (b) ? Cat->GetStringCatInfo(g, "Host", "localhost") : NULL;
 
     if (!Database || !*Database)
-      Database = Cat->GetStringCatInfo(g, "Database", "*");
+      Database = (b) ? Cat->GetStringCatInfo(g, "Database", "*") : NULL;
 
     if (!Tabname || !*Tabname)
-      Tabname = Name;
+      Tabname = (b) ? Cat->GetStringCatInfo(g, "Tabname", Name) : NULL;
 
+    if (!Password)
+      Password = (b) ? Cat->GetStringCatInfo(g, "Password", NULL) : NULL;
     } // endif URL
 
 #if 0
