@@ -185,8 +185,7 @@ static LEX_STRING old_password_plugin_name= {
 LEX_STRING *default_auth_plugin_name= &native_password_plugin_name;
 
 /*
-  Constant used for differentiating specified user names and non specified
-  usernames. Example: userA  -- userA@%
+  Wildcard host, matches any hostname
 */
 LEX_STRING host_not_specified= { C_STRING_WITH_LEN("%") };
 
@@ -317,14 +316,15 @@ public:
     via a bit OR operation and placed in the ACL_USER::access field.
 
     When rebuilding role_grants via the rebuild_role_grant function,
-    the ACL_USER::access field needs to be reset aswell. The field
-    initial_role_access holds the initial grants present in the table row.
+    the ACL_USER::access field needs to be reset first. The field
+    initial_role_access holds initial grants, as granted directly to the role
   */
   ulong initial_role_access;
   /*
     In subgraph traversal, when we need to traverse only a part of the graph
     (e.g. all direct and indirect grantees of a role X), the counter holds the
     number of affected neighbour nodes.
+    See also propagate_role_grants()
   */
   uint  counter;
   DYNAMIC_ARRAY parent_grantee; // array of backlinks to elements granted
@@ -620,15 +620,6 @@ struct ROLE_GRANT_PAIR : public Sql_alloc
 
   bool init(MEM_ROOT *mem, char *username, char *hostname, char *rolename,
             bool with_admin_option);
-};
-
-/*
-  Struct to hold the state of a node during a Depth First Search exploration
-*/
-struct NODE_STATE
-{
-  ACL_USER_BASE *node_data; /* pointer to the node data */
-  uint neigh_idx;           /* the neighbour that needs to be evaluated next */
 };
 
 static uchar* acl_role_map_get_key(ROLE_GRANT_PAIR *entry, size_t *length,
@@ -1150,7 +1141,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 
     if (is_role && is_invalid_role_name(username))
     {
-      thd->clear_error();
+      thd->clear_error(); // the warning is still issued
       continue;
     }
 
@@ -1212,7 +1203,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       if (table->s->fields <= 38 && (user.access & SUPER_ACL))
         user.access|= TRIGGER_ACL;
 
-      user.sort= get_sort(2,user.host.hostname,user.user);
+      user.sort= get_sort(2, user.host.hostname, user.user.str);
       user.hostname_length= (user.host.hostname ?
                              (uint) strlen(user.host.hostname) : 0);
 
@@ -1427,7 +1418,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     table->use_all_columns();
     /* account for every role mapping */
 
-    (void) my_hash_init2(&acl_roles_mappings,50,system_charset_info,
+    (void) my_hash_init2(&acl_roles_mappings, 50, system_charset_info,
                          0,0,0, (my_hash_get_key) acl_role_map_get_key, 0,0);
     MEM_ROOT temp_root;
     init_alloc_root(&temp_root, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
@@ -1664,13 +1655,10 @@ static bool check_is_role(TABLE *form)
   char buff[2];
   String res(buff, sizeof(buff), &my_charset_latin1);
   /* Table version does not support roles */
-  if (form->s->fields <= 42)
+  if (form->s->fields <= ROLE_ASSIGN_COLUMN_IDX)
     return FALSE;
 
-  if (get_YN_as_bool(form->field[ROLE_ASSIGN_COLUMN_IDX]))
-    return TRUE;
-
-  return FALSE;
+  return get_YN_as_bool(form->field[ROLE_ASSIGN_COLUMN_IDX]);
 }
 
 
@@ -2061,7 +2049,7 @@ static void acl_insert_user(const char *user, const char *host,
   acl_user.flags= 0;
   acl_user.access=privileges;
   acl_user.user_resource = *mqh;
-  acl_user.sort=get_sort(2,acl_user.host.hostname,acl_user.user);
+  acl_user.sort=get_sort(2, acl_user.host.hostname, acl_user.user.str);
   acl_user.hostname_length=(uint) strlen(host);
   acl_user.ssl_type= (ssl_type != SSL_TYPE_NOT_SPECIFIED ?
 		      ssl_type : SSL_TYPE_NONE);
@@ -2080,8 +2068,11 @@ static void acl_insert_user(const char *user, const char *host,
 
   /* Rebuild 'acl_check_hosts' since 'acl_users' has been modified */
   rebuild_check_host();
-  /* Rebuild every user's role_grants because the acl_user has been modified
-     and some grants might now be invalid */
+
+  /*
+    Rebuild every user's role_grants since 'acl_users' has been sorted
+    and old pointers to ACL_USER elements are no longer valid
+  */
   rebuild_role_grants();
 }
 
@@ -2135,15 +2126,14 @@ static void acl_update_db(const char *user, const char *host, const char *db,
 */
 
 static void acl_insert_db(const char *user, const char *host, const char *db,
-                          ulong privileges, bool set_initial_access)
+                          ulong privileges)
 {
   ACL_DB acl_db;
   mysql_mutex_assert_owner(&acl_cache->lock);
   acl_db.user=strdup_root(&mem,user);
   update_hostname(&acl_db.host, safe_strdup_root(&mem, host));
   acl_db.db=strdup_root(&mem,db);
-  acl_db.access=privileges;
-  acl_db.initial_access= set_initial_access ? acl_db.access : 0;
+  acl_db.initial_access= acl_db.access= privileges;
   acl_db.sort=get_sort(3,acl_db.host.hostname,acl_db.db,acl_db.user);
   (void) push_dynamic(&acl_dbs,(uchar*) &acl_db);
   my_qsort((uchar*) dynamic_element(&acl_dbs,0,ACL_DB*),acl_dbs.elements,
@@ -2321,8 +2311,6 @@ void rebuild_check_host(void)
 /*
   Reset a role role_grants dynamic array.
   Also, the role's access bits are reset to the ones present in the table.
-
-  The function can be used as a walk action for hash elements aswell.
 */
 static my_bool acl_role_reset_role_arrays(void *ptr,
                                     void * not_used __attribute__((unused)))
@@ -2345,6 +2333,9 @@ static bool add_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role)
 
 }
 
+/*
+  Revert the last add_role_user_mapping() action
+*/
 static void undo_add_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role)
 {
   void *pop __attribute__((unused));
@@ -2713,7 +2704,7 @@ static ACL_USER *find_user_or_anon(const char *host, const char *user, const cha
 
 
 /*
-  Find first entry that matches the current user
+  Find first entry that matches the specified user@host pair
 */
 static ACL_USER * find_user_exact(const char *host, const char *user)
 {
@@ -2729,7 +2720,7 @@ static ACL_USER * find_user_exact(const char *host, const char *user)
 }
 
 /*
-  Find first entry that matches the current user
+  Find first entry that matches the specified user@host pair
 */
 static ACL_USER * find_user_wild(const char *host, const char *user, const char *ip)
 {
@@ -2745,18 +2736,18 @@ static ACL_USER * find_user_wild(const char *host, const char *user, const char 
 }
 
 /*
-  Find first entry that matches the current user
+  Find a role with the specified name
 */
-static ACL_ROLE *find_acl_role(const char *user)
+static ACL_ROLE *find_acl_role(const char *role)
 {
   DBUG_ENTER("find_acl_role");
-  DBUG_PRINT("enter",("user: '%s'", user));
+  DBUG_PRINT("enter",("role: '%s'", role));
   DBUG_PRINT("info", ("Hash elements: %ld", acl_roles.records));
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  ACL_ROLE *r= (ACL_ROLE *)my_hash_search(&acl_roles, (uchar *)user,
-                                          user ? strlen(user) : 0);
+  ACL_ROLE *r= (ACL_ROLE *)my_hash_search(&acl_roles, (uchar *)role,
+                                          role ? strlen(role) : 0);
   DBUG_RETURN(r);
 }
 
@@ -3022,10 +3013,10 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
     combo.password= empty_lex_str;
 
   /* if the user table is not up to date, we can't handle role updates */
-  if (table->s->fields <= 42 && handle_as_role)
+  if (table->s->fields <= ROLE_ASSIGN_COLUMN_IDX && handle_as_role)
   {
-    my_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE, MYF(0), table->alias.c_ptr(),
-             43, table->s->fields,
+    my_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE, MYF(0),
+             table->alias.c_ptr(), ROLE_ASSIGN_COLUMN_IDX + 1, table->s->fields,
              static_cast<int>(table->s->mysql_version), MYSQL_VERSION_ID);
     DBUG_RETURN(-1);
   }
@@ -3373,7 +3364,7 @@ static int replace_db_table(TABLE *table, const char *db,
     acl_update_db(combo.user.str,combo.host.str,db,rights);
   else
   if (rights)
-    acl_insert_db(combo.user.str,combo.host.str,db,rights, 1);
+    acl_insert_db(combo.user.str,combo.host.str,db,rights);
   DBUG_RETURN(0);
 
   /* This could only happen if the grant tables got corrupted */
@@ -4554,6 +4545,13 @@ static void propagate_role_grants(ACL_ROLE *role,
 }
 
 
+// State of a node during a Depth First Search exploration
+struct NODE_STATE
+{
+  ACL_USER_BASE *node_data; /* pointer to the node data */
+  uint neigh_idx;           /* the neighbour that needs to be evaluated next */
+};
+
 /**
   Traverse the role grant graph and invoke callbacks at the specified points. 
   
@@ -4588,7 +4586,6 @@ static int traverse_role_graph_impl(ACL_USER_BASE *user, void *context,
        int (*on_node) (ACL_USER_BASE *role, void *context),
        int (*on_edge) (ACL_USER_BASE *current, ACL_ROLE *neighbour, void *context))
 {
-
   DBUG_ENTER("traverse_role_graph_impl");
   DBUG_ASSERT(user);
   DBUG_PRINT("enter",("role: '%s'", user->user.str));
@@ -4730,7 +4727,7 @@ static int traverse_role_graph_up(ACL_ROLE *role, void *context,
   return traverse_role_graph_impl(role, context,
                     my_offsetof(ACL_ROLE, parent_grantee),
                     (int (*)(ACL_USER_BASE *, void *))on_node,
-                    (int (*) (ACL_USER_BASE *, ACL_ROLE *, void *))on_edge);
+                    (int (*)(ACL_USER_BASE *, ACL_ROLE *, void *))on_edge);
 }
 
 /**
@@ -4751,7 +4748,7 @@ static int traverse_role_graph_down(ACL_USER_BASE *user, void *context,
 
 /*
   To find all db/table/routine privilege for a specific role
-  we need to scan the array of privileges it can be big.
+  we need to scan the array of privileges. It can be big.
   But the set of privileges granted to a role in question (or
   to roles directly granted to the role in question) is supposedly
   much smaller.
@@ -5058,14 +5055,11 @@ static int update_role_table_columns(GRANT_TABLE *merged,
   else
   {
     bool changed= merged->cols != cols || merged->privs != privs;
-    /*
-      note that 'changed' above is a sufficient, but not necessary condition.
-      even if neither cols nor privs have changed, the set of columns
-      could've been changed, and we have to return 1 even if changed==0
-    */
     merged->cols= cols;
     merged->privs= privs;
-    return update_role_columns(merged, first, last) || changed;
+    if (update_role_columns(merged, first, last))
+      changed= true;
+    return changed;
   }
 }
 
@@ -5212,9 +5206,9 @@ static bool merge_role_routine_grant_privileges(ACL_ROLE *grantee,
   for (uint i=0 ; i < hash->records ; i++)
   {
     GRANT_NAME *grant= (GRANT_NAME *) my_hash_element(hash, i);
-    if (tname && (strcmp(grant->db, db) || strcmp(grant->tname, tname)))
-      continue;
     if (grant->host.hostname[0])
+      continue;
+    if (tname && (strcmp(grant->db, db) || strcmp(grant->tname, tname)))
       continue;
     ACL_ROLE *r= rhash->find(grant->user, strlen(grant->user));
     if (!r)
@@ -7147,7 +7141,7 @@ bool check_routine_level_acl(THD *thd, const char *db, const char *name,
                                        name, is_proc, 0)))
     no_routine_acl= !(grant_proc->privs & SHOW_PROC_ACLS);
 
-  if (sctx->priv_role[0]) /* current set role check */
+  if (no_routine_acl && sctx->priv_role[0]) /* current set role check */
   {
     if ((grant_proc= routine_hash_search("",
                                          NULL, db,
@@ -9187,8 +9181,8 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     rebuild_check_host();
 
     /*
-      Rebuild every user's role_grants because the acl_users has been modified
-      and pointers to ACL_USER's might now be invalid
+      Rebuild every user's role_grants since 'acl_users' has been sorted
+      and old pointers to ACL_USER elements are no longer valid
     */
     rebuild_role_grants();
   }
@@ -9276,8 +9270,11 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
 
   /* Rebuild 'acl_check_hosts' since 'acl_users' has been modified */
   rebuild_check_host();
-  /* Rebuild every user's role_grants because the acl_user has been modified
-     and some grants might now be invalid */
+
+  /*
+    Rebuild every user's role_grants since 'acl_users' has been sorted
+    and old pointers to ACL_USER elements are no longer valid
+  */
   rebuild_role_grants();
 
   mysql_mutex_unlock(&acl_cache->lock);
@@ -9921,7 +9918,7 @@ struct APPLICABLE_ROLES_DATA
 {
   TABLE *table;
   const LEX_STRING host;
-  const LEX_STRING used_and_host;
+  const LEX_STRING user_and_host;
   ACL_USER_BASE *user;
 };
 
@@ -9932,12 +9929,12 @@ applicable_roles_insert(ACL_USER_BASE *grantee, ACL_ROLE *role, void *ptr)
   CHARSET_INFO *cs= system_charset_info;
   TABLE *table= data->table;
   bool is_role= grantee != data->user;
-  const LEX_STRING *used_and_host= is_role ? &grantee->user
-                                           : &data->used_and_host;
+  const LEX_STRING *user_and_host= is_role ? &grantee->user
+                                           : &data->user_and_host;
   const LEX_STRING *host= is_role ? &empty_lex_str : &data->host;
 
   restore_record(table, s->default_values);
-  table->field[0]->store(used_and_host->str, used_and_host->length, cs);
+  table->field[0]->store(user_and_host->str, user_and_host->length, cs);
   table->field[1]->store(role->user.str, role->user.length, cs);
 
   ROLE_GRANT_PAIR *pair=
@@ -10490,10 +10487,11 @@ bool check_routine_level_acl(THD *thd, const char *db, const char *name,
 #endif
 
 /**
-  Retuns information about user or current user.
+  Return information about user or current user.
 
   @param[in] thd          thread handler
   @param[in] user         user
+  @param[in] lock         whether &acl_cache->lock mutex needs to be locked
 
   @return
     - On success, return a valid pointer to initialized

@@ -2866,7 +2866,7 @@ bool Query_log_event::write(IO_CACHE* file)
       else
       {
         user.str= ctx->priv_role;
-        host= null_lex_str; // XXX FIXME or empty_lex_str ?
+        host= empty_lex_str;
       }
       user.length= strlen(user.str);
     }
