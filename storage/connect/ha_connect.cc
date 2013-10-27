@@ -3734,7 +3734,7 @@ static bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
     return false;
   else if (tab && stricmp(tab, s->table_name.str))
     return false;
-  else if (port && port != GetDefaultPort())
+  else if (port && port != (signed)GetDefaultPort())
     return false;
 
   strcpy(g->Message, "This MySQL table is defined on itself");
