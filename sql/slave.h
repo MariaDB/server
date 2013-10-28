@@ -233,6 +233,7 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
                                rpl_parallel_thread *rpt);
 
 pthread_handler_t handle_slave_io(void *arg);
+void slave_output_error_info(Relay_log_info *rli, THD *thd);
 pthread_handler_t handle_slave_sql(void *arg);
 bool net_request_file(NET* net, const char* fname);
 
