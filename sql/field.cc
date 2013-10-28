@@ -2816,7 +2816,7 @@ int Field_new_decimal::store(const char *from, uint length,
                            &decimal_value)) &&
       thd->abort_on_warning)
   {
-    ErrConvString errmsg(from, length, &my_charset_bin);
+    ErrConvString errmsg(from, length, charset_arg);
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                         ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
@@ -2836,7 +2836,7 @@ int Field_new_decimal::store(const char *from, uint length,
     break;
   case E_DEC_BAD_NUM:
     {
-      ErrConvString errmsg(from, length, &my_charset_bin);
+      ErrConvString errmsg(from, length, charset_arg);
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                           ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
