@@ -1220,6 +1220,7 @@ set names default;
 set character_set_database=default;
 set character_set_server=default;
 
+--echo End of 5.1 tests
 
 --echo #
 --echo # Start of 5.5 tests

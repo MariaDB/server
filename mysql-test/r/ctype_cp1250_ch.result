@@ -238,6 +238,31 @@ select a from t1 where a like "abcdefghá";
 a
 abcdefghá
 drop table t1;
+set names cp1250 collate cp1250_czech_cs;
+SELECT strcmp('a','a ');
+strcmp('a','a ')
+0
+SELECT strcmp('a\0','a' );
+strcmp('a\0','a' )
+1
+SELECT strcmp('a\0','a ');
+strcmp('a\0','a ')
+1
+SELECT strcmp('a\t','a' );
+strcmp('a\t','a' )
+1
+SELECT strcmp('a\t','a ');
+strcmp('a\t','a ')
+1
+create table t1 select repeat('a',4000) a;
+delete from t1;
+insert into t1 values ('a'), ('a '), ('a\t');
+select collation(a),hex(a) from t1 order by a;
+collation(a)	hex(a)
+cp1250_czech_cs	61
+cp1250_czech_cs	6109
+cp1250_czech_cs	6120
+drop table t1;
 set global LC_MESSAGES=convert((@@global.log_bin_trust_function_creators) 
 using cp1250);
 ERROR HY000: Unknown locale: '1'

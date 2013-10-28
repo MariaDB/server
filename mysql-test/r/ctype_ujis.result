@@ -2387,6 +2387,7 @@ Warning	1292	Truncated incorrect INTEGER value: 'a'
 set names default;
 set character_set_database=default;
 set character_set_server=default;
+End of 5.1 tests
 #
 # Start of 5.5 tests
 #

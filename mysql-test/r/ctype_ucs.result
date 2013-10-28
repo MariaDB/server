@@ -228,7 +228,17 @@ lpad(f1, 12, "-o-/")
 drop table t2;
 SET NAMES koi8r;
 SET character_set_connection=ucs2;
-create table t1 (a varchar(10) character set ucs2, key(a));
+select @@collation_connection;
+@@collation_connection
+ucs2_general_ci
+create table t1 as select repeat(' ',10) as a union select null;
+alter table t1 add key(a);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET ucs2 DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
 explain select * from t1 where a like 'abc%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -4814,6 +4824,167 @@ select hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE));
 hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE))
 DFFFDFFF9CFF9DFF9EFF
 #
+# Bug #36418 Character sets: crash if char(256 using utf32)
+#
+select hex(char(0x01 using ucs2));
+hex(char(0x01 using ucs2))
+0001
+select hex(char(0x0102 using ucs2));
+hex(char(0x0102 using ucs2))
+0102
+select hex(char(0x010203 using ucs2));
+hex(char(0x010203 using ucs2))
+00010203
+select hex(char(0x01020304 using ucs2));
+hex(char(0x01020304 using ucs2))
+01020304
+#
+# Bug#10094 Displays wrong error message for UNIQUE key index on CHAR(255) Unicode datatype
+#
+CREATE TABLE t1 (f1 CHAR(255) unicode);
+INSERT INTO t1 values ('abc'),('bcd'),('abc');
+ALTER TABLE t1 ADD UNIQUE Index_1 (f1);
+ERROR 23000: Duplicate entry 'abc' for key 'Index_1'
+DROP TABLE t1;
+#
+# Test how character set works with date/time
+#
+SET collation_connection=ucs2_general_ci;
+CREATE TABLE t1 AS SELECT repeat('a',20) AS s1 LIMIT 0;
+SET timestamp=1216359724;
+INSERT INTO t1 VALUES (current_date);
+INSERT INTO t1 VALUES (current_time);
+INSERT INTO t1 VALUES (current_timestamp);
+SELECT s1, hex(s1) FROM t1;
+s1	hex(s1)
+2008-07-18	0032003000300038002D00300037002D00310038
+08:42:04	00300038003A00340032003A00300034
+2008-07-18 08:42:04	0032003000300038002D00300037002D00310038002000300038003A00340032003A00300034
+DROP TABLE t1;
+SET timestamp=0;
+SET NAMES latin1;
+#
+# WL#4013 Unicode german2 collation
+#
+SET collation_connection=ucs2_german2_ci;
+"BEGIN ctype_german.inc"
+drop table if exists t1;
+create table t1 as select repeat(' ', 64) as s1;
+select collation(s1) from t1;
+collation(s1)
+ucs2_german2_ci
+delete from t1;
+INSERT INTO t1 VALUES ('ud'),('uf');
+INSERT INTO t1 VALUES ('od'),('of');
+INSERT INTO t1 VALUES ('e');
+INSERT INTO t1 VALUES ('ad'),('af');
+insert into t1 values ('a'),('ae'),(_latin1 0xE4);
+insert into t1 values ('o'),('oe'),(_latin1 0xF6);
+insert into t1 values ('s'),('ss'),(_latin1 0xDF);
+insert into t1 values ('u'),('ue'),(_latin1 0xFC);
+INSERT INTO t1 VALUES (_latin1 0xE6), (_latin1 0xC6);
+INSERT INTO t1 VALUES (_latin1 0x9C), (_latin1 0x8C);
+select s1, hex(s1) from t1 order by s1, binary s1;
+s1	hex(s1)
+a	0061
+ad	00610064
+ae	00610065
+Æ	00C6
+ä	00E4
+æ	00E6
+af	00610066
+e	0065
+o	006F
+od	006F0064
+oe	006F0065
+ö	00F6
+Œ	0152
+œ	0153
+of	006F0066
+s	0073
+ss	00730073
+ß	00DF
+u	0075
+ud	00750064
+ue	00750065
+ü	00FC
+uf	00750066
+select group_concat(s1 order by binary s1) from t1 group by s1;
+group_concat(s1 order by binary s1)
+a
+ad
+ae,Æ,ä,æ
+af
+e
+o
+od
+oe,ö,Œ,œ
+of
+s
+ss,ß
+u
+ud
+ue,ü
+uf
+SELECT s1, hex(s1), hex(weight_string(s1)) FROM t1 ORDER BY s1, BINARY(s1);
+s1	hex(s1)	hex(weight_string(s1))
+a	0061	0E33
+ad	00610064	0E330E6D
+ae	00610065	0E330E8B
+Æ	00C6	0E330E8B
+ä	00E4	0E330E8B
+æ	00E6	0E330E8B
+af	00610066	0E330EB9
+e	0065	0E8B
+o	006F	0F82
+od	006F0064	0F820E6D
+oe	006F0065	0F820E8B
+ö	00F6	0F820E8B
+Œ	0152	0F820E8B
+œ	0153	0F820E8B
+of	006F0066	0F820EB9
+s	0073	0FEA
+ss	00730073	0FEA0FEA
+ß	00DF	0FEA0FEA
+u	0075	101F
+ud	00750064	101F0E6D
+ue	00750065	101F0E8B
+ü	00FC	101F0E8B
+uf	00750066	101F0EB9
+SELECT s1, hex(s1) FROM t1 WHERE s1='ae' ORDER BY s1, BINARY(s1);
+s1	hex(s1)
+ae	00610065
+Æ	00C6
+ä	00E4
+æ	00E6
+drop table t1;
+CREATE TABLE t1 AS SELECT REPEAT('a',1) AS a, 1 AS b LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(1) CHARACTER SET ucs2 COLLATE ucs2_german2_ci NOT NULL DEFAULT '',
+  `b` int(1) NOT NULL DEFAULT '0'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('s',0),(_latin1 0xDF,1);
+SELECT * FROM t1 ORDER BY a, b;
+a	b
+s	0
+ß	1
+SELECT * FROM t1 ORDER BY a DESC, b;
+a	b
+ß	1
+s	0
+SELECT * FROM t1 ORDER BY CONCAT(a), b;
+a	b
+s	0
+ß	1
+SELECT * FROM t1 ORDER BY CONCAT(a) DESC, b;
+a	b
+ß	1
+s	0
+DROP TABLE t1;
+"END ctype_german.inc"
+#
 # Bug#59145 valgrind warnings for uninitialized values in my_strtoll10_mb2
 #
 SET NAMES latin1;
@@ -4826,6 +4997,18 @@ DO IFNULL(CHAR(NULL USING ucs2), '');
 DO CAST(CONVERT('' USING ucs2) AS UNSIGNED);
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: ''
+#
+# Test error message for conversion using different charset
+# 
+CREATE TABLE t1 (a DECIMAL(2,0));
+SET sql_mode='strict_all_tables';
+INSERT INTO t1 VALUES (CONVERT('9e99999999' USING ucs2));
+ERROR 22007: Incorrect decimal value: '9e99999999' for column 'a' at row 1
+SET sql_mode=DEFAULT;
+INSERT INTO t1 VALUES (CONVERT('aaa' USING ucs2));
+Warnings:
+Warning	1366	Incorrect decimal value: 'aaa' for column 'a' at row 1
+DROP TABLE t1;
 #
 # End of 5.6 tests
 #

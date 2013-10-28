@@ -1625,6 +1625,41 @@ substr(Z.a,-1)	a
 3	123
 6	456
 drop table t1;
+SET CHARACTER SET utf8;
+SHOW VARIABLES LIKE 'character\_set\_%';
+Variable_name	Value
+character_set_client	utf8
+character_set_connection	latin1
+character_set_database	latin1
+character_set_filesystem	binary
+character_set_results	utf8
+character_set_server	latin1
+character_set_system	utf8
+CREATE DATABASE crashtest DEFAULT CHARACTER SET utf8 COLLATE utf8_bin;
+USE crashtest;
+CREATE TABLE crashtest (crash char(10)) DEFAULT CHARSET=utf8;
+INSERT INTO crashtest VALUES ('35'), ('36'), ('37');
+SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8);
+crash
+35
+36
+37
+INSERT INTO crashtest VALUES ('-1000');
+EXPLAIN SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	crashtest	ALL	NULL	NULL	NULL	NULL	4	Using filesort
+SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8);
+crash
+-1000
+35
+36
+37
+Warnings:
+Warning	1300	Invalid utf8 character string: 'FFFFFC'
+DROP TABLE crashtest;
+DROP DATABASE crashtest;
+USE test;
+SET CHARACTER SET default;
 CREATE TABLE t1(id varchar(20) NOT NULL) DEFAULT CHARSET=utf8;
 INSERT INTO t1 VALUES ('xxx'), ('aa'), ('yyy'), ('aa');
 SELECT id FROM t1;
