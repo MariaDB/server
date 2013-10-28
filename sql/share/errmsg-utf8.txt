@@ -3065,7 +3065,7 @@ ER_PASSWORD_NOT_ALLOWED 42000
         spa "Tu debes de tener permiso para actualizar tablas en la base de datos mysql para cambiar las claves para otros"
         swe "För att ändra lösenord för andra måste du ha rättigheter att uppdatera mysql-databasen"
         ukr "Ви повині мати право на оновлення таблиць у базі данних mysql, аби мати можливість змінювати пароль іншим"
-ER_PASSWORD_NO_MATCH 42000 
+ER_PASSWORD_NO_MATCH 28000 
         cze "V tabulce user nen-Bí žádný odpovídající řádek"
         dan "Kan ikke finde nogen tilsvarende poster i bruger tabellen"
         nla "Kan geen enkele passende rij vinden in de gebruikers tabel"
@@ -6565,7 +6565,7 @@ ER_NO_SUCH_QUERY
 ER_INVALID_ROLE OP000
        eng "Invalid role specification %`s."
        rum "Rolul %`s este invalid."
-ER_INVALID_CURRENT_USER
+ER_INVALID_CURRENT_USER 0L000
 	eng "The current user is invalid."
 	rum "Utilizatorul curent este invalid."
 ER_CANNOT_GRANT_ROLE

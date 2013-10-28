@@ -13222,6 +13222,8 @@ user:
             if (!($$=(LEX_USER*)thd->calloc(sizeof(LEX_USER))))
               MYSQL_YYABORT;
             $$->user= current_user;
+            $$->plugin= empty_lex_str;
+            $$->auth= empty_lex_str;
           }
         ;
 

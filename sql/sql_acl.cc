@@ -5289,6 +5289,38 @@ static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
   End of the role privilege propagation and graph traversal code
 ******************************************************************/
 
+bool copy_and_check_auth(LEX_USER *to, LEX_USER *from, LEX *lex)
+{
+  if (to != from)
+  {
+    /* preserve authentication information, if LEX_USER was  reallocated */
+    to->password= from->password;
+    to->plugin= from->plugin;
+    to->auth= from->auth;
+  }
+
+  /*
+    Note, that no password is null_lex_str, while no plugin is empty_lex_str.
+    See sql_yacc.yy
+  */
+  bool has_auth= to->password.str || to->plugin.length || to->auth.length ||
+                 lex->ssl_type != SSL_TYPE_NOT_SPECIFIED || lex->ssl_cipher ||
+                 lex->x509_issuer || lex->x509_subject ||
+                 lex->mqh.specified_limits;
+
+  /*
+    Specifying authentication clauses forces the name to be interpreted
+    as a user, not a role. See also check_change_password()
+  */
+  if (to->is_role() && has_auth)
+  {
+    my_error(ER_PASSWORD_NO_MATCH, MYF(0));
+    return true;
+  }
+
+  return false;
+}
+
 
 /*
   Store table level and column level grants in the privilege tables
@@ -5462,10 +5494,13 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       continue;
     }
     /* Create user if needed */
-    error=replace_user_table(thd, tables[0].table, *Str,
-			     0, revoke_grant, create_new_users,
-                             test(thd->variables.sql_mode &
-                                  MODE_NO_AUTO_CREATE_USER));
+    if (copy_and_check_auth(Str, tmp_Str, thd->lex))
+      error= -1;
+    else
+      error=replace_user_table(thd, tables[0].table, *Str,
+                               0, revoke_grant, create_new_users,
+                               test(thd->variables.sql_mode &
+                                    MODE_NO_AUTO_CREATE_USER));
     if (error)
     {
       result= TRUE;				// Remember error
@@ -6102,14 +6137,10 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
       result= TRUE;
       continue;
     }
-    /*
-      No User, but a password?
-      They did GRANT ... TO CURRENT_USER() IDENTIFIED BY ... !
-      Get the current user, and shallow-copy the new password to them!
-    */
-    if (tmp_Str->user.str == current_user.str && tmp_Str->password.str)
-      Str->password= tmp_Str->password;
 
+    if (copy_and_check_auth(Str, tmp_Str, thd->lex))
+      result= -1;
+    else
     if (replace_user_table(thd, tables[0].table, *Str,
                            (!db ? rights : 0), revoke_grant, create_new_users,
                            test(thd->variables.sql_mode &
