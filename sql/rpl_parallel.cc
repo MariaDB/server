@@ -9,11 +9,6 @@
 
   ToDo list:
 
-   - Error handling. If we fail in one of multiple parallel executions, we
-     need to make a best effort to complete prior transactions and roll back
-     following transactions, so slave binlog position will be correct.
-     And all the retry logic for temporary errors like deadlock.
-
    - Retry of failed transactions is not yet implemented for the parallel case.
 
    - All the waits (eg. in struct wait_for_commit and in
@@ -212,7 +207,7 @@ handle_rpl_parallel_thread(void *arg)
         processing between the event groups as a simple way to ensure that
         everything is stopped and cleaned up correctly.
       */
-      if (!sql_worker_killed(thd, rgi, in_event_group))
+      if (!rgi->is_error && !sql_worker_killed(thd, rgi, in_event_group))
         err= rpt_handle_event(events, rpt);
       else
         err= thd->wait_for_prior_commit();
@@ -228,6 +223,13 @@ handle_rpl_parallel_thread(void *arg)
       delete_or_keep_event_post_apply(rgi, event_type, events->ev);
       my_free(events);
 
+      if (err)
+      {
+        rgi->is_error= true;
+        slave_output_error_info(rgi->rli, thd);
+        rgi->cleanup_context(thd, true);
+        rgi->rli->abort_slave= true;
+      }
       if (end_of_group)
       {
         in_event_group= false;
@@ -785,6 +787,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   }
   else if (!is_group_event || !current)
   {
+    int err;
     /*
       Events like ROTATE and FORMAT_DESCRIPTION. Do not run in worker thread.
       Same for events not preceeded by GTID (we should not see those normally,
@@ -802,11 +805,11 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
              rev->new_log_ident, rev->ident_len+1);
     }
 
-    rpt_handle_event(qev, NULL);
+    err= rpt_handle_event(qev, NULL);
     delete_or_keep_event_post_apply(serial_rgi, typ, qev->ev);
     my_free(qev);
 
-    return false;
+    return (err != 0);
   }
   else
   {

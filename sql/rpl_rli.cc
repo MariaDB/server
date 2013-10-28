@@ -1274,12 +1274,10 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
         DBA aware of the problem in the error log.
       */
     }
+    DBUG_EXECUTE_IF("inject_crash_before_flush_rli", DBUG_SUICIDE(););
     if (mi->using_gtid == Master_info::USE_GTID_NO)
-    {
-      DBUG_EXECUTE_IF("inject_crash_before_flush_rli", DBUG_SUICIDE(););
       flush_relay_log_info(this);
-      DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
-    }
+    DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
     /*
       Note that Rotate_log_event::do_apply_event() does not call this
       function, so there is no chance that a fake rotate event resets
@@ -1453,7 +1451,7 @@ rpl_group_info::rpl_group_info(Relay_log_info *rli_)
     wait_commit_group_info(0), wait_start_sub_id(0), parallel_entry(0),
     deferred_events(NULL), m_annotate_event(0), tables_to_lock(0),
     tables_to_lock_count(0), trans_retries(0), last_event_start_time(0),
-    is_parallel_exec(false),
+    is_parallel_exec(false), is_error(false),
     row_stmt_start_timestamp(0), long_find_row_note_printed(false)
 {
   bzero(&current_gtid, sizeof(current_gtid));

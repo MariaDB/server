@@ -558,6 +558,7 @@ struct rpl_group_info
   */
   char future_event_master_log_name[FN_REFLEN];
   bool is_parallel_exec;
+  bool is_error;
 
 private:
   /*

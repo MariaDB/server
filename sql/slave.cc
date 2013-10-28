@@ -4078,6 +4078,92 @@ end:
 }
 
 
+void
+slave_output_error_info(Relay_log_info *rli, THD *thd)
+{
+  /*
+    retrieve as much info as possible from the thd and, error
+    codes and warnings and print this to the error log as to
+    allow the user to locate the error
+  */
+  uint32 const last_errno= rli->last_error().number;
+  char llbuff[22];
+
+  if (thd->is_error())
+  {
+    char const *const errmsg= thd->stmt_da->message();
+
+    DBUG_PRINT("info",
+               ("thd->stmt_da->sql_errno()=%d; rli->last_error.number=%d",
+                thd->stmt_da->sql_errno(), last_errno));
+    if (last_errno == 0)
+    {
+      /*
+        This function is reporting an error which was not reported
+        while executing exec_relay_log_event().
+      */ 
+      rli->report(ERROR_LEVEL, thd->stmt_da->sql_errno(), "%s", errmsg);
+    }
+    else if (last_errno != thd->stmt_da->sql_errno())
+    {
+      /*
+       * An error was reported while executing exec_relay_log_event()
+       * however the error code differs from what is in the thread.
+       * This function prints out more information to help finding
+       * what caused the problem.
+       */  
+      sql_print_error("Slave (additional info): %s Error_code: %d",
+                      errmsg, thd->stmt_da->sql_errno());
+    }
+  }
+
+  /* Print any warnings issued */
+  List_iterator_fast<MYSQL_ERROR> it(thd->warning_info->warn_list());
+  MYSQL_ERROR *err;
+  /*
+    Added controlled slave thread cancel for replication
+    of user-defined variables.
+  */
+  bool udf_error = false;
+  while ((err= it++))
+  {
+    if (err->get_sql_errno() == ER_CANT_OPEN_LIBRARY)
+      udf_error = true;
+    sql_print_warning("Slave: %s Error_code: %d", err->get_message_text(), err->get_sql_errno());
+  }
+  if (udf_error)
+  {
+    String tmp;
+    if (rli->mi->using_gtid != Master_info::USE_GTID_NO)
+    {
+      tmp.append(STRING_WITH_LEN("; GTID position '"));
+      rpl_append_gtid_state(&tmp, false);
+      tmp.append(STRING_WITH_LEN("'"));
+    }
+    sql_print_error("Error loading user-defined library, slave SQL "
+      "thread aborted. Install the missing library, and restart the "
+      "slave SQL thread with \"SLAVE START\". We stopped at log '%s' "
+      "position %s%s", RPL_LOG_NAME, llstr(rli->group_master_log_pos,
+      llbuff), tmp.c_ptr_safe());
+  }
+  else
+  {
+    String tmp;
+    if (rli->mi->using_gtid != Master_info::USE_GTID_NO)
+    {
+      tmp.append(STRING_WITH_LEN("; GTID position '"));
+      rpl_append_gtid_state(&tmp, false);
+      tmp.append(STRING_WITH_LEN("'"));
+    }
+    sql_print_error("\
+Error running query, slave SQL thread aborted. Fix the problem, and restart \
+the slave SQL thread with \"SLAVE START\". We stopped at log \
+'%s' position %s%s", RPL_LOG_NAME, llstr(rli->group_master_log_pos, llbuff),
+                    tmp.c_ptr_safe());
+  }
+}
+
+
 /**
   Slave SQL thread entry point.
 
@@ -4335,87 +4421,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
       DBUG_PRINT("info", ("exec_relay_log_event() failed"));
       // do not scare the user if SQL thread was simply killed or stopped
       if (!sql_slave_killed(serial_rgi))
-      {
-        /*
-          retrieve as much info as possible from the thd and, error
-          codes and warnings and print this to the error log as to
-          allow the user to locate the error
-        */
-        uint32 const last_errno= rli->last_error().number;
-
-        if (thd->is_error())
-        {
-          char const *const errmsg= thd->stmt_da->message();
-
-          DBUG_PRINT("info",
-                     ("thd->stmt_da->sql_errno()=%d; rli->last_error.number=%d",
-                      thd->stmt_da->sql_errno(), last_errno));
-          if (last_errno == 0)
-          {
-            /*
- 	      This function is reporting an error which was not reported
- 	      while executing exec_relay_log_event().
- 	    */ 
-            rli->report(ERROR_LEVEL, thd->stmt_da->sql_errno(), "%s", errmsg);
-          }
-          else if (last_errno != thd->stmt_da->sql_errno())
-          {
-            /*
-             * An error was reported while executing exec_relay_log_event()
-             * however the error code differs from what is in the thread.
-             * This function prints out more information to help finding
-             * what caused the problem.
-             */  
-            sql_print_error("Slave (additional info): %s Error_code: %d",
-                            errmsg, thd->stmt_da->sql_errno());
-          }
-        }
-
-        /* Print any warnings issued */
-        List_iterator_fast<MYSQL_ERROR> it(thd->warning_info->warn_list());
-        MYSQL_ERROR *err;
-        /*
-          Added controlled slave thread cancel for replication
-          of user-defined variables.
-        */
-        bool udf_error = false;
-        while ((err= it++))
-        {
-          if (err->get_sql_errno() == ER_CANT_OPEN_LIBRARY)
-            udf_error = true;
-          sql_print_warning("Slave: %s Error_code: %d", err->get_message_text(), err->get_sql_errno());
-        }
-        if (udf_error)
-        {
-          String tmp;
-          if (mi->using_gtid != Master_info::USE_GTID_NO)
-          {
-            tmp.append(STRING_WITH_LEN("; GTID position '"));
-            rpl_append_gtid_state(&tmp, false);
-            tmp.append(STRING_WITH_LEN("'"));
-          }
-          sql_print_error("Error loading user-defined library, slave SQL "
-            "thread aborted. Install the missing library, and restart the "
-            "slave SQL thread with \"SLAVE START\". We stopped at log '%s' "
-            "position %s%s", RPL_LOG_NAME, llstr(rli->group_master_log_pos,
-            llbuff), tmp.c_ptr_safe());
-        }
-        else
-        {
-          String tmp;
-          if (mi->using_gtid != Master_info::USE_GTID_NO)
-          {
-            tmp.append(STRING_WITH_LEN("; GTID position '"));
-            rpl_append_gtid_state(&tmp, false);
-            tmp.append(STRING_WITH_LEN("'"));
-          }
-          sql_print_error("\
-Error running query, slave SQL thread aborted. Fix the problem, and restart \
-the slave SQL thread with \"SLAVE START\". We stopped at log \
-'%s' position %s%s", RPL_LOG_NAME, llstr(rli->group_master_log_pos, llbuff),
-                          tmp.c_ptr_safe());
-        }
-      }
+        slave_output_error_info(rli, thd);
       goto err;
     }
   }
