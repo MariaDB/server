@@ -2515,14 +2515,30 @@ bool Item_func_current_user::fix_fields(THD *thd, Item **ref)
   if (Item_func_sysconst::fix_fields(thd, ref))
     return TRUE;
 
-  Security_context *ctx=
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-                         (context->security_ctx
-                          ? context->security_ctx : thd->security_ctx);
-#else
-                         thd->security_ctx;
-#endif /*NO_EMBEDDED_ACCESS_CHECKS*/
+  Security_context *ctx= context->security_ctx
+                          ? context->security_ctx : thd->security_ctx;
   return init(ctx->priv_user, ctx->priv_host);
+}
+
+bool Item_func_current_role::fix_fields(THD *thd, Item **ref)
+{
+  if (Item_func_sysconst::fix_fields(thd, ref))
+    return 1;
+
+  Security_context *ctx= context->security_ctx
+                          ? context->security_ctx : thd->security_ctx;
+
+  if (ctx->priv_role[0])
+  {
+    if (str_value.copy(ctx->priv_role, strlen(ctx->priv_role),
+                       system_charset_info))
+      return 1;
+
+    str_value.mark_as_const();
+    return 0;
+  }
+  null_value= maybe_null= 1;
+  return 0;
 }
 
 

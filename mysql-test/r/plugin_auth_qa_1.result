@@ -186,7 +186,7 @@ connection default;
 disconnect plug_user;
 DROP USER new_user,new_dest,plug_dest;
 ========== test 2, 2.1, 2.2 ================================
-CREATE USER ''@'' IDENTIFIED WITH test_plugin_server AS 'proxied_user';
+CREATE USER ''@'%%' IDENTIFIED WITH test_plugin_server AS 'proxied_user';
 CREATE USER proxied_user IDENTIFIED BY 'proxied_user_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 user	plugin	authentication_string
@@ -204,7 +204,7 @@ connection default;
 disconnect proxy_con;
 connect(proxy_con,localhost,proxy_user,proxied_user);
 ERROR 28000: Access denied for user 'proxy_user'@'localhost' (using password: YES)
-GRANT PROXY ON proxied_user TO ''@'';
+GRANT PROXY ON proxied_user TO ''@'%%';
 connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
@@ -218,11 +218,11 @@ proxy_user@localhost	proxied_user@%
 ========== test 2.2.1 ======================================
 SELECT @@proxy_user;
 @@proxy_user
-''@''
+''@'%%'
 connection default;
 disconnect proxy_con;
-DROP USER ''@'',proxied_user;
-GRANT ALL PRIVILEGES ON test_user_db.* TO ''@'' 
+DROP USER ''@'%%',proxied_user;
+GRANT ALL PRIVILEGES ON test_user_db.* TO ''@'%%' 
 IDENTIFIED WITH test_plugin_server AS 'proxied_user';
 CREATE USER proxied_user IDENTIFIED BY 'proxied_user_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
@@ -240,7 +240,7 @@ connection default;
 disconnect proxy_con;
 connect(proxy_con,localhost,proxy_user,proxied_user);
 ERROR 28000: Access denied for user 'proxy_user'@'localhost' (using password: YES)
-GRANT PROXY ON proxied_user TO ''@'';
+GRANT PROXY ON proxied_user TO ''@'%%';
 connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
@@ -253,21 +253,21 @@ USER()	CURRENT_USER()
 proxy_user@localhost	proxied_user@%
 SELECT @@proxy_user;
 @@proxy_user
-''@''
+''@'%%'
 connection default;
 disconnect proxy_con;
-DROP USER ''@'',proxied_user;
-CREATE USER ''@'' IDENTIFIED WITH test_plugin_server AS 'proxied_user';
+DROP USER ''@'%%',proxied_user;
+CREATE USER ''@'%%' IDENTIFIED WITH test_plugin_server AS 'proxied_user';
 CREATE USER proxied_user_1 IDENTIFIED BY 'proxied_user_1_pwd';
 CREATE USER proxied_user_2 IDENTIFIED BY 'proxied_user_2_pwd';
 CREATE USER proxied_user_3 IDENTIFIED BY 'proxied_user_3_pwd';
 CREATE USER proxied_user_4 IDENTIFIED BY 'proxied_user_4_pwd';
 CREATE USER proxied_user_5 IDENTIFIED BY 'proxied_user_5_pwd';
-GRANT PROXY ON proxied_user_1 TO ''@'';
-GRANT PROXY ON proxied_user_2 TO ''@'';
-GRANT PROXY ON proxied_user_3 TO ''@'';
-GRANT PROXY ON proxied_user_4 TO ''@'';
-GRANT PROXY ON proxied_user_5 TO ''@'';
+GRANT PROXY ON proxied_user_1 TO ''@'%%';
+GRANT PROXY ON proxied_user_2 TO ''@'%%';
+GRANT PROXY ON proxied_user_3 TO ''@'%%';
+GRANT PROXY ON proxied_user_4 TO ''@'%%';
+GRANT PROXY ON proxied_user_5 TO ''@'%%';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 user	plugin	authentication_string
 	test_plugin_server	proxied_user
@@ -322,7 +322,7 @@ disconnect proxy_con_2;
 disconnect proxy_con_3;
 disconnect proxy_con_4;
 disconnect proxy_con_5;
-DROP USER ''@'',proxied_user_1,proxied_user_2,proxied_user_3,proxied_user_4,proxied_user_5;
+DROP USER ''@'%%',proxied_user_1,proxied_user_2,proxied_user_3,proxied_user_4,proxied_user_5;
 ========== test 3 ==========================================
 GRANT ALL PRIVILEGES ON *.* TO plug_user
 IDENTIFIED WITH test_plugin_server AS 'plug_dest';

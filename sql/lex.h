@@ -59,6 +59,7 @@ static SYMBOL symbols[] = {
   { "ACCESSIBLE",	SYM(ACCESSIBLE_SYM)},
   { "ACTION",		SYM(ACTION)},
   { "ADD",		SYM(ADD)},
+  { "ADMIN",            SYM(ADMIN_SYM)},
   { "AFTER",		SYM(AFTER_SYM)},
   { "AGAINST",          SYM(AGAINST)},
   { "AGGREGATE",	SYM(AGGREGATE_SYM)},
@@ -154,6 +155,7 @@ static SYMBOL symbols[] = {
   { "CURRENT",          SYM(CURRENT_SYM)},
   { "CURRENT_DATE",	SYM(CURDATE)},
   { "CURRENT_POS",      SYM(CURRENT_POS_SYM)},
+  { "CURRENT_ROLE",	SYM(CURRENT_ROLE)},
   { "CURRENT_TIME",	SYM(CURTIME)},
   { "CURRENT_TIMESTAMP", SYM(NOW_SYM)},
   { "CURRENT_USER",	SYM(CURRENT_USER)},
@@ -498,6 +500,7 @@ static SYMBOL symbols[] = {
   { "REVOKE",		SYM(REVOKE)},
   { "RIGHT",		SYM(RIGHT)},
   { "RLIKE",		SYM(REGEXP)},	/* Like in mSQL2 */
+  { "ROLE",             SYM(ROLE_SYM)},
   { "ROLLBACK",		SYM(ROLLBACK_SYM)},
   { "ROLLUP",		SYM(ROLLUP_SYM)},
   { "ROUTINE",		SYM(ROUTINE_SYM)},

@@ -2998,7 +2998,7 @@ ER_PASSWORD_NOT_ALLOWED 42000
         spa "Tu debes de tener permiso para actualizar tablas en la base de datos mysql para cambiar las claves para otros"
         swe "För att ändra lösenord för andra måste du ha rättigheter att uppdatera mysql-databasen"
         ukr "Ви повині мати право на оновлення таблиць у базі данних mysql, аби мати можливість змінювати пароль іншим"
-ER_PASSWORD_NO_MATCH 42000 
+ER_PASSWORD_NO_MATCH 28000 
         cze "V tabulce user není žádný odpovídající řádek"
         dan "Kan ikke finde nogen tilsvarende poster i bruger tabellen"
         nla "Kan geen enkele passende rij vinden in de gebruikers tabel"
@@ -5558,9 +5558,8 @@ ER_PS_NO_RECURSION
 ER_SP_CANT_SET_AUTOCOMMIT
         eng "Not allowed to set autocommit from a stored function or trigger"
         ger "Es ist nicht erlaubt, innerhalb einer gespeicherten Funktion oder eines Triggers AUTOCOMMIT zu setzen"
-ER_MALFORMED_DEFINER
-        eng "Definer is not fully qualified"
-        ger "Definierer des View ist nicht vollständig spezifiziert"
+ER_MALFORMED_DEFINER 0L000
+        eng "Invalid definer"
 ER_VIEW_FRM_NO_USER
         eng "View '%-.192s'.'%-.192s' has no definer information (old table format). Current user is used as definer. Please recreate the view!"
         ger "View '%-.192s'.'%-.192s' hat keine Definierer-Information (altes Tabellenformat). Der aktuelle Benutzer wird als Definierer verwendet. Bitte erstellen Sie den View neu"
@@ -7060,3 +7059,15 @@ ER_NO_SUCH_QUERY
         rus "Неизвестный номер запроса: %lld"
 ER_BAD_BASE64_DATA
 	eng "Bad base64 data as position %u"
+ER_INVALID_ROLE OP000
+       eng "Invalid role specification %`s."
+       rum "Rolul %`s este invalid."
+ER_INVALID_CURRENT_USER 0L000
+	eng "The current user is invalid."
+	rum "Utilizatorul curent este invalid."
+ER_CANNOT_GRANT_ROLE
+	eng "Cannot grant role '%s' to: %s."
+	rum "Rolul '%s' nu poate fi acordat catre: %s."
+ER_CANNOT_REVOKE_ROLE
+	eng "Cannot revoke role '%s' from: %s."
+	rum "Rolul '%s' nu poate fi revocat de la: %s."

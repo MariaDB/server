@@ -251,7 +251,8 @@ typedef struct st_grant_info
 
      @details The version of this copy is found in GRANT_INFO::version.
    */
-  GRANT_TABLE *grant_table;
+  GRANT_TABLE *grant_table_user;
+  GRANT_TABLE *grant_table_role;
   /**
      @brief Used for cache invalidation when caching privilege information.
 

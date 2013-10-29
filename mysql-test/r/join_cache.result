@@ -5058,7 +5058,7 @@ EXPLAIN
 SELECT * FROM t1,t2 WHERE t1.a < 3 and t2.a IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	Using where; Using index
-1	SIMPLE	t2	hash_range	idx	#hash#idx:idx	5:5	const	4	Using index condition; Rowid-ordered scan; Using join buffer (flat, BNLH join)
+1	SIMPLE	t2	hash_range	idx	#hash#idx:idx	5:5	const	4	Using index condition; Using where; Rowid-ordered scan; Using join buffer (flat, BNLH join)
 SELECT * FROM t1,t2 WHERE t1.a < 3 and t2.a IS NULL;
 a	a	b
 1	NULL	10
@@ -5637,4 +5637,51 @@ c
 set join_buffer_size=default;
 set optimizer_switch=@tmp_optimizer_switch;
 DROP table t1,t2,t3;
+#
+# MDEV-5123 Remove duplicated conditions pushed both to join_tab->select_cond and join_tab->cache_select->cond for blocked joins.
+#
+set join_cache_level=default;
+set expensive_subquery_limit=0;
+create table t1 (c1 int);
+create table t2 (c2 int);
+create table t3 (c3 int);
+insert into t1 values (1), (2);
+insert into t2 values (1), (2);
+insert into t3 values (2);
+explain
+select count(*) from t1 straight_join t2
+where c1 = c2-0 and c2 <= (select max(c3) from t3 where c3 = 2 and @counter:=@counter+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+2	UNCACHEABLE SUBQUERY	t3	system	NULL	NULL	NULL	NULL	1	
+set @counter=0;
+select count(*) from t1 straight_join t2
+where c1 = c2-0 and c2 <= (select max(c3) from t3 where c3 = 2 and @counter:=@counter+1);
+count(*)
+2
+select @counter;
+@counter
+2
+explain
+select count(*) from t1 straight_join t2
+where c1 = c2-0 and
+c2 <= (select max(c3) from t3 where c3 = 2 and @counter:=@counter+1) and
+c2 / 2 = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+2	UNCACHEABLE SUBQUERY	t3	system	NULL	NULL	NULL	NULL	1	
+set @counter=0;
+select count(*) from t1 straight_join t2
+where c1 = c2-0 and
+c2 <= (select max(c3) from t3 where c3 = 2 and @counter:=@counter+1) and
+c2 / 2 = 1;
+count(*)
+1
+select @counter;
+@counter
+2
+drop table t1,t2,t3;
+set expensive_subquery_limit=default;
 set @@optimizer_switch=@save_optimizer_switch;

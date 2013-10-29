@@ -276,6 +276,17 @@ public:
   int update(THD *thd);
 };
 
+/* For SET ROLE */
+
+class set_var_role: public set_var
+{
+public:
+  set_var_role(LEX_STRING role_arg) :
+    set_var(OPT_SESSION, NULL, &role_arg, NULL){};
+  int check(THD *thd);
+  int update(THD *thd);
+};
+
 
 /* For SET NAMES and SET CHARACTER SET */
 

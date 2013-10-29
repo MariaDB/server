@@ -1096,6 +1096,8 @@ public:
   char   proxy_user[USERNAME_LENGTH + MAX_HOSTNAME + 5];
   /* The host privilege we are using */
   char   priv_host[MAX_HOSTNAME];
+  /* The role privilege we are using */
+  char   priv_role[USERNAME_LENGTH];
   /* The external user (if available) */
   char   *external_user;
   /* points to host if host is available, otherwise points to ip */
@@ -3390,9 +3392,11 @@ public:
   }
   void leave_locked_tables_mode();
   int decide_logging_format(TABLE_LIST *tables);
-  void binlog_invoker() { m_binlog_invoker= TRUE; }
-  bool need_binlog_invoker() { return m_binlog_invoker; }
-  void get_definer(LEX_USER *definer);
+
+  enum need_invoker { INVOKER_NONE=0, INVOKER_USER, INVOKER_ROLE};
+  void binlog_invoker(bool role) { m_binlog_invoker= role ? INVOKER_ROLE : INVOKER_USER; }
+  enum need_invoker need_binlog_invoker() { return m_binlog_invoker; }
+  void get_definer(LEX_USER *definer, bool role);
   void set_invoker(const LEX_STRING *user, const LEX_STRING *host)
   {
     invoker_user= *user;
@@ -3467,14 +3471,15 @@ private:
   Diagnostics_area *m_stmt_da;
 
   /**
-    It will be set TURE if CURRENT_USER() is called in account management
-    statements or default definer is set in CREATE/ALTER SP, SF, Event,
-    TRIGGER or VIEW statements.
+    It will be set if CURRENT_USER() or CURRENT_ROLE() is called in account
+    management statements or default definer is set in CREATE/ALTER SP, SF,
+    Event, TRIGGER or VIEW statements.
 
-    Current user will be binlogged into Query_log_event if m_binlog_invoker
-    is TRUE; It will be stored into invoker_host and invoker_user by SQL thread.
+    Current user or role will be binlogged into Query_log_event if
+    m_binlog_invoker is not NONE; It will be stored into invoker_host and
+    invoker_user by SQL thread.
    */
-  bool m_binlog_invoker;
+  enum need_invoker m_binlog_invoker;
 
   /**
     It points to the invoker in the Query_log_event.

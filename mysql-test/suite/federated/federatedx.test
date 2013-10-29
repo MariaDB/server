@@ -4,8 +4,8 @@
 #
 
 
---source include/federated.inc
 --source have_federatedx.inc
+--source include/federated.inc
 
 connection default;
 
