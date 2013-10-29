@@ -1,7 +1,7 @@
 /************* Tabodbc C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABODBC                                               */
 /* -------------                                                       */
-/*  Version 2.5                                                        */
+/*  Version 2.6                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -90,8 +90,9 @@ extern int num_read, num_there, num_eq[2];                // Statistics
 /***********************************************************************/
 ODBCDEF::ODBCDEF(void)
   {
-  Connect = Tabname = Tabowner = Tabqual = Qchar = NULL;
-  Catver = Options = 0; 
+  Connect = Tabname = Tabowner = Tabqual = Srcdef = Qchar = NULL;
+  Catver = Options = 0;
+  Xsrc = false;
   }  // end of ODBCDEF constructor
 
 /***********************************************************************/
@@ -99,17 +100,17 @@ ODBCDEF::ODBCDEF(void)
 /***********************************************************************/
 bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  int    dop = ODBConn::noOdbcDialog;    // Default for options
-
   Desc = Connect = Cat->GetStringCatInfo(g, "Connect", "");
   Tabname = Cat->GetStringCatInfo(g, "Name",
                  (Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
   Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
   Tabowner = Cat->GetStringCatInfo(g, "Owner", "");
   Tabqual = Cat->GetStringCatInfo(g, "Qualifier", "");
+  Srcdef = Cat->GetStringCatInfo(g, "Srcdef", NULL);
   Qchar = Cat->GetStringCatInfo(g, "Qchar", "");
   Catver = Cat->GetIntCatInfo("Catver", 2);
-  Options = Cat->GetIntCatInfo("Options", dop);
+  Xsrc = Cat->GetBoolCatInfo("Execsrc", FALSE);
+  Options = ODBConn::noOdbcDialog;
   Pseudo = 2;    // FILID is Ok but not ROWID
   return false;
   } // end of DefineAM
@@ -125,7 +126,9 @@ PTDB ODBCDEF::GetTable(PGLOBAL g, MODE m)
   /*  Allocate a TDB of the proper type.                               */
   /*  Column blocks will be allocated only when needed.                */
   /*********************************************************************/
-  switch (Catfunc) {
+  if (Xsrc)
+    tdbp = new(g) TDBXDBC(this);
+  else switch (Catfunc) {
     case FNC_COL:
       tdbp = new(g) TDBOCL(this);
       break;
@@ -161,19 +164,21 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
   Cnp = NULL;
 
   if (tdp) {
-    Connect = tdp->GetConnect();
-    TableName = tdp->GetTabname();
-    Owner = tdp->GetTabowner();
-    Qualifier = tdp->GetTabqual();
+    Connect = tdp->Connect;
+    TableName = tdp->Tabname;
+    Owner = tdp->Tabowner;
+    Qualifier = tdp->Tabqual;
+    Srcdef = tdp->Srcdef;
     Quote = tdp->GetQchar();
-    Options = tdp->GetOptions();
+    Options = tdp->Options;
     Rows = tdp->GetElemt();
-    Catver = tdp->GetCatver();
+    Catver = tdp->Catver;
   } else {
     Connect = NULL;
     TableName = NULL;
     Owner = NULL;
     Qualifier = NULL;
+    Srcdef = NULL;
     Quote = NULL;
     Options = 0;
     Rows = 0;
@@ -201,6 +206,7 @@ TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
   TableName = tdbp->TableName;
   Owner = tdbp->Owner;
   Qualifier = tdbp->Qualifier;
+  Srcdef = tdbp->Srcdef;
   Quote = tdbp->Quote;
   Query = tdbp->Query;
   Count = tdbp->Count;
@@ -299,7 +305,6 @@ void TDBODBC::SetFile(PGLOBAL g, PSZ fn)
   DBQ = fn;
   } // end of SetFile
 
-
 /******************************************************************/
 /*  Convert an UTF-8 string to latin characters.                  */
 /******************************************************************/
@@ -314,7 +319,6 @@ int TDBODBC::Decode(char *txt, char *buf, size_t n)
   return 0;
 } // end of Decode
 
-
 /***********************************************************************/
 /*  MakeSQL: make the SQL statement use with ODBC connection.          */
 /*  Note: when implementing EOM filtering, column only used in local   */
@@ -328,6 +332,9 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   bool    first = true;
   PTABLE  tablep = To_Table;
   PCOL    colp;
+
+  if (Srcdef)
+    return Srcdef;
 
   if (!cnt) {
     // Normal SQL statement to retrieve results
@@ -431,6 +438,83 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   } // end of MakeSQL
 
 /***********************************************************************/
+/*  MakeInsert: make the Insert statement used with ODBC connection.   */
+/***********************************************************************/
+bool TDBODBC::MakeInsert(PGLOBAL g)
+  {
+  char *colist, *valist;
+//  char *tk = "`";
+  int   len = 0;
+  bool  b = FALSE;
+  PCOL  colp;
+
+  if (Query)
+    return false;        // already done
+
+  for (colp = Columns; colp; colp = colp->GetNext())
+    if (colp->IsSpecial()) {
+      strcpy(g->Message, MSG(NO_ODBC_SPECOL));
+      return true;
+    } else {
+      len += (strlen(colp->GetName()) + 4);
+      ((PODBCCOL)colp)->Rank = ++Nparm;
+    } // endif colp
+
+  colist = (char*)PlugSubAlloc(g, NULL, len);
+  *colist = '\0';
+  valist = (char*)PlugSubAlloc(g, NULL, 2 * Nparm);
+  *valist = '\0';
+
+  for (colp = Columns; colp; colp = colp->GetNext()) {
+    if (b) {
+      strcat(colist, ", ");
+      strcat(valist, ",");
+    } else
+      b = true;
+
+    if (Quote)
+      strcat(strcat(strcat(colist, Quote), colp->GetName()), Quote);
+    else
+      strcat(colist, colp->GetName());
+
+    strcat(valist, "?");        // Parameter marker
+    } // endfor colp
+
+  // Below 32 is enough to contain the fixed part of the query
+  len = (strlen(TableName) + strlen(colist) + strlen(valist) + 32);
+  Query = (char*)PlugSubAlloc(g, NULL, len);
+  strcpy(Query, "INSERT INTO ");
+
+  if (Quote)
+    strcat(strcat(strcat(Query, Quote), TableName), Quote);
+  else
+    strcat(Query, TableName);
+
+  strcat(strcat(strcat(Query, " ("), colist), ") VALUES (");
+  strcat(strcat(Query, valist), ")");
+
+  return false;
+  } // end of MakeInsert
+
+/***********************************************************************/
+/*  ODBC Bind Parameter function.                                      */
+/***********************************************************************/
+bool TDBODBC::BindParameters(PGLOBAL g)
+  {
+  PODBCCOL colp;
+
+  for (colp = (PODBCCOL)Columns; colp; colp = (PODBCCOL)colp->Next) {
+    colp->AllocateBuffers(g, 0);
+
+    if (Ocp->BindParam(colp))
+      return true;
+
+    } // endfor colp
+
+  return false;
+  } // end of BindParameters
+
+/***********************************************************************/
 /*  ResetSize: call by TDBMUL when calculating size estimate.          */
 /***********************************************************************/
 void TDBODBC::ResetSize(void)
@@ -448,6 +532,16 @@ void TDBODBC::ResetSize(void)
 int TDBODBC::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
+    // Make MariaDB happy
+    MaxSize = 100;
+#if 0
+    // This is unuseful and takes time
+    if (Srcdef) {
+      // Return a reasonable guess
+      MaxSize = 100;
+      return MaxSize;
+      } // endif Srcdef
+
     if (!Ocp)
       Ocp = new(g) ODBConn(g, this);
 
@@ -466,19 +560,18 @@ int TDBODBC::GetMaxSize(PGLOBAL g)
 
     if ((MaxSize = Ocp->GetResultSize(Count, Cnp)) < 0)
       return -3;
-
+#endif // 0
     } // endif MaxSize
 
   return MaxSize;
   } // end of GetMaxSize
 
 /***********************************************************************/
-/*  Return 0 in mode DELETE or UPDATE to tell that it is done.         */
+/*  Return max size value.                                             */
 /***********************************************************************/
 int TDBODBC::GetProgMax(PGLOBAL g)
   {
-  return (Mode == MODE_DELETE || Mode == MODE_UPDATE) ? 0
-                                                      : GetMaxSize(g);
+  return GetMaxSize(g);
   } // end of GetProgMax
 
 /***********************************************************************/
@@ -546,14 +639,24 @@ bool TDBODBC::OpenDB(PGLOBAL g)
           if (!colp->IsSpecial())
             colp->AllocateBuffers(g, Rows);
 
-      } else
-        rc = true;
+      } else {
+        Ocp->Close();
+        return true;
+      } // endif Query
 
     if (!rc)
       rc = ((Rows = Ocp->ExecDirectSQL(Query, (PODBCCOL)Columns)) < 0);
 
+  } else if (Mode == MODE_INSERT) {
+    if (!(rc = MakeInsert(g)))
+      if (Nparm != Ocp->PrepareSQL(Query)) {
+        strcpy(g->Message, MSG(PARM_CNT_MISS));
+        rc = true;
+      } else
+        rc = BindParameters(g);
+
   } else {
-    strcpy(g->Message, "ODBC tables are read only in this version");
+    strcpy(g->Message, "No DELETE/UPDATE of ODBC tablesd");
     return true;
   } // endelse
 
@@ -592,30 +695,6 @@ int TDBODBC::ReadDB(PGLOBAL g)
     // Direct access of ODBC tables is not implemented yet
     strcpy(g->Message, MSG(NO_ODBC_DIRECT));
     longjmp(g->jumper[g->jump_level], GetAmType());
-
-#if 0
-    /*******************************************************************/
-    /*  Reading is by an index table.                                  */
-    /*******************************************************************/
-    int recpos = To_Kindex->Fetch(g);
-
-    switch (recpos) {
-      case -1:           // End of file reached
-        return RC_EF;
-      case -2:           // No match for join
-        return RC_NF;
-      case -3:           // Same record as current one
-        num_there++;
-        return RC_OK;
-      default:
-        /***************************************************************/
-        /*  Set the cursor position according to record to read.       */
-        /***************************************************************/
-//--------------------------------- TODO --------------------------------
-        break;
-      } // endswitch recpos
-#endif // 0
-
     } // endif To_Kindex
 
   /*********************************************************************/
@@ -641,8 +720,15 @@ int TDBODBC::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBODBC::WriteDB(PGLOBAL g)
   {
-  strcpy(g->Message, "ODBC tables are read only");
-  return RC_FX;
+  int n = Ocp->ExecuteSQL(false);
+
+  if (n < 0) {
+    AftRows = n;
+    return RC_FX;
+  } else
+    AftRows += n;
+
+  return RC_OK;
   } // end of WriteDB
 
 /***********************************************************************/
@@ -664,7 +750,8 @@ void TDBODBC::CloseDB(PGLOBAL g)
 //  To_Kindex = NULL;
 //  } // endif
 
-  Ocp->Close();
+  if (Ocp)
+    Ocp->Close();
 
   if (trace)
     htrc("ODBC CloseDB: closing %s\n", Name);
@@ -892,7 +979,7 @@ void ODBCCOL::WriteColumn(PGLOBAL g)
   /*  Do convert the column value if necessary.                        */
   /*********************************************************************/
   if (Value != To_Val)
-    Value->SetValue_pval(To_Val, false);   // Convert the inserted value
+    Value->SetValue_pval(To_Val, FALSE);   // Convert the inserted value
 
   if (Buf_Type == TYPE_DATE) {
     struct tm tm, *dbtime = ((DTVAL*)Value)->GetGmTime(&tm);
@@ -903,8 +990,245 @@ void ODBCCOL::WriteColumn(PGLOBAL g)
     Sqlbuf->day    = dbtime->tm_mday;
     Sqlbuf->month  = dbtime->tm_mon + 1;
     Sqlbuf->year   = dbtime->tm_year + 1900;
+    Sqlbuf->fraction = 0;
     } // endif Buf_Type
 
+  if (Nullable)
+    *StrLen = (Value->IsNull()) ? SQL_NULL_DATA :
+              (IsTypeNum(Buf_Type)) ? 0 : SQL_NTS;
+
+  } // end of WriteColumn
+
+/* -------------------------- Class TDBXDBC -------------------------- */
+
+/***********************************************************************/
+/*  Implementation of the TDBODBC class.                               */
+/***********************************************************************/
+PTDB TDBXDBC::CopyOne(PTABS t)
+  {
+  PTDB     tp;
+  PXSRCCOL cp1, cp2;
+  PGLOBAL  g = t->G;        // Is this really useful ???
+
+  tp = new(g) TDBXDBC(this);
+
+  for (cp1 = (PXSRCCOL)Columns; cp1; cp1 = (PXSRCCOL)cp1->GetNext()) {
+    cp2 = new(g) XSRCCOL(cp1, tp);  // Make a copy
+    NewPointer(t, cp1, cp2);
+    } // endfor cp1
+
+  return tp;
+  } // end of CopyOne
+
+/***********************************************************************/
+/*  Allocate XSRC column description block.                            */
+/***********************************************************************/
+PCOL TDBXDBC::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
+  {
+  PXSRCCOL colp = new(g) XSRCCOL(cdp, this, cprec, n);
+
+  if (!colp->Flag)
+    Cmdcol = colp->GetName();
+
+  return colp;
+  } // end of MakeCol
+
+/***********************************************************************/
+/*  MakeCMD: make the SQL statement to send to ODBC connection.        */
+/***********************************************************************/
+char *TDBXDBC::MakeCMD(PGLOBAL g)
+  {
+  char *xcmd = NULL;
+
+  if (To_Filter) {
+    if (Cmdcol) {
+      char col[128], cmd[1024];
+      int n;
+      
+      memset(cmd, 0, sizeof(cmd));
+      n = sscanf(To_Filter, "%s = '%1023c", col, cmd);
+  
+      if (n == 2 && !stricmp(col, Cmdcol)) {
+        xcmd = (char*)PlugSubAlloc(g, NULL, strlen(cmd) + 1);
+  
+        strcpy(xcmd, cmd);
+        xcmd[strlen(xcmd) - 1] = 0;
+      } else
+        strcpy(g->Message, "Invalid command specification filter");
+
+    } else
+      strcpy(g->Message, "No command column in select list");
+
+  } else if (!Srcdef)
+    strcpy(g->Message, "No Srcdef default command");
+  else
+    xcmd = Srcdef;
+
+  return xcmd;
+  } // end of MakeCMD
+
+#if 0
+/***********************************************************************/
+/*  ODBC Bind Parameter function.                                      */
+/***********************************************************************/
+bool TDBXDBC::BindParameters(PGLOBAL g)
+  {
+  PODBCCOL colp;
+
+  for (colp = (PODBCCOL)Columns; colp; colp = (PODBCCOL)colp->Next) {
+    colp->AllocateBuffers(g, 0);
+
+    if (Ocp->BindParam(colp))
+      return true;
+
+    } // endfor colp
+
+  return false;
+  } // end of BindParameters
+#endif // 0
+
+/***********************************************************************/
+/*  XDBC GetMaxSize: returns table size (always one row).              */
+/***********************************************************************/
+int TDBXDBC::GetMaxSize(PGLOBAL g)
+  {
+  if (MaxSize < 0)
+    MaxSize = 1;
+
+  return MaxSize;
+  } // end of GetMaxSize
+
+/***********************************************************************/
+/*  ODBC Access Method opening routine.                                */
+/*  New method now that this routine is called recursively (last table */
+/*  first in reverse order): index blocks are immediately linked to    */
+/*  join block of next table if it exists or else are discarted.       */
+/***********************************************************************/
+bool TDBXDBC::OpenDB(PGLOBAL g)
+  {
+  bool rc = false;
+
+  if (g->Trace)
+    htrc("ODBC OpenDB: tdbp=%p tdb=R%d use=%dmode=%d\n",
+            this, Tdb_No, Use, Mode);
+
+  if (Use == USE_OPEN) {
+    strcpy(g->Message, "Multiple execution is not allowed");
+    return true;
+    } // endif use
+
+  /*********************************************************************/
+  /*  Open an ODBC connection for this table.                          */
+  /*  Note: this may not be the proper way to do. Perhaps it is better */
+  /*  to test whether a connection is already open for this datasource */
+  /*  and if so to allocate just a new result set. But this only for   */
+  /*  drivers allowing concurency in getting results ???               */
+  /*********************************************************************/
+  if (!Ocp)
+    Ocp = new(g) ODBConn(g, this);
+  else if (Ocp->IsOpen())
+    Ocp->Close();
+
+  if (Ocp->Open(Connect, Options) < 1)
+    return true;
+
+  Use = USE_OPEN;       // Do it now in case we are recursively called
+
+  if (Mode != MODE_READ) {
+    strcpy(g->Message, "No INSERT/DELETE/UPDATE of XDBC tables");
+    return true;
+    } // endif Mode
+
+  /*********************************************************************/
+  /*  Get the command to execute.                                      */
+  /*********************************************************************/
+  if (!(Query = MakeCMD(g))) {
+    Ocp->Close();
+    return true;
+    } // endif Query
+
+  Rows = 1;
+
+  if (Ocp->PrepareSQL(Query)) {
+    strcpy(g->Message, "Parameters not supported");
+    AftRows = -1;
+  } else
+    AftRows = 0;
+
+  return false;
+  } // end of OpenDB
+
+/***********************************************************************/
+/*  ReadDB: Data Base read routine for xdbc access method.             */
+/***********************************************************************/
+int TDBXDBC::ReadDB(PGLOBAL g)
+  {
+  if (trace)
+    htrc("XDBC ReadDB: query=%s\n", SVP(Query));
+
+  if (Rows--) {
+    if (!AftRows)
+      AftRows = Ocp->ExecuteSQL(true);
+
+  } else 
+    return RC_EF;
+
+  Fpos++;                // Used for progress info
+  return RC_OK;
+  } // end of ReadDB
+
+/***********************************************************************/
+/*  Data Base delete line routine for ODBC access method.              */
+/***********************************************************************/
+int TDBXDBC::WriteDB(PGLOBAL g)
+  {
+  strcpy(g->Message, "Execsrc tables are read only");
+  return RC_FX;
+  } // end of DeleteDB
+
+/* --------------------------- XSRCCOL ------------------------------- */
+
+/***********************************************************************/
+/*  XSRCCOL public constructor.                                        */
+/***********************************************************************/
+XSRCCOL::XSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+       : ODBCCOL(cdp, tdbp, cprec, i, am)
+  {
+  // Set additional ODBC access method information for column.
+  Flag = cdp->GetOffset();
+  } // end of XSRCCOL constructor
+
+/***********************************************************************/
+/*  XSRCCOL constructor used for copying columns.                      */
+/*  tdbp is the pointer to the new table descriptor.                   */
+/***********************************************************************/
+XSRCCOL::XSRCCOL(XSRCCOL *col1, PTDB tdbp) : ODBCCOL(col1, tdbp)
+  {
+  Flag = col1->Flag;
+  } // end of XSRCCOL copy constructor
+
+/***********************************************************************/
+/*  ReadColumn: set column value according to Flag.                    */
+/***********************************************************************/
+void XSRCCOL::ReadColumn(PGLOBAL g)
+  {
+  PTDBXDBC tdbp = (PTDBXDBC)To_Tdb;
+
+  switch (Flag) {
+    case  0: Value->SetValue_psz(tdbp->Query);    break;
+    case  1: Value->SetValue(tdbp->AftRows);      break;
+    case  2: Value->SetValue_psz(g->Message);     break;
+    default: Value->SetValue_psz("Invalid Flag"); break;
+    } // endswitch Flag
+
+  } // end of ReadColumn
+
+/***********************************************************************/
+/*  WriteColumn: Should never be called.                               */
+/***********************************************************************/
+void XSRCCOL::WriteColumn(PGLOBAL g)
+  {
+  // Should never be called
   } // end of WriteColumn
 
 /* ---------------------------TDBSRC class --------------------------- */

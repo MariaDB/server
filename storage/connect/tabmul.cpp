@@ -884,9 +884,11 @@ void TDBDIR::CloseDB(PGLOBAL g)
   _findclose(Hsearch);
   Hsearch = -1;
 #else   // !WIN32
-  // Close the DIR handle.
-  closedir(Dir);
-  Dir = NULL;
+  // Close the DIR handle
+  if (Dir) {
+    closedir(Dir);
+    Dir = NULL;
+    } // endif dir
 #endif  // !WIN32
   iFile = 0;
   } // end of CloseDB
