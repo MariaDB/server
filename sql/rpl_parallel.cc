@@ -835,6 +835,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   /*
     Queue the event for processing.
   */
+  rli->event_relay_log_pos= rli->future_event_relay_log_pos;
   cur_thread->enqueue(qev);
   mysql_mutex_unlock(&cur_thread->LOCK_rpl_thread);
   mysql_cond_signal(&cur_thread->COND_rpl_thread);
