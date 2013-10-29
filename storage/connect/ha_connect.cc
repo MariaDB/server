@@ -165,7 +165,7 @@ extern "C" char  nmfile[];
 extern "C" char  pdebug[];
 
 extern "C" {
-       char  version[]= "Version 1.01.0008 August 18, 2013";
+       char  version[]= "Version 1.01.0009 October 29, 2013";
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -1702,7 +1702,7 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
           return NULL;
 
         // Append the value to the filter
-        if (args[i]->type() == COND::STRING_ITEM)
+        if (args[i]->field_type() == MYSQL_TYPE_VARCHAR)
           strcat(strcat(strcat(filp, "'"), res->ptr()), "'");
         else
           strncat(filp, res->ptr(), res->length());
