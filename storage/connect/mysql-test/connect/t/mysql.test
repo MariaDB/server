@@ -420,3 +420,17 @@ DROP TABLE t2, t1;
 # TODO: add test for YEAR
 # TODO: add tests for fractional seconds
 
+--echo #
+--echo # MDEV-4877 mysqldump dumps all data from a connect table
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+--replace_result $PORT PORT
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@localhost:$PORT/test/t1'
+SELECT * FROM t2;
+--echo # Start of mysqldump ------
+--replace_result $PORT PORT
+--exec $MYSQL_DUMP --compact test t2
+--echo # End of mysqldump ------
+DROP TABLE t2;
+DROP TABLE t1;
