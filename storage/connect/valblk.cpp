@@ -447,13 +447,12 @@ int TYPBLK<TYPE>::Find(PVAL vp)
 template <class TYPE>
 int TYPBLK<TYPE>::GetMaxLength(void)
   {
-  char buf[12];
-  int i, n;
+  char buf[32];
+  int i, n, m;
 
   for (i = n = 0; i < Nval; i++) {
-    sprintf(buf, Fmt, Typp[i]);
-
-    n = max(n, (signed)strlen(buf));
+    m = sprintf(buf, Fmt, Typp[i]);
+    n = max(n, m);
     } // endfor i
 
   return n;

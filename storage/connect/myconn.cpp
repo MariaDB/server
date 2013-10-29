@@ -89,7 +89,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
   static unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 256, 32, 32};
   char   *fld, *fmt, cmd[128];
   int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
-  int    len, type, prec, rc, k = 0;
+  int     len, type, prec, rc, k = 0;
   PQRYRES qrp;
   PCOLRES crp;
   MYSQLC  myc;
@@ -166,7 +166,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
     // Get type, type name, and precision
     fld = myc.GetCharField(1);
     prec = 0;
-    len = 256;            // Default for text or blob
+    len = 255;            // Default for text or blob
 
     if ((nf = sscanf(fld, "%[^(](%d,%d", cmd, &len, &prec)) < 1) {
       sprintf(g->Message, MSG(BAD_FIELD_TYPE), fld);

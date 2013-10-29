@@ -111,6 +111,7 @@ enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_PIVOT = 120,        /* PIVOT access method type no   */
           TYPE_AM_SRC   = 121,        /* PIVOT multiple column type no */
           TYPE_AM_FNC   = 122,        /* PIVOT source column type no   */
+          TYPE_AM_XML   = 127,        /* XML access method type no     */
           TYPE_AM_XTB   = 130,        /* SYS table access method type  */
           TYPE_AM_MAC   = 137,        /* MAC table access method type  */
           TYPE_AM_WMI   = 139,        /* WMI table access method type  */
@@ -582,5 +583,6 @@ FILE *global_fopen(GLOBAL *g, int msgid, const char *path, const char *mode);
 int global_open(GLOBAL *g, int msgid, const char *filename, int flags);
 int global_open(GLOBAL *g, int msgid, const char *filename, int flags, int mode);
 DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir);
+char *MakeEscape(PGLOBAL g, char* str, char q);
 
 bool PushWarning(PGLOBAL, PTDBASE);

@@ -3,8 +3,10 @@
 
 typedef class MYSQLDEF *PMYDEF;
 typedef class TDBMYSQL *PTDBMY;
-typedef class MYSQLC   *PMYC;
 typedef class MYSQLCOL *PMYCOL;
+typedef class TDBMYEXC *PTDBMYX;
+typedef class MYXCOL   *PMYXCOL;
+typedef class MYSQLC   *PMYC;
 
 /* ------------------------- MYSQL classes --------------------------- */
 
@@ -38,7 +40,7 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   // Methods
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE m);
-          bool ParseURL(PGLOBAL g, char *url);
+          bool ParseURL(PGLOBAL g, char *url, bool b = true);
           bool GetServerInfo(PGLOBAL g, const char *server_name);
 
  protected:
@@ -54,6 +56,7 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   bool    Isview;             /* TRUE if this table is a MySQL view    */
   bool    Bind;               /* Use prepared statement on insert      */
   bool    Delayed;            /* Delayed insert                        */
+  bool    Xsrc;               /* Execution type                        */
   }; // end of MYSQLDEF
 
 /***********************************************************************/
@@ -157,6 +160,87 @@ class MYSQLCOL : public COLBLK {
   unsigned long Slen;            // Bind string lengh
   int           Rank;            // Rank (position) number in the query
   }; // end of class MYSQLCOL
+
+/***********************************************************************/
+/*  This is the class declaration for the exec command MYSQL table.    */
+/***********************************************************************/
+class TDBMYEXC : public TDBMYSQL {
+  friend class MYXCOL;
+ public:
+  // Constructor
+  TDBMYEXC(PMYDEF tdp) : TDBMYSQL(tdp) {Cmdcol = NULL;}
+  TDBMYEXC(PGLOBAL g, PTDBMYX tdbp) : TDBMYSQL(g, tdbp)
+              {Cmdcol = tdbp->Cmdcol;}
+
+  // Implementation
+//virtual AMT  GetAmType(void) {return TYPE_AM_MYSQL;}
+  virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMYEXC(g, this);}
+
+  // Methods
+  virtual PTDB CopyOne(PTABS t);
+//virtual int  GetAffectedRows(void) {return AftRows;}
+//virtual int  GetRecpos(void) {return N;}
+//virtual int  GetProgMax(PGLOBAL g);
+//virtual void ResetDB(void) {N = 0;}
+//virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
+  virtual bool IsView(void) {return Isview;}
+//virtual PSZ  GetServer(void) {return Server;}
+//        void SetDatabase(LPCSTR db) {Database = (char*)db;}
+
+  // Database routines
+  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual int  GetMaxSize(PGLOBAL g);
+  virtual bool OpenDB(PGLOBAL g);
+  virtual int  ReadDB(PGLOBAL g);
+  virtual int  WriteDB(PGLOBAL g);
+//virtual int  DeleteDB(PGLOBAL g, int irc);
+//virtual void CloseDB(PGLOBAL g);
+
+  // Specific routines
+//        bool SetColumnRanks(PGLOBAL g);
+//        PCOL MakeFieldColumn(PGLOBAL g, char *name);
+//        PSZ  FindFieldColumn(char *name);
+
+ protected:
+  // Internal functions
+  char *MakeCMD(PGLOBAL g);
+//bool MakeSelect(PGLOBAL g);
+//bool MakeInsert(PGLOBAL g);
+//int  BindColumns(PGLOBAL g);
+
+  // Members
+  char    *Cmdcol;            // The name of the Xsrc command column
+  }; // end of class TDBMYEXC
+
+/***********************************************************************/
+/*  Class MYXCOL: MySQL exec command table column.                     */
+/***********************************************************************/
+class MYXCOL : public MYSQLCOL {
+  friend class TDBMYEXC;
+ public:
+  // Constructors
+  MYXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i,  PSZ am = "MYSQL");
+  MYXCOL(MYSQL_FIELD *fld, PTDB tdbp, int i,  PSZ am = "MYSQL");
+  MYXCOL(MYXCOL *colp, PTDB tdbp);   // Constructor used in copy process
+
+  // Implementation
+//virtual int  GetAmType(void) {return TYPE_AM_MYSQL;}
+//        void InitBind(PGLOBAL g);
+
+  // Methods
+//virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
+  virtual void ReadColumn(PGLOBAL g);
+  virtual void WriteColumn(PGLOBAL g);
+//        bool FindRank(PGLOBAL g);
+
+ protected:
+  // Default constructor not to be used
+  MYXCOL(void) {}
+
+  // Members
+  char    *Buffer;              // To get returned message
+  int      Flag;                // Column content desc
+  }; // end of class MYXCOL
 
 /***********************************************************************/
 /*  This is the class declaration for the MYSQL column catalog table.  */
