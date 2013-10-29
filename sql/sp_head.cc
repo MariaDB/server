@@ -282,9 +282,12 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_CREATE_VIEW:
   case SQLCOM_CREATE_TRIGGER:
   case SQLCOM_CREATE_USER:
+  case SQLCOM_CREATE_ROLE:
   case SQLCOM_ALTER_TABLE:
   case SQLCOM_GRANT:
+  case SQLCOM_GRANT_ROLE:
   case SQLCOM_REVOKE:
+  case SQLCOM_REVOKE_ROLE:
   case SQLCOM_BEGIN:
   case SQLCOM_RENAME_TABLE:
   case SQLCOM_RENAME_USER:
@@ -292,6 +295,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_DROP_DB:
   case SQLCOM_REVOKE_ALL:
   case SQLCOM_DROP_USER:
+  case SQLCOM_DROP_ROLE:
   case SQLCOM_DROP_VIEW:
   case SQLCOM_DROP_TRIGGER:
   case SQLCOM_TRUNCATE:
@@ -2468,8 +2472,13 @@ sp_head::set_definer(const char *definer, uint definerlen)
   char host_name_holder[HOSTNAME_LENGTH + 1];
   LEX_STRING host_name= { host_name_holder, HOSTNAME_LENGTH };
 
-  parse_user(definer, definerlen, user_name.str, &user_name.length,
-             host_name.str, &host_name.length);
+  if (parse_user(definer, definerlen, user_name.str, &user_name.length,
+                 host_name.str, &host_name.length) &&
+      user_name.length && !host_name.length)
+  {
+    // 'user@' -> 'user@%'
+    host_name= host_not_specified;
+  }
 
   set_definer(&user_name, &host_name);
 }

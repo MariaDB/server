@@ -126,32 +126,28 @@ public:
     return *(((Elem*)array.buffer) + idx);
   }
 
-  /// @returns pointer to first element; undefined behaviour if array is empty
+  /// @returns pointer to first element
   Elem *front()
   {
-    DBUG_ASSERT(array.elements >= 1);
     return (Elem*)array.buffer;
   }
 
-  /// @returns pointer to first element; undefined behaviour if array is empty
+  /// @returns pointer to first element
   const Elem *front() const
   {
-    DBUG_ASSERT(array.elements >= 1);
     return (const Elem*)array.buffer;
   }
 
-  /// @returns pointer to last element; undefined behaviour if array is empty.
+  /// @returns pointer to last element
   Elem *back()
   {
-    DBUG_ASSERT(array.elements >= 1);
-    return ((Elem*)array.buffer) + (array.elements - 1);
+    return ((Elem*)array.buffer) + array.elements - 1;
   }
 
-  /// @returns pointer to last element; undefined behaviour if array is empty.
+  /// @returns pointer to last element
   const Elem *back() const
   {
-    DBUG_ASSERT(array.elements >= 1);
-    return ((const Elem*)array.buffer) + (array.elements - 1);
+    return ((const Elem*)array.buffer) + array.elements - 1;
   }
 
   /**
@@ -166,6 +162,11 @@ public:
   bool append_val(Elem el)
   {
     return (insert_dynamic(&array, (uchar*)&el));
+  }
+
+  bool push(Elem &el)
+  {
+    return append(el);
   }
 
   /// Pops the last element. Does nothing if array is empty.
@@ -227,6 +228,12 @@ public:
   void sort(CMP_FUNC cmp_func)
   {
     my_qsort(array.buffer, array.elements, sizeof(Elem), (qsort_cmp)cmp_func);
+  }
+
+  typedef int (*CMP_FUNC2)(const Elem *el1, const Elem *el2, void *);
+  void sort(CMP_FUNC2 cmp_func, void *data)
+  {
+    my_qsort2(array.buffer, array.elements, sizeof(Elem), (qsort2_cmp)cmp_func, data);
   }
 };
 

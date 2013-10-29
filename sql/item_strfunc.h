@@ -607,6 +607,28 @@ public:
 };
 
 
+class Item_func_current_role :public Item_func_sysconst
+{
+  Name_resolution_context *context;
+
+public:
+  Item_func_current_role(Name_resolution_context *context_arg)
+    : context(context_arg) {}
+  bool fix_fields(THD *thd, Item **ref);
+  void fix_length_and_dec()
+  { max_length= username_char_length * SYSTEM_CHARSET_MBMAXLEN; }
+  int save_in_field(Field *field, bool no_conversions)
+  { return save_str_value_in_field(field, &str_value); }
+  const char *func_name() const { return "current_role"; }
+  const char *fully_qualified_func_name() const { return "current_role()"; }
+  String *val_str(String *)
+  {
+    DBUG_ASSERT(fixed == 1);
+    return (null_value ? 0 : &str_value);
+  }
+};
+
+
 class Item_func_soundex :public Item_str_func
 {
   String tmp_value;

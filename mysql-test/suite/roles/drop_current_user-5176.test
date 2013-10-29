@@ -1,0 +1,13 @@
+#
+# MDEV-5176 Server crashes in fill_schema_applicable_roles on select from APPLICABLE_ROLES after a suicide
+#
+--source include/not_embedded.inc
+
+grant create user on *.* to foo@localhost;
+--connect (foo,localhost,foo,,)
+drop user foo@localhost;
+select * from information_schema.applicable_roles;
+--error ER_NONEXISTING_GRANT
+show grants;
+select current_user();
+

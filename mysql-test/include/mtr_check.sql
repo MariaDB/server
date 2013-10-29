@@ -69,6 +69,7 @@ BEGIN
     mysql.host,
     mysql.proc,
     mysql.procs_priv,
+    mysql.roles_mapping,
     mysql.tables_priv,
     mysql.time_zone,
     mysql.time_zone_leap_second,

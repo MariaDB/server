@@ -2898,17 +2898,22 @@ bool Query_log_event::write(IO_CACHE* file)
       user= thd->get_invoker_user();
       host= thd->get_invoker_host();
     }
-    else if (thd->security_ctx->priv_user)
+    else
     {
       Security_context *ctx= thd->security_ctx;
 
-      user.length= strlen(ctx->priv_user);
-      user.str= ctx->priv_user;
-      if (ctx->priv_host[0] != '\0')
+      if (thd->need_binlog_invoker() == THD::INVOKER_USER)
       {
+        user.str= ctx->priv_user;
         host.str= ctx->priv_host;
-        host.length= strlen(ctx->priv_host);
+        host.length= strlen(host.str);
       }
+      else
+      {
+        user.str= ctx->priv_role;
+        host= empty_lex_str;
+      }
+      user.length= strlen(user.str);
     }
 
     if (user.length > 0)

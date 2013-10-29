@@ -535,6 +535,7 @@ typedef struct st_join_table {
             !(used_sjm_lookup_tables & ~emb_sj_nest->sj_inner_tables));
   }
 
+  void remove_redundant_bnl_scan_conds();
 } JOIN_TAB;
 
 

@@ -3908,10 +3908,9 @@ end:
   DBUG_RETURN(error);
 }
 
-extern "C" uchar *schema_set_get_key(const uchar *record, size_t *length,
+extern "C" uchar *schema_set_get_key(const TABLE_LIST *table, size_t *length,
                                      my_bool not_used __attribute__((unused)))
 {
-  TABLE_LIST *table=(TABLE_LIST*) record;
   *length= table->db_length;
   return (uchar*) table->db;
 }
@@ -3952,7 +3951,7 @@ lock_table_names(THD *thd,
   MDL_request_list mdl_requests;
   TABLE_LIST *table;
   MDL_request global_request;
-  Hash_set<TABLE_LIST, schema_set_get_key> schema_set;
+  Hash_set<TABLE_LIST> schema_set(schema_set_get_key);
   ulong org_lock_wait_timeout= lock_wait_timeout;
   /* Check if we are using CREATE TABLE ... IF NOT EXISTS */
   bool create_table;
@@ -3998,7 +3997,7 @@ lock_table_names(THD *thd,
       Scoped locks: Take intention exclusive locks on all involved
       schemas.
     */
-    Hash_set<TABLE_LIST, schema_set_get_key>::Iterator it(schema_set);
+    Hash_set<TABLE_LIST>::Iterator it(schema_set);
     while ((table= it++))
     {
       MDL_request *schema_request= new (thd->mem_root) MDL_request;

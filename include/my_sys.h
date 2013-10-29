@@ -327,6 +327,9 @@ struct st_my_file_info
 
 extern struct st_my_file_info *my_file_info;
 
+/* Free function pointer */
+typedef void (*FREE_FUNC)(void *);
+
 typedef struct st_dynamic_array
 {
   uchar *buffer;
@@ -792,6 +795,7 @@ extern my_bool allocate_dynamic(DYNAMIC_ARRAY *array, uint max_elements);
 extern void get_dynamic(DYNAMIC_ARRAY *array, void *element, uint array_index);
 extern void delete_dynamic(DYNAMIC_ARRAY *array);
 extern void delete_dynamic_element(DYNAMIC_ARRAY *array, uint array_index);
+extern void delete_dynamic_with_callback(DYNAMIC_ARRAY *array, FREE_FUNC f);
 extern void freeze_size(DYNAMIC_ARRAY *array);
 extern int  get_index_dynamic(DYNAMIC_ARRAY *array, void *element);
 #define dynamic_array_ptr(array,array_index) ((array)->buffer+(array_index)*(array)->size_of_element)

@@ -451,6 +451,29 @@ user_comment	User proxy privileges
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
+TABLE_NAME	roles_mapping
+TABLE_TYPE	BASE TABLE
+ENGINE	MYISAM_OR_MARIA
+VERSION	10
+ROW_FORMAT	Fixed
+TABLE_ROWS	#TBLR#
+AVG_ROW_LENGTH	#ARL#
+DATA_LENGTH	#DL#
+MAX_DATA_LENGTH	#MDL#
+INDEX_LENGTH	#IL#
+DATA_FREE	#DF#
+AUTO_INCREMENT	NULL
+CREATE_TIME	#CRT#
+UPDATE_TIME	#UT#
+CHECK_TIME	#CT#
+TABLE_COLLATION	utf8_bin
+CHECKSUM	NULL
+CREATE_OPTIONS	#CO#
+TABLE_COMMENT	#TC#
+user_comment	Granted roles
+Separator	-----------------------------------------------------
+TABLE_CATALOG	def
+TABLE_SCHEMA	mysql
 TABLE_NAME	servers
 TABLE_TYPE	BASE TABLE
 ENGINE	MYISAM_OR_MARIA
@@ -1131,6 +1154,29 @@ CHECKSUM	NULL
 CREATE_OPTIONS	#CO#
 TABLE_COMMENT	#TC#
 user_comment	User proxy privileges
+Separator	-----------------------------------------------------
+TABLE_CATALOG	def
+TABLE_SCHEMA	mysql
+TABLE_NAME	roles_mapping
+TABLE_TYPE	BASE TABLE
+ENGINE	MYISAM_OR_MARIA
+VERSION	10
+ROW_FORMAT	Fixed
+TABLE_ROWS	#TBLR#
+AVG_ROW_LENGTH	#ARL#
+DATA_LENGTH	#DL#
+MAX_DATA_LENGTH	#MDL#
+INDEX_LENGTH	#IL#
+DATA_FREE	#DF#
+AUTO_INCREMENT	NULL
+CREATE_TIME	#CRT#
+UPDATE_TIME	#UT#
+CHECK_TIME	#CT#
+TABLE_COLLATION	utf8_bin
+CHECKSUM	NULL
+CREATE_OPTIONS	#CO#
+TABLE_COMMENT	#TC#
+user_comment	Granted roles
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql

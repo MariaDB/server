@@ -2825,7 +2825,7 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
     mysql_mutex_unlock(&LOCK_thread_count);
   }
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
-#ifndef EMBEDDED_LIBRARY
+#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
   ERR_remove_state(0);
 #endif
   my_thread_end();
@@ -3561,6 +3561,7 @@ SHOW_VAR com_status_vars[]= {
   {"create_function",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_SPFUNCTION]), SHOW_LONG_STATUS},
   {"create_index",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_INDEX]), SHOW_LONG_STATUS},
   {"create_procedure",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_PROCEDURE]), SHOW_LONG_STATUS},
+  {"create_role",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_ROLE]), SHOW_LONG_STATUS},
   {"create_server",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_SERVER]), SHOW_LONG_STATUS},
   {"create_table",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_TABLE]), SHOW_LONG_STATUS},
   {"create_trigger",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_TRIGGER]), SHOW_LONG_STATUS},
@@ -3576,6 +3577,7 @@ SHOW_VAR com_status_vars[]= {
   {"drop_function",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_FUNCTION]), SHOW_LONG_STATUS},
   {"drop_index",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_INDEX]), SHOW_LONG_STATUS},
   {"drop_procedure",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_PROCEDURE]), SHOW_LONG_STATUS},
+  {"drop_role",            (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_ROLE]), SHOW_LONG_STATUS},
   {"drop_server",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_SERVER]), SHOW_LONG_STATUS},
   {"drop_table",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_TABLE]), SHOW_LONG_STATUS},
   {"drop_trigger",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_TRIGGER]), SHOW_LONG_STATUS},
@@ -3586,6 +3588,7 @@ SHOW_VAR com_status_vars[]= {
   {"flush",                (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_FLUSH]), SHOW_LONG_STATUS},
   {"get_diagnostics",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_GET_DIAGNOSTICS]), SHOW_LONG_STATUS},
   {"grant",                (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_GRANT]), SHOW_LONG_STATUS},
+  {"grant_role",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_GRANT_ROLE]), SHOW_LONG_STATUS},
   {"ha_close",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_HA_CLOSE]), SHOW_LONG_STATUS},
   {"ha_open",              (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_HA_OPEN]), SHOW_LONG_STATUS},
   {"ha_read",              (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_HA_READ]), SHOW_LONG_STATUS},
@@ -3611,6 +3614,7 @@ SHOW_VAR com_status_vars[]= {
   {"resignal",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_RESIGNAL]), SHOW_LONG_STATUS},
   {"revoke",               (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_REVOKE]), SHOW_LONG_STATUS},
   {"revoke_all",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_REVOKE_ALL]), SHOW_LONG_STATUS},
+  {"revoke_role",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_REVOKE_ROLE]), SHOW_LONG_STATUS},
   {"rollback",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ROLLBACK]), SHOW_LONG_STATUS},
   {"rollback_to_savepoint",(char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ROLLBACK_TO_SAVEPOINT]), SHOW_LONG_STATUS},
   {"savepoint",            (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SAVEPOINT]), SHOW_LONG_STATUS},
@@ -7567,6 +7571,42 @@ static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
+#ifndef DBUG_OFF
+static int debug_status_func(THD *thd, SHOW_VAR *var, char *buff)
+{
+#define add_var(X,Y,Z)                  \
+  v->name= X;                           \
+  v->value= (char*)Y;                   \
+  v->type= Z;                           \
+  v++;
+
+  var->type= SHOW_ARRAY;
+  var->value= buff;
+
+  SHOW_VAR *v= (SHOW_VAR *)buff;
+
+  if (_db_keyword_(0, "role_merge_stats", 1))
+  {
+    static SHOW_VAR roles[]= {
+      {"global",  (char*) &role_global_merges,  SHOW_ULONG},
+      {"db",      (char*) &role_db_merges,      SHOW_ULONG},
+      {"table",   (char*) &role_table_merges,   SHOW_ULONG},
+      {"column",  (char*) &role_column_merges,  SHOW_ULONG},
+      {"routine", (char*) &role_routine_merges, SHOW_ULONG},
+      {NullS, NullS, SHOW_LONG}
+    };
+
+    add_var("role_merges", roles, SHOW_ARRAY);
+  }
+
+  v->name= 0;
+
+#undef add_var
+
+  return 0;
+}
+#endif
+
 #ifdef HAVE_POOL_OF_THREADS
 int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff)
 {
@@ -7606,6 +7646,9 @@ SHOW_VAR status_vars[]= {
   {"Created_tmp_disk_tables",  (char*) offsetof(STATUS_VAR, created_tmp_disk_tables_), SHOW_LONG_STATUS},
   {"Created_tmp_files",	       (char*) &my_tmp_file_created,	SHOW_LONG},
   {"Created_tmp_tables",       (char*) offsetof(STATUS_VAR, created_tmp_tables_), SHOW_LONG_STATUS},
+#ifndef DBUG_OFF
+  {"Debug",                    (char*) &debug_status_func,  SHOW_FUNC},
+#endif
   {"Delayed_errors",           (char*) &delayed_insert_errors,  SHOW_LONG},
   {"Delayed_insert_threads",   (char*) &delayed_insert_threads, SHOW_LONG_NOFLUSH},
   {"Delayed_writes",           (char*) &delayed_insert_writes,  SHOW_LONG},

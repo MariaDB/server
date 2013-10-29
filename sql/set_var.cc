@@ -829,26 +829,7 @@ int set_var_user::update(THD *thd)
 int set_var_password::check(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (!user->host.str)
-  {
-    DBUG_ASSERT(thd->security_ctx->priv_host);
-    if (*thd->security_ctx->priv_host != 0)
-    {
-      user->host.str= (char *) thd->security_ctx->priv_host;
-      user->host.length= strlen(thd->security_ctx->priv_host);
-    }
-    else
-    {
-      user->host.str= (char *)"%";
-      user->host.length= 1;
-    }
-  }
-  if (!user->user.str)
-  {
-    DBUG_ASSERT(thd->security_ctx->user);
-    user->user.str= (char *) thd->security_ctx->user;
-    user->user.length= strlen(thd->security_ctx->user);
-  }
+  user= get_current_user(thd, user);
   /* Returns 1 as the function sends error to client */
   return check_change_password(thd, user->host.str, user->user.str,
                                password, strlen(password)) ? 1 : 0;
@@ -867,6 +848,31 @@ int set_var_password::update(THD *thd)
   return 0;
 #endif
 }
+
+/*****************************************************************************
+  Functions to handle SET ROLE
+*****************************************************************************/
+int set_var_role::check(THD *thd)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  ulonglong access;
+  int status= acl_check_setrole(thd, base.str, &access);
+  save_result.ulonglong_value= access;
+  return status;
+#else
+  return 0;
+#endif
+}
+
+int set_var_role::update(THD *thd)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  return acl_setrole(thd, base.str, save_result.ulonglong_value);
+#else
+  return 0;
+#endif
+}
+
 
 /*****************************************************************************
   Functions to handle SET NAMES and SET CHARACTER SET
