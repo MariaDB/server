@@ -1783,6 +1783,12 @@ int spider_parse_connect_info(
 #ifdef HA_CAN_BULK_ACCESS
   share->bulk_access_free = -1;
 #endif
+#ifdef HA_CAN_FORCE_BULK_UPDATE
+  share->force_bulk_update = -1;
+#endif
+#ifdef HA_CAN_FORCE_BULK_DELETE
+  share->force_bulk_delete = -1;
+#endif
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   for (roop_count = 4; roop_count > 0; roop_count--)
@@ -1925,6 +1931,12 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONGLONG("dol", direct_order_limit, 0);
           SPIDER_PARAM_INT_WITH_MAX("erm", error_read_mode, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX("ewm", error_write_mode, 0, 1);
+#ifdef HA_CAN_FORCE_BULK_DELETE
+          SPIDER_PARAM_INT_WITH_MAX("fbd", force_bulk_delete, 0, 1);
+#endif
+#ifdef HA_CAN_FORCE_BULK_UPDATE
+          SPIDER_PARAM_INT_WITH_MAX("fbu", force_bulk_update, 0, 1);
+#endif
           SPIDER_PARAM_LONGLONG("frd", first_read, 0);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
           SPIDER_PARAM_LONGLONG("hrf", hs_result_free_size, 0);
@@ -2205,6 +2217,14 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT("active_link_count", active_link_count, 1);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("net_write_timeout",
             net_write_timeouts, 0, 2147483647);
+#ifdef HA_CAN_FORCE_BULK_DELETE
+          SPIDER_PARAM_INT_WITH_MAX(
+            "force_bulk_delete", force_bulk_delete, 0, 1);
+#endif
+#ifdef HA_CAN_FORCE_BULK_UPDATE
+          SPIDER_PARAM_INT_WITH_MAX(
+            "force_bulk_update", force_bulk_update, 0, 1);
+#endif
           error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
           my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
             MYF(0), tmp_ptr);
@@ -3404,6 +3424,14 @@ int spider_set_connect_info_default(
 #ifdef HA_CAN_BULK_ACCESS
   if (share->bulk_access_free == -1)
     share->bulk_access_free = 0;
+#endif
+#ifdef HA_CAN_FORCE_BULK_UPDATE
+  if (share->force_bulk_update == -1)
+    share->force_bulk_update = 0;
+#endif
+#ifdef HA_CAN_FORCE_BULK_DELETE
+  if (share->force_bulk_delete == -1)
+    share->force_bulk_delete = 0;
 #endif
   if (share->bka_mode == -1)
     share->bka_mode = 1;
@@ -7398,6 +7426,77 @@ longlong spider_split_read_param(
   spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
   if (!result_list->set_split_read)
   {
+    int bulk_update_mode = spider_param_bulk_update_mode(thd,
+      share->bulk_update_mode);
+    DBUG_PRINT("info",("spider sql_command=%u", spider->sql_command));
+    DBUG_PRINT("info",("spider bulk_update_mode=%d", bulk_update_mode));
+    DBUG_PRINT("info",("spider support_bulk_update_sql=%s",
+      spider->support_bulk_update_sql() ? "TRUE" : "FALSE"));
+    bool updating =
+      (
+#ifdef HS_HAS_SQLCOM
+        spider->sql_command == SQLCOM_HS_UPDATE ||
+#endif
+        spider->sql_command == SQLCOM_UPDATE ||
+        spider->sql_command == SQLCOM_UPDATE_MULTI
+      );
+    bool deleting =
+      (
+#ifdef HS_HAS_SQLCOM
+        spider->sql_command == SQLCOM_HS_DELETE ||
+#endif
+        spider->sql_command == SQLCOM_DELETE ||
+        spider->sql_command == SQLCOM_DELETE_MULTI
+      );
+    bool replacing =
+      (
+        spider->sql_command == SQLCOM_REPLACE ||
+        spider->sql_command == SQLCOM_REPLACE_SELECT
+      );
+    DBUG_PRINT("info",("spider updating=%s", updating ? "TRUE" : "FALSE"));
+    DBUG_PRINT("info",("spider deleting=%s", deleting ? "TRUE" : "FALSE"));
+    DBUG_PRINT("info",("spider replacing=%s", replacing ? "TRUE" : "FALSE"));
+    TABLE *table = spider->get_table();
+    if (
+      replacing ||
+      (
+        (
+          updating ||
+          deleting
+        ) &&
+        (
+          bulk_update_mode != 2 ||
+          !spider->support_bulk_update_sql() ||
+          (
+            updating &&
+            table->triggers &&
+#ifdef HA_CAN_FORCE_BULK_UPDATE
+            !(table->file->ha_table_flags() & HA_CAN_FORCE_BULK_UPDATE) &&
+#endif
+            table->triggers->has_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER)
+          ) ||
+          (
+            deleting &&
+            table->triggers &&
+#ifdef HA_CAN_FORCE_BULK_DELETE
+            !(table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE) &&
+#endif
+            table->triggers->has_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER)
+          )
+        )
+      )
+    ) {
+      /* This case must select by one shot */
+      DBUG_PRINT("info",("spider cancel split read"));
+      result_list->split_read_base = 9223372036854775807LL;
+      result_list->semi_split_read = 9223372036854775807LL;
+      result_list->semi_split_read_limit = 9223372036854775807LL;
+      result_list->first_read = 9223372036854775807LL;
+      result_list->second_read = 9223372036854775807LL;
+      result_list->semi_split_read_base = 0;
+      result_list->set_split_read = TRUE;
+      DBUG_RETURN(9223372036854775807LL);
+    }
     result_list->split_read_base =
       spider_param_split_read(thd, share->split_read);
     result_list->semi_split_read =

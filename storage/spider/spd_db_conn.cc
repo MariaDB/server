@@ -1038,11 +1038,15 @@ int spider_db_query_for_bulk_update(
         );
     }
     if (
-      error_num == ER_DUP_ENTRY ||
-      error_num == ER_DUP_KEY ||
-      error_num == HA_ERR_FOUND_DUPP_KEY
+      spider->ignore_dup_key &&
+      (
+        error_num == ER_DUP_ENTRY ||
+        error_num == ER_DUP_KEY ||
+        error_num == HA_ERR_FOUND_DUPP_KEY
+      )
     ) {
       ++(*dup_key_found);
+      spider->trx->thd->clear_error();
       DBUG_RETURN(0);
     }
     DBUG_RETURN(error_num);
