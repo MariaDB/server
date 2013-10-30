@@ -197,7 +197,19 @@ handle_rpl_parallel_thread(void *arg)
           mysql_mutex_unlock(&entry->LOCK_parallel_entry);
         }
 
-        DBUG_ASSERT(!thd->wait_for_commit_ptr);
+        if(thd->wait_for_commit_ptr)
+        {
+          /*
+            This indicates that we get a new GTID event in the middle of
+            a not completed event group. This is corrupt binlog (the master
+            will never write such binlog), so it does not happen unless
+            someone tries to inject wrong crafted binlog, but let us still
+            try to handle it somewhat nicely.
+          */
+          rgi->cleanup_context(thd, true);
+          thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
+          thd->wait_for_commit_ptr->wakeup_subsequent_commits(err);
+        }
         thd->wait_for_commit_ptr= &rgi->commit_orderer;
       }
 
@@ -283,6 +295,7 @@ handle_rpl_parallel_thread(void *arg)
       */
       rpt->dequeue(events);
       mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
+      mysql_cond_signal(&rpt->COND_rpl_thread);
       goto more_events;
     }
 
@@ -801,8 +814,14 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     if (typ == ROTATE_EVENT)
     {
       Rotate_log_event *rev= static_cast<Rotate_log_event *>(qev->ev);
-      memcpy(rli->future_event_master_log_name,
-             rev->new_log_ident, rev->ident_len+1);
+      if ((rev->server_id != global_system_variables.server_id ||
+           rli->replicate_same_server_id) &&
+          !rev->is_relay_log_event() &&
+          !rli->is_in_group())
+      {
+        memcpy(rli->future_event_master_log_name,
+               rev->new_log_ident, rev->ident_len+1);
+      }
     }
 
     err= rpt_handle_event(qev, NULL);
