@@ -902,8 +902,9 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
       {
         strcpy(group_master_log_name, rgi->future_event_master_log_name);
         notify_group_master_log_name_update();
+        group_master_log_pos= log_pos;
       }
-      if (group_master_log_pos < log_pos)
+      else if (group_master_log_pos < log_pos)
         group_master_log_pos= log_pos;
     }
   }
