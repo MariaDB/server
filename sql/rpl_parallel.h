@@ -27,6 +27,7 @@ struct rpl_parallel_thread {
     char event_relay_log_name[FN_REFLEN];
     char future_event_master_log_name[FN_REFLEN];
     ulonglong event_relay_log_pos;
+    my_off_t future_event_master_log_pos;
     size_t event_size;
   } *event_queue, *last_in_queue;
   uint64 queued_size;
