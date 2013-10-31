@@ -4585,6 +4585,12 @@ innobase_match_index_columns(
 			}
 		}
 
+                // MariaDB-5.5 compatibility
+                if ((key_part->field->real_type() == MYSQL_TYPE_ENUM ||
+                     key_part->field->real_type() == MYSQL_TYPE_SET) &&
+                    mtype == DATA_FIXBINARY)
+                  col_type= DATA_FIXBINARY;
+
 		if (col_type != mtype) {
 			/* Column Type mismatches */
 			DBUG_RETURN(FALSE);
@@ -5757,7 +5763,10 @@ get_innobase_type_from_mysql_type(
 	case HA_KEYTYPE_DOUBLE:
 		return(DATA_DOUBLE);
 	case HA_KEYTYPE_BINARY:
-                if (field->type() == MYSQL_TYPE_TINY)
+                if (field->type() == MYSQL_TYPE_TINY ||
+                    field->real_type() == MYSQL_TYPE_ENUM ||
+                    field->real_type() == MYSQL_TYPE_SET
+                    )
                 { // compatibility workaround
                 	*unsigned_flag= DATA_UNSIGNED;
                 	return DATA_INT;

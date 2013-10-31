@@ -1,0 +1,25 @@
+--source include/have_innodb.inc
+
+--echo # Create a table with a 1-byte ENUM, 1-byte SET, and TINYINT UNSIGNED.
+
+CREATE TABLE t1
+(
+  t1_enum       ENUM("a", "b", "c"),
+  t1_set        SET("a", "b", "c"),
+  t1_tinyint_s  TINYINT,
+  t1_tinyint_u  TINYINT UNSIGNED
+) ENGINE=InnoDB;
+
+--echo # All t1 fields' mtypes should be 6 (DATA_INT).
+
+SELECT
+  name,
+  mtype,
+  (prtype & 512) = 512 AS is_unsigned
+FROM information_schema.INNODB_SYS_COLUMNS
+WHERE name LIKE "t1\_%"
+ORDER BY name;
+
+--echo # Cleanup
+
+DROP TABLE t1;
