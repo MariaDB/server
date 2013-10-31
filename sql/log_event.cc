@@ -966,11 +966,17 @@ int Log_event::do_update_pos(rpl_group_info *rgi)
                     if (debug_not_change_ts_if_art_event == 1
                         && is_artificial_event())
                       debug_not_change_ts_if_art_event= 0; );
-    rli->stmt_done(log_pos,
-                   (is_artificial_event() &&
-                    IF_DBUG(debug_not_change_ts_if_art_event > 0, 1) ?
-                    0 : when),
-                   thd, rgi);
+    /*
+      In parallel execution, delay position update for the events that are
+      not part of event groups (format description, rotate, and such) until
+      the actual event execution reaches that point.
+    */
+    if (!rgi->is_parallel_exec || is_group_event(get_type_code()))
+      rli->stmt_done(log_pos,
+                     (is_artificial_event() &&
+                      IF_DBUG(debug_not_change_ts_if_art_event > 0, 1) ?
+                      0 : when),
+                     thd, rgi);
     DBUG_EXECUTE_IF("let_first_flush_log_change_timestamp",
                     if (debug_not_change_ts_if_art_event == 0)
                       debug_not_change_ts_if_art_event= 2; );
