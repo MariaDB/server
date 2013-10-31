@@ -93,6 +93,21 @@ count(*)
 1
 2 correlated SQ, , 2-way join, one SQ inside an OR
 explain extended
+SELECT straight_join count(*)
+FROM t1, t2
+WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
+(a2 <= (select count(*) from sq where s1 >= a1) or a1 > 0) and
+b2 <= (select count(*) from sq where s1 >= b1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	2.62	Using where; Subqueries: 3, 2
+3	DEPENDENT SUBQUERY	sq	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+2	DEPENDENT SUBQUERY	sq	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t2.b1' of SELECT #3 was resolved in SELECT #1
+Note	1003	select straight_join count(0) AS `count(*)` from `test`.`t1` join `test`.`t2` where ((`test`.`t2`.`b1` = `test`.`t1`.`a1`) and (`test`.`t2`.`b2` < '6') and (`test`.`t2`.`b3` < '4') and (`test`.`t2`.`b4` < '2') and ((`test`.`t1`.`a2` <= <expr_cache><`test`.`t1`.`a1`>((select count(0) from `test`.`sq` where (`test`.`sq`.`s1` >= `test`.`t1`.`a1`)))) or (`test`.`t1`.`a1` > 0)) and (`test`.`t2`.`b2` <= <expr_cache><`test`.`t2`.`b1`>((select count(0) from `test`.`sq` where (`test`.`sq`.`s1` >= `test`.`t2`.`b1`)))))
+explain extended
 SELECT count(*)
 FROM t1 straight_join t2
 WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
@@ -118,6 +133,18 @@ uncorrelated SQ, 3-way join
 the number of buffer refills > partial join size of t3, move
 join_tab->cache_select->cond to t3
 set @@join_buffer_size=128;
+explain extended
+SELECT straight_join count(*)
+FROM t1, t2 straight_join t3
+WHERE a1 = b1 and b2 = c1 and c2 < '6' and c3 < '4' and c4 < '2' and
+b2 <= (select count(*) from sq where s1 > 0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Subqueries: 2
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	2.62	Using where; Subqueries: 2
+2	SUBQUERY	sq	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1003	select straight_join count(0) AS `count(*)` from `test`.`t1` join `test`.`t2` straight_join `test`.`t3` where ((`test`.`t2`.`b1` = `test`.`t1`.`a1`) and (`test`.`t3`.`c1` = `test`.`t2`.`b2`) and (`test`.`t3`.`c2` < '6') and (`test`.`t3`.`c3` < '4') and (`test`.`t3`.`c4` < '2') and (`test`.`t2`.`b2` <= (select count(0) from `test`.`sq` where (`test`.`sq`.`s1` > 0))))
 explain extended
 SELECT count(*)
 FROM t1 straight_join t2 straight_join t3
@@ -157,5 +184,28 @@ b2 <= (select count(*) from sq where s1 > 0);
 count(*)
 1
 drop table t0, t1 ,t2, t3, sq;
+
+MDEV-5178 Valgrind warnings (Conditional jump or move depends on uninitialised value) with static_cond_pushdown=on, FROM subquery
+
+SET optimizer_switch='static_cond_pushdown=on';
+CREATE TABLE t1 (x INT, y INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1, 9),(2, 3);
+EXPLAIN EXTENDED
+SELECT * FROM t1 t1a, ( SELECT * FROM t1 ) AS t1b 
+WHERE t1a.x = ( SELECT SUM(x) FROM t1 ) OR t1a.x <= t1a.y;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1a	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Subqueries: 3
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	select `test`.`t1a`.`x` AS `x`,`test`.`t1a`.`y` AS `y`,`test`.`t1`.`x` AS `x`,`test`.`t1`.`y` AS `y` from `test`.`t1` `t1a` join `test`.`t1` where ((`test`.`t1a`.`x` = (select sum(`test`.`t1`.`x`) from `test`.`t1`)) or (`test`.`t1a`.`x` <= `test`.`t1a`.`y`))
+SELECT * FROM t1 t1a, ( SELECT * FROM t1 ) AS t1b 
+WHERE t1a.x = ( SELECT SUM(x) FROM t1 ) OR t1a.x <= t1a.y;
+x	y	x	y
+1	9	1	9
+1	9	2	3
+2	3	1	9
+2	3	2	3
+drop table t1;
 set @@optimizer_switch = default;
 set @@join_cache_level=default;

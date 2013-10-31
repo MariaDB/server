@@ -62,6 +62,13 @@ WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
 
 --echo 2 correlated SQ, , 2-way join, one SQ inside an OR
 explain extended
+SELECT straight_join count(*)
+FROM t1, t2
+WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
+      (a2 <= (select count(*) from sq where s1 >= a1) or a1 > 0) and
+      b2 <= (select count(*) from sq where s1 >= b1);
+
+explain extended
 SELECT count(*)
 FROM t1 straight_join t2
 WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
@@ -79,6 +86,12 @@ WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
 --echo the number of buffer refills > partial join size of t3, move
 --echo join_tab->cache_select->cond to t3
 set @@join_buffer_size=128;
+
+explain extended
+SELECT straight_join count(*)
+FROM t1, t2 straight_join t3
+WHERE a1 = b1 and b2 = c1 and c2 < '6' and c3 < '4' and c4 < '2' and
+      b2 <= (select count(*) from sq where s1 > 0);
 
 explain extended
 SELECT count(*)
@@ -107,5 +120,24 @@ WHERE a1 = b1 and b2 = c1 and c2 < '6' and c3 < '4' and c4 < '2' and
 
 
 drop table t0, t1 ,t2, t3, sq;
+
+
+--echo
+--echo MDEV-5178 Valgrind warnings (Conditional jump or move depends on uninitialised value) with static_cond_pushdown=on, FROM subquery
+--echo
+
+SET optimizer_switch='static_cond_pushdown=on';
+
+CREATE TABLE t1 (x INT, y INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1, 9),(2, 3);
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 t1a, ( SELECT * FROM t1 ) AS t1b 
+WHERE t1a.x = ( SELECT SUM(x) FROM t1 ) OR t1a.x <= t1a.y;
+
+SELECT * FROM t1 t1a, ( SELECT * FROM t1 ) AS t1b 
+WHERE t1a.x = ( SELECT SUM(x) FROM t1 ) OR t1a.x <= t1a.y;
+
+drop table t1;
 
 set @@optimizer_switch = default;

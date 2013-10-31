@@ -1511,7 +1511,7 @@ public:
 
   /* defined in opt_subselect.cc */
   bool transform_max_min_subquery();
-  double static_pushdown_cost(Item *cond, uint idx);
+  double static_pushdown_cost(uint idx);
   bool setup_dynamic_conditions();
   /* True if this JOIN is a subquery under an IN predicate. */
   bool is_in_subquery()

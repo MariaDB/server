@@ -6756,12 +6756,20 @@ optimize_straight_join(JOIN *join, table_map join_tables)
       pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
                                                         join_tables);
     join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
+    join->positions[idx].partial_join_cardinality= record_count *
+                                                   pushdown_cond_selectivity;
     ++idx;
   }
 
   if (join->sort_by_table &&
       join->sort_by_table != join->positions[join->const_tables].table->table)
     read_time+= record_count;  // We have to make a temp table
+
+  if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_STATIC_COND_PUSHDOWN) &&
+      /* @todo join->conds->is_expensive() is not a reliable estimate*/
+      join->conds && join->conds->with_subselect && (idx - 1) > join->const_tables)
+    read_time+= join->static_pushdown_cost(idx - 1);
+
   memcpy((uchar*) join->best_positions, (uchar*) join->positions,
          sizeof(POSITION)*idx);
   join->record_count= record_count;
@@ -7650,50 +7658,14 @@ best_extension_by_limited_search(JOIN      *join,
 
         /*
           For each subquery find the partial join with the least cardinality
-          in order to minimize the number of subquery evaluations.
+          where to push it in order to minimize the number of subquery
+          evaluations. Update the cost of the plan according to the optimal
+          pushdown position of each subquery.
         */
         if (optimizer_flag(thd, OPTIMIZER_SWITCH_STATIC_COND_PUSHDOWN) &&
-            join->conds && join->conds->with_subselect
-            /* @todo This is not a reliable estimate:
-               && join->conds->is_expensive()*/)
-        {
-          /*
-            Find and store the POSITION with the least partial result cardinality
-            between the current and last POSITION in the query plan.
-          */
-          POSITION *min_pos= NULL;
-          for (POSITION *p_pos= join->positions + idx,
-                 *p_end= join->positions + join->const_tables;
-               p_pos >= p_end ;
-               p_pos--)
-          {
-            if (!min_pos ||
-                p_pos->partial_join_cardinality <= min_pos->partial_join_cardinality)
-              min_pos= p_pos;
-            p_pos->least_card_pos= min_pos;
-          }
-
-          /*
-            Make expensive predicates dependent on the table that is in the
-            partial join with the least cardinality after the left-most join
-            where the predicate can be pushed.
-          */
-          if (is_cond_and(join->conds))
-          {
-            List_iterator<Item> and_parts_it(*((Item_cond*) join->conds)->argument_list());
-            Item *and_part;
-            while ((and_part= and_parts_it++))
-            {
-              if (!and_part->with_subselect
-                  /* @todo This is not a reliable estimate:
-                     !and_part->is_expensive()*/)
-                continue;
-              current_read_time+= join->static_pushdown_cost(and_part, idx);
-            }
-          }
-          else
-            current_read_time+= join->static_pushdown_cost(join->conds, idx);
-        }
+            /* @todo join->conds->is_expensive() is not a reliable estimate*/
+            join->conds && join->conds->with_subselect && idx > join->const_tables)
+          current_read_time+= join->static_pushdown_cost(idx);
 
         if (current_read_time < join->best_read)
         {
@@ -24514,45 +24486,113 @@ void JOIN::cache_const_exprs()
   }
 }
 
+/**
+  Compute the added cost of all expensive subqueries if they are pushed
+  to their respective optimal positions in a complete join plan.
 
-double JOIN::static_pushdown_cost(Item *pushed_cond, uint idx)
+  @note
+  During join optimization we don't do yet condition pushdown. The WHERE
+  clause during join optimization has one of the two forms:
+  - cond1 - this is a non-conjunctive condition that can be pushed to
+    a certain JOIN_TAB only as a whole,
+  - (cond1 AND cond2 AND ...) - where each conjunct cond_i can be pushed as
+    a whole to a certain JOIN_TAB. Each cond_i cannot be 'split' further
+    into parts that can be pushed to different JOIN_TABs.
+  This form of the WHERE clause allows us to find where each cond_i (or
+  the single cond1) can be pushed in the join plan.
+
+  The method first finds for each JOIN_TAB the subsequent 'optimal' JOIN_TAB
+  with least partial result cardinality.
+
+  Then we find the left-most JOIN_TAB where each conjunct can be pushed.
+  The found JOIN_TABs are the same as the ones found later by
+  make_cond_for_table().
+
+  Next, for each pushdownable condition that contains a subquery, we
+  find the optimal JOIN_TAB where it should be pushed, and update the
+  cost of the corresponding POSITION object.
+
+  This form allows us to:
+  - for each precompute the 
+  - find the left-most tab where each of cond_i can be pushed, or where
+    the single cond1 can be pushed,
+  - then find the optimi
+
+  @return
+    The total added cost of all subqueries as if they are pushed to their
+    optimal positions in the join plan.
+*/
+
+double JOIN::static_pushdown_cost(uint idx)
 {
-  table_map cond_tables= pushed_cond->used_tables();
-  POSITION *last_pos= NULL;
-  POSITION *opt_pos;
-  double pushed_cond_cost;
-
-  DBUG_ASSERT(pushed_cond->with_subselect
-              /*pushed_cond->is_expensive()*/);
-
-  if (!cond_tables || cond_tables == OUTER_REF_TABLE_BIT || idx <= const_tables)
-    return 0;
+  POSITION *min_pos= NULL, *last_pos, *opt_pos;
+  List<Item> preds;
+  List_iterator<Item> it(preds);
+  Item *cur_item;
+  double pushed_cond_cost= 0;
 
   /*
-    Find the last join_tab on which the subquery depends. This is the
-    earliest join_tab where the condition can be pushed.
+    Find and store the POSITION with the least partial result cardinality
+    between the current and last POSITION in the current query plan.
   */
   for (POSITION *p_pos= positions + idx, *p_end= positions + const_tables;
        p_pos >= p_end ; p_pos--)
   {
-    if (p_pos->table->table->map & cond_tables)
-    {
-      last_pos= p_pos;
-      break;
-    }
+    if (!min_pos ||
+        p_pos->partial_join_cardinality <= min_pos->partial_join_cardinality)
+      min_pos= p_pos;
+    p_pos->least_card_pos= min_pos;
   }
-  if (!last_pos)
-    return 0; // pushed_cond depends only on constant tables
 
-  opt_pos= last_pos->least_card_pos;
+  /* Turn the WHERE clause into a uniform list representation. */
+  if (is_cond_and(conds))
+    preds.concat(((Item_cond*) conds)->argument_list());
+  else
+    preds.push_back(conds);
 
   /*
-    Update the cost of the POSITION where the subquery is pushed to,
-    and the total cost of the query plan.
+    For each pushdownable item in the where clause, find the position in the
+    plan with the least 
   */
-  pushed_cond->walk(&Item::sum_cost_processor, false, (uchar*) &pushed_cond_cost);
-  pushed_cond_cost= opt_pos->partial_join_cardinality * pushed_cond_cost;
-  opt_pos->read_time+= pushed_cond_cost;
+  while ((cur_item= it++))
+  {
+    table_map referenced_tables= cur_item->used_tables();
+    double cur_item_cost= 0;
+
+    if (!referenced_tables || (referenced_tables & OUTER_REF_TABLE_BIT) ||
+        !cur_item->needs_dynamic_cond())
+      continue;
+
+    /*
+      Find the left-most join_tab on which the subquery depends. This is the
+      earliest join_tab where the condition can be pushed.
+    */
+    last_pos= NULL;
+    for (POSITION *p_pos= positions + idx, *p_end= positions + const_tables;
+         p_pos >= p_end ; p_pos--)
+    {
+      if (p_pos->table->table->map & referenced_tables)
+      {
+        last_pos= p_pos;
+        break;
+      }
+    }
+    if (!last_pos)
+      continue; /* cur_item depends only on constant tables */
+
+    /* The optimal position with least cardinality where to push cur_item. */
+    opt_pos= last_pos->least_card_pos;
+
+    /*
+      Update the cost of the POSITION as if cur_item will be pushed to the
+      'optimal' join_tab. Accumulate the cost of the predicate so that it can
+      be added to the total query plan cost.
+    */
+    cur_item->walk(&Item::sum_cost_processor, false, (uchar*) &cur_item_cost);
+    cur_item_cost= opt_pos->partial_join_cardinality * cur_item_cost;
+    opt_pos->read_time+= cur_item_cost;
+    pushed_cond_cost+= cur_item_cost;
+  }
 
   return pushed_cond_cost;
 }

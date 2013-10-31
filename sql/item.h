@@ -1480,7 +1480,10 @@ public:
     Perhaps this cost should be smaller or 0.
   */
   virtual double get_cost() { return (1 / (double)TIME_FOR_COMPARE); }
-  /* The default execution-time cost of an Item is its compile-time cost. */
+  /*
+    The actual execution-time cost of this Item. The current default is its
+    compile-time cost. In the future we can measure the actual CPU cost.
+  */
   virtual double exec_cost() { return get_cost(); }
 
 
