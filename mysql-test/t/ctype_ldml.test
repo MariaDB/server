@@ -342,10 +342,14 @@ INSERT INTO t1 VALUES ('A'),('B'),('C'),('D'),('E'),('F'),('G'),('H'),('I');
 INSERT INTO t1 VALUES ('J'),('K'),('L'),('M'),('N'),('O'),('P'),('Q'),('R');
 INSERT INTO t1 VALUES ('S'),('T'),('U'),('V'),('W'),('X'),('Y'),('Z');
 INSERT INTO t1 VALUES ('AA'),('AAA');
+INSERT INTO t1 VALUES ('001'),('002');
 
 SELECT a, HEX(WEIGHT_STRING(a)) FROM t1 ORDER BY a, LENGTH(a), BINARY(a);
 DROP TABLE t1;
 
+--error ER_UNKNOWN_COLLATION
+SET NAMES utf8 COLLATE utf8_5624_5_bad;
+SHOW WARNINGS;
 
 --echo #
 --echo # End of WL#5624

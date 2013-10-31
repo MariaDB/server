@@ -114,10 +114,22 @@
            weight space between 0 and 1 in DUCET.
            Also, to test it works with contractions, put some after 'z'.
         -->
-        <reset>0</reset>
+        <reset>0</reset><s>001</s><s>002</s>
         <pc>abcdefghijklmnopqrstuvwxyz</pc><p>aa</p><p>aaa</p>
         <reset before="primary">1</reset>
         <pc>ABCDEFGHIJKLMNOPQRSTUVWXYZ</pc><p>AA</p><p>AAA</p>
+      </rules>
+    </collation>
+
+    <collation name="utf8_5624_5_bad" id="369" shift-after-method="expand">
+      <rules>
+      <reset>a-a4</reset><p>xxx04</a>
+      <reset>a-aa5</reset><p>xxx05</a>
+      <reset>a-aaa6</reset><p>xxx06</a>
+      <reset>a-aaaa7</reset><p>xxx07</a>
+      <reset>a-aaaaa8</reset><p>xxx08</a>
+      <reset>a-aaaaaa9</reset><p>xxx09</a>
+      <reset>a-aaaaaa10</reset><p>xxx10</a>
       </rules>
     </collation>
 

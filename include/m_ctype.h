@@ -88,13 +88,25 @@ extern MY_UNICASE_INFO my_unicase_mysql500;
 extern MY_UNICASE_INFO my_unicase_unicode520;
 
 #define MY_UCA_MAX_CONTRACTION 6
-#define MY_UCA_MAX_WEIGHT_SIZE 8
+/*
+  The DUCET tables in ctype-uca.c are dumped with a limit of 8 weights
+  per character. cs->strxfrm_multiply is set to 8 for all UCA based collations.
+
+  In language-specific UCA collations (with tailorings) we also do not allow
+  a single character to have more than 8 weights to stay with the same
+  strxfrm_multiply limit. Note, contractions are allowed to have twice longer
+  weight strings (up to 16 weights). As a contraction consists of at
+  least 2 characters, this makes sure that strxfrm_multiply ratio of 8
+  is respected.
+*/
+#define MY_UCA_MAX_WEIGHT_SIZE (8+1)               /* Including 0 terminator */
+#define MY_UCA_CONTRACTION_MAX_WEIGHT_SIZE (2*8+1) /* Including 0 terminator */
 #define MY_UCA_WEIGHT_LEVELS   1
 
 typedef struct my_contraction_t
 {
   my_wc_t ch[MY_UCA_MAX_CONTRACTION];   /* Character sequence              */
-  uint16 weight[MY_UCA_MAX_WEIGHT_SIZE];/* Its weight string, 0-terminated */
+  uint16 weight[MY_UCA_CONTRACTION_MAX_WEIGHT_SIZE];/* Its weight string, 0-terminated */
   my_bool with_context;
 } MY_CONTRACTION;
 
