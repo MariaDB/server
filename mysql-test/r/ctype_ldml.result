@@ -425,6 +425,7 @@ ucs2_test_ci	ucs2	358			8
 ucs2_vn_ci	ucs2	359			8
 ucs2_5624_1	ucs2	360			8
 utf8_5624_5	utf8	368			8
+utf8_5624_5_bad	utf8	369			8
 utf32_test_ci	utf32	391			8
 utf8_maxuserid_ci	utf8	2047			8
 show collation like '%test%';
@@ -1030,9 +1031,12 @@ INSERT INTO t1 VALUES ('A'),('B'),('C'),('D'),('E'),('F'),('G'),('H'),('I');
 INSERT INTO t1 VALUES ('J'),('K'),('L'),('M'),('N'),('O'),('P'),('Q'),('R');
 INSERT INTO t1 VALUES ('S'),('T'),('U'),('V'),('W'),('X'),('Y'),('Z');
 INSERT INTO t1 VALUES ('AA'),('AAA');
+INSERT INTO t1 VALUES ('001'),('002');
 SELECT a, HEX(WEIGHT_STRING(a)) FROM t1 ORDER BY a, LENGTH(a), BINARY(a);
 a	HEX(WEIGHT_STRING(a))
 0	0E29
+001	0E29
+002	0E29
 0z	0E290E292357
 0ﾝ	0E291E81
 a	0E29233E
@@ -1093,6 +1097,12 @@ AA	0E293358
 AAA	0E293359
 1	0E2A
 DROP TABLE t1;
+SET NAMES utf8 COLLATE utf8_5624_5_bad;
+ERROR HY000: Unknown collation: 'utf8_5624_5_bad'
+SHOW WARNINGS;
+Level	Code	Message
+Error	1273	Unknown collation: 'utf8_5624_5_bad'
+Warning	1273	Expansion too long: 'a\u002Daaaaaa10'
 #
 # End of WL#5624
 #

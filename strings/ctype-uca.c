@@ -8211,7 +8211,7 @@ ex:
   Collation rule item
 */
 
-#define MY_UCA_MAX_EXPANSION  6  /* Maximum expansion length   */
+#define MY_UCA_MAX_EXPANSION  10 /* Maximum expansion length   */
 
 typedef struct my_coll_rule_item_st
 {
@@ -8821,42 +8821,6 @@ my_coll_parser_scan_reset_sequence(MY_COLL_RULE_PARSER *p)
                                             MY_UCA_MAX_EXPANSION, "Expansion"))
       return 0;
   }
-
-  if (p->rules->shift_after_method == my_shift_method_expand ||
-      p->rule.before_level == 1) /* Apply "before primary" option  */
-  {
-    /*
-      Suppose we have this rule:  &B[before primary] < C
-      i.e. we need to put C before B, but after A, so
-      the result order is: A < C < B.
-
-      Let primary weight of B be [BBBB].
-
-      We cannot just use [BBBB-1] as weight for C:
-      DUCET does not have enough unused weights between any two characters,
-      so using [BBBB-1] will likely make C equal to the previous character,
-      which is A, so we'll get this order instead of the desired: A = C < B.
-
-      To guarantee that that C is sorted after A, we'll use expansion
-      with a kind of "biggest possible character".
-      As "biggest possible character" we'll use "last_non_ignorable":
-
-      We'll compose weight for C as: [BBBB-1][MMMM+1]
-      where [MMMM] is weight for "last_non_ignorable".
-      
-      We also do the same trick for "reset after" if the collation
-      option says so. E.g. for the rules "&B < C", weight for
-      C will be calculated as: [BBBB][MMMM+1]
-
-      At this point we only need to store codepoints
-      'B' and 'last_non_ignorable'. Actual weights for 'C'
-      will be calculated according to the above formula later,
-      in create_tailoring().
-    */
-    if (!my_coll_rule_expand(p->rule.base, MY_UCA_MAX_EXPANSION,
-                             p->rules->uca->last_non_ignorable))
-      return my_coll_parser_too_long_error(p, "Expansion");
-  }
   return 1;
 }
 
@@ -9056,20 +9020,25 @@ my_coll_rule_parse(MY_COLL_RULES *rules,
   @dst_uca    destination UCA weight data
   @to         destination address
   @to_length  size of destination
+  @nweights   OUT number of weights put to "to"
   @str        qide string
   @len        string length
   
-  @return    number of weights put
+  @return     FALSE on success, TRUE if the weights did not fit.
 */
 
-static size_t
+static my_bool
 my_char_weight_put(MY_UCA_WEIGHT_LEVEL *dst,
-                   uint16 *to, size_t to_length,
+                   uint16 *to, size_t to_length, size_t *nweights,
                    my_wc_t *str, size_t len)
 {
   size_t count;
+  int rc= FALSE;
   if (!to_length)
-    return 0;
+  {
+    *nweights= 0;
+    return len > 0;
+  }
   to_length--; /* Without trailing zero */
 
   for (count= 0; len; )
@@ -9099,10 +9068,13 @@ my_char_weight_put(MY_UCA_WEIGHT_LEVEL *dst,
       *to++= *from++;
       count++;
     }
+    if (count == to_length && from && * from)
+      rc= TRUE; /* All weights did not fit */
   }
 
   *to= 0;
-  return count;
+  *nweights= count;
+  return rc;
 }
 
 
@@ -9191,6 +9163,37 @@ apply_shift(MY_CHARSET_LOADER *loader,
 }
 
 
+static void
+wstr_to_str(char *str, size_t length, my_wc_t *wc, size_t wlength)
+{
+  const char *end= str + length;
+  char *s;
+  size_t i, rem;
+  for (s= str, i= 0; (rem= (end - s)) > 0 && i < wlength; i++)
+  {
+    if ((wc[i] >= '0' && wc[i] <= '9') ||
+        (wc[i] >= 'a' && wc[i] <= 'z') ||
+        (wc[i] >= 'A' && wc[i] <= 'Z'))
+      s+= my_snprintf(s, rem, "%c", (int) wc[i]);
+    else
+      s+= my_snprintf(s, rem, "\\u%04X", (int) wc[i]);
+  }
+}
+
+
+static void
+my_charset_loader_error_for_rule(MY_CHARSET_LOADER *loader, 
+                                 const MY_COLL_RULE *r,
+                                 const char *name,
+                                 my_wc_t *wc, size_t wlength)
+{
+  char tmp[128];
+  wstr_to_str(tmp, sizeof(tmp), wc, wlength);
+  my_snprintf(loader->error, sizeof(loader->error),
+              "%s too long: '%s'", name, tmp);
+}
+
+
 static my_bool
 apply_one_rule(MY_CHARSET_LOADER *loader,
                MY_COLL_RULES *rules, MY_COLL_RULE *r, int level,
@@ -9200,6 +9203,47 @@ apply_one_rule(MY_CHARSET_LOADER *loader,
   size_t nreset= my_coll_rule_reset_length(r); /* Length of reset sequence */
   size_t nshift= my_coll_rule_shift_length(r); /* Length of shift sequence */
   uint16 *to;
+  my_bool rc;
+
+  if ((rules->shift_after_method == my_shift_method_expand && r->diff[0]) ||
+      r->before_level == 1)
+  {
+    /*
+      Suppose we have this rule:  &B[before primary] < C
+      i.e. we need to put C before B, but after A, so
+      the result order is: A < C < B.
+
+      Let primary weight of B be [BBBB].
+
+      We cannot just use [BBBB-1] as weight for C:
+      DUCET does not have enough unused weights between any two characters,
+      so using [BBBB-1] will likely make C equal to the previous character,
+      which is A, so we'll get this order instead of the desired: A = C < B.
+
+      To guarantee that that C is sorted after A, we'll use expansion
+      with a kind of "biggest possible character".
+      As "biggest possible character" we'll use "last_non_ignorable":
+
+      We'll compose weight for C as: [BBBB-1][MMMM+1]
+      where [MMMM] is weight for "last_non_ignorable".
+      
+      We also do the same trick for "reset after" if the collation
+      option says so. E.g. for the rules "&B < C", weight for
+      C will be calculated as: [BBBB][MMMM+1]
+
+      At this point we only need to store codepoints
+      'B' and 'last_non_ignorable'. Actual weights for 'C'
+      will be calculated according to the above formula later,
+      in create_tailoring().
+    */
+    if (!my_coll_rule_expand(r->base, MY_UCA_MAX_EXPANSION,
+                             rules->uca->last_non_ignorable))
+    {
+      my_charset_loader_error_for_rule(loader, r, "Expansion", r->base, nreset);
+      return TRUE;
+    }
+    nreset= my_coll_rule_reset_length(r);
+  }
 
   if (nshift >= 2) /* Contraction */
   {
@@ -9222,8 +9266,9 @@ apply_one_rule(MY_CHARSET_LOADER *loader,
                                r->with_context)->weight;
     /* Store weights of the "reset to" character */
     dst->contractions.nitems--; /* Temporarily hide - it's incomplete */
-    nweights= my_char_weight_put(dst, to, MY_UCA_MAX_WEIGHT_SIZE,
-                                 r->base, nreset);
+    rc= my_char_weight_put(dst,
+                           to, MY_UCA_CONTRACTION_MAX_WEIGHT_SIZE, &nweights,
+                           r->base, nreset);
     dst->contractions.nitems++; /* Activate, now it's complete */
   }
   else
@@ -9232,7 +9277,12 @@ apply_one_rule(MY_CHARSET_LOADER *loader,
     DBUG_ASSERT(dst->weights[pagec]);
     to= my_char_weight_addr(dst, r->curr[0]);
     /* Store weights of the "reset to" character */
-    nweights= my_char_weight_put(dst, to, dst->lengths[pagec], r->base, nreset);
+    rc= my_char_weight_put(dst, to, dst->lengths[pagec], &nweights, r->base, nreset);
+  }
+  if (rc)
+  {
+    my_charset_loader_error_for_rule(loader, r, "Expansion", r->base, nreset);
+    return rc;
   }
 
   /* Apply level difference. */
