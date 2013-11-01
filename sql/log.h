@@ -45,6 +45,15 @@ class TC_LOG
 
   virtual int open(const char *opt_name)=0;
   virtual void close()=0;
+  /*
+    Transaction coordinator 2-phase commit.
+
+    Must invoke the run_prepare_ordered and run_commit_ordered methods, as
+    described below for these methods.
+
+    In addition, must invoke THD::wait_for_prior_commit(), or equivalent
+    wait, to ensure that one commit waits for another if registered to do so.
+  */
   virtual int log_and_order(THD *thd, my_xid xid, bool all,
                             bool need_prepare_ordered,
                             bool need_commit_ordered) = 0;
@@ -76,9 +85,11 @@ protected:
   prepare_ordered() or commit_ordered() methods.
 */
 extern mysql_mutex_t LOCK_prepare_ordered;
+extern mysql_cond_t COND_prepare_ordered;
 extern mysql_mutex_t LOCK_commit_ordered;
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
+extern PSI_cond_key key_COND_prepare_ordered;
 #endif
 
 class TC_LOG_DUMMY: public TC_LOG // use it to disable the logging
@@ -397,6 +408,7 @@ private:
 
 class binlog_cache_mngr;
 struct rpl_gtid;
+struct wait_for_commit;
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 {
  private:
@@ -445,6 +457,8 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
       group commit, only used when opt_optimize_thread_scheduling is not set.
     */
     bool check_purge;
+    /* Flag used to optimise around wait_for_prior_commit. */
+    bool queued_by_other;
     ulong binlog_id;
   };
 
@@ -525,7 +539,8 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   int new_file_impl(bool need_lock);
   void do_checkpoint_request(ulong binlog_id);
   void purge();
-  int write_transaction_or_stmt(group_commit_entry *entry);
+  int write_transaction_or_stmt(group_commit_entry *entry, uint64 commit_id);
+  bool queue_for_group_commit(group_commit_entry *entry);
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
   bool is_xidlist_idle_nolock();
@@ -672,6 +687,7 @@ public:
   }
   void set_max_size(ulong max_size_arg);
   void signal_update();
+  void wait_for_sufficient_commits();
   void wait_for_update_relay_log(THD* thd);
   int  wait_for_update_bin_log(THD* thd, const struct timespec * timeout);
   void init(ulong max_size);
@@ -777,7 +793,8 @@ public:
   inline uint32 get_open_count() { return open_count; }
   void set_status_variables(THD *thd);
   bool is_xidlist_idle();
-  bool write_gtid_event(THD *thd, bool standalone, bool is_transactional);
+  bool write_gtid_event(THD *thd, bool standalone, bool is_transactional,
+                        uint64 commit_id);
   int read_state_from_file();
   int write_state_to_file();
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);

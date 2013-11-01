@@ -88,7 +88,7 @@ pack_row_old(TABLE *table, MY_BITMAP const* cols,
  */
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int
-unpack_row_old(Relay_log_info *rli,
+unpack_row_old(rpl_group_info *rgi,
                TABLE *table, uint const colcnt, uchar *record,
                uchar const *row, const uchar *row_buffer_end,
                MY_BITMAP const *cols,
@@ -141,7 +141,7 @@ unpack_row_old(Relay_log_info *rli,
       f->move_field_offset(-offset);
       if (!ptr)
       {
-        rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
+        rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
                     "Could not read field `%s` of table `%s`.`%s`",
                     f->field_name, table->s->db.str,
                     table->s->table_name.str);
@@ -183,7 +183,7 @@ unpack_row_old(Relay_log_info *rli,
     if (event_type == WRITE_ROWS_EVENT &&
         ((*field_ptr)->flags & mask) == mask)
     {
-      rli->report(ERROR_LEVEL, ER_NO_DEFAULT_FOR_FIELD,
+      rgi->rli->report(ERROR_LEVEL, ER_NO_DEFAULT_FOR_FIELD,
                   "Field `%s` of table `%s`.`%s` "
                   "has no default value and cannot be NULL",
                   (*field_ptr)->field_name, table->s->db.str,
