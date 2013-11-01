@@ -23,7 +23,7 @@ size_t pack_row_old(TABLE *table, MY_BITMAP const* cols,
                     uchar *row_data, const uchar *record);
 
 #ifdef HAVE_REPLICATION
-int unpack_row_old(Relay_log_info *rli,
+int unpack_row_old(rpl_group_info *rgi,
                    TABLE *table, uint const colcnt, uchar *record,
                    uchar const *row, uchar const *row_buffer_end,
                    MY_BITMAP const *cols,

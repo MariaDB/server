@@ -363,11 +363,11 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
                        MY_RETURN_REAL_PATH);
     }
 
-    if (thd->rli_slave)
+    if (thd->rgi_slave)
     {
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-      if (strncmp(thd->rli_slave->slave_patternload_file, name, 
-                  thd->rli_slave->slave_patternload_file_size))
+      if (strncmp(thd->rgi_slave->rli->slave_patternload_file, name,
+                  thd->rgi_slave->rli->slave_patternload_file_size))
       {
         /*
           LOAD DATA INFILE in the slave SQL Thread can only read from 
