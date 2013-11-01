@@ -229,8 +229,11 @@ template <class T> bool valid_buffer_range(T jump,
 #define OPTIMIZER_SWITCH_EXTENDED_KEYS             (1ULL << 27)
 #define OPTIMIZER_SWITCH_EXISTS_TO_IN              (1ULL << 28)
 #define OPTIMIZER_SWITCH_STATIC_COND_PUSHDOWN      (1ULL << 29)
-#define OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN     (1ULL << 30)
-#define OPTIMIZER_SWITCH_RECORD_COND_STATISTICS    (1ULL << 31)
+#define OPTIMIZER_SWITCH_DEBUG_RECORD_COND_STATISTICS (1ULL << 30)
+/*
+@todo enable_dynamic_pushdown
+#define OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN     (1ULL << 31)
+*/
 
 #define OPTIMIZER_SWITCH_DEFAULT   (OPTIMIZER_SWITCH_INDEX_MERGE | \
                                     OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \

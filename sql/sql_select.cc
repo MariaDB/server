@@ -24681,8 +24681,11 @@ bool JOIN::setup_dynamic_conditions()
   double partial_join_record_length= 0;
 
   if (!(optimizer_flag(thd, OPTIMIZER_SWITCH_STATIC_COND_PUSHDOWN) ||
+        /*
+        @todo enable_dynamic_pushdown
         optimizer_flag(thd, OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN) ||
-        optimizer_flag(thd, OPTIMIZER_SWITCH_RECORD_COND_STATISTICS)) ||
+        */
+        optimizer_flag(thd, OPTIMIZER_SWITCH_DEBUG_RECORD_COND_STATISTICS)) ||
       !conds || (table_count - const_tables < 2))
     return false;
 
@@ -24718,14 +24721,16 @@ bool JOIN::setup_dynamic_conditions()
       */
       tab->least_card_tab= tab;
     }
-
+    /*
+    @todo enable_dynamic_pushdown
     if (optimizer_flag(thd, OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN) &&
         tab->select_cond && tab->select_cond->needs_dynamic_cond())
       do_dynamic_pushdown= true;
+    */
   }
 
-  if (!(do_static_pushdown || do_dynamic_pushdown ||
-        optimizer_flag(thd, OPTIMIZER_SWITCH_RECORD_COND_STATISTICS)))
+  if (!(do_static_pushdown || do_dynamic_pushdown /* @todo enable_dynamic_pushdown
+      optimizer_flag(thd, OPTIMIZER_SWITCH_RECORD_COND_STATISTICS)*/))
     return false;
 
   /*

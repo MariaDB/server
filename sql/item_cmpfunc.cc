@@ -6597,14 +6597,24 @@ Item_func_dynamic_cond::Item_func_dynamic_cond(Item *cond, JOIN_TAB *atab, JOIN_
 {
   JOIN *join= atab->join;
   JOIN_TAB *cur_tab;
+  /*
+@todo enable_dynamic_pushdown
   THD *thd= atab->table->in_use;
+  */
 
   active_tab= atab;
   exec_tab= ctab;
+  /*
+  @todo enable_dynamic_pushdown
   max_evals= thd->variables.dynamic_pushdown_max_evals;
   cost_ratio= (double) thd->variables.dynamic_pushdown_cost_ratio / 100.0;
   sampling_probability= (double) thd->variables.dynamic_pushdown_sampling_probability / 100.0;
   max_selectivity= (double) thd->variables.dynamic_pushdown_max_selectivity / 100.0;
+  */
+  max_evals= ULONGLONG_MAX;
+  cost_ratio= 1;
+  sampling_probability= 0;
+  max_selectivity= 0;
 
   /* Collect the set of all subqueries referenced inside 'cond'. */
   cond->walk(&Item::collect_item_subselect_processor, 0,
@@ -6640,7 +6650,10 @@ Item_func_dynamic_cond::Item_func_dynamic_cond(Item *cond, JOIN_TAB *atab, JOIN_
 longlong Item_func_dynamic_cond::val_int()
 {
   longlong res= 1;
+  /*
+  @todo enable_dynamic_pushdown
   THD *thd= active_tab->join->thd;
+  */
 
   DBUG_ASSERT(active_tab >= first_tab && active_tab < last_tab);
   DBUG_ASSERT(!(*exec_tab) || (active_tab->join == (*exec_tab)->join));
@@ -6661,24 +6674,28 @@ longlong Item_func_dynamic_cond::val_int()
     {
       last_res= Item_func_collect_stats::val_int();
       /* Choose the best JOIN_TAB where to attach this dynamic condition. */
+      /*
+      @todo enable_dynamic_pushdown
       if (optimizer_flag(thd, OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN) &&
           ((ulonglong) count_evals % max_evals == 0))
         choose_best_join_tab();
+      */
     }
     res= last_res;
     last_res= -1;
   }
-  else if (optimizer_flag(thd, OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN) &&
-           (*exec_tab == first_tab) && my_rnd(&rand) <= sampling_probability)
-  {
-    /*
-      If dynamic pushdown is used, evaluate the condition to collect statistics
-      about its selectivity. The result is returned so it can be used to
-      filter join records during sampling.
-    */
-    DBUG_ASSERT(last_res == -1);
-    res= last_res= Item_func_collect_stats::val_int();
-  }
+// @todo enable_dynamic_pushdown
+//   else if (optimizer_flag(thd, OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN) &&
+//            (*exec_tab == first_tab) && my_rnd(&rand) <= sampling_probability)
+//   {
+//     /*
+//       If dynamic pushdown is used, evaluate the condition to collect statistics
+//       about its selectivity. The result is returned so it can be used to
+//       filter join records during sampling.
+//     */
+//     DBUG_ASSERT(last_res == -1);
+//     res= last_res= Item_func_collect_stats::val_int();
+//   }
   return res;
 }
 
@@ -6845,8 +6862,13 @@ void Item_func_dynamic_cond::print(String *str, enum_query_type query_type)
 #ifndef DBUG_OFF
 void Item_func_dynamic_cond::dbug_print_stats()
 {
+  /*
+  @todo enable_dynamic_pushdown
   THD *thd= active_tab->join->thd;
-  if (optimizer_flag(thd, OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN) || is_active())
+  */
+  if (/*@todo enable_dynamic_pushdown
+        optimizer_flag(thd, OPTIMIZER_SWITCH_DYNAMIC_COND_PUSHDOWN) ||*/
+      is_active())
     Item_func_collect_stats::dbug_print_stats();
   else
     (void) fprintf(DBUG_FILE, "    <inactive conditions have no stats>\n");

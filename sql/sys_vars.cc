@@ -1837,8 +1837,11 @@ export const char *optimizer_switch_names[]=
   "extended_keys",
   "exists_to_in",
   "static_cond_pushdown",
+  "debug_record_cond_statistics",
+/*
+  @todo enable_dynamic_pushdown
   "dynamic_cond_pushdown",
-  "record_cond_statistics",
+*/
   "default", NullS
 };
 /** propagates changes to @@engine_condition_pushdown */
@@ -1883,8 +1886,11 @@ static Sys_var_flagset Sys_optimizer_switch(
         "extended_keys, "
         "exists_to_in, "
         "static_cond_pushdown, "
-        "dynamic_cond_pushdown, "
-        "record_cond_statistics"
+        "debug_record_cond_statistics"
+/*
+        @todo enable_dynamic_pushdown
+        "dynamic_cond_pushdown"
+*/
        "} and val is one of {on, off, default}",
        SESSION_VAR(optimizer_switch), CMD_LINE(REQUIRED_ARG),
        optimizer_switch_names, DEFAULT(OPTIMIZER_SWITCH_DEFAULT),
@@ -4249,7 +4255,8 @@ static Sys_var_harows Sys_expensive_subquery_limit(
        "executed during optimization and used for constant optimization",
        SESSION_VAR(expensive_subquery_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, HA_POS_ERROR), DEFAULT(100), BLOCK_SIZE(1));
-
+/*
+@todo enable_dynamic_pushdown
 static Sys_var_harows Sys_dynamic_pushdown_max_evals(
        "dynamic_pushdown_max_evals",
        "The number of times a dynamic condition must be evaluated in "
@@ -4279,6 +4286,7 @@ static Sys_var_uint Sys_dynamic_pushdown_max_selectivity(
        "probability 'dynamic_pushdown_sampling_probability'.",
        SESSION_VAR(dynamic_pushdown_max_selectivity), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 100), DEFAULT(25), BLOCK_SIZE(1));
+*/
 
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 {
