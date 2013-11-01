@@ -7071,3 +7071,7 @@ ER_CANNOT_GRANT_ROLE
 ER_CANNOT_REVOKE_ROLE
 	eng "Cannot revoke role '%s' from: %s."
 	rum "Rolul '%s' nu poate fi revocat de la: %s."
+ER_CHANGE_SLAVE_PARALLEL_THREADS_ACTIVE
+	eng "Cannot change @@slave_parallel_threads while another change is in progress"
+ER_PRIOR_COMMIT_FAILED
+	eng "Commit failed due to failure of an earlier commit on which this one depends"

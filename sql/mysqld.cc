@@ -469,10 +469,11 @@ uint lower_case_table_names;
 ulong tc_heuristic_recover= 0;
 int32 thread_count;
 int32 thread_running;
+int32 slave_open_temp_tables;
 ulong thread_created;
 ulong back_log, connect_timeout, concurrency, server_id;
 ulong what_to_log;
-ulong slow_launch_time, slave_open_temp_tables;
+ulong slow_launch_time;
 ulong open_files_limit, max_binlog_size;
 ulong slave_trans_retries;
 uint  slave_net_timeout;
@@ -492,6 +493,7 @@ my_atomic_rwlock_t global_query_id_lock;
 my_atomic_rwlock_t thread_running_lock;
 my_atomic_rwlock_t thread_count_lock;
 my_atomic_rwlock_t statistics_lock;
+my_atomic_rwlock_t slave_executed_entries_lock;
 ulong aborted_threads, aborted_connects;
 ulong delayed_insert_timeout, delayed_insert_limit, delayed_queue_size;
 ulong delayed_insert_threads, delayed_insert_writes, delayed_rows_in_use;
@@ -543,6 +545,11 @@ ulong rpl_recovery_rank=0;
   in the sp_cache for one connection.
 */
 ulong stored_program_cache_size= 0;
+
+ulong opt_slave_parallel_threads= 0;
+ulong opt_binlog_commit_wait_count= 0;
+ulong opt_binlog_commit_wait_usec= 0;
+ulong opt_slave_parallel_max_queued= 131072;
 
 const double log_10[] = {
   1e000, 1e001, 1e002, 1e003, 1e004, 1e005, 1e006, 1e007, 1e008, 1e009,
@@ -843,19 +850,20 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock,
   key_mutex_slave_reporting_capability_err_lock, key_relay_log_info_data_lock,
-  key_relay_log_info_sleep_lock,
+  key_rpl_group_info_sleep_lock,
   key_relay_log_info_log_space_lock, key_relay_log_info_run_lock,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
   key_LOCK_error_messages, key_LOG_INFO_lock,
   key_LOCK_thread_count, key_LOCK_thread_cache,
   key_PARTITION_LOCK_auto_inc;
 PSI_mutex_key key_RELAYLOG_LOCK_index;
-PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state;
+PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
+  key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_LOCK_parallel_entry;
 
 PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
   key_LOCK_global_index_stats,
-  key_LOCK_wakeup_ready;
+  key_LOCK_wakeup_ready, key_LOCK_wait_commit;
 
 PSI_mutex_key key_LOCK_rpl_gtid_state;
 
@@ -903,6 +911,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_global_index_stats, "LOCK_global_index_stats", PSI_FLAG_GLOBAL},
   { &key_LOCK_wakeup_ready, "THD::LOCK_wakeup_ready", 0},
   { &key_LOCK_rpl_gtid_state, "LOCK_rpl_gtid_state", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wait_commit, "wait_for_commit::LOCK_wait_commit", 0},
   { &key_LOCK_thd_data, "THD::LOCK_thd_data", 0},
   { &key_LOCK_user_conn, "LOCK_user_conn", PSI_FLAG_GLOBAL},
   { &key_LOCK_uuid_short_generator, "LOCK_uuid_short_generator", PSI_FLAG_GLOBAL},
@@ -914,7 +923,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_relay_log_info_data_lock, "Relay_log_info::data_lock", 0},
   { &key_relay_log_info_log_space_lock, "Relay_log_info::log_space_lock", 0},
   { &key_relay_log_info_run_lock, "Relay_log_info::run_lock", 0},
-  { &key_relay_log_info_sleep_lock, "Relay_log_info::sleep_lock", 0},
+  { &key_rpl_group_info_sleep_lock, "Rpl_group_info::sleep_lock", 0},
   { &key_structure_guard_mutex, "Query_cache::structure_guard_mutex", 0},
   { &key_TABLE_SHARE_LOCK_ha_data, "TABLE_SHARE::LOCK_ha_data", 0},
   { &key_TABLE_SHARE_LOCK_share, "TABLE_SHARE::LOCK_share", 0},
@@ -926,7 +935,10 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_thread_cache, "LOCK_thread_cache", PSI_FLAG_GLOBAL},
   { &key_PARTITION_LOCK_auto_inc, "HA_DATA_PARTITION::LOCK_auto_inc", 0},
   { &key_LOCK_slave_state, "LOCK_slave_state", 0},
-  { &key_LOCK_binlog_state, "LOCK_binlog_state", 0}
+  { &key_LOCK_binlog_state, "LOCK_binlog_state", 0},
+  { &key_LOCK_rpl_thread, "LOCK_rpl_thread", 0},
+  { &key_LOCK_rpl_thread_pool, "LOCK_rpl_thread_pool", 0},
+  { &key_LOCK_parallel_entry, "LOCK_parallel_entry", 0}
 };
 
 PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
@@ -961,13 +973,16 @@ PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_master_info_sleep_cond,
   key_relay_log_info_data_cond, key_relay_log_info_log_space_cond,
   key_relay_log_info_start_cond, key_relay_log_info_stop_cond,
-  key_relay_log_info_sleep_cond,
+  key_rpl_group_info_sleep_cond,
   key_TABLE_SHARE_cond, key_user_level_lock_cond,
   key_COND_thread_count, key_COND_thread_cache, key_COND_flush_thread_cache,
   key_BINLOG_COND_queue_busy;
-PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready;
+PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
+  key_COND_wait_commit;
 PSI_cond_key key_RELAYLOG_COND_queue_busy;
 PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
+PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool,
+  key_COND_parallel_entry, key_COND_prepare_ordered;
 
 static PSI_cond_info all_server_conds[]=
 {
@@ -988,6 +1003,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_RELAYLOG_update_cond, "MYSQL_RELAY_LOG::update_cond", 0},
   { &key_RELAYLOG_COND_queue_busy, "MYSQL_RELAY_LOG::COND_queue_busy", 0},
   { &key_COND_wakeup_ready, "THD::COND_wakeup_ready", 0},
+  { &key_COND_wait_commit, "wait_for_commit::COND_wait_commit", 0},
   { &key_COND_cache_status_changed, "Query_cache::COND_cache_status_changed", 0},
   { &key_COND_manager, "COND_manager", PSI_FLAG_GLOBAL},
   { &key_COND_server_started, "COND_server_started", PSI_FLAG_GLOBAL},
@@ -1002,18 +1018,22 @@ static PSI_cond_info all_server_conds[]=
   { &key_relay_log_info_log_space_cond, "Relay_log_info::log_space_cond", 0},
   { &key_relay_log_info_start_cond, "Relay_log_info::start_cond", 0},
   { &key_relay_log_info_stop_cond, "Relay_log_info::stop_cond", 0},
-  { &key_relay_log_info_sleep_cond, "Relay_log_info::sleep_cond", 0},
+  { &key_rpl_group_info_sleep_cond, "Rpl_group_info::sleep_cond", 0},
   { &key_TABLE_SHARE_cond, "TABLE_SHARE::cond", 0},
   { &key_user_level_lock_cond, "User_level_lock::cond", 0},
   { &key_COND_thread_count, "COND_thread_count", PSI_FLAG_GLOBAL},
   { &key_COND_thread_cache, "COND_thread_cache", PSI_FLAG_GLOBAL},
-  { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL}
+  { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL},
+  { &key_COND_rpl_thread, "COND_rpl_thread", 0},
+  { &key_COND_rpl_thread_pool, "COND_rpl_thread_pool", 0},
+  { &key_COND_parallel_entry, "COND_parallel_entry", 0},
+  { &key_COND_prepare_ordered, "COND_prepare_ordered", 0}
 };
 
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
-  key_thread_slave_init;
+  key_thread_slave_init, key_rpl_parallel_thread;
 
 static PSI_thread_info all_server_threads[]=
 {
@@ -1039,7 +1059,8 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_main, "main", PSI_FLAG_GLOBAL},
   { &key_thread_one_connection, "one_connection", 0},
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
-  { &key_thread_slave_init, "slave_init", PSI_FLAG_GLOBAL}
+  { &key_thread_slave_init, "slave_init", PSI_FLAG_GLOBAL},
+  { &key_rpl_parallel_thread, "rpl_parallel_thread", 0}
 };
 
 #ifdef HAVE_MMAP
@@ -2040,6 +2061,7 @@ void clean_up(bool print_message)
   my_atomic_rwlock_destroy(&thread_running_lock);
   my_atomic_rwlock_destroy(&thread_count_lock);
   my_atomic_rwlock_destroy(&statistics_lock); 
+  my_atomic_rwlock_destroy(&slave_executed_entries_lock);
   free_charsets();
   mysql_mutex_lock(&LOCK_thread_count);
   DBUG_PRINT("quit", ("got thread count lock"));
@@ -2122,6 +2144,7 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_server_started);
   mysql_cond_destroy(&COND_server_started);
   mysql_mutex_destroy(&LOCK_prepare_ordered);
+  mysql_cond_destroy(&COND_prepare_ordered);
   mysql_mutex_destroy(&LOCK_commit_ordered);
   DBUG_VOID_RETURN;
 }
@@ -4339,6 +4362,7 @@ static int init_thread_environment()
                    &LOCK_rpl_gtid_state, MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_prepare_ordered, &LOCK_prepare_ordered,
                    MY_MUTEX_INIT_SLOW);
+  mysql_cond_init(key_COND_prepare_ordered, &COND_prepare_ordered, NULL);
   mysql_mutex_init(key_LOCK_commit_ordered, &LOCK_commit_ordered,
                    MY_MUTEX_INIT_SLOW);
 
@@ -7727,7 +7751,7 @@ SHOW_VAR status_vars[]= {
   {"Select_range",             (char*) offsetof(STATUS_VAR, select_range_count_), SHOW_LONG_STATUS},
   {"Select_range_check",       (char*) offsetof(STATUS_VAR, select_range_check_count_), SHOW_LONG_STATUS},
   {"Select_scan",	       (char*) offsetof(STATUS_VAR, select_scan_count_), SHOW_LONG_STATUS},
-  {"Slave_open_temp_tables",   (char*) &slave_open_temp_tables, SHOW_LONG},
+  {"Slave_open_temp_tables",   (char*) &slave_open_temp_tables, SHOW_INT},
 #ifdef HAVE_REPLICATION
   {"Slave_heartbeat_period",   (char*) &show_heartbeat_period, SHOW_SIMPLE_FUNC},
   {"Slave_received_heartbeats",(char*) &show_slave_received_heartbeats, SHOW_SIMPLE_FUNC},
@@ -8003,6 +8027,7 @@ static int mysql_init_variables(void)
   my_atomic_rwlock_init(&thread_running_lock);
   my_atomic_rwlock_init(&thread_count_lock);
   my_atomic_rwlock_init(&statistics_lock);
+  my_atomic_rwlock_init(slave_executed_entries_lock);
   strmov(server_version, MYSQL_SERVER_VERSION);
   threads.empty();
   thread_cache.empty();
@@ -9283,6 +9308,7 @@ PSI_stage_info stage_slave_waiting_event_from_coordinator= { 0, "Waiting for an 
 PSI_stage_info stage_binlog_waiting_background_tasks= { 0, "Waiting for background binlog tasks", 0};
 PSI_stage_info stage_binlog_processing_checkpoint_notify= { 0, "Processing binlog checkpoint notification", 0};
 PSI_stage_info stage_binlog_stopping_background_thread= { 0, "Stopping binlog background thread", 0};
+PSI_stage_info stage_waiting_for_work_from_sql_thread= { 0, "Waiting for work from SQL thread", 0};
 
 #ifdef HAVE_PSI_INTERFACE
 
