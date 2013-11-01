@@ -841,7 +841,6 @@ static int findopt(char *optpat, uint length,
 {
   uint count;
   const struct my_option *opt= *opt_res;
-  my_bool is_prefix= FALSE;
   DBUG_ENTER("findopt");
 
   for (count= 0; opt->name; opt++)
@@ -857,8 +856,6 @@ static int findopt(char *optpat, uint length,
         /* We only need to know one prev */
 	count= 1;
 	*ffname= opt->name;
-        if (opt->name[length])
-          is_prefix= TRUE;
       }
       else if (strcmp(*ffname, opt->name))
       {
