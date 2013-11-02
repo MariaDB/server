@@ -1,0 +1,27 @@
+grant select on *.* to current_role;
+ERROR 0L000: Invalid definer
+revoke select on *.* from current_role;
+ERROR 0L000: Invalid definer
+revoke all, grant option from current_role;
+ERROR 0L000: Invalid definer
+create role r1;
+grant insert on test.* to r1;
+grant r1 to current_user;
+set role r1;
+select current_role();
+current_role()
+r1
+grant select on *.* to current_role;
+show grants for current_role;
+Grants for r1
+GRANT SELECT ON *.* TO 'r1'
+GRANT INSERT ON `test`.* TO 'r1'
+revoke insert on test.* from current_role;
+show grants for current_role;
+Grants for r1
+GRANT SELECT ON *.* TO 'r1'
+revoke all, grant option from current_role;
+show grants for current_role;
+Grants for r1
+GRANT USAGE ON *.* TO 'r1'
+drop role r1;

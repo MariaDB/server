@@ -14356,9 +14356,11 @@ role_list:
 current_role:
           CURRENT_ROLE optional_braces
           {
-            if (!($$=(LEX_USER*) thd->alloc(sizeof(LEX_USER))))
+            if (!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER))))
               MYSQL_YYABORT;
             $$->user= current_role;
+            $$->plugin= empty_lex_str;
+            $$->auth= empty_lex_str;
           }
           ;
 
