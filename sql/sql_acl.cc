@@ -9065,6 +9065,13 @@ static void append_user(String *str, LEX_USER *user)
   str->append('\'');
 }
 
+static void append_str(String *str, const char *s, size_t l)
+{
+  if (str->length())
+    str->append(',');
+  str->append(s, l);
+}
+
 /*
   Create a list of users.
 
@@ -9102,6 +9109,20 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
   while ((user_name= user_list++))
   {
+    if (user_name->user.str == current_user.str)
+    {
+      append_str(&wrong_users, STRING_WITH_LEN("CURRENT_USER"));
+      result= TRUE;
+      continue;
+    }
+
+    if (user_name->user.str == current_role.str)
+    {
+      append_str(&wrong_users, STRING_WITH_LEN("CURRENT_ROLE"));
+      result= TRUE;
+      continue;
+    }
+
     if (handle_as_role && is_invalid_role_name(user_name->user.str))
     {
       append_user(&wrong_users, user_name);
@@ -9211,7 +9232,15 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   while ((tmp_user_name= user_list++))
   {
     user_name= get_current_user(thd, tmp_user_name, false);
-    if (!user_name || handle_as_role != user_name->is_role())
+    if (!user_name)
+    {
+      thd->clear_error();
+      append_str(&wrong_users, STRING_WITH_LEN("CURRENT_ROLE"));
+      result= TRUE;
+      continue;
+    }
+
+    if (handle_as_role != user_name->is_role())
     {
       append_user(&wrong_users, tmp_user_name);
       result= TRUE;
