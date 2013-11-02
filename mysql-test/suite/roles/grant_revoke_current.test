@@ -1,0 +1,24 @@
+--source include/not_embedded.inc
+
+--error ER_MALFORMED_DEFINER
+grant select on *.* to current_role;
+--error ER_MALFORMED_DEFINER
+revoke select on *.* from current_role;
+--error ER_MALFORMED_DEFINER
+revoke all, grant option from current_role;
+
+create role r1;
+grant insert on test.* to r1;
+grant r1 to current_user;
+set role r1;
+select current_role();
+
+grant select on *.* to current_role;
+show grants for current_role;
+revoke insert on test.* from current_role;
+show grants for current_role;
+revoke all, grant option from current_role;
+show grants for current_role;
+
+drop role r1;
+
