@@ -31,9 +31,3 @@ ERROR HY000: Operation CREATE ROLE failed for CURRENT_ROLE
 drop user current_role;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'current_role' at line 1
 drop role current_role;
-select user,host,is_role from mysql.user;
-user	host	is_role
-root	localhost	N
-root	meddwl	N
-root	127.0.0.1	N
-root	::1	N
