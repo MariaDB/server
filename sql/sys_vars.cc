@@ -61,6 +61,7 @@
 #include "threadpool.h"
 #include "sql_repl.h"
 #include "opt_range.h"
+#include "rpl_parallel.h"
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var
@@ -1688,7 +1689,82 @@ static Sys_var_gtid_binlog_state Sys_gtid_binlog_state(
        "The internal GTID state of the binlog, used to keep track of all "
        "GTIDs ever logged to the binlog.",
        GLOBAL_VAR(opt_gtid_binlog_state_dummy), NO_CMD_LINE);
+
+
+static bool
+check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
+{
+  bool running;
+
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running)
+    return true;
+
+  return false;
+}
+
+static bool
+fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
+{
+  bool running;
+  bool err= false;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running || rpl_parallel_change_thread_count(&global_rpl_thread_pool,
+                                                  opt_slave_parallel_threads))
+    err= true;
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
+  return err;
+}
+
+
+static Sys_var_ulong Sys_slave_parallel_threads(
+       "slave_parallel_threads",
+       "Alpha feature, to only be used by developers doing testing! "
+       "If non-zero, number of threads to spawn to apply in parallel events "
+       "on the slave that were group-committed on the master or were logged "
+       "with GTID in different replication domains.",
+       GLOBAL_VAR(opt_slave_parallel_threads), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
+       ON_UPDATE(fix_slave_parallel_threads));
+
+
+static Sys_var_ulong Sys_slave_parallel_max_queued(
+       "slave_parallel_max_queued",
+       "Limit on how much memory SQL threads should use per parallel "
+       "replication thread when reading ahead in the relay log looking for "
+       "opportunities for parallel replication. Only used when "
+       "--slave-parallel-threads > 0.",
+       GLOBAL_VAR(opt_slave_parallel_max_queued), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,2147483647), DEFAULT(131072), BLOCK_SIZE(1));
 #endif
+
+
+static Sys_var_ulong Sys_binlog_commit_wait_count(
+       "binlog_commit_wait_count",
+       "If non-zero, binlog write will wait at most binlog_commit_wait_usec "
+       "microseconds for at least this many commits to queue up for group "
+       "commit to the binlog. This can reduce I/O on the binlog and provide "
+       "increased opportunity for parallel apply on the slave, but too high "
+       "a value will decrease commit throughput.",
+       GLOBAL_VAR(opt_binlog_commit_wait_count), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+
+static Sys_var_ulong Sys_binlog_commit_wait_usec(
+       "binlog_commit_wait_usec",
+       "Maximum time, in microseconds, to wait for more commits to queue up "
+       "for binlog group commit. Only takes effect if the value of "
+       "binlog_commit_wait_count is non-zero.",
+       GLOBAL_VAR(opt_binlog_commit_wait_usec), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(100000), BLOCK_SIZE(1));
 
 
 static bool fix_max_join_size(sys_var *self, THD *thd, enum_var_type type)
@@ -4439,6 +4515,8 @@ static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 #ifndef EMBEDDED_LIBRARY
       delete thd->rli_fake;
       thd->rli_fake= NULL;
+      delete thd->rgi_fake;
+      thd->rgi_fake= NULL;
 #endif
     }
     else if (previous_val && val)

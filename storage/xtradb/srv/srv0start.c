@@ -618,7 +618,7 @@ open_or_create_log_file(
 		    || size_high != srv_calc_high32(srv_log_file_size)) {
 
 			fprintf(stderr,
-				"InnoDB: Error: log file %s is"
+				"InnoDB: Warning: log file %s is"
 				" of different size %lu %lu bytes\n"
 				"InnoDB: than specified in the .cnf"
 				" file %lu %lu bytes!\n",
@@ -626,7 +626,9 @@ open_or_create_log_file(
 				(ulong) srv_calc_high32(srv_log_file_size),
 				(ulong) srv_calc_low32(srv_log_file_size));
 
-			return(DB_ERROR);
+                        srv_log_file_size= ((size +
+                                             (((longlong) size_high) << 32)) /
+                                            UNIV_PAGE_SIZE);
 		}
 	} else {
 		*log_file_created = TRUE;

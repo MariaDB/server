@@ -38,14 +38,14 @@ order by name limit 10;
 NAME	ENABLED	TIMED
 wait/synch/cond/sql/COND_flush_thread_cache	YES	YES
 wait/synch/cond/sql/COND_manager	YES	YES
+wait/synch/cond/sql/COND_parallel_entry	YES	YES
+wait/synch/cond/sql/COND_prepare_ordered	YES	YES
 wait/synch/cond/sql/COND_queue_state	YES	YES
+wait/synch/cond/sql/COND_rpl_thread	YES	YES
+wait/synch/cond/sql/COND_rpl_thread_pool	YES	YES
 wait/synch/cond/sql/COND_server_started	YES	YES
 wait/synch/cond/sql/COND_thread_cache	YES	YES
 wait/synch/cond/sql/COND_thread_count	YES	YES
-wait/synch/cond/sql/Delayed_insert::cond	YES	YES
-wait/synch/cond/sql/Delayed_insert::cond_client	YES	YES
-wait/synch/cond/sql/Event_scheduler::COND_state	YES	YES
-wait/synch/cond/sql/Item_func_sleep::cond	YES	YES
 select * from performance_schema.setup_instruments
 where name='Wait';
 select * from performance_schema.setup_instruments

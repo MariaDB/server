@@ -57,6 +57,7 @@
 #include "sql_table.h"                          // build_table_filename
 #include "datadict.h"   // dd_frm_is_view()
 #include "sql_hset.h"   // Hash_set
+#include "rpl_rli.h"   // rpl_group_info
 #ifdef  __WIN__
 #include <io.h>
 #endif
@@ -644,11 +645,24 @@ bool close_cached_connection_tables(THD *thd, LEX_STRING *connection)
 
 static void mark_temp_tables_as_free_for_reuse(THD *thd)
 {
+  DBUG_ENTER("mark_temp_tables_as_free_for_reuse");
+
+  thd->lock_temporary_tables();
   for (TABLE *table= thd->temporary_tables ; table ; table= table->next)
   {
     if ((table->query_id == thd->query_id) && ! table->open_by_handler)
       mark_tmp_table_for_reuse(table);
   }
+  thd->unlock_temporary_tables();
+  if (thd->rgi_slave)
+  {
+    /*
+      Temporary tables are shared with other by sql execution threads.
+      As a safety messure, clear the pointer to the common area.
+    */
+    thd->temporary_tables= 0;
+  }
+  DBUG_VOID_RETURN;
 }
 
 
@@ -662,6 +676,7 @@ static void mark_temp_tables_as_free_for_reuse(THD *thd)
 
 void mark_tmp_table_for_reuse(TABLE *table)
 {
+  DBUG_ENTER("mark_tmp_table_for_reuse");
   DBUG_ASSERT(table->s->tmp_table);
 
   table->query_id= 0;
@@ -692,6 +707,7 @@ void mark_tmp_table_for_reuse(TABLE *table)
     LOCK TABLES is allowed (but ignored) for a temporary table.
   */
   table->reginfo.lock_type= TL_WRITE;
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1031,6 +1047,10 @@ static inline uint  tmpkeyval(THD *thd, TABLE *table)
 /*
   Close all temporary tables created by 'CREATE TEMPORARY TABLE' for thread
   creates one DROP TEMPORARY TABLE binlog event for each pseudo-thread 
+
+  Temporary tables created in a sql slave is closed by
+  Relay_log_info::close_temporary_tables()
+
 */
 
 bool close_temporary_tables(THD *thd)
@@ -1045,6 +1065,7 @@ bool close_temporary_tables(THD *thd)
 
   if (!thd->temporary_tables)
     DBUG_RETURN(FALSE);
+  DBUG_ASSERT(!thd->rgi_slave);
 
   if (!mysql_bin_log.is_open())
   {
@@ -1479,26 +1500,16 @@ TABLE *find_temporary_table(THD *thd, const char *db, const char *table_name)
 
 TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl)
 {
-  const char *key;
+  const char *tmp_key;
+  char key[MAX_DBKEY_LENGTH];
   uint key_length;
-  char key_suffix[TMP_TABLE_KEY_EXTRA];
-  TABLE *table;
 
-  key_length= get_table_def_key(tl, &key);
+  key_length= get_table_def_key(tl, &tmp_key);
+  memcpy(key, tmp_key, key_length);
+  int4store(key + key_length, thd->variables.server_id);
+  int4store(key + key_length + 4, thd->variables.pseudo_thread_id);
 
-  int4store(key_suffix, thd->variables.server_id);
-  int4store(key_suffix + 4, thd->variables.pseudo_thread_id);
-
-  for (table= thd->temporary_tables; table; table= table->next)
-  {
-    if ((table->s->table_cache_key.length == key_length +
-                                             TMP_TABLE_KEY_EXTRA) &&
-        !memcmp(table->s->table_cache_key.str, key, key_length) &&
-        !memcmp(table->s->table_cache_key.str + key_length, key_suffix,
-                TMP_TABLE_KEY_EXTRA))
-      return table;
-  }
-  return NULL;
+  return find_temporary_table(thd, key, key_length + TMP_TABLE_KEY_EXTRA);
 }
 
 
@@ -1512,16 +1523,42 @@ TABLE *find_temporary_table(THD *thd,
                             const char *table_key,
                             uint table_key_length)
 {
+  TABLE *result= 0;
+  if (!thd->have_temporary_tables())
+    return NULL;
+
+  thd->lock_temporary_tables();
   for (TABLE *table= thd->temporary_tables; table; table= table->next)
   {
     if (table->s->table_cache_key.length == table_key_length &&
         !memcmp(table->s->table_cache_key.str, table_key, table_key_length))
     {
-      return table;
+      /*
+        We need to set the THD as it may be different in case of
+        parallel replication
+      */
+      if (table->in_use != thd)
+      {
+        table->in_use= thd;
+#ifdef REMOVE_AFTER_MERGE_WITH_10
+        if (thd->rgi_slave)
+        {
+          /*
+            We may be stealing an opened temporary tables from one slave
+            thread to another, we need to let the performance schema know that,
+            for aggregates per thread to work properly.
+          */
+          table->file->unbind_psi();
+          table->file->rebind_psi();
+        }
+#endif
+      }
+      result= table;
+      break;
     }
   }
-
-  return NULL;
+  thd->unlock_temporary_tables();
+  return result;
 }
 
 
@@ -1570,6 +1607,9 @@ int drop_temporary_table(THD *thd, TABLE_LIST *table_list, bool *is_trans)
   /* Table might be in use by some outer statement. */
   if (table->query_id && table->query_id != thd->query_id)
   {
+    DBUG_PRINT("info", ("table->query_id: %lu  thd->query_id: %lu",
+                        (ulong) table->query_id, (ulong) thd->query_id));
+    
     my_error(ER_CANT_REOPEN_TABLE, MYF(0), table->alias.c_ptr());
     DBUG_RETURN(-1);
   }
@@ -1598,6 +1638,7 @@ void close_temporary_table(THD *thd, TABLE *table,
                           table->s->db.str, table->s->table_name.str,
                           (long) table, table->alias.c_ptr()));
 
+  thd->lock_temporary_tables();
   if (table->prev)
   {
     table->prev->next= table->next;
@@ -1617,12 +1658,14 @@ void close_temporary_table(THD *thd, TABLE *table,
     if (thd->temporary_tables)
       table->next->prev= 0;
   }
-  if (thd->slave_thread)
+  if (thd->rgi_slave)
   {
     /* natural invariant of temporary_tables */
     DBUG_ASSERT(slave_open_temp_tables || !thd->temporary_tables);
-    slave_open_temp_tables--;
+    thread_safe_decrement32(&slave_open_temp_tables, &thread_running_lock);
+    table->in_use= 0;                           // No statistics
   }
+  thd->unlock_temporary_tables();
   close_temporary(table, free_share, delete_table);
   DBUG_VOID_RETURN;
 }
@@ -5387,14 +5430,18 @@ TABLE *open_table_uncached(THD *thd, handlerton *hton,
 
   if (add_to_temporary_tables_list)
   {
+    thd->lock_temporary_tables();
     /* growing temp list at the head */
     tmp_table->next= thd->temporary_tables;
     if (tmp_table->next)
       tmp_table->next->prev= tmp_table;
     thd->temporary_tables= tmp_table;
     thd->temporary_tables->prev= 0;
-    if (thd->slave_thread)
-      slave_open_temp_tables++;
+    if (thd->rgi_slave)
+    {
+      thread_safe_increment32(&slave_open_temp_tables, &thread_running_lock);
+    }
+    thd->unlock_temporary_tables();
   }
   tmp_table->pos_in_table_list= 0;
   DBUG_PRINT("tmptable", ("opened table: '%s'.'%s' 0x%lx", tmp_table->s->db.str,
@@ -5549,9 +5596,9 @@ bool open_temporary_table(THD *thd, TABLE_LIST *tl)
   */
   DBUG_ASSERT(!tl->derived && !tl->schema_table);
 
-  if (tl->open_type == OT_BASE_ONLY)
+  if (tl->open_type == OT_BASE_ONLY || !thd->have_temporary_tables())
   {
-    DBUG_PRINT("info", ("skip_temporary is set"));
+    DBUG_PRINT("info", ("skip_temporary is set or no temporary tables"));
     DBUG_RETURN(FALSE);
   }
 

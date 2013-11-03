@@ -290,6 +290,7 @@ void mysql_query_cache_invalidate4(void* thd,
 void *thd_get_ha_data(const void* thd, const struct handlerton *hton);
 void thd_set_ha_data(void* thd, const struct handlerton *hton,
                      const void *ha_data);
+void thd_wakeup_subsequent_commits(void* thd, int wakeup_error);
 #include <mysql/plugin_auth_common.h>
 typedef struct st_plugin_vio_info
 {
