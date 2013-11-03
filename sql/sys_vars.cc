@@ -1726,6 +1726,7 @@ fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
 
 static Sys_var_ulong Sys_slave_parallel_threads(
        "slave_parallel_threads",
+       "Alpha feature, to only be used by developers doing testing! "
        "If non-zero, number of threads to spawn to apply in parallel events "
        "on the slave that were group-committed on the master or were logged "
        "with GTID in different replication domains.",
