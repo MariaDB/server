@@ -186,7 +186,7 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
  */
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int
-unpack_row(Relay_log_info const *rli,
+unpack_row(rpl_group_info *rgi,
            TABLE *table, uint const colcnt,
            uchar const *const row_data, uchar const *const row_buffer_end,
            MY_BITMAP const *cols,
@@ -214,18 +214,18 @@ unpack_row(Relay_log_info const *rli,
   uint i= 0;
   table_def *tabledef= NULL;
   TABLE *conv_table= NULL;
-  bool table_found= rli && rli->get_table_data(table, &tabledef, &conv_table);
+  bool table_found= rgi && rgi->get_table_data(table, &tabledef, &conv_table);
   DBUG_PRINT("debug", ("Table data: table_found: %d, tabldef: %p, conv_table: %p",
                        table_found, tabledef, conv_table));
   DBUG_ASSERT(table_found);
 
   /*
-    If rli is NULL it means that there is no source table and that the
+    If rgi is NULL it means that there is no source table and that the
     row shall just be unpacked without doing any checks. This feature
     is used by MySQL Backup, but can be used for other purposes as
     well.
    */
-  if (rli && !table_found)
+  if (rgi && !table_found)
     DBUG_RETURN(HA_ERR_GENERIC);
 
   for (field_ptr= begin_ptr ; field_ptr < end_ptr && *field_ptr ; ++field_ptr)
@@ -313,7 +313,7 @@ unpack_row(Relay_log_info const *rli,
                              (int) (pack_ptr - old_pack_ptr)));
         if (!pack_ptr)
         {
-          rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
+          rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
                       "Could not read field '%s' of table '%s.%s'",
                       f->field_name, table->s->db.str,
                       table->s->table_name.str);

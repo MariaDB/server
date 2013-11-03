@@ -62,27 +62,28 @@ rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid)
 
 
 int
-rpl_slave_state::record_and_update_gtid(THD *thd, Relay_log_info *rli)
+rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
 {
   uint64 sub_id;
+  DBUG_ENTER("rpl_slave_state::record_and_update_gtid");
 
   /*
     Update the GTID position, if we have it and did not already update
     it in a GTID transaction.
   */
-  if ((sub_id= rli->gtid_sub_id))
+  if ((sub_id= rgi->gtid_sub_id))
   {
-    rli->gtid_sub_id= 0;
-    if (record_gtid(thd, &rli->current_gtid, sub_id, false, false))
-      return 1;
-    update_state_hash(sub_id, &rli->current_gtid);
+    rgi->gtid_sub_id= 0;
+    if (record_gtid(thd, &rgi->current_gtid, sub_id, false, false))
+      DBUG_RETURN(1);
+    update_state_hash(sub_id, &rgi->current_gtid);
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
 rpl_slave_state::rpl_slave_state()
-  : inited(false), loaded(false)
+  : last_sub_id(0), inited(false), loaded(false)
 {
   my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
                sizeof(uint32), NULL, my_free, HASH_UNIQUE);
@@ -152,6 +153,9 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
   list_elem->seq_no= seq_no;
 
   elem->add(list_elem);
+  if (last_sub_id < sub_id)
+    last_sub_id= sub_id;
+
   return 0;
 }
 
@@ -168,7 +172,6 @@ rpl_slave_state::get_element(uint32 domain_id)
   if (!(elem= (element *)my_malloc(sizeof(*elem), MYF(MY_WME))))
     return NULL;
   elem->list= NULL;
-  elem->last_sub_id= 0;
   elem->domain_id= domain_id;
   if (my_hash_insert(&hash, (uchar *)elem))
   {
@@ -310,6 +313,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   element *elem;
   ulonglong thd_saved_option= thd->variables.option_bits;
   Query_tables_list lex_backup;
+  DBUG_ENTER("record_gtid");
 
   if (unlikely(!loaded))
   {
@@ -320,7 +324,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
       We already complained loudly about this, but we can try to continue
       until the DBA fixes it.
     */
-    return 0;
+    DBUG_RETURN(0);
   }
 
   if (!in_statement)
@@ -329,7 +333,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   DBUG_EXECUTE_IF("gtid_inject_record_gtid",
                   {
                     my_error(ER_CANNOT_UPDATE_GTID_STATE, MYF(0));
-                    return 1;
+                    DBUG_RETURN(1);
                   } );
 
   thd->lex->reset_n_backup_query_tables_list(&lex_backup);
@@ -347,8 +351,11 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
 
   table->no_replicate= 1;
   if (!in_transaction)
+  {
+    DBUG_PRINT("info", ("resetting OPTION_BEGIN"));
     thd->variables.option_bits&=
       ~(ulonglong)(OPTION_NOT_AUTOCOMMIT|OPTION_BEGIN);
+  }
 
   bitmap_set_all(table->write_set);
 
@@ -483,7 +490,7 @@ end:
   }
   thd->lex->restore_backup_query_tables_list(&lex_backup);
   thd->variables.option_bits= thd_saved_option;
-  return err;
+  DBUG_RETURN(err);
 }
 
 
@@ -491,12 +498,9 @@ uint64
 rpl_slave_state::next_sub_id(uint32 domain_id)
 {
   uint64 sub_id= 0;
-  element *elem;
 
   lock();
-  elem= get_element(domain_id);
-  if (elem)
-    sub_id= ++elem->last_sub_id;
+  sub_id= ++last_sub_id;
   unlock();
 
   return sub_id;
