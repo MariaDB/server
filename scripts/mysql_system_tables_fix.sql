@@ -639,6 +639,20 @@ INSERT INTO tmp_proxies_priv VALUES ('localhost', 'root', '', '', TRUE, '', now(
 INSERT INTO proxies_priv SELECT * FROM tmp_proxies_priv WHERE @had_proxies_priv_table=0;
 DROP TABLE tmp_proxies_priv;
 
+# MDEV-4332 longer user names
+alter table mysql.user         modify User         char(80)  binary not null default '';
+alter table mysql.db           modify User         char(80)  binary not null default '';
+alter table mysql.tables_priv  modify User         char(80)  binary not null default '';
+alter table mysql.columns_priv modify User         char(80)  binary not null default '';
+alter table mysql.procs_priv   modify User         char(80)  binary not null default '';
+alter table mysql.proc         modify definer      char(141) collate utf8_bin not null default '';
+alter table mysql.event        modify definer      char(141) collate utf8_bin not null default '';
+alter table mysql.proxies_priv modify User         char(80)  COLLATE utf8_bin not null default '';
+alter table mysql.proxies_priv modify Proxied_user char(80)  COLLATE utf8_bin not null default '';
+alter table mysql.proxies_priv modify Grantor      char(141) COLLATE utf8_bin not null default '';
+alter table mysql.servers      modify Username     char(80)                   not null default '';
+alter table mysql.procs_priv   modify Grantor      char(141) COLLATE utf8_bin not null default '';
+alter table mysql.tables_priv  modify Grantor      char(141) COLLATE utf8_bin not null default '';
 
 # Activate the new, possible modified privilege tables
 # This should not be needed, but gives us some extra testing that the above
