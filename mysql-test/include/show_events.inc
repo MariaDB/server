@@ -63,5 +63,5 @@ if (`SELECT '$binlog_limit' <> ''`)
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR $_binlog_start <binlog_start>
 --replace_column 2 # 4 # 5 #
---replace_regex /\/\* xid=.* \*\//\/* XID *\// /table_id: [0-9]+/table_id: #/ /file_id=[0-9]+/file_id=#/ /block_len=[0-9]+/block_len=#/ /Server ver:.*$/SERVER_VERSION, BINLOG_VERSION/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/ /\[([0-9]-[0-9]-[0-9]+)\]/[#-#-#]/
+--replace_regex /\/\* xid=.* \*\//\/* XID *\// /table_id: [0-9]+/table_id: #/ /file_id=[0-9]+/file_id=#/ /block_len=[0-9]+/block_len=#/ /Server ver:.*$/SERVER_VERSION, BINLOG_VERSION/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/ /\[([0-9]-[0-9]-[0-9]+)\]/[#-#-#]/ /cid=[0-9]+/cid=#/
 --eval $_statement

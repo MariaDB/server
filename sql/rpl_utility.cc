@@ -1143,20 +1143,20 @@ bool Deferred_log_events::is_empty()
   return array.elements == 0;
 }
 
-bool Deferred_log_events::execute(Relay_log_info *rli)
+bool Deferred_log_events::execute(rpl_group_info *rgi)
 {
   bool res= false;
   DBUG_ENTER("Deferred_log_events::execute");
-  DBUG_ASSERT(rli->deferred_events_collecting);
+  DBUG_ASSERT(rgi->deferred_events_collecting);
 
-  rli->deferred_events_collecting= false;
+  rgi->deferred_events_collecting= false;
   for (uint i=  0; !res && i < array.elements; i++)
   {
     Log_event *ev= (* (Log_event **)
                     dynamic_array_ptr(&array, i));
-    res= ev->apply_event(rli);
+    res= ev->apply_event(rgi);
   }
-  rli->deferred_events_collecting= true;
+  rgi->deferred_events_collecting= true;
   DBUG_RETURN(res);
 }
 
