@@ -699,6 +699,41 @@ void *thd_get_ha_data(const MYSQL_THD thd, const struct handlerton *hton);
 */
 void thd_set_ha_data(MYSQL_THD thd, const struct handlerton *hton,
                      const void *ha_data);
+
+
+/**
+  Signal that the first part of handler commit is finished, and that the
+  committed transaction is now visible and has fixed commit ordering with
+  respect to other transactions. The commit need _not_ be durable yet, and
+  typically will not be when this call makes sense.
+
+  This call is optional, if the storage engine does not call it the upper
+  layer will after the handler commit() method is done. However, the storage
+  engine may choose to call it itself to increase the possibility for group
+  commit.
+
+  In-order parallel replication uses this to apply different transaction in
+  parallel, but delay the commits of later transactions until earlier
+  transactions have committed first, thus achieving increased performance on
+  multi-core systems while still preserving full transaction consistency.
+
+  The storage engine can call this from within the commit() method, typically
+  after the commit record has been written to the transaction log, but before
+  the log has been fsync()'ed. This will allow the next replicated transaction
+  to proceed to commit before the first one has done fsync() or similar. Thus,
+  it becomes possible for multiple sequential replicated transactions to share
+  a single fsync() inside the engine in group commit.
+
+  Note that this method should _not_ be called from within the commit_ordered()
+  method, or any other place in the storage engine. When commit_ordered() is
+  used (typically when binlog is enabled), the transaction coordinator takes
+  care of this and makes group commit in the storage engine possible without
+  any other action needed on the part of the storage engine. This function
+  thd_wakeup_subsequent_commits() is only needed when no transaction
+  coordinator is used, meaning a single storage engine and no binary log.
+*/
+void thd_wakeup_subsequent_commits(MYSQL_THD thd, int wakeup_error);
+
 #ifdef __cplusplus
 }
 #endif
