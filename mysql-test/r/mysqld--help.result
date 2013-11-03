@@ -878,9 +878,10 @@ The following options may be given as the first argument:
  relay log looking for opportunities for parallel
  replication. Only used when --slave-parallel-threads > 0.
  --slave-parallel-threads=# 
- If non-zero, number of threads to spawn to apply in
- parallel events on the slave that were group-committed on
- the master or were logged with GTID in different
+ Alpha feature, to only be used by developers doing
+ testing! If non-zero, number of threads to spawn to apply
+ in parallel events on the slave that were group-committed
+ on the master or were logged with GTID in different
  replication domains.
  --slave-skip-errors=name 
  Tells the slave thread to continue replication when a

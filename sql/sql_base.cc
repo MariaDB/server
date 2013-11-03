@@ -1500,26 +1500,16 @@ TABLE *find_temporary_table(THD *thd, const char *db, const char *table_name)
 
 TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl)
 {
-  const char *key;
+  const char *tmp_key;
+  char key[MAX_DBKEY_LENGTH];
   uint key_length;
-  char key_suffix[TMP_TABLE_KEY_EXTRA];
-  TABLE *table;
 
-  key_length= get_table_def_key(tl, &key);
+  key_length= get_table_def_key(tl, &tmp_key);
+  memcpy(key, tmp_key, key_length);
+  int4store(key + key_length, thd->variables.server_id);
+  int4store(key + key_length + 4, thd->variables.pseudo_thread_id);
 
-  int4store(key_suffix, thd->variables.server_id);
-  int4store(key_suffix + 4, thd->variables.pseudo_thread_id);
-
-  for (table= thd->temporary_tables; table; table= table->next)
-  {
-    if ((table->s->table_cache_key.length == key_length +
-                                             TMP_TABLE_KEY_EXTRA) &&
-        !memcmp(table->s->table_cache_key.str, key, key_length) &&
-        !memcmp(table->s->table_cache_key.str + key_length, key_suffix,
-                TMP_TABLE_KEY_EXTRA))
-      return table;
-  }
-  return NULL;
+  return find_temporary_table(thd, key, key_length + TMP_TABLE_KEY_EXTRA);
 }
 
 
@@ -5606,9 +5596,9 @@ bool open_temporary_table(THD *thd, TABLE_LIST *tl)
   */
   DBUG_ASSERT(!tl->derived && !tl->schema_table);
 
-  if (tl->open_type == OT_BASE_ONLY)
+  if (tl->open_type == OT_BASE_ONLY || !thd->have_temporary_tables())
   {
-    DBUG_PRINT("info", ("skip_temporary is set"));
+    DBUG_PRINT("info", ("skip_temporary is set or no temporary tables"));
     DBUG_RETURN(FALSE);
   }
 

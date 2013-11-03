@@ -3498,6 +3498,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
             slave_sleep(thd, MY_MIN(serial_rgi->trans_retries,
                                     MAX_SLAVE_RETRY_PAUSE),
                        sql_slave_killed, serial_rgi);
+            serial_rgi->trans_retries++;
             mysql_mutex_lock(&rli->data_lock); // because of SHOW STATUS
             rli->retried_trans++;
             statistic_increment(slave_retried_transactions, LOCK_status);
