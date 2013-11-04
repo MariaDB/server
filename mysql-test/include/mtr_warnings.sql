@@ -108,7 +108,7 @@ INSERT INTO global_suppressions VALUES
  ("Incorrect definition of table"),
  ("Incorrect information in file"),
  ("InnoDB: Warning: we did not need to do crash recovery"),
- ("Invalid \\(old\\?\\) table or database name"),
+ /*("Invalid \\(old\\?\\) table or database name"),*/
  ("Lock wait timeout exceeded"),
  ("Log entry on master is longer than max_allowed_packet"),
  ("unknown option '--loose-"),

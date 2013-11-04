@@ -1,3 +1,4 @@
+call mtr.add_suppression("Invalid .old.. table or database name");
 drop database if exists `mysqltest1`;
 drop database if exists `mysqltest-1`;
 drop database if exists `#mysql50#mysqltest-1`;

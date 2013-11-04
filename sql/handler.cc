@@ -4950,10 +4950,9 @@ static int cmp_table_names(LEX_STRING * const *a, LEX_STRING * const *b)
 
 Discovered_table_list::Discovered_table_list(THD *thd_arg,
                  Dynamic_array<LEX_STRING*> *tables_arg,
-                 const LEX_STRING *wild_arg)
+                 const LEX_STRING *wild_arg) :
+  thd(thd_arg), with_temps(false), tables(tables_arg)
 {
-  thd= thd_arg;
-  tables= tables_arg;
   if (wild_arg->str && wild_arg->str[0])
   {
     wild= wild_arg->str;
@@ -4965,6 +4964,12 @@ Discovered_table_list::Discovered_table_list(THD *thd_arg,
 
 bool Discovered_table_list::add_table(const char *tname, size_t tlen)
 {
+  /*
+    TODO Check with_temps and filter out temp tables.
+    Implement the check, when we'll have at least one affected engine (with
+    custom discover_table_names() method, that calls add_table() directly).
+    Note: avoid comparing the same name twice (here and in add_file).
+  */
   if (wild && my_wildcmp(files_charset_info, tname, tname + tlen, wild, wend,
                          wild_prefix, wild_one, wild_many))
       return 0;
@@ -4977,8 +4982,13 @@ bool Discovered_table_list::add_table(const char *tname, size_t tlen)
 
 bool Discovered_table_list::add_file(const char *fname)
 {
+  bool is_temp= strncmp(fname, STRING_WITH_LEN(tmp_file_prefix)) == 0;
+
+  if (is_temp && !with_temps)
+    return 0;
+
   char tname[SAFE_NAME_LEN + 1];
-  size_t tlen= filename_to_tablename(fname, tname, sizeof(tname));
+  size_t tlen= filename_to_tablename(fname, tname, sizeof(tname), is_temp);
   return add_table(tname, tlen);
 }
 
@@ -5036,6 +5046,22 @@ static my_bool discover_names(THD *thd, plugin_ref plugin,
 
   return 0;
 }
+
+/**
+  Return the list of tables
+
+  @param thd
+  @param db         database to look into
+  @param dirp       list of files in this database (as returned by my_dir())
+  @param result     the object to return the list of files in
+  @param reusable   if true, on return, 'dirp' will be a valid list of all
+                    non-table files. If false, discovery will work much faster,
+                    but it will leave 'dirp' corrupted and completely unusable,
+                    only good for my_dirend().
+
+  Normally, reusable=false for SHOW and INFORMATION_SCHEMA, and reusable=true
+  for DROP DATABASE (as it needs to know and delete non-table files).
+*/
 
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable)
