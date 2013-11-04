@@ -542,7 +542,8 @@ int thr_write_keys(MI_SORT_PARAM *sort_param)
 {
   MI_SORT_INFO *sort_info=sort_param->sort_info;
   HA_CHECK *param=sort_info->param;
-  ulong UNINIT_VAR(length), keys;
+  ulonglong UNINIT_VAR(length);
+  ha_rows keys;
   ulong *rec_per_key_part=param->rec_per_key_part;
   int got_error=sort_info->got_error;
   uint i;

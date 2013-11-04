@@ -48,5 +48,3 @@ create role current_role;
 drop user current_role;
 drop role current_role;
 
-select user,host,is_role from mysql.user;
-
