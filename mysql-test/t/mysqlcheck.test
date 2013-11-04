@@ -1,3 +1,4 @@
+call mtr.add_suppression("Invalid .old.. table or database name");
 
 # Embedded server doesn't support external clients
 --source include/not_embedded.inc
