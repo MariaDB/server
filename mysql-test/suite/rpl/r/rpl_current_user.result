@@ -10,11 +10,11 @@ CREATE PROCEDURE p1() SELECT 1;
 # bug48321_1-01234 has the max length(16) of user.
 GRANT ALL PRIVILEGES ON *.* TO 'bug48321_1-01234'@'localhost' WITH GRANT OPTION;
 
-# Make sure the max lengths of user and host
-# the user name is too lengh
-GRANT CREATE USER ON *.* TO '01234567890123456'@'fakehost';
-ERROR HY000: String '01234567890123456' is too long for user name (should be no longer than 16)
-# the host name is too lengh
+# Test the max lengths of user and host names
+# the user name is too long
+GRANT CREATE USER ON *.* TO '012345678901234567890123456789012345678901234567890123456789012345678901234567890'@'fakehost';
+ERROR HY000: String '0123456789012345678901234567890123456789012345678901234567890123456789' is too long for user name (should be no longer than 80)
+# the host name is too long
 GRANT CREATE USER ON *.* TO 'fakename'@'0123456789012345678901234567890123456789012345678901234567890';
 ERROR HY000: String '0123456789012345678901234567890123456789012345678901234567890' is too long for host name (should be no longer than 60)
 

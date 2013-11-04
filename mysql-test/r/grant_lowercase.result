@@ -5,7 +5,7 @@ ERROR 42000: Incorrect database name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 drop user user1@localhost;
 call mtr.add_suppression("Incorrect database name");
 alter table mysql.host modify Db varchar(200);
-alter table mysql.db modify Db varchar(200);
+alter table mysql.db modify User char(16), modify Db varchar(200);
 insert mysql.host set db=concat('=>', repeat(_utf8 'й', 200));
 Warnings:
 Warning	1265	Data truncated for column 'Db' at row 1
@@ -16,5 +16,5 @@ flush privileges;
 delete from mysql.host where db like '=>%';
 delete from mysql.db where db like '=>%';
 alter table mysql.host modify Db char(64);
-alter table mysql.db modify Db char(64);
+alter table mysql.db modify Db char(64), modify User char(80);
 flush privileges;
