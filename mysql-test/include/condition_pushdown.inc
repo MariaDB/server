@@ -5,16 +5,18 @@ set @@optimizer_use_condition_selectivity=4;
 drop table if exists t0, t1 ,t2, t3, sq;
 
 create table t0 (z1 char(64));
-create table t1 (a1 char(64), a2 char(64), a3 char(64), a4 char(64));
-create table t2 (b1 char(64), b2 char(64), b3 char(64), b4 char(64));
-create table t3 (c1 char(64), c2 char(64), c3 char(64), c4 char(64));
 create table sq (s1 char(64));
 
 insert into t0 values ('11'),('22'),('33'),('44'),('55'), ('66'),('77'),('88'),('99'),('10');
+insert into sq select z1 from t0;
+
+create table t1 (a1 char(64), a2 char(64), a3 char(64), a4 char(64));
+create table t2 (b1 char(64), b2 char(64), b3 char(64), b4 char(64));
+create table t3 (c1 char(64), c2 char(64), c3 char(64), c4 char(64));
+
 insert into t1 select z1, z1, z1, z1 from t0;
 insert into t2 select z1, z1, z1, z1 from t0;
 insert into t3 select z1, z1, z1, z1 from t0;
-insert into sq select z1 from t0;
 
 analyze table t1,t2,t3;
 
@@ -88,8 +90,14 @@ WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
 set @@join_buffer_size=128;
 
 explain extended
+SELECT count(*)
+FROM t1, t2, t3
+WHERE a1 = b1 and b2 = c1 and c2 < '6' and c3 < '4' and c4 < '2' and
+      b2 <= (select count(*) from sq where s1 > 0);
+
+explain extended
 SELECT straight_join count(*)
-FROM t1, t2 straight_join t3
+FROM t1, t2, t3
 WHERE a1 = b1 and b2 = c1 and c2 < '6' and c3 < '4' and c4 < '2' and
       b2 <= (select count(*) from sq where s1 > 0);
 
@@ -118,6 +126,36 @@ FROM t1 straight_join t2 straight_join t3
 WHERE a1 = b1 and b2 = c1 and c2 < '6' and c3 < '4' and c4 < '2' and
       b2 <= (select count(*) from sq where s1 > 0);
 
+--echo push SQ to the first table, and test multiple complete join plans
+--echo with the same prefix.
+
+create table t1a (a1 char(64), a2 char(64), a3 char(64), a4 char(64));
+create table t2a (b1 char(64), b2 char(64), b3 char(64), b4 char(64));
+create table t3a (c1 char(64), c2 char(64), c3 char(64), c4 char(64));
+
+insert into t1a select z1, z1, z1, z1 from t0;
+insert into t2a select z1, z1, z1, z1 from t0;
+insert into t3a select z1, z1, z1, z1 from t0;
+insert into t2a select * from t2a;
+insert into t3a select * from t3a;
+insert into t3a select * from t3a;
+create index i_t1_a1 on t1a(a1);
+create index i_t2_b3 on t2a(b3);
+create index i_t3_c4 on t3a(c4);
+analyze table t1a, t2a,t3a;
+
+explain extended
+SELECT count(*)
+FROM t1a, t2a, t3a
+WHERE a1 = b1 and b2 = c3 and b3 < '77' and c4 < '22' and
+      c2 <= (select count(*) from sq where s1 >= c1);
+
+SELECT count(*)
+FROM t1a, t2a, t3a
+WHERE a1 = b1 and b2 = c3 and b3 < '77' and c4 < '22' and
+      c2 <= (select count(*) from sq where s1 >= c1);
+
+drop table t1a ,t2a, t3a;
 
 drop table t0, t1 ,t2, t3, sq;
 

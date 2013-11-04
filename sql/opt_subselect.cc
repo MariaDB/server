@@ -2722,7 +2722,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
       best_access_path(join, join->positions[i].table, rem_tables, i,
                        disable_jbuf, prefix_rec_count, &curpos, &dummy);
       prefix_rec_count *= curpos.records_read;
-      prefix_cost += curpos.read_time;
+      prefix_cost += curpos.get_read_time();
     }
 
     *strategy= SJ_OPT_MATERIALIZE_SCAN;
@@ -2779,7 +2779,7 @@ bool LooseScan_picker::check_qep(JOIN *join,
     If we got an option to use LooseScan for the current table, start
     considering using LooseScan strategy
   */
-  if (loose_scan_pos->read_time != DBL_MAX && !join->outer_join)
+  if (loose_scan_pos->get_read_time() != DBL_MAX && !join->outer_join)
   {
     first_loosescan_table= idx;
     loosescan_need_tables=
@@ -3030,7 +3030,7 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
     {
       POSITION *p= join->positions + j;
       current_fanout *= p->records_read;
-      dups_cost += p->read_time + current_fanout / TIME_FOR_COMPARE;
+      dups_cost += p->get_read_time() + current_fanout / TIME_FOR_COMPARE;
       if (p->table->emb_sj_nest)
       {
         sj_inner_fanout *= p->records_read;

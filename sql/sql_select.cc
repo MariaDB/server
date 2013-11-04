@@ -6233,6 +6233,7 @@ best_access_path(JOIN      *join,
   /* Update the cost information for the current partial plan */
   pos->records_read= records;
   pos->read_time=    best;
+  pos->expensive_pred_cost= 0;
   pos->key=          best_key;
   pos->table=        s;
   pos->ref_depend_map= best_ref_depends_map;
@@ -6745,7 +6746,7 @@ optimize_straight_join(JOIN *join, table_map join_tables)
 
     /* compute the cost of the new plan extended with 's' */
     record_count*= join->positions[idx].records_read;
-    read_time+= join->positions[idx].read_time +
+    read_time+= join->positions[idx].get_read_time() +
                 record_count / (double) TIME_FOR_COMPARE;
     advance_sj_state(join, join_tables, idx, &record_count, &read_time,
                      &loose_scan_pos);
@@ -6945,7 +6946,7 @@ greedy_search(JOIN      *join,
 
     /* compute the cost of the new plan extended with 'best_table' */
     record_count*= join->positions[idx].records_read;
-    read_time+= join->positions[idx].read_time + 
+    read_time+= join->positions[idx].get_read_time() + 
                 record_count / (double) TIME_FOR_COMPARE;
 
     remaining_tables&= ~(best_table->table->map);
@@ -7096,7 +7097,7 @@ void JOIN::get_prefix_cost_and_fanout(uint n_tables,
     if (best_positions[i].records_read)
     {
       record_count *= best_positions[i].records_read;
-      read_time += best_positions[i].read_time;
+      read_time += best_positions[i].get_read_time();
     }
   }
   *read_time_arg= read_time;// + record_count / TIME_FOR_COMPARE;
@@ -7570,7 +7571,7 @@ best_extension_by_limited_search(JOIN      *join,
       /* Compute the cost of extending the plan with 's' */
 
       current_record_count= record_count * position->records_read;
-      current_read_time=read_time + position->read_time +
+      current_read_time=read_time + position->get_read_time() +
                         current_record_count / (double) TIME_FOR_COMPARE;
 
       advance_sj_state(join, remaining_tables, idx, &current_record_count,
@@ -7741,7 +7742,7 @@ find_best(JOIN *join,table_map rest_tables,uint idx,double record_count,
       best_access_path(join, s, rest_tables, idx, disable_jbuf, record_count, 
                        join->positions + idx, &loose_scan_pos);
       records= join->positions[idx].records_read;
-      best= join->positions[idx].read_time;
+      best= join->positions[idx].get_read_time();
       /*
 	Go to the next level only if there hasn't been a better key on
 	this level! This will cut down the search for a lot simple cases!
@@ -14226,7 +14227,7 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
 
     reopt_remaining_tables &= ~rs->table->map;
     rec_count *= pos.records_read;
-    cost += pos.read_time;
+    cost += pos.get_read_time();
 
     if (!rs->emb_sj_nest)
       *outer_rec_count *= pos.records_read;
@@ -24590,7 +24591,7 @@ double JOIN::static_pushdown_cost(uint idx)
     */
     cur_item->walk(&Item::sum_cost_processor, false, (uchar*) &cur_item_cost);
     cur_item_cost= opt_pos->partial_join_cardinality * cur_item_cost;
-    opt_pos->read_time+= cur_item_cost;
+    opt_pos->expensive_pred_cost+= cur_item_cost;
     pushed_cond_cost+= cur_item_cost;
   }
 
@@ -24914,7 +24915,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   if (join)
   {
     uint tablenr= tab - join->join_tab;
-    read_time= join->best_positions[tablenr].read_time;
+    read_time= join->best_positions[tablenr].get_read_time();
     for (uint i= tablenr+1; i < join->table_count; i++)
       fanout*= join->best_positions[i].records_read; // fanout is always >= 1
   }

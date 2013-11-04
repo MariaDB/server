@@ -368,7 +368,7 @@ print_plan(JOIN* join, uint idx, double record_count, double read_time,
       {
         fputs(table->s->table_name.str, DBUG_FILE);
         fprintf(DBUG_FILE, "(records_read: %.2f, read_time: %.2f)",
-                pos.records_read, pos.read_time);
+                pos.records_read, pos.get_read_time());
       }
       fputc(' ', DBUG_FILE);
     }

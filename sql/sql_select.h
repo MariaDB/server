@@ -806,8 +806,14 @@ typedef struct st_position :public Sql_alloc
     Cost accessing the table in course of the entire complete join execution,
     i.e. cost of one access method use (e.g. 'range' or 'ref' scan ) times 
     number the access method will be invoked.
+    NOTICE: This is a write-only member. To get the cost use the method:
+    POSITION::get_read_time().
   */
   double read_time;
+  /*
+    The total cost of all expensive predicates attached to this table.
+  */
+  double expensive_pred_cost;
 
   /* Cumulative cost and record count for the join prefix */
   COST_VECT prefix_cost;
@@ -857,6 +863,9 @@ typedef struct st_position :public Sql_alloc
   Firstmatch_picker         firstmatch_picker;
   LooseScan_picker          loosescan_picker;
   Sj_materialization_picker sjmat_picker;
+
+  /* The total cost of all predicates attached to this table. */
+  double get_read_time() { return read_time + expensive_pred_cost; }
 } POSITION;
 
 typedef struct st_rollup
