@@ -3962,11 +3962,14 @@ class Discovered_table_list: public handlerton::discovered_list
 {
   THD *thd;
   const char *wild, *wend;
+  bool with_temps; // whether to include temp tables in the result
 public:
   Dynamic_array<LEX_STRING*> *tables;
 
   Discovered_table_list(THD *thd_arg, Dynamic_array<LEX_STRING*> *tables_arg,
                         const LEX_STRING *wild_arg);
+  Discovered_table_list(THD *thd_arg, Dynamic_array<LEX_STRING*> *tables_arg)
+    : thd(thd_arg), wild(NULL), with_temps(true), tables(tables_arg) {}
   ~Discovered_table_list() {}
 
   bool add_table(const char *tname, size_t tlen);

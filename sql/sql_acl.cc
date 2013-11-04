@@ -1872,7 +1872,9 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
       continue;
 
     acl_user= (ACL_USER *)acl_user_base;
-    if (acl_user->wild_eq(thd->security_ctx->user, thd->security_ctx->host))
+    /* Yes! priv_user@host. Don't ask why - that's what check_access() does. */
+    if (acl_user->wild_eq(thd->security_ctx->priv_user,
+                          thd->security_ctx->host))
     {
       is_granted= TRUE;
       break;

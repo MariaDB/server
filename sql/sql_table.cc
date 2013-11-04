@@ -369,11 +369,8 @@ uint explain_filename(THD* thd,
     Table name length.
 */
 
-uint filename_to_tablename(const char *from, char *to, uint to_length
-#ifndef DBUG_OFF
-                           , bool stay_quiet
-#endif /* DBUG_OFF */
-                           )
+uint filename_to_tablename(const char *from, char *to, uint to_length, 
+                           bool stay_quiet)
 {
   uint errors;
   size_t res;
@@ -386,7 +383,7 @@ uint filename_to_tablename(const char *from, char *to, uint to_length
   {
     res= (strxnmov(to, to_length, MYSQL50_TABLE_NAME_PREFIX,  from, NullS) -
           to);
-    if (IF_DBUG(!stay_quiet,0))
+    if (!stay_quiet)
       sql_print_error("Invalid (old?) table or database name '%s'", from);
   }
 
