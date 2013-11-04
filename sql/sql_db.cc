@@ -991,7 +991,7 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
 
   /* first, get the list of tables */
   Dynamic_array<LEX_STRING*> files(dirp->number_of_files);
-  Discovered_table_list tl(thd, &files, &null_lex_str);
+  Discovered_table_list tl(thd, &files);
   if (ha_discover_table_names(thd, &db, dirp, &tl, true))
     DBUG_RETURN(1);
 
