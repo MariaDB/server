@@ -39,7 +39,7 @@ loose-aria-pagecache-buffer-size=8M
 
 loose-feedback-user-info=  mysql-test
 
-loose-innodb_data_file_path=      ibdata1:10M:autoextend
+loose-innodb_data_file_path=      ibdata1:12M:autoextend
 loose-innodb_buffer_pool_size=    8M
 loose-innodb_write_io_threads=    2
 loose-innodb_read_io_threads=     2
