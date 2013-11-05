@@ -76,6 +76,13 @@ struct rpl_parallel_entry {
   uint64 last_seq_no;
   uint64 last_commit_id;
   bool active;
+  /*
+    Set when SQL thread is shutting down, and no more events can be processed,
+    so worker threads must force abort any current transactions without
+    waiting for event groups to complete.
+  */
+  bool force_abort;
+
   rpl_parallel_thread *rpl_thread;
   /*
     The sub_id of the last transaction to commit within this domain_id.
