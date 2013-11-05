@@ -322,8 +322,6 @@ extern int wsrep_thd_is_brute_force(void *thd_ptr);
 extern "C" int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, 
                                my_bool signal);
 extern "C" int wsrep_thd_in_locking_session(void *thd_ptr);
-void *wsrep_prepare_bf_thd(THD *thd);
-void wsrep_return_from_bf_mode(void *shadow, THD *thd);
 
 /* this is visible for client build so that innodb plugin gets this */
 typedef struct wsrep_aborting_thd {
@@ -376,8 +374,6 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
                              const TABLE_LIST* table_list);
 void wsrep_to_isolation_end(THD *thd);
 
-void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow*);
-void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow*);
 int wsrep_to_buf_helper(
   THD* thd, const char *query, uint query_len, uchar** buf, uint* buf_len);
 int wsrep_create_sp(THD *thd, uchar** buf, uint* buf_len);
