@@ -20,6 +20,10 @@
 #define _GNU_SOURCE // POSIX_SPAWN_USEVFORK flag
 #endif
 
+#include "wsrep_utils.h"
+#include "wsrep_mysqld.h"
+//#include "wsrep_api.h"
+//#include "wsrep_priv.h"
 #include <spawn.h>    // posix_spawn()
 #include <unistd.h>   // pipe()
 #include <errno.h>    // errno

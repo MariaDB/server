@@ -13,12 +13,15 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+#include "wsrep_var.h"
+
 #include <mysqld.h>
 #include <sql_class.h>
 #include <sql_plugin.h>
 #include <set_var.h>
 #include <sql_acl.h>
 #include "wsrep_priv.h"
+#include "wsrep_thd.h"
 #include <my_dir.h>
 #include <cstdio>
 #include <cstdlib>
@@ -157,7 +160,7 @@ void wsrep_start_position_init (const char* val)
   if (NULL == val || wsrep_start_position_verify (val))
   {
     WSREP_ERROR("Bad initial value for wsrep_start_position: %s", 
-		(val ? val : ""));
+                (val ? val : ""));
     return;
   }
 
@@ -173,7 +176,7 @@ static bool refresh_provider_options()
   {
     if (wsrep_provider_options) my_free((void *)wsrep_provider_options);
     wsrep_provider_options = (char*)my_memdup(opts, strlen(opts) + 1, 
-					      MYF(MY_WME));
+                                              MYF(MY_WME));
   }
   else
   {

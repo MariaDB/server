@@ -79,11 +79,6 @@ extern ulong       wsrep_retry_autocommit;
 extern my_bool     wsrep_auto_increment_control;
 extern my_bool     wsrep_drupal_282555_workaround;
 extern my_bool     wsrep_incremental_data_collection;
-extern const char* wsrep_sst_method;
-extern const char* wsrep_sst_receive_address;
-extern       char* wsrep_sst_auth;
-extern const char* wsrep_sst_donor;
-extern my_bool     wsrep_sst_donor_rejects_queries;
 extern const char* wsrep_start_position;
 extern long long   wsrep_max_ws_size;
 extern long        wsrep_max_ws_rows;
@@ -117,71 +112,21 @@ extern const char* wsrep_provider_vendor;
 extern int         wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff);
 extern void        wsrep_free_status(THD *thd);
 
-#define WSREP_SST_ADDRESS_AUTO   "AUTO"
-#define WSREP_NODE_INCOMING_AUTO "AUTO"
 
-// MySQL variables funcs
+extern int   wsrep_init_vars();
+extern void  wsrep_provider_init       (const char* provider);
+extern void  wsrep_start_position_init (const char* position);
+extern void  wsrep_sst_auth_init       (const char* auth);
 
-#define CHECK_ARGS   (sys_var *self, THD* thd, set_var *var)
-#define UPDATE_ARGS  (sys_var *self, THD* thd, enum_var_type type)
-#define DEFAULT_ARGS (THD* thd, enum_var_type var_type)
-#define INIT_ARGS    (const char* opt)
-
-extern int  wsrep_init_vars();
-
-extern bool wsrep_on_update                  UPDATE_ARGS;
-extern void wsrep_causal_reads_update        UPDATE_ARGS;
-extern bool wsrep_start_position_check       CHECK_ARGS;
-extern bool wsrep_start_position_update      UPDATE_ARGS;
-extern void wsrep_start_position_init        INIT_ARGS;
-
-extern bool wsrep_provider_check             CHECK_ARGS;
-extern bool wsrep_provider_update            UPDATE_ARGS;
-extern void wsrep_provider_init              INIT_ARGS;
-
-extern bool wsrep_provider_options_check     CHECK_ARGS;
-extern bool wsrep_provider_options_update    UPDATE_ARGS;
-extern void wsrep_provider_options_init      INIT_ARGS;
-
-extern bool wsrep_cluster_address_check      CHECK_ARGS;
-extern bool wsrep_cluster_address_update     UPDATE_ARGS;
-extern void wsrep_cluster_address_init       INIT_ARGS;
-
-extern bool wsrep_cluster_name_check         CHECK_ARGS;
-extern bool wsrep_cluster_name_update        UPDATE_ARGS;
-
-extern bool wsrep_node_name_check            CHECK_ARGS;
-extern bool wsrep_node_name_update           UPDATE_ARGS;
-
-extern bool wsrep_node_address_check         CHECK_ARGS;
-extern bool wsrep_node_address_update        UPDATE_ARGS;
-extern void wsrep_node_address_init          INIT_ARGS;
-
-extern bool wsrep_sst_method_check           CHECK_ARGS;
-extern bool wsrep_sst_method_update          UPDATE_ARGS;
-extern void wsrep_sst_method_init            INIT_ARGS;
-
-extern bool wsrep_sst_receive_address_check  CHECK_ARGS;
-extern bool wsrep_sst_receive_address_update UPDATE_ARGS;
-
-extern bool wsrep_sst_auth_check             CHECK_ARGS;
-extern bool wsrep_sst_auth_update            UPDATE_ARGS;
-extern void wsrep_sst_auth_init              INIT_ARGS;
-
-extern bool wsrep_sst_donor_check            CHECK_ARGS;
-extern bool wsrep_sst_donor_update           UPDATE_ARGS;
-
-extern bool wsrep_slave_threads_check        CHECK_ARGS;
-extern bool wsrep_slave_threads_update       UPDATE_ARGS;
-
-extern bool wsrep_desync_check               CHECK_ARGS;
-extern bool wsrep_desync_update              UPDATE_ARGS;
-
-extern bool  wsrep_before_SE(); // initialize wsrep before storage
-                                // engines (true) or after (false)
 extern int   wsrep_init();
 extern void  wsrep_deinit();
 extern void  wsrep_recover();
+extern bool  wsrep_before_SE(); // initialize wsrep before storage
+                                // engines (true) or after (false)
+/* wsrep initialization sequence at startup
+ * @param before wsrep_before_SE() value */
+extern void wsrep_init_startup(bool before);
+
 
 
 
@@ -215,17 +160,11 @@ extern "C" void wsrep_thd_awake(THD* bf_thd, THD *thd, my_bool signal);
 
 
 
-/* wsrep initialization sequence at startup
- * @param first wsrep_before_SE() value */
-extern void wsrep_init_startup(bool before);
-
 extern void wsrep_close_client_connections(my_bool wait_to_end);
 extern int  wsrep_wait_committing_connections_close(int wait_time);
 extern void wsrep_close_applier(THD *thd);
 extern void wsrep_wait_appliers_close(THD *thd);
 extern void wsrep_close_applier_threads(int count);
-extern void wsrep_create_appliers(long threads = wsrep_slave_threads);
-extern void wsrep_create_rollbacker();
 extern void wsrep_kill_mysql(THD *thd);
 
 /* new defines */
@@ -286,18 +225,6 @@ extern wsrep_seqno_t wsrep_locked_seqno;
     if (victim_thd) WSREP_LOG_CONFLICT_THD(victim_thd, "Victim thread");       \
   }
 
-/*! Synchronizes applier thread start with init thread */
-extern void wsrep_sst_grab();
-/*! Init thread waits for SST completion */
-extern bool wsrep_sst_wait();
-/*! Signals wsrep that initialization is complete, writesets can be applied */
-extern void wsrep_sst_continue();
-
-extern void wsrep_SE_init_grab(); /*! grab init critical section */
-extern void wsrep_SE_init_wait(); /*! wait for SE init to complete */
-extern void wsrep_SE_init_done(); /*! signal that SE init is complte */
-extern void wsrep_SE_initialized(); /*! mark SE initialization complete */
-
 extern void wsrep_ready_wait();
 
 enum wsrep_trx_status {
@@ -311,17 +238,10 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all);
 class Ha_trx_info;
 struct THD_TRANS;
 void wsrep_register_hton(THD* thd, bool all);
-
-void wsrep_replication_process(THD *thd);
-void wsrep_rollback_process(THD *thd);
 void wsrep_brute_force_killer(THD *thd);
 int  wsrep_hire_brute_force_killer(THD *thd, uint64_t trx_id);
+
 extern "C" bool wsrep_consistency_check(void *thd_ptr);
-//extern "C" int wsrep_thd_is_brute_force(void *thd_ptr);
-extern int wsrep_thd_is_brute_force(void *thd_ptr);
-extern "C" int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, 
-                               my_bool signal);
-extern "C" int wsrep_thd_in_locking_session(void *thd_ptr);
 
 /* this is visible for client build so that innodb plugin gets this */
 typedef struct wsrep_aborting_thd {

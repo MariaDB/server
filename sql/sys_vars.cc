@@ -4063,7 +4063,8 @@ static Sys_var_tz Sys_time_zone(
        DEFAULT(&default_tz), NO_MUTEX_GUARD, IN_BINLOG);
 
 #ifdef WITH_WSREP
-#include "wsrep_mysqld.h"
+#include "wsrep_var.h"
+#include "wsrep_sst.h"
 
 static Sys_var_charptr Sys_wsrep_provider(
        "wsrep_provider", "Path to replication provider library",
@@ -4244,8 +4245,7 @@ static Sys_var_mybool Sys_wsrep_certify_nonPK(
 static Sys_var_mybool Sys_wsrep_causal_reads(
        "wsrep_causal_reads", "Enable \"strictly synchronous\" semantics for read operations",
        SESSION_VAR(wsrep_causal_reads), 
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE)); 
-       //       ON_UPDATE(wsrep_causal_reads_update));
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static const char *wsrep_OSU_method_names[]= { "TOI", "RSU", NullS };
 static Sys_var_enum Sys_wsrep_OSU_method(

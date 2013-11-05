@@ -63,7 +63,7 @@
 
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
-
+#include "wsrep_thd.h"
 #endif // WITH_WSREP
 
 bool

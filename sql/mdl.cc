@@ -24,6 +24,7 @@
 #include <mysql/psi/mysql_stage.h>
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+#include "wsrep_thd.h"
 extern "C" my_thread_id wsrep_thd_thread_id(THD *thd);
 extern "C" char *wsrep_thd_query(THD *thd);
 void sql_print_information(const char *format, ...)
