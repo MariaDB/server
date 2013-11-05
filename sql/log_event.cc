@@ -362,7 +362,6 @@ static void clear_all_errors(THD *thd, Relay_log_info *rli)
 {
   thd->is_slave_error = 0;
   thd->clear_error();
-  rli->clear_error();
 }
 
 inline int idempotent_error_code(int err_code)
