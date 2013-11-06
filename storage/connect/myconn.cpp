@@ -87,7 +87,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
                           FLD_KEY,  FLD_SCALE, FLD_RADIX,    FLD_NULL,
                           FLD_REM,  FLD_NO,    FLD_CHARSET};
   static unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 256, 32, 32};
-  char   *fld, *fmt, cmd[128];
+  char   *fld, *fmt, v, cmd[128];
   int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
   int     len, type, prec, rc, k = 0;
   PQRYRES qrp;
@@ -139,6 +139,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
   // Some columns must be renamed
   for (i = 0, crp = qrp->Colresp; crp; crp = crp->Next)
     switch (++i) {
+      case  2: crp->Nulls = (char*)PlugSubAlloc(g, NULL, n); break;
       case  4: crp->Name = "Length";    break;
       case  5: crp->Name = "Key";       break;
       case 10: crp->Name = "Date_fmt";  break;
@@ -166,7 +167,8 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
     // Get type, type name, and precision
     fld = myc.GetCharField(1);
     prec = 0;
-    len = 255;            // Default for text or blob
+    len = 0;
+    v = 0;
 
     if ((nf = sscanf(fld, "%[^(](%d,%d", cmd, &len, &prec)) < 1) {
       sprintf(g->Message, MSG(BAD_FIELD_TYPE), fld);
@@ -175,14 +177,16 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
     } else
       qrp->Nblin++;
 
-    if ((type = MYSQLtoPLG(cmd)) == TYPE_ERROR) {
+    if ((type = MYSQLtoPLG(cmd, &v)) == TYPE_ERROR) {
       sprintf(g->Message, "Unsupported column type %s", cmd);
       myc.Close();
       return NULL;
-      } // endif type
+    } else if (type == TYPE_STRING)
+      len = min(len, 255);
 
     crp = crp->Next;                       // Data_Type
     crp->Kdata->SetValue(type, i);
+    crp->Nulls[i] = v;
     crp = crp->Next;                       // Type_Name
     crp->Kdata->SetValue(cmd, i);
 
@@ -253,6 +257,7 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
                    const char *user, const char *pwd,
                    const char *srcdef, int port)
   {
+  char   *query;
   int     w;
   MYSQLC  myc;
   PQRYRES qrp = NULL;
@@ -260,12 +265,15 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
   if (!port)
     port = mysqld_port;
 
+  query = (char *)PlugSubAlloc(g, NULL, strlen(srcdef) + 9);
+  strcat(strcpy(query, srcdef), " LIMIT 0");
+
   // Open a MySQL connection for this table
   if (myc.Open(g, host, db, user, pwd, port))
     return NULL;
 
   // Send the source command to MySQL
-  if (myc.ExecSQL(g, srcdef, &w) == RC_OK)
+  if (myc.ExecSQL(g, query, &w) == RC_OK)
     qrp = myc.GetResult(g);
 
   myc.Close();
@@ -777,6 +785,42 @@ void MYSQLC::Rewind(void)
     DataSeek(0);
 
   } // end of Rewind
+
+/***********************************************************************/
+/*  Exec the Select SQL command and return ncol or afrws (TDBMYEXC).   */
+/***********************************************************************/
+int MYSQLC::ExecSQLcmd(PGLOBAL g, const char *query, int *w)
+  {
+  int rc = RC_OK;
+
+  if (!m_DB) {
+    strcpy(g->Message, "MySQL not connected");
+    return RC_FX;
+  } else
+    *w = 0;
+
+  if (!stricmp(query, "Warning") || !stricmp(query, "Note")
+                                 || !stricmp(query, "Error"))
+    return RC_INFO;
+  else
+    m_Afrw = 0;
+
+//if (mysql_query(m_DB, query) != 0) {
+  if (mysql_real_query(m_DB, query, strlen(query))) {
+    m_Afrw = (int)mysql_errno(m_DB);
+    sprintf(g->Message, "%s", mysql_error(m_DB));
+    rc = RC_FX;
+//} else if (!(m_Fields = mysql_field_count(m_DB))) {
+  } else if (!(m_Fields = (int)m_DB->field_count)) {
+//  m_Afrw = (int)mysql_affected_rows(m_DB);
+    m_Afrw = (int)m_DB->affected_rows;
+    rc = RC_NF;
+  } // endif's
+
+//*w = mysql_warning_count(m_DB);
+  *w = m_DB->warning_count;
+  return rc;
+  } // end of ExecSQLcmd
 
 /***********************************************************************/
 /*  Close the connection.                                              */

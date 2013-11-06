@@ -355,7 +355,9 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   if ((Srcdef = Cat->GetStringCatInfo(g, "Srcdef", NULL)))
     Isview = TRUE;
 
+  // Specific for command executing tables
   Xsrc = Cat->GetBoolCatInfo("Execsrc", FALSE);
+  Mxr = Cat->GetIntCatInfo("Maxerr", 0);
   return FALSE;
   } // end of DefineAM
 
@@ -516,7 +518,7 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g)
   strcat(strcat(strcat(strcat(Query, " FROM "), tk), Tabname), tk);
 
   if (To_Filter)
-    strcat(strcat(Query, " WHERE "), To_Filter);
+    strcat(strcat(Query, " WHERE "), To_Filter->Body);
 
   if (trace)
     htrc("Query=%s\n", Query);
@@ -1294,8 +1296,30 @@ void MYSQLCOL::WriteColumn(PGLOBAL g)
 /* ------------------------------------------------------------------- */
 
 /***********************************************************************/
-/*  Implementation of the TDBMYSQL class.                              */
+/*  Implementation of the TDBMYEXC class.                              */
 /***********************************************************************/
+TDBMYEXC::TDBMYEXC(PMYDEF tdp) : TDBMYSQL(tdp) 
+{
+  Cmdlist = NULL;
+  Cmdcol = NULL;
+  Shw = false;
+  Havew = false;
+  Isw = false;
+  Warnings = 0;
+  Mxr = tdp->Mxr;
+  Nerr = 0;
+} // end of TDBMYEXC constructor
+
+TDBMYEXC::TDBMYEXC(PGLOBAL g, PTDBMYX tdbp) : TDBMYSQL(g, tdbp)
+{
+  Cmdlist = tdbp->Cmdlist;
+  Cmdcol = tdbp->Cmdcol;
+  Shw = tdbp->Shw;
+  Havew = tdbp->Havew;
+  Isw = tdbp->Isw;
+  Mxr = tdbp->Mxr;
+  Nerr = tdbp->Nerr;
+} // end of TDBMYEXC copy constructor
 
 // Is this really useful ???
 PTDB TDBMYEXC::CopyOne(PTABS t)
@@ -1331,23 +1355,15 @@ PCOL TDBMYEXC::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 /*  MakeCMD: make the SQL statement to send to MYSQL connection.       */
 /***********************************************************************/
-char *TDBMYEXC::MakeCMD(PGLOBAL g)
+PCMD TDBMYEXC::MakeCMD(PGLOBAL g)
   {
-  char *xcmd = NULL;
+  PCMD xcmd = NULL;
 
   if (To_Filter) {
     if (Cmdcol) {
-      char col[128], cmd[1024];
-      int n;
-      
-      memset(cmd, 0, sizeof(cmd));
-      n = sscanf(To_Filter, "%s = '%1023c", col, cmd);
-  
-      if (n == 2 && !stricmp(col, Cmdcol)) {
-        xcmd = (char*)PlugSubAlloc(g, NULL, strlen(cmd) + 1);
-  
-        strcpy(xcmd, cmd);
-        xcmd[strlen(xcmd) - 1] = 0;
+      if (!stricmp(Cmdcol, To_Filter->Body) &&
+          (To_Filter->Op == OP_EQ || To_Filter->Op == OP_IN)) {
+        xcmd = To_Filter->Cmds;
       } else
         strcpy(g->Message, "Invalid command specification filter");
 
@@ -1357,7 +1373,7 @@ char *TDBMYEXC::MakeCMD(PGLOBAL g)
   } else if (!Srcdef)
     strcpy(g->Message, "No Srcdef default command");
   else
-    xcmd = Srcdef;
+    xcmd = new(g) CMD(g, Srcdef);
 
   return xcmd;
   } // end of MakeCMD
@@ -1368,7 +1384,7 @@ char *TDBMYEXC::MakeCMD(PGLOBAL g)
 int TDBMYEXC::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
-    MaxSize = 1;
+    MaxSize = 10;                 // a guess
     } // endif MaxSize
 
   return MaxSize;
@@ -1379,8 +1395,6 @@ int TDBMYEXC::GetMaxSize(PGLOBAL g)
 /***********************************************************************/
 bool TDBMYEXC::OpenDB(PGLOBAL g)
   {
-  int rc;
-
   if (Use == USE_OPEN) {
     strcpy(g->Message, "Multiple execution is not allowed");
     return true;
@@ -1407,19 +1421,10 @@ bool TDBMYEXC::OpenDB(PGLOBAL g)
   /*********************************************************************/
   /*  Get the command to execute.                                      */
   /*********************************************************************/
-  if (!(Query = MakeCMD(g))) {
+  if (!(Cmdlist = MakeCMD(g))) {
     Myc.Close();
     return true;
     } // endif Query
-
-  if ((rc = Myc.ExecSQL(g, Query)) == RC_NF) {
-    strcpy(g->Message, "Affected rows");
-    AftRows = Myc.m_Rows;
-  } else if (rc == RC_OK) {
-    sprintf(g->Message, "Columns and %d rows", Myc.m_Rows);
-    AftRows = Myc.m_Fields;
-  } else
-    return true;
 
   return false;
   } // end of OpenDB
@@ -1429,7 +1434,54 @@ bool TDBMYEXC::OpenDB(PGLOBAL g)
 /***********************************************************************/
 int TDBMYEXC::ReadDB(PGLOBAL g)
   {
-  return (++N) ? RC_EF : RC_OK;
+  if (Havew) {
+    // Process result set from SHOW WARNINGS
+    if (Myc.Fetch(g, -1) != RC_OK) {
+      Myc.FreeResult();
+      Havew = Isw = false;
+    } else {
+      N++;
+      Isw = true;
+      return RC_OK;
+    } // endif Fetch
+
+    } // endif m_Res
+
+  if (Cmdlist) {
+    // Process query to send
+    int rc;
+  
+    do {
+      Query = Cmdlist->Cmd;
+
+      switch (rc = Myc.ExecSQLcmd(g, Query, &Warnings)) {
+        case RC_NF:
+          AftRows = Myc.m_Afrw;
+          strcpy(g->Message, "Affected rows");
+          break;
+        case RC_OK:
+          AftRows = Myc.m_Fields;
+          strcpy(g->Message, "Result set columns");
+          break;
+        case RC_FX:
+          AftRows = Myc.m_Afrw;
+          Nerr++;
+          break;
+        case RC_INFO:
+          Shw = true;
+        } // endswitch rc
+  
+      Cmdlist = (Nerr > Mxr) ? NULL : Cmdlist->Next;
+      } while (rc == RC_INFO);
+
+    if (Shw && Warnings)
+      Havew = (Myc.ExecSQL(g, "SHOW WARNINGS") == RC_OK);
+
+    ++N;
+    return RC_OK;
+  } else
+    return RC_EF;
+
   } // end of ReadDB
 
 /***********************************************************************/
@@ -1480,12 +1532,23 @@ void MYXCOL::ReadColumn(PGLOBAL g)
   {
   PTDBMYX tdbp = (PTDBMYX)To_Tdb;
 
-  switch (Flag) {
-    case  0: Value->SetValue_psz(tdbp->Query);    break;
-    case  1: Value->SetValue(tdbp->AftRows);      break;
-    case  2: Value->SetValue_psz(g->Message);     break;
-    default: Value->SetValue_psz("Invalid Flag"); break;
-    } // endswitch Flag
+  if (tdbp->Isw) {
+    char *buf = NULL;
+
+    if (Flag < 3) {
+      buf = tdbp->Myc.GetCharField(Flag);
+      Value->SetValue_psz(buf);
+    } else
+      Value->Reset();
+
+  } else
+    switch (Flag) {
+      case  0: Value->SetValue_psz(tdbp->Query);    break;
+      case  1: Value->SetValue(tdbp->AftRows);      break;
+      case  2: Value->SetValue_psz(g->Message);     break;
+      case  3: Value->SetValue(tdbp->Warnings);     break;
+      default: Value->SetValue_psz("Invalid Flag"); break;
+      } // endswitch Flag
 
   } // end of ReadColumn
 

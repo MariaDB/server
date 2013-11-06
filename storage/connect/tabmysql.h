@@ -20,6 +20,7 @@ typedef class MYSQLC   *PMYC;
 /***********************************************************************/
 class MYSQLDEF : public TABDEF           {/* Logical table description */
   friend class TDBMYSQL;
+  friend class TDBMYEXC;
   friend class TDBMCL;
   friend class ha_connect;
  public:
@@ -53,6 +54,7 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   PSZ     Password;           /* Password logon info                   */
   PSZ     Server;             /* PServerID                             */
   int     Portnumber;         /* MySQL port number (0 = default)       */
+  int     Mxr;                /* Maxerr for an Exec table              */
   bool    Isview;             /* TRUE if this table is a MySQL view    */
   bool    Bind;               /* Use prepared statement on insert      */
   bool    Delayed;            /* Delayed insert                        */
@@ -167,13 +169,12 @@ class MYSQLCOL : public COLBLK {
 class TDBMYEXC : public TDBMYSQL {
   friend class MYXCOL;
  public:
-  // Constructor
-  TDBMYEXC(PMYDEF tdp) : TDBMYSQL(tdp) {Cmdcol = NULL;}
-  TDBMYEXC(PGLOBAL g, PTDBMYX tdbp) : TDBMYSQL(g, tdbp)
-              {Cmdcol = tdbp->Cmdcol;}
+  // Constructors
+  TDBMYEXC(PMYDEF tdp); 
+  TDBMYEXC(PGLOBAL g, PTDBMYX tdbp);
 
   // Implementation
-//virtual AMT  GetAmType(void) {return TYPE_AM_MYSQL;}
+  virtual AMT  GetAmType(void) {return TYPE_AM_MYX;}
   virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMYEXC(g, this);}
 
   // Methods
@@ -203,13 +204,20 @@ class TDBMYEXC : public TDBMYSQL {
 
  protected:
   // Internal functions
-  char *MakeCMD(PGLOBAL g);
+  PCMD MakeCMD(PGLOBAL g);
 //bool MakeSelect(PGLOBAL g);
 //bool MakeInsert(PGLOBAL g);
 //int  BindColumns(PGLOBAL g);
 
   // Members
+  PCMD     Cmdlist;           // The commands to execute
   char    *Cmdcol;            // The name of the Xsrc command column
+  bool     Shw;               // Show warnings
+  bool     Havew;             // True when processing warnings
+  bool     Isw;               // True for warning lines
+  int      Warnings;          // Warnings number
+  int      Mxr;               // Maximum errors before closing
+  int      Nerr;              // Number of errors so far
   }; // end of class TDBMYEXC
 
 /***********************************************************************/

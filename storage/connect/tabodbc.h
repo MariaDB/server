@@ -52,6 +52,7 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ     Qchar;              /* Identifier quoting character          */
   int     Catver;             /* ODBC version for catalog functions    */
   int     Options;            /* Open connection options               */
+  int     Mxr;                /* Maxerr for an Exec table              */
   bool    Xsrc;               /* Execution type                        */
   }; // end of ODBCDEF
 
@@ -179,12 +180,12 @@ class TDBXDBC : public TDBODBC {
   friend class XSRCCOL;
   friend class ODBConn;
  public:
-  // Constructor
-  TDBXDBC(PODEF tdp = NULL) : TDBODBC(tdp) {Cmdcol = NULL;}
-  TDBXDBC(PTDBXDBC tdbp) : TDBODBC(tdbp) {Cmdcol = tdbp->Cmdcol;}
+  // Constructors
+  TDBXDBC(PODEF tdp = NULL);
+  TDBXDBC(PTDBXDBC tdbp);
 
   // Implementation
-//virtual AMT  GetAmType(void) {return TYPE_AM_ODBC;}
+  virtual AMT  GetAmType(void) {return TYPE_AM_XDBC;}
   virtual PTDB Duplicate(PGLOBAL g)
                 {return (PTDB)new(g) TDBXDBC(this);}
 
@@ -209,11 +210,14 @@ class TDBXDBC : public TDBODBC {
 
  protected:
   // Internal functions
-  char *MakeCMD(PGLOBAL g);
+  PCMD  MakeCMD(PGLOBAL g);
 //bool  BindParameters(PGLOBAL g);
 
   // Members
+  PCMD     Cmdlist;           // The commands to execute
   char    *Cmdcol;            // The name of the Xsrc command column
+  int      Mxr;               // Maximum errors before closing
+  int      Nerr;              // Number of errors so far
   }; // end of class TDBXDBC
 
 /***********************************************************************/

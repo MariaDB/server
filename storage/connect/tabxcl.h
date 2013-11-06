@@ -3,8 +3,6 @@
 
 #include "tabutil.h"
 
-#define TYPE_AM_XCOL  (AMT)124
-
 typedef class XCLDEF  *PXCLDEF;
 typedef class TDBXCL  *PTDBXCL;
 typedef class XCLCOL  *PXCLCOL;

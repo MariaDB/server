@@ -1557,8 +1557,9 @@ const char *ha_connect::GetValStr(OPVAL vop, bool neg)
 /***********************************************************************/
 PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
 {
+  char *body= filp->Body;
   unsigned int i;
-  bool  ismul= false;
+  bool  ismul= false, x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC);
   PPARM pfirst= NULL, pprec= NULL, pp[2]= {NULL, NULL};
   OPVAL vop= OP_XX;
 
@@ -1571,6 +1572,9 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
   if (cond->type() == COND::COND_ITEM) {
     char      *p1, *p2;
     Item_cond *cond_item= (Item_cond *)cond;
+
+    if (x)
+      return NULL;
 
     if (xtrace > 1)
       printf("Cond: Ftype=%d name=%s\n", cond_item->functype(),
@@ -1586,7 +1590,7 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
     List_iterator<Item> li(*arglist);
     Item *subitem;
 
-    p1= filp + strlen(filp);
+    p1= body + strlen(body);
     strcpy(p1, "(");
     p2= p1 + 1;
 
@@ -1615,7 +1619,7 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
   } else if (cond->type() == COND::FUNC_ITEM) {
     unsigned int i;
 //  int   n;
-    bool  iscol, neg= FALSE;
+    bool       iscol, neg= FALSE;
     Item_func *condf= (Item_func *)cond;
     Item*     *args= condf->arguments();
 
@@ -1644,6 +1648,9 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
     else if (ismul && tty == TYPE_AM_WMI)
       return NULL;        // Not supported by WQL
 
+    if (x && (neg || !(vop == OP_EQ || vop == OP_IN)))
+      return NULL;
+
     for (i= 0; i < condf->argument_count(); i++) {
       if (xtrace > 1)
         printf("Argtype(%d)=%d\n", i, args[i]->type());
@@ -1659,6 +1666,9 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
         const char *fnm;
         ha_field_option_struct *fop;
         Item_field *pField= (Item_field *)args[i];
+
+        if (x && i)
+          return NULL;
 
         if (pField->field->table != table)
           return NULL;  // Field does not belong to this table
@@ -1685,10 +1695,10 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
         if (i && ismul)
           return NULL;
 
-        strcat(filp, fnm);
+        strcat(body, fnm);
       } else {
-        char   buff[256];
-        String *res, tmp(buff,sizeof(buff), &my_charset_bin);
+        char    buff[256];
+        String *res, tmp(buff, sizeof(buff), &my_charset_bin);
         Item_basic_constant *pval= (Item_basic_constant *)args[i];
 
         if ((res= pval->val_str(&tmp)) == NULL)
@@ -1698,25 +1708,45 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
           printf("Value=%.*s\n", res->length(), res->ptr());
 
         // IN and BETWEEN clauses should be col VOP list
-        if (!i && ismul)
+        if (!i && (x || ismul))
           return NULL;
 
-        // Append the value to the filter
-        if (args[i]->field_type() == MYSQL_TYPE_VARCHAR)
-          strcat(strcat(strcat(filp, "'"), res->ptr()), "'");
-        else
-          strncat(filp, res->ptr(), res->length());
+        if (!x) {
+          // Append the value to the filter
+          if (args[i]->field_type() == MYSQL_TYPE_VARCHAR)
+            strcat(strcat(strcat(body, "'"), res->ptr()), "'");
+          else
+            strncat(body, res->ptr(), res->length());
+
+        } else {
+          if (args[i]->field_type() == MYSQL_TYPE_VARCHAR) {
+            // Add the command to the list
+            PCMD *ncp, cmdp= new(g) CMD(g, (char*)res->ptr());
+
+            for (ncp= &filp->Cmds; *ncp; ncp= &(*ncp)->Next) ;
+
+            *ncp= cmdp;
+          } else
+            return NULL;
+
+        } // endif x
 
       } // endif
 
-      if (!i)
-        strcat(filp, GetValStr(vop, neg));
-      else if (vop == OP_XX && i == 1)
-        strcat(filp, " AND ");
-      else if (vop == OP_IN)
-        strcat(filp, (i == condf->argument_count() - 1) ? ")" : ",");
+      if (!x) {
+        if (!i)
+          strcat(body, GetValStr(vop, neg));
+        else if (vop == OP_XX && i == 1)
+          strcat(body, " AND ");
+        else if (vop == OP_IN)
+          strcat(body, (i == condf->argument_count() - 1) ? ")" : ",");
+
+        } // endif x
 
       } // endfor i
+
+    if (x)
+      filp->Op= vop;
 
   } else {
     if (xtrace > 1)
@@ -1753,23 +1783,31 @@ const COND *ha_connect::cond_push(const COND *cond)
   DBUG_ENTER("ha_connect::cond_push");
 
   if (tdbp) {
-    AMT tty= tdbp->GetAmType();
+    AMT  tty= tdbp->GetAmType();
+    bool x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC); 
 
     if (tty == TYPE_AM_WMI || tty == TYPE_AM_ODBC ||
-        tty == TYPE_AM_TBL || tty == TYPE_AM_MYSQL) {
+        tty == TYPE_AM_TBL || tty == TYPE_AM_MYSQL || x) {
       PGLOBAL& g= xp->g;
-      PFIL filp= (PFIL)PlugSubAlloc(g, NULL, 0);
+      PFIL filp= (PFIL)PlugSubAlloc(g, NULL, sizeof(FILTER));
 
-      *filp= 0;
+      filp->Body= (char*)PlugSubAlloc(g, NULL, (x) ? 128 : 0);
+      *filp->Body= 0;
+      filp->Op= OP_XX;
+      filp->Cmds= NULL;
 
       if (CheckCond(g, filp, tty, (Item *)cond)) {
         if (xtrace)
-          puts(filp);
+          puts(filp->Body);
+
+        if (!x)
+          PlugSubAlloc(g, NULL, strlen(filp->Body) + 1);
+        else
+          cond= NULL;            // Does this work?
 
         tdbp->SetFilter(filp);
-//      cond= NULL;     // This does not work anyway
-        PlugSubAlloc(g, NULL, strlen(filp) + 1);
-        } // endif filp
+      } else if (x && cond)
+        tdbp->SetFilter(filp);   // Wrong filter
 
       } // endif tty
 
@@ -3461,12 +3499,13 @@ static bool add_fields(PGLOBAL g,
   DBUG_RETURN(0);
 } // end of add_fields
 #else   // !NEW_WAY
-static bool add_field(String *sql, const char *field_name, int typ, int len,
-                      int dec, uint tm, const char *rem, int flag, bool dbf)
+static bool add_field(String *sql, const char *field_name, int typ,
+                      int len, int dec, uint tm, const char *rem,
+                      int flag, bool dbf, char v)
 {
+  char var = (len > 255) ? 'V' : v;
   bool error= false;
-  const char *type= PLGtoMYSQLtype(typ, dbf);
-//        type= PLGtoMYSQLtype(typ, true);         ?????
+  const char *type= PLGtoMYSQLtype(typ, dbf, var);
 
   error|= sql->append('`');
   error|= sql->append(field_name);
@@ -3479,7 +3518,8 @@ static bool add_field(String *sql, const char *field_name, int typ, int len,
 
     if (!strcmp(type, "DOUBLE")) {
       error|= sql->append(',');
-      error|= sql->append_ulonglong(dec);
+      // dec must be <= len and <= 31
+      error|= sql->append_ulonglong(min(dec, (len - 1)));
       } // endif dec
 
     error|= sql->append(')');
@@ -3518,6 +3558,8 @@ static int init_table_share(THD *thd,
                             HA_CREATE_INFO *create_info, 
                             Alter_info *alter_info)
 {
+  KEY         *not_used_1;
+  uint         not_used_2;
   int          rc= 0;
   handler     *file;
   LEX_CUSTRING frm= {0,0};
@@ -3577,9 +3619,8 @@ static int init_table_share(THD *thd,
   tmp_disable_binlog(thd);
 
   file= mysql_create_frm_image(thd, table_s->db.str, table_s->table_name.str,
-                               create_info, alter_info,
-//                             &thd->lex->create_info, &thd->lex->alter_info,
-                               C_ORDINARY_CREATE, &frm);
+                               create_info, alter_info, C_ORDINARY_CREATE, 
+                               &not_used_1, &not_used_2, &frm);
   if (file)
     delete file;
   else
@@ -3777,7 +3818,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 //CHARSET_INFO *cs;
   Alter_info  alter_info;
 #else   // !NEW_WAY
-  char        buf[1024];
+  char        v, buf[1024];
   String      sql(buf, sizeof(buf), system_charset_info);
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
@@ -4097,7 +4138,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                        NOT_NULL_FLAG, "", flg, dbf);
 #else   // !NEW_WAY
         // Now add the field
-        if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG, 0, flg, dbf))
+        if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG, 0, flg, dbf, 0))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
       } // endfor crp
@@ -4121,6 +4162,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
               break;
             case FLD_TYPE:
               typ= crp->Kdata->GetIntValue(i);
+              v = (crp->Nulls) ? crp->Nulls[i] : 0;
               break;
             case FLD_PREC:
               len= crp->Kdata->GetIntValue(i);
@@ -4151,7 +4193,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           int plgtyp;
 
           // typ must be PLG type, not SQL type
-          if (!(plgtyp= TranslateSQLType(typ, dec, len))) {
+          if (!(plgtyp= TranslateSQLType(typ, dec, len, v))) {
             sprintf(g->Message, "Unsupported SQL type %d", typ);
             my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
             return HA_ERR_INTERNAL_ERROR;
@@ -4176,7 +4218,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
                        tm, rem, 0, true);
 #else   // !NEW_WAY
-        if (add_field(&sql, cnm, typ, len, dec, tm, rem, 0, true))
+        if (add_field(&sql, cnm, typ, len, dec, tm, rem, 0, true, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
         } // endfor i

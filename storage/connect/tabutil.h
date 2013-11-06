@@ -6,8 +6,6 @@
 
 //#include "tabtbl.h"
 
-#define TYPE_AM_PRX  (AMT)129
-
 typedef class PRXDEF *PPRXDEF;
 typedef class TDBPRX *PTDBPRX;
 typedef class XXLCOL *PXXLCOL;

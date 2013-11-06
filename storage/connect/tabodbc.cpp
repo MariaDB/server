@@ -110,6 +110,7 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Qchar = Cat->GetStringCatInfo(g, "Qchar", "");
   Catver = Cat->GetIntCatInfo("Catver", 2);
   Xsrc = Cat->GetBoolCatInfo("Execsrc", FALSE);
+  Mxr = Cat->GetIntCatInfo("Maxerr", 0);
   Options = ODBConn::noOdbcDialog;
   Pseudo = 2;    // FILID is Ok but not ROWID
   return false;
@@ -395,7 +396,7 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
 
   // Below 14 is length of 'select ' + length of ' from ' + 1
   len = (strlen(colist) + strlen(buf) + 14);
-  len += (To_Filter ? strlen(To_Filter) + 7 : 0);
+  len += (To_Filter ? strlen(To_Filter->Body) + 7 : 0);
 
 //  if (tablep->GetQualifier())             This is used when using a table
 //    qualp = tablep->GetQualifier();       from anotherPlugDB database but
@@ -432,7 +433,7 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   strcat(sql, tabname);
 
   if (To_Filter)
-    strcat(strcat(sql, " WHERE "), To_Filter);
+    strcat(strcat(sql, " WHERE "), To_Filter->Body);
 
   return sql;
   } // end of MakeSQL
@@ -720,7 +721,7 @@ int TDBODBC::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBODBC::WriteDB(PGLOBAL g)
   {
-  int n = Ocp->ExecuteSQL(false);
+  int n = Ocp->ExecuteSQL();
 
   if (n < 0) {
     AftRows = n;
@@ -1004,6 +1005,22 @@ void ODBCCOL::WriteColumn(PGLOBAL g)
 /***********************************************************************/
 /*  Implementation of the TDBODBC class.                               */
 /***********************************************************************/
+TDBXDBC::TDBXDBC(PODEF tdp) : TDBODBC(tdp)
+{
+  Cmdlist = NULL;
+  Cmdcol = NULL;
+  Mxr = tdp->Mxr;
+  Nerr = 0;
+} // end of TDBXDBC constructor
+
+TDBXDBC::TDBXDBC(PTDBXDBC tdbp) : TDBODBC(tdbp)
+{
+  Cmdlist = tdbp->Cmdlist;
+  Cmdcol = tdbp->Cmdcol;
+  Mxr = tdbp->Mxr;
+  Nerr = tdbp->Nerr;
+} // end of TDBXDBC copy constructor
+
 PTDB TDBXDBC::CopyOne(PTABS t)
   {
   PTDB     tp;
@@ -1036,23 +1053,15 @@ PCOL TDBXDBC::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 /*  MakeCMD: make the SQL statement to send to ODBC connection.        */
 /***********************************************************************/
-char *TDBXDBC::MakeCMD(PGLOBAL g)
+PCMD TDBXDBC::MakeCMD(PGLOBAL g)
   {
-  char *xcmd = NULL;
+  PCMD xcmd = NULL;
 
   if (To_Filter) {
     if (Cmdcol) {
-      char col[128], cmd[1024];
-      int n;
-      
-      memset(cmd, 0, sizeof(cmd));
-      n = sscanf(To_Filter, "%s = '%1023c", col, cmd);
-  
-      if (n == 2 && !stricmp(col, Cmdcol)) {
-        xcmd = (char*)PlugSubAlloc(g, NULL, strlen(cmd) + 1);
-  
-        strcpy(xcmd, cmd);
-        xcmd[strlen(xcmd) - 1] = 0;
+      if (!stricmp(Cmdcol, To_Filter->Body) &&
+          (To_Filter->Op == OP_EQ || To_Filter->Op == OP_IN)) {
+        xcmd = To_Filter->Cmds;
       } else
         strcpy(g->Message, "Invalid command specification filter");
 
@@ -1062,7 +1071,7 @@ char *TDBXDBC::MakeCMD(PGLOBAL g)
   } else if (!Srcdef)
     strcpy(g->Message, "No Srcdef default command");
   else
-    xcmd = Srcdef;
+    xcmd = new(g) CMD(g, Srcdef);
 
   return xcmd;
   } // end of MakeCMD
@@ -1088,12 +1097,12 @@ bool TDBXDBC::BindParameters(PGLOBAL g)
 #endif // 0
 
 /***********************************************************************/
-/*  XDBC GetMaxSize: returns table size (always one row).              */
+/*  XDBC GetMaxSize: returns table size (not always one row).          */
 /***********************************************************************/
 int TDBXDBC::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0)
-    MaxSize = 1;
+    MaxSize = 10;             // Just a guess
 
   return MaxSize;
   } // end of GetMaxSize
@@ -1142,19 +1151,12 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
   /*********************************************************************/
   /*  Get the command to execute.                                      */
   /*********************************************************************/
-  if (!(Query = MakeCMD(g))) {
+  if (!(Cmdlist = MakeCMD(g))) {
     Ocp->Close();
     return true;
     } // endif Query
 
   Rows = 1;
-
-  if (Ocp->PrepareSQL(Query)) {
-    strcpy(g->Message, "Parameters not supported");
-    AftRows = -1;
-  } else
-    AftRows = 0;
-
   return false;
   } // end of OpenDB
 
@@ -1163,18 +1165,18 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
 /***********************************************************************/
 int TDBXDBC::ReadDB(PGLOBAL g)
   {
-  if (trace)
-    htrc("XDBC ReadDB: query=%s\n", SVP(Query));
+  if (Cmdlist) {
+    Query = Cmdlist->Cmd;
 
-  if (Rows--) {
-    if (!AftRows)
-      AftRows = Ocp->ExecuteSQL(true);
+    if (Ocp->ExecSQLcommand(Query))
+      Nerr++;
 
-  } else 
+    Fpos++;                // Used for progress info
+    Cmdlist = (Nerr > Mxr) ? NULL : Cmdlist->Next;
+    return RC_OK;
+  } else
     return RC_EF;
 
-  Fpos++;                // Used for progress info
-  return RC_OK;
   } // end of ReadDB
 
 /***********************************************************************/

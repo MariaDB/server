@@ -108,16 +108,18 @@ static int GetSQLCType(int type)
 /***********************************************************************/
 /*  TranslateSQLType: translate a SQL Type to a PLG type.              */
 /***********************************************************************/
-int TranslateSQLType(int stp, int prec, int& len)
+int TranslateSQLType(int stp, int prec, int& len, char& v)
   {
   int type;
 
   switch (stp) {
-    case SQL_CHAR:                          //    1
     case SQL_VARCHAR:                       //   12
+      v = 'V';
+    case SQL_CHAR:                          //    1
       type = TYPE_STRING;
       break;
     case SQL_LONGVARCHAR:                   //  (-1)
+      v = 'V';
       type = TYPE_STRING;
       len = min(abs(len), 255);
       break;
@@ -889,7 +891,7 @@ bool ODBConn::Check(RETCODE rc)
   {
   switch (rc) {
     case SQL_SUCCESS_WITH_INFO:
-      if (trace > 1) {
+      if (trace) {
         DBX x(rc);
 
         x.BuildErrorMessage(this, m_hstmt);
@@ -1242,7 +1244,7 @@ void ODBConn::GetConnectInfo()
     m_IDQuoteChar = ' ';
 
   if (trace)
-    htrc("DBMS: %s, Version: %s",
+    htrc("DBMS: %s, Version: %s\n",
          GetStringInfo(SQL_DBMS_NAME), GetStringInfo(SQL_DBMS_VER));
 
   } // end of GetConnectInfo
@@ -1511,14 +1513,16 @@ int ODBConn::PrepareSQL(char *sql)
 
       hstmt = m_hstmt;
       m_hstmt = NULL;
-      ThrowDBX(MSG(SEQUENCE_ERROR));
-    } else {
-      rc = SQLAllocStmt(m_hdbc, &hstmt);
 
-      if (!Check(rc))
-        ThrowDBX(SQL_INVALID_HANDLE, "SQLAllocStmt");
+      if (m_Tdb->GetAmType() != TYPE_AM_XDBC)
+        ThrowDBX(MSG(SEQUENCE_ERROR));
 
-    } // endif hstmt
+      } // endif m_hstmt
+
+    rc = SQLAllocStmt(m_hdbc, &hstmt);
+
+    if (!Check(rc))
+      ThrowDBX(SQL_INVALID_HANDLE, "SQLAllocStmt");
 
     OnSetOptions(hstmt);
     b = true;
@@ -1565,7 +1569,7 @@ int ODBConn::PrepareSQL(char *sql)
 /***********************************************************************/
 /*  Execute a prepared statement.                                      */
 /***********************************************************************/
-int ODBConn::ExecuteSQL(bool x)
+int ODBConn::ExecuteSQL(void)
   {
   PGLOBAL& g = m_G;
   SWORD    ncol = 0;
@@ -1580,25 +1584,16 @@ int ODBConn::ExecuteSQL(bool x)
     if (!Check(rc))
       ThrowDBX(rc, "SQLExecute", m_hstmt);
 
-    if (!Check(SQLNumResultCols(m_hstmt, &ncol)))
+    if (!Check(rc = SQLNumResultCols(m_hstmt, &ncol)))
       ThrowDBX(rc, "SQLNumResultCols", m_hstmt);
 
     if (ncol) {
-      if (x) {
-        afrw = ncol;
-        strcpy(g->Message, "Result set column number");
-      } else {
-        // This should never happen while inserting
-        strcpy(g->Message, "Logical error while inserting");
-      } // endif ncol
-
+      // This should never happen while inserting
+      strcpy(g->Message, "Logical error while inserting");
     } else {
       // Insert, Update or Delete statement
-      if (!Check(SQLRowCount(m_hstmt, &afrw)))
+      if (!Check(rc = SQLRowCount(m_hstmt, &afrw)))
         ThrowDBX(rc, "SQLRowCount", m_hstmt);
-
-      if (x)
-        strcpy(g->Message, "Affected rows");
 
     } // endif ncol
 
@@ -1613,6 +1608,7 @@ int ODBConn::ExecuteSQL(bool x)
       m_Transact = false;
       } // endif m_Transact
 
+    afrw = -1;
   } // end try/catch
 
   return (int)afrw;
@@ -1666,6 +1662,112 @@ bool ODBConn::BindParam(ODBCCOL *colp)
 
   return false;
   } // end of BindParam
+
+/***********************************************************************/
+/*  Execute an SQL command.                                            */
+/***********************************************************************/
+bool ODBConn::ExecSQLcommand(char *sql)
+  {
+  char     cmd[16];
+  bool     b, rcd = false;
+  UINT     txn = 0;
+  PGLOBAL& g = m_G;
+  SWORD    ncol = 0;
+  SQLLEN   afrw;
+  RETCODE  rc;
+  HSTMT    hstmt;
+
+  try {
+    b = FALSE;
+
+    // Check whether we should use transaction
+    if (sscanf(sql, " %15s ", cmd) == 1) {
+      if (!stricmp(cmd, "INSERT") || !stricmp(cmd, "UPDATE") ||
+          !stricmp(cmd, "DELETE") || !stricmp(cmd, "REPLACE")) {
+        // Does the data source support transactions
+        rc = SQLGetInfo(m_hdbc, SQL_TXN_CAPABLE, &txn, 0, NULL);
+    
+        if (Check(rc) && txn != SQL_TC_NONE) {
+          rc = SQLSetConnectAttr(m_hdbc, SQL_ATTR_AUTOCOMMIT,
+                                 SQL_AUTOCOMMIT_OFF, SQL_IS_UINTEGER);
+        
+          if (!Check(rc))
+            ThrowDBX(SQL_INVALID_HANDLE, "SQLSetConnectAttr");
+    
+          m_Transact = TRUE;
+          } // endif txn
+
+        } // endif cmd
+
+      } // endif sql
+
+    // Allocate the statement handle
+    rc = SQLAllocStmt(m_hdbc, &hstmt);
+
+    if (!Check(rc))
+      ThrowDBX(SQL_INVALID_HANDLE, "SQLAllocStmt");
+
+    OnSetOptions(hstmt);
+    b = true;
+
+    if (trace)
+      htrc("ExecSQLcommand hstmt=%p %.64s\n", hstmt, sql);
+
+    // Proceed with command execution
+    do {
+      rc = SQLExecDirect(hstmt, (PUCHAR)sql, SQL_NTS);
+      } while (rc == SQL_STILL_EXECUTING);
+
+    if (!Check(rc))
+      ThrowDBX(rc, "SQLExecDirect", hstmt);
+
+    // Check whether this is a query returning a result set
+    if (!Check(rc = SQLNumResultCols(hstmt, &ncol)))
+      ThrowDBX(rc, "SQLNumResultCols", hstmt);
+
+    if (!ncol) {
+      if (!Check(SQLRowCount(hstmt, &afrw)))
+        ThrowDBX(rc, "SQLRowCount", hstmt);
+
+      m_Tdb->AftRows = (int)afrw;
+      strcpy(g->Message, "Affected rows");
+    } else {
+      m_Tdb->AftRows = (int)ncol;
+      strcpy(g->Message, "Result set column number");
+    } // endif ncol
+
+  } catch(DBX *x) {
+		if (trace)
+			for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
+				htrc(x->m_ErrMsg[i]);
+
+    strcpy(g->Message, x->GetErrorMessage(0));
+
+    if (b)
+      SQLCancel(hstmt);
+
+    m_Tdb->AftRows = -1;
+    rcd = true;
+  } // end try/catch
+
+  if (!Check(rc = SQLFreeStmt(hstmt, SQL_CLOSE)))
+    sprintf(g->Message, "SQLFreeStmt: rc=%d", rc);
+
+  if (m_Transact) {
+    // Terminate the transaction
+    if (!Check(rc = SQLEndTran(SQL_HANDLE_DBC, m_hdbc, 
+                       (rcd) ? SQL_ROLLBACK : SQL_COMMIT)))
+      sprintf(g->Message, "SQLEndTran: rc=%d", rc);
+
+    if (!Check(rc = SQLSetConnectAttr(m_hdbc, SQL_ATTR_AUTOCOMMIT,
+               (SQLPOINTER)SQL_AUTOCOMMIT_ON, SQL_IS_UINTEGER)))
+      sprintf(g->Message, "SQLSetConnectAttr: rc=%d", rc);
+
+    m_Transact = false;
+    } // endif m_Transact
+
+  return rcd;
+  } // end of ExecSQLcommand
 
 /**************************************************************************/
 /*  GetMetaData: constructs the result blocks containing the              */
