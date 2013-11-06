@@ -946,6 +946,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     qev->future_event_master_log_pos= log_pos;
     if (!current)
     {
+      rli->event_relay_log_pos= rli->future_event_relay_log_pos;
       handle_queued_pos_update(rli->sql_driver_thd, qev);
       my_free(qev);
       return false;
