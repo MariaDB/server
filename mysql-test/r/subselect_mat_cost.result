@@ -203,7 +203,7 @@ OR
 (select Country, Language from CountryLanguage));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	ALL	PRIMARY,SurfaceArea	NULL	NULL	NULL	239	Using where
-1	PRIMARY	City	ref	Country	Country	3	world.Country.Code	18	Using where; Subqueries: 3, 2
+1	PRIMARY	City	ref	Country	Country	3	world.Country.Code	18	Using where; Subqueries: 2, 3
 3	MATERIALIZED	CountryLanguage	index	PRIMARY,Language	PRIMARY	33	NULL	984	Using index
 2	MATERIALIZED	CountryLanguage	ALL	PRIMARY,Percentage,Language	NULL	NULL	NULL	984	Using where
 SELECT City.Name, Country.Name

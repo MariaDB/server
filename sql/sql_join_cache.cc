@@ -2446,7 +2446,9 @@ inline bool JOIN_CACHE::check_match(uchar *rec_ptr)
   /* Check whether pushdown conditions are satisfied */
   DBUG_ENTER("JOIN_CACHE:check_match");
 
-  if (join_tab->select && join_tab->select->skip_record(join->thd) <= 0)
+  *(join->cur_exec_tab)= join_tab;
+
+ if (join_tab->select && join_tab->select->skip_record(join->thd) <= 0)
     DBUG_RETURN(FALSE);
 
   if (!join_tab->is_last_inner_table())

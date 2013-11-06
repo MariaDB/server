@@ -1659,6 +1659,9 @@ WHERE ( t5.a = t3.b )
 a
 0
 0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'm'
+Warning	1292	Truncated incorrect DOUBLE value: 'o'
 DROP TABLE t2,t3,t4,t5;
 #
 # BUG#860300: Second crash with get_fanout_with_deps() with semijoin + materialization

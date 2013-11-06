@@ -1479,7 +1479,7 @@ public:
     Notice that this also adds the cost of accessing Fields (via Item_field).
     Perhaps this cost should be smaller or 0.
   */
-  virtual double get_cost() { return (1 / (double)TIME_FOR_COMPARE); }
+  virtual double get_cost() { return 0; /*(1 / (double)TIME_FOR_COMPARE);*/ }
   /*
     The actual execution-time cost of this Item. The current default is its
     compile-time cost. In the future we can measure the actual CPU cost.

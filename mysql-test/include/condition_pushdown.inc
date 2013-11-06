@@ -178,4 +178,82 @@ WHERE t1a.x = ( SELECT SUM(x) FROM t1 ) OR t1a.x <= t1a.y;
 
 drop table t1;
 
+
+--echo
+--echo MDEV-5201 Assertion `!(*exec_tab) || (*exec_tab >= first_tab && *exec_tab < last_tab)' fails in Item_func_dynamic_cond::val_int() with static_cond_pushdown=on
+--echo
+
+SET optimizer_switch='static_cond_pushdown=on';
+
+CREATE TABLE city_lang ( lang VARCHAR(8), population INT ) ENGINE=MyISAM;
+INSERT INTO city_lang VALUES ('English',100000),('Chinese',20000);
+
+CREATE TABLE language ( name VARCHAR(8)) ENGINE=MyISAM;
+INSERT INTO language VALUES ('Spanish'),('Russian');
+
+EXPLAIN EXTENDED
+SELECT COUNT(*) FROM city_lang AS city1, city_lang AS city2 
+WHERE city2.lang IN ( SELECT name FROM language ) 
+  AND ( city1.population IS NULL OR city2.lang IN ( SELECT name FROM language ) );
+
+SELECT COUNT(*) FROM city_lang AS city1, city_lang AS city2 
+WHERE city2.lang IN ( SELECT name FROM language ) 
+  AND ( city1.population IS NULL OR city2.lang IN ( SELECT name FROM language ) );
+
+drop table city_lang, language;
+
+--echo
+--echo MDEV-5203 Different results with record_cond_statistics=on and record_cond_statistics=off with SOME subquery
+--echo
+
+CREATE TABLE t1 (i1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (9),(8);
+
+CREATE TABLE t2 (id2 INT, i2 INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,5),(2,6);
+
+CREATE TABLE t3 (pk3 INT PRIMARY KEY, i3 INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1,0),(2,6);
+
+set optimizer_switch=default;
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 AS outer_t1, t2, t3 
+WHERE pk3 = id2 AND i2 < SOME ( SELECT i1 FROM t1 WHERE i1 < outer_t1.i1 );
+
+SELECT * FROM t1 AS outer_t1, t2, t3 
+WHERE pk3 = id2 AND i2 < SOME ( SELECT i1 FROM t1 WHERE i1 < outer_t1.i1 );
+
+set optimizer_switch='debug_record_cond_statistics=on';
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 AS outer_t1, t2, t3 
+WHERE pk3 = id2 AND i2 < SOME ( SELECT i1 FROM t1 WHERE i1 < outer_t1.i1 );
+
+SELECT * FROM t1 AS outer_t1, t2, t3 
+WHERE pk3 = id2 AND i2 < SOME ( SELECT i1 FROM t1 WHERE i1 < outer_t1.i1 );
+
+set optimizer_switch='debug_record_cond_statistics=off';
+set optimizer_switch='static_cond_pushdown=on';
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 AS outer_t1, t2, t3 
+WHERE pk3 = id2 AND i2 < SOME ( SELECT i1 FROM t1 WHERE i1 < outer_t1.i1 );
+
+SELECT * FROM t1 AS outer_t1, t2, t3 
+WHERE pk3 = id2 AND i2 < SOME ( SELECT i1 FROM t1 WHERE i1 < outer_t1.i1 );
+
+set optimizer_switch='debug_record_cond_statistics=on';
+set optimizer_switch='static_cond_pushdown=on';
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 AS outer_t1, t2, t3 
+WHERE pk3 = id2 AND i2 < SOME ( SELECT i1 FROM t1 WHERE i1 < outer_t1.i1 );
+
+SELECT * FROM t1 AS outer_t1, t2, t3 
+WHERE pk3 = id2 AND i2 < SOME ( SELECT i1 FROM t1 WHERE i1 < outer_t1.i1 );
+
+drop table t1, t2, t3;
+
+
 set @@optimizer_switch = default;
