@@ -127,10 +127,28 @@ finish_event_group(THD *thd, int err, uint64 sub_id,
   /*
     Remove any left-over registration to wait for a prior commit to
     complete. Normally, such wait would already have been removed at
-    this point by wait_for_prior_commit(), but eg. in error case we
-    might have skipped waiting, so we would need to remove it explicitly.
+    this point by wait_for_prior_commit() called from within COMMIT
+    processing. However, in case of MyISAM and no binlog, we might not
+    have any commit processing, and so we need to do the wait here,
+    before waking up any subsequent commits, to preserve correct
+    order of event execution. Also, in the error case we might have
+    skipped waiting and thus need to remove it explicitly.
+
+    It is important in the non-error case to do a wait, not just an
+    unregister. Because we might be last in a group-commit that is
+    replicated in parallel, and the following event will then wait
+    for us to complete and rely on this also ensuring that any other
+    event in the group has completed.
+
+    But in the error case, we have to abort anyway, and it seems best
+    to just complete as quickly as possible with unregister. Anyone
+    waiting for us will in any case receive the error back from their
+    wait_for_prior_commit() call.
   */
-  wfc->unregister_wait_for_prior_commit();
+  if (err)
+    wfc->unregister_wait_for_prior_commit();
+  else
+    wfc->wait_for_prior_commit();
   thd->wait_for_commit_ptr= NULL;
 
   /*
