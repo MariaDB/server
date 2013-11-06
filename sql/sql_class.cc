@@ -5672,6 +5672,27 @@ wait_for_commit::wait_for_commit()
 
 wait_for_commit::~wait_for_commit()
 {
+  /*
+    Since we do a dirty read of the waiting_for_commit flag in
+    wait_for_prior_commit() and in unregister_wait_for_prior_commit(), we need
+    to take extra care before freeing the wait_for_commit object.
+
+    It is possible for the waitee to be pre-empted inside wakeup(), just after
+    it has cleared the waiting_for_commit flag and before it has released the
+    LOCK_wait_commit mutex. And then it is possible for the waiter to find the
+    flag cleared in wait_for_prior_commit() and go finish up things and
+    de-allocate the LOCK_wait_commit and COND_wait_commit objects before the
+    waitee has time to be re-scheduled and finish unlocking the mutex and
+    signalling the condition. This would lead to the waitee accessing no
+    longer valid memory.
+
+    To prevent this, we do an extra lock/unlock of the mutex here before
+    deallocation; this makes certain that any waitee has completed wakeup()
+    first.
+  */
+  mysql_mutex_lock(&LOCK_wait_commit);
+  mysql_mutex_unlock(&LOCK_wait_commit);
+
   mysql_mutex_destroy(&LOCK_wait_commit);
   mysql_cond_destroy(&COND_wait_commit);
 }
@@ -5695,8 +5716,13 @@ wait_for_commit::wakeup(int wakeup_error)
   mysql_mutex_lock(&LOCK_wait_commit);
   waiting_for_commit= false;
   this->wakeup_error= wakeup_error;
-  mysql_mutex_unlock(&LOCK_wait_commit);
+  /*
+    Note that it is critical that the mysql_cond_signal() here is done while
+    still holding the mutex. As soon as we release the mutex, the waiter might
+    deallocate the condition object.
+  */
   mysql_cond_signal(&COND_wait_commit);
+  mysql_mutex_unlock(&LOCK_wait_commit);
 }
 
 
