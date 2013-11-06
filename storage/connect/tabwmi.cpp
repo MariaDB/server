@@ -480,18 +480,19 @@ bool TDBWMI::Initialize(PGLOBAL g)
 /***********************************************************************/
 void TDBWMI::DoubleSlash(PGLOBAL g)
   {
-  if (To_Filter && strchr(To_Filter, '\\')) {
-    char *buf = (char*)PlugSubAlloc(g, NULL, strlen(To_Filter) * 2);
+  if (To_Filter && strchr(To_Filter->Body, '\\')) {
+    char *body = To_Filter->Body;
+    char *buf = (char*)PlugSubAlloc(g, NULL, strlen(body) * 2);
     int   i = 0, k = 0;
 
     do {
-      if (To_Filter[i] == '\\')
+      if (body[i] == '\\')
         buf[k++] = '\\';
 
-      buf[k++] = To_Filter[i];
-      } while (To_Filter[i++]);
+      buf[k++] = body[i];
+      } while (body[i++]);
 
-    To_Filter = buf;
+    To_Filter->Body = buf;
     } // endif To_Filter
 
   } // end of DoubleSlash
@@ -539,13 +540,13 @@ char *TDBWMI::MakeWQL(PGLOBAL g)
 
   // Below 14 is length of 'select ' + length of ' from ' + 1
   len = (strlen(colist) + strlen(Wclass) + 14);
-  len += (To_Filter ? strlen(To_Filter) + 7 : 0);
+  len += (To_Filter ? strlen(To_Filter->Body) + 7 : 0);
   wql = (char*)PlugSubAlloc(g, NULL, len);
   strcat(strcat(strcpy(wql, "SELECT "), colist), " FROM ");
   strcat(wql, Wclass);
 
   if (To_Filter)
-    strcat(strcat(wql, " WHERE "), To_Filter);
+    strcat(strcat(wql, " WHERE "), To_Filter->Body);
 
   return wql;
   } // end of MakeWQL

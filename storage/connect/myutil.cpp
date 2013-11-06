@@ -29,7 +29,7 @@
 /************************************************************************/
 /*  Convert from MySQL type name to PlugDB type number                  */
 /************************************************************************/
-int MYSQLtoPLG(char *typname)
+int MYSQLtoPLG(char *typname, char *var)
   {
   int type;
 
@@ -55,6 +55,10 @@ int MYSQLtoPLG(char *typname)
     type = TYPE_TINY;
   else
     type = TYPE_ERROR;
+
+  // This is to make the difference between CHAR and VARCHAR 
+  if (var && type == TYPE_STRING && stricmp(typname, "char"))
+    *var = 'V';
 
   return type;
   } // end of MYSQLtoPLG
@@ -98,14 +102,14 @@ enum enum_field_types PLGtoMYSQL(int type, bool dbf)
 /************************************************************************/
 /*  Convert from PlugDB type to MySQL type name                         */
 /************************************************************************/
-const char *PLGtoMYSQLtype(int type, bool dbf)
+const char *PLGtoMYSQLtype(int type, bool dbf, char var)
   {
   switch (type) {
     case TYPE_INT:      return "INT";
     case TYPE_SHORT:    return "SMALLINT";
     case TYPE_FLOAT:    return "DOUBLE";
     case TYPE_DATE:     return dbf ? "DATE" : "DATETIME";
-    case TYPE_STRING:   return "VARCHAR";
+    case TYPE_STRING:   return var ? "VARCHAR" : "CHAR";
     case TYPE_BIGINT:   return "BIGINT";
     case TYPE_TINY:     return "TINYINT";
     default:            return "CHAR(0)";

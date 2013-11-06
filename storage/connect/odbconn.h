@@ -142,8 +142,9 @@ class ODBConn : public BLOCK {
   int  ExecDirectSQL(char *sql, ODBCCOL *tocols);
   int  Fetch(void);
   int  PrepareSQL(char *sql);
-  int  ExecuteSQL(bool x);
+  int  ExecuteSQL(void);
   bool BindParam(ODBCCOL *colp);
+  bool ExecSQLcommand(char *sql);
   int  GetCatInfo(CATPARM *cap);
   bool GetDataSources(PQRYRES qrp);
   bool GetDrivers(PQRYRES qrp);

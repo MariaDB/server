@@ -18,8 +18,28 @@
 #include "colblk.h"
 #include "m_ctype.h"
 
-//pedef class  INDEXDEF  *PIXDEF;
-typedef char         *PFIL;                // Specific to CONNECT
+typedef class CMD *PCMD;
+
+// Commands executed by XDBC and MYX tables
+class CMD : public BLOCK {
+ public:
+  // Constructor
+  CMD(PGLOBAL g, char *cmd) {
+    Cmd = (char*)PlugSubAlloc(g, NULL, strlen(cmd) + 1);
+    strcpy(Cmd, cmd); Next = NULL; }
+
+  // Members
+  PCMD  Next;
+  char *Cmd;
+}; // end of class CMD
+
+// Filter passed all tables
+typedef struct _filter {
+  char  *Body;
+  OPVAL  Op;
+  PCMD   Cmds;
+} FILTER, *PFIL;
+
 typedef class TDBCAT *PTDBCAT;
 typedef class CATCOL *PCATCOL;
 
@@ -39,24 +59,16 @@ class DllExport TBX: public BLOCK { // Base class for OPJOIN and TDB classes.
   inline  PFIL  GetFilter(void) {return To_Filter;}
   inline  void  SetOrig(PTBX txp) {To_Orig = txp;}
   inline  void  SetFilter(PFIL fp) {To_Filter = fp;}
-//inline  JTYPE GetJtype(void) {return Jtype;}
-//inline  void  SetJtype(JTYPE jt) {Jtype = jt;}
-//inline  PFIL  GetNoleft(void) {return To_Noleft;}
-//inline  void  SetNoleft(PFIL fp) {To_Noleft = fp;}
 
   // Methods
   virtual bool IsSame(PTBX tp) {return tp == this;}
-//virtual bool Include(PTBX tbxp) = 0;
-//virtual bool CheckFilter(void) = 0;
   virtual int  GetTdb_No(void) = 0;   // Convenience during conversion
   virtual PTDB GetNext(void) = 0;
-//virtual int  GetMaxSame(PGLOBAL) = 0;
   virtual int  Cardinality(PGLOBAL) = 0;
   virtual int  GetMaxSize(PGLOBAL) = 0;
   virtual int  GetProgMax(PGLOBAL) = 0;
   virtual int  GetProgCur(void) = 0;
   virtual int  GetBadLines(void) {return 0;}
-//virtual bool IsJoin(void) = 0;
   virtual PTBX Copy(PTABS t) = 0;
 
  protected:
@@ -66,8 +78,6 @@ class DllExport TBX: public BLOCK { // Base class for OPJOIN and TDB classes.
   // Members
   PTBX  To_Orig;      // Pointer to original if it is a copy
   PFIL  To_Filter;
-//PFIL  To_Noleft;     // To filter not involved in LEFT JOIN
-//JTYPE Jtype;
   TUSE  Use;
   }; // end of class TBX
 
