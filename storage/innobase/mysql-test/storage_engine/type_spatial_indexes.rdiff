@@ -698,7 +698,7 @@
 -WHERE ST_Contains(ST_Buffer(bridges.position, 15.0), buildings.footprint) = 1;
 -count(*)
 -1
-+ERROR HY000: The used table type doesn't support SPATIAL indexes
++ERROR HY000: The storage engine <STORAGE_ENGINE> doesn't support SPATIAL indexes
 +# ERROR: Statement ended with errno 1464, errname ER_TABLE_CANT_HANDLE_SPKEYS (expected to succeed)
 +# ------------ UNEXPECTED RESULT ------------
 +# [ CREATE TABLE gis_point (fid INT(11) /*!*/ /*Custom column options*/, g POINT NOT NULL, SPATIAL INDEX(g)) ENGINE=InnoDB /*!*/ /*Custom table options*/ ]

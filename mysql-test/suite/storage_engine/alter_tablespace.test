@@ -63,6 +63,7 @@ EOF
   --source alter_table.inc
 
   --let $error_codes = ER_GET_ERRNO
+  --replace_result $storage_engine <STORAGE_ENGINE>
   SELECT a FROM t1;
   --source check_errors.inc
   if ($mysql_errname != ER_GET_ERRNO)
