@@ -257,7 +257,7 @@ binary-arch: build install
 	dh_installchangelogs -a
 	dh_strip -a
 	dh_link -a	# .so muss nach .so.1.2.3 installier werden!
-	dh_compress -a
+	dh_compress -a --exclude=INFO_BIN
 	dh_fixperms -a
 	dh_makeshlibs -a
 	dh_makeshlibs -plibmariadbclient18 -V'libmariadbclient18 (>= 5.5.1-1)'

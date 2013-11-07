@@ -7,6 +7,7 @@ alter table user drop column is_role;
 
 flush privileges;
 
+--replace_regex /10\d\d\d\d/MYSQL_VERSION_ID/
 --error ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
 create role test_role;
 --error ER_CANNOT_USER

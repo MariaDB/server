@@ -8,5 +8,6 @@ show variables like 'pam%';
 
 drop user test_pam;
 drop user pam_test;
+--disable_warnings
 uninstall plugin pam;
 

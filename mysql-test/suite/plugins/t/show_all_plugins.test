@@ -9,6 +9,7 @@ show status like '%libraries%';
 #select * from information_schema.all_plugins;
 #show status like '%libraries%';
 --replace_result .dll .so
+--replace_column 5 MYSQL_VERSION_ID
 eval select * from information_schema.all_plugins where plugin_library='$HA_EXAMPLE_SO';
 show status like '%libraries%';
 --sorted_result
