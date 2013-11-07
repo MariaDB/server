@@ -37,7 +37,7 @@
 -HANDLER t1 OPEN AS h2;
 -HANDLER h2 READ FIRST;
 -a	b
-+ERROR HY000: Table storage engine for 'h1' doesn't have this option
++ERROR HY000: Storage engine MRG_MyISAM of the table `test`.`t1` doesn't have this option
 +# ------------ UNEXPECTED RESULT ------------
 +# The statement|command finished with ER_ILLEGAL_HA.
 +# HANDLER or the syntax or the mix could be unsupported. 
