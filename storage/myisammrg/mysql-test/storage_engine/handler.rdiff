@@ -47,7 +47,7 @@
 -foobar	1000
 -HANDLER t1 CLOSE;
 -ERROR 42S02: Unknown table 't1' in HANDLER
-+ERROR HY000: Table storage engine for 'h1' doesn't have this option
++ERROR HY000: Storage engine MRG_MyISAM of the table `test`.`t1` doesn't have this option
 +# ------------ UNEXPECTED RESULT ------------
 +# The statement|command finished with ER_ILLEGAL_HA.
 +# Functionality or the syntax or the mix could be unsupported. 
@@ -84,5 +84,5 @@
 -a	b
 -200	b
 -HANDLER h1 CLOSE;
-+ERROR HY000: Table storage engine for 'h1' doesn't have this option
++ERROR HY000: Storage engine MRG_MyISAM of the table `test`.`t1` doesn't have this option
  DROP TABLE t1;

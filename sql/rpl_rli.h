@@ -688,8 +688,7 @@ public:
 
   inline void inc_event_relay_log_pos()
   {
-    if (!is_parallel_exec ||
-        rli->event_relay_log_pos < future_event_relay_log_pos)
+    if (!is_parallel_exec)
       rli->event_relay_log_pos= future_event_relay_log_pos;
   }
 };
