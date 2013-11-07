@@ -62,7 +62,7 @@
 -v0	rating
 -text1	178.11756896972656
 -DROP TABLE t1;
-+ERROR HY000: The used table type doesn't support FULLTEXT indexes
++ERROR HY000: The storage engine <STORAGE_ENGINE> doesn't support FULLTEXT indexes
 +# ERROR: Statement ended with errno 1214, errname ER_TABLE_CANT_HANDLE_FT (expected to succeed)
 +# ------------ UNEXPECTED RESULT ------------
 +# The statement|command finished with ER_TABLE_CANT_HANDLE_FT.
@@ -139,7 +139,7 @@
 -text1	190.56150817871094
 -text4	1.1758291721343994
 -DROP TABLE t1;
-+ERROR HY000: The used table type doesn't support FULLTEXT indexes
++ERROR HY000: The storage engine <STORAGE_ENGINE> doesn't support FULLTEXT indexes
 +# ERROR: Statement ended with errno 1214, errname ER_TABLE_CANT_HANDLE_FT (expected to succeed)
 +# ------------ UNEXPECTED RESULT ------------
 +# The statement|command finished with ER_TABLE_CANT_HANDLE_FT.

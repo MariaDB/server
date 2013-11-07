@@ -13,7 +13,7 @@
 -2
 -ALTER TABLE t1 DISCARD TABLESPACE;
 -SELECT a FROM t1;
--ERROR HY000: Got error -1 from storage engine
+-ERROR HY000: Got error -1 "Internal error < 0 (Not system error)" from storage engine <STORAGE_ENGINE>
 -ALTER TABLE t1 IMPORT TABLESPACE;
 -SELECT a FROM t1;
 -a

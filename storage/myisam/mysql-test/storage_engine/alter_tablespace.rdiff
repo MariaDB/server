@@ -13,13 +13,13 @@
 -2
 -ALTER TABLE t1 DISCARD TABLESPACE;
 -SELECT a FROM t1;
--ERROR HY000: Got error -1 from storage engine
+-ERROR HY000: Got error -1 "Internal error < 0 (Not system error)" from storage engine <STORAGE_ENGINE>
 -ALTER TABLE t1 IMPORT TABLESPACE;
 -SELECT a FROM t1;
 -a
 -1
 -2
-+ERROR HY000: Table storage engine for 't1' doesn't have this option
++ERROR HY000: Storage engine <STORAGE_ENGINE> of the table `test`.`t1` doesn't have this option
 +# ERROR: Statement ended with errno 1031, errname ER_ILLEGAL_HA (expected to succeed)
 +# ------------ UNEXPECTED RESULT ------------
 +# [ ALTER TABLE t1 DISCARD TABLESPACE ]
