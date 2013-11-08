@@ -3534,6 +3534,38 @@ bool handler::get_error_message(int error, String* buf)
   return FALSE;
 }
 
+/**
+   Check if a collation has changed number
+
+   @param mysql_version
+   @param current collation number
+
+   @retval new collation number (same as current collation number of no change)
+*/
+
+uint upgrade_collation(ulong mysql_version, uint cs_number)
+{
+  if (mysql_version >= 50300 && mysql_version <= 50399)
+  {
+    switch (cs_number) {
+    case 149: return MY_PAGE2_COLLATION_ID_UCS2;   // ucs2_crotian_ci
+    case 213: return MY_PAGE2_COLLATION_ID_UTF8;   // utf8_crotian_ci
+    }
+  }
+  if ((mysql_version >= 50500 && mysql_version <= 50599) ||
+      (mysql_version >= 100000 && mysql_version <= 100005))
+  {
+    switch (cs_number) {
+    case 149: return MY_PAGE2_COLLATION_ID_UCS2;   // ucs2_crotian_ci
+    case 213: return MY_PAGE2_COLLATION_ID_UTF8;   // utf8_crotian_ci
+    case 214: return MY_PAGE2_COLLATION_ID_UTF32;  // utf32_croatian_ci
+    case 215: return MY_PAGE2_COLLATION_ID_UTF16;  // utf16_croatian_ci
+    case 245: return MY_PAGE2_COLLATION_ID_UTF8MB4;// utf8mb4_croatian_ci
+    }
+  }
+  return cs_number;
+}
+
 
 /**
   Check for incompatible collation changes.
@@ -3575,9 +3607,29 @@ int handler::check_collation_compatibility()
              (cs_number == 33 || /* utf8_general_ci - bug #27877 */
               cs_number == 35))) /* ucs2_general_ci - bug #27877 */
           return HA_ADMIN_NEEDS_UPGRADE;
-      }  
-    }  
-  }  
+      }
+    }
+  }
+
+  if (mysql_version < 100006)
+  {
+    /*
+      Check if we are using collations from that has changed numbering.
+      This happend at least between MariaDB 5.5 and MariaDB 10.0 as MySQL
+      added conflicting numbers.
+    */
+  
+    if (table->s->table_charset->number !=
+        upgrade_collation(mysql_version, table->s->table_charset->number))
+      return HA_ADMIN_NEEDS_ALTER;        
+    
+    for (Field **field= table->field; (*field); field++)
+    {
+      if ((*field)->charset()->number !=
+          upgrade_collation(mysql_version, (*field)->charset()->number))
+        return HA_ADMIN_NEEDS_ALTER;
+    }
+  }
   return 0;
 }
 
@@ -3587,6 +3639,9 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
   int error;
   KEY *keyinfo, *keyend;
   KEY_PART_INFO *keypart, *keypartend;
+
+  if (table->s->incompatible_version)
+    return HA_ADMIN_NEEDS_ALTER;
 
   if (!table->s->mysql_version)
   {

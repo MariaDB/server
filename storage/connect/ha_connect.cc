@@ -3765,7 +3765,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
 #endif   // WIN32
-  int         port= 0, hdr= 0, mxr= 0, rc= 0, cop= 0;
+  int         port= 0, hdr= 0, mxr= 0, rc= 0;
+  int         cop __attribute__((unused)) = 0;
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool        bif, ok= false, dbf= false;
   TABTYPE     ttp= TAB_UNDEF;

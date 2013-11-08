@@ -48,6 +48,11 @@
 #define HA_OPEN_INTERNAL_TABLE          512
 #define HA_OPEN_NO_PSI_CALL             1024    /* Don't call/connect PSI */
 #define HA_OPEN_MERGE_TABLE		2048
+/*
+  Allow opening even if table is incompatible as this is for ALTER TABLE which
+  will fix the table structure.
+*/
+#define HA_OPEN_FOR_ALTER		4096
 
 /* The following is parameter to ha_rkey() how to use key */
 

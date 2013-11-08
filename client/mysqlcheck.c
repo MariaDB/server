@@ -18,7 +18,7 @@
 
 /* By Jani Tolonen, 2001-04-20, MySQL Development Team */
 
-#define CHECK_VERSION "2.7.1"
+#define CHECK_VERSION "2.7.2"
 
 #include "client_priv.h"
 #include <m_ctype.h>
@@ -681,6 +681,8 @@ static int rebuild_table(char *name)
     fprintf(stderr, "Error: %s\n", mysql_error(sock));
     rc= 1;
   }
+  if (verbose)
+    printf("%-50s %s\n", name, rc ? "FAILED" : "FIXED");
   my_free(query);
   DBUG_RETURN(rc);
 }

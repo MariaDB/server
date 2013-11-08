@@ -6740,13 +6740,21 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   List<Key_part_spec> key_parts;
   uint db_create_options= (table->s->db_create_options
                            & ~(HA_OPTION_PACK_RECORD));
-  uint used_fields= create_info->used_fields;
+  uint used_fields;
   KEY *key_info=table->key_info;
   bool rc= TRUE;
   bool modified_primary_key= FALSE;
   Create_field *def;
   Field **f_ptr,*field;
   DBUG_ENTER("mysql_prepare_alter_table");
+
+  /*
+    Merge incompatible changes flag in case of upgrade of a table from an
+    old MariaDB or MySQL version.  This ensures that we don't try to do an
+    online alter table if field packing or character set changes are required.
+  */
+  create_info->used_fields|= table->s->incompatible_version;
+  used_fields= create_info->used_fields;
 
   create_info->varchar= FALSE;
   /* Let new create options override the old ones */
@@ -7732,8 +7740,11 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
   DEBUG_SYNC(thd, "alter_table_before_open_tables");
   uint tables_opened;
+
+  thd->open_options|= HA_OPEN_FOR_ALTER;
   bool error= open_tables(thd, &table_list, &tables_opened, 0,
                           &alter_prelocking_strategy);
+  thd->open_options&= ~HA_OPEN_FOR_ALTER;
 
   DEBUG_SYNC(thd, "alter_opened_table");
 
