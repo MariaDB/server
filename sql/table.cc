@@ -1009,12 +1009,18 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->null_field_first= 0;
   if (!frm_image[32])				// New frm file in 3.23
   {
+    uint cs_org= (((uint) frm_image[41]) << 8) + (uint) frm_image[38];
+    uint cs_new= upgrade_collation(share->mysql_version, cs_org);
+    if (cs_org != cs_new)
+      share->incompatible_version|= HA_CREATE_USED_CHARSET;
+    
     share->avg_row_length= uint4korr(frm_image+34);
     share->transactional= (ha_choice) (frm_image[39] & 3);
     share->page_checksum= (ha_choice) ((frm_image[39] >> 2) & 3);
     share->row_type= (enum row_type) frm_image[40];
-    share->table_charset= get_charset((((uint) frm_image[41]) << 8) + 
-                                        (uint) frm_image[38], MYF(0));
+
+    if (cs_new && !(share->table_charset= get_charset(cs_new, MYF(MY_WME))))
+      goto err;
     share->null_field_first= 1;
     share->stats_sample_pages= uint2korr(frm_image+42);
     share->stats_auto_recalc= (enum_stats_auto_recalc)(frm_image[44]);
@@ -1032,6 +1038,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
     share->table_charset= default_charset_info;
   }
+
   share->db_record_offset= 1;
   share->max_rows= uint4korr(frm_image+18);
   share->min_rows= uint4korr(frm_image+22);
@@ -1418,16 +1425,19 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }
       else
       {
-        uint csid= strpos[14] + (((uint) strpos[11]) << 8);
-        if (!csid)
+        uint cs_org= strpos[14] + (((uint) strpos[11]) << 8);
+        uint cs_new= upgrade_collation(share->mysql_version, cs_org);
+        if (cs_org != cs_new)
+          share->incompatible_version|= HA_CREATE_USED_CHARSET;
+        if (!cs_new)
           charset= &my_charset_bin;
-        else if (!(charset= get_charset(csid, MYF(0))))
+        else if (!(charset= get_charset(cs_new, MYF(0))))
         {
-          const char *csname= get_charset_name((uint) csid);
+          const char *csname= get_charset_name((uint) cs_new);
           char tmp[10];
           if (!csname || csname[0] =='?')
           {
-            my_snprintf(tmp, sizeof(tmp), "#%d", csid);
+            my_snprintf(tmp, sizeof(tmp), "#%d", cs_new);
             csname= tmp;
           }
           my_printf_error(ER_UNKNOWN_COLLATION,
@@ -2489,6 +2499,13 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->db_stat= db_stat;
   outparam->write_row_record= NULL;
 
+  if (share->incompatible_version &&
+      !(ha_open_flags & (HA_OPEN_FOR_ALTER | HA_OPEN_FOR_REPAIR)))
+  {
+    /* one needs to run mysql_upgrade on the table */
+    error= OPEN_FRM_NEEDS_REBUILD;
+    goto err;
+  }
   init_sql_alloc(&outparam->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   if (outparam->alias.copy(alias, strlen(alias), table_alias_charset))
@@ -3011,6 +3028,11 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
   case OPEN_FRM_READ_ERROR:
     strxmov(buff, share->normalized_path.str, reg_ext, NullS);
     my_error(ER_ERROR_ON_READ, errortype, buff, db_errno);
+    break;
+  case OPEN_FRM_NEEDS_REBUILD:
+    strxnmov(buff, sizeof(buff)-1,
+             share->db.str, ".", share->table_name.str, NullS);
+    my_error(ER_TABLE_NEEDS_REBUILD, errortype, buff);
     break;
   }
   DBUG_VOID_RETURN;
