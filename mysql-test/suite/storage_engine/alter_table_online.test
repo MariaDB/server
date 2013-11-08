@@ -43,10 +43,15 @@ if ($mysql_errname)
   --source unexpected_result.inc
 }
 
+# It is here because it used to be supported as ALTER ONLINE,
+# but not anymore after the semantics changed in 10.0 
+# to be the same as ALTER .. LOCK=NONE
+
+--let $error_codes = ER_ALTER_OPERATION_NOT_SUPPORTED
 --let $online = 1
 --let $rename_to = t2
 --source alter_table.inc
-if ($mysql_errname)
+if ($mysql_errname!=ER_ALTER_OPERATION_NOT_SUPPORTED)
 {
   --source unexpected_result.inc
   DROP TABLE t1;
@@ -54,7 +59,7 @@ if ($mysql_errname)
 DROP TABLE IF EXISTS t2;
 
 #
-# temporary tables always require a copy
+# temporary table does not require locking
 #
 
 --let $temporary = 1
@@ -62,32 +67,27 @@ DROP TABLE IF EXISTS t2;
 
 INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c');
 
---let $error_codes = ER_CANT_DO_ONLINE
 --let $online = 1
 --let $alter_definition = MODIFY b $int_col DEFAULT 5
 --source alter_table.inc
-if ($mysql_errname != ER_CANT_DO_ONLINE)
+if ($mysql_errname)
 {
   --source unexpected_result.inc
 }
 
-
---let $error_codes = ER_CANT_DO_ONLINE
 --let $online = 1
 --let $alter_definition = CHANGE b new_name $int_col
 --source alter_table.inc
 
---let $error_codes = ER_CANT_DO_ONLINE
 --let $online = 1
 --let $alter_definition = COMMENT 'new comment'
 --source alter_table.inc
 
---let $error_codes = ER_CANT_DO_ONLINE
 --let $online = 1
 --let $rename_to = t2
 --source alter_table.inc
 
-DROP TABLE t1;
+DROP TABLE IF EXISTS t1, t2;
 
 #
 # Test of things that is not possible to do online
@@ -98,23 +98,26 @@ DROP TABLE t1;
 
 INSERT INTO t1 (a,b,c) VALUES (1,100,'a'),(2,200,'b'),(3,300,'c');
 
---let $error_codes = ER_CANT_DO_ONLINE
+# It is here because it used to unsupported as ALTER ONLINE,
+# but is supported now after the semantics changed in 10.0 
+# to be the same as ALTER .. LOCK=NONE
+
 --let $online = 1
 --let $alter_definition = DROP COLUMN b, ADD b $int_col
 --source alter_table.inc
-if ($mysql_errname!=ER_CANT_DO_ONLINE)
+if ($mysql_errname)
 {
   --source unexpected_result.inc
 }
 
---let $error_codes = ER_CANT_DO_ONLINE
+--let $error_codes = ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 --let $online = 1
 --let $alter_definition = MODIFY b BIGINT $default_col_opts
 --source alter_table.inc
 
 --let $alternative_engine = `SELECT engine FROM information_schema.engines WHERE engine IN ('MEMORY','MyISAM') AND engine != '$storage_engine' ORDER BY engine LIMIT 1`
 
---let $error_codes = ER_CANT_DO_ONLINE
+--let $error_codes = ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 --let $online = 1
 --let $alter_definition = ENGINE=$alternative_engine
 --source alter_table.inc
@@ -130,26 +133,21 @@ if ($mysql_errname)
 }
 if (!$mysql_errname)
 {
-  --let $error_codes = ER_CANT_DO_ONLINE
-  --let $online = 1
-  --let $alter_definition = ADD INDEX (b)
-  --source alter_table.inc
-  if ($mysql_errname!=ER_CANT_DO_ONLINE)
-  {
-    --let $functionality = Adding an index or ALTER ONLINE
-    --source unexpected_result.inc
-  }
 
+  # It is here because it used to unsupported as ALTER ONLINE,
+  # but is supported now after the semantics changed in 10.0 
+  # to be the same as ALTER .. LOCK=NONE
+
+  --let $online = 1
   --let $alter_definition = ADD INDEX (b)
   --source alter_table.inc
   if ($mysql_errname)
   {
-    --let $functionality = Adding an index or ALTER TABLE
+    --let $functionality = Adding an index or ALTER ONLINE
     --source unexpected_result.inc
   }
   if (!$mysql_errname)
   {
-    --let $error_codes = ER_CANT_DO_ONLINE
     --let $online = 1
     --let $alter_definition = DROP INDEX b
     --source alter_table.inc
