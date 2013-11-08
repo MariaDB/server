@@ -1489,6 +1489,7 @@ rpl_group_info::rpl_group_info(Relay_log_info *rli_)
 rpl_group_info::~rpl_group_info()
 {
   free_annotate_event();
+  delete deferred_events;
   mysql_mutex_destroy(&sleep_lock);
   mysql_cond_destroy(&sleep_cond);
 }
