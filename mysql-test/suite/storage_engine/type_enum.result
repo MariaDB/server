@@ -26,7 +26,6 @@ a	b	c
 ALTER TABLE t1 ADD COLUMN e ENUM('a','A') <CUSTOM_COL_OPTIONS>;
 Warnings:
 Note	1291	Column 'e' has duplicated value 'a' in ENUM
-Note	1291	Column 'e' has duplicated value 'a' in ENUM
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	enum('')	#	#	#	
