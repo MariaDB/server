@@ -7111,7 +7111,7 @@ void JOIN::get_prefix_cost_and_fanout(uint n_tables,
   @return  the cost of all subqueries
 */
 
-double JOIN::subquery_cost()
+double JOIN::get_total_subquery_cost()
 {
   JOIN_TAB *tab;
   double subq_cost= 0, cond_cost= 0, cache_select_cost= 0;
@@ -7144,7 +7144,7 @@ double JOIN::get_examined_rows_estimate()
     return examined_rows_estimate;
   else if (!(have_query_plan == QEP_EXPLAINABLE ||
              have_query_plan == QEP_EXECUTABLE))
-    return -1;
+    return NO_EXAMINED_ROWS_ESTIMATE;
   else
   {
     double prev_fanout= 1;
@@ -24537,8 +24537,9 @@ double JOIN::static_pushdown_cost(uint idx)
   double pushed_cond_cost= 0;
 
   /*
-    Find and store the POSITION with the least partial result cardinality
-    between the current and last POSITION in the current query plan.
+    For each POSITION, find and store the POSITION with the least partial
+    result cardinality between the current and last POSITION in the current
+    query plan.
   */
   for (POSITION *p_pos= positions + idx, *p_end= positions + const_tables;
        p_pos >= p_end ; p_pos--)

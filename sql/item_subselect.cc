@@ -599,7 +599,8 @@ bool Item_subselect::is_expensive()
       return true;
     }
 
-    if ((cur_examined_rows= cur_join->get_examined_rows_estimate()) < 0)
+    if ((cur_examined_rows= cur_join->get_examined_rows_estimate()) ==
+        JOIN::NO_EXAMINED_ROWS_ESTIMATE)
       return true;
     examined_rows+= cur_examined_rows;
   }
@@ -623,7 +624,7 @@ double Item_subselect::get_cost()
     total_cost+=
       inner_join->best_read + /* The cost of this subquery. */
       /* The cost of the subqueries of the subquery. */
-      inner_join->subquery_cost();
+      inner_join->get_total_subquery_cost();
   }
   return total_cost;
 }

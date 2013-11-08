@@ -1267,7 +1267,7 @@ public:
         /* A query plan exists, and is ready for execution. */
         QEP_EXECUTABLE,
         QEP_DELETED} have_query_plan;
-
+  static const ha_rows NO_EXAMINED_ROWS_ESTIMATE= -1;
   /*
     Additional WHERE and HAVING predicates to be considered for IN=>EXISTS
     subquery transformation of a JOIN object.
@@ -1296,6 +1296,8 @@ public:
   /* end of allocation caching storage */
   /*
     Pointer to the current partial join being processed during query execution.
+    This pointer is used by Item_func_dynamic_cond to decide if it should
+    evaluate itself for the JOIN_TAB currently being processed.
     Has meaning only during execution.
   */
   JOIN_TAB **cur_exec_tab;
@@ -1516,7 +1518,7 @@ public:
                                   double *read_time_arg,
                                   double *record_count_arg);
   double get_examined_rows_estimate();
-  double subquery_cost();
+  double get_total_subquery_cost();
 
   /* defined in opt_subselect.cc */
   bool transform_max_min_subquery();
