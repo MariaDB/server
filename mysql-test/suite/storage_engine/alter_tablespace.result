@@ -10,8 +10,10 @@ a
 2
 ALTER TABLE t1 DISCARD TABLESPACE;
 SELECT a FROM t1;
-ERROR HY000: Got error -1 "Internal error < 0 (Not system error)" from storage engine <STORAGE_ENGINE>
+ERROR HY000: Tablespace has been discarded for table 't1'
 ALTER TABLE t1 IMPORT TABLESPACE;
+Warnings:
+Warning	1810	<STORAGE_ENGINE>: IO Read error: (2, No such file or directory) Error opening './test/t1.cfg', will attempt to import without schema verification
 SELECT a FROM t1;
 a
 1

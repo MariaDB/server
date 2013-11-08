@@ -62,11 +62,11 @@ EOF
   --let $alter_definition = DISCARD TABLESPACE
   --source alter_table.inc
 
-  --let $error_codes = ER_GET_ERRNO
+  --let $error_codes = ER_TABLESPACE_DISCARDED
   --replace_result $storage_engine <STORAGE_ENGINE>
   SELECT a FROM t1;
   --source check_errors.inc
-  if ($mysql_errname != ER_GET_ERRNO)
+  if ($mysql_errname != ER_TABLESPACE_DISCARDED)
   {
     --let $functionality = Tablespace operations
     --source unexpected_result.inc
