@@ -5180,11 +5180,17 @@ static st_error global_error_names[] =
   { 0, 0, 0 }
 };
 
-uint get_errcode_from_name(char *error_name, char *error_end)
+#include <my_base.h>
+static st_error handler_error_names[] =
 {
-  /* SQL error as string */
-  st_error *e= global_error_names;
+  { "<No error>", -1U, "" },
+#include <handler_ername.h>
+  { 0, 0, 0 }
+};
 
+uint get_errcode_from_name(const char *error_name, const char *error_end,
+                            st_error *e)
+{
   DBUG_ENTER("get_errcode_from_name");
   DBUG_PRINT("enter", ("error_name: %s", error_name));
 
@@ -5202,15 +5208,26 @@ uint get_errcode_from_name(char *error_name, char *error_end)
       DBUG_RETURN(e->code);
     }
   }
-  if (!e->name)
-    die("Unknown SQL error name '%s'", error_name);
   DBUG_RETURN(0);
 }
 
-const char *get_errname_from_code (uint error_code)
-{
-   st_error *e= global_error_names;
 
+uint get_errcode_from_name(const char *error_name, const char *error_end)
+{
+  uint tmp;
+  if ((tmp= get_errcode_from_name(error_name, error_end,
+                                     global_error_names)))
+    return tmp;
+  if ((tmp= get_errcode_from_name(error_name, error_end,
+                                     handler_error_names)))
+    return tmp;
+  die("Unknown SQL error name '%s'", error_name);
+}
+
+const char *unknown_error= "<Unknown>";
+
+const char *get_errname_from_code (uint error_code, st_error *e)
+{
    DBUG_ENTER("get_errname_from_code");
    DBUG_PRINT("enter", ("error_code: %d", error_code));
 
@@ -5226,8 +5243,17 @@ const char *get_errname_from_code (uint error_code)
      }
    }
    /* Apparently, errors without known names may occur */
-   DBUG_RETURN("<Unknown>");
+   DBUG_RETURN(unknown_error);
 } 
+
+const char *get_errname_from_code(uint error_code)
+{
+  const char *name;
+  if ((name= get_errname_from_code(error_code, global_error_names)) !=
+      unknown_error)
+    return name;
+  return get_errname_from_code(error_code, handler_error_names);
+}
 
 void do_get_errcodes(struct st_command *command)
 {
@@ -5313,7 +5339,7 @@ void do_get_errcodes(struct st_command *command)
     {
       die("The sqlstate definition must start with an uppercase S");
     }
-    else if (*p == 'E' || *p == 'W')
+    else if (*p == 'E' || *p == 'W' || *p == 'H')
     {
       /* Error name string */
 
@@ -5322,9 +5348,9 @@ void do_get_errcodes(struct st_command *command)
       to->type= ERR_ERRNO;
       DBUG_PRINT("info", ("ERR_ERRNO: %d", to->code.errnum));
     }
-    else if (*p == 'e' || *p == 'w')
+    else if (*p == 'e' || *p == 'w' || *p == 'h')
     {
-      die("The error name definition must start with an uppercase E or W");
+      die("The error name definition must start with an uppercase E or W or H");
     }
     else
     {
