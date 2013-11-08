@@ -609,7 +609,7 @@ bool Item_subselect::is_expensive()
 
 
 /**
-  Compute the cost of a subquery and all its subqueries.
+  Compute the cost of a subquery including the cost of its subqueries.
 
   @return  total subquery cost in terms of JOIN::best_read
 */
@@ -623,7 +623,7 @@ double Item_subselect::get_cost()
     total_cost+=
       inner_join->best_read + /* The cost of this subquery. */
       /* The cost of the subqueries of the subquery. */
-      inner_join->total_subquery_cost();
+      inner_join->subquery_cost();
   }
   return total_cost;
 }

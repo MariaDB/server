@@ -1516,7 +1516,7 @@ public:
                                   double *read_time_arg,
                                   double *record_count_arg);
   double get_examined_rows_estimate();
-  double total_subquery_cost();
+  double subquery_cost();
 
   /* defined in opt_subselect.cc */
   bool transform_max_min_subquery();

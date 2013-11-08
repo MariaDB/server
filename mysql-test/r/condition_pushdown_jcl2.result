@@ -91,7 +91,7 @@ a2 <= (select count(*) from sq where s1 >= a1) and
 b2 <= (select count(*) from sq where s1 >= b1);
 count(*)
 1
-2 correlated SQ, , 2-way join, one SQ inside an OR
+2 correlated SQ, 2-way join, one SQ inside an OR
 explain extended
 SELECT straight_join count(*)
 FROM t1, t2
@@ -129,6 +129,30 @@ WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
 b2 <= (select count(*) from sq where s1 >= b1);
 count(*)
 1
+2 correlated SQ, 2-way join, one SQ inside an OR
+3 levels of subqueries
+explain extended
+SELECT count(*)
+FROM t1 straight_join t2
+WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
+(a2 >= (select min(s1) from sq inner1
+where s1 > '' or s1 in (select inner2.s1 from sq inner2, sq inner3 where inner2.s1 >= a1 and inner3.s1 > inner2.s1))
+or a1 > 0) and
+b2 >= (select min(s1) from sq inner4 
+where s1 >= (select min(inner5.s1) from sq inner5, sq inner6 where inner5.s1 >= b3 and inner6.s1 > inner5.s1));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	2.62	Using where; Subqueries: 2, 4; Using join buffer (flat, BNL join)
+4	DEPENDENT SUBQUERY	inner4	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Subqueries: 5
+5	DEPENDENT SUBQUERY	inner5	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+5	DEPENDENT SUBQUERY	inner6	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	inner1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Subqueries: 3
+3	DEPENDENT SUBQUERY	inner2	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+3	DEPENDENT SUBQUERY	inner3	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1276	Field or reference 'test.t1.a1' of SELECT #3 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t2.b3' of SELECT #5 was resolved in SELECT #1
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` straight_join `test`.`t2` where ((`test`.`t2`.`b1` = `test`.`t1`.`a1`) and (`test`.`t2`.`b2` < '6') and (`test`.`t2`.`b3` < '4') and (`test`.`t2`.`b4` < '2') and ((`test`.`t1`.`a2` >= <expr_cache><`test`.`t1`.`a1`>((select min(`test`.`inner1`.`s1`) from `test`.`sq` `inner1` where ((`test`.`inner1`.`s1` > '') or <expr_cache><`test`.`inner1`.`s1`,`test`.`t1`.`a1`>(<in_optimizer>(`test`.`inner1`.`s1`,<exists>(select `test`.`inner2`.`s1` from `test`.`sq` `inner2` join `test`.`sq` `inner3` where ((`test`.`inner2`.`s1` >= `test`.`t1`.`a1`) and (`test`.`inner3`.`s1` > `test`.`inner2`.`s1`) and (<cache>(`test`.`inner1`.`s1`) = `test`.`inner2`.`s1`))))))))) or (`test`.`t1`.`a1` > 0)) and (`test`.`t2`.`b2` >= <expr_cache><`test`.`t2`.`b3`>((select min(`test`.`inner4`.`s1`) from `test`.`sq` `inner4` where (`test`.`inner4`.`s1` >= <expr_cache><`test`.`t2`.`b3`>((select min(`test`.`inner5`.`s1`) from `test`.`sq` `inner5` join `test`.`sq` `inner6` where ((`test`.`inner5`.`s1` >= `test`.`t2`.`b3`) and (`test`.`inner6`.`s1` > `test`.`inner5`.`s1`)))))))))
 uncorrelated SQ, 3-way join
 the number of buffer refills > partial join size of t3, move
 join_tab->cache_select->cond to t3

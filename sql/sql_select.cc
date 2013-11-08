@@ -7111,19 +7111,23 @@ void JOIN::get_prefix_cost_and_fanout(uint n_tables,
   @return  the cost of all subqueries
 */
 
-double JOIN::total_subquery_cost()
+double JOIN::subquery_cost()
 {
-  double total_cost= 0;
-  for (SELECT_LEX_UNIT *un= select_lex->first_inner_unit();
-       un; un= un->next_unit())
-  {
-    Item_subselect *subquery_predicate= un->item;
-    if (!subquery_predicate)
-      continue;
+  JOIN_TAB *tab;
+  double subq_cost= 0, cond_cost= 0, cache_select_cost= 0;
 
-    total_cost+= subquery_predicate->get_cost();
+  for (tab= first_depth_first_tab(this); tab; tab= next_depth_first_tab(this, tab))
+  {
+    if (tab->select_cond && tab->select_cond->with_subselect)
+      tab->select_cond->walk(&Item::sum_cost_processor,
+                             false, (uchar*) &cond_cost);
+    if (tab->cache_select && tab->cache_select->cond)
+      tab->cache_select->cond->walk(&Item::sum_cost_processor,
+                                    false, (uchar*) &cache_select_cost);
+    subq_cost+= tab->records_read * (cond_cost + cache_select_cost);
   }
-  return total_cost;
+
+  return subq_cost;
 }
 
 

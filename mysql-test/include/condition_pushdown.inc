@@ -62,7 +62,7 @@ WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
       a2 <= (select count(*) from sq where s1 >= a1) and
       b2 <= (select count(*) from sq where s1 >= b1);
 
---echo 2 correlated SQ, , 2-way join, one SQ inside an OR
+--echo 2 correlated SQ, 2-way join, one SQ inside an OR
 explain extended
 SELECT straight_join count(*)
 FROM t1, t2
@@ -82,6 +82,20 @@ FROM t1 straight_join t2
 WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
       (a2 <= (select count(*) from sq where s1 >= a1) or a1 > 0) and
       b2 <= (select count(*) from sq where s1 >= b1);
+
+--echo 2 correlated SQ, 2-way join, one SQ inside an OR
+--echo 3 levels of subqueries
+
+explain extended
+SELECT count(*)
+FROM t1 straight_join t2
+WHERE a1 = b1 and b2 < '6' and b3 < '4' and b4 < '2' and
+      (a2 >= (select min(s1) from sq inner1
+              where s1 > '' or s1 in (select inner2.s1 from sq inner2, sq inner3 where inner2.s1 >= a1 and inner3.s1 > inner2.s1))
+       or a1 > 0) and
+       b2 >= (select min(s1) from sq inner4 
+              where s1 >= (select min(inner5.s1) from sq inner5, sq inner6 where inner5.s1 >= b3 and inner6.s1 > inner5.s1));
+
 
 --echo uncorrelated SQ, 3-way join
 
