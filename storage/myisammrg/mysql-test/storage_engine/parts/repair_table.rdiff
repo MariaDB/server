@@ -139,7 +139,7 @@
 +test.t1	repair	Error	Table 'test.t1' doesn't exist
 +test.t1	repair	status	Operation failed
  DROP TABLE t1, t2;
-+ERROR 42S02: Unknown table 't1,t2'
++ERROR 42S02: Unknown table 'test.t1,test.t2'
  call mtr.add_suppression("Got an error from thread_id=.*");
  call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*root Checking table");
  call mtr.add_suppression(" '\..test.t1'");
@@ -298,4 +298,4 @@
 +test.t1	repair	Error	Table 'test.t1' doesn't exist
 +test.t1	repair	status	Operation failed
  DROP TABLE t1;
-+ERROR 42S02: Unknown table 't1'
++ERROR 42S02: Unknown table 'test.t1'
