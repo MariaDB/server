@@ -1,5 +1,5 @@
---- suite/storage_engine/repair_table.result	2012-07-15 01:26:44.347708000 +0400
-+++ suite/storage_engine/repair_table.reject	2012-07-15 17:50:37.927013454 +0400
+--- suite/storage_engine/repair_table.result	2013-10-03 20:35:06.000000000 +0400
++++ suite/storage_engine/repair_table.reject	2013-11-08 22:04:22.000000000 +0400
 @@ -4,56 +4,57 @@
  CREATE TABLE t2 (a <INT_COLUMN>, b <CHAR_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  REPAIR TABLE t1;
@@ -78,7 +78,7 @@
  DROP TABLE t1, t2;
  call mtr.add_suppression("Got an error from thread_id=.*");
  call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*root Checking table");
-@@ -62,45 +63,14 @@
+@@ -62,45 +63,32 @@
  CREATE TABLE t1 (a <INT_COLUMN>, b <CHAR_COLUMN>, <CUSTOM_INDEX> (a)) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  REPAIR TABLE t1;
  Table	Op	Msg_type	Msg_text
@@ -98,16 +98,19 @@
 -t1.MYI
 +test.t1	repair	note	The storage engine for the table doesn't support repair
  t1.frm
--INSERT INTO t1 (a,b) VALUES (14,'n'),(15,'o');
--# Statement ended with one of expected results (0,144). 
--# If you got a difference in error message, just add it to rdiff file
--FLUSH TABLE t1;
++t1.ibd
+ INSERT INTO t1 (a,b) VALUES (14,'n'),(15,'o');
+ # Statement ended with one of expected results (0,144). 
+ # If you got a difference in error message, just add it to rdiff file
+ FLUSH TABLE t1;
 -Restoring <DATADIR>/test/t1.MYD
--CHECK TABLE t1;
--Table	Op	Msg_type	Msg_text
++Restoring <DATADIR>/test/t1.ibd
+ CHECK TABLE t1;
+ Table	Op	Msg_type	Msg_text
 -test.t1	check	error	Size of datafile is: 39         Should be: 65
 -test.t1	check	error	Corrupt
--SELECT a,b FROM t1;
++test.t1	check	status	OK
+ SELECT a,b FROM t1;
 -ERROR HY000: Incorrect key file for table 't1'; try to repair it
 -# Statement ended with one of expected results (0,ER_NOT_KEYFILE,144). 
 -# If you got a difference in error message, just add it to rdiff file
@@ -124,6 +127,12 @@
 -test.t1	check	error	Corrupt
 -SELECT a,b FROM t1;
 -ERROR HY000: Table './test/t1' is marked as crashed and last (automatic?) repair failed
--# Statement ended with one of expected results (0,ER_NOT_KEYFILE,144). 
--# If you got a difference in error message, just add it to rdiff file
++a	b
++7	g
++8	h
++10	j
++14	n
++15	o
+ # Statement ended with one of expected results (0,ER_NOT_KEYFILE,144). 
+ # If you got a difference in error message, just add it to rdiff file
  DROP TABLE t1;

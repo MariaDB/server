@@ -54,14 +54,14 @@
 +# ERROR: Statement ended with errno 1572, errname ER_PARTITION_MERGE_ERROR (expected to succeed)
  CHECKSUM TABLE t1;
  Table	Checksum
--test.t1	0
+-test.t1	4272806499
 +test.t1	NULL
 +Warnings:
 +Error	1146	Table 'test.t1' doesn't exist
  CHECKSUM TABLE t2, t1;
  Table	Checksum
 -test.t2	0
--test.t1	0
+-test.t1	4272806499
 +test.t2	NULL
 +test.t1	NULL
 +Warnings:
@@ -69,7 +69,7 @@
 +Error	1146	Table 'test.t1' doesn't exist
  CHECKSUM TABLE t1, t2 QUICK;
  Table	Checksum
--test.t1	0
+-test.t1	4272806499
 -test.t2	0
 +test.t1	NULL
 +test.t2	NULL

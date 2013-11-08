@@ -1,0 +1,1 @@
+repair_table : InnoDB of 5.6.10 does not support repair on partitioned tables (fixed by 5.6.14)
