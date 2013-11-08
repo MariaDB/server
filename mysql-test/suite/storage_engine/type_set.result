@@ -32,7 +32,6 @@ a	b	c
 ALTER TABLE t1 ADD COLUMN e SET('a','A') <CUSTOM_COL_OPTIONS>;
 Warnings:
 Note	1291	Column 'e' has duplicated value 'a' in SET
-Note	1291	Column 'e' has duplicated value 'a' in SET
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	set('')	#	#	#	

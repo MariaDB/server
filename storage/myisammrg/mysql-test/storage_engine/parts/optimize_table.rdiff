@@ -80,7 +80,7 @@
 +test.t2	optimize	Error	Table 'test.t2' doesn't exist
 +test.t2	optimize	status	Operation failed
  DROP TABLE t1, t2;
-+ERROR 42S02: Unknown table 't1,t2'
++ERROR 42S02: Unknown table 'test.t1,test.t2'
  CREATE TABLE t1 (a <INT_COLUMN>, b <CHAR_COLUMN>, <CUSTOM_INDEX> (a)) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS> PARTITION BY HASH(a) PARTITIONS 2;
 +ERROR HY000: Engine cannot be used in partitioned tables
 +# ERROR: Statement ended with errno 1572, errname ER_PARTITION_MERGE_ERROR (expected to succeed)
@@ -92,4 +92,4 @@
 +test.t1	optimize	Error	Table 'test.t1' doesn't exist
 +test.t1	optimize	status	Operation failed
  DROP TABLE t1;
-+ERROR 42S02: Unknown table 't1'
++ERROR 42S02: Unknown table 'test.t1'

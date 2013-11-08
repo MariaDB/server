@@ -81,7 +81,6 @@ HEX(v0)	HEX(v1)	HEX(v64)	LENGTH(HEX(v65000))
 ALTER TABLE t1 ADD COLUMN v65536 VARBINARY(65536) <CUSTOM_COL_OPTIONS>;
 Warnings:
 Note	1246	Converting column 'v65536' from VARBINARY to BLOB
-Note	1246	Converting column 'v65536' from VARBINARY to BLOB
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varbinary(0)	#	#	#	

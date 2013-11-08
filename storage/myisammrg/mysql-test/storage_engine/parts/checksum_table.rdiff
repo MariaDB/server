@@ -42,7 +42,7 @@
 +Error	1146	Table 'test.t1' doesn't exist
 +Error	1146	Table 'test.t2' doesn't exist
  DROP TABLE t1, t2;
-+ERROR 42S02: Unknown table 't1,t2'
++ERROR 42S02: Unknown table 'test.t1,test.t2'
  DROP TABLE IF EXISTS t1,t2;
  CREATE TABLE t1 (a <INT_COLUMN>, b <CHAR_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS> CHECKSUM=1 PARTITION BY HASH(a) PARTITIONS 2;
 +ERROR HY000: Engine cannot be used in partitioned tables
@@ -54,14 +54,14 @@
 +# ERROR: Statement ended with errno 1572, errname ER_PARTITION_MERGE_ERROR (expected to succeed)
  CHECKSUM TABLE t1;
  Table	Checksum
--test.t1	0
+-test.t1	4272806499
 +test.t1	NULL
 +Warnings:
 +Error	1146	Table 'test.t1' doesn't exist
  CHECKSUM TABLE t2, t1;
  Table	Checksum
 -test.t2	0
--test.t1	0
+-test.t1	4272806499
 +test.t2	NULL
 +test.t1	NULL
 +Warnings:
@@ -69,7 +69,7 @@
 +Error	1146	Table 'test.t1' doesn't exist
  CHECKSUM TABLE t1, t2 QUICK;
  Table	Checksum
--test.t1	0
+-test.t1	4272806499
 -test.t2	0
 +test.t1	NULL
 +test.t2	NULL
@@ -86,4 +86,4 @@
 +Error	1146	Table 'test.t1' doesn't exist
 +Error	1146	Table 'test.t2' doesn't exist
  DROP TABLE t1, t2;
-+ERROR 42S02: Unknown table 't1,t2'
++ERROR 42S02: Unknown table 'test.t1,test.t2'
