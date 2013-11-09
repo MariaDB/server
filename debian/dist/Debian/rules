@@ -205,7 +205,7 @@ install: build
 	rm -f $$autorm;                                                 \
 	ignore='';                                                      \
 	for p in $$MARIADB_OPTIONAL_DEBS; do                            \
-	  p=mariadb-$$p-5.5;                                            \
+	  p=mariadb-$$p;                                            \
 	  dh_movefiles --package=$$p || echo "../$$p*.deb" >> $$autorm; \
 	  ignore="$$ignore --no-package=$$p";                           \
 	done;                                                           \
