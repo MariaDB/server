@@ -90,7 +90,7 @@ extern int num_read, num_there, num_eq[2];                // Statistics
 /***********************************************************************/
 ODBCDEF::ODBCDEF(void)
   {
-  Connect = Tabname = Tabowner = Tabqual = Srcdef = Qchar = NULL;
+  Connect = Tabname = Tabowner = Tabqual = Srcdef = Qchar = Qrystr = NULL;
   Catver = Options = 0;
   Xsrc = false;
   }  // end of ODBCDEF constructor
@@ -108,6 +108,7 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Tabqual = Cat->GetStringCatInfo(g, "Qualifier", "");
   Srcdef = Cat->GetStringCatInfo(g, "Srcdef", NULL);
   Qchar = Cat->GetStringCatInfo(g, "Qchar", "");
+  Qrystr = Cat->GetStringCatInfo(g, "Query_String", "?");
   Catver = Cat->GetIntCatInfo("Catver", 2);
   Xsrc = Cat->GetBoolCatInfo("Execsrc", FALSE);
   Mxr = Cat->GetIntCatInfo("Maxerr", 0);
@@ -171,6 +172,7 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
     Qualifier = tdp->Tabqual;
     Srcdef = tdp->Srcdef;
     Quote = tdp->GetQchar();
+    Qrystr = tdp->Qrystr;
     Options = tdp->Options;
     Rows = tdp->GetElemt();
     Catver = tdp->Catver;
@@ -181,6 +183,7 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
     Qualifier = NULL;
     Srcdef = NULL;
     Quote = NULL;
+    Qrystr = NULL;
     Options = 0;
     Rows = 0;
     Catver = 0;
@@ -209,6 +212,7 @@ TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
   Qualifier = tdbp->Qualifier;
   Srcdef = tdbp->Srcdef;
   Quote = tdbp->Quote;
+  Qrystr = tdbp->Qrystr;
   Query = tdbp->Query;
   Count = tdbp->Count;
 //Where = tdbp->Where;
@@ -514,6 +518,40 @@ bool TDBODBC::BindParameters(PGLOBAL g)
 
   return false;
   } // end of BindParameters
+
+/***********************************************************************/
+/*  MakeCMD: make the SQL statement to send to ODBC connection.        */
+/***********************************************************************/
+char *TDBODBC::MakeStmt(PGLOBAL g)
+  {
+  char *qc, *stmt = NULL, cmd[8], tab[96], end[512];
+  int   n = (Mode == MODE_DELETE) ? 1 : 2;
+
+  stmt = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
+  *end = 0;
+  qc = (Quote) ? Quote : "\"";
+
+  if (sscanf(Qrystr, "%s `%[^`]`%511c", cmd, tab, end) > n ||
+      sscanf(Qrystr, "%s \"%[^\"]\"%511c", cmd, tab, end) > n ||
+      sscanf(Qrystr, "%s %s%511c", cmd, tab, end) > n)
+    strcat(strcat(strcpy(tab, qc), TableName), qc);
+  else {
+    strcpy(g->Message, "Cannot use this UPDATE/DELETE command");
+    return NULL;
+  } // endif sscanf
+
+  strcat(strcat(strcpy(stmt, cmd), " "), tab);
+
+  if (*end) {
+    for (int i = 0; end[i]; i++)
+      if (end[i] == '`')
+        end[i] = *qc;
+
+    strcat(stmt, end);
+    } // endif end
+
+  return stmt;
+  } // end of MakeStmt
 
 /***********************************************************************/
 /*  ResetSize: call by TDBMUL when calculating size estimate.          */
