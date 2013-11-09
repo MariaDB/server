@@ -659,6 +659,8 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     opval= (char*)options->colist;
   else if (!stricmp(opname, "Data_charset"))
     opval= (char*)options->data_charset;
+  else if (!stricmp(opname, "Query_String"))
+    opval= thd_query_string(table->in_use)->str;
 
   if (!opval && options && options->oplist)
     opval= GetListOption(xp->g, opname, options->oplist);
@@ -1239,15 +1241,16 @@ int ha_connect::CloseTable(PGLOBAL g)
 /***********************************************************************/
 int ha_connect::MakeRecord(char *buf)
 {
-  char            *p, *fmt, val[32];
-  int              rc= 0;
-  Field*          *field;
-  Field           *fp;
-  my_bitmap_map   *org_bitmap;
-  CHARSET_INFO    *charset= tdbp->data_charset();
-  const MY_BITMAP *map;
-  PVAL             value;
-  PCOL             colp= NULL;
+  char          *p, *fmt, val[32];
+  int            rc= 0;
+  Field*        *field;
+  Field         *fp;
+  my_bitmap_map *org_bitmap;
+  CHARSET_INFO  *charset= tdbp->data_charset();
+//MY_BITMAP      readmap;
+  MY_BITMAP     *map;
+  PVAL           value;
+  PCOL           colp= NULL;
   DBUG_ENTER("ha_connect::MakeRecord");
 
   if (xtrace > 1)
@@ -1263,7 +1266,7 @@ int ha_connect::MakeRecord(char *buf)
   memset(buf, 0, table->s->null_bytes);
 
   // When sorting read_set selects all columns, so we use def_read_set
-  map= (const MY_BITMAP *)&table->def_read_set;
+  map= (MY_BITMAP *)&table->def_read_set;
 
   // Make the pseudo record from field values
   for (field= table->field; *field && !rc; field++) {
@@ -2382,18 +2385,21 @@ int ha_connect::rnd_init(bool scan)
   if (xtrace)
     printf("%p in rnd_init: scan=%d\n", this, scan);
 
-  if (g) {
-    if (!table || xmod == MODE_INSERT)
-      DBUG_RETURN(HA_ERR_INITIALIZATION);
+  if (!g || !table || xmod == MODE_INSERT)
+    DBUG_RETURN(HA_ERR_INITIALIZATION);
 
-    // Close the table if it was opened yet (locked?)
-    if (IsOpened())
-      CloseTable(g);
+  // Close the table if it was opened yet (locked?)
+  if (IsOpened())
+    CloseTable(g);
 
-    if (OpenTable(g, xmod == MODE_DELETE))
-      DBUG_RETURN(HA_ERR_INITIALIZATION);
+  // When updating, to avoid skipped update, force the table
+  // handler to retrieve write-only fields to be able to compare 
+  // records and detect data change.
+  if (xmod == MODE_UPDATE)
+    bitmap_union(table->read_set, table->write_set);
 
-    } // endif g
+  if (OpenTable(g, xmod == MODE_DELETE))
+    DBUG_RETURN(HA_ERR_INITIALIZATION);
 
   xp->nrd= xp->fnd= xp->nfd= 0;
   xp->tb1= my_interval_timer();

@@ -50,6 +50,7 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ     Tabqual;            /* External table qualifier              */
   PSZ     Srcdef;             /* The source table SQL definition       */
   PSZ     Qchar;              /* Identifier quoting character          */
+  PSZ     Qrystr;             /* The original query                    */
   int     Catver;             /* ODBC version for catalog functions    */
   int     Options;            /* Open connection options               */
   int     Mxr;                /* Maxerr for an Exec table              */
@@ -97,13 +98,12 @@ class TDBODBC : public TDBASE {
 
  protected:
   // Internal functions
-  int Decode(char *utf, char *buf, size_t n);
+  int   Decode(char *utf, char *buf, size_t n);
   char *MakeSQL(PGLOBAL g, bool cnt);
-//bool  MakeUpdate(PGLOBAL g, PSELECT selist);
   bool  MakeInsert(PGLOBAL g);
-//bool  MakeDelete(PGLOBAL g);
 //bool  MakeFilter(PGLOBAL g, bool c);
   bool  BindParameters(PGLOBAL g);
+  char *MakeStmt(PGLOBAL g);
 
   // Members
   ODBConn *Ocp;               // Points to an ODBC connection class
@@ -119,6 +119,7 @@ class TDBODBC : public TDBASE {
   char    *Quote;             // The identifier quoting character
   char    *MulConn;           // Used for multiple ODBC tables
   char    *DBQ;               // The address part of Connect string
+  char    *Qrystr;            // The original query
   int      Options;           // Connect options
   int      Fpos;              // Position of last read record
   int      AftRows;           // The number of affected rows
