@@ -2607,3 +2607,5 @@ a	b
 1	1
 unlock tables;
 drop table t1,t2;
+create table t1;
+ERROR 42000: A table must have at least 1 column
