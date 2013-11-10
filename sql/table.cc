@@ -1997,7 +1997,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 }
 
 
-static bool sql_unusable_for_discovery(THD *thd, const char *sql)
+static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
+                                       const char *sql)
 {
   LEX *lex= thd->lex;
   HA_CREATE_INFO *create_info= &lex->create_info;
@@ -2029,7 +2030,7 @@ static bool sql_unusable_for_discovery(THD *thd, const char *sql)
   if (create_info->data_file_name || create_info->index_file_name)
     return 1;
   // ... engine
-  if (create_info->used_fields & HA_CREATE_USED_ENGINE)
+  if (create_info->db_type && create_info->db_type != engine)
     return 1;
 
   return 0;
@@ -2049,6 +2050,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   LEX tmp_lex;
   KEY *unused1;
   uint unused2;
+  handlerton *hton= plugin_hton(db_plugin);
   LEX_CUSTRING frm= {0,0};
 
   DBUG_ENTER("TABLE_SHARE::init_from_sql_statement_string");
@@ -2080,10 +2082,10 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   lex_start(thd);
 
   if ((error= parse_sql(thd, & parser_state, NULL) || 
-              sql_unusable_for_discovery(thd, sql_copy)))
+              sql_unusable_for_discovery(thd, hton, sql_copy)))
     goto ret;
 
-  thd->lex->create_info.db_type= plugin_hton(db_plugin);
+  thd->lex->create_info.db_type= hton;
 
   if (tabledef_version.str)
     thd->lex->create_info.tabledef_version= tabledef_version;
