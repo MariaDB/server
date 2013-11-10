@@ -4579,7 +4579,7 @@ bool create_table_impl(THD *thd,
 
     if (!hton->discover_table_structure)
     {
-      my_error(ER_ILLEGAL_HA, MYF(0), hton_name(hton)->str, db, table_name);
+      my_error(ER_TABLE_MUST_HAVE_COLUMNS, MYF(0));
       goto err;
     }
 
