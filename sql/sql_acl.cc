@@ -7556,7 +7556,7 @@ static ROLE_GRANT_PAIR *find_role_grant_pair(const LEX_STRING *u,
   pair_key.alloc(key_length);
 
   strmov(strmov(strmov(const_cast<char*>(pair_key.ptr()),
-                       u->str) + 1, h->str) + 1, r->str);
+                       safe_str(u->str)) + 1, h->str) + 1, r->str);
 
   return (ROLE_GRANT_PAIR *)
     my_hash_search(&acl_roles_mappings, (uchar*)pair_key.ptr(), key_length);
