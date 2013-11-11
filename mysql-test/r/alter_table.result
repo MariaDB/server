@@ -1893,3 +1893,9 @@ DROP TABLE ti3;
 CREATE TABLE tm1(i INT DEFAULT 1) engine=MyISAM;
 ALTER TABLE tm1 ADD INDEX ii1(i), ALTER COLUMN i DROP DEFAULT;
 DROP TABLE tm1;
+create table if not exists t1 (i int);
+alter table t1 add key (i);
+alter table t1 add key if not exists (i);
+Warnings:
+Note	1061	Duplicate key name 'i'
+DROP TABLE t1;
