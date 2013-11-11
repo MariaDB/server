@@ -593,4 +593,4 @@ int global_open(GLOBAL *g, int msgid, const char *filename, int flags, int mode)
 DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir);
 char *MakeEscape(PGLOBAL g, char* str, char q);
 
-bool PushWarning(PGLOBAL, PTDBASE);
+bool PushWarning(PGLOBAL, PTDBASE, int level = 1);

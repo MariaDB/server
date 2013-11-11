@@ -127,7 +127,7 @@ class ODBConn : public BLOCK {
 
   // Attributes
  public:
-  char  GetQuoteChar(void) {return m_IDQuoteChar;}
+  char *GetQuoteChar(void) {return m_IDQuoteChar;}
   // Database successfully opened?
   bool  IsOpen(void) {return m_hdbc != SQL_NULL_HDBC;}
   PSZ   GetStringInfo(ushort infotype);
@@ -184,9 +184,9 @@ class ODBConn : public BLOCK {
   DWORD    m_QueryTimeout;
   DWORD    m_UpdateOptions;
   DWORD    m_RowsetSize;
+  char     m_IDQuoteChar[2];
   int      m_Catver;
   PSZ      m_Connect;
   bool     m_Updatable;
   bool     m_Transact;
-  char     m_IDQuoteChar;
   }; // end of ODBConn class definition

@@ -667,6 +667,8 @@ bool TDBWMI::OpenDB(PGLOBAL g)
   } else
     DoubleSlash(g);
 
+  Use = USE_OPEN;       // Do it now in case we are recursively called
+
   /*********************************************************************/
   /*  Initialize the WMI processing.                                   */
   /*********************************************************************/
