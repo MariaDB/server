@@ -602,7 +602,7 @@ int TDBODBC::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
     // Make MariaDB happy
-    MaxSize = (Mode == MODE_READ) ? 100 : 0;
+    MaxSize = (Mode == MODE_DELETE) ? 0 : 10;
 #if 0
     // This is unuseful and takes time
     if (Srcdef) {

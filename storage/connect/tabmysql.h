@@ -53,8 +53,10 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   PSZ     Username;           /* User logon name                       */
   PSZ     Password;           /* Password logon info                   */
   PSZ     Server;             /* PServerID                             */
+  PSZ     Qrystr;             /* The original query                    */
   int     Portnumber;         /* MySQL port number (0 = default)       */
   int     Mxr;                /* Maxerr for an Exec table              */
+  int     Quoted;             /* Identifier quoting level              */
   bool    Isview;             /* TRUE if this table is a MySQL view    */
   bool    Bind;               /* Use prepared statement on insert      */
   bool    Delayed;            /* Delayed insert                        */
@@ -104,9 +106,10 @@ class TDBMYSQL : public TDBASE {
   // Internal functions
   bool MakeSelect(PGLOBAL g);
   bool MakeInsert(PGLOBAL g);
-//bool MakeUpdate(PGLOBAL g);  
-//bool MakeDelete(PGLOBAL g);
+  int  MakeUpdate(PGLOBAL g);  
+  int  MakeDelete(PGLOBAL g);
   int  BindColumns(PGLOBAL g);
+  int  SendCommand(PGLOBAL g);
 
   // Members
   MYSQLC      Myc;            // MySQL connection class
@@ -120,6 +123,7 @@ class TDBMYSQL : public TDBASE {
   char       *Server;         // The server ID
   char       *Query;          // Points to SQL query
   char       *Qbuf;           // Used for not prepared insert
+  char       *Qrystr;         // The original query
   bool        Fetched;        // True when fetch was done
   bool        Isview;         // True if this table is a MySQL view
   bool        Prep;           // Use prepared statement on insert
@@ -129,6 +133,7 @@ class TDBMYSQL : public TDBASE {
   int         N;              // The current table index
   int         Port;           // MySQL port number (0 = default) 
   int         Nparm;          // The number of statement parameters
+  int         Quoted;         // The identifier quoting level
   }; // end of class TDBMYSQL
 
 /***********************************************************************/

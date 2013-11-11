@@ -4718,6 +4718,6 @@ maria_declare_plugin(connect)
   NULL,                                         /* status variables */
   NULL,                                         /* system variables */
   "0.1",                                        /* string version */
-  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL          /* maturity */
+  MariaDB_PLUGIN_MATURITY_ALPHA                 /* maturity */
 }
 maria_declare_plugin_end;
