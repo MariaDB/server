@@ -495,6 +495,7 @@ bool TDBPRX::OpenDB(PGLOBAL g)
 	if (Tdbp->OpenDB(g))
 		return TRUE;
 
+  Use = USE_OPEN;
 	return FALSE;
   } // end of OpenDB
 

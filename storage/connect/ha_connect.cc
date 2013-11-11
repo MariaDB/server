@@ -258,17 +258,21 @@ ha_create_table_option connect_field_option_list[]=
 /***********************************************************************/
 /*  Push G->Message as a MySQL warning.                                */
 /***********************************************************************/
-bool PushWarning(PGLOBAL g, PTDBASE tdbp)
+bool PushWarning(PGLOBAL g, PTDBASE tdbp, int level)
   {
   PHC    phc;
   THD   *thd;
   MYCAT *cat= (MYCAT*)tdbp->GetDef()->GetCat();
+  Sql_condition::enum_warning_level wlvl;
+  
 
   if (!cat || !(phc= cat->GetHandler()) || !phc->GetTable() ||
       !(thd= (phc->GetTable())->in_use))
     return true;
 
-  push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+//push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+  wlvl= (Sql_condition::enum_warning_level)level;
+  push_warning(thd, wlvl, 0, g->Message);
   return false;
   } // end of PushWarning
 
@@ -1098,19 +1102,20 @@ PTDB ha_connect::GetTDB(PGLOBAL g)
                       && (tdbp->GetMode() == xmod 
                        || tdbp->GetAmType() == TYPE_AM_XML)) {
     tp= tdbp;
-    tp->SetMode(xmod);
+//  tp->SetMode(xmod);
   } else if ((tp= CntGetTDB(g, table_name, xmod, this)))
     valid_query_id= xp->last_query_id;
   else
     printf("GetTDB: %s\n", g->Message);
 
+  tp->SetMode(xmod);
   return tp;
 } // end of GetTDB
 
 /****************************************************************************/
 /*  Open a CONNECT table, restricting column list if cols is true.          */
 /****************************************************************************/
-bool ha_connect::OpenTable(PGLOBAL g, bool del)
+int ha_connect::OpenTable(PGLOBAL g, bool del)
 {
   bool  rc= false;
   char *c1= NULL, *c2=NULL;
@@ -1118,11 +1123,11 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
   // Double test to be on the safe side
   if (!g || !table) {
     printf("OpenTable logical error; g=%p table=%p\n", g, table);
-    return true;
+    return HA_ERR_INITIALIZATION;
     } // endif g
 
   if (!(tdbp= GetTDB(g)))
-    return true;
+    return RC_FX;
   else if (tdbp->IsReadOnly())
     switch (xmod) {
       case MODE_WRITE:
@@ -1130,7 +1135,7 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
       case MODE_UPDATE:
       case MODE_DELETE:
         strcpy(g->Message, MSG(READ_ONLY));
-        return true;
+        return HA_ERR_TABLE_READONLY;
       default:
         break;
       } // endswitch xmode
@@ -1207,7 +1212,7 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
     valid_info= false;
     } // endif rc
 
-  return rc;
+  return (rc) ? HA_ERR_INITIALIZATION : 0;
 } // end of OpenTable
 
 
@@ -2006,14 +2011,8 @@ int ha_connect::write_row(uchar *buf)
     if (IsOpened())
       CloseTable(g);
 
-    if (OpenTable(g)) {
-      if (strstr(g->Message, "read only"))
-        rc= HA_ERR_TABLE_READONLY;
-      else
-        rc= HA_ERR_INITIALIZATION;
-
+    if ((rc= OpenTable(g)))
       DBUG_RETURN(rc);
-      } // endif tdbp
 
     } // endif isopened
 
@@ -2378,6 +2377,7 @@ int ha_connect::index_next_same(uchar *buf, const uchar *key, uint keylen)
 */
 int ha_connect::rnd_init(bool scan)
 {
+  int     rc;
   PGLOBAL g= ((table && table->in_use) ? GetPlug(table->in_use, xp) :
               (xp) ? xp->g : NULL);
   DBUG_ENTER("ha_connect::rnd_init");
@@ -2398,8 +2398,8 @@ int ha_connect::rnd_init(bool scan)
   if (xmod == MODE_UPDATE)
     bitmap_union(table->read_set, table->write_set);
 
-  if (OpenTable(g, xmod == MODE_DELETE))
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
+  if ((rc= OpenTable(g, xmod == MODE_DELETE)))
+    DBUG_RETURN(rc);
 
   xp->nrd= xp->fnd= xp->nfd= 0;
   xp->tb1= my_interval_timer();
@@ -2610,7 +2610,6 @@ int ha_connect::info(uint flag)
         xp->CheckCleanup();
         } // endif xmod
 
-//    tdbp= OpenTable(g, xmod == MODE_DELETE);
       tdbp= GetTDB(g);
       } // endif tdbp
 
@@ -2705,18 +2704,19 @@ int ha_connect::delete_all_rows()
   PGLOBAL g= xp->g;
   DBUG_ENTER("ha_connect::delete_all_rows");
 
-  if (tdbp && tdbp->GetAmType() != TYPE_AM_XML)
+  if (tdbp && tdbp->GetUse() == USE_OPEN &&
+      tdbp->GetAmType() != TYPE_AM_XML &&
+      ((PTDBASE)tdbp)->GetFtype() != RECFM_NAF)
     // Close and reopen the table so it will be deleted
     rc= CloseTable(g);
 
-  if (!(OpenTable(g))) {
+  if (!(rc= OpenTable(g))) {
     if (CntDeleteRow(g, tdbp, true)) {
       printf("%s\n", g->Message);
       rc= HA_ERR_INTERNAL_ERROR;
       } // endif
 
-  } else
-    rc= HA_ERR_INITIALIZATION;
+    } // endif rc
 
   DBUG_RETURN(rc);
 } // end of delete_all_rows

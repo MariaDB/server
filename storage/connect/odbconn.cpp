@@ -873,7 +873,8 @@ ODBConn::ODBConn(PGLOBAL g, TDBODBC *tdbp)
   m_Connect = NULL;
   m_Updatable = true;
   m_Transact = false;
-  m_IDQuoteChar = '\'';
+  m_IDQuoteChar[0] = '"';
+  m_IDQuoteChar[1] = 0;
 //*m_ErrMsg = '\0';
   } // end of ODBConn
 
@@ -1232,16 +1233,9 @@ void ODBConn::GetConnectInfo()
                                      SQL_MODE_READ_ONLY);
 #endif   // 0
 
-  // Cache the quote char to use when constructing SQL
-  char QuoteChar[2];
-
+  // Get the quote char to use when constructing SQL
   rc = SQLGetInfo(m_hdbc, SQL_IDENTIFIER_QUOTE_CHAR,
-                  QuoteChar, sizeof(QuoteChar), &nResult);
-
-  if (Check(rc) && nResult == 1)
-    m_IDQuoteChar = QuoteChar[0];
-  else
-    m_IDQuoteChar = ' ';
+                  m_IDQuoteChar, sizeof(m_IDQuoteChar), &nResult);
 
   if (trace)
     htrc("DBMS: %s, Version: %s\n",
