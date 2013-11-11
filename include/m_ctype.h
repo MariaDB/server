@@ -240,6 +240,32 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
 #define MY_STRXFRM_REVERSE_LEVEL6  0x00200000 /* if reverse order for level6 */
 #define MY_STRXFRM_REVERSE_SHIFT   16
 
+/*
+   Collation IDs for MariaDB that should not conflict with MySQL.
+   We reserve 256..511, because MySQL will most likely use this range
+   when the range 0..255 is full.
+
+   We use the next 256 IDs starting from 512 and divide
+   them into 8 chunks, 32 collations each, as follows:
+
+   512 + (0..31)    for single byte collations (e.g. latin9)
+   512 + (32..63)   reserved (e.g. for utf32le, or more single byte collations)
+   512 + (64..95)   for utf8
+   512 + (96..127)  for utf8mb4
+   512 + (128..159) for ucs2
+   512 + (160..192) for utf16
+   512 + (192..223) for utf16le
+   512 + (224..255) for utf32
+*/
+#define MY_PAGE2_COLLATION_ID_8BIT     0x200
+#define MY_PAGE2_COLLATION_ID_RESERVED 0x220
+#define MY_PAGE2_COLLATION_ID_UTF8     0x240
+#define MY_PAGE2_COLLATION_ID_UTF8MB4  0x260
+#define MY_PAGE2_COLLATION_ID_UCS2     0x280
+#define MY_PAGE2_COLLATION_ID_UTF16    0x2A0
+#define MY_PAGE2_COLLATION_ID_UTF16LE  0x2C0
+#define MY_PAGE2_COLLATION_ID_UTF32    0x2E0
+
 struct my_uni_idx_st
 {
   uint16 from;

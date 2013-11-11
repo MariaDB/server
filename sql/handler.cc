@@ -3534,7 +3534,6 @@ bool handler::get_error_message(int error, String* buf)
   return FALSE;
 }
 
-
 /**
   Check for incompatible collation changes.
    
@@ -3575,9 +3574,10 @@ int handler::check_collation_compatibility()
              (cs_number == 33 || /* utf8_general_ci - bug #27877 */
               cs_number == 35))) /* ucs2_general_ci - bug #27877 */
           return HA_ADMIN_NEEDS_UPGRADE;
-      }  
-    }  
-  }  
+      }
+    }
+  }
+
   return 0;
 }
 
@@ -3587,6 +3587,9 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
   int error;
   KEY *keyinfo, *keyend;
   KEY_PART_INFO *keypart, *keypartend;
+
+  if (table->s->incompatible_version)
+    return HA_ADMIN_NEEDS_ALTER;
 
   if (!table->s->mysql_version)
   {

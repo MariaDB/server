@@ -407,7 +407,7 @@ select "foo" = "foo " collate latin1_test;
 "foo" = "foo " collate latin1_test
 1
 The following tests check that two-byte collation IDs work
-select * from information_schema.collations where id>256 order by id;
+select * from information_schema.collations where id>256 and is_compiled<>'Yes' order by id;
 COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN
 utf8mb4_test_ci	utf8mb4	326			8
 utf16_test_ci	utf16	327			8
