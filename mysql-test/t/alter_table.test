@@ -1643,3 +1643,11 @@ alter table t1 add key (i);
 alter table t1 add key if not exists (i);
 DROP TABLE t1;
 
+#
+# MDEV-4436 CHANGE COLUMN IF EXISTS does not work and throws wrong warning.
+#
+create table t1 (a int);
+alter table t1 change column if exists a b bigint;
+show create table t1;
+DROP TABLE t1;
+

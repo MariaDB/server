@@ -5309,7 +5309,7 @@ handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
       for (f_ptr=table->field; *f_ptr; f_ptr++)
       {
         if (my_strcasecmp(system_charset_info,
-              sql_field->field_name, (*f_ptr)->field_name) == 0)
+              sql_field->change, (*f_ptr)->field_name) == 0)
         {
           break;
         }
