@@ -5389,17 +5389,29 @@ handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
     Key *key;
     List_iterator<Key> key_it(alter_info->key_list);
     uint n_key;
+    const char *keyname;
     while ((key=key_it++))
     {
       if (!key->create_if_not_exists)
         continue;
+      /* If the name of the key is not specified,     */
+      /* let us check the name of the first key part. */
+      if ((keyname= key->name.str) == NULL)
+      {
+        List_iterator<Key_part_spec> part_it(key->columns);
+        Key_part_spec *kp;
+        if ((kp= part_it++))
+          keyname= kp->field_name.str;
+        if (keyname == NULL)
+          continue;
+      }
       for (n_key=0; n_key < table->s->keys; n_key++)
       {
         if (my_strcasecmp(system_charset_info,
-              key->name.str, table->key_info[n_key].name) == 0)
+              keyname, table->key_info[n_key].name) == 0)
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-              ER_DUP_KEYNAME, ER(ER_DUP_KEYNAME), key->name.str);
+              ER_DUP_KEYNAME, ER(ER_DUP_KEYNAME), keyname);
           key_it.remove();
           if (key->type == Key::FOREIGN_KEY)
           {
@@ -7924,7 +7936,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   if (alter_info->flags == 0)
   {
     my_snprintf(alter_ctx.tmp_name, sizeof(alter_ctx.tmp_name),
-                ER(ER_INSERT_INFO), 0L, 0L, 0L);
+                ER(ER_INSERT_INFO), 0L, 0L,
+                thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, 0L, 0L, alter_ctx.tmp_name);
     DBUG_RETURN(false);
   }
