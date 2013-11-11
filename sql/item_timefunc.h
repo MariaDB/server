@@ -1062,9 +1062,13 @@ class Item_func_str_to_date :public Item_temporal_hybrid_func
 {
   timestamp_type cached_timestamp_type;
   bool const_item;
+  String subject_converter;
+  String format_converter;
+  CHARSET_INFO *internal_charset;
 public:
   Item_func_str_to_date(Item *a, Item *b)
-    :Item_temporal_hybrid_func(a, b), const_item(false)
+    :Item_temporal_hybrid_func(a, b), const_item(false),
+    internal_charset(NULL)
   {}
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   const char *func_name() const { return "str_to_date"; }
