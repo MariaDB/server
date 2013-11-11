@@ -15,12 +15,6 @@
      rpl_parallel_thread_pool::get_thread()) need to be killable. And on kill,
      everything needs to be correctly rolled back and stopped in all threads,
      to ensure a consistent slave replication state.
-
-   - Handle the case of a partial event group. This occurs when the master
-     crashes in the middle of writing the event group to the binlog. The
-     slave rolls back the transaction; parallel execution needs to be able
-     to deal with this wrt. commit_orderer and such.
-     See Format_description_log_event::do_apply_event().
 */
 
 struct rpl_parallel_thread_pool global_rpl_thread_pool;

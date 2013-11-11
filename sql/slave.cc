@@ -4582,8 +4582,9 @@ err_during_init:
   serial_rgi->thd= rli->sql_driver_thd= 0;
   mysql_mutex_lock(&LOCK_thread_count);
   THD_CHECK_SENTRY(thd);
-  delete thd;
+  thd->rgi_fake= thd->rgi_slave= NULL;
   delete serial_rgi;
+  delete thd;
   mysql_mutex_unlock(&LOCK_thread_count);
  /*
   Note: the order of the broadcast and unlock calls below (first broadcast, then unlock)
