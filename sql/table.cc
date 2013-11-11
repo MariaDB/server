@@ -833,6 +833,42 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
 
 
 /**
+   Check if a collation has changed number
+
+   @param mysql_version
+   @param current collation number
+
+   @retval new collation number (same as current collation number of no change)
+*/
+
+static uint
+upgrade_collation(ulong mysql_version, uint cs_number)
+{
+  if (mysql_version >= 50300 && mysql_version <= 50399)
+  {
+    switch (cs_number) {
+    case 149: return MY_PAGE2_COLLATION_ID_UCS2;   // ucs2_crotian_ci
+    case 213: return MY_PAGE2_COLLATION_ID_UTF8;   // utf8_crotian_ci
+    }
+  }
+  if ((mysql_version >= 50500 && mysql_version <= 50599) ||
+      (mysql_version >= 100000 && mysql_version <= 100005))
+  {
+    switch (cs_number) {
+    case 149: return MY_PAGE2_COLLATION_ID_UCS2;   // ucs2_crotian_ci
+    case 213: return MY_PAGE2_COLLATION_ID_UTF8;   // utf8_crotian_ci
+    case 214: return MY_PAGE2_COLLATION_ID_UTF32;  // utf32_croatian_ci
+    case 215: return MY_PAGE2_COLLATION_ID_UTF16;  // utf16_croatian_ci
+    case 245: return MY_PAGE2_COLLATION_ID_UTF8MB4;// utf8mb4_croatian_ci
+    }
+  }
+  return cs_number;
+}
+
+
+
+
+/**
   Read data from a binary .frm file image into a TABLE_SHARE
 
   @note

@@ -4055,5 +4055,4 @@ inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);
 void print_keydup_error(TABLE *table, KEY *key, myf errflag);
-uint upgrade_collation(ulong mysql_version, uint cs_number);
 #endif
