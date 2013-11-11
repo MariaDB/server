@@ -560,7 +560,8 @@ enum open_frm_error {
   OPEN_FRM_DISCOVER,
   OPEN_FRM_ERROR_ALREADY_ISSUED,
   OPEN_FRM_NOT_A_VIEW,
-  OPEN_FRM_NOT_A_TABLE
+  OPEN_FRM_NOT_A_TABLE,
+  OPEN_FRM_NEEDS_REBUILD
 };
 
 /**
@@ -732,6 +733,13 @@ struct TABLE_SHARE
   bool deleting;                        /* going to delete this table */
   bool can_cmp_whole_record;
   ulong table_map_id;                   /* for row-based replication */
+
+  /*
+    Things that are incompatible between the stored version and the
+    current version. This is a set of HA_CREATE... bits that can be used
+    to modify create_info->used_fields for ALTER TABLE.
+  */
+  ulong incompatible_version;
 
   /*
     Cache for row-based replication table share checks that does not

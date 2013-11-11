@@ -6775,6 +6775,17 @@ static const char hungarian[]=
     "&O < \\u00F6 <<< \\u00D6 << \\u0151 <<< \\u0150"
     "&U < \\u00FC <<< \\u00DC << \\u0171 <<< \\u0170";
 
+
+static const char croatian_mysql561[]=
+    "&C < \\u010D <<< \\u010C < \\u0107 <<< \\u0106"
+    "&D < d\\u017E = \\u01C6 <<< d\\u017D <<< D\\u017E = \\u01C5 <<< D\\u017D = \\u01C4"
+    "   < \\u0111 <<< \\u0110"
+    "&L < lj = \\u01C9  <<< lJ <<< Lj = \\u01C8 <<< LJ = \\u01C7"
+    "&N < nj = \\u01CC  <<< nJ <<< Nj = \\u01CB <<< NJ = \\u01CA"
+    "&S < \\u0161 <<< \\u0160"
+    "&Z < \\u017E <<< \\u017D";
+
+
 /*
   SCCII Part 1 : Collation Sequence (SLS1134)
   2006/11/24
@@ -6804,7 +6815,22 @@ static const char sinhala[]=
 #endif
 
 
-static const char croatian[]=
+/*
+  Croatian that was added into MariaDB-5.3 uses
+  slightly different rules comparing to the MySQL-5.6 version.
+  The difference is in the following combinations of 
+  a small letter followed by a capital letter:
+  - U+0064 U+017D (LATIN SMALL LETTER D + LATIN CAPITAL LETTER Z WITH CARON)
+  - U+006C U+004A (LATIN SMALL LETTER L + LATIN CAPITAL LETTER J)
+  - U+006E U+004A (LATIN SMALL LETTER N + LATIN CAPITAL LETTER J)
+  MySQL consider these pairs as contractions and sorts near their
+  "CAPITAL + SMALL" and "SMALL + SMALL" counterparts.
+  MariaDB consider these pairs as individual characters.
+  Note, the MariaDB version is closer to CLDR:
+  http://unicode.org/cldr/trac/browser/trunk/common/collation/hr.xml?rev=9244
+  (the latest hr.xml revision as of 2013-11-06).
+*/
+static const char croatian_mariadb[]=
 "&C <  \\u010D <<< \\u010C < \\u0107 <<< \\u0106 "
 "&D <  d\\u017E <<< \\u01C6 <<< D\\u017E <<< \\u01C5 <<< D\\u017D <<< \\u01C4 "
 "   <  \\u0111 <<< \\u0110 "
@@ -10273,14 +10299,47 @@ struct charset_info_st my_charset_ucs2_german2_uca_ci=
     &my_collation_ucs2_uca_handler
 };
 
-struct charset_info_st my_charset_ucs2_croatian_uca_ci=
+struct charset_info_st my_charset_ucs2_croatian_mysql561_uca_ci=
 {
     149,0,0,             /* number       */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII,
     "ucs2",              /* cs name    */
-    "ucs2_croatian_ci",  /* name         */
+    "ucs2_croatian_mysql561_ci", /* name  */
     "",                  /* comment      */
-    croatian,            /* tailoring    */
+    croatian_mysql561,   /* tailoring    */
+    NULL,                /* ctype        */
+    NULL,                /* to_lower     */
+    NULL,                /* to_upper     */
+    NULL,                /* sort_order   */
+    NULL,                /* uca          */
+    NULL,                /* tab_to_uni   */
+    NULL,                /* tab_from_uni */
+    &my_unicase_default, /* caseinfo     */
+    NULL,                /* state_map    */
+    NULL,                /* ident_map    */
+    8,                   /* strxfrm_multiply */
+    1,                   /* caseup_multiply  */
+    1,                   /* casedn_multiply  */
+    2,                   /* mbminlen     */
+    2,                   /* mbmaxlen     */
+    9,                   /* min_sort_char */
+    0xFFFF,              /* max_sort_char */
+    ' ',                 /* pad char      */
+    0,                   /* escape_with_backslash_is_dangerous */
+    1,                   /* levels_for_order   */
+    &my_charset_ucs2_handler,
+    &my_collation_ucs2_uca_handler
+};
+
+
+struct charset_info_st my_charset_ucs2_croatian_uca_ci=
+{
+    MY_PAGE2_COLLATION_ID_UCS2,0,0, /* number */
+    MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII,
+    "ucs2",              /* cs name    */
+    "ucs2_croatian_ci",  /* name  */
+    "",                  /* comment      */
+    croatian_mariadb,    /* tailoring    */
     NULL,                /* ctype        */
     NULL,                /* to_lower     */
     NULL,                /* to_upper     */
@@ -11030,14 +11089,47 @@ struct charset_info_st my_charset_utf8_german2_uca_ci=
     &my_collation_any_uca_handler
 };
 
-struct charset_info_st my_charset_utf8_croatian_uca_ci=
+struct charset_info_st my_charset_utf8_croatian_mysql561_uca_ci=
 {
     213,0,0,             /* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
     MY_UTF8MB3,          /* cs name      */
+    MY_UTF8MB3 "_croatian_mysql561_ci",/* name */
+    "",                  /* comment      */
+    croatian_mysql561,   /* tailoring    */
+    ctype_utf8,          /* ctype        */
+    NULL,                /* to_lower     */
+    NULL,                /* to_upper     */
+    NULL,                /* sort_order   */
+    NULL,                /* uca          */
+    NULL,                /* tab_to_uni   */
+    NULL,                /* tab_from_uni */
+    &my_unicase_default, /* caseinfo     */
+    NULL,                /* state_map    */
+    NULL,                /* ident_map    */
+    8,                   /* strxfrm_multiply */
+    1,                   /* caseup_multiply  */
+    1,                   /* casedn_multiply  */
+    1,                   /* mbminlen     */
+    3,                   /* mbmaxlen     */
+    9,                   /* min_sort_char */
+    0xFFFF,              /* max_sort_char */
+    ' ',                 /* pad char      */
+    0,                   /* escape_with_backslash_is_dangerous */
+    1,                   /* levels_for_order   */
+    &my_charset_utf8_handler,
+    &my_collation_any_uca_handler
+};
+
+
+struct charset_info_st my_charset_utf8_croatian_uca_ci=
+{
+    MY_PAGE2_COLLATION_ID_UTF8,0,0, /* number */
+    MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
+    MY_UTF8MB3,          /* cs name      */
     MY_UTF8MB3 "_croatian_ci",/* name    */
     "",                  /* comment      */
-    croatian,            /* tailoring    */
+    croatian_mariadb,    /* tailoring    */
     ctype_utf8,          /* ctype        */
     NULL,                /* to_lower     */
     NULL,                /* to_upper     */
@@ -11746,14 +11838,46 @@ struct charset_info_st my_charset_utf8mb4_german2_uca_ci=
     &my_collation_any_uca_handler
 };
 
-struct charset_info_st my_charset_utf8mb4_croatian_uca_ci=
+struct charset_info_st my_charset_utf8mb4_croatian_mysql561_uca_ci=
 {
     245,0,0,            /* number       */
     MY_CS_UTF8MB4_UCA_FLAGS,/* state    */
     MY_UTF8MB4,         /* csname      */
-    MY_UTF8MB4 "_croatian_ci",/* name  */
+    MY_UTF8MB4 "_croatian_mysql561_ci",/* name */
     "",                 /* comment      */
-    croatian,           /* tailoring    */
+    croatian_mysql561,  /* tailoring    */
+    ctype_utf8,         /* ctype        */
+    NULL,               /* to_lower     */
+    NULL,               /* to_upper     */
+    NULL,               /* sort_order   */
+    NULL,               /* uca          */
+    NULL,               /* tab_to_uni   */
+    NULL,               /* tab_from_uni */
+    &my_unicase_default,/* caseinfo     */
+    NULL,               /* state_map    */
+    NULL,               /* ident_map    */
+    8,                  /* strxfrm_multiply */
+    1,                  /* caseup_multiply  */
+    1,                  /* casedn_multiply  */
+    1,                  /* mbminlen     */
+    4,                  /* mbmaxlen     */
+    9,                  /* min_sort_char */
+    0xFFFF,             /* max_sort_char */
+    ' ',                /* pad char      */
+    0,                  /* escape_with_backslash_is_dangerous */
+    1,                  /* levels_for_order   */
+    &my_charset_utf8mb4_handler,
+    &my_collation_any_uca_handler
+};
+
+struct charset_info_st my_charset_utf8mb4_croatian_uca_ci=
+{
+    MY_PAGE2_COLLATION_ID_UTF8MB4,0,0, /* number */
+    MY_CS_UTF8MB4_UCA_FLAGS,/* state    */
+    MY_UTF8MB4,         /* csname      */
+    MY_UTF8MB4 "_croatian_ci",/* name   */
+    "",                 /* comment      */
+    croatian_mariadb,   /* tailoring    */
     ctype_utf8,         /* ctype        */
     NULL,               /* to_lower     */
     NULL,               /* to_upper     */
@@ -12476,14 +12600,46 @@ struct charset_info_st my_charset_utf32_german2_uca_ci=
     &my_collation_utf32_uca_handler
 };
 
+struct charset_info_st my_charset_utf32_croatian_mysql561_uca_ci=
+{
+    181,0,0,            /* number       */
+    MY_CS_UTF32_UCA_FLAGS,/* state      */
+    "utf32",            /* csname      */
+    "utf32_croatian_mysql561_ci", /* name */
+    "",                 /* comment      */
+    croatian_mysql561,  /* tailoring    */
+    NULL,               /* ctype        */
+    NULL,               /* to_lower     */
+    NULL,               /* to_upper     */
+    NULL,               /* sort_order   */
+    NULL,               /* uca          */
+    NULL,               /* tab_to_uni   */
+    NULL,               /* tab_from_uni */
+    &my_unicase_default,/* caseinfo     */
+    NULL,               /* state_map    */
+    NULL,               /* ident_map    */
+    8,                  /* strxfrm_multiply */
+    1,                  /* caseup_multiply  */
+    1,                  /* casedn_multiply  */
+    4,                  /* mbminlen     */
+    4,                  /* mbmaxlen     */
+    9,                  /* min_sort_char */
+    0xFFFF,             /* max_sort_char */
+    ' ',                /* pad char      */
+    0,                  /* escape_with_backslash_is_dangerous */
+    1,                  /* levels_for_order   */
+    &my_charset_utf32_handler,
+    &my_collation_utf32_uca_handler
+};
+
 struct charset_info_st my_charset_utf32_croatian_uca_ci=
 {
-    214,0,0,            /* number       */
+    MY_PAGE2_COLLATION_ID_UTF32,0,0, /* number */
     MY_CS_UTF32_UCA_FLAGS,/* state      */
     "utf32",            /* csname      */
     "utf32_croatian_ci", /* name        */
     "",                 /* comment      */
-    croatian,           /* tailoring    */
+    croatian_mariadb,   /* tailoring    */
     NULL,               /* ctype        */
     NULL,               /* to_lower     */
     NULL,               /* to_upper     */
@@ -13208,14 +13364,47 @@ struct charset_info_st my_charset_utf16_german2_uca_ci=
 };
 
 
-struct charset_info_st my_charset_utf16_croatian_uca_ci=
+struct charset_info_st my_charset_utf16_croatian_mysql561_uca_ci=
 {
-    215,0,0,           /* number       */
+    122,0,0,           /* number       */
     MY_CS_UTF16_UCA_FLAGS,/* state     */
     "utf16",           /* cs name    */
-    "utf16_croatian_ci",/* name         */
+    "utf16_croatian_mysql561_ci",/* name */
     "",                /* comment      */
-    croatian,           /* tailoring    */
+    croatian_mysql561,  /* tailoring    */
+    NULL,              /* ctype        */
+    NULL,              /* to_lower     */
+    NULL,              /* to_upper     */
+    NULL,              /* sort_order   */
+    NULL,              /* uca          */
+    NULL,              /* tab_to_uni   */
+    NULL,              /* tab_from_uni */
+    &my_unicase_default,/* caseinfo    */
+    NULL,              /* state_map    */
+    NULL,              /* ident_map    */
+    8,                 /* strxfrm_multiply */
+    1,                 /* caseup_multiply  */
+    1,                 /* casedn_multiply  */
+    2,                 /* mbminlen     */
+    4,                 /* mbmaxlen     */
+    9,                 /* min_sort_char */
+    0xFFFF,            /* max_sort_char */
+    ' ',               /* pad char      */
+    0,                 /* escape_with_backslash_is_dangerous */
+    1,                 /* levels_for_order   */
+    &my_charset_utf16_handler,
+    &my_collation_utf16_uca_handler
+};
+
+
+struct charset_info_st my_charset_utf16_croatian_uca_ci=
+{
+    MY_PAGE2_COLLATION_ID_UTF16,0,0, /* number */
+    MY_CS_UTF16_UCA_FLAGS,/* state     */
+    "utf16",           /* cs name    */
+    "utf16_croatian_ci",/* name        */
+    "",                /* comment      */
+    croatian_mariadb,  /* tailoring    */
     NULL,              /* ctype        */
     NULL,              /* to_lower     */
     NULL,              /* to_upper     */

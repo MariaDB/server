@@ -648,19 +648,19 @@ get_internal_charset(MY_CHARSET_LOADER *loader, uint cs_number, myf flags)
 
 CHARSET_INFO *get_charset(uint cs_number, myf flags)
 {
-  CHARSET_INFO *cs;
-  MY_CHARSET_LOADER loader;
+  CHARSET_INFO *cs= NULL;
 
   if (cs_number == default_charset_info->number)
     return default_charset_info;
 
   my_pthread_once(&charsets_initialized, init_available_charsets);
- 
-  if (cs_number >= array_elements(all_charsets)) 
-    return NULL;
 
-  my_charset_loader_init_mysys(&loader);
-  cs= get_internal_charset(&loader, cs_number, flags);
+  if (cs_number < array_elements(all_charsets))
+  {
+    MY_CHARSET_LOADER loader;
+    my_charset_loader_init_mysys(&loader);
+    cs= get_internal_charset(&loader, cs_number, flags);
+  }
 
   if (!cs && (flags & MY_WME))
   {
