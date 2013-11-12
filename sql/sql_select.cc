@@ -2912,6 +2912,7 @@ void JOIN::exec_inner()
       JOIN_TAB *curr_table= &curr_join->join_tab[curr_join->const_tables];
       table_map used_tables= (curr_join->const_table_map |
 			      curr_table->table->map);
+      curr_join->tmp_having->update_used_tables();  
 
       Item* sort_table_cond= make_cond_for_table(thd, curr_join->tmp_having,
 						 used_tables,
