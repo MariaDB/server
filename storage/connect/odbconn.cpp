@@ -1735,7 +1735,7 @@ bool ODBConn::ExecSQLcommand(char *sql)
 			for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
 				htrc(x->m_ErrMsg[i]);
 
-    strcpy(g->Message, x->GetErrorMessage(0));
+    sprintf(g->Message, "Remote: %s", x->GetErrorMessage(0));
 
     if (b)
       SQLCancel(hstmt);

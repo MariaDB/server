@@ -623,6 +623,53 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
   } // end of MakeInsert
 
 /***********************************************************************/
+/*  MakeCommand: make the Update or Delete statement to send to the    */
+/*  MySQL server. Limited to remote values and filtering.              */
+/***********************************************************************/
+int TDBMYSQL::MakeCommand(PGLOBAL g)
+  {
+  Query = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
+
+  if (Quoted > 0 || stricmp(Name, Tabname)) {
+    char *p, *qrystr, name[68];
+    bool  qtd = Quoted > 0;
+
+
+    // Make a lower case copy of the originale query
+    qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 1);
+    strlwr(strcpy(qrystr, Qrystr));
+
+    // Check whether the table name is equal to a keyword
+    // If so, it must be quoted in the original query
+    strlwr(strcat(strcat(strcpy(name, "`"), Name), "`"));
+
+    if (!strstr("`update`delete`low_priority`ignore`quick`from`", name))
+      strlwr(strcpy(name, Name));     // Not a keyword
+
+    if ((p = strstr(qrystr, name))) {
+      memcpy(Query, Qrystr, p - qrystr);
+      Query[p - qrystr] = 0;
+
+      if (qtd && *(p-1) == ' ')
+        strcat(strcat(strcat(Query, "`"), Tabname), "`");
+      else
+        strcat(Query, Tabname);
+
+      strcat(Query, Qrystr + (p - qrystr) + strlen(name));
+    } else {
+      sprintf(g->Message, "Cannot use this %s command",
+                   (Mode == MODE_UPDATE) ? "UPDATE" : "DELETE");
+      return RC_FX;
+    } // endif p
+
+  } else
+    strcpy(Query, Qrystr);
+
+  return RC_OK;
+  } // end of MakeCommand
+
+#if 0
+/***********************************************************************/
 /*  MakeUpdate: make the Update statement use with MySQL connection.   */
 /*  Limited to remote values and filtering.                            */
 /***********************************************************************/
@@ -636,7 +683,8 @@ int TDBMYSQL::MakeUpdate(PGLOBAL g)
   if (sscanf(Qrystr, "%s `%[^`]`%1023c", cmd, tab, end) > 2 ||
       sscanf(Qrystr, "%s \"%[^\"]\"%1023c", cmd, tab, end) > 2)
     qc = "`";
-  else if (sscanf(Qrystr, "%s %s%1023c", cmd, tab, end) > 2)
+  else if (sscanf(Qrystr, "%s %s%1023c", cmd, tab, end) > 2
+                  && !stricmp(tab, Name))
     qc = (Quoted) ? "`" : "";
   else {
     strcpy(g->Message, "Cannot use this UPDATE command");
@@ -678,6 +726,7 @@ int TDBMYSQL::MakeDelete(PGLOBAL g)
 
   return RC_OK;
   } // end of MakeDelete
+#endif // 0
 
 /***********************************************************************/
 /*  XCV GetMaxSize: returns the maximum number of rows in the table.   */
@@ -829,7 +878,8 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
       } // endif m_Rc
 
   } else
-    m_Rc = (Mode == MODE_DELETE) ? MakeDelete(g) : MakeUpdate(g);
+//  m_Rc = (Mode == MODE_DELETE) ? MakeDelete(g) : MakeUpdate(g);
+    m_Rc = MakeCommand(g);
 
   if (m_Rc == RC_FX) {
     Myc.Close();

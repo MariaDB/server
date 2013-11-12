@@ -519,6 +519,61 @@ bool TDBODBC::BindParameters(PGLOBAL g)
   } // end of BindParameters
 
 /***********************************************************************/
+/*  MakeCommand: make the Update or Delete statement to send to the    */
+/*  MySQL server. Limited to remote values and filtering.              */
+/***********************************************************************/
+char *TDBODBC::MakeCommand(PGLOBAL g)
+  {
+  char *p, name[68], *qc = Ocp->GetQuoteChar();
+  char *stmt = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
+  char *qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 1);
+  bool  qtd = Quoted > 0;
+  int   i = 0, k = 0;
+
+  // Make a lower case copy of the originale query and change
+  // back ticks to the data source identifier quoting character
+  do {
+    qrystr[i] = (Qrystr[i] == '`') ? *qc : tolower(Qrystr[i]);
+    } while (Qrystr[i++]);
+
+  // Check whether the table name is equal to a keyword
+  // If so, it must be quoted in the original query
+  strlwr(strcat(strcat(strcpy(name, " "), Name), " "));
+
+  if (!strstr(" update delete low_priority ignore quick from ", name))
+    strlwr(strcpy(name, Name));     // Not a keyword
+  else
+    strlwr(strcat(strcat(strcpy(name, qc), Name), qc));
+
+  if ((p = strstr(qrystr, name))) {
+    for (i = 0; i < p - qrystr; i++)
+      stmt[i] = (Qrystr[i] == '`') ? *qc : Qrystr[i];
+
+    stmt[i] = 0;
+    k = i + (int)strlen(Name);
+
+    if (qtd && *(p-1) == ' ')
+      strcat(strcat(strcat(stmt, qc), TableName), qc);
+    else
+      strcat(stmt, TableName);
+
+    i = (int)strlen(stmt);
+
+    do {
+      stmt[i++] = (Qrystr[k] == '`') ? *qc : Qrystr[k];
+      } while (Qrystr[k++]);
+
+  } else {
+    sprintf(g->Message, "Cannot use this %s command",
+                 (Mode == MODE_UPDATE) ? "UPDATE" : "DELETE");
+    return NULL;
+  } // endif p
+
+  return stmt;
+  } // end of MakeCommand
+
+#if 0
+/***********************************************************************/
 /*  MakeUpdate: make the SQL statement to send to ODBC connection.     */
 /***********************************************************************/
 char *TDBODBC::MakeUpdate(PGLOBAL g)
@@ -582,6 +637,7 @@ char *TDBODBC::MakeDelete(PGLOBAL g)
 
   return stmt;
   } // end of MakeDelete
+#endif // 0
 
 /***********************************************************************/
 /*  ResetSize: call by TDBMUL when calculating size estimate.          */
@@ -713,10 +769,8 @@ bool TDBODBC::OpenDB(PGLOBAL g)
 
       } // endif Query
 
-  } else if (Mode == MODE_UPDATE)
-    Query = MakeUpdate(g);
-  else if (Mode == MODE_DELETE)
-    Query = MakeDelete(g);
+  } else if (Mode == MODE_UPDATE || Mode == MODE_DELETE)
+    Query = MakeCommand(g);
   else
     sprintf(g->Message, "Invalid mode %d", Mode);
 

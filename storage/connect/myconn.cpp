@@ -808,7 +808,7 @@ int MYSQLC::ExecSQLcmd(PGLOBAL g, const char *query, int *w)
 //if (mysql_query(m_DB, query) != 0) {
   if (mysql_real_query(m_DB, query, strlen(query))) {
     m_Afrw = (int)mysql_errno(m_DB);
-    sprintf(g->Message, "%s", mysql_error(m_DB));
+    sprintf(g->Message, "Remote: %s", mysql_error(m_DB));
     rc = RC_FX;
 //} else if (!(m_Fields = mysql_field_count(m_DB))) {
   } else if (!(m_Fields = (int)m_DB->field_count)) {

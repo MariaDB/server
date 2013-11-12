@@ -102,10 +102,11 @@ class TDBODBC : public TDBASE {
   int   Decode(char *utf, char *buf, size_t n);
   char *MakeSQL(PGLOBAL g, bool cnt);
   char *MakeInsert(PGLOBAL g);
+  char *MakeCommand(PGLOBAL g);
 //bool  MakeFilter(PGLOBAL g, bool c);
   bool  BindParameters(PGLOBAL g);
-  char *MakeUpdate(PGLOBAL g);
-  char *MakeDelete(PGLOBAL g);
+//char *MakeUpdate(PGLOBAL g);
+//char *MakeDelete(PGLOBAL g);
 
   // Members
   ODBConn *Ocp;               // Points to an ODBC connection class

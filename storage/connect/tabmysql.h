@@ -106,9 +106,10 @@ class TDBMYSQL : public TDBASE {
   // Internal functions
   bool MakeSelect(PGLOBAL g);
   bool MakeInsert(PGLOBAL g);
-  int  MakeUpdate(PGLOBAL g);  
-  int  MakeDelete(PGLOBAL g);
   int  BindColumns(PGLOBAL g);
+  int  MakeCommand(PGLOBAL g);
+//int  MakeUpdate(PGLOBAL g);  
+//int  MakeDelete(PGLOBAL g);
   int  SendCommand(PGLOBAL g);
 
   // Members
