@@ -1265,6 +1265,7 @@ void THD::init(void)
   reset_current_stmt_binlog_format_row();
   set_status_var_init();
   bzero((char *) &org_status_var, sizeof(org_status_var));
+  start_bytes_received= 0;
 
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;

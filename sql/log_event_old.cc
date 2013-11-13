@@ -89,7 +89,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
     */
     delete_explain_query(thd->lex);
     lex_start(ev_thd);
-    mysql_reset_thd_for_next_command(ev_thd, 0);
+    mysql_reset_thd_for_next_command(ev_thd);
 
     /*
       This is a row injection, so we flag the "statement" as

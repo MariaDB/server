@@ -5633,7 +5633,7 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   */
   lex_start(thd);
   thd->lex->local_file= local_fname;
-  mysql_reset_thd_for_next_command(thd, 0);
+  mysql_reset_thd_for_next_command(thd);
 
    /*
     We test replicate_*_db rules. Note that we have already prepared
@@ -8326,7 +8326,7 @@ int Append_block_log_event::do_apply_event(rpl_group_info *rgi)
       as the present method does not call mysql_parse().
     */
     lex_start(thd);
-    mysql_reset_thd_for_next_command(thd, 0);
+    mysql_reset_thd_for_next_command(thd);
     /* old copy may exist already */
     mysql_file_delete(key_file_log_event_data, fname, MYF(0));
     if ((fd= mysql_file_create(key_file_log_event_data,
@@ -9288,7 +9288,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
     delete_explain_query(thd->lex);
     lex_start(thd);
-    mysql_reset_thd_for_next_command(thd, 0);
+    mysql_reset_thd_for_next_command(thd);
     /*
       The current statement is just about to begin and 
       has not yet modified anything. Note, all.modified is reset

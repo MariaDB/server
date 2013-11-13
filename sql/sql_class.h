@@ -1712,7 +1712,7 @@ public:
   /* Used to SLAVE SQL thread */
   Rpl_filter* rpl_filter;
 
-  void reset_for_next_command(bool calculate_userstat);
+  void reset_for_next_command();
   /*
     Constant for THD::where initialization in the beginning of every query.
 

@@ -635,7 +635,7 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
   if (plugin_dl->mariaversion < min_maria_plugin_interface_version ||
       (plugin_dl->mariaversion >> 8) > (MARIA_PLUGIN_INTERFACE_VERSION >> 8))
   {
-    report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, 0,
+    report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, ENOEXEC,
                  "plugin interface version mismatch");
     DBUG_RETURN(TRUE);
   }
@@ -779,7 +779,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
         my_snprintf(buf, sizeof(buf),
                     "service '%s' interface version mismatch",
                     list_of_services[i].name);
-        report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, 0, buf);
+        report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, ENOEXEC, buf);
         goto ret;
       }
       *(void**)sym= list_of_services[i].service;
@@ -1069,7 +1069,7 @@ static bool plugin_add(MEM_ROOT *tmp_root,
                  plugin_type_names[plugin->type].str,
                  " plugin ", tmp.name.str,
                  " not supported by this version of the server", NullS);
-        report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, 0, buf);
+        report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, ENOEXEC, buf);
         goto err;
       }
       if (plugin_maturity_map[plugin->maturity] < plugin_maturity)
@@ -1081,7 +1081,7 @@ static bool plugin_add(MEM_ROOT *tmp_root,
                  " is prohibited by --plugin-maturity=",
                  plugin_maturity_names[plugin_maturity],
                  NullS);
-        report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, 0, buf);
+        report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, EPERM, buf);
         goto err;
       }
       tmp.plugin= plugin;
