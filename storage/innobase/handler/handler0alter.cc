@@ -347,6 +347,32 @@ ha_innobase::check_if_supported_inplace_alter(
 		}
 	}
 
+	/*
+	  InnoDB in different MariaDB versions was generating different mtype
+	  codes for certain types. In some cases the signed/unsigned bit was
+	  generated differently too.
+
+	  Online ALTER would change the mtype/unsigned_flag (to what the
+	  current code generates) without changing the underlying data
+	  represenation, and it might result in data corruption.
+
+	  Don't do online ALTER if mtype/unsigned_flag are wrong.
+	*/
+	for (ulint i = 0; i < table->s->fields; i++) {
+		const Field*		field = table->field[i];
+		const dict_col_t*	col = dict_table_get_nth_col(prebuilt->table, i);
+		ulint		unsigned_flag;
+		if (col->mtype != get_innobase_type_from_mysql_type(&unsigned_flag, field)) {
+
+			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+		}
+
+		if ((col->prtype & DATA_UNSIGNED) != unsigned_flag) {
+
+			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+		}
+	}
+
 	/* We should be able to do the operation in-place.
 	See if we can do it online (LOCK=NONE). */
 	bool	online = true;
