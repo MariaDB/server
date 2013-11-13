@@ -35,7 +35,7 @@ Table	Create Table
 db	CREATE TABLE `db` (
   `Host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Db` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `User` char(16) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `User` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Select_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
   `Insert_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
   `Update_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
@@ -87,7 +87,7 @@ show create table user;
 Table	Create Table
 user	CREATE TABLE `user` (
   `Host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `User` char(16) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `User` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Password` char(41) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL DEFAULT '',
   `Select_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
   `Insert_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
@@ -126,10 +126,10 @@ user	CREATE TABLE `user` (
   `max_updates` int(11) unsigned NOT NULL DEFAULT '0',
   `max_connections` int(11) unsigned NOT NULL DEFAULT '0',
   `max_user_connections` int(11) NOT NULL DEFAULT '0',
-  `is_role` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
   `plugin` char(64) CHARACTER SET latin1 NOT NULL DEFAULT '',
   `authentication_string` text COLLATE utf8_bin NOT NULL,
   `password_expired` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `is_role` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
   PRIMARY KEY (`Host`,`User`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Users and global privileges'
 show create table func;
@@ -146,9 +146,9 @@ Table	Create Table
 tables_priv	CREATE TABLE `tables_priv` (
   `Host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Db` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `User` char(16) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `User` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Table_name` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `Grantor` char(77) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `Grantor` char(141) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `Table_priv` set('Select','Insert','Update','Delete','Create','Drop','Grant','References','Index','Alter','Create View','Show view','Trigger') CHARACTER SET utf8 NOT NULL DEFAULT '',
   `Column_priv` set('Select','Insert','Update','References') CHARACTER SET utf8 NOT NULL DEFAULT '',
@@ -160,7 +160,7 @@ Table	Create Table
 columns_priv	CREATE TABLE `columns_priv` (
   `Host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Db` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `User` char(16) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `User` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Table_name` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Column_name` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -209,7 +209,7 @@ proc	CREATE TABLE `proc` (
   `param_list` blob NOT NULL,
   `returns` longblob NOT NULL,
   `body` longblob NOT NULL,
-  `definer` char(77) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
+  `definer` char(141) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
   `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `modified` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   `sql_mode` set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH') NOT NULL DEFAULT '',
@@ -289,9 +289,12 @@ column_stats	CREATE TABLE `column_stats` (
   `column_name` varchar(64) COLLATE utf8_bin NOT NULL,
   `min_value` varchar(255) COLLATE utf8_bin DEFAULT NULL,
   `max_value` varchar(255) COLLATE utf8_bin DEFAULT NULL,
-  `nulls_ratio` double DEFAULT NULL,
-  `avg_length` double DEFAULT NULL,
-  `avg_frequency` double DEFAULT NULL,
+  `nulls_ratio` decimal(12,4) DEFAULT NULL,
+  `avg_length` decimal(12,4) DEFAULT NULL,
+  `avg_frequency` decimal(12,4) DEFAULT NULL,
+  `hist_size` tinyint(3) unsigned DEFAULT NULL,
+  `hist_type` enum('SINGLE_PREC_HB','DOUBLE_PREC_HB') COLLATE utf8_bin DEFAULT NULL,
+  `histogram` varbinary(255) DEFAULT NULL,
   PRIMARY KEY (`db_name`,`table_name`,`column_name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Statistics on Columns'
 show create table index_stats;
@@ -301,7 +304,7 @@ index_stats	CREATE TABLE `index_stats` (
   `table_name` varchar(64) COLLATE utf8_bin NOT NULL,
   `index_name` varchar(64) COLLATE utf8_bin NOT NULL,
   `prefix_arity` int(11) unsigned NOT NULL,
-  `avg_frequency` double DEFAULT NULL,
+  `avg_frequency` decimal(12,4) DEFAULT NULL,
   PRIMARY KEY (`db_name`,`table_name`,`index_name`,`prefix_arity`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Statistics on Indexes'
 show tables;
