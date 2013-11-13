@@ -75,3 +75,4 @@ usr/share/mysql/mysql_test_data_timezone.sql
 @CASSANDRA_DEB_FILES@
 @OQGRAPH_DEB_FILES@
 @SPIDER_DEB_FILES@
+@TOKUDB_DEB_FILES@

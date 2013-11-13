@@ -329,7 +329,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   }
 
   if (!in_statement)
-    mysql_reset_thd_for_next_command(thd, 0);
+    mysql_reset_thd_for_next_command(thd);
 
   DBUG_EXECUTE_IF("gtid_inject_record_gtid",
                   {
