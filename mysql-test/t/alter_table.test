@@ -1651,3 +1651,12 @@ alter table t1 change column if exists a b bigint;
 show create table t1;
 DROP TABLE t1;
 
+#
+# MDEV-4437 ALTER TABLE .. ADD UNIQUE INDEX IF NOT EXISTS causes syntax error.
+#
+
+create table t1 (i int);
+alter table t1 add unique index if not exists idx(i);
+alter table t1 add unique index if not exists idx(i);
+show create table t1;
+DROP TABLE t1;
