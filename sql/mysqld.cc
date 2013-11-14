@@ -758,8 +758,9 @@ static char **remaining_argv;
 int orig_argc;
 char **orig_argv;
 
-static struct my_option pfs_early_options[] __attribute__((unused)) =
+static struct my_option pfs_early_options[]=
 {
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   {"performance_schema_instrument", OPT_PFS_INSTRUMENT,
     "Default startup value for a performance schema instrument.",
     &pfs_param.m_pfs_instrument, &pfs_param.m_pfs_instrument, 0, GET_STR,
@@ -824,6 +825,7 @@ static struct my_option pfs_early_options[] __attribute__((unused)) =
     &pfs_param.m_consumer_statement_digest_enabled,
     &pfs_param.m_consumer_statement_digest_enabled, 0,
     GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0}
+#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 };
 
 #ifdef HAVE_PSI_INTERFACE
@@ -1146,7 +1148,6 @@ void net_after_header_psi(struct st_net *net, void *user_data, size_t /* unused:
 
 void init_net_server_extension(THD *thd)
 {
-#ifdef HAVE_PSI_INTERFACE
   /* Start with a clean state for connection events. */
   thd->m_idle_psi= NULL;
   thd->m_statement_psi= NULL;
@@ -1157,9 +1158,6 @@ void init_net_server_extension(THD *thd)
   thd->m_net_server_extension.m_after_header= net_after_header_psi;
   /* Activate this private extension for the mysqld server. */
   thd->net.extension= & thd->m_net_server_extension;
-#else
-  thd->net.extension= NULL;
-#endif
 }
 #endif /* EMBEDDED_LIBRARY */
 
@@ -5137,9 +5135,11 @@ int mysqld_main(int argc, char **argv)
   buffered_logs.init();
   my_getopt_error_reporter= buffered_option_error_reporter;
   my_charset_error_reporter= buffered_option_error_reporter;
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   pfs_param.m_pfs_instrument= const_cast<char*>("");
+#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
-  int ho_error= handle_early_options();
+  int ho_error __attribute__((unused))= handle_early_options();
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   if (ho_error == 0)
