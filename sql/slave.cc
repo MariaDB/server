@@ -3453,6 +3453,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       if (exec_res && (temp_err= has_temporary_error(thd)))
       {
         const char *errmsg;
+        rli->clear_error();
         /*
           We were in a transaction which has been rolled back because of a
           temporary error;
