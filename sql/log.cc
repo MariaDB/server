@@ -5406,19 +5406,15 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
     gtid.domain_id= domain_id;
     gtid.server_id= server_id;
     gtid.seq_no= seq_no;
-    mysql_mutex_lock(&LOCK_rpl_gtid_state);
     err= rpl_global_gtid_binlog_state.update(&gtid, opt_gtid_strict_mode);
-    mysql_mutex_unlock(&LOCK_rpl_gtid_state);
     if (err && thd->stmt_da->sql_errno()==ER_GTID_STRICT_OUT_OF_ORDER)
       errno= ER_GTID_STRICT_OUT_OF_ORDER;
   }
   else
   {
     /* Allocate the next sequence number for the GTID. */
-    mysql_mutex_lock(&LOCK_rpl_gtid_state);
     err= rpl_global_gtid_binlog_state.update_with_next_gtid(domain_id,
                                                             server_id, &gtid);
-    mysql_mutex_unlock(&LOCK_rpl_gtid_state);
     seq_no= gtid.seq_no;
   }
   if (err)
@@ -5548,36 +5544,21 @@ MYSQL_BIN_LOG::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
 bool
 MYSQL_BIN_LOG::append_state_pos(String *str)
 {
-  bool err;
-
-  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
-  err= rpl_global_gtid_binlog_state.append_pos(str);
-  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
-  return err;
+  return rpl_global_gtid_binlog_state.append_pos(str);
 }
 
 
 bool
 MYSQL_BIN_LOG::append_state(String *str)
 {
-  bool err;
-
-  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
-  err= rpl_global_gtid_binlog_state.append_state(str);
-  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
-  return err;
+  return rpl_global_gtid_binlog_state.append_state(str);
 }
 
 
 bool
 MYSQL_BIN_LOG::is_empty_state()
 {
-  bool res;
-
-  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
-  res= (rpl_global_gtid_binlog_state.count() == 0);
-  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
-  return res;
+  return (rpl_global_gtid_binlog_state.count() == 0);
 }
 
 
@@ -5586,10 +5567,8 @@ MYSQL_BIN_LOG::find_in_binlog_state(uint32 domain_id, uint32 server_id,
                                     rpl_gtid *out_gtid)
 {
   rpl_gtid *gtid;
-  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
   if ((gtid= rpl_global_gtid_binlog_state.find(domain_id, server_id)))
     *out_gtid= *gtid;
-  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
   return gtid != NULL;
 }
 
@@ -5599,29 +5578,21 @@ MYSQL_BIN_LOG::lookup_domain_in_binlog_state(uint32 domain_id,
                                              rpl_gtid *out_gtid)
 {
   rpl_gtid *found_gtid;
-  bool res= false;
 
-  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
   if ((found_gtid= rpl_global_gtid_binlog_state.find_most_recent(domain_id)))
   {
     *out_gtid= *found_gtid;
-    res= true;
+    return true;
   }
-  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
 
-  return res;
+  return false;
 }
 
 
 int
 MYSQL_BIN_LOG::bump_seq_no_counter_if_needed(uint32 domain_id, uint64 seq_no)
 {
-  int err;
-
-  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
-  err= rpl_global_gtid_binlog_state.bump_seq_no_if_needed(domain_id, seq_no);
-  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
-  return err;
+  return rpl_global_gtid_binlog_state.bump_seq_no_if_needed(domain_id, seq_no);
 }
 
 
@@ -5629,13 +5600,8 @@ bool
 MYSQL_BIN_LOG::check_strict_gtid_sequence(uint32 domain_id, uint32 server_id,
                                           uint64 seq_no)
 {
-  bool err;
-
-  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
-  err= rpl_global_gtid_binlog_state.check_strict_sequence(domain_id, server_id,
-                                                          seq_no);
-  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
-  return err;
+  return rpl_global_gtid_binlog_state.check_strict_sequence(domain_id,
+                                                            server_id, seq_no);
 }
 
 
@@ -9141,7 +9107,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
           gtid.domain_id= gev->domain_id;
           gtid.server_id= gev->server_id;
           gtid.seq_no= gev->seq_no;
-          if (rpl_global_gtid_binlog_state.update(&gtid, false))
+          if (rpl_global_gtid_binlog_state.update_nolock(&gtid, false))
             goto err2;
         }
         break;
