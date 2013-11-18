@@ -59,7 +59,6 @@ wait/synch/mutex/sql/LOCK_open
 wait/synch/mutex/sql/LOCK_plugin
 wait/synch/mutex/sql/LOCK_prepared_stmt_count
 wait/synch/mutex/sql/LOCK_prepare_ordered
-wait/synch/mutex/sql/LOCK_rpl_gtid_state
 wait/synch/mutex/sql/LOCK_rpl_status
 wait/synch/mutex/sql/LOCK_rpl_thread_pool
 wait/synch/mutex/sql/LOCK_server_started

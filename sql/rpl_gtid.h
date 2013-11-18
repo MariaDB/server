@@ -146,13 +146,15 @@ struct rpl_binlog_state
   rpl_binlog_state();
   ~rpl_binlog_state();
 
+  void reset_nolock();
   void reset();
   void free();
   bool load(struct rpl_gtid *list, uint32 count);
+  int update_nolock(const struct rpl_gtid *gtid, bool strict);
   int update(const struct rpl_gtid *gtid, bool strict);
   int update_with_next_gtid(uint32 domain_id, uint32 server_id,
                              rpl_gtid *gtid);
-  int alloc_element(const rpl_gtid *gtid);
+  int alloc_element_nolock(const rpl_gtid *gtid);
   bool check_strict_sequence(uint32 domain_id, uint32 server_id, uint64 seq_no);
   int bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no);
   int write_to_iocache(IO_CACHE *dest);
@@ -162,6 +164,7 @@ struct rpl_binlog_state
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
   bool append_pos(String *str);
   bool append_state(String *str);
+  rpl_gtid *find_nolock(uint32 domain_id, uint32 server_id);
   rpl_gtid *find(uint32 domain_id, uint32 server_id);
   rpl_gtid *find_most_recent(uint32 domain_id);
 };

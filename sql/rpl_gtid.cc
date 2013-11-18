@@ -838,7 +838,7 @@ rpl_binlog_state::rpl_binlog_state()
 
 
 void
-rpl_binlog_state::reset()
+rpl_binlog_state::reset_nolock()
 {
   uint32 i;
 
@@ -847,12 +847,22 @@ rpl_binlog_state::reset()
   my_hash_reset(&hash);
 }
 
+
+void
+rpl_binlog_state::reset()
+{
+  mysql_mutex_lock(&LOCK_binlog_state);
+  reset_nolock();
+  mysql_mutex_unlock(&LOCK_binlog_state);
+}
+
+
 void rpl_binlog_state::free()
 {
   if (initialized)
   {
     initialized= 0;
-    reset();
+    reset_nolock();
     my_hash_free(&hash);
     mysql_mutex_destroy(&LOCK_binlog_state);
   }
@@ -863,14 +873,20 @@ bool
 rpl_binlog_state::load(struct rpl_gtid *list, uint32 count)
 {
   uint32 i;
+  bool res= false;
 
-  reset();
+  mysql_mutex_lock(&LOCK_binlog_state);
+  reset_nolock();
   for (i= 0; i < count; ++i)
   {
-    if (update(&(list[i]), false))
-      return true;
+    if (update_nolock(&(list[i]), false))
+    {
+      res= true;
+      break;
+    }
   }
-  return false;
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -889,7 +905,7 @@ rpl_binlog_state::~rpl_binlog_state()
   Returns 0 for ok, 1 for error.
 */
 int
-rpl_binlog_state::update(const struct rpl_gtid *gtid, bool strict)
+rpl_binlog_state::update_nolock(const struct rpl_gtid *gtid, bool strict)
 {
   element *elem;
 
@@ -908,11 +924,22 @@ rpl_binlog_state::update(const struct rpl_gtid *gtid, bool strict)
     if (!elem->update_element(gtid))
       return 0;
   }
-  else if (!alloc_element(gtid))
+  else if (!alloc_element_nolock(gtid))
     return 0;
 
   my_error(ER_OUT_OF_RESOURCES, MYF(0));
   return 1;
+}
+
+
+int
+rpl_binlog_state::update(const struct rpl_gtid *gtid, bool strict)
+{
+  int res;
+  mysql_mutex_lock(&LOCK_binlog_state);
+  res= update_nolock(gtid, strict);
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -925,25 +952,30 @@ rpl_binlog_state::update_with_next_gtid(uint32 domain_id, uint32 server_id,
                                         rpl_gtid *gtid)
 {
   element *elem;
+  int res= 0;
 
   gtid->domain_id= domain_id;
   gtid->server_id= server_id;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   if ((elem= (element *)my_hash_search(&hash, (const uchar *)(&domain_id), 0)))
   {
     gtid->seq_no= ++elem->seq_no_counter;
     if (!elem->update_element(gtid))
-      return 0;
+      goto end;
   }
   else
   {
     gtid->seq_no= 1;
-    if (!alloc_element(gtid))
-      return 0;
+    if (!alloc_element_nolock(gtid))
+      goto end;
   }
 
   my_error(ER_OUT_OF_RESOURCES, MYF(0));
-  return 1;
+  res= 1;
+end:
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -989,7 +1021,7 @@ rpl_binlog_state::element::update_element(const rpl_gtid *gtid)
 
 
 int
-rpl_binlog_state::alloc_element(const rpl_gtid *gtid)
+rpl_binlog_state::alloc_element_nolock(const rpl_gtid *gtid)
 {
   element *elem;
   rpl_gtid *lookup_gtid;
@@ -1033,7 +1065,9 @@ rpl_binlog_state::check_strict_sequence(uint32 domain_id, uint32 server_id,
                                         uint64 seq_no)
 {
   element *elem;
+  bool res= 0;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   if ((elem= (element *)my_hash_search(&hash,
                                        (const uchar *)(&domain_id), 0)) &&
       elem->last_gtid && elem->last_gtid->seq_no >= seq_no)
@@ -1041,9 +1075,10 @@ rpl_binlog_state::check_strict_sequence(uint32 domain_id, uint32 server_id,
     my_error(ER_GTID_STRICT_OUT_OF_ORDER, MYF(0), domain_id, server_id, seq_no,
              elem->last_gtid->domain_id, elem->last_gtid->server_id,
              elem->last_gtid->seq_no);
-    return 1;
+    res= 1;
   }
-  return 0;
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -1058,17 +1093,23 @@ int
 rpl_binlog_state::bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no)
 {
   element *elem;
+  int res;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   if ((elem= (element *)my_hash_search(&hash, (const uchar *)(&domain_id), 0)))
   {
     if (elem->seq_no_counter < seq_no)
       elem->seq_no_counter= seq_no;
-    return 0;
+    res= 0;
+    goto end;
   }
 
   /* We need to allocate a new, empty element to remember the next seq_no. */
   if (!(elem= (element *)my_malloc(sizeof(*elem), MYF(MY_WME))))
-    return 1;
+  {
+    res= 1;
+    goto end;
+  }
 
   elem->domain_id= domain_id;
   my_hash_init(&elem->hash, &my_charset_bin, 32,
@@ -1077,11 +1118,18 @@ rpl_binlog_state::bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no)
   elem->last_gtid= NULL;
   elem->seq_no_counter= seq_no;
   if (0 == my_hash_insert(&hash, (const uchar *)elem))
-    return 0;
+  {
+    res= 0;
+    goto end;
+  }
 
   my_hash_free(&elem->hash);
   my_free(elem);
-  return 1;
+  res= 1;
+
+end:
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -1097,7 +1145,9 @@ rpl_binlog_state::write_to_iocache(IO_CACHE *dest)
 {
   ulong i, j;
   char buf[21];
+  int res= 0;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   for (i= 0; i < hash.records; ++i)
   {
     size_t res;
@@ -1122,11 +1172,16 @@ rpl_binlog_state::write_to_iocache(IO_CACHE *dest)
       longlong10_to_str(gtid->seq_no, buf, 10);
       res= my_b_printf(dest, "%u-%u-%s\n", gtid->domain_id, gtid->server_id, buf);
       if (res == (size_t) -1)
-        return 1;
+      {
+        res= 1;
+        goto end;
+      }
     }
   }
 
-  return 0;
+end:
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -1137,26 +1192,31 @@ rpl_binlog_state::read_from_iocache(IO_CACHE *src)
   char buf[10+1+10+1+20+1+1];
   char *p, *end;
   rpl_gtid gtid;
+  int res= 0;
 
-  reset();
+  mysql_mutex_lock(&LOCK_binlog_state);
+  reset_nolock();
   for (;;)
   {
-    size_t res= my_b_gets(src, buf, sizeof(buf));
-    if (!res)
+    size_t len= my_b_gets(src, buf, sizeof(buf));
+    if (!len)
       break;
     p= buf;
-    end= buf + res;
-    if (gtid_parser_helper(&p, end, &gtid))
-      return 1;
-    if (update(&gtid, false))
-      return 1;
+    end= buf + len;
+    if (gtid_parser_helper(&p, end, &gtid) ||
+        update_nolock(&gtid, false))
+    {
+      res= 1;
+      break;
+    }
   }
-  return 0;
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
 rpl_gtid *
-rpl_binlog_state::find(uint32 domain_id, uint32 server_id)
+rpl_binlog_state::find_nolock(uint32 domain_id, uint32 server_id)
 {
   element *elem;
   if (!(elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0)))
@@ -1165,14 +1225,28 @@ rpl_binlog_state::find(uint32 domain_id, uint32 server_id)
 }
 
 rpl_gtid *
+rpl_binlog_state::find(uint32 domain_id, uint32 server_id)
+{
+  rpl_gtid *p;
+  mysql_mutex_lock(&LOCK_binlog_state);
+  p= find_nolock(domain_id, server_id);
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return p;
+}
+
+rpl_gtid *
 rpl_binlog_state::find_most_recent(uint32 domain_id)
 {
   element *elem;
+  rpl_gtid *gtid= NULL;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0);
   if (elem && elem->last_gtid)
-    return elem->last_gtid;
-  return NULL;
+    gtid= elem->last_gtid;
+  mysql_mutex_unlock(&LOCK_binlog_state);
+
+  return gtid;
 }
 
 
@@ -1182,8 +1256,10 @@ rpl_binlog_state::count()
   uint32 c= 0;
   uint32 i;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   for (i= 0; i < hash.records; ++i)
     c+= ((element *)my_hash_element(&hash, i))->hash.records;
+  mysql_mutex_unlock(&LOCK_binlog_state);
 
   return c;
 }
@@ -1193,7 +1269,9 @@ int
 rpl_binlog_state::get_gtid_list(rpl_gtid *gtid_list, uint32 list_size)
 {
   uint32 i, j, pos;
+  int res= 0;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   pos= 0;
   for (i= 0; i < hash.records; ++i)
   {
@@ -1216,12 +1294,17 @@ rpl_binlog_state::get_gtid_list(rpl_gtid *gtid_list, uint32 list_size)
         gtid= e->last_gtid;
 
       if (pos >= list_size)
-        return 1;
+      {
+        res= 1;
+        goto end;
+      }
       memcpy(&gtid_list[pos++], gtid, sizeof(*gtid));
     }
   }
 
-  return 0;
+end:
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -1240,12 +1323,17 @@ rpl_binlog_state::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
 {
   uint32 i;
   uint32 alloc_size, out_size;
+  int res= 0;
 
+  out_size= 0;
+  mysql_mutex_lock(&LOCK_binlog_state);
   alloc_size= hash.records;
   if (!(*list= (rpl_gtid *)my_malloc(alloc_size * sizeof(rpl_gtid),
                                      MYF(MY_WME))))
-    return 1;
-  out_size= 0;
+  {
+    res= 1;
+    goto end;
+  }
   for (i= 0; i < alloc_size; ++i)
   {
     element *e= (element *)my_hash_element(&hash, i);
@@ -1254,8 +1342,10 @@ rpl_binlog_state::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
     memcpy(&((*list)[out_size++]), e->last_gtid, sizeof(rpl_gtid));
   }
 
+end:
+  mysql_mutex_unlock(&LOCK_binlog_state);
   *size= out_size;
-  return 0;
+  return res;
 }
 
 
@@ -1265,6 +1355,7 @@ rpl_binlog_state::append_pos(String *str)
   uint32 i;
   bool first= true;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   for (i= 0; i < hash.records; ++i)
   {
     element *e= (element *)my_hash_element(&hash, i);
@@ -1272,6 +1363,7 @@ rpl_binlog_state::append_pos(String *str)
         rpl_slave_state_tostring_helper(str, e->last_gtid, &first))
       return true;
   }
+  mysql_mutex_unlock(&LOCK_binlog_state);
 
   return false;
 }
@@ -1282,7 +1374,9 @@ rpl_binlog_state::append_state(String *str)
 {
   uint32 i, j;
   bool first= true;
+  bool res= false;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   for (i= 0; i < hash.records; ++i)
   {
     element *e= (element *)my_hash_element(&hash, i);
@@ -1304,11 +1398,16 @@ rpl_binlog_state::append_state(String *str)
         gtid= e->last_gtid;
 
       if (rpl_slave_state_tostring_helper(str, gtid, &first))
-        return true;
+      {
+        res= true;
+        goto end;
+      }
     }
   }
 
-  return false;
+end:
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
