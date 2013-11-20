@@ -41,3 +41,13 @@ test2
 ÆÇÈÉË
 DROP VIEW v1;
 DROP TABLE t1;
+CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Columns TABNAME='t1' TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
+SELECT * FROM t1;
+Table_Qualif	Table_Owner	Table_Name	Column_Name	Data_Type	Type_Name	Precision	Length	Scale	Radix	Nullable	Remarks
+		t1	a	12	varchar(64)	64	64	10	0	1	
+DROP TABLE t1;
+CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Tables TABNAME='t1' TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
+SELECT * FROM t1;
+Table_Qualifier	Table_Owner	Table_Name	Table_Type	Remark
+		t1	TABLE	
+DROP TABLE t1;
