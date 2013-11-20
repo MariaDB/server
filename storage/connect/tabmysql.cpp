@@ -86,6 +86,7 @@ MYSQLDEF::MYSQLDEF(void)
   Isview = FALSE;
   Bind = FALSE;
   Delayed = FALSE;
+  Xsrc = FALSE;
   } // end of MYSQLDEF constructor
 
 /***********************************************************************/
@@ -171,7 +172,7 @@ bool MYSQLDEF::GetServerInfo(PGLOBAL g, const char *server_name)
 /*   true        error                                                 */
 /*                                                                     */
 /***********************************************************************/
-bool MYSQLDEF::ParseURL(PGLOBAL g, char *url)
+bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
   {
   if ((!strstr(url, "://") && (!strchr(url, '@')))) {
     // No :// or @ in connection string. Must be a straight
@@ -248,34 +249,41 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url)
     if ((Database = strchr(Hostname, '/'))) {
       *Database++ = 0;
 
-      if ((Tabname = strchr(Database, '/')))
+      if ((Tabname = strchr(Database, '/'))) {
         *Tabname++ = 0;
 
-      // Make sure there's not an extra /
-      if ((strchr(Tabname, '/'))) {
-        strcpy(g->Message, "Syntax error in URL");
-        return true;
-        } // endif /
+        // Make sure there's not an extra /
+        if ((strchr(Tabname, '/'))) {
+          strcpy(g->Message, "Syntax error in URL");
+          return true;
+          } // endif /
+
+        } // endif Tabname
         
       } // endif database
 
     if ((sport = strchr(Hostname, ':')))
       *sport++ = 0;
 
-    Portnumber = (sport && sport[0]) ? atoi(sport) : GetDefaultPort();
+    // For unspecified values, get the values of old style options
+    // but only if called from MYSQLDEF, else set them to NULL
+    Portnumber = (sport && sport[0]) ? atoi(sport) 
+               : (b) ? Cat->GetIntCatInfo("Port", GetDefaultPort()) : 0;
 
     if (Username[0] == 0)
-      Username = Cat->GetStringCatInfo(g, "User", "*");
+      Username = (b) ? Cat->GetStringCatInfo(g, "User", "*") : NULL;
 
     if (Hostname[0] == 0)
-      Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
+      Hostname = (b) ? Cat->GetStringCatInfo(g, "Host", "localhost") : NULL;
 
     if (!Database || !*Database)
-      Database = Cat->GetStringCatInfo(g, "Database", "*");
+      Database = (b) ? Cat->GetStringCatInfo(g, "Database", "*") : NULL;
 
     if (!Tabname || !*Tabname)
-      Tabname = Name;
+      Tabname = (b) ? Cat->GetStringCatInfo(g, "Tabname", Name) : NULL;
 
+    if (!Password)
+      Password = (b) ? Cat->GetStringCatInfo(g, "Password", NULL) : NULL;
     } // endif URL
 
 #if 0
@@ -347,6 +355,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   if ((Srcdef = Cat->GetStringCatInfo(g, "Srcdef", NULL)))
     Isview = TRUE;
 
+  Xsrc = Cat->GetBoolCatInfo("Execsrc", FALSE);
   return FALSE;
   } // end of DefineAM
 
@@ -355,7 +364,9 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB MYSQLDEF::GetTable(PGLOBAL g, MODE m)
   {
-  if (Catfunc == FNC_COL)
+  if (Xsrc)
+    return new(g) TDBMYEXC(this);
+  else if (Catfunc == FNC_COL)
     return new(g) TDBMCL(this);
   else
     return new(g) TDBMYSQL(this);
@@ -506,6 +517,9 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g)
 
   if (To_Filter)
     strcat(strcat(Query, " WHERE "), To_Filter);
+
+  if (trace)
+    htrc("Query=%s\n", Query);
 
   // Now we know how much to suballocate
   PlugSubAlloc(g, NULL, strlen(Query) + 1);
@@ -1040,18 +1054,20 @@ int TDBMYSQL::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 void TDBMYSQL::CloseDB(PGLOBAL g)
   {
-  if (Mode == MODE_INSERT) {
-    char cmd[64];
-    int  w;
-    PDBUSER dup = PlgGetUser(g);
+  if (Myc.Connected()) {
+    if (Mode == MODE_INSERT) {
+      char cmd[64];
+      int  w;
+      PDBUSER dup = PlgGetUser(g);
 
-    dup->Step = "Enabling indexes";
-    sprintf(cmd, "ALTER TABLE `%s` ENABLE KEYS", Tabname);
-    Myc.m_Rows = -1;      // To execute the query
-    m_Rc = Myc.ExecSQL(g, cmd, &w);
-    } // endif m_Rc
+      dup->Step = "Enabling indexes";
+      sprintf(cmd, "ALTER TABLE `%s` ENABLE KEYS", Tabname);
+      Myc.m_Rows = -1;      // To execute the query
+      m_Rc = Myc.ExecSQL(g, cmd, &w);
+      } // endif m_Rc
 
-  Myc.Close();
+    Myc.Close();
+    } // endif Myc
 
   if (trace)
     htrc("MySQL CloseDB: closing %s rc=%d\n", Name, m_Rc);
@@ -1273,6 +1289,212 @@ void MYSQLCOL::WriteColumn(PGLOBAL g)
     } // endif Prep
 #endif   // MYSQL_PREPARED_STATEMENTS
 
+  } // end of WriteColumn
+
+/* ------------------------------------------------------------------- */
+
+/***********************************************************************/
+/*  Implementation of the TDBMYSQL class.                              */
+/***********************************************************************/
+
+// Is this really useful ???
+PTDB TDBMYEXC::CopyOne(PTABS t)
+  {
+  PTDB    tp;
+  PCOL    cp1, cp2;
+  PGLOBAL g = t->G;
+
+  tp = new(g) TDBMYEXC(g, this);
+
+  for (cp1 = Columns; cp1; cp1 = cp1->GetNext()) {
+    cp2 = new(g) MYXCOL((PMYXCOL)cp1, tp);
+
+    NewPointer(t, cp1, cp2);
+    } // endfor cp1
+
+  return tp;
+  } // end of CopyOne
+
+/***********************************************************************/
+/*  Allocate MYSQL column description block.                           */
+/***********************************************************************/
+PCOL TDBMYEXC::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
+  {
+  PMYXCOL colp = new(g) MYXCOL(cdp, this, cprec, n);
+
+  if (!colp->Flag)
+    Cmdcol = colp->GetName();
+
+  return colp;
+  } // end of MakeCol
+
+/***********************************************************************/
+/*  MakeCMD: make the SQL statement to send to MYSQL connection.       */
+/***********************************************************************/
+char *TDBMYEXC::MakeCMD(PGLOBAL g)
+  {
+  char *xcmd = NULL;
+
+  if (To_Filter) {
+    if (Cmdcol) {
+      char col[128], cmd[1024];
+      int n;
+      
+      memset(cmd, 0, sizeof(cmd));
+      n = sscanf(To_Filter, "%s = '%1023c", col, cmd);
+  
+      if (n == 2 && !stricmp(col, Cmdcol)) {
+        xcmd = (char*)PlugSubAlloc(g, NULL, strlen(cmd) + 1);
+  
+        strcpy(xcmd, cmd);
+        xcmd[strlen(xcmd) - 1] = 0;
+      } else
+        strcpy(g->Message, "Invalid command specification filter");
+
+    } else
+      strcpy(g->Message, "No command column in select list");
+
+  } else if (!Srcdef)
+    strcpy(g->Message, "No Srcdef default command");
+  else
+    xcmd = Srcdef;
+
+  return xcmd;
+  } // end of MakeCMD
+
+/***********************************************************************/
+/*  EXC GetMaxSize: returns the maximum number of rows in the table.   */
+/***********************************************************************/
+int TDBMYEXC::GetMaxSize(PGLOBAL g)
+  {
+  if (MaxSize < 0) {
+    MaxSize = 1;
+    } // endif MaxSize
+
+  return MaxSize;
+  } // end of GetMaxSize
+
+/***********************************************************************/
+/*  MySQL Exec Access Method opening routine.                          */
+/***********************************************************************/
+bool TDBMYEXC::OpenDB(PGLOBAL g)
+  {
+  int rc;
+
+  if (Use == USE_OPEN) {
+    strcpy(g->Message, "Multiple execution is not allowed");
+    return true;
+    } // endif use
+
+  /*********************************************************************/
+  /*  Open a MySQL connection for this table.                          */
+  /*  Note: this may not be the proper way to do. Perhaps it is better */
+  /*  to test whether a connection is already open for this server     */
+  /*  and if so to allocate just a new result set. But this only for   */
+  /*  servers allowing concurency in getting results ???               */
+  /*********************************************************************/
+  if (!Myc.Connected())
+    if (Myc.Open(g, Host, Database, User, Pwd, Port))
+      return true;
+
+  Use = USE_OPEN;       // Do it now in case we are recursively called
+
+  if (Mode != MODE_READ) {
+    strcpy(g->Message, "No INSERT/DELETE/UPDATE of MYSQL EXEC tables");
+    return true;
+    } // endif Mode
+
+  /*********************************************************************/
+  /*  Get the command to execute.                                      */
+  /*********************************************************************/
+  if (!(Query = MakeCMD(g))) {
+    Myc.Close();
+    return true;
+    } // endif Query
+
+  if ((rc = Myc.ExecSQL(g, Query)) == RC_NF) {
+    strcpy(g->Message, "Affected rows");
+    AftRows = Myc.m_Rows;
+  } else if (rc == RC_OK) {
+    sprintf(g->Message, "Columns and %d rows", Myc.m_Rows);
+    AftRows = Myc.m_Fields;
+  } else
+    return true;
+
+  return false;
+  } // end of OpenDB
+
+/***********************************************************************/
+/*  Data Base read routine for MYSQL access method.                    */
+/***********************************************************************/
+int TDBMYEXC::ReadDB(PGLOBAL g)
+  {
+  return (++N) ? RC_EF : RC_OK;
+  } // end of ReadDB
+
+/***********************************************************************/
+/*  WriteDB: Data Base write routine for Exec MYSQL access methods.    */
+/***********************************************************************/
+int TDBMYEXC::WriteDB(PGLOBAL g)
+  {
+  strcpy(g->Message, "EXEC MYSQL tables are read only");
+  return RC_FX;
+  } // end of WriteDB
+
+// ------------------------- MYXCOL functions ---------------------------
+
+/***********************************************************************/
+/*  MYXCOL public constructor.                                         */
+/***********************************************************************/
+MYXCOL::MYXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+      : MYSQLCOL(cdp, tdbp, cprec, i, am)
+  {
+  // Set additional EXEC MYSQL access method information for column.
+  Flag = cdp->GetOffset();
+  } // end of MYSQLCOL constructor
+
+/***********************************************************************/
+/*  MYSQLCOL public constructor.                                       */
+/***********************************************************************/
+MYXCOL::MYXCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PSZ am)
+      : MYSQLCOL(fld, tdbp, i, am)
+  {
+  if (trace)
+    htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
+
+  } // end of MYSQLCOL constructor
+
+/***********************************************************************/
+/*  MYXCOL constructor used for copying columns.                       */
+/*  tdbp is the pointer to the new table descriptor.                   */
+/***********************************************************************/
+MYXCOL::MYXCOL(MYXCOL *col1, PTDB tdbp) : MYSQLCOL(col1, tdbp)
+  {
+  Flag = col1->Flag;
+  } // end of MYXCOL copy constructor
+
+/***********************************************************************/
+/*  ReadColumn:                                                        */
+/***********************************************************************/
+void MYXCOL::ReadColumn(PGLOBAL g)
+  {
+  PTDBMYX tdbp = (PTDBMYX)To_Tdb;
+
+  switch (Flag) {
+    case  0: Value->SetValue_psz(tdbp->Query);    break;
+    case  1: Value->SetValue(tdbp->AftRows);      break;
+    case  2: Value->SetValue_psz(g->Message);     break;
+    default: Value->SetValue_psz("Invalid Flag"); break;
+    } // endswitch Flag
+
+  } // end of ReadColumn
+
+/***********************************************************************/
+/*  WriteColumn: should never be called.                               */
+/***********************************************************************/
+void MYXCOL::WriteColumn(PGLOBAL g)
+  {
+  assert(false);
   } // end of WriteColumn
 
 /* ---------------------------TDBMCL class --------------------------- */

@@ -253,7 +253,7 @@ XCLCOL::XCLCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 void XCLCOL::ReadColumn(PGLOBAL g)
   {
 	if (((PTDBXCL)To_Tdb)->New) {
-		Colp->ReadColumn(g);
+		Colp->Eval(g);
 		strcpy(Cbuf, To_Val->GetCharValue());
 		Cp = Cbuf;
 		} // endif New
@@ -272,9 +272,11 @@ void XCLCOL::ReadColumn(PGLOBAL g)
   } else if (Nullable) {
     Value->Reset();
     Value->SetNull(true);
-  } else
+  } else {
     // Skip that row
 		((PTDBXCL)To_Tdb)->RowFlag = 2;
+    Colp->Reset();
+  } // endif Cp
 	
 	if (Cp && *Cp)
 		// More to come from the same row

@@ -8,6 +8,7 @@ a
 1
 2
 3
+SET GLOBAL debug_dbug= '+d,incident_database_resync_on_replace,*';
 REPLACE INTO t1 VALUES (4);
 SELECT * FROM t1;
 a

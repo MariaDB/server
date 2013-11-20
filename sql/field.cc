@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2816,7 +2816,7 @@ int Field_new_decimal::store(const char *from, uint length,
                            &decimal_value)) &&
       thd->abort_on_warning)
   {
-    ErrConvString errmsg(from, length, &my_charset_bin);
+    ErrConvString errmsg(from, length, charset_arg);
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                         ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
@@ -2836,7 +2836,7 @@ int Field_new_decimal::store(const char *from, uint length,
     break;
   case E_DEC_BAD_NUM:
     {
-      ErrConvString errmsg(from, length, &my_charset_bin);
+      ErrConvString errmsg(from, length, charset_arg);
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                           ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
@@ -6509,7 +6509,13 @@ int Field_string::cmp(const uchar *a_ptr, const uchar *b_ptr)
 void Field_string::sort_string(uchar *to,uint length)
 {
   uint tmp __attribute__((unused))=
-    my_strnxfrm(field_charset, to, length, ptr, field_length);
+    field_charset->coll->strnxfrm(field_charset,
+                                  to, length,
+                                  char_length() *
+                                  field_charset->strxfrm_multiply,
+                                  ptr, field_length,
+                                  MY_STRXFRM_PAD_WITH_SPACE |
+                                  MY_STRXFRM_PAD_TO_MAXLEN);
   DBUG_ASSERT(tmp == length);
 }
 
@@ -6966,9 +6972,13 @@ void Field_varstring::sort_string(uchar *to,uint length)
     length-= length_bytes;
   }
  
-  tot_length= my_strnxfrm(field_charset,
-			  to, length, ptr + length_bytes,
-			  tot_length);
+  tot_length= field_charset->coll->strnxfrm(field_charset,
+                                            to, length,
+                                            char_length() *
+                                            field_charset->strxfrm_multiply,
+                                            ptr + length_bytes, tot_length,
+                                            MY_STRXFRM_PAD_WITH_SPACE |
+                                            MY_STRXFRM_PAD_TO_MAXLEN);
   DBUG_ASSERT(tot_length == length);
 }
 
@@ -7274,7 +7284,7 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
     if (!String::needs_conversion(length, cs, field_charset, &dummy_offset))
     {
       Field_blob::store_length(length);
-      bmove(ptr+packlength,(char*) &from,sizeof(char*));
+      bmove(ptr + packlength, &from, sizeof(char*));
       return 0;
     }
     if (tmpstr.copy(from, length, cs))
@@ -7583,8 +7593,11 @@ void Field_blob::sort_string(uchar *to,uint length)
     }
     memcpy(&blob, ptr+packlength, sizeof(char*));
     
-    blob_length=my_strnxfrm(field_charset,
-                            to, length, blob, blob_length);
+    blob_length= field_charset->coll->strnxfrm(field_charset,
+                                               to, length, length,
+                                               blob, blob_length,
+                                               MY_STRXFRM_PAD_WITH_SPACE |
+                                               MY_STRXFRM_PAD_TO_MAXLEN);
     DBUG_ASSERT(blob_length == length);
   }
 }
@@ -7793,7 +7806,7 @@ int Field_geom::store(const char *from, uint length, CHARSET_INFO *cs)
       value.copy(from, length, cs);
       from= value.ptr();
     }
-    bmove(ptr + packlength, (char*) &from, sizeof(char*));
+    bmove(ptr + packlength, &from, sizeof(char*));
   }
   return 0;
 

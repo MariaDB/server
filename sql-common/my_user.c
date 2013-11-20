@@ -30,34 +30,40 @@
     host_name_str   [OUT] Buffer to store host name part.
                           Must be not less than HOSTNAME_LENGTH + 1.
     host_name_len   [OUT] A place to store length of the host name part.
+
+ RETURN
+   0 - if only a user was set, no '@' was found
+   1 - if both user and host were set
 */
 
-void parse_user(const char *user_id_str, size_t user_id_len,
-                char *user_name_str, size_t *user_name_len,
-                char *host_name_str, size_t *host_name_len)
+int parse_user(const char *user_id_str, size_t user_id_len,
+               char *user_name_str, size_t *user_name_len,
+               char *host_name_str, size_t *host_name_len)
 {
   char *p= strrchr(user_id_str, '@');
 
   if (!p)
   {
-    *user_name_len= 0;
+    *user_name_len= user_id_len;
     *host_name_len= 0;
   }
   else
   {
     *user_name_len= (uint) (p - user_id_str);
     *host_name_len= (uint) (user_id_len - *user_name_len - 1);
-
-    if (*user_name_len > USERNAME_LENGTH)
-      *user_name_len= USERNAME_LENGTH;
-
-    if (*host_name_len > HOSTNAME_LENGTH)
-      *host_name_len= HOSTNAME_LENGTH;
-
-    memcpy(user_name_str, user_id_str, *user_name_len);
-    memcpy(host_name_str, p + 1, *host_name_len);
   }
+
+  if (*user_name_len > USERNAME_LENGTH)
+    *user_name_len= USERNAME_LENGTH;
+
+  if (*host_name_len > HOSTNAME_LENGTH)
+    *host_name_len= HOSTNAME_LENGTH;
+
+  memcpy(user_name_str, user_id_str, *user_name_len);
+  memcpy(host_name_str, p + 1, *host_name_len);
 
   user_name_str[*user_name_len]= 0;
   host_name_str[*host_name_len]= 0;
+
+  return p != NULL;
 }

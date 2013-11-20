@@ -142,4 +142,4 @@
 +# -------------------------------------------
  DROP TABLE t2;
  DROP TABLE t1;
-+ERROR 42S02: Unknown table 't1'
++ERROR 42S02: Unknown table 'test.t1'

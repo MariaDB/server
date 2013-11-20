@@ -557,6 +557,8 @@ int             STDCALL mysql_list_processes_cont(MYSQL_RES **ret, MYSQL *mysql,
                                                   int status);
 int		STDCALL mysql_options(MYSQL *mysql,enum mysql_option option,
 				      const void *arg);
+int             STDCALL mysql_options4(MYSQL *mysql,enum mysql_option option,
+                                       const void *arg1, const void *arg2);
 void		STDCALL mysql_free_result(MYSQL_RES *result);
 int             STDCALL mysql_free_result_start(MYSQL_RES *result);
 int             STDCALL mysql_free_result_cont(MYSQL_RES *result, int status);

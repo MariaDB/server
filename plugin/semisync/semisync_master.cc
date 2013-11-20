@@ -629,7 +629,7 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
                             (int)is_on());
     }
 
-    while (is_on())
+    while (is_on() && !thd_killed(NULL))
     {
       if (reply_file_name_inited_)
       {
@@ -678,15 +678,11 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
       }
 
       /* Calcuate the waiting period. */
-      unsigned long long diff_nsecs =
-        start_ts.tv_nsec + (unsigned long long)wait_timeout_ * TIME_MILLION;
-      abstime.tv_sec = start_ts.tv_sec;
-      while (diff_nsecs >= TIME_BILLION)
-      {
-        abstime.tv_sec++;
-        diff_nsecs -= TIME_BILLION;
-      }
-      abstime.tv_nsec = diff_nsecs;
+      long diff_secs = (long) (wait_timeout_ / TIME_THOUSAND); 
+      long diff_nsecs = (long) ((wait_timeout_ % TIME_THOUSAND) * TIME_MILLION);
+      long nsecs = start_ts.tv_nsec + diff_nsecs;
+      abstime.tv_sec = start_ts.tv_sec + diff_secs + nsecs/TIME_BILLION;
+      abstime.tv_nsec = nsecs % TIME_BILLION;
       
       /* In semi-synchronous replication, we wait until the binlog-dump
        * thread has received the reply on the relevant binlog segment from the
@@ -745,7 +741,8 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
       At this point, the binlog file and position of this transaction
       must have been removed from ActiveTranx.
     */
-    assert(!active_tranxs_->is_tranx_end_pos(trx_wait_binlog_name,
+    assert(thd_killed(NULL) ||
+           !active_tranxs_->is_tranx_end_pos(trx_wait_binlog_name,
                                              trx_wait_binlog_pos));
     
   l_end:

@@ -251,7 +251,8 @@ typedef struct st_grant_info
 
      @details The version of this copy is found in GRANT_INFO::version.
    */
-  GRANT_TABLE *grant_table;
+  GRANT_TABLE *grant_table_user;
+  GRANT_TABLE *grant_table_role;
   /**
      @brief Used for cache invalidation when caching privilege information.
 
@@ -559,7 +560,8 @@ enum open_frm_error {
   OPEN_FRM_DISCOVER,
   OPEN_FRM_ERROR_ALREADY_ISSUED,
   OPEN_FRM_NOT_A_VIEW,
-  OPEN_FRM_NOT_A_TABLE
+  OPEN_FRM_NOT_A_TABLE,
+  OPEN_FRM_NEEDS_REBUILD
 };
 
 /**
@@ -731,6 +733,13 @@ struct TABLE_SHARE
   bool deleting;                        /* going to delete this table */
   bool can_cmp_whole_record;
   ulong table_map_id;                   /* for row-based replication */
+
+  /*
+    Things that are incompatible between the stored version and the
+    current version. This is a set of HA_CREATE... bits that can be used
+    to modify create_info->used_fields for ALTER TABLE.
+  */
+  ulong incompatible_version;
 
   /*
     Cache for row-based replication table share checks that does not
@@ -987,6 +996,9 @@ struct st_cond_statistic;
 #define      CHECK_ROW_FOR_NULLS_TO_REJECT   (1 << 0)
 #define      REJECT_ROW_DUE_TO_NULL_FIELDS   (1 << 1)
 
+/* Bitmap of table's fields */
+typedef Bitmap<MAX_FIELDS> Field_map;
+
 struct TABLE
 {
   TABLE() {}                               /* Remove gcc warning */
@@ -1186,6 +1198,10 @@ public:
   */
   bool distinct;
   bool const_table,no_rows, used_for_duplicate_elimination;
+  /**
+    Forces DYNAMIC Aria row format for internal temporary tables.
+  */
+  bool keep_row_order;
 
   /**
      If set, the optimizer has found that row retrieval should access index 
@@ -1497,6 +1513,7 @@ typedef struct st_schema_table
 
 #define JOIN_TYPE_LEFT	1
 #define JOIN_TYPE_RIGHT	2
+#define JOIN_TYPE_OUTER 4	/* Marker that this is an outer join */
 
 #define VIEW_SUID_INVOKER               0
 #define VIEW_SUID_DEFINER               1
@@ -2179,6 +2196,16 @@ struct TABLE_LIST
   bool change_refs_to_fields();
 
   bool single_table_updatable();
+
+  bool is_inner_table_of_outer_join()
+  {
+    for (TABLE_LIST *tbl= this; tbl; tbl= tbl->embedding)
+    {
+      if (tbl->outer_join)
+        return true;
+    }
+    return false;
+  } 
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);

@@ -54,6 +54,7 @@ uint GetDefaultPort(void);
 class DllItem MYSQLC {
   friend class TDBMYSQL;
   friend class MYSQLCOL;
+  friend class TDBMYEXC;
   // Construction
  public:
   MYSQLC(void);

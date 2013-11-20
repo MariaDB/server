@@ -90,6 +90,8 @@ enum enum_i_s_events_fields
   ISE_DB_CL
 };
 
+#define USERNAME_WITH_HOST_CHAR_LENGTH (USERNAME_CHAR_LENGTH + HOSTNAME_LENGTH + 2)
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static const char *grant_names[]={
   "select","insert","update","delete","create","drop","reload","shutdown",
@@ -349,7 +351,7 @@ bool mysqld_show_authors(THD *thd)
 
   field_list.push_back(new Item_empty_string("Name",40));
   field_list.push_back(new Item_empty_string("Location",40));
-  field_list.push_back(new Item_empty_string("Comment",80));
+  field_list.push_back(new Item_empty_string("Comment",512));
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -383,7 +385,7 @@ bool mysqld_show_contributors(THD *thd)
 
   field_list.push_back(new Item_empty_string("Name",40));
   field_list.push_back(new Item_empty_string("Location",40));
-  field_list.push_back(new Item_empty_string("Comment",80));
+  field_list.push_back(new Item_empty_string("Comment", 512));
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -2077,8 +2079,11 @@ void append_definer(THD *thd, String *buffer, const LEX_STRING *definer_user,
 {
   buffer->append(STRING_WITH_LEN("DEFINER="));
   append_identifier(thd, buffer, definer_user->str, definer_user->length);
-  buffer->append('@');
-  append_identifier(thd, buffer, definer_host->str, definer_host->length);
+  if (definer_host->str[0])
+  {
+    buffer->append('@');
+    append_identifier(thd, buffer, definer_host->str, definer_host->length);
+  }
   buffer->append(' ');
 }
 
@@ -2360,8 +2365,8 @@ void Show_explain_request::call_in_target_thread()
 
   DBUG_ASSERT(current_thd == target_thd);
   set_current_thd(request_thd);
-  if (target_thd->lex->unit.print_explain(explain_buf, 0 /* explain flags*/,
-                                          &printed_anything))
+  if (target_thd->lex->print_explain(explain_buf, 0 /* explain flags*/,
+                                     &printed_anything))
   {
     failed_to_produce= TRUE;
   }
@@ -2390,6 +2395,86 @@ int select_result_explain_buffer::send_data(List<Item> &items)
   res= dst_table->file->ha_write_tmp_row(dst_table->record[0]);
   set_current_thd(cur_thd);  
   DBUG_RETURN(test(res));
+}
+
+bool select_result_text_buffer::send_result_set_metadata(List<Item> &fields, uint flag)
+{
+  n_columns= fields.elements;
+  return append_row(fields, true /*send item names */);
+  return send_data(fields);
+}
+
+
+int select_result_text_buffer::send_data(List<Item> &items)
+{
+  return append_row(items, false /*send item values */);
+}
+
+int select_result_text_buffer::append_row(List<Item> &items, bool send_names)
+{
+  List_iterator<Item> it(items);
+  Item *item;
+  char **row;
+  int column= 0;
+
+  if (!(row= (char**) thd->alloc(sizeof(char*) * n_columns)))
+    return true;
+  rows.push_back(row);
+
+  while ((item= it++))
+  {
+    DBUG_ASSERT(column < n_columns);
+    StringBuffer<32> buf;
+    const char *data_ptr; 
+    size_t data_len;
+    if (send_names)
+    {
+      data_ptr= item->name;
+      data_len= strlen(item->name);
+    }
+    else
+    {
+      String *res;
+      res= item->val_str(&buf);
+      if (item->null_value)
+      {
+        data_ptr= "NULL";
+        data_len=4;
+      }
+      else
+      {
+        data_ptr= res->c_ptr_safe();
+        data_len= res->length();
+      }
+    }
+
+    char *ptr= (char*)thd->alloc(data_len + 1);
+    memcpy(ptr, data_ptr, data_len + 1);
+    row[column]= ptr;
+
+    column++;
+  }
+  return false;
+}
+
+
+void select_result_text_buffer::save_to(String *res)
+{
+  List_iterator<char*> it(rows);
+  char **row;
+  res->append("#\n");
+  while ((row= it++))
+  {
+    res->append("# explain: ");
+    for (int i=0; i < n_columns; i++)
+    {
+      if (i)
+        res->append('\t');
+      res->append(row[i]);
+    }
+    res->append("\n");
+  }
+  res->append("#\n");
 }
 
 
@@ -2576,7 +2661,8 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
                                command_name[tmp->get_command()].length, cs);
       /* MYSQL_TIME */
       ulonglong start_utime= tmp->start_time * HRTIME_RESOLUTION + tmp->start_time_sec_part;
-      ulonglong utime= start_utime < unow.val ? unow.val - start_utime : 0;
+      ulonglong utime= start_utime && start_utime < unow.val
+                       ? unow.val - start_utime : 0;
       table->field[5]->store(utime / HRTIME_RESOLUTION, TRUE);
       /* STATE */
       if ((val= thread_state_info(tmp)))
@@ -2627,6 +2713,9 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
       table->field[12]->set_notnull();
       table->field[13]->store((longlong) tmp->get_examined_row_count(), TRUE);
       table->field[13]->set_notnull();
+
+      /* QUERY_ID */
+      table->field[14]->store(tmp->query_id, TRUE);
 
       if (schema_table_store_record(thd, table))
       {
@@ -2780,19 +2869,20 @@ void remove_status_vars(SHOW_VAR *list)
 
     for (; list->name; list++)
     {
-      int res= 0, a= 0, b= all_status_vars.elements, c= (a+b)/2;
-      for (; b-a > 0; c= (a+b)/2)
+      int first= 0, last= ((int) all_status_vars.elements) - 1;
+      for ( ; first <= last; )
       {
-        res= show_var_cmp(list, all+c);
-        if (res < 0)
-          b= c;
+        int res, middle= (first + last) / 2;
+        if ((res= show_var_cmp(list, all + middle)) < 0)
+          last= middle - 1;
         else if (res > 0)
-          a= c;
+          first= middle + 1;
         else
+        {
+          all[middle].type= SHOW_UNDEF;
           break;
+        }
       }
-      if (res == 0)
-        all[c].type= SHOW_UNDEF;
     }
     shrink_var_array(&all_status_vars);
     mysql_mutex_unlock(&LOCK_status);
@@ -8316,6 +8406,22 @@ ST_FIELD_INFO collation_fields_info[]=
 };
 
 
+ST_FIELD_INFO applicable_roles_fields_info[]=
+{
+  {"GRANTEE", USERNAME_WITH_HOST_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"ROLE_NAME", USERNAME_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"IS_GRANTABLE", 3, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+};
+
+
+ST_FIELD_INFO enabled_roles_fields_info[]=
+{
+  {"ROLE_NAME", USERNAME_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, SKIP_OPEN_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+};
+
+
 ST_FIELD_INFO engines_fields_info[]=
 {
   {"ENGINE", 64, MYSQL_TYPE_STRING, 0, 0, "Engine", SKIP_OPEN_TABLE},
@@ -8469,7 +8575,7 @@ ST_FIELD_INFO view_fields_info[]=
 
 ST_FIELD_INFO user_privileges_fields_info[]=
 {
-  {"GRANTEE", 81, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"GRANTEE", USERNAME_WITH_HOST_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"PRIVILEGE_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"IS_GRANTABLE", 3, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
@@ -8479,7 +8585,7 @@ ST_FIELD_INFO user_privileges_fields_info[]=
 
 ST_FIELD_INFO schema_privileges_fields_info[]=
 {
-  {"GRANTEE", 81, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"GRANTEE", USERNAME_WITH_HOST_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"PRIVILEGE_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
@@ -8490,7 +8596,7 @@ ST_FIELD_INFO schema_privileges_fields_info[]=
 
 ST_FIELD_INFO table_privileges_fields_info[]=
 {
-  {"GRANTEE", 81, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"GRANTEE", USERNAME_WITH_HOST_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
@@ -8502,7 +8608,7 @@ ST_FIELD_INFO table_privileges_fields_info[]=
 
 ST_FIELD_INFO column_privileges_fields_info[]=
 {
-  {"GRANTEE", 81, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"GRANTEE", USERNAME_WITH_HOST_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
@@ -8686,6 +8792,7 @@ ST_FIELD_INFO processlist_fields_info[]=
    SKIP_OPEN_TABLE},
   {"MEMORY_USED", 7, MYSQL_TYPE_LONG, 0, 0, "Memory_used", SKIP_OPEN_TABLE},
   {"EXAMINED_ROWS", 7, MYSQL_TYPE_LONG, 0, 0, "Examined_rows", SKIP_OPEN_TABLE},
+  {"QUERY_ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 
@@ -8910,6 +9017,10 @@ ST_FIELD_INFO show_explain_fields_info[]=
 
 ST_SCHEMA_TABLE schema_tables[]=
 {
+  {"ALL_PLUGINS", plugin_fields_info, create_schema_table,
+   fill_all_plugins, make_old_format, 0, 5, -1, 0, 0},
+  {"APPLICABLE_ROLES", applicable_roles_fields_info, create_schema_table,
+   fill_schema_applicable_roles, 0, 0, -1, -1, 0, 0},
   {"CHARACTER_SETS", charsets_fields_info, create_schema_table,
    fill_schema_charsets, make_character_sets_old_format, 0, -1, -1, 0, 0},
   {"CLIENT_STATISTICS", client_stats_fields_info, create_schema_table, 
@@ -8923,6 +9034,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    OPTIMIZE_I_S_TABLE|OPEN_VIEW_FULL},
   {"COLUMN_PRIVILEGES", column_privileges_fields_info, create_schema_table,
    fill_schema_column_privileges, 0, 0, -1, -1, 0, 0},
+  {"ENABLED_ROLES", enabled_roles_fields_info, create_schema_table,
+   fill_schema_enabled_roles, 0, 0, -1, -1, 0, 0},
   {"ENGINES", engines_fields_info, create_schema_table,
    fill_schema_engines, make_old_format, 0, -1, -1, 0, 0},
 #ifdef HAVE_EVENT_SCHEDULER
@@ -8956,8 +9069,6 @@ ST_SCHEMA_TABLE schema_tables[]=
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"PLUGINS", plugin_fields_info, create_schema_table,
    fill_plugins, make_old_format, 0, -1, -1, 0, 0},
-  {"ALL_PLUGINS", plugin_fields_info, create_schema_table,
-   fill_all_plugins, make_old_format, 0, 5, -1, 0, 0},
   {"PROCESSLIST", processlist_fields_info, create_schema_table,
    fill_schema_processlist, make_old_format, 0, -1, -1, 0, 0},
   {"PROFILING", query_profile_statistics_info, create_schema_table,

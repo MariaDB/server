@@ -28,6 +28,7 @@ int pull_out_semijoin_tables(JOIN *join);
 bool optimize_semijoin_nests(JOIN *join, table_map all_table_map);
 bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,  
                            Item **join_where);
+void cleanup_empty_jtbm_semi_joins(JOIN *join);
 
 // used by Loose_scan_opt
 ulonglong get_bound_sj_equalities(TABLE_LIST *sj_nest, 
@@ -191,7 +192,7 @@ public:
         (PREV_BITS(key_part_map, max_loose_keypart+1) &        // (3)
          (found_part | loose_scan_keyparts)) ==                // (3)
         PREV_BITS(key_part_map, max_loose_keypart+1) &&        // (3)
-        !key_uses_partial_cols(s->table, key))
+        !key_uses_partial_cols(s->table->s, key))
     {
       /* Ok, can use the strategy */
       part1_conds_met= TRUE;

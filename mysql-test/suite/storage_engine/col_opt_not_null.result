@@ -177,7 +177,6 @@ HEX(v0)	HEX(v1)	HEX(v64)	LENGTH(HEX(v65000))
 ALTER TABLE t1 ADD COLUMN v65536 VARBINARY(65536) <CUSTOM_COL_OPTIONS> NOT NULL;
 Warnings:
 Note	1246	Converting column 'v65536' from VARBINARY to BLOB
-Note	1246	Converting column 'v65536' from VARBINARY to BLOB
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varbinary(0)	#	#	#	
@@ -690,7 +689,6 @@ v0	v1	v64	LENGTH(v65000)
 ALTER TABLE t1 ADD COLUMN v65536 VARCHAR(65536) <CUSTOM_COL_OPTIONS> NOT NULL;
 Warnings:
 Note	1246	Converting column 'v65536' from VARCHAR to TEXT
-Note	1246	Converting column 'v65536' from VARCHAR to TEXT
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varchar(0)	#	#	#	
@@ -976,7 +974,6 @@ a	b	c
 	test5	2
 ALTER TABLE t1 ADD COLUMN e ENUM('a','A') <CUSTOM_COL_OPTIONS> NOT NULL;
 Warnings:
-Note	1291	Column 'e' has duplicated value 'a' in ENUM
 Note	1291	Column 'e' has duplicated value 'a' in ENUM
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
@@ -1935,7 +1932,6 @@ a	b	c
 	test2,test4	
 ALTER TABLE t1 ADD COLUMN e SET('a','A') <CUSTOM_COL_OPTIONS> NOT NULL;
 Warnings:
-Note	1291	Column 'e' has duplicated value 'a' in SET
 Note	1291	Column 'e' has duplicated value 'a' in SET
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra

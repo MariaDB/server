@@ -197,3 +197,4 @@ REVOKE PROXY ON 'plug_dest'@'santa.claus.ipv4.example.com'
 DROP USER 'plug'@'santa.claus.ipv4.example.com';
 DROP USER 'plug_dest'@'santa.claus.ipv4.example.com';
 set global debug_dbug= default;
+delete from mysql.plugin where name='test_plugin_server';

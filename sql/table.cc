@@ -653,6 +653,220 @@ err_not_open:
   DBUG_RETURN(share->error);
 }
 
+static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
+                             uint keys, KEY *keyinfo,
+                             uint new_frm_ver, uint &ext_key_parts,
+                             TABLE_SHARE *share, uint len,
+                             KEY *first_keyinfo, char* &keynames)
+{
+  uint i, j, n_length;
+  KEY_PART_INFO *key_part= NULL;
+  ulong *rec_per_key= NULL;
+  KEY_PART_INFO *first_key_part= NULL;
+  uint first_key_parts= 0;
+
+  if (!keys)
+  {  
+    if (!(keyinfo = (KEY*) alloc_root(&share->mem_root, len)))
+      return 1;
+    bzero((char*) keyinfo, len);
+    key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo);
+  }
+
+  /*
+    If share->use_ext_keys is set to TRUE we assume that any key
+    can be extended by the components of the primary key whose
+    definition is read first from the frm file.
+    For each key only those fields of the assumed primary key are
+    added that are not included in the proper key definition. 
+    If after all it turns out that there is no primary key the
+    added components are removed from each key.
+
+    When in the future we support others schemes of extending of
+    secondary keys with components of the primary key we'll have
+    to change the type of this flag for an enumeration type.                 
+  */   
+
+  for (i=0 ; i < keys ; i++, keyinfo++)
+  {
+    if (new_frm_ver >= 3)
+    {
+      if (strpos + 8 >= frm_image_end)
+        return 1;
+      keyinfo->flags=	   (uint) uint2korr(strpos) ^ HA_NOSAME;
+      keyinfo->key_length= (uint) uint2korr(strpos+2);
+      keyinfo->user_defined_key_parts=  (uint) strpos[4];
+      keyinfo->algorithm=  (enum ha_key_alg) strpos[5];
+      keyinfo->block_size= uint2korr(strpos+6);
+      strpos+=8;
+    }
+    else
+    {
+      if (strpos + 4 >= frm_image_end)
+        return 1;
+      keyinfo->flags=	 ((uint) strpos[0]) ^ HA_NOSAME;
+      keyinfo->key_length= (uint) uint2korr(strpos+1);
+      keyinfo->user_defined_key_parts=  (uint) strpos[3];
+      keyinfo->algorithm= HA_KEY_ALG_UNDEF;
+      strpos+=4;
+    }
+
+    if (i == 0)
+    {
+      ext_key_parts+= (share->use_ext_keys ? first_keyinfo->user_defined_key_parts*(keys-1) : 0); 
+      n_length=keys * sizeof(KEY) + ext_key_parts * sizeof(KEY_PART_INFO);
+      if (!(keyinfo= (KEY*) alloc_root(&share->mem_root,
+				       n_length + len)))
+        return 1;
+      bzero((char*) keyinfo,n_length);
+      share->key_info= keyinfo;
+      key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo + keys);
+
+      if (!(rec_per_key= (ulong*) alloc_root(&share->mem_root,
+                                             sizeof(ulong) * ext_key_parts)))
+        return 1;
+      first_key_part= key_part;
+      first_key_parts= first_keyinfo->user_defined_key_parts;
+      keyinfo->flags= first_keyinfo->flags;
+      keyinfo->key_length= first_keyinfo->key_length;
+      keyinfo->user_defined_key_parts= first_keyinfo->user_defined_key_parts;
+      keyinfo->algorithm= first_keyinfo->algorithm;
+      if (new_frm_ver >= 3)
+        keyinfo->block_size= first_keyinfo->block_size;
+    }
+
+    keyinfo->key_part=	 key_part;
+    keyinfo->rec_per_key= rec_per_key;
+    for (j=keyinfo->user_defined_key_parts ; j-- ; key_part++)
+    {
+      if (strpos + (new_frm_ver >= 1 ? 9 : 7) >= frm_image_end)
+        return 1;
+      *rec_per_key++=0;
+      key_part->fieldnr=	(uint16) (uint2korr(strpos) & FIELD_NR_MASK);
+      key_part->offset= (uint) uint2korr(strpos+2)-1;
+      key_part->key_type=	(uint) uint2korr(strpos+5);
+      // key_part->field=	(Field*) 0;	// Will be fixed later
+      if (new_frm_ver >= 1)
+      {
+	key_part->key_part_flag= *(strpos+4);
+	key_part->length=	(uint) uint2korr(strpos+7);
+	strpos+=9;
+      }
+      else
+      {
+	key_part->length=	*(strpos+4);
+	key_part->key_part_flag=0;
+	if (key_part->length > 128)
+	{
+	  key_part->length&=127;		/* purecov: inspected */
+	  key_part->key_part_flag=HA_REVERSE_SORT; /* purecov: inspected */
+	}
+	strpos+=7;
+      }
+      key_part->store_length=key_part->length;
+    }
+
+    /*
+      Add primary key to end of extended keys for non unique keys for
+      storage engines that supports it.
+    */
+    keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
+    keyinfo->ext_key_flags= keyinfo->flags;
+    keyinfo->ext_key_part_map= 0;
+    if (share->use_ext_keys && i && !(keyinfo->flags & HA_NOSAME))
+    {
+      keyinfo->ext_key_part_map= 0;
+      for (j= 0; 
+           j < first_key_parts && keyinfo->ext_key_parts < MAX_REF_PARTS;
+           j++)
+      {
+        uint key_parts= keyinfo->user_defined_key_parts;
+        KEY_PART_INFO* curr_key_part= keyinfo->key_part;
+        KEY_PART_INFO* curr_key_part_end= curr_key_part+key_parts;
+        for ( ; curr_key_part < curr_key_part_end; curr_key_part++)
+        {
+          if (curr_key_part->fieldnr == first_key_part[j].fieldnr)
+            break;
+        }
+        if (curr_key_part == curr_key_part_end)
+        {
+          *key_part++= first_key_part[j];
+          *rec_per_key++= 0;
+          keyinfo->ext_key_parts++;
+          keyinfo->ext_key_part_map|= 1 << j;
+        }
+      }
+      if (j == first_key_parts)
+        keyinfo->ext_key_flags= keyinfo->flags | HA_EXT_NOSAME;
+    }
+    share->ext_key_parts+= keyinfo->ext_key_parts;  
+  }
+  keynames=(char*) key_part;
+  strpos+= strnmov(keynames, (char *) strpos, frm_image_end - strpos) - keynames;
+  if (*strpos++) // key names are \0-terminated
+    return 1;
+
+  //reading index comments
+  for (keyinfo= share->key_info, i=0; i < keys; i++, keyinfo++)
+  {
+    if (keyinfo->flags & HA_USES_COMMENT)
+    {
+      if (strpos + 2 >= frm_image_end)
+        return 1;
+      keyinfo->comment.length= uint2korr(strpos);
+      strpos+= 2;
+
+      if (strpos + keyinfo->comment.length >= frm_image_end)
+        return 1;
+      keyinfo->comment.str= strmake_root(&share->mem_root, (char*) strpos,
+                                         keyinfo->comment.length);
+      strpos+= keyinfo->comment.length;
+    } 
+    DBUG_ASSERT(test(keyinfo->flags & HA_USES_COMMENT) == 
+               (keyinfo->comment.length > 0));
+  }
+
+  share->keys= keys; // do it *after* all key_info's are initialized
+
+  return 0;
+}
+
+
+/**
+   Check if a collation has changed number
+
+   @param mysql_version
+   @param current collation number
+
+   @retval new collation number (same as current collation number of no change)
+*/
+
+static uint
+upgrade_collation(ulong mysql_version, uint cs_number)
+{
+  if (mysql_version >= 50300 && mysql_version <= 50399)
+  {
+    switch (cs_number) {
+    case 149: return MY_PAGE2_COLLATION_ID_UCS2;   // ucs2_crotian_ci
+    case 213: return MY_PAGE2_COLLATION_ID_UTF8;   // utf8_crotian_ci
+    }
+  }
+  if ((mysql_version >= 50500 && mysql_version <= 50599) ||
+      (mysql_version >= 100000 && mysql_version <= 100005))
+  {
+    switch (cs_number) {
+    case 149: return MY_PAGE2_COLLATION_ID_UCS2;   // ucs2_crotian_ci
+    case 213: return MY_PAGE2_COLLATION_ID_UTF8;   // utf8_crotian_ci
+    case 214: return MY_PAGE2_COLLATION_ID_UTF32;  // utf32_croatian_ci
+    case 215: return MY_PAGE2_COLLATION_ID_UTF16;  // utf16_croatian_ci
+    case 245: return MY_PAGE2_COLLATION_ID_UTF8MB4;// utf8mb4_croatian_ci
+    }
+  }
+  return cs_number;
+}
+
+
+
 
 /**
   Read data from a binary .frm file image into a TABLE_SHARE
@@ -680,7 +894,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint db_create_options, keys, key_parts, n_length;
   uint com_length, null_bit_pos;
   uint extra_rec_buf_length;
-  uint i,j;
+  uint i;
   bool use_hash;
   char *keynames, *names, *comment_pos;
   const uchar *forminfo, *extra2;
@@ -688,7 +902,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uchar *record, *null_flags, *null_pos;
   const uchar *disk_buff, *strpos;
   ulong pos, record_offset; 
-  ulong *rec_per_key= NULL;
   ulong rec_buff_length;
   handler *handler_file= 0;
   KEY	*keyinfo;
@@ -703,9 +916,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   const uchar *options= 0;
   KEY first_keyinfo;
   uint len;
-  KEY_PART_INFO *first_key_part= NULL;
   uint ext_key_parts= 0;
-  uint first_key_parts= 0;
   plugin_ref se_plugin= 0;
   keyinfo= &first_keyinfo;
   share->ext_key_parts= 0;
@@ -834,12 +1045,18 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->null_field_first= 0;
   if (!frm_image[32])				// New frm file in 3.23
   {
+    uint cs_org= (((uint) frm_image[41]) << 8) + (uint) frm_image[38];
+    uint cs_new= upgrade_collation(share->mysql_version, cs_org);
+    if (cs_org != cs_new)
+      share->incompatible_version|= HA_CREATE_USED_CHARSET;
+    
     share->avg_row_length= uint4korr(frm_image+34);
     share->transactional= (ha_choice) (frm_image[39] & 3);
     share->page_checksum= (ha_choice) ((frm_image[39] >> 2) & 3);
     share->row_type= (enum row_type) frm_image[40];
-    share->table_charset= get_charset((((uint) frm_image[41]) << 8) + 
-                                        (uint) frm_image[38], MYF(0));
+
+    if (cs_new && !(share->table_charset= get_charset(cs_new, MYF(MY_WME))))
+      goto err;
     share->null_field_first= 1;
     share->stats_sample_pages= uint2korr(frm_image+42);
     share->stats_auto_recalc= (enum_stats_auto_recalc)(frm_image[44]);
@@ -857,6 +1074,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
     share->table_charset= default_charset_info;
   }
+
   share->db_record_offset= 1;
   share->max_rows= uint4korr(frm_image+18);
   share->min_rows= uint4korr(frm_image+22);
@@ -869,191 +1087,21 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   if (disk_buff[0] & 0x80)
   {
-    share->keys=      keys=      (disk_buff[1] << 7) | (disk_buff[0] & 0x7f);
+    keys=      (disk_buff[1] << 7) | (disk_buff[0] & 0x7f);
     share->key_parts= key_parts= uint2korr(disk_buff+2);
   }
   else
   {
-    share->keys=      keys=      disk_buff[0];
+    keys=      disk_buff[0];
     share->key_parts= key_parts= disk_buff[1];
   }
   share->keys_for_keyread.init(0);
   share->keys_in_use.init(keys);
-
-  /*
-    At this point we don't have enough information read from the frm file
-    to get a proper handlerton for the interesting engine in order to get
-    properties of this engine.
-  */   
-  /* Currently only InnoDB can use extended keys */
-  share->set_use_ext_keys_flag(legacy_db_type == DB_TYPE_INNODB);
+  ext_key_parts= key_parts;
 
   len= (uint) uint2korr(disk_buff+4);
-  if (!keys)
-  {  
-    if (!(keyinfo = (KEY*) alloc_root(&share->mem_root, len)))
-      goto err;
-    bzero((char*) keyinfo, len);
-    key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo+keys);
-  }
-  strpos= disk_buff+6;
 
-  /*
-    If share->use_ext_keys is set to TRUE we assume that any key
-    can be extended by the components of the primary key whose
-    definition is read first from the frm file.
-    For each key only those fields of the assumed primary key are
-    added that are not included in the proper key definition. 
-    If after all it turns out that there is no primary key the
-    added components are removed from each key.
-
-    When in the future we support others schemes of extending of
-    secondary keys with components of the primary key we'll have
-    to change the type of this flag for an enumeration type.                 
-  */   
-
-  for (i=0 ; i < keys ; i++, keyinfo++)
-  {
-    if (new_frm_ver >= 3)
-    {
-      if (strpos + 8 >= frm_image_end)
-        goto err;
-      keyinfo->flags=	   (uint) uint2korr(strpos) ^ HA_NOSAME;
-      keyinfo->key_length= (uint) uint2korr(strpos+2);
-      keyinfo->user_defined_key_parts=  (uint) strpos[4];
-      keyinfo->algorithm=  (enum ha_key_alg) strpos[5];
-      keyinfo->block_size= uint2korr(strpos+6);
-      strpos+=8;
-    }
-    else
-    {
-      if (strpos + 4 >= frm_image_end)
-        goto err;
-      keyinfo->flags=	 ((uint) strpos[0]) ^ HA_NOSAME;
-      keyinfo->key_length= (uint) uint2korr(strpos+1);
-      keyinfo->user_defined_key_parts=  (uint) strpos[3];
-      keyinfo->algorithm= HA_KEY_ALG_UNDEF;
-      strpos+=4;
-    }
-
-    if (i == 0)
-    {
-      ext_key_parts= key_parts +
-	             (share->use_ext_keys ? first_keyinfo.user_defined_key_parts*(keys-1) : 0); 
-    
-      n_length=keys * sizeof(KEY) + ext_key_parts * sizeof(KEY_PART_INFO);
-      if (!(keyinfo= (KEY*) alloc_root(&share->mem_root,
-				       n_length + len)))
-        goto err;                                   /* purecov: inspected */
-      bzero((char*) keyinfo,n_length);
-      share->key_info= keyinfo;
-      key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo + keys);
-
-      if (!(rec_per_key= (ulong*) alloc_root(&share->mem_root,
-                                             sizeof(ulong) * ext_key_parts)))
-        goto err;
-      first_key_part= key_part;
-      first_key_parts= first_keyinfo.user_defined_key_parts;
-      keyinfo->flags= first_keyinfo.flags;
-      keyinfo->key_length= first_keyinfo.key_length;
-      keyinfo->user_defined_key_parts= first_keyinfo.user_defined_key_parts;
-      keyinfo->algorithm= first_keyinfo.algorithm;
-      if (new_frm_ver >= 3)
-        keyinfo->block_size= first_keyinfo.block_size;
-    }
-
-    keyinfo->key_part=	 key_part;
-    keyinfo->rec_per_key= rec_per_key;
-    for (j=keyinfo->user_defined_key_parts ; j-- ; key_part++)
-    {
-      if (strpos + (new_frm_ver >= 1 ? 9 : 7) >= frm_image_end)
-        goto err;
-      *rec_per_key++=0;
-      key_part->fieldnr=	(uint16) (uint2korr(strpos) & FIELD_NR_MASK);
-      key_part->offset= (uint) uint2korr(strpos+2)-1;
-      key_part->key_type=	(uint) uint2korr(strpos+5);
-      // key_part->field=	(Field*) 0;	// Will be fixed later
-      if (new_frm_ver >= 1)
-      {
-	key_part->key_part_flag= *(strpos+4);
-	key_part->length=	(uint) uint2korr(strpos+7);
-	strpos+=9;
-      }
-      else
-      {
-	key_part->length=	*(strpos+4);
-	key_part->key_part_flag=0;
-	if (key_part->length > 128)
-	{
-	  key_part->length&=127;		/* purecov: inspected */
-	  key_part->key_part_flag=HA_REVERSE_SORT; /* purecov: inspected */
-	}
-	strpos+=7;
-      }
-      key_part->store_length=key_part->length;
-    }
-
-    /*
-      Add primary key to end of extended keys for non unique keys for
-      storage engines that supports it.
-    */
-    keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
-    keyinfo->ext_key_flags= keyinfo->flags;
-    keyinfo->ext_key_part_map= 0;
-    if (share->use_ext_keys && i && !(keyinfo->flags & HA_NOSAME))
-    {
-      keyinfo->ext_key_part_map= 0;
-      for (j= 0; 
-           j < first_key_parts && keyinfo->ext_key_parts < MAX_REF_PARTS;
-           j++)
-      {
-        uint key_parts= keyinfo->user_defined_key_parts;
-        KEY_PART_INFO* curr_key_part= keyinfo->key_part;
-        KEY_PART_INFO* curr_key_part_end= curr_key_part+key_parts;
-        for ( ; curr_key_part < curr_key_part_end; curr_key_part++)
-        {
-          if (curr_key_part->fieldnr == first_key_part[j].fieldnr)
-            break;
-        }
-        if (curr_key_part == curr_key_part_end)
-        {
-          *key_part++= first_key_part[j];
-          *rec_per_key++= 0;
-          keyinfo->ext_key_parts++;
-          keyinfo->ext_key_part_map|= 1 << j;
-        }
-      }
-      if (j == first_key_parts)
-        keyinfo->ext_key_flags= keyinfo->flags | HA_EXT_NOSAME;
-    }
-    share->ext_key_parts+= keyinfo->ext_key_parts;  
-  }
-  keynames=(char*) key_part;
-  strpos+= strnmov(keynames, (char *) strpos, frm_image_end - strpos) - keynames;
-  if (*strpos++) // key names are \0-terminated
-    goto err;
-
-  //reading index comments
-  for (keyinfo= share->key_info, i=0; i < keys; i++, keyinfo++)
-  {
-    if (keyinfo->flags & HA_USES_COMMENT)
-    {
-      if (strpos + 2 >= frm_image_end)
-        goto err;
-      keyinfo->comment.length= uint2korr(strpos);
-      strpos+= 2;
-
-      if (strpos + keyinfo->comment.length >= frm_image_end)
-        goto err;
-      keyinfo->comment.str= strmake_root(&share->mem_root, (char*) strpos,
-                                         keyinfo->comment.length);
-      strpos+= keyinfo->comment.length;
-    } 
-    DBUG_ASSERT(test(keyinfo->flags & HA_USES_COMMENT) == 
-               (keyinfo->comment.length > 0));
-  }
-
-  share->reclength = uint2korr((frm_image+16));
+  share->reclength = uint2korr(frm_image+16);
   share->stored_rec_length= share->reclength;
   if (frm_image[26] == 1)
     share->system= 1;				/* one-record-database */
@@ -1098,7 +1146,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (se_plugin)
         {
           /* bad file, legacy_db_type did not match the name */
-          goto err;
+          sql_print_warning("%s.frm is inconsistent: engine typecode %d, engine name %s (%d)",
+                        share->normalized_path.str, legacy_db_type,
+                        plugin_name(tmp_plugin)->str,
+                        ha_legacy_type(plugin_data(tmp_plugin, handlerton *)));
         }
         /*
           tmp_plugin is locked with a local lock.
@@ -1139,6 +1190,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }
       next_chunk+= str_db_type_length + 2;
     }
+
+    share->set_use_ext_keys_flag(plugin_hton(se_plugin)->flags & HTON_EXTENDED_KEYS);
+
+    if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
+                         new_frm_ver, ext_key_parts,
+                         share, len, &first_keyinfo, keynames))
+      goto err;
+
     if (next_chunk + 5 < buff_end)
     {
       uint32 partition_info_str_len = uint4korr(next_chunk);
@@ -1225,6 +1284,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
     DBUG_ASSERT(next_chunk <= buff_end);
   }
+  else
+  {
+    if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
+                         new_frm_ver, ext_key_parts,
+                         share, len, &first_keyinfo, keynames))
+      goto err;
+  }
+
   share->key_block_size= uint2korr(frm_image+62);
 
   if (share->db_plugin && !plugin_equals(share->db_plugin, se_plugin))
@@ -1260,7 +1327,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                      share->comment.length);
   }
 
-  DBUG_PRINT("info",("i_count: %d  i_parts: %d  index: %d  n_length: %d  int_length: %d  com_length: %d  vcol_screen_length: %d", interval_count,interval_parts, share->keys,n_length,int_length, com_length, vcol_screen_length));
+  DBUG_PRINT("info",("i_count: %d  i_parts: %d  index: %d  n_length: %d  int_length: %d  com_length: %d  vcol_screen_length: %d", interval_count,interval_parts, keys,n_length,int_length, com_length, vcol_screen_length));
 
 
   if (!(field_ptr = (Field **)
@@ -1394,16 +1461,19 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }
       else
       {
-        uint csid= strpos[14] + (((uint) strpos[11]) << 8);
-        if (!csid)
+        uint cs_org= strpos[14] + (((uint) strpos[11]) << 8);
+        uint cs_new= upgrade_collation(share->mysql_version, cs_org);
+        if (cs_org != cs_new)
+          share->incompatible_version|= HA_CREATE_USED_CHARSET;
+        if (!cs_new)
           charset= &my_charset_bin;
-        else if (!(charset= get_charset(csid, MYF(0))))
+        else if (!(charset= get_charset(cs_new, MYF(0))))
         {
-          const char *csname= get_charset_name((uint) csid);
+          const char *csname= get_charset_name((uint) cs_new);
           char tmp[10];
           if (!csname || csname[0] =='?')
           {
-            my_snprintf(tmp, sizeof(tmp), "#%d", csid);
+            my_snprintf(tmp, sizeof(tmp), "#%d", cs_new);
             csname= tmp;
           }
           my_printf_error(ER_UNKNOWN_COLLATION,
@@ -1614,12 +1684,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }
       else
       {
-        add_first_key_parts= first_key_parts;
+        add_first_key_parts= first_keyinfo.user_defined_key_parts;
         /* 
           Do not add components of the primary key starting from
           the major component defined over the beginning of a field.
 	*/
-	for (i= 0; i < first_key_parts; i++)
+	for (i= 0; i < first_keyinfo.user_defined_key_parts; i++)
 	{
           uint fieldnr= keyinfo[0].key_part[i].fieldnr;
           if (share->field[fieldnr-1]->key_length() !=
@@ -1632,7 +1702,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }   
     }
 
-    for (uint key=0 ; key < share->keys ; key++,keyinfo++)
+    for (uint key=0 ; key < keys ; key++,keyinfo++)
     {
       uint usable_parts= 0;
       keyinfo->name=(char*) share->keynames.type_names[key];
@@ -1902,7 +1972,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   {
     reg_field= *share->found_next_number_field;
     if ((int) (share->next_number_index= (uint)
-	       find_ref_key(share->key_info, share->keys,
+	       find_ref_key(share->key_info, keys,
                             share->default_values, reg_field,
 			    &share->next_number_key_offset,
                             &share->next_number_keypart)) < 0)
@@ -1973,7 +2043,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 }
 
 
-static bool sql_unusable_for_discovery(THD *thd, const char *sql)
+static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
+                                       const char *sql)
 {
   LEX *lex= thd->lex;
   HA_CREATE_INFO *create_info= &lex->create_info;
@@ -2005,7 +2076,7 @@ static bool sql_unusable_for_discovery(THD *thd, const char *sql)
   if (create_info->data_file_name || create_info->index_file_name)
     return 1;
   // ... engine
-  if (create_info->used_fields & HA_CREATE_USED_ENGINE)
+  if (create_info->db_type && create_info->db_type != engine)
     return 1;
 
   return 0;
@@ -2025,6 +2096,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   LEX tmp_lex;
   KEY *unused1;
   uint unused2;
+  handlerton *hton= plugin_hton(db_plugin);
   LEX_CUSTRING frm= {0,0};
 
   DBUG_ENTER("TABLE_SHARE::init_from_sql_statement_string");
@@ -2056,10 +2128,10 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   lex_start(thd);
 
   if ((error= parse_sql(thd, & parser_state, NULL) || 
-              sql_unusable_for_discovery(thd, sql_copy)))
+              sql_unusable_for_discovery(thd, hton, sql_copy)))
     goto ret;
 
-  thd->lex->create_info.db_type= plugin_hton(db_plugin);
+  thd->lex->create_info.db_type= hton;
 
   if (tabledef_version.str)
     thd->lex->create_info.tabledef_version= tabledef_version;
@@ -2191,7 +2263,7 @@ bool fix_vcol_expr(THD *thd,
   Item* func_expr= vcol_info->expr_item;
   bool result= TRUE;
   TABLE_LIST tables;
-  int error;
+  int error= 0;
   const char *save_where;
   Field **ptr, *field;
   enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
@@ -2204,7 +2276,11 @@ bool fix_vcol_expr(THD *thd,
   thd->where= "virtual column function";
 
   /* Fix fields referenced to by the virtual column function */
-  error= func_expr->fix_fields(thd, (Item**)0);
+  if (!func_expr->fixed)
+    error= func_expr->fix_fields(thd, &vcol_info->expr_item);
+  /* fix_fields could change the expression */
+  func_expr= vcol_info->expr_item;
+  /* Number of columns will be checked later */
 
   if (unlikely(error))
   {
@@ -2461,6 +2537,13 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->db_stat= db_stat;
   outparam->write_row_record= NULL;
 
+  if (share->incompatible_version &&
+      !(ha_open_flags & (HA_OPEN_FOR_ALTER | HA_OPEN_FOR_REPAIR)))
+  {
+    /* one needs to run mysql_upgrade on the table */
+    error= OPEN_FRM_NEEDS_REBUILD;
+    goto err;
+  }
   init_sql_alloc(&outparam->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   if (outparam->alias.copy(alias, strlen(alias), table_alias_charset))
@@ -2983,6 +3066,11 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
   case OPEN_FRM_READ_ERROR:
     strxmov(buff, share->normalized_path.str, reg_ext, NullS);
     my_error(ER_ERROR_ON_READ, errortype, buff, db_errno);
+    break;
+  case OPEN_FRM_NEEDS_REBUILD:
+    strxnmov(buff, sizeof(buff)-1,
+             share->db.str, ".", share->table_name.str, NullS);
+    my_error(ER_TABLE_NEEDS_REBUILD, errortype, buff);
     break;
   }
   DBUG_VOID_RETURN;

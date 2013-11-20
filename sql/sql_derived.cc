@@ -395,8 +395,6 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     if (dt_select->options & OPTION_SCHEMA_TABLE)
       parent_lex->options |= OPTION_SCHEMA_TABLE;
 
-    parent_lex->cond_count+= dt_select->cond_count;
-
     if (!derived->get_unit()->prepared)
     {
       dt_select->leaf_tables.empty();
@@ -619,7 +617,17 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   {
     sl->context.outer_context= 0;
     // Prepare underlying views/DT first.
-    sl->handle_derived(lex, DT_PREPARE);
+    if ((res= sl->handle_derived(lex, DT_PREPARE)))
+      goto exit;
+
+    if (derived->outer_join)
+    {
+      /* Mark that table is part of OUTER JOIN and fields may be NULL */
+      for (TABLE_LIST *cursor= (TABLE_LIST*) sl->table_list.first;
+           cursor;
+           cursor= cursor->next_local)
+        cursor->outer_join|= JOIN_TYPE_OUTER;
+    }
   }
 
   unit->derived= derived;
@@ -714,6 +722,10 @@ exit:
     /* Add new temporary table to list of open derived tables */
     table->next= thd->derived_tables;
     thd->derived_tables= table;
+
+    /* If table is used by a left join, mark that any column may be null */
+    if (derived->outer_join)
+      table->maybe_null= 1;
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);

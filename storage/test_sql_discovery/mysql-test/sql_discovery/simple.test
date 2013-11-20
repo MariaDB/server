@@ -91,6 +91,10 @@ select * from t1;
 select * from t2;
 drop table t1;
 
+set @@test_sql_discovery_statement='t1:create table t1 (a int) engine=test_sql_discovery';
+select * from t1;
+drop table t1;
+
 # and something more complex
 set @@test_sql_discovery_statement='t1:
 create table t1 (

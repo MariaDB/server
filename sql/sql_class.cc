@@ -659,6 +659,17 @@ void thd_set_ha_data(THD *thd, const struct handlerton *hton,
 }
 
 
+/**
+  Allow storage engine to wakeup commits waiting in THD::wait_for_prior_commit.
+  @see thd_wakeup_subsequent_commits() definition in plugin.h
+*/
+extern "C"
+void thd_wakeup_subsequent_commits(THD *thd, int wakeup_error)
+{
+  thd->wakeup_subsequent_commits(wakeup_error);
+}
+
+
 extern "C"
 long long thd_test_options(const THD *thd, long long test_options)
 {
@@ -818,7 +829,7 @@ bool Drop_table_error_handler::handle_condition(THD *thd,
 THD::THD()
    :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
               /* statement id */ 0),
-   rli_fake(0), rli_slave(NULL),
+   rli_fake(0), rgi_fake(0), rgi_slave(NULL),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
    binlog_table_maps(0),
@@ -849,6 +860,7 @@ THD::THD()
 #if defined(ENABLED_DEBUG_SYNC)
    debug_sync_control(0),
 #endif /* defined(ENABLED_DEBUG_SYNC) */
+   wait_for_commit_ptr(0),
     main_da(0, false, false),
    m_stmt_da(&main_da)
 {
@@ -1001,7 +1013,7 @@ THD::THD()
   thr_lock_info_init(&lock_info); /* safety: will be reset after start */
 
   m_internal_handler= NULL;
-  m_binlog_invoker= FALSE;
+  m_binlog_invoker= INVOKER_NONE;
   arena_for_cached_items= 0;
   memset(&invoker_user, 0, sizeof(invoker_user));
   memset(&invoker_host, 0, sizeof(invoker_host));
@@ -1339,6 +1351,7 @@ void THD::init(void)
   reset_binlog_local_stmt_filter();
   set_status_var_init();
   bzero((char *) &org_status_var, sizeof(org_status_var));
+  start_bytes_received= 0;
 
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;
@@ -1563,6 +1576,11 @@ THD::~THD()
   dbug_sentry= THD_SENTRY_GONE;
 #endif  
 #ifndef EMBEDDED_LIBRARY
+  if (rgi_fake)
+  {
+    delete rgi_fake;
+    rgi_fake= NULL;
+  }
   if (rli_fake)
   {
     delete rli_fake;
@@ -1570,8 +1588,8 @@ THD::~THD()
   }
   
   mysql_audit_free_thd(this);
-  if (rli_slave)
-    rli_slave->cleanup_after_session();
+  if (rgi_slave)
+    rgi_slave->cleanup_after_session();
 #endif
 
   free_root(&main_mem_root, MYF(0));
@@ -1998,7 +2016,7 @@ void THD::cleanup_after_query()
         which is intended to consume its event (there can be other
         SET statements between them).
     */
-    if ((rli_slave || rli_fake) && is_update_query(lex->sql_command))
+    if ((rgi_slave || rli_fake) && is_update_query(lex->sql_command))
       auto_inc_intervals_forced.empty();
 #endif
   }
@@ -2025,11 +2043,11 @@ void THD::cleanup_after_query()
   where= THD::DEFAULT_WHERE;
   /* reset table map for multi-table update */
   table_map_for_update= 0;
-  m_binlog_invoker= FALSE;
+  m_binlog_invoker= INVOKER_NONE;
 
 #ifndef EMBEDDED_LIBRARY
-  if (rli_slave)
-    rli_slave->cleanup_after_query();
+  if (rgi_slave)
+    rgi_slave->cleanup_after_query();
 #endif
 
   DBUG_VOID_RETURN;
@@ -2224,6 +2242,7 @@ int THD::send_explain_fields(select_result *result)
 {
   List<Item> field_list;
   make_explain_field_list(field_list);
+  result->prepare(field_list, NULL);
   return (result->send_result_set_metadata(field_list,
                                            Protocol::SEND_NUM_ROWS | 
                                            Protocol::SEND_EOF));
@@ -2479,7 +2498,8 @@ int select_send::send_data(List<Item> &items)
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("select_send::send_data");
 
-  if (unit->offset_limit_cnt)
+  /* unit is not set when using 'delete ... returning' */
+  if (unit && unit->offset_limit_cnt)
   {						// using limit offset,count
     unit->offset_limit_cnt--;
     DBUG_RETURN(FALSE);
@@ -3636,7 +3656,8 @@ select_materialize_with_stats::
 create_result_table(THD *thd_arg, List<Item> *column_types,
                     bool is_union_distinct, ulonglong options,
                     const char *table_alias, bool bit_fields_as_long,
-                    bool create_table)
+                    bool create_table,
+                    bool keep_row_order)
 {
   DBUG_ASSERT(table == 0);
   tmp_table_param.field_count= column_types->elements;
@@ -3644,7 +3665,8 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
 
   if (! (table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                  (ORDER*) 0, is_union_distinct, 1,
-                                 options, HA_POS_ERROR, (char*) table_alias)))
+                                 options, HA_POS_ERROR, (char*) table_alias,
+                                 keep_row_order)))
     return TRUE;
 
   col_stat= (Column_statistics*) table->in_use->alloc(table->s->fields *
@@ -3778,7 +3800,7 @@ void Security_context::init()
 {
   host= user= ip= external_user= 0;
   host_or_ip= "connecting host";
-  priv_user[0]= priv_host[0]= proxy_user[0]= '\0';
+  priv_user[0]= priv_host[0]= proxy_user[0]= priv_role[0]= '\0';
   master_access= 0;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   db_access= NO_ACCESS;
@@ -4648,9 +4670,9 @@ void THD::leave_locked_tables_mode()
   locked_tables_mode= LTM_NONE;
 }
 
-void THD::get_definer(LEX_USER *definer)
+void THD::get_definer(LEX_USER *definer, bool role)
 {
-  binlog_invoker();
+  binlog_invoker(role);
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   if (slave_thread && has_invoker())
   {
@@ -4662,7 +4684,7 @@ void THD::get_definer(LEX_USER *definer)
   }
   else
 #endif
-    get_default_definer(this, definer);
+    get_default_definer(this, definer, role);
 }
 
 
@@ -6009,6 +6031,273 @@ THD::signal_wakeup_ready()
   wakeup_ready= true;
   mysql_mutex_unlock(&LOCK_wakeup_ready);
   mysql_cond_signal(&COND_wakeup_ready);
+}
+
+
+void THD::rgi_lock_temporary_tables()
+{
+  mysql_mutex_lock(&rgi_slave->rli->data_lock);
+  temporary_tables= rgi_slave->rli->save_temporary_tables;
+}
+
+void THD::rgi_unlock_temporary_tables()
+{
+  rgi_slave->rli->save_temporary_tables= temporary_tables;
+  mysql_mutex_unlock(&rgi_slave->rli->data_lock);
+}
+
+bool THD::rgi_have_temporary_tables()
+{
+  return rgi_slave->rli->save_temporary_tables != 0;
+}
+
+
+wait_for_commit::wait_for_commit()
+  : subsequent_commits_list(0), next_subsequent_commit(0), waitee(0),
+    opaque_pointer(0),
+    waiting_for_commit(false), wakeup_error(0),
+    wakeup_subsequent_commits_running(false)
+{
+  mysql_mutex_init(key_LOCK_wait_commit, &LOCK_wait_commit, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wait_commit, &COND_wait_commit, 0);
+}
+
+
+wait_for_commit::~wait_for_commit()
+{
+  /*
+    Since we do a dirty read of the waiting_for_commit flag in
+    wait_for_prior_commit() and in unregister_wait_for_prior_commit(), we need
+    to take extra care before freeing the wait_for_commit object.
+
+    It is possible for the waitee to be pre-empted inside wakeup(), just after
+    it has cleared the waiting_for_commit flag and before it has released the
+    LOCK_wait_commit mutex. And then it is possible for the waiter to find the
+    flag cleared in wait_for_prior_commit() and go finish up things and
+    de-allocate the LOCK_wait_commit and COND_wait_commit objects before the
+    waitee has time to be re-scheduled and finish unlocking the mutex and
+    signalling the condition. This would lead to the waitee accessing no
+    longer valid memory.
+
+    To prevent this, we do an extra lock/unlock of the mutex here before
+    deallocation; this makes certain that any waitee has completed wakeup()
+    first.
+  */
+  mysql_mutex_lock(&LOCK_wait_commit);
+  mysql_mutex_unlock(&LOCK_wait_commit);
+
+  mysql_mutex_destroy(&LOCK_wait_commit);
+  mysql_cond_destroy(&COND_wait_commit);
+}
+
+
+void
+wait_for_commit::wakeup(int wakeup_error)
+{
+  /*
+    We signal each waiter on their own condition and mutex (rather than using
+    pthread_cond_broadcast() or something like that).
+
+    Otherwise we would need to somehow ensure that they were done
+    waking up before we could allow this THD to be destroyed, which would
+    be annoying and unnecessary.
+
+    Note that wakeup_subsequent_commits2() depends on this function being a
+    full memory barrier (it is, because it takes a mutex lock).
+
+  */
+  mysql_mutex_lock(&LOCK_wait_commit);
+  waiting_for_commit= false;
+  this->wakeup_error= wakeup_error;
+  /*
+    Note that it is critical that the mysql_cond_signal() here is done while
+    still holding the mutex. As soon as we release the mutex, the waiter might
+    deallocate the condition object.
+  */
+  mysql_cond_signal(&COND_wait_commit);
+  mysql_mutex_unlock(&LOCK_wait_commit);
+}
+
+
+/*
+  Register that the next commit of this THD should wait to complete until
+  commit in another THD (the waitee) has completed.
+
+  The wait may occur explicitly, with the waiter sitting in
+  wait_for_prior_commit() until the waitee calls wakeup_subsequent_commits().
+
+  Alternatively, the TC (eg. binlog) may do the commits of both waitee and
+  waiter at once during group commit, resolving both of them in the right
+  order.
+
+  Only one waitee can be registered for a waiter; it must be removed by
+  wait_for_prior_commit() or unregister_wait_for_prior_commit() before a new
+  one is registered. But it is ok for several waiters to register a wait for
+  the same waitee. It is also permissible for one THD to be both a waiter and
+  a waitee at the same time.
+*/
+void
+wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
+{
+  waiting_for_commit= true;
+  wakeup_error= 0;
+  DBUG_ASSERT(!this->waitee /* No prior registration allowed */);
+  this->waitee= waitee;
+
+  mysql_mutex_lock(&waitee->LOCK_wait_commit);
+  /*
+    If waitee is in the middle of wakeup, then there is nothing to wait for,
+    so we need not register. This is necessary to avoid a race in unregister,
+    see comments on wakeup_subsequent_commits2() for details.
+  */
+  if (waitee->wakeup_subsequent_commits_running)
+    waiting_for_commit= false;
+  else
+  {
+    /*
+      Put ourself at the head of the waitee's list of transactions that must
+      wait for it to commit first.
+     */
+    this->next_subsequent_commit= waitee->subsequent_commits_list;
+    waitee->subsequent_commits_list= this;
+  }
+  mysql_mutex_unlock(&waitee->LOCK_wait_commit);
+}
+
+
+/*
+  Wait for commit of another transaction to complete, as already registered
+  with register_wait_for_prior_commit(). If the commit already completed,
+  returns immediately.
+*/
+int
+wait_for_commit::wait_for_prior_commit2()
+{
+  mysql_mutex_lock(&LOCK_wait_commit);
+  while (waiting_for_commit)
+    mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
+  mysql_mutex_unlock(&LOCK_wait_commit);
+  waitee= NULL;
+  return wakeup_error;
+}
+
+
+/*
+  Wakeup anyone waiting for us to have committed.
+
+  Note about locking:
+
+  We have a potential race or deadlock between wakeup_subsequent_commits() in
+  the waitee and unregister_wait_for_prior_commit() in the waiter.
+
+  Both waiter and waitee needs to take their own lock before it is safe to take
+  a lock on the other party - else the other party might disappear and invalid
+  memory data could be accessed. But if we take the two locks in different
+  order, we may end up in a deadlock.
+
+  The waiter needs to lock the waitee to delete itself from the list in
+  unregister_wait_for_prior_commit(). Thus wakeup_subsequent_commits() can not
+  hold its own lock while locking waiters, as this could lead to deadlock.
+
+  So we need to prevent unregister_wait_for_prior_commit() running while wakeup
+  is in progress - otherwise the unregister could complete before the wakeup,
+  leading to incorrect spurious wakeup or accessing invalid memory.
+
+  However, if we are in the middle of running wakeup_subsequent_commits(), then
+  there is no need for unregister_wait_for_prior_commit() in the first place -
+  the waiter can just do a normal wait_for_prior_commit(), as it will be
+  immediately woken up.
+
+  So the solution to the potential race/deadlock is to set a flag in the waitee
+  that wakeup_subsequent_commits() is in progress. When this flag is set,
+  unregister_wait_for_prior_commit() becomes just wait_for_prior_commit().
+
+  Then also register_wait_for_prior_commit() needs to check if
+  wakeup_subsequent_commits() is running, and skip the registration if
+  so. This is needed in case a new waiter manages to register itself and
+  immediately try to unregister while wakeup_subsequent_commits() is
+  running. Else the new waiter would also wait rather than unregister, but it
+  would not be woken up until next wakeup, which could be potentially much
+  later than necessary.
+*/
+
+void
+wait_for_commit::wakeup_subsequent_commits2(int wakeup_error)
+{
+  wait_for_commit *waiter;
+
+  mysql_mutex_lock(&LOCK_wait_commit);
+  wakeup_subsequent_commits_running= true;
+  waiter= subsequent_commits_list;
+  subsequent_commits_list= NULL;
+  mysql_mutex_unlock(&LOCK_wait_commit);
+
+  while (waiter)
+  {
+    /*
+      Important: we must grab the next pointer before waking up the waiter;
+      once the wakeup is done, the field could be invalidated at any time.
+    */
+    wait_for_commit *next= waiter->next_subsequent_commit;
+    waiter->wakeup(wakeup_error);
+    waiter= next;
+  }
+
+  /*
+    We need a full memory barrier between walking the list above, and clearing
+    the flag wakeup_subsequent_commits_running below. This barrier is needed
+    to ensure that no other thread will start to modify the list pointers
+    before we are done traversing the list.
+
+    But wait_for_commit::wakeup() does a full memory barrier already (it locks
+    a mutex), so no extra explicit barrier is needed here.
+  */
+  wakeup_subsequent_commits_running= false;
+}
+
+
+/* Cancel a previously registered wait for another THD to commit before us. */
+void
+wait_for_commit::unregister_wait_for_prior_commit2()
+{
+  mysql_mutex_lock(&LOCK_wait_commit);
+  if (waiting_for_commit)
+  {
+    wait_for_commit *loc_waitee= this->waitee;
+    wait_for_commit **next_ptr_ptr, *cur;
+    mysql_mutex_lock(&loc_waitee->LOCK_wait_commit);
+    if (loc_waitee->wakeup_subsequent_commits_running)
+    {
+      /*
+        When a wakeup is running, we cannot safely remove ourselves from the
+        list without corrupting it. Instead we can just wait, as wakeup is
+        already in progress and will thus be immediate.
+
+        See comments on wakeup_subsequent_commits2() for more details.
+      */
+      mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
+      while (waiting_for_commit)
+        mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
+    }
+    else
+    {
+      /* Remove ourselves from the list in the waitee. */
+      next_ptr_ptr= &loc_waitee->subsequent_commits_list;
+      while ((cur= *next_ptr_ptr) != NULL)
+      {
+        if (cur == this)
+        {
+          *next_ptr_ptr= this->next_subsequent_commit;
+          break;
+        }
+        next_ptr_ptr= &cur->next_subsequent_commit;
+      }
+      waiting_for_commit= false;
+      mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
+    }
+  }
+  mysql_mutex_unlock(&LOCK_wait_commit);
+  this->waitee= NULL;
 }
 
 

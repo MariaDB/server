@@ -16,7 +16,8 @@
 INCLUDE_DIRECTORIES(
 ${CMAKE_SOURCE_DIR}/include 
 ${CMAKE_SOURCE_DIR}/sql 
-${CMAKE_SOURCE_DIR}/regex 
+${CMAKE_BINARY_DIR}/pcre 
+${CMAKE_SOURCE_DIR}/pcre 
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql
@@ -25,7 +26,6 @@ ${CMAKE_BINARY_DIR}/sql
 SET(GEN_SOURCES
 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h 
 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
 ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h 
 )
 
@@ -82,6 +82,7 @@ SET (SQL_SOURCE
                sql_reload.cc sql_cmd.h
 
                # added in MariaDB:
+               sql_explain.h sql_explain.cc
                sql_lifo_buffer.h sql_join_cache.h sql_join_cache.cc
                create_options.cc multi_range_read.cc
                opt_index_cond_pushdown.cc opt_subselect.cc
@@ -90,8 +91,9 @@ SET (SQL_SOURCE
 			   threadpool_common.cc 
 			   ../sql-common/mysql_async.c
                my_apc.cc my_apc.h
-               rpl_gtid.cc
+               rpl_gtid.cc rpl_parallel.cc
                table_cache.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 			   )
@@ -109,8 +111,8 @@ ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 ADD_DEPENDENCIES(sql GenServerSource)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
-  mysys mysys_ssl dbug strings vio regex
-  ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
+  mysys mysys_ssl dbug strings vio pcre ${LIBJEMALLOC}
+  ${LIBWRAP} ${LIBCRYPT} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT}
   ${SSL_LIBRARIES})
 
 IF(WIN32)

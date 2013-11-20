@@ -87,15 +87,6 @@
 /* Chars needed to store LONGLONG, excluding trailing '\0'. */
 #define LONGLONG_LEN 20
 
-/* general_log or slow_log tables under mysql database */
-static inline my_bool general_log_or_slow_log_tables(const char *db, 
-                                                     const char *table)
-{
-  return (strcmp(db, "mysql") == 0) &&
-         ((strcmp(table, "general_log") == 0) ||
-          (strcmp(table, "slow_log") == 0));
-}
-
 static void add_load_option(DYNAMIC_STRING *str, const char *option,
                              const char *option_value);
 static ulong find_set(TYPELIB *lib, const char *x, uint length,
@@ -1551,6 +1542,9 @@ static int connect_to_db(char *host, char *user,char *passwd)
   if (opt_default_auth && *opt_default_auth)
     mysql_options(&mysql_connection, MYSQL_DEFAULT_AUTH, opt_default_auth);
 
+  mysql_options(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
+  mysql_options4(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_ADD,
+                 "program_name", "mysqldump");
   mysql= &mysql_connection;          /* So we can mysql_close() it properly */
   if (!mysql_real_connect(&mysql_connection,host,user,passwd,
                           NULL,opt_mysql_port,opt_mysql_unix_port, 0))
@@ -2468,6 +2462,15 @@ static uint dump_routines_for_db(char *db)
   if (lock_tables)
     (void) mysql_query_with_error_report(mysql, 0, "UNLOCK TABLES");
   DBUG_RETURN(0);
+}
+
+/* general_log or slow_log tables under mysql database */
+static inline my_bool general_log_or_slow_log_tables(const char *db,
+                                                     const char *table)
+{
+  return (!my_strcasecmp(charset_info, db, "mysql")) &&
+          (!my_strcasecmp(charset_info, table, "general_log") ||
+           !my_strcasecmp(charset_info, table, "slow_log"));
 }
 
 /*
@@ -4344,7 +4347,8 @@ static int dump_all_tables_in_db(char *database)
   char table_buff[NAME_LEN*2+3];
   char hash_key[2*NAME_LEN+2];  /* "db.tablename" */
   char *afterdot;
-  int using_mysql_db= my_strcasecmp(&my_charset_latin1, database, "mysql");
+  my_bool general_log_table_exists= 0, slow_log_table_exists=0;
+  int using_mysql_db= !my_strcasecmp(charset_info, database, "mysql");
   DBUG_ENTER("dump_all_tables_in_db");
 
   afterdot= strmov(hash_key, database);
@@ -4355,22 +4359,6 @@ static int dump_all_tables_in_db(char *database)
   if (opt_xml)
     print_xml_tag(md_result_file, "", "\n", "database", "name=", database, NullS);
 
-  if (strcmp(database, "mysql") == 0)
-  {
-    char table_type[NAME_LEN];
-    char ignore_flag;
-    uint num_fields;
-    num_fields= get_table_structure((char *) "general_log", 
-                                    database, table_type, &ignore_flag);
-    if (num_fields == 0)
-      verbose_msg("-- Warning: get_table_structure() failed with some internal "
-                  "error for 'general_log' table\n");
-    num_fields= get_table_structure((char *) "slow_log", 
-                                    database, table_type, &ignore_flag);
-    if (num_fields == 0)
-      verbose_msg("-- Warning: get_table_structure() failed with some internal "
-                  "error for 'slow_log' table\n");
-  }
   if (lock_tables)
   {
     DYNAMIC_STRING query;
@@ -4416,6 +4404,26 @@ static int dump_all_tables_in_db(char *database)
         }
       }
     }
+    else
+    {
+      /*
+        If general_log and slow_log exists in the 'mysql' database,
+         we should dump the table structure. But we cannot
+         call get_table_structure() here as 'LOCK TABLES' query got executed
+         above on the session and that 'LOCK TABLES' query does not contain
+         'general_log' and 'slow_log' tables. (you cannot acquire lock
+         on log tables). Hence mark the existence of these log tables here and
+         after 'UNLOCK TABLES' query is executed on the session, get the table
+         structure from server and dump it in the file.
+      */
+      if (using_mysql_db)
+      {
+        if (!my_strcasecmp(charset_info, table, "general_log"))
+          general_log_table_exists= 1;
+        else if (!my_strcasecmp(charset_info, table, "slow_log"))
+          slow_log_table_exists= 1;
+      }
+    }
   }
   if (opt_events && mysql_get_server_version(mysql) >= 50106)
   {
@@ -4434,7 +4442,26 @@ static int dump_all_tables_in_db(char *database)
   }
   if (lock_tables)
     (void) mysql_query_with_error_report(mysql, 0, "UNLOCK TABLES");
-  if (flush_privileges && using_mysql_db == 0)
+  if (using_mysql_db)
+  {
+    char table_type[NAME_LEN];
+    char ignore_flag;
+    if (general_log_table_exists)
+    {
+      if (!get_table_structure((char *) "general_log",
+                               database, table_type, &ignore_flag) )
+        verbose_msg("-- Warning: get_table_structure() failed with some internal "
+                    "error for 'general_log' table\n");
+    }
+    if (slow_log_table_exists)
+    {
+      if (!get_table_structure((char *) "slow_log",
+                               database, table_type, &ignore_flag) )
+        verbose_msg("-- Warning: get_table_structure() failed with some internal "
+                    "error for 'slow_log' table\n");
+    }
+  }
+  if (flush_privileges && using_mysql_db)
   {
     fprintf(md_result_file,"\n--\n-- Flush Grant Tables \n--\n");
     fprintf(md_result_file,"\n/*! FLUSH PRIVILEGES */;\n");
@@ -5120,6 +5147,7 @@ char check_if_ignore_table(const char *table_name, char *table_type)
     if (!opt_no_data &&
         (!my_strcasecmp(&my_charset_latin1, table_type, "MRG_MyISAM") ||
          !strcmp(table_type,"MRG_ISAM") ||
+         !strcmp(table_type,"CONNECT") ||
          !strcmp(table_type,"FEDERATED")))
       result= IGNORE_DATA;
   }

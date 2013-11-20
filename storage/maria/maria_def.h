@@ -568,7 +568,6 @@ typedef struct st_maria_block_scan
   ulonglong row_changes;
 } MARIA_BLOCK_SCAN;
 
-//typedef ICP_RESULT (*index_cond_func_t)(void *param);
 
 struct st_maria_handler
 {
@@ -931,9 +930,10 @@ extern PSI_thread_key key_thread_checkpoint, key_thread_find_all_keys,
 extern PSI_file_key key_file_translog, key_file_kfile, key_file_dfile,
                     key_file_control, key_file_tmp;
 
-extern PSI_stage_info stage_waiting_for_a_resource;
-
 #endif
+
+/* Note that PSI_stage_info globals must always be declared. */
+extern PSI_stage_info stage_waiting_for_a_resource;
 
 /* This is used by _ma_calc_xxx_key_length och _ma_store_key */
 typedef struct st_maria_s_param

@@ -1151,6 +1151,19 @@ protected:
 };
 
 
+class Create_func_from_base64 : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_from_base64 s_singleton;
+
+protected:
+  Create_func_from_base64() {}
+  virtual ~Create_func_from_base64() {}
+};
+
+
 class Create_func_from_days : public Create_func_arg1
 {
 public:
@@ -2015,6 +2028,45 @@ protected:
 };
 
 
+class Create_func_regexp_instr : public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_regexp_instr s_singleton;
+
+protected:
+  Create_func_regexp_instr() {}
+  virtual ~Create_func_regexp_instr() {}
+};
+
+
+class Create_func_regexp_replace : public Create_func_arg3
+{
+public:
+  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3);
+
+  static Create_func_regexp_replace s_singleton;
+
+protected:
+  Create_func_regexp_replace() {}
+  virtual ~Create_func_regexp_replace() {}
+};
+
+
+class Create_func_regexp_substr : public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_regexp_substr s_singleton;
+
+protected:
+  Create_func_regexp_substr() {}
+  virtual ~Create_func_regexp_substr() {}
+};
+
+
 class Create_func_radians : public Create_func_arg1
 {
 public:
@@ -2354,6 +2406,19 @@ public:
 protected:
   Create_func_timediff() {}
   virtual ~Create_func_timediff() {}
+};
+
+
+class Create_func_to_base64 : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_to_base64 s_singleton;
+
+protected:
+  Create_func_to_base64() {}
+  virtual ~Create_func_to_base64() {}
 };
 
 
@@ -3812,6 +3877,16 @@ Create_func_format::create_native(THD *thd, LEX_STRING name,
 }
 
 
+Create_func_from_base64 Create_func_from_base64::s_singleton;
+
+
+Item *
+Create_func_from_base64::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_from_base64(arg1);
+}
+
+
 Create_func_found_rows Create_func_found_rows::s_singleton;
 
 Item*
@@ -4707,6 +4782,33 @@ Create_func_quote::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_regexp_instr Create_func_regexp_instr::s_singleton;
+
+Item*
+Create_func_regexp_instr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_regexp_instr(arg1, arg2);
+}
+
+
+Create_func_regexp_replace Create_func_regexp_replace::s_singleton;
+
+Item*
+Create_func_regexp_replace::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
+{
+  return new (thd->mem_root) Item_func_regexp_replace(arg1, arg2, arg3);
+}
+
+
+Create_func_regexp_substr Create_func_regexp_substr::s_singleton;
+
+Item*
+Create_func_regexp_substr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_regexp_substr(arg1, arg2);
+}
+
+
 Create_func_radians Create_func_radians::s_singleton;
 
 Item*
@@ -5037,6 +5139,15 @@ Item*
 Create_func_timediff::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   return new (thd->mem_root) Item_func_timediff(arg1, arg2);
+}
+
+
+Create_func_to_base64 Create_func_to_base64::s_singleton;
+
+Item*
+Create_func_to_base64::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_to_base64(arg1);
 }
 
 
@@ -5393,6 +5504,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("FLOOR") }, BUILDER(Create_func_floor)},
   { { C_STRING_WITH_LEN("FORMAT") }, BUILDER(Create_func_format)},
   { { C_STRING_WITH_LEN("FOUND_ROWS") }, BUILDER(Create_func_found_rows)},
+  { { C_STRING_WITH_LEN("FROM_BASE64") }, BUILDER(Create_func_from_base64)},
   { { C_STRING_WITH_LEN("FROM_DAYS") }, BUILDER(Create_func_from_days)},
   { { C_STRING_WITH_LEN("FROM_UNIXTIME") }, BUILDER(Create_func_from_unixtime)},
   { { C_STRING_WITH_LEN("GEOMCOLLFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
@@ -5490,6 +5602,9 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("POW") }, BUILDER(Create_func_pow)},
   { { C_STRING_WITH_LEN("POWER") }, BUILDER(Create_func_pow)},
   { { C_STRING_WITH_LEN("QUOTE") }, BUILDER(Create_func_quote)},
+  { { C_STRING_WITH_LEN("REGEXP_INSTR") }, BUILDER(Create_func_regexp_instr)},
+  { { C_STRING_WITH_LEN("REGEXP_REPLACE") }, BUILDER(Create_func_regexp_replace)},
+  { { C_STRING_WITH_LEN("REGEXP_SUBSTR") }, BUILDER(Create_func_regexp_substr)},
   { { C_STRING_WITH_LEN("RADIANS") }, BUILDER(Create_func_radians)},
   { { C_STRING_WITH_LEN("RAND") }, BUILDER(Create_func_rand)},
   { { C_STRING_WITH_LEN("RELEASE_LOCK") }, BUILDER(Create_func_release_lock)},
@@ -5576,6 +5691,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("TIME_FORMAT") }, BUILDER(Create_func_time_format)},
   { { C_STRING_WITH_LEN("TIME_TO_SEC") }, BUILDER(Create_func_time_to_sec)},
   { { C_STRING_WITH_LEN("TOUCHES") }, GEOM_BUILDER(Create_func_touches)},
+  { { C_STRING_WITH_LEN("TO_BASE64") }, BUILDER(Create_func_to_base64)},
   { { C_STRING_WITH_LEN("TO_DAYS") }, BUILDER(Create_func_to_days)},
   { { C_STRING_WITH_LEN("TO_SECONDS") }, BUILDER(Create_func_to_seconds)},
   { { C_STRING_WITH_LEN("UCASE") }, BUILDER(Create_func_ucase)},

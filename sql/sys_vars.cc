@@ -61,6 +61,7 @@
 #include "threadpool.h"
 #include "sql_repl.h"
 #include "opt_range.h"
+#include "rpl_parallel.h"
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var
@@ -1439,9 +1440,6 @@ Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, LEX_STRING *base)
   String str(buf, sizeof(buf), system_charset_info);
   char *p;
 
-  if (!rpl_global_gtid_slave_state.loaded)
-    return NULL;
-
   str.length(0);
   if ((opt_bin_log && mysql_bin_log.append_state_pos(&str)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
@@ -1489,7 +1487,7 @@ Sys_var_gtid_slave_pos::do_check(THD *thd, set_var *var)
 
   DBUG_ASSERT(var->type == OPT_GLOBAL);
 
-  if (!rpl_global_gtid_slave_state.loaded)
+  if (rpl_load_gtid_slave_state(thd))
   {
     my_error(ER_CANNOT_LOAD_SLAVE_GTID_STATE, MYF(0), "mysql",
              rpl_gtid_slave_state_table_name.str);
@@ -1554,11 +1552,17 @@ Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, LEX_STRING *base)
   String str;
   char *p;
 
-  if (!rpl_global_gtid_slave_state.loaded)
-    return NULL;
-
   str.length(0);
-  if (rpl_append_gtid_state(&str, false) ||
+  /*
+    If the mysql.rpl_slave_pos table could not be loaded, then we cannot
+    easily automatically try to reload it here - we may be inside a statement
+    that already has tables locked and so opening more tables is problematic.
+
+    But if the table is not loaded (eg. missing mysql_upgrade_db or some such),
+    then the slave state must be empty anyway.
+  */
+  if ((rpl_global_gtid_slave_state.loaded &&
+       rpl_append_gtid_state(&str, false)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
@@ -1584,7 +1588,183 @@ static Sys_var_mybool Sys_gtid_strict_mode(
        "generate an out-of-order binlog if executed.",
        GLOBAL_VAR(opt_gtid_strict_mode),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+
+struct gtid_binlog_state_data { rpl_gtid *list; uint32 list_len; };
+
+bool
+Sys_var_gtid_binlog_state::do_check(THD *thd, set_var *var)
+{
+  String str, *res;
+  struct gtid_binlog_state_data *data;
+  rpl_gtid *list;
+  uint32 list_len;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!(res= var->value->val_str(&str)))
+    return true;
+  if (thd->in_active_multi_stmt_transaction())
+  {
+    my_error(ER_CANT_DO_THIS_DURING_AN_TRANSACTION, MYF(0));
+    return true;
+  }
+  if (!mysql_bin_log.is_open())
+  {
+    my_error(ER_FLUSH_MASTER_BINLOG_CLOSED, MYF(0));
+    return true;
+  }
+  if (!mysql_bin_log.is_empty_state())
+  {
+    my_error(ER_BINLOG_MUST_BE_EMPTY, MYF(0));
+    return true;
+  }
+  if (res->length() == 0)
+    list= NULL;
+  else if (!(list= gtid_parse_string_to_list(res->ptr(), res->length(),
+                                             &list_len)))
+  {
+    my_error(ER_INCORRECT_GTID_STATE, MYF(0));
+    return true;
+  }
+  if (!(data= (gtid_binlog_state_data *)my_malloc(sizeof(*data), MYF(0))))
+  {
+    my_free(list);
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  data->list= list;
+  data->list_len= list_len;
+  var->save_result.ptr= data;
+  return false;
+}
+
+
+bool
+Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
+{
+  bool res;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!var->value)
+  {
+    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
+    return true;
+  }
+
+  struct gtid_binlog_state_data *data=
+    (struct gtid_binlog_state_data *)var->save_result.ptr;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  res= (0 != reset_master(thd, data->list, data->list_len));
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  my_free(data->list);
+  my_free(data);
+  return res;
+}
+
+
+uchar *
+Sys_var_gtid_binlog_state::global_value_ptr(THD *thd, LEX_STRING *base)
+{
+  char buf[512];
+  String str(buf, sizeof(buf), system_charset_info);
+  char *p;
+
+  str.length(0);
+  if ((opt_bin_log && mysql_bin_log.append_state(&str)) ||
+      !(p= thd->strmake(str.ptr(), str.length())))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return NULL;
+  }
+
+  return (uchar *)p;
+}
+
+
+static unsigned char opt_gtid_binlog_state_dummy;
+static Sys_var_gtid_binlog_state Sys_gtid_binlog_state(
+       "gtid_binlog_state",
+       "The internal GTID state of the binlog, used to keep track of all "
+       "GTIDs ever logged to the binlog.",
+       GLOBAL_VAR(opt_gtid_binlog_state_dummy), NO_CMD_LINE);
+
+
+static bool
+check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
+{
+  bool running;
+
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running)
+    return true;
+
+  return false;
+}
+
+static bool
+fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
+{
+  bool running;
+  bool err= false;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running || rpl_parallel_change_thread_count(&global_rpl_thread_pool,
+                                                  opt_slave_parallel_threads))
+    err= true;
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
+  return err;
+}
+
+
+static Sys_var_ulong Sys_slave_parallel_threads(
+       "slave_parallel_threads",
+       "Alpha feature, to only be used by developers doing testing! "
+       "If non-zero, number of threads to spawn to apply in parallel events "
+       "on the slave that were group-committed on the master or were logged "
+       "with GTID in different replication domains.",
+       GLOBAL_VAR(opt_slave_parallel_threads), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
+       ON_UPDATE(fix_slave_parallel_threads));
+
+
+static Sys_var_ulong Sys_slave_parallel_max_queued(
+       "slave_parallel_max_queued",
+       "Limit on how much memory SQL threads should use per parallel "
+       "replication thread when reading ahead in the relay log looking for "
+       "opportunities for parallel replication. Only used when "
+       "--slave-parallel-threads > 0.",
+       GLOBAL_VAR(opt_slave_parallel_max_queued), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,2147483647), DEFAULT(131072), BLOCK_SIZE(1));
 #endif
+
+
+static Sys_var_ulong Sys_binlog_commit_wait_count(
+       "binlog_commit_wait_count",
+       "If non-zero, binlog write will wait at most binlog_commit_wait_usec "
+       "microseconds for at least this many commits to queue up for group "
+       "commit to the binlog. This can reduce I/O on the binlog and provide "
+       "increased opportunity for parallel apply on the slave, but too high "
+       "a value will decrease commit throughput.",
+       GLOBAL_VAR(opt_binlog_commit_wait_count), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+
+static Sys_var_ulong Sys_binlog_commit_wait_usec(
+       "binlog_commit_wait_usec",
+       "Maximum time, in microseconds, to wait for more commits to queue up "
+       "for binlog group commit. Only takes effect if the value of "
+       "binlog_commit_wait_count is non-zero.",
+       GLOBAL_VAR(opt_binlog_commit_wait_usec), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(100000), BLOCK_SIZE(1));
 
 
 static bool fix_max_join_size(sys_var *self, THD *thd, enum_var_type type)
@@ -2720,6 +2900,18 @@ static bool fix_tp_min_threads(sys_var *, THD *, enum_var_type)
 
 
 #ifndef  _WIN32
+static bool check_threadpool_size(sys_var *self, THD *thd, set_var *var)
+{
+  ulonglong v= var->save_result.ulonglong_value;
+  if (v > threadpool_max_size)
+  {
+    var->save_result.ulonglong_value= threadpool_max_size;
+    return throw_bounds_warning(thd, self->name.str, true, true, v);
+  }
+  return false;
+}
+
+
 static bool fix_threadpool_size(sys_var*, THD*, enum_var_type)
 {
   tp_set_threadpool_size(threadpool_size);
@@ -2764,7 +2956,7 @@ static Sys_var_uint Sys_threadpool_size(
  "executing threads (threads in a waiting state do not count as executing).",
   GLOBAL_VAR(threadpool_size), CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(1, MAX_THREAD_GROUPS), DEFAULT(my_getncpus()), BLOCK_SIZE(1),
-  NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+  NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_threadpool_size),
   ON_UPDATE(fix_threadpool_size)
 );
 static Sys_var_uint Sys_threadpool_stall_limit(
@@ -4185,11 +4377,12 @@ static Sys_var_ulong Sys_log_slow_rate_limit(
        SESSION_VAR(log_slow_rate_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1));
 
-static const char *log_slow_verbosity_names[]= { "innodb", "query_plan", 0 };
+static const char *log_slow_verbosity_names[]= { "innodb", "query_plan", 
+                                                 "explain", 0 };
 static Sys_var_set Sys_log_slow_verbosity(
        "log_slow_verbosity",
        "log-slow-verbosity=[value[,value ...]] where value is one of "
-       "'innodb', 'query_plan'",
+       "'innodb', 'query_plan', 'explain' ",
        SESSION_VAR(log_slow_verbosity), CMD_LINE(REQUIRED_ARG),
        log_slow_verbosity_names, DEFAULT(LOG_SLOW_VERBOSITY_INIT));
 
@@ -4334,6 +4527,8 @@ static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 #ifndef EMBEDDED_LIBRARY
       delete thd->rli_fake;
       thd->rli_fake= NULL;
+      delete thd->rgi_fake;
+      thd->rgi_fake= NULL;
 #endif
     }
     else if (previous_val && val)

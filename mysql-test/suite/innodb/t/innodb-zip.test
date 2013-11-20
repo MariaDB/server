@@ -14,6 +14,8 @@ SELECT table_name, row_format, data_length, index_length
 let $per_table=`select @@innodb_file_per_table`;
 let $format=`select @@innodb_file_format`;
 let $innodb_strict_mode_orig=`select @@session.innodb_strict_mode`;
+let $innodb_file_format_orig=`select @@innodb_file_format`;
+let $innodb_file_format_max_orig=`select @@innodb_file_format_max`;
 SET @save_innodb_stats_on_metadata=@@global.innodb_stats_on_metadata;
 
 
@@ -173,8 +175,10 @@ set innodb_strict_mode = on;
 
 create table t1 (id int primary key) engine = innodb key_block_size = 0;
 
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t2 (id int primary key) engine = innodb key_block_size = 9;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
 
 
@@ -200,19 +204,25 @@ drop table t1, t3, t4, t5, t8, t9, t10, t11;
 create table t1 (id int primary key) engine = innodb
 key_block_size = 4 row_format = compressed;
 
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t2 (id int primary key) engine = innodb
 key_block_size = 4 row_format = redundant;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
 
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t3 (id int primary key) engine = innodb
 key_block_size = 4 row_format = compact;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
 
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t4 (id int primary key) engine = innodb
 key_block_size = 4 row_format = dynamic;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
 
 create table t5 (id int primary key) engine = innodb
@@ -222,19 +232,25 @@ key_block_size = 4 row_format = default;
 drop table t1, t5;
 
 #test multiple errors
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t1 (id int primary key) engine = innodb
 key_block_size = 9 row_format = redundant;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
 
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t2 (id int primary key) engine = innodb
 key_block_size = 9 row_format = compact;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
 
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t2 (id int primary key) engine = innodb
 key_block_size = 9 row_format = dynamic;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
 
 --eval $query_i_s
@@ -242,12 +258,17 @@ show warnings;
 #test valid values with innodb_file_per_table unset
 set global innodb_file_per_table = off;
 
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t1 (id int primary key) engine = innodb key_block_size = 1;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t2 (id int primary key) engine = innodb key_block_size = 2;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t3 (id int primary key) engine = innodb key_block_size = 4;
 show warnings;
@@ -257,9 +278,12 @@ show warnings;
 
 --error ER_CANT_CREATE_TABLE
 create table t6 (id int primary key) engine = innodb row_format = compressed;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t7 (id int primary key) engine = innodb row_format = dynamic;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
 create table t8 (id int primary key) engine = innodb row_format = compact;
 create table t9 (id int primary key) engine = innodb row_format = redundant;
@@ -272,12 +296,17 @@ drop table t8, t9;
 set global innodb_file_per_table = on;
 set global innodb_file_format = `0`; 
 
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t1 (id int primary key) engine = innodb key_block_size = 1;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t2 (id int primary key) engine = innodb key_block_size = 2;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t3 (id int primary key) engine = innodb key_block_size = 4;
 show warnings;
@@ -287,9 +316,12 @@ show warnings;
 
 --error ER_CANT_CREATE_TABLE
 create table t6 (id int primary key) engine = innodb row_format = compressed;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
+--replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
 create table t7 (id int primary key) engine = innodb row_format = dynamic;
+--replace_regex / - .*[0-9]*[)]/)/
 show warnings;
 create table t8 (id int primary key) engine = innodb row_format = compact;
 create table t9 (id int primary key) engine = innodb row_format = redundant;
@@ -332,8 +364,10 @@ drop table normal_table, zip_table;
 eval set global innodb_file_format=$format;
 eval set global innodb_file_per_table=$per_table;
 eval set session innodb_strict_mode=$innodb_strict_mode_orig;
-
+eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;
+eval SET GLOBAL innodb_file_format_max=$innodb_file_format_max_orig;
 SET @@global.innodb_stats_on_metadata=@save_innodb_stats_on_metadata;
+--enable_query_log
 
 USE test;
 DROP DATABASE mysqltest_innodb_zip;

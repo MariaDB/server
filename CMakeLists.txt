@@ -136,6 +136,7 @@ INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
 INCLUDE(install_layout)
 INCLUDE(cpack_rpm)
+INCLUDE(cpack_deb)
 
 # Add macros
 INCLUDE(character_sets)
@@ -146,6 +147,7 @@ INCLUDE(ssl)
 INCLUDE(readline)
 INCLUDE(libutils)
 INCLUDE(dtrace)
+INCLUDE(jemalloc)
 INCLUDE(ctest)
 INCLUDE(plugin)
 INCLUDE(install_macros)
@@ -247,7 +249,9 @@ SET(PLUGINDIR "${DEFAULT_MYSQL_HOME}/${INSTALL_PLUGINDIR}")
 IF(INSTALL_SYSCONFDIR)
   SET(DEFAULT_SYSCONFDIR "${INSTALL_SYSCONFDIR}")
 ENDIF()
-
+IF(TMPDIR)
+  SET(DEFAULT_TMPDIR "${TMPDIR}")
+ENDIF()
 
 # Run platform tests
 INCLUDE(configure.cmake)
@@ -264,6 +268,8 @@ MYSQL_CHECK_SSL()
 MYSQL_CHECK_READLINE()
 # Add libevent
 MYSQL_CHECK_LIBEVENT()
+
+CHECK_JEMALLOC()
 
 #
 # Setup maintainer mode options. Platform checks are
@@ -286,6 +292,7 @@ IF(WITH_UNIT_TESTS)
  ADD_SUBDIRECTORY(unittest/strings)
  ADD_SUBDIRECTORY(unittest/examples)
  ADD_SUBDIRECTORY(unittest/mysys)
+ ADD_SUBDIRECTORY(unittest/my_decimal)
  ADD_SUBDIRECTORY(unittest/sql)
 ENDIF()
 
@@ -299,7 +306,7 @@ ADD_SUBDIRECTORY(include)
 ADD_SUBDIRECTORY(dbug)
 ADD_SUBDIRECTORY(strings)
 ADD_SUBDIRECTORY(vio)
-ADD_SUBDIRECTORY(regex)
+ADD_SUBDIRECTORY(pcre)
 ADD_SUBDIRECTORY(mysys)
 ADD_SUBDIRECTORY(mysys_ssl)
 ADD_SUBDIRECTORY(libmysql)
@@ -355,12 +362,6 @@ IF(DEB)
   CONFIGURE_FILE(
     ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.0.files.in
     ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.0.files)
-  CONFIGURE_FILE(
-    ${CMAKE_SOURCE_DIR}/debian/dist/Debian/mariadb-server-10.0.files.in
-    ${CMAKE_SOURCE_DIR}/debian/dist/Debian/mariadb-server-10.0.files)
-  CONFIGURE_FILE(
-    ${CMAKE_SOURCE_DIR}/debian/dist/Ubuntu/mariadb-server-10.0.files.in
-    ${CMAKE_SOURCE_DIR}/debian/dist/Ubuntu/mariadb-server-10.0.files)
 ENDIF(DEB)
 
 # Handle the "INFO_*" files.
@@ -379,15 +380,13 @@ ADD_CUSTOM_TARGET(INFO_BIN ALL
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
-INSTALL(FILES COPYING COPYING.LESSER LICENSE.mysql 
-DESTINATION ${INSTALL_DOCREADMEDIR} 
-COMPONENT Readme
-OPTIONAL
-)
-INSTALL(FILES README DESTINATION ${INSTALL_DOCREADMEDIR} COMPONENT Readme)
-INSTALL(FILES ${CMAKE_BINARY_DIR}/Docs/INFO_SRC ${CMAKE_BINARY_DIR}/Docs/INFO_BIN DESTINATION ${INSTALL_DOCDIR})
+INSTALL_DOCUMENTATION(README TODO CREDITS COPYING COPYING.LESSER
+                      COMPONENT Readme)
+INSTALL_DOCUMENTATION(${CMAKE_BINARY_DIR}/Docs/INFO_SRC
+                      ${CMAKE_BINARY_DIR}/Docs/INFO_BIN)
+
 IF(UNIX)
-  INSTALL(FILES Docs/INSTALL-BINARY DESTINATION ${INSTALL_DOCREADMEDIR} COMPONENT Readme)
+  INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY COMPONENT Readme)
 ENDIF()
 
 INCLUDE(CPack)

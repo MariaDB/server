@@ -104,6 +104,15 @@ public:
     const char *alias,
     uint alias_length
   );
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  int open_item_sum_func(
+    Item_sum *item_sum,
+    ha_spider *spider,
+    spider_string *str,
+    const char *alias,
+    uint alias_length
+  );
+#endif
   size_t escape_string(
     char *to,
     const char *from,
@@ -159,6 +168,10 @@ public:
   bool is_null();
   int val_int();
   double val_real();
+  my_decimal *val_decimal(
+    my_decimal *decimal_value,
+    CHARSET_INFO *access_charset
+  );
   SPIDER_DB_ROW *clone();
   int store_to_tmp_table(
     TABLE *tmp_table,
@@ -604,6 +617,8 @@ class spider_oracle_handler: public spider_db_handler
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   SPIDER_DB_HS_STRING_REF_BUFFER hs_upds;
 #endif
+  SPIDER_INT_HLD          *union_table_name_pos_first;
+  SPIDER_INT_HLD          *union_table_name_pos_current;
 public:
   spider_oracle_share      *oracle_share;
   SPIDER_LINK_FOR_HASH    *link_for_hash;
@@ -660,6 +675,10 @@ public:
     int tmp_table_name_length,
     int *db_name_pos
   );
+  int append_union_table_and_sql_for_bka(
+    const key_range *start_key
+  );
+  int reuse_union_table_and_sql_for_bka();
   int append_insert_for_recovery(
     ulong sql_type,
     int link_idx
@@ -804,11 +823,31 @@ public:
   int append_values_terminator(
     spider_string *str
   );
+  int append_union_table_connector_part(
+    ulong sql_type
+  );
+  int append_union_table_connector(
+    spider_string *str
+  );
+  int append_union_table_terminator_part(
+    ulong sql_type
+  );
+  int append_union_table_terminator(
+    spider_string *str
+  );
   int append_key_column_values_part(
     const key_range *start_key,
     ulong sql_type
   );
   int append_key_column_values(
+    spider_string *str,
+    const key_range *start_key
+  );
+  int append_key_column_values_with_name_part(
+    const key_range *start_key,
+    ulong sql_type
+  );
+  int append_key_column_values_with_name(
     spider_string *str,
     const key_range *start_key
   );
@@ -902,12 +941,31 @@ public:
     const char *alias,
     uint alias_length
   );
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  int append_sum_select_part(
+    ulong sql_type,
+    const char *alias,
+    uint alias_length
+  );
+  int append_sum_select(
+    spider_string *str,
+    const char *alias,
+    uint alias_length
+  );
+#endif
   void set_order_pos(
     ulong sql_type
   );
   void set_order_to_pos(
     ulong sql_type
   );
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  int append_group_by(
+    spider_string *str,
+    const char *alias,
+    uint alias_length
+  );
+#endif
   int append_key_order_for_merge_with_alias_part(
     const char *alias,
     uint alias_length,
@@ -991,6 +1049,14 @@ public:
     spider_string *str,
     uint multi_range_cnt,
     bool with_comma
+  );
+  int append_multi_range_cnt_with_name_part(
+    ulong sql_type,
+    uint multi_range_cnt
+  );
+  int append_multi_range_cnt_with_name(
+    spider_string *str,
+    uint multi_range_cnt
   );
   int append_open_handler_part(
     ulong sql_type,
@@ -1302,6 +1368,13 @@ public:
   );
   void copy_minimum_select_bitmap(
     uchar *bitmap
+  );
+  int init_union_table_name_pos();
+  int set_union_table_name_pos();
+  int reset_union_table_name(
+    spider_string *str,
+    int link_idx,
+    ulong sql_type
   );
 };
 

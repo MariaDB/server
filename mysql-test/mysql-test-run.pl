@@ -173,6 +173,7 @@ my $DEFAULT_SUITES= join(',', map { "$_-" } qw(
     handler
     heap
     innodb
+    innodb_fts
     maria
     multi_source
     optimizer_unfixed_bugs
@@ -181,6 +182,7 @@ my $DEFAULT_SUITES= join(',', map { "$_-" } qw(
     percona
     perfschema
     plugins
+    roles
     rpl
     sphinx
     sys_vars
@@ -378,6 +380,7 @@ sub main {
   mtr_report("Logging: $0 ", join(" ", @ARGV));
 
  $DEFAULT_SUITES.= ',' . join(',', qw(
+    connect
     query_response_time
     sequence
     spider
@@ -1905,7 +1908,7 @@ sub collect_mysqld_features {
 
   my @list= split '\n', $list;
   mtr_error("Could not find version of MariaDB")
-     unless shift(@list) =~ /^$exe_mysqld\s+Ver\s(\d+)\.(\d+)\.(\d+)(\S*)/;
+     unless shift(@list) =~ /^\Q$exe_mysqld\E\s+Ver\s(\d+)\.(\d+)\.(\d+)(\S*)/;
   $mysql_version_id= $1*10000 + $2*100 + $3;
   $mysql_version_extra= $4;
   mtr_report("MariaDB Version $1.$2.$3$4");
@@ -2079,7 +2082,17 @@ sub executable_setup () {
   }
   else
   {
-    $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mysqltest");
+    if ( defined $ENV{'MYSQL_TEST'} )
+    {
+      $exe_mysqltest=$ENV{'MYSQL_TEST'};
+      print "===========================================================\n";
+      print "WARNING:The mysqltest binary is fetched from $exe_mysqltest\n";
+      print "===========================================================\n";
+    }
+    else
+    {
+      $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mysqltest");
+    }
   }
 
 }
@@ -4770,7 +4783,7 @@ sub extract_warning_lines ($$) {
      qr/slave SQL thread aborted/,
      qr/unknown option '--loose[-_]/,
      qr/unknown variable 'loose[-_]/,
-     qr/Invalid .*old.* table or database name/,
+     #qr/Invalid .*old.* table or database name/,
      qr/Now setting lower_case_table_names to [02]/,
      qr/Setting lower_case_table_names=2/,
      qr/You have forced lower_case_table_names to 0/,

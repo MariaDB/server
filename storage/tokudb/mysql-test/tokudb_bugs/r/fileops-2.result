@@ -1,0 +1,23 @@
+# Establish connection conn1 (user = root)
+SET DEFAULT_STORAGE_ENGINE = 'tokudb';
+DROP TABLE IF EXISTS foo;
+create table foo ( a int, b int, c int, key (a), key (b));
+insert into foo values (1,10,100);
+begin;
+insert into foo values(2,20,200);
+set session lock_wait_timeout=1;
+select * from foo;
+a	b	c
+1	10	100
+drop table foo;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+rename table foo to bar;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate table foo;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+alter table foo add index (c);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+alter table foo drop index a;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+commit;
+DROP TABLE foo;

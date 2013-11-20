@@ -96,4 +96,7 @@ uchar *engine_table_options_frm_image(uchar *buff,
                                       engine_option_value *table_option_list,
                                       List<Create_field> &create_fields,
                                       uint keys, KEY *key_info);
+
+bool engine_options_differ(void *old_struct, void *new_struct,
+                           ha_create_table_option *rules);
 #endif

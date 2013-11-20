@@ -60,7 +60,6 @@ struct rpl_slave_state
   struct element
   {
     struct list_element *list;
-    uint64 last_sub_id;
     uint32 domain_id;
 
     list_element *grab_list() { list_element *l= list; list= NULL; return l; }
@@ -68,8 +67,6 @@ struct rpl_slave_state
     {
       l->next= list;
       list= l;
-      if (last_sub_id < l->sub_id)
-        last_sub_id= l->sub_id;
     }
   };
 
@@ -78,6 +75,7 @@ struct rpl_slave_state
   /* Mutex protecting access to the state. */
   mysql_mutex_t LOCK_slave_state;
 
+  uint64 last_sub_id;
   bool inited;
   bool loaded;
 
@@ -108,7 +106,7 @@ struct rpl_slave_state
   int put_back_list(uint32 domain_id, list_element *list);
 
   void update_state_hash(uint64 sub_id, rpl_gtid *gtid);
-  int record_and_update_gtid(THD *thd, Relay_log_info *rli);
+  int record_and_update_gtid(THD *thd, struct rpl_group_info *rgi);
 };
 
 
@@ -163,6 +161,7 @@ struct rpl_binlog_state
   int get_gtid_list(rpl_gtid *gtid_list, uint32 list_size);
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
   bool append_pos(String *str);
+  bool append_state(String *str);
   rpl_gtid *find(uint32 domain_id, uint32 server_id);
   rpl_gtid *find_most_recent(uint32 domain_id);
 };
@@ -174,7 +173,14 @@ struct rpl_binlog_state
 */
 struct slave_connection_state
 {
-  /* Mapping from domain_id to the GTID requested for that domain. */
+  struct entry {
+    rpl_gtid gtid;
+    uint32 flags;
+  };
+  static const uint32 START_OWN_SLAVE_POS= 0x1;
+  static const uint32 START_ON_EMPTY_DOMAIN= 0x2;
+
+  /* Mapping from domain_id to the entry with GTID requested for that domain. */
   HASH hash;
 
   slave_connection_state();
@@ -185,15 +191,20 @@ struct slave_connection_state
   int load(const rpl_gtid *gtid_list, uint32 count);
   int load(rpl_slave_state *state, rpl_gtid *extra_gtids, uint32 num_extra);
   rpl_gtid *find(uint32 domain_id);
+  entry *find_entry(uint32 domain_id);
   int update(const rpl_gtid *in_gtid);
   void remove(const rpl_gtid *gtid);
+  void remove_if_present(const rpl_gtid *in_gtid);
   ulong count() const { return hash.records; }
   int to_string(String *out_str);
   int append_to_string(String *out_str);
+  int get_gtid_list(rpl_gtid *gtid_list, uint32 list_size);
 };
 
 extern bool rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid,
                                             bool *first);
 extern int gtid_check_rpl_slave_state_table(TABLE *table);
+extern rpl_gtid *gtid_parse_string_to_list(const char *p, size_t len,
+                                           uint32 *out_len);
 
 #endif  /* RPL_GTID_H */

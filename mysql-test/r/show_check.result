@@ -1558,8 +1558,6 @@ SET NAMES latin1;
 SHOW AUTHORS;
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1681	'SHOW AUTHORS' is deprecated and will be removed in a future release.
 SHOW CONTRIBUTORS;
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1681	'SHOW CONTRIBUTORS' is deprecated and will be removed in a future release.

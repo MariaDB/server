@@ -18,7 +18,7 @@
 
 /* By Jani Tolonen, 2001-04-20, MySQL Development Team */
 
-#define CHECK_VERSION "2.7.1"
+#define CHECK_VERSION "2.7.2"
 
 #include "client_priv.h"
 #include <m_ctype.h>
@@ -681,6 +681,8 @@ static int rebuild_table(char *name)
     fprintf(stderr, "Error: %s\n", mysql_error(sock));
     rc= 1;
   }
+  if (verbose)
+    printf("%-50s %s\n", name, rc ? "FAILED" : "FIXED");
   my_free(query);
   DBUG_RETURN(rc);
 }
@@ -915,6 +917,9 @@ static int dbConnect(char *host, char *user, char *passwd)
     mysql_options(&mysql_connection, MYSQL_DEFAULT_AUTH, opt_default_auth);
 
   mysql_options(&mysql_connection, MYSQL_SET_CHARSET_NAME, default_charset);
+  mysql_options(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
+  mysql_options4(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_ADD,
+                 "program_name", "mysqlcheck");
   if (!(sock = mysql_real_connect(&mysql_connection, host, user, passwd,
          NULL, opt_mysql_port, opt_mysql_unix_port, 0)))
   {
