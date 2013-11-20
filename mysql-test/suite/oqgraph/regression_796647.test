@@ -22,7 +22,7 @@ CREATE TABLE graph (
     seq     BIGINT    UNSIGNED NULL,
     linkid  BIGINT    UNSIGNED NULL,
     KEY (latch, origid, destid) USING HASH,
-    KEY (latch, origid, destid) USING HASH
+    KEY (latch, destid, origid) USING HASH
   ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='von' DESTID='nach' WEIGHT='weight';
 
 INSERT INTO graph_base(von,nach,weight) VALUES (3,5,2), (5,4,1), (5,6,1);
