@@ -23,19 +23,19 @@
   A type-safe wrapper around mysys HASH.
 */
 
-template <typename T, my_hash_get_key K>
+template <typename T>
 class Hash_set
 {
 public:
-  typedef T Value_type;
   enum { START_SIZE= 8 };
   /**
     Constructs an empty hash. Does not allocate memory, it is done upon
     the first insert. Thus does not cause or return errors.
   */
-  Hash_set()
+  Hash_set(uchar *(*K)(const T *, size_t *, my_bool))
   {
     my_hash_clear(&m_hash);
+    m_hash.get_key= (my_hash_get_key)K;
   }
   /**
     Destroy the hash by freeing the buckets table. Does
@@ -56,12 +56,18 @@ public:
   */
   bool insert(T *value)
   {
-    my_hash_init_opt(&m_hash, &my_charset_bin, START_SIZE, 0, 0, K, 0, MYF(0));
+    my_hash_init_opt(&m_hash, &my_charset_bin, START_SIZE, 0, 0,
+                     m_hash.get_key, 0, MYF(0));
     size_t key_len;
-    const uchar *key= K(reinterpret_cast<uchar*>(value), &key_len, FALSE);
-    if (my_hash_search(&m_hash, key, key_len) == NULL)
-      return my_hash_insert(&m_hash, reinterpret_cast<uchar *>(value));
+    uchar *v= reinterpret_cast<uchar *>(value);
+    const uchar *key= m_hash.get_key(v, &key_len, FALSE);
+    if (find(key, key_len) == NULL)
+      return my_hash_insert(&m_hash, v);
     return FALSE;
+  }
+  T *find(const void *key, size_t klen) const
+  {
+    return (T*)my_hash_search(&m_hash, reinterpret_cast<const uchar *>(key), klen);
   }
   /** Is this hash set empty? */
   bool is_empty() const { return m_hash.records == 0; }

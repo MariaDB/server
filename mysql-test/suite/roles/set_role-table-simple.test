@@ -1,0 +1,53 @@
+source include/not_embedded.inc;
+
+create user test_user@localhost;
+create role test_role1;
+create role test_role2;
+
+grant test_role1 to test_user@localhost;
+grant test_role2 to test_role1;
+--sorted_result
+select user, host from mysql.user where user not like 'root';
+--sorted_result
+select * from mysql.roles_mapping;
+
+grant select on mysql.roles_mapping to test_role2;
+
+change_user 'test_user';
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+
+--sorted_result
+show grants;
+
+select current_user(), current_role();
+set role test_role1;
+select current_user(), current_role();
+
+--sorted_result
+show grants;
+
+--sorted_result
+select * from mysql.roles_mapping;
+
+--sorted_result
+show grants;
+
+use mysql;
+
+set role none;
+select current_user(), current_role();
+
+--sorted_result
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+
+change_user 'root';
+drop user 'test_user'@'localhost';
+select * from mysql.tables_priv;
+revoke select on mysql.roles_mapping from test_role2;
+delete from mysql.user where user like'test_%';
+delete from mysql.roles_mapping where Role like 'test%';
+
+flush privileges;

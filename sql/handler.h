@@ -429,7 +429,8 @@ enum legacy_db_type
   DB_TYPE_PBXT=23,
   DB_TYPE_PERFORMANCE_SCHEMA=28,
   DB_TYPE_ARIA=42,
-  DB_TYPE_FIRST_DYNAMIC=43,
+  DB_TYPE_TOKUDB=43,
+  DB_TYPE_FIRST_DYNAMIC=44,
   DB_TYPE_DEFAULT=127 // Must be last
 };
 /*
@@ -711,12 +712,15 @@ struct TABLE;
 */
 enum enum_schema_tables
 {
-  SCH_CHARSETS= 0,
+  SCH_ALL_PLUGINS,
+  SCH_APPLICABLE_ROLES,
+  SCH_CHARSETS,
   SCH_CLIENT_STATS,
   SCH_COLLATIONS,
   SCH_COLLATION_CHARACTER_SET_APPLICABILITY,
   SCH_COLUMNS,
   SCH_COLUMN_PRIVILEGES,
+  SCH_ENABLED_ROLES,
   SCH_ENGINES,
   SCH_EVENTS,
   SCH_EXPLAIN,
@@ -730,7 +734,6 @@ enum enum_schema_tables
   SCH_PARAMETERS,
   SCH_PARTITIONS,
   SCH_PLUGINS,
-  SCH_ALL_PLUGINS,
   SCH_PROCESSLIST,
   SCH_PROFILES,
   SCH_REFERENTIAL_CONSTRAINTS,
@@ -886,8 +889,8 @@ enum ha_option_type { HA_OPTION_TYPE_ULL,    /* unsigned long long */
   HA_xOPTION_STRING(name, ha_index_option_struct, field)
 #define HA_IOPTION_ENUM(name, field, values, def)                    \
   HA_xOPTION_ENUM(name, ha_index_option_struct, field, values, def)
-#define HA_IOPTION_BOOL(name, field, values, def)                    \
-  HA_xOPTION_BOOL(name, ha_index_option_struct, field, values, def)
+#define HA_IOPTION_BOOL(name, field, def)                            \
+  HA_xOPTION_BOOL(name, ha_index_option_struct, field, def)
 #define HA_IOPTION_SYSVAR(name, field, sysvar)                       \
   HA_xOPTION_SYSVAR(name, ha_index_option_struct, field, sysvar)
 #define HA_IOPTION_END HA_xOPTION_END
@@ -1366,6 +1369,7 @@ static inline sys_var *find_hton_sysvar(handlerton *hton, st_mysql_sys_var *var)
   Schema which have no meaning for replication.
 */
 #define HTON_NO_BINLOG_ROW_OPT       (1 << 9)
+#define HTON_EXTENDED_KEYS           (1 <<10) //supports extended keys
 
 class Ha_trx_info;
 
@@ -2547,6 +2551,16 @@ public:
   }
   /* This is called after index_init() if we need to do a index scan */
   virtual int prepare_index_scan() { return 0; }
+  virtual int prepare_index_key_scan_map(const uchar * key, key_part_map keypart_map)
+  {
+    uint key_len= calculate_key_len(table, active_index, key, keypart_map);
+    return  prepare_index_key_scan(key, key_len);
+  }
+  virtual int prepare_index_key_scan( const uchar * key, uint key_len )
+  { return 0; }
+  virtual int prepare_range_scan(const key_range *start_key, const key_range *end_key)
+  { return 0; }
+
   int ha_rnd_init(bool scan) __attribute__ ((warn_unused_result))
   {
     DBUG_EXECUTE_IF("ha_rnd_init_fail", return HA_ERR_TABLE_DEF_CHANGED;);
@@ -3621,6 +3635,7 @@ public:
   virtual bool check_if_supported_virtual_columns(void) { return FALSE;}
   
   TABLE* get_table() { return table; }
+  TABLE_SHARE* get_table_share() { return table_share; }
 protected:
   /* deprecated, don't use in new engines */
   inline void ha_statistic_increment(ulong SSV::*offset) const { }
@@ -3872,7 +3887,7 @@ protected:
 
 #include "multi_range_read.h"
 
-bool key_uses_partial_cols(TABLE *table, uint keyno);
+bool key_uses_partial_cols(TABLE_SHARE *table, uint keyno);
 
 	/* Some extern variables used with handlers */
 
@@ -3947,11 +3962,14 @@ class Discovered_table_list: public handlerton::discovered_list
 {
   THD *thd;
   const char *wild, *wend;
+  bool with_temps; // whether to include temp tables in the result
 public:
   Dynamic_array<LEX_STRING*> *tables;
 
   Discovered_table_list(THD *thd_arg, Dynamic_array<LEX_STRING*> *tables_arg,
                         const LEX_STRING *wild_arg);
+  Discovered_table_list(THD *thd_arg, Dynamic_array<LEX_STRING*> *tables_arg)
+    : thd(thd_arg), wild(NULL), with_temps(true), tables(tables_arg) {}
   ~Discovered_table_list() {}
 
   bool add_table(const char *tname, size_t tlen);

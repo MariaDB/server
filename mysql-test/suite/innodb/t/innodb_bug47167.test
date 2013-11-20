@@ -44,3 +44,8 @@ set global innodb_file_format_max = on;
 --error ER_WRONG_VALUE_FOR_VAR
 set global innodb_file_format_max = off;
 --enable_warnings
+
+# Put the saved value back to 'innodb_file_format_max'
+--disable_query_log
+set global innodb_file_format_max = @old_innodb_file_format_max;
+--enable_query_log

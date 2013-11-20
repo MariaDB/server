@@ -267,7 +267,7 @@ to_ascii(CHARSET_INFO *cs,
 /* Character set-aware version of str_to_time() */
 bool
 str_to_time(CHARSET_INFO *cs, const char *str,uint length,
-                 MYSQL_TIME *l_time, ulonglong fuzzydate, MYSQL_TIME_STATUS *status)
+            MYSQL_TIME *l_time, ulonglong fuzzydate, MYSQL_TIME_STATUS *status)
 {
   char cnv[32];
   if ((cs->state & MY_CS_NONASCII) != 0)

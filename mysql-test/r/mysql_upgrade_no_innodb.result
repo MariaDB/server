@@ -1,0 +1,3 @@
+The --upgrade-system-tables option was used, databases won't be touched.
+Phase 3/3: Running 'mysql_fix_privilege_tables'...
+OK

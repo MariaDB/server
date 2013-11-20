@@ -27,6 +27,7 @@ extern "C" {
 #include <mysql/service_kill_statement.h>
 #include <mysql/service_thd_timezone.h>
 #include <mysql/service_sha1.h>
+#include <mysql/service_logger.h>
 
 #ifdef __cplusplus
 }

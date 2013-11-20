@@ -13,34 +13,32 @@ drop table if exists t1,t2,t3;
 create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
 
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 modify b int default 5;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 change b new_name int;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 modify e enum('a','b','c');
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 comment "new comment";
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 rename to t2;
-alter online table t2 rename to t1;
 
 drop table t1;
 
 #
-# temporary tables always require a copy
+# everything with temporary tables is "online", i.e. without locks
 #
-
 create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
 
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 modify b int default 5;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 change b new_name int;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 modify e enum('a','b','c');
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 comment "new comment";
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 rename to t2;
 
-drop table t1;
+drop table t2;
 
 #
 # Test of things that is not possible to do online
@@ -61,7 +59,7 @@ alter online table t1 modify c varchar(50);
 alter online table t1 modify c varchar(100);
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 add f int;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter online table t1 engine=memory;
 
 alter table t1 engine=innodb;
@@ -73,26 +71,20 @@ drop table t1;
 create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
 
---error ER_ALTER_OPERATION_NOT_SUPPORTED
+#
+# everything with temporary tables is "online", i.e. without locks
+#
 alter online table t1 drop column b, add b int;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 modify b bigint;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 modify e enum('c','a','b');
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 modify c varchar(50);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 modify c varchar(100);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 add f int;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 engine=memory;
 
 alter table t1 engine=innodb;
 alter table t1 add index (b);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 add index c (c);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 drop index b;
 drop table t1;
 
@@ -102,5 +94,6 @@ drop table t1;
 create table t1 (a int not null primary key, b int, c varchar(80));
 create table t2 (a int not null primary key, b int, c varchar(80));
 create table t3 (a int not null primary key, b int, c varchar(80)) engine=merge UNION=(t1);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t3 union=(t1,t2);
 drop table t1,t2,t3;

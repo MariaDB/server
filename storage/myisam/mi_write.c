@@ -55,6 +55,10 @@ int mi_write(MI_INFO *info, uchar *record)
   DBUG_EXECUTE_IF("myisam_pretend_crashed_table_on_usage",
                   mi_print_error(info->s, HA_ERR_CRASHED);
                   DBUG_RETURN(my_errno= HA_ERR_CRASHED););
+
+  /* it's always a bug to try to write a record with the deleted flag set */
+  DBUG_ASSERT(info->s->data_file_type != STATIC_RECORD || *record);
+
   if (share->options & HA_OPTION_READ_ONLY_DATA)
   {
     DBUG_RETURN(my_errno=EACCES);

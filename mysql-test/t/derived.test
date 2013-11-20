@@ -320,6 +320,71 @@ DROP TABLE t1;
 
 --echo # End of 5.0 tests
 
+--echo #
+--echo # MDEV-5005: Subquery in Procedure somehow affecting temporary table
+--echo #
+
+create temporary table if not exists t1 (id int not null);
+
+select A.* from ( select tt.* from t1 tt ) A;
+
+prepare stmt from "select A.* from ( select tt.* from t1 tt ) A ";
+execute stmt;
+deallocate prepare stmt;
+
+drop temporary table t1;
+
+--delimiter |
+CREATE PROCEDURE p ()
+BEGIN
+  select A.* from ( select tt.* from t1 tt ) A ;
+END |
+--delimiter ;
+
+create temporary table if not exists t1 (id int not null);
+
+CALL p();
+CALL p();
+
+drop procedure p;
+
+drop temporary table t1;
+
+
+--echo #
+--echo # MDEV-5143: update of a joined table with a nested subquery with 
+--echo # a syntax error crashes mysqld with signal 11
+--echo #
+
+create table t1 (id int(11) not null auto_increment, val varchar(100) null,primary key (id));
+create table t2 (id int(11) not null auto_increment, val varchar(100) null,primary key (id));
+
+insert into t1 (val) values('a');
+insert into t2 (val) values('1');
+
+--error ER_BAD_FIELD_ERROR
+update 
+    (
+        select 
+            val
+        from
+            (
+                select 
+                    v.val
+                from 
+                    t2 wrong_table_alias
+            ) t4
+    ) t3
+    inner join t1 on 
+        t1.id=t3.val
+set 
+    t1.val=t3.val
+;
+
+drop table t1, t2;
+
+
+--echo # End of 5.3 tests
 
 --echo #
 --echo # Bug#58730 Assertion failed: table->key_read == 0 in close_thread_table,
@@ -342,7 +407,6 @@ SELECT 1 FROM t1 JOIN v1 ON 1 > (SELECT 1 FROM v2);
 
 DROP TABLE t1, t2;
 DROP VIEW v1, v2;
-set optimizer_switch=@save_derived_optimizer_switch;
 
 #
 # MDEV-614 lp:1050806 - different result for a query using subquery between 5.5.25 and 5.5.27
@@ -358,3 +422,17 @@ select * from (
   where d1 < '2012-12-12 12:12:12' and n in (2085, 2084) order by d2 asc
 ) as calculated_result;
 drop table t1;
+
+#
+# MDEV-5012 Server crashes in Item_ref::real_item on EXPLAIN with select subqueries or views, constant table, derived_merge+derived_with_keys
+#
+SET optimizer_switch = 'derived_merge=on,derived_with_keys=on,in_to_exists=on';
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (8);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(7);
+EXPLAIN SELECT * FROM (SELECT * FROM t1) AS table1,
+  (SELECT DISTINCT * FROM t2) AS table2 WHERE b = a AND a <> ANY (SELECT 9);
+DROP TABLE t1, t2;
+
+set optimizer_switch=@save_derived_optimizer_switch;

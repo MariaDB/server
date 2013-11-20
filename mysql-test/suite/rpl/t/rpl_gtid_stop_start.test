@@ -273,6 +273,57 @@ INSERT INTO t1 VALUES (13);
 SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 
 
+--echo *** MDEV-4650: show variables; ERROR 1946 (HY000): Failed to load replication slave GTID position ***
+
+--connection server_2
+SET sql_log_bin=0;
+--let $old_pos= `SELECT @@GLOBAL.gtid_slave_pos`
+RENAME TABLE mysql.gtid_slave_pos TO mysql.gtid_slave_pos_old;
+SET sql_log_bin=1;
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server 30
+--source include/wait_until_disconnected.inc
+
+# Let the slave mysqld server start again.
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--disable_result_log
+SHOW VARIABLES;
+--enable_result_log
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+--error ER_CANNOT_LOAD_SLAVE_GTID_STATE,ER_NO_SUCH_TABLE
+SET GLOBAL gtid_slave_pos = '0-1-2';
+SHOW WARNINGS;
+
+# Restore things.
+
+SET sql_log_bin=0;
+RENAME TABLE mysql.gtid_slave_pos_old TO mysql.gtid_slave_pos;
+CALL mtr.add_suppression("Failed to load slave replication state from table mysql.gtid_slave_pos");
+SET sql_log_bin=1;
+
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+SET GLOBAL gtid_slave_pos = '0-1-2';
+SHOW VARIABLES LIKE 'gtid_slave_pos';
+
+# Don't let .result file depend on old state of gtid_slave_pos
+--disable_query_log
+--disable_result_log
+eval SET GLOBAL gtid_slave_pos = '$old_pos';
+--enable_query_log
+--enable_result_log
+
+--source include/start_slave.inc
+
+
 --connection server_1
 DROP TABLE t1;
 

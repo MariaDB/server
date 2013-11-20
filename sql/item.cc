@@ -263,6 +263,24 @@ String *Item::val_str_ascii(String *str)
 }
 
 
+String *Item::val_str(String *str, String *converter, CHARSET_INFO *cs)
+{
+  String *res= val_str(str);
+  if (null_value)
+    return (String *) 0;
+
+  if (!cs)
+    return res;
+
+  uint errors;
+  if ((null_value= converter->copy(res->ptr(), res->length(),
+                                   collation.collation, cs,  &errors)))
+    return (String *) 0;
+
+  return converter;
+}
+
+
 String *Item::val_string_from_real(String *str)
 {
   double nr= val_real();
@@ -297,7 +315,9 @@ String *Item::val_string_from_decimal(String *str)
 String *Item::val_string_from_date(String *str)
 {
   MYSQL_TIME ltime;
-  if (get_date(&ltime, sql_mode_for_dates(current_thd)) ||
+  if (get_date(&ltime, field_type() == MYSQL_TYPE_TIME
+                       ? TIME_TIME_ONLY
+                       : sql_mode_for_dates(current_thd)) ||
       str->alloc(MAX_DATE_STRING_REP_LENGTH))
   {
     null_value= 1;
@@ -552,6 +572,28 @@ uint Item::decimal_precision() const
     return MY_MIN(prec, DECIMAL_MAX_PRECISION);
   }
   return MY_MIN(max_char_length(), DECIMAL_MAX_PRECISION);
+}
+
+
+uint Item::temporal_precision(enum_field_types type)
+{
+  if (const_item() && result_type() == STRING_RESULT &&
+      !is_temporal_type(field_type()))
+  {
+    MYSQL_TIME ltime;
+    String buf, *tmp;
+    MYSQL_TIME_STATUS status;
+    DBUG_ASSERT(fixed);
+    if ((tmp= val_str(&buf)) &&
+        (type == MYSQL_TYPE_TIME ?
+         str_to_time(tmp->charset(), tmp->ptr(), tmp->length(),
+                     &ltime, TIME_TIME_ONLY, &status) :
+         str_to_datetime(tmp->charset(), tmp->ptr(), tmp->length(),
+                         &ltime, TIME_FUZZY_DATES, &status)) >
+        MYSQL_TIMESTAMP_ERROR)
+      return MY_MIN(status.precision, TIME_SECOND_PART_DIGITS);
+  }
+  return MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
 }
 
 
@@ -5105,6 +5147,11 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
         goto mark_non_agg_field;
     }
 
+    if (thd->lex->in_sum_func &&
+        thd->lex->in_sum_func->nest_level == 
+        thd->lex->current_select->nest_level)
+      set_if_bigger(thd->lex->in_sum_func->max_arg_level,
+                    thd->lex->current_select->nest_level);
     /*
       if it is not expression from merged VIEW we will set this field.
 
@@ -5121,11 +5168,6 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
       return FALSE;
 
     set_field(from_field);
-    if (thd->lex->in_sum_func &&
-        thd->lex->in_sum_func->nest_level == 
-        thd->lex->current_select->nest_level)
-      set_if_bigger(thd->lex->in_sum_func->max_arg_level,
-                    thd->lex->current_select->nest_level);
   }
   else if (thd->mark_used_columns != MARK_COLUMNS_NONE)
   {
@@ -9696,18 +9738,10 @@ table_map Item_ref::used_tables() const
 }
 
 
-void Item_ref::update_used_tables() 
+void Item_ref::update_used_tables()
 {
   if (!get_depended_from())
     (*ref)->update_used_tables();
-  maybe_null|= (*ref)->maybe_null;
-}
-
-void Item_direct_view_ref::update_used_tables()
-{
-  Item_ref::update_used_tables();
-  if (view->table && view->table->maybe_null)
-    maybe_null= TRUE;
 }
 
 table_map Item_direct_view_ref::used_tables() const

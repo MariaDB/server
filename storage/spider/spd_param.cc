@@ -2356,7 +2356,7 @@ static MYSQL_THDVAR_INT(
   NULL, /* update */
   -1, /* def */
   -1, /* min */
-  1, /* max */
+  2, /* max */
   0 /* blk */
 );
 

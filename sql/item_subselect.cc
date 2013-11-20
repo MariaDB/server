@@ -1752,6 +1752,15 @@ Item_in_subselect::single_value_transformer(JOIN *join)
     */
     where_item->walk(&Item::remove_dependence_processor, 0,
                      (uchar *) select_lex->outer_select());
+    /*
+      fix_field of substitution item will be done in time of
+      substituting.
+      Note that real_item() should be used instead of
+      original left expression because left_expr can be
+      runtime created Ref item which is deleted at the end
+      of the statement. Thus one of 'substitution' arguments
+      can be broken in case of PS.
+    */ 
     substitution= func->create(left_expr, where_item);
     have_to_be_excluded= 1;
     if (thd->lex->describe)
@@ -2268,11 +2277,11 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
         DBUG_RETURN(true);
       Item *item_eq=
         new Item_func_eq(new
-                         Item_ref(&select_lex->context,
-                                  (*optimizer->get_cache())->
-                                  addr(i),
-                                  (char *)"<no matter>",
-                                  (char *)in_left_expr_name),
+                         Item_direct_ref(&select_lex->context,
+                                         (*optimizer->get_cache())->
+                                         addr(i),
+                                         (char *)"<no matter>",
+                                         (char *)in_left_expr_name),
                          new
                          Item_ref(&select_lex->context,
                                   select_lex->ref_pointer_array + i,
@@ -2991,7 +3000,7 @@ out:
 bool
 Item_in_subselect::select_in_like_transformer(JOIN *join)
 {
-  Query_arena *arena, backup;
+  Query_arena *arena= 0, backup;
   SELECT_LEX *current= thd->lex->current_select;
   const char *save_where= thd->where;
   bool trans_res= true;
@@ -3013,9 +3022,6 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
     }
   }
 
-  if (changed)
-    DBUG_RETURN(false);
-
   thd->where= "IN/ALL/ANY subquery";
 
   /*
@@ -3026,25 +3032,29 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
     note: we won't need Item_in_optimizer when handling degenerate cases
     like "... IN (SELECT 1)"
   */
+  arena= thd->activate_stmt_arena_if_needed(&backup);
   if (!optimizer)
   {
-    arena= thd->activate_stmt_arena_if_needed(&backup);
     result= (!(optimizer= new Item_in_optimizer(left_expr, this)));
-    if (arena)
-      thd->restore_active_arena(arena, &backup);
     if (result)
-      goto err;
+      goto out;
   }
 
   thd->lex->current_select= current->return_after_parsing();
-  result= (!left_expr->fixed &&
-           left_expr->fix_fields(thd, optimizer->arguments()));
+  result= optimizer->fix_left(thd);
   /* fix_fields can change reference to left_expr, we need reassign it */
   left_expr= optimizer->arguments()[0];
-
   thd->lex->current_select= current;
+
+  if (changed)
+  {
+    trans_res= false;
+    goto out;
+  }
+
+
   if (result)
-    goto err;
+    goto out;
 
   /*
     Both transformers call fix_fields() only for Items created inside them,
@@ -3053,7 +3063,6 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
     of Item, we have to call fix_fields() for it only with original arena to
     avoid memory leack)
   */
-  arena= thd->activate_stmt_arena_if_needed(&backup);
   if (left_expr->cols() == 1)
     trans_res= single_value_transformer(join);
   else
@@ -3068,9 +3077,9 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
     }
     trans_res= row_value_transformer(join);
   }
+out:
   if (arena)
     thd->restore_active_arena(arena, &backup);
-err:
   thd->where= save_where;
   DBUG_RETURN(trans_res);
 }
@@ -3469,6 +3478,7 @@ int subselect_single_select_engine::prepare()
 		    select_lex->order_list.elements +
 		    select_lex->group_list.elements,
 		    select_lex->order_list.first,
+                    false,
 		    select_lex->group_list.first,
 		    select_lex->having,
 		    NULL, select_lex,

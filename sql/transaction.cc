@@ -142,6 +142,11 @@ bool trans_begin(THD *thd, uint flags)
   }
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+
+  /*
+    The following set should not be needed as the flag should always be 0
+    when we come here.  We should at some point change this to an assert.
+  */
   thd->transaction.all.modified_non_trans_table= FALSE;
 
   if (res)

@@ -1,0 +1,11 @@
+source include/not_embedded.inc;
+
+connect (mysql, localhost, root,,);
+use mysql;
+create user 'test'@'localhost';
+
+#check to see if a created user is not a role by default
+select user, host, is_role from user where user='test' and host='localhost';
+
+drop user 'test'@'localhost';
+disconnect mysql;

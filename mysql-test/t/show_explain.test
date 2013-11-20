@@ -202,7 +202,6 @@ set debug_dbug='+d,show_explain_probe_join_exec_end';
 send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -225,7 +224,9 @@ connection default;
 --source include/wait_condition.inc
 --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
+evalp kill query $thr2;
 connection con1;
+--error ER_QUERY_INTERRUPTED
 reap;
 set debug_dbug=@old_debug;
 
@@ -238,10 +239,10 @@ set debug_dbug='+d,show_explain_probe_join_exec_start';
 send update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+#--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+#--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -249,7 +250,7 @@ drop table t2;
 set debug_dbug=@old_debug;
 
 --echo #
---echo # Attempt SHOW EXPLAIN for a DELETE
+--echo # Attempt SHOW EXPLAIN for a DELETE (UPD: now works)
 --echo # 
 create table t2 as select a as a, a as dummy from t0 limit 2;
 set @show_explain_probe_select_id=2;
@@ -257,10 +258,10 @@ set debug_dbug='+d,show_explain_probe_join_exec_start';
 send delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+#--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+#--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -349,7 +350,7 @@ connection default;
 --source include/wait_condition.inc
 --echo # FIXED by "conservative assumptions about when QEP is available" fix:
 --echo #    NOTE: current code will not show "Using join buffer": 
---error ER_TARGET_NOT_EXPLAINABLE
+#--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -400,7 +401,9 @@ connection default;
 --source include/wait_condition.inc
 --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
+evalp kill query $thr2;
 connection con1;
+--error ER_QUERY_INTERRUPTED
 reap;
 set debug_dbug=@old_debug;
 DROP VIEW v1;
@@ -428,7 +431,7 @@ set debug_dbug='+d,show_explain_probe_join_exec_end';
 send select * from t0 where 1>10;
 connection default;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+#--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -444,7 +447,7 @@ set debug_dbug='+d,show_explain_probe_join_exec_end';
 send select * from t0,t3 where t3.a=112233;
 connection default;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+# --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -540,7 +543,7 @@ send
   SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
 connection default;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+# --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -1129,9 +1132,72 @@ set names default;
 --error ER_SET_CONSTANTS_ONLY 
 show explain for foo;
 
---echo # End
+--echo #
+--echo # MDEV-411: SHOW EXPLAIN: For dependent subquery EXPLAIN produces type=index, key, 'Using where; Using index', 
+--echo #           while SHOW EXPLAIN says type=ALL, no key, 'Range checked for each record'
+--echo #
+CREATE TABLE t1 (a INT NOT NULL, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (7),(0);
+
+CREATE TABLE t2 (b INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (0),(8);
+
+explain
+SELECT SUM(b) FROM ( SELECT * FROM t1 ) AS alias1, t2 
+WHERE b <= ANY ( 
+  SELECT a FROM t1 
+  WHERE a = b + SLEEP(0.2) OR a >= ( SELECT SUM(b) FROM t2 ));
+
+
+set @show_explain_probe_select_id=1;
+set debug_dbug='+d,show_explain_probe_join_exec_start';
+
+send
+SELECT SUM(b) FROM ( SELECT * FROM t1 ) AS alias1, t2 
+WHERE b <= ANY ( 
+  SELECT a FROM t1 
+  WHERE a = b + SLEEP(0.2) OR a >= ( SELECT SUM(b) FROM t2 ));
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+
+set debug_dbug=@old_debug;
+DROP TABLE t1,t2;
 drop table t0;
 
+--echo #
+--echo # MDEV-5148: Server crashes in print_explain on killing EXPLAIN EXTENDED
+--echo #
+create table t0 (a int not null);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (a int, b int);
+insert into t1 select a,a from t0;
+
+create table t2 as select * from t1;
+
+set @show_explain_probe_select_id=2;
+set debug_dbug='+d,show_explain_probe_best_ext_lim_search';
+send
+explain 
+select * from t0 
+where not exists ( select 1 from t1, t2 where t1.b=t2.b and t2.a=t0.a) and a is null;
+
+connection default;
+--source include/wait_condition.inc
+evalp kill query $thr2;
+
+connection con1;
+--error ER_QUERY_INTERRUPTED
+reap;
+
+drop table t0,t1,t2;
+
+--echo # End
 connection default;
 disconnect con1;
 set debug_sync='RESET';

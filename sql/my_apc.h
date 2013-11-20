@@ -64,6 +64,8 @@ public:
   {
     return test(apc_calls);
   }
+
+  inline bool is_enabled() { return enabled; }
   
   /* Functor class for calls you can schedule */
   class Apc_call
@@ -132,6 +134,8 @@ private:
 
 #ifdef HAVE_PSI_INTERFACE
 void init_show_explain_psi_keys(void);
+#else
+#define init_show_explain_psi_keys() /* no-op */
 #endif
 
 #endif //SQL_MY_APC_INCLUDED

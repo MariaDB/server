@@ -147,8 +147,9 @@ struct thread_group_t
   
 } MY_ALIGNED(512);
 
-static thread_group_t all_groups[MAX_THREAD_GROUPS];
+static thread_group_t *all_groups;
 static uint group_count;
+static int32 shutdown_group_count;
 
 /**
  Used for printing "pool blocked" message, see
@@ -517,7 +518,7 @@ static void* timer_thread(void *param)
       timer->current_microtime= microsecond_interval_timer();
       
       /* Check stalls in thread groups */
-      for(i=0; i< array_elements(all_groups);i++)
+      for (i= 0; i < threadpool_max_size; i++)
       {
         if(all_groups[i].connection_count)
            check_stall(&all_groups[i]);
@@ -907,6 +908,7 @@ int thread_group_init(thread_group_t *thread_group, pthread_attr_t* thread_attr)
   thread_group->pollfd= -1;
   thread_group->shutdown_pipe[0]= -1;
   thread_group->shutdown_pipe[1]= -1;
+  thread_group->queue.empty();
   DBUG_RETURN(0);
 }
 
@@ -927,6 +929,8 @@ void thread_group_destroy(thread_group_t *thread_group)
       thread_group->shutdown_pipe[i]= -1;
     }
   }
+  if (my_atomic_add32(&shutdown_group_count, -1) == 1)
+    my_free(all_groups);
 }
 
 /**
@@ -1510,10 +1514,18 @@ static void *worker_main(void *param)
 bool tp_init()
 {
   DBUG_ENTER("tp_init");
+  threadpool_max_size= MY_MAX(threadpool_size, 128);
+  all_groups= (thread_group_t *)
+    my_malloc(sizeof(thread_group_t) * threadpool_max_size, MYF(MY_WME|MY_ZEROFILL));
+  if (!all_groups)
+  {
+    threadpool_max_size= 0;
+    DBUG_RETURN(1);
+  }
   threadpool_started= true;
   scheduler_init();
 
-  for(uint i=0; i < array_elements(all_groups); i++)
+  for (uint i= 0; i < threadpool_max_size; i++)
   {
     thread_group_init(&all_groups[i], get_connection_attrib());  
   }
@@ -1542,7 +1554,8 @@ void tp_end()
     DBUG_VOID_RETURN;
 
   stop_timer(&pool_timer);
-  for(uint i=0; i< array_elements(all_groups); i++)
+  shutdown_group_count= threadpool_max_size;
+  for (uint i= 0; i < threadpool_max_size; i++)
   {
     thread_group_close(&all_groups[i]);
   }
@@ -1604,9 +1617,7 @@ void tp_set_threadpool_stall_limit(uint limit)
 int tp_get_idle_thread_count()
 {
   int sum=0;
-  for(uint i= 0; 
-      i< array_elements(all_groups) && (all_groups[i].pollfd >= 0); 
-      i++)
+  for (uint i= 0; i < threadpool_max_size && all_groups[i].pollfd >= 0; i++)
   {
     sum+= (all_groups[i].thread_count - all_groups[i].active_thread_count);
   }

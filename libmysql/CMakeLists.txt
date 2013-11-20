@@ -16,7 +16,8 @@
 INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/libmysql
-  ${CMAKE_SOURCE_DIR}/regex
+  ${CMAKE_BINARY_DIR}/pcre
+  ${CMAKE_SOURCE_DIR}/pcre
   ${CMAKE_SOURCE_DIR}/strings
   ${SSL_INCLUDE_DIRS}
   ${SSL_INTERNAL_INCLUDE_DIRS}
@@ -223,15 +224,16 @@ dynamic_column_exists
 dynamic_column_list
 dynamic_column_get
 dynamic_column_prepare_decimal
-mariadb_dyncol_create_many
+mariadb_dyncol_create_many_num
 mariadb_dyncol_create_many_named
-mariadb_dyncol_update_many
+mariadb_dyncol_update_many_num
 mariadb_dyncol_update_many_named
-mariadb_dyncol_exists
+mariadb_dyncol_exists_num
 mariadb_dyncol_exists_named
-mariadb_dyncol_list
+mariadb_dyncol_free
+mariadb_dyncol_list_num
 mariadb_dyncol_list_named
-mariadb_dyncol_get
+mariadb_dyncol_get_num
 mariadb_dyncol_get_named
 mariadb_dyncol_has_names
 mariadb_dyncol_check

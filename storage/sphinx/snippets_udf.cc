@@ -311,12 +311,12 @@ bool CSphUrl::Parse ( const char * sUrl, int iLen )
 			// unix-domain socket
 			m_iPort = 0;
 			if (!( m_sIndex = strrchr ( m_sHost, ':' ) ))
-				m_sIndex = SPHINXSE_DEFAULT_INDEX;
+				m_sIndex = const_cast<char *>(SPHINXSE_DEFAULT_INDEX);
 			else
 			{
 				*m_sIndex++ = '\0';
 				if ( !*m_sIndex )
-					m_sIndex = SPHINXSE_DEFAULT_INDEX;
+					m_sIndex = const_cast<char *>(SPHINXSE_DEFAULT_INDEX);
 			}
 			bOk = true;
 			break;
@@ -336,7 +336,7 @@ bool CSphUrl::Parse ( const char * sUrl, int iLen )
 				if ( m_sIndex )
 					*m_sIndex++ = '\0';
 				else
-					m_sIndex = SPHINXSE_DEFAULT_INDEX;
+					m_sIndex = const_cast<char *>(SPHINXSE_DEFAULT_INDEX);
 
 				m_iPort = atoi(sPort);
 				if ( !m_iPort )
@@ -348,7 +348,7 @@ bool CSphUrl::Parse ( const char * sUrl, int iLen )
 			if ( m_sIndex )
 				*m_sIndex++ = '\0';
 			else
-				m_sIndex = SPHINXSE_DEFAULT_INDEX;
+				m_sIndex = const_cast<char *>(SPHINXSE_DEFAULT_INDEX);
 		}
 
 		bOk = true;

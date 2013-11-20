@@ -416,11 +416,13 @@ int emb_unbuffered_fetch(MYSQL *mysql, char **row)
 static void emb_free_embedded_thd(MYSQL *mysql)
 {
   THD *thd= (THD*)mysql->thd;
+  mysql_mutex_lock(&LOCK_thread_count);
   thd->clear_data_list();
   thread_count--;
   thd->store_globals();
   thd->unlink();
   delete thd;
+  mysql_mutex_unlock(&LOCK_thread_count);
   my_pthread_setspecific_ptr(THR_THD,  0);
   mysql->thd=0;
 }
@@ -564,7 +566,7 @@ int init_embedded_server(int argc, char **argv, char **groups)
     opt_mysql_tmpdir=getenv("TMP");
 #endif
   if (!opt_mysql_tmpdir || !opt_mysql_tmpdir[0])
-    opt_mysql_tmpdir=(char*) P_tmpdir;		/* purecov: inspected */
+    opt_mysql_tmpdir=(char*) DEFAULT_TMPDIR;		/* purecov: inspected */
 
   init_ssl();
   umask(((~my_umask) & 0666));
@@ -638,7 +640,6 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
   thd->mysql= mysql;
   mysql->server_version= server_version;
   mysql->client_flag= client_flag;
-  //mysql->server_capabilities= client_flag;
   init_alloc_root(&mysql->field_alloc, 8192, 0, MYF(0));
 }
 
@@ -688,8 +689,10 @@ void *create_embedded_thd(int client_flag)
   thd->data_tail= &thd->first_data;
   bzero((char*) &thd->net, sizeof(thd->net));
 
+  mysql_mutex_lock(&LOCK_thread_count);
   thread_count++;
   threads.append(thd);
+  mysql_mutex_unlock(&LOCK_thread_count);
   thd->mysys_var= 0;
   return thd;
 err:
@@ -699,11 +702,37 @@ err:
 
 
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
+static void
+emb_transfer_connect_attrs(MYSQL *mysql)
+{
+#ifdef HAVE_PSI_THREAD_INTERFACE
+  if (mysql->options.extension &&
+      mysql->options.extension->connection_attributes_length)
+  {
+    uchar *buf, *ptr;
+    THD *thd= (THD*)mysql->thd;
+    size_t length= mysql->options.extension->connection_attributes_length;
+
+    /* 9 = max length of the serialized length */
+    ptr= buf= (uchar *) my_alloca(length + 9);
+    send_client_connect_attrs(mysql, buf);
+    net_field_length_ll(&ptr);
+    PSI_THREAD_CALL(set_thread_connect_attrs)((char *) ptr, length, thd->charset());
+    my_afree(buf);
+  }
+#endif
+}
+
+
 int check_embedded_connection(MYSQL *mysql, const char *db)
 {
   int result;
   LEX_STRING db_str = { (char*)db, db ? strlen(db) : 0 };
   THD *thd= (THD*)mysql->thd;
+
+  /* the server does the same as the client */
+  mysql->server_capabilities= mysql->client_flag;
+
   thd_init_client_charset(thd, mysql->charset->number);
   thd->update_charset();
   Security_context *sctx= thd->security_ctx;
@@ -713,6 +742,7 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
   sctx->user= my_strdup(mysql->user, MYF(0));
   sctx->proxy_user[0]= 0;
   sctx->master_access= GLOBAL_ACLS;       // Full rights
+  emb_transfer_connect_attrs(mysql);
   /* Change database if necessary */
   if (!(result= (db && db[0] && mysql_change_db(thd, &db_str, FALSE))))
     my_ok(thd);
@@ -728,11 +758,17 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
     we emulate a COM_CHANGE_USER user here,
     it's easier than to emulate the complete 3-way handshake
   */
-  char buf[USERNAME_LENGTH + SCRAMBLE_LENGTH + 1 + 2*NAME_LEN + 2], *end;
+  char *buf, *end;
   NET *net= &mysql->net;
   THD *thd= (THD*)mysql->thd;
   Security_context *sctx= thd->security_ctx;
+  size_t connect_attrs_len=
+    (mysql->options.extension) ?
+    mysql->options.extension->connection_attributes_length : 0;
 
+  buf= (char *)my_alloca(USERNAME_LENGTH + SCRAMBLE_LENGTH + 1 +
+                         2*NAME_LEN + 2 +
+                         connect_attrs_len + 2);
   if (mysql->options.client_ip)
   {
     sctx->host= my_strdup(mysql->options.client_ip, MYF(0));
@@ -766,21 +802,31 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
   int2store(end, (ushort) mysql->charset->number);
   end+= 2;
 
+  // There is no pluging compatibility in the embedded server
+  //end= strmake(end, "mysql_native_password", NAME_LEN) + 1;
+
+  /* the server does the same as the client */
+  mysql->server_capabilities= mysql->client_flag;
+
+  end= (char *) send_client_connect_attrs(mysql, (uchar *) end);
+
   /* acl_authenticate() takes the data from thd->net->read_pos */
   thd->net.read_pos= (uchar*)buf;
 
   if (acl_authenticate(thd, 0, end - buf))
   {
-    x_free(thd->security_ctx->user);
+    my_free(thd->security_ctx->user);
     goto err;
   }
+  my_afree(buf);
   return 0;
 
 err:
-  strmake_buf(net->last_error, thd->main_da.message());
+  strmake_buf(net->last_error, thd->get_stmt_da()->message());
   memcpy(net->sqlstate,
-         mysql_errno_to_sqlstate(thd->main_da.sql_errno()),
+         mysql_errno_to_sqlstate(thd->get_stmt_da()->sql_errno()),
          sizeof(net->sqlstate)-1);
+  my_afree(buf);
   return 1;
 }
 #endif

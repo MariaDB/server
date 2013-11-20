@@ -2080,7 +2080,7 @@ f1	f2
 explain
 select col1 f1, col1 f2 from t1 group by f2 order by f2, f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx	5	NULL	7	Using index for group-by; Using temporary; Using filesort
+1	SIMPLE	t1	index	NULL	idx	5	NULL	20	Using index; Using temporary; Using filesort
 select col1 f1, col1 f2 from t1 group by f2 order by f2, f1;
 f1	f2
 1	1
@@ -2415,6 +2415,11 @@ a
 200
 set optimizer_switch=@save_optimizer_switch;
 DROP TABLE t1,t2;
+#
+# MDEV-5104 crash in Item_field::used_tables with broken order by
+#
+(select 1 order by x(y)) order by 1;
+ERROR 42S22: Unknown column 'y' in 'order clause'
 # End of 5.3 tests
 #
 # Bug#49771: Incorrect MIN (date) when minimum value is 0000-00-00

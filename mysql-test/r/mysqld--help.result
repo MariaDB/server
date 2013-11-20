@@ -41,6 +41,17 @@ The following options may be given as the first argument:
  Type of BINLOG_CHECKSUM_ALG. Include checksum for log
  events in the binary log. Possible values are NONE and
  CRC32; default is NONE.
+ --binlog-commit-wait-count=# 
+ If non-zero, binlog write will wait at most
+ binlog_commit_wait_usec microseconds for at least this
+ many commits to queue up for group commit to the binlog.
+ This can reduce I/O on the binlog and provide increased
+ opportunity for parallel apply on the slave, but too high
+ a value will decrease commit throughput.
+ --binlog-commit-wait-usec=# 
+ Maximum time, in microseconds, to wait for more commits
+ to queue up for binlog group commit. Only takes effect if
+ the value of binlog_commit_wait_count is non-zero.
  --binlog-direct-non-transactional-updates 
  Causes updates to non-transactional engines using
  statement format to be written directly to binary log.
@@ -329,7 +340,7 @@ The following options may be given as the first argument:
  log if it is open.
  --log-slow-verbosity=name 
  log-slow-verbosity=[value[,value ...]] where value is one
- of 'innodb', 'query_plan'
+ of 'innodb', 'query_plan', 'explain' 
  --log-tc=name       Path to transaction coordinator log (used for
  transactions that affect more than one storage engine,
  when binary log is disabled).
@@ -861,6 +872,17 @@ The following options may be given as the first argument:
  --slave-net-timeout=# 
  Number of seconds to wait for more data from any
  master/slave connection before aborting the read
+ --slave-parallel-max-queued=# 
+ Limit on how much memory SQL threads should use per
+ parallel replication thread when reading ahead in the
+ relay log looking for opportunities for parallel
+ replication. Only used when --slave-parallel-threads > 0.
+ --slave-parallel-threads=# 
+ Alpha feature, to only be used by developers doing
+ testing! If non-zero, number of threads to spawn to apply
+ in parallel events on the slave that were group-committed
+ on the master or were logged with GTID in different
+ replication domains.
  --slave-skip-errors=name 
  Tells the slave thread to continue replication when a
  query event returns an error from the provided list
@@ -1006,6 +1028,8 @@ bind-address (No default value)
 binlog-annotate-row-events FALSE
 binlog-cache-size 32768
 binlog-checksum NONE
+binlog-commit-wait-count 0
+binlog-commit-wait-usec 100000
 binlog-direct-non-transactional-updates FALSE
 binlog-format STATEMENT
 binlog-optimize-thread-scheduling TRUE
@@ -1185,7 +1209,7 @@ performance-schema-max-rwlock-instances 1724
 performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances 179
 performance-schema-max-stage-classes 150
-performance-schema-max-statement-classes 175
+performance-schema-max-statement-classes 179
 performance-schema-max-table-handles 445
 performance-schema-max-table-instances 445
 performance-schema-max-thread-classes 50
@@ -1241,6 +1265,8 @@ slave-compressed-protocol FALSE
 slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
 slave-net-timeout 3600
+slave-parallel-max-queued 131072
+slave-parallel-threads 0
 slave-skip-errors (No default value)
 slave-sql-verify-checksum TRUE
 slave-transaction-retries 10

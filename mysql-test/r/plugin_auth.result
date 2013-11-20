@@ -22,11 +22,11 @@ SHOW CREATE TABLE mysql.proxies_priv;
 Table	Create Table
 proxies_priv	CREATE TABLE `proxies_priv` (
   `Host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `User` char(16) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `User` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Proxied_host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `Proxied_user` char(16) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `Proxied_user` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
   `With_grant` tinyint(1) NOT NULL DEFAULT '0',
-  `Grantor` char(77) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `Grantor` char(141) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`Host`,`User`,`Proxied_host`,`Proxied_user`),
   KEY `Grantor` (`Grantor`)
@@ -36,8 +36,6 @@ USER()	CURRENT_USER()
 plug@localhost	plug_dest@%
 ## test SET PASSWORD
 SET PASSWORD = PASSWORD('plug_dest');
-Warnings:
-Note	1699	SET PASSWORD has no significance for users authenticating via plugins
 ## test bad credentials
 ERROR 28000: Access denied for user 'plug'@'localhost' (using password: YES)
 ## test bad default plugin : should get CR_AUTH_PLUGIN_CANNOT_LOAD
@@ -116,7 +114,7 @@ ERROR 42000: There is no such grant defined for user 'grant_plug' on host '%'
 in grant_plug_dest_con
 ## testing what an ordinary user can grant 
 this should fail : no rights to grant all
-GRANT PROXY ON ''@'' TO grant_plug;
+GRANT PROXY ON ''@'%%' TO grant_plug;
 ERROR 28000: Access denied for user 'grant_plug_dest'@'localhost'
 this should fail : not the same user
 GRANT PROXY ON grant_plug TO grant_plug_dest;
@@ -139,15 +137,15 @@ ERROR 42000: You are not allowed to create a user with GRANT
 in default connection
 # test what root can grant
 should work : root has PROXY to all users
-GRANT PROXY ON ''@'' TO grant_plug;
-REVOKE PROXY ON ''@'' FROM grant_plug;
+GRANT PROXY ON ''@'%%' TO grant_plug;
+REVOKE PROXY ON ''@'%%' FROM grant_plug;
 should work : root has PROXY to all users
-GRANT PROXY ON ''@'' TO proxy_admin IDENTIFIED BY 'test' 
+GRANT PROXY ON ''@'%%' TO proxy_admin IDENTIFIED BY 'test' 
 WITH GRANT OPTION;
 need USAGE : PROXY doesn't contain it.
 GRANT USAGE on *.* TO proxy_admin;
 in proxy_admin_con;
-should work : proxy_admin has proxy to ''@''
+should work : proxy_admin has proxy to ''@'%%'
 GRANT PROXY ON future_user TO grant_plug;
 in default connection
 SHOW GRANTS FOR grant_plug;
@@ -234,25 +232,25 @@ DROP USER plug_dest;
 #  Bug #56798 : Wrong credentials assigned when using a proxy user.
 #
 GRANT ALL PRIVILEGES ON *.* TO power_user;
-GRANT USAGE ON anonymous_db.* TO ''@''
+GRANT USAGE ON anonymous_db.* TO ''@'%%'
   IDENTIFIED WITH 'test_plugin_server' AS 'power_user';
-GRANT PROXY ON power_user TO ''@'';
+GRANT PROXY ON power_user TO ''@'%%';
 CREATE DATABASE confidential_db;
 SELECT user(),current_user(),@@proxy_user;
 user()	current_user()	@@proxy_user
-test_login_user@localhost	power_user@%	''@''
+test_login_user@localhost	power_user@%	''@'%%'
 DROP USER power_user;
-DROP USER ''@'';
+DROP USER ''@'%%';
 DROP DATABASE confidential_db;
 # Test case #2 (crash with double grant proxy)
-CREATE USER ''@'' IDENTIFIED WITH 'test_plugin_server' AS 'standard_user';
+CREATE USER ''@'%%' IDENTIFIED WITH 'test_plugin_server' AS 'standard_user';
 CREATE USER standard_user;
 CREATE DATABASE shared;
 GRANT ALL PRIVILEGES ON shared.* TO standard_user;
-GRANT PROXY ON standard_user TO ''@'';
+GRANT PROXY ON standard_user TO ''@'%%';
 #should not crash
-GRANT PROXY ON standard_user TO ''@'';
-DROP USER ''@'';
+GRANT PROXY ON standard_user TO ''@'%%';
+DROP USER ''@'%%';
 DROP USER standard_user;
 DROP DATABASE shared;
 #
@@ -426,8 +424,6 @@ SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 bug12818542@localhost	bug12818542_dest@localhost
 SET PASSWORD = PASSWORD('bruhaha');
-Warnings:
-Note	1699	SET PASSWORD has no significance for users authenticating via plugins
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 bug12818542@localhost	bug12818542_dest@localhost

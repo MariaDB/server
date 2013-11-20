@@ -282,9 +282,12 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_CREATE_VIEW:
   case SQLCOM_CREATE_TRIGGER:
   case SQLCOM_CREATE_USER:
+  case SQLCOM_CREATE_ROLE:
   case SQLCOM_ALTER_TABLE:
   case SQLCOM_GRANT:
+  case SQLCOM_GRANT_ROLE:
   case SQLCOM_REVOKE:
+  case SQLCOM_REVOKE_ROLE:
   case SQLCOM_BEGIN:
   case SQLCOM_RENAME_TABLE:
   case SQLCOM_RENAME_USER:
@@ -292,6 +295,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_DROP_DB:
   case SQLCOM_REVOKE_ALL:
   case SQLCOM_DROP_USER:
+  case SQLCOM_DROP_ROLE:
   case SQLCOM_DROP_VIEW:
   case SQLCOM_DROP_TRIGGER:
   case SQLCOM_TRUNCATE:
@@ -312,6 +316,33 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_UNINSTALL_PLUGIN:
     flags= sp_head::HAS_COMMIT_OR_ROLLBACK;
     break;
+  case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
+  {
+    /* 
+      DELETE normally doesn't return resultset, but there are two exceptions:
+       - DELETE ... RETURNING
+       - EXPLAIN DELETE ...
+    */
+    if (lex->select_lex.item_list.is_empty() && !lex->describe)
+      flags= 0;
+    else
+      flags= sp_head::MULTI_RESULTS; 
+    break;
+  }
+  case SQLCOM_UPDATE:
+  case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_INSERT:
+  case SQLCOM_REPLACE:
+  case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_INSERT_SELECT:
+  {
+    if (!lex->describe)
+      flags= 0;
+    else
+      flags= sp_head::MULTI_RESULTS; 
+    break;
+  }
   default:
     flags= 0;
     break;
@@ -2441,8 +2472,13 @@ sp_head::set_definer(const char *definer, uint definerlen)
   char host_name_holder[HOSTNAME_LENGTH + 1];
   LEX_STRING host_name= { host_name_holder, HOSTNAME_LENGTH };
 
-  parse_user(definer, definerlen, user_name.str, &user_name.length,
-             host_name.str, &host_name.length);
+  if (parse_user(definer, definerlen, user_name.str, &user_name.length,
+                 host_name.str, &host_name.length) &&
+      user_name.length && !host_name.length)
+  {
+    // 'user@' -> 'user@%'
+    host_name= host_not_specified;
+  }
 
   set_definer(&user_name, &host_name);
 }
@@ -2933,6 +2969,8 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     else if (! thd->in_sub_stmt)
       thd->mdl_context.release_statement_locks();
   }
+  //TODO: why is this here if log_slow_query is in sp_instr_stmt_execute? 
+  delete_explain_query(m_lex);
 
   if (m_lex->query_tables_own_last)
   {
@@ -3066,7 +3104,15 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
         log_slow_statement(thd);
     }
     else
+    {
+      /* change statistics */
+      enum_sql_command save_sql_command= thd->lex->sql_command;
+      thd->lex->sql_command= SQLCOM_SELECT;
+      status_var_increment(thd->status_var.com_stat[SQLCOM_SELECT]);
+      thd->update_stats();
+      thd->lex->sql_command= save_sql_command;
       *nextp= m_ip+1;
+    }
     thd->set_query(query_backup);
     thd->query_name_consts= 0;
 
@@ -3154,6 +3200,7 @@ sp_instr_set::exec_core(THD *thd, uint *nextp)
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
     }
   }
+  delete_explain_query(thd->lex);
 
   *nextp = m_ip+1;
   return res;

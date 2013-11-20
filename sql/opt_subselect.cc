@@ -437,9 +437,7 @@ Currently, solution #2 is implemented.
 
 static
 bool subquery_types_allow_materialization(Item_in_subselect *in_subs);
-static bool replace_where_subcondition(JOIN *join, Item **expr, 
-                                       Item *old_cond, Item *new_cond,
-                                       bool do_fix_fields);
+static bool replace_where_subcondition(JOIN *, Item **, Item *, Item *, bool);
 static int subq_sj_candidate_cmp(Item_in_subselect* el1, Item_in_subselect* el2,
                                  void *arg);
 static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred);
@@ -1272,11 +1270,11 @@ void get_delayed_table_estimates(TABLE *table,
    @brief Replaces an expression destructively inside the expression tree of
    the WHERE clase.
 
-   @note Because of current requirements for semijoin flattening, we do not
-   need to recurse here, hence this function will only examine the top-level
-   AND conditions. (see JOIN::prepare, comment starting with "Check if the 
-   subquery predicate can be executed via materialization".
-   
+   @note We substitute AND/OR structure because it was copied by
+   copy_andor_structure and some changes could be done in the copy but
+   should be left permanent, also there could be several layers of AND over
+   AND and OR over OR because ::fix_field() possibly is not called.
+
    @param join The top-level query.
    @param old_cond The expression to be replaced.
    @param new_cond The expression to be substituted.
@@ -1304,12 +1302,19 @@ static bool replace_where_subcondition(JOIN *join, Item **expr,
     Item *item;
     while ((item= li++))
     {
-      if (item == old_cond) 
+      if (item == old_cond)
       {
         li.replace(new_cond);
         if (do_fix_fields)
           new_cond->fix_fields(join->thd, li.ref());
         return FALSE;
+      }
+      else if (item->type() == Item::COND_ITEM)
+      {
+        DBUG_ASSERT(!do_fix_fields || !(*expr)->fixed);
+        replace_where_subcondition(join, li.ref(),
+                                   old_cond, new_cond,
+                                   do_fix_fields);
       }
     }
   }
@@ -5223,10 +5228,12 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
           {
             eq_cond= new Item_func_eq(subq_pred->left_expr->element_index(i),
                                       new_sink->row[i]);
-            if (!eq_cond || eq_cond->fix_fields(join->thd, &eq_cond))
+            if (!eq_cond)
               DBUG_RETURN(1);
 
-            (*join_where)= and_items(*join_where, eq_cond);
+            if (!((*join_where)= and_items(*join_where, eq_cond)) ||
+                (*join_where)->fix_fields(join->thd, join_where))
+              DBUG_RETURN(1);
           }
         }
         else
@@ -5241,6 +5248,12 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
           DBUG_RETURN(1);
         table->table= dummy_table;
         table->table->pos_in_table_list= table;
+        /*
+          Note: the table created above may be freed by:
+          1. JOIN_TAB::cleanup(), when the parent join is a regular join.
+          2. cleanup_empty_jtbm_semi_joins(), when the parent join is a
+             degenerate join (e.g. one with "Impossible where").
+        */
         setup_table_map(table->table, table, table->jtbm_table_no);
       }
       else
@@ -5270,6 +5283,42 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
     }
   }
   DBUG_RETURN(FALSE);
+}
+
+
+/*
+  Cleanup non-merged semi-joins (JBMs) that have empty.
+
+  This function is to cleanups for a special case:  
+  Consider a query like 
+
+    select * from t1 where 1=2 AND t1.col IN (select max(..) ... having 1=2)
+
+  For this query, optimization of subquery will short-circuit, and 
+  setup_jtbm_semi_joins() will call create_dummy_tmp_table() so that we have
+  empty, constant temp.table to stand in as materialized temp. table.
+
+  Now, suppose that the upper join is also found to be degenerate. In that
+  case, no JOIN_TAB array will be produced, and hence, JOIN::cleanup() will
+  have a problem with cleaning up empty JTBMs (non-empty ones are cleaned up
+  through Item::cleanup() calls).
+*/
+
+void cleanup_empty_jtbm_semi_joins(JOIN *join)
+{
+  List_iterator<TABLE_LIST> li(*join->join_list);
+  TABLE_LIST *table;
+  while ((table= li++))
+  {
+    if ((table->jtbm_subselect && table->jtbm_subselect->is_jtbm_const_tab))
+    {
+      if (table->table)
+      {
+        free_tmp_table(join->thd, table->table);
+        table->table= NULL;
+      }
+    }
+  }
 }
 
 

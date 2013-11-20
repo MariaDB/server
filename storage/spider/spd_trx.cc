@@ -2429,14 +2429,18 @@ int spider_initinal_xa_recover(
     }
   }
 
+/*
   if (!thd)
   {
+*/
     if (!(thd = spider_create_tmp_thd()))
     {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_create_thd;
     }
+/*
   }
+*/
 
   /*
     select
@@ -2465,8 +2469,10 @@ int spider_initinal_xa_recover(
   }
   free_root(&mem_root, MYF(0));
 
+/*
   if (cnt < (int) len)
   {
+*/
     end_read_record(read_record);
     spider_close_sys_table(thd, table_xa, open_tables_backup, TRUE);
     table_xa = NULL;
@@ -2476,7 +2482,9 @@ int spider_initinal_xa_recover(
     read_record = NULL;
     delete open_tables_backup;
     open_tables_backup = NULL;
+/*
   }
+*/
   DBUG_RETURN(cnt);
 
 /*
@@ -3749,6 +3757,11 @@ void spider_free_tmp_thd(
   THD *thd
 ) {
   DBUG_ENTER("spider_free_tmp_thd");
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
+  thd->reset_globals();
+#else
+  thd->restore_globals();
+#endif
   thd->cleanup();
   delete thd;
   DBUG_VOID_RETURN;
@@ -3966,7 +3979,7 @@ int spider_trx_check_link_idx_failed(
   uint *conn_link_idx = spider->conn_link_idx;
   int link_count = share->link_count;
   uchar *conn_can_fo = spider->conn_can_fo;
-  DBUG_ENTER("spider_trx_set_link_idx_for_all");
+  DBUG_ENTER("spider_trx_check_link_idx_failed");
   for (roop_count = 0; roop_count < link_count; roop_count++)
   {
     if (

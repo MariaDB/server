@@ -14,6 +14,10 @@
 #include "my_global.h"
 //#endif  // !WIN32
 
+#if !defined(LIBXML_TREE_ENABLED) || !defined(LIBXML_OUTPUT_ENABLED)
+#error "tree support not compiled in"
+#endif
+
 #if !defined(LIBXML_XPATH_ENABLED) || !defined(LIBXML_SAX1_ENABLED)
 #error "XPath not supported"
 #endif
@@ -47,8 +51,6 @@ typedef struct _x2block {         /* Loaded XML file block        */
   short              Type;        /* TYPE_FB_XML                  */
   int                Retcode;     /* Return code from Load        */
   xmlDocPtr          Docp;        /* Document interface pointer   */
-//  xmlXPathContextPtr Ctxp;
-//  xmlXPathObjectPtr  Xop;
   } X2BLOCK, *PX2BLOCK;
 
 /******************************************************************/
@@ -91,6 +93,8 @@ class LIBXMLDOC : public XMLDOCUMENT {
   xmlNodeSetPtr      Nlist;
   xmlXPathContextPtr Ctxp;
   xmlXPathObjectPtr  Xop;
+  xmlXPathObjectPtr  NlXop;
+  xmlErrorPtr        Xerr;
   char              *Buf;                  // Temporary
   bool               Nofreelist;
 }; // end of class LIBXMLDOC
@@ -141,6 +145,7 @@ class XML2NODELIST : public XMLNODELIST {
   // Methods
   virtual int    GetLength(void);
   virtual PXNODE GetItem(PGLOBAL g, int n, PXNODE np);
+  virtual bool   DropItem(PGLOBAL g, int n);
 
  protected:
   // Constructor
@@ -180,6 +185,23 @@ extern int  trace;
 } //   "C"
 
 #if defined(MEMORY_TRACE)
+static int  m = 0;
+static char s[500];
+/**************************************************************************/
+/*  Tracing output function.                                              */
+/**************************************************************************/
+void xtrc(char const *fmt, ...)
+  {
+  va_list ap;
+  va_start (ap, fmt);
+
+//vfprintf(stderr, fmt, ap);
+  vsprintf(s, fmt, ap);
+  if (s[strlen(s)-1] == '\n')
+      s[strlen(s)-1] = 0;
+  va_end (ap);
+  } // end of htrc
+
 static xmlFreeFunc Free; 
 static xmlMallocFunc Malloc;
 static xmlMallocFunc MallocA; 
@@ -188,42 +210,53 @@ static xmlStrdupFunc Strdup;
 
 void xmlMyFree(void *mem)
 {
-  if (trace) 
-    htrc("Freeing          at %p\n", mem);
+  if (trace) { 
+    htrc("%.4d Freeing          at %p   %s\n", ++m, mem, s);
+    *s = 0;
+    } // endif trace
   Free(mem);
 } // end of xmlMyFree
 
 void *xmlMyMalloc(size_t size)
 {
   void *p = Malloc(size);
-  if (trace) 
-    htrc("Allocating %.5d at %p\n", size, p);
+  if (trace) { 
+    htrc("%.4d Allocating %.5d at %p   %s\n", ++m, size, p, s);
+    *s = 0;
+    } // endif trace
   return p;
 } // end of xmlMyMalloc
 
 void *xmlMyMallocAtomic(size_t size)
 {
   void *p = MallocA(size);
-  if (trace) 
-    htrc("Atom alloc %.5d at %p\n", size, p);
+  if (trace) { 
+    htrc("%.4d Atom alloc %.5d at %p   %s\n", ++m, size, p, s);
+    *s = 0;
+    } // endif trace
   return p;
 } // end of xmlMyMallocAtomic
 
 void *xmlMyRealloc(void *mem, size_t size)
 {
   void *p = Realloc(mem, size);
-  if (trace) 
-    htrc("ReAlloc    %.5d to %p from %p\n", size, p, mem);
+  if (trace) { 
+    htrc("%.4d ReAlloc    %.5d to %p from %p   %s\n", ++m, size, p, mem, s);
+    *s = 0;
+    } // endif trace
   return p;
 } // end of xmlMyRealloc
 
 char *xmlMyStrdup(const char *str)
 {
   char *p = Strdup(str);
-  if (trace) 
-    htrc("Duplicating      to %p from %p %s\n", p, str, str);
+  if (trace) { 
+    htrc("%.4d Duplicating      to %p from %p %s   %s\n", ++m, p, str, str, s);
+    *s = 0;
+    } // endif trace
   return p;
 } // end of xmlMyStrdup
+#define htrc xtrc
 #endif   // MEMORY_TRACE
 
 /******************************************************************/
@@ -295,6 +328,8 @@ LIBXMLDOC::LIBXMLDOC(char *nsl, char *nsdf, char *enc, PFBLOCK fp)
   Nlist = NULL;
   Ctxp = NULL;
   Xop = NULL;
+  NlXop = NULL;
+  Xerr = NULL;
   Buf = NULL;
   Nofreelist = false;
   } // end of LIBXMLDOC constructor
@@ -321,9 +356,10 @@ bool LIBXMLDOC::ParseFile(char *fn)
       Encoding = (char*)Docp->encoding;
 
     return false;
-  } else
-    return true;
+  } else if ((Xerr = xmlGetLastError()))
+    xmlResetError(Xerr);
 
+  return true;
   } // end of ParseFile
 
 /******************************************************************/
@@ -344,8 +380,6 @@ PFBLOCK LIBXMLDOC::LinkXblock(PGLOBAL g, MODE m, int rc, char *fn)
   xp->Length = (m == MODE_READ) ? 1 : 0;
   xp->Retcode = rc;
   xp->Docp = Docp;
-//  xp->Ctxp = Ctxp;
-//  xp->Xop = Xop;
 
   // Return xp as a fp
   return (PFBLOCK)xp;
@@ -356,6 +390,9 @@ PFBLOCK LIBXMLDOC::LinkXblock(PGLOBAL g, MODE m, int rc, char *fn)
 /******************************************************************/
 bool LIBXMLDOC::NewDoc(PGLOBAL g, char *ver)
   {
+  if (trace)
+    htrc("NewDoc\n");
+
   return ((Docp = xmlNewDoc(BAD_CAST ver)) == NULL);
   } // end of NewDoc
 
@@ -462,8 +499,7 @@ int LIBXMLDOC::DumpDoc(PGLOBAL g, char *ofn)
   if (xmlSaveFormatFileEnc((const char *)ofn, Docp, Encoding, 0) < 0) {
     xmlErrorPtr err = xmlGetLastError();
 
-    strcpy(g->Message, (err) ? err->message : "Error saving XML doc"
-      );
+    strcpy(g->Message, (err) ? err->message : "Error saving XML doc");
     rc = -1;
     } // endif Save
 //  rc = xmlDocDump(of, Docp);
@@ -497,17 +533,44 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
   if (trace)
     htrc("CloseDoc: xp=%p count=%d\n", xp, (xp) ? xp->Count : 0);
 
-  if (xp && xp->Count == 1) {
-    if (Nlist)
+//if (xp && xp->Count == 1) {
+    if (Nlist) {
       xmlXPathFreeNodeSet(Nlist);
 
-    if (Xop)
+      if ((Xerr = xmlGetLastError()))
+        xmlResetError(Xerr);
+
+      Nlist = NULL;
+      } // endif Nlist
+
+    if (Xop) {
       xmlXPathFreeObject(Xop);
 
-    if (Ctxp)
+      if ((Xerr = xmlGetLastError()))
+        xmlResetError(Xerr);
+
+      Xop = NULL;
+      } // endif Xop
+
+    if (NlXop) {
+      xmlXPathFreeObject(NlXop);
+
+      if ((Xerr = xmlGetLastError()))
+        xmlResetError(Xerr);
+
+      NlXop = NULL;
+      } // endif NlXop
+
+    if (Ctxp) {
       xmlXPathFreeContext(Ctxp);
 
-    } // endif Count
+      if ((Xerr = xmlGetLastError()))
+        xmlResetError(Xerr);
+
+      Ctxp = NULL;
+      } // endif Ctxp
+
+//  } // endif Count
 
   CloseXML2File(g, xp, false);
   } // end of Close
@@ -560,18 +623,29 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
 
       } // endfor nsp
 
-  } else {
+    } // endif Ctxp
+
+  if (Xop) {
     if (trace)
-      htrc("Calling xmlXPathFreeNodeSetList Xop=%p\n", Xop);
+      htrc("Calling xmlXPathFreeNodeSetList Xop=%p NOFREE=%d\n", 
+                                            Xop, Nofreelist);
 
     if (Nofreelist) {
       // Making Nlist that must not be freed yet
-      xmlXPathFreeNodeSetList(Xop);       // Caused memory leak
+//    xmlXPathFreeNodeSetList(Xop);       // Caused memory leak
+      assert(!NlXop);
+      NlXop = Xop;                        // Freed on closing
       Nofreelist = false;
     } else
       xmlXPathFreeObject(Xop);            // Caused node not found
 
-  } // endif Ctxp
+    if ((Xerr = xmlGetLastError())) {
+      strcpy(g->Message, Xerr->message);
+      xmlResetError(Xerr);
+      return NULL;
+      } // endif Xerr
+
+    } // endif Xop
 
   // Set the context to the calling node
   Ctxp->node = np;
@@ -990,6 +1064,8 @@ void XML2NODE::AddText(PGLOBAL g, char *txtp)
 /******************************************************************/
 void XML2NODE::DeleteChild(PGLOBAL g, PXNODE dnp)
   {
+  xmlErrorPtr xerr;
+
   if (trace)
     htrc("DeleteChild: node=%p\n", dnp);
 
@@ -999,12 +1075,39 @@ void XML2NODE::DeleteChild(PGLOBAL g, PXNODE dnp)
   // This is specific to row nodes
   if (text && text->type == XML_TEXT_NODE) {
     xmlUnlinkNode(text);
+
+    if ((xerr = xmlGetLastError()))
+      goto err;
+
     xmlFreeNode(text);
+
+    if ((xerr = xmlGetLastError()))
+      goto err;
+
     } // endif type
 
   xmlUnlinkNode(np);
+
+  if ((xerr = xmlGetLastError()))
+    goto err;
+
   xmlFreeNode(np);
+
+  if ((xerr = xmlGetLastError()))
+    goto err;
+
   Delete(dnp);
+
+  if ((xerr = xmlGetLastError()))
+    goto err;
+
+  return;
+
+err:
+  if (trace)
+    htrc("DeleteChild: errmsg=%s\n", xerr->message);
+
+  xmlResetError(xerr);
   } // end of DeleteChild
 
 /* -------------------- class XML2NODELIST ---------------------- */
@@ -1044,6 +1147,22 @@ PXNODE XML2NODELIST::GetItem(PGLOBAL g, int n, PXNODE np)
     return new(g) XML2NODE(Doc, Listp->nodeTab[n]);
 
   } // end of GetItem
+
+/******************************************************************/
+/*  Reset the pointer on the deleted item.                        */
+/******************************************************************/
+bool XML2NODELIST::DropItem(PGLOBAL g, int n)
+  {
+  if (trace)
+    htrc("DropItem: n=%d\n", n);
+
+  // We should do something here
+  if (!Listp || Listp->nodeNr <= n)
+    return true;
+
+  Listp->nodeTab[n] = NULL;   // This was causing Valgrind warning
+  return false;
+  } // end of DropItem
 
 /* ---------------------- class XML2ATTR ------------------------ */
 

@@ -25,7 +25,8 @@
 
 #include "thr_malloc.h"                         /* sql_calloc */
 #include "item_func.h"             /* Item_int_func, Item_bool_func */
-#include "my_regex.h"
+#define PCRE_STATIC 1             /* Important on Windows */
+#include "pcre.h"                 /* pcre header file */
 
 extern Item_result item_cmp_type(Item_result a,Item_result b);
 class Item_bool_func2;
@@ -371,7 +372,8 @@ protected:
 
 public:
   Item_bool_func2(Item *a,Item *b)
-    :Item_int_func(a,b), cmp(tmp_arg, tmp_arg+1), abort_on_null(FALSE) {}
+    :Item_int_func(a,b), cmp(tmp_arg, tmp_arg+1),
+     abort_on_null(FALSE) { sargable= TRUE; }
   void fix_length_and_dec();
   int set_cmp_func()
   {
@@ -514,8 +516,8 @@ public:
   bool fix_fields(THD *thd, Item **ref)
     {return Item_func::fix_fields(thd, ref);}
   virtual void print(String *str, enum_query_type query_type);
-  void set_sum_test(Item_sum_hybrid *item) { test_sum_item= item; };
-  void set_sub_test(Item_maxmin_subselect *item) { test_sub_item= item; };
+  void set_sum_test(Item_sum_hybrid *item) { test_sum_item= item; test_sub_item= 0; };
+  void set_sub_test(Item_maxmin_subselect *item) { test_sub_item= item; test_sum_item= 0;};
   bool empty_underlying_subquery();
   Item *neg_transformer(THD *thd);
 };
@@ -676,7 +678,7 @@ public:
   /* TRUE <=> arguments will be compared as dates. */
   Item *compare_as_dates;
   Item_func_between(Item *a, Item *b, Item *c)
-    :Item_func_opt_neg(a, b, c), compare_as_dates(FALSE) {}
+    :Item_func_opt_neg(a, b, c), compare_as_dates(FALSE) { sargable= TRUE; }
   longlong val_int();
   optimize_type select_optimize() const { return OPTIMIZE_KEY; }
   enum Functype functype() const   { return BETWEEN; }
@@ -689,6 +691,7 @@ public:
   uint decimal_precision() const { return 1; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  bool count_sargable_conds(uchar *arg);
 };
 
 
@@ -737,24 +740,19 @@ public:
 };
 
 
-class Item_func_coalesce :public Item_func_numhybrid
+class Item_func_coalesce :public Item_func_hybrid_field_type
 {
-protected:
-  enum_field_types cached_field_type;
-  Item_func_coalesce(Item *a, Item *b) :Item_func_numhybrid(a, b) {}
 public:
-  Item_func_coalesce(List<Item> &list) :Item_func_numhybrid(list) {}
+  Item_func_coalesce(Item *a, Item *b) :Item_func_hybrid_field_type(a, b) {}
+  Item_func_coalesce(List<Item> &list) :Item_func_hybrid_field_type(list) {}
   double real_op();
   longlong int_op();
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
+  bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
   void fix_length_and_dec();
-  void find_num_type() {}
-  enum Item_result result_type () const { return hybrid_type; }
   const char *func_name() const { return "coalesce"; }
   table_map not_null_tables() const { return 0; }
-  enum_field_types field_type() const { return cached_field_type; }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
 };
 
 
@@ -768,40 +766,27 @@ public:
   longlong int_op();
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
-  enum_field_types field_type() const;
+  bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
   void fix_length_and_dec();
-  void update_used_tables()
-  {
-    Item_func_coalesce::update_used_tables();
-    maybe_null|= args[1]->maybe_null;
-  }
   const char *func_name() const { return "ifnull"; }
   Field *tmp_table_field(TABLE *table);
   uint decimal_precision() const;
 };
 
 
-class Item_func_if :public Item_func
+class Item_func_if :public Item_func_hybrid_field_type
 {
-  enum Item_result cached_result_type;
-  enum_field_types cached_field_type;
 public:
   Item_func_if(Item *a,Item *b,Item *c)
-    :Item_func(a,b,c), cached_result_type(INT_RESULT)
+    :Item_func_hybrid_field_type(a,b,c)
   {}
-  double val_real();
-  longlong val_int();
-  String *val_str(String *str);
-  my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type () const { return cached_result_type; }
-  enum_field_types field_type() const { return cached_field_type; }
+  bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
+  longlong int_op();
+  double real_op();
+  my_decimal *decimal_op(my_decimal *);
+  String *str_op(String *);
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec();
-  void update_used_tables()
-  {
-    Item_func::update_used_tables();
-    maybe_null|= args[1]->maybe_null || args[2]->maybe_null;
-  }
   uint decimal_precision() const;
   const char *func_name() const { return "if"; }
   bool eval_not_null_tables(uchar *opt_arg);
@@ -1231,21 +1216,20 @@ public:
   function and only comparators for there result types are used.
 */
 
-class Item_func_case :public Item_func
+class Item_func_case :public Item_func_hybrid_field_type
 {
   int first_expr_num, else_expr_num;
-  enum Item_result cached_result_type, left_result_type;
+  enum Item_result left_result_type;
   String tmp_value;
   uint ncases;
   Item_result cmp_type;
   DTCollation cmp_collation;
-  enum_field_types cached_field_type;
   cmp_item *cmp_items[6]; /* For all result types */
   cmp_item *case_item;
 public:
   Item_func_case(List<Item> &list, Item *first_expr_arg, Item *else_expr_arg)
-    :Item_func(), first_expr_num(-1), else_expr_num(-1),
-    cached_result_type(INT_RESULT), left_result_type(INT_RESULT), case_item(0)
+    :Item_func_hybrid_field_type(), first_expr_num(-1), else_expr_num(-1),
+    left_result_type(INT_RESULT), case_item(0)
   {
     ncases= list.elements;
     if (first_expr_arg)
@@ -1261,22 +1245,15 @@ public:
     set_arguments(list);
     bzero(&cmp_items, sizeof(cmp_items));
   }
-  double val_real();
-  longlong val_int();
-  String *val_str(String *);
-  my_decimal *val_decimal(my_decimal *);
+  double real_op();
+  longlong int_op();
+  String *str_op(String *);
+  my_decimal *decimal_op(my_decimal *);
+  bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
-  void update_used_tables()
-  {
-    Item_func::update_used_tables();
-    if (else_expr_num == -1 || args[else_expr_num]->maybe_null)
-      maybe_null= 1;
-  }
   uint decimal_precision() const;
   table_map not_null_tables() const { return 0; }
-  enum Item_result result_type () const { return cached_result_type; }
-  enum_field_types field_type() const { return cached_field_type; }
   const char *func_name() const { return "case"; }
   virtual void print(String *str, enum_query_type query_type);
   Item *find_item(String *str);
@@ -1320,10 +1297,11 @@ public:
 
   Item_func_in(List<Item> &list)
     :Item_func_opt_neg(list), array(0), have_null(0),
-    arg_types_compatible(FALSE)
+     arg_types_compatible(FALSE)
   {
     bzero(&cmp_items, sizeof(cmp_items));
     allowed_arg_cols= 0;  // Fetch this value from first argument
+    sargable= TRUE;
   }
   longlong val_int();
   bool fix_fields(THD *, Item **);
@@ -1389,19 +1367,18 @@ public:
 class Item_func_isnull :public Item_bool_func
 {
 public:
-  Item_func_isnull(Item *a) :Item_bool_func(a) {}
+  Item_func_isnull(Item *a) :Item_bool_func(a) { sargable= TRUE; }
   longlong val_int();
   enum Functype functype() const { return ISNULL_FUNC; }
   void fix_length_and_dec()
   {
-    decimals=0; max_length=1; set_persist_maybe_null(0);
+    decimals=0; max_length=1; maybe_null=0;
     update_used_tables();
   }
   const char *func_name() const { return "isnull"; }
   /* Optimize case of not_null_column IS NULL */
   virtual void update_used_tables()
   {
-    args[0]->update_used_tables();
     if (!args[0]->maybe_null)
     {
       used_tables_cache= 0;			/* is always false */
@@ -1409,6 +1386,7 @@ public:
     }
     else
     {
+      args[0]->update_used_tables();
       used_tables_cache= args[0]->used_tables();
       const_item_cache= args[0]->const_item();
     }
@@ -1451,12 +1429,13 @@ class Item_func_isnotnull :public Item_bool_func
 {
   bool abort_on_null;
 public:
-  Item_func_isnotnull(Item *a) :Item_bool_func(a), abort_on_null(0) {}
+  Item_func_isnotnull(Item *a) :Item_bool_func(a), abort_on_null(0)
+  { sargable= TRUE; }
   longlong val_int();
   enum Functype functype() const { return ISNOTNULL_FUNC; }
   void fix_length_and_dec()
   {
-    decimals=0; max_length=1; set_persist_maybe_null(0);
+    decimals=0; max_length=1; maybe_null=0;
   }
   const char *func_name() const { return "isnotnull"; }
   optimize_type select_optimize() const { return OPTIMIZE_NULL; }
@@ -1510,29 +1489,102 @@ public:
 };
 
 
+class Regexp_processor_pcre
+{
+  pcre *m_pcre;
+  bool m_conversion_is_needed;
+  bool m_is_const;
+  int m_library_flags;
+  CHARSET_INFO *m_data_charset;
+  CHARSET_INFO *m_library_charset;
+  String m_prev_pattern;
+  int m_pcre_exec_rc;
+  int m_SubStrVec[30];
+  uint m_subpatterns_needed;
+public:
+  String *convert_if_needed(String *src, String *converter);
+  String subject_converter;
+  String pattern_converter;
+  String replace_converter;
+  Regexp_processor_pcre() :
+    m_pcre(NULL), m_conversion_is_needed(true), m_is_const(0),
+    m_library_flags(0),
+    m_data_charset(&my_charset_utf8_general_ci),
+    m_library_charset(&my_charset_utf8_general_ci),
+    m_subpatterns_needed(0)
+  {}
+  void init(CHARSET_INFO *data_charset, int extra_flags, uint nsubpatterns)
+  {
+    m_library_flags= extra_flags |
+                    (data_charset != &my_charset_bin ?
+                     (PCRE_UTF8 | PCRE_UCP) : 0) |
+                    ((data_charset->state &
+                     (MY_CS_BINSORT | MY_CS_CSSORT)) ? 0 : PCRE_CASELESS);
+
+    // Convert text data to utf-8.
+    m_library_charset= data_charset == &my_charset_bin ?
+                       &my_charset_bin : &my_charset_utf8_general_ci;
+
+    m_conversion_is_needed= (data_charset != &my_charset_bin) &&
+                            !my_charset_same(data_charset, m_library_charset);
+    m_subpatterns_needed= nsubpatterns;
+  }
+  void fix_owner(Item_func *owner, Item *subject_arg, Item *pattern_arg);
+  bool compile(String *pattern, bool send_error);
+  bool compile(Item *item, bool send_error);
+  bool recompile(Item *item)
+  {
+    return !m_is_const && compile(item, false);
+  }
+  bool exec(const char *str, int length, int offset);
+  bool exec(String *str, int offset, uint n_result_offsets_to_convert);
+  bool exec(Item *item, int offset, uint n_result_offsets_to_convert);
+  bool match() const { return m_pcre_exec_rc < 0 ? 0 : 1; }
+  int nsubpatterns() const { return m_pcre_exec_rc <= 0 ? 0 : m_pcre_exec_rc; }
+  int subpattern_start(int n) const
+  {
+    return m_pcre_exec_rc <= 0 ? 0 : m_SubStrVec[n * 2];
+  }
+  int subpattern_end(int n) const
+  {
+    return m_pcre_exec_rc <= 0 ? 0 : m_SubStrVec[n * 2 + 1];
+  }
+  int subpattern_length(int n) const
+  {
+    return subpattern_end(n) - subpattern_start(n);
+  }
+  void cleanup()
+  {
+    if (m_pcre)
+    {
+      pcre_free(m_pcre);
+      m_pcre= NULL;
+    }
+    m_prev_pattern.length(0);
+  }
+  bool is_compiled() const { return m_pcre != NULL; }
+  bool is_const() const { return m_is_const; }
+  void set_const(bool arg) { m_is_const= arg; }
+  CHARSET_INFO * library_charset() const { return m_library_charset; }
+};
+
+
 class Item_func_regex :public Item_bool_func
 {
-  my_regex_t preg;
-  bool regex_compiled;
-  bool regex_is_const;
-  String prev_regexp;
+  Regexp_processor_pcre re;
   DTCollation cmp_collation;
-  CHARSET_INFO *regex_lib_charset;
-  int regex_lib_flags;
-  String conv;
-  int regcomp(bool send_error);
 public:
-  Item_func_regex(Item *a,Item *b) :Item_bool_func(a,b),
-    regex_compiled(0),regex_is_const(0) {}
-  void cleanup();
-  longlong val_int();
-  bool fix_fields(THD *thd, Item **ref);
-  void update_used_tables()
+  Item_func_regex(Item *a,Item *b) :Item_bool_func(a,b)
+  {}
+  void cleanup()
   {
-    Item_bool_func::update_used_tables();
-    if (regex_is_const)
-      maybe_null= 1;
+    DBUG_ENTER("Item_func_regex::cleanup");
+    Item_bool_func::cleanup();
+    re.cleanup();
+    DBUG_VOID_RETURN;
   }
+  longlong val_int();
+  void fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
 
   virtual inline void print(String *str, enum_query_type query_type)
@@ -1541,6 +1593,26 @@ public:
   }
 
   CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
+};
+
+
+class Item_func_regexp_instr :public Item_int_func
+{
+  Regexp_processor_pcre re;
+  DTCollation cmp_collation;
+public:
+  Item_func_regexp_instr(Item *a, Item *b) :Item_int_func(a, b)
+  {}
+  void cleanup()
+  {
+    DBUG_ENTER("Item_func_regexp_instr::cleanup");
+    Item_int_func::cleanup();
+    re.cleanup();
+    DBUG_VOID_RETURN;
+  }
+  longlong val_int();
+  void fix_length_and_dec();
+  const char *func_name() const { return "regexp_instr"; }
 };
 
 
@@ -1749,11 +1821,12 @@ public:
   inline Item_equal()
     : Item_bool_func(), with_const(FALSE), eval_item(0), cond_false(0),
       context_field(NULL)
-  { const_item_cache=0 ;}
+  { const_item_cache=0; sargable= TRUE; }
   Item_equal(Item *f1, Item *f2, bool with_const_item);
   Item_equal(Item_equal *item_equal);
   /* Currently the const item is always the first in the list of equal items */
   inline Item* get_const() { return with_const ? equal_items.head() : NULL; }
+  inline bool is_cond_true() { return equal_items.elements == 1; }
   void add_const(Item *c, Item *f = NULL);
   /** Add a non-constant item to the multiple equality */
   void add(Item *f) { equal_items.push_back(f); }
@@ -1762,8 +1835,9 @@ public:
   /** Get number of field items / references to field items in this object */   
   uint n_field_items() { return equal_items.elements-test(with_const); }
   void merge(Item_equal *item);
-  bool merge_with_check(Item_equal *equal_item);
-  void merge_into_list(List<Item_equal> *list);
+  bool merge_with_check(Item_equal *equal_item, bool save_merged);
+  void merge_into_list(List<Item_equal> *list, bool save_merged,
+                      bool only_intersected);
   void update_const();
   enum Functype functype() const { return MULT_EQUAL_FUNC; }
   longlong val_int(); 
@@ -1781,6 +1855,7 @@ public:
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
   void set_link_equal_fields(bool flag) { link_equal_fields= flag; }
   friend class Item_equal_fields_iterator;
+  bool count_sargable_conds(uchar *arg);
   friend class Item_equal_iterator<List_iterator_fast,Item>;
   friend class Item_equal_iterator<List_iterator,Item>;
   friend Item *eliminate_item_equal(COND *cond, COND_EQUAL *upper_levels,

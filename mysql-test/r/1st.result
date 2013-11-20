@@ -26,6 +26,7 @@ plugin
 proc
 procs_priv
 proxies_priv
+roles_mapping
 servers
 slow_log
 table_stats

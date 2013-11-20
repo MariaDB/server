@@ -217,6 +217,7 @@ extern int errno;			/* declare errno */
 #endif
 #endif					/* #ifndef errno */
 extern char *home_dir;			/* Home directory for user */
+extern MYSQL_PLUGIN_IMPORT char  *mysql_data_home;
 extern const char *my_progname;		/* program-name (printed in errors) */
 extern const char *my_progname_short;	/* like above but without directory */
 extern char curr_dir[];		/* Current directory for user */
@@ -269,12 +270,6 @@ extern my_bool my_disable_sync;
 extern char	wild_many,wild_one,wild_prefix;
 extern const char *charsets_dir;
 extern my_bool timed_mutexes;
-
-enum loglevel {
-   ERROR_LEVEL,
-   WARNING_LEVEL,
-   INFORMATION_LEVEL
-};
 
 enum cache_type
 {
@@ -331,6 +326,9 @@ struct st_my_file_info
 };
 
 extern struct st_my_file_info *my_file_info;
+
+/* Free function pointer */
+typedef void (*FREE_FUNC)(void *);
 
 typedef struct st_dynamic_array
 {
@@ -797,6 +795,7 @@ extern my_bool allocate_dynamic(DYNAMIC_ARRAY *array, uint max_elements);
 extern void get_dynamic(DYNAMIC_ARRAY *array, void *element, uint array_index);
 extern void delete_dynamic(DYNAMIC_ARRAY *array);
 extern void delete_dynamic_element(DYNAMIC_ARRAY *array, uint array_index);
+extern void delete_dynamic_with_callback(DYNAMIC_ARRAY *array, FREE_FUNC f);
 extern void freeze_size(DYNAMIC_ARRAY *array);
 extern int  get_index_dynamic(DYNAMIC_ARRAY *array, void *element);
 #define dynamic_array_ptr(array,array_index) ((array)->buffer+(array_index)*(array)->size_of_element)
@@ -946,15 +945,20 @@ void my_uuid2str(const uchar *guid, char *s);
 void my_uuid_end();
 
 /* character sets */
+extern void my_charset_loader_init_mysys(MY_CHARSET_LOADER *loader);
 extern uint get_charset_number(const char *cs_name, uint cs_flags);
 extern uint get_collation_number(const char *name);
 extern const char *get_charset_name(uint cs_number);
 
 extern CHARSET_INFO *get_charset(uint cs_number, myf flags);
 extern CHARSET_INFO *get_charset_by_name(const char *cs_name, myf flags);
+extern CHARSET_INFO *my_collation_get_by_name(MY_CHARSET_LOADER *loader,
+                                              const char *name, myf flags);
 extern CHARSET_INFO *get_charset_by_csname(const char *cs_name,
 					   uint cs_flags, myf my_flags);
-
+extern CHARSET_INFO *my_charset_get_by_name(MY_CHARSET_LOADER *loader,
+                                            const char *name,
+                                            uint cs_flags, myf my_flags);
 extern my_bool resolve_charset(const char *cs_name,
                                CHARSET_INFO *default_cs,
                                CHARSET_INFO **cs);

@@ -33,11 +33,11 @@
 +ERROR 42S02: Table 'test.t1' doesn't exist
  DROP TABLE t1,t2;
 -ERROR HY000: Table 't2' was not locked with LOCK TABLES
-+ERROR 42S02: Unknown table 't1,t2'
++ERROR 42S02: Unknown table 'test.t1,test.t2'
 +# ERROR: Statement ended with errno 1051, errname ER_BAD_TABLE_ERROR (expected results: ER_TABLE_NOT_LOCKED)
  UNLOCK TABLES;
  DROP TABLE t1,t2;
-+ERROR 42S02: Unknown table 't1,t2'
++ERROR 42S02: Unknown table 'test.t1,test.t2'
  CREATE TABLE t1 (a <INT_COLUMN>, b <CHAR_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  CREATE TABLE t2 (a <INT_COLUMN>, b <CHAR_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  CREATE TABLE t3 (a <INT_COLUMN>, b <CHAR_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
@@ -66,7 +66,7 @@
 +# Also, this problem may cause a chain effect (more errors of different kinds in the test).
 +# -------------------------------------------
  DROP TABLE t1, t2, t3;
-+ERROR 42S02: Unknown table 't1,t2,t3'
++ERROR 42S02: Unknown table 'test.t1,test.t2,test.t3'
  CREATE TABLE t1 (a <INT_COLUMN>, b <CHAR_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  CREATE TABLE t2 (a <INT_COLUMN>, b <CHAR_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  LOCK TABLE t1 READ, t2 READ;

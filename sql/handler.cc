@@ -527,6 +527,12 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     {
       uint tmp;
       ulong fslot;
+
+      DBUG_EXECUTE_IF("unstable_db_type", {
+                        static int i= (int) DB_TYPE_FIRST_DYNAMIC;
+                        hton->db_type= (enum legacy_db_type)++i;
+                      });
+
       /* now check the db_type for conflict */
       if (hton->db_type <= DB_TYPE_UNKNOWN ||
           hton->db_type >= DB_TYPE_DEFAULT ||
@@ -1250,6 +1256,8 @@ int ha_commit_trans(THD *thd, bool all)
   bool need_prepare_ordered, need_commit_ordered;
   my_xid xid;
   DBUG_ENTER("ha_commit_trans");
+  DBUG_PRINT("info",("thd: %p  option_bits: %lu  all: %d",
+                     thd, (ulong) thd->variables.option_bits, all));
 
   /* Just a random warning to test warnings pushed during autocommit. */
   DBUG_EXECUTE_IF("warn_during_ha_commit_trans",
@@ -1314,6 +1322,8 @@ int ha_commit_trans(THD *thd, bool all)
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans && (rw_ha_count > 0);
   MDL_request mdl_request;
+  DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
+                      is_real_trans, rw_trans, rw_ha_count));
 
   if (rw_trans)
   {
@@ -1462,8 +1472,11 @@ int ha_commit_one_phase(THD *thd, bool all)
     transaction.all.ha_list, see why in trans_register_ha()).
   */
   bool is_real_trans=all || thd->transaction.all.ha_list == 0;
+  int res;
   DBUG_ENTER("ha_commit_one_phase");
-  int res= commit_one_phase_2(thd, all, trans, is_real_trans);
+  if (is_real_trans && (res= thd->wait_for_prior_commit()))
+    DBUG_RETURN(res);
+  res= commit_one_phase_2(thd, all, trans, is_real_trans);
   DBUG_RETURN(res);
 }
 
@@ -1502,7 +1515,10 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   }
   /* Free resources and perform other cleanup even for 'empty' transactions. */
   if (is_real_trans)
+  {
+    thd->wakeup_subsequent_commits(error);
     thd->transaction.cleanup();
+  }
 
   DBUG_RETURN(error);
 }
@@ -1577,7 +1593,10 @@ int ha_rollback_trans(THD *thd, bool all)
   }
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
+  {
+    thd->wakeup_subsequent_commits(error);
     thd->transaction.cleanup();
+  }
   if (all)
     thd->transaction_rollback_request= FALSE;
 
@@ -3515,7 +3534,6 @@ bool handler::get_error_message(int error, String* buf)
   return FALSE;
 }
 
-
 /**
   Check for incompatible collation changes.
    
@@ -3556,9 +3574,10 @@ int handler::check_collation_compatibility()
              (cs_number == 33 || /* utf8_general_ci - bug #27877 */
               cs_number == 35))) /* ucs2_general_ci - bug #27877 */
           return HA_ADMIN_NEEDS_UPGRADE;
-      }  
-    }  
-  }  
+      }
+    }
+  }
+
   return 0;
 }
 
@@ -3568,6 +3587,9 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
   int error;
   KEY *keyinfo, *keyend;
   KEY_PART_INFO *keypart, *keypartend;
+
+  if (table->s->incompatible_version)
+    return HA_ADMIN_NEEDS_ALTER;
 
   if (!table->s->mysql_version)
   {
@@ -4931,10 +4953,9 @@ static int cmp_table_names(LEX_STRING * const *a, LEX_STRING * const *b)
 
 Discovered_table_list::Discovered_table_list(THD *thd_arg,
                  Dynamic_array<LEX_STRING*> *tables_arg,
-                 const LEX_STRING *wild_arg)
+                 const LEX_STRING *wild_arg) :
+  thd(thd_arg), with_temps(false), tables(tables_arg)
 {
-  thd= thd_arg;
-  tables= tables_arg;
   if (wild_arg->str && wild_arg->str[0])
   {
     wild= wild_arg->str;
@@ -4946,6 +4967,12 @@ Discovered_table_list::Discovered_table_list(THD *thd_arg,
 
 bool Discovered_table_list::add_table(const char *tname, size_t tlen)
 {
+  /*
+    TODO Check with_temps and filter out temp tables.
+    Implement the check, when we'll have at least one affected engine (with
+    custom discover_table_names() method, that calls add_table() directly).
+    Note: avoid comparing the same name twice (here and in add_file).
+  */
   if (wild && my_wildcmp(files_charset_info, tname, tname + tlen, wild, wend,
                          wild_prefix, wild_one, wild_many))
       return 0;
@@ -4958,8 +4985,13 @@ bool Discovered_table_list::add_table(const char *tname, size_t tlen)
 
 bool Discovered_table_list::add_file(const char *fname)
 {
+  bool is_temp= strncmp(fname, STRING_WITH_LEN(tmp_file_prefix)) == 0;
+
+  if (is_temp && !with_temps)
+    return 0;
+
   char tname[SAFE_NAME_LEN + 1];
-  size_t tlen= filename_to_tablename(fname, tname, sizeof(tname));
+  size_t tlen= filename_to_tablename(fname, tname, sizeof(tname), is_temp);
   return add_table(tname, tlen);
 }
 
@@ -5017,6 +5049,22 @@ static my_bool discover_names(THD *thd, plugin_ref plugin,
 
   return 0;
 }
+
+/**
+  Return the list of tables
+
+  @param thd
+  @param db         database to look into
+  @param dirp       list of files in this database (as returned by my_dir())
+  @param result     the object to return the list of files in
+  @param reusable   if true, on return, 'dirp' will be a valid list of all
+                    non-table files. If false, discovery will work much faster,
+                    but it will leave 'dirp' corrupted and completely unusable,
+                    only good for my_dirend().
+
+  Normally, reusable=false for SHOW and INFORMATION_SCHEMA, and reusable=true
+  for DROP DATABASE (as it needs to know and delete non-table files).
+*/
 
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable)

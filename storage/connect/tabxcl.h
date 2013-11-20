@@ -90,7 +90,7 @@ class XCLCOL : public PRXCOL {
   XCLCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i);
 
   // Methods
-  virtual void Reset(void) {}		// Evaluated only by TDBXCL
+  virtual void Reset(void) {Colp->Reset();}	// Evaluated only by TDBXCL
   virtual void ReadColumn(PGLOBAL g);
 
  protected:

@@ -264,7 +264,8 @@ enum enum_server_command
                            CLIENT_SSL_VERIFY_SERVER_CERT | \
                            CLIENT_REMEMBER_OPTIONS | \
                            CLIENT_PROGRESS | \
-                           CLIENT_PLUGIN_AUTH)
+                           CLIENT_PLUGIN_AUTH | \
+                           CLIENT_CONNECT_ATTRS)
 
 /*
   To be added later:

@@ -2553,49 +2553,41 @@ finish:
 
 
 /*
-  Add a comment on the join algorithm employed by the join cache 
+  Save data on the join algorithm employed by the join cache 
 
   SYNOPSIS
-    print_explain_comment()
+    save_explain_data()
       str  string to add the comment on the employed join algorithm to
 
   DESCRIPTION
-    This function adds info on the type of the used join buffer (flat or
+    This function puts info about the type of the used join buffer (flat or
     incremental) and on the type of the the employed join algorithm (BNL,
-    BNLH, BKA or BKAH) to the the end of the sring str.
+    BNLH, BKA or BKAH) to the data structure
 
   RETURN VALUE
     none
 */ 
 
-void JOIN_CACHE::print_explain_comment(String *str)
+void JOIN_CACHE::save_explain_data(struct st_explain_bka_type *explain)
 {
-  str->append(STRING_WITH_LEN(" ("));
-  const char *buffer_type= prev_cache ? "incremental" : "flat";
-  str->append(buffer_type);
-  str->append(STRING_WITH_LEN(", "));
-  
-  const char *join_alg="";
+  explain->incremental= test(prev_cache);
+
   switch (get_join_alg()) {
   case BNL_JOIN_ALG:
-    join_alg= "BNL";
+    explain->join_alg= "BNL";
     break;
   case BNLH_JOIN_ALG:
-    join_alg= "BNLH";
+    explain->join_alg= "BNLH";
     break;
   case BKA_JOIN_ALG:
-    join_alg= "BKA";
+    explain->join_alg= "BKA";
     break;
   case BKAH_JOIN_ALG:
-    join_alg= "BKAH";
+    explain->join_alg= "BKAH";
     break;
   default:
     DBUG_ASSERT(0);
   }
-
-  str->append(join_alg);
-  str->append(STRING_WITH_LEN(" join"));
-  str->append(STRING_WITH_LEN(")"));
 }
 
 /**
@@ -2621,18 +2613,17 @@ static void add_mrr_explain_info(String *str, uint mrr_mode, handler *file)
   }
 }
 
-
-void JOIN_CACHE_BKA::print_explain_comment(String *str)
+void JOIN_CACHE_BKA::save_explain_data(struct st_explain_bka_type *explain)
 {
-  JOIN_CACHE::print_explain_comment(str); 
-  add_mrr_explain_info(str, mrr_mode, join_tab->table->file);
+  JOIN_CACHE::save_explain_data(explain); 
+  add_mrr_explain_info(&explain->mrr_type, mrr_mode, join_tab->table->file);
 }
 
 
-void JOIN_CACHE_BKAH::print_explain_comment(String *str)
+void JOIN_CACHE_BKAH::save_explain_data(struct st_explain_bka_type *explain)
 {
-  JOIN_CACHE::print_explain_comment(str); 
-  add_mrr_explain_info(str, mrr_mode, join_tab->table->file);
+  JOIN_CACHE::save_explain_data(explain); 
+  add_mrr_explain_info(&explain->mrr_type, mrr_mode, join_tab->table->file);
 }
 
 

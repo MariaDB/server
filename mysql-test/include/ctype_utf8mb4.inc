@@ -234,15 +234,15 @@ set names utf8mb4;
 set names utf8mb4;
 
 # This should return TRUE
-select  'вася'  rlike '[[:<:]]вася[[:>:]]';
-select  'вася ' rlike '[[:<:]]вася[[:>:]]';
-select ' вася'  rlike '[[:<:]]вася[[:>:]]';
-select ' вася ' rlike '[[:<:]]вася[[:>:]]';
+select  'вася'  rlike '\\bвася\\b';
+select  'вася ' rlike '\\bвася\\b';
+select ' вася'  rlike '\\bвася\\b';
+select ' вася ' rlike '\\bвася\\b';
 
 # This should return FALSE
-select  'васяz' rlike '[[:<:]]вася[[:>:]]';
-select 'zвася'  rlike '[[:<:]]вася[[:>:]]';
-select 'zвасяz' rlike '[[:<:]]вася[[:>:]]';
+select  'васяz' rlike '\\bвася\\b';
+select 'zвася'  rlike '\\bвася\\b';
+select 'zвасяz' rlike '\\bвася\\b';
 
 #
 # Bug #4555

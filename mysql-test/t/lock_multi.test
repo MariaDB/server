@@ -57,7 +57,7 @@ drop table t1;
 
 connection locker;
 create table t1(n int);
-insert into t1 values (1);
+insert into t1 values (1),(2);
 connection locker2;
 select get_lock("mysqltest_lock", 100);
 connection locker;
