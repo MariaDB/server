@@ -13984,6 +13984,7 @@ keyword:
         | EXAMINED_SYM          {}
         | EXECUTE_SYM           {}
         | FLUSH_SYM             {}
+        | GET_SYM               {}
         | HANDLER_SYM           {}
         | HELP_SYM              {}
         | HOST_SYM              {}
