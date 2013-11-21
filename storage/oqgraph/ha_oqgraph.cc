@@ -1311,7 +1311,7 @@ maria_declare_plugin(oqgraph)
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &oqgraph_storage_engine,
   "OQGRAPH",
-  "Arjen Lentz & Antony T Curtis, Open Query",
+  "Arjen Lentz & Antony T Curtis, Open Query, and Andrew McDonnell",
   oqgraph_description,
   PLUGIN_LICENSE_GPL,
   (int (*)(void*)) oqgraph_init, /* Plugin Init                  */
