@@ -1554,7 +1554,7 @@ void log_slow_statement(THD *thd)
     statement in a trigger or stored function
   */
   if (unlikely(thd->in_sub_stmt))
-    DBUG_VOID_RETURN;                           // Don't set time for sub stmt
+    goto end;                           // Don't set time for sub stmt
 
 
   /* Follow the slow log filter configuration. */ 
@@ -1562,8 +1562,7 @@ void log_slow_statement(THD *thd)
       (thd->variables.log_slow_filter
         && !(thd->variables.log_slow_filter & thd->query_plan_flags)))
   {
-    delete_explain_query(thd->lex);
-    DBUG_VOID_RETURN; 
+    goto end; 
   }
  
   if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
@@ -1580,7 +1579,7 @@ void log_slow_statement(THD *thd)
     */ 
     if (thd->variables.log_slow_rate_limit > 1 &&
         (global_query_id % thd->variables.log_slow_rate_limit) != 0)
-      DBUG_VOID_RETURN;
+      goto end;
 
     thd_proc_info(thd, "logging slow query");
     slow_log_print(thd, thd->query(), thd->query_length(), 
@@ -1588,6 +1587,7 @@ void log_slow_statement(THD *thd)
     thd_proc_info(thd, 0);
   }
 
+end:
   delete_explain_query(thd->lex);
   DBUG_VOID_RETURN;
 }
