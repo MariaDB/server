@@ -2937,7 +2937,8 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    bytes_written(0), file_id(1), open_count(1),
    group_commit_queue(0), group_commit_queue_busy(FALSE),
    num_commits(0), num_group_commits(0),
-   sync_period_ptr(sync_period), sync_counter(0), state_read(false),
+   sync_period_ptr(sync_period), sync_counter(0),
+   state_file_deleted(false), binlog_state_recover_done(false),
    is_relay_log(0), signal_cnt(0),
    checksum_alg_reset(BINLOG_CHECKSUM_ALG_UNDEF),
    relay_log_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
@@ -3139,12 +3140,19 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
   DBUG_ENTER("MYSQL_BIN_LOG::open");
   DBUG_PRINT("enter",("log_type: %d",(int) log_type_arg));
 
-  if (!is_relay_log && read_state_from_file())
-    DBUG_RETURN(1);
+  if (!is_relay_log)
+  {
+    if (!binlog_state_recover_done)
+    {
+      binlog_state_recover_done= true;
+      if (do_binlog_recovery(opt_bin_logname, false))
+        DBUG_RETURN(1);
+    }
 
-  if (!is_relay_log && !binlog_background_thread_started &&
-      start_binlog_background_thread())
-    DBUG_RETURN(1);
+    if (!binlog_background_thread_started &&
+        start_binlog_background_thread())
+      DBUG_RETURN(1);
+  }
 
   if (init_and_set_log_file_name(log_name, new_name, log_type_arg,
                                  io_cache_type_arg))
@@ -3431,6 +3439,25 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       my_free(binlog_xid_count_list.get());
     binlog_xid_count_list.push_back(new_xid_list_entry);
     mysql_mutex_unlock(&LOCK_xid_list);
+
+    /*
+      Now that we have synced a new binlog file with an initial Gtid_list
+      event, it is safe to delete the binlog state file. We will write out
+      a new, updated file at shutdown, and if we crash before we can recover
+      the state from the newly written binlog file.
+
+      Since the state file will contain out-of-date data as soon as the first
+      new GTID is binlogged, it is better to remove it, to avoid any risk of
+      accidentally reading incorrect data later.
+    */
+    if (!state_file_deleted)
+    {
+      char buf[FN_REFLEN];
+      fn_format(buf, opt_bin_logname, mysql_data_home, ".state",
+                MY_UNPACK_FILENAME);
+      my_delete(buf, MY_SYNC_DIR);
+      state_file_deleted= true;
+    }
   }
 
   log_state= LOG_OPENED;
@@ -5487,10 +5514,6 @@ MYSQL_BIN_LOG::read_state_from_file()
   int err;
   bool opened= false;
   bool inited= false;
-
-  if (state_read)
-    return 0;
-  state_read= true;
 
   fn_format(buf, opt_bin_logname, mysql_data_home, ".state",
             MY_UNPACK_FILENAME);
@@ -8559,7 +8582,6 @@ int TC_LOG::using_heuristic_recover()
 
 int TC_LOG_BINLOG::open(const char *opt_name)
 {
-  LOG_INFO log_info;
   int      error= 1;
 
   DBUG_ASSERT(total_ha_2pc > 1);
@@ -8580,65 +8602,8 @@ int TC_LOG_BINLOG::open(const char *opt_name)
     return 1;
   }
 
-  if ((error= find_log_pos(&log_info, NullS, 1)))
-  {
-    if (error != LOG_INFO_EOF)
-      sql_print_error("find_log_pos() failed (error: %d)", error);
-    else
-      error= 0;
-    goto err;
-  }
-
-  {
-    const char *errmsg;
-    IO_CACHE    log;
-    File        file;
-    Log_event  *ev=0;
-    Format_description_log_event fdle(BINLOG_VERSION);
-    char        log_name[FN_REFLEN];
-
-    if (! fdle.is_valid())
-      goto err;
-
-    do
-    {
-      strmake_buf(log_name, log_info.log_file_name);
-    } while (!(error= find_next_log(&log_info, 1)));
-
-    if (error !=  LOG_INFO_EOF)
-    {
-      sql_print_error("find_log_pos() failed (error: %d)", error);
-      goto err;
-    }
-
-    if ((file= open_binlog(&log, log_name, &errmsg)) < 0)
-    {
-      sql_print_error("%s", errmsg);
-      goto err;
-    }
-
-    if ((ev= Log_event::read_log_event(&log, 0, &fdle,
-                                       opt_master_verify_checksum)) &&
-        ev->get_type_code() == FORMAT_DESCRIPTION_EVENT &&
-        ev->flags & LOG_EVENT_BINLOG_IN_USE_F)
-    {
-      sql_print_information("Recovering after a crash using %s", opt_name);
-      error= recover(&log_info, log_name, &log,
-                     (Format_description_log_event *)ev);
-      state_read= true;
-    }
-    else
-      error= read_state_from_file();
-
-    delete ev;
-    end_io_cache(&log);
-    mysql_file_close(file, MYF(MY_WME));
-
-    if (error)
-      goto err;
-  }
-
-err:
+  error= do_binlog_recovery(opt_name, true);
+  binlog_state_recover_done= true;
   return error;
 }
 
@@ -9014,9 +8979,9 @@ start_binlog_background_thread()
 
 int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                            IO_CACHE *first_log,
-                           Format_description_log_event *fdle)
+                           Format_description_log_event *fdle, bool do_xa)
 {
-  Log_event  *ev;
+  Log_event *ev= NULL;
   HASH xids;
   MEM_ROOT mem_root;
   char binlog_checkpoint_name[FN_REFLEN];
@@ -9025,13 +8990,19 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   IO_CACHE log;
   File file= -1;
   const char *errmsg;
+#ifdef HAVE_REPLICATION
+  rpl_gtid last_gtid;
+  bool last_gtid_standalone= false;
+  bool last_gtid_valid= false;
+#endif
 
   if (! fdle->is_valid() ||
-      my_hash_init(&xids, &my_charset_bin, TC_LOG_PAGE_SIZE/3, 0,
-                   sizeof(my_xid), 0, 0, MYF(0)))
+      (do_xa && my_hash_init(&xids, &my_charset_bin, TC_LOG_PAGE_SIZE/3, 0,
+                             sizeof(my_xid), 0, 0, MYF(0))))
     goto err1;
 
-  init_alloc_root(&mem_root, TC_LOG_PAGE_SIZE, TC_LOG_PAGE_SIZE, MYF(0));
+  if (do_xa)
+    init_alloc_root(&mem_root, TC_LOG_PAGE_SIZE, TC_LOG_PAGE_SIZE, MYF(0));
 
   fdle->flags&= ~LOG_EVENT_BINLOG_IN_USE_F; // abort on the first error
 
@@ -9051,22 +9022,23 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                                           0, fdle, opt_master_verify_checksum))
            && ev->is_valid())
     {
-      switch (ev->get_type_code())
+      enum Log_event_type typ= ev->get_type_code();
+      switch (typ)
       {
       case XID_EVENT:
       {
-        Xid_log_event *xev=(Xid_log_event *)ev;
-        uchar *x= (uchar *) memdup_root(&mem_root, (uchar*) &xev->xid,
-                                        sizeof(xev->xid));
-        if (!x || my_hash_insert(&xids, x))
+        if (do_xa)
         {
-          delete ev;
-          goto err2;
+          Xid_log_event *xev=(Xid_log_event *)ev;
+          uchar *x= (uchar *) memdup_root(&mem_root, (uchar*) &xev->xid,
+                                          sizeof(xev->xid));
+          if (!x || my_hash_insert(&xids, x))
+            goto err2;
+          break;
         }
-        break;
       }
       case BINLOG_CHECKPOINT_EVENT:
-        if (first_round)
+        if (first_round && do_xa)
         {
           uint dir_len;
           Binlog_checkpoint_log_event *cev= (Binlog_checkpoint_log_event *)ev;
@@ -9084,8 +9056,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                     cev->binlog_file_name, FN_REFLEN - 1 - dir_len);
             binlog_checkpoint_found= true;
           }
-          break;
         }
+        break;
       case GTID_LIST_EVENT:
         if (first_round)
         {
@@ -9097,28 +9069,49 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         }
         break;
 
+#ifdef HAVE_REPLICATION
       case GTID_EVENT:
         if (first_round)
         {
           Gtid_log_event *gev= (Gtid_log_event *)ev;
-          rpl_gtid gtid;
 
           /* Update the binlog state with any GTID logged after Gtid_list. */
-          gtid.domain_id= gev->domain_id;
-          gtid.server_id= gev->server_id;
-          gtid.seq_no= gev->seq_no;
-          if (rpl_global_gtid_binlog_state.update_nolock(&gtid, false))
-            goto err2;
+          last_gtid.domain_id= gev->domain_id;
+          last_gtid.server_id= gev->server_id;
+          last_gtid.seq_no= gev->seq_no;
+          last_gtid_standalone=
+            ((gev->flags2 & Gtid_log_event::FL_STANDALONE) ? true : false);
+          last_gtid_valid= true;
         }
         break;
+#endif
 
       default:
         /* Nothing. */
         break;
       }
+
+#ifdef HAVE_REPLICATION
+      if (last_gtid_valid &&
+          ((last_gtid_standalone && !ev->is_part_of_group(typ)) ||
+           (!last_gtid_standalone &&
+            (typ == XID_EVENT ||
+             (typ == QUERY_EVENT &&
+              (((Query_log_event *)ev)->is_commit() ||
+               ((Query_log_event *)ev)->is_rollback()))))))
+      {
+        if (rpl_global_gtid_binlog_state.update_nolock(&last_gtid, false))
+          goto err2;
+        last_gtid_valid= false;
+      }
+#endif
+
       delete ev;
+      ev= NULL;
     }
 
+    if (!do_xa)
+      break;
     /*
       If the last binlog checkpoint event points to an older log, we have to
       scan all logs from there also, to get all possible XIDs to recover.
@@ -9171,27 +9164,95 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
     }
   }
 
-  if (ha_recover(&xids))
-    goto err2;
+  if (do_xa)
+  {
+    if (ha_recover(&xids))
+      goto err2;
 
-  free_root(&mem_root, MYF(0));
-  my_hash_free(&xids);
+    free_root(&mem_root, MYF(0));
+    my_hash_free(&xids);
+  }
   return 0;
 
 err2:
+  delete ev;
   if (file >= 0)
   {
     end_io_cache(&log);
     mysql_file_close(file, MYF(MY_WME));
   }
-  free_root(&mem_root, MYF(0));
-  my_hash_free(&xids);
+  if (do_xa)
+  {
+    free_root(&mem_root, MYF(0));
+    my_hash_free(&xids);
+  }
 err1:
   sql_print_error("Crash recovery failed. Either correct the problem "
                   "(if it's, for example, out of memory error) and restart, "
                   "or delete (or rename) binary log and start mysqld with "
                   "--tc-heuristic-recover={commit|rollback}");
   return 1;
+}
+
+
+int
+MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
+{
+  LOG_INFO log_info;
+  const char *errmsg;
+  IO_CACHE    log;
+  File        file;
+  Log_event  *ev= 0;
+  Format_description_log_event fdle(BINLOG_VERSION);
+  char        log_name[FN_REFLEN];
+  int error;
+
+  if ((error= find_log_pos(&log_info, NullS, 1)))
+  {
+    if (error != LOG_INFO_EOF)
+      sql_print_error("find_log_pos() failed (error: %d)", error);
+    else
+      error= 0;
+    return error;
+  }
+
+  if (! fdle.is_valid())
+    return 1;
+
+  do
+  {
+    strmake_buf(log_name, log_info.log_file_name);
+  } while (!(error= find_next_log(&log_info, 1)));
+
+  if (error !=  LOG_INFO_EOF)
+  {
+    sql_print_error("find_log_pos() failed (error: %d)", error);
+    return error;
+  }
+
+  if ((file= open_binlog(&log, log_name, &errmsg)) < 0)
+  {
+    sql_print_error("%s", errmsg);
+    return 1;
+  }
+
+  if ((ev= Log_event::read_log_event(&log, 0, &fdle,
+                                     opt_master_verify_checksum)) &&
+      ev->get_type_code() == FORMAT_DESCRIPTION_EVENT &&
+      ev->flags & LOG_EVENT_BINLOG_IN_USE_F)
+  {
+    sql_print_information("Recovering after a crash using %s", opt_name);
+    error= recover(&log_info, log_name, &log,
+                   (Format_description_log_event *)ev, do_xa_recovery);
+  }
+  else
+    error= read_state_from_file();
+
+  delete ev;
+  end_io_cache(&log);
+  mysql_file_close(file, MYF(MY_WME));
+
+  return error;
 }
 
 

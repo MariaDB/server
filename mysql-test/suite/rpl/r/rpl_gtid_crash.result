@@ -90,5 +90,12 @@ a
 6
 7
 8
+*** MDEV-4725: Incorrect recovery when crash in the middle of writing an event group ***
+SET GLOBAL debug_dbug="+d,crash_before_writing_xid";
+INSERT INTO t1 VALUES (9), (10);
+SHOW VARIABLES like 'gtid_strict_mode';
+Variable_name	Value
+gtid_strict_mode	ON
+include/start_slave.inc
 DROP TABLE t1;
 include/rpl_end.inc
