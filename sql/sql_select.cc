@@ -246,7 +246,8 @@ static ORDER *create_distinct_group(THD *thd, Item **ref_pointer_array,
                                     List<Item> &all_fields,
 				    bool *all_order_by_fields_used);
 static bool test_if_subpart(ORDER *a,ORDER *b);
-static TABLE *get_sort_by_table(ORDER *a,ORDER *b,List<TABLE_LIST> &tables);
+static TABLE *get_sort_by_table(ORDER *a,ORDER *b,List<TABLE_LIST> &tables, 
+                                table_map const_tables);
 static void calc_group_buffer(JOIN *join,ORDER *group);
 static bool make_group_fields(JOIN *main_join, JOIN *curr_join);
 static bool alloc_group_fields(JOIN *join,ORDER *group);
@@ -1323,7 +1324,8 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
     goto setup_subq_exit;
   }
   error= -1;					// Error is sent to client
-  sort_by_table= get_sort_by_table(order, group_list, select_lex->leaf_tables);
+  /* get_sort_by_table() call used to be here: */
+  MEM_UNDEFINED(&sort_by_table, sizeof(sort_by_table));
 
   /* Calculate how to do the join */
   thd_proc_info(thd, "statistics");
@@ -3801,6 +3803,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     }
   } while (join->const_table_map & found_ref && ref_changed);
  
+  join->sort_by_table= get_sort_by_table(join->order, join->group_list,
+                                         join->select_lex->leaf_tables,
+                                         join->const_table_map);
   /* 
     Update info on indexes that can be used for search lookups as
     reading const tables may has added new sargable predicates. 
@@ -10904,7 +10909,23 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
                               join->group_list ?
 			       join->join_tab+join->const_tables :
                                join->get_sort_by_join_tab();
-     if (sort_by_tab)
+      /*
+        It could be that sort_by_tab==NULL, and the plan is to use filesort()
+        on the first table.
+      */
+      if (join->order)
+      {
+        join->simple_order= 0;
+        join->need_tmp= 1;
+      }
+
+      if (join->group && !join->group_optimized_away)
+      {
+        join->need_tmp= 1;
+        join->simple_group= 0;
+      }
+      
+      if (sort_by_tab)
       {
         join->need_tmp= 1;
         join->simple_order= join->simple_group= 0;
@@ -14396,16 +14417,44 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
 {
   if (cond->type() == Item::COND_ITEM)
   {
-    List<Item_equal> new_equalities;
     bool and_level= ((Item_cond*) cond)->functype()
       == Item_func::COND_AND_FUNC;
     List<Item> *cond_arg_list= ((Item_cond*) cond)->argument_list();
-    List_iterator<Item> li(*cond_arg_list);
-    Item::cond_result tmp_cond_value;
-    bool should_fix_fields=0;
 
-    *cond_value=Item::COND_UNDEF;
+    if (and_level)
+    {
+      /* 
+        Remove multiple equalities that became always true (e.g. after
+        constant row substitution).
+        They would be removed later in the function anyway, but the list of
+        them cond_equal.current_level also  must be adjusted correspondingly.
+        So it's easier  to do it at one pass through the list of the equalities.
+      */ 
+       List<Item_equal> *cond_equalities=
+        &((Item_cond_and *) cond)->cond_equal.current_level;
+       cond_arg_list->disjoin((List<Item> *) cond_equalities);
+       List_iterator<Item_equal> it(*cond_equalities);
+       Item_equal *eq_item;
+       while ((eq_item= it++))
+       {
+         if (eq_item->const_item() && eq_item->val_int())
+           it.remove();
+       }  
+       cond_arg_list->concat((List<Item> *) cond_equalities);       
+    }
+
+    List<Item_equal> new_equalities;
+    List_iterator<Item> li(*cond_arg_list);
+    bool should_fix_fields= 0;
+    Item::cond_result tmp_cond_value;
     Item *item;
+
+    /* 
+      If the list cond_arg_list became empty then it consisted only
+      of always true multiple equalities.
+    */ 
+    *cond_value= cond_arg_list->elements ? Item::COND_UNDEF : Item::COND_TRUE;
+
     while ((item=li++))
     {
       Item *new_item=internal_remove_eq_conds(thd, item, &tmp_cond_value);
@@ -21308,7 +21357,8 @@ test_if_subpart(ORDER *a,ORDER *b)
 */
 
 static TABLE *
-get_sort_by_table(ORDER *a,ORDER *b, List<TABLE_LIST> &tables)
+get_sort_by_table(ORDER *a,ORDER *b, List<TABLE_LIST> &tables, 
+                  table_map const_tables)
 {
   TABLE_LIST *table;
   List_iterator<TABLE_LIST> ti(tables);
@@ -21322,6 +21372,23 @@ get_sort_by_table(ORDER *a,ORDER *b, List<TABLE_LIST> &tables)
 
   for (; a && b; a=a->next,b=b->next)
   {
+    /* Skip elements of a that are constant */
+    while (!((*a->item)->used_tables() & ~const_tables))
+    {
+      if (!(a= a->next))
+        break;
+    }
+
+    /* Skip elements of b that are constant */
+    while (!((*b->item)->used_tables() & ~const_tables))
+    {
+      if (!(b= b->next))
+        break;
+    }
+
+    if (!a || !b)
+      break;
+
     if (!(*a->item)->eq(*b->item,1))
       DBUG_RETURN(0);
     map|=a->item[0]->used_tables();

@@ -197,6 +197,7 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
   table->map= 1; //To ensure correct calculation of const item
   table->get_fields_in_item_tree= TRUE;
   table_list->table= table;
+  table_list->cacheable_table= false;
   return FALSE;
 }
 
@@ -3898,7 +3899,7 @@ void SELECT_LEX::update_used_tables()
   }
   for (ORDER *order= group_list.first; order; order= order->next)
     (*order->item)->update_used_tables();
-  if (!master_unit()->is_union())
+  if (!master_unit()->is_union() || master_unit()->global_parameters != this)
   {
     for (ORDER *order= order_list.first; order; order= order->next)
       (*order->item)->update_used_tables();

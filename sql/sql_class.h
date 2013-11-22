@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -444,6 +444,7 @@ enum killed_type
 
 #include "sql_lex.h"				/* Must be here */
 
+extern LEX_STRING sql_statement_names[(uint) SQLCOM_END + 1];
 class Delayed_insert;
 class select_result;
 class Time_zone;
@@ -3065,6 +3066,11 @@ public:
   */
   bool set_db(const char *new_db, size_t new_db_len)
   {
+    /*
+      Acquiring mutex LOCK_thd_data as we either free the memory allocated
+      for the database and reallocating the memory for the new db or memcpy
+      the new_db to the db.
+    */
     mysql_mutex_lock(&LOCK_thd_data);
     /* Do not reallocate memory if current chunk is big enough. */
     if (db && new_db && db_length >= new_db_len)
