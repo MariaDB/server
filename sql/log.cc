@@ -9209,10 +9209,16 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
 
   if ((error= find_log_pos(&log_info, NullS, 1)))
   {
+    /*
+      If there are no binlog files (LOG_INFO_EOF), then we still try to read
+      the .state file to restore the binlog state. This allows to copy a server
+      to provision a new one without copying the binlog files (except the
+      master-bin.state file) and still preserve the correct binlog state.
+    */
     if (error != LOG_INFO_EOF)
       sql_print_error("find_log_pos() failed (error: %d)", error);
     else
-      error= 0;
+      error= read_state_from_file();
     return error;
   }
 
