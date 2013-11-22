@@ -1308,6 +1308,9 @@ int ha_connect::MakeRecord(char *buf)
               case MYSQL_TYPE_TIME:
                 fmt= "%H:%M:%S";
                 break;
+              case MYSQL_TYPE_YEAR:
+                fmt= "%Y";
+                break;
               default:
                 fmt= "%Y-%m-%d %H:%M:%S";
                 break;
@@ -1409,24 +1412,25 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
           value->SetValue(fp->val_real());
           break;
         case TYPE_DATE:
-          if (!sdvalin) {
+          if (!sdvalin)
             sdvalin= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
 
-            // Get date in the format produced by MySQL fields
-            switch (fp->type()) {
-              case MYSQL_TYPE_DATE:
-                fmt= "YYYY-MM-DD";
-                break;
-              case MYSQL_TYPE_TIME:
-                fmt= "hh:mm:ss";
-                break;
-              default:
-                fmt= "YYYY-MM-DD hh:mm:ss";
-              } // endswitch type
+          // Get date in the format produced by MySQL fields
+          switch (fp->type()) {
+            case MYSQL_TYPE_DATE:
+              fmt= "YYYY-MM-DD";
+              break;
+            case MYSQL_TYPE_TIME:
+              fmt= "hh:mm:ss";
+              break;
+            case MYSQL_TYPE_YEAR:
+              fmt= "YYYY";
+              break;
+            default:
+              fmt= "YYYY-MM-DD hh:mm:ss";
+            } // endswitch type
 
-            ((DTVAL*)sdvalin)->SetFormat(g, fmt, strlen(fmt));
-            } // endif sdvalin
-
+          ((DTVAL*)sdvalin)->SetFormat(g, fmt, strlen(fmt));
           fp->val_str(&attribute);
           sdvalin->SetValue_psz(attribute.c_ptr_safe());
           value->SetValue_pval(sdvalin);
@@ -3867,7 +3871,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #endif   // WIN32
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
     mxr= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
+#if defined(PROMPT_OK)
     cop= atoi(GetListOption(g, "checkdsn", topt->oplist, "0"));
+#endif   // PROMPT_OK
   } else {
     host= "localhost";
     user= "root";
@@ -3925,14 +3931,16 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     case TAB_ODBC:
       dsn= create_info->connect_string.str;
 
-      if (fnc & (FNC_DSN | FNC_DRIVER))
+      if (fnc & (FNC_DSN | FNC_DRIVER)) {
         ok= true;
-      else if (!stricmp(thd->main_security_ctx.host, "localhost")
+#if defined(PROMPT_OK)
+      } else if (!stricmp(thd->main_security_ctx.host, "localhost")
                 && cop == 1) {
         if ((dsn = ODBCCheckConnection(g, dsn, cop)) != NULL) {
           thd->make_lex_string(&create_info->connect_string, dsn, strlen(dsn));
           ok= true;
           } // endif dsn
+#endif   // PROMPT_OK
 
       } else if (!dsn)
         sprintf(g->Message, "Missing %s connection string", topt->type);
@@ -4224,7 +4232,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
                        tm, rem, 0, true);
 #else   // !NEW_WAY
-        if (add_field(&sql, cnm, typ, len, dec, tm, rem, 0, true, v))
+        if (add_field(&sql, cnm, typ, len, dec, tm, rem, 0, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
         } // endfor i
