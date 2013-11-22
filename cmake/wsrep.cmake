@@ -1,4 +1,5 @@
 # Copyright (c) 2011, Codership Oy <info@codership.com>.
+# Copyright (c) 2013, Monty Program Ab.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,19 +20,24 @@
 # Set the patch version
 SET(WSREP_PATCH_VERSION "7.6")
 
-# Obtain patch revision number
+# Obtain patch revision number:
+# The script tries to probe the bzr revision number using $ENV{WSREP_REV}, and
+# "bzr revno" if the WSREP_REV is not defined. In case both fail, the revision
+# information is not appended to the wsrep patch version.
+
+# 1: $ENV{WSREP_REV}
 SET(WSREP_PATCH_REVNO $ENV{WSREP_REV})
+
+# 2: bzr revno
 IF(NOT WSREP_PATCH_REVNO)
   EXECUTE_PROCESS(
     COMMAND bzr revno
     OUTPUT_VARIABLE WSREP_PATCH_REVNO
     RESULT_VARIABLE RESULT
   )
+
 STRING(REGEX REPLACE "(\r?\n)+$" "" WSREP_PATCH_REVNO "${WSREP_PATCH_REVNO}")
 #FILE(WRITE "wsrep_config" "Debug: WSREP_PATCH_REVNO result: ${RESULT}\n")
-ENDIF()
-IF(NOT WSREP_PATCH_REVNO)
-  SET(WSREP_PATCH_REVNO "XXXX")
 ENDIF()
 
 # Obtain wsrep API version
@@ -43,9 +49,17 @@ EXECUTE_PROCESS(
 #FILE(WRITE "wsrep_config" "Debug: WSREP_API_VERSION result: ${RESULT}\n")
 STRING(REGEX REPLACE "(\r?\n)+$" "" WSREP_API_VERSION "${WSREP_API_VERSION}")
 
-SET(WSREP_VERSION
-    "${WSREP_API_VERSION}.${WSREP_PATCH_VERSION}.r${WSREP_PATCH_REVNO}"
-)
+IF(NOT WSREP_PATCH_REVNO)
+  MESSAGE(WARNING "Could not determine bzr revision number, WSREP_VERSION will "
+          "not contain the revision number.")
+  SET(WSREP_VERSION
+      "${WSREP_API_VERSION}.${WSREP_PATCH_VERSION}"
+  )
+ELSE()
+  SET(WSREP_VERSION
+      "${WSREP_API_VERSION}.${WSREP_PATCH_VERSION}.r${WSREP_PATCH_REVNO}"
+  )
+ENDIF()
 
 OPTION(WITH_WSREP "WSREP replication API (to use, e.g. Galera Replication library)" ON)
 IF (WITH_WSREP)
