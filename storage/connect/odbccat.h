@@ -1,7 +1,9 @@
 /***********************************************************************/
 /*  ODBC catalog function prototypes.                                  */
 /***********************************************************************/
+#if defined(PROMPT_OK)
 char   *ODBCCheckConnection(PGLOBAL g, char *dsn, int cop);
+#endif   // PROMPT_OK
 PQRYRES ODBCDataSources(PGLOBAL g, bool info);
 PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
                                           char *colpat, bool info);

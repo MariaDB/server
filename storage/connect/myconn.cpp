@@ -182,7 +182,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
       myc.Close();
       return NULL;
     } else if (type == TYPE_STRING)
-      len = min(len, 255);
+      len = min(len, 4096);
 
     crp = crp->Next;                       // Data_Type
     crp->Kdata->SetValue(type, i);

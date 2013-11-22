@@ -174,6 +174,7 @@ int TranslateSQLType(int stp, int prec, int& len, char& v)
   return type;
   } // end of TranslateSQLType
 
+#if defined(PROMPT_OK)
 /***********************************************************************/
 /*  ODBCCheckConnection: Check completeness of connection string.      */
 /***********************************************************************/
@@ -205,6 +206,7 @@ char *ODBCCheckConnection(PGLOBAL g, char *dsn, int cop)
   ocp->Close();
   return newdsn;         // Return complete connection string
   } // end of ODBCCheckConnection
+#endif   // PROMPT_OK
 
 /***********************************************************************/
 /*  Allocate the structure used to refer to the result set.            */
