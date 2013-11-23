@@ -7250,7 +7250,7 @@ cleanup:
         int r = status_db->close(status_db, 0);
         assert(r==0);
     }
-    if (txn && do_commit) {
+    if (txn) {
         if (error) {
             abort_txn(txn);
         }
