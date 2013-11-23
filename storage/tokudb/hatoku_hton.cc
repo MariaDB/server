@@ -939,7 +939,7 @@ static int tokudb_discover3(handlerton *hton, THD* thd, const char *db, const ch
     }
     else {
         do_commit = true;
-        error = txn_begin(db_env, 0, &txn, thd);
+        error = txn_begin(db_env, 0, &txn, 0, thd);
         if (error) { goto cleanup; }        
     }
 
