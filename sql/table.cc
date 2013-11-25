@@ -2136,6 +2136,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   if (tabledef_version.str)
     thd->lex->create_info.tabledef_version= tabledef_version;
 
+  promote_first_timestamp_column(&thd->lex->alter_info.create_list);
   file= mysql_create_frm_image(thd, db.str, table_name.str,
                                &thd->lex->create_info, &thd->lex->alter_info,
                                C_ORDINARY_CREATE, &unused1, &unused2, &frm);
