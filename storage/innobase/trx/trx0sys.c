@@ -795,12 +795,49 @@ trx_sys_print_mysql_binlog_offset(void)
 
 #ifdef WITH_WSREP
 
+#ifdef UNIV_DEBUG
+static long long trx_sys_cur_xid_seqno = -1;
+static unsigned char trx_sys_cur_xid_uuid[16];
+
+long long read_wsrep_xid_seqno(const XID* xid)
+{
+    long long seqno;
+    memcpy(&seqno, xid->data + 24, sizeof(long long));
+    return seqno;
+}
+
+void read_wsrep_xid_uuid(const XID* xid, unsigned char* buf)
+{
+    memcpy(buf, xid->data + 8, 16);
+}
+
+#endif /* UNIV_DEBUG */
+
 void
 trx_sys_update_wsrep_checkpoint(
         const XID*      xid,  /*!< in: transaction XID */
         mtr_t*          mtr)  /*!< in: mtr */
 {
         trx_sysf_t*     sys_header;
+
+#ifdef UNIV_DEBUG
+        {
+            /* Check that seqno is monotonically increasing */
+            unsigned char xid_uuid[16];
+            long long xid_seqno = read_wsrep_xid_seqno(xid);
+            read_wsrep_xid_uuid(xid, xid_uuid);
+            if (!memcmp(xid_uuid, trx_sys_cur_xid_uuid, 8))
+            {
+                ut_ad(xid_seqno > trx_sys_cur_xid_seqno);
+                trx_sys_cur_xid_seqno = xid_seqno;
+            }
+            else
+            {
+                memcpy(trx_sys_cur_xid_uuid, xid_uuid, 16);
+            }
+            trx_sys_cur_xid_seqno = xid_seqno;
+        }
+#endif /* UNIV_DEBUG */
 
         ut_ad(xid && mtr);
         ut_a(xid->formatID == -1 || wsrep_is_wsrep_xid(xid));

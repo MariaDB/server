@@ -811,7 +811,7 @@ extern "C" const char *wsrep_thd_exec_mode_str(THD *thd)
     (!thd) ? "void" :
     (thd->wsrep_exec_mode == LOCAL_STATE)  ? "local"         :
     (thd->wsrep_exec_mode == REPL_RECV)    ? "applier"       :
-    (thd->wsrep_exec_mode == TOTAL_ORDER)  ? "total order"   :
+    (thd->wsrep_exec_mode == TOTAL_ORDER)  ? "total order"   : 
     (thd->wsrep_exec_mode == LOCAL_COMMIT) ? "local commit"  : "void";
 }
 
@@ -875,7 +875,7 @@ extern "C" my_thread_id wsrep_thd_thread_id(THD *thd)
 }
 extern "C" wsrep_seqno_t wsrep_thd_trx_seqno(THD *thd) 
 {
-  return (thd) ? thd->wsrep_trx_seqno : -1;
+  return (thd) ? thd->wsrep_trx_seqno : WSREP_SEQNO_UNDEFINED;
 }
 extern "C" query_id_t wsrep_thd_query_id(THD *thd) 
 {
@@ -1000,6 +1000,7 @@ THD::THD()
    wsrep_applier(is_applier),
    wsrep_applier_closing(FALSE),
    wsrep_client_thread(0),
+   wsrep_trx_seqno(WSREP_SEQNO_UNDEFINED),
 #endif
    m_parser_state(NULL),
 #if defined(ENABLED_DEBUG_SYNC)
@@ -1108,7 +1109,6 @@ THD::THD()
   //wsrep_retry_autocommit= ::wsrep_retry_autocommit;
   wsrep_retry_counter     = 0;
   wsrep_PA_safe           = true;
-  wsrep_seqno_changed     = false;
   wsrep_retry_query       = NULL;
   wsrep_retry_query_len   = 0;
   wsrep_retry_command     = COM_CONNECT;
@@ -1470,12 +1470,10 @@ void THD::init(void)
   wsrep_conflict_state= NO_CONFLICT;
   wsrep_query_state= QUERY_IDLE;
   wsrep_last_query_id= 0;
-  wsrep_trx_seqno= 0;
   wsrep_converted_lock_session= false;
   wsrep_retry_counter= 0;
   wsrep_rli= NULL;
   wsrep_PA_safe= true;
-  wsrep_seqno_changed= false;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_mysql_replicated  = 0;
   wsrep_bf_thd = NULL;
@@ -2117,13 +2115,6 @@ void THD::cleanup_after_query()
   /* reset table map for multi-table update */
   table_map_for_update= 0;
   m_binlog_invoker= FALSE;
-#ifdef WITH_WSREP
-      if (TOTAL_ORDER == wsrep_exec_mode)
-      {
-	wsrep_exec_mode = LOCAL_STATE;
-      }
-      //wsrep_trx_seqno = 0;
-#endif  /* WITH_WSREP */
 
 #ifndef EMBEDDED_LIBRARY
   if (rli_slave)

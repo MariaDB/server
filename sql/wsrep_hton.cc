@@ -32,34 +32,15 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd);
 enum wsrep_trx_status wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all);
 
 /*
-  a post-commit cleanup on behalf of wsrep. Can't be a part of hton struct.
-  Is called by THD::transactions.cleanup()
+  Cleanup after local transaction commit/rollback, replay or TOI.
 */
 void wsrep_cleanup_transaction(THD *thd)
 {
-  if (thd->thread_id == 0) return;
-  if (thd->wsrep_exec_mode == LOCAL_COMMIT)
-  {
-    if (thd->variables.wsrep_on &&
-        thd->wsrep_conflict_state != MUST_REPLAY)
-    {
-      if (thd->wsrep_seqno_changed)
-      {
-	if (wsrep->post_commit(wsrep, &thd->wsrep_trx_handle))
-	{
-	  DBUG_PRINT("wsrep", ("set committed fail"));
-	  WSREP_WARN("set committed fail: %llu %d", 
-		     (long long)thd->real_id, thd->stmt_da->status());
-	}
-      }
-      //else
-      //WSREP_DEBUG("no trx handle for %s", thd->query());
-      thd_binlog_trx_reset(thd);
-      thd->wsrep_seqno_changed = false;
-    }
-    thd->wsrep_exec_mode= LOCAL_STATE;
-  }
-  thd->wsrep_trx_handle.trx_id = WSREP_UNDEFINED_TRX_ID;
+  if (wsrep_emulate_bin_log) thd_binlog_trx_reset(thd);
+  thd->wsrep_trx_handle.trx_id= WSREP_UNDEFINED_TRX_ID;
+  thd->wsrep_trx_seqno= WSREP_SEQNO_UNDEFINED;
+  thd->wsrep_exec_mode= LOCAL_STATE;
+  return;
 }
 
 /*
@@ -67,22 +48,60 @@ void wsrep_cleanup_transaction(THD *thd)
 */
 handlerton *wsrep_hton;
 
+
+/*
+  Registers wsrep hton at commit time if transaction has registered htons
+  for supported engine types.
+
+  Hton should not be registered for TOTAL_ORDER operations.
+
+  Registration is needed for both LOCAL_MODE and REPL_RECV transactions to run
+  commit in 2pc so that wsrep position gets properly recorded in storage
+  engines.
+
+  Note that all hton calls should immediately return for threads that are
+  in REPL_RECV mode as their states are controlled by wsrep appliers or
+  replaying code. Only threads in LOCAL_MODE should run wsrep callbacks
+  from hton methods.
+*/
 void wsrep_register_hton(THD* thd, bool all)
 {
-  THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
-  for (Ha_trx_info *i= trans->ha_list; WSREP(thd) && i; i = i->next())
+  if (thd->wsrep_exec_mode != TOTAL_ORDER)
   {
-    if (i->ht()->db_type == DB_TYPE_INNODB)
+    THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
+    for (Ha_trx_info *i= trans->ha_list; WSREP(thd) && i; i = i->next())
     {
-      trans_register_ha(thd, all, wsrep_hton);
-
-      /* follow innodb read/write settting */
-      if (i->is_trx_read_write())
+      if (i->ht()->db_type == DB_TYPE_INNODB)
       {
-	thd->ha_data[wsrep_hton->slot].ha_info[all].set_trx_read_write();
+        trans_register_ha(thd, all, wsrep_hton);
+
+        /* follow innodb read/write settting */
+        if (i->is_trx_read_write())
+        {
+          thd->ha_data[wsrep_hton->slot].ha_info[all].set_trx_read_write();
+        }
+        break;
       }
-      break;
     }
+  }
+}
+
+/*
+  Calls wsrep->post_commit() for locally executed transactions that have
+  got seqno from provider (must commit) and don't require replaying.
+ */
+void wsrep_post_commit(THD* thd, bool all)
+{
+  if (thd->wsrep_exec_mode == LOCAL_COMMIT)
+  {
+    DBUG_ASSERT(thd->wsrep_trx_seqno != WSREP_SEQNO_UNDEFINED);
+    if (wsrep->post_commit(wsrep, &thd->wsrep_trx_handle))
+    {
+        DBUG_PRINT("wsrep", ("set committed fail"));
+        WSREP_WARN("set committed fail: %llu %d", 
+                   (long long)thd->real_id, thd->stmt_da->status());
+    }
+    wsrep_cleanup_transaction(thd);
   }
 }
 
@@ -97,7 +116,13 @@ static int
 wsrep_close_connection(handlerton*  hton, THD* thd)
 {
   DBUG_ENTER("wsrep_close_connection");
-  if (thd_get_ha_data(thd, binlog_hton) != NULL)
+
+  if (thd->wsrep_exec_mode == REPL_RECV)
+  {
+    DBUG_RETURN(0);
+  }
+
+  if (wsrep_emulate_bin_log && thd_get_ha_data(thd, binlog_hton) != NULL)
     binlog_hton->close_connection (binlog_hton, thd);
   DBUG_RETURN(0);
 } 
@@ -113,10 +138,17 @@ wsrep_close_connection(handlerton*  hton, THD* thd)
 */
 static int wsrep_prepare(handlerton *hton, THD *thd, bool all)
 {
-#ifndef DBUG_OFF
-  //wsrep_seqno_t old = thd->wsrep_trx_seqno;
-#endif
   DBUG_ENTER("wsrep_prepare");
+
+  if (thd->wsrep_exec_mode == REPL_RECV)
+  {
+    DBUG_RETURN(0);
+  }
+
+  DBUG_ASSERT(thd->ha_data[wsrep_hton->slot].ha_info[all].is_trx_read_write());
+  DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_STATE);
+  DBUG_ASSERT(thd->wsrep_trx_seqno == WSREP_SEQNO_UNDEFINED);
+
   if ((all || 
       !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
       (thd->variables.wsrep_on && !wsrep_trans_cache_is_empty(thd)))
@@ -138,12 +170,26 @@ static int wsrep_prepare(handlerton *hton, THD *thd, bool all)
 
 static int wsrep_savepoint_set(handlerton *hton, THD *thd,  void *sv)
 {
+  DBUG_ENTER("wsrep_savepoint_set");
+
+  if (thd->wsrep_exec_mode == REPL_RECV)
+  {
+    DBUG_RETURN(0);
+  }
+
   if (!wsrep_emulate_bin_log) return 0;
   int rcode = binlog_hton->savepoint_set(binlog_hton, thd, sv);
   return rcode;
 }
 static int wsrep_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 {
+  DBUG_ENTER("wsrep_savepoint_rollback");
+
+  if (thd->wsrep_exec_mode == REPL_RECV)
+  {
+    DBUG_RETURN(0);
+  }
+
   if (!wsrep_emulate_bin_log) return 0;
   int rcode = binlog_hton->savepoint_rollback(binlog_hton, thd, sv);
   return rcode;
@@ -152,6 +198,12 @@ static int wsrep_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
 {
   DBUG_ENTER("wsrep_rollback");
+
+  if (thd->wsrep_exec_mode == REPL_RECV)
+  {
+    DBUG_RETURN(0);
+  }
+
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
   if ((all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
       (thd->variables.wsrep_on && thd->wsrep_conflict_state != MUST_REPLAY))
@@ -162,24 +214,53 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
       WSREP_ERROR("settting rollback fail: thd: %llu SQL: %s", 
 		  (long long)thd->real_id, thd->query());
     }
+    wsrep_cleanup_transaction(thd);
   }
-
-  int rcode = 0;
-  if (!wsrep_emulate_bin_log) 
-  {
-    if (all) thd_binlog_trx_reset(thd);
-  }
-
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-  DBUG_RETURN(rcode);
+  DBUG_RETURN(0);
 }
 
 int wsrep_commit(handlerton *hton, THD *thd, bool all)
 {
   DBUG_ENTER("wsrep_commit");
 
+  if (thd->wsrep_exec_mode == REPL_RECV)
+  {
+    DBUG_RETURN(0);
+  }
+
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  if ((all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
+      (thd->variables.wsrep_on && thd->wsrep_conflict_state != MUST_REPLAY))
+  {
+    if (thd->wsrep_exec_mode == LOCAL_COMMIT)
+    {
+      DBUG_ASSERT(thd->ha_data[wsrep_hton->slot].ha_info[all].is_trx_read_write());
+      /*
+        Call to wsrep->post_commit() (moved to wsrep_post_commit()) must
+        be done only after commit has done for all involved htons.
+      */
+      DBUG_PRINT("wsrep", ("commit"));
+    }
+    else
+    {
+      /*
+        Transaction didn't go through wsrep->pre_commit() so just roll back
+        possible changes to clean state.
+      */
+      if (wsrep->post_rollback(wsrep, &thd->wsrep_trx_handle))
+      {
+        DBUG_PRINT("wsrep", ("setting rollback fail"));
+        WSREP_ERROR("settting rollback fail: thd: %llu SQL: %s", 
+                    (long long)thd->real_id, thd->query());
+      }
+      wsrep_cleanup_transaction(thd);
+    }
+  }
+  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
   DBUG_RETURN(0);
 }
+
 
 extern Rpl_filter* binlog_filter;
 extern my_bool opt_log_slave_updates;
@@ -305,9 +386,6 @@ wsrep_run_wsrep_commit(
   }
   if (data_len == 0) 
   {
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-    thd->wsrep_exec_mode = LOCAL_COMMIT;
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     if (thd->stmt_da->is_ok()              && 
         thd->stmt_da->affected_rows() > 0  &&
         !binlog_filter->is_on())
@@ -356,9 +434,11 @@ wsrep_run_wsrep_commit(
       WSREP_WARN("Transaction missing in provider, thd: %ld, SQL: %s",
                  thd->thread_id, thd->query());
       wsrep_write_rbr_buf(thd, rbr_data, data_len);
-      rcode = WSREP_OK;
+      rcode = WSREP_TRX_FAIL;
       break;
     case  WSREP_BF_ABORT:
+      WSREP_DEBUG("thd %lu seqno %lld BF aborted by provider, will replay",
+                  thd->thread_id, (long long)thd->wsrep_trx_seqno);
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       thd->wsrep_conflict_state = MUST_REPLAY;
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
@@ -369,7 +449,6 @@ wsrep_run_wsrep_commit(
       mysql_mutex_unlock(&LOCK_wsrep_replaying);
       break;
     default:
-      thd->wsrep_seqno_changed = true;
       break;
     }
   } else {
@@ -387,7 +466,24 @@ wsrep_run_wsrep_commit(
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
   switch(rcode) {
   case 0:
-    thd->wsrep_exec_mode = LOCAL_COMMIT;
+    /*
+      About MUST_ABORT: We assume that even if thd conflict state was set
+      to MUST_ABORT, underlying transaction was not rolled back or marked
+      as deadlock victim in QUERY_COMMITTING state. Conflict state is
+      set to NO_CONFLICT and commit proceeds as usual.
+    */
+    if (thd->wsrep_conflict_state == MUST_ABORT)
+        thd->wsrep_conflict_state= NO_CONFLICT;
+
+    if (thd->wsrep_conflict_state != NO_CONFLICT)
+    {
+      WSREP_WARN("thd %lu seqno %lld: conflict state %d after post commit",
+                 thd->thread_id,
+                 (long long)thd->wsrep_trx_seqno,
+                 thd->wsrep_conflict_state);
+    }
+    thd->wsrep_exec_mode= LOCAL_COMMIT;
+    DBUG_ASSERT(thd->wsrep_trx_seqno != WSREP_SEQNO_UNDEFINED);
     /* Override XID iff it was generated by mysql */
     if (thd->transaction.xid_state.xid.get_my_xid())
     {
@@ -396,10 +492,10 @@ wsrep_run_wsrep_commit(
                      thd->wsrep_trx_seqno);
     }
     DBUG_PRINT("wsrep", ("replicating commit success"));
-
     break;
-  case WSREP_TRX_FAIL:
   case WSREP_BF_ABORT:
+    DBUG_ASSERT(thd->wsrep_trx_seqno != WSREP_SEQNO_UNDEFINED);
+  case WSREP_TRX_FAIL:
     WSREP_DEBUG("commit failed for reason: %d", rcode);
     DBUG_PRINT("wsrep", ("replicating commit fail"));
 

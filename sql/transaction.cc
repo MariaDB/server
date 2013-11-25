@@ -142,6 +142,9 @@ bool trans_begin(THD *thd, uint flags)
 #endif /* WITH_WSREP */
     thd->server_status&= ~SERVER_STATUS_IN_TRANS;
     res= test(ha_commit_trans(thd, TRUE));
+#ifdef WITH_WSREP
+    wsrep_post_commit(thd, TRUE);
+#endif /* WITH_WSREP */
   }
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
@@ -194,6 +197,9 @@ bool trans_commit(THD *thd)
 #endif /* WITH_WSREP */
   thd->server_status&= ~SERVER_STATUS_IN_TRANS;
   res= ha_commit_trans(thd, TRUE);
+#ifdef WITH_WSREP
+  wsrep_post_commit(thd, TRUE);
+#endif /* WITH_WSREP */
   if (res)
     /*
       if res is non-zero, then ha_commit_trans has rolled back the
@@ -240,6 +246,9 @@ bool trans_commit_implicit(THD *thd)
 #endif /* WITH_WSREP */
     thd->server_status&= ~SERVER_STATUS_IN_TRANS;
     res= test(ha_commit_trans(thd, TRUE));
+#ifdef WITH_WSREP
+    wsrep_post_commit(thd, TRUE);
+#endif /* WITH_WSREP */
   }
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
@@ -324,7 +333,14 @@ bool trans_commit_stmt(THD *thd)
 #endif /* WITH_WSREP */
     res= ha_commit_trans(thd, FALSE);
     if (! thd->in_active_multi_stmt_transaction())
+#ifdef WITH_WSREP
+    {
+#endif /* WITH_WSREP */
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+#ifdef WITH_WSREP
+      wsrep_post_commit(thd, FALSE);
+    }
+#endif /* WITH_WSREP */
   }
 
   if (res)
@@ -737,6 +753,9 @@ bool trans_xa_commit(THD *thd)
     int r= ha_commit_trans(thd, TRUE);
     if ((res= test(r)))
       my_error(r == 1 ? ER_XA_RBROLLBACK : ER_XAER_RMERR, MYF(0));
+#ifdef WITH_WSREP
+    wsrep_post_commit(thd, TRUE);
+#endif /* WITH_WSREP */
   }
   else if (xa_state == XA_PREPARED && thd->lex->xa_opt == XA_NONE)
   {
