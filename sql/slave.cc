@@ -2492,6 +2492,7 @@ static bool send_show_master_info_header(THD *thd, bool full,
                                            MYSQL_TYPE_LONG));
   field_list.push_back(new Item_empty_string("Using_Gtid",
                                              sizeof("Current_Pos")-1));
+  field_list.push_back(new Item_empty_string("Gtid_IO_Pos", 30));
   if (full)
   {
     field_list.push_back(new Item_return_int("Retried_transactions",
@@ -2680,6 +2681,12 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     // Master_Server_id
     protocol->store((uint32) mi->master_id);
     protocol->store(mi->using_gtid_astext(mi->using_gtid), &my_charset_bin);
+    {
+      char buff[30];
+      String tmp(buff, sizeof(buff), system_charset_info);
+      mi->gtid_current_pos.to_string(&tmp);
+      protocol->store(tmp.ptr(), tmp.length(), &my_charset_bin);
+    }
     if (full)
     {
       protocol->store((uint32)    mi->rli.retried_trans);
