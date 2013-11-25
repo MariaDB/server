@@ -2906,6 +2906,9 @@ case SQLCOM_PREPARE:
       else
       {
 #ifdef WITH_WSREP
+        /* in STATEMENT format, we probably have to replicate also temporary
+           tables, like mysql replication does
+        */
         if (!thd->is_current_stmt_binlog_format_row() ||
             !(create_info.options & HA_LEX_CREATE_TMP_TABLE))
           WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
@@ -4985,7 +4988,22 @@ finish:
   {
     thd->mdl_context.release_statement_locks();
   }
-  WSREP_TO_ISOLATION_END
+  WSREP_TO_ISOLATION_END;
+
+#ifdef WITH_WSREP
+  /*
+    Force release of transactional locks if not in active MST and wsrep is on.
+  */
+  if (WSREP(thd) &&
+      ! thd->in_sub_stmt &&
+      ! thd->in_active_multi_stmt_transaction() &&
+      thd->mdl_context.has_transactional_locks())
+  {
+    WSREP_DEBUG("Forcing release of transactional locks for thd %lu",
+               thd->thread_id);
+    thd->mdl_context.release_transactional_locks();
+  }
+#endif /* WITH_WSREP */
 
   DBUG_RETURN(res || thd->is_error());
 }
@@ -8423,6 +8441,10 @@ void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow* shadow)
   shadow->tx_isolation        = thd->variables.tx_isolation;
   thd->variables.tx_isolation = ISO_READ_COMMITTED;
   thd->tx_isolation           = ISO_READ_COMMITTED;
+
+  shadow->db            = thd->db;
+  shadow->db_length     = thd->db_length;
+  thd->reset_db(NULL, 0);
 }
 
 void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
@@ -8431,6 +8453,8 @@ void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
   thd->wsrep_exec_mode        = shadow->wsrep_exec_mode;
   thd->net.vio                = shadow->vio;
   thd->variables.tx_isolation = shadow->tx_isolation;
+
+  thd->reset_db(shadow->db, shadow->db_length);
 }
 
 void wsrep_replication_process(THD *thd)

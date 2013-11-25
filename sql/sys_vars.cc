@@ -3645,7 +3645,7 @@ static Sys_var_charptr Sys_wsrep_data_home_dir(
 
 static Sys_var_charptr Sys_wsrep_cluster_name(
        "wsrep_cluster_name", "Name for the cluster",
-       GLOBAL_VAR(wsrep_cluster_name), CMD_LINE(REQUIRED_ARG),
+       PREALLOCATED GLOBAL_VAR(wsrep_cluster_name), CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(wsrep_cluster_name), 
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_cluster_name_check),
@@ -3663,13 +3663,13 @@ static Sys_var_charptr Sys_wsrep_cluster_address (
 
 static Sys_var_charptr Sys_wsrep_node_name (
        "wsrep_node_name", "Node name",
-       GLOBAL_VAR(wsrep_node_name), CMD_LINE(REQUIRED_ARG),
+       PREALLOCATED GLOBAL_VAR(wsrep_node_name), CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(wsrep_node_name), 
        NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 static Sys_var_charptr Sys_wsrep_node_address (
        "wsrep_node_address", "Node address",
-       GLOBAL_VAR(wsrep_node_address), CMD_LINE(REQUIRED_ARG),
+       PREALLOCATED GLOBAL_VAR(wsrep_node_address), CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(wsrep_node_address), 
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_node_address_check), 
@@ -3677,7 +3677,7 @@ static Sys_var_charptr Sys_wsrep_node_address (
 
 static Sys_var_charptr Sys_wsrep_node_incoming_address(
        "wsrep_node_incoming_address", "Client connection address",
-       GLOBAL_VAR(wsrep_node_incoming_address),CMD_LINE(REQUIRED_ARG),
+       PREALLOCATED GLOBAL_VAR(wsrep_node_incoming_address),CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(wsrep_node_incoming_address), 
        NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
@@ -3769,7 +3769,7 @@ static Sys_var_mybool Sys_wsrep_on (
 
 static Sys_var_charptr Sys_wsrep_start_position (
        "wsrep_start_position", "global transaction position to start from ",
-       GLOBAL_VAR(wsrep_start_position), 
+       PREALLOCATED GLOBAL_VAR(wsrep_start_position), 
        CMD_LINE(REQUIRED_ARG, OPT_WSREP_START_POSITION),
        IN_FS_CHARSET, DEFAULT(wsrep_start_position),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,

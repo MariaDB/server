@@ -102,15 +102,20 @@ bool Alter_table_statement::execute(THD *thd)
 #ifdef WITH_WSREP
   TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
 
-  if ((!thd->is_current_stmt_binlog_format_row() ||
-       !find_temporary_table(thd, first_table))  &&
-      wsrep_to_isolation_begin(thd,
-                               lex->name.str ? select_lex->db : NULL,
-                               lex->name.str ? lex->name.str : NULL,
-                               first_table))
+  if (!thd->is_current_stmt_binlog_format_row() ||
+       !find_temporary_table(thd, first_table))
   {
-    WSREP_WARN("ALTER TABLE isolation failure");
-    DBUG_RETURN(TRUE);
+    if (wsrep_to_isolation_begin(thd,
+                                 lex->name.str ? select_lex->db : NULL,
+                                 lex->name.str ? lex->name.str : NULL,
+                                 first_table))
+    {
+      WSREP_WARN("ALTER TABLE isolation failure");
+      DBUG_RETURN(TRUE);
+    }
+
+    thd->variables.auto_increment_offset = 1;
+    thd->variables.auto_increment_increment = 1;
   }
 #endif /* WITH_WSREP */
   result= mysql_alter_table(thd, select_lex->db, lex->name.str,

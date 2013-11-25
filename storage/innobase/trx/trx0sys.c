@@ -695,10 +695,14 @@ trx_sys_update_mysql_binlog_offset(
 	ib_int64_t	offset,	/*!< in: position in that log file */
 	ulint		field,	/*!< in: offset of the MySQL log info field in
 				the trx sys header */
+#ifdef WITH_WSREP
+        trx_sysf_t*     sys_header, /*!< in: trx sys header */
+#endif /* WITH_WSREP */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
+#ifndef WITH_WSREP
 	trx_sysf_t*	sys_header;
-
+#endif /* !WITH_WSREP */
 	if (ut_strlen(file_name) >= TRX_SYS_MYSQL_LOG_NAME_LEN) {
 
 		/* We cannot fit the name to the 512 bytes we have reserved */
@@ -706,7 +710,9 @@ trx_sys_update_mysql_binlog_offset(
 		return;
 	}
 
+#ifndef WITH_WSREP
 	sys_header = trx_sysf_get(mtr);
+#endif /* !WITH_WSREP */
 
 	if (mach_read_from_4(sys_header + field
 			     + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD)
@@ -815,10 +821,10 @@ void read_wsrep_xid_uuid(const XID* xid, unsigned char* buf)
 
 void
 trx_sys_update_wsrep_checkpoint(
-        const XID*      xid,  /*!< in: transaction XID */
-        mtr_t*          mtr)  /*!< in: mtr */
+        const XID*      xid,        /*!< in: transaction XID */
+        trx_sysf_t*     sys_header, /*!< in: sys_header */
+        mtr_t*          mtr)        /*!< in: mtr */
 {
-        trx_sysf_t*     sys_header;
 
 #ifdef UNIV_DEBUG
         {
@@ -839,10 +845,9 @@ trx_sys_update_wsrep_checkpoint(
         }
 #endif /* UNIV_DEBUG */
 
-        ut_ad(xid && mtr);
+        ut_ad(xid && mtr && sys_header);
         ut_a(xid->formatID == -1 || wsrep_is_wsrep_xid(xid));
 
-        sys_header = trx_sysf_get(mtr);
         if (mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
                              + TRX_SYS_WSREP_XID_MAGIC_N_FLD)
             != TRX_SYS_WSREP_XID_MAGIC_N) {
@@ -890,7 +895,7 @@ trx_sys_read_wsrep_checkpoint(XID* xid)
             != TRX_SYS_WSREP_XID_MAGIC_N) {
                 memset(xid, 0, sizeof(*xid));
                 xid->formatID = -1;
-                trx_sys_update_wsrep_checkpoint(xid, &mtr);
+                trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
                 mtr_commit(&mtr);
                 return;
         }

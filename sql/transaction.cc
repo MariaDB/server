@@ -298,7 +298,6 @@ bool trans_rollback(THD *thd)
   DBUG_RETURN(test(res));
 }
 
-
 /**
   Commit the single statement transaction.
 

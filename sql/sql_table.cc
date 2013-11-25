@@ -4778,12 +4778,23 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table, TABLE_LIST* src_table,
         break;
       }
     }
-    if (!is_tmp_table)
+    if (create_info->options & HA_LEX_CREATE_TMP_TABLE)
     {
+      /* CREATE TEMPORARY TABLE LIKE must be skipped from replication */
+      WSREP_DEBUG("CREATE TEMPORARY TABLE LIKE... skipped replication\n %s", 
+                  thd->query());
+    } 
+    else if (!is_tmp_table)
+    {
+      /* this is straight CREATE TABLE LIKE... eith no tmp tables */
       WSREP_TO_ISOLATION_BEGIN(table->db, table->table_name, NULL);
     }
     else
     {
+      /* here we have CREATE TABLE LIKE <temporary table> 
+         the temporary table definition will be needed in slaves to
+         enable the create to succeed
+       */
       TABLE_LIST tbl;
       bzero((void*) &tbl, sizeof(tbl));
       tbl.db= src_table->db;

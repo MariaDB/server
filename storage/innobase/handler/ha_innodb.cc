@@ -5688,9 +5688,9 @@ no_commit:
 				DBUG_RETURN(1);
 			}
 
-			binlog_hton->commit(binlog_hton, user_thd, 1);
-
-			wsrep_cleanup_transaction(user_thd);
+			if (binlog_hton->commit(binlog_hton, user_thd, 1))
+                                DBUG_RETURN(1);
+                        wsrep_post_commit(user_thd, TRUE);
 #endif /* WITH_WSREP */
 			/* Source table is not in InnoDB format:
 			no need to re-acquire locks on it. */
@@ -5711,8 +5711,9 @@ no_commit:
 			case WSREP_TRX_ERROR:
 				DBUG_RETURN(1);
 			}
-			binlog_hton->commit(binlog_hton, user_thd, 1);
-			wsrep_cleanup_transaction(user_thd);
+			if (binlog_hton->commit(binlog_hton, user_thd, 1))
+                                DBUG_RETURN(1);
+                        wsrep_post_commit(user_thd, TRUE);
 #endif /* WITH_WSREP */
 			/* Ensure that there are no other table locks than
 			LOCK_IX and LOCK_AUTO_INC on the destination table. */
@@ -12748,7 +12749,8 @@ static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid)
         if (wsrep_is_wsrep_xid(xid)) {
                 mtr_t mtr;
                 mtr_start(&mtr);
-                trx_sys_update_wsrep_checkpoint(xid, &mtr);
+                trx_sysf_t* sys_header = trx_sysf_get(&mtr);
+                trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
                 mtr_commit(&mtr);
                 return 0;
         } else {
