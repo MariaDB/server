@@ -1297,7 +1297,9 @@ int ha_commit_trans(THD *thd, bool all)
     */
     err= ht->prepare(ht, thd, all);
     status_var_increment(thd->status_var.ha_prepare_count);
+
     if (err)
+    {
 #ifdef WITH_WSREP
       if (WSREP(thd) && ht->db_type== DB_TYPE_WSREP)
       {
@@ -1309,9 +1311,14 @@ int ha_commit_trans(THD *thd, bool all)
         }
       }
       else
+      {
         /* not wsrep hton, bail to native mysql behavior */
 #endif
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+#ifdef WITH_WSREP
+      } /* End of else */
+#endif
+    }
 
     if (err)
       goto err;

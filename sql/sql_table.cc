@@ -6368,10 +6368,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       error= 0;
       break;
     }
-#ifdef WITH_WSREP
-    bool do_log_write(true);
-#endif /* WITH_WSREP */
-     if (error == HA_ERR_WRONG_COMMAND)
+
+    if (error == HA_ERR_WRONG_COMMAND)
     {
       error= 0;
       push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,

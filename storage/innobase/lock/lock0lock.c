@@ -2231,7 +2231,7 @@ lock_rec_lock_slow(
 {
 	trx_t*	trx;
 #ifdef WITH_WSREP
-	lock_t *c_lock;
+	lock_t *c_lock= 0;
 #endif
 	lock_t*	lock;
 
