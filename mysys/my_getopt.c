@@ -1315,6 +1315,8 @@ void my_print_help(const struct my_option *options)
 
   for (optp= options; optp->name; optp++)
   {
+    if (!optp->comment)
+      continue;
     if (optp->id && optp->id < 256)
     {
       printf("  -%c%s", optp->id, strlen(optp->name) ? ", " : "  ");

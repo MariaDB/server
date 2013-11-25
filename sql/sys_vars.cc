@@ -2865,15 +2865,6 @@ static Sys_var_ulong Sys_table_cache_size(
        VALID_RANGE(1, 512*1024), DEFAULT(TABLE_OPEN_CACHE_DEFAULT),
        BLOCK_SIZE(1));
 
-static ulong table_cache_instances;
-static Sys_var_ulong Sys_table_cache_instances(
-       "table_open_cache_instances",
-       "MySQL 5.6 compatible option. Not used or needed in MariaDB",
-       READ_ONLY GLOBAL_VAR(table_cache_instances), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 64), DEFAULT(1),
-       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
-       ON_UPDATE(NULL), NULL);
-
 static Sys_var_ulong Sys_thread_cache_size(
        "thread_cache_size",
        "How many threads we should keep in a cache for reuse",

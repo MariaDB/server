@@ -6609,6 +6609,19 @@ int handle_early_options()
 }
 
 
+#define MYSQL_COMPATIBILITY_OPTION(option) \
+  { option, OPT_MYSQL_COMPATIBILITY, \
+   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
+
+#define MYSQL_TO_BE_IMPLEMENTED_OPTION(option) \
+  { option, OPT_MYSQL_TO_BE_IMPLEMENTED, \
+   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
+
+#define MYSQL_SUGGEST_ANALOG_OPTION(option, str) \
+  { option, OPT_MYSQL_COMPATIBILITY, \
+   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
+
+
 /**
   System variables are automatically command-line options (few
   exceptions are documented in sys_var.h), so don't need
@@ -7026,7 +7039,50 @@ struct my_option my_long_options[]=
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"table_cache", 0, "Deprecated; use --table-open-cache instead.",
    &tc_size, &tc_size, 0, GET_ULONG,
-   REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, 0, 1, 0}
+   REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, 0, 1, 0},
+
+  /* The following options exist in 5.6 but not in 10.0 */
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("default-tmp-storage-engine"),
+  MYSQL_COMPATIBILITY_OPTION("log-raw"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("default-authentication-plugin"),
+  MYSQL_COMPATIBILITY_OPTION("binlog-max-flush-queue-time"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("binlog-row-image"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("explicit-defaults-for-timestamp"),
+  MYSQL_COMPATIBILITY_OPTION("master-info-repository"),
+  MYSQL_COMPATIBILITY_OPTION("relay-log-info-repository"),
+  MYSQL_SUGGEST_ANALOG_OPTION("binlog-rows-query-log-events", "--binlog-annotate-row-events"),
+  MYSQL_COMPATIBILITY_OPTION("binlog-order-commits"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("log-throttle-queries-not-using-indexes"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("end-markers-in-json"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace"),              // OPTIMIZER_TRACE
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-features"),     // OPTIMIZER_TRACE
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-offset"),       // OPTIMIZER_TRACE
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-limit"),        // OPTIMIZER_TRACE
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-max-mem-size"), // OPTIMIZER_TRACE
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("eq-range-index-dive-limit"),
+  MYSQL_COMPATIBILITY_OPTION("server-id-bits"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("slave-rows-search-algorithms"), // HAVE_REPLICATION
+  MYSQL_COMPATIBILITY_OPTION("table-open-cache-instances"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("slave-allow-batching"),         // HAVE_REPLICATION
+  MYSQL_COMPATIBILITY_OPTION("slave-checkpoint-period"),      // HAVE_REPLICATION
+  MYSQL_COMPATIBILITY_OPTION("slave-checkpoint-group"),       // HAVE_REPLICATION
+  MYSQL_SUGGEST_ANALOG_OPTION("slave-parallel-workers", "--slave-parallel-threads"),       // HAVE_REPLICATION
+  MYSQL_SUGGEST_ANALOG_OPTION("slave-pending-jobs-size-max", "--slave-parallel-max-queued"),  // HAVE_REPLICATION
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("disconnect-on-expired-password"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("sha256-password-private-key-path"), // HAVE_OPENSSL && !HAVE_YASSL
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("sha256-password-public-key-path"),  // HAVE_OPENSSL && !HAVE_YASSL
+
+  /* The following options exist in 5.5 and 5.6 but not in 10.0 */
+  MYSQL_SUGGEST_ANALOG_OPTION("abort-slave-event-count", "--debug-abort-slave-event-count"),
+  MYSQL_SUGGEST_ANALOG_OPTION("disconnect-slave-event-count", "--debug-disconnect-slave-event-count"),
+  MYSQL_SUGGEST_ANALOG_OPTION("exit-info", "--debug-exit-info"),
+  MYSQL_SUGGEST_ANALOG_OPTION("max-binlog-dump-events", "--debug-max-binlog-dump-events"),
+  MYSQL_SUGGEST_ANALOG_OPTION("sporadic-binlog-dump-fail", "--debug-sporadic-binlog-dump-fail"),
+  MYSQL_COMPATIBILITY_OPTION("new"),
+
+  /* The following options were added after 5.6.10 */
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("rpl-stop-slave-timeout"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("validate-user-plugins") // NO_EMBEDDED_ACCESS_CHECKS
 };
 
 static int show_queries(THD *thd, SHOW_VAR *var, char *buff)
@@ -8187,6 +8243,14 @@ mysqld_get_one_option(int optid,
     sql_print_warning("'%s' is deprecated. It does nothing and exists only "
                       "for compatiblity with old my.cnf files.",
                       opt->name);
+    break;
+  case OPT_MYSQL_COMPATIBILITY:
+    sql_print_warning("'%s' is MySQL 5.6 compatible option. Not used or needed "
+                      "in MariaDB.", opt->name);
+    break;
+  case OPT_MYSQL_TO_BE_IMPLEMENTED:
+    sql_print_warning("'%s' is MySQL 5.6 compatible option. To be implemented "
+                      "in later versions.", opt->name);
     break;
   case 'a':
     global_system_variables.sql_mode= MODE_ANSI;
