@@ -30,10 +30,11 @@ FILE(GLOB XZ_ALL_FILES ${XZ_SOURCE_DIR}/*)
 ExternalProject_Add(build_lzma
     PREFIX xz
     DOWNLOAD_COMMAND
-        cp -au "${XZ_ALL_FILES}" "<SOURCE_DIR>/"
+        cp -a "${XZ_ALL_FILES}" "<SOURCE_DIR>/"
     CONFIGURE_COMMAND
         "<SOURCE_DIR>/configure" ${xz_configure_opts}
         "--prefix=${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/xz"
+        "--libdir=${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/xz/lib"
     BUILD_COMMAND
         ${SUBMAKE_COMMAND} -C src/liblzma
     INSTALL_COMMAND

@@ -620,7 +620,6 @@ else
 fi
 plugin_dir="${plugin_dir}${PLUGIN_VARIANT}"
 
-
 # Determine what logging facility to use
 
 # Ensure that 'logger' exists, if it's requested
@@ -644,6 +643,7 @@ then
 
     # mysqld does not add ".err" to "--log-error=foo."; it considers a
     # trailing "." as an extension
+    
     if expr "$err_log" : '.*\.[^/]*$' > /dev/null
     then
         :
@@ -899,6 +899,31 @@ fi
 #fi
 
 cmd="`mysqld_ld_preload_text`$NOHUP_NICENESS"
+
+#
+# Set mysqld's memory interleave policy.
+#
+
+if @TARGET_LINUX@ && test $numa_interleave -eq 1
+then
+  # Locate numactl, ensure it exists.
+  if ! my_which numactl > /dev/null 2>&1
+  then
+    log_error "numactl command not found, required for --numa-interleave"
+    exit 1
+  # Attempt to run a command, ensure it works.
+  elif ! numactl --interleave=all true
+  then
+    log_error "numactl failed, check if numactl is properly installed"
+  fi
+
+  # Launch mysqld with numactl.
+  cmd="$cmd numactl --interleave=all"
+elif test $numa_interleave -eq 1
+then
+  log_error "--numa-interleave is not supported on this platform"
+  exit 1
+fi
 
 #
 # Set mysqld's memory interleave policy.

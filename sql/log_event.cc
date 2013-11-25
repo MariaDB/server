@@ -5373,7 +5373,7 @@ int Load_log_event::do_apply_event(NET* net, Relay_log_info const *rli,
   */
   lex_start(thd);
   thd->lex->local_file= local_fname;
-  mysql_reset_thd_for_next_command(thd, 0);
+  mysql_reset_thd_for_next_command(thd);
 
   if (!use_rli_only_for_errors)
   {
@@ -5563,6 +5563,8 @@ error:
   thd->stmt_da->can_overwrite_status= FALSE;
   close_thread_tables(thd);
   /*
+    - If transaction rollback was requested due to deadlock
+      perform it and release metadata locks.
     - If inside a multi-statement transaction,
     defer the release of metadata locks until the current
     transaction is either committed or rolled back. This prevents
@@ -5572,7 +5574,12 @@ error:
     - If in autocommit mode, or outside a transactional context,
     automatically release metadata locks of the current statement.
   */
-  if (! thd->in_multi_stmt_transaction_mode())
+  if (thd->transaction_rollback_request)
+  {
+    trans_rollback_implicit(thd);
+    thd->mdl_context.release_transactional_locks();
+  }
+  else if (! thd->in_multi_stmt_transaction_mode())
     thd->mdl_context.release_transactional_locks();
   else
     thd->mdl_context.release_statement_locks();
@@ -7394,7 +7401,7 @@ int Append_block_log_event::do_apply_event(Relay_log_info const *rli)
       as the present method does not call mysql_parse().
     */
     lex_start(thd);
-    mysql_reset_thd_for_next_command(thd, 0);
+    mysql_reset_thd_for_next_command(thd);
     /* old copy may exist already */
     mysql_file_delete(key_file_log_event_data, fname, MYF(0));
     if ((fd= mysql_file_create(key_file_log_event_data,
@@ -8356,7 +8363,7 @@ int Rows_log_event::do_apply_event(Relay_log_info const *rli)
       we need to do any changes to that value after this function.
     */
     lex_start(thd);
-    mysql_reset_thd_for_next_command(thd, 0);
+    mysql_reset_thd_for_next_command(thd);
     /*
       The current statement is just about to begin and 
       has not yet modified anything. Note, all.modified is reset
@@ -8743,7 +8750,10 @@ static int rows_event_stmt_cleanup(Relay_log_info const *rli, THD * thd)
       Xid_log_event will come next which will, if some transactional engines
       are involved, commit the transaction and flush the pending event to the
       binlog.
+      If there was a deadlock the transaction should have been rolled back
+      already. So there should be no need to rollback the transaction.
     */
+    DBUG_ASSERT(! thd->transaction_rollback_request);
     error|= (error ? trans_rollback_stmt(thd) : trans_commit_stmt(thd));
 
     /*

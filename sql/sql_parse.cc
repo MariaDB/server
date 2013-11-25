@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -749,7 +749,6 @@ bool do_command(THD *thd)
 
   net_new_transaction(net);
 
-
   /* Save for user statistics */
   thd->start_bytes_received= thd->status_var.bytes_received;
 
@@ -1102,6 +1101,14 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   if (!(server_command_flags[command] & CF_SKIP_QUESTIONS))
     statistic_increment(thd->status_var.questions, &LOCK_status);
 
+  /* Copy data for user stats */
+  if ((thd->userstat_running= opt_userstat_running))
+  {
+    thd->start_cpu_time= my_getcputime();
+    memcpy(&thd->org_status_var, &thd->status_var, sizeof(thd->status_var));
+    thd->select_commands= thd->update_commands= thd->other_commands= 0;
+  }
+
   /**
     Clear the set of flags that are expected to be cleared at the
     beginning of each command.
@@ -1365,7 +1372,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       break;
     }
     packet= arg_end + 1;
-    mysql_reset_thd_for_next_command(thd, opt_userstat_running);
+    mysql_reset_thd_for_next_command(thd);
     lex_start(thd);
     /* Must be before we init the table list. */
     if (lower_case_table_names)
@@ -1410,6 +1417,18 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     DBUG_ASSERT(thd->transaction.stmt.is_empty());
     close_thread_tables(thd);
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+
+    if (thd->transaction_rollback_request)
+    {
+      /*
+        Transaction rollback was requested since MDL deadlock was
+        discovered while trying to open tables. Rollback transaction
+        in all storage engines including binary log and release all
+        locks.
+      */
+      trans_rollback_implicit(thd);
+      thd->mdl_context.release_transactional_locks();
+    }
 
     thd->cleanup_after_query();
     break;
@@ -2110,7 +2129,7 @@ err:
     can free its locks if LOCK TABLES locked some tables before finding
     that it can't lock a table in its list
   */
-  trans_commit_implicit(thd);
+  trans_rollback(thd);
   /* Close tables and release metadata locks. */
   close_thread_tables(thd);
   DBUG_ASSERT(!thd->locked_tables_mode);
@@ -2161,6 +2180,13 @@ mysql_execute_command(THD *thd)
 #endif
 
   DBUG_ASSERT(thd->transaction.stmt.is_empty() || thd->in_sub_stmt);
+  /*
+    Each statement or replication event which might produce deadlock
+    should handle transaction rollback on its own. So by the start of
+    the next statement transaction rollback request should be fulfilled
+    already.
+  */
+  DBUG_ASSERT(! thd->transaction_rollback_request || thd->in_sub_stmt);
   /*
     In many cases first table of main SELECT_LEX have special meaning =>
     check that it is first table in global list and relink it first in 
@@ -2408,8 +2434,8 @@ mysql_execute_command(THD *thd)
       or triggers as all such statements prohibited there.
     */
     DBUG_ASSERT(! thd->in_sub_stmt);
-    /* Commit or rollback the statement transaction. */
-    thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
+    /* Statement transaction still should not be started. */
+    DBUG_ASSERT(thd->transaction.stmt.is_empty());
     /* Commit the normal transaction if one is active. */
     if (trans_commit_implicit(thd))
     {
@@ -4959,7 +4985,17 @@ finish:
     DEBUG_SYNC(thd, "execute_command_after_close_tables");
 #endif
 
-  if (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END))
+  if (! thd->in_sub_stmt && thd->transaction_rollback_request)
+  {
+    /*
+      We are not in sub-statement and transaction rollback was requested by
+      one of storage engines (e.g. due to deadlock). Rollback transaction in
+      all storage engines including binary log.
+    */
+    trans_rollback_implicit(thd);
+    thd->mdl_context.release_transactional_locks();
+  }
+  else if (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END))
   {
     /* No transaction control allowed in sub-statements. */
     DBUG_ASSERT(! thd->in_sub_stmt);
@@ -5071,7 +5107,8 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
   /* Count number of empty select queries */
   if (!thd->sent_row_count)
     status_var_increment(thd->status_var.empty_queries);
-  status_var_add(thd->status_var.rows_sent, thd->sent_row_count);
+  else
+    status_var_add(thd->status_var.rows_sent, thd->sent_row_count);
 #ifdef WITH_WSREP
     if (lex->sql_command == SQLCOM_SHOW_STATUS) wsrep_free_status(thd);
 #endif /* WITH_WSREP */
@@ -5863,15 +5900,15 @@ bool my_yyoverflow(short **yyss, YYSTYPE **yyvs, ulong *yystacksize)
 
   @todo Call it after we use THD for queries, not before.
 */
-void mysql_reset_thd_for_next_command(THD *thd, my_bool calculate_userstat)
+void mysql_reset_thd_for_next_command(THD *thd)
 {
-  thd->reset_for_next_command(calculate_userstat);
+  thd->reset_for_next_command();
 }
 
-void THD::reset_for_next_command(bool calculate_userstat)
+void THD::reset_for_next_command()
 {
   THD *thd= this;
-  DBUG_ENTER("mysql_reset_thd_for_next_command");
+  DBUG_ENTER("THD::reset_for_next_command");
   DBUG_ASSERT(!thd->spcont); /* not for substatements of routines */
   DBUG_ASSERT(! thd->in_sub_stmt);
   DBUG_ASSERT(thd->transaction.on);
@@ -5931,14 +5968,6 @@ void THD::reset_for_next_command(bool calculate_userstat)
   thd->rand_used= 0;
   thd->sent_row_count= thd->examined_row_count= 0;
   thd->accessed_rows_and_keys= 0;
-
-  /* Copy data for user stats */
-  if ((thd->userstat_running= calculate_userstat))
-  {
-    thd->start_cpu_time= my_getcputime();
-    memcpy(&thd->org_status_var, &thd->status_var, sizeof(thd->status_var));
-    thd->select_commands= thd->update_commands= thd->other_commands= 0;
-  }
 
   thd->query_plan_flags= QPLAN_INIT;
   thd->query_plan_fsort_passes= 0;
@@ -6125,7 +6154,7 @@ void wsrep_replay_transaction(THD *thd)
       thd->wsrep_conflict_state= REPLAYING;
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
-      mysql_reset_thd_for_next_command(thd, opt_userstat_running);
+      mysql_reset_thd_for_next_command(thd);
       thd->killed= NOT_KILLED;
       close_thread_tables(thd);
       if (thd->locked_tables_mode && thd->lock)
@@ -6230,7 +6259,7 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
       if (thd->wsrep_conflict_state == ABORTED ||
           thd->wsrep_conflict_state == CERT_FAILURE)
       {
-        mysql_reset_thd_for_next_command(thd, opt_userstat_running);
+        mysql_reset_thd_for_next_command(thd);
         thd->killed= NOT_KILLED;
         if (is_autocommit                           &&
             thd->lex->sql_command != SQLCOM_SELECT  &&
@@ -6324,7 +6353,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     FIXME: cleanup the dependencies in the code to simplify this.
   */
   lex_start(thd);
-  mysql_reset_thd_for_next_command(thd, opt_userstat_running);
+  mysql_reset_thd_for_next_command(thd);
 
   if (query_cache_send_result_to_client(thd, rawbuf, length) <= 0)
   {
@@ -6399,6 +6428,8 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
   {
     /* Update statistics for getting the query from the cache */
     thd->lex->sql_command= SQLCOM_SELECT;
+    status_var_increment(thd->status_var.com_stat[SQLCOM_SELECT]);
+    thd->update_stats();
   }
   DBUG_VOID_RETURN;
 }
@@ -6425,7 +6456,7 @@ bool mysql_test_parse_for_slave(THD *thd, char *rawbuf, uint length)
   if (!(error= parser_state.init(thd, rawbuf, length)))
   {
     lex_start(thd);
-    mysql_reset_thd_for_next_command(thd, opt_userstat_running);
+    mysql_reset_thd_for_next_command(thd);
 
     if (!parse_sql(thd, & parser_state, NULL) &&
         all_tables_not_ok(thd, lex->select_lex.table_list.first))

@@ -1,4 +1,4 @@
-/* Copyright (c) 2007, 2012, Oracle and/or its affiliates.
+/* Copyright (c) 2007, 2013, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -87,7 +87,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, const Relay_log_info 
       we need to do any changes to that value after this function.
     */
     lex_start(ev_thd);
-    mysql_reset_thd_for_next_command(ev_thd, 0);
+    mysql_reset_thd_for_next_command(ev_thd);
 
     /*
       This is a row injection, so we flag the "statement" as
@@ -1808,7 +1808,10 @@ int Old_rows_log_event::do_apply_event(Relay_log_info const *rli)
       Xid_log_event will come next which will, if some transactional engines
       are involved, commit the transaction and flush the pending event to the
       binlog.
+      If there was a deadlock the transaction should have been rolled back
+      already. So there should be no need to rollback the transaction.
     */
+    DBUG_ASSERT(! thd->transaction_rollback_request);
     if ((error= (binlog_error ? trans_rollback_stmt(thd) : trans_commit_stmt(thd))))
       rli->report(ERROR_LEVEL, error,
                   "Error in %s event: commit of row events failed, "

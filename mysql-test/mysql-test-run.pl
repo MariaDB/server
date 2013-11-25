@@ -1890,7 +1890,7 @@ sub collect_mysqld_features {
 
   my @list= split '\n', $list;
   mtr_error("Could not find version of MariaDB")
-     unless shift(@list) =~ /^$exe_mysqld\s+Ver\s(\d+)\.(\d+)\.(\d+)(\S*)/;
+     unless shift(@list) =~ /^\Q$exe_mysqld\E\s+Ver\s(\d+)\.(\d+)\.(\d+)(\S*)/;
   $mysql_version_id= $1*10000 + $2*100 + $3;
   $mysql_version_extra= $4;
   mtr_report("MariaDB Version $1.$2.$3$4");
@@ -2489,6 +2489,13 @@ sub environment_setup {
   my $exe_perror= mtr_exe_exists("$bindir/extra$opt_vs_config/perror",
 				 "$path_client_bindir/perror");
   $ENV{'MY_PERROR'}= native_path($exe_perror);
+
+  # ----------------------------------------------------
+  # mysql_tzinfo_to_sql
+  # ----------------------------------------------------
+  my $exe_mysql_tzinfo_to_sql= mtr_exe_exists("$basedir/sql$opt_vs_config/mysql_tzinfo_to_sql",
+				 "$path_client_bindir/mysql_tzinfo_to_sql");
+  $ENV{'MYSQL_TZINFO_TO_SQL'}= native_path($exe_mysql_tzinfo_to_sql);
 
   # Create an environment variable to make it possible
   # to detect that valgrind is being used from test cases

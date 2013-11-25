@@ -897,6 +897,10 @@ public:
   virtual String *val_str_ascii(String *str);
   
   /*
+    Returns the val_str() value converted to the given character set.
+  */
+  String *val_str(String *str, String *converter, CHARSET_INFO *to);
+  /*
     Return decimal representation of item with fixed point.
 
     SYNOPSIS
@@ -1176,6 +1180,7 @@ public:
   virtual bool view_used_tables_processor(uchar *arg) { return 0; }
   virtual bool eval_not_null_tables(uchar *opt_arg) { return 0; }
   virtual bool is_subquery_processor (uchar *opt_arg) { return 0; }
+  virtual bool count_sargable_conds(uchar *arg) { return 0; }
   virtual bool limit_index_condition_pushdown_processor(uchar *opt_arg)
   { 
     return FALSE;
@@ -2071,8 +2076,6 @@ public:
   void update_used_tables()
   {
     update_table_bitmaps();
-    if (field && field->table)
-      maybe_null|= field->maybe_null();
   }
   Item *get_tmp_table_item(THD *thd);
   bool collect_item_field_processor(uchar * arg);
@@ -3211,7 +3214,6 @@ public:
   void update_used_tables()
   {
     orig_item->update_used_tables();
-    maybe_null|= orig_item->maybe_null;
   }
   bool const_item() const { return orig_item->const_item(); }
   table_map not_null_tables() const { return orig_item->not_null_tables(); }
@@ -3304,7 +3306,6 @@ public:
   Item *replace_equal_field(uchar *arg);
   table_map used_tables() const;	
   table_map not_null_tables() const;
-  void update_used_tables();
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
   { 
     return (*ref)->walk(processor, walk_subquery, arg) ||

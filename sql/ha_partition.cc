@@ -226,6 +226,7 @@ ha_partition::ha_partition(handlerton *hton, TABLE_SHARE *share,
   m_is_sub_partitioned= m_part_info->is_sub_partitioned();
   m_is_clone_of= clone_arg;
   m_clone_mem_root= clone_mem_root_arg;
+  m_pkey_is_clustered= clone_arg->primary_key_is_clustered(); 
   DBUG_VOID_RETURN;
 }
 
@@ -6052,7 +6053,7 @@ void ha_partition::get_dynamic_partition_info(PARTITION_STATS *stat_info,
                                               uint part_id)
 {
   handler *file= m_file[part_id];
-  file->info(HA_STATUS_CONST | HA_STATUS_TIME | HA_STATUS_VARIABLE |
+  file->info(HA_STATUS_TIME | HA_STATUS_VARIABLE |
              HA_STATUS_VARIABLE_EXTRA | HA_STATUS_NO_LOCK);
 
   stat_info->records=              file->stats.records;

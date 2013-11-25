@@ -369,7 +369,8 @@ protected:
 
 public:
   Item_bool_func2(Item *a,Item *b)
-    :Item_int_func(a,b), cmp(tmp_arg, tmp_arg+1), abort_on_null(FALSE) {}
+    :Item_int_func(a,b), cmp(tmp_arg, tmp_arg+1),
+     abort_on_null(FALSE) { sargable= TRUE; }
   void fix_length_and_dec();
   int set_cmp_func()
   {
@@ -512,8 +513,8 @@ public:
   bool fix_fields(THD *thd, Item **ref)
     {return Item_func::fix_fields(thd, ref);}
   virtual void print(String *str, enum_query_type query_type);
-  void set_sum_test(Item_sum_hybrid *item) { test_sum_item= item; };
-  void set_sub_test(Item_maxmin_subselect *item) { test_sub_item= item; };
+  void set_sum_test(Item_sum_hybrid *item) { test_sum_item= item; test_sub_item= 0; };
+  void set_sub_test(Item_maxmin_subselect *item) { test_sub_item= item; test_sum_item= 0;};
   bool empty_underlying_subquery();
   Item *neg_transformer(THD *thd);
 };
@@ -673,7 +674,7 @@ public:
   /* TRUE <=> arguments will be compared as dates. */
   Item *compare_as_dates;
   Item_func_between(Item *a, Item *b, Item *c)
-    :Item_func_opt_neg(a, b, c), compare_as_dates(FALSE) {}
+    :Item_func_opt_neg(a, b, c), compare_as_dates(FALSE) { sargable= TRUE; }
   longlong val_int();
   optimize_type select_optimize() const { return OPTIMIZE_KEY; }
   enum Functype functype() const   { return BETWEEN; }
@@ -686,6 +687,7 @@ public:
   uint decimal_precision() const { return 1; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  bool count_sargable_conds(uchar *arg);
 };
 
 
@@ -762,11 +764,6 @@ public:
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
   void fix_length_and_dec();
-  void update_used_tables()
-  {
-    Item_func_coalesce::update_used_tables();
-    maybe_null|= args[1]->maybe_null;
-  }
   const char *func_name() const { return "ifnull"; }
   Field *tmp_table_field(TABLE *table);
   uint decimal_precision() const;
@@ -786,11 +783,6 @@ public:
   String *str_op(String *);
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec();
-  void update_used_tables()
-  {
-    Item_func::update_used_tables();
-    maybe_null|= args[1]->maybe_null || args[2]->maybe_null;
-  }
   uint decimal_precision() const;
   const char *func_name() const { return "if"; }
   bool eval_not_null_tables(uchar *opt_arg);
@@ -1256,12 +1248,6 @@ public:
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
-  void update_used_tables()
-  {
-    Item_func::update_used_tables();
-    if (else_expr_num == -1 || args[else_expr_num]->maybe_null)
-      maybe_null= 1;
-  }
   uint decimal_precision() const;
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }
@@ -1307,10 +1293,11 @@ public:
 
   Item_func_in(List<Item> &list)
     :Item_func_opt_neg(list), array(0), have_null(0),
-    arg_types_compatible(FALSE)
+     arg_types_compatible(FALSE)
   {
     bzero(&cmp_items, sizeof(cmp_items));
     allowed_arg_cols= 0;  // Fetch this value from first argument
+    sargable= TRUE;
   }
   longlong val_int();
   bool fix_fields(THD *, Item **);
@@ -1376,19 +1363,18 @@ public:
 class Item_func_isnull :public Item_bool_func
 {
 public:
-  Item_func_isnull(Item *a) :Item_bool_func(a) {}
+  Item_func_isnull(Item *a) :Item_bool_func(a) { sargable= TRUE; }
   longlong val_int();
   enum Functype functype() const { return ISNULL_FUNC; }
   void fix_length_and_dec()
   {
-    decimals=0; max_length=1; set_persist_maybe_null(0);
+    decimals=0; max_length=1; maybe_null=0;
     update_used_tables();
   }
   const char *func_name() const { return "isnull"; }
   /* Optimize case of not_null_column IS NULL */
   virtual void update_used_tables()
   {
-    args[0]->update_used_tables();
     if (!args[0]->maybe_null)
     {
       used_tables_cache= 0;			/* is always false */
@@ -1396,6 +1382,7 @@ public:
     }
     else
     {
+      args[0]->update_used_tables();
       used_tables_cache= args[0]->used_tables();
       const_item_cache= args[0]->const_item();
     }
@@ -1438,12 +1425,13 @@ class Item_func_isnotnull :public Item_bool_func
 {
   bool abort_on_null;
 public:
-  Item_func_isnotnull(Item *a) :Item_bool_func(a), abort_on_null(0) {}
+  Item_func_isnotnull(Item *a) :Item_bool_func(a), abort_on_null(0)
+  { sargable= TRUE; }
   longlong val_int();
   enum Functype functype() const { return ISNOTNULL_FUNC; }
   void fix_length_and_dec()
   {
-    decimals=0; max_length=1; set_persist_maybe_null(0);
+    decimals=0; max_length=1; maybe_null=0;
   }
   const char *func_name() const { return "isnotnull"; }
   optimize_type select_optimize() const { return OPTIMIZE_NULL; }
@@ -1511,12 +1499,6 @@ public:
   void cleanup();
   longlong val_int();
   bool fix_fields(THD *thd, Item **ref);
-  void update_used_tables()
-  {
-    Item_bool_func::update_used_tables();
-    if (regex_is_const)
-      maybe_null= 1;
-  }
   const char *func_name() const { return "regexp"; }
 
   virtual inline void print(String *str, enum_query_type query_type)
@@ -1731,11 +1713,12 @@ public:
   inline Item_equal()
     : Item_bool_func(), with_const(FALSE), eval_item(0), cond_false(0),
       context_field(NULL)
-  { const_item_cache=0 ;}
+  { const_item_cache=0; sargable= TRUE; }
   Item_equal(Item *f1, Item *f2, bool with_const_item);
   Item_equal(Item_equal *item_equal);
   /* Currently the const item is always the first in the list of equal items */
   inline Item* get_const() { return with_const ? equal_items.head() : NULL; }
+  inline bool is_cond_true() { return equal_items.elements == 1; }
   void add_const(Item *c, Item *f = NULL);
   /** Add a non-constant item to the multiple equality */
   void add(Item *f) { equal_items.push_back(f); }
@@ -1762,6 +1745,7 @@ public:
   CHARSET_INFO *compare_collation();
 
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
+  bool count_sargable_conds(uchar *arg);
   friend class Item_equal_iterator<List_iterator_fast,Item>;
   friend class Item_equal_iterator<List_iterator,Item>;
   friend Item *eliminate_item_equal(COND *cond, COND_EQUAL *upper_levels,

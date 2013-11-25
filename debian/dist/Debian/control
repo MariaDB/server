@@ -21,13 +21,15 @@ Conflicts: mariadb-server, mysql-server, mariadb-galera-server (<< ${source:Vers
     mysql-server-4.1, mysql-server-5.0, mysql-server-5.1, mysql-server-5.5,
     mariadb-server-5.1, mariadb-server-5.2, mariadb-server-5.3,
     mysql-server-core-5.0, mysql-server-core-5.1, mysql-server-core-5.5,
-    mariadb-server-core-5.1, mariadb-server-core-5.2, mariadb-server-core-5.5
+    mariadb-server-core-5.1, mariadb-server-core-5.2, mariadb-server-core-5.5, 
+    mariadb-tokudb-engine-5.5
 Replaces: mariadb-server, mysql-server, mariadb-galera-server (<< ${source:Version}),
     mysql-server-4.1, mysql-server-5.0, mysql-server-5.1, mysql-server-5.5,
     mariadb-server-5.1, mariadb-server-5.2, mariadb-server-5.3,
     libmariadbclient16 (<< 5.3.4), libmariadbclient-dev (<< 5.5.0),
     mysql-server-core-5.0, mysql-server-core-5.1, mysql-server-core-5.5,
-    mariadb-server-core-5.1, mariadb-server-core-5.2, mariadb-server-core-5.5
+    mariadb-server-core-5.1, mariadb-server-core-5.2, mariadb-server-core-5.5, 
+    mariadb-tokudb-engine-5.5
 Description: MariaDB database server with Galera cluster binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query

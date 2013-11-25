@@ -30,7 +30,8 @@
 %define mysqld_group    mysql
 %define mysqldatadir    /var/lib/mysql
 
-%define release         1
+%global release         1  
+
 
 #
 # Macros we use which are not available in all supported versions of RPM
@@ -241,7 +242,7 @@
 # Configuration based upon above user input, not to be set directly
 ##############################################################################
 
-%if %{commercial}
+%if 0%{?commercial}
 %define license_files_server    %{src_dir}/LICENSE.mysql
 %define license_type            Commercial
 %else
@@ -264,7 +265,6 @@ Source:         http://www.mysql.com/Downloads/MySQL-@MYSQL_BASE_VERSION@/%{src_
 URL:            http://www.mysql.com/
 Packager:       MySQL Release Engineering <mysql-build@oss.oracle.com> 
 Vendor:         %{mysql_vendor}
-Provides:       msqlormysql MySQL-server
 BuildRequires:  %{distro_buildreq}
 
 # Regression tests may take a long time, override the default to skip them 
@@ -308,8 +308,8 @@ Requires:       %{distro_requires} rsync
 %else
 Requires:       %{distro_requires}
 %endif
-%if %{defined susever}
-Provides:       msqlormysql MySQL MySQL-server
+Obsoletes:      mysql-server < %{version}-%{release}
+Obsoletes:      mysql-server-advanced
 Conflicts:      mysql mysql-server mysql-advanced mysql-server-advanced
 Obsoletes:      MySQL MySQL-server
 Obsoletes:      MySQL-server-classic MySQL-server-community MySQL-server-enterprise
@@ -321,8 +321,8 @@ Obsoletes:      MySQL-server-advanced < %{version}-%{release}
 Obsoletes:      mysql mysql-server mysql-advanced mysql-server-advanced
 Obsoletes:      MySQL-server-classic MySQL-server-community MySQL-server-enterprise
 Obsoletes:      MySQL-server-advanced-gpl MySQL-server-enterprise-gpl
-Provides:       msqlormysql MySQL MySQL-server MySQL-server-advanced
-%endif
+Provides:       mysql-server = %{version}-%{release}
+Provides:       mysql-server%{?_isa} = %{version}-%{release}
 
 %description -n MySQL-server%{product_suffix}
 The MySQL(TM) software delivers a very fast, multi-threaded, multi-user,
@@ -368,7 +368,7 @@ Obsoletes:      MySQL-client-advanced < %{version}-%{release}
 Obsoletes:      MySQL-client-classic MySQL-client-community MySQL-client-enterprise
 Obsoletes:      MySQL-client-advanced-gpl MySQL-client-enterprise-gpl
 Provides:       MySQL-client MySQL-client-advanced
-Provides:       mysql
+Provides:       mysql%{?_isa} = %{version}-%{release}
 %endif
 
 %description -n MySQL-client%{product_suffix}
@@ -392,12 +392,15 @@ AutoReqProv:    no
 %else
 Requires:       MySQL-client perl
 Conflicts:      mysql-test mysql-test-advanced
+Obsoletes:      mysql-test < %{version}-%{release}
+Obsoletes:      mysql-test-advanced
 Obsoletes:      mysql-bench MySQL-bench
 Obsoletes:      MySQL-test < %{version}-%{release}
 Obsoletes:      MySQL-test-advanced < %{version}-%{release}
 Obsoletes:      MySQL-test-classic MySQL-test-community MySQL-test-enterprise
 Obsoletes:      MySQL-test-advanced-gpl MySQL-test-enterprise-gpl
-Provides:       MySQL-test MySQL-test-advanced
+Provides:       mysql-test = %{version}-%{release}
+Provides:       mysql-test%{?_isa} = %{version}-%{release}
 AutoReqProv:    no
 %endif
 
@@ -419,11 +422,12 @@ Obsoletes:      MySQL-devel-advanced MySQL-devel-advanced-gpl MySQL-devel-enterp
 %else
 Conflicts:      mysql-devel mysql-embedded-devel mysql-devel-advanced mysql-embedded-devel-advanced
 Obsoletes:      MySQL-devel < %{version}-%{release}
-Obsoletes:      MySQL-devel-advanced < %{version}-%{release}
+Obsoletes:      mysql-devel < %{version}-%{release}
+Obsoletes:      mysql-embedded-devel mysql-devel-advanced mysql-embedded-devel-advanced
 Obsoletes:      MySQL-devel-classic MySQL-devel-community MySQL-devel-enterprise
 Obsoletes:      MySQL-devel-advanced-gpl MySQL-devel-enterprise-gpl
-Provides:       MySQL-devel MySQL-devel-advanced
-%endif
+Provides:       mysql-devel = %{version}-%{release}
+Provides:       mysql-devel%{?_isa} = %{version}-%{release}
 
 %description -n MySQL-devel%{product_suffix}
 This package contains the development header files and libraries necessary
@@ -473,13 +477,15 @@ Obsoletes:      MySQL-embedded-advanced MySQL-embedded-advanced-gpl MySQL-embedd
 %else
 Requires:       MySQL-devel
 Conflicts:      mysql-embedded mysql-embedded-advanced
+Obsoletes:      mysql-embedded < %{version}-%{release}
+Obsoletes:      mysql-embedded-advanced
 Obsoletes:      MySQL-embedded-pro
 Obsoletes:      MySQL-embedded < %{version}-%{release}
 Obsoletes:      MySQL-embedded-advanced < %{version}-%{release}
 Obsoletes:      MySQL-embedded-classic MySQL-embedded-community MySQL-embedded-enterprise
 Obsoletes:      MySQL-embedded-advanced-gpl MySQL-embedded-enterprise-gpl
-Provides:       MySQL-embedded MySQL-embedded-advanced
-%endif
+Provides:       mysql-embedded = %{version}-%{release}
+Provides:       mysql-emdedded%{?_isa} = %{version}-%{release}
 
 %description -n MySQL-embedded%{product_suffix}
 This package contains the MySQL server as an embedded library.
@@ -787,7 +793,7 @@ fi
 
 # We assume that if there is exactly one ".pid" file,
 # it contains the valid PID of a running MySQL server.
-NR_PID_FILES=`ls $PID_FILE_PATT 2>/dev/null | wc -l`
+NR_PID_FILES=`ls -1 $PID_FILE_PATT 2>/dev/null | wc -l`
 case $NR_PID_FILES in
 	0 ) SERVER_TO_START=''  ;;  # No "*.pid" file == no running server
 	1 ) SERVER_TO_START='true' ;;
@@ -1303,6 +1309,12 @@ echo "====="                                     >> $STATUS_HISTORY
 # merging BK trees)
 ##############################################################################
 %changelog
+* Mon Sep 09 2013 Balasubramanian Kandasamy <balasubramanian.kandasamy@oracle.com>
+- Updated logic to get the correct count of PID files 
+
+* Fri Aug 16 2013 Balasubramanian Kandasamy <balasubramanian.kandasamy@oracle.com>
+- Added provides lowercase mysql tags  
+
 * Tue Jul 24 2012 Joerg Bruehe <joerg.bruehe@oracle.com>
 
 - Add a macro "runselftest":

@@ -102,5 +102,6 @@ usr/share/mysql/mysql_system_tables_data.sql
 usr/share/mysql/mysql_system_tables.sql
 usr/share/mysql/mysql_performance_tables.sql
 usr/share/mysql/mysql_test_data_timezone.sql
+@TOKUDB_DEB_FILES@
 usr/share/mysql/wsrep.cnf
 usr/share/mysql/wsrep_notify

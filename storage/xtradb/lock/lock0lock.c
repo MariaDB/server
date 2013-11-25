@@ -4279,7 +4279,7 @@ lock_table(
 
 	trx = thr_get_trx(thr);
 
-	if (trx->fake_changes && mode == LOCK_IX) {
+	if (UNIV_UNLIKELY(trx->fake_changes && mode == LOCK_IX)) {
 		mode = LOCK_IS;
 	}
 
@@ -5546,7 +5546,7 @@ lock_rec_insert_check_and_lock(
 
 	trx = thr_get_trx(thr);
 
-	if (trx->fake_changes) {
+	if (UNIV_UNLIKELY(trx->fake_changes)) {
 		return(DB_SUCCESS);
 	}
 
@@ -5749,7 +5749,7 @@ lock_clust_rec_modify_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
-	if (thr && thr_get_trx(thr)->fake_changes) {
+	if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
 		return(DB_SUCCESS);
 	}
 
@@ -5811,7 +5811,7 @@ lock_sec_rec_modify_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
-	if (thr && thr_get_trx(thr)->fake_changes) {
+	if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
 		return(DB_SUCCESS);
 	}
 
@@ -5902,7 +5902,7 @@ lock_sec_rec_read_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
-	if (UNIV_UNLIKELY((thr && thr_get_trx(thr)->fake_changes))) {
+	if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
 		if (!srv_fake_changes_locks) {
 			return(DB_SUCCESS);
 		}
@@ -5987,7 +5987,7 @@ lock_clust_rec_read_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
-	if (UNIV_UNLIKELY((thr && thr_get_trx(thr)->fake_changes))) {
+	if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
 		if (!srv_fake_changes_locks) {
 			return(DB_SUCCESS);
 		}

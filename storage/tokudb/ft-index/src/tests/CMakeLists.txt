@@ -52,7 +52,6 @@ if(BUILD_TESTING OR BUILD_SRC_TESTS)
       bug1381
       bug627
       cachetable-race
-      checkpoint_1
       checkpoint_callback
       checkpoint_stress
       cursor-isolation
@@ -66,6 +65,7 @@ if(BUILD_TESTING OR BUILD_SRC_TESTS)
       directory_lock
       diskfull
       dump-env
+      env_loader_memory
       env-put-multiple
       env_startup
       execute-updates
@@ -140,6 +140,7 @@ if(BUILD_TESTING OR BUILD_SRC_TESTS)
       preload-db
       preload-db-nested
       progress
+      put-del-multiple-array-indexing
       put-multiple
       queries_with_deletes
       recover-2483
@@ -263,7 +264,10 @@ if(BUILD_TESTING OR BUILD_SRC_TESTS)
       test_db_descriptor_named_db
       test_db_txn_locks_read_uncommitted
       test_get_max_row_size
+      test_iterate_live_transactions
+      test_iterate_pending_lock_requests
       test_large_update_broadcast_small_cachetable
+      test_lock_timeout_callback
       test_locking_with_read_txn
       test_locktree_close
       test_logflush
@@ -329,6 +333,7 @@ if(BUILD_TESTING OR BUILD_SRC_TESTS)
       update-multiple-key0
       update-multiple-nochange
       update-multiple-with-indexer
+      update-multiple-with-indexer-array
       update
       upgrade_simple
       upgrade-test-1
@@ -360,7 +365,7 @@ if(BUILD_TESTING OR BUILD_SRC_TESTS)
   ## #5138 only reproduces when using the static library.
   list(REMOVE_ITEM tdb_bins test-5138.tdb)
   add_executable(test-5138.tdb test-5138.cc)
-  target_link_libraries(test-5138.tdb ${LIBTOKUDB}_static z ${LIBTOKUPORTABILITY}_static ${CMAKE_THREAD_LIBS_INIT} ${EXTRA_SYSTEM_LIBS})
+  target_link_libraries(test-5138.tdb ${LIBTOKUDB}_static ${ZLIB_LIBRARY} ${LIBTOKUPORTABILITY}_static ${CMAKE_THREAD_LIBS_INIT} ${EXTRA_SYSTEM_LIBS})
   set_property(TARGET test-5138.tdb APPEND PROPERTY
     COMPILE_DEFINITIONS "USE_TDB;IS_TDB=1;TOKUDB=1")
   add_space_separated_property(TARGET test-5138.tdb COMPILE_FLAGS -fvisibility=hidden)
@@ -781,7 +786,6 @@ if(BUILD_TESTING OR BUILD_SRC_TESTS)
 
   ## give some tests, that time out normally, 1 hour to complete
   set(long_tests
-    ydb/checkpoint_1.tdb
     ydb/drd_test_groupcommit_count.tdb
     ydb/env-put-multiple.tdb
     ydb/filesize.tdb

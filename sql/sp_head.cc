@@ -1,5 +1,6 @@
 /*
-   Copyright (c) 2002, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2002, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2150,10 +2151,18 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     close_thread_tables(thd);
     thd_proc_info(thd, 0);
 
-    if (! thd->in_sub_stmt && ! thd->in_multi_stmt_transaction_mode())
-      thd->mdl_context.release_transactional_locks();
-    else if (! thd->in_sub_stmt)
-      thd->mdl_context.release_statement_locks();
+    if (! thd->in_sub_stmt)
+    {
+      if (thd->transaction_rollback_request)
+      {
+        trans_rollback_implicit(thd);
+        thd->mdl_context.release_transactional_locks();
+      }
+      else if (! thd->in_multi_stmt_transaction_mode())
+        thd->mdl_context.release_transactional_locks();
+      else
+        thd->mdl_context.release_statement_locks();
+    }
 
     thd->rollback_item_tree_changes();
 
@@ -3005,10 +3014,18 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     close_thread_tables(thd);
     thd_proc_info(thd, 0);
 
-    if (! thd->in_sub_stmt && ! thd->in_multi_stmt_transaction_mode())
-      thd->mdl_context.release_transactional_locks();
-    else if (! thd->in_sub_stmt)
-      thd->mdl_context.release_statement_locks();
+    if (! thd->in_sub_stmt)
+    {
+      if (thd->transaction_rollback_request)
+      {
+        trans_rollback_implicit(thd);
+        thd->mdl_context.release_transactional_locks();
+      }
+      else if (! thd->in_multi_stmt_transaction_mode())
+        thd->mdl_context.release_transactional_locks();
+      else
+        thd->mdl_context.release_statement_locks();
+    }
   }
 
   if (m_lex->query_tables_own_last)
@@ -3137,7 +3154,15 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
         log_slow_statement(thd);
     }
     else
+    {
+      /* change statistics */
+      enum_sql_command save_sql_command= thd->lex->sql_command;
+      thd->lex->sql_command= SQLCOM_SELECT;
+      status_var_increment(thd->status_var.com_stat[SQLCOM_SELECT]);
+      thd->update_stats();
+      thd->lex->sql_command= save_sql_command;
       *nextp= m_ip+1;
+    }
     thd->set_query(query_backup);
     thd->query_name_consts= 0;
 

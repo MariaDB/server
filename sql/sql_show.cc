@@ -2316,7 +2316,7 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
     {
       Security_context *tmp_sctx= tmp->security_ctx;
       struct st_my_thread_var *mysys_var;
-      const char *val;
+      const char *val, *db;
       ulonglong max_counter;
 
       if ((!tmp->vio_ok() && !tmp->system_thread) ||
@@ -2343,13 +2343,13 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
         table->field[2]->store(tmp_sctx->host_or_ip,
                                strlen(tmp_sctx->host_or_ip), cs);
       /* DB */
-      if (tmp->db)
+      mysql_mutex_lock(&tmp->LOCK_thd_data);
+      if ((db= tmp->db))
       {
-        table->field[3]->store(tmp->db, strlen(tmp->db), cs);
+        table->field[3]->store(db, strlen(db), cs);
         table->field[3]->set_notnull();
       }
 
-      mysql_mutex_lock(&tmp->LOCK_thd_data);
       if ((mysys_var= tmp->mysys_var))
         mysql_mutex_lock(&mysys_var->mutex);
       /* COMMAND */
@@ -2361,7 +2361,8 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
                                command_name[tmp->command].length, cs);
       /* MYSQL_TIME */
       ulonglong start_utime= tmp->start_time * HRTIME_RESOLUTION + tmp->start_time_sec_part;
-      ulonglong utime= start_utime < unow.val ? unow.val - start_utime : 0;
+      ulonglong utime= start_utime && start_utime < unow.val
+                       ? unow.val - start_utime : 0;
       table->field[5]->store(utime / HRTIME_RESOLUTION, TRUE);
       /* STATE */
       if ((val= thread_state_info(tmp)))
@@ -2553,19 +2554,20 @@ void remove_status_vars(SHOW_VAR *list)
 
     for (; list->name; list++)
     {
-      int res= 0, a= 0, b= all_status_vars.elements, c= (a+b)/2;
-      for (; b-a > 0; c= (a+b)/2)
+      int first= 0, last= ((int) all_status_vars.elements) - 1;
+      for ( ; first <= last; )
       {
-        res= show_var_cmp(list, all+c);
-        if (res < 0)
-          b= c;
+        int res, middle= (first + last) / 2;
+        if ((res= show_var_cmp(list, all + middle)) < 0)
+          last= middle - 1;
         else if (res > 0)
-          a= c;
+          first= middle + 1;
         else
+        {
+          all[middle].type= SHOW_UNDEF;
           break;
+        }
       }
-      if (res == 0)
-        all[c].type= SHOW_UNDEF;
     }
     shrink_var_array(&all_status_vars);
     mysql_mutex_unlock(&LOCK_status);

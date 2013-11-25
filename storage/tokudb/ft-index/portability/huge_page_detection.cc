@@ -50,6 +50,7 @@ UNIVERSITY PATENT NOTICE:
 PATENT MARKING NOTICE:
 
   This software is covered by US Patent No. 8,185,551.
+  This software is covered by US Patent No. 8,489,638.
 
 PATENT RIGHTS GRANT:
 
@@ -109,7 +110,7 @@ static bool check_huge_pages_config_file(const char *fname)
         char *r = fgets(buf, sizeof(buf), f);
         assert(r != NULL);
         if (strstr(buf, "[always]")) {
-            fprintf(stderr, "Transparent huge pages are enabled, according to %s\n", fname);
+            fprintf(stderr,"TokuDB: Transparent huge pages are enabled, according to %s.  TokuDB will be disabled. To use TokuDB disable huge pages in your kernel or, for testing, set the environment variable TOKU_HUGE_PAGES_OK to 1\n", fname);
             huge_pages_enabled = true;
         } else {
             huge_pages_enabled =false;

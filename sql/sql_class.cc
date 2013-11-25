@@ -1465,6 +1465,7 @@ void THD::init(void)
   reset_current_stmt_binlog_format_row();
   bzero((char *) &status_var, sizeof(status_var));
   bzero((char *) &org_status_var, sizeof(org_status_var));
+  start_bytes_received= 0;
 #ifdef WITH_WSREP
   wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
   wsrep_conflict_state= NO_CONFLICT;
@@ -4229,6 +4230,10 @@ extern "C" unsigned long thd_get_thread_id(const MYSQL_THD thd)
   return((unsigned long)thd->thread_id);
 }
 
+extern "C" enum_tx_isolation thd_get_trx_isolation(const MYSQL_THD thd)
+{
+	return thd->tx_isolation;
+}
 
 #ifdef INNODB_COMPATIBILITY_HOOKS
 extern "C" const struct charset_info_st *thd_charset(MYSQL_THD thd)

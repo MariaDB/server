@@ -1,4 +1,5 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2033,7 +2034,12 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
         */
         thd->query_cache_is_applicable= 0;      // Query can't be cached
       }
-      /* End the statement transaction potentially started by engine. */
+      /*
+        End the statement transaction potentially started by engine.
+        Currently our engines do not request rollback from callbacks.
+        If this is going to change code needs to be reworked.
+      */
+      DBUG_ASSERT(! thd->transaction_rollback_request);
       trans_rollback_stmt(thd);
       goto err_unlock;				// Parse query
     }
@@ -2074,9 +2080,13 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
   }
 #endif /*!EMBEDDED_LIBRARY*/
 
-  thd->limit_found_rows = query->found_rows();
+  thd->sent_row_count= thd->limit_found_rows = query->found_rows();
   thd->status_var.last_query_cost= 0.0;
   thd->query_plan_flags= (thd->query_plan_flags & ~QPLAN_QC_NO) | QPLAN_QC;
+  if (!thd->sent_row_count)
+    status_var_increment(thd->status_var.empty_queries);
+  else
+    status_var_add(thd->status_var.rows_sent, thd->sent_row_count);
 
   /*
     End the statement transaction potentially started by an

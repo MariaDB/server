@@ -942,7 +942,7 @@ void Item_func_monthname::fix_length_and_dec()
   collation.set(cs, DERIVATION_COERCIBLE, repertoire);
   decimals=0;
   max_length= locale->max_month_name_length * collation.collation->mbmaxlen;
-  set_persist_maybe_null(1);
+  maybe_null=1; 
 }
 
 
@@ -1089,7 +1089,7 @@ void Item_func_dayname::fix_length_and_dec()
   collation.set(cs, DERIVATION_COERCIBLE, repertoire);
   decimals=0;
   max_length= locale->max_day_name_length * collation.collation->mbmaxlen;
-  set_persist_maybe_null(1);
+  maybe_null=1; 
 }
 
 
@@ -1451,7 +1451,7 @@ void Item_temporal_func::fix_length_and_dec()
     We set maybe_null to 1 as default as any bad argument with date or
     time can get us to return NULL.
   */ 
-  set_persist_maybe_null(1);
+  maybe_null= 1;
   max_length= mysql_temporal_int_part_length(field_type());
   if (decimals)
   {
@@ -1521,7 +1521,7 @@ void Item_func_curdate::fix_length_and_dec()
   ltime.hour= ltime.minute= ltime.second= 0;
   ltime.time_type= MYSQL_TIMESTAMP_DATE;
   Item_datefunc::fix_length_and_dec();
-  set_persist_maybe_null(0);
+  maybe_null= false;
 }
 
 /**
@@ -1760,7 +1760,7 @@ void Item_func_date_format::fix_length_and_dec()
                    collation.collation->mbmaxlen;
     set_if_smaller(max_length,MAX_BLOB_WIDTH);
   }
-  set_persist_maybe_null(1);				// If wrong date
+  maybe_null=1;					// If wrong date
 }
 
 
@@ -2123,7 +2123,7 @@ void Item_extract::print(String *str, enum_query_type query_type)
 
 void Item_extract::fix_length_and_dec()
 {
-  set_persist_maybe_null(1);					// If wrong date
+  maybe_null=1;					// If wrong date
   switch (int_type) {
   case INTERVAL_YEAR:		max_length=4; date_value=1; break;
   case INTERVAL_YEAR_MONTH:	max_length=6; date_value=1; break;
@@ -3096,13 +3096,25 @@ get_date_time_result_type(const char *format, uint length)
 
 void Item_func_str_to_date::fix_length_and_dec()
 {
+  if (agg_arg_charsets(collation, args, 2, MY_COLL_ALLOW_CONV, 1))
+    return;
+  if (collation.collation->mbminlen > 1)
+  {
+#if MYSQL_VERSION_ID > 50500
+    internal_charset= &my_charset_utf8mb4_general_ci;
+#else
+    internal_charset= &my_charset_utf8_general_ci;
+#endif
+  }
+
   cached_field_type= MYSQL_TYPE_DATETIME;
   decimals= NOT_FIXED_DEC;
   if ((const_item= args[1]->const_item()))
   {
     char format_buff[64];
     String format_str(format_buff, sizeof(format_buff), &my_charset_bin);
-    String *format= args[1]->val_str(&format_str);
+    String *format= args[1]->val_str(&format_str, &format_converter,
+                                     internal_charset);
     decimals= 0;
     if (!args[1]->null_value)
     {
@@ -3140,8 +3152,8 @@ bool Item_func_str_to_date::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   String format_str(format_buff, sizeof(format_buff), &my_charset_bin),
     *format;
 
-  val=    args[0]->val_str(&val_string);
-  format= args[1]->val_str(&format_str);
+  val=    args[0]->val_str(&val_string, &subject_converter, internal_charset);
+  format= args[1]->val_str(&format_str, &format_converter, internal_charset);
   if (args[0]->null_value || args[1]->null_value)
     return (null_value=1);
 

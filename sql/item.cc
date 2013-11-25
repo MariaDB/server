@@ -263,6 +263,24 @@ String *Item::val_str_ascii(String *str)
 }
 
 
+String *Item::val_str(String *str, String *converter, CHARSET_INFO *cs)
+{
+  String *res= val_str(str);
+  if (null_value)
+    return (String *) 0;
+
+  if (!cs)
+    return res;
+
+  uint errors;
+  if ((null_value= converter->copy(res->ptr(), res->length(),
+                                   collation.collation, cs,  &errors)))
+    return (String *) 0;
+
+  return converter;
+}
+
+
 String *Item::val_string_from_real(String *str)
 {
   double nr= val_real();
@@ -5109,6 +5127,11 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
         goto mark_non_agg_field;
     }
 
+    if (thd->lex->in_sum_func &&
+        thd->lex->in_sum_func->nest_level == 
+        thd->lex->current_select->nest_level)
+      set_if_bigger(thd->lex->in_sum_func->max_arg_level,
+                    thd->lex->current_select->nest_level);
     /*
       if it is not expression from merged VIEW we will set this field.
 
@@ -5125,11 +5148,6 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
       return FALSE;
 
     set_field(from_field);
-    if (thd->lex->in_sum_func &&
-        thd->lex->in_sum_func->nest_level == 
-        thd->lex->current_select->nest_level)
-      set_if_bigger(thd->lex->in_sum_func->max_arg_level,
-                    thd->lex->current_select->nest_level);
   }
   else if (thd->mark_used_columns != MARK_COLUMNS_NONE)
   {
@@ -9629,18 +9647,10 @@ table_map Item_ref::used_tables() const
 }
 
 
-void Item_ref::update_used_tables() 
+void Item_ref::update_used_tables()
 {
   if (!get_depended_from())
     (*ref)->update_used_tables();
-  maybe_null|= (*ref)->maybe_null;
-}
-
-void Item_direct_view_ref::update_used_tables()
-{
-  Item_ref::update_used_tables();
-  if (view->table && view->table->maybe_null)
-    maybe_null= TRUE;
 }
 
 table_map Item_direct_view_ref::used_tables() const

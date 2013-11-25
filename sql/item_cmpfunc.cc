@@ -1354,7 +1354,7 @@ int Arg_comparator::compare_e_row()
 
 void Item_func_truth::fix_length_and_dec()
 {
-  set_persist_maybe_null(0);
+  maybe_null= 0;
   null_value= 0;
   decimals= 0;
   max_length= 1;
@@ -1435,11 +1435,14 @@ bool Item_in_optimizer::eval_not_null_tables(uchar *opt_arg)
   return FALSE;
 }
 
+
 bool Item_in_optimizer::fix_left(THD *thd, Item **ref)
 {
+  DBUG_ENTER("Item_in_optimizer::fix_left");
   if ((!args[0]->fixed && args[0]->fix_fields(thd, args)) ||
       (!cache && !(cache= Item_cache::get_cache(args[0]))))
-    return 1;
+    DBUG_RETURN(1);
+  DBUG_PRINT("info", ("actual fix fields"));
 
   cache->setup(args[0]);
   if (cache->cols() == 1)
@@ -1465,11 +1468,15 @@ bool Item_in_optimizer::fix_left(THD *thd, Item **ref)
       {
         my_error(ER_NOT_SUPPORTED_YET, MYF(0),
                  "SUBQUERY in ROW in left expression of IN/ALL/ANY");
-        return 1;
+        DBUG_RETURN(1);
       }
       Item *element=args[0]->element_index(i);
       if (element->used_tables() || !element->const_item())
-	((Item_cache *)cache->element_index(i))->set_used_tables(OUTER_REF_TABLE_BIT);
+      {
+	((Item_cache *)cache->element_index(i))->
+          set_used_tables(OUTER_REF_TABLE_BIT);
+        cache->set_used_tables(OUTER_REF_TABLE_BIT);
+      }
       else
 	((Item_cache *)cache->element_index(i))->set_used_tables(0);
     }
@@ -1483,7 +1490,7 @@ bool Item_in_optimizer::fix_left(THD *thd, Item **ref)
     cache->store(args[0]);
     cache->cache_value();
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
@@ -1866,8 +1873,7 @@ longlong Item_func_eq::val_int()
 void Item_func_equal::fix_length_and_dec()
 {
   Item_bool_func2::fix_length_and_dec();
-  set_persist_maybe_null(0);
-  null_value= 0;
+  maybe_null=null_value=0;
 }
 
 longlong Item_func_equal::val_int()
@@ -2006,7 +2012,7 @@ void Item_func_interval::fix_length_and_dec()
       }
     }
   }
-  set_persist_maybe_null(0);
+  maybe_null= 0;
   max_length= 2;
   used_tables_cache|= row->used_tables();
   not_null_tables_cache= row->not_null_tables();
@@ -2164,6 +2170,15 @@ bool Item_func_between::eval_not_null_tables(uchar *opt_arg)
                            args[2]->not_null_tables()));
   return 0;
 }  
+
+
+bool Item_func_between::count_sargable_conds(uchar *arg)
+{
+  SELECT_LEX *sel= (SELECT_LEX *) arg;
+  sel->cond_count++;
+  sel->between_count++;
+  return 0;
+}
 
 
 void Item_func_between::fix_after_pullout(st_select_lex *new_parent, Item **ref)
@@ -2702,7 +2717,7 @@ void
 Item_func_nullif::fix_length_and_dec()
 {
   Item_bool_func2::fix_length_and_dec();
-  set_persist_maybe_null(1);
+  maybe_null=1;
   if (args[0])					// Only false if EOM
   {
     max_length=args[0]->max_length;
@@ -4596,8 +4611,6 @@ void Item_cond::update_used_tables()
     item->update_used_tables();
     used_tables_cache|= item->used_tables();
     const_item_cache&= item->const_item();
-    if (!persistent_maybe_null && item->maybe_null)
-      maybe_null= 1;
   }
 }
 
@@ -4755,6 +4768,7 @@ longlong Item_func_isnull::val_int()
   return args[0]->is_null() ? 1: 0;
 }
 
+
 longlong Item_is_not_null_test::val_int()
 {
   DBUG_ASSERT(fixed == 1);
@@ -4776,9 +4790,10 @@ longlong Item_is_not_null_test::val_int()
 */
 void Item_is_not_null_test::update_used_tables()
 {
-  args[0]->update_used_tables();
   if (!args[0]->maybe_null)
     used_tables_cache= 0;			/* is always true */
+  else
+    args[0]->update_used_tables();
 }
 
 
@@ -4957,6 +4972,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
   return FALSE;
 }
 
+
 void Item_func_like::cleanup()
 {
   canDoTurboBM= FALSE;
@@ -5059,7 +5075,7 @@ Item_func_regex::fix_fields(THD *thd, Item **ref)
     int comp_res= regcomp(TRUE);
     if (comp_res == -1)
     {						// Will always return NULL
-      set_persist_maybe_null(1);
+      maybe_null=1;
       fixed= 1;
       return FALSE;
     }
@@ -5069,7 +5085,7 @@ Item_func_regex::fix_fields(THD *thd, Item **ref)
     maybe_null= args[0]->maybe_null;
   }
   else
-    set_persist_maybe_null(1);
+    maybe_null=1;
   fixed= 1;
   return FALSE;
 }
@@ -5586,7 +5602,8 @@ Item_equal::Item_equal(Item *f1, Item *f2, bool with_const_item)
   equal_items.push_back(f1);
   equal_items.push_back(f2);
   compare_as_dates= with_const_item && f2->cmp_type() == TIME_RESULT;
-  upper_levels= NULL;  
+  upper_levels= NULL;
+  sargable= TRUE; 
 }
 
 
@@ -5616,6 +5633,7 @@ Item_equal::Item_equal(Item_equal *item_equal)
   compare_as_dates= item_equal->compare_as_dates;
   cond_false= item_equal->cond_false;
   upper_levels= item_equal->upper_levels;
+  sargable= TRUE;
 }
 
 
@@ -5669,6 +5687,12 @@ void Item_equal::add_const(Item *c, Item *f)
     func->quick_fix_field();
     cond_false= !func->val_int();
   }
+  /*
+    TODO: also support the case where Item_equal becomes singular with
+    this->is_cond_true()=1.  When I attempted to mark the item as constant,
+    the optimizer attempted to remove it, however it is still referenced from
+    COND_EQUAL and I got a crash.
+  */
   if (cond_false)
     const_item_cache= 1;
 }
@@ -5873,7 +5897,8 @@ void Item_equal::merge_into_list(List<Item_equal> *list,
 
 void Item_equal::sort(Item_field_cmpfunc compare, void *arg)
 {
-  bubble_sort<Item>(&equal_items, compare, arg);
+  if (equal_items.elements > 1)
+    bubble_sort<Item>(&equal_items, compare, arg);
 }
 
 
@@ -5987,6 +6012,12 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
 void Item_equal::update_used_tables()
 {
   not_null_tables_cache= used_tables_cache= 0;
+  /*
+    TODO: also support the case where Item_equal becomes singular with
+    this->is_cond_true()=1.  When I attempted to mark the item as constant,
+    the optimizer attempted to remove it, however it is still referenced from
+    COND_EQUAL and I got a crash.
+  */
   if ((const_item_cache= cond_false))
     return;
   Item_equal_fields_iterator it(*this);
@@ -5998,11 +6029,17 @@ void Item_equal::update_used_tables()
     used_tables_cache|= item->used_tables();
     /* see commentary at Item_equal::update_const() */
     const_item_cache&= item->const_item() && !item->is_outer_field();
-    if (!persistent_maybe_null && item->maybe_null)
-      maybe_null= 1;
   }
 }
 
+
+bool Item_equal::count_sargable_conds(uchar *arg)
+{
+  SELECT_LEX *sel= (SELECT_LEX *) arg;
+  uint m= equal_items.elements;
+  sel->cond_count+= m*(m-1);
+  return 0;
+}
 
 
 /**
@@ -6030,6 +6067,8 @@ longlong Item_equal::val_int()
 {
   if (cond_false)
     return 0;
+  if (is_cond_true())
+    return 1;
   Item *item= get_const();
   Item_equal_fields_iterator it(*this);
   if (!item)
@@ -6054,6 +6093,11 @@ longlong Item_equal::val_int()
 void Item_equal::fix_length_and_dec()
 {
   Item *item= get_first(NO_PARTICULAR_TAB, NULL);
+  if (!item)
+  {
+    DBUG_ASSERT(is_cond_true()); // it should be the only constant
+    item= equal_items.head();
+  }
   eval_item= cmp_item::get_comparator(item->cmp_type(), item,
                                       item->collation.collation);
 }

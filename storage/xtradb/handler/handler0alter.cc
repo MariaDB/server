@@ -702,7 +702,7 @@ ha_innobase::add_index(
 	possible adaptive hash latch to avoid deadlocks of threads. */
 	trx_search_latch_release_if_reserved(prebuilt->trx);
 
-	if (prebuilt->trx->fake_changes) {
+	if (UNIV_UNLIKELY(prebuilt->trx->fake_changes)) {
 		DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 	}
 
@@ -748,7 +748,7 @@ ha_innobase::add_index(
 	/* Create a background transaction for the operations on
 	the data dictionary tables. */
 	trx = innobase_trx_allocate(user_thd);
-	if (trx->fake_changes) {
+	if (UNIV_UNLIKELY(trx->fake_changes)) {
 		mem_heap_free(heap);
 		trx_general_rollback_for_mysql(trx, NULL);
 		trx_free_for_mysql(trx);
@@ -1122,7 +1122,7 @@ ha_innobase::prepare_drop_index(
 	trx_search_latch_release_if_reserved(prebuilt->trx);
 	trx = prebuilt->trx;
 
-	if (trx->fake_changes) {
+	if (UNIV_UNLIKELY(trx->fake_changes)) {
 		DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 	}
 
@@ -1334,7 +1334,7 @@ ha_innobase::final_drop_index(
 	/* Create a background transaction for the operations on
 	the data dictionary tables. */
 	trx = innobase_trx_allocate(user_thd);
-	if (trx->fake_changes) {
+	if (UNIV_UNLIKELY(trx->fake_changes)) {
 		trx_general_rollback_for_mysql(trx, NULL);
 		trx_free_for_mysql(trx);
 		DBUG_RETURN(HA_ERR_WRONG_COMMAND);
