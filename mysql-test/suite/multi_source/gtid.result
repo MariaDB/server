@@ -70,6 +70,7 @@ Last_SQL_Error
 Replicate_Ignore_Server_Ids	
 Master_Server_Id	3
 Using_Gtid	No
+Gtid_IO_Pos	
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	25
