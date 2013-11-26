@@ -1078,7 +1078,7 @@ void ODBCCOL::AllocateBuffers(PGLOBAL g, int rows)
   if (Buf_Type == TYPE_DATE)
     Bufp = PlugSubAlloc(g, NULL, rows * sizeof(TIMESTAMP_STRUCT));
   else {
-    Blkp = AllocValBlock(g, NULL, Buf_Type, rows, Long+1, 0, true, false);
+    Blkp = AllocValBlock(g, NULL, Buf_Type, rows, Long+1, 0, true, false, false);
     Bufp = Blkp->GetValPointer();
     } // endelse
 

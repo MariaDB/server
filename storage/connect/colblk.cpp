@@ -164,8 +164,7 @@ bool COLBLK::CheckSort(PTDB tdbp)
 /*  Now we use Format.Length for the len parameter to avoid strings    */
 /*  to be truncated when converting from string to coded string.       */
 /*  Added in version 1.5 is the arguments GetPrecision() and Domain    */
-/*  in calling AllocateValue. Domain is used for TYPE_TOKEN only,      */
-/*  but why was GetPrecision() not specified ? To be checked.          */
+/*  in calling AllocateValue. Domain is used for TYPE_DATE only.       */
 /***********************************************************************/
 bool COLBLK::InitValue(PGLOBAL g)
   {
@@ -174,8 +173,7 @@ bool COLBLK::InitValue(PGLOBAL g)
 
   // Allocate a Value object
   if (!(Value = AllocateValue(g, Buf_Type, Format.Length,
-                                 GetPrecision(), GetDomain(),
-                                 (To_Tdb) ? To_Tdb->GetCat() : NULL)))
+                                 GetPrecision(), GetDomain())))
     return true;
 
   AddStatus(BUF_READY);

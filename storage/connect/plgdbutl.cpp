@@ -330,7 +330,7 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
     // Allocate the Value Block that will contain data
     if (crp->Length || nonull)
       crp->Kdata = AllocValBlock(g, NULL, crp->Type, maxres,
-                                          crp->Length, 0, true, blank);
+                                    crp->Length, 0, true, blank, false);
     else
       crp->Kdata = NULL;
 
