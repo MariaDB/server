@@ -549,10 +549,8 @@ this contains the same fields as TRX_SYS_MYSQL_LOG_INFO below */
 #define TRX_SYS_MYSQL_LOG_NAME		12	/*!< MySQL log file name */
 
 #ifdef WITH_WSREP
-/* We hijack TRX_SYS_MYSQL_MASTER_LOG_INFO, it seems to be completely unused
-   otherwise (see comments for MySQL bug #34058). */
-/** */
-#define TRX_SYS_WSREP_XID_INFO TRX_SYS_MYSQL_MASTER_LOG_INFO
+/* The offset to WSREP XID headers */
+#define TRX_SYS_WSREP_XID_INFO (UNIV_PAGE_SIZE - 3500)
 #define TRX_SYS_WSREP_XID_MAGIC_N_FLD 0
 #define TRX_SYS_WSREP_XID_MAGIC_N 0x77737265
 
