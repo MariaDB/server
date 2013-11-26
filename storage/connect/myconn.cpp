@@ -709,7 +709,7 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
     crp->Clen = GetTypeSize(crp->Type, crp->Length);
 
     if (!(crp->Kdata = AllocValBlock(g, NULL, crp->Type, m_Rows,
-                                     crp->Clen, 0, FALSE, TRUE))) {
+                                     crp->Clen, 0, FALSE, TRUE, FALSE))) {
       sprintf(g->Message, MSG(INV_RESULT_TYPE),
                           GetFormatType(crp->Type));
       return NULL;

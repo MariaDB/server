@@ -1118,7 +1118,7 @@ bool ODBConn::Connect(DWORD Options)
   if (hWnd == NULL)
     hWnd = GetDesktopWindow();
 #else   // !WIN32
-  HWND    hWnd = 1;
+  HWND    hWnd = (HWND)1;
 #endif  // !WIN32
   PGLOBAL& g = m_G;
   PDBUSER dup = PlgGetUser(g);
@@ -1240,8 +1240,8 @@ void ODBConn::GetConnectInfo()
                   m_IDQuoteChar, sizeof(m_IDQuoteChar), &nResult);
 
   if (trace)
-    htrc("DBMS: %s, Version: %s\n",
-         GetStringInfo(SQL_DBMS_NAME), GetStringInfo(SQL_DBMS_VER));
+    htrc("DBMS: %s, Version: %s, rc=%d\n",
+         GetStringInfo(SQL_DBMS_NAME), GetStringInfo(SQL_DBMS_VER), rc);
 
   } // end of GetConnectInfo
 

@@ -81,7 +81,7 @@ char *strerror(int num);
 /*  Conversion of block values allowed conditionally for insert only.  */
 /***********************************************************************/
 PVBLK AllocValBlock(PGLOBAL, void *, int, int, int, int,
-                    bool check = true, bool blank = true);
+                    bool check = true, bool blank = true, bool un = false);
 
 
 /* --------------------------- Class VCTDEF -------------------------- */
