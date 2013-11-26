@@ -9403,22 +9403,6 @@ wsrep_append_key(
 	DBUG_RETURN(0);
 }
 
-ibool
-wsrep_is_cascding_foreign_key_parent(
-	dict_table_t*	table,	/*!< in: InnoDB table */
-	dict_index_t*	index	/*!< in: InnoDB index */
-) {
-	// return referenced_by_foreign_key();
-	dict_foreign_t* fk = dict_table_get_referenced_constraint(table, index);
-	if (fk                                            &&
-	    (fk->type & DICT_FOREIGN_ON_UPDATE_CASCADE    ||
-	     fk->type & DICT_FOREIGN_ON_UPDATE_SET_NULL)
-	) {
-		return TRUE;
-	}
-	return FALSE;
-}
-
 int
 ha_innobase::wsrep_append_keys(
 /*==================*/
@@ -9467,19 +9451,30 @@ ha_innobase::wsrep_append_keys(
 		uint i;
 
 		for (i=0; i<table->s->keys; ++i) {
-			uint	len;
-			char 	keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
-			char 	keyval1[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
-			char 	*key0 		= &keyval0[1];
-			char 	*key1 		= &keyval1[1];
-			KEY	*key_info	= table->key_info + i;
-			ibool    is_null;
+			uint  len;
+			char  keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
+			char  keyval1[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
+			char* key0 		= &keyval0[1];
+			char* key1 		= &keyval1[1];
+			KEY*  key_info	= table->key_info + i;
+			ibool is_null;
+
+			dict_index_t* idx  = innobase_get_index(i);
+			dict_table_t* tab  = (idx) ? idx->table : NULL;
 
 			keyval0[0] = (char)i;
 			keyval1[0] = (char)i;
 
+			if (!tab) {
+				WSREP_WARN("MySQL-InnoDB key mismatch %s %s",
+					   table->s->table_name.str, 
+					   key_info->name);
+			}
 			if (key_info->flags & HA_NOSAME ||
-			    referenced_by_foreign_key()) {
+			    ((tab &&
+			      dict_table_get_referenced_constraint(tab, idx)) ||
+			     (!tab && referenced_by_foreign_key()))) {
+
 				if (key_info->flags & HA_NOSAME || shared)
 			  		key_appended = true;
 

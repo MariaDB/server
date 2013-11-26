@@ -4629,7 +4629,20 @@ end_with_restore_list:
       thd->killed= KILL_CONNECTION;
       thd->print_aborted_warning(3, "RELEASE");
     }
+#ifdef WITH_WSREP
+    if (WSREP(thd)) {
+
+      if (thd->wsrep_conflict_state == NO_CONFLICT ||
+	  thd->wsrep_conflict_state == REPLAYING)
+      {
+	my_ok(thd);
+      }
+    } else {
+#endif /* WITH_WSREP */
     my_ok(thd);
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
     break;
   }
   case SQLCOM_ROLLBACK:
@@ -4664,17 +4677,15 @@ end_with_restore_list:
     /* Disconnect the current client connection. */
     if (tx_release)
       thd->killed= KILL_CONNECTION;
-  #ifdef WITH_WSREP
+#ifdef WITH_WSREP
     if (WSREP(thd)) {
-      if (thd->wsrep_conflict_state == NO_CONFLICT ||
-	  thd->wsrep_conflict_state == REPLAYING)
-      {
+      if (thd->wsrep_conflict_state == NO_CONFLICT) {
 	my_ok(thd);
       }
     } else {
 #endif /* WITH_WSREP */
   my_ok(thd);
- #ifdef WITH_WSREP
+#ifdef WITH_WSREP
     }
 #endif /* WITH_WSREP */
    break;
@@ -5156,7 +5167,7 @@ create_sp_error:
       if (check_table_access(thd, DROP_ACL, all_tables, FALSE, UINT_MAX, FALSE))
         goto error;
       /* Conditionally writes to binlog. */
-      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, NULL)
+      WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
       res= mysql_drop_view(thd, first_table, thd->lex->drop_mode);
       break;
     }

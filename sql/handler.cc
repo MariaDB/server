@@ -1303,11 +1303,7 @@ int ha_commit_trans(THD *thd, bool all)
       Free resources and perform other cleanup even for 'empty' transactions.
     */
     if (is_real_trans)
-#ifdef WITH_WSREP
-    thd->transaction.cleanup(thd);
-#else
     thd->transaction.cleanup();
-#endif /* WITH_WSREP */
     DBUG_RETURN(0);
   }
 
@@ -1388,6 +1384,7 @@ int ha_commit_trans(THD *thd, bool all)
     status_var_increment(thd->status_var.ha_prepare_count);
     if (err)
 #ifdef WITH_WSREP
+    {
       if (WSREP(thd) && ht->db_type== DB_TYPE_WSREP)
       {
         error= 1;
@@ -1397,10 +1394,13 @@ int ha_commit_trans(THD *thd, bool all)
           my_error(ER_LOCK_DEADLOCK, MYF(0), err);
         }
       }
-      else
+     else
         /* not wsrep hton, bail to native mysql behavior */
-#endif
+#endif /* WITH_WSREP */
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
 
     if (err)
       goto err;
@@ -1535,12 +1535,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   }
   /* Free resources and perform other cleanup even for 'empty' transactions. */
   if (is_real_trans)
-#ifdef WITH_WSREP
-    thd->transaction.cleanup(thd);
-#else
-    thd->transaction.cleanup();
-#endif /* WITH_WSREP */
-
+      thd->transaction.cleanup();
   DBUG_RETURN(error);
 }
 
@@ -1614,11 +1609,7 @@ int ha_rollback_trans(THD *thd, bool all)
   }
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
-#ifdef WITH_WSREP
-    thd->transaction.cleanup(thd);
-#else
-    thd->transaction.cleanup();
-#endif /* WITH_WSREP */
+      thd->transaction.cleanup();
   if (all)
     thd->transaction_rollback_request= FALSE;
 

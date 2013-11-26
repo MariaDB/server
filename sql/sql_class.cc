@@ -832,7 +832,7 @@ extern "C" const char *wsrep_thd_exec_mode_str(THD *thd)
     (!thd) ? "void" :
     (thd->wsrep_exec_mode == LOCAL_STATE)  ? "local"         :
     (thd->wsrep_exec_mode == REPL_RECV)    ? "applier"       :
-    (thd->wsrep_exec_mode == TOTAL_ORDER)  ? "total order"   :
+    (thd->wsrep_exec_mode == TOTAL_ORDER)  ? "total order"   : 
     (thd->wsrep_exec_mode == LOCAL_COMMIT) ? "local commit"  : "void";
 }
 
@@ -896,7 +896,7 @@ extern "C" my_thread_id wsrep_thd_thread_id(THD *thd)
 }
 extern "C" wsrep_seqno_t wsrep_thd_trx_seqno(THD *thd) 
 {
-  return (thd) ? thd->wsrep_trx_meta.gtid.seqno : -1;
+  return (thd) ? thd->wsrep_trx_meta.gtid.seqno : WSREP_SEQNO_UNDEFINED;
 }
 extern "C" query_id_t wsrep_thd_query_id(THD *thd) 
 {
@@ -1145,7 +1145,6 @@ THD::THD()
   wsrep_ws_handle.opaque = NULL;
   wsrep_retry_counter     = 0;
   wsrep_PA_safe           = true;
-  wsrep_seqno_changed     = false;
   wsrep_retry_query       = NULL;
   wsrep_retry_query_len   = 0;
   wsrep_retry_command     = COM_CONNECT;
@@ -1552,7 +1551,6 @@ void THD::init(void)
   wsrep_retry_counter= 0;
   wsrep_rli= NULL;
   wsrep_PA_safe= true;
-  wsrep_seqno_changed= false;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_mysql_replicated  = 0;
 

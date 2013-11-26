@@ -37,7 +37,7 @@ const  char* wsrep_node_name        = 0;
 const  char* wsrep_node_address     = 0;
 const  char* wsrep_node_incoming_address = 0;
 const  char* wsrep_start_position   = 0;
-ulong   wsrep_OSU_method_options;
+ulong  wsrep_OSU_method_options;
 
 int wsrep_init_vars()
 {

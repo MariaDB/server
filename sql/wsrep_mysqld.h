@@ -32,8 +32,9 @@ class THD;
     LOCAL_STATE,
     REPL_RECV,
     TOTAL_ORDER,
-    LOCAL_COMMIT,
+    LOCAL_COMMIT
   };
+
   enum wsrep_query_state {
     QUERY_IDLE,
     QUERY_EXEC,
@@ -109,24 +110,22 @@ extern long        wsrep_local_index;
 extern const char* wsrep_provider_name;
 extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;
-extern int         wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff);
-extern void        wsrep_free_status(THD *thd);
 
+int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff);
+void wsrep_free_status(THD *thd);
 
-extern int   wsrep_init_vars();
-extern void  wsrep_provider_init       (const char* provider);
-extern void  wsrep_start_position_init (const char* position);
-extern void  wsrep_sst_auth_init       (const char* auth);
+/* Filters out --wsrep-new-cluster oprtion from argv[]
+ * should be called in the very beginning of main() */
+void wsrep_filter_new_cluster (int* argc, char* argv[]);
 
-extern int   wsrep_init();
-extern void  wsrep_deinit();
-extern void  wsrep_recover();
-extern bool  wsrep_before_SE(); // initialize wsrep before storage
-                                // engines (true) or after (false)
+int  wsrep_init();
+void wsrep_deinit();
+void wsrep_recover();
+bool wsrep_before_SE(); // initialize wsrep before storage
+                        // engines (true) or after (false)
 /* wsrep initialization sequence at startup
  * @param before wsrep_before_SE() value */
-extern void wsrep_init_startup(bool before);
-
+void wsrep_init_startup(bool before);
 
 
 
@@ -238,6 +237,7 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all);
 class Ha_trx_info;
 struct THD_TRANS;
 void wsrep_register_hton(THD* thd, bool all);
+void wsrep_post_commit(THD* thd, bool all);
 void wsrep_brute_force_killer(THD *thd);
 int  wsrep_hire_brute_force_killer(THD *thd, uint64_t trx_id);
 
@@ -285,7 +285,7 @@ struct TABLE_LIST;
 int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
                              const TABLE_LIST* table_list);
 void wsrep_to_isolation_end(THD *thd);
-
+void wsrep_cleanup_transaction(THD *thd);
 int wsrep_to_buf_helper(
   THD* thd, const char *query, uint query_len, uchar** buf, int* buf_len);
 int wsrep_create_sp(THD *thd, uchar** buf, int* buf_len);

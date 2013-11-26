@@ -697,8 +697,36 @@ void wsrep_stop_replication(THD *thd)
   return;
 }
 
+/* This one is set to true when --wsrep-new-cluster is found in the command
+ * line arguments */
+static my_bool wsrep_new_cluster= FALSE;
+#define WSREP_NEW_CLUSTER "--wsrep-new-cluster"
+/* Finds and hides --wsrep-new-cluster from the arguments list
+ * by moving it to the end of the list and decrementing argument count */
+void wsrep_filter_new_cluster (int* argc, char* argv[])
+{
+  int i;
+  for (i= *argc - 1; i > 0; i--)
+  {
+    /* make a copy of the argument to convert possible underscores to hyphens.
+     * the copy need not to be longer than WSREP_NEW_CLUSTER option */
+    char arg[sizeof(WSREP_NEW_CLUSTER) + 2]= { 0, };
+    strncpy(arg, argv[i], sizeof(arg) - 1);
+    char* underscore;
+    while (NULL != (underscore= strchr(arg, '_'))) *underscore= '-';
 
-extern my_bool wsrep_new_cluster;
+    if (!strcmp(arg, WSREP_NEW_CLUSTER))
+    {
+      wsrep_new_cluster= TRUE;
+      *argc -= 1;
+      /* preserve the order of remaining arguments AND
+       * preserve the original argument pointers - just in case */
+      char* wnc= argv[i];
+      memmove(&argv[i], &argv[i + 1], (*argc - i)*sizeof(argv[i]));
+      argv[*argc]= wnc; /* this will be invisible to the rest of the program */
+    }
+  }
+}
 
 bool wsrep_start_replication()
 {
@@ -1187,15 +1215,16 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
 static void wsrep_TOI_end(THD *thd) {
   wsrep_status_t ret;
   wsrep_to_isolation--;
+
   WSREP_DEBUG("TO END: %lld, %d : %s", (long long)wsrep_thd_trx_seqno(thd),
-              thd->wsrep_exec_mode, (thd->query()) ? thd->query() : "void")
-    if (WSREP_OK == (ret = wsrep->to_execute_end(wsrep, thd->thread_id))) {
-      WSREP_DEBUG("TO END: %lld", (long long)wsrep_thd_trx_seqno(thd));
-    }
-    else {
-      WSREP_WARN("TO isolation end failed for: %d, sql: %s",
-                 ret, (thd->query()) ? thd->query() : "void");
-    }
+              thd->wsrep_exec_mode, (thd->query()) ? thd->query() : "void");
+  if (WSREP_OK == (ret = wsrep->to_execute_end(wsrep, thd->thread_id))) {
+    WSREP_DEBUG("TO END: %lld", (long long)wsrep_thd_trx_seqno(thd));
+  }
+  else {
+    WSREP_WARN("TO isolation end failed for: %d, sql: %s",
+               ret, (thd->query()) ? thd->query() : "void");
+  }
 }
 
 static int wsrep_RSU_begin(THD *thd, char *db_, char *table_) 
@@ -1266,14 +1295,20 @@ static void wsrep_RSU_end(THD *thd)
     return;
   }
   thd->variables.wsrep_on = 1;
-  return;
 }
 
 int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
                              const TABLE_LIST* table_list)
 {
+
+  /*
+    No isolation for applier or replaying threads.
+   */
+  if (thd->wsrep_exec_mode == REPL_RECV) return 0;
+
   int ret= 0;
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+
   if (thd->wsrep_conflict_state == MUST_ABORT) 
   {
     WSREP_INFO("thread: %lu, %s has been aborted due to multi-master conflict", 
@@ -1282,6 +1317,9 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
     return WSREP_TRX_FAIL;
   }
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+
+  DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_STATE);
+  DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno == WSREP_SEQNO_UNDEFINED);
 
   if (wsrep_debug && thd->mdl_context.has_locks())
   {
@@ -1309,14 +1347,16 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
   return ret;
 }
 
-void wsrep_to_isolation_end(THD *thd) {
-  if (thd->wsrep_exec_mode==TOTAL_ORDER)
+void wsrep_to_isolation_end(THD *thd)
+{
+  if (thd->wsrep_exec_mode == TOTAL_ORDER)
   {
     switch(wsrep_OSU_method_options)
     {
-    case WSREP_OSU_TOI: return wsrep_TOI_end(thd);
-    case WSREP_OSU_RSU: return wsrep_RSU_end(thd);
+    case WSREP_OSU_TOI: wsrep_TOI_end(thd); break;
+    case WSREP_OSU_RSU: wsrep_RSU_end(thd); break;
     }
+    wsrep_cleanup_transaction(thd);
   }
 }
 

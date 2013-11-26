@@ -25,6 +25,8 @@ class sys_var;
 class set_var;
 class THD;
 
+int wsrep_init_vars();
+
 #define CHECK_ARGS   (sys_var *self, THD* thd, set_var *var)
 #define UPDATE_ARGS  (sys_var *self, THD* thd, enum_var_type type)
 #define DEFAULT_ARGS (THD* thd, enum_var_type var_type)

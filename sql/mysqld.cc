@@ -73,6 +73,7 @@
 #include "debug_sync.h"
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+#include "wsrep_var.h"
 #include "wsrep_thd.h"
 #include "wsrep_sst.h"
 ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
@@ -5705,6 +5706,9 @@ int mysqld_main(int argc, char **argv)
     return 1;
   }
 #endif
+#ifdef WITH_WSREP
+  wsrep_filter_new_cluster (&argc, argv);
+#endif /* WITH_WSREP */
 
   orig_argc= argc;
   orig_argv= argv;
