@@ -2500,7 +2500,8 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level)
   char *name_end_tmp;
   uint i;
 
-  if (!(cur_dir= my_dir(fullname, MYF(MY_WANT_STAT))))
+  /* Sort directory data, to pass mtr tests on different platforms. */
+  if (!(cur_dir= my_dir(fullname, MYF(MY_WANT_STAT|MY_WANT_SORT))))
     return 1;
 
   name_end= strmake(name_end, "/", FN_REFLEN - (name_end - fullname));
