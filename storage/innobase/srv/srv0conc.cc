@@ -516,12 +516,11 @@ retry:
 #ifdef WITH_WSREP
 	if (wsrep_on(trx->mysql_thd) && 
 	    wsrep_trx_is_aborting(trx->mysql_thd)) {
-		srv_conc_n_waiting_threads--;
 		os_fast_mutex_unlock(&srv_conc_mutex);
 		if (wsrep_debug)
 			fprintf(stderr, "srv_conc_enter due to MUST_ABORT");
 		trx->declared_to_be_inside_innodb = TRUE;
-		trx->n_tickets_to_enter_innodb = SRV_FREE_TICKETS_TO_ENTER;
+		trx->n_tickets_to_enter_innodb = srv_n_free_tickets_to_enter;
 		return;
 	}
 	trx->wsrep_event = slot->event;
