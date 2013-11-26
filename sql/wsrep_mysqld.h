@@ -94,7 +94,6 @@ extern my_bool     wsrep_recovery;
 extern my_bool     wsrep_replicate_myisam;
 extern my_bool     wsrep_log_conflicts;
 extern ulong       wsrep_mysql_replication_bundle;
-extern ulong       wsrep_mysql_replication_bundle;
 extern my_bool     wsrep_load_data_splitting;
 
 enum enum_wsrep_OSU_method { WSREP_OSU_TOI, WSREP_OSU_RSU };
@@ -107,6 +106,7 @@ extern long long   wsrep_cluster_conf_id;
 extern const char* wsrep_cluster_status;
 extern long        wsrep_cluster_size;
 extern long        wsrep_local_index;
+extern long long   wsrep_local_bf_aborts;
 extern const char* wsrep_provider_name;
 extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;

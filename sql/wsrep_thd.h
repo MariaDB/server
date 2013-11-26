@@ -18,6 +18,7 @@
 
 #include "sql_class.h"
 
+int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff);
 void wsrep_client_rollback(THD *thd);
 void wsrep_replay_transaction(THD *thd);
 void wsrep_create_appliers(long threads);

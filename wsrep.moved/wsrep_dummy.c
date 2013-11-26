@@ -101,7 +101,9 @@ static wsrep_status_t dummy_pre_commit(
     wsrep_t* w,
     const wsrep_conn_id_t   conn_id    __attribute__((unused)),
     wsrep_ws_handle_t*      ws_handle  __attribute__((unused)),
-    uint32_t                flags      __attribute__((unused)),
+//    const struct wsrep_buf* data       __attribute__((unused)),
+//    const long              count      __attribute__((unused)),
+    uint64_t                flags      __attribute__((unused)),
     wsrep_trx_meta_t*       meta       __attribute__((unused)))
 {
     WSREP_DBUG_ENTER(w);
@@ -146,7 +148,7 @@ static wsrep_status_t dummy_append_key(
     wsrep_t* w,
     wsrep_ws_handle_t*     ws_handle  __attribute__((unused)),
     const wsrep_key_t*     key        __attribute__((unused)),
-    const size_t           key_num    __attribute__((unused)),
+    const int              key_num    __attribute__((unused)),
     const wsrep_key_type_t key_type   __attribute__((unused)),
     const bool             copy       __attribute__((unused)))
 {
@@ -158,7 +160,7 @@ static wsrep_status_t dummy_append_data(
     wsrep_t* w,
     wsrep_ws_handle_t*      ws_handle  __attribute__((unused)),
     const struct wsrep_buf* data       __attribute__((unused)),
-    const size_t            count      __attribute__((unused)),
+    const int               count      __attribute__((unused)),
     const wsrep_data_type_t type       __attribute__((unused)),
     const bool              copy       __attribute__((unused)))
 {
@@ -186,9 +188,9 @@ static wsrep_status_t dummy_to_execute_start(
     wsrep_t* w,
     const wsrep_conn_id_t   conn_id __attribute__((unused)),
     const wsrep_key_t*      key     __attribute__((unused)),
-    const size_t            key_num __attribute__((unused)),
+    const int               key_num __attribute__((unused)),
     const struct wsrep_buf* data    __attribute__((unused)),
-    const size_t            count   __attribute__((unused)),
+    const int               count   __attribute__((unused)),
     wsrep_trx_meta_t*       meta    __attribute__((unused)))
 {
     WSREP_DBUG_ENTER(w);
@@ -203,24 +205,14 @@ static wsrep_status_t dummy_to_execute_end(
     return WSREP_OK;
 }
 
-static wsrep_status_t dummy_preordered_collect(
-    wsrep_t*                 w,
-    wsrep_po_handle_t*       handle    __attribute__((unused)),
-    const struct wsrep_buf*  data      __attribute__((unused)),
-    size_t                   count     __attribute__((unused)),
-    wsrep_bool_t             copy      __attribute__((unused)))
-{
-    WSREP_DBUG_ENTER(w);
-    return WSREP_OK;
-}
-
-static wsrep_status_t dummy_preordered_commit(
-    wsrep_t*                 w,
-    wsrep_po_handle_t*       handle    __attribute__((unused)),
-    const wsrep_uuid_t*      source_id __attribute__((unused)),
-    uint32_t                 flags     __attribute__((unused)),
-    int                      pa_range  __attribute__((unused)),
-    wsrep_bool_t             commit    __attribute__((unused)))
+static wsrep_status_t dummy_preordered(
+    wsrep_t*                w,
+    const wsrep_uuid_t*     source_id __attribute__((unused)),
+    int                     pa_range  __attribute__((unused)),
+    const struct wsrep_buf* data      __attribute__((unused)),
+    int                     count     __attribute__((unused)),
+    uint64_t                flags     __attribute__((unused)),
+    wsrep_bool_t            copy      __attribute__((unused)))
 {
     WSREP_DBUG_ENTER(w);
     return WSREP_OK;
@@ -228,8 +220,8 @@ static wsrep_status_t dummy_preordered_commit(
 
 static wsrep_status_t dummy_sst_sent(
     wsrep_t* w,
-    const wsrep_gtid_t* state_id  __attribute__((unused)),
-    const int           rcode     __attribute__((unused)))
+    const wsrep_uuid_t* uuid   __attribute__((unused)),
+    wsrep_seqno_t       seqno  __attribute__((unused)))
 {
     WSREP_DBUG_ENTER(w);
     return WSREP_OK;
@@ -237,10 +229,10 @@ static wsrep_status_t dummy_sst_sent(
 
 static wsrep_status_t dummy_sst_received(
     wsrep_t* w,
-    const wsrep_gtid_t* state_id  __attribute__((unused)),
-    const void*         state     __attribute__((unused)),
-    const size_t        state_len __attribute__((unused)),
-    const int           rcode     __attribute__((unused)))
+    const wsrep_uuid_t* uuid      __attribute__((unused)),
+    const wsrep_seqno_t seqno     __attribute__((unused)),
+    const char*         state     __attribute__((unused)),
+    const size_t        state_len __attribute__((unused)))
 {
     WSREP_DBUG_ENTER(w);
     return WSREP_OK;
@@ -249,7 +241,7 @@ static wsrep_status_t dummy_sst_received(
 static wsrep_status_t dummy_snapshot(
     wsrep_t* w,
     const void*  msg        __attribute__((unused)),
-    const size_t msg_len    __attribute__((unused)),
+    const int    msg_len    __attribute__((unused)),
     const char*  donor_spec __attribute__((unused)))
 {
     WSREP_DBUG_ENTER(w);
@@ -349,8 +341,7 @@ static wsrep_t dummy_iface = {
     &dummy_free_connection,
     &dummy_to_execute_start,
     &dummy_to_execute_end,
-    &dummy_preordered_collect,
-    &dummy_preordered_commit,
+    &dummy_preordered,
     &dummy_sst_sent,
     &dummy_sst_received,
     &dummy_snapshot,
@@ -367,6 +358,7 @@ static wsrep_t dummy_iface = {
     WSREP_NONE,
     WSREP_INTERFACE_VERSION,
     "Codership Oy <info@codership.com>",
+    0xdeadbeef,
     &dummy_free,
     NULL,
     NULL

@@ -1858,12 +1858,15 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     if ((thd->wsrep_conflict_state != REPLAYING) &&
         (thd->wsrep_conflict_state != RETRY_AUTOCOMMIT))
     {
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       thd->update_server_status();
       thd->protocol->end_statement();
       query_cache_end_of_result(thd);
+    } 
+    else
+    {
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     }
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-
   } else { /* if (WSREP(thd))... */
 #endif /* WITH_WSREP */
   DBUG_ASSERT(thd->derived_tables == NULL &&
@@ -3249,8 +3252,11 @@ case SQLCOM_PREPARE:
       else
       {
 #ifdef WITH_WSREP
-      if (!thd->is_current_stmt_binlog_format_row() ||
-	      !(create_info.options & HA_LEX_CREATE_TMP_TABLE))
+        /* in STATEMENT format, we probably have to replicate also temporary
+           tables, like mysql replication does
+        */
+        if (!thd->is_current_stmt_binlog_format_row() ||
+	    !(create_info.options & HA_LEX_CREATE_TMP_TABLE))
           WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
                                    NULL)
 #endif /* WITH_WSREP */
@@ -5455,7 +5461,22 @@ finish:
   {
     thd->mdl_context.release_statement_locks();
   }
-  WSREP_TO_ISOLATION_END
+  WSREP_TO_ISOLATION_END;
+
+#ifdef WITH_WSREP
+  /*
+    Force release of transactional locks if not in active MST and wsrep is on.
+  */
+  if (WSREP(thd) &&
+      ! thd->in_sub_stmt &&
+      ! thd->in_active_multi_stmt_transaction() &&
+      thd->mdl_context.has_transactional_locks())
+  {
+    WSREP_DEBUG("Forcing release of transactional locks for thd %lu",
+               thd->thread_id);
+    thd->mdl_context.release_transactional_locks();
+  }
+#endif /* WITH_WSREP */
 
   DBUG_RETURN(res || thd->is_error());
 }
@@ -6356,7 +6377,12 @@ void THD::reset_for_next_command(bool calculate_userstat)
   thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
 
 #ifdef WITH_WSREP
-  if (WSREP(thd)) {
+  /*
+    Autoinc variables should be adjusted only for locally executed
+    transactions. Appliers and replayers are either processing ROW
+    events or get autoinc variable values from Query_log_event.
+  */
+  if (WSREP(thd) && thd->wsrep_exec_mode == LOCAL_STATE) {
     if (wsrep_auto_increment_control)
     {
       if (thd->variables.auto_increment_offset !=

@@ -63,7 +63,7 @@ extern "C" {
  *                                                                        *
  **************************************************************************/
 
-#define WSREP_INTERFACE_VERSION "25"
+#define WSREP_INTERFACE_VERSION "24"
 
 /*! Empty backend spec */
 #define WSREP_NONE "none"
@@ -118,8 +118,8 @@ typedef void (*wsrep_log_cb_t)(wsrep_log_level_t, const char *);
  *
  * COMMIT       the writeset and all preceding writesets must be committed
  * ROLLBACK     all preceding writesets in a transaction must be rolled back
- * ISOLATION    the writeset must be applied AND committed in isolation
  * PA_UNSAFE    the writeset cannot be applied in parallel
+ * ISOLATION    the writeset must be applied AND committed in isolation
  * COMMUTATIVE  the order in which the writeset is applied does not matter
  * NATIVE       the writeset contains another writeset in this provider format
  *
@@ -128,8 +128,8 @@ typedef void (*wsrep_log_cb_t)(wsrep_log_level_t, const char *);
  */
 #define WSREP_FLAG_COMMIT               ( 1ULL << 0 )
 #define WSREP_FLAG_ROLLBACK             ( 1ULL << 1 )
-#define WSREP_FLAG_ISOLATION            ( 1ULL << 2 )
 #define WSREP_FLAG_PA_UNSAFE            ( 1ULL << 3 )
+#define WSREP_FLAG_ISOLATION            ( 1ULL << 2 )
 #define WSREP_FLAG_COMMUTATIVE          ( 1ULL << 4 )
 #define WSREP_FLAG_NATIVE               ( 1ULL << 5 )
 
@@ -349,7 +349,6 @@ typedef enum wsrep_cb_status (*wsrep_view_cb_t) (
  * @param recv_ctx receiver context pointer provided by the application
  * @param data     data buffer containing the writeset
  * @param size     data buffer size
- * @param flags    WSREP_FLAG_... flags
  * @param meta     transaction meta data of the writeset to be applied
  *
  * @return success code:
@@ -361,7 +360,6 @@ typedef enum wsrep_cb_status (*wsrep_apply_cb_t) (
     void*                   recv_ctx,
     const void*             data,
     size_t                  size,
-    uint32_t                flags,
     const wsrep_trx_meta_t* meta
 );
 
@@ -372,7 +370,6 @@ typedef enum wsrep_cb_status (*wsrep_apply_cb_t) (
  * This handler is called to commit the changes made by apply callback.
  *
  * @param recv_ctx receiver context pointer provided by the application
- * @param flags    WSREP_FLAG_... flags
  * @param meta     transaction meta data of the writeset to be committed
  * @param exit     set to true to exit recv loop
  * @param commit   true - commit writeset, false - rollback writeset
@@ -383,7 +380,6 @@ typedef enum wsrep_cb_status (*wsrep_apply_cb_t) (
  */
 typedef enum wsrep_cb_status (*wsrep_commit_cb_t) (
     void*                   recv_ctx,
-    uint32_t                flags,
     const wsrep_trx_meta_t* meta,
     wsrep_bool_t*           exit,
     wsrep_bool_t            commit
@@ -691,7 +687,7 @@ struct wsrep {
     wsrep_status_t (*pre_commit)(wsrep_t*                wsrep,
                                  wsrep_conn_id_t         conn_id,
                                  wsrep_ws_handle_t*      ws_handle,
-                                 uint32_t                flags,
+                                 uint64_t                flags,
                                  wsrep_trx_meta_t*       meta);
 
   /*!
@@ -917,7 +913,7 @@ struct wsrep {
     wsrep_status_t (*preordered_commit)  (wsrep_t*             wsrep,
                                           wsrep_po_handle_t*   handle,
                                           const wsrep_uuid_t*  source_id,
-                                          uint32_t             flags,
+                                          uint64_t             flags,
                                           int                  pa_range,
                                           wsrep_bool_t         commit);
 

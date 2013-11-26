@@ -22,6 +22,7 @@
 #include "wsrep_utils.h"
 #include "wsrep_var.h"
 #include "wsrep_binlog.h"
+#include "wsrep_applier.h"
 #include <cstdio>
 #include <cstdlib>
 #include "log_event.h"
@@ -86,6 +87,7 @@ long long   wsrep_cluster_conf_id    = WSREP_SEQNO_UNDEFINED;
 const char* wsrep_cluster_status = cluster_status_str[WSREP_VIEW_DISCONNECTED];
 long        wsrep_cluster_size       = 0;
 long        wsrep_local_index        = -1;
+long long   wsrep_local_bf_aborts    = 0;
 const char* wsrep_provider_name      = provider_name;
 const char* wsrep_provider_version   = provider_version;
 const char* wsrep_provider_vendor    = provider_vendor;
@@ -101,18 +103,6 @@ long             wsrep_protocol_version = 2;
 // if there was no state gap on receiving first view event.
 static my_bool   wsrep_startup = TRUE;
 
-extern wsrep_cb_status_t wsrep_apply_cb(void *ctx,
-                                        const void* buf, size_t buf_len,
-                                        const wsrep_trx_meta_t* meta);
-
-extern wsrep_cb_status_t wsrep_commit_cb(void *ctx,
-                                         const wsrep_trx_meta_t* meta,
-                                         wsrep_bool_t *exit,
-                                         wsrep_bool_t commit);
-
-extern wsrep_cb_status_t wsrep_unordered_cb(void*       ctx,
-                                            const void* data,
-                                            size_t      size);
 
 static void wsrep_log_cb(wsrep_log_level_t level, const char *msg) {
   switch (level) {
@@ -1326,6 +1316,20 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
     WSREP_DEBUG("thread holds MDL locks at TI begin: %s %lu", 
                 thd->query(), thd->thread_id);
   }
+
+  /*
+    It makes sense to set auto_increment_* to defaults in TOI operations.
+    Must be done before wsrep_TOI_begin() since Query_log_event encapsulating
+    TOI statement and auto inc variables for wsrep replication is constructed
+    there. Variables are reset back in THD::reset_for_next_command() before
+    processing of next command.
+   */
+  if (wsrep_auto_increment_control)
+  {
+    thd->variables.auto_increment_offset = 1;
+    thd->variables.auto_increment_increment = 1;
+  }
+
   if (thd->variables.wsrep_on && thd->wsrep_exec_mode==LOCAL_STATE)
   {
     switch (wsrep_OSU_method_options) {
@@ -1336,12 +1340,6 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
     if (!ret)
     {
       thd->wsrep_exec_mode= TOTAL_ORDER;
-      /* It makes sense to set auto_increment_* to defaults in TOI operations */
-      if (wsrep_auto_increment_control)
-      {
-        thd->variables.auto_increment_offset = 1;
-        thd->variables.auto_increment_increment = 1;
-      }
     }
   }
   return ret;

@@ -770,6 +770,13 @@ public:
              m_tickets[MDL_EXPLICIT].is_empty());
   }
 
+#ifdef WITH_WSREP
+  inline bool has_transactional_locks() const
+  {
+    return !m_tickets[MDL_TRANSACTION].is_empty();
+  }
+#endif /* WITH_WSREP */
+
   MDL_savepoint mdl_savepoint()
   {
     return MDL_savepoint(m_tickets[MDL_STATEMENT].front(),

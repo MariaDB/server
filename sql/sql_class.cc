@@ -1022,6 +1022,7 @@ THD::THD()
    wsrep_applier(is_applier),
    wsrep_applier_closing(FALSE),
    wsrep_client_thread(0),
+   wsrep_apply_toi(false),
 #endif
    m_parser_state(NULL),
 #if defined(ENABLED_DEBUG_SYNC)
