@@ -3943,11 +3943,25 @@ lock_table_create(
         }
 
 	if (c_lock && c_lock->trx->que_state == TRX_QUE_LOCK_WAIT) {
-		if (wsrep_debug)
-			fprintf(stderr, "WSREP: table c_lock in wait: %llu\n", 
-			(ulonglong) lock->trx->id);
+		if (wsrep_debug) {
+			fprintf(stderr, "WSREP: table c_lock in wait: %llu new loc: %llu\n",
+				(ulonglong) c_lock->trx->id, lock->trx->id);
+		}
+
 		c_lock->trx->was_chosen_as_deadlock_victim = TRUE;
-		lock_cancel_waiting_and_release(c_lock);
+		lock_cancel_waiting_and_release(c_lock->trx->wait_lock);
+
+		/* trx might not wait for c_lock, but some other lock
+		does not matter if wait_lock was released above
+		*/
+		if (c_lock->trx->wait_lock == c_lock) {
+			lock_reset_lock_and_trx_wait(lock);
+		}
+
+		if (wsrep_debug) {
+			fprintf(stderr, "WSREP: c_lock canceled %llu\n",
+				(ulonglong) c_lock->trx->id);
+		}
 	}
 
 #else
