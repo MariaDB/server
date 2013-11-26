@@ -70,19 +70,22 @@ handlerton *wsrep_hton;
 
 void wsrep_register_hton(THD* thd, bool all)
 {
-  THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
-  for (Ha_trx_info *i= trans->ha_list; WSREP(thd) && i; i = i->next())
+  if (thd->wsrep_exec_mode == LOCAL_STATE)
   {
-    if (i->ht()->db_type == DB_TYPE_INNODB)
+    THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
+    for (Ha_trx_info *i= trans->ha_list; WSREP(thd) && i; i = i->next())
     {
-      trans_register_ha(thd, all, wsrep_hton);
-
-      /* follow innodb read/write settting */
-      if (i->is_trx_read_write())
+      if (i->ht()->db_type == DB_TYPE_INNODB)
       {
-	thd->ha_data[wsrep_hton->slot].ha_info[all].set_trx_read_write();
+        trans_register_ha(thd, all, wsrep_hton);
+
+        /* follow innodb read/write settting */
+        if (i->is_trx_read_write())
+        {
+          thd->ha_data[wsrep_hton->slot].ha_info[all].set_trx_read_write();
+        }
+        break;
       }
-      break;
     }
   }
 }
