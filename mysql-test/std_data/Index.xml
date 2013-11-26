@@ -123,13 +123,13 @@
 
     <collation name="utf8_5624_5_bad" id="369" shift-after-method="expand">
       <rules>
-      <reset>a-a4</reset><p>xxx04</a>
-      <reset>a-aa5</reset><p>xxx05</a>
-      <reset>a-aaa6</reset><p>xxx06</a>
-      <reset>a-aaaa7</reset><p>xxx07</a>
-      <reset>a-aaaaa8</reset><p>xxx08</a>
-      <reset>a-aaaaaa9</reset><p>xxx09</a>
-      <reset>a-aaaaaa10</reset><p>xxx10</a>
+      <reset>a-a4</reset><p>xxx04</p>
+      <reset>a-aa5</reset><p>xxx05</p>
+      <reset>a-aaa6</reset><p>xxx06</p>
+      <reset>a-aaaa7</reset><p>xxx07</p>
+      <reset>a-aaaaa8</reset><p>xxx08</p>
+      <reset>a-aaaaaa9</reset><p>xxx09</p>
+      <reset>a-aaaaaa10</reset><p>xxx10</p>
       </rules>
     </collation>
 
