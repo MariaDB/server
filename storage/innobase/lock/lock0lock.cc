@@ -1899,49 +1899,51 @@ lock_rec_create(
 		 * delayed conflict resolution '...kill_one_trx' was not called,
 		 * if victim was waiting for some other lock
 		 */
-                // if (c_lock && c_lock->trx->que_state == TRX_QUE_LOCK_WAIT) {
-		if (c_lock && c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
-			trx_t* c_trx = c_lock->trx;
-			// c_lock->trx->was_chosen_as_deadlock_victim = TRUE;
+		if (c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+
 			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
 
-			//if (wsrep_debug && c_lock->trx->wait_lock != c_lock) {
-			if (wsrep_debug && c_lock->trx->lock.wait_lock != c_lock) {
+			if (wsrep_debug &&
+			    c_lock->trx->lock.wait_lock != c_lock) {
 				fprintf(stderr, "WSREP: c_lock != wait lock\n");
 				lock_rec_print(stderr, c_lock);
-				// lock_rec_print(stderr, c_lock->trx->wait_lock);
 				lock_rec_print(stderr, c_lock->trx->lock.wait_lock);
 			}
 
-			// trx->que_state = TRX_QUE_LOCK_WAIT;
-			lock->trx->lock.que_state = TRX_QUE_LOCK_WAIT;
+			trx->lock.que_state = TRX_QUE_LOCK_WAIT;
 			lock_set_lock_and_trx_wait(lock, trx);
+			UT_LIST_ADD_LAST(trx_locks, trx->lock.trx_locks, lock);
 
-			// lock_cancel_waiting_and_release(c_lock->trx->wait_lock);
-			if (trx != c_trx) {
-				trx_mutex_enter(c_trx);
-			}
-			lock_cancel_waiting_and_release(c_lock->trx->lock.wait_lock);
-			if (trx != c_trx) {
-				trx_mutex_exit(c_trx);
-			}
+			ut_ad(thr != NULL);
+			trx->lock.wait_thr = thr;
+			thr->state = QUE_THR_LOCK_WAIT;
+
+			/* have to release trx mutex for the duration of
+			   victim lock release. This will eventually call
+			   lock_grant, which wants to grant trx mutex again
+			*/
+			if (caller_owns_trx_mutex) trx_mutex_exit(trx);
+			lock_cancel_waiting_and_release(
+				c_lock->trx->lock.wait_lock);
+			if (caller_owns_trx_mutex) trx_mutex_enter(trx);
 
 			/* trx might not wait for c_lock, but some other lock
 			   does not matter if wait_lock was released above
 			 */
-			//if (c_lock->trx->wait_lock == c_lock) {
 			if (c_lock->trx->lock.wait_lock == c_lock) {
 				lock_reset_lock_and_trx_wait(lock);
 			}
+			trx_mutex_exit(c_lock->trx);
 
 			if (wsrep_debug) fprintf(
-				stderr, 
-				"WSREP: c_lock canceled %llu\n", 
+				stderr,
+				"WSREP: c_lock canceled %llu\n",
 				(ulonglong) c_lock->trx->id);
 
 			/* have to bail out here to avoid lock_set_lock... */
 			return(lock);
 		}
+		trx_mutex_exit(c_lock->trx);
 	} else {
 		HASH_INSERT(lock_t, hash, lock_sys->rec_hash,
 			    lock_rec_fold(space, page_no), lock);
