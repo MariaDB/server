@@ -2255,7 +2255,7 @@ sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
   return sp;
 }
 #ifdef WITH_WSREP
-int wsrep_create_sp(THD *thd, uchar** buf, uint* buf_len)
+int wsrep_create_sp(THD *thd, uchar** buf, int* buf_len)
 {
   String log_query;
   sp_head *sp = thd->lex->sphead;

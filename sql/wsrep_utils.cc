@@ -22,16 +22,17 @@
 
 #include "wsrep_utils.h"
 #include "wsrep_mysqld.h"
-//#include "wsrep_api.h"
-//#include "wsrep_priv.h"
+
+#include <sql_class.h>
+
 #include <spawn.h>    // posix_spawn()
 #include <unistd.h>   // pipe()
 #include <errno.h>    // errno
 #include <string.h>   // strerror()
 #include <sys/wait.h> // waitpid()
-
-#include <sql_class.h>
-#include "wsrep_priv.h"
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>    // getaddrinfo()
 
 extern char** environ; // environment variables
 
@@ -317,23 +318,69 @@ thd::~thd ()
 
 } // namespace wsp
 
-extern ulong my_bind_addr;
-extern uint  mysqld_port;
+/* Returns INADDR_NONE, INADDR_ANY, INADDR_LOOPBACK or something else */
+unsigned int wsrep_check_ip (const char* const addr)
+{
+  unsigned int ret = INADDR_NONE;
+  struct addrinfo *res, hints;
 
-size_t guess_ip (char* buf, size_t buf_len)
+  memset (&hints, 0, sizeof(hints));
+  hints.ai_flags= AI_PASSIVE/*|AI_ADDRCONFIG*/;
+  hints.ai_socktype= SOCK_STREAM;
+  hints.ai_family= AF_UNSPEC;
+
+  int gai_ret = getaddrinfo(addr, NULL, &hints, &res);
+  if (0 == gai_ret)
+  {
+    if (AF_INET == res->ai_family) /* IPv4 */
+    {
+      struct sockaddr_in* a= (struct sockaddr_in*)res->ai_addr;
+      ret= htonl(a->sin_addr.s_addr);
+    }
+    else /* IPv6 */
+    {
+      struct sockaddr_in6* a= (struct sockaddr_in6*)res->ai_addr;
+      if (IN6_IS_ADDR_UNSPECIFIED(&a->sin6_addr))
+        ret= INADDR_ANY;
+      else if (IN6_IS_ADDR_LOOPBACK(&a->sin6_addr))
+        ret= INADDR_LOOPBACK;
+      else
+        ret= 0xdeadbeef;
+    }
+    freeaddrinfo (res);
+  }
+  else {
+    WSREP_ERROR ("getaddrinfo() failed on '%s': %d (%s)",
+                 addr, gai_ret, gai_strerror(gai_ret));
+  }
+
+  // uint8_t* b= (uint8_t*)&ret;
+  // fprintf (stderr, "########## wsrep_check_ip returning: %hhu.%hhu.%hhu.%hhu\n",
+  //          b[0], b[1], b[2], b[3]);
+
+  return ret;
+}
+
+extern const char* my_bind_addr_str;
+extern uint        mysqld_port;
+
+size_t wsrep_guess_ip (char* buf, size_t buf_len)
 {
   size_t ip_len = 0;
 
-  if (htonl(INADDR_NONE) == my_bind_addr) {
-    WSREP_ERROR("Networking not configured, cannot receive state transfer.");
-    return 0;
-  }
+  if (my_bind_addr_str && strlen(my_bind_addr_str))
+  {
+    unsigned int const ip_type= wsrep_check_ip(my_bind_addr_str);
 
-  if (htonl(INADDR_ANY) != my_bind_addr) {
-    uint8_t* b = (uint8_t*)&my_bind_addr;
-    ip_len = snprintf (buf, buf_len,
-                       "%hhu.%hhu.%hhu.%hhu", b[0],b[1],b[2],b[3]);
-    return ip_len;
+    if (INADDR_NONE == ip_type) {
+      WSREP_ERROR("Networking not configured, cannot receive state transfer.");
+      return 0;
+    }
+
+    if (INADDR_ANY != ip_type) {;
+      strncpy (buf, my_bind_addr_str, buf_len);
+      return strlen(buf);
+    }
   }
 
   // mysqld binds to all interfaces - try IP from wsrep_node_address
@@ -404,9 +451,9 @@ size_t guess_ip (char* buf, size_t buf_len)
   return ip_len;
 }
 
-size_t guess_address(char* buf, size_t buf_len)
+size_t wsrep_guess_address(char* buf, size_t buf_len)
 {
-  size_t addr_len = guess_ip (buf, buf_len);
+  size_t addr_len = wsrep_guess_ip (buf, buf_len);
 
   if (addr_len && addr_len < buf_len) {
     addr_len += snprintf (buf + addr_len, buf_len - addr_len,

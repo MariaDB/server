@@ -4065,6 +4065,7 @@ static Sys_var_tz Sys_time_zone(
 #ifdef WITH_WSREP
 #include "wsrep_var.h"
 #include "wsrep_sst.h"
+#include "wsrep_binlog.h"
 
 static Sys_var_charptr Sys_wsrep_provider(
        "wsrep_provider", "Path to replication provider library",
@@ -4222,10 +4223,11 @@ static Sys_var_charptr Sys_wsrep_start_position (
        ON_CHECK(wsrep_start_position_check), 
        ON_UPDATE(wsrep_start_position_update));
 
-static Sys_var_ulonglong Sys_wsrep_max_ws_size (
+static Sys_var_ulong Sys_wsrep_max_ws_size (
        "wsrep_max_ws_size", "Max write set size (bytes)",
        GLOBAL_VAR(wsrep_max_ws_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1024, 4294967296ULL), DEFAULT(1073741824ULL), BLOCK_SIZE(1));
+       /* Upper limit is 65K short of 4G to avoid overlows on 32-bit systems */
+       VALID_RANGE(1024, WSREP_MAX_WS_SIZE), DEFAULT(1073741824UL), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_wsrep_max_ws_rows (
        "wsrep_max_ws_rows", "Max number of rows in write set",

@@ -2553,11 +2553,13 @@ public:
   enum wsrep_conflict_state wsrep_conflict_state;
   mysql_mutex_t             LOCK_wsrep_thd;
   mysql_cond_t              COND_wsrep_thd;
-  wsrep_seqno_t             wsrep_trx_seqno;
+  // changed from wsrep_seqno_t to wsrep_trx_meta_t in wsrep API rev 75
+  // wsrep_seqno_t             wsrep_trx_seqno;
+  wsrep_trx_meta_t          wsrep_trx_meta;
   uint32                    wsrep_rand;
   Relay_log_info*           wsrep_rli;
   bool                      wsrep_converted_lock_session;
-  wsrep_trx_handle_t        wsrep_trx_handle;
+  wsrep_ws_handle_t         wsrep_ws_handle;
   bool                      wsrep_seqno_changed;
 #ifdef WSREP_PROC_INFO
   char                      wsrep_info[128]; /* string for dynamic proc info */
@@ -2571,9 +2573,8 @@ public:
                             wsrep_consistency_check;
   wsrep_stats_var*          wsrep_status_vars;
   int                       wsrep_mysql_replicated;
-  THD*                      wsrep_bf_thd;
-  const char*               wsrep_TOI_pre_query; /* a query to apply before 
-						    the actual TOI query */
+  const char*               wsrep_TOI_pre_query; /* a query to apply before
+                                                    the actual TOI query */
   size_t                    wsrep_TOI_pre_query_len;
 #endif /* WITH_WSREP */
   /**

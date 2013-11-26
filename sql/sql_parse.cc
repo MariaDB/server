@@ -953,7 +953,6 @@ bool do_command(THD *thd)
     else if (thd->wsrep_conflict_state == ABORTED)
     {
       thd->store_globals();
-      thd->wsrep_bf_thd = NULL;
     }
 
     thd->wsrep_query_state= QUERY_EXEC;
@@ -1241,7 +1240,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       thd->mysys_var->abort     = 0;
       thd->wsrep_conflict_state = NO_CONFLICT;
       thd->wsrep_retry_counter  = 0;
-      thd->wsrep_bf_thd         = NULL;
       /*
         Increment threads running to compensate dec_thread_running() called
         after dispatch_end label.

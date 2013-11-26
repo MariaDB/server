@@ -26,25 +26,31 @@
  * Read UUID from string
  * @return length of UUID string representation or -EINVAL in case of error
  */
-ssize_t
+int
 wsrep_uuid_scan (const char* str, size_t str_len, wsrep_uuid_t* uuid)
 {
-    size_t uuid_len = 0;
-    size_t uuid_offt = 0;
+    unsigned int uuid_len  = 0;
+    unsigned int uuid_offt = 0;
 
     while (uuid_len + 1 < str_len) {
-        if ((4  == uuid_offt || 6 == uuid_offt || 8 == uuid_offt ||
-             10 == uuid_offt) && str[uuid_len] == '-') {
+        /* We are skipping potential '-' after uuid_offt == 4, 6, 8, 10
+         * which means
+         *     (uuid_offt >> 1) == 2, 3, 4, 5,
+         * which in turn means
+         *     (uuid_offt >> 1) - 2 <= 3
+         * since it is always >= 0, because uuid_offt is unsigned */
+        if (((uuid_offt >> 1) - 2) <= 3 && str[uuid_len] == '-') {
             // skip dashes after 4th, 6th, 8th and 10th positions
             uuid_len += 1;
             continue;
         }
+
         if (isxdigit(str[uuid_len]) && isxdigit(str[uuid_len + 1])) {
-            // got hex digit
-            sscanf (str + uuid_len, "%2hhx", uuid->uuid + uuid_offt);
+            // got hex digit, scan another byte to uuid, increment uuid_offt
+            sscanf (str + uuid_len, "%2hhx", uuid->data + uuid_offt);
             uuid_len  += 2;
             uuid_offt += 1;
-            if (sizeof (uuid->uuid) == uuid_offt)
+            if (sizeof (uuid->data) == uuid_offt)
                 return uuid_len;
         }
         else {
@@ -61,11 +67,11 @@ wsrep_uuid_scan (const char* str, size_t str_len, wsrep_uuid_t* uuid)
  * @return length of UUID string representation or -EMSGSIZE if string is too
  *         short
  */
-ssize_t
+int
 wsrep_uuid_print (const wsrep_uuid_t* uuid, char* str, size_t str_len)
 {
     if (str_len > 36) {
-        const unsigned char* u = uuid->uuid;
+        const unsigned char* u = uuid->data;
         return snprintf(str, str_len, "%02x%02x%02x%02x-%02x%02x-%02x%02x-"
                         "%02x%02x-%02x%02x%02x%02x%02x%02x",
                         u[ 0], u[ 1], u[ 2], u[ 3], u[ 4], u[ 5], u[ 6], u[ 7],
@@ -75,4 +81,3 @@ wsrep_uuid_print (const wsrep_uuid_t* uuid, char* str, size_t str_len)
         return -EMSGSIZE;
     }
 }
-

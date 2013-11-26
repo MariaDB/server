@@ -38,7 +38,6 @@ const  char* wsrep_node_address     = 0;
 const  char* wsrep_node_incoming_address = 0;
 const  char* wsrep_start_position   = 0;
 ulong   wsrep_OSU_method_options;
-static int   wsrep_thread_change    = 0;
 
 int wsrep_init_vars()
 {
@@ -61,15 +60,6 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
     // FIXME: this variable probably should be changed only per session
     thd->variables.wsrep_on = global_system_variables.wsrep_on;
   }
-  else {
-  }
-
-#ifdef REMOVED
-  if (thd->variables.wsrep_on)
-    thd->variables.option_bits |= (OPTION_BIN_LOG);
-  else
-    thd->variables.option_bits &= ~(OPTION_BIN_LOG);
-#endif
   return false;
 }
 
@@ -77,8 +67,6 @@ void wsrep_causal_reads_update (sys_var *self, THD* thd, enum_var_type var_type)
 {
   if (var_type == OPT_GLOBAL) {
     thd->variables.wsrep_causal_reads = global_system_variables.wsrep_causal_reads;
-  }
-  else {
   }
 }
 
@@ -149,7 +137,7 @@ bool wsrep_start_position_update (sys_var *self, THD* thd, enum_var_type type)
   wsrep_set_local_position (wsrep_start_position);
 
   if (wsrep) {
-    wsrep->sst_received (wsrep, &local_uuid, local_seqno, NULL, 0);
+    wsrep_sst_received (wsrep, &local_uuid, local_seqno, NULL, 0);
   }
 
   return 0;
@@ -455,7 +443,7 @@ void wsrep_node_address_init (const char* value)
 bool wsrep_slave_threads_check (sys_var *self, THD* thd, set_var* var)
 {
   mysql_mutex_lock(&LOCK_wsrep_slave_threads);
-  wsrep_thread_change = var->value->val_int() - wsrep_slave_threads;
+  wsrep_slave_count_change = var->value->val_int() - wsrep_slave_threads;
   mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
 
   return 0;
@@ -463,13 +451,10 @@ bool wsrep_slave_threads_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
 {
-  if (wsrep_thread_change > 0)
+  if (wsrep_slave_count_change > 0)
   {
-    wsrep_create_appliers(wsrep_thread_change);
-  } 
-  else if (wsrep_thread_change < 0)
-  {
-    wsrep_close_applier_threads(-wsrep_thread_change);
+    wsrep_create_appliers(wsrep_slave_count_change);
+    wsrep_slave_count_change = 0;
   }
   return false;
 }

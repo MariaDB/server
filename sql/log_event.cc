@@ -9211,7 +9211,7 @@ int Rows_log_event::do_apply_event(Relay_log_info const *rli)
                    thd->is_fatal_error,
                    thd->wsrep_exec_mode,
                    thd->wsrep_conflict_state,
-                   (long long)thd->wsrep_trx_seqno);
+                   (long long)wsrep_thd_trx_seqno(thd));
       } 
 #endif
       if (thd->is_slave_error || thd->is_fatal_error)
@@ -10976,7 +10976,7 @@ Write_rows_log_event::do_exec_row(const Relay_log_info *const rli)
   char info[64];
   info[sizeof(info) - 1] = '\0';
   snprintf(info, sizeof(info) - 1, "Write_rows_log_event::write_row(%lld)",
-           (long long) thd->wsrep_trx_seqno);
+           (long long) wsrep_thd_trx_seqno(thd));
   const char* tmp = (WSREP(thd)) ? thd_proc_info(thd, info) : NULL;
 #else
   const char* tmp = (WSREP(thd)) ?
@@ -11659,7 +11659,7 @@ int Delete_rows_log_event::do_exec_row(const Relay_log_info *const rli)
   char info[64];
   info[sizeof(info) - 1] = '\0';
   snprintf(info, sizeof(info) - 1, "Delete_rows_log_event::find_row(%lld)",
-           (long long) thd->wsrep_trx_seqno);
+           (long long) wsrep_thd_trx_seqno(thd));
   const char* tmp = (WSREP(thd)) ? thd_proc_info(thd, info) : NULL;
 #else
   const char* tmp = (WSREP(thd)) ?
@@ -11675,7 +11675,7 @@ int Delete_rows_log_event::do_exec_row(const Relay_log_info *const rli)
 #ifdef WSREP_PROC_INFO
     snprintf(info, sizeof(info) - 1,
              "Delete_rows_log_event::ha_delete_row(%lld)",
-             (long long) thd->wsrep_trx_seqno);
+             (long long) wsrep_thd_trx_seqno(thd));
     if (WSREP(thd)) thd_proc_info(thd, info);
 #else
     if (WSREP(thd)) thd_proc_info(thd,"Delete_rows_log_event::ha_delete_row()");
@@ -11809,7 +11809,7 @@ Update_rows_log_event::do_exec_row(const Relay_log_info *const rli)
   char info[64];
   info[sizeof(info) - 1] = '\0';
   snprintf(info, sizeof(info) - 1, "Update_rows_log_event::find_row(%lld)",
-           (long long) thd->wsrep_trx_seqno);
+           (long long) wsrep_thd_trx_seqno(thd));
   const char* tmp = (WSREP(thd)) ? thd_proc_info(thd, info) : NULL;
 #else
   const char* tmp = (WSREP(thd)) ? 
@@ -11846,7 +11846,7 @@ Update_rows_log_event::do_exec_row(const Relay_log_info *const rli)
 #ifdef WSREP_PROC_INFO
   snprintf(info, sizeof(info) - 1,
            "Update_rows_log_event::unpack_current_row(%lld)",
-           (long long) thd->wsrep_trx_seqno);
+           (long long) wsrep_thd_trx_seqno(thd));
   if (WSREP(thd)) thd_proc_info(thd, info);
 #else
   if (WSREP(thd)) 
@@ -11875,7 +11875,7 @@ Update_rows_log_event::do_exec_row(const Relay_log_info *const rli)
 #ifdef WSREP_PROC_INFO
   snprintf(info, sizeof(info) - 1,
            "Update_rows_log_event::ha_update_row(%lld)",
-           (long long) thd->wsrep_trx_seqno);
+           (long long) wsrep_thd_trx_seqno(thd));
   if (WSREP(thd)) thd_proc_info(thd, info);
 #else
   if (WSREP(thd)) thd_proc_info(thd,"Update_rows_log_event::ha_update_row()");

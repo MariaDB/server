@@ -287,12 +287,6 @@ enum enum_log_state { LOG_OPENED, LOG_CLOSED, LOG_TO_BE_OPENED };
   (mmap+fsync is two times faster than write+fsync)
 */
 
-#ifdef WITH_WSREP
-extern my_bool wsrep_emulate_bin_log;
-Log_event* wsrep_read_log_event(
-  char **arg_buf, size_t *arg_buf_len,
-  const Format_description_log_event *description_event);
-#endif
 class MYSQL_LOG
 {
 public:
@@ -974,7 +968,6 @@ bool wsrep_trans_cache_is_empty(THD *thd);
 void thd_binlog_flush_pending_rows_event(THD *thd, bool stmt_end);
 void thd_binlog_trx_reset(THD * thd);
 void thd_binlog_rollback_stmt(THD * thd);
-int wsrep_write_cache(IO_CACHE *cache, uchar **buf, uint *buf_len);
 
 #define WSREP_FORMAT(my_format)                           \
   ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ?	\

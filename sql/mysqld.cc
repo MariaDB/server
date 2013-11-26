@@ -359,7 +359,11 @@ static char *default_character_set_name;
 static char *character_set_filesystem_name;
 static char *lc_messages;
 static char *lc_time_names_name;
+#ifndef WITH_WSREP
 static char *my_bind_addr_str;
+#else
+char *my_bind_addr_str;
+#endif /* WITH_WSREP */
 static char *default_collation_name;
 char *default_storage_engine;
 static char compiled_default_collation_name[]= MYSQL_DEFAULT_COLLATION_NAME;

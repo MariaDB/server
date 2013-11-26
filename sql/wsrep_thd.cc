@@ -113,17 +113,17 @@ void wsrep_replay_transaction(THD *thd)
   /* checking if BF trx must be replayed */
   if (thd->wsrep_conflict_state== MUST_REPLAY) {
     if (thd->wsrep_exec_mode!= REPL_RECV) {
-      if (thd->stmt_da->is_sent)
+      if (thd->get_stmt_da()->is_sent())
       {
         WSREP_ERROR("replay issue, thd has reported status already");
       }
-      thd->stmt_da->reset_diagnostics_area();
+      thd->get_stmt_da()->reset_diagnostics_area();
 
       thd->wsrep_conflict_state= REPLAYING;
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
-      mysql_reset_thd_for_next_command(thd);
-      thd->killed= THD::NOT_KILLED;
+      mysql_reset_thd_for_next_command(thd, opt_userstat_running);
+      thd->killed= NOT_KILLED;
       close_thread_tables(thd);
       if (thd->locked_tables_mode && thd->lock)
       {
@@ -157,7 +157,7 @@ void wsrep_replay_transaction(THD *thd)
         wsrep->post_commit(wsrep, &thd->wsrep_ws_handle);
         WSREP_DEBUG("trx_replay successful for: %ld %llu",
                     thd->thread_id, (long long)thd->real_id);
-        if (thd->stmt_da->is_sent)
+        if (thd->get_stmt_da()->is_sent())
         {
           WSREP_WARN("replay ok, thd has reported status");
         }
@@ -167,7 +167,7 @@ void wsrep_replay_transaction(THD *thd)
         }
         break;
       case WSREP_TRX_FAIL:
-        if (thd->stmt_da->is_sent)
+        if (thd->get_stmt_da()->is_sent())
         {
           WSREP_ERROR("replay failed, thd has reported status");
         }
@@ -237,7 +237,7 @@ static void wsrep_replication_process(THD *thd)
      * avoid mysql shutdown. This is because the killer will then handle
      * shutdown processing (or replication restarting)
      */
-    if (thd->killed != THD::KILL_CONNECTION)
+    if (thd->killed != KILL_CONNECTION)
     {
       wsrep_kill_mysql(thd);
     }
@@ -289,7 +289,7 @@ static void wsrep_rollback_process(THD *thd)
   mysql_mutex_lock(&LOCK_wsrep_rollback);
   wsrep_aborting_thd= NULL;
 
-  while (thd->killed == THD::NOT_KILLED) {
+  while (thd->killed == NOT_KILLED) {
     thd_proc_info(thd, "wsrep aborter idle");
     thd->mysys_var->current_mutex= &LOCK_wsrep_rollback;
     thd->mysys_var->current_cond=  &COND_wsrep_rollback;

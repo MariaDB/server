@@ -869,9 +869,9 @@ extern "C" const char *wsrep_thd_conflict_state_str(THD *thd)
     (thd->wsrep_conflict_state == CERT_FAILURE)     ? "cert failure" : "void";
 }
 
-extern "C" wsrep_trx_handle_t* wsrep_thd_trx_handle(THD *thd)
+extern "C" wsrep_ws_handle_t* wsrep_thd_ws_handle(THD *thd)
 {
-  return &thd->wsrep_trx_handle;
+  return &thd->wsrep_ws_handle;
 }
 
 extern "C" void wsrep_thd_LOCK(THD *thd)
@@ -896,7 +896,7 @@ extern "C" my_thread_id wsrep_thd_thread_id(THD *thd)
 }
 extern "C" wsrep_seqno_t wsrep_thd_trx_seqno(THD *thd) 
 {
-  return (thd) ? thd->wsrep_trx_seqno : -1;
+  return (thd) ? thd->wsrep_trx_meta.gtid.seqno : -1;
 }
 extern "C" query_id_t wsrep_thd_query_id(THD *thd) 
 {
@@ -918,7 +918,6 @@ extern "C" void wsrep_thd_awake(THD* bf_thd, THD *thd, my_bool signal)
 {
   if (signal)
   {
-    thd->wsrep_bf_thd = bf_thd;
     mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->awake(KILL_QUERY);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -934,16 +933,16 @@ extern "C" void wsrep_thd_awake(THD* bf_thd, THD *thd, my_bool signal)
 extern int
 wsrep_trx_order_before(void *thd1, void *thd2)
 {
-	if (((THD*)thd1)->wsrep_trx_seqno < ((THD*)thd2)->wsrep_trx_seqno) {
-	  WSREP_DEBUG("BF conflict, order: %lld %lld\n",
-		      (long long)((THD*)thd1)->wsrep_trx_seqno,
-		      (long long)((THD*)thd2)->wsrep_trx_seqno);
-	  return 1;
-	}
-	WSREP_DEBUG("waiting for BF, trx order: %lld %lld\n",
-		    (long long)((THD*)thd1)->wsrep_trx_seqno,
-		    (long long)((THD*)thd2)->wsrep_trx_seqno);
-	return 0;
+    if (wsrep_thd_trx_seqno((THD*)thd1) < wsrep_thd_trx_seqno((THD*)thd2)) {
+        WSREP_DEBUG("BF conflict, order: %lld %lld\n",
+                    (long long)wsrep_thd_trx_seqno((THD*)thd1),
+                    (long long)wsrep_thd_trx_seqno((THD*)thd2));
+        return 1;
+    }
+    WSREP_DEBUG("waiting for BF, trx order: %lld %lld\n",
+                (long long)wsrep_thd_trx_seqno((THD*)thd1),
+                (long long)wsrep_thd_trx_seqno((THD*)thd2));
+    return 0;
 }
 extern "C" int
 wsrep_trx_is_aborting(void *thd_ptr)
@@ -1142,9 +1141,8 @@ THD::THD()
 #ifdef WITH_WSREP
   mysql_mutex_init(key_LOCK_wsrep_thd, &LOCK_wsrep_thd, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
-  wsrep_trx_handle.trx_id = WSREP_UNDEFINED_TRX_ID;
-  wsrep_trx_handle.opaque = NULL;
-  //wsrep_retry_autocommit= ::wsrep_retry_autocommit;
+  wsrep_ws_handle.trx_id = WSREP_UNDEFINED_TRX_ID;
+  wsrep_ws_handle.opaque = NULL;
   wsrep_retry_counter     = 0;
   wsrep_PA_safe           = true;
   wsrep_seqno_changed     = false;
@@ -1154,7 +1152,6 @@ THD::THD()
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_status_vars       = 0;
   wsrep_mysql_replicated  = 0;
-  wsrep_bf_thd            = NULL;
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
 #endif
@@ -1549,7 +1546,8 @@ void THD::init(void)
   wsrep_conflict_state= NO_CONFLICT;
   wsrep_query_state= QUERY_IDLE;
   wsrep_last_query_id= 0;
-  wsrep_trx_seqno= 0;
+  wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
+  wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
   wsrep_converted_lock_session= false;
   wsrep_retry_counter= 0;
   wsrep_rli= NULL;
@@ -1557,7 +1555,7 @@ void THD::init(void)
   wsrep_seqno_changed= false;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_mysql_replicated  = 0;
-  wsrep_bf_thd = NULL;
+
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
 #endif
@@ -1941,7 +1939,7 @@ void THD::awake(killed_state state_to_set)
   /* Interrupt target waiting inside a storage engine. */
   if (state_to_set != NOT_KILLED)
 #ifdef WITH_WSREP
-    if (!wsrep_bf_thd || wsrep_bf_thd->wsrep_exec_mode == LOCAL_STATE)
+    /* TODO: prevent applier close here */
 #endif /* WITH_WSREP */
     ha_kill_query(this, thd_kill_level(this));
 
