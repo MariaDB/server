@@ -424,8 +424,8 @@ int wsrep_thd_is_brute_force(void *thd_ptr)
     case TOTAL_ORDER:  return 2;
     case LOCAL_COMMIT: return 3;
     }
+    DBUG_ASSERT(0);
   }
-  DBUG_ASSERT(0);
   return 0;
 }
 
