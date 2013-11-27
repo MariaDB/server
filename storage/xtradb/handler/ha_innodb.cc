@@ -13985,7 +13985,9 @@ wsrep_innobase_kill_one_trx(trx_t *bf_trx, trx_t *victim_trx, ibool signal)
 			if (wait_lock) {
 				WSREP_DEBUG("canceling wait lock");
 				victim_trx->was_chosen_as_deadlock_victim= TRUE;
+				mutex_enter(&kernel_mutex);
 				lock_cancel_waiting_and_release(wait_lock);
+				mutex_exit(&kernel_mutex);
 			}
 
 			wsrep_thd_awake(bf_thd, thd, signal); 
@@ -14076,10 +14078,8 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 
 	if (victim_trx)
 	{
-		mutex_enter(&kernel_mutex);
 		int rcode = wsrep_innobase_kill_one_trx(bf_trx, victim_trx,
 							signal);
-		mutex_exit(&kernel_mutex);
 		wsrep_srv_conc_cancel_wait(victim_trx);
 		DBUG_RETURN(rcode);
 	} else {
