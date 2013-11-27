@@ -919,7 +919,7 @@ row_ins_invalidate_query_cache(
 	mem_free(buf);
 }
 #ifdef WITH_WSREP
-ulint wsrep_append_foreign_key(trx_t *trx,  
+dberr_t wsrep_append_foreign_key(trx_t *trx,  
 			       dict_foreign_t*	foreign,
 			       const rec_t*	clust_rec,
 			       dict_index_t*	clust_index,
@@ -1281,14 +1281,16 @@ row_ins_foreign_check_on_constraint(
 					   foreign->foreign_table);
 
 #ifdef WITH_WSREP
-	if (err == DB_SUCCESS) {
-		err = (dberr_t) wsrep_append_foreign_key(
-			thr_get_trx(thr),
-			foreign,
-			clust_rec, 
-			clust_index,
-			FALSE, FALSE);
-	}
+	err = wsrep_append_foreign_key(
+				       thr_get_trx(thr),
+				       foreign,
+				       clust_rec, 
+				       clust_index,
+				       FALSE, FALSE);
+	if (err != DB_SUCCESS) {
+		fprintf(stderr, 
+			"WSREP: foreign key append failed: %lu\n", err);
+	} else
 #endif /* WITH_WSREP */
 	if (foreign->foreign_table->n_foreign_key_checks_running == 0) {
 		fprintf(stderr,
@@ -1620,7 +1622,7 @@ run_again:
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
-					err = (dberr_t)wsrep_append_foreign_key(
+					err = wsrep_append_foreign_key(
 						thr_get_trx(thr),
 						foreign,
 						rec, 

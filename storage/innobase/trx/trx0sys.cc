@@ -206,9 +206,14 @@ trx_sys_update_mysql_binlog_offset(
 	ib_int64_t	offset,	/*!< in: position in that log file */
 	ulint		field,	/*!< in: offset of the MySQL log info field in
 				the trx sys header */
+#ifdef WITH_WSREP
+        trx_sysf_t*     sys_header, /*!< in: trx sys header */
+#endif /* WITH_WSREP */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
+#ifndef WITH_WSREP
 	trx_sysf_t*	sys_header;
+#endif /* !WITH_WSREP */
 
 	if (ut_strlen(file_name) >= TRX_SYS_MYSQL_LOG_NAME_LEN) {
 
@@ -217,7 +222,9 @@ trx_sys_update_mysql_binlog_offset(
 		return;
 	}
 
+#ifndef WITH_WSREP
 	sys_header = trx_sysf_get(mtr);
+#endif /* !WITH_WSREP */
 
 	if (mach_read_from_4(sys_header + field
 			     + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD)
@@ -306,12 +313,48 @@ trx_sys_print_mysql_binlog_offset(void)
 
 #ifdef WITH_WSREP
 
+#ifdef UNIV_DEBUG
+static long long trx_sys_cur_xid_seqno = -1;
+static unsigned char trx_sys_cur_xid_uuid[16];
+
+long long read_wsrep_xid_seqno(const XID* xid)
+{
+    long long seqno;
+    memcpy(&seqno, xid->data + 24, sizeof(long long));
+    return seqno;
+}
+
+void read_wsrep_xid_uuid(const XID* xid, unsigned char* buf)
+{
+    memcpy(buf, xid->data + 8, 16);
+}
+
+#endif /* UNIV_DEBUG */
+
 void
 trx_sys_update_wsrep_checkpoint(
-        const XID*      xid,  /*!< in: transaction XID */
-        mtr_t*          mtr)  /*!< in: mtr */
+        const XID*      xid,        /*!< in: transaction XID */
+        trx_sysf_t*     sys_header, /*!< in: sys_header */
+        mtr_t*          mtr)        /*!< in: mtr */
 {
-        trx_sysf_t*     sys_header;
+#ifdef UNIV_DEBUG
+        {
+            /* Check that seqno is monotonically increasing */
+            unsigned char xid_uuid[16];
+            long long xid_seqno = read_wsrep_xid_seqno(xid);
+            read_wsrep_xid_uuid(xid, xid_uuid);
+            if (!memcmp(xid_uuid, trx_sys_cur_xid_uuid, 8))
+            {
+                ut_ad(xid_seqno > trx_sys_cur_xid_seqno);
+                trx_sys_cur_xid_seqno = xid_seqno;
+            }
+            else
+            {
+                memcpy(trx_sys_cur_xid_uuid, xid_uuid, 16);
+            }
+            trx_sys_cur_xid_seqno = xid_seqno;
+        }
+#endif /* UNIV_DEBUG */
 
         ut_ad(xid && mtr);
         ut_a(xid->formatID == -1 || wsrep_is_wsrep_xid(xid));
@@ -364,7 +407,7 @@ trx_sys_read_wsrep_checkpoint(XID* xid)
             != TRX_SYS_WSREP_XID_MAGIC_N) {
                 memset(xid, 0, sizeof(*xid));
                 xid->formatID = -1;
-                trx_sys_update_wsrep_checkpoint(xid, &mtr);
+                trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
                 mtr_commit(&mtr);
                 return;
         }

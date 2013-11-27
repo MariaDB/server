@@ -445,7 +445,10 @@ trx_id_t
 trx_sys_get_new_trx_id(void)
 /*========================*/
 {
+#ifndef WITH_WSREP
+	/* wsrep_fake_trx_id  violates this assert */
 	ut_ad(mutex_own(&trx_sys->mutex));
+#endif /* WITH_WSREP */
 
 	/* VERY important: after the database is started, max_trx_id value is
 	divisible by TRX_SYS_TRX_ID_WRITE_MARGIN, and the following if

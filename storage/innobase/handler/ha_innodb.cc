@@ -141,7 +141,7 @@ extern bool wsrep_prepare_key_for_innodb(const uchar *cache_key,
                                          size_t* key_len);
 
 extern handlerton * wsrep_hton;
-extern handlerton * binlog_hton;
+extern TC_LOG* tc_log;
 extern void wsrep_cleanup_transaction(THD *thd);
 #endif /* WITH_WSREP */
 /** to protect innobase_open_files */
@@ -1175,6 +1175,10 @@ innobase_srv_conc_enter_innodb(
 /*===========================*/
 	trx_t*	trx)	/*!< in: transaction handle */
 {
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) && 
+	    wsrep_thd_is_brute_force(trx->mysql_thd)) return;
+#endif /* WITH_WSREP */
 	if (srv_thread_concurrency) {
 		if (trx->n_tickets_to_enter_innodb > 0) {
 
@@ -1209,6 +1213,10 @@ innobase_srv_conc_exit_innodb(
 #ifdef UNIV_SYNC_DEBUG
 	ut_ad(!sync_thread_levels_nonempty_trx(trx->has_search_latch));
 #endif /* UNIV_SYNC_DEBUG */
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) && 
+	    wsrep_thd_is_brute_force(trx->mysql_thd)) return;
+#endif /* WITH_WSREP */
 
 	/* This is to avoid making an unnecessary function call. */
 	if (trx->declared_to_be_inside_innodb
@@ -5484,6 +5492,10 @@ wsrep_innobase_mysql_sort(
 
 		tmp_length = charset->coll->strnxfrm(charset, str, str_length,
 						     tmp_str, str_length);
+		/* Note: in MySQL 5.6:
+		tmp_length = charset->coll->strnxfrm(charset, str, str_length,
+				     str_length, tmp_str, tmp_length, 0);
+		*/
 		DBUG_ASSERT(tmp_length == str_length);
  
 		break;
@@ -9177,7 +9189,7 @@ wsrep_dict_foreign_find_index(
 	ulint		check_null);
 
 
-extern ulint
+extern dberr_t
 wsrep_append_foreign_key(
 /*===========================*/
 	trx_t*		trx,		/*!< in: trx */
@@ -9292,7 +9304,7 @@ wsrep_append_foreign_key(
 			(index && index->table_name) ? index->table_name :
 				"void table",
 			wsrep_thd_query(thd));
-		return rcode;
+		return DB_ERROR;
 	}
 	strncpy(cache_key,
 		(wsrep_protocol_version > 1) ?
@@ -9400,10 +9412,13 @@ wsrep_append_key(
 		WSREP_WARN("Appending row key failed: %s, %d",
 			   (wsrep_thd_query(thd)) ?
 			   wsrep_thd_query(thd) : "void", rcode);
-		DBUG_RETURN(rcode);
+		DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 	}
 	DBUG_RETURN(0);
 }
+
+extern void compute_md5_hash(char *digest, const char *buf, int len);
+#define MD5_HASH compute_md5_hash
 
 int
 ha_innobase::wsrep_append_keys(
@@ -9413,16 +9428,17 @@ ha_innobase::wsrep_append_keys(
 	const uchar*	record0,	/* in: row in MySQL format */
 	const uchar*	record1)	/* in: row in MySQL format */
 {
+	int rcode;
 	DBUG_ENTER("wsrep_append_keys");
 
-  	bool key_appended = false;
+	bool key_appended = false;
 	trx_t *trx = thd_to_trx(thd);
 
 	if (table_share && table_share->tmp_table  != NO_TMP_TABLE) {
-		WSREP_DEBUG("skipping tmp table DML: THD: %lu tmp: %d SQL: %s",
+		WSREP_DEBUG("skipping tmp table DML: THD: %lu tmp: %d SQL: %s", 
 			    wsrep_thd_thread_id(thd),
 			    table_share->tmp_table,
-			    (wsrep_thd_query(thd)) ?
+			    (wsrep_thd_query(thd)) ? 
 			    wsrep_thd_query(thd) : "void");
 		DBUG_RETURN(0);
 	}
@@ -9438,20 +9454,19 @@ ha_innobase::wsrep_append_keys(
 			table, 0, key, key_info->key_length, record0, &is_null);
 
 		if (!is_null) {
-			int rcode = wsrep_append_key(
-				thd, trx, table_share, table, keyval,
+			rcode = wsrep_append_key(
+				thd, trx, table_share, table, keyval, 
 				len, shared);
 			if (rcode) DBUG_RETURN(rcode);
 		}
 		else
 		{
-			WSREP_DEBUG("NULL key skipped (proto 0): %s",
+			WSREP_DEBUG("NULL key skipped (proto 0): %s", 
 				    wsrep_thd_query(thd));
 		}
 	} else {
 		ut_a(table->s->keys <= 256);
 		uint i;
-
 		for (i=0; i<table->s->keys; ++i) {
 			uint  len;
 			char  keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
@@ -9481,27 +9496,27 @@ ha_innobase::wsrep_append_keys(
 			  		key_appended = true;
 
 				len = wsrep_store_key_val_for_row(
-					table, i, key0, key_info->key_length,
+					table, i, key0, key_info->key_length, 
 					record0, &is_null);
 				if (!is_null) {
-					int rcode = wsrep_append_key(
-						thd, trx, table_share, table,
+					rcode = wsrep_append_key(
+						thd, trx, table_share, table, 
 						keyval0, len+1, shared);
 					if (rcode) DBUG_RETURN(rcode);
 				}
 				else
 				{
-					WSREP_DEBUG("NULL key skipped: %s",
+					WSREP_DEBUG("NULL key skipped: %s", 
 						    wsrep_thd_query(thd));
 				}
 				if (record1) {
 					len = wsrep_store_key_val_for_row(
-						table, i, key1, key_info->key_length,
+						table, i, key1, key_info->key_length, 
 						record1, &is_null);
 					if (!is_null && memcmp(key0, key1, len)) {
-						int rcode = wsrep_append_key(
-							thd, trx, table_share,
-							table,
+						rcode = wsrep_append_key(
+							thd, trx, table_share, 
+							table, 
 							keyval1, len+1, shared);
 						if (rcode) DBUG_RETURN(rcode);
 					}
@@ -16658,14 +16673,19 @@ wsrep_abort_slave_trx(wsrep_seqno_t bf_seqno, wsrep_seqno_t victim_seqno)
 	abort();
 }
 int
-wsrep_innobase_kill_one_trx(const trx_t *bf_trx, trx_t *victim_trx, ibool signal)
+wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
+                            const trx_t * const bf_trx,
+                            trx_t *victim_trx, ibool signal)
 {
+        ut_ad(lock_mutex_own());
+        ut_ad(trx_mutex_own(victim_trx));
+        ut_ad(bf_thd_ptr);
+        ut_ad(victim_trx);
+
 	DBUG_ENTER("wsrep_innobase_kill_one_trx");
-	THD *bf_thd 	  = (THD *)((bf_trx) ? bf_trx->mysql_thd : NULL);
+	THD *bf_thd       = bf_thd_ptr ? (THD*) bf_thd_ptr : NULL;
 	THD *thd          = (THD *) victim_trx->mysql_thd;
 	int64_t bf_seqno  = (bf_thd) ? wsrep_thd_trx_seqno(bf_thd) : 0;
-
-	if (!bf_thd) bf_thd = (bf_trx) ? (THD *)bf_trx->mysql_thd : NULL;
 
 	if (!thd) {
 		DBUG_PRINT("wsrep", ("no thd for conflicting lock"));
@@ -16869,12 +16889,15 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 
 	if (victim_trx)
 	{
-		mutex_enter(&trx_sys->mutex);
-		int rcode = wsrep_innobase_kill_one_trx(bf_trx, victim_trx,
-							signal);
-		mutex_exit(&trx_sys->mutex);
+                lock_mutex_enter();
+                trx_mutex_enter(victim_trx);
+		int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
+                                                        victim_trx, signal);
+                trx_mutex_exit(victim_trx);
+                lock_mutex_exit();
 		wsrep_srv_conc_cancel_wait(victim_trx);
-		DBUG_RETURN(rcode);
+
+ 		DBUG_RETURN(rcode);
 	} else {
 		WSREP_DEBUG("victim does not have transaction");
 		wsrep_thd_LOCK(victim_thd);

@@ -1583,7 +1583,9 @@ lock_rec_other_has_expl_req(
 
 #ifdef WITH_WSREP
 static void 
-wsrep_kill_victim(trx_t *trx, lock_t *lock) {
+wsrep_kill_victim(const trx_t * const trx, const lock_t *lock) {
+        ut_ad(lock_mutex_own());
+        ut_ad(trx_mutex_own(lock->trx));
 	int bf_this  = wsrep_thd_is_brute_force(trx->mysql_thd);
 	int bf_other = 
 		wsrep_thd_is_brute_force(lock->trx->mysql_thd);
@@ -1591,7 +1593,6 @@ wsrep_kill_victim(trx_t *trx, lock_t *lock) {
 		(bf_this && bf_other && wsrep_trx_order_before(
 			trx->mysql_thd, lock->trx->mysql_thd))) {
           
-          //		if (lock->trx->que_state == TRX_QUE_LOCK_WAIT) {
 		if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 			if (wsrep_debug)
 				fprintf(stderr, "WSREP: BF victim waiting\n");
@@ -1599,13 +1600,14 @@ wsrep_kill_victim(trx_t *trx, lock_t *lock) {
 			is in the queue*/
 		} else if (lock->trx != trx) {
 			if (wsrep_log_conflicts) {
+				mutex_enter(&trx_sys->mutex);
 				if (bf_this)
 					fputs("\n*** Priority TRANSACTION:\n", 
 					      stderr);
 				else
 					fputs("\n*** Victim TRANSACTION:\n", 
 					      stderr);
-				trx_print(stderr, trx, 3000);
+				trx_print_latched(stderr, trx, 3000);
 
 				if (bf_other)
 					fputs("\n*** Priority TRANSACTION:\n", 
@@ -1613,8 +1615,9 @@ wsrep_kill_victim(trx_t *trx, lock_t *lock) {
 				else
 					fputs("\n*** Victim TRANSACTION:\n", 
 					      stderr);
-				trx_print(stderr, lock->trx, 3000);
+				trx_print_latched(stderr, lock->trx, 3000);
 
+				mutex_exit(&trx_sys->mutex);
 				fputs("*** WAITING FOR THIS LOCK TO BE GRANTED:\n",
 				      stderr);
 
@@ -1624,8 +1627,8 @@ wsrep_kill_victim(trx_t *trx, lock_t *lock) {
 					lock_table_print(stderr, lock);
 				}
 			}
-			wsrep_innobase_kill_one_trx(
-				trx, lock->trx, TRUE);
+			wsrep_innobase_kill_one_trx(trx->mysql_thd,
+				(const trx_t*) trx, lock->trx, TRUE);
 		}
 	}
 }
@@ -1800,7 +1803,8 @@ lock_t*
 lock_rec_create(
 /*============*/
 #ifdef WITH_WSREP
-	lock_t*			c_lock,   /* conflicting lock */
+	lock_t*		  const c_lock,   /* conflicting lock */
+	que_thr_t*		thr,
 #endif
 	ulint			type_mode,/*!< in: lock mode and wait
 					flag, type is ignored and
@@ -2048,12 +2052,14 @@ lock_rec_enqueue_waiting(
 		to be granted, note that we already own
 		the trx mutex. */
 #ifdef WITH_WSREP
-          if (wsrep_on(trx->mysql_thd) && c_lock->trx->lock.was_chosen_as_deadlock_victim) {
-		  return(DB_DEADLOCK);
+		if (wsrep_on(trx->mysql_thd) && 
+		    trx->lock.was_chosen_as_deadlock_victim) {
+			return(DB_DEADLOCK);
 		}
-		/* Enqueue the lock request that will wait to be granted */
-		lock = lock_rec_create(c_lock, type_mode | LOCK_WAIT, 
-				       block, heap_no, index, trx, TRUE);
+		lock = lock_rec_create(
+			c_lock, thr,
+			type_mode | LOCK_WAIT, block, heap_no,
+			index, trx, TRUE);
 #else
 		lock = lock_rec_create(
 			type_mode | LOCK_WAIT, block, heap_no,
@@ -2229,9 +2235,9 @@ lock_rec_add_to_queue(
 
 somebody_waits:
 #ifdef WITH_WSREP
-	return(lock_rec_create(
-                        NULL, type_mode, block, heap_no, index, trx,
-                        caller_owns_trx_mutex));
+	return(lock_rec_create(NULL, NULL,
+			type_mode, block, heap_no, index, trx,
+			caller_owns_trx_mutex));
 #else
  	return(lock_rec_create(
                         type_mode, block, heap_no, index, trx, 
@@ -2303,10 +2309,10 @@ lock_rec_lock_fast(
 		if (!impl) {
 			/* Note that we don't own the trx mutex. */
 #ifdef WITH_WSREP
-                    lock = lock_rec_create(
-                                NULL, mode, block, heap_no, index, trx, FALSE);
+			lock = lock_rec_create(NULL, thr,
+				mode, block, heap_no, index, trx, FALSE);
 #else
-		    lock = lock_rec_create(
+			lock = lock_rec_create(
 				mode, block, heap_no, index, trx, FALSE);
 #endif
 
@@ -2361,10 +2367,10 @@ lock_rec_lock_slow(
 	dict_index_t*		index,	/*!< in: index of record */
 	que_thr_t*		thr)	/*!< in: query thread */
 {
-#ifdef WITH_WSREP
-	lock_t *c_lock;
-#endif
 	trx_t*			trx;
+#ifdef WITH_WSREP
+	lock_t*			c_lock(NULL);
+#endif
 	lock_t*			lock;
 	dberr_t			err = DB_SUCCESS;
 
@@ -2430,6 +2436,9 @@ lock_rec_lock_slow(
 		ut_ad(lock == NULL);
 enqueue_waiting:
 #ifdef WITH_WSREP
+		/* c_lock is NULL here if jump to enqueue_waiting happened
+		but it's ok because lock is not NULL in that case and c_lock
+		is not used. */
 		err = lock_rec_enqueue_waiting(
                         c_lock, mode, block, heap_no,
 			lock, index, thr);
