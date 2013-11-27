@@ -203,17 +203,15 @@ rpl_slave_state::truncate_state_table(THD *thd)
 {
   TABLE_LIST tlist;
   int err= 0;
-  TABLE *table;
 
+  tmp_disable_binlog(thd);
   tlist.init_one_table(STRING_WITH_LEN("mysql"),
                        rpl_gtid_slave_state_table_name.str,
                        rpl_gtid_slave_state_table_name.length,
                        NULL, TL_WRITE);
   if (!(err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
   {
-    table= tlist.table;
-    table->no_replicate= 1;
-    err= table->file->ha_truncate();
+    err= tlist.table->file->ha_truncate();
 
     if (err)
     {
@@ -230,6 +228,7 @@ rpl_slave_state::truncate_state_table(THD *thd)
     thd->mdl_context.release_transactional_locks();
   }
 
+  reenable_binlog(thd);
   return err;
 }
 
@@ -349,13 +348,14 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   if ((err= gtid_check_rpl_slave_state_table(table)))
     goto end;
 
-  table->no_replicate= 1;
   if (!in_transaction)
   {
     DBUG_PRINT("info", ("resetting OPTION_BEGIN"));
     thd->variables.option_bits&=
-      ~(ulonglong)(OPTION_NOT_AUTOCOMMIT|OPTION_BEGIN);
+      ~(ulonglong)(OPTION_NOT_AUTOCOMMIT|OPTION_BEGIN|OPTION_BIN_LOG);
   }
+  else
+    thd->variables.option_bits&= ~(ulonglong)OPTION_BIN_LOG;
 
   bitmap_set_all(table->write_set);
 
