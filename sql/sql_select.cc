@@ -3691,7 +3691,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	// All dep. must be constants
 	if (s->dependent & ~(found_const_table_map))
 	  continue;
-	if (table->stat_records() <= 1L &&
+	if (table->file->stats.records <= 1L &&
 	    (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT) &&
             !table->pos_in_table_list->embedding &&
 	      !((outer_join & table->map) && 
