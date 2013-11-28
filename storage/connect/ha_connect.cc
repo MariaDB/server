@@ -183,7 +183,7 @@ ulong ha_connect::num= 0;
 //int  DTVAL::Shift= 0;
 
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
-static PGLOBAL GetPlug(THD *thd, PCONNECT lxp);
+static PGLOBAL GetPlug(THD *thd, PCONNECT& lxp);
 
 static handler *connect_create_handler(handlerton *hton,
                                    TABLE_SHARE *table,
@@ -556,7 +556,7 @@ static PCONNECT GetUser(THD *thd, PCONNECT xp)
 /****************************************************************************/
 /*  Get the global pointer of the user of this handler.                     */
 /****************************************************************************/
-static PGLOBAL GetPlug(THD *thd, PCONNECT lxp)
+static PGLOBAL GetPlug(THD *thd, PCONNECT& lxp)
 {
   lxp= GetUser(thd, lxp);
   return (lxp) ? lxp->g : NULL;
@@ -3822,7 +3822,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   TABTYPE     ttp= TAB_UNDEF;
   PQRYRES     qrp= NULL;
   PCOLRES     crp;
-  PGLOBAL     g= GetPlug(thd, NULL);
+  PCONNECT    xp= NULL;
+  PGLOBAL     g= GetPlug(thd, xp);
   PTOS        topt= table_s->option_struct;
 #if defined(NEW_WAY)
 //CHARSET_INFO *cs;
