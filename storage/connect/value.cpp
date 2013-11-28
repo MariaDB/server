@@ -296,7 +296,7 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type)
       valp = new(g) TYPVAL<longlong>(*(longlong*)value, TYPE_BIGINT);
       break;
     case TYPE_FLOAT:
-      valp = new(g) TYPVAL<double>(*(double *)value, TYPE_FLOAT);
+      valp = new(g) TYPVAL<double>(*(double *)value, TYPE_FLOAT, 2);
       break;
     case TYPE_TINY:
       valp = new(g) TYPVAL<char>(*(char *)value, TYPE_TINY);
@@ -326,31 +326,31 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec, PSZ fmt)
       break;
     case TYPE_INT: 
       if (prec)
-        valp = new(g) TYPVAL<uint>((uint)0, TYPE_INT, true);
+        valp = new(g) TYPVAL<uint>((uint)0, TYPE_INT, 0, true);
       else
         valp = new(g) TYPVAL<int>((int)0, TYPE_INT);
 
       break;
     case TYPE_BIGINT:
       if (prec)
-        valp = new(g) TYPVAL<ulonglong>((ulonglong)0, TYPE_BIGINT, true);
+        valp = new(g) TYPVAL<ulonglong>((ulonglong)0, TYPE_BIGINT, 0, true);
       else
         valp = new(g) TYPVAL<longlong>((longlong)0, TYPE_BIGINT);
 
       break;
     case TYPE_SHORT:
       if (prec)
-        valp = new(g) TYPVAL<ushort>((ushort)0, TYPE_SHORT, true);
+        valp = new(g) TYPVAL<ushort>((ushort)0, TYPE_SHORT, 0, true);
       else
         valp = new(g) TYPVAL<short>((short)0, TYPE_SHORT);
 
       break;
     case TYPE_FLOAT:
-      valp = new(g) TYPVAL<double>(0.0, prec, TYPE_FLOAT);
+      valp = new(g) TYPVAL<double>(0.0, TYPE_FLOAT, prec);
       break;
     case TYPE_TINY:
       if (prec)
-        valp = new(g) TYPVAL<uchar>((uchar)0, TYPE_TINY, true);
+        valp = new(g) TYPVAL<uchar>((uchar)0, TYPE_TINY, 0, true);
       else
         valp = new(g) TYPVAL<char>((char)0, TYPE_TINY);
 
@@ -387,21 +387,23 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
       break;
     case TYPE_SHORT:
       if (un)
-        valp = new(g) TYPVAL<ushort>(valp->GetUShortValue(), TYPE_SHORT, true);
+        valp = new(g) TYPVAL<ushort>(valp->GetUShortValue(), 
+                                     TYPE_SHORT, 0, true);
       else
         valp = new(g) TYPVAL<short>(valp->GetShortValue(), TYPE_SHORT);
 
       break;
     case TYPE_INT: 
       if (un)
-        valp = new(g) TYPVAL<uint>(valp->GetUIntValue(), TYPE_INT, true);
+        valp = new(g) TYPVAL<uint>(valp->GetUIntValue(), TYPE_INT, 0, true);
       else
         valp = new(g) TYPVAL<int>(valp->GetIntValue(), TYPE_INT);
 
       break;
     case TYPE_BIGINT: 
       if (un)
-        valp = new(g) TYPVAL<ulonglong>(valp->GetUBigintValue(), TYPE_BIGINT, true);
+        valp = new(g) TYPVAL<ulonglong>(valp->GetUBigintValue(), 
+                                        TYPE_BIGINT, 0, true);
       else
         valp = new(g) TYPVAL<longlong>(valp->GetBigintValue(), TYPE_BIGINT);
 
@@ -410,11 +412,13 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
       valp = new(g) DTVAL(g, valp->GetIntValue());
       break;
     case TYPE_FLOAT:
-      valp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_FLOAT);
+      valp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_FLOAT,
+                                   valp->GetValPrec());
       break;
     case TYPE_TINY:  
       if (un)
-        valp = new(g) TYPVAL<uchar>(valp->GetUTinyValue(), TYPE_TINY, true);
+        valp = new(g) TYPVAL<uchar>(valp->GetUTinyValue(), 
+                                    TYPE_TINY, 0, true);
       else
         valp = new(g) TYPVAL<char>(valp->GetTinyValue(), TYPE_TINY);
 
@@ -582,7 +586,7 @@ void TYPVAL<TYPE>::SetValue_char(char *p, int n)
       } // endswitch *p
 
   if (minus && Tval)
-    Tval = - (signed)Tval;
+    Tval = (-(signed)Tval) ? -(signed)Tval : Tval;
 
   if (trace > 1)
     htrc(strcat(strcat(strcpy(buf, " setting %s to: "), Fmt), "\n"),
