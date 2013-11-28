@@ -258,6 +258,7 @@ template <>
 int TYPBLK<int>::GetTypedValue(PVAL valp)
   {return valp->GetIntValue();}
 
+template <>
 uint TYPBLK<uint>::GetTypedValue(PVAL valp)
   {return valp->GetUIntValue();}
 
