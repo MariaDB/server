@@ -2269,11 +2269,11 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
   {
     if (!ha_table_exists(thd, table_list->db, table_list->table_name))
       DBUG_RETURN(FALSE);
-
-    /* Table exists. Let us try to open it. */
   }
   else if (table_list->open_strategy == TABLE_LIST::OPEN_STUB)
     DBUG_RETURN(FALSE);
+
+  /* Table exists. Let us try to open it. */
 
   if (table_list->i_s_requested_object & OPEN_TABLE_ONLY)
     gts_flags= GTS_TABLE;
@@ -3290,6 +3290,7 @@ request_backoff_action(enum_open_table_action action_arg,
                                    table->table_name,
                                    table->table_name_length,
                                    table->alias, TL_WRITE);
+    m_failed_table->open_strategy= table->open_strategy;
     m_failed_table->mdl_request.set_type(MDL_EXCLUSIVE);
   }
   m_action= action_arg;
@@ -3310,8 +3311,7 @@ request_backoff_action(enum_open_table_action action_arg,
 */
 
 bool
-Open_table_context::
-recover_from_failed_open(THD *thd)
+Open_table_context::recover_from_failed_open(THD *thd)
 {
   bool result= FALSE;
   /* Execute the action. */
@@ -3333,11 +3333,21 @@ recover_from_failed_open(THD *thd)
         thd->get_stmt_da()->clear_warning_info(thd->query_id);
         thd->clear_error();                 // Clear error message
 
-        if ((result=
-             !tdc_acquire_share(thd, m_failed_table->db,
-                                m_failed_table->table_name,
-                                GTS_TABLE | GTS_FORCE_DISCOVERY | GTS_NOLOCK)))
-          break;
+        No_such_table_error_handler no_such_table_handler;
+        bool open_if_exists= m_failed_table->open_strategy == TABLE_LIST::OPEN_IF_EXISTS;
+
+        if (open_if_exists)
+          thd->push_internal_handler(&no_such_table_handler);
+        
+        result= !tdc_acquire_share(thd, m_failed_table->db,
+                                   m_failed_table->table_name,
+                                   GTS_TABLE | GTS_FORCE_DISCOVERY | GTS_NOLOCK);
+        if (open_if_exists)
+        {
+          thd->pop_internal_handler();
+          if (result && no_such_table_handler.safely_trapped_errors())
+            result= FALSE;
+        }
 
         thd->mdl_context.release_transactional_locks();
         break;
