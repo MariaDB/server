@@ -44,7 +44,7 @@ public:
   virtual void set_column_family(const char *cfname) = 0;
 
   /* Settings */
-  virtual void set_consistency_levels(ulong read_cons_level, ulong write_cons_level)=0;
+  virtual void set_consistency_levels(unsigned long read_cons_level, unsigned long write_cons_level)=0;
   virtual void set_n_retries(uint retries_arg)=0;
 
   /* Check underlying DDL */
@@ -105,16 +105,16 @@ public:
 class Cassandra_status_vars
 {
 public:
-  ulong row_inserts;
-  ulong row_insert_batches;
+  unsigned long row_inserts;
+  unsigned long row_insert_batches;
 
-  ulong multiget_reads;
-  ulong multiget_keys_scanned;
-  ulong multiget_rows_read;
+  unsigned long multiget_reads;
+  unsigned long multiget_keys_scanned;
+  unsigned long multiget_rows_read;
 
-  ulong timeout_exceptions;
-  ulong unavailable_exceptions;
-  ulong network_exceptions;
+  unsigned long timeout_exceptions;
+  unsigned long unavailable_exceptions;
+  unsigned long network_exceptions;
 };
 
 
