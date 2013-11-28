@@ -395,7 +395,9 @@ char *yytext;
 #include <string.h>
 #include "preparse.h"
 
+#ifndef fileno
 #define fileno _fileno
+#endif
 #undef  YY_DECL
 #define YY_DECL int yylex YY_PROTO((PDTP ppp))
 #define YYSTATE    ((yy_start-1)/2)

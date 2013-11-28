@@ -71,9 +71,7 @@
 /***********************************************************************/
 /*  Static variables.                                                  */
 /***********************************************************************/
-static char *list =
-  " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/.*-‘abcdefghijklmnopqrstuv"; //wxyzñ'
-//" ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz.";
+
 extern "C" int  trace;
 
 /***********************************************************************/
