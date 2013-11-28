@@ -1754,13 +1754,8 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
            table->field[key_part->fieldnr-1]->key_length() &&
            !(key_info->flags & (HA_FULLTEXT | HA_SPATIAL))))
       {
-        char *end;
-        buff[0] = '(';
-        end= int10_to_str((long) key_part->length /
-                          key_part->field->charset()->mbmaxlen,
-                          buff + 1,10);
-        *end++ = ')';
-        packet->append(buff,(uint) (end-buff));
+        packet->append_parenthesized((long) key_part->length /
+                                      key_part->field->charset()->mbmaxlen);
       }
     }
     packet->append(')');
@@ -1958,7 +1953,8 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
                                                   &part_syntax_len,
                                                   FALSE,
                                                   show_table_options,
-                                                  NULL, NULL)))
+                                                  NULL, NULL,
+                                                  comment_start.c_ptr())))
       {
          packet->append(comment_start);
          if (packet->append(part_syntax, part_syntax_len) ||

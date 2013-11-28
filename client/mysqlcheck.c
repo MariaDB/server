@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2001, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2011, Monty Program Ab.
+   Copyright (c) 2001, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 /* By Jani Tolonen, 2001-04-20, MySQL Development Team */
 
-#define CHECK_VERSION "2.7.2"
+#define CHECK_VERSION "2.7.2-MariaDB"
 
 #include "client_priv.h"
 #include <m_ctype.h>
@@ -31,6 +31,10 @@
 
 #define EX_USAGE 1
 #define EX_MYSQLERR 2
+
+/* ALTER instead of repair. */
+#define MAX_ALTER_STR_SIZE 128 * 1024
+#define KEY_PARTITIONING_CHANGED_STR "KEY () partitioning changed"
 
 static MYSQL mysql_connection, *sock = 0;
 static my_bool opt_alldbs = 0, opt_check_only_changed = 0, opt_extended = 0,
@@ -47,7 +51,7 @@ static char *opt_password = 0, *current_user = 0,
 	    *default_charset= 0, *current_host= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 static int first_error = 0;
-DYNAMIC_ARRAY tables4repair, tables4rebuild;
+DYNAMIC_ARRAY tables4repair, tables4rebuild, alter_table_cmds;
 static char *shared_memory_base_name=0;
 static uint opt_protocol=0;
 
@@ -816,6 +820,7 @@ static void print_result()
   MYSQL_RES *res;
   MYSQL_ROW row;
   char prev[(NAME_LEN+9)*2+2];
+  char prev_alter[MAX_ALTER_STR_SIZE];
   uint i;
   my_bool found_error=0, table_rebuild=0;
   DBUG_ENTER("print_result");
@@ -823,6 +828,7 @@ static void print_result()
   res = mysql_use_result(sock);
 
   prev[0] = '\0';
+  prev_alter[0]= 0;
   for (i = 0; (row = mysql_fetch_row(res)); i++)
   {
     int changed = strcmp(prev, row[0]);
@@ -839,12 +845,18 @@ static void print_result()
 	  strcmp(row[3],"OK"))
       {
         if (table_rebuild)
-          insert_dynamic(&tables4rebuild, (uchar*) prev);
+        {
+          if (prev_alter[0])
+            insert_dynamic(&alter_table_cmds, (uchar*) prev_alter);
+          else
+            insert_dynamic(&tables4rebuild, (uchar*) prev);
+        }
         else
-          insert_dynamic(&tables4repair, (uchar*) prev);
+          insert_dynamic(&tables4repair, prev);
       }
       found_error=0;
       table_rebuild=0;
+      prev_alter[0]= 0;
       if (opt_silent)
 	continue;
     }
@@ -861,7 +873,7 @@ static void print_result()
         printf("%-50s %s", row[0], "Needs upgrade");
       else
         printf("%s\n%-9s: %s", row[0], row[2], row[3]);
-      if (strcmp(row[2],"note"))
+      if (opt_auto_repair && strcmp(row[2],"note"))
       {
         found_error=1;
         if (opt_auto_repair && strstr(row[3], "ALTER TABLE") != NULL)
@@ -877,9 +889,14 @@ static void print_result()
   if (found_error && opt_auto_repair && what_to_do != DO_REPAIR)
   {
     if (table_rebuild)
-      insert_dynamic(&tables4rebuild, (uchar*) prev);
+    {
+      if (prev_alter[0])
+        insert_dynamic(&alter_table_cmds, prev_alter);
+      else
+        insert_dynamic(&tables4rebuild, prev);
+    }
     else
-      insert_dynamic(&tables4repair, (uchar*) prev);
+      insert_dynamic(&tables4repair, prev);
   }
   mysql_free_result(res);
   DBUG_VOID_RETURN;
@@ -999,7 +1016,9 @@ int main(int argc, char **argv)
       (my_init_dynamic_array(&tables4repair, sizeof(char)*(NAME_LEN*2+2),16,
                              64, MYF(0)) ||
        my_init_dynamic_array(&tables4rebuild, sizeof(char)*(NAME_LEN*2+2),16,
-                             64, MYF(0))))
+                             64, MYF(0)) ||
+       my_init_dynamic_array(&alter_table_cmds, MAX_ALTER_STR_SIZE, 0, 1,
+                             MYF(0))))
     goto end;
 
   if (opt_alldbs)
@@ -1024,6 +1043,8 @@ int main(int argc, char **argv)
     }
     for (i = 0; i < tables4rebuild.elements ; i++)
       rebuild_table((char*) dynamic_array_ptr(&tables4rebuild, i));
+    for (i = 0; i < alter_table_cmds.elements ; i++)
+      run_query((char*) dynamic_array_ptr(&alter_table_cmds, i));
   }
   ret= test(first_error);
 
