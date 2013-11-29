@@ -4909,7 +4909,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
 
 void wsrep_create_rollbacker()
 {
-  if (wsrep_provider && strcasecmp(wsrep_provider, "none"))
+  if (WSREP_PROVIDER_EXISTS)
   {
     pthread_t hThread;
     /* create rollbacker */
@@ -4925,7 +4925,7 @@ void wsrep_create_appliers(long threads)
   {
     /* see wsrep_replication_start() for the logic */
     if (wsrep_cluster_address && strlen(wsrep_cluster_address) &&
-        wsrep_provider && strcasecmp(wsrep_provider, "none"))
+        WSREP_PROVIDER_EXISTS)
     {
       WSREP_ERROR("Trying to launch slave threads before creating "
                   "connection at '%s'", wsrep_cluster_address);

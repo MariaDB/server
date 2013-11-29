@@ -1708,7 +1708,7 @@ int binlog_init(void *p)
 {
   binlog_hton= (handlerton *)p;
 #ifdef WITH_WSREP
-  if (WSREP_ON) 
+  if (WSREP_ON && WSREP_PROVIDER_EXISTS)
     binlog_hton->state= SHOW_OPTION_YES;
   else
   {

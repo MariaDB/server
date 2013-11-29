@@ -286,6 +286,9 @@ extern wsrep_seqno_t wsrep_locked_seqno;
     if (victim_thd) WSREP_LOG_CONFLICT_THD(victim_thd, "Victim thread");       \
   }
 
+#define WSREP_PROVIDER_EXISTS                                                  \
+  (wsrep_provider && strncasecmp(wsrep_provider, WSREP_NONE, FN_REFLEN))
+
 /*! Synchronizes applier thread start with init thread */
 extern void wsrep_sst_grab();
 /*! Init thread waits for SST completion */

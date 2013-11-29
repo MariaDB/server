@@ -438,8 +438,7 @@ int wsrep_init()
     }
   }
 
-  if (strlen(wsrep_provider)== 0 ||
-      !strcmp(wsrep_provider, WSREP_NONE))
+  if (!WSREP_PROVIDER_EXISTS)
   {
     // enable normal operation in case no provider is specified
     wsrep_ready_set(TRUE);
@@ -662,8 +661,7 @@ bool wsrep_start_replication()
     if provider is trivial, don't even try to connect,
     but resume local node operation
   */
-  if (strlen(wsrep_provider)== 0 ||
-      !strcmp(wsrep_provider, WSREP_NONE))
+  if (!WSREP_PROVIDER_EXISTS)
   {
     // enable normal operation in case no provider is specified
     wsrep_ready_set(TRUE);
