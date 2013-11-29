@@ -9457,10 +9457,22 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
       {
         I_P_List_iterator<TABLE, TABLE_share> it2(share->used_tables);
         while ((table= it2++))
-          if (table->in_use != thd)
-          {
-            DBUG_ASSERT(0);
-          }
+#ifdef WITH_WSREP
+                /* if thd was BF aborted, exclusive locks were canceled,
+                thus others can use table */
+
+                if (table->in_use != thd &&
+                    table->in_use->wsrep_bf_thd != thd &&
+                    table->in_use->wsrep_conflict_state != MUST_ABORT)
+                {
+#endif
+                  if (table->in_use != thd)
+                  {
+                      DBUG_ASSERT(0);
+                  }
+#ifdef WITH_WSREP
+                }
+#endif
       }
 #endif
       /*
