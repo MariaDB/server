@@ -117,6 +117,9 @@ extern const char* wsrep_provider_vendor;
 extern int         wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff);
 extern void        wsrep_free_status(THD *thd);
 
+// Other wsrep global variables
+extern my_bool     wsrep_inited; // whether wsrep is initialized ?
+
 #define WSREP_SST_ADDRESS_AUTO   "AUTO"
 #define WSREP_NODE_INCOMING_AUTO "AUTO"
 

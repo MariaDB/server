@@ -56,6 +56,11 @@ my_bool wsrep_desync                   = 0; // desynchronize the node from the c
  * End configuration options
  */
 
+/*
+ * Other wsrep global variables.
+ */
+my_bool wsrep_inited                   = 0; // initialized ?
+
 static const wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
 const wsrep_uuid_t* wsrep_cluster_uuid()
 {
@@ -414,6 +419,7 @@ static void wsrep_init_position()
 int wsrep_init()
 {
   int rcode= -1;
+  DBUG_ASSERT(wsrep_inited == 0);
 
   wsrep_ready_set(FALSE);
   assert(wsrep_provider);
@@ -442,6 +448,7 @@ int wsrep_init()
   {
     // enable normal operation in case no provider is specified
     wsrep_ready_set(TRUE);
+    wsrep_inited= 1;
     global_system_variables.wsrep_on = 0;
     return 0;
   }
@@ -565,6 +572,8 @@ int wsrep_init()
     WSREP_ERROR("wsrep::init() failed: %d, must shutdown", rcode);
     free(wsrep);
     wsrep = NULL;
+  } else {
+    wsrep_inited= 1;
   }
 
   return rcode;
@@ -595,6 +604,7 @@ void wsrep_init_startup (bool first)
 
 void wsrep_deinit()
 {
+  DBUG_ASSERT(wsrep_inited == 1);
   wsrep_unload(wsrep);
   wsrep= 0;
   provider_name[0]=    '\0';
@@ -603,6 +613,7 @@ void wsrep_deinit()
 
   delete wsrep_format_desc;
   wsrep_format_desc= NULL;
+  wsrep_inited= 0;
 }
 
 void wsrep_recover()

@@ -1751,7 +1751,8 @@ static void __cdecl kill_server(int sig_ptr)
 
   close_connections();
 #ifdef WITH_WSREP
-  if (WSREP_ON) wsrep_deinit();
+  if (wsrep_inited == 1)
+    wsrep_deinit();
 #endif
   if (sig != MYSQL_KILL_SIGNAL &&
       sig != 0)
