@@ -1243,6 +1243,15 @@ public:
     until query execution.
   */
   List<Item> exec_const_order_group_cond;
+
+  /*
+    The subset of top-level conjuncts of 'conds' that are expensive, and will
+    be wrapped in a dynamic condition. Currently contains expensive subqueries
+    (more exactly, Items for which Item::needs_dynamic_cond() == TRUE).
+  */
+  List<Item> conds_expensive_conjuncts;
+  void collect_expensive_conjuncts();
+
   SQL_SELECT *select;                ///<created in optimisation phase
   JOIN_TAB *return_tab;              ///<used only for outer joins
   Item **ref_pointer_array; ///<used pointer reference for this select

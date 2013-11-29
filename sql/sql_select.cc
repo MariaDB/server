@@ -1375,6 +1375,8 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
   error= -1;					// Error is sent to client
   sort_by_table= get_sort_by_table(order, group_list, select_lex->leaf_tables);
 
+  collect_expensive_conjuncts();
+
   /* Calculate how to do the join */
   thd_proc_info(thd, "statistics");
   if (make_join_statistics(this, select_lex->leaf_tables, conds, &keyuse) ||
@@ -6767,8 +6769,7 @@ optimize_straight_join(JOIN *join, table_map join_tables)
     read_time+= record_count;  // We have to make a temp table
 
   if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_STATIC_COND_PUSHDOWN) &&
-      /* @todo join->conds->is_expensive() is not a reliable estimate*/
-      join->conds && join->conds->with_subselect && (idx - 1) > join->const_tables)
+      join->conds_expensive_conjuncts.elements && (idx - 1) > join->const_tables)
     read_time+= join->static_pushdown_cost(idx - 1);
 
   memcpy((uchar*) join->best_positions, (uchar*) join->positions,
@@ -7668,8 +7669,7 @@ best_extension_by_limited_search(JOIN      *join,
           pushdown position of each subquery.
         */
         if (optimizer_flag(thd, OPTIMIZER_SWITCH_STATIC_COND_PUSHDOWN) &&
-            /* @todo join->conds->is_expensive() is not a reliable estimate*/
-            join->conds && join->conds->with_subselect && idx > join->const_tables)
+            join->conds_expensive_conjuncts.elements && idx > join->const_tables)
           current_read_time+= join->static_pushdown_cost(idx);
 
         if (current_read_time < join->best_read)
@@ -24491,6 +24491,36 @@ void JOIN::cache_const_exprs()
   }
 }
 
+
+/**
+  Collect all expensive conjuncts of the WHERE clause into a list.
+*/
+
+void JOIN::collect_expensive_conjuncts()
+{
+  Item *cur_item;
+
+  if (!conds)
+    return;
+
+  if (is_cond_and(conds))
+  {
+    List_iterator<Item> it(*(((Item_cond*) conds)->argument_list()));
+    while ((cur_item= it++))
+    {
+      if (cur_item->needs_dynamic_cond() &&
+          !(cur_item->used_tables() & OUTER_REF_TABLE_BIT))
+        conds_expensive_conjuncts.push_back(cur_item);
+    }
+  }
+  else if (conds->needs_dynamic_cond() &&
+           !(conds->used_tables() & OUTER_REF_TABLE_BIT))
+  {
+    conds_expensive_conjuncts.push_back(conds);
+  }
+}
+
+
 /**
   Compute the added cost of all expensive subqueries if they are pushed
   to their respective optimal positions in a complete join plan.
@@ -24531,8 +24561,7 @@ void JOIN::cache_const_exprs()
 double JOIN::static_pushdown_cost(uint idx)
 {
   POSITION *min_pos= NULL, *last_pos, *opt_pos;
-  List<Item> preds;
-  List_iterator<Item> it(preds);
+  List_iterator<Item> it(conds_expensive_conjuncts);
   Item *cur_item;
   double pushed_cond_cost= 0;
 
@@ -24550,12 +24579,6 @@ double JOIN::static_pushdown_cost(uint idx)
     p_pos->least_card_pos= min_pos;
   }
 
-  /* Turn the WHERE clause into a uniform list representation. */
-  if (is_cond_and(conds))
-    preds.concat(((Item_cond*) conds)->argument_list());
-  else
-    preds.push_back(conds);
-
   /*
     For each pushdownable item in the where clause, find the position in the
     plan with the least 
@@ -24565,8 +24588,7 @@ double JOIN::static_pushdown_cost(uint idx)
     table_map referenced_tables= cur_item->used_tables();
     double cur_item_cost= 0;
 
-    if (!referenced_tables || (referenced_tables & OUTER_REF_TABLE_BIT) ||
-        !cur_item->needs_dynamic_cond())
+    if (!referenced_tables)
       continue;
 
     /*
