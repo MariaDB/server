@@ -3974,7 +3974,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
         goto err;
       }
 
-      if (mi->using_gtid != Master_info::USE_GTID_NO &&
+      if (mi->using_gtid == Master_info::USE_GTID_NO &&
           flush_master_info(mi, TRUE, TRUE))
       {
         sql_print_error("Failed to flush master info file");
