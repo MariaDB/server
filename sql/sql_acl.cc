@@ -11044,7 +11044,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
 
   ACL_USER *user= find_user_or_anon(sctx->host, sctx->user, sctx->ip);
   if (user)
-    mpvio->acl_user= user->copy(&mem);
+    mpvio->acl_user= user->copy(mpvio->thd->mem_root);
 
   mysql_mutex_unlock(&acl_cache->lock);
 
