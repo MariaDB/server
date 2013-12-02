@@ -253,6 +253,19 @@ static const verbitem verbs[] = {
 static const int verbcount = sizeof(verbs)/sizeof(verbitem);
 
 
+/* Substitutes for [[:<:]] and [[:>:]], which mean start and end of word in 
+another regex library. */
+
+static const pcre_uchar sub_start_of_word[] = {
+  CHAR_BACKSLASH, CHAR_b, CHAR_LEFT_PARENTHESIS, CHAR_QUESTION_MARK,
+  CHAR_EQUALS_SIGN, CHAR_BACKSLASH, CHAR_w, CHAR_RIGHT_PARENTHESIS, '\0' }; 
+
+static const pcre_uchar sub_end_of_word[] = {
+  CHAR_BACKSLASH, CHAR_b, CHAR_LEFT_PARENTHESIS, CHAR_QUESTION_MARK,
+  CHAR_LESS_THAN_SIGN, CHAR_EQUALS_SIGN, CHAR_BACKSLASH, CHAR_w,
+  CHAR_RIGHT_PARENTHESIS, '\0' }; 
+
+
 /* Tables of names of POSIX character classes and their lengths. The names are
 now all in a single string, to reduce the number of relocations when a shared
 library is dynamically loaded. The list of lengths is terminated by a zero
@@ -4036,8 +4049,30 @@ for (;; ptr++)
       goto FAILED;
       }
     goto NORMAL_CHAR;
+    
+    /* In another (POSIX) regex library, the ugly syntax [[:<:]] and [[:>:]] is 
+    used for "start of word" and "end of word". As these are otherwise illegal
+    sequences, we don't break anything by recognizing them. They are replaced
+    by \b(?=\w) and \b(?<=\w) respectively. Sequences like [a[:<:]] are
+    erroneous and are handled by the normal code below. */
 
     case CHAR_LEFT_SQUARE_BRACKET:
+    if (STRNCMP_UC_C8(ptr+1, STRING_WEIRD_STARTWORD, 6) == 0)
+      {
+      nestptr = ptr + 7;
+      ptr = sub_start_of_word - 1;
+      continue;  
+      }  
+
+    if (STRNCMP_UC_C8(ptr+1, STRING_WEIRD_ENDWORD, 6) == 0)
+      {
+      nestptr = ptr + 7;
+      ptr = sub_end_of_word - 1;
+      continue;  
+      }  
+
+    /* Handle a real character class. */
+ 
     previous = code;
 
     /* PCRE supports POSIX class stuff inside a class. Perl gives an error if
