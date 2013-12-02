@@ -1,0 +1,1 @@
+--binlog-format=row --innodb_autoinc_lock_mode=2 --innodb_locks_unsafe_for_binlog=1 --wsrep-provider=/usr/lib/libgalera_smm.so  --wsrep-cluster-address=gcomm:// --wsrep-on=1 --log-bin
