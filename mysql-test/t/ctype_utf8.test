@@ -199,25 +199,9 @@ drop table t1;
 #
 # Testing regexp
 #
-set collation_connection=utf8_general_ci;
+set names utf8;
 --source include/ctype_regex.inc
-set names utf8;
-
-#
-# Bug #3928 regexp [[:>:]] and UTF-8
-#
-set names utf8;
-
-# This should return TRUE
-select  'вася'  rlike '\\bвася\\b';
-select  'вася ' rlike '\\bвася\\b';
-select ' вася'  rlike '\\bвася\\b';
-select ' вася ' rlike '\\bвася\\b';
-
-# This should return FALSE
-select  'васяz' rlike '\\bвася\\b';
-select 'zвася'  rlike '\\bвася\\b';
-select 'zвасяz' rlike '\\bвася\\b';
+--source include/ctype_regex_utf8.inc
 
 #
 # Bug #4555

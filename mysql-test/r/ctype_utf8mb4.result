@@ -270,7 +270,7 @@ b
 select * from t1 where a = 'b' and a != 'b';
 a
 drop table t1;
-set collation_connection=utf8mb4_general_ci;
+set names utf8mb4;
 drop table if exists t1;
 create table t1 as
 select repeat(' ', 64) as s1, repeat(' ',64) as s2
@@ -314,8 +314,9 @@ NULL
 NULL
 NULL
 drop table t1;
-set names utf8mb4;
-set names utf8mb4;
+SELECT @@character_set_client, @@collation_connection;
+@@character_set_client	@@collation_connection
+utf8mb4	utf8mb4_general_ci
 select  'вася'  rlike '\\bвася\\b';
 'вася'  rlike '\\bвася\\b'
 1
@@ -328,6 +329,18 @@ select ' вася'  rlike '\\bвася\\b';
 select ' вася ' rlike '\\bвася\\b';
 ' вася ' rlike '\\bвася\\b'
 1
+select  'вася'  rlike '[[:<:]]вася[[:>:]]';
+'вася'  rlike '[[:<:]]вася[[:>:]]'
+1
+select  'вася ' rlike '[[:<:]]вася[[:>:]]';
+'вася ' rlike '[[:<:]]вася[[:>:]]'
+1
+select ' вася'  rlike '[[:<:]]вася[[:>:]]';
+' вася'  rlike '[[:<:]]вася[[:>:]]'
+1
+select ' вася ' rlike '[[:<:]]вася[[:>:]]';
+' вася ' rlike '[[:<:]]вася[[:>:]]'
+1
 select  'васяz' rlike '\\bвася\\b';
 'васяz' rlike '\\bвася\\b'
 0
@@ -336,6 +349,15 @@ select 'zвася'  rlike '\\bвася\\b';
 0
 select 'zвасяz' rlike '\\bвася\\b';
 'zвасяz' rlike '\\bвася\\b'
+0
+select  'васяz' rlike '[[:<:]]вася[[:>:]]';
+'васяz' rlike '[[:<:]]вася[[:>:]]'
+0
+select 'zвася'  rlike '[[:<:]]вася[[:>:]]';
+'zвася'  rlike '[[:<:]]вася[[:>:]]'
+0
+select 'zвасяz' rlike '[[:<:]]вася[[:>:]]';
+'zвасяz' rlike '[[:<:]]вася[[:>:]]'
 0
 CREATE TABLE t1 (a enum ('Y', 'N') DEFAULT 'N' COLLATE utf8mb4_unicode_ci);
 ALTER TABLE t1 ADD COLUMN b CHAR(20);
