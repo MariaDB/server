@@ -15,7 +15,7 @@ t1	CREATE TABLE `t1` (
   `id` int(20) NOT NULL,
   `group` int(11) NOT NULL,
   `a\\b` int(11) NOT NULL,
-  `a\\` int(10) DEFAULT NULL,
+  `a\\` int(10) unsigned DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1' `TABLE_TYPE`='MYSQL'
 INSERT INTO t1 (id, name) VALUES (1, 'foo');

@@ -143,7 +143,7 @@ const char *PLGtoMYSQLtype(int type, bool dbf, char v)
 /************************************************************************/
 /*  Convert from MySQL type to PlugDB type number                       */
 /************************************************************************/
-int MYSQLtoPLG(int mytype)
+int MYSQLtoPLG(int mytype, char *var)
   {
   int type;
 
@@ -177,7 +177,6 @@ int MYSQLtoPLG(int mytype)
     case MYSQL_TYPE_TIME:
       type = TYPE_DATE;
       break;
-    case MYSQL_TYPE_STRING:
     case MYSQL_TYPE_VAR_STRING:
 #if !defined(ALPHA)
     case MYSQL_TYPE_VARCHAR:
@@ -186,6 +185,8 @@ int MYSQLtoPLG(int mytype)
     case MYSQL_TYPE_TINY_BLOB:
     case MYSQL_TYPE_MEDIUM_BLOB:
     case MYSQL_TYPE_LONG_BLOB:
+      if (var) *var = 'V';
+    case MYSQL_TYPE_STRING:
       type = TYPE_STRING;
       break;
     default:

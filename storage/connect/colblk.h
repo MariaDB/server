@@ -83,6 +83,7 @@ class DllExport COLBLK : public XOBJECT {
   PTDB    To_Tdb;              // Points to Table Descriptor Block
   PXCOL   To_Kcol;             // Points to Xindex matching column
   bool    Nullable;            // True if nullable
+  bool    Unsigned;            // True if unsigned
   int     Index;               // Column number in table
   int     Opt;                 // Cluster/sort information
   int     Buf_Type;            // Data type

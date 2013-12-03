@@ -45,9 +45,12 @@ class VALBLK : public BLOCK {
                   {if (To_Nulls) {To_Nulls[n] = (b) ? '*' : 0;}}
   virtual bool   IsNull(int n) {return To_Nulls && To_Nulls[n];}
   virtual void   SetNullable(bool b);
+  virtual bool   IsUnsigned(void) {return Unsigned;}
   virtual void   Init(PGLOBAL g, bool check) = 0;
   virtual int    GetVlen(void) = 0;
   virtual PSZ    GetCharValue(int n);
+  virtual char   GetTinyValue(int n) = 0;
+  virtual uchar  GetUTinyValue(int n) = 0;
   virtual short  GetShortValue(int n) = 0;
   virtual ushort GetUShortValue(int n) = 0;
   virtual int    GetIntValue(int n) = 0;
@@ -55,8 +58,6 @@ class VALBLK : public BLOCK {
   virtual longlong GetBigintValue(int n) = 0;
   virtual ulonglong GetUBigintValue(int n) = 0;
   virtual double GetFloatValue(int n) = 0;
-  virtual char   GetTinyValue(int n) = 0;
-  virtual uchar  GetUTinyValue(int n) = 0;
   virtual void   ReAlloc(void *mp, int n) {Blkp = mp; Nval = n;}
   virtual void   Reset(int n) = 0;
   virtual bool   SetFormat(PGLOBAL g, PSZ fmt, int len, int year = 0);
@@ -123,6 +124,8 @@ class TYPBLK : public VALBLK {
   virtual void   Init(PGLOBAL g, bool check);
   virtual int    GetVlen(void) {return sizeof(TYPE);}
 //virtual PSZ    GetCharValue(int n);
+  virtual char   GetTinyValue(int n) {return (char)Typp[n];}
+  virtual uchar  GetUTinyValue(int n) {return (uchar)Typp[n];}
   virtual short  GetShortValue(int n) {return (short)Typp[n];}
   virtual ushort GetUShortValue(int n) {return (ushort)Typp[n];}
   virtual int    GetIntValue(int n) {return (int)Typp[n];}
@@ -130,8 +133,6 @@ class TYPBLK : public VALBLK {
   virtual longlong GetBigintValue(int n) {return (longlong)Typp[n];}
   virtual ulonglong GetUBigintValue(int n) {return (ulonglong)Typp[n];}
   virtual double GetFloatValue(int n) {return (double)Typp[n];}
-  virtual char   GetTinyValue(int n) {return (char)Typp[n];}
-  virtual uchar  GetUTinyValue(int n) {return (uchar)Typp[n];}
   virtual void   Reset(int n) {Typp[n] = 0;}
 
   // Methods
@@ -168,9 +169,9 @@ class TYPBLK : public VALBLK {
 
  protected:
   // Specialized functions
+  static ulonglong MaxVal(void);
   TYPE GetTypedValue(PVAL vp);
   TYPE GetTypedValue(PVBLK blk, int n);
-  TYPE GetTypedValue(PSZ s);
 
   // Members
   TYPE* const &Typp;
@@ -189,6 +190,8 @@ class CHRBLK : public VALBLK {
   virtual void   Init(PGLOBAL g, bool check);
   virtual int    GetVlen(void) {return Long;}
   virtual PSZ    GetCharValue(int n);
+  virtual char   GetTinyValue(int n);
+  virtual uchar  GetUTinyValue(int n);
   virtual short  GetShortValue(int n);
   virtual ushort GetUShortValue(int n);
   virtual int    GetIntValue(int n);
@@ -196,8 +199,6 @@ class CHRBLK : public VALBLK {
   virtual longlong GetBigintValue(int n);
   virtual ulonglong GetUBigintValue(int n);
   virtual double GetFloatValue(int n);
-  virtual char   GetTinyValue(int n);
-  virtual uchar  GetUTinyValue(int n);
   virtual void   Reset(int n);
   virtual void   SetPrec(int p) {Ci = (p != 0);}
   virtual bool   IsCi(void) {return Ci;}
@@ -242,15 +243,15 @@ class STRBLK : public VALBLK {
   virtual void   Init(PGLOBAL g, bool check);
   virtual int    GetVlen(void) {return sizeof(PSZ);}
   virtual PSZ    GetCharValue(int n) {return Strp[n];}
-  virtual short  GetShortValue(int n) {return (short)atoi(Strp[n]);}
-  virtual ushort GetUShortValue(int n) {return (ushort)atoi(Strp[n]);}
-  virtual int    GetIntValue(int n) {return atol(Strp[n]);}
-  virtual uint   GetUIntValue(int n) {return (unsigned)atol(Strp[n]);}
-  virtual longlong GetBigintValue(int n) {return atoll(Strp[n]);}
-  virtual ulonglong GetUBigintValue(int n) {return (unsigned)atoll(Strp[n]);}
+  virtual char   GetTinyValue(int n);
+  virtual uchar  GetUTinyValue(int n);
+  virtual short  GetShortValue(int n);
+  virtual ushort GetUShortValue(int n);
+  virtual int    GetIntValue(int n);
+  virtual uint   GetUIntValue(int n);
+  virtual longlong GetBigintValue(int n);
+  virtual ulonglong GetUBigintValue(int n);
   virtual double GetFloatValue(int n) {return atof(Strp[n]);}
-  virtual char   GetTinyValue(int n) {return (char)atoi(Strp[n]);}
-  virtual uchar  GetUTinyValue(int n) {return (uchar)atoi(Strp[n]);}
   virtual void   Reset(int n) {Strp[n] = NULL;}
 
   // Methods

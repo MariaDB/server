@@ -1087,7 +1087,12 @@ void DOSCOL::ReadColumn(PGLOBAL g)
         case TYPE_SHORT:
         case TYPE_TINY:
         case TYPE_BIGINT:
-          Value->SetValue_char(p, field - Dcm);
+          if (Value->SetValue_char(p, field - Dcm)) {
+            sprintf(g->Message, "Out of range value for column %s at row %d",
+                    Name, tdbp->RowNumber(g));
+            PushWarning(g, tdbp);
+            } // endif SetValue_char
+
           break;
         case TYPE_FLOAT:
           Value->SetValue_char(p, field);
@@ -1104,7 +1109,11 @@ void DOSCOL::ReadColumn(PGLOBAL g)
         } // endswitch Buf_Type
 
       else
-        Value->SetValue_char(p, field);
+        if (Value->SetValue_char(p, field)) {
+          sprintf(g->Message, "Out of range value for column %s at row %d",
+                  Name, tdbp->RowNumber(g));
+          PushWarning(g, tdbp);
+          } // endif SetValue_char
 
       break;
     default:
