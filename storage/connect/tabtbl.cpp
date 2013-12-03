@@ -295,15 +295,18 @@ bool TDBTBL::InitTableList(PGLOBAL g)
 /***********************************************************************/
 bool TDBTBL::TestFil(PGLOBAL g, PFIL filp, PTABLE tabp)
   {
-  char *fil, op[8], tn[NAME_LEN];
+  char *body, *fil, op[8], tn[NAME_LEN];
   bool  neg;
 
   if (!filp)
     return TRUE;
-  else if (strstr(filp, " OR ") || strstr(filp, " AND "))
+  else
+    body = filp->Body;
+
+  if (strstr(body, " OR ") || strstr(body, " AND "))
     return TRUE;               // Not handled yet
   else
-    fil = filp + (*filp == '(' ? 1 : 0);
+    fil = body + (*body == '(' ? 1 : 0);
 
   if (sscanf(fil, "TABID %s", op) != 1)
     return TRUE;               // ignore invalid filter

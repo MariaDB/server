@@ -26,7 +26,6 @@
 #define DllItem
 #endif  // !WIN32
 
-//#define TYPE_AM_MYSQL  (AMT)192
 #define MYSQL_ENABLED  0x00000001
 #define MYSQL_LOGON    0x00000002
 
@@ -75,9 +74,12 @@ class DllItem MYSQLC {
 //const char *ServerInfo(void);
   int     KillQuery(ulong id);
   int     ExecSQL(PGLOBAL g, const char *query, int *w = NULL);
+  int     ExecSQLcmd(PGLOBAL g, const char *query, int *w);
+#if defined(MYSQL_PREPARED_STATEMENTS)
   int     PrepareSQL(PGLOBAL g, const char *query);
   int     ExecStmt(PGLOBAL g);
   int     BindParams(PGLOBAL g, MYSQL_BIND *bind);
+#endif   // MYSQL_PREPARED_STATEMENTS
   PQRYRES GetResult(PGLOBAL g, bool pdb = FALSE);
   int     Fetch(PGLOBAL g, int pos);
   char   *GetCharField(int i);
@@ -99,5 +101,6 @@ class DllItem MYSQLC {
   int         m_Rows;       // The number of rows of the result
   int         N;
   int         m_Fields;     // The number of result fields
+  int         m_Afrw;       // The number of affected rows
   }; // end of class MYSQLC
 

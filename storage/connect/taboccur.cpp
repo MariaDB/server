@@ -495,6 +495,7 @@ bool TDBOCCUR::OpenDB(PGLOBAL g)
 	if (Tdbp->OpenDB(g))
     return TRUE;
 
+  Use = USE_OPEN;
   return ViewColumnList(g);
   } // end of OpenDB
 

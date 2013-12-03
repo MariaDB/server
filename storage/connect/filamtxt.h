@@ -17,8 +17,6 @@ typedef class BLKFAM *PBLKFAM;
 typedef class DOSDEF *PDOSDEF;
 typedef class TDBDOS *PTDBDOS;
 
-#define TYPE_AM_BLK  (AMT)160
-
 /***********************************************************************/
 /*  This is the base class for all file access method classes.         */
 /***********************************************************************/

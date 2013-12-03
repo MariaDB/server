@@ -77,13 +77,13 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf' `READONLY`=Yes
 INSERT INTO t1 VALUES (30);
-ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+ERROR HY000: Table 't1' is read only
 UPDATE t1 SET a=30 WHERE a=10;
-ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+ERROR HY000: Table 't1' is read only
 DELETE FROM t1 WHERE a=10;
-ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+ERROR HY000: Table 't1' is read only
 TRUNCATE TABLE t1;
-ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+ERROR HY000: Table 't1' is read only
 ALTER TABLE t1 READONLY=NO;
 Warnings:
 Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk

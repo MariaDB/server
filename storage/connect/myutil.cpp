@@ -29,7 +29,7 @@
 /************************************************************************/
 /*  Convert from MySQL type name to PlugDB type number                  */
 /************************************************************************/
-int MYSQLtoPLG(char *typname)
+int MYSQLtoPLG(char *typname, char *var)
   {
   int type;
 
@@ -55,6 +55,28 @@ int MYSQLtoPLG(char *typname)
     type = TYPE_TINY;
   else
     type = TYPE_ERROR;
+
+  if (var) {
+    // This is to make the difference between CHAR and VARCHAR 
+    if (type == TYPE_STRING && stricmp(typname, "char"))
+      *var = 'V';
+
+    // This is to make the difference between temporal values 
+    if (type == TYPE_DATE) {
+      if (!stricmp(typname, "date"))
+        *var = 'D';
+      else if (!stricmp(typname, "datetime"))
+        *var = 'A';
+      else if (!stricmp(typname, "timestamp"))
+        *var = 'S';
+      else if (!stricmp(typname, "time"))
+        *var = 'T';
+      else if (!stricmp(typname, "year"))
+        *var = 'Y';
+
+      } // endif type
+
+    } // endif var
 
   return type;
   } // end of MYSQLtoPLG
@@ -98,14 +120,18 @@ enum enum_field_types PLGtoMYSQL(int type, bool dbf)
 /************************************************************************/
 /*  Convert from PlugDB type to MySQL type name                         */
 /************************************************************************/
-const char *PLGtoMYSQLtype(int type, bool dbf)
+const char *PLGtoMYSQLtype(int type, bool dbf, char v)
   {
   switch (type) {
     case TYPE_INT:      return "INT";
     case TYPE_SHORT:    return "SMALLINT";
     case TYPE_FLOAT:    return "DOUBLE";
-    case TYPE_DATE:     return dbf ? "DATE" : "DATETIME";
-    case TYPE_STRING:   return "VARCHAR";
+    case TYPE_DATE:     return   dbf ? "DATE" : 
+                          (v == 'S') ? "TIMESTAMP" :
+                          (v == 'D') ? "DATE" :
+                          (v == 'T') ? "TIME" :
+                          (v == 'Y') ? "YEAR" : "DATETIME";
+    case TYPE_STRING:   return v ? "VARCHAR" : "CHAR";
     case TYPE_BIGINT:   return "BIGINT";
     case TYPE_TINY:     return "TINYINT";
     default:            return "CHAR(0)";

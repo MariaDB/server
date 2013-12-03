@@ -524,6 +524,7 @@ bool TDBCAT::OpenDB(PGLOBAL g)
   if (Initialize(g))
     return true;
 
+  Use = USE_OPEN;
   return InitCol(g);
   } // end of OpenDB
 

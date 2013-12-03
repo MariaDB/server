@@ -1,5 +1,5 @@
 /************ Valblk C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALBLK.CPP  Version 1.7                                      */
+/*  Name: VALBLK.CPP  Version 2.0                                      */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
 /*                                                                     */
@@ -16,7 +16,7 @@
 /*  types of objects, we shall have more classes to update.            */
 /*  This is why we are now using a template class for many types.      */
 /*  Currently the only implemented types are PSZ, chars, int, short,   */
-/*  DATE, longlong, and double. Shortly we should add more types.      */
+/*  DATE, longlong, double and tiny. Fix numeric ones can be unsigned. */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -46,7 +46,7 @@
 /*  AllocValBlock: allocate a VALBLK according to type.                */
 /***********************************************************************/
 PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
-                                         int prec, bool check, bool blank)
+                               int prec, bool check, bool blank, bool un)
   {
   PVBLK blkp;
 
@@ -64,22 +64,38 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
 
       break;
     case TYPE_SHORT:
-      blkp = new(g) TYPBLK<short>(mp, nval, type);
+      if (un)
+        blkp = new(g) TYPBLK<ushort>(mp, nval, type, 0, true);
+      else
+        blkp = new(g) TYPBLK<short>(mp, nval, type);
+
       break;
     case TYPE_INT:
-      blkp = new(g) TYPBLK<int>(mp, nval, type);
+      if (un)
+        blkp = new(g) TYPBLK<uint>(mp, nval, type, 0, true);
+      else
+        blkp = new(g) TYPBLK<int>(mp, nval, type);
+
       break;
     case TYPE_DATE:        // ?????
       blkp = new(g) DATBLK(mp, nval);
       break;
     case TYPE_BIGINT:
-      blkp = new(g) TYPBLK<longlong>(mp, nval, type);
+      if (un)
+        blkp = new(g) TYPBLK<ulonglong>(mp, nval, type, 0, true);
+      else
+        blkp = new(g) TYPBLK<longlong>(mp, nval, type);
+
       break;
     case TYPE_FLOAT:
-      blkp = new(g) TYPBLK<double>(mp, nval, prec, type);
+      blkp = new(g) TYPBLK<double>(mp, nval, type, prec);
       break;
     case TYPE_TINY:
-      blkp = new(g) TYPBLK<char>(mp, nval, type);
+      if (un)
+        blkp = new(g) TYPBLK<uchar>(mp, nval, type, 0, true);
+      else
+        blkp = new(g) TYPBLK<char>(mp, nval, type);
+
       break;
     default:
       sprintf(g->Message, MSG(BAD_VALBLK_TYPE), type);
@@ -95,12 +111,13 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
 /***********************************************************************/
 /*  Constructor.                                                       */
 /***********************************************************************/
-VALBLK::VALBLK(void *mp, int type, int nval)
+VALBLK::VALBLK(void *mp, int type, int nval, bool un)
   {
   Blkp = mp;
   To_Nulls = NULL;
   Check = true;
   Nullable = false;
+  Unsigned = un;
   Type = type;
   Nval = nval;
   Prec = 0;
@@ -195,23 +212,15 @@ void VALBLK::ChkTyp(PVBLK vb)
 /* -------------------------- Class TYPBLK --------------------------- */
 
 /***********************************************************************/
-/*  Constructors.                                                      */
+/*  Constructor.                                                       */
 /***********************************************************************/
 template <class TYPE>
-TYPBLK<TYPE>::TYPBLK(void *mp, int nval, int type)
-            : VALBLK(mp, type, nval), Typp((TYPE*&)Blkp)
+TYPBLK<TYPE>::TYPBLK(void *mp, int nval, int type, int prec, bool un)
+            : VALBLK(mp, type, nval, un), Typp((TYPE*&)Blkp)
   {
-  Fmt = GetFmt(Type);
-  } // end of TYPBLK constructor
-
-template <class TYPE>
-TYPBLK<TYPE>::TYPBLK(void *mp, int nval, int prec, int type)
-            : VALBLK(mp, type, nval), Typp((TYPE*&)Blkp)
-  {
-  DBUG_ASSERT(Type == TYPE_FLOAT);
   Prec = prec;
   Fmt = GetFmt(Type);
-  } // end of DBLBLK constructor
+  } // end of TYPBLK constructor
 
 /***********************************************************************/
 /*  Initialization routine.                                            */
@@ -250,12 +259,24 @@ int TYPBLK<int>::GetTypedValue(PVAL valp)
   {return valp->GetIntValue();}
 
 template <>
+uint TYPBLK<uint>::GetTypedValue(PVAL valp)
+  {return valp->GetUIntValue();}
+
+template <>
 short TYPBLK<short>::GetTypedValue(PVAL valp)
   {return valp->GetShortValue();}
 
 template <>
+ushort TYPBLK<ushort>::GetTypedValue(PVAL valp)
+  {return valp->GetUShortValue();}
+
+template <>
 longlong TYPBLK<longlong>::GetTypedValue(PVAL valp)
   {return valp->GetBigintValue();}
+
+template <>
+ulonglong TYPBLK<ulonglong>::GetTypedValue(PVAL valp)
+  {return valp->GetUBigintValue();}
 
 template <>
 double TYPBLK<double>::GetTypedValue(PVAL valp)
@@ -264,6 +285,10 @@ double TYPBLK<double>::GetTypedValue(PVAL valp)
 template <>
 char TYPBLK<char>::GetTypedValue(PVAL valp)
   {return valp->GetTinyValue();}
+
+template <>
+uchar TYPBLK<uchar>::GetTypedValue(PVAL valp)
+  {return valp->GetUTinyValue();}
 
 /***********************************************************************/
 /*  Set one value in a block from a zero terminated string.            */
@@ -286,13 +311,21 @@ void TYPBLK<TYPE>::SetValue(PSZ p, int n)
 template <>
 int TYPBLK<int>::GetTypedValue(PSZ p) {return atol(p);}
 template <>
+uint TYPBLK<uint>::GetTypedValue(PSZ p) {return (unsigned)atol(p);}
+template <>
 short TYPBLK<short>::GetTypedValue(PSZ p) {return (short)atoi(p);}
 template <>
+ushort TYPBLK<ushort>::GetTypedValue(PSZ p) {return (ushort)atoi(p);}
+template <>
 longlong TYPBLK<longlong>::GetTypedValue(PSZ p) {return atoll(p);}
+template <>
+ulonglong TYPBLK<ulonglong>::GetTypedValue(PSZ p) {return (unsigned)atoll(p);}
 template <>
 double TYPBLK<double>::GetTypedValue(PSZ p) {return atof(p);}
 template <>
 char TYPBLK<char>::GetTypedValue(PSZ p) {return (char)atoi(p);}
+template <>
+uchar TYPBLK<uchar>::GetTypedValue(PSZ p) {return (uchar)atoi(p);}
 
 /***********************************************************************/
 /*  Set one value in a block from an array of characters.              */
@@ -334,12 +367,24 @@ int TYPBLK<int>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetIntValue(n);}
 
 template <>
+uint TYPBLK<uint>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetUIntValue(n);}
+
+template <>
 short TYPBLK<short>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetShortValue(n);}
 
 template <>
+ushort TYPBLK<ushort>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetUShortValue(n);}
+
+template <>
 longlong TYPBLK<longlong>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetBigintValue(n);}
+
+template <>
+ulonglong TYPBLK<ulonglong>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetUBigintValue(n);}
 
 template <>
 double TYPBLK<double>::GetTypedValue(PVBLK blk, int n)
@@ -348,6 +393,10 @@ double TYPBLK<double>::GetTypedValue(PVBLK blk, int n)
 template <>
 char TYPBLK<char>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetTinyValue(n);}
+
+template <>
+uchar TYPBLK<uchar>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetUTinyValue(n);}
 
 #if 0
 /***********************************************************************/
@@ -517,6 +566,14 @@ short CHRBLK::GetShortValue(int n)
   } // end of GetShortValue
 
 /***********************************************************************/
+/*  Return the value of the nth element converted to ushort.           */
+/***********************************************************************/
+ushort CHRBLK::GetUShortValue(int n)
+  {
+  return (ushort)atoi((char *)GetValPtrEx(n));
+  } // end of GetShortValue
+
+/***********************************************************************/
 /*  Return the value of the nth element converted to int.              */
 /***********************************************************************/
 int CHRBLK::GetIntValue(int n)
@@ -525,11 +582,27 @@ int CHRBLK::GetIntValue(int n)
   } // end of GetIntValue
 
 /***********************************************************************/
+/*  Return the value of the nth element converted to uint.             */
+/***********************************************************************/
+uint CHRBLK::GetUIntValue(int n)
+  {
+  return (unsigned)atol((char *)GetValPtrEx(n));
+  } // end of GetIntValue
+
+/***********************************************************************/
 /*  Return the value of the nth element converted to big int.          */
 /***********************************************************************/
 longlong CHRBLK::GetBigintValue(int n)
   {
   return atoll((char *)GetValPtrEx(n));
+  } // end of GetBigintValue
+
+/***********************************************************************/
+/*  Return the value of the nth element converted to unsigned big int. */
+/***********************************************************************/
+ulonglong CHRBLK::GetUBigintValue(int n)
+  {
+  return (unsigned)atoll((char *)GetValPtrEx(n));
   } // end of GetBigintValue
 
 /***********************************************************************/
@@ -546,6 +619,14 @@ double CHRBLK::GetFloatValue(int n)
 char CHRBLK::GetTinyValue(int n)
   {
   return (char)atoi((char *)GetValPtrEx(n));
+  } // end of GetTinyValue
+
+/***********************************************************************/
+/*  Return the value of the nth element converted to unsigned tiny int.*/
+/***********************************************************************/
+uchar CHRBLK::GetUTinyValue(int n)
+  {
+  return (uchar)atoi((char *)GetValPtrEx(n));
   } // end of GetTinyValue
 
 /***********************************************************************/
