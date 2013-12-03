@@ -210,7 +210,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
         len = strlen(fmt);
       } else {
         fmt = (char*)fp->option_struct->dateformat;
-        fp->field_length;
+        len = fp->field_length;
       } // endif mysql
 
     } else {
