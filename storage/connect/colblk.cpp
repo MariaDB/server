@@ -41,6 +41,7 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
     Buf_Type = cdp->Buf_Type;
     ColUse |= cdp->Flags;       // Used by CONNECT
     Nullable = !!(cdp->Flags & U_NULLS);
+    Unsigned = !!(cdp->Flags & U_UNSIGNED);
   } else {
     Name = NULL;
     memset(&Format, 0, sizeof(FORMAT));
@@ -48,6 +49,7 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
     Long = 0;
     Buf_Type = TYPE_ERROR;
     Nullable = false;
+    Unsigned = false;
   } // endif cdp
 
   To_Tdb = tdbp;
@@ -171,9 +173,12 @@ bool COLBLK::InitValue(PGLOBAL g)
   if (Value)
     return false;                       // Already done
 
+  // Unsigned can be set only for valid value types
+  int prec = (Unsigned) ? 1 : GetPrecision();
+
   // Allocate a Value object
   if (!(Value = AllocateValue(g, Buf_Type, Format.Length,
-                                 GetPrecision(), GetDomain())))
+                                 prec, GetDomain())))
     return true;
 
   AddStatus(BUF_READY);

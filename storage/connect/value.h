@@ -16,11 +16,6 @@
 #include "assert.h"
 #include "block.h"
 
-#if defined(WIN32)
-#define strtoll _strtoi64
-#define atoll(S) strtoll(S, NULL, 10)
-#endif   // WIN32
-
 /***********************************************************************/
 /*  Types used in some class definitions.                              */
 /***********************************************************************/
@@ -55,6 +50,8 @@ DllExport bool  IsTypeNum(int type);
 DllExport PVAL  AllocateValue(PGLOBAL, PVAL, int = TYPE_VOID, int = 0);
 DllExport PVAL  AllocateValue(PGLOBAL, int, int len = 0, int prec = 0,
                               PSZ fmt = NULL);
+DllExport ulonglong CharToNumber(char *, int, ulonglong, bool, 
+                                 bool *minus = NULL, bool *rc = NULL);
 
 /***********************************************************************/
 /*  Class VALUE represents a constant or variable of any valid type.   */
@@ -96,7 +93,7 @@ class DllExport VALUE : public BLOCK {
 
   // Methods
   virtual bool   SetValue_pval(PVAL valp, bool chktype = false) = 0;
-  virtual void   SetValue_char(char *p, int n) = 0;
+  virtual bool   SetValue_char(char *p, int n) = 0;
   virtual void   SetValue_psz(PSZ s) = 0;
   virtual void   SetValue(char c) {assert(false);}
   virtual void   SetValue(uchar c) {assert(false);}
@@ -112,11 +109,6 @@ class DllExport VALUE : public BLOCK {
   virtual bool   GetBinValue(void *buf, int buflen, bool go) = 0;
   virtual char  *ShowValue(char *buf, int len = 0) = 0;
   virtual char  *GetCharString(char *p) = 0;
-//virtual char  *GetShortString(char *p, int n) {return "#####";}
-//virtual char  *GetIntString(char *p, int n) = 0;
-//virtual char  *GetBigintString(char *p, int n) = 0;
-//virtual char  *GetFloatString(char *p, int n, int prec) = 0;
-//virtual char  *GetTinyString(char *p, int n) {return "?";}
   virtual bool   IsEqual(PVAL vp, bool chktype) = 0;
   virtual bool   FormatValue(PVAL vp, char *fmt) = 0;
 
@@ -169,7 +161,7 @@ class DllExport TYPVAL : public VALUE {
 
   // Methods
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
-  virtual void   SetValue_char(char *p, int n);
+  virtual bool   SetValue_char(char *p, int n);
   virtual void   SetValue_psz(PSZ s);
   virtual void   SetValue(char c) {Tval = (TYPE)c; Null = false;}
   virtual void   SetValue(uchar c) {Tval = (TYPE)c; Null = false;}
@@ -185,11 +177,6 @@ class DllExport TYPVAL : public VALUE {
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
-//virtual char  *GetShortString(char *p, int n);
-//virtual char  *GetIntString(char *p, int n);
-//virtual char  *GetBigintString(char *p, int n);
-//virtual char  *GetFloatString(char *p, int n, int prec = -1);
-//virtual char  *GetTinyString(char *p, int n);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
   virtual bool   FormatValue(PVAL vp, char *fmt);
@@ -201,9 +188,10 @@ class DllExport TYPVAL : public VALUE {
   TYPVAL(void) : VALUE(TYPE_ERROR) {}
 
   // Specialized functions
-  TYPE GetTypedValue(PVAL vp);
-  TYPE GetTypedValue(PVBLK blk, int n);
-  TYPE GetTypedValue(PSZ s);
+  static  ulonglong MaxVal(void);
+          TYPE   GetTypedValue(PVAL vp);
+          TYPE   GetTypedValue(PVBLK blk, int n);
+//        TYPE   GetTypedValue(PSZ s);
 
   // Members
   TYPE        Tval;
@@ -227,21 +215,21 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual int    GetValPrec() {return (Ci) ? 1 : 0;}
   virtual int    GetSize(void) {return (Strp) ? strlen(Strp) : 0;}
   virtual PSZ    GetCharValue(void) {return Strp;}
-  virtual char   GetTinyValue(void) {return (char)atoi(Strp);}
-  virtual uchar  GetUTinyValue(void) {return (uchar)atoi(Strp);}
-  virtual short  GetShortValue(void) {return (short)atoi(Strp);}
-  virtual ushort GetUShortValue(void) {return (ushort)atoi(Strp);}
-  virtual int    GetIntValue(void) {return atol(Strp);}
-  virtual uint   GetUIntValue(void) {return (uint)atol(Strp);}
-  virtual longlong GetBigintValue(void) {return atoll(Strp);}
-  virtual ulonglong GetUBigintValue(void) {return (ulonglong)atoll(Strp);}
+  virtual char   GetTinyValue(void);
+  virtual uchar  GetUTinyValue(void);
+  virtual short  GetShortValue(void);
+  virtual ushort GetUShortValue(void);
+  virtual int    GetIntValue(void);
+  virtual uint   GetUIntValue(void);
+  virtual longlong GetBigintValue(void);
+  virtual ulonglong GetUBigintValue(void);
   virtual double GetFloatValue(void) {return atof(Strp);}
   virtual void  *GetTo_Val(void) {return Strp;}
   virtual void   SetPrec(int prec) {Ci = prec != 0;}
 
   // Methods
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
-  virtual void   SetValue_char(char *p, int n);
+  virtual bool   SetValue_char(char *p, int n);
   virtual void   SetValue_psz(PSZ s);
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetValue(char c);
@@ -257,22 +245,9 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
-//virtual char  *GetShortString(char *p, int n);
-//virtual char  *GetIntString(char *p, int n);
-//virtual char  *GetBigintString(char *p, int n);
-//virtual char  *GetFloatString(char *p, int n, int prec = -1);
-//virtual char  *GetTinyString(char *p, int n);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual bool   FormatValue(PVAL vp, char *fmt);
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
-
-  // Specialized functions
-//template <class T>
-//T      GetValue_as(T type) {return Strp;}
-//int    GetValue_as(int type) {return atol(Strp);}
-//short  GetValue_as(short type) {return (short)atoi(Strp);}
-//longlong GetValue_as(longlong type) {return atoll(Strp);}
-//double GetValue_as(double type) {return atof(Strp);}
 
   // Members
   PSZ         Strp;
@@ -295,7 +270,7 @@ class DllExport DTVAL : public TYPVAL<int> {
 
   // Implementation
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
-  virtual void   SetValue_char(char *p, int n);
+  virtual bool   SetValue_char(char *p, int n);
   virtual void   SetValue_psz(PSZ s);
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual char  *GetCharString(char *p);
@@ -304,15 +279,15 @@ class DllExport DTVAL : public TYPVAL<int> {
           bool   SetFormat(PGLOBAL g, PSZ fmt, int len, int year = 0);
           bool   SetFormat(PGLOBAL g, PVAL valp);
           bool   IsFormatted(void) {return Pdtp != NULL;}
-          bool   GetTmMember(OPVAL op, int& mval);
-          bool   DateDiff(DTVAL *dtp, OPVAL op, int& tdif);
+//        bool   GetTmMember(OPVAL op, int& mval);
+//        bool   DateDiff(DTVAL *dtp, OPVAL op, int& tdif);
           bool   MakeTime(struct tm *ptm);
   static  void   SetTimeShift(void);
   static  int    GetShift(void) {return Shift;}
 
   // Methods
           bool   MakeDate(PGLOBAL g, int *val, int nval);
-          bool   WeekNum(PGLOBAL g, int& nval);
+//        bool   WeekNum(PGLOBAL g, int& nval);
 
   struct  tm    *GetGmTime(struct tm *);
 

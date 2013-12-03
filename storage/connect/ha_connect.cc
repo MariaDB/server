@@ -165,7 +165,7 @@ extern "C" char  nmfile[];
 extern "C" char  pdebug[];
 
 extern "C" {
-       char  version[]= "Version 1.01.0009 October 29, 2013";
+       char  version[]= "Version 1.01.0010 November 30, 2013";
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -777,7 +777,7 @@ int ha_connect::GetIntegerOption(char *opname)
 
   if (opval == (ulonglong)NO_IVAL && options && options->oplist)
     if ((pv= GetListOption(xp->g, opname, options->oplist)))
-      opval= (unsigned)atoll(pv);
+      opval= CharToNumber(pv, strlen(pv), ULONGLONG_MAX, true); 
 
   return (int)opval;
 } // end of GetIntegerOption
@@ -935,6 +935,12 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     default:
       break;
     } // endswitch type
+
+  if (fp->flags & UNSIGNED_FLAG)
+    pcf->Flags |= U_UNSIGNED;
+
+  if (fp->flags & ZEROFILL_FLAG)
+    pcf->Flags |= U_ZEROFILL;
 
   // This is used to skip null bit
   if (fp->real_maybe_null())
@@ -1341,7 +1347,15 @@ int ha_connect::MakeRecord(char *buf)
     
         } else
           if (fp->store(value->GetFloatValue())) {
-            rc= HA_ERR_WRONG_IN_RECORD;
+//          rc= HA_ERR_WRONG_IN_RECORD;   a Warning was ignored
+            char buf[128];
+            THD *thd= ha_thd();
+
+            sprintf(buf, "Out of range value for column '%s' at row %ld",
+              fp->field_name, 
+              thd->get_stmt_da()->current_row_for_warning());
+
+            push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, buf);
             DBUG_PRINT("MakeRecord", ("%s", value->GetCharString(val)));
             } // endif store
 
@@ -3511,7 +3525,7 @@ static bool add_fields(PGLOBAL g,
 #else   // !NEW_WAY
 static bool add_field(String *sql, const char *field_name, int typ,
                       int len, int dec, uint tm, const char *rem,
-                      int flag, bool dbf, char v)
+                      char *dft, int flag, bool dbf, char v)
 {
   char var = (len > 255) ? 'V' : v;
   bool error= false;
@@ -3535,8 +3549,25 @@ static bool add_field(String *sql, const char *field_name, int typ,
     error|= sql->append(')');
     } // endif len
   
+  if (v == 'U')
+    error|= sql->append(" UNSIGNED");
+  else if (v == 'Z')
+    error|= sql->append(" ZEROFILL");
+
   if (tm)
     error|= sql->append(STRING_WITH_LEN(" NOT NULL"), system_charset_info);
+
+  if (dft && *dft) {
+    error|= sql->append(" DEFAULT ");
+
+    if (IsTypeChar(typ)) {
+      error|= sql->append("'");
+      error|= sql->append_for_single_quote(dft, strlen(dft));
+      error|= sql->append("'");
+    } else
+      error|= sql->append(dft);
+
+    } // endif rem
 
   if (rem && *rem) {
     error|= sql->append(" COMMENT '");
@@ -4044,8 +4075,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     } // endif src
 
   if (ok) {
-    char   *cnm, *rem;
-    int     i, len, dec, typ, flg;
+    char   *cnm, *rem, *dft;
+    int     i, len, prec, dec, typ, flg;
     PDBUSER dup= PlgGetUser(g);
     PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
@@ -4154,16 +4185,17 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                        NOT_NULL_FLAG, "", flg, dbf);
 #else   // !NEW_WAY
         // Now add the field
-        if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG, 0, flg, dbf, 0))
+        if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG, 0, NULL, flg, dbf, 0))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
       } // endfor crp
 
     } else              // Not a catalog table
       for (i= 0; !rc && i < qrp->Nblin; i++) {
-        typ= len= dec= 0;
+        typ= len= prec= dec= 0;
         tm= NOT_NULL_FLAG;
         cnm= (char*)"noname";
+        dft= NULL;
 #if defined(NEW_WAY)
         rem= "";
 //      cs= NULL;
@@ -4181,6 +4213,10 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
               v = (crp->Nulls) ? crp->Nulls[i] : 0;
               break;
             case FLD_PREC:
+              // PREC must be always before LENGTH
+              len= prec= crp->Kdata->GetIntValue(i);
+              break;
+            case FLD_LENGTH:
               len= crp->Kdata->GetIntValue(i);
               break;
             case FLD_SCALE:
@@ -4200,6 +4236,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 //              cs= get_charset_by_name(csn, 0);
 
 //            break;
+            case FLD_DEFAULT:
+              dft= crp->Kdata->GetCharValue(i);
+              break;
             default:
               break;                 // Ignore
             } // endswitch Fld
@@ -4209,16 +4248,16 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           int plgtyp;
 
           // typ must be PLG type, not SQL type
-          if (!(plgtyp= TranslateSQLType(typ, dec, len, v))) {
+          if (!(plgtyp= TranslateSQLType(typ, dec, prec, v))) {
             sprintf(g->Message, "Unsupported SQL type %d", typ);
             my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
             return HA_ERR_INTERNAL_ERROR;
           } else
             typ= plgtyp;
 
-          // Some data sources do not count dec in length
+          // Some data sources do not count dec in length (prec)
           if (typ == TYPE_FLOAT)
-            len += (dec + 2);        // To be safe
+            prec += (dec + 2);        // To be safe
           else
             dec= 0;
 
@@ -4227,14 +4266,16 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
         // Make the arguments as required by add_fields
         if (typ == TYPE_DATE)
-          len= 0;
+          prec= 0;
+        else if (typ == TYPE_FLOAT)
+          prec= len;
 
         // Now add the field
 #if defined(NEW_WAY)
         rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
                        tm, rem, 0, true);
 #else   // !NEW_WAY
-        if (add_field(&sql, cnm, typ, len, dec, tm, rem, 0, dbf, v))
+        if (add_field(&sql, cnm, typ, prec, dec, tm, rem, dft, 0, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
         } // endfor i
