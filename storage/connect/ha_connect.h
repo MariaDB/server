@@ -174,7 +174,7 @@ public:
   bool     IsSameIndex(PIXDEF xp1, PIXDEF xp2);
 
   PTDB     GetTDB(PGLOBAL g);
-  bool     OpenTable(PGLOBAL g, bool del= false);
+  int      OpenTable(PGLOBAL g, bool del= false);
   bool     IsOpened(void); 
   int      CloseTable(PGLOBAL g);
   int      MakeRecord(char *buf);

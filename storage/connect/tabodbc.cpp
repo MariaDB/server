@@ -90,8 +90,8 @@ extern int num_read, num_there, num_eq[2];                // Statistics
 /***********************************************************************/
 ODBCDEF::ODBCDEF(void)
   {
-  Connect = Tabname = Tabowner = Tabqual = Srcdef = Qchar = NULL;
-  Catver = Options = 0;
+  Connect = Tabname = Tabowner = Tabqual = Srcdef = Qrystr = NULL;
+  Catver = Options = Quoted = 0;
   Xsrc = false;
   }  // end of ODBCDEF constructor
 
@@ -107,9 +107,11 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Tabowner = Cat->GetStringCatInfo(g, "Owner", "");
   Tabqual = Cat->GetStringCatInfo(g, "Qualifier", "");
   Srcdef = Cat->GetStringCatInfo(g, "Srcdef", NULL);
-  Qchar = Cat->GetStringCatInfo(g, "Qchar", "");
+  Qrystr = Cat->GetStringCatInfo(g, "Query_String", "?");
   Catver = Cat->GetIntCatInfo("Catver", 2);
   Xsrc = Cat->GetBoolCatInfo("Execsrc", FALSE);
+  Mxr = Cat->GetIntCatInfo("Maxerr", 0);
+  Quoted = Cat->GetIntCatInfo("Quoted", 0);
   Options = ODBConn::noOdbcDialog;
   Pseudo = 2;    // FILID is Ok but not ROWID
   return false;
@@ -169,8 +171,9 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
     Owner = tdp->Tabowner;
     Qualifier = tdp->Tabqual;
     Srcdef = tdp->Srcdef;
-    Quote = tdp->GetQchar();
+    Qrystr = tdp->Qrystr;
     Options = tdp->Options;
+    Quoted = max(0, tdp->GetQuoted());
     Rows = tdp->GetElemt();
     Catver = tdp->Catver;
   } else {
@@ -179,12 +182,14 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
     Owner = NULL;
     Qualifier = NULL;
     Srcdef = NULL;
-    Quote = NULL;
+    Qrystr = NULL;
     Options = 0;
+    Quoted = 0;
     Rows = 0;
     Catver = 0;
   } // endif tdp
 
+  Quote = NULL;
   Query = NULL;
   Count = NULL;
 //Where = NULL;
@@ -207,6 +212,7 @@ TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
   Owner = tdbp->Owner;
   Qualifier = tdbp->Qualifier;
   Srcdef = tdbp->Srcdef;
+  Qrystr = tdbp->Qrystr;
   Quote = tdbp->Quote;
   Query = tdbp->Query;
   Count = tdbp->Count;
@@ -214,6 +220,7 @@ TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
   MulConn = tdbp->MulConn;
   DBQ = tdbp->DBQ;
   Options = tdbp->Options;
+  Quoted = tdbp->Quoted;
   Rows = tdbp->Rows;
   Fpos = tdbp->Fpos;
   AftRows = tdbp->AftRows;
@@ -395,7 +402,7 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
 
   // Below 14 is length of 'select ' + length of ' from ' + 1
   len = (strlen(colist) + strlen(buf) + 14);
-  len += (To_Filter ? strlen(To_Filter) + 7 : 0);
+  len += (To_Filter ? strlen(To_Filter->Body) + 7 : 0);
 
 //  if (tablep->GetQualifier())             This is used when using a table
 //    qualp = tablep->GetQualifier();       from anotherPlugDB database but
@@ -432,7 +439,7 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   strcat(sql, tabname);
 
   if (To_Filter)
-    strcat(strcat(sql, " WHERE "), To_Filter);
+    strcat(strcat(sql, " WHERE "), To_Filter->Body);
 
   return sql;
   } // end of MakeSQL
@@ -440,21 +447,18 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
 /***********************************************************************/
 /*  MakeInsert: make the Insert statement used with ODBC connection.   */
 /***********************************************************************/
-bool TDBODBC::MakeInsert(PGLOBAL g)
+char *TDBODBC::MakeInsert(PGLOBAL g)
   {
-  char *colist, *valist;
+  char *stmt, *colist, *valist;
 //  char *tk = "`";
   int   len = 0;
   bool  b = FALSE;
   PCOL  colp;
 
-  if (Query)
-    return false;        // already done
-
   for (colp = Columns; colp; colp = colp->GetNext())
     if (colp->IsSpecial()) {
       strcpy(g->Message, MSG(NO_ODBC_SPECOL));
-      return true;
+      return NULL;
     } else {
       len += (strlen(colp->GetName()) + 4);
       ((PODBCCOL)colp)->Rank = ++Nparm;
@@ -482,18 +486,18 @@ bool TDBODBC::MakeInsert(PGLOBAL g)
 
   // Below 32 is enough to contain the fixed part of the query
   len = (strlen(TableName) + strlen(colist) + strlen(valist) + 32);
-  Query = (char*)PlugSubAlloc(g, NULL, len);
-  strcpy(Query, "INSERT INTO ");
+  stmt = (char*)PlugSubAlloc(g, NULL, len);
+  strcpy(stmt, "INSERT INTO ");
 
   if (Quote)
-    strcat(strcat(strcat(Query, Quote), TableName), Quote);
+    strcat(strcat(strcat(stmt, Quote), TableName), Quote);
   else
-    strcat(Query, TableName);
+    strcat(stmt, TableName);
 
-  strcat(strcat(strcat(Query, " ("), colist), ") VALUES (");
-  strcat(strcat(Query, valist), ")");
+  strcat(strcat(strcat(stmt, " ("), colist), ") VALUES (");
+  strcat(strcat(stmt, valist), ")");
 
-  return false;
+  return stmt;
   } // end of MakeInsert
 
 /***********************************************************************/
@@ -515,6 +519,127 @@ bool TDBODBC::BindParameters(PGLOBAL g)
   } // end of BindParameters
 
 /***********************************************************************/
+/*  MakeCommand: make the Update or Delete statement to send to the    */
+/*  MySQL server. Limited to remote values and filtering.              */
+/***********************************************************************/
+char *TDBODBC::MakeCommand(PGLOBAL g)
+  {
+  char *p, name[68], *qc = Ocp->GetQuoteChar();
+  char *stmt = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
+  char *qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 1);
+  bool  qtd = Quoted > 0;
+  int   i = 0, k = 0;
+
+  // Make a lower case copy of the originale query and change
+  // back ticks to the data source identifier quoting character
+  do {
+    qrystr[i] = (Qrystr[i] == '`') ? *qc : tolower(Qrystr[i]);
+    } while (Qrystr[i++]);
+
+  // Check whether the table name is equal to a keyword
+  // If so, it must be quoted in the original query
+  strlwr(strcat(strcat(strcpy(name, " "), Name), " "));
+
+  if (!strstr(" update delete low_priority ignore quick from ", name))
+    strlwr(strcpy(name, Name));     // Not a keyword
+  else
+    strlwr(strcat(strcat(strcpy(name, qc), Name), qc));
+
+  if ((p = strstr(qrystr, name))) {
+    for (i = 0; i < p - qrystr; i++)
+      stmt[i] = (Qrystr[i] == '`') ? *qc : Qrystr[i];
+
+    stmt[i] = 0;
+    k = i + (int)strlen(Name);
+
+    if (qtd && *(p-1) == ' ')
+      strcat(strcat(strcat(stmt, qc), TableName), qc);
+    else
+      strcat(stmt, TableName);
+
+    i = (int)strlen(stmt);
+
+    do {
+      stmt[i++] = (Qrystr[k] == '`') ? *qc : Qrystr[k];
+      } while (Qrystr[k++]);
+
+  } else {
+    sprintf(g->Message, "Cannot use this %s command",
+                 (Mode == MODE_UPDATE) ? "UPDATE" : "DELETE");
+    return NULL;
+  } // endif p
+
+  return stmt;
+  } // end of MakeCommand
+
+#if 0
+/***********************************************************************/
+/*  MakeUpdate: make the SQL statement to send to ODBC connection.     */
+/***********************************************************************/
+char *TDBODBC::MakeUpdate(PGLOBAL g)
+  {
+  char *qc, *stmt = NULL, cmd[8], tab[96], end[1024];
+
+  stmt = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
+  memset(end, 0, sizeof(end));
+
+  if (sscanf(Qrystr, "%s `%[^`]`%1023c", cmd, tab, end) > 2 ||
+      sscanf(Qrystr, "%s \"%[^\"]\"%1023c", cmd, tab, end) > 2)
+    qc = Ocp->GetQuoteChar();
+  else if (sscanf(Qrystr, "%s %s%1023c", cmd, tab, end) > 2)
+    qc = (Quoted) ? Quote : "";
+  else {
+    strcpy(g->Message, "Cannot use this UPDATE command");
+    return NULL;
+  } // endif sscanf
+
+  assert(!stricmp(cmd, "update"));
+  strcat(strcat(strcat(strcpy(stmt, "UPDATE "), qc), TableName), qc);
+
+  for (int i = 0; end[i]; i++)
+    if (end[i] == '`')
+      end[i] = *qc;
+
+  strcat(stmt, end);
+  return stmt;
+  } // end of MakeUpdate
+
+/***********************************************************************/
+/*  MakeDelete: make the SQL statement to send to ODBC connection.     */
+/***********************************************************************/
+char *TDBODBC::MakeDelete(PGLOBAL g)
+  {
+  char *qc, *stmt = NULL, cmd[8], from[8], tab[96], end[512];
+
+  stmt = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
+  memset(end, 0, sizeof(end));
+
+  if (sscanf(Qrystr, "%s %s `%[^`]`%511c", cmd, from, tab, end) > 2 ||
+      sscanf(Qrystr, "%s %s \"%[^\"]\"%511c", cmd, from, tab, end) > 2)
+    qc = Ocp->GetQuoteChar();
+  else if (sscanf(Qrystr, "%s %s %s%511c", cmd, from, tab, end) > 2)
+    qc = (Quoted) ? Quote : "";
+  else {
+    strcpy(g->Message, "Cannot use this DELETE command");
+    return NULL;
+  } // endif sscanf
+
+  assert(!stricmp(cmd, "delete") && !stricmp(from, "from"));
+  strcat(strcat(strcat(strcpy(stmt, "DELETE FROM "), qc), TableName), qc);
+
+  if (*end) {
+    for (int i = 0; end[i]; i++)
+      if (end[i] == '`')
+        end[i] = *qc;
+
+    strcat(stmt, end);
+    } // endif end
+
+  return stmt;
+  } // end of MakeDelete
+#endif // 0
+
+/***********************************************************************/
 /*  ResetSize: call by TDBMUL when calculating size estimate.          */
 /***********************************************************************/
 void TDBODBC::ResetSize(void)
@@ -533,7 +658,7 @@ int TDBODBC::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
     // Make MariaDB happy
-    MaxSize = 100;
+    MaxSize = (Mode == MODE_DELETE) ? 0 : 10;
 #if 0
     // This is unuseful and takes time
     if (Srcdef) {
@@ -616,51 +741,40 @@ bool TDBODBC::OpenDB(PGLOBAL g)
 
   if (Ocp->Open(Connect, Options) < 1)
     return true;
+  else if (Quoted)
+    Quote = Ocp->GetQuoteChar();
 
   Use = USE_OPEN;       // Do it now in case we are recursively called
 
   /*********************************************************************/
-  /*  Allocate whatever is used for getting results.                   */
+  /*  Make the command and allocate whatever is used for getting results.                   */
   /*********************************************************************/
   if (Mode == MODE_READ) {
-    /*******************************************************************/
-    /* The issue here is that if max result size is needed, it must be */
-    /* calculated before the result set for the final data retrieval is*/
-    /* allocated and the final statement prepared so we call GetMaxSize*/
-    /* here. It can be a waste of time if the max size is not needed   */
-    /* but currently we always are asking for it (for progress info).  */
-    /*******************************************************************/
-    GetMaxSize(g);        // Will be set for next call
+    if ((Query = MakeSQL(g, false))) {
+      for (PODBCCOL colp = (PODBCCOL)Columns; colp;
+                    colp = (PODBCCOL)colp->GetNext())
+        if (!colp->IsSpecial())
+          colp->AllocateBuffers(g, Rows);
 
-    if (!Query)
-      if ((Query = MakeSQL(g, false))) {
-        for (PODBCCOL colp = (PODBCCOL)Columns;
-                colp; colp = (PODBCCOL)colp->GetNext())
-          if (!colp->IsSpecial())
-            colp->AllocateBuffers(g, Rows);
-
-      } else {
-        Ocp->Close();
-        return true;
+      rc = ((Rows = Ocp->ExecDirectSQL(Query, (PODBCCOL)Columns)) < 0);
       } // endif Query
 
-    if (!rc)
-      rc = ((Rows = Ocp->ExecDirectSQL(Query, (PODBCCOL)Columns)) < 0);
-
   } else if (Mode == MODE_INSERT) {
-    if (!(rc = MakeInsert(g)))
+    if ((Query = MakeInsert(g))) {
       if (Nparm != Ocp->PrepareSQL(Query)) {
         strcpy(g->Message, MSG(PARM_CNT_MISS));
         rc = true;
       } else
         rc = BindParameters(g);
 
-  } else {
-    strcpy(g->Message, "No DELETE/UPDATE of ODBC tablesd");
-    return true;
-  } // endelse
+      } // endif Query
 
-  if (rc) {
+  } else if (Mode == MODE_UPDATE || Mode == MODE_DELETE)
+    Query = MakeCommand(g);
+  else
+    sprintf(g->Message, "Invalid mode %d", Mode);
+
+  if (!Query || rc) {
     Ocp->Close();
     return true;
     } // endif rc
@@ -691,6 +805,21 @@ int TDBODBC::ReadDB(PGLOBAL g)
     htrc("ODBC ReadDB: R%d Mode=%d key=%p link=%p Kindex=%p\n",
       GetTdb_No(), Mode, To_Key_Col, To_Link, To_Kindex);
 
+  if (Mode == MODE_UPDATE || Mode == MODE_DELETE) {
+    // Send the UPDATE/DELETE command to the remote table
+    if (!Ocp->ExecSQLcommand(Query)) {
+      sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
+
+      if (trace)
+        htrc("%s\n", g->Message);
+
+      PushWarning(g, this, 0);    // 0 means a Note
+      return RC_EF;               // Nothing else to do
+    } else
+      return RC_FX;               // Error
+
+    } // endif Mode
+
   if (To_Kindex) {
     // Direct access of ODBC tables is not implemented yet
     strcpy(g->Message, MSG(NO_ODBC_DIRECT));
@@ -720,7 +849,7 @@ int TDBODBC::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBODBC::WriteDB(PGLOBAL g)
   {
-  int n = Ocp->ExecuteSQL(false);
+  int n = Ocp->ExecuteSQL();
 
   if (n < 0) {
     AftRows = n;
@@ -736,8 +865,22 @@ int TDBODBC::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBODBC::DeleteDB(PGLOBAL g, int irc)
   {
-  strcpy(g->Message, MSG(NO_ODBC_DELETE));
-  return RC_FX;
+  if (irc == RC_FX) {
+    // Send the DELETE (all) command to the remote table
+    if (!Ocp->ExecSQLcommand(Query)) {
+      sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
+
+      if (trace)
+        htrc("%s\n", g->Message);
+
+      PushWarning(g, this, 0);    // 0 means a Note
+      return RC_OK;               // This is a delete all
+    } else
+      return RC_FX;               // Error
+
+  } else
+    return RC_OK;                 // Ignore
+
   } // end of DeleteDB
 
 /***********************************************************************/
@@ -751,6 +894,7 @@ void TDBODBC::CloseDB(PGLOBAL g)
 //  } // endif
 
   if (Ocp)
+
     Ocp->Close();
 
   if (trace)
@@ -934,7 +1078,7 @@ void ODBCCOL::AllocateBuffers(PGLOBAL g, int rows)
   if (Buf_Type == TYPE_DATE)
     Bufp = PlugSubAlloc(g, NULL, rows * sizeof(TIMESTAMP_STRUCT));
   else {
-    Blkp = AllocValBlock(g, NULL, Buf_Type, rows, Long+1, 0, true, false);
+    Blkp = AllocValBlock(g, NULL, Buf_Type, rows, Long+1, 0, true, false, false);
     Bufp = Blkp->GetValPointer();
     } // endelse
 
@@ -1004,6 +1148,22 @@ void ODBCCOL::WriteColumn(PGLOBAL g)
 /***********************************************************************/
 /*  Implementation of the TDBODBC class.                               */
 /***********************************************************************/
+TDBXDBC::TDBXDBC(PODEF tdp) : TDBODBC(tdp)
+{
+  Cmdlist = NULL;
+  Cmdcol = NULL;
+  Mxr = tdp->Mxr;
+  Nerr = 0;
+} // end of TDBXDBC constructor
+
+TDBXDBC::TDBXDBC(PTDBXDBC tdbp) : TDBODBC(tdbp)
+{
+  Cmdlist = tdbp->Cmdlist;
+  Cmdcol = tdbp->Cmdcol;
+  Mxr = tdbp->Mxr;
+  Nerr = tdbp->Nerr;
+} // end of TDBXDBC copy constructor
+
 PTDB TDBXDBC::CopyOne(PTABS t)
   {
   PTDB     tp;
@@ -1036,23 +1196,15 @@ PCOL TDBXDBC::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 /*  MakeCMD: make the SQL statement to send to ODBC connection.        */
 /***********************************************************************/
-char *TDBXDBC::MakeCMD(PGLOBAL g)
+PCMD TDBXDBC::MakeCMD(PGLOBAL g)
   {
-  char *xcmd = NULL;
+  PCMD xcmd = NULL;
 
   if (To_Filter) {
     if (Cmdcol) {
-      char col[128], cmd[1024];
-      int n;
-      
-      memset(cmd, 0, sizeof(cmd));
-      n = sscanf(To_Filter, "%s = '%1023c", col, cmd);
-  
-      if (n == 2 && !stricmp(col, Cmdcol)) {
-        xcmd = (char*)PlugSubAlloc(g, NULL, strlen(cmd) + 1);
-  
-        strcpy(xcmd, cmd);
-        xcmd[strlen(xcmd) - 1] = 0;
+      if (!stricmp(Cmdcol, To_Filter->Body) &&
+          (To_Filter->Op == OP_EQ || To_Filter->Op == OP_IN)) {
+        xcmd = To_Filter->Cmds;
       } else
         strcpy(g->Message, "Invalid command specification filter");
 
@@ -1062,7 +1214,7 @@ char *TDBXDBC::MakeCMD(PGLOBAL g)
   } else if (!Srcdef)
     strcpy(g->Message, "No Srcdef default command");
   else
-    xcmd = Srcdef;
+    xcmd = new(g) CMD(g, Srcdef);
 
   return xcmd;
   } // end of MakeCMD
@@ -1088,12 +1240,12 @@ bool TDBXDBC::BindParameters(PGLOBAL g)
 #endif // 0
 
 /***********************************************************************/
-/*  XDBC GetMaxSize: returns table size (always one row).              */
+/*  XDBC GetMaxSize: returns table size (not always one row).          */
 /***********************************************************************/
 int TDBXDBC::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0)
-    MaxSize = 1;
+    MaxSize = 10;             // Just a guess
 
   return MaxSize;
   } // end of GetMaxSize
@@ -1142,19 +1294,12 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
   /*********************************************************************/
   /*  Get the command to execute.                                      */
   /*********************************************************************/
-  if (!(Query = MakeCMD(g))) {
+  if (!(Cmdlist = MakeCMD(g))) {
     Ocp->Close();
     return true;
     } // endif Query
 
   Rows = 1;
-
-  if (Ocp->PrepareSQL(Query)) {
-    strcpy(g->Message, "Parameters not supported");
-    AftRows = -1;
-  } else
-    AftRows = 0;
-
   return false;
   } // end of OpenDB
 
@@ -1163,18 +1308,18 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
 /***********************************************************************/
 int TDBXDBC::ReadDB(PGLOBAL g)
   {
-  if (trace)
-    htrc("XDBC ReadDB: query=%s\n", SVP(Query));
+  if (Cmdlist) {
+    Query = Cmdlist->Cmd;
 
-  if (Rows--) {
-    if (!AftRows)
-      AftRows = Ocp->ExecuteSQL(true);
+    if (Ocp->ExecSQLcommand(Query))
+      Nerr++;
 
-  } else 
+    Fpos++;                // Used for progress info
+    Cmdlist = (Nerr > Mxr) ? NULL : Cmdlist->Next;
+    return RC_OK;
+  } else
     return RC_EF;
 
-  Fpos++;                // Used for progress info
-  return RC_OK;
   } // end of ReadDB
 
 /***********************************************************************/
@@ -1183,6 +1328,15 @@ int TDBXDBC::ReadDB(PGLOBAL g)
 int TDBXDBC::WriteDB(PGLOBAL g)
   {
   strcpy(g->Message, "Execsrc tables are read only");
+  return RC_FX;
+  } // end of DeleteDB
+
+/***********************************************************************/
+/*  Data Base delete line routine for ODBC access method.              */
+/***********************************************************************/
+int TDBXDBC::DeleteDB(PGLOBAL g, int irc)
+  {
+  strcpy(g->Message, MSG(NO_ODBC_DELETE));
   return RC_FX;
   } // end of DeleteDB
 

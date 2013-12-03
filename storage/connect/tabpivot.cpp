@@ -607,6 +607,8 @@ bool TDBPIVOT::OpenDB(PGLOBAL g)
 	if (Tdbp->OpenDB(g))
 		return TRUE;
 
+  Use = USE_OPEN;       // Do it now in case we are recursively called
+
   /*********************************************************************/
   /*  Make all required pivot columns for object views.                */
   /*********************************************************************/

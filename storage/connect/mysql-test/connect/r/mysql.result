@@ -44,7 +44,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
-  `b` varchar(10) DEFAULT NULL
+  `b` char(10) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a	b
@@ -176,7 +176,7 @@ t1	CREATE TABLE `t1` (
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` varchar(10) DEFAULT NULL
+  `a` char(10) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 a

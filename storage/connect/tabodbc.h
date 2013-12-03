@@ -34,7 +34,7 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ  GetTabowner(void) {return Tabowner;}
   PSZ  GetTabqual(void) {return Tabqual;}
   PSZ  GetSrcdef(void) {return Srcdef;}
-  PSZ  GetQchar(void) {return (Qchar && *Qchar) ? Qchar : NULL;} 
+  int  GetQuoted(void) {return Quoted;} 
   int  GetCatver(void) {return Catver;}
   int  GetOptions(void) {return Options;}
 
@@ -50,8 +50,11 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ     Tabqual;            /* External table qualifier              */
   PSZ     Srcdef;             /* The source table SQL definition       */
   PSZ     Qchar;              /* Identifier quoting character          */
+  PSZ     Qrystr;             /* The original query                    */
   int     Catver;             /* ODBC version for catalog functions    */
   int     Options;            /* Open connection options               */
+  int     Quoted;             /* Identifier quoting level              */
+  int     Mxr;                /* Maxerr for an Exec table              */
   bool    Xsrc;               /* Execution type                        */
   }; // end of ODBCDEF
 
@@ -96,13 +99,14 @@ class TDBODBC : public TDBASE {
 
  protected:
   // Internal functions
-  int Decode(char *utf, char *buf, size_t n);
+  int   Decode(char *utf, char *buf, size_t n);
   char *MakeSQL(PGLOBAL g, bool cnt);
-//bool  MakeUpdate(PGLOBAL g, PSELECT selist);
-  bool  MakeInsert(PGLOBAL g);
-//bool  MakeDelete(PGLOBAL g);
+  char *MakeInsert(PGLOBAL g);
+  char *MakeCommand(PGLOBAL g);
 //bool  MakeFilter(PGLOBAL g, bool c);
   bool  BindParameters(PGLOBAL g);
+//char *MakeUpdate(PGLOBAL g);
+//char *MakeDelete(PGLOBAL g);
 
   // Members
   ODBConn *Ocp;               // Points to an ODBC connection class
@@ -118,7 +122,9 @@ class TDBODBC : public TDBASE {
   char    *Quote;             // The identifier quoting character
   char    *MulConn;           // Used for multiple ODBC tables
   char    *DBQ;               // The address part of Connect string
+  char    *Qrystr;            // The original query
   int      Options;           // Connect options
+  int      Quoted;            // The identifier quoting level
   int      Fpos;              // Position of last read record
   int      AftRows;           // The number of affected rows
   int      Rows;              // Rowset size
@@ -179,12 +185,12 @@ class TDBXDBC : public TDBODBC {
   friend class XSRCCOL;
   friend class ODBConn;
  public:
-  // Constructor
-  TDBXDBC(PODEF tdp = NULL) : TDBODBC(tdp) {Cmdcol = NULL;}
-  TDBXDBC(PTDBXDBC tdbp) : TDBODBC(tdbp) {Cmdcol = tdbp->Cmdcol;}
+  // Constructors
+  TDBXDBC(PODEF tdp = NULL);
+  TDBXDBC(PTDBXDBC tdbp);
 
   // Implementation
-//virtual AMT  GetAmType(void) {return TYPE_AM_ODBC;}
+  virtual AMT  GetAmType(void) {return TYPE_AM_XDBC;}
   virtual PTDB Duplicate(PGLOBAL g)
                 {return (PTDB)new(g) TDBXDBC(this);}
 
@@ -204,16 +210,19 @@ class TDBXDBC : public TDBODBC {
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
   virtual int  WriteDB(PGLOBAL g);
-//virtual int  DeleteDB(PGLOBAL g, int irc);
+  virtual int  DeleteDB(PGLOBAL g, int irc);
 //virtual void CloseDB(PGLOBAL g);
 
  protected:
   // Internal functions
-  char *MakeCMD(PGLOBAL g);
+  PCMD  MakeCMD(PGLOBAL g);
 //bool  BindParameters(PGLOBAL g);
 
   // Members
+  PCMD     Cmdlist;           // The commands to execute
   char    *Cmdcol;            // The name of the Xsrc command column
+  int      Mxr;               // Maximum errors before closing
+  int      Nerr;              // Number of errors so far
   }; // end of class TDBXDBC
 
 /***********************************************************************/

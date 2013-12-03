@@ -3,8 +3,6 @@
 
 #include "tabutil.h"
 
-#define TYPE_AM_OCCUR (AMT)128
-
 typedef class OCCURDEF *POCCURDEF;
 typedef class TDBOCCUR *PTDBOCCUR;
 typedef class OCCURCOL *POCCURCOL;

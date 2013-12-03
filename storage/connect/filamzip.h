@@ -10,9 +10,6 @@
 
 #include "zlib.h"
 
-#define TYPE_AM_ZIP  (AMT)150
-#define TYPE_AM_ZLIB (AMT)155
-
 typedef class ZIPFAM *PZIPFAM;
 typedef class ZBKFAM *PZBKFAM;
 typedef class ZIXFAM *PZIXFAM;

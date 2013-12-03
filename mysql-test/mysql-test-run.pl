@@ -166,6 +166,7 @@ my $DEFAULT_SUITES= join(',', map { "$_-" } qw(
     main
     archive
     binlog
+    connect
     csv
     federated
     funcs_1
@@ -380,7 +381,6 @@ sub main {
   mtr_report("Logging: $0 ", join(" ", @ARGV));
 
  $DEFAULT_SUITES.= ',' . join(',', qw(
-    connect
     query_response_time
     sequence
     spider

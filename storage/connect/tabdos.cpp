@@ -77,7 +77,7 @@ extern "C" int  trace;
 /*  No conversion of block values (check = true).                      */
 /***********************************************************************/
 PVBLK AllocValBlock(PGLOBAL, void *, int, int, int len = 0, int prec = 0,
-                    bool check = true, bool blank = false);
+                    bool check = true, bool blank = false, bool un = false);
 
 /* --------------------------- Class DOSDEF -------------------------- */
 

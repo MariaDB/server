@@ -251,7 +251,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     return true;
     } // endif tdbp
 
-  tdbp->SetMode(mode);
+//tdbp->SetMode(mode);      done in ha_connect::GetTDB
 
   if (!c1) {
     if (mode == MODE_INSERT)
@@ -498,8 +498,8 @@ RCODE  CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all)
 
   if (!tdbp || tdbp->GetMode() != MODE_DELETE)
     return RC_FX;
-//  else
-//    ((PTDBDOX)tdbp)->SetModified(true);
+  else if (tdbp->IsReadOnly())
+    return RC_NF;
 
   if (((PTDBASE)tdbp)->GetDef()->Indexable() && all)
     ((PTDBDOS)tdbp)->Cardinal= 0;
@@ -518,17 +518,13 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
   int     rc= RC_OK;
   TDBDOX *tbxp= NULL;
 
-  if (!tdbp)
-    return rc;                                // Already done
+  if (!tdbp || tdbp->GetUse() != USE_OPEN)
+    return rc;                           // Nothing to do
 
   if (xtrace)
     printf("CntCloseTable: tdbp=%p mode=%d\n", tdbp, tdbp->GetMode());
 
-  /*********************************************************************/
-  /*  This will close the table file(s) and also finalize write        */
-  /*  operations such as Insert, Update, or Delete.                    */
-  /*********************************************************************/
-  if (tdbp->GetMode() == MODE_DELETE)
+  if (tdbp->GetMode() == MODE_DELETE && tdbp->GetUse() == USE_OPEN)
     rc= tdbp->DeleteDB(g, RC_EF);        // Specific A.M. delete routine
 
   //  Prepare error return
@@ -543,6 +539,8 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
     goto err;
     } // endif
 
+  //  This will close the table file(s) and also finalize write
+  //  operations such as Insert, Update, or Delete.
   tdbp->CloseDB(g);
 
   g->jump_level--;

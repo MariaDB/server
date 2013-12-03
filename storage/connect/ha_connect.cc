@@ -165,7 +165,7 @@ extern "C" char  nmfile[];
 extern "C" char  pdebug[];
 
 extern "C" {
-       char  version[]= "Version 1.01.0008 August 18, 2013";
+       char  version[]= "Version 1.01.0009 October 29, 2013";
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -183,7 +183,7 @@ ulong ha_connect::num= 0;
 //int  DTVAL::Shift= 0;
 
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
-static PGLOBAL GetPlug(THD *thd, PCONNECT lxp);
+static PGLOBAL GetPlug(THD *thd, PCONNECT& lxp);
 
 static handler *connect_create_handler(handlerton *hton,
                                    TABLE_SHARE *table,
@@ -258,17 +258,21 @@ ha_create_table_option connect_field_option_list[]=
 /***********************************************************************/
 /*  Push G->Message as a MySQL warning.                                */
 /***********************************************************************/
-bool PushWarning(PGLOBAL g, PTDBASE tdbp)
+bool PushWarning(PGLOBAL g, PTDBASE tdbp, int level)
   {
   PHC    phc;
   THD   *thd;
   MYCAT *cat= (MYCAT*)tdbp->GetDef()->GetCat();
+  Sql_condition::enum_warning_level wlvl;
+  
 
   if (!cat || !(phc= cat->GetHandler()) || !phc->GetTable() ||
       !(thd= (phc->GetTable())->in_use))
     return true;
 
-  push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+//push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+  wlvl= (Sql_condition::enum_warning_level)level;
+  push_warning(thd, wlvl, 0, g->Message);
   return false;
   } // end of PushWarning
 
@@ -552,7 +556,7 @@ static PCONNECT GetUser(THD *thd, PCONNECT xp)
 /****************************************************************************/
 /*  Get the global pointer of the user of this handler.                     */
 /****************************************************************************/
-static PGLOBAL GetPlug(THD *thd, PCONNECT lxp)
+static PGLOBAL GetPlug(THD *thd, PCONNECT& lxp)
 {
   lxp= GetUser(thd, lxp);
   return (lxp) ? lxp->g : NULL;
@@ -659,6 +663,8 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     opval= (char*)options->colist;
   else if (!stricmp(opname, "Data_charset"))
     opval= (char*)options->data_charset;
+  else if (!stricmp(opname, "Query_String"))
+    opval= thd_query_string(table->in_use)->str;
 
   if (!opval && options && options->oplist)
     opval= GetListOption(xp->g, opname, options->oplist);
@@ -1096,19 +1102,20 @@ PTDB ha_connect::GetTDB(PGLOBAL g)
                       && (tdbp->GetMode() == xmod 
                        || tdbp->GetAmType() == TYPE_AM_XML)) {
     tp= tdbp;
-    tp->SetMode(xmod);
+//  tp->SetMode(xmod);
   } else if ((tp= CntGetTDB(g, table_name, xmod, this)))
     valid_query_id= xp->last_query_id;
   else
     printf("GetTDB: %s\n", g->Message);
 
+  tp->SetMode(xmod);
   return tp;
 } // end of GetTDB
 
 /****************************************************************************/
 /*  Open a CONNECT table, restricting column list if cols is true.          */
 /****************************************************************************/
-bool ha_connect::OpenTable(PGLOBAL g, bool del)
+int ha_connect::OpenTable(PGLOBAL g, bool del)
 {
   bool  rc= false;
   char *c1= NULL, *c2=NULL;
@@ -1116,11 +1123,11 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
   // Double test to be on the safe side
   if (!g || !table) {
     printf("OpenTable logical error; g=%p table=%p\n", g, table);
-    return true;
+    return HA_ERR_INITIALIZATION;
     } // endif g
 
   if (!(tdbp= GetTDB(g)))
-    return true;
+    return RC_FX;
   else if (tdbp->IsReadOnly())
     switch (xmod) {
       case MODE_WRITE:
@@ -1128,7 +1135,7 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
       case MODE_UPDATE:
       case MODE_DELETE:
         strcpy(g->Message, MSG(READ_ONLY));
-        return true;
+        return HA_ERR_TABLE_READONLY;
       default:
         break;
       } // endswitch xmode
@@ -1205,7 +1212,7 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
     valid_info= false;
     } // endif rc
 
-  return rc;
+  return (rc) ? HA_ERR_INITIALIZATION : 0;
 } // end of OpenTable
 
 
@@ -1239,15 +1246,16 @@ int ha_connect::CloseTable(PGLOBAL g)
 /***********************************************************************/
 int ha_connect::MakeRecord(char *buf)
 {
-  char            *p, *fmt, val[32];
-  int              rc= 0;
-  Field*          *field;
-  Field           *fp;
-  my_bitmap_map   *org_bitmap;
-  CHARSET_INFO    *charset= tdbp->data_charset();
-  const MY_BITMAP *map;
-  PVAL             value;
-  PCOL             colp= NULL;
+  char          *p, *fmt, val[32];
+  int            rc= 0;
+  Field*        *field;
+  Field         *fp;
+  my_bitmap_map *org_bitmap;
+  CHARSET_INFO  *charset= tdbp->data_charset();
+//MY_BITMAP      readmap;
+  MY_BITMAP     *map;
+  PVAL           value;
+  PCOL           colp= NULL;
   DBUG_ENTER("ha_connect::MakeRecord");
 
   if (xtrace > 1)
@@ -1263,7 +1271,7 @@ int ha_connect::MakeRecord(char *buf)
   memset(buf, 0, table->s->null_bytes);
 
   // When sorting read_set selects all columns, so we use def_read_set
-  map= (const MY_BITMAP *)&table->def_read_set;
+  map= (MY_BITMAP *)&table->def_read_set;
 
   // Make the pseudo record from field values
   for (field= table->field; *field && !rc; field++) {
@@ -1299,6 +1307,9 @@ int ha_connect::MakeRecord(char *buf)
                 break;
               case MYSQL_TYPE_TIME:
                 fmt= "%H:%M:%S";
+                break;
+              case MYSQL_TYPE_YEAR:
+                fmt= "%Y";
                 break;
               default:
                 fmt= "%Y-%m-%d %H:%M:%S";
@@ -1401,24 +1412,25 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
           value->SetValue(fp->val_real());
           break;
         case TYPE_DATE:
-          if (!sdvalin) {
+          if (!sdvalin)
             sdvalin= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
 
-            // Get date in the format produced by MySQL fields
-            switch (fp->type()) {
-              case MYSQL_TYPE_DATE:
-                fmt= "YYYY-MM-DD";
-                break;
-              case MYSQL_TYPE_TIME:
-                fmt= "hh:mm:ss";
-                break;
-              default:
-                fmt= "YYYY-MM-DD hh:mm:ss";
-              } // endswitch type
+          // Get date in the format produced by MySQL fields
+          switch (fp->type()) {
+            case MYSQL_TYPE_DATE:
+              fmt= "YYYY-MM-DD";
+              break;
+            case MYSQL_TYPE_TIME:
+              fmt= "hh:mm:ss";
+              break;
+            case MYSQL_TYPE_YEAR:
+              fmt= "YYYY";
+              break;
+            default:
+              fmt= "YYYY-MM-DD hh:mm:ss";
+            } // endswitch type
 
-            ((DTVAL*)sdvalin)->SetFormat(g, fmt, strlen(fmt));
-            } // endif sdvalin
-
+          ((DTVAL*)sdvalin)->SetFormat(g, fmt, strlen(fmt));
           fp->val_str(&attribute);
           sdvalin->SetValue_psz(attribute.c_ptr_safe());
           value->SetValue_pval(sdvalin);
@@ -1557,8 +1569,9 @@ const char *ha_connect::GetValStr(OPVAL vop, bool neg)
 /***********************************************************************/
 PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
 {
+  char *body= filp->Body;
   unsigned int i;
-  bool  ismul= false;
+  bool  ismul= false, x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC);
   PPARM pfirst= NULL, pprec= NULL, pp[2]= {NULL, NULL};
   OPVAL vop= OP_XX;
 
@@ -1571,6 +1584,9 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
   if (cond->type() == COND::COND_ITEM) {
     char      *p1, *p2;
     Item_cond *cond_item= (Item_cond *)cond;
+
+    if (x)
+      return NULL;
 
     if (xtrace > 1)
       printf("Cond: Ftype=%d name=%s\n", cond_item->functype(),
@@ -1586,7 +1602,7 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
     List_iterator<Item> li(*arglist);
     Item *subitem;
 
-    p1= filp + strlen(filp);
+    p1= body + strlen(body);
     strcpy(p1, "(");
     p2= p1 + 1;
 
@@ -1615,7 +1631,7 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
   } else if (cond->type() == COND::FUNC_ITEM) {
     unsigned int i;
 //  int   n;
-    bool  iscol, neg= FALSE;
+    bool       iscol, neg= FALSE;
     Item_func *condf= (Item_func *)cond;
     Item*     *args= condf->arguments();
 
@@ -1644,6 +1660,9 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
     else if (ismul && tty == TYPE_AM_WMI)
       return NULL;        // Not supported by WQL
 
+    if (x && (neg || !(vop == OP_EQ || vop == OP_IN)))
+      return NULL;
+
     for (i= 0; i < condf->argument_count(); i++) {
       if (xtrace > 1)
         printf("Argtype(%d)=%d\n", i, args[i]->type());
@@ -1659,6 +1678,9 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
         const char *fnm;
         ha_field_option_struct *fop;
         Item_field *pField= (Item_field *)args[i];
+
+        if (x && i)
+          return NULL;
 
         if (pField->field->table != table)
           return NULL;  // Field does not belong to this table
@@ -1685,10 +1707,10 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
         if (i && ismul)
           return NULL;
 
-        strcat(filp, fnm);
+        strcat(body, fnm);
       } else {
-        char   buff[256];
-        String *res, tmp(buff,sizeof(buff), &my_charset_bin);
+        char    buff[256];
+        String *res, tmp(buff, sizeof(buff), &my_charset_bin);
         Item_basic_constant *pval= (Item_basic_constant *)args[i];
 
         if ((res= pval->val_str(&tmp)) == NULL)
@@ -1698,25 +1720,45 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
           printf("Value=%.*s\n", res->length(), res->ptr());
 
         // IN and BETWEEN clauses should be col VOP list
-        if (!i && ismul)
+        if (!i && (x || ismul))
           return NULL;
 
-        // Append the value to the filter
-        if (args[i]->type() == COND::STRING_ITEM)
-          strcat(strcat(strcat(filp, "'"), res->ptr()), "'");
-        else
-          strncat(filp, res->ptr(), res->length());
+        if (!x) {
+          // Append the value to the filter
+          if (args[i]->field_type() == MYSQL_TYPE_VARCHAR)
+            strcat(strcat(strcat(body, "'"), res->ptr()), "'");
+          else
+            strncat(body, res->ptr(), res->length());
+
+        } else {
+          if (args[i]->field_type() == MYSQL_TYPE_VARCHAR) {
+            // Add the command to the list
+            PCMD *ncp, cmdp= new(g) CMD(g, (char*)res->ptr());
+
+            for (ncp= &filp->Cmds; *ncp; ncp= &(*ncp)->Next) ;
+
+            *ncp= cmdp;
+          } else
+            return NULL;
+
+        } // endif x
 
       } // endif
 
-      if (!i)
-        strcat(filp, GetValStr(vop, neg));
-      else if (vop == OP_XX && i == 1)
-        strcat(filp, " AND ");
-      else if (vop == OP_IN)
-        strcat(filp, (i == condf->argument_count() - 1) ? ")" : ",");
+      if (!x) {
+        if (!i)
+          strcat(body, GetValStr(vop, neg));
+        else if (vop == OP_XX && i == 1)
+          strcat(body, " AND ");
+        else if (vop == OP_IN)
+          strcat(body, (i == condf->argument_count() - 1) ? ")" : ",");
+
+        } // endif x
 
       } // endfor i
+
+    if (x)
+      filp->Op= vop;
 
   } else {
     if (xtrace > 1)
@@ -1753,23 +1795,31 @@ const COND *ha_connect::cond_push(const COND *cond)
   DBUG_ENTER("ha_connect::cond_push");
 
   if (tdbp) {
-    AMT tty= tdbp->GetAmType();
+    AMT  tty= tdbp->GetAmType();
+    bool x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC); 
 
     if (tty == TYPE_AM_WMI || tty == TYPE_AM_ODBC ||
-        tty == TYPE_AM_TBL || tty == TYPE_AM_MYSQL) {
+        tty == TYPE_AM_TBL || tty == TYPE_AM_MYSQL || x) {
       PGLOBAL& g= xp->g;
-      PFIL filp= (PFIL)PlugSubAlloc(g, NULL, 0);
+      PFIL filp= (PFIL)PlugSubAlloc(g, NULL, sizeof(FILTER));
 
-      *filp= 0;
+      filp->Body= (char*)PlugSubAlloc(g, NULL, (x) ? 128 : 0);
+      *filp->Body= 0;
+      filp->Op= OP_XX;
+      filp->Cmds= NULL;
 
       if (CheckCond(g, filp, tty, (Item *)cond)) {
         if (xtrace)
-          puts(filp);
+          puts(filp->Body);
+
+        if (!x)
+          PlugSubAlloc(g, NULL, strlen(filp->Body) + 1);
+        else
+          cond= NULL;            // Does this work?
 
         tdbp->SetFilter(filp);
-//      cond= NULL;     // This does not work anyway
-        PlugSubAlloc(g, NULL, strlen(filp) + 1);
-        } // endif filp
+      } else if (x && cond)
+        tdbp->SetFilter(filp);   // Wrong filter
 
       } // endif tty
 
@@ -1965,14 +2015,8 @@ int ha_connect::write_row(uchar *buf)
     if (IsOpened())
       CloseTable(g);
 
-    if (OpenTable(g)) {
-      if (strstr(g->Message, "read only"))
-        rc= HA_ERR_TABLE_READONLY;
-      else
-        rc= HA_ERR_INITIALIZATION;
-
+    if ((rc= OpenTable(g)))
       DBUG_RETURN(rc);
-      } // endif tdbp
 
     } // endif isopened
 
@@ -2337,6 +2381,7 @@ int ha_connect::index_next_same(uchar *buf, const uchar *key, uint keylen)
 */
 int ha_connect::rnd_init(bool scan)
 {
+  int     rc;
   PGLOBAL g= ((table && table->in_use) ? GetPlug(table->in_use, xp) :
               (xp) ? xp->g : NULL);
   DBUG_ENTER("ha_connect::rnd_init");
@@ -2344,18 +2389,21 @@ int ha_connect::rnd_init(bool scan)
   if (xtrace)
     printf("%p in rnd_init: scan=%d\n", this, scan);
 
-  if (g) {
-    if (!table || xmod == MODE_INSERT)
-      DBUG_RETURN(HA_ERR_INITIALIZATION);
+  if (!g || !table || xmod == MODE_INSERT)
+    DBUG_RETURN(HA_ERR_INITIALIZATION);
 
-    // Close the table if it was opened yet (locked?)
-    if (IsOpened())
-      CloseTable(g);
+  // Close the table if it was opened yet (locked?)
+  if (IsOpened())
+    CloseTable(g);
 
-    if (OpenTable(g, xmod == MODE_DELETE))
-      DBUG_RETURN(HA_ERR_INITIALIZATION);
+  // When updating, to avoid skipped update, force the table
+  // handler to retrieve write-only fields to be able to compare 
+  // records and detect data change.
+  if (xmod == MODE_UPDATE)
+    bitmap_union(table->read_set, table->write_set);
 
-    } // endif g
+  if ((rc= OpenTable(g, xmod == MODE_DELETE)))
+    DBUG_RETURN(rc);
 
   xp->nrd= xp->fnd= xp->nfd= 0;
   xp->tb1= my_interval_timer();
@@ -2566,7 +2614,6 @@ int ha_connect::info(uint flag)
         xp->CheckCleanup();
         } // endif xmod
 
-//    tdbp= OpenTable(g, xmod == MODE_DELETE);
       tdbp= GetTDB(g);
       } // endif tdbp
 
@@ -2661,18 +2708,19 @@ int ha_connect::delete_all_rows()
   PGLOBAL g= xp->g;
   DBUG_ENTER("ha_connect::delete_all_rows");
 
-  if (tdbp && tdbp->GetAmType() != TYPE_AM_XML)
+  if (tdbp && tdbp->GetUse() == USE_OPEN &&
+      tdbp->GetAmType() != TYPE_AM_XML &&
+      ((PTDBASE)tdbp)->GetFtype() != RECFM_NAF)
     // Close and reopen the table so it will be deleted
     rc= CloseTable(g);
 
-  if (!(OpenTable(g))) {
+  if (!(rc= OpenTable(g))) {
     if (CntDeleteRow(g, tdbp, true)) {
       printf("%s\n", g->Message);
       rc= HA_ERR_INTERNAL_ERROR;
       } // endif
 
-  } else
-    rc= HA_ERR_INITIALIZATION;
+    } // endif rc
 
   DBUG_RETURN(rc);
 } // end of delete_all_rows
@@ -3461,12 +3509,13 @@ static bool add_fields(PGLOBAL g,
   DBUG_RETURN(0);
 } // end of add_fields
 #else   // !NEW_WAY
-static bool add_field(String *sql, const char *field_name, int typ, int len,
-                      int dec, uint tm, const char *rem, int flag, bool dbf)
+static bool add_field(String *sql, const char *field_name, int typ,
+                      int len, int dec, uint tm, const char *rem,
+                      int flag, bool dbf, char v)
 {
+  char var = (len > 255) ? 'V' : v;
   bool error= false;
-  const char *type= PLGtoMYSQLtype(typ, dbf);
-//        type= PLGtoMYSQLtype(typ, true);         ?????
+  const char *type= PLGtoMYSQLtype(typ, dbf, var);
 
   error|= sql->append('`');
   error|= sql->append(field_name);
@@ -3479,7 +3528,8 @@ static bool add_field(String *sql, const char *field_name, int typ, int len,
 
     if (!strcmp(type, "DOUBLE")) {
       error|= sql->append(',');
-      error|= sql->append_ulonglong(dec);
+      // dec must be <= len and <= 31
+      error|= sql->append_ulonglong(min(dec, (len - 1)));
       } // endif dec
 
     error|= sql->append(')');
@@ -3518,6 +3568,8 @@ static int init_table_share(THD *thd,
                             HA_CREATE_INFO *create_info, 
                             Alter_info *alter_info)
 {
+  KEY         *not_used_1;
+  uint         not_used_2;
   int          rc= 0;
   handler     *file;
   LEX_CUSTRING frm= {0,0};
@@ -3577,9 +3629,8 @@ static int init_table_share(THD *thd,
   tmp_disable_binlog(thd);
 
   file= mysql_create_frm_image(thd, table_s->db.str, table_s->table_name.str,
-                               create_info, alter_info,
-//                             &thd->lex->create_info, &thd->lex->alter_info,
-                               C_ORDINARY_CREATE, &frm);
+                               create_info, alter_info, C_ORDINARY_CREATE, 
+                               &not_used_1, &not_used_2, &frm);
   if (file)
     delete file;
   else
@@ -3772,13 +3823,14 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   TABTYPE     ttp= TAB_UNDEF;
   PQRYRES     qrp= NULL;
   PCOLRES     crp;
-  PGLOBAL     g= GetPlug(thd, NULL);
+  PCONNECT    xp= NULL;
+  PGLOBAL     g= GetPlug(thd, xp);
   PTOS        topt= table_s->option_struct;
 #if defined(NEW_WAY)
 //CHARSET_INFO *cs;
   Alter_info  alter_info;
 #else   // !NEW_WAY
-  char        buf[1024];
+  char        v, buf[1024];
   String      sql(buf, sizeof(buf), system_charset_info);
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
@@ -3821,7 +3873,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #endif   // WIN32
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
     mxr= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
+#if defined(PROMPT_OK)
     cop= atoi(GetListOption(g, "checkdsn", topt->oplist, "0"));
+#endif   // PROMPT_OK
   } else {
     host= "localhost";
     user= "root";
@@ -3879,14 +3933,16 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     case TAB_ODBC:
       dsn= create_info->connect_string.str;
 
-      if (fnc & (FNC_DSN | FNC_DRIVER))
+      if (fnc & (FNC_DSN | FNC_DRIVER)) {
         ok= true;
-      else if (!stricmp(thd->main_security_ctx.host, "localhost")
+#if defined(PROMPT_OK)
+      } else if (!stricmp(thd->main_security_ctx.host, "localhost")
                 && cop == 1) {
         if ((dsn = ODBCCheckConnection(g, dsn, cop)) != NULL) {
           thd->make_lex_string(&create_info->connect_string, dsn, strlen(dsn));
           ok= true;
           } // endif dsn
+#endif   // PROMPT_OK
 
       } else if (!dsn)
         sprintf(g->Message, "Missing %s connection string", topt->type);
@@ -4098,7 +4154,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                        NOT_NULL_FLAG, "", flg, dbf);
 #else   // !NEW_WAY
         // Now add the field
-        if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG, 0, flg, dbf))
+        if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG, 0, flg, dbf, 0))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
       } // endfor crp
@@ -4122,6 +4178,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
               break;
             case FLD_TYPE:
               typ= crp->Kdata->GetIntValue(i);
+              v = (crp->Nulls) ? crp->Nulls[i] : 0;
               break;
             case FLD_PREC:
               len= crp->Kdata->GetIntValue(i);
@@ -4152,7 +4209,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           int plgtyp;
 
           // typ must be PLG type, not SQL type
-          if (!(plgtyp= TranslateSQLType(typ, dec, len))) {
+          if (!(plgtyp= TranslateSQLType(typ, dec, len, v))) {
             sprintf(g->Message, "Unsupported SQL type %d", typ);
             my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
             return HA_ERR_INTERNAL_ERROR;
@@ -4177,7 +4234,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
                        tm, rem, 0, true);
 #else   // !NEW_WAY
-        if (add_field(&sql, cnm, typ, len, dec, tm, rem, 0, true))
+        if (add_field(&sql, cnm, typ, len, dec, tm, rem, 0, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
         } // endfor i
@@ -4671,6 +4728,6 @@ maria_declare_plugin(connect)
   NULL,                                         /* status variables */
   NULL,                                         /* system variables */
   "0.1",                                        /* string version */
-  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL          /* maturity */
+  MariaDB_PLUGIN_MATURITY_ALPHA                 /* maturity */
 }
 maria_declare_plugin_end;
