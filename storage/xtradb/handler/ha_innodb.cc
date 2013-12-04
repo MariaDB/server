@@ -13873,13 +13873,23 @@ wsrep_abort_slave_trx(wsrep_seqno_t bf_seqno, wsrep_seqno_t victim_seqno)
 		(long long)bf_seqno, (long long)victim_seqno);
 	abort();
 }
+/*******************************************************************//**
+This function is used to kill one transaction in BF. */
 int
-wsrep_innobase_kill_one_trx(trx_t *bf_trx, trx_t *victim_trx, ibool signal)
+wsrep_innobase_kill_one_trx(
+	trx_t *bf_trx,           /*!< in: BF trx */
+	trx_t *victim_trx,       /*!< in: victim trx */
+	ibool signal,            /*!< in: signal to be used */
+	ibool have_kernel_mutex) /*!<in: do we own kernel mutex */
 {
 	DBUG_ENTER("wsrep_innobase_kill_one_trx");
 	THD *thd          = (THD *) victim_trx->mysql_thd;
 	THD *bf_thd       = (bf_trx) ? (THD *)bf_trx->mysql_thd : NULL;
 	int64_t bf_seqno  = (bf_thd) ? wsrep_thd_trx_seqno(bf_thd) : 0;
+
+	if (have_kernel_mutex) {
+		ut_ad(mutex_own(&kernel_mutex));
+	}
 
 	if (!thd) {
 		DBUG_PRINT("wsrep", ("no thd for conflicting lock"));
@@ -13985,9 +13995,16 @@ wsrep_innobase_kill_one_trx(trx_t *bf_trx, trx_t *victim_trx, ibool signal)
 			if (wait_lock) {
 				WSREP_DEBUG("canceling wait lock");
 				victim_trx->was_chosen_as_deadlock_victim= TRUE;
-				mutex_enter(&kernel_mutex);
+				if (!have_kernel_mutex) {
+					mutex_enter(&kernel_mutex);
+				}
 				lock_cancel_waiting_and_release(wait_lock);
-				mutex_exit(&kernel_mutex);
+				/* If we already have kernel mutex when we
+				arrived to this function, do not yet release
+				it */
+				if (!have_kernel_mutex) {
+					mutex_exit(&kernel_mutex);
+				}
 			}
 
 			wsrep_thd_awake(bf_thd, thd, signal); 
@@ -14072,6 +14089,9 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 	DBUG_ENTER("wsrep_innobase_abort_thd");
 	trx_t* victim_trx = thd_to_trx(victim_thd);
 	trx_t* bf_trx     = (bf_thd) ? thd_to_trx(bf_thd) : NULL;
+
+	ut_ad(!mutex_own(&kernel_mutex));
+
 	WSREP_DEBUG("abort transaction: BF: %s victim: %s", 
 		    wsrep_thd_query(bf_thd),
 		    wsrep_thd_query(victim_thd));
@@ -14079,7 +14099,7 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 	if (victim_trx)
 	{
 		int rcode = wsrep_innobase_kill_one_trx(bf_trx, victim_trx,
-							signal);
+			signal, FALSE);
 		wsrep_srv_conc_cancel_wait(victim_trx);
 		DBUG_RETURN(rcode);
 	} else {
