@@ -1,4 +1,4 @@
-/* Copyright 2008 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2013 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,9 +27,13 @@
 #include <cstdlib>
 #include "log_event.h"
 
-extern Format_description_log_event *wsrep_format_desc;
 wsrep_t *wsrep                  = NULL;
 my_bool wsrep_emulate_bin_log   = FALSE; // activating parts of binlog interface
+#ifdef GTID_SUPPORT
+/* Sidno in global_sid_map corresponding to group uuid */
+rpl_sidno wsrep_sidno= -1;
+#endif /* GTID_SUPPORT */
+my_bool wsrep_preordered_opt= FALSE;
 
 /*
  * Begin configuration options and their default values
@@ -186,15 +190,36 @@ void wsrep_get_SE_checkpoint(XID* xid)
   plugin_foreach(NULL, get_SE_checkpoint, MYSQL_STORAGE_ENGINE_PLUGIN, xid);
 }
 
-static wsrep_cb_status_t
-wsrep_view_handler_cb (void* app_ctx,
-                       void* recv_ctx,
-                       const wsrep_view_info_t* view,
-                       const char* state,
-                       size_t state_len,
-                       void** sst_req,
-                       size_t* sst_req_len)
+#ifdef GTID_SUPPORT
+void wsrep_init_sidno(const wsrep_uuid_t& uuid)
 {
+  /* generate new Sid map entry from inverted uuid */
+  rpl_sid sid;
+  wsrep_uuid_t ltid_uuid;
+  for (size_t i= 0; i < sizeof(ltid_uuid.data); ++i)
+  {
+      ltid_uuid.data[i] = ~local_uuid.data[i];
+  }
+  sid.copy_from(ltid_uuid.data);
+  global_sid_lock->wrlock();
+  wsrep_sidno= global_sid_map->add_sid(sid);
+  WSREP_INFO("inited wsrep sidno %d", wsrep_sidno);
+  global_sid_lock->unlock();
+}
+#endif /* GTID_SUPPORT */
+
+static wsrep_cb_status_t
+wsrep_view_handler_cb (void*                    app_ctx,
+                       void*                    recv_ctx,
+                       const wsrep_view_info_t* view,
+                       const char*              state,
+                       size_t                   state_len,
+                       void**                   sst_req,
+                       size_t*                  sst_req_len)
+{
+  *sst_req     = NULL;
+  *sst_req_len = 0;
+
   wsrep_member_status_t new_status= local_status.get();
 
   if (memcmp(&cluster_uuid, &view->state_id.uuid, sizeof(wsrep_uuid_t)))
@@ -268,16 +293,18 @@ wsrep_view_handler_cb (void* app_ctx,
     WSREP_DEBUG("[debug]: closing client connections for PRIM");
     wsrep_close_client_connections(TRUE);
 
-    *sst_req_len= wsrep_sst_prepare (sst_req);
+    ssize_t const req_len= wsrep_sst_prepare (sst_req);
 
-    if (*sst_req_len < 0)
+    if (req_len < 0)
     {
-      int err = *sst_req_len;
-      WSREP_ERROR("SST preparation failed: %d (%s)", -err, strerror(-err));
+      WSREP_ERROR("SST preparation failed: %zd (%s)", -req_len,
+                  strerror(-req_len));
       new_status= WSREP_MEMBER_UNDEFINED;
     }
     else
     {
+      assert(sst_req != NULL);
+      *sst_req_len= req_len;
       new_status= WSREP_MEMBER_JOINER;
     }
   }
@@ -307,6 +334,9 @@ wsrep_view_handler_cb (void* app_ctx,
       wsrep_xid_init(&xid, &local_uuid, local_seqno);
       wsrep_set_SE_checkpoint(&xid);
       new_status= WSREP_MEMBER_JOINED;
+#ifdef GTID_SUPPORT
+      wsrep_init_sidno(local_uuid);
+#endif /* GTID_SUPPORT */
     }
 
     // just some sanity check
@@ -424,7 +454,7 @@ static void wsrep_init_position()
   }
 }
 
-extern const char* my_bind_addr_str;
+extern char* my_bind_addr_str;
 
 int wsrep_init()
 {
@@ -432,7 +462,7 @@ int wsrep_init()
 
   wsrep_ready_set(FALSE);
   assert(wsrep_provider);
-  wsrep_format_desc= new Format_description_log_event(4);
+
   wsrep_init_position();
 
   if ((rcode= wsrep_load(wsrep_provider, &wsrep, wsrep_log_cb)) != WSREP_OK)
@@ -637,9 +667,6 @@ void wsrep_deinit()
   provider_name[0]=    '\0';
   provider_version[0]= '\0';
   provider_vendor[0]=  '\0';
-
-  delete wsrep_format_desc;
-  wsrep_format_desc= NULL;
 }
 
 void wsrep_recover()
@@ -741,12 +768,6 @@ bool wsrep_start_replication()
     return true;
   }
 
-  /* Note 'bootstrap' address is not officially supported in wsrep API #23 
-     but it can be back ported from #24 provider to get sneak preview of
-     bootstrap command 
-  */
-  const char* cluster_address =
-    wsrep_new_cluster ? "bootstrap" : wsrep_cluster_address;
   bool const bootstrap(TRUE == wsrep_new_cluster);
   wsrep_new_cluster= FALSE;
 
@@ -754,8 +775,8 @@ bool wsrep_start_replication()
 
   if ((rcode = wsrep->connect(wsrep,
                               wsrep_cluster_name,
-                              cluster_address,
-			      wsrep_sst_donor,
+                              wsrep_cluster_address,
+                              wsrep_sst_donor,
                               bootstrap)))
   {
     if (-ESOCKTNOSUPPORT == rcode)
@@ -920,11 +941,20 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
     ka->keys_len= 0;
 
     extern TABLE* find_temporary_table(THD*, const TABLE_LIST*);
-    extern TABLE* find_temporary_table(THD*, const char *, const char *);
 
     if (db || table)
     {
-        if (!table || !find_temporary_table(thd, db, table))
+        TABLE_LIST tmp_table;
+	MDL_request mdl_request;
+
+        memset(&tmp_table, 0, sizeof(tmp_table));
+        tmp_table.table_name= (char*)table;
+        tmp_table.db= (char*)db;
+	tmp_table.mdl_request.init(MDL_key::GLOBAL, (db) ? db :  "", 
+				   (table) ? table : "", 
+				   MDL_INTENTION_EXCLUSIVE, MDL_STATEMENT);
+
+        if (!table || !find_temporary_table(thd, &tmp_table))
         {
             if (!(ka->keys= (wsrep_key_t*)my_malloc(sizeof(wsrep_key_t), MYF(0))))
             {
@@ -956,8 +986,9 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
         {
             wsrep_key_t* tmp;
             tmp= (wsrep_key_t*)my_realloc(
-       	        ka->keys, (ka->keys_len + 1) * sizeof(wsrep_key_t),
-                MYF(MY_ALLOW_ZERO_PTR));
+                ka->keys, (ka->keys_len + 1) * sizeof(wsrep_key_t), 
+                 MYF(MY_ALLOW_ZERO_PTR));
+
             if (!tmp)
             {
                 WSREP_ERROR("Can't allocate memory for key_array");
@@ -989,9 +1020,8 @@ err:
 }
 
 
-
 bool wsrep_prepare_key_for_innodb(const uchar* cache_key,
-				  size_t cache_key_len,
+                                  size_t cache_key_len,
                                   const uchar* row_id,
                                   size_t row_id_len,
                                   wsrep_buf_t* key,
@@ -1033,6 +1063,7 @@ bool wsrep_prepare_key_for_innodb(const uchar* cache_key,
     return true;
 }
 
+
 /*
  * Construct Query_log_Event from thd query and serialize it
  * into buffer.
@@ -1040,36 +1071,43 @@ bool wsrep_prepare_key_for_innodb(const uchar* cache_key,
  * Return 0 in case of success, 1 in case of error.
  */
 int wsrep_to_buf_helper(
-    THD* thd, const char *query, uint query_len, uchar** buf, int* buf_len)
+    THD* thd, const char *query, uint query_len, uchar** buf, size_t* buf_len)
 {
   IO_CACHE tmp_io_cache;
   if (open_cached_file(&tmp_io_cache, mysql_tmpdir, TEMP_PREFIX,
                        65536, MYF(MY_WME)))
     return 1;
-
   int ret(0);
+
+#ifdef GTID_SUPPORT
+  if (thd->variables.gtid_next.type == GTID_GROUP)
+  {
+      Gtid_log_event gtid_ev(thd, FALSE, &thd->variables.gtid_next);
+      if (!gtid_ev.is_valid()) ret= 0;
+      if (!ret && gtid_ev.write(&tmp_io_cache)) ret= 1;
+  }
+#endif /* GTID_SUPPORT */
+
   /* if there is prepare query, add event for it */
-  if (thd->wsrep_TOI_pre_query)
+  if (!ret && thd->wsrep_TOI_pre_query)
   {
     Query_log_event ev(thd, thd->wsrep_TOI_pre_query, 
-                       thd->wsrep_TOI_pre_query_len, 
-                       FALSE, FALSE, FALSE, 0);
+		       thd->wsrep_TOI_pre_query_len, 
+		       FALSE, FALSE, FALSE, 0);
     if (ev.write(&tmp_io_cache)) ret= 1;
   }
 
-  /* append the actual query */
+  /* continue to append the actual query */
   Query_log_event ev(thd, query, query_len, FALSE, FALSE, FALSE, 0);
-  if (ev.write(&tmp_io_cache)) ret= 1;
-
-  if (!ret && wsrep_write_cache_buf(&tmp_io_cache, buf, (size_t*)buf_len)) ret= 1;
-
+  if (!ret && ev.write(&tmp_io_cache)) ret= 1;
+  if (!ret && wsrep_write_cache_buf(&tmp_io_cache, buf, buf_len)) ret= 1;
   close_cached_file(&tmp_io_cache);
   return ret;
 }
 
 #include "sql_show.h"
 static int
-create_view_query(THD *thd, uchar** buf, int* buf_len)
+create_view_query(THD *thd, uchar** buf, size_t* buf_len)
 {
     LEX *lex= thd->lex;
     SELECT_LEX *select_lex= &lex->select_lex;
@@ -1094,7 +1132,7 @@ create_view_query(THD *thd, uchar** buf, int* buf_len)
         the definer.
       */
 
-      if (!(lex->definer= create_default_definer(thd)))
+      if (!(lex->definer= create_default_definer(thd, false)))
       {
         WSREP_WARN("view default definer issue");
       }
@@ -1134,7 +1172,7 @@ create_view_query(THD *thd, uchar** buf, int* buf_len)
     buff.append(STRING_WITH_LEN(" AS "));
     //buff.append(views->source.str, views->source.length);
     buff.append(thd->lex->create_view_select.str, 
-		thd->lex->create_view_select.length);
+                thd->lex->create_view_select.length);
     //int errcode= query_error_code(thd, TRUE);
     //if (thd->binlog_query(THD::STMT_QUERY_TYPE,
     //                      buff.ptr(), buff.length(), FALSE, FALSE, FALSE, errcod
@@ -1146,7 +1184,7 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
 {
   wsrep_status_t ret(WSREP_WARNING);
   uchar* buf(0);
-  int buf_len(0);
+  size_t buf_len(0);
   int buf_err;
 
   WSREP_DEBUG("TO BEGIN: %lld, %d : %s", (long long)wsrep_thd_trx_seqno(thd),
@@ -1366,7 +1404,7 @@ void wsrep_to_isolation_end(THD *thd)
       msg,                                                                     \
       req->thread_id, (long long)wsrep_thd_trx_seqno(req),                     \
       req->wsrep_exec_mode, req->wsrep_query_state, req->wsrep_conflict_state, \
-      req->get_command(), req->lex->sql_command, req->query(),	               \
+      req->get_command(), req->lex->sql_command, req->query(),		       \
       gra->thread_id, (long long)wsrep_thd_trx_seqno(gra),                     \
       gra->wsrep_exec_mode, gra->wsrep_query_state, gra->wsrep_conflict_state, \
       gra->get_command(), gra->lex->sql_command, gra->query());
@@ -1377,8 +1415,8 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
 ) {
   if (!WSREP_ON) return FALSE;
 
-  THD *request_thd  = requestor_ctx->get_thd();
-  THD *granted_thd  = ticket->get_ctx()->get_thd();
+  THD *request_thd  = requestor_ctx->wsrep_get_thd();
+  THD *granted_thd  = ticket->get_ctx()->wsrep_get_thd();
   bool ret          = FALSE;
 
   mysql_mutex_lock(&request_thd->LOCK_wsrep_thd);

@@ -1921,6 +1921,7 @@ typedef struct PSI_digest_locker* (*digest_add_token_v1_t)
 typedef int (*set_thread_connect_attrs_v1_t)(const char *buffer, uint length,
                                              const void *from_cs);
 
+
 /**
   Performance Schema Interface, version 1.
   @since PSI_VERSION_1

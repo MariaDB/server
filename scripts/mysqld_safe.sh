@@ -327,6 +327,7 @@ parse_arguments() {
           wsrep_restart=1
         fi
         ;;
+
       --help) usage ;;
 
       *)
@@ -591,7 +592,7 @@ then
   SET_USER=0
 fi
 
-parse_arguments `$print_defaults $defaults --loose-verbose mysqld_safe safe_mysqld`
+parse_arguments `$print_defaults $defaults --loose-verbose mysqld_safe safe_mysqld mariadb_safe`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
 
@@ -878,6 +879,41 @@ then
 fi
 
 #
+# Flush and purge buffers/caches.
+#
+
+if @TARGET_LINUX@ && test $flush_caches -eq 1
+then
+  # Locate sync, ensure it exists.
+  if ! my_which sync > /dev/null 2>&1
+  then
+    log_error "sync command not found, required for --flush-caches"
+    exit 1
+  # Flush file system buffers.
+  elif ! sync
+  then
+    # Huh, the sync() function is always successful...
+    log_error "sync failed, check if sync is properly installed"
+  fi
+
+  # Locate sysctl, ensure it exists.
+  if ! my_which sysctl > /dev/null 2>&1
+  then
+    log_error "sysctl command not found, required for --flush-caches"
+    exit 1
+  # Purge page cache, dentries and inodes.
+  elif ! sysctl -q -w vm.drop_caches=3
+  then
+    log_error "sysctl failed, check the error message for details"
+    exit 1
+  fi
+elif test $flush_caches -eq 1
+then
+  log_error "--flush-caches is not supported on this platform"
+  exit 1
+fi
+
+#
 # Uncomment the following lines if you want all tables to be automatically
 # checked and repaired during startup. You should add sensible key_buffer
 # and sort_buffer values to my.cnf to improve check performance or require
@@ -921,7 +957,6 @@ then
   log_error "--numa-interleave is not supported on this platform"
   exit 1
 fi
-
 
 for i in  "$ledir/$MYSQLD" "$defaults" "--basedir=$MY_BASEDIR_VERSION" \
   "--datadir=$DATADIR" "--plugin-dir=$plugin_dir" "$USER_OPTION"

@@ -7,10 +7,11 @@ INSERT INTO t1 VALUES (1);
 include/stop_slave.inc
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,gtid_slave_pos_simulate_failed_delete";
-include/start_slave.inc
 SET sql_log_bin= 0;
 CALL mtr.add_suppression("Can't find file");
+ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
 SET sql_log_bin= 1;
+include/start_slave.inc
 INSERT INTO t1 VALUES (2);
 include/wait_for_slave_sql_error.inc [errno=1942]
 STOP SLAVE IO_THREAD;

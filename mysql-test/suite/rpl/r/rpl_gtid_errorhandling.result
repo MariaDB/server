@@ -173,6 +173,33 @@ a
 SET sql_log_bin=0;
 CALL mtr.add_suppression("Slave: Could not update replication slave gtid state");
 SET sql_log_bin=1;
+*** MDEV-4906: When event apply fails, next SQL thread start errorneously commits the failing GTID to gtid_slave_pos ***
+include/stop_slave.inc
+SET sql_log_bin=0;
+DELETE FROM t2;
+SET sql_log_bin=1;
+SET @old_format=@@binlog_format;
+SET GLOBAL binlog_format='row';
+include/start_slave.inc
+SET @old_format=@@binlog_format;
+SET binlog_format='row';
+DELETE FROM t2;
+SET binlog_format=@old_format;
+include/wait_for_slave_sql_error.inc [errno=1032]
+result
+OK
+STOP SLAVE IO_THREAD;
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1032]
+result
+OK
+STOP SLAVE IO_THREAD;
+SET sql_log_bin=0;
+INSERT INTO t2 VALUES (1);
+CALL mtr.add_suppression("Slave: Can't find record in 't2' Error_code: 1032");
+SET sql_log_bin=1;
+include/start_slave.inc
+SET GLOBAL binlog_format=@old_format;
 DROP TABLE t1;
 DROP TABLE t2;
 include/rpl_end.inc

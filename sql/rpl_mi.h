@@ -162,6 +162,8 @@ class Master_info : public Slave_reporting_capability
     events_queued_since_last_gtid is non-zero.
   */
   rpl_gtid last_queued_gtid;
+  /* Whether last_queued_gtid had the FL_STANDALONE flag set. */
+  bool last_queued_gtid_standalone;
   /*
     When slave IO thread needs to reconnect, gtid_reconnect_event_skip_count
     counts number of events to skip from the first GTID-prefixed event group,

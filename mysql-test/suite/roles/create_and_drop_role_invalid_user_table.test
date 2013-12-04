@@ -1,0 +1,26 @@
+source include/not_embedded.inc;
+
+connect (mysql, localhost, root,,);
+use mysql;
+
+alter table user drop column is_role;
+
+flush privileges;
+
+--replace_regex /10\d\d\d\d/MYSQL_VERSION_ID/
+--error ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
+create role test_role;
+--error ER_CANNOT_USER
+drop role test_role;
+alter table user add column is_role enum('N', 'Y') default 'N' not null
+                                                   COLLATE utf8_general_ci
+after password_expired;
+
+update user set is_role='N';
+
+flush privileges;
+create role test_role;
+drop role test_role;
+
+
+

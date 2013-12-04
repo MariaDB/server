@@ -115,6 +115,28 @@ extern struct my_sha1_service_st {
 } *my_sha1_service;
 void my_sha1(unsigned char*, const char*, size_t);
 void my_sha1_multi(unsigned char*, ...);
+#include <mysql/service_logger.h>
+typedef struct logger_handle_st LOGGER_HANDLE;
+extern struct logger_service_st {
+  void (*logger_init_mutexes)();
+  LOGGER_HANDLE* (*open)(const char *path,
+                         unsigned long long size_limit,
+                         unsigned int rotations);
+  int (*close)(LOGGER_HANDLE *log);
+  int (*vprintf)(LOGGER_HANDLE *log, const char *fmt, va_list argptr);
+  int (*printf)(LOGGER_HANDLE *log, const char *fmt, ...);
+  int (*write)(LOGGER_HANDLE *log, const char *buffer, size_t size);
+  int (*rotate)(LOGGER_HANDLE *log);
+} *logger_service;
+  void logger_init_mutexes();
+  LOGGER_HANDLE *logger_open(const char *path,
+                             unsigned long long size_limit,
+                             unsigned int rotations);
+  int logger_close(LOGGER_HANDLE *log);
+  int logger_vprintf(LOGGER_HANDLE *log, const char *fmt, va_list argptr);
+  int logger_printf(LOGGER_HANDLE *log, const char *fmt, ...);
+  int logger_write(LOGGER_HANDLE *log, const char *buffer, size_t size);
+  int logger_rotate(LOGGER_HANDLE *log);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;
@@ -268,6 +290,7 @@ void mysql_query_cache_invalidate4(void* thd,
 void *thd_get_ha_data(const void* thd, const struct handlerton *hton);
 void thd_set_ha_data(void* thd, const struct handlerton *hton,
                      const void *ha_data);
+void thd_wakeup_subsequent_commits(void* thd, int wakeup_error);
 #include <mysql/plugin_auth_common.h>
 typedef struct st_plugin_vio_info
 {

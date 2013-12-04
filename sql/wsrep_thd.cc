@@ -19,9 +19,14 @@
 #include "rpl_rli.h"
 #include "log_event.h"
 #include "sql_parse.h"
-#include "slave.h"    // opt_log_slave_updates
+//#include "global_threads.h" // LOCK_thread_count, etc.
 #include "sql_base.h" // close_thread_tables()
 #include "mysqld.h"   // start_wsrep_THD();
+
+#include "slave.h"    // opt_log_slave_updates
+#include "rpl_filter.h"
+#include "rpl_rli.h"
+#include "rpl_mi.h"
 
 static long long wsrep_bf_aborts_counter = 0;
 
@@ -73,7 +78,34 @@ void wsrep_client_rollback(THD *thd)
   thd->wsrep_conflict_state= ABORTED;
 }
 
+#define NUMBER_OF_FIELDS_TO_IDENTIFY_COORDINATOR 1
+#define NUMBER_OF_FIELDS_TO_IDENTIFY_WORKER 2
+//#include "rpl_info_factory.h"
+
 static Relay_log_info* wsrep_relay_log_init(const char* log_fname)
+{
+
+  /* MySQL 5.6 version has rli factory: */
+#ifdef MYSQL_56
+  uint rli_option = INFO_REPOSITORY_DUMMY;
+  Relay_log_info *rli= NULL;
+  rli = Rpl_info_factory::create_rli(rli_option, false);
+  rli->set_rli_description_event(
+      new Format_description_log_event(BINLOG_VERSION));
+#endif
+  Relay_log_info* rli= new Relay_log_info(false);
+  rli->sql_driver_thd= current_thd;
+ 
+  rli->no_storage= true;
+  rli->relay_log.description_event_for_exec=
+    new Format_description_log_event(4);
+
+  return rli;
+}
+
+class Master_info;
+
+static rpl_group_info* wsrep_relay_group_init(const char* log_fname)
 {
   Relay_log_info* rli= new Relay_log_info(false);
 
@@ -83,9 +115,20 @@ static Relay_log_info* wsrep_relay_log_init(const char* log_fname)
     rli->relay_log.description_event_for_exec=
       new Format_description_log_event(4);
   }
+  static LEX_STRING dbname= { C_STRING_WITH_LEN("mysql") };
 
-  rli->sql_thd= current_thd;
-  return rli;
+  rli->mi = new Master_info( &dbname,  false);
+  //rli->mi = new Master_info( &(C_STRING_WITH_LEN("wsrep")),  false);
+
+  rli->mi->rpl_filter = new Rpl_filter;
+  copy_filter_setting(rli->mi->rpl_filter, get_or_create_rpl_filter("", 0));
+
+  rli->sql_driver_thd= current_thd;
+
+  struct rpl_group_info *rgi= new rpl_group_info(rli);
+  rgi->thd= current_thd;
+
+  return rgi;
 }
 
 static void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow* shadow)
@@ -100,7 +143,9 @@ static void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow* shadow)
   else
     thd->variables.option_bits&= ~(OPTION_BIN_LOG);
 
-  if (!thd->wsrep_rli) thd->wsrep_rli= wsrep_relay_log_init("wsrep_relay");
+  //if (!thd->wsrep_rli) thd->wsrep_rli= wsrep_relay_log_init("wsrep_relay");
+  if (!thd->wsrep_rgi) thd->wsrep_rgi= wsrep_relay_group_init("wsrep_relay");
+  //  thd->wsrep_rli->info_thd = thd;
 
   thd->wsrep_exec_mode= REPL_RECV;
   thd->net.vio= 0;
@@ -123,12 +168,20 @@ static void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
   thd->net.vio                = shadow->vio;
   thd->variables.tx_isolation = shadow->tx_isolation;
   thd->reset_db(shadow->db, shadow->db_length);
+
+  delete thd->wsrep_rgi->rli->mi->rpl_filter;
+  delete thd->wsrep_rgi->rli->mi;
+  delete thd->wsrep_rgi->rli;
+  delete thd->wsrep_rgi;
+  thd->wsrep_rgi = NULL;
+;
 }
 
 void wsrep_replay_transaction(THD *thd)
 {
   /* checking if BF trx must be replayed */
   if (thd->wsrep_conflict_state== MUST_REPLAY) {
+    DBUG_ASSERT(wsrep_thd_trx_seqno(thd));
     if (thd->wsrep_exec_mode!= REPL_RECV) {
       if (thd->get_stmt_da()->is_sent())
       {
@@ -139,7 +192,7 @@ void wsrep_replay_transaction(THD *thd)
       thd->wsrep_conflict_state= REPLAYING;
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
-      mysql_reset_thd_for_next_command(thd, opt_userstat_running);
+      mysql_reset_thd_for_next_command(thd);
       thd->killed= NOT_KILLED;
       close_thread_tables(thd);
       if (thd->locked_tables_mode && thd->lock)
@@ -150,7 +203,13 @@ void wsrep_replay_transaction(THD *thd)
         thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
       }
       thd->mdl_context.release_transactional_locks();
-
+      /*
+        Replaying will call MYSQL_START_STATEMENT when handling
+        BEGIN Query_log_event so end statement must be called before
+        replaying.
+      */
+      MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+      thd->m_statement_psi= NULL;
       thd_proc_info(thd, "wsrep replaying trx");
       WSREP_DEBUG("replay trx: %s %lld",
                   thd->query() ? thd->query() : "void",
@@ -204,7 +263,7 @@ void wsrep_replay_transaction(THD *thd)
         else
         {
           WSREP_DEBUG("replay failed, rolling back");
-          my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
+          //my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
         }
         thd->wsrep_conflict_state= ABORTED;
         wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle);
@@ -286,9 +345,13 @@ static void wsrep_replication_process(THD *thd)
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
-  if (thd->temporary_tables)
+  TABLE *tmp;
+  while ((tmp = thd->temporary_tables))
   {
-    WSREP_DEBUG("Applier %lu, has temporary tables at exit", thd->thread_id);
+    WSREP_WARN("Applier %lu, has temporary tables at exit: %s.%s",
+                  thd->thread_id, 
+                  (tmp->s) ? tmp->s->db.str : "void",
+                  (tmp->s) ? tmp->s->table_name.str : "void");
   }
   wsrep_return_from_bf_mode(thd, &shadow);
   DBUG_VOID_RETURN;
@@ -374,6 +437,7 @@ static void wsrep_rollback_process(THD *thd)
 
       mysql_mutex_unlock(&aborting->LOCK_wsrep_thd);
 
+      set_current_thd(aborting); 
       aborting->store_globals();
 
       mysql_mutex_lock(&aborting->LOCK_wsrep_thd);
@@ -381,6 +445,9 @@ static void wsrep_rollback_process(THD *thd)
       WSREP_DEBUG("WSREP rollbacker aborted thd: (%lu %llu)",
                   aborting->thread_id, (long long)aborting->real_id);
       mysql_mutex_unlock(&aborting->LOCK_wsrep_thd);
+
+      set_current_thd(thd); 
+      thd->store_globals();
 
       mysql_mutex_lock(&LOCK_wsrep_rollback);
     }

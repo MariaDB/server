@@ -861,6 +861,14 @@ class PARAM : public RANGE_OPT_PARAM
 {
 public:
   ha_rows quick_rows[MAX_KEY];
+
+  /*
+    This will collect 'possible keys' based on the range optimization.
+    
+    Queries with a JOIN object actually use ref optimizer (see add_key_field)
+    to collect possible_keys. This is used by single table UPDATE/DELETE.
+  */
+  key_map possible_keys;
   longlong baseflag;
   uint max_key_part, range_count;
 
@@ -2955,6 +2963,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     read_time= (double) records + scan_time + 1; // Force to use index
   else if (read_time <= 2.0 && !force_quick_range)
     DBUG_RETURN(0);				/* No need for quick select */
+  
+  possible_keys.clear_all();
 
   DBUG_PRINT("info",("Time to scan table: %g", read_time));
 
@@ -2986,6 +2996,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.using_real_indexes= TRUE;
     param.remove_jump_scans= TRUE;
     param.force_default_mrr= ordered_output;
+    param.possible_keys.clear_all();
 
     thd->no_errors=1;				// Don't warn about NULL
     init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
@@ -3197,12 +3208,14 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         quick= NULL;
       }
     }
+    possible_keys= param.possible_keys;
 
   free_mem:
     free_root(&alloc,MYF(0));			// Return memory & allocator
     thd->mem_root= param.old_root;
     thd->no_errors=0;
   }
+
 
   DBUG_EXECUTE("info", print_quick(quick, &needed_reg););
 
@@ -10493,6 +10506,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   if (rows != HA_POS_ERROR)
   {
     param->quick_rows[keynr]= rows;
+    param->possible_keys.set_bit(keynr);
     if (update_tbl_stats)
     {
       param->table->quick_keys.set_bit(keynr);
@@ -11811,6 +11825,26 @@ int QUICK_SELECT_DESC::get_next()
     if (!(last_range= rev_it++))
       DBUG_RETURN(HA_ERR_END_OF_FILE);		// All ranges used
 
+    key_range       start_key;
+    start_key.key=    (const uchar*) last_range->min_key;
+    start_key.length= last_range->min_length;
+    start_key.flag=   ((last_range->flag & NEAR_MIN) ? HA_READ_AFTER_KEY :
+                       (last_range->flag & EQ_RANGE) ?
+                       HA_READ_KEY_EXACT : HA_READ_KEY_OR_NEXT);
+    start_key.keypart_map= last_range->min_keypart_map;
+    key_range       end_key;
+    end_key.key=      (const uchar*) last_range->max_key;
+    end_key.length=   last_range->max_length;
+    end_key.flag=     (last_range->flag & NEAR_MAX ? HA_READ_BEFORE_KEY :
+                       HA_READ_AFTER_KEY);
+    end_key.keypart_map= last_range->max_keypart_map;
+    result= file->prepare_range_scan((last_range->flag & NO_MIN_RANGE) ? NULL : &start_key,
+                                     (last_range->flag & NO_MAX_RANGE) ? NULL : &end_key);
+    if (result)
+    {
+      DBUG_RETURN(result);
+    }
+
     if (last_range->flag & NO_MAX_RANGE)        // Read last record
     {
       int local_error;
@@ -11966,78 +12000,134 @@ void QUICK_SELECT_I::add_key_name(String *str, bool *first)
 }
  
 
-void QUICK_RANGE_SELECT::add_info_string(String *str)
+Explain_quick_select* QUICK_RANGE_SELECT::get_explain(MEM_ROOT *alloc)
 {
-  bool first= TRUE;
-  
-  add_key_name(str, &first);
+  Explain_quick_select *res;
+  if ((res= new (alloc) Explain_quick_select(QS_TYPE_RANGE)))
+    res->range.set(alloc, head->key_info[index].name, max_used_key_length);
+  return res;
 }
 
-void QUICK_INDEX_MERGE_SELECT::add_info_string(String *str)
-{
-  QUICK_RANGE_SELECT *quick;
-  bool first= TRUE;
-  List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
 
-  str->append(STRING_WITH_LEN("sort_union("));
+Explain_quick_select* QUICK_GROUP_MIN_MAX_SELECT::get_explain(MEM_ROOT *alloc)
+{
+  Explain_quick_select *res;
+  if ((res= new (alloc) Explain_quick_select(QS_TYPE_GROUP_MIN_MAX)))
+    res->range.set(alloc, head->key_info[index].name, max_used_key_length);
+  return res;
+}
+
+
+Explain_quick_select* QUICK_INDEX_SORT_SELECT::get_explain(MEM_ROOT *alloc)
+{
+  Explain_quick_select *res;
+  if (!(res= new (alloc) Explain_quick_select(get_type())))
+    return NULL;
+
+  QUICK_RANGE_SELECT *quick;
+  Explain_quick_select *child_explain;
+  List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
   while ((quick= it++))
   {
-    quick->add_key_name(str, &first);
+    if ((child_explain= quick->get_explain(alloc)))
+      res->children.push_back(child_explain);
+    else
+      return NULL;
   }
+
   if (pk_quick_select)
-    pk_quick_select->add_key_name(str, &first);
-  str->append(')');
+  {
+    if ((child_explain= pk_quick_select->get_explain(alloc)))
+      res->children.push_back(child_explain);
+    else
+      return NULL;
+  }
+  return res;
 }
 
-void QUICK_INDEX_INTERSECT_SELECT::add_info_string(String *str)
-{
-  QUICK_RANGE_SELECT *quick;
-  bool first= TRUE;
-  List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
 
-  str->append(STRING_WITH_LEN("sort_intersect("));
+/*
+  Same as QUICK_INDEX_SORT_SELECT::get_explain(), but primary key is printed
+  first
+*/
+
+Explain_quick_select* QUICK_INDEX_INTERSECT_SELECT::get_explain(MEM_ROOT *alloc)
+{
+  Explain_quick_select *res;
+  Explain_quick_select *child_explain;
+
+  if (!(res= new (alloc) Explain_quick_select(get_type())))
+    return NULL;
+
   if (pk_quick_select)
-    pk_quick_select->add_key_name(str, &first);
+  {
+    if ((child_explain= pk_quick_select->get_explain(alloc)))
+      res->children.push_back(child_explain);
+    else
+      return NULL;
+  }
+
+  QUICK_RANGE_SELECT *quick;
+  List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
   while ((quick= it++))
   {
-    quick->add_key_name(str, &first);
+    if ((child_explain= quick->get_explain(alloc)))
+      res->children.push_back(child_explain);
+    else
+      return NULL;
   }
-  str->append(')');
+  return res;
 }
 
-void QUICK_ROR_INTERSECT_SELECT::add_info_string(String *str)
+
+Explain_quick_select* QUICK_ROR_INTERSECT_SELECT::get_explain(MEM_ROOT *alloc)
 {
-  bool first= TRUE;
+  Explain_quick_select *res;
+  Explain_quick_select *child_explain;
+
+  if (!(res= new (alloc) Explain_quick_select(get_type())))
+    return NULL;
+
   QUICK_SELECT_WITH_RECORD *qr;
   List_iterator_fast<QUICK_SELECT_WITH_RECORD> it(quick_selects);
-
-  str->append(STRING_WITH_LEN("intersect("));
   while ((qr= it++))
   {
-    qr->quick->add_key_name(str, &first);
+    if ((child_explain= qr->quick->get_explain(alloc)))
+      res->children.push_back(child_explain);
+    else
+      return NULL;
   }
+
   if (cpk_quick)
-    cpk_quick->add_key_name(str, &first);
-  str->append(')');
+  {
+    if ((child_explain= cpk_quick->get_explain(alloc)))
+      res->children.push_back(child_explain);
+    else
+      return NULL;
+  }
+  return res;
 }
 
 
-void QUICK_ROR_UNION_SELECT::add_info_string(String *str)
+Explain_quick_select* QUICK_ROR_UNION_SELECT::get_explain(MEM_ROOT *alloc)
 {
-  QUICK_SELECT_I *quick;
-  bool first= TRUE;
-  List_iterator_fast<QUICK_SELECT_I> it(quick_selects);
+  Explain_quick_select *res;
+  Explain_quick_select *child_explain;
 
-  str->append(STRING_WITH_LEN("union("));
+  if (!(res= new (alloc) Explain_quick_select(get_type())))
+    return NULL;
+
+  QUICK_SELECT_I *quick;
+  List_iterator_fast<QUICK_SELECT_I> it(quick_selects);
   while ((quick= it++))
   {
-    if (first)
-      first= FALSE;
+    if ((child_explain= quick->get_explain(alloc)))
+      res->children.push_back(child_explain);
     else
-      str->append(',');
-    quick->add_info_string(str);
+      return NULL;
   }
-  str->append(')');
+
+  return res;
 }
 
 
@@ -12437,8 +12527,12 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     uchar cur_key_infix[MAX_KEY_LENGTH];
     uint cur_used_key_parts;
     
-    /* Check (B1) - if current index is covering. */
-    if (!table->covering_keys.is_set(cur_index))
+    /*
+      Check (B1) - if current index is covering. Exclude UNIQUE indexes, because
+      loose scan may still be chosen for them due to imperfect cost calculations.
+    */
+    if (!table->covering_keys.is_set(cur_index) ||
+        cur_index_info->flags & HA_NOSAME)
       goto next_index;
 
     /*

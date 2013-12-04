@@ -30,11 +30,11 @@
 */
 #define CLIENT_CAPABILITIES (CLIENT_LONG_PASSWORD | \
                              CLIENT_LONG_FLAG |     \
-                             CLIENT_SECURE_CONNECTION | \
                              CLIENT_TRANSACTIONS |  \
                              CLIENT_PROTOCOL_41 |   \
                              CLIENT_SECURE_CONNECTION | \
-                             CLIENT_PLUGIN_AUTH)
+                             CLIENT_PLUGIN_AUTH | \
+                             CLIENT_CONNECT_ATTRS)
 
 #define read_user_name(A) {}
 #undef _CUSTOMCONFIG_

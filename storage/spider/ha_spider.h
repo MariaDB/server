@@ -17,6 +17,10 @@
 #pragma interface
 #endif
 
+#if (defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000)
+#define SPIDER_HANDLER_START_BULK_INSERT_HAS_FLAGS
+#endif
+
 #define SPIDER_CONNECT_INFO_MAX_LEN 64
 #define SPIDER_CONNECT_INFO_PATH_MAX_LEN FN_REFLEN
 #define SPIDER_LONGLONG_LEN 20
@@ -92,6 +96,7 @@ public:
   SPIDER_CONDITION   *condition;
   spider_string      *blob_buff;
   uchar              *searched_bitmap;
+  uchar              *ft_discard_bitmap;
   bool               position_bitmap_init;
   uchar              *position_bitmap;
   SPIDER_POSITION    *pushed_pos;
@@ -135,6 +140,7 @@ public:
   int                multi_range_num;
   bool               have_second_range;
   KEY_MULTI_RANGE    mrr_second_range;
+  spider_string      *mrr_key_buff;
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   range_id_t         *multi_range_keys;
 #else
@@ -220,6 +226,11 @@ public:
 #endif
 #ifdef INFO_KIND_FORCE_LIMIT_BEGIN
   longlong           info_limit;
+#endif
+  spider_index_rnd_init prev_index_rnd_init;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  SPIDER_ITEM_HLD    *direct_aggregate_item_first;
+  SPIDER_ITEM_HLD    *direct_aggregate_item_current;
 #endif
 
   /* for fulltext search */
@@ -512,9 +523,16 @@ public:
     ulonglong value
   );
   void release_auto_increment();
+#ifdef SPIDER_HANDLER_START_BULK_INSERT_HAS_FLAGS
+  void start_bulk_insert(
+    ha_rows rows,
+    uint flags
+  );
+#else
   void start_bulk_insert(
     ha_rows rows
   );
+#endif
   int end_bulk_insert();
   int write_row(
     uchar *buf
@@ -684,7 +702,11 @@ public:
     uint info_type,
     void *info
   );
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  void return_record_by_parent();
+#endif
   TABLE *get_table();
+  void set_ft_discard_bitmap();
   void set_searched_bitmap();
   void set_clone_searched_bitmap();
   void set_select_column_mode();
@@ -805,6 +827,10 @@ public:
     const key_range *start_key
   );
   int reuse_tmp_table_and_sql_for_bka();
+  int append_union_table_and_sql_for_bka(
+    const key_range *start_key
+  );
+  int reuse_union_table_and_sql_for_bka();
   int append_insert_sql_part();
   int append_update_sql_part();
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -865,7 +891,17 @@ public:
   int append_values_terminator_sql_part(
     ulong sql_type
   );
+  int append_union_table_connector_sql_part(
+    ulong sql_type
+  );
+  int append_union_table_terminator_sql_part(
+    ulong sql_type
+  );
   int append_key_column_values_sql_part(
+    const key_range *start_key,
+    ulong sql_type
+  );
+  int append_key_column_values_with_name_sql_part(
     const key_range *start_key,
     ulong sql_type
   );
@@ -890,6 +926,13 @@ public:
     ulong sql_type,
     bool test_flg
   );
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  int append_sum_select_sql_part(
+    ulong sql_type,
+    const char *alias,
+    uint alias_length
+  );
+#endif
   int append_match_select_sql_part(
     ulong sql_type,
     const char *alias,
@@ -970,6 +1013,10 @@ public:
     uint multi_range_cnt,
     bool with_comma
   );
+  int append_multi_range_cnt_with_name_sql_part(
+    ulong sql_type,
+    uint multi_range_cnt
+  );
   int append_delete_all_rows_sql_part(
     ulong sql_type
   );
@@ -1011,4 +1058,6 @@ public:
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   bool support_bulk_access_hs() const;
 #endif
+  int init_union_table_name_pos_sql();
+  int set_union_table_name_pos_sql();
 };

@@ -5,6 +5,7 @@ if (!$ADT_NULL_SO) {
   skip No NULL_AUDIT plugin;
 }
 
+set @old_dbug=@@debug_dbug;
 call mtr.add_suppression("Incorrect key file for table.*mysql.plugin.MYI");
 
 #
@@ -15,15 +16,17 @@ SET debug_dbug='+d,myisam_pretend_crashed_table_on_usage';
 --replace_result \\ /
 --error 126
 install plugin audit_null soname 'adt_null';
-SET debug_dbug='-d,myisam_pretend_crashed_table_on_usage';
+SET debug_dbug=@old_dbug;
 
 install plugin audit_null soname 'adt_null';
 SET debug_dbug='+d,myisam_pretend_crashed_table_on_usage';
 --replace_result \\ /
 --error 126
 uninstall plugin audit_null;
-SET debug_dbug='-d,myisam_pretend_crashed_table_on_usage';
+SET debug_dbug=@old_dbug;
 
 --error 1305
 uninstall plugin audit_null;
+
+delete from mysql.plugin where name='audit_null';
 

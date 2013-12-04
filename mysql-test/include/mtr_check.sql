@@ -32,6 +32,7 @@ BEGIN
      AND variable_name != 'INNODB_IBUF_MAX_SIZE'
      AND variable_name != 'INNODB_USE_NATIVE_AIO'
      AND variable_name not like 'GTID%POS'
+     AND variable_name != 'GTID_BINLOG_STATE'
    ORDER BY variable_name;
 
   -- Dump all databases, there should be none
@@ -66,8 +67,10 @@ BEGIN
     mysql.help_keyword,
     mysql.help_relation,
     mysql.host,
+    mysql.plugin,
     mysql.proc,
     mysql.procs_priv,
+    mysql.roles_mapping,
     mysql.tables_priv,
     mysql.time_zone,
     mysql.time_zone_leap_second,

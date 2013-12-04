@@ -1,4 +1,4 @@
-# Copyright (C) 2010-2011 Kentoku Shiba
+# Copyright (C) 2010-2013 Kentoku Shiba
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -45,6 +45,30 @@ create table if not exists mysql.spider_xa_member(
   ssl_verify_server_cert tinyint not null default 0,
   default_file text default null,
   default_group char(64) default null,
+  key idx1 (data, format_id, gtrid_length, host)
+) engine=MyISAM default charset=utf8 collate=utf8_bin;
+create table if not exists mysql.spider_xa_failed_log(
+  format_id int not null default 0,
+  gtrid_length int not null default 0,
+  bqual_length int not null default 0,
+  data char(128) charset binary not null default '',
+  scheme char(64) not null default '',
+  host char(64) not null default '',
+  port char(5) not null default '',
+  socket text not null default '',
+  username char(64) not null default '',
+  password char(64) not null default '',
+  ssl_ca text default null,
+  ssl_capath text default null,
+  ssl_cert text default null,
+  ssl_cipher char(64) default null,
+  ssl_key text default null,
+  ssl_verify_server_cert tinyint not null default 0,
+  default_file text default null,
+  default_group char(64) default null,
+  thread_id int default null,
+  status char(8) not null default '',
+  failed_time timestamp not null default current_timestamp,
   key idx1 (data, format_id, gtrid_length, host)
 ) engine=MyISAM default charset=utf8 collate=utf8_bin;
 create table if not exists mysql.spider_tables(

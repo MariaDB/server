@@ -2126,6 +2126,31 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_2	147	NULL	128	75.00	Using where; Using index
 Warnings:
 Note	1003	select sum(ord(`test`.`t1`.`a1`)) AS `sum(ord(a1))` from `test`.`t1` where (`test`.`t1`.`a1` > 'a') group by `test`.`t1`.`a1`,`test`.`t1`.`a2`,`test`.`t1`.`b`
+create table t4 as select distinct a1, a2, b, c from t1;
+alter table t4 add unique index idxt4 (a1, a2, b, c);
+explain
+select a1, a2, b, min(c) from t4 group by a1, a2, b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	index	NULL	idxt4	163	NULL	64	Using index
+select a1, a2, b, min(c) from t4 group by a1, a2, b;
+a1	a2	b	min(c)
+a	a	a	a111
+a	a	b	e112
+a	b	a	i121
+a	b	b	m122
+b	a	a	a211
+b	a	b	e212
+b	b	a	i221
+b	b	b	m222
+c	a	a	a311
+c	a	b	e312
+c	b	a	i321
+c	b	b	m322
+d	a	a	a411
+d	a	b	e412
+d	b	a	i421
+d	b	b	m422
+drop table t4;
 explain select distinct(a1) from t1 where ord(a2) = 98;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	idx_t1_2	147	NULL	128	Using where; Using index
@@ -2249,14 +2274,14 @@ COUNT(DISTINCT a)
 1
 DROP TABLE t1;
 DROP PROCEDURE a;
-CREATE TABLE t1 (a varchar(64) NOT NULL default '', PRIMARY KEY(a));
+CREATE TABLE t1 (a varchar(64) NOT NULL default '', KEY(a));
 INSERT INTO t1 (a) VALUES 
 (''), ('CENTRAL'), ('EASTERN'), ('GREATER LONDON'),
 ('NORTH CENTRAL'), ('NORTH EAST'), ('NORTH WEST'), ('SCOTLAND'),
 ('SOUTH EAST'), ('SOUTH WEST'), ('WESTERN');
 EXPLAIN SELECT DISTINCT a,a FROM t1 ORDER BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	PRIMARY	66	NULL	12	Using index for group-by
+1	SIMPLE	t1	range	NULL	a	66	NULL	6	Using index for group-by
 SELECT DISTINCT a,a FROM t1 ORDER BY a;
 a	a
 	
@@ -2314,11 +2339,11 @@ t1;
 id2	id3	id5	id4	id3	id6	id5	id1
 1	1	1	1	1	1	1	1
 DROP TABLE t1,t2,t3,t4,t5,t6;
-CREATE TABLE t1 (a int, b int, PRIMARY KEY (a,b), KEY b (b));
+CREATE TABLE t1 (a int, b int, KEY (a,b), KEY b (b));
 INSERT INTO t1 VALUES (1,1),(1,2),(1,0),(1,3);
 explain SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY,b	PRIMARY	8	NULL	1	Using where; Using index for group-by
+1	SIMPLE	t1	range	a,b	a	10	NULL	1	Using where; Using index for group-by
 SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
 MAX(b)	a
 1	1
@@ -2329,7 +2354,7 @@ CREATE TABLE t2 (a int, b int, c int, PRIMARY KEY (a,b,c));
 INSERT INTO t2 SELECT a,b,b FROM t1;
 explain SELECT MIN(c) FROM t2 WHERE b = 2 and a = 1 and c > 1 GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	PRIMARY	PRIMARY	12	NULL	1	Using where; Using index for group-by
+1	SIMPLE	t2	ref	PRIMARY	PRIMARY	8	const,const	1	Using where; Using index
 SELECT MIN(c) FROM t2 WHERE b = 2 and a = 1 and c > 1 GROUP BY a;
 MIN(c)
 2
@@ -2525,7 +2550,9 @@ a	MIN(b)	MAX(b)	AVG(b)
 2	1	3	2.0000
 1	1	3	2.0000
 DROP TABLE t1;
-create table t1 (a int, b int, primary key (a,b), key `index` (a,b)) engine=MyISAM;
+create table t1 (a int, b int, key (a,b), key `index` (a,b)) engine=MyISAM;
+Warnings:
+Note	1831	Duplicate index 'index' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 insert into  t1 (a,b) values 
 (0,0),(0,1),(0,2),(0,3),(0,4),(0,5),(0,6),
 (0,7),(0,8),(0,9),(0,10),(0,11),(0,12),(0,13),
@@ -2597,7 +2624,7 @@ a	b
 3	13
 explain extended select sql_buffer_result a, max(b)+1 from t1 where a = 0 group by a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref	PRIMARY,index	PRIMARY	4	const	15	100.00	Using index; Using temporary
+1	SIMPLE	t1	ref	a,index	a	5	const	15	100.00	Using index; Using temporary
 Warnings:
 Note	1003	select sql_buffer_result `test`.`t1`.`a` AS `a`,(max(`test`.`t1`.`b`) + 1) AS `max(b)+1` from `test`.`t1` where (`test`.`t1`.`a` = 0) group by `test`.`t1`.`a`
 drop table t1;
@@ -3363,9 +3390,10 @@ COUNT(DISTINCT a, b + 0)
 16
 EXPLAIN SELECT COUNT(DISTINCT a) FROM t1 HAVING COUNT(DISTINCT b) < 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	10	NULL	9	Using index for group-by
+1	SIMPLE	t1	index	NULL	a	10	NULL	16	Using index
 SELECT COUNT(DISTINCT a) FROM t1 HAVING COUNT(DISTINCT b) < 10;
 COUNT(DISTINCT a)
+2
 EXPLAIN SELECT COUNT(DISTINCT a) FROM t1 HAVING COUNT(DISTINCT c) < 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	16	
@@ -3499,7 +3527,7 @@ WHERE b = 13 AND c = 42 GROUP BY a;
 a	COUNT(DISTINCT a)	SUM(DISTINCT a)
 EXPLAIN SELECT COUNT(DISTINCT a, b), SUM(DISTINCT a) FROM t2 WHERE b = 42;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	a	10	NULL	9	Using where; Using index for group-by
+1	SIMPLE	t2	index	NULL	a	15	NULL	16	Using where; Using index
 SELECT COUNT(DISTINCT a, b), SUM(DISTINCT a) FROM t2 WHERE b = 42;
 COUNT(DISTINCT a, b)	SUM(DISTINCT a)
 0	NULL
@@ -3547,7 +3575,7 @@ DROP TABLE t1,t2;
 CREATE TABLE t1 (
 f1 int(11) NOT NULL DEFAULT '0',
 f2 char(1) NOT NULL DEFAULT '',
-PRIMARY KEY (f1,f2)
+KEY (f1,f2)
 ) ;
 insert into t1 values(1,'A'),(1 , 'B'), (1, 'C'), (2, 'A'), 
 (3, 'A'), (3, 'B'), (3, 'C'), (3, 'D');
@@ -3558,7 +3586,7 @@ f1	COUNT(DISTINCT f2)
 3	4
 explain SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	PRIMARY	5	NULL	9	Using index for group-by (scanning)
+1	SIMPLE	t1	range	NULL	f1	5	NULL	9	Using index for group-by (scanning)
 drop table t1;
 # End of test#50539.
 #
@@ -3582,7 +3610,7 @@ INSERT INTO faulty (b, c) VALUES
 EXPLAIN
 SELECT DISTINCT b, c FROM faulty WHERE b='1802' ORDER BY c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	faulty	range	b_and_c	b_and_c	12	NULL	2	Using where; Using index for group-by; Using filesort
+1	SIMPLE	faulty	ref	b_and_c	b_and_c	4	const	2	Using where; Using index
 SELECT DISTINCT b, c FROM faulty WHERE b='1802' ORDER BY c;
 b	c
 1802	2013-02-28 09:00:00

@@ -62,10 +62,11 @@ Comp_creator *comp_ne_creator(bool invert);
 
 int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
                          enum enum_schema_tables schema_table_idx);
-void get_default_definer(THD *thd, LEX_USER *definer);
-LEX_USER *create_default_definer(THD *thd);
+void get_default_definer(THD *thd, LEX_USER *definer, bool role);
+LEX_USER *create_default_definer(THD *thd, bool role);
 LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name);
-LEX_USER *get_current_user(THD *thd, LEX_USER *user);
+LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock=true);
+bool sp_process_definer(THD *thd);
 bool check_string_byte_length(LEX_STRING *str, const char *err_msg,
                               uint max_byte_length);
 bool check_string_char_length(LEX_STRING *str, const char *err_msg,
@@ -83,7 +84,7 @@ bool alloc_query(THD *thd, const char *packet, uint packet_length);
 void mysql_init_select(LEX *lex);
 void mysql_parse(THD *thd, char *rawbuf, uint length,
                  Parser_state *parser_state);
-void mysql_reset_thd_for_next_command(THD *thd, my_bool calculate_userstat);
+void mysql_reset_thd_for_next_command(THD *thd);
 bool mysql_new_select(LEX *lex, bool move_down);
 void create_select_for_variable(const char *var_name);
 void create_table_set_open_action_and_adjust_tables(LEX *lex);

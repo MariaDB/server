@@ -1,4 +1,4 @@
-/* Copyright 2008-2012 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2013 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 #include "mysqld.h"
 typedef struct st_mysql_show_var SHOW_VAR;
 #include <sql_priv.h>
+//#include "rpl_gtid.h"
 #include "../wsrep/wsrep_api.h"
 
 #define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
@@ -26,23 +27,22 @@ typedef struct st_mysql_show_var SHOW_VAR;
 class set_var;
 class THD;
 
-#ifdef WITH_WSREP
-#include "../wsrep/wsrep_api.h"
-  enum wsrep_exec_mode {
+enum wsrep_exec_mode {
     LOCAL_STATE,
     REPL_RECV,
     TOTAL_ORDER,
     LOCAL_COMMIT
-  };
+};
 
-  enum wsrep_query_state {
+enum wsrep_query_state {
     QUERY_IDLE,
     QUERY_EXEC,
     QUERY_COMMITTING,
     QUERY_EXITING,
     QUERY_ROLLINGBACK,
-  };
-  enum wsrep_conflict_state {
+};
+
+enum wsrep_conflict_state {
     NO_CONFLICT,
     MUST_ABORT,
     ABORTING,
@@ -51,13 +51,14 @@ class THD;
     REPLAYING,
     RETRY_AUTOCOMMIT,
     CERT_FAILURE,
-  };
-  enum wsrep_consistency_check_mode {
+};
+
+enum wsrep_consistency_check_mode {
     NO_CONSISTENCY_CHECK,
     CONSISTENCY_CHECK_DECLARED,
     CONSISTENCY_CHECK_RUNNING,
-  };
-#endif
+};
+
 
 // Global wsrep parameters
 extern wsrep_t*    wsrep;
@@ -128,7 +129,6 @@ bool wsrep_before_SE(); // initialize wsrep before storage
 void wsrep_init_startup(bool before);
 
 
-
 extern "C" enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd);
 extern "C" enum wsrep_conflict_state wsrep_thd_conflict_state(THD *thd);
 extern "C" enum wsrep_query_state wsrep_thd_query_state(THD *thd);
@@ -145,8 +145,8 @@ extern "C" void wsrep_thd_set_conflict_state(
 
 extern "C" void wsrep_thd_set_trx_to_replay(THD *thd, uint64 trx_id);
 
-extern "C"void wsrep_thd_LOCK(THD *thd);
-extern "C"void wsrep_thd_UNLOCK(THD *thd);
+extern "C" void wsrep_thd_LOCK(THD *thd);
+extern "C" void wsrep_thd_UNLOCK(THD *thd);
 extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
 extern "C" time_t wsrep_thd_query_start(THD *thd);
 extern "C" my_thread_id wsrep_thd_thread_id(THD *thd);
@@ -155,8 +155,7 @@ extern "C" query_id_t wsrep_thd_query_id(THD *thd);
 extern "C" char * wsrep_thd_query(THD *thd);
 extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
 extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
-extern "C" void wsrep_thd_awake(THD* bf_thd, THD *thd, my_bool signal);
-
+extern "C" void wsrep_thd_awake(THD *thd, my_bool signal);
 
 
 extern void wsrep_close_client_connections(my_bool wait_to_end);
@@ -230,7 +229,7 @@ enum wsrep_trx_status {
     WSREP_TRX_OK,
     WSREP_TRX_ROLLBACK,
     WSREP_TRX_ERROR,
-  };
+};
 
 extern enum wsrep_trx_status
 wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all);
@@ -250,13 +249,13 @@ typedef struct wsrep_aborting_thd {
 } *wsrep_aborting_thd_t;
 
 extern mysql_mutex_t LOCK_wsrep_ready;
-extern mysql_cond_t COND_wsrep_ready;
+extern mysql_cond_t  COND_wsrep_ready;
 extern mysql_mutex_t LOCK_wsrep_sst;
-extern mysql_cond_t COND_wsrep_sst;
+extern mysql_cond_t  COND_wsrep_sst;
 extern mysql_mutex_t LOCK_wsrep_sst_init;
-extern mysql_cond_t COND_wsrep_sst_init;
+extern mysql_cond_t  COND_wsrep_sst_init;
 extern mysql_mutex_t LOCK_wsrep_rollback;
-extern mysql_cond_t COND_wsrep_rollback;
+extern mysql_cond_t  COND_wsrep_rollback;
 extern int wsrep_replaying;
 extern mysql_mutex_t LOCK_wsrep_replaying;
 extern mysql_cond_t  COND_wsrep_replaying;
@@ -265,6 +264,10 @@ extern mysql_mutex_t LOCK_wsrep_desync;
 extern wsrep_aborting_thd_t wsrep_aborting_thd;
 extern my_bool       wsrep_emulate_bin_log;
 extern int           wsrep_to_isolation;
+#ifdef GTID_SUPPORT
+extern rpl_sidno     wsrep_sidno;
+#endif /* GTID_SUPPORT */
+extern my_bool       wsrep_preordered_opt;
 
 extern PSI_mutex_key key_LOCK_wsrep_ready;
 extern PSI_mutex_key key_COND_wsrep_ready;
@@ -287,14 +290,15 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
 void wsrep_to_isolation_end(THD *thd);
 void wsrep_cleanup_transaction(THD *thd);
 int wsrep_to_buf_helper(
-  THD* thd, const char *query, uint query_len, uchar** buf, int* buf_len);
-int wsrep_create_sp(THD *thd, uchar** buf, int* buf_len);
-int wsrep_create_trigger_query(THD *thd, uchar** buf, int* buf_len);
-int wsrep_create_event_query(THD *thd, uchar** buf, int* buf_len);
+  THD* thd, const char *query, uint query_len, uchar** buf, size_t* buf_len);
+int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len);
+int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
+int wsrep_create_event_query(THD *thd, uchar** buf, size_t* buf_len);
 
 struct xid_t;
+void wsrep_get_SE_checkpoint(xid_t*);
 void wsrep_set_SE_checkpoint(xid_t*);
-
+void wsrep_init_sidno(const wsrep_uuid_t&);
 void wsrep_xid_init(xid_t*, const wsrep_uuid_t*, wsrep_seqno_t);
 const wsrep_uuid_t* wsrep_xid_uuid(const xid_t*);
 wsrep_seqno_t wsrep_xid_seqno(const xid_t*);

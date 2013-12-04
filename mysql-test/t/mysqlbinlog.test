@@ -275,17 +275,16 @@ FLUSH LOGS;
 
 DROP TABLE t1;
 
-# We create a table, patch, and load the output into it
-# By using LINES STARTING BY '#' + SELECT WHERE a LIKE 'Query'
-# We can easily see if a 'Query' line is missing the '#' character
-# as described in the original bug
+# We create a table named "patch", and load the output into it.
+# By using LIKE, we can easily see if the output is missing the '#'
+# character, as described in the bug.
 
 --disable_query_log
 CREATE TABLE patch (a BLOB);
 --exec $MYSQL_BINLOG --hexdump --local-load=$MYSQLTEST_VARDIR/tmp/ $MYSQLD_DATADIR/master-bin.000012 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_tmp.dat
 ### Starting master-bin.000014
 eval LOAD DATA LOCAL INFILE '$MYSQLTEST_VARDIR/tmp/mysqlbinlog_tmp.dat'
-     INTO TABLE patch FIELDS TERMINATED BY '' LINES STARTING BY '#';
+     INTO TABLE patch FIELDS TERMINATED BY '';
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_tmp.dat
 --enable_query_log
 
@@ -293,7 +292,7 @@ eval LOAD DATA LOCAL INFILE '$MYSQLTEST_VARDIR/tmp/mysqlbinlog_tmp.dat'
 --echo The bug being tested was that 'Query' lines were not preceded by '#'
 --echo If the line is in the table, it had to have been preceded by a '#'
 --echo
-SELECT COUNT(*) AS `BUG#28293_expect_2` FROM patch WHERE a LIKE '%Query%';
+SELECT COUNT(*) AS `BUG#28293_expect_2` FROM patch WHERE a LIKE '#%Query%';
 DROP TABLE patch;
 
 #
@@ -594,3 +593,13 @@ SHOW TABLES IN test;
 --exec $MYSQL_BINLOG --server-id=2 $MYSQLD_DATADIR/$master_binlog | $MYSQL
 SHOW TABLES IN test;
 eval SET GLOBAL SERVER_ID = $old_server_id;
+
+--echo #
+--echo # MDEV-4645: Incorrect reads of frozen binlog events;
+--echo # FDE corrupted in relay log
+--echo #
+--let TZ=GMT
+--exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_checksum.binlog
+--exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_group_id.binlog
+--exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_group_id_checksum.binlog
+--exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_none.binlog

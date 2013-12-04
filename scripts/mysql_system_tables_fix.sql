@@ -630,10 +630,12 @@ UPDATE user SET Create_tablespace_priv = Super_priv WHERE @hadCreateTablespacePr
 
 ALTER TABLE user ADD plugin char(64) DEFAULT '',  ADD authentication_string TEXT;
 ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL, MODIFY authentication_string TEXT NOT NULL;
 -- Somewhere above, we ran ALTER TABLE user .... CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin.
 --  we want password_expired column to have collation utf8_general_ci.
 ALTER TABLE user MODIFY password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE user MODIFY is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 
 -- Need to pre-fill mysql.proxies_priv with access for root even when upgrading from
 -- older versions
@@ -643,6 +645,20 @@ INSERT INTO tmp_proxies_priv VALUES ('localhost', 'root', '', '', TRUE, '', now(
 INSERT INTO proxies_priv SELECT * FROM tmp_proxies_priv WHERE @had_proxies_priv_table=0;
 DROP TABLE tmp_proxies_priv;
 
+# MDEV-4332 longer user names
+alter table user         modify User         char(80)  binary not null default '';
+alter table db           modify User         char(80)  binary not null default '';
+alter table tables_priv  modify User         char(80)  binary not null default '';
+alter table columns_priv modify User         char(80)  binary not null default '';
+alter table procs_priv   modify User         char(80)  binary not null default '';
+alter table proc         modify definer      char(141) collate utf8_bin not null default '';
+alter table event        modify definer      char(141) collate utf8_bin not null default '';
+alter table proxies_priv modify User         char(80)  COLLATE utf8_bin not null default '';
+alter table proxies_priv modify Proxied_user char(80)  COLLATE utf8_bin not null default '';
+alter table proxies_priv modify Grantor      char(141) COLLATE utf8_bin not null default '';
+alter table servers      modify Username     char(80)                   not null default '';
+alter table procs_priv   modify Grantor      char(141) COLLATE utf8_bin not null default '';
+alter table tables_priv  modify Grantor      char(141) COLLATE utf8_bin not null default '';
 
 # Activate the new, possible modified privilege tables
 # This should not be needed, but gives us some extra testing that the above

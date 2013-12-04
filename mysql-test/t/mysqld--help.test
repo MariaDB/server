@@ -26,7 +26,7 @@ perl;
   @plugins=qw/innodb ndb archive blackhole federated partition ndbcluster
               feedback debug temp-pool ssl des-key-file xtradb sequence
               thread-concurrency super-large-pages mutex-deadlock-detector
-              connect null-audit aria pbxt oqgraph sphinx thread-handling
+              connect null-audit aria oqgraph sphinx thread-handling
               test-sql-discovery rpl-semi-sync query-cache-info
               query-response-time locales/;
 
@@ -54,7 +54,7 @@ perl;
     s/\b2146435072\b/9223372036853727232/;
     s/\b196608\b/262144/;
     s/\b4294963200\b/18446744073709547520/;
-    foreach $var (@env) { s/$ENV{$var}/$var/ }
+    foreach $var (@env) { s/\Q$ENV{$var}\E/$var/ }
     next if /use --skip-(use-)?symbolic-links to disable/; # for valgrind, again
     next if $skip;
     print;

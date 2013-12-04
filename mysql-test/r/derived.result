@@ -417,6 +417,56 @@ MIN(i)
 DROP TABLE t1;
 # End of 5.0 tests
 #
+# MDEV-5005: Subquery in Procedure somehow affecting temporary table
+#
+create temporary table if not exists t1 (id int not null);
+select A.* from ( select tt.* from t1 tt ) A;
+id
+prepare stmt from "select A.* from ( select tt.* from t1 tt ) A ";
+execute stmt;
+id
+deallocate prepare stmt;
+drop temporary table t1;
+CREATE PROCEDURE p ()
+BEGIN
+select A.* from ( select tt.* from t1 tt ) A ;
+END |
+create temporary table if not exists t1 (id int not null);
+CALL p();
+id
+CALL p();
+id
+drop procedure p;
+drop temporary table t1;
+#
+# MDEV-5143: update of a joined table with a nested subquery with 
+# a syntax error crashes mysqld with signal 11
+#
+create table t1 (id int(11) not null auto_increment, val varchar(100) null,primary key (id));
+create table t2 (id int(11) not null auto_increment, val varchar(100) null,primary key (id));
+insert into t1 (val) values('a');
+insert into t2 (val) values('1');
+update 
+(
+select 
+val
+from
+(
+select 
+v.val
+from 
+t2 wrong_table_alias
+) t4
+) t3
+inner join t1 on 
+t1.id=t3.val
+set 
+t1.val=t3.val
+;
+ERROR 42S22: Unknown column 'v.val' in 'field list'
+drop table t1, t2;
+# End of 5.3 tests
+#
 # Bug#58730 Assertion failed: table->key_read == 0 in close_thread_table,
 #           temptable views
 #
@@ -440,7 +490,6 @@ SELECT 1 FROM t1 JOIN v1 ON 1 > (SELECT 1 FROM v2);
 ERROR 21000: Subquery returns more than 1 row
 DROP TABLE t1, t2;
 DROP VIEW v1, v2;
-set optimizer_switch=@save_derived_optimizer_switch;
 create table t1 (n bigint(20) unsigned, d1 datetime, d2 datetime, key (d1));
 insert t1 values (2085,'2012-01-01 00:00:00','2013-01-01 00:00:00');
 insert t1 values (2084,'2012-02-01 00:00:00','2013-01-01 00:00:00');
@@ -454,3 +503,18 @@ n	d1	d2	result
 2085	2012-01-01 00:00:00	2013-01-01 00:00:00	0
 2084	2012-02-01 00:00:00	2013-01-01 00:00:00	0
 drop table t1;
+SET optimizer_switch = 'derived_merge=on,derived_with_keys=on,in_to_exists=on';
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (8);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(7);
+EXPLAIN SELECT * FROM (SELECT * FROM t1) AS table1,
+(SELECT DISTINCT * FROM t2) AS table2 WHERE b = a AND a <> ANY (SELECT 9);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	<derived3>	ref	key0	key0	5	const	0	
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	Using temporary
+Warnings:
+Note	1249	Select 4 was reduced during optimization
+DROP TABLE t1, t2;
+set optimizer_switch=@save_derived_optimizer_switch;

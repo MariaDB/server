@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
 
@@ -26,8 +26,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -618,7 +618,7 @@ open_or_create_log_file(
 		    || size_high != srv_calc_high32(srv_log_file_size)) {
 
 			fprintf(stderr,
-				"InnoDB: Error: log file %s is"
+				"InnoDB: Warning: log file %s is"
 				" of different size %lu %lu bytes\n"
 				"InnoDB: than specified in the .cnf"
 				" file %lu %lu bytes!\n",
@@ -626,7 +626,9 @@ open_or_create_log_file(
 				(ulong) srv_calc_high32(srv_log_file_size),
 				(ulong) srv_calc_low32(srv_log_file_size));
 
-			return(DB_ERROR);
+                        srv_log_file_size= ((size +
+                                             (((longlong) size_high) << 32)) /
+                                            UNIV_PAGE_SIZE);
 		}
 	} else {
 		*log_file_created = TRUE;
@@ -817,6 +819,7 @@ open_or_create_data_files(
 		}
 
 		if (ret == FALSE) {
+			const char* check_msg;
 			/* We open the data file */
 
 			if (one_created) {
@@ -914,12 +917,19 @@ open_or_create_data_files(
 				return(DB_ERROR);
 			}
 skip_size_check:
-			fil_read_first_page(
+			check_msg = fil_read_first_page(
 				files[i], one_opened, &flags,
 #ifdef UNIV_LOG_ARCHIVE
 				min_arch_log_no, max_arch_log_no,
 #endif /* UNIV_LOG_ARCHIVE */
 				min_flushed_lsn, max_flushed_lsn);
+
+			if (check_msg) {
+				fprintf(stderr,
+					"InnoDB: Error: %s in data file %s\n",
+					check_msg, name);
+				return(DB_ERROR);
+			}
 
 			if (!one_opened
 			    && UNIV_PAGE_SIZE
@@ -1042,6 +1052,8 @@ skip_size_check:
 
 		if (ret == FALSE) {
 
+			const char* check_msg;
+
 			/* We open the data file */
 
 			files[i] = os_file_create(innodb_file_data_key,
@@ -1078,12 +1090,19 @@ skip_size_check:
 					(ulong) TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * 9);
 			}
 
-			fil_read_first_page(
+			check_msg = fil_read_first_page(
 				files[i], one_opened, &flags,
 #ifdef UNIV_LOG_ARCHIVE
 				min_arch_log_no, max_arch_log_no,
 #endif /* UNIV_LOG_ARCHIVE */
 				min_flushed_lsn, max_flushed_lsn);
+
+			if (check_msg) {
+				fprintf(stderr,
+					"InnoDB: Error: %s in doublewrite "
+					"buffer file %s\n", check_msg, name);
+				return(DB_ERROR);
+			}
 
 			one_opened = TRUE;
 		} else {

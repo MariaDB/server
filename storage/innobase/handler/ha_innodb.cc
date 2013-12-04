@@ -148,7 +148,6 @@ extern void wsrep_cleanup_transaction(THD *thd);
 static mysql_mutex_t innobase_share_mutex;
 /** to force correct commit order in binlog */
 static ulong commit_threads = 0;
-static mysql_mutex_t commit_threads_m;
 static mysql_cond_t commit_cond;
 static mysql_mutex_t commit_cond_m;
 static mysql_mutex_t pending_checkpoint_mutex;
@@ -312,13 +311,11 @@ const struct _ft_vft_ext ft_vft_ext_result = {innobase_fts_get_version,
 /* Keys to register pthread mutexes/cond in the current file with
 performance schema */
 static mysql_pfs_key_t	innobase_share_mutex_key;
-static mysql_pfs_key_t	commit_threads_m_key;
 static mysql_pfs_key_t	commit_cond_mutex_key;
 static mysql_pfs_key_t	commit_cond_key;
 static mysql_pfs_key_t	pending_checkpoint_mutex_key;
 
 static PSI_mutex_info	all_pthread_mutexes[] = {
-	{&commit_threads_m_key, "commit_threads_m", 0},
 	{&commit_cond_mutex_key, "commit_cond_mutex", 0},
 	{&innobase_share_mutex_key, "innobase_share_mutex", 0}
 };
@@ -2856,7 +2853,7 @@ innobase_init(
 
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
-	innobase_hton->flags = HTON_NO_FLAGS;
+        innobase_hton->flags = HTON_EXTENDED_KEYS;
 
 	innobase_hton->release_temporary_latches =
 		innobase_release_temporary_latches;
@@ -3353,8 +3350,6 @@ innobase_change_buffering_inited_ok:
 	mysql_mutex_init(innobase_share_mutex_key,
 			 &innobase_share_mutex,
 			 MY_MUTEX_INIT_FAST);
-	mysql_mutex_init(commit_threads_m_key,
-			 &commit_threads_m, MY_MUTEX_INIT_FAST);
 	mysql_mutex_init(commit_cond_mutex_key,
 			 &commit_cond_m, MY_MUTEX_INIT_FAST);
 	mysql_cond_init(commit_cond_key, &commit_cond, NULL);
@@ -3422,7 +3417,6 @@ innobase_end(
 		srv_free_paths_and_sizes();
 		my_free(internal_innobase_data_file_path);
 		mysql_mutex_destroy(&innobase_share_mutex);
-		mysql_mutex_destroy(&commit_threads_m);
 		mysql_mutex_destroy(&commit_cond_m);
 		mysql_cond_destroy(&commit_cond);
 		mysql_mutex_destroy(&pending_checkpoint_mutex);
@@ -3686,6 +3680,14 @@ innobase_commit(
 		if (!trx_is_active_commit_ordered(trx)) {
 			innobase_commit_ordered_2(trx, thd);
 		}
+
+		/* We were instructed to commit the whole transaction, or
+		this is an SQL statement end and autocommit is on */
+
+		/* At this point commit order is fixed and transaction is
+		visible to others. So we can wakeup other commits waiting for
+		this one, to allow then to group commit with us. */
+		thd_wakeup_subsequent_commits(thd, 0);
 
 		/* We did the first part already in innobase_commit_ordered(),
 		Now finish by doing a write + flush of logs. */
@@ -4157,6 +4159,20 @@ innobase_kill_query(
 	DBUG_ENTER("innobase_kill_query");
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
+#ifdef WITH_WSREP
+	wsrep_thd_LOCK(thd);
+	if (wsrep_thd_conflict_state(thd) != NO_CONFLICT) {
+		/* if victim has been signaled by BF thraed and/or aborting
+		   is already progressing, following query aborting is not necessary
+		   any more.
+		   Also, BF thread should own trx mutex for the victim, which would 
+		   conflict with trx_mutex_enter() below
+		*/
+		wsrep_thd_UNLOCK(thd);
+		DBUG_VOID_RETURN;
+	}
+	wsrep_thd_UNLOCK(thd);
+#endif /* WITH_WSREP */
 	trx = thd_to_trx(thd);
 
         if (trx)
@@ -4686,6 +4702,12 @@ innobase_match_index_columns(
 				DBUG_RETURN(FALSE);
 			}
 		}
+
+                // MariaDB-5.5 compatibility
+                if ((key_part->field->real_type() == MYSQL_TYPE_ENUM ||
+                     key_part->field->real_type() == MYSQL_TYPE_SET) &&
+                    mtype == DATA_FIXBINARY)
+                  col_type= DATA_FIXBINARY;
 
 		if (col_type != mtype) {
 			/* Column Type mismatches */
@@ -5490,12 +5512,13 @@ wsrep_innobase_mysql_sort(
 		ut_a(str_length <= tmp_length);
 		memcpy(tmp_str, str, str_length);
 
-		tmp_length = charset->coll->strnxfrm(charset, str, str_length,
-						     tmp_str, str_length);
+		//tmp_length = charset->coll->strnxfrm(charset, str, str_length,
+		//				     tmp_str, str_length);
 		/* Note: in MySQL 5.6:
+		 */
 		tmp_length = charset->coll->strnxfrm(charset, str, str_length,
 				     str_length, tmp_str, tmp_length, 0);
-		*/
+		/**/
 		DBUG_ASSERT(tmp_length == str_length);
  
 		break;
@@ -5926,64 +5949,92 @@ get_innobase_type_from_mysql_type(
 	8 bits: this is used in ibuf and also when DATA_NOT_NULL is ORed to
 	the type */
 
-	compile_time_assert((ulint)MYSQL_TYPE_STRING < 256);
-	compile_time_assert((ulint)MYSQL_TYPE_VAR_STRING < 256);
-	compile_time_assert((ulint)MYSQL_TYPE_DOUBLE < 256);
-	compile_time_assert((ulint)MYSQL_TYPE_FLOAT < 256);
-	compile_time_assert((ulint)MYSQL_TYPE_DECIMAL < 256);
+	DBUG_ASSERT((ulint)MYSQL_TYPE_STRING < 256);
+	DBUG_ASSERT((ulint)MYSQL_TYPE_VAR_STRING < 256);
+	DBUG_ASSERT((ulint)MYSQL_TYPE_DOUBLE < 256);
+	DBUG_ASSERT((ulint)MYSQL_TYPE_FLOAT < 256);
+	DBUG_ASSERT((ulint)MYSQL_TYPE_DECIMAL < 256);
 
-	*unsigned_flag = 0;
+	if (field->flags & UNSIGNED_FLAG) {
 
-	switch (field->key_type()) {
-	case HA_KEYTYPE_USHORT_INT:
-	case HA_KEYTYPE_ULONG_INT:
-	case HA_KEYTYPE_UINT24:
-	case HA_KEYTYPE_ULONGLONG:
 		*unsigned_flag = DATA_UNSIGNED;
-		/* fall through */
-	case HA_KEYTYPE_SHORT_INT:
-	case HA_KEYTYPE_LONG_INT:
-	case HA_KEYTYPE_INT24:
-	case HA_KEYTYPE_INT8:
-	case HA_KEYTYPE_LONGLONG:
+	} else {
+		*unsigned_flag = 0;
+	}
+
+	if (field->real_type() == MYSQL_TYPE_ENUM
+		|| field->real_type() == MYSQL_TYPE_SET) {
+
+		/* MySQL has field->type() a string type for these, but the
+		data is actually internally stored as an unsigned integer
+		code! */
+
+		*unsigned_flag = DATA_UNSIGNED; /* MySQL has its own unsigned
+						flag set to zero, even though
+						internally this is an unsigned
+						integer type */
 		return(DATA_INT);
-	case HA_KEYTYPE_FLOAT:
-		return(DATA_FLOAT);
-	case HA_KEYTYPE_DOUBLE:
-		return(DATA_DOUBLE);
-	case HA_KEYTYPE_BINARY:
-                if (field->type() == MYSQL_TYPE_TINY)
-                { // compatibility workaround
-                	*unsigned_flag= DATA_UNSIGNED;
-                	return DATA_INT;
-                }
-		return(DATA_FIXBINARY);
-	case HA_KEYTYPE_VARBINARY2:
-		if (field->type() != MYSQL_TYPE_VARCHAR)
-			return(DATA_BLOB);
-		/* fall through */
-	case HA_KEYTYPE_VARBINARY1:
-		return(DATA_BINARY);
-	case HA_KEYTYPE_VARTEXT2:
-		if (field->type() != MYSQL_TYPE_VARCHAR)
-			return(DATA_BLOB);
-		/* fall through */
-	case HA_KEYTYPE_VARTEXT1:
-		if (field->charset() == &my_charset_latin1) {
+	}
+
+	switch (field->type()) {
+		/* NOTE that we only allow string types in DATA_MYSQL and
+		DATA_VARMYSQL */
+	case MYSQL_TYPE_VAR_STRING:	/* old <= 4.1 VARCHAR */
+	case MYSQL_TYPE_VARCHAR:	/* new >= 5.0.3 true VARCHAR */
+		if (field->binary()) {
+			return(DATA_BINARY);
+		} else if (strcmp(field->charset()->name,
+				  "latin1_swedish_ci") == 0) {
 			return(DATA_VARCHAR);
 		} else {
 			return(DATA_VARMYSQL);
 		}
-	case HA_KEYTYPE_TEXT:
-		if (field->charset() == &my_charset_latin1) {
+	case MYSQL_TYPE_BIT:
+	case MYSQL_TYPE_STRING: if (field->binary()) {
+
+			return(DATA_FIXBINARY);
+		} else if (strcmp(field->charset()->name,
+				  "latin1_swedish_ci") == 0) {
 			return(DATA_CHAR);
 		} else {
 			return(DATA_MYSQL);
 		}
-	case HA_KEYTYPE_NUM:
+	case MYSQL_TYPE_NEWDECIMAL:
+		return(DATA_FIXBINARY);
+	case MYSQL_TYPE_LONG:
+	case MYSQL_TYPE_LONGLONG:
+	case MYSQL_TYPE_TINY:
+	case MYSQL_TYPE_SHORT:
+	case MYSQL_TYPE_INT24:
+	case MYSQL_TYPE_DATE:
+	case MYSQL_TYPE_YEAR:
+	case MYSQL_TYPE_NEWDATE:
+		return(DATA_INT);
+	case MYSQL_TYPE_TIMESTAMP:
+	case MYSQL_TYPE_TIME:
+	case MYSQL_TYPE_DATETIME:
+		if (field->key_type() == HA_KEYTYPE_BINARY)
+			return(DATA_FIXBINARY);
+                else
+			return(DATA_INT);
+	case MYSQL_TYPE_FLOAT:
+		return(DATA_FLOAT);
+	case MYSQL_TYPE_DOUBLE:
+		return(DATA_DOUBLE);
+	case MYSQL_TYPE_DECIMAL:
 		return(DATA_DECIMAL);
-	case HA_KEYTYPE_BIT:
-	case HA_KEYTYPE_END:
+	case MYSQL_TYPE_GEOMETRY:
+	case MYSQL_TYPE_TINY_BLOB:
+	case MYSQL_TYPE_MEDIUM_BLOB:
+	case MYSQL_TYPE_BLOB:
+	case MYSQL_TYPE_LONG_BLOB:
+		return(DATA_BLOB);
+	case MYSQL_TYPE_NULL:
+		/* MySQL currently accepts "NULL" datatype, but will
+		reject such datatype in the next release. We will cope
+		with it and not trigger assertion failure in 5.1 */
+		break;
+	default:
 		ut_error;
 	}
 
@@ -7955,10 +8006,9 @@ func_exit:
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (!error && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
+	if (error == DB_SUCCESS                          && 
+	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
             wsrep_on(user_thd)) {
-
-		WSREP_DEBUG("WSREP: UPDATE_ROW_KEY");
 
 		DBUG_PRINT("wsrep", ("update row key"));
 
@@ -8020,7 +8070,8 @@ ha_innobase::delete_row(
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (!error && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
+	if (error == DB_SUCCESS                          && 
+	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
             wsrep_on(user_thd)) {
 
 		if (wsrep_append_keys(user_thd, false, record, NULL)) {
@@ -16729,7 +16780,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		WSREP_DEBUG("victim %lu in MUST ABORT state", 
 			    victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
-		wsrep_thd_awake(bf_thd, thd, signal);
+		wsrep_thd_awake(thd, signal);
 		DBUG_RETURN(0);
 		break;
 	case ABORTED:
@@ -16748,7 +16799,8 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 
 		WSREP_DEBUG("kill query for: %ld",
 			    wsrep_thd_thread_id(thd));
-		wsrep_thd_awake(bf_thd, thd, signal); 
+		wsrep_thd_UNLOCK(thd);
+		wsrep_thd_awake(thd, signal); 
 		WSREP_DEBUG("kill trx QUERY_COMMITTING for %lu", 
 			    victim_trx->id);
 
@@ -16765,7 +16817,6 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 			case WSREP_WARNING:
 				WSREP_DEBUG("cancel commit warning: %lu",
 					    victim_trx->id);
-				wsrep_thd_UNLOCK(thd);
 				DBUG_RETURN(1);
 				break;
 			case WSREP_OK:
@@ -16801,14 +16852,16 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 				lock_cancel_waiting_and_release(wait_lock);
 			}
 
-			wsrep_thd_awake(bf_thd, thd, signal); 
+			wsrep_thd_UNLOCK(thd);
+			wsrep_thd_awake(thd, signal); 
 		} else {
 			/* abort currently executing query */
 			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %ld", 
                                             wsrep_thd_thread_id(thd)));
 			WSREP_DEBUG("kill query for: %ld",
 				wsrep_thd_thread_id(thd));
-			wsrep_thd_awake(bf_thd, thd, signal); 
+			wsrep_thd_UNLOCK(thd);
+			wsrep_thd_awake(thd, signal); 
 
 			/* for BF thd, we need to prevent him from committing */
 			if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
@@ -16864,15 +16917,16 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		WSREP_DEBUG("signaling aborter");
 		mysql_cond_signal(&COND_wsrep_rollback);
 		mysql_mutex_unlock(&LOCK_wsrep_rollback);
+		wsrep_thd_UNLOCK(thd);
 
 		break;
 	}
 	default:
 		WSREP_WARN("bad wsrep query state: %d", 
 			  wsrep_thd_query_state(thd));
+		wsrep_thd_UNLOCK(thd);
 		break;
 	}
-	wsrep_thd_UNLOCK(thd);
      
 	DBUG_RETURN(0);
 }
@@ -16903,7 +16957,7 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 		wsrep_thd_LOCK(victim_thd);
 		wsrep_thd_set_conflict_state(victim_thd, MUST_ABORT);
 		wsrep_thd_UNLOCK(victim_thd);
-		wsrep_thd_awake(bf_thd, victim_thd, signal); 
+		wsrep_thd_awake(victim_thd, signal); 
 	}
 	DBUG_RETURN(-1);
 }

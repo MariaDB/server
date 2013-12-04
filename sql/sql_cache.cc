@@ -1320,17 +1320,17 @@ ulong Query_cache::resize(ulong query_cache_size_arg)
     {
       BLOCK_LOCK_WR(block);
       Query_cache_query *query= block->query();
-      if (query && query->writer())
+      if (query->writer())
       {
         /*
-           Drop the writer; this will cancel any attempts to store 
+           Drop the writer; this will cancel any attempts to store
            the processed statement associated with this writer.
          */
         query->writer()->first_query_block= NULL;
         query->writer(0);
         refused++;
       }
-      BLOCK_UNLOCK_WR(block);
+      query->unlock_n_destroy();
       block= block->next;
     } while (block != queries_blocks);
   }
@@ -2132,9 +2132,13 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
   }
 #endif /*!EMBEDDED_LIBRARY*/
 
-  thd->limit_found_rows = query->found_rows();
+  thd->set_sent_row_count(thd->limit_found_rows = query->found_rows());
   thd->status_var.last_query_cost= 0.0;
   thd->query_plan_flags= (thd->query_plan_flags & ~QPLAN_QC_NO) | QPLAN_QC;
+  if (!thd->get_sent_row_count())
+    status_var_increment(thd->status_var.empty_queries);
+  else
+    status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
 
   /*
     End the statement transaction potentially started by an
@@ -4307,11 +4311,11 @@ my_bool Query_cache::move_by_type(uchar **border,
     size_t key_length;
     key=query_cache_query_get_key((uchar*) block, &key_length, 0);
     my_hash_first(&queries, (uchar*) key, key_length, &record_idx);
-    // Move table of used tables 
-    memmove((char*) new_block->table(0), (char*) block->table(0),
-	   ALIGN_SIZE(n_tables*sizeof(Query_cache_block_table)));
     block->query()->unlock_n_destroy();
     block->destroy();
+    // Move table of used tables
+    memmove((char*) new_block->table(0), (char*) block->table(0),
+	   ALIGN_SIZE(n_tables*sizeof(Query_cache_block_table)));
     new_block->init(len);
     new_block->type=Query_cache_block::QUERY;
     new_block->used=used;

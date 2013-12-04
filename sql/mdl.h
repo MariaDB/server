@@ -916,9 +916,7 @@ private:
    */
   MDL_wait_for_subgraph *m_waiting_for;
 private:
-#ifndef WITH_WSREP
   THD *get_thd() const { return m_owner->get_thd(); }
-#endif
   MDL_ticket *find_ticket(MDL_request *mdl_req,
                           enum_mdl_duration *duration);
   void release_locks_stored_before(enum_mdl_duration duration, MDL_ticket *sentinel);
@@ -928,7 +926,7 @@ private:
 
 public:
 #ifdef WITH_WSREP
-  THD *get_thd() const { return m_owner->get_thd(); }
+  THD *wsrep_get_thd() const { return get_thd(); }
 #endif
   void find_deadlock();
 

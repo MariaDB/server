@@ -439,7 +439,7 @@ from (select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)) as tmp
 LIMIT ROWS EXAMINED 11;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
 3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 select *
 from (select * from t1
@@ -747,27 +747,27 @@ ERROR HY000: Sort aborted:
 SHOW STATUS LIKE 'Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	4
+Handler_read_key	5
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	52
+Handler_read_rnd_next	46
 SHOW STATUS LIKE 'Handler_tmp%';
 Variable_name	Value
 Handler_tmp_update	0
-Handler_tmp_write	66
+Handler_tmp_write	70
 FLUSH STATUS;
 SELECT a AS field1, alias2.d AS field2, alias2.f AS field3, alias2.e AS field4, b AS field5
 FROM t1, t2 AS alias2, t2 AS alias3 
 WHERE alias3.c IN ( SELECT 1 UNION SELECT 6 ) 
 GROUP BY field1, field2, field3, field4, field5
-LIMIT ROWS EXAMINED 250;
+LIMIT ROWS EXAMINED 124;
 field1	field2	field3	field4	field5
 00:21:38	06:07:10	a	2007-06-08 04:35:26	2007-05-28 00:00:00
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 251 rows, which exceeds LIMIT ROWS EXAMINED (250). The query result may be incomplete.
+Warning	1931	Query execution was interrupted. The query examined at least 125 rows, which exceeds LIMIT ROWS EXAMINED (124). The query result may be incomplete.
 SHOW STATUS LIKE 'Handler_read%';
 Variable_name	Value
 Handler_read_first	0
@@ -777,11 +777,11 @@ Handler_read_next	0
 Handler_read_prev	0
 Handler_read_rnd	2
 Handler_read_rnd_deleted	1
-Handler_read_rnd_next	110
+Handler_read_rnd_next	47
 SHOW STATUS LIKE 'Handler_tmp%';
 Variable_name	Value
 Handler_tmp_update	0
-Handler_tmp_write	133
+Handler_tmp_write	70
 drop table t1, t2;
 
 MDEV-161 LIMIT_ROWS EXAMINED: query with the limit and NOT EXISTS, without GROUP BY or aggregate,

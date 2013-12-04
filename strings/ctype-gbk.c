@@ -136,7 +136,8 @@ static const uchar to_upper_gbk[]=
   (uchar) '\370',(uchar) '\371',(uchar) '\372',(uchar) '\373',(uchar) '\374',(uchar) '\375',(uchar) '\376',(uchar) '\377',
 };
 
-static MY_UNICASE_INFO cA2[256]=
+
+static MY_UNICASE_CHARACTER cA2[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -340,7 +341,7 @@ static MY_UNICASE_INFO cA2[256]=
   {0xA2FF,0xA2FF,0xA2FF}
 };
 
-static MY_UNICASE_INFO cA3[256]=
+static MY_UNICASE_CHARACTER cA3[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -545,7 +546,7 @@ static MY_UNICASE_INFO cA3[256]=
 };
 
 
-static MY_UNICASE_INFO cA6[256]=
+static MY_UNICASE_CHARACTER cA6[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -750,7 +751,7 @@ static MY_UNICASE_INFO cA6[256]=
 };
 
 
-static MY_UNICASE_INFO cA7[256]=
+static MY_UNICASE_CHARACTER cA7[256]=
 {
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}, /* xx00 */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -955,7 +956,7 @@ static MY_UNICASE_INFO cA7[256]=
 };
 
 
-static MY_UNICASE_INFO *my_caseinfo_gbk[256]=
+static MY_UNICASE_CHARACTER *my_caseinfo_pages_gbk[256]=
 {
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, /* 0 */
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
@@ -991,7 +992,15 @@ static MY_UNICASE_INFO *my_caseinfo_gbk[256]=
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
-static const uchar sort_order_gbk[]=
+
+static MY_UNICASE_INFO my_caseinfo_gbk=
+{
+  0xFFFF,
+  my_caseinfo_pages_gbk
+};
+
+
+static uchar sort_order_gbk[]=
 {
   '\000','\001','\002','\003','\004','\005','\006','\007',
   '\010','\011','\012','\013','\014','\015','\016','\017',
@@ -3516,31 +3525,35 @@ static int my_strnncollsp_gbk(CHARSET_INFO * cs __attribute__((unused)),
 }
 
 
-static size_t my_strnxfrm_gbk(CHARSET_INFO *cs __attribute__((unused)),
-                              uchar *dest, size_t len,
-                              const uchar *src, size_t srclen)
+static size_t
+my_strnxfrm_gbk(CHARSET_INFO *cs,
+                uchar *dst, size_t dstlen, uint nweights,
+                const uchar *src, size_t srclen, uint flags)
 {
-  uint16 e;
-  size_t dstlen= len;
-  uchar *dest_end= dest + dstlen;
+  uchar *d0= dst;
+  uchar *de= dst + dstlen;
+  const uchar *se= src + srclen;
+  const uchar *sort_order= cs->sort_order;
 
-  len = srclen;
-  while (len-- && dest < dest_end)
+  for (; dst < de && src < se && nweights; nweights--)
   {
-    if ((len > 0) && isgbkcode(*src, *(src+1)))
+    if (cs->cset->ismbchar(cs, (const char*) src, (const char*) se))
     {
-      e = gbksortorder((uint16) gbkcode(*src, *(src+1)));
-      *dest++ = gbkhead(e);
-      if (dest < dest_end)
-        *dest++ = gbktail(e);
-      src+=2;
-      len--;
-    } else 
-      *dest++ = sort_order_gbk[(uchar) *src++];
+      /*
+        Note, it is safe not to check (src < se)
+        in the code below, because ismbchar() would
+        not return TRUE if src was too short
+      */
+      uint16 e= gbksortorder((uint16) gbkcode(*src, *(src + 1)));
+      *dst++= gbkhead(e);
+      if (dst < de)
+        *dst++= gbktail(e);
+      src+= 2;
+    }
+    else
+      *dst++= sort_order ? sort_order[*src++] : *src++;
   }
-  if (dstlen > srclen)
-    bfill(dest, dstlen - srclen, ' ');
-  return dstlen;
+  return my_strxfrm_pad_desc_and_reverse(cs, d0, dst, de, nweights, flags, 0);
 }
 
 
@@ -10809,11 +10822,10 @@ struct charset_info_st my_charset_gbk_chinese_ci=
     to_lower_gbk,
     to_upper_gbk,
     sort_order_gbk,
-    NULL,		/* contractions */
-    NULL,		/* sort_order_big*/
+    NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
-    my_caseinfo_gbk,    /* caseinfo     */
+    &my_caseinfo_gbk,   /* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
@@ -10825,6 +10837,7 @@ struct charset_info_st my_charset_gbk_chinese_ci=
     0xA967,		/* max_sort_char */
     ' ',                /* pad char      */
     1,                  /* escape_with_backslash_is_dangerous */
+    1,                  /* levels_for_order   */
     &my_charset_handler,
     &my_collation_ci_handler
 };
@@ -10841,11 +10854,10 @@ struct charset_info_st my_charset_gbk_bin=
     to_lower_gbk,
     to_upper_gbk,
     NULL,		/* sort_order   */
-    NULL,		/* contractions */
-    NULL,		/* sort_order_big*/
+    NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
-    my_caseinfo_gbk,    /* caseinfo     */
+    &my_caseinfo_gbk,   /* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
@@ -10857,6 +10869,7 @@ struct charset_info_st my_charset_gbk_bin=
     0xFEFE,		/* max_sort_char */
     ' ',                /* pad char      */
     1,                  /* escape_with_backslash_is_dangerous */
+    1,                  /* levels_for_order   */
     &my_charset_handler,
     &my_collation_mb_bin_handler
 };

@@ -653,8 +653,12 @@ extern "C" MI_INFO *myisammrg_attach_children_callback(void *callback_param)
   {
     DBUG_PRINT("error", ("failed to open underlying table '%s'.'%s'",
                          child_l->db, child_l->table_name));
-    /* This should only happen inside of CHECK/REPAIR TABLE. */
-    DBUG_ASSERT(current_thd->open_options & HA_OPEN_FOR_REPAIR);
+    /*
+      This should only happen inside of CHECK/REPAIR TABLE or
+      for the tables added by the pre-locking code.
+    */
+    DBUG_ASSERT(current_thd->open_options & HA_OPEN_FOR_REPAIR ||
+                child_l->prelocking_placeholder);
     goto end;
   }
 

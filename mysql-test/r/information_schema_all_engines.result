@@ -2,12 +2,14 @@ use INFORMATION_SCHEMA;
 show tables;
 Tables_in_information_schema
 ALL_PLUGINS
+APPLICABLE_ROLES
 CHARACTER_SETS
 CLIENT_STATISTICS
 COLLATIONS
 COLLATION_CHARACTER_SET_APPLICABILITY
 COLUMNS
 COLUMN_PRIVILEGES
+ENABLED_ROLES
 ENGINES
 EVENTS
 FILES
@@ -76,12 +78,14 @@ c2.column_name LIKE '%SCHEMA%'
         ) order by t.table_name;
 table_name	column_name
 ALL_PLUGINS	PLUGIN_NAME
+APPLICABLE_ROLES	GRANTEE
 CHARACTER_SETS	CHARACTER_SET_NAME
 CLIENT_STATISTICS	CLIENT
 COLLATIONS	COLLATION_NAME
 COLLATION_CHARACTER_SET_APPLICABILITY	COLLATION_NAME
 COLUMNS	TABLE_SCHEMA
 COLUMN_PRIVILEGES	TABLE_SCHEMA
+ENABLED_ROLES	ROLE_NAME
 ENGINES	ENGINE
 EVENTS	EVENT_SCHEMA
 FILES	TABLE_SCHEMA
@@ -150,12 +154,14 @@ c2.column_name LIKE '%SCHEMA%'
         ) order by t.table_name;
 table_name	column_name
 ALL_PLUGINS	PLUGIN_NAME
+APPLICABLE_ROLES	GRANTEE
 CHARACTER_SETS	CHARACTER_SET_NAME
 CLIENT_STATISTICS	CLIENT
 COLLATIONS	COLLATION_NAME
 COLLATION_CHARACTER_SET_APPLICABILITY	COLLATION_NAME
 COLUMNS	TABLE_SCHEMA
 COLUMN_PRIVILEGES	TABLE_SCHEMA
+ENABLED_ROLES	ROLE_NAME
 ENGINES	ENGINE
 EVENTS	EVENT_SCHEMA
 FILES	TABLE_SCHEMA
@@ -230,6 +236,7 @@ group by c2.column_type order by num limit 1)
 group by t.table_name order by num1, t.table_name;
 table_name	group_concat(t.table_schema, '.', t.table_name)	num1
 ALL_PLUGINS	information_schema.ALL_PLUGINS	1
+APPLICABLE_ROLES	information_schema.APPLICABLE_ROLES	1
 CHARACTER_SETS	information_schema.CHARACTER_SETS	1
 CLIENT_STATISTICS	information_schema.CLIENT_STATISTICS	1
 COLLATIONS	information_schema.COLLATIONS	1
@@ -293,12 +300,14 @@ VIEWS	information_schema.VIEWS	1
 Database: information_schema
 |                Tables                 |
 | ALL_PLUGINS                           |
+| APPLICABLE_ROLES                      |
 | CHARACTER_SETS                        |
 | CLIENT_STATISTICS                     |
 | COLLATIONS                            |
 | COLLATION_CHARACTER_SET_APPLICABILITY |
 | COLUMNS                               |
 | COLUMN_PRIVILEGES                     |
+| ENABLED_ROLES                         |
 | ENGINES                               |
 | EVENTS                                |
 | FILES                                 |
@@ -357,12 +366,14 @@ Database: information_schema
 Database: INFORMATION_SCHEMA
 |                Tables                 |
 | ALL_PLUGINS                           |
+| APPLICABLE_ROLES                      |
 | CHARACTER_SETS                        |
 | CLIENT_STATISTICS                     |
 | COLLATIONS                            |
 | COLLATION_CHARACTER_SET_APPLICABILITY |
 | COLUMNS                               |
 | COLUMN_PRIVILEGES                     |
+| ENABLED_ROLES                         |
 | ENGINES                               |
 | EVENTS                                |
 | FILES                                 |
@@ -423,5 +434,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') AND table_name<>'ndb_binlog_index' AND table_name<>'ndb_apply_status' GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	59
-mysql	27
+information_schema	61
+mysql	28

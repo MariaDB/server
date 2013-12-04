@@ -1663,7 +1663,9 @@ lock_rec_other_has_conflicting(
 
 		if (lock_rec_has_to_wait(trx, mode, lock, is_supremum)) {
 #ifdef WITH_WSREP
+                        trx_mutex_enter(lock->trx);
                         wsrep_kill_victim((trx_t*)trx, (ib_lock_t*)lock);
+                        trx_mutex_exit(lock->trx);
 #endif
 			return(lock);
 		}
@@ -1903,6 +1905,7 @@ lock_rec_create(
 		 * delayed conflict resolution '...kill_one_trx' was not called,
 		 * if victim was waiting for some other lock
 		 */
+		trx_mutex_enter(c_lock->trx);
 		if (c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 
 			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
@@ -1955,7 +1958,7 @@ lock_rec_create(
 #else
 	HASH_INSERT(lock_t, hash, lock_sys->rec_hash,
 		    lock_rec_fold(space, page_no), lock);
-#endif
+#endif /* WITH_WSREP */
 
 	if (!caller_owns_trx_mutex) {
 		trx_mutex_enter(trx);

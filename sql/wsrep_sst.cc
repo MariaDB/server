@@ -34,6 +34,7 @@ extern const char wsrep_defaults_file[];
 #define WSREP_SST_OPT_DATA     "--datadir"
 #define WSREP_SST_OPT_CONF     "--defaults-file"
 #define WSREP_SST_OPT_PARENT   "--parent"
+#define WSREP_SST_OPT_BINLOG   "--binlog"
 
 // mysqldump-specific options
 #define WSREP_SST_OPT_USER     "--user"
@@ -242,6 +243,9 @@ void wsrep_sst_received (wsrep_t*            const wsrep,
     wsrep_gtid_t const state_id = {
         *uuid, (rcode ? WSREP_SEQNO_UNDEFINED : seqno)
     };
+#ifdef GTID_SUPPORT
+    wsrep_init_sidno(state_id.uuid);
+#endif /* GTID_SUPPORT */
     wsrep->sst_received(wsrep, &state_id, state, state_len, rcode);
 }
 
@@ -402,6 +406,8 @@ static ssize_t sst_prepare_other (const char*  method,
   ssize_t cmd_len= 1024;
   char    cmd_str[cmd_len];
   const char* sst_dir= mysql_real_data_home;
+  const char* binlog_opt= (opt_bin_logname ? (strcmp(opt_bin_logname, "0") ? WSREP_SST_OPT_BINLOG : "") : "");
+  const char* binlog_opt_val= (opt_bin_logname ? (strcmp(opt_bin_logname, "0") ? opt_bin_logname : "") : "");
 
   int ret= snprintf (cmd_str, cmd_len,
                      "wsrep_sst_%s "
@@ -410,9 +416,11 @@ static ssize_t sst_prepare_other (const char*  method,
                      WSREP_SST_OPT_AUTH" '%s' "
                      WSREP_SST_OPT_DATA" '%s' "
                      WSREP_SST_OPT_CONF" '%s' "
-                     WSREP_SST_OPT_PARENT" '%d'",
+                     WSREP_SST_OPT_PARENT" '%d'"
+                     " %s '%s' ",
                      method, addr_in, (sst_auth_real) ? sst_auth_real : "",
-                     sst_dir, wsrep_defaults_file, (int)getpid());
+                     sst_dir, wsrep_defaults_file, (int)getpid(),
+                     binlog_opt, binlog_opt_val);
 
   if (ret < 0 || ret >= cmd_len)
   {
@@ -706,11 +714,9 @@ static int sst_donate_mysqldump (const char*         addr,
               WSREP_SST_OPT_PORT" '%s' "
               WSREP_SST_OPT_LPORT" '%u' "
               WSREP_SST_OPT_SOCKET" '%s' "
-              WSREP_SST_OPT_DATA" '%s' "
               WSREP_SST_OPT_GTID" '%s:%lld'"
               "%s",
-              user, pswd, host, port, mysqld_port, mysqld_unix_port,
-              mysql_real_data_home, uuid_str,
+              user, pswd, host, port, mysqld_port, mysqld_unix_port, uuid_str,
               (long long)seqno, bypass ? " "WSREP_SST_OPT_BYPASS : "");
 
     WSREP_DEBUG("Running: '%s'", cmd_str);
@@ -766,8 +772,8 @@ static int sst_flush_tables(THD* thd)
   else
   {
     /* make sure logs are flushed after global read lock acquired */
-    err= reload_acl_and_cache(thd, REFRESH_ENGINE_LOG,
-                              (TABLE_LIST*) 0, &not_used);
+    err= reload_acl_and_cache(thd, REFRESH_ENGINE_LOG | REFRESH_BINARY_LOG,
+			      (TABLE_LIST*) 0, &not_used);
   }
 
   if (err)
@@ -927,6 +933,8 @@ static int sst_donate_other (const char*   method,
 {
   ssize_t cmd_len = 4096;
   char    cmd_str[cmd_len];
+  const char* binlog_opt= (opt_bin_logname ? (strcmp(opt_bin_logname, "0") ? WSREP_SST_OPT_BINLOG : "") : "");
+  const char* binlog_opt_val= (opt_bin_logname ? (strcmp(opt_bin_logname, "0") ? opt_bin_logname : "") : "");
 
   int ret= snprintf (cmd_str, cmd_len,
                      "wsrep_sst_%s "
@@ -936,10 +944,12 @@ static int sst_donate_other (const char*   method,
                      WSREP_SST_OPT_SOCKET" '%s' "
                      WSREP_SST_OPT_DATA" '%s' "
                      WSREP_SST_OPT_CONF" '%s' "
+                     " %s '%s' "
                      WSREP_SST_OPT_GTID" '%s:%lld'"
                      "%s",
                      method, addr, sst_auth_real, mysqld_unix_port,
                      mysql_real_data_home, wsrep_defaults_file,
+                     binlog_opt, binlog_opt_val,
                      uuid, (long long) seqno,
                      bypass ? " "WSREP_SST_OPT_BYPASS : "");
 
@@ -959,7 +969,7 @@ static int sst_donate_other (const char*   method,
   {
     WSREP_ERROR("sst_donate_other(): pthread_create() failed: %d (%s)",
                 ret, strerror(ret));
-    return -ret;
+    return ret;
   }
   mysql_cond_wait (&arg.cond, &arg.lock);
 
@@ -967,11 +977,11 @@ static int sst_donate_other (const char*   method,
   return arg.err;
 }
 
-wsrep_cb_status wsrep_sst_donate_cb (void* app_ctx, void* recv_ctx,
-                         const void* msg, size_t msg_len,
-                         const wsrep_gtid_t*     current_gtid,
-                         const char* state, size_t state_len,
-                         bool bypass)
+wsrep_cb_status_t wsrep_sst_donate_cb (void* app_ctx, void* recv_ctx,
+                                       const void* msg, size_t msg_len,
+                                       const wsrep_gtid_t* current_gtid,
+                                       const char* state, size_t state_len,
+                                       bool bypass)
 {
   /* This will be reset when sync callback is called.
    * Should we set wsrep_ready to FALSE here too? */
@@ -995,6 +1005,7 @@ wsrep_cb_status wsrep_sst_donate_cb (void* app_ctx, void* recv_ctx,
   {
     ret = sst_donate_other(method, data, uuid_str, current_gtid->seqno,bypass);
   }
+
   return (ret > 0 ? WSREP_CB_SUCCESS : WSREP_CB_FAILURE);
 }
 

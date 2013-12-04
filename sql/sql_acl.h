@@ -20,30 +20,30 @@
 #include "violite.h"                            /* SSL_type */
 #include "sql_class.h"                          /* LEX_COLUMN */
 
-#define SELECT_ACL	(1L << 0)
-#define INSERT_ACL	(1L << 1)
-#define UPDATE_ACL	(1L << 2)
-#define DELETE_ACL	(1L << 3)
-#define CREATE_ACL	(1L << 4)
-#define DROP_ACL	(1L << 5)
-#define RELOAD_ACL	(1L << 6)
-#define SHUTDOWN_ACL	(1L << 7)
-#define PROCESS_ACL	(1L << 8)
-#define FILE_ACL	(1L << 9)
-#define GRANT_ACL	(1L << 10)
-#define REFERENCES_ACL	(1L << 11)
-#define INDEX_ACL	(1L << 12)
-#define ALTER_ACL	(1L << 13)
-#define SHOW_DB_ACL	(1L << 14)
-#define SUPER_ACL	(1L << 15)
-#define CREATE_TMP_ACL	(1L << 16)
-#define LOCK_TABLES_ACL	(1L << 17)
-#define EXECUTE_ACL	(1L << 18)
-#define REPL_SLAVE_ACL	(1L << 19)
-#define REPL_CLIENT_ACL	(1L << 20)
-#define CREATE_VIEW_ACL	(1L << 21)
-#define SHOW_VIEW_ACL	(1L << 22)
-#define CREATE_PROC_ACL	(1L << 23)
+#define SELECT_ACL      (1L << 0)
+#define INSERT_ACL      (1L << 1)
+#define UPDATE_ACL      (1L << 2)
+#define DELETE_ACL      (1L << 3)
+#define CREATE_ACL      (1L << 4)
+#define DROP_ACL        (1L << 5)
+#define RELOAD_ACL      (1L << 6)
+#define SHUTDOWN_ACL    (1L << 7)
+#define PROCESS_ACL     (1L << 8)
+#define FILE_ACL        (1L << 9)
+#define GRANT_ACL       (1L << 10)
+#define REFERENCES_ACL  (1L << 11)
+#define INDEX_ACL       (1L << 12)
+#define ALTER_ACL       (1L << 13)
+#define SHOW_DB_ACL     (1L << 14)
+#define SUPER_ACL       (1L << 15)
+#define CREATE_TMP_ACL  (1L << 16)
+#define LOCK_TABLES_ACL (1L << 17)
+#define EXECUTE_ACL     (1L << 18)
+#define REPL_SLAVE_ACL  (1L << 19)
+#define REPL_CLIENT_ACL (1L << 20)
+#define CREATE_VIEW_ACL (1L << 21)
+#define SHOW_VIEW_ACL   (1L << 22)
+#define CREATE_PROC_ACL (1L << 23)
 #define ALTER_PROC_ACL  (1L << 24)
 #define CREATE_USER_ACL (1L << 25)
 #define EVENT_ACL       (1L << 26)
@@ -57,7 +57,7 @@
   4. acl_init() or whatever - to define behaviour for old privilege tables
   5. sql_yacc.yy - for GRANT/REVOKE to work
 */
-#define NO_ACCESS	(1L << 30)
+#define NO_ACCESS       (1L << 30)
 #define DB_ACLS \
 (UPDATE_ACL | SELECT_ACL | INSERT_ACL | DELETE_ACL | CREATE_ACL | DROP_ACL | \
  GRANT_ACL | REFERENCES_ACL | INDEX_ACL | ALTER_ACL | CREATE_TMP_ACL | \
@@ -114,21 +114,21 @@
 #define DB_CHUNK1 (GRANT_ACL | REFERENCES_ACL | INDEX_ACL | ALTER_ACL)
 #define DB_CHUNK2 (CREATE_TMP_ACL | LOCK_TABLES_ACL)
 #define DB_CHUNK3 (CREATE_VIEW_ACL | SHOW_VIEW_ACL | \
-		   CREATE_PROC_ACL | ALTER_PROC_ACL )
+                   CREATE_PROC_ACL | ALTER_PROC_ACL )
 #define DB_CHUNK4 (EXECUTE_ACL)
 #define DB_CHUNK5 (EVENT_ACL | TRIGGER_ACL)
 
 #define fix_rights_for_db(A)  (((A)       & DB_CHUNK0) | \
-			      (((A) << 4) & DB_CHUNK1) | \
-			      (((A) << 6) & DB_CHUNK2) | \
-			      (((A) << 9) & DB_CHUNK3) | \
-			      (((A) << 2) & DB_CHUNK4))| \
+                              (((A) << 4) & DB_CHUNK1) | \
+                              (((A) << 6) & DB_CHUNK2) | \
+                              (((A) << 9) & DB_CHUNK3) | \
+                              (((A) << 2) & DB_CHUNK4))| \
                               (((A) << 9) & DB_CHUNK5)
 #define get_rights_for_db(A)  (((A) & DB_CHUNK0)       | \
-			      (((A) & DB_CHUNK1) >> 4) | \
-			      (((A) & DB_CHUNK2) >> 6) | \
-			      (((A) & DB_CHUNK3) >> 9) | \
-			      (((A) & DB_CHUNK4) >> 2))| \
+                              (((A) & DB_CHUNK1) >> 4) | \
+                              (((A) & DB_CHUNK2) >> 6) | \
+                              (((A) & DB_CHUNK3) >> 9) | \
+                              (((A) & DB_CHUNK4) >> 2))| \
                               (((A) & DB_CHUNK5) >> 9)
 #define TBL_CHUNK0 DB_CHUNK0
 #define TBL_CHUNK1 DB_CHUNK1
@@ -145,11 +145,11 @@
 #define fix_rights_for_column(A) (((A) & 7) | (((A) & ~7) << 8))
 #define get_rights_for_column(A) (((A) & 7) | ((A) >> 8))
 #define fix_rights_for_procedure(A) ((((A) << 18) & EXECUTE_ACL) | \
-				     (((A) << 23) & ALTER_PROC_ACL) | \
-				     (((A) << 8) & GRANT_ACL))
+                                     (((A) << 23) & ALTER_PROC_ACL) | \
+                                     (((A) << 8) & GRANT_ACL))
 #define get_rights_for_procedure(A) ((((A) & EXECUTE_ACL) >> 18) |  \
-				     (((A) & ALTER_PROC_ACL) >> 23) | \
-				     (((A) & GRANT_ACL) >> 8))
+                                     (((A) & ALTER_PROC_ACL) >> 23) | \
+                                     (((A) & GRANT_ACL) >> 8))
 
 enum mysql_db_table_field
 {
@@ -181,6 +181,11 @@ enum mysql_db_table_field
 extern const TABLE_FIELD_DEF mysql_db_table_def;
 extern bool mysql_user_table_is_in_short_password_format;
 
+extern LEX_STRING host_not_specified;
+extern LEX_STRING current_user;
+extern LEX_STRING current_role;
+extern LEX_STRING current_user_and_current_role;
+
 
 static inline int access_denied_error_code(int passwd_used)
 {
@@ -196,7 +201,7 @@ my_bool  acl_init(bool dont_read_acl_tables);
 my_bool acl_reload(THD *thd);
 void acl_free(bool end=0);
 ulong acl_get(const char *host, const char *ip,
-	      const char *user, const char *db, my_bool db_is_pattern);
+              const char *user, const char *db, my_bool db_is_pattern);
 bool acl_authenticate(THD *thd, uint connect_errors, uint com_change_user_pkt_len);
 bool acl_getroot(Security_context *sctx, char *user, char *host,
                  char *ip, char *db);
@@ -204,39 +209,43 @@ bool acl_check_host(const char *host, const char *ip);
 int check_change_password(THD *thd, const char *host, const char *user,
                            char *password, uint password_len);
 bool change_password(THD *thd, const char *host, const char *user,
-		     char *password);
+                     char *password);
+
+bool mysql_grant_role(THD *thd, List<LEX_USER> &user_list, bool revoke);
 bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &user_list,
                  ulong rights, bool revoke, bool is_proxy);
 int mysql_table_grant(THD *thd, TABLE_LIST *table, List <LEX_USER> &user_list,
                        List <LEX_COLUMN> &column_list, ulong rights,
                        bool revoke);
 bool mysql_routine_grant(THD *thd, TABLE_LIST *table, bool is_proc,
-			 List <LEX_USER> &user_list, ulong rights,
-			 bool revoke, bool write_to_binlog);
+                         List <LEX_USER> &user_list, ulong rights,
+                         bool revoke, bool write_to_binlog);
 my_bool grant_init();
 void grant_free(void);
 my_bool grant_reload(THD *thd);
 bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
                  bool any_combination_will_do, uint number, bool no_errors);
 bool check_grant_column (THD *thd, GRANT_INFO *grant,
-			 const char *db_name, const char *table_name,
-			 const char *name, uint length, Security_context *sctx);
+                         const char *db_name, const char *table_name,
+                         const char *name, uint length, Security_context *sctx);
 bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
                                      const char *name, uint length);
-bool check_grant_all_columns(THD *thd, ulong want_access, 
+bool check_grant_all_columns(THD *thd, ulong want_access,
                              Field_iterator_table_ref *fields);
 bool check_grant_routine(THD *thd, ulong want_access,
-			 TABLE_LIST *procs, bool is_proc, bool no_error);
+                         TABLE_LIST *procs, bool is_proc, bool no_error);
 bool check_grant_db(THD *thd,const char *db);
 ulong get_table_grant(THD *thd, TABLE_LIST *table);
 ulong get_column_grant(THD *thd, GRANT_INFO *grant,
                        const char *db_name, const char *table_name,
                        const char *field_name);
 bool mysql_show_grants(THD *thd, LEX_USER *user);
+int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond);
+int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond);
 void get_privilege_desc(char *to, uint max_length, ulong access);
 void get_mqh(const char *user, const char *host, USER_CONN *uc);
-bool mysql_create_user(THD *thd, List <LEX_USER> &list);
-bool mysql_drop_user(THD *thd, List <LEX_USER> &list);
+bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
+bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
 bool mysql_rename_user(THD *thd, List <LEX_USER> &list);
 bool mysql_revoke_all(THD *thd, List <LEX_USER> &list);
 void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
@@ -390,4 +399,11 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
 
 bool acl_check_proxy_grant_access (THD *thd, const char *host, const char *user,
                                    bool with_grant);
+int acl_setrole(THD *thd, char *rolename, ulonglong access);
+int acl_check_setrole(THD *thd, char *rolename, ulonglong *access);
+
+#ifndef DBUG_OFF
+extern ulong role_global_merges, role_db_merges, role_table_merges,
+             role_column_merges, role_routine_merges;
+#endif
 #endif /* SQL_ACL_INCLUDED */

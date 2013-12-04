@@ -123,7 +123,8 @@ static char *host= NULL, *opt_password= NULL, *user= NULL,
             *default_engine= NULL,
             *pre_system= NULL,
             *post_system= NULL,
-            *opt_mysql_unix_port= NULL;
+            *opt_mysql_unix_port= NULL,
+            *opt_init_command= NULL;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 
 const char *delimiter= "\n";
@@ -361,6 +362,9 @@ int main(int argc, char **argv)
   if (opt_default_auth && *opt_default_auth)
     mysql_options(&mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
 
+  mysql_options(&mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
+  mysql_options4(&mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
+                 "program_name", "mysqlslap");
   if (!opt_only_print) 
   {
     if (!(mysql_real_connect(&mysql, host, user, opt_password,
@@ -633,6 +637,11 @@ static struct my_option my_long_options[] =
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"host", 'h', "Connect to host.", &host, &host, 0, GET_STR,
     REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"init-command", OPT_INIT_COMMAND,
+   "SQL Command to execute when connecting to MySQL server. Will "
+   "automatically be re-executed when reconnecting.",
+   &opt_init_command, &opt_init_command, 0,
+   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"iterations", 'i', "Number of times to run the tests.", &iterations,
     &iterations, 0, GET_UINT, REQUIRED_ARG, 1, 0, 0, 0, 0, 0},
   {"no-drop", OPT_SLAP_NO_DROP, "Do not drop the schema after the test.",
@@ -2245,6 +2254,8 @@ slap_connect(MYSQL *mysql)
   for (x= 0; x < 10; x++)
   {
     set_mysql_connect_options(mysql);
+    if (opt_init_command)
+      mysql_options(mysql, MYSQL_INIT_COMMAND, opt_init_command);
     if (mysql_real_connect(mysql, host, user, opt_password,
                            create_schema_string,
                            opt_mysql_port,

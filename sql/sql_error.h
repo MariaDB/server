@@ -565,6 +565,8 @@ class ErrConvString : public ErrConv
 public:
   ErrConvString(const char *str_arg, size_t len_arg, CHARSET_INFO *cs_arg)
     : ErrConv(), str(str_arg), len(len_arg), cs(cs_arg) {}
+  ErrConvString(const char *str_arg, CHARSET_INFO *cs_arg)
+    : ErrConv(), str(str_arg), len(strlen(str_arg)), cs(cs_arg) {}
   ErrConvString(String *s)
     : ErrConv(), str(s->ptr()), len(s->length()), cs(s->charset()) {}
   const char *ptr() const

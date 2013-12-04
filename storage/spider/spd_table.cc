@@ -25,6 +25,9 @@
 #include "sql_class.h"
 #include "sql_partition.h"
 #include "sql_servers.h"
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+#include "sql_select.h"
+#endif
 #endif
 #include "spd_err.h"
 #include "spd_param.h"
@@ -1693,13 +1696,13 @@ int spider_parse_connect_info(
   partition_element *sub_elem;
 #endif
   DBUG_ENTER("spider_parse_connect_info");
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 #if MYSQL_VERSION_ID < 50500
   DBUG_PRINT("info",("spider partition_info=%s", table_share->partition_info));
 #else
   DBUG_PRINT("info",("spider partition_info=%s",
     table_share->partition_info_str));
 #endif
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   DBUG_PRINT("info",("spider part_info=%p", part_info));
 #endif
   DBUG_PRINT("info",("spider s->db=%s", table_share->db.str));
@@ -1779,6 +1782,12 @@ int spider_parse_connect_info(
 #endif
 #ifdef HA_CAN_BULK_ACCESS
   share->bulk_access_free = -1;
+#endif
+#ifdef HA_CAN_FORCE_BULK_UPDATE
+  share->force_bulk_update = -1;
+#endif
+#ifdef HA_CAN_FORCE_BULK_DELETE
+  share->force_bulk_delete = -1;
 #endif
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -1900,7 +1909,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONGLONG("bsr", bgs_second_read, 0);
 #endif
           SPIDER_PARAM_STR("bke", bka_engine);
-          SPIDER_PARAM_INT_WITH_MAX("bkm", bka_mode, 0, 1);
+          SPIDER_PARAM_INT_WITH_MAX("bkm", bka_mode, 0, 2);
           SPIDER_PARAM_INT("bsz", bulk_size, 0);
           SPIDER_PARAM_INT_WITH_MAX("bum", bulk_update_mode, 0, 2);
           SPIDER_PARAM_INT("bus", bulk_update_size, 0);
@@ -1922,6 +1931,12 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONGLONG("dol", direct_order_limit, 0);
           SPIDER_PARAM_INT_WITH_MAX("erm", error_read_mode, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX("ewm", error_write_mode, 0, 1);
+#ifdef HA_CAN_FORCE_BULK_DELETE
+          SPIDER_PARAM_INT_WITH_MAX("fbd", force_bulk_delete, 0, 1);
+#endif
+#ifdef HA_CAN_FORCE_BULK_UPDATE
+          SPIDER_PARAM_INT_WITH_MAX("fbu", force_bulk_update, 0, 1);
+#endif
           SPIDER_PARAM_LONGLONG("frd", first_read, 0);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
           SPIDER_PARAM_LONGLONG("hrf", hs_result_free_size, 0);
@@ -2056,7 +2071,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT("bgs_mode", bgs_mode, 0);
 #endif
           SPIDER_PARAM_STR_LIST("ssl_cert", tgt_ssl_certs);
-          SPIDER_PARAM_INT_WITH_MAX("bka_mode", bka_mode, 0, 1);
+          SPIDER_PARAM_INT_WITH_MAX("bka_mode", bka_mode, 0, 2);
           error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
           my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
             MYF(0), tmp_ptr);
@@ -2202,6 +2217,14 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT("active_link_count", active_link_count, 1);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("net_write_timeout",
             net_write_timeouts, 0, 2147483647);
+#ifdef HA_CAN_FORCE_BULK_DELETE
+          SPIDER_PARAM_INT_WITH_MAX(
+            "force_bulk_delete", force_bulk_delete, 0, 1);
+#endif
+#ifdef HA_CAN_FORCE_BULK_UPDATE
+          SPIDER_PARAM_INT_WITH_MAX(
+            "force_bulk_update", force_bulk_update, 0, 1);
+#endif
           error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
           my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
             MYF(0), tmp_ptr);
@@ -3402,6 +3425,14 @@ int spider_set_connect_info_default(
   if (share->bulk_access_free == -1)
     share->bulk_access_free = 0;
 #endif
+#ifdef HA_CAN_FORCE_BULK_UPDATE
+  if (share->force_bulk_update == -1)
+    share->force_bulk_update = 0;
+#endif
+#ifdef HA_CAN_FORCE_BULK_DELETE
+  if (share->force_bulk_delete == -1)
+    share->force_bulk_delete = 0;
+#endif
   if (share->bka_mode == -1)
     share->bka_mode = 1;
   if (!share->bka_engine)
@@ -4509,18 +4540,24 @@ SPIDER_SHARE *spider_get_share(
         }
       }
 
-      spider_get_sts(share, spider->search_link_idx, tmp_time,
+      if (spider_get_sts(share, spider->search_link_idx, tmp_time,
         spider, sts_interval, sts_mode,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
         sts_sync,
 #endif
-        1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO);
-      spider_get_crd(share, spider->search_link_idx, tmp_time,
+        1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO))
+      {
+        thd->clear_error();
+      }
+      if (spider_get_crd(share, spider->search_link_idx, tmp_time,
         spider, table, crd_interval, crd_mode,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
         crd_sync,
 #endif
-        1);
+        1))
+      {
+        thd->clear_error();
+      }
 /*
       if (
         (*error_num = spider_get_sts(share, spider->search_link_idx, tmp_time,
@@ -4563,13 +4600,8 @@ SPIDER_SHARE *spider_get_share(
           spider_init_error_table->init_error = *error_num;
           if ((spider_init_error_table->init_error_with_message =
             thd->is_error()))
-#if MYSQL_VERSION_ID < 50500
             strmov(spider_init_error_table->init_error_msg,
-              thd->main_da.message());
-#else
-            strmov(spider_init_error_table->init_error_msg,
-              thd->stmt_da->message());
-#endif
+              spider_stmt_da_message(thd));
           spider_init_error_table->init_error_time =
             (time_t) time((time_t*) 0);
         }
@@ -4937,18 +4969,24 @@ SPIDER_SHARE *spider_get_share(
             }
           }
 
-          spider_get_sts(share, spider->search_link_idx,
+          if (spider_get_sts(share, spider->search_link_idx,
             tmp_time, spider, sts_interval, sts_mode,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
             sts_sync,
 #endif
-            1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO);
-          spider_get_crd(share, spider->search_link_idx,
+            1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO))
+          {
+            thd->clear_error();
+          }
+          if (spider_get_crd(share, spider->search_link_idx,
             tmp_time, spider, table, crd_interval, crd_mode,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
             crd_sync,
 #endif
-            1);
+            1))
+          {
+            thd->clear_error();
+          }
 /*
           if (
             (*error_num = spider_get_sts(share, spider->search_link_idx,
@@ -4991,13 +5029,8 @@ SPIDER_SHARE *spider_get_share(
               spider_init_error_table->init_error = *error_num;
               if ((spider_init_error_table->init_error_with_message =
                 thd->is_error()))
-#if MYSQL_VERSION_ID < 50500
                 strmov(spider_init_error_table->init_error_msg,
-                  thd->main_da.message());
-#else
-                strmov(spider_init_error_table->init_error_msg,
-                  thd->stmt_da->message());
-#endif
+                  spider_stmt_da_message(thd));
               spider_init_error_table->init_error_time =
                 (time_t) time((time_t*) 0);
             }
@@ -6986,7 +7019,8 @@ bool spider_check_pk_update(
 
   key_info = &table_share->key_info[table_share->primary_key];
   key_part = key_info->key_part;
-  for (roop_count = 0; roop_count < (int) key_info->user_defined_key_parts; roop_count++)
+  for (roop_count = 0;
+    roop_count < (int) spider_user_defined_key_parts(key_info); roop_count++)
   {
     if (bitmap_is_set(table->write_set,
       key_part[roop_count].field->field_index))
@@ -7019,7 +7053,8 @@ bool spider_check_hs_pk_update(
   memset(spider->tmp_column_bitmap, 0, sizeof(uchar) * share->bitmap_size);
   key_info = &table->key_info[table_share->primary_key];
   key_part = key_info->key_part;
-  for (roop_count = 0; roop_count < key_info->key_parts; roop_count++)
+  for (roop_count = 0; roop_count < spider_user_defined_key_parts(key_info);
+    roop_count++)
   {
     field_index = key_part[roop_count].field->field_index;
     if (bitmap_is_set(table->write_set, field_index))
@@ -7310,30 +7345,49 @@ void spider_free_tmp_dbton_handler(
   DBUG_VOID_RETURN;
 }
 
+TABLE_LIST *spider_get_parent_table_list(
+  ha_spider *spider
+) {
+  TABLE *table = spider->get_table();
+  TABLE_LIST *table_list = table->pos_in_table_list;
+  DBUG_ENTER("spider_get_parent_table_list");
+  if (table_list)
+  {
+    while (table_list->parent_l)
+      table_list = table_list->parent_l;
+    DBUG_RETURN(table_list);
+  }
+  DBUG_RETURN(NULL);
+}
+
+st_select_lex *spider_get_select_lex(
+  ha_spider *spider
+) {
+  TABLE_LIST *table_list = spider_get_parent_table_list(spider);
+  DBUG_ENTER("spider_get_select_lex");
+  if (table_list)
+  {
+    DBUG_RETURN(table_list->select_lex);
+  }
+  DBUG_RETURN(NULL);
+}
+
 void spider_get_select_limit(
   ha_spider *spider,
   st_select_lex **select_lex,
   longlong *select_limit,
   longlong *offset_limit
 ) {
-  TABLE *table = spider->get_table();
-  TABLE_LIST *table_list = table->pos_in_table_list;
   DBUG_ENTER("spider_get_select_limit");
-  *select_lex = NULL;
+  *select_lex = spider_get_select_lex(spider);
   *select_limit = 9223372036854775807LL;
   *offset_limit = 0;
-  if (table_list)
+  if (*select_lex && (*select_lex)->explicit_limit)
   {
-    while (table_list->parent_l)
-      table_list = table_list->parent_l;
-    *select_lex = table_list->select_lex;
-    if (*select_lex && (*select_lex)->explicit_limit)
-    {
-      *select_limit = (*select_lex)->select_limit ?
-        (*select_lex)->select_limit->val_int() : 0;
-      *offset_limit = (*select_lex)->offset_limit ?
-        (*select_lex)->offset_limit->val_int() : 0;
-    }
+    *select_limit = (*select_lex)->select_limit ?
+      (*select_lex)->select_limit->val_int() : 0;
+    *offset_limit = (*select_lex)->offset_limit ?
+      (*select_lex)->offset_limit->val_int() : 0;
   }
   DBUG_VOID_RETURN;
 }
@@ -7372,6 +7426,77 @@ longlong spider_split_read_param(
   spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
   if (!result_list->set_split_read)
   {
+    int bulk_update_mode = spider_param_bulk_update_mode(thd,
+      share->bulk_update_mode);
+    DBUG_PRINT("info",("spider sql_command=%u", spider->sql_command));
+    DBUG_PRINT("info",("spider bulk_update_mode=%d", bulk_update_mode));
+    DBUG_PRINT("info",("spider support_bulk_update_sql=%s",
+      spider->support_bulk_update_sql() ? "TRUE" : "FALSE"));
+    bool updating =
+      (
+#ifdef HS_HAS_SQLCOM
+        spider->sql_command == SQLCOM_HS_UPDATE ||
+#endif
+        spider->sql_command == SQLCOM_UPDATE ||
+        spider->sql_command == SQLCOM_UPDATE_MULTI
+      );
+    bool deleting =
+      (
+#ifdef HS_HAS_SQLCOM
+        spider->sql_command == SQLCOM_HS_DELETE ||
+#endif
+        spider->sql_command == SQLCOM_DELETE ||
+        spider->sql_command == SQLCOM_DELETE_MULTI
+      );
+    bool replacing =
+      (
+        spider->sql_command == SQLCOM_REPLACE ||
+        spider->sql_command == SQLCOM_REPLACE_SELECT
+      );
+    DBUG_PRINT("info",("spider updating=%s", updating ? "TRUE" : "FALSE"));
+    DBUG_PRINT("info",("spider deleting=%s", deleting ? "TRUE" : "FALSE"));
+    DBUG_PRINT("info",("spider replacing=%s", replacing ? "TRUE" : "FALSE"));
+    TABLE *table = spider->get_table();
+    if (
+      replacing ||
+      (
+        (
+          updating ||
+          deleting
+        ) &&
+        (
+          bulk_update_mode != 2 ||
+          !spider->support_bulk_update_sql() ||
+          (
+            updating &&
+            table->triggers &&
+#ifdef HA_CAN_FORCE_BULK_UPDATE
+            !(table->file->ha_table_flags() & HA_CAN_FORCE_BULK_UPDATE) &&
+#endif
+            table->triggers->has_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER)
+          ) ||
+          (
+            deleting &&
+            table->triggers &&
+#ifdef HA_CAN_FORCE_BULK_DELETE
+            !(table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE) &&
+#endif
+            table->triggers->has_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER)
+          )
+        )
+      )
+    ) {
+      /* This case must select by one shot */
+      DBUG_PRINT("info",("spider cancel split read"));
+      result_list->split_read_base = 9223372036854775807LL;
+      result_list->semi_split_read = 9223372036854775807LL;
+      result_list->semi_split_read_limit = 9223372036854775807LL;
+      result_list->first_read = 9223372036854775807LL;
+      result_list->second_read = 9223372036854775807LL;
+      result_list->semi_split_read_base = 0;
+      result_list->set_split_read = TRUE;
+      DBUG_RETURN(9223372036854775807LL);
+    }
     result_list->split_read_base =
       spider_param_split_read(thd, share->split_read);
     result_list->semi_split_read =
@@ -7467,17 +7592,17 @@ bool spider_check_direct_order_limit(
 ) {
   THD *thd = spider->trx->thd;
   SPIDER_SHARE *share = spider->share;
-  longlong direct_order_limit = spider_param_direct_order_limit(thd,
-    share->direct_order_limit);
+  st_select_lex *select_lex;
+  longlong select_limit;
+  longlong offset_limit;
   DBUG_ENTER("spider_check_direct_order_limit");
-  if (
-    direct_order_limit &&
-    spider->sql_command != SQLCOM_HA_READ
-  ) {
-    st_select_lex *select_lex;
-    longlong select_limit;
-    longlong offset_limit;
+  if (spider->sql_command != SQLCOM_HA_READ)
+  {
     spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
+    bool first_check = TRUE;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+    spider->result_list.direct_aggregate = TRUE;
+#endif
     DBUG_PRINT("info",("spider select_limit=%lld", select_limit));
     DBUG_PRINT("info",("spider offset_limit=%lld", offset_limit));
     if (
@@ -7488,38 +7613,91 @@ bool spider_check_direct_order_limit(
         OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
 #endif
       !select_lex ||
-      !select_lex->explicit_limit ||
-      (select_lex->options & OPTION_FOUND_ROWS) ||
-      select_lex->group_list.elements ||
-      select_lex->with_sum_func ||
-      select_lex->having ||
-      select_lex->table_list.elements != 1 ||
-      !select_lex->order_list.elements ||
-      select_limit > direct_order_limit - offset_limit
+      select_lex->table_list.elements != 1
     ) {
-      DBUG_PRINT("info",("spider FALSE by select_lex"));
-      DBUG_RETURN(FALSE);
-    }
-    ORDER *order;
-    for (order = (ORDER *) select_lex->order_list.first; order;
-      order = order->next)
-    {
-      if (spider->print_item_type((*order->item), NULL, NULL, 0))
-      {
-        DBUG_PRINT("info",("spider FALSE by order"));
-        DBUG_RETURN(FALSE);
-      }
-    }
-    if (spider_db_append_condition(spider, NULL, 0, TRUE))
+      DBUG_PRINT("info",("spider first_check is FALSE"));
+      first_check = FALSE;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+      spider->result_list.direct_aggregate = FALSE;
+#endif
+    } else if (spider_db_append_condition(spider, NULL, 0, TRUE))
     {
       DBUG_PRINT("info",("spider FALSE by condition"));
-      DBUG_RETURN(FALSE);
+      first_check = FALSE;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+      spider->result_list.direct_aggregate = FALSE;
+    } else if (
+      !select_lex->group_list.elements &&
+      !select_lex->with_sum_func
+    ) {
+      DBUG_PRINT("info",("spider this SQL is not aggregate SQL"));
+      spider->result_list.direct_aggregate = FALSE;
+    } else {
+      ORDER *group;
+      for (group = (ORDER *) select_lex->group_list.first; group;
+        group = group->next)
+      {
+        if (spider->print_item_type((*group->item), NULL, NULL, 0))
+        {
+          DBUG_PRINT("info",("spider aggregate FALSE by group"));
+          spider->result_list.direct_aggregate = FALSE;
+          break;
+        }
+      }
+      JOIN *join = select_lex->join;
+      Item_sum **item_sum_ptr;
+      for (item_sum_ptr = join->sum_funcs; *item_sum_ptr; ++item_sum_ptr)
+      {
+        if (spider->print_item_type(*item_sum_ptr, NULL, NULL, 0))
+        {
+          DBUG_PRINT("info",("spider aggregate FALSE by not supported"));
+          spider->result_list.direct_aggregate = FALSE;
+          break;
+        }
+      }
+#endif
     }
-    DBUG_PRINT("info",("spider TRUE"));
-    spider->result_list.internal_limit = select_limit + offset_limit;
-    spider->result_list.split_read = select_limit + offset_limit;
-    spider->trx->direct_order_limit_count++;
-    DBUG_RETURN(TRUE);
+
+    longlong direct_order_limit = spider_param_direct_order_limit(thd,
+      share->direct_order_limit);
+    if (direct_order_limit)
+    {
+      if (
+        !first_check ||
+        !select_lex->explicit_limit ||
+        (select_lex->options & OPTION_FOUND_ROWS) ||
+        (
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+          !spider->result_list.direct_aggregate &&
+#endif
+          (
+            select_lex->group_list.elements ||
+            select_lex->with_sum_func
+          )
+        ) ||
+        select_lex->having ||
+        !select_lex->order_list.elements ||
+        select_limit > direct_order_limit - offset_limit
+      ) {
+        DBUG_PRINT("info",("spider FALSE by select_lex"));
+        DBUG_RETURN(FALSE);
+      }
+      ORDER *order;
+      for (order = (ORDER *) select_lex->order_list.first; order;
+        order = order->next)
+      {
+        if (spider->print_item_type((*order->item), NULL, NULL, 0))
+        {
+          DBUG_PRINT("info",("spider FALSE by order"));
+          DBUG_RETURN(FALSE);
+        }
+      }
+      DBUG_PRINT("info",("spider TRUE"));
+      spider->result_list.internal_limit = select_limit + offset_limit;
+      spider->result_list.split_read = select_limit + offset_limit;
+      spider->trx->direct_order_limit_count++;
+      DBUG_RETURN(TRUE);
+    }
   }
   DBUG_PRINT("info",("spider FALSE by parameter"));
   DBUG_RETURN(FALSE);
@@ -7811,13 +7989,8 @@ int spider_discover_table_structure(
     {
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     }
-#ifdef SPIDER_GENERATE_PARTITION_SYNTAX_HAS_CURRENT_COMMENT_START
-    if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
-      FALSE, TRUE, info, NULL, NULL)))
-#else
     if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
       FALSE, TRUE, info, NULL)))
-#endif
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }

@@ -25,6 +25,12 @@ SET(HEADERS
   mysql.h 
   mysql_com.h
   mysql_com_server.h
+  my_byteorder.h
+  byte_order_generic.h
+  byte_order_generic_x86.h
+  byte_order_generic_x86_64.h
+  little_endian.h
+  big_endian.h
   mysql_time.h 
   ma_dyncol.h
   my_list.h
@@ -53,6 +59,7 @@ SET(HEADERS
   my_attribute.h 
   my_compiler.h
   handler_state.h
+  handler_ername.h
 )
 
 INSTALL(FILES ${HEADERS} DESTINATION ${INSTALL_INCLUDEDIR} COMPONENT Development)

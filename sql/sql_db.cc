@@ -992,7 +992,7 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
 
   /* first, get the list of tables */
   Dynamic_array<LEX_STRING*> files(dirp->number_of_files);
-  Discovered_table_list tl(thd, &files, &null_lex_str);
+  Discovered_table_list tl(thd, &files);
   if (ha_discover_table_names(thd, &db, dirp, &tl, true))
     DBUG_RETURN(1);
 
@@ -1471,14 +1471,18 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
   DBUG_PRINT("info",("Use database: %s", new_db_file_name.str));
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  db_access=
-    test_all_bits(sctx->master_access, DB_ACLS) ?
-    DB_ACLS :
-    acl_get(sctx->host,
-            sctx->ip,
-            sctx->priv_user,
-            new_db_file_name.str,
-            FALSE) | sctx->master_access;
+  if (test_all_bits(sctx->master_access, DB_ACLS))
+    db_access= DB_ACLS;
+  else
+  {
+    db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user,
+                        new_db_file_name.str, FALSE) | sctx->master_access;
+    if (sctx->priv_role[0])
+    {
+      /* include a possible currently set role for access */
+      db_access|= acl_get("", "", sctx->priv_role, new_db_file_name.str, FALSE);
+    }
+  }
 
   if (!force_switch &&
       !(db_access & DB_ACLS) &&

@@ -251,7 +251,8 @@ typedef struct st_grant_info
 
      @details The version of this copy is found in GRANT_INFO::version.
    */
-  GRANT_TABLE *grant_table;
+  GRANT_TABLE *grant_table_user;
+  GRANT_TABLE *grant_table_role;
   /**
      @brief Used for cache invalidation when caching privilege information.
 
@@ -559,7 +560,8 @@ enum open_frm_error {
   OPEN_FRM_DISCOVER,
   OPEN_FRM_ERROR_ALREADY_ISSUED,
   OPEN_FRM_NOT_A_VIEW,
-  OPEN_FRM_NOT_A_TABLE
+  OPEN_FRM_NOT_A_TABLE,
+  OPEN_FRM_NEEDS_REBUILD
 };
 
 /**
@@ -733,6 +735,13 @@ struct TABLE_SHARE
   ulong table_map_id;                   /* for row-based replication */
 
   /*
+    Things that are incompatible between the stored version and the
+    current version. This is a set of HA_CREATE... bits that can be used
+    to modify create_info->used_fields for ALTER TABLE.
+  */
+  ulong incompatible_version;
+
+  /*
     Cache for row-based replication table share checks that does not
     need to be repeated. Possible values are: -1 when cache value is
     not calculated yet, 0 when table *shall not* be replicated, 1 when
@@ -865,7 +874,7 @@ struct TABLE_SHARE
   }
   /**
     Return a table metadata version.
-     * for base tables, we return table_map_id.
+     * for base tables and views, we return table_map_id.
        It is assigned from a global counter incremented for each
        new table loaded into the table definition cache (TDC).
      * for temporary tables it's table_map_id again. But for
@@ -874,7 +883,7 @@ struct TABLE_SHARE
        counter incremented for every new SQL statement. Since
        temporary tables are thread-local, each temporary table
        gets a unique id.
-     * for everything else (views, information schema tables),
+     * for everything else (e.g. information schema tables),
        the version id is zero.
 
    This choice of version id is a large compromise
@@ -889,8 +898,8 @@ struct TABLE_SHARE
    version id of a temporary table is never compared with
    a version id of a view, and vice versa.
 
-   Secondly, for base tables, we know that each DDL flushes the
-   respective share from the TDC. This ensures that whenever
+   Secondly, for base tables and views, we know that each DDL flushes
+   the respective share from the TDC. This ensures that whenever
    a table is altered or dropped and recreated, it gets a new
    version id.
    Unfortunately, since elements of the TDC are also flushed on
@@ -911,26 +920,6 @@ struct TABLE_SHARE
    Metadata of information schema tables never changes.
    Thus we can safely assume 0 for a good enough version id.
 
-   Views are a special and tricky case. A view is always inlined
-   into the parse tree of a prepared statement at prepare.
-   Thus, when we execute a prepared statement, the parse tree
-   will not get modified even if the view is replaced with another
-   view.  Therefore, we can safely choose 0 for version id of
-   views and effectively never invalidate a prepared statement
-   when a view definition is altered. Note, that this leads to
-   wrong binary log in statement-based replication, since we log
-   prepared statement execution in form Query_log_events
-   containing conventional statements. But since there is no
-   metadata locking for views, the very same problem exists for
-   conventional statements alone, as reported in Bug#25144. The only
-   difference between prepared and conventional execution is,
-   effectively, that for prepared statements the race condition
-   window is much wider.
-   In 6.0 we plan to support view metadata locking (WL#3726) and
-   extend table definition cache to cache views (WL#4298).
-   When this is done, views will be handled in the same fashion
-   as the base tables.
-
    Finally, by taking into account table type, we always
    track that a change has taken place when a view is replaced
    with a base table, a base table is replaced with a temporary
@@ -940,7 +929,7 @@ struct TABLE_SHARE
   */
   ulong get_table_ref_version() const
   {
-    return (tmp_table == SYSTEM_TMP_TABLE || is_view) ? 0 : table_map_id;
+    return (tmp_table == SYSTEM_TMP_TABLE) ? 0 : table_map_id;
   }
 
   bool visit_subgraph(Wait_for_flush *waiting_ticket,
@@ -1006,6 +995,9 @@ struct st_cond_statistic;
 
 #define      CHECK_ROW_FOR_NULLS_TO_REJECT   (1 << 0)
 #define      REJECT_ROW_DUE_TO_NULL_FIELDS   (1 << 1)
+
+/* Bitmap of table's fields */
+typedef Bitmap<MAX_FIELDS> Field_map;
 
 struct TABLE
 {
@@ -1206,6 +1198,10 @@ public:
   */
   bool distinct;
   bool const_table,no_rows, used_for_duplicate_elimination;
+  /**
+    Forces DYNAMIC Aria row format for internal temporary tables.
+  */
+  bool keep_row_order;
 
   /**
      If set, the optimizer has found that row retrieval should access index 
@@ -1517,6 +1513,7 @@ typedef struct st_schema_table
 
 #define JOIN_TYPE_LEFT	1
 #define JOIN_TYPE_RIGHT	2
+#define JOIN_TYPE_OUTER 4	/* Marker that this is an outer join */
 
 #define VIEW_SUID_INVOKER               0
 #define VIEW_SUID_DEFINER               1
@@ -2199,6 +2196,16 @@ struct TABLE_LIST
   bool change_refs_to_fields();
 
   bool single_table_updatable();
+
+  bool is_inner_table_of_outer_join()
+  {
+    for (TABLE_LIST *tbl= this; tbl; tbl= tbl->embedding)
+    {
+      if (tbl->outer_join)
+        return true;
+    }
+    return false;
+  } 
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);

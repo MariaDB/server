@@ -1,0 +1,13 @@
+SET @save_binlog_commit_wait_count= @@GLOBAL.binlog_commit_wait_count;
+SELECT @@GLOBAL.binlog_commit_wait_count as 'must be zero because of default';
+must be zero because of default
+0
+SELECT @@SESSION.binlog_commit_wait_count  as 'no session var';
+ERROR HY000: Variable 'binlog_commit_wait_count' is a GLOBAL variable
+SET GLOBAL binlog_commit_wait_count= 0;
+SET GLOBAL binlog_commit_wait_count= DEFAULT;
+SET GLOBAL binlog_commit_wait_count= 10;
+SELECT @@GLOBAL.binlog_commit_wait_count;
+@@GLOBAL.binlog_commit_wait_count
+10
+SET GLOBAL binlog_commit_wait_count = @save_binlog_commit_wait_count;

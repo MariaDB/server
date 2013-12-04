@@ -1221,8 +1221,8 @@ void spider_conn_clear_queue(
   DBUG_PRINT("info", ("spider conn=%p", conn));
 /*
   conn->queued_connect = FALSE;
-*/
   conn->queued_ping = FALSE;
+*/
   conn->queued_trx_isolation = FALSE;
   conn->queued_semi_trx_isolation = FALSE;
   conn->queued_autocommit = FALSE;
@@ -1467,11 +1467,23 @@ int spider_set_conn_bg_param(
   else {
     result_list->bgs_phase = 1;
 
-    result_list->bgs_first_read =
-      spider_param_bgs_first_read(thd, share->bgs_first_read);
-    result_list->bgs_second_read =
-      spider_param_bgs_second_read(thd, share->bgs_second_read);
     result_list->bgs_split_read = spider_bg_split_read_param(spider);
+    if (spider->use_pre_call)
+    {
+      DBUG_PRINT("info",("spider use_pre_call=TRUE"));
+      result_list->bgs_first_read = result_list->bgs_split_read;
+      result_list->bgs_second_read = result_list->bgs_split_read;
+    } else {
+      DBUG_PRINT("info",("spider use_pre_call=FALSE"));
+      result_list->bgs_first_read =
+        spider_param_bgs_first_read(thd, share->bgs_first_read);
+      result_list->bgs_second_read =
+        spider_param_bgs_second_read(thd, share->bgs_second_read);
+    }
+    DBUG_PRINT("info",("spider bgs_split_read=%lld",
+      result_list->bgs_split_read));
+    DBUG_PRINT("info",("spider bgs_first_read=%lld", share->bgs_first_read));
+    DBUG_PRINT("info",("spider bgs_second_read=%lld", share->bgs_second_read));
 
     result_list->split_read =
       result_list->bgs_first_read > 0 ?
@@ -2252,11 +2264,7 @@ void *spider_bg_conn_action(
         {
           result_list->bgs_error = error_num;
           if ((result_list->bgs_error_with_message = thd->is_error()))
-#if MYSQL_VERSION_ID < 50500
-            strmov(result_list->bgs_error_msg, thd->main_da.message());
-#else
-            strmov(result_list->bgs_error_msg, thd->get_stmt_da()->message());
-#endif
+            strmov(result_list->bgs_error_msg, spider_stmt_da_message(thd));
         }
         if (!dbton_handler->need_lock_before_set_sql_for_exec(sql_type))
         {
@@ -2285,7 +2293,7 @@ void *spider_bg_conn_action(
               spider_db_set_names(spider, conn, conn->link_idx)))
             {
               if (
-                result_list->tmp_table_join &&
+                result_list->tmp_table_join && spider->bka_mode != 2 &&
                 spider_bit_is_set(result_list->tmp_table_join_first,
                   conn->link_idx)
               ) {
@@ -2304,13 +2312,8 @@ void *spider_bg_conn_action(
                 ) {
                   result_list->bgs_error = spider_db_errorno(conn);
                   if ((result_list->bgs_error_with_message = thd->is_error()))
-#if MYSQL_VERSION_ID < 50500
                     strmov(result_list->bgs_error_msg,
-                      thd->main_da.message());
-#else
-                    strmov(result_list->bgs_error_msg,
-                      thd->get_stmt_da()->message());
-#endif
+                      spider_stmt_da_message(thd));
                 } else
                   spider_db_discard_multiple_result(spider, conn->link_idx,
                     conn);
@@ -2327,13 +2330,8 @@ void *spider_bg_conn_action(
                 ) {
                   result_list->bgs_error = spider_db_errorno(conn);
                   if ((result_list->bgs_error_with_message = thd->is_error()))
-#if MYSQL_VERSION_ID < 50500
                     strmov(result_list->bgs_error_msg,
-                      thd->main_da.message());
-#else
-                    strmov(result_list->bgs_error_msg,
-                      thd->get_stmt_da()->message());
-#endif
+                      spider_stmt_da_message(thd));
                 } else {
                   spider->connection_ids[conn->link_idx] = conn->connection_id;
                   if (!conn->bg_discard_result)
@@ -2345,13 +2343,8 @@ void *spider_bg_conn_action(
                     else {
                       if ((result_list->bgs_error_with_message =
                         thd->is_error()))
-#if MYSQL_VERSION_ID < 50500
                         strmov(result_list->bgs_error_msg,
-                          thd->main_da.message());
-#else
-                        strmov(result_list->bgs_error_msg,
-                          thd->get_stmt_da()->message());
-#endif
+                          spider_stmt_da_message(thd));
                     }
                   } else {
                     result_list->bgs_error = 0;
@@ -2361,11 +2354,8 @@ void *spider_bg_conn_action(
               }
             } else {
               if ((result_list->bgs_error_with_message = thd->is_error()))
-#if MYSQL_VERSION_ID < 50500
-                strmov(result_list->bgs_error_msg, thd->main_da.message());
-#else
-                strmov(result_list->bgs_error_msg, thd->get_stmt_da()->message());
-#endif
+                strmov(result_list->bgs_error_msg,
+                  spider_stmt_da_message(thd));
             }
 #ifdef HA_CAN_BULK_ACCESS
           }
@@ -2384,11 +2374,7 @@ void *spider_bg_conn_action(
         result_list->bgs_error =
           spider_db_store_result(spider, conn->link_idx, result_list->table);
         if ((result_list->bgs_error_with_message = thd->is_error()))
-#if MYSQL_VERSION_ID < 50500
-          strmov(result_list->bgs_error_msg, thd->main_da.message());
-#else
-          strmov(result_list->bgs_error_msg, thd->get_stmt_da()->message());
-#endif
+          strmov(result_list->bgs_error_msg, spider_stmt_da_message(thd));
         conn->mta_conn_mutex_unlock_later = FALSE;
       }
       conn->bg_search = FALSE;
@@ -2415,15 +2401,9 @@ void *spider_bg_conn_action(
             SPIDER_BG_DIRECT_SQL *bg_direct_sql =
               (SPIDER_BG_DIRECT_SQL *) direct_sql->parent;
             pthread_mutex_lock(direct_sql->bg_mutex);
-#if MYSQL_VERSION_ID < 50500
-            bg_direct_sql->bg_error = thd->main_da.sql_errno();
+            bg_direct_sql->bg_error = spider_stmt_da_sql_errno(thd);
             strmov((char *) bg_direct_sql->bg_error_msg,
-              thd->main_da.message());
-#else
-            bg_direct_sql->bg_error = thd->get_stmt_da()->sql_errno();
-            strmov((char *) bg_direct_sql->bg_error_msg,
-              thd->get_stmt_da()->message());
-#endif
+              spider_stmt_da_message(thd));
             pthread_mutex_unlock(direct_sql->bg_mutex);
             is_error = TRUE;
           }

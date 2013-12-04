@@ -355,6 +355,14 @@ void spider_free_tmp_dbton_handler(
   ha_spider *tmp_spider
 );
 
+TABLE_LIST *spider_get_parent_table_list(
+  ha_spider *spider
+);
+
+st_select_lex *spider_get_select_lex(
+  ha_spider *spider
+);
+
 void spider_get_select_limit(
   ha_spider *spider,
   st_select_lex **select_lex,

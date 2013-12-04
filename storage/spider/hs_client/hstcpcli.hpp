@@ -82,6 +82,8 @@ struct hstcpcli_i {
   virtual size_t get_response_end_offset() = 0;
   virtual const char *get_readbuf_begin() = 0;
   virtual const char *get_readbuf_end() = 0;
+  virtual const char *get_writebuf_begin() = 0;
+  virtual size_t get_writebuf_size() = 0;
   virtual void write_error_to_log(const char *func_name, const char *file_name,
     ulong line_no) = 0;
   static hstcpcli_ptr create(const socket_args& args);

@@ -51,6 +51,7 @@
 #include "password.h"           // my_make_scrambled_password,
                                 // my_make_scrambled_password_323
 #include <m_ctype.h>
+#include <base64.h>
 #include <my_md5.h>
 #include "sha1.h"
 #include "my_aes.h"
@@ -62,7 +63,7 @@ C_MODE_END
 #include <sql_repl.h>
 #include "sql_statistics.h"
 
-size_t username_char_length= 16;
+size_t username_char_length= 80;
 
 /**
    @todo Remove this. It is not safe to use a shared String object.
@@ -322,7 +323,7 @@ String *Item_func_sha2::val_str_ascii(String *str)
 
 void Item_func_sha2::fix_length_and_dec()
 {
-  set_persist_maybe_null(1);
+  maybe_null= 1;
   max_length = 0;
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
@@ -448,9 +449,110 @@ String *Item_func_aes_decrypt::val_str(String *str)
 void Item_func_aes_decrypt::fix_length_and_dec()
 {
    max_length=args[0]->max_length;
-   set_persist_maybe_null(1);
+   maybe_null= 1;
 }
 
+
+void Item_func_to_base64::fix_length_and_dec()
+{
+  maybe_null= args[0]->maybe_null;
+  collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
+  if (args[0]->max_length > (uint) base64_encode_max_arg_length())
+  {
+    maybe_null= 1;
+    fix_char_length_ulonglong((ulonglong) base64_encode_max_arg_length());
+  }
+  else
+  {
+    int length= base64_needed_encoded_length((int) args[0]->max_length);
+    DBUG_ASSERT(length > 0);
+    fix_char_length_ulonglong((ulonglong) length - 1);
+  }
+}
+
+
+String *Item_func_to_base64::val_str_ascii(String *str)
+{
+  String *res= args[0]->val_str(str);
+  bool too_long= false;
+  int length;
+  if (!res ||
+      res->length() > (uint) base64_encode_max_arg_length() ||
+      (too_long=
+       ((uint) (length= base64_needed_encoded_length((int) res->length())) >
+        current_thd->variables.max_allowed_packet)) ||
+      tmp_value.alloc((uint) length))
+  {
+    null_value= 1; // NULL input, too long input, or OOM.
+    if (too_long)
+    {
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                          ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
+                          current_thd->variables.max_allowed_packet);
+    }
+    return 0;
+  }
+  base64_encode(res->ptr(), (int) res->length(), (char*) tmp_value.ptr());
+  DBUG_ASSERT(length > 0);
+  tmp_value.length((uint) length - 1); // Without trailing '\0'
+  null_value= 0;
+  return &tmp_value;
+}
+
+
+void Item_func_from_base64::fix_length_and_dec()
+{
+  if (args[0]->max_length > (uint) base64_decode_max_arg_length())
+  {
+    fix_char_length_ulonglong((ulonglong) base64_decode_max_arg_length());
+  }
+  else
+  {
+    int length= base64_needed_decoded_length((int) args[0]->max_length);
+    fix_char_length_ulonglong((ulonglong) length);
+  }
+  maybe_null= 1; // Can be NULL, e.g. in case of badly formed input string
+}
+
+
+String *Item_func_from_base64::val_str(String *str)
+{
+  String *res= args[0]->val_str_ascii(str);
+  bool too_long= false;
+  int length;
+  const char *end_ptr;
+
+  if (!res ||
+      res->length() > (uint) base64_decode_max_arg_length() ||
+      (too_long=
+       ((uint) (length= base64_needed_decoded_length((int) res->length())) >
+        current_thd->variables.max_allowed_packet)) ||
+      tmp_value.alloc((uint) length) ||
+      (length= base64_decode(res->ptr(), (int) res->length(),
+                             (char *) tmp_value.ptr(), &end_ptr, 0)) < 0 ||
+      end_ptr < res->ptr() + res->length())
+  {
+    null_value= 1; // NULL input, too long input, OOM, or badly formed input
+    if (too_long)
+    {
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                          ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
+                          current_thd->variables.max_allowed_packet);
+    }
+    else if (res && length < 0)
+    {
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_BAD_BASE64_DATA, ER(ER_BAD_BASE64_DATA),
+                          end_ptr - res->ptr());
+    }
+    return 0;
+  }
+  tmp_value.length((uint) length);
+  null_value= 0;
+  return &tmp_value;
+}
 ///////////////////////////////////////////////////////////////////////////////
 
 
@@ -1234,6 +1336,187 @@ void Item_func_replace::fix_length_and_dec()
     return;
   fix_char_length_ulonglong(char_length);
 }
+
+
+/*********************************************************************/
+void Item_func_regexp_replace::fix_length_and_dec()
+{
+  if (agg_arg_charsets_for_string_result_with_comparison(collation, args, 3))
+    return;
+  max_length= MAX_BLOB_WIDTH;
+  re.init(collation.collation, 0, 10);
+  re.fix_owner(this, args[0], args[1]);
+}
+
+
+/*
+  Traverse through the replacement string and append to "str".
+  Sub-pattern references \0 .. \9 are recognized, which are replaced
+  to the chunks of the source string.
+*/
+bool Item_func_regexp_replace::append_replacement(String *str,
+                                                  const LEX_CSTRING *source,
+                                                  const LEX_CSTRING *replace)
+{
+  const char *beg= replace->str;
+  const char *end= beg + replace->length;
+  CHARSET_INFO *cs= re.library_charset();
+
+  for ( ; ; )
+  {
+    my_wc_t wc;
+    int cnv, n;
+
+    if ((cnv= cs->cset->mb_wc(cs, &wc, (const uchar *) beg,
+                                       (const uchar *) end)) < 1)
+      break; /* End of line */
+    beg+= cnv;
+
+    if (wc != '\\')
+    {
+      if (str->append(beg - cnv, cnv, cs))
+        return true;
+      continue;
+    }
+
+    if ((cnv= cs->cset->mb_wc(cs, &wc, (const uchar *) beg,
+                                       (const uchar *) end)) < 1)
+      break; /* End of line */
+    beg+= cnv;
+
+    if ((n= ((int) wc) - '0') >= 0 && n <= 9 && n < re.nsubpatterns())
+    {
+      /* A valid sub-pattern reference found */
+      int pbeg= re.subpattern_start(n), plength= re.subpattern_end(n) - pbeg;
+      if (str->append(source->str + pbeg, plength, cs))
+        return true;
+    }
+    else
+    {
+      /*
+         A non-digit character following after '\'.
+         Just add the character itself.
+       */
+      if (str->append(beg - cnv, cnv, cs))
+        return false;
+    }
+  }
+  return false;
+}
+
+
+String *Item_func_regexp_replace::val_str(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  char buff0[MAX_FIELD_WIDTH];
+  char buff2[MAX_FIELD_WIDTH];
+  String tmp0(buff0,sizeof(buff0),&my_charset_bin);
+  String tmp2(buff2,sizeof(buff2),&my_charset_bin);
+  String *source= args[0]->val_str(&tmp0);
+  String *replace= args[2]->val_str(&tmp2);
+  LEX_CSTRING src, rpl;
+  int startoffset= 0;
+
+  if ((null_value= (args[0]->null_value || args[2]->null_value ||
+                    re.recompile(args[1]))))
+    return (String *) 0;
+
+  if (!(source= re.convert_if_needed(source, &re.subject_converter)) ||
+      !(replace= re.convert_if_needed(replace, &re.replace_converter)))
+    goto err;
+
+  src= source->lex_cstring();
+  rpl= replace->lex_cstring();
+
+  str->length(0);
+  str->set_charset(collation.collation);
+
+  for ( ; ; ) // Iterate through all matches
+  {
+
+    if (re.exec(src.str, src.length, startoffset))
+      goto err;
+
+    if (!re.match() || re.subpattern_length(0) == 0)
+    {
+      /* 
+        No match or an empty match.
+        Append the rest of the source string
+        starting from startoffset until the end of the source.
+      */
+      if (str->append(src.str + startoffset, src.length - startoffset, re.library_charset()))
+        goto err;
+      return str;
+    }
+
+    /*
+      Append prefix, the part before the matching pattern.
+      starting from startoffset until the next match
+    */
+    if (str->append(src.str + startoffset, re.subpattern_start(0) - startoffset, re.library_charset()))
+      goto err;
+
+    // Append replacement
+    if (append_replacement(str, &src, &rpl))
+      goto err;
+
+    // Set the new start point as the end of previous match
+    startoffset= re.subpattern_end(0);
+  }
+  return str;
+
+err:
+  null_value= true;
+  return (String *) 0;
+}
+
+
+void Item_func_regexp_substr::fix_length_and_dec()
+{
+  if (agg_arg_charsets_for_string_result_with_comparison(collation, args, 2))
+    return;
+  fix_char_length(args[0]->max_char_length());
+  re.init(collation.collation, 0, 10);
+  re.fix_owner(this, args[0], args[1]);
+}
+
+
+String *Item_func_regexp_substr::val_str(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  char buff0[MAX_FIELD_WIDTH];
+  String tmp0(buff0,sizeof(buff0),&my_charset_bin);
+  String *source= args[0]->val_str(&tmp0);
+
+  if ((null_value= (args[0]->null_value || re.recompile(args[1]))))
+    return (String *) 0;
+
+  if (!(source= re.convert_if_needed(source, &re.subject_converter)))
+    goto err;
+
+  str->length(0);
+  str->set_charset(collation.collation);
+
+  if (re.exec(source->ptr(), source->length(), 0))
+    goto err;
+
+  if (!re.match())
+    return str;
+
+  if (str->append(source->ptr() + re.subpattern_start(0),
+                  re.subpattern_end(0) - re.subpattern_start(0),
+                  re.library_charset()))
+    goto err;
+
+  return str;
+
+err:
+  null_value= true;
+  return (String *) 0;
+}
+
+
+/************************************************************************/
 
 
 String *Item_func_insert::val_str(String *str)
@@ -2232,14 +2515,30 @@ bool Item_func_current_user::fix_fields(THD *thd, Item **ref)
   if (Item_func_sysconst::fix_fields(thd, ref))
     return TRUE;
 
-  Security_context *ctx=
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-                         (context->security_ctx
-                          ? context->security_ctx : thd->security_ctx);
-#else
-                         thd->security_ctx;
-#endif /*NO_EMBEDDED_ACCESS_CHECKS*/
+  Security_context *ctx= context->security_ctx
+                          ? context->security_ctx : thd->security_ctx;
   return init(ctx->priv_user, ctx->priv_host);
+}
+
+bool Item_func_current_role::fix_fields(THD *thd, Item **ref)
+{
+  if (Item_func_sysconst::fix_fields(thd, ref))
+    return 1;
+
+  Security_context *ctx= context->security_ctx
+                          ? context->security_ctx : thd->security_ctx;
+
+  if (ctx->priv_role[0])
+  {
+    if (str_value.copy(ctx->priv_role, strlen(ctx->priv_role),
+                       system_charset_info))
+      return 1;
+
+    str_value.mark_as_const();
+    return 0;
+  }
+  null_value= maybe_null= 1;
+  return 0;
 }
 
 
@@ -2575,7 +2874,7 @@ void Item_func_elt::fix_length_and_dec()
     set_if_bigger(decimals,args[i]->decimals);
   }
   fix_char_length(char_length);
-  set_persist_maybe_null(1);			  // NULL if wrong first arg
+  maybe_null=1;					// NULL if wrong first arg
 }
 
 
@@ -2770,7 +3069,7 @@ void Item_func_repeat::fix_length_and_dec()
   else
   {
     max_length= MAX_BLOB_WIDTH;
-    set_persist_maybe_null(1);
+    maybe_null= 1;
   }
 }
 
@@ -2889,7 +3188,7 @@ void Item_func_rpad::fix_length_and_dec()
   else
   {
     max_length= MAX_BLOB_WIDTH;
-    set_persist_maybe_null(1);
+    maybe_null= 1;
   }
 }
 
@@ -2995,7 +3294,7 @@ void Item_func_lpad::fix_length_and_dec()
   else
   {
     max_length= MAX_BLOB_WIDTH;
-    set_persist_maybe_null(1);
+    maybe_null= 1;
   }
 }
 
@@ -3180,11 +3479,8 @@ void Item_func_set_collation::fix_length_and_dec()
 					 MY_CS_BINSORT,MYF(0));
   else
   {
-    if (!(set_collation= get_charset_by_name(colname,MYF(0))))
-    {
-      my_error(ER_UNKNOWN_COLLATION, MYF(0), colname);
+    if (!(set_collation= mysqld_collation_get_by_name(colname)))  
       return;
-    }
   }
 
   if (!set_collation || 
@@ -3254,6 +3550,101 @@ String *Item_func_collation::val_str(String *str)
   str->copy(cs->name, (uint) strlen(cs->name),
 	    &my_charset_latin1, collation.collation, &dummy_errors);
   return str;
+}
+
+
+void Item_func_weight_string::fix_length_and_dec()
+{
+  CHARSET_INFO *cs= args[0]->collation.collation;
+  collation.set(&my_charset_bin, args[0]->collation.derivation);
+  flags= my_strxfrm_flag_normalize(flags, cs->levels_for_order);
+  /* 
+    Use result_length if it was given explicitly in constructor,
+    otherwise calculate max_length using argument's max_length
+    and "nweights".
+  */
+  if (!(max_length= result_length))
+  {
+    uint char_length;
+    char_length= ((cs->state & MY_CS_STRNXFRM_BAD_NWEIGHTS) || !nweights) ?
+                 args[0]->max_char_length() : nweights;
+    max_length= cs->coll->strnxfrmlen(cs, char_length * cs->mbmaxlen);
+  }
+  maybe_null= 1;
+}
+
+
+/* Return a weight_string according to collation */
+String *Item_func_weight_string::val_str(String *str)
+{
+  String *res;
+  CHARSET_INFO *cs= args[0]->collation.collation;
+  uint tmp_length, frm_length;
+  DBUG_ASSERT(fixed == 1);
+
+  if (args[0]->result_type() != STRING_RESULT ||
+      !(res= args[0]->val_str(str)))
+    goto nl;
+  
+  /*
+    Use result_length if it was given in constructor
+    explicitly, otherwise calculate result length
+    from argument and "nweights".
+  */
+  if (!(tmp_length= result_length))
+  {
+    uint char_length;
+    if (cs->state & MY_CS_STRNXFRM_BAD_NWEIGHTS)
+    {
+      /*
+        latin2_czech_cs and cp1250_czech_cs do not support
+        the "nweights" limit in strnxfrm(). Use the full length.
+      */
+      char_length= res->length();
+    }
+    else
+    {
+      /*
+        If we don't need to pad the result with spaces, then it should be
+        OK to calculate character length of the argument approximately:
+        "res->length() / cs->mbminlen" can return a number that is 
+        bigger than the real number of characters in the string, so
+        we'll allocate a little bit more memory but avoid calling
+        the slow res->numchars().
+        In case if we do need to pad with spaces, we call res->numchars()
+        to know the true number of characters.
+      */
+      if (!(char_length= nweights))
+        char_length= (flags & MY_STRXFRM_PAD_WITH_SPACE) ?
+                      res->numchars() : (res->length() / cs->mbminlen);
+    }
+    tmp_length= cs->coll->strnxfrmlen(cs, char_length * cs->mbmaxlen);
+  }
+
+  if(tmp_length > current_thd->variables.max_allowed_packet)
+  {
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                        ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
+                        current_thd->variables.max_allowed_packet);
+    goto nl;
+  }
+
+  if (tmp_value.alloc(tmp_length))
+    goto nl;
+
+  frm_length= cs->coll->strnxfrm(cs,
+                                 (uchar *) tmp_value.ptr(), tmp_length,
+                                 nweights ? nweights : tmp_length,
+                                 (const uchar *) res->ptr(), res->length(),
+                                 flags);
+  tmp_value.length(frm_length);
+  null_value= 0;
+  return &tmp_value;
+
+nl:
+  null_value= 1;
+  return 0;
 }
 
 
@@ -3972,7 +4363,7 @@ bool Item_func_dyncol_create::fix_fields(THD *thd, Item **ref)
 
 void Item_func_dyncol_create::fix_length_and_dec()
 {
-  set_persist_maybe_null(1);
+  maybe_null= TRUE;
   collation.set(&my_charset_bin);
   decimals= 0;
 }
@@ -4220,11 +4611,11 @@ String *Item_func_dyncol_create::val_str(String *str)
     if ((rc= ((names || force_names) ?
               mariadb_dyncol_create_many_named(&col, column_count, keys_str,
                                                vals, TRUE) :
-              mariadb_dyncol_create_many(&col, column_count, keys_num,
-                                         vals, TRUE))))
+              mariadb_dyncol_create_many_num(&col, column_count, keys_num,
+                                             vals, TRUE))))
     {
       dynamic_column_error_message(rc);
-      dynamic_column_column_free(&col);
+      mariadb_dyncol_free(&col);
       res= NULL;
       null_value= TRUE;
     }
@@ -4363,11 +4754,11 @@ String *Item_func_dyncol_add::val_str(String *str)
   if ((rc= ((names || force_names) ?
             mariadb_dyncol_update_many_named(&col, column_count,
                                              keys_str, vals) :
-            mariadb_dyncol_update_many(&col, column_count,
-                                       keys_num, vals))))
+            mariadb_dyncol_update_many_num(&col, column_count,
+                                           keys_num, vals))))
   {
     dynamic_column_error_message(rc);
-    dynamic_column_column_free(&col);
+    mariadb_dyncol_free(&col);
     goto null;
   }
 
@@ -4470,7 +4861,7 @@ bool Item_dyncol_get::get_dyn_value(DYNAMIC_COLUMN_VALUE *val, String *tmp)
   dyn_str.str=   (char*) res->ptr();
   dyn_str.length= res->length();
   if ((rc= ((name == NULL) ?
-            mariadb_dyncol_get(&dyn_str, (uint) num, val) :
+            mariadb_dyncol_get_num(&dyn_str, (uint) num, val) :
             mariadb_dyncol_get_named(&dyn_str, name, val))))
   {
     dynamic_column_error_message(rc);

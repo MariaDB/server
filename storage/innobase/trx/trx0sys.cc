@@ -359,7 +359,6 @@ trx_sys_update_wsrep_checkpoint(
         ut_ad(xid && mtr);
         ut_a(xid->formatID == -1 || wsrep_is_wsrep_xid(xid));
 
-        sys_header = trx_sysf_get(mtr);
         if (mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
                              + TRX_SYS_WSREP_XID_MAGIC_N_FLD)
             != TRX_SYS_WSREP_XID_MAGIC_N) {

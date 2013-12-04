@@ -197,7 +197,7 @@ static uint mbcharlen_sjis(CHARSET_INFO *cs __attribute__((unused)),uint c)
 #define sjiscode(c,d)	((((uint) (uchar)(c)) << 8) | (uint) (uchar) (d))
 
 
-static MY_UNICASE_INFO c81[256]=
+static MY_UNICASE_CHARACTER c81[256]=
 {
   /* 8100-810F */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -407,7 +407,7 @@ static MY_UNICASE_INFO c81[256]=
 };
 
 
-static MY_UNICASE_INFO c82[256]=
+static MY_UNICASE_CHARACTER c82[256]=
 {
   /* 8200-820F */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -615,7 +615,7 @@ static MY_UNICASE_INFO c82[256]=
 };
 
 
-static MY_UNICASE_INFO c83[256]=
+static MY_UNICASE_CHARACTER c83[256]=
 {
   /* 8300-830F */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -825,7 +825,7 @@ static MY_UNICASE_INFO c83[256]=
 };
 
 
-static MY_UNICASE_INFO c84[256]=
+static MY_UNICASE_CHARACTER c84[256]=
 {
   /* 8400-840F */
   {0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},
@@ -1035,7 +1035,7 @@ static MY_UNICASE_INFO c84[256]=
 };
 
 
-static MY_UNICASE_INFO *my_caseinfo_sjis[256]=
+static MY_UNICASE_CHARACTER *my_caseinfo_pages_sjis[256]=
 {
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, /* 0 */
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
@@ -1072,7 +1072,14 @@ static MY_UNICASE_INFO *my_caseinfo_sjis[256]=
 };
 
 
-static int my_strnncoll_sjis_internal(CHARSET_INFO *cs,
+static MY_UNICASE_INFO my_caseinfo_sjis=
+{
+  0xFFFF,
+  my_caseinfo_pages_sjis
+};
+
+
+static int my_strnncoll_sjis_internal(const CHARSET_INFO *cs,
 				      const uchar **a_res, size_t a_length,
 				      const uchar **b_res, size_t b_length)
 {
@@ -1154,29 +1161,6 @@ static int my_strnncollsp_sjis(CHARSET_INFO *cs __attribute__((unused)),
   return res;
 }
 
-
-
-static size_t my_strnxfrm_sjis(CHARSET_INFO *cs __attribute__((unused)),
-                               uchar *dest, size_t len,
-                               const uchar *src, size_t srclen)
-{
-  uchar *d_end = dest + len;
-  uchar *s_end = (uchar*) src + srclen;
-  while (dest < d_end && src < s_end)
-  {
-    if (ismbchar_sjis(cs,(char*) src, (char*) s_end))
-    {
-      *dest++ = *src++;
-      if (dest < d_end && src < s_end)
-	*dest++ = *src++;
-    }
-    else
-      *dest++ = sort_order_sjis[(uchar)*src++];
-  }
-  if (len > srclen)
-    bfill(dest, len - srclen, ' ');
-  return len;
-}
 
 
 /* SJIS->Unicode conversion table */
@@ -34149,7 +34133,7 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
   NULL,			/* init */
   my_strnncoll_sjis,
   my_strnncollsp_sjis,
-  my_strnxfrm_sjis,
+  my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
   my_wildcmp_mb,	/* wildcmp  */
@@ -34204,11 +34188,10 @@ struct charset_info_st my_charset_sjis_japanese_ci=
     to_lower_sjis,
     to_upper_sjis,
     sort_order_sjis,
-    NULL,		/* contractions */
-    NULL,		/* sort_order_big*/
+    NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
-    my_caseinfo_sjis,   /* caseinfo     */
+    &my_caseinfo_sjis,  /* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
@@ -34220,6 +34203,7 @@ struct charset_info_st my_charset_sjis_japanese_ci=
     0xFCFC,		/* max_sort_char */
     ' ',                /* pad char      */
     1,                  /* escape_with_backslash_is_dangerous */
+    1,                  /* levels_for_order   */
     &my_charset_handler,
     &my_collation_ci_handler
 };
@@ -34236,11 +34220,10 @@ struct charset_info_st my_charset_sjis_bin=
     to_lower_sjis,
     to_upper_sjis,
     NULL,		/* sort_order   */
-    NULL,		/* contractions */
-    NULL,		/* sort_order_big*/
+    NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
-    my_caseinfo_sjis,   /* caseinfo     */
+    &my_caseinfo_sjis,  /* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
@@ -34252,6 +34235,7 @@ struct charset_info_st my_charset_sjis_bin=
     0xFCFC,		/* max_sort_char */
     ' ',                /* pad char      */
     1,                  /* escape_with_backslash_is_dangerous */
+    1,                  /* levels_for_order   */
     &my_charset_handler,
     &my_collation_mb_bin_handler
 };

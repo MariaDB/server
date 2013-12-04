@@ -22,8 +22,6 @@
 #include <cstdio>
 #include <cstdlib>
 
-extern handlerton *binlog_hton;
-extern int binlog_close_connection(handlerton *hton, THD *thd);
 extern ulonglong thd_to_trx_id(THD *thd);
 
 extern "C" int thd_binlog_format(const MYSQL_THD thd);
@@ -77,8 +75,13 @@ void wsrep_register_hton(THD* thd, bool all)
       {
         trans_register_ha(thd, all, wsrep_hton);
 
-        /* follow innodb read/write settting */
-        if (i->is_trx_read_write())
+        /* follow innodb read/write settting
+         * but, as an exception: CTAS with empty result set will not be 
+         * replicated unless we declare wsrep hton as read/write here
+	 */
+        if (i->is_trx_read_write() || 
+            (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+             thd->wsrep_exec_mode == LOCAL_STATE))
         {
           thd->ha_data[wsrep_hton->slot].ha_info[all].set_trx_read_write();
         }
@@ -123,10 +126,7 @@ wsrep_close_connection(handlerton*  hton, THD* thd)
   {
     DBUG_RETURN(0);
   }
-
-  if (wsrep_emulate_bin_log && thd_get_ha_data(thd, binlog_hton) != NULL)
-    binlog_hton->close_connection (binlog_hton, thd);
-  DBUG_RETURN(0);
+  DBUG_RETURN(wsrep_binlog_close_connection (thd));
 }
 
 /*
@@ -176,10 +176,11 @@ static int wsrep_savepoint_set(handlerton *hton, THD *thd,  void *sv)
     DBUG_RETURN(0);
   }
 
-  if (!wsrep_emulate_bin_log) return 0;
-  int rcode = binlog_hton->savepoint_set(binlog_hton, thd, sv);
-  return rcode;
+  if (!wsrep_emulate_bin_log) DBUG_RETURN(0);
+  int rcode = wsrep_binlog_savepoint_set(thd, sv);
+  DBUG_RETURN(rcode);
 }
+
 static int wsrep_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 {
   DBUG_ENTER("wsrep_savepoint_rollback");
@@ -189,9 +190,9 @@ static int wsrep_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
     DBUG_RETURN(0);
   }
 
-  if (!wsrep_emulate_bin_log) return 0;
-  int rcode = binlog_hton->savepoint_rollback(binlog_hton, thd, sv);
-  return rcode;
+  if (!wsrep_emulate_bin_log) DBUG_RETURN(0);
+  int rcode = wsrep_binlog_savepoint_rollback(thd, sv);
+  DBUG_RETURN(rcode);
 }
 
 static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
@@ -204,6 +205,16 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
   }
 
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  switch (thd->wsrep_exec_mode)
+  {
+  case TOTAL_ORDER:
+  case REPL_RECV: 
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      WSREP_DEBUG("Avoiding wsrep rollback for failed DDL: %s", thd->query());
+      DBUG_RETURN(0);
+  default: break;
+  }
+
   if ((all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
       (thd->variables.wsrep_on && thd->wsrep_conflict_state != MUST_REPLAY))
   {
@@ -211,7 +222,7 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
     {
       DBUG_PRINT("wsrep", ("setting rollback fail"));
       WSREP_ERROR("settting rollback fail: thd: %llu SQL: %s",
-		  (long long)thd->real_id, thd->query());
+                  (long long)thd->real_id, thd->query());
     }
     wsrep_cleanup_transaction(thd);
   }
@@ -268,7 +279,7 @@ enum wsrep_trx_status
 wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all)
 {
   int rcode= -1;
-  int data_len      = 0;
+  size_t data_len= 0;
   IO_CACHE *cache;
   int replay_round= 0;
 
@@ -324,6 +335,7 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all)
 
   while (wsrep_replaying > 0                       &&
          thd->wsrep_conflict_state == NO_CONFLICT  &&
+         thd->killed == NOT_KILLED            &&
          !shutdown_in_progress)
   {
 
@@ -377,7 +389,7 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all)
   rcode = 0;
   if (cache) {
     thd->binlog_flush_pending_rows_event(true);
-    rcode = wsrep_write_cache(wsrep, thd, cache, (size_t*)&data_len);
+    rcode = wsrep_write_cache(wsrep, thd, cache, &data_len);
     if (WSREP_OK != rcode) {
       WSREP_ERROR("rbr write fail, data_len: %zu, %d", data_len, rcode);
       DBUG_RETURN(WSREP_TRX_ROLLBACK);
@@ -394,7 +406,7 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all)
                  "affected rows: %llu, "
                  "changed tables: %d, "
                  "sql_log_bin: %d, "
-		 "wsrep status (%d %d %d)",
+                 "wsrep status (%d %d %d)",
                  thd->query(), thd->get_stmt_da()->affected_rows(),
                  stmt_has_updated_trans_table(thd), thd->variables.sql_log_bin,
                  thd->wsrep_exec_mode, thd->wsrep_query_state,
@@ -411,9 +423,9 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all)
   if (WSREP_UNDEFINED_TRX_ID == thd->wsrep_ws_handle.trx_id)
   {
     WSREP_WARN("SQL statement was ineffective, THD: %lu, buf: %zu\n"
-               "QUERY: %s\n"
-               " => Skipping replication", 
-               thd->thread_id, data_len, thd->query());
+	       "QUERY: %s\n"
+	       " => Skipping replication",
+	       thd->thread_id, data_len, thd->query());
     rcode = WSREP_TRX_FAIL;
   }
   else if (!rcode)
@@ -436,6 +448,7 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all)
                   thd->thread_id, (long long)thd->wsrep_trx_meta.gtid.seqno);
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       thd->wsrep_conflict_state = MUST_REPLAY;
+      DBUG_ASSERT(wsrep_thd_trx_seqno(thd) > 0);
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       mysql_mutex_lock(&LOCK_wsrep_replaying);
       wsrep_replaying++;
