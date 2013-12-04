@@ -3044,12 +3044,18 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       rc= 2;          // Logical error ???
     else if (g->Xchk) {
       if (!tdbp || *tdbp->GetName() == '#') {
+        if (!tdbp && !(tdbp= GetTDB(g)))
+          DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+        else if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
+          sprintf(g->Message, "Table %s is not indexable", tdbp->GetName());
+//        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+          DBUG_RETURN(0);
+          } // endif Indexable
+
         bool    oldsep= ((PCHK)g->Xchk)->oldsep;
         bool    newsep= ((PCHK)g->Xchk)->newsep;
-        PTDBDOS tdp= (PTDBDOS)(tdbp ? tdbp : GetTDB(g));
-
-        if (!tdp)
-          DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+        PTDBDOS tdp= (PTDBDOS)tdbp;
 
         PDOSDEF ddp= (PDOSDEF)tdp->GetDef();
         PIXDEF  xp, xp1, xp2, drp=NULL, adp= NULL;
@@ -4671,26 +4677,43 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
       // Get the index definitions
       if (xdp= GetIndexInfo()) {
-        PDBUSER dup= PlgGetUser(g);
-        PCATLG  cat= (dup) ? dup->Catalog : NULL;
-
-        if (cat) {
-          cat->SetDataPath(g, table_arg->s->db.str);
-
-          if ((rc= optimize(table->in_use, NULL))) {
-            printf("Create rc=%d %s\n", rc, g->Message);
-            my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-            rc= HA_ERR_INTERNAL_ERROR;
-          } else
-            CloseTable(g);
-
-          } // endif cat
+        if (IsTypeIndexable(type)) {
+          PDBUSER dup= PlgGetUser(g);
+          PCATLG  cat= (dup) ? dup->Catalog : NULL;
+      
+          if (cat) {
+            cat->SetDataPath(g, table_arg->s->db.str);
+      
+            if ((rc= optimize(table->in_use, NULL))) {
+              printf("Create rc=%d %s\n", rc, g->Message);
+              my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+              rc= HA_ERR_INTERNAL_ERROR;
+            } else
+              CloseTable(g);
+      
+            } // endif cat
+      
+        } else {
+          sprintf(g->Message, "Table type %s is not indexable", options->type);
+          my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+          rc= HA_ERR_INTERNAL_ERROR;
+        } // endif Indexable
 
         } // endif xdp
 
     } else {
-      ((PCHK)g->Xchk)->newsep= GetBooleanOption("Sepindex", false);
-      ((PCHK)g->Xchk)->newpix= GetIndexInfo();
+      PIXDEF xdp= GetIndexInfo();
+
+      if (xdp && !IsTypeIndexable(type)) {
+        g->Xchk= NULL;
+        sprintf(g->Message, "Table type %s is not indexable", options->type);
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        rc= HA_ERR_INTERNAL_ERROR;
+      } else {
+        ((PCHK)g->Xchk)->newpix= xdp;
+        ((PCHK)g->Xchk)->newsep= GetBooleanOption("Sepindex", false);
+      } // endif Indexable
+
     } // endif Xchk
 
     table= st;
