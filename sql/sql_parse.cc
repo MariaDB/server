@@ -892,8 +892,17 @@ bool do_command(THD *thd)
   if (WSREP(thd)) {
     while (thd->wsrep_conflict_state== RETRY_AUTOCOMMIT)
     {
-      return_value= dispatch_command(command, thd, thd->wsrep_retry_query, 
+	    CHARSET_INFO *current_charset = thd->variables.character_set_client;
+            if (!is_supported_parser_charset(current_charset))
+            {
+              /* Do not use non-supported parser character sets */
+              WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
+              thd->variables.character_set_client = &my_charset_latin1;
+              WSREP_WARN("For retry temporally setting character set to : %s", my_charset_latin1.csname);
+            }
+	    return_value= dispatch_command(command, thd, thd->wsrep_retry_query,
 				     thd->wsrep_retry_query_len);
+            thd->variables.character_set_client = current_charset;
     }
   }
   if (thd->wsrep_retry_query && thd->wsrep_conflict_state != REPLAYING)
@@ -8119,6 +8128,7 @@ static enum wsrep_status wsrep_apply_sql(
 {
   int error;
   enum wsrep_status ret_code= WSREP_OK;
+  CHARSET_INFO *current_charset = thd->variables.character_set_client;
 
   DBUG_ENTER("wsrep_bf_execute_cb");
   thd->wsrep_exec_mode= REPL_RECV;
@@ -8137,11 +8147,22 @@ static enum wsrep_status wsrep_apply_sql(
     thd->wsrep_conflict_state= NO_CONFLICT;
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
+  if (!is_supported_parser_charset(current_charset))
+  {
+      /* Do not use non-supported parser character sets */
+      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
+      thd->variables.character_set_client = &my_charset_latin1;
+      WSREP_WARN("For BF SQL apply temporally setting character set to : %s",
+	      my_charset_latin1.csname);
+  }
+
   if ((error= dispatch_command(COM_QUERY, thd, (char*)sql, sql_len))) {
     WSREP_WARN("BF SQL apply failed: %d, %lld",
                thd->wsrep_conflict_state, (long long)thd->wsrep_trx_seqno);
+    thd->variables.character_set_client = current_charset;
     DBUG_RETURN(WSREP_FATAL);
   }
+  thd->variables.character_set_client = current_charset;
 
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
   if (thd->wsrep_conflict_state!= NO_CONFLICT && 

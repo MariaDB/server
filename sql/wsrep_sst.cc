@@ -14,6 +14,9 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #include <mysqld.h>
+#include <m_ctype.h>
+#include <my_sys.h>
+#include <strfunc.h>
 #include <sql_class.h>
 #include <set_var.h>
 #include <sql_acl.h>
@@ -742,6 +745,19 @@ static int sst_flush_tables(THD* thd)
 
   int err;
   int not_used;
+  CHARSET_INFO *current_charset;
+
+  current_charset = thd->variables.character_set_client;
+
+  if (!is_supported_parser_charset(current_charset))
+  {
+      /* Do not use non-supported parser character sets */
+      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
+      thd->variables.character_set_client = &my_charset_latin1;
+      WSREP_WARN("For SST temporally setting character set to : %s",
+	      my_charset_latin1.csname);
+  }
+
   if (run_sql_command(thd, "FLUSH TABLES WITH READ LOCK"))
   {
     WSREP_ERROR("Failed to flush and lock tables");
@@ -753,6 +769,9 @@ static int sst_flush_tables(THD* thd)
     err= reload_acl_and_cache(thd, REFRESH_ENGINE_LOG,
                               (TABLE_LIST*) 0, &not_used);
   }
+
+  thd->variables.character_set_client = current_charset;
+
 
   if (err)
   {
@@ -796,6 +815,19 @@ static void sst_disallow_writes (THD* thd, bool yes)
 {
   char query_str[64] = { 0, };
   ssize_t const query_max = sizeof(query_str) - 1;
+  CHARSET_INFO *current_charset;
+
+  current_charset = thd->variables.character_set_client;
+
+  if (!is_supported_parser_charset(current_charset))
+  {
+      /* Do not use non-supported parser character sets */
+      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
+      thd->variables.character_set_client = &my_charset_latin1;
+      WSREP_WARN("For SST temporally setting character set to : %s",
+	      my_charset_latin1.csname);
+  }
+
   snprintf (query_str, query_max, "SET GLOBAL innodb_disallow_writes=%d",
             yes ? 1 : 0);
 
@@ -803,6 +835,7 @@ static void sst_disallow_writes (THD* thd, bool yes)
   {
     WSREP_ERROR("Failed to disallow InnoDB writes");
   }
+  thd->variables.character_set_client = current_charset;
 }
 
 static void* sst_donor_thread (void* a)
