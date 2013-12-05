@@ -1123,10 +1123,10 @@ bool ODBConn::Connect(DWORD Options)
   PGLOBAL& g = m_G;
   PDBUSER dup = PlgGetUser(g);
 
-  if (Options & noOdbcDialog || dup->Remote)
+//if (Options & noOdbcDialog || dup->Remote)
     wConnectOption = SQL_DRIVER_NOPROMPT;
-  else if (Options & forceOdbcDialog)
-    wConnectOption = SQL_DRIVER_PROMPT;
+//else if (Options & forceOdbcDialog)
+//  wConnectOption = SQL_DRIVER_PROMPT;
 
   rc = SQLDriverConnect(m_hdbc, hWnd, (PUCHAR)m_Connect,
                         SQL_NTS, ConnOut, MAX_CONNECT_LEN,
