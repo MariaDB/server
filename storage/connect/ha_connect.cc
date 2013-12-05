@@ -4600,9 +4600,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
     } // endfor field
 
-  if (IsFileType(type)) {
-    table= table_arg;       // Used by called functions
+  table= table_arg;         // Used by called functions
 
+  if (IsFileType(type)) {
     if (!options->filename) {
       // The file name is not specified, create a default file in
       // the database directory named table_name.table_type.
@@ -4666,45 +4666,48 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
       } // endif filename
 
-    // To check whether indexes have to be made or remade
-    if (!g->Xchk) {
-      PIXDEF xdp;
+    } // endif type
 
-      // We should be in CREATE TABLE
-      if (thd_sql_command(table->in_use) != SQLCOM_CREATE_TABLE)
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
-          "Wrong command in create, please contact CONNECT team");
+  // To check whether indexes have to be made or remade
+  if (!g->Xchk) {
+    PIXDEF xdp;
 
-      // Get the index definitions
-      if (xdp= GetIndexInfo()) {
-        if (IsTypeIndexable(type)) {
-          PDBUSER dup= PlgGetUser(g);
-          PCATLG  cat= (dup) ? dup->Catalog : NULL;
-      
-          if (cat) {
-            cat->SetDataPath(g, table_arg->s->db.str);
-      
-            if ((rc= optimize(table->in_use, NULL))) {
-              printf("Create rc=%d %s\n", rc, g->Message);
-              my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-              rc= HA_ERR_INTERNAL_ERROR;
-            } else
-              CloseTable(g);
-      
-            } // endif cat
-      
-        } else {
-          sprintf(g->Message, "Table type %s is not indexable", options->type);
-          my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-          rc= HA_ERR_INTERNAL_ERROR;
-        } // endif Indexable
+    // We should be in CREATE TABLE
+    if (thd_sql_command(table->in_use) != SQLCOM_CREATE_TABLE)
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
+        "Wrong command in create, please contact CONNECT team");
 
-        } // endif xdp
+    // Get the index definitions
+    if (xdp= GetIndexInfo()) {
+      if (IsTypeIndexable(type)) {
+        PDBUSER dup= PlgGetUser(g);
+        PCATLG  cat= (dup) ? dup->Catalog : NULL;
+    
+        if (cat) {
+          cat->SetDataPath(g, table_arg->s->db.str);
+    
+          if ((rc= optimize(table->in_use, NULL))) {
+            printf("Create rc=%d %s\n", rc, g->Message);
+            my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+            rc= HA_ERR_INTERNAL_ERROR;
+          } else
+            CloseTable(g);
+    
+          } // endif cat
+    
+      } else {
+        sprintf(g->Message, "Table type %s is not indexable", options->type);
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        rc= HA_ERR_INTERNAL_ERROR;
+      } // endif Indexable
 
-    } else {
-      PIXDEF xdp= GetIndexInfo();
+      } // endif xdp
 
-      if (xdp && !IsTypeIndexable(type)) {
+  } else {
+    PIXDEF xdp= GetIndexInfo();
+
+    if (xdp) {
+      if (!IsTypeIndexable(type)) {
         g->Xchk= NULL;
         sprintf(g->Message, "Table type %s is not indexable", options->type);
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
@@ -4714,11 +4717,12 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         ((PCHK)g->Xchk)->newsep= GetBooleanOption("Sepindex", false);
       } // endif Indexable
 
-    } // endif Xchk
+    } else if (!((PCHK)g->Xchk)->oldpix)
+      g->Xchk= NULL;
 
-    table= st;
-    } // endif type
+  } // endif Xchk
 
+  table= st;
   DBUG_RETURN(rc);
 } // end of create
 
