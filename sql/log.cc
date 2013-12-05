@@ -6612,12 +6612,13 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   to commit. If so, we add those to the queue as well, transitively for all
   waiters.
 
-  @retval  TRUE   If queued as the first entry in the queue (meaning this
-                  is the leader)
-  @retval FALSE   Otherwise                  
+  @retval < 0   Error
+  @retval > 0   If queued as the first entry in the queue (meaning this
+                is the leader)
+  @retval   0   Otherwise (queued as participant, leader handles the commit)
 */
 
-bool
+int
 MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 {
   group_commit_entry *entry, *orig_queue;
@@ -6641,6 +6642,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     /* Do an extra check here, this time safely under lock. */
     if (wfc->waiting_for_commit)
     {
+      const char *old_msg;
       /*
         By setting wfc->opaque_pointer to our own entry, we mark that we are
         ready to commit, but waiting for another transaction to commit before
@@ -6651,16 +6653,36 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
         queued_by_other flag is set.
       */
       wfc->opaque_pointer= orig_entry;
+      old_msg=
+        orig_entry->thd->enter_cond(&wfc->COND_wait_commit,
+                                    &wfc->LOCK_wait_commit,
+                                    "Waiting for prior transaction to commit");
       DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior");
-      do
-      {
+      while (wfc->waiting_for_commit && !orig_entry->thd->check_killed())
         mysql_cond_wait(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit);
-      } while (wfc->waiting_for_commit);
       wfc->opaque_pointer= NULL;
       DBUG_PRINT("info", ("After waiting for prior commit, queued_by_other=%d",
                  orig_entry->queued_by_other));
+      orig_entry->thd->exit_cond(old_msg);
+
+      if (wfc->waiting_for_commit)
+      {
+        /* Interrupted by kill. */
+        wfc->wakeup_error= orig_entry->thd->killed_errno();
+        if (wfc->wakeup_error)
+          wfc->wakeup_error= ER_QUERY_INTERRUPTED;
+        my_message(wfc->wakeup_error, ER(wfc->wakeup_error), MYF(0));
+        DBUG_RETURN(-1);
+      }
     }
-    mysql_mutex_unlock(&wfc->LOCK_wait_commit);
+    else
+      mysql_mutex_unlock(&wfc->LOCK_wait_commit);
+
+    if (wfc->wakeup_error)
+    {
+      my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+      DBUG_RETURN(-1);
+    }
   }
 
   /*
@@ -6669,7 +6691,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     then there is nothing else to do.
   */
   if (orig_entry->queued_by_other)
-    DBUG_RETURN(false);
+    DBUG_RETURN(0);
 
   /* Now enqueue ourselves in the group commit queue. */
   DEBUG_SYNC(orig_entry->thd, "commit_before_enqueue");
@@ -6841,13 +6863,15 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 bool
 MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
-  bool is_leader= queue_for_group_commit(entry);
+  int is_leader= queue_for_group_commit(entry);
 
   /*
     The first in the queue handles group commit for all; the others just wait
     to be signalled when group commit is done.
   */
-  if (is_leader)
+  if (is_leader < 0)
+    return true;                                /* Error */
+  else if (is_leader)
     trx_group_commit_leader(entry);
   else if (!entry->queued_by_other)
     entry->thd->wait_for_wakeup_ready();

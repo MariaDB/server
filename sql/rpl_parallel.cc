@@ -142,7 +142,7 @@ finish_event_group(THD *thd, int err, uint64 sub_id,
   if (err)
     wfc->unregister_wait_for_prior_commit();
   else
-    wfc->wait_for_prior_commit();
+    err= wfc->wait_for_prior_commit(thd);
   thd->wait_for_commit_ptr= NULL;
 
   /*
