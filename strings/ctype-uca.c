@@ -19619,7 +19619,7 @@ my_uca_alloc_contractions(MY_CONTRACTIONS *contractions,
 */
 
 const MY_CONTRACTIONS *
-my_charset_get_contractions(const CHARSET_INFO *cs, int level)
+my_charset_get_contractions(CHARSET_INFO *cs, int level)
 {
   return (cs->uca != NULL) && (cs->uca->level[level].contractions.nitems > 0) ?
           &cs->uca->level[level].contractions : NULL;
