@@ -226,10 +226,10 @@ static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *tab, PQRYRES qrp)
   cap->Id = fid;
   cap->Qrp = qrp;
   cap->Tab = (PUCHAR)tab;
-  cap->Vlen = (SQLLEN* *)PlugSubAlloc(g, NULL, n * sizeof(SDWORD *));
+  cap->Vlen = (SQLLEN* *)PlugSubAlloc(g, NULL, n * sizeof(SQLLEN *));
 
   for (i = 0; i < n; i++)
-    cap->Vlen[i] = (SQLLEN *)PlugSubAlloc(g, NULL, m * sizeof(SDWORD));
+    cap->Vlen[i] = (SQLLEN *)PlugSubAlloc(g, NULL, m * sizeof(SQLLEN));
 
   cap->Status = (UWORD *)PlugSubAlloc(g, NULL, m * sizeof(UWORD));
   return cap;
