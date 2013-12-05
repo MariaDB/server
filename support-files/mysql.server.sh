@@ -196,9 +196,9 @@ wait_for_pid () {
       fi
     fi
 
-    if test -e $sst_progress_file && [ $startup_sleep -ne 100 ];then
+    if test -e $sst_progress_file && [ $startup_sleep -ne 10 ];then
         echo $echo_n "SST in progress, setting sleep higher"
-        startup_sleep=100
+        startup_sleep=10
     fi
 
     echo $echo_n ".$echo_c"
