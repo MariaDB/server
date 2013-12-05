@@ -5783,13 +5783,28 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
   returns immediately.
 */
 int
-wait_for_commit::wait_for_prior_commit2()
+wait_for_commit::wait_for_prior_commit2(THD *thd)
 {
+  const char *old_msg;
+
   mysql_mutex_lock(&LOCK_wait_commit);
-  while (waiting_for_commit)
+  old_msg= thd->enter_cond(&COND_wait_commit, &LOCK_wait_commit,
+                           "Waiting for prior transaction to commit");
+  while (waiting_for_commit && !thd->check_killed())
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
-  mysql_mutex_unlock(&LOCK_wait_commit);
+  thd->exit_cond(old_msg);
   waitee= NULL;
+  if (!waiting_for_commit)
+  {
+    if (wakeup_error)
+      my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+    return wakeup_error;
+  }
+  /* Wait was interrupted by kill, so give the error. */
+  wakeup_error= thd->killed_errno();
+  if (!wakeup_error)
+    wakeup_error= ER_QUERY_INTERRUPTED;
+  my_message(wakeup_error, ER(wakeup_error), MYF(0));
   return wakeup_error;
 }
 
