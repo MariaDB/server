@@ -540,7 +540,7 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
                           FLD_TYPE,   FLD_REM};
   static unsigned int length[] = {0, 0, 0, 16, 128};
   int      n, ncol = 5;
-  int     maxres;
+  int      maxres;
   PQRYRES  qrp;
   CATPARM *cap;
   ODBConn *ocp = NULL;
@@ -557,7 +557,7 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
     if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
       return NULL;
 
-    maxres = 512;                       // This is completely arbitrary
+    maxres = 16384;                   // This is completely arbitrary
     n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
     length[0] = (n) ? (n + 1) : 128;
     n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
@@ -2088,7 +2088,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 
     if (m_RowsetSize == 1 && cap->Qrp->Maxres > 1) {
       pval = (PVAL *)PlugSubAlloc(m_G, NULL, n * sizeof(PVAL));
-      vlen = (SQLLEN *)PlugSubAlloc(m_G, NULL, n * sizeof(SDWORD *));
+      vlen = (SQLLEN *)PlugSubAlloc(m_G, NULL, n * sizeof(SQLLEN *));
       } // endif
 
     // Now bind the column buffers
