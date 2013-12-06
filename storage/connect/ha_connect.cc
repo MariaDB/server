@@ -2406,9 +2406,12 @@ int ha_connect::rnd_init(bool scan)
   if (!g || !table || xmod == MODE_INSERT)
     DBUG_RETURN(HA_ERR_INITIALIZATION);
 
-  // Close the table if it was opened yet (locked?)
+  // Do not close the table if it was opened yet (locked?)
   if (IsOpened())
-    CloseTable(g);
+    DBUG_RETURN(0);
+//  CloseTable(g);  Was done before making things done twice
+  else if (xp->CheckQuery(valid_query_id))
+    tdbp= NULL;       // Not valid anymore
 
   // When updating, to avoid skipped update, force the table
   // handler to retrieve write-only fields to be able to compare 
@@ -2535,7 +2538,7 @@ int ha_connect::rnd_next(uchar *buf)
 void ha_connect::position(const uchar *record)
 {
   DBUG_ENTER("ha_connect::position");
-  if (((PTDBASE)tdbp)->GetDef()->Indexable())
+//if (((PTDBASE)tdbp)->GetDef()->Indexable())
     my_store_ptr(ref, ref_length, (my_off_t)((PTDBASE)tdbp)->GetRecpos());
   DBUG_VOID_RETURN;
 } // end of position
