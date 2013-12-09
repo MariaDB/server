@@ -2477,6 +2477,29 @@ typedef struct {
   int last_read_packet_len;         /**< the length of the last *read* packet */
 } MCPVIO_EXT;
 
+
+/*
+  Write 1-8 bytes of string length header infromation to dest depending on
+  value of src_len, then copy src_len bytes from src to dest.
+ 
+ @param dest Destination buffer of size src_len+8
+ @param dest_end One byte past the end of the dest buffer
+ @param src Source buff of size src_len
+ @param src_end One byte past the end of the src buffer
+ 
+ @return pointer dest+src_len+header size or NULL if 
+*/
+
+static uchar *write_length_encoded_string4(uchar *dst, size_t dst_len,
+                                           const uchar *src, size_t src_len)
+{
+  uchar *to= safe_net_store_length(dst, dst_len, src_len);
+  if (to == NULL)
+    return NULL;
+  memcpy(to, src, src_len);
+  return to + src_len;
+}
+
 /**
   sends a COM_CHANGE_USER command with a caller provided payload
 
@@ -2578,7 +2601,7 @@ error:
     1           charset number
     23          reserved (always 0)
     n           user name, \0-terminated
-    n           plugin auth data (e.g. scramble), length (1 byte) coded
+    n           plugin auth data (e.g. scramble), length encoded
     n           database name, \0-terminated
                 (if CLIENT_CONNECT_WITH_DB is set in the capabilities)
     n           client auth plugin name - \0-terminated string,
@@ -2736,9 +2759,19 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   {
     if (mysql->server_capabilities & CLIENT_SECURE_CONNECTION)
     {
-      *end++= data_len;
-      memcpy(end, data, data_len);
-      end+= data_len;
+      if (mysql->server_capabilities & CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA)
+        end= (char*)write_length_encoded_string4((uchar*)end,
+                                                 buff_size, data, data_len);
+      else
+      {
+        if (data_len > 255)
+          goto error;
+        *end++= data_len;
+        memcpy(end, data, data_len);
+        end+= data_len;
+      }
+      if (end == NULL)
+        goto error;
     }
     else
     {

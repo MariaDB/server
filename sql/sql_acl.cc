@@ -11419,13 +11419,20 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     Cast *passwd to an unsigned char, so that it doesn't extend the sign for
     *passwd > 127 and become 2**32-127+ after casting to uint.
   */
-  uint passwd_len= thd->client_capabilities & CLIENT_SECURE_CONNECTION ?
-                   (uchar)(*passwd++) : strlen(passwd);
-
+  uint passwd_len;
+  if (!(thd->client_capabilities & CLIENT_SECURE_CONNECTION))
+    passwd_len= strlen(passwd);
+  else if (!(thd->client_capabilities & CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA))
+    passwd_len= (uchar)(*passwd++);
+  else
+    passwd_len= safe_net_field_length_ll((uchar**)&passwd,
+                                      net->read_pos + pkt_len - (uchar*)passwd);
+  
   db= thd->client_capabilities & CLIENT_CONNECT_WITH_DB ?
     db + passwd_len + 1 : 0;
 
-  if (passwd + passwd_len + test(db) > (char *)net->read_pos + pkt_len)
+  if (passwd == NULL ||
+      passwd + passwd_len + test(db) > (char *)net->read_pos + pkt_len)
     return packet_error;
 
   /* strlen() can't be easily deleted without changing protocol */
