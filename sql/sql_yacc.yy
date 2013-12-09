@@ -276,7 +276,7 @@ void case_stmt_action_case(LEX *lex)
     (Instruction 12 in the example)
   */
 
-  lex->spcont->push_label(current_thd, EMPTY_STR, lex->sphead->instructions());
+  lex->spcont->push_label(current_thd, empty_lex_str, lex->sphead->instructions());
 }
 
 /**
@@ -345,7 +345,7 @@ int case_stmt_action_when(LEX *lex, Item *when, bool simple)
   */
 
   return !test(i) ||
-         sp->push_backpatch(i, ctx->push_label(current_thd, EMPTY_STR, 0)) ||
+         sp->push_backpatch(i, ctx->push_label(current_thd, empty_lex_str, 0)) ||
          sp->add_cont_backpatch(i) ||
          sp->add_instr(i);
 }
@@ -3074,7 +3074,7 @@ sp_decl:
                 sp->push_backpatch(i, ctx->last_label()))
               MYSQL_YYABORT;
 
-            if (sp->push_backpatch(i, ctx->push_label(thd, EMPTY_STR, 0)))
+            if (sp->push_backpatch(i, ctx->push_label(thd, empty_lex_str, 0)))
               MYSQL_YYABORT;
           }
           sp_hcond_list sp_proc_stmt
@@ -3719,8 +3719,7 @@ sp_proc_stmt_unlabeled:
           { /* Unlabeled controls get a secret label. */
             LEX *lex= Lex;
 
-            lex->spcont->push_label(thd,
-                                    EMPTY_STR,
+            lex->spcont->push_label(thd, empty_lex_str,
                                     lex->sphead->instructions());
           }
           sp_unlabeled_control
@@ -3949,7 +3948,7 @@ sp_if:
             sp_instr_jump_if_not *i = new sp_instr_jump_if_not(ip, ctx,
                                                                $2, lex);
             if (i == NULL ||
-                sp->push_backpatch(i, ctx->push_label(thd, EMPTY_STR, 0)) ||
+                sp->push_backpatch(i, ctx->push_label(thd, empty_lex_str, 0)) ||
                 sp->add_cont_backpatch(i) ||
                 sp->add_instr(i))
               MYSQL_YYABORT;
@@ -3966,7 +3965,7 @@ sp_if:
                 sp->add_instr(i))
               MYSQL_YYABORT;
             sp->backpatch(ctx->pop_label());
-            sp->push_backpatch(i, ctx->push_label(thd, EMPTY_STR, 0));
+            sp->push_backpatch(i, ctx->push_label(thd, empty_lex_str, 0));
           }
           sp_elseifs
           {
@@ -4179,7 +4178,7 @@ sp_unlabeled_block:
           { /* Unlabeled blocks get a secret label. */
             LEX *lex= Lex;
             uint ip= lex->sphead->instructions();
-            sp_label *lab= lex->spcont->push_label(thd, EMPTY_STR, ip);
+            sp_label *lab= lex->spcont->push_label(thd, empty_lex_str, ip);
             lab->type= sp_label::BEGIN;
           }
           sp_block_content
