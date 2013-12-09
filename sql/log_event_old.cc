@@ -1366,7 +1366,7 @@ Old_rows_log_event::~Old_rows_log_event()
 
 int Old_rows_log_event::get_data_size()
 {
-  uchar buf[sizeof(m_width)+1];
+  uchar buf[MAX_INT_WIDTH];
   uchar *end= net_store_length(buf, (m_width + 7) / 8);
 
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
@@ -1876,7 +1876,7 @@ bool Old_rows_log_event::write_data_body(IO_CACHE*file)
      Note that this should be the number of *bits*, not the number of
      bytes.
   */
-  uchar sbuf[sizeof(m_width)];
+  uchar sbuf[MAX_INT_WIDTH];
   my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
 
   // This method should not be reached.

@@ -9305,7 +9305,7 @@ int Rows_log_event::get_data_size()
 {
   int const general_type_code= get_general_type_code();
 
-  uchar buf[sizeof(m_width) + 1];
+  uchar buf[MAX_INT_WIDTH];
   uchar *end= net_store_length(buf, m_width);
 
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
@@ -9918,7 +9918,7 @@ bool Rows_log_event::write_data_body(IO_CACHE*file)
      Note that this should be the number of *bits*, not the number of
      bytes.
   */
-  uchar sbuf[sizeof(m_width) + 1];
+  uchar sbuf[MAX_INT_WIDTH];
   my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
   bool res= false;
   uchar *const sbuf_end= net_store_length(sbuf, (size_t) m_width);
@@ -10223,7 +10223,7 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
     m_null_bits(0),
     m_meta_memory(NULL)
 {
-  uchar cbuf[sizeof(m_colcnt) + 1];
+  uchar cbuf[MAX_INT_WIDTH];
   uchar *cbuf_end;
   DBUG_ASSERT(m_table_id != ~0UL);
   /*
@@ -10772,14 +10772,14 @@ bool Table_map_log_event::write_data_body(IO_CACHE *file)
   uchar const dbuf[]= { (uchar) m_dblen };
   uchar const tbuf[]= { (uchar) m_tbllen };
 
-  uchar cbuf[sizeof(m_colcnt) + 1];
+  uchar cbuf[MAX_INT_WIDTH];
   uchar *const cbuf_end= net_store_length(cbuf, (size_t) m_colcnt);
   DBUG_ASSERT(static_cast<size_t>(cbuf_end - cbuf) <= sizeof(cbuf));
 
   /*
     Store the size of the field metadata.
   */
-  uchar mbuf[sizeof(m_field_metadata_size)];
+  uchar mbuf[MAX_INT_WIDTH];
   uchar *const mbuf_end= net_store_length(mbuf, m_field_metadata_size);
 
   return (wrapper_my_b_safe_write(file, dbuf,      sizeof(dbuf)) ||
