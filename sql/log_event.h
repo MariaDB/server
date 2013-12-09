@@ -254,12 +254,13 @@ struct sql_ex_info
 #define FORMAT_DESCRIPTION_HEADER_LEN (START_V3_HEADER_LEN+1+LOG_EVENT_TYPES)
 #define XID_HEADER_LEN         0
 #define BEGIN_LOAD_QUERY_HEADER_LEN APPEND_BLOCK_HEADER_LEN
-#define ROWS_HEADER_LEN        8
+#define ROWS_HEADER_LEN_V1     8
 #define TABLE_MAP_HEADER_LEN   8
 #define EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN (4 + 4 + 4 + 1)
 #define EXECUTE_LOAD_QUERY_HEADER_LEN  (QUERY_HEADER_LEN + EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN)
 #define INCIDENT_HEADER_LEN    2
 #define HEARTBEAT_HEADER_LEN   0
+#define ROWS_HEADER_LEN_V2    10
 #define ANNOTATE_ROWS_HEADER_LEN  0
 #define BINLOG_CHECKPOINT_HEADER_LEN 4
 #define GTID_HEADER_LEN       19
@@ -415,6 +416,9 @@ struct sql_ex_info
 /* RW = "RoWs" */
 #define RW_MAPID_OFFSET    0
 #define RW_FLAGS_OFFSET    6
+#define RW_VHLEN_OFFSET    8
+#define RW_V_TAG_LEN       1
+#define RW_V_EXTRAINFO_TAG 0
 
 /* ELQ = "Execute Load Query" */
 #define ELQ_FILE_ID_OFFSET QUERY_HEADER_LEN
@@ -659,11 +663,11 @@ enum Log_event_type
   PRE_GA_DELETE_ROWS_EVENT = 22,
 
   /*
-    These event numbers are used from 5.1.16 and forward
+    These event numbers are used from 5.1.16 until mysql-trunk-xx
    */
-  WRITE_ROWS_EVENT = 23,
-  UPDATE_ROWS_EVENT = 24,
-  DELETE_ROWS_EVENT = 25,
+  WRITE_ROWS_EVENT_V1 = 23,
+  UPDATE_ROWS_EVENT_V1 = 24,
+  DELETE_ROWS_EVENT_V1 = 25,
 
   /*
     Something out of the ordinary happened on the master
@@ -676,6 +680,20 @@ enum Log_event_type
   */
   HEARTBEAT_LOG_EVENT= 27,
   
+  /*
+    In some situations, it is necessary to send over ignorable
+    data to the slave: data that a slave can handle in case there
+    is code for handling it, but which can be ignored if it is not
+    recognized.
+  */
+  IGNORABLE_LOG_EVENT= 28,
+  ROWS_QUERY_LOG_EVENT= 29,
+ 
+  /* Version 2 of the Row events */
+  WRITE_ROWS_EVENT = 30,
+  UPDATE_ROWS_EVENT = 31,
+  DELETE_ROWS_EVENT = 32,
+ 
   /*
     Add new events here - right above this comment!
     Existing events (except ENUM_END_EVENT) should never change their numbers
@@ -4178,6 +4196,9 @@ public:
   void clear_flags(flag_set flags_arg) { m_flags &= ~flags_arg; }
   flag_set get_flags(flag_set flags_arg) const { return m_flags & flags_arg; }
 
+  Log_event_type get_type_code() { return m_type; } /* Specific type (_V1 etc) */
+  virtual Log_event_type get_general_type_code() = 0; /* General rows op type, no version */
+
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual void pack_info(THD *thd, Protocol *protocol);
 #endif
@@ -4226,6 +4247,8 @@ public:
 
   uint     m_row_count;         /* The number of rows added to the event */
 
+  const uchar* get_extra_row_data() const   { return m_extra_row_data; }
+
 protected:
   /* 
      The constructors are protected since you're supposed to inherit
@@ -4233,10 +4256,10 @@ protected:
   */
 #ifdef MYSQL_SERVER
   Rows_log_event(THD*, TABLE*, ulong table_id, 
-		 MY_BITMAP const *cols, bool is_transactional);
+		 MY_BITMAP const *cols, bool is_transactional,
+		 Log_event_type event_type);
 #endif
   Rows_log_event(const char *row_data, uint event_len, 
-		 Log_event_type event_type,
 		 const Format_description_log_event *description_event);
 
 #ifdef MYSQL_CLIENT
@@ -4273,6 +4296,11 @@ protected:
   uchar    *m_rows_end;		/* One-after the end of the allocated space */
 
   flag_set m_flags;		/* Flags for row-level events */
+
+  Log_event_type m_type;        /* Actual event type */
+
+  uchar    *m_extra_row_data;   /* Pointer to extra row data if any */
+                                /* If non null, first byte is length */
 
   /* helper functions */
 
@@ -4406,7 +4434,7 @@ public:
 #endif
 
 private:
-  virtual Log_event_type get_type_code() { return (Log_event_type)TYPE_CODE; }
+  virtual Log_event_type get_general_type_code() { return (Log_event_type)TYPE_CODE; }
 
 #ifdef MYSQL_CLIENT
   void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
@@ -4480,7 +4508,7 @@ public:
   }
 
 protected:
-  virtual Log_event_type get_type_code() { return (Log_event_type)TYPE_CODE; }
+  virtual Log_event_type get_general_type_code() { return (Log_event_type)TYPE_CODE; }
 
 #ifdef MYSQL_CLIENT
   void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
@@ -4545,7 +4573,7 @@ public:
 #endif
   
 protected:
-  virtual Log_event_type get_type_code() { return (Log_event_type)TYPE_CODE; }
+  virtual Log_event_type get_general_type_code() { return (Log_event_type)TYPE_CODE; }
 
 #ifdef MYSQL_CLIENT
   void print(FILE *file, PRINT_EVENT_INFO *print_event_info);

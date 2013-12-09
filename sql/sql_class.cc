@@ -5392,7 +5392,7 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
   DBUG_ASSERT(table->s->table_map_id != ~0UL);
 
   /* Fetch the type code for the RowsEventT template parameter */
-  int const type_code= RowsEventT::TYPE_CODE;
+  int const general_type_code= RowsEventT::TYPE_CODE;
 
   /*
     There is no good place to set up the transactional data, so we
@@ -5419,7 +5419,7 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
   if (!pending ||
       pending->server_id != serv_id || 
       pending->get_table_id() != table->s->table_map_id ||
-      pending->get_type_code() != type_code || 
+      pending->get_general_type_code() != general_type_code || 
       pending->get_data_size() + needed > opt_binlog_rows_event_max_size || 
       pending->get_width() != colcnt ||
       !bitmap_cmp(pending->get_cols(), cols)) 

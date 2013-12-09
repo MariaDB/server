@@ -7044,6 +7044,7 @@ struct my_option my_long_options[]=
   /* The following options exist in 5.6 but not in 10.0 */
   MYSQL_TO_BE_IMPLEMENTED_OPTION("default-tmp-storage-engine"),
   MYSQL_COMPATIBILITY_OPTION("log-raw"),
+  MYSQL_COMPATIBILITY_OPTION("log-bin-use-v1-row-events"),
   MYSQL_TO_BE_IMPLEMENTED_OPTION("default-authentication-plugin"),
   MYSQL_COMPATIBILITY_OPTION("binlog-max-flush-queue-time"),
   MYSQL_TO_BE_IMPLEMENTED_OPTION("binlog-row-image"),
