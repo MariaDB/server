@@ -2415,7 +2415,7 @@ static void remove_role_user_mapping(ACL_USER_BASE *grantee, ACL_ROLE *role,
 static my_bool add_role_user_mapping_action(void *ptr, void *unused __attribute__((unused)))
 {
   ROLE_GRANT_PAIR *pair= (ROLE_GRANT_PAIR*)ptr;
-  my_bool status __attribute__((unused));
+  bool status __attribute__((unused));
   status= add_role_user_mapping(pair->u_uname, pair->u_hname, pair->r_uname);
   /*
      The invariant chosen is that acl_roles_mappings should _always_
@@ -2423,7 +2423,7 @@ static my_bool add_role_user_mapping_action(void *ptr, void *unused __attribute_
      If add_role_user_mapping detects an invalid entry, it will not add
      the mapping into the ACL_USER::role_grants array.
   */
-  DBUG_ASSERT(status >= 0);
+  DBUG_ASSERT(status == 0);
   return 0;
 }
 
@@ -8759,6 +8759,8 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 
       case ROLES_MAPPINGS_HASH:
         my_hash_delete(roles_mappings_hash, (uchar*) role_grant_pair);
+        if (idx != elements)
+          idx++;
         break;
 
       default:
