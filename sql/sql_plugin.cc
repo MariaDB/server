@@ -309,6 +309,7 @@ static void unlock_variables(THD *thd, struct system_variables *vars);
 static void cleanup_variables(THD *thd, struct system_variables *vars);
 static void plugin_vars_free_values(sys_var *vars);
 static void restore_pluginvar_names(sys_var *first);
+static void restore_ptr_backup(uint n, st_ptr_backup *backup);
 static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref plugin);
 static void intern_plugin_unlock(LEX *lex, plugin_ref plugin);
 static void reap_plugins(void);
@@ -473,9 +474,16 @@ static st_plugin_dl *plugin_dl_insert_or_reuse(struct st_plugin_dl *plugin_dl)
 #endif /* HAVE_DLOPEN */
 
 
-static inline void free_plugin_mem(struct st_plugin_dl *p)
+static void free_plugin_mem(struct st_plugin_dl *p)
 {
 #ifdef HAVE_DLOPEN
+  if (p->ptr_backup)
+  {
+    DBUG_ASSERT(p->nbackups);
+    DBUG_ASSERT(p->handle);
+    restore_ptr_backup(p->nbackups, p->ptr_backup);
+    my_free(p->ptr_backup);
+  }
   if (p->handle)
     dlclose(p->handle);
 #endif
@@ -706,6 +714,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
   uint plugin_dir_len, dummy_errors, dlpathlen, i;
   struct st_plugin_dl *tmp= 0, plugin_dl;
   void *sym;
+  st_ptr_backup tmp_backup[array_elements(list_of_services)];
   DBUG_ENTER("plugin_dl_add");
   DBUG_PRINT("enter", ("dl->str: '%s', dl->length: %d",
                        dl->str, (int) dl->length));
@@ -772,7 +781,8 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
   {
     if ((sym= dlsym(plugin_dl.handle, list_of_services[i].name)))
     {
-      uint ver= (uint)(intptr)*(void**)sym;
+      void **ptr= (void **)sym;
+      uint ver= (uint)(intptr)*ptr;
       if (ver > list_of_services[i].version ||
         (ver >> 8) < (list_of_services[i].version >> 8))
       {
@@ -783,8 +793,22 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
         report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, ENOEXEC, buf);
         goto ret;
       }
-      *(void**)sym= list_of_services[i].service;
+      tmp_backup[plugin_dl.nbackups++].save(ptr);
+      *ptr= list_of_services[i].service;
     }
+  }
+
+  if (plugin_dl.nbackups)
+  {
+    size_t bytes= plugin_dl.nbackups * sizeof(plugin_dl.ptr_backup[0]);
+    plugin_dl.ptr_backup= (st_ptr_backup *)my_malloc(bytes, MYF(0));
+    if (!plugin_dl.ptr_backup)
+    {
+      restore_ptr_backup(plugin_dl.nbackups, tmp_backup);
+      report_error(report, ER_OUTOFMEMORY, bytes);
+      goto ret;
+    }
+    memcpy(plugin_dl.ptr_backup, tmp_backup, bytes);
   }
 
   /* Duplicate and convert dll name */
@@ -4015,5 +4039,40 @@ sys_var *find_plugin_sysvar(st_plugin_int *plugin, st_mysql_sys_var *plugin_var)
       return var;
   }
   return 0;
+}
+
+/*
+  On dlclose() we need to restore values of all symbols that we've modified in
+  the DSO. The reason is - the DSO might not actually be unloaded, so on the
+  next dlopen() these symbols will have old values, they won't be
+  reinitialized.
+
+  Perhaps, there can be many reason, why a DSO won't be unloaded. Strictly
+  speaking, it's implementation defined whether to unload an unused DSO or to
+  keep it in memory.
+
+  In particular, this happens for some plugins: In 2009 a new ELF stub was
+  introduced, see Ulrich Drepper's email "Unique symbols for C++"
+  http://www.redhat.com/archives/posix-c++-wg/2009-August/msg00002.html
+
+  DSO that has objects with this stub (STB_GNU_UNIQUE) cannot be unloaded
+  (this is mentioned in the email, see the url above).
+
+  These "unique" objects are, for example, static variables in templates,
+  in inline functions, in classes. So any DSO that uses them can
+  only be loaded once. And because Boost has them, any DSO that uses Boost
+  almost certainly cannot be unloaded.
+
+  To know whether a particular DSO has these objects, one can use
+
+    readelf -s /path/to/plugin.so|grep UNIQUE
+
+  There's nothing we can do about it, but to reset the DSO to its initial
+  state before dlclose().
+*/
+static void restore_ptr_backup(uint n, st_ptr_backup *backup)
+{
+  while (n--)
+    (backup++)->restore();
 }
 

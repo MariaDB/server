@@ -81,15 +81,24 @@ typedef struct st_mysql_show_var SHOW_VAR;
 
 /* A handle for the dynamic library containing a plugin or plugins. */
 
+struct st_ptr_backup {
+  void **ptr;
+  void *value;
+  void save(void **p) { ptr= p; value= *p; }
+  void restore() { *ptr= value; }
+};
+
 struct st_plugin_dl
 {
   LEX_STRING dl;
   void *handle;
   struct st_maria_plugin *plugins;
+  st_ptr_backup *ptr_backup;
+  uint nbackups;
+  uint ref_count;            /* number of plugins loaded from the library */
   int mysqlversion;
   int mariaversion;
   bool   allocated;
-  uint ref_count;            /* number of plugins loaded from the library */
 };
 
 /* A handle of a plugin */
