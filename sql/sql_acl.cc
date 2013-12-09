@@ -11112,36 +11112,21 @@ static bool
 read_client_connect_attrs(char **ptr, char *end,
                           const CHARSET_INFO *from_cs)
 {
-  size_t length, length_length;
-  size_t max_bytes_available= end - *ptr;
+  size_t length;
+  char *ptr_save= *ptr;
+
   /* not enough bytes to hold the length */
-  if ((*ptr) >= (end - 1))
+  if (ptr_save >= end)
     return true;
 
-  /* read the length */
-  if (max_bytes_available >= 9)
-  {
-    char *ptr_save= *ptr;
-    length= net_field_length_ll((uchar **) ptr);
-    length_length= *ptr - ptr_save;
-    DBUG_ASSERT(length_length <= 9);
-  }
-  else
-  {
-    /* to avoid reading unallocated and uninitialized memory */
-    char buf[10]={'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0',},
-         *len_ptr= buf;
-    memcpy(buf, *ptr, max_bytes_available);
-    length= net_field_length_ll((uchar **) &len_ptr);
-    length_length= len_ptr - buf;
-    *ptr+= length_length;
-    if (max_bytes_available < length_length)
-      return true;
-  }
-  max_bytes_available-= length_length;
+  length= safe_net_field_length_ll((uchar **) ptr, end - ptr_save);
+
+  /* cannot even read the length */
+  if (*ptr == NULL)
+    return true;
 
   /* length says there're more data than can fit into the packet */
-  if (length > max_bytes_available)
+  if (*ptr + length > end)
     return true;
 
   /* impose an artificial length limit of 64k */
