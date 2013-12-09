@@ -722,7 +722,7 @@ static HASH acl_roles;
   The hashkey used represents all the entries combined
 */
 static HASH acl_roles_mappings;
-static MEM_ROOT mem, memex;
+static MEM_ROOT acl_memroot, grant_memroot;
 static bool initialized=0;
 static bool allow_all_hosts=1;
 static HASH acl_check_hosts, column_priv_hash, proc_priv_hash, func_priv_hash;
@@ -819,9 +819,16 @@ static void free_acl_role(ACL_ROLE *role)
   delete_dynamic(&(role->parent_grantee));
 }
 
-/*
+/**
   Convert scrambled password to binary form, according to scramble type,
   Binary form is stored in user.salt.
+  
+  @param acl_user The object where to store the salt
+  @param password The password hash containing the salt
+  @param password_len The length of the password hash
+   
+  Despite the name of the function it is used when loading ACLs from disk
+  to store the password hash in the ACL_USER object.
 */
 
 static void
@@ -1013,7 +1020,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 
   grant_version++; /* Privileges updated */
 
-  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&acl_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
   (void) my_init_dynamic_array(&acl_hosts,sizeof(ACL_HOST), 20, 50, MYF(0));
   if (tables[0].table) // "host" table may not exist (e.g. in MySQL 5.6.7+)
   {
@@ -1024,8 +1031,8 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     while (!(read_record_info.read_record(&read_record_info)))
     {
       ACL_HOST host;
-      update_hostname(&host.host,get_field(&mem, table->field[0]));
-      host.db=	 get_field(&mem, table->field[1]);
+      update_hostname(&host.host,get_field(&acl_memroot, table->field[0]));
+      host.db=	 get_field(&acl_memroot, table->field[1]);
       if (lower_case_table_names && host.db)
       {
         /*
@@ -1130,8 +1137,8 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     ACL_USER user;
     bool is_role= FALSE;
     bzero(&user, sizeof(user));
-    update_hostname(&user.host, get_field(&mem, table->field[0]));
-    char *username= get_field(&mem, table->field[1]);
+    update_hostname(&user.host, get_field(&acl_memroot, table->field[0]));
+    char *username= get_field(&acl_memroot, table->field[1]);
     user.user.str= username;
     user.user.length= username? strlen(username) : 0;
 
@@ -1157,7 +1164,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       continue;
     }
 
-    char *password= get_field(&mem, table->field[2]);
+    char *password= get_field(&acl_memroot, table->field[2]);
     uint password_len= password ? strlen(password) : 0;
     user.auth_string.str= safe_str(password);
     user.auth_string.length= password_len;
@@ -1222,9 +1229,9 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
         else  /* !strcmp(ssl_type, "SPECIFIED") */
           user.ssl_type=SSL_TYPE_SPECIFIED;
 
-        user.ssl_cipher=   get_field(&mem, table->field[next_field++]);
-        user.x509_issuer=  get_field(&mem, table->field[next_field++]);
-        user.x509_subject= get_field(&mem, table->field[next_field++]);
+        user.ssl_cipher=   get_field(&acl_memroot, table->field[next_field++]);
+        user.x509_issuer=  get_field(&acl_memroot, table->field[next_field++]);
+        user.x509_subject= get_field(&acl_memroot, table->field[next_field++]);
 
         char *ptr = get_field(thd->mem_root, table->field[next_field++]);
         user.user_resource.questions=ptr ? atoi(ptr) : 0;
@@ -1246,7 +1253,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
         if (!is_role && table->s->fields >= 41)
         {
           /* We may have plugin & auth_String fields */
-          char *tmpstr= get_field(&mem, table->field[next_field++]);
+          char *tmpstr= get_field(&acl_memroot, table->field[next_field++]);
           if (tmpstr)
           {
             user.plugin.str= tmpstr;
@@ -1260,7 +1267,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
                                 safe_str(user.host.hostname));
             }
             user.auth_string.str=
-              safe_str(get_field(&mem, table->field[next_field++]));
+              safe_str(get_field(&acl_memroot, table->field[next_field++]));
             user.auth_string.length= strlen(user.auth_string.str);
 
             fix_user_plugin_ptr(&user);
@@ -1291,7 +1298,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
       if (is_role)
       {
         DBUG_PRINT("info", ("Found role %s", user.user.str));
-        ACL_ROLE *entry= new (&mem) ACL_ROLE(&user, &mem);
+        ACL_ROLE *entry= new (&acl_memroot) ACL_ROLE(&user, &acl_memroot);
         entry->role_grants = user.role_grants;
         (void) my_init_dynamic_array(&entry->parent_grantee,
                                      sizeof(ACL_USER_BASE *), 8, 8, MYF(0));
@@ -1322,12 +1329,12 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   while (!(read_record_info.read_record(&read_record_info)))
   {
     ACL_DB db;
-    db.user=get_field(&mem, table->field[MYSQL_DB_FIELD_USER]);
-    const char *hostname= get_field(&mem, table->field[MYSQL_DB_FIELD_HOST]);
+    db.user=get_field(&acl_memroot, table->field[MYSQL_DB_FIELD_USER]);
+    const char *hostname= get_field(&acl_memroot, table->field[MYSQL_DB_FIELD_HOST]);
     if (!hostname && find_acl_role(db.user))
       hostname= "";
     update_hostname(&db.host, hostname);
-    db.db=get_field(&mem, table->field[MYSQL_DB_FIELD_DB]);
+    db.db=get_field(&acl_memroot, table->field[MYSQL_DB_FIELD_DB]);
     if (!db.db)
     {
       sql_print_warning("Found an entry in the 'db' table with empty database name; Skipped");
@@ -1391,7 +1398,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     while (!(read_record_info.read_record(&read_record_info)))
     {
       ACL_PROXY_USER proxy;
-      proxy.init(table, &mem);
+      proxy.init(table, &acl_memroot);
       if (proxy.check_validity(check_no_resolve))
         continue;
       if (push_dynamic(&acl_proxy_users, (uchar*) &proxy))
@@ -1437,9 +1444,9 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
         continue;
       }
 
-      ROLE_GRANT_PAIR *mapping= new (&mem) ROLE_GRANT_PAIR;
+      ROLE_GRANT_PAIR *mapping= new (&acl_memroot) ROLE_GRANT_PAIR;
 
-      if (mapping->init(&mem, username, hostname, rolename, with_grant_option))
+      if (mapping->init(&acl_memroot, username, hostname, rolename, with_grant_option))
         continue;
 
       my_hash_insert(&acl_roles_mappings, (uchar*) mapping);
@@ -1468,7 +1475,7 @@ end:
 void acl_free(bool end)
 {
   my_hash_free(&acl_roles);
-  free_root(&mem,MYF(0));
+  free_root(&acl_memroot,MYF(0));
   delete_dynamic(&acl_hosts);
   delete_dynamic_with_callback(&acl_users, (FREE_FUNC) free_acl_user);
   delete_dynamic(&acl_dbs);
@@ -1562,7 +1569,7 @@ my_bool acl_reload(THD *thd)
   old_acl_roles_mappings= acl_roles_mappings;
   old_acl_proxy_users= acl_proxy_users;
   old_acl_dbs= acl_dbs;
-  old_mem= mem;
+  old_mem= acl_memroot;
   delete_dynamic(&acl_wild_hosts);
   my_hash_free(&acl_check_hosts);
 
@@ -1576,7 +1583,7 @@ my_bool acl_reload(THD *thd)
     acl_roles_mappings= old_acl_roles_mappings;
     acl_proxy_users= old_acl_proxy_users;
     acl_dbs= old_acl_dbs;
-    mem= old_mem;
+    acl_memroot= old_mem;
     init_check_host();
   }
   else
@@ -1960,15 +1967,15 @@ static void acl_update_user(const char *user, const char *host,
       {
         acl_user->plugin= *plugin;
         acl_user->auth_string.str= auth->str ?
-          strmake_root(&mem, auth->str, auth->length) : const_cast<char*>("");
+          strmake_root(&acl_memroot, auth->str, auth->length) : const_cast<char*>("");
         acl_user->auth_string.length= auth->length;
         if (fix_user_plugin_ptr(acl_user))
-          acl_user->plugin.str= strmake_root(&mem, plugin->str, plugin->length);
+          acl_user->plugin.str= strmake_root(&acl_memroot, plugin->str, plugin->length);
       }
       else
         if (password[0])
         {
-          acl_user->auth_string.str= strmake_root(&mem, password, password_len);
+          acl_user->auth_string.str= strmake_root(&acl_memroot, password, password_len);
           acl_user->auth_string.length= password_len;
           set_user_salt(acl_user, password, password_len);
           set_user_plugin(acl_user, password_len);
@@ -1985,12 +1992,12 @@ static void acl_update_user(const char *user, const char *host,
       if (ssl_type != SSL_TYPE_NOT_SPECIFIED)
       {
         acl_user->ssl_type= ssl_type;
-        acl_user->ssl_cipher= (ssl_cipher ? strdup_root(&mem,ssl_cipher) :
+        acl_user->ssl_cipher= (ssl_cipher ? strdup_root(&acl_memroot,ssl_cipher) :
                                0);
-        acl_user->x509_issuer= (x509_issuer ? strdup_root(&mem,x509_issuer) :
+        acl_user->x509_issuer= (x509_issuer ? strdup_root(&acl_memroot,x509_issuer) :
                                 0);
         acl_user->x509_subject= (x509_subject ?
-                                 strdup_root(&mem,x509_subject) : 0);
+                                 strdup_root(&acl_memroot,x509_subject) : 0);
       }
       /* search complete: */
       break;
@@ -2004,7 +2011,7 @@ static void acl_insert_role(const char *rolename, ulong privileges)
   ACL_ROLE *entry;
 
   mysql_mutex_assert_owner(&acl_cache->lock);
-  entry= new (&mem) ACL_ROLE(rolename, privileges, &mem);
+  entry= new (&acl_memroot) ACL_ROLE(rolename, privileges, &acl_memroot);
   (void) my_init_dynamic_array(&entry->parent_grantee,
                                sizeof(ACL_USER_BASE *), 8, 8, MYF(0));
   (void) my_init_dynamic_array(&entry->role_grants,sizeof(ACL_ROLE *),
@@ -2029,21 +2036,21 @@ static void acl_insert_user(const char *user, const char *host,
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  acl_user.user.str=*user ? strdup_root(&mem,user) : 0;
+  acl_user.user.str=*user ? strdup_root(&acl_memroot,user) : 0;
   acl_user.user.length= strlen(user);
-  update_hostname(&acl_user.host, safe_strdup_root(&mem, host));
+  update_hostname(&acl_user.host, safe_strdup_root(&acl_memroot, host));
   if (plugin->str[0])
   {
     acl_user.plugin= *plugin;
     acl_user.auth_string.str= auth->str ?
-      strmake_root(&mem, auth->str, auth->length) : const_cast<char*>("");
+      strmake_root(&acl_memroot, auth->str, auth->length) : const_cast<char*>("");
     acl_user.auth_string.length= auth->length;
     if (fix_user_plugin_ptr(&acl_user))
-      acl_user.plugin.str= strmake_root(&mem, plugin->str, plugin->length);
+      acl_user.plugin.str= strmake_root(&acl_memroot, plugin->str, plugin->length);
   }
   else
   {
-    acl_user.auth_string.str= strmake_root(&mem, password, password_len);
+    acl_user.auth_string.str= strmake_root(&acl_memroot, password, password_len);
     acl_user.auth_string.length= password_len;
     set_user_salt(&acl_user, password, password_len);
     set_user_plugin(&acl_user, password_len);
@@ -2056,9 +2063,9 @@ static void acl_insert_user(const char *user, const char *host,
   acl_user.hostname_length=(uint) strlen(host);
   acl_user.ssl_type= (ssl_type != SSL_TYPE_NOT_SPECIFIED ?
 		      ssl_type : SSL_TYPE_NONE);
-  acl_user.ssl_cipher=	ssl_cipher   ? strdup_root(&mem,ssl_cipher) : 0;
-  acl_user.x509_issuer= x509_issuer  ? strdup_root(&mem,x509_issuer) : 0;
-  acl_user.x509_subject=x509_subject ? strdup_root(&mem,x509_subject) : 0;
+  acl_user.ssl_cipher=	ssl_cipher   ? strdup_root(&acl_memroot,ssl_cipher) : 0;
+  acl_user.x509_issuer= x509_issuer  ? strdup_root(&acl_memroot,x509_issuer) : 0;
+  acl_user.x509_subject=x509_subject ? strdup_root(&acl_memroot,x509_subject) : 0;
   (void) my_init_dynamic_array(&acl_user.role_grants, sizeof(ACL_USER *),
                                8, 8, MYF(0));
 
@@ -2133,9 +2140,9 @@ static void acl_insert_db(const char *user, const char *host, const char *db,
 {
   ACL_DB acl_db;
   mysql_mutex_assert_owner(&acl_cache->lock);
-  acl_db.user=strdup_root(&mem,user);
-  update_hostname(&acl_db.host, safe_strdup_root(&mem, host));
-  acl_db.db=strdup_root(&mem,db);
+  acl_db.user=strdup_root(&acl_memroot,user);
+  update_hostname(&acl_db.host, safe_strdup_root(&acl_memroot, host));
+  acl_db.db=strdup_root(&acl_memroot,db);
   acl_db.initial_access= acl_db.access= privileges;
   acl_db.sort=get_sort(3,acl_db.host.hostname,acl_db.db,acl_db.user);
   (void) push_dynamic(&acl_dbs,(uchar*) &acl_db);
@@ -2481,22 +2488,20 @@ bool acl_check_host(const char *host, const char *ip)
 }
 
 
-/*
+/**
   Check if the user is allowed to change password
 
-  SYNOPSIS:
-    check_change_password()
-    thd		THD
-    host	hostname for the user
-    user	user name
-    new_password new password
+ @param thd              THD
+ @param host             Hostname for the user
+ @param user             User name
+ @param new_password     New password
+ @param new_password_len The length of the new password
 
-  NOTE:
-    new_password cannot be NULL
+ new_password cannot be NULL
 
-    RETURN VALUE
-      0		OK
-      1		ERROR  ; In this case the error is sent to the client.
+ @return Error status
+   @retval 0 OK
+   @retval 1 ERROR; In this case the error is sent to the client.
 */
 
 int check_change_password(THD *thd, const char *host, const char *user,
@@ -2537,21 +2542,18 @@ int check_change_password(THD *thd, const char *host, const char *user,
 }
 
 
-/*
-  Change a password for a user
+/**
+  Change a password for a user.
 
-  SYNOPSIS
-    change_password()
-    thd			Thread handle
-    host		Hostname
-    user		User name
-    new_password	New password for host@user
-
-  RETURN VALUES
-    0	ok
-    1	ERROR; In this case the error is sent to the client.
+  @param thd            THD
+  @param host           Hostname
+  @param user           User name
+  @param new_password   New password hash for host@user
+ 
+  @return Error code
+   @retval 0 ok
+   @retval 1 ERROR; In this case the error is sent to the client.
 */
-
 bool change_password(THD *thd, const char *host, const char *user,
 		     char *new_password)
 {
@@ -2616,7 +2618,7 @@ bool change_password(THD *thd, const char *host, const char *user,
   if (acl_user->plugin.str == native_password_plugin_name.str ||
       acl_user->plugin.str == old_password_plugin_name.str)
   {
-    acl_user->auth_string.str= strmake_root(&mem, new_password, new_password_len);
+    acl_user->auth_string.str= strmake_root(&acl_memroot, new_password, new_password_len);
     acl_user->auth_string.length= new_password_len;
     set_user_salt(acl_user, new_password, new_password_len);
     set_user_plugin(acl_user, new_password_len);
@@ -2909,17 +2911,17 @@ bool hostname_requires_resolving(const char *hostname)
 }
 
 
-/*
+/**
   Update record for user in mysql.user privilege table with new password.
 
-  SYNOPSIS
-    update_user_table()
-      thd               Thread handle
-      table             Pointer to TABLE object for open mysql.user table
-      host/user         Hostname/username pair identifying user for which
-                        new password should be set
-      new_password      New password
-      new_password_len  Length of new password
+  @param thd              THD
+  @param table            Pointer to TABLE object for open mysql.user table
+  @param host             Hostname
+  @param user             Username
+  @param new_password     New password hash
+  @param new_password_len Length of new password hash
+
+  @see change_password
 */
 
 static bool update_user_table(THD *thd, TABLE *table,
@@ -3470,8 +3472,8 @@ replace_roles_mapping_table(TABLE *table, LEX_STRING *user, LEX_STRING *host,
   else
   {
     /* allocate a new entry that will go in the hash */
-    ROLE_GRANT_PAIR *hash_entry= new (&mem) ROLE_GRANT_PAIR;
-    if (hash_entry->init(&mem, user->str, host->str, role->str, with_admin))
+    ROLE_GRANT_PAIR *hash_entry= new (&acl_memroot) ROLE_GRANT_PAIR;
+    if (hash_entry->init(&acl_memroot, user->str, host->str, role->str, with_admin))
       DBUG_RETURN(1);
     my_hash_insert(&acl_roles_mappings, (uchar*) hash_entry);
   }
@@ -3628,7 +3630,7 @@ replace_proxies_priv_table(THD *thd, TABLE *table, const LEX_USER *user,
   }
   else
   {
-    new_grant.init(&mem, user->host.str, user->user.str,
+    new_grant.init(&acl_memroot, user->host.str, user->user.str,
                    proxied_user->host.str, proxied_user->user.str,
                    with_grant_arg);
     acl_insert_proxy_user(&new_grant);
@@ -3658,10 +3660,10 @@ public:
   uint key_length;
   GRANT_COLUMN(String &c,  ulong y) :rights (y), init_rights(y)
   {
-    column= (char*) memdup_root(&memex,c.ptr(), key_length=c.length());
+    column= (char*) memdup_root(&grant_memroot,c.ptr(), key_length=c.length());
   }
 
-  /* this constructor assumes thas source->column is allocated in memex */
+  /* this constructor assumes thas source->column is allocated in grant_memroot */
   GRANT_COLUMN(GRANT_COLUMN *source) : column(source->column),
     rights (source->rights), init_rights(0), key_length(source->key_length) { }
 };
@@ -3719,23 +3721,23 @@ void GRANT_NAME::set_user_details(const char *h, const char *d,
                                   bool is_routine)
 {
   /* Host given by user */
-  update_hostname(&host, strdup_root(&memex, h));
+  update_hostname(&host, strdup_root(&grant_memroot, h));
   if (db != d)
   {
-    db= strdup_root(&memex, d);
+    db= strdup_root(&grant_memroot, d);
     if (lower_case_table_names)
       my_casedn_str(files_charset_info, db);
   }
-  user = strdup_root(&memex,u);
+  user = strdup_root(&grant_memroot,u);
   sort=  get_sort(3,host.hostname,db,user);
   if (tname != t)
   {
-    tname= strdup_root(&memex, t);
+    tname= strdup_root(&grant_memroot, t);
     if (lower_case_table_names || is_routine)
       my_casedn_str(files_charset_info, tname);
   }
   key_length= strlen(d) + strlen(u)+ strlen(t)+3;
-  hash_key=   (char*) alloc_root(&memex,key_length);
+  hash_key=   (char*) alloc_root(&grant_memroot,key_length);
   strmov(strmov(strmov(hash_key,user)+1,db)+1,tname);
 }
 
@@ -3759,18 +3761,18 @@ GRANT_TABLE::GRANT_TABLE(const char *h, const char *d,const char *u,
 */
 GRANT_NAME::GRANT_NAME(TABLE *form, bool is_routine)
 {
-  user= safe_str(get_field(&memex,form->field[2]));
+  user= safe_str(get_field(&grant_memroot,form->field[2]));
 
-  const char *hostname= get_field(&memex, form->field[0]);
+  const char *hostname= get_field(&grant_memroot, form->field[0]);
   mysql_mutex_lock(&acl_cache->lock);
   if (!hostname && find_acl_role(user))
     hostname= "";
   mysql_mutex_unlock(&acl_cache->lock);
   update_hostname(&host, hostname);
 
-  db=    get_field(&memex,form->field[1]);
+  db=    get_field(&grant_memroot,form->field[1]);
   sort=  get_sort(3, host.hostname, db, user);
-  tname= get_field(&memex,form->field[3]);
+  tname= get_field(&grant_memroot,form->field[3]);
   if (!db || !tname)
   {
     /* Wrong table row; Ignore it */
@@ -3786,7 +3788,7 @@ GRANT_NAME::GRANT_NAME(TABLE *form, bool is_routine)
     my_casedn_str(files_charset_info, tname);
   }
   key_length= (strlen(db) + strlen(user) + strlen(tname) + 3);
-  hash_key=   (char*) alloc_root(&memex, key_length);
+  hash_key=   (char*) alloc_root(&grant_memroot, key_length);
   strmov(strmov(strmov(hash_key,user)+1,db)+1,tname);
   privs = (ulong) form->field[6]->val_int();
   privs = fix_rights_for_table(privs);
@@ -4992,7 +4994,7 @@ static int update_role_columns(GRANT_TABLE *merged,
       else
       {
         changed= 1;
-        my_hash_insert(mh, (uchar*)new (&memex) GRANT_COLUMN(ccol));
+        my_hash_insert(mh, (uchar*)new (&grant_memroot) GRANT_COLUMN(ccol));
       }
     }
   }
@@ -5043,7 +5045,7 @@ static int update_role_table_columns(GRANT_TABLE *merged,
       roles) we need to create it
     */
     DBUG_ASSERT(privs | cols);
-    merged= new (&memex) GRANT_TABLE("", first[0]->db, role, first[0]->tname,
+    merged= new (&grant_memroot) GRANT_TABLE("", first[0]->db, role, first[0]->tname,
                                      privs, cols);
     merged->init_privs= merged->init_cols= 0;
     update_role_columns(merged, first, last);
@@ -5169,7 +5171,7 @@ static int update_role_routines(GRANT_NAME *merged, GRANT_NAME **first,
       roles) we need to create it
     */
     DBUG_ASSERT(privs);
-    merged= new (&memex) GRANT_NAME("", first[0]->db, role, first[0]->tname,
+    merged= new (&grant_memroot) GRANT_NAME("", first[0]->db, role, first[0]->tname,
                                     privs, true);
     merged->init_privs= 0; // all privs are inherited
     my_hash_insert(hash, (uchar *)merged);
@@ -5491,7 +5493,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
   MEM_ROOT *old_root= thd->mem_root;
-  thd->mem_root= &memex;
+  thd->mem_root= &grant_memroot;
   grant_version++;
 
   while ((tmp_Str = str_list++))
@@ -5701,7 +5703,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
   MEM_ROOT *old_root= thd->mem_root;
-  thd->mem_root= &memex;
+  thd->mem_root= &grant_memroot;
 
   DBUG_PRINT("info",("now time to iterate and add users"));
 
@@ -6206,7 +6208,7 @@ void  grant_free(void)
   my_hash_free(&column_priv_hash);
   my_hash_free(&proc_priv_hash);
   my_hash_free(&func_priv_hash);
-  free_root(&memex,MYF(0));
+  free_root(&grant_memroot,MYF(0));
   DBUG_VOID_RETURN;
 }
 
@@ -6273,7 +6275,7 @@ static my_bool grant_load(THD *thd, TABLE_LIST *tables)
                       0,0,0, (my_hash_get_key) get_grant_table, 0,0);
   (void) my_hash_init(&func_priv_hash, &my_charset_utf8_bin,
                       0,0,0, (my_hash_get_key) get_grant_table, 0,0);
-  init_sql_alloc(&memex, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&grant_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   t_table= tables[0].table;
   c_table= tables[1].table;
@@ -6285,7 +6287,7 @@ static my_bool grant_load(THD *thd, TABLE_LIST *tables)
   t_table->use_all_columns();
   c_table->use_all_columns();
 
-  memex_ptr= &memex;
+  memex_ptr= &grant_memroot;
   my_pthread_setspecific_ptr(THR_MALLOC, &memex_ptr);
 
   if (!t_table->file->ha_index_first(t_table->record[0]))
@@ -6469,7 +6471,7 @@ my_bool grant_reload(THD *thd)
     Create a new memory pool but save the current memory pool to make an undo
     opertion possible in case of failure.
   */
-  old_mem= memex;
+  old_mem= grant_memroot;
 
   if ((return_val= grant_load(thd, tables)))
   {						// Error. Revert to old hash
@@ -6478,7 +6480,7 @@ my_bool grant_reload(THD *thd)
     column_priv_hash= old_column_priv_hash;	/* purecov: deadcode */
     proc_priv_hash= old_proc_priv_hash;
     func_priv_hash= old_func_priv_hash;
-    memex= old_mem;				/* purecov: deadcode */
+    grant_memroot= old_mem;                     /* purecov: deadcode */
   }
   else
   {
@@ -8607,7 +8609,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       my_hash_delete(&acl_roles, (uchar*) acl_role);
       DBUG_RETURN(1);
     }
-    acl_role->user.str= strdup_root(&mem, user_to->user.str);
+    acl_role->user.str= strdup_root(&acl_memroot, user_to->user.str);
     acl_role->user.length= user_to->user.length;
 
     my_hash_update(&acl_roles, (uchar*) acl_role, (uchar*) old_key,
@@ -8768,14 +8770,14 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     {
       switch ( struct_no ) {
       case USER_ACL:
-        acl_user->user.str= strdup_root(&mem, user_to->user.str);
+        acl_user->user.str= strdup_root(&acl_memroot, user_to->user.str);
         acl_user->user.length= user_to->user.length;
-        acl_user->host.hostname= strdup_root(&mem, user_to->host.str);
+        acl_user->host.hostname= strdup_root(&acl_memroot, user_to->host.str);
         break;
 
       case DB_ACL:
-        acl_db->user= strdup_root(&mem, user_to->user.str);
-        acl_db->host.hostname= strdup_root(&mem, user_to->host.str);
+        acl_db->user= strdup_root(&acl_memroot, user_to->user.str);
+        acl_db->host.hostname= strdup_root(&acl_memroot, user_to->host.str);
         break;
 
       case COLUMN_PRIVILEGES_HASH:
@@ -8817,8 +8819,8 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
         }
 
       case PROXY_USERS_ACL:
-        acl_proxy_user->set_user (&mem, user_to->user.str);
-        acl_proxy_user->set_host (&mem, user_to->host.str);
+        acl_proxy_user->set_user (&acl_memroot, user_to->user.str);
+        acl_proxy_user->set_host (&acl_memroot, user_to->host.str);
         break;
 
       case ROLES_MAPPINGS_HASH:
@@ -8832,11 +8834,11 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
           bool oom;
 
           if (role_not_matched)
-            oom= role_grant_pair->init(&mem, user_to->user.str,
+            oom= role_grant_pair->init(&acl_memroot, user_to->user.str,
                                        user_to->host.str,
                                        role_grant_pair->r_uname, false);
           else
-            oom= role_grant_pair->init(&mem, role_grant_pair->u_uname,
+            oom= role_grant_pair->init(&acl_memroot, role_grant_pair->u_uname,
                                        role_grant_pair->u_hname,
                                        user_to->user.str, false);
           if (oom)
