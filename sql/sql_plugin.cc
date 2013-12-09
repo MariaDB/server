@@ -257,15 +257,6 @@ class sys_var_pluginvar: public sys_var
 public:
   struct st_plugin_int *plugin;
   struct st_mysql_sys_var *plugin_var;
-  /**
-    variable name from whatever is hard-coded in the plugin source
-    and doesn't have pluginname- prefix is replaced by an allocated name
-    with a plugin prefix. When plugin is uninstalled we need to restore the
-    pointer to point to the hard-coded value, because plugin may be
-    installed/uninstalled many times without reloading the shared object.
-  */
-  const char *orig_pluginvar_name;
-
   static void *operator new(size_t size, MEM_ROOT *mem_root)
   { return (void*) alloc_root(mem_root, size); }
   static void operator delete(void *ptr_arg,size_t size)
@@ -278,7 +269,7 @@ public:
              (plugin_var_arg->flags & PLUGIN_VAR_READONLY ? READONLY : 0),
              0, -1, NO_ARG, pluginvar_show_type(plugin_var_arg), 0, 0,
              VARIABLE_NOT_IN_BINLOG, NULL, NULL, NULL),
-    plugin_var(plugin_var_arg), orig_pluginvar_name(plugin_var_arg->name)
+    plugin_var(plugin_var_arg)
   { plugin_var->name= name_arg; }
   sys_var_pluginvar *cast_pluginvar() { return this; }
   bool check_update_type(Item_result type);
@@ -308,7 +299,6 @@ static bool register_builtin(struct st_maria_plugin *, struct st_plugin_int *,
 static void unlock_variables(THD *thd, struct system_variables *vars);
 static void cleanup_variables(THD *thd, struct system_variables *vars);
 static void plugin_vars_free_values(sys_var *vars);
-static void restore_pluginvar_names(sys_var *first);
 static void restore_ptr_backup(uint n, st_ptr_backup *backup);
 static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref plugin);
 static void intern_plugin_unlock(LEX *lex, plugin_ref plugin);
@@ -1122,7 +1112,6 @@ static bool plugin_add(MEM_ROOT *tmp_root,
     if (!(tmp_plugin_ptr= plugin_insert_or_reuse(&tmp)))
     {
       mysql_del_sys_var_chain(tmp.system_vars);
-      restore_pluginvar_names(tmp.system_vars);
       goto err;
     }
     plugin_array_version++;
@@ -1139,6 +1128,8 @@ static bool plugin_add(MEM_ROOT *tmp_root,
 
 err:
     errs++;
+    if (tmp.nbackups)
+      restore_ptr_backup(tmp.nbackups, tmp.ptr_backup);
     if (name->str)
       break;
   }
@@ -1217,7 +1208,7 @@ static void plugin_del(struct st_plugin_int *plugin)
   mysql_rwlock_wrlock(&LOCK_system_variables_hash);
   mysql_del_sys_var_chain(plugin->system_vars);
   mysql_rwlock_unlock(&LOCK_system_variables_hash);
-  restore_pluginvar_names(plugin->system_vars);
+  restore_ptr_backup(plugin->nbackups, plugin->ptr_backup);
   plugin_vars_free_values(plugin->system_vars);
   my_hash_delete(&plugin_hash[plugin->plugin->type], (uchar*)plugin);
   plugin_dl_del(plugin->plugin_dl);
@@ -2938,16 +2929,6 @@ static st_bookmark *register_var(const char *plugin, const char *name,
   return result;
 }
 
-static void restore_pluginvar_names(sys_var *first)
-{
-  for (sys_var *var= first; var; var= var->next)
-  {
-    sys_var_pluginvar *pv= var->cast_pluginvar();
-    pv->plugin_var->name= pv->orig_pluginvar_name;
-  }
-}
-
-
 /*
   returns a pointer to the memory which holds the thd-local variable or
   a pointer to the global variable if thd==null.
@@ -3823,7 +3804,7 @@ static my_option *construct_help_options(MEM_ROOT *mem_root,
     to get the correct (not double-prefixed) help text.
     We won't need @@sysvars anymore and don't care about their proper names.
   */
-  restore_pluginvar_names(p->system_vars);
+  restore_ptr_backup(p->nbackups, p->ptr_backup);
 
   if (construct_options(mem_root, p, opts))
     DBUG_RETURN(NULL);
@@ -3868,6 +3849,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   sys_var *v __attribute__((unused));
   struct st_bookmark *var;
   uint len, count= EXTRA_OPTIONS;
+  st_ptr_backup *tmp_backup= 0;
   DBUG_ENTER("test_plugin_options");
   DBUG_ASSERT(tmp->plugin && tmp->name.str);
 
@@ -3940,59 +3922,85 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
     plugin_name= tmp->name;
 
   error= 1;
-  for (opt= tmp->plugin->system_vars; opt && *opt; opt++)
-  {
-    st_mysql_sys_var *o= *opt;
 
-    /*
-      PLUGIN_VAR_STR command-line options without PLUGIN_VAR_MEMALLOC, point
-      directly to values in the argv[] array. For plugins started at the
-      server startup, argv[] array is allocated with load_defaults(), and
-      freed when the server is shut down.  But for plugins loaded with
-      INSTALL PLUGIN, the memory allocated with load_defaults() is freed with
-      freed() at the end of mysql_install_plugin(). Which means we cannot
-      allow any pointers into that area.
-      Thus, for all plugins loaded after the server was started,
-      we copy string values to a plugin's memroot.
-    */
-    if (mysqld_server_started &&
-        ((o->flags & (PLUGIN_VAR_STR | PLUGIN_VAR_NOCMDOPT |
-                       PLUGIN_VAR_MEMALLOC)) == PLUGIN_VAR_STR))
+  if (tmp->plugin->system_vars)
+  {
+    for (len=0, opt= tmp->plugin->system_vars; *opt; len++, opt++) /* no-op */;
+    tmp_backup= (st_ptr_backup *)my_alloca(len * sizeof(tmp_backup[0]));
+    DBUG_ASSERT(tmp->nbackups == 0);
+    DBUG_ASSERT(tmp->ptr_backup == 0);
+
+    for (opt= tmp->plugin->system_vars; *opt; opt++)
     {
-      sysvar_str_t* str= (sysvar_str_t *)o;
-      if (*str->value)
-        *str->value= strdup_root(mem_root, *str->value);
+      st_mysql_sys_var *o= *opt;
+
+      /*
+        PLUGIN_VAR_STR command-line options without PLUGIN_VAR_MEMALLOC, point
+        directly to values in the argv[] array. For plugins started at the
+        server startup, argv[] array is allocated with load_defaults(), and
+        freed when the server is shut down.  But for plugins loaded with
+        INSTALL PLUGIN, the memory allocated with load_defaults() is freed with
+        freed() at the end of mysql_install_plugin(). Which means we cannot
+        allow any pointers into that area.
+        Thus, for all plugins loaded after the server was started,
+        we copy string values to a plugin's memroot.
+      */
+      if (mysqld_server_started &&
+          ((o->flags & (PLUGIN_VAR_STR | PLUGIN_VAR_NOCMDOPT |
+                         PLUGIN_VAR_MEMALLOC)) == PLUGIN_VAR_STR))
+      {
+        sysvar_str_t* str= (sysvar_str_t *)o;
+        if (*str->value)
+          *str->value= strdup_root(mem_root, *str->value);
+      }
+
+      if (o->flags & PLUGIN_VAR_NOSYSVAR)
+        continue;
+      tmp_backup[tmp->nbackups++].save(&o->name);
+      if ((var= find_bookmark(plugin_name.str, o->name, o->flags)))
+        v= new (mem_root) sys_var_pluginvar(&chain, var->key + 1, o);
+      else
+      {
+        len= plugin_name.length + strlen(o->name) + 2;
+        varname= (char*) alloc_root(mem_root, len);
+        strxmov(varname, plugin_name.str, "-", o->name, NullS);
+        my_casedn_str(&my_charset_latin1, varname);
+        convert_dash_to_underscore(varname, len-1);
+        v= new (mem_root) sys_var_pluginvar(&chain, varname, o);
+      }
+      DBUG_ASSERT(v); /* check that an object was actually constructed */
+    } /* end for */
+
+    if (tmp->nbackups)
+    {
+      size_t bytes= tmp->nbackups * sizeof(tmp->ptr_backup[0]);
+      tmp->ptr_backup= (st_ptr_backup *)alloc_root(mem_root, bytes);
+      if (!tmp->ptr_backup)
+      {
+        restore_ptr_backup(tmp->nbackups, tmp_backup);
+        goto err;
+      }
+      memcpy(tmp->ptr_backup, tmp_backup, bytes);
     }
 
-    if (o->flags & PLUGIN_VAR_NOSYSVAR)
-      continue;
-    if ((var= find_bookmark(plugin_name.str, o->name, o->flags)))
-      v= new (mem_root) sys_var_pluginvar(&chain, var->key + 1, o);
-    else
+    if (chain.first)
     {
-      len= plugin_name.length + strlen(o->name) + 2;
-      varname= (char*) alloc_root(mem_root, len);
-      strxmov(varname, plugin_name.str, "-", o->name, NullS);
-      my_casedn_str(&my_charset_latin1, varname);
-      convert_dash_to_underscore(varname, len-1);
-      v= new (mem_root) sys_var_pluginvar(&chain, varname, o);
+      chain.last->next = NULL;
+      if (mysql_add_sys_var_chain(chain.first))
+      {
+        sql_print_error("Plugin '%s' has conflicting system variables",
+                        tmp->name.str);
+        goto err;
+      }
+      tmp->system_vars= chain.first;
     }
-    DBUG_ASSERT(v); /* check that an object was actually constructed */
-  } /* end for */
-  if (chain.first)
-  {
-    chain.last->next = NULL;
-    if (mysql_add_sys_var_chain(chain.first))
-    {
-      sql_print_error("Plugin '%s' has conflicting system variables",
-                      tmp->name.str);
-      goto err;
-    }
-    tmp->system_vars= chain.first;
   }
+
   DBUG_RETURN(0);
   
 err:
+  if (tmp_backup)
+    my_afree(tmp_backup);
   if (opts)
     my_cleanup_options(opts);
   DBUG_RETURN(error);
