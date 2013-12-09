@@ -1631,9 +1631,7 @@ THD::~THD()
   {
     DBUG_PRINT("error", ("memory_used: %lld", status_var.memory_used));
     SAFEMALLOC_REPORT_MEMORY(my_thread_dbug_id());
-#ifdef ENABLE_BEFORE_END_OF_MERGE_QQ
     DBUG_ASSERT(status_var.memory_used == 0);  // Ensure everything is freed
-#endif
   }
 
   set_current_thd(orig_thd);
