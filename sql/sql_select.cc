@@ -6739,9 +6739,12 @@ optimize_straight_join(JOIN *join, table_map join_tables)
   uint use_cond_selectivity= 
          join->thd->variables.optimizer_use_condition_selectivity;
   POSITION  loose_scan_pos;
+  table_map new_join_tables;
 
   for (JOIN_TAB **pos= join->best_ref + idx ; (s= *pos) ; pos++)
   {
+    new_join_tables= join_tables & ~(s->table->map);
+
     /* Find the best access method from 's' to the current partial plan */
     best_access_path(join, s, join_tables, idx, disable_jbuf, record_count,
                      join->positions + idx, &loose_scan_pos);
@@ -6750,17 +6753,22 @@ optimize_straight_join(JOIN *join, table_map join_tables)
     record_count*= join->positions[idx].records_read;
     read_time+= join->positions[idx].get_read_time() +
                 record_count / (double) TIME_FOR_COMPARE;
+    /*
+      Compute the selectivity of the pushed join condition, and the parital
+      join cardinality. The cardinality is used inside SJ optimization.
+    */
+    if (use_cond_selectivity > 1)
+      join->positions[idx].cond_selectivity=
+        table_cond_selectivity(join, idx, s, new_join_tables);
+    else
+      join->positions[idx].cond_selectivity= 1;
+    join->positions[idx].partial_join_cardinality= record_count *
+                                                   join->positions[idx].cond_selectivity;
+
     advance_sj_state(join, join_tables, idx, &record_count, &read_time,
                      &loose_scan_pos);
 
-    join_tables&= ~(s->table->map);
-    double pushdown_cond_selectivity= 1.0;
-    if (use_cond_selectivity > 1)
-      pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
-                                                        join_tables);
-    join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
-    join->positions[idx].partial_join_cardinality= record_count *
-                                                   pushdown_cond_selectivity;
+    join_tables= new_join_tables;
     ++idx;
   }
 
@@ -6770,7 +6778,7 @@ optimize_straight_join(JOIN *join, table_map join_tables)
 
   if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_STATIC_COND_PUSHDOWN) &&
       join->conds_expensive_conjuncts.elements && (idx - 1) > join->const_tables)
-    read_time+= join->static_pushdown_cost(idx - 1);
+    read_time+= join->static_pushdown_cost(0, idx - 1);
 
   memcpy((uchar*) join->best_positions, (uchar*) join->positions,
          sizeof(POSITION)*idx);
@@ -7579,8 +7587,24 @@ best_extension_by_limited_search(JOIN      *join,
       current_read_time=read_time + position->get_read_time() +
                         current_record_count / (double) TIME_FOR_COMPARE;
 
+      /*
+        Compute the selectivity of the pushed join condition, and the parital
+        join cardinality. The cardinality is used inside SJ optimization.
+      */
+      if (use_cond_selectivity > 1)
+        join->positions[idx].cond_selectivity=
+          table_cond_selectivity(join, idx, s, remaining_tables & ~real_table_bit);
+      else
+        join->positions[idx].cond_selectivity= 1.0;
+      join->positions[idx].partial_join_cardinality= current_record_count *
+                                                     join->positions[idx].cond_selectivity;
+
       advance_sj_state(join, remaining_tables, idx, &current_record_count,
                        &current_read_time, &loose_scan_pos);
+
+      /* SJ optimization may change the cardinality estimate, update it. */
+      join->positions[idx].partial_join_cardinality= current_record_count *
+                                                     join->positions[idx].cond_selectivity;
 
       /* Expand only partial plans with lower cost than the best QEP so far */
       if (current_read_time >= join->best_read)
@@ -7629,14 +7653,6 @@ best_extension_by_limited_search(JOIN      *join,
         }
       }
 
-      double pushdown_cond_selectivity= 1.0;
-      if (use_cond_selectivity > 1)
-        pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
-				                          remaining_tables &
-                                                          ~real_table_bit);
-      join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
-      join->positions[idx].partial_join_cardinality= current_record_count *
-                                                     pushdown_cond_selectivity;
       if ( (search_depth > 1) && (remaining_tables & ~real_table_bit) & allowed_tables )
       { /* Recursively expand the current partial plan */
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
@@ -7670,7 +7686,7 @@ best_extension_by_limited_search(JOIN      *join,
         */
         if (optimizer_flag(thd, OPTIMIZER_SWITCH_STATIC_COND_PUSHDOWN) &&
             join->conds_expensive_conjuncts.elements && idx > join->const_tables)
-          current_read_time+= join->static_pushdown_cost(idx);
+          current_read_time+= join->static_pushdown_cost(0, idx);
 
         if (current_read_time < join->best_read)
         {
@@ -24558,9 +24574,11 @@ void JOIN::collect_expensive_conjuncts()
     optimal positions in the join plan.
 */
 
-double JOIN::static_pushdown_cost(uint idx)
+double JOIN::static_pushdown_cost(uint idx_start, uint idx_end)
 {
-  POSITION *min_pos= NULL, *last_pos, *opt_pos;
+  POSITION *last_pos=  positions + idx_end;
+  POSITION *first_pos= idx_start ? positions + idx_start : positions + const_tables;
+  POSITION *min_pos= NULL, *left_push_pos, *opt_pos;
   List_iterator<Item> it(conds_expensive_conjuncts);
   Item *cur_item;
   double pushed_cond_cost= 0;
@@ -24570,8 +24588,7 @@ double JOIN::static_pushdown_cost(uint idx)
     result cardinality between the current and last POSITION in the current
     query plan.
   */
-  for (POSITION *p_pos= positions + idx, *p_end= positions + const_tables;
-       p_pos >= p_end ; p_pos--)
+  for (POSITION *p_pos= last_pos, *p_end= first_pos; p_pos >= p_end ; p_pos--)
   {
     if (!min_pos ||
         p_pos->partial_join_cardinality <= min_pos->partial_join_cardinality)
@@ -24595,21 +24612,25 @@ double JOIN::static_pushdown_cost(uint idx)
       Find the left-most join_tab on which the subquery depends. This is the
       earliest join_tab where the condition can be pushed.
     */
-    last_pos= NULL;
-    for (POSITION *p_pos= positions + idx, *p_end= positions + const_tables;
-         p_pos >= p_end ; p_pos--)
+    left_push_pos= NULL;
+    for (POSITION *p_pos= last_pos, *p_end= first_pos; p_pos >= p_end ; p_pos--)
     {
       if (p_pos->table->table->map & referenced_tables)
       {
-        last_pos= p_pos;
+        left_push_pos= p_pos;
         break;
       }
     }
-    if (!last_pos)
-      continue; /* cur_item depends only on constant tables */
+    if (!left_push_pos)
+    {
+      /*
+        cur_item depends only on tables outside of the range {idx_start, idx_end}
+      */
+      continue;
+    }
 
     /* The optimal position with least cardinality where to push cur_item. */
-    opt_pos= last_pos->least_card_pos;
+    opt_pos= left_push_pos->least_card_pos;
 
     /*
       Update the cost of the POSITION as if cur_item will be pushed to the

@@ -2924,6 +2924,14 @@ bool Firstmatch_picker::check_qep(JOIN *join,
                                      record_count, 
                                      read_time);
         }
+
+        /* Add the cost of any expensive predicates attached to the semi-join. */
+        double expensive_cost= 0;
+        if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_STATIC_COND_PUSHDOWN) &&
+            join->conds_expensive_conjuncts.elements)
+          expensive_cost= join->static_pushdown_cost(first_firstmatch_table, idx);
+        *read_time+= expensive_cost;
+
         /*
           We ought to save the alternate POSITIONs produced by
           optimize_wo_join_buffering but the problem is that providing save
