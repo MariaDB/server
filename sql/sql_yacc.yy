@@ -9753,7 +9753,7 @@ function_call_conflict:
         | PASSWORD '(' expr ')'
           {
             Item* i1;
-            if (thd->variables.old_passwords == 1)
+            if (thd->variables.old_passwords)
               i1= new (thd->mem_root) Item_func_old_password($3);
             else
               i1= new (thd->mem_root) Item_func_password($3);
@@ -14789,18 +14789,10 @@ text_or_password:
           TEXT_STRING { $$=$1.str;}
         | PASSWORD '(' TEXT_STRING ')'
           {
-            if ($3.length == 0)
-             $$= $3.str;
-            else
-            switch (thd->variables.old_passwords) {
-              case 1: $$= Item_func_old_password::
-                alloc(thd, $3.str, $3.length);
-                break;
-              case 0:
-              case 2: $$= Item_func_password::
-                create_password_hash_buffer(thd, $3.str, $3.length);
-                break;
-            }
+            $$= $3.length ? thd->variables.old_passwords ?
+              Item_func_old_password::alloc(thd, $3.str, $3.length) :
+              Item_func_password::alloc(thd, $3.str, $3.length) :
+              $3.str;
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -15400,7 +15392,7 @@ grant_user:
                   (char *) thd->alloc(SCRAMBLED_PASSWORD_CHAR_LENGTH+1);
                 if (buff == NULL)
                   MYSQL_YYABORT;
-                my_make_scrambled_password_sha1(buff, $4.str, $4.length);
+                my_make_scrambled_password(buff, $4.str, $4.length);
                 $1->password.str= buff;
                 $1->password.length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
               }

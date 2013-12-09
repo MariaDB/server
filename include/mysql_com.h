@@ -265,11 +265,11 @@ enum enum_server_command
                            CLIENT_REMEMBER_OPTIONS | \
                            CLIENT_PROGRESS | \
                            CLIENT_PLUGIN_AUTH | \
+                           CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA | \
                            CLIENT_CONNECT_ATTRS)
 
 /*
   To be added later:
-  CLIENT_CONNECT_ATTRS, CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA,
   CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS
 */
 
@@ -641,7 +641,9 @@ void my_thread_end(void);
 #ifdef MY_GLOBAL_INCLUDED
 ulong STDCALL net_field_length(uchar **packet);
 my_ulonglong net_field_length_ll(uchar **packet);
+my_ulonglong safe_net_field_length_ll(uchar **packet, size_t packet_len);
 uchar *net_store_length(uchar *pkg, ulonglong length);
+uchar *safe_net_store_length(uchar *pkg, size_t pkg_len, ulonglong length);
 #endif
 
 #ifdef __cplusplus
