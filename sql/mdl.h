@@ -904,14 +904,14 @@ private:
   MDL_wait_for_subgraph *m_waiting_for;
 private:
   THD *get_thd() const { return m_owner->get_thd(); }
-  MDL_ticket *find_ticket(MDL_request *mdl_req,
-                          enum_mdl_duration *duration);
   void release_locks_stored_before(enum_mdl_duration duration, MDL_ticket *sentinel);
   void release_lock(enum_mdl_duration duration, MDL_ticket *ticket);
   bool try_acquire_lock_impl(MDL_request *mdl_request,
                              MDL_ticket **out_ticket);
 
 public:
+  MDL_ticket *find_ticket(MDL_request *mdl_req,
+                          enum_mdl_duration *duration);
   void find_deadlock();
 
   ulong get_thread_id() const { return thd_get_thread_id(get_thd()); }
@@ -988,4 +988,7 @@ static const ulong MDL_LOCKS_HASH_PARTITIONS_DEFAULT = 8;
   to avoid starving out weak, low-prio locks.
 */
 extern "C" ulong max_write_lock_count;
+
+extern MYSQL_PLUGIN_IMPORT
+int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg);
 #endif
