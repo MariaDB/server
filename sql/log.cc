@@ -1708,7 +1708,7 @@ int binlog_init(void *p)
 {
   binlog_hton= (handlerton *)p;
 #ifdef WITH_WSREP
-  if (WSREP_ON && WSREP_PROVIDER_EXISTS)
+  if (WSREP_ON)
     binlog_hton->state= SHOW_OPTION_YES;
   else
   {
@@ -2216,6 +2216,14 @@ bool MYSQL_BIN_LOG::check_write_error(THD *thd)
 static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
 {
   DBUG_ENTER("binlog_savepoint_set");
+
+#ifdef WITH_WSREP
+  /*
+    If wsrep_emulate_bin_log is true, (i.e opt_bin_log == false),
+    we should return from here if wsrep_on is off.
+  */
+  if (wsrep_emulate_bin_log && !WSREP(thd)) DBUG_RETURN(0);
+#endif /* WITH_WSREP */
 
   binlog_trans_log_savepos(thd, (my_off_t*) sv);
   /* Write it to the binary log */

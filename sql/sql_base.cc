@@ -62,7 +62,6 @@
 
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
-extern handlerton *binlog_hton;
 #endif // WITH_WSREP
 
 bool
@@ -1575,11 +1574,6 @@ void close_thread_tables(THD *thd)
       handled either before writing a query log event (inside
       binlog_query()) or when preparing a pending event.
      */
-#ifdef WITH_WSREP
-     /* In Galera binlog is not enabled by default in case when
-     wsrep provider is not specified. */
-     if ((WSREP_ON && WSREP_PROVIDER_EXISTS) || binlog_hton->state == SHOW_OPTION_YES)
-#endif
     (void)thd->binlog_flush_pending_rows_event(TRUE);
     mysql_unlock_tables(thd, thd->lock);
     thd->lock=0;
