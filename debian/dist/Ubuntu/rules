@@ -166,7 +166,7 @@ install: build
 	install -m 0755 debian/additions/innotop/innotop $(TMP)/usr/bin/
 	install -m 0644 debian/additions/innotop/innotop.1 $(TMP)/usr/share/man/man1/
 
-	# mariadb-server
+	# mariadb-galera-server
 	install -m 0755 $(BUILDDIR)/scripts/mysqld_safe $(TMP)/usr/bin/mysqld_safe
 	mkdir -p $(TMP)/usr/share/doc/mariadb-galera-server-5.5/examples
 	# We have a sane my.cnf, cruft not needed (remove my-*.cnf and config-*.cnf)
@@ -190,7 +190,7 @@ install: build
 
 	# lintian overrides
 	mkdir -p $(TMP)/usr/share/lintian/overrides/
-	cp debian/mariadb-galera-server-5.5.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-server-5.5
+	cp debian/mariadb-galera-server-5.5.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-galera-server-5.5
 
 	# For 5.0 -> 5.5 transition
 	d=$(TMP)/usr/share/mysql-common/internal-use-only/; \
@@ -202,7 +202,7 @@ install: build
 	# install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mysqld
 	# install Apport hook
-	install -D -m 644 debian/mariadb-server-5.5.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-5.5.py
+	install -D -m 644 debian/mariadb-galera-server-5.5.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-5.5.py
 
 	autorm=debian/autorm-file;                                      \
 	rm -f $$autorm;                                                 \

@@ -46,7 +46,7 @@ usr/share/doc/mariadb-galera-server-5.5/mysqld.sym.gz
 usr/share/doc/mariadb-galera-server-5.5/INFO_SRC
 usr/share/doc/mariadb-galera-server-5.5/INFO_BIN
 usr/share/doc/mariadb-galera-server-5.5/README-wsrep
-usr/share/lintian/overrides/mariadb-server-5.5
+usr/share/lintian/overrides/mariadb-galera-server-5.5
 usr/share/man/man1/msql2mysql.1
 usr/share/man/man1/myisamchk.1
 usr/share/man/man1/myisam_ftdump.1
