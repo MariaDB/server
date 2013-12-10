@@ -5,7 +5,7 @@ usr/bin
 usr/sbin
 usr/share/man/man8
 usr/share/mysql
-usr/share/doc/mariadb-server-5.5
+usr/share/doc/mariadb-galera-server-5.5
 usr/support-files
 var/run/mysqld
 var/lib/mysql-upgrade
