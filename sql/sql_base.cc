@@ -309,9 +309,11 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild)
 	   share->table_name.str);
     (*start_list)->in_use= 0;
     mysql_mutex_lock(&LOCK_open);
-    TABLE_SHARE::TABLE_list::Iterator it(share->tdc.used_tables);
-    while (it++)
-      ++(*start_list)->in_use;
+    TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
+    TABLE *table;
+    while ((table= it++))
+      if (table->in_use)
+        ++(*start_list)->in_use;
     mysql_mutex_unlock(&LOCK_open);
     (*start_list)->locked= 0;                   /* Obsolete. */
     start_list= &(*start_list)->next;
@@ -371,16 +373,19 @@ void free_io_cache(TABLE *table)
 
 void kill_delayed_threads_for_table(TABLE_SHARE *share)
 {
-  TABLE_SHARE::TABLE_list::Iterator it(share->tdc.used_tables);
+  TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
   TABLE *tab;
 
   mysql_mutex_assert_owner(&LOCK_open);
+
+  if (!delayed_insert_threads)
+    return;
 
   while ((tab= it++))
   {
     THD *in_use= tab->in_use;
 
-    if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
+    if (in_use && (in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
         ! in_use->killed)
     {
       in_use->killed= KILL_SYSTEM_THREAD;

@@ -479,6 +479,7 @@ TABLE_CATEGORY get_table_category(const LEX_STRING *db,
 
 
 struct TABLE_share;
+struct All_share_tables;
 
 extern ulong tdc_refresh_version(void);
 
@@ -603,6 +604,7 @@ struct TABLE_SHARE
   mysql_mutex_t LOCK_share;             /* To protect TABLE_SHARE */
 
   typedef I_P_List <TABLE, TABLE_share> TABLE_list;
+  typedef I_P_List <TABLE, All_share_tables> All_share_tables_list;
   struct
   {
     /**
@@ -619,7 +621,7 @@ struct TABLE_SHARE
       Doubly-linked (back-linked) lists of used and unused TABLE objects
       for this share.
     */
-    TABLE_list used_tables;
+    All_share_tables_list all_tables;
     TABLE_list free_tables;
   } tdc;
 
@@ -1014,8 +1016,10 @@ private:
      One should use methods of I_P_List template instead.
   */
   TABLE *share_next, **share_prev;
+  TABLE *share_all_next, **share_all_prev;
 
   friend struct TABLE_share;
+  friend struct All_share_tables;
 
 public:
 
@@ -1375,6 +1379,19 @@ struct TABLE_share
   static inline TABLE ***prev_ptr(TABLE *l)
   {
     return &l->share_prev;
+  }
+};
+
+
+struct All_share_tables
+{
+  static inline TABLE **next_ptr(TABLE *l)
+  {
+    return &l->share_all_next;
+  }
+  static inline TABLE ***prev_ptr(TABLE *l)
+  {
+    return &l->share_all_prev;
   }
 };
 
