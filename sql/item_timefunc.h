@@ -524,6 +524,11 @@ public:
   Item_temporal_hybrid_func(Item *a,Item *b)
     :Item_temporal_func(a,b) {}
   enum_field_types field_type() const { return cached_field_type; }
+  Item_result cmp_type() const
+  {
+    return cached_field_type == MYSQL_TYPE_STRING ?
+           STRING_RESULT : TIME_RESULT;
+  }
   const CHARSET_INFO *charset_for_protocol() const
   {
     /*
