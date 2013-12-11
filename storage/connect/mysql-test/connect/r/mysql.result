@@ -238,3 +238,38 @@ CREATE TABLE `t2` (
 # End of mysqldump ------
 DROP TABLE t2;
 DROP TABLE t1;
+#
+# Testing getting unsigned types
+#
+CREATE TABLE t1 (
+a TINYINT UNSIGNED NOT NULL,
+b SMALLINT ZEROFILL NOT NULL,
+c INT UNSIGNED NOT NULL,
+d BIGINT UNSIGNED NOT NULL,
+e CHAR(32) NOT NULL DEFAULT 'Hello') ENGINE=CONNECT TABLE_TYPE=FIX;
+Warnings:
+Warning	1105	No file name. Table will use t1.fix
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+a	tinyint(3) unsigned	NO		NULL	
+b	smallint(5) unsigned zerofill	NO		NULL	
+c	int(10) unsigned	NO		NULL	
+d	bigint(20) unsigned	NO		NULL	
+e	char(32)	NO		Hello	
+INSERT INTO t1(a,b,c,d) VALUES(255,65535,4294967295,18446744073709551615);
+SELECT * FROM t1;
+a	b	c	d	e
+255	65535	4294967295	18446744073709551615	Hello
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME=t1;
+DESCRIBE t2;
+Field	Type	Null	Key	Default	Extra
+a	tinyint(3) unsigned	NO		NULL	
+b	smallint(5) unsigned zerofill	NO		NULL	
+c	int(10) unsigned	NO		NULL	
+d	bigint(20) unsigned	NO		NULL	
+e	char(32)	NO		Hello	
+SELECT * FROM t2;
+a	b	c	d	e
+255	65535	4294967295	18446744073709551615	Hello
+DROP TABLE t2;
+DROP TABLE t1;
