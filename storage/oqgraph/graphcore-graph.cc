@@ -22,19 +22,6 @@
    ======================================================================
 */
 
-#ifndef oq_graphcore_types_h_
-#define oq_graphcore_types_h_
+#include "graphcore-config.h"
+#include "graphcore-graph.h"
 
-namespace open_query
-{
-
-  typedef unsigned long long VertexID;
-  typedef double EdgeWeight;
-
-}
-
-
-class Field;
-typedef struct TABLE TABLE;
-
-#endif

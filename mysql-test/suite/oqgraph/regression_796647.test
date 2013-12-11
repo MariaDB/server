@@ -1,0 +1,43 @@
+--disable_warnings
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+
+# Create the backing store
+CREATE TABLE graph_base (
+    von INT NOT NULL,
+    nach INT NOT NULL,
+    weight DOUBLE NOT NULL,
+    PRIMARY KEY (von,nach),
+    INDEX (von)
+  ) ENGINE=MyISAM;
+
+
+CREATE TABLE graph (
+    latch   VARCHAR(32) NULL,
+    origid  BIGINT    UNSIGNED NULL,
+    destid  BIGINT    UNSIGNED NULL,
+    weight  DOUBLE    NULL,
+    seq     BIGINT    UNSIGNED NULL,
+    linkid  BIGINT    UNSIGNED NULL,
+    KEY (latch, origid, destid) USING HASH,
+    KEY (latch, destid, origid) USING HASH
+  ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='von' DESTID='nach' WEIGHT='weight';
+
+INSERT INTO graph_base(von,nach,weight) VALUES (3,5,2), (5,4,1), (5,6,1);
+
+SELECT * FROM graph_base;
+
+SELECT * FROM graph;
+
+INSERT INTO graph_base(von,nach,weight) VALUES (6,3,1);
+
+SELECT * FROM graph;
+
+FLUSH TABLES;
+
+DROP TABLE graph_base;
+DROP TABLE graph;
+
+
