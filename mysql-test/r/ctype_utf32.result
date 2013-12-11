@@ -1150,6 +1150,7 @@ SET collation_connection=utf32_general_ci;
 # Bug#32390 Character sets: casting utf32 to/from date doesn't work
 #
 CREATE TABLE t1 AS SELECT repeat('a',20) AS s1 LIMIT 0;
+SET time_zone=_latin1'+03:00';
 SET timestamp=1216359724;
 INSERT INTO t1 VALUES (current_date);
 INSERT INTO t1 VALUES (current_time);
@@ -1161,6 +1162,7 @@ s1	hex(s1)
 2008-07-18 08:42:04	000000320000003000000030000000380000002D00000030000000370000002D00000031000000380000002000000030000000380000003A00000034000000320000003A0000003000000034
 DROP TABLE t1;
 SET timestamp=0;
+SET time_zone=default;
 #
 # MDEV-5298 Illegal mix of collations on timestamp
 #
