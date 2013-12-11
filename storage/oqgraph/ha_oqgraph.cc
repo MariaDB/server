@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2009 Arjen G Lentz & Antony T Curtis for Open Query
+/* Copyright (C) 2007-2013 Arjen G Lentz & Antony T Curtis for Open Query
    Portions of this file copyright (C) 2000-2006 MySQL AB
 
    This program is free software; you can redistribute it and/or modify
@@ -16,156 +16,216 @@
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
-   Mk.II implementation by Antony Curtis & Arjen Lentz
+   v3 implementation by Antony Curtis, Arjen Lentz, Andrew McDonnell
    For more information, documentation, support, enhancement engineering,
-   and non-GPL licensing, see http://openquery.com/graph
-   or contact graph@openquery.com
-   For packaged binaries, see http://ourdelta.org
+   see http://openquery.com/graph or contact graph@openquery.com
    ======================================================================
 */
+
+#ifdef USE_PRAGMA_IMPLEMENTATION
+#pragma implementation				// gcc: Class implementation
+#endif
+
+#define MYSQL_SERVER	// to have THD
+#include <mysql/plugin.h>
+#include "sql_class.h"
+
+#include <stdarg.h>
+#include <stdio.h>
 
 #include <mysql_version.h>
 #include "ha_oqgraph.h"
 #include "graphcore.h"
 
-#define MYSQL_SERVER	// to have THD
-#include <mysql/plugin.h>
+#include <sql_error.h>
+#if MYSQL_VERSION_ID	>= 100004
+// Interim workaround for rename in sql_error.h from this point
+#define MYSQL_ERROR Sql_condition
+#endif
+
+#if MYSQL_VERSION_ID	< 100000
+// Allow compatibility with build for 5.5.32
+#define user_defined_key_parts key_parts
+#define open_table_error(a,b,c) open_table_error(a,b,c,0)
+#define enum_open_frm_error int
+#else
+#define enum_open_frm_error enum open_frm_error
+#endif
+
 #include "table.h"
 #include "field.h"
 #include "key.h"
+#include "unireg.h"
+#include "sql_class.h"
+
+#include "my_dbug.h"
+
+// Uncomment this for extra debug, but expect a performance hit in large queries
+#define VERBOSE_DEBUG
+#ifdef VERBOSE_DEBUG
+#else
+#undef DBUG_PRINT
+#define DBUG_PRINT(x ...)
+#endif
 
 #define OQGRAPH_STATS_UPDATE_THRESHOLD 10
 
 using namespace open_query;
 
+/* For the moment, include code to deal with integer latches.
+ * I have wrapped it with this #ifdef to make it easier to find and remove
+ * in the future.
+ */
+#define RETAIN_INT_LATCH_COMPATIBILITY
 
-struct oqgraph_info_st
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+/* In normal operation, no new tables using an integer latch can be created,
+ * but they can still be used if they already exist, to allow for upgrades.
+ * 
+ * However to ensure the legacy function is properly tested, we add a 
+ * server variable "oggraph_allow_create_integer_latch" which if set to TRUE
+ * allows new engine tables to be created with integer latches.
+ */
+
+static my_bool g_allow_create_integer_latch = FALSE;
+
+static MYSQL_SYSVAR_BOOL(allow_create_integer_latch, g_allow_create_integer_latch,
+  PLUGIN_VAR_RQCMDARG, "Allow creation of integer latches "
+  "so the upgrade logic can be tested", NULL, NULL, FALSE);
+#endif
+
+// Table of varchar latch operations.
+// In the future this needs to be refactactored to live somewhere else
+struct oqgraph_latch_op_table { const char *key; int latch; };
+static const oqgraph_latch_op_table latch_ops_table[] = {
+  { "", oqgraph::NO_SEARCH } ,  // suggested by Arjen, use empty string instead of no_search
+  { "dijkstras", oqgraph::DIJKSTRAS } ,
+  { "breadth_first", oqgraph::BREADTH_FIRST } , 
+  { NULL, -1 }  
+};
+
+static uint32 findLongestLatch() {
+  int len = 0;
+  for (const oqgraph_latch_op_table* k=latch_ops_table; k && k->key; k++) {
+    int s = strlen(k->key);
+    if (s > len) {
+      len = s;
+    }
+  }
+  return len;
+}
+
+const char *oqlatchToCode(int latch) {
+  for (const oqgraph_latch_op_table* k=latch_ops_table; k && k->key; k++) {
+    if (k->latch == latch) {
+      return k->key;
+    }
+  }
+  return "unknown";
+}
+
+struct oqgraph_table_option_struct
 {
-  THR_LOCK lock;
-  oqgraph_share *graph;
-  uint use_count;
-  uint key_stat_version;
-  uint records;
-  bool dropped;
-  char name[FN_REFLEN+1];
+  const char *table_name;
+
+  const char *origid; // name of the origin id column
+  const char *destid; // name of the target id column
+  const char *weight; // name of the weight column (optional)
+};
+
+#define ha_table_option_struct oqgraph_table_option_struct
+static const ha_create_table_option oqgraph_table_option_list[]=
+{
+  HA_TOPTION_STRING("data_table", table_name),
+  HA_TOPTION_STRING("origid", origid),
+  HA_TOPTION_STRING("destid", destid),
+  HA_TOPTION_STRING("weight", weight),
+  HA_TOPTION_END
 };
 
 static const char oqgraph_description[]=
-  "Open Query Graph Computation Engine, stored in memory "
+  "Open Query Graph Computation Engine "
   "(http://openquery.com/graph)";
 
-static HASH oqgraph_open_tables;
-static mysql_mutex_t LOCK_oqgraph;
-static bool oqgraph_init_done= 0;
+#if MYSQL_VERSION_ID < 50100
+static bool oqgraph_init();
 
-static uchar* get_key(const uchar *ptr, size_t *length, my_bool)
-{
-  const OQGRAPH_INFO *share= (const OQGRAPH_INFO*) ptr;
-  *length= strlen(share->name);
-  return (uchar*) share->name;
-}
-
-#ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key key_LOCK_oqgraph;
-static PSI_mutex_info all_mutexes[]=
-{
-  { &key_LOCK_oqgraph, "LOCK_oqgraph", PSI_FLAG_GLOBAL},
+handlerton oqgraph_hton= {
+  "OQGRAPH",
+  SHOW_OPTION_YES,
+  oqgraph_description,
+  DB_TYPE_OQGRAPH,
+  oqgraph_init,
+  0,       /* slot */
+  0,       /* savepoint size. */
+  NULL,    /* close_connection */
+  NULL,    /* savepoint */
+  NULL,    /* rollback to savepoint */
+  NULL,    /* release savepoint */
+  NULL,    /* commit */
+  NULL,    /* rollback */
+  NULL,    /* prepare */
+  NULL,    /* recover */
+  NULL,    /* commit_by_xid */
+  NULL,    /* rollback_by_xid */
+  NULL,    /* create_cursor_read_view */
+  NULL,    /* set_cursor_read_view */
+  NULL,    /* close_cursor_read_view */
+  HTON_NO_FLAGS
 };
 
-static void init_psi_keys()
-{
-  mysql_mutex_register("oqgraph", all_mutexes, array_elements(all_mutexes));
-}
+#define STATISTIC_INCREMENT(X) \
+statistic_increment(table->in_use->status_var.X, &LOCK_status)
+#define MOVE(X) move_field(X)
+#define RECORDS records
 #else
-#define init_psi_keys() /* no-op */
-#endif /* HAVE_PSI_INTERFACE */
+#define STATISTIC_INCREMENT(X) /* nothing */
+#define MOVE(X) move_field_offset(X)
+#define RECORDS stats.records
+#endif
+
+static bool oqgraph_init_done= 0;
 
 static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
                                        MEM_ROOT *mem_root)
 {
+  DBUG_PRINT( "oq-debug", ("oqgraph_create_handler"));
   return new (mem_root) ha_oqgraph(hton, table);
 }
 
+#if MYSQL_VERSION_ID >= 50100
 static int oqgraph_init(handlerton *hton)
 {
-  init_psi_keys();
-  if (mysql_mutex_init(key_LOCK_oqgraph, &LOCK_oqgraph, MY_MUTEX_INIT_FAST))
-    goto error;
-  if (my_hash_init(&oqgraph_open_tables, &my_charset_bin, 32, 0, 0,
-                get_key, 0, 0))
-  {
-    mysql_mutex_destroy(&LOCK_oqgraph);
-    goto error;
-  }
+#else
+static bool oqgraph_init()
+{
+  if (have_oqgraph == SHOW_OPTION_DISABLED)
+    return 1;
+#endif
+
+  DBUG_PRINT( "oq-debug", ("oqgraph_init"));
+
+
+#if MYSQL_VERSION_ID >= 50100
   hton->state= SHOW_OPTION_YES;
   hton->db_type= DB_TYPE_AUTOASSIGN;
   hton->create= oqgraph_create_handler;
-  hton->flags= HTON_NO_FLAGS;
+  hton->flags= HTON_ALTER_NOT_SUPPORTED;
+  // Prevent ALTER, because the core crashes when the user provides a
+  // non-existing backing store field for ORIGID, etc
+  // 'Fixes' bug 1134355  
+  // HTON_NO_FLAGS;
+  
+  hton->table_options= (ha_create_table_option*)oqgraph_table_option_list;
   oqgraph_init_done= TRUE;
   return 0;
-error:
-  return 1;
 }
 
 static int oqgraph_fini(void *)
 {
-  my_hash_free(&oqgraph_open_tables);
-  mysql_mutex_destroy(&LOCK_oqgraph);
+  DBUG_PRINT( "oq-debug", ("oqgraph_fini"));
   oqgraph_init_done= FALSE;
-  return 0;
-}
-
-static OQGRAPH_INFO *get_share(const char *name, TABLE *table=0)
-{
-  OQGRAPH_INFO *share;
-  uint length= strlen(name);
-
-  mysql_mutex_assert_owner(&LOCK_oqgraph);
-  if (!(share= (OQGRAPH_INFO*) my_hash_search(&oqgraph_open_tables,
-                                           (byte*) name, length)))
-  {
-    if (!table ||
-        !(share= new OQGRAPH_INFO))
-      return 0;
-    share->use_count= share->key_stat_version= share->records= 0;
-    share->dropped= 0;
-    strmov(share->name, name);
-    if (!(share->graph= oqgraph::create()))
-    {
-      delete share;
-      return 0;
-    }
-    if (my_hash_insert(&oqgraph_open_tables, (byte*) share))
-    {
-      oqgraph::free(share->graph);
-      delete share;
-      return 0;
-    }
-    thr_lock_init(&share->lock);
-  }
-  share->use_count++;
-  return share;
-}
-
-static int free_share(OQGRAPH_INFO *share, bool drop=0)
-{
-  mysql_mutex_assert_owner(&LOCK_oqgraph);
-  if (!share)
-    return 0;
-  if (drop)
-  {
-    share->dropped= true;
-    my_hash_delete(&oqgraph_open_tables, (byte*) share);
-  }
-  if (!--share->use_count)
-  {
-    if (share->dropped)
-    {
-      thr_lock_delete(&share->lock);
-      oqgraph::free(share->graph);
-      delete share;
-    }
-  }
+#endif
   return 0;
 }
 
@@ -197,7 +257,7 @@ static int error_code(int res)
  *
  *    ColName    Type      Attributes
  *    =======    ========  =============
- *    latch     SMALLINT  UNSIGNED NULL
+ *    latch     VARCHAR   NULL
  *    origid    BIGINT    UNSIGNED NULL
  *    destid    BIGINT    UNSIGNED NULL
  *    weight    DOUBLE    NULL
@@ -205,8 +265,12 @@ static int error_code(int res)
  *    linkid    BIGINT    UNSIGNED NULL
  *    =================================
  *
+ 
+  The latch may be a varchar of any length, however if it is too short to
+  hold the longest latch value, table creation is aborted.
+ 
   CREATE TABLE foo (
-    latch   SMALLINT  UNSIGNED NULL,
+    latch   VARCHAR(32)   NULL,
     origid  BIGINT    UNSIGNED NULL,
     destid  BIGINT    UNSIGNED NULL,
     weight  DOUBLE    NULL,
@@ -215,13 +279,35 @@ static int error_code(int res)
     KEY (latch, origid, destid) USING HASH,
     KEY (latch, destid, origid) USING HASH
   ) ENGINE=OQGRAPH
+    DATA_TABLE=bar
+    ORIGID=src_id
+    DESTID=tgt_id
+
+ Previously latch could be an integer.
+ We no longer allow new integer tables to be created, but we need to support
+ them if in use and this module is upgraded.
+ So when the table is opened we need to see whether latch is a varchar or
+ integer and change behaviour accordingly.
+ Note that if a table was constructed with varchar and an attempt is made to
+ select with latch=(some integer number) then MYSQL will autocast
+ and no data will be returned... so retaining compatibility does not and cannot 
+ extend to making old queries work with new style tables.
+
+  This method is only called on table creation, so here we ensure new tables
+  can only be created with varchar.
+  
+  This does present a small problem with regression testing;
+  so we work around that by using an system variable to allow
+  integer latch tables to be created.
 
  */
-static int oqgraph_check_table_structure (TABLE *table_arg)
+int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
 {
+  // Changed from static so we can do decent error reporting.
+
   int i;
   struct { const char *colname; int coltype; } skel[] = {
-    { "latch" , MYSQL_TYPE_SHORT },
+    { "latch" , MYSQL_TYPE_VARCHAR },
     { "origid", MYSQL_TYPE_LONGLONG },
     { "destid", MYSQL_TYPE_LONGLONG },
     { "weight", MYSQL_TYPE_DOUBLE },
@@ -230,28 +316,85 @@ static int oqgraph_check_table_structure (TABLE *table_arg)
   { NULL    , 0}
   };
 
-  DBUG_ENTER("ha_oqgraph::table_structure_ok");
+  DBUG_ENTER("oqgraph_check_table_structure");
+
+  DBUG_PRINT( "oq-debug", ("Checking structure."));
 
   Field **field= table_arg->field;
   for (i= 0; *field && skel[i].colname; i++, field++) {
+    DBUG_PRINT( "oq-debug", ("Column %d: name='%s', expected '%s'; type=%d, expected %d.", i, (*field)->field_name, skel[i].colname, (*field)->type(), skel[i].coltype));
+    bool badColumn = false;
+    bool isLatchColumn = strcmp(skel[i].colname, "latch")==0;
+    bool isStringLatch = true;
+
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+    if (g_allow_create_integer_latch && isLatchColumn && ((*field)->type() == MYSQL_TYPE_SHORT))
+    {
+      DBUG_PRINT( "oq-debug", ("Allowing integer latch anyway!"));
+      isStringLatch = false;
+      /* Make a warning */
+      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, 
+            ER_WARN_DEPRECATED_SYNTAX, ER(ER_WARN_DEPRECATED_SYNTAX),
+            "latch SMALLINT UNSIGNED NULL", "'latch VARCHAR(32) NULL'");
+    } else
+#endif      
+    if (isLatchColumn && ((*field)->type() == MYSQL_TYPE_SHORT))
+    {
+      DBUG_PRINT( "oq-debug", ("Allowing integer no more!"));
+      badColumn = true;
+      push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Integer latch is not supported for new tables.", i);
+    } else
     /* Check Column Type */
-    if ((*field)->type() != skel[i].coltype)
-      DBUG_RETURN(-1);
-    if (skel[i].coltype != MYSQL_TYPE_DOUBLE) {
+    if ((*field)->type() != skel[i].coltype) {
+      badColumn = true;
+      push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d is wrong type.", i);
+    }
+    
+    // Make sure latch column is large enough for all possible latch values
+    if (isLatchColumn && isStringLatch) {
+      if ((*field)->char_length() < findLongestLatch()) {
+        badColumn = true;
+        push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d is too short.", i);
+      }
+    }
+
+    if (!badColumn) if (skel[i].coltype != MYSQL_TYPE_DOUBLE && (!isLatchColumn || !isStringLatch)) {
       /* Check Is UNSIGNED */
-      if (!((*field)->flags & UNSIGNED_FLAG ))
-        DBUG_RETURN(-1);
+      if ( (!((*field)->flags & UNSIGNED_FLAG ))) {
+        badColumn = true;
+        push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d must be UNSIGNED.", i);
+      }
     }
     /* Check THAT  NOT NULL isn't set */
-    if ((*field)->flags & NOT_NULL_FLAG)
-      DBUG_RETURN(-1);
+    if (!badColumn) if ((*field)->flags & NOT_NULL_FLAG) {
+      badColumn = true;
+      push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d must be NULL.", i);
+    }
     /* Check the column name */
-    if (strcmp(skel[i].colname,(*field)->field_name))
+    if (!badColumn) if (strcmp(skel[i].colname,(*field)->field_name)) {
+      badColumn = true;
+      push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d must be named '%s'.", i, skel[i].colname);
+    }
+    if (badColumn) {
       DBUG_RETURN(-1);
+    }
   }
 
-  if (skel[i].colname || *field || !table_arg->key_info || !table_arg->s->keys)
+  if (skel[i].colname) {
+    push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Not enough columns.");
     DBUG_RETURN(-1);
+  }
+  if (*field) {
+    push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Too many columns.");
+    DBUG_RETURN(-1);
+  }
+
+  if (!table_arg->key_info || !table_arg->s->keys) {
+    push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "No vaild key specification.");
+    DBUG_RETURN(-1);
+  }
+
+  DBUG_PRINT( "oq-debug", ("Checking keys."));
 
   KEY *key= table_arg->key_info;
   for (uint i= 0; i < table_arg->s->keys; ++i, ++key)
@@ -259,8 +402,10 @@ static int oqgraph_check_table_structure (TABLE *table_arg)
     Field **field= table_arg->field;
     /* check that the first key part is the latch and it is a hash key */
     if (!(field[0] == key->key_part[0].field &&
-          HA_KEY_ALG_HASH == key->algorithm))
+          HA_KEY_ALG_HASH == key->algorithm)) {
+      push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Incorrect keys algorithm on key %d.", i);
       DBUG_RETURN(-1);
+    }
     if (key->user_defined_key_parts == 3)
     {
       /* KEY (latch, origid, destid) USING HASH */
@@ -269,10 +414,15 @@ static int oqgraph_check_table_structure (TABLE *table_arg)
             field[2] == key->key_part[2].field) &&
           !(field[1] == key->key_part[2].field &&
             field[2] == key->key_part[1].field))
+      {
+        push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Keys parts mismatch on key %d.", i);
         DBUG_RETURN(-1);
+      }
     }
-    else
+    else {
+      push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Too many key parts on key %d.", i);
       DBUG_RETURN(-1);
+    }
   }
 
   DBUG_RETURN(0);
@@ -283,10 +433,28 @@ static int oqgraph_check_table_structure (TABLE *table_arg)
 *****************************************************************************/
 
 ha_oqgraph::ha_oqgraph(handlerton *hton, TABLE_SHARE *table_arg)
-  : handler(hton, table_arg),
-    share(0), graph(0), records_changed(0), key_stat_version(0)
+  : handler(hton, table_arg)
+  , have_table_share(false)
+  , origid(NULL)
+  , destid(NULL)
+  , weight(NULL)
+  , graph_share(0)
+  , graph(0)
+  , error_message("", 0, &my_charset_latin1)
 { }
 
+ha_oqgraph::~ha_oqgraph()
+{ }
+
+static const char *ha_oqgraph_exts[] =
+{
+  NullS
+};
+
+const char **ha_oqgraph::bas_ext() const
+{
+  return ha_oqgraph_exts;
+}
 
 ulonglong ha_oqgraph::table_flags() const
 {
@@ -300,43 +468,294 @@ ulong ha_oqgraph::index_flags(uint inx, uint part, bool all_parts) const
   return HA_ONLY_WHOLE_INDEX | HA_KEY_SCAN_NOT_ROR;
 }
 
+bool ha_oqgraph::get_error_message(int error, String* buf)
+{
+  if (error < 0)
+  {
+    buf->append(error_message);
+    buf->c_ptr_safe();
+    error_message.length(0);
+  }
+  return false;
+}
+
+void ha_oqgraph::fprint_error(const char* fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  error_message.reserve(256);
+  size_t len = error_message.length();
+  len += vsnprintf(&error_message[len], 255, fmt, ap);
+  error_message.length(len);
+  va_end(ap);
+}
+
+/**
+ * Open the OQGRAPH engine 'table'.
+ *
+ * An OQGRAPH table is effectively similar to a view over the underlying backing table,
+ * attribute 'data_table', but where the result returned by a query depends on the
+ * value of the 'latch' column specified to the query.  Therefore, 
+ * when mysqld opens us, we need to open the corresponding backing table 'data_table'
+ *
+ */
 int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 {
-  mysql_mutex_lock(&LOCK_oqgraph);
-  if ((share = get_share(name, table)))
+  DBUG_ENTER("ha_oqgraph::open");
+
+  DBUG_PRINT( "oq-debug", ("open(name=%s,mode=%d,test_if_locked=%u)", name, mode, test_if_locked));
+
+  DBUG_ASSERT(!have_table_share);
+  DBUG_ASSERT(graph == NULL);
+
+  THD* thd = current_thd;
+  oqgraph_table_option_struct *options=
+    reinterpret_cast<oqgraph_table_option_struct*>(table->s->option_struct);
+
+  // Catch cases where table was not constructed properly
+  // Note - need to return -1 so our error text gets reported
+  if (!options) {
+    fprint_error("Invalid OQGRAPH backing store (null attributes)");
+    DBUG_RETURN(-1);
+  }
+  if (!options->table_name || !*options->table_name) {
+    fprint_error("Invalid OQGRAPH backing store (unspecified or empty data_table attribute)");
+    // if table_name if present but doesnt actually exist, we will fail out below
+    // when we call open_table_def(). same probably applies for the id fields
+    DBUG_RETURN(-1);
+  }
+  if (!options->origid || !*options->origid) {
+    fprint_error("Invalid OQGRAPH backing store (unspecified or empty origid attribute)");
+    DBUG_RETURN(-1);
+  }
+  if (!options->destid || !*options->destid) {
+    fprint_error("Invalid OQGRAPH backing store (unspecified or empty destid attribute)");
+    DBUG_RETURN(-1);
+  }
+  // weight is optional
+
+  error_message.length(0);
+
+  origid= destid= weight= 0;
+
+  init_tmp_table_share( thd, share, table->s->db.str, table->s->db.length, options->table_name, "");
+
+  // What I think this code is doing:
+  // * Our OQGRAPH table is `database_blah/name`
+  // * We point p --> /name (or if table happened to be simply `name`, to `name`, dont know if this is possible)
+  // * plen seems to be then set to length of `database_blah/options_data_table_name`
+  // * then we set share->normalized_path.str and share->path.str to `database_blah/options_data_table_name`
+  // * I assume that this verbiage is needed so  the memory used by share->path.str is set in the share mem root
+  // * because otherwise one could simply build the string more simply using malloc and pass it instead of "" above  
+  const char* p= strend(name)-1;
+  while (p > name && *p != '\\' && *p != '/')
+    --p;
+  size_t tlen= strlen(options->table_name);
+  size_t plen= (int)(p - name) + tlen + 1;
+
+  share->path.str= (char*)alloc_root(&share->mem_root, plen);
+  strmov(strnmov(share->path.str, name, (int)(p - name) + 1), options->table_name);
+
+  share->normalized_path.str= share->path.str;
+  share->path.length= share->normalized_path.length= plen;
+
+  DBUG_PRINT( "oq-debug", ("share:(normalized_path=%s,path.length=%zu)", 
+              share->normalized_path.str, share->path.length));
+
+  int open_def_flags = 0;
+#if MYSQL_VERSION_ID	>= 100002
+  open_def_flags = GTS_TABLE;
+#endif
+  // We want to open the definition for the given backing table
+  // Once can assume this loop exists because sometimes open_table_def() fails for a reason other than not exist
+  // and not 'exist' is valid, because we use ha_create_table_from_engine() to force it to 'exist'
+  // But, ha_create_table_from_engine() is removed in MariaDB 10.0.4 (?)
+  // Looking inside most recent ha_create_table_from_engine(), it also calls open_table_def() so maybe this whole thing is redundant...
+  // Or perhaps it is needed if the backing store is a temporary table or maybe if has no records as yet...?
+  // Lets try without this, and see if all the tests pass...
+  while (open_table_def(thd, share, open_def_flags))
   {
-    ref_length= oqgraph::sizeof_ref;
+#if MYSQL_VERSION_ID	< 100002
+    if (thd->is_error() && thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE)
+    {
+      free_table_share(share);
+      DBUG_RETURN(thd->stmt_da->sql_errno());
+    }
+
+    if (ha_create_table_from_engine(thd, table->s->db.str, options->table_name))
+    {
+      free_table_share(share);
+      DBUG_RETURN(thd->stmt_da->sql_errno());
+    }
+    /*mysql_reset_errors(thd, 1);*/
+    thd->clear_error();
+    continue;
+#else
+    open_table_error(share, OPEN_FRM_OPEN_ERROR, ENOENT);
+    free_table_share(share);
+    if (thd->is_error()) 
+      DBUG_RETURN(thd->get_stmt_da()->sql_errno());
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+#endif
   }
 
-  if (share)
+
+  if (int err= share->error)
   {
-    /* Initialize variables for the opened table */
-    thr_lock_data_init(&share->lock, &lock, NULL);
-
-    graph= oqgraph::create(share->graph);
-
-    /*
-      We cannot run update_key_stats() here because we do not have a
-      lock on the table. The 'records' count might just be changed
-      temporarily at this moment and we might get wrong statistics (Bug
-      #10178). Instead we request for update. This will be done in
-      ha_oqgraph::info(), which is always called before key statistics are
-      used.
-    */
-    key_stat_version= share->key_stat_version-1;
+    open_table_error(share, share->error, share->open_errno);
+    free_table_share(share);
+    DBUG_RETURN(err);
   }
-  mysql_mutex_unlock(&LOCK_oqgraph);
 
-  return (share ? 0 : 1);
+  if (share->is_view)
+  {
+    free_table_share(share);
+    fprint_error("VIEWs are not supported for an OQGRAPH backing store.");
+    DBUG_RETURN(-1);
+  }
+
+  if (enum_open_frm_error err= open_table_from_share(thd, share, "",
+                            (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
+                                    HA_GET_INDEX | HA_TRY_READ_ONLY),
+                            READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD,
+                            thd->open_options, edges, FALSE))
+  {
+    open_table_error(share, err, EMFILE); // NOTE - EMFILE is probably bogus, it reports as too many open files (!)
+    free_table_share(share);
+    DBUG_RETURN(-1);
+  }
+
+
+  if (!edges->file)
+  {
+    fprint_error("Some error occurred opening table '%s'", options->table_name);
+    free_table_share(share);
+    DBUG_RETURN(-1);
+  }
+
+  edges->reginfo.lock_type= TL_READ;
+
+  edges->tablenr= thd->current_tablenr++;
+  edges->status= STATUS_NO_RECORD;
+  edges->file->ha_start_of_new_statement();
+  edges->file->ft_handler= 0;
+  edges->pos_in_table_list= 0;
+  edges->clear_column_bitmaps();
+  bfill(table->record[0], table->s->null_bytes, 255);
+  bfill(table->record[1], table->s->null_bytes, 255);
+
+  // We expect fields origid, destid and optionally weight
+  origid= destid= weight= 0;
+
+  for (Field **field= edges->field; *field; ++field)
+  {
+    if (strcmp(options->origid, (*field)->field_name))
+      continue;
+    if ((*field)->cmp_type() != INT_RESULT ||
+        !((*field)->flags & NOT_NULL_FLAG))
+    {
+      fprint_error("Column '%s.%s' (origid) is not a not-null integer type",
+          options->table_name, options->origid);
+      closefrm(edges, 0);
+      free_table_share(share);
+      DBUG_RETURN(-1);
+    }
+    origid = *field;
+    break;
+  }
+
+  if (!origid) {
+    fprint_error("Invalid OQGRAPH backing store ('%s.origid' attribute not set to a valid column of '%s')", p+1, options->table_name);
+    closefrm(edges, 0);
+    free_table_share(share);
+    DBUG_RETURN(-1);
+  }
+
+
+  for (Field **field= edges->field; *field; ++field)
+  {
+    if (strcmp(options->destid, (*field)->field_name))
+      continue;
+    if ((*field)->type() != origid->type() ||
+        !((*field)->flags & NOT_NULL_FLAG))
+    {
+      fprint_error("Column '%s.%s' (destid) is not a not-null integer type or is a different type to origid attribute.",
+          options->table_name, options->destid);
+      closefrm(edges, 0);
+      free_table_share(share);
+      DBUG_RETURN(-1);
+    }
+    destid = *field;
+    break;
+  }
+
+  if (!destid) {
+    fprint_error("Invalid OQGRAPH backing store ('%s.destid' attribute not set to a valid column of '%s')", p+1, options->table_name);
+    closefrm(edges, 0);
+    free_table_share(share);
+    DBUG_RETURN(-1);
+  }
+  
+  // Make sure origid column != destid column
+  if (strcmp( origid->field_name, destid->field_name)==0) {
+    fprint_error("Invalid OQGRAPH backing store ('%s.destid' attribute set to same column as origid attribute)", p+1, options->table_name);
+    closefrm(edges, 0);
+    free_table_share(share);
+    DBUG_RETURN(-1);
+  }
+
+  for (Field **field= edges->field; options->weight && *field; ++field)
+  {
+    if (strcmp(options->weight, (*field)->field_name))
+      continue;
+    if ((*field)->result_type() != REAL_RESULT ||
+        !((*field)->flags & NOT_NULL_FLAG))
+    {
+      fprint_error("Column '%s.%s' (weight) is not a not-null real type",
+          options->table_name, options->weight);
+      closefrm(edges, 0);
+      free_table_share(share);
+      DBUG_RETURN(-1);
+    }
+    weight = *field;
+    break;
+  }
+
+  if (!weight && options->weight) {
+    fprint_error("Invalid OQGRAPH backing store ('%s.weight' attribute not set to a valid column of '%s')", p+1, options->table_name);
+    closefrm(edges, 0);
+    free_table_share(share);
+    DBUG_RETURN(-1);
+  }
+
+  if (!(graph_share = oqgraph::create(edges, origid, destid, weight)))
+  {
+    fprint_error("Unable to create graph instance.");
+    closefrm(edges, 0);
+    free_table_share(share);
+    DBUG_RETURN(-1);
+  }
+  ref_length= oqgraph::sizeof_ref;
+
+  graph = oqgraph::create(graph_share);
+  have_table_share = true;
+
+  DBUG_RETURN(0);
 }
 
 int ha_oqgraph::close(void)
 {
-  mysql_mutex_lock(&LOCK_oqgraph);
   oqgraph::free(graph); graph= 0;
-  int res= free_share(share);
-  mysql_mutex_unlock(&LOCK_oqgraph);
-  return error_code(res);
+  oqgraph::free(graph_share); graph_share= 0;
+
+  if (have_table_share)
+  {
+    if (edges->file)
+      closefrm(edges, 0);
+    free_table_share(share);
+    have_table_share = false;
+  }
+  return 0;
 }
 
 void ha_oqgraph::update_key_stats()
@@ -352,217 +771,42 @@ void ha_oqgraph::update_key_stats()
         key->rec_per_key[key->user_defined_key_parts-1]= 1;
       else
       {
-        unsigned vertices= graph->vertices_count();
-        unsigned edges= graph->edges_count();
-        uint no_records= vertices ? 2 * (edges + vertices) / vertices : 2;
-        if (no_records < 2)
+        //unsigned vertices= graph->vertices_count();
+        //unsigned edges= graph->edges_count();
+        //uint no_records= vertices ? 2 * (edges + vertices) / vertices : 2;
+        //if (no_records < 2)
+        uint
           no_records= 2;
         key->rec_per_key[key->user_defined_key_parts-1]= no_records;
       }
     }
   }
-  records_changed= 0;
   /* At the end of update_key_stats() we can proudly claim they are OK. */
-  key_stat_version= share->key_stat_version;
+  //skey_stat_version= share->key_stat_version;
 }
 
 
 int ha_oqgraph::write_row(byte * buf)
 {
-  int res= oqgraph::MISC_FAIL;
-  Field ** const field= table->field;
-
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
-  my_ptrdiff_t ptrdiff= buf - table->record[0];
-
-  if (ptrdiff)
-  {
-    field[1]->move_field_offset(ptrdiff);
-    field[2]->move_field_offset(ptrdiff);
-    field[3]->move_field_offset(ptrdiff);
-  }
-
-  if (!field[1]->is_null() && !field[2]->is_null())
-  {
-    VertexID orig_id= (VertexID) field[1]->val_int();
-    VertexID dest_id= (VertexID) field[2]->val_int();
-    EdgeWeight weight= 1;
-
-    if (!field[3]->is_null())
-      weight= (EdgeWeight) field[3]->val_real();
-
-    if (!(res= graph->insert_edge(orig_id, dest_id, weight, replace_dups)))
-    {
-      ++records_changed;
-      share->records++;
-    }
-    if (res == oqgraph::DUPLICATE_EDGE && ignore_dups && !insert_dups)
-      res= oqgraph::OK;
-  }
-
-  if (ptrdiff)
-  {
-    field[1]->move_field_offset(-ptrdiff);
-    field[2]->move_field_offset(-ptrdiff);
-    field[3]->move_field_offset(-ptrdiff);
-  }
-  dbug_tmp_restore_column_map(table->read_set, old_map);
-
-  if (!res && records_changed*OQGRAPH_STATS_UPDATE_THRESHOLD > share->records)
-  {
-    /*
-       We can perform this safely since only one writer at the time is
-       allowed on the table.
-    */
-    share->key_stat_version++;
-  }
-
-  return error_code(res);
+  return HA_ERR_TABLE_READONLY;
 }
 
 int ha_oqgraph::update_row(const byte * old, byte * buf)
 {
-  int res= oqgraph::MISC_FAIL;
-  VertexID orig_id, dest_id;
-  EdgeWeight weight= 1;
-  Field **field= table->field;
-
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
-  my_ptrdiff_t ptrdiff= buf - table->record[0];
-
-  if (ptrdiff)
-  {
-    field[0]->move_field_offset(ptrdiff);
-    field[1]->move_field_offset(ptrdiff);
-    field[2]->move_field_offset(ptrdiff);
-    field[3]->move_field_offset(ptrdiff);
-  }
-
-  if (inited == INDEX || inited == RND)
-  {
-    VertexID *origp= 0, *destp= 0;
-    EdgeWeight *weightp= 0;
-    if (!field[1]->is_null())
-      *(origp= &orig_id)= (VertexID) field[1]->val_int();
-    if (!field[2]->is_null())
-      *(destp= &dest_id)= (VertexID) field[2]->val_int();
-    if (!field[3]->is_null())
-      *(weightp= &weight)= (EdgeWeight) field[3]->val_real();
-
-    my_ptrdiff_t ptrdiff2= old - buf;
-
-    field[0]->move_field_offset(ptrdiff2);
-    field[1]->move_field_offset(ptrdiff2);
-    field[2]->move_field_offset(ptrdiff2);
-    field[3]->move_field_offset(ptrdiff2);
-
-    if (field[0]->is_null())
-    {
-      if (!origp == field[1]->is_null() &&
-          *origp == (VertexID) field[1]->val_int())
-        origp= 0;
-      if (!destp == field[2]->is_null() &&
-          *destp == (VertexID) field[2]->val_int())
-        origp= 0;
-      if (!weightp == field[3]->is_null() &&
-          *weightp == (VertexID) field[3]->val_real())
-        weightp= 0;
-
-      if (!(res= graph->modify_edge(oqgraph::current_row(),
-                                    origp, destp, weightp, replace_dups)))
-        ++records_changed;
-      else if (ignore_dups && res == oqgraph::DUPLICATE_EDGE)
-        res= oqgraph::OK;
-    }
-
-    field[0]->move_field_offset(-ptrdiff2);
-    field[1]->move_field_offset(-ptrdiff2);
-    field[2]->move_field_offset(-ptrdiff2);
-    field[3]->move_field_offset(-ptrdiff2);
-  }
-
-  if (ptrdiff)
-  {
-    field[0]->move_field_offset(-ptrdiff);
-    field[1]->move_field_offset(-ptrdiff);
-    field[2]->move_field_offset(-ptrdiff);
-    field[3]->move_field_offset(-ptrdiff);
-  }
-  dbug_tmp_restore_column_map(table->read_set, old_map);
-
-  if (!res && records_changed*OQGRAPH_STATS_UPDATE_THRESHOLD > share->records)
-  {
-    /*
-       We can perform this safely since only one writer at the time is
-       allowed on the table.
-    */
-    share->key_stat_version++;
-  }
-  return error_code(res);
+  return HA_ERR_TABLE_READONLY;
 }
 
 int ha_oqgraph::delete_row(const byte * buf)
 {
-  int res= oqgraph::EDGE_NOT_FOUND;
-  Field **field= table->field;
-
-  if (inited == INDEX || inited == RND)
-  {
-    if ((res= graph->delete_edge(oqgraph::current_row())) == oqgraph::OK)
-    {
-      ++records_changed;
-      share->records--;
-    }
-  }
-  if (res != oqgraph::OK)
-  {
-    my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
-    my_ptrdiff_t ptrdiff= buf - table->record[0];
-
-    if (ptrdiff)
-    {
-      field[0]->move_field_offset(ptrdiff);
-      field[1]->move_field_offset(ptrdiff);
-      field[2]->move_field_offset(ptrdiff);
-    }
-
-    if (field[0]->is_null() && !field[1]->is_null() && !field[2]->is_null())
-    {
-      VertexID orig_id= (VertexID) field[1]->val_int();
-      VertexID dest_id= (VertexID) field[2]->val_int();
-
-      if ((res= graph->delete_edge(orig_id, dest_id)) == oqgraph::OK)
-      {
-        ++records_changed;
-        share->records--;
-      }
-    }
-
-    if (ptrdiff)
-    {
-      field[0]->move_field_offset(-ptrdiff);
-      field[1]->move_field_offset(-ptrdiff);
-      field[2]->move_field_offset(-ptrdiff);
-    }
-    dbug_tmp_restore_column_map(table->read_set, old_map);
-  }
-
-  if (!res && table->s->tmp_table == NO_TMP_TABLE &&
-      records_changed*OQGRAPH_STATS_UPDATE_THRESHOLD > share->records)
-  {
-    /*
-       We can perform this safely since only one writer at the time is
-       allowed on the table.
-    */
-    share->key_stat_version++;
-  }
-  return error_code(res);
+  return HA_ERR_TABLE_READONLY;
 }
 
 int ha_oqgraph::index_read(byte * buf, const byte * key, uint key_len,
 			enum ha_rkey_function find_flag)
 {
   DBUG_ASSERT(inited==INDEX);
+  // reset before we have a cursor, so the memory is not junk, avoiding the sefgault in position() when select with order by (bug #1133093)
+  graph->init_row_ref(ref);
   return index_read_idx(buf, active_index, key, key_len, find_flag);
 }
 
@@ -577,6 +821,56 @@ int ha_oqgraph::index_next_same(byte *buf, const byte *key, uint key_len)
   return error_code(res);
 }
 
+#define LATCH_WAS CODE 0
+#define LATCH_WAS_NUMBER 1
+
+/**
+ * This function parse the VARCHAR(n) latch specification into an integer operation specification compatible with 
+ * v1-v3 oqgraph::search().
+ *
+ * If the string contains a number, this is directly converted from a decimal integer.
+ *
+ * Otherwise, a lookup table is used to convert from a string constant.
+ *
+ * It is anticipated that this function (and this file and class oqgraph) will be refactored to do this in a nicer way.
+ *
+ * FIXME: For the time being, only handles latin1 character set.
+ * @return false if parsing fails.
+ */   
+static int parse_latch_string_to_legacy_int(const String& value, int &latch)
+{
+  // Attempt to parse as exactly an integer first.
+  
+  // Note: we are strict about not having whitespace, or garbage characters,
+  // so that the query result gets returned properly: 
+  // Because of the way the result is built and used in fill_result,
+  // we have to exactly return in the latch column what was in the latch= clause
+  // otherwise the rows get filtered out by the query optimiser.
+  
+  // For the same reason, we cant simply treat latch='' as NO_SEARCH either.
+  
+  String latchValue = value;
+  char *eptr;
+  unsigned long int v = strtoul( latchValue.c_ptr_safe(), &eptr, 10);
+  if (!*eptr) {
+    // we had an unsigned number; remember 0 is valid too ('vertices' aka 'no_search'))
+    if (v >= 0 && v < oqgraph::NUM_SEARCH_OP) {
+      latch = v;
+      return true;
+    }
+    // fall through  and test as a string (although it is unlikely we might have an operator starting with a number)    
+  }
+
+  const oqgraph_latch_op_table* entry = latch_ops_table;
+  for ( ; entry->key ; entry++) {
+    if (0 == strncmp(entry->key, latchValue.c_ptr_safe(), latchValue.length())) {
+      latch = entry->latch;
+      return true;
+    }
+  }
+  return false;
+}
+
 int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
 			    uint key_len, enum ha_rkey_function find_flag)
 {
@@ -586,7 +880,7 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
   VertexID orig_id, dest_id;
   int latch;
   VertexID *orig_idp=0, *dest_idp=0;
-  int *latchp=0;
+  int* latchp=0;
   open_query::row row;
 
   bmove_align(buf, table->s->default_values, table->s->reclength);
@@ -602,9 +896,30 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
     field[2]->move_field_offset(ptrdiff);
   }
 
+  String latchFieldValue;
   if (!field[0]->is_null())
   {
-    latch= (int) field[0]->val_int();
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+    if (field[0]->type() == MYSQL_TYPE_SHORT) {
+      latch= (int) field[0]->val_int();
+    } else 
+#endif
+    {
+      field[0]->val_str(&latchFieldValue, &latchFieldValue);
+      if (!parse_latch_string_to_legacy_int(latchFieldValue, latch)) {
+        // Invalid, so warn & fail
+        push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS, ER(ER_WRONG_ARGUMENTS), "OQGRAPH latch");
+        table->status = STATUS_NOT_FOUND;
+	if (ptrdiff) /* fixes debug build assert - should be a tidier way to do this */
+	{
+	  field[0]->move_field_offset(-ptrdiff);
+	  field[1]->move_field_offset(-ptrdiff);
+	  field[2]->move_field_offset(-ptrdiff);
+	}
+	dbug_tmp_restore_column_map(table->read_set, old_map);
+        return error_code(oqgraph::NO_MORE_DATA);
+      }
+    }
     latchp= &latch;
   }
 
@@ -628,10 +943,28 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
   }
   dbug_tmp_restore_column_map(table->read_set, old_map);
 
+  // Keep the latch around so we can use it in the query result later -
+  // See fill_record().
+  // at the moment our best option is to associate it with the graph
+  // so we pass the string now.
+  // In the future we should refactor parse_latch_string_to_legacy_int()
+  // into oqgraph instead.
+  if (latchp)
+    graph->retainLatchFieldValue(latchFieldValue.c_ptr_safe());
+  else
+    graph->retainLatchFieldValue(NULL);
+    
+  
+  DBUG_PRINT( "oq-debug", ("index_read_idx ::>> search(latch:%s,%ld,%ld)", 
+          oqlatchToCode(latch), orig_idp?(long)*orig_idp:-1, dest_idp?(long)*dest_idp:-1));
+  
   res= graph->search(latchp, orig_idp, dest_idp);
 
-  if (!res && !(res= graph->fetch_row(row)))
+  DBUG_PRINT( "oq-debug", ("search() = %d", res));
+
+  if (!res && !(res= graph->fetch_row(row))) {
     res= fill_record(buf, row);
+  }
   table->status = res ? STATUS_NOT_FOUND : 0;
   return error_code(res);
 }
@@ -655,11 +988,28 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
     field[5]->move_field_offset(ptrdiff);
   }
 
+  DBUG_PRINT( "oq-debug", ("fill_record() ::>> %s,%ld,%ld,%lf,%ld,%ld", 
+          row.latch_indicator ? oqlatchToCode((int)row.latch) : "-",
+          row.orig_indicator ? (long)row.orig : -1,
+          row.dest_indicator ? (long)row.dest : -1,
+          row.weight_indicator ? (double)row.weight : -1,
+          row.seq_indicator ? (long)row.seq : -1,
+          row.link_indicator ? (long)row.link : -1));
+
   // just each field specifically, no sense iterating
   if (row.latch_indicator)
   {
     field[0]->set_notnull();
-    field[0]->store((longlong) row.latch, 0);
+    // Convert the latch back to a varchar32
+    if (field[0]->type() == MYSQL_TYPE_VARCHAR) {
+      field[0]->store(row.latchStringValue, row.latchStringValueLen, &my_charset_latin1);
+    }
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+    else if (field[0]->type() == MYSQL_TYPE_SHORT) {
+      field[0]->store((longlong) row.latch, 0);    
+    }
+#endif
+    
   }
 
   if (row.orig_indicator)
@@ -708,13 +1058,16 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
 
 int ha_oqgraph::rnd_init(bool scan)
 {
+  edges->file->info(HA_STATUS_VARIABLE|HA_STATUS_CONST); // Fix for bug 1195735, hang after truncate table - ensure we operate with up to date count
+  edges->prepare_for_position();
   return error_code(graph->random(scan));
 }
 
 int ha_oqgraph::rnd_next(byte *buf)
 {
   int res;
-  open_query::row row;
+  open_query::row row = {};
+
   if (!(res= graph->fetch_row(row)))
     res= fill_record(buf, row);
   table->status= res ? STATUS_NOT_FOUND: 0;
@@ -743,65 +1096,40 @@ int ha_oqgraph::cmp_ref(const byte *ref1, const byte *ref2)
 
 int ha_oqgraph::info(uint flag)
 {
-  stats.records= graph->vertices_count() + graph->edges_count();
+  RECORDS= graph->edges_count();
+
   /*
     If info() is called for the first time after open(), we will still
     have to update the key statistics. Hoping that a table lock is now
     in place.
   */
-  if (key_stat_version != share->key_stat_version)
-    update_key_stats();
+//  if (key_stat_version != share->key_stat_version)
+  //  update_key_stats();
   return 0;
 }
 
 int ha_oqgraph::extra(enum ha_extra_function operation)
 {
-  switch (operation)
-  {
-  case HA_EXTRA_IGNORE_DUP_KEY:
-    ignore_dups= true;
-    break;
-  case HA_EXTRA_NO_IGNORE_DUP_KEY:
-    ignore_dups= false;
-    insert_dups= false;
-    break;
-  case HA_EXTRA_WRITE_CAN_REPLACE:
-    replace_dups= true;
-    break;
-  case HA_EXTRA_WRITE_CANNOT_REPLACE:
-    replace_dups= false;
-    break;
-  case HA_EXTRA_INSERT_WITH_UPDATE:
-    insert_dups= true;
-    break;
-  default:
-    break;
-  }
-  return 0;
+  return edges->file->extra(operation);
 }
 
 int ha_oqgraph::delete_all_rows()
 {
-  int res;
-  if (!(res= graph->delete_all()))
-  {
-    share->records= 0;
-  }
-
-  if (!res && table->s->tmp_table == NO_TMP_TABLE)
-  {
-    /*
-       We can perform this safely since only one writer at the time is
-       allowed on the table.
-    */
-    share->key_stat_version++;
-  }
-  return error_code(res);
+  return HA_ERR_TABLE_READONLY;
 }
 
 int ha_oqgraph::external_lock(THD *thd, int lock_type)
 {
-  return 0;					// No external locking
+  // This method is also called to _unlock_ (lock_type == F_UNLCK)
+  // Which means we need to release things before we let the underlying backing table lock go...
+  if (lock_type == F_UNLCK) {
+    // If we have an index open on the backing table, we need to close it out here
+    // this means destroying any open cursor first.
+    // Then we can let the unlock go through to the backing table
+    graph->release_cursor();
+  }
+
+  return edges->file->ha_external_lock(thd, lock_type);
 }
 
 
@@ -809,10 +1137,7 @@ THR_LOCK_DATA **ha_oqgraph::store_lock(THD *thd,
 				       THR_LOCK_DATA **to,
 				       enum thr_lock_type lock_type)
 {
-  if (lock_type != TL_IGNORE && lock.type == TL_UNLOCK)
-    lock.type=lock_type;
-  *to++= &lock;
-  return to;
+  return edges->file->store_lock(thd, to, lock_type);
 }
 
 /*
@@ -820,29 +1145,13 @@ THR_LOCK_DATA **ha_oqgraph::store_lock(THD *thd,
   not when doing a CREATE on the table.
 */
 
-int ha_oqgraph::delete_table(const char *name)
+int ha_oqgraph::delete_table(const char *)
 {
-  int res= 0;
-  OQGRAPH_INFO *share;
-  mysql_mutex_lock(&LOCK_oqgraph);
-  if ((share= get_share(name)))
-  {
-    res= free_share(share, true);
-  }
-  mysql_mutex_unlock(&LOCK_oqgraph);
-  return error_code(res);
+  return 0;
 }
 
-int ha_oqgraph::rename_table(const char * from, const char * to)
+int ha_oqgraph::rename_table(const char *, const char *)
 {
-  mysql_mutex_lock(&LOCK_oqgraph);
-  if (OQGRAPH_INFO *share= get_share(from))
-  {
-    strmov(share->name, to);
-    my_hash_update(&oqgraph_open_tables, (byte*) share,
-                (byte*) from, strlen(from));
-  }
-  mysql_mutex_unlock(&LOCK_oqgraph);
   return 0;
 }
 
@@ -851,6 +1160,15 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
                                   key_range *max_key)
 {
   KEY *key=table->key_info+inx;
+#ifdef VERBOSE_DEBUG  
+  {
+    String temp;
+    key->key_part[0].field->val_str(&temp);  
+    temp.c_ptr_safe();
+    DBUG_PRINT( "oq-debug", ("records_in_range ::>> inx=%u", inx));
+    DBUG_PRINT( "oq-debug", ("records_in_range ::>> key0=%s.", temp.c_ptr())); // for some reason when I had  ...inx=%u key=%s", inx, temp.c_ptr_safe()) it printed nothing ...
+  }
+#endif
 
   if (!min_key || !max_key ||
       min_key->length != max_key->length ||
@@ -858,23 +1176,88 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
       min_key->flag != HA_READ_KEY_EXACT ||
       max_key->flag != HA_READ_AFTER_KEY)
   {
-    if (min_key->length == key->key_part[0].store_length)
+    if (min_key->length == key->key_part[0].store_length && !key->key_part[0].field->is_null()) /* ensure select * from x where latch is null is consistent with no latch */
     {
-      // If latch is not null and equals 0, return # nodes
-      DBUG_ASSERT(key->key_part[0].store_length == 3);
-      if (key->key_part[0].null_bit && !min_key->key[0] &&
-          !min_key->key[1] && !min_key->key[2])
-        return graph->vertices_count();
+      // If latch is not null and equals 0, return # nodes      
+        
+      // How to decode the key,  For VARCHAR(32), from empirical observation using the debugger
+      // and information gleaned from:
+      //   http://grokbase.com/t/mysql/internals/095h6ch1q7/parsing-key-information
+      //   http://dev.mysql.com/doc/internals/en/support-for-indexing.html#parsing-key-information
+      //   comments in opt_range.cc
+      // POSSIBLY ONLY VALID FOR INNODB!
+        
+      // For a the following query:
+      //     SELECT * FROM graph2 WHERE latch = 'breadth_first' AND origid = 123 AND weight = 1;
+      // key->key_part[0].field->ptr  is the value of latch, which is a 1-byte string length followed by the value ('breadth_first')
+      // key->key_part[2].field->ptr  is the value of origid (123)
+      // key->key_part[1].field->ptr  is the value of destid which is not specified in the query so we ignore it in this case
+      // so given this ordering we seem to be using the second key specified in create table (aka KEY (latch, destid, origid) USING HASH ))
+      
+      // min_key->key[0] is the 'null' bit and contains 0 in this instance
+      // min_key->key[1..2] seems to be 16-bit string length
+      // min_key->key[3..34] hold the varchar(32) value which is that specified in the query
+      // min_key->key[35] is the null bit of origid
+      // min_key->key[36..43] is the value in the query (123)
+      
+      // max_key->key[0] is the ;null' bit and contains 0 in this instance
+      // max_key->key[1..2] seems to be 16-bit string length
+      // max_key->key[3..34] hold the varchar(32) value which is that specified in the query
+      // max_key->key[35] is the null bit of origid
+      // max_key->key[36..43] is the value in the query (123)
+
+      // But after knowing all that, all we care about is the latch value
+      
+      // First draft - ignore most of the stuff, but will likely break if query altered
+      
+      // It turns out there is a better way though, to access the string,
+      // as demonstrated in key_unpack() of sql/key.cc
+      String latchCode;
+      int latch = -1;
+      if (key->key_part[0].field->type() == MYSQL_TYPE_VARCHAR) {
+
+        key->key_part[0].field->val_str(&latchCode);
+        
+        parse_latch_string_to_legacy_int( latchCode, latch);
+      }
+      
+      // what if someone did something dumb, like mismatching the latches?
+      
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+      else if (key->key_part[0].field->type() == MYSQL_TYPE_SHORT) {
+        // If not null, and zero ...
+        // Note, the following code relies on the fact that the three bytes
+        // at beginning of min_key just happen to be the null indicator and the
+        // 16-bit value of the latch ...
+        // this will fall through if the user alter-tabled to not null
+        if (key->key_part[0].null_bit && !min_key->key[0] &&
+          !min_key->key[1] && !min_key->key[2]) {
+          latch = oqgraph::NO_SEARCH;
+        }
+      }
+#endif     
+      if (latch != oqgraph::NO_SEARCH) {
+        // Invalid key type... 
+        // Don't assert, in case the user used alter table on us
+        return HA_POS_ERROR;			// Can only use exact keys
+      }
+      unsigned N = graph->vertices_count();
+      DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u (vertices)", N));
+      return N;
     }
     return HA_POS_ERROR;			// Can only use exact keys
   }
 
-  if (stats.records <= 1)
+  if (stats.records <= 1) {
+    DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u (stats)", (unsigned)stats.records));
     return stats.records;
+  }
 
   /* Assert that info() did run. We need current statistics here. */
-  DBUG_ASSERT(key_stat_version == share->key_stat_version);
-  ha_rows result= key->rec_per_key[key->user_defined_key_parts-1];
+  //DBUG_ASSERT(key_stat_version == share->key_stat_version);
+  //ha_rows result= key->rec_per_key[key->user_defined_key_parts-1];
+  ha_rows result= 10;
+  DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u", (unsigned)result));
 
   return result;
 }
@@ -883,24 +1266,18 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
 int ha_oqgraph::create(const char *name, TABLE *table_arg,
 		    HA_CREATE_INFO *create_info)
 {
-  int res = -1;
-  OQGRAPH_INFO *share;
+  oqgraph_table_option_struct *options=
+    reinterpret_cast<oqgraph_table_option_struct*>(table_arg->s->option_struct);
 
-  mysql_mutex_lock(&LOCK_oqgraph);
-  if ((share= get_share(name)))
-  {
-    free_share(share);
-  }
-  else
-  {
-    if (!oqgraph_check_table_structure(table_arg))
-      res= 0;;
-  }
-  mysql_mutex_unlock(&LOCK_oqgraph);
+	DBUG_ENTER("ha_oqgraph::create");
+  DBUG_PRINT( "oq-debug", ("create(name=%s)", name));
 
-  if (this->share)
-    info(HA_STATUS_NO_LOCK | HA_STATUS_CONST | HA_STATUS_VARIABLE);
-  return error_code(res);
+  if (oqgraph_check_table_structure(table_arg)) {
+    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
+  }
+
+  (void)(options);
+  DBUG_RETURN(0);
 }
 
 
@@ -912,20 +1289,41 @@ void ha_oqgraph::update_create_info(HA_CREATE_INFO *create_info)
 struct st_mysql_storage_engine oqgraph_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
+extern "C" const char* const oqgraph_boost_version;
+extern "C" const char* const oqgraph_judy_version;
+
+static struct st_mysql_show_var oqgraph_status[]=
+{
+  { "OQGraph_Boost_Version", (char*) &oqgraph_boost_version, SHOW_CHAR_PTR },
+  /*{ "OQGraph_Judy_Version",  (char*) &oqgraph_judy_version, SHOW_CHAR_PTR },*/
+  { 0, 0, SHOW_UNDEF }
+};
+
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+static struct st_mysql_sys_var* oqgraph_sysvars[]= {
+  MYSQL_SYSVAR(allow_create_integer_latch),
+  0
+};
+#endif
+
 maria_declare_plugin(oqgraph)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &oqgraph_storage_engine,
   "OQGRAPH",
-  "Arjen Lentz & Antony T Curtis, Open Query",
+  "Arjen Lentz & Antony T Curtis, Open Query, and Andrew McDonnell",
   oqgraph_description,
   PLUGIN_LICENSE_GPL,
   (int (*)(void*)) oqgraph_init, /* Plugin Init                  */
   oqgraph_fini,               /* Plugin Deinit                   */
-  0x0200,                     /* Version: 2.0                    */
-  NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
-  "2.0",
+  0x0300,                     /* Version: 3s.0                    */
+  oqgraph_status,             /* status variables                */
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+  oqgraph_sysvars,                       /* system variables                */
+#else
+  NULL,
+#endif	  
+  "3.0",
   MariaDB_PLUGIN_MATURITY_BETA
 }
 maria_declare_plugin_end;

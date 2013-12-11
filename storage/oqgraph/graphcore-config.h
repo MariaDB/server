@@ -21,20 +21,18 @@
    see http://openquery.com/graph or contact graph@openquery.com
    ======================================================================
 */
+#ifndef oq_graphcore_config_h_
+#define oq_graphcore_config_h_
 
-#ifndef oq_graphcore_types_h_
-#define oq_graphcore_types_h_
+#define BOOST_ALL_NO_LIB 1
+#define BOOST_NO_RTTI 1
+#define BOOST_NO_TYPEID 1
 
-namespace open_query
-{
+#ifdef DBUG_OFF
+#define NDEBUG 1
+#endif
 
-  typedef unsigned long long VertexID;
-  typedef double EdgeWeight;
-
-}
-
-
-class Field;
-typedef struct TABLE TABLE;
+#include <boost/config.hpp>
 
 #endif
+
