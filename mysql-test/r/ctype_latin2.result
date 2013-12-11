@@ -564,6 +564,7 @@ DFDFBABBBE
 # Bug#32390 Character sets: casting utf32 to/from date doesn't work
 #
 CREATE TABLE t1 AS SELECT repeat('a',20) AS s1 LIMIT 0;
+SET time_zone=_latin1'+03:00';
 SET timestamp=1216359724;
 INSERT INTO t1 VALUES (current_date);
 INSERT INTO t1 VALUES (current_time);
@@ -571,10 +572,11 @@ INSERT INTO t1 VALUES (current_timestamp);
 SELECT s1, hex(s1) FROM t1;
 s1	hex(s1)
 2008-07-18	323030382D30372D3138
-09:42:04	30393A34323A3034
-2008-07-18 09:42:04	323030382D30372D31382030393A34323A3034
+08:42:04	30383A34323A3034
+2008-07-18 08:42:04	323030382D30372D31382030383A34323A3034
 DROP TABLE t1;
 SET timestamp=0;
+SET time_zone=default;
 #
 # MDEV-5298 Illegal mix of collations on timestamp
 #
