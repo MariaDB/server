@@ -8193,7 +8193,7 @@ void wsrep_write_rbr_buf(
   FILE *of= fopen(filename, "wb");
   if (of)
   {
-    fwrite (rbr_buf, buf_len, 1, of);
+    (void) fwrite (rbr_buf, buf_len, 1, of);
     fclose(of);
   }
   else

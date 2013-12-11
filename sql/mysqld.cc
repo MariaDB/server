@@ -4464,8 +4464,10 @@ will be ignored as the --log-bin option is not defined.");
 
       if (wsrep_before_SE())
       {
+#ifndef EMBEDDED_LIBRARY
         set_ports(); // this is also called in network_init() later but we need
                      // to know mysqld_port now - lp:1071882
+#endif /* !EMBEDDED_LIBRARY */
         wsrep_init_startup(true);
       }
     }

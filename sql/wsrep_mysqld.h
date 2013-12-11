@@ -285,7 +285,7 @@ extern wsrep_seqno_t wsrep_locked_seqno;
     WSREP_LOG(sql_print_information, "cluster conflict due to %s for threads:",\
       (bf_abort) ? "high priority abort" : "certification failure"             \
     );                                                                         \
-    if (bf_thd)     WSREP_LOG_CONFLICT_THD(bf_thd, "Winning thread");          \
+    if (bf_thd != NULL) WSREP_LOG_CONFLICT_THD(bf_thd, "Winning thread");      \
     if (victim_thd) WSREP_LOG_CONFLICT_THD(victim_thd, "Victim thread");       \
   }
 
