@@ -1,0 +1,84 @@
+--disable_warnings
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+# Create the backing store
+CREATE TABLE graph_base (
+    from_id INT UNSIGNED NOT NULL,
+    to_id INT UNSIGNED NOT NULL,
+    PRIMARY KEY (from_id,to_id),
+    INDEX (to_id)
+  ) ENGINE=MyISAM;
+
+
+CREATE TABLE graph (
+    latch   VARCHAR(32) NULL,
+    origid  BIGINT    UNSIGNED NULL,
+    destid  BIGINT    UNSIGNED NULL,
+    weight  DOUBLE    NULL,
+    seq     BIGINT    UNSIGNED NULL,
+    linkid  BIGINT    UNSIGNED NULL,
+    KEY (latch, origid, destid) USING HASH,
+    KEY (latch, destid, origid) USING HASH
+  ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+
+INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
+
+SELECT count(*) FROM graph;
+SELECT count(*) FROM graph_base;
+
+INSERT INTO graph_base(from_id, to_id) VALUES (12,10);
+
+SELECT count(*) FROM graph;
+SELECT count(*) FROM graph_base;
+
+INSERT INTO graph_base(from_id, to_id) VALUES (14,13);
+
+SELECT count(*) FROM graph;
+SELECT count(*) FROM graph_base;
+
+DELETE FROM graph_base where from_id=10 and to_id=11;
+INSERT INTO graph_base(from_id, to_id) VALUES (10,15);
+INSERT INTO graph_base(from_id, to_id) VALUES (15,13);
+INSERT INTO graph_base(from_id, to_id) VALUES (10,11);
+
+SELECT count(*) FROM graph;
+SELECT count(*) FROM graph_base;
+
+INSERT INTO graph_base(from_id, to_id) VALUES (21,22);
+INSERT INTO graph_base (from_id,to_id) VALUES (4,6);
+
+#-- Without this when the line immediately after gets executed
+#-- we get a segfault
+SELECT count(*) FROM graph;
+SELECT count(*) FROM graph_base;
+SELECT * FROM graph  where latch='0';
+SELECT * FROM graph_base;
+
+--echo # And delete all references to node 2
+DELETE FROM graph_base WHERE from_id=2;
+DELETE FROM graph_base WHERE to_id=2;
+
+SELECT count(*) FROM graph;
+SELECT count(*) FROM graph_base;
+SELECT * FROM graph  where latch='0';
+SELECT * FROM graph_base;
+
+DELETE FROM graph_base;
+
+SELECT count(*) FROM graph;
+SELECT count(*) FROM graph_base;
+SELECT * FROM graph  where latch='0';
+SELECT * FROM graph_base;
+
+#-- The following line would hang mysqld currently, see bug https://bugs.launchpad.net/oqgraph/+bug/1195735
+#-- SELECT * FROM graph;
+
+FLUSH TABLES;
+TRUNCATE TABLE graph_base;
+
+DROP TABLE graph_base;
+DROP TABLE graph;
+
+

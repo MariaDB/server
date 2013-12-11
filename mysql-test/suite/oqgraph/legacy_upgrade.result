@@ -1,0 +1,99 @@
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph_base (
+from_id INT UNSIGNED NOT NULL,
+to_id INT UNSIGNED NOT NULL,
+PRIMARY KEY (from_id,to_id),
+INDEX (to_id)
+) ENGINE=MyISAM;
+The next error 140 + 1005 is expected
+CREATE TABLE graph (
+latch   SMALLINT  UNSIGNED NULL,
+origid  BIGINT    UNSIGNED NULL,
+destid  BIGINT    UNSIGNED NULL,
+weight  DOUBLE    NULL,
+seq     BIGINT    UNSIGNED NULL,
+linkid  BIGINT    UNSIGNED NULL,
+KEY (latch, origid, destid) USING HASH,
+KEY (latch, destid, origid) USING HASH
+) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+ERROR HY000: Can't create table `test`.`graph` (errno: 140 "Wrong create options")
+SET GLOBAL oqgraph_allow_create_integer_latch=true;
+The next warning 1287 is expected
+CREATE TABLE graph (
+latch   SMALLINT  UNSIGNED NULL,
+origid  BIGINT    UNSIGNED NULL,
+destid  BIGINT    UNSIGNED NULL,
+weight  DOUBLE    NULL,
+seq     BIGINT    UNSIGNED NULL,
+linkid  BIGINT    UNSIGNED NULL,
+KEY (latch, origid, destid) USING HASH,
+KEY (latch, destid, origid) USING HASH
+) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+SET GLOBAL oqgraph_allow_create_integer_latch=false;
+The next error 140 + 1005 is expected
+CREATE TABLE graph_again (
+latch   SMALLINT  UNSIGNED NULL,
+origid  BIGINT    UNSIGNED NULL,
+destid  BIGINT    UNSIGNED NULL,
+weight  DOUBLE    NULL,
+seq     BIGINT    UNSIGNED NULL,
+linkid  BIGINT    UNSIGNED NULL,
+KEY (latch, origid, destid) USING HASH,
+KEY (latch, destid, origid) USING HASH
+) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+ERROR HY000: Can't create table `test`.`graph_again` (errno: 140 "Wrong create options")
+# Populating base table
+INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
+INSERT INTO graph_base(from_id, to_id) VALUES (1,3), (3,1);
+INSERT INTO graph_base(from_id, to_id) VALUES (3,4), (4,3);
+INSERT INTO graph_base(from_id, to_id) VALUES (5,6), (6,5);
+# Exercising latch==2
+SELECT * FROM graph WHERE latch = 2 AND origid = 1 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	1	NULL	1	3	3
+2	1	NULL	1	2	2
+SELECT * FROM graph WHERE latch = 2 AND origid = 1 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	1	NULL	2	4	4
+SELECT * FROM graph WHERE latch = 2 AND origid = 1 AND (weight = 1 OR weight = 2);
+latch	origid	destid	weight	seq	linkid
+2	1	NULL	2	4	4
+2	1	NULL	1	3	3
+2	1	NULL	1	2	2
+# Exercising latch==1
+SELECT * FROM graph WHERE latch=1 AND origid=1 AND destid=6;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch=1 AND origid=1 AND destid=4;
+latch	origid	destid	weight	seq	linkid
+1	1	4	NULL	0	1
+1	1	4	1	1	3
+1	1	4	1	2	4
+SELECT * FROM graph WHERE latch=1 AND origid=4 AND destid=1;
+latch	origid	destid	weight	seq	linkid
+1	4	1	NULL	0	4
+1	4	1	1	1	3
+1	4	1	1	2	1
+SELECT * FROM graph WHERE latch=0 and destid=2 and origid=1;
+latch	origid	destid	weight	seq	linkid
+0	1	2	1	3	1
+0	1	2	1	2	3
+0	1	2	1	1	2
+# Adding new row to base table
+INSERT INTO graph_base (from_id,to_id) VALUES (4,6);
+# Deleting rows from base table
+DELETE FROM graph_base WHERE from_id=5;
+DELETE FROM graph_base WHERE from_id=3 AND to_id=5;
+# Execising latch==1 on new data
+SELECT * FROM graph WHERE latch=1 AND origid=1 AND destid=6;
+latch	origid	destid	weight	seq	linkid
+1	1	6	NULL	0	1
+1	1	6	1	1	3
+1	1	6	1	2	4
+1	1	6	1	3	6
+SELECT * FROM graph WHERE latch=1 AND origid=6 AND destid=1;
+latch	origid	destid	weight	seq	linkid
+DROP TABLE IF EXISTS graph;
+DROP TABLE IF EXISTS graph_base;

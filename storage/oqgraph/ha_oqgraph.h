@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2009 Arjen G Lentz & Antony T Curtis for Open Query
+/* Copyright (C) 2007-2013 Arjen G Lentz & Antony T Curtis for Open Query
    Portions of this file copyright (C) 2000-2006 MySQL AB
 
    This program is free software; you can redistribute it and/or modify
@@ -16,11 +16,9 @@
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
-   Mk.II implementation by Antony Curtis & Arjen Lentz
+   v3 implementation by Antony Curtis, Arjen Lentz, Andrew McDonnell
    For more information, documentation, support, enhancement engineering,
-   and non-GPL licensing, see http://openquery.com/graph
-   or contact graph@openquery.com
-   For packaged binaries, see http://ourdelta.org
+   see http://openquery.com/graph or contact graph@openquery.com
    ======================================================================
 */
 
@@ -29,6 +27,7 @@
 #endif
 
 #include "handler.h"
+#include "table.h"
 
 typedef struct oqgraph_info_st OQGRAPH_INFO;
 typedef uchar byte;
@@ -37,19 +36,22 @@ namespace open_query
 {
   struct row;
   class oqgraph;
+  class oqgraph_share;
 }
 
 /* class for the the Open Query Graph handler */
 
 class ha_oqgraph: public handler
 {
-  OQGRAPH_INFO *share;
+  TABLE_SHARE share[1];
+  bool have_table_share;
+  TABLE edges[1];
+  Field *origid;
+  Field *destid;
+  Field *weight;
+
+  open_query::oqgraph_share *graph_share;
   open_query::oqgraph *graph;
-  THR_LOCK_DATA lock;
-  /* number of records changed since last statistics update */
-  uint records_changed;
-  uint key_stat_version;
-  bool replace_dups, ignore_dups, insert_dups;
 
   int fill_record(byte*, const open_query::row&);
 
@@ -61,7 +63,7 @@ public:
   ha_oqgraph(TABLE *table);
   Table_flags table_flags() const;
 #endif
-  ~ha_oqgraph() {}
+  virtual ~ha_oqgraph();
   const char *index_type(uint inx)
   {
     return "HASH";
@@ -69,6 +71,7 @@ public:
   /* Rows also use a fixed-size format */
   enum row_type get_row_type() const { return ROW_TYPE_FIXED; }
   ulong index_flags(uint inx, uint part, bool all_parts) const;
+  const char **bas_ext() const;
   uint max_supported_keys()          const { return MAX_KEY; }
   uint max_supported_key_part_length() const { return MAX_KEY_LENGTH; }
   double scan_time() { return (double) 1000000000; }
@@ -102,6 +105,19 @@ public:
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
 			     enum thr_lock_type lock_type);
   int cmp_ref(const byte *ref1, const byte *ref2);
+
+  bool get_error_message(int error, String* buf);
+
+  void fprint_error(const char* fmt, ...);
+
+#if MYSQL_VERSION_ID < 100000
+  // Allow compatibility for build with 5.5.32
+  virtual const char *table_type() const { return hton_name(ht)->str; }
+#endif
+
 private:
+  int oqgraph_check_table_structure (TABLE *table_arg);
+
   void update_key_stats();
+  String error_message;
 };
