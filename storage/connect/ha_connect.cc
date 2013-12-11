@@ -1944,7 +1944,7 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
 
   if (tdbp || (tdbp= GetTDB(g))) {
     if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
-      sprintf(g->Message, "Table %s is not indexable", tdbp->GetName());
+      sprintf(g->Message, "optimize: Table %s is not indexable", tdbp->GetName());
       rc= HA_ERR_INTERNAL_ERROR;
     } else if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, true))) {
       if (rc == RC_INFO) {
@@ -3050,7 +3050,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
         if (!tdbp && !(tdbp= GetTDB(g)))
           DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
         else if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
-          sprintf(g->Message, "Table %s is not indexable", tdbp->GetName());
+          sprintf(g->Message, "external_lock: Table %s is not indexable", tdbp->GetName());
 //        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
           push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
           DBUG_RETURN(0);
@@ -3168,7 +3168,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     g->Xchk= new(g) XCHK;
     ((PCHK)g->Xchk)->oldsep= GetBooleanOption("Sepindex", false);
     ((PCHK)g->Xchk)->oldpix= GetIndexInfo();
-    } // endif xcheck
+  } else
+  	g->Xchk= NULL;
 
   if (cras)
     g->Createas= 1;       // To tell created table to ignore FLAG

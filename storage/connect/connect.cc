@@ -591,7 +591,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id)
   if (!ptdb)
     return -1;
   else if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
-    sprintf(g->Message, "Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, "CntIndexInit: Table %s is not indexable", ptdb->GetName());
     return 0;
   } else
     tdbp= (PTDBDOX)ptdb;
@@ -695,7 +695,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   if (!ptdb)
     return RC_FX;
   if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
-    sprintf(g->Message, "Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, "CntIndexRead: Table %s is not indexable", ptdb->GetName());
     return RC_FX;
   } else
     tdbp= (PTDBDOX)ptdb;
@@ -780,7 +780,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
   if (!ptdb)
     return -1;
   else if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
-    sprintf(g->Message, "Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, "CntIndexRange: Table %s is not indexable", ptdb->GetName());
     DBUG_PRINT("Range", ("%s", g->Message));
     return -1;
   } else
