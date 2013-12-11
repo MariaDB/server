@@ -8,7 +8,7 @@ if ($mysql_errno)
 if (!`SELECT count(*) FROM t1 WHERE Name='ConnectEnginePostgresql'`)
 {
   DROP TABLE t1;
-  Skip Need SQLite3 ODBC Driver;
+  Skip Need ODBC data source ConnectEnginePostgresql;
 }
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
