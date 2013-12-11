@@ -3488,25 +3488,45 @@ static bool add_fields(PGLOBAL g,
 //                     void *vcolinfo,
 //                     engine_option_value *create_options,
                        int flg,
-                       bool dbf)
+                       bool dbf,
+                       char v)
 {
   register Create_field *new_field;
-  char *length, *decimals;
-  enum_field_types type= PLGtoMYSQL(typ, dbf);
+  char *length, *decimals= NULL;
+  enum_field_types type;
 //Virtual_column_info *vcol_info= (Virtual_column_info *)vcolinfo;
   engine_option_value *crop;
-  LEX_STRING *comment= thd->make_lex_string(rem, strlen(rem));
-  LEX_STRING *field_name= thd->make_lex_string(name, strlen(name));
+  LEX_STRING *comment;
+  LEX_STRING *field_name;
 
   DBUG_ENTER("ha_connect::add_fields");
-  length= (char*)PlugSubAlloc(g, NULL, 8);
-  sprintf(length, "%d", len);
 
-  if (dec) {
-    decimals= (char*)PlugSubAlloc(g, NULL, 8);
-    sprintf(decimals, "%d", dec);
+  if (len) {
+    if (!v && typ == TYPE_STRING && len > 255)
+      v= 'V';     // Change CHAR to VARCHAR
+
+    length= (char*)PlugSubAlloc(g, NULL, 8);
+    sprintf(length, "%d", len);
+
+    if (typ == TYPE_FLOAT) {
+      decimals= (char*)PlugSubAlloc(g, NULL, 8);
+      sprintf(decimals, "%d", min(dec, (min(len, 31) - 1)));
+      } // endif dec
+
   } else
-    decimals= NULL;
+    length= NULL;
+
+  if (!rem)
+    rem= "";
+
+  type= PLGtoMYSQL(typ, dbf, v);
+  comment= thd->make_lex_string(rem, strlen(rem));
+  field_name= thd->make_lex_string(name, strlen(name));
+
+  switch (v) {
+    case 'Z': type_modifier|= ZEROFILL_FLAG;
+    case 'U': type_modifier|= UNSIGNED_FLAG; break;
+    } // endswitch v
 
   if (flg) {
     engine_option_value *start= NULL, *end= NULL;
@@ -3552,8 +3572,8 @@ static bool add_field(String *sql, const char *field_name, int typ,
 
     if (!strcmp(type, "DOUBLE")) {
       error|= sql->append(',');
-      // dec must be <= len and <= 31
-      error|= sql->append_ulonglong(min(dec, (len - 1)));
+      // dec must be < len and < 31
+      error|= sql->append_ulonglong(min(dec, (min(len, 31) - 1)));
       } // endif dec
 
     error|= sql->append(')');
@@ -3849,7 +3869,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
                                       HA_CREATE_INFO *create_info)
 {
-  char        spc= ',', qch= 0;
+  char        v, spc= ',', qch= 0;
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl;
@@ -3871,7 +3891,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 //CHARSET_INFO *cs;
   Alter_info  alter_info;
 #else   // !NEW_WAY
-  char        v, buf[1024];
+  char        buf[1024];
   String      sql(buf, sizeof(buf), system_charset_info);
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
@@ -3965,7 +3985,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       tab= table_s->table_name.str;              // Default value
 
 #if defined(NEW_WAY)
-    add_option(thd, create_info, "tabname", tab);
+//  add_option(thd, create_info, "tabname", tab);
 #endif   // NEW_WAY
     } // endif tab
 
@@ -4192,10 +4212,11 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #if defined(NEW_WAY)
         // Now add the field
         rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
-                       NOT_NULL_FLAG, "", flg, dbf);
+                       NOT_NULL_FLAG, "", flg, dbf, 0);
 #else   // !NEW_WAY
         // Now add the field
-        if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG, 0, NULL, flg, dbf, 0))
+        if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG,
+                      0, NULL, flg, dbf, 0))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
       } // endfor crp
@@ -4282,8 +4303,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
         // Now add the field
 #if defined(NEW_WAY)
-        rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
-                       tm, rem, 0, true);
+        rc= add_fields(g, thd, &alter_info, cnm, typ, prec, dec,
+                       tm, rem, 0, dbf, v);
 #else   // !NEW_WAY
         if (add_field(&sql, cnm, typ, prec, dec, tm, rem, dft, 0, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
