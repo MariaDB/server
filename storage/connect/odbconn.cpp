@@ -121,7 +121,7 @@ int TranslateSQLType(int stp, int prec, int& len, char& v)
     case SQL_LONGVARCHAR:                   //  (-1)
       v = 'V';
       type = TYPE_STRING;
-      len = min(abs(len), 255);
+      len = min(abs(len), 256);
       break;
     case SQL_NUMERIC:                       //    2
     case SQL_DECIMAL:                       //    3

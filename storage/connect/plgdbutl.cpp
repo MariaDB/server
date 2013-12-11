@@ -278,6 +278,18 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
   PCOLRES *pcrp, crp;
   PQRYRES  qrp;
 
+  // Save stack and allocation environment and prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return NULL;
+    } // endif jump_level
+
+  if (setjmp(g->jumper[++g->jump_level]) != 0) {
+    printf("%s\n", g->Message);
+    qrp = NULL;
+    goto fin;
+    } // endif rc
+
   /************************************************************************/
   /*  Allocate the structure used to contain the result set.              */
   /************************************************************************/
@@ -342,6 +354,8 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
 
   *pcrp = NULL;
 
+ fin:
+  g->jump_level--;
   return qrp;
   } // end of PlgAllocResult
 
