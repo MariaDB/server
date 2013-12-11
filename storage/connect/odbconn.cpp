@@ -1986,6 +1986,87 @@ bool ODBConn::GetDrivers(PQRYRES qrp)
   return rv;
   } // end of GetDrivers
 
+
+/**
+  A helper class to split an optionally qualified table name into components.
+  These formats are understood:
+    "CatalogName.SchemaName.TableName"
+    "SchemaName.TableName"
+    "TableName"
+*/
+class SQLQualifiedName
+{
+  static const uint max_parts= 3; /* Catalog.Schema.Table */
+  MYSQL_LEX_STRING m_part[max_parts];
+  char m_buf[512];
+  void lex_string_set(MYSQL_LEX_STRING *S, char *str, size_t length)
+  {
+    S->str= str;
+    S->length= length;
+  }
+  void lex_string_shorten_down(MYSQL_LEX_STRING *S, size_t offs)
+  {
+    DBUG_ASSERT(offs <= S->length);
+    S->str+= offs;
+    S->length-= offs;
+  }
+  /*
+    Find the rightmost '.' delimiter and return the length
+    of the qualifier, including the rightmost '.' delimier.
+    For example, for the string {"a.b.c",5} it will return 4,
+    which is the length of the qualifier "a.b."
+  */
+  size_t lex_string_find_qualifier(MYSQL_LEX_STRING *S)
+  {
+    size_t i;
+    for (i= S->length; i > 0; i--)
+    {
+      if (S->str[i - 1] == '.')
+      {
+        S->str[i - 1]= '\0';
+        return i;
+      }
+    }
+    return 0;
+  }
+public:
+  /*
+    Initialize to the given optionally qualified name.
+    NULL pointer in "name" is supported.
+  */
+  SQLQualifiedName(const char *name)
+  {
+    size_t len, i= 0;
+    if (!name)
+      goto ret;
+    /* Initialize the first (rightmost) part */
+    lex_string_set(&m_part[0], m_buf,
+                   strmake(m_buf, name, sizeof(m_buf) - 1) - m_buf);
+    /* Initialize the other parts, if exist. */
+    for (i= 1; i < max_parts; i++)
+    {
+      if (!(len= lex_string_find_qualifier(&m_part[i - 1])))
+        break;
+      lex_string_set(&m_part[i], m_part[i - 1].str, len - 1);
+      lex_string_shorten_down(&m_part[i - 1], len);
+    }
+ret:
+    /* Initialize the remaining parts */
+    for ( ; i < max_parts; i++)
+      lex_string_set(&m_part[i], NULL, 0);
+  }
+  SQLCHAR *ptr(uint i)
+  {
+    DBUG_ASSERT(i < max_parts);
+    return (SQLCHAR *) (m_part[i].length ? m_part[i].str : NULL);
+  }
+  size_t length(uint i)
+  {
+    DBUG_ASSERT(i < max_parts);
+    return m_part[i].length;
+  }
+};
+
 /***********************************************************************/
 /*  Allocate recset and call SQLTables, SQLColumns or SQLPrimaryKeys.  */
 /***********************************************************************/
@@ -2048,29 +2129,38 @@ int ODBConn::GetCatInfo(CATPARM *cap)
     } else
       ThrowDBX("0-sized result");
 
+    SQLQualifiedName name((const char *) cap->Tab);
     // Now do call the proper ODBC API
     switch (cap->Id) {
       case CAT_TAB:
 //      rc = SQLSetStmtAttr(hstmt, SQL_ATTR_METADATA_ID,
 //                                (SQLPOINTER)false, 0);
         fnc = "SQLTables";
-        rc = SQLTables(hstmt, NULL, 0, NULL, 0, cap->Tab, SQL_NTS,
-                                                cap->Pat, SQL_NTS);
+        rc = SQLTables(hstmt, name.ptr(2), name.length(2),
+                              name.ptr(1), name.length(1),
+                              name.ptr(0), name.length(0),
+                              cap->Pat, SQL_NTS);
         break;
       case CAT_COL:
 //      rc = SQLSetStmtAttr(hstmt, SQL_ATTR_METADATA_ID,
 //                                (SQLPOINTER)true, 0);
         fnc = "SQLColumns";
-        rc = SQLColumns(hstmt, NULL, 0, NULL, 0, cap->Tab, SQL_NTS,
-                                                 cap->Pat, SQL_NTS);
+        rc = SQLColumns(hstmt, name.ptr(2), name.length(2),
+                               name.ptr(1), name.length(1),
+                               name.ptr(0), name.length(0),
+                               cap->Pat, SQL_NTS);
         break;
       case CAT_KEY:
         fnc = "SQLPrimaryKeys";
-        rc = SQLPrimaryKeys(hstmt, NULL, 0, NULL, 0, cap->Tab, SQL_NTS);
+        rc = SQLPrimaryKeys(hstmt, name.ptr(2), name.length(2),
+                                   name.ptr(1), name.length(1),
+                                   name.ptr(0), name.length(0));
         break;
       case CAT_STAT:
         fnc = "SQLStatistics";
-        rc = SQLStatistics(hstmt, NULL, 0, NULL, 0, cap->Tab, SQL_NTS,
+        rc = SQLStatistics(hstmt, name.ptr(2), name.length(2),
+                                  name.ptr(1), name.length(1),
+                                  name.ptr(0), name.length(0),
                                   cap->Unique, cap->Accuracy);
         break;
       case CAT_SPC:
