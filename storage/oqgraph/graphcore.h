@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2009 Arjen G Lentz & Antony T Curtis for Open Query
+/* Copyright (C) 2007-2013 Arjen G Lentz & Antony T Curtis for Open Query
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,11 +16,9 @@
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
-   Mk.II implementation by Antony Curtis & Arjen Lentz
+   v3 implementation by Antony Curtis, Arjen Lentz, Andrew McDonnell
    For more information, documentation, support, enhancement engineering,
-   and non-GPL licensing, see http://openquery.com/graph
-   or contact graph@openquery.com
-   For packaged binaries, see http://ourdelta.org
+   see http://openquery.com/graph or contact graph@openquery.com
    ======================================================================
 */
 
@@ -47,6 +45,8 @@ namespace open_query
     bool link_indicator;
 
     int latch;
+    const char* latchStringValue; // workaround for when latch is a Varchar
+    int latchStringValueLen;
     VertexID orig;
     VertexID dest;
     EdgeWeight weight;
@@ -63,6 +63,18 @@ namespace open_query
     inline oqgraph(oqgraph_share*) throw();
     inline ~oqgraph() throw();
   public:
+
+    // Integer operation flags
+    enum {
+      NO_SEARCH = 0,
+      DIJKSTRAS = 1,
+      BREADTH_FIRST = 2,
+      NUM_SEARCH_OP = 3,
+
+      ALGORITHM = 0x0ffff,
+      HAVE_ORIG = 0x10000,
+      HAVE_DEST = 0x20000,
+      };
 
     enum error_code
     {
@@ -96,20 +108,32 @@ namespace open_query
     int replace_edge(VertexID orig, VertexID dest, EdgeWeight weight) throw()
     { return insert_edge(orig, dest, weight, true); }
 
+    // Update the retained latch string value, for later retrieval by
+    // fetch_row() as a workaround for making sure we return the correct
+    // string to match the latch='' clause
+    // (This is a hack for mariadb mysql compatibility)
+    // IT SHOULD ONLY BE CALLED IMMEIDATELY BEFORE search)(
+    void retainLatchFieldValue(const char *retainedLatch);
+
     int search(int*, VertexID*, VertexID*) throw();
     int random(bool) throw();
 
     int fetch_row(row&) throw();
     int fetch_row(row&, const void*) throw();
     void row_ref(void*) throw();
+    void init_row_ref(void*) throw();
 
     static oqgraph* create(oqgraph_share*) throw();
-    static oqgraph_share *create() throw();
+    static oqgraph_share *create(TABLE*,Field*,Field*,Field*) throw();
 
     static void free(oqgraph*) throw();
     static void free(oqgraph_share*) throw();
 
+    void release_cursor() throw();
+
     static const size_t sizeof_ref;
+  private:    
+    char *lastRetainedLatch;
   };
 
 }
