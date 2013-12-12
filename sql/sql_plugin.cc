@@ -3994,6 +3994,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
       }
       tmp->system_vars= chain.first;
     }
+    my_afree(tmp_backup);
   }
 
   DBUG_RETURN(0);
