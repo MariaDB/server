@@ -2,7 +2,9 @@
 -- The SQL script to create PostgreSQL data for odbc_postgresql.test
 --
 -- Run this script as a admin user:
--- sudo -u postgres psql < odbc_postgresql.create.sql
+-- psql -U postgres < odbc_postgresql.sql
+
+SET NAMES 'UTF8';
 
 DROP DATABASE IF EXISTS mtr;
 DROP USER IF EXISTS mtr;
