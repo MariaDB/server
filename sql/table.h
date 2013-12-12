@@ -1011,19 +1011,18 @@ struct TABLE
 
 private:
   /**
-     Links for the lists of used/unused TABLE objects for this share.
+     Links for the list of all TABLE objects for this share.
      Declared as private to avoid direct manipulation with those objects.
      One should use methods of I_P_List template instead.
   */
-  TABLE *share_next, **share_prev;
   TABLE *share_all_next, **share_all_prev;
-
-  friend struct TABLE_share;
   friend struct All_share_tables;
 
 public:
 
   THD	*in_use;                        /* Which thread uses this */
+  /* Time when table was released to table cache. Valid for unused tables. */
+  ulonglong tc_time;
   Field **field;			/* Pointer to fields */
 
   uchar *record[2];			/* Pointer to records */
@@ -1374,11 +1373,11 @@ struct TABLE_share
 {
   static inline TABLE **next_ptr(TABLE *l)
   {
-    return &l->share_next;
+    return &l->next;
   }
   static inline TABLE ***prev_ptr(TABLE *l)
   {
-    return &l->share_prev;
+    return (TABLE ***) &l->prev;
   }
 };
 
