@@ -1026,7 +1026,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
 
   if (! table->needs_reopen())
   {
-    /* Avoid having MERGE tables with attached children in unused_tables. */
+    /* Avoid having MERGE tables with attached children in table cache. */
     table->file->extra(HA_EXTRA_DETACH_CHILDREN);
     /* Free memory and reset for next loop. */
     free_field_buffers_larger_than(table, MAX_TDC_BLOB_SIZE);
