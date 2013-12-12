@@ -1500,7 +1500,7 @@ int ha_tina::repair(THD* thd, HA_CHECK_OPT* check_opt)
   /* Read the file row-by-row. If everything is ok, repair is not needed. */
   while (!(rc= find_current_row(buf)))
   {
-    thd_inc_row_count(thd);
+    thd_inc_error_row(thd);
     rows_repaired++;
     current_position= next_position;
   }
@@ -1714,7 +1714,7 @@ int ha_tina::check(THD* thd, HA_CHECK_OPT* check_opt)
   /* Read the file row-by-row. If everything is ok, repair is not needed. */
   while (!(rc= find_current_row(buf)))
   {
-    thd_inc_row_count(thd);
+    thd_inc_error_row(thd);
     count--;
     current_position= next_position;
   }
