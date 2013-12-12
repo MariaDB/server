@@ -694,10 +694,29 @@ int thd_tx_is_read_only(const THD *thd)
   return (int) thd->tx_read_only;
 }
 
+
 extern "C"
-void thd_inc_row_count(THD *thd)
-{
-  thd->get_stmt_da()->inc_current_row_for_warning();
+{ /* Functions for thd_error_context_service */
+
+  const char *thd_get_error_message(const THD *thd)
+  {
+    return thd->get_stmt_da()->message();
+  }
+
+  uint thd_get_error_number(const THD *thd)
+  {
+    return thd->get_stmt_da()->sql_errno();
+  }
+
+  ulong thd_get_error_row(const THD *thd)
+  {
+    return thd->get_stmt_da()->current_row_for_warning();
+  }
+
+  void thd_inc_error_row(THD *thd)
+  {
+    thd->get_stmt_da()->inc_current_row_for_warning();
+  }
 }
 
 
@@ -720,8 +739,9 @@ void thd_inc_row_count(THD *thd)
 */
 
 extern "C"
-char *thd_security_context(THD *thd, char *buffer, unsigned int length,
-                           unsigned int max_query_len)
+char *thd_get_error_context_description(THD *thd, char *buffer,
+                                        unsigned int length,
+                                        unsigned int max_query_len)
 {
   String str(buffer, length, &my_charset_latin1);
   const Security_context *sctx= &thd->main_security_ctx;
@@ -798,6 +818,21 @@ char *thd_security_context(THD *thd, char *buffer, unsigned int length,
   return buffer;
 }
 
+
+#if MARIA_PLUGIN_INTERFACE_VERSION < 0x0200
+/**
+  TODO: This function is for API compatibility, remove it eventually.
+  All engines should switch to use thd_get_error_context_description()
+  plugin service function.
+*/
+extern "C"
+char *thd_security_context(THD *thd,
+                           char *buffer, unsigned int length,
+                           unsigned int max_query_len)
+{
+  return thd_get_error_context_description(thd, buffer, length, max_query_len);
+}
+#endif
 
 /**
   Implementation of Drop_table_error_handler::handle_condition().
@@ -4241,6 +4276,7 @@ extern "C" enum durability_properties thd_get_durability_property(const MYSQL_TH
 }
 
 /** Get the auto_increment_offset auto_increment_increment.
+Exposed by thd_autoinc_service.
 Needed by InnoDB.
 @param thd	Thread object
 @param off	auto_increment_offset

@@ -74,6 +74,18 @@ static struct logger_service_st logger_service_handler= {
   logger_rotate
 };
 
+static struct thd_autoinc_service_st thd_autoinc_handler= {
+  thd_get_autoinc
+};
+
+static struct thd_error_context_service_st thd_error_conext_handler= {
+  thd_get_error_message,
+  thd_get_error_number,
+  thd_get_error_row,
+  thd_inc_error_row,
+  thd_get_error_context_description
+};
+
 static struct st_service_ref list_of_services[]=
 {
   { "my_snprintf_service",         VERSION_my_snprintf,         &my_snprintf_handler },
@@ -85,5 +97,7 @@ static struct st_service_ref list_of_services[]=
   { "thd_timezone_service",        VERSION_thd_timezone,        &thd_timezone_handler },
   { "my_sha1_service",             VERSION_my_sha1,             &my_sha1_handler},
   { "logger_service",              VERSION_logger,              &logger_service_handler },
+  { "thd_autoinc_service",         VERSION_thd_autoinc,         &thd_autoinc_handler },
+  { "thd_error_context_service",   VERSION_thd_error_context,   &thd_error_conext_handler },
 };
 

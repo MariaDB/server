@@ -1519,8 +1519,8 @@ innobase_mysql_print_thd(
 {
 	char	buffer[1024];
 
-	fputs(thd_security_context(thd, buffer, sizeof buffer,
-				   max_query_len), f);
+	fputs(thd_get_error_context_description(thd, buffer, sizeof buffer,
+						max_query_len), f);
 	putc('\n', f);
 }
 
