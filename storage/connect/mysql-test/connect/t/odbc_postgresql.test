@@ -1,5 +1,5 @@
 --source have_odbc_postgresql.inc
---source include/not_embedded.inc
+#--source include/not_embedded.inc
 
 #
 # To configure your system to be able to run this test,
