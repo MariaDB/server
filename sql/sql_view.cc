@@ -908,7 +908,7 @@ loop_out:
     fn_format(path_buff, file.str, dir.str, "", MY_UNPACK_FILENAME);
     path.length= strlen(path_buff);
 
-    if (!access(path.str, F_OK))
+    if (ha_table_exists(thd, view->db, view->table_name, NULL))
     {
       if (mode == VIEW_CREATE_NEW)
       {

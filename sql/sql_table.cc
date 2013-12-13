@@ -7840,7 +7840,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
         Table maybe does not exist, but we got an exclusive lock
         on the name, now we can safely try to find out for sure.
       */
-      if (!access(alter_ctx.get_new_filename(), F_OK))
+      if (ha_table_exists(thd, alter_ctx.new_db, alter_ctx.new_name, 0))
       {
         /* Table will be closed in do_command() */
         my_error(ER_TABLE_EXISTS_ERROR, MYF(0), alter_ctx.new_alias);
