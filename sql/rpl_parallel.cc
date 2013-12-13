@@ -24,7 +24,7 @@ static int
 rpt_handle_event(rpl_parallel_thread::queued_event *qev,
                  struct rpl_parallel_thread *rpt)
 {
-  int err __attribute__((unused));
+  int err;
   rpl_group_info *rgi= qev->rgi;
   Relay_log_info *rli= rgi->rli;
   THD *thd= rgi->thd;
@@ -172,6 +172,18 @@ finish_event_group(THD *thd, int err, uint64 sub_id,
 }
 
 
+static void
+signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi)
+{
+  rgi->is_error= true;
+  rgi->cleanup_context(thd, true);
+  rgi->rli->abort_slave= true;
+  mysql_mutex_lock(rgi->rli->relay_log.get_log_lock());
+  mysql_mutex_unlock(rgi->rli->relay_log.get_log_lock());
+  rgi->rli->relay_log.signal_update();
+}
+
+
 pthread_handler_t
 handle_rpl_parallel_thread(void *arg)
 {
@@ -304,10 +316,8 @@ handle_rpl_parallel_thread(void *arg)
             {
               /* The thread got a kill signal. */
               thd->send_kill_message();
-              rgi->is_error= true;
               slave_output_error_info(rgi->rli, thd);
-              rgi->cleanup_context(thd, true);
-              rgi->rli->abort_slave= true;
+              signal_error_to_sql_driver_thread(thd, rgi);
             }
             rgi->wait_start_sub_id= 0;            /* No need to check again. */
           }
@@ -363,10 +373,8 @@ handle_rpl_parallel_thread(void *arg)
 
       if (err)
       {
-        rgi->is_error= true;
         slave_output_error_info(rgi->rli, thd);
-        rgi->cleanup_context(thd, true);
-        rgi->rli->abort_slave= true;
+        signal_error_to_sql_driver_thread(thd, rgi);
       }
       if (end_of_group)
       {
@@ -405,11 +413,9 @@ handle_rpl_parallel_thread(void *arg)
         half-processed event group.
       */
       mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
-      group_rgi->is_error= true;
       finish_event_group(thd, 1, group_rgi->gtid_sub_id,
                          group_rgi->parallel_entry, &group_rgi->commit_orderer);
-      group_rgi->cleanup_context(thd, true);
-      group_rgi->rli->abort_slave= true;
+      signal_error_to_sql_driver_thread(thd, group_rgi);
       in_event_group= false;
       delete group_rgi;
       group_rgi= NULL;

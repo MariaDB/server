@@ -6242,6 +6242,17 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
         }
 
         /*
+          We have to check sql_slave_killed() here an extra time.
+          Otherwise we may miss a wakeup, since last check was done
+          without holding LOCK_log.
+        */
+        if (sql_slave_killed(rgi))
+        {
+          mysql_mutex_unlock(log_lock);
+          break;
+        }
+
+        /*
           If the I/O thread is blocked, unblock it.  Ok to broadcast
           after unlock, because the mutex is only destroyed in
           ~Relay_log_info(), i.e. when rli is destroyed, and rli will

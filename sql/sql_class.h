@@ -1660,6 +1660,25 @@ struct wait_for_commit
     if (waiting_for_commit)
       unregister_wait_for_prior_commit2();
   }
+  /*
+    Remove a waiter from the list in the waitee. Used to unregister a wait.
+    The caller must be holding the locks of both waiter and waitee.
+  */
+  void remove_from_list(wait_for_commit **next_ptr_ptr)
+  {
+    wait_for_commit *cur;
+
+    while ((cur= *next_ptr_ptr) != NULL)
+    {
+      if (cur == this)
+      {
+        *next_ptr_ptr= this->next_subsequent_commit;
+        break;
+      }
+      next_ptr_ptr= &cur->next_subsequent_commit;
+    }
+    waiting_for_commit= false;
+  }
 
   void wakeup(int wakeup_error);
 
