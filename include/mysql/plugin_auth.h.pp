@@ -137,6 +137,31 @@ extern struct logger_service_st {
   int logger_printf(LOGGER_HANDLE *log, const char *fmt, ...);
   int logger_write(LOGGER_HANDLE *log, const char *buffer, size_t size);
   int logger_rotate(LOGGER_HANDLE *log);
+#include <mysql/service_thd_autoinc.h>
+extern struct thd_autoinc_service_st {
+  void (*thd_get_autoinc_func)(const void* thd,
+                               unsigned long* off, unsigned long* inc);
+} *thd_autoinc_service;
+void thd_get_autoinc(const void* thd,
+                     unsigned long* off, unsigned long* inc);
+#include <mysql/service_thd_error_context.h>
+extern struct thd_error_context_service_st {
+  const char *(*thd_get_error_message_func)(const void* thd);
+  unsigned int (*thd_get_error_number_func)(const void* thd);
+  unsigned long (*thd_get_error_row_func)(const void* thd);
+  void (*thd_inc_error_row_func)(void* thd);
+  char *(*thd_get_error_context_description_func)(void* thd,
+                                                  char *buffer,
+                                                  unsigned int length,
+                                                  unsigned int max_query_length);
+} *thd_error_context_service;
+const char *thd_get_error_message(const void* thd);
+unsigned int thd_get_error_number(const void* thd);
+unsigned long thd_get_error_row(const void* thd);
+void thd_inc_error_row(void* thd);
+char *thd_get_error_context_description(void* thd,
+                                        char *buffer, unsigned int length,
+                                        unsigned int max_query_length);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;
@@ -280,7 +305,6 @@ int thd_tx_isolation(const void* thd);
 int thd_tx_is_read_only(const void* thd);
 char *thd_security_context(void* thd, char *buffer, unsigned int length,
                            unsigned int max_query_len);
-void thd_inc_row_count(void* thd);
 int mysql_tmpfile(const char *prefix);
 unsigned long thd_get_thread_id(const void* thd);
 void thd_get_xid(const void* thd, MYSQL_XID *xid);

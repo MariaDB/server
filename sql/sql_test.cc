@@ -20,7 +20,7 @@
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_test.h"
-#include "sql_base.h" // unused_tables
+#include "sql_base.h"
 #include "sql_show.h" // calc_sum_of_all_status
 #include "sql_select.h"
 #include "keycaches.h"
@@ -78,9 +78,8 @@ print_where(COND *cond,const char *info, enum_query_type query_type)
 
 static void print_cached_tables(void)
 {
-  uint count= 0, unused= 0;
   TABLE_SHARE *share;
-  TABLE *start_link, *lnk, *entry;
+  TABLE *entry;
   TDC_iterator tdc_it;
 
   compile_time_assert(TL_WRITE_ONLY+1 == array_elements(lock_descriptions));
@@ -92,43 +91,19 @@ static void print_cached_tables(void)
   mysql_mutex_lock(&LOCK_open);
   while ((share= tdc_it.next()))
   {
-    TABLE_SHARE::TABLE_list::Iterator it(share->tdc.used_tables);
+    TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
     while ((entry= it++))
     {
       printf("%-14.14s %-32s%6ld%8ld%6d  %s\n",
              entry->s->db.str, entry->s->table_name.str, entry->s->version,
-             entry->in_use->thread_id, entry->db_stat ? 1 : 0,
-             lock_descriptions[(int)entry->reginfo.lock_type]);
-    }
-    it.init(share->tdc.free_tables);
-    while ((entry= it++))
-    {
-      unused++;
-      printf("%-14.14s %-32s%6ld%8ld%6d  %s\n",
-             entry->s->db.str, entry->s->table_name.str, entry->s->version,
-             0L, entry->db_stat ? 1 : 0, "Not in use");
-    }
-  }
-  tdc_it.deinit();
-  if ((start_link=lnk=unused_tables))
-  {
-    do
-    {
-      if (lnk != lnk->next->prev || lnk != lnk->prev->next)
-      {
-	printf("unused_links isn't linked properly\n");
-	return;
-      }
-    } while (count++ < tc_records() && (lnk=lnk->next) != start_link);
-    if (lnk != start_link)
-    {
-      printf("Unused_links aren't connected\n");
+             entry->in_use ? entry->in_use->thread_id : 0,
+             entry->db_stat ? 1 : 0,
+             entry->in_use ? lock_descriptions[(int)entry->reginfo.lock_type] :
+                             "Not in use");
     }
   }
   mysql_mutex_unlock(&LOCK_open);
-  if (count != unused)
-    printf("Unused_links (%d) doesn't match table_def_cache: %d\n", count,
-           unused);
+  tdc_it.deinit();
   printf("\nCurrent refresh version: %ld\n", tdc_refresh_version());
   fflush(stdout);
   /* purecov: end */

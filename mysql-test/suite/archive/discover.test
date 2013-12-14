@@ -118,3 +118,13 @@ remove_file $mysqld_datadir/test/t1.ARZ;
 select * from t1;
 --list_files $mysqld_datadir/test
 
+#
+# MDEV-4955 discover of table non-existance on CREATE
+#
+create table t1 (a int) engine=archive;
+select * from t1;
+flush tables;
+remove_file $mysqld_datadir/test/t1.ARZ;
+create table t1 (a int) engine=archive;
+drop table t1;
+

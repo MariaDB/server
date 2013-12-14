@@ -26,7 +26,6 @@ ENDIF()
 # must be compiled with "-fvisibility=hidden"
 IF(WITH_SSL STREQUAL "bundled" AND HAVE_VISIBILITY_HIDDEN)
   SET_SOURCE_FILES_PROPERTIES(
-    crypt_genhash_impl.cc
     my_aes.cc
     my_md5.cc
     my_sha1.cc
@@ -35,7 +34,6 @@ IF(WITH_SSL STREQUAL "bundled" AND HAVE_VISIBILITY_HIDDEN)
 ENDIF()
 
 SET(MYSYS_SSL_SOURCES
-    crypt_genhash_impl.cc
     my_aes.cc
     my_sha1.cc
     my_sha2.cc

@@ -24,17 +24,17 @@ master-bin.000001	#	Gtid	1	#	GTID 0-1-6
 master-bin.000001	#	Query	1	#	CREATE DATABASE test3
 master-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-7
 master-bin.000001	#	Table_map	1	#	table_id: # (test1.t1)
-master-bin.000001	#	Write_rows	1	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	1	#	COMMIT
 master-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-8
 master-bin.000001	#	Annotate_rows	1	#	INSERT INTO test2.t2 VALUES (1), (2), (3)
 master-bin.000001	#	Table_map	1	#	table_id: # (test2.t2)
-master-bin.000001	#	Write_rows	1	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	1	#	COMMIT
 master-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-9
 master-bin.000001	#	Annotate_rows	1	#	INSERT INTO test3.t3 VALUES (1), (2), (3)
 master-bin.000001	#	Table_map	1	#	table_id: # (test3.t3)
-master-bin.000001	#	Write_rows	1	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	1	#	COMMIT
 master-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-10
 master-bin.000001	#	Annotate_rows	1	#	DELETE test1.t1, test2.t2
@@ -42,20 +42,20 @@ FROM test1.t1 INNER JOIN test2.t2 INNER JOIN test3.t3
 WHERE test1.t1.a=test2.t2.a AND test2.t2.a=test3.t3.a
 master-bin.000001	#	Table_map	1	#	table_id: # (test1.t1)
 master-bin.000001	#	Table_map	1	#	table_id: # (test2.t2)
-master-bin.000001	#	Delete_rows	1	#	table_id: #
-master-bin.000001	#	Delete_rows	1	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Delete_rows_v1	1	#	table_id: #
+master-bin.000001	#	Delete_rows_v1	1	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	1	#	COMMIT
 master-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-11
 master-bin.000001	#	Annotate_rows	1	#	INSERT INTO test2.v2 VALUES (1), (2), (3)
 master-bin.000001	#	Table_map	1	#	table_id: # (test2.t2)
-master-bin.000001	#	Write_rows	1	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	1	#	COMMIT
 master-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-12
 master-bin.000001	#	Annotate_rows	1	#	DELETE xtest1.xt1, test2.t2
 FROM xtest1.xt1 INNER JOIN test2.t2 INNER JOIN test3.t3
 WHERE xtest1.xt1.a=test2.t2.a AND test2.t2.a=test3.t3.a
 master-bin.000001	#	Table_map	1	#	table_id: # (test2.t2)
-master-bin.000001	#	Delete_rows	1	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Delete_rows_v1	1	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	1	#	COMMIT
 master-bin.000001	#	Rotate	1	#	master-bin.000002;pos=4
 #

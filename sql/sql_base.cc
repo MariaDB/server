@@ -309,9 +309,11 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild)
 	   share->table_name.str);
     (*start_list)->in_use= 0;
     mysql_mutex_lock(&LOCK_open);
-    TABLE_SHARE::TABLE_list::Iterator it(share->tdc.used_tables);
-    while (it++)
-      ++(*start_list)->in_use;
+    TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
+    TABLE *table;
+    while ((table= it++))
+      if (table->in_use)
+        ++(*start_list)->in_use;
     mysql_mutex_unlock(&LOCK_open);
     (*start_list)->locked= 0;                   /* Obsolete. */
     start_list= &(*start_list)->next;
@@ -371,16 +373,19 @@ void free_io_cache(TABLE *table)
 
 void kill_delayed_threads_for_table(TABLE_SHARE *share)
 {
-  TABLE_SHARE::TABLE_list::Iterator it(share->tdc.used_tables);
+  TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
   TABLE *tab;
 
   mysql_mutex_assert_owner(&LOCK_open);
+
+  if (!delayed_insert_threads)
+    return;
 
   while ((tab= it++))
   {
     THD *in_use= tab->in_use;
 
-    if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
+    if (in_use && (in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
         ! in_use->killed)
     {
       in_use->killed= KILL_SYSTEM_THREAD;
@@ -1021,7 +1026,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
 
   if (! table->needs_reopen())
   {
-    /* Avoid having MERGE tables with attached children in unused_tables. */
+    /* Avoid having MERGE tables with attached children in table cache. */
     table->file->extra(HA_EXTRA_DETACH_CHILDREN);
     /* Free memory and reset for next loop. */
     free_field_buffers_larger_than(table, MAX_TDC_BLOB_SIZE);
@@ -2269,11 +2274,11 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
   {
     if (!ha_table_exists(thd, table_list->db, table_list->table_name))
       DBUG_RETURN(FALSE);
-
-    /* Table exists. Let us try to open it. */
   }
   else if (table_list->open_strategy == TABLE_LIST::OPEN_STUB)
     DBUG_RETURN(FALSE);
+
+  /* Table exists. Let us try to open it. */
 
   if (table_list->i_s_requested_object & OPEN_TABLE_ONLY)
     gts_flags= GTS_TABLE;
@@ -3290,6 +3295,7 @@ request_backoff_action(enum_open_table_action action_arg,
                                    table->table_name,
                                    table->table_name_length,
                                    table->alias, TL_WRITE);
+    m_failed_table->open_strategy= table->open_strategy;
     m_failed_table->mdl_request.set_type(MDL_EXCLUSIVE);
   }
   m_action= action_arg;
@@ -3310,8 +3316,7 @@ request_backoff_action(enum_open_table_action action_arg,
 */
 
 bool
-Open_table_context::
-recover_from_failed_open(THD *thd)
+Open_table_context::recover_from_failed_open(THD *thd)
 {
   bool result= FALSE;
   /* Execute the action. */
@@ -3333,11 +3338,21 @@ recover_from_failed_open(THD *thd)
         thd->get_stmt_da()->clear_warning_info(thd->query_id);
         thd->clear_error();                 // Clear error message
 
-        if ((result=
-             !tdc_acquire_share(thd, m_failed_table->db,
-                                m_failed_table->table_name,
-                                GTS_TABLE | GTS_FORCE_DISCOVERY | GTS_NOLOCK)))
-          break;
+        No_such_table_error_handler no_such_table_handler;
+        bool open_if_exists= m_failed_table->open_strategy == TABLE_LIST::OPEN_IF_EXISTS;
+
+        if (open_if_exists)
+          thd->push_internal_handler(&no_such_table_handler);
+        
+        result= !tdc_acquire_share(thd, m_failed_table->db,
+                                   m_failed_table->table_name,
+                                   GTS_TABLE | GTS_FORCE_DISCOVERY | GTS_NOLOCK);
+        if (open_if_exists)
+        {
+          thd->pop_internal_handler();
+          if (result && no_such_table_handler.safely_trapped_errors())
+            result= FALSE;
+        }
 
         thd->mdl_context.release_transactional_locks();
         break;

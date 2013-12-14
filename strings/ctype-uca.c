@@ -18010,7 +18010,7 @@ const uchar uca520_length[4352]={
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 };
-static const uint16 const *uca520_weight[4352]={
+static const uint16 *uca520_weight[4352]={
 uca520_p000,uca520_p001,uca520_p002,uca520_p003,
 uca520_p004,uca520_p005,uca520_p006,uca520_p007,
 uca520_p008,uca520_p009,uca520_p00A,uca520_p00B,
@@ -19619,7 +19619,7 @@ my_uca_alloc_contractions(MY_CONTRACTIONS *contractions,
 */
 
 const MY_CONTRACTIONS *
-my_charset_get_contractions(const CHARSET_INFO *cs, int level)
+my_charset_get_contractions(CHARSET_INFO *cs, int level)
 {
   return (cs->uca != NULL) && (cs->uca->level[level].contractions.nitems > 0) ?
           &cs->uca->level[level].contractions : NULL;

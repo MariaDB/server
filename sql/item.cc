@@ -585,12 +585,11 @@ uint Item::temporal_precision(enum_field_types type)
     MYSQL_TIME_STATUS status;
     DBUG_ASSERT(fixed);
     if ((tmp= val_str(&buf)) &&
-        (type == MYSQL_TYPE_TIME ?
+        !(type == MYSQL_TYPE_TIME ?
          str_to_time(tmp->charset(), tmp->ptr(), tmp->length(),
                      &ltime, TIME_TIME_ONLY, &status) :
          str_to_datetime(tmp->charset(), tmp->ptr(), tmp->length(),
-                         &ltime, TIME_FUZZY_DATES, &status)) >
-        MYSQL_TIMESTAMP_ERROR)
+                         &ltime, TIME_FUZZY_DATES, &status)))
       return MY_MIN(status.precision, TIME_SECOND_PART_DIGITS);
   }
   return MY_MIN(decimals, TIME_SECOND_PART_DIGITS);

@@ -2,39 +2,27 @@
 # WL#2111: GET DIAGNOSTICS tests
 #
 #
-# Test reserved keywords: GET
+# In MariaDB GET is not reserved
 #
-DROP TABLE IF EXISTS t1;
-DROP PROCEDURE IF EXISTS p1;
 CREATE TABLE t1 (get INT);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'get INT)' at line 1
+DROP TABLE t1;
 CREATE PROCEDURE p1()
 BEGIN
 DECLARE get INT DEFAULT 1;
 END|
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'get INT DEFAULT 1;
-END' at line 3
-# Quoting
-CREATE TABLE t1 (`get` INT);
-INSERT INTO t1 (`get`) values (1);
-SELECT `get` FROM t1 WHERE `get` = 1;
-get
-1
-DROP TABLE t1;
-CREATE PROCEDURE p1()
-BEGIN
-DECLARE `get` INT DEFAULT 1;
-SELECT `get`;
-END|
-CALL p1();
-`get`
-1
 DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+get:
+BEGIN
+SELECT 1;
+END get|
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':
+BEGIN
+SELECT 1;
+END get' at line 2
 #
 # Test non-reserved keywords: CURRENT, DIAGNOSTICS, NUMBER, RETURNED_SQLSTATE
 #
-DROP TABLE IF EXISTS t1;
-DROP PROCEDURE IF EXISTS p1;
 CREATE TABLE t1 (current INT, diagnostics INT, number INT, returned_sqlstate INT);
 INSERT INTO t1 (current, diagnostics, number, returned_sqlstate) values (1,2,3,4);
 SELECT current, diagnostics, number, returned_sqlstate FROM t1 WHERE number = 3;

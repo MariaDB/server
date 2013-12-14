@@ -2859,11 +2859,22 @@ static Sys_var_ulong Sys_table_def_size(
        VALID_RANGE(TABLE_DEF_CACHE_MIN, 512*1024),
        DEFAULT(TABLE_DEF_CACHE_DEFAULT), BLOCK_SIZE(1));
 
+
+static bool fix_table_open_cache(sys_var *, THD *, enum_var_type)
+{
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  tc_purge();
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  return false;
+}
+
+
 static Sys_var_ulong Sys_table_cache_size(
        "table_open_cache", "The number of cached open tables",
        GLOBAL_VAR(tc_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 512*1024), DEFAULT(TABLE_OPEN_CACHE_DEFAULT),
-       BLOCK_SIZE(1));
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_table_open_cache));
 
 static Sys_var_ulong Sys_thread_cache_size(
        "thread_cache_size",

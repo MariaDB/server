@@ -79,7 +79,6 @@ TYPELIB binlog_checksum_typelib=
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
-
 /*
   Size of buffer for printing a double in format %.<PREC>g
 
@@ -787,6 +786,9 @@ const char* Log_event::get_type_str(Log_event_type type)
   case PRE_GA_WRITE_ROWS_EVENT: return "Write_rows_event_old";
   case PRE_GA_UPDATE_ROWS_EVENT: return "Update_rows_event_old";
   case PRE_GA_DELETE_ROWS_EVENT: return "Delete_rows_event_old";
+  case WRITE_ROWS_EVENT_V1: return "Write_rows_v1";
+  case UPDATE_ROWS_EVENT_V1: return "Update_rows_v1";
+  case DELETE_ROWS_EVENT_V1: return "Delete_rows_v1";
   case WRITE_ROWS_EVENT: return "Write_rows";
   case UPDATE_ROWS_EVENT: return "Update_rows";
   case DELETE_ROWS_EVENT: return "Delete_rows";
@@ -1681,12 +1683,15 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
     case PRE_GA_DELETE_ROWS_EVENT:
       ev = new Delete_rows_log_event_old(buf, event_len, description_event);
       break;
+    case WRITE_ROWS_EVENT_V1:
     case WRITE_ROWS_EVENT:
       ev = new Write_rows_log_event(buf, event_len, description_event);
       break;
+    case UPDATE_ROWS_EVENT_V1:
     case UPDATE_ROWS_EVENT:
       ev = new Update_rows_log_event(buf, event_len, description_event);
       break;
+    case DELETE_ROWS_EVENT_V1:
     case DELETE_ROWS_EVENT:
       ev = new Delete_rows_log_event(buf, event_len, description_event);
       break;
@@ -2504,9 +2509,33 @@ void Rows_log_event::print_verbose(IO_CACHE *file,
   Table_map_log_event *map;
   table_def *td;
   const char *sql_command, *sql_clause1, *sql_clause2;
-  Log_event_type type_code= get_type_code();
+  Log_event_type general_type_code= get_general_type_code();
   
-  switch (type_code) {
+  if (m_extra_row_data)
+  {
+    uint8 extra_data_len= m_extra_row_data[EXTRA_ROW_INFO_LEN_OFFSET];
+    uint8 extra_payload_len= extra_data_len - EXTRA_ROW_INFO_HDR_BYTES;
+    assert(extra_data_len >= EXTRA_ROW_INFO_HDR_BYTES);
+
+    my_b_printf(file, "### Extra row data format: %u, len: %u :",
+                m_extra_row_data[EXTRA_ROW_INFO_FORMAT_OFFSET],
+                extra_payload_len);
+    if (extra_payload_len)
+    {
+      /*
+         Buffer for hex view of string, including '0x' prefix,
+         2 hex chars / byte and trailing 0
+      */
+      const int buff_len= 2 + (256 * 2) + 1;
+      char buff[buff_len];
+      str_to_hex(buff, (const char*) &m_extra_row_data[EXTRA_ROW_INFO_HDR_BYTES],
+                 extra_payload_len);
+      my_b_printf(file, "%s", buff);
+    }
+    my_b_printf(file, "\n");
+  }
+
+  switch (general_type_code) {
   case WRITE_ROWS_EVENT:
     sql_command= "INSERT INTO";
     sql_clause1= "### SET\n";
@@ -2536,7 +2565,7 @@ void Rows_log_event::print_verbose(IO_CACHE *file,
   }
 
   /* If the write rows event contained no values for the AI */
-  if (((type_code == WRITE_ROWS_EVENT) && (m_rows_buf==m_rows_end)))
+  if (((general_type_code == WRITE_ROWS_EVENT) && (m_rows_buf==m_rows_end)))
   {
     my_b_printf(file, "### INSERT INTO %`s.%`s VALUES ()\n", 
                       map->get_db_name(), map->get_table_name());
@@ -2611,31 +2640,45 @@ void Log_event::print_base64(IO_CACHE* file,
   if (print_event_info->verbose)
   {
     Rows_log_event *ev= NULL;
+    Log_event_type et= (Log_event_type) ptr[EVENT_TYPE_OFFSET];
+
     if (checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF &&
         checksum_alg != BINLOG_CHECKSUM_ALG_OFF)
       size-= BINLOG_CHECKSUM_LEN; // checksum is displayed through the header
     
-    if (ptr[4] == TABLE_MAP_EVENT)
+    switch (et)
+    {
+    case TABLE_MAP_EVENT:
     {
       Table_map_log_event *map; 
       map= new Table_map_log_event((const char*) ptr, size, 
                                    glob_description_event);
       print_event_info->m_table_map.set_table(map->get_table_id(), map);
+      break;
     }
-    else if (ptr[4] == WRITE_ROWS_EVENT)
+    case WRITE_ROWS_EVENT:
+    case WRITE_ROWS_EVENT_V1:
     {
       ev= new Write_rows_log_event((const char*) ptr, size,
                                    glob_description_event);
+      break;
     }
-    else if (ptr[4] == DELETE_ROWS_EVENT)
+    case DELETE_ROWS_EVENT:
+    case DELETE_ROWS_EVENT_V1:
     {
       ev= new Delete_rows_log_event((const char*) ptr, size,
                                     glob_description_event);
+      break;
     }
-    else if (ptr[4] == UPDATE_ROWS_EVENT)
+    case UPDATE_ROWS_EVENT:
+    case UPDATE_ROWS_EVENT_V1:
     {
       ev= new Update_rows_log_event((const char*) ptr, size,
                                     glob_description_event);
+      break;
+    }
+    default:
+      break;
     }
     
     if (ev)
@@ -4745,10 +4788,10 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
       post_header_len[PRE_GA_UPDATE_ROWS_EVENT-1] = 0;
       post_header_len[PRE_GA_DELETE_ROWS_EVENT-1] = 0;
 
-      post_header_len[TABLE_MAP_EVENT-1]=    TABLE_MAP_HEADER_LEN;
-      post_header_len[WRITE_ROWS_EVENT-1]=   ROWS_HEADER_LEN;
-      post_header_len[UPDATE_ROWS_EVENT-1]=  ROWS_HEADER_LEN;
-      post_header_len[DELETE_ROWS_EVENT-1]=  ROWS_HEADER_LEN;
+      post_header_len[TABLE_MAP_EVENT-1]=       TABLE_MAP_HEADER_LEN;
+      post_header_len[WRITE_ROWS_EVENT_V1-1]=   ROWS_HEADER_LEN_V1;
+      post_header_len[UPDATE_ROWS_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
+      post_header_len[DELETE_ROWS_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
       /*
         We here have the possibility to simulate a master of before we changed
         the table map id to be stored in 6 bytes: when it was stored in 4
@@ -4761,11 +4804,16 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
       */
       DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                       post_header_len[TABLE_MAP_EVENT-1]=
-                      post_header_len[WRITE_ROWS_EVENT-1]=
-                      post_header_len[UPDATE_ROWS_EVENT-1]=
-                      post_header_len[DELETE_ROWS_EVENT-1]= 6;);
+                      post_header_len[WRITE_ROWS_EVENT_V1-1]=
+                      post_header_len[UPDATE_ROWS_EVENT_V1-1]=
+                      post_header_len[DELETE_ROWS_EVENT_V1-1]= 6;);
       post_header_len[INCIDENT_EVENT-1]= INCIDENT_HEADER_LEN;
       post_header_len[HEARTBEAT_LOG_EVENT-1]= 0;
+      post_header_len[IGNORABLE_LOG_EVENT-1]= 0;
+      post_header_len[ROWS_QUERY_LOG_EVENT-1]= 0;
+      post_header_len[WRITE_ROWS_EVENT-1]=  ROWS_HEADER_LEN_V2;
+      post_header_len[UPDATE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
+      post_header_len[DELETE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
 
       // Set header length of the reserved events to 0
       memset(post_header_len + MYSQL_EVENTS_END - 1, 0,
@@ -9032,13 +9080,15 @@ const char *sql_ex_info::init(const char *buf, const char *buf_end,
 
 #ifndef MYSQL_CLIENT
 Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
-                               MY_BITMAP const *cols, bool is_transactional)
+                               MY_BITMAP const *cols, bool is_transactional,
+                               Log_event_type event_type)
   : Log_event(thd_arg, 0, is_transactional),
     m_row_count(0),
     m_table(tbl_arg),
     m_table_id(tid),
     m_width(tbl_arg ? tbl_arg->s->fields : 1),
-    m_rows_buf(0), m_rows_cur(0), m_rows_end(0), m_flags(0) 
+    m_rows_buf(0), m_rows_cur(0), m_rows_end(0), m_flags(0),
+    m_type(event_type), m_extra_row_data(0)
 #ifdef HAVE_REPLICATION
     , m_curr_row(NULL), m_curr_row_end(NULL),
     m_key(NULL), m_key_info(NULL), m_key_nr(0)
@@ -9079,7 +9129,6 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
 #endif
 
 Rows_log_event::Rows_log_event(const char *buf, uint event_len,
-                               Log_event_type event_type,
                                const Format_description_log_event
                                *description_event)
   : Log_event(buf, description_event),
@@ -9087,7 +9136,8 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
 #ifndef MYSQL_CLIENT
     m_table(NULL),
 #endif
-    m_table_id(0), m_rows_buf(0), m_rows_cur(0), m_rows_end(0)
+    m_table_id(0), m_rows_buf(0), m_rows_cur(0), m_rows_end(0),
+    m_extra_row_data(0)
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
     , m_curr_row(NULL), m_curr_row_end(NULL),
     m_key(NULL), m_key_info(NULL), m_key_nr(0)
@@ -9095,6 +9145,9 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
 {
   DBUG_ENTER("Rows_log_event::Rows_log_event(const char*,...)");
   uint8 const common_header_len= description_event->common_header_len;
+  Log_event_type event_type= (Log_event_type) buf[EVENT_TYPE_OFFSET];
+  m_type= event_type;
+  
   uint8 const post_header_len= description_event->post_header_len[event_type-1];
 
   DBUG_PRINT("enter",("event_len: %u  common_header_len: %d  "
@@ -9117,9 +9170,54 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
   }
 
   m_flags= uint2korr(post_start);
+  post_start+= 2;
+
+  uint16 var_header_len= 0;
+  if (post_header_len == ROWS_HEADER_LEN_V2)
+  {
+    /*
+      Have variable length header, check length,
+      which includes length bytes
+    */
+    var_header_len= uint2korr(post_start);
+    assert(var_header_len >= 2);
+    var_header_len-= 2;
+
+    /* Iterate over var-len header, extracting 'chunks' */
+    const char* start= post_start + 2;
+    const char* end= start + var_header_len;
+    for (const char* pos= start; pos < end;)
+    {
+      switch(*pos++)
+      {
+      case RW_V_EXTRAINFO_TAG:
+      {
+        /* Have an 'extra info' section, read it in */
+        assert((end - pos) >= EXTRA_ROW_INFO_HDR_BYTES);
+        uint8 infoLen= pos[EXTRA_ROW_INFO_LEN_OFFSET];
+        assert((end - pos) >= infoLen);
+        /* Just store/use the first tag of this type, skip others */
+        if (likely(!m_extra_row_data))
+        {
+          m_extra_row_data= (uchar*) my_malloc(infoLen,
+                                               MYF(MY_WME));
+          if (likely(m_extra_row_data != NULL))
+          {
+            memcpy(m_extra_row_data, pos, infoLen);
+          }
+        }
+        pos+= infoLen;
+        break;
+      }
+      default:
+        /* Unknown code, we will not understand anything further here */
+        pos= end; /* Break loop */
+      }
+    }
+  }
 
   uchar const *const var_start=
-    (const uchar *)buf + common_header_len + post_header_len;
+    (const uchar *)buf + common_header_len + post_header_len + var_header_len;
   uchar const *const ptr_width= var_start;
   uchar *ptr_after_width= (uchar*) ptr_width;
   DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
@@ -9146,7 +9244,8 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
 
   m_cols_ai.bitmap= m_cols.bitmap; /* See explanation in is_valid() */
 
-  if (event_type == UPDATE_ROWS_EVENT)
+  if ((event_type == UPDATE_ROWS_EVENT) ||
+      (event_type == UPDATE_ROWS_EVENT_V1))
   {
     DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
 
@@ -9199,24 +9298,38 @@ Rows_log_event::~Rows_log_event()
     m_cols.bitmap= 0; // so no my_free in bitmap_free
   bitmap_free(&m_cols); // To pair with bitmap_init().
   my_free(m_rows_buf);
+  my_free(m_extra_row_data);
 }
 
 int Rows_log_event::get_data_size()
 {
-  int const type_code= get_type_code();
+  int const general_type_code= get_general_type_code();
 
-  uchar buf[sizeof(m_width) + 1];
+  uchar buf[MAX_INT_WIDTH];
   uchar *end= net_store_length(buf, m_width);
 
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                   return 6 + no_bytes_in_map(&m_cols) + (end - buf) +
-                  (type_code == UPDATE_ROWS_EVENT ? no_bytes_in_map(&m_cols_ai) : 0) +
+                  (general_type_code == UPDATE_ROWS_EVENT ? no_bytes_in_map(&m_cols_ai) : 0) +
                   (m_rows_cur - m_rows_buf););
-  int data_size= ROWS_HEADER_LEN;
+
+  int data_size= 0;
+  bool is_v2_event= get_type_code() > DELETE_ROWS_EVENT_V1;
+  if (is_v2_event)
+  {
+    data_size= ROWS_HEADER_LEN_V2 +
+      (m_extra_row_data ?
+       RW_V_TAG_LEN + m_extra_row_data[EXTRA_ROW_INFO_LEN_OFFSET]:
+       0);
+  }
+  else
+  {
+    data_size= ROWS_HEADER_LEN_V1;
+  }
   data_size+= no_bytes_in_map(&m_cols);
   data_size+= (uint) (end - buf);
 
-  if (type_code == UPDATE_ROWS_EVENT)
+  if (general_type_code == UPDATE_ROWS_EVENT)
     data_size+= no_bytes_in_map(&m_cols_ai);
 
   data_size+= (uint) (m_rows_cur - m_rows_buf);
@@ -9486,7 +9599,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
     thd->set_time(when, when_sec_part);
 
-     if ( m_width == table->s->fields && bitmap_is_set_all(&m_cols))
+     if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
       set_flags(COMPLETE_ROWS_F);
 
     /* 
@@ -9786,7 +9899,7 @@ Rows_log_event::do_update_pos(rpl_group_info *rgi)
 #ifndef MYSQL_CLIENT
 bool Rows_log_event::write_data_header(IO_CACHE *file)
 {
-  uchar buf[ROWS_HEADER_LEN];	// No need to init the buffer
+  uchar buf[ROWS_HEADER_LEN_V2];        // No need to init the buffer
   DBUG_ASSERT(m_table_id != ~0UL);
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                   {
@@ -9805,7 +9918,7 @@ bool Rows_log_event::write_data_body(IO_CACHE*file)
      Note that this should be the number of *bits*, not the number of
      bytes.
   */
-  uchar sbuf[sizeof(m_width) + 1];
+  uchar sbuf[MAX_INT_WIDTH];
   my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
   bool res= false;
   uchar *const sbuf_end= net_store_length(sbuf, (size_t) m_width);
@@ -9820,7 +9933,7 @@ bool Rows_log_event::write_data_body(IO_CACHE*file)
   /*
     TODO[refactor write]: Remove the "down cast" here (and elsewhere).
    */
-  if (get_type_code() == UPDATE_ROWS_EVENT)
+  if (get_general_type_code() == UPDATE_ROWS_EVENT)
   {
     DBUG_DUMP("m_cols_ai", (uchar*) m_cols_ai.bitmap,
               no_bytes_in_map(&m_cols_ai));
@@ -10110,7 +10223,7 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
     m_null_bits(0),
     m_meta_memory(NULL)
 {
-  uchar cbuf[sizeof(m_colcnt) + 1];
+  uchar cbuf[MAX_INT_WIDTH];
   uchar *cbuf_end;
   DBUG_ASSERT(m_table_id != ~0UL);
   /*
@@ -10659,14 +10772,14 @@ bool Table_map_log_event::write_data_body(IO_CACHE *file)
   uchar const dbuf[]= { (uchar) m_dblen };
   uchar const tbuf[]= { (uchar) m_tbllen };
 
-  uchar cbuf[sizeof(m_colcnt) + 1];
+  uchar cbuf[MAX_INT_WIDTH];
   uchar *const cbuf_end= net_store_length(cbuf, (size_t) m_colcnt);
   DBUG_ASSERT(static_cast<size_t>(cbuf_end - cbuf) <= sizeof(cbuf));
 
   /*
     Store the size of the field metadata.
   */
-  uchar mbuf[sizeof(m_field_metadata_size)];
+  uchar mbuf[MAX_INT_WIDTH];
   uchar *const mbuf_end= net_store_length(mbuf, m_field_metadata_size);
 
   return (wrapper_my_b_safe_write(file, dbuf,      sizeof(dbuf)) ||
@@ -10729,7 +10842,7 @@ Write_rows_log_event::Write_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
                                            ulong tid_arg,
                                            MY_BITMAP const *cols,
                                            bool is_transactional)
-  : Rows_log_event(thd_arg, tbl_arg, tid_arg, cols, is_transactional)
+  : Rows_log_event(thd_arg, tbl_arg, tid_arg, cols, is_transactional, WRITE_ROWS_EVENT_V1)
 {
 }
 #endif
@@ -10741,7 +10854,7 @@ Write_rows_log_event::Write_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
 Write_rows_log_event::Write_rows_log_event(const char *buf, uint event_len,
                                            const Format_description_log_event
                                            *description_event)
-: Rows_log_event(buf, event_len, WRITE_ROWS_EVENT, description_event)
+: Rows_log_event(buf, event_len, description_event)
 {
 }
 #endif
@@ -11714,7 +11827,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 
 end:
   if (is_table_scan || is_index_scan)
-    issue_long_find_row_warning(get_type_code(), m_table->alias.c_ptr(), 
+    issue_long_find_row_warning(get_general_type_code(), m_table->alias.c_ptr(), 
                                 is_index_scan, rgi);
   table->default_column_bitmaps();
   DBUG_RETURN(error);
@@ -11730,7 +11843,7 @@ end:
 Delete_rows_log_event::Delete_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
                                              ulong tid, MY_BITMAP const *cols,
                                              bool is_transactional)
-  : Rows_log_event(thd_arg, tbl_arg, tid, cols, is_transactional)
+  : Rows_log_event(thd_arg, tbl_arg, tid, cols, is_transactional, DELETE_ROWS_EVENT_V1)
 {
 }
 #endif /* #if !defined(MYSQL_CLIENT) */
@@ -11742,7 +11855,7 @@ Delete_rows_log_event::Delete_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
 Delete_rows_log_event::Delete_rows_log_event(const char *buf, uint event_len,
                                              const Format_description_log_event
                                              *description_event)
-  : Rows_log_event(buf, event_len, DELETE_ROWS_EVENT, description_event)
+  : Rows_log_event(buf, event_len, description_event)
 {
 }
 #endif
@@ -11823,7 +11936,7 @@ Update_rows_log_event::Update_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
                                              MY_BITMAP const *cols_bi,
                                              MY_BITMAP const *cols_ai,
                                              bool is_transactional)
-: Rows_log_event(thd_arg, tbl_arg, tid, cols_bi, is_transactional)
+: Rows_log_event(thd_arg, tbl_arg, tid, cols_bi, is_transactional, UPDATE_ROWS_EVENT_V1)
 {
   init(cols_ai);
 }
@@ -11832,7 +11945,7 @@ Update_rows_log_event::Update_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
                                              ulong tid,
                                              MY_BITMAP const *cols,
                                              bool is_transactional)
-: Rows_log_event(thd_arg, tbl_arg, tid, cols, is_transactional)
+: Rows_log_event(thd_arg, tbl_arg, tid, cols, is_transactional, UPDATE_ROWS_EVENT_V1)
 {
   init(cols);
 }
@@ -11872,7 +11985,7 @@ Update_rows_log_event::Update_rows_log_event(const char *buf, uint event_len,
                                              const
                                              Format_description_log_event
                                              *description_event)
-  : Rows_log_event(buf, event_len, UPDATE_ROWS_EVENT, description_event)
+  : Rows_log_event(buf, event_len, description_event)
 {
 }
 #endif
