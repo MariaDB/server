@@ -101,7 +101,7 @@ public:
   const char* get_default_validator();
 
   /* Settings */
-  void set_consistency_levels(ulong read_cons_level, ulong write_cons_level);
+  void set_consistency_levels(unsigned long read_cons_level, unsigned long write_cons_level);
   virtual void set_n_retries(uint retries_arg) {
     thrift_call_retries_to_do= retries_arg;
   }
@@ -228,8 +228,8 @@ bool Cassandra_se_impl::reconnect()
 }
 
 
-void Cassandra_se_impl::set_consistency_levels(ulong read_cons_level,
-                                               ulong write_cons_level)
+void Cassandra_se_impl::set_consistency_levels(unsigned long read_cons_level,
+                                               unsigned long write_cons_level)
 {
   write_cons_level= (ConsistencyLevel::type)(write_cons_level + 1);
   read_cons_level=  (ConsistencyLevel::type)(read_cons_level + 1);

@@ -130,3 +130,9 @@ a
 flush tables;
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
+create table t1 (a int) engine=archive;
+select * from t1;
+a
+flush tables;
+create table t1 (a int) engine=archive;
+drop table t1;

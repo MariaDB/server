@@ -2136,6 +2136,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   if (tabledef_version.str)
     thd->lex->create_info.tabledef_version= tabledef_version;
 
+  promote_first_timestamp_column(&thd->lex->alter_info.create_list);
   file= mysql_create_frm_image(thd, db.str, table_name.str,
                                &thd->lex->create_info, &thd->lex->alter_info,
                                C_ORDINARY_CREATE, &unused1, &unused2, &frm);
@@ -3816,7 +3817,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   if (gvisitor->m_lock_open_count++ == 0)
     mysql_mutex_lock(&LOCK_open);
 
-  TABLE_list::Iterator tables_it(tdc.used_tables);
+  All_share_tables_list::Iterator tables_it(tdc.all_tables);
 
   /*
     In case of multiple searches running in parallel, avoid going
@@ -3834,7 +3835,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
 
   while ((table= tables_it++))
   {
-    if (gvisitor->inspect_edge(&table->in_use->mdl_context))
+    if (table->in_use && gvisitor->inspect_edge(&table->in_use->mdl_context))
     {
       goto end_leave_node;
     }
@@ -3843,7 +3844,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   tables_it.rewind();
   while ((table= tables_it++))
   {
-    if (table->in_use->mdl_context.visit_subgraph(gvisitor))
+    if (table->in_use && table->in_use->mdl_context.visit_subgraph(gvisitor))
     {
       goto end_leave_node;
     }

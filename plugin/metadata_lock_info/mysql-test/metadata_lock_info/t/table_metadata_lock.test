@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS t1(a int);
+BEGIN;
+SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
+SELECT * FROM t1;
+SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
+ROLLBACK;
+SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
+DROP TABLE t1;

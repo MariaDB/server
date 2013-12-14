@@ -73,8 +73,6 @@
 char internal_table_name[2]= "*";
 char empty_c_string[1]= {0};    /* used for not defined db */
 
-LEX_STRING EMPTY_STR= { (char *) "", 0 };
-
 const char * const THD::DEFAULT_WHERE= "field list";
 
 /****************************************************************************
@@ -694,10 +692,29 @@ int thd_tx_is_read_only(const THD *thd)
   return (int) thd->tx_read_only;
 }
 
+
 extern "C"
-void thd_inc_row_count(THD *thd)
-{
-  thd->get_stmt_da()->inc_current_row_for_warning();
+{ /* Functions for thd_error_context_service */
+
+  const char *thd_get_error_message(const THD *thd)
+  {
+    return thd->get_stmt_da()->message();
+  }
+
+  uint thd_get_error_number(const THD *thd)
+  {
+    return thd->get_stmt_da()->sql_errno();
+  }
+
+  ulong thd_get_error_row(const THD *thd)
+  {
+    return thd->get_stmt_da()->current_row_for_warning();
+  }
+
+  void thd_inc_error_row(THD *thd)
+  {
+    thd->get_stmt_da()->inc_current_row_for_warning();
+  }
 }
 
 
@@ -720,8 +737,9 @@ void thd_inc_row_count(THD *thd)
 */
 
 extern "C"
-char *thd_security_context(THD *thd, char *buffer, unsigned int length,
-                           unsigned int max_query_len)
+char *thd_get_error_context_description(THD *thd, char *buffer,
+                                        unsigned int length,
+                                        unsigned int max_query_len)
 {
   String str(buffer, length, &my_charset_latin1);
   const Security_context *sctx= &thd->main_security_ctx;
@@ -798,6 +816,21 @@ char *thd_security_context(THD *thd, char *buffer, unsigned int length,
   return buffer;
 }
 
+
+#if MARIA_PLUGIN_INTERFACE_VERSION < 0x0200
+/**
+  TODO: This function is for API compatibility, remove it eventually.
+  All engines should switch to use thd_get_error_context_description()
+  plugin service function.
+*/
+extern "C"
+char *thd_security_context(THD *thd,
+                           char *buffer, unsigned int length,
+                           unsigned int max_query_len)
+{
+  return thd_get_error_context_description(thd, buffer, length, max_query_len);
+}
+#endif
 
 /**
   Implementation of Drop_table_error_handler::handle_condition().
@@ -1598,9 +1631,7 @@ THD::~THD()
   {
     DBUG_PRINT("error", ("memory_used: %lld", status_var.memory_used));
     SAFEMALLOC_REPORT_MEMORY(my_thread_dbug_id());
-#ifdef ENABLE_BEFORE_END_OF_MERGE_QQ
     DBUG_ASSERT(status_var.memory_used == 0);  // Ensure everything is freed
-#endif
   }
 
   set_current_thd(orig_thd);
@@ -4241,6 +4272,7 @@ extern "C" enum durability_properties thd_get_durability_property(const MYSQL_TH
 }
 
 /** Get the auto_increment_offset auto_increment_increment.
+Exposed by thd_autoinc_service.
 Needed by InnoDB.
 @param thd	Thread object
 @param off	auto_increment_offset
@@ -5356,7 +5388,7 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
   DBUG_ASSERT(table->s->table_map_id != ~0UL);
 
   /* Fetch the type code for the RowsEventT template parameter */
-  int const type_code= RowsEventT::TYPE_CODE;
+  int const general_type_code= RowsEventT::TYPE_CODE;
 
   /*
     There is no good place to set up the transactional data, so we
@@ -5383,7 +5415,7 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
   if (!pending ||
       pending->server_id != serv_id || 
       pending->get_table_id() != table->s->table_map_id ||
-      pending->get_type_code() != type_code || 
+      pending->get_general_type_code() != general_type_code || 
       pending->get_data_size() + needed > opt_binlog_rows_event_max_size || 
       pending->get_width() != colcnt ||
       !bitmap_cmp(pending->get_cols(), cols)) 

@@ -276,7 +276,7 @@ void case_stmt_action_case(LEX *lex)
     (Instruction 12 in the example)
   */
 
-  lex->spcont->push_label(current_thd, EMPTY_STR, lex->sphead->instructions());
+  lex->spcont->push_label(current_thd, empty_lex_str, lex->sphead->instructions());
 }
 
 /**
@@ -345,7 +345,7 @@ int case_stmt_action_when(LEX *lex, Item *when, bool simple)
   */
 
   return !test(i) ||
-         sp->push_backpatch(i, ctx->push_label(current_thd, EMPTY_STR, 0)) ||
+         sp->push_backpatch(i, ctx->push_label(current_thd, empty_lex_str, 0)) ||
          sp->add_cont_backpatch(i) ||
          sp->add_instr(i);
 }
@@ -3074,7 +3074,7 @@ sp_decl:
                 sp->push_backpatch(i, ctx->last_label()))
               MYSQL_YYABORT;
 
-            if (sp->push_backpatch(i, ctx->push_label(thd, EMPTY_STR, 0)))
+            if (sp->push_backpatch(i, ctx->push_label(thd, empty_lex_str, 0)))
               MYSQL_YYABORT;
           }
           sp_hcond_list sp_proc_stmt
@@ -3719,8 +3719,7 @@ sp_proc_stmt_unlabeled:
           { /* Unlabeled controls get a secret label. */
             LEX *lex= Lex;
 
-            lex->spcont->push_label(thd,
-                                    EMPTY_STR,
+            lex->spcont->push_label(thd, empty_lex_str,
                                     lex->sphead->instructions());
           }
           sp_unlabeled_control
@@ -3949,7 +3948,7 @@ sp_if:
             sp_instr_jump_if_not *i = new sp_instr_jump_if_not(ip, ctx,
                                                                $2, lex);
             if (i == NULL ||
-                sp->push_backpatch(i, ctx->push_label(thd, EMPTY_STR, 0)) ||
+                sp->push_backpatch(i, ctx->push_label(thd, empty_lex_str, 0)) ||
                 sp->add_cont_backpatch(i) ||
                 sp->add_instr(i))
               MYSQL_YYABORT;
@@ -3966,7 +3965,7 @@ sp_if:
                 sp->add_instr(i))
               MYSQL_YYABORT;
             sp->backpatch(ctx->pop_label());
-            sp->push_backpatch(i, ctx->push_label(thd, EMPTY_STR, 0));
+            sp->push_backpatch(i, ctx->push_label(thd, empty_lex_str, 0));
           }
           sp_elseifs
           {
@@ -4179,7 +4178,7 @@ sp_unlabeled_block:
           { /* Unlabeled blocks get a secret label. */
             LEX *lex= Lex;
             uint ip= lex->sphead->instructions();
-            sp_label *lab= lex->spcont->push_label(thd, EMPTY_STR, ip);
+            sp_label *lab= lex->spcont->push_label(thd, empty_lex_str, ip);
             lab->type= sp_label::BEGIN;
           }
           sp_block_content
@@ -4836,7 +4835,7 @@ partition:
         ;
 
 part_type_def:
-          opt_linear KEY_SYM '(' part_field_list ')'
+          opt_linear KEY_SYM opt_key_algo '(' part_field_list ')'
           {
             partition_info *part_info= Lex->part_info;
             part_info->list_of_part_fields= TRUE;
@@ -4860,6 +4859,25 @@ opt_linear:
           /* empty */ {}
         | LINEAR_SYM
           { Lex->part_info->linear_hash_ind= TRUE;}
+        ;
+
+opt_key_algo:
+          /* empty */
+          { Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_NONE;}
+        | ALGORITHM_SYM EQ real_ulong_num
+          {
+            switch ($3) {
+            case 1:
+              Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_51;
+              break;
+            case 2:
+              Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_55;
+              break;
+            default:
+              my_parse_error(ER(ER_SYNTAX_ERROR));
+              MYSQL_YYABORT;
+            }
+          }
         ;
 
 part_field_list:
@@ -4943,7 +4961,7 @@ opt_sub_part:
         | SUBPARTITION_SYM BY opt_linear HASH_SYM sub_part_func
           { Lex->part_info->subpart_type= HASH_PARTITION; }
           opt_num_subparts {}
-        | SUBPARTITION_SYM BY opt_linear KEY_SYM
+        | SUBPARTITION_SYM BY opt_linear KEY_SYM opt_key_algo
           '(' sub_part_field_list ')'
           {
             partition_info *part_info= Lex->part_info;
@@ -9734,7 +9752,7 @@ function_call_conflict:
         | PASSWORD '(' expr ')'
           {
             Item* i1;
-            if (thd->variables.old_passwords == 1)
+            if (thd->variables.old_passwords)
               i1= new (thd->mem_root) Item_func_old_password($3);
             else
               i1= new (thd->mem_root) Item_func_password($3);
@@ -13984,6 +14002,7 @@ keyword:
         | EXAMINED_SYM          {}
         | EXECUTE_SYM           {}
         | FLUSH_SYM             {}
+        | GET_SYM               {}
         | HANDLER_SYM           {}
         | HELP_SYM              {}
         | HOST_SYM              {}
@@ -14769,18 +14788,10 @@ text_or_password:
           TEXT_STRING { $$=$1.str;}
         | PASSWORD '(' TEXT_STRING ')'
           {
-            if ($3.length == 0)
-             $$= $3.str;
-            else
-            switch (thd->variables.old_passwords) {
-              case 1: $$= Item_func_old_password::
-                alloc(thd, $3.str, $3.length);
-                break;
-              case 0:
-              case 2: $$= Item_func_password::
-                create_password_hash_buffer(thd, $3.str, $3.length);
-                break;
-            }
+            $$= $3.length ? thd->variables.old_passwords ?
+              Item_func_old_password::alloc(thd, $3.str, $3.length) :
+              Item_func_password::alloc(thd, $3.str, $3.length) :
+              $3.str;
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -15380,7 +15391,7 @@ grant_user:
                   (char *) thd->alloc(SCRAMBLED_PASSWORD_CHAR_LENGTH+1);
                 if (buff == NULL)
                   MYSQL_YYABORT;
-                my_make_scrambled_password_sha1(buff, $4.str, $4.length);
+                my_make_scrambled_password(buff, $4.str, $4.length);
                 $1->password.str= buff;
                 $1->password.length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
               }

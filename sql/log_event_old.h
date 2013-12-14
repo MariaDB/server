@@ -41,6 +41,9 @@
   but we keep them this way for now.  /Sven
 */
 
+/* These classes are based on the v1 RowsHeaderLen */
+#undef ROWS_HEADER_LEN
+#define ROWS_HEADER_LEN ROWS_HEADER_LEN_V1
 
 /**
   @class Old_rows_log_event

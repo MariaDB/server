@@ -28,12 +28,6 @@
 #pragma interface     /* gcc class implementation */
 #endif
 
-#if defined(WIN32)
-#include <sys\timeb.h>
-#else
-#include <sys/timeb.h>
-#endif   // UBUNTU
-
 /*****************************************************************************/
 /*  This is the global structure having all CONNECT information.             */
 /*****************************************************************************/

@@ -1540,6 +1540,9 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
     */
     rgi->set_annotate_event((Annotate_rows_log_event*) ev);
     break;
+  case DELETE_ROWS_EVENT_V1:
+  case UPDATE_ROWS_EVENT_V1:
+  case WRITE_ROWS_EVENT_V1:
   case DELETE_ROWS_EVENT:
   case UPDATE_ROWS_EVENT:
   case WRITE_ROWS_EVENT:

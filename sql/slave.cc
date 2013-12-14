@@ -6005,10 +6005,9 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
   IO_CACHE* cur_log = rli->cur_log;
   mysql_mutex_t *log_lock = rli->relay_log.get_log_lock();
   const char* errmsg=0;
-  THD *thd = rgi->thd;
   DBUG_ENTER("next_event");
 
-  DBUG_ASSERT(thd != 0 && thd == rli->sql_driver_thd);
+  DBUG_ASSERT(rgi->thd != 0 && rgi->thd == rli->sql_driver_thd);
   *event_size= 0;
 
 #ifndef DBUG_OFF

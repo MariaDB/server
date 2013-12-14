@@ -21,8 +21,6 @@
 
 /* This file defines all string functions */
 
-#include "crypt_genhash_impl.h"
-
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
 #endif
@@ -394,21 +392,16 @@ public:
 
 class Item_func_password :public Item_str_ascii_func
 {
-  char m_hashed_password_buffer[CRYPT_MAX_PASSWORD_SIZE + 1];
-  unsigned int m_hashed_password_buffer_len;
-  bool m_recalculate_password;
+  char tmp_value[SCRAMBLED_PASSWORD_CHAR_LENGTH+1]; 
 public:
-  Item_func_password(Item *a) :Item_str_ascii_func(a)
-  {
-    m_hashed_password_buffer_len= 0;
-    m_recalculate_password= false;
-  }
+  Item_func_password(Item *a) :Item_str_ascii_func(a) {}
   String *val_str_ascii(String *str);
-  void fix_length_and_dec();
+  void fix_length_and_dec()
+  {
+    fix_length_and_charset(SCRAMBLED_PASSWORD_CHAR_LENGTH, default_charset());
+  }
   const char *func_name() const { return "password"; }
   static char *alloc(THD *thd, const char *password, size_t pass_len);
-  static char *create_password_hash_buffer(THD *thd, const char *password,
-                                           size_t pass_len);
 };
 
 

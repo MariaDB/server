@@ -1,0 +1,16 @@
+#
+# MDEV-4403 Attempting to use cassandra storage engine causes "service 'my_snprintf_service' interface version mismatch"
+#
+if (!$HA_CASSANDRA_SO) {
+  skip No Cassandra engine;
+}
+
+install soname 'ha_cassandra';
+select plugin_name,plugin_status,plugin_library from information_schema.plugins where plugin_name = 'cassandra';
+uninstall plugin cassandra;
+select plugin_name,plugin_status,plugin_library from information_schema.plugins where plugin_name = 'cassandra';
+install soname 'ha_cassandra';
+select plugin_name,plugin_status,plugin_library from information_schema.plugins where plugin_name = 'cassandra';
+uninstall plugin cassandra;
+select plugin_name,plugin_status,plugin_library from information_schema.plugins where plugin_name = 'cassandra';
+

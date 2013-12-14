@@ -7990,7 +7990,7 @@ int spider_discover_table_structure(
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     }
     if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
-      FALSE, TRUE, info, NULL)))
+      FALSE, TRUE, info, NULL, NULL)))
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }

@@ -1833,10 +1833,8 @@ static int check_block_record(HA_CHECK *param, MARIA_HA *info, int extend,
   char llbuff[22], llbuff2[22];
   uint block_size= share->block_size;
   ha_rows full_page_count, tail_count;
-  my_bool full_dir, now_transactional;
+  my_bool UNINIT_VAR(full_dir), now_transactional;
   uint offset_page, offset, free_count;
-
-  LINT_INIT(full_dir);
 
   if (_ma_scan_init_block_record(info))
   {
@@ -1859,7 +1857,8 @@ static int check_block_record(HA_CHECK *param, MARIA_HA *info, int extend,
        pos < share->state.state.data_file_length;
        pos+= block_size, page++)
   {
-    uint UNINIT_VAR(row_count), real_row_count, empty_space, page_type, bitmap_pattern;
+    uint UNINIT_VAR(row_count), real_row_count, UNINIT_VAR(empty_space),
+         page_type, bitmap_pattern;
     uint bitmap_for_page;
 
     if (_ma_killed_ptr(param))

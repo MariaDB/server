@@ -65,6 +65,7 @@ drop table t1;
 set names latin2;
 --source include/weight_string.inc
 --source include/weight_string_l1.inc
+--source include/ctype_datetime.inc
 
 set collation_connection=latin2_bin;
 --source include/weight_string.inc

@@ -1467,7 +1467,9 @@ void Item_temporal_func::fix_length_and_dec()
                  (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
   collation.set(field_type() == MYSQL_TYPE_STRING ?
                 default_charset() : &my_charset_numeric,
-                DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
+                field_type() == MYSQL_TYPE_STRING ?
+                DERIVATION_COERCIBLE : DERIVATION_NUMERIC,
+                MY_REPERTOIRE_ASCII);
   fix_char_length(char_length);
 }
 

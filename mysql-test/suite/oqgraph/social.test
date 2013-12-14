@@ -1,0 +1,131 @@
+--disable_warnings
+DROP TABLE IF EXISTS rsb, rsb_graph;
+--enable_warnings
+
+CREATE TABLE rsb (
+  f INT UNSIGNED NOT NULL,
+  t INT UNSIGNED NOT NULL,
+  weight FLOAT NOT NULL,
+  PRIMARY KEY (`f`,`t`),
+  KEY `t` (`t`)
+) ENGINE=MyISAM;
+
+CREATE TABLE rsb_graph (
+  latch   VARCHAR(32) NULL,
+  origid  BIGINT    UNSIGNED NULL,
+  destid  BIGINT    UNSIGNED NULL,
+  weight  DOUBLE    NULL,
+  seq     BIGINT    UNSIGNED NULL,
+  linkid  BIGINT    UNSIGNED NULL,
+  KEY (latch, origid, destid) USING HASH,
+  KEY (latch, destid, origid) USING HASH
+) ENGINE=OQGRAPH data_table='rsb' origid='f' destid='t' weight='weight';
+
+
+# this graph generator is designed to be deterministic
+# (so we don't need to ship a large test dataset)
+# --source suite/oqgraph/randgraphproc.inc
+
+# SQL implementation of randsocial.c for OQGRAPH
+# Copyright (C) 2013 by Arjen Lentz <arjen@openquery.com> for Open Query
+# GPL v2+ licensed with the rest of OQGRAPH
+# for use in mysql-test
+# 2013-03-01 first implementation based on randsocial.c in old oqgraph v2 tree
+
+delimiter |;
+--disable_warnings
+DROP PROCEDURE IF EXISTS randnotx|
+--enable_warnings
+CREATE PROCEDURE randnotx (INOUT rseed INT, IN items INT, IN x INT, OUT rval INT) DETERMINISTIC
+BEGIN
+  REPEAT
+    # Simple LCG (BSD)
+    SET rseed = (rseed * 1103515245 + 12345) & 2147483647;
+    SET rval = ((rseed >> 16) & 32767) MOD items;
+  UNTIL rval <> x
+  END REPEAT;
+END;|
+
+
+# this procedure is deterministic with its private seeded random generator
+--disable_warnings
+DROP PROCEDURE IF EXISTS randgraphproc|
+--enable_warnings
+CREATE PROCEDURE randgraphproc (IN items INT, IN friends INT, IN fanof INT, IN maxweight INT) DETERMINISTIC
+BEGIN
+  DECLARE i,j,weight,rseed,rval INT;
+
+  SET rseed = items;
+
+  SET i = 0;
+  WHILE i < items DO
+    SET j = 0;
+    WHILE j < (friends + fanof) DO
+      CALL randnotx(rseed,items,i,rval);
+
+      IF (maxweight > 0) THEN
+        CALL randnotx(rseed,items,-1,weight);
+        SET weight = weight MOD maxweight;
+      ELSE
+        SET weight = 0;
+      END IF;
+
+      INSERT IGNORE rsb VALUES (i,rval,weight);
+
+      IF (j < friends) THEN
+        INSERT IGNORE rsb VALUES (rval,i,weight);
+      END IF;
+
+      SET j = j + 1;
+    END WHILE;
+
+    SET i = i + 1;
+  END WHILE;
+END;|
+
+DELIMITER ;|
+
+
+# generate social graph of 10000 people having 5 friends (two-way) and being fan of 2 others (one-way)), max weight 3
+CALL randgraphproc(10000,5,2,3);
+
+# some random paths
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1 AND destid=20;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1 AND destid=77;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1 AND destid=203;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1595 AND destid=8358;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=1 AND destid=9999;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=6841 AND destid=615;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=369 AND destid=1845;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=73 AND destid=914;
+
+# nonexistent origin
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=12345 AND destid=500;
+
+# noexistent destination
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch='dijkstras' AND origid=300 AND destid=54321;
+
+# how many possible destinations from here
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND origid=1;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND origid=8365;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND origid=976;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND origid=74;
+
+# how many possible sources to here
+# this doesn't appear to work right now in v3 ? #if 0 in code. check with Antony
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND destid=1;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND destid=9999;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND destid=52;
+SELECT COUNT(*) FROM rsb_graph WHERE latch='dijkstras' AND destid=6483;
+
+# breadth first
+# other algorithms
+# joins
+
+# cleaning up our tables
+DROP TABLE rsb_graph, rsb;
+
+# cleaning up procs from randgraphproc.inc
+DROP PROCEDURE randgraphproc;
+DROP PROCEDURE randnotx;
+

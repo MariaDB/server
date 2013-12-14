@@ -81,15 +81,25 @@ typedef struct st_mysql_show_var SHOW_VAR;
 
 /* A handle for the dynamic library containing a plugin or plugins. */
 
+struct st_ptr_backup {
+  void **ptr;
+  void *value;
+  void save(void **p) { ptr= p; value= *p; }
+  void save(const char **p) { save((void**)p); }
+  void restore() { *ptr= value; }
+};
+
 struct st_plugin_dl
 {
   LEX_STRING dl;
   void *handle;
   struct st_maria_plugin *plugins;
+  st_ptr_backup *ptr_backup;
+  uint nbackups;
+  uint ref_count;            /* number of plugins loaded from the library */
   int mysqlversion;
   int mariaversion;
   bool   allocated;
-  uint ref_count;            /* number of plugins loaded from the library */
 };
 
 /* A handle of a plugin */
@@ -99,6 +109,8 @@ struct st_plugin_int
   LEX_STRING name;
   struct st_maria_plugin *plugin;
   struct st_plugin_dl *plugin_dl;
+  st_ptr_backup *ptr_backup;
+  uint nbackups;
   uint state;
   uint ref_count;               /* number of threads using the plugin */
   uint locks_total;             /* how many times the plugin was locked */

@@ -3815,17 +3815,13 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
         However, this should never happen, so better to assert and
         fix this.
       */
-#ifdef ENABLE_BEFORE_END_OF_MERGE_QQ
       DBUG_ASSERT(thd);
-#endif
       if (thd)
       {
         DBUG_PRINT("info", ("memory_used: %lld  size: %lld",
                             (longlong) thd->status_var.memory_used, size));
         thd->status_var.memory_used+= size;
-#ifdef ENABLE_BEFORE_END_OF_MERGE_QQ
         DBUG_ASSERT((longlong) thd->status_var.memory_used >= 0);
-#endif
       }
     }
   }
@@ -7044,6 +7040,7 @@ struct my_option my_long_options[]=
   /* The following options exist in 5.6 but not in 10.0 */
   MYSQL_TO_BE_IMPLEMENTED_OPTION("default-tmp-storage-engine"),
   MYSQL_COMPATIBILITY_OPTION("log-raw"),
+  MYSQL_COMPATIBILITY_OPTION("log-bin-use-v1-row-events"),
   MYSQL_TO_BE_IMPLEMENTED_OPTION("default-authentication-plugin"),
   MYSQL_COMPATIBILITY_OPTION("binlog-max-flush-queue-time"),
   MYSQL_TO_BE_IMPLEMENTED_OPTION("binlog-row-image"),

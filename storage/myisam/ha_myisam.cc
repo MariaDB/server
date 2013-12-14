@@ -646,8 +646,10 @@ void _mi_report_crashed(MI_INFO *file, const char *message,
   for (element= file->s->in_use; element; element= list_rest(element))
   {
     THD *thd= (THD*) element->data;
-    sql_print_error("%s", thd ? thd_security_context(thd, buf, sizeof(buf), 0)
-                              : "Unknown thread accessing table");
+    sql_print_error("%s",
+                    thd ?
+                    thd_get_error_context_description(thd, buf, sizeof(buf), 0)
+                    : "Unknown thread accessing table");
   }
   mysql_mutex_unlock(&file->s->intern_lock);
 }
