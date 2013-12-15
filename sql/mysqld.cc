@@ -1914,7 +1914,9 @@ void clean_up(bool print_message)
   delete binlog_filter;
   delete global_rpl_filter;
   end_ssl();
+#ifndef EMBEDDED_LIBRARY
   vio_end();
+#endif /*!EMBEDDED_LIBRARY*/
 #if defined(ENABLED_DEBUG_SYNC)
   /* End the debug sync facility. See debug_sync.cc. */
   debug_sync_end();
