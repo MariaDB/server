@@ -739,3 +739,14 @@ DROP TABLE t1,t2,t3;
 
 set use_stat_tables=@save_use_stat_tables;
 
+--echo #
+--echo # Bug mdev-5415: query over an information schema table   
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+set optimizer_use_condition_selectivity = 3;
+
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE SQL_MODE != '';
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+

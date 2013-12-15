@@ -1166,5 +1166,13 @@ Note	1003	select `test`.`t1`.`i1` AS `i1` from `test`.`t1` semi join (`test`.`t2
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 DROP TABLE t1,t2,t3;
 set use_stat_tables=@save_use_stat_tables;
+#
+# Bug mdev-5415: query over an information schema table   
+#                when optimizer_use_condition_selectivity=3
+#
+set optimizer_use_condition_selectivity = 3;
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE SQL_MODE != '';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_MANIPULATION	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	ACTION_ORDER	ACTION_CONDITION	ACTION_STATEMENT	ACTION_ORIENTATION	ACTION_TIMING	ACTION_REFERENCE_OLD_TABLE	ACTION_REFERENCE_NEW_TABLE	ACTION_REFERENCE_OLD_ROW	ACTION_REFERENCE_NEW_ROW	CREATED	SQL_MODE	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
 SET SESSION STORAGE_ENGINE=DEFAULT;
