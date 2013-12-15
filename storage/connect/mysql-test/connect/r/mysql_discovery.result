@@ -13,19 +13,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(20) NOT NULL,
-  `group` int(11) NOT NULL,
-  `a\\b` int(11) NOT NULL,
-  `a\\` int(10) DEFAULT NULL,
-  `name` varchar(32) DEFAULT NULL
+  `group` int(11) NOT NULL DEFAULT '1',
+  `a\\b` int(11) NOT NULL DEFAULT '2',
+  `a\\` int(10) unsigned DEFAULT NULL,
+  `name` varchar(32) DEFAULT 'name'
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1' `TABLE_TYPE`='MYSQL'
 INSERT INTO t1 (id, name) VALUES (1, 'foo');
-Warnings:
-Warning	1364	Field 'group' doesn't have a default value
-Warning	1364	Field 'a\\b' doesn't have a default value
 INSERT INTO t1 (id, name) VALUES (2, 'fee');
-Warnings:
-Warning	1364	Field 'group' doesn't have a default value
-Warning	1364	Field 'a\\b' doesn't have a default value
 SELECT * FROM t1;
 id	group	a\\b	a\\	name
 1	1	2	NULL	foo

@@ -1083,7 +1083,7 @@ void ODBCCOL::AllocateBuffers(PGLOBAL g, int rows)
     } // endelse
 
   if (rows > 1)
-    StrLen = (SQLLEN *)PlugSubAlloc(g, NULL, rows * sizeof(int));
+    StrLen = (SQLLEN *)PlugSubAlloc(g, NULL, rows * sizeof(SQLLEN));
 
   } // end of AllocateBuffers
 

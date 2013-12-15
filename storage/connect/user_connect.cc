@@ -95,7 +95,8 @@ bool user_connect::user_init()
   PDBUSER   dup= NULL;
 
   // Areasize= 64M because of VEC tables. Should be parameterisable
-  g= PlugInit(NULL, 67108864);       
+//g= PlugInit(NULL, 67108864);       
+	g= PlugInit(NULL, 134217728);  // 128M because of embedded tests (???)     
 
   // Check whether the initialization is complete
   if (!g || !g->Sarea || PlugSubSet(g, g->Sarea, g->Sarea_Size)
