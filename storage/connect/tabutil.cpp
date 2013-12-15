@@ -117,7 +117,7 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
 
 /************************************************************************/
 /*  TabColumns: constructs the result blocks containing all the columns */
-/*  of the object table that will be retrieved by GetData commands.     */
+/*  description of the object table that will be retrieved by discovery.*/
 /************************************************************************/
 PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db, 
                                         const char *name, bool& info)
@@ -128,8 +128,8 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
   static XFLD fldtyp[] = {FLD_NAME,   FLD_TYPE,  FLD_TYPENAME, FLD_PREC,
                           FLD_LENGTH, FLD_SCALE, FLD_RADIX,    FLD_NULL,
                           FLD_REM,    FLD_NO,    FLD_CHARSET};
-  static unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 256, 32, 32};
-  char        *fld, *fmt;
+  static unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 32, 32};
+  char        *fld, *fmt, v;
   int          i, n, ncol = sizeof(buftyp) / sizeof(int);
   int          len, type, prec;
   bool         mysql;
@@ -164,6 +164,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
   // Some columns must be renamed
   for (i = 0, crp = qrp->Colresp; crp; crp = crp->Next)
     switch (++i) {
+      case  2: crp->Nulls = (char*)PlugSubAlloc(g, NULL, n); break;
       case 10: crp->Name = "Date_fmt";  break;
       case 11: crp->Name = "Collation"; break;
       } // endswitch i
@@ -181,8 +182,9 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
     crp = qrp->Colresp;                    // Column_Name
     fld = (char *)fp->field_name;
     crp->Kdata->SetValue(fld, i);
+    v = 0;
 
-    if ((type = MYSQLtoPLG(fp->type())) == TYPE_ERROR) {
+    if ((type = MYSQLtoPLG(fp->type(), &v)) == TYPE_ERROR) {
       sprintf(g->Message, "Unsupported column type %s", GetTypeName(type));
       qrp = NULL;
       break;
@@ -190,6 +192,14 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
 
     crp = crp->Next;                       // Data_Type
     crp->Kdata->SetValue(type, i);
+
+    if (fp->flags & ZEROFILL_FLAG)
+      crp->Nulls[i] = 'Z';
+    else if (fp->flags & UNSIGNED_FLAG)
+      crp->Nulls[i] = 'U';
+    else
+      crp->Nulls[i] = v;
+
     crp = crp->Next;                       // Type_Name
     crp->Kdata->SetValue(GetTypeName(type), i);
 
@@ -212,10 +222,10 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
     crp->Kdata->SetValue(len, i);
 
     crp = crp->Next;                       // Length
-    len = fp->field_length;
+    prec = (type == TYPE_FLOAT) ? fp->decimals() : 0;
+    len = (prec == 31) ? 0 : fp->field_length;
     crp->Kdata->SetValue(len, i);
 
-    prec = (type == TYPE_FLOAT) ? fp->decimals() : 0;
     crp = crp->Next;                       // Scale
     crp->Kdata->SetValue(prec, i);
 
@@ -233,7 +243,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
     else
       crp->Kdata->Reset(i);
 
-    crp = crp->Next;                       // New
+    crp = crp->Next;                       // New (date format)
     crp->Kdata->SetValue((fmt) ? fmt : (char*) "", i);
 
     crp = crp->Next;                       // New (charset)

@@ -165,7 +165,7 @@ extern "C" char  nmfile[];
 extern "C" char  pdebug[];
 
 extern "C" {
-       char  version[]= "Version 1.01.0009 October 29, 2013";
+       char  version[]= "Version 1.01.0010 November 30, 2013";
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -777,7 +777,7 @@ int ha_connect::GetIntegerOption(char *opname)
 
   if (opval == (ulonglong)NO_IVAL && options && options->oplist)
     if ((pv= GetListOption(xp->g, opname, options->oplist)))
-      opval= (unsigned)atoll(pv);
+      opval= CharToNumber(pv, strlen(pv), ULONGLONG_MAX, true); 
 
   return (int)opval;
 } // end of GetIntegerOption
@@ -935,6 +935,12 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     default:
       break;
     } // endswitch type
+
+  if (fp->flags & UNSIGNED_FLAG)
+    pcf->Flags |= U_UNSIGNED;
+
+  if (fp->flags & ZEROFILL_FLAG)
+    pcf->Flags |= U_ZEROFILL;
 
   // This is used to skip null bit
   if (fp->real_maybe_null())
@@ -1341,7 +1347,15 @@ int ha_connect::MakeRecord(char *buf)
     
         } else
           if (fp->store(value->GetFloatValue())) {
-            rc= HA_ERR_WRONG_IN_RECORD;
+//          rc= HA_ERR_WRONG_IN_RECORD;   a Warning was ignored
+            char buf[128];
+            THD *thd= ha_thd();
+
+            sprintf(buf, "Out of range value for column '%s' at row %ld",
+              fp->field_name, 
+              thd->get_stmt_da()->current_row_for_warning());
+
+            push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, buf);
             DBUG_PRINT("MakeRecord", ("%s", value->GetCharString(val)));
             } // endif store
 
@@ -1930,7 +1944,7 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
 
   if (tdbp || (tdbp= GetTDB(g))) {
     if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
-      sprintf(g->Message, "Table %s is not indexable", tdbp->GetName());
+      sprintf(g->Message, "optimize: Table %s is not indexable", tdbp->GetName());
       rc= HA_ERR_INTERNAL_ERROR;
     } else if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, true))) {
       if (rc == RC_INFO) {
@@ -2392,9 +2406,12 @@ int ha_connect::rnd_init(bool scan)
   if (!g || !table || xmod == MODE_INSERT)
     DBUG_RETURN(HA_ERR_INITIALIZATION);
 
-  // Close the table if it was opened yet (locked?)
+  // Do not close the table if it was opened yet (locked?)
   if (IsOpened())
-    CloseTable(g);
+    DBUG_RETURN(0);
+//  CloseTable(g);  Was done before making things done twice
+  else if (xp->CheckQuery(valid_query_id))
+    tdbp= NULL;       // Not valid anymore
 
   // When updating, to avoid skipped update, force the table
   // handler to retrieve write-only fields to be able to compare 
@@ -2521,7 +2538,7 @@ int ha_connect::rnd_next(uchar *buf)
 void ha_connect::position(const uchar *record)
 {
   DBUG_ENTER("ha_connect::position");
-  if (((PTDBASE)tdbp)->GetDef()->Indexable())
+//if (((PTDBASE)tdbp)->GetDef()->Indexable())
     my_store_ptr(ref, ref_length, (my_off_t)((PTDBASE)tdbp)->GetRecpos());
   DBUG_VOID_RETURN;
 } // end of position
@@ -3030,12 +3047,18 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       rc= 2;          // Logical error ???
     else if (g->Xchk) {
       if (!tdbp || *tdbp->GetName() == '#') {
+        if (!tdbp && !(tdbp= GetTDB(g)))
+          DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+        else if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
+          sprintf(g->Message, "external_lock: Table %s is not indexable", tdbp->GetName());
+//        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+          DBUG_RETURN(0);
+          } // endif Indexable
+
         bool    oldsep= ((PCHK)g->Xchk)->oldsep;
         bool    newsep= ((PCHK)g->Xchk)->newsep;
-        PTDBDOS tdp= (PTDBDOS)(tdbp ? tdbp : GetTDB(g));
-
-        if (!tdp)
-          DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+        PTDBDOS tdp= (PTDBDOS)tdbp;
 
         PDOSDEF ddp= (PDOSDEF)tdp->GetDef();
         PIXDEF  xp, xp1, xp2, drp=NULL, adp= NULL;
@@ -3145,7 +3168,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     g->Xchk= new(g) XCHK;
     ((PCHK)g->Xchk)->oldsep= GetBooleanOption("Sepindex", false);
     ((PCHK)g->Xchk)->oldpix= GetIndexInfo();
-    } // endif xcheck
+  } else
+  	g->Xchk= NULL;
 
   if (cras)
     g->Createas= 1;       // To tell created table to ignore FLAG
@@ -3464,25 +3488,45 @@ static bool add_fields(PGLOBAL g,
 //                     void *vcolinfo,
 //                     engine_option_value *create_options,
                        int flg,
-                       bool dbf)
+                       bool dbf,
+                       char v)
 {
   register Create_field *new_field;
-  char *length, *decimals;
-  enum_field_types type= PLGtoMYSQL(typ, dbf);
+  char *length, *decimals= NULL;
+  enum_field_types type;
 //Virtual_column_info *vcol_info= (Virtual_column_info *)vcolinfo;
   engine_option_value *crop;
-  LEX_STRING *comment= thd->make_lex_string(rem, strlen(rem));
-  LEX_STRING *field_name= thd->make_lex_string(name, strlen(name));
+  LEX_STRING *comment;
+  LEX_STRING *field_name;
 
   DBUG_ENTER("ha_connect::add_fields");
-  length= (char*)PlugSubAlloc(g, NULL, 8);
-  sprintf(length, "%d", len);
 
-  if (dec) {
-    decimals= (char*)PlugSubAlloc(g, NULL, 8);
-    sprintf(decimals, "%d", dec);
+  if (len) {
+    if (!v && typ == TYPE_STRING && len > 255)
+      v= 'V';     // Change CHAR to VARCHAR
+
+    length= (char*)PlugSubAlloc(g, NULL, 8);
+    sprintf(length, "%d", len);
+
+    if (typ == TYPE_FLOAT) {
+      decimals= (char*)PlugSubAlloc(g, NULL, 8);
+      sprintf(decimals, "%d", min(dec, (min(len, 31) - 1)));
+      } // endif dec
+
   } else
-    decimals= NULL;
+    length= NULL;
+
+  if (!rem)
+    rem= "";
+
+  type= PLGtoMYSQL(typ, dbf, v);
+  comment= thd->make_lex_string(rem, strlen(rem));
+  field_name= thd->make_lex_string(name, strlen(name));
+
+  switch (v) {
+    case 'Z': type_modifier|= ZEROFILL_FLAG;
+    case 'U': type_modifier|= UNSIGNED_FLAG; break;
+    } // endswitch v
 
   if (flg) {
     engine_option_value *start= NULL, *end= NULL;
@@ -3511,7 +3555,7 @@ static bool add_fields(PGLOBAL g,
 #else   // !NEW_WAY
 static bool add_field(String *sql, const char *field_name, int typ,
                       int len, int dec, uint tm, const char *rem,
-                      int flag, bool dbf, char v)
+                      char *dft, int flag, bool dbf, char v)
 {
   char var = (len > 255) ? 'V' : v;
   bool error= false;
@@ -3528,15 +3572,32 @@ static bool add_field(String *sql, const char *field_name, int typ,
 
     if (!strcmp(type, "DOUBLE")) {
       error|= sql->append(',');
-      // dec must be <= len and <= 31
-      error|= sql->append_ulonglong(min(dec, (len - 1)));
+      // dec must be < len and < 31
+      error|= sql->append_ulonglong(min(dec, (min(len, 31) - 1)));
       } // endif dec
 
     error|= sql->append(')');
     } // endif len
   
+  if (v == 'U')
+    error|= sql->append(" UNSIGNED");
+  else if (v == 'Z')
+    error|= sql->append(" ZEROFILL");
+
   if (tm)
     error|= sql->append(STRING_WITH_LEN(" NOT NULL"), system_charset_info);
+
+  if (dft && *dft) {
+    error|= sql->append(" DEFAULT ");
+
+    if (IsTypeChar(typ)) {
+      error|= sql->append("'");
+      error|= sql->append_for_single_quote(dft, strlen(dft));
+      error|= sql->append("'");
+    } else
+      error|= sql->append(dft);
+
+    } // endif rem
 
   if (rem && *rem) {
     error|= sql->append(" COMMENT '");
@@ -3808,7 +3869,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
                                       HA_CREATE_INFO *create_info)
 {
-  char        spc= ',', qch= 0;
+  char        v, spc= ',', qch= 0;
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl;
@@ -3830,7 +3891,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 //CHARSET_INFO *cs;
   Alter_info  alter_info;
 #else   // !NEW_WAY
-  char        v, buf[1024];
+  char        buf[1024];
   String      sql(buf, sizeof(buf), system_charset_info);
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
@@ -3924,7 +3985,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       tab= table_s->table_name.str;              // Default value
 
 #if defined(NEW_WAY)
-    add_option(thd, create_info, "tabname", tab);
+//  add_option(thd, create_info, "tabname", tab);
 #endif   // NEW_WAY
     } // endif tab
 
@@ -4044,8 +4105,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     } // endif src
 
   if (ok) {
-    char   *cnm, *rem;
-    int     i, len, dec, typ, flg;
+    char   *cnm, *rem, *dft;
+    int     i, len, prec, dec, typ, flg;
     PDBUSER dup= PlgGetUser(g);
     PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
@@ -4151,19 +4212,21 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #if defined(NEW_WAY)
         // Now add the field
         rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
-                       NOT_NULL_FLAG, "", flg, dbf);
+                       NOT_NULL_FLAG, "", flg, dbf, 0);
 #else   // !NEW_WAY
         // Now add the field
-        if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG, 0, flg, dbf, 0))
+        if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG,
+                      0, NULL, flg, dbf, 0))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
       } // endfor crp
 
     } else              // Not a catalog table
       for (i= 0; !rc && i < qrp->Nblin; i++) {
-        typ= len= dec= 0;
+        typ= len= prec= dec= 0;
         tm= NOT_NULL_FLAG;
         cnm= (char*)"noname";
+        dft= NULL;
 #if defined(NEW_WAY)
         rem= "";
 //      cs= NULL;
@@ -4181,6 +4244,10 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
               v = (crp->Nulls) ? crp->Nulls[i] : 0;
               break;
             case FLD_PREC:
+              // PREC must be always before LENGTH
+              len= prec= crp->Kdata->GetIntValue(i);
+              break;
+            case FLD_LENGTH:
               len= crp->Kdata->GetIntValue(i);
               break;
             case FLD_SCALE:
@@ -4200,6 +4267,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 //              cs= get_charset_by_name(csn, 0);
 
 //            break;
+            case FLD_DEFAULT:
+              dft= crp->Kdata->GetCharValue(i);
+              break;
             default:
               break;                 // Ignore
             } // endswitch Fld
@@ -4209,16 +4279,16 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           int plgtyp;
 
           // typ must be PLG type, not SQL type
-          if (!(plgtyp= TranslateSQLType(typ, dec, len, v))) {
+          if (!(plgtyp= TranslateSQLType(typ, dec, prec, v))) {
             sprintf(g->Message, "Unsupported SQL type %d", typ);
             my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
             return HA_ERR_INTERNAL_ERROR;
           } else
             typ= plgtyp;
 
-          // Some data sources do not count dec in length
+          // Some data sources do not count dec in length (prec)
           if (typ == TYPE_FLOAT)
-            len += (dec + 2);        // To be safe
+            prec += (dec + 2);        // To be safe
           else
             dec= 0;
 
@@ -4227,14 +4297,16 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
         // Make the arguments as required by add_fields
         if (typ == TYPE_DATE)
-          len= 0;
+          prec= 0;
+        else if (typ == TYPE_FLOAT)
+          prec= len;
 
         // Now add the field
 #if defined(NEW_WAY)
-        rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
-                       tm, rem, 0, true);
+        rc= add_fields(g, thd, &alter_info, cnm, typ, prec, dec,
+                       tm, rem, 0, dbf, v);
 #else   // !NEW_WAY
-        if (add_field(&sql, cnm, typ, len, dec, tm, rem, 0, dbf, v))
+        if (add_field(&sql, cnm, typ, prec, dec, tm, rem, dft, 0, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
         } // endfor i
@@ -4553,9 +4625,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
     } // endfor field
 
-  if (IsFileType(type)) {
-    table= table_arg;       // Used by called functions
+  table= table_arg;         // Used by called functions
 
+  if (IsFileType(type)) {
     if (!options->filename) {
       // The file name is not specified, create a default file in
       // the database directory named table_name.table_type.
@@ -4619,42 +4691,63 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
       } // endif filename
 
-    // To check whether indexes have to be made or remade
-    if (!g->Xchk) {
-      PIXDEF xdp;
+    } // endif type
 
-      // We should be in CREATE TABLE
-      if (thd_sql_command(table->in_use) != SQLCOM_CREATE_TABLE)
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
-          "Wrong command in create, please contact CONNECT team");
+  // To check whether indexes have to be made or remade
+  if (!g->Xchk) {
+    PIXDEF xdp;
 
-      // Get the index definitions
-      if (xdp= GetIndexInfo()) {
+    // We should be in CREATE TABLE
+    if (thd_sql_command(table->in_use) != SQLCOM_CREATE_TABLE)
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
+        "Wrong command in create, please contact CONNECT team");
+
+    // Get the index definitions
+    if (xdp= GetIndexInfo()) {
+      if (IsTypeIndexable(type)) {
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
-
+    
         if (cat) {
           cat->SetDataPath(g, table_arg->s->db.str);
-
+    
           if ((rc= optimize(table->in_use, NULL))) {
             printf("Create rc=%d %s\n", rc, g->Message);
             my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
             rc= HA_ERR_INTERNAL_ERROR;
           } else
             CloseTable(g);
-
+    
           } // endif cat
+    
+      } else {
+        sprintf(g->Message, "Table type %s is not indexable", options->type);
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        rc= HA_ERR_INTERNAL_ERROR;
+      } // endif Indexable
 
-        } // endif xdp
+      } // endif xdp
 
-    } else {
-      ((PCHK)g->Xchk)->newsep= GetBooleanOption("Sepindex", false);
-      ((PCHK)g->Xchk)->newpix= GetIndexInfo();
-    } // endif Xchk
+  } else {
+    PIXDEF xdp= GetIndexInfo();
 
-    table= st;
-    } // endif type
+    if (xdp) {
+      if (!IsTypeIndexable(type)) {
+        g->Xchk= NULL;
+        sprintf(g->Message, "Table type %s is not indexable", options->type);
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        rc= HA_ERR_INTERNAL_ERROR;
+      } else {
+        ((PCHK)g->Xchk)->newpix= xdp;
+        ((PCHK)g->Xchk)->newsep= GetBooleanOption("Sepindex", false);
+      } // endif Indexable
 
+    } else if (!((PCHK)g->Xchk)->oldpix)
+      g->Xchk= NULL;
+
+  } // endif Xchk
+
+  table= st;
   DBUG_RETURN(rc);
 } // end of create
 

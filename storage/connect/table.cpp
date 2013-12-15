@@ -557,6 +557,15 @@ bool TDBCAT::InitCol(PGLOBAL g)
   } // end of InitCol
 
 /***********************************************************************/
+/*  SetRecpos: Replace the table at the specified position.            */
+/***********************************************************************/
+bool TDBCAT::SetRecpos(PGLOBAL g, int recpos) 
+  {
+  N = recpos - 1;
+  return false;
+  } // end of SetRecpos
+
+/***********************************************************************/
 /*  Data Base read routine for CAT access method.                      */
 /***********************************************************************/
 int TDBCAT::ReadDB(PGLOBAL g)

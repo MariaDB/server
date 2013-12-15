@@ -124,7 +124,7 @@ class DllExport CONSTANT : public XOBJECT {
                  {return Value->SetConstFormat(g, fmt);}
   virtual int    CheckSpcCol(PTDB, int) {return 1;}
           void   Convert(PGLOBAL g, int newtype);
-          bool   Rephrase(PGLOBAL g, PSZ work);
+//        bool   Rephrase(PGLOBAL g, PSZ work);
           void   SetValue(PVAL vp) {Value = vp;}
   virtual bool   VerifyColumn(PTBX txp) {return true;}
   virtual bool   VerifyTdb(PTDB& tdbp) {return true;}

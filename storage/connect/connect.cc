@@ -591,7 +591,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id)
   if (!ptdb)
     return -1;
   else if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
-    sprintf(g->Message, "Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, "CntIndexInit: Table %s is not indexable", ptdb->GetName());
     return 0;
   } else
     tdbp= (PTDBDOX)ptdb;
@@ -685,6 +685,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   char   *kp= (char*)key;
   int     n;
   short   lg;
+  bool    rcb;
   RCODE   rc;
   PVAL    valp;
   PCOL    colp;
@@ -694,7 +695,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   if (!ptdb)
     return RC_FX;
   if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
-    sprintf(g->Message, "Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, "CntIndexRead: Table %s is not indexable", ptdb->GetName());
     return RC_FX;
   } else
     tdbp= (PTDBDOX)ptdb;
@@ -719,9 +720,20 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
         if (colp->GetColUse(U_VAR)) {
           lg= *(short*)kp;
           kp+= sizeof(short);
-          valp->SetValue_char(kp, (int)lg);
+          rcb= valp->SetValue_char(kp, (int)lg);
         } else
-          valp->SetValue_char(kp, valp->GetClen());
+          rcb= valp->SetValue_char(kp, valp->GetClen());
+
+        if (rcb) {
+          if (tdbp->RowNumber(g))
+            sprintf(g->Message, "Out of range value for column %s at row %d",
+                    colp->GetName(), tdbp->RowNumber(g));
+          else
+            sprintf(g->Message, "Out of range value for column %s",
+                    colp->GetName());
+
+          PushWarning(g, tdbp);
+          } // endif b
 
       } else
         valp->SetBinValue((void*)kp);
@@ -759,7 +771,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
   const uchar *p, *kp;
   int     i, n, k[2];
   short   lg;
-  bool    b;
+  bool    b, rcb;
   PVAL    valp;
   PCOL    colp;
   PTDBDOX tdbp;
@@ -768,7 +780,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
   if (!ptdb)
     return -1;
   else if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
-    sprintf(g->Message, "Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, "CntIndexRange: Table %s is not indexable", ptdb->GetName());
     DBUG_PRINT("Range", ("%s", g->Message));
     return -1;
   } else
@@ -802,9 +814,21 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
             if (colp->GetColUse(U_VAR)) {
               lg= *(short*)p;
               p+= sizeof(short);
-              valp->SetValue_char((char*)p, (int)lg);
+              rcb= valp->SetValue_char((char*)p, (int)lg);
             } else
-              valp->SetValue_char((char*)p, valp->GetClen());
+              rcb= valp->SetValue_char((char*)p, valp->GetClen());
+
+          if (rcb) {
+            if (tdbp->RowNumber(g))
+              sprintf(g->Message, 
+                      "Out of range value for column %s at row %d",
+                      colp->GetName(), tdbp->RowNumber(g));
+            else
+              sprintf(g->Message, "Out of range value for column %s",
+                      colp->GetName());
+
+            PushWarning(g, tdbp);
+            } // endif b
 
           } else
             valp->SetBinValue((void*)p);

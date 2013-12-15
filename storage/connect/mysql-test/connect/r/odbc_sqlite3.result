@@ -51,3 +51,2413 @@ SELECT * FROM t1;
 Table_Qualifier	Table_Owner	Table_Name	Table_Type	Remark
 		t1	TABLE	
 DROP TABLE t1;
+CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Columns TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
+SELECT * FROM t1 ORDER BY Table_name;
+Table_Qualif	Table_Owner	Table_Name	Column_Name	Data_Type	Type_Name	Precision	Length	Scale	Radix	Nullable	Remarks
+		t000	a	4	INT	9	10	10	0	1	
+		t000	b	4	INT	9	10	10	0	1	
+		t000	c	4	INT	9	10	10	0	1	
+		t000	d	4	INT	9	10	10	0	1	
+		t000	e	4	INT	9	10	10	0	1	
+		t001	a	4	INT	9	10	10	0	1	
+		t001	b	4	INT	9	10	10	0	1	
+		t001	c	4	INT	9	10	10	0	1	
+		t001	d	4	INT	9	10	10	0	1	
+		t001	e	4	INT	9	10	10	0	1	
+		t002	a	4	INT	9	10	10	0	1	
+		t002	b	4	INT	9	10	10	0	1	
+		t002	c	4	INT	9	10	10	0	1	
+		t002	d	4	INT	9	10	10	0	1	
+		t002	e	4	INT	9	10	10	0	1	
+		t003	a	4	INT	9	10	10	0	1	
+		t003	b	4	INT	9	10	10	0	1	
+		t003	c	4	INT	9	10	10	0	1	
+		t003	d	4	INT	9	10	10	0	1	
+		t003	e	4	INT	9	10	10	0	1	
+		t004	a	4	INT	9	10	10	0	1	
+		t004	b	4	INT	9	10	10	0	1	
+		t004	c	4	INT	9	10	10	0	1	
+		t004	d	4	INT	9	10	10	0	1	
+		t004	e	4	INT	9	10	10	0	1	
+		t005	a	4	INT	9	10	10	0	1	
+		t005	b	4	INT	9	10	10	0	1	
+		t005	c	4	INT	9	10	10	0	1	
+		t005	d	4	INT	9	10	10	0	1	
+		t005	e	4	INT	9	10	10	0	1	
+		t006	a	4	INT	9	10	10	0	1	
+		t006	b	4	INT	9	10	10	0	1	
+		t006	c	4	INT	9	10	10	0	1	
+		t006	d	4	INT	9	10	10	0	1	
+		t006	e	4	INT	9	10	10	0	1	
+		t007	a	4	INT	9	10	10	0	1	
+		t007	b	4	INT	9	10	10	0	1	
+		t007	c	4	INT	9	10	10	0	1	
+		t007	d	4	INT	9	10	10	0	1	
+		t007	e	4	INT	9	10	10	0	1	
+		t008	a	4	INT	9	10	10	0	1	
+		t008	b	4	INT	9	10	10	0	1	
+		t008	c	4	INT	9	10	10	0	1	
+		t008	d	4	INT	9	10	10	0	1	
+		t008	e	4	INT	9	10	10	0	1	
+		t009	a	4	INT	9	10	10	0	1	
+		t009	b	4	INT	9	10	10	0	1	
+		t009	c	4	INT	9	10	10	0	1	
+		t009	d	4	INT	9	10	10	0	1	
+		t009	e	4	INT	9	10	10	0	1	
+		t010	a	4	INT	9	10	10	0	1	
+		t010	b	4	INT	9	10	10	0	1	
+		t010	c	4	INT	9	10	10	0	1	
+		t010	d	4	INT	9	10	10	0	1	
+		t010	e	4	INT	9	10	10	0	1	
+		t011	a	4	INT	9	10	10	0	1	
+		t011	b	4	INT	9	10	10	0	1	
+		t011	c	4	INT	9	10	10	0	1	
+		t011	d	4	INT	9	10	10	0	1	
+		t011	e	4	INT	9	10	10	0	1	
+		t012	a	4	INT	9	10	10	0	1	
+		t012	b	4	INT	9	10	10	0	1	
+		t012	c	4	INT	9	10	10	0	1	
+		t012	d	4	INT	9	10	10	0	1	
+		t012	e	4	INT	9	10	10	0	1	
+		t013	a	4	INT	9	10	10	0	1	
+		t013	b	4	INT	9	10	10	0	1	
+		t013	c	4	INT	9	10	10	0	1	
+		t013	d	4	INT	9	10	10	0	1	
+		t013	e	4	INT	9	10	10	0	1	
+		t014	a	4	INT	9	10	10	0	1	
+		t014	b	4	INT	9	10	10	0	1	
+		t014	c	4	INT	9	10	10	0	1	
+		t014	d	4	INT	9	10	10	0	1	
+		t014	e	4	INT	9	10	10	0	1	
+		t015	a	4	INT	9	10	10	0	1	
+		t015	b	4	INT	9	10	10	0	1	
+		t015	c	4	INT	9	10	10	0	1	
+		t015	d	4	INT	9	10	10	0	1	
+		t015	e	4	INT	9	10	10	0	1	
+		t016	a	4	INT	9	10	10	0	1	
+		t016	b	4	INT	9	10	10	0	1	
+		t016	c	4	INT	9	10	10	0	1	
+		t016	d	4	INT	9	10	10	0	1	
+		t016	e	4	INT	9	10	10	0	1	
+		t017	a	4	INT	9	10	10	0	1	
+		t017	b	4	INT	9	10	10	0	1	
+		t017	c	4	INT	9	10	10	0	1	
+		t017	d	4	INT	9	10	10	0	1	
+		t017	e	4	INT	9	10	10	0	1	
+		t018	a	4	INT	9	10	10	0	1	
+		t018	b	4	INT	9	10	10	0	1	
+		t018	c	4	INT	9	10	10	0	1	
+		t018	d	4	INT	9	10	10	0	1	
+		t018	e	4	INT	9	10	10	0	1	
+		t019	a	4	INT	9	10	10	0	1	
+		t019	b	4	INT	9	10	10	0	1	
+		t019	c	4	INT	9	10	10	0	1	
+		t019	d	4	INT	9	10	10	0	1	
+		t019	e	4	INT	9	10	10	0	1	
+		t020	a	4	INT	9	10	10	0	1	
+		t020	b	4	INT	9	10	10	0	1	
+		t020	c	4	INT	9	10	10	0	1	
+		t020	d	4	INT	9	10	10	0	1	
+		t020	e	4	INT	9	10	10	0	1	
+		t021	a	4	INT	9	10	10	0	1	
+		t021	b	4	INT	9	10	10	0	1	
+		t021	c	4	INT	9	10	10	0	1	
+		t021	d	4	INT	9	10	10	0	1	
+		t021	e	4	INT	9	10	10	0	1	
+		t022	a	4	INT	9	10	10	0	1	
+		t022	b	4	INT	9	10	10	0	1	
+		t022	c	4	INT	9	10	10	0	1	
+		t022	d	4	INT	9	10	10	0	1	
+		t022	e	4	INT	9	10	10	0	1	
+		t023	a	4	INT	9	10	10	0	1	
+		t023	b	4	INT	9	10	10	0	1	
+		t023	c	4	INT	9	10	10	0	1	
+		t023	d	4	INT	9	10	10	0	1	
+		t023	e	4	INT	9	10	10	0	1	
+		t024	a	4	INT	9	10	10	0	1	
+		t024	b	4	INT	9	10	10	0	1	
+		t024	c	4	INT	9	10	10	0	1	
+		t024	d	4	INT	9	10	10	0	1	
+		t024	e	4	INT	9	10	10	0	1	
+		t025	a	4	INT	9	10	10	0	1	
+		t025	b	4	INT	9	10	10	0	1	
+		t025	c	4	INT	9	10	10	0	1	
+		t025	d	4	INT	9	10	10	0	1	
+		t025	e	4	INT	9	10	10	0	1	
+		t026	a	4	INT	9	10	10	0	1	
+		t026	b	4	INT	9	10	10	0	1	
+		t026	c	4	INT	9	10	10	0	1	
+		t026	d	4	INT	9	10	10	0	1	
+		t026	e	4	INT	9	10	10	0	1	
+		t027	a	4	INT	9	10	10	0	1	
+		t027	b	4	INT	9	10	10	0	1	
+		t027	c	4	INT	9	10	10	0	1	
+		t027	d	4	INT	9	10	10	0	1	
+		t027	e	4	INT	9	10	10	0	1	
+		t028	a	4	INT	9	10	10	0	1	
+		t028	b	4	INT	9	10	10	0	1	
+		t028	c	4	INT	9	10	10	0	1	
+		t028	d	4	INT	9	10	10	0	1	
+		t028	e	4	INT	9	10	10	0	1	
+		t029	a	4	INT	9	10	10	0	1	
+		t029	b	4	INT	9	10	10	0	1	
+		t029	c	4	INT	9	10	10	0	1	
+		t029	d	4	INT	9	10	10	0	1	
+		t029	e	4	INT	9	10	10	0	1	
+		t030	a	4	INT	9	10	10	0	1	
+		t030	b	4	INT	9	10	10	0	1	
+		t030	c	4	INT	9	10	10	0	1	
+		t030	d	4	INT	9	10	10	0	1	
+		t030	e	4	INT	9	10	10	0	1	
+		t031	a	4	INT	9	10	10	0	1	
+		t031	b	4	INT	9	10	10	0	1	
+		t031	c	4	INT	9	10	10	0	1	
+		t031	d	4	INT	9	10	10	0	1	
+		t031	e	4	INT	9	10	10	0	1	
+		t032	a	4	INT	9	10	10	0	1	
+		t032	b	4	INT	9	10	10	0	1	
+		t032	c	4	INT	9	10	10	0	1	
+		t032	d	4	INT	9	10	10	0	1	
+		t032	e	4	INT	9	10	10	0	1	
+		t033	a	4	INT	9	10	10	0	1	
+		t033	b	4	INT	9	10	10	0	1	
+		t033	c	4	INT	9	10	10	0	1	
+		t033	d	4	INT	9	10	10	0	1	
+		t033	e	4	INT	9	10	10	0	1	
+		t034	a	4	INT	9	10	10	0	1	
+		t034	b	4	INT	9	10	10	0	1	
+		t034	c	4	INT	9	10	10	0	1	
+		t034	d	4	INT	9	10	10	0	1	
+		t034	e	4	INT	9	10	10	0	1	
+		t035	a	4	INT	9	10	10	0	1	
+		t035	b	4	INT	9	10	10	0	1	
+		t035	c	4	INT	9	10	10	0	1	
+		t035	d	4	INT	9	10	10	0	1	
+		t035	e	4	INT	9	10	10	0	1	
+		t036	a	4	INT	9	10	10	0	1	
+		t036	b	4	INT	9	10	10	0	1	
+		t036	c	4	INT	9	10	10	0	1	
+		t036	d	4	INT	9	10	10	0	1	
+		t036	e	4	INT	9	10	10	0	1	
+		t037	a	4	INT	9	10	10	0	1	
+		t037	b	4	INT	9	10	10	0	1	
+		t037	c	4	INT	9	10	10	0	1	
+		t037	d	4	INT	9	10	10	0	1	
+		t037	e	4	INT	9	10	10	0	1	
+		t038	a	4	INT	9	10	10	0	1	
+		t038	b	4	INT	9	10	10	0	1	
+		t038	c	4	INT	9	10	10	0	1	
+		t038	d	4	INT	9	10	10	0	1	
+		t038	e	4	INT	9	10	10	0	1	
+		t039	a	4	INT	9	10	10	0	1	
+		t039	b	4	INT	9	10	10	0	1	
+		t039	c	4	INT	9	10	10	0	1	
+		t039	d	4	INT	9	10	10	0	1	
+		t039	e	4	INT	9	10	10	0	1	
+		t040	a	4	INT	9	10	10	0	1	
+		t040	b	4	INT	9	10	10	0	1	
+		t040	c	4	INT	9	10	10	0	1	
+		t040	d	4	INT	9	10	10	0	1	
+		t040	e	4	INT	9	10	10	0	1	
+		t041	a	4	INT	9	10	10	0	1	
+		t041	b	4	INT	9	10	10	0	1	
+		t041	c	4	INT	9	10	10	0	1	
+		t041	d	4	INT	9	10	10	0	1	
+		t041	e	4	INT	9	10	10	0	1	
+		t042	a	4	INT	9	10	10	0	1	
+		t042	b	4	INT	9	10	10	0	1	
+		t042	c	4	INT	9	10	10	0	1	
+		t042	d	4	INT	9	10	10	0	1	
+		t042	e	4	INT	9	10	10	0	1	
+		t043	a	4	INT	9	10	10	0	1	
+		t043	b	4	INT	9	10	10	0	1	
+		t043	c	4	INT	9	10	10	0	1	
+		t043	d	4	INT	9	10	10	0	1	
+		t043	e	4	INT	9	10	10	0	1	
+		t044	a	4	INT	9	10	10	0	1	
+		t044	b	4	INT	9	10	10	0	1	
+		t044	c	4	INT	9	10	10	0	1	
+		t044	d	4	INT	9	10	10	0	1	
+		t044	e	4	INT	9	10	10	0	1	
+		t045	a	4	INT	9	10	10	0	1	
+		t045	b	4	INT	9	10	10	0	1	
+		t045	c	4	INT	9	10	10	0	1	
+		t045	d	4	INT	9	10	10	0	1	
+		t045	e	4	INT	9	10	10	0	1	
+		t046	a	4	INT	9	10	10	0	1	
+		t046	b	4	INT	9	10	10	0	1	
+		t046	c	4	INT	9	10	10	0	1	
+		t046	d	4	INT	9	10	10	0	1	
+		t046	e	4	INT	9	10	10	0	1	
+		t047	a	4	INT	9	10	10	0	1	
+		t047	b	4	INT	9	10	10	0	1	
+		t047	c	4	INT	9	10	10	0	1	
+		t047	d	4	INT	9	10	10	0	1	
+		t047	e	4	INT	9	10	10	0	1	
+		t048	a	4	INT	9	10	10	0	1	
+		t048	b	4	INT	9	10	10	0	1	
+		t048	c	4	INT	9	10	10	0	1	
+		t048	d	4	INT	9	10	10	0	1	
+		t048	e	4	INT	9	10	10	0	1	
+		t049	a	4	INT	9	10	10	0	1	
+		t049	b	4	INT	9	10	10	0	1	
+		t049	c	4	INT	9	10	10	0	1	
+		t049	d	4	INT	9	10	10	0	1	
+		t049	e	4	INT	9	10	10	0	1	
+		t050	a	4	INT	9	10	10	0	1	
+		t050	b	4	INT	9	10	10	0	1	
+		t050	c	4	INT	9	10	10	0	1	
+		t050	d	4	INT	9	10	10	0	1	
+		t050	e	4	INT	9	10	10	0	1	
+		t051	a	4	INT	9	10	10	0	1	
+		t051	b	4	INT	9	10	10	0	1	
+		t051	c	4	INT	9	10	10	0	1	
+		t051	d	4	INT	9	10	10	0	1	
+		t051	e	4	INT	9	10	10	0	1	
+		t052	a	4	INT	9	10	10	0	1	
+		t052	b	4	INT	9	10	10	0	1	
+		t052	c	4	INT	9	10	10	0	1	
+		t052	d	4	INT	9	10	10	0	1	
+		t052	e	4	INT	9	10	10	0	1	
+		t053	a	4	INT	9	10	10	0	1	
+		t053	b	4	INT	9	10	10	0	1	
+		t053	c	4	INT	9	10	10	0	1	
+		t053	d	4	INT	9	10	10	0	1	
+		t053	e	4	INT	9	10	10	0	1	
+		t054	a	4	INT	9	10	10	0	1	
+		t054	b	4	INT	9	10	10	0	1	
+		t054	c	4	INT	9	10	10	0	1	
+		t054	d	4	INT	9	10	10	0	1	
+		t054	e	4	INT	9	10	10	0	1	
+		t055	a	4	INT	9	10	10	0	1	
+		t055	b	4	INT	9	10	10	0	1	
+		t055	c	4	INT	9	10	10	0	1	
+		t055	d	4	INT	9	10	10	0	1	
+		t055	e	4	INT	9	10	10	0	1	
+		t056	a	4	INT	9	10	10	0	1	
+		t056	b	4	INT	9	10	10	0	1	
+		t056	c	4	INT	9	10	10	0	1	
+		t056	d	4	INT	9	10	10	0	1	
+		t056	e	4	INT	9	10	10	0	1	
+		t057	a	4	INT	9	10	10	0	1	
+		t057	b	4	INT	9	10	10	0	1	
+		t057	c	4	INT	9	10	10	0	1	
+		t057	d	4	INT	9	10	10	0	1	
+		t057	e	4	INT	9	10	10	0	1	
+		t058	a	4	INT	9	10	10	0	1	
+		t058	b	4	INT	9	10	10	0	1	
+		t058	c	4	INT	9	10	10	0	1	
+		t058	d	4	INT	9	10	10	0	1	
+		t058	e	4	INT	9	10	10	0	1	
+		t059	a	4	INT	9	10	10	0	1	
+		t059	b	4	INT	9	10	10	0	1	
+		t059	c	4	INT	9	10	10	0	1	
+		t059	d	4	INT	9	10	10	0	1	
+		t059	e	4	INT	9	10	10	0	1	
+		t060	a	4	INT	9	10	10	0	1	
+		t060	b	4	INT	9	10	10	0	1	
+		t060	c	4	INT	9	10	10	0	1	
+		t060	d	4	INT	9	10	10	0	1	
+		t060	e	4	INT	9	10	10	0	1	
+		t061	a	4	INT	9	10	10	0	1	
+		t061	b	4	INT	9	10	10	0	1	
+		t061	c	4	INT	9	10	10	0	1	
+		t061	d	4	INT	9	10	10	0	1	
+		t061	e	4	INT	9	10	10	0	1	
+		t062	a	4	INT	9	10	10	0	1	
+		t062	b	4	INT	9	10	10	0	1	
+		t062	c	4	INT	9	10	10	0	1	
+		t062	d	4	INT	9	10	10	0	1	
+		t062	e	4	INT	9	10	10	0	1	
+		t063	a	4	INT	9	10	10	0	1	
+		t063	b	4	INT	9	10	10	0	1	
+		t063	c	4	INT	9	10	10	0	1	
+		t063	d	4	INT	9	10	10	0	1	
+		t063	e	4	INT	9	10	10	0	1	
+		t064	a	4	INT	9	10	10	0	1	
+		t064	b	4	INT	9	10	10	0	1	
+		t064	c	4	INT	9	10	10	0	1	
+		t064	d	4	INT	9	10	10	0	1	
+		t064	e	4	INT	9	10	10	0	1	
+		t065	a	4	INT	9	10	10	0	1	
+		t065	b	4	INT	9	10	10	0	1	
+		t065	c	4	INT	9	10	10	0	1	
+		t065	d	4	INT	9	10	10	0	1	
+		t065	e	4	INT	9	10	10	0	1	
+		t066	a	4	INT	9	10	10	0	1	
+		t066	b	4	INT	9	10	10	0	1	
+		t066	c	4	INT	9	10	10	0	1	
+		t066	d	4	INT	9	10	10	0	1	
+		t066	e	4	INT	9	10	10	0	1	
+		t067	a	4	INT	9	10	10	0	1	
+		t067	b	4	INT	9	10	10	0	1	
+		t067	c	4	INT	9	10	10	0	1	
+		t067	d	4	INT	9	10	10	0	1	
+		t067	e	4	INT	9	10	10	0	1	
+		t068	a	4	INT	9	10	10	0	1	
+		t068	b	4	INT	9	10	10	0	1	
+		t068	c	4	INT	9	10	10	0	1	
+		t068	d	4	INT	9	10	10	0	1	
+		t068	e	4	INT	9	10	10	0	1	
+		t069	a	4	INT	9	10	10	0	1	
+		t069	b	4	INT	9	10	10	0	1	
+		t069	c	4	INT	9	10	10	0	1	
+		t069	d	4	INT	9	10	10	0	1	
+		t069	e	4	INT	9	10	10	0	1	
+		t070	a	4	INT	9	10	10	0	1	
+		t070	b	4	INT	9	10	10	0	1	
+		t070	c	4	INT	9	10	10	0	1	
+		t070	d	4	INT	9	10	10	0	1	
+		t070	e	4	INT	9	10	10	0	1	
+		t071	a	4	INT	9	10	10	0	1	
+		t071	b	4	INT	9	10	10	0	1	
+		t071	c	4	INT	9	10	10	0	1	
+		t071	d	4	INT	9	10	10	0	1	
+		t071	e	4	INT	9	10	10	0	1	
+		t072	a	4	INT	9	10	10	0	1	
+		t072	b	4	INT	9	10	10	0	1	
+		t072	c	4	INT	9	10	10	0	1	
+		t072	d	4	INT	9	10	10	0	1	
+		t072	e	4	INT	9	10	10	0	1	
+		t073	a	4	INT	9	10	10	0	1	
+		t073	b	4	INT	9	10	10	0	1	
+		t073	c	4	INT	9	10	10	0	1	
+		t073	d	4	INT	9	10	10	0	1	
+		t073	e	4	INT	9	10	10	0	1	
+		t074	a	4	INT	9	10	10	0	1	
+		t074	b	4	INT	9	10	10	0	1	
+		t074	c	4	INT	9	10	10	0	1	
+		t074	d	4	INT	9	10	10	0	1	
+		t074	e	4	INT	9	10	10	0	1	
+		t075	a	4	INT	9	10	10	0	1	
+		t075	b	4	INT	9	10	10	0	1	
+		t075	c	4	INT	9	10	10	0	1	
+		t075	d	4	INT	9	10	10	0	1	
+		t075	e	4	INT	9	10	10	0	1	
+		t076	a	4	INT	9	10	10	0	1	
+		t076	b	4	INT	9	10	10	0	1	
+		t076	c	4	INT	9	10	10	0	1	
+		t076	d	4	INT	9	10	10	0	1	
+		t076	e	4	INT	9	10	10	0	1	
+		t077	a	4	INT	9	10	10	0	1	
+		t077	b	4	INT	9	10	10	0	1	
+		t077	c	4	INT	9	10	10	0	1	
+		t077	d	4	INT	9	10	10	0	1	
+		t077	e	4	INT	9	10	10	0	1	
+		t078	a	4	INT	9	10	10	0	1	
+		t078	b	4	INT	9	10	10	0	1	
+		t078	c	4	INT	9	10	10	0	1	
+		t078	d	4	INT	9	10	10	0	1	
+		t078	e	4	INT	9	10	10	0	1	
+		t079	a	4	INT	9	10	10	0	1	
+		t079	b	4	INT	9	10	10	0	1	
+		t079	c	4	INT	9	10	10	0	1	
+		t079	d	4	INT	9	10	10	0	1	
+		t079	e	4	INT	9	10	10	0	1	
+		t080	a	4	INT	9	10	10	0	1	
+		t080	b	4	INT	9	10	10	0	1	
+		t080	c	4	INT	9	10	10	0	1	
+		t080	d	4	INT	9	10	10	0	1	
+		t080	e	4	INT	9	10	10	0	1	
+		t081	a	4	INT	9	10	10	0	1	
+		t081	b	4	INT	9	10	10	0	1	
+		t081	c	4	INT	9	10	10	0	1	
+		t081	d	4	INT	9	10	10	0	1	
+		t081	e	4	INT	9	10	10	0	1	
+		t082	a	4	INT	9	10	10	0	1	
+		t082	b	4	INT	9	10	10	0	1	
+		t082	c	4	INT	9	10	10	0	1	
+		t082	d	4	INT	9	10	10	0	1	
+		t082	e	4	INT	9	10	10	0	1	
+		t083	a	4	INT	9	10	10	0	1	
+		t083	b	4	INT	9	10	10	0	1	
+		t083	c	4	INT	9	10	10	0	1	
+		t083	d	4	INT	9	10	10	0	1	
+		t083	e	4	INT	9	10	10	0	1	
+		t084	a	4	INT	9	10	10	0	1	
+		t084	b	4	INT	9	10	10	0	1	
+		t084	c	4	INT	9	10	10	0	1	
+		t084	d	4	INT	9	10	10	0	1	
+		t084	e	4	INT	9	10	10	0	1	
+		t085	a	4	INT	9	10	10	0	1	
+		t085	b	4	INT	9	10	10	0	1	
+		t085	c	4	INT	9	10	10	0	1	
+		t085	d	4	INT	9	10	10	0	1	
+		t085	e	4	INT	9	10	10	0	1	
+		t086	a	4	INT	9	10	10	0	1	
+		t086	b	4	INT	9	10	10	0	1	
+		t086	c	4	INT	9	10	10	0	1	
+		t086	d	4	INT	9	10	10	0	1	
+		t086	e	4	INT	9	10	10	0	1	
+		t087	a	4	INT	9	10	10	0	1	
+		t087	b	4	INT	9	10	10	0	1	
+		t087	c	4	INT	9	10	10	0	1	
+		t087	d	4	INT	9	10	10	0	1	
+		t087	e	4	INT	9	10	10	0	1	
+		t088	a	4	INT	9	10	10	0	1	
+		t088	b	4	INT	9	10	10	0	1	
+		t088	c	4	INT	9	10	10	0	1	
+		t088	d	4	INT	9	10	10	0	1	
+		t088	e	4	INT	9	10	10	0	1	
+		t089	a	4	INT	9	10	10	0	1	
+		t089	b	4	INT	9	10	10	0	1	
+		t089	c	4	INT	9	10	10	0	1	
+		t089	d	4	INT	9	10	10	0	1	
+		t089	e	4	INT	9	10	10	0	1	
+		t090	a	4	INT	9	10	10	0	1	
+		t090	b	4	INT	9	10	10	0	1	
+		t090	c	4	INT	9	10	10	0	1	
+		t090	d	4	INT	9	10	10	0	1	
+		t090	e	4	INT	9	10	10	0	1	
+		t091	a	4	INT	9	10	10	0	1	
+		t091	b	4	INT	9	10	10	0	1	
+		t091	c	4	INT	9	10	10	0	1	
+		t091	d	4	INT	9	10	10	0	1	
+		t091	e	4	INT	9	10	10	0	1	
+		t092	a	4	INT	9	10	10	0	1	
+		t092	b	4	INT	9	10	10	0	1	
+		t092	c	4	INT	9	10	10	0	1	
+		t092	d	4	INT	9	10	10	0	1	
+		t092	e	4	INT	9	10	10	0	1	
+		t093	a	4	INT	9	10	10	0	1	
+		t093	b	4	INT	9	10	10	0	1	
+		t093	c	4	INT	9	10	10	0	1	
+		t093	d	4	INT	9	10	10	0	1	
+		t093	e	4	INT	9	10	10	0	1	
+		t094	a	4	INT	9	10	10	0	1	
+		t094	b	4	INT	9	10	10	0	1	
+		t094	c	4	INT	9	10	10	0	1	
+		t094	d	4	INT	9	10	10	0	1	
+		t094	e	4	INT	9	10	10	0	1	
+		t095	a	4	INT	9	10	10	0	1	
+		t095	b	4	INT	9	10	10	0	1	
+		t095	c	4	INT	9	10	10	0	1	
+		t095	d	4	INT	9	10	10	0	1	
+		t095	e	4	INT	9	10	10	0	1	
+		t096	a	4	INT	9	10	10	0	1	
+		t096	b	4	INT	9	10	10	0	1	
+		t096	c	4	INT	9	10	10	0	1	
+		t096	d	4	INT	9	10	10	0	1	
+		t096	e	4	INT	9	10	10	0	1	
+		t097	a	4	INT	9	10	10	0	1	
+		t097	b	4	INT	9	10	10	0	1	
+		t097	c	4	INT	9	10	10	0	1	
+		t097	d	4	INT	9	10	10	0	1	
+		t097	e	4	INT	9	10	10	0	1	
+		t098	a	4	INT	9	10	10	0	1	
+		t098	b	4	INT	9	10	10	0	1	
+		t098	c	4	INT	9	10	10	0	1	
+		t098	d	4	INT	9	10	10	0	1	
+		t098	e	4	INT	9	10	10	0	1	
+		t099	a	4	INT	9	10	10	0	1	
+		t099	b	4	INT	9	10	10	0	1	
+		t099	c	4	INT	9	10	10	0	1	
+		t099	d	4	INT	9	10	10	0	1	
+		t099	e	4	INT	9	10	10	0	1	
+		t1	a	12	varchar(64)	64	64	10	0	1	
+		t100	a	4	INT	9	10	10	0	1	
+		t100	b	4	INT	9	10	10	0	1	
+		t100	c	4	INT	9	10	10	0	1	
+		t100	d	4	INT	9	10	10	0	1	
+		t100	e	4	INT	9	10	10	0	1	
+		t101	a	4	INT	9	10	10	0	1	
+		t101	b	4	INT	9	10	10	0	1	
+		t101	c	4	INT	9	10	10	0	1	
+		t101	d	4	INT	9	10	10	0	1	
+		t101	e	4	INT	9	10	10	0	1	
+		t102	a	4	INT	9	10	10	0	1	
+		t102	b	4	INT	9	10	10	0	1	
+		t102	c	4	INT	9	10	10	0	1	
+		t102	d	4	INT	9	10	10	0	1	
+		t102	e	4	INT	9	10	10	0	1	
+		t103	a	4	INT	9	10	10	0	1	
+		t103	b	4	INT	9	10	10	0	1	
+		t103	c	4	INT	9	10	10	0	1	
+		t103	d	4	INT	9	10	10	0	1	
+		t103	e	4	INT	9	10	10	0	1	
+		t104	a	4	INT	9	10	10	0	1	
+		t104	b	4	INT	9	10	10	0	1	
+		t104	c	4	INT	9	10	10	0	1	
+		t104	d	4	INT	9	10	10	0	1	
+		t104	e	4	INT	9	10	10	0	1	
+		t105	a	4	INT	9	10	10	0	1	
+		t105	b	4	INT	9	10	10	0	1	
+		t105	c	4	INT	9	10	10	0	1	
+		t105	d	4	INT	9	10	10	0	1	
+		t105	e	4	INT	9	10	10	0	1	
+		t106	a	4	INT	9	10	10	0	1	
+		t106	b	4	INT	9	10	10	0	1	
+		t106	c	4	INT	9	10	10	0	1	
+		t106	d	4	INT	9	10	10	0	1	
+		t106	e	4	INT	9	10	10	0	1	
+		t107	a	4	INT	9	10	10	0	1	
+		t107	b	4	INT	9	10	10	0	1	
+		t107	c	4	INT	9	10	10	0	1	
+		t107	d	4	INT	9	10	10	0	1	
+		t107	e	4	INT	9	10	10	0	1	
+		t108	a	4	INT	9	10	10	0	1	
+		t108	b	4	INT	9	10	10	0	1	
+		t108	c	4	INT	9	10	10	0	1	
+		t108	d	4	INT	9	10	10	0	1	
+		t108	e	4	INT	9	10	10	0	1	
+		t109	a	4	INT	9	10	10	0	1	
+		t109	b	4	INT	9	10	10	0	1	
+		t109	c	4	INT	9	10	10	0	1	
+		t109	d	4	INT	9	10	10	0	1	
+		t109	e	4	INT	9	10	10	0	1	
+		t110	a	4	INT	9	10	10	0	1	
+		t110	b	4	INT	9	10	10	0	1	
+		t110	c	4	INT	9	10	10	0	1	
+		t110	d	4	INT	9	10	10	0	1	
+		t110	e	4	INT	9	10	10	0	1	
+		t111	a	4	INT	9	10	10	0	1	
+		t111	b	4	INT	9	10	10	0	1	
+		t111	c	4	INT	9	10	10	0	1	
+		t111	d	4	INT	9	10	10	0	1	
+		t111	e	4	INT	9	10	10	0	1	
+		t112	a	4	INT	9	10	10	0	1	
+		t112	b	4	INT	9	10	10	0	1	
+		t112	c	4	INT	9	10	10	0	1	
+		t112	d	4	INT	9	10	10	0	1	
+		t112	e	4	INT	9	10	10	0	1	
+		t113	a	4	INT	9	10	10	0	1	
+		t113	b	4	INT	9	10	10	0	1	
+		t113	c	4	INT	9	10	10	0	1	
+		t113	d	4	INT	9	10	10	0	1	
+		t113	e	4	INT	9	10	10	0	1	
+		t114	a	4	INT	9	10	10	0	1	
+		t114	b	4	INT	9	10	10	0	1	
+		t114	c	4	INT	9	10	10	0	1	
+		t114	d	4	INT	9	10	10	0	1	
+		t114	e	4	INT	9	10	10	0	1	
+		t115	a	4	INT	9	10	10	0	1	
+		t115	b	4	INT	9	10	10	0	1	
+		t115	c	4	INT	9	10	10	0	1	
+		t115	d	4	INT	9	10	10	0	1	
+		t115	e	4	INT	9	10	10	0	1	
+		t116	a	4	INT	9	10	10	0	1	
+		t116	b	4	INT	9	10	10	0	1	
+		t116	c	4	INT	9	10	10	0	1	
+		t116	d	4	INT	9	10	10	0	1	
+		t116	e	4	INT	9	10	10	0	1	
+		t117	a	4	INT	9	10	10	0	1	
+		t117	b	4	INT	9	10	10	0	1	
+		t117	c	4	INT	9	10	10	0	1	
+		t117	d	4	INT	9	10	10	0	1	
+		t117	e	4	INT	9	10	10	0	1	
+		t118	a	4	INT	9	10	10	0	1	
+		t118	b	4	INT	9	10	10	0	1	
+		t118	c	4	INT	9	10	10	0	1	
+		t118	d	4	INT	9	10	10	0	1	
+		t118	e	4	INT	9	10	10	0	1	
+		t119	a	4	INT	9	10	10	0	1	
+		t119	b	4	INT	9	10	10	0	1	
+		t119	c	4	INT	9	10	10	0	1	
+		t119	d	4	INT	9	10	10	0	1	
+		t119	e	4	INT	9	10	10	0	1	
+		t120	a	4	INT	9	10	10	0	1	
+		t120	b	4	INT	9	10	10	0	1	
+		t120	c	4	INT	9	10	10	0	1	
+		t120	d	4	INT	9	10	10	0	1	
+		t120	e	4	INT	9	10	10	0	1	
+		t121	a	4	INT	9	10	10	0	1	
+		t121	b	4	INT	9	10	10	0	1	
+		t121	c	4	INT	9	10	10	0	1	
+		t121	d	4	INT	9	10	10	0	1	
+		t121	e	4	INT	9	10	10	0	1	
+		t122	a	4	INT	9	10	10	0	1	
+		t122	b	4	INT	9	10	10	0	1	
+		t122	c	4	INT	9	10	10	0	1	
+		t122	d	4	INT	9	10	10	0	1	
+		t122	e	4	INT	9	10	10	0	1	
+		t123	a	4	INT	9	10	10	0	1	
+		t123	b	4	INT	9	10	10	0	1	
+		t123	c	4	INT	9	10	10	0	1	
+		t123	d	4	INT	9	10	10	0	1	
+		t123	e	4	INT	9	10	10	0	1	
+		t124	a	4	INT	9	10	10	0	1	
+		t124	b	4	INT	9	10	10	0	1	
+		t124	c	4	INT	9	10	10	0	1	
+		t124	d	4	INT	9	10	10	0	1	
+		t124	e	4	INT	9	10	10	0	1	
+		t125	a	4	INT	9	10	10	0	1	
+		t125	b	4	INT	9	10	10	0	1	
+		t125	c	4	INT	9	10	10	0	1	
+		t125	d	4	INT	9	10	10	0	1	
+		t125	e	4	INT	9	10	10	0	1	
+		t126	a	4	INT	9	10	10	0	1	
+		t126	b	4	INT	9	10	10	0	1	
+		t126	c	4	INT	9	10	10	0	1	
+		t126	d	4	INT	9	10	10	0	1	
+		t126	e	4	INT	9	10	10	0	1	
+		t127	a	4	INT	9	10	10	0	1	
+		t127	b	4	INT	9	10	10	0	1	
+		t127	c	4	INT	9	10	10	0	1	
+		t127	d	4	INT	9	10	10	0	1	
+		t127	e	4	INT	9	10	10	0	1	
+		t128	a	4	INT	9	10	10	0	1	
+		t128	b	4	INT	9	10	10	0	1	
+		t128	c	4	INT	9	10	10	0	1	
+		t128	d	4	INT	9	10	10	0	1	
+		t128	e	4	INT	9	10	10	0	1	
+		t129	a	4	INT	9	10	10	0	1	
+		t129	b	4	INT	9	10	10	0	1	
+		t129	c	4	INT	9	10	10	0	1	
+		t129	d	4	INT	9	10	10	0	1	
+		t129	e	4	INT	9	10	10	0	1	
+		t130	a	4	INT	9	10	10	0	1	
+		t130	b	4	INT	9	10	10	0	1	
+		t130	c	4	INT	9	10	10	0	1	
+		t130	d	4	INT	9	10	10	0	1	
+		t130	e	4	INT	9	10	10	0	1	
+		t131	a	4	INT	9	10	10	0	1	
+		t131	b	4	INT	9	10	10	0	1	
+		t131	c	4	INT	9	10	10	0	1	
+		t131	d	4	INT	9	10	10	0	1	
+		t131	e	4	INT	9	10	10	0	1	
+		t132	a	4	INT	9	10	10	0	1	
+		t132	b	4	INT	9	10	10	0	1	
+		t132	c	4	INT	9	10	10	0	1	
+		t132	d	4	INT	9	10	10	0	1	
+		t132	e	4	INT	9	10	10	0	1	
+		t133	a	4	INT	9	10	10	0	1	
+		t133	b	4	INT	9	10	10	0	1	
+		t133	c	4	INT	9	10	10	0	1	
+		t133	d	4	INT	9	10	10	0	1	
+		t133	e	4	INT	9	10	10	0	1	
+		t134	a	4	INT	9	10	10	0	1	
+		t134	b	4	INT	9	10	10	0	1	
+		t134	c	4	INT	9	10	10	0	1	
+		t134	d	4	INT	9	10	10	0	1	
+		t134	e	4	INT	9	10	10	0	1	
+		t135	a	4	INT	9	10	10	0	1	
+		t135	b	4	INT	9	10	10	0	1	
+		t135	c	4	INT	9	10	10	0	1	
+		t135	d	4	INT	9	10	10	0	1	
+		t135	e	4	INT	9	10	10	0	1	
+		t136	a	4	INT	9	10	10	0	1	
+		t136	b	4	INT	9	10	10	0	1	
+		t136	c	4	INT	9	10	10	0	1	
+		t136	d	4	INT	9	10	10	0	1	
+		t136	e	4	INT	9	10	10	0	1	
+		t137	a	4	INT	9	10	10	0	1	
+		t137	b	4	INT	9	10	10	0	1	
+		t137	c	4	INT	9	10	10	0	1	
+		t137	d	4	INT	9	10	10	0	1	
+		t137	e	4	INT	9	10	10	0	1	
+		t138	a	4	INT	9	10	10	0	1	
+		t138	b	4	INT	9	10	10	0	1	
+		t138	c	4	INT	9	10	10	0	1	
+		t138	d	4	INT	9	10	10	0	1	
+		t138	e	4	INT	9	10	10	0	1	
+		t139	a	4	INT	9	10	10	0	1	
+		t139	b	4	INT	9	10	10	0	1	
+		t139	c	4	INT	9	10	10	0	1	
+		t139	d	4	INT	9	10	10	0	1	
+		t139	e	4	INT	9	10	10	0	1	
+		t140	a	4	INT	9	10	10	0	1	
+		t140	b	4	INT	9	10	10	0	1	
+		t140	c	4	INT	9	10	10	0	1	
+		t140	d	4	INT	9	10	10	0	1	
+		t140	e	4	INT	9	10	10	0	1	
+		t141	a	4	INT	9	10	10	0	1	
+		t141	b	4	INT	9	10	10	0	1	
+		t141	c	4	INT	9	10	10	0	1	
+		t141	d	4	INT	9	10	10	0	1	
+		t141	e	4	INT	9	10	10	0	1	
+		t142	a	4	INT	9	10	10	0	1	
+		t142	b	4	INT	9	10	10	0	1	
+		t142	c	4	INT	9	10	10	0	1	
+		t142	d	4	INT	9	10	10	0	1	
+		t142	e	4	INT	9	10	10	0	1	
+		t143	a	4	INT	9	10	10	0	1	
+		t143	b	4	INT	9	10	10	0	1	
+		t143	c	4	INT	9	10	10	0	1	
+		t143	d	4	INT	9	10	10	0	1	
+		t143	e	4	INT	9	10	10	0	1	
+		t144	a	4	INT	9	10	10	0	1	
+		t144	b	4	INT	9	10	10	0	1	
+		t144	c	4	INT	9	10	10	0	1	
+		t144	d	4	INT	9	10	10	0	1	
+		t144	e	4	INT	9	10	10	0	1	
+		t145	a	4	INT	9	10	10	0	1	
+		t145	b	4	INT	9	10	10	0	1	
+		t145	c	4	INT	9	10	10	0	1	
+		t145	d	4	INT	9	10	10	0	1	
+		t145	e	4	INT	9	10	10	0	1	
+		t146	a	4	INT	9	10	10	0	1	
+		t146	b	4	INT	9	10	10	0	1	
+		t146	c	4	INT	9	10	10	0	1	
+		t146	d	4	INT	9	10	10	0	1	
+		t146	e	4	INT	9	10	10	0	1	
+		t147	a	4	INT	9	10	10	0	1	
+		t147	b	4	INT	9	10	10	0	1	
+		t147	c	4	INT	9	10	10	0	1	
+		t147	d	4	INT	9	10	10	0	1	
+		t147	e	4	INT	9	10	10	0	1	
+		t148	a	4	INT	9	10	10	0	1	
+		t148	b	4	INT	9	10	10	0	1	
+		t148	c	4	INT	9	10	10	0	1	
+		t148	d	4	INT	9	10	10	0	1	
+		t148	e	4	INT	9	10	10	0	1	
+		t149	a	4	INT	9	10	10	0	1	
+		t149	b	4	INT	9	10	10	0	1	
+		t149	c	4	INT	9	10	10	0	1	
+		t149	d	4	INT	9	10	10	0	1	
+		t149	e	4	INT	9	10	10	0	1	
+		t150	a	4	INT	9	10	10	0	1	
+		t150	b	4	INT	9	10	10	0	1	
+		t150	c	4	INT	9	10	10	0	1	
+		t150	d	4	INT	9	10	10	0	1	
+		t150	e	4	INT	9	10	10	0	1	
+		t151	a	4	INT	9	10	10	0	1	
+		t151	b	4	INT	9	10	10	0	1	
+		t151	c	4	INT	9	10	10	0	1	
+		t151	d	4	INT	9	10	10	0	1	
+		t151	e	4	INT	9	10	10	0	1	
+		t152	a	4	INT	9	10	10	0	1	
+		t152	b	4	INT	9	10	10	0	1	
+		t152	c	4	INT	9	10	10	0	1	
+		t152	d	4	INT	9	10	10	0	1	
+		t152	e	4	INT	9	10	10	0	1	
+		t153	a	4	INT	9	10	10	0	1	
+		t153	b	4	INT	9	10	10	0	1	
+		t153	c	4	INT	9	10	10	0	1	
+		t153	d	4	INT	9	10	10	0	1	
+		t153	e	4	INT	9	10	10	0	1	
+		t154	a	4	INT	9	10	10	0	1	
+		t154	b	4	INT	9	10	10	0	1	
+		t154	c	4	INT	9	10	10	0	1	
+		t154	d	4	INT	9	10	10	0	1	
+		t154	e	4	INT	9	10	10	0	1	
+		t155	a	4	INT	9	10	10	0	1	
+		t155	b	4	INT	9	10	10	0	1	
+		t155	c	4	INT	9	10	10	0	1	
+		t155	d	4	INT	9	10	10	0	1	
+		t155	e	4	INT	9	10	10	0	1	
+		t156	a	4	INT	9	10	10	0	1	
+		t156	b	4	INT	9	10	10	0	1	
+		t156	c	4	INT	9	10	10	0	1	
+		t156	d	4	INT	9	10	10	0	1	
+		t156	e	4	INT	9	10	10	0	1	
+		t157	a	4	INT	9	10	10	0	1	
+		t157	b	4	INT	9	10	10	0	1	
+		t157	c	4	INT	9	10	10	0	1	
+		t157	d	4	INT	9	10	10	0	1	
+		t157	e	4	INT	9	10	10	0	1	
+		t158	a	4	INT	9	10	10	0	1	
+		t158	b	4	INT	9	10	10	0	1	
+		t158	c	4	INT	9	10	10	0	1	
+		t158	d	4	INT	9	10	10	0	1	
+		t158	e	4	INT	9	10	10	0	1	
+		t159	a	4	INT	9	10	10	0	1	
+		t159	b	4	INT	9	10	10	0	1	
+		t159	c	4	INT	9	10	10	0	1	
+		t159	d	4	INT	9	10	10	0	1	
+		t159	e	4	INT	9	10	10	0	1	
+		t160	a	4	INT	9	10	10	0	1	
+		t160	b	4	INT	9	10	10	0	1	
+		t160	c	4	INT	9	10	10	0	1	
+		t160	d	4	INT	9	10	10	0	1	
+		t160	e	4	INT	9	10	10	0	1	
+		t161	a	4	INT	9	10	10	0	1	
+		t161	b	4	INT	9	10	10	0	1	
+		t161	c	4	INT	9	10	10	0	1	
+		t161	d	4	INT	9	10	10	0	1	
+		t161	e	4	INT	9	10	10	0	1	
+		t162	a	4	INT	9	10	10	0	1	
+		t162	b	4	INT	9	10	10	0	1	
+		t162	c	4	INT	9	10	10	0	1	
+		t162	d	4	INT	9	10	10	0	1	
+		t162	e	4	INT	9	10	10	0	1	
+		t163	a	4	INT	9	10	10	0	1	
+		t163	b	4	INT	9	10	10	0	1	
+		t163	c	4	INT	9	10	10	0	1	
+		t163	d	4	INT	9	10	10	0	1	
+		t163	e	4	INT	9	10	10	0	1	
+		t164	a	4	INT	9	10	10	0	1	
+		t164	b	4	INT	9	10	10	0	1	
+		t164	c	4	INT	9	10	10	0	1	
+		t164	d	4	INT	9	10	10	0	1	
+		t164	e	4	INT	9	10	10	0	1	
+		t165	a	4	INT	9	10	10	0	1	
+		t165	b	4	INT	9	10	10	0	1	
+		t165	c	4	INT	9	10	10	0	1	
+		t165	d	4	INT	9	10	10	0	1	
+		t165	e	4	INT	9	10	10	0	1	
+		t166	a	4	INT	9	10	10	0	1	
+		t166	b	4	INT	9	10	10	0	1	
+		t166	c	4	INT	9	10	10	0	1	
+		t166	d	4	INT	9	10	10	0	1	
+		t166	e	4	INT	9	10	10	0	1	
+		t167	a	4	INT	9	10	10	0	1	
+		t167	b	4	INT	9	10	10	0	1	
+		t167	c	4	INT	9	10	10	0	1	
+		t167	d	4	INT	9	10	10	0	1	
+		t167	e	4	INT	9	10	10	0	1	
+		t168	a	4	INT	9	10	10	0	1	
+		t168	b	4	INT	9	10	10	0	1	
+		t168	c	4	INT	9	10	10	0	1	
+		t168	d	4	INT	9	10	10	0	1	
+		t168	e	4	INT	9	10	10	0	1	
+		t169	a	4	INT	9	10	10	0	1	
+		t169	b	4	INT	9	10	10	0	1	
+		t169	c	4	INT	9	10	10	0	1	
+		t169	d	4	INT	9	10	10	0	1	
+		t169	e	4	INT	9	10	10	0	1	
+		t170	a	4	INT	9	10	10	0	1	
+		t170	b	4	INT	9	10	10	0	1	
+		t170	c	4	INT	9	10	10	0	1	
+		t170	d	4	INT	9	10	10	0	1	
+		t170	e	4	INT	9	10	10	0	1	
+		t171	a	4	INT	9	10	10	0	1	
+		t171	b	4	INT	9	10	10	0	1	
+		t171	c	4	INT	9	10	10	0	1	
+		t171	d	4	INT	9	10	10	0	1	
+		t171	e	4	INT	9	10	10	0	1	
+		t172	a	4	INT	9	10	10	0	1	
+		t172	b	4	INT	9	10	10	0	1	
+		t172	c	4	INT	9	10	10	0	1	
+		t172	d	4	INT	9	10	10	0	1	
+		t172	e	4	INT	9	10	10	0	1	
+		t173	a	4	INT	9	10	10	0	1	
+		t173	b	4	INT	9	10	10	0	1	
+		t173	c	4	INT	9	10	10	0	1	
+		t173	d	4	INT	9	10	10	0	1	
+		t173	e	4	INT	9	10	10	0	1	
+		t174	a	4	INT	9	10	10	0	1	
+		t174	b	4	INT	9	10	10	0	1	
+		t174	c	4	INT	9	10	10	0	1	
+		t174	d	4	INT	9	10	10	0	1	
+		t174	e	4	INT	9	10	10	0	1	
+		t175	a	4	INT	9	10	10	0	1	
+		t175	b	4	INT	9	10	10	0	1	
+		t175	c	4	INT	9	10	10	0	1	
+		t175	d	4	INT	9	10	10	0	1	
+		t175	e	4	INT	9	10	10	0	1	
+		t176	a	4	INT	9	10	10	0	1	
+		t176	b	4	INT	9	10	10	0	1	
+		t176	c	4	INT	9	10	10	0	1	
+		t176	d	4	INT	9	10	10	0	1	
+		t176	e	4	INT	9	10	10	0	1	
+		t177	a	4	INT	9	10	10	0	1	
+		t177	b	4	INT	9	10	10	0	1	
+		t177	c	4	INT	9	10	10	0	1	
+		t177	d	4	INT	9	10	10	0	1	
+		t177	e	4	INT	9	10	10	0	1	
+		t178	a	4	INT	9	10	10	0	1	
+		t178	b	4	INT	9	10	10	0	1	
+		t178	c	4	INT	9	10	10	0	1	
+		t178	d	4	INT	9	10	10	0	1	
+		t178	e	4	INT	9	10	10	0	1	
+		t179	a	4	INT	9	10	10	0	1	
+		t179	b	4	INT	9	10	10	0	1	
+		t179	c	4	INT	9	10	10	0	1	
+		t179	d	4	INT	9	10	10	0	1	
+		t179	e	4	INT	9	10	10	0	1	
+		t180	a	4	INT	9	10	10	0	1	
+		t180	b	4	INT	9	10	10	0	1	
+		t180	c	4	INT	9	10	10	0	1	
+		t180	d	4	INT	9	10	10	0	1	
+		t180	e	4	INT	9	10	10	0	1	
+		t181	a	4	INT	9	10	10	0	1	
+		t181	b	4	INT	9	10	10	0	1	
+		t181	c	4	INT	9	10	10	0	1	
+		t181	d	4	INT	9	10	10	0	1	
+		t181	e	4	INT	9	10	10	0	1	
+		t182	a	4	INT	9	10	10	0	1	
+		t182	b	4	INT	9	10	10	0	1	
+		t182	c	4	INT	9	10	10	0	1	
+		t182	d	4	INT	9	10	10	0	1	
+		t182	e	4	INT	9	10	10	0	1	
+		t183	a	4	INT	9	10	10	0	1	
+		t183	b	4	INT	9	10	10	0	1	
+		t183	c	4	INT	9	10	10	0	1	
+		t183	d	4	INT	9	10	10	0	1	
+		t183	e	4	INT	9	10	10	0	1	
+		t184	a	4	INT	9	10	10	0	1	
+		t184	b	4	INT	9	10	10	0	1	
+		t184	c	4	INT	9	10	10	0	1	
+		t184	d	4	INT	9	10	10	0	1	
+		t184	e	4	INT	9	10	10	0	1	
+		t185	a	4	INT	9	10	10	0	1	
+		t185	b	4	INT	9	10	10	0	1	
+		t185	c	4	INT	9	10	10	0	1	
+		t185	d	4	INT	9	10	10	0	1	
+		t185	e	4	INT	9	10	10	0	1	
+		t186	a	4	INT	9	10	10	0	1	
+		t186	b	4	INT	9	10	10	0	1	
+		t186	c	4	INT	9	10	10	0	1	
+		t186	d	4	INT	9	10	10	0	1	
+		t186	e	4	INT	9	10	10	0	1	
+		t187	a	4	INT	9	10	10	0	1	
+		t187	b	4	INT	9	10	10	0	1	
+		t187	c	4	INT	9	10	10	0	1	
+		t187	d	4	INT	9	10	10	0	1	
+		t187	e	4	INT	9	10	10	0	1	
+		t188	a	4	INT	9	10	10	0	1	
+		t188	b	4	INT	9	10	10	0	1	
+		t188	c	4	INT	9	10	10	0	1	
+		t188	d	4	INT	9	10	10	0	1	
+		t188	e	4	INT	9	10	10	0	1	
+		t189	a	4	INT	9	10	10	0	1	
+		t189	b	4	INT	9	10	10	0	1	
+		t189	c	4	INT	9	10	10	0	1	
+		t189	d	4	INT	9	10	10	0	1	
+		t189	e	4	INT	9	10	10	0	1	
+		t190	a	4	INT	9	10	10	0	1	
+		t190	b	4	INT	9	10	10	0	1	
+		t190	c	4	INT	9	10	10	0	1	
+		t190	d	4	INT	9	10	10	0	1	
+		t190	e	4	INT	9	10	10	0	1	
+		t191	a	4	INT	9	10	10	0	1	
+		t191	b	4	INT	9	10	10	0	1	
+		t191	c	4	INT	9	10	10	0	1	
+		t191	d	4	INT	9	10	10	0	1	
+		t191	e	4	INT	9	10	10	0	1	
+		t192	a	4	INT	9	10	10	0	1	
+		t192	b	4	INT	9	10	10	0	1	
+		t192	c	4	INT	9	10	10	0	1	
+		t192	d	4	INT	9	10	10	0	1	
+		t192	e	4	INT	9	10	10	0	1	
+		t193	a	4	INT	9	10	10	0	1	
+		t193	b	4	INT	9	10	10	0	1	
+		t193	c	4	INT	9	10	10	0	1	
+		t193	d	4	INT	9	10	10	0	1	
+		t193	e	4	INT	9	10	10	0	1	
+		t194	a	4	INT	9	10	10	0	1	
+		t194	b	4	INT	9	10	10	0	1	
+		t194	c	4	INT	9	10	10	0	1	
+		t194	d	4	INT	9	10	10	0	1	
+		t194	e	4	INT	9	10	10	0	1	
+		t195	a	4	INT	9	10	10	0	1	
+		t195	b	4	INT	9	10	10	0	1	
+		t195	c	4	INT	9	10	10	0	1	
+		t195	d	4	INT	9	10	10	0	1	
+		t195	e	4	INT	9	10	10	0	1	
+		t196	a	4	INT	9	10	10	0	1	
+		t196	b	4	INT	9	10	10	0	1	
+		t196	c	4	INT	9	10	10	0	1	
+		t196	d	4	INT	9	10	10	0	1	
+		t196	e	4	INT	9	10	10	0	1	
+		t197	a	4	INT	9	10	10	0	1	
+		t197	b	4	INT	9	10	10	0	1	
+		t197	c	4	INT	9	10	10	0	1	
+		t197	d	4	INT	9	10	10	0	1	
+		t197	e	4	INT	9	10	10	0	1	
+		t198	a	4	INT	9	10	10	0	1	
+		t198	b	4	INT	9	10	10	0	1	
+		t198	c	4	INT	9	10	10	0	1	
+		t198	d	4	INT	9	10	10	0	1	
+		t198	e	4	INT	9	10	10	0	1	
+		t199	a	4	INT	9	10	10	0	1	
+		t199	b	4	INT	9	10	10	0	1	
+		t199	c	4	INT	9	10	10	0	1	
+		t199	d	4	INT	9	10	10	0	1	
+		t199	e	4	INT	9	10	10	0	1	
+		t200	a	4	INT	9	10	10	0	1	
+		t200	b	4	INT	9	10	10	0	1	
+		t200	c	4	INT	9	10	10	0	1	
+		t200	d	4	INT	9	10	10	0	1	
+		t200	e	4	INT	9	10	10	0	1	
+		t201	a	4	INT	9	10	10	0	1	
+		t201	b	4	INT	9	10	10	0	1	
+		t201	c	4	INT	9	10	10	0	1	
+		t201	d	4	INT	9	10	10	0	1	
+		t201	e	4	INT	9	10	10	0	1	
+		t202	a	4	INT	9	10	10	0	1	
+		t202	b	4	INT	9	10	10	0	1	
+		t202	c	4	INT	9	10	10	0	1	
+		t202	d	4	INT	9	10	10	0	1	
+		t202	e	4	INT	9	10	10	0	1	
+		t203	a	4	INT	9	10	10	0	1	
+		t203	b	4	INT	9	10	10	0	1	
+		t203	c	4	INT	9	10	10	0	1	
+		t203	d	4	INT	9	10	10	0	1	
+		t203	e	4	INT	9	10	10	0	1	
+		t204	a	4	INT	9	10	10	0	1	
+		t204	b	4	INT	9	10	10	0	1	
+		t204	c	4	INT	9	10	10	0	1	
+		t204	d	4	INT	9	10	10	0	1	
+		t204	e	4	INT	9	10	10	0	1	
+		t205	a	4	INT	9	10	10	0	1	
+		t205	b	4	INT	9	10	10	0	1	
+		t205	c	4	INT	9	10	10	0	1	
+		t205	d	4	INT	9	10	10	0	1	
+		t205	e	4	INT	9	10	10	0	1	
+		t206	a	4	INT	9	10	10	0	1	
+		t206	b	4	INT	9	10	10	0	1	
+		t206	c	4	INT	9	10	10	0	1	
+		t206	d	4	INT	9	10	10	0	1	
+		t206	e	4	INT	9	10	10	0	1	
+		t207	a	4	INT	9	10	10	0	1	
+		t207	b	4	INT	9	10	10	0	1	
+		t207	c	4	INT	9	10	10	0	1	
+		t207	d	4	INT	9	10	10	0	1	
+		t207	e	4	INT	9	10	10	0	1	
+		t208	a	4	INT	9	10	10	0	1	
+		t208	b	4	INT	9	10	10	0	1	
+		t208	c	4	INT	9	10	10	0	1	
+		t208	d	4	INT	9	10	10	0	1	
+		t208	e	4	INT	9	10	10	0	1	
+		t209	a	4	INT	9	10	10	0	1	
+		t209	b	4	INT	9	10	10	0	1	
+		t209	c	4	INT	9	10	10	0	1	
+		t209	d	4	INT	9	10	10	0	1	
+		t209	e	4	INT	9	10	10	0	1	
+		t210	a	4	INT	9	10	10	0	1	
+		t210	b	4	INT	9	10	10	0	1	
+		t210	c	4	INT	9	10	10	0	1	
+		t210	d	4	INT	9	10	10	0	1	
+		t210	e	4	INT	9	10	10	0	1	
+		t211	a	4	INT	9	10	10	0	1	
+		t211	b	4	INT	9	10	10	0	1	
+		t211	c	4	INT	9	10	10	0	1	
+		t211	d	4	INT	9	10	10	0	1	
+		t211	e	4	INT	9	10	10	0	1	
+		t212	a	4	INT	9	10	10	0	1	
+		t212	b	4	INT	9	10	10	0	1	
+		t212	c	4	INT	9	10	10	0	1	
+		t212	d	4	INT	9	10	10	0	1	
+		t212	e	4	INT	9	10	10	0	1	
+		t213	a	4	INT	9	10	10	0	1	
+		t213	b	4	INT	9	10	10	0	1	
+		t213	c	4	INT	9	10	10	0	1	
+		t213	d	4	INT	9	10	10	0	1	
+		t213	e	4	INT	9	10	10	0	1	
+		t214	a	4	INT	9	10	10	0	1	
+		t214	b	4	INT	9	10	10	0	1	
+		t214	c	4	INT	9	10	10	0	1	
+		t214	d	4	INT	9	10	10	0	1	
+		t214	e	4	INT	9	10	10	0	1	
+		t215	a	4	INT	9	10	10	0	1	
+		t215	b	4	INT	9	10	10	0	1	
+		t215	c	4	INT	9	10	10	0	1	
+		t215	d	4	INT	9	10	10	0	1	
+		t215	e	4	INT	9	10	10	0	1	
+		t216	a	4	INT	9	10	10	0	1	
+		t216	b	4	INT	9	10	10	0	1	
+		t216	c	4	INT	9	10	10	0	1	
+		t216	d	4	INT	9	10	10	0	1	
+		t216	e	4	INT	9	10	10	0	1	
+		t217	a	4	INT	9	10	10	0	1	
+		t217	b	4	INT	9	10	10	0	1	
+		t217	c	4	INT	9	10	10	0	1	
+		t217	d	4	INT	9	10	10	0	1	
+		t217	e	4	INT	9	10	10	0	1	
+		t218	a	4	INT	9	10	10	0	1	
+		t218	b	4	INT	9	10	10	0	1	
+		t218	c	4	INT	9	10	10	0	1	
+		t218	d	4	INT	9	10	10	0	1	
+		t218	e	4	INT	9	10	10	0	1	
+		t219	a	4	INT	9	10	10	0	1	
+		t219	b	4	INT	9	10	10	0	1	
+		t219	c	4	INT	9	10	10	0	1	
+		t219	d	4	INT	9	10	10	0	1	
+		t219	e	4	INT	9	10	10	0	1	
+		t220	a	4	INT	9	10	10	0	1	
+		t220	b	4	INT	9	10	10	0	1	
+		t220	c	4	INT	9	10	10	0	1	
+		t220	d	4	INT	9	10	10	0	1	
+		t220	e	4	INT	9	10	10	0	1	
+		t221	a	4	INT	9	10	10	0	1	
+		t221	b	4	INT	9	10	10	0	1	
+		t221	c	4	INT	9	10	10	0	1	
+		t221	d	4	INT	9	10	10	0	1	
+		t221	e	4	INT	9	10	10	0	1	
+		t222	a	4	INT	9	10	10	0	1	
+		t222	b	4	INT	9	10	10	0	1	
+		t222	c	4	INT	9	10	10	0	1	
+		t222	d	4	INT	9	10	10	0	1	
+		t222	e	4	INT	9	10	10	0	1	
+		t223	a	4	INT	9	10	10	0	1	
+		t223	b	4	INT	9	10	10	0	1	
+		t223	c	4	INT	9	10	10	0	1	
+		t223	d	4	INT	9	10	10	0	1	
+		t223	e	4	INT	9	10	10	0	1	
+		t224	a	4	INT	9	10	10	0	1	
+		t224	b	4	INT	9	10	10	0	1	
+		t224	c	4	INT	9	10	10	0	1	
+		t224	d	4	INT	9	10	10	0	1	
+		t224	e	4	INT	9	10	10	0	1	
+		t225	a	4	INT	9	10	10	0	1	
+		t225	b	4	INT	9	10	10	0	1	
+		t225	c	4	INT	9	10	10	0	1	
+		t225	d	4	INT	9	10	10	0	1	
+		t225	e	4	INT	9	10	10	0	1	
+		t226	a	4	INT	9	10	10	0	1	
+		t226	b	4	INT	9	10	10	0	1	
+		t226	c	4	INT	9	10	10	0	1	
+		t226	d	4	INT	9	10	10	0	1	
+		t226	e	4	INT	9	10	10	0	1	
+		t227	a	4	INT	9	10	10	0	1	
+		t227	b	4	INT	9	10	10	0	1	
+		t227	c	4	INT	9	10	10	0	1	
+		t227	d	4	INT	9	10	10	0	1	
+		t227	e	4	INT	9	10	10	0	1	
+		t228	a	4	INT	9	10	10	0	1	
+		t228	b	4	INT	9	10	10	0	1	
+		t228	c	4	INT	9	10	10	0	1	
+		t228	d	4	INT	9	10	10	0	1	
+		t228	e	4	INT	9	10	10	0	1	
+		t229	a	4	INT	9	10	10	0	1	
+		t229	b	4	INT	9	10	10	0	1	
+		t229	c	4	INT	9	10	10	0	1	
+		t229	d	4	INT	9	10	10	0	1	
+		t229	e	4	INT	9	10	10	0	1	
+		t230	a	4	INT	9	10	10	0	1	
+		t230	b	4	INT	9	10	10	0	1	
+		t230	c	4	INT	9	10	10	0	1	
+		t230	d	4	INT	9	10	10	0	1	
+		t230	e	4	INT	9	10	10	0	1	
+		t231	a	4	INT	9	10	10	0	1	
+		t231	b	4	INT	9	10	10	0	1	
+		t231	c	4	INT	9	10	10	0	1	
+		t231	d	4	INT	9	10	10	0	1	
+		t231	e	4	INT	9	10	10	0	1	
+		t232	a	4	INT	9	10	10	0	1	
+		t232	b	4	INT	9	10	10	0	1	
+		t232	c	4	INT	9	10	10	0	1	
+		t232	d	4	INT	9	10	10	0	1	
+		t232	e	4	INT	9	10	10	0	1	
+		t233	a	4	INT	9	10	10	0	1	
+		t233	b	4	INT	9	10	10	0	1	
+		t233	c	4	INT	9	10	10	0	1	
+		t233	d	4	INT	9	10	10	0	1	
+		t233	e	4	INT	9	10	10	0	1	
+		t234	a	4	INT	9	10	10	0	1	
+		t234	b	4	INT	9	10	10	0	1	
+		t234	c	4	INT	9	10	10	0	1	
+		t234	d	4	INT	9	10	10	0	1	
+		t234	e	4	INT	9	10	10	0	1	
+		t235	a	4	INT	9	10	10	0	1	
+		t235	b	4	INT	9	10	10	0	1	
+		t235	c	4	INT	9	10	10	0	1	
+		t235	d	4	INT	9	10	10	0	1	
+		t235	e	4	INT	9	10	10	0	1	
+		t236	a	4	INT	9	10	10	0	1	
+		t236	b	4	INT	9	10	10	0	1	
+		t236	c	4	INT	9	10	10	0	1	
+		t236	d	4	INT	9	10	10	0	1	
+		t236	e	4	INT	9	10	10	0	1	
+		t237	a	4	INT	9	10	10	0	1	
+		t237	b	4	INT	9	10	10	0	1	
+		t237	c	4	INT	9	10	10	0	1	
+		t237	d	4	INT	9	10	10	0	1	
+		t237	e	4	INT	9	10	10	0	1	
+		t238	a	4	INT	9	10	10	0	1	
+		t238	b	4	INT	9	10	10	0	1	
+		t238	c	4	INT	9	10	10	0	1	
+		t238	d	4	INT	9	10	10	0	1	
+		t238	e	4	INT	9	10	10	0	1	
+		t239	a	4	INT	9	10	10	0	1	
+		t239	b	4	INT	9	10	10	0	1	
+		t239	c	4	INT	9	10	10	0	1	
+		t239	d	4	INT	9	10	10	0	1	
+		t239	e	4	INT	9	10	10	0	1	
+		t240	a	4	INT	9	10	10	0	1	
+		t240	b	4	INT	9	10	10	0	1	
+		t240	c	4	INT	9	10	10	0	1	
+		t240	d	4	INT	9	10	10	0	1	
+		t240	e	4	INT	9	10	10	0	1	
+		t241	a	4	INT	9	10	10	0	1	
+		t241	b	4	INT	9	10	10	0	1	
+		t241	c	4	INT	9	10	10	0	1	
+		t241	d	4	INT	9	10	10	0	1	
+		t241	e	4	INT	9	10	10	0	1	
+		t242	a	4	INT	9	10	10	0	1	
+		t242	b	4	INT	9	10	10	0	1	
+		t242	c	4	INT	9	10	10	0	1	
+		t242	d	4	INT	9	10	10	0	1	
+		t242	e	4	INT	9	10	10	0	1	
+		t243	a	4	INT	9	10	10	0	1	
+		t243	b	4	INT	9	10	10	0	1	
+		t243	c	4	INT	9	10	10	0	1	
+		t243	d	4	INT	9	10	10	0	1	
+		t243	e	4	INT	9	10	10	0	1	
+		t244	a	4	INT	9	10	10	0	1	
+		t244	b	4	INT	9	10	10	0	1	
+		t244	c	4	INT	9	10	10	0	1	
+		t244	d	4	INT	9	10	10	0	1	
+		t244	e	4	INT	9	10	10	0	1	
+		t245	a	4	INT	9	10	10	0	1	
+		t245	b	4	INT	9	10	10	0	1	
+		t245	c	4	INT	9	10	10	0	1	
+		t245	d	4	INT	9	10	10	0	1	
+		t245	e	4	INT	9	10	10	0	1	
+		t246	a	4	INT	9	10	10	0	1	
+		t246	b	4	INT	9	10	10	0	1	
+		t246	c	4	INT	9	10	10	0	1	
+		t246	d	4	INT	9	10	10	0	1	
+		t246	e	4	INT	9	10	10	0	1	
+		t247	a	4	INT	9	10	10	0	1	
+		t247	b	4	INT	9	10	10	0	1	
+		t247	c	4	INT	9	10	10	0	1	
+		t247	d	4	INT	9	10	10	0	1	
+		t247	e	4	INT	9	10	10	0	1	
+		t248	a	4	INT	9	10	10	0	1	
+		t248	b	4	INT	9	10	10	0	1	
+		t248	c	4	INT	9	10	10	0	1	
+		t248	d	4	INT	9	10	10	0	1	
+		t248	e	4	INT	9	10	10	0	1	
+		t249	a	4	INT	9	10	10	0	1	
+		t249	b	4	INT	9	10	10	0	1	
+		t249	c	4	INT	9	10	10	0	1	
+		t249	d	4	INT	9	10	10	0	1	
+		t249	e	4	INT	9	10	10	0	1	
+		t250	a	4	INT	9	10	10	0	1	
+		t250	b	4	INT	9	10	10	0	1	
+		t250	c	4	INT	9	10	10	0	1	
+		t250	d	4	INT	9	10	10	0	1	
+		t250	e	4	INT	9	10	10	0	1	
+		t251	a	4	INT	9	10	10	0	1	
+		t251	b	4	INT	9	10	10	0	1	
+		t251	c	4	INT	9	10	10	0	1	
+		t251	d	4	INT	9	10	10	0	1	
+		t251	e	4	INT	9	10	10	0	1	
+		t252	a	4	INT	9	10	10	0	1	
+		t252	b	4	INT	9	10	10	0	1	
+		t252	c	4	INT	9	10	10	0	1	
+		t252	d	4	INT	9	10	10	0	1	
+		t252	e	4	INT	9	10	10	0	1	
+		t253	a	4	INT	9	10	10	0	1	
+		t253	b	4	INT	9	10	10	0	1	
+		t253	c	4	INT	9	10	10	0	1	
+		t253	d	4	INT	9	10	10	0	1	
+		t253	e	4	INT	9	10	10	0	1	
+		t254	a	4	INT	9	10	10	0	1	
+		t254	b	4	INT	9	10	10	0	1	
+		t254	c	4	INT	9	10	10	0	1	
+		t254	d	4	INT	9	10	10	0	1	
+		t254	e	4	INT	9	10	10	0	1	
+		t255	a	4	INT	9	10	10	0	1	
+		t255	b	4	INT	9	10	10	0	1	
+		t255	c	4	INT	9	10	10	0	1	
+		t255	d	4	INT	9	10	10	0	1	
+		t255	e	4	INT	9	10	10	0	1	
+		t256	a	4	INT	9	10	10	0	1	
+		t256	b	4	INT	9	10	10	0	1	
+		t256	c	4	INT	9	10	10	0	1	
+		t256	d	4	INT	9	10	10	0	1	
+		t256	e	4	INT	9	10	10	0	1	
+		t257	a	4	INT	9	10	10	0	1	
+		t257	b	4	INT	9	10	10	0	1	
+		t257	c	4	INT	9	10	10	0	1	
+		t257	d	4	INT	9	10	10	0	1	
+		t257	e	4	INT	9	10	10	0	1	
+		t258	a	4	INT	9	10	10	0	1	
+		t258	b	4	INT	9	10	10	0	1	
+		t258	c	4	INT	9	10	10	0	1	
+		t258	d	4	INT	9	10	10	0	1	
+		t258	e	4	INT	9	10	10	0	1	
+		t259	a	4	INT	9	10	10	0	1	
+		t259	b	4	INT	9	10	10	0	1	
+		t259	c	4	INT	9	10	10	0	1	
+		t259	d	4	INT	9	10	10	0	1	
+		t259	e	4	INT	9	10	10	0	1	
+		t260	a	4	INT	9	10	10	0	1	
+		t260	b	4	INT	9	10	10	0	1	
+		t260	c	4	INT	9	10	10	0	1	
+		t260	d	4	INT	9	10	10	0	1	
+		t260	e	4	INT	9	10	10	0	1	
+		t261	a	4	INT	9	10	10	0	1	
+		t261	b	4	INT	9	10	10	0	1	
+		t261	c	4	INT	9	10	10	0	1	
+		t261	d	4	INT	9	10	10	0	1	
+		t261	e	4	INT	9	10	10	0	1	
+		t262	a	4	INT	9	10	10	0	1	
+		t262	b	4	INT	9	10	10	0	1	
+		t262	c	4	INT	9	10	10	0	1	
+		t262	d	4	INT	9	10	10	0	1	
+		t262	e	4	INT	9	10	10	0	1	
+		t263	a	4	INT	9	10	10	0	1	
+		t263	b	4	INT	9	10	10	0	1	
+		t263	c	4	INT	9	10	10	0	1	
+		t263	d	4	INT	9	10	10	0	1	
+		t263	e	4	INT	9	10	10	0	1	
+		t264	a	4	INT	9	10	10	0	1	
+		t264	b	4	INT	9	10	10	0	1	
+		t264	c	4	INT	9	10	10	0	1	
+		t264	d	4	INT	9	10	10	0	1	
+		t264	e	4	INT	9	10	10	0	1	
+		t265	a	4	INT	9	10	10	0	1	
+		t265	b	4	INT	9	10	10	0	1	
+		t265	c	4	INT	9	10	10	0	1	
+		t265	d	4	INT	9	10	10	0	1	
+		t265	e	4	INT	9	10	10	0	1	
+		t266	a	4	INT	9	10	10	0	1	
+		t266	b	4	INT	9	10	10	0	1	
+		t266	c	4	INT	9	10	10	0	1	
+		t266	d	4	INT	9	10	10	0	1	
+		t266	e	4	INT	9	10	10	0	1	
+		t267	a	4	INT	9	10	10	0	1	
+		t267	b	4	INT	9	10	10	0	1	
+		t267	c	4	INT	9	10	10	0	1	
+		t267	d	4	INT	9	10	10	0	1	
+		t267	e	4	INT	9	10	10	0	1	
+		t268	a	4	INT	9	10	10	0	1	
+		t268	b	4	INT	9	10	10	0	1	
+		t268	c	4	INT	9	10	10	0	1	
+		t268	d	4	INT	9	10	10	0	1	
+		t268	e	4	INT	9	10	10	0	1	
+		t269	a	4	INT	9	10	10	0	1	
+		t269	b	4	INT	9	10	10	0	1	
+		t269	c	4	INT	9	10	10	0	1	
+		t269	d	4	INT	9	10	10	0	1	
+		t269	e	4	INT	9	10	10	0	1	
+		t270	a	4	INT	9	10	10	0	1	
+		t270	b	4	INT	9	10	10	0	1	
+		t270	c	4	INT	9	10	10	0	1	
+		t270	d	4	INT	9	10	10	0	1	
+		t270	e	4	INT	9	10	10	0	1	
+		t271	a	4	INT	9	10	10	0	1	
+		t271	b	4	INT	9	10	10	0	1	
+		t271	c	4	INT	9	10	10	0	1	
+		t271	d	4	INT	9	10	10	0	1	
+		t271	e	4	INT	9	10	10	0	1	
+		t272	a	4	INT	9	10	10	0	1	
+		t272	b	4	INT	9	10	10	0	1	
+		t272	c	4	INT	9	10	10	0	1	
+		t272	d	4	INT	9	10	10	0	1	
+		t272	e	4	INT	9	10	10	0	1	
+		t273	a	4	INT	9	10	10	0	1	
+		t273	b	4	INT	9	10	10	0	1	
+		t273	c	4	INT	9	10	10	0	1	
+		t273	d	4	INT	9	10	10	0	1	
+		t273	e	4	INT	9	10	10	0	1	
+		t274	a	4	INT	9	10	10	0	1	
+		t274	b	4	INT	9	10	10	0	1	
+		t274	c	4	INT	9	10	10	0	1	
+		t274	d	4	INT	9	10	10	0	1	
+		t274	e	4	INT	9	10	10	0	1	
+		t275	a	4	INT	9	10	10	0	1	
+		t275	b	4	INT	9	10	10	0	1	
+		t275	c	4	INT	9	10	10	0	1	
+		t275	d	4	INT	9	10	10	0	1	
+		t275	e	4	INT	9	10	10	0	1	
+		t276	a	4	INT	9	10	10	0	1	
+		t276	b	4	INT	9	10	10	0	1	
+		t276	c	4	INT	9	10	10	0	1	
+		t276	d	4	INT	9	10	10	0	1	
+		t276	e	4	INT	9	10	10	0	1	
+		t277	a	4	INT	9	10	10	0	1	
+		t277	b	4	INT	9	10	10	0	1	
+		t277	c	4	INT	9	10	10	0	1	
+		t277	d	4	INT	9	10	10	0	1	
+		t277	e	4	INT	9	10	10	0	1	
+		t278	a	4	INT	9	10	10	0	1	
+		t278	b	4	INT	9	10	10	0	1	
+		t278	c	4	INT	9	10	10	0	1	
+		t278	d	4	INT	9	10	10	0	1	
+		t278	e	4	INT	9	10	10	0	1	
+		t279	a	4	INT	9	10	10	0	1	
+		t279	b	4	INT	9	10	10	0	1	
+		t279	c	4	INT	9	10	10	0	1	
+		t279	d	4	INT	9	10	10	0	1	
+		t279	e	4	INT	9	10	10	0	1	
+		t280	a	4	INT	9	10	10	0	1	
+		t280	b	4	INT	9	10	10	0	1	
+		t280	c	4	INT	9	10	10	0	1	
+		t280	d	4	INT	9	10	10	0	1	
+		t280	e	4	INT	9	10	10	0	1	
+		t281	a	4	INT	9	10	10	0	1	
+		t281	b	4	INT	9	10	10	0	1	
+		t281	c	4	INT	9	10	10	0	1	
+		t281	d	4	INT	9	10	10	0	1	
+		t281	e	4	INT	9	10	10	0	1	
+		t282	a	4	INT	9	10	10	0	1	
+		t282	b	4	INT	9	10	10	0	1	
+		t282	c	4	INT	9	10	10	0	1	
+		t282	d	4	INT	9	10	10	0	1	
+		t282	e	4	INT	9	10	10	0	1	
+		t283	a	4	INT	9	10	10	0	1	
+		t283	b	4	INT	9	10	10	0	1	
+		t283	c	4	INT	9	10	10	0	1	
+		t283	d	4	INT	9	10	10	0	1	
+		t283	e	4	INT	9	10	10	0	1	
+		t284	a	4	INT	9	10	10	0	1	
+		t284	b	4	INT	9	10	10	0	1	
+		t284	c	4	INT	9	10	10	0	1	
+		t284	d	4	INT	9	10	10	0	1	
+		t284	e	4	INT	9	10	10	0	1	
+		t285	a	4	INT	9	10	10	0	1	
+		t285	b	4	INT	9	10	10	0	1	
+		t285	c	4	INT	9	10	10	0	1	
+		t285	d	4	INT	9	10	10	0	1	
+		t285	e	4	INT	9	10	10	0	1	
+		t286	a	4	INT	9	10	10	0	1	
+		t286	b	4	INT	9	10	10	0	1	
+		t286	c	4	INT	9	10	10	0	1	
+		t286	d	4	INT	9	10	10	0	1	
+		t286	e	4	INT	9	10	10	0	1	
+		t287	a	4	INT	9	10	10	0	1	
+		t287	b	4	INT	9	10	10	0	1	
+		t287	c	4	INT	9	10	10	0	1	
+		t287	d	4	INT	9	10	10	0	1	
+		t287	e	4	INT	9	10	10	0	1	
+		t288	a	4	INT	9	10	10	0	1	
+		t288	b	4	INT	9	10	10	0	1	
+		t288	c	4	INT	9	10	10	0	1	
+		t288	d	4	INT	9	10	10	0	1	
+		t288	e	4	INT	9	10	10	0	1	
+		t289	a	4	INT	9	10	10	0	1	
+		t289	b	4	INT	9	10	10	0	1	
+		t289	c	4	INT	9	10	10	0	1	
+		t289	d	4	INT	9	10	10	0	1	
+		t289	e	4	INT	9	10	10	0	1	
+		t290	a	4	INT	9	10	10	0	1	
+		t290	b	4	INT	9	10	10	0	1	
+		t290	c	4	INT	9	10	10	0	1	
+		t290	d	4	INT	9	10	10	0	1	
+		t290	e	4	INT	9	10	10	0	1	
+		t291	a	4	INT	9	10	10	0	1	
+		t291	b	4	INT	9	10	10	0	1	
+		t291	c	4	INT	9	10	10	0	1	
+		t291	d	4	INT	9	10	10	0	1	
+		t291	e	4	INT	9	10	10	0	1	
+		t292	a	4	INT	9	10	10	0	1	
+		t292	b	4	INT	9	10	10	0	1	
+		t292	c	4	INT	9	10	10	0	1	
+		t292	d	4	INT	9	10	10	0	1	
+		t292	e	4	INT	9	10	10	0	1	
+		t293	a	4	INT	9	10	10	0	1	
+		t293	b	4	INT	9	10	10	0	1	
+		t293	c	4	INT	9	10	10	0	1	
+		t293	d	4	INT	9	10	10	0	1	
+		t293	e	4	INT	9	10	10	0	1	
+		t294	a	4	INT	9	10	10	0	1	
+		t294	b	4	INT	9	10	10	0	1	
+		t294	c	4	INT	9	10	10	0	1	
+		t294	d	4	INT	9	10	10	0	1	
+		t294	e	4	INT	9	10	10	0	1	
+		t295	a	4	INT	9	10	10	0	1	
+		t295	b	4	INT	9	10	10	0	1	
+		t295	c	4	INT	9	10	10	0	1	
+		t295	d	4	INT	9	10	10	0	1	
+		t295	e	4	INT	9	10	10	0	1	
+		t296	a	4	INT	9	10	10	0	1	
+		t296	b	4	INT	9	10	10	0	1	
+		t296	c	4	INT	9	10	10	0	1	
+		t296	d	4	INT	9	10	10	0	1	
+		t296	e	4	INT	9	10	10	0	1	
+		t297	a	4	INT	9	10	10	0	1	
+		t297	b	4	INT	9	10	10	0	1	
+		t297	c	4	INT	9	10	10	0	1	
+		t297	d	4	INT	9	10	10	0	1	
+		t297	e	4	INT	9	10	10	0	1	
+		t298	a	4	INT	9	10	10	0	1	
+		t298	b	4	INT	9	10	10	0	1	
+		t298	c	4	INT	9	10	10	0	1	
+		t298	d	4	INT	9	10	10	0	1	
+		t298	e	4	INT	9	10	10	0	1	
+		t299	a	4	INT	9	10	10	0	1	
+		t299	b	4	INT	9	10	10	0	1	
+		t299	c	4	INT	9	10	10	0	1	
+		t299	d	4	INT	9	10	10	0	1	
+		t299	e	4	INT	9	10	10	0	1	
+		t300	a	4	INT	9	10	10	0	1	
+		t300	b	4	INT	9	10	10	0	1	
+		t300	c	4	INT	9	10	10	0	1	
+		t300	d	4	INT	9	10	10	0	1	
+		t300	e	4	INT	9	10	10	0	1	
+		t301	a	4	INT	9	10	10	0	1	
+		t301	b	4	INT	9	10	10	0	1	
+		t301	c	4	INT	9	10	10	0	1	
+		t301	d	4	INT	9	10	10	0	1	
+		t301	e	4	INT	9	10	10	0	1	
+		t302	a	4	INT	9	10	10	0	1	
+		t302	b	4	INT	9	10	10	0	1	
+		t302	c	4	INT	9	10	10	0	1	
+		t302	d	4	INT	9	10	10	0	1	
+		t302	e	4	INT	9	10	10	0	1	
+		t303	a	4	INT	9	10	10	0	1	
+		t303	b	4	INT	9	10	10	0	1	
+		t303	c	4	INT	9	10	10	0	1	
+		t303	d	4	INT	9	10	10	0	1	
+		t303	e	4	INT	9	10	10	0	1	
+		t304	a	4	INT	9	10	10	0	1	
+		t304	b	4	INT	9	10	10	0	1	
+		t304	c	4	INT	9	10	10	0	1	
+		t304	d	4	INT	9	10	10	0	1	
+		t304	e	4	INT	9	10	10	0	1	
+		t305	a	4	INT	9	10	10	0	1	
+		t305	b	4	INT	9	10	10	0	1	
+		t305	c	4	INT	9	10	10	0	1	
+		t305	d	4	INT	9	10	10	0	1	
+		t305	e	4	INT	9	10	10	0	1	
+		t306	a	4	INT	9	10	10	0	1	
+		t306	b	4	INT	9	10	10	0	1	
+		t306	c	4	INT	9	10	10	0	1	
+		t306	d	4	INT	9	10	10	0	1	
+		t306	e	4	INT	9	10	10	0	1	
+		t307	a	4	INT	9	10	10	0	1	
+		t307	b	4	INT	9	10	10	0	1	
+		t307	c	4	INT	9	10	10	0	1	
+		t307	d	4	INT	9	10	10	0	1	
+		t307	e	4	INT	9	10	10	0	1	
+		t308	a	4	INT	9	10	10	0	1	
+		t308	b	4	INT	9	10	10	0	1	
+		t308	c	4	INT	9	10	10	0	1	
+		t308	d	4	INT	9	10	10	0	1	
+		t308	e	4	INT	9	10	10	0	1	
+		t309	a	4	INT	9	10	10	0	1	
+		t309	b	4	INT	9	10	10	0	1	
+		t309	c	4	INT	9	10	10	0	1	
+		t309	d	4	INT	9	10	10	0	1	
+		t309	e	4	INT	9	10	10	0	1	
+		t310	a	4	INT	9	10	10	0	1	
+		t310	b	4	INT	9	10	10	0	1	
+		t310	c	4	INT	9	10	10	0	1	
+		t310	d	4	INT	9	10	10	0	1	
+		t310	e	4	INT	9	10	10	0	1	
+		t311	a	4	INT	9	10	10	0	1	
+		t311	b	4	INT	9	10	10	0	1	
+		t311	c	4	INT	9	10	10	0	1	
+		t311	d	4	INT	9	10	10	0	1	
+		t311	e	4	INT	9	10	10	0	1	
+		t312	a	4	INT	9	10	10	0	1	
+		t312	b	4	INT	9	10	10	0	1	
+		t312	c	4	INT	9	10	10	0	1	
+		t312	d	4	INT	9	10	10	0	1	
+		t312	e	4	INT	9	10	10	0	1	
+		t313	a	4	INT	9	10	10	0	1	
+		t313	b	4	INT	9	10	10	0	1	
+		t313	c	4	INT	9	10	10	0	1	
+		t313	d	4	INT	9	10	10	0	1	
+		t313	e	4	INT	9	10	10	0	1	
+		t314	a	4	INT	9	10	10	0	1	
+		t314	b	4	INT	9	10	10	0	1	
+		t314	c	4	INT	9	10	10	0	1	
+		t314	d	4	INT	9	10	10	0	1	
+		t314	e	4	INT	9	10	10	0	1	
+		t315	a	4	INT	9	10	10	0	1	
+		t315	b	4	INT	9	10	10	0	1	
+		t315	c	4	INT	9	10	10	0	1	
+		t315	d	4	INT	9	10	10	0	1	
+		t315	e	4	INT	9	10	10	0	1	
+		t316	a	4	INT	9	10	10	0	1	
+		t316	b	4	INT	9	10	10	0	1	
+		t316	c	4	INT	9	10	10	0	1	
+		t316	d	4	INT	9	10	10	0	1	
+		t316	e	4	INT	9	10	10	0	1	
+		t317	a	4	INT	9	10	10	0	1	
+		t317	b	4	INT	9	10	10	0	1	
+		t317	c	4	INT	9	10	10	0	1	
+		t317	d	4	INT	9	10	10	0	1	
+		t317	e	4	INT	9	10	10	0	1	
+		t318	a	4	INT	9	10	10	0	1	
+		t318	b	4	INT	9	10	10	0	1	
+		t318	c	4	INT	9	10	10	0	1	
+		t318	d	4	INT	9	10	10	0	1	
+		t318	e	4	INT	9	10	10	0	1	
+		t319	a	4	INT	9	10	10	0	1	
+		t319	b	4	INT	9	10	10	0	1	
+		t319	c	4	INT	9	10	10	0	1	
+		t319	d	4	INT	9	10	10	0	1	
+		t319	e	4	INT	9	10	10	0	1	
+		t320	a	4	INT	9	10	10	0	1	
+		t320	b	4	INT	9	10	10	0	1	
+		t320	c	4	INT	9	10	10	0	1	
+		t320	d	4	INT	9	10	10	0	1	
+		t320	e	4	INT	9	10	10	0	1	
+		t321	a	4	INT	9	10	10	0	1	
+		t321	b	4	INT	9	10	10	0	1	
+		t321	c	4	INT	9	10	10	0	1	
+		t321	d	4	INT	9	10	10	0	1	
+		t321	e	4	INT	9	10	10	0	1	
+		t322	a	4	INT	9	10	10	0	1	
+		t322	b	4	INT	9	10	10	0	1	
+		t322	c	4	INT	9	10	10	0	1	
+		t322	d	4	INT	9	10	10	0	1	
+		t322	e	4	INT	9	10	10	0	1	
+		t323	a	4	INT	9	10	10	0	1	
+		t323	b	4	INT	9	10	10	0	1	
+		t323	c	4	INT	9	10	10	0	1	
+		t323	d	4	INT	9	10	10	0	1	
+		t323	e	4	INT	9	10	10	0	1	
+		t324	a	4	INT	9	10	10	0	1	
+		t324	b	4	INT	9	10	10	0	1	
+		t324	c	4	INT	9	10	10	0	1	
+		t324	d	4	INT	9	10	10	0	1	
+		t324	e	4	INT	9	10	10	0	1	
+		t325	a	4	INT	9	10	10	0	1	
+		t325	b	4	INT	9	10	10	0	1	
+		t325	c	4	INT	9	10	10	0	1	
+		t325	d	4	INT	9	10	10	0	1	
+		t325	e	4	INT	9	10	10	0	1	
+		t326	a	4	INT	9	10	10	0	1	
+		t326	b	4	INT	9	10	10	0	1	
+		t326	c	4	INT	9	10	10	0	1	
+		t326	d	4	INT	9	10	10	0	1	
+		t326	e	4	INT	9	10	10	0	1	
+		t327	a	4	INT	9	10	10	0	1	
+		t327	b	4	INT	9	10	10	0	1	
+		t327	c	4	INT	9	10	10	0	1	
+		t327	d	4	INT	9	10	10	0	1	
+		t327	e	4	INT	9	10	10	0	1	
+		t328	a	4	INT	9	10	10	0	1	
+		t328	b	4	INT	9	10	10	0	1	
+		t328	c	4	INT	9	10	10	0	1	
+		t328	d	4	INT	9	10	10	0	1	
+		t328	e	4	INT	9	10	10	0	1	
+		t329	a	4	INT	9	10	10	0	1	
+		t329	b	4	INT	9	10	10	0	1	
+		t329	c	4	INT	9	10	10	0	1	
+		t329	d	4	INT	9	10	10	0	1	
+		t329	e	4	INT	9	10	10	0	1	
+		t330	a	4	INT	9	10	10	0	1	
+		t330	b	4	INT	9	10	10	0	1	
+		t330	c	4	INT	9	10	10	0	1	
+		t330	d	4	INT	9	10	10	0	1	
+		t330	e	4	INT	9	10	10	0	1	
+		t331	a	4	INT	9	10	10	0	1	
+		t331	b	4	INT	9	10	10	0	1	
+		t331	c	4	INT	9	10	10	0	1	
+		t331	d	4	INT	9	10	10	0	1	
+		t331	e	4	INT	9	10	10	0	1	
+		t332	a	4	INT	9	10	10	0	1	
+		t332	b	4	INT	9	10	10	0	1	
+		t332	c	4	INT	9	10	10	0	1	
+		t332	d	4	INT	9	10	10	0	1	
+		t332	e	4	INT	9	10	10	0	1	
+		t333	a	4	INT	9	10	10	0	1	
+		t333	b	4	INT	9	10	10	0	1	
+		t333	c	4	INT	9	10	10	0	1	
+		t333	d	4	INT	9	10	10	0	1	
+		t333	e	4	INT	9	10	10	0	1	
+		t334	a	4	INT	9	10	10	0	1	
+		t334	b	4	INT	9	10	10	0	1	
+		t334	c	4	INT	9	10	10	0	1	
+		t334	d	4	INT	9	10	10	0	1	
+		t334	e	4	INT	9	10	10	0	1	
+		t335	a	4	INT	9	10	10	0	1	
+		t335	b	4	INT	9	10	10	0	1	
+		t335	c	4	INT	9	10	10	0	1	
+		t335	d	4	INT	9	10	10	0	1	
+		t335	e	4	INT	9	10	10	0	1	
+		t336	a	4	INT	9	10	10	0	1	
+		t336	b	4	INT	9	10	10	0	1	
+		t336	c	4	INT	9	10	10	0	1	
+		t336	d	4	INT	9	10	10	0	1	
+		t336	e	4	INT	9	10	10	0	1	
+		t337	a	4	INT	9	10	10	0	1	
+		t337	b	4	INT	9	10	10	0	1	
+		t337	c	4	INT	9	10	10	0	1	
+		t337	d	4	INT	9	10	10	0	1	
+		t337	e	4	INT	9	10	10	0	1	
+		t338	a	4	INT	9	10	10	0	1	
+		t338	b	4	INT	9	10	10	0	1	
+		t338	c	4	INT	9	10	10	0	1	
+		t338	d	4	INT	9	10	10	0	1	
+		t338	e	4	INT	9	10	10	0	1	
+		t339	a	4	INT	9	10	10	0	1	
+		t339	b	4	INT	9	10	10	0	1	
+		t339	c	4	INT	9	10	10	0	1	
+		t339	d	4	INT	9	10	10	0	1	
+		t339	e	4	INT	9	10	10	0	1	
+		t340	a	4	INT	9	10	10	0	1	
+		t340	b	4	INT	9	10	10	0	1	
+		t340	c	4	INT	9	10	10	0	1	
+		t340	d	4	INT	9	10	10	0	1	
+		t340	e	4	INT	9	10	10	0	1	
+		t341	a	4	INT	9	10	10	0	1	
+		t341	b	4	INT	9	10	10	0	1	
+		t341	c	4	INT	9	10	10	0	1	
+		t341	d	4	INT	9	10	10	0	1	
+		t341	e	4	INT	9	10	10	0	1	
+		t342	a	4	INT	9	10	10	0	1	
+		t342	b	4	INT	9	10	10	0	1	
+		t342	c	4	INT	9	10	10	0	1	
+		t342	d	4	INT	9	10	10	0	1	
+		t342	e	4	INT	9	10	10	0	1	
+		t343	a	4	INT	9	10	10	0	1	
+		t343	b	4	INT	9	10	10	0	1	
+		t343	c	4	INT	9	10	10	0	1	
+		t343	d	4	INT	9	10	10	0	1	
+		t343	e	4	INT	9	10	10	0	1	
+		t344	a	4	INT	9	10	10	0	1	
+		t344	b	4	INT	9	10	10	0	1	
+		t344	c	4	INT	9	10	10	0	1	
+		t344	d	4	INT	9	10	10	0	1	
+		t344	e	4	INT	9	10	10	0	1	
+		t345	a	4	INT	9	10	10	0	1	
+		t345	b	4	INT	9	10	10	0	1	
+		t345	c	4	INT	9	10	10	0	1	
+		t345	d	4	INT	9	10	10	0	1	
+		t345	e	4	INT	9	10	10	0	1	
+		t346	a	4	INT	9	10	10	0	1	
+		t346	b	4	INT	9	10	10	0	1	
+		t346	c	4	INT	9	10	10	0	1	
+		t346	d	4	INT	9	10	10	0	1	
+		t346	e	4	INT	9	10	10	0	1	
+		t347	a	4	INT	9	10	10	0	1	
+		t347	b	4	INT	9	10	10	0	1	
+		t347	c	4	INT	9	10	10	0	1	
+		t347	d	4	INT	9	10	10	0	1	
+		t347	e	4	INT	9	10	10	0	1	
+		t348	a	4	INT	9	10	10	0	1	
+		t348	b	4	INT	9	10	10	0	1	
+		t348	c	4	INT	9	10	10	0	1	
+		t348	d	4	INT	9	10	10	0	1	
+		t348	e	4	INT	9	10	10	0	1	
+		t349	a	4	INT	9	10	10	0	1	
+		t349	b	4	INT	9	10	10	0	1	
+		t349	c	4	INT	9	10	10	0	1	
+		t349	d	4	INT	9	10	10	0	1	
+		t349	e	4	INT	9	10	10	0	1	
+		t350	a	4	INT	9	10	10	0	1	
+		t350	b	4	INT	9	10	10	0	1	
+		t350	c	4	INT	9	10	10	0	1	
+		t350	d	4	INT	9	10	10	0	1	
+		t350	e	4	INT	9	10	10	0	1	
+		t351	a	4	INT	9	10	10	0	1	
+		t351	b	4	INT	9	10	10	0	1	
+		t351	c	4	INT	9	10	10	0	1	
+		t351	d	4	INT	9	10	10	0	1	
+		t351	e	4	INT	9	10	10	0	1	
+		t352	a	4	INT	9	10	10	0	1	
+		t352	b	4	INT	9	10	10	0	1	
+		t352	c	4	INT	9	10	10	0	1	
+		t352	d	4	INT	9	10	10	0	1	
+		t352	e	4	INT	9	10	10	0	1	
+		t353	a	4	INT	9	10	10	0	1	
+		t353	b	4	INT	9	10	10	0	1	
+		t353	c	4	INT	9	10	10	0	1	
+		t353	d	4	INT	9	10	10	0	1	
+		t353	e	4	INT	9	10	10	0	1	
+		t354	a	4	INT	9	10	10	0	1	
+		t354	b	4	INT	9	10	10	0	1	
+		t354	c	4	INT	9	10	10	0	1	
+		t354	d	4	INT	9	10	10	0	1	
+		t354	e	4	INT	9	10	10	0	1	
+		t355	a	4	INT	9	10	10	0	1	
+		t355	b	4	INT	9	10	10	0	1	
+		t355	c	4	INT	9	10	10	0	1	
+		t355	d	4	INT	9	10	10	0	1	
+		t355	e	4	INT	9	10	10	0	1	
+		t356	a	4	INT	9	10	10	0	1	
+		t356	b	4	INT	9	10	10	0	1	
+		t356	c	4	INT	9	10	10	0	1	
+		t356	d	4	INT	9	10	10	0	1	
+		t356	e	4	INT	9	10	10	0	1	
+		t357	a	4	INT	9	10	10	0	1	
+		t357	b	4	INT	9	10	10	0	1	
+		t357	c	4	INT	9	10	10	0	1	
+		t357	d	4	INT	9	10	10	0	1	
+		t357	e	4	INT	9	10	10	0	1	
+		t358	a	4	INT	9	10	10	0	1	
+		t358	b	4	INT	9	10	10	0	1	
+		t358	c	4	INT	9	10	10	0	1	
+		t358	d	4	INT	9	10	10	0	1	
+		t358	e	4	INT	9	10	10	0	1	
+		t359	a	4	INT	9	10	10	0	1	
+		t359	b	4	INT	9	10	10	0	1	
+		t359	c	4	INT	9	10	10	0	1	
+		t359	d	4	INT	9	10	10	0	1	
+		t359	e	4	INT	9	10	10	0	1	
+		t360	a	4	INT	9	10	10	0	1	
+		t360	b	4	INT	9	10	10	0	1	
+		t360	c	4	INT	9	10	10	0	1	
+		t360	d	4	INT	9	10	10	0	1	
+		t360	e	4	INT	9	10	10	0	1	
+		t361	a	4	INT	9	10	10	0	1	
+		t361	b	4	INT	9	10	10	0	1	
+		t361	c	4	INT	9	10	10	0	1	
+		t361	d	4	INT	9	10	10	0	1	
+		t361	e	4	INT	9	10	10	0	1	
+		t362	a	4	INT	9	10	10	0	1	
+		t362	b	4	INT	9	10	10	0	1	
+		t362	c	4	INT	9	10	10	0	1	
+		t362	d	4	INT	9	10	10	0	1	
+		t362	e	4	INT	9	10	10	0	1	
+		t363	a	4	INT	9	10	10	0	1	
+		t363	b	4	INT	9	10	10	0	1	
+		t363	c	4	INT	9	10	10	0	1	
+		t363	d	4	INT	9	10	10	0	1	
+		t363	e	4	INT	9	10	10	0	1	
+		t364	a	4	INT	9	10	10	0	1	
+		t364	b	4	INT	9	10	10	0	1	
+		t364	c	4	INT	9	10	10	0	1	
+		t364	d	4	INT	9	10	10	0	1	
+		t364	e	4	INT	9	10	10	0	1	
+		t365	a	4	INT	9	10	10	0	1	
+		t365	b	4	INT	9	10	10	0	1	
+		t365	c	4	INT	9	10	10	0	1	
+		t365	d	4	INT	9	10	10	0	1	
+		t365	e	4	INT	9	10	10	0	1	
+		t366	a	4	INT	9	10	10	0	1	
+		t366	b	4	INT	9	10	10	0	1	
+		t366	c	4	INT	9	10	10	0	1	
+		t366	d	4	INT	9	10	10	0	1	
+		t366	e	4	INT	9	10	10	0	1	
+		t367	a	4	INT	9	10	10	0	1	
+		t367	b	4	INT	9	10	10	0	1	
+		t367	c	4	INT	9	10	10	0	1	
+		t367	d	4	INT	9	10	10	0	1	
+		t367	e	4	INT	9	10	10	0	1	
+		t368	a	4	INT	9	10	10	0	1	
+		t368	b	4	INT	9	10	10	0	1	
+		t368	c	4	INT	9	10	10	0	1	
+		t368	d	4	INT	9	10	10	0	1	
+		t368	e	4	INT	9	10	10	0	1	
+		t369	a	4	INT	9	10	10	0	1	
+		t369	b	4	INT	9	10	10	0	1	
+		t369	c	4	INT	9	10	10	0	1	
+		t369	d	4	INT	9	10	10	0	1	
+		t369	e	4	INT	9	10	10	0	1	
+		t370	a	4	INT	9	10	10	0	1	
+		t370	b	4	INT	9	10	10	0	1	
+		t370	c	4	INT	9	10	10	0	1	
+		t370	d	4	INT	9	10	10	0	1	
+		t370	e	4	INT	9	10	10	0	1	
+		t371	a	4	INT	9	10	10	0	1	
+		t371	b	4	INT	9	10	10	0	1	
+		t371	c	4	INT	9	10	10	0	1	
+		t371	d	4	INT	9	10	10	0	1	
+		t371	e	4	INT	9	10	10	0	1	
+		t372	a	4	INT	9	10	10	0	1	
+		t372	b	4	INT	9	10	10	0	1	
+		t372	c	4	INT	9	10	10	0	1	
+		t372	d	4	INT	9	10	10	0	1	
+		t372	e	4	INT	9	10	10	0	1	
+		t373	a	4	INT	9	10	10	0	1	
+		t373	b	4	INT	9	10	10	0	1	
+		t373	c	4	INT	9	10	10	0	1	
+		t373	d	4	INT	9	10	10	0	1	
+		t373	e	4	INT	9	10	10	0	1	
+		t374	a	4	INT	9	10	10	0	1	
+		t374	b	4	INT	9	10	10	0	1	
+		t374	c	4	INT	9	10	10	0	1	
+		t374	d	4	INT	9	10	10	0	1	
+		t374	e	4	INT	9	10	10	0	1	
+		t375	a	4	INT	9	10	10	0	1	
+		t375	b	4	INT	9	10	10	0	1	
+		t375	c	4	INT	9	10	10	0	1	
+		t375	d	4	INT	9	10	10	0	1	
+		t375	e	4	INT	9	10	10	0	1	
+		t376	a	4	INT	9	10	10	0	1	
+		t376	b	4	INT	9	10	10	0	1	
+		t376	c	4	INT	9	10	10	0	1	
+		t376	d	4	INT	9	10	10	0	1	
+		t376	e	4	INT	9	10	10	0	1	
+		t377	a	4	INT	9	10	10	0	1	
+		t377	b	4	INT	9	10	10	0	1	
+		t377	c	4	INT	9	10	10	0	1	
+		t377	d	4	INT	9	10	10	0	1	
+		t377	e	4	INT	9	10	10	0	1	
+		t378	a	4	INT	9	10	10	0	1	
+		t378	b	4	INT	9	10	10	0	1	
+		t378	c	4	INT	9	10	10	0	1	
+		t378	d	4	INT	9	10	10	0	1	
+		t378	e	4	INT	9	10	10	0	1	
+		t379	a	4	INT	9	10	10	0	1	
+		t379	b	4	INT	9	10	10	0	1	
+		t379	c	4	INT	9	10	10	0	1	
+		t379	d	4	INT	9	10	10	0	1	
+		t379	e	4	INT	9	10	10	0	1	
+		t380	a	4	INT	9	10	10	0	1	
+		t380	b	4	INT	9	10	10	0	1	
+		t380	c	4	INT	9	10	10	0	1	
+		t380	d	4	INT	9	10	10	0	1	
+		t380	e	4	INT	9	10	10	0	1	
+		t381	a	4	INT	9	10	10	0	1	
+		t381	b	4	INT	9	10	10	0	1	
+		t381	c	4	INT	9	10	10	0	1	
+		t381	d	4	INT	9	10	10	0	1	
+		t381	e	4	INT	9	10	10	0	1	
+		t382	a	4	INT	9	10	10	0	1	
+		t382	b	4	INT	9	10	10	0	1	
+		t382	c	4	INT	9	10	10	0	1	
+		t382	d	4	INT	9	10	10	0	1	
+		t382	e	4	INT	9	10	10	0	1	
+		t383	a	4	INT	9	10	10	0	1	
+		t383	b	4	INT	9	10	10	0	1	
+		t383	c	4	INT	9	10	10	0	1	
+		t383	d	4	INT	9	10	10	0	1	
+		t383	e	4	INT	9	10	10	0	1	
+		t384	a	4	INT	9	10	10	0	1	
+		t384	b	4	INT	9	10	10	0	1	
+		t384	c	4	INT	9	10	10	0	1	
+		t384	d	4	INT	9	10	10	0	1	
+		t384	e	4	INT	9	10	10	0	1	
+		t385	a	4	INT	9	10	10	0	1	
+		t385	b	4	INT	9	10	10	0	1	
+		t385	c	4	INT	9	10	10	0	1	
+		t385	d	4	INT	9	10	10	0	1	
+		t385	e	4	INT	9	10	10	0	1	
+		t386	a	4	INT	9	10	10	0	1	
+		t386	b	4	INT	9	10	10	0	1	
+		t386	c	4	INT	9	10	10	0	1	
+		t386	d	4	INT	9	10	10	0	1	
+		t386	e	4	INT	9	10	10	0	1	
+		t387	a	4	INT	9	10	10	0	1	
+		t387	b	4	INT	9	10	10	0	1	
+		t387	c	4	INT	9	10	10	0	1	
+		t387	d	4	INT	9	10	10	0	1	
+		t387	e	4	INT	9	10	10	0	1	
+		t388	a	4	INT	9	10	10	0	1	
+		t388	b	4	INT	9	10	10	0	1	
+		t388	c	4	INT	9	10	10	0	1	
+		t388	d	4	INT	9	10	10	0	1	
+		t388	e	4	INT	9	10	10	0	1	
+		t389	a	4	INT	9	10	10	0	1	
+		t389	b	4	INT	9	10	10	0	1	
+		t389	c	4	INT	9	10	10	0	1	
+		t389	d	4	INT	9	10	10	0	1	
+		t389	e	4	INT	9	10	10	0	1	
+		t390	a	4	INT	9	10	10	0	1	
+		t390	b	4	INT	9	10	10	0	1	
+		t390	c	4	INT	9	10	10	0	1	
+		t390	d	4	INT	9	10	10	0	1	
+		t390	e	4	INT	9	10	10	0	1	
+		t391	a	4	INT	9	10	10	0	1	
+		t391	b	4	INT	9	10	10	0	1	
+		t391	c	4	INT	9	10	10	0	1	
+		t391	d	4	INT	9	10	10	0	1	
+		t391	e	4	INT	9	10	10	0	1	
+		t392	a	4	INT	9	10	10	0	1	
+		t392	b	4	INT	9	10	10	0	1	
+		t392	c	4	INT	9	10	10	0	1	
+		t392	d	4	INT	9	10	10	0	1	
+		t392	e	4	INT	9	10	10	0	1	
+		t393	a	4	INT	9	10	10	0	1	
+		t393	b	4	INT	9	10	10	0	1	
+		t393	c	4	INT	9	10	10	0	1	
+		t393	d	4	INT	9	10	10	0	1	
+		t393	e	4	INT	9	10	10	0	1	
+		t394	a	4	INT	9	10	10	0	1	
+		t394	b	4	INT	9	10	10	0	1	
+		t394	c	4	INT	9	10	10	0	1	
+		t394	d	4	INT	9	10	10	0	1	
+		t394	e	4	INT	9	10	10	0	1	
+		t395	a	4	INT	9	10	10	0	1	
+		t395	b	4	INT	9	10	10	0	1	
+		t395	c	4	INT	9	10	10	0	1	
+		t395	d	4	INT	9	10	10	0	1	
+		t395	e	4	INT	9	10	10	0	1	
+		t396	a	4	INT	9	10	10	0	1	
+		t396	b	4	INT	9	10	10	0	1	
+		t396	c	4	INT	9	10	10	0	1	
+		t396	d	4	INT	9	10	10	0	1	
+		t396	e	4	INT	9	10	10	0	1	
+		t397	a	4	INT	9	10	10	0	1	
+		t397	b	4	INT	9	10	10	0	1	
+		t397	c	4	INT	9	10	10	0	1	
+		t397	d	4	INT	9	10	10	0	1	
+		t397	e	4	INT	9	10	10	0	1	
+		t398	a	4	INT	9	10	10	0	1	
+		t398	b	4	INT	9	10	10	0	1	
+		t398	c	4	INT	9	10	10	0	1	
+		t398	d	4	INT	9	10	10	0	1	
+		t398	e	4	INT	9	10	10	0	1	
+		t399	a	4	INT	9	10	10	0	1	
+		t399	b	4	INT	9	10	10	0	1	
+		t399	c	4	INT	9	10	10	0	1	
+		t399	d	4	INT	9	10	10	0	1	
+		t399	e	4	INT	9	10	10	0	1	
+DROP TABLE t1;
+CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Tables TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
+SELECT * FROM t1 ORDER BY Table_name;
+Table_Qualifier	Table_Owner	Table_Name	Table_Type	Remark
+		t000	TABLE	
+		t001	TABLE	
+		t002	TABLE	
+		t003	TABLE	
+		t004	TABLE	
+		t005	TABLE	
+		t006	TABLE	
+		t007	TABLE	
+		t008	TABLE	
+		t009	TABLE	
+		t010	TABLE	
+		t011	TABLE	
+		t012	TABLE	
+		t013	TABLE	
+		t014	TABLE	
+		t015	TABLE	
+		t016	TABLE	
+		t017	TABLE	
+		t018	TABLE	
+		t019	TABLE	
+		t020	TABLE	
+		t021	TABLE	
+		t022	TABLE	
+		t023	TABLE	
+		t024	TABLE	
+		t025	TABLE	
+		t026	TABLE	
+		t027	TABLE	
+		t028	TABLE	
+		t029	TABLE	
+		t030	TABLE	
+		t031	TABLE	
+		t032	TABLE	
+		t033	TABLE	
+		t034	TABLE	
+		t035	TABLE	
+		t036	TABLE	
+		t037	TABLE	
+		t038	TABLE	
+		t039	TABLE	
+		t040	TABLE	
+		t041	TABLE	
+		t042	TABLE	
+		t043	TABLE	
+		t044	TABLE	
+		t045	TABLE	
+		t046	TABLE	
+		t047	TABLE	
+		t048	TABLE	
+		t049	TABLE	
+		t050	TABLE	
+		t051	TABLE	
+		t052	TABLE	
+		t053	TABLE	
+		t054	TABLE	
+		t055	TABLE	
+		t056	TABLE	
+		t057	TABLE	
+		t058	TABLE	
+		t059	TABLE	
+		t060	TABLE	
+		t061	TABLE	
+		t062	TABLE	
+		t063	TABLE	
+		t064	TABLE	
+		t065	TABLE	
+		t066	TABLE	
+		t067	TABLE	
+		t068	TABLE	
+		t069	TABLE	
+		t070	TABLE	
+		t071	TABLE	
+		t072	TABLE	
+		t073	TABLE	
+		t074	TABLE	
+		t075	TABLE	
+		t076	TABLE	
+		t077	TABLE	
+		t078	TABLE	
+		t079	TABLE	
+		t080	TABLE	
+		t081	TABLE	
+		t082	TABLE	
+		t083	TABLE	
+		t084	TABLE	
+		t085	TABLE	
+		t086	TABLE	
+		t087	TABLE	
+		t088	TABLE	
+		t089	TABLE	
+		t090	TABLE	
+		t091	TABLE	
+		t092	TABLE	
+		t093	TABLE	
+		t094	TABLE	
+		t095	TABLE	
+		t096	TABLE	
+		t097	TABLE	
+		t098	TABLE	
+		t099	TABLE	
+		t1	TABLE	
+		t100	TABLE	
+		t101	TABLE	
+		t102	TABLE	
+		t103	TABLE	
+		t104	TABLE	
+		t105	TABLE	
+		t106	TABLE	
+		t107	TABLE	
+		t108	TABLE	
+		t109	TABLE	
+		t110	TABLE	
+		t111	TABLE	
+		t112	TABLE	
+		t113	TABLE	
+		t114	TABLE	
+		t115	TABLE	
+		t116	TABLE	
+		t117	TABLE	
+		t118	TABLE	
+		t119	TABLE	
+		t120	TABLE	
+		t121	TABLE	
+		t122	TABLE	
+		t123	TABLE	
+		t124	TABLE	
+		t125	TABLE	
+		t126	TABLE	
+		t127	TABLE	
+		t128	TABLE	
+		t129	TABLE	
+		t130	TABLE	
+		t131	TABLE	
+		t132	TABLE	
+		t133	TABLE	
+		t134	TABLE	
+		t135	TABLE	
+		t136	TABLE	
+		t137	TABLE	
+		t138	TABLE	
+		t139	TABLE	
+		t140	TABLE	
+		t141	TABLE	
+		t142	TABLE	
+		t143	TABLE	
+		t144	TABLE	
+		t145	TABLE	
+		t146	TABLE	
+		t147	TABLE	
+		t148	TABLE	
+		t149	TABLE	
+		t150	TABLE	
+		t151	TABLE	
+		t152	TABLE	
+		t153	TABLE	
+		t154	TABLE	
+		t155	TABLE	
+		t156	TABLE	
+		t157	TABLE	
+		t158	TABLE	
+		t159	TABLE	
+		t160	TABLE	
+		t161	TABLE	
+		t162	TABLE	
+		t163	TABLE	
+		t164	TABLE	
+		t165	TABLE	
+		t166	TABLE	
+		t167	TABLE	
+		t168	TABLE	
+		t169	TABLE	
+		t170	TABLE	
+		t171	TABLE	
+		t172	TABLE	
+		t173	TABLE	
+		t174	TABLE	
+		t175	TABLE	
+		t176	TABLE	
+		t177	TABLE	
+		t178	TABLE	
+		t179	TABLE	
+		t180	TABLE	
+		t181	TABLE	
+		t182	TABLE	
+		t183	TABLE	
+		t184	TABLE	
+		t185	TABLE	
+		t186	TABLE	
+		t187	TABLE	
+		t188	TABLE	
+		t189	TABLE	
+		t190	TABLE	
+		t191	TABLE	
+		t192	TABLE	
+		t193	TABLE	
+		t194	TABLE	
+		t195	TABLE	
+		t196	TABLE	
+		t197	TABLE	
+		t198	TABLE	
+		t199	TABLE	
+		t200	TABLE	
+		t201	TABLE	
+		t202	TABLE	
+		t203	TABLE	
+		t204	TABLE	
+		t205	TABLE	
+		t206	TABLE	
+		t207	TABLE	
+		t208	TABLE	
+		t209	TABLE	
+		t210	TABLE	
+		t211	TABLE	
+		t212	TABLE	
+		t213	TABLE	
+		t214	TABLE	
+		t215	TABLE	
+		t216	TABLE	
+		t217	TABLE	
+		t218	TABLE	
+		t219	TABLE	
+		t220	TABLE	
+		t221	TABLE	
+		t222	TABLE	
+		t223	TABLE	
+		t224	TABLE	
+		t225	TABLE	
+		t226	TABLE	
+		t227	TABLE	
+		t228	TABLE	
+		t229	TABLE	
+		t230	TABLE	
+		t231	TABLE	
+		t232	TABLE	
+		t233	TABLE	
+		t234	TABLE	
+		t235	TABLE	
+		t236	TABLE	
+		t237	TABLE	
+		t238	TABLE	
+		t239	TABLE	
+		t240	TABLE	
+		t241	TABLE	
+		t242	TABLE	
+		t243	TABLE	
+		t244	TABLE	
+		t245	TABLE	
+		t246	TABLE	
+		t247	TABLE	
+		t248	TABLE	
+		t249	TABLE	
+		t250	TABLE	
+		t251	TABLE	
+		t252	TABLE	
+		t253	TABLE	
+		t254	TABLE	
+		t255	TABLE	
+		t256	TABLE	
+		t257	TABLE	
+		t258	TABLE	
+		t259	TABLE	
+		t260	TABLE	
+		t261	TABLE	
+		t262	TABLE	
+		t263	TABLE	
+		t264	TABLE	
+		t265	TABLE	
+		t266	TABLE	
+		t267	TABLE	
+		t268	TABLE	
+		t269	TABLE	
+		t270	TABLE	
+		t271	TABLE	
+		t272	TABLE	
+		t273	TABLE	
+		t274	TABLE	
+		t275	TABLE	
+		t276	TABLE	
+		t277	TABLE	
+		t278	TABLE	
+		t279	TABLE	
+		t280	TABLE	
+		t281	TABLE	
+		t282	TABLE	
+		t283	TABLE	
+		t284	TABLE	
+		t285	TABLE	
+		t286	TABLE	
+		t287	TABLE	
+		t288	TABLE	
+		t289	TABLE	
+		t290	TABLE	
+		t291	TABLE	
+		t292	TABLE	
+		t293	TABLE	
+		t294	TABLE	
+		t295	TABLE	
+		t296	TABLE	
+		t297	TABLE	
+		t298	TABLE	
+		t299	TABLE	
+		t300	TABLE	
+		t301	TABLE	
+		t302	TABLE	
+		t303	TABLE	
+		t304	TABLE	
+		t305	TABLE	
+		t306	TABLE	
+		t307	TABLE	
+		t308	TABLE	
+		t309	TABLE	
+		t310	TABLE	
+		t311	TABLE	
+		t312	TABLE	
+		t313	TABLE	
+		t314	TABLE	
+		t315	TABLE	
+		t316	TABLE	
+		t317	TABLE	
+		t318	TABLE	
+		t319	TABLE	
+		t320	TABLE	
+		t321	TABLE	
+		t322	TABLE	
+		t323	TABLE	
+		t324	TABLE	
+		t325	TABLE	
+		t326	TABLE	
+		t327	TABLE	
+		t328	TABLE	
+		t329	TABLE	
+		t330	TABLE	
+		t331	TABLE	
+		t332	TABLE	
+		t333	TABLE	
+		t334	TABLE	
+		t335	TABLE	
+		t336	TABLE	
+		t337	TABLE	
+		t338	TABLE	
+		t339	TABLE	
+		t340	TABLE	
+		t341	TABLE	
+		t342	TABLE	
+		t343	TABLE	
+		t344	TABLE	
+		t345	TABLE	
+		t346	TABLE	
+		t347	TABLE	
+		t348	TABLE	
+		t349	TABLE	
+		t350	TABLE	
+		t351	TABLE	
+		t352	TABLE	
+		t353	TABLE	
+		t354	TABLE	
+		t355	TABLE	
+		t356	TABLE	
+		t357	TABLE	
+		t358	TABLE	
+		t359	TABLE	
+		t360	TABLE	
+		t361	TABLE	
+		t362	TABLE	
+		t363	TABLE	
+		t364	TABLE	
+		t365	TABLE	
+		t366	TABLE	
+		t367	TABLE	
+		t368	TABLE	
+		t369	TABLE	
+		t370	TABLE	
+		t371	TABLE	
+		t372	TABLE	
+		t373	TABLE	
+		t374	TABLE	
+		t375	TABLE	
+		t376	TABLE	
+		t377	TABLE	
+		t378	TABLE	
+		t379	TABLE	
+		t380	TABLE	
+		t381	TABLE	
+		t382	TABLE	
+		t383	TABLE	
+		t384	TABLE	
+		t385	TABLE	
+		t386	TABLE	
+		t387	TABLE	
+		t388	TABLE	
+		t389	TABLE	
+		t390	TABLE	
+		t391	TABLE	
+		t392	TABLE	
+		t393	TABLE	
+		t394	TABLE	
+		t395	TABLE	
+		t396	TABLE	
+		t397	TABLE	
+		t398	TABLE	
+		t399	TABLE	
+DROP TABLE t1;
