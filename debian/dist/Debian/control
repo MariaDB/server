@@ -250,3 +250,11 @@ Description: Connect storage engine for MariaDB
  connections to ODBC tables and remote MySQL tables, as well as a number of
  other interesting features.
 
+Package: mariadb-oqgraph-engine-10.0
+Section: database
+Architecture: any
+Depends: mariadb-server-10.0, libjudydebian1
+Description: Oqgraph storage engine for MariaDB
+ The OQGRAPH engine is a computation engine plugin for handling hierarchies
+ (trees) and graphs (friend-of-a-friend, etc) cleanly through standard SQL.
+
