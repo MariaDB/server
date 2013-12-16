@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1995, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /**************************************************//**
-@file os/os0sync.c
+@file os/os0sync.cc
 The interface to the operating system
 synchronization primitives.
 
@@ -38,8 +38,8 @@ Created 9/6/1995 Heikki Tuuri
 #include "srv0srv.h"
 
 /* Type definition for an operating system mutex struct */
-struct os_mutex_struct{
-	os_event_t	event;	/*!< Used by sync0arr.c for queing threads */
+struct os_mutex_t{
+	os_event_t	event;	/*!< Used by sync0arr.cc for queing threads */
 	void*		handle;	/*!< OS handle to mutex */
 	ulint		count;	/*!< we use this counter to check
 				that the same thread does not
@@ -47,12 +47,12 @@ struct os_mutex_struct{
 				do not assume that the OS mutex
 				supports recursive locking, though
 				NT seems to do that */
-	UT_LIST_NODE_T(os_mutex_str_t) os_mutex_list;
+	UT_LIST_NODE_T(os_mutex_t) os_mutex_list;
 				/* list of all 'slow' OS mutexes created */
 };
 
 /** Mutex protecting counts and the lists of OS mutexes and events */
-UNIV_INTERN os_mutex_t	os_sync_mutex;
+UNIV_INTERN os_ib_mutex_t	os_sync_mutex;
 /** TRUE if os_sync_mutex has been initialized */
 static ibool		os_sync_mutex_inited	= FALSE;
 /** TRUE when os_sync_free() is being executed */
@@ -63,10 +63,10 @@ os_thread_exit */
 UNIV_INTERN ulint	os_thread_count		= 0;
 
 /** The list of all events created */
-static UT_LIST_BASE_NODE_T(os_event_struct_t)	os_event_list;
+static UT_LIST_BASE_NODE_T(os_event)		os_event_list;
 
 /** The list of all OS 'slow' mutexes */
-static UT_LIST_BASE_NODE_T(os_mutex_str_t)	os_mutex_list;
+static UT_LIST_BASE_NODE_T(os_mutex_t)		os_mutex_list;
 
 UNIV_INTERN ulint	os_event_count		= 0;
 UNIV_INTERN ulint	os_mutex_count		= 0;
@@ -74,6 +74,11 @@ UNIV_INTERN ulint	os_fast_mutex_count	= 0;
 
 /* The number of microsecnds in a second. */
 static const ulint MICROSECS_IN_A_SECOND = 1000000;
+
+#ifdef UNIV_PFS_MUTEX
+UNIV_INTERN mysql_pfs_key_t	event_os_mutex_key;
+UNIV_INTERN mysql_pfs_key_t	os_mutex_key;
+#endif
 
 /* Because a mutex is embedded inside an event and there is an
 event embedded inside a mutex, on free, this generates a recursive call.
@@ -132,7 +137,7 @@ ibool
 os_cond_wait_timed(
 /*===============*/
 	os_cond_t*		cond,		/*!< in: condition variable. */
-	os_fast_mutex_t*	mutex,		/*!< in: fast mutex */
+	os_fast_mutex_t*	fast_mutex,	/*!< in: fast mutex */
 #ifndef __WIN__
 	const struct timespec*	abstime		/*!< in: timeout */
 #else
@@ -141,6 +146,7 @@ os_cond_wait_timed(
 #endif /* !__WIN__ */
 )
 {
+	fast_mutex_t*	mutex = &fast_mutex->mutex;
 #ifdef __WIN__
 	BOOL	ret;
 	DWORD	err;
@@ -195,8 +201,9 @@ void
 os_cond_wait(
 /*=========*/
 	os_cond_t*		cond,	/*!< in: condition variable. */
-	os_fast_mutex_t*	mutex)	/*!< in: fast mutex */
+	os_fast_mutex_t*	fast_mutex)/*!< in: fast mutex */
 {
+	fast_mutex_t*	mutex = &fast_mutex->mutex;
 	ut_a(cond);
 	ut_a(mutex);
 
@@ -322,7 +329,7 @@ os_sync_free(void)
 /*==============*/
 {
 	os_event_t	event;
-	os_mutex_t	mutex;
+	os_ib_mutex_t	mutex;
 
 	os_sync_free_called = TRUE;
 	event = UT_LIST_GET_FIRST(os_event_list);
@@ -358,22 +365,17 @@ must be reset explicitly by calling sync_os_reset_event.
 @return	the event handle */
 UNIV_INTERN
 os_event_t
-os_event_create(
-/*============*/
-	const char*	name)	/*!< in: the name of the event, if NULL
-				the event is created without a name */
+os_event_create(void)
+/*==================*/
 {
 	os_event_t	event;
 
 #ifdef __WIN__
 	if(!srv_use_native_conditions) {
 
-		event = ut_malloc(sizeof(struct os_event_struct));
+		event = static_cast<os_event_t>(ut_malloc(sizeof(*event)));
 
-		event->handle = CreateEvent(NULL,
-					    TRUE,
-					    FALSE,
-					    (LPCTSTR) name);
+		event->handle = CreateEvent(NULL, TRUE, FALSE, NULL);
 		if (!event->handle) {
 			fprintf(stderr,
 				"InnoDB: Could not create a Windows event"
@@ -382,13 +384,14 @@ os_event_create(
 		}
 	} else /* Windows with condition variables */
 #endif
-
 	{
-		UT_NOT_USED(name);
+		event = static_cast<os_event_t>(ut_malloc(sizeof *event));
 
-		event = ut_malloc(sizeof(struct os_event_struct));
-
-		os_fast_mutex_init(&(event->os_mutex));
+#ifndef PFS_SKIP_EVENT_MUTEX
+		os_fast_mutex_init(event_os_mutex_key, &event->os_mutex);
+#else
+		os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &event->os_mutex);
+#endif
 
 		os_cond_init(&(event->cond_var));
 
@@ -439,8 +442,6 @@ os_event_set(
 		return;
 	}
 #endif
-
-	ut_a(event);
 
 	os_fast_mutex_lock(&(event->os_mutex));
 
@@ -631,7 +632,6 @@ os_event_wait_time_low(
 	ib_int64_t	reset_sig_count)	/*!< in: zero or the value
 						returned by previous call of
 						os_event_reset(). */
-
 {
 	ibool		timed_out = FALSE;
 
@@ -731,24 +731,26 @@ os_event_wait_time_low(
 
 /*********************************************************//**
 Creates an operating system mutex semaphore. Because these are slow, the
-mutex semaphore of InnoDB itself (mutex_t) should be used where possible.
+mutex semaphore of InnoDB itself (ib_mutex_t) should be used where possible.
 @return	the mutex handle */
 UNIV_INTERN
-os_mutex_t
+os_ib_mutex_t
 os_mutex_create(void)
 /*=================*/
 {
 	os_fast_mutex_t*	mutex;
-	os_mutex_t		mutex_str;
+	os_ib_mutex_t		mutex_str;
 
-	mutex = ut_malloc(sizeof(os_fast_mutex_t));
+	mutex = static_cast<os_fast_mutex_t*>(
+		ut_malloc(sizeof(os_fast_mutex_t)));
 
-	os_fast_mutex_init(mutex);
-	mutex_str = ut_malloc(sizeof(os_mutex_str_t));
+	os_fast_mutex_init(os_mutex_key, mutex);
+
+	mutex_str = static_cast<os_ib_mutex_t>(ut_malloc(sizeof *mutex_str));
 
 	mutex_str->handle = mutex;
 	mutex_str->count = 0;
-	mutex_str->event = os_event_create(NULL);
+	mutex_str->event = os_event_create();
 
 	if (UNIV_LIKELY(os_sync_mutex_inited)) {
 		/* When creating os_sync_mutex itself we cannot reserve it */
@@ -772,9 +774,9 @@ UNIV_INTERN
 void
 os_mutex_enter(
 /*===========*/
-	os_mutex_t	mutex)	/*!< in: mutex to acquire */
+	os_ib_mutex_t	mutex)	/*!< in: mutex to acquire */
 {
-	os_fast_mutex_lock(mutex->handle);
+	os_fast_mutex_lock(static_cast<os_fast_mutex_t*>(mutex->handle));
 
 	(mutex->count)++;
 
@@ -787,14 +789,14 @@ UNIV_INTERN
 void
 os_mutex_exit(
 /*==========*/
-	os_mutex_t	mutex)	/*!< in: mutex to release */
+	os_ib_mutex_t	mutex)	/*!< in: mutex to release */
 {
 	ut_a(mutex);
 
 	ut_a(mutex->count == 1);
 
 	(mutex->count)--;
-	os_fast_mutex_unlock(mutex->handle);
+	os_fast_mutex_unlock(static_cast<os_fast_mutex_t*>(mutex->handle));
 }
 
 /**********************************************************//**
@@ -803,7 +805,7 @@ UNIV_INTERN
 void
 os_mutex_free(
 /*==========*/
-	os_mutex_t	mutex)	/*!< in: mutex to free */
+	os_ib_mutex_t	mutex)	/*!< in: mutex to free */
 {
 	ut_a(mutex);
 
@@ -823,7 +825,7 @@ os_mutex_free(
 		os_mutex_exit(os_sync_mutex);
 	}
 
-	os_fast_mutex_free(mutex->handle);
+	os_fast_mutex_free(static_cast<os_fast_mutex_t*>(mutex->handle));
 	ut_free(mutex->handle);
 	ut_free(mutex);
 }
@@ -832,9 +834,9 @@ os_mutex_free(
 Initializes an operating system fast mutex semaphore. */
 UNIV_INTERN
 void
-os_fast_mutex_init(
-/*===============*/
-	os_fast_mutex_t*	fast_mutex)	/*!< in: fast mutex */
+os_fast_mutex_init_func(
+/*====================*/
+	fast_mutex_t*		fast_mutex)	/*!< in: fast mutex */
 {
 #ifdef __WIN__
 	ut_a(fast_mutex);
@@ -861,9 +863,9 @@ os_fast_mutex_init(
 Acquires ownership of a fast mutex. */
 UNIV_INTERN
 void
-os_fast_mutex_lock(
-/*===============*/
-	os_fast_mutex_t*	fast_mutex)	/*!< in: mutex to acquire */
+os_fast_mutex_lock_func(
+/*====================*/
+	fast_mutex_t*		fast_mutex)	/*!< in: mutex to acquire */
 {
 #ifdef __WIN__
 	EnterCriticalSection((LPCRITICAL_SECTION) fast_mutex);
@@ -876,9 +878,9 @@ os_fast_mutex_lock(
 Releases ownership of a fast mutex. */
 UNIV_INTERN
 void
-os_fast_mutex_unlock(
-/*=================*/
-	os_fast_mutex_t*	fast_mutex)	/*!< in: mutex to release */
+os_fast_mutex_unlock_func(
+/*======================*/
+	fast_mutex_t*		fast_mutex)	/*!< in: mutex to release */
 {
 #ifdef __WIN__
 	LeaveCriticalSection(fast_mutex);
@@ -891,9 +893,9 @@ os_fast_mutex_unlock(
 Frees a mutex object. */
 UNIV_INTERN
 void
-os_fast_mutex_free(
-/*===============*/
-	os_fast_mutex_t*	fast_mutex)	/*!< in: mutex to free */
+os_fast_mutex_free_func(
+/*====================*/
+	fast_mutex_t*		fast_mutex)	/*!< in: mutex to free */
 {
 #ifdef __WIN__
 	ut_a(fast_mutex);
@@ -908,7 +910,7 @@ os_fast_mutex_free(
 		ut_print_timestamp(stderr);
 		fprintf(stderr,
 			"  InnoDB: error: return value %lu when calling\n"
-			"InnoDB: pthread_mutex_destroy().\n", (ulint)ret);
+			"InnoDB: pthread_mutex_destroy().\n", (ulint) ret);
 		fprintf(stderr,
 			"InnoDB: Byte contents of the pthread mutex at %p:\n",
 			(void*) fast_mutex);

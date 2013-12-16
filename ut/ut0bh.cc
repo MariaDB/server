@@ -1,11 +1,6 @@
 /***************************************************************************//**
-Copyright (c) 2010, 2011, Oracle Corpn. All Rights Reserved.
 
-Portions of this file contain modifications contributed and copyrighted by
-Sun Microsystems, Inc. Those modifications are gratefully acknowledged and
-are described briefly in the InnoDB documentation. The contributions by
-Sun Microsystems are incorporated with their permission, and subject to the
-conditions contained in the file COPYING.Sun_Microsystems.
+Copyright (c) 2010, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -16,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /******************************************************************//**
-@file ut/ut0bh.c
+@file ut/ut0bh.cc
 Binary min-heap implementation.
 
 Created 2010-05-28 by Sunny Bains

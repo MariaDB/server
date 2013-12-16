@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1997, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +12,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /**************************************************//**
-@file log/log0recv.c
+@file log/log0recv.cc
 Recovery
 
 Created 9/20/1997 Heikki Tuuri
@@ -146,7 +147,7 @@ UNIV_INTERN ulint	recv_n_pool_free_frames;
 /** The maximum lsn we see for a page during the recovery process. If this
 is bigger than the lsn we are able to scan up to, that is an indication that
 the recovery failed and the database may be corrupt. */
-UNIV_INTERN ib_uint64_t	recv_max_page_lsn;
+UNIV_INTERN lsn_t	recv_max_page_lsn;
 
 #ifdef UNIV_PFS_THREAD
 UNIV_INTERN mysql_pfs_key_t	trx_rollback_clean_thread_key;
@@ -155,6 +156,20 @@ UNIV_INTERN mysql_pfs_key_t	trx_rollback_clean_thread_key;
 #ifdef UNIV_PFS_MUTEX
 UNIV_INTERN mysql_pfs_key_t	recv_sys_mutex_key;
 #endif /* UNIV_PFS_MUTEX */
+
+#ifndef UNIV_HOTBACKUP
+# ifdef UNIV_PFS_THREAD
+UNIV_INTERN mysql_pfs_key_t	recv_writer_thread_key;
+# endif /* UNIV_PFS_THREAD */
+
+# ifdef UNIV_PFS_MUTEX
+UNIV_INTERN mysql_pfs_key_t	recv_writer_mutex_key;
+# endif /* UNIV_PFS_MUTEX */
+
+/** Flag indicating if recv_writer thread is active. */
+UNIV_INTERN bool		recv_writer_thread_active = false;
+UNIV_INTERN os_thread_t		recv_writer_thread_handle = 0;
+#endif /* !UNIV_HOTBACKUP */
 
 /* prototypes */
 
@@ -180,16 +195,17 @@ recv_sys_create(void)
 		return;
 	}
 
-	recv_sys = mem_alloc(sizeof(*recv_sys));
-	memset(recv_sys, 0x0, sizeof(*recv_sys));
+	recv_sys = static_cast<recv_sys_t*>(mem_zalloc(sizeof(*recv_sys)));
 
 	mutex_create(recv_sys_mutex_key, &recv_sys->mutex, SYNC_RECV);
 
+#ifndef UNIV_HOTBACKUP
+	mutex_create(recv_writer_mutex_key, &recv_sys->writer_mutex,
+		     SYNC_LEVEL_VARYING);
+#endif /* !UNIV_HOTBACKUP */
+
 	recv_sys->heap = NULL;
 	recv_sys->addr_hash = NULL;
-
-	recv_sys->stats_recv_start_time = time(NULL);
-	recv_sys->stats_oldest_modified_lsn = IB_ULONGLONG_MAX;
 }
 
 /********************************************************//**
@@ -215,6 +231,11 @@ recv_sys_close(void)
 		if (recv_sys->last_block_buf_start != NULL) {
 			mem_free(recv_sys->last_block_buf_start);
 		}
+
+#ifndef UNIV_HOTBACKUP
+		ut_ad(!recv_writer_thread_active);
+		mutex_free(&recv_sys->writer_mutex);
+#endif /* !UNIV_HOTBACKUP */
 
 		mutex_free(&recv_sys->mutex);
 
@@ -292,6 +313,58 @@ recv_sys_var_init(void)
 
 	recv_max_page_lsn = 0;
 }
+
+/******************************************************************//**
+recv_writer thread tasked with flushing dirty pages from the buffer
+pools.
+@return a dummy parameter */
+extern "C" UNIV_INTERN
+os_thread_ret_t
+DECLARE_THREAD(recv_writer_thread)(
+/*===============================*/
+	void*	arg __attribute__((unused)))
+			/*!< in: a dummy parameter required by
+			os_thread_create */
+{
+	ut_ad(!srv_read_only_mode);
+
+#ifdef UNIV_PFS_THREAD
+	pfs_register_thread(recv_writer_thread_key);
+#endif /* UNIV_PFS_THREAD */
+
+#ifdef UNIV_DEBUG_THREAD_CREATION
+	fprintf(stderr, "InnoDB: recv_writer thread running, id %lu\n",
+		os_thread_pf(os_thread_get_curr_id()));
+#endif /* UNIV_DEBUG_THREAD_CREATION */
+
+	recv_writer_thread_active = true;
+
+	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
+
+		os_thread_sleep(100000);
+
+		mutex_enter(&recv_sys->writer_mutex);
+
+		if (!recv_recovery_on) {
+			mutex_exit(&recv_sys->writer_mutex);
+			break;
+		}
+
+		/* Flush pages from end of LRU if required */
+		buf_flush_LRU_tail();
+
+		mutex_exit(&recv_sys->writer_mutex);
+	}
+
+	recv_writer_thread_active = false;
+
+	/* We count the number of threads in os_thread_exit().
+	A created thread should always use that to exit and not
+	use return() to exit. */
+	os_thread_exit(NULL);
+
+	OS_THREAD_DUMMY_RETURN;
+}
 #endif /* !UNIV_HOTBACKUP */
 
 /************************************************************
@@ -312,13 +385,12 @@ recv_sys_init(
 	flush_list during recovery process.
 	As this initialization is done while holding the buffer pool
 	mutex we perform it before acquiring recv_sys->mutex. */
-#ifndef UNIV_HOTBACKUP
 	buf_flush_init_flush_rbt();
-#endif /* !UNIV_HOTBACKUP */
 
 	mutex_enter(&(recv_sys->mutex));
 
-	recv_sys->heap = mem_heap_create_in_buffer(256);
+	recv_sys->heap = mem_heap_create_typed(256,
+					MEM_HEAP_FOR_RECV_SYS);
 #else /* !UNIV_HOTBACKUP */
 	recv_sys->heap = mem_heap_create(256);
 	recv_is_from_backup = TRUE;
@@ -330,12 +402,7 @@ recv_sys_init(
 		recv_n_pool_free_frames = 512;
 	}
 
-	if (buf_pool_get_curr_size() >= (32 * 1024 * 1024)) {
-		/* Buffer pool of size greater than 32 MB. */
-		recv_n_pool_free_frames = 1024;
-	}
-
-	recv_sys->buf = ut_malloc(RECV_PARSING_BUF_SIZE);
+	recv_sys->buf = static_cast<byte*>(ut_malloc(RECV_PARSING_BUF_SIZE));
 	recv_sys->len = 0;
 	recv_sys->recovered_offset = 0;
 
@@ -345,10 +412,12 @@ recv_sys_init(
 	recv_sys->apply_log_recs = FALSE;
 	recv_sys->apply_batch_on = FALSE;
 
-	recv_sys->last_block_buf_start = mem_alloc(2 * OS_FILE_LOG_BLOCK_SIZE);
+	recv_sys->last_block_buf_start = static_cast<byte*>(
+		mem_alloc(2 * OS_FILE_LOG_BLOCK_SIZE));
 
-	recv_sys->last_block = ut_align(recv_sys->last_block_buf_start,
-					OS_FILE_LOG_BLOCK_SIZE);
+	recv_sys->last_block = static_cast<byte*>(ut_align(
+		recv_sys->last_block_buf_start, OS_FILE_LOG_BLOCK_SIZE));
+
 	recv_sys->found_corrupt_log = FALSE;
 
 	recv_max_page_lsn = 0;
@@ -410,6 +479,7 @@ recv_sys_debug_free(void)
 }
 # endif /* UNIV_LOG_DEBUG */
 
+# ifdef UNIV_LOG_ARCHIVE
 /********************************************************//**
 Truncates possible corrupted or extra records from a log group. */
 static
@@ -417,24 +487,22 @@ void
 recv_truncate_group(
 /*================*/
 	log_group_t*	group,		/*!< in: log group */
-	ib_uint64_t	recovered_lsn,	/*!< in: recovery succeeded up to this
+	lsn_t		recovered_lsn,	/*!< in: recovery succeeded up to this
 					lsn */
-	ib_uint64_t	limit_lsn,	/*!< in: this was the limit for
+	lsn_t		limit_lsn,	/*!< in: this was the limit for
 					recovery */
-	ib_uint64_t	checkpoint_lsn,	/*!< in: recovery was started from this
+	lsn_t		checkpoint_lsn,	/*!< in: recovery was started from this
 					checkpoint */
-	ib_uint64_t	archived_lsn)	/*!< in: the log has been archived up to
+	lsn_t		archived_lsn)	/*!< in: the log has been archived up to
 					this lsn */
 {
-	ib_uint64_t	start_lsn;
-	ib_uint64_t	end_lsn;
-	ib_uint64_t	finish_lsn1;
-	ib_uint64_t	finish_lsn2;
-	ib_uint64_t	finish_lsn;
-	ulint		len;
-	ulint		i;
+	lsn_t		start_lsn;
+	lsn_t		end_lsn;
+	lsn_t		finish_lsn1;
+	lsn_t		finish_lsn2;
+	lsn_t		finish_lsn;
 
-	if (archived_lsn == IB_ULONGLONG_MAX) {
+	if (archived_lsn == LSN_MAX) {
 		/* Checkpoint was taken in the NOARCHIVELOG mode */
 		archived_lsn = checkpoint_lsn;
 	}
@@ -447,7 +515,7 @@ recv_truncate_group(
 					 OS_FILE_LOG_BLOCK_SIZE)
 		+ recv_sys->last_log_buf_size;
 
-	if (limit_lsn != IB_ULONGLONG_MAX) {
+	if (limit_lsn != LSN_MAX) {
 		/* We do not know how far we should erase log records: erase
 		as much as possible */
 
@@ -460,11 +528,7 @@ recv_truncate_group(
 
 	ut_a(RECV_SCAN_SIZE <= log_sys->buf_size);
 
-	/* Write the log buffer full of zeros */
-	for (i = 0; i < RECV_SCAN_SIZE; i++) {
-
-		*(log_sys->buf + i) = '\0';
-	}
+	memset(log_sys->buf, 0, RECV_SCAN_SIZE);
 
 	start_lsn = ut_uint64_align_down(recovered_lsn,
 					 OS_FILE_LOG_BLOCK_SIZE);
@@ -472,11 +536,13 @@ recv_truncate_group(
 	if (start_lsn != recovered_lsn) {
 		/* Copy the last incomplete log block to the log buffer and
 		edit its data length: */
+		lsn_t	diff = recovered_lsn - start_lsn;
+
+		ut_a(diff <= 0xFFFFUL);
 
 		ut_memcpy(log_sys->buf, recv_sys->last_block,
 			  OS_FILE_LOG_BLOCK_SIZE);
-		log_block_set_data_len(log_sys->buf,
-				       (ulint) (recovered_lsn - start_lsn));
+		log_block_set_data_len(log_sys->buf, (ulint) diff);
 	}
 
 	if (start_lsn >= finish_lsn) {
@@ -485,6 +551,8 @@ recv_truncate_group(
 	}
 
 	for (;;) {
+		ulint	len;
+
 		end_lsn = start_lsn + RECV_SCAN_SIZE;
 
 		if (end_lsn > finish_lsn) {
@@ -500,11 +568,7 @@ recv_truncate_group(
 			return;
 		}
 
-		/* Write the log buffer full of zeros */
-		for (i = 0; i < RECV_SCAN_SIZE; i++) {
-
-			*(log_sys->buf + i) = '\0';
-		}
+		memset(log_sys->buf, 0, RECV_SCAN_SIZE);
 
 		start_lsn = end_lsn;
 	}
@@ -521,12 +585,11 @@ recv_copy_group(
 						group */
 	log_group_t*	group,			/*!< in: copy to this log
 						group */
-	ib_uint64_t	recovered_lsn)		/*!< in: recovery succeeded up
+	lsn_t		recovered_lsn)		/*!< in: recovery succeeded up
 						to this lsn */
 {
-	ib_uint64_t	start_lsn;
-	ib_uint64_t	end_lsn;
-	ulint		len;
+	lsn_t		start_lsn;
+	lsn_t		end_lsn;
 
 	if (group->scanned_lsn >= recovered_lsn) {
 
@@ -538,6 +601,8 @@ recv_copy_group(
 	start_lsn = ut_uint64_align_down(group->scanned_lsn,
 					 OS_FILE_LOG_BLOCK_SIZE);
 	for (;;) {
+		ulint	len;
+
 		end_lsn = start_lsn + RECV_SCAN_SIZE;
 
 		if (end_lsn > recovered_lsn) {
@@ -561,6 +626,7 @@ recv_copy_group(
 		start_lsn = end_lsn;
 	}
 }
+# endif /* UNIV_LOG_ARCHIVE */
 
 /********************************************************//**
 Copies a log segment from the most up-to-date log group to the other log
@@ -571,13 +637,15 @@ static
 void
 recv_synchronize_groups(
 /*====================*/
-	log_group_t*	up_to_date_group)	/*!< in: the most up-to-date
+#ifdef UNIV_LOG_ARCHIVE
+	log_group_t*	up_to_date_group	/*!< in: the most up-to-date
 						log group */
+#endif
+	)
 {
-	log_group_t*	group;
-	ib_uint64_t	start_lsn;
-	ib_uint64_t	end_lsn;
-	ib_uint64_t	recovered_lsn;
+	lsn_t		start_lsn;
+	lsn_t		end_lsn;
+	lsn_t		recovered_lsn;
 
 	recovered_lsn = recv_sys->recovered_lsn;
 
@@ -591,11 +659,17 @@ recv_synchronize_groups(
 	ut_a(start_lsn != end_lsn);
 
 	log_group_read_log_seg(LOG_RECOVER, recv_sys->last_block,
-			       up_to_date_group, start_lsn, end_lsn, FALSE);
+#ifdef UNIV_LOG_ARCHIVE
+			       up_to_date_group,
+#else /* UNIV_LOG_ARCHIVE */
+			       UT_LIST_GET_FIRST(log_sys->log_groups),
+#endif /* UNIV_LOG_ARCHIVE */
+			       start_lsn, end_lsn, FALSE);
 
-	group = UT_LIST_GET_FIRST(log_sys->log_groups);
-
-	while (group) {
+	for (log_group_t* group = UT_LIST_GET_FIRST(log_sys->log_groups);
+	     group;
+	     group = UT_LIST_GET_NEXT(log_groups, group)) {
+#ifdef UNIV_LOG_ARCHIVE
 		if (group != up_to_date_group) {
 
 			/* Copy log data if needed */
@@ -603,13 +677,11 @@ recv_synchronize_groups(
 			recv_copy_group(group, up_to_date_group,
 					recovered_lsn);
 		}
-
+#endif /* UNIV_LOG_ARCHIVE */
 		/* Update the fields in the group struct to correspond to
 		recovered_lsn */
 
 		log_group_set_fields(group, recovered_lsn);
-
-		group = UT_LIST_GET_NEXT(log_groups, group);
 	}
 
 	/* Copy the checkpoint info to the groups; remember that we have
@@ -662,8 +734,8 @@ recv_check_cp_is_consistent(
 /********************************************************//**
 Looks for the maximum consistent checkpoint from the log groups.
 @return	error code or DB_SUCCESS */
-static
-ulint
+static __attribute__((nonnull, warn_unused_result))
+dberr_t
 recv_find_max_checkpoint(
 /*=====================*/
 	log_group_t**	max_group,	/*!< out: max group */
@@ -713,22 +785,10 @@ recv_find_max_checkpoint(
 
 			group->lsn = mach_read_from_8(
 				buf + LOG_CHECKPOINT_LSN);
-
-#ifdef UNIV_LOG_ARCHIVE
-#error "UNIV_LOG_ARCHIVE could not be enabled"
-#endif
-			{
-			ib_uint64_t tmp_lsn_offset = mach_read_from_8(
-					buf + LOG_CHECKPOINT_ARCHIVED_LSN);
-				if (sizeof(ulint) != 4
-				    && tmp_lsn_offset != IB_ULONGLONG_MAX) {
-					group->lsn_offset = (ulint) tmp_lsn_offset;
-				} else {
 			group->lsn_offset = mach_read_from_4(
-				buf + LOG_CHECKPOINT_OFFSET);
-				}
-			}
-
+				buf + LOG_CHECKPOINT_OFFSET_LOW32);
+			group->lsn_offset |= ((lsn_t) mach_read_from_4(
+				buf + LOG_CHECKPOINT_OFFSET_HIGH32)) << 32;
 			checkpoint_no = mach_read_from_8(
 				buf + LOG_CHECKPOINT_NO);
 
@@ -778,17 +838,14 @@ Reads the checkpoint info needed in hot backup.
 @return	TRUE if success */
 UNIV_INTERN
 ibool
-recv_read_cp_info_for_backup(
-/*=========================*/
+recv_read_checkpoint_info_for_backup(
+/*=================================*/
 	const byte*	hdr,	/*!< in: buffer containing the log group
 				header */
-	ib_uint64_t*	lsn,	/*!< out: checkpoint lsn */
-	ulint*		offset,	/*!< out: checkpoint offset in the log group */
-	ulint*		fsp_limit,/*!< out: fsp limit of space 0,
-				1000000000 if the database is running
-				with < version 3.23.50 of InnoDB */
-	ib_uint64_t*	cp_no,	/*!< out: checkpoint number */
-	ib_uint64_t*	first_header_lsn)
+	lsn_t*		lsn,	/*!< out: checkpoint lsn */
+	lsn_t*		offset,	/*!< out: checkpoint offset in the log group */
+	lsn_t*		cp_no,	/*!< out: checkpoint number */
+	lsn_t*		first_header_lsn)
 				/*!< out: lsn of of the start of the
 				first log file */
 {
@@ -818,24 +875,10 @@ recv_read_cp_info_for_backup(
 	cp_buf = hdr + max_cp;
 
 	*lsn = mach_read_from_8(cp_buf + LOG_CHECKPOINT_LSN);
-	*offset = mach_read_from_4(cp_buf + LOG_CHECKPOINT_OFFSET);
-
-	/* If the user is running a pre-3.23.50 version of InnoDB, its
-	checkpoint data does not contain the fsp limit info */
-	if (mach_read_from_4(cp_buf + LOG_CHECKPOINT_FSP_MAGIC_N)
-	    == LOG_CHECKPOINT_FSP_MAGIC_N_VAL) {
-
-		*fsp_limit = mach_read_from_4(
-			cp_buf + LOG_CHECKPOINT_FSP_FREE_LIMIT);
-
-		if (*fsp_limit == 0) {
-			*fsp_limit = 1000000000;
-		}
-	} else {
-		*fsp_limit = 1000000000;
-	}
-
-	/*	fprintf(stderr, "fsp limit %lu MB\n", *fsp_limit); */
+	*offset = mach_read_from_4(
+		cp_buf + LOG_CHECKPOINT_OFFSET_LOW32);
+	*offset |= ((lsn_t) mach_read_from_4(
+			    cp_buf + LOG_CHECKPOINT_OFFSET_HIGH32)) << 32;
 
 	*cp_no = mach_read_from_8(cp_buf + LOG_CHECKPOINT_NO);
 
@@ -860,12 +903,72 @@ log_block_checksum_is_ok_or_old_format(
 #ifdef UNIV_LOG_DEBUG
 	return(TRUE);
 #endif /* UNIV_LOG_DEBUG */
-	if (log_block_calc_checksum(block) == log_block_get_checksum(block)) {
+
+	ulint block_checksum = log_block_get_checksum(block);
+
+	if (UNIV_LIKELY(srv_log_checksum_algorithm ==
+			SRV_CHECKSUM_ALGORITHM_NONE ||
+			log_block_calc_checksum(block) == block_checksum)) {
 
 		return(TRUE);
 	}
 
-	if (log_block_get_hdr_no(block) == log_block_get_checksum(block)) {
+	if (srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32 ||
+	    srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB ||
+	    srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_NONE) {
+
+		const char*	algo = NULL;
+
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"log block checksum mismatch: expected " ULINTPF ", "
+			"calculated checksum " ULINTPF,
+			block_checksum,
+			log_block_calc_checksum(block));
+
+		if (block_checksum == LOG_NO_CHECKSUM_MAGIC) {
+
+			algo = "none";
+		} else if (block_checksum ==
+			   log_block_calc_checksum_crc32(block)) {
+
+			algo = "crc32";
+		} else if (block_checksum ==
+			   log_block_calc_checksum_innodb(block)) {
+
+			algo = "innodb";
+		}
+
+		if (algo) {
+
+			const char*	current_algo;
+
+			current_algo = buf_checksum_algorithm_name(
+				(srv_checksum_algorithm_t)
+				srv_log_checksum_algorithm);
+
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"current InnoDB log checksum type: %s, "
+				"detected log checksum type: %s",
+				current_algo,
+				algo);
+		}
+
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"STRICT method was specified for innodb_log_checksum, "
+			"so we intentionally assert here.");
+	}
+
+	ut_ad(srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_CRC32 ||
+	      srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_INNODB);
+
+	if (block_checksum == LOG_NO_CHECKSUM_MAGIC ||
+	    block_checksum == log_block_calc_checksum_crc32(block) ||
+	    block_checksum == log_block_calc_checksum_innodb(block)) {
+
+		return(TRUE);
+	}
+
+	if (log_block_get_hdr_no(block) == block_checksum) {
 
 		/* We assume the log block is in the format of
 		InnoDB version < 3.23.52 and the block is ok */
@@ -891,7 +994,7 @@ recv_scan_log_seg_for_backup(
 /*=========================*/
 	byte*		buf,		/*!< in: buffer containing log data */
 	ulint		buf_len,	/*!< in: data length in that buffer */
-	ib_uint64_t*	scanned_lsn,	/*!< in/out: lsn of buffer start,
+	lsn_t*		scanned_lsn,	/*!< in/out: lsn of buffer start,
 					we return scanned lsn */
 	ulint*		scanned_checkpoint_no,
 					/*!< in/out: 4 lowest bytes of the
@@ -1184,18 +1287,22 @@ recv_parse_or_apply_log_rec_body(
 				ptr, end_ptr, block, index, mtr);
 		}
 		break;
-	case MLOG_PAGE_REORGANIZE: case MLOG_COMP_PAGE_REORGANIZE:
+	case MLOG_PAGE_REORGANIZE:
+	case MLOG_COMP_PAGE_REORGANIZE:
+	case MLOG_ZIP_PAGE_REORGANIZE:
 		ut_ad(!page || page_type == FIL_PAGE_INDEX);
 
 		if (NULL != (ptr = mlog_parse_index(
 				     ptr, end_ptr,
-				     type == MLOG_COMP_PAGE_REORGANIZE,
+				     type != MLOG_PAGE_REORGANIZE,
 				     &index))) {
 			ut_a(!page
 			     || (ibool)!!page_is_comp(page)
 			     == dict_table_is_comp(index->table));
-			ptr = btr_parse_page_reorganize(ptr, end_ptr, index,
-							block, mtr);
+			ptr = btr_parse_page_reorganize(
+				ptr, end_ptr, index,
+				type == MLOG_ZIP_PAGE_REORGANIZE,
+				block, mtr);
 		}
 		break;
 	case MLOG_PAGE_CREATE: case MLOG_COMP_PAGE_CREATE:
@@ -1294,6 +1401,16 @@ recv_parse_or_apply_log_rec_body(
 		ptr = page_zip_parse_compress(ptr, end_ptr,
 					      page, page_zip);
 		break;
+	case MLOG_ZIP_PAGE_COMPRESS_NO_DATA:
+		if (NULL != (ptr = mlog_parse_index(
+				ptr, end_ptr, TRUE, &index))) {
+
+			ut_a(!page || ((ibool)!!page_is_comp(page)
+				== dict_table_is_comp(index->table)));
+			ptr = page_zip_parse_compress_no_data(
+				ptr, end_ptr, page, page_zip, index);
+		}
+		break;
 	default:
 		ptr = NULL;
 		recv_sys->found_corrupt_log = TRUE;
@@ -1349,19 +1466,21 @@ recv_get_fil_addr_struct(
 {
 	recv_addr_t*	recv_addr;
 
-	recv_addr = HASH_GET_FIRST(recv_sys->addr_hash,
-				   recv_hash(space, page_no));
-	while (recv_addr) {
-		if ((recv_addr->space == space)
-		    && (recv_addr->page_no == page_no)) {
+	for (recv_addr = static_cast<recv_addr_t*>(
+			HASH_GET_FIRST(recv_sys->addr_hash,
+				       recv_hash(space, page_no)));
+	     recv_addr != 0;
+	     recv_addr = static_cast<recv_addr_t*>(
+		     HASH_GET_NEXT(addr_hash, recv_addr))) {
 
-			break;
+		if (recv_addr->space == space
+		    && recv_addr->page_no == page_no) {
+
+			return(recv_addr);
 		}
-
-		recv_addr = HASH_GET_NEXT(addr_hash, recv_addr);
 	}
 
-	return(recv_addr);
+	return(NULL);
 }
 
 /*******************************************************************//**
@@ -1370,13 +1489,13 @@ static
 void
 recv_add_to_hash_table(
 /*===================*/
-	byte		type,		/*!< in: log record type */
-	ulint		space,		/*!< in: space id */
-	ulint		page_no,	/*!< in: page number */
-	byte*		body,		/*!< in: log record body */
-	byte*		rec_end,	/*!< in: log record end */
-	ib_uint64_t	start_lsn,	/*!< in: start lsn of the mtr */
-	ib_uint64_t	end_lsn)	/*!< in: end lsn of the mtr */
+	byte	type,		/*!< in: log record type */
+	ulint	space,		/*!< in: space id */
+	ulint	page_no,	/*!< in: page number */
+	byte*	body,		/*!< in: log record body */
+	byte*	rec_end,	/*!< in: log record end */
+	lsn_t	start_lsn,	/*!< in: start lsn of the mtr */
+	lsn_t	end_lsn)	/*!< in: end lsn of the mtr */
 {
 	recv_t*		recv;
 	ulint		len;
@@ -1393,12 +1512,9 @@ recv_add_to_hash_table(
 
 	len = rec_end - body;
 
-	if (srv_recovery_stats) {
-		recv_sys->stats_log_recs++;
-		recv_sys->stats_log_len_sum += len;
-	}
+	recv = static_cast<recv_t*>(
+		mem_heap_alloc(recv_sys->heap, sizeof(recv_t)));
 
-	recv = mem_heap_alloc(recv_sys->heap, sizeof(recv_t));
 	recv->type = type;
 	recv->len = rec_end - body;
 	recv->start_lsn = start_lsn;
@@ -1407,8 +1523,9 @@ recv_add_to_hash_table(
 	recv_addr = recv_get_fil_addr_struct(space, page_no);
 
 	if (recv_addr == NULL) {
-		recv_addr = mem_heap_alloc(recv_sys->heap,
-					   sizeof(recv_addr_t));
+		recv_addr = static_cast<recv_addr_t*>(
+			mem_heap_alloc(recv_sys->heap, sizeof(recv_addr_t)));
+
 		recv_addr->space = space;
 		recv_addr->page_no = page_no;
 		recv_addr->state = RECV_NOT_PROCESSED;
@@ -1440,8 +1557,10 @@ recv_add_to_hash_table(
 			len = RECV_DATA_BLOCK_SIZE;
 		}
 
-		recv_data = mem_heap_alloc(recv_sys->heap,
-					   sizeof(recv_data_t) + len);
+		recv_data = static_cast<recv_data_t*>(
+			mem_heap_alloc(recv_sys->heap,
+				       sizeof(recv_data_t) + len));
+
 		*prev_field = recv_data;
 
 		memcpy(recv_data + 1, body, len);
@@ -1477,7 +1596,7 @@ recv_data_copy_to_buf(
 			part_len = len;
 		}
 
-		ut_memcpy(buf, ((byte*)recv_data) + sizeof(recv_data_t),
+		ut_memcpy(buf, ((byte*) recv_data) + sizeof(recv_data_t),
 			  part_len);
 		buf += part_len;
 		len -= part_len;
@@ -1506,11 +1625,10 @@ recv_recover_page_func(
 	recv_addr_t*	recv_addr;
 	recv_t*		recv;
 	byte*		buf;
-	ib_uint64_t	start_lsn;
-	ib_uint64_t	end_lsn;
-	ib_uint64_t	page_lsn;
-	ib_uint64_t	page_lsn_orig;
-	ib_uint64_t	page_newest_lsn;
+	lsn_t		start_lsn;
+	lsn_t		end_lsn;
+	lsn_t		page_lsn;
+	lsn_t		page_newest_lsn;
 	ibool		modification_to_page;
 #ifndef UNIV_HOTBACKUP
 	ibool		success;
@@ -1549,14 +1667,6 @@ recv_recover_page_func(
 
 	recv_addr->state = RECV_BEING_PROCESSED;
 
-	if (srv_recovery_stats) {
-		if (just_read_in) {
-			recv_sys->stats_recover_pages_with_read++;
-		} else {
-			recv_sys->stats_recover_pages_without_read++;
-		}
-	}
-
 	mutex_exit(&(recv_sys->mutex));
 
 	mtr_start(&mtr);
@@ -1586,7 +1696,6 @@ recv_recover_page_func(
 
 	/* Read the newest modification lsn from the page */
 	page_lsn = mach_read_from_8(page + FIL_PAGE_LSN);
-	page_lsn_orig = page_lsn;
 
 #ifndef UNIV_HOTBACKUP
 	/* It may be that the page has been modified in the buffer
@@ -1606,21 +1715,6 @@ recv_recover_page_func(
 	modification_to_page = FALSE;
 	start_lsn = end_lsn = 0;
 
-	if (srv_recovery_stats) {
-		mutex_enter(&(recv_sys->mutex));
-		if (page_lsn_orig && recv_sys->stats_oldest_modified_lsn > page_lsn_orig) {
-			recv_sys->stats_oldest_modified_lsn = page_lsn_orig;
-		}
-		if (page_lsn_orig && recv_sys->stats_newest_modified_lsn < page_lsn_orig) {
-			recv_sys->stats_newest_modified_lsn = page_lsn_orig;
-		}
-		if (UT_LIST_GET_LAST(recv_addr->rec_list)->start_lsn
-		    < page_lsn_orig) {
-			recv_sys->stats_pages_already_new++;
-		}
-		mutex_exit(&(recv_sys->mutex));
-	}
-
 	recv = UT_LIST_GET_FIRST(recv_addr->rec_list);
 
 	while (recv) {
@@ -1630,7 +1724,7 @@ recv_recover_page_func(
 			/* We have to copy the record body to a separate
 			buffer */
 
-			buf = mem_alloc(recv->len);
+			buf = static_cast<byte*>(mem_alloc(recv->len));
 
 			recv_data_copy_to_buf(buf, recv);
 		} else {
@@ -1651,7 +1745,7 @@ recv_recover_page_func(
 
 		if (recv->start_lsn >= page_lsn) {
 
-			ib_uint64_t	end_lsn;
+			lsn_t	end_lsn;
 
 			if (!modification_to_page) {
 
@@ -1659,29 +1753,18 @@ recv_recover_page_func(
 				start_lsn = recv->start_lsn;
 			}
 
-#ifdef UNIV_DEBUG
-			if (log_debug_writes) {
-				fprintf(stderr,
-					"InnoDB: Applying log rec"
-					" type %lu len %lu"
-					" to space %lu page no %lu\n",
-					(ulong) recv->type, (ulong) recv->len,
-					(ulong) recv_addr->space,
-					(ulong) recv_addr->page_no);
-			}
-#endif /* UNIV_DEBUG */
+			DBUG_PRINT("ib_log",
+				   ("apply " DBUG_LSN_PF ": %u len %u "
+				    "page %u:%u", recv->start_lsn,
+				    (unsigned) recv->type,
+				    (unsigned) recv->len,
+				    (unsigned) recv_addr->space,
+				    (unsigned) recv_addr->page_no));
 
 			recv_parse_or_apply_log_rec_body(recv->type, buf,
 							 buf + recv->len,
 							 block, &mtr,
 							 recv_addr->space);
-
-			if (srv_recovery_stats) {
-				mutex_enter(&(recv_sys->mutex));
-				recv_sys->stats_applied_log_recs++;
-				recv_sys->stats_applied_log_len_sum += recv->len;
-				mutex_exit(&(recv_sys->mutex));
-			}
 
 			end_lsn = recv->start_lsn + recv->len;
 			mach_write_to_8(FIL_PAGE_LSN + page, end_lsn);
@@ -1785,13 +1868,6 @@ recv_read_in_area(
 		}
 	}
 
-	if (srv_recovery_stats && n) {
-		mutex_enter(&(recv_sys->mutex));
-		recv_sys->stats_read_requested_pages += n;
-		recv_sys->stats_read_in_area[n - 1]++;
-		mutex_exit(&(recv_sys->mutex));
-	}
-
 	buf_read_recv_pages(FALSE, space, zip_size, page_nos, n);
 	/*
 	fprintf(stderr, "Recv pages at %lu n %lu\n", page_nos[0], n);
@@ -1818,7 +1894,6 @@ recv_apply_hashed_log_recs(
 {
 	recv_addr_t* recv_addr;
 	ulint	i;
-	ulint	n_pages;
 	ibool	has_printed	= FALSE;
 	mtr_t	mtr;
 loop:
@@ -1844,20 +1919,23 @@ loop:
 
 	for (i = 0; i < hash_get_n_cells(recv_sys->addr_hash); i++) {
 
-		recv_addr = HASH_GET_FIRST(recv_sys->addr_hash, i);
+		for (recv_addr = static_cast<recv_addr_t*>(
+				HASH_GET_FIRST(recv_sys->addr_hash, i));
+		     recv_addr != 0;
+		     recv_addr = static_cast<recv_addr_t*>(
+				HASH_GET_NEXT(addr_hash, recv_addr))) {
 
-		while (recv_addr) {
 			ulint	space = recv_addr->space;
 			ulint	zip_size = fil_space_get_zip_size(space);
 			ulint	page_no = recv_addr->page_no;
 
 			if (recv_addr->state == RECV_NOT_PROCESSED) {
 				if (!has_printed) {
-					ut_print_timestamp(stderr);
-					fputs("  InnoDB: Starting an"
-					      " apply batch of log records"
-					      " to the database...\n"
-					      "InnoDB: Progress in percents: ",
+					ib_logf(IB_LOG_LEVEL_INFO,
+						"Starting an apply batch"
+						" of log records"
+						" to the database...");
+					fputs("InnoDB: Progress in percent: ",
 					      stderr);
 					has_printed = TRUE;
 				}
@@ -1884,8 +1962,6 @@ loop:
 
 				mutex_enter(&(recv_sys->mutex));
 			}
-
-			recv_addr = HASH_GET_NEXT(addr_hash, recv_addr);
 		}
 
 		if (has_printed
@@ -1916,6 +1992,8 @@ loop:
 	}
 
 	if (!allow_ibuf) {
+		bool	success;
+
 		/* Flush all the file pages to disk and invalidate them in
 		the buffer pool */
 
@@ -1923,12 +2001,23 @@ loop:
 		mutex_exit(&(recv_sys->mutex));
 		mutex_exit(&(log_sys->mutex));
 
- 		n_pages = buf_flush_list(ULINT_MAX, IB_ULONGLONG_MAX);
-  		ut_a(n_pages != ULINT_UNDEFINED);
-  
- 		buf_flush_wait_batch_end(NULL, BUF_FLUSH_LIST);
+		/* Stop the recv_writer thread from issuing any LRU
+		flush batches. */
+		mutex_enter(&recv_sys->writer_mutex);
+
+		/* Wait for any currently run batch to end. */
+		buf_flush_wait_LRU_batch_end();
+
+		success = buf_flush_list(ULINT_MAX, LSN_MAX, NULL);
+
+		ut_a(success);
+
+		buf_flush_wait_batch_end(NULL, BUF_FLUSH_LIST);
 
 		buf_pool_invalidate();
+
+		/* Allow batches from recv_writer thread. */
+		mutex_exit(&recv_sys->writer_mutex);
 
 		mutex_enter(&(log_sys->mutex));
 		mutex_enter(&(recv_sys->mutex));
@@ -1944,10 +2033,6 @@ loop:
 
 	if (has_printed) {
 		fprintf(stderr, "InnoDB: Apply batch completed\n");
-
-		if (srv_recovery_stats) {
-			recv_sys->stats_recv_turns++;
-		}
 	}
 
 	mutex_exit(&(recv_sys->mutex));
@@ -1973,9 +2058,10 @@ recv_apply_log_recs_for_backup(void)
 
 	block = back_block1;
 
-	fputs("InnoDB: Starting an apply batch of log records"
-	      " to the database...\n"
-	      "InnoDB: Progress in percents: ", stderr);
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"Starting an apply batch of log records to the database...");
+
+	fputs("InnoDB: Progress in percent: ", stderr);
 
 	n_hash_cells = hash_get_n_cells(recv_sys->addr_hash);
 
@@ -2025,17 +2111,17 @@ recv_apply_log_recs_for_backup(void)
 			if (!success) {
 				fprintf(stderr,
 					"InnoDB: Fatal error: cannot extend"
-					" tablespace %lu to hold %lu pages\n",
+					" tablespace %u to hold %u pages\n",
 					recv_addr->space, recv_addr->page_no);
 
 				exit(1);
 			}
 
 			/* Read the page from the tablespace file using the
-			fil0fil.c routines */
+			fil0fil.cc routines */
 
 			if (zip_size) {
-				error = fil_io(OS_FILE_READ, TRUE,
+				error = fil_io(OS_FILE_READ, true,
 					       recv_addr->space, zip_size,
 					       recv_addr->page_no, 0, zip_size,
 					       block->page.zip.data, NULL);
@@ -2044,7 +2130,7 @@ recv_apply_log_recs_for_backup(void)
 					exit(1);
 				}
 			} else {
-				error = fil_io(OS_FILE_READ, TRUE,
+				error = fil_io(OS_FILE_READ, true,
 					       recv_addr->space, 0,
 					       recv_addr->page_no, 0,
 					       UNIV_PAGE_SIZE,
@@ -2066,20 +2152,20 @@ recv_apply_log_recs_for_backup(void)
 			recv_recover_page(FALSE, block);
 
 			/* Write the page back to the tablespace file using the
-			fil0fil.c routines */
+			fil0fil.cc routines */
 
 			buf_flush_init_for_writing(
 				block->frame, buf_block_get_page_zip(block),
 				mach_read_from_8(block->frame + FIL_PAGE_LSN));
 
 			if (zip_size) {
-				error = fil_io(OS_FILE_WRITE, TRUE,
+				error = fil_io(OS_FILE_WRITE, true,
 					       recv_addr->space, zip_size,
 					       recv_addr->page_no, 0,
 					       zip_size,
 					       block->page.zip.data, NULL);
 			} else {
-				error = fil_io(OS_FILE_WRITE, TRUE,
+				error = fil_io(OS_FILE_WRITE, true,
 					       recv_addr->space, 0,
 					       recv_addr->page_no, 0,
 					       UNIV_PAGE_SIZE,
@@ -2150,7 +2236,7 @@ recv_parse_log_rec(
 
 #ifdef UNIV_LOG_LSN_DEBUG
 	if (*type == MLOG_LSN) {
-		ib_uint64_t	lsn = (ib_uint64_t) *space << 32 | *page_no;
+		lsn_t	lsn = (lsn_t) *space << 32 | *page_no;
 # ifdef UNIV_LOG_DEBUG
 		ut_a(lsn == log_sys->old_lsn);
 # else /* UNIV_LOG_DEBUG */
@@ -2176,21 +2262,20 @@ recv_parse_log_rec(
 /*******************************************************//**
 Calculates the new value for lsn when more data is added to the log. */
 UNIV_INTERN
-ib_uint64_t
+lsn_t
 recv_calc_lsn_on_data_add(
 /*======================*/
-	ib_uint64_t	lsn,	/*!< in: old lsn */
+	lsn_t		lsn,	/*!< in: old lsn */
 	ib_uint64_t	len)	/*!< in: this many bytes of data is
 				added, log block headers not included */
 {
-	ulint	frag_len;
-	ulint	lsn_len;
+	ulint		frag_len;
+	ib_uint64_t	lsn_len;
 
-	frag_len = (((ulint) lsn) % OS_FILE_LOG_BLOCK_SIZE)
-		- LOG_BLOCK_HDR_SIZE;
+	frag_len = (lsn % OS_FILE_LOG_BLOCK_SIZE) - LOG_BLOCK_HDR_SIZE;
 	ut_ad(frag_len < OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE
 	      - LOG_BLOCK_TRL_SIZE);
-	lsn_len = (ulint) len;
+	lsn_len = len;
 	lsn_len += (lsn_len + frag_len)
 		/ (OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE
 		   - LOG_BLOCK_TRL_SIZE)
@@ -2237,7 +2322,7 @@ recv_report_corrupt_log(
 	fprintf(stderr,
 		"InnoDB: ############### CORRUPT LOG RECORD FOUND\n"
 		"InnoDB: Log record type %lu, space id %lu, page number %lu\n"
-		"InnoDB: Log parsing proceeded successfully up to %llu\n"
+		"InnoDB: Log parsing proceeded successfully up to " LSN_PF "\n"
 		"InnoDB: Previous log record type %lu, is multi %lu\n"
 		"InnoDB: Recv offset %lu, prev %lu\n",
 		(ulong) type, (ulong) space, (ulong) page_no,
@@ -2298,18 +2383,18 @@ recv_parse_log_recs(
 				to the hash table; this is set to FALSE if just
 				debug checking is needed */
 {
-	byte*		ptr;
-	byte*		end_ptr;
-	ulint		single_rec;
-	ulint		len;
-	ulint		total_len;
-	ib_uint64_t	new_recovered_lsn;
-	ib_uint64_t	old_lsn;
-	byte		type;
-	ulint		space;
-	ulint		page_no;
-	byte*		body;
-	ulint		n_recs;
+	byte*	ptr;
+	byte*	end_ptr;
+	ulint	single_rec;
+	ulint	len;
+	ulint	total_len;
+	lsn_t	new_recovered_lsn;
+	lsn_t	old_lsn;
+	byte	type;
+	ulint	space;
+	ulint	page_no;
+	byte*	body;
+	ulint	n_recs;
 
 	ut_ad(mutex_own(&(log_sys->mutex)));
 	ut_ad(recv_sys->parse_start_lsn != 0);
@@ -2356,22 +2441,18 @@ loop:
 			return(FALSE);
 		}
 
-		recv_previous_parsed_rec_type = (ulint)type;
+		recv_previous_parsed_rec_type = (ulint) type;
 		recv_previous_parsed_rec_offset = recv_sys->recovered_offset;
 		recv_previous_parsed_rec_is_multi = 0;
 
 		recv_sys->recovered_offset += len;
 		recv_sys->recovered_lsn = new_recovered_lsn;
 
-#ifdef UNIV_DEBUG
-		if (log_debug_writes) {
-			fprintf(stderr,
-				"InnoDB: Parsed a single log rec"
-				" type %lu len %lu space %lu page no %lu\n",
-				(ulong) type, (ulong) len, (ulong) space,
-				(ulong) page_no);
-		}
-#endif /* UNIV_DEBUG */
+		DBUG_PRINT("ib_log",
+			   ("scan " DBUG_LSN_PF ": log rec %u len %u "
+			    "page %u:%u", old_lsn,
+			    (unsigned) type, (unsigned) len,
+			    (unsigned) space, (unsigned) page_no));
 
 		if (type == MLOG_DUMMY_RECORD) {
 			/* Do nothing */
@@ -2406,7 +2487,7 @@ loop:
 						" space %lu not complete in\n"
 						"InnoDB: the replay phase."
 						" Path %s\n",
-						(ulint)type, space,
+						(ulint) type, space,
 						(char*)(body + 2));
 
 					ut_error;
@@ -2447,7 +2528,7 @@ loop:
 				return(FALSE);
 			}
 
-			recv_previous_parsed_rec_type = (ulint)type;
+			recv_previous_parsed_rec_type = (ulint) type;
 			recv_previous_parsed_rec_offset
 				= recv_sys->recovered_offset + total_len;
 			recv_previous_parsed_rec_is_multi = 1;
@@ -2458,16 +2539,12 @@ loop:
 			}
 #endif /* UNIV_LOG_DEBUG */
 
-#ifdef UNIV_DEBUG
-			if (log_debug_writes) {
-				fprintf(stderr,
-					"InnoDB: Parsed a multi log rec"
-					" type %lu len %lu"
-					" space %lu page no %lu\n",
-					(ulong) type, (ulong) len,
-					(ulong) space, (ulong) page_no);
-			}
-#endif /* UNIV_DEBUG */
+			DBUG_PRINT("ib_log",
+				   ("scan " DBUG_LSN_PF ": multi-log rec %u "
+				    "len %u page %u:%u",
+				    recv_sys->recovered_lsn,
+				    (unsigned) type, (unsigned) len,
+				    (unsigned) space, (unsigned) page_no));
 
 			total_len += len;
 			n_recs++;
@@ -2547,7 +2624,7 @@ ibool
 recv_sys_add_to_parsing_buf(
 /*========================*/
 	const byte*	log_block,	/*!< in: log block */
-	ib_uint64_t	scanned_lsn)	/*!< in: lsn of how far we were able
+	lsn_t		scanned_lsn)	/*!< in: lsn of how far we were able
 					to find data in this log block */
 {
 	ulint	more_len;
@@ -2648,16 +2725,16 @@ recv_scan_log_recs(
 	const byte*	buf,		/*!< in: buffer containing a log
 					segment or garbage */
 	ulint		len,		/*!< in: buffer length */
-	ib_uint64_t	start_lsn,	/*!< in: buffer start lsn */
-	ib_uint64_t*	contiguous_lsn,	/*!< in/out: it is known that all log
+	lsn_t		start_lsn,	/*!< in: buffer start lsn */
+	lsn_t*		contiguous_lsn,	/*!< in/out: it is known that all log
 					groups contain contiguous log data up
 					to this lsn */
-	ib_uint64_t*	group_scanned_lsn)/*!< out: scanning succeeded up to
+	lsn_t*		group_scanned_lsn)/*!< out: scanning succeeded up to
 					this lsn */
 {
 	const byte*	log_block;
 	ulint		no;
-	ib_uint64_t	scanned_lsn;
+	lsn_t		scanned_lsn;
 	ibool		finished;
 	ulint		data_len;
 	ibool		more_data;
@@ -2689,7 +2766,7 @@ recv_scan_log_recs(
 				    log_block)) {
 				fprintf(stderr,
 					"InnoDB: Log block no %lu at"
-					" lsn %llu has\n"
+					" lsn " LSN_PF " has\n"
 					"InnoDB: ok header, but checksum field"
 					" contains %lu, should be %lu\n",
 					(ulong) no,
@@ -2768,11 +2845,21 @@ recv_scan_log_recs(
 			if (recv_log_scan_is_startup_type
 			    && !recv_needed_recovery) {
 
-				fprintf(stderr,
-					"InnoDB: Log scan progressed"
-					" past the checkpoint lsn %llu\n",
-					recv_sys->scanned_lsn);
-				recv_init_crash_recovery();
+				if (!srv_read_only_mode) {
+					ib_logf(IB_LOG_LEVEL_INFO,
+						"Log scan progressed past the "
+						"checkpoint lsn " LSN_PF "",
+						recv_sys->scanned_lsn);
+
+					recv_init_crash_recovery();
+				} else {
+
+					ib_logf(IB_LOG_LEVEL_WARN,
+						"Recovery skipped, "
+						"--innodb-read-only set!");
+
+					return(TRUE);
+				}
 			}
 #endif /* !UNIV_HOTBACKUP */
 
@@ -2829,7 +2916,7 @@ recv_scan_log_recs(
 
 			fprintf(stderr,
 				"InnoDB: Doing recovery: scanned up to"
-				" log sequence number %llu\n",
+				" log sequence number " LSN_PF "\n",
 				*group_scanned_lsn);
 		}
 	}
@@ -2872,15 +2959,15 @@ void
 recv_group_scan_log_recs(
 /*=====================*/
 	log_group_t*	group,		/*!< in: log group */
-	ib_uint64_t*	contiguous_lsn,	/*!< in/out: it is known that all log
+	lsn_t*		contiguous_lsn,	/*!< in/out: it is known that all log
 					groups contain contiguous log data up
 					to this lsn */
-	ib_uint64_t*	group_scanned_lsn)/*!< out: scanning succeeded up to
+	lsn_t*		group_scanned_lsn)/*!< out: scanning succeeded up to
 					this lsn */
 {
-	ibool		finished;
-	ib_uint64_t	start_lsn;
-	ib_uint64_t	end_lsn;
+	ibool	finished;
+	lsn_t	start_lsn;
+	lsn_t	end_lsn;
 
 	finished = FALSE;
 
@@ -2905,7 +2992,7 @@ recv_group_scan_log_recs(
 	if (log_debug_writes) {
 		fprintf(stderr,
 			"InnoDB: Scanned group %lu up to"
-			" log sequence number %llu\n",
+			" log sequence number " LSN_PF "\n",
 			(ulong) group->id,
 			*group_scanned_lsn);
 	}
@@ -2920,20 +3007,15 @@ void
 recv_init_crash_recovery(void)
 /*==========================*/
 {
+	ut_ad(!srv_read_only_mode);
 	ut_a(!recv_needed_recovery);
 
 	recv_needed_recovery = TRUE;
 
-	ut_print_timestamp(stderr);
-
-	fprintf(stderr,
-		"  InnoDB: Database was not"
-		" shut down normally!\n"
-		"InnoDB: Starting crash recovery.\n");
-
-	fprintf(stderr,
-		"InnoDB: Reading tablespace information"
-		" from the .ibd files...\n");
+	ib_logf(IB_LOG_LEVEL_INFO, "Database was not shutdown normally!");
+	ib_logf(IB_LOG_LEVEL_INFO, "Starting crash recovery.");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"Reading tablespace information from the .ibd files...");
 
 	fil_load_single_table_tablespaces();
 
@@ -2944,12 +3026,18 @@ recv_init_crash_recovery(void)
 
 	if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 
-		fprintf(stderr,
-			"InnoDB: Restoring possible"
-			" half-written data pages from"
-			" the doublewrite\n"
-			"InnoDB: buffer...\n");
-		trx_sys_doublewrite_init_or_restore_pages(TRUE);
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Restoring possible half-written data pages ");
+
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"from the doublewrite buffer...");
+
+		buf_dblwr_init_or_restore_pages(TRUE);
+
+		/* Spawn the background thread to flush dirty pages
+		from the buffer pools. */
+		recv_writer_thread_handle = os_thread_create(
+			recv_writer_thread, 0, 0);
 	}
 }
 
@@ -2960,42 +3048,38 @@ recv_recovery_from_checkpoint_finish should be called later to complete
 the recovery and free the resources used in it.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
-ulint
+dberr_t
 recv_recovery_from_checkpoint_start_func(
 /*=====================================*/
 #ifdef UNIV_LOG_ARCHIVE
-	ulint		type,		/*!< in: LOG_CHECKPOINT or
-					LOG_ARCHIVE */
-	ib_uint64_t	limit_lsn,	/*!< in: recover up to this lsn
-					if possible */
+	ulint	type,		/*!< in: LOG_CHECKPOINT or LOG_ARCHIVE */
+	lsn_t	limit_lsn,	/*!< in: recover up to this lsn if possible */
 #endif /* UNIV_LOG_ARCHIVE */
-	ib_uint64_t	min_flushed_lsn,/*!< in: min flushed lsn from
-					data files */
-	ib_uint64_t	max_flushed_lsn)/*!< in: max flushed lsn from
-					data files */
+	lsn_t	min_flushed_lsn,/*!< in: min flushed lsn from data files */
+	lsn_t	max_flushed_lsn)/*!< in: max flushed lsn from data files */
 {
 	log_group_t*	group;
 	log_group_t*	max_cp_group;
-	log_group_t*	up_to_date_group;
 	ulint		max_cp_field;
 	ulint		log_hdr_log_block_size;
-	ib_uint64_t	checkpoint_lsn;
+	lsn_t		checkpoint_lsn;
 	ib_uint64_t	checkpoint_no;
-	ib_uint64_t	old_scanned_lsn;
-	ib_uint64_t	group_scanned_lsn;
-	ib_uint64_t	contiguous_lsn;
+	lsn_t		group_scanned_lsn = 0;
+	lsn_t		contiguous_lsn;
 #ifdef UNIV_LOG_ARCHIVE
-	ib_uint64_t	archived_lsn;
+	log_group_t*	up_to_date_group;
+	lsn_t		archived_lsn;
 #endif /* UNIV_LOG_ARCHIVE */
 	byte*		buf;
 	byte*		log_hdr_buf;
 	byte		log_hdr_buf_base[LOG_FILE_HDR_SIZE + OS_FILE_LOG_BLOCK_SIZE];
-	ulint		err;
+	dberr_t		err;
 
-	log_hdr_buf = ut_align(log_hdr_buf_base, OS_FILE_LOG_BLOCK_SIZE);
+	log_hdr_buf = static_cast<byte *>
+		(ut_align(log_hdr_buf_base, OS_FILE_LOG_BLOCK_SIZE));
 
 #ifdef UNIV_LOG_ARCHIVE
-	ut_ad(type != LOG_CHECKPOINT || limit_lsn == IB_ULONGLONG_MAX);
+	ut_ad(type != LOG_CHECKPOINT || limit_lsn == LSN_MAX);
 /** TRUE when recovering from a checkpoint */
 # define TYPE_CHECKPOINT	(type == LOG_CHECKPOINT)
 /** Recover up to this log sequence number */
@@ -3004,7 +3088,7 @@ recv_recovery_from_checkpoint_start_func(
 /** TRUE when recovering from a checkpoint */
 # define TYPE_CHECKPOINT	1
 /** Recover up to this log sequence number */
-# define LIMIT_LSN		IB_ULONGLONG_MAX
+# define LIMIT_LSN		LSN_MAX
 #endif /* UNIV_LOG_ARCHIVE */
 
 	if (TYPE_CHECKPOINT) {
@@ -3013,10 +3097,10 @@ recv_recovery_from_checkpoint_start_func(
 	}
 
 	if (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO) {
-		fprintf(stderr,
-			"InnoDB: The user has set SRV_FORCE_NO_LOG_REDO on\n");
-		fprintf(stderr,
-			"InnoDB: Skipping log redo\n");
+
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"The user has set SRV_FORCE_NO_LOG_REDO on, "
+			"skipping log redo");
 
 		return(DB_SUCCESS);
 	}
@@ -3051,30 +3135,37 @@ recv_recovery_from_checkpoint_start_func(
 	/* Read the first log file header to print a note if this is
 	a recovery from a restored InnoDB Hot Backup */
 
-	fil_io(OS_FILE_READ | OS_FILE_LOG, TRUE, max_cp_group->space_id, 0,
+	fil_io(OS_FILE_READ | OS_FILE_LOG, true, max_cp_group->space_id, 0,
 	       0, 0, LOG_FILE_HDR_SIZE,
 	       log_hdr_buf, max_cp_group);
 
 	if (0 == ut_memcmp(log_hdr_buf + LOG_FILE_WAS_CREATED_BY_HOT_BACKUP,
 			   (byte*)"ibbackup", (sizeof "ibbackup") - 1)) {
+
+		if (srv_read_only_mode) {
+
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Cannot restore from ibbackup, InnoDB running "
+				"in read-only mode!");
+
+			return(DB_ERROR);
+		}
+
 		/* This log file was created by ibbackup --restore: print
 		a note to the user about it */
 
-		fprintf(stderr,
-			"InnoDB: The log file was created by"
-			" ibbackup --apply-log at\n"
-			"InnoDB: %s\n",
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"The log file was created by ibbackup --apply-log "
+			"at %s. The following crash recovery is part of a "
+			"normal restore.",
 			log_hdr_buf + LOG_FILE_WAS_CREATED_BY_HOT_BACKUP);
-		fprintf(stderr,
-			"InnoDB: NOTE: the following crash recovery"
-			" is part of a normal restore.\n");
 
 		/* Wipe over the label now */
 
 		memset(log_hdr_buf + LOG_FILE_WAS_CREATED_BY_HOT_BACKUP,
 		       ' ', 4);
 		/* Write to the log file to wipe over the label */
-		fil_io(OS_FILE_WRITE | OS_FILE_LOG, TRUE,
+		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true,
 		       max_cp_group->space_id, 0,
 		       0, 0, OS_FILE_LOG_BLOCK_SIZE,
 		       log_hdr_buf, max_cp_group);
@@ -3086,10 +3177,10 @@ recv_recovery_from_checkpoint_start_func(
 		/* 0 means default value */
 		log_hdr_log_block_size = 512;
 	}
-	if (log_hdr_log_block_size != srv_log_block_size) {
+	if (UNIV_UNLIKELY(log_hdr_log_block_size != srv_log_block_size)) {
 		fprintf(stderr,
-			"InnoDB: Error: The block size of ib_logfile (%lu) "
-			"is not equal to innodb_log_block_size.\n"
+			"InnoDB: Error: The block size of ib_logfile (" ULINTPF
+			") is not equal to innodb_log_block_size.\n"
 			"InnoDB: Error: Suggestion - Recreate log files.\n",
 			log_hdr_log_block_size);
 		return(DB_ERROR);
@@ -3100,8 +3191,10 @@ recv_recovery_from_checkpoint_start_func(
 
 	while (group) {
 		log_checkpoint_get_nth_group_info(buf, group->id,
-						  &(group->archived_file_no),
-						  &(group->archived_offset));
+						  &(group->archived_file_no));
+
+		log_archived_get_offset(group, group->archived_file_no,
+			archived_lsn, &(group->archived_offset));
 
 		group = UT_LIST_GET_NEXT(log_groups, group);
 	}
@@ -3122,9 +3215,9 @@ recv_recovery_from_checkpoint_start_func(
 
 	contiguous_lsn = ut_uint64_align_down(recv_sys->scanned_lsn,
 					      OS_FILE_LOG_BLOCK_SIZE);
+#ifdef UNIV_LOG_ARCHIVE
 	if (TYPE_CHECKPOINT) {
 		up_to_date_group = max_cp_group;
-#ifdef UNIV_LOG_ARCHIVE
 	} else {
 		ulint	capacity;
 
@@ -3160,8 +3253,8 @@ recv_recovery_from_checkpoint_start_func(
 
 		group->scanned_lsn = group_scanned_lsn;
 		up_to_date_group = group;
-#endif /* UNIV_LOG_ARCHIVE */
 	}
+#endif /* UNIV_LOG_ARCHIVE */
 
 	ut_ad(RECV_SCAN_SIZE <= log_sys->buf_size);
 
@@ -3176,19 +3269,21 @@ recv_recovery_from_checkpoint_start_func(
 	/* Set the flag to publish that we are doing startup scan. */
 	recv_log_scan_is_startup_type = TYPE_CHECKPOINT;
 	while (group) {
-		old_scanned_lsn = recv_sys->scanned_lsn;
+#ifdef UNIV_LOG_ARCHIVE
+		lsn_t	old_scanned_lsn	= recv_sys->scanned_lsn;
+#endif /* UNIV_LOG_ARCHIVE */
 
 		recv_group_scan_log_recs(group, &contiguous_lsn,
 					 &group_scanned_lsn);
 		group->scanned_lsn = group_scanned_lsn;
 
+#ifdef UNIV_LOG_ARCHIVE
 		if (old_scanned_lsn < group_scanned_lsn) {
 			/* We found a more up-to-date group */
 
 			up_to_date_group = group;
 		}
 
-#ifdef UNIV_LOG_ARCHIVE
 		if ((type == LOG_ARCHIVE)
 		    && (group == recv_sys->archive_group)) {
 			group = UT_LIST_GET_NEXT(log_groups, group);
@@ -3209,69 +3304,63 @@ recv_recovery_from_checkpoint_start_func(
 		    || checkpoint_lsn != min_flushed_lsn) {
 
 			if (checkpoint_lsn < max_flushed_lsn) {
-				fprintf(stderr,
-					"InnoDB: #########################"
-					"#################################\n"
-					"InnoDB:                          "
-					"WARNING!\n"
-					"InnoDB: The log sequence number"
-					" in ibdata files is higher\n"
-					"InnoDB: than the log sequence number"
-					" in the ib_logfiles! Are you sure\n"
-					"InnoDB: you are using the right"
-					" ib_logfiles to start up"
-					" the database?\n"
-					"InnoDB: Log sequence number in"
-					" ib_logfiles is %llu, log\n"
-					"InnoDB: sequence numbers stamped"
-					" to ibdata file headers are between\n"
-					"InnoDB: %llu and %llu.\n"
-					"InnoDB: #########################"
-					"#################################\n",
+
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"The log sequence number "
+					"in the ibdata files is higher "
+					"than the log sequence number "
+					"in the ib_logfiles! Are you sure "
+					"you are using the right "
+					"ib_logfiles to start up the database. "
+					"Log sequence number in the "
+					"ib_logfiles is " LSN_PF ", log"
+					"sequence numbers stamped "
+					"to ibdata file headers are between "
+					"" LSN_PF " and " LSN_PF ".",
 					checkpoint_lsn,
 					min_flushed_lsn,
 					max_flushed_lsn);
 			}
 
 			if (!recv_needed_recovery) {
-				fprintf(stderr,
-					"InnoDB: The log sequence number"
-					" in ibdata files does not match\n"
-					"InnoDB: the log sequence number"
-					" in the ib_logfiles!\n");
-				recv_init_crash_recovery();
+				ib_logf(IB_LOG_LEVEL_INFO,
+					"The log sequence numbers "
+					LSN_PF " and " LSN_PF
+					" in ibdata files do not match"
+					" the log sequence number "
+					LSN_PF
+					" in the ib_logfiles!",
+					min_flushed_lsn,
+					max_flushed_lsn,
+					checkpoint_lsn);
+
+				if (!srv_read_only_mode) {
+					recv_init_crash_recovery();
+				} else {
+					ib_logf(IB_LOG_LEVEL_ERROR,
+						"Can't initiate database "
+						"recovery, running "
+						"in read-only-mode.");
+					return(DB_READ_ONLY);
+				}
 			}
 		}
 
-		if (!recv_needed_recovery) {
+		if (!recv_needed_recovery && !srv_read_only_mode) {
 			/* Init the doublewrite buffer memory structure */
-			trx_sys_doublewrite_init_or_restore_pages(FALSE);
+			buf_dblwr_init_or_restore_pages(FALSE);
 		}
 	}
 
 	/* We currently have only one log group */
-	if (group_scanned_lsn < checkpoint_lsn) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"  InnoDB: ERROR: We were only able to scan the log"
-			" up to\n"
-			"InnoDB: %llu, but a checkpoint was at %llu.\n"
-			"InnoDB: It is possible that"
-			" the database is now corrupt!\n",
-			group_scanned_lsn,
-			checkpoint_lsn);
-	}
-
-	if (group_scanned_lsn < recv_max_page_lsn) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"  InnoDB: ERROR: We were only able to scan the log"
-			" up to %llu\n"
-			"InnoDB: but a database page a had an lsn %llu."
-			" It is possible that the\n"
-			"InnoDB: database is now corrupt!\n",
-			group_scanned_lsn,
-			recv_max_page_lsn);
+	if (group_scanned_lsn < checkpoint_lsn
+	    || group_scanned_lsn < recv_max_page_lsn) {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"We scanned the log up to "
+			LSN_PF ". A checkpoint was at " LSN_PF
+			" and the maximum LSN on a database page was " LSN_PF
+			". It is possible that the database is now corrupt!",
+			group_scanned_lsn, checkpoint_lsn, recv_max_page_lsn);
 	}
 
 	if (recv_sys->recovered_lsn < checkpoint_lsn) {
@@ -3283,7 +3372,10 @@ recv_recovery_from_checkpoint_start_func(
 			return(DB_SUCCESS);
 		}
 
-		ut_error;
+		/* No harm in trying to do RO access. */
+		if (!srv_read_only_mode) {
+			ut_error;
+		}
 
 		return(DB_ERROR);
 	}
@@ -3296,9 +3388,11 @@ recv_recovery_from_checkpoint_start_func(
 
 #ifdef UNIV_LOG_ARCHIVE
 	log_sys->archived_lsn = archived_lsn;
-#endif /* UNIV_LOG_ARCHIVE */
 
 	recv_synchronize_groups(up_to_date_group);
+#else /* UNIV_LOG_ARCHIVE */
+	recv_synchronize_groups();
+#endif /* UNIV_LOG_ARCHIVE */
 
 	if (!recv_needed_recovery) {
 		ut_a(checkpoint_lsn == recv_sys->recovered_lsn);
@@ -3317,22 +3411,25 @@ recv_recovery_from_checkpoint_start_func(
 
 	log_sys->last_checkpoint_lsn = checkpoint_lsn;
 
+	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
+		    log_sys->lsn - log_sys->last_checkpoint_lsn);
+
 	log_sys->next_checkpoint_no = checkpoint_no + 1;
 
 #ifdef UNIV_LOG_ARCHIVE
-	if (archived_lsn == IB_ULONGLONG_MAX) {
+	if (archived_lsn == LSN_MAX) {
 
 		log_sys->archiving_state = LOG_ARCH_OFF;
 	}
 #endif /* UNIV_LOG_ARCHIVE */
 
-	mutex_enter(&(recv_sys->mutex));
+	mutex_enter(&recv_sys->mutex);
 
 	recv_sys->apply_log_recs = TRUE;
 
-	mutex_exit(&(recv_sys->mutex));
+	mutex_exit(&recv_sys->mutex);
 
-	mutex_exit(&(log_sys->mutex));
+	mutex_exit(&log_sys->mutex);
 
 	recv_lsn_checks_on = TRUE;
 
@@ -3360,96 +3457,7 @@ recv_recovery_from_checkpoint_finish(void)
 		recv_apply_hashed_log_recs(TRUE);
 	}
 
-#ifdef UNIV_DEBUG
-	if (log_debug_writes) {
-		fprintf(stderr,
-			"InnoDB: Log records applied to the database\n");
-	}
-#endif /* UNIV_DEBUG */
-
-	if (recv_needed_recovery && srv_recovery_stats) {
-		ulint	flush_list_len = 0;
-		ulint	i;
-
-		fprintf(stderr,
-			"InnoDB: Log records have been applied. The statistics that were gathered follow.\n");
-
-		fprintf(stderr,
-			"============================================================\n"
-			"-------------------\n"
-			"RECOVERY STATISTICS\n"
-			"-------------------\n");
-		fprintf(stderr,
-			"Recovery time: %g sec. (%lu turns)\n",
-			difftime(time(NULL), recv_sys->stats_recv_start_time),
-			recv_sys->stats_recv_turns);
-
-		for (i = 0; i < srv_buf_pool_instances; i++) {
-			buf_pool_t*	buf_pool;
-
-			buf_pool = buf_pool_from_array(i);
-			flush_list_len += UT_LIST_GET_LEN(buf_pool->flush_list);
-		}
-		fprintf(stderr,
-			"\n"
-			"Data page IO statistics\n"
-			"  Requested pages: %lu\n"
-			"  Read pages:      %lu\n"
-			"  Written pages:   %lu\n"
-			"  (Dirty blocks):  %lu\n",
-			recv_sys->stats_read_requested_pages,
-			recv_sys->stats_read_io_pages,
-			recv_sys->stats_write_io_pages,
-			flush_list_len);
-
-		fprintf(stderr,
-			"  Grouping IO [times]:\n"
-			"\tnumber of pages,\n"
-			"\t\tread request neighbors (in %d pages chunk),\n"
-			"\t\t\tcombined read IO,\n"
-			"\t\t\t\tcombined write IO\n",
-			RECV_READ_AHEAD_AREA);
-		for (i = 0; i < ut_max(RECV_READ_AHEAD_AREA,
-					OS_AIO_MERGE_N_CONSECUTIVE); i++) {
-			fprintf(stderr,
-				"\t%3lu,\t%lu,\t%lu,\t%lu\n", i + 1,
-				(i < RECV_READ_AHEAD_AREA) ?
-					recv_sys->stats_read_in_area[i] : 0,
-				(i < OS_AIO_MERGE_N_CONSECUTIVE) ?
-					recv_sys->stats_read_io_consecutive[i] : 0,
-				(i < OS_AIO_MERGE_N_CONSECUTIVE) ?
-					recv_sys->stats_write_io_consecutive[i] : 0);
-		}
-
-		fprintf(stderr,
-			"\n"
-			"Recovery process statistics\n"
-			"  Checked pages by doublewrite buffer: %lu\n"
-			"  Overwritten pages from doublewrite:  %lu\n"
-			"  Recovered pages by io_thread:        %lu\n"
-			"  Recovered pages by main thread:      %lu\n"
-			"  Parsed log records to apply:         %lu\n"
-			"            Sum of the length:         %lu\n"
-			"  Applied log records:                 %lu\n"
-			"            Sum of the length:         %lu\n"
-			"  Pages which are already new enough:  %lu (It may not be accurate, if turns > 1)\n"
-			"  Oldest page's LSN:                   %llu\n"
-			"  Newest page's LSN:                   %llu\n",
-			recv_sys->stats_doublewrite_check_pages,
-			recv_sys->stats_doublewrite_overwrite_pages,
-			recv_sys->stats_recover_pages_with_read,
-			recv_sys->stats_recover_pages_without_read,
-			recv_sys->stats_log_recs,
-			recv_sys->stats_log_len_sum,
-			recv_sys->stats_applied_log_recs,
-			recv_sys->stats_applied_log_len_sum,
-			recv_sys->stats_pages_already_new,
-			recv_sys->stats_oldest_modified_lsn,
-			recv_sys->stats_newest_modified_lsn);
-
-		fprintf(stderr,
-			"============================================================\n");
-	}
+	DBUG_PRINT("ib_log", ("apply completed"));
 
 	if (recv_needed_recovery) {
 		trx_sys_print_mysql_master_log_pos();
@@ -3472,9 +3480,39 @@ recv_recovery_from_checkpoint_finish(void)
 			"InnoDB: a backup!\n");
 	}
 
-	/* Free the resources of the recovery system */
+	/* Make sure that the recv_writer thread is done. This is
+	required because it grabs various mutexes and we want to
+	ensure that when we enable sync_order_checks there is no
+	mutex currently held by any thread. */
+	mutex_enter(&recv_sys->writer_mutex);
 
+	/* Free the resources of the recovery system */
 	recv_recovery_on = FALSE;
+
+	/* By acquring the mutex we ensure that the recv_writer thread
+	won't trigger any more LRU batchtes. Now wait for currently
+	in progress batches to finish. */
+	buf_flush_wait_LRU_batch_end();
+
+	mutex_exit(&recv_sys->writer_mutex);
+
+	ulint count = 0;
+	while (recv_writer_thread_active) {
+		++count;
+		os_thread_sleep(100000);
+		if (srv_print_verbose_log && count > 600) {
+			ib_logf(IB_LOG_LEVEL_INFO,
+				"Waiting for recv_writer to "
+				"finish flushing of buffer pool");
+			count = 0;
+		}
+	}
+
+#ifdef __WIN__
+	if (recv_writer_thread_handle) {
+		CloseHandle(recv_writer_thread_handle);
+	}
+#endif /* __WIN__ */
 
 #ifndef UNIV_LOG_DEBUG
 	recv_sys_debug_free();
@@ -3483,7 +3521,9 @@ recv_recovery_from_checkpoint_finish(void)
 	that the data dictionary tables will be free of any locks.
 	The data dictionary latch should guarantee that there is at
 	most one data dictionary transaction active at a time. */
-	trx_rollback_or_clean_recovered(FALSE);
+	if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+		trx_rollback_or_clean_recovered(FALSE);
+	}
 }
 
 /********************************************************//**
@@ -3493,27 +3533,37 @@ void
 recv_recovery_rollback_active(void)
 /*===============================*/
 {
-	int		i;
-
 #ifdef UNIV_SYNC_DEBUG
 	/* Wait for a while so that created threads have time to suspend
 	themselves before we switch the latching order checks on */
 	os_thread_sleep(1000000);
 
-	/* Switch latching order checks on in sync0sync.c */
+	ut_ad(!recv_writer_thread_active);
+
+	/* Switch latching order checks on in sync0sync.cc */
 	sync_order_checks_on = TRUE;
 #endif
-	/* Drop partially created indexes. */
-	row_merge_drop_temp_indexes();
-	/* Drop temporary tables. */
-	row_mysql_drop_temp_tables();
+	/* We can't start any (DDL) transactions if UNDO logging
+	has been disabled, additionally disable ROLLBACK of recovered
+	user transactions. */
+	if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
+	    && !srv_read_only_mode) {
 
-	if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+		/* Drop partially created indexes. */
+		row_merge_drop_temp_indexes();
+		/* Drop temporary tables. */
+		row_mysql_drop_temp_tables();
+
+		/* Drop any auxiliary tables that were not dropped when the
+		parent table was dropped. This can happen if the parent table
+		was dropped but the server crashed before the auxiliary tables
+		were dropped. */
+		fts_drop_orphaned_tables();
+
 		/* Rollback the uncommitted transactions which have no user
 		session */
 
-		os_thread_create(trx_rollback_or_clean_all_recovered,
-				 (void *)&i, NULL);
+		os_thread_create(trx_rollback_or_clean_all_recovered, 0, 0);
 	}
 }
 
@@ -3523,18 +3573,18 @@ UNIV_INTERN
 void
 recv_reset_logs(
 /*============*/
-	ib_uint64_t	lsn,		/*!< in: reset to this lsn
+#ifdef UNIV_LOG_ARCHIVE
+	ulint		arch_log_no,	/*!< in: next archived log file number */
+	ibool		new_logs_created,/*!< in: TRUE if resetting logs
+					is done at the log creation;
+					FALSE if it is done after
+					archive recovery */
+#endif /* UNIV_LOG_ARCHIVE */
+	lsn_t		lsn)		/*!< in: reset to this lsn
 					rounded up to be divisible by
 					OS_FILE_LOG_BLOCK_SIZE, after
 					which we add
 					LOG_BLOCK_HDR_SIZE */
-#ifdef UNIV_LOG_ARCHIVE
-	ulint		arch_log_no,	/*!< in: next archived log file number */
-#endif /* UNIV_LOG_ARCHIVE */
-	ibool		new_logs_created)/*!< in: TRUE if resetting logs
-					is done at the log creation;
-					FALSE if it is done after
-					archive recovery */
 {
 	log_group_t*	group;
 
@@ -3550,12 +3600,12 @@ recv_reset_logs(
 #ifdef UNIV_LOG_ARCHIVE
 		group->archived_file_no = arch_log_no;
 		group->archived_offset = 0;
-#endif /* UNIV_LOG_ARCHIVE */
 
 		if (!new_logs_created) {
 			recv_truncate_group(group, group->lsn, group->lsn,
 					    group->lsn, group->lsn);
 		}
+#endif /* UNIV_LOG_ARCHIVE */
 
 		group = UT_LIST_GET_NEXT(log_groups, group);
 	}
@@ -3579,12 +3629,14 @@ recv_reset_logs(
 	log_sys->buf_free = LOG_BLOCK_HDR_SIZE;
 	log_sys->lsn += LOG_BLOCK_HDR_SIZE;
 
+	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
+		    (log_sys->lsn - log_sys->last_checkpoint_lsn));
+
 	mutex_exit(&(log_sys->mutex));
 
 	/* Reset the checkpoint fields in logs */
 
-	log_make_checkpoint_at(IB_ULONGLONG_MAX, TRUE);
-	log_make_checkpoint_at(IB_ULONGLONG_MAX, TRUE);
+	log_make_checkpoint_at(LSN_MAX, TRUE);
 
 	mutex_enter(&(log_sys->mutex));
 }
@@ -3599,8 +3651,8 @@ recv_reset_log_files_for_backup(
 /*============================*/
 	const char*	log_dir,	/*!< in: log file directory path */
 	ulint		n_log_files,	/*!< in: number of log files */
-	ulint		log_file_size,	/*!< in: log file size */
-	ib_uint64_t	lsn)		/*!< in: new start lsn, must be
+	lsn_t		log_file_size,	/*!< in: log file size */
+	lsn_t		lsn)		/*!< in: new start lsn, must be
 					divisible by OS_FILE_LOG_BLOCK_SIZE */
 {
 	os_file_t	log_file;
@@ -3623,7 +3675,7 @@ recv_reset_log_files_for_backup(
 	for (i = 0; i < n_log_files; i++) {
 
 		sprintf(name, "%s%s%lu", log_dir,
-			ib_logfile_basename, (ulong)i);
+			ib_logfile_basename, (ulong) i);
 
 		log_file = os_file_create_simple(innodb_file_log_key,
 						 name, OS_FILE_CREATE,
@@ -3638,23 +3690,19 @@ recv_reset_log_files_for_backup(
 		}
 
 		fprintf(stderr,
-			"Setting log file size to %lu %lu\n",
-			(ulong) ut_get_high32(log_file_size),
-			(ulong) log_file_size & 0xFFFFFFFFUL);
+			"Setting log file size to %llu\n",
+			log_file_size);
 
-		success = os_file_set_size(name, log_file,
-					   log_file_size & 0xFFFFFFFFUL,
-					   ut_get_high32(log_file_size));
+		success = os_file_set_size(name, log_file, log_file_size);
 
 		if (!success) {
 			fprintf(stderr,
-				"InnoDB: Cannot set %s size to %lu %lu\n",
-				name, (ulong) ut_get_high32(log_file_size),
-				(ulong) (log_file_size & 0xFFFFFFFFUL));
+				"InnoDB: Cannot set %s size to %llu\n",
+				name, log_file_size);
 			exit(1);
 		}
 
-		os_file_flush(log_file, TRUE);
+		os_file_flush(log_file);
 		os_file_close(log_file);
 	}
 
@@ -3676,9 +3724,9 @@ recv_reset_log_files_for_backup(
 		exit(1);
 	}
 
-	os_file_write(name, log_file, buf, 0, 0,
+	os_file_write(name, log_file, buf, 0,
 		      LOG_FILE_HDR_SIZE + OS_FILE_LOG_BLOCK_SIZE);
-	os_file_flush(log_file, TRUE);
+	os_file_flush(log_file);
 	os_file_close(log_file);
 
 	ut_free(buf);
@@ -3686,7 +3734,6 @@ recv_reset_log_files_for_backup(
 #endif /* UNIV_HOTBACKUP */
 
 #ifdef UNIV_LOG_ARCHIVE
-/* Dead code */
 /******************************************************//**
 Reads from the archive of a log group and performs recovery.
 @return	TRUE if no more complete consistent archive files */
@@ -3704,11 +3751,10 @@ log_group_recover_from_archive_file(
 	ulint		len;
 	ibool		ret;
 	byte*		buf;
-	ulint		read_offset;
-	ulint		file_size;
-	ulint		file_size_high;
+	os_offset_t	read_offset;
+	os_offset_t	file_size;
 	int		input_char;
-	char		name[10000];
+	char		name[OS_FILE_MAX_PATH];
 
 	ut_a(0);
 
@@ -3717,7 +3763,8 @@ try_open_again:
 
 	/* Add the file to the archive file space; open the file */
 
-	log_archived_file_name_gen(name, group->id, group->archived_file_no);
+	log_archived_file_name_gen(name, sizeof(name),
+				   group->id, group->archived_file_no);
 
 	file_handle = os_file_create(innodb_file_log_key,
 				     name, OS_FILE_OPEN,
@@ -3748,10 +3795,8 @@ ask_again:
 		}
 	}
 
-	ret = os_file_get_size(file_handle, &file_size, &file_size_high);
-	ut_a(ret);
-
-	ut_a(file_size_high == 0);
+	file_size = os_file_get_size(file_handle);
+	ut_a(file_size != (os_offset_t) -1);
 
 	fprintf(stderr, "InnoDB: Opened archived log file %s\n", name);
 
@@ -3768,20 +3813,19 @@ ask_again:
 
 	/* Add the archive file as a node to the space */
 
-	fil_node_create(name, 1 + file_size / UNIV_PAGE_SIZE,
-			group->archive_space_id, FALSE);
-#if RECV_SCAN_SIZE < LOG_FILE_HDR_SIZE
-# error "RECV_SCAN_SIZE < LOG_FILE_HDR_SIZE"
-#endif
+	ut_a(fil_node_create(name, 1 + file_size / UNIV_PAGE_SIZE,
+			     group->archive_space_id, FALSE));
+	ut_a(RECV_SCAN_SIZE >= LOG_FILE_HDR_SIZE);
 
 	/* Read the archive file header */
-	fil_io(OS_FILE_READ | OS_FILE_LOG, TRUE, group->archive_space_id, 0, 0,
+	fil_io(OS_FILE_READ | OS_FILE_LOG, true, group->archive_space_id, 0,
+	       0, 0,
 	       LOG_FILE_HDR_SIZE, buf, NULL);
 
 	/* Check if the archive file header is consistent */
 
 	if (mach_read_from_4(buf + LOG_GROUP_ID) != group->id
-	    || mach_read_from_4(buf + LOG_FILE_NO)
+	    || mach_read_from_8(buf + LOG_FILE_START_LSN)
 	    != group->archived_file_no) {
 		fprintf(stderr,
 			"InnoDB: Archive file header inconsistent %s\n", name);
@@ -3841,14 +3885,15 @@ ask_again:
 		if (log_debug_writes) {
 			fprintf(stderr,
 				"InnoDB: Archive read starting at"
-				" lsn %llu, len %lu from file %s\n",
+				" lsn " LSN_PF ", len %lu from file %s\n",
 				start_lsn,
 				(ulong) len, name);
 		}
 #endif /* UNIV_DEBUG */
 
-		fil_io(OS_FILE_READ | OS_FILE_LOG, TRUE,
-		       group->archive_space_id, read_offset / UNIV_PAGE_SIZE,
+		fil_io(OS_FILE_READ | OS_FILE_LOG, true,
+		       group->archive_space_id, 0,
+		       read_offset / UNIV_PAGE_SIZE,
 		       read_offset % UNIV_PAGE_SIZE, len, buf, NULL);
 
 		ret = recv_scan_log_recs(
@@ -3883,14 +3928,14 @@ ask_again:
 Recovers from archived log files, and also from log files, if they exist.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
-ulint
+dberr_t
 recv_recovery_from_archive_start(
 /*=============================*/
 	ib_uint64_t	min_flushed_lsn,/*!< in: min flushed lsn field from the
 					data files */
 	ib_uint64_t	limit_lsn,	/*!< in: recover up to this lsn if
 					possible */
-	ulint		first_log_no)	/*!< in: number of the first archived
+	lsn_t		first_log_no)	/*!< in: number of the first archived
 					log file to use in the recovery; the
 					file will be searched from
 					INNOBASE_LOG_ARCH_DIR specified in
@@ -3900,7 +3945,7 @@ recv_recovery_from_archive_start(
 	ulint		group_id;
 	ulint		trunc_len;
 	ibool		ret;
-	ulint		err;
+	dberr_t		err;
 
 	ut_a(0);
 
@@ -3959,7 +4004,7 @@ recv_recovery_from_archive_start(
 						 trunc_len);
 		}
 
-		group->archived_file_no++;
+		group->archived_file_no += group->file_size - LOG_FILE_HDR_SIZE;
 	}
 
 	if (recv_sys->recovered_lsn < limit_lsn) {
@@ -3973,8 +4018,8 @@ recv_recovery_from_archive_start(
 
 		err = recv_recovery_from_checkpoint_start(LOG_ARCHIVE,
 							  limit_lsn,
-							  IB_ULONGLONG_MAX,
-							  IB_ULONGLONG_MAX);
+							  LSN_MAX,
+							  LSN_MAX);
 		if (err != DB_SUCCESS) {
 
 			return(err);
@@ -3983,11 +4028,11 @@ recv_recovery_from_archive_start(
 		mutex_enter(&(log_sys->mutex));
 	}
 
-	if (limit_lsn != IB_ULONGLONG_MAX) {
+	if (limit_lsn != LSN_MAX) {
 
 		recv_apply_hashed_log_recs(FALSE);
 
-		recv_reset_logs(recv_sys->recovered_lsn, 0, FALSE);
+		recv_reset_logs(0, FALSE, recv_sys->recovered_lsn);
 	}
 
 	mutex_exit(&(log_sys->mutex));

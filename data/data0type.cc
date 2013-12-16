@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /**************************************************//**
-@file data/data0type.c
+@file data/data0type.cc
 Data types
 
 Created 1/16/1996 Heikki Tuuri
@@ -158,7 +158,7 @@ dtype_form_prtype(
 	ulint	charset_coll)	/*!< in: MySQL charset-collation code */
 {
 	ut_a(old_prtype < 256 * 256);
-	ut_a(charset_coll < 256);
+	ut_a(charset_coll <= MAX_CHAR_COLL_NUM);
 
 	return(old_prtype + (charset_coll << 16));
 }

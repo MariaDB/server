@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1995, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /**************************************************//**
-@file os/os0proc.c
+@file os/os0proc.cc
 The interface to the operating system
 process control primitives
 
@@ -71,7 +71,7 @@ os_proc_get_number(void)
 #ifdef __WIN__
 	return((ulint)GetCurrentProcessId());
 #else
-	return((ulint)getpid());
+	return((ulint) getpid());
 #endif
 }
 
@@ -118,14 +118,14 @@ os_mem_alloc_large(
 	size = ut_2pow_round(*n + (os_large_page_size - 1),
 			     os_large_page_size);
 
-	shmid = shmget(IPC_PRIVATE, (size_t)size, SHM_HUGETLB | SHM_R | SHM_W);
+	shmid = shmget(IPC_PRIVATE, (size_t) size, SHM_HUGETLB | SHM_R | SHM_W);
 	if (shmid < 0) {
 		fprintf(stderr, "InnoDB: HugeTLB: Warning: Failed to allocate"
 			" %lu bytes. errno %d\n", size, errno);
 		ptr = NULL;
 	} else {
 		ptr = shmat(shmid, NULL, 0);
-		if (ptr == (void *)-1) {
+		if (ptr == (void*)-1) {
 			fprintf(stderr, "InnoDB: HugeTLB: Warning: Failed to"
 				" attach shared memory segment, errno %d\n",
 				errno);
@@ -265,7 +265,11 @@ os_mem_free_large(
 #elif !defined OS_MAP_ANON
 	ut_free(ptr);
 #else
+# if defined(UNIV_SOLARIS)
+	if (munmap(static_cast<caddr_t>(ptr), size)) {
+# else
 	if (munmap(ptr, size)) {
+# endif /* UNIV_SOLARIS */
 		fprintf(stderr, "InnoDB: munmap(%p, %lu) failed;"
 			" errno %lu\n",
 			ptr, (ulong) size, (ulong) errno);

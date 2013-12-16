@@ -1,12 +1,6 @@
 /***************************************************************************//**
 
-Copyright (c) 2007, 2010, Innobase Oy. All Rights Reserved.
-
-Portions of this file contain modifications contributed and copyrighted by
-Sun Microsystems, Inc. Those modifications are gratefully acknowledged and
-are described briefly in the InnoDB documentation. The contributions by
-Sun Microsystems are incorporated with their permission, and subject to the
-conditions contained in the file COPYING.Sun_Microsystems.
+Copyright (c) 2007, 2010, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -17,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 /********************************************************************//**
@@ -89,8 +83,21 @@ rbt_check_ordering(
 	/* Iterate over all the nodes, comparing each node with the prev */
 	for (node = rbt_first(tree); node; node = rbt_next(tree, prev)) {
 
-		if (prev && tree->compare(prev->value, node->value) >= 0) {
-			return(FALSE);
+		if (prev) {
+			int	result;
+
+			if (tree->cmp_arg) {
+				result = tree->compare_with_arg(
+					tree->cmp_arg, prev->value,
+					node->value);
+			} else {
+				result = tree->compare(
+					prev->value, node->value);
+			}
+
+			if (result >= 0) {
+				return(FALSE);
+			}
 		}
 
 		prev = node;
@@ -266,7 +273,13 @@ rbt_tree_insert(
 	while (current != tree->nil) {
 
 		parent.last = current;
-		parent.result = tree->compare(key, current->value);
+
+		if (tree->cmp_arg) {
+			parent.result = tree->compare_with_arg(
+				tree->cmp_arg, key, current->value);
+		} else {
+			parent.result = tree->compare(key, current->value);
+		}
 
 		if (parent.result < 0) {
 			current = current->left;
@@ -439,7 +452,7 @@ rbt_find_predecessor(
 		ib_rbt_node_t*	parent = current->parent;
 
 		/* Cast away the const. */
-		prev = (ib_rbt_node_t*)current;
+		prev = (ib_rbt_node_t*) current;
 
 		while (parent != tree->root && prev == parent->left) {
 			prev = parent;
@@ -749,6 +762,30 @@ rbt_free(
 }
 
 /**********************************************************************//**
+Create an instance of a red black tree, whose comparison function takes
+an argument
+@return	an empty rb tree */
+UNIV_INTERN
+ib_rbt_t*
+rbt_create_arg_cmp(
+/*===============*/
+	size_t		sizeof_value,		/*!< in: sizeof data item */
+	ib_rbt_arg_compare
+			compare,		/*!< in: fn to compare items */
+	void*		cmp_arg)		/*!< in: compare fn arg */
+{
+	ib_rbt_t*       tree;
+
+	ut_a(cmp_arg);
+
+	tree = rbt_create(sizeof_value, NULL);
+	tree->cmp_arg = cmp_arg;
+	tree->compare_with_arg = compare;
+
+	return(tree);
+}
+
+/**********************************************************************//**
 Create an instance of a red black tree.
 @return	an empty rb tree */
 UNIV_INTERN
@@ -856,7 +893,7 @@ rbt_add_preallocated_node(
 	}
 
 	/* Append the node, the hope here is that the caller knows
-	   what s/he is doing. */
+	what s/he is doing. */
 	rbt_tree_add_child(tree, parent, node);
 	rbt_balance_tree(tree, node);
 
@@ -883,7 +920,14 @@ rbt_lookup(
 
 	/* Regular binary search. */
 	while (current != tree->nil) {
-		int	result = tree->compare(key, current->value);
+		int	result;
+
+		if (tree->cmp_arg) {
+			result = tree->compare_with_arg(
+				tree->cmp_arg, key, current->value);
+		} else {
+			result = tree->compare(key, current->value);
+		}
 
 		if (result < 0) {
 			current = current->left;
@@ -958,7 +1002,14 @@ rbt_lower_bound(
 	ib_rbt_node_t*	current = ROOT(tree);
 
 	while (current != tree->nil) {
-		int result = tree->compare(key, current->value);
+		int	result;
+
+		if (tree->cmp_arg) {
+			result = tree->compare_with_arg(
+				tree->cmp_arg, key, current->value);
+		} else {
+			result = tree->compare(key, current->value);
+		}
 
 		if (result > 0) {
 
@@ -992,7 +1043,14 @@ rbt_upper_bound(
 	ib_rbt_node_t*	current = ROOT(tree);
 
 	while (current != tree->nil) {
-		int result = tree->compare(key, current->value);
+		int	result;
+
+		if (tree->cmp_arg) {
+			result = tree->compare_with_arg(
+				tree->cmp_arg, key, current->value);
+		} else {
+			result = tree->compare(key, current->value);
+		}
 
 		if (result > 0) {
 
@@ -1032,7 +1090,13 @@ rbt_search(
 	while (current != tree->nil) {
 
 		parent->last = current;
-		parent->result = tree->compare(key, current->value);
+
+		if (tree->cmp_arg) {
+			parent->result = tree->compare_with_arg(
+				tree->cmp_arg, key, current->value);
+		} else {
+			parent->result = tree->compare(key, current->value);
+		}
 
 		if (parent->result > 0) {
 			current = current->right;
@@ -1057,7 +1121,10 @@ rbt_search_cmp(
 	const ib_rbt_t*	tree,			/*!< in: rb tree */
 	ib_rbt_bound_t*	parent,			/*!< in: search bounds */
 	const void*	key,			/*!< in: key to search */
-	ib_rbt_compare	compare)		/*!< in: fn to compare items */
+	ib_rbt_compare	compare,		/*!< in: fn to compare items */
+	ib_rbt_arg_compare
+			arg_compare)		/*!< in: fn to compare items
+						with argument */
 {
 	ib_rbt_node_t*	current = ROOT(tree);
 
@@ -1068,7 +1135,14 @@ rbt_search_cmp(
 	while (current != tree->nil) {
 
 		parent->last = current;
-		parent->result = compare(key, current->value);
+
+		if (arg_compare) {
+			ut_ad(tree->cmp_arg);
+			parent->result = arg_compare(
+				tree->cmp_arg, key, current->value);
+		} else {
+			parent->result = compare(key, current->value);
+		}
 
 		if (parent->result > 0) {
 			current = current->right;
@@ -1224,7 +1298,7 @@ rbt_merge_uniq_destructive(
 	for (src_node = (ib_rbt_node_t*) rbt_first(src); src_node; /* */) {
 		ib_rbt_node_t*	prev = src_node;
 
-		src_node = (ib_rbt_node_t*)rbt_next(src, prev);
+		src_node = (ib_rbt_node_t*) rbt_next(src, prev);
 
 		/* Skip duplicates. */
 		if (rbt_search(dst, &parent, prev->value) != 0) {

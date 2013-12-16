@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1995, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -23,6 +23,8 @@ to the machine format.
 
 Created 11/28/1995 Heikki Tuuri
 ***********************************************************************/
+
+#ifndef UNIV_INNOCHECKSUM
 
 #include "ut0mem.h"
 
@@ -38,7 +40,7 @@ mach_write_to_1(
 	ut_ad(b);
 	ut_ad((n | 0xFFUL) <= 0xFFUL);
 
-	b[0] = (byte)n;
+	b[0] = (byte) n;
 }
 
 /********************************************************//**
@@ -69,19 +71,6 @@ mach_write_to_2(
 
 	b[0] = (byte)(n >> 8);
 	b[1] = (byte)(n);
-}
-
-/********************************************************//**
-The following function is used to fetch data from 2 consecutive
-bytes. The most significant byte is at the lowest address.
-@return	ulint integer */
-UNIV_INLINE
-ulint
-mach_read_from_2(
-/*=============*/
-	const byte*	b)	/*!< in: pointer to 2 bytes */
-{
-	return(((ulint)(b[0]) << 8) | (ulint)(b[1]));
 }
 
 /********************************************************//**
@@ -165,7 +154,22 @@ mach_write_to_4(
 	b[0] = (byte)(n >> 24);
 	b[1] = (byte)(n >> 16);
 	b[2] = (byte)(n >> 8);
-	b[3] = (byte)n;
+	b[3] = (byte) n;
+}
+
+#endif /* !UNIV_INNOCHECKSUM */
+
+/********************************************************//**
+The following function is used to fetch data from 2 consecutive
+bytes. The most significant byte is at the lowest address.
+@return	ulint integer */
+UNIV_INLINE
+ulint
+mach_read_from_2(
+/*=============*/
+	const byte*	b)	/*!< in: pointer to 2 bytes */
+{
+	return(((ulint)(b[0]) << 8) | (ulint)(b[1]));
 }
 
 /********************************************************//**
@@ -185,6 +189,8 @@ mach_read_from_4(
 		| (ulint)(b[3])
 		);
 }
+
+#ifndef UNIV_INNOCHECKSUM
 
 /*********************************************************//**
 Writes a ulint in a compressed form where the first byte codes the
@@ -280,13 +286,13 @@ UNIV_INLINE
 void
 mach_write_to_8(
 /*============*/
-	byte*		b,	/*!< in: pointer to 8 bytes where to store */
+	void*		b,	/*!< in: pointer to 8 bytes where to store */
 	ib_uint64_t	n)	/*!< in: 64-bit integer to be stored */
 {
 	ut_ad(b);
 
-	mach_write_to_4(b, (ulint) (n >> 32));
-	mach_write_to_4(b + 4, (ulint) n);
+	mach_write_to_4(static_cast<byte*>(b), (ulint) (n >> 32));
+	mach_write_to_4(static_cast<byte*>(b) + 4, (ulint) n);
 }
 
 /********************************************************//**
@@ -550,7 +556,7 @@ mach_double_read(
 	ulint	i;
 	byte*	ptr;
 
-	ptr = (byte*)&d;
+	ptr = (byte*) &d;
 
 	for (i = 0; i < sizeof(double); i++) {
 #ifdef WORDS_BIGENDIAN
@@ -575,7 +581,7 @@ mach_double_write(
 	ulint	i;
 	byte*	ptr;
 
-	ptr = (byte*)&d;
+	ptr = (byte*) &d;
 
 	for (i = 0; i < sizeof(double); i++) {
 #ifdef WORDS_BIGENDIAN
@@ -599,7 +605,7 @@ mach_float_read(
 	ulint	i;
 	byte*	ptr;
 
-	ptr = (byte*)&d;
+	ptr = (byte*) &d;
 
 	for (i = 0; i < sizeof(float); i++) {
 #ifdef WORDS_BIGENDIAN
@@ -624,7 +630,7 @@ mach_float_write(
 	ulint	i;
 	byte*	ptr;
 
-	ptr = (byte*)&d;
+	ptr = (byte*) &d;
 
 	for (i = 0; i < sizeof(float); i++) {
 #ifdef WORDS_BIGENDIAN
@@ -648,7 +654,6 @@ mach_read_from_n_little_endian(
 	ulint	n	= 0;
 	const byte*	ptr;
 
-	ut_ad(buf_size <= sizeof(ulint));
 	ut_ad(buf_size > 0);
 
 	ptr = buf + buf_size;
@@ -736,7 +741,7 @@ Convert integral type from storage byte order (big endian) to
 host byte order.
 @return	integer value */
 UNIV_INLINE
-ullint
+ib_uint64_t
 mach_read_int_type(
 /*===============*/
 	const byte*	src,		/*!< in: where to read from */
@@ -771,4 +776,106 @@ mach_read_int_type(
 
 	return(ret);
 }
+/*********************************************************//**
+Swap byte ordering. */
+UNIV_INLINE
+void
+mach_swap_byte_order(
+/*=================*/
+        byte*           dest,           /*!< out: where to write */
+        const byte*     from,           /*!< in: where to read from */
+        ulint           len)            /*!< in: length of src */
+{
+        ut_ad(len > 0);
+        ut_ad(len <= 8);
+
+        dest += len;
+
+        switch (len & 0x7) {
+        case 0: *--dest = *from++;
+        case 7: *--dest = *from++;
+        case 6: *--dest = *from++;
+        case 5: *--dest = *from++;
+        case 4: *--dest = *from++;
+        case 3: *--dest = *from++;
+        case 2: *--dest = *from++;
+        case 1: *--dest = *from;
+        }
+}
+
+/*************************************************************
+Convert integral type from host byte order (big-endian) storage
+byte order. */
+UNIV_INLINE
+void
+mach_write_int_type(
+/*================*/
+	byte*		dest,		/*!< in: where to write */
+	const byte*	src,		/*!< in: where to read from */
+	ulint		len,		/*!< in: length of src */
+	bool		usign)		/*!< in: signed or unsigned flag */
+{
+#ifdef WORDS_BIGENDIAN
+        memcpy(dest, src, len);
+#else
+        mach_swap_byte_order(dest, src, len);
+#endif /* WORDS_BIGENDIAN */
+
+	if (!usign) {
+		*dest ^=  0x80;
+	}
+}
+
+/*************************************************************
+Convert a ulonglong integer from host byte order to (big-endian)
+storage byte order. */
+UNIV_INLINE
+void
+mach_write_ulonglong(
+/*=================*/
+	byte*		dest,		/*!< in: where to write */
+	ulonglong	src,		/*!< in: where to read from */
+	ulint		len,		/*!< in: length of dest */
+	bool		usign)		/*!< in: signed or unsigned flag */
+{
+	byte*		ptr = reinterpret_cast<byte*>(&src);
+
+	ut_ad(len <= sizeof(ulonglong));
+
+#ifdef WORDS_BIGENDIAN
+	memcpy(dest, ptr + (sizeof(src) - len), len);
+#else
+	mach_swap_byte_order(dest, reinterpret_cast<byte*>(ptr), len);
+#endif /* WORDS_BIGENDIAN */
+
+	if (!usign) {
+		*dest ^=  0x80;
+	}
+}
+
+/********************************************************//**
+Reads 1 - 4 bytes from a file page buffered in the buffer pool.
+@return	value read */
+UNIV_INLINE
+ulint
+mach_read_ulint(
+/*============*/
+	const byte*	ptr,	/*!< in: pointer from where to read */
+	ulint		type)	/*!< in: 1,2 or 4 bytes */
+{
+	switch (type) {
+	case 1:
+		return(mach_read_from_1(ptr));
+	case 2:
+		return(mach_read_from_2(ptr));
+	case 4:
+		return(mach_read_from_4(ptr));
+	default:
+		ut_error;
+	}
+
+	return(0);
+}
+
 #endif /* !UNIV_HOTBACKUP */
+#endif /* !UNIV_INNOCHECKSUM */

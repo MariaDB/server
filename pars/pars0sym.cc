@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1997, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /**************************************************//**
-@file pars/pars0sym.c
+@file pars/pars0sym.cc
 SQL parser symbol table
 
 Created 12/15/1997 Heikki Tuuri
@@ -49,7 +49,8 @@ sym_tab_create(
 {
 	sym_tab_t*	sym_tab;
 
-	sym_tab = mem_heap_alloc(heap, sizeof(sym_tab_t));
+	sym_tab = static_cast<sym_tab_t*>(
+		mem_heap_alloc(heap, sizeof(sym_tab_t)));
 
 	UT_LIST_INIT(sym_tab->sym_list);
 	UT_LIST_INIT(sym_tab->func_node_list);
@@ -58,6 +59,7 @@ sym_tab_create(
 
 	return(sym_tab);
 }
+
 
 /******************************************************************//**
 Frees the memory allocated dynamically AFTER parsing phase for variables
@@ -72,9 +74,23 @@ sym_tab_free_private(
 	sym_node_t*	sym;
 	func_node_t*	func;
 
-	sym = UT_LIST_GET_FIRST(sym_tab->sym_list);
+	ut_ad(mutex_own(&dict_sys->mutex));
 
-	while (sym) {
+	for (sym = UT_LIST_GET_FIRST(sym_tab->sym_list);
+	     sym != NULL;
+	     sym = UT_LIST_GET_NEXT(sym_list, sym)) {
+
+		/* Close the tables opened in pars_retrieve_table_def(). */
+
+		if (sym->token_type == SYM_TABLE_REF_COUNTED) {
+
+			dict_table_close(sym->table, TRUE, FALSE);
+
+			sym->table = NULL;
+			sym->resolved = FALSE;
+			sym->token_type = SYM_UNSET;
+		}
+
 		eval_node_free_val_buf(sym);
 
 		if (sym->prefetch_buf) {
@@ -84,16 +100,13 @@ sym_tab_free_private(
 		if (sym->cursor_def) {
 			que_graph_free_recursive(sym->cursor_def);
 		}
-
-		sym = UT_LIST_GET_NEXT(sym_list, sym);
 	}
 
-	func = UT_LIST_GET_FIRST(sym_tab->func_node_list);
+	for (func = UT_LIST_GET_FIRST(sym_tab->func_node_list);
+	     func != NULL;
+	     func = UT_LIST_GET_NEXT(func_node_list, func)) {
 
-	while (func) {
 		eval_node_free_val_buf(func);
-
-		func = UT_LIST_GET_NEXT(func_node_list, func);
 	}
 }
 
@@ -110,10 +123,12 @@ sym_tab_add_int_lit(
 	sym_node_t*	node;
 	byte*		data;
 
-	node = mem_heap_alloc(sym_tab->heap, sizeof(sym_node_t));
+	node = static_cast<sym_node_t*>(
+		mem_heap_alloc(sym_tab->heap, sizeof(sym_node_t)));
 
 	node->common.type = QUE_NODE_SYMBOL;
 
+	node->table = NULL;
 	node->resolved = TRUE;
 	node->token_type = SYM_LIT;
 
@@ -121,7 +136,7 @@ sym_tab_add_int_lit(
 
 	dtype_set(dfield_get_type(&node->common.val), DATA_INT, 0, 4);
 
-	data = mem_heap_alloc(sym_tab->heap, 4);
+	data = static_cast<byte*>(mem_heap_alloc(sym_tab->heap, 4));
 	mach_write_to_4(data, val);
 
 	dfield_set_data(&(node->common.val), data, 4);
@@ -131,6 +146,8 @@ sym_tab_add_int_lit(
 	node->cursor_def = NULL;
 
 	UT_LIST_ADD_LAST(sym_list, sym_tab->sym_list, node);
+
+	node->like_node = NULL;
 
 	node->sym_table = sym_tab;
 
@@ -145,17 +162,19 @@ sym_node_t*
 sym_tab_add_str_lit(
 /*================*/
 	sym_tab_t*	sym_tab,	/*!< in: symbol table */
-	byte*		str,		/*!< in: string with no quotes around
+	const byte*	str,		/*!< in: string with no quotes around
 					it */
 	ulint		len)		/*!< in: string length */
 {
 	sym_node_t*	node;
 	byte*		data;
 
-	node = mem_heap_alloc(sym_tab->heap, sizeof(sym_node_t));
+	node = static_cast<sym_node_t*>(
+		mem_heap_alloc(sym_tab->heap, sizeof(sym_node_t)));
 
 	node->common.type = QUE_NODE_SYMBOL;
 
+	node->table = NULL;
 	node->resolved = TRUE;
 	node->token_type = SYM_LIT;
 
@@ -164,12 +183,8 @@ sym_tab_add_str_lit(
 	dtype_set(dfield_get_type(&node->common.val),
 		  DATA_VARCHAR, DATA_ENGLISH, 0);
 
-	if (len) {
-		data = mem_heap_alloc(sym_tab->heap, len);
-		ut_memcpy(data, str, len);
-	} else {
-		data = NULL;
-	}
+	data = (len) ? static_cast<byte*>(mem_heap_dup(sym_tab->heap, str, len))
+	      	     : NULL;
 
 	dfield_set_data(&(node->common.val), data, len);
 
@@ -178,6 +193,8 @@ sym_tab_add_str_lit(
 	node->cursor_def = NULL;
 
 	UT_LIST_ADD_LAST(sym_list, sym_tab->sym_list, node);
+
+	node->like_node = NULL;
 
 	node->sym_table = sym_tab;
 
@@ -202,10 +219,13 @@ sym_tab_add_bound_lit(
 	blit = pars_info_get_bound_lit(sym_tab->info, name);
 	ut_a(blit);
 
-	node = mem_heap_alloc(sym_tab->heap, sizeof(sym_node_t));
+	node = static_cast<sym_node_t*>(
+		mem_heap_alloc(sym_tab->heap, sizeof(sym_node_t)));
 
 	node->common.type = QUE_NODE_SYMBOL;
+	node->common.brother = node->common.parent = NULL;
 
+	node->table = NULL;
 	node->resolved = TRUE;
 	node->token_type = SYM_LIT;
 
@@ -255,7 +275,53 @@ sym_tab_add_bound_lit(
 
 	UT_LIST_ADD_LAST(sym_list, sym_tab->sym_list, node);
 
+	blit->node = node;
+	node->like_node = NULL;
 	node->sym_table = sym_tab;
+
+	return(node);
+}
+
+/**********************************************************************
+Rebind literal to a node in the symbol table. */
+
+sym_node_t*
+sym_tab_rebind_lit(
+/*===============*/
+					/* out: symbol table node */
+	sym_node_t*	node,		/* in: node that is bound to literal*/
+	const void*	address,	/* in: pointer to data */
+	ulint		length)		/* in: length of data */
+{
+	dfield_t*	dfield = que_node_get_val(node);
+	dtype_t*	dtype = dfield_get_type(dfield);
+
+	ut_a(node->token_type == SYM_LIT);
+
+	dfield_set_data(&node->common.val, address, length);
+
+	if (node->like_node) {
+
+	    ut_a(dtype_get_mtype(dtype) == DATA_CHAR
+		 || dtype_get_mtype(dtype) == DATA_VARCHAR);
+
+		/* Don't force [FALSE] creation of sub-nodes (for LIKE) */
+		pars_like_rebind(
+			node,static_cast<const byte*>(address), length);
+	}
+
+	/* FIXME: What's this ? */
+	node->common.val_buf_size = 0;
+
+	if (node->prefetch_buf) {
+		sel_col_prefetch_buf_free(node->prefetch_buf);
+		node->prefetch_buf = NULL;
+	}
+
+	if (node->cursor_def) {
+		que_graph_free_recursive(node->cursor_def);
+		node->cursor_def = NULL;
+	}
 
 	return(node);
 }
@@ -271,10 +337,12 @@ sym_tab_add_null_lit(
 {
 	sym_node_t*	node;
 
-	node = mem_heap_alloc(sym_tab->heap, sizeof(sym_node_t));
+	node = static_cast<sym_node_t*>(
+		mem_heap_alloc(sym_tab->heap, sizeof(sym_node_t)));
 
 	node->common.type = QUE_NODE_SYMBOL;
 
+	node->table = NULL;
 	node->resolved = TRUE;
 	node->token_type = SYM_LIT;
 
@@ -289,6 +357,8 @@ sym_tab_add_null_lit(
 	node->cursor_def = NULL;
 
 	UT_LIST_ADD_LAST(sym_list, sym_tab->sym_list, node);
+
+	node->like_node = NULL;
 
 	node->sym_table = sym_tab;
 
@@ -308,12 +378,10 @@ sym_tab_add_id(
 {
 	sym_node_t*	node;
 
-	node = mem_heap_alloc(sym_tab->heap, sizeof(sym_node_t));
+	node = static_cast<sym_node_t*>(
+		mem_heap_zalloc(sym_tab->heap, sizeof(*node)));
 
 	node->common.type = QUE_NODE_SYMBOL;
-
-	node->resolved = FALSE;
-	node->indirection = NULL;
 
 	node->name = mem_heap_strdupl(sym_tab->heap, (char*) name, len);
 	node->name_len = len;
@@ -321,10 +389,6 @@ sym_tab_add_id(
 	UT_LIST_ADD_LAST(sym_list, sym_tab->sym_list, node);
 
 	dfield_set_null(&node->common.val);
-
-	node->common.val_buf_size = 0;
-	node->prefetch_buf = NULL;
-	node->cursor_def = NULL;
 
 	node->sym_table = sym_tab;
 
@@ -337,7 +401,7 @@ Add a bound identifier to a symbol table.
 UNIV_INTERN
 sym_node_t*
 sym_tab_add_bound_id(
-/*===========*/
+/*=================*/
 	sym_tab_t*	sym_tab,	/*!< in: symbol table */
 	const char*	name)		/*!< in: name of bound id */
 {
@@ -347,11 +411,14 @@ sym_tab_add_bound_id(
 	bid = pars_info_get_bound_id(sym_tab->info, name);
 	ut_a(bid);
 
-	node = mem_heap_alloc(sym_tab->heap, sizeof(sym_node_t));
+	node = static_cast<sym_node_t*>(
+		mem_heap_alloc(sym_tab->heap, sizeof(sym_node_t)));
 
 	node->common.type = QUE_NODE_SYMBOL;
 
+	node->table = NULL;
 	node->resolved = FALSE;
+	node->token_type = SYM_UNSET;
 	node->indirection = NULL;
 
 	node->name = mem_heap_strdup(sym_tab->heap, bid->id);
@@ -364,6 +431,8 @@ sym_tab_add_bound_id(
 	node->common.val_buf_size = 0;
 	node->prefetch_buf = NULL;
 	node->cursor_def = NULL;
+
+	node->like_node = NULL;
 
 	node->sym_table = sym_tab;
 

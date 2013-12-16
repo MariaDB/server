@@ -17,13 +17,17 @@ this program; if not, write to the Free Software Foundation, Inc.,
 *****************************************************************************/
 
 /**************************************************//**
-@file ibuf/ibuf0ibuf.c
+@file ibuf/ibuf0ibuf.cc
 Insert buffer
 
 Created 7/19/1997 Heikki Tuuri
 *******************************************************/
 
 #include "ibuf0ibuf.h"
+
+#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+UNIV_INTERN my_bool	srv_ibuf_disable_background_merge;
+#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
 /** Number of bits describing a single page */
 #define IBUF_BITS_PER_PAGE	4
@@ -57,6 +61,7 @@ Created 7/19/1997 Heikki Tuuri
 #include "log0recv.h"
 #include "que0que.h"
 #include "srv0start.h" /* srv_shutdown_state */
+#include "ha_prototypes.h"
 #include "rem0cmp.h"
 
 /*	STRUCTURE OF AN INSERT BUFFER RECORD
@@ -185,9 +190,6 @@ level 2 i/o. However, if an OS thread does the i/o handling for itself, i.e.,
 it uses synchronous aio, it can access any pages, as long as it obeys the
 access order rules. */
 
-/** Buffer pool size per the maximum insert buffer size */
-#define IBUF_POOL_SIZE_PER_MAX_SIZE	2
-
 /** Table name for the insert buffer. */
 #define IBUF_TABLE_NAME		"SYS_IBUF_TABLE"
 
@@ -201,9 +203,6 @@ UNIV_INTERN uint	ibuf_debug;
 
 /** The insert buffer control structure */
 UNIV_INTERN ibuf_t*	ibuf			= NULL;
-
-/** Counter for ibuf_should_try() */
-UNIV_INTERN ulint	ibuf_flush_count	= 0;
 
 #ifdef UNIV_PFS_MUTEX
 UNIV_INTERN mysql_pfs_key_t	ibuf_pessimistic_insert_mutex_key;
@@ -292,16 +291,16 @@ type, counter, and some flags. */
 
 
 /** The mutex used to block pessimistic inserts to ibuf trees */
-static mutex_t	ibuf_pessimistic_insert_mutex;
+static ib_mutex_t	ibuf_pessimistic_insert_mutex;
 
 /** The mutex protecting the insert buffer structs */
-static mutex_t	ibuf_mutex;
+static ib_mutex_t	ibuf_mutex;
 
 /** The mutex protecting the insert buffer bitmaps */
-static mutex_t	ibuf_bitmap_mutex;
+static ib_mutex_t	ibuf_bitmap_mutex;
 
 /** The area in pages from which contract looks for page numbers for merge */
-#define	IBUF_MERGE_AREA			8
+#define	IBUF_MERGE_AREA			8UL
 
 /** Inside the merge area, pages which have at most 1 per this number less
 buffered entries compared to maximum volume that can buffered for a single
@@ -419,7 +418,7 @@ ibuf_tree_root_get(
 
 	ut_ad(page_get_space_id(root) == IBUF_SPACE_ID);
 	ut_ad(page_get_page_no(root) == FSP_IBUF_TREE_ROOT_PAGE_NO);
-	ut_ad(ibuf->empty == (page_get_n_recs(root) == 0));
+	ut_ad(ibuf->empty == page_is_empty(root));
 
 	return(root);
 }
@@ -554,20 +553,17 @@ ibuf_init_at_db_start(void)
 	dict_index_t*	index;
 	ulint		n_used;
 	page_t*		header_page;
-	ulint		error;
+	dberr_t		error;
 
-	ibuf = mem_alloc(sizeof(ibuf_t));
+	ibuf = static_cast<ibuf_t*>(mem_zalloc(sizeof(ibuf_t)));
 
-	memset(ibuf, 0, sizeof(*ibuf));
-
-	/* Note that also a pessimistic delete can sometimes make a B-tree
-	grow in size, as the references on the upper levels of the tree can
-	change */
-
-	ibuf->max_size = ut_min( buf_pool_get_curr_size() / UNIV_PAGE_SIZE
-		/ IBUF_POOL_SIZE_PER_MAX_SIZE, (ulint) srv_ibuf_max_size / UNIV_PAGE_SIZE);
-
-	srv_ibuf_max_size = (long long) ibuf->max_size * UNIV_PAGE_SIZE;
+	/* At startup we intialize ibuf to have a maximum of
+	CHANGE_BUFFER_DEFAULT_SIZE in terms of percentage of the
+	buffer pool size. Once ibuf struct is initialized this
+	value is updated with the user supplied size by calling
+	ibuf_max_size_update(). */
+	ibuf->max_size = ((buf_pool_get_curr_size() / UNIV_PAGE_SIZE)
+			  * CHANGE_BUFFER_DEFAULT_SIZE) / 100;
 
 	mutex_create(ibuf_pessimistic_insert_mutex_key,
 		     &ibuf_pessimistic_insert_mutex,
@@ -609,20 +605,19 @@ ibuf_init_at_db_start(void)
 	ibuf_size_update(root, &mtr);
 	mutex_exit(&ibuf_mutex);
 
-	ibuf->empty = (page_get_n_recs(root) == 0);
+	ibuf->empty = page_is_empty(root);
 	ibuf_mtr_commit(&mtr);
 
 	heap = mem_heap_create(450);
 
 	/* Use old-style record format for the insert buffer. */
-	table = dict_mem_table_create(IBUF_TABLE_NAME, IBUF_SPACE_ID, 1, 0);
-	table->n_mysql_handles_opened = 1; /* for pin */
+	table = dict_mem_table_create(IBUF_TABLE_NAME, IBUF_SPACE_ID, 1, 0, 0);
 
 	dict_mem_table_add_col(table, heap, "DUMMY_COLUMN", DATA_BINARY, 0, 0);
 
 	table->id = DICT_IBUF_ID_MIN + IBUF_SPACE_ID;
 
-	dict_table_add_to_cache(table, heap);
+	dict_table_add_to_cache(table, FALSE, heap);
 	mem_heap_free(heap);
 
 	index = dict_mem_index_create(
@@ -640,6 +635,24 @@ ibuf_init_at_db_start(void)
 
 	ibuf->index = dict_table_get_first_index(table);
 }
+
+/*********************************************************************//**
+Updates the max_size value for ibuf. */
+UNIV_INTERN
+void
+ibuf_max_size_update(
+/*=================*/
+	ulint	new_val)	/*!< in: new value in terms of
+				percentage of the buffer pool size */
+{
+	ulint	new_size = ((buf_pool_get_curr_size() / UNIV_PAGE_SIZE)
+			    * new_val) / 100;
+	mutex_enter(&ibuf_mutex);
+	ibuf->max_size = new_size;
+	mutex_exit(&ibuf_mutex);
+}
+
+
 #endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Initializes an ibuf bitmap page. */
@@ -1289,17 +1302,9 @@ ibuf_rec_get_page_no_func(
 
 	field = rec_get_nth_field_old(rec, IBUF_REC_FIELD_MARKER, &len);
 
-	if (len == 1) {
-		/* This is of the >= 4.1.x record format */
-		ut_a(trx_sys_multiple_tablespace_format);
+	ut_a(len == 1);
 
-		field = rec_get_nth_field_old(rec, IBUF_REC_FIELD_PAGE, &len);
-	} else {
-		ut_a(trx_doublewrite_must_reset_space_ids);
-		ut_a(!trx_sys_multiple_tablespace_format);
-
-		field = rec_get_nth_field_old(rec, 0, &len);
-	}
+	field = rec_get_nth_field_old(rec, IBUF_REC_FIELD_PAGE, &len);
 
 	ut_a(len == 4);
 
@@ -1335,20 +1340,13 @@ ibuf_rec_get_space_func(
 
 	field = rec_get_nth_field_old(rec, IBUF_REC_FIELD_MARKER, &len);
 
-	if (len == 1) {
-		/* This is of the >= 4.1.x record format */
+	ut_a(len == 1);
 
-		ut_a(trx_sys_multiple_tablespace_format);
-		field = rec_get_nth_field_old(rec, IBUF_REC_FIELD_SPACE, &len);
-		ut_a(len == 4);
+	field = rec_get_nth_field_old(rec, IBUF_REC_FIELD_SPACE, &len);
 
-		return(mach_read_from_4(field));
-	}
+	ut_a(len == 4);
 
-	ut_a(trx_doublewrite_must_reset_space_ids);
-	ut_a(!trx_sys_multiple_tablespace_format);
-
-	return(0);
+	return(mach_read_from_4(field));
 }
 
 #ifdef UNIV_DEBUG
@@ -1405,7 +1403,7 @@ ibuf_rec_get_info_func(
 		break;
 
 	case IBUF_REC_INFO_SIZE:
-		op_local = (ibuf_op_t)types[IBUF_REC_OFFSET_TYPE];
+		op_local = (ibuf_op_t) types[IBUF_REC_OFFSET_TYPE];
 		comp_local = types[IBUF_REC_OFFSET_FLAGS] & IBUF_REC_COMPACT;
 		counter_local = mach_read_from_2(
 			types + IBUF_REC_OFFSET_COUNTER);
@@ -1526,7 +1524,7 @@ ibuf_add_ops(
 
 	for (i = 0; i < IBUF_OP_COUNT; i++) {
 #ifdef HAVE_ATOMIC_BUILTINS
-		(void) os_atomic_increment_ulint(&arr[i], ops[i]);
+		os_atomic_increment_ulint(&arr[i], ops[i]);
 #else /* HAVE_ATOMIC_BUILTINS */
 		arr[i] += ops[i];
 #endif /* HAVE_ATOMIC_BUILTINS */
@@ -1574,7 +1572,7 @@ ibuf_dummy_index_create(
 
 	table = dict_mem_table_create("IBUF_DUMMY",
 				      DICT_HDR_SPACE, n,
-				      comp ? DICT_TF_COMPACT : 0);
+				      comp ? DICT_TF_COMPACT : 0, 0);
 
 	index = dict_mem_index_create("IBUF_DUMMY", "IBUF_DUMMY",
 				      DICT_HDR_SPACE, 0, n);
@@ -1616,58 +1614,6 @@ ibuf_dummy_index_free(
 
 	dict_mem_index_free(index);
 	dict_mem_table_free(table);
-}
-
-/*********************************************************************//**
-Builds the entry to insert into a non-clustered index when we have the
-corresponding record in an ibuf index.
-
-NOTE that as we copy pointers to fields in ibuf_rec, the caller must
-hold a latch to the ibuf_rec page as long as the entry is used!
-
-@return own: entry to insert to a non-clustered index */
-UNIV_INLINE
-dtuple_t*
-ibuf_build_entry_pre_4_1_x(
-/*=======================*/
-	const rec_t*	ibuf_rec,	/*!< in: record in an insert buffer */
-	mem_heap_t*	heap,		/*!< in: heap where built */
-	dict_index_t**	pindex)		/*!< out, own: dummy index that
-					describes the entry */
-{
-	ulint		i;
-	ulint		len;
-	const byte*	types;
-	dtuple_t*	tuple;
-	ulint		n_fields;
-
-	ut_a(trx_doublewrite_must_reset_space_ids);
-	ut_a(!trx_sys_multiple_tablespace_format);
-
-	n_fields = rec_get_n_fields_old(ibuf_rec) - 2;
-	tuple = dtuple_create(heap, n_fields);
-	types = rec_get_nth_field_old(ibuf_rec, 1, &len);
-
-	ut_a(len == n_fields * DATA_ORDER_NULL_TYPE_BUF_SIZE);
-
-	for (i = 0; i < n_fields; i++) {
-		const byte*	data;
-		dfield_t*	field;
-
-		field = dtuple_get_nth_field(tuple, i);
-
-		data = rec_get_nth_field_old(ibuf_rec, i + 2, &len);
-
-		dfield_set_data(field, data, len);
-
-		dtype_read_for_order_and_null_size(
-			dfield_get_type(field),
-			types + i * DATA_ORDER_NULL_TYPE_BUF_SIZE);
-	}
-
-	*pindex = ibuf_dummy_index_create(n_fields, FALSE);
-
-	return(tuple);
 }
 
 #ifdef UNIV_DEBUG
@@ -1723,15 +1669,7 @@ ibuf_build_entry_from_ibuf_rec_func(
 
 	data = rec_get_nth_field_old(ibuf_rec, IBUF_REC_FIELD_MARKER, &len);
 
-	if (len > 1) {
-		/* This a < 4.1.x format record */
-
-		return(ibuf_build_entry_pre_4_1_x(ibuf_rec, heap, pindex));
-	}
-
-	/* This a >= 4.1.x format record */
-
-	ut_a(trx_sys_multiple_tablespace_format);
+	ut_a(len == 1);
 	ut_a(*data == 0);
 	ut_a(rec_get_n_fields_old(ibuf_rec) > IBUF_REC_FIELD_USER);
 
@@ -1787,8 +1725,6 @@ ibuf_rec_get_size(
 	const rec_t*	rec,			/*!< in: ibuf record */
 	const byte*	types,			/*!< in: fields */
 	ulint		n_fields,		/*!< in: number of fields */
-	ibool		pre_4_1,		/*!< in: TRUE=pre-4.1 format,
-						FALSE=newer */
 	ulint		comp)			/*!< in: 0=ROW_FORMAT=REDUNDANT,
 						nonzero=ROW_FORMAT=COMPACT */
 {
@@ -1797,13 +1733,8 @@ ibuf_rec_get_size(
 	ulint	types_offset;
 	ulint	size = 0;
 
-	if (pre_4_1) {
-		field_offset = 2;
-		types_offset = DATA_ORDER_NULL_TYPE_BUF_SIZE;
-	} else {
-		field_offset = IBUF_REC_FIELD_USER;
-		types_offset = DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE;
-	}
+	field_offset = IBUF_REC_FIELD_USER;
+	types_offset = DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE;
 
 	for (i = 0; i < n_fields; i++) {
 		ulint		len;
@@ -1813,10 +1744,6 @@ ibuf_rec_get_size(
 
 		if (len != UNIV_SQL_NULL) {
 			size += len;
-		} else if (pre_4_1) {
-			dtype_read_for_order_and_null_size(&dtype, types);
-
-			size += dtype_get_sql_null_size(&dtype, comp);
 		} else {
 			dtype_new_read_for_order_and_null_size(&dtype, types);
 
@@ -1854,8 +1781,9 @@ ibuf_rec_get_volume_func(
 	const byte*	types;
 	ulint		n_fields;
 	ulint		data_size;
-	ibool		pre_4_1;
 	ulint		comp;
+	ibuf_op_t	op;
+	ulint		info_len;
 
 	ut_ad(mtr_memo_contains_page(mtr, ibuf_rec, MTR_MEMO_PAGE_X_FIX)
 	      || mtr_memo_contains_page(mtr, ibuf_rec, MTR_MEMO_PAGE_S_FIX));
@@ -1863,64 +1791,44 @@ ibuf_rec_get_volume_func(
 	ut_ad(rec_get_n_fields_old(ibuf_rec) > 2);
 
 	data = rec_get_nth_field_old(ibuf_rec, IBUF_REC_FIELD_MARKER, &len);
-	pre_4_1 = (len > 1);
+	ut_a(len == 1);
+	ut_a(*data == 0);
 
-	if (pre_4_1) {
-		/* < 4.1.x format record */
+	types = rec_get_nth_field_old(
+		ibuf_rec, IBUF_REC_FIELD_METADATA, &len);
 
-		ut_a(trx_doublewrite_must_reset_space_ids);
-		ut_a(!trx_sys_multiple_tablespace_format);
+	ibuf_rec_get_info(mtr, ibuf_rec, &op, &comp, &info_len, NULL);
 
-		n_fields = rec_get_n_fields_old(ibuf_rec) - 2;
+	if (op == IBUF_OP_DELETE_MARK || op == IBUF_OP_DELETE) {
+		/* Delete-marking a record doesn't take any
+		additional space, and while deleting a record
+		actually frees up space, we have to play it safe and
+		pretend it takes no additional space (the record
+		might not exist, etc.).  */
 
-		types = rec_get_nth_field_old(ibuf_rec, 1, &len);
+		return(0);
+	} else if (comp) {
+		dtuple_t*	entry;
+		ulint		volume;
+		dict_index_t*	dummy_index;
+		mem_heap_t*	heap = mem_heap_create(500);
 
-		ut_ad(len == n_fields * DATA_ORDER_NULL_TYPE_BUF_SIZE);
-		comp = 0;
-	} else {
-		/* >= 4.1.x format record */
-		ibuf_op_t	op;
-		ulint		info_len;
+		entry = ibuf_build_entry_from_ibuf_rec(mtr, ibuf_rec,
+			heap, &dummy_index);
 
-		ut_a(trx_sys_multiple_tablespace_format);
-		ut_a(*data == 0);
+		volume = rec_get_converted_size(dummy_index, entry, 0);
 
-		types = rec_get_nth_field_old(
-			ibuf_rec, IBUF_REC_FIELD_METADATA, &len);
+		ibuf_dummy_index_free(dummy_index);
+		mem_heap_free(heap);
 
-		ibuf_rec_get_info(mtr, ibuf_rec, &op, &comp, &info_len, NULL);
-
-		if (op == IBUF_OP_DELETE_MARK || op == IBUF_OP_DELETE) {
-			/* Delete-marking a record doesn't take any
-			additional space, and while deleting a record
-			actually frees up space, we have to play it safe and
-			pretend it takes no additional space (the record
-			might not exist, etc.).  */
-
-			return(0);
-		} else if (comp) {
-			dtuple_t*	entry;
-			ulint		volume;
-			dict_index_t*	dummy_index;
-			mem_heap_t*	heap = mem_heap_create(500);
-
-			entry = ibuf_build_entry_from_ibuf_rec(
-				mtr, ibuf_rec, heap, &dummy_index);
-
-			volume = rec_get_converted_size(dummy_index, entry, 0);
-
-			ibuf_dummy_index_free(dummy_index);
-			mem_heap_free(heap);
-
-			return(volume + page_dir_calc_reserved_space(1));
-		}
-
-		types += info_len;
-		n_fields = rec_get_n_fields_old(ibuf_rec)
-			- IBUF_REC_FIELD_USER;
+		return(volume + page_dir_calc_reserved_space(1));
 	}
 
-	data_size = ibuf_rec_get_size(ibuf_rec, types, n_fields, pre_4_1, comp);
+	types += info_len;
+	n_fields = rec_get_n_fields_old(ibuf_rec)
+		- IBUF_REC_FIELD_USER;
+
+	data_size = ibuf_rec_get_size(ibuf_rec, types, n_fields, comp);
 
 	return(data_size + rec_get_converted_extra_size(data_size, n_fields, 0)
 	       + page_dir_calc_reserved_space(1));
@@ -1978,7 +1886,7 @@ ibuf_entry_build(
 
 	field = dtuple_get_nth_field(tuple, IBUF_REC_FIELD_SPACE);
 
-	buf = mem_heap_alloc(heap, 4);
+	buf = static_cast<byte*>(mem_heap_alloc(heap, 4));
 
 	mach_write_to_4(buf, space);
 
@@ -1988,7 +1896,7 @@ ibuf_entry_build(
 
 	field = dtuple_get_nth_field(tuple, IBUF_REC_FIELD_MARKER);
 
-	buf = mem_heap_alloc(heap, 1);
+	buf = static_cast<byte*>(mem_heap_alloc(heap, 1));
 
 	/* We set the marker byte zero */
 
@@ -2000,7 +1908,7 @@ ibuf_entry_build(
 
 	field = dtuple_get_nth_field(tuple, IBUF_REC_FIELD_PAGE);
 
-	buf = mem_heap_alloc(heap, 4);
+	buf = static_cast<byte*>(mem_heap_alloc(heap, 4));
 
 	mach_write_to_4(buf, page_no);
 
@@ -2015,8 +1923,10 @@ ibuf_entry_build(
 		i = IBUF_REC_INFO_SIZE;
 	}
 
-	ti = type_info = mem_heap_alloc(heap, i + n_fields
-					* DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE);
+	ti = type_info = static_cast<byte*>(
+		mem_heap_alloc(
+			heap,
+			i + n_fields * DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE));
 
 	switch (i) {
 	default:
@@ -2092,7 +2002,7 @@ ibuf_entry_build(
 
 /*********************************************************************//**
 Builds a search tuple used to search buffered inserts for an index page.
-This is for < 4.1.x format records
+This is for >= 4.1.x format records.
 @return	own: search tuple */
 static
 dtuple_t*
@@ -2106,52 +2016,13 @@ ibuf_search_tuple_build(
 	dfield_t*	field;
 	byte*		buf;
 
-	ut_a(space == 0);
-	ut_a(trx_doublewrite_must_reset_space_ids);
-	ut_a(!trx_sys_multiple_tablespace_format);
-
-	tuple = dtuple_create(heap, 1);
-
-	/* Store the page number in tuple */
-
-	field = dtuple_get_nth_field(tuple, 0);
-
-	buf = mem_heap_alloc(heap, 4);
-
-	mach_write_to_4(buf, page_no);
-
-	dfield_set_data(field, buf, 4);
-
-	dtuple_set_types_binary(tuple, 1);
-
-	return(tuple);
-}
-
-/*********************************************************************//**
-Builds a search tuple used to search buffered inserts for an index page.
-This is for >= 4.1.x format records.
-@return	own: search tuple */
-static
-dtuple_t*
-ibuf_new_search_tuple_build(
-/*========================*/
-	ulint		space,	/*!< in: space id */
-	ulint		page_no,/*!< in: index page number */
-	mem_heap_t*	heap)	/*!< in: heap into which to build */
-{
-	dtuple_t*	tuple;
-	dfield_t*	field;
-	byte*		buf;
-
-	ut_a(trx_sys_multiple_tablespace_format);
-
 	tuple = dtuple_create(heap, IBUF_REC_FIELD_METADATA);
 
 	/* Store the space id in tuple */
 
 	field = dtuple_get_nth_field(tuple, IBUF_REC_FIELD_SPACE);
 
-	buf = mem_heap_alloc(heap, 4);
+	buf = static_cast<byte*>(mem_heap_alloc(heap, 4));
 
 	mach_write_to_4(buf, space);
 
@@ -2161,7 +2032,7 @@ ibuf_new_search_tuple_build(
 
 	field = dtuple_get_nth_field(tuple, IBUF_REC_FIELD_MARKER);
 
-	buf = mem_heap_alloc(heap, 1);
+	buf = static_cast<byte*>(mem_heap_alloc(heap, 1));
 
 	mach_write_to_1(buf, 0);
 
@@ -2171,7 +2042,7 @@ ibuf_new_search_tuple_build(
 
 	field = dtuple_get_nth_field(tuple, IBUF_REC_FIELD_PAGE);
 
-	buf = mem_heap_alloc(heap, 4);
+	buf = static_cast<byte*>(mem_heap_alloc(heap, 4));
 
 	mach_write_to_4(buf, page_no);
 
@@ -2239,7 +2110,7 @@ ibuf_add_free_page(void)
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
 	order */
 	mtr_x_lock(fil_space_get_latch(IBUF_SPACE_ID, &flags), &mtr);
-	zip_size = dict_table_flags_to_zip_size(flags);
+	zip_size = fsp_flags_get_zip_size(flags);
 
 	header_page = ibuf_header_page_get(&mtr);
 
@@ -2321,7 +2192,7 @@ ibuf_remove_free_page(void)
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
 	order */
 	mtr_x_lock(fil_space_get_latch(IBUF_SPACE_ID, &flags), &mtr);
-	zip_size = dict_table_flags_to_zip_size(flags);
+	zip_size = fsp_flags_get_zip_size(flags);
 
 	header_page = ibuf_header_page_get(&mtr);
 
@@ -2595,7 +2466,8 @@ ibuf_get_merge_page_nos_func(
 			smallest possible secondary index leaf page
 			(and that only after DROP INDEX). */
 			ut_ad(rec_page_no
-			      > IBUF_TREE_ROOT_PAGE_NO - (rec_space_id != 0));
+			      > (ulint) IBUF_TREE_ROOT_PAGE_NO
+			      - (rec_space_id != 0));
 		}
 
 #ifdef UNIV_IBUF_DEBUG
@@ -2660,6 +2532,73 @@ ibuf_get_merge_page_nos_func(
 	return(sum_volumes);
 }
 
+/*******************************************************************//**
+Get the matching records for space id.
+@return	current rec or NULL */
+static	__attribute__((nonnull, warn_unused_result))
+const rec_t*
+ibuf_get_user_rec(
+/*===============*/
+	btr_pcur_t*	pcur,		/*!< in: the current cursor */
+	mtr_t*		mtr)		/*!< in: mini transaction */
+{
+	do {
+		const rec_t* rec = btr_pcur_get_rec(pcur);
+
+		if (page_rec_is_user_rec(rec)) {
+			return(rec);
+		}
+	} while (btr_pcur_move_to_next(pcur, mtr));
+
+	return(NULL);
+}
+
+/*********************************************************************//**
+Reads page numbers for a space id from an ibuf tree.
+@return a lower limit for the combined volume of records which will be
+merged */
+static	__attribute__((nonnull, warn_unused_result))
+ulint
+ibuf_get_merge_pages(
+/*=================*/
+	btr_pcur_t*	pcur,	/*!< in/out: cursor */
+	ulint		space,	/*!< in: space for which to merge */
+	ulint		limit,	/*!< in: max page numbers to read */
+	ulint*		pages,	/*!< out: pages read */
+	ulint*		spaces,	/*!< out: spaces read */
+	ib_int64_t*	versions,/*!< out: space versions read */
+	ulint*		n_pages,/*!< out: number of pages read */
+	mtr_t*		mtr)	/*!< in: mini transaction */
+{
+	const rec_t*	rec;
+	ulint		volume = 0;
+	ib_int64_t	version = fil_space_get_version(space);
+
+	ut_a(space != ULINT_UNDEFINED);
+
+	*n_pages = 0;
+
+	while ((rec = ibuf_get_user_rec(pcur, mtr)) != 0
+	       && ibuf_rec_get_space(mtr, rec) == space
+	       && *n_pages < limit) {
+
+		ulint	page_no = ibuf_rec_get_page_no(mtr, rec);
+
+		if (*n_pages == 0 || pages[*n_pages - 1] != page_no) {
+			spaces[*n_pages] = space;
+			pages[*n_pages] = page_no;
+			versions[*n_pages] = version;
+			++*n_pages;
+		}
+
+		volume += ibuf_rec_get_volume(mtr, rec);
+
+		btr_pcur_move_to_next(pcur, mtr);
+	}
+
+	return(volume);
+}
+
 /*********************************************************************//**
 Contracts insert buffer trees by reading pages to the buffer pool.
 @return a lower limit for the combined size in bytes of entries which
@@ -2667,31 +2606,21 @@ will be merged from ibuf trees to the pages read, 0 if ibuf is
 empty */
 static
 ulint
-ibuf_contract_ext(
-/*==============*/
-	ulint*	n_pages,/*!< out: number of pages to which merged */
-	ibool	sync)	/*!< in: TRUE if the caller wants to wait for the
-			issued read with the highest tablespace address
-			to complete */
+ibuf_merge_pages(
+/*=============*/
+	ulint*	n_pages,	/*!< out: number of pages to which merged */
+	bool	sync)		/*!< in: true if the caller wants to wait for
+				the issued read with the highest tablespace
+				address to complete */
 {
+	mtr_t		mtr;
 	btr_pcur_t	pcur;
+	ulint		sum_sizes;
 	ulint		page_nos[IBUF_MAX_N_PAGES_MERGED];
 	ulint		space_ids[IBUF_MAX_N_PAGES_MERGED];
 	ib_int64_t	space_versions[IBUF_MAX_N_PAGES_MERGED];
-	ulint		sum_sizes;
-	mtr_t		mtr;
 
 	*n_pages = 0;
-
-	/* We perform a dirty read of ibuf->empty, without latching
-	the insert buffer root page. We trust this dirty read except
-	when a slow shutdown is being executed. During a slow
-	shutdown, the insert buffer merge must be completed. */
-
-	if (UNIV_UNLIKELY(ibuf->empty)
-	    && UNIV_LIKELY(!srv_shutdown_state)) {
-		return(0);
-	}
 
 	ibuf_mtr_start(&mtr);
 
@@ -2702,7 +2631,7 @@ ibuf_contract_ext(
 
 	ut_ad(page_validate(btr_pcur_get_page(&pcur), ibuf->index));
 
-	if (page_get_n_recs(btr_pcur_get_page(&pcur)) == 0) {
+	if (page_is_empty(btr_pcur_get_page(&pcur))) {
 		/* If a B-tree page is empty, it must be the root page
 		and the whole B-tree must be empty. InnoDB does not
 		allow empty B-tree pages other than the root. */
@@ -2729,10 +2658,29 @@ ibuf_contract_ext(
 	ibuf_mtr_commit(&mtr);
 	btr_pcur_close(&pcur);
 
-	buf_read_ibuf_merge_pages(sync, space_ids, space_versions, page_nos,
-				  *n_pages);
+	buf_read_ibuf_merge_pages(
+		sync, space_ids, space_versions, page_nos, *n_pages);
 
 	return(sum_sizes + 1);
+}
+
+/*********************************************************************//**
+Get the table instance from the table id.
+@return table instance */
+static __attribute__((warn_unused_result))
+dict_table_t*
+ibuf_get_table(
+/*===========*/
+	table_id_t	table_id)	/*!< in: valid table id */
+{
+	rw_lock_s_lock_func(&dict_operation_lock, 0, __FILE__, __LINE__);
+
+	dict_table_t*	table = dict_table_open_on_id(
+		table_id, FALSE, DICT_TABLE_OP_NORMAL);
+
+	rw_lock_s_unlock_gen(&dict_operation_lock, 0);
+
+	return(table);
 }
 
 /*********************************************************************//**
@@ -2740,7 +2688,130 @@ Contracts insert buffer trees by reading pages to the buffer pool.
 @return a lower limit for the combined size in bytes of entries which
 will be merged from ibuf trees to the pages read, 0 if ibuf is
 empty */
-UNIV_INTERN
+static
+ulint
+ibuf_merge_space(
+/*=============*/
+	ulint		space,	/*!< in: tablespace id to merge */
+	ulint*		n_pages)/*!< out: number of pages to which merged */
+{
+	mtr_t		mtr;
+	btr_pcur_t	pcur;
+	mem_heap_t*	heap = mem_heap_create(512);
+	dtuple_t*	tuple = ibuf_search_tuple_build(space, 0, heap);
+
+	ibuf_mtr_start(&mtr);
+
+	/* Position the cursor on the first matching record. */
+
+	btr_pcur_open(
+		ibuf->index, tuple, PAGE_CUR_GE, BTR_SEARCH_LEAF, &pcur,
+		&mtr);
+
+	mem_heap_free(heap);
+
+	ut_ad(page_validate(btr_pcur_get_page(&pcur), ibuf->index));
+
+	ulint		sum_sizes = 0;
+	ulint		pages[IBUF_MAX_N_PAGES_MERGED];
+	ulint		spaces[IBUF_MAX_N_PAGES_MERGED];
+	ib_int64_t	versions[IBUF_MAX_N_PAGES_MERGED];
+
+	if (page_is_empty(btr_pcur_get_page(&pcur))) {
+		/* If a B-tree page is empty, it must be the root page
+		and the whole B-tree must be empty. InnoDB does not
+		allow empty B-tree pages other than the root. */
+		ut_ad(ibuf->empty);
+		ut_ad(page_get_space_id(btr_pcur_get_page(&pcur))
+		      == IBUF_SPACE_ID);
+		ut_ad(page_get_page_no(btr_pcur_get_page(&pcur))
+		      == FSP_IBUF_TREE_ROOT_PAGE_NO);
+
+	} else {
+
+		sum_sizes = ibuf_get_merge_pages(
+			&pcur, space, IBUF_MAX_N_PAGES_MERGED,
+			&pages[0], &spaces[0], &versions[0], n_pages,
+			&mtr);
+
+		++sum_sizes;
+	}
+
+	ibuf_mtr_commit(&mtr);
+
+	btr_pcur_close(&pcur);
+
+	if (sum_sizes > 0) {
+
+		ut_a(*n_pages > 0 || sum_sizes == 1);
+
+#ifdef UNIV_DEBUG
+		ut_ad(*n_pages <= UT_ARR_SIZE(pages));
+
+		for (ulint i = 0; i < *n_pages; ++i) {
+			ut_ad(spaces[i] == space);
+			ut_ad(i == 0 || versions[i] == versions[i - 1]);
+		}
+#endif /* UNIV_DEBUG */
+
+		buf_read_ibuf_merge_pages(
+			true, spaces, versions, pages, *n_pages);
+	}
+
+	return(sum_sizes);
+}
+
+/*********************************************************************//**
+Contracts insert buffer trees by reading pages to the buffer pool.
+@return a lower limit for the combined size in bytes of entries which
+will be merged from ibuf trees to the pages read, 0 if ibuf is
+empty */
+static __attribute__((nonnull, warn_unused_result))
+ulint
+ibuf_merge(
+/*=======*/
+	table_id_t	table_id,	/*!< in: if merge should be
+					done only for a specific
+					table, for all tables this
+					should be 0 */
+	ulint*		n_pages,	/*!< out: number of pages to
+					which merged */
+	bool		sync)		/*!< in: TRUE if the caller
+					wants to wait for the issued
+					read with the highest
+					tablespace address to complete */
+{
+	dict_table_t*	table;
+
+	*n_pages = 0;
+
+	/* We perform a dirty read of ibuf->empty, without latching
+	the insert buffer root page. We trust this dirty read except
+	when a slow shutdown is being executed. During a slow
+	shutdown, the insert buffer merge must be completed. */
+
+	if (ibuf->empty && !srv_shutdown_state) {
+		return(0);
+	} else if (table_id == 0) {
+		return(ibuf_merge_pages(n_pages, sync));
+	} else if ((table = ibuf_get_table(table_id)) == 0) {
+		/* Table has been dropped. */
+		return(0);
+	}
+
+	ulint	volume = ibuf_merge_space(table->space, n_pages);
+
+	dict_table_close(table, FALSE, FALSE);
+
+	return(volume);
+}
+
+/*********************************************************************//**
+Contracts insert buffer trees by reading pages to the buffer pool.
+@return a lower limit for the combined size in bytes of entries which
+will be merged from ibuf trees to the pages read, 0 if ibuf is
+empty */
+static
 ulint
 ibuf_contract(
 /*==========*/
@@ -2750,7 +2821,7 @@ ibuf_contract(
 {
 	ulint	n_pages;
 
-	return(ibuf_contract_ext(&n_pages, sync));
+	return(ibuf_merge(0, &n_pages, sync));
 }
 
 /*********************************************************************//**
@@ -2760,22 +2831,53 @@ will be merged from ibuf trees to the pages read, 0 if ibuf is
 empty */
 UNIV_INTERN
 ulint
-ibuf_contract_for_n_pages(
-/*======================*/
-	ibool	sync,	/*!< in: TRUE if the caller wants to wait for the
-			issued read with the highest tablespace address
-			to complete */
-	ulint	n_pages)/*!< in: try to read at least this many pages to
-			the buffer pool and merge the ibuf contents to
-			them */
+ibuf_contract_in_background(
+/*========================*/
+	table_id_t	table_id,	/*!< in: if merge should be done only
+					for a specific table, for all tables
+					this should be 0 */
+	ibool		full)		/*!< in: TRUE if the caller wants to
+					do a full contract based on PCT_IO(100).
+					If FALSE then the size of contract
+					batch is determined based on the
+					current size of the ibuf tree. */
 {
 	ulint	sum_bytes	= 0;
 	ulint	sum_pages	= 0;
-	ulint	n_bytes;
 	ulint	n_pag2;
+	ulint	n_pages;
+
+#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+	if (srv_ibuf_disable_background_merge && table_id == 0) {
+		return(0);
+	}
+#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
+
+	if (full) {
+		/* Caller has requested a full batch */
+		n_pages = PCT_IO(100);
+	} else {
+		/* By default we do a batch of 5% of the io_capacity */
+		n_pages = PCT_IO(5);
+
+		mutex_enter(&ibuf_mutex);
+
+		/* If the ibuf->size is more than half the max_size
+		then we make more agreesive contraction.
+		+1 is to avoid division by zero. */
+		if (ibuf->size > ibuf->max_size / 2) {
+			ulint diff = ibuf->size - ibuf->max_size / 2;
+			n_pages += PCT_IO((diff * 100)
+					   / (ibuf->max_size + 1));
+		}
+
+		mutex_exit(&ibuf_mutex);
+	}
 
 	while (sum_pages < n_pages) {
-		n_bytes = ibuf_contract_ext(&n_pag2, sync);
+		ulint	n_bytes;
+
+		n_bytes = ibuf_merge(table_id, &n_pag2, FALSE);
 
 		if (n_bytes == 0) {
 			return(sum_bytes);
@@ -2783,6 +2885,8 @@ ibuf_contract_for_n_pages(
 
 		sum_bytes += n_bytes;
 		sum_pages += n_pag2;
+
+		srv_inc_activity_count();
 	}
 
 	return(sum_bytes);
@@ -2812,10 +2916,8 @@ ibuf_contract_after_insert(
 	size = ibuf->size;
 	max_size = ibuf->max_size;
 
-	if (!srv_ibuf_active_contract) {
 	if (size < max_size + IBUF_CONTRACT_ON_INSERT_NON_SYNC) {
 		return;
-	}
 	}
 
 	sync = (size >= max_size + IBUF_CONTRACT_ON_INSERT_SYNC);
@@ -2852,8 +2954,7 @@ ibuf_get_volume_buffered_hash(
 
 	len = ibuf_rec_get_size(
 		rec, types,
-		rec_get_n_fields_old(rec) - IBUF_REC_FIELD_USER,
-		FALSE, comp);
+		rec_get_n_fields_old(rec) - IBUF_REC_FIELD_USER, comp);
 	fold = ut_fold_binary(data, len);
 
 	hash += (fold / (CHAR_BIT * sizeof *hash)) % size;
@@ -2913,7 +3014,6 @@ ibuf_get_volume_buffered_count_func(
 	operations.  All pre-4.1 records should have been merged
 	when the database was started up. */
 	ut_a(len == 1);
-	ut_ad(trx_sys_multiple_tablespace_format);
 
 	if (rec_get_deleted_flag(rec, 0)) {
 		/* This record has been merged already,
@@ -2935,7 +3035,7 @@ ibuf_get_volume_buffered_count_func(
 		because deletes cannot be buffered if there are
 		old-style inserts buffered for the page. */
 
-		len = ibuf_rec_get_size(rec, types, n_fields, FALSE, 0);
+		len = ibuf_rec_get_size(rec, types, n_fields, 0);
 
 		return(len
 		       + rec_get_converted_extra_size(len, n_fields, 0)
@@ -3039,8 +3139,6 @@ ibuf_get_volume_buffered(
 	const page_t*	next_page;
 	/* bitmap of buffered recs */
 	ulint		hash_bitmap[128 / sizeof(ulint)];
-
-	ut_a(trx_sys_multiple_tablespace_format);
 
 	ut_ad((pcur->latch_mode == BTR_MODIFY_PREV)
 	      || (pcur->latch_mode == BTR_MODIFY_TREE));
@@ -3222,7 +3320,7 @@ ibuf_update_max_tablespace_id(void)
 	ibuf_mtr_start(&mtr);
 
 	btr_pcur_open_at_index_side(
-		FALSE, ibuf->index, BTR_SEARCH_LEAF, &pcur, TRUE, &mtr);
+		false, ibuf->index, BTR_SEARCH_LEAF, &pcur, true, 0, &mtr);
 
 	ut_ad(page_validate(btr_pcur_get_page(&pcur), ibuf->index));
 
@@ -3285,18 +3383,11 @@ ibuf_get_entry_counter_low_func(
 
 	field = rec_get_nth_field_old(rec, IBUF_REC_FIELD_MARKER, &len);
 
-	if (UNIV_UNLIKELY(len != 1)) {
-		/* pre-4.1 format */
-		ut_a(trx_doublewrite_must_reset_space_ids);
-		ut_a(!trx_sys_multiple_tablespace_format);
-
-		return(ULINT_UNDEFINED);
-	}
-
-	ut_a(trx_sys_multiple_tablespace_format);
+	ut_a(len == 1);
 
 	/* Check the tablespace identifier. */
 	field = rec_get_nth_field_old(rec, IBUF_REC_FIELD_SPACE, &len);
+
 	ut_a(len == 4);
 
 	if (mach_read_from_4(field) != space) {
@@ -3391,8 +3482,8 @@ ibuf_get_entry_counter_func(
 Buffer an operation in the insert/delete buffer, instead of doing it
 directly to the disk page, if this is possible.
 @return	DB_SUCCESS, DB_STRONG_FAIL or other error */
-static
-ulint
+static __attribute__((nonnull, warn_unused_result))
+dberr_t
 ibuf_insert_low(
 /*============*/
 	ulint		mode,	/*!< in: BTR_MODIFY_PREV or BTR_MODIFY_TREE */
@@ -3414,7 +3505,9 @@ ibuf_insert_low(
 	btr_pcur_t	pcur;
 	btr_cur_t*	cursor;
 	dtuple_t*	ibuf_entry;
+	mem_heap_t*	offsets_heap	= NULL;
 	mem_heap_t*	heap;
+	ulint*		offsets		= NULL;
 	ulint		buffered;
 	lint		min_n_recs;
 	rec_t*		ins_rec;
@@ -3422,7 +3515,7 @@ ibuf_insert_low(
 	page_t*		bitmap_page;
 	buf_block_t*	block;
 	page_t*		root;
-	ulint		err;
+	dberr_t		err;
 	ibool		do_merge;
 	ulint		space_ids[IBUF_MAX_N_PAGES_MERGED];
 	ib_int64_t	space_versions[IBUF_MAX_N_PAGES_MERGED];
@@ -3437,19 +3530,19 @@ ibuf_insert_low(
 	ut_ad(!no_counter || op == IBUF_OP_INSERT);
 	ut_a(op < IBUF_OP_COUNT);
 
-	ut_a(trx_sys_multiple_tablespace_format);
-
 	ut_ad(!(thr_get_trx(thr)->fake_changes));
 
 	do_merge = FALSE;
 
 	/* Perform dirty reads of ibuf->size and ibuf->max_size, to
-	reduce ibuf_mutex contention. ibuf->max_size remains constant
-	after ibuf_init_at_db_start(), but ibuf->size should be
-	protected by ibuf_mutex. Given that ibuf->size fits in a
-	machine word, this should be OK; at worst we are doing some
-	excessive ibuf_contract() or occasionally skipping a
-	ibuf_contract(). */
+	reduce ibuf_mutex contention. Given that ibuf->max_size and
+	ibuf->size fit in a machine word, this should be OK; at worst
+	we are doing some excessive ibuf_contract() or occasionally
+	skipping an ibuf_contract(). */
+	if (ibuf->max_size == 0) {
+		return(DB_STRONG_FAIL);
+	}
+
 	if (ibuf->size >= ibuf->max_size + IBUF_CONTRACT_DO_NOT_INSERT) {
 		/* Insert buffer is now too big, contract it but do not try
 		to insert */
@@ -3464,7 +3557,7 @@ ibuf_insert_low(
 		return(DB_STRONG_FAIL);
 	}
 
-	heap = mem_heap_create(512);
+	heap = mem_heap_create(1024);
 
 	/* Build the entry which contains the space id and the page number
 	as the first fields and the type information for other fields, and
@@ -3568,7 +3661,8 @@ fail_exit:
 	if (buf_page_peek(space, page_no)
 	    || lock_rec_expl_exist_on_page(space, page_no)) {
 
-		goto bitmap_fail;
+		ibuf_mtr_commit(&bitmap_mtr);
+		goto fail_exit;
 	}
 
 	if (op == IBUF_OP_INSERT) {
@@ -3604,7 +3698,6 @@ fail_exit:
 		dfield_t*	field;
 
 		if (counter == ULINT_UNDEFINED) {
-bitmap_fail:
 			ibuf_mtr_commit(&bitmap_mtr);
 			goto fail_exit;
 		}
@@ -3634,9 +3727,11 @@ bitmap_fail:
 	cursor = btr_pcur_get_btr_cur(&pcur);
 
 	if (mode == BTR_MODIFY_PREV) {
-		err = btr_cur_optimistic_insert(BTR_NO_LOCKING_FLAG, cursor,
-						ibuf_entry, &ins_rec,
-						&dummy_big_rec, 0, thr, &mtr);
+		err = btr_cur_optimistic_insert(
+			BTR_NO_LOCKING_FLAG,
+			cursor, &offsets, &offsets_heap,
+			ibuf_entry, &ins_rec,
+			&dummy_big_rec, 0, thr, &mtr);
 		block = btr_cur_get_block(cursor);
 		ut_ad(buf_block_get_space(block) == IBUF_SPACE_ID);
 
@@ -3649,7 +3744,7 @@ bitmap_fail:
 			ut_ad(page_get_page_no(root)
 			      == FSP_IBUF_TREE_ROOT_PAGE_NO);
 
-			ibuf->empty = (page_get_n_recs(root) == 0);
+			ibuf->empty = page_is_empty(root);
 		}
 	} else {
 		ut_ad(mode == BTR_MODIFY_TREE);
@@ -3663,23 +3758,29 @@ bitmap_fail:
 
 		err = btr_cur_optimistic_insert(
 			BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG,
-			cursor, ibuf_entry, &ins_rec,
+			cursor, &offsets, &offsets_heap,
+			ibuf_entry, &ins_rec,
 			&dummy_big_rec, 0, thr, &mtr);
 
 		if (err == DB_FAIL) {
 			err = btr_cur_pessimistic_insert(
 				BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG,
-				cursor, ibuf_entry, &ins_rec,
+				cursor, &offsets, &offsets_heap,
+				ibuf_entry, &ins_rec,
 				&dummy_big_rec, 0, thr, &mtr);
 		}
 
 		mutex_exit(&ibuf_pessimistic_insert_mutex);
 		ibuf_size_update(root, &mtr);
 		mutex_exit(&ibuf_mutex);
-		ibuf->empty = (page_get_n_recs(root) == 0);
+		ibuf->empty = page_is_empty(root);
 
 		block = btr_cur_get_block(cursor);
 		ut_ad(buf_block_get_space(block) == IBUF_SPACE_ID);
+	}
+
+	if (offsets_heap) {
+		mem_heap_free(offsets_heap);
 	}
 
 	if (err == DB_SUCCESS && op != IBUF_OP_DELETE) {
@@ -3714,7 +3815,7 @@ func_exit:
 #ifdef UNIV_IBUF_DEBUG
 		ut_a(n_stored <= IBUF_MAX_N_PAGES_MERGED);
 #endif
-		buf_read_ibuf_merge_pages(FALSE, space_ids, space_versions,
+		buf_read_ibuf_merge_pages(false, space_ids, space_versions,
 					  page_nos, n_stored);
 	}
 
@@ -3738,14 +3839,17 @@ ibuf_insert(
 	ulint		page_no,/*!< in: page number where to insert */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	ulint		err;
+	dberr_t		err;
 	ulint		entry_size;
 	ibool		no_counter;
 	/* Read the settable global variable ibuf_use only once in
 	this function, so that we will have a consistent view of it. */
 	ibuf_use_t	use		= ibuf_use;
+	DBUG_ENTER("ibuf_insert");
 
-	ut_a(trx_sys_multiple_tablespace_format);
+	DBUG_PRINT("ibuf", ("op: %d, space: %ld, page_no: %ld",
+			    op, space, page_no));
+
 	ut_ad(dtuple_check_typed(entry));
 	ut_ad(ut_is_2pow(zip_size));
 
@@ -3759,7 +3863,7 @@ ibuf_insert(
 		case IBUF_USE_NONE:
 		case IBUF_USE_DELETE:
 		case IBUF_USE_DELETE_MARK:
-			return(FALSE);
+			DBUG_RETURN(FALSE);
 		case IBUF_USE_INSERT:
 		case IBUF_USE_INSERT_DELETE_MARK:
 		case IBUF_USE_ALL:
@@ -3772,7 +3876,7 @@ ibuf_insert(
 		switch (use) {
 		case IBUF_USE_NONE:
 		case IBUF_USE_INSERT:
-			return(FALSE);
+			DBUG_RETURN(FALSE);
 		case IBUF_USE_DELETE_MARK:
 		case IBUF_USE_DELETE:
 		case IBUF_USE_INSERT_DELETE_MARK:
@@ -3788,7 +3892,7 @@ ibuf_insert(
 		case IBUF_USE_NONE:
 		case IBUF_USE_INSERT:
 		case IBUF_USE_INSERT_DELETE_MARK:
-			return(FALSE);
+			DBUG_RETURN(FALSE);
 		case IBUF_USE_DELETE_MARK:
 		case IBUF_USE_DELETE:
 		case IBUF_USE_ALL:
@@ -3820,14 +3924,8 @@ check_watch:
 
 	{
 		buf_page_t*	bpage;
-		ulint		fold = buf_page_address_fold(space, page_no);
 		buf_pool_t*	buf_pool = buf_pool_get(space, page_no);
-
-		//buf_pool_mutex_enter(buf_pool);
-		rw_lock_s_lock(&buf_pool->page_hash_latch);
-		bpage = buf_page_hash_get_low(buf_pool, space, page_no, fold);
-		//buf_pool_mutex_exit(buf_pool);
-		rw_lock_s_unlock(&buf_pool->page_hash_latch);
+		bpage = buf_page_hash_get(buf_pool, space, page_no);
 
 		if (UNIV_LIKELY_NULL(bpage)) {
 			/* A buffer pool watch has been set or the
@@ -3836,7 +3934,7 @@ check_watch:
 			is being buffered, have this request executed
 			directly on the page in the buffer pool after the
 			buffered entries for this page have been merged. */
-			return(FALSE);
+			DBUG_RETURN(FALSE);
 		}
 	}
 
@@ -3847,7 +3945,7 @@ skip_watch:
 	    >= page_get_free_space_of_empty(dict_table_is_comp(index->table))
 	    / 2) {
 
-		return(FALSE);
+		DBUG_RETURN(FALSE);
 	}
 
 	err = ibuf_insert_low(BTR_MODIFY_PREV, op, no_counter,
@@ -3864,28 +3962,29 @@ skip_watch:
 		/* fprintf(stderr, "Ibuf insert for page no %lu of index %s\n",
 		page_no, index->name); */
 #endif
-		return(TRUE);
+		DBUG_RETURN(TRUE);
 
 	} else {
-		ut_a(err == DB_STRONG_FAIL);
+		ut_a(err == DB_STRONG_FAIL || err == DB_TOO_BIG_RECORD);
 
-		return(FALSE);
+		DBUG_RETURN(FALSE);
 	}
 }
 
 /********************************************************************//**
 During merge, inserts to an index page a secondary index entry extracted
-from the insert buffer.
+from the insert buffer. 
 @return	newly inserted record */
-static
+static __attribute__((nonnull))
 rec_t*
 ibuf_insert_to_index_page_low(
 /*==========================*/
-				/* out: newly inserted record */
 	const dtuple_t*	entry,	/*!< in: buffered entry to insert */
 	buf_block_t*	block,	/*!< in/out: index page where the buffered
 				entry should be placed */
 	dict_index_t*	index,	/*!< in: record descriptor */
+	ulint**		offsets,/*!< out: offsets on *rec */
+	mem_heap_t*	heap,	/*!< in/out: memory heap */
 	mtr_t*		mtr,	/*!< in/out: mtr */
 	page_cur_t*	page_cur)/*!< in/out: cursor positioned on the record
 				after which to insert the buffered entry */
@@ -3899,19 +3998,26 @@ ibuf_insert_to_index_page_low(
 	rec_t*		rec;
 	DBUG_ENTER("ibuf_insert_to_index_page_low");
 
-	rec = page_cur_tuple_insert(page_cur, entry, index, 0, mtr);
+	rec = page_cur_tuple_insert(page_cur, entry, index,
+				    offsets, &heap, 0, mtr);
 	if (rec != NULL) {
 		DBUG_RETURN(rec);
 	}
 
+	/* Page reorganization or recompression should already have
+	been attempted by page_cur_tuple_insert(). Besides, per
+	ibuf_index_page_calc_free_zip() the page should not have been
+	recompressed or reorganized. */
+	ut_ad(!buf_block_get_page_zip(block));
+
 	/* If the record did not fit, reorganize */
 
-	btr_page_reorganize(block, index, mtr);
-	page_cur_search(block, index, entry, PAGE_CUR_LE, page_cur);
+	btr_page_reorganize(page_cur, index, mtr);
 
 	/* This time the record must fit */
 
-	rec = page_cur_tuple_insert(page_cur, entry, index, 0, mtr);
+	rec = page_cur_tuple_insert(page_cur, entry, index,
+				    offsets, &heap, 0, mtr);
 	if (rec != NULL) {
 		DBUG_RETURN(rec);
 	}
@@ -3967,7 +4073,15 @@ ibuf_insert_to_index_page(
 	ulint		low_match;
 	page_t*		page		= buf_block_get_frame(block);
 	rec_t*		rec;
+	ulint*		offsets;
+	mem_heap_t*	heap;
+
 	DBUG_ENTER("ibuf_insert_to_index_page");
+
+	DBUG_PRINT("ibuf", ("page_no: %ld", buf_block_get_page_no(block)));
+	DBUG_PRINT("ibuf", ("index name: %s", index->name));
+	DBUG_PRINT("ibuf", ("online status: %d",
+			    dict_index_get_online_status(index)));
 
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(dtuple_check_typed(entry));
@@ -4018,10 +4132,14 @@ dump:
 	low_match = page_cur_search(block, index, entry,
 				    PAGE_CUR_LE, &page_cur);
 
+	heap = mem_heap_create(
+		sizeof(upd_t)
+		+ REC_OFFS_HEADER_SIZE * sizeof(*offsets)
+		+ dtuple_get_n_fields(entry)
+		* (sizeof(upd_field_t) + sizeof *offsets));
+
 	if (UNIV_UNLIKELY(low_match == dtuple_get_n_fields(entry))) {
-		mem_heap_t*	heap;
 		upd_t*		update;
-		ulint*		offsets;
 		page_zip_des_t*	page_zip;
 
 		rec = page_cur_get_rec(&page_cur);
@@ -4030,12 +4148,10 @@ dump:
 		row_ins_sec_index_entry_by_modify(BTR_MODIFY_LEAF). */
 		ut_ad(rec_get_deleted_flag(rec, page_is_comp(page)));
 
-		heap = mem_heap_create(1024);
-
 		offsets = rec_get_offsets(rec, index, NULL, ULINT_UNDEFINED,
 					  &heap);
 		update = row_upd_build_sec_rec_difference_binary(
-			index, entry, rec, NULL, heap);
+			rec, index, offsets, entry, heap);
 
 		page_zip = buf_block_get_page_zip(block);
 
@@ -4045,9 +4161,7 @@ dump:
 			Bug #56680 was fixed. */
 			btr_cur_set_deleted_flag_for_ibuf(
 				rec, page_zip, FALSE, mtr);
-updated_in_place:
-			mem_heap_free(heap);
-			DBUG_VOID_RETURN;
+			goto updated_in_place;
 		}
 
 		/* Copy the info bits. Clear the delete-mark. */
@@ -4060,14 +4174,18 @@ updated_in_place:
 		if (!row_upd_changes_field_size_or_external(index, offsets,
 							    update)
 		    && (!page_zip || btr_cur_update_alloc_zip(
-				page_zip, block, index,
-				rec_offs_size(offsets), FALSE, mtr, NULL))) {
+				page_zip, &page_cur, index, offsets,
+				rec_offs_size(offsets), false, mtr, NULL))) {
 			/* This is the easy case. Do something similar
 			to btr_cur_update_in_place(). */
+			rec = page_cur_get_rec(&page_cur);
 			row_upd_rec_in_place(rec, index, offsets,
 					     update, page_zip);
 			goto updated_in_place;
 		}
+
+		/* btr_cur_update_alloc_zip() may have changed this */
+		rec = page_cur_get_rec(&page_cur);
 
 		/* A collation may identify values that differ in
 		storage length.
@@ -4091,20 +4209,21 @@ updated_in_place:
 		lock_rec_store_on_page_infimum(block, rec);
 		page_cur_delete_rec(&page_cur, index, offsets, mtr);
 		page_cur_move_to_prev(&page_cur);
-
-		rec = ibuf_insert_to_index_page_low(entry, block, index, mtr,
+		rec = ibuf_insert_to_index_page_low(entry, block, index,
+				      		    &offsets, heap, mtr,
 						    &page_cur);
-		ut_ad(!cmp_dtuple_rec(entry, rec,
-				      rec_get_offsets(rec, index, NULL,
-						      ULINT_UNDEFINED,
-						      &heap)));
-		mem_heap_free(heap);
 
+		ut_ad(!cmp_dtuple_rec(entry, rec, offsets));
 		lock_rec_restore_from_page_infimum(block, rec, block);
 	} else {
-		ibuf_insert_to_index_page_low(entry, block, index, mtr,
+		offsets = NULL;
+		ibuf_insert_to_index_page_low(entry, block, index,
+					      &offsets, heap, mtr,
 					      &page_cur);
 	}
+updated_in_place:
+	mem_heap_free(heap);
+
 	DBUG_VOID_RETURN;
 }
 
@@ -4139,7 +4258,7 @@ ibuf_set_del_mark(
 		/* Delete mark the old index record. According to a
 		comment in row_upd_sec_index_entry(), it can already
 		have been delete marked if a lock wait occurred in
-		row_ins_index_entry() in a previous invocation of
+		row_ins_sec_index_entry() in a previous invocation of
 		row_upd_sec_index_entry(). */
 
 		if (UNIV_LIKELY
@@ -4206,7 +4325,7 @@ ibuf_delete(
 		ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 		ulint*		offsets	= offsets_;
 		mem_heap_t*	heap = NULL;
-		ulint		max_ins_size;
+		ulint		max_ins_size = 0;
 
 		rec_offs_init(offsets_);
 
@@ -4317,7 +4436,7 @@ ibuf_restore_pos(
 		ibuf_btr_pcur_commit_specify_mtr(pcur, mtr);
 
 		fputs("InnoDB: Validating insert buffer tree:\n", stderr);
-		if (!btr_validate_index(ibuf->index, NULL)) {
+		if (!btr_validate_index(ibuf->index, 0)) {
 			ut_error;
 		}
 
@@ -4349,7 +4468,7 @@ ibuf_delete_rec(
 {
 	ibool		success;
 	page_t*		root;
-	ulint		err;
+	dberr_t		err;
 
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(page_rec_is_user_rec(btr_pcur_get_rec(pcur)));
@@ -4367,15 +4486,16 @@ ibuf_delete_rec(
 		btr_cur_set_deleted_flag_for_ibuf(
 			btr_pcur_get_rec(pcur), NULL, TRUE, mtr);
 		ibuf_mtr_commit(mtr);
-		log_make_checkpoint_at(IB_ULONGLONG_MAX, TRUE);
+		log_write_up_to(LSN_MAX, LOG_WAIT_ALL_GROUPS, TRUE);
 		DBUG_SUICIDE();
 	}
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
-	success = btr_cur_optimistic_delete(btr_pcur_get_btr_cur(pcur), mtr);
+	success = btr_cur_optimistic_delete(btr_pcur_get_btr_cur(pcur),
+					    0, mtr);
 
 	if (success) {
-		if (UNIV_UNLIKELY(!page_get_n_recs(btr_pcur_get_page(pcur)))) {
+		if (page_is_empty(btr_pcur_get_page(pcur))) {
 			/* If a B-tree page is empty, it must be the root page
 			and the whole B-tree must be empty. InnoDB does not
 			allow empty B-tree pages other than the root. */
@@ -4388,7 +4508,7 @@ ibuf_delete_rec(
 			/* ibuf->empty is protected by the root page latch.
 			Before the deletion, it had to be FALSE. */
 			ut_ad(!ibuf->empty);
-			ibuf->empty = TRUE;
+			ibuf->empty = true;
 		}
 
 #ifdef UNIV_IBUF_COUNT_DEBUG
@@ -4429,7 +4549,7 @@ ibuf_delete_rec(
 
 	root = ibuf_tree_root_get(mtr);
 
-	btr_cur_pessimistic_delete(&err, TRUE, btr_pcur_get_btr_cur(pcur),
+	btr_cur_pessimistic_delete(&err, TRUE, btr_pcur_get_btr_cur(pcur), 0,
 				   RB_NONE, mtr);
 	ut_a(err == DB_SUCCESS);
 
@@ -4439,7 +4559,7 @@ ibuf_delete_rec(
 	ibuf_size_update(root, mtr);
 	mutex_exit(&ibuf_mutex);
 
-	ibuf->empty = (page_get_n_recs(root) == 0);
+	ibuf->empty = page_is_empty(root);
 	ibuf_btr_pcur_commit_specify_mtr(pcur, mtr);
 
 func_exit:
@@ -4567,13 +4687,7 @@ ibuf_merge_or_delete_for_page(
 
 	heap = mem_heap_create(512);
 
-	if (UNIV_UNLIKELY(!trx_sys_multiple_tablespace_format)) {
-		ut_a(trx_doublewrite_must_reset_space_ids);
-		search_tuple = ibuf_search_tuple_build(space, page_no, heap);
-	} else {
-		search_tuple = ibuf_new_search_tuple_build(space, page_no,
-							   heap);
-	}
+	search_tuple = ibuf_search_tuple_build(space, page_no, heap);
 
 	if (block) {
 		/* Move the ownership of the x-latch on the page to this OS
@@ -4845,7 +4959,7 @@ reset_bit:
 	mem_heap_free(heap);
 
 #ifdef HAVE_ATOMIC_BUILTINS
-	(void) os_atomic_increment_ulint(&ibuf->n_merges, 1);
+	os_atomic_increment_ulint(&ibuf->n_merges, 1);
 	ibuf_add_ops(ibuf->n_merged_ops, mops);
 	ibuf_add_ops(ibuf->n_discarded_ops, dops);
 #else /* HAVE_ATOMIC_BUILTINS */
@@ -4895,7 +5009,7 @@ ibuf_delete_for_discarded_space(
 	/* Use page number 0 to build the search tuple so that we get the
 	cursor positioned at the first entry for this space id */
 
-	search_tuple = ibuf_new_search_tuple_build(space, 0, heap);
+	search_tuple = ibuf_search_tuple_build(space, 0, heap);
 
 	memset(dops, 0, sizeof(dops));
 loop:
@@ -4964,13 +5078,13 @@ leave_loop:
 
 /******************************************************************//**
 Looks if the insert buffer is empty.
-@return	TRUE if empty */
+@return	true if empty */
 UNIV_INTERN
-ibool
+bool
 ibuf_is_empty(void)
 /*===============*/
 {
-	ibool		is_empty;
+	bool		is_empty;
 	const page_t*	root;
 	mtr_t		mtr;
 
@@ -4980,7 +5094,7 @@ ibuf_is_empty(void)
 	root = ibuf_tree_root_get(&mtr);
 	mutex_exit(&ibuf_mutex);
 
-	is_empty = (page_get_n_recs(root) == 0);
+	is_empty = page_is_empty(root);
 	ut_a(is_empty == ibuf->empty);
 	ibuf_mtr_commit(&mtr);
 
@@ -5032,5 +5146,110 @@ ibuf_print(
 #endif /* UNIV_IBUF_COUNT_DEBUG */
 
 	mutex_exit(&ibuf_mutex);
+}
+
+/******************************************************************//**
+Checks the insert buffer bitmaps on IMPORT TABLESPACE.
+@return DB_SUCCESS or error code */
+UNIV_INTERN
+dberr_t
+ibuf_check_bitmap_on_import(
+/*========================*/
+	const trx_t*	trx,		/*!< in: transaction */
+	ulint		space_id)	/*!< in: tablespace identifier */
+{
+	ulint	zip_size;
+	ulint	page_size;
+	ulint	size;
+	ulint	page_no;
+
+	ut_ad(space_id);
+	ut_ad(trx->mysql_thd);
+
+	zip_size = fil_space_get_zip_size(space_id);
+
+	if (zip_size == ULINT_UNDEFINED) {
+		return(DB_TABLE_NOT_FOUND);
+	}
+
+	size = fil_space_get_size(space_id);
+
+	if (size == 0) {
+		return(DB_TABLE_NOT_FOUND);
+	}
+
+	mutex_enter(&ibuf_mutex);
+
+	page_size = zip_size ? zip_size : UNIV_PAGE_SIZE;
+
+	for (page_no = 0; page_no < size; page_no += page_size) {
+		mtr_t	mtr;
+		page_t*	bitmap_page;
+		ulint	i;
+
+		if (trx_is_interrupted(trx)) {
+			mutex_exit(&ibuf_mutex);
+			return(DB_INTERRUPTED);
+		}
+
+		mtr_start(&mtr);
+
+		mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
+
+		ibuf_enter(&mtr);
+
+		bitmap_page = ibuf_bitmap_get_map_page(
+			space_id, page_no, zip_size, &mtr);
+
+		for (i = FSP_IBUF_BITMAP_OFFSET + 1; i < page_size; i++) {
+			const ulint	offset = page_no + i;
+
+			if (ibuf_bitmap_page_get_bits(
+				    bitmap_page, offset, zip_size,
+				    IBUF_BITMAP_IBUF, &mtr)) {
+
+				mutex_exit(&ibuf_mutex);
+				ibuf_exit(&mtr);
+				mtr_commit(&mtr);
+
+				ib_errf(trx->mysql_thd,
+					IB_LOG_LEVEL_ERROR,
+					 ER_INNODB_INDEX_CORRUPT,
+					 "Space %u page %u"
+					 " is wrongly flagged to belong to the"
+					 " insert buffer",
+					 (unsigned) space_id,
+					 (unsigned) offset);
+
+				return(DB_CORRUPTION);
+			}
+
+			if (ibuf_bitmap_page_get_bits(
+				    bitmap_page, offset, zip_size,
+				    IBUF_BITMAP_BUFFERED, &mtr)) {
+
+				ib_errf(trx->mysql_thd,
+					IB_LOG_LEVEL_WARN,
+					ER_INNODB_INDEX_CORRUPT,
+					"Buffered changes"
+					" for space %u page %u are lost",
+					(unsigned) space_id,
+					(unsigned) offset);
+
+				/* Tolerate this error, so that
+				slightly corrupted tables can be
+				imported and dumped.  Clear the bit. */
+				ibuf_bitmap_page_set_bits(
+					bitmap_page, offset, zip_size,
+					IBUF_BITMAP_BUFFERED, FALSE, &mtr);
+			}
+		}
+
+		ibuf_exit(&mtr);
+		mtr_commit(&mtr);
+	}
+
+	mutex_exit(&ibuf_mutex);
+	return(DB_SUCCESS);
 }
 #endif /* !UNIV_HOTBACKUP */

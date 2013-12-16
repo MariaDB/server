@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1997, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /********************************************************************//**
-@file mem/mem0pool.c
+@file mem/mem0pool.cc
 The lowest-level memory management
 
 Created 5/12/1997 Heikki Tuuri
@@ -100,12 +100,12 @@ pool, and after that its locks will grow into the buffer pool. */
 
 /** Data structure for a memory pool. The space is allocated using the buddy
 algorithm, where free list i contains areas of size 2 to power i. */
-struct mem_pool_struct{
+struct mem_pool_t{
 	byte*		buf;		/*!< memory pool */
 	ulint		size;		/*!< memory common pool size */
 	ulint		reserved;	/*!< amount of currently allocated
 					memory */
-	mutex_t		mutex;		/*!< mutex protecting this struct */
+	ib_mutex_t		mutex;		/*!< mutex protecting this struct */
 	UT_LIST_BASE_NODE_T(mem_area_t)
 			free_list[64];	/*!< lists of free memory areas: an
 					area is put to the list whose number
@@ -116,7 +116,7 @@ struct mem_pool_struct{
 UNIV_INTERN mem_pool_t*	mem_comm_pool	= NULL;
 
 #ifdef UNIV_PFS_MUTEX
-/* Key to register mutex in mem_pool_struct with performance schema */
+/* Key to register mutex in mem_pool_t with performance schema */
 UNIV_INTERN mysql_pfs_key_t	mem_pool_mutex_key;
 #endif /* UNIV_PFS_MUTEX */
 
@@ -226,9 +226,9 @@ mem_pool_create(
 	ulint		i;
 	ulint		used;
 
-	pool = ut_malloc(sizeof(mem_pool_t));
+	pool = static_cast<mem_pool_t*>(ut_malloc(sizeof(mem_pool_t)));
 
-	pool->buf = ut_malloc_low(size, TRUE);
+	pool->buf = static_cast<byte*>(ut_malloc_low(size, TRUE));
 	pool->size = size;
 
 	mutex_create(mem_pool_mutex_key, &pool->mutex, SYNC_MEM_POOL);
@@ -340,7 +340,7 @@ mem_pool_fill_free_list(
 
 	UT_LIST_REMOVE(free_list, pool->free_list[i + 1], area);
 
-	area2 = (mem_area_t*)(((byte*)area) + ut_2_exp(i));
+	area2 = (mem_area_t*)(((byte*) area) + ut_2_exp(i));
 	UNIV_MEM_ALLOC(area2, MEM_AREA_EXTRA_SIZE);
 
 	mem_area_set_size(area2, ut_2_exp(i));
@@ -454,9 +454,9 @@ mem_area_alloc(
 	ut_ad(mem_pool_validate(pool));
 
 	*psize = ut_2_exp(n) - MEM_AREA_EXTRA_SIZE;
-	UNIV_MEM_ALLOC(MEM_AREA_EXTRA_SIZE + (byte*)area, *psize);
+	UNIV_MEM_ALLOC(MEM_AREA_EXTRA_SIZE + (byte*) area, *psize);
 
-	return((void*)(MEM_AREA_EXTRA_SIZE + ((byte*)area)));
+	return((void*)(MEM_AREA_EXTRA_SIZE + ((byte*) area)));
 }
 
 /********************************************************************//**
@@ -474,13 +474,13 @@ mem_area_get_buddy(
 
 	ut_ad(size != 0);
 
-	if (((((byte*)area) - pool->buf) % (2 * size)) == 0) {
+	if (((((byte*) area) - pool->buf) % (2 * size)) == 0) {
 
 		/* The buddy is in a higher address */
 
-		buddy = (mem_area_t*)(((byte*)area) + size);
+		buddy = (mem_area_t*)(((byte*) area) + size);
 
-		if ((((byte*)buddy) - pool->buf) + size > pool->size) {
+		if ((((byte*) buddy) - pool->buf) + size > pool->size) {
 
 			/* The buddy is not wholly contained in the pool:
 			there is no buddy */
@@ -493,7 +493,7 @@ mem_area_get_buddy(
 		the upper branch in this if-clause: the remainder would be
 		0 */
 
-		buddy = (mem_area_t*)(((byte*)area) - size);
+		buddy = (mem_area_t*)(((byte*) area) - size);
 	}
 
 	return(buddy);
@@ -524,13 +524,13 @@ mem_area_free(
 	/* It may be that the area was really allocated from the OS with
 	regular malloc: check if ptr points within our memory pool */
 
-	if ((byte*)ptr < pool->buf || (byte*)ptr >= pool->buf + pool->size) {
+	if ((byte*) ptr < pool->buf || (byte*) ptr >= pool->buf + pool->size) {
 		ut_free(ptr);
 
 		return;
 	}
 
-	area = (mem_area_t*) (((byte*)ptr) - MEM_AREA_EXTRA_SIZE);
+	area = (mem_area_t*) (((byte*) ptr) - MEM_AREA_EXTRA_SIZE);
 
 	if (mem_area_get_free(area)) {
 		fprintf(stderr,
@@ -556,12 +556,12 @@ mem_area_free(
 	}
 
 #ifdef UNIV_LIGHT_MEM_DEBUG
-	if (((byte*)area) + size < pool->buf + pool->size) {
+	if (((byte*) area) + size < pool->buf + pool->size) {
 
 		ulint	next_size;
 
 		next_size = mem_area_get_size(
-			(mem_area_t*)(((byte*)area) + size));
+			(mem_area_t*)(((byte*) area) + size));
 		if (UNIV_UNLIKELY(!next_size || !ut_is_2pow(next_size))) {
 			fprintf(stderr,
 				"InnoDB: Error: Memory area size %lu,"
@@ -589,8 +589,8 @@ mem_area_free(
 
 		/* The buddy is in a free list */
 
-		if ((byte*)buddy < (byte*)area) {
-			new_ptr = ((byte*)buddy) + MEM_AREA_EXTRA_SIZE;
+		if ((byte*) buddy < (byte*) area) {
+			new_ptr = ((byte*) buddy) + MEM_AREA_EXTRA_SIZE;
 
 			mem_area_set_size(buddy, 2 * size);
 			mem_area_set_free(buddy, FALSE);
@@ -648,12 +648,12 @@ mem_pool_validate(
 
 	for (i = 0; i < 64; i++) {
 
-		UT_LIST_VALIDATE(free_list, mem_area_t, pool->free_list[i],
-				 (void) 0);
+		UT_LIST_CHECK(free_list, mem_area_t, pool->free_list[i]);
 
-		area = UT_LIST_GET_FIRST(pool->free_list[i]);
+		for (area = UT_LIST_GET_FIRST(pool->free_list[i]);
+		     area != 0;
+		     area = UT_LIST_GET_NEXT(free_list, area)) {
 
-		while (area != NULL) {
 			ut_a(mem_area_get_free(area));
 			ut_a(mem_area_get_size(area) == ut_2_exp(i));
 
@@ -661,8 +661,6 @@ mem_pool_validate(
 
 			ut_a(!buddy || !mem_area_get_free(buddy)
 			     || (ut_2_exp(i) != mem_area_get_size(buddy)));
-
-			area = UT_LIST_GET_NEXT(free_list, area);
 
 			free += ut_2_exp(i);
 		}

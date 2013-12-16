@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 2007, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /**************************************************//**
-@file lock/lock0iter.c
+@file lock/lock0iter.cc
 Lock queue iterator. Can iterate over table and record
 lock queues.
 
@@ -32,9 +32,6 @@ Created July 16, 2007 Vasil Dimov
 #include "lock0priv.h"
 #include "ut0dbg.h"
 #include "ut0lst.h"
-#ifdef UNIV_DEBUG
-# include "srv0srv.h" /* kernel_mutex */
-#endif /* UNIV_DEBUG */
 
 /*******************************************************************//**
 Initialize lock queue iterator so that it starts to iterate from
@@ -54,7 +51,7 @@ lock_queue_iterator_reset(
 	ulint			bit_no)	/*!< in: record number in the
 					heap */
 {
-	ut_ad(mutex_own(&kernel_mutex));
+	ut_ad(lock_mutex_own());
 
 	iter->current_lock = lock;
 
@@ -90,7 +87,7 @@ lock_queue_iterator_get_prev(
 {
 	const lock_t*	prev_lock;
 
-	ut_ad(mutex_own(&kernel_mutex));
+	ut_ad(lock_mutex_own());
 
 	switch (lock_get_type_low(iter->current_lock)) {
 	case LOCK_REC:

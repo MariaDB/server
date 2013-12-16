@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1997, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /**************************************************//**
-@file eval/eval0eval.c
+@file eval/eval0eval.cc
 SQL evaluator: evaluates simple data structures, like expressions, in
 a query graph
 
@@ -32,6 +32,7 @@ Created 12/29/1997 Heikki Tuuri
 
 #include "data0data.h"
 #include "row0sel.h"
+#include "rem0cmp.h"
 
 /** The RND function seed */
 static ulint	eval_rnd	= 128367121;
@@ -40,6 +41,18 @@ static ulint	eval_rnd	= 128367121;
 eval_node_alloc_val_buf */
 
 static byte	eval_dummy;
+
+/*************************************************************************
+Gets the like node from the node */
+UNIV_INLINE
+que_node_t*
+que_node_get_like_node(
+/*===================*/
+				/* out: next node in a list of nodes */
+	que_node_t*     node)   /* in: node in a list */
+{
+	return(((sym_node_t*) node)->like_node);
+}
 
 /*****************************************************************//**
 Allocate a buffer from global dynamic memory for a value of a que_node.
@@ -65,7 +78,7 @@ eval_node_alloc_val_buf(
 
 	dfield = que_node_get_val(node);
 
-	data = dfield_get_data(dfield);
+	data = static_cast<byte*>(dfield_get_data(dfield));
 
 	if (data && data != &eval_dummy) {
 		mem_free(data);
@@ -74,7 +87,7 @@ eval_node_alloc_val_buf(
 	if (size == 0) {
 		data = &eval_dummy;
 	} else {
-		data = mem_alloc(size);
+		data = static_cast<byte*>(mem_alloc(size));
 	}
 
 	que_node_set_val_buf_size(node, size);
@@ -102,7 +115,7 @@ eval_node_free_val_buf(
 
 	dfield = que_node_get_val(node);
 
-	data = dfield_get_data(dfield);
+	data = static_cast<byte*>(dfield_get_data(dfield));
 
 	if (que_node_get_val_buf_size(node) > 0) {
 		ut_a(data);
@@ -111,10 +124,80 @@ eval_node_free_val_buf(
 	}
 }
 
-/*****************************************************************//**
+/*********************************************************************
+Evaluates a LIKE comparison node.
+@return the result of the comparison */
+UNIV_INLINE
+ibool
+eval_cmp_like(
+/*==========*/
+	que_node_t*	arg1,		/* !< in: left operand */
+	que_node_t*	arg2)		/* !< in: right operand */
+{
+	ib_like_t	op;
+	int		res;
+	que_node_t*	arg3;
+	que_node_t*	arg4;
+	dfield_t*	dfield;
+	dtype_t*	dtype;
+	ibool		val = TRUE;
+
+	arg3 = que_node_get_like_node(arg2);
+
+	/* Get the comparison type operator */
+	ut_a(arg3);
+
+	dfield = que_node_get_val(arg3);
+	dtype = dfield_get_type(dfield);
+
+	ut_a(dtype_get_mtype(dtype) == DATA_INT);
+	op = static_cast<ib_like_t>(mach_read_from_4(static_cast<const unsigned char*>(dfield_get_data(dfield))));
+
+	switch (op) {
+	case	IB_LIKE_PREFIX:
+
+		arg4 = que_node_get_next(arg3);
+		res = cmp_dfield_dfield_like_prefix(
+			que_node_get_val(arg1),
+			que_node_get_val(arg4));
+		break;
+
+	case	IB_LIKE_SUFFIX:
+
+		arg4 = que_node_get_next(arg3);
+		res = cmp_dfield_dfield_like_suffix(
+			que_node_get_val(arg1),
+			que_node_get_val(arg4));
+		break;
+
+	case	IB_LIKE_SUBSTR:
+
+		arg4 = que_node_get_next(arg3);
+		res = cmp_dfield_dfield_like_substr(
+			que_node_get_val(arg1),
+			que_node_get_val(arg4));
+		break;
+
+	case	IB_LIKE_EXACT:
+		res = cmp_dfield_dfield(
+			que_node_get_val(arg1),
+			que_node_get_val(arg2));
+		break;
+
+	default:
+		ut_error;
+	}
+
+	if (res != 0) {
+		val = FALSE;
+	}
+
+	return(val);
+}
+
+/*********************************************************************
 Evaluates a comparison node.
-@return	the result of the comparison */
-UNIV_INTERN
+@return the result of the comparison */
 ibool
 eval_cmp(
 /*=====*/
@@ -123,45 +206,52 @@ eval_cmp(
 	que_node_t*	arg1;
 	que_node_t*	arg2;
 	int		res;
-	ibool		val;
 	int		func;
+	ibool		val = TRUE;
 
 	ut_ad(que_node_get_type(cmp_node) == QUE_NODE_FUNC);
 
 	arg1 = cmp_node->args;
 	arg2 = que_node_get_next(arg1);
 
-	res = cmp_dfield_dfield(que_node_get_val(arg1),
-				que_node_get_val(arg2));
-	val = TRUE;
-
 	func = cmp_node->func;
 
-	if (func == '=') {
-		if (res != 0) {
-			val = FALSE;
-		}
-	} else if (func == '<') {
-		if (res != -1) {
-			val = FALSE;
-		}
-	} else if (func == PARS_LE_TOKEN) {
-		if (res == 1) {
-			val = FALSE;
-		}
-	} else if (func == PARS_NE_TOKEN) {
-		if (res == 0) {
-			val = FALSE;
-		}
-	} else if (func == PARS_GE_TOKEN) {
-		if (res == -1) {
-			val = FALSE;
-		}
-	} else {
-		ut_ad(func == '>');
+	if (func == PARS_LIKE_TOKEN_EXACT
+	    || func == PARS_LIKE_TOKEN_PREFIX
+	    || func == PARS_LIKE_TOKEN_SUFFIX
+	    || func == PARS_LIKE_TOKEN_SUBSTR) {
 
-		if (res != 1) {
-			val = FALSE;
+		val = eval_cmp_like(arg1, arg2);
+	} else {
+		res = cmp_dfield_dfield(
+			que_node_get_val(arg1), que_node_get_val(arg2));
+
+		if (func == '=') {
+			if (res != 0) {
+				val = FALSE;
+			}
+		} else if (func == '<') {
+			if (res != -1) {
+				val = FALSE;
+			}
+		} else if (func == PARS_LE_TOKEN) {
+			if (res == 1) {
+				val = FALSE;
+			}
+		} else if (func == PARS_NE_TOKEN) {
+			if (res == 0) {
+				val = FALSE;
+			}
+		} else if (func == PARS_GE_TOKEN) {
+			if (res == -1) {
+				val = FALSE;
+			}
+		} else {
+			ut_ad(func == '>');
+
+			if (res != 1) {
+				val = FALSE;
+			}
 		}
 	}
 
@@ -344,8 +434,8 @@ eval_predefined_2(
 
 	} else if (func == PARS_RND_TOKEN) {
 
-		len1 = (ulint)eval_node_get_int_val(arg1);
-		len2 = (ulint)eval_node_get_int_val(arg2);
+		len1 = (ulint) eval_node_get_int_val(arg1);
+		len2 = (ulint) eval_node_get_int_val(arg2);
 
 		ut_ad(len2 >= len1);
 
@@ -362,7 +452,7 @@ eval_predefined_2(
 
 	} else if (func == PARS_RND_STR_TOKEN) {
 
-		len1 = (ulint)eval_node_get_int_val(arg1);
+		len1 = (ulint) eval_node_get_int_val(arg1);
 
 		data = eval_node_ensure_val_buf(func_node, len1);
 
@@ -390,7 +480,7 @@ eval_notfound(
 
 	ut_ad(func_node->func == PARS_NOTFOUND_TOKEN);
 
-	cursor = func_node->args;
+	cursor = static_cast<sym_node_t*>(func_node->args);
 
 	ut_ad(que_node_get_type(cursor) == QUE_NODE_SYMBOL);
 
@@ -436,10 +526,10 @@ eval_substr(
 
 	arg3 = que_node_get_next(arg2);
 
-	str1 = dfield_get_data(que_node_get_val(arg1));
+	str1 = static_cast<byte*>(dfield_get_data(que_node_get_val(arg1)));
 
-	len1 = (ulint)eval_node_get_int_val(arg2);
-	len2 = (ulint)eval_node_get_int_val(arg3);
+	len1 = (ulint) eval_node_get_int_val(arg2);
+	len2 = (ulint) eval_node_get_int_val(arg3);
 
 	dfield = que_node_get_val(func_node);
 
@@ -471,11 +561,11 @@ eval_replstr(
 	arg3 = que_node_get_next(arg2);
 	arg4 = que_node_get_next(arg3);
 
-	str1 = dfield_get_data(que_node_get_val(arg1));
-	str2 = dfield_get_data(que_node_get_val(arg2));
+	str1 = static_cast<byte*>(dfield_get_data(que_node_get_val(arg1)));
+	str2 = static_cast<byte*>(dfield_get_data(que_node_get_val(arg2)));
 
-	len1 = (ulint)eval_node_get_int_val(arg3);
-	len2 = (ulint)eval_node_get_int_val(arg4);
+	len1 = (ulint) eval_node_get_int_val(arg3);
+	len2 = (ulint) eval_node_get_int_val(arg4);
 
 	if ((dfield_get_len(que_node_get_val(arg1)) < len1 + len2)
 	    || (dfield_get_len(que_node_get_val(arg2)) < len2)) {
@@ -513,8 +603,8 @@ eval_instr(
 	dfield1 = que_node_get_val(arg1);
 	dfield2 = que_node_get_val(arg2);
 
-	str1 = dfield_get_data(dfield1);
-	str2 = dfield_get_data(dfield2);
+	str1 = static_cast<byte*>(dfield_get_data(dfield1));
+	str2 = static_cast<byte*>(dfield_get_data(dfield2));
 
 	len1 = dfield_get_len(dfield1);
 	len2 = dfield_get_len(dfield2);
@@ -577,7 +667,7 @@ eval_binary_to_number(
 
 	dfield = que_node_get_val(arg1);
 
-	str1 = dfield_get_data(dfield);
+	str1 = static_cast<byte*>(dfield_get_data(dfield));
 	len1 = dfield_get_len(dfield);
 
 	if (len1 > 4) {
@@ -588,7 +678,7 @@ eval_binary_to_number(
 		str2 = str1;
 	} else {
 		int_val = 0;
-		str2 = (byte*)&int_val;
+		str2 = (byte*) &int_val;
 
 		ut_memcpy(str2 + (4 - len1), str1, len1);
 	}
@@ -659,7 +749,7 @@ eval_to_binary(
 
 	arg1 = func_node->args;
 
-	str1 = dfield_get_data(que_node_get_val(arg1));
+	str1 = static_cast<byte*>(dfield_get_data(que_node_get_val(arg1)));
 
 	if (dtype_get_mtype(que_node_get_data_type(arg1)) != DATA_INT) {
 
@@ -674,7 +764,7 @@ eval_to_binary(
 
 	arg2 = que_node_get_next(arg1);
 
-	len1 = (ulint)eval_node_get_int_val(arg2);
+	len1 = (ulint) eval_node_get_int_val(arg2);
 
 	if (len1 > 4) {
 
@@ -705,7 +795,7 @@ eval_predefined(
 
 	if (func == PARS_LENGTH_TOKEN) {
 
-		int_val = (lint)dfield_get_len(que_node_get_val(arg1));
+		int_val = (lint) dfield_get_len(que_node_get_val(arg1));
 
 	} else if (func == PARS_TO_CHAR_TOKEN) {
 
@@ -768,7 +858,7 @@ eval_predefined(
 			       dfield_get_data(que_node_get_val(arg1)));
 
 	} else if (func == PARS_SYSDATE_TOKEN) {
-		int_val = (lint)ut_time();
+		int_val = (lint) ut_time();
 	} else {
 		eval_predefined_2(func_node);
 
@@ -787,12 +877,12 @@ eval_func(
 	func_node_t*	func_node)	/*!< in: function node */
 {
 	que_node_t*	arg;
-	ulint		class;
+	ulint		fclass;
 	ulint		func;
 
 	ut_ad(que_node_get_type(func_node) == QUE_NODE_FUNC);
 
-	class = func_node->class;
+	fclass = func_node->fclass;
 	func = func_node->func;
 
 	arg = func_node->args;
@@ -805,7 +895,7 @@ eval_func(
 		values, except for eval_cmp and notfound */
 
 		if (dfield_is_null(que_node_get_val(arg))
-		    && (class != PARS_FUNC_CMP)
+		    && (fclass != PARS_FUNC_CMP)
 		    && (func != PARS_NOTFOUND_TOKEN)
 		    && (func != PARS_PRINTF_TOKEN)) {
 			ut_error;
@@ -814,34 +904,47 @@ eval_func(
 		arg = que_node_get_next(arg);
 	}
 
-	if (class == PARS_FUNC_CMP) {
+	switch (fclass) {
+	case PARS_FUNC_CMP:
 		eval_cmp(func_node);
-	} else if (class == PARS_FUNC_ARITH) {
+		return;
+	case PARS_FUNC_ARITH:
 		eval_arith(func_node);
-	} else if (class == PARS_FUNC_AGGREGATE) {
+		return;
+	case PARS_FUNC_AGGREGATE:
 		eval_aggregate(func_node);
-	} else if (class == PARS_FUNC_PREDEFINED) {
-
-		if (func == PARS_NOTFOUND_TOKEN) {
+		return;
+	case PARS_FUNC_PREDEFINED:
+		switch (func) {
+		case PARS_NOTFOUND_TOKEN:
 			eval_notfound(func_node);
-		} else if (func == PARS_SUBSTR_TOKEN) {
+			return;
+		case PARS_SUBSTR_TOKEN:
 			eval_substr(func_node);
-		} else if (func == PARS_REPLSTR_TOKEN) {
+			return;
+		case PARS_REPLSTR_TOKEN:
 			eval_replstr(func_node);
-		} else if (func == PARS_INSTR_TOKEN) {
+			return;
+		case PARS_INSTR_TOKEN:
 			eval_instr(func_node);
-		} else if (func == PARS_BINARY_TO_NUMBER_TOKEN) {
+			return;
+		case PARS_BINARY_TO_NUMBER_TOKEN:
 			eval_binary_to_number(func_node);
-		} else if (func == PARS_CONCAT_TOKEN) {
+			return;
+		case PARS_CONCAT_TOKEN:
 			eval_concat(func_node);
-		} else if (func == PARS_TO_BINARY_TOKEN) {
+			return;
+		case PARS_TO_BINARY_TOKEN:
 			eval_to_binary(func_node);
-		} else {
+			return;
+		default:
 			eval_predefined(func_node);
+			return;
 		}
-	} else {
-		ut_ad(class == PARS_FUNC_LOGICAL);
-
+	case PARS_FUNC_LOGICAL:
 		eval_logical(func_node);
+		return;
 	}
+
+	ut_error;
 }

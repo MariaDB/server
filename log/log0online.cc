@@ -17,7 +17,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 *****************************************************************************/
 
 /**************************************************//**
-@file log/log0online.c
+@file log/log0online.cc
 Online database log parsing for changed page tracking
 
 *******************************************************/
@@ -65,13 +65,13 @@ struct log_bitmap_struct {
 					/*!< directory for bitmap files */
 	log_online_bitmap_file_t out;	/*!< The current bitmap file */
 	ulint		out_seq_num;	/*!< the bitmap file sequence number */
-	ib_uint64_t	start_lsn;	/*!< the LSN of the next unparsed
+	lsn_t		start_lsn;	/*!< the LSN of the next unparsed
 					record and the start of the next LSN
 					interval to be parsed.  */
-	ib_uint64_t	end_lsn;	/*!< the end of the LSN interval to be
+	lsn_t		end_lsn;	/*!< the end of the LSN interval to be
 					parsed, equal to the next checkpoint
 					LSN at the time of parse */
-	ib_uint64_t	next_parse_lsn;	/*!< the LSN of the next unparsed
+	lsn_t		next_parse_lsn;	/*!< the LSN of the next unparsed
 					record in the current parse */
 	ib_rbt_t*	modified_pages; /*!< the current modified page set,
 					organized as the RB-tree with the keys
@@ -84,7 +84,7 @@ struct log_bitmap_struct {
 					both the correct type and the tree does
 					not mind its overwrite during
 					rbt_next() tree traversal. */
-	mutex_t		mutex;		/*!< mutex protecting all the fields.*/
+	ib_mutex_t	mutex;		/*!< mutex protecting all the fields.*/
 };
 
 /* The log parsing and bitmap output struct instance */
@@ -215,8 +215,9 @@ log_online_set_page_bit(
 			log_bmp_sys->page_free_list = new_node->left;
 		}
 		else {
-			new_node = ut_malloc(SIZEOF_NODE(
-				  log_bmp_sys->modified_pages));
+			new_node = static_cast<ib_rbt_node_t *>
+				(ut_malloc
+				 (SIZEOF_NODE(log_bmp_sys->modified_pages)));
 		}
 		memset(new_node, 0, SIZEOF_NODE(log_bmp_sys->modified_pages));
 
@@ -280,8 +281,6 @@ log_online_read_bitmap_page(
 	ibool				*checksum_ok)	/*!<out: TRUE if page
 							checksum OK */
 {
-	ulint	offset_low	= (ulint)(bitmap_file->offset & 0xFFFFFFFF);
-	ulint	offset_high	= (ulint)(bitmap_file->offset >> 32);
 	ulint	checksum;
 	ulint	actual_checksum;
 	ibool	success;
@@ -291,16 +290,16 @@ log_online_read_bitmap_page(
 	     <= bitmap_file->size - MODIFIED_PAGE_BLOCK_SIZE);
 	ut_a(bitmap_file->offset % MODIFIED_PAGE_BLOCK_SIZE == 0);
 
-	success = os_file_read(bitmap_file->file, page, offset_low,
-			       offset_high, MODIFIED_PAGE_BLOCK_SIZE);
+	success = os_file_read(bitmap_file->file, page, bitmap_file->offset,
+			       MODIFIED_PAGE_BLOCK_SIZE);
 
 	if (UNIV_UNLIKELY(!success)) {
 
 		/* The following call prints an error message */
 		os_file_get_last_error(TRUE);
-		fprintf(stderr,
-			"InnoDB: Warning: failed reading changed page bitmap "
-			"file \'%s\'\n", bitmap_file->name);
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"failed reading changed page bitmap file \'%s\'\n",
+			bitmap_file->name);
 		return FALSE;
 	}
 
@@ -329,15 +328,15 @@ its name is correct and use it for (re-)tracking start.
 
 @return the last fully tracked LSN */
 static
-ib_uint64_t
+lsn_t
 log_online_read_last_tracked_lsn(void)
 /*==================================*/
 {
 	byte		page[MODIFIED_PAGE_BLOCK_SIZE];
 	ibool		is_last_page	= FALSE;
 	ibool		checksum_ok	= FALSE;
-	ib_uint64_t	result;
-	ib_uint64_t	read_offset	= log_bmp_sys->out.offset;
+	lsn_t		result;
+	os_offset_t	read_offset	= log_bmp_sys->out.offset;
 
 	while (!checksum_ok && read_offset > 0 && !is_last_page)
 	{
@@ -357,9 +356,9 @@ log_online_read_last_tracked_lsn(void)
 				(page + MODIFIED_PAGE_IS_LAST_BLOCK);
 		} else {
 
-			fprintf(stderr,
-				"InnoDB: Warning: corruption detected in "
-				"\'%s\' at offset %llu\n",
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"corruption detected in \'%s\' at offset "
+				UINT64PF "\n",
 				log_bmp_sys->out.name, read_offset);
 		}
 	};
@@ -371,8 +370,9 @@ log_online_read_last_tracked_lsn(void)
 	any */
 	if (!os_file_set_eof_at(log_bmp_sys->out.file,
 				log_bmp_sys->out.offset)) {
-		fprintf(stderr, "InnoDB: Warning: failed truncating "
-			"changed page bitmap file \'%s\' to %llu bytes\n",
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"failed truncating changed page bitmap file \'%s\' to "
+			UINT64PF " bytes\n",
 			log_bmp_sys->out.name, log_bmp_sys->out.offset);
 		result = 0;
 	}
@@ -388,12 +388,11 @@ UNIV_INLINE
 void
 log_set_tracked_lsn(
 /*================*/
-	ib_uint64_t	tracked_lsn)	/*!<in: new value */
+	lsn_t	tracked_lsn)	/*!<in: new value */
 {
 #ifdef HAVE_ATOMIC_BUILTINS_64
 	/* Single writer, no data race here */
-	ib_uint64_t old_value
-		= os_atomic_increment_uint64(&log_sys->tracked_lsn, 0);
+	lsn_t old_value = os_atomic_increment_uint64(&log_sys->tracked_lsn, 0);
 	(void) os_atomic_increment_uint64(&log_sys->tracked_lsn,
 					  tracked_lsn - old_value);
 #else
@@ -414,19 +413,19 @@ static
 ibool
 log_online_can_track_missing(
 /*=========================*/
-	ib_uint64_t	last_tracked_lsn,	/*!<in: last tracked LSN */
-	ib_uint64_t	tracking_start_lsn)	/*!<in:	current LSN */
+	lsn_t	last_tracked_lsn,	/*!<in: last tracked LSN */
+	lsn_t	tracking_start_lsn)	/*!<in:	current LSN */
 {
 	/* last_tracked_lsn might be < MIN_TRACKED_LSN in the case of empty
 	bitmap file, handle this too. */
-	last_tracked_lsn = ut_max_uint64(last_tracked_lsn, MIN_TRACKED_LSN);
+	last_tracked_lsn = ut_max(last_tracked_lsn, MIN_TRACKED_LSN);
 
 	if (last_tracked_lsn > tracking_start_lsn) {
-		fprintf(stderr,
-			"InnoDB: Error: last tracked LSN %llu is ahead of "
-			"tracking start LSN %llu.  This can be caused by "
-			"mismatched bitmap files.\n", last_tracked_lsn,
-			tracking_start_lsn);
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"last tracked LSN " LSN_PF " is ahead of tracking "
+			"start LSN " LSN_PF ".  This can be caused by "
+			"mismatched bitmap files.\n",
+			last_tracked_lsn, tracking_start_lsn);
 		exit(1);
 	}
 
@@ -444,40 +443,40 @@ static
 void
 log_online_track_missing_on_startup(
 /*================================*/
-	ib_uint64_t	last_tracked_lsn,	/*!<in: last tracked LSN read
-						from the bitmap file */
-	ib_uint64_t	tracking_start_lsn)	/*!<in: last checkpoint LSN of
-						the current server startup */
+	lsn_t	last_tracked_lsn,	/*!<in: last tracked LSN read from the
+					bitmap file */
+	lsn_t	tracking_start_lsn)	/*!<in: last checkpoint LSN of the
+					current server startup */
 {
 	ut_ad(last_tracked_lsn != tracking_start_lsn);
 
-	fprintf(stderr, "InnoDB: last tracked LSN in \'%s\' is %llu, but the "
-		"last checkpoint LSN is %llu.  This might be due to a server "
-		"crash or a very fast shutdown.  ", log_bmp_sys->out.name,
-		last_tracked_lsn, tracking_start_lsn);
+	ib_logf(IB_LOG_LEVEL_WARN, "last tracked LSN in \'%s\' is " LSN_PF
+		", but the last checkpoint LSN is " LSN_PF ".  This might be "
+		"due to a server crash or a very fast shutdown.  ",
+		log_bmp_sys->out.name, last_tracked_lsn, tracking_start_lsn);
 
 	/* See if we can fully recover the missing interval */
 	if (log_online_can_track_missing(last_tracked_lsn,
 					 tracking_start_lsn)) {
 
-		fprintf(stderr,
-			"Reading the log to advance the last tracked LSN.\n");
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"reading the log to advance the last tracked LSN.\n");
 
-		log_bmp_sys->start_lsn = ut_max_uint64(last_tracked_lsn,
-						       MIN_TRACKED_LSN);
+		log_bmp_sys->start_lsn = ut_max(last_tracked_lsn,
+						MIN_TRACKED_LSN);
 		log_set_tracked_lsn(log_bmp_sys->start_lsn);
 		if (!log_online_follow_redo_log()) {
 			exit(1);
 		}
 		ut_ad(log_bmp_sys->end_lsn >= tracking_start_lsn);
 
-		fprintf(stderr,
-			"InnoDB: continuing tracking changed pages from LSN "
-			"%llu\n", log_bmp_sys->end_lsn);
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"continuing tracking changed pages from LSN " LSN_PF
+			"\n", log_bmp_sys->end_lsn);
 	}
 	else {
-		fprintf(stderr,
-			"The age of last tracked LSN exceeds log capacity, "
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"the age of last tracked LSN exceeds log capacity, "
 			"tracking-based incremental backups will work only "
 			"from the higher LSN!\n");
 
@@ -485,9 +484,9 @@ log_online_track_missing_on_startup(
 			= tracking_start_lsn;
 		log_set_tracked_lsn(log_bmp_sys->start_lsn);
 
-		fprintf(stderr,
-			"InnoDB: starting tracking changed pages from LSN "
-			"%llu\n", log_bmp_sys->end_lsn);
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"starting tracking changed pages from LSN " LSN_PF
+			"\n", log_bmp_sys->end_lsn);
 	}
 }
 
@@ -497,7 +496,7 @@ static
 void
 log_online_make_bitmap_name(
 /*=========================*/
-	ib_uint64_t	start_lsn)	/*!< in: the start LSN name part */
+	lsn_t	start_lsn)	/*!< in: the start LSN name part */
 {
 	ut_snprintf(log_bmp_sys->out.name, FN_REFLEN, bmp_file_name_template,
 		    log_bmp_sys->bmp_file_home, bmp_file_name_stem,
@@ -513,12 +512,12 @@ log_online_should_overwrite(
 /*========================*/
 	const char	*path)	/*!< in: path to file */
 {
-	ibool		success;
+	dberr_t		err;
 	os_file_stat_t	file_info;
 
 	/* Currently, it's OK to overwrite 0-sized files only */
-	success = os_file_get_status(path, &file_info);
-	return success && file_info.type == OS_FILE_TYPE_FILE
+	err = os_file_get_status(path, &file_info, false);
+	return err == DB_SUCCESS && file_info.type == OS_FILE_TYPE_FILE
 		&& file_info.size == 0LL;
 }
 
@@ -535,7 +534,10 @@ log_online_start_bitmap_file(void)
 
 	/* Check for an old file that should be deleted first */
 	if (log_online_should_overwrite(log_bmp_sys->out.name)) {
-		success = os_file_delete_if_exists(log_bmp_sys->out.name);
+
+		success = static_cast<ibool>(
+			os_file_delete_if_exists(innodb_file_bmp_key,
+						 log_bmp_sys->out.name));
 	}
 
 	if (UNIV_LIKELY(success)) {
@@ -551,9 +553,8 @@ log_online_start_bitmap_file(void)
 
 		/* The following call prints an error message */
 		os_file_get_last_error(TRUE);
-		fprintf(stderr,
-			"InnoDB: Error: Cannot create \'%s\'\n",
-			log_bmp_sys->out.name);
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"cannot create \'%s\'\n", log_bmp_sys->out.name);
 		return FALSE;
 	}
 
@@ -569,8 +570,8 @@ static
 ibool
 log_online_rotate_bitmap_file(
 /*===========================*/
-	ib_uint64_t	next_file_start_lsn)	/*!<in: the start LSN name
-						part */
+	lsn_t	next_file_start_lsn)	/*!<in: the start LSN name
+					part */
 {
 	if (log_bmp_sys->out.file != os_file_invalid) {
 		os_file_close(log_bmp_sys->out.file);
@@ -595,7 +596,7 @@ log_online_is_bitmap_file(
 							check */
 	ulong*			bitmap_file_seq_num,	/*!<out: bitmap file
 							sequence number */
-	ib_uint64_t*		bitmap_file_start_lsn)	/*!<out: bitmap file
+	lsn_t*			bitmap_file_start_lsn)	/*!<out: bitmap file
 							start LSN */
 {
 	char	stem[FN_REFLEN];
@@ -605,7 +606,8 @@ log_online_is_bitmap_file(
 	return ((file_info->type == OS_FILE_TYPE_FILE
 		 || file_info->type == OS_FILE_TYPE_LINK)
 		&& (sscanf(file_info->name, "%[a-z_]%lu_%llu.xdb", stem,
-			   bitmap_file_seq_num, bitmap_file_start_lsn) == 3)
+			   bitmap_file_seq_num,
+			   (unsigned long long *)bitmap_file_start_lsn) == 3)
 		&& (!strcmp(stem, bmp_file_name_stem)));
 }
 
@@ -616,24 +618,25 @@ void
 log_online_read_init(void)
 /*======================*/
 {
-	ibool		success;
-	ib_uint64_t	tracking_start_lsn
-		= ut_max_uint64(log_sys->last_checkpoint_lsn, MIN_TRACKED_LSN);
+	ibool	success;
+	lsn_t	tracking_start_lsn
+		= ut_max(log_sys->last_checkpoint_lsn, MIN_TRACKED_LSN);
 	os_file_dir_t	bitmap_dir;
 	os_file_stat_t	bitmap_dir_file_info;
-	ib_uint64_t	last_file_start_lsn	= MIN_TRACKED_LSN;
-	size_t		srv_data_home_len;
+	lsn_t	last_file_start_lsn	= MIN_TRACKED_LSN;
+	size_t	srv_data_home_len;
 
 	/* Bitmap data start and end in a bitmap block must be 8-byte
 	aligned. */
 	compile_time_assert(MODIFIED_PAGE_BLOCK_BITMAP % 8 == 0);
 	compile_time_assert(MODIFIED_PAGE_BLOCK_BITMAP_LEN % 8 == 0);
 
-	log_bmp_sys = ut_malloc(sizeof(*log_bmp_sys));
-	log_bmp_sys->read_buf_ptr = ut_malloc(FOLLOW_SCAN_SIZE
-					      + OS_FILE_LOG_BLOCK_SIZE);
-	log_bmp_sys->read_buf = ut_align(log_bmp_sys->read_buf_ptr,
-					 OS_FILE_LOG_BLOCK_SIZE);
+	log_bmp_sys = static_cast<log_bitmap_struct *>
+		(ut_malloc(sizeof(*log_bmp_sys)));
+	log_bmp_sys->read_buf_ptr = static_cast<byte *>
+		(ut_malloc(FOLLOW_SCAN_SIZE + OS_FILE_LOG_BLOCK_SIZE));
+	log_bmp_sys->read_buf = static_cast<byte *>
+		(ut_align(log_bmp_sys->read_buf_ptr, OS_FILE_LOG_BLOCK_SIZE));
 
 	mutex_create(log_bmp_sys_mutex_key, &log_bmp_sys->mutex,
 		     SYNC_LOG_ONLINE);
@@ -664,8 +667,8 @@ log_online_read_init(void)
 	while (!os_file_readdir_next_file(log_bmp_sys->bmp_file_home,
 					  bitmap_dir, &bitmap_dir_file_info)) {
 
-		ulong		file_seq_num;
-		ib_uint64_t	file_start_lsn;
+		ulong	file_seq_num;
+		lsn_t	file_start_lsn;
 
 		if (!log_online_is_bitmap_file(&bitmap_dir_file_info,
 					      &file_seq_num,
@@ -687,7 +690,7 @@ log_online_read_init(void)
 
 	if (os_file_closedir(bitmap_dir)) {
 		os_file_get_last_error(TRUE);
-		fprintf(stderr, "InnoDB: Error: cannot close \'%s\'\n",
+		ib_logf(IB_LOG_LEVEL_ERROR, "cannot close \'%s\'\n",
 			log_bmp_sys->bmp_file_home);
 		exit(1);
 	}
@@ -716,24 +719,18 @@ log_online_read_init(void)
 	else {
 
 		/* Read the last tracked LSN from the last file */
-		ulint		size_low;
-		ulint		size_high;
-		ib_uint64_t	last_tracked_lsn;
-		ib_uint64_t	file_start_lsn;
-
-		success = os_file_get_size(log_bmp_sys->out.file, &size_low,
-					   &size_high);
-		ut_a(success);
+		lsn_t	last_tracked_lsn;
+		lsn_t	file_start_lsn;
 
 		log_bmp_sys->out.size
-			= ((ib_uint64_t)size_high << 32) | size_low;
+			= os_file_get_size(log_bmp_sys->out.file);
 		log_bmp_sys->out.offset	= log_bmp_sys->out.size;
 
 		if (log_bmp_sys->out.offset % MODIFIED_PAGE_BLOCK_SIZE != 0) {
 
-			fprintf(stderr,
-				"InnoDB: Warning: truncated block detected "
-				"in \'%s\' at offset %llu\n",
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"truncated block detected in \'%s\' at offset "
+				UINT64PF "\n",
 				log_bmp_sys->out.name,
 				log_bmp_sys->out.offset);
 			log_bmp_sys->out.offset -=
@@ -767,17 +764,18 @@ log_online_read_init(void)
 
 		if (last_tracked_lsn > tracking_start_lsn) {
 
-			fprintf(stderr, "InnoDB: last tracked LSN is %llu, "
-				"but last the checkpoint LSN is %llu. "
-				"The tracking-based incremental backups will "
-				"work only from the latter LSN!\n",
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"last tracked LSN is " LSN_PF ", but the last "
+				"checkpoint LSN is " LSN_PF ". The "
+				"tracking-based incremental backups will work "
+				"only from the latter LSN!\n",
 				last_tracked_lsn, tracking_start_lsn);
 		}
 
 	}
 
-	fprintf(stderr, "InnoDB: starting tracking changed pages from "
-		"LSN %llu\n", tracking_start_lsn);
+	ib_logf(IB_LOG_LEVEL_INFO, "starting tracking changed pages from LSN "
+		LSN_PF "\n", tracking_start_lsn);
 	log_bmp_sys->start_lsn = tracking_start_lsn;
 	log_set_tracked_lsn(tracking_start_lsn);
 }
@@ -875,8 +873,7 @@ log_online_parse_redo_log(void)
 					 &body);
 		if (len > 0) {
 
-			if (log_online_rec_page_means_page(type)
-			    && (space != TRX_DOUBLEWRITE_SPACE)) {
+			if (log_online_rec_page_means_page(type)) {
 
 				ut_a(len >= 3);
 				log_online_set_page_bit(space, page_no);
@@ -920,11 +917,11 @@ log_online_is_valid_log_seg(
 
 	if (!checksum_is_ok) {
 
-		fprintf(stderr,
-			"InnoDB Error: log block checksum mismatch"
-			"expected %lu, calculated checksum %lu\n",
-			(ulong) log_block_get_checksum(log_block),
-			(ulong) log_block_calc_checksum(log_block));
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"log block checksum mismatch: expected " ULINTPF ", "
+			"calculated checksum " ULINTPF "\n",
+			log_block_get_checksum(log_block),
+			log_block_calc_checksum(log_block));
 	}
 
 	return checksum_is_ok;
@@ -995,8 +992,8 @@ void
 log_online_follow_log_seg(
 /*======================*/
 	log_group_t*	group,		       /*!< in: the log group to use */
-	ib_uint64_t	block_start_lsn,       /*!< in: the LSN to read from */
-	ib_uint64_t	block_end_lsn)	       /*!< in: the LSN to read to */
+	lsn_t		block_start_lsn,       /*!< in: the LSN to read from */
+	lsn_t		block_end_lsn)	       /*!< in: the LSN to read to */
 {
 	/* Pointer to the current OS_FILE_LOG_BLOCK-sized chunk of the read log
 	data to parse */
@@ -1062,11 +1059,11 @@ void
 log_online_follow_log_group(
 /*========================*/
 	log_group_t*	group,		/*!< in: the log group to use */
-	ib_uint64_t	contiguous_lsn)	/*!< in: the LSN of log block start
+	lsn_t		contiguous_lsn)	/*!< in: the LSN of log block start
 					containing the log_parse_start_lsn */
 {
-	ib_uint64_t block_start_lsn = contiguous_lsn;
-	ib_uint64_t block_end_lsn;
+	lsn_t	block_start_lsn = contiguous_lsn;
+	lsn_t	block_end_lsn;
 
 	ut_ad(mutex_own(&log_bmp_sys->mutex));
 
@@ -1114,27 +1111,24 @@ log_online_write_bitmap_page(
 	DBUG_EXECUTE_IF("bitmap_page_write_error", return FALSE;);
 
 	success = os_file_write(log_bmp_sys->out.name, log_bmp_sys->out.file,
-				block,
-				(ulint)(log_bmp_sys->out.offset & 0xFFFFFFFF),
-				(ulint)(log_bmp_sys->out.offset >> 32),
+				block, log_bmp_sys->out.offset,
 				MODIFIED_PAGE_BLOCK_SIZE);
 	if (UNIV_UNLIKELY(!success)) {
 
 		/* The following call prints an error message */
 		os_file_get_last_error(TRUE);
-		fprintf(stderr, "InnoDB: Error: failed writing changed page "
+		ib_logf(IB_LOG_LEVEL_ERROR, "failed writing changed page "
 			"bitmap file \'%s\'\n", log_bmp_sys->out.name);
 		return FALSE;
 	}
 
-	success = os_file_flush(log_bmp_sys->out.file, FALSE);
+	success = os_file_flush(log_bmp_sys->out.file);
 	if (UNIV_UNLIKELY(!success)) {
 
 		/* The following call prints an error message */
 		os_file_get_last_error(TRUE);
-		fprintf(stderr, "InnoDB: Error: failed flushing "
-			"changed page bitmap file \'%s\'\n",
-			log_bmp_sys->out.name);
+		ib_logf(IB_LOG_LEVEL_ERROR, "failed flushing changed page "
+			"bitmap file \'%s\'\n",	log_bmp_sys->out.name);
 		return FALSE;
 	}
 
@@ -1218,7 +1212,7 @@ ibool
 log_online_follow_redo_log(void)
 /*============================*/
 {
-	ib_uint64_t	contiguous_start_lsn;
+	lsn_t		contiguous_start_lsn;
 	log_group_t*	group;
 	ibool		result;
 
@@ -1228,6 +1222,8 @@ log_online_follow_redo_log(void)
 		mutex_exit(&log_bmp_sys->mutex);
 		return FALSE;
 	}
+
+	ut_ad(!srv_read_only_mode);
 
 	/* Grab the LSN of the last checkpoint, we will parse up to it */
 	mutex_enter(&(log_sys->mutex));
@@ -1272,7 +1268,7 @@ log_online_diagnose_inconsistent_dir(
 	log_online_bitmap_file_range_t	*bitmap_files)	/*!<in/out: bitmap file
 							range */
 {
-	fprintf(stderr,
+	ib_logf(IB_LOG_LEVEL_WARN,
 		"InnoDB: Warning: inconsistent bitmap file "
 		"directory for a "
 		"INFORMATION_SCHEMA.INNODB_CHANGED_PAGES query"
@@ -1298,14 +1294,14 @@ log_online_setup_bitmap_file_range(
 /*===============================*/
 	log_online_bitmap_file_range_t	*bitmap_files,	/*!<in/out: bitmap file
 							range */
-	ib_uint64_t			range_start,	/*!<in: start LSN */
-	ib_uint64_t			range_end)	/*!<in: end LSN */
+	lsn_t				range_start,	/*!<in: start LSN */
+	lsn_t				range_end)	/*!<in: end LSN */
 {
 	os_file_dir_t	bitmap_dir;
 	os_file_stat_t	bitmap_dir_file_info;
 	ulong		first_file_seq_num	= ULONG_MAX;
 	ulong		last_file_seq_num	= 0;
-	ib_uint64_t	first_file_start_lsn	= IB_ULONGLONG_MAX;
+	lsn_t		first_file_start_lsn	= LSN_MAX;
 
 	ut_ad(range_end >= range_start);
 
@@ -1316,8 +1312,8 @@ log_online_setup_bitmap_file_range(
 
 	bitmap_dir = os_file_opendir(srv_data_home, FALSE);
 	if (UNIV_UNLIKELY(!bitmap_dir)) {
-		fprintf(stderr,
-			"InnoDB: Error: "
+
+		ib_logf(IB_LOG_LEVEL_ERROR,
 			"failed to open bitmap directory \'%s\'\n",
 			srv_data_home);
 		return FALSE;
@@ -1326,8 +1322,8 @@ log_online_setup_bitmap_file_range(
 	while (!os_file_readdir_next_file(srv_data_home, bitmap_dir,
 					  &bitmap_dir_file_info)) {
 
-		ulong		file_seq_num;
-		ib_uint64_t	file_start_lsn;
+		ulong	file_seq_num;
+		lsn_t	file_start_lsn;
 
 		if (!log_online_is_bitmap_file(&bitmap_dir_file_info,
 					       &file_seq_num,
@@ -1368,7 +1364,7 @@ log_online_setup_bitmap_file_range(
 	if (UNIV_UNLIKELY(os_file_closedir(bitmap_dir))) {
 
 		os_file_get_last_error(TRUE);
-		fprintf(stderr, "InnoDB: Error: cannot close \'%s\'\n",
+		ib_logf(IB_LOG_LEVEL_ERROR, "cannot close \'%s\'\n",
 			srv_data_home);
 		return FALSE;
 	}
@@ -1388,23 +1384,25 @@ log_online_setup_bitmap_file_range(
 	bitmap_dir = os_file_opendir(srv_data_home, FALSE);
 	if (UNIV_UNLIKELY(!bitmap_dir)) {
 
-		fprintf(stderr, "InnoDB: Error: "
+		ib_logf(IB_LOG_LEVEL_ERROR,
 			"failed to open bitmap directory \'%s\'\n",
 			srv_data_home);
 		return FALSE;
 	}
 
-	bitmap_files->files = ut_malloc(bitmap_files->count
-					* sizeof(bitmap_files->files[0]));
+	bitmap_files->files
+		= static_cast<log_online_bitmap_file_range_struct::files_t *>
+		(ut_malloc(bitmap_files->count
+			   * sizeof(bitmap_files->files[0])));
 	memset(bitmap_files->files, 0,
 	       bitmap_files->count * sizeof(bitmap_files->files[0]));
 
 	while (!os_file_readdir_next_file(srv_data_home, bitmap_dir,
 					  &bitmap_dir_file_info)) {
 
-		ulong		file_seq_num;
-		ib_uint64_t	file_start_lsn;
-		size_t		array_pos;
+		ulong	file_seq_num;
+		lsn_t	file_start_lsn;
+		size_t	array_pos;
 
 		if (!log_online_is_bitmap_file(&bitmap_dir_file_info,
 					       &file_seq_num,
@@ -1438,7 +1436,7 @@ log_online_setup_bitmap_file_range(
 	if (UNIV_UNLIKELY(os_file_closedir(bitmap_dir))) {
 
 		os_file_get_last_error(TRUE);
-		fprintf(stderr, "InnoDB: Error: cannot close \'%s\'\n",
+		ib_logf(IB_LOG_LEVEL_ERROR, "cannot close \'%s\'\n",
 			srv_data_home);
 		free(bitmap_files->files);
 		return FALSE;
@@ -1484,8 +1482,6 @@ log_online_open_bitmap_file_read_only(
 							file */
 {
 	ibool	success	= FALSE;
-	ulint	size_low;
-	ulint	size_high;
 
 	ut_ad(name[0] != '\0');
 
@@ -1500,14 +1496,13 @@ log_online_open_bitmap_file_read_only(
 
 		/* Here and below assume that bitmap file names do not
 		contain apostrophes, thus no need for ut_print_filename(). */
-		fprintf(stderr,
-			"InnoDB: Warning: error opening the changed page "
-			"bitmap \'%s\'\n", bitmap_file->name);
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"error opening the changed page bitmap \'%s\'\n",
+			bitmap_file->name);
 		return FALSE;
 	}
 
-	success = os_file_get_size(bitmap_file->file, &size_low, &size_high);
-	bitmap_file->size = (((ib_uint64_t)size_high) << 32) | size_low;
+	bitmap_file->size = os_file_get_size(bitmap_file->file);
 	bitmap_file->offset = 0;
 
 #ifdef UNIV_LINUX
@@ -1546,10 +1541,9 @@ log_online_diagnose_bitmap_eof(
 			to read, it's junk.  This error is not fatal in
 			itself. */
 
-			fprintf(stderr,
-				"InnoDB: Warning: junk at the end of changed "
-				"page bitmap file \'%s\'.\n",
-				bitmap_file->name);
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"junk at the end of changed page bitmap file "
+				"\'%s\'.\n", bitmap_file->name);
 		}
 
 		if (UNIV_UNLIKELY(!last_page_in_run)) {
@@ -1558,10 +1552,10 @@ log_online_diagnose_bitmap_eof(
 			a run */
 			/* It's a "Warning" here because it's not a fatal error
 			for the whole server */
-			fprintf(stderr,
-				"InnoDB: Warning: changed page bitmap "
-				"file \'%s\' does not contain a complete run "
-				"at the end.\n", bitmap_file->name);
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"changed page bitmap file \'%s\' does not "
+				"contain a complete run at the end.\n",
+				bitmap_file->name);
 			return FALSE;
 		}
 	}
@@ -1585,8 +1579,8 @@ ibool
 log_online_bitmap_iterator_init(
 /*============================*/
 	log_bitmap_iterator_t	*i,	/*!<in/out:  iterator */
-	ib_uint64_t		min_lsn,/*!< in: start LSN */
-	ib_uint64_t		max_lsn)/*!< in: end LSN */
+	lsn_t			min_lsn,/*!< in: start LSN */
+	lsn_t			max_lsn)/*!< in: end LSN */
 {
 	ut_a(i);
 
@@ -1619,7 +1613,7 @@ log_online_bitmap_iterator_init(
 		return FALSE;
 	}
 
-	i->page = ut_malloc(MODIFIED_PAGE_BLOCK_SIZE);
+	i->page = static_cast<byte *>(ut_malloc(MODIFIED_PAGE_BLOCK_SIZE));
 	i->bit_offset = MODIFIED_PAGE_BLOCK_BITMAP_LEN;
 	i->start_lsn = i->end_lsn = 0;
 	i->space_id = 0;
@@ -1740,10 +1734,9 @@ log_online_bitmap_iterator_next(
 		if (UNIV_UNLIKELY(!success)) {
 
 			os_file_get_last_error(TRUE);
-			fprintf(stderr,
-				"InnoDB: Warning: failed reading "
-				"changed page bitmap file \'%s\'\n",
-				i->in_files.files[i->in_i].name);
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"failed reading changed page bitmap file "
+				"\'%s\'\n", i->in_files.files[i->in_i].name);
 			i->failed = TRUE;
 			return FALSE;
 		}
@@ -1765,23 +1758,22 @@ log_online_bitmap_iterator_next(
 
 /************************************************************//**
 Delete all the bitmap files for data less than the specified LSN.
-If called with lsn == 0 (i.e. set by RESET request) or
-IB_ULONGLONG_MAX, restart the bitmap file sequence, otherwise
-continue it.
+If called with lsn == 0 (i.e. set by RESET request) or LSN_MAX,
+restart the bitmap file sequence, otherwise continue it.
 
 @return FALSE to indicate success, TRUE for failure. */
 UNIV_INTERN
 ibool
 log_online_purge_changed_page_bitmaps(
 /*==================================*/
-	ib_uint64_t lsn)	/*!< in: LSN to purge files up to */
+	lsn_t	lsn)	/*!< in: LSN to purge files up to */
 {
 	log_online_bitmap_file_range_t	bitmap_files;
 	size_t				i;
 	ibool				result = FALSE;
 
 	if (lsn == 0) {
-		lsn = IB_ULONGLONG_MAX;
+		lsn = LSN_MAX;
 	}
 
 	if (srv_track_changed_pages) {
@@ -1807,9 +1799,12 @@ log_online_purge_changed_page_bitmaps(
 	for (i = 0; i < bitmap_files.count; i++) {
 		if (bitmap_files.files[i].seq_num == 0
 		    || bitmap_files.files[i].start_lsn >= lsn) {
+
 			break;
 		}
-		if (!os_file_delete_if_exists(bitmap_files.files[i].name)) {
+		if (!os_file_delete_if_exists(innodb_file_bmp_key,
+					      bitmap_files.files[i].name)) {
+
 			os_file_get_last_error(TRUE);
 			result = TRUE;
 			break;
@@ -1818,8 +1813,8 @@ log_online_purge_changed_page_bitmaps(
 
 	if (srv_track_changed_pages) {
 		if (lsn > log_bmp_sys->end_lsn) {
-			ib_uint64_t	new_file_lsn;
-			if (lsn == IB_ULONGLONG_MAX) {
+			lsn_t	new_file_lsn;
+			if (lsn == LSN_MAX) {
 				/* RESET restarts the sequence */
 				log_bmp_sys->out_seq_num = 0;
 				new_file_lsn = 0;

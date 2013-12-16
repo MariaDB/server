@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1995, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /**************************************************//**
-@file os/os0thread.c
+@file os/os0thread.cc
 The interface to the operating system thread control primitives
 
 Created 9/8/1995 Heikki Tuuri
@@ -30,6 +30,12 @@ Created 9/8/1995 Heikki Tuuri
 
 #ifdef __WIN__
 #include <windows.h>
+#elif UNIV_LINUX
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
 #endif
 
 #ifndef UNIV_HOTBACKUP
@@ -77,7 +83,7 @@ os_thread_pf(
 
 	return((ulint)(a.field1));
 #else
-	return((ulint)a);
+	return((ulint) a);
 #endif
 }
 
@@ -98,6 +104,24 @@ os_thread_get_curr_id(void)
 #endif
 }
 
+/*****************************************************************//**
+Returns the system-specific thread identifier of current thread.  On Linux,
+returns tid.  On other systems currently returns os_thread_get_curr_id().
+
+@return	current thread identifier */
+UNIV_INTERN
+os_tid_t
+os_thread_get_tid(void)
+/*===================*/
+{
+#ifdef UNIV_LINUX
+	return((os_tid_t)syscall(SYS_gettid));
+#else
+	return(os_thread_get_curr_id());
+#endif
+}
+
+
 /****************************************************************//**
 Creates a new thread of execution. The execution starts from
 the function given. The start function takes a void* parameter
@@ -105,14 +129,10 @@ and returns an ulint.
 @return	handle to the thread */
 UNIV_INTERN
 os_thread_t
-os_thread_create(
-/*=============*/
-#ifndef __WIN__
-	os_posix_f_t		start_f,
-#else
-	ulint (*start_f)(void*),		/*!< in: pointer to function
+os_thread_create_func(
+/*==================*/
+	os_thread_func_t	func,		/*!< in: pointer to function
 						from which to start */
-#endif
 	void*			arg,		/*!< in: argument to start
 						function */
 	os_thread_id_t*		thread_id)	/*!< out: id of the created
@@ -128,7 +148,7 @@ os_thread_create(
 
 	thread = CreateThread(NULL,	/* no security attributes */
 			      0,	/* default size stack */
-			      (LPTHREAD_START_ROUTINE)start_f,
+			      func,
 			      arg,
 			      0,	/* thread runs immediately */
 			      &win_thread_id);
@@ -168,9 +188,9 @@ os_thread_create(
 	os_mutex_exit(os_sync_mutex);
 
 #ifdef UNIV_HPUX10
-	ret = pthread_create(&pthread, pthread_attr_default, start_f, arg);
+	ret = pthread_create(&pthread, pthread_attr_default, func, arg);
 #else
-	ret = pthread_create(&pthread, &attr, start_f, arg);
+	ret = pthread_create(&pthread, &attr, func, arg);
 #endif
 	if (ret) {
 		fprintf(stderr,
@@ -212,7 +232,7 @@ os_thread_exit(
 	os_mutex_exit(os_sync_mutex);
 
 #ifdef __WIN__
-	ExitThread((DWORD)exit_value);
+	ExitThread((DWORD) exit_value);
 #else
 	pthread_detach(pthread_self());
 	pthread_exit(exit_value);
@@ -257,5 +277,33 @@ os_thread_sleep(
 	t.tv_usec = tm % 1000000;
 
 	select(0, NULL, NULL, NULL, &t);
+#endif
+}
+
+/*****************************************************************//**
+Set relative scheduling priority for a given thread on Linux.  Currently a
+no-op on other systems.
+
+@return An actual thread priority after the update */
+UNIV_INTERN
+ulint
+os_thread_set_priority(
+/*===================*/
+	os_tid_t	thread_id,		/*!< in: thread id */
+	ulint		relative_priority)	/*!< in: system-specific
+						priority value */
+{
+#ifdef UNIV_LINUX
+	lint	thread_nice = 19 - relative_priority;
+	if (setpriority(PRIO_PROCESS, thread_id, thread_nice) == -1) {
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"Setting thread %lu nice to %ld failed, "
+			"current nice %d, errno %d",
+			os_thread_pf(thread_id), thread_nice,
+			getpriority(PRIO_PROCESS, thread_id), errno);
+	}
+	return(19 - getpriority(PRIO_PROCESS, thread_id));
+#else
+	return(relative_priority);
 #endif
 }

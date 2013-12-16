@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1994, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /********************************************************************//**
-@file data/data0data.c
+@file data/data0data.cc
 SQL data field and tuple
 
 Created 5/30/1994 Heikki Tuuri
@@ -53,35 +53,6 @@ UNIV_INTERN ulint	data_dummy;
 #endif /* UNIV_DEBUG */
 
 #ifndef UNIV_HOTBACKUP
-/*********************************************************************//**
-Tests if dfield data length and content is equal to the given.
-@return	TRUE if equal */
-UNIV_INTERN
-ibool
-dfield_data_is_binary_equal(
-/*========================*/
-	const dfield_t*	field,	/*!< in: field */
-	ulint		len,	/*!< in: data length or UNIV_SQL_NULL */
-	const byte*	data)	/*!< in: data */
-{
-	if (len != dfield_get_len(field)) {
-
-		return(FALSE);
-	}
-
-	if (len == UNIV_SQL_NULL) {
-
-		return(TRUE);
-	}
-
-	if (0 != memcmp(dfield_get_data(field), data, len)) {
-
-		return(FALSE);
-	}
-
-	return(TRUE);
-}
-
 /************************************************************//**
 Compare two data tuples, respecting the collation of character fields.
 @return 1, 0 , -1 if tuple1 is greater, equal, less, respectively,
@@ -274,7 +245,9 @@ dtuple_validate(
 
 		if (!dfield_is_null(field)) {
 
-			const byte*	data = dfield_get_data(field);
+			const byte*	data;
+
+			data = static_cast<const byte*>(dfield_get_data(field));
 #ifndef UNIV_DEBUG_VALGRIND
 			ulint		j;
 
@@ -311,7 +284,7 @@ dfield_print(
 	ulint		i;
 
 	len = dfield_get_len(dfield);
-	data = dfield_get_data(dfield);
+	data = static_cast<const byte*>(dfield_get_data(dfield));
 
 	if (dfield_is_null(dfield)) {
 		fputs("NULL", stderr);
@@ -333,7 +306,7 @@ dfield_print(
 		break;
 	case DATA_INT:
 		ut_a(len == 4); /* only works for 32-bit integers */
-		fprintf(stderr, "%d", (int)mach_read_from_4(data));
+		fprintf(stderr, "%d", (int) mach_read_from_4(data));
 		break;
 	default:
 		ut_error;
@@ -356,7 +329,7 @@ dfield_print_also_hex(
 	ibool		print_also_hex;
 
 	len = dfield_get_len(dfield);
-	data = dfield_get_data(dfield);
+	data = static_cast<const byte*>(dfield_get_data(dfield));
 
 	if (dfield_is_null(dfield)) {
 		fputs("NULL", stderr);
@@ -438,25 +411,25 @@ dfield_print_also_hex(
 		case DATA_TRX_ID:
 			id = mach_read_from_6(data);
 
-			fprintf(stderr, "trx_id " TRX_ID_FMT, (ullint) id);
+			fprintf(stderr, "trx_id " TRX_ID_FMT, id);
 			break;
 
 		case DATA_ROLL_PTR:
 			id = mach_read_from_7(data);
 
-			fprintf(stderr, "roll_ptr " TRX_ID_FMT, (ullint) id);
+			fprintf(stderr, "roll_ptr " TRX_ID_FMT, id);
 			break;
 
 		case DATA_ROW_ID:
 			id = mach_read_from_6(data);
 
-			fprintf(stderr, "row_id " TRX_ID_FMT, (ullint) id);
+			fprintf(stderr, "row_id " TRX_ID_FMT, id);
 			break;
 
 		default:
 			id = mach_ull_read_compressed(data);
 
-			fprintf(stderr, "mix_id " TRX_ID_FMT, (ullint) id);
+			fprintf(stderr, "mix_id " TRX_ID_FMT, id);
 		}
 		break;
 
@@ -484,7 +457,7 @@ dfield_print_also_hex(
 			break;
 		}
 
-		data = dfield_get_data(dfield);
+		data = static_cast<byte*>(dfield_get_data(dfield));
 		/* fall through */
 
 	case DATA_BINARY:
@@ -579,11 +552,11 @@ dtuple_convert_big_rec(
 	ulint		local_len;
 	ulint		local_prefix_len;
 
-	if (UNIV_UNLIKELY(!dict_index_is_clust(index))) {
+	if (!dict_index_is_clust(index)) {
 		return(NULL);
 	}
 
-	if (dict_table_get_format(index->table) < DICT_TF_FORMAT_ZIP) {
+	if (dict_table_get_format(index->table) < UNIV_FORMAT_B) {
 		/* up to MySQL 5.1: store a 768-byte prefix locally */
 		local_len = BTR_EXTERN_FIELD_REF_SIZE
 			+ DICT_ANTELOPE_MAX_INDEX_COL_LEN;
@@ -608,11 +581,15 @@ dtuple_convert_big_rec(
 	heap = mem_heap_create(size + dtuple_get_n_fields(entry)
 			       * sizeof(big_rec_field_t) + 1000);
 
-	vector = mem_heap_alloc(heap, sizeof(big_rec_t));
+	vector = static_cast<big_rec_t*>(
+		mem_heap_alloc(heap, sizeof(big_rec_t)));
 
 	vector->heap = heap;
-	vector->fields = mem_heap_alloc(heap, dtuple_get_n_fields(entry)
-					* sizeof(big_rec_field_t));
+
+	vector->fields = static_cast<big_rec_field_t*>(
+		mem_heap_alloc(
+			heap,
+			dtuple_get_n_fields(entry) * sizeof(big_rec_field_t)));
 
 	/* Decide which fields to shorten: the algorithm is to look for
 	a variable-length field that yields the biggest savings when
@@ -703,7 +680,7 @@ skip_field:
 		b->data = (char*) dfield_get_data(dfield) + local_prefix_len;
 
 		/* Allocate the locally stored part of the column. */
-		data = mem_heap_alloc(heap, local_len);
+		data = static_cast<byte*>(mem_heap_alloc(heap, local_len));
 
 		/* Copy the local prefix. */
 		memcpy(data, dfield_get_data(dfield), local_prefix_len);

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1994, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /********************************************************************//**
-@file mem/mem0mem.c
+@file mem/mem0mem.cc
 The memory management
 
 Created 6/9/1994 Heikki Tuuri
@@ -30,7 +30,7 @@ Created 6/9/1994 Heikki Tuuri
 
 #include "buf0buf.h"
 #include "srv0srv.h"
-#include "mem0dbg.c"
+#include "mem0dbg.cc"
 #include <stdarg.h>
 
 /*
@@ -108,7 +108,7 @@ mem_heap_strdup(
 	mem_heap_t*	heap,	/*!< in: memory heap where string is allocated */
 	const char*	str)	/*!< in: string to be copied */
 {
-	return(mem_heap_dup(heap, str, strlen(str) + 1));
+	return(static_cast<char*>(mem_heap_dup(heap, str, strlen(str) + 1)));
 }
 
 /**********************************************************************//**
@@ -140,7 +140,7 @@ mem_heap_strcat(
 	ulint	s1_len = strlen(s1);
 	ulint	s2_len = strlen(s2);
 
-	s = mem_heap_alloc(heap, s1_len + s2_len + 1);
+	s = static_cast<char*>(mem_heap_alloc(heap, s1_len + s2_len + 1));
 
 	memcpy(s, s1, s1_len);
 	memcpy(s + s1_len, s2, s2_len);
@@ -261,7 +261,7 @@ mem_heap_printf_low(
 }
 
 /****************************************************************//**
-A simple (s)printf replacement that dynamically allocates the space for the
+A simple sprintf replacement that dynamically allocates the space for the
 formatted string from the given heap. This supports a very limited set of
 the printf syntax: types 's' and 'u' and length modifier 'l' (which is
 required for the 'u' type).
@@ -285,7 +285,7 @@ mem_heap_printf(
 	va_end(ap);
 
 	/* Now create it for real. */
-	str = mem_heap_alloc(heap, len);
+	str = static_cast<char*>(mem_heap_alloc(heap, len));
 	va_start(ap, format);
 	mem_heap_printf_low(str, format, ap);
 	va_end(ap);
@@ -330,7 +330,8 @@ mem_heap_create_block(
 
 		ut_ad(type == MEM_HEAP_DYNAMIC || n <= MEM_MAX_ALLOC_IN_BUF);
 
-		block = mem_area_alloc(&len, mem_comm_pool);
+		block = static_cast<mem_block_t*>(
+			mem_area_alloc(&len, mem_comm_pool));
 	} else {
 		len = UNIV_PAGE_SIZE;
 
@@ -339,7 +340,7 @@ mem_heap_create_block(
 			buffer pool, but must get the free block from
 			the heap header free block field */
 
-			buf_block = heap->free_block;
+			buf_block = static_cast<buf_block_t*>(heap->free_block);
 			heap->free_block = NULL;
 
 			if (UNIV_UNLIKELY(!buf_block)) {
@@ -354,11 +355,9 @@ mem_heap_create_block(
 	}
 
 	if(!block) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
+		ib_logf(IB_LOG_LEVEL_FATAL,
 			" InnoDB: Unable to allocate memory of size %lu.\n",
 			len);
-		ut_error;
 	}
 	block->buf_block = buf_block;
 	block->free_block = NULL;
@@ -475,7 +474,9 @@ mem_heap_block_free(
 	ulint		type;
 	ulint		len;
 #ifndef UNIV_HOTBACKUP
-	buf_block_t*	buf_block	= block->buf_block;
+	buf_block_t*	buf_block;
+
+	buf_block = static_cast<buf_block_t*>(block->buf_block);
 #endif /* !UNIV_HOTBACKUP */
 
 	if (block->magic_n != MEM_BLOCK_MAGIC_N) {
@@ -505,7 +506,7 @@ mem_heap_block_free(
 		/* In the debug version we set the memory to a random
 		combination of hex 0xDE and 0xAD. */
 
-		mem_erase_buf((byte*)block, len);
+		mem_erase_buf((byte*) block, len);
 #else /* UNIV_MEM_DEBUG */
 		UNIV_MEM_ASSERT_AND_FREE(block, len);
 #endif /* UNIV_MEM_DEBUG */
@@ -525,7 +526,7 @@ mem_heap_block_free(
 	/* In the debug version we set the memory to a random
 	combination of hex 0xDE and 0xAD. */
 
-	mem_erase_buf((byte*)block, len);
+	mem_erase_buf((byte*) block, len);
 #else /* UNIV_MEM_DEBUG */
 	UNIV_MEM_ASSERT_AND_FREE(block, len);
 #endif /* UNIV_MEM_DEBUG */
@@ -544,7 +545,7 @@ mem_heap_free_block_free(
 {
 	if (UNIV_LIKELY_NULL(heap->free_block)) {
 
-		buf_block_free(heap->free_block);
+		buf_block_free(static_cast<buf_block_t*>(heap->free_block));
 
 		heap->free_block = NULL;
 	}

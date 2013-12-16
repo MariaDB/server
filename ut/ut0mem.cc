@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /********************************************************************//**
-@file ut/ut0mem.c
+@file ut/ut0mem.cc
 Memory primitives
 
 Created 5/11/1994 Heikki Tuuri
@@ -35,9 +35,6 @@ Created 5/11/1994 Heikki Tuuri
 
 #include <stdlib.h>
 
-/** This struct is placed first in every allocated memory block */
-typedef struct ut_mem_block_struct ut_mem_block_t;
-
 /** The total amount of memory currently allocated from the operating
 system with os_mem_alloc_large() or malloc().  Does not count malloc()
 if srv_use_sys_malloc is set.  Protected by ut_list_mutex. */
@@ -46,15 +43,20 @@ UNIV_INTERN ulint		ut_total_allocated_memory	= 0;
 /** Mutex protecting ut_total_allocated_memory and ut_mem_block_list */
 UNIV_INTERN os_fast_mutex_t	ut_list_mutex;
 
+#ifdef UNIV_PFS_MUTEX
+/* Key to register server_mutex with performance schema */
+UNIV_INTERN mysql_pfs_key_t	ut_list_mutex_key;
+#endif
+
 /** Dynamically allocated memory block */
-struct ut_mem_block_struct{
+struct ut_mem_block_t{
 	UT_LIST_NODE_T(ut_mem_block_t) mem_block_list;
 			/*!< mem block list node */
 	ulint	size;	/*!< size of allocated memory */
 	ulint	magic_n;/*!< magic number (UT_MEM_MAGIC_N) */
 };
 
-/** The value of ut_mem_block_struct::magic_n.  Used in detecting
+/** The value of ut_mem_block_t::magic_n.  Used in detecting
 memory corruption. */
 #define UT_MEM_MAGIC_N	1601650166
 
@@ -77,7 +79,7 @@ ut_mem_init(void)
 /*=============*/
 {
 	ut_a(!ut_mem_block_list_inited);
-	os_fast_mutex_init(&ut_list_mutex);
+	os_fast_mutex_init(ut_list_mutex_key, &ut_list_mutex);
 	UT_LIST_INIT(ut_mem_block_list);
 	ut_mem_block_list_inited = TRUE;
 }
@@ -185,16 +187,16 @@ retry:
 
 	UNIV_MEM_ALLOC(ret, n + sizeof(ut_mem_block_t));
 
-	((ut_mem_block_t*)ret)->size = n + sizeof(ut_mem_block_t);
-	((ut_mem_block_t*)ret)->magic_n = UT_MEM_MAGIC_N;
+	((ut_mem_block_t*) ret)->size = n + sizeof(ut_mem_block_t);
+	((ut_mem_block_t*) ret)->magic_n = UT_MEM_MAGIC_N;
 
 	ut_total_allocated_memory += n + sizeof(ut_mem_block_t);
 
 	UT_LIST_ADD_FIRST(mem_block_list, ut_mem_block_list,
-			  ((ut_mem_block_t*)ret));
+			  ((ut_mem_block_t*) ret));
 	os_fast_mutex_unlock(&ut_list_mutex);
 
-	return((void*)((byte*)ret + sizeof(ut_mem_block_t)));
+	return((void*)((byte*) ret + sizeof(ut_mem_block_t)));
 #else /* !UNIV_HOTBACKUP */
 	void*	ret = malloc(n);
 	ut_a(ret || !assert_on_error);
@@ -222,7 +224,7 @@ ut_free(
 		return;
 	}
 
-	block = (ut_mem_block_t*)((byte*)ptr - sizeof(ut_mem_block_t));
+	block = (ut_mem_block_t*)((byte*) ptr - sizeof(ut_mem_block_t));
 
 	os_fast_mutex_lock(&ut_list_mutex);
 
@@ -242,7 +244,7 @@ ut_free(
 
 #ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
-Implements realloc. This is needed by /pars/lexyy.c. Otherwise, you should not
+Implements realloc. This is needed by /pars/lexyy.cc. Otherwise, you should not
 use this function because the allocation functions in mem0mem.h are the
 recommended ones in InnoDB.
 
@@ -293,7 +295,7 @@ ut_realloc(
 		return(NULL);
 	}
 
-	block = (ut_mem_block_t*)((byte*)ptr - sizeof(ut_mem_block_t));
+	block = (ut_mem_block_t*)((byte*) ptr - sizeof(ut_mem_block_t));
 
 	ut_a(block->magic_n == UT_MEM_MAGIC_N);
 
@@ -438,6 +440,33 @@ ut_strcount(
 	return(count);
 }
 
+/********************************************************************
+Concatenate 3 strings.*/
+
+char*
+ut_str3cat(
+/*=======*/
+				/* out, own: concatenated string, must be
+				freed with mem_free() */
+	const char*	s1,	/* in: string 1 */
+	const char*	s2,	/* in: string 2 */
+	const char*	s3)	/* in: string 3 */
+{
+	char*	s;
+	ulint	s1_len = strlen(s1);
+	ulint	s2_len = strlen(s2);
+	ulint	s3_len = strlen(s3);
+
+	s = static_cast<char*>(mem_alloc(s1_len + s2_len + s3_len + 1));
+
+	memcpy(s, s1, s1_len);
+	memcpy(s + s1_len, s2, s2_len);
+	memcpy(s + s1_len + s2_len, s3, s3_len);
+
+	s[s1_len + s2_len + s3_len] = '\0';
+
+	return(s);
+}
 /**********************************************************************//**
 Replace every occurrence of s1 in str with s2. Overlapping instances of s1
 are only replaced once.
@@ -457,7 +486,7 @@ ut_strreplace(
 	ulint		s1_len = strlen(s1);
 	ulint		s2_len = strlen(s2);
 	ulint		count = 0;
-	int		len_delta = (int)s2_len - (int)s1_len;
+	int		len_delta = (int) s2_len - (int) s1_len;
 
 	str_end = str + str_len;
 
@@ -467,7 +496,9 @@ ut_strreplace(
 		count = ut_strcount(str, s1);
 	}
 
-	new_str = mem_alloc(str_len + count * len_delta + 1);
+	new_str = static_cast<char*>(
+		mem_alloc(str_len + count * len_delta + 1));
+
 	ptr = new_str;
 
 	while (str) {

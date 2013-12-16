@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -17,7 +18,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 *****************************************************************************/
 
 /**************************************************//**
-@file page/page0page.c
+@file page/page0page.cc
 Index page routines
 
 Created 2/2/1994 Heikki Tuuri
@@ -222,7 +223,7 @@ page_set_max_trx_id(
 	during a database recovery we assume that the max trx id of every
 	page is the maximum trx id assigned before the crash. */
 
-	if (UNIV_LIKELY_NULL(page_zip)) {
+	if (page_zip) {
 		mach_write_to_8(page + (PAGE_HEADER + PAGE_MAX_TRX_ID), trx_id);
 		page_zip_write_header(page_zip,
 				      page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
@@ -499,7 +500,8 @@ page_create_zip(
 					page is created */
 	dict_index_t*	index,		/*!< in: the index of the page */
 	ulint		level,		/*!< in: the B-tree level of the page */
-	mtr_t*		mtr)		/*!< in: mini-transaction handle */
+	trx_id_t	max_trx_id,	/*!< in: PAGE_MAX_TRX_ID */
+	mtr_t*		mtr)		/*!< in/out: mini-transaction */
 {
 	page_t*		page;
 	page_zip_des_t*	page_zip	= buf_block_get_page_zip(block);
@@ -510,9 +512,11 @@ page_create_zip(
 	ut_ad(dict_table_is_comp(index->table));
 
 	page = page_create_low(block, TRUE);
-	mach_write_to_2(page + PAGE_HEADER + PAGE_LEVEL, level);
+	mach_write_to_2(PAGE_HEADER + PAGE_LEVEL + page, level);
+	mach_write_to_8(PAGE_HEADER + PAGE_MAX_TRX_ID + page, max_trx_id);
 
-	if (UNIV_UNLIKELY(!page_zip_compress(page_zip, page, index, mtr))) {
+	if (!page_zip_compress(page_zip, page, index,
+			       page_zip_level, mtr)) {
 		/* The compression of a newly created page
 		should always succeed. */
 		ut_error;
@@ -521,9 +525,49 @@ page_create_zip(
 	return(page);
 }
 
+/**********************************************************//**
+Empty a previously created B-tree index page. */
+UNIV_INTERN
+void
+page_create_empty(
+/*==============*/
+	buf_block_t*	block,	/*!< in/out: B-tree block */
+	dict_index_t*	index,	/*!< in: the index of the page */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+{
+	trx_id_t	max_trx_id = 0;
+	const page_t*	page	= buf_block_get_frame(block);
+	page_zip_des_t*	page_zip= buf_block_get_page_zip(block);
+
+	ut_ad(fil_page_get_type(page) == FIL_PAGE_INDEX);
+
+	if (dict_index_is_sec_or_ibuf(index) && page_is_leaf(page)) {
+		max_trx_id = page_get_max_trx_id(page);
+		ut_ad(max_trx_id);
+	}
+
+	if (page_zip) {
+		page_create_zip(block, index,
+				page_header_get_field(page, PAGE_LEVEL),
+				max_trx_id, mtr);
+	} else {
+		page_create(block, mtr, page_is_comp(page));
+
+		if (max_trx_id) {
+			page_update_max_trx_id(
+				block, page_zip, max_trx_id, mtr);
+		}
+	}
+}
+
 /*************************************************************//**
 Differs from page_copy_rec_list_end, because this function does not
-touch the lock table and max trx id on page or compress the page. */
+touch the lock table and max trx id on page or compress the page.
+
+IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
+if new_block is a compressed leaf page in a secondary index.
+This has to be done either within the same mini-transaction,
+or by invoking ibuf_reset_free_bits() before mtr_commit(). */
 UNIV_INTERN
 void
 page_copy_rec_list_end_no_locks(
@@ -598,6 +642,12 @@ page_copy_rec_list_end_no_locks(
 Copies records from page to new_page, from a given record onward,
 including that record. Infimum and supremum records are not copied.
 The records are copied to the start of the record list on new_page.
+
+IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
+if new_block is a compressed leaf page in a secondary index.
+This has to be done either within the same mini-transaction,
+or by invoking ibuf_reset_free_bits() before mtr_commit().
+
 @return pointer to the original successor of the infimum record on
 new_page, or NULL on zip overflow (new_block will be decompressed) */
 UNIV_INTERN
@@ -635,7 +685,7 @@ page_copy_rec_list_end(
 	/* Here, "ret" may be pointing to a user record or the
 	predefined supremum record. */
 
-	if (UNIV_LIKELY_NULL(new_page_zip)) {
+	if (new_page_zip) {
 		log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 	}
 
@@ -655,11 +705,11 @@ page_copy_rec_list_end(
 				       page_get_max_trx_id(page), mtr);
 	}
 
-	if (UNIV_LIKELY_NULL(new_page_zip)) {
+	if (new_page_zip) {
 		mtr_set_log_mode(mtr, log_mode);
 
-		if (UNIV_UNLIKELY
-		    (!page_zip_compress(new_page_zip, new_page, index, mtr))) {
+		if (!page_zip_compress(new_page_zip, new_page,
+				       index, page_zip_level, mtr)) {
 			/* Before trying to reorganize the page,
 			store the number of preceding records on the page. */
 			ulint	ret_pos
@@ -671,14 +721,12 @@ page_copy_rec_list_end(
 			that is smaller than "ret"). */
 			ut_a(ret_pos > 0);
 
-			if (UNIV_UNLIKELY
-			    (!page_zip_reorganize(new_block, index, mtr))) {
+			if (!page_zip_reorganize(new_block, index, mtr)) {
 
 				btr_blob_dbg_remove(new_page, index,
 						    "copy_end_reorg_fail");
-				if (UNIV_UNLIKELY
-				    (!page_zip_decompress(new_page_zip,
-							  new_page, FALSE))) {
+				if (!page_zip_decompress(new_page_zip,
+							 new_page, FALSE)) {
 					ut_error;
 				}
 				ut_ad(page_validate(new_page, index));
@@ -710,6 +758,12 @@ page_copy_rec_list_end(
 Copies records from page to new_page, up to the given record,
 NOT including that record. Infimum and supremum records are not copied.
 The records are copied to the end of the record list on new_page.
+
+IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
+if new_block is a compressed leaf page in a secondary index.
+This has to be done either within the same mini-transaction,
+or by invoking ibuf_reset_free_bits() before mtr_commit().
+
 @return pointer to the original predecessor of the supremum record on
 new_page, or NULL on zip overflow (new_block will be decompressed) */
 UNIV_INTERN
@@ -742,7 +796,7 @@ page_copy_rec_list_start(
 		return(ret);
 	}
 
-	if (UNIV_LIKELY_NULL(new_page_zip)) {
+	if (new_page_zip) {
 		log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 	}
 
@@ -778,14 +832,15 @@ page_copy_rec_list_start(
 				       mtr);
 	}
 
-	if (UNIV_LIKELY_NULL(new_page_zip)) {
+	if (new_page_zip) {
 		mtr_set_log_mode(mtr, log_mode);
 
 		DBUG_EXECUTE_IF("page_copy_rec_list_start_compress_fail",
 				goto zip_reorganize;);
 
-		if (UNIV_UNLIKELY
-		    (!page_zip_compress(new_page_zip, new_page, index, mtr))) {
+		if (!page_zip_compress(new_page_zip, new_page, index,
+				       page_zip_level, mtr)) {
+
 			ulint	ret_pos;
 #ifndef DBUG_OFF
 zip_reorganize:
@@ -949,13 +1004,38 @@ page_delete_rec_list_end(
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	if (page_rec_is_infimum(rec)) {
-		rec = page_rec_get_next(rec);
+	if (page_rec_is_supremum(rec)) {
+		ut_ad(n_recs == 0 || n_recs == ULINT_UNDEFINED);
+		/* Nothing to do, there are no records bigger than the
+		page supremum. */
+		return;
 	}
 
-	if (page_rec_is_supremum(rec)) {
-
+	if (recv_recovery_is_on()) {
+		/* If we are replaying a redo log record, we must
+		replay it exactly. Since MySQL 5.6.11, we should be
+		generating a redo log record for page creation if
+		the page would become empty. Thus, this branch should
+		only be executed when applying redo log that was
+		generated by an older version of MySQL. */
+	} else if (page_rec_is_infimum(rec)
+		   || n_recs == page_get_n_recs(page)) {
+delete_all:
+		/* We are deleting all records. */
+		page_create_empty(block, index, mtr);
 		return;
+	} else if (page_is_comp(page)) {
+		if (page_rec_get_next_low(page + PAGE_NEW_INFIMUM, 1) == rec) {
+			/* We are deleting everything from the first
+			user record onwards. */
+			goto delete_all;
+		}
+	} else {
+		if (page_rec_get_next_low(page + PAGE_OLD_INFIMUM, 0) == rec) {
+			/* We are deleting everything from the first
+			user record onwards. */
+			goto delete_all;
+		}
 	}
 
 	/* Reset the last insert info in the page header and increment
@@ -972,7 +1052,7 @@ page_delete_rec_list_end(
 				       ? MLOG_COMP_LIST_END_DELETE
 				       : MLOG_LIST_END_DELETE, mtr);
 
-	if (UNIV_LIKELY_NULL(page_zip)) {
+	if (page_zip) {
 		ulint		log_mode;
 
 		ut_a(page_is_comp(page));
@@ -1134,7 +1214,12 @@ page_delete_rec_list_start(
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (page_rec_is_infimum(rec)) {
+		return;
+	}
 
+	if (page_rec_is_supremum(rec)) {
+		/* We are deleting all records. */
+		page_create_empty(block, index, mtr);
 		return;
 	}
 
@@ -1172,6 +1257,12 @@ page_delete_rec_list_start(
 /*************************************************************//**
 Moves record list end to another page. Moved records include
 split_rec.
+
+IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
+if new_block is a compressed leaf page in a secondary index.
+This has to be done either within the same mini-transaction,
+or by invoking ibuf_reset_free_bits() before mtr_commit().
+
 @return TRUE on success; FALSE on compression failure (new_block will
 be decompressed) */
 UNIV_INTERN
@@ -1227,6 +1318,12 @@ page_move_rec_list_end(
 /*************************************************************//**
 Moves record list start to another page. Moved records do not include
 split_rec.
+
+IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
+if new_block is a compressed leaf page in a secondary index.
+This has to be done either within the same mini-transaction,
+or by invoking ibuf_reset_free_bits() before mtr_commit().
+
 @return	TRUE on success; FALSE on compression failure */
 UNIV_INTERN
 ibool
@@ -1572,7 +1669,7 @@ page_rec_get_n_recs_before(
 	n--;
 
 	ut_ad(n >= 0);
-	ut_ad((ulint)n < UNIV_PAGE_SIZE / (REC_N_NEW_EXTRA_BYTES + 1));
+	ut_ad((ulong) n < UNIV_PAGE_SIZE / (REC_N_NEW_EXTRA_BYTES + 1));
 
 	return((ulint) n);
 }
@@ -2322,12 +2419,26 @@ page_validate(
 		}
 	}
 
+	if (dict_index_is_sec_or_ibuf(index) && page_is_leaf(page)
+	    && !page_is_empty(page)) {
+		trx_id_t	max_trx_id	= page_get_max_trx_id(page);
+		trx_id_t	sys_max_trx_id	= trx_sys_get_max_trx_id();
+
+		if (max_trx_id == 0 || max_trx_id > sys_max_trx_id) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"PAGE_MAX_TRX_ID out of bounds: "
+				TRX_ID_FMT ", " TRX_ID_FMT,
+				max_trx_id, sys_max_trx_id);
+			goto func_exit2;
+		}
+	}
+
 	heap = mem_heap_create(UNIV_PAGE_SIZE + 200);
 
 	/* The following buffer is used to check that the
 	records in the page record heap do not overlap */
 
-	buf = mem_heap_zalloc(heap, UNIV_PAGE_SIZE);
+	buf = static_cast<byte*>(mem_heap_zalloc(heap, UNIV_PAGE_SIZE));
 
 	/* Check first that the record heap and the directory do not
 	overlap. */
@@ -2337,7 +2448,7 @@ page_validate(
 	if (UNIV_UNLIKELY(!(page_header_get_ptr(page, PAGE_HEAP_TOP)
 			    <= page_dir_get_nth_slot(page, n_slots - 1)))) {
 
-		fprintf(stderr, 
+		fprintf(stderr,
 			"InnoDB: Record heap and dir overlap"
 			" on space %lu page %lu index %s, %p, %p\n",
 			(ulong) page_get_space_id(page),
@@ -2380,7 +2491,7 @@ page_validate(
 			if (UNIV_UNLIKELY
 			    (1 != cmp_rec_rec(rec, old_rec,
 					      offsets, old_offsets, index))) {
-				fprintf(stderr, 
+				fprintf(stderr,
 					"InnoDB: Records in wrong order"
 					" on space %lu page %lu index %s\n",
 					(ulong) page_get_space_id(page),
@@ -2551,7 +2662,7 @@ func_exit:
 
 	if (UNIV_UNLIKELY(ret == FALSE)) {
 func_exit2:
-		fprintf(stderr, 
+		fprintf(stderr,
 			"InnoDB: Apparent corruption"
 			" in space %lu page %lu index %s\n",
 			(ulong) page_get_space_id(page),
@@ -2611,3 +2722,60 @@ page_find_rec_with_heap_no(
 	}
 }
 #endif /* !UNIV_HOTBACKUP */
+
+/*******************************************************//**
+Removes the record from a leaf page. This function does not log
+any changes. It is used by the IMPORT tablespace functions.
+The cursor is moved to the next record after the deleted one.
+@return	true if success, i.e., the page did not become too empty */
+UNIV_INTERN
+bool
+page_delete_rec(
+/*============*/
+	const dict_index_t*	index,	/*!< in: The index that the record
+					belongs to */
+	page_cur_t*		pcur,	/*!< in/out: page cursor on record
+					to delete */
+	page_zip_des_t*		page_zip,/*!< in: compressed page descriptor */
+	const ulint*		offsets)/*!< in: offsets for record */
+{
+	bool		no_compress_needed;
+	buf_block_t*	block = pcur->block;
+	page_t*		page = buf_block_get_frame(block);
+
+	ut_ad(page_is_leaf(page));
+
+	if (!rec_offs_any_extern(offsets)
+	    && ((page_get_data_size(page) - rec_offs_size(offsets)
+		< BTR_CUR_PAGE_COMPRESS_LIMIT)
+		|| (mach_read_from_4(page + FIL_PAGE_NEXT) == FIL_NULL
+		    && mach_read_from_4(page + FIL_PAGE_PREV) == FIL_NULL)
+		|| (page_get_n_recs(page) < 2))) {
+
+		ulint	root_page_no = dict_index_get_page(index);
+
+		/* The page fillfactor will drop below a predefined
+		minimum value, OR the level in the B-tree contains just
+		one page, OR the page will become empty: we recommend
+		compression if this is not the root page. */
+
+		no_compress_needed = page_get_page_no(page) == root_page_no;
+	} else {
+		no_compress_needed = true;
+	}
+
+	if (no_compress_needed) {
+#ifdef UNIV_ZIP_DEBUG
+		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
+#endif /* UNIV_ZIP_DEBUG */
+
+		page_cur_delete_rec(pcur, index, offsets, 0);
+
+#ifdef UNIV_ZIP_DEBUG
+		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
+#endif /* UNIV_ZIP_DEBUG */
+	}
+
+	return(no_compress_needed);
+}
+

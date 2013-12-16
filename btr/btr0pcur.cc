@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /**************************************************//**
-@file btr/btr0pcur.c
+@file btr/btr0pcur.cc
 The index tree persistent cursor
 
 Created 2/23/1996 Heikki Tuuri
@@ -43,7 +43,7 @@ btr_pcur_create_for_mysql(void)
 {
 	btr_pcur_t*	pcur;
 
-	pcur = mem_alloc(sizeof(btr_pcur_t));
+	pcur = (btr_pcur_t*) mem_alloc(sizeof(btr_pcur_t));
 
 	pcur->btr_cur.index = NULL;
 	btr_pcur_init(pcur);
@@ -130,7 +130,7 @@ btr_pcur_store_position(
 	      || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 	ut_a(cursor->latch_mode != BTR_NO_LATCHES);
 
-	if (UNIV_UNLIKELY(page_get_n_recs(page) == 0)) {
+	if (page_is_empty(page)) {
 		/* It must be an empty index tree; NOTE that in this case
 		we do not store the modify_clock, but always do a search
 		if we restore the cursor position */
@@ -195,7 +195,8 @@ btr_pcur_copy_stored_position(
 
 	if (pcur_donate->old_rec_buf) {
 
-		pcur_receive->old_rec_buf = mem_alloc(pcur_donate->buf_size);
+		pcur_receive->old_rec_buf = (byte*)
+			mem_alloc(pcur_donate->buf_size);
 
 		ut_memcpy(pcur_receive->old_rec_buf, pcur_donate->old_rec_buf,
 			  pcur_donate->buf_size);
@@ -263,7 +264,8 @@ btr_pcur_restore_position_func(
 
 		btr_cur_open_at_index_side(
 			cursor->rel_pos == BTR_PCUR_BEFORE_FIRST_IN_TREE,
-			index, latch_mode, btr_pcur_get_btr_cur(cursor), mtr);
+			index, latch_mode,
+			btr_pcur_get_btr_cur(cursor), 0, mtr);
 
 		cursor->latch_mode = latch_mode;
 		cursor->pos_state = BTR_PCUR_IS_POSITIONED;
@@ -597,8 +599,8 @@ btr_pcur_open_on_user_rec_func(
 	ulint		line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	btr_pcur_open_func(index, tuple, mode, latch_mode, cursor,
-			   file, line, mtr);
+	btr_pcur_open_low(index, 0, tuple, mode, latch_mode, cursor,
+			  file, line, mtr);
 
 	if ((mode == PAGE_CUR_GE) || (mode == PAGE_CUR_G)) {
 

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1994, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /***************************************************************//**
-@file ut/ut0rnd.c
+@file ut/ut0rnd.cc
 Random numbers and hashing
 
 Created 5/11/1994 Heikki Tuuri
@@ -59,14 +59,14 @@ ut_find_prime(
 		pow2 = 2 * pow2;
 	}
 
-	if ((double)n < 1.05 * (double)pow2) {
-		n = (ulint) ((double)n * UT_RANDOM_1);
+	if ((double) n < 1.05 * (double) pow2) {
+		n = (ulint) ((double) n * UT_RANDOM_1);
 	}
 
 	pow2 = 2 * pow2;
 
-	if ((double)n > 0.95 * (double)pow2) {
-		n = (ulint) ((double)n * UT_RANDOM_2);
+	if ((double) n > 0.95 * (double) pow2) {
+		n = (ulint) ((double) n * UT_RANDOM_2);
 	}
 
 	if (n > pow2 - 20) {
@@ -77,7 +77,7 @@ ut_find_prime(
 	n more random (especially, if it was not near
 	a power of 2), we then multiply it by a random number. */
 
-	n = (ulint) ((double)n * UT_RANDOM_3);
+	n = (ulint) ((double) n * UT_RANDOM_3);
 
 	for (;; n++) {
 		i = 2;

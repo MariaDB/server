@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -105,10 +105,11 @@ trx_undo_rec_get_pars(
 					TRX_UNDO_INSERT_REC, ... */
 	ulint*		cmpl_info,	/*!< out: compiler info, relevant only
 					for update type records */
-	ibool*		updated_extern,	/*!< out: TRUE if we updated an
+	bool*		updated_extern,	/*!< out: true if we updated an
 					externally stored fild */
 	undo_no_t*	undo_no,	/*!< out: undo log record number */
-	table_id_t*	table_id);	/*!< out: table id */
+	table_id_t*	table_id)	/*!< out: table id */
+	__attribute__((nonnull));
 /*******************************************************************//**
 Builds a row reference from an undo log record.
 @return	pointer to remaining part of undo record */
@@ -178,8 +179,9 @@ trx_undo_update_rec_get_update(
 				needed is allocated */
 	upd_t**		upd);	/*!< out, own: update vector */
 /*******************************************************************//**
-Builds a partial row from an update undo log record. It contains the
-columns which occur as ordering in any index of the table.
+Builds a partial row from an update undo log record, for purge.
+It contains the columns which occur as ordering in any index of the table.
+Any missing columns are indicated by col->mtype == DATA_MISSING.
 @return	pointer to remaining part of undo record */
 UNIV_INTERN
 byte*
@@ -197,8 +199,9 @@ trx_undo_rec_get_partial_row(
 	ibool		ignore_prefix, /*!< in: flag to indicate if we
 				expect blob prefixes in undo. Used
 				only in the assertion. */
-	mem_heap_t*	heap);	/*!< in: memory heap from which the memory
+	mem_heap_t*	heap)	/*!< in: memory heap from which the memory
 				needed is allocated */
+	__attribute__((nonnull, warn_unused_result));
 /***********************************************************************//**
 Writes information to an undo log about an insert, update, or a delete marking
 of a clustered index record. This information is used in a rollback of the
@@ -206,7 +209,7 @@ transaction and in consistent reads that must look to the history of this
 transaction.
 @return	DB_SUCCESS or error code */
 UNIV_INTERN
-ulint
+dberr_t
 trx_undo_report_row_operation(
 /*==========================*/
 	ulint		flags,		/*!< in: if BTR_NO_UNDO_LOG_FLAG bit is
@@ -225,10 +228,12 @@ trx_undo_report_row_operation(
 	const rec_t*	rec,		/*!< in: case of an update or delete
 					marking, the record in the clustered
 					index, otherwise NULL */
-	roll_ptr_t*	roll_ptr);	/*!< out: rollback pointer to the
+	const ulint*	offsets,	/*!< in: rec_get_offsets(rec) */
+	roll_ptr_t*	roll_ptr)	/*!< out: rollback pointer to the
 					inserted undo log record,
 					0 if BTR_NO_UNDO_LOG
 					flag was specified */
+	__attribute__((nonnull(3,4,10), warn_unused_result));
 /******************************************************************//**
 Copies an undo record to heap. This function can be called if we know that
 the undo log record exists.
@@ -238,35 +243,17 @@ trx_undo_rec_t*
 trx_undo_get_undo_rec_low(
 /*======================*/
 	roll_ptr_t	roll_ptr,	/*!< in: roll pointer to record */
-	mem_heap_t*	heap);		/*!< in: memory heap where copied */
-/******************************************************************//**
-Copies an undo record to heap.
-
-NOTE: the caller must have latches on the clustered index page and
-purge_view.
-
-@return DB_SUCCESS, or DB_MISSING_HISTORY if the undo log has been
-truncated and we cannot fetch the old version */
-UNIV_INTERN
-ulint
-trx_undo_get_undo_rec(
-/*==================*/
-	roll_ptr_t	roll_ptr,	/*!< in: roll pointer to record */
-	trx_id_t	trx_id,		/*!< in: id of the trx that generated
-					the roll pointer: it points to an
-					undo log of this transaction */
-	trx_undo_rec_t** undo_rec,	/*!< out, own: copy of the record */
-	mem_heap_t*	heap);		/*!< in: memory heap where copied */
+	mem_heap_t*	heap)		/*!< in: memory heap where copied */
+	__attribute__((nonnull, warn_unused_result));
 /*******************************************************************//**
-Build a previous version of a clustered index record. This function checks
-that the caller has a latch on the index page of the clustered index record
-and an s-latch on the purge_view. This guarantees that the stack of versions
-is locked.
-@return DB_SUCCESS, or DB_MISSING_HISTORY if the previous version is
-earlier than purge_view, which means that it may have been removed,
-DB_ERROR if corrupted record */
+Build a previous version of a clustered index record. The caller must
+hold a latch on the index page of the clustered index record.
+@retval true if previous version was built, or if it was an insert
+or the table has been rebuilt
+@retval false if the previous version is earlier than purge_view,
+which means that it may have been removed */
 UNIV_INTERN
-ulint
+bool
 trx_undo_prev_version_build(
 /*========================*/
 	const rec_t*	index_rec,/*!< in: clustered index record in the
@@ -275,12 +262,13 @@ trx_undo_prev_version_build(
 				index_rec page and purge_view */
 	const rec_t*	rec,	/*!< in: version of a clustered index record */
 	dict_index_t*	index,	/*!< in: clustered index */
-	ulint*		offsets,/*!< in: rec_get_offsets(rec, index) */
+	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mem_heap_t*	heap,	/*!< in: memory heap from which the memory
 				needed is allocated */
-	rec_t**		old_vers);/*!< out, own: previous version, or NULL if
+	rec_t**		old_vers)/*!< out, own: previous version, or NULL if
 				rec is the first inserted version, or if
 				history data has been deleted */
+	__attribute__((nonnull));
 #endif /* !UNIV_HOTBACKUP */
 /***********************************************************//**
 Parses a redo log record of adding an undo log record.

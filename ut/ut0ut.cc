@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -17,13 +17,18 @@ this program; if not, write to the Free Software Foundation, Inc.,
 *****************************************************************************/
 
 /***************************************************************//**
-@file ut/ut0ut.c
+@file ut/ut0ut.cc
 Various utilities for Innobase.
 
 Created 5/11/1994 Heikki Tuuri
 ********************************************************************/
 
 #include "ut0ut.h"
+
+#ifndef UNIV_INNOCHECKSUM
+
+#include "ut0sort.h"
+#include "os0thread.h" /* thread-ID */
 
 #ifdef UNIV_NONINL
 #include "ut0ut.ic"
@@ -34,6 +39,7 @@ Created 5/11/1994 Heikki Tuuri
 #include <ctype.h>
 
 #ifndef UNIV_HOTBACKUP
+# include "btr0types.h"
 # include "trx0trx.h"
 # include "ha_prototypes.h"
 # include "mysql_com.h" /* NAME_LEN */
@@ -92,26 +98,6 @@ ut_gettimeofday(
 reimplement this function. */
 #define	ut_gettimeofday		gettimeofday
 #endif
-
-/********************************************************//**
-Gets the high 32 bits in a ulint. That is makes a shift >> 32,
-but since there seem to be compiler bugs in both gcc and Visual C++,
-we do this by a special conversion.
-@return	a >> 32 */
-UNIV_INTERN
-ulint
-ut_get_high32(
-/*==========*/
-	ulint	a)	/*!< in: ulint */
-{
-	ib_int64_t	i;
-
-	i = (ib_int64_t)a;
-
-	i = i >> 32;
-
-	return((ulint)i);
-}
 
 /**********************************************************//**
 Returns system time. We do not specify the format of the time returned:
@@ -224,6 +210,8 @@ ut_difftime(
 	return(difftime(time2, time1));
 }
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 /**********************************************************//**
 Prints a timestamp to a file. */
 UNIV_INTERN
@@ -232,42 +220,50 @@ ut_print_timestamp(
 /*===============*/
 	FILE*  file) /*!< in: file where to print */
 {
+	ulint thread_id = 0;
+
+#ifndef UNIV_INNOCHECKSUM
+	thread_id = os_thread_pf(os_thread_get_curr_id());
+#endif
+
 #ifdef __WIN__
 	SYSTEMTIME cal_tm;
 
 	GetLocalTime(&cal_tm);
 
-	fprintf(file,"%02d%02d%02d %2d:%02d:%02d",
-		(int)cal_tm.wYear % 100,
-		(int)cal_tm.wMonth,
-		(int)cal_tm.wDay,
-		(int)cal_tm.wHour,
-		(int)cal_tm.wMinute,
-		(int)cal_tm.wSecond);
+	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %lx",
+		(int) cal_tm.wYear,
+		(int) cal_tm.wMonth,
+		(int) cal_tm.wDay,
+		(int) cal_tm.wHour,
+		(int) cal_tm.wMinute,
+		(int) cal_tm.wSecond,
+		thread_id);
 #else
-#ifdef HAVE_LOCALTIME_R
-	struct tm  cal_tm;
-#endif
 	struct tm* cal_tm_ptr;
 	time_t	   tm;
 
-	time(&tm);
-
 #ifdef HAVE_LOCALTIME_R
+	struct tm  cal_tm;
+	time(&tm);
 	localtime_r(&tm, &cal_tm);
 	cal_tm_ptr = &cal_tm;
 #else
+	time(&tm);
 	cal_tm_ptr = localtime(&tm);
 #endif
-	fprintf(file,"%02d%02d%02d %2d:%02d:%02d",
-		cal_tm_ptr->tm_year % 100,
+	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %lx",
+		cal_tm_ptr->tm_year + 1900,
 		cal_tm_ptr->tm_mon + 1,
 		cal_tm_ptr->tm_mday,
 		cal_tm_ptr->tm_hour,
 		cal_tm_ptr->tm_min,
-		cal_tm_ptr->tm_sec);
+		cal_tm_ptr->tm_sec,
+		thread_id);
 #endif
 }
+
+#ifndef UNIV_INNOCHECKSUM
 
 /**********************************************************//**
 Sprintfs a timestamp to a buffer, 13..14 chars plus terminating NUL. */
@@ -283,25 +279,23 @@ ut_sprintf_timestamp(
 	GetLocalTime(&cal_tm);
 
 	sprintf(buf, "%02d%02d%02d %2d:%02d:%02d",
-		(int)cal_tm.wYear % 100,
-		(int)cal_tm.wMonth,
-		(int)cal_tm.wDay,
-		(int)cal_tm.wHour,
-		(int)cal_tm.wMinute,
-		(int)cal_tm.wSecond);
+		(int) cal_tm.wYear % 100,
+		(int) cal_tm.wMonth,
+		(int) cal_tm.wDay,
+		(int) cal_tm.wHour,
+		(int) cal_tm.wMinute,
+		(int) cal_tm.wSecond);
 #else
-#ifdef HAVE_LOCALTIME_R
-	struct tm  cal_tm;
-#endif
 	struct tm* cal_tm_ptr;
 	time_t	   tm;
 
-	time(&tm);
-
 #ifdef HAVE_LOCALTIME_R
+	struct tm  cal_tm;
+	time(&tm);
 	localtime_r(&tm, &cal_tm);
 	cal_tm_ptr = &cal_tm;
 #else
+	time(&tm);
 	cal_tm_ptr = localtime(&tm);
 #endif
 	sprintf(buf, "%02d%02d%02d %2d:%02d:%02d",
@@ -330,25 +324,23 @@ ut_sprintf_timestamp_without_extra_chars(
 	GetLocalTime(&cal_tm);
 
 	sprintf(buf, "%02d%02d%02d_%2d_%02d_%02d",
-		(int)cal_tm.wYear % 100,
-		(int)cal_tm.wMonth,
-		(int)cal_tm.wDay,
-		(int)cal_tm.wHour,
-		(int)cal_tm.wMinute,
-		(int)cal_tm.wSecond);
+		(int) cal_tm.wYear % 100,
+		(int) cal_tm.wMonth,
+		(int) cal_tm.wDay,
+		(int) cal_tm.wHour,
+		(int) cal_tm.wMinute,
+		(int) cal_tm.wSecond);
 #else
-#ifdef HAVE_LOCALTIME_R
-	struct tm  cal_tm;
-#endif
 	struct tm* cal_tm_ptr;
 	time_t	   tm;
 
-	time(&tm);
-
 #ifdef HAVE_LOCALTIME_R
+	struct tm  cal_tm;
+	time(&tm);
 	localtime_r(&tm, &cal_tm);
 	cal_tm_ptr = &cal_tm;
 #else
+	time(&tm);
 	cal_tm_ptr = localtime(&tm);
 #endif
 	sprintf(buf, "%02d%02d%02d_%2d_%02d_%02d",
@@ -376,27 +368,25 @@ ut_get_year_month_day(
 
 	GetLocalTime(&cal_tm);
 
-	*year = (ulint)cal_tm.wYear;
-	*month = (ulint)cal_tm.wMonth;
-	*day = (ulint)cal_tm.wDay;
+	*year = (ulint) cal_tm.wYear;
+	*month = (ulint) cal_tm.wMonth;
+	*day = (ulint) cal_tm.wDay;
 #else
-#ifdef HAVE_LOCALTIME_R
-	struct tm  cal_tm;
-#endif
 	struct tm* cal_tm_ptr;
 	time_t	   tm;
 
-	time(&tm);
-
 #ifdef HAVE_LOCALTIME_R
+	struct tm  cal_tm;
+	time(&tm);
 	localtime_r(&tm, &cal_tm);
 	cal_tm_ptr = &cal_tm;
 #else
+	time(&tm);
 	cal_tm_ptr = localtime(&tm);
 #endif
-	*year = (ulint)cal_tm_ptr->tm_year + 1900;
-	*month = (ulint)cal_tm_ptr->tm_mon + 1;
-	*day = (ulint)cal_tm_ptr->tm_mday;
+	*year = (ulint) cal_tm_ptr->tm_year + 1900;
+	*month = (ulint) cal_tm_ptr->tm_mon + 1;
+	*day = (ulint) cal_tm_ptr->tm_mday;
 #endif
 }
 #endif /* UNIV_HOTBACKUP */
@@ -446,13 +436,13 @@ ut_print_buf(
 
 	fprintf(file, " len %lu; hex ", len);
 
-	for (data = (const byte*)buf, i = 0; i < len; i++) {
+	for (data = (const byte*) buf, i = 0; i < len; i++) {
 		fprintf(file, "%02lx", (ulong)*data++);
 	}
 
 	fputs("; asc ", file);
 
-	data = (const byte*)buf;
+	data = (const byte*) buf;
 
 	for (i = 0; i < len; i++) {
 		int	c = (int) *data++;
@@ -460,6 +450,21 @@ ut_print_buf(
 	}
 
 	putc(';', file);
+}
+
+/**********************************************************************//**
+Sort function for ulint arrays. */
+UNIV_INTERN
+void
+ut_ulint_sort(
+/*==========*/
+	ulint*	arr,		/*!< in/out: array to sort */
+	ulint*	aux_arr,	/*!< in/out: aux array to use in sort */
+	ulint	low,		/*!< in: lower bound */
+	ulint	high)		/*!< in: upper bound */
+{
+	UT_SORT_FUNCTION_BODY(ut_ulint_sort, arr, aux_arr, low, high,
+			      ut_ulint_cmp);
 }
 
 /*************************************************************//**
@@ -520,7 +525,7 @@ void
 ut_print_name(
 /*==========*/
 	FILE*		f,	/*!< in: output stream */
-	trx_t*		trx,	/*!< in: transaction */
+	const trx_t*	trx,	/*!< in: transaction */
 	ibool		table_id,/*!< in: TRUE=print a table name,
 				FALSE=print other identifier */
 	const char*	name)	/*!< in: name to print */
@@ -538,7 +543,7 @@ void
 ut_print_namel(
 /*===========*/
 	FILE*		f,	/*!< in: output stream */
-	trx_t*		trx,	/*!< in: transaction (NULL=no quotes) */
+	const trx_t*	trx,	/*!< in: transaction (NULL=no quotes) */
 	ibool		table_id,/*!< in: TRUE=print a table name,
 				FALSE=print other identifier */
 	const char*	name,	/*!< in: name to print */
@@ -555,6 +560,50 @@ ut_print_namel(
 				       table_id);
 
 	fwrite(buf, 1, bufend - buf, f);
+}
+
+/**********************************************************************//**
+Formats a table or index name, quoted as an SQL identifier. If the name
+contains a slash '/', the result will contain two identifiers separated by
+a period (.), as in SQL database_name.identifier.
+@return pointer to 'formatted' */
+UNIV_INTERN
+char*
+ut_format_name(
+/*===========*/
+	const char*	name,		/*!< in: table or index name, must be
+					'\0'-terminated */
+	ibool		is_table,	/*!< in: if TRUE then 'name' is a table
+					name */
+	char*		formatted,	/*!< out: formatted result, will be
+					'\0'-terminated */
+	ulint		formatted_size)	/*!< out: no more than this number of
+					bytes will be written to 'formatted' */
+{
+	switch (formatted_size) {
+	case 1:
+		formatted[0] = '\0';
+		/* FALL-THROUGH */
+	case 0:
+		return(formatted);
+	}
+
+	char*	end;
+
+	end = innobase_convert_name(formatted, formatted_size,
+				    name, strlen(name), NULL, is_table);
+
+	/* If the space in 'formatted' was completely used, then sacrifice
+	the last character in order to write '\0' at the end. */
+	if ((ulint) (end - formatted) == formatted_size) {
+		end--;
+	}
+
+	ut_a((ulint) (end - formatted) < formatted_size);
+
+	*end = '\0';
+
+	return(formatted);
 }
 
 /**********************************************************************//**
@@ -586,6 +635,26 @@ ut_copy_file(
 
 #ifdef __WIN__
 # include <stdarg.h>
+/**********************************************************************//**
+A substitute for vsnprintf(3), formatted output conversion into
+a limited buffer. Note: this function DOES NOT return the number of
+characters that would have been printed if the buffer was unlimited because
+VC's _vsnprintf() returns -1 in this case and we would need to call
+_vscprintf() in addition to estimate that but we would need another copy
+of "ap" for that and VC does not provide va_copy(). */
+UNIV_INTERN
+void
+ut_vsnprintf(
+/*=========*/
+	char*		str,	/*!< out: string */
+	size_t		size,	/*!< in: str size */
+	const char*	fmt,	/*!< in: format */
+	va_list		ap)	/*!< in: format values */
+{
+	_vsnprintf(str, size, fmt, ap);
+	str[size - 1] = '\0';
+}
+
 /**********************************************************************//**
 A substitute for snprintf(3), formatted output conversion into
 a limited buffer.
@@ -633,7 +702,7 @@ UNIV_INTERN
 const char*
 ut_strerr(
 /*======*/
-	enum db_err	num)	/*!< in: error number */
+	dberr_t	num)	/*!< in: error number */
 {
 	switch (num) {
 	case DB_SUCCESS:
@@ -642,6 +711,8 @@ ut_strerr(
 		return("Success, record lock created");
 	case DB_ERROR:
 		return("Generic error");
+	case DB_READ_ONLY:
+		return("Read only transaction");
 	case DB_INTERRUPTED:
 		return("Operation interrupted");
 	case DB_OUT_OF_MEMORY:
@@ -686,10 +757,12 @@ ut_strerr(
 		return("Cannot drop constraint");
 	case DB_NO_SAVEPOINT:
 		return("No such savepoint");
-	case DB_TABLESPACE_ALREADY_EXISTS:
+	case DB_TABLESPACE_EXISTS:
 		return("Tablespace already exists");
 	case DB_TABLESPACE_DELETED:
-		return("No such tablespace");
+		return("Tablespace deleted or being deleted");
+	case DB_TABLESPACE_NOT_FOUND:
+		return("Tablespace not found");
 	case DB_LOCK_TABLE_FULL:
 		return("Lock structs have exhausted the buffer pool");
 	case DB_FOREIGN_DUPLICATE_KEY:
@@ -700,8 +773,8 @@ ut_strerr(
 		return("Too many concurrent transactions");
 	case DB_UNSUPPORTED:
 		return("Unsupported");
-	case DB_PRIMARY_KEY_IS_NULL:
-		return("Primary key is NULL");
+	case DB_INVALID_NULL:
+		return("NULL value encountered in NOT NULL column");
 	case DB_STATS_DO_NOT_EXIST:
 		return("Persistent statistics do not exist");
 	case DB_FAIL:
@@ -720,16 +793,33 @@ ut_strerr(
 		return("No index on referencing keys in referencing table");
 	case DB_PARENT_NO_INDEX:
 		return("No index on referenced keys in referenced table");
+	case DB_FTS_INVALID_DOCID:
+		return("FTS Doc ID cannot be zero");
 	case DB_INDEX_CORRUPT:
 		return("Index corrupted");
 	case DB_UNDO_RECORD_TOO_BIG:
 		return("Undo record too big");
 	case DB_END_OF_INDEX:
 		return("End of index");
+	case DB_IO_ERROR:
+		return("I/O error");
 	case DB_TABLE_IN_FK_CHECK:
 		return("Table is being used in foreign key check");
+	case DB_DATA_MISMATCH:
+		return("data mismatch");
+	case DB_SCHEMA_NOT_LOCKED:
+		return("schema not locked");
+	case DB_NOT_FOUND:
+		return("not found");
+	case DB_ONLINE_LOG_TOO_BIG:
+		return("Log size exceeded during online index creation");
+	case DB_DICT_CHANGED:
+		return("Table dictionary has changed");
 	case DB_IDENTIFIER_TOO_LONG:
 		return("Identifier name is too long");
+	case DB_FTS_EXCEED_RESULT_CACHE_LIMIT:
+		return("FTS query exceeds result cache limit");
+
 	/* do not add default: in order to produce a warning if new code
 	is added to the enum but not added here */
 	}
@@ -742,3 +832,4 @@ ut_strerr(
 	/* NOT REACHED */
 	return("Unknown error");
 }
+#endif /* !UNIV_INNOCHECKSUM */

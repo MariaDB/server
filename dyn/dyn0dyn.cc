@@ -17,7 +17,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 *****************************************************************************/
 
 /**************************************************//**
-@file dyn/dyn0dyn.c
+@file dyn/dyn0dyn.cc
 The dynamically allocated array
 
 Created 2/5/1996 Heikki Tuuri
@@ -55,7 +55,8 @@ dyn_array_add_block(
 
 	heap = arr->heap;
 
-	block = mem_heap_alloc(heap, sizeof(dyn_block_t));
+	block = static_cast<dyn_block_t*>(
+		mem_heap_alloc(heap, sizeof(dyn_block_t)));
 
 	block->used = 0;
 

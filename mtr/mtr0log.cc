@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1995, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /**************************************************//**
-@file mtr/mtr0log.c
+@file mtr/mtr0log.cc
 Mini-transaction log routines
 
 Created 12/7/1995 Heikki Tuuri
@@ -175,7 +175,7 @@ mlog_parse_nbytes(
 		}
 
 		if (page) {
-			if (UNIV_LIKELY_NULL(page_zip)) {
+			if (page_zip) {
 				mach_write_to_8
 					(((page_zip_des_t*) page_zip)->data
 					 + offset, dval);
@@ -199,7 +199,7 @@ mlog_parse_nbytes(
 			goto corrupt;
 		}
 		if (page) {
-			if (UNIV_LIKELY_NULL(page_zip)) {
+			if (page_zip) {
 				mach_write_to_1
 					(((page_zip_des_t*) page_zip)->data
 					 + offset, val);
@@ -212,7 +212,7 @@ mlog_parse_nbytes(
 			goto corrupt;
 		}
 		if (page) {
-			if (UNIV_LIKELY_NULL(page_zip)) {
+			if (page_zip) {
 				mach_write_to_2
 					(((page_zip_des_t*) page_zip)->data
 					 + offset, val);
@@ -222,7 +222,7 @@ mlog_parse_nbytes(
 		break;
 	case MLOG_4BYTES:
 		if (page) {
-			if (UNIV_LIKELY_NULL(page_zip)) {
+			if (page_zip) {
 				mach_write_to_4
 					(((page_zip_des_t*) page_zip)->data
 					 + offset, val);
@@ -240,8 +240,8 @@ mlog_parse_nbytes(
 }
 
 /********************************************************//**
-Writes 1 - 4 bytes to a file page buffered in the buffer pool.
-Writes the corresponding log record to the mini-transaction log. */
+Writes 1, 2 or 4 bytes to a file page. Writes the corresponding log
+record to the mini-transaction log if mtr is not NULL. */
 UNIV_INTERN
 void
 mlog_write_ulint(
@@ -251,8 +251,6 @@ mlog_write_ulint(
 	byte	type,	/*!< in: MLOG_1BYTE, MLOG_2BYTES, MLOG_4BYTES */
 	mtr_t*	mtr)	/*!< in: mini-transaction handle */
 {
-	byte*	log_ptr;
-
 	switch (type) {
 	case MLOG_1BYTE:
 		mach_write_to_1(ptr, val);
@@ -267,27 +265,29 @@ mlog_write_ulint(
 		ut_error;
 	}
 
-	log_ptr = mlog_open(mtr, 11 + 2 + 5);
+	if (mtr != 0) {
+		byte*	log_ptr = mlog_open(mtr, 11 + 2 + 5);
 
-	/* If no logging is requested, we may return now */
-	if (log_ptr == NULL) {
+		/* If no logging is requested, we may return now */
 
-		return;
+		if (log_ptr != 0) {
+
+			log_ptr = mlog_write_initial_log_record_fast(
+				ptr, type, log_ptr, mtr);
+
+			mach_write_to_2(log_ptr, page_offset(ptr));
+			log_ptr += 2;
+
+			log_ptr += mach_write_compressed(log_ptr, val);
+
+			mlog_close(mtr, log_ptr);
+		}
 	}
-
-	log_ptr = mlog_write_initial_log_record_fast(ptr, type, log_ptr, mtr);
-
-	mach_write_to_2(log_ptr, page_offset(ptr));
-	log_ptr += 2;
-
-	log_ptr += mach_write_compressed(log_ptr, val);
-
-	mlog_close(mtr, log_ptr);
 }
 
 /********************************************************//**
-Writes 8 bytes to a file page buffered in the buffer pool.
-Writes the corresponding log record to the mini-transaction log. */
+Writes 8 bytes to a file page. Writes the corresponding log
+record to the mini-transaction log, only if mtr is not NULL */
 UNIV_INTERN
 void
 mlog_write_ull(
@@ -296,29 +296,25 @@ mlog_write_ull(
 	ib_uint64_t	val,	/*!< in: value to write */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle */
 {
-	byte*	log_ptr;
-
-	ut_ad(ptr && mtr);
-
 	mach_write_to_8(ptr, val);
 
-	log_ptr = mlog_open(mtr, 11 + 2 + 9);
+	if (mtr != 0) {
+		byte*	log_ptr = mlog_open(mtr, 11 + 2 + 9);
 
-	/* If no logging is requested, we may return now */
-	if (log_ptr == NULL) {
+		/* If no logging is requested, we may return now */
+		if (log_ptr != 0) {
 
-		return;
+			log_ptr = mlog_write_initial_log_record_fast(
+				ptr, MLOG_8BYTES, log_ptr, mtr);
+
+			mach_write_to_2(log_ptr, page_offset(ptr));
+			log_ptr += 2;
+
+			log_ptr += mach_ull_write_compressed(log_ptr, val);
+
+			mlog_close(mtr, log_ptr);
+		}
 	}
-
-	log_ptr = mlog_write_initial_log_record_fast(ptr, MLOG_8BYTES,
-						     log_ptr, mtr);
-
-	mach_write_to_2(log_ptr, page_offset(ptr));
-	log_ptr += 2;
-
-	log_ptr += mach_ull_write_compressed(log_ptr, val);
-
-	mlog_close(mtr, log_ptr);
 }
 
 #ifndef UNIV_HOTBACKUP
@@ -420,7 +416,7 @@ mlog_parse_string(
 	}
 
 	if (page) {
-		if (UNIV_LIKELY_NULL(page_zip)) {
+		if (page_zip) {
 			memcpy(((page_zip_des_t*) page_zip)->data
 				+ offset, ptr, len);
 		}
@@ -439,12 +435,13 @@ UNIV_INTERN
 byte*
 mlog_open_and_write_index(
 /*======================*/
-	mtr_t*		mtr,	/*!< in: mtr */
-	const byte*	rec,	/*!< in: index record or page */
-	dict_index_t*	index,	/*!< in: record descriptor */
-	byte		type,	/*!< in: log item type */
-	ulint		size)	/*!< in: requested buffer size in bytes
-				(if 0, calls mlog_close() and returns NULL) */
+	mtr_t*			mtr,	/*!< in: mtr */
+	const byte*		rec,	/*!< in: index record or page */
+	const dict_index_t*	index,	/*!< in: record descriptor */
+	byte			type,	/*!< in: log item type */
+	ulint			size)	/*!< in: requested buffer size in bytes
+					(if 0, calls mlog_close() and
+					returns NULL) */
 {
 	byte*		log_ptr;
 	const byte*	log_start;
@@ -538,7 +535,7 @@ mlog_parse_index(
 /*=============*/
 	byte*		ptr,	/*!< in: buffer */
 	const byte*	end_ptr,/*!< in: buffer end */
-	ibool		comp,	/*!< in: TRUE=compact record format */
+	ibool		comp,	/*!< in: TRUE=compact row format */
 	dict_index_t**	index)	/*!< out, own: dummy index */
 {
 	ulint		i, n, n_uniq;
@@ -563,7 +560,7 @@ mlog_parse_index(
 		n = n_uniq = 1;
 	}
 	table = dict_mem_table_create("LOG_DUMMY", DICT_HDR_SPACE, n,
-				      comp ? DICT_TF_COMPACT : 0);
+				      comp ? DICT_TF_COMPACT : 0, 0);
 	ind = dict_mem_index_create("LOG_DUMMY", "LOG_DUMMY",
 				    DICT_HDR_SPACE, 0, n);
 	ind->table = table;

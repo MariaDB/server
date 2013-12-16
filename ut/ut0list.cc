@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2006, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 2006, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /*******************************************************************//**
-@file ut/ut0list.c
+@file ut/ut0list.cc
 A double-linked list
 
 Created 4/26/2006 Osku Salerma
@@ -36,7 +36,9 @@ ib_list_t*
 ib_list_create(void)
 /*=================*/
 {
-	ib_list_t*	list = mem_alloc(sizeof(ib_list_t));
+	ib_list_t*	list;
+
+	list = static_cast<ib_list_t*>(mem_alloc(sizeof(*list)));
 
 	list->first = NULL;
 	list->last = NULL;
@@ -55,7 +57,9 @@ ib_list_create_heap(
 /*================*/
 	mem_heap_t*	heap)	/*!< in: memory heap to use */
 {
-	ib_list_t*	list = mem_heap_alloc(heap, sizeof(ib_list_t));
+	ib_list_t*	list;
+
+	list = static_cast<ib_list_t*>(mem_heap_alloc(heap, sizeof(*list)));
 
 	list->first = NULL;
 	list->last = NULL;
@@ -122,7 +126,10 @@ ib_list_add_after(
 	void*		data,		/*!< in: data */
 	mem_heap_t*	heap)		/*!< in: memory heap to use */
 {
-	ib_list_node_t*	node = mem_heap_alloc(heap, sizeof(ib_list_node_t));
+	ib_list_node_t*	node;
+
+	node = static_cast<ib_list_node_t*>(
+		mem_heap_alloc(heap, sizeof(*node)));
 
 	node->data = data;
 
@@ -191,4 +198,6 @@ ib_list_remove(
 
 		list->last = node->prev;
 	}
+
+	node->prev = node->next = NULL;
 }

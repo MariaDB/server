@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 2007, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /**************************************************//**
-@file ha/ha0storage.c
+@file ha/ha0storage.cc
 Hash storage.
 Provides a data structure that stores chunks of data in
 its own storage, avoiding duplicates.
@@ -51,7 +51,7 @@ ha_storage_get(
 
 	/* avoid repetitive calls to ut_fold_binary() in the HASH_SEARCH
 	macro */
-	fold = ut_fold_binary(data, data_len);
+	fold = ut_fold_binary(static_cast<const byte*>(data), data_len);
 
 #define IS_FOUND	\
 	node->data_len == data_len && memcmp(node->data, data, data_len) == 0
@@ -128,7 +128,7 @@ ha_storage_put_memlim(
 
 	/* avoid repetitive calls to ut_fold_binary() in the HASH_INSERT
 	macro */
-	fold = ut_fold_binary(data, data_len);
+	fold = ut_fold_binary(static_cast<const byte*>(data), data_len);
 
 	HASH_INSERT(
 		ha_storage_node_t,	/* type used in the hash chain */

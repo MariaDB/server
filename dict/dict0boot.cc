@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,13 +11,13 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
 /**************************************************//**
-@file dict/dict0boot.c
+@file dict/dict0boot.cc
 Data dictionary creation and booting
 
 Created 4/18/1996 Heikki Tuuri
@@ -32,7 +32,6 @@ Created 4/18/1996 Heikki Tuuri
 #include "dict0crea.h"
 #include "btr0btr.h"
 #include "btr0sea.h"
-#include "dict0load.h"
 #include "dict0load.h"
 #include "trx0trx.h"
 #include "srv0srv.h"
@@ -241,171 +240,11 @@ dict_hdr_create(
 }
 
 /*****************************************************************//**
-Verifies the SYS_STATS table by scanning its clustered index.  This
-function may only be called at InnoDB startup time.
-
-@return	TRUE if SYS_STATS was verified successfully */
-UNIV_INTERN
-ibool
-dict_verify_xtradb_sys_stats(void)
-/*==============================*/
-{
-	dict_index_t* sys_stats_index;
-	ulint	      saved_srv_pass_corrupt_table = srv_pass_corrupt_table;
-	ibool	      result;
-
-	sys_stats_index = dict_table_get_first_index(dict_sys->sys_stats);
-
-	/* Since this may be called only during server startup, avoid hitting
-	   various asserts by using XtraDB pass_corrupt_table option. */
-	srv_pass_corrupt_table = 1;
-	result = btr_validate_index(sys_stats_index, NULL);
-	srv_pass_corrupt_table = saved_srv_pass_corrupt_table;
-
-	return result;
-}
-
-/*****************************************************************//**
-Creates the B-tree for the SYS_STATS clustered index, adds the XtraDB
-mark and the id of the index to the dictionary header page.  Rewrites
-both passed args. */
-static
-void
-dict_create_xtradb_sys_stats(
-/*=========================*/
-	dict_hdr_t**	dict_hdr,	/*!< in/out: dictionary header */
-	mtr_t*		mtr)		/*!< in/out: mtr */
-{
-	ulint	root_page_no;
-
-	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
-				  DICT_HDR_SPACE, 0, DICT_STATS_ID,
-				  dict_ind_redundant, mtr);
-	if (root_page_no == FIL_NULL) {
-		fprintf(stderr, "InnoDB: Warning: failed to create SYS_STATS btr.\n");
-		srv_use_sys_stats_table = FALSE;
-	} else {
-		mlog_write_ulint(*dict_hdr + DICT_HDR_STATS, root_page_no,
-				 MLOG_4BYTES, mtr);
-		mlog_write_ull(*dict_hdr + DICT_HDR_XTRADB_MARK,
-			       DICT_HDR_XTRADB_FLAG, mtr);
-	}
-	mtr_commit(mtr);
-	/* restart mtr */
-	mtr_start(mtr);
-	*dict_hdr = dict_hdr_get(mtr);
-}
-
-/*****************************************************************//**
-Create the table and index structure of SYS_STATS for the dictionary
-cache and add it there.  If called for the first time, also support
-wrong root page id injection for testing purposes. */
-static
-void
-dict_add_to_cache_xtradb_sys_stats(
-/*===============================*/
-	ibool		first_time __attribute__((unused)),
-					/*!< in: first invocation flag. If
-					TRUE, optionally inject wrong root page
-					id */
-	mem_heap_t*	heap,		/*!< in: memory heap for table/index
-					allocation */
-	dict_hdr_t*	dict_hdr,	/*!< in: dictionary header */
-	mtr_t*		mtr)		/*!< in: mtr */
-{
-	dict_table_t*	table;
-	dict_index_t*	index;
-	ulint		root_page_id;
-	ulint		error;
-
-	table = dict_mem_table_create("SYS_STATS", DICT_HDR_SPACE, 4, 0);
-	table->n_mysql_handles_opened = 1; /* for pin */
-
-	dict_mem_table_add_col(table, heap, "INDEX_ID", DATA_BINARY, 0, 0);
-	dict_mem_table_add_col(table, heap, "KEY_COLS", DATA_INT, 0, 4);
-	dict_mem_table_add_col(table, heap, "DIFF_VALS", DATA_BINARY, 0, 0);
-	dict_mem_table_add_col(table, heap, "NON_NULL_VALS", DATA_BINARY, 0, 0);
-
-	/* The '+ 2' below comes from the fields DB_TRX_ID, DB_ROLL_PTR */
-#if DICT_SYS_STATS_DIFF_VALS_FIELD != 2 + 2
-#error "DICT_SYS_STATS_DIFF_VALS_FIELD != 2 + 2"
-#endif
-#if DICT_SYS_STATS_NON_NULL_VALS_FIELD != 3 + 2
-#error "DICT_SYS_STATS_NON_NULL_VALS_FIELD != 3 + 2"
-#endif
-
-	table->id = DICT_STATS_ID;
-	dict_table_add_to_cache(table, heap);
-	dict_sys->sys_stats = table;
-	mem_heap_empty(heap);
-
-	index = dict_mem_index_create("SYS_STATS", "CLUST_IND",
-				      DICT_HDR_SPACE,
-				      DICT_UNIQUE | DICT_CLUSTERED, 2);
-
-	dict_mem_index_add_field(index, "INDEX_ID", 0);
-	dict_mem_index_add_field(index, "KEY_COLS", 0);
-
-	index->id = DICT_STATS_ID;
-	btr_search_index_init(index);
-
-	root_page_id = mtr_read_ulint(dict_hdr + DICT_HDR_STATS, MLOG_4BYTES,
-				      mtr);
-#ifdef UNIV_DEBUG
-	if ((srv_sys_stats_root_page != 0) && first_time)
-		root_page_id = srv_sys_stats_root_page;
-#endif
-	error = dict_index_add_to_cache(table, index, root_page_id, FALSE);
-	ut_a(error == DB_SUCCESS);
-
-	mem_heap_empty(heap);
-}
-
-/*****************************************************************//**
-Discard the existing dictionary cache SYS_STATS information, create and
-add it there anew.  Does not touch the old SYS_STATS tablespace page
-under the assumption that they are corrupted or overwritten for other
-purposes. */
-UNIV_INTERN
-void
-dict_recreate_xtradb_sys_stats(void)
-/*================================*/
-{
-	mtr_t		mtr;
-	dict_hdr_t*	dict_hdr;
-	dict_index_t*	sys_stats_clust_idx;
-	mem_heap_t*	heap;
-
-	heap = mem_heap_create(450);
-
-	mutex_enter(&(dict_sys->mutex));
-
-	sys_stats_clust_idx = dict_table_get_first_index(dict_sys->sys_stats);
-	dict_index_remove_from_cache(dict_sys->sys_stats, sys_stats_clust_idx);
-
-	dict_table_remove_from_cache(dict_sys->sys_stats);
-
-	dict_sys->sys_stats = NULL;
-
-	mtr_start(&mtr);
-
-	dict_hdr = dict_hdr_get(&mtr);
-
-	dict_create_xtradb_sys_stats(&dict_hdr, &mtr);
-	dict_add_to_cache_xtradb_sys_stats(FALSE, heap, dict_hdr, &mtr);
-
-	mem_heap_free(heap);
-
-	mtr_commit(&mtr);
-
-	mutex_exit(&(dict_sys->mutex));
-}
-
-/*****************************************************************//**
 Initializes the data dictionary memory structures when the database is
-started. This function is also called when the data dictionary is created. */
+started. This function is also called when the data dictionary is created.
+@return DB_SUCCESS or error code. */
 UNIV_INTERN
-void
+dberr_t
 dict_boot(void)
 /*===========*/
 {
@@ -414,26 +253,37 @@ dict_boot(void)
 	dict_hdr_t*	dict_hdr;
 	mem_heap_t*	heap;
 	mtr_t		mtr;
-	ulint		error;
+	dberr_t		error;
 
-	heap = mem_heap_create(450);
+	/* Be sure these constants do not ever change.  To avoid bloat,
+	only check the *NUM_FIELDS* in each table */
+
+	ut_ad(DICT_NUM_COLS__SYS_TABLES == 8);
+	ut_ad(DICT_NUM_FIELDS__SYS_TABLES == 10);
+	ut_ad(DICT_NUM_FIELDS__SYS_TABLE_IDS == 2);
+	ut_ad(DICT_NUM_COLS__SYS_COLUMNS == 7);
+	ut_ad(DICT_NUM_FIELDS__SYS_COLUMNS == 9);
+	ut_ad(DICT_NUM_COLS__SYS_INDEXES == 7);
+	ut_ad(DICT_NUM_FIELDS__SYS_INDEXES == 9);
+	ut_ad(DICT_NUM_COLS__SYS_FIELDS == 3);
+	ut_ad(DICT_NUM_FIELDS__SYS_FIELDS == 5);
+	ut_ad(DICT_NUM_COLS__SYS_FOREIGN == 4);
+	ut_ad(DICT_NUM_FIELDS__SYS_FOREIGN == 6);
+	ut_ad(DICT_NUM_FIELDS__SYS_FOREIGN_FOR_NAME == 2);
+	ut_ad(DICT_NUM_COLS__SYS_FOREIGN_COLS == 4);
+	ut_ad(DICT_NUM_FIELDS__SYS_FOREIGN_COLS == 6);
 
 	mtr_start(&mtr);
 
 	/* Create the hash tables etc. */
 	dict_init();
 
+	heap = mem_heap_create(450);
+
 	mutex_enter(&(dict_sys->mutex));
 
 	/* Get the dictionary header */
 	dict_hdr = dict_hdr_get(&mtr);
-
-	if (mach_read_from_8(dict_hdr + DICT_HDR_XTRADB_MARK)
-	    != DICT_HDR_XTRADB_FLAG) {
-
-		/* not extended yet by XtraDB, need to be extended */
-		dict_create_xtradb_sys_stats(&dict_hdr, &mtr);
-	}
 
 	/* Because we only write new row ids to disk-based data structure
 	(dictionary header) when it is divisible by
@@ -452,15 +302,14 @@ dict_boot(void)
 	/* Insert into the dictionary cache the descriptions of the basic
 	system tables */
 	/*-------------------------*/
-	table = dict_mem_table_create("SYS_TABLES", DICT_HDR_SPACE, 8, 0);
-	table->n_mysql_handles_opened = 1; /* for pin */
+	table = dict_mem_table_create("SYS_TABLES", DICT_HDR_SPACE, 8, 0, 0);
 
 	dict_mem_table_add_col(table, heap, "NAME", DATA_BINARY, 0, 0);
 	dict_mem_table_add_col(table, heap, "ID", DATA_BINARY, 0, 0);
 	/* ROW_FORMAT = (N_COLS >> 31) ? COMPACT : REDUNDANT */
 	dict_mem_table_add_col(table, heap, "N_COLS", DATA_INT, 0, 4);
-	/* TYPE is either DICT_TABLE_ORDINARY, or (TYPE & DICT_TF_COMPACT)
-	and (TYPE & DICT_TF_FORMAT_MASK) are nonzero and TYPE = table->flags */
+	/* The low order bit of TYPE is always set to 1.  If the format
+	is UNIV_FORMAT_B or higher, this field matches table->flags. */
 	dict_mem_table_add_col(table, heap, "TYPE", DATA_INT, 0, 4);
 	dict_mem_table_add_col(table, heap, "MIX_ID", DATA_BINARY, 0, 0);
 	/* MIX_LEN may contain additional table flags when
@@ -472,7 +321,7 @@ dict_boot(void)
 
 	table->id = DICT_TABLES_ID;
 
-	dict_table_add_to_cache(table, heap);
+	dict_table_add_to_cache(table, FALSE, heap);
 	dict_sys->sys_tables = table;
 	mem_heap_empty(heap);
 
@@ -499,7 +348,6 @@ dict_boot(void)
 
 	index->id = DICT_TABLE_IDS_ID;
 	btr_search_index_init(index);
-
 	error = dict_index_add_to_cache(table, index,
 					mtr_read_ulint(dict_hdr
 						       + DICT_HDR_TABLE_IDS,
@@ -508,8 +356,7 @@ dict_boot(void)
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
-	table = dict_mem_table_create("SYS_COLUMNS", DICT_HDR_SPACE, 7, 0);
-	table->n_mysql_handles_opened = 1; /* for pin */
+	table = dict_mem_table_create("SYS_COLUMNS", DICT_HDR_SPACE, 7, 0, 0);
 
 	dict_mem_table_add_col(table, heap, "TABLE_ID", DATA_BINARY, 0, 0);
 	dict_mem_table_add_col(table, heap, "POS", DATA_INT, 0, 4);
@@ -521,7 +368,7 @@ dict_boot(void)
 
 	table->id = DICT_COLUMNS_ID;
 
-	dict_table_add_to_cache(table, heap);
+	dict_table_add_to_cache(table, FALSE, heap);
 	dict_sys->sys_columns = table;
 	mem_heap_empty(heap);
 
@@ -542,8 +389,7 @@ dict_boot(void)
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
-	table = dict_mem_table_create("SYS_INDEXES", DICT_HDR_SPACE, 7, 0);
-	table->n_mysql_handles_opened = 1; /* for pin */
+	table = dict_mem_table_create("SYS_INDEXES", DICT_HDR_SPACE, 7, 0, 0);
 
 	dict_mem_table_add_col(table, heap, "TABLE_ID", DATA_BINARY, 0, 0);
 	dict_mem_table_add_col(table, heap, "ID", DATA_BINARY, 0, 0);
@@ -553,22 +399,9 @@ dict_boot(void)
 	dict_mem_table_add_col(table, heap, "SPACE", DATA_INT, 0, 4);
 	dict_mem_table_add_col(table, heap, "PAGE_NO", DATA_INT, 0, 4);
 
-	/* The '+ 2' below comes from the fields DB_TRX_ID, DB_ROLL_PTR */
-#if DICT_SYS_INDEXES_PAGE_NO_FIELD != 6 + 2
-#error "DICT_SYS_INDEXES_PAGE_NO_FIELD != 6 + 2"
-#endif
-#if DICT_SYS_INDEXES_SPACE_NO_FIELD != 5 + 2
-#error "DICT_SYS_INDEXES_SPACE_NO_FIELD != 5 + 2"
-#endif
-#if DICT_SYS_INDEXES_TYPE_FIELD != 4 + 2
-#error "DICT_SYS_INDEXES_TYPE_FIELD != 4 + 2"
-#endif
-#if DICT_SYS_INDEXES_NAME_FIELD != 2 + 2
-#error "DICT_SYS_INDEXES_NAME_FIELD != 2 + 2"
-#endif
-
 	table->id = DICT_INDEXES_ID;
-	dict_table_add_to_cache(table, heap);
+
+	dict_table_add_to_cache(table, FALSE, heap);
 	dict_sys->sys_indexes = table;
 	mem_heap_empty(heap);
 
@@ -589,17 +422,17 @@ dict_boot(void)
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
-	table = dict_mem_table_create("SYS_FIELDS", DICT_HDR_SPACE, 3, 0);
-	table->n_mysql_handles_opened = 1; /* for pin */
+	table = dict_mem_table_create("SYS_FIELDS", DICT_HDR_SPACE, 3, 0, 0);
 
 	dict_mem_table_add_col(table, heap, "INDEX_ID", DATA_BINARY, 0, 0);
 	dict_mem_table_add_col(table, heap, "POS", DATA_INT, 0, 4);
 	dict_mem_table_add_col(table, heap, "COL_NAME", DATA_BINARY, 0, 0);
 
 	table->id = DICT_FIELDS_ID;
-	dict_table_add_to_cache(table, heap);
+
+	dict_table_add_to_cache(table, FALSE, heap);
 	dict_sys->sys_fields = table;
-	mem_heap_empty(heap);
+	mem_heap_free(heap);
 
 	index = dict_mem_index_create("SYS_FIELDS", "CLUST_IND",
 				      DICT_HDR_SPACE,
@@ -617,26 +450,35 @@ dict_boot(void)
 					FALSE);
 	ut_a(error == DB_SUCCESS);
 
-	dict_add_to_cache_xtradb_sys_stats(TRUE, heap, dict_hdr, &mtr);
-
-	mem_heap_free(heap);
-
 	mtr_commit(&mtr);
+
 	/*-------------------------*/
 
 	/* Initialize the insert buffer table and index for each tablespace */
 
 	ibuf_init_at_db_start();
 
-	/* Load definitions of other indexes on system tables */
+	dberr_t	err = DB_SUCCESS;
 
-	dict_load_sys_table(dict_sys->sys_tables);
-	dict_load_sys_table(dict_sys->sys_columns);
-	dict_load_sys_table(dict_sys->sys_indexes);
-	dict_load_sys_table(dict_sys->sys_fields);
-	dict_load_sys_table(dict_sys->sys_stats);
+	if (srv_read_only_mode && !ibuf_is_empty()) {
+
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Change buffer must be empty when --innodb-read-only "
+			"is set!");
+
+		err = DB_ERROR;
+	} else {
+		/* Load definitions of other indexes on system tables */
+
+		dict_load_sys_table(dict_sys->sys_tables);
+		dict_load_sys_table(dict_sys->sys_columns);
+		dict_load_sys_table(dict_sys->sys_indexes);
+		dict_load_sys_table(dict_sys->sys_fields);
+	}
 
 	mutex_exit(&(dict_sys->mutex));
+
+	return(err);
 }
 
 /*****************************************************************//**
@@ -651,9 +493,10 @@ dict_insert_initial_data(void)
 }
 
 /*****************************************************************//**
-Creates and initializes the data dictionary at the database creation. */
+Creates and initializes the data dictionary at the server bootstrap.
+@return DB_SUCCESS or error code. */
 UNIV_INTERN
-void
+dberr_t
 dict_create(void)
 /*=============*/
 {
@@ -665,7 +508,11 @@ dict_create(void)
 
 	mtr_commit(&mtr);
 
-	dict_boot();
+	dberr_t	err = dict_boot();
 
-	dict_insert_initial_data();
+	if (err == DB_SUCCESS) {
+		dict_insert_initial_data();
+	}
+
+	return(err);
 }

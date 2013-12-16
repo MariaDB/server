@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -45,8 +45,6 @@ btr_search_get_info(
 /*================*/
 	dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
-
 	return(index->search_info);
 }
 
@@ -62,8 +60,8 @@ btr_search_info_update(
 	btr_search_t*	info;
 
 #ifdef UNIV_SYNC_DEBUG
-	ut_ad(!rw_lock_own(btr_search_get_latch(index->id), RW_LOCK_SHARED));
-	ut_ad(!rw_lock_own(btr_search_get_latch(index->id), RW_LOCK_EX));
+	ut_ad(!rw_lock_own(btr_search_get_latch(index), RW_LOCK_SHARED));
+	ut_ad(!rw_lock_own(btr_search_get_latch(index), RW_LOCK_EX));
 #endif /* UNIV_SYNC_DEBUG */
 
 	info = btr_search_get_info(index);
@@ -83,8 +81,9 @@ btr_search_info_update(
 	btr_search_info_update_slow(info, cursor);
 }
 
-/*********************************************************************//**
-New functions to control split btr_search_index */
+/********************************************************************//**
+Returns the adaptive hash index table for a given index key.
+@return the adaptive hash index table for a given index key */
 UNIV_INLINE
 hash_table_t*
 btr_search_get_hash_table(
@@ -97,8 +96,11 @@ btr_search_get_hash_table(
 	return(index->search_table);
 }
 
+/********************************************************************//**
+Returns the adaptive hash index latch for a given index key.
+@return the adaptive hash index latch for a given index key */
 UNIV_INLINE
-rw_lock_t*
+prio_rw_lock_t*
 btr_search_get_latch(
 /*=================*/
 	const dict_index_t*	index)	/*!< in: index */
@@ -138,6 +140,8 @@ btr_search_index_init(
 		btr_search_sys->hash_tables[btr_search_get_key(index->id)];
 }
 
+/********************************************************************//**
+Latches all adaptive hash index latches in exclusive mode.  */
 UNIV_INLINE
 void
 btr_search_x_lock_all(void)
@@ -150,6 +154,8 @@ btr_search_x_lock_all(void)
 	}
 }
 
+/********************************************************************//**
+Unlatches all adaptive hash index latches in exclusive mode.  */
 UNIV_INLINE
 void
 btr_search_x_unlock_all(void)
@@ -163,11 +169,34 @@ btr_search_x_unlock_all(void)
 }
 
 #ifdef UNIV_SYNC_DEBUG
+/******************************************************************//**
+Checks if the thread has locked all the adaptive hash index latches in the
+specified mode.
+
+@return true if all latches are locked by the current thread, false
+otherwise.  */
+UNIV_INLINE
+bool
+btr_search_own_all(
+/*===============*/
+	ulint lock_type)
+{
+	ulint	i;
+
+	for (i = 0; i < btr_search_index_num; i++) {
+		if (!rw_lock_own(&btr_search_latch_arr[i], lock_type)) {
+			return(false);
+		}
+	}
+
+	return(true);
+}
+
 /********************************************************************//**
 Checks if the thread owns any adaptive hash latches in either S or X mode.
-@return	TRUE if the thread owns at least one latch in any mode. */
+@return	true if the thread owns at least one latch in any mode. */
 UNIV_INLINE
-ibool
+bool
 btr_search_own_any(void)
 /*====================*/
 {
@@ -176,10 +205,10 @@ btr_search_own_any(void)
 	for (i = 0; i < btr_search_index_num; i++) {
 		if (rw_lock_own(&btr_search_latch_arr[i], RW_LOCK_SHARED) ||
 		    rw_lock_own(&btr_search_latch_arr[i], RW_LOCK_EX)) {
-			return(TRUE);
+			return(true);
 		}
 	}
 
-	return(FALSE);
+	return(false);
 }
-#endif
+#endif /* UNIV_SYNC_DEBUG */

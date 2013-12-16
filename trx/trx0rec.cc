@@ -17,7 +17,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 *****************************************************************************/
 
 /**************************************************//**
-@file trx/trx0rec.c
+@file trx/trx0rec.cc
 Transaction undo log record
 
 Created 3/26/1996 Heikki Tuuri
@@ -287,7 +287,7 @@ trx_undo_rec_get_pars(
 					TRX_UNDO_INSERT_REC, ... */
 	ulint*		cmpl_info,	/*!< out: compiler info, relevant only
 					for update type records */
-	ibool*		updated_extern,	/*!< out: TRUE if we updated an
+	bool*		updated_extern,	/*!< out: true if we updated an
 					externally stored fild */
 	undo_no_t*	undo_no,	/*!< out: undo log record number */
 	table_id_t*	table_id)	/*!< out: table id */
@@ -300,12 +300,8 @@ trx_undo_rec_get_pars(
 	type_cmpl = mach_read_from_1(ptr);
 	ptr++;
 
-	if (type_cmpl & TRX_UNDO_UPD_EXTERN) {
-		*updated_extern = TRUE;
-		type_cmpl -= TRX_UNDO_UPD_EXTERN;
-	} else {
-		*updated_extern = FALSE;
-	}
+	*updated_extern = !!(type_cmpl & TRX_UNDO_UPD_EXTERN);
+	type_cmpl &= ~TRX_UNDO_UPD_EXTERN;
 
 	*type = type_cmpl & (TRX_UNDO_CMPL_INFO_MULT - 1);
 	*cmpl_info = type_cmpl / TRX_UNDO_CMPL_INFO_MULT;
@@ -353,8 +349,9 @@ trx_undo_rec_get_col_val(
 		ut_ad(*len > *orig_len);
 		/* @see dtuple_convert_big_rec() */
 		ut_ad(*len >= BTR_EXTERN_FIELD_REF_SIZE);
+
 		/* we do not have access to index->table here
-		ut_ad(dict_table_get_format(index->table) >= DICT_TF_FORMAT_ZIP
+		ut_ad(dict_table_get_format(index->table) >= UNIV_FORMAT_B
 		      || *len >= col->max_prefix
 		      + BTR_EXTERN_FIELD_REF_SIZE);
 		*/
@@ -587,6 +584,7 @@ trx_undo_page_report_modify(
 	/* Store first some general parameters to the undo log */
 
 	if (!update) {
+		ut_ad(!rec_get_deleted_flag(rec, dict_table_is_comp(table)));
 		type_cmpl = TRX_UNDO_DEL_MARK_REC;
 	} else if (rec_get_deleted_flag(rec, dict_table_is_comp(table))) {
 		type_cmpl = TRX_UNDO_UPD_DEL_REC;
@@ -670,27 +668,14 @@ trx_undo_page_report_modify(
 	/* Save to the undo log the old values of the columns to be updated. */
 
 	if (update) {
-		ulint	extended = 0;
-
 		if (trx_undo_left(undo_page, ptr) < 5) {
 
 			return(0);
 		}
 
-		if (srv_use_sys_stats_table
-		    && index == UT_LIST_GET_FIRST(dict_sys->sys_stats->indexes)) {
-			for (i = 0; i < upd_get_n_fields(update); i++) {
-				ulint	pos = upd_get_nth_field(update, i)->field_no;
+		ptr += mach_write_compressed(ptr, upd_get_n_fields(update));
 
-				if (pos >= rec_offs_n_fields(offsets)) {
-					extended++;
-				}
-			}
-		}
-
-		ptr += mach_write_compressed(ptr, upd_get_n_fields(update) - extended);
-
-		for (i = 0; i < upd_get_n_fields(update) - extended; i++) {
+		for (i = 0; i < upd_get_n_fields(update); i++) {
 
 			ulint	pos = upd_get_nth_field(update, i)->field_no;
 
@@ -973,7 +958,9 @@ trx_undo_update_rec_get_update(
 	/* Store first trx id and roll ptr to update vector */
 
 	upd_field = upd_get_nth_field(update, n_fields);
-	buf = mem_heap_alloc(heap, DATA_TRX_ID_LEN);
+
+	buf = static_cast<byte*>(mem_heap_alloc(heap, DATA_TRX_ID_LEN));
+
 	trx_write_trx_id(buf, trx_id);
 
 	upd_field_set_field_no(upd_field,
@@ -982,7 +969,9 @@ trx_undo_update_rec_get_update(
 	dfield_set_data(&(upd_field->new_val), buf, DATA_TRX_ID_LEN);
 
 	upd_field = upd_get_nth_field(update, n_fields + 1);
-	buf = mem_heap_alloc(heap, DATA_ROLL_PTR_LEN);
+
+	buf = static_cast<byte*>(mem_heap_alloc(heap, DATA_ROLL_PTR_LEN));
+
 	trx_write_roll_ptr(buf, roll_ptr);
 
 	upd_field_set_field_no(
@@ -1048,8 +1037,9 @@ trx_undo_update_rec_get_update(
 }
 
 /*******************************************************************//**
-Builds a partial row from an update undo log record. It contains the
-columns which occur as ordering in any index of the table.
+Builds a partial row from an update undo log record, for purge.
+It contains the columns which occur as ordering in any index of the table.
+Any missing columns are indicated by col->mtype == DATA_MISSING.
 @return	pointer to remaining part of undo record */
 UNIV_INTERN
 byte*
@@ -1083,7 +1073,12 @@ trx_undo_rec_get_partial_row(
 
 	*row = dtuple_create(heap, row_len);
 
-	dict_table_copy_types(*row, index->table);
+	/* Mark all columns in the row uninitialized, so that
+	we can distinguish missing fields from fields that are SQL NULL. */
+	for (ulint i = 0; i < row_len; i++) {
+		dfield_get_type(dtuple_get_nth_field(*row, i))
+			->mtype = DATA_MISSING;
+	}
 
 	end_ptr = ptr + mach_read_from_2(ptr);
 	ptr += 2;
@@ -1105,7 +1100,9 @@ trx_undo_rec_get_partial_row(
 		ptr = trx_undo_rec_get_col_val(ptr, &field, &len, &orig_len);
 
 		dfield = dtuple_get_nth_field(*row, col_no);
-
+		dict_col_copy_type(
+			dict_table_get_nth_col(index->table, col_no),
+			dfield_get_type(dfield));
 		dfield_set_data(dfield, field, len);
 
 		if (len != UNIV_SQL_NULL
@@ -1120,9 +1117,9 @@ trx_undo_rec_get_partial_row(
 				ut_a(dfield_get_len(dfield)
 				     >= BTR_EXTERN_FIELD_REF_SIZE);
 				ut_a(dict_table_get_format(index->table)
-				     >= DICT_TF_FORMAT_ZIP
+				     >= UNIV_FORMAT_B
 				     || dfield_get_len(dfield)
-				     >= REC_ANTELOPE_MAX_INDEX_COL_LEN 
+				     >= REC_ANTELOPE_MAX_INDEX_COL_LEN
 				     + BTR_EXTERN_FIELD_REF_SIZE);
 			}
 		}
@@ -1185,7 +1182,7 @@ transaction and in consistent reads that must look to the history of this
 transaction.
 @return	DB_SUCCESS or error code */
 UNIV_INTERN
-ulint
+dberr_t
 trx_undo_report_row_operation(
 /*==========================*/
 	ulint		flags,		/*!< in: if BTR_NO_UNDO_LOG_FLAG bit is
@@ -1204,6 +1201,7 @@ trx_undo_report_row_operation(
 	const rec_t*	rec,		/*!< in: in case of an update or delete
 					marking, the record in the clustered
 					index, otherwise NULL */
+	const ulint*	offsets,	/*!< in: rec_get_offsets(rec) */
 	roll_ptr_t*	roll_ptr)	/*!< out: rollback pointer to the
 					inserted undo log record,
 					0 if BTR_NO_UNDO_LOG
@@ -1215,16 +1213,14 @@ trx_undo_report_row_operation(
 	buf_block_t*	undo_block;
 	trx_rseg_t*	rseg;
 	mtr_t		mtr;
-	ulint		err		= DB_SUCCESS;
-	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	dberr_t		err		= DB_SUCCESS;
 #ifdef UNIV_DEBUG
 	int		loop_count	= 0;
 #endif /* UNIV_DEBUG */
-	rec_offs_init(offsets_);
 
+	ut_ad(!srv_read_only_mode);
 	ut_a(dict_index_is_clust(index));
+	ut_ad(!rec || rec_offs_validate(rec, index, offsets));
 
 	if (flags & BTR_NO_UNDO_LOG_FLAG) {
 
@@ -1238,54 +1234,60 @@ trx_undo_report_row_operation(
 	      || (clust_entry && !update && !rec));
 
 	trx = thr_get_trx(thr);
+
+	/* This table is visible only to the session that created it. */
+	if (trx->read_only) {
+		ut_ad(!srv_read_only_mode);
+		/* MySQL should block writes to non-temporary tables. */
+		ut_a(DICT_TF2_FLAG_IS_SET(index->table, DICT_TF2_TEMPORARY));
+		if (trx->rseg == 0) {
+			trx_assign_rseg(trx);
+		}
+	}
+
 	rseg = trx->rseg;
 
-	mutex_enter(&(trx->undo_mutex));
+	mtr_start(&mtr);
+	mutex_enter(&trx->undo_mutex);
 
 	/* If the undo log is not assigned yet, assign one */
 
-	if (op_type == TRX_UNDO_INSERT_OP) {
-
-		if (trx->insert_undo == NULL) {
-
-			err = trx_undo_assign_undo(trx, TRX_UNDO_INSERT);
-		}
-
+	switch (op_type) {
+	case TRX_UNDO_INSERT_OP:
 		undo = trx->insert_undo;
 
-		if (UNIV_UNLIKELY(!undo)) {
-			/* Did not succeed */
-			ut_ad(err != DB_SUCCESS);
-			mutex_exit(&(trx->undo_mutex));
+		if (undo == NULL) {
 
-			return(err);
+			err = trx_undo_assign_undo(trx, TRX_UNDO_INSERT);
+			undo = trx->insert_undo;
+
+			if (undo == NULL) {
+				/* Did not succeed */
+				ut_ad(err != DB_SUCCESS);
+				goto err_exit;
+			}
+
+			ut_ad(err == DB_SUCCESS);
 		}
-
-		ut_ad(err == DB_SUCCESS);
-	} else {
+		break;
+	default:
 		ut_ad(op_type == TRX_UNDO_MODIFY_OP);
-
-		if (trx->update_undo == NULL) {
-
-			err = trx_undo_assign_undo(trx, TRX_UNDO_UPDATE);
-
-		}
 
 		undo = trx->update_undo;
 
-		if (UNIV_UNLIKELY(!undo)) {
-			/* Did not succeed */
-			ut_ad(err != DB_SUCCESS);
-			mutex_exit(&(trx->undo_mutex));
-			return(err);
+		if (undo == NULL) {
+			err = trx_undo_assign_undo(trx, TRX_UNDO_UPDATE);
+			undo = trx->update_undo;
+
+			if (undo == NULL) {
+				/* Did not succeed */
+				ut_ad(err != DB_SUCCESS);
+				goto err_exit;
+			}
 		}
 
 		ut_ad(err == DB_SUCCESS);
-		offsets = rec_get_offsets(rec, index, offsets,
-					  ULINT_UNDEFINED, &heap);
 	}
-
-	mtr_start(&mtr);
 
 	page_no = undo->last_page_no;
 	undo_block = buf_page_get_gen(
@@ -1300,10 +1302,13 @@ trx_undo_report_row_operation(
 		undo_page = buf_block_get_frame(undo_block);
 		ut_ad(page_no == buf_block_get_page_no(undo_block));
 
-		if (op_type == TRX_UNDO_INSERT_OP) {
+		switch (op_type) {
+		case TRX_UNDO_INSERT_OP:
 			offset = trx_undo_page_report_insert(
 				undo_page, trx, index, clust_entry, &mtr);
-		} else {
+			break;
+		default:
+			ut_ad(op_type == TRX_UNDO_MODIFY_OP);
 			offset = trx_undo_page_report_modify(
 				undo_page, trx, index, rec, offsets, update,
 				cmpl_info, &mtr);
@@ -1360,8 +1365,7 @@ trx_undo_report_row_operation(
 			*roll_ptr = trx_undo_build_roll_ptr(
 				op_type == TRX_UNDO_INSERT_OP,
 				rseg->id, page_no, offset);
-			err = DB_SUCCESS;
-			goto func_exit;
+			return(DB_SUCCESS);
 		}
 
 		ut_ad(page_no == undo->last_page_no);
@@ -1378,6 +1382,7 @@ trx_undo_report_row_operation(
 		mutex_enter(&rseg->mutex);
 		undo_block = trx_undo_add_page(trx, undo, &mtr);
 		mutex_exit(&rseg->mutex);
+
 		page_no = undo->last_page_no;
 	} while (undo_block != NULL);
 
@@ -1387,10 +1392,6 @@ trx_undo_report_row_operation(
 err_exit:
 	mutex_exit(&trx->undo_mutex);
 	mtr_commit(&mtr);
-func_exit:
-	if (UNIV_LIKELY_NULL(heap)) {
-		mem_heap_free(heap);
-	}
 	return(err);
 }
 
@@ -1435,59 +1436,62 @@ trx_undo_get_undo_rec_low(
 /******************************************************************//**
 Copies an undo record to heap.
 
-NOTE: the caller must have latches on the clustered index page and
-purge_view.
+NOTE: the caller must have latches on the clustered index page.
 
-@return DB_SUCCESS, or DB_MISSING_HISTORY if the undo log has been
-truncated and we cannot fetch the old version */
-UNIV_INTERN
-ulint
+@retval true if the undo log has been
+truncated and we cannot fetch the old version
+@retval false if the undo log record is available  */
+static __attribute__((nonnull, warn_unused_result))
+bool
 trx_undo_get_undo_rec(
 /*==================*/
 	roll_ptr_t	roll_ptr,	/*!< in: roll pointer to record */
 	trx_id_t	trx_id,		/*!< in: id of the trx that generated
 					the roll pointer: it points to an
 					undo log of this transaction */
-	trx_undo_rec_t** undo_rec,	/*!< out, own: copy of the record */
+	trx_undo_rec_t**undo_rec,	/*!< out, own: copy of the record */
 	mem_heap_t*	heap)		/*!< in: memory heap where copied */
 {
-#ifdef UNIV_SYNC_DEBUG
-	ut_ad(rw_lock_own(&(purge_sys->latch), RW_LOCK_SHARED));
-#endif /* UNIV_SYNC_DEBUG */
+	bool		missing_history;
 
-	if (!trx_purge_update_undo_must_exist(trx_id)) {
+	rw_lock_s_lock(&purge_sys->latch);
+	missing_history = read_view_sees_trx_id(purge_sys->view, trx_id);
 
-		/* It may be that the necessary undo log has already been
-		deleted */
-
-		return(DB_MISSING_HISTORY);
+	if (!missing_history) {
+		*undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);
 	}
 
-	*undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);
+	rw_lock_s_unlock(&purge_sys->latch);
 
-	return(DB_SUCCESS);
+	return(missing_history);
 }
 
+#ifdef UNIV_DEBUG
+#define ATTRIB_USED_ONLY_IN_DEBUG
+#else /* UNIV_DEBUG */
+#define ATTRIB_USED_ONLY_IN_DEBUG	__attribute__((unused))
+#endif /* UNIV_DEBUG */
+
 /*******************************************************************//**
-Build a previous version of a clustered index record. This function checks
-that the caller has a latch on the index page of the clustered index record
-and an s-latch on the purge_view. This guarantees that the stack of versions
-is locked all the way down to the purge_view.
-@return DB_SUCCESS, or DB_MISSING_HISTORY if the previous version is
-earlier than purge_view, which means that it may have been removed,
-DB_ERROR if corrupted record */
+Build a previous version of a clustered index record. The caller must
+hold a latch on the index page of the clustered index record.
+@retval true if previous version was built, or if it was an insert
+or the table has been rebuilt
+@retval false if the previous version is earlier than purge_view,
+which means that it may have been removed */
 UNIV_INTERN
-ulint
+bool
 trx_undo_prev_version_build(
 /*========================*/
-	const rec_t*	index_rec,/*!< in: clustered index record in the
+	const rec_t*	index_rec ATTRIB_USED_ONLY_IN_DEBUG,
+				/*!< in: clustered index record in the
 				index tree */
-	mtr_t*		index_mtr __attribute__((unused)),
+	mtr_t*		index_mtr ATTRIB_USED_ONLY_IN_DEBUG,
 				/*!< in: mtr which contains the latch to
 				index_rec page and purge_view */
 	const rec_t*	rec,	/*!< in: version of a clustered index record */
 	dict_index_t*	index,	/*!< in: clustered index */
-	ulint*		offsets,/*!< in: rec_get_offsets(rec, index) */
+	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mem_heap_t*	heap,	/*!< in: memory heap from which the memory
 				needed is allocated */
 	rec_t**		old_vers)/*!< out, own: previous version, or NULL if
@@ -1504,62 +1508,47 @@ trx_undo_prev_version_build(
 	table_id_t	table_id;
 	trx_id_t	trx_id;
 	roll_ptr_t	roll_ptr;
-	roll_ptr_t	old_roll_ptr;
 	upd_t*		update;
 	byte*		ptr;
 	ulint		info_bits;
 	ulint		cmpl_info;
-	ibool		dummy_extern;
+	bool		dummy_extern;
 	byte*		buf;
-	ulint		err;
 #ifdef UNIV_SYNC_DEBUG
-	ut_ad(rw_lock_own(&(purge_sys->latch), RW_LOCK_SHARED));
+	ut_ad(!rw_lock_own(&purge_sys->latch, RW_LOCK_SHARED));
 #endif /* UNIV_SYNC_DEBUG */
 	ut_ad(mtr_memo_contains_page(index_mtr, index_rec, MTR_MEMO_PAGE_S_FIX)
 	      || mtr_memo_contains_page(index_mtr, index_rec,
 					MTR_MEMO_PAGE_X_FIX));
 	ut_ad(rec_offs_validate(rec, index, offsets));
-
-	if (!dict_index_is_clust(index)) {
-		fprintf(stderr, "InnoDB: Error: trying to access"
-			" update undo rec for non-clustered index %s\n"
-			"InnoDB: Submit a detailed bug report to"
-			" http://bugs.mysql.com\n"
-			"InnoDB: index record ", index->name);
-		rec_print(stderr, index_rec, index);
-		fputs("\n"
-		      "InnoDB: record version ", stderr);
-		rec_print_new(stderr, rec, offsets);
-		putc('\n', stderr);
-		ut_ad(0);
-		return(DB_ERROR);
-	}
+	ut_a(dict_index_is_clust(index));
 
 	roll_ptr = row_get_rec_roll_ptr(rec, index, offsets);
-	old_roll_ptr = roll_ptr;
 
 	*old_vers = NULL;
 
 	if (trx_undo_roll_ptr_is_insert(roll_ptr)) {
-
 		/* The record rec is the first inserted version */
-
-		return(DB_SUCCESS);
+		return(true);
 	}
 
 	rec_trx_id = row_get_rec_trx_id(rec, index, offsets);
 
-	err = trx_undo_get_undo_rec(roll_ptr, rec_trx_id, &undo_rec, heap);
-
-	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
-		/* The undo record may already have been purged.
-		This should never happen in InnoDB. */
-
-		return(err);
+	if (trx_undo_get_undo_rec(roll_ptr, rec_trx_id, &undo_rec, heap)) {
+		/* The undo record may already have been purged,
+		during purge or semi-consistent read. */
+		return(false);
 	}
 
 	ptr = trx_undo_rec_get_pars(undo_rec, &type, &cmpl_info,
 				    &dummy_extern, &undo_no, &table_id);
+
+	if (table_id != index->table->id) {
+		/* The table should have been rebuilt, but purge has
+		not yet removed the undo log records for the
+		now-dropped old table (table_id). */
+		return(true);
+	}
 
 	ptr = trx_undo_update_rec_get_sys_cols(ptr, &trx_id, &roll_ptr,
 					       &info_bits);
@@ -1591,59 +1580,11 @@ trx_undo_prev_version_build(
 	ptr = trx_undo_update_rec_get_update(ptr, index, type, trx_id,
 					     roll_ptr, info_bits,
 					     NULL, heap, &update);
+	ut_a(ptr);
 
-	if (UNIV_UNLIKELY(table_id != index->table->id)) {
-		ptr = NULL;
-
-		fprintf(stderr,
-			"InnoDB: Error: trying to access update undo rec"
-			" for table %s\n"
-			"InnoDB: but the table id in the"
-			" undo record is wrong\n"
-			"InnoDB: Submit a detailed bug report"
-			" to http://bugs.mysql.com\n"
-			"InnoDB: Run also CHECK TABLE %s\n",
-			index->table_name, index->table_name);
-	}
-
-	if (ptr == NULL) {
-		/* The record was corrupted, return an error; these printfs
-		should catch an elusive bug in row_vers_old_has_index_entry */
-
-		fprintf(stderr,
-			"InnoDB: table %s, index %s, n_uniq %lu\n"
-			"InnoDB: undo rec address %p, type %lu cmpl_info %lu\n"
-			"InnoDB: undo rec table id %llu,"
-			" index table id %llu\n"
-			"InnoDB: dump of 150 bytes in undo rec: ",
-			index->table_name, index->name,
-			(ulong) dict_index_get_n_unique(index),
-			undo_rec, (ulong) type, (ulong) cmpl_info,
-			(ullint) table_id,
-			(ullint) index->table->id);
-		ut_print_buf(stderr, undo_rec, 150);
-		fputs("\n"
-		      "InnoDB: index record ", stderr);
-		rec_print(stderr, index_rec, index);
-		fputs("\n"
-		      "InnoDB: record version ", stderr);
-		rec_print_new(stderr, rec, offsets);
-		fprintf(stderr, "\n"
-			"InnoDB: Record trx id " TRX_ID_FMT
-			", update rec trx id " TRX_ID_FMT "\n"
-			"InnoDB: Roll ptr in rec " TRX_ID_FMT
-			", in update rec" TRX_ID_FMT "\n",
-			(ullint) rec_trx_id, (ullint) trx_id,
-			(ullint) old_roll_ptr, (ullint) roll_ptr);
-
-		trx_purge_sys_print();
-		ut_ad(0);
-		return(DB_ERROR);
-	}
-
-# ifdef UNIV_BLOB_NULL_DEBUG
+# if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 	ut_a(!rec_offs_any_null_extern(rec, offsets));
-# endif /* UNIV_BLOB_NULL_DEBUG */
+# endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
 	if (row_upd_changes_field_size_or_external(index, offsets, update)) {
 		ulint	n_ext;
@@ -1660,11 +1601,24 @@ trx_undo_prev_version_build(
 		delete-marked record by trx_id, no transactions need to access
 		the BLOB. */
 
+		/* the row_upd_changes_disowned_external(update) call could be
+		omitted, but the synchronization on purge_sys->latch is likely
+		more expensive. */
+
 		if ((update->info_bits & REC_INFO_DELETED_FLAG)
-		    && read_view_sees_trx_id(purge_sys->view, trx_id)) {
-			/* treat as a fresh insert, not to
-			cause assertion error at the caller. */
-			return(DB_SUCCESS);
+		    && row_upd_changes_disowned_external(update)) {
+			bool	missing_extern;
+
+			rw_lock_s_lock(&purge_sys->latch);
+			missing_extern = read_view_sees_trx_id(purge_sys->view,
+							       trx_id);
+			rw_lock_s_unlock(&purge_sys->latch);
+
+			if (missing_extern) {
+				/* treat as a fresh insert, not to
+				cause assertion error at the caller. */
+				return(true);
+			}
 		}
 
 		/* We have to set the appropriate extern storage bits in the
@@ -1673,26 +1627,30 @@ trx_undo_prev_version_build(
 		those fields that update updates to become externally stored
 		fields. Store the info: */
 
-		entry = row_rec_to_index_entry(ROW_COPY_DATA, rec, index,
-					       offsets, &n_ext, heap);
+		entry = row_rec_to_index_entry(
+			rec, index, offsets, &n_ext, heap);
 		n_ext += btr_push_update_extern_fields(entry, update, heap);
 		/* The page containing the clustered index record
 		corresponding to entry is latched in mtr.  Thus the
 		following call is safe. */
 		row_upd_index_replace_new_col_vals(entry, index, update, heap);
 
-		buf = mem_heap_alloc(heap, rec_get_converted_size(index, entry,
-								  n_ext));
+		buf = static_cast<byte*>(
+			mem_heap_alloc(
+				heap,
+				rec_get_converted_size(index, entry, n_ext)));
 
 		*old_vers = rec_convert_dtuple_to_rec(buf, index,
 						      entry, n_ext);
 	} else {
-		buf = mem_heap_alloc(heap, rec_offs_size(offsets));
+		buf = static_cast<byte*>(
+			mem_heap_alloc(heap, rec_offs_size(offsets)));
+
 		*old_vers = rec_copy(buf, rec, offsets);
 		rec_offs_make_valid(*old_vers, index, offsets);
 		row_upd_rec_in_place(*old_vers, index, offsets, update, NULL);
 	}
 
-	return(DB_SUCCESS);
+	return(true);
 }
 #endif /* !UNIV_HOTBACKUP */

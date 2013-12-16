@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1997, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -148,7 +148,7 @@ position and fetch next or fetch prev must not be tried to the cursor!
 @return DB_SUCCESS, DB_RECORD_NOT_FOUND, DB_END_OF_INDEX, DB_DEADLOCK,
 DB_LOCK_TABLE_FULL, or DB_TOO_BIG_RECORD */
 UNIV_INTERN
-ulint
+dberr_t
 row_search_for_mysql(
 /*=================*/
 	byte*		buf,		/*!< in/out: buffer for the fetched
@@ -163,11 +163,12 @@ row_search_for_mysql(
 					'mode' */
 	ulint		match_mode,	/*!< in: 0 or ROW_SEL_EXACT or
 					ROW_SEL_EXACT_PREFIX */
-	ulint		direction);	/*!< in: 0 or ROW_SEL_NEXT or
+	ulint		direction)	/*!< in: 0 or ROW_SEL_NEXT or
 					ROW_SEL_PREV; NOTE: if this is != 0,
 					then prebuilt must have a pcur
 					with stored position! In opening of a
 					cursor 'direction' should be 0. */
+	__attribute__((nonnull, warn_unused_result));
 /*******************************************************************//**
 Checks if MySQL at the moment is allowed for this table to retrieve a
 consistent read result, or store it to the query cache.
@@ -183,15 +184,16 @@ row_search_check_if_query_cache_permitted(
 Read the max AUTOINC value from an index.
 @return	DB_SUCCESS if all OK else error code */
 UNIV_INTERN
-ulint
+dberr_t
 row_search_max_autoinc(
 /*===================*/
 	dict_index_t*	index,		/*!< in: index to search */
 	const char*	col_name,	/*!< in: autoinc column name */
-	ib_uint64_t*	value);		/*!< out: AUTOINC value read */
+	ib_uint64_t*	value)		/*!< out: AUTOINC value read */
+	__attribute__((nonnull, warn_unused_result));
 
 /** A structure for caching column values for prefetched rows */
-struct sel_buf_struct{
+struct sel_buf_t{
 	byte*		data;	/*!< data, or NULL; if not NULL, this field
 				has allocated memory which must be explicitly
 				freed; can be != NULL even when len is
@@ -204,7 +206,7 @@ struct sel_buf_struct{
 };
 
 /** Query plan */
-struct plan_struct{
+struct plan_t{
 	dict_table_t*	table;		/*!< table struct in the dictionary
 					cache */
 	dict_index_t*	index;		/*!< table index used in the search */
@@ -290,7 +292,7 @@ enum sel_node_state {
 };
 
 /** Select statement node */
-struct sel_node_struct{
+struct sel_node_t{
 	que_common_t	common;		/*!< node type: QUE_NODE_SELECT */
 	enum sel_node_state
 			state;	/*!< node state */
@@ -343,7 +345,7 @@ struct sel_node_struct{
 };
 
 /** Fetch statement node */
-struct fetch_node_struct{
+struct fetch_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_FETCH */
 	sel_node_t*	cursor_def;	/*!< cursor definition */
 	sym_node_t*	into_list;	/*!< variables to set */
@@ -370,7 +372,7 @@ enum open_node_op {
 };
 
 /** Open or close cursor statement node */
-struct open_node_struct{
+struct open_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_OPEN */
 	enum open_node_op
 			op_type;	/*!< operation type: open or
@@ -379,7 +381,7 @@ struct open_node_struct{
 };
 
 /** Row printf statement node */
-struct row_printf_node_struct{
+struct row_printf_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_ROW_PRINTF */
 	sel_node_t*	sel_node;	/*!< select */
 };
