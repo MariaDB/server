@@ -381,6 +381,7 @@ sub main {
   mtr_report("Logging: $0 ", join(" ", @ARGV));
 
  $DEFAULT_SUITES.= ',' . join(',', qw(
+    metadata_lock_info
     query_response_time
     sequence
     spider
