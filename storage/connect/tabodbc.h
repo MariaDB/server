@@ -23,6 +23,7 @@ typedef class TDBSRC  *PTDBSRC;
 class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   friend class TDBODBC;
   friend class TDBXDBC;
+  friend class TDBDRV;
  public:
   // Constructor
   ODBCDEF(void);
@@ -54,7 +55,8 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   int     Catver;             /* ODBC version for catalog functions    */
   int     Options;            /* Open connection options               */
   int     Quoted;             /* Identifier quoting level              */
-  int     Mxr;                /* Maxerr for an Exec table              */
+  int     Maxerr;             /* Maxerr for an Exec table              */
+  int     Maxres;             /* Maxres for a catalog table            */
   bool    Xsrc;               /* Execution type                        */
   }; // end of ODBCDEF
 
@@ -250,37 +252,40 @@ class XSRCCOL : public ODBCCOL {
   }; // end of class XSRCCOL
 
 /***********************************************************************/
-/*  This is the class declaration for the Data Sources catalog table.  */
-/***********************************************************************/
-class TDBSRC : public TDBCAT {
- public:
-  // Constructor
-  TDBSRC(PODEF tdp) : TDBCAT(tdp) {}
-
- protected:
-	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
-
-  }; // end of class TDBSRC
-
-/***********************************************************************/
 /*  This is the class declaration for the Drivers catalog table.       */
 /***********************************************************************/
 class TDBDRV : public TDBCAT {
  public:
   // Constructor
-  TDBDRV(PODEF tdp) : TDBCAT(tdp) {}
+  TDBDRV(PODEF tdp) : TDBCAT(tdp) {Maxres = tdp->Maxres;}
 
  protected:
 	// Specific routines
 	virtual PQRYRES GetResult(PGLOBAL g);
 
+  // Members
+  int      Maxres;            // Returned lines limit
   }; // end of class TDBDRV
+
+/***********************************************************************/
+/*  This is the class declaration for the Data Sources catalog table.  */
+/***********************************************************************/
+class TDBSRC : public TDBDRV {
+ public:
+  // Constructor
+  TDBSRC(PODEF tdp) : TDBDRV(tdp) {}
+
+ protected:
+	// Specific routines
+	virtual PQRYRES GetResult(PGLOBAL g);
+
+  // No additional Members
+  }; // end of class TDBSRC
 
 /***********************************************************************/
 /*  This is the class declaration for the tables catalog table.        */
 /***********************************************************************/
-class TDBOTB : public TDBCAT {
+class TDBOTB : public TDBDRV {
  public:
   // Constructor
   TDBOTB(PODEF tdp);
@@ -291,6 +296,7 @@ class TDBOTB : public TDBCAT {
 
   // Members
   char    *Dsn;               // Points to connection string
+  char    *Schema;            // Points to schema name or NULL
   char    *Tab;               // Points to ODBC table name or pattern
   }; // end of class TDBOTB
 
@@ -306,7 +312,7 @@ class TDBOCL : public TDBOTB {
 	// Specific routines
 	virtual PQRYRES GetResult(PGLOBAL g);
 
-  // Members
+  // No additional Members
   }; // end of class TDBOCL
 
 #endif  // !NODBC

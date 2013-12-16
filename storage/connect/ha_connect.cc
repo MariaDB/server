@@ -165,7 +165,7 @@ extern "C" char  nmfile[];
 extern "C" char  pdebug[];
 
 extern "C" {
-       char  version[]= "Version 1.01.0010 November 30, 2013";
+       char  version[]= "Version 1.01.0011 December 15, 2013";
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -3873,11 +3873,11 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl;
-  char       *tab, *dsn; 
+  char       *tab, *dsn, *shm; 
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
 #endif   // WIN32
-  int         port= 0, hdr= 0, mxr= 0, rc= 0;
+  int         port= 0, hdr= 0, mxr= 0, mxe= 0, rc= 0;
   int         cop __attribute__((unused)) = 0;
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool        bif, ok= false, dbf= false;
@@ -3933,7 +3933,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     cls= GetListOption(g, "class", topt->oplist);
 #endif   // WIN32
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
-    mxr= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
+    mxr= atoi(GetListOption(g,"maxres", topt->oplist, "0"));
+    mxe= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
 #if defined(PROMPT_OK)
     cop= atoi(GetListOption(g, "checkdsn", topt->oplist, "0"));
 #endif   // PROMPT_OK
@@ -3942,7 +3943,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     user= "root";
   } // endif option_list
 
-  if (!db)
+  if (!(shm= (char*)db))
     db= table_s->db.str;                     // Default value
 
   // Check table type
@@ -4137,17 +4138,17 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
               qrp= ODBCSrcCols(g, dsn, (char*)src);
               src= NULL;     // for next tests
             } else 
-              qrp= ODBCColumns(g, dsn, (char *) tab, NULL, fnc == FNC_COL);
+              qrp= ODBCColumns(g, dsn, shm, tab, NULL, mxr, fnc == FNC_COL);
 
             break;
           case FNC_TABLE:
-            qrp= ODBCTables(g, dsn, (char *) tab, true);
+            qrp= ODBCTables(g, dsn, shm, tab, mxr, true);
             break;
           case FNC_DSN:
-            qrp= ODBCDataSources(g, true);
+            qrp= ODBCDataSources(g, mxr, true);
             break;
           case FNC_DRIVER:
-            qrp= ODBCDrivers(g, true);
+            qrp= ODBCDrivers(g, mxr, true);
             break;
           default:
             sprintf(g->Message, "invalid catfunc %s", fncn);
@@ -4163,7 +4164,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         break;
 #endif   // MYSQL_SUPPORT
       case TAB_CSV:
-        qrp= CSVColumns(g, fn, spc, qch, hdr, mxr, fnc == FNC_COL);
+        qrp= CSVColumns(g, fn, spc, qch, hdr, mxe, fnc == FNC_COL);
         break;
 #if defined(WIN32)
       case TAB_WMI:
@@ -4813,7 +4814,7 @@ maria_declare_plugin(connect)
   &connect_storage_engine,
   "CONNECT",
   "Olivier Bertrand",
-  "Direct access to external data, including many file formats",
+  "Management of External Data (SQL/MED), including many file formats",
   PLUGIN_LICENSE_GPL,
   connect_init_func,                            /* Plugin Init */
   connect_done_func,                            /* Plugin Deinit */
@@ -4821,6 +4822,6 @@ maria_declare_plugin(connect)
   NULL,                                         /* status variables */
   NULL,                                         /* system variables */
   "0.1",                                        /* string version */
-  MariaDB_PLUGIN_MATURITY_ALPHA                 /* maturity */
+  MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }
 maria_declare_plugin_end;

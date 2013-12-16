@@ -158,8 +158,9 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
   /**********************************************************************/
   /*  Allocate the structures used to refer to the result set.          */
   /**********************************************************************/
-  qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
-                          buftyp, fldtyp, length, false, true);
+  if (!(qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
+                             buftyp, fldtyp, length, false, true)))
+    return NULL;
 
   // Some columns must be renamed
   for (i = 0, crp = qrp->Colresp; crp; crp = crp->Next)

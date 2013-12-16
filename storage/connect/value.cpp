@@ -1129,7 +1129,8 @@ void TYPVAL<PSZ>::SetValue_psz(PSZ s)
 /***********************************************************************/
 void TYPVAL<PSZ>::SetValue_pvblk(PVBLK blk, int n)
   {
-  strncpy(Strp, blk->GetCharValue(n), Len);
+  // STRBLK's can return a NULL pointer
+  SetValue_psz(blk->GetCharValue(n));
   } // end of SetValue_pvblk
 
 /***********************************************************************/
