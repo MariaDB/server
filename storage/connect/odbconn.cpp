@@ -2135,7 +2135,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   SQLULEN  crow;
   PQRYRES  qrp = cap->Qrp;
   PCOLRES  crp;
-  RETCODE  rc;
+  RETCODE  rc = 0;
   HSTMT    hstmt = NULL;
   SQLLEN  *vl, *vlen = NULL;
   PVAL    *pval = NULL;
@@ -2199,6 +2199,8 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         break;
       case CAT_SPC:
         ThrowDBX("SQLSpecialColumns not available yet");
+      default:
+        ThrowDBX("Invalid SQL function id");
       } // endswitch infotype
 
     if (!Check(rc))

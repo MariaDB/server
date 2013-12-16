@@ -1052,7 +1052,7 @@ void STRBLK::SetValue(char *sp, uint len, int n)
       memcpy(p, sp, len);
       p[len] = 0;
     } else
-      Strp[n] = Strp[n-1];
+      p = Strp[n-1];
 
   } else
     p = NULL;
