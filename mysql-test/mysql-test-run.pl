@@ -177,14 +177,12 @@ my @DEFAULT_SUITES= qw(
     maria-
     multi_source-
     optimizer_unfixed_bugs-
-    oqgraph-
     parts-
     percona-
     perfschema-
     plugins-
     roles-
     rpl-
-    sphinx-
     sys_vars-
     unit-
     vcol-

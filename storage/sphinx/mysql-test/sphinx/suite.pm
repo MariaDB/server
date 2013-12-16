@@ -113,6 +113,8 @@ sub servers {
   )
 }
 
+sub is_default { 1 }
+
 ############# return an object ######################
 bless { };
 
