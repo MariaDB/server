@@ -39,3 +39,15 @@ SELECT 'Server still alive?' as 'Yes';
 Yes
 Server still alive?
 DROP TABLE t1;
+#
+# MDEV-5308 Crash when running with slow_query_log=1
+#
+SET @save1= @@log_slow_rate_limit;
+SET @save2= @@long_query_time;
+SET log_slow_rate_limit=1000;
+SET long_query_time=0.000001;
+SELECT 1;
+1
+1
+SET log_slow_rate_limit=@save1;
+SET long_query_time=@save2;
