@@ -709,6 +709,46 @@ set use_stat_tables=@save_use_stat_tables;
 
 
 --echo #
+--echo # Bug mdev-5200: impossible where with a semijoin subquery   
+--echo #                when optimizer_use_condition_selectivity=2
+--echo #
+
+set use_stat_tables = 'preferably';
+set optimizer_use_condition_selectivity = 2;
+
+CREATE TABLE t1 (i1 int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (0), (1);
+
+CREATE TABLE t2 (pk2 int, i2 int, c2 char(1), PRIMARY KEY(pk2)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,8,'m'), (2,9,'b');
+
+CREATE TABLE t3 (c3 char(1), INDEX(c3)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES ('v'), ('c');
+
+ANALYZE TABLE t1,t2,t3;
+
+SELECT * FROM t1
+  WHERE 2 IN ( SELECT pk2 FROM t2 LEFT JOIN t3 ON (c3 = c2 ) WHERE i2 = 3 );
+EXPLAIN EXTENDED
+SELECT * FROM t1
+  WHERE 2 IN ( SELECT pk2 FROM t2 LEFT JOIN t3 ON (c3 = c2 ) WHERE i2 = 3 );
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # Bug mdev-5415: query over an information schema table   
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+set optimizer_use_condition_selectivity = 3;
+
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE SQL_MODE != '';
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+--echo #
 --echo # Bug mdev-4429: join with  range condition whose selectivity == 0   
 --echo #                when optimizer_use_condition_selectivity=3
 --echo #
@@ -743,5 +783,4 @@ set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivit
 drop table language, country, continent;
 
 set use_stat_tables=@save_use_stat_tables;
-
 

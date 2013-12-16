@@ -5,5 +5,7 @@ package My::Suite::Spider;
 return "No Spider engine" unless $ENV{HA_SPIDER_SO};
 return "Not run for embedded server" if $::opt_embedded_server;
 
+sub is_default { 1 }
+
 bless { };
 
