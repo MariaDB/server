@@ -6182,6 +6182,17 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
         }
 
         /*
+          We have to check sql_slave_killed() here an extra time.
+          Otherwise we may miss a wakeup, since last check was done
+          without holding LOCK_log.
+        */
+        if (sql_slave_killed(rgi))
+        {
+          mysql_mutex_unlock(log_lock);
+          break;
+        }
+
+        /*
           We can, and should release data_lock while we are waiting for
           update. If we do not, show slave status will block
         */
@@ -6239,17 +6250,6 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
 
           /* ask for one more event */
           rli->ignore_log_space_limit= true;
-        }
-
-        /*
-          We have to check sql_slave_killed() here an extra time.
-          Otherwise we may miss a wakeup, since last check was done
-          without holding LOCK_log.
-        */
-        if (sql_slave_killed(rgi))
-        {
-          mysql_mutex_unlock(log_lock);
-          break;
         }
 
         /*
