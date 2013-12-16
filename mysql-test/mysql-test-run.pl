@@ -162,34 +162,33 @@ my $path_config_file;           # The generated config file, var/my.cnf
 # executables will be used by the test suite.
 our $opt_vs_config = $ENV{'MTR_VS_CONFIG'};
 
-my $DEFAULT_SUITES= join(',', map { "$_-" } qw(
-    main
-    archive
-    binlog
-    connect
-    csv
-    federated
-    funcs_1
-    funcs_2
-    handler
-    heap
-    innodb
-    innodb_fts
-    maria
-    multi_source
-    optimizer_unfixed_bugs
-    oqgraph
-    parts
-    percona
-    perfschema
-    plugins
-    roles
-    rpl
-    sphinx
-    sys_vars
-    unit
-    vcol
-  ));
+my @DEFAULT_SUITES= qw(
+    main-
+    archive-
+    binlog-
+    csv-
+    federated-
+    funcs_1-
+    funcs_2-
+    handler-
+    heap-
+    innodb-
+    innodb_fts-
+    maria-
+    multi_source-
+    optimizer_unfixed_bugs-
+    oqgraph-
+    parts-
+    percona-
+    perfschema-
+    plugins-
+    roles-
+    rpl-
+    sphinx-
+    sys_vars-
+    unit-
+    vcol-
+  );
 my $opt_suites;
 
 our $opt_verbose= 0;  # Verbose output, enable with --verbose
@@ -380,15 +379,6 @@ sub main {
   # directly before it executes them, like "make test-force-pl" in RPM builds.
   mtr_report("Logging: $0 ", join(" ", @ARGV));
 
- $DEFAULT_SUITES.= ',' . join(',', qw(
-    metadata_lock_info
-    query_response_time
-    sequence
-    spider
-    spider/bg
-    sql_discovery
-  )) if $source_dist;
-
   command_line_setup();
 
   # --help will not reach here, so now it's safe to assume we have binaries
@@ -399,11 +389,6 @@ sub main {
   }
 
   
-  if (!$opt_suites) {
-    $opt_suites= $DEFAULT_SUITES;
-  }
-  mtr_report("Using suites: $opt_suites") unless @opt_cases;
-
   print "vardir: $opt_vardir\n";
   initialize_servers();
   init_timers();
@@ -411,6 +396,11 @@ sub main {
   mtr_report("Checking supported features...");
 
   executable_setup();
+
+  if (!$opt_suites) {
+    $opt_suites= join ',', collect_default_suites(@DEFAULT_SUITES);
+  }
+  mtr_report("Using suites: $opt_suites") unless @opt_cases;
 
   # --debug[-common] implies we run debug server
   $opt_debug_server= 1 if $opt_debug || $opt_debug_common;
@@ -2505,6 +2495,14 @@ sub environment_setup {
 				 "$path_client_bindir/perror");
   $ENV{'MY_PERROR'}= native_path($exe_perror);
 
+  # ----------------------------------------------------
+  # mysql_tzinfo_to_sql
+  # ----------------------------------------------------
+  my $exe_mysql_tzinfo_to_sql= mtr_exe_exists("$basedir/sql$opt_vs_config/mysql_tzinfo_to_sql",
+                                 "$path_client_bindir/mysql_tzinfo_to_sql",
+                                 "$bindir/sql$opt_vs_config/mysql_tzinfo_to_sql");
+  $ENV{'MYSQL_TZINFO_TO_SQL'}= native_path($exe_mysql_tzinfo_to_sql);
+
   # Create an environment variable to make it possible
   # to detect that valgrind is being used from test cases
   $ENV{'VALGRIND_TEST'}= $opt_valgrind;
@@ -2947,7 +2945,7 @@ sub check_ndbcluster_support {
   mtr_report(" - enabling ndbcluster");
   $ndbcluster_enabled= 1;
   # Add MySQL Cluster test suites
-  $DEFAULT_SUITES.=",ndb,ndb_binlog,rpl_ndb,ndb_rpl,ndb_memcache";
+  push @DEFAULT_SUITES, qw(ndb ndb_binlog rpl_ndb ndb_rpl ndb_memcache);
   return;
 }
 
@@ -6307,6 +6305,8 @@ sub usage ($) {
     exit;      
   }
 
+  local $"= ','; # for @DEFAULT_SUITES below
+
   print <<HERE;
 
 $0 [ OPTIONS ] [ TESTCASE ]
@@ -6374,7 +6374,7 @@ Options to control what test suites or cases to run
   suite[s]=NAME1,..,NAMEN
                         Collect tests in suites from the comma separated
                         list of suite names.
-                        The default is: "$DEFAULT_SUITES"
+                        The default is: "@DEFAULT_SUITES"
   skip-rpl              Skip the replication test cases.
   big-test              Also run tests marked as "big". Repeat this option
                         twice to run only "big" tests.

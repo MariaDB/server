@@ -47,3 +47,17 @@ SET max_join_size = 10;
 SELECT 'Server still alive?' as 'Yes';
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-5308 Crash when running with slow_query_log=1
+--echo #
+SET @save1= @@log_slow_rate_limit; 
+SET @save2= @@long_query_time; 
+
+SET log_slow_rate_limit=1000; 
+SET long_query_time=0.000001; 
+SELECT 1; 
+
+SET log_slow_rate_limit=@save1;
+SET long_query_time=@save2;
+

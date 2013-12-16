@@ -1,0 +1,64 @@
+--source include/have_debug.inc
+# Valgrind does not work well with test that crashes the server
+--source include/not_valgrind.inc
+
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--echo *** Test crashing master with InnoDB disabled, the binlog gtid state should still be correctly recovered. ***
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=MyISAM;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+--connection server_1
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+FLUSH TABLES;
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+SELECT 1;
+
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart-rpl_gtid_crash.test
+EOF
+
+--connection server_1
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+INSERT INTO t1 VALUES (3);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+--connection server_1
+DROP TABLE t1;
+
+--connection default
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/rpl_end.inc
