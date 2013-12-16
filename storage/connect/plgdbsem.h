@@ -574,6 +574,7 @@ DllExport PDBUSER PlgGetUser(PGLOBAL g);
 DllExport PCATLG  PlgGetCatalog(PGLOBAL g, bool jump = true);
 DllExport bool    PlgSetXdbPath(PGLOBAL g, PSZ, PSZ, char *, int, char *, int);
 DllExport void    PlgDBfree(MBLOCK&);
+DllExport void   *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size);
 //lExport PSZ     GetIniString(PGLOBAL, void *, LPCSTR, LPCSTR, LPCSTR, LPCSTR);
 //lExport int     GetIniSize(char *, char *, char *, char *);
 //lExport bool    WritePrivateProfileInt(LPCSTR, LPCSTR, int, LPCSTR);

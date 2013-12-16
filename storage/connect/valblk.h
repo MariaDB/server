@@ -268,9 +268,13 @@ class STRBLK : public VALBLK {
   virtual int    Find(PVAL vp);
   virtual int    GetMaxLength(void);
 
+  // Specific
+          void   SetSorted(bool b) {Sorted = b;}
+
  protected:
   // Members
   PSZ* const &Strp;              // Pointer to PSZ buffer
+  bool        Sorted;            // Values are (semi?) sorted
   }; // end of class STRBLK
 
 /***********************************************************************/

@@ -58,12 +58,13 @@ enum CATINFO {CAT_TAB   =     1,      /* SQLTables                     */
 typedef struct tagCATPARM { 
   CATINFO  Id;                 // Id to indicate function 
   PQRYRES  Qrp;                // Result set pointer
-  PUCHAR   Tab;                 // Table name or pattern
-  PUCHAR   Pat;                 // Table type or column pattern
+  PUCHAR   DB;                 // Database (Schema)
+  PUCHAR   Tab;                // Table name or pattern
+  PUCHAR   Pat;                // Table type or column pattern
   SQLLEN* *Vlen;               // To array of indicator values
   UWORD   *Status;             // To status block
   // For SQLStatistics
-  UWORD    Unique;              // Index type
+  UWORD    Unique;             // Index type
   UWORD    Accuracy;           // For Cardinality and Pages
   // For SQLSpecialColumns 
   UWORD    ColType;

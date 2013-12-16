@@ -340,10 +340,10 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
   /*********************************************************************/
   qrp = PlgAllocResult(g, ncol, imax, IDS_COLUMNS + 3,
                           buftyp, fldtyp, length, false, false);
-  qrp->Nblin = imax;
-
-  if (info)
+  if (info || !qrp)
     return qrp;
+
+  qrp->Nblin = imax;
 
   /*********************************************************************/
   /*  Now get the results into blocks.                                 */
