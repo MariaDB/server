@@ -2266,6 +2266,11 @@ fil_op_log_parse_or_replay(
 	if (!space_id) {
 
 		return(ptr);
+	} else {
+		/* Only replay file ops during recovery.  This is a
+		release-build assert to minimize any data loss risk by a
+		misapplied file operation.  */
+		ut_a(recv_recovery_is_on());
 	}
 
 	/* Let us try to perform the file operation, if sensible. Note that
@@ -5024,7 +5029,16 @@ fil_extend_space_to_desired_size(
 
 #ifdef HAVE_POSIX_FALLOCATE
 complete_io:
-	fil_node_complete_io(node, fil_system, OS_FILE_READ);
+	/* If posix_fallocate was used to extent the file space
+	we need to complete the io. Because no actual writes were
+	dispatched read operation is enough here. Without this
+	there will be assertion at shutdown indicating that
+	all IO is not completed. */
+	if (srv_use_posix_fallocate) {
+		fil_node_complete_io(node, fil_system, OS_FILE_READ);
+	} else {
+		fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
+	}
 #else
 	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
 #endif
