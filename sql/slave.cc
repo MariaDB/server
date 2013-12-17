@@ -792,6 +792,7 @@ int start_slave_thread(
 {
   pthread_t th;
   ulong start_id;
+  int error;
   DBUG_ENTER("start_slave_thread");
 
   DBUG_ASSERT(mi->inited);
@@ -818,9 +819,10 @@ int start_slave_thread(
   }
   start_id= *slave_run_id;
   DBUG_PRINT("info",("Creating new slave thread"));
-  if (mysql_thread_create(thread_key,
-                          &th, &connection_attrib, h_func, (void*)mi))
+  if ((error = mysql_thread_create(thread_key,
+                           &th, &connection_attrib, h_func, (void*)mi)))
   {
+    sql_print_error("Can't create slave thread (errno= %d).", error);
     if (start_lock)
       mysql_mutex_unlock(start_lock);
     DBUG_RETURN(ER_SLAVE_THREAD);
@@ -2497,6 +2499,7 @@ static bool send_show_master_info_header(THD *thd, bool full,
                                              sizeof(mi->ssl_crlpath)));
   field_list.push_back(new Item_empty_string("Using_Gtid",
                                              sizeof("Current_Pos")-1));
+  field_list.push_back(new Item_empty_string("Gtid_IO_Pos", 30));
   if (full)
   {
     field_list.push_back(new Item_return_int("Retried_transactions",
@@ -2690,6 +2693,12 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     // Master_Ssl_Crlpath
     protocol->store(mi->ssl_capath, &my_charset_bin);
     protocol->store(mi->using_gtid_astext(mi->using_gtid), &my_charset_bin);
+    {
+      char buff[30];
+      String tmp(buff, sizeof(buff), system_charset_info);
+      mi->gtid_current_pos.to_string(&tmp);
+      protocol->store(tmp.ptr(), tmp.length(), &my_charset_bin);
+    }
     if (full)
     {
       protocol->store((uint32)    mi->rli.retried_trans);
@@ -3464,6 +3473,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       if (exec_res && (temp_err= has_temporary_error(thd)))
       {
         const char *errmsg;
+        rli->clear_error();
         /*
           We were in a transaction which has been rolled back because of a
           temporary error;
@@ -3976,7 +3986,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
         goto err;
       }
 
-      if (mi->using_gtid != Master_info::USE_GTID_NO &&
+      if (mi->using_gtid == Master_info::USE_GTID_NO &&
           flush_master_info(mi, TRUE, TRUE))
       {
         sql_print_error("Failed to flush master info file");

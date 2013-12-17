@@ -521,8 +521,8 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   */
   uint *sync_period_ptr;
   uint sync_counter;
-  /* Protect against reading the binlog state file twice. */
-  bool state_read;
+  bool state_file_deleted;
+  bool binlog_state_recover_done;
 
   inline uint get_sync_period()
   {
@@ -661,7 +661,8 @@ public:
   int unlog(ulong cookie, my_xid xid);
   void commit_checkpoint_notify(void *cookie);
   int recover(LOG_INFO *linfo, const char *last_log_name, IO_CACHE *first_log,
-              Format_description_log_event *fdle);
+              Format_description_log_event *fdle, bool do_xa);
+  int do_binlog_recovery(const char *opt_name, bool do_xa_recovery);
 #if !defined(MYSQL_CLIENT)
 
   int flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,

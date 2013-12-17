@@ -5,5 +5,7 @@ package My::Suite::Connect;
 return "No CONNECT engine" unless $ENV{HA_CONNECT_SO} or
                                   $::mysqld_variables{'connect'} eq "ON";
 
+sub is_default { 1 }                                  
+
 bless { };
 

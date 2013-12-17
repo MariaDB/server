@@ -904,14 +904,14 @@ private:
   MDL_wait_for_subgraph *m_waiting_for;
 private:
   THD *get_thd() const { return m_owner->get_thd(); }
+  MDL_ticket *find_ticket(MDL_request *mdl_req,
+                          enum_mdl_duration *duration);
   void release_locks_stored_before(enum_mdl_duration duration, MDL_ticket *sentinel);
   void release_lock(enum_mdl_duration duration, MDL_ticket *ticket);
   bool try_acquire_lock_impl(MDL_request *mdl_request,
                              MDL_ticket **out_ticket);
 
 public:
-  MDL_ticket *find_ticket(MDL_request *mdl_req,
-                          enum_mdl_duration *duration);
   void find_deadlock();
 
   ulong get_thread_id() const { return thd_get_thread_id(get_thd()); }
@@ -944,6 +944,9 @@ public:
 private:
   MDL_context(const MDL_context &rhs);          /* not implemented */
   MDL_context &operator=(MDL_context &rhs);     /* not implemented */
+
+  /* metadata_lock_info plugin */
+  friend int i_s_metadata_lock_info_fill_row(MDL_ticket*, void*);
 };
 
 
