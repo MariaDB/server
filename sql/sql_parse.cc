@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -1468,6 +1468,18 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     close_thread_tables(thd);
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
 
+    if (thd->transaction_rollback_request)
+    {
+      /*
+        Transaction rollback was requested since MDL deadlock was
+        discovered while trying to open tables. Rollback transaction
+        in all storage engines including binary log and release all
+        locks.
+      */
+      trans_rollback_implicit(thd);
+      thd->mdl_context.release_transactional_locks();
+    }
+
     thd->cleanup_after_query();
     break;
   }
@@ -1763,7 +1775,7 @@ void log_slow_statement(THD *thd)
     statement in a trigger or stored function
   */
   if (unlikely(thd->in_sub_stmt))
-    DBUG_VOID_RETURN;                           // Don't set time for sub stmt
+    goto end;                           // Don't set time for sub stmt
 
 
   /* Follow the slow log filter configuration. */ 
@@ -1771,8 +1783,7 @@ void log_slow_statement(THD *thd)
       (thd->variables.log_slow_filter
         && !(thd->variables.log_slow_filter & thd->query_plan_flags)))
   {
-    delete_explain_query(thd->lex);
-    DBUG_VOID_RETURN; 
+    goto end; 
   }
  
   if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
@@ -1789,13 +1800,14 @@ void log_slow_statement(THD *thd)
     */ 
     if (thd->variables.log_slow_rate_limit > 1 &&
         (global_query_id % thd->variables.log_slow_rate_limit) != 0)
-      DBUG_VOID_RETURN;
+      goto end;
 
     THD_STAGE_INFO(thd, stage_logging_slow_query);
     slow_log_print(thd, thd->query(), thd->query_length(), 
                    thd->utime_after_query);
   }
 
+end:
   delete_explain_query(thd->lex);
   DBUG_VOID_RETURN;
 }
@@ -2161,7 +2173,7 @@ err:
     can free its locks if LOCK TABLES locked some tables before finding
     that it can't lock a table in its list
   */
-  trans_commit_implicit(thd);
+  trans_rollback(thd);
   /* Close tables and release metadata locks. */
   close_thread_tables(thd);
   DBUG_ASSERT(!thd->locked_tables_mode);
@@ -2214,6 +2226,13 @@ mysql_execute_command(THD *thd)
 #endif
 
   DBUG_ASSERT(thd->transaction.stmt.is_empty() || thd->in_sub_stmt);
+  /*
+    Each statement or replication event which might produce deadlock
+    should handle transaction rollback on its own. So by the start of
+    the next statement transaction rollback request should be fulfilled
+    already.
+  */
+  DBUG_ASSERT(! thd->transaction_rollback_request || thd->in_sub_stmt);
   /*
     In many cases first table of main SELECT_LEX have special meaning =>
     check that it is first table in global list and relink it first in 
@@ -2418,8 +2437,8 @@ mysql_execute_command(THD *thd)
       or triggers as all such statements prohibited there.
     */
     DBUG_ASSERT(! thd->in_sub_stmt);
-    /* Commit or rollback the statement transaction. */
-    thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
+    /* Statement transaction still should not be started. */
+    DBUG_ASSERT(thd->transaction.stmt.is_empty());
     /* Commit the normal transaction if one is active. */
     if (trans_commit_implicit(thd))
       goto error;
@@ -5117,7 +5136,17 @@ finish:
     thd->set_binlog_format(orig_binlog_format,
                            orig_current_stmt_binlog_format);
 
-  if (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END))
+  if (! thd->in_sub_stmt && thd->transaction_rollback_request)
+  {
+    /*
+      We are not in sub-statement and transaction rollback was requested by
+      one of storage engines (e.g. due to deadlock). Rollback transaction in
+      all storage engines including binary log.
+    */
+    trans_rollback_implicit(thd);
+    thd->mdl_context.release_transactional_locks();
+  }
+  else if (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END))
   {
     /* No transaction control allowed in sub-statements. */
     DBUG_ASSERT(! thd->in_sub_stmt);

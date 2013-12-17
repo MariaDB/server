@@ -3410,13 +3410,16 @@ class Item_direct_view_ref :public Item_direct_ref
   TABLE_LIST *view;
   TABLE *null_ref_table;
 
+#define NO_NULL_TABLE (reinterpret_cast<TABLE *>(0x1))
+
   bool check_null_ref()
   {
     if (null_ref_table == NULL)
     {
-      null_ref_table= view->get_real_join_table();
+      if (!(null_ref_table= view->get_real_join_table()))
+        null_ref_table= NO_NULL_TABLE;
     }
-    if (null_ref_table->null_row)
+    if (null_ref_table != NO_NULL_TABLE && null_ref_table->null_row)
     {
       null_value= 1;
       return TRUE;
@@ -4271,6 +4274,10 @@ class Item_cache_temporal: public Item_cache_int
 public:
   Item_cache_temporal(enum_field_types field_type_arg);
   String* val_str(String *str);
+  my_decimal *val_decimal(my_decimal *);
+  longlong val_int();
+  longlong val_temporal_packed();
+  double val_real();
   bool cache_value();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int save_in_field(Field *field, bool no_conversions);

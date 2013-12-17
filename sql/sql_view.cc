@@ -908,7 +908,7 @@ loop_out:
     fn_format(path_buff, file.str, dir.str, "", MY_UNPACK_FILENAME);
     path.length= strlen(path_buff);
 
-    if (!access(path.str, F_OK))
+    if (ha_table_exists(thd, view->db, view->table_name, NULL))
     {
       if (mode == VIEW_CREATE_NEW)
       {
@@ -1443,7 +1443,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
         objects of the view.
       */
       if (!(table->view_sctx= (Security_context *)
-            thd->stmt_arena->alloc(sizeof(Security_context))))
+            thd->stmt_arena->calloc(sizeof(Security_context))))
         goto err;
       security_ctx= table->view_sctx;
     }

@@ -1575,7 +1575,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
       DBUG_EXECUTE_IF("gtid_force_reconnect_at_10_1_100",
         {
           rpl_gtid *dbug_gtid;
-          if ((dbug_gtid= until_binlog_state->find(10,1)) &&
+          if ((dbug_gtid= until_binlog_state->find_nolock(10,1)) &&
               dbug_gtid->seq_no == 100)
           {
             DBUG_SET("-d,gtid_force_reconnect_at_10_1_100");
@@ -1585,7 +1585,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
           }
         });
 
-      if (until_binlog_state->update(&event_gtid, false))
+      if (until_binlog_state->update_nolock(&event_gtid, false))
       {
         my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
         return "Failed in internal GTID book-keeping: Out of memory";

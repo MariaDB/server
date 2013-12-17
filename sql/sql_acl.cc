@@ -5413,12 +5413,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     {
       if (!(rights & CREATE_ACL))
       {
-        char buf[FN_REFLEN + 1];
-        build_table_filename(buf, sizeof(buf) - 1, table_list->db,
-                             table_list->table_name, reg_ext, 0);
-        fn_format(buf, buf, "", "", MY_UNPACK_FILENAME  | MY_RESOLVE_SYMLINKS |
-                                    MY_RETURN_REAL_PATH | MY_APPEND_EXT);
-        if (access(buf,F_OK))
+        if (!ha_table_exists(thd, table_list->db, table_list->table_name, 0))
         {
           my_error(ER_NO_SUCH_TABLE, MYF(0), table_list->db, table_list->alias);
           DBUG_RETURN(TRUE);
