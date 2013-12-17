@@ -1474,7 +1474,7 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
   if ((uint)size > pph->FreeBlk) {   /* Not enough memory left in pool */
     sprintf(g->Message,
     "Not enough memory in Work area for request of %d (used=%d free=%d)",
-            size, pph->To_Free, pph->FreeBlk);
+            (int) size, pph->To_Free, pph->FreeBlk);
 
 #if defined(DEBTRACE)
  htrc("%s\n", g->Message);
