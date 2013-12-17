@@ -327,6 +327,102 @@ a	b
 33	33
 34	34
 39	0
+SET sql_log_bin=0;
+DROP FUNCTION foo;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+IF d1 != '' THEN
+SET debug_sync = d1;
+END IF;
+IF d2 != '' THEN
+SET debug_sync = d2;
+END IF;
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+include/stop_slave.inc
+SET GLOBAL binlog_format=@old_format;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+*** 2. Same as (1), but without restarting IO thread after kill of SQL threads ***
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (41, foo(41,
+'commit_before_prepare_ordered WAIT_FOR t2_waiting',
+'commit_after_prepare_ordered SIGNAL t1_ready WAIT_FOR t1_cont'));
+SET debug_sync='now WAIT_FOR master_queued1';
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+SET binlog_format=statement;
+BEGIN;
+INSERT INTO t3 VALUES (42, foo(42,
+'ha_write_row_end SIGNAL t2_query WAIT_FOR t2_cont',
+''));
+INSERT INTO t3 VALUES (43, foo(43,
+'group_commit_waiting_for_prior SIGNAL t2_waiting',
+'group_commit_waiting_for_prior_killed SIGNAL t2_killed'));
+COMMIT;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued3';
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (44, foo(44,
+'',
+''));
+SET debug_sync='now WAIT_FOR master_queued3';
+SET debug_sync='now SIGNAL master_cont1';
+SELECT * FROM t3 WHERE a >= 40 ORDER BY a;
+a	b
+41	41
+42	42
+43	43
+44	44
+SET debug_sync='now WAIT_FOR t2_query';
+SET debug_sync='now SIGNAL t2_cont';
+SET debug_sync='now WAIT_FOR t1_ready';
+KILL THD_ID;
+SET debug_sync='now WAIT_FOR t2_killed';
+SET debug_sync='now SIGNAL t1_cont';
+include/wait_for_slave_sql_error.inc [errno=1317,1963]
+SELECT * FROM t3 WHERE a >= 40 ORDER BY a;
+a	b
+41	41
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+SET sql_log_bin=0;
+DROP FUNCTION foo;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+INSERT INTO t3 VALUES (49,0);
+START SLAVE SQL_THREAD;
+SELECT * FROM t3 WHERE a >= 40 ORDER BY a;
+a	b
+41	41
+42	42
+43	43
+44	44
+49	0
+SET sql_log_bin=0;
+DROP FUNCTION foo;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+IF d1 != '' THEN
+SET debug_sync = d1;
+END IF;
+IF d2 != '' THEN
+SET debug_sync = d2;
+END IF;
+RETURN x;
+END
+||
+SET sql_log_bin=1;
 include/stop_slave.inc
 SET GLOBAL binlog_format=@old_format;
 SET GLOBAL slave_parallel_threads=0;
