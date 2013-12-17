@@ -40,6 +40,43 @@ select 2 /*M!999999 +1 */;
 2
 select 2 /*M!0000 +1 */;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '0000 +1 */' at line 1
+#
+# Testing that MySQL versions >= 5.7.x and < 10.0.0 are ignored (MDEV-5009)
+#
+SELECT 1 /*!50699 +1*/;
+1  +1
+2
+SELECT 1 /*!50700 +1*/;
+1
+1
+SELECT 1 /*!50999 +1*/;
+1
+1
+SELECT 1 /*!99999 +1*/;
+1
+1
+#
+# Tesing that versions >= 5.7.x and < 10.0.0 are not ignored 
+# when used with the MariaDB executable comment syntax.
+#
+SELECT 1 /*M!50699 +1*/;
+1  +1
+2
+SELECT 1 /*M!50700 +1*/;
+1  +1
+2
+SELECT 1 /*M!50999 +1*/;
+1  +1
+2
+SELECT 1 /*M!99999 +1*/;
+1  +1
+2
+SELECT 1 /*M!100000 +1*/;
+1  +1
+2
+SELECT 1 /*M!110000 +1*/;
+1
+1
 select 1/*!2*/;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2*/' at line 1
 select 1/*!0000002*/;
