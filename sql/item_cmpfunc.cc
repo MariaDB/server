@@ -5020,7 +5020,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
         turboBM_compute_bad_character_shifts();
         DBUG_PRINT("info",("done"));
       }
-      use_sampling= ((*first == wild_many || *first == wild_one) && len > 2);
+      use_sampling= (len > 2 && (*first == wild_many || *first == wild_one));
     }
   }
   return FALSE;

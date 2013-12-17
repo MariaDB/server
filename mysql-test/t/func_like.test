@@ -133,3 +133,13 @@ DROP TABLE t1, t2;
 SELECT '' LIKE '1' ESCAPE COUNT(1);
 
 --echo End of 5.1 tests
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-5445 Server crashes in Item_func_like::fix_fields on LIKE ExtractValue(..)
+--echo #
+SELECT 'a' LIKE REPEAT('',0);
+SELECT 'a' LIKE EXTRACTVALUE('bar','qux');
