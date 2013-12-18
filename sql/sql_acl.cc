@@ -5844,6 +5844,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
    */
   DBUG_ASSERT(list.elements >= 2);
   bool result= 0;
+  bool create_new_user, no_auto_create_user;
   String wrong_users;
   LEX_USER *user, *granted_role;
   LEX_STRING rolename;
@@ -5859,12 +5860,18 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   DBUG_ASSERT(granted_role->is_role());
   rolename= granted_role->user;
 
-  TABLE_LIST tables;
-  tables.init_one_table(C_STRING_WITH_LEN("mysql"),
-                        C_STRING_WITH_LEN("roles_mapping"),
-                        "roles_mapping", TL_WRITE);
+  create_new_user= test_if_create_new_users(thd);
+  no_auto_create_user= test(thd->variables.sql_mode & MODE_NO_AUTO_CREATE_USER);
 
-  if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
+  TABLE_LIST tables[2];
+  tables[0].init_one_table(C_STRING_WITH_LEN("mysql"),
+                           C_STRING_WITH_LEN("roles_mapping"),
+                           "roles_mapping", TL_WRITE);
+  tables[1].init_one_table(C_STRING_WITH_LEN("mysql"),
+                           C_STRING_WITH_LEN("user"), "user", TL_WRITE);
+  tables[0].next_local= tables[0].next_global= tables+1;
+
+  if (open_and_lock_tables(thd, tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
     DBUG_RETURN(TRUE);                          /* purecov: deadcode */
 
   mysql_rwlock_wrlock(&LOCK_grant);
@@ -5952,6 +5959,27 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     if (!grantee)
       grantee= find_user_exact(hostname.str, username.str);
 
+    if (!grantee && !revoke)
+    {
+      LEX_USER user_combo = *user;
+      user_combo.host = hostname;
+      user_combo.user = username;
+
+      /* create the user if it does not exist */
+      if (replace_user_table(thd, tables[1].table, user_combo, 0,
+                             false, create_new_user,
+                             no_auto_create_user))
+      {
+        append_user(&wrong_users, username.str, hostname.str);
+        result= 1;
+        continue;
+      }
+      grantee= find_user_exact(hostname.str, username.str);
+
+      /* either replace_user_table failed, or we've added the user */
+      DBUG_ASSERT(grantee);
+    }
+
     if (!grantee)
     {
       append_user(&wrong_users, username.str, hostname.str);
@@ -6004,7 +6032,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     }
 
     /* write into the roles_mapping table */
-    if (replace_roles_mapping_table(tables.table,
+    if (replace_roles_mapping_table(tables[0].table,
                                     &username, &hostname, &rolename,
                                     thd->lex->with_admin_option,
                                     hash_entry, revoke))
