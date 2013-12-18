@@ -2,6 +2,7 @@
 #include "rpl_parallel.h"
 #include "slave.h"
 #include "rpl_mi.h"
+#include "debug_sync.h"
 
 
 /*
@@ -219,6 +220,7 @@ handle_rpl_parallel_thread(void *arg)
   thd->variables.log_slow_filter= global_system_variables.log_slow_filter;
   set_slave_thread_options(thd);
   thd->client_capabilities = CLIENT_LOCAL_FILES;
+  thd->net.reading_or_writing= 0;
   thd_proc_info(thd, "Waiting for work from main SQL threads");
   thd->set_time();
   thd->variables.lock_wait_timeout= LONG_TIMEOUT;
@@ -308,6 +310,7 @@ handle_rpl_parallel_thread(void *arg)
                                      "Waiting for prior transaction to commit "
                                      "before starting next transaction");
             did_enter_cond= true;
+            DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior");
             while (wait_start_sub_id > entry->last_committed_sub_id &&
                    !thd->check_killed())
               mysql_cond_wait(&entry->COND_parallel_entry,
@@ -315,6 +318,7 @@ handle_rpl_parallel_thread(void *arg)
             if (wait_start_sub_id > entry->last_committed_sub_id)
             {
               /* The thread got a kill signal. */
+              DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior_killed");
               thd->send_kill_message();
               slave_output_error_info(rgi->rli, thd);
               signal_error_to_sql_driver_thread(thd, rgi);
@@ -383,6 +387,7 @@ handle_rpl_parallel_thread(void *arg)
                            &rgi->commit_orderer);
         delete rgi;
         group_rgi= rgi= NULL;
+        DEBUG_SYNC(thd, "rpl_parallel_end_of_group");
       }
 
       events= next;
@@ -843,6 +848,10 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
         However, the commit of this event must wait for the commit of the prior
         event, to preserve binlog commit order and visibility across all
         servers in the replication hierarchy.
+
+        In addition, we must not start executing this event until we have
+        finished the previous collection of event groups that group-committed
+        together; we use rgi->wait_start_sub_id to control this.
       */
       rpl_parallel_thread *rpt= global_rpl_thread_pool.get_thread(e);
       rgi->wait_commit_sub_id= e->current_sub_id;
