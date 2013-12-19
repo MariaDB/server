@@ -856,6 +856,7 @@ dict_tf_set(
 	if (atomic_writes) {
 		*flags |= (1 << DICT_TF_POS_ATOMIC_WRITES);
 		ut_ad(dict_tf_get_atomic_writes(*flags) == TRUE);
+		*flags |= (1 << DICT_TF_POS_ATOMIC_BLOBS);
 	}
 
 	if (use_data_dir) {
