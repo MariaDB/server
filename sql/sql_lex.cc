@@ -1555,11 +1555,11 @@ int lex_one_token(void *arg, THD *thd)
           /*
             MySQL-5.7 has new features and might have new SQL syntax that
             MariaDB-10.0 does not understand. Ignore all versioned comments
-            with MySQL versions in the range 50700–999999, but
+            with MySQL versions in the range 50700-999999, but
             do not ignore MariaDB specific comments for the same versions.
           */ 
           if (version <= MYSQL_VERSION_ID &&
-              (version < 50700 || version > 999999 || maria_comment_syntax))
+              (version < 50700 || version > 99999 || maria_comment_syntax))
           {
             /* Accept 'M' 'm' 'm' 'd' 'd' */
             lip->yySkipn(length);

@@ -38,6 +38,8 @@ SELECT 1 /*!50699 +1*/;
 SELECT 1 /*!50700 +1*/;
 SELECT 1 /*!50999 +1*/;
 SELECT 1 /*!99999 +1*/;
+SELECT 1 /*!100000 +1*/;
+SELECT 1 /*!110000 +1*/;
 
 --echo #
 --echo # Tesing that versions >= 5.7.x and < 10.0.0 are not ignored 
