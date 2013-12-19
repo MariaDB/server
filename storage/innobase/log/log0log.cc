@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1165,7 +1166,7 @@ log_group_file_header_flush(
 		       (ulint) (dest_offset / UNIV_PAGE_SIZE),
 		       (ulint) (dest_offset % UNIV_PAGE_SIZE),
 		       OS_FILE_LOG_BLOCK_SIZE,
-		       buf, group);
+		       buf, group, 0);
 
 		srv_stats.os_log_pending_writes.dec();
 	}
@@ -1293,7 +1294,7 @@ loop:
 		fil_io(OS_FILE_WRITE | OS_FILE_LOG, TRUE, group->space_id, 0,
 		       (ulint) (next_offset / UNIV_PAGE_SIZE),
 		       (ulint) (next_offset % UNIV_PAGE_SIZE), write_len, buf,
-		       group);
+		       group, 0);
 
 		srv_stats.os_log_pending_writes.dec();
 
@@ -1859,7 +1860,7 @@ log_group_checkpoint(
 		       write_offset / UNIV_PAGE_SIZE,
 		       write_offset % UNIV_PAGE_SIZE,
 		       OS_FILE_LOG_BLOCK_SIZE,
-		       buf, ((byte*) group + 1));
+		       buf, ((byte*) group + 1), 0);
 
 		ut_ad(((ulint) group & 0x1UL) == 0);
 	}
@@ -1939,7 +1940,7 @@ log_group_read_checkpoint_info(
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, TRUE, group->space_id, 0,
 	       field / UNIV_PAGE_SIZE, field % UNIV_PAGE_SIZE,
-	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL);
+	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL, 0);
 }
 
 /******************************************************//**
@@ -2233,7 +2234,7 @@ loop:
 	fil_io(OS_FILE_READ | OS_FILE_LOG, sync, group->space_id, 0,
 	       (ulint) (source_offset / UNIV_PAGE_SIZE),
 	       (ulint) (source_offset % UNIV_PAGE_SIZE),
-	       len, buf, NULL);
+	       len, buf, NULL, 0);
 
 	start_lsn += len;
 	buf += len;
@@ -2298,7 +2299,7 @@ log_group_archive_file_header_write(
 	       dest_offset / UNIV_PAGE_SIZE,
 	       dest_offset % UNIV_PAGE_SIZE,
 	       2 * OS_FILE_LOG_BLOCK_SIZE,
-	       buf, &log_archive_io);
+	       buf, &log_archive_io, 0);
 }
 
 /******************************************************//**
@@ -2334,7 +2335,7 @@ log_group_archive_completed_header_write(
 	       dest_offset % UNIV_PAGE_SIZE,
 	       OS_FILE_LOG_BLOCK_SIZE,
 	       buf + LOG_FILE_ARCH_COMPLETED,
-	       &log_archive_io);
+	       &log_archive_io, 0);
 }
 
 /******************************************************//**
@@ -2462,7 +2463,7 @@ loop:
 	       (ulint) (next_offset / UNIV_PAGE_SIZE),
 	       (ulint) (next_offset % UNIV_PAGE_SIZE),
 	       ut_calc_align(len, OS_FILE_LOG_BLOCK_SIZE), buf,
-	       &log_archive_io);
+	       &log_archive_io, 0);
 
 	start_lsn += len;
 	next_offset += len;

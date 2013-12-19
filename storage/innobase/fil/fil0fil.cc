@@ -1,6 +1,8 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013 SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,6 +26,8 @@ Created 10/25/1995 Heikki Tuuri
 *******************************************************/
 
 #include "fil0fil.h"
+#include "fil0pagecompress.h"
+#include "fsp0pagecompress.h"
 
 #include <debug_sync.h>
 #include <my_dbug.h>
@@ -54,6 +58,14 @@ Created 10/25/1995 Heikki Tuuri
 # include "srv0srv.h"
 static ulint srv_data_read, srv_data_written;
 #endif /* !UNIV_HOTBACKUP */
+#include "zlib.h"
+#ifdef __linux__
+#include <linux/fs.h>
+#include <sys/ioctl.h>
+#include <fcntl.h>
+#include <linux/falloc.h>
+#endif
+#include "row0mysql.h"
 
 /*
 		IMPLEMENTATION OF THE TABLESPACE MEMORY CACHE
@@ -428,11 +440,16 @@ fil_read(
 				block size multiple */
 	void*	buf,		/*!< in/out: buffer where to store data read;
 				in aio this must be appropriately aligned */
-	void*	message)	/*!< in: message for aio handler if non-sync
+	void*	message,	/*!< in: message for aio handler if non-sync
 				aio used, else ignored */
+	ulint	write_size)	/*!< in/out: Actual write size initialized
+				after fist successfull trim
+				operation for this page and if
+				initialized we do not trim again if
+				actual page size does not decrease. */
 {
 	return(fil_io(OS_FILE_READ, sync, space_id, zip_size, block_offset,
-					  byte_offset, len, buf, message));
+		      byte_offset, len, buf, message, write_size));
 }
 
 /********************************************************************//**
@@ -457,18 +474,22 @@ fil_write(
 				be a block size multiple */
 	void*	buf,		/*!< in: buffer from which to write; in aio
 				this must be appropriately aligned */
-	void*	message)	/*!< in: message for aio handler if non-sync
+	void*	message,	/*!< in: message for aio handler if non-sync
 				aio used, else ignored */
+	ulint	write_size)	/*!< in/out: Actual write size initialized
+				after fist successfull trim
+				operation for this page and if
+				initialized we do not trim again if
+				actual page size does not decrease. */
 {
 	ut_ad(!srv_read_only_mode);
 
 	return(fil_io(OS_FILE_WRITE, sync, space_id, zip_size, block_offset,
-					   byte_offset, len, buf, message));
+		      byte_offset, len, buf, message, write_size));
 }
 
 /*******************************************************************//**
 Returns the table space by a given id, NULL if not found. */
-UNIV_INLINE
 fil_space_t*
 fil_space_get_by_id(
 /*================*/
@@ -484,6 +505,19 @@ fil_space_get_by_id(
 		    space->id == id);
 
 	return(space);
+}
+
+/****************************************************************//**
+Get space id from fil node */
+ulint
+fil_node_get_space_id(
+/*==================*/
+        fil_node_t*     node)           /*!< in: Compressed node*/
+{
+	ut_ad(node);
+	ut_ad(node->space);
+
+	return (node->space->id);
 }
 
 /*******************************************************************//**
@@ -704,8 +738,9 @@ fil_node_open_file(
 	byte*		buf2;
 	byte*		page;
 	ulint		space_id;
-	ulint		flags;
+	ulint		flags=0;
 	ulint		page_size;
+	ibool           atomic_writes=FALSE;
 
 	ut_ad(mutex_own(&(system->mutex)));
 	ut_a(node->n_pending == 0);
@@ -722,7 +757,7 @@ fil_node_open_file(
 
 		node->handle = os_file_create_simple_no_error_handling(
 			innodb_file_data_key, node->name, OS_FILE_OPEN,
-			OS_FILE_READ_ONLY, &success);
+			OS_FILE_READ_ONLY, &success, FALSE);
 		if (!success) {
 			/* The following call prints an error message */
 			os_file_get_last_error(true);
@@ -774,6 +809,8 @@ fil_node_open_file(
 		space_id = fsp_header_get_space_id(page);
 		flags = fsp_header_get_flags(page);
 		page_size = fsp_flags_get_page_size(flags);
+		atomic_writes = fsp_flags_get_atomic_writes(flags);
+
 
 		ut_free(buf2);
 
@@ -824,6 +861,17 @@ fil_node_open_file(
 			ut_error;
 		}
 
+		if (UNIV_UNLIKELY(space->flags != flags)) {
+			if (!dict_tf_verify_flags(space->flags, flags)) {
+				fprintf(stderr,
+					"InnoDB: Error: table flags are 0x%lx"
+					" in the data dictionary\n"
+					"InnoDB: but the flags in file %s are 0x%lx!\n",
+					space->flags, node->name, flags);
+				ut_error;
+			}
+		}
+
 		if (size_bytes >= 1024 * 1024) {
 			/* Truncate the size to whole megabytes. */
 			size_bytes = ut_2pow_round(size_bytes, 1024 * 1024);
@@ -843,6 +891,8 @@ add_size:
 		space->size += node->size;
 	}
 
+	atomic_writes = fsp_flags_get_atomic_writes(space->flags);
+
 	/* printf("Opening file %s\n", node->name); */
 
 	/* Open the file for reading and writing, in Windows normally in the
@@ -853,18 +903,18 @@ add_size:
 		node->handle = os_file_create(innodb_file_log_key,
 					      node->name, OS_FILE_OPEN,
 					      OS_FILE_AIO, OS_LOG_FILE,
-					      &ret);
+					      &ret, atomic_writes);
 	} else if (node->is_raw_disk) {
 		node->handle = os_file_create(innodb_file_data_key,
 					      node->name,
 					      OS_FILE_OPEN_RAW,
 					      OS_FILE_AIO, OS_DATA_FILE,
-						     &ret);
+					      &ret, atomic_writes);
 	} else {
 		node->handle = os_file_create(innodb_file_data_key,
 					      node->name, OS_FILE_OPEN,
 					      OS_FILE_AIO, OS_DATA_FILE,
-					      &ret);
+					      &ret, atomic_writes);
 	}
 
 	ut_a(ret);
@@ -1481,6 +1531,21 @@ fil_space_get_space(
 	if (space->size == 0 && space->purpose == FIL_TABLESPACE) {
 		ut_a(id != 0);
 
+		mutex_exit(&fil_system->mutex);
+
+		/* It is possible that the space gets evicted at this point
+		before the fil_mutex_enter_and_prepare_for_io() acquires
+		the fil_system->mutex. Check for this after completing the
+		call to fil_mutex_enter_and_prepare_for_io(). */
+		fil_mutex_enter_and_prepare_for_io(id);
+
+		/* We are still holding the fil_system->mutex. Check if
+		the space is still in memory cache. */
+		space = fil_space_get_by_id(id);
+		if (space == NULL) {
+			return(NULL);
+		}
+
 		/* The following code must change when InnoDB supports
 		multiple datafiles per tablespace. */
 		ut_a(1 == UT_LIST_GET_LEN(space->chain));
@@ -1858,12 +1923,12 @@ fil_write_lsn_and_arch_no_to_file(
 	buf = static_cast<byte*>(ut_align(buf1, UNIV_PAGE_SIZE));
 
 	err = fil_read(TRUE, space, 0, sum_of_sizes, 0,
-		       UNIV_PAGE_SIZE, buf, NULL);
+		       UNIV_PAGE_SIZE, buf, NULL, 0);
 	if (err == DB_SUCCESS) {
 		mach_write_to_8(buf + FIL_PAGE_FILE_FLUSH_LSN, lsn);
 
 		err = fil_write(TRUE, space, 0, sum_of_sizes, 0,
-				UNIV_PAGE_SIZE, buf, NULL);
+				UNIV_PAGE_SIZE, buf, NULL, 0);
 	}
 
 	mem_free(buf1);
@@ -3095,7 +3160,7 @@ fil_create_link_file(
 
 	file = os_file_create_simple_no_error_handling(
 		innodb_file_data_key, link_filepath,
-		OS_FILE_CREATE, OS_FILE_READ_WRITE, &success);
+		OS_FILE_CREATE, OS_FILE_READ_WRITE, &success, FALSE);
 
 	if (!success) {
 		/* The following call will print an error message */
@@ -3111,10 +3176,10 @@ fil_create_link_file(
 			ut_print_filename(stderr, filepath);
 			fputs(" already exists.\n", stderr);
 			err = DB_TABLESPACE_EXISTS;
-
 		} else if (error == OS_FILE_DISK_FULL) {
 			err = DB_OUT_OF_FILE_SPACE;
-
+		} else if (error == OS_FILE_OPERATION_NOT_SUPPORTED) {
+			err = DB_UNSUPPORTED;
 		} else {
 			err = DB_ERROR;
 		}
@@ -3204,8 +3269,9 @@ fil_open_linked_file(
 /*===============*/
 	const char*	tablename,	/*!< in: database/tablename */
 	char**		remote_filepath,/*!< out: remote filepath */
-	os_file_t*	remote_file)	/*!< out: remote file handle */
-
+	os_file_t*	remote_file,	/*!< out: remote file handle */
+	ibool           atomic_writes)  /*!< in: should atomic writes be
+					used */
 {
 	ibool		success;
 
@@ -3219,7 +3285,7 @@ fil_open_linked_file(
 	*remote_file = os_file_create_simple_no_error_handling(
 		innodb_file_data_key, *remote_filepath,
 		OS_FILE_OPEN, OS_FILE_READ_ONLY,
-		&success);
+		&success, atomic_writes);
 
 	if (!success) {
 		char*	link_filepath = fil_make_isl_name(tablename);
@@ -3274,6 +3340,7 @@ fil_create_new_single_table_tablespace(
 	/* TRUE if a table is created with CREATE TEMPORARY TABLE */
 	bool		is_temp = !!(flags2 & DICT_TF2_TEMPORARY);
 	bool		has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags);
+	bool		atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(flags);
 
 	ut_a(space_id > 0);
 	ut_ad(!srv_read_only_mode);
@@ -3306,7 +3373,8 @@ fil_create_new_single_table_tablespace(
 		OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
 		OS_FILE_NORMAL,
 		OS_DATA_FILE,
-		&ret);
+		&ret,
+		atomic_writes);
 
 	if (ret == FALSE) {
 		/* The following call will print an error message */
@@ -3330,6 +3398,11 @@ fil_create_new_single_table_tablespace(
 				path, path);
 
 			err = DB_TABLESPACE_EXISTS;
+			goto error_exit_3;
+		}
+
+		if (error == OS_FILE_OPERATION_NOT_SUPPORTED) {
+			err = DB_UNSUPPORTED;
 			goto error_exit_3;
 		}
 
@@ -3371,6 +3444,7 @@ fil_create_new_single_table_tablespace(
 	flags = fsp_flags_set_page_size(flags, UNIV_PAGE_SIZE);
 	fsp_header_init_fields(page, space_id, flags);
 	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, space_id);
+	ut_ad(fsp_flags_is_valid(flags));
 
 	if (!(fsp_flags_is_compressed(flags))) {
 		buf_flush_init_for_writing(page, NULL, 0);
@@ -3547,6 +3621,7 @@ fil_open_single_table_tablespace(
 	fsp_open_info	remote;
 	ulint		tablespaces_found = 0;
 	ulint		valid_tablespaces_found = 0;
+	ibool           atomic_writes = FALSE;
 
 #ifdef UNIV_SYNC_DEBUG
 	ut_ad(!fix_dict || rw_lock_own(&dict_operation_lock, RW_LOCK_EX));
@@ -3556,6 +3631,8 @@ fil_open_single_table_tablespace(
 	if (!fsp_flags_is_valid(flags)) {
 		return(DB_CORRUPTION);
 	}
+
+	atomic_writes = fsp_flags_get_atomic_writes(flags);
 
 	/* If the tablespace was relocated, we do not
 	compare the DATA_DIR flag */
@@ -3581,7 +3658,7 @@ fil_open_single_table_tablespace(
 	}
 
 	link_file_found = fil_open_linked_file(
-		tablename, &remote.filepath, &remote.file);
+		tablename, &remote.filepath, &remote.file, atomic_writes);
 	remote.success = link_file_found;
 	if (remote.success) {
 		/* possibility of multiple files. */
@@ -3609,7 +3686,7 @@ fil_open_single_table_tablespace(
 	if (dict.filepath) {
 		dict.file = os_file_create_simple_no_error_handling(
 			innodb_file_data_key, dict.filepath, OS_FILE_OPEN,
-			OS_FILE_READ_ONLY, &dict.success);
+			OS_FILE_READ_ONLY, &dict.success, atomic_writes);
 		if (dict.success) {
 			/* possibility of multiple files. */
 			validate = true;
@@ -3621,7 +3698,7 @@ fil_open_single_table_tablespace(
 	ut_a(def.filepath);
 	def.file = os_file_create_simple_no_error_handling(
 		innodb_file_data_key, def.filepath, OS_FILE_OPEN,
-		OS_FILE_READ_ONLY, &def.success);
+		OS_FILE_READ_ONLY, &def.success, atomic_writes);
 	if (def.success) {
 		tablespaces_found++;
 	}
@@ -4020,7 +4097,7 @@ fil_load_single_table_tablespace(
 
 	/* Check for a link file which locates a remote tablespace. */
 	remote.success = fil_open_linked_file(
-		tablename, &remote.filepath, &remote.file);
+		tablename, &remote.filepath, &remote.file, FALSE);
 
 	/* Read the first page of the remote tablespace */
 	if (remote.success) {
@@ -4035,7 +4112,7 @@ fil_load_single_table_tablespace(
 	/* Try to open the tablespace in the datadir. */
 	def.file = os_file_create_simple_no_error_handling(
 		innodb_file_data_key, def.filepath, OS_FILE_OPEN,
-		OS_FILE_READ_ONLY, &def.success);
+		OS_FILE_READ_ONLY, &def.success, FALSE);
 
 	/* Read the first page of the remote tablespace */
 	if (def.success) {
@@ -4167,7 +4244,7 @@ will_not_choose:
 		new_path = fil_make_ibbackup_old_name(fsp->filepath);
 
 		bool	success = os_file_rename(
-			innodb_file_data_key, fsp->filepath, new_path));
+			innodb_file_data_key, fsp->filepath, new_path);
 
 		ut_a(success);
 
@@ -4821,7 +4898,7 @@ retry:
 		success = os_aio(OS_FILE_WRITE, OS_AIO_SYNC,
 				 node->name, node->handle, buf,
 				 offset, page_size * n_pages,
-				 NULL, NULL);
+			         NULL, NULL, 0);
 #endif /* UNIV_HOTBACKUP */
 		if (success) {
 			os_has_said_disk_full = FALSE;
@@ -4852,6 +4929,7 @@ retry:
 
 	space->size += pages_added;
 	node->size += pages_added;
+	node->being_extended = FALSE;
 
 #ifdef HAVE_POSIX_FALLOCATE
 complete_io:
@@ -4917,7 +4995,7 @@ fil_extend_tablespaces_to_stored_len(void)
 					      single-threaded operation */
 		error = fil_read(TRUE, space->id,
 				 fsp_flags_get_zip_size(space->flags),
-				 0, 0, UNIV_PAGE_SIZE, buf, NULL);
+				 0, 0, UNIV_PAGE_SIZE, buf, NULL, 0);
 		ut_a(error == DB_SUCCESS);
 
 		size_in_header = fsp_get_size_low(buf);
@@ -5191,8 +5269,13 @@ fil_io(
 	void*	buf,		/*!< in/out: buffer where to store read data
 				or from where to write; in aio this must be
 				appropriately aligned */
-	void*	message)	/*!< in: message for aio handler if non-sync
+	void*	message,	/*!< in: message for aio handler if non-sync
 				aio used, else ignored */
+	ulint	write_size)	/*!< in/out: Actual write size initialized
+				after fist successfull trim
+				operation for this page and if
+				initialized we do not trim again if
+				actual page size does not decrease. */
 {
 	ulint		mode;
 	fil_space_t*	space;
@@ -5255,6 +5338,9 @@ fil_io(
 	} else if (type == OS_FILE_WRITE) {
 		ut_ad(!srv_read_only_mode);
 		srv_stats.data_written.add(len);
+		if (fil_page_is_index_page((byte *)buf)) {
+			srv_stats.index_pages_written.inc();
+		}
 	}
 
 	/* Reserve the fil_system mutex and make sure that we can open at
@@ -5371,7 +5457,7 @@ fil_io(
 #else
 	/* Queue the aio request */
 	ret = os_aio(type, mode | wake_later, node->name, node->handle, buf,
-		     offset, len, node, message);
+		     offset, len, node, message, write_size);
 #endif /* UNIV_HOTBACKUP */
 	ut_a(ret);
 
@@ -5994,7 +6080,7 @@ fil_tablespace_iterate(
 
 		file = os_file_create_simple_no_error_handling(
 			innodb_file_data_key, filepath,
-			OS_FILE_OPEN, OS_FILE_READ_WRITE, &success);
+			OS_FILE_OPEN, OS_FILE_READ_WRITE, &success, FALSE);
 
 		DBUG_EXECUTE_IF("fil_tablespace_iterate_failure",
 		{
@@ -6210,3 +6296,32 @@ fil_mtr_rename_log(
 	mtr_commit(&mtr);
 }
 
+/****************************************************************//**
+Acquire fil_system mutex */
+void
+fil_system_enter(void)
+/*==================*/
+{
+	ut_ad(!mutex_own(&fil_system->mutex));
+	mutex_enter(&fil_system->mutex);
+}
+
+/****************************************************************//**
+Release fil_system mutex */
+void
+fil_system_exit(void)
+/*=================*/
+{
+	ut_ad(mutex_own(&fil_system->mutex));
+	mutex_exit(&fil_system->mutex);
+}
+
+/*******************************************************************//**
+Return space name */
+char*
+fil_space_name(
+/*===========*/
+	fil_space_t*	space)	/*!< in: space */
+{
+	return (space->name);
+}

@@ -3,6 +3,7 @@
 Copyright (c) 1995, 2012, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -101,6 +102,23 @@ struct srv_stats_t {
 	/** Number of buffer pool reads that led to the reading of
 	a disk page */
 	ulint_ctr_1_t		buf_pool_reads;
+
+	/** Number of bytes saved by page compression */
+	ulint_ctr_64_t          page_compression_saved;
+	/** Number of 512Byte TRIM by page compression */
+	ulint_ctr_64_t          page_compression_trim_sect512;
+	/** Number of 4K TRIM  by page compression */
+	ulint_ctr_64_t          page_compression_trim_sect4096;
+	/* Number of index pages written */
+	ulint_ctr_64_t          index_pages_written;
+	/* Number of pages compressed with page compression */
+        ulint_ctr_64_t          pages_page_compressed;
+	/* Number of TRIM operations induced by page compression */
+        ulint_ctr_64_t          page_compressed_trim_op;
+	/* Number of TRIM operations saved by using actual write size knowledge */
+        ulint_ctr_64_t          page_compressed_trim_op_saved;
+	/* Number of pages decompressed with page compression */
+        ulint_ctr_64_t          pages_page_decompressed;
 
 	/** Number of data read in total (in bytes) */
 	ulint_ctr_1_t		data_read;
@@ -217,6 +235,29 @@ OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 extern my_bool	srv_use_native_aio;
+
+/* Is page compression used */
+extern my_bool srv_compress_pages;
+
+/* Is page compression used only for index pages */
+extern my_bool srv_page_compress_index_pages;
+
+/* Frequency of trim operations */
+extern long srv_trim_pct;
+
+/* Use trim operation */
+extern my_bool srv_use_trim;
+
+/* Use posix fallocate */
+extern my_bool srv_use_posix_fallocate;
+
+/* Use atomic writes i.e disable doublewrite buffer */
+extern my_bool srv_use_atomic_writes;
+
+/* Default zlib compression level */
+extern long srv_compress_zlib_level;
+
+
 #ifdef __WIN__
 extern ibool	srv_use_native_conditions;
 #endif /* __WIN__ */
@@ -347,11 +388,6 @@ extern my_bool			srv_stats_auto_recalc;
 extern ibool	srv_use_doublewrite_buf;
 extern ulong	srv_doublewrite_batch_size;
 extern ulong	srv_checksum_algorithm;
-
-extern ibool	srv_use_atomic_writes;
-#ifdef HAVE_POSIX_FALLOCATE
-extern ibool	srv_use_posix_fallocate;
-#endif
 
 extern ulong	srv_max_buf_pool_modified_pct;
 extern ulong	srv_max_purge_lag;
@@ -850,6 +886,24 @@ struct export_var_t{
 	ulint innodb_purge_view_trx_id_age;	/*!< rw_max_trx_id
 						- purged view's min trx_id */
 #endif /* UNIV_DEBUG */
+
+	ib_int64_t innodb_page_compression_saved;/*!< Number of bytes saved
+						by page compression */
+	ib_int64_t innodb_page_compression_trim_sect512;/*!< Number of 512b TRIM
+						by page compression */
+	ib_int64_t innodb_page_compression_trim_sect4096;/*!< Number of 4K byte TRIM 
+						by page compression */
+	ib_int64_t innodb_index_pages_written;  /*!< Number of index pages
+						written */
+	ib_int64_t innodb_pages_page_compressed;/*!< Number of pages
+						compressed by page compression */
+	ib_int64_t innodb_page_compressed_trim_op;/*!< Number of TRIM operations
+						induced by page compression */
+	ib_int64_t innodb_page_compressed_trim_op_saved;/*!< Number of TRIM operations
+						saved by page compression */
+	ib_int64_t innodb_pages_page_decompressed;/*!< Number of pages
+						decompressed by page
+						compression */
 };
 
 /** Thread slot in the thread table.  */

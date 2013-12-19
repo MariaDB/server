@@ -145,6 +145,24 @@ use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 UNIV_INTERN my_bool	srv_use_native_aio = TRUE;
 
+/* If this flag is TRUE, then we will use page compression
+to the pages */
+UNIV_INTERN my_bool     srv_compress_pages              = FALSE;
+/* If this flag is TRUE, then we will use page compression
+only for index pages */
+UNIV_INTERN my_bool     srv_page_compress_index_pages   = FALSE;
+UNIV_INTERN long        srv_trim_pct                    = 100;
+/* Default compression level if page compression is used and no compression
+level is set for the table*/
+UNIV_INTERN long        srv_compress_zlib_level         = 6;
+/* If this flag is TRUE, then we will use fallocate(PUCH_HOLE)
+to the pages */
+UNIV_INTERN my_bool     srv_use_trim                    = TRUE;
+/* If this flag is TRUE, then we will use posix fallocate for file extentsion */
+UNIV_INTERN my_bool     srv_use_posix_fallocate         = FALSE;
+/* If this flag is TRUE, then we disable doublewrite buffer */
+UNIV_INTERN my_bool     srv_use_atomic_writes           = FALSE;
+
 #ifdef __WIN__
 /* Windows native condition variables. We use runtime loading / function
 pointers, because they are not available on Windows Server 2003 and
@@ -347,11 +365,6 @@ batch flushing i.e.: LRU flushing and flush_list flushing. The rest
 of the pages are used for single page flushing. */
 UNIV_INTERN ulong	srv_doublewrite_batch_size	= 120;
 
-UNIV_INTERN ibool	srv_use_atomic_writes = FALSE;
-#ifdef HAVE_POSIX_FALLOCATE
-UNIV_INTERN ibool	srv_use_posix_fallocate = TRUE;
-#endif
-
 UNIV_INTERN ulong	srv_replication_delay		= 0;
 
 /*-------------------------------------------*/
@@ -374,6 +387,16 @@ static ulint		srv_n_rows_read_old		= 0;
 
 UNIV_INTERN ulint	srv_truncated_status_writes	= 0;
 UNIV_INTERN ulint	srv_available_undo_logs         = 0;
+
+UNIV_INTERN ib_uint64_t srv_page_compression_saved      = 0;
+UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect512       = 0;
+UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect4096      = 0;
+UNIV_INTERN ib_uint64_t srv_index_pages_written         = 0;
+UNIV_INTERN ib_uint64_t srv_pages_page_compressed       = 0;
+UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op     = 0;
+UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op_saved     = 0;
+UNIV_INTERN ib_uint64_t srv_index_page_decompressed     = 0;
+
 
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. */
@@ -1457,6 +1480,14 @@ srv_export_innodb_status(void)
 		srv_truncated_status_writes;
 
 	export_vars.innodb_available_undo_logs = srv_available_undo_logs;
+	export_vars.innodb_page_compression_saved = srv_stats.page_compression_saved;
+	export_vars.innodb_page_compression_trim_sect512 = srv_stats.page_compression_trim_sect512;
+	export_vars.innodb_page_compression_trim_sect4096 = srv_stats.page_compression_trim_sect4096;
+	export_vars.innodb_index_pages_written = srv_stats.index_pages_written;
+	export_vars.innodb_pages_page_compressed = srv_stats.pages_page_compressed;
+	export_vars.innodb_page_compressed_trim_op = srv_stats.page_compressed_trim_op;
+	export_vars.innodb_page_compressed_trim_op_saved = srv_stats.page_compressed_trim_op_saved;
+	export_vars.innodb_pages_page_decompressed = srv_stats.pages_page_decompressed;
 
 #ifdef UNIV_DEBUG
 	if (purge_sys->done.trx_no == 0
