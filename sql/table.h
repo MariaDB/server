@@ -1721,6 +1721,9 @@ struct TABLE_LIST
   table_map     sj_inner_tables;
   /* Number of IN-compared expressions */
   uint          sj_in_exprs;
+
+  //psergey-todo: add the index of last table in the join order
+  uint          sj_strategys_join_tab;
   
   /* If this is a non-jtbm semi-join nest: corresponding subselect predicate */
   Item_in_subselect  *sj_subq_pred;

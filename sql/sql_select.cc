@@ -24608,8 +24608,8 @@ double JOIN::static_pushdown_cost(uint idx)
   @param pred      the predicate to be wrapped in Item_func_dynamic_cond
   @param init_tab  the initial 'active' JOIN_TAB where the dynamic predicate
                    is pushed to
-  @param cur_tab   pointer to the JOIN_TAB* that stores the current JOIN_TAB
-                   during execution
+  @param active_tab_ptr   pointer to the JOIN_TAB* that stores the current JOIN_TAB
+                          during execution
 */
 static Item_func_collect_stats *
 wrap_with_dynamic_conds(Item *pred, JOIN_TAB *init_tab, JOIN_TAB **active_tab_ptr,
@@ -24674,6 +24674,81 @@ wrap_with_dynamic_conds(Item *pred, JOIN_TAB *init_tab, JOIN_TAB **active_tab_pt
 }
 
 
+/*
+  @brief Find the last JOIN_TAB that a condition can be attached.
+  
+
+  @param cond_tables  used_tables() of the condition that we intend to move.
+  @param join_tab     The left-most join tab where the condition can be
+                      attached (in other words, default attachment point)
+
+  @detail
+  In a regular inner join, one can take a condition that is attached to a
+  table $T, and move it to any table that comes after $T.
+
+  When semi-joins are present, this is no longer true. Detailed explanation
+  can be found in maria-developers@, email "Movable conditions and semi-joins".
+  In short:
+
+  - Inside an SJ-Materialization nest, a condition can be moved to any table to
+    the right, but it must stay within the nest. (We don't support nested 
+    semi-joins, so one will not find semi-joins inside an SJ-M nest)
+
+  - All other Semi-Join strategies have a "range" where they apply. If a
+    condition depends on a table that is within a semi-join, it must not be
+    moved over the right edge of the range.
+*/
+
+JOIN_TAB *find_last_tab_for_dynamic_cond(table_map cond_tables,
+                                         JOIN *join, JOIN_TAB *join_tab)
+{
+  if (join_tab->bush_root_tab)
+  {
+    /* 
+      We are inside SJ-Materialization nest. There are no semi-joins here, 
+      return the last tab in the nest.
+    */
+    return join_tab->bush_root_tab->bush_children->end;
+  }
+  
+  /* Start from the right-most bound */
+  uint last_tab = join->top_join_tab_count;
+
+  cond_tables= cond_tables & ~(PSEUDO_TABLE_BITS | join->const_table_map);
+  /*
+    Walk through semi-joins that this table depends on, and check their last
+    join tabs. The smallest last join tab sets the limit about how far right
+    the condition can be moved.
+  */
+  Table_map_iterator tm_it(cond_tables);
+  int tableno;
+  while ((tableno = tm_it.next_bit()) != Table_map_iterator::BITMAP_END)
+  {
+    TABLE_LIST *sj_nest;
+    if ((sj_nest= join->map2table[tableno]->emb_sj_nest))
+    {
+      if (sj_nest->is_active_sjm())
+      {
+        /*
+          Whoa this condition also depends on a table from within
+          SJ-Materialization nest. (Can happen possible because of equality
+          propagation/substitution).  If we didn't return earlier in this
+          function, we're not inside a semi-join nest.  A value that depends
+          on a table within a SJ-Materialization nest means that it depends on
+          the materialized table columns.
+        */
+        continue;
+      }
+
+      if (sj_nest->sj_strategys_join_tab != uint(-1) && 
+          sj_nest->sj_strategys_join_tab < last_tab)
+        last_tab= sj_nest->sj_strategys_join_tab;
+    }
+  }
+  return join->join_tab + last_tab;
+}
+
+
 /**
   Make expensive subqueries dynamically pushdownable.
 */
@@ -24703,7 +24778,12 @@ bool JOIN::setup_dynamic_conditions()
     Update the least cardinality join_tab for each tab for the chosen join order.
     Check if there are any conditions at all that need to be made dynamic.
   */
-  min_tab= NULL;
+  min_tab= NULL; 
+  /*
+    psergey-todo: the following loop should walk inside SJ-Materialization
+    nests, too. Maybe, this whole function should be invoked for each
+    SJ-Materilization nest.
+  */
   for (tab= last_tab - 1; tab >= first_tab; tab--)
   {
     if (optimizer_flag(thd, OPTIMIZER_SWITCH_STATIC_COND_PUSHDOWN))
@@ -24746,7 +24826,8 @@ bool JOIN::setup_dynamic_conditions()
   */
   for (tab= first_tab; tab < last_tab; tab++)
   {
-    Item_func_collect_stats *wrapped_select_cond= NULL, *cur_wrapped_cond;
+    Item_func_collect_stats *wrapped_select_cond= NULL;
+    Item_func_dynamic_cond *cur_wrapped_cond;
 
     if (tab->select_cond &&
         !(wrapped_select_cond=
@@ -24800,14 +24881,29 @@ bool JOIN::setup_dynamic_conditions()
       Add all dynamic conditions pushed to previous JOIN_TABs also to the
       current JOIN_TAB. This allows to "move" a dynamic condition
       from one tab to another by enabling it for the corrseponding tab.
+
+      psergey-todo: conditions have limits on how far to the right they can be
+      moved (Item_func_dynamic_cond::last_tab).  Don't attach conditions to
+      where they can't be moved.
     */
     if (!prev_dynamic_conds.is_empty())
     {
-      List_iterator_fast<Item_func_dynamic_cond> dyn_cond_it(prev_dynamic_conds);
-      if (!wrapped_select_cond)
-        wrapped_select_cond= dyn_cond_it++;
+      List_iterator<Item_func_dynamic_cond> dyn_cond_it(prev_dynamic_conds);
       while ((cur_wrapped_cond= dyn_cond_it++))
-        wrapped_select_cond->add_pred(cur_wrapped_cond);
+      {
+        if (!wrapped_select_cond)
+          wrapped_select_cond= cur_wrapped_cond;
+        else
+          wrapped_select_cond->add_pred(cur_wrapped_cond);
+        
+        /*
+          psergey-todo: conditions have limits on how far to the right they can be
+          moved (Item_func_dynamic_cond::last_tab).  Don't attach conditions to
+          where they can't be moved.
+        */
+        if (cur_wrapped_cond->get_last_tab() == tab)
+          dyn_cond_it.remove();
+      }
     }
     prev_dynamic_conds.concat(&cur_dynamic_conds);
     cur_dynamic_conds.empty();
