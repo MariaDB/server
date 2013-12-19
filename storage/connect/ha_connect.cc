@@ -3555,7 +3555,7 @@ static bool add_fields(PGLOBAL g,
 #else   // !NEW_WAY
 static bool add_field(String *sql, const char *field_name, int typ,
                       int len, int dec, uint tm, const char *rem,
-                      char *dft, int flag, bool dbf, char v)
+                      char *dft, char *xtra, int flag, bool dbf, char v)
 {
   char var = (len > 255) ? 'V' : v;
   bool error= false;
@@ -3597,6 +3597,11 @@ static bool add_field(String *sql, const char *field_name, int typ,
     } else
       error|= sql->append(dft);
 
+    } // endif dft
+
+  if (xtra && *xtra) {
+    error|= sql->append(" ");
+    error|= sql->append(xtra);
     } // endif rem
 
   if (rem && *rem) {
@@ -4106,7 +4111,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     } // endif src
 
   if (ok) {
-    char   *cnm, *rem, *dft;
+    char   *cnm, *rem, *dft, *xtra;
     int     i, len, prec, dec, typ, flg;
     PDBUSER dup= PlgGetUser(g);
     PCATLG  cat= (dup) ? dup->Catalog : NULL;
@@ -4217,7 +4222,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #else   // !NEW_WAY
         // Now add the field
         if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG,
-                      0, NULL, flg, dbf, 0))
+                      NULL, NULL, NULL, flg, dbf, 0))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
       } // endfor crp
@@ -4227,7 +4232,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         typ= len= prec= dec= 0;
         tm= NOT_NULL_FLAG;
         cnm= (char*)"noname";
-        dft= NULL;
+        dft= xtra= NULL;
 #if defined(NEW_WAY)
         rem= "";
 //      cs= NULL;
@@ -4271,6 +4276,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
             case FLD_DEFAULT:
               dft= crp->Kdata->GetCharValue(i);
               break;
+            case FLD_EXTRA:
+              xtra= crp->Kdata->GetCharValue(i);
+              break;
             default:
               break;                 // Ignore
             } // endswitch Fld
@@ -4307,7 +4315,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         rc= add_fields(g, thd, &alter_info, cnm, typ, prec, dec,
                        tm, rem, 0, dbf, v);
 #else   // !NEW_WAY
-        if (add_field(&sql, cnm, typ, prec, dec, tm, rem, dft, 0, dbf, v))
+        if (add_field(&sql, cnm, typ, prec, dec, tm, rem, dft, xtra,
+                      0, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
         } // endfor i
