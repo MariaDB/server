@@ -65,13 +65,15 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
                   const char *table, const char *colpat,
                   int port, bool info)
   {
-  static int  buftyp[] = {TYPE_STRING, TYPE_SHORT,  TYPE_STRING, TYPE_INT,
-                          TYPE_STRING, TYPE_SHORT,  TYPE_SHORT,  TYPE_SHORT,
-                          TYPE_STRING, TYPE_STRING, TYPE_STRING, TYPE_STRING};
-  static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,  FLD_TYPENAME, FLD_PREC,
-                          FLD_KEY,  FLD_SCALE, FLD_RADIX,    FLD_NULL,
-                          FLD_REM,  FLD_NO,    FLD_DEFAULT,  FLD_CHARSET};
-  static unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 32, 0, 32};
+  int  buftyp[] = {TYPE_STRING, TYPE_SHORT,  TYPE_STRING, TYPE_INT,
+                   TYPE_STRING, TYPE_SHORT,  TYPE_SHORT,  TYPE_SHORT,
+                   TYPE_STRING, TYPE_STRING, TYPE_STRING, TYPE_STRING,
+                   TYPE_STRING};
+  XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,  FLD_TYPENAME, FLD_PREC,
+                   FLD_KEY,  FLD_SCALE, FLD_RADIX,    FLD_NULL,
+                   FLD_REM,  FLD_NO,    FLD_DEFAULT,  FLD_EXTRA,
+                   FLD_CHARSET};
+  unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
   char   *fld, *fmt, v, cmd[128], uns[16], zero[16];
   int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
   int     len, type, prec, rc, k = 0;
@@ -110,7 +112,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
     /*  Get the size of the name and default columns.                   */
     /********************************************************************/
     length[0] = myc.GetFieldLength(0);
-    length[10] = myc.GetFieldLength(5);
+//  length[10] = myc.GetFieldLength(5);
   } else {
     n = 0;
     length[0] = 128;
@@ -130,7 +132,9 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
       case  4: crp->Name = "Length";    break;
       case  5: crp->Name = "Key";       break;
       case 10: crp->Name = "Date_fmt";  break;
-      case 11: crp->Name = "Collation"; break;
+      case 11: crp->Name = "Default";   break;
+      case 12: crp->Name = "Extra";     break;
+      case 13: crp->Name = "Collation"; break;
       } // endswitch i
 
   if (info)
@@ -224,10 +228,15 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
     crp->Kdata->SetValue(fld, i);
 
     crp = crp->Next;                       // Date format
-    crp->Kdata->SetValue((fmt) ? fmt : (char*) "", i);
+//  crp->Kdata->SetValue((fmt) ? fmt : (char*) "", i);
+    crp->Kdata->SetValue(fmt, i);
 
     crp = crp->Next;                       // New (default)
     fld = myc.GetCharField(5);
+    crp->Kdata->SetValue(fld, i);
+
+    crp = crp->Next;                       // New (extra)
+    fld = myc.GetCharField(6);
     crp->Kdata->SetValue(fld, i);
 
     crp = crp->Next;                       // New (charset)

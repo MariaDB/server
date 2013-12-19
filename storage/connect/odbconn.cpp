@@ -287,9 +287,9 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
   int  buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING, TYPE_STRING,
                    TYPE_SHORT,  TYPE_STRING, TYPE_INT,    TYPE_INT,
                    TYPE_SHORT,  TYPE_SHORT,  TYPE_SHORT,  TYPE_STRING};
-  XFLD fldtyp[] = {FLD_QUALIF, FLD_OWNER,    FLD_TABNAME, FLD_NAME,
-                   FLD_TYPE,   FLD_TYPENAME, FLD_PREC,    FLD_LENGTH,
-                   FLD_SCALE,  FLD_RADIX,    FLD_NULL,    FLD_REM};
+  XFLD fldtyp[] = {FLD_CAT,   FLD_SCHEM,    FLD_TABNAME, FLD_NAME,
+                   FLD_TYPE,  FLD_TYPENAME, FLD_PREC,    FLD_LENGTH,
+                   FLD_SCALE, FLD_RADIX,    FLD_NULL,    FLD_REM};
   unsigned int length[] = {0, 0, 0, 0, 6, 0, 10, 10, 6, 6, 6, 0};
   int      n, ncol = 12;
   PQRYRES  qrp;
@@ -565,8 +565,8 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
   {
   int      buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
                        TYPE_STRING, TYPE_STRING};
-  XFLD     fldtyp[] = {FLD_QUALIF, FLD_OWNER, FLD_NAME,
-                       FLD_TYPE,   FLD_REM};
+  XFLD     fldtyp[] = {FLD_CAT,  FLD_SCHEM, FLD_NAME,
+                       FLD_TYPE, FLD_REM};
   unsigned int length[] = {0, 0, 0, 16, 0};
   int      n, ncol = 5;
   PQRYRES  qrp;

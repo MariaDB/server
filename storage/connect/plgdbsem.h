@@ -496,11 +496,12 @@ enum XFLD {FLD_NO       =  0,         /* Not a field definition item   */
            FLD_CHARSET  = 10,         /* Field collation               */
            FLD_KEY      = 11,         /* Field key property            */
            FLD_DEFAULT  = 12,         /* Field default value           */
-           FLD_PRIV     = 13,         /* Field priviledges             */
-           FLD_DATEFMT  = 14,         /* Field date format             */
-           FLD_QUALIF   = 15,         /* Table qualifier               */
-           FLD_OWNER    = 16,         /* Table owner                   */
-           FLD_TABNAME  = 17};        /* Column Table name             */
+           FLD_EXTRA    = 13,         /* Field extra info              */
+           FLD_PRIV     = 14,         /* Field priviledges             */
+           FLD_DATEFMT  = 15,         /* Field date format             */
+           FLD_CAT      = 16,         /* Table catalog                 */
+           FLD_SCHEM    = 17,         /* Table schema                  */
+           FLD_TABNAME  = 18};        /* Column Table name             */
 
 /***********************************************************************/
 /*  Result of last SQL noconv query.                                   */
