@@ -4859,6 +4859,8 @@ retry:
 	start_page_no = space->size;
 	file_start_page_no = space->size - node->size;
 
+	/* JAN: TODO: Need to disable fast file extension for Fusion-io
+	currently.
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
 		ulint n_pages = size_after_extend - start_page_no;
@@ -4875,6 +4877,7 @@ retry:
 		goto complete_io;
 	}
 #endif
+	*/
 
 	/* Extend at most 64 pages at a time */
 	buf_size = ut_min(64, size_after_extend - start_page_no) * page_size;
