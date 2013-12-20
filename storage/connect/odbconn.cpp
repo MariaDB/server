@@ -125,7 +125,7 @@ int TranslateSQLType(int stp, int prec, int& len, char& v)
       break;
     case SQL_NUMERIC:                       //    2
     case SQL_DECIMAL:                       //    3
-      type = (prec) ? TYPE_FLOAT
+      type = (prec || len > 20) ? TYPE_FLOAT
            : (len > 10) ? TYPE_BIGINT : TYPE_INT;
       break;
     case SQL_INTEGER:                       //    4
