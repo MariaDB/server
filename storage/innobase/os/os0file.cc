@@ -386,6 +386,9 @@ os_file_set_atomic_writes(
 
 	if (ioctl(file, DFS_IOCTL_ATOMIC_WRITE_SET, &atomic_option)) {
 
+		fprintf(stderr, "InnoDB: Error: trying to enable atomic writes on "
+		"file %s on non-supported platform! Please restart with "
+			"innodb_use_atomic_writes disabled.\n", name);
 		os_file_handle_error_no_exit(name, "ioctl", FALSE, __FILE__, __LINE__);
 		return(FALSE);
 	}
@@ -2285,6 +2288,8 @@ os_file_set_size(
 
 	current_size = 0;
 
+	/* JAN: TODO: Disable posix_fallocate file extension for Fusion-io
+	because currently it assumes that pages are initialized by zeroes
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
 
@@ -2300,6 +2305,7 @@ os_file_set_size(
 		return(TRUE);
 	}
 #endif
+	*/
 
 
 	/* Write up to 1 megabyte at a time. */
