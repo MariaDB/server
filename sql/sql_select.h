@@ -788,8 +788,6 @@ typedef struct st_position :public Sql_alloc
 {
   /* The table that's put into join order */
   JOIN_TAB *table;
-  /*  The JOIN_TAB after this one with the least partial join cardinality */
-  st_position *least_card_pos;
 
   /*
     The "fanout": number of output rows that will be produced (after

@@ -24535,6 +24535,7 @@ double JOIN::static_pushdown_cost(uint idx)
   List_iterator<Item> it(preds);
   Item *cur_item;
   double pushed_cond_cost= 0;
+  POSITION *least_card_pos[MAX_TABLES];
 
   /*
     For each POSITION, find and store the POSITION with the least partial
@@ -24547,7 +24548,7 @@ double JOIN::static_pushdown_cost(uint idx)
     if (!min_pos ||
         p_pos->partial_join_cardinality <= min_pos->partial_join_cardinality)
       min_pos= p_pos;
-    p_pos->least_card_pos= min_pos;
+    least_card_pos[p_pos - positions]= min_pos;
   }
 
   /* Turn the WHERE clause into a uniform list representation. */
@@ -24587,7 +24588,7 @@ double JOIN::static_pushdown_cost(uint idx)
       continue; /* cur_item depends only on constant tables */
 
     /* The optimal position with least cardinality where to push cur_item. */
-    opt_pos= last_pos->least_card_pos;
+    opt_pos= least_card_pos[last_pos - positions];
 
     /*
       Update the cost of the POSITION as if cur_item will be pushed to the
