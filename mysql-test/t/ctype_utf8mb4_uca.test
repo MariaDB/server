@@ -54,3 +54,19 @@ SET collation_connection=utf8mb4_czech_ci;
 --echo #
 --echo # End of 5.5 tests
 --echo #
+
+
+--echo #
+--echo # Start of MariaDB-10.0 tests
+--echo #
+--echo
+
+--echo #
+--echo # MDEV-4929 Myanmar collation
+--echo #
+SET NAMES utf8mb4 COLLATE utf8mb4_myanmar_ci;
+--source include/ctype_myanmar.inc
+
+--echo #
+--echo # End of MariaDB-10.0 tests
+--echo #
