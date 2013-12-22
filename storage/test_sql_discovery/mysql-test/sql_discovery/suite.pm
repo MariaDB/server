@@ -1,4 +1,4 @@
-package My::Suite::SQL_Discovery
+package My::Suite::SQL_Discovery;
 
 @ISA = qw(My::Suite);
 
