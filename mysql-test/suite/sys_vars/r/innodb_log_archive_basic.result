@@ -1,0 +1,38 @@
+SELECT @@GLOBAL.innodb_log_archive;
+@@GLOBAL.innodb_log_archive
+0
+0 Expected
+SET @save_innodb_log_archive = @@GLOBAL.innodb_log_archive;
+SET @@GLOBAL.innodb_log_archive=1;
+SELECT @@GLOBAL.innodb_log_archive;
+@@GLOBAL.innodb_log_archive
+1
+1 Expected
+SELECT VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='innodb_log_archive';
+VARIABLE_VALUE
+ON
+ON Expected
+SET @@GLOBAL.innodb_log_archive = @save_innodb_log_archive;
+SELECT @@innodb_log_archive;
+@@innodb_log_archive
+0
+0 Expected
+SELECT @@innodb_log_archive;
+@@innodb_log_archive
+0
+0 Expected
+SELECT @@local.innodb_log_archive;
+ERROR HY000: Variable 'innodb_log_archive' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT @@SESSION.innodb_log_archive;
+ERROR HY000: Variable 'innodb_log_archive' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT @@GLOBAL.innodb_log_archive;
+@@GLOBAL.innodb_log_archive
+0
+0 Expected
+SELECT innodb_log_archive = @@SESSION.innodb_log_archive;
+ERROR 42S22: Unknown column 'innodb_log_archive' in 'field list'
+Expected error Unknown column 'innodb_log_archive' in 'field list'

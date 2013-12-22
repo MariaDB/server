@@ -1,0 +1,30 @@
+SET @start_value = @@GLOBAL.innodb_sched_priority_io;
+SELECT @@GLOBAL.innodb_sched_priority_io;
+@@GLOBAL.innodb_sched_priority_io
+19
+SELECT @@SESSION.innodb_sched_priority_io;
+ERROR HY000: Variable 'innodb_sched_priority_io' is a GLOBAL variable
+SET GLOBAL innodb_sched_priority_io=19;
+SELECT @@GLOBAL.innodb_sched_priority_io;
+@@GLOBAL.innodb_sched_priority_io
+19
+SET GLOBAL innodb_sched_priority_io=5;
+SELECT @@GLOBAL.innodb_sched_priority_io;
+@@GLOBAL.innodb_sched_priority_io
+5
+SET GLOBAL innodb_sched_priority_io=0;
+SELECT @@GLOBAL.innodb_sched_priority_io;
+@@GLOBAL.innodb_sched_priority_io
+0
+SET GLOBAL innodb_sched_priority_io=-1;
+Warnings:
+Warning	1292	Truncated incorrect innodb_sched_priority_io value: '-1'
+SELECT @@GLOBAL.innodb_sched_priority_io;
+@@GLOBAL.innodb_sched_priority_io
+0
+SET GLOBAL innodb_sched_priority_io=1.1;
+ERROR 42000: Incorrect argument type to variable 'innodb_sched_priority_io'
+SET GLOBAL innodb_sched_priority_io=1e1;
+ERROR 42000: Incorrect argument type to variable 'innodb_sched_priority_io'
+SET GLOBAL innodb_sched_priority_io='foo';
+ERROR 42000: Incorrect argument type to variable 'innodb_sched_priority_io'

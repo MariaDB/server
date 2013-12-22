@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,12 +27,11 @@ Created 3/26/1996 Heikki Tuuri
 #define trx0roll_h
 
 #include "univ.i"
+#include "btr0types.h"
 #include "trx0trx.h"
 #include "trx0types.h"
 #include "mtr0mtr.h"
 #include "trx0sys.h"
-
-#define trx_roll_free_all_savepoints(s) trx_roll_savepoints_free((s), NULL)
 
 /*******************************************************************//**
 Determines if this transaction is rolling back an incomplete transaction
@@ -53,12 +52,6 @@ trx_savept_take(
 /*============*/
 	trx_t*	trx);	/*!< in: transaction */
 /*******************************************************************//**
-Creates an undo number array. */
-UNIV_INTERN
-trx_undo_arr_t*
-trx_undo_arr_create(void);
-/*=====================*/
-/*******************************************************************//**
 Frees an undo number array. */
 UNIV_INTERN
 void
@@ -74,13 +67,6 @@ trx_undo_arr_get_nth_info(
 /*======================*/
 	trx_undo_arr_t*	arr,	/*!< in: undo number array */
 	ulint		n);	/*!< in: position */
-/***********************************************************************//**
-Tries truncate the undo logs. */
-UNIV_INTERN
-void
-trx_roll_try_truncate(
-/*==================*/
-	trx_t*	trx);	/*!< in/out: transaction */
 /********************************************************************//**
 Pops the topmost record when the two undo logs of a transaction are seen
 as a single stack of records ordered by their undo numbers. Inserts the
@@ -116,19 +102,6 @@ trx_undo_rec_release(
 /*=================*/
 	trx_t*		trx,	/*!< in/out: transaction */
 	undo_no_t	undo_no);/*!< in: undo number */
-/*********************************************************************//**
-Starts a rollback operation. */
-UNIV_INTERN
-void
-trx_rollback(
-/*=========*/
-	trx_t*		trx,	/*!< in: transaction */
-	trx_sig_t*	sig,	/*!< in: signal starting the rollback */
-	que_thr_t**	next_thr);/*!< in/out: next query thread to run;
-				if the value which is passed in is
-				a pointer to a NULL pointer, then the
-				calling function can start running
-				a new query thread */
 /*******************************************************************//**
 Rollback or clean up any incomplete transactions which were
 encountered in crash recovery.  If the transaction already was
@@ -147,38 +120,13 @@ committed, then we clean up a possible insert undo log. If the
 transaction was not yet committed, then we roll it back.
 Note: this is done in a background thread.
 @return	a dummy parameter */
-UNIV_INTERN
+extern "C" UNIV_INTERN
 os_thread_ret_t
-trx_rollback_or_clean_all_recovered(
-/*================================*/
+DECLARE_THREAD(trx_rollback_or_clean_all_recovered)(
+/*================================================*/
 	void*	arg __attribute__((unused)));
 			/*!< in: a dummy parameter required by
 			os_thread_create */
-/****************************************************************//**
-Finishes a transaction rollback. */
-UNIV_INTERN
-void
-trx_finish_rollback_off_kernel(
-/*===========================*/
-	que_t*		graph,	/*!< in: undo graph which can now be freed */
-	trx_t*		trx,	/*!< in: transaction */
-	que_thr_t**	next_thr);/*!< in/out: next query thread to run;
-				if the value which is passed in is
-				a pointer to a NULL pointer, then the
-				calling function can start running
-				a new query thread; if this parameter is
-				NULL, it is ignored */
-/****************************************************************//**
-Builds an undo 'query' graph for a transaction. The actual rollback is
-performed by executing this query graph like a query subprocedure call.
-The reply about the completion of the rollback will be sent by this
-graph.
-@return	own: the query graph */
-UNIV_INTERN
-que_t*
-trx_roll_graph_build(
-/*=================*/
-	trx_t*	trx);	/*!< in: trx handle */
 /*********************************************************************//**
 Creates a rollback command node struct.
 @return	own: rollback node struct */
@@ -199,29 +147,32 @@ trx_rollback_step(
 Rollback a transaction used in MySQL.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
-int
+dberr_t
 trx_rollback_for_mysql(
 /*===================*/
-	trx_t*	trx);	/*!< in: transaction handle */
+	trx_t*	trx)	/*!< in/out: transaction */
+	__attribute__((nonnull));
 /*******************************************************************//**
 Rollback the latest SQL statement for MySQL.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
-int
+dberr_t
 trx_rollback_last_sql_stat_for_mysql(
 /*=================================*/
-	trx_t*	trx);	/*!< in: transaction handle */
+	trx_t*	trx)	/*!< in/out: transaction */
+	__attribute__((nonnull));
 /*******************************************************************//**
-Rollback a transaction used in MySQL.
+Rollback a transaction to a given savepoint or do a complete rollback.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
-int
-trx_general_rollback_for_mysql(
-/*===========================*/
+dberr_t
+trx_rollback_to_savepoint(
+/*======================*/
 	trx_t*		trx,	/*!< in: transaction handle */
-	trx_savept_t*	savept);/*!< in: pointer to savepoint undo number, if
+	trx_savept_t*	savept)	/*!< in: pointer to savepoint undo number, if
 				partial rollback requested, or NULL for
 				complete rollback */
+	__attribute__((nonnull(1)));
 /*******************************************************************//**
 Rolls back a transaction back to a named savepoint. Modifications after the
 savepoint are undone but InnoDB does NOT release the corresponding locks
@@ -232,17 +183,18 @@ were set after this savepoint are deleted.
 @return if no savepoint of the name found then DB_NO_SAVEPOINT,
 otherwise DB_SUCCESS */
 UNIV_INTERN
-ulint
+dberr_t
 trx_rollback_to_savepoint_for_mysql(
 /*================================*/
 	trx_t*		trx,			/*!< in: transaction handle */
 	const char*	savepoint_name,		/*!< in: savepoint name */
-	ib_int64_t*	mysql_binlog_cache_pos);/*!< out: the MySQL binlog cache
+	ib_int64_t*	mysql_binlog_cache_pos)	/*!< out: the MySQL binlog cache
 						position corresponding to this
 						savepoint; MySQL needs this
 						information to remove the
 						binlog entries of the queries
 						executed after the savepoint */
+	__attribute__((nonnull, warn_unused_result));
 /*******************************************************************//**
 Creates a named savepoint. If the transaction is not yet started, starts it.
 If there is already a savepoint of the same name, this call erases that old
@@ -250,40 +202,30 @@ savepoint and replaces it with a new. Savepoints are deleted in a transaction
 commit or rollback.
 @return	always DB_SUCCESS */
 UNIV_INTERN
-ulint
+dberr_t
 trx_savepoint_for_mysql(
 /*====================*/
 	trx_t*		trx,			/*!< in: transaction handle */
 	const char*	savepoint_name,		/*!< in: savepoint name */
-	ib_int64_t	binlog_cache_pos);	/*!< in: MySQL binlog cache
+	ib_int64_t	binlog_cache_pos)	/*!< in: MySQL binlog cache
 						position corresponding to this
 						connection at the time of the
 						savepoint */
-
+	__attribute__((nonnull));
 /*******************************************************************//**
 Releases a named savepoint. Savepoints which
 were set after this savepoint are deleted.
 @return if no savepoint of the name found then DB_NO_SAVEPOINT,
 otherwise DB_SUCCESS */
 UNIV_INTERN
-ulint
+dberr_t
 trx_release_savepoint_for_mysql(
 /*============================*/
 	trx_t*		trx,			/*!< in: transaction handle */
-	const char*	savepoint_name);	/*!< in: savepoint name */
-
+	const char*	savepoint_name)		/*!< in: savepoint name */
+	__attribute__((nonnull, warn_unused_result));
 /*******************************************************************//**
-Frees a single savepoint struct. */
-UNIV_INTERN
-void
-trx_roll_savepoint_free(
-/*=====================*/
-	trx_t*			trx,	/*!< in: transaction handle */
-	trx_named_savept_t*	savep);	/*!< in: savepoint to free */
-
-/*******************************************************************//**
-Frees savepoint structs starting from savep, if savep == NULL then
-free all savepoints. */
+Frees savepoint structs starting from savep. */
 UNIV_INTERN
 void
 trx_roll_savepoints_free(
@@ -293,34 +235,35 @@ trx_roll_savepoints_free(
 					if this is NULL, free all savepoints
 					of trx */
 
-/** A cell of trx_undo_arr_struct; used during a rollback and a purge */
-struct	trx_undo_inf_struct{
+/** A cell of trx_undo_arr_t; used during a rollback and a purge */
+struct	trx_undo_inf_t{
+	ibool		in_use;	/*!< true if cell is being used */
 	trx_id_t	trx_no;	/*!< transaction number: not defined during
 				a rollback */
 	undo_no_t	undo_no;/*!< undo number of an undo record */
-	ibool		in_use;	/*!< TRUE if the cell is in use */
 };
 
 /** During a rollback and a purge, undo numbers of undo records currently being
 processed are stored in this array */
 
-struct trx_undo_arr_struct{
+struct trx_undo_arr_t{
 	ulint		n_cells;	/*!< number of cells in the array */
-	ulint		n_used;		/*!< number of cells currently in use */
+	ulint		n_used;		/*!< number of cells in use */
 	trx_undo_inf_t*	infos;		/*!< the array of undo infos */
 	mem_heap_t*	heap;		/*!< memory heap from which allocated */
 };
 
 /** Rollback node states */
 enum roll_node_state {
-	ROLL_NODE_SEND = 1,	/*!< about to send a rollback signal to
-				the transaction */
-	ROLL_NODE_WAIT		/*!< rollback signal sent to the transaction,
-				waiting for completion */
+	ROLL_NODE_NONE = 0,		/*!< Unknown state */
+	ROLL_NODE_SEND,			/*!< about to send a rollback signal to
+					the transaction */
+	ROLL_NODE_WAIT			/*!< rollback signal sent to the
+				       	transaction, waiting for completion */
 };
 
 /** Rollback command node in a query graph */
-struct roll_node_struct{
+struct roll_node_t{
 	que_common_t		common;	/*!< node type: QUE_NODE_ROLLBACK */
 	enum roll_node_state	state;	/*!< node execution state */
 	ibool			partial;/*!< TRUE if we want a partial
@@ -328,10 +271,11 @@ struct roll_node_struct{
 	trx_savept_t		savept;	/*!< savepoint to which to
 					roll back, in the case of a
 					partial rollback */
+	que_thr_t*		undo_thr;/*!< undo query graph */
 };
 
 /** A savepoint set with SQL's "SAVEPOINT savepoint_id" command */
-struct trx_named_savept_struct{
+struct trx_named_savept_t{
 	char*		name;		/*!< savepoint name */
 	trx_savept_t	savept;		/*!< the undo number corresponding to
 					the savepoint */

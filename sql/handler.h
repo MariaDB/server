@@ -1369,7 +1369,7 @@ static inline sys_var *find_hton_sysvar(handlerton *hton, st_mysql_sys_var *var)
   Schema which have no meaning for replication.
 */
 #define HTON_NO_BINLOG_ROW_OPT       (1 << 9)
-#define HTON_EXTENDED_KEYS           (1 <<10) //supports extended keys
+#define HTON_SUPPORTS_EXTENDED_KEYS  (1 <<10) //supports extended keys
 
 class Ha_trx_info;
 

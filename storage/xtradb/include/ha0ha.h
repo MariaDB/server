@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -45,9 +45,10 @@ ha_search_and_get_data(
 	ulint		fold);	/*!< in: folded value of the searched data */
 /*********************************************************//**
 Looks for an element when we know the pointer to the data and updates
-the pointer to data if found. */
+the pointer to data if found.
+@return TRUE if found */
 UNIV_INTERN
-void
+ibool
 ha_search_and_update_if_found_func(
 /*===============================*/
 	hash_table_t*	table,	/*!< in/out: hash table */
@@ -92,8 +93,12 @@ ha_create_func(
 	ulint	mutex_level,	/*!< in: level of the mutexes in the latching
 				order: this is used in the debug version */
 #endif /* UNIV_SYNC_DEBUG */
-	ulint	n_mutexes);	/*!< in: number of mutexes to protect the
+	ulint	n_mutexes,	/*!< in: number of mutexes to protect the
 				hash table: must be a power of 2, or 0 */
+	ulint	type);		/*!< in: type of datastructure for which
+				the memory heap is going to be used e.g.:
+				MEM_HEAP_FOR_BTR_SEARCH or
+				MEM_HEAP_FOR_PAGE_HASH */
 #ifdef UNIV_SYNC_DEBUG
 /** Creates a hash table.
 @return		own: created table
@@ -102,7 +107,7 @@ chosen to be a slightly bigger prime number.
 @param level	in: level of the mutexes in the latching order
 @param n_m	in: number of mutexes to protect the hash table;
 		must be a power of 2, or 0 */
-# define ha_create(n_c,n_m,level) ha_create_func(n_c,level,n_m)
+# define ha_create(n_c,n_m,type,level) ha_create_func(n_c,level,n_m,type)
 #else /* UNIV_SYNC_DEBUG */
 /** Creates a hash table.
 @return		own: created table
@@ -111,8 +116,16 @@ chosen to be a slightly bigger prime number.
 @param level	in: level of the mutexes in the latching order
 @param n_m	in: number of mutexes to protect the hash table;
 		must be a power of 2, or 0 */
-# define ha_create(n_c,n_m,level) ha_create_func(n_c,n_m)
+# define ha_create(n_c,n_m,type,level) ha_create_func(n_c,n_m,type)
 #endif /* UNIV_SYNC_DEBUG */
+
+/*************************************************************//**
+Empties a hash table and frees the memory heaps. */
+UNIV_INTERN
+void
+ha_clear(
+/*=====*/
+	hash_table_t*	table);	/*!< in, own: hash table */
 
 /*************************************************************//**
 Inserts an entry into a hash table. If an entry with the same fold number
@@ -143,7 +156,10 @@ is inserted.
 @param f	in: folded value of data
 @param b	in: buffer block containing the data
 @param d	in: data, must not be NULL */
-# define ha_insert_for_fold(t,f,b,d) ha_insert_for_fold_func(t,f,b,d)
+# define ha_insert_for_fold(t,f,b,d) 	do {		\
+	ha_insert_for_fold_func(t,f,b,d);		\
+	MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);	\
+} while(0)
 #else /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 /**
 Inserts an entry into a hash table. If an entry with the same fold number
@@ -154,7 +170,10 @@ is inserted.
 @param f	in: folded value of data
 @param b	ignored: buffer block containing the data
 @param d	in: data, must not be NULL */
-# define ha_insert_for_fold(t,f,b,d) ha_insert_for_fold_func(t,f,d)
+# define ha_insert_for_fold(t,f,b,d)	do {		\
+	ha_insert_for_fold_func(t,f,d);			\
+	MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);	\
+} while (0)
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 
 /*********************************************************//**
@@ -202,10 +221,7 @@ ha_print_info(
 #endif /* !UNIV_HOTBACKUP */
 
 /** The hash table external chain node */
-typedef struct ha_node_struct ha_node_t;
-
-/** The hash table external chain node */
-struct ha_node_struct {
+struct ha_node_t {
 	ha_node_t*	next;	/*!< next chain node or NULL if none */
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	buf_block_t*	block;	/*!< buffer block containing the data, or NULL */
@@ -214,20 +230,33 @@ struct ha_node_struct {
 	ulint		fold;	/*!< fold value for the data */
 };
 
-#ifndef UNIV_HOTBACKUP
-/** Assert that the current thread is holding the mutex protecting a
-hash bucket corresponding to a fold value.
-@param table	in: hash table
-@param fold	in: fold value */
-# define ASSERT_HASH_MUTEX_OWN(table, fold)				\
-	ut_ad(!(table)->mutexes || mutex_own(hash_get_mutex(table, fold)))
-#else /* !UNIV_HOTBACKUP */
-/** Assert that the current thread is holding the mutex protecting a
-hash bucket corresponding to a fold value.
-@param table	in: hash table
-@param fold	in: fold value */
-# define ASSERT_HASH_MUTEX_OWN(table, fold) ((void) 0)
-#endif /* !UNIV_HOTBACKUP */
+#ifdef UNIV_DEBUG
+/********************************************************************//**
+Assert that the synchronization object in a hash operation involving
+possible change in the hash table is held.
+Note that in case of mutexes we assert that mutex is owned while in case
+of rw-locks we assert that it is held in exclusive mode. */
+UNIV_INLINE
+void
+hash_assert_can_modify(
+/*===================*/
+	hash_table_t*	table,	/*!< in: hash table */
+	ulint		fold);	/*!< in: fold value */
+/********************************************************************//**
+Assert that the synchronization object in a hash search operation is held.
+Note that in case of mutexes we assert that mutex is owned while in case
+of rw-locks we assert that it is held either in x-mode or s-mode. */
+UNIV_INLINE
+void
+hash_assert_can_search(
+/*===================*/
+	hash_table_t*	table,	/*!< in: hash table */
+	ulint		fold);	/*!< in: fold value */
+#else /* UNIV_DEBUG */
+#define hash_assert_can_modify(t, f)
+#define hash_assert_can_search(t, f)
+#endif /* UNIV_DEBUG */
+
 
 #ifndef UNIV_NONINL
 #include "ha0ha.ic"

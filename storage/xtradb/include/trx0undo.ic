@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -100,6 +100,21 @@ trx_undo_roll_ptr_is_insert(
 #endif
 	ut_ad(roll_ptr < (1ULL << 56));
 	return((ibool) (roll_ptr >> 55));
+}
+
+/***********************************************************************//**
+Returns true if the record is of the insert type.
+@return	true if the record was freshly inserted (not updated). */
+UNIV_INLINE
+bool
+trx_undo_trx_id_is_insert(
+/*======================*/
+	const byte*	trx_id)	/*!< in: DB_TRX_ID, followed by DB_ROLL_PTR */
+{
+#if DATA_TRX_ID + 1 != DATA_ROLL_PTR
+# error
+#endif
+	return(static_cast<bool>(trx_id[DATA_TRX_ID_LEN] >> 7));
 }
 #endif /* !UNIV_HOTBACKUP */
 

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1994, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,6 +25,12 @@ Created 1/30/1994 Heikki Tuuri
 
 #ifndef ut0dbg_h
 #define ut0dbg_h
+
+#ifdef UNIV_INNOCHECKSUM
+#define ut_a		assert
+#define ut_ad		assert
+#define ut_error	assert(0)
+#else /* !UNIV_INNOCHECKSUM */
 
 #include "univ.i"
 #include <stdlib.h>
@@ -97,10 +103,10 @@ ut_dbg_assertion_failed(
 #include <sys/resource.h>
 
 /** structure used for recording usage statistics */
-typedef struct speedo_struct {
+struct speedo_t {
 	struct rusage	ru;	/*!< getrusage() result */
 	struct timeval	tv;	/*!< gettimeofday() result */
-} speedo_t;
+};
 
 /*******************************************************************//**
 Resets a speedo (records the current time in it). */
@@ -120,5 +126,7 @@ speedo_show(
 	const speedo_t*	speedo);	/*!< in: speedo */
 
 #endif /* UNIV_COMPILE_TEST_FUNCS */
+
+#endif /* !UNIV_INNOCHECKSUM */
 
 #endif

@@ -1191,7 +1191,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       next_chunk+= str_db_type_length + 2;
     }
 
-    share->set_use_ext_keys_flag(plugin_hton(se_plugin)->flags & HTON_EXTENDED_KEYS);
+    share->set_use_ext_keys_flag(plugin_hton(se_plugin)->flags & HTON_SUPPORTS_EXTENDED_KEYS);
 
     if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, ext_key_parts,

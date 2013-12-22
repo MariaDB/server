@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1994, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -30,17 +30,14 @@ Created 6/9/1994 Heikki Tuuri
 #include "os0file.h"
 #include "ut0lst.h"
 
-/** Memory area header */
-typedef struct mem_area_struct	mem_area_t;
 /** Memory pool */
-typedef struct mem_pool_struct	mem_pool_t;
+struct mem_pool_t;
 
 /** The common memory pool */
 extern mem_pool_t*	mem_comm_pool;
 
 /** Memory area header */
-
-struct mem_area_struct{
+struct mem_area_t{
 	ulint		size_and_free;	/*!< memory area size is obtained by
 					anding with ~MEM_AREA_FREE; area in
 					a free list if ANDing with
@@ -50,7 +47,7 @@ struct mem_area_struct{
 };
 
 /** Each memory area takes this many extra bytes for control information */
-#define MEM_AREA_EXTRA_SIZE	(ut_calc_align(sizeof(struct mem_area_struct),\
+#define MEM_AREA_EXTRA_SIZE	(ut_calc_align(sizeof(struct mem_area_t),\
 			UNIV_MEM_ALIGNMENT))
 
 /********************************************************************//**
