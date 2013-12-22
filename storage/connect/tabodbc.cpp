@@ -1,7 +1,7 @@
 /************* Tabodbc C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABODBC                                               */
 /* -------------                                                       */
-/*  Version 2.6                                                        */
+/*  Version 2.7                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -90,8 +90,8 @@ extern int num_read, num_there, num_eq[2];                // Statistics
 /***********************************************************************/
 ODBCDEF::ODBCDEF(void)
   {
-  Connect = Tabname = Tabowner = Tabqual = Srcdef = Qrystr = NULL;
-  Catver = Options = Quoted = 0;
+  Connect = Tabname = Tabowner = Tabqual = Srcdef = Qchar = Qrystr = NULL;
+  Catver = Options = Quoted = Maxerr = Maxres = 0;
   Xsrc = false;
   }  // end of ODBCDEF constructor
 
@@ -104,13 +104,15 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Tabname = Cat->GetStringCatInfo(g, "Name",
                  (Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
   Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
-  Tabowner = Cat->GetStringCatInfo(g, "Owner", "");
-  Tabqual = Cat->GetStringCatInfo(g, "Qualifier", "");
+//Tabowner = Cat->GetStringCatInfo(g, "Owner", NULL);
+  Tabowner = Cat->GetStringCatInfo(g, "Dbname", NULL);
+  Tabqual = Cat->GetStringCatInfo(g, "Qualifier", NULL);
   Srcdef = Cat->GetStringCatInfo(g, "Srcdef", NULL);
   Qrystr = Cat->GetStringCatInfo(g, "Query_String", "?");
   Catver = Cat->GetIntCatInfo("Catver", 2);
   Xsrc = Cat->GetBoolCatInfo("Execsrc", FALSE);
-  Mxr = Cat->GetIntCatInfo("Maxerr", 0);
+  Maxerr = Cat->GetIntCatInfo("Maxerr", 0);
+  Maxres = Cat->GetIntCatInfo("Maxres", 0);
   Quoted = Cat->GetIntCatInfo("Quoted", 0);
   Options = ODBConn::noOdbcDialog;
   Pseudo = 2;    // FILID is Ok but not ROWID
@@ -1152,7 +1154,7 @@ TDBXDBC::TDBXDBC(PODEF tdp) : TDBODBC(tdp)
 {
   Cmdlist = NULL;
   Cmdcol = NULL;
-  Mxr = tdp->Mxr;
+  Mxr = tdp->Maxerr;
   Nerr = 0;
 } // end of TDBXDBC constructor
 
@@ -1385,16 +1387,6 @@ void XSRCCOL::WriteColumn(PGLOBAL g)
   // Should never be called
   } // end of WriteColumn
 
-/* ---------------------------TDBSRC class --------------------------- */
-
-/***********************************************************************/
-/*  GetResult: Get the list of ODBC data sources.                      */
-/***********************************************************************/
-PQRYRES TDBSRC::GetResult(PGLOBAL g)
-  {
-  return ODBCDataSources(g, false);
-	} // end of GetResult
-
 /* ---------------------------TDBDRV class --------------------------- */
 
 /***********************************************************************/
@@ -1402,7 +1394,17 @@ PQRYRES TDBSRC::GetResult(PGLOBAL g)
 /***********************************************************************/
 PQRYRES TDBDRV::GetResult(PGLOBAL g)
   {
-  return ODBCDrivers(g, false);
+  return ODBCDrivers(g, Maxres, false);
+	} // end of GetResult
+
+/* ---------------------------TDBSRC class --------------------------- */
+
+/***********************************************************************/
+/*  GetResult: Get the list of ODBC data sources.                      */
+/***********************************************************************/
+PQRYRES TDBSRC::GetResult(PGLOBAL g)
+  {
+  return ODBCDataSources(g, Maxres, false);
 	} // end of GetResult
 
 /* ---------------------------TDBOTB class --------------------------- */
@@ -1410,9 +1412,10 @@ PQRYRES TDBDRV::GetResult(PGLOBAL g)
 /***********************************************************************/
 /*  TDBOTB class constructor.                                          */
 /***********************************************************************/
-TDBOTB::TDBOTB(PODEF tdp) : TDBCAT(tdp)
+TDBOTB::TDBOTB(PODEF tdp) : TDBDRV(tdp)
   {
-  Dsn = tdp->GetConnect(); 
+  Dsn = tdp->GetConnect();
+  Schema = tdp->GetTabowner();
   Tab = tdp->GetTabname();
   } // end of TDBOTB constructor
 
@@ -1421,7 +1424,7 @@ TDBOTB::TDBOTB(PODEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBOTB::GetResult(PGLOBAL g)
   {
-  return ODBCTables(g, Dsn, Tab, false);
+  return ODBCTables(g, Dsn, Schema, Tab, Maxres, false);
 	} // end of GetResult
 
 /* ---------------------------TDBOCL class --------------------------- */
@@ -1431,7 +1434,7 @@ PQRYRES TDBOTB::GetResult(PGLOBAL g)
 /***********************************************************************/
 PQRYRES TDBOCL::GetResult(PGLOBAL g)
   {
-  return ODBCColumns(g, Dsn, Tab, NULL, false);
+  return ODBCColumns(g, Dsn, Schema, Tab, NULL, Maxres, false);
 	} // end of GetResult
 
 /* ------------------------ End of Tabodbc --------------------------- */

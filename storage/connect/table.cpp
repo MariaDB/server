@@ -478,6 +478,16 @@ bool TDBCAT::Initialize(PGLOBAL g)
   if (!(Qrp = GetResult(g)))
     return true;
 
+  if (Qrp->Truncated) {
+    sprintf(g->Message, "Result limited to %d lines", Qrp->Maxres);
+    PushWarning(g, this);
+    } // endif Truncated
+
+  if (Qrp->BadLines) {
+    sprintf(g->Message, "%d bad lines in result", Qrp->BadLines);
+    PushWarning(g, this);
+    } // endif Badlines
+
 	Init = true;
 	return false;
 	} // end of Initialize
@@ -488,10 +498,11 @@ bool TDBCAT::Initialize(PGLOBAL g)
 int TDBCAT::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
-    if (Initialize(g))
-      return -1;
+//  if (Initialize(g))
+//    return -1;
 
-    MaxSize = Qrp->Nblin;
+//  MaxSize = Qrp->Nblin;
+    MaxSize = 10;             // To make MariaDB happy
     } // endif MaxSize
 
   return MaxSize;
