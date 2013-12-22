@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -32,18 +32,15 @@ Created 5/27/1996 Heikki Tuuri
 /* Pseudotype for all graph nodes */
 typedef void	que_node_t;
 
-typedef struct que_fork_struct	que_fork_t;
-
 /* Query graph root is a fork node */
-typedef	que_fork_t	que_t;
+typedef	struct que_fork_t	que_t;
 
-typedef struct que_thr_struct		que_thr_t;
-typedef struct que_common_struct	que_common_t;
+struct que_thr_t;
 
 /* Common struct at the beginning of each query graph node; the name of this
 substruct must be 'common' */
 
-struct que_common_struct{
+struct que_common_t{
 	ulint		type;	/*!< query node type */
 	que_node_t*	parent;	/*!< back pointer to parent node, or NULL */
 	que_node_t*	brother;/* pointer to a possible brother node */

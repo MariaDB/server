@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1995, 2010, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,6 +26,9 @@ Created 12/9/1995 Heikki Tuuri
 #include "os0file.h"
 #include "mach0data.h"
 #include "mtr0mtr.h"
+#include "srv0mon.h"
+#include "srv0srv.h"
+#include "ut0crc32.h"
 
 #ifdef UNIV_LOG_DEBUG
 /******************************************************//**
@@ -192,18 +195,29 @@ UNIV_INLINE
 ulint
 log_block_convert_lsn_to_no(
 /*========================*/
-	ib_uint64_t	lsn)	/*!< in: lsn of a byte within the block */
+	lsn_t	lsn)	/*!< in: lsn of a byte within the block */
 {
 	return(((ulint) (lsn / OS_FILE_LOG_BLOCK_SIZE) & 0x3FFFFFFFUL) + 1);
 }
 
 /************************************************************//**
-Calculates the checksum for a log block.
+Calculates the checksum for a log block using the current algorithm.
 @return	checksum */
 UNIV_INLINE
 ulint
 log_block_calc_checksum(
 /*====================*/
+	const byte*	block)	/*!< in: log block */
+{
+	return(log_checksum_algorithm_ptr(block));
+}
+/************************************************************//**
+Calculates the checksum for a log block using the default InnoDB algorithm.
+@return	checksum */
+UNIV_INLINE
+ulint
+log_block_calc_checksum_innodb(
+/*===========================*/
 	const byte*	block)	/*!< in: log block */
 {
 	ulint	sum;
@@ -225,6 +239,30 @@ log_block_calc_checksum(
 	}
 
 	return(sum);
+}
+
+/************************************************************//**
+Calculates the checksum for a log block using the CRC32 algorithm.
+@return	checksum */
+UNIV_INLINE
+ulint
+log_block_calc_checksum_crc32(
+/*==========================*/
+	const byte*	block)	/*!< in: log block */
+{
+	return(ut_crc32(block, OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE));
+}
+
+/************************************************************//**
+Calculates the checksum for a log block using the "no-op" algorithm.
+@return	checksum */
+UNIV_INLINE
+ulint
+log_block_calc_checksum_none(
+/*=========================*/
+	const byte*	block)	/*!< in: log block */
+{
+	return(LOG_NO_CHECKSUM_MAGIC);
 }
 
 /************************************************************//**
@@ -260,8 +298,8 @@ UNIV_INLINE
 void
 log_block_init(
 /*===========*/
-	byte*		log_block,	/*!< in: pointer to the log buffer */
-	ib_uint64_t	lsn)		/*!< in: lsn within the log block */
+	byte*	log_block,	/*!< in: pointer to the log buffer */
+	lsn_t	lsn)		/*!< in: lsn within the log block */
 {
 	ulint	no;
 
@@ -282,8 +320,8 @@ UNIV_INLINE
 void
 log_block_init_in_old_format(
 /*=========================*/
-	byte*		log_block,	/*!< in: pointer to the log buffer */
-	ib_uint64_t	lsn)		/*!< in: lsn within the log block */
+	byte*	log_block,	/*!< in: pointer to the log buffer */
+	lsn_t	lsn)		/*!< in: lsn within the log block */
 {
 	ulint	no;
 
@@ -304,12 +342,12 @@ Writes to the log the string given. The log must be released with
 log_release.
 @return	end lsn of the log record, zero if did not succeed */
 UNIV_INLINE
-ib_uint64_t
+lsn_t
 log_reserve_and_write_fast(
 /*=======================*/
 	const void*	str,	/*!< in: string */
 	ulint		len,	/*!< in: string length */
-	ib_uint64_t*	start_lsn)/*!< out: start lsn of the log record */
+	lsn_t*		start_lsn)/*!< out: start lsn of the log record */
 {
 	ulint		data_len;
 #ifdef UNIV_LOG_LSN_DEBUG
@@ -374,6 +412,9 @@ log_reserve_and_write_fast(
 
 	log_sys->lsn += len;
 
+	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
+		    log_sys->lsn - log_sys->last_checkpoint_lsn);
+
 #ifdef UNIV_LOG_DEBUG
 	log_check_log_recs(log_sys->buf + log_sys->old_buf_free,
 			   log_sys->buf_free - log_sys->old_buf_free,
@@ -411,11 +452,11 @@ log_release(void)
 Gets the current lsn.
 @return	current lsn */
 UNIV_INLINE
-ib_uint64_t
+lsn_t
 log_get_lsn(void)
 /*=============*/
 {
-	ib_uint64_t	lsn;
+	lsn_t	lsn;
 
 	mutex_enter(&(log_sys->mutex));
 
@@ -450,11 +491,23 @@ Gets the log group capacity. It is OK to read the value without
 holding log_sys->mutex because it is constant.
 @return	log group capacity */
 UNIV_INLINE
-ulint
+lsn_t
 log_get_capacity(void)
 /*==================*/
 {
 	return(log_sys->log_group_capacity);
+}
+
+/****************************************************************
+Get log_sys::max_modified_age_async. It is OK to read the value without
+holding log_sys::mutex because it is constant.
+@return	max_modified_age_async */
+UNIV_INLINE
+lsn_t
+log_get_max_modified_age_async(void)
+/*================================*/
+{
+	return(log_sys->max_modified_age_async);
 }
 
 /***********************************************************************//**

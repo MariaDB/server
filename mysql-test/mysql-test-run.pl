@@ -4822,6 +4822,7 @@ sub extract_warning_lines ($$) {
      qr|Plugin 'FEEDBACK' init function returned error|,
      qr|Plugin 'FEEDBACK' registration as a INFORMATION SCHEMA failed|,
      qr|'log-bin-use-v1-row-events' is MySQL 5.6 compatible option|,
+     qr|InnoDB: Setting thread \d+ nice to \d+ failed, current nice \d+, errno 13|, # setpriority() fails under valgrind
     );
 
   my $matched_lines= [];

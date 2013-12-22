@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1994, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -34,6 +34,15 @@ typedef byte	rec_t;
 #define REC_MAX_HEAP_NO		(2 * 8192 - 1)
 #define REC_MAX_N_OWNED		(16 - 1)
 
+/* Maximum number of user defined fields/columns. The reserved columns
+are the ones InnoDB adds internally: DB_ROW_ID, DB_TRX_ID, DB_ROLL_PTR.
+We need "* 2" because mlog_parse_index() creates a dummy table object
+possibly, with some of the system columns in it, and then adds the 3
+system columns (again) using dict_table_add_system_columns(). The problem
+is that mlog_parse_index() cannot recognize the system columns by
+just having n_fields, n_uniq and the lengths of the columns. */
+#define REC_MAX_N_USER_FIELDS	(REC_MAX_N_FIELDS - DATA_N_SYS_COLS * 2)
+
 /* REC_ANTELOPE_MAX_INDEX_COL_LEN is measured in bytes and is the maximum
 indexed field length (or indexed prefix length) for indexes on tables of
 ROW_FORMAT=REDUNDANT and ROW_FORMAT=COMPACT format.
@@ -45,10 +54,21 @@ This constant MUST NOT BE CHANGED, or the compatibility of InnoDB data
 files would be at risk! */
 #define REC_ANTELOPE_MAX_INDEX_COL_LEN		768
 
-/** Maximum indexed field length for table format DICT_TF_FORMAT_ZIP and
+/** Maximum indexed field length for table format UNIV_FORMAT_B and
 beyond.
 This (3072) is the maximum index row length allowed, so we cannot create index
 prefix column longer than that. */
 #define REC_VERSION_56_MAX_INDEX_COL_LEN	3072
+
+/** Innodb row types are a subset of the MySQL global enum row_type.
+They are made into their own enum so that switch statements can account
+for each of them. */
+enum rec_format_enum {
+	REC_FORMAT_REDUNDANT	= 0,	/*!< REDUNDANT row format */
+	REC_FORMAT_COMPACT	= 1,	/*!< COMPACT row format */
+	REC_FORMAT_COMPRESSED	= 2,	/*!< COMPRESSED row format */
+	REC_FORMAT_DYNAMIC	= 3	/*!< DYNAMIC row format */
+};
+typedef enum rec_format_enum rec_format_t;
 
 #endif

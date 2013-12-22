@@ -7,6 +7,10 @@
 drop table if exists t1;
 --enable_warnings
 
+if (`select plugin_auth_version <= "5.6.10" from information_schema.plugins where plugin_name='innodb'`)
+{
+  --skip Not fixed in InnoDB 5.6.10 or earlier
+}
 
 # Save ft_boolean_syntax variable
 let $saved_ft_boolean_syntax=`select @@global.ft_boolean_syntax`;
@@ -27,6 +31,8 @@ set global ft_boolean_syntax=' +-><()~*:""&|';
 select * from t1 where match b against ('+aaaaaa bbbbbb' in boolean mode);
 set global ft_boolean_syntax='@ -><()~*:""&|';
 select * from t1 where match b against ('+aaaaaa bbbbbb' in boolean mode);
+
+--error ER_PARSE_ERROR
 select * from t1 where match b against ('+aaaaaa @bbbbbb' in boolean mode);
 -- error 1231
 set global ft_boolean_syntax='@ -><()~*:""@|';

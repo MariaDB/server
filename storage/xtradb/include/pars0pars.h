@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -38,7 +38,7 @@ Created 11/19/1996 Heikki Tuuri
 and varies in type, while 'user_arg' is a user-supplied argument. The
 meaning of the return type also varies. See the individual use cases, e.g.
 the FETCH statement, for details on them. */
-typedef void* (*pars_user_func_cb_t)(void* arg, void* user_arg);
+typedef ibool	(*pars_user_func_cb_t)(void* arg, void* user_arg);
 
 /** If the following is set TRUE, the parser will emit debugging
 information */
@@ -74,6 +74,7 @@ extern pars_res_word_t	pars_distinct_token;
 extern pars_res_word_t	pars_binary_token;
 extern pars_res_word_t	pars_blob_token;
 extern pars_res_word_t	pars_int_token;
+extern pars_res_word_t	pars_bigint_token;
 extern pars_res_word_t	pars_char_token;
 extern pars_res_word_t	pars_float_token;
 extern pars_res_word_t	pars_update_token;
@@ -105,13 +106,13 @@ pars_sql(
 	pars_info_t*	info,	/*!< in: extra information, or NULL */
 	const char*	str);	/*!< in: SQL string */
 /*************************************************************//**
-Retrieves characters to the lexical analyzer. */
+Retrieves characters to the lexical analyzer.
+@return number of characters copied or 0 on EOF */
 UNIV_INTERN
-void
+int
 pars_get_lex_chars(
 /*===============*/
 	char*	buf,		/*!< in/out: buffer where to copy */
-	int*	result,		/*!< out: number of characters copied or EOF */
 	int	max_size);	/*!< in: maximum number of characters which fit
 				in the buffer */
 /*************************************************************//**
@@ -140,6 +141,17 @@ pars_func(
 /*======*/
 	que_node_t*	res_word,/*!< in: function name reserved word */
 	que_node_t*	arg);	/*!< in: first argument in the argument list */
+/*************************************************************************
+Rebind a LIKE search string. NOTE: We ignore any '%' characters embedded
+within the search string.
+@return	own: function node in a query tree */
+UNIV_INTERN
+int
+pars_like_rebind(
+/*=============*/
+        sym_node_t*     node,   /* in: The search string node.*/
+        const byte*     ptr,    /* in: literal to (re) bind */
+        ulint           len);   /* in: length of literal to (re) bind*/
 /*********************************************************************//**
 Parses an operator expression.
 @return	own: function node in a query tree */
@@ -397,7 +409,10 @@ pars_create_table(
 	sym_node_t*	table_sym,	/*!< in: table name node in the symbol
 					table */
 	sym_node_t*	column_defs,	/*!< in: list of column names */
-	void*		not_fit_in_memory);/*!< in: a non-NULL pointer means that
+	sym_node_t*	compact,	/* in: non-NULL if COMPACT table. */
+	sym_node_t*	block_size,	/* in: block size (can be NULL) */
+	void*		not_fit_in_memory);
+					/*!< in: a non-NULL pointer means that
 					this is a table which in simulations
 					should be simulated as not fitting
 					in memory; thread is put to sleep
@@ -454,9 +469,10 @@ que_thr_t*
 pars_complete_graph_for_exec(
 /*=========================*/
 	que_node_t*	node,	/*!< in: root node for an incomplete
-				query graph */
+				query graph, or NULL for dummy graph */
 	trx_t*		trx,	/*!< in: transaction handle */
-	mem_heap_t*	heap);	/*!< in: memory heap from which allocated */
+	mem_heap_t*	heap)	/*!< in: memory heap from which allocated */
+	__attribute__((nonnull(2,3), warn_unused_result));
 
 /****************************************************************//**
 Create parser info struct.
@@ -498,7 +514,76 @@ pars_info_add_str_literal(
 	pars_info_t*	info,		/*!< in: info struct */
 	const char*	name,		/*!< in: name */
 	const char*	str);		/*!< in: string */
+/********************************************************************
+If the literal value already exists then it rebinds otherwise it
+creates a new entry.*/
+UNIV_INTERN
+void
+pars_info_bind_literal(
+/*===================*/
+	pars_info_t*	info,		/* in: info struct */
+	const char*	name,		/* in: name */
+	const void*	address,	/* in: address */
+	ulint		length,		/* in: length of data */
+	ulint		type,		/* in: type, e.g. DATA_FIXBINARY */
+	ulint		prtype);	/* in: precise type, e.g. */
+/********************************************************************
+If the literal value already exists then it rebinds otherwise it
+creates a new entry.*/
+UNIV_INTERN
+void
+pars_info_bind_varchar_literal(
+/*===========================*/
+	pars_info_t*	info,		/*!< in: info struct */
+	const char*	name,		/*!< in: name */
+	const byte*	str,		/*!< in: string */
+	ulint		str_len);	/*!< in: string length */
+/****************************************************************//**
+Equivalent to:
 
+char buf[4];
+mach_write_to_4(buf, val);
+pars_info_add_literal(info, name, buf, 4, DATA_INT, 0);
+
+except that the buffer is dynamically allocated from the info struct's
+heap. */
+UNIV_INTERN
+void
+pars_info_bind_int4_literal(
+/*=======================*/
+	pars_info_t*		info,		/*!< in: info struct */
+	const char*		name,		/*!< in: name */
+	const ib_uint32_t*	val);		/*!< in: value */
+/********************************************************************
+If the literal value already exists then it rebinds otherwise it
+creates a new entry. */
+UNIV_INTERN
+void
+pars_info_bind_int8_literal(
+/*=======================*/
+	pars_info_t*		info,		/*!< in: info struct */
+	const char*		name,		/*!< in: name */
+	const ib_uint64_t*	val);		/*!< in: value */
+/****************************************************************//**
+Add user function. */
+UNIV_INTERN
+void
+pars_info_bind_function(
+/*===================*/
+	pars_info_t*		info,	/*!< in: info struct */
+	const char*		name,	/*!< in: function name */
+	pars_user_func_cb_t	func,	/*!< in: function address */
+	void*			arg);	/*!< in: user-supplied argument */
+/****************************************************************//**
+Add bound id. */
+UNIV_INTERN
+void
+pars_info_bind_id(
+/*=============*/
+	pars_info_t*		info,	/*!< in: info struct */
+	ibool			copy_name,/* in: make a copy of name if TRUE */
+	const char*		name,	/*!< in: name */
+	const char*		id);	/*!< in: id */
 /****************************************************************//**
 Equivalent to:
 
@@ -532,16 +617,18 @@ pars_info_add_ull_literal(
 	pars_info_t*	info,		/*!< in: info struct */
 	const char*	name,		/*!< in: name */
 	ib_uint64_t	val);		/*!< in: value */
+
 /****************************************************************//**
-Add user function. */
+If the literal value already exists then it rebinds otherwise it
+creates a new entry. */
 UNIV_INTERN
 void
-pars_info_add_function(
-/*===================*/
+pars_info_bind_ull_literal(
+/*=======================*/
 	pars_info_t*		info,	/*!< in: info struct */
-	const char*		name,	/*!< in: function name */
-	pars_user_func_cb_t	func,	/*!< in: function address */
-	void*			arg);	/*!< in: user-supplied argument */
+	const char*		name,	/*!< in: name */
+	const ib_uint64_t*	val)	/*!< in: value */
+	__attribute__((nonnull));
 
 /****************************************************************//**
 Add bound id. */
@@ -552,16 +639,6 @@ pars_info_add_id(
 	pars_info_t*	info,		/*!< in: info struct */
 	const char*	name,		/*!< in: name */
 	const char*	id);		/*!< in: id */
-
-/****************************************************************//**
-Get user function with the given name.
-@return	user func, or NULL if not found */
-UNIV_INTERN
-pars_user_func_t*
-pars_info_get_user_func(
-/*====================*/
-	pars_info_t*		info,	/*!< in: info struct */
-	const char*		name);	/*!< in: function name to find*/
 
 /****************************************************************//**
 Get bound literal with the given name.
@@ -591,7 +668,7 @@ pars_lexer_close(void);
 /*==================*/
 
 /** Extra information supplied for pars_sql(). */
-struct pars_info_struct {
+struct pars_info_t {
 	mem_heap_t*	heap;		/*!< our own memory heap */
 
 	ib_vector_t*	funcs;		/*!< user functions, or NUll
@@ -606,39 +683,40 @@ struct pars_info_struct {
 };
 
 /** User-supplied function and argument. */
-struct pars_user_func_struct {
+struct pars_user_func_t {
 	const char*		name;	/*!< function name */
 	pars_user_func_cb_t	func;	/*!< function address */
 	void*			arg;	/*!< user-supplied argument */
 };
 
 /** Bound literal. */
-struct pars_bound_lit_struct {
+struct pars_bound_lit_t {
 	const char*	name;		/*!< name */
 	const void*	address;	/*!< address */
 	ulint		length;		/*!< length of data */
 	ulint		type;		/*!< type, e.g. DATA_FIXBINARY */
 	ulint		prtype;		/*!< precise type, e.g. DATA_UNSIGNED */
+	sym_node_t*	node;		/*!< symbol node */
 };
 
 /** Bound identifier. */
-struct pars_bound_id_struct {
+struct pars_bound_id_t {
 	const char*	name;		/*!< name */
 	const char*	id;		/*!< identifier */
 };
 
 /** Struct used to denote a reserved word in a parsing tree */
-struct pars_res_word_struct{
+struct pars_res_word_t{
 	int	code;	/*!< the token code for the reserved word from
 			pars0grm.h */
 };
 
 /** A predefined function or operator node in a parsing tree; this construct
 is also used for some non-functions like the assignment ':=' */
-struct func_node_struct{
+struct func_node_t{
 	que_common_t	common;	/*!< type: QUE_NODE_FUNC */
 	int		func;	/*!< token code of the function name */
-	ulint		class;	/*!< class of the function */
+	ulint		fclass;	/*!< class of the function */
 	que_node_t*	args;	/*!< argument(s) of the function */
 	UT_LIST_NODE_T(func_node_t) cond_list;
 				/*!< list of comparison conditions; defined
@@ -650,14 +728,14 @@ struct func_node_struct{
 };
 
 /** An order-by node in a select */
-struct order_node_struct{
+struct order_node_t{
 	que_common_t	common;	/*!< type: QUE_NODE_ORDER */
 	sym_node_t*	column;	/*!< order-by column */
 	ibool		asc;	/*!< TRUE if ascending, FALSE if descending */
 };
 
 /** Procedure definition node */
-struct proc_node_struct{
+struct proc_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_PROC */
 	sym_node_t*	proc_id;	/*!< procedure name symbol in the symbol
 					table of this same procedure */
@@ -667,14 +745,14 @@ struct proc_node_struct{
 };
 
 /** elsif-element node */
-struct elsif_node_struct{
+struct elsif_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_ELSIF */
 	que_node_t*	cond;		/*!< if condition */
 	que_node_t*	stat_list;	/*!< statement list */
 };
 
 /** if-statement node */
-struct if_node_struct{
+struct if_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_IF */
 	que_node_t*	cond;		/*!< if condition */
 	que_node_t*	stat_list;	/*!< statement list */
@@ -683,14 +761,14 @@ struct if_node_struct{
 };
 
 /** while-statement node */
-struct while_node_struct{
+struct while_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_WHILE */
 	que_node_t*	cond;		/*!< while condition */
 	que_node_t*	stat_list;	/*!< statement list */
 };
 
 /** for-loop-statement node */
-struct for_node_struct{
+struct for_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_FOR */
 	sym_node_t*	loop_var;	/*!< loop variable: this is the
 					dereferenced symbol from the
@@ -707,24 +785,24 @@ struct for_node_struct{
 };
 
 /** exit statement node */
-struct exit_node_struct{
+struct exit_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_EXIT */
 };
 
 /** return-statement node */
-struct return_node_struct{
+struct return_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_RETURN */
 };
 
 /** Assignment statement node */
-struct assign_node_struct{
+struct assign_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_ASSIGNMENT */
 	sym_node_t*	var;		/*!< variable to set */
 	que_node_t*	val;		/*!< value to assign */
 };
 
 /** Column assignment node */
-struct col_assign_node_struct{
+struct col_assign_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_COL_ASSIGN */
 	sym_node_t*	col;		/*!< column to set */
 	que_node_t*	val;		/*!< value to assign */

@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -31,7 +31,7 @@ Created 2010-05-28 by Sunny Bains
 /** Comparison function for objects in the binary heap. */
 typedef int (*ib_bh_cmp_t)(const void* p1, const void* p2);
 
-typedef struct ib_bh_struct ib_bh_t;
+struct ib_bh_t;
 
 /**********************************************************************//**
 Get the number of elements in the binary heap.
@@ -138,7 +138,7 @@ ib_bh_pop(
 	ib_bh_t*	ib_bh);			/*!< in/out: instance */
 
 /** Binary heap data structure */
-struct ib_bh_struct {
+struct ib_bh_t {
 	ulint		max_elems;		/*!< max elements allowed */
 	ulint		n_elems;		/*!< current size */
 	ulint		sizeof_elem;		/*!< sizeof element */
