@@ -49,7 +49,7 @@ SELECT t.table_name, c1.column_name
 #
 # Bug#24630  Subselect query crashes mysqld
 #
-select 1 as f1 from information_schema.tables  where "ALL_PLUGINS"=
+select 1 as "must be 1" from information_schema.tables  where "ACCOUNTS"=
 (select cast(table_name as char)  from information_schema.tables
  order by table_name limit 1) limit 1;
 

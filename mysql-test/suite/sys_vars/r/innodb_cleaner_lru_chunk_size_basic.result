@@ -1,0 +1,31 @@
+SET @start_value = @@GLOBAL.innodb_cleaner_lru_chunk_size;
+SELECT @@GLOBAL.innodb_cleaner_lru_chunk_size;
+@@GLOBAL.innodb_cleaner_lru_chunk_size
+100
+SELECT @@SESSION.innodb_cleaner_lru_chunk_size;
+ERROR HY000: Variable 'innodb_cleaner_lru_chunk_size' is a GLOBAL variable
+SET GLOBAL innodb_cleaner_lru_chunk_size=1;
+SELECT @@GLOBAL.innodb_cleaner_lru_chunk_size;
+@@GLOBAL.innodb_cleaner_lru_chunk_size
+1
+SET GLOBAL innodb_cleaner_lru_chunk_size=1000;
+SELECT @@GLOBAL.innodb_cleaner_lru_chunk_size;
+@@GLOBAL.innodb_cleaner_lru_chunk_size
+1000
+SET GLOBAL innodb_cleaner_lru_chunk_size=4294967295;
+SELECT @@GLOBAL.innodb_cleaner_lru_chunk_size;
+@@GLOBAL.innodb_cleaner_lru_chunk_size
+4294967295
+SET GLOBAL innodb_cleaner_lru_chunk_size=0;
+Warnings:
+Warning	1292	Truncated incorrect innodb_cleaner_lru_chunk_size value: '0'
+SELECT @@GLOBAL.innodb_cleaner_lru_chunk_size;
+@@GLOBAL.innodb_cleaner_lru_chunk_size
+1
+SET GLOBAL innodb_cleaner_lru_chunk_size=1.1;
+ERROR 42000: Incorrect argument type to variable 'innodb_cleaner_lru_chunk_size'
+SET GLOBAL innodb_cleaner_lru_chunk_size=1e1;
+ERROR 42000: Incorrect argument type to variable 'innodb_cleaner_lru_chunk_size'
+SET GLOBAL innodb_cleaner_lru_chunk_size='foo';
+ERROR 42000: Incorrect argument type to variable 'innodb_cleaner_lru_chunk_size'
+SET GLOBAL innodb_cleaner_lru_chunk_size = @start_value;

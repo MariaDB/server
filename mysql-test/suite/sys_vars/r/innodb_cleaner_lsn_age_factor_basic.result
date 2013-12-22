@@ -1,0 +1,21 @@
+SET @start_value = @@GLOBAL.innodb_cleaner_lsn_age_factor;
+SELECT @@GLOBAL.innodb_cleaner_lsn_age_factor;
+@@GLOBAL.innodb_cleaner_lsn_age_factor
+high_checkpoint
+SELECT @@SESSION.innodb_cleaner_lsn_age_factor;
+ERROR HY000: Variable 'innodb_cleaner_lsn_age_factor' is a GLOBAL variable
+SET GLOBAL innodb_cleaner_lsn_age_factor='legacy';
+SELECT @@GLOBAL.innodb_cleaner_lsn_age_factor;
+@@GLOBAL.innodb_cleaner_lsn_age_factor
+legacy
+SET GLOBAL innodb_cleaner_lsn_age_factor='high_checkpoint';
+SELECT @@GLOBAL.innodb_cleaner_lsn_age_factor;
+@@GLOBAL.innodb_cleaner_lsn_age_factor
+high_checkpoint
+SET GLOBAL innodb_cleaner_lsn_age_factor=1.1;
+ERROR 42000: Incorrect argument type to variable 'innodb_cleaner_lsn_age_factor'
+SET GLOBAL innodb_cleaner_lsn_age_factor=1e1;
+ERROR 42000: Incorrect argument type to variable 'innodb_cleaner_lsn_age_factor'
+SET GLOBAL innodb_cleaner_lsn_age_factor='foo';
+ERROR 42000: Variable 'innodb_cleaner_lsn_age_factor' can't be set to the value of 'foo'
+SET GLOBAL innodb_cleaner_lsn_age_factor = @start_value;

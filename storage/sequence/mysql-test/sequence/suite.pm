@@ -1,4 +1,4 @@
-package My::Suite::Sequence
+package My::Suite::Sequence;
 
 @ISA = qw(My::Suite);
 

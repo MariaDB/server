@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1997, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -31,6 +31,7 @@ Created 2/16/1997 Heikki Tuuri
 
 #include "ut0byte.h"
 #include "ut0lst.h"
+#include "btr0types.h"
 #include "trx0trx.h"
 #include "trx0sys.h"
 #include "read0types.h"
@@ -45,10 +46,8 @@ read_view_open_now(
 /*===============*/
 	trx_id_t	cr_trx_id,	/*!< in: trx_id of creating
 					transaction, or 0 used in purge */
-	read_view_t*	view,		/*!< in: current read view or NULL if it
-					doesn't exist yet */
-	ibool		exclude_self);	/*!< in: TRUE, if cr_trx_id should be
-					excluded from the resulting view */
+	read_view_t*&	view);		/*!< in,out: pre-allocated view array or
+					NULL if a new one needs to be created */
 
 /*********************************************************************//**
 Makes a copy of the oldest existing read view, or opens a new. The view
@@ -56,26 +55,29 @@ must be closed with ..._close.
 @return	own: read view struct */
 UNIV_INTERN
 read_view_t*
-read_view_oldest_copy_or_open_new(
-/*==============================*/
-	trx_id_t	cr_trx_id,	/*!< in: trx_id of creating
-					transaction, or 0 used in purge */
-	read_view_t*	view);		/*!< in: pre-allocated view array or
+read_view_purge_open(
+/*=================*/
+	read_view_t*&	clone_view,	/*!< in,out: pre-allocated view that
+					will be used to clone the oldest view if
+					exists */
+	read_view_t*&	view);		/*!< in,out: pre-allocated view array or
 					NULL if a new one needs to be created */
 /*********************************************************************//**
-Closes a read view. */
-UNIV_INTERN
+Remove a read view from the trx_sys->view_list. */
+UNIV_INLINE
 void
-read_view_close(
-/*============*/
-	read_view_t*	view);	/*!< in: read view */
+read_view_remove(
+/*=============*/
+	read_view_t*	view,		/*!< in: read view, can be 0 */
+	bool		own_mutex);	/*!< in: true if caller owns the
+					trx_sys_t::mutex */
 /*********************************************************************//**
 Frees memory allocated by a read view. */
 UNIV_INTERN
 void
 read_view_free(
 /*===========*/
-	read_view_t*	view);	/*< in: read view */
+	read_view_t*&	view);	/*< in,out: read view */
 /*********************************************************************//**
 Closes a consistent read view for MySQL. This function is called at an SQL
 statement end if the trx isolation level is <= TRX_ISO_READ_COMMITTED. */
@@ -86,20 +88,21 @@ read_view_close_for_mysql(
 	trx_t*	trx);	/*!< in: trx which has a read view */
 /*********************************************************************//**
 Checks if a read view sees the specified transaction.
-@return	TRUE if sees */
+@return	true if sees */
 UNIV_INLINE
-ibool
+bool
 read_view_sees_trx_id(
 /*==================*/
 	const read_view_t*	view,	/*!< in: read view */
-	trx_id_t		trx_id);/*!< in: trx id */
+	trx_id_t		trx_id)	/*!< in: trx id */
+	__attribute__((nonnull, warn_unused_result));
 /*********************************************************************//**
-Prints a read view to stderr. */
+Prints a read view to file. */
 UNIV_INTERN
 void
 read_view_print(
 /*============*/
-	FILE*			file,
+	FILE*			file,	/*!< in: file to print to */
 	const read_view_t*	view);	/*!< in: read view */
 /*********************************************************************//**
 Create a consistent cursor view for mysql to be used in cursors. In this
@@ -133,7 +136,7 @@ read_cursor_set_for_mysql(
 /** Read view lists the trx ids of those transactions for which a consistent
 read should not see the modifications to the database. */
 
-struct read_view_struct{
+struct read_view_t{
 	ulint		type;	/*!< VIEW_NORMAL, VIEW_HIGH_GRANULARITY */
 	undo_no_t	undo_no;/*!< 0 or if type is
 				VIEW_HIGH_GRANULARITY
@@ -160,14 +163,14 @@ struct read_view_struct{
 				/*!< Maximum number of cells in the trx_ids
 				array */
 	trx_id_t*	descriptors;
-				/*!< Array of trx descriptors which the read
-				should not see: typically, these are the active
-				transactions at the time when the read is
-				serialized, except the reading transaction
+				/*!< Additional trx ids which the read should
+				not see: typically, these are the read-write
+				active transactions at the time when the read
+				is serialized, except the reading transaction
 				itself; the trx ids in this array are in a
-				descending order. These trx_ids should be
-				between the "low" and "high" water marks, that
-				is, up_limit_id and low_limit_id. */
+				ascending order. These trx_ids should be
+				between the "low" and "high" water marks,
+				that is, up_limit_id and low_limit_id. */
 	trx_id_t	creator_trx_id;
 				/*!< trx id of creating transaction, or
 				0 used in purge */
@@ -191,7 +194,7 @@ struct read_view_struct{
 cursors. This struct holds both heap where consistent read view
 is allocated and pointer to a read view. */
 
-struct cursor_view_struct{
+struct cursor_view_t{
 	mem_heap_t*	heap;
 				/*!< Memory heap for the cursor view */
 	read_view_t*	read_view;
