@@ -246,12 +246,12 @@ void TYPBLK<TYPE>::SetValue(PVAL valp, int n)
   ChkIndx(n);
   ChkTyp(valp);
 
-  if (!(b = valp->IsNull() && Nullable))
+  if (!(b = valp->IsNull()))
     Typp[n] = GetTypedValue(valp);
   else
     Reset(n);
 
-  SetNull(n, b);
+  SetNull(n, b && Nullable);
   } // end of SetValue
 
 template <>
@@ -671,12 +671,12 @@ void CHRBLK::SetValue(PVAL valp, int n)
   ChkIndx(n);
   ChkTyp(valp);
 
-  if (!(b = valp->IsNull() && Nullable))
+  if (!(b = valp->IsNull()))
     SetValue((PSZ)valp->GetCharValue(), n);
   else
     Reset(n);
 
-  SetNull(n, b);
+  SetNull(n, b && Nullable);
   } // end of SetValue
 
 /***********************************************************************/
@@ -887,6 +887,7 @@ STRBLK::STRBLK(PGLOBAL g, void *mp, int nval)
   {
   Global = g;
   Nullable = true;
+  Sorted = false;
   } // end of STRBLK constructor
 
 /***********************************************************************/
@@ -1026,8 +1027,12 @@ void STRBLK::SetValue(PVAL valp, int n)
 void STRBLK::SetValue(PSZ p, int n)
   {
   if (p) {
-    Strp[n] = (PSZ)PlugSubAlloc(Global, NULL, strlen(p) + 1);
-    strcpy(Strp[n], p);
+    if (!Sorted || !n || !Strp[n-1] || strcmp(p, Strp[n-1])) {
+      Strp[n] = (PSZ)PlugSubAlloc(Global, NULL, strlen(p) + 1);
+      strcpy(Strp[n], p);
+    } else
+      Strp[n] = Strp[n-1];
+
   } else
     Strp[n] = NULL;
 
@@ -1041,9 +1046,14 @@ void STRBLK::SetValue(char *sp, uint len, int n)
   PSZ p;
 
   if (sp) {
-    p = (PSZ)PlugSubAlloc(Global, NULL, len + 1);
-    memcpy(p, sp, len);
-    p[len] = 0;
+    if (!Sorted || !n || !Strp[n-1] || strlen(Strp[n-1]) != len ||
+                                       strncmp(sp, Strp[n-1], len)) {
+      p = (PSZ)PlugSubAlloc(Global, NULL, len + 1);
+      memcpy(p, sp, len);
+      p[len] = 0;
+    } else
+      p = Strp[n-1];
+
   } else
     p = NULL;
 

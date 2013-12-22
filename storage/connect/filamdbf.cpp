@@ -228,7 +228,7 @@ PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info)
   qrp = PlgAllocResult(g, ncol, fields, IDS_COLUMNS + 3,
                           buftyp, fldtyp, length, true, false);
 
-  if (info)
+  if (info || !qrp)
     return qrp;
 
   if (trace) {

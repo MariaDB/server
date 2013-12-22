@@ -213,7 +213,7 @@ PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info)
   qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
                           buftyp, fldtyp, length, false, true);
 
-  if (info)
+  if (info || !qrp)
     return qrp;
 
   /*********************************************************************/
