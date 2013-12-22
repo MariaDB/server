@@ -5,12 +5,9 @@ innodb
 innodb-cmpmem
 innodb-trx
 innodb-sys-index
-loose-xtradb-admin-command
 
 [xtradb]
 innodb
 innodb-cmpmem
 innodb-trx
 innodb-sys-index
-loose-xtradb-admin-command
-

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1997, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -50,7 +50,7 @@ UNIV_INTERN
 ib_uint64_t
 recv_calc_lsn_on_data_add(
 /*======================*/
-	ib_uint64_t	lsn,	/*!< in: old lsn */
+	lsn_t		lsn,	/*!< in: old lsn */
 	ib_uint64_t	len);	/*!< in: this many bytes of data is
 				added, log block headers not included */
 
@@ -62,19 +62,17 @@ Reads the checkpoint info needed in hot backup.
 @return	TRUE if success */
 UNIV_INTERN
 ibool
-recv_read_cp_info_for_backup(
-/*=========================*/
+recv_read_checkpoint_info_for_backup(
+/*=================================*/
 	const byte*	hdr,	/*!< in: buffer containing the log group
 				header */
-	ib_uint64_t*	lsn,	/*!< out: checkpoint lsn */
-	ulint*		offset,	/*!< out: checkpoint offset in the log group */
-	ulint*		fsp_limit,/*!< out: fsp limit of space 0,
-				1000000000 if the database is running
-				with < version 3.23.50 of InnoDB */
-	ib_uint64_t*	cp_no,	/*!< out: checkpoint number */
-	ib_uint64_t*	first_header_lsn);
+	lsn_t*		lsn,	/*!< out: checkpoint lsn */
+	lsn_t*		offset,	/*!< out: checkpoint offset in the log group */
+	lsn_t*		cp_no,	/*!< out: checkpoint number */
+	lsn_t*		first_header_lsn)
 				/*!< out: lsn of of the start of the
 				first log file */
+	__attribute__((nonnull));
 /*******************************************************************//**
 Scans the log segment and n_bytes_scanned is set to the length of valid
 log scanned. */
@@ -84,7 +82,7 @@ recv_scan_log_seg_for_backup(
 /*=========================*/
 	byte*		buf,		/*!< in: buffer containing log data */
 	ulint		buf_len,	/*!< in: data length in that buffer */
-	ib_uint64_t*	scanned_lsn,	/*!< in/out: lsn of buffer start,
+	lsn_t*		scanned_lsn,	/*!< in/out: lsn of buffer start,
 					we return scanned lsn */
 	ulint*		scanned_checkpoint_no,
 					/*!< in/out: 4 lowest bytes of the
@@ -152,18 +150,18 @@ recv_recovery_from_checkpoint_finish should be called later to complete
 the recovery and free the resources used in it.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
-ulint
+dberr_t
 recv_recovery_from_checkpoint_start_func(
 /*=====================================*/
 #ifdef UNIV_LOG_ARCHIVE
 	ulint		type,		/*!< in: LOG_CHECKPOINT or
 					LOG_ARCHIVE */
-	ib_uint64_t	limit_lsn,	/*!< in: recover up to this lsn
+	lsn_t		limit_lsn,	/*!< in: recover up to this lsn
 					if possible */
 #endif /* UNIV_LOG_ARCHIVE */
-	ib_uint64_t	min_flushed_lsn,/*!< in: min flushed lsn from
+	lsn_t		min_flushed_lsn,/*!< in: min flushed lsn from
 					data files */
-	ib_uint64_t	max_flushed_lsn);/*!< in: max flushed lsn from
+	lsn_t		max_flushed_lsn);/*!< in: max flushed lsn from
 					 data files */
 #ifdef UNIV_LOG_ARCHIVE
 /** Wrapper for recv_recovery_from_checkpoint_start_func().
@@ -239,11 +237,11 @@ recv_scan_log_recs(
 	const byte*	buf,		/*!< in: buffer containing a log
 					segment or garbage */
 	ulint		len,		/*!< in: buffer length */
-	ib_uint64_t	start_lsn,	/*!< in: buffer start lsn */
-	ib_uint64_t*	contiguous_lsn,	/*!< in/out: it is known that all log
+	lsn_t		start_lsn,	/*!< in: buffer start lsn */
+	lsn_t*		contiguous_lsn,	/*!< in/out: it is known that all log
 					groups contain contiguous log data up
 					to this lsn */
-	ib_uint64_t*	group_scanned_lsn);/*!< out: scanning succeeded up to
+	lsn_t*		group_scanned_lsn);/*!< out: scanning succeeded up to
 					this lsn */
 /******************************************************//**
 Resets the logs. The contents of log files will be lost! */
@@ -251,18 +249,18 @@ UNIV_INTERN
 void
 recv_reset_logs(
 /*============*/
-	ib_uint64_t	lsn,		/*!< in: reset to this lsn
+#ifdef UNIV_LOG_ARCHIVE
+	ulint		arch_log_no,	/*!< in: next archived log file number */
+	ibool		new_logs_created,/*!< in: TRUE if resetting logs
+					is done at the log creation;
+					FALSE if it is done after
+					archive recovery */
+#endif /* UNIV_LOG_ARCHIVE */
+	lsn_t		lsn);		/*!< in: reset to this lsn
 					rounded up to be divisible by
 					OS_FILE_LOG_BLOCK_SIZE, after
 					which we add
 					LOG_BLOCK_HDR_SIZE */
-#ifdef UNIV_LOG_ARCHIVE
-	ulint		arch_log_no,	/*!< in: next archived log file number */
-#endif /* UNIV_LOG_ARCHIVE */
-	ibool		new_logs_created);/*!< in: TRUE if resetting logs
-					is done at the log creation;
-					FALSE if it is done after
-					archive recovery */
 #ifdef UNIV_HOTBACKUP
 /******************************************************//**
 Creates new log files after a backup has been restored. */
@@ -272,8 +270,8 @@ recv_reset_log_files_for_backup(
 /*============================*/
 	const char*	log_dir,	/*!< in: log file directory path */
 	ulint		n_log_files,	/*!< in: number of log files */
-	ulint		log_file_size,	/*!< in: log file size */
-	ib_uint64_t	lsn);		/*!< in: new start lsn, must be
+	lsn_t		log_file_size,	/*!< in: log file size */
+	lsn_t		lsn);		/*!< in: new start lsn, must be
 					divisible by OS_FILE_LOG_BLOCK_SIZE */
 #endif /* UNIV_HOTBACKUP */
 /********************************************************//**
@@ -336,14 +334,14 @@ recv_apply_log_recs_for_backup(void);
 Recovers from archived log files, and also from log files, if they exist.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
-ulint
+dberr_t
 recv_recovery_from_archive_start(
 /*=============================*/
-	ib_uint64_t	min_flushed_lsn,/*!< in: min flushed lsn field from the
+	lsn_t		min_flushed_lsn,/*!< in: min flushed lsn field from the
 					data files */
-	ib_uint64_t	limit_lsn,	/*!< in: recover up to this lsn if
+	lsn_t		limit_lsn,	/*!< in: recover up to this lsn if
 					possible */
-	ulint		first_log_no);	/*!< in: number of the first archived
+	lsn_t		first_log_no);	/*!< in: number of the first archived
 					log file to use in the recovery; the
 					file will be searched from
 					INNOBASE_LOG_ARCH_DIR specified in
@@ -357,9 +355,7 @@ recv_recovery_from_archive_finish(void);
 #endif /* UNIV_LOG_ARCHIVE */
 
 /** Block of log record data */
-typedef struct recv_data_struct	recv_data_t;
-/** Block of log record data */
-struct recv_data_struct{
+struct recv_data_t{
 	recv_data_t*	next;	/*!< pointer to the next block or NULL */
 				/*!< the log record data is stored physically
 				immediately after this struct, max amount
@@ -367,18 +363,16 @@ struct recv_data_struct{
 };
 
 /** Stored log record struct */
-typedef struct recv_struct	recv_t;
-/** Stored log record struct */
-struct recv_struct{
+struct recv_t{
 	byte		type;	/*!< log record type */
 	ulint		len;	/*!< log record body length in bytes */
 	recv_data_t*	data;	/*!< chain of blocks containing the log record
 				body */
-	ib_uint64_t	start_lsn;/*!< start lsn of the log segment written by
+	lsn_t		start_lsn;/*!< start lsn of the log segment written by
 				the mtr which generated this log record: NOTE
 				that this is not necessarily the start lsn of
 				this log record */
-	ib_uint64_t	end_lsn;/*!< end lsn of the log segment written by
+	lsn_t		end_lsn;/*!< end lsn of the log segment written by
 				the mtr which generated this log record: NOTE
 				that this is not necessarily the end lsn of
 				this log record */
@@ -386,7 +380,7 @@ struct recv_struct{
 			rec_list;/*!< list of log records for this page */
 };
 
-/** States of recv_addr_struct */
+/** States of recv_addr_t */
 enum recv_addr_state {
 	/** not yet processed */
 	RECV_NOT_PROCESSED,
@@ -400,9 +394,7 @@ enum recv_addr_state {
 };
 
 /** Hashed page file address struct */
-typedef struct recv_addr_struct	recv_addr_t;
-/** Hashed page file address struct */
-struct recv_addr_struct{
+struct recv_addr_t{
 	enum recv_addr_state state;
 				/*!< recovery state of the page */
 	unsigned	space:32;/*!< space id */
@@ -413,13 +405,14 @@ struct recv_addr_struct{
 };
 
 /** Recovery system data structure */
-typedef struct recv_sys_struct	recv_sys_t;
-/** Recovery system data structure */
-struct recv_sys_struct{
+struct recv_sys_t{
 #ifndef UNIV_HOTBACKUP
-	mutex_t		mutex;	/*!< mutex protecting the fields apply_log_recs,
+	ib_mutex_t		mutex;	/*!< mutex protecting the fields apply_log_recs,
 				n_addrs, and the state field in each recv_addr
 				struct */
+	ib_mutex_t		writer_mutex;/*!< mutex coordinating
+				flushing between recv_writer_thread and
+				the recovery thread. */
 #endif /* !UNIV_HOTBACKUP */
 	ibool		apply_log_recs;
 				/*!< this is TRUE when log rec application to
@@ -429,7 +422,7 @@ struct recv_sys_struct{
 	ibool		apply_batch_on;
 				/*!< this is TRUE when a log rec application
 				batch is running */
-	ib_uint64_t	lsn;	/*!< log sequence number */
+	lsn_t		lsn;	/*!< log sequence number */
 	ulint		last_log_buf_size;
 				/*!< size of the log buffer when the database
 				last time wrote to the log */
@@ -441,12 +434,12 @@ struct recv_sys_struct{
 				preceding buffer */
 	byte*		buf;	/*!< buffer for parsing log records */
 	ulint		len;	/*!< amount of data in buf */
-	ib_uint64_t	parse_start_lsn;
+	lsn_t		parse_start_lsn;
 				/*!< this is the lsn from which we were able to
 				start parsing log records and adding them to
 				the hash table; zero if a suitable
 				start point not found yet */
-	ib_uint64_t	scanned_lsn;
+	lsn_t		scanned_lsn;
 				/*!< the log data has been scanned up to this
 				lsn */
 	ulint		scanned_checkpoint_no;
@@ -455,10 +448,10 @@ struct recv_sys_struct{
 	ulint		recovered_offset;
 				/*!< start offset of non-parsed log records in
 				buf */
-	ib_uint64_t	recovered_lsn;
+	lsn_t		recovered_lsn;
 				/*!< the log records have been parsed up to
 				this lsn */
-	ib_uint64_t	limit_lsn;/*!< recovery should be made at most
+	lsn_t		limit_lsn;/*!< recovery should be made at most
 				up to this lsn */
 	ibool		found_corrupt_log;
 				/*!< this is set to TRUE if we during log
@@ -475,39 +468,6 @@ struct recv_sys_struct{
 	hash_table_t*	addr_hash;/*!< hash table of file addresses of pages */
 	ulint		n_addrs;/*!< number of not processed hashed file
 				addresses in the hash table */
-
-/* If you modified the following defines at original file,
-   You should also modify them. */
-/* defined in os0file.c */
-#define OS_AIO_MERGE_N_CONSECUTIVE	64
-/* defined in log0recv.c */
-#define RECV_READ_AHEAD_AREA	32
-	time_t		stats_recv_start_time;
-	ulint		stats_recv_turns;
-
-	ulint		stats_read_requested_pages;
-	ulint		stats_read_in_area[RECV_READ_AHEAD_AREA];
-
-	ulint		stats_read_io_pages;
-	ulint		stats_read_io_consecutive[OS_AIO_MERGE_N_CONSECUTIVE];
-	ulint		stats_write_io_pages;
-	ulint		stats_write_io_consecutive[OS_AIO_MERGE_N_CONSECUTIVE];
-
-	ulint		stats_doublewrite_check_pages;
-	ulint		stats_doublewrite_overwrite_pages;
-
-	ulint		stats_recover_pages_with_read;
-	ulint		stats_recover_pages_without_read;
-
-	ulint		stats_log_recs;
-	ulint		stats_log_len_sum;
-
-	ulint		stats_applied_log_recs;
-	ulint		stats_applied_log_len_sum;
-	ulint		stats_pages_already_new;
-
-	ib_uint64_t	stats_oldest_modified_lsn;
-	ib_uint64_t	stats_newest_modified_lsn;
 };
 
 /** The recovery system */

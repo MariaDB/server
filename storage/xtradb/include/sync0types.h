@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1995, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,9 +26,19 @@ Created 9/5/1995 Heikki Tuuri
 #ifndef sync0types_h
 #define sync0types_h
 
-/** Rename mutex_t to avoid name space collision on some systems */
-#define mutex_t ib_mutex_t
-/** InnoDB mutex */
-typedef struct mutex_struct		mutex_t;
+struct ib_mutex_t;
+
+/* The relative priority of the current thread.  If 0, low priority; if 1, high
+priority.  */
+extern UNIV_THREAD_LOCAL ulint srv_current_thread_priority;
+
+struct ib_prio_mutex_t;
+
+/** Priority mutex and rwlatch acquisition priorities */
+enum ib_sync_priority {
+	DEFAULT_PRIO,
+	LOW_PRIO,
+	HIGH_PRIO
+};
 
 #endif

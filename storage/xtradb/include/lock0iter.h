@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 2007, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,13 +29,13 @@ Created July 16, 2007 Vasil Dimov
 #include "univ.i"
 #include "lock0types.h"
 
-typedef struct lock_queue_iterator_struct {
+struct lock_queue_iterator_t {
 	const lock_t*	current_lock;
 	/* In case this is a record lock queue (not table lock queue)
 	then bit_no is the record number within the heap in which the
 	record is stored. */
 	ulint		bit_no;
-} lock_queue_iterator_t;
+};
 
 /*******************************************************************//**
 Initialize lock queue iterator so that it starts to iterate from

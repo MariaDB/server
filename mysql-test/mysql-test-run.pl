@@ -177,14 +177,12 @@ my @DEFAULT_SUITES= qw(
     maria-
     multi_source-
     optimizer_unfixed_bugs-
-    oqgraph-
     parts-
     percona-
     perfschema-
     plugins-
     roles-
     rpl-
-    sphinx-
     sys_vars-
     unit-
     vcol-
@@ -397,11 +395,6 @@ sub main {
 
   executable_setup();
 
-  if (!$opt_suites) {
-    $opt_suites= join ',', collect_default_suites(@DEFAULT_SUITES);
-  }
-  mtr_report("Using suites: $opt_suites") unless @opt_cases;
-
   # --debug[-common] implies we run debug server
   $opt_debug_server= 1 if $opt_debug || $opt_debug_common;
 
@@ -414,15 +407,21 @@ sub main {
   {
     # Run the mysqld to find out what features are available
     collect_mysqld_features();
-    mysql_install_db(default_mysqld(), "$opt_vardir/install.db");
   }
   check_ndbcluster_support();
   check_ssl_support();
   check_debug_support();
 
+  if (!$opt_suites) {
+    $opt_suites= join ',', collect_default_suites(@DEFAULT_SUITES);
+  }
+  mtr_report("Using suites: $opt_suites") unless @opt_cases;
+
   mtr_report("Collecting tests...");
   my $tests= collect_test_cases($opt_reorder, $opt_suites, \@opt_cases, \@opt_skip_test_list);
   mark_time_used('collect');
+
+  mysql_install_db(default_mysqld(), "$opt_vardir/install.db") unless using_extern();
 
   if ($opt_dry_run)
   {
@@ -4824,6 +4823,7 @@ sub extract_warning_lines ($$) {
      qr|Plugin 'FEEDBACK' init function returned error|,
      qr|Plugin 'FEEDBACK' registration as a INFORMATION SCHEMA failed|,
      qr|'log-bin-use-v1-row-events' is MySQL 5.6 compatible option|,
+     qr|InnoDB: Setting thread \d+ nice to \d+ failed, current nice \d+, errno 13|, # setpriority() fails under valgrind
     );
 
   my $matched_lines= [];

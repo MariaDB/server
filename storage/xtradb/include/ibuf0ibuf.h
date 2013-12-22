@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1997, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -34,6 +34,10 @@ Created 7/19/1997 Heikki Tuuri
 
 #ifndef UNIV_HOTBACKUP
 # include "ibuf0types.h"
+
+/** Default value for maximum on-disk size of change buffer in terms
+of percentage of the buffer pool. */
+#define CHANGE_BUFFER_DEFAULT_SIZE	(25)
 
 /* Possible operations buffered in the insert/whatever buffer. See
 ibuf_insert(). DO NOT CHANGE THE VALUES OF THESE, THEY ARE STORED ON DISK. */
@@ -97,6 +101,14 @@ UNIV_INTERN
 void
 ibuf_init_at_db_start(void);
 /*=======================*/
+/*********************************************************************//**
+Updates the max_size value for ibuf. */
+UNIV_INTERN
+void
+ibuf_max_size_update(
+/*=================*/
+	ulint	new_val);	/*!< in: new value in terms of
+				percentage of the buffer pool size */
 /*********************************************************************//**
 Reads the biggest tablespace id from the high end of the insert buffer
 tree and updates the counter in fil_system. */
@@ -364,26 +376,16 @@ will be merged from ibuf trees to the pages read, 0 if ibuf is
 empty */
 UNIV_INTERN
 ulint
-ibuf_contract(
-/*==========*/
-	ibool	sync);	/*!< in: TRUE if the caller wants to wait for the
-			issued read with the highest tablespace address
-			to complete */
-/*********************************************************************//**
-Contracts insert buffer trees by reading pages to the buffer pool.
-@return a lower limit for the combined size in bytes of entries which
-will be merged from ibuf trees to the pages read, 0 if ibuf is
-empty */
-UNIV_INTERN
-ulint
-ibuf_contract_for_n_pages(
-/*======================*/
-	ibool	sync,	/*!< in: TRUE if the caller wants to wait for the
-			issued read with the highest tablespace address
-			to complete */
-	ulint	n_pages);/*!< in: try to read at least this many pages to
-			the buffer pool and merge the ibuf contents to
-			them */
+ibuf_contract_in_background(
+/*========================*/
+	table_id_t	table_id,	/*!< in: if merge should be done only
+					for a specific table, for all tables
+					this should be 0 */
+	ibool		full);		/*!< in: TRUE if the caller wants to
+					do a full contract based on PCT_IO(100).
+					If FALSE then the size of contract
+					batch is determined based on the
+					current size of the ibuf tree. */
 #endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Parses a redo log record of an ibuf bitmap page init.
@@ -411,9 +413,9 @@ ibuf_count_get(
 #endif
 /******************************************************************//**
 Looks if the insert buffer is empty.
-@return	TRUE if empty */
+@return	true if empty */
 UNIV_INTERN
-ibool
+bool
 ibuf_is_empty(void);
 /*===============*/
 /******************************************************************//**
@@ -454,6 +456,17 @@ ibuf_export_ibuf_status(
 	ulint*	discarded_inserts,
 	ulint*	discarded_delete_marks,
 	ulint*	discarded_deletes);
+
+/******************************************************************//**
+Checks the insert buffer bitmaps on IMPORT TABLESPACE.
+@return DB_SUCCESS or error code */
+UNIV_INTERN
+dberr_t
+ibuf_check_bitmap_on_import(
+/*========================*/
+	const trx_t*	trx,		/*!< in: transaction */
+	ulint		space_id)	/*!< in: tablespace identifier */
+	__attribute__((nonnull, warn_unused_result));
 
 #define IBUF_HEADER_PAGE_NO	FSP_IBUF_HEADER_PAGE_NO
 #define IBUF_TREE_ROOT_PAGE_NO	FSP_IBUF_TREE_ROOT_PAGE_NO

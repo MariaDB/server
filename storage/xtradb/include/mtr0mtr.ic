@@ -39,7 +39,6 @@ mtr_block_dirtied(
 	const buf_block_t*	block)	/*!< in: block being x-fixed */
 	__attribute__((nonnull,warn_unused_result));
 
-
 /***************************************************************//**
 Starts a mini-transaction. */
 UNIV_INLINE
@@ -54,11 +53,11 @@ mtr_start(
 	dyn_array_create(&(mtr->log));
 
 	mtr->log_mode = MTR_LOG_ALL;
-	mtr->modifications = FALSE;
 	mtr->inside_ibuf = FALSE;
+	mtr->modifications = FALSE;
+	mtr->made_dirty = FALSE;
 	mtr->n_log_recs = 0;
 	mtr->n_freed_pages = 0;
-	mtr->made_dirty = FALSE;
 
 	ut_d(mtr->state = MTR_ACTIVE);
 	ut_d(mtr->magic_n = MTR_MAGIC_N);
@@ -77,21 +76,21 @@ mtr_memo_push(
 	dyn_array_t*		memo;
 	mtr_memo_slot_t*	slot;
 
-	/* If this mtr has x-fixed a clean page then we set
-	the made_dirty flag. This tells us if we need to
-	grab log_flush_order_mutex at mtr_commit so that we
-	can insert the dirtied page to the flush list. */
-	if (type == MTR_MEMO_PAGE_X_FIX && !mtr->made_dirty) {
-		mtr->made_dirty =
-			mtr_block_dirtied((const buf_block_t *)object);
-	}
-
 	ut_ad(object);
 	ut_ad(type >= MTR_MEMO_PAGE_S_FIX);
 	ut_ad(type <= MTR_MEMO_X_LOCK);
 	ut_ad(mtr);
 	ut_ad(mtr->magic_n == MTR_MAGIC_N);
 	ut_ad(mtr->state == MTR_ACTIVE);
+
+	/* If this mtr has x-fixed a clean page then we set
+	the made_dirty flag. This tells us if we need to
+	grab log_flush_order_mutex at mtr_commit so that we
+	can insert the dirtied page to the flush list. */
+	if (type == MTR_MEMO_PAGE_X_FIX && !mtr->made_dirty) {
+		mtr->made_dirty =
+			mtr_block_dirtied((const buf_block_t*) object);
+	}
 
 	memo = &(mtr->memo);
 
@@ -131,7 +130,7 @@ mtr_release_s_latch_at_savepoint(
 /*=============================*/
 	mtr_t*		mtr,		/*!< in: mtr */
 	ulint		savepoint,	/*!< in: savepoint */
-	rw_lock_t*	lock)		/*!< in: latch to release */
+	prio_rw_lock_t*	lock)		/*!< in: latch to release */
 {
 	mtr_memo_slot_t* slot;
 	dyn_array_t*	memo;
@@ -262,7 +261,7 @@ UNIV_INLINE
 void
 mtr_s_lock_func(
 /*============*/
-	rw_lock_t*	lock,	/*!< in: rw-lock */
+	prio_rw_lock_t*	lock,	/*!< in: rw-lock */
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line number */
 	mtr_t*		mtr)	/*!< in: mtr */
@@ -281,7 +280,7 @@ UNIV_INLINE
 void
 mtr_x_lock_func(
 /*============*/
-	rw_lock_t*	lock,	/*!< in: rw-lock */
+	prio_rw_lock_t*	lock,	/*!< in: rw-lock */
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line number */
 	mtr_t*		mtr)	/*!< in: mtr */

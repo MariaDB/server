@@ -3,6 +3,11 @@
 #-------------------------------------------------------------------------------
 --source include/have_innodb.inc
 
+if (`select plugin_auth_version <= "5.6.10" from information_schema.plugins where plugin_name='innodb'`)
+{
+  --skip Not fixed in InnoDB 5.6.10 or earlier
+}
+
 --disable_warnings
 drop table if exists t2,t1;
 --enable_warnings
@@ -475,6 +480,7 @@ SELECT * FROM t1 WHERE MATCH (a,b)
 
 # boolean mode
 select * from t1 where MATCH(a,b) AGAINST("+tutorial +VÐƷWİ" IN BOOLEAN MODE);
+--error ER_PARSE_ERROR
 select * from t1 where MATCH(a,b) AGAINST("+-VÐƷWİ" IN BOOLEAN MODE);
 select * from t1 where MATCH(a,b) AGAINST("+Mysql +(tricks never)" IN BOOLEAN MODE);
 select * from t1 where MATCH(a,b) AGAINST("+mysql -(tricks never)" IN BOOLEAN MODE);

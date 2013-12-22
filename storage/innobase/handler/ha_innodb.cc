@@ -100,7 +100,12 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fts0priv.h"
 #include "page0zip.h"
 
-extern "C" enum_tx_isolation thd_get_trx_isolation(const THD* thd);
+#define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
+
+#ifdef MYSQL_DYNAMIC_PLUGIN
+#define tc_size 400
+#define tdc_size 400
+#endif
 
 #include "ha_innodb.h"
 #include "i_s.h"
@@ -2798,7 +2803,7 @@ innobase_init(
 
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
-        innobase_hton->flags = HTON_EXTENDED_KEYS;
+	innobase_hton->flags = HTON_SUPPORTS_EXTENDED_KEYS;
 
 	innobase_hton->release_temporary_latches =
 		innobase_release_temporary_latches;
@@ -3467,8 +3472,7 @@ innobase_commit_ordered_2(
 	trx_t*	trx, 	/*!< in: Innodb transaction */
 	THD*	thd)	/*!< in: MySQL thread handle */
 {
-	ulonglong tmp_pos;
-	DBUG_ENTER("innobase_commit_ordered");
+	DBUG_ENTER("innobase_commit_ordered_2");
 
 	/* We need current binlog position for ibbackup to work.
 	Note, the position is current because commit_ordered is guaranteed
@@ -3491,9 +3495,9 @@ retry:
 		}
 	}
 
-	mysql_bin_log_commit_pos(thd, &tmp_pos, &(trx->mysql_log_file_name));
-	trx->mysql_log_offset = (ib_int64_t) tmp_pos;
-
+        unsigned long long pos;
+        thd_binlog_pos(thd, &trx->mysql_log_file_name, &pos);
+        trx->mysql_log_offset= static_cast<ib_int64_t>(pos);
 	/* Don't do write + flush right now. For group commit
 	   to work we want to do the flush in the innobase_commit()
 	   method, which runs without holding any locks. */
@@ -3818,7 +3822,7 @@ innobase_checkpoint_request(
 Log code calls this whenever log has been written and/or flushed up
 to a new position. We use this to notify upper layer of a new commit
 checkpoint when necessary.*/
-extern "C" UNIV_INTERN
+UNIV_INTERN
 void
 innobase_mysql_log_notify(
 /*===============*/
@@ -9443,10 +9447,7 @@ ha_innobase::parse_table_name(
 		}
 
 		if (ignore) {
-			push_warning_printf(
-				thd, Sql_condition::WARN_LEVEL_WARN,
-				WARN_OPTION_IGNORED,
-				ER_DEFAULT(WARN_OPTION_IGNORED),
+			my_error(WARN_OPTION_IGNORED, ME_JUST_WARNING,
 				"DATA DIRECTORY");
 		} else {
 			strncpy(remote_path, create_info->data_file_name,
@@ -9455,10 +9456,7 @@ ha_innobase::parse_table_name(
 	}
 
 	if (create_info->index_file_name) {
-		push_warning_printf(
-			thd, Sql_condition::WARN_LEVEL_WARN,
-			WARN_OPTION_IGNORED,
-			ER_DEFAULT(WARN_OPTION_IGNORED),
+		my_error(WARN_OPTION_IGNORED, ME_JUST_WARNING,
 			"INDEX DIRECTORY");
 	}
 
@@ -9510,6 +9508,11 @@ innobase_table_flags(
 
 				my_error(ER_INNODB_NO_FT_TEMP_TABLE, MYF(0));
 				DBUG_RETURN(false);
+			}
+
+			if (key->flags & HA_USES_PARSER) {
+				my_error(ER_INNODB_NO_FT_USES_PARSER, MYF(0));
+                                DBUG_RETURN(false);
 			}
 
 			if (fts_doc_id_index_bad) {
@@ -10601,7 +10604,6 @@ ha_innobase::records_in_range(
 	ib_int64_t	n_rows;
 	ulint		mode1;
 	ulint		mode2;
-        uint key_parts;
 	mem_heap_t*	heap;
 
 	DBUG_ENTER("records_in_range");
@@ -10637,19 +10639,14 @@ ha_innobase::records_in_range(
 		goto func_exit;
 	}
 
-        key_parts= key->ext_key_parts;
-        if ((min_key && min_key->keypart_map>=(key_part_map) (1<<key_parts)) ||
-            (max_key && max_key->keypart_map>=(key_part_map) (1<<key_parts)))
-          key_parts= key->ext_key_parts;
-
-	heap = mem_heap_create(2 * (key_parts * sizeof(dfield_t)
+	heap = mem_heap_create(2 * (key->ext_key_parts * sizeof(dfield_t)
 				    + sizeof(dtuple_t)));
 
-	range_start = dtuple_create(heap, key_parts);
-	dict_index_copy_types(range_start, index, key_parts);
+	range_start = dtuple_create(heap, key->ext_key_parts);
+	dict_index_copy_types(range_start, index, key->ext_key_parts);
 
-	range_end = dtuple_create(heap, key_parts);
-	dict_index_copy_types(range_end, index, key_parts);
+	range_end = dtuple_create(heap, key->ext_key_parts);
+	dict_index_copy_types(range_end, index, key->ext_key_parts);
 
 	row_sel_convert_mysql_key_to_innobase(
 				range_start,
@@ -11344,52 +11341,6 @@ ha_innobase::info_low(
 				  (ulong) rec_per_key;
 			}
 
-                        KEY *key_info= table->key_info+i; 
-                        key_part_map ext_key_part_map=
-                                             key_info->ext_key_part_map;
-
-                        if (key_info->user_defined_key_parts !=
-                            key_info->ext_key_parts)
-                        {
-
-                                KEY *pk_key_info= key_info+
-                                                  table->s->primary_key;
-                                uint k = key_info->user_defined_key_parts;
-                                ha_rows k_rec_per_key = rec_per_key;
-                                uint pk_parts = pk_key_info->user_defined_key_parts;
-                          
-		                index= innobase_get_index(
-                                        table->s->primary_key);
-                                
-                                n_rows= ib_table->stat_n_rows;
-    
-                                for (j = 0; j < pk_parts; j++) {
- 
-				         if (ext_key_part_map & 1<<j) {
-
-                                                rec_per_key =
-						innodb_rec_per_key(index,
-                                                        j, stats.records);
-                               
-				                if (rec_per_key == 0) {
-					                rec_per_key = 1;
-				                }
-                                                else if (rec_per_key > 1) {
-                                                        rec_per_key =
-                                                        (ha_rows)
-                                                          (k_rec_per_key *
-						          (double)rec_per_key /
-                                                           n_rows);
-						}
-                                                
-				                key_info->rec_per_key[k++]=
-				                rec_per_key >= ~(ulong) 0 ?
-                                                ~(ulong) 0 :
-                                                (ulong) rec_per_key;
-
-					} 
-				}
-			}                                         
 		}
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
