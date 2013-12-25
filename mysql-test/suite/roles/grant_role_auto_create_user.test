@@ -1,9 +1,11 @@
+#
+# MDEV-5221 User auto-creation does not work upon GRANT <role>
+#
+--source include/not_embedded.inc
+
 create database db;
 create role auto_create;
 grant all on db.* to auto_create;
-
---error 0,ER_CANNOT_USER
-drop user foo@localhost, bar@localhost;
 
 grant auto_create to foo@localhost;
 grant auto_create to bar@localhost identified by 'baz';
