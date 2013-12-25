@@ -1,7 +1,6 @@
 create database db;
 create role auto_create;
 grant all on db.* to auto_create;
-drop user foo@localhost, bar@localhost;
 grant auto_create to foo@localhost;
 grant auto_create to bar@localhost identified by 'baz';
 set role 'auto_create';
