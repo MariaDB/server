@@ -24746,7 +24746,7 @@ JOIN_TAB *find_last_tab_for_dynamic_cond(table_map cond_tables,
         last_tab= sj_nest->sj_strategys_join_tab;
     }
   }
-  return join->join_tab + last_tab;
+  return join->join_tab + last_tab + 1;
 }
 
 
