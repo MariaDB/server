@@ -364,7 +364,7 @@ static Sys_var_ulong Sys_back_log(
        "MySQL can have. This comes into play when the main MySQL thread "
        "gets very many connection requests in a very short time",
        READ_ONLY GLOBAL_VAR(back_log), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 65535), DEFAULT(50), BLOCK_SIZE(1));
+       VALID_RANGE(1, 65535), DEFAULT(150), BLOCK_SIZE(1));
 
 static Sys_var_charptr Sys_basedir(
        "basedir", "Path to installation directory. All paths are "

@@ -8943,6 +8943,13 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
         max_binlog_size_var->option.def_value;
     }
   }
+
+  /* Ensure that some variables are not set higher than needed */
+  if (back_log > max_connections)
+    back_log= max_connections;
+  if (thread_cache_size > max_connections)
+    thread_cache_size= max_connections;
+  
   return 0;
 }
 
