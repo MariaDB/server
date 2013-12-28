@@ -218,7 +218,8 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
       if (type == TYPE_DECIM)
         prec = ((Field_new_decimal*)fp)->precision;
       else
-        prec = (prec == NOT_FIXED_DEC) ? 0 : fp->field_length;
+        prec = fp->field_length;
+//      prec = (prec(???) == NOT_FIXED_DEC) ? 0 : fp->field_length;
 
       len = fp->char_length();
       fmt = NULL;
