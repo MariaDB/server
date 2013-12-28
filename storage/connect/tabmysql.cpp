@@ -1117,7 +1117,7 @@ MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
   } // endif cprec
 
   // Set additional MySQL access method information for column.
-  Long = cdp->GetLong();
+  Precision = Long = cdp->GetLong();
   Bind = NULL;
   To_Val = NULL;
   Slen = 0;
@@ -1136,13 +1136,16 @@ MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PSZ am)
   {
   Name = fld->name;
   Opt = 0;
-  Long = fld->length;
+  Precision = Long = fld->length;
   Buf_Type = MYSQLtoPLG(fld->type);
   strcpy(Format.Type, GetFormatType(Buf_Type));
   Format.Length = Long;
   Format.Prec = fld->decimals;
   ColUse = U_P;
   Nullable = !IS_NOT_NULL(fld->flags);
+
+  if (Buf_Type == TYPE_DECIM)
+    Precision = ((Field_new_decimal*)fld)->precision;
 
   // Set additional MySQL access method information for column.
   Bind = NULL;
@@ -1202,10 +1205,10 @@ bool MYSQLCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
       if (GetDomain() || ((DTVAL *)value)->IsFormatted())
         goto newval;          // This will make a new value;
 
-    } else if (Buf_Type == TYPE_FLOAT)
+    } else if (Buf_Type == TYPE_DOUBLE)
       // Float values must be written with the correct (column) precision
       // Note: maybe this should be forced by ShowValue instead of this ?
-      value->SetPrec(GetPrecision());
+      value->SetPrec(GetScale());
 
     Value = value;            // Directly access the external value
   } else {

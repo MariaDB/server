@@ -153,8 +153,9 @@ PSZ GetTypeName(int type)
     case TYPE_INT:    name = "INTEGER";  break;
     case TYPE_BIGINT: name = "BIGINT";   break;
     case TYPE_DATE:   name = "DATE";     break;
-    case TYPE_FLOAT:  name = "FLOAT";    break;
+    case TYPE_DOUBLE: name = "DOUBLE";   break;
     case TYPE_TINY:   name = "TINY";     break;
+    case TYPE_DECIM:  name = "DECIMAL";  break;
     default:          name = "UNKNOWN";  break;
     } // endswitch type
 
@@ -167,12 +168,13 @@ PSZ GetTypeName(int type)
 int GetTypeSize(int type, int len)
   {
   switch (type) {
+    case TYPE_DECIM:
     case TYPE_STRING: len = len * sizeof(char); break;
     case TYPE_SHORT:  len = sizeof(short);      break;
     case TYPE_INT:    len = sizeof(int);        break;
     case TYPE_BIGINT: len = sizeof(longlong);   break;
     case TYPE_DATE:   len = sizeof(int);        break;
-    case TYPE_FLOAT:  len = sizeof(double);     break;
+    case TYPE_DOUBLE: len = sizeof(double);     break;
     case TYPE_TINY:   len = sizeof(char);       break;
     default:          len = 0;
     } // endswitch type
@@ -192,9 +194,10 @@ char *GetFormatType(int type)
     case TYPE_SHORT:  c = "S"; break;
     case TYPE_INT:    c = "N"; break;
     case TYPE_BIGINT: c = "L"; break;
-    case TYPE_FLOAT:  c = "F"; break;
+    case TYPE_DOUBLE: c = "F"; break;
     case TYPE_DATE:   c = "D"; break;
     case TYPE_TINY:   c = "T"; break;
+    case TYPE_DECIM:  c = "M"; break;
     } // endswitch type
 
   return c;
@@ -212,14 +215,14 @@ int GetFormatType(char c)
     case 'S': type = TYPE_SHORT;  break;
     case 'N': type = TYPE_INT;    break;
     case 'L': type = TYPE_BIGINT; break;
-    case 'F': type = TYPE_FLOAT;  break;
+    case 'F': type = TYPE_DOUBLE; break;
     case 'D': type = TYPE_DATE;   break;
     case 'T': type = TYPE_TINY;   break;
+    case 'M': type = TYPE_DECIM;  break;
     } // endswitch type
 
   return type;
   } // end of GetFormatType
-
 
 /***********************************************************************/
 /*  IsTypeChar: returns true for character type(s).                    */
@@ -228,6 +231,7 @@ bool IsTypeChar(int type)
   {
   switch (type) {
     case TYPE_STRING:
+    case TYPE_DECIM:
       return true;
     } // endswitch type
 
@@ -243,10 +247,11 @@ bool IsTypeNum(int type)
     case TYPE_INT:
     case TYPE_BIGINT:
     case TYPE_DATE:
-    case TYPE_FLOAT:
+    case TYPE_DOUBLE:
     case TYPE_SHORT:
     case TYPE_NUM:
     case TYPE_TINY:
+    case TYPE_DECIM:
       return true;
     } // endswitch type
 
@@ -261,10 +266,11 @@ const char *GetFmt(int type, bool un)
   const char *fmt;
 
   switch (type) {
+    case TYPE_DECIM:
     case TYPE_STRING: fmt = "%s";                   break;
     case TYPE_SHORT:  fmt = (un) ? "%hu" : "%hd";   break;
     case TYPE_BIGINT: fmt = (un) ? "%llu" : "%lld"; break;
-    case TYPE_FLOAT:  fmt = "%.*lf";                break;
+    case TYPE_DOUBLE: fmt = "%.*lf";                break;
     default:          fmt = (un) ? "%u" : "%d";     break;
     } // endswitch Type
 
@@ -293,7 +299,7 @@ int ConvertType(int target, int type, CONV kind, bool match)
       if (match && (!IsTypeNum(target) || !IsTypeNum(type)))
         return TYPE_ERROR;
 
-      return (target == TYPE_FLOAT  || type == TYPE_FLOAT)  ? TYPE_FLOAT
+      return (target == TYPE_DOUBLE || type == TYPE_DOUBLE) ? TYPE_DOUBLE
            : (target == TYPE_DATE   || type == TYPE_DATE)   ? TYPE_DATE
            : (target == TYPE_BIGINT || type == TYPE_BIGINT) ? TYPE_BIGINT
            : (target == TYPE_INT    || type == TYPE_INT)    ? TYPE_INT
@@ -307,7 +313,7 @@ int ConvertType(int target, int type, CONV kind, bool match)
                     (IsTypeNum(target) && !IsTypeNum(type))))
         return TYPE_ERROR;
 
-      return (target == TYPE_FLOAT  || type == TYPE_FLOAT)  ? TYPE_FLOAT
+      return (target == TYPE_DOUBLE || type == TYPE_DOUBLE) ? TYPE_DOUBLE
            : (target == TYPE_DATE   || type == TYPE_DATE)   ? TYPE_DATE
            : (target == TYPE_BIGINT || type == TYPE_BIGINT) ? TYPE_BIGINT
            : (target == TYPE_INT    || type == TYPE_INT)    ? TYPE_INT
@@ -343,8 +349,8 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type)
     case TYPE_BIGINT:
       valp = new(g) TYPVAL<longlong>(*(longlong*)value, TYPE_BIGINT);
       break;
-    case TYPE_FLOAT:
-      valp = new(g) TYPVAL<double>(*(double *)value, TYPE_FLOAT, 2);
+    case TYPE_DOUBLE:
+      valp = new(g) TYPVAL<double>(*(double *)value, TYPE_DOUBLE, 2);
       break;
     case TYPE_TINY:
       valp = new(g) TYPVAL<char>(*(char *)value, TYPE_TINY);
@@ -361,7 +367,8 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type)
 /***********************************************************************/
 /*  Allocate a variable Value according to type, length and precision. */
 /***********************************************************************/
-PVAL AllocateValue(PGLOBAL g, int type, int len, int prec, PSZ fmt)
+PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
+                   bool uns, PSZ fmt)
   {
   PVAL valp;
 
@@ -373,35 +380,38 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec, PSZ fmt)
       valp = new(g) DTVAL(g, len, prec, fmt);
       break;
     case TYPE_INT: 
-      if (prec)
+      if (uns)
         valp = new(g) TYPVAL<uint>((uint)0, TYPE_INT, 0, true);
       else
         valp = new(g) TYPVAL<int>((int)0, TYPE_INT);
 
       break;
     case TYPE_BIGINT:
-      if (prec)
+      if (uns)
         valp = new(g) TYPVAL<ulonglong>((ulonglong)0, TYPE_BIGINT, 0, true);
       else
         valp = new(g) TYPVAL<longlong>((longlong)0, TYPE_BIGINT);
 
       break;
     case TYPE_SHORT:
-      if (prec)
+      if (uns)
         valp = new(g) TYPVAL<ushort>((ushort)0, TYPE_SHORT, 0, true);
       else
         valp = new(g) TYPVAL<short>((short)0, TYPE_SHORT);
 
       break;
-    case TYPE_FLOAT:
-      valp = new(g) TYPVAL<double>(0.0, TYPE_FLOAT, prec);
+    case TYPE_DOUBLE:
+      valp = new(g) TYPVAL<double>(0.0, TYPE_DOUBLE, prec);
       break;
     case TYPE_TINY:
-      if (prec)
+      if (uns)
         valp = new(g) TYPVAL<uchar>((uchar)0, TYPE_TINY, 0, true);
       else
         valp = new(g) TYPVAL<char>((char)0, TYPE_TINY);
 
+      break;
+    case TYPE_DECIM:
+      valp = new(g) DECVAL(g, (PSZ)NULL, len, prec, uns);
       break;
     default:
       sprintf(g->Message, MSG(BAD_VALUE_TYPE), type);
@@ -412,6 +422,7 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec, PSZ fmt)
   return valp;
   } // end of AllocateValue
 
+#if 0
 /***********************************************************************/
 /*  Allocate a constant Value converted to newtype.                    */
 /*  Can also be used to copy a Value eventually converted.             */
@@ -459,8 +470,8 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
     case TYPE_DATE:
       valp = new(g) DTVAL(g, valp->GetIntValue());
       break;
-    case TYPE_FLOAT:
-      valp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_FLOAT,
+    case TYPE_DOUBLE:
+      valp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_DOUBLE,
                                    valp->GetValPrec());
       break;
     case TYPE_TINY:  
@@ -479,7 +490,7 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
   valp->SetGlobal(g);
   return valp;
   } // end of AllocateValue
-
+#endif // 0
 
 /* -------------------------- Class VALUE ---------------------------- */
 
@@ -505,10 +516,11 @@ const char *VALUE::GetXfmt(void)
   const char *fmt;
 
   switch (Type) {
+    case TYPE_DECIM:
     case TYPE_STRING: fmt = "%*s";                          break;
     case TYPE_SHORT:  fmt = (Unsigned) ? "%*hu" : "%*hd";   break;
     case TYPE_BIGINT: fmt = (Unsigned) ? "%*llu" : "%*lld"; break;
-    case TYPE_FLOAT:  fmt = "%*.*lf";                       break;
+    case TYPE_DOUBLE: fmt = "%*.*lf";                       break;
     default:          fmt = (Unsigned) ? "%*u" : "%*d";     break;
     } // endswitch Type
 
@@ -1354,6 +1366,234 @@ bool TYPVAL<PSZ>::SetConstFormat(PGLOBAL g, FORMAT& fmt)
   fmt.Prec = 0;
   return false;
   } // end of SetConstFormat
+
+/* -------------------------- Class DECIMAL -------------------------- */
+
+/***********************************************************************/
+/*  DECIMAL public constructor from a constant string.                 */
+/***********************************************************************/
+DECVAL::DECVAL(PSZ s) : TYPVAL<PSZ>(s)
+  {
+  if (s) {
+    char *p = strchr(Strp, '.');
+
+    Prec = (p) ? Len - (p - Strp) : 0;
+    } // endif s
+
+  Type = TYPE_DECIM;
+  } // end of DECVAL constructor
+
+/***********************************************************************/
+/*  DECIMAL public constructor from char.                              */
+/***********************************************************************/
+DECVAL::DECVAL(PGLOBAL g, PSZ s, int n, int prec, bool uns)
+      : TYPVAL<PSZ>(g, s, n + (prec ? 1 : 0) + (uns ? 0 : 1), 0)
+  {
+  Prec = prec;
+  Unsigned = uns;
+  Type = TYPE_DECIM;
+  } // end of DECVAL constructor
+
+/***********************************************************************/
+/*  DECIMAL: Check whether the numerica value is equal to 0.           */
+/***********************************************************************/
+bool DECVAL::IsZero(void)
+  {
+  for (int i = 0; Strp[i]; i++)
+    if (!strchr("0 +-.", Strp[i]))
+      return false;
+
+  return true;
+  } // end of IsZero
+
+/***********************************************************************/
+/*  DECIMAL: Reset value to zero.                                      */
+/***********************************************************************/
+void DECVAL::Reset(void) 
+{
+  int i = 0;
+
+  Strp[i++] = '0';
+
+  if (Prec) {
+    Strp[i++] = '.';
+
+    do {
+      Strp[i++] = '0';
+      } while (i < Prec + 2);
+
+    } // endif Prec
+
+  Strp[i] = 0;
+} // end of Reset
+
+/***********************************************************************/
+/*  DECIMAL ShowValue: get string representation right justified.      */
+/***********************************************************************/
+char *DECVAL::ShowValue(char *buf, int len)
+  {
+  sprintf(buf, Xfmt, len, Strp);
+  return buf;
+  } // end of ShowValue
+
+/***********************************************************************/
+/*  GetBinValue: fill a buffer with the internal binary value.         */
+/*  This function checks whether the buffer length is enough and       */
+/*  returns true if not. Actual filling occurs only if go is true.     */
+/*  Currently used by WriteColumn of binary files.                     */
+/***********************************************************************/
+bool DECVAL::GetBinValue(void *buf, int buflen, bool go)
+  {
+  int len = (Null) ? 0 : strlen(Strp);
+
+  if (len > buflen)
+    return true;
+  else if (go) {
+    memset(buf, ' ', buflen - len);
+    memcpy((char*)buf + buflen - len, Strp, len);
+    } // endif go
+
+  return false;
+  } // end of GetBinValue
+
+#if 0
+/***********************************************************************/
+/*  DECIMAL SetValue: copy the value of another Value object.          */
+/***********************************************************************/
+bool DECVAL::SetValue_pval(PVAL valp, bool chktype)
+  {
+  if (chktype && (valp->GetType() != Type || valp->GetSize() > Len))
+    return true;
+
+  char buf[32];
+
+  if (!(Null = valp->IsNull() && Nullable))
+    strncpy(Strp, valp->GetCharString(buf), Len);
+  else
+    Reset();
+
+  return false;
+  } // end of SetValue_pval
+
+/***********************************************************************/
+/*  DECIMAL SetValue: fill string with chars extracted from a line.    */
+/***********************************************************************/
+bool DECVAL::SetValue_char(char *p, int n)
+  {
+  bool rc;
+
+  if (p) {
+    rc = n > Len;
+
+    if ((n = min(n, Len))) {
+    	strncpy(Strp, p, n);
+
+//	  for (p = Strp + n - 1; p >= Strp && (*p == ' ' || *p == '\0'); p--) ;
+      for (p = Strp + n - 1; p >= Strp; p--)
+        if (*p && *p != ' ')
+          break;
+
+	    *(++p) = '\0';
+
+	    if (trace > 1)
+	      htrc(" Setting string to: '%s'\n", Strp);
+	      
+	  } else
+	  	Reset();
+
+    Null = false;
+  } else {
+    rc = false;
+    Reset();
+    Null = Nullable;
+  } // endif p
+
+  return rc;
+  } // end of SetValue_char
+
+/***********************************************************************/
+/*  DECIMAL SetValue: fill string with another string.                 */
+/***********************************************************************/
+void DECVAL::SetValue_psz(PSZ s)
+  {
+  if (s) {
+    strncpy(Strp, s, Len);
+    Null = false;
+  } else {
+    Reset();
+    Null = Nullable;
+  } // endif s
+
+  } // end of SetValue_psz
+
+/***********************************************************************/
+/*  DECIMAL SetValue: fill string with a string extracted from a block.*/
+/***********************************************************************/
+void DECVAL::SetValue_pvblk(PVBLK blk, int n)
+  {
+  // STRBLK's can return a NULL pointer
+  SetValue_psz(blk->GetCharValue(n));
+  } // end of SetValue_pvblk
+
+/***********************************************************************/
+/*  DECIMAL SetBinValue: fill string with chars extracted from a line. */
+/***********************************************************************/
+void DECVAL::SetBinValue(void *p)
+  {
+  SetValue_char((char *)p, Len);
+  } // end of SetBinValue
+
+/***********************************************************************/
+/*  DECIMAL GetCharString: get string representation of a char value.  */
+/***********************************************************************/
+char *DECVAL::GetCharString(char *p)
+  {
+  return Strp;
+  } // end of GetCharString
+#endif // 0
+
+/***********************************************************************/
+/*  DECIMAL compare value with another Value.                          */
+/***********************************************************************/
+bool DECVAL::IsEqual(PVAL vp, bool chktype)
+  {
+  if (this == vp)
+    return true;
+  else if (chktype && Type != vp->GetType())
+    return false;
+  else if (Null || vp->IsNull())
+    return false;
+
+  char buf[32];
+
+  return !strcmp(Strp, vp->GetCharString(buf));
+  } // end of IsEqual
+
+#if 0
+/***********************************************************************/
+/*  FormatValue: This function set vp (a STRING value) to the string   */
+/*  constructed from its own value formated using the fmt format.      */
+/*  This function assumes that the format matches the value type.      */
+/***********************************************************************/
+bool DECVAL::FormatValue(PVAL vp, char *fmt)
+  {
+  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
+  int   n = sprintf(buf, fmt, Strp);
+
+  return (n > vp->GetValLen());
+  } // end of FormatValue
+
+/***********************************************************************/
+/*  DECIMAL SetFormat function (used to set SELECT output format).     */
+/***********************************************************************/
+bool DECVAL::SetConstFormat(PGLOBAL g, FORMAT& fmt)
+  {
+  fmt.Type[0] = 'C';
+  fmt.Length = Len;
+  fmt.Prec = 0;
+  return false;
+  } // end of SetConstFormat
+#endif // 0
 
 /* -------------------------- Class DTVAL ---------------------------- */
 
