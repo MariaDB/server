@@ -57,6 +57,7 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
 
   switch (type) {
     case TYPE_STRING:
+    case TYPE_DECIM:
       if (len)
         blkp = new(g) CHRBLK(mp, nval, len, prec, blank);
       else
@@ -87,7 +88,7 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
         blkp = new(g) TYPBLK<longlong>(mp, nval, type);
 
       break;
-    case TYPE_FLOAT:
+    case TYPE_DOUBLE:
       blkp = new(g) TYPBLK<double>(mp, nval, type, prec);
       break;
     case TYPE_TINY:
@@ -342,6 +343,21 @@ ulonglong TYPBLK<longlong>::MaxVal(void) {return INT_MAX64;}
 
 template <>
 ulonglong TYPBLK<ulonglong>::MaxVal(void) {return ULONGLONG_MAX;}
+
+template <>
+void TYPBLK<double>::SetValue(PSZ p, int n)
+  {
+  ChkIndx(n);
+
+  if (Check) {
+    PGLOBAL& g = Global;
+    strcpy(g->Message, MSG(BAD_SET_STRING));
+    longjmp(g->jumper[g->jump_level], Type);
+    } // endif Check
+
+  Typp[n] = atof(p);
+  SetNull(n, false);
+  } // end of SetValue
 
 /***********************************************************************/
 /*  Set one value in a block from an array of characters.              */
@@ -1163,7 +1179,7 @@ DATBLK::DATBLK(void *mp, int nval) : TYPBLK<int>(mp, nval, TYPE_INT)
 /***********************************************************************/
 bool DATBLK::SetFormat(PGLOBAL g, PSZ fmt, int len, int year)
   {
-  if (!(Dvalp = AllocateValue(g, TYPE_DATE, len, year, fmt)))
+  if (!(Dvalp = AllocateValue(g, TYPE_DATE, len, year, false, fmt)))
     return true;
 
   return false;

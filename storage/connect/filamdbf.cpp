@@ -271,11 +271,11 @@ PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info)
         type = TYPE_STRING;
         break;
       case 'N':
-        type = (thisfield.Decimals) ? TYPE_FLOAT
+        type = (thisfield.Decimals) ? TYPE_DOUBLE
              : (len > 10) ? TYPE_BIGINT : TYPE_INT;
         break;
       case 'F':
-        type = TYPE_FLOAT;
+        type = TYPE_DOUBLE;
         break;
       case 'D':
         type = TYPE_DATE;            // Is this correct ???

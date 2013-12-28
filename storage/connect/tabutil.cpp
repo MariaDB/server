@@ -122,16 +122,16 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
 PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db, 
                                         const char *name, bool& info)
   {
-  static int  buftyp[] = {TYPE_STRING, TYPE_SHORT,  TYPE_STRING, TYPE_INT,
-                          TYPE_INT,    TYPE_SHORT,  TYPE_SHORT,  TYPE_SHORT,
-                          TYPE_STRING, TYPE_STRING, TYPE_STRING};
-  static XFLD fldtyp[] = {FLD_NAME,   FLD_TYPE,  FLD_TYPENAME, FLD_PREC,
-                          FLD_LENGTH, FLD_SCALE, FLD_RADIX,    FLD_NULL,
-                          FLD_REM,    FLD_NO,    FLD_CHARSET};
-  static unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 32, 32};
+  int  buftyp[] = {TYPE_STRING, TYPE_SHORT,  TYPE_STRING, TYPE_INT,
+                   TYPE_INT,    TYPE_SHORT,  TYPE_SHORT,  TYPE_SHORT,
+                   TYPE_STRING, TYPE_STRING, TYPE_STRING};
+  XFLD fldtyp[] = {FLD_NAME,   FLD_TYPE,  FLD_TYPENAME, FLD_PREC,
+                   FLD_LENGTH, FLD_SCALE, FLD_RADIX,    FLD_NULL,
+                   FLD_REM,    FLD_NO,    FLD_CHARSET};
+  unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 32, 32};
   char        *fld, *fmt, v;
   int          i, n, ncol = sizeof(buftyp) / sizeof(int);
-  int          len, type, prec;
+  int          prec, len, type, scale;
   bool         mysql;
   TABLE_SHARE *s = NULL;
   Field*      *field;
@@ -208,27 +208,32 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
       // When creating tables we do need info about date columns
       if (mysql) {
         fmt = MyDateFmt(fp->type());
-        len = strlen(fmt);
+        prec = len = strlen(fmt);
       } else {
         fmt = (char*)fp->option_struct->dateformat;
-        len = fp->field_length;
+        prec = len = fp->field_length;
       } // endif mysql
 
     } else {
-      fmt = NULL;
+      if (type == TYPE_DECIM)
+        prec = ((Field_new_decimal*)fp)->precision;
+      else
+        prec = (prec == NOT_FIXED_DEC) ? 0 : fp->field_length;
+
       len = fp->char_length();
+      fmt = NULL;
     } // endif type
 
     crp = crp->Next;                       // Precision
-    crp->Kdata->SetValue(len, i);
+    crp->Kdata->SetValue(prec, i);
 
     crp = crp->Next;                       // Length
-    prec = (type == TYPE_FLOAT) ? fp->decimals() : 0;
-    len = (prec == 31) ? 0 : fp->field_length;
     crp->Kdata->SetValue(len, i);
 
     crp = crp->Next;                       // Scale
-    crp->Kdata->SetValue(prec, i);
+    scale = (type == TYPE_DOUBLE || type == TYPE_DECIM) ? fp->decimals()
+                                                        : 0;
+    crp->Kdata->SetValue(scale, i);
 
     crp = crp->Next;                       // Radix
     crp->Kdata->SetValue(0, i);
