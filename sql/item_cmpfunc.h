@@ -561,14 +561,20 @@ public:
 
 class Item_func_dynamic_cond : public Item_func_collect_stats
 {
-protected:
+protected: // as if there were any ancestor classes?
   List<Item_subselect> subqueries;
   /* The join_tab where the condition is currently 'pushed'.*/
   st_join_table *active_tab;
   /* The join_tab currently being executed. */
   st_join_table **exec_tab;
   /* The boundaries of the sub-plan where this predicate can be pushed. */
-  st_join_table *first_tab, *last_tab;
+  st_join_table *first_tab;
+  st_join_table *last_tab;  //psergey-todo: this should point to the last tab.
+                            // conditions depending on semi-join tables have 
+                            // limits re. how far they can be moved.
+public:
+  inline st_join_table * get_last_tab() { return last_tab; }
+protected:
   /*
     The relative access cost based on optimizer estimates. This is the cost
     of all access methods per one record from the first table in the plan.

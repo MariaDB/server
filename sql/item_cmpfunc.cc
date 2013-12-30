@@ -6591,6 +6591,8 @@ void Item_func_collect_stats::dbug_print_stats()
 }
 #endif /*DBUG_OFF*/
 
+JOIN_TAB *find_last_tab_for_dynamic_cond(table_map cond_tables,
+                                         JOIN *join, JOIN_TAB *join_tab);
 
 Item_func_dynamic_cond::Item_func_dynamic_cond(Item *cond, JOIN_TAB *atab, JOIN_TAB **ctab)
   : Item_func_collect_stats(cond)
@@ -6624,13 +6626,15 @@ Item_func_dynamic_cond::Item_func_dynamic_cond(Item *cond, JOIN_TAB *atab, JOIN_
   if (active_tab->bush_root_tab)
   {
     first_tab= active_tab->bush_root_tab->bush_children->start;
-    last_tab= active_tab->bush_root_tab->bush_children->end;
+    //last_tab= active_tab->bush_root_tab->bush_children->end;
   }
   else
   {
     first_tab= join->join_tab + join->const_tables;
-    last_tab= join->join_tab + join->top_join_tab_count;
+    //last_tab= join->join_tab + join->top_join_tab_count;
   }
+  last_tab= find_last_tab_for_dynamic_cond(cond->used_tables(), 
+                                           active_tab->join, active_tab);
 
   DBUG_ASSERT(active_tab >= first_tab && active_tab < last_tab);
 

@@ -1480,6 +1480,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   sj_nest->sj_subq_pred= subq_pred;
   sj_nest->original_subq_pred_used_tables= subq_pred->used_tables() |
                                            subq_pred->left_expr->used_tables();
+  sj_nest->sj_strategys_join_tab= uint(-1);
   /* Nests do not participate in those 'chains', so: */
   /* sj_nest->next_leaf= sj_nest->next_local= sj_nest->next_global == NULL*/
   emb_join_list->push_back(sj_nest);
@@ -4329,6 +4330,21 @@ int init_dups_weedout(JOIN *join, uint first_table, int first_fanout_table, uint
 
 
 /*
+  For each SJ-inner table in [start_tab; end_tab], set emb_sj_nest to idx
+*/
+static void update_sj_strategys_join_tab(JOIN_TAB *start_tab, 
+                                         JOIN_TAB *end_tab,
+                                         uint idx)
+{
+  for (JOIN_TAB *j= start_tab; j < end_tab; j++)
+  {
+    TABLE_LIST *emb_nest;
+    if ((emb_nest= j->emb_sj_nest))
+      emb_nest->sj_strategys_join_tab= idx;
+  }
+}
+
+/*
   Setup the strategies to eliminate semi-join duplicates.
   
   SYNOPSIS
@@ -4456,6 +4472,10 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
 
         for (uint j= i; j < i + pos->n_sj_tables; j++)
           join->join_tab[j].inside_loosescan_range= TRUE;
+        
+        update_sj_strategys_join_tab(join->join_tab + i, 
+                                     join->join_tab + i + pos->n_sj_tables,
+                                     i + pos->n_sj_tables - 1);
 
         /* Calculate key length */
         keylen= 0;
@@ -4469,6 +4489,7 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
           tab[pos->n_sj_tables - 1].do_firstmatch= tab;
         i+= pos->n_sj_tables;
         pos+= pos->n_sj_tables;
+
         break;
       }
       case SJ_OPT_DUPS_WEEDOUT:
@@ -4511,6 +4532,9 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
             break;
           }
         }
+        update_sj_strategys_join_tab(join->join_tab + i, 
+                                     join->join_tab + i + pos->n_sj_tables,
+                                     i + pos->n_sj_tables - 1);
 
         init_dups_weedout(join, first_table, i, i + pos->n_sj_tables - first_table);
         i+= pos->n_sj_tables;
@@ -4566,6 +4590,9 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
           }
         }
         j[-1].do_firstmatch= jump_to;
+        update_sj_strategys_join_tab(join->join_tab + i, 
+                                     join->join_tab + i + pos->n_sj_tables,
+                                     i + pos->n_sj_tables - 1);
         i+= pos->n_sj_tables;
         pos+= pos->n_sj_tables;
 
