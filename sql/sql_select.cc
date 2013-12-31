@@ -24540,6 +24540,16 @@ void JOIN::collect_expensive_conjuncts()
 /**
   Compute the added cost of all expensive subqueries if they are pushed
   to their respective optimal positions in a complete join plan.
+  
+  @param idx_start  The first table in the join prefix.
+                    psergey-todo: why are there exist cases where idx_start!=0 ?
+                    For this function idx_start!=0 means "dont put conditions
+                    to the left of idx_start".  This is stupid - this function 
+                    processes ALL conditions in the WHERE clause. What if some
+                    of them are "naturally" attached to a point that is to the
+                    left of idx_start?
+
+  @param idx_end    Last table in the join prefix.
 
   @note
   During join optimization we don't do yet condition pushdown. The WHERE
