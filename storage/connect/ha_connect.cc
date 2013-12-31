@@ -2749,8 +2749,10 @@ int ha_connect::delete_all_rows()
 } // end of delete_all_rows
 
 
-bool ha_connect::check_privileges(THD *thd, PTOS options)
+bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
 {
+  const char *db= (dbn && *dbn) ? dbn : NULL;
+
   if (!options->type) {
     if (options->srcdef)
       options->type= "MYSQL";
@@ -2800,7 +2802,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options)
     case TAB_MAC:
     case TAB_WMI:
     case TAB_OEM:
-      return check_access(thd, FILE_ACL, NULL, NULL, NULL, 0, 0);
+      return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
 
     // This is temporary until a solution is found
     case TAB_TBL:
@@ -3026,12 +3028,6 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   if (!g)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
-  if (lock_type != F_UNLCK && check_privileges(thd, options)) {
-    strcpy(g->Message, "This operation requires the FILE privilege");
-    printf("%s\n", g->Message);
-    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
-    } // endif check_privileges
-
   // Action will depend on lock_type
   switch (lock_type) {
     case F_WRLCK:
@@ -3167,6 +3163,14 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     DBUG_RETURN(rc);
     } // endif MODE_ANY
 
+  DBUG_ASSERT(table && table->s);
+
+  if (check_privileges(thd, options, table->s->db.str)) {
+    strcpy(g->Message, "This operation requires the FILE privilege");
+    printf("%s\n", g->Message);
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+    } // endif check_privileges
+
   // Table mode depends on the query type
   newmode= CheckMode(g, thd, newmode, &xcheck, &cras);
 
@@ -3211,9 +3215,6 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       }// endif tdbp
 
     xmod= newmode;
-
-    if (!table)
-      rc= 3;          // Logical error
 
     // Delay open until used fields are known
   } // endif tdbp
@@ -3327,7 +3328,7 @@ filename_to_dbname_and_tablename(const char *filename,
   memcpy(database, d.str, d.length);
   database[d.length]= '\0';
   return false;
-}
+} // end of filename_to_dbname_and_tablename
 
 
 /**
@@ -3385,7 +3386,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   // Now we can work
   pos= share->option_struct;
 
-  if (check_privileges(thd, pos))
+  if (check_privileges(thd, pos, db))
   {
     free_table_share(share);
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
@@ -4361,6 +4362,28 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 } // end of connect_assisted_discovery
 
 /**
+  Get the database name from a qualified table name.
+*/
+char *ha_connect::GetDBfromName(const char *name)
+{
+  char *db, dbname[128], tbname[128];
+
+  if (filename_to_dbname_and_tablename(name, dbname, sizeof(dbname),
+                                             tbname, sizeof(tbname)))
+    *dbname= 0;
+
+  if (*dbname) {
+    assert(xp && xp->g);
+    db= (char*)PlugSubAlloc(xp->g, NULL, strlen(dbname + 1));
+    strcpy(db, dbname);
+  } else
+    db= NULL;
+
+  return db;
+} // end of GetDBfromName
+
+
+/**
   @brief
   create() is called to create a database. The variable name will have the name
   of the table.
@@ -4418,7 +4441,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   } // endif ttp
 
-  if (check_privileges(thd, options))
+  if (check_privileges(thd, options, GetDBfromName(name)))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   if (options->data_charset) {

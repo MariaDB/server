@@ -2023,7 +2023,6 @@ bool ODBConn::GetDrivers(PQRYRES qrp)
   return rv;
   } // end of GetDrivers
 
-
 /***********************************************************************/
 /*  A helper class to split an optionally qualified table name into    */
 /*  components.                                                        */
@@ -2042,7 +2041,7 @@ class SQLQualifiedName
   {
     S->str= str;
     S->length= length;
-  } // eend of lex_string_set
+  } // end of lex_string_set
 
   void lex_string_shorten_down(MYSQL_LEX_STRING *S, size_t offs)
   {

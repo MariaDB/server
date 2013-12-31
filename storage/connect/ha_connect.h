@@ -445,8 +445,9 @@ const char *GetValStr(OPVAL vop, bool neg);
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
 
 protected:
-  bool check_privileges(THD *thd, PTOS options);
+  bool check_privileges(THD *thd, PTOS options, char *dbn);
   MODE CheckMode(PGLOBAL g, THD *thd, MODE newmode, bool *chk, bool *cras);
+  char *GetDBfromName(const char *name);
 
   // Members
   static ulong  num;                  // Tracable handler number
