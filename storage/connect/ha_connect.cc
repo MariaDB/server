@@ -3938,7 +3938,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     cls= GetListOption(g, "class", topt->oplist);
 #endif   // WIN32
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
+#if defined(ODBC_SUPPORT)
     mxr= atoi(GetListOption(g,"maxres", topt->oplist, "0"));
+#endif
     mxe= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
 #if defined(PROMPT_OK)
     cop= atoi(GetListOption(g, "checkdsn", topt->oplist, "0"));

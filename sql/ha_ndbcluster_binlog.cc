@@ -446,7 +446,7 @@ int ndbcluster_binlog_init_share(NDB_SHARE *share, TABLE *_table)
       alloc_root(mem_root, no_nodes * sizeof(MY_BITMAP));
     for (i= 0; i < no_nodes; i++)
     {
-      bitmap_init(&share->subscriber_bitmap[i],
+      my_bitmap_init(&share->subscriber_bitmap[i],
                   (Uint32*)alloc_root(mem_root, max_ndb_nodes/8),
                   max_ndb_nodes, FALSE);
       bitmap_clear_all(&share->subscriber_bitmap[i]);
@@ -1119,7 +1119,7 @@ ndbcluster_update_slock(THD *thd,
 
   MY_BITMAP slock;
   uint32 bitbuf[SCHEMA_SLOCK_SIZE/4];
-  bitmap_init(&slock, bitbuf, sizeof(bitbuf)*8, false);
+  my_bitmap_init(&slock, bitbuf, sizeof(bitbuf)*8, false);
 
   if (ndbtab == 0)
   {
@@ -1370,7 +1370,7 @@ int ndbcluster_log_schema_op(THD *thd, NDB_SHARE *share,
   {
     int i, updated= 0;
     int no_storage_nodes= g_ndb_cluster_connection->no_db_nodes();
-    bitmap_init(&schema_subscribers, bitbuf, sizeof(bitbuf)*8, FALSE);
+    my_bitmap_init(&schema_subscribers, bitbuf, sizeof(bitbuf)*8, FALSE);
     bitmap_set_all(&schema_subscribers);
 
     /* begin protect ndb_schema_share */
@@ -1908,7 +1908,7 @@ ndb_binlog_thread_handle_schema_event(THD *thd, Ndb *ndb,
       Cluster_schema *schema= (Cluster_schema *)
         sql_alloc(sizeof(Cluster_schema));
       MY_BITMAP slock;
-      bitmap_init(&slock, schema->slock, 8*SCHEMA_SLOCK_SIZE, FALSE);
+      my_bitmap_init(&slock, schema->slock, 8*SCHEMA_SLOCK_SIZE, FALSE);
       uint node_id= g_ndb_cluster_connection->node_id();
       {
         ndbcluster_get_schema(tmp_share, schema);
@@ -3353,7 +3353,7 @@ ndb_binlog_thread_handle_data_event(Ndb *ndb, NdbEventOperation *pOp,
   MY_BITMAP b;
   /* Potential buffer for the bitmap */
   uint32 bitbuf[128 / (sizeof(uint32) * 8)];
-  bitmap_init(&b, n_fields <= sizeof(bitbuf) * 8 ? bitbuf : NULL, 
+  my_bitmap_init(&b, n_fields <= sizeof(bitbuf) * 8 ? bitbuf : NULL, 
               n_fields, FALSE);
   bitmap_set_all(&b);
 
@@ -3573,7 +3573,7 @@ static NDB_SCHEMA_OBJECT *ndb_get_schema_object(const char *key,
       break;
     }
     mysql_mutex_init(key_ndb_schema_object_mutex, &ndb_schema_object->mutex, MY_MUTEX_INIT_FAST);
-    bitmap_init(&ndb_schema_object->slock_bitmap, ndb_schema_object->slock,
+    my_bitmap_init(&ndb_schema_object->slock_bitmap, ndb_schema_object->slock,
                 sizeof(ndb_schema_object->slock)*8, FALSE);
     bitmap_clear_all(&ndb_schema_object->slock_bitmap);
     break;

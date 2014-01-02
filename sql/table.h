@@ -1067,7 +1067,6 @@ public:
   ORDER		*group;
   String	alias;            	  /* alias or table name */
   uchar		*null_flags;
-  my_bitmap_map	*bitmap_init_value;
   MY_BITMAP     def_read_set, def_write_set, def_vcol_set, tmp_set; 
   MY_BITMAP     eq_join_set;         /* used to mark equi-joined fields */
   MY_BITMAP     cond_set;   /* used to mark fields from sargable conditions*/

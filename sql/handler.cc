@@ -5719,7 +5719,7 @@ static int binlog_log_row(TABLE* table,
       the first row handled in this statement. In that case, we need
       to write table maps for all locked tables to the binary log.
     */
-    if (likely(!(error= bitmap_init(&cols,
+    if (likely(!(error= my_bitmap_init(&cols,
                                     use_bitbuf ? bitbuf : NULL,
                                     (n_fields + 7) & ~7UL,
                                     FALSE))))
@@ -5741,7 +5741,7 @@ static int binlog_log_row(TABLE* table,
                            before_record, after_record);
       }
       if (!use_bitbuf)
-        bitmap_free(&cols);
+        my_bitmap_free(&cols);
     }
   }
   return error ? HA_ERR_RBR_LOGGING_FAILED : 0;

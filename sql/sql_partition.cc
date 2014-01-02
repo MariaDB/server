@@ -651,7 +651,7 @@ static bool create_full_part_field_array(THD *thd, TABLE *table,
     result= TRUE;
     goto end;
   }
-  if (bitmap_init(&part_info->full_part_field_set, bitmap_buf,
+  if (my_bitmap_init(&part_info->full_part_field_set, bitmap_buf,
                   table->s->fields, FALSE))
   {
     mem_alloc_error(table->s->fields);
@@ -1230,9 +1230,9 @@ static bool set_up_partition_bitmaps(THD *thd, partition_info *part_info)
     mem_alloc_error(bitmap_bytes * 2);
     DBUG_RETURN(TRUE);
   }
-  bitmap_init(&part_info->read_partitions, bitmap_buf, bitmap_bits, FALSE);
+  my_bitmap_init(&part_info->read_partitions, bitmap_buf, bitmap_bits, FALSE);
   /* Use the second half of the allocated buffer for lock_partitions */
-  bitmap_init(&part_info->lock_partitions, bitmap_buf + (bitmap_bytes / 4),
+  my_bitmap_init(&part_info->lock_partitions, bitmap_buf + (bitmap_bytes / 4),
               bitmap_bits, FALSE);
   part_info->bitmaps_are_initialized= TRUE;
   part_info->set_partition_bitmaps(NULL);

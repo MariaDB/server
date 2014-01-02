@@ -2828,11 +2828,16 @@ case SQLCOM_PREPARE:
       goto end_with_restore_list;
     }
 
+    /* Check privileges */
     if ((res= create_table_precheck(thd, select_tables, create_table)))
       goto end_with_restore_list;
 
+#ifndef QQ
     /* Might have been updated in create_table_precheck */
     create_info.alias= create_table->alias;
+#else
+    create_table->alias= (char*) create_info.alias;
+#endif
 
 #ifdef HAVE_READLINK
     /* Fix names if symlinked tables */
@@ -7954,6 +7959,10 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
   want_priv= lex->create_info.tmp_table() ?  CREATE_TMP_ACL :
              (CREATE_ACL | (select_lex->item_list.elements ? INSERT_ACL : 0));
 
+  /* CREATE OR REPLACE on not temporary tables require DROP_ACL */
+  if (lex->replace && !lex->create_info.tmp_table())
+    want_priv= DROP_ACL;
+                          
   if (check_access(thd, want_priv, create_table->db,
                    &create_table->grant.privilege,
                    &create_table->grant.m_internal,
@@ -7990,8 +7999,8 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
 
         - For temporary MERGE tables we do not track if their child tables are
           base or temporary. As result we can't guarantee that privilege check
-          which was done in presence of temporary child will stay relevant later
-          as this temporary table might be removed.
+          which was done in presence of temporary child will stay relevant
+          later as this temporary table might be removed.
 
       If SELECT_ACL | UPDATE_ACL | DELETE_ACL privileges were not checked for
       the underlying *base* tables, it would create a security breach as in

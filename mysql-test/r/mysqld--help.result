@@ -1019,7 +1019,7 @@ auto-increment-increment 1
 auto-increment-offset 1
 autocommit TRUE
 automatic-sp-privileges TRUE
-back-log 50
+back-log 150
 big-tables FALSE
 bind-address (No default value)
 binlog-annotate-row-events FALSE
@@ -1221,6 +1221,7 @@ port-open-timeout 0
 preload-buffer-size 32768
 profiling-history-size 15
 progress-report-time 56
+protocol-version 10
 query-alloc-block-size 8192
 query-cache-limit 1048576
 query-cache-min-res-unit 4096
