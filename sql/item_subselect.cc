@@ -4685,13 +4685,13 @@ ulonglong subselect_hash_sj_engine::rowid_merge_buff_size(
 */
 
 static my_bool
-bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
+my_bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
 {
   my_bitmap_map *bitmap_buf;
 
   if (!(bitmap_buf= (my_bitmap_map*) alloc_root(mem_root,
                                                 bitmap_buffer_size(n_bits))) ||
-      bitmap_init(map, bitmap_buf, n_bits, FALSE))
+      my_bitmap_init(map, bitmap_buf, n_bits, FALSE))
     return TRUE;
   bitmap_clear_all(map);
   return FALSE;
@@ -4729,9 +4729,9 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
 
   DBUG_ENTER("subselect_hash_sj_engine::init");
 
-  if (bitmap_init_memroot(&non_null_key_parts, tmp_columns->elements,
+  if (my_bitmap_init_memroot(&non_null_key_parts, tmp_columns->elements,
                             thd->mem_root) ||
-      bitmap_init_memroot(&partial_match_key_parts, tmp_columns->elements,
+      my_bitmap_init_memroot(&partial_match_key_parts, tmp_columns->elements,
                             thd->mem_root))
     DBUG_RETURN(TRUE);
 
@@ -5453,7 +5453,7 @@ Ordered_key::Ordered_key(uint keyid_arg, TABLE *tbl_arg, Item *search_key_arg,
 Ordered_key::~Ordered_key()
 {
   my_free(key_buff);
-  bitmap_free(&null_key);
+  my_bitmap_free(&null_key);
 }
 
 
@@ -5563,7 +5563,7 @@ bool Ordered_key::alloc_keys_buffers()
     lookup offset.
   */
   /* Notice that max_null_row is max array index, we need count, so +1. */
-  if (bitmap_init(&null_key, NULL, (uint)(max_null_row + 1), FALSE))
+  if (my_bitmap_init(&null_key, NULL, (uint)(max_null_row + 1), FALSE))
     return TRUE;
 
   cur_key_idx= HA_POS_ERROR;
@@ -6002,8 +6002,8 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
   */
   if (!has_covering_null_columns)
   {
-    if (bitmap_init_memroot(&matching_keys, merge_keys_count, thd->mem_root) ||
-        bitmap_init_memroot(&matching_outer_cols, merge_keys_count, thd->mem_root))
+    if (my_bitmap_init_memroot(&matching_keys, merge_keys_count, thd->mem_root) ||
+        my_bitmap_init_memroot(&matching_outer_cols, merge_keys_count, thd->mem_root))
       return TRUE;
 
     /*

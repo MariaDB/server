@@ -60,7 +60,7 @@ public:
   sys_var *next;
   LEX_CSTRING name;
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
-                   READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096 };
+                   READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096, SHOW_VALUE_IN_HELP=8192 };
   /**
     Enumeration type to indicate for a system variable whether
     it will be written to the binlog or not.
@@ -142,8 +142,9 @@ public:
   }
   bool register_option(DYNAMIC_ARRAY *array, int parse_flags)
   {
-    return (option.id != -1) && ((flags & PARSE_EARLY) == parse_flags) &&
-           insert_dynamic(array, (uchar*)&option);
+    return ((((option.id != -1) && ((flags & PARSE_EARLY) == parse_flags)) ||
+             (flags & parse_flags)) &&
+            insert_dynamic(array, (uchar*)&option));
   }
 
 private:

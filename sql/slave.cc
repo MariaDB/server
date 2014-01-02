@@ -573,7 +573,7 @@ void init_slave_skip_errors(const char* arg)
   const char *p;
   DBUG_ENTER("init_slave_skip_errors");
 
-  if (bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR,0))
+  if (my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR,0))
   {
     fprintf(stderr, "Badly out of memory, please check your system status\n");
     exit(1);
