@@ -630,6 +630,46 @@ SET GLOBAL binlog_format=@old_format;
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 include/start_slave.inc
+*** 5. Test killing thread that is waiting for queue of max length to shorten ***
+SET @old_max_queued= @@GLOBAL.slave_parallel_max_queued;
+SET GLOBAL slave_parallel_max_queued=9000;
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (70, foo(0,
+'ha_write_row_end SIGNAL query_waiting WAIT_FOR query_cont', ''));
+SET debug_sync='now WAIT_FOR query_waiting';
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_wait_queue_max";
+INSERT INTO t3 VALUES (72, 0);
+SELECT * FROM t3 WHERE a >= 70 ORDER BY a;
+a	b
+70	0
+71	10000
+72	0
+SET debug_sync='now WAIT_FOR wait_queue_ready';
+KILL THD_ID;
+SET debug_sync='now WAIT_FOR wait_queue_killed';
+SET debug_sync='now SIGNAL query_cont';
+include/wait_for_slave_sql_error.inc [errno=1317,1927,1963]
+STOP SLAVE IO_THREAD;
+SELECT * FROM t3 WHERE a >= 70 ORDER BY a;
+a	b
+70	0
+71	10000
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL slave_parallel_max_queued= @old_max_queued;
+INSERT INTO t3 VALUES (73,0);
+include/start_slave.inc
+SELECT * FROM t3 WHERE a >= 70 ORDER BY a;
+a	b
+70	0
+71	10000
+72	0
+73	0
+include/stop_slave.inc
+SET GLOBAL binlog_format=@old_format;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc

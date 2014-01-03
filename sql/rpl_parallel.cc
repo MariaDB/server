@@ -801,6 +801,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     sql_thread_stopping= true;
   if (sql_thread_stopping)
   {
+    delete ev;
     /* QQ: Need a better comment why we return false here */
     return false;
   }
@@ -809,6 +810,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
                                                             MYF(0))))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    delete ev;
     return true;
   }
   qev->ev= ev;
@@ -831,6 +833,8 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(MY_WME));
       delete rgi;
+      my_free(qev);
+      delete ev;
       return true;
     }
     rgi->is_parallel_exec = true;
@@ -903,6 +907,14 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
             mysql_mutex_unlock(&cur_thread->LOCK_rpl_thread);
             my_error(ER_CONNECTION_KILLED, MYF(0));
             delete rgi;
+            my_free(qev);
+            delete ev;
+            DBUG_EXECUTE_IF("rpl_parallel_wait_queue_max",
+              {
+                debug_sync_set_action(rli->sql_driver_thd,
+                          STRING_WITH_LEN("now SIGNAL wait_queue_killed"));
+              };);
+            slave_output_error_info(rli, rli->sql_driver_thd);
             return true;
           }
           else
@@ -918,6 +930,11 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
                 (&cur_thread->COND_rpl_thread, &cur_thread->LOCK_rpl_thread,
                  "Waiting for room in worker thread event queue");
               did_enter_cond= true;
+              DBUG_EXECUTE_IF("rpl_parallel_wait_queue_max",
+                {
+                  debug_sync_set_action(rli->sql_driver_thd,
+                            STRING_WITH_LEN("now SIGNAL wait_queue_ready"));
+                };);
             }
             mysql_cond_wait(&cur_thread->COND_rpl_thread,
                             &cur_thread->LOCK_rpl_thread);
