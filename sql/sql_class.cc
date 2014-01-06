@@ -5789,6 +5789,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
   wait_for_commit *loc_waitee;
 
   mysql_mutex_lock(&LOCK_wait_commit);
+  DEBUG_SYNC(thd, "wait_for_prior_commit_waiting");
   old_msg= thd->enter_cond(&COND_wait_commit, &LOCK_wait_commit,
                            "Waiting for prior transaction to commit");
   while (waiting_for_commit && !thd->check_killed())
@@ -5821,6 +5822,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
   remove_from_list(&loc_waitee->subsequent_commits_list);
   mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
 
+  DEBUG_SYNC(thd, "wait_for_prior_commit_killed");
   wakeup_error= thd->killed_errno();
   if (!wakeup_error)
     wakeup_error= ER_QUERY_INTERRUPTED;
