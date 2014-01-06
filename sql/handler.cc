@@ -1471,8 +1471,12 @@ int ha_commit_one_phase(THD *thd, bool all)
   bool is_real_trans=all || thd->transaction.all.ha_list == 0;
   int res;
   DBUG_ENTER("ha_commit_one_phase");
-  if (is_real_trans && (res= thd->wait_for_prior_commit()))
-    DBUG_RETURN(res);
+  if (is_real_trans)
+  {
+    DEBUG_SYNC(thd, "ha_commit_one_phase");
+    if ((res= thd->wait_for_prior_commit()))
+      DBUG_RETURN(res);
+  }
   res= commit_one_phase_2(thd, all, trans, is_real_trans);
   DBUG_RETURN(res);
 }
@@ -1484,6 +1488,8 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   int error= 0;
   Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
   DBUG_ENTER("commit_one_phase_2");
+  if (is_real_trans)
+    DEBUG_SYNC(thd, "commit_one_phase_2");
   if (ha_info)
   {
     for (; ha_info; ha_info= ha_info_next)
