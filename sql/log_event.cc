@@ -7158,7 +7158,7 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
   res= trans_commit(thd); /* Automatically rolls back on error. */
   thd->mdl_context.release_transactional_locks();
 
-  if (sub_id)
+  if (!res && sub_id)
     rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid);
 
   /*
