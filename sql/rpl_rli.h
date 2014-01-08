@@ -221,6 +221,12 @@ public:
   bool sql_force_rotate_relay;
 
   time_t last_master_timestamp;
+  /*
+    The SQL driver thread sets this true while it is waiting at the end of the
+    relay log for more events to arrive. SHOW SLAVE STATUS uses this to report
+    Seconds_Behind_Master as zero while the SQL thread is so waiting.
+  */
+  bool sql_thread_caught_up;
 
   void clear_until_condition();
 

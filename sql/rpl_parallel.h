@@ -117,6 +117,7 @@ struct rpl_parallel {
   void reset();
   rpl_parallel_entry *find(uint32 domain_id);
   void wait_for_done();
+  bool workers_idle();
   bool do_event(rpl_group_info *serial_rgi, Log_event *ev,
                 ulonglong event_size);
 };

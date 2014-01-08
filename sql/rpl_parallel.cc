@@ -766,6 +766,27 @@ rpl_parallel::wait_for_done()
 }
 
 
+bool
+rpl_parallel::workers_idle()
+{
+  struct rpl_parallel_entry *e;
+  uint32 i, max_i;
+
+  max_i= domain_hash.records;
+  for (i= 0; i < max_i; ++i)
+  {
+    bool active;
+    e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);
+    mysql_mutex_lock(&e->LOCK_parallel_entry);
+    active= e->current_sub_id > e->last_committed_sub_id;
+    mysql_mutex_unlock(&e->LOCK_parallel_entry);
+    if (active)
+      break;
+  }
+  return (i == max_i);
+}
+
+
 /*
   do_event() is executed by the sql_driver_thd thread.
   It's main purpose is to find a thread that can execute the query.

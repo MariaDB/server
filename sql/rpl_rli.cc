@@ -56,7 +56,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    is_fake(FALSE),
 #endif
    group_master_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
-   last_master_timestamp(0), slave_skip_counter(0),
+   last_master_timestamp(0), sql_thread_caught_up(true), slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
    inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
@@ -1287,9 +1287,14 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
       (probably ok - except in some very rare cases, only consequence
       is that value may take some time to display in
       Seconds_Behind_Master - not critical).
+
+      In parallel replication, we take care to not set last_master_timestamp
+      backwards, in case of out-of-order calls here.
     */
     if (!(event_creation_time == 0 &&
-          IF_DBUG(debug_not_change_ts_if_art_event > 0, 1)))
+          IF_DBUG(debug_not_change_ts_if_art_event > 0, 1)) &&
+        !(rgi->is_parallel_exec && event_creation_time <= last_master_timestamp)
+        )
         last_master_timestamp= event_creation_time;
   }
   DBUG_VOID_RETURN;
