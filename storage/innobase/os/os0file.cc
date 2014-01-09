@@ -2288,8 +2288,6 @@ os_file_set_size(
 
 	current_size = 0;
 
-	/* JAN: TODO: Disable posix_fallocate file extension for Fusion-io
-	because currently it assumes that pages are initialized by zeroes
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
 
@@ -2305,8 +2303,6 @@ os_file_set_size(
 		return(TRUE);
 	}
 #endif
-	*/
-
 
 	/* Write up to 1 megabyte at a time. */
 	buf_size = ut_min(64, (ulint) (size / UNIV_PAGE_SIZE))

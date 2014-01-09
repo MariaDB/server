@@ -2,7 +2,6 @@
 
 Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013 SkySQL Ab. All Rights Reserved.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4828,6 +4827,7 @@ retry:
 	}
 
 	page_size = fsp_flags_get_zip_size(space->flags);
+
 	if (!page_size) {
 		page_size = UNIV_PAGE_SIZE;
 	}
@@ -4859,8 +4859,6 @@ retry:
 	start_page_no = space->size;
 	file_start_page_no = space->size - node->size;
 
-	/* JAN: TODO: Need to disable fast file extension for Fusion-io
-	currently.
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
 		ulint n_pages = size_after_extend - start_page_no;
@@ -4868,16 +4866,37 @@ retry:
 		success = os_file_set_size(node->name, node->handle,
 			n_pages * page_size);
 
+		/* Temporal solution: In directFS using atomic writes
+		we must use posix_fallocate to extend the file because
+		pwrite past end of file fails but when compression is
+		used the file pages must be physically initialized with
+		zeroes, thus after file extend with posix_fallocate
+		we still write empty pages to file. */
+		if (success &&
+			srv_use_atomic_writes &&
+			srv_compress_pages) {
+			goto extend_file;
+		}
+
 		mutex_enter(&fil_system->mutex);
+
 		if (success) {
 			node->size += n_pages;
 			space->size += n_pages;
 			os_has_said_disk_full = FALSE;
 		}
+
+		/* If posix_fallocate was used to extent the file space
+		we need to complete the io. Because no actual writes were
+		dispatched read operation is enough here. Without this
+		there will be assertion at shutdown indicating that
+		all IO is not completed. */
+		fil_node_complete_io(node, fil_system, OS_FILE_READ);
 		goto complete_io;
 	}
 #endif
-	*/
+
+extend_file:
 
 	/* Extend at most 64 pages at a time */
 	buf_size = ut_min(64, size_after_extend - start_page_no) * page_size;
@@ -4932,15 +4951,10 @@ retry:
 
 	space->size += pages_added;
 	node->size += pages_added;
-	node->being_extended = FALSE;
 
-#ifdef HAVE_POSIX_FALLOCATE
+ 	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
+
 complete_io:
-	fil_node_complete_io(node, fil_system, OS_FILE_READ);
-#else
-	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
-#endif
-
 	node->being_extended = FALSE;
 	*actual_size = space->size;
 
