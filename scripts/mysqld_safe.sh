@@ -224,18 +224,21 @@ wsrep_pick_url() {
 wsrep_start_position_opt=""
 wsrep_recover_position() {
   local mysqld_cmd="$@"
-  local wr_logfile=$(mktemp)
   local euid=$(id -u)
   local ret=0
+
+  local wr_logfile=$(mktemp $DATADIR/wsrep_recovery.XXXXXX)
 
   [ "$euid" = "0" ] && chown $user $wr_logfile
   chmod 600 $wr_logfile
 
-  log_notice "WSREP: Running position recovery with --log_error=$wr_logfile \
-                                --pid-file="$DATADIR/`@HOSTNAME@`-recover.pid""
+  local wr_pidfile="$DATADIR/"`@HOSTNAME@`"-recover.pid"
 
-  eval_log_error "$mysqld_cmd --log_error=$wr_logfile --wsrep-recover \
-                            --pid-file="$DATADIR/`@HOSTNAME@`-recover.pid""
+  local wr_options="--log_error='$wr_logfile' --pid-file='$wr_pidfile'"
+
+  log_notice "WSREP: Running position recovery with $wr_options"
+
+  eval_log_error "$mysqld_cmd --wsrep_recover $wr_options"
 
   local rp="$(grep 'WSREP: Recovered position:' $wr_logfile)"
   if [ -z "$rp" ]; then
@@ -926,31 +929,6 @@ then
   exit 1
 fi
 
-#
-# Set mysqld's memory interleave policy.
-#
-
-if @TARGET_LINUX@ && test $numa_interleave -eq 1
-then
-  # Locate numactl, ensure it exists.
-  if ! my_which numactl > /dev/null 2>&1
-  then
-    log_error "numactl command not found, required for --numa-interleave"
-    exit 1
-  # Attempt to run a command, ensure it works.
-  elif ! numactl --interleave=all true
-  then
-    log_error "numactl failed, check if numactl is properly installed"
-  fi
-
-  # Launch mysqld with numactl.
-  cmd="$cmd numactl --interleave=all"
-elif test $numa_interleave -eq 1
-then
-  log_error "--numa-interleave is not supported on this platform"
-  exit 1
-fi
-
 for i in  "$ledir/$MYSQLD" "$defaults" "--basedir=$MY_BASEDIR_VERSION" \
   "--datadir=$DATADIR" "--plugin-dir=$plugin_dir" "$USER_OPTION"
 do
@@ -975,7 +953,7 @@ max_wsrep_restarts=0
 
 while true
 do
-  rm -f "$pid_file"	# Some extra safety
+  rm -f $safe_mysql_unix_port "$pid_file"	# Some extra safety
 
   start_time=`date +%M%S`
 

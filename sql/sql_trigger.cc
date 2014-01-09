@@ -2453,7 +2453,7 @@ bool load_table_name_for_trigger(THD *thd,
   DBUG_RETURN(FALSE);
 }
 #ifdef WITH_WSREP
-int wsrep_create_trigger_query(THD *thd, uchar** buf, uint* buf_len)
+int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
 {
   LEX *lex= thd->lex;
   String stmt_query;
@@ -2501,6 +2501,6 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, uint* buf_len)
   stmt_query.append(stmt_definition.str, stmt_definition.length);
 
   return wsrep_to_buf_helper(thd, stmt_query.c_ptr(), stmt_query.length(), 
-			     buf, buf_len);
+                             buf, buf_len);
 }
 #endif /* WITH_WSREP */

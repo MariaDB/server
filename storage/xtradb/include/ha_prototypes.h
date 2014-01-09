@@ -301,7 +301,7 @@ thd_flush_log_at_trx_commit(
 	void*	thd);
 
 #ifdef WITH_WSREP
-UNIV_INTERN int wsrep_innobase_kill_one_trx(trx_t *bf_trx, trx_t *victim_trx,
+UNIV_INTERN int wsrep_innobase_kill_one_trx(void *thd, trx_t *bf_trx, trx_t *victim_trx,
 	ibool signal, ibool have_kernel_mutex);
 int wsrep_thd_is_brute_force(void *thd_ptr);
 int wsrep_trx_order_before(void *thd1, void *thd2);

@@ -22,6 +22,7 @@
 #include <mysql/service_thd_wait.h>
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+#include "wsrep_thd.h"
 extern "C" my_thread_id wsrep_thd_thread_id(THD *thd);
 extern "C" char *wsrep_thd_query(THD *thd);
 void sql_print_information(const char *format, ...)
@@ -3029,7 +3030,7 @@ void MDL_ticket::wsrep_report(bool debug)
 {
   if (debug) 
     {
-      WSREP_DEBUG("MDL ticket: type: %s space: %s db: %s name: %s (%s)",
+      WSREP_DEBUG("MDL ticket: type: %s space: %s db: %s name: %s",
        	 (get_type()  == MDL_INTENTION_EXCLUSIVE)  ? "intention exclusive"  :
        	 ((get_type() == MDL_SHARED)               ? "shared"               :
        	 ((get_type() == MDL_SHARED_HIGH_PRIO      ? "shared high prio"     :
@@ -3049,7 +3050,7 @@ void MDL_ticket::wsrep_report(bool debug)
          ((m_lock->key.mdl_namespace() == MDL_key::COMMIT) ? "COMMIT"       :
          (char *)"UNKNOWN"))))))),
          m_lock->key.db_name(),
-       	 m_lock->key.name(),
+         m_lock->key.name(),
          m_lock->key.get_wait_state_name());
     }
 }

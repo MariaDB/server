@@ -59,9 +59,9 @@
 #ifdef  __WIN__
 #include <io.h>
 #endif
-
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+#include "wsrep_thd.h"
 #endif // WITH_WSREP
 
 bool
@@ -4227,7 +4227,7 @@ thr_lock_type read_lock_type_for_table(THD *thd,
   */
   bool log_on= mysql_bin_log.is_open() && thd->variables.sql_log_bin;
   ulong binlog_format= thd->variables.binlog_format;
-  if ((log_on == FALSE) || (WSREP_FORMAT(binlog_format) == BINLOG_FORMAT_ROW) ||
+  if ((log_on == FALSE) || (WSREP_BINLOG_FORMAT(binlog_format) == BINLOG_FORMAT_ROW) ||
       (table_list->table->s->table_category == TABLE_CATEGORY_LOG) ||
       (table_list->table->s->table_category == TABLE_CATEGORY_PERFORMANCE) ||
       !(is_update_query(prelocking_ctx->sql_command) ||
@@ -5894,7 +5894,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
         We can solve these problems in mixed mode by switching to binlogging 
         if at least one updated table is used by sub-statement
       */
-      if (WSREP_FORMAT(thd->variables.binlog_format) != BINLOG_FORMAT_ROW && tables && 
+      if (WSREP_BINLOG_FORMAT(thd->variables.binlog_format) != BINLOG_FORMAT_ROW && tables && 
           has_write_table_with_auto_increment(thd->lex->first_not_own_table()))
         thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_COLUMNS);
     }
@@ -9431,6 +9431,7 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
   {
     mysql_mutex_assert_owner(&LOCK_open);
   }
+
 #ifdef WITH_WSREP
   /* if thd was BF aborted, exclusive locks were canceled */
 #else
@@ -9438,6 +9439,7 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
               thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
                                              MDL_EXCLUSIVE));
 #endif /* WITH_WSREP */
+
   key_length= create_table_def_key(key, db, table_name);
 
   if ((share= (TABLE_SHARE*) my_hash_search(&table_def_cache,(uchar*) key,
@@ -9461,7 +9463,6 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
                 thus others can use table */
 
                 if (table->in_use != thd &&
-                    table->in_use->wsrep_bf_thd != thd &&
                     table->in_use->wsrep_conflict_state != MUST_ABORT)
                 {
 #endif

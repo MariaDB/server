@@ -227,7 +227,7 @@ extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
 #ifdef WITH_WSREP
 extern PSI_mutex_key key_LOCK_wsrep_thd;
 extern PSI_cond_key  key_COND_wsrep_thd;
-#endif /* HAVE_MMAP */
+#endif /* HAVE_WSREP */
 
 #ifdef HAVE_OPENSSL
 extern PSI_mutex_key key_LOCK_des_key_file;
@@ -423,7 +423,7 @@ enum options_mysqld
   OPT_WSREP_START_POSITION,
   OPT_WSREP_SST_AUTH,
   OPT_WSREP_RECOVER,
-#endif
+#endif /* WITH_WSREP */
   OPT_which_is_always_the_last
 };
 #endif
@@ -572,5 +572,9 @@ extern uint internal_tmp_table_max_key_segments;
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;
 
+#ifdef WITH_WSREP
+#include "my_pthread.h"
+pthread_handler_t start_wsrep_THD(void*);
+#endif /* WITH_WSREP */
 
 #endif /* MYSQLD_INCLUDED */

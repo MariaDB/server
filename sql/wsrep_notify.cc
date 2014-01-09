@@ -15,6 +15,7 @@
 
 #include <mysqld.h>
 #include "wsrep_priv.h"
+#include "wsrep_utils.h"
 
 const char* wsrep_notify_cmd="";
 
@@ -64,7 +65,7 @@ void wsrep_notify_status (wsrep_member_status_t    status,
   {
     char uuid_str[40];
 
-    wsrep_uuid_print (&view->uuid, uuid_str, sizeof(uuid_str));
+    wsrep_uuid_print (&view->state_id.uuid, uuid_str, sizeof(uuid_str));
     cmd_off += snprintf (cmd_ptr + cmd_off, cmd_len - cmd_off,
                          " --uuid %s", uuid_str);
 

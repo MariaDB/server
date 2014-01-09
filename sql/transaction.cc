@@ -298,6 +298,7 @@ bool trans_rollback(THD *thd)
   DBUG_RETURN(test(res));
 }
 
+
 /**
   Implicitly rollback the current transaction, typically
   after deadlock was discovered.
@@ -329,7 +330,6 @@ bool trans_rollback_implicit(THD *thd)
 #ifdef WITH_WSREP
   wsrep_register_hton(thd, true);
 #endif /* WITH_WSREP */
-
   thd->server_status&= ~SERVER_STATUS_IN_TRANS;
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_rollback_trans(thd, true);
@@ -433,7 +433,6 @@ bool trans_rollback_stmt(THD *thd)
     wsrep_register_hton(thd, FALSE);
 #endif /* WITH_WSREP */
     ha_rollback_trans(thd, FALSE);
-
     if (! thd->in_active_multi_stmt_transaction())
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
   }

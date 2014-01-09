@@ -48,6 +48,9 @@ IF(WITH_WSREP)
    wsrep_sst.cc
    wsrep_utils.cc
    wsrep_var.cc
+   wsrep_binlog.cc
+   wsrep_applier.cc
+   wsrep_thd.cc
  )
  SET(WSREP_LIB wsrep)
 ENDIF()

@@ -8406,7 +8406,7 @@ int Rows_log_event::do_apply_event(Relay_log_info const *rli)
                    thd->is_fatal_error,
                    thd->wsrep_exec_mode,
                    thd->wsrep_conflict_state,
-                   (long long)thd->wsrep_trx_seqno);
+                   (long long)wsrep_thd_trx_seqno(thd));
       } 
 #endif
       if (thd->is_slave_error || thd->is_fatal_error)
@@ -10187,7 +10187,7 @@ Write_rows_log_event::do_exec_row(const Relay_log_info *const rli)
   char info[64];
   info[sizeof(info) - 1] = '\0';
   snprintf(info, sizeof(info) - 1, "Write_rows_log_event::write_row(%lld)",
-           (long long) thd->wsrep_trx_seqno);
+           (long long) wsrep_thd_trx_seqno(thd));
   const char* tmp = (WSREP(thd)) ? thd_proc_info(thd, info) : NULL;
 #else
   const char* tmp = (WSREP(thd)) ?
@@ -10864,7 +10864,7 @@ int Delete_rows_log_event::do_exec_row(const Relay_log_info *const rli)
   char info[64];
   info[sizeof(info) - 1] = '\0';
   snprintf(info, sizeof(info) - 1, "Delete_rows_log_event::find_row(%lld)",
-           (long long) thd->wsrep_trx_seqno);
+           (long long) wsrep_thd_trx_seqno(thd));
   const char* tmp = (WSREP(thd)) ? thd_proc_info(thd, info) : NULL;
 #else
   const char* tmp = (WSREP(thd)) ?
@@ -10880,7 +10880,7 @@ int Delete_rows_log_event::do_exec_row(const Relay_log_info *const rli)
 #ifdef WSREP_PROC_INFO
     snprintf(info, sizeof(info) - 1,
              "Delete_rows_log_event::ha_delete_row(%lld)",
-             (long long) thd->wsrep_trx_seqno);
+             (long long) wsrep_thd_trx_seqno(thd));
     if (WSREP(thd)) thd_proc_info(thd, info);
 #else
     if (WSREP(thd)) thd_proc_info(thd,"Delete_rows_log_event::ha_delete_row()");
@@ -11016,7 +11016,7 @@ Update_rows_log_event::do_exec_row(const Relay_log_info *const rli)
   char info[64];
   info[sizeof(info) - 1] = '\0';
   snprintf(info, sizeof(info) - 1, "Update_rows_log_event::find_row(%lld)",
-           (long long) thd->wsrep_trx_seqno);
+           (long long) wsrep_thd_trx_seqno(thd));
   const char* tmp = (WSREP(thd)) ? thd_proc_info(thd, info) : NULL;
 #else
   const char* tmp = (WSREP(thd)) ? 
@@ -11053,7 +11053,7 @@ Update_rows_log_event::do_exec_row(const Relay_log_info *const rli)
 #ifdef WSREP_PROC_INFO
   snprintf(info, sizeof(info) - 1,
            "Update_rows_log_event::unpack_current_row(%lld)",
-           (long long) thd->wsrep_trx_seqno);
+           (long long) wsrep_thd_trx_seqno(thd));
   if (WSREP(thd)) thd_proc_info(thd, info);
 #else
   if (WSREP(thd)) 
@@ -11082,7 +11082,7 @@ Update_rows_log_event::do_exec_row(const Relay_log_info *const rli)
 #ifdef WSREP_PROC_INFO
   snprintf(info, sizeof(info) - 1,
            "Update_rows_log_event::ha_update_row(%lld)",
-           (long long) thd->wsrep_trx_seqno);
+           (long long) wsrep_thd_trx_seqno(thd));
   if (WSREP(thd)) thd_proc_info(thd, info);
 #else
   if (WSREP(thd)) thd_proc_info(thd,"Update_rows_log_event::ha_update_row()");
@@ -11179,48 +11179,6 @@ void Incident_log_event::pack_info(THD *thd, Protocol *protocol)
   protocol->store(buf, bytes, &my_charset_bin);
 }
 #endif
-#if WITH_WSREP && !defined(MYSQL_CLIENT)
-Format_description_log_event *wsrep_format_desc; // TODO: free them at the end
-/*
-  read the first event from (*buf). The size of the (*buf) is (*buf_len).
-  At the end (*buf) is shitfed to point to the following event or NULL and
-  (*buf_len) will be changed to account just being read bytes of the 1st event.
-*/
-#define WSREP_MAX_ALLOWED_PACKET 1024*1024*1024 // current protocol max
-
-Log_event* wsrep_read_log_event(
-  char **arg_buf, size_t *arg_buf_len,
-  const Format_description_log_event *description_event)
-{
-  DBUG_ENTER("wsrep_read_log_event");
-  char *head= (*arg_buf);
-
-  uint data_len = uint4korr(head + EVENT_LEN_OFFSET);
-  char *buf= (*arg_buf);
-  const char *error= 0;
-  Log_event *res=  0;
-
-  if (data_len > WSREP_MAX_ALLOWED_PACKET)
-  {
-    error = "Event too big";
-    goto err;
-  }
-
-  res= Log_event::read_log_event(buf, data_len, &error, description_event, FALSE);
-
-err:
-  if (!res)
-  {
-    DBUG_ASSERT(error != 0);
-    sql_print_error("Error in Log_event::read_log_event(): "
-                    "'%s', data_len: %d, event_type: %d",
-		    error,data_len,head[EVENT_TYPE_OFFSET]);
-  }
-  (*arg_buf)+= data_len;
-  (*arg_buf_len)-= data_len;
-  DBUG_RETURN(res);
-}
-#endif
 
 
 #ifdef MYSQL_CLIENT
@@ -11309,6 +11267,7 @@ st_print_event_info::st_print_event_info()
   open_cached_file(&body_cache, NULL, NULL, 0, flags);
 }
 #endif
+
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 Heartbeat_log_event::Heartbeat_log_event(const char* buf, uint event_len,

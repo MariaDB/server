@@ -18,7 +18,7 @@
 # so WSREP_VERSION is produced regardless
 
 # Set the patch version
-SET(WSREP_PATCH_VERSION "7.6")
+SET(WSREP_PATCH_VERSION "9")
 
 # Obtain patch revision number:
 # The script tries to probe the bzr revision number using $ENV{WSREP_REV}, and

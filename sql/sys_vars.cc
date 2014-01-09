@@ -2571,7 +2571,9 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
       thd->mdl_context.release_transactional_locks();
+#ifdef WITH_WSREP
       WSREP_DEBUG("autocommit, MDL TRX lock released: %lu", thd->thread_id);
+#endif /* WITH_WSREP */
       return true;
     }
     /*
@@ -3654,7 +3656,9 @@ static Sys_var_tz Sys_time_zone(
        SESSION_VAR(time_zone), NO_CMD_LINE,
        DEFAULT(&default_tz), NO_MUTEX_GUARD, IN_BINLOG);
 #ifdef WITH_WSREP
-#include "wsrep_mysqld.h"
+#include "wsrep_var.h"
+#include "wsrep_sst.h"
+#include "wsrep_binlog.h"
 
 static Sys_var_charptr Sys_wsrep_provider(
        "wsrep_provider", "Path to replication provider library",
@@ -3812,10 +3816,11 @@ static Sys_var_charptr Sys_wsrep_start_position (
        ON_CHECK(wsrep_start_position_check), 
        ON_UPDATE(wsrep_start_position_update));
 
-static Sys_var_ulonglong Sys_wsrep_max_ws_size (
+static Sys_var_ulong Sys_wsrep_max_ws_size (
        "wsrep_max_ws_size", "Max write set size (bytes)",
        GLOBAL_VAR(wsrep_max_ws_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1024, 4294967296ULL), DEFAULT(1073741824ULL), BLOCK_SIZE(1));
+       /* Upper limit is 65K short of 4G to avoid overlows on 32-bit systems */
+       VALID_RANGE(1024, WSREP_MAX_WS_SIZE), DEFAULT(1073741824UL), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_wsrep_max_ws_rows (
        "wsrep_max_ws_rows", "Max number of rows in write set",
@@ -3835,8 +3840,7 @@ static Sys_var_mybool Sys_wsrep_certify_nonPK(
 static Sys_var_mybool Sys_wsrep_causal_reads(
        "wsrep_causal_reads", "Enable \"strictly synchronous\" semantics for read operations",
        SESSION_VAR(wsrep_causal_reads), 
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE)); 
-       //       ON_UPDATE(wsrep_causal_reads_update));
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static const char *wsrep_OSU_method_names[]= { "TOI", "RSU", NullS };
 static Sys_var_enum Sys_wsrep_OSU_method(

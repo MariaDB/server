@@ -1248,7 +1248,7 @@ int ha_commit_trans(THD *thd, bool all)
 
 #ifdef WITH_WSREP
     if (!WSREP(thd) &&
-      thd->mdl_context.acquire_lock(&mdl_request,
+        thd->mdl_context.acquire_lock(&mdl_request,
 #else
     if (thd->mdl_context.acquire_lock(&mdl_request,
 #endif /* WITH_WSREP */
@@ -1313,8 +1313,9 @@ int ha_commit_trans(THD *thd, bool all)
       else
       {
         /* not wsrep hton, bail to native mysql behavior */
-#endif
+#endif /* WITH_WSREP */
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+      error= 1;
 #ifdef WITH_WSREP
       } /* End of else */
 #endif
@@ -1426,7 +1427,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
 #ifdef WSREP_PROC_INFO
   char info[64]= { 0, };
   snprintf (info, sizeof(info) - 1, "ha_commit_one_phase(%lld)",
-            (long long)thd->wsrep_trx_seqno);
+            (long long)wsrep_thd_trx_seqno(thd));
 #else
   const char info[]="ha_commit_one_phase()";
 #endif /* WSREP_PROC_INFO */
@@ -1462,7 +1463,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   }
   /* Free resources and perform other cleanup even for 'empty' transactions. */
   if (is_real_trans)
-    thd->transaction.cleanup();
+      thd->transaction.cleanup();
 #ifdef WITH_WSREP
   if (WSREP(thd)) thd_proc_info(thd, tmp_info);
 #endif /* WITH_WSREP */
@@ -1546,8 +1547,7 @@ int ha_rollback_trans(THD *thd, bool all)
 
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
-    thd->transaction.cleanup();
-
+      thd->transaction.cleanup();
   if (all)
     thd->transaction_rollback_request= FALSE;
 

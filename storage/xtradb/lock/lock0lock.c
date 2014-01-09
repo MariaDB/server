@@ -42,6 +42,7 @@ Created 5/7/1996 Heikki Tuuri
 
 #ifdef WITH_WSREP
 extern my_bool wsrep_debug;
+extern my_bool wsrep_log_conflicts;
 #endif
 /* Restricts the length of search we will do in the waits-for
 graph of transactions */
@@ -1533,7 +1534,34 @@ wsrep_kill_victim(trx_t *trx, lock_t *lock) {
 			/* cannot release lock, until our lock
 			is in the queue*/
 		} else if (lock->trx != trx) {
-			wsrep_innobase_kill_one_trx(trx, lock->trx, TRUE, TRUE);
+			if (wsrep_log_conflicts) {
+				if (bf_this)
+					fputs("\n*** Priority TRANSACTION:\n", 
+					      stderr);
+				else
+					fputs("\n*** Victim TRANSACTION:\n", 
+					      stderr);
+				trx_print(stderr, trx, 3000);
+
+				if (bf_other)
+					fputs("\n*** Priority TRANSACTION:\n", 
+					      stderr);
+				else
+					fputs("\n*** Victim TRANSACTION:\n", 
+					      stderr);
+				trx_print(stderr, lock->trx, 3000);
+
+				fputs("*** WAITING FOR THIS LOCK TO BE GRANTED:\n",
+				      stderr);
+
+				if (lock_get_type(lock) == LOCK_REC) {
+					lock_rec_print(stderr, lock);
+				} else {
+					lock_table_print(stderr, lock);
+				}
+			}
+			wsrep_innobase_kill_one_trx(
+				trx->mysql_thd, trx, lock->trx, TRUE, TRUE);
 		}
 	}
 }
@@ -1715,7 +1743,7 @@ lock_t*
 lock_rec_create(
 /*============*/
 #ifdef WITH_WSREP
-	lock_t*			c_lock,   /* conflicting lock */
+	lock_t*			c_lock,	/* conflicting lock */
 #endif
 	ulint			type_mode,/*!< in: lock mode and wait
 					flag, type is ignored and
@@ -1783,7 +1811,7 @@ lock_rec_create(
 
 #ifdef WITH_WSREP
 	if (c_lock && wsrep_thd_is_brute_force(trx->mysql_thd)) {
-        	lock_t *hash = c_lock->hash;
+		lock_t *hash = c_lock->hash;
 		lock_t *prev = NULL;
 
 		while (hash &&
@@ -1802,7 +1830,7 @@ lock_rec_create(
 		 * delayed conflict resolution '...kill_one_trx' was not called,
 		 * if victim was waiting for some other lock
 		 */
-		if (c_lock && c_lock->trx->que_state == TRX_QUE_LOCK_WAIT) {
+		if (c_lock->trx->que_state == TRX_QUE_LOCK_WAIT) {
 			c_lock->trx->was_chosen_as_deadlock_victim = TRUE;
 
 			if (wsrep_debug && c_lock->trx->wait_lock != c_lock) {
@@ -1824,8 +1852,8 @@ lock_rec_create(
 			}
 
 			if (wsrep_debug) fprintf(
-				stderr, 
-				"WSREP: c_lock canceled %llu\n", 
+				stderr,
+				"WSREP: c_lock canceled %llu\n",
 				(ulonglong) c_lock->trx->id);
 
 			/* have to bail out here to avoid lock_set_lock... */
@@ -1838,8 +1866,7 @@ lock_rec_create(
 #else
 	HASH_INSERT(lock_t, hash, lock_sys->rec_hash,
 		    lock_rec_fold(space, page_no), lock);
-#endif
-
+#endif /* WITH_WSREP */
 	lock_sys->rec_num++;
 	if (lock_is_wait_not_by_other(type_mode)) {
 		lock_set_lock_and_trx_wait(lock, trx);
@@ -1860,7 +1887,7 @@ enum db_err
 lock_rec_enqueue_waiting(
 /*=====================*/
 #ifdef WITH_WSREP
-	lock_t*			c_lock,   /* conflicting lock */
+	lock_t*			c_lock,	/* conflicting lock */
 #endif
 	ulint			type_mode,/*!< in: lock mode this
 					transaction is requesting:
@@ -2211,7 +2238,7 @@ lock_rec_lock_slow(
 {
 	trx_t*	trx;
 #ifdef WITH_WSREP
-	lock_t *c_lock= 0;
+	lock_t*	c_lock = NULL;
 #endif
 	lock_t*	lock;
 
@@ -2261,10 +2288,10 @@ lock_rec_lock_slow(
 
 #ifdef WITH_WSREP
 	} else if ((c_lock = lock_rec_other_has_conflicting(
-		mode, block, heap_no, trx))) {
+		    mode, block, heap_no, trx))) {
 #else
 	} else if (lock_rec_other_has_conflicting(mode, block, heap_no, trx)) {
-#endif
+#endif /* WITH_WSREP */
 
 		/* If another transaction has a non-gap conflicting request in
 		the queue, as this transaction does not have a lock strong
@@ -2273,12 +2300,15 @@ lock_rec_lock_slow(
 		ut_ad(lock == NULL);
 enqueue_waiting:
 #ifdef WITH_WSREP
-		return(lock_rec_enqueue_waiting(c_lock,mode, block, heap_no,
+		/* c_lock is NULL here if jump to enqueue_waiting happened
+		but it's ok because lock is not NULL in that case and c_lock
+		is not used. */
+		return(lock_rec_enqueue_waiting(c_lock, mode, block, heap_no,
 						lock, index, thr));
 #else
 		return(lock_rec_enqueue_waiting(mode, block, heap_no,
 						lock, index, thr));
-#endif
+#endif /* WITH_WSREP */
 	} else if (!impl) {
 		/* Set the requested lock on the record */
 
@@ -3944,7 +3974,8 @@ lock_table_create(
 
 	if (c_lock && c_lock->trx->que_state == TRX_QUE_LOCK_WAIT) {
 		if (wsrep_debug) {
-			fprintf(stderr, "WSREP: table c_lock in wait: %llu new loc: %llu\n",
+			fprintf(stderr, 
+				"WSREP: table c_lock in wait: %llu new loc: %llu\n",
 				(ulonglong) c_lock->trx->id, lock->trx->id);
 		}
 
@@ -4227,33 +4258,12 @@ lock_table_other_has_incompatible(
 		if ((lock->trx != trx)
 		    && (!lock_mode_compatible(lock_get_mode(lock), mode))
 		    && (wait || !(lock_get_wait(lock)))) {
-
 #ifdef WITH_WSREP
-			int bf_this  = wsrep_thd_is_brute_force(trx->mysql_thd);
-			int bf_other = wsrep_thd_is_brute_force(
-			    lock->trx->mysql_thd);
-			if ((bf_this && !bf_other) ||
-			    (bf_this && bf_other &&
-			     wsrep_trx_order_before(
-				trx->mysql_thd,	lock->trx->mysql_thd)
-			    )
-			) {
-				if (lock->trx->que_state == TRX_QUE_LOCK_WAIT) {
-					if (wsrep_debug) fprintf(stderr, 
-						"WSREP: BF victim  waiting");
-					return(lock);
-				} else {
-                                  if (bf_this && bf_other)
-					wsrep_innobase_kill_one_trx(
-						(trx_t *)trx, lock->trx, TRUE, TRUE);
-					return(lock);
-				}
-			} else {
-				return(lock);
-			}
-#else
-			return(lock);
+			if (wsrep_debug) 
+				fprintf(stderr, "WSREP: table lock abort");
+			wsrep_kill_victim((trx_t *)trx, (lock_t *)lock);
 #endif
+			return(lock);
 		}
 
 		lock = UT_LIST_GET_PREV(un_member.tab_lock.locks, lock);

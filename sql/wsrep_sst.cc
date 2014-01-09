@@ -13,6 +13,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+#include "wsrep_sst.h"
+
 #include <mysqld.h>
 #include <m_ctype.h>
 #include <my_sys.h>
@@ -23,6 +25,7 @@
 #include <sql_reload.h>
 #include <sql_parse.h>
 #include "wsrep_priv.h"
+#include "wsrep_utils.h"
 #include <cstdio>
 #include <cstdlib>
 
@@ -61,7 +64,6 @@ const char* wsrep_sst_donor           = "";
 
 // container for real auth string
 static const char* sst_auth_real      = NULL;
-
 my_bool wsrep_sst_donor_rejects_queries = FALSE;
 
 bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
@@ -214,8 +216,8 @@ bool wsrep_sst_wait ()
 
 // Signal end of SST
 void wsrep_sst_complete (const wsrep_uuid_t* sst_uuid,
-                         wsrep_seqno_t sst_seqno,
-                         bool          needed)
+                         wsrep_seqno_t       sst_seqno,
+                         bool                needed)
 {
   if (mysql_mutex_lock (&LOCK_wsrep_sst)) abort();
   if (!sst_complete)
@@ -228,9 +230,28 @@ void wsrep_sst_complete (const wsrep_uuid_t* sst_uuid,
   }
   else
   {
-    WSREP_WARN("Nobody is waiting for SST.");
+    /* This can happen when called from wsrep_synced_cb().
+       At the moment there is no way to check there
+       if main thread is still waiting for signal,
+       so wsrep_sst_complete() is called from there
+       each time wsrep_ready changes from FALSE -> TRUE.
+    */
+    WSREP_DEBUG("Nobody is waiting for SST.");
   }
   mysql_mutex_unlock (&LOCK_wsrep_sst);
+}
+
+void wsrep_sst_received (wsrep_t*            const wsrep,
+                         const wsrep_uuid_t* const uuid,
+                         wsrep_seqno_t       const seqno,
+                         const void*         const state,
+                         size_t              const state_len)
+{
+    int const rcode(seqno < 0 ? seqno : 0);
+    wsrep_gtid_t const state_id = {
+        *uuid, (rcode ? WSREP_SEQNO_UNDEFINED : seqno)
+    };
+    wsrep->sst_received(wsrep, &state_id, state, state_len, rcode);
 }
 
 // Let applier threads to continue
@@ -239,7 +260,7 @@ void wsrep_sst_continue ()
   if (sst_needed)
   {
     WSREP_INFO("Signalling provider to continue.");
-    wsrep->sst_received (wsrep, &local_uuid, local_seqno, NULL, 0);
+    wsrep_sst_received (wsrep, &local_uuid, local_seqno, NULL, 0);
   }
 }
 
@@ -519,7 +540,7 @@ ssize_t wsrep_sst_prepare (void** msg)
   }
   else
   {
-    ssize_t ret= guess_ip (ip_buf, ip_max);
+    ssize_t ret= wsrep_guess_ip (ip_buf, ip_max);
 
     if (ret && ret < ip_max)
     {
@@ -707,7 +728,9 @@ static int sst_donate_mysqldump (const char*         addr,
     ret= sst_run_shell (cmd_str, 3);
   }
 
-  wsrep->sst_sent (wsrep, uuid, ret ? ret : seqno);
+  wsrep_gtid_t const state_id = { *uuid, (ret ? WSREP_SEQNO_UNDEFINED : seqno)};
+
+  wsrep->sst_sent (wsrep, &state_id, ret);
 
   return ret;
 }
@@ -927,7 +950,10 @@ wait_signal:
   }
 
   // signal to donor that SST is over
-  wsrep->sst_sent (wsrep, &ret_uuid, err ? -err : ret_seqno);
+  struct wsrep_gtid const state_id = {
+      ret_uuid, err ? WSREP_SEQNO_UNDEFINED : ret_seqno
+  };
+  wsrep->sst_sent (wsrep, &state_id, -err);
   proc.wait();
 
   return NULL;
@@ -981,12 +1007,11 @@ static int sst_donate_other (const char*   method,
   return arg.err;
 }
 
-int wsrep_sst_donate_cb (void* app_ctx, void* recv_ctx,
-                         const void* msg, size_t msg_len,
-                         const wsrep_uuid_t*     current_uuid,
-                         wsrep_seqno_t           current_seqno,
-                         const char* state, size_t state_len,
-                         bool bypass)
+wsrep_cb_status_t wsrep_sst_donate_cb (void* app_ctx, void* recv_ctx,
+                                       const void* msg, size_t msg_len,
+                                       const wsrep_gtid_t* current_gtid,
+                                       const char* state, size_t state_len,
+                                       bool bypass)
 {
   /* This will be reset when sync callback is called.
    * Should we set wsrep_ready to FALSE here too? */
@@ -998,20 +1023,20 @@ int wsrep_sst_donate_cb (void* app_ctx, void* recv_ctx,
   const char* data   = method + method_len + 1;
 
   char uuid_str[37];
-  wsrep_uuid_print (current_uuid, uuid_str, sizeof(uuid_str));
+  wsrep_uuid_print (&current_gtid->uuid, uuid_str, sizeof(uuid_str));
 
   int ret;
   if (!strcmp (WSREP_SST_MYSQLDUMP, method))
   {
-    ret = sst_donate_mysqldump (data, current_uuid, uuid_str, current_seqno,
-                                bypass);
+    ret = sst_donate_mysqldump(data, &current_gtid->uuid, uuid_str,
+                               current_gtid->seqno, bypass);
   }
   else
   {
-    ret = sst_donate_other (method, data, uuid_str, current_seqno, bypass);
+    ret = sst_donate_other(method, data, uuid_str, current_gtid->seqno,bypass);
   }
 
-  return (ret > 0 ? 0 : ret);
+  return (ret > 0 ? WSREP_CB_SUCCESS : WSREP_CB_FAILURE);
 }
 
 void wsrep_SE_init_grab()
@@ -1021,7 +1046,10 @@ void wsrep_SE_init_grab()
 
 void wsrep_SE_init_wait()
 {
-  mysql_cond_wait (&COND_wsrep_sst_init, &LOCK_wsrep_sst_init);
+  while (SE_initialized == false)
+  {
+    mysql_cond_wait (&COND_wsrep_sst_init, &LOCK_wsrep_sst_init);
+  }
   mysql_mutex_unlock (&LOCK_wsrep_sst_init);
 }
 

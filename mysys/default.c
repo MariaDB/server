@@ -91,34 +91,6 @@ static my_bool defaults_already_read= FALSE;
 /* The only purpose of this global array is to hold full name of my.cnf
  * which seems to be otherwise unavailable */
 char wsrep_defaults_file[FN_REFLEN + 10]={0,};
-/* Command-line only option to start a new wsrep service instance */
-#define WSREP_NEW_CLUSTER1 "--wsrep-new-cluster"
-#define WSREP_NEW_CLUSTER2 "--wsrep_new_cluster"
-/* This one is set to true when --wsrep-new-cluster is found in the command
- * line arguments */
-my_bool wsrep_new_cluster= FALSE;
-/* Finds and removes --wsrep-new-cluster from the arguments list.
- * Returns true if found. */
-static my_bool find_wsrep_new_cluster (int* argc, char* argv[])
-{
-  my_bool ret= FALSE;
-  int i;
-
-  for (i= *argc - 1; i > 0; i--)
-  {
-    if (!strcmp(argv[i], WSREP_NEW_CLUSTER1) ||
-        !strcmp(argv[i], WSREP_NEW_CLUSTER2))
-    {
-      ret= TRUE;
-      *argc -= 1;
-      /* preserve the order of remaining arguments */
-      memmove(&argv[i], &argv[i + 1], (*argc - i)*sizeof(argv[i]));
-      argv[*argc]= NULL;
-    }
-  }
-
-  return ret;
-}
 #endif /* WITH_WREP */
 
 /* Which directories are searched for options (and in which order) */
@@ -557,9 +529,6 @@ int my_load_defaults(const char *conf_file, const char **groups,
   init_alloc_root(&alloc,512,0);
   if ((dirs= init_default_directories(&alloc)) == NULL)
     goto err;
-#ifdef WITH_WSREP
-  wsrep_new_cluster= find_wsrep_new_cluster(argc, argv[0]);
-#endif /* WITH_WSREP */
   /*
     Check if the user doesn't want any default option processing
     --no-defaults is always the first option
