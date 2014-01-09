@@ -753,7 +753,7 @@ fil_io(
 				appropriately aligned */
 	void*	message,	/*!< in: message for aio handler if non-sync
 				aio used, else ignored */
-	ulint	write_size)	/*!< in/out: Actual write size initialized
+	ulint*	write_size)	/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if

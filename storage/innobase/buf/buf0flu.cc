@@ -942,7 +942,7 @@ buf_flush_write_block_low(
 		       FALSE, buf_page_get_space(bpage), zip_size,
 		       buf_page_get_page_no(bpage), 0,
 		       zip_size ? zip_size : UNIV_PAGE_SIZE,
-		       frame, bpage, 0);
+		       frame, bpage, &bpage->write_size);
 	} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
 		buf_dblwr_write_single_page(bpage);
 	} else {

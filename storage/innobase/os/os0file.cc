@@ -196,7 +196,7 @@ struct os_aio_slot_t{
 					       freed after the write
 					       has been completed */
 
-	ulint           write_size;     /*!< Actual write size initialized
+	ulint*          write_size;     /*!< Actual write size initialized
 					after fist successfull trim
 					operation for this page and if
 					initialized we do not trim again if
@@ -4363,7 +4363,7 @@ os_aio_array_reserve_slot(
 				to write */
 	os_offset_t	offset,	/*!< in: file offset */
 	ulint		len,	/*!< in: length of the block to read or write */
-	ulint		write_size)     /*!< in: Actual write size initialized
+	ulint*		write_size)     /*!< in: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
@@ -4783,7 +4783,7 @@ os_aio_func(
 				(can be used to identify a completed
 				aio operation); ignored if mode is
 				OS_AIO_SYNC */
-	ulint		write_size)/*!< in/out: Actual write size initialized
+	ulint*		write_size)/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
@@ -6163,13 +6163,20 @@ os_file_trim(
 	// because rest of the page is already trimmed. If actual write
 	// size decreases we need to trim again.
 	if (trim_len == 0 ||
-	    (slot->write_size > 0 && len >= slot->write_size)) {
+	    (slot->write_size &&
+		    *slot->write_size > 0 &&
+		    len >= *slot->write_size)) {
 
-		if (slot->write_size > 0 && len >= slot->write_size) {
+#ifdef UNIV_DEBUG
+		fprintf(stderr, "Note: TRIM: write_size %lu trim_len %lu len %lu\n",
+			*slot->write_size, trim_len, len);
+#endif
+
+		if (*slot->write_size > 0 && len >= *slot->write_size) {
 			srv_stats.page_compressed_trim_op_saved.inc();
 		}
 
-		slot->write_size = len;
+		*slot->write_size = len;
 
 		return (TRUE);
 	}
@@ -6191,11 +6198,15 @@ os_file_trim(
 			" fallocate(FALLOC_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE) ",
 			FALSE, __FILE__, __LINE__);
 
-		slot->write_size = 0;
+		if (slot->write_size) {
+			*slot->write_size = 0;
+		}
 
 		return (FALSE);
 	} else {
-		slot->write_size = len;
+		if (slot->write_size) {
+			*slot->write_size = len;
+		}
 	}
 #else
 	ut_print_timestamp(stderr);
@@ -6203,7 +6214,7 @@ os_file_trim(
 		"  InnoDB: [Warning] fallocate not supported on this installation."
 		"  InnoDB: Disabling fallocate for now.");
 	os_fallocate_failed = TRUE;
-	slot->write_size = 0;
+	slot->write_size = NULL;
 
 #endif /* HAVE_FALLOCATE ... */
 
@@ -6229,10 +6240,14 @@ os_file_trim(
 			" DeviceIOControl(FSCTL_FILE_LEVEL_TRIM) ",
 			FALSE, __FILE__, __LINE__);
 
-		slot->write_size = 0;
+		if (slot->write_size) {
+			slot->write_size = 0;
+		}
 		return (FALSE);
 	} else {
-		slot->write_size = len;
+		if (slot->write_size) {
+			slot->write_size = len;
+		}
 	}
 #endif
 

@@ -214,7 +214,11 @@ pfs_os_aio_func(
 				(can be used to identify a completed
 				aio operation); ignored if mode is
                                 OS_AIO_SYNC */
-	ibool		atomic_writes, /*!<in TRUE if atomic writes are used */
+	ulint*		write_size,/*!< in/out: Actual write size initialized
+			       after fist successfull trim
+			       operation for this page and if
+			       initialized we do not trim again if
+			       actual page size does not decrease. */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {
@@ -230,7 +234,7 @@ pfs_os_aio_func(
 				   src_file, src_line);
 
 	result = os_aio_func(type, mode, name, file, buf, offset,
-			     n, message1, message2, atomic_writes);
+		n, message1, message2, write_size);
 
 	register_pfs_file_io_end(locker, n);
 
