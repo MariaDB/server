@@ -6318,7 +6318,20 @@ sub usage ($) {
 
 $0 [ OPTIONS ] [ TESTCASE ]
 
-Options to control what engine/variation to run
+Where test case can be specified as:
+
+testcase[.test]         Runs the test case named 'testcase' from all suits
+path-to-testcase
+[suite.]testcase[,combination]
+
+Examples:
+
+alias
+main.alias              'main' is the name of the suite for the 't' directory.
+rpl.rpl_invoked_features,mix,xtradb_plugin
+suite/rpl/t/rpl.rpl_invoked_features
+
+Options to control what engine/variation to run:
 
   embedded-server       Use the embedded server, i.e. no mysqld daemons
   ps-protocol           Use the binary protocol between client and server
