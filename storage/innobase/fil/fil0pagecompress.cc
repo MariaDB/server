@@ -350,8 +350,8 @@ fil_get_compression_alg_name(
 /*******************************************************************//**
 Returns the atomic writes flag of the space, or false if the space
 is not using atomic writes. The tablespace must be cached in the memory cache.
-@return	true if space using atomic writes, false if not */
-ibool
+@return	atomic writes table option value */
+atomic_writes_t
 fil_space_get_atomic_writes(
 /*========================*/
 	ulint	id)	/*!< in: space id */
@@ -362,8 +362,8 @@ fil_space_get_atomic_writes(
 
 	if (flags && flags != ULINT_UNDEFINED) {
 
-		return(fsp_flags_get_atomic_writes(flags));
+		return((atomic_writes_t)fsp_flags_get_atomic_writes(flags));
 	}
 
-	return(flags);
+	return((atomic_writes_t)0);
 }

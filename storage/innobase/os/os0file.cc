@@ -1259,8 +1259,7 @@ os_file_create_simple_func(
 	ulint		create_mode,/*!< in: create mode */
 	ulint		access_type,/*!< in: OS_FILE_READ_ONLY or
 				OS_FILE_READ_WRITE */
-	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
-        ibool           atomic_writes) /*!<in TRUE if atomic writes are used */
+	ibool*		success)/*!< out: TRUE if succeed, FALSE if error */
 {
 	os_file_t	file;
 	ibool		retry;
@@ -1354,14 +1353,6 @@ os_file_create_simple_func(
 
 	} while (retry);
 
-	if (file != INVALID_HANDLE_VALUE
-	    && (srv_use_atomic_writes  || atomic_writes)
-	    && !os_file_set_atomic_writes(name, file)) {
-			 CloseHandle(file);
-			*success = FALSE;
-			file = INVALID_HANDLE_VALUE;
-	}
-
 #else /* __WIN__ */
 	int		create_flag;
 
@@ -1441,14 +1432,6 @@ os_file_create_simple_func(
 	}
 #endif /* USE_FILE_LOCK */
 
-	if (file != -1
-	    && (srv_use_atomic_writes  || atomic_writes)
-	    && !os_file_set_atomic_writes(name, file)) {
-		*success = FALSE;
-		close(file);
-		file = -1;
-	}
-
 #endif /* __WIN__ */
 
 	return(file);
@@ -1472,9 +1455,11 @@ os_file_create_simple_no_error_handling_func(
 				OS_FILE_READ_ALLOW_DELETE; the last option is
 				used by a backup program reading the file */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
-        ibool           atomic_writes) /*!<in TRUE if atomic writes are used */
+	ulint           atomic_writes) /*! in: atomic writes table option
+				       value */
 {
 	os_file_t	file;
+	atomic_writes_t awrites = (atomic_writes_t) atomic_writes;
 
 #ifdef __WIN__
 	DWORD		access;
@@ -1535,12 +1520,13 @@ os_file_create_simple_no_error_handling_func(
 			  NULL);		// No template file
 
 	if (file != INVALID_HANDLE_VALUE
-	    && (srv_use_atomic_writes  || atomic_writes)
+	    && (awrites == ATOMIC_WRITES_ON ||
+		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {
-		CloseHandle(file);
-		file = INVALID_HANDLE_VALUE;
+			 CloseHandle(file);
+			*success = FALSE;
+			file = INVALID_HANDLE_VALUE;
 	}
-
 
 	*success = (file != INVALID_HANDLE_VALUE);
 #else /* __WIN__ */
@@ -1603,12 +1589,14 @@ os_file_create_simple_no_error_handling_func(
 #endif /* USE_FILE_LOCK */
 
 	if (file != -1
-	    && (srv_use_atomic_writes  || atomic_writes)
+	    && (awrites == ATOMIC_WRITES_ON ||
+		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {
 		*success = FALSE;
 		close(file);
 		file = -1;
 	}
+
 
 #endif /* __WIN__ */
 
@@ -1681,13 +1669,14 @@ os_file_create_func(
 				function source code for the exact rules */
 	ulint		type,	/*!< in: OS_DATA_FILE or OS_LOG_FILE */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
-	ibool           atomic_writes) /*! in: true if atomic writes for
-					this file should be used */
+	ulint           atomic_writes) /*! in: atomic writes table option
+				       value */
 {
 	os_file_t	file;
 	ibool		retry;
 	ibool		on_error_no_exit;
 	ibool		on_error_silent;
+	atomic_writes_t awrites = (atomic_writes_t) atomic_writes;
 
 #ifdef __WIN__
 	DBUG_EXECUTE_IF(
@@ -1832,15 +1821,13 @@ os_file_create_func(
 	} while (retry);
 
 	if (file != INVALID_HANDLE_VALUE
-            && type == OS_DATA_FILE
-	    && (srv_use_atomic_writes  || atomic_writes)
+	    && (awrites == ATOMIC_WRITES_ON ||
+		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {
 			 CloseHandle(file);
 			*success = FALSE;
 			file = INVALID_HANDLE_VALUE;
 	}
-
-
 #else /* __WIN__ */
 	int		create_flag;
 	const char*	mode_str	= NULL;
@@ -1970,15 +1957,13 @@ os_file_create_func(
 #endif /* USE_FILE_LOCK */
 
 	if (file != -1
-            && type == OS_DATA_FILE
-	    && (srv_use_atomic_writes  || atomic_writes)
+	    && (awrites == ATOMIC_WRITES_ON ||
+		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {
 		*success = FALSE;
 		close(file);
 		file = -1;
 	}
-
-
 #endif /* __WIN__ */
 
 	return(file);
@@ -2287,6 +2272,11 @@ os_file_set_size(
 	ulint		buf_size;
 
 	current_size = 0;
+
+#ifdef UNIV_DEBUG
+	fprintf(stderr, "InnoDB: Note: File %s current_size %lu extended_size %lu\n",
+		name, os_file_get_size(file), size);
+#endif
 
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {

@@ -503,7 +503,7 @@ ha_create_table_option innodb_table_option_list[]=
   compression for this table*/
   HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, ULINT_UNDEFINED, 0, 9, 1),
   /* With this option user can enable atomic writes feature for this table */
-  HA_TOPTION_BOOL("ATOMIC_WRITES", atomic_writes, 0),
+  HA_TOPTION_ENUM("ATOMIC_WRITES", atomic_writes, "DEFAULT,ON,OFF", 0),
   HA_TOPTION_END
 };
 
@@ -9738,6 +9738,7 @@ ha_innobase::check_table_options(
 {
 	enum row_type	row_format = table->s->row_type;;
 	ha_table_option_struct *options= table->s->option_struct;
+	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
 
 	/* Check page compression requirements */
 	if (options->page_compressed) {
@@ -9811,8 +9812,9 @@ ha_innobase::check_table_options(
 	}
 
 	/* Check atomic writes requirements */
-	if (options->atomic_writes) {
-		if (!srv_use_atomic_writes && !use_tablespace) {
+	if (awrites == ATOMIC_WRITES_ON ||
+		(awrites == ATOMIC_WRITES_DEFAULT && srv_use_atomic_writes)) {
+		if (!use_tablespace) {
 			push_warning(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,

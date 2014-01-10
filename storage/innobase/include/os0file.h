@@ -275,12 +275,12 @@ The wrapper functions have the prefix of "innodb_". */
 	pfs_os_file_create_func(key, name, create, purpose,	type,	\
 				success, atomic_writes, __FILE__, __LINE__)
 
-# define os_file_create_simple(key, name, create, access, success, atomic_writes)	\
+# define os_file_create_simple(key, name, create, access, success)	\
 	pfs_os_file_create_simple_func(key, name, create, access,	\
-				       success, atomic_writes, __FILE__, __LINE__)
+				       success, __FILE__, __LINE__)
 
 # define os_file_create_simple_no_error_handling(			\
-	key, name, create_mode, access, success, atomic_writes)			\
+	key, name, create_mode, access, success, atomic_writes)		\
 	pfs_os_file_create_simple_no_error_handling_func(		\
 		key, name, create_mode, access, success, atomic_writes, __FILE__, __LINE__)
 
@@ -315,13 +315,13 @@ to original un-instrumented file I/O APIs */
 # define os_file_create(key, name, create, purpose, type, success, atomic_writes)	\
 	os_file_create_func(name, create, purpose, type, success, atomic_writes)
 
-# define os_file_create_simple(key, name, create_mode, access, success, atomic_writes) \
-	os_file_create_simple_func(name, create_mode, access, success, atomic_writes)
+# define os_file_create_simple(key, name, create_mode, access, success) \
+	os_file_create_simple_func(name, create_mode, access, success)
 
 # define os_file_create_simple_no_error_handling(			\
-	key, name, create_mode, access, success, atomic_writes)			\
-		os_file_create_simple_no_error_handling_func(			\
-		name, create_mode, access, success, atomic_writes)
+	key, name, create_mode, access, success, atomic_writes)		\
+		os_file_create_simple_no_error_handling_func(		\
+			name, create_mode, access, success, atomic_writes)
 
 # define os_file_close(file)	os_file_close_func(file)
 
@@ -470,8 +470,7 @@ os_file_create_simple_func(
 	ulint		create_mode,/*!< in: create mode */
 	ulint		access_type,/*!< in: OS_FILE_READ_ONLY or
 				OS_FILE_READ_WRITE */
-	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
-	ibool		atomic_writes); /*!<in TRUE if atomic writes are used */
+	ibool*		success);/*!< out: TRUE if succeed, FALSE if error */
 /****************************************************************//**
 NOTE! Use the corresponding macro
 os_file_create_simple_no_error_handling(), not directly this function!
@@ -490,7 +489,8 @@ os_file_create_simple_no_error_handling_func(
 				OS_FILE_READ_ALLOW_DELETE; the last option is
 				used by a backup program reading the file */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
-	ibool		atomic_writes)/*!<in TRUE if atomic writes are used */
+	ulint		atomic_writes)/*!< in: atomic writes table option
+				      value */
 	__attribute__((nonnull, warn_unused_result));
 /****************************************************************//**
 Tries to disable OS caching on an opened file descriptor. */
@@ -525,7 +525,8 @@ os_file_create_func(
 				function source code for the exact rules */
 	ulint		type,	/*!< in: OS_DATA_FILE or OS_LOG_FILE */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
-	ibool		atomic_writes)/*!<in TRUE if atomic writes are used */
+	ulint		atomic_writes)/*!< in: atomic writes table option
+				      value */
 	__attribute__((nonnull, warn_unused_result));
 /***********************************************************************//**
 Deletes a file. The file has to be closed before calling this.
@@ -590,7 +591,6 @@ pfs_os_file_create_simple_func(
 	ulint		access_type,/*!< in: OS_FILE_READ_ONLY or
 				OS_FILE_READ_WRITE */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
-	ibool		atomic_writes,/*!<in TRUE if atomic writes are used */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 	__attribute__((nonnull, warn_unused_result));
@@ -616,7 +616,8 @@ pfs_os_file_create_simple_no_error_handling_func(
 				OS_FILE_READ_ALLOW_DELETE; the last option is
 				used by a backup program reading the file */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
-	ibool		atomic_writes, /*!<in TRUE if atomic writes are used */
+	ulint		atomic_writes,/*!< in: atomic writes table option
+				value */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 	__attribute__((nonnull, warn_unused_result));
@@ -645,7 +646,8 @@ pfs_os_file_create_func(
 				function source code for the exact rules */
 	ulint		type,	/*!< in: OS_DATA_FILE or OS_LOG_FILE */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
-	ibool		atomic_writes, /*!<in TRUE if atomic writes are used */
+	ulint		atomic_writes,/*!< in: atomic writes table option
+				      value*/
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 	__attribute__((nonnull, warn_unused_result));
@@ -694,6 +696,8 @@ pfs_os_file_read_no_error_handling_func(
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
+	ulint		atomic_writes,/*!< in: atomic writes table option
+				value */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 

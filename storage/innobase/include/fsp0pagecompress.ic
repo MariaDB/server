@@ -52,10 +52,10 @@ fsp_flags_get_page_compression_level(
 Determine the tablespace is using atomic writes from dict_table_t::flags.
 @return	true if atomic writes is used, false if not */
 UNIV_INLINE
-ibool
+atomic_writes_t
 fsp_flags_get_atomic_writes(
 /*========================*/
 	ulint	flags)	/*!< in: tablespace flags */
 {
-	return(FSP_FLAGS_GET_ATOMIC_WRITES(flags));
+	return((atomic_writes_t)FSP_FLAGS_GET_ATOMIC_WRITES(flags));
 }

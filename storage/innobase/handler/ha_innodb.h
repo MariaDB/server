@@ -64,8 +64,12 @@ struct ha_table_option_struct
 					if this option is true. */
 	int   page_compression_level;	/*!< Table page compression level
 					or UNIV_UNSPECIFIED. */
-	bool  atomic_writes;		/*!< Use atomic writes for this
-					table if this options is true. */
+	uint  atomic_writes;		/*!< Use atomic writes for this
+					table if this options is ON or
+					in DEFAULT if
+					srv_use_atomic_writes=1.
+					Atomic writes are not used if
+					value OFF.*/
 };
 
 

@@ -670,6 +670,7 @@ dict_sys_tables_type_validate(
 	ulint	page_compression = DICT_TF_GET_PAGE_COMPRESSION(type);
 	ulint	page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(type);
 	ulint	atomic_writes = DICT_TF_GET_ATOMIC_WRITES(type);
+	atomic_writes_t awrites = (atomic_writes_t)atomic_writes;
 
 	/* The low order bit of SYS_TABLES.TYPE is always set to 1.
 	If the format is UNIV_FORMAT_B or higher, this field is the same
@@ -734,7 +735,8 @@ dict_sys_tables_type_validate(
 		}
 	}
 
-	if (atomic_writes) {
+	if (awrites == ATOMIC_WRITES_ON ||
+		(awrites == ATOMIC_WRITES_DEFAULT && srv_use_atomic_writes)) {
 		if (!atomic_blobs) {
 			return(ULINT_UNDEFINED);
 		}
@@ -818,9 +820,10 @@ dict_tf_set(
 					pages */
 	ulint		page_compression_level, /*!< in: table page compression
 						 level */
-	bool		atomic_writes)  /*!< in: table uses atomic
-					writes */
+	ulint		atomic_writes)  /*!< in: table atomic writes setup */
 {
+	atomic_writes_t awrites = (atomic_writes_t)atomic_writes;
+
 	switch (format) {
 	case REC_FORMAT_REDUNDANT:
 		*flags = 0;
@@ -853,9 +856,9 @@ dict_tf_set(
 		ut_ad(dict_tf_get_page_compression_level(*flags) == page_compression_level);
 	}
 
-	if (atomic_writes) {
-		*flags |= (1 << DICT_TF_POS_ATOMIC_WRITES);
-		ut_ad(dict_tf_get_atomic_writes(*flags) == TRUE);
+	if (awrites != ATOMIC_WRITES_DEFAULT) {
+		*flags |= (atomic_writes << DICT_TF_POS_ATOMIC_WRITES);
+		ut_ad(dict_tf_get_atomic_writes(*flags) == awrites);
 		*flags |= (1 << DICT_TF_POS_ATOMIC_BLOBS);
 	}
 

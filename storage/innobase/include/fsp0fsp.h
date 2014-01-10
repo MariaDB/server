@@ -58,7 +58,7 @@ is found in a remote location, not the default data directory. */
 #define FSP_FLAGS_WIDTH_PAGE_COMPRESSION  1
 #define FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL 4
 /** Number of flag bits used to indicate atomic writes for this tablespace */
-#define FSP_FLAGS_WIDTH_ATOMIC_WRITES  1
+#define FSP_FLAGS_WIDTH_ATOMIC_WRITES  2
 
 /** Width of all the currently known tablespace flags */
 #define FSP_FLAGS_WIDTH		(FSP_FLAGS_WIDTH_POST_ANTELOPE	\

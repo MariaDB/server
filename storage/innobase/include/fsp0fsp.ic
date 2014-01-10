@@ -67,6 +67,7 @@ fsp_flags_is_valid(
 	ulint	page_compression = FSP_FLAGS_GET_PAGE_COMPRESSION(flags);
 	ulint	page_compression_level = FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags);
 	ulint	atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(flags);
+	atomic_writes_t awrites = (atomic_writes_t)atomic_writes;
 
 	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure", return(false););
 
@@ -116,7 +117,9 @@ fsp_flags_is_valid(
 		}
 	}
 
-	if (atomic_writes && !atomic_blobs) {
+	if ((awrites == ATOMIC_WRITES_ON ||
+		(awrites == ATOMIC_WRITES_DEFAULT && srv_use_atomic_writes))
+		&& !atomic_blobs) {
 		return (false);
 	}
 

@@ -129,8 +129,9 @@ Width of the page compression flag
 
 /**
 Width of atomic writes flag
+DEFAULT=0, ON = 1, OFF = 2
 */
-#define DICT_TF_WIDTH_ATOMIC_WRITES 1
+#define DICT_TF_WIDTH_ATOMIC_WRITES 2
 
 /** Width of all the currently known table flags */
 #define DICT_TF_BITS	(DICT_TF_WIDTH_COMPACT		\

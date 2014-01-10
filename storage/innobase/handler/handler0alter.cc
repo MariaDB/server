@@ -258,7 +258,7 @@ ha_innobase::check_if_supported_inplace_alter(
 
 		if (new_options->page_compressed != old_options->page_compressed ||
 		    new_options->page_compression_level != old_options->page_compression_level ||
-			new_options->atomic_writes != old_options->page_compression_level) {
+			new_options->atomic_writes != old_options->atomic_writes) {
 			ha_alter_info->unsupported_reason = innobase_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);

@@ -45,7 +45,6 @@ pfs_os_file_create_simple_func(
 	ulint		access_type,/*!< in: OS_FILE_READ_ONLY or
 				OS_FILE_READ_WRITE */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
-	ibool		atomic_writes, /*!<in TRUE if atomic writes are used */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {
@@ -61,7 +60,7 @@ pfs_os_file_create_simple_func(
 				     name, src_file, src_line);
 
 	file = os_file_create_simple_func(name, create_mode,
-					  access_type, success, atomic_writes);
+					  access_type, success);
 
 	/* Regsiter the returning "file" value with the system */
 	register_pfs_file_open_end(locker, file);
@@ -90,7 +89,8 @@ pfs_os_file_create_simple_no_error_handling_func(
 				OS_FILE_READ_ALLOW_DELETE; the last option is
 				used by a backup program reading the file */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
-	ibool		atomic_writes, /*!<in TRUE if atomic writes are used */
+	ulint		atomic_writes,/*!< in: atomic writes table option
+				value */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {
@@ -137,7 +137,8 @@ pfs_os_file_create_func(
 				function source code for the exact rules */
 	ulint		type,	/*!< in: OS_DATA_FILE or OS_LOG_FILE */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
-	ibool		atomic_writes, /*!<in TRUE if atomic writes are used */
+	ulint		atomic_writes, /*!< in: atomic writes table option
+				       value */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {

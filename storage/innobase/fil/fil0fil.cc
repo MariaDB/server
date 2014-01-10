@@ -756,7 +756,7 @@ fil_node_open_file(
 
 		node->handle = os_file_create_simple_no_error_handling(
 			innodb_file_data_key, node->name, OS_FILE_OPEN,
-			OS_FILE_READ_ONLY, &success, FALSE);
+			OS_FILE_READ_ONLY, &success, 0);
 		if (!success) {
 			/* The following call prints an error message */
 			os_file_get_last_error(true);
@@ -3159,7 +3159,7 @@ fil_create_link_file(
 
 	file = os_file_create_simple_no_error_handling(
 		innodb_file_data_key, link_filepath,
-		OS_FILE_CREATE, OS_FILE_READ_WRITE, &success, FALSE);
+		OS_FILE_CREATE, OS_FILE_READ_WRITE, &success, 0);
 
 	if (!success) {
 		/* The following call will print an error message */
@@ -3269,8 +3269,8 @@ fil_open_linked_file(
 	const char*	tablename,	/*!< in: database/tablename */
 	char**		remote_filepath,/*!< out: remote filepath */
 	os_file_t*	remote_file,	/*!< out: remote file handle */
-	ibool           atomic_writes)  /*!< in: should atomic writes be
-					used */
+	ulint           atomic_writes)  /*!< in: atomic writes table option
+					value */
 {
 	ibool		success;
 
@@ -4861,7 +4861,7 @@ retry:
 
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
-		ulint n_pages = size_after_extend - start_page_no;
+		ulint n_pages = size_after_extend;
 
 		success = os_file_set_size(node->name, node->handle,
 			n_pages * page_size);

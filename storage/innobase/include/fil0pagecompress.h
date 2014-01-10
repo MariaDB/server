@@ -49,8 +49,8 @@ fil_space_is_page_compressed(
 /*******************************************************************//**
 Returns the atomic writes flag of the space, or false if the space
 is not using atomic writes. The tablespace must be cached in the memory cache.
-@return	true if space using atomic writes, false if not */
-ibool
+@return	atomic write table option value */
+atomic_writes_t
 fil_space_get_atomic_writes(
 /*=========================*/
 	ulint   id);	/*!< in: space id */

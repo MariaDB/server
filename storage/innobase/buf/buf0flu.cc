@@ -50,6 +50,7 @@ Created 11/11/1995 Heikki Tuuri
 #include "srv0mon.h"
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
+#include "fil0pagecompress.h"
 
 /** Number of pages flushed through non flush_list flushes. */
 static ulint buf_lru_flush_page_count = 0;
@@ -866,6 +867,8 @@ buf_flush_write_block_low(
 {
 	ulint	zip_size	= buf_page_get_zip_size(bpage);
 	page_t*	frame		= NULL;
+	ulint space_id          = buf_page_get_space(bpage);
+	atomic_writes_t awrites = fil_space_get_atomic_writes(space_id);
 
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -943,10 +946,25 @@ buf_flush_write_block_low(
 		       buf_page_get_page_no(bpage), 0,
 		       zip_size ? zip_size : UNIV_PAGE_SIZE,
 		       frame, bpage, &bpage->write_size);
-	} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
-		buf_dblwr_write_single_page(bpage);
 	} else {
-		buf_dblwr_add_to_batch(bpage);
+		/* InnoDB uses doublewrite buffer and doublewrite buffer
+		is initialized. User can define do we use atomic writes
+		on a file space (table) or not. If atomic writes are
+		not used we should use doublewrite buffer and if
+		atomic writes should be used, no doublewrite buffer
+		is used. */
+
+		if (awrites == ATOMIC_WRITES_ON) {
+			fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
+				FALSE, buf_page_get_space(bpage), zip_size,
+				buf_page_get_page_no(bpage), 0,
+				zip_size ? zip_size : UNIV_PAGE_SIZE,
+				frame, bpage, &bpage->write_size);
+		} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
+			buf_dblwr_write_single_page(bpage);
+		} else {
+			buf_dblwr_add_to_batch(bpage);
+		}
 	}
 }
 
