@@ -3030,7 +3030,7 @@ void MDL_ticket::wsrep_report(bool debug)
 {
   if (debug) 
     {
-      WSREP_DEBUG("MDL ticket: type: %s space: %s db: %s name: %s",
+      WSREP_DEBUG("MDL ticket: type: %s space: %s db: %s name: %s (%s)",
        	 (get_type()  == MDL_INTENTION_EXCLUSIVE)  ? "intention exclusive"  :
        	 ((get_type() == MDL_SHARED)               ? "shared"               :
        	 ((get_type() == MDL_SHARED_HIGH_PRIO      ? "shared high prio"     :
