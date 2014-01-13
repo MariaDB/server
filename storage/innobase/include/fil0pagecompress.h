@@ -84,6 +84,7 @@ fil_compress_page(
 				       this must be appropriately aligned */
         byte*           out_buf,       /*!< out: compressed buffer */
         ulint           len,           /*!< in: length of input buffer.*/
+        ulint           compression_level, /*!< in: compression level */
 	ulint*          out_len);       /*!< out: actual length of compressed page */
 
 /****************************************************************//**

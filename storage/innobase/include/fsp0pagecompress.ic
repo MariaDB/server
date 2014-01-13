@@ -24,6 +24,8 @@ compression and atomic writes information to file space.
 Created 11/12/2013 Jan Lindström jan.lindstrom@skysql.com
 ***********************************************************************/
 
+#include "fsp0fsp.h"
+
 /********************************************************************//**
 Determine if the tablespace is page compressed from dict_table_t::flags.
 @return	TRUE if page compressed, FALSE if not page compressed */
@@ -58,4 +60,114 @@ fsp_flags_get_atomic_writes(
 	ulint	flags)	/*!< in: tablespace flags */
 {
 	return((atomic_writes_t)FSP_FLAGS_GET_ATOMIC_WRITES(flags));
+}
+
+/*******************************************************************//**
+Find out wheather the page is index page or not
+@return	true if page type index page, false if not */
+UNIV_INLINE
+ibool
+fil_page_is_index_page(
+/*===================*/
+	byte *buf)	/*!< in: page */
+{
+	return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_INDEX);
+}
+
+/*******************************************************************//**
+Find out wheather the page is page compressed
+@return	true if page is page compressed, false if not */
+UNIV_INLINE
+ibool
+fil_page_is_compressed(
+/*===================*/
+	byte *buf)	/*!< in: page */
+{
+	return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED);
+}
+
+/*******************************************************************//**
+Returns the page compression level of the space, or 0 if the space
+is not compressed. The tablespace must be cached in the memory cache.
+@return	page compression level, ULINT_UNDEFINED if space not found */
+UNIV_INLINE
+ulint
+fil_space_get_page_compression_level(
+/*=================================*/
+	ulint	id)	/*!< in: space id */
+{
+	ulint	flags;
+
+	flags = fil_space_get_flags(id);
+
+	if (flags && flags != ULINT_UNDEFINED) {
+
+		return(fsp_flags_get_page_compression_level(flags));
+	}
+
+	return(flags);
+}
+
+/*******************************************************************//**
+Extract the page compression from space.
+@return true if space is page compressed, false if space is not found
+or space is not page compressed. */
+UNIV_INLINE
+ibool
+fil_space_is_page_compressed(
+/*=========================*/
+	ulint	id)	/*!< in: space id */
+{
+	ulint	flags;
+
+	flags = fil_space_get_flags(id);
+
+	if (flags && flags != ULINT_UNDEFINED) {
+
+		return(fsp_flags_is_page_compressed(flags));
+	}
+
+	return(flags);
+}
+
+/****************************************************************//**
+Get the name of the compression algorithm used for page
+compression.
+@return compression algorithm name or "UNKNOWN" if not known*/
+UNIV_INLINE
+const char*
+fil_get_compression_alg_name(
+/*=========================*/
+       ulint           comp_alg)     /*!<in: compression algorithm number */
+{
+	switch(comp_alg) {
+	case FIL_PAGE_COMPRESSION_ZLIB:
+		return ("ZLIB");
+		break;
+	default:
+		return("UNKNOWN");
+		break;
+	}
+}
+
+/*******************************************************************//**
+Returns the atomic writes flag of the space, or false if the space
+is not using atomic writes. The tablespace must be cached in the memory cache.
+@return	atomic writes table option value */
+UNIV_INLINE
+atomic_writes_t
+fil_space_get_atomic_writes(
+/*========================*/
+	ulint	id)	/*!< in: space id */
+{
+	ulint	flags;
+
+	flags = fil_space_get_flags(id);
+
+	if (flags && flags != ULINT_UNDEFINED) {
+
+		return((atomic_writes_t)fsp_flags_get_atomic_writes(flags));
+	}
+
+	return((atomic_writes_t)0);
 }

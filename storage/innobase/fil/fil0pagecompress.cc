@@ -77,6 +77,7 @@ fil_compress_page(
 				       this must be appropriately aligned */
         byte*           out_buf,       /*!< out: compressed buffer */
         ulint           len,           /*!< in: length of input buffer.*/
+        ulint           compression_level, /* in: compression level */
 	ulint*          out_len)       /*!< out: actual length of compressed page */
 {
         int err = Z_OK;
@@ -84,13 +85,13 @@ fil_compress_page(
         ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
 	ulint write_size=0;
 
-	ut_a(buf);
-	ut_a(out_buf);
-	ut_a(len);
-	ut_a(out_len);
+	ut_ad(buf);
+	ut_ad(out_buf);
+	ut_ad(len);
+	ut_ad(out_len);
 
-        level = fil_space_get_page_compression_level(space_id);
-	ut_a(fil_space_is_page_compressed(space_id));
+        level = compression_level;
+	ut_ad(fil_space_is_page_compressed(space_id));
 
 	fil_system_enter();
 	fil_space_t* space = fil_space_get_by_id(space_id);
@@ -181,8 +182,8 @@ fil_decompress_page(
 	ulint compression_alg = 0;
 	byte *in_buf;
 
-	ut_a(buf);
-	ut_a(len);
+	ut_ad(buf);
+	ut_ad(len);
 
 	/* Before actual decompress, make sure that page type is correct */
 
@@ -264,106 +265,4 @@ fil_decompress_page(
 	}
 }
 
-/*******************************************************************//**
-Find out wheather the page is index page or not
-@return	true if page type index page, false if not */
-ibool
-fil_page_is_index_page(
-/*===================*/
-	byte *buf)	/*!< in: page */
-{
-	return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_INDEX);
-}
 
-/*******************************************************************//**
-Find out wheather the page is page compressed
-@return	true if page is page compressed, false if not */
-ibool
-fil_page_is_compressed(
-/*===================*/
-	byte *buf)	/*!< in: page */
-{
-	return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED);
-}
-
-/*******************************************************************//**
-Returns the page compression level of the space, or 0 if the space
-is not compressed. The tablespace must be cached in the memory cache.
-@return	page compression level, ULINT_UNDEFINED if space not found */
-ulint
-fil_space_get_page_compression_level(
-/*=================================*/
-	ulint	id)	/*!< in: space id */
-{
-	ulint	flags;
-
-	flags = fil_space_get_flags(id);
-
-	if (flags && flags != ULINT_UNDEFINED) {
-
-		return(fsp_flags_get_page_compression_level(flags));
-	}
-
-	return(flags);
-}
-
-/*******************************************************************//**
-Extract the page compression from space.
-@return true if space is page compressed, false if space is not found
-or space is not page compressed. */
-ibool
-fil_space_is_page_compressed(
-/*=========================*/
-	ulint	id)	/*!< in: space id */
-{
-	ulint	flags;
-
-	flags = fil_space_get_flags(id);
-
-	if (flags && flags != ULINT_UNDEFINED) {
-
-		return(fsp_flags_is_page_compressed(flags));
-	}
-
-	return(flags);
-}
-
-/****************************************************************//**
-Get the name of the compression algorithm used for page
-compression.
-@return compression algorithm name or "UNKNOWN" if not known*/
-const char*
-fil_get_compression_alg_name(
-/*=========================*/
-       ulint           comp_alg)     /*!<in: compression algorithm number */
-{
-	switch(comp_alg) {
-	case FIL_PAGE_COMPRESSION_ZLIB:
-		return ("ZLIB");
-		break;
-	default:
-		return("UNKNOWN");
-		break;
-	}
-}
-
-/*******************************************************************//**
-Returns the atomic writes flag of the space, or false if the space
-is not using atomic writes. The tablespace must be cached in the memory cache.
-@return	atomic writes table option value */
-atomic_writes_t
-fil_space_get_atomic_writes(
-/*========================*/
-	ulint	id)	/*!< in: space id */
-{
-	ulint	flags;
-
-	flags = fil_space_get_flags(id);
-
-	if (flags && flags != ULINT_UNDEFINED) {
-
-		return((atomic_writes_t)fsp_flags_get_atomic_writes(flags));
-	}
-
-	return((atomic_writes_t)0);
-}

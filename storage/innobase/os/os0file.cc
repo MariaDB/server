@@ -196,6 +196,9 @@ struct os_aio_slot_t{
 					       freed after the write
 					       has been completed */
 
+	ibool           page_compression;
+	ulint           page_compression_level;
+
 	ulint*          write_size;     /*!< Actual write size initialized
 					after fist successfull trim
 					operation for this page and if
@@ -4353,11 +4356,15 @@ os_aio_array_reserve_slot(
 				to write */
 	os_offset_t	offset,	/*!< in: file offset */
 	ulint		len,	/*!< in: length of the block to read or write */
-	ulint*		write_size)     /*!< in: Actual write size initialized
+	ulint*		write_size,/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+	ibool		page_compression, /*!< in: is page compression used
+					  on this file space */
+	ulint		page_compression_level) /*!< page compression
+						 level to be used */
 {
 	os_aio_slot_t*	slot = NULL;
 #ifdef WIN_ASYNC_IO
@@ -4449,6 +4456,8 @@ found:
 	slot->io_already_done = FALSE;
 	slot->page_compress_success = FALSE;
 	slot->write_size = write_size;
+	slot->page_compression_level = page_compression_level;
+	slot->page_compression = page_compression;
 
 	/* If the space is page compressed and this is write operation
 	   and if either only index pages compression is disabled or
@@ -4456,7 +4465,7 @@ found:
 	   we compress the page */
 	if (message1 &&
 	    type == OS_FILE_WRITE &&
-	    fil_space_is_page_compressed(fil_node_get_space_id(slot->message1)) &&
+	    page_compression &&
 	    (srv_page_compress_index_pages == false ||
 	     (srv_page_compress_index_pages == true &&  fil_page_is_index_page(slot->buf)))) {
 		ulint           real_len = len;
@@ -4477,7 +4486,7 @@ found:
 		can't really avoid this now. */
 		memset(slot->page_buf, 0, len);
 
-		tmp = fil_compress_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf, len, &real_len);
+		tmp = fil_compress_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf, len, page_compression_level, &real_len);
 
 		/* If compression succeeded, set up the length and buffer */
 		if (tmp != buf) {
@@ -4773,11 +4782,15 @@ os_aio_func(
 				(can be used to identify a completed
 				aio operation); ignored if mode is
 				OS_AIO_SYNC */
-	ulint*		write_size)/*!< in/out: Actual write size initialized
+	ulint*		write_size,/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+	ibool		page_compression, /*!< in: is page compression used
+					  on this file space */
+	ulint		page_compression_level) /*!< page compression
+						 level to be used */
 {
 	os_aio_array_t*	array;
 	os_aio_slot_t*	slot;
@@ -4875,7 +4888,7 @@ try_again:
 	}
 
 	slot = os_aio_array_reserve_slot(type, array, message1, message2, file,
-					 name, buf, offset, n, write_size);
+		name, buf, offset, n, write_size, page_compression, page_compression_level);
 
 	if (type == OS_FILE_READ) {
 		if (srv_use_native_aio) {
@@ -5100,7 +5113,7 @@ os_aio_windows_handle(
 		switch (slot->type) {
 		case OS_FILE_WRITE:
 			if (slot->message1 &&
-			    fil_space_is_page_compressed(fil_node_get_space_id(slot->message1)) &&
+			    page_compression &&
 			    slot->page_buf) {
 				ret = WriteFile(slot->file, slot->page_buf,
 					(DWORD) slot->len, &len,
@@ -5141,8 +5154,7 @@ os_aio_windows_handle(
 		ret_val = ret && len == slot->len;
 	}
 
-	if (slot->message1 &&
-	    fil_space_is_page_compressed(fil_node_get_space_id(slot->message1))) {
+	if (slot->message1 && page_compression) {
 		// We allocate memory for page compressed buffer if and only
 		// if it is not yet allocated.
 		if (slot->page_buf == NULL) {
@@ -5256,8 +5268,7 @@ retry:
 			/* If the table is page compressed and this is read,
 			we decompress before we annouce the read is
 			complete. For writes, we free the compressed page. */
-			if (slot->message1 &&
-			    fil_space_is_page_compressed(fil_node_get_space_id(slot->message1))) {
+			if (slot->message1 && slot->page_compression) {
 				// We allocate memory for page compressed buffer if and only
 				// if it is not yet allocated.
 				if (slot->page_buf == NULL) {

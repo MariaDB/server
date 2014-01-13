@@ -4920,7 +4920,7 @@ extend_file:
 		success = os_aio(OS_FILE_WRITE, OS_AIO_SYNC,
 				 node->name, node->handle, buf,
 				 offset, page_size * n_pages,
-			         NULL, NULL, 0);
+			NULL, NULL, 0, FALSE, 0);
 #endif /* UNIV_HOTBACKUP */
 		if (success) {
 			os_has_said_disk_full = FALSE;
@@ -5302,6 +5302,8 @@ fil_io(
 	ulint		wake_later;
 	os_offset_t	offset;
 	ibool		ignore_nonexistent_pages;
+        ibool		page_compressed = FALSE;
+	ibool		page_compression_level = 0;
 
 	is_log = type & OS_FILE_LOG;
 	type = type & ~OS_FILE_LOG;
@@ -5462,6 +5464,9 @@ fil_io(
 	ut_a(byte_offset % OS_FILE_LOG_BLOCK_SIZE == 0);
 	ut_a((len % OS_FILE_LOG_BLOCK_SIZE) == 0);
 
+	page_compressed = fsp_flags_is_page_compressed(space->flags);
+	page_compression_level = fsp_flags_get_page_compression_level(space->flags);
+
 #ifdef UNIV_HOTBACKUP
 	/* In ibbackup do normal i/o, not aio */
 	if (type == OS_FILE_READ) {
@@ -5474,7 +5479,8 @@ fil_io(
 #else
 	/* Queue the aio request */
 	ret = os_aio(type, mode | wake_later, node->name, node->handle, buf,
-		     offset, len, node, message, write_size);
+		offset, len, node, message, write_size,
+		page_compressed, page_compression_level);
 #endif /* UNIV_HOTBACKUP */
 	ut_a(ret);
 

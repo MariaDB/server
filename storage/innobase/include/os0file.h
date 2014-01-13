@@ -288,9 +288,11 @@ The wrapper functions have the prefix of "innodb_". */
 	pfs_os_file_close_func(file, __FILE__, __LINE__)
 
 # define os_aio(type, mode, name, file, buf, offset,			\
-		n, message1, message2, write_size)						\
+	n, message1, message2, write_size,                              \
+	page_compression, page_compression_level)			\
 	pfs_os_aio_func(type, mode, name, file, buf, offset,		\
-			n, message1, message2, write_size, __FILE__, __LINE__)
+			n, message1, message2, write_size,              \
+		page_compression, page_compression_level, __FILE__, __LINE__)
 
 # define os_file_read(file, buf, offset, n)				\
 	pfs_os_file_read_func(file, buf, offset, n, __FILE__, __LINE__)
@@ -327,7 +329,7 @@ to original un-instrumented file I/O APIs */
 
 # define os_aio(type, mode, name, file, buf, offset, n, message1, message2, write_size) \
 	os_aio_func(type, mode, name, file, buf, offset, n,		\
-		    message1, message2, write_size)
+		message1, message2, write_size, page_compression, page_compression_level)
 
 # define os_file_read(file, buf, offset, n)	\
 	os_file_read_func(file, buf, offset, n)
@@ -733,6 +735,10 @@ pfs_os_aio_func(
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+	ibool		page_compression, /*!< in: is page compression used
+					  on this file space */
+	ulint		page_compression_level, /*!< page compression
+						 level to be used */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 /*******************************************************************//**
@@ -1065,11 +1071,15 @@ os_aio_func(
 				(can be used to identify a completed
 				aio operation); ignored if mode is
 				OS_AIO_SYNC */
-	ulint*		write_size);/*!< in/out: Actual write size initialized
+	ulint*		write_size,/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+	ibool		page_compression, /*!< in: is page compression used
+					  on this file space */
+	ulint		page_compression_level); /*!< page compression
+						 level to be used */
 
 /************************************************************************//**
 Wakes up all async i/o threads so that they know to exit themselves in
