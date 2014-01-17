@@ -115,7 +115,6 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
   while(buf_len)
   {
     int exec_res;
-    int error = 0;
     Log_event* ev= wsrep_read_log_event(&buf, &buf_len,
                                         wsrep_get_apply_format(thd));
 
