@@ -15,7 +15,7 @@
 
 INCLUDE_DIRECTORIES( "." )
 
-SET(WSREP_SOURCES wsrep_uuid.c wsrep_loader.c wsrep_dummy.c)
+SET(WSREP_SOURCES wsrep_gtid.c wsrep_uuid.c wsrep_loader.c wsrep_dummy.c)
 
 ADD_CONVENIENCE_LIBRARY(wsrep ${WSREP_SOURCES})
 DTRACE_INSTRUMENT(wsrep)
