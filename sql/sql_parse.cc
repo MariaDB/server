@@ -6788,6 +6788,11 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
       }
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     }
+
+    /* If retry is requested clean up explain structure */
+    if (thd->wsrep_conflict_state == RETRY_AUTOCOMMIT && thd->lex->explain)
+        delete_explain_query(thd->lex);
+
   }  while (thd->wsrep_conflict_state== RETRY_AUTOCOMMIT);
 
   if (thd->wsrep_retry_query)
