@@ -20,24 +20,15 @@
 # Set the patch version
 SET(WSREP_PATCH_VERSION "9")
 
-# Obtain patch revision number:
-# The script tries to probe the bzr revision number using $ENV{WSREP_REV}, and
-# "bzr revno" if the WSREP_REV is not defined. In case both fail, the revision
-# information is not appended to the wsrep patch version.
+# MariaDB addition: Revision number of the last revision merged from
+# codership branch visible in @@visible_comment.
+# Branch : codership-mysql/5.5
+SET(WSREP_PATCH_REVNO "3932")  # Should be updated on every merge.
 
-# 1: $ENV{WSREP_REV}
-SET(WSREP_PATCH_REVNO $ENV{WSREP_REV})
-
-# 2: bzr revno
-IF(NOT WSREP_PATCH_REVNO)
-  EXECUTE_PROCESS(
-    COMMAND bzr revno
-    OUTPUT_VARIABLE WSREP_PATCH_REVNO
-    RESULT_VARIABLE RESULT
-  )
-
-STRING(REGEX REPLACE "(\r?\n)+$" "" WSREP_PATCH_REVNO "${WSREP_PATCH_REVNO}")
-#FILE(WRITE "wsrep_config" "Debug: WSREP_PATCH_REVNO result: ${RESULT}\n")
+# MariaDB: Obtain patch revision number:
+# Update WSREP_PATCH_REVNO if WSREP_REV environment variable is set.
+IF (DEFINED ENV{WSREP_REV})
+  SET(WSREP_PATCH_REVNO $ENV{WSREP_REV})
 ENDIF()
 
 # Obtain wsrep API version
