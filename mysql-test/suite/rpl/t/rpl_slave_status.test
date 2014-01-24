@@ -2,7 +2,7 @@
 #
 # Verify that a slave without replication privileges has
 # Slave_IO_Running = No
-#
+# Check that relay_log_status doesn't change by CHANGE MASTER
 # ==== Method ====
 #
 # We do the following steps:
@@ -28,6 +28,17 @@ GRANT REPLICATION SLAVE ON *.* TO rpl@127.0.0.1 IDENTIFIED BY 'rpl';
 --echo [on slave]
 sync_slave_with_master;
 source include/stop_slave.inc;
+
+# Test that relay_log_purge doesn't change because of CHANGE MASTER
+set @save_relay_log_purge=@@global.relay_log_purge;
+set @@global.relay_log_purge=0;
+CHANGE MASTER TO master_user='rpl', master_password='rpl';
+select @@global.relay_log_purge;
+set @@global.relay_log_purge=1;
+CHANGE MASTER TO master_user='rpl', master_password='rpl';
+select @@global.relay_log_purge;
+set @@global.relay_log_purge=@save_relay_log_purge;
+
 CHANGE MASTER TO master_user='rpl', master_password='rpl';
 source include/start_slave.inc;
 
