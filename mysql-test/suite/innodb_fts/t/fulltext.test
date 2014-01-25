@@ -4,6 +4,11 @@
 
 --source include/have_innodb.inc
 
+if (`select plugin_auth_version <= "5.6.10" from information_schema.plugins where plugin_name='innodb'`)
+{
+  --skip Not fixed in InnoDB 5.6.10 or earlier
+}
+
 --disable_warnings
 drop table if exists t1,t2,t3;
 --enable_warnings

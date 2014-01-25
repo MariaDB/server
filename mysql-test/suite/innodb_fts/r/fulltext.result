@@ -120,8 +120,8 @@ Function MATCH ... AGAINST()	is used to do a search
 Full-text search in MySQL	implements vector space model
 select * from t1 where MATCH(a,b) AGAINST("+search +(support vector)" IN BOOLEAN MODE);
 a	b
-MySQL has now support	for full-text search
 Full-text search in MySQL	implements vector space model
+MySQL has now support	for full-text search
 select * from t1 where MATCH(a,b) AGAINST("+search -(support vector)" IN BOOLEAN MODE);
 a	b
 Function MATCH ... AGAINST()	is used to do a search
@@ -164,6 +164,7 @@ select * from t1 where MATCH a,b AGAINST ('"text i"' IN BOOLEAN MODE);
 a	b
 select * from t1 where MATCH a,b AGAINST ('"xt indexes"' IN BOOLEAN MODE);
 a	b
+Full-text indexes	are called collections
 select * from t1 where MATCH a,b AGAINST ('+(support collections) +foobar*' IN BOOLEAN MODE);
 a	b
 select * from t1 where MATCH a,b AGAINST ('+(+(support collections)) +foobar*' IN BOOLEAN MODE);
@@ -201,6 +202,8 @@ a
 aaa10 bbb20
 select * from t1 where match a against ("+(+aaa* +bbb1*)" in boolean mode);
 a
+aaa20 bbb15
+aaa30 bbb10
 select * from t1 where match a against ("(+aaa* +bbb1*)" in boolean mode);
 a
 aaa20 bbb15
@@ -395,6 +398,7 @@ a
 testword''
 SELECT a FROM t1 WHERE MATCH a AGAINST('testword\'\'' IN BOOLEAN MODE);
 a
+testword''
 INSERT INTO t1 VALUES('test\'s');
 SELECT a FROM t1 WHERE MATCH a AGAINST('test' IN BOOLEAN MODE);
 a
@@ -440,7 +444,6 @@ CREATE TABLE t1(a VARCHAR(20), FULLTEXT(a)) ENGINE = InnoDB;
 INSERT INTO t1 VALUES('Offside'),('City Of God');
 SELECT a FROM t1 WHERE MATCH a AGAINST ('+city of*' IN BOOLEAN MODE);
 a
-Offside
 City Of God
 SELECT a FROM t1 WHERE MATCH a AGAINST ('+city (of*)' IN BOOLEAN MODE);
 a
@@ -448,7 +451,6 @@ Offside
 City Of God
 SELECT a FROM t1 WHERE MATCH a AGAINST ('+city* of*' IN BOOLEAN MODE);
 a
-Offside
 City Of God
 DROP TABLE t1;
 create table t1(a text,b date,fulltext index(a)) ENGINE = InnoDB;

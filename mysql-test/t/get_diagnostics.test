@@ -3,52 +3,34 @@
 --echo #
 
 --echo #
---echo # Test reserved keywords: GET
+--echo # In MariaDB GET is not reserved
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP PROCEDURE IF EXISTS p1;
---enable_warnings
-
---error ER_PARSE_ERROR
 CREATE TABLE t1 (get INT);
-
-DELIMITER |;
---error ER_PARSE_ERROR
-CREATE PROCEDURE p1()
-BEGIN
-  DECLARE get INT DEFAULT 1;
-END|
-DELIMITER ;|
-
---echo # Quoting
-
-CREATE TABLE t1 (`get` INT);
-INSERT INTO t1 (`get`) values (1);
-SELECT `get` FROM t1 WHERE `get` = 1;
 DROP TABLE t1;
 
 DELIMITER |;
 CREATE PROCEDURE p1()
 BEGIN
-  DECLARE `get` INT DEFAULT 1;
-  SELECT `get`;
+  DECLARE get INT DEFAULT 1;
 END|
 DELIMITER ;|
-
-CALL p1();
-
 DROP PROCEDURE p1;
+
+# but cannot be used as a label
+
+DELIMITER |;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+get:
+BEGIN
+    SELECT 1;
+END get|
+DELIMITER ;|
 
 --echo #
 --echo # Test non-reserved keywords: CURRENT, DIAGNOSTICS, NUMBER, RETURNED_SQLSTATE
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP PROCEDURE IF EXISTS p1;
---enable_warnings
 
 CREATE TABLE t1 (current INT, diagnostics INT, number INT, returned_sqlstate INT);
 INSERT INTO t1 (current, diagnostics, number, returned_sqlstate) values (1,2,3,4);

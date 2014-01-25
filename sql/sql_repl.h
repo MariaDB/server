@@ -67,7 +67,9 @@ int log_loaded_block(IO_CACHE* file);
 int init_replication_sys_vars();
 void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos, ushort flags);
 
+#ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state;
+#endif
 void rpl_init_gtid_slave_state();
 void rpl_deinit_gtid_slave_state();
 int gtid_state_from_binlog_pos(const char *name, uint32 pos, String *out_str);

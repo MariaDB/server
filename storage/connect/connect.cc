@@ -21,7 +21,7 @@
 /* -----------------------                                             */
 /*  This program are the CONNECT general purpose semantic routines.    */
 /***********************************************************************/
-#ifdef __GNUC__
+#ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation        // gcc: Class implementation
 #endif
 
@@ -251,7 +251,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     return true;
     } // endif tdbp
 
-  tdbp->SetMode(mode);
+//tdbp->SetMode(mode);      done in ha_connect::GetTDB
 
   if (!c1) {
     if (mode == MODE_INSERT)
@@ -498,8 +498,8 @@ RCODE  CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all)
 
   if (!tdbp || tdbp->GetMode() != MODE_DELETE)
     return RC_FX;
-//  else
-//    ((PTDBDOX)tdbp)->SetModified(true);
+  else if (tdbp->IsReadOnly())
+    return RC_NF;
 
   if (((PTDBASE)tdbp)->GetDef()->Indexable() && all)
     ((PTDBDOS)tdbp)->Cardinal= 0;
@@ -518,17 +518,13 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
   int     rc= RC_OK;
   TDBDOX *tbxp= NULL;
 
-  if (!tdbp)
-    return rc;                                // Already done
+  if (!tdbp || tdbp->GetUse() != USE_OPEN)
+    return rc;                           // Nothing to do
 
   if (xtrace)
     printf("CntCloseTable: tdbp=%p mode=%d\n", tdbp, tdbp->GetMode());
 
-  /*********************************************************************/
-  /*  This will close the table file(s) and also finalize write        */
-  /*  operations such as Insert, Update, or Delete.                    */
-  /*********************************************************************/
-  if (tdbp->GetMode() == MODE_DELETE)
+  if (tdbp->GetMode() == MODE_DELETE && tdbp->GetUse() == USE_OPEN)
     rc= tdbp->DeleteDB(g, RC_EF);        // Specific A.M. delete routine
 
   //  Prepare error return
@@ -543,6 +539,8 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
     goto err;
     } // endif
 
+  //  This will close the table file(s) and also finalize write
+  //  operations such as Insert, Update, or Delete.
   tdbp->CloseDB(g);
 
   g->jump_level--;
@@ -593,7 +591,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id)
   if (!ptdb)
     return -1;
   else if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
-    sprintf(g->Message, "Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, "CntIndexInit: Table %s is not indexable", ptdb->GetName());
     return 0;
   } else
     tdbp= (PTDBDOX)ptdb;
@@ -687,6 +685,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   char   *kp= (char*)key;
   int     n;
   short   lg;
+  bool    rcb;
   RCODE   rc;
   PVAL    valp;
   PCOL    colp;
@@ -696,7 +695,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   if (!ptdb)
     return RC_FX;
   if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
-    sprintf(g->Message, "Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, "CntIndexRead: Table %s is not indexable", ptdb->GetName());
     return RC_FX;
   } else
     tdbp= (PTDBDOX)ptdb;
@@ -721,9 +720,20 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
         if (colp->GetColUse(U_VAR)) {
           lg= *(short*)kp;
           kp+= sizeof(short);
-          valp->SetValue_char(kp, (int)lg);
+          rcb= valp->SetValue_char(kp, (int)lg);
         } else
-          valp->SetValue_char(kp, valp->GetClen());
+          rcb= valp->SetValue_char(kp, valp->GetClen());
+
+        if (rcb) {
+          if (tdbp->RowNumber(g))
+            sprintf(g->Message, "Out of range value for column %s at row %d",
+                    colp->GetName(), tdbp->RowNumber(g));
+          else
+            sprintf(g->Message, "Out of range value for column %s",
+                    colp->GetName());
+
+          PushWarning(g, tdbp);
+          } // endif b
 
       } else
         valp->SetBinValue((void*)kp);
@@ -761,7 +771,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
   const uchar *p, *kp;
   int     i, n, k[2];
   short   lg;
-  bool    b;
+  bool    b, rcb;
   PVAL    valp;
   PCOL    colp;
   PTDBDOX tdbp;
@@ -770,7 +780,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
   if (!ptdb)
     return -1;
   else if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
-    sprintf(g->Message, "Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, "CntIndexRange: Table %s is not indexable", ptdb->GetName());
     DBUG_PRINT("Range", ("%s", g->Message));
     return -1;
   } else
@@ -804,9 +814,21 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
             if (colp->GetColUse(U_VAR)) {
               lg= *(short*)p;
               p+= sizeof(short);
-              valp->SetValue_char((char*)p, (int)lg);
+              rcb= valp->SetValue_char((char*)p, (int)lg);
             } else
-              valp->SetValue_char((char*)p, valp->GetClen());
+              rcb= valp->SetValue_char((char*)p, valp->GetClen());
+
+          if (rcb) {
+            if (tdbp->RowNumber(g))
+              sprintf(g->Message, 
+                      "Out of range value for column %s at row %d",
+                      colp->GetName(), tdbp->RowNumber(g));
+            else
+              sprintf(g->Message, "Out of range value for column %s",
+                      colp->GetName());
+
+            PushWarning(g, tdbp);
+            } // endif b
 
           } else
             valp->SetBinValue((void*)p);

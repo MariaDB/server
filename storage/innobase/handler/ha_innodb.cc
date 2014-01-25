@@ -103,9 +103,13 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fts0priv.h"
 #include "page0zip.h"
 
-#ifdef WITH_WSREP
-#include "dict0priv.h"
-#endif /* WITH_WSREP */
+#define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
+
+#ifdef MYSQL_DYNAMIC_PLUGIN
+#define tc_size 400
+#define tdc_size 400
+#endif
+
 #include "ha_innodb.h"
 #include "i_s.h"
 
@@ -116,7 +120,15 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #ifdef WITH_WSREP
 #include <wsrep_mysqld.h>
 #include <my_md5.h>
+#if defined(HAVE_YASSL)
+#include "my_config.h"
+#include "md5.hpp"
+#elif defined(HAVE_OPENSSL)
 #include <openssl/md5.h>
+#endif
+
+
+#include "dict0priv.h"
 
 extern my_bool wsrep_certify_nonPK;
 class  binlog_trx_data;
@@ -540,6 +552,15 @@ innodb_stopword_table_validate(
 /** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
 system clustered index when there is no primary key. */
 const char innobase_index_reserve_name[] = "GEN_CLUST_INDEX";
+
+/******************************************************************//**
+Maps a MySQL trx isolation level code to the InnoDB isolation level code
+@return	InnoDB isolation level */
+static inline
+ulint
+innobase_map_isolation_level(
+/*=========================*/
+	enum_tx_isolation	iso);	/*!< in: MySQL isolation level code */
 
 static const char innobase_hton_name[]= "InnoDB";
 
@@ -1582,8 +1603,8 @@ innobase_mysql_print_thd(
 {
 	char	buffer[1024];
 
-	fputs(thd_security_context(thd, buffer, sizeof buffer,
-				   max_query_len), f);
+	fputs(thd_get_error_context_description(thd, buffer, sizeof buffer,
+						max_query_len), f);
 	putc('\n', f);
 }
 
@@ -2853,7 +2874,7 @@ innobase_init(
 
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
-        innobase_hton->flags = HTON_EXTENDED_KEYS;
+	innobase_hton->flags = HTON_SUPPORTS_EXTENDED_KEYS;
 
 	innobase_hton->release_temporary_latches =
 		innobase_release_temporary_latches;
@@ -3517,9 +3538,22 @@ innobase_start_trx_and_assign_read_view(
 
 	trx_start_if_not_started_xa(trx);
 
-	/* Assign a read view if the transaction does not have it yet */
+	/* Assign a read view if the transaction does not have it yet.
+	Do this only if transaction is using REPEATABLE READ isolation
+	level. */
+	trx->isolation_level = innobase_map_isolation_level(
+		thd_get_trx_isolation(thd));
 
-	trx_assign_read_view(trx);
+	if (trx->isolation_level == TRX_ISO_REPEATABLE_READ) {
+		trx_assign_read_view(trx);
+	} else {
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB: WITH CONSISTENT SNAPSHOT "
+				    "was ignored because this phrase "
+				    "can only be used with "
+				    "REPEATABLE READ isolation level.");
+	}
 
 	/* Set the MySQL flag to mark that there is an active transaction */
 
@@ -3535,8 +3569,7 @@ innobase_commit_ordered_2(
 	trx_t*	trx, 	/*!< in: Innodb transaction */
 	THD*	thd)	/*!< in: MySQL thread handle */
 {
-	ulonglong tmp_pos;
-	DBUG_ENTER("innobase_commit_ordered");
+	DBUG_ENTER("innobase_commit_ordered_2");
 
 	/* We need current binlog position for ibbackup to work.
 	Note, the position is current because commit_ordered is guaranteed
@@ -3559,9 +3592,9 @@ retry:
 		}
 	}
 
-	mysql_bin_log_commit_pos(thd, &tmp_pos, &(trx->mysql_log_file_name));
-	trx->mysql_log_offset = (ib_int64_t) tmp_pos;
-
+        unsigned long long pos;
+        thd_binlog_pos(thd, &trx->mysql_log_file_name, &pos);
+        trx->mysql_log_offset= static_cast<ib_int64_t>(pos);
 	/* Don't do write + flush right now. For group commit
 	   to work we want to do the flush in the innobase_commit()
 	   method, which runs without holding any locks. */
@@ -3886,7 +3919,7 @@ innobase_checkpoint_request(
 Log code calls this whenever log has been written and/or flushed up
 to a new position. We use this to notify upper layer of a new commit
 checkpoint when necessary.*/
-extern "C" UNIV_INTERN
+UNIV_INTERN
 void
 innobase_mysql_log_notify(
 /*===============*/
@@ -4162,10 +4195,10 @@ innobase_kill_query(
 #ifdef WITH_WSREP
 	wsrep_thd_LOCK(thd);
 	if (wsrep_thd_conflict_state(thd) != NO_CONFLICT) {
-		/* if victim has been signaled by BF thraed and/or aborting
+		/* if victim has been signaled by BF thread and/or aborting
 		   is already progressing, following query aborting is not necessary
 		   any more.
-		   Also, BF thread should own trx mutex for the victim, which would 
+		   Also, BF thread should own trx mutex for the victim, which would
 		   conflict with trx_mutex_enter() below
 		*/
 		wsrep_thd_UNLOCK(thd);
@@ -7806,8 +7839,7 @@ wsrep_calc_row_hash(
 	ulint		col_type;
 	uint		i;
 
-        MD5_CTX ctx;
-	MD5_Init (&ctx);
+	void *ctx = wsrep_md5_init();
 
 	n_fields = table->s->fields;
 
@@ -7855,15 +7887,15 @@ wsrep_calc_row_hash(
 		    field_in_record_is_null(table, field, (char*) row)) {
 		*/
 
-		if( field->real_maybe_null() && field->is_null_in_record(row)) {
-			MD5_Update (&ctx, &null_byte, 1);
+		if (field->is_null_in_record(row)) {
+			wsrep_md5_update(ctx, (char*)&null_byte, 1);
 		} else {
-			MD5_Update (&ctx, &true_byte, 1);
-			MD5_Update (&ctx, ptr, len);
+			wsrep_md5_update(ctx, (char*)&true_byte, 1);
+			wsrep_md5_update(ctx, (char*)ptr, len);
 		}
 	}
 
-        MD5_Final (digest, &ctx);
+	wsrep_compute_md5_hash((char*)digest, ctx);
 
 	return(0);
 }
@@ -8083,8 +8115,7 @@ ha_innobase::delete_row(
 wsrep_error:
 #endif
 	DBUG_RETURN(convert_error_code_to_mysql(
-		error, prebuilt->table->flags, user_thd));
-
+			    error, prebuilt->table->flags, user_thd));
 }
 
 /**********************************************************************//**
@@ -10450,10 +10481,7 @@ ha_innobase::parse_table_name(
 		}
 
 		if (ignore) {
-			push_warning_printf(
-				thd, Sql_condition::WARN_LEVEL_WARN,
-				WARN_OPTION_IGNORED,
-				ER_DEFAULT(WARN_OPTION_IGNORED),
+			my_error(WARN_OPTION_IGNORED, ME_JUST_WARNING,
 				"DATA DIRECTORY");
 		} else {
 			strncpy(remote_path, create_info->data_file_name,
@@ -10462,10 +10490,7 @@ ha_innobase::parse_table_name(
 	}
 
 	if (create_info->index_file_name) {
-		push_warning_printf(
-			thd, Sql_condition::WARN_LEVEL_WARN,
-			WARN_OPTION_IGNORED,
-			ER_DEFAULT(WARN_OPTION_IGNORED),
+		my_error(WARN_OPTION_IGNORED, ME_JUST_WARNING,
 			"INDEX DIRECTORY");
 	}
 
@@ -10517,6 +10542,11 @@ innobase_table_flags(
 
 				my_error(ER_INNODB_NO_FT_TEMP_TABLE, MYF(0));
 				DBUG_RETURN(false);
+			}
+
+			if (key->flags & HA_USES_PARSER) {
+				my_error(ER_INNODB_NO_FT_USES_PARSER, MYF(0));
+                                DBUG_RETURN(false);
 			}
 
 			if (fts_doc_id_index_bad) {
@@ -11608,7 +11638,6 @@ ha_innobase::records_in_range(
 	ib_int64_t	n_rows;
 	ulint		mode1;
 	ulint		mode2;
-        uint key_parts;
 	mem_heap_t*	heap;
 
 	DBUG_ENTER("records_in_range");
@@ -11644,19 +11673,14 @@ ha_innobase::records_in_range(
 		goto func_exit;
 	}
 
-        key_parts= key->ext_key_parts;
-        if ((min_key && min_key->keypart_map>=(key_part_map) (1<<key_parts)) ||
-            (max_key && max_key->keypart_map>=(key_part_map) (1<<key_parts)))
-          key_parts= key->ext_key_parts;
-
-	heap = mem_heap_create(2 * (key_parts * sizeof(dfield_t)
+	heap = mem_heap_create(2 * (key->ext_key_parts * sizeof(dfield_t)
 				    + sizeof(dtuple_t)));
 
-	range_start = dtuple_create(heap, key_parts);
-	dict_index_copy_types(range_start, index, key_parts);
+	range_start = dtuple_create(heap, key->ext_key_parts);
+	dict_index_copy_types(range_start, index, key->ext_key_parts);
 
-	range_end = dtuple_create(heap, key_parts);
-	dict_index_copy_types(range_end, index, key_parts);
+	range_end = dtuple_create(heap, key->ext_key_parts);
+	dict_index_copy_types(range_end, index, key->ext_key_parts);
 
 	row_sel_convert_mysql_key_to_innobase(
 				range_start,
@@ -12351,52 +12375,6 @@ ha_innobase::info_low(
 				  (ulong) rec_per_key;
 			}
 
-                        KEY *key_info= table->key_info+i; 
-                        key_part_map ext_key_part_map=
-                                             key_info->ext_key_part_map;
-
-                        if (key_info->user_defined_key_parts !=
-                            key_info->ext_key_parts)
-                        {
-
-                                KEY *pk_key_info= key_info+
-                                                  table->s->primary_key;
-                                uint k = key_info->user_defined_key_parts;
-                                ha_rows k_rec_per_key = rec_per_key;
-                                uint pk_parts = pk_key_info->user_defined_key_parts;
-                          
-		                index= innobase_get_index(
-                                        table->s->primary_key);
-                                
-                                n_rows= ib_table->stat_n_rows;
-    
-                                for (j = 0; j < pk_parts; j++) {
- 
-				         if (ext_key_part_map & 1<<j) {
-
-                                                rec_per_key =
-						innodb_rec_per_key(index,
-                                                        j, stats.records);
-                               
-				                if (rec_per_key == 0) {
-					                rec_per_key = 1;
-				                }
-                                                else if (rec_per_key > 1) {
-                                                        rec_per_key =
-                                                        (ha_rows)
-                                                          (k_rec_per_key *
-						          (double)rec_per_key /
-                                                           n_rows);
-						}
-                                                
-				                key_info->rec_per_key[k++]=
-				                rec_per_key >= ~(ulong) 0 ?
-                                                ~(ulong) 0 :
-                                                (ulong) rec_per_key;
-
-					} 
-				}
-			}                                         
 		}
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
@@ -16800,7 +16778,8 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		WSREP_DEBUG("kill query for: %ld",
 			    wsrep_thd_thread_id(thd));
 		wsrep_thd_UNLOCK(thd);
-		wsrep_thd_awake(thd, signal); 
+		wsrep_thd_awake(thd, signal);
+
 		WSREP_DEBUG("kill trx QUERY_COMMITTING for %lu", 
 			    victim_trx->id);
 
@@ -16853,7 +16832,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 			}
 
 			wsrep_thd_UNLOCK(thd);
-			wsrep_thd_awake(thd, signal); 
+			wsrep_thd_awake(thd, signal);
 		} else {
 			/* abort currently executing query */
 			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %ld", 
@@ -16861,7 +16840,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 			WSREP_DEBUG("kill query for: %ld",
 				wsrep_thd_thread_id(thd));
 			wsrep_thd_UNLOCK(thd);
-			wsrep_thd_awake(thd, signal); 
+			wsrep_thd_awake(thd, signal);
 
 			/* for BF thd, we need to prevent him from committing */
 			if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
@@ -18446,3 +18425,21 @@ ib_logf(
 		ut_error;
 	}
 }
+
+/**********************************************************************
+Converts an identifier from my_charset_filename to UTF-8 charset.
+@return result string length, as returned by strconvert() */
+uint
+innobase_convert_to_system_charset(
+/*===============================*/
+	char*		to,	/* out: converted identifier */
+	const char*	from,	/* in: identifier to convert */
+	ulint		len,	/* in: length of 'to', in bytes */
+	uint*		errors)	/* out: error return */
+{
+	CHARSET_INFO*	cs1 = &my_charset_filename;
+	CHARSET_INFO*	cs2 = system_charset_info;
+
+	return(strconvert(cs1, from, strlen(from), cs2, to, len, errors));
+}
+

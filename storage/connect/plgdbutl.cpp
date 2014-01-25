@@ -278,6 +278,18 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
   PCOLRES *pcrp, crp;
   PQRYRES  qrp;
 
+  // Save stack and allocation environment and prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return NULL;
+    } // endif jump_level
+
+  if (setjmp(g->jumper[++g->jump_level]) != 0) {
+    printf("%s\n", g->Message);
+    qrp = NULL;
+    goto fin;
+    } // endif rc
+
   /************************************************************************/
   /*  Allocate the structure used to contain the result set.              */
   /************************************************************************/
@@ -330,7 +342,7 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
     // Allocate the Value Block that will contain data
     if (crp->Length || nonull)
       crp->Kdata = AllocValBlock(g, NULL, crp->Type, maxres,
-                                          crp->Length, 0, true, blank);
+                                    crp->Length, 0, true, blank, false);
     else
       crp->Kdata = NULL;
 
@@ -342,6 +354,8 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
 
   *pcrp = NULL;
 
+ fin:
+  g->jump_level--;
   return qrp;
   } // end of PlgAllocResult
 
@@ -1432,7 +1446,6 @@ void PlgDBfree(MBLOCK& mp)
   mp.Size = 0;
   } // end of PlgDBfree
 
-#if 0     // Not used yet
 /***********************************************************************/
 /*  Program for sub-allocating one item in a storage area.             */
 /*  Note: This function is equivalent to PlugSubAlloc except that in   */
@@ -1449,8 +1462,8 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
     /*******************************************************************/
     memp = g->Sarea;
 
-  size = ((size + 3) / 4) * 4;       /* Round up size to multiple of 4 */
-//size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
+//size = ((size + 3) / 4) * 4;       /* Round up size to multiple of 4 */
+  size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
   pph = (PPOOLHEADER)memp;
 
 #if defined(DEBTRACE)
@@ -1459,34 +1472,9 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
 #endif
 
   if ((uint)size > pph->FreeBlk) {   /* Not enough memory left in pool */
-    char     *pname = NULL;
-    PACTIVITY ap;
-
-    if (memp == g->Sarea)
-      pname = "Work";
-    else if ((ap = g->Activityp)) {
-      if      (memp == ap->LangRulep)
-        pname = "Rule";
-      else if (memp == ap->Nodep[0])
-        pname = "Dictionary";
-      else if (memp == ap->Nodep[1])
-        pname = "Vartok";
-      else if (memp == ap->Nodep[2])
-        pname = "Lexicon";
-      else if (memp == ap->User_Dictp)
-        pname = "User dictionary";
-      else if (ap->Aptr)
-        pname = "Application";
-
-    } // endif memp
-
-    if (pname)
-      sprintf(g->Message,
-      "Not enough memory in %s area for request of %d (used=%d free=%d)",
-                          pname, size, pph->To_Free, pph->FreeBlk);
-    else
-      sprintf(g->Message, MSG(SUBALLOC_ERROR),
-                          memp, size, pph->To_Free, pph->FreeBlk);
+    sprintf(g->Message,
+    "Not enough memory in Work area for request of %d (used=%d free=%d)",
+            (int) size, pph->To_Free, pph->FreeBlk);
 
 #if defined(DEBTRACE)
  htrc("%s\n", g->Message);
@@ -1507,7 +1495,6 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
 #endif
   return (memp);
   } // end of PlgDBSubAlloc
-#endif // 0  Not used yet
 
 /***********************************************************************/
 /*  PUTOUT: Plug DB object typing routine.                             */

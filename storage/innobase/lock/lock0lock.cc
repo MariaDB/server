@@ -6184,7 +6184,7 @@ lock_rec_insert_check_and_lock(
 	dberr_t		err;
 	ulint		next_rec_heap_no;
 #ifdef WITH_WSREP
-	lock_t *c_lock;
+	lock_t*		c_lock=NULL;
 #endif
 
 	ut_ad(block->frame == page_align(rec));
@@ -6258,7 +6258,7 @@ lock_rec_insert_check_and_lock(
 		trx_mutex_enter(trx);
 
 #ifdef WITH_WSREP
-		err = lock_rec_enqueue_waiting(c_lock, 
+		err = lock_rec_enqueue_waiting(c_lock,
                         LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION,
 			block, next_rec_heap_no, NULL, index, thr);
 #else

@@ -205,3 +205,31 @@ DROP TABLE t1;
 
 set use_stat_tables=@save_use_stat_tables;
 
+--echo #
+--echo # Bug mdev-5204: invalid impossible where after reading const tables  
+--echo #                when use_stat_tables = 'preferably'
+--echo #
+
+set use_stat_tables = 'preferably';
+
+CREATE TABLE t1 (id int PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+ANALYZE TABLE t1;
+
+CREATE TABLE t2 (name char(3)) ENGINE=MyISAM;
+ANALYZE TABLE t2;
+INSERT INTO t2 VALUES ('USA'),('AUS');
+
+SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
+EXPLAIN
+SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
+
+ANALYZE TABLE t2;
+
+SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
+EXPLAIN
+SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
+
+DROP TABLE t1,t2;
+
+set use_stat_tables=@save_use_stat_tables;

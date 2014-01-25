@@ -26,7 +26,6 @@ enum enum_tdc_remove_table_type
 
 extern ulong tdc_size;
 extern ulong tc_size;
-extern TABLE *unused_tables;    /* FIXME: make private */
 extern mysql_mutex_t LOCK_open; /* FIXME: make private */
 
 extern int tdc_init(void);

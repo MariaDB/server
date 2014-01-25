@@ -1,6 +1,6 @@
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `Description` varchar(128) NOT NULL,
+  `Description` char(128) NOT NULL,
   `Attributes` varchar(256) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='ODBC' `CATFUNC`='Drivers'
 SET NAMES utf8;

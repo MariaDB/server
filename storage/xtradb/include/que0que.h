@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,6 +29,7 @@ Created 5/27/1996 Heikki Tuuri
 #include "univ.i"
 #include "data0data.h"
 #include "dict0types.h"
+#include "btr0sea.h"
 #include "trx0trx.h"
 #include "trx0roll.h"
 #include "srv0srv.h"
@@ -41,14 +42,9 @@ Created 5/27/1996 Heikki Tuuri
 of SQL execution in the UNIV_SQL_DEBUG version */
 extern ibool	que_trace_on;
 
-/***********************************************************************//**
-Adds a query graph to the session's list of graphs. */
-UNIV_INTERN
-void
-que_graph_publish(
-/*==============*/
-	que_t*	graph,	/*!< in: graph */
-	sess_t*	sess);	/*!< in: session */
+/** Mutex protecting the query threads. */
+extern ib_mutex_t	que_thr_mutex;
+
 /***********************************************************************//**
 Creates a query graph fork node.
 @return	own: fork node */
@@ -114,8 +110,8 @@ que_graph_free(
 			afterwards! */
 /**********************************************************************//**
 Stops a query thread if graph or trx is in a state requiring it. The
-conditions are tested in the order (1) graph, (2) trx. The kernel mutex has
-to be reserved.
+conditions are tested in the order (1) graph, (2) trx. The lock_sys_t::mutex
+has to be reserved.
 @return	TRUE if stopped */
 UNIV_INTERN
 ibool
@@ -143,7 +139,7 @@ que_thr_stop_for_mysql_no_error(
 /**********************************************************************//**
 A patch for MySQL used to 'stop' a dummy query thread used in MySQL. The
 query thread is stopped and made inactive, except in the case where
-it was put to the lock wait state in lock0lock.c, but the lock has already
+it was put to the lock wait state in lock0lock.cc, but the lock has already
 been granted or the transaction chosen as a victim in deadlock resolution. */
 UNIV_INTERN
 void
@@ -158,44 +154,17 @@ que_run_threads(
 /*============*/
 	que_thr_t*	thr);	/*!< in: query thread */
 /**********************************************************************//**
-After signal handling is finished, returns control to a query graph error
-handling routine. (Currently, just returns the control to the root of the
-graph so that the graph can communicate an error message to the client.) */
-UNIV_INTERN
-void
-que_fork_error_handle(
-/*==================*/
-	trx_t*	trx,	/*!< in: trx */
-	que_t*	fork);	/*!< in: query graph which was run before signal
-			handling started, NULL not allowed */
-/**********************************************************************//**
-Moves a suspended query thread to the QUE_THR_RUNNING state and releases
-a single worker thread to execute it. This function should be used to end
+Moves a suspended query thread to the QUE_THR_RUNNING state and release
+a worker thread to execute it. This function should be used to end
 the wait state of a query thread waiting for a lock or a stored procedure
-completion. */
+completion.
+@return query thread instance of thread to wakeup or NULL  */
 UNIV_INTERN
-void
-que_thr_end_wait(
-/*=============*/
-	que_thr_t*	thr,		/*!< in: query thread in the
-					QUE_THR_LOCK_WAIT,
-					or QUE_THR_PROCEDURE_WAIT, or
-					QUE_THR_SIG_REPLY_WAIT state */
-	que_thr_t**	next_thr);	/*!< in/out: next query thread to run;
-					if the value which is passed in is
-					a pointer to a NULL pointer, then the
-					calling function can start running
-					a new query thread */
-/**********************************************************************//**
-Same as que_thr_end_wait, but no parameter next_thr available. */
-UNIV_INTERN
-void
-que_thr_end_wait_no_next_thr(
-/*=========================*/
-	que_thr_t*	thr);		/*!< in: query thread in the
-					QUE_THR_LOCK_WAIT,
-					or QUE_THR_PROCEDURE_WAIT, or
-					QUE_THR_SIG_REPLY_WAIT state */
+que_thr_t*
+que_thr_end_lock_wait(
+/*==================*/
+	trx_t*		trx);		/*!< in: transaction in the
+					QUE_THR_LOCK_WAIT state */
 /**********************************************************************//**
 Starts execution of a command in a query fork. Picks a query thread which
 is not in the QUE_THR_RUNNING state and moves it to that state. If none
@@ -296,6 +265,14 @@ que_node_list_add_last(
 /*===================*/
 	que_node_t*	node_list,	/*!< in: node list, or NULL */
 	que_node_t*	node);		/*!< in: node */
+/*************************************************************************
+Get the last node from the list.*/
+UNIV_INLINE
+que_node_t*
+que_node_list_get_last(
+/*===================*/
+					/* out: node last node from list.*/
+	que_node_t*	node_list);	/* in: node list, or NULL */
 /*********************************************************************//**
 Gets a query graph node list length.
 @return	length, for NULL list 0 */
@@ -308,7 +285,7 @@ que_node_list_get_len(
 Checks if graph, trx, or session is in a state where the query thread should
 be stopped.
 @return TRUE if should be stopped; NOTE that if the peek is made
-without reserving the kernel mutex, then another peek with the mutex
+without reserving the trx_t::mutex, then another peek with the mutex
 reserved is necessary before deciding the actual stopping */
 UNIV_INLINE
 ibool
@@ -334,7 +311,7 @@ que_node_print_info(
 Evaluate the given SQL
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
-ulint
+dberr_t
 que_eval_sql(
 /*=========*/
 	pars_info_t*	info,	/*!< in: info struct, or NULL */
@@ -344,33 +321,50 @@ que_eval_sql(
 				dict_sys->mutex around call to pars_sql. */
 	trx_t*		trx);	/*!< in: trx */
 
-/* Query graph query thread node: the fields are protected by the kernel
-mutex with the exceptions named below */
+/**********************************************************************//**
+Round robin scheduler.
+@return a query thread of the graph moved to QUE_THR_RUNNING state, or
+NULL; the query thread should be executed by que_run_threads by the
+caller */
+UNIV_INTERN
+que_thr_t*
+que_fork_scheduler_round_robin(
+/*===========================*/
+	que_fork_t*	fork,		/*!< in: a query fork */
+	que_thr_t*	thr);		/*!< in: current pos */
 
-struct que_thr_struct{
+/*********************************************************************//**
+Initialise the query sub-system. */
+UNIV_INTERN
+void
+que_init(void);
+/*==========*/
+
+/*********************************************************************//**
+Close the query sub-system. */
+UNIV_INTERN
+void
+que_close(void);
+/*===========*/
+
+/* Query graph query thread node: the fields are protected by the
+trx_t::mutex with the exceptions named below */
+
+struct que_thr_t{
 	que_common_t	common;		/*!< type: QUE_NODE_THR */
 	ulint		magic_n;	/*!< magic number to catch memory
 					corruption */
 	que_node_t*	child;		/*!< graph child node */
 	que_t*		graph;		/*!< graph where this node belongs */
+	ulint		state;		/*!< state of the query thread */
 	ibool		is_active;	/*!< TRUE if the thread has been set
 					to the run state in
 					que_thr_move_to_run_state, but not
 					deactivated in
 					que_thr_dec_reference_count */
-	ulint		state;		/*!< state of the query thread */
-	UT_LIST_NODE_T(que_thr_t)
-			thrs;		/*!< list of thread nodes of the fork
-					node */
-	UT_LIST_NODE_T(que_thr_t)
-			trx_thrs;	/*!< lists of threads in wait list of
-					the trx */
-	UT_LIST_NODE_T(que_thr_t)
-			queue;		/*!< list of runnable thread nodes in
-					the server task queue */
 	/*------------------------------*/
 	/* The following fields are private to the OS thread executing the
-	query thread, and are not protected by the kernel mutex: */
+	query thread, and are not protected by any mutex: */
 
 	que_node_t*	run_node;	/*!< pointer to the node where the
 					subgraph down from this node is
@@ -381,6 +375,21 @@ struct que_thr_struct{
 					thus far */
 	ulint		lock_state;	/*!< lock state of thread (table or
 					row) */
+	struct srv_slot_t*
+			slot;		/* The thread slot in the wait
+					array in srv_sys_t */
+	/*------------------------------*/
+	/* The following fields are links for the various lists that
+	this type can be on. */
+	UT_LIST_NODE_T(que_thr_t)
+			thrs;		/*!< list of thread nodes of the fork
+					node */
+	UT_LIST_NODE_T(que_thr_t)
+			trx_thrs;	/*!< lists of threads in wait list of
+					the trx */
+	UT_LIST_NODE_T(que_thr_t)
+			queue;		/*!< list of runnable thread nodes in
+					the server task queue */
 	ulint		fk_cascade_depth; /*!< maximum cascading call depth
 					supported for foreign key constraint
 					related delete/updates */
@@ -389,8 +398,8 @@ struct que_thr_struct{
 #define QUE_THR_MAGIC_N		8476583
 #define QUE_THR_MAGIC_FREED	123461526
 
-/* Query graph fork node: its fields are protected by the kernel mutex */
-struct que_fork_struct{
+/* Query graph fork node: its fields are protected by the query thread mutex */
+struct que_fork_t{
 	que_common_t	common;		/*!< type: QUE_NODE_FORK */
 	que_t*		graph;		/*!< query graph of this node */
 	ulint		fork_type;	/*!< fork type */
@@ -492,8 +501,6 @@ struct que_fork_struct{
 #define QUE_NODE_CALL		31
 #define QUE_NODE_EXIT		32
 
-#define QUE_NODE_INSERT_STATS	34
-
 /* Query thread states */
 #define QUE_THR_RUNNING		1
 #define QUE_THR_PROCEDURE_WAIT	2
@@ -504,7 +511,6 @@ struct que_fork_struct{
 					thread has done its task */
 #define QUE_THR_COMMAND_WAIT	4
 #define QUE_THR_LOCK_WAIT	5
-#define QUE_THR_SIG_REPLY_WAIT	6
 #define QUE_THR_SUSPENDED	7
 #define QUE_THR_ERROR		8
 
@@ -517,7 +523,6 @@ struct que_fork_struct{
 #define QUE_CUR_NOT_DEFINED	1
 #define QUE_CUR_START		2
 #define	QUE_CUR_END		3
-
 
 #ifndef UNIV_NONINL
 #include "que0que.ic"

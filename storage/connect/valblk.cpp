@@ -1,5 +1,5 @@
 /************ Valblk C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALBLK.CPP  Version 1.7                                      */
+/*  Name: VALBLK.CPP  Version 2.0                                      */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
 /*                                                                     */
@@ -16,7 +16,7 @@
 /*  types of objects, we shall have more classes to update.            */
 /*  This is why we are now using a template class for many types.      */
 /*  Currently the only implemented types are PSZ, chars, int, short,   */
-/*  DATE, longlong, and double. Shortly we should add more types.      */
+/*  DATE, longlong, double and tiny. Fix numeric ones can be unsigned. */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -46,7 +46,7 @@
 /*  AllocValBlock: allocate a VALBLK according to type.                */
 /***********************************************************************/
 PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
-                                         int prec, bool check, bool blank)
+                               int prec, bool check, bool blank, bool un)
   {
   PVBLK blkp;
 
@@ -64,22 +64,38 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
 
       break;
     case TYPE_SHORT:
-      blkp = new(g) TYPBLK<short>(mp, nval, type);
+      if (un)
+        blkp = new(g) TYPBLK<ushort>(mp, nval, type, 0, true);
+      else
+        blkp = new(g) TYPBLK<short>(mp, nval, type);
+
       break;
     case TYPE_INT:
-      blkp = new(g) TYPBLK<int>(mp, nval, type);
+      if (un)
+        blkp = new(g) TYPBLK<uint>(mp, nval, type, 0, true);
+      else
+        blkp = new(g) TYPBLK<int>(mp, nval, type);
+
       break;
     case TYPE_DATE:        // ?????
       blkp = new(g) DATBLK(mp, nval);
       break;
     case TYPE_BIGINT:
-      blkp = new(g) TYPBLK<longlong>(mp, nval, type);
+      if (un)
+        blkp = new(g) TYPBLK<ulonglong>(mp, nval, type, 0, true);
+      else
+        blkp = new(g) TYPBLK<longlong>(mp, nval, type);
+
       break;
     case TYPE_FLOAT:
-      blkp = new(g) TYPBLK<double>(mp, nval, prec, type);
+      blkp = new(g) TYPBLK<double>(mp, nval, type, prec);
       break;
     case TYPE_TINY:
-      blkp = new(g) TYPBLK<char>(mp, nval, type);
+      if (un)
+        blkp = new(g) TYPBLK<uchar>(mp, nval, type, 0, true);
+      else
+        blkp = new(g) TYPBLK<char>(mp, nval, type);
+
       break;
     default:
       sprintf(g->Message, MSG(BAD_VALBLK_TYPE), type);
@@ -95,12 +111,13 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
 /***********************************************************************/
 /*  Constructor.                                                       */
 /***********************************************************************/
-VALBLK::VALBLK(void *mp, int type, int nval)
+VALBLK::VALBLK(void *mp, int type, int nval, bool un)
   {
   Blkp = mp;
   To_Nulls = NULL;
   Check = true;
   Nullable = false;
+  Unsigned = un;
   Type = type;
   Nval = nval;
   Prec = 0;
@@ -174,7 +191,7 @@ void VALBLK::ChkIndx(int n)
 
 void VALBLK::ChkTyp(PVAL v)
   {
-  if (Check && Type != v->GetType()) {
+  if (Check && (Type != v->GetType() || Unsigned != v->IsUnsigned())) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(VALTYPE_NOMATCH));
     longjmp(g->jumper[g->jump_level], Type);
@@ -184,7 +201,7 @@ void VALBLK::ChkTyp(PVAL v)
 
 void VALBLK::ChkTyp(PVBLK vb)
   {
-  if (Check && Type != vb->GetType()) {
+  if (Check && (Type != vb->GetType() || Unsigned != vb->IsUnsigned())) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(VALTYPE_NOMATCH));
     longjmp(g->jumper[g->jump_level], Type);
@@ -195,23 +212,15 @@ void VALBLK::ChkTyp(PVBLK vb)
 /* -------------------------- Class TYPBLK --------------------------- */
 
 /***********************************************************************/
-/*  Constructors.                                                      */
+/*  Constructor.                                                       */
 /***********************************************************************/
 template <class TYPE>
-TYPBLK<TYPE>::TYPBLK(void *mp, int nval, int type)
-            : VALBLK(mp, type, nval), Typp((TYPE*&)Blkp)
+TYPBLK<TYPE>::TYPBLK(void *mp, int nval, int type, int prec, bool un)
+            : VALBLK(mp, type, nval, un), Typp((TYPE*&)Blkp)
   {
-  Fmt = GetFmt(Type);
-  } // end of TYPBLK constructor
-
-template <class TYPE>
-TYPBLK<TYPE>::TYPBLK(void *mp, int nval, int prec, int type)
-            : VALBLK(mp, type, nval), Typp((TYPE*&)Blkp)
-  {
-  DBUG_ASSERT(Type == TYPE_FLOAT);
   Prec = prec;
   Fmt = GetFmt(Type);
-  } // end of DBLBLK constructor
+  } // end of TYPBLK constructor
 
 /***********************************************************************/
 /*  Initialization routine.                                            */
@@ -237,12 +246,12 @@ void TYPBLK<TYPE>::SetValue(PVAL valp, int n)
   ChkIndx(n);
   ChkTyp(valp);
 
-  if (!(b = valp->IsNull() && Nullable))
+  if (!(b = valp->IsNull()))
     Typp[n] = GetTypedValue(valp);
   else
     Reset(n);
 
-  SetNull(n, b);
+  SetNull(n, b && Nullable);
   } // end of SetValue
 
 template <>
@@ -250,12 +259,24 @@ int TYPBLK<int>::GetTypedValue(PVAL valp)
   {return valp->GetIntValue();}
 
 template <>
+uint TYPBLK<uint>::GetTypedValue(PVAL valp)
+  {return valp->GetUIntValue();}
+
+template <>
 short TYPBLK<short>::GetTypedValue(PVAL valp)
   {return valp->GetShortValue();}
 
 template <>
+ushort TYPBLK<ushort>::GetTypedValue(PVAL valp)
+  {return valp->GetUShortValue();}
+
+template <>
 longlong TYPBLK<longlong>::GetTypedValue(PVAL valp)
   {return valp->GetBigintValue();}
+
+template <>
+ulonglong TYPBLK<ulonglong>::GetTypedValue(PVAL valp)
+  {return valp->GetUBigintValue();}
 
 template <>
 double TYPBLK<double>::GetTypedValue(PVAL valp)
@@ -264,6 +285,10 @@ double TYPBLK<double>::GetTypedValue(PVAL valp)
 template <>
 char TYPBLK<char>::GetTypedValue(PVAL valp)
   {return valp->GetTinyValue();}
+
+template <>
+uchar TYPBLK<uchar>::GetTypedValue(PVAL valp)
+  {return valp->GetUTinyValue();}
 
 /***********************************************************************/
 /*  Set one value in a block from a zero terminated string.            */
@@ -279,20 +304,44 @@ void TYPBLK<TYPE>::SetValue(PSZ p, int n)
     longjmp(g->jumper[g->jump_level], Type);
     } // endif Check
 
-  Typp[n] = GetTypedValue(p);
+  bool      minus;
+  ulonglong maxval = MaxVal();
+  ulonglong val = CharToNumber(p, strlen(p), maxval, Unsigned, &minus); 
+    
+  if (minus && val < maxval)
+    Typp[n] = (TYPE)(-(signed)val);
+  else
+    Typp[n] = (TYPE)val;
+
   SetNull(n, false);
   } // end of SetValue
 
+template <class TYPE>
+ulonglong TYPBLK<TYPE>::MaxVal(void) {DBUG_ASSERT(false); return 0;}
+
 template <>
-int TYPBLK<int>::GetTypedValue(PSZ p) {return atol(p);}
+ulonglong TYPBLK<short>::MaxVal(void) {return INT_MAX16;}
+
 template <>
-short TYPBLK<short>::GetTypedValue(PSZ p) {return (short)atoi(p);}
+ulonglong TYPBLK<ushort>::MaxVal(void) {return UINT_MAX16;}
+
 template <>
-longlong TYPBLK<longlong>::GetTypedValue(PSZ p) {return atoll(p);}
+ulonglong TYPBLK<int>::MaxVal(void) {return INT_MAX32;}
+
 template <>
-double TYPBLK<double>::GetTypedValue(PSZ p) {return atof(p);}
+ulonglong TYPBLK<uint>::MaxVal(void) {return UINT_MAX32;}
+
 template <>
-char TYPBLK<char>::GetTypedValue(PSZ p) {return (char)atoi(p);}
+ulonglong TYPBLK<char>::MaxVal(void) {return INT_MAX8;}
+
+template <>
+ulonglong TYPBLK<uchar>::MaxVal(void) {return UINT_MAX8;}
+
+template <>
+ulonglong TYPBLK<longlong>::MaxVal(void) {return INT_MAX64;}
+
+template <>
+ulonglong TYPBLK<ulonglong>::MaxVal(void) {return ULONGLONG_MAX;}
 
 /***********************************************************************/
 /*  Set one value in a block from an array of characters.              */
@@ -334,12 +383,24 @@ int TYPBLK<int>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetIntValue(n);}
 
 template <>
+uint TYPBLK<uint>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetUIntValue(n);}
+
+template <>
 short TYPBLK<short>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetShortValue(n);}
 
 template <>
+ushort TYPBLK<ushort>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetUShortValue(n);}
+
+template <>
 longlong TYPBLK<longlong>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetBigintValue(n);}
+
+template <>
+ulonglong TYPBLK<ulonglong>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetUBigintValue(n);}
 
 template <>
 double TYPBLK<double>::GetTypedValue(PVBLK blk, int n)
@@ -348,6 +409,10 @@ double TYPBLK<double>::GetTypedValue(PVBLK blk, int n)
 template <>
 char TYPBLK<char>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetTinyValue(n);}
+
+template <>
+uchar TYPBLK<uchar>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetUTinyValue(n);}
 
 #if 0
 /***********************************************************************/
@@ -509,11 +574,43 @@ char *CHRBLK::GetCharValue(int n)
   } // end of GetCharValue
 
 /***********************************************************************/
+/*  Return the value of the nth element converted to tiny int.         */
+/***********************************************************************/
+char CHRBLK::GetTinyValue(int n)
+  {
+  bool      m;
+  ulonglong val = CharToNumber((char*)GetValPtr(n), Long, INT_MAX8,
+                                                    false, &m); 
+    
+  return (m && val < INT_MAX8) ? (char)(-(signed)val) : (char)val;
+  } // end of GetTinyValue
+
+/***********************************************************************/
+/*  Return the value of the nth element converted to unsigned tiny int.*/
+/***********************************************************************/
+uchar CHRBLK::GetUTinyValue(int n)
+  {
+  return (uchar)CharToNumber((char*)GetValPtr(n), Long, UINT_MAX8, true); 
+  } // end of GetTinyValue
+
+/***********************************************************************/
 /*  Return the value of the nth element converted to short.            */
 /***********************************************************************/
 short CHRBLK::GetShortValue(int n)
   {
-  return (short)atoi((char *)GetValPtrEx(n));
+  bool      m;
+  ulonglong val = CharToNumber((char*)GetValPtr(n), Long, INT_MAX16,
+                                                    false, &m); 
+    
+  return (m && val < INT_MAX16) ? (short)(-(signed)val) : (short)val;
+  } // end of GetShortValue
+
+/***********************************************************************/
+/*  Return the value of the nth element converted to ushort.           */
+/***********************************************************************/
+ushort CHRBLK::GetUShortValue(int n)
+  {
+  return (ushort)CharToNumber((char*)GetValPtr(n), Long, UINT_MAX16, true); 
   } // end of GetShortValue
 
 /***********************************************************************/
@@ -521,7 +618,19 @@ short CHRBLK::GetShortValue(int n)
 /***********************************************************************/
 int CHRBLK::GetIntValue(int n)
   {
-  return atol((char *)GetValPtrEx(n));
+  bool      m;
+  ulonglong val = CharToNumber((char*)GetValPtr(n), Long, INT_MAX32,
+                                                    false, &m); 
+    
+  return (m && val < INT_MAX32) ? (int)(-(signed)val) : (int)val;
+  } // end of GetIntValue
+
+/***********************************************************************/
+/*  Return the value of the nth element converted to uint.             */
+/***********************************************************************/
+uint CHRBLK::GetUIntValue(int n)
+  {
+  return (uint)CharToNumber((char*)GetValPtr(n), Long, UINT_MAX32, true); 
   } // end of GetIntValue
 
 /***********************************************************************/
@@ -529,8 +638,20 @@ int CHRBLK::GetIntValue(int n)
 /***********************************************************************/
 longlong CHRBLK::GetBigintValue(int n)
   {
-  return atoll((char *)GetValPtrEx(n));
+  bool      m;
+  ulonglong val = CharToNumber((char*)GetValPtr(n), Long, INT_MAX64,
+                                                    false, &m); 
+    
+  return (m && val < INT_MAX64) ? (longlong)(-(signed)val) : (longlong)val;
   } // end of GetBigintValue
+
+/***********************************************************************/
+/*  Return the value of the nth element converted to unsigned big int. */
+/***********************************************************************/
+ulonglong CHRBLK::GetUBigintValue(int n)
+  {
+  return CharToNumber((char*)GetValPtr(n), Long, ULONGLONG_MAX, true); 
+  } // end of GetUBigintValue
 
 /***********************************************************************/
 /*  Return the value of the nth element converted to double.           */
@@ -539,14 +660,6 @@ double CHRBLK::GetFloatValue(int n)
   {
   return atof((char *)GetValPtrEx(n));
   } // end of GetFloatValue
-
-/***********************************************************************/
-/*  Return the value of the nth element converted to tiny int.         */
-/***********************************************************************/
-char CHRBLK::GetTinyValue(int n)
-  {
-  return (char)atoi((char *)GetValPtrEx(n));
-  } // end of GetTinyValue
 
 /***********************************************************************/
 /*  Set one value in a block.                                          */
@@ -558,12 +671,12 @@ void CHRBLK::SetValue(PVAL valp, int n)
   ChkIndx(n);
   ChkTyp(valp);
 
-  if (!(b = valp->IsNull() && Nullable))
+  if (!(b = valp->IsNull()))
     SetValue((PSZ)valp->GetCharValue(), n);
   else
     Reset(n);
 
-  SetNull(n, b);
+  SetNull(n, b && Nullable);
   } // end of SetValue
 
 /***********************************************************************/
@@ -774,6 +887,7 @@ STRBLK::STRBLK(PGLOBAL g, void *mp, int nval)
   {
   Global = g;
   Nullable = true;
+  Sorted = false;
   } // end of STRBLK constructor
 
 /***********************************************************************/
@@ -787,6 +901,86 @@ void STRBLK::Init(PGLOBAL g, bool check)
   Check = check;
   Global = g;
   } // end of Init
+
+/***********************************************************************/
+/*  Get the tiny value represented by the Strp string.                 */
+/***********************************************************************/
+char STRBLK::GetTinyValue(int n)
+  {
+  bool      m;
+  ulonglong val = CharToNumber(Strp[n], strlen(Strp[n]), INT_MAX8, 
+                                                         false, &m); 
+    
+  return (m && val < INT_MAX8) ? (char)(-(signed)val) : (char)val;
+  } // end of GetTinyValue
+
+/***********************************************************************/
+/*  Get the unsigned tiny value represented by the Strp string.        */
+/***********************************************************************/
+uchar STRBLK::GetUTinyValue(int n)
+  {
+  return (uchar)CharToNumber(Strp[n], strlen(Strp[n]), UINT_MAX8, true); 
+  } // end of GetUTinyValue
+
+/***********************************************************************/
+/*  Get the short value represented by the Strp string.                */
+/***********************************************************************/
+short STRBLK::GetShortValue(int n)
+  {
+  bool      m;
+  ulonglong val = CharToNumber(Strp[n], strlen(Strp[n]), INT_MAX16,
+                                                         false, &m); 
+    
+  return (m && val < INT_MAX16) ? (short)(-(signed)val) : (short)val;
+  } // end of GetShortValue
+
+/***********************************************************************/
+/*  Get the unsigned short value represented by the Strp string.       */
+/***********************************************************************/
+ushort STRBLK::GetUShortValue(int n)
+  {
+  return (ushort)CharToNumber(Strp[n], strlen(Strp[n]), UINT_MAX16, true); 
+  } // end of GetUshortValue
+
+/***********************************************************************/
+/*  Get the integer value represented by the Strp string.              */
+/***********************************************************************/
+int STRBLK::GetIntValue(int n)
+  {
+  bool      m;
+  ulonglong val = CharToNumber(Strp[n], strlen(Strp[n]), INT_MAX32,
+                                                         false, &m); 
+    
+  return (m && val < INT_MAX32) ? (int)(-(signed)val) : (int)val;
+  } // end of GetIntValue
+
+/***********************************************************************/
+/*  Get the unsigned integer value represented by the Strp string.     */
+/***********************************************************************/
+uint STRBLK::GetUIntValue(int n)
+  {
+  return (uint)CharToNumber(Strp[n], strlen(Strp[n]), UINT_MAX32, true); 
+  } // end of GetUintValue
+
+/***********************************************************************/
+/*  Get the big integer value represented by the Strp string.          */
+/***********************************************************************/
+longlong STRBLK::GetBigintValue(int n)
+  {
+  bool      m;
+  ulonglong val = CharToNumber(Strp[n], strlen(Strp[n]), INT_MAX64,
+                                                         false, &m); 
+    
+  return (m && val < INT_MAX64) ? (-(signed)val) : (longlong)val;
+  } // end of GetBigintValue
+
+/***********************************************************************/
+/*  Get the unsigned big integer value represented by the Strp string. */
+/***********************************************************************/
+ulonglong STRBLK::GetUBigintValue(int n)
+  {
+  return CharToNumber(Strp[n], strlen(Strp[n]), ULONGLONG_MAX, true); 
+  } // end of GetUBigintValue
 
 /***********************************************************************/
 /*  Set one value in a block from a value in another block.            */
@@ -833,8 +1027,12 @@ void STRBLK::SetValue(PVAL valp, int n)
 void STRBLK::SetValue(PSZ p, int n)
   {
   if (p) {
-    Strp[n] = (PSZ)PlugSubAlloc(Global, NULL, strlen(p) + 1);
-    strcpy(Strp[n], p);
+    if (!Sorted || !n || !Strp[n-1] || strcmp(p, Strp[n-1])) {
+      Strp[n] = (PSZ)PlugSubAlloc(Global, NULL, strlen(p) + 1);
+      strcpy(Strp[n], p);
+    } else
+      Strp[n] = Strp[n-1];
+
   } else
     Strp[n] = NULL;
 
@@ -848,9 +1046,14 @@ void STRBLK::SetValue(char *sp, uint len, int n)
   PSZ p;
 
   if (sp) {
-    p = (PSZ)PlugSubAlloc(Global, NULL, len + 1);
-    memcpy(p, sp, len);
-    p[len] = 0;
+    if (!Sorted || !n || !Strp[n-1] || strlen(Strp[n-1]) != len ||
+                                       strncmp(sp, Strp[n-1], len)) {
+      p = (PSZ)PlugSubAlloc(Global, NULL, len + 1);
+      memcpy(p, sp, len);
+      p[len] = 0;
+    } else
+      p = Strp[n-1];
+
   } else
     p = NULL;
 

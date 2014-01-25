@@ -715,8 +715,6 @@ mysql_mutex_t
 mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
               LOCK_global_table_stats, LOCK_global_index_stats;
 
-mysql_mutex_t LOCK_rpl_gtid_state;
-
 /**
   The below lock protects access to two global server variables:
   max_prepared_stmt_count and prepared_stmt_count. These variables
@@ -793,8 +791,9 @@ static char **remaining_argv;
 int orig_argc;
 char **orig_argv;
 
-static struct my_option pfs_early_options[] __attribute__((unused)) =
+static struct my_option pfs_early_options[]=
 {
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   {"performance_schema_instrument", OPT_PFS_INSTRUMENT,
     "Default startup value for a performance schema instrument.",
     &pfs_param.m_pfs_instrument, &pfs_param.m_pfs_instrument, 0, GET_STR,
@@ -859,6 +858,7 @@ static struct my_option pfs_early_options[] __attribute__((unused)) =
     &pfs_param.m_consumer_statement_digest_enabled,
     &pfs_param.m_consumer_statement_digest_enabled, 0,
     GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0}
+#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 };
 
 #ifdef HAVE_PSI_INTERFACE
@@ -906,8 +906,6 @@ PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_index_stats,
   key_LOCK_wakeup_ready, key_LOCK_wait_commit;
 
-PSI_mutex_key key_LOCK_rpl_gtid_state;
-
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
 
@@ -951,7 +949,6 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_global_table_stats, "LOCK_global_table_stats", PSI_FLAG_GLOBAL},
   { &key_LOCK_global_index_stats, "LOCK_global_index_stats", PSI_FLAG_GLOBAL},
   { &key_LOCK_wakeup_ready, "THD::LOCK_wakeup_ready", 0},
-  { &key_LOCK_rpl_gtid_state, "LOCK_rpl_gtid_state", PSI_FLAG_GLOBAL},
   { &key_LOCK_wait_commit, "wait_for_commit::LOCK_wait_commit", 0},
   { &key_LOCK_thd_data, "THD::LOCK_thd_data", 0},
   { &key_LOCK_user_conn, "LOCK_user_conn", PSI_FLAG_GLOBAL},
@@ -1213,7 +1210,6 @@ void net_after_header_psi(struct st_net *net, void *user_data, size_t /* unused:
 
 void init_net_server_extension(THD *thd)
 {
-#ifdef HAVE_PSI_INTERFACE
   /* Start with a clean state for connection events. */
   thd->m_idle_psi= NULL;
   thd->m_statement_psi= NULL;
@@ -1224,9 +1220,6 @@ void init_net_server_extension(THD *thd)
   thd->m_net_server_extension.m_after_header= net_after_header_psi;
   /* Activate this private extension for the mysqld server. */
   thd->net.extension= & thd->m_net_server_extension;
-#else
-  thd->net.extension= NULL;
-#endif
 }
 #endif /* EMBEDDED_LIBRARY */
 
@@ -1874,11 +1867,12 @@ void kill_mysql(void)
   if (!kill_in_progress)
   {
     pthread_t tmp;
+    int error;
     abort_loop=1;
-    if (mysql_thread_create(0, /* Not instrumented */
-                            &tmp, &connection_attrib, kill_server_thread,
-                            (void*) 0))
-      sql_print_error("Can't create thread to kill server");
+    if ((error= mysql_thread_create(0, /* Not instrumented */
+                                    &tmp, &connection_attrib,
+                                    kill_server_thread, (void*) 0)))
+      sql_print_error("Can't create thread to kill server (errno= %d).", error);
   }
 #endif
   DBUG_VOID_RETURN;
@@ -2158,7 +2152,9 @@ void clean_up(bool print_message)
   delete binlog_filter;
   delete global_rpl_filter;
   end_ssl();
+#ifndef EMBEDDED_LIBRARY
   vio_end();
+#endif /*!EMBEDDED_LIBRARY*/
 #if defined(ENABLED_DEBUG_SYNC)
   /* End the debug sync facility. See debug_sync.cc. */
   debug_sync_end();
@@ -2238,7 +2234,6 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_global_user_client_stats);
   mysql_mutex_destroy(&LOCK_global_table_stats);
   mysql_mutex_destroy(&LOCK_global_index_stats);
-  mysql_mutex_destroy(&LOCK_rpl_gtid_state);
 #ifdef HAVE_OPENSSL
   mysql_mutex_destroy(&LOCK_des_key_file);
 #ifndef HAVE_YASSL
@@ -3463,10 +3458,12 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
 #endif
 #ifdef USE_ONE_SIGNAL_HAND
 	pthread_t tmp;
-        if (mysql_thread_create(0, /* Not instrumented */
-                                &tmp, &connection_attrib, kill_server_thread,
-                                (void*) &sig))
-	  sql_print_error("Can't create thread to kill server");
+        if ((error= mysql_thread_create(0, /* Not instrumented */
+                                        &tmp, &connection_attrib,
+                                        kill_server_thread,
+                                        (void*) &sig)))
+          sql_print_error("Can't create thread to kill server (errno= %d)",
+                          error);
 #else
 	kill_server((void*) sig);	// MIT THREAD has a alarm thread
 #endif
@@ -3962,17 +3959,13 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
         However, this should never happen, so better to assert and
         fix this.
       */
-#ifdef ENABLE_BEFORE_END_OF_MERGE_QQ
       DBUG_ASSERT(thd);
-#endif
       if (thd)
       {
         DBUG_PRINT("info", ("memory_used: %lld  size: %lld",
                             (longlong) thd->status_var.memory_used, size));
         thd->status_var.memory_used+= size;
-#ifdef ENABLE_BEFORE_END_OF_MERGE_QQ
         DBUG_ASSERT((longlong) thd->status_var.memory_used >= 0);
-#endif
       }
     }
   }
@@ -4513,8 +4506,6 @@ static int init_thread_environment()
                    &LOCK_global_table_stats, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_global_index_stats,
                    &LOCK_global_index_stats, MY_MUTEX_INIT_FAST);
-  mysql_mutex_init(key_LOCK_rpl_gtid_state,
-                   &LOCK_rpl_gtid_state, MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_prepare_ordered, &LOCK_prepare_ordered,
                    MY_MUTEX_INIT_SLOW);
   mysql_cond_init(key_COND_prepare_ordered, &COND_prepare_ordered, NULL);
@@ -5196,9 +5187,12 @@ static void create_shutdown_thread()
 #ifdef __WIN__
   hEventShutdown=CreateEvent(0, FALSE, FALSE, shutdown_event_name);
   pthread_t hThread;
-  if (mysql_thread_create(key_thread_handle_shutdown,
-                          &hThread, &connection_attrib, handle_shutdown, 0))
-    sql_print_warning("Can't create thread to handle shutdown requests");
+  int error;
+  if ((error= mysql_thread_create(key_thread_handle_shutdown,
+                                  &hThread, &connection_attrib,
+                                  handle_shutdown, 0)))
+    sql_print_warning("Can't create thread to handle shutdown requests"
+                      " (errno= %d)", error);
 
   // On "Stop Service" we have to do regular shutdown
   Service.SetShutdownEvent(hEventShutdown);
@@ -5674,6 +5668,7 @@ void wsrep_kill_mysql(THD *thd)
 static void handle_connections_methods()
 {
   pthread_t hThread;
+  int error;
   DBUG_ENTER("handle_connections_methods");
   if (hPipe == INVALID_HANDLE_VALUE &&
       (!have_tcpip || opt_disable_networking) &&
@@ -5689,22 +5684,24 @@ static void handle_connections_methods()
   if (hPipe != INVALID_HANDLE_VALUE)
   {
     handler_count++;
-    if (mysql_thread_create(key_thread_handle_con_namedpipes,
-                            &hThread, &connection_attrib,
-                            handle_connections_namedpipes, 0))
+    if ((error= mysql_thread_create(key_thread_handle_con_namedpipes,
+                                    &hThread, &connection_attrib,
+                                    handle_connections_namedpipes, 0)))
     {
-      sql_print_warning("Can't create thread to handle named pipes");
+      sql_print_warning("Can't create thread to handle named pipes"
+                        " (errno= %d)", error);
       handler_count--;
     }
   }
   if (have_tcpip && !opt_disable_networking)
   {
     handler_count++;
-    if (mysql_thread_create(key_thread_handle_con_sockets,
-                            &hThread, &connection_attrib,
-                            handle_connections_sockets_thread, 0))
+    if ((error= mysql_thread_create(key_thread_handle_con_sockets,
+                                    &hThread, &connection_attrib,
+                                    handle_connections_sockets_thread, 0)))
     {
-      sql_print_warning("Can't create thread to handle TCP/IP");
+      sql_print_warning("Can't create thread to handle TCP/IP",
+                        " (errno= %d)", error);
       handler_count--;
     }
   }
@@ -5712,11 +5709,12 @@ static void handle_connections_methods()
   if (opt_enable_shared_memory)
   {
     handler_count++;
-    if (mysql_thread_create(key_thread_handle_con_sharedmem,
-                            &hThread, &connection_attrib,
-                            handle_connections_shared_memory, 0))
+    if ((error= mysql_thread_create(key_thread_handle_con_sharedmem,
+                                    &hThread, &connection_attrib,
+                                    handle_connections_shared_memory, 0)))
     {
-      sql_print_warning("Can't create thread to handle shared memory");
+      sql_print_warning("Can't create thread to handle shared memory",
+                        " (errno= %d)", error);
       handler_count--;
     }
   }
@@ -5742,6 +5740,42 @@ void decrement_handler_count()
 
 
 #ifndef EMBEDDED_LIBRARY
+
+LEX_STRING sql_statement_names[(uint) SQLCOM_END + 1];
+
+static void init_sql_statement_names()
+{
+  char *first_com= (char*) offsetof(STATUS_VAR, com_stat[0]);
+  char *last_com= (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_END]);
+  int record_size= (char*) offsetof(STATUS_VAR, com_stat[1])
+                   - (char*) offsetof(STATUS_VAR, com_stat[0]);
+  char *ptr;
+  uint i;
+  uint com_index;
+
+  for (i= 0; i < ((uint) SQLCOM_END + 1); i++)
+    sql_statement_names[i]= empty_lex_str;
+
+  SHOW_VAR *var= &com_status_vars[0];
+  while (var->name != NULL)
+  {
+    ptr= var->value;
+    if ((first_com <= ptr) && (ptr <= last_com))
+    {
+      com_index= ((int)(ptr - first_com))/record_size;
+      DBUG_ASSERT(com_index < (uint) SQLCOM_END);
+      sql_statement_names[com_index].str= const_cast<char *>(var->name);
+      sql_statement_names[com_index].length= strlen(var->name);
+    }
+    var++;
+  }
+
+  DBUG_ASSERT(strcmp(sql_statement_names[(uint) SQLCOM_SELECT].str, "select") == 0);
+  DBUG_ASSERT(strcmp(sql_statement_names[(uint) SQLCOM_SIGNAL].str, "signal") == 0);
+
+  sql_statement_names[(uint) SQLCOM_END].str= const_cast<char*>("error");
+}
+
 #ifndef DBUG_OFF
 /*
   Debugging helper function to keep the locale database
@@ -5823,6 +5857,7 @@ int mysqld_main(int argc, char **argv)
   /* Must be initialized early for comparison of options name */
   system_charset_info= &my_charset_utf8_general_ci;
 
+  init_sql_statement_names();
   sys_var_init();
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
@@ -5838,9 +5873,11 @@ int mysqld_main(int argc, char **argv)
   buffered_logs.init();
   my_getopt_error_reporter= buffered_option_error_reporter;
   my_charset_error_reporter= buffered_option_error_reporter;
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   pfs_param.m_pfs_instrument= const_cast<char*>("");
+#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
-  int ho_error= handle_early_options();
+  int ho_error __attribute__((unused))= handle_early_options();
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   if (ho_error == 0)
@@ -6460,11 +6497,14 @@ static void bootstrap(MYSQL_FILE *file)
 
   bootstrap_file=file;
 #ifndef EMBEDDED_LIBRARY			// TODO:  Enable this
-  if (mysql_thread_create(key_thread_bootstrap,
-                          &thd->real_id, &connection_attrib, handle_bootstrap,
-                          (void*) thd))
+  int error;
+  if ((error= mysql_thread_create(key_thread_bootstrap,
+                                  &thd->real_id, &connection_attrib,
+                                  handle_bootstrap,
+                                  (void*) thd)))
   {
-    sql_print_warning("Can't create thread to handle bootstrap");
+    sql_print_warning("Can't create thread to handle bootstrap (errno= %d)",
+                      error);
     bootstrap_error=-1;
     DBUG_VOID_RETURN;
   }
@@ -7369,6 +7409,19 @@ int handle_early_options()
 }
 
 
+#define MYSQL_COMPATIBILITY_OPTION(option) \
+  { option, OPT_MYSQL_COMPATIBILITY, \
+   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
+
+#define MYSQL_TO_BE_IMPLEMENTED_OPTION(option) \
+  { option, OPT_MYSQL_TO_BE_IMPLEMENTED, \
+   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
+
+#define MYSQL_SUGGEST_ANALOG_OPTION(option, str) \
+  { option, OPT_MYSQL_COMPATIBILITY, \
+   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
+
+
 /**
   System variables are automatically command-line options (few
   exceptions are documented in sys_var.h), so don't need
@@ -7786,7 +7839,51 @@ struct my_option my_long_options[]=
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"table_cache", 0, "Deprecated; use --table-open-cache instead.",
    &tc_size, &tc_size, 0, GET_ULONG,
-   REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, 0, 1, 0}
+   REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, 0, 1, 0},
+
+  /* The following options exist in 5.6 but not in 10.0 */
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("default-tmp-storage-engine"),
+  MYSQL_COMPATIBILITY_OPTION("log-raw"),
+  MYSQL_COMPATIBILITY_OPTION("log-bin-use-v1-row-events"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("default-authentication-plugin"),
+  MYSQL_COMPATIBILITY_OPTION("binlog-max-flush-queue-time"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("binlog-row-image"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("explicit-defaults-for-timestamp"),
+  MYSQL_COMPATIBILITY_OPTION("master-info-repository"),
+  MYSQL_COMPATIBILITY_OPTION("relay-log-info-repository"),
+  MYSQL_SUGGEST_ANALOG_OPTION("binlog-rows-query-log-events", "--binlog-annotate-row-events"),
+  MYSQL_COMPATIBILITY_OPTION("binlog-order-commits"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("log-throttle-queries-not-using-indexes"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("end-markers-in-json"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace"),              // OPTIMIZER_TRACE
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-features"),     // OPTIMIZER_TRACE
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-offset"),       // OPTIMIZER_TRACE
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-limit"),        // OPTIMIZER_TRACE
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-max-mem-size"), // OPTIMIZER_TRACE
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("eq-range-index-dive-limit"),
+  MYSQL_COMPATIBILITY_OPTION("server-id-bits"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("slave-rows-search-algorithms"), // HAVE_REPLICATION
+  MYSQL_COMPATIBILITY_OPTION("table-open-cache-instances"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("slave-allow-batching"),         // HAVE_REPLICATION
+  MYSQL_COMPATIBILITY_OPTION("slave-checkpoint-period"),      // HAVE_REPLICATION
+  MYSQL_COMPATIBILITY_OPTION("slave-checkpoint-group"),       // HAVE_REPLICATION
+  MYSQL_SUGGEST_ANALOG_OPTION("slave-parallel-workers", "--slave-parallel-threads"),       // HAVE_REPLICATION
+  MYSQL_SUGGEST_ANALOG_OPTION("slave-pending-jobs-size-max", "--slave-parallel-max-queued"),  // HAVE_REPLICATION
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("disconnect-on-expired-password"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("sha256-password-private-key-path"), // HAVE_OPENSSL && !HAVE_YASSL
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("sha256-password-public-key-path"),  // HAVE_OPENSSL && !HAVE_YASSL
+
+  /* The following options exist in 5.5 and 5.6 but not in 10.0 */
+  MYSQL_SUGGEST_ANALOG_OPTION("abort-slave-event-count", "--debug-abort-slave-event-count"),
+  MYSQL_SUGGEST_ANALOG_OPTION("disconnect-slave-event-count", "--debug-disconnect-slave-event-count"),
+  MYSQL_SUGGEST_ANALOG_OPTION("exit-info", "--debug-exit-info"),
+  MYSQL_SUGGEST_ANALOG_OPTION("max-binlog-dump-events", "--debug-max-binlog-dump-events"),
+  MYSQL_SUGGEST_ANALOG_OPTION("sporadic-binlog-dump-fail", "--debug-sporadic-binlog-dump-fail"),
+  MYSQL_COMPATIBILITY_OPTION("new"),
+
+  /* The following options were added after 5.6.10 */
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("rpl-stop-slave-timeout"),
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("validate-user-plugins") // NO_EMBEDDED_ACCESS_CHECKS
 };
 
 static int show_queries(THD *thd, SHOW_VAR *var, char *buff)
@@ -8965,6 +9062,14 @@ mysqld_get_one_option(int optid,
     sql_print_warning("'%s' is deprecated. It does nothing and exists only "
                       "for compatiblity with old my.cnf files.",
                       opt->name);
+    break;
+  case OPT_MYSQL_COMPATIBILITY:
+    sql_print_warning("'%s' is MySQL 5.6 compatible option. Not used or needed "
+                      "in MariaDB.", opt->name);
+    break;
+  case OPT_MYSQL_TO_BE_IMPLEMENTED:
+    sql_print_warning("'%s' is MySQL 5.6 compatible option. To be implemented "
+                      "in later versions.", opt->name);
     break;
   case 'a':
     global_system_variables.sql_mode= MODE_ANSI;

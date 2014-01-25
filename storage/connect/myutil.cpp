@@ -29,7 +29,7 @@
 /************************************************************************/
 /*  Convert from MySQL type name to PlugDB type number                  */
 /************************************************************************/
-int MYSQLtoPLG(char *typname)
+int MYSQLtoPLG(char *typname, char *var)
   {
   int type;
 
@@ -56,13 +56,35 @@ int MYSQLtoPLG(char *typname)
   else
     type = TYPE_ERROR;
 
+  if (var) {
+    // This is to make the difference between CHAR and VARCHAR 
+    if (type == TYPE_STRING && stricmp(typname, "char"))
+      *var = 'V';
+
+    // This is to make the difference between temporal values 
+    if (type == TYPE_DATE) {
+      if (!stricmp(typname, "date"))
+        *var = 'D';
+      else if (!stricmp(typname, "datetime"))
+        *var = 'A';
+      else if (!stricmp(typname, "timestamp"))
+        *var = 'S';
+      else if (!stricmp(typname, "time"))
+        *var = 'T';
+      else if (!stricmp(typname, "year"))
+        *var = 'Y';
+
+      } // endif type
+
+    } // endif var
+
   return type;
   } // end of MYSQLtoPLG
 
 /************************************************************************/
 /*  Convert from PlugDB type to MySQL type number                       */
 /************************************************************************/
-enum enum_field_types PLGtoMYSQL(int type, bool dbf)
+enum enum_field_types PLGtoMYSQL(int type, bool dbf, char v)
   {
   enum enum_field_types mytype;
 
@@ -77,10 +99,14 @@ enum enum_field_types PLGtoMYSQL(int type, bool dbf)
       mytype = MYSQL_TYPE_DOUBLE;
       break;
     case TYPE_DATE:
-      mytype = (dbf) ? MYSQL_TYPE_DATE : MYSQL_TYPE_DATETIME;
+      mytype = (dbf) ? MYSQL_TYPE_DATE :
+          (v == 'S') ? MYSQL_TYPE_TIMESTAMP :
+          (v == 'D') ? MYSQL_TYPE_NEWDATE :
+          (v == 'T') ? MYSQL_TYPE_TIME :
+          (v == 'Y') ? MYSQL_TYPE_YEAR : MYSQL_TYPE_DATETIME;
       break;
     case TYPE_STRING:
-      mytype = MYSQL_TYPE_VARCHAR;
+      mytype = (v) ? MYSQL_TYPE_VARCHAR : MYSQL_TYPE_STRING;
       break;
     case TYPE_BIGINT:
       mytype = MYSQL_TYPE_LONGLONG;
@@ -98,26 +124,30 @@ enum enum_field_types PLGtoMYSQL(int type, bool dbf)
 /************************************************************************/
 /*  Convert from PlugDB type to MySQL type name                         */
 /************************************************************************/
-const char *PLGtoMYSQLtype(int type, bool dbf)
+const char *PLGtoMYSQLtype(int type, bool dbf, char v)
   {
   switch (type) {
     case TYPE_INT:      return "INT";
     case TYPE_SHORT:    return "SMALLINT";
     case TYPE_FLOAT:    return "DOUBLE";
-    case TYPE_DATE:     return dbf ? "DATE" : "DATETIME";
-    case TYPE_STRING:   return "VARCHAR";
+    case TYPE_DATE:     return   dbf ? "DATE" : 
+                          (v == 'S') ? "TIMESTAMP" :
+                          (v == 'D') ? "DATE" :
+                          (v == 'T') ? "TIME" :
+                          (v == 'Y') ? "YEAR" : "DATETIME";
+    case TYPE_STRING:   return v ? "VARCHAR" : "CHAR";
     case TYPE_BIGINT:   return "BIGINT";
     case TYPE_TINY:     return "TINYINT";
     default:            return "CHAR(0)";
     } // endswitch mytype
 
   return "CHAR(0)";
-  } // end of PLGtoMYSQL
+  } // end of PLGtoMYSQLtype
 
 /************************************************************************/
 /*  Convert from MySQL type to PlugDB type number                       */
 /************************************************************************/
-int MYSQLtoPLG(int mytype)
+int MYSQLtoPLG(int mytype, char *var)
   {
   int type;
 
@@ -151,7 +181,6 @@ int MYSQLtoPLG(int mytype)
     case MYSQL_TYPE_TIME:
       type = TYPE_DATE;
       break;
-    case MYSQL_TYPE_STRING:
     case MYSQL_TYPE_VAR_STRING:
 #if !defined(ALPHA)
     case MYSQL_TYPE_VARCHAR:
@@ -160,6 +189,8 @@ int MYSQLtoPLG(int mytype)
     case MYSQL_TYPE_TINY_BLOB:
     case MYSQL_TYPE_MEDIUM_BLOB:
     case MYSQL_TYPE_LONG_BLOB:
+      if (var) *var = 'V';
+    case MYSQL_TYPE_STRING:
       type = TYPE_STRING;
       break;
     default:

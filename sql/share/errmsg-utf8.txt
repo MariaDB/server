@@ -6924,6 +6924,20 @@ ER_IDENT_CAUSES_TOO_LONG_PATH
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL
   eng "cannot silently convert NULL values, as required in this SQL_MODE"
 
+ER_MUST_CHANGE_PASSWORD_LOGIN
+  eng "Your password has expired. To log in you must change it using a client that supports expired passwords."
+  bgn "Паролата ви е изтекла. За да влезете трябва да я смените използвайки клиент който поддрържа такива пароли."
+
+ER_ROW_IN_WRONG_PARTITION
+  eng "Found a row in wrong partition %s"
+  swe "Hittade en rad i fel partition %s"
+
+ER_MTS_EVENT_BIGGER_PENDING_JOBS_SIZE_MAX
+  eng "Cannot schedule event %s, relay-log name %s, position %s to Worker thread because its size %lu exceeds %lu of slave_pending_jobs_size_max."
+
+ER_INNODB_NO_FT_USES_PARSER
+  eng "Cannot CREATE FULLTEXT INDEX WITH PARSER on InnoDB table"
+
 #
 # MariaDB error messages section starts here
 #

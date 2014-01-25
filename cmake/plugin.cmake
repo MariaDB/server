@@ -27,23 +27,6 @@ INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/cmake_parse_arguments.cmake)
 # [LINK_LIBRARIES lib1...libN]
 # [DEPENDENCIES target1...targetN]
 
-# Append collections files for the plugin to the common files
-# Make sure we don't copy twice if running cmake again
-
-MACRO(PLUGIN_APPEND_COLLECTIONS plugin)
-  SET(fcopied "${CMAKE_CURRENT_SOURCE_DIR}/tests/collections/FilesCopied")
-  IF(NOT EXISTS ${fcopied})
-    FILE(GLOB collections ${CMAKE_CURRENT_SOURCE_DIR}/tests/collections/*)
-    FOREACH(cfile ${collections})
-      FILE(READ ${cfile} contents)
-      GET_FILENAME_COMPONENT(fname ${cfile} NAME)
-      FILE(APPEND ${CMAKE_SOURCE_DIR}/mysql-test/collections/${fname} "${contents}")
-      FILE(APPEND ${fcopied} "${fname}\n")
-      MESSAGE(STATUS "Appended ${cfile}")
-    ENDFOREACH()
-  ENDIF()
-ENDMACRO()
-
 MACRO(MYSQL_ADD_PLUGIN)
   MYSQL_PARSE_ARGUMENTS(ARG
     "LINK_LIBRARIES;DEPENDENCIES;MODULE_OUTPUT_NAME;STATIC_OUTPUT_NAME;COMPONENT;CONFIG"
@@ -145,6 +128,7 @@ MACRO(MYSQL_ADD_PLUGIN)
       IF(ARG_RECOMPILE_FOR_EMBEDDED OR NOT _SKIP_PIC)
         # Recompile some plugins for embedded
         ADD_CONVENIENCE_LIBRARY(${target}_embedded ${SOURCES})
+        RESTRICT_SYMBOL_EXPORTS(${target}_embedded)
         DTRACE_INSTRUMENT(${target}_embedded)   
         IF(ARG_RECOMPILE_FOR_EMBEDDED)
           SET_TARGET_PROPERTIES(${target}_embedded 
@@ -242,6 +226,11 @@ MACRO(MYSQL_ADD_PLUGIN)
 
   IF(BUILD_PLUGIN AND ARG_LINK_LIBRARIES)
     TARGET_LINK_LIBRARIES (${target} ${ARG_LINK_LIBRARIES})
+  ENDIF()
+
+  GET_FILENAME_COMPONENT(subpath ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+  IF(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/mysql-test")
+    INSTALL_MYSQL_TEST("${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/" "plugin/${subpath}")
   ENDIF()
 
 ENDMACRO()

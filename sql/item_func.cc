@@ -824,6 +824,8 @@ void Item_num_op::find_num_type(void)
     cached_result_type= DECIMAL_RESULT;
     result_precision();
     fix_decimals();
+    if ((r0 == TIME_RESULT || r1 == TIME_RESULT) && decimals == 0)
+      cached_result_type= INT_RESULT;
   }
   else
   {
@@ -1135,7 +1137,7 @@ bool Item_func_hybrid_result_type::get_date(MYSQL_TIME *ltime,
     String tmp(buff,sizeof(buff), &my_charset_bin),*res;
     if (!(res= str_op(&tmp)) ||
         str_to_datetime_with_warn(res->charset(), res->ptr(), res->length(),
-                                  ltime, fuzzydate) <= MYSQL_TIMESTAMP_ERROR)
+                                  ltime, fuzzydate))
       goto err;
     break;
      break;

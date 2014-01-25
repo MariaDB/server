@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 2005, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +12,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -35,8 +36,19 @@ Created June 2005 by Marko Makela
 #include "page0types.h"
 #include "buf0types.h"
 #include "dict0types.h"
+#include "srv0srv.h"
 #include "trx0types.h"
 #include "mem0mem.h"
+
+/* Compression level to be used by zlib. Settable by user. */
+extern uint	page_zip_level;
+
+/* Default compression level. */
+#define DEFAULT_COMPRESSION_LEVEL	6
+
+/* Whether or not to log compressed page images to avoid possible
+compression algorithm changes in zlib. */
+extern my_bool	page_zip_log_pages;
 
 /**********************************************************************//**
 Determine the size of a compressed page in bytes.
@@ -113,6 +125,7 @@ page_zip_compress(
 				m_start, m_end, m_nonempty */
 	const page_t*	page,	/*!< in: uncompressed page */
 	dict_index_t*	index,	/*!< in: index of the B-tree node */
+	ulint		level,	/*!< in: compression level */
 	mtr_t*		mtr)	/*!< in: mini-transaction, or NULL */
 	__attribute__((nonnull(1,3)));
 
@@ -336,11 +349,12 @@ UNIV_INTERN
 void
 page_zip_dir_delete(
 /*================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
-	byte*		rec,	/*!< in: deleted record */
-	dict_index_t*	index,	/*!< in: index of rec */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec) */
-	const byte*	free)	/*!< in: previous start of the free list */
+	page_zip_des_t*		page_zip,	/*!< in/out: compressed page */
+	byte*			rec,		/*!< in: deleted record */
+	const dict_index_t*	index,		/*!< in: index of rec */
+	const ulint*		offsets,	/*!< in: rec_get_offsets(rec) */
+	const byte*		free)		/*!< in: previous start of
+						the free list */
 	__attribute__((nonnull(1,2,3,4)));
 
 /**********************************************************************//**
@@ -446,16 +460,63 @@ ulint
 page_zip_calc_checksum(
 /*===================*/
         const void*     data,   /*!< in: compressed page */
-        ulint           size)   /*!< in: size of compressed page */
+        ulint           size,   /*!< in: size of compressed page */
+	srv_checksum_algorithm_t algo) /*!< in: algorithm to use */
 	__attribute__((nonnull));
+
+/**********************************************************************//**
+Verify a compressed page's checksum.
+@return	TRUE if the stored checksum is valid according to the value of
+innodb_checksum_algorithm */
+UNIV_INTERN
+ibool
+page_zip_verify_checksum(
+/*=====================*/
+	const void*	data,	/*!< in: compressed page */
+	ulint		size);	/*!< in: size of compressed page */
+/**********************************************************************//**
+Write a log record of compressing an index page without the data on the page. */
+UNIV_INLINE
+void
+page_zip_compress_write_log_no_data(
+/*================================*/
+	ulint		level,	/*!< in: compression level */
+	const page_t*	page,	/*!< in: page that is compressed */
+	dict_index_t*	index,	/*!< in: index */
+	mtr_t*		mtr);	/*!< in: mtr */
+/**********************************************************************//**
+Parses a log record of compressing an index page without the data.
+@return	end of log record or NULL */
+UNIV_INLINE
+byte*
+page_zip_parse_compress_no_data(
+/*============================*/
+	byte*		ptr,		/*!< in: buffer */
+	byte*		end_ptr,	/*!< in: buffer end */
+	page_t*		page,		/*!< in: uncompressed page */
+	page_zip_des_t*	page_zip,	/*!< out: compressed page */
+	dict_index_t*	index)		/*!< in: index */
+	__attribute__((nonnull(1,2)));
+
+/**********************************************************************//**
+Reset the counters used for filling
+INFORMATION_SCHEMA.innodb_cmp_per_index. */
+UNIV_INLINE
+void
+page_zip_reset_stat_per_index();
+/*===========================*/
 
 #ifndef UNIV_HOTBACKUP
 /** Check if a pointer to an uncompressed page matches a compressed page.
+When we IMPORT a tablespace the blocks and accompanying frames are allocted
+from outside the buffer pool.
 @param ptr	pointer to an uncompressed page frame
 @param page_zip	compressed page descriptor
 @return		TRUE if ptr and page_zip refer to the same block */
-# define PAGE_ZIP_MATCH(ptr, page_zip)			\
-	(buf_frame_get_page_zip(ptr) == (page_zip))
+# define PAGE_ZIP_MATCH(ptr, page_zip)					\
+	(((page_zip)->m_external					\
+	  && (page_align(ptr) + UNIV_PAGE_SIZE == (page_zip)->data))	\
+	  || buf_frame_get_page_zip(ptr) == (page_zip))
 #else /* !UNIV_HOTBACKUP */
 /** Check if a pointer to an uncompressed page matches a compressed page.
 @param ptr	pointer to an uncompressed page frame

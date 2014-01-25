@@ -337,7 +337,6 @@ SET(CLIENT_SOURCES
   ../sql-common/mysql_async.c
   ../sql-common/my_time.c 
   ../sql-common/client_plugin.c
-  ../sql-common/client_authentication.cc
   ../sql/net_serv.cc
   ../sql-common/pack.c 
   ../sql/password.c

@@ -1289,7 +1289,7 @@ row_ins_foreign_check_on_constraint(
 				       FALSE, FALSE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr, 
-			"WSREP: foreign key append failed: %lu\n", err);
+			"WSREP: foreign key append failed: %d\n", err);
 	} else
 #endif /* WITH_WSREP */
 	if (foreign->foreign_table->n_foreign_key_checks_running == 0) {

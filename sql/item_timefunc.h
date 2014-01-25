@@ -498,8 +498,8 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   Item_result cmp_type() const { return TIME_RESULT; }
   String *val_str(String *str);
-  longlong val_int();
-  double val_real();
+  longlong val_int() { return val_int_from_date(); }
+  double val_real() { return val_real_from_date(); }
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date) { DBUG_ASSERT(0); return 1; }
   my_decimal *val_decimal(my_decimal *decimal_value)
   { return  val_decimal_from_date(decimal_value); }
@@ -524,6 +524,11 @@ public:
   Item_temporal_hybrid_func(Item *a,Item *b)
     :Item_temporal_func(a,b) {}
   enum_field_types field_type() const { return cached_field_type; }
+  Item_result cmp_type() const
+  {
+    return cached_field_type == MYSQL_TYPE_STRING ?
+           STRING_RESULT : TIME_RESULT;
+  }
   const CHARSET_INFO *charset_for_protocol() const
   {
     /*

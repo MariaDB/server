@@ -375,7 +375,12 @@ void BINCOL::ReadColumn(PGLOBAL g)
       Value->SetValue(*(double*)p);
       break;
     case 'C':                 // Text
-      Value->SetValue_char(p, Long);
+      if (Value->SetValue_char(p, Long)) {
+        sprintf(g->Message, "Out of range value for column %s at row %d",
+                Name, tdbp->RowNumber(g));
+        PushWarning(g, tdbp);
+        } // endif SetValue_char
+
       break;
     default:
       sprintf(g->Message, MSG(BAD_BIN_FMT), Fmt, Name);

@@ -1,5 +1,5 @@
 /*************** Valblk H Declares Source Code File (.H) ***************/
-/*  Name: VALBLK.H    Version 1.9                                      */
+/*  Name: VALBLK.H    Version 2.0                                      */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
 /*                                                                     */
@@ -18,8 +18,9 @@
 /***********************************************************************/
 /*  Utility used to allocate value blocks.                             */
 /***********************************************************************/
-DllExport PVBLK AllocValBlock(PGLOBAL, void*, int, int, int, int, bool, bool);
-const char *GetFmt(int type);
+DllExport PVBLK AllocValBlock(PGLOBAL, void*, int, int, int, int, 
+                                              bool, bool, bool);
+const char *GetFmt(int type, bool un = false);
 
 /***********************************************************************/
 /*  Class VALBLK represent a base class for variable blocks.           */
@@ -28,7 +29,7 @@ class VALBLK : public BLOCK {
 //friend void SemColData(PGLOBAL g, PSEM semp);
  public:
   // Constructors
-  VALBLK(void *mp, int type, int nval);
+  VALBLK(void *mp, int type, int nval, bool un = false);
 
   // Implementation
           int    GetNval(void) {return Nval;}
@@ -44,14 +45,19 @@ class VALBLK : public BLOCK {
                   {if (To_Nulls) {To_Nulls[n] = (b) ? '*' : 0;}}
   virtual bool   IsNull(int n) {return To_Nulls && To_Nulls[n];}
   virtual void   SetNullable(bool b);
+  virtual bool   IsUnsigned(void) {return Unsigned;}
   virtual void   Init(PGLOBAL g, bool check) = 0;
   virtual int    GetVlen(void) = 0;
   virtual PSZ    GetCharValue(int n);
-  virtual short  GetShortValue(int n) = 0;
-  virtual int    GetIntValue(int n) = 0;
-  virtual longlong GetBigintValue(int n) = 0;
-  virtual double GetFloatValue(int n) = 0;
   virtual char   GetTinyValue(int n) = 0;
+  virtual uchar  GetUTinyValue(int n) = 0;
+  virtual short  GetShortValue(int n) = 0;
+  virtual ushort GetUShortValue(int n) = 0;
+  virtual int    GetIntValue(int n) = 0;
+  virtual uint   GetUIntValue(int n) = 0;
+  virtual longlong GetBigintValue(int n) = 0;
+  virtual ulonglong GetUBigintValue(int n) = 0;
+  virtual double GetFloatValue(int n) = 0;
   virtual void   ReAlloc(void *mp, int n) {Blkp = mp; Nval = n;}
   virtual void   Reset(int n) = 0;
   virtual bool   SetFormat(PGLOBAL g, PSZ fmt, int len, int year = 0);
@@ -60,10 +66,14 @@ class VALBLK : public BLOCK {
 
   // Methods
   virtual void   SetValue(short sval, int n) {assert(false);}
+  virtual void   SetValue(ushort sval, int n) {assert(false);}
   virtual void   SetValue(int lval, int n) {assert(false);}
+  virtual void   SetValue(uint lval, int n) {assert(false);}
   virtual void   SetValue(longlong lval, int n) {assert(false);}
+  virtual void   SetValue(ulonglong lval, int n) {assert(false);}
   virtual void   SetValue(double fval, int n) {assert(false);}
   virtual void   SetValue(char cval, int n) {assert(false);}
+  virtual void   SetValue(uchar cval, int n) {assert(false);}
   virtual void   SetValue(PSZ sp, int n) {assert(false);}
   virtual void   SetValue(char *sp, uint len, int n) {assert(false);}
   virtual void   SetValue(PVAL valp, int n) = 0;
@@ -94,6 +104,7 @@ class VALBLK : public BLOCK {
   void   *Blkp;             // To value block
   bool    Check;            // If true SetValue types must match
   bool    Nullable;         // True if values can be null
+  bool    Unsigned;         // True if values are unsigned
   int     Type;             // Type of individual values
   int     Nval;             // Max number of values in block
   int     Prec;             // Precision of float values
@@ -106,18 +117,22 @@ template <class TYPE>
 class TYPBLK : public VALBLK {
  public:
   // Constructors
-  TYPBLK(void *mp, int size, int type);
-  TYPBLK(void *mp, int size, int prec, int type);
+  TYPBLK(void *mp, int size, int type, int prec = 0, bool un = false);
+//TYPBLK(void *mp, int size, int prec, int type);
 
   // Implementation
   virtual void   Init(PGLOBAL g, bool check);
   virtual int    GetVlen(void) {return sizeof(TYPE);}
 //virtual PSZ    GetCharValue(int n);
-  virtual short  GetShortValue(int n) {return (short)Typp[n];}
-  virtual int    GetIntValue(int n) {return (int)Typp[n];}
-  virtual longlong GetBigintValue(int n) {return (longlong)Typp[n];}
-  virtual double GetFloatValue(int n) {return (double)Typp[n];}
   virtual char   GetTinyValue(int n) {return (char)Typp[n];}
+  virtual uchar  GetUTinyValue(int n) {return (uchar)Typp[n];}
+  virtual short  GetShortValue(int n) {return (short)Typp[n];}
+  virtual ushort GetUShortValue(int n) {return (ushort)Typp[n];}
+  virtual int    GetIntValue(int n) {return (int)Typp[n];}
+  virtual uint   GetUIntValue(int n) {return (uint)Typp[n];}
+  virtual longlong GetBigintValue(int n) {return (longlong)Typp[n];}
+  virtual ulonglong GetUBigintValue(int n) {return (ulonglong)Typp[n];}
+  virtual double GetFloatValue(int n) {return (double)Typp[n];}
   virtual void   Reset(int n) {Typp[n] = 0;}
 
   // Methods
@@ -125,13 +140,21 @@ class TYPBLK : public VALBLK {
   virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(short sval, int n)
                   {Typp[n] = (TYPE)sval; SetNull(n, false);}
+  virtual void   SetValue(ushort sval, int n)
+                  {Typp[n] = (TYPE)sval; SetNull(n, false);}
   virtual void   SetValue(int lval, int n)
                   {Typp[n] = (TYPE)lval; SetNull(n, false);}
+  virtual void   SetValue(uint lval, int n)
+                  {Typp[n] = (TYPE)lval; SetNull(n, false);}
   virtual void   SetValue(longlong lval, int n)
+                  {Typp[n] = (TYPE)lval; SetNull(n, false);}
+  virtual void   SetValue(ulonglong lval, int n)
                   {Typp[n] = (TYPE)lval; SetNull(n, false);}
   virtual void   SetValue(double fval, int n)
                   {Typp[n] = (TYPE)fval; SetNull(n, false);}
   virtual void   SetValue(char cval, int n)
+                  {Typp[n] = (TYPE)cval; SetNull(n, false);}
+  virtual void   SetValue(uchar cval, int n)
                   {Typp[n] = (TYPE)cval; SetNull(n, false);}
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
@@ -146,9 +169,9 @@ class TYPBLK : public VALBLK {
 
  protected:
   // Specialized functions
+  static ulonglong MaxVal(void);
   TYPE GetTypedValue(PVAL vp);
   TYPE GetTypedValue(PVBLK blk, int n);
-  TYPE GetTypedValue(PSZ s);
 
   // Members
   TYPE* const &Typp;
@@ -167,11 +190,15 @@ class CHRBLK : public VALBLK {
   virtual void   Init(PGLOBAL g, bool check);
   virtual int    GetVlen(void) {return Long;}
   virtual PSZ    GetCharValue(int n);
-  virtual short  GetShortValue(int n);
-  virtual int    GetIntValue(int n);
-  virtual longlong GetBigintValue(int n);
-  virtual double GetFloatValue(int n);
   virtual char   GetTinyValue(int n);
+  virtual uchar  GetUTinyValue(int n);
+  virtual short  GetShortValue(int n);
+  virtual ushort GetUShortValue(int n);
+  virtual int    GetIntValue(int n);
+  virtual uint   GetUIntValue(int n);
+  virtual longlong GetBigintValue(int n);
+  virtual ulonglong GetUBigintValue(int n);
+  virtual double GetFloatValue(int n);
   virtual void   Reset(int n);
   virtual void   SetPrec(int p) {Ci = (p != 0);}
   virtual bool   IsCi(void) {return Ci;}
@@ -216,11 +243,15 @@ class STRBLK : public VALBLK {
   virtual void   Init(PGLOBAL g, bool check);
   virtual int    GetVlen(void) {return sizeof(PSZ);}
   virtual PSZ    GetCharValue(int n) {return Strp[n];}
-  virtual short  GetShortValue(int n) {return (short)atoi(Strp[n]);}
-  virtual int    GetIntValue(int n) {return atol(Strp[n]);}
-  virtual longlong GetBigintValue(int n) {return atoll(Strp[n]);}
+  virtual char   GetTinyValue(int n);
+  virtual uchar  GetUTinyValue(int n);
+  virtual short  GetShortValue(int n);
+  virtual ushort GetUShortValue(int n);
+  virtual int    GetIntValue(int n);
+  virtual uint   GetUIntValue(int n);
+  virtual longlong GetBigintValue(int n);
+  virtual ulonglong GetUBigintValue(int n);
   virtual double GetFloatValue(int n) {return atof(Strp[n]);}
-  virtual char   GetTinyValue(int n) {return (char)atoi(Strp[n]);}
   virtual void   Reset(int n) {Strp[n] = NULL;}
 
   // Methods
@@ -237,9 +268,13 @@ class STRBLK : public VALBLK {
   virtual int    Find(PVAL vp);
   virtual int    GetMaxLength(void);
 
+  // Specific
+          void   SetSorted(bool b) {Sorted = b;}
+
  protected:
   // Members
   PSZ* const &Strp;              // Pointer to PSZ buffer
+  bool        Sorted;            // Values are (semi?) sorted
   }; // end of class STRBLK
 
 /***********************************************************************/

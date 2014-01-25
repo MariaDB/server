@@ -75,7 +75,7 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MYSQL_PLUGIN_INTERFACE_VERSION 0x0104
 
 /* MariaDB plugin interface version */
-#define MARIA_PLUGIN_INTERFACE_VERSION 0x0107
+#define MARIA_PLUGIN_INTERFACE_VERSION 0x0108
 
 /*
   The allowable types of plugins
@@ -622,11 +622,6 @@ void **thd_ha_data(const MYSQL_THD thd, const struct handlerton *hton);
 void thd_storage_lock_wait(MYSQL_THD thd, long long value);
 int thd_tx_isolation(const MYSQL_THD thd);
 int thd_tx_is_read_only(const MYSQL_THD thd);
-char *thd_security_context(MYSQL_THD thd, char *buffer, unsigned int length,
-                           unsigned int max_query_len);
-/* Increments the row counter, see THD::row_count */
-void thd_inc_row_count(MYSQL_THD thd);
-
 /**
   Create a temporary file.
 

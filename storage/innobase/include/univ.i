@@ -42,9 +42,9 @@ Created 1/20/1994 Heikki Tuuri
 #define _IB_TO_STR(s)	#s
 #define IB_TO_STR(s)	_IB_TO_STR(s)
 
-#define INNODB_VERSION_MAJOR	1
-#define INNODB_VERSION_MINOR	2
-#define INNODB_VERSION_BUGFIX	MYSQL_VERSION_PATCH
+#define INNODB_VERSION_MAJOR	5
+#define INNODB_VERSION_MINOR	6
+#define INNODB_VERSION_BUGFIX	10
 
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
@@ -60,7 +60,9 @@ component, i.e. we show M.N.P as M.N */
 	IB_TO_STR(INNODB_VERSION_MINOR) "."	\
 	IB_TO_STR(INNODB_VERSION_BUGFIX)
 
-#define REFMAN "http://dev.mysql.com/doc/refman/5.6/en/"
+#define REFMAN "http://dev.mysql.com/doc/refman/"	\
+	IB_TO_STR(INNODB_VERSION_MAJOR) "."		\
+	IB_TO_STR(INNODB_VERSION_MINOR) "/en/"
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 /* In the dynamic plugin, redefine some externally visible symbols

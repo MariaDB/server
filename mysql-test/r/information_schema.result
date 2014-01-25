@@ -477,7 +477,11 @@ drop table t1;
 create table t1 (a int null, primary key(a));
 alter table t1 add constraint constraint_1 unique (a);
 alter table t1 add constraint unique key_1(a);
+Warnings:
+Note	1831	Duplicate index 'key_1' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 alter table t1 add constraint constraint_2 unique key_2(a);
+Warnings:
+Note	1831	Duplicate index 'key_2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -709,6 +713,7 @@ max_questions	select,insert,update,references
 max_connections	select,insert,update,references
 max_user_connections	select,insert,update,references
 authentication_string	select,insert,update,references
+password_expired	select,insert,update,references
 is_role	select,insert,update,references
 use test;
 create function sub1(i int) returns int
@@ -816,6 +821,14 @@ information_schema	ROUTINES	ROUTINE_COMMENT
 information_schema	TRIGGERS	ACTION_CONDITION
 information_schema	TRIGGERS	ACTION_STATEMENT
 information_schema	VIEWS	VIEW_DEFINITION
+performance_schema	events_statements_current	SQL_TEXT
+performance_schema	events_statements_current	DIGEST_TEXT
+performance_schema	events_statements_history	SQL_TEXT
+performance_schema	events_statements_history	DIGEST_TEXT
+performance_schema	events_statements_history_long	SQL_TEXT
+performance_schema	events_statements_history_long	DIGEST_TEXT
+performance_schema	events_statements_summary_by_digest	DIGEST_TEXT
+performance_schema	threads	PROCESSLIST_INFO
 select table_name, column_name, data_type from information_schema.columns
 where data_type = 'datetime' and table_name not like 'innodb_%';
 table_name	column_name	data_type

@@ -41,6 +41,7 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
     Buf_Type = cdp->Buf_Type;
     ColUse |= cdp->Flags;       // Used by CONNECT
     Nullable = !!(cdp->Flags & U_NULLS);
+    Unsigned = !!(cdp->Flags & U_UNSIGNED);
   } else {
     Name = NULL;
     memset(&Format, 0, sizeof(FORMAT));
@@ -48,6 +49,7 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
     Long = 0;
     Buf_Type = TYPE_ERROR;
     Nullable = false;
+    Unsigned = false;
   } // endif cdp
 
   To_Tdb = tdbp;
@@ -164,18 +166,19 @@ bool COLBLK::CheckSort(PTDB tdbp)
 /*  Now we use Format.Length for the len parameter to avoid strings    */
 /*  to be truncated when converting from string to coded string.       */
 /*  Added in version 1.5 is the arguments GetPrecision() and Domain    */
-/*  in calling AllocateValue. Domain is used for TYPE_TOKEN only,      */
-/*  but why was GetPrecision() not specified ? To be checked.          */
+/*  in calling AllocateValue. Domain is used for TYPE_DATE only.       */
 /***********************************************************************/
 bool COLBLK::InitValue(PGLOBAL g)
   {
   if (Value)
     return false;                       // Already done
 
+  // Unsigned can be set only for valid value types
+  int prec = (Unsigned) ? 1 : GetPrecision();
+
   // Allocate a Value object
   if (!(Value = AllocateValue(g, Buf_Type, Format.Length,
-                                 GetPrecision(), GetDomain(),
-                                 (To_Tdb) ? To_Tdb->GetCat() : NULL)))
+                                 prec, GetDomain())))
     return true;
 
   AddStatus(BUF_READY);

@@ -66,7 +66,7 @@ extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's     */
 /*  to have rows filled by blanks to be compatible with QRY blocks.    */
 /***********************************************************************/
 PVBLK AllocValBlock(PGLOBAL, void *, int, int, int, int,
-                    bool check = true, bool blank = true);
+                    bool check = true, bool blank = true, bool un = false);
 
 /***********************************************************************/
 /*  Check whether we have to create/update permanent indexes.          */
@@ -2919,7 +2919,7 @@ void KXYCOL::SetValue(PCOL colp, int i)
   assert (Kblp != NULL);
 #endif
 
-  Kblp->SetValue(colp->GetValue(), (int)i);
+  Kblp->SetValue(colp->GetValue(), i);
   } // end of SetValue
 
 /***********************************************************************/
@@ -2970,7 +2970,7 @@ void KXYCOL::FillValue(PVAL valp)
 int KXYCOL::Compare(int i1, int i2)
   {
   // Do the actual comparison between values.
-  register int k = (int)Kblp->CompVal((int)i1, (int)i2);
+  register int k = Kblp->CompVal(i1, i2);
 
 #ifdef DEBUG2
  htrc("Compare done result=%d\n", k);
@@ -2991,7 +2991,7 @@ int KXYCOL::CompVal(int i)
   htrc("Compare done result=%d\n", k);
   return k;
 #endif
-  return (int)Kblp->CompVal(Valp, (int)i);
+  return Kblp->CompVal(Valp, i);
   } // end of CompVal
 
 /***********************************************************************/
@@ -3000,7 +3000,7 @@ int KXYCOL::CompVal(int i)
 int KXYCOL::CompBval(int i)
   {
   // Do the actual comparison between key values.
-  return (int)Blkp->CompVal(Valp, (int)i);
+  return Blkp->CompVal(Valp, i);
   } // end of CompBval
 
 /***********************************************************************/

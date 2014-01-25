@@ -38,6 +38,7 @@ TABTYPE GetTypeID(const char *type);
 bool    IsFileType(TABTYPE type);
 bool    IsTypeNullable(TABTYPE type);
 bool    IsTypeFixed(TABTYPE type);
+bool    IsTypeIndexable(TABTYPE type);
 uint    GetFuncID(const char *func);
 
 /***********************************************************************/

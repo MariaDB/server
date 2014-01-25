@@ -264,7 +264,6 @@ int main() {
   ENDIF(UNIX)
 ENDIF(CONNECT_WITH_ODBC)
 
-
 #
 # Plugin definition
 #

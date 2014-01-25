@@ -59,7 +59,7 @@ void kill_mysql(void);
 void close_connection(THD *thd, uint sql_errno= 0, bool lock=1);
 #else
 void close_connection(THD *thd, uint sql_errno= 0);
-#endif
+#endif /* WITH_WSREP */
 void handle_connection_in_main_thread(THD *thd);
 void create_thread_to_handle_connection(THD *thd);
 void delete_running_thd(THD *thd);
@@ -144,7 +144,8 @@ extern char *opt_backup_history_logname, *opt_backup_progress_logname,
 extern const char *log_output_str;
 extern const char *log_backup_output_str;
 extern char *mysql_home_ptr, *pidfile_name_ptr;
-extern char glob_hostname[FN_REFLEN], mysql_home[FN_REFLEN];
+extern MYSQL_PLUGIN_IMPORT char glob_hostname[FN_REFLEN];
+extern char mysql_home[FN_REFLEN];
 extern char pidfile_name[FN_REFLEN], system_time_zone[30], *opt_init_file;
 extern char default_logfile_name[FN_REFLEN];
 extern char log_error_file[FN_REFLEN], *opt_tc_log_file;
@@ -221,7 +222,6 @@ extern LEX_STRING opt_init_connect, opt_init_slave;
 extern int bootstrap_error;
 extern I_List<THD> threads;
 extern char err_shared_dir[];
-extern TYPELIB thread_handling_typelib;
 extern ulong connection_errors_select;
 extern ulong connection_errors_accept;
 extern ulong connection_errors_tcpwrap;
@@ -241,10 +241,11 @@ extern pthread_key(MEM_ROOT**,THR_MALLOC);
 extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
        key_LOCK_pool, key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
+
 #ifdef WITH_WSREP
 extern PSI_mutex_key key_LOCK_wsrep_thd;
 extern PSI_cond_key  key_COND_wsrep_thd;
-#endif /* HAVE_WSREP */
+#endif /* WITH_WSREP */
 
 #ifdef HAVE_OPENSSL
 extern PSI_mutex_key key_LOCK_des_key_file;
@@ -275,8 +276,6 @@ extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
 extern PSI_mutex_key key_TABLE_SHARE_LOCK_share, key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
   key_LOCK_global_index_stats, key_LOCK_wakeup_ready, key_LOCK_wait_commit;
-
-extern PSI_mutex_key key_LOCK_rpl_gtid_state;
 
 extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,
@@ -504,7 +503,6 @@ extern mysql_mutex_t
        LOCK_slave_list, LOCK_active_mi, LOCK_manager,
        LOCK_global_system_variables, LOCK_user_conn,
        LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count;
-extern mysql_mutex_t LOCK_rpl_gtid_state;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count;
 #ifdef HAVE_OPENSSL
 extern mysql_mutex_t LOCK_des_key_file;
@@ -583,6 +581,8 @@ enum options_mysqld
   OPT_SSL_KEY,
   OPT_UPDATE_LOG,
   OPT_WANT_CORE,
+  OPT_MYSQL_COMPATIBILITY,
+  OPT_MYSQL_TO_BE_IMPLEMENTED,
 #ifdef WITH_WSREP
   OPT_WSREP_PROVIDER,
   OPT_WSREP_PROVIDER_OPTIONS,
@@ -590,8 +590,9 @@ enum options_mysqld
   OPT_WSREP_START_POSITION,
   OPT_WSREP_SST_AUTH,
   OPT_WSREP_RECOVER,
-  OPT_which_is_always_the_last
 #endif /* WITH_WSREP */
+
+  OPT_which_is_always_the_last
 };
 #endif
 

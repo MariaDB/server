@@ -1,5 +1,5 @@
 --source inc.inc
---source include/have_xtradb.inc
+--source include/have_innodb.inc
 --source include/have_binlog_format_statement.inc
 
 --query_vertical select * from information_schema.engines where engine='sequence'

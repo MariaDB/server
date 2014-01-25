@@ -1,6 +1,5 @@
-/*
-   Copyright (c) 2006, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2013, Monty Program Ab.
+/* Copyright (c) 2006, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -43,6 +42,19 @@ int compare(size_t a, size_t b)
  */
 uint32 uint_max(int bits) {
   return (((1UL << (bits - 1)) - 1) << 1) | 1;
+}
+
+
+/**
+  Calculate display length for MySQL56 temporal data types from their metadata.
+  It contains fractional precision in the low 16-bit word.
+*/
+static uint32
+max_display_length_for_temporal2_field(uint32 int_display_length,
+                                       unsigned int metadata)
+{
+  metadata&= 0x00ff;
+  return int_display_length + metadata + (metadata ? 1 : 0);
 }
 
 
@@ -109,16 +121,22 @@ max_display_length_for_field(enum_field_types sql_type, unsigned int metadata)
 
   case MYSQL_TYPE_DATE:
   case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_TIME2:
     return 3;
 
+  case MYSQL_TYPE_TIME2:
+    return max_display_length_for_temporal2_field(MIN_TIME_WIDTH, metadata);
+
   case MYSQL_TYPE_TIMESTAMP:
-  case MYSQL_TYPE_TIMESTAMP2:
     return 4;
 
+  case MYSQL_TYPE_TIMESTAMP2:
+    return max_display_length_for_temporal2_field(MAX_DATETIME_WIDTH, metadata);
+
   case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_DATETIME2:
     return 8;
+
+  case MYSQL_TYPE_DATETIME2:
+    return max_display_length_for_temporal2_field(MAX_DATETIME_WIDTH, metadata);
 
   case MYSQL_TYPE_BIT:
     /*
@@ -630,19 +648,32 @@ can_convert_field_to(Field *field,
     else
       DBUG_RETURN(false);
   }
-  else if (metadata == 0 &&
-           ((field->real_type() == MYSQL_TYPE_TIMESTAMP2 &&
-             source_type == MYSQL_TYPE_TIMESTAMP) ||
-            (field->real_type() == MYSQL_TYPE_TIME2 &&
-             source_type == MYSQL_TYPE_TIME) ||
-            (field->real_type() == MYSQL_TYPE_DATETIME2 &&
-             source_type == MYSQL_TYPE_DATETIME)))
+  else if (
+            /*
+              Conversion from MariaDB TIMESTAMP(0), TIME(0), DATETIME(0)
+              to the corresponding MySQL56 types is non-lossy.
+            */
+           (metadata == 0 &&
+            ((field->real_type() == MYSQL_TYPE_TIMESTAMP2 &&
+              source_type == MYSQL_TYPE_TIMESTAMP) ||
+             (field->real_type() == MYSQL_TYPE_TIME2 &&
+              source_type == MYSQL_TYPE_TIME) ||
+             (field->real_type() == MYSQL_TYPE_DATETIME2 &&
+              source_type == MYSQL_TYPE_DATETIME))) ||
+            /*
+              Conversion from MySQL56 TIMESTAMP(N), TIME(N), DATETIME(N)
+              to the corresponding MariaDB or MySQL55 types is non-lossy.
+            */
+            (metadata == field->decimals() &&
+             ((field->real_type() == MYSQL_TYPE_TIMESTAMP &&
+              source_type == MYSQL_TYPE_TIMESTAMP2) ||
+             (field->real_type() == MYSQL_TYPE_TIME &&
+              source_type == MYSQL_TYPE_TIME2) ||
+             (field->real_type() == MYSQL_TYPE_DATETIME &&
+              source_type == MYSQL_TYPE_DATETIME2))))
   {
     /*
       TS-TODO: conversion from FSP1>FSP2.
-      Can do non-lossy conversion
-      from old TIME, TIMESTAMP, DATETIME
-      to MySQL56 TIME(0), TIMESTAMP(0), DATETIME(0).
     */
     *order_var= -1;
     DBUG_RETURN(true);
@@ -914,6 +945,7 @@ TABLE *table_def::create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *
   DBUG_ENTER("table_def::create_conversion_table");
 
   List<Create_field> field_list;
+  TABLE *conv_table= NULL;
   /*
     At slave, columns may differ. So we should create
     MY_MIN(columns@master, columns@slave) columns in the
@@ -955,10 +987,15 @@ TABLE *table_def::create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *
       break;
 
     case MYSQL_TYPE_DECIMAL:
-      precision= field_metadata(col);
-      decimals= static_cast<Field_num*>(target_table->field[col])->dec;
-      max_length= field_metadata(col);
-      break;
+      sql_print_error("In RBR mode, Slave received incompatible DECIMAL field "
+                      "(old-style decimal field) from Master while creating "
+                      "conversion table. Please consider changing datatype on "
+                      "Master to new style decimal by executing ALTER command for"
+                      " column Name: %s.%s.%s.",
+                      target_table->s->db.str,
+                      target_table->s->table_name.str,
+                      target_table->field[col]->field_name);
+      goto err;
 
     case MYSQL_TYPE_TINY_BLOB:
     case MYSQL_TYPE_MEDIUM_BLOB:
@@ -986,7 +1023,9 @@ TABLE *table_def::create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *
     field_def->interval= interval;
   }
 
-  TABLE *conv_table= create_virtual_tmp_table(thd, field_list);
+  conv_table= create_virtual_tmp_table(thd, field_list);
+
+err:
   if (conv_table == NULL)
     rli->report(ERROR_LEVEL, ER_SLAVE_CANT_CREATE_CONVERSION,
                 ER(ER_SLAVE_CANT_CREATE_CONVERSION),

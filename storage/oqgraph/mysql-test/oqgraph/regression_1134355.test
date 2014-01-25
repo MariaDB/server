@@ -1,0 +1,59 @@
+# Regression test for https://bugs.launchpad.net/oqgraph/+bug/1134355
+#--reproduce bug where renaming a column in the graph crashes instead of returning an error
+--disable_warnings
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+# Create the backing store
+CREATE TABLE graph_base (
+    from_id INT UNSIGNED NOT NULL,
+    to_id INT UNSIGNED NOT NULL,
+    another_id INT UNSIGNED NOT NULL DEFAULT 1,
+    w DOUBLE NOT NULL DEFAULT 1,
+    PRIMARY KEY (from_id,to_id),
+    INDEX (to_id)
+  ) ENGINE=MyISAM;
+
+
+CREATE TABLE graph (
+    latch   VARCHAR(32) NULL,
+    origid  BIGINT    UNSIGNED NULL,
+    destid  BIGINT    UNSIGNED NULL,
+    weight  DOUBLE    NULL,
+    seq     BIGINT    UNSIGNED NULL,
+    linkid  BIGINT    UNSIGNED NULL,
+    KEY (latch, origid, destid) USING HASH,
+    KEY (latch, destid, origid) USING HASH
+  ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id', WEIGHT='w';
+
+# -- do some stuff
+
+INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
+INSERT INTO graph_base(from_id, to_id) VALUES (1,3), (3,1);
+INSERT INTO graph_base(from_id, to_id) VALUES (1,4), (4,1);
+INSERT INTO graph_base(from_id, to_id) VALUES (3,4), (4,3);
+
+SELECT * from graph;
+SELECT * FROM graph WHERE destid=2 and origid=1;
+
+# We cant do this anyway because of read onlyness of table.... 1036 == read only
+# In any case I changed the flags to make alter unsupported; later we can try and work out why the core doesnt help us clean up properly
+# --error 1036
+--error 1031
+alter table graph ORIGID = 'another_id';
+
+# But we need that to hold even in an invalid situation!
+# -- bug was: the following alter table would crash, instead of returning error 1296
+# -- currently following may not crash, but does with the previous error 1036 causing statement present
+#  'attribute not set to a valid column of 'xxx'  - note currently truncating to graph_b instead of graph_base for some reason...
+#--error 1296
+--error 1031
+alter table graph ORIGID = 'something_else';
+
+DELETE FROM graph_base;
+FLUSH TABLES;
+TRUNCATE TABLE graph_base;
+DROP TABLE graph_base;
+DROP TABLE graph;
+

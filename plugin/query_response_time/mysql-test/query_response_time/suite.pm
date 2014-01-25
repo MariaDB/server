@@ -8,5 +8,7 @@ return "No QUERY_RESPONSE_TIME plugin" unless
 
 return "Not run for embedded server" if $::opt_embedded_server;
 
+sub is_default { 1 }
+
 bless { };
 
