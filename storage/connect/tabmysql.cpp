@@ -1284,13 +1284,18 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
       htrc("MySQL ReadColumn: name=%s buf=%s\n", Name, buf);
 
     // TODO: have a true way to differenciate temporal values
-    if (strlen(buf) == 8)
+    if (Buf_Type == TYPE_DATE && strlen(buf) == 8)
       // This is a TIME value
       p = strcat(strcpy(tim, "1970-01-01 "), buf);
     else
       p = buf;
 
-    Value->SetValue_char(p, strlen(p));
+    if (Value->SetValue_char(p, strlen(p))) {
+      sprintf(g->Message, "Out of range value for column %s at row %d",
+              Name, tdbp->RowNumber(g));
+      PushWarning(g, tdbp);
+      } // endif SetValue_char
+
   } else {
     if (Nullable)
       Value->SetNull(true);

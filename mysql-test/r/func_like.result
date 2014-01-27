@@ -188,3 +188,15 @@ DROP TABLE t1, t2;
 SELECT '' LIKE '1' ESCAPE COUNT(1);
 ERROR HY000: Incorrect arguments to ESCAPE
 End of 5.1 tests
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-5445 Server crashes in Item_func_like::fix_fields on LIKE ExtractValue(..)
+#
+SELECT 'a' LIKE REPEAT('',0);
+'a' LIKE REPEAT('',0)
+0
+SELECT 'a' LIKE EXTRACTVALUE('bar','qux');
+'a' LIKE EXTRACTVALUE('bar','qux')
+0

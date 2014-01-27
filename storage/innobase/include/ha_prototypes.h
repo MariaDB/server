@@ -183,7 +183,7 @@ innobase_mysql_cmp(
 Log code calls this whenever log has been written and/or flushed up
 to a new position. We use this to notify upper layer of a new commit
 checkpoint when necessary.*/
-extern "C" UNIV_INTERN
+UNIV_INTERN
 void
 innobase_mysql_log_notify(
 /*===============*/
@@ -584,5 +584,15 @@ innobase_get_int_col_max_value(
 /*===========================*/
 	const Field*	field)	/*!< in: MySQL field */
 	__attribute__((nonnull, pure, warn_unused_result));
+
+/**********************************************************************
+Converts an identifier from my_charset_filename to UTF-8 charset. */
+uint
+innobase_convert_to_system_charset(
+/*===============================*/
+	char*           to,		/* out: converted identifier */
+	const char*     from,		/* in: identifier to convert */
+	ulint           len,		/* in: length of 'to', in bytes */
+	uint*		errors);	/* out: error return */
 
 #endif /* HA_INNODB_PROTOTYPES_H */

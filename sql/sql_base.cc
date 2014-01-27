@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2011 Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2013 Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -309,9 +309,11 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild)
 	   share->table_name.str);
     (*start_list)->in_use= 0;
     mysql_mutex_lock(&LOCK_open);
-    TABLE_SHARE::TABLE_list::Iterator it(share->tdc.used_tables);
-    while (it++)
-      ++(*start_list)->in_use;
+    TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
+    TABLE *table;
+    while ((table= it++))
+      if (table->in_use)
+        ++(*start_list)->in_use;
     mysql_mutex_unlock(&LOCK_open);
     (*start_list)->locked= 0;                   /* Obsolete. */
     start_list= &(*start_list)->next;
@@ -371,16 +373,19 @@ void free_io_cache(TABLE *table)
 
 void kill_delayed_threads_for_table(TABLE_SHARE *share)
 {
-  TABLE_SHARE::TABLE_list::Iterator it(share->tdc.used_tables);
+  TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
   TABLE *tab;
 
   mysql_mutex_assert_owner(&LOCK_open);
+
+  if (!delayed_insert_threads)
+    return;
 
   while ((tab= it++))
   {
     THD *in_use= tab->in_use;
 
-    if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
+    if (in_use && (in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
         ! in_use->killed)
     {
       in_use->killed= KILL_SYSTEM_THREAD;
@@ -1021,7 +1026,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
 
   if (! table->needs_reopen())
   {
-    /* Avoid having MERGE tables with attached children in unused_tables. */
+    /* Avoid having MERGE tables with attached children in table cache. */
     table->file->extra(HA_EXTRA_DETACH_CHILDREN);
     /* Free memory and reset for next loop. */
     free_field_buffers_larger_than(table, MAX_TDC_BLOB_SIZE);
@@ -2269,11 +2274,11 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
   {
     if (!ha_table_exists(thd, table_list->db, table_list->table_name))
       DBUG_RETURN(FALSE);
-
-    /* Table exists. Let us try to open it. */
   }
   else if (table_list->open_strategy == TABLE_LIST::OPEN_STUB)
     DBUG_RETURN(FALSE);
+
+  /* Table exists. Let us try to open it. */
 
   if (table_list->i_s_requested_object & OPEN_TABLE_ONLY)
     gts_flags= GTS_TABLE;
@@ -3197,7 +3202,8 @@ end_free:
 /** Open_table_context */
 
 Open_table_context::Open_table_context(THD *thd, uint flags)
-  :m_failed_table(NULL),
+  :m_thd(thd),
+   m_failed_table(NULL),
    m_start_of_statement_svp(thd->mdl_context.mdl_savepoint()),
    m_timeout(flags & MYSQL_LOCK_IGNORE_TIMEOUT ?
              LONG_TIMEOUT : thd->variables.lock_wait_timeout),
@@ -3274,6 +3280,7 @@ request_backoff_action(enum_open_table_action action_arg,
   if (action_arg != OT_REOPEN_TABLES && m_has_locks)
   {
     my_error(ER_LOCK_DEADLOCK, MYF(0));
+    mark_transaction_to_rollback(m_thd, true);
     return TRUE;
   }
   /*
@@ -3283,13 +3290,14 @@ request_backoff_action(enum_open_table_action action_arg,
   if (table)
   {
     DBUG_ASSERT(action_arg == OT_DISCOVER || action_arg == OT_REPAIR);
-    m_failed_table= (TABLE_LIST*) current_thd->alloc(sizeof(TABLE_LIST));
+    m_failed_table= (TABLE_LIST*) m_thd->alloc(sizeof(TABLE_LIST));
     if (m_failed_table == NULL)
       return TRUE;
     m_failed_table->init_one_table(table->db, table->db_length,
                                    table->table_name,
                                    table->table_name_length,
                                    table->alias, TL_WRITE);
+    m_failed_table->open_strategy= table->open_strategy;
     m_failed_table->mdl_request.set_type(MDL_EXCLUSIVE);
   }
   m_action= action_arg;
@@ -3300,8 +3308,6 @@ request_backoff_action(enum_open_table_action action_arg,
 /**
    Recover from failed attempt of open table by performing requested action.
 
-   @param  thd     Thread context
-
    @pre This function should be called only with "action" != OT_NO_ACTION
         and after having called @sa close_tables_for_reopen().
 
@@ -3310,8 +3316,7 @@ request_backoff_action(enum_open_table_action action_arg,
 */
 
 bool
-Open_table_context::
-recover_from_failed_open(THD *thd)
+Open_table_context::recover_from_failed_open()
 {
   bool result= FALSE;
   /* Execute the action. */
@@ -3323,36 +3328,46 @@ recover_from_failed_open(THD *thd)
       break;
     case OT_DISCOVER:
       {
-        if ((result= lock_table_names(thd, m_failed_table, NULL,
+        if ((result= lock_table_names(m_thd, m_failed_table, NULL,
                                       get_timeout(), 0)))
           break;
 
-        tdc_remove_table(thd, TDC_RT_REMOVE_ALL, m_failed_table->db,
+        tdc_remove_table(m_thd, TDC_RT_REMOVE_ALL, m_failed_table->db,
                          m_failed_table->table_name, FALSE);
 
-        thd->get_stmt_da()->clear_warning_info(thd->query_id);
-        thd->clear_error();                 // Clear error message
+        m_thd->get_stmt_da()->clear_warning_info(m_thd->query_id);
+        m_thd->clear_error();                 // Clear error message
 
-        if ((result=
-             !tdc_acquire_share(thd, m_failed_table->db,
-                                m_failed_table->table_name,
-                                GTS_TABLE | GTS_FORCE_DISCOVERY | GTS_NOLOCK)))
-          break;
+        No_such_table_error_handler no_such_table_handler;
+        bool open_if_exists= m_failed_table->open_strategy == TABLE_LIST::OPEN_IF_EXISTS;
 
-        thd->mdl_context.release_transactional_locks();
+        if (open_if_exists)
+          m_thd->push_internal_handler(&no_such_table_handler);
+        
+        result= !tdc_acquire_share(m_thd, m_failed_table->db,
+                                   m_failed_table->table_name,
+                                   GTS_TABLE | GTS_FORCE_DISCOVERY | GTS_NOLOCK);
+        if (open_if_exists)
+        {
+          m_thd->pop_internal_handler();
+          if (result && no_such_table_handler.safely_trapped_errors())
+            result= FALSE;
+        }
+
+        m_thd->mdl_context.release_transactional_locks();
         break;
       }
     case OT_REPAIR:
       {
-        if ((result= lock_table_names(thd, m_failed_table, NULL,
+        if ((result= lock_table_names(m_thd, m_failed_table, NULL,
                                       get_timeout(), 0)))
           break;
 
-        tdc_remove_table(thd, TDC_RT_REMOVE_ALL, m_failed_table->db,
+        tdc_remove_table(m_thd, TDC_RT_REMOVE_ALL, m_failed_table->db,
                          m_failed_table->table_name, FALSE);
 
-        result= auto_repair_table(thd, m_failed_table);
-        thd->mdl_context.release_transactional_locks();
+        result= auto_repair_table(m_thd, m_failed_table);
+        m_thd->mdl_context.release_transactional_locks();
         break;
       }
     default:
@@ -4349,7 +4364,7 @@ restart:
             TABLE_LIST element. Altough currently this assumption is valid
             it may change in future.
           */
-          if (ot_ctx.recover_from_failed_open(thd))
+          if (ot_ctx.recover_from_failed_open())
             goto err;
 
           /* Re-open temporary tables after close_tables_for_reopen(). */
@@ -4406,7 +4421,7 @@ restart:
           {
             close_tables_for_reopen(thd, start,
                                     ot_ctx.start_of_statement_svp());
-            if (ot_ctx.recover_from_failed_open(thd))
+            if (ot_ctx.recover_from_failed_open())
               goto err;
 
             /* Re-open temporary tables after close_tables_for_reopen(). */
@@ -4852,7 +4867,7 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type lock_type,
     */
     thd->mdl_context.rollback_to_savepoint(ot_ctx.start_of_statement_svp());
     table_list->mdl_request.ticket= 0;
-    if (ot_ctx.recover_from_failed_open(thd))
+    if (ot_ctx.recover_from_failed_open())
       break;
   }
 
@@ -6169,9 +6184,9 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
           else
           {
             if (thd->mark_used_columns == MARK_COLUMNS_READ)
-              it->walk(&Item::register_field_in_read_map, 1, (uchar *) 0);
+              it->walk(&Item::register_field_in_read_map, 0, (uchar *) 0);
             else
-              it->walk(&Item::register_field_in_write_map, 1, (uchar *) 0);
+              it->walk(&Item::register_field_in_write_map, 0, (uchar *) 0);
           }
         }
         else

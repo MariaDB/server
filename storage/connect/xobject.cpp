@@ -134,6 +134,7 @@ bool CONSTANT::Compare(PXOB xp)
 
   } // end of Compare
 
+#if 0
 /***********************************************************************/
 /*  Rephrase: temporary implementation used by PlugRephraseSQL.        */
 /***********************************************************************/
@@ -166,6 +167,7 @@ bool CONSTANT::Rephrase(PGLOBAL g, PSZ work)
 
   return false;
   } // end of Rephrase
+#endif // 0
 
 /***********************************************************************/
 /*  Make file output of a constant object.                             */

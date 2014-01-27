@@ -242,6 +242,7 @@ class TDBCAT : public TDBASE {
   virtual int  GetRecpos(void) {return N;}
   virtual int  GetProgCur(void) {return N;}
   virtual int  RowNumber(PGLOBAL g, bool b = false) {return N + 1;}
+  virtual bool SetRecpos(PGLOBAL g, int recpos); 
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);

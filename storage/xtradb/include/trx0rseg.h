@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2011, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,6 +29,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "univ.i"
 #include "trx0types.h"
 #include "trx0sys.h"
+#include "ut0bh.h"
 
 /******************************************************************//**
 Gets a rollback segment header.
@@ -86,11 +87,11 @@ trx_rsegf_undo_find_free(
 /******************************************************************//**
 Looks for a rollback segment, based on the rollback segment id.
 @return	rollback segment */
-UNIV_INTERN
+UNIV_INLINE
 trx_rseg_t*
 trx_rseg_get_on_id(
 /*===============*/
-	ulint	id);	/*!< in: rollback segment id */
+	ulint	id);		/*!< in: rollback segment id */
 /****************************************************************//**
 Creates a rollback segment header. This function is called only when
 a new rollback segment is created in the database.
@@ -107,30 +108,42 @@ trx_rseg_header_create(
 	mtr_t*	mtr);		/*!< in: mtr */
 /*********************************************************************//**
 Creates the memory copies for rollback segments and initializes the
-rseg list and array in trx_sys at a database startup. */
+rseg array in trx_sys at a database startup. */
 UNIV_INTERN
 void
-trx_rseg_list_and_array_init(
-/*=========================*/
-	trx_sysf_t*	sys_header,	/*!< in: trx system header */
+trx_rseg_array_init(
+/*================*/
+	trx_sysf_t*	sys_header,	/*!< in/out: trx system header */
 	ib_bh_t*	ib_bh,		/*!< in: rseg queue */
-	mtr_t*		mtr);		/*!< in: mtr */
-
+	mtr_t*		mtr);		/*!< in/out: mtr */
 /***************************************************************************
 Free's an instance of the rollback segment in memory. */
 UNIV_INTERN
 void
 trx_rseg_mem_free(
 /*==============*/
-	trx_rseg_t*	rseg);		/* in, own: instance to free */
+	trx_rseg_t*	rseg);		/*!< in, own: instance to free */
 
 /*********************************************************************
 Creates a rollback segment. */
 UNIV_INTERN
 trx_rseg_t*
-trx_rseg_create(void);
-/*==================*/
+trx_rseg_create(
+/*============*/
+	ulint	space);			/*!< in: id of UNDO tablespace */
 
+/********************************************************************
+Get the number of unique rollback tablespaces in use except space id 0.
+The last space id will be the sentinel value ULINT_UNDEFINED. The array
+will be sorted on space id. Note: space_ids should have have space for
+TRX_SYS_N_RSEGS + 1 elements.
+@return number of unique rollback tablespaces in use. */
+UNIV_INTERN
+ulint
+trx_rseg_get_n_undo_tablespaces(
+/*============================*/
+	ulint*		space_ids);	/*!< out: array of space ids of
+					UNDO tablespaces */
 /* Number of undo log slots in a rollback segment file copy */
 #define TRX_RSEG_N_SLOTS	(UNIV_PAGE_SIZE / 16)
 
@@ -138,11 +151,11 @@ trx_rseg_create(void);
 #define TRX_RSEG_MAX_N_TRXS	(TRX_RSEG_N_SLOTS / 2)
 
 /* The rollback segment memory object */
-struct trx_rseg_struct{
+struct trx_rseg_t{
 	/*--------------------------------------------------------*/
 	ulint		id;	/*!< rollback segment id == the index of
 				its slot in the trx system file copy */
-	mutex_t		mutex;	/*!< mutex protecting the fields in this
+	ib_prio_mutex_t		mutex;	/*!< mutex protecting the fields in this
 				struct except id, which is constant */
 	ulint		space;	/*!< space where the rollback segment is
 				header is placed */
@@ -176,19 +189,13 @@ struct trx_rseg_struct{
 					yet purged log */
 	ibool		last_del_marks;	/*!< TRUE if the last not yet purged log
 					needs purging */
-	/*--------------------------------------------------------*/
-	UT_LIST_NODE_T(trx_rseg_t) rseg_list;
-					/* the list of the rollback segment
-					memory objects */
 };
 
 /** For prioritising the rollback segments for purge. */
-struct rseg_queue_struct {
-	trx_id_t	trx_no;		/*!< trx_rseg_t::last_trx_no */
-	trx_rseg_t*	rseg;		/*!< Rollback segment */
+struct rseg_queue_t {
+        trx_id_t	trx_no;         /*!< trx_rseg_t::last_trx_no */
+        trx_rseg_t*     rseg;           /*!< Rollback segment */
 };
-
-typedef struct rseg_queue_struct rseg_queue_t;
 
 /* Undo log segment slot in a rollback segment header */
 /*-------------------------------------------------------------*/

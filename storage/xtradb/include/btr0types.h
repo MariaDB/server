@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -33,46 +33,43 @@ Created 2/17/1996 Heikki Tuuri
 #include "sync0rw.h"
 
 /** Persistent cursor */
-typedef struct btr_pcur_struct		btr_pcur_t;
+struct btr_pcur_t;
 /** B-tree cursor */
-typedef struct btr_cur_struct		btr_cur_t;
+struct btr_cur_t;
 /** B-tree search information for the adaptive hash index */
-typedef struct btr_search_struct	btr_search_t;
+struct btr_search_t;
 
 #ifndef UNIV_HOTBACKUP
 
-/** @brief The latch protecting the adaptive search system
+/** @brief The array of latches protecting the adaptive search partitions
 
-This latch protects the
-(1) hash index;
+These latches protect the
+(1) hash index from the corresponding AHI partition;
 (2) columns of a record to which we have a pointer in the hash index;
 
-but does NOT protect:
+but do NOT protect:
 
 (3) next record offset field in a record;
 (4) next or previous records on the same page.
 
-Bear in mind (3) and (4) when using the hash index.
+Bear in mind (3) and (4) when using the hash indexes.
 */
-//extern rw_lock_t*	btr_search_latch_temp;
 
-extern rw_lock_t**	btr_search_latch_part;
+extern prio_rw_lock_t*	btr_search_latch_arr;
 
 #endif /* UNIV_HOTBACKUP */
-
-/** The latch protecting the adaptive search system */
-//#define btr_search_latch	(*btr_search_latch_temp)
 
 /** Flag: has the search system been enabled?
 Protected by btr_search_latch. */
 extern char	btr_search_enabled;
 
+/** Number of adaptive hash index partitions */
 extern ulint	btr_search_index_num;
 
 #ifdef UNIV_BLOB_DEBUG
 # include "buf0types.h"
 /** An index->blobs entry for keeping track of off-page column references */
-typedef struct btr_blob_dbg_struct btr_blob_dbg_t;
+struct btr_blob_dbg_t;
 
 /** Insert to index->blobs a reference to an off-page column.
 @param index	the index tree

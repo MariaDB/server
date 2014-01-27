@@ -31,4 +31,6 @@ uint strconvert(CHARSET_INFO *from_cs, const char *from, uint from_length,
                 uint *errors);
 void sql_print_error(const char *format, ...);
 
+#define thd_binlog_pos(X, Y, Z) mysql_bin_log_commit_pos(X, Z, Y)
+
 #endif /* INNODB_PRIV_INCLUDED */

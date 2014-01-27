@@ -115,12 +115,10 @@ public:
     partition_name(NULL), tablespace_name(NULL),
     log_entry(NULL), part_comment(NULL),
     data_file_name(NULL), index_file_name(NULL),
-    engine_type(NULL), part_state(PART_NORMAL),
+    engine_type(NULL), connect_string(null_lex_str), part_state(PART_NORMAL),
     nodegroup_id(UNDEF_NODEGROUP), has_null_value(FALSE),
     signed_flag(FALSE), max_value(FALSE)
   {
-    connect_string.str= 0;
-    connect_string.length= 0;
   }
   partition_element(partition_element *part_elem)
   : part_max_rows(part_elem->part_max_rows),
@@ -131,13 +129,11 @@ public:
     data_file_name(part_elem->data_file_name),
     index_file_name(part_elem->index_file_name),
     engine_type(part_elem->engine_type),
-    connect_string(part_elem->connect_string),
+    connect_string(null_lex_str),
     part_state(part_elem->part_state),
     nodegroup_id(part_elem->nodegroup_id),
     has_null_value(FALSE)
   {
-    connect_string.str= 0;
-    connect_string.length= 0;
   }
   ~partition_element() {}
 };

@@ -190,6 +190,7 @@ SET GLOBAL gtid_binlog_state = @old_state;
 # restored the state.
 
 CREATE TABLE t1 (a INT PRIMARY KEY);
+SET gtid_seq_no=100;
 INSERT INTO t1 VALUES (1);
 --let $master_pos= `SELECT @@GLOBAL.gtid_binlog_pos`
 
@@ -202,6 +203,9 @@ INSERT INTO t1 VALUES (1);
 --source include/wait_condition.inc
 
 SELECT * FROM t1;
+# Check that the IO gtid position in SHOW SLAVE STATUS is also correct.
+--let $status_items= Gtid_IO_Pos
+--source include/show_slave_status.inc
 
 --connection server_1
 DROP TABLE t1;

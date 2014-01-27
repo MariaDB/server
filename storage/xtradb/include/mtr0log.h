@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1995, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -32,8 +32,8 @@ Created 12/7/1995 Heikki Tuuri
 
 #ifndef UNIV_HOTBACKUP
 /********************************************************//**
-Writes 1 - 4 bytes to a file page buffered in the buffer pool.
-Writes the corresponding log record to the mini-transaction log. */
+Writes 1, 2 or 4 bytes to a file page. Writes the corresponding log
+record to the mini-transaction log if mtr is not NULL. */
 UNIV_INTERN
 void
 mlog_write_ulint(
@@ -43,8 +43,8 @@ mlog_write_ulint(
 	byte	type,	/*!< in: MLOG_1BYTE, MLOG_2BYTES, MLOG_4BYTES */
 	mtr_t*	mtr);	/*!< in: mini-transaction handle */
 /********************************************************//**
-Writes 8 bytes to a file page buffered in the buffer pool.
-Writes the corresponding log record to the mini-transaction log. */
+Writes 8 bytes to a file page. Writes the corresponding log
+record to the mini-transaction log, only if mtr is not NULL */
 UNIV_INTERN
 void
 mlog_write_ull(
@@ -168,7 +168,7 @@ mlog_write_initial_log_record_fast(
 	mtr_t*		mtr);	/*!< in: mtr */
 #else /* !UNIV_HOTBACKUP */
 # define mlog_write_initial_log_record(ptr,type,mtr) ((void) 0)
-# define mlog_write_initial_log_record_fast(ptr,type,log_ptr,mtr) ((byte *) 0)
+# define mlog_write_initial_log_record_fast(ptr,type,log_ptr,mtr) ((byte*) 0)
 #endif /* !UNIV_HOTBACKUP */
 /********************************************************//**
 Parses an initial log record written by mlog_write_initial_log_record.
@@ -217,12 +217,13 @@ UNIV_INTERN
 byte*
 mlog_open_and_write_index(
 /*======================*/
-	mtr_t*		mtr,	/*!< in: mtr */
-	const byte*	rec,	/*!< in: index record or page */
-	dict_index_t*	index,	/*!< in: record descriptor */
-	byte		type,	/*!< in: log item type */
-	ulint		size);	/*!< in: requested buffer size in bytes
-				(if 0, calls mlog_close() and returns NULL) */
+	mtr_t*			mtr,	/*!< in: mtr */
+	const byte*		rec,	/*!< in: index record or page */
+	const dict_index_t*	index,	/*!< in: record descriptor */
+	byte			type,	/*!< in: log item type */
+	ulint			size);	/*!< in: requested buffer size in bytes
+					(if 0, calls mlog_close() and
+					returns NULL) */
 #endif /* !UNIV_HOTBACKUP */
 
 /********************************************************//**

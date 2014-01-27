@@ -564,3 +564,21 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_520_ci;
 --echo #
 --echo # End of 5.6 tests
 --echo #
+
+
+--echo #
+--echo # Start of MariaDB-10.0 tests
+--echo #
+--echo
+
+--echo #
+--echo # MDEV-4929 Myanmar collation
+--echo #
+SET NAMES utf8 COLLATE utf8_myanmar_ci;
+--source include/ctype_myanmar.inc
+SET collation_connection=ucs2_myanmar_ci;
+--source include/ctype_myanmar.inc
+
+--echo #
+--echo # End of MariaDB-10.0 tests
+--echo #

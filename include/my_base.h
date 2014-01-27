@@ -483,14 +483,13 @@ enum ha_base_keytype {
 #define HA_ERR_GENERIC           168     /* Generic error */
 /* row not actually updated: new values same as the old values */
 #define HA_ERR_RECORD_IS_THE_SAME 169
-/* It is not possible to log this statement */
-#define HA_ERR_LOGGING_IMPOSSIBLE 170
-/* The event was corrupt, leading to illegal data being read */
+#define HA_ERR_LOGGING_IMPOSSIBLE 170    /* It is not possible to log this
+                                            statement */
 #define HA_ERR_CORRUPT_EVENT      171	 /* The event was corrupt, leading to
                                             illegal data being read */
 #define HA_ERR_NEW_FILE	          172	 /* New file format */
-/* The event could not be processed no other handler error happened */
-#define HA_ERR_ROWS_EVENT_APPLY   173
+#define HA_ERR_ROWS_EVENT_APPLY   173    /* The event could not be processed
+                                            no other hanlder error happened */
 #define HA_ERR_INITIALIZATION     174    /* Error during initialization */
 #define HA_ERR_FILE_TOO_SHORT	  175	 /* File too short */
 #define HA_ERR_WRONG_CRC	  176	 /* Wrong CRC on page */
@@ -504,10 +503,11 @@ enum ha_base_keytype {
 #define HA_ERR_TABLE_IN_FK_CHECK  183    /* Table being used in foreign key check */
 #define HA_ERR_TABLESPACE_EXISTS  184    /* The tablespace existed in storage engine */
 #define HA_ERR_TOO_MANY_FIELDS    185    /* Table has too many columns */
-#define HA_ERR_ROW_NOT_VISIBLE    186
-#define HA_ERR_ABORTED_BY_USER    187
-#define HA_ERR_DISK_FULL          188
-#define HA_ERR_LAST               188    /* Copy of last error nr */
+#define HA_ERR_ROW_IN_WRONG_PARTITION 186 /* Row in wrong partition */
+#define HA_ERR_ROW_NOT_VISIBLE    187
+#define HA_ERR_ABORTED_BY_USER    188
+#define HA_ERR_DISK_FULL          189
+#define HA_ERR_LAST               189    /* Copy of last error nr */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)

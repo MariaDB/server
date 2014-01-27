@@ -1386,7 +1386,6 @@ sig_handler handle_sigint(int sig)
   mysql_real_query(kill_mysql, kill_buffer, (uint) strlen(kill_buffer));
   mysql_close(kill_mysql);
   tee_fprintf(stdout, "Ctrl-C -- query killed. Continuing normally.\n");
-  interrupted_query= 0;
   if (in_com_source)
     aborted= 1;                                 // Abort source command
   return;
@@ -2834,7 +2833,7 @@ You can turn off this feature to get a quicker startup with -A\n\n");
         mysql_free_result(fields);
         break;
       }
-      field_names[i][num_fields*2]= '\0';
+      field_names[i][num_fields*2]= NULL;
       j=0;
       while ((sql_field=mysql_fetch_field(fields)))
       {

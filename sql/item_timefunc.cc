@@ -1467,7 +1467,9 @@ void Item_temporal_func::fix_length_and_dec()
                  (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
   collation.set(field_type() == MYSQL_TYPE_STRING ?
                 default_charset() : &my_charset_numeric,
-                DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
+                field_type() == MYSQL_TYPE_STRING ?
+                DERIVATION_COERCIBLE : DERIVATION_NUMERIC,
+                MY_REPERTOIRE_ASCII);
   fix_char_length(char_length);
 }
 
@@ -1475,27 +1477,6 @@ String *Item_temporal_func::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   return val_string_from_date(str);
-}
-
-
-longlong Item_temporal_func::val_int()
-{
-  DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  if (get_date(&ltime, sql_mode))
-    return 0;
-  longlong v= TIME_to_ulonglong(&ltime);
-  return ltime.neg ? -v : v;
-}
-
-
-double Item_temporal_func::val_real()
-{
-  DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  if (get_date(&ltime, sql_mode))
-    return 0;
-  return TIME_to_double(&ltime);
 }
 
 
@@ -2182,6 +2163,10 @@ longlong Item_extract::val_int()
   if (get_arg0_date(&ltime, is_time_flag))
     return 0;
   neg= ltime.neg ? -1 : 1;
+
+  DBUG_ASSERT(ltime.time_type != MYSQL_TIMESTAMP_TIME ||  ltime.day == 0);
+  if (ltime.time_type == MYSQL_TIMESTAMP_TIME)
+    time_to_daytime_interval(&ltime);
 
   switch (int_type) {
   case INTERVAL_YEAR:		return ltime.year;

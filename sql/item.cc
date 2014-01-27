@@ -585,12 +585,11 @@ uint Item::temporal_precision(enum_field_types type)
     MYSQL_TIME_STATUS status;
     DBUG_ASSERT(fixed);
     if ((tmp= val_str(&buf)) &&
-        (type == MYSQL_TYPE_TIME ?
+        !(type == MYSQL_TYPE_TIME ?
          str_to_time(tmp->charset(), tmp->ptr(), tmp->length(),
                      &ltime, TIME_TIME_ONLY, &status) :
          str_to_datetime(tmp->charset(), tmp->ptr(), tmp->length(),
-                         &ltime, TIME_FUZZY_DATES, &status)) >
-        MYSQL_TIMESTAMP_ERROR)
+                         &ltime, TIME_FUZZY_DATES, &status)))
       return MY_MIN(status.precision, TIME_SECOND_PART_DIGITS);
   }
   return MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
@@ -8922,6 +8921,18 @@ Item_cache_temporal::Item_cache_temporal(enum_field_types field_type_arg):
 }
 
 
+longlong Item_cache_temporal::val_temporal_packed()
+{
+  DBUG_ASSERT(fixed == 1);
+  if ((!value_cached && !cache_value()) || null_value)
+  {
+    null_value= TRUE;
+    return 0;
+  }
+  return value;
+}
+
+
 String *Item_cache_temporal::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -8931,6 +8942,42 @@ String *Item_cache_temporal::val_str(String *str)
     return NULL;
   }
   return val_string_from_date(str);
+}
+
+
+my_decimal *Item_cache_temporal::val_decimal(my_decimal *decimal_value)
+{
+  DBUG_ASSERT(fixed == 1);
+  if ((!value_cached && !cache_value()) || null_value)
+  {
+    null_value= true;
+    return NULL;
+  }
+  return val_decimal_from_date(decimal_value);
+}
+
+
+longlong Item_cache_temporal::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  if ((!value_cached && !cache_value()) || null_value)
+  {
+    null_value= true;
+    return 0;
+  }
+  return val_int_from_date();
+}
+
+
+double Item_cache_temporal::val_real()
+{
+  DBUG_ASSERT(fixed == 1);
+  if ((!value_cached && !cache_value()) || null_value)
+  {
+    null_value= true;
+    return 0;
+  }
+  return val_real_from_date();
 }
 
 

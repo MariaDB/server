@@ -35,7 +35,6 @@ struct st_mysql_options_extention {
   char *default_auth;
   char *ssl_crl;				/* PEM CRL file */
   char *ssl_crlpath;				/* PEM directory of CRL-s? */
-  char *server_public_key_path;
   void (*report_progress)(const MYSQL *mysql,
                           unsigned int stage,
                           unsigned int max_stage,

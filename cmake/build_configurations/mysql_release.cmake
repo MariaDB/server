@@ -148,12 +148,12 @@ IF(UNIX)
       ENDIF()
 
       # Remove libaio dependency from mysqld
-      SET(XTRADB_PREFER_STATIC_LIBAIO 1)
+      #SET(XTRADB_PREFER_STATIC_LIBAIO 1)
 
       # Unfortunately, linking shared libmysqld with static aio
       # does not work,  unless we add also dynamic one. This also means
       # libmysqld.so will depend on libaio.so
-      SET(LIBMYSQLD_SO_EXTRA_LIBS aio)
+      #SET(LIBMYSQLD_SO_EXTRA_LIBS aio)
     ENDIF()
 
     # Enable fast mutexes on Linux

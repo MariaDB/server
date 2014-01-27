@@ -158,6 +158,7 @@ private:
                    I_P_List_counter>
           Lock_cache;
   Lock_cache m_unused_locks_cache;
+  friend int mdl_iterate(int (*)(MDL_ticket *, void *), void *);
 };
 
 
@@ -187,6 +188,7 @@ private:
   MDL_lock *m_global_lock;
   /** Pre-allocated MDL_lock object for COMMIT namespace. */
   MDL_lock *m_commit_lock;
+  friend int mdl_iterate(int (*)(MDL_ticket *, void *), void *);
 };
 
 
@@ -703,6 +705,46 @@ void mdl_destroy()
     mdl_initialized= FALSE;
     mdl_locks.destroy();
   }
+}
+
+
+static inline int mdl_iterate_lock(MDL_lock *lock,
+                                   int (*callback)(MDL_ticket *ticket, void *arg),
+                                   void *arg)
+{
+  MDL_lock::Ticket_iterator ticket_it(lock->m_granted);
+  MDL_ticket *ticket;
+  int res= 0;
+  mysql_prlock_rdlock(&lock->m_rwlock);
+  while ((ticket= ticket_it++) && !(res= callback(ticket, arg))) /* no-op */;
+  mysql_prlock_unlock(&lock->m_rwlock);
+  return res;
+}
+
+
+int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
+{
+  uint i, j;
+  int res;
+  DBUG_ENTER("mdl_iterate");
+
+  if ((res= mdl_iterate_lock(mdl_locks.m_global_lock, callback, arg)) ||
+      (res= mdl_iterate_lock(mdl_locks.m_commit_lock, callback, arg)))
+    DBUG_RETURN(res);
+
+  for (i= 0; i < mdl_locks.m_partitions.elements(); i++)
+  {
+    MDL_map_partition *part= mdl_locks.m_partitions.at(i);
+    mysql_mutex_lock(&part->m_mutex);
+    for (j= 0; j < part->m_locks.records; j++)
+    {
+      if ((res= mdl_iterate_lock((MDL_lock*) my_hash_element(&part->m_locks, j),
+                                 callback, arg)))
+        break;
+    }
+    mysql_mutex_unlock(&part->m_mutex);
+  }
+  DBUG_RETURN(res);
 }
 
 

@@ -197,6 +197,7 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
   table->map= 1; //To ensure correct calculation of const item
   table->get_fields_in_item_tree= TRUE;
   table_list->table= table;
+  table_list->cacheable_table= false;
   return FALSE;
 }
 
@@ -1522,19 +1523,14 @@ int lex_one_token(void *arg, THD *thd)
 
       lip->save_in_comment_state();
 
-      if (lip->yyPeekn(2) == 'M' && lip->yyPeekn(3) == '!')
+      if (lip->yyPeekn(2) == '!' ||
+          (lip->yyPeekn(2) == 'M' && lip->yyPeekn(3) == '!'))
       {
-        /* Skip MariaDB unique marker */
-        lip->set_echo(FALSE);
-        lip->yySkip();
-        /* The following if will be true */
-      }
-      if (lip->yyPeekn(2) == '!')
-      {
+        bool maria_comment_syntax= lip->yyPeekn(2) == 'M';
         lip->in_comment= DISCARD_COMMENT;
         /* Accept '/' '*' '!', but do not keep this marker. */
         lip->set_echo(FALSE);
-        lip->yySkipn(3);
+        lip->yySkipn(maria_comment_syntax ? 4 : 3);
 
         /*
           The special comment format is very strict:
@@ -1564,7 +1560,14 @@ int lex_one_token(void *arg, THD *thd)
 
           version= (ulong) my_strtoll10(lip->get_ptr(), &end_ptr, &error);
 
-          if (version <= MYSQL_VERSION_ID)
+          /*
+            MySQL-5.7 has new features and might have new SQL syntax that
+            MariaDB-10.0 does not understand. Ignore all versioned comments
+            with MySQL versions in the range 50700-999999, but
+            do not ignore MariaDB specific comments for the same versions.
+          */ 
+          if (version <= MYSQL_VERSION_ID &&
+              (version < 50700 || version > 99999 || maria_comment_syntax))
           {
             /* Accept 'M' 'm' 'm' 'd' 'd' */
             lip->yySkipn(length);
@@ -3864,7 +3867,7 @@ void SELECT_LEX::update_used_tables()
   }
   for (ORDER *order= group_list.first; order; order= order->next)
     (*order->item)->update_used_tables();
-  if (!master_unit()->is_union())
+  if (!master_unit()->is_union() || master_unit()->global_parameters != this)
   {
     for (ORDER *order= order_list.first; order; order= order->next)
       (*order->item)->update_used_tables();

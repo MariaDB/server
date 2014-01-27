@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1997, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -37,13 +37,15 @@ Created 2/6/1997 Heikki Tuuri
 
 /*****************************************************************//**
 Finds out if an active transaction has inserted or modified a secondary
-index record. NOTE: the kernel mutex is temporarily released in this
-function!
-@return NULL if committed, else the active transaction */
+index record.
+@return 0 if committed, else the active transaction id;
+NOTE that this function can return false positives but never false
+negatives. The caller must confirm all positive results by calling
+trx_is_active() while holding lock_sys->mutex. */
 UNIV_INTERN
-trx_t*
-row_vers_impl_x_locked_off_kernel(
-/*==============================*/
+trx_id_t
+row_vers_impl_x_locked(
+/*===================*/
 	const rec_t*	rec,	/*!< in: record in a secondary index */
 	dict_index_t*	index,	/*!< in: the secondary index */
 	const ulint*	offsets);/*!< in: rec_get_offsets(rec, index) */
@@ -85,7 +87,7 @@ read should see. We assume that the trx id stored in rec is such that
 the consistent read should not see rec in its present version.
 @return	DB_SUCCESS or DB_MISSING_HISTORY */
 UNIV_INTERN
-ulint
+dberr_t
 row_vers_build_for_consistent_read(
 /*===============================*/
 	const rec_t*	rec,	/*!< in: record in a clustered index; the
@@ -104,16 +106,17 @@ row_vers_build_for_consistent_read(
 				*old_vers is allocated; memory for possible
 				intermediate versions is allocated and freed
 				locally within the function */
-	rec_t**		old_vers);/*!< out, own: old version, or NULL if the
-				record does not exist in the view, that is,
+	rec_t**		old_vers)/*!< out, own: old version, or NULL
+				if the history is missing or the record
+				does not exist in the view, that is,
 				it was freshly inserted afterwards */
+	__attribute__((nonnull(1,2,3,4,5,6,7)));
 
 /*****************************************************************//**
 Constructs the last committed version of a clustered index record,
-which should be seen by a semi-consistent read.
-@return	DB_SUCCESS or DB_MISSING_HISTORY */
+which should be seen by a semi-consistent read. */
 UNIV_INTERN
-ulint
+void
 row_vers_build_for_semi_consistent_read(
 /*====================================*/
 	const rec_t*	rec,	/*!< in: record in a clustered index; the
@@ -130,9 +133,10 @@ row_vers_build_for_semi_consistent_read(
 				*old_vers is allocated; memory for possible
 				intermediate versions is allocated and freed
 				locally within the function */
-	const rec_t**	old_vers);/*!< out: rec, old version, or NULL if the
+	const rec_t**	old_vers)/*!< out: rec, old version, or NULL if the
 				record does not exist in the view, that is,
 				it was freshly inserted afterwards */
+	__attribute__((nonnull(1,2,3,4,5)));
 
 
 #ifndef UNIV_NONINL

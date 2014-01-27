@@ -1,0 +1,30 @@
+SET @start_value = @@GLOBAL.innodb_sched_priority_cleaner;
+SELECT @@GLOBAL.innodb_sched_priority_cleaner;
+@@GLOBAL.innodb_sched_priority_cleaner
+19
+SELECT @@SESSION.innodb_sched_priority_cleaner;
+ERROR HY000: Variable 'innodb_sched_priority_cleaner' is a GLOBAL variable
+SET GLOBAL innodb_sched_priority_cleaner=19;
+SELECT @@GLOBAL.innodb_sched_priority_cleaner;
+@@GLOBAL.innodb_sched_priority_cleaner
+19
+SET GLOBAL innodb_sched_priority_cleaner=5;
+SELECT @@GLOBAL.innodb_sched_priority_cleaner;
+@@GLOBAL.innodb_sched_priority_cleaner
+5
+SET GLOBAL innodb_sched_priority_cleaner=0;
+SELECT @@GLOBAL.innodb_sched_priority_cleaner;
+@@GLOBAL.innodb_sched_priority_cleaner
+0
+SET GLOBAL innodb_sched_priority_cleaner=-1;
+Warnings:
+Warning	1292	Truncated incorrect innodb_sched_priority_cleaner value: '-1'
+SELECT @@GLOBAL.innodb_sched_priority_cleaner;
+@@GLOBAL.innodb_sched_priority_cleaner
+0
+SET GLOBAL innodb_sched_priority_cleaner=1.1;
+ERROR 42000: Incorrect argument type to variable 'innodb_sched_priority_cleaner'
+SET GLOBAL innodb_sched_priority_cleaner=1e1;
+ERROR 42000: Incorrect argument type to variable 'innodb_sched_priority_cleaner'
+SET GLOBAL innodb_sched_priority_cleaner='foo';
+ERROR 42000: Incorrect argument type to variable 'innodb_sched_priority_cleaner'

@@ -60,8 +60,8 @@
 #endif
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100004
-#define spider_stmt_da_message(A) (A)->get_stmt_da()->message()
-#define spider_stmt_da_sql_errno(A) (A)->get_stmt_da()->sql_errno()
+#define spider_stmt_da_message(A) thd_get_error_message(A)
+#define spider_stmt_da_sql_errno(A) thd_get_error_number(A)
 #define spider_user_defined_key_parts(A) (A)->user_defined_key_parts
 #define SPIDER_CAN_BG_UPDATE (1LL << 39)
 #define SPIDER_ALTER_ADD_PARTITION        Alter_info::ALTER_ADD_PARTITION

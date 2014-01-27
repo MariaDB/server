@@ -1,1 +1,1 @@
---plugin-load=$HA_CASSANDRA_SO --loose-cassandra=on
+--plugin-load-add=$HA_CASSANDRA_SO --loose-cassandra=on

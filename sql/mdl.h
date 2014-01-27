@@ -944,6 +944,9 @@ public:
 private:
   MDL_context(const MDL_context &rhs);          /* not implemented */
   MDL_context &operator=(MDL_context &rhs);     /* not implemented */
+
+  /* metadata_lock_info plugin */
+  friend int i_s_metadata_lock_info_fill_row(MDL_ticket*, void*);
 };
 
 
@@ -988,4 +991,7 @@ static const ulong MDL_LOCKS_HASH_PARTITIONS_DEFAULT = 8;
   to avoid starving out weak, low-prio locks.
 */
 extern "C" ulong max_write_lock_count;
+
+extern MYSQL_PLUGIN_IMPORT
+int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg);
 #endif

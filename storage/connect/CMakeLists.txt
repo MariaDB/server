@@ -265,20 +265,6 @@ int main() {
 ENDIF(CONNECT_WITH_ODBC)
 
 #
-# Installing tests
-#
-IF(INSTALL_MYSQLTESTDIR)
-INSTALL(
- DIRECTORY mysql-test/connect
- DESTINATION ${INSTALL_MYSQLTESTDIR}/suite
- USE_SOURCE_PERMISSIONS
- COMPONENT Test
- PATTERN "*~" EXCLUDE
-)
-ENDIF()
-
-
-#
 # Plugin definition
 #
 

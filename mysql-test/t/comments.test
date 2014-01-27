@@ -31,6 +31,27 @@ select 2 /*M!999999 +1 */;
 --error ER_PARSE_ERROR
 select 2 /*M!0000 +1 */;
 
+--echo #
+--echo # Testing that MySQL versions >= 5.7.x and < 10.0.0 are ignored (MDEV-5009)
+--echo #
+SELECT 1 /*!50699 +1*/;
+SELECT 1 /*!50700 +1*/;
+SELECT 1 /*!50999 +1*/;
+SELECT 1 /*!99999 +1*/;
+SELECT 1 /*!100000 +1*/;
+SELECT 1 /*!110000 +1*/;
+
+--echo #
+--echo # Tesing that versions >= 5.7.x and < 10.0.0 are not ignored 
+--echo # when used with the MariaDB executable comment syntax.
+--echo #
+SELECT 1 /*M!50699 +1*/;
+SELECT 1 /*M!50700 +1*/;
+SELECT 1 /*M!50999 +1*/;
+SELECT 1 /*M!99999 +1*/;
+SELECT 1 /*M!100000 +1*/;
+SELECT 1 /*M!110000 +1*/;
+
 #
 # Bug#25411 (trigger code truncated)
 #
