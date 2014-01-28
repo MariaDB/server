@@ -278,11 +278,12 @@ public:
 
 /* For SET ROLE */
 
-class set_var_role: public set_var
+class set_var_role: public set_var_base
 {
+  LEX_STRING role;
+  ulonglong access;
 public:
-  set_var_role(LEX_STRING role_arg) :
-    set_var(OPT_SESSION, NULL, &role_arg, NULL){};
+  set_var_role(LEX_STRING role_arg) : role(role_arg) {}
   int check(THD *thd);
   int update(THD *thd);
 };
