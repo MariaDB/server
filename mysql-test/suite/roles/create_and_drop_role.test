@@ -52,3 +52,11 @@ connection default;
 --error ER_INVALID_ROLE
 create role '';
 
+#
+# MDEV-5523 Server crashes on DROP USER <rolename>
+#
+create role r1;
+--error ER_CANNOT_USER
+drop user r1;
+drop role r1;
+
