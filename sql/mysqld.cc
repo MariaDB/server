@@ -8684,11 +8684,11 @@ SHOW_VAR status_vars[]= {
   {"wsrep_cluster_status",     (char*) &wsrep_cluster_status,    SHOW_CHAR_PTR},
   {"wsrep_cluster_size",       (char*) &wsrep_cluster_size,      SHOW_LONG_NOFLUSH},
   {"wsrep_local_index",        (char*) &wsrep_local_index,       SHOW_LONG_NOFLUSH},
-  {"wsrep_local_bf_aborts",    (char*) &wsrep_show_bf_aborts,    SHOW_FUNC},
+  {"wsrep_local_bf_aborts",    (char*) &wsrep_show_bf_aborts,    SHOW_SIMPLE_FUNC},
   {"wsrep_provider_name",      (char*) &wsrep_provider_name,     SHOW_CHAR_PTR},
   {"wsrep_provider_version",   (char*) &wsrep_provider_version,  SHOW_CHAR_PTR},
   {"wsrep_provider_vendor",    (char*) &wsrep_provider_vendor,   SHOW_CHAR_PTR},
-  {"wsrep",                    (char*) &wsrep_show_status,       SHOW_FUNC},
+  {"wsrep",                    (char*) &wsrep_show_status,       SHOW_SIMPLE_FUNC},
 #endif
   {NullS, NullS, SHOW_LONG}
 };
