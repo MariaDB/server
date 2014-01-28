@@ -9271,7 +9271,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
     if (handle_as_role != user_name->is_role())
     {
-      append_user(&wrong_users, tmp_user_name);
+      append_user(&wrong_users, user_name);
       result= TRUE;
       continue;
     }
