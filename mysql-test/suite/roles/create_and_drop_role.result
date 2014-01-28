@@ -34,3 +34,5 @@ ERROR HY000: Operation DROP ROLE failed for 'dummy'
 drop user dummy@'';
 select user, host, is_role from user where user like 'test%';
 user	host	is_role
+create role '';
+ERROR OP000: Invalid role specification ``.

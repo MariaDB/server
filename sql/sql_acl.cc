@@ -800,7 +800,7 @@ ACL_ROLE::ACL_ROLE(const char * rolename, ulong privileges, MEM_ROOT *root) :
 
 static bool is_invalid_role_name(const char *str)
 {
-  if (strcasecmp(str, "PUBLIC") && strcasecmp(str, "NONE"))
+  if (*str && strcasecmp(str, "PUBLIC") && strcasecmp(str, "NONE"))
     return false;
 
   my_error(ER_INVALID_ROLE, MYF(0), str);
