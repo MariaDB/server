@@ -8351,7 +8351,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
       {
         role= safe_str(get_field(thd->mem_root, role_field));
 
-        if (strcmp(user_from->user.str, role))
+        if (!user_from->is_role() || strcmp(user_from->user.str, role))
           continue;
 
         error= 0;
@@ -8574,7 +8574,6 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   const char *UNINIT_VAR(user);
   const char *UNINIT_VAR(host);
   const char *UNINIT_VAR(role);
-  uint role_not_matched= 1;
   ACL_USER *acl_user= NULL;
   ACL_ROLE *acl_role= NULL;
   ACL_DB *acl_db= NULL;
@@ -8734,11 +8733,10 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 
     if (struct_no == ROLES_MAPPINGS_HASH)
     {
-      role_not_matched= strcmp(user_from->user.str, role);
-      if (role_not_matched &&
+      if (user_from->is_role() ? strcmp(user_from->user.str, role) :
           (strcmp(user_from->user.str, user) ||
            my_strcasecmp(system_charset_info, user_from->host.str, host)))
-      continue;
+        continue;
     }
     else
     {
@@ -8858,14 +8856,14 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
           size_t old_key_length= role_grant_pair->hashkey.length;
           bool oom;
 
-          if (role_not_matched)
-            oom= role_grant_pair->init(&acl_memroot, user_to->user.str,
-                                       user_to->host.str,
-                                       role_grant_pair->r_uname, false);
-          else
+          if (user_to->is_role())
             oom= role_grant_pair->init(&acl_memroot, role_grant_pair->u_uname,
                                        role_grant_pair->u_hname,
                                        user_to->user.str, false);
+          else
+            oom= role_grant_pair->init(&acl_memroot, user_to->user.str,
+                                       user_to->host.str,
+                                       role_grant_pair->r_uname, false);
           if (oom)
             DBUG_RETURN(-1);
 
@@ -9349,20 +9347,20 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
   while ((tmp_user_from= user_list++))
   {
     tmp_user_to= user_list++;
-    if (!(user_from= get_current_user(thd, tmp_user_from, false)) ||
-        user_from->is_role())
+    if (!(user_from= get_current_user(thd, tmp_user_from, false)))
     {
       append_user(&wrong_users, user_from);
       result= TRUE;
       continue;
     }
-    if (!(user_to= get_current_user(thd, tmp_user_to, false)) ||
-        user_to->is_role())
+    if (!(user_to= get_current_user(thd, tmp_user_to, false)))
     {
       append_user(&wrong_users, user_to);
       result= TRUE;
       continue;
     }
+    DBUG_ASSERT(!user_from->is_role());
+    DBUG_ASSERT(!user_to->is_role());
 
     /*
       Search all in-memory structures and grant tables

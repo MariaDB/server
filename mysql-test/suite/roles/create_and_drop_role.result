@@ -38,5 +38,5 @@ create role '';
 ERROR OP000: Invalid role specification ``.
 create role r1;
 drop user r1;
-ERROR HY000: Operation DROP USER failed for 'r1'
+ERROR HY000: Operation DROP USER failed for 'r1'@'%'
 drop role r1;

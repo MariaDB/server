@@ -1771,7 +1771,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <symbol> keyword keyword_sp
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
-                 admin_option_for_role
+                 admin_option_for_role user_maybe_role
 
 %type <charset>
         opt_collate
@@ -13916,7 +13916,7 @@ ident_or_text:
         | LEX_HOSTNAME { $$=$1;}
         ;
 
-user:
+user_maybe_role:
           ident_or_text
           {
             if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
@@ -13974,7 +13974,15 @@ user:
           }
         ;
 
-user_or_role: user | current_role;
+user_or_role: user_maybe_role | current_role;
+
+user: user_maybe_role
+         {
+           if ($1->user.str != current_user.str && $1->host.str == 0)
+             $1->host= host_not_specified;
+           $$= $1;
+         }
+         ;
 
 /* Keyword that we allow for identifiers (except SP labels) */
 keyword:
