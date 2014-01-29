@@ -60,3 +60,11 @@ create role r1;
 drop user r1;
 drop role r1;
 
+#
+# MDEV-5525 Assertion `status == 0' fails on creating user after granting it role admin option
+# 
+create role r1 with admin u1;
+create user foo@bar;
+drop user foo@bar;
+drop role r1;
+

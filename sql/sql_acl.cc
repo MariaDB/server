@@ -3388,7 +3388,7 @@ abort:
 }
 
 /**
-  Updates the mysql.roles_mapping table and the acl_roles_mappings hash.
+  Updates the mysql.roles_mapping table
 
   @param table          TABLE to update
   @param user           user name of the grantee
@@ -3436,20 +3436,10 @@ replace_roles_mapping_table(TABLE *table, LEX_STRING *user, LEX_STRING *host,
                             host->str, user->str, role->str));
         goto table_error;
       }
-      /*
-         This should always return something, as the check was performed
-         earlier
-      */
-      my_hash_delete(&acl_roles_mappings, (uchar*)existing);
     }
-    else
+    else if (with_admin)
     {
-      if (revoke_grant)
-        existing->with_admin= false;
-      else
-        existing->with_admin|= with_admin;
-
-      table->field[3]->store(existing->with_admin + 1);
+      table->field[3]->store(!revoke_grant + 1);
 
       if ((error= table->file->ha_update_row(table->record[1], table->record[0])))
       {
@@ -3469,14 +3459,6 @@ replace_roles_mapping_table(TABLE *table, LEX_STRING *user, LEX_STRING *host,
                         host->str, user->str, role->str));
     goto table_error;
   }
-  else
-  {
-    /* allocate a new entry that will go in the hash */
-    ROLE_GRANT_PAIR *hash_entry= new (&acl_memroot) ROLE_GRANT_PAIR;
-    if (hash_entry->init(&acl_memroot, user->str, host->str, role->str, with_admin))
-      DBUG_RETURN(1);
-    my_hash_insert(&acl_roles_mappings, (uchar*) hash_entry);
-  }
 
   /* all ok */
   DBUG_RETURN(0);
@@ -3485,6 +3467,48 @@ table_error:
   DBUG_PRINT("info", ("table error"));
   table->file->print_error(error, MYF(0));
   DBUG_RETURN(1);
+}
+
+
+/**
+  Updates the acl_roles_mappings hash
+
+  @param user           user name of the grantee
+  @param host           host name of the grantee
+  @param role           role name to grant
+  @param with_admin     WITH ADMIN OPTION flag
+  @param existing       the entry in the acl_roles_mappings hash or NULL.
+                        it is never NULL if revoke_grant is true.
+                        it is NULL when a new pair is added, it's not NULL
+                        when an existing pair is updated.
+  @param revoke_grant   true for REVOKE, false for GRANT
+*/
+static int
+update_role_mapping(LEX_STRING *user, LEX_STRING *host, LEX_STRING *role,
+                    bool with_admin, ROLE_GRANT_PAIR *existing, bool revoke_grant)
+{
+  if (revoke_grant)
+  {
+    if (with_admin)
+    {
+      existing->with_admin= false;
+      return 0;
+    }
+    return my_hash_delete(&acl_roles_mappings, (uchar*)existing);
+  }
+
+  if (existing)
+  {
+    existing->with_admin|= with_admin;
+    return 0;
+  }
+
+  /* allocate a new entry that will go in the hash */
+  ROLE_GRANT_PAIR *hash_entry= new (&acl_memroot) ROLE_GRANT_PAIR;
+  if (hash_entry->init(&acl_memroot, user->str, host->str,
+                       role->str, with_admin))
+    return 1;
+  return my_hash_insert(&acl_roles_mappings, (uchar*) hash_entry);
 }
 
 static void
@@ -6051,6 +6075,8 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       }
       continue;
     }
+    update_role_mapping(&username, &hostname, &rolename,
+                        thd->lex->with_admin_option, hash_entry, revoke);
 
     /*
        Only need to propagate grants when granting/revoking a role to/from
@@ -9205,6 +9231,10 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
           undo_add_role_user_mapping(grantee, role);
         result= TRUE;
       }
+      else if (grantee)
+             update_role_mapping(&thd->lex->definer->user,
+                                 &thd->lex->definer->host,
+                                 &user_name->user, true, NULL, false);
     }
   }
 
@@ -9591,6 +9621,8 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
       {
         result= -1; //Something went wrong
       }
+      update_role_mapping(&lex_user->user, &lex_user->host,
+                          &role_grant->user, false, pair, true);
       /*
         Delete from the parent_grantee array of the roles granted,
         the entry pointing to this user_or_role
