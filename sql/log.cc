@@ -525,33 +525,55 @@ bool LOGGER::is_log_table_enabled(uint log_table_type)
 }
 
 
-/* Check if a given table is opened log table */
-int check_if_log_table(size_t db_len, const char *db, size_t table_name_len,
-                       const char *table_name, bool check_if_opened)
+/**
+   Check if a given table is opened log table
+
+   @param table             Table to check
+   @param check_if_opened   Only fail if it's a log table in use
+   @param error_msg	    String to put in error message if not ok.
+                            No error message if 0
+   @return 0 ok
+   @return # Type of log file
+ */
+
+int check_if_log_table(const TABLE_LIST *table,
+                       bool check_if_opened,
+                       const char *error_msg)
 {
-  if (db_len == 5 &&
+  int result= 0;
+  if (table->db_length == 5 &&
       !(lower_case_table_names ?
-        my_strcasecmp(system_charset_info, db, "mysql") :
-        strcmp(db, "mysql")))
+        my_strcasecmp(system_charset_info, table->db, "mysql") :
+        strcmp(table->db, "mysql")))
   {
-    if (table_name_len == 11 && !(lower_case_table_names ?
-                                  my_strcasecmp(system_charset_info,
-                                                table_name, "general_log") :
-                                  strcmp(table_name, "general_log")))
+    const char *table_name= table->table_name;
+
+    if (table->table_name_length == 11 &&
+        !(lower_case_table_names ?
+          my_strcasecmp(system_charset_info,
+                        table_name, "general_log") :
+          strcmp(table_name, "general_log")))
     {
-      if (!check_if_opened || logger.is_log_table_enabled(QUERY_LOG_GENERAL))
-        return QUERY_LOG_GENERAL;
-      return 0;
+      result= QUERY_LOG_GENERAL;
+      goto end;
     }
 
-    if (table_name_len == 8 && !(lower_case_table_names ?
+    if (table->table_name_length == 8 && !(lower_case_table_names ?
       my_strcasecmp(system_charset_info, table_name, "slow_log") :
       strcmp(table_name, "slow_log")))
     {
-      if (!check_if_opened || logger.is_log_table_enabled(QUERY_LOG_SLOW))
-        return QUERY_LOG_SLOW;
-      return 0;
+      result= QUERY_LOG_SLOW;
+      goto end;
     }
+  }
+  return 0;
+
+end:
+  if (!check_if_opened || logger.is_log_table_enabled(result))
+  {
+    if (error_msg)
+      my_error(ER_BAD_LOG_STATEMENT, MYF(0), error_msg);
+    return result;
   }
   return 0;
 }

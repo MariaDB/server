@@ -32,6 +32,7 @@
 #include "sql_cache.h"
 #include "structs.h"                            /* SHOW_COMP_OPTION */
 #include "sql_array.h"          /* Dynamic_array<> */
+#include "mdl.h"
 
 #include <my_compare.h>
 #include <ft_global.h>
@@ -378,6 +379,7 @@ enum enum_alter_inplace_result {
 #define HA_LEX_CREATE_IF_NOT_EXISTS 2
 #define HA_LEX_CREATE_TABLE_LIKE 4
 #define HA_CREATE_TMP_ALTER     8
+#define HA_LEX_CREATE_REPLACE   16
 #define HA_MAX_REC_LENGTH	65535
 
 /* Table caching type */
@@ -1573,9 +1575,15 @@ struct HA_CREATE_INFO
   ulong avg_row_length;
   ulong used_fields;
   ulong key_block_size;
-  uint stats_sample_pages;		/* number of pages to sample during
-					stats estimation, if used, otherwise 0. */
-  enum_stats_auto_recalc stats_auto_recalc;
+  /*
+    number of pages to sample during
+    stats estimation, if used, otherwise 0.
+  */
+  uint stats_sample_pages;
+  uint null_bits;                       /* NULL bits at start of record */
+  uint options;				/* OR of HA_CREATE_ options */
+  uint merge_insert_method;
+  uint extra_size;                      /* length of extra data segment */
   SQL_I_List<TABLE_LIST> merge_list;
   handlerton *db_type;
   /**
@@ -1588,20 +1596,22 @@ struct HA_CREATE_INFO
     If nothing speficied inherits the value of the original table (if present).
   */
   enum row_type row_type;
-  uint null_bits;                       /* NULL bits at start of record */
-  uint options;				/* OR of HA_CREATE_ options */
-  uint merge_insert_method;
-  uint extra_size;                      /* length of extra data segment */
   enum ha_choice transactional;
-  bool varchar;                         ///< 1 if table has a VARCHAR
   enum ha_storage_media storage_media;  ///< DEFAULT, DISK or MEMORY
   enum ha_choice page_checksum;         ///< If we have page_checksums
   engine_option_value *option_list;     ///< list of table create options
+  enum_stats_auto_recalc stats_auto_recalc;
+  bool varchar;                         ///< 1 if table has a VARCHAR
 
   /* the following three are only for ALTER TABLE, check_if_incompatible_data() */
   ha_table_option_struct *option_struct;           ///< structure with parsed table options
   ha_field_option_struct **fields_option_struct;   ///< array of field option structures
   ha_index_option_struct **indexes_option_struct;  ///< array of index option structures
+
+  /* The following is used to remember the old state for CREATE OR REPLACE */
+  TABLE *table;
+  TABLE_LIST *pos_in_locked_tables;
+  MDL_ticket *mdl_ticket;
 
   bool tmp_table() { return options & HA_LEX_CREATE_TMP_TABLE; }
 };

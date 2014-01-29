@@ -338,19 +338,8 @@ bool Sql_cmd_discard_import_tablespace::execute(THD *thd)
     it is the case.
     TODO: this design is obsolete and will be removed.
   */
-  int table_kind= check_if_log_table(table_list->db_length, table_list->db,
-                                     table_list->table_name_length,
-                                     table_list->table_name, false);
-
-  if (table_kind)
-  {
-    /* Disable alter of enabled log tables */
-    if (logger.is_log_table_enabled(table_kind))
-    {
-      my_error(ER_BAD_LOG_STATEMENT, MYF(0), "ALTER");
-      return true;
-    }
-  }
+  if (check_if_log_table(table_list, TRUE, "ALTER"))
+    return true;
 
   return
     mysql_discard_or_import_tablespace(thd, table_list,

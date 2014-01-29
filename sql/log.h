@@ -833,8 +833,8 @@ public:
 };
 
 
-int check_if_log_table(size_t db_len, const char *db, size_t table_name_len,
-                       const char *table_name, bool check_if_opened);
+int check_if_log_table(const TABLE_LIST *table, bool check_if_opened,
+                       const char *errmsg);
 
 class Log_to_csv_event_handler: public Log_event_handler
 {

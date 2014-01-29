@@ -2832,12 +2832,8 @@ case SQLCOM_PREPARE:
     if ((res= create_table_precheck(thd, select_tables, create_table)))
       goto end_with_restore_list;
 
-#ifndef QQ
     /* Might have been updated in create_table_precheck */
     create_info.alias= create_table->alias;
-#else
-    create_table->alias= (char*) create_info.alias;
-#endif
 
 #ifdef HAVE_READLINK
     /* Fix names if symlinked tables */
@@ -2866,6 +2862,12 @@ case SQLCOM_PREPARE:
       create_info.default_table_charset= create_info.table_charset;
       create_info.table_charset= 0;
     }
+
+    /*
+      For CREATE TABLE we should not open the table even if it exists.
+      If the table exists, we should either not create it or replace it
+    */
+    lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     {
@@ -2958,25 +2960,6 @@ case SQLCOM_PREPARE:
       }
       else
       {
-        /* The table already exists */
-        if (create_table->table)
-        {
-          if (create_info.options & HA_LEX_CREATE_IF_NOT_EXISTS)
-          {
-            push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                                ER_TABLE_EXISTS_ERROR,
-                                ER(ER_TABLE_EXISTS_ERROR),
-                                create_info.alias);
-            my_ok(thd);
-          }
-          else
-          {
-            my_error(ER_TABLE_EXISTS_ERROR, MYF(0), create_info.alias);
-            res= 1;
-          }
-          goto end_with_restore_list;
-        }
-
         /*
           Remove target table from main select and name resolution
           context. This can't be done earlier as it will break view merging in
@@ -2984,9 +2967,8 @@ case SQLCOM_PREPARE:
         */
         lex->unlink_first_table(&link_to_local);
 
-        /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
-        if (create_info.tmp_table())
-          thd->variables.option_bits|= OPTION_KEEP_LOG;
+        /* Store reference to table in case of LOCK TABLES */
+        create_info.table= create_table->table;
 
         /*
           select_create is currently not re-execution friendly and
@@ -3004,18 +2986,18 @@ case SQLCOM_PREPARE:
             CREATE from SELECT give its SELECT_LEX for SELECT,
             and item_list belong to SELECT
           */
-          res= handle_select(thd, lex, result, 0);
+          if (!(res= handle_select(thd, lex, result, 0)))
+          {
+            if (create_info.tmp_table())
+              thd->variables.option_bits|= OPTION_KEEP_LOG;
+          }
           delete result;
         }
-
         lex->link_first_table_back(create_table, link_to_local);
       }
     }
     else
     {
-      /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
-      if (create_info.tmp_table())
-        thd->variables.option_bits|= OPTION_KEEP_LOG;
       /* regular create */
       if (create_info.options & HA_LEX_CREATE_TABLE_LIKE)
       {
@@ -3030,7 +3012,12 @@ case SQLCOM_PREPARE:
                                 &create_info, &alter_info);
       }
       if (!res)
+      {
+        /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
+        if (create_info.tmp_table())
+          thd->variables.option_bits|= OPTION_KEEP_LOG;
         my_ok(thd);
+      }
     }
 
 end_with_restore_list:
@@ -7960,8 +7947,9 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
              (CREATE_ACL | (select_lex->item_list.elements ? INSERT_ACL : 0));
 
   /* CREATE OR REPLACE on not temporary tables require DROP_ACL */
-  if (lex->replace && !lex->create_info.tmp_table())
-    want_priv= DROP_ACL;
+  if ((lex->create_info.options & HA_LEX_CREATE_REPLACE) &&
+      !lex->create_info.tmp_table())
+    want_priv|= DROP_ACL;
                           
   if (check_access(thd, want_priv, create_table->db,
                    &create_table->grant.privilege,
@@ -8030,6 +8018,12 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
       goto err;
   }
   error= FALSE;
+
+  /*
+    For CREATE TABLE we should not open the table even if it exists.
+    If the table exists, we should either not create it or replace it
+  */
+  lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
 
 err:
   DBUG_RETURN(error);

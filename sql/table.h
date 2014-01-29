@@ -1951,7 +1951,7 @@ struct TABLE_LIST
      Indicates that if TABLE_LIST object corresponds to the table/view
      which requires special handling.
   */
-  enum
+  enum enum_open_strategy
   {
     /* Normal open. */
     OPEN_NORMAL= 0,

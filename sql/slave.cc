@@ -1047,9 +1047,10 @@ static bool sql_slave_killed(rpl_group_info *rgi)
         "documentation for details).";
 
       DBUG_PRINT("info", ("modified_non_trans_table: %d  OPTION_BEGIN: %d  "
-                          "is_in_group: %d",
+                          "OPTION_KEEP_LOG: %d  is_in_group: %d",
                           thd->transaction.all.modified_non_trans_table,
                           test(thd->variables.option_bits & OPTION_BEGIN),
+                          test(thd->variables.option_bits & OPTION_KEEP_LOG),
                           rli->is_in_group()));
 
       if (rli->abort_slave)

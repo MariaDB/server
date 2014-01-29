@@ -2470,7 +2470,6 @@ struct LEX: public Query_tables_list
   uint8 context_analysis_only;
   bool drop_temporary, local_file, one_shot_set;
   bool check_exists;
-  bool replace;
   bool autocommit;
   bool verbose, no_write_to_binlog;
 
