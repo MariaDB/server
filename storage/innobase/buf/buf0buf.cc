@@ -2436,7 +2436,7 @@ buf_page_get_gen(
 	ibool		must_read;
 	rw_lock_t*	hash_lock;
 	ib_mutex_t*	block_mutex;
-	buf_page_t*	hash_bpage;
+	buf_page_t*	hash_bpage  __attribute__((unused));
 	ulint		retries = 0;
 	buf_pool_t*	buf_pool = buf_pool_get(space, offset);
 
