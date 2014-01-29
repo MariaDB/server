@@ -187,11 +187,11 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 #define C_ALTER_TABLE_FRM_ONLY   -2
 #define C_ASSISTED_DISCOVERY     -3
 
-bool mysql_create_table_no_lock(THD *thd, const char *db,
-                                const char *table_name,
-                                HA_CREATE_INFO *create_info,
-                                Alter_info *alter_info, bool *is_trans,
-                                int create_table_mode);
+int mysql_create_table_no_lock(THD *thd, const char *db,
+                               const char *table_name,
+                               HA_CREATE_INFO *create_info,
+                               Alter_info *alter_info, bool *is_trans,
+                               int create_table_mode);
 
 handler *mysql_create_frm_image(THD *thd,
                                 const char *db, const char *table_name,

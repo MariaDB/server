@@ -506,13 +506,8 @@ bool Sql_cmd_alter_table_exchange_partition::
 
   /* Don't allow to exchange with log table */
   swap_table_list= table_list->next_local;
-  if (check_if_log_table(swap_table_list->db_length, swap_table_list->db,
-                         swap_table_list->table_name_length,
-                         swap_table_list->table_name, 0))
-  {
-    my_error(ER_WRONG_USAGE, MYF(0), "PARTITION", "log table");
+  if (check_if_log_table(swap_table_list, FALSE, "ALTER PARTITION"))
     DBUG_RETURN(TRUE);
-  }
 
   /*
     Currently no MDL lock that allows both read and write and is upgradeable

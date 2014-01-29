@@ -1513,8 +1513,9 @@ public:
   void unlock_locked_tables(THD *thd);
   ~Locked_tables_list()
   {
-    unlock_locked_tables(0);
+    reset();
   }
+  void reset();
   bool init_locked_tables(THD *thd);
   TABLE_LIST *locked_tables() { return m_locked_tables; }
   void unlink_from_list(THD *thd, TABLE_LIST *table_list,
@@ -1523,6 +1524,9 @@ public:
                                 MYSQL_LOCK *lock,
                                 size_t reopen_count);
   bool reopen_tables(THD *thd);
+  bool restore_lock(THD *thd, TABLE_LIST *dst_table_list, TABLE *table,
+                    MYSQL_LOCK *lock);
+  void add_back_last_deleted_lock(TABLE_LIST *dst_table_list);
 };
 
 
@@ -3995,6 +3999,8 @@ class select_create: public select_insert {
   MYSQL_LOCK *m_lock;
   /* m_lock or thd->extra_lock */
   MYSQL_LOCK **m_plock;
+  bool       exit_done;
+
 public:
   select_create (TABLE_LIST *table_arg,
 		 HA_CREATE_INFO *create_info_par,
@@ -4006,7 +4012,7 @@ public:
     create_info(create_info_par),
     select_tables(select_tables_arg),
     alter_info(alter_info_arg),
-    m_plock(NULL)
+    m_plock(NULL), exit_done(0)
     {}
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
 
