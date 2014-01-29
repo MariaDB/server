@@ -3476,6 +3476,11 @@ innobase_commit_low(
 /*================*/
 	trx_t*	trx)	/*!< in: transaction handle */
 {
+	if (trx_is_started(trx)) {
+
+		trx_commit_for_mysql(trx);
+	}
+
 #ifdef WITH_WSREP
 	THD* thd = (THD*)trx->mysql_thd;
 	const char* tmp = 0;
@@ -3493,10 +3498,7 @@ innobase_commit_low(
 #endif /* WSREP_PROC_INFO */
 	}
 #endif /* WITH_WSREP */
-	if (trx_is_started(trx)) {
 
-		trx_commit_for_mysql(trx);
-	}
 #ifdef WITH_WSREP
 	if (wsrep_on((void*)thd)) { thd_proc_info(thd, tmp); }
 #endif /* WITH_WSREP */

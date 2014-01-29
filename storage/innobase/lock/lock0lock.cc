@@ -1582,17 +1582,17 @@ lock_rec_other_has_expl_req(
 #endif /* UNIV_DEBUG */
 
 #ifdef WITH_WSREP
-static void 
+static void
 wsrep_kill_victim(const trx_t * const trx, const lock_t *lock) {
         ut_ad(lock_mutex_own());
         ut_ad(trx_mutex_own(lock->trx));
 	int bf_this  = wsrep_thd_is_brute_force(trx->mysql_thd);
-	int bf_other = 
-		wsrep_thd_is_brute_force(lock->trx->mysql_thd);
+	int bf_other = wsrep_thd_is_brute_force(lock->trx->mysql_thd);
+
 	if ((bf_this && !bf_other) ||
 		(bf_this && bf_other && wsrep_trx_order_before(
 			trx->mysql_thd, lock->trx->mysql_thd))) {
-          
+
 		if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 			if (wsrep_debug)
 				fprintf(stderr, "WSREP: BF victim waiting\n");
@@ -4656,9 +4656,11 @@ lock_table_other_has_incompatible(
 		    && (wait || !lock_get_wait(lock))) {
 
 #ifdef WITH_WSREP
-			if (wsrep_debug) 
+			if (wsrep_debug)
 				fprintf(stderr, "WSREP: table lock abort");
+			trx_mutex_enter(lock->trx);
 			wsrep_kill_victim((trx_t *)trx, (lock_t *)lock);
+			trx_mutex_exit(lock->trx);
 #endif
 
 			return(lock);
