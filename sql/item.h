@@ -332,6 +332,8 @@ struct Name_resolution_context: Sql_alloc
   */
   TABLE_LIST *last_name_resolution_table;
 
+  /* Cache first_name_resolution_table in setup_natural_join_row_types */
+  TABLE_LIST *natural_join_first_table;
   /*
     SELECT_LEX item belong to, in case of merged VIEW it can differ from
     SELECT_LEX where item was created, so we can't use table_list/field_list
@@ -950,7 +952,9 @@ public:
   my_decimal *val_decimal_from_date(my_decimal *decimal_value);
   my_decimal *val_decimal_from_time(my_decimal *decimal_value);
   longlong val_int_from_decimal();
+  longlong val_int_from_date();
   double val_real_from_decimal();
+  double val_real_from_date();
 
   int save_time_in_field(Field *field);
   int save_date_in_field(Field *field);
@@ -3267,13 +3271,16 @@ class Item_direct_view_ref :public Item_direct_ref
   TABLE_LIST *view;
   TABLE *null_ref_table;
 
+#define NO_NULL_TABLE (reinterpret_cast<TABLE *>(0x1))
+
   bool check_null_ref()
   {
     if (null_ref_table == NULL)
     {
-      null_ref_table= view->get_real_join_table();
+      if (!(null_ref_table= view->get_real_join_table()))
+        null_ref_table= NO_NULL_TABLE;
     }
-    if (null_ref_table->null_row)
+    if (null_ref_table != NO_NULL_TABLE && null_ref_table->null_row)
     {
       null_value= 1;
       return TRUE;
@@ -4128,6 +4135,10 @@ class Item_cache_temporal: public Item_cache_int
 public:
   Item_cache_temporal(enum_field_types field_type_arg);
   String* val_str(String *str);
+  my_decimal *val_decimal(my_decimal *);
+  longlong val_int();
+  longlong val_temporal_packed();
+  double val_real();
   bool cache_value();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int save_in_field(Field *field, bool no_conversions);

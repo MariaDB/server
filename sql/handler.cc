@@ -44,6 +44,7 @@
 #include "probes_mysql.h"
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_audit.h"
+#include "../mysys/my_handler_errors.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -3201,8 +3202,18 @@ void handler::print_error(int error, myf errflag)
 	  my_error(ER_GET_ERRMSG, errflag, error, str.c_ptr(), engine);
         }
       }
+      else if (error >= HA_ERR_FIRST && error <= HA_ERR_LAST)
+      {
+	const char* engine= table_type();
+        const char *errmsg= handler_error_messages[error - HA_ERR_FIRST];
+        my_error(ER_GET_ERRMSG, errflag, error, errmsg, engine);
+	SET_FATAL_ERROR;
+      }
       else
-	my_error(ER_GET_ERRNO,errflag,error);
+      {
+        my_error(ER_GET_ERRNO, errflag,error);
+	/* SET_FATAL_ERROR; */
+      }
       DBUG_VOID_RETURN;
     }
   }
@@ -4957,8 +4968,10 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
                          "", 0, "DISABLED", 8) ? 1 : 0;
     }
     else
+    {
       result= db_type->show_status &&
               db_type->show_status(db_type, thd, stat_print, stat) ? 1 : 0;
+    }
   }
 
   /*

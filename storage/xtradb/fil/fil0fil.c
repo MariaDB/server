@@ -4369,7 +4369,7 @@ fil_load_single_table_tablespace(
 
 		if (check_msg) {
 			fprintf(stderr,
-				"InnoDB: Error: %s in file %s",
+				"InnoDB: Error: %s in file %s\n",
 				check_msg, filepath);
 			goto func_exit;
 		}
@@ -4967,6 +4967,7 @@ fil_extend_space_to_desired_size(
 			space->size += (size_after_extend - start_page_no);
 			os_has_said_disk_full = FALSE;
 		}
+		fil_node_complete_io(node, fil_system, OS_FILE_READ);
 		goto complete_io;
 	}
 #endif
@@ -5027,10 +5028,20 @@ fil_extend_space_to_desired_size(
 
 	mem_free(buf2);
 
-	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
-
 #ifdef HAVE_POSIX_FALLOCATE
 complete_io:
+	/* If posix_fallocate was used to extent the file space
+	we need to complete the io. Because no actual writes were
+	dispatched read operation is enough here. Without this
+	there will be assertion at shutdown indicating that
+	all IO is not completed. */
+	if (srv_use_posix_fallocate) {
+		fil_node_complete_io(node, fil_system, OS_FILE_READ);
+	} else {
+		fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
+	}
+#else
+	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
 #endif
 
 	*actual_size = space->size;

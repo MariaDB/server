@@ -1227,7 +1227,7 @@ int main(int argc,char *argv[])
 
   put_info("Welcome to the MariaDB monitor.  Commands end with ; or \\g.",
 	   INFO_INFO);
-  sprintf((char*) glob_buffer.ptr(),
+  my_snprintf((char*) glob_buffer.ptr(), glob_buffer.alloced_length(),
 	  "Your %s connection id is %lu\nServer version: %s\n",
           mysql_get_server_name(&mysql),
 	  mysql_thread_id(&mysql), server_version_string(&mysql));
@@ -1383,7 +1383,6 @@ sig_handler handle_sigint(int sig)
   mysql_real_query(kill_mysql, kill_buffer, (uint) strlen(kill_buffer));
   mysql_close(kill_mysql);
   tee_fprintf(stdout, "Ctrl-C -- query killed. Continuing normally.\n");
-  interrupted_query= 0;
   if (in_com_source)
     aborted= 1;                                 // Abort source command
   return;
@@ -1409,7 +1408,8 @@ sig_handler window_resize(int sig)
   struct winsize window_size;
 
   if (ioctl(fileno(stdin), TIOCGWINSZ, &window_size) == 0)
-    terminal_width= window_size.ws_col;
+    if (window_size.ws_col > 0)
+      terminal_width= window_size.ws_col;
 }
 #endif
 
@@ -1673,8 +1673,9 @@ static void usage(int version)
     return;
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
   printf("Usage: %s [OPTIONS] [database]\n", my_progname);
-  my_print_help(my_long_options);
   print_defaults("my", load_default_groups);
+  puts("");
+  my_print_help(my_long_options);
   my_print_variables(my_long_options);
 }
 

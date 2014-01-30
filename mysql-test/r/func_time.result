@@ -365,7 +365,7 @@ extract(DAY_MINUTE FROM "02 10:11:12")
 21011
 select extract(DAY_SECOND FROM "225 10:11:12");
 extract(DAY_SECOND FROM "225 10:11:12")
-8385959
+34225959
 Warnings:
 Warning	1292	Truncated incorrect time value: '225 10:11:12'
 select extract(HOUR FROM "1999-01-02 10:11:12");
@@ -948,10 +948,10 @@ sec_to_time(1) + 0, from_unixtime(1) + 0;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `now() - now()` decimal(20,0) NOT NULL DEFAULT '0',
-  `curtime() - curtime()` decimal(11,0) NOT NULL DEFAULT '0',
-  `sec_to_time(1) + 0` decimal(11,0) DEFAULT NULL,
-  `from_unixtime(1) + 0` decimal(20,0) DEFAULT NULL
+  `now() - now()` bigint(21) NOT NULL DEFAULT '0',
+  `curtime() - curtime()` bigint(12) NOT NULL DEFAULT '0',
+  `sec_to_time(1) + 0` bigint(12) DEFAULT NULL,
+  `from_unixtime(1) + 0` bigint(21) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 SELECT SEC_TO_TIME(3300000);
@@ -1025,7 +1025,7 @@ Note	1105	Cast to unsigned converted negative integer to it's positive complemen
 Warning	1292	Truncated incorrect time value: '18446744073709551615:00:00'
 SELECT EXTRACT(HOUR FROM '100000:02:03');
 EXTRACT(HOUR FROM '100000:02:03')
-838
+22
 Warnings:
 Warning	1292	Truncated incorrect time value: '100000:02:03'
 CREATE TABLE t1(f1 TIME);
@@ -2347,3 +2347,64 @@ DROP TABLE t1;
 SELECT MAKETIME(0, 0, -0.1);
 MAKETIME(0, 0, -0.1)
 NULL
+#
+# MDEV-4857 Wrong result of HOUR('1 00:00:00')
+#
+SELECT HOUR('1 02:00:00'), HOUR('26:00:00');
+HOUR('1 02:00:00')	HOUR('26:00:00')
+26	26
+SELECT HOUR(TIME'1 02:00:00'), HOUR(TIME'26:00:00');
+HOUR(TIME'1 02:00:00')	HOUR(TIME'26:00:00')
+26	26
+SELECT HOUR(TIME('1 02:00:00')), HOUR(TIME('26:00:00'));
+HOUR(TIME('1 02:00:00'))	HOUR(TIME('26:00:00'))
+26	26
+SELECT DAY(TIME('1 02:00:00')), DAY(TIME('26:00:00'));
+DAY(TIME('1 02:00:00'))	DAY(TIME('26:00:00'))
+0	0
+SELECT EXTRACT(HOUR FROM '1 02:00:00'), EXTRACT(HOUR FROM '26:00:00');
+EXTRACT(HOUR FROM '1 02:00:00')	EXTRACT(HOUR FROM '26:00:00')
+2	2
+SELECT EXTRACT(HOUR FROM TIME'1 02:00:00'), EXTRACT(HOUR FROM TIME'26:00:00');
+EXTRACT(HOUR FROM TIME'1 02:00:00')	EXTRACT(HOUR FROM TIME'26:00:00')
+2	2
+SELECT EXTRACT(HOUR FROM TIME('1 02:00:00')), EXTRACT(HOUR FROM TIME('26:00:00'));
+EXTRACT(HOUR FROM TIME('1 02:00:00'))	EXTRACT(HOUR FROM TIME('26:00:00'))
+2	2
+SELECT EXTRACT(DAY FROM TIME('1 02:00:00')), EXTRACT(DAY FROM TIME('26:00:00'));
+EXTRACT(DAY FROM TIME('1 02:00:00'))	EXTRACT(DAY FROM TIME('26:00:00'))
+1	1
+#
+# MDEV-5458 RQG hits 'sql/tztime.cc:799: my_time_t sec_since_epoch(int, int, int, int, int, int): Assertion `mon > 0 && mon < 13' failed.'
+#
+SET TIMESTAMP=UNIX_TIMESTAMP('2014-01-22 18:19:20');
+CREATE TABLE t1 (t TIME);
+INSERT INTO t1 VALUES ('03:22:30'),('18:30:05');
+SELECT CONVERT_TZ(GREATEST(t, CURRENT_DATE()), '+02:00', '+10:00') FROM t1;
+CONVERT_TZ(GREATEST(t, CURRENT_DATE()), '+02:00', '+10:00')
+NULL
+NULL
+Warnings:
+Warning	1292	Truncated incorrect time value: '1296:00:00'
+Warning	1292	Incorrect datetime value: '838:59:59'
+Warning	1292	Truncated incorrect time value: '1296:00:00'
+Warning	1292	Incorrect datetime value: '838:59:59'
+SELECT GREATEST(t, CURRENT_DATE()) FROM t1;
+GREATEST(t, CURRENT_DATE())
+838:59:59
+838:59:59
+Warnings:
+Warning	1292	Truncated incorrect time value: '1296:00:00'
+Warning	1292	Truncated incorrect time value: '1296:00:00'
+DROP TABLE t1;
+SET TIMESTAMP=DEFAULT;
+#
+# MDEV-5504 Server crashes in String::length on SELECT with MONTHNAME, GROUP BY, ROLLUP
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT 1 FROM t1 GROUP BY MONTHNAME(0) WITH ROLLUP;
+1
+1
+1
+DROP TABLE t1;

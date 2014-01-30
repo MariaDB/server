@@ -1250,7 +1250,7 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
 
 void Item_sum_hybrid::setup_hybrid(Item *item, Item *value_arg)
 {
-  if (!(value= Item_cache::get_cache(item)))
+  if (!(value= Item_cache::get_cache(item, item->cmp_type())))
     return;
   value->setup(item);
   value->store(value_arg);
@@ -1579,8 +1579,12 @@ void Item_sum_count::clear()
 
 bool Item_sum_count::add()
 {
-  if (!args[0]->maybe_null || !args[0]->is_null())
-    count++;
+  for (uint i=0; i<arg_count; i++)
+  {
+    if (args[i]->maybe_null && args[i]->is_null())
+      return 0;
+  }
+  count++;
   return 0;
 }
 

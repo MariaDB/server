@@ -396,6 +396,27 @@ my_decimal *Item::val_decimal_from_time(my_decimal *decimal_value)
 }
 
 
+longlong Item::val_int_from_date()
+{
+  DBUG_ASSERT(fixed == 1);
+  MYSQL_TIME ltime;
+  if (get_date(&ltime, 0))
+    return 0;
+  longlong v= TIME_to_ulonglong(&ltime);
+  return ltime.neg ? -v : v;
+}
+
+
+double Item::val_real_from_date()
+{
+  DBUG_ASSERT(fixed == 1);
+  MYSQL_TIME ltime;
+  if (get_date(&ltime, 0))
+    return 0;
+  return TIME_to_double(&ltime);
+}
+
+
 double Item::val_real_from_decimal()
 {
   /* Note that fix_fields may not be called for Item_avg_field items */
@@ -4679,6 +4700,12 @@ bool is_outer_table(TABLE_LIST *table, SELECT_LEX *select)
 /**
   Resolve the name of an outer select column reference.
 
+  @param[in] thd             current thread
+  @param[in,out] from_field  found field reference or (Field*)not_found_field
+  @param[in,out] reference   view column if this item was resolved to a
+    view column
+
+  @description
   The method resolves the column reference represented by 'this' as a column
   present in outer selects that contain current select.
 
@@ -4688,10 +4715,16 @@ bool is_outer_table(TABLE_LIST *table, SELECT_LEX *select)
   current select as dependent. The found reference of field should be
   provided in 'from_field'.
 
-  @param[in] thd             current thread
-  @param[in,out] from_field  found field reference or (Field*)not_found_field
-  @param[in,out] reference   view column if this item was resolved to a
-    view column
+  The cache is critical for prepared statements of type:
+
+  SELECT a FROM (SELECT a FROM test.t1) AS s1 NATURAL JOIN t2 AS s2;
+
+  This is internally converted to a join similar to
+
+  SELECT a FROM t1 AS s1,t2 AS s2 WHERE t2.a=t1.a;
+
+  Without the cache, we would on re-prepare not know if 'a' did match
+  s1.a or s2.a.
 
   @note
     This is the inner loop of Item_field::fix_fields:
@@ -4721,7 +4754,12 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   enum_parsing_place place= NO_MATTER;
   bool field_found= (*from_field != not_found_field);
   bool upward_lookup= FALSE;
+  TABLE_LIST *table_list;
 
+  /* Calulate the TABLE_LIST for the table */
+  table_list= (cached_table ? cached_table :
+               field_found && (*from_field) != view_ref_found ?
+               (*from_field)->table->pos_in_table_list : 0);
   /*
     If there are outer contexts (outer selects, but current select is
     not derived table or view) try to resolve this reference in the
@@ -4740,6 +4778,15 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   if (current_sel->master_unit()->first_select()->linkage !=
       DERIVED_TABLE_TYPE)
     outer_context= context->outer_context;
+
+  /*
+    This assert is to ensure we have an outer contex when *from_field
+    is set.
+    If this would not be the case, we would assert in mark_as_dependent
+    as last_checked_countex == context
+  */
+  DBUG_ASSERT(outer_context || !*from_field ||
+              *from_field == not_found_field);
   for (;
        outer_context;
        outer_context= outer_context->outer_context)
@@ -4756,7 +4803,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       to find_field_in_tables(). Only need to find appropriate context.
     */
     if (field_found && outer_context->select_lex !=
-        cached_table->select_lex)
+        table_list->select_lex)
       continue;
     /*
       In case of a view, find_field_in_tables() writes the pointer to
@@ -4955,9 +5002,9 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     if (last_checked_context->select_lex->having_fix_field)
     {
       Item_ref *rf;
-      rf= new Item_ref(context,
-                       (cached_table->db[0] ? cached_table->db : 0),
-                       (char*) cached_table->alias, (char*) field_name);
+      rf= new Item_ref(context, (*from_field)->table->s->db.str,
+                       (*from_field)->table->alias.c_ptr(),
+                       (char*) field_name);
       if (!rf)
         return -1;
       thd->change_item_tree(reference, rf);
@@ -5028,6 +5075,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 
   if (!field)					// If field is not checked
   {
+    TABLE_LIST *table_list;
     /*
       In case of view, find_field_in_tables() write pointer to view field
       expression to 'reference', i.e. it substitute that expression instead
@@ -5113,11 +5161,14 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     else if (!from_field)
       goto error;
 
-    if (!outer_fixed && cached_table && cached_table->select_lex &&
+    table_list= (cached_table ? cached_table :
+                 from_field != view_ref_found ?
+                 from_field->table->pos_in_table_list : 0);
+    if (!outer_fixed && table_list && table_list->select_lex &&
         context->select_lex &&
-        cached_table->select_lex != context->select_lex &&
-        !context->select_lex->is_merged_child_of(cached_table->select_lex) &&
-        is_outer_table(cached_table, context->select_lex))
+        table_list->select_lex != context->select_lex &&
+        !context->select_lex->is_merged_child_of(table_list->select_lex) &&
+        is_outer_table(table_list, context->select_lex))
     {
       int ret;
       if ((ret= fix_outer_field(thd, &from_field, reference)) < 0)
@@ -8831,6 +8882,18 @@ Item_cache_temporal::Item_cache_temporal(enum_field_types field_type_arg):
 }
 
 
+longlong Item_cache_temporal::val_temporal_packed()
+{
+  DBUG_ASSERT(fixed == 1);
+  if ((!value_cached && !cache_value()) || null_value)
+  {
+    null_value= TRUE;
+    return 0;
+  }
+  return value;
+}
+
+
 String *Item_cache_temporal::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -8840,6 +8903,42 @@ String *Item_cache_temporal::val_str(String *str)
     return NULL;
   }
   return val_string_from_date(str);
+}
+
+
+my_decimal *Item_cache_temporal::val_decimal(my_decimal *decimal_value)
+{
+  DBUG_ASSERT(fixed == 1);
+  if ((!value_cached && !cache_value()) || null_value)
+  {
+    null_value= true;
+    return NULL;
+  }
+  return val_decimal_from_date(decimal_value);
+}
+
+
+longlong Item_cache_temporal::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  if ((!value_cached && !cache_value()) || null_value)
+  {
+    null_value= true;
+    return 0;
+  }
+  return val_int_from_date();
+}
+
+
+double Item_cache_temporal::val_real()
+{
+  DBUG_ASSERT(fixed == 1);
+  if ((!value_cached && !cache_value()) || null_value)
+  {
+    null_value= true;
+    return 0;
+  }
+  return val_real_from_date();
 }
 
 

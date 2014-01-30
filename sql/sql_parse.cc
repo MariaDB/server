@@ -2183,6 +2183,7 @@ mysql_execute_command(THD *thd)
   bool have_table_map_for_update= FALSE;
 #endif
   DBUG_ENTER("mysql_execute_command");
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   thd->work_part_info= 0;
 #endif
@@ -4976,6 +4977,7 @@ finish:
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||
                thd->in_multi_stmt_transaction_mode());
 
+  lex->unit.cleanup();
 
   if (! thd->in_sub_stmt)
   {
@@ -5008,7 +5010,6 @@ finish:
 #endif
   }
 
-  lex->unit.cleanup();
   /* Free tables */
   thd_proc_info(thd, "closing tables");
   close_thread_tables(thd);
@@ -6695,7 +6696,11 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     ptr->schema_table= schema_table;
   }
   ptr->select_lex=  lex->current_select;
-  ptr->cacheable_table= 1;
+  /*
+    We can't cache internal temporary tables between prepares as the
+    table may be deleted before next exection.
+ */
+  ptr->cacheable_table= !table->is_derived_table();
   ptr->index_hints= index_hints_arg;
   ptr->option= option ? option->str : 0;
   /* check that used name is unique */

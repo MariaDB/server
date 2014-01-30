@@ -230,6 +230,20 @@ check_date_with_warn(const MYSQL_TIME *ltime, ulonglong fuzzy_date,
 }
 
 
+bool
+adjust_time_range_with_warn(MYSQL_TIME *ltime, uint dec)
+{
+  MYSQL_TIME copy= *ltime;
+  ErrConvTime str(&copy);
+  int warnings= 0;
+  if (check_time_range(ltime, dec, &warnings))
+    return true;
+  if (warnings)
+    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                                 &str, MYSQL_TIMESTAMP_TIME, NullS);
+  return false;
+}
+
 /*
   Convert a string to 8-bit representation,
   for use in str_to_time/str_to_date/str_to_date.
@@ -1085,3 +1099,22 @@ int my_time_compare(MYSQL_TIME *a, MYSQL_TIME *b)
   return 0;
 }
 
+
+/*
+  Convert a TIME value to DAY-TIME interval, e.g. for extraction:
+    EXTRACT(DAY FROM x), EXTRACT(HOUR FROM x), etc.
+  Moves full days from ltime->hour to ltime->day.
+  Note, time_type is set to MYSQL_TIMESTAMP_NONE, to make sure that
+  the structure is not used for anything else other than extraction:
+  non-extraction TIME functions expect zero day value!
+*/
+void time_to_daytime_interval(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(ltime->time_type == MYSQL_TIMESTAMP_TIME);
+  DBUG_ASSERT(ltime->year == 0);
+  DBUG_ASSERT(ltime->month == 0);
+  DBUG_ASSERT(ltime->day == 0);
+  ltime->day= ltime->hour / 24;
+  ltime->hour%= 24;
+  ltime->time_type= MYSQL_TIMESTAMP_NONE;
+}

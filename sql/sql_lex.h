@@ -702,7 +702,7 @@ public:
   void print(String *str, enum_query_type query_type);
 
   bool add_fake_select_lex(THD *thd);
-  void init_prepare_fake_select_lex(THD *thd);
+  void init_prepare_fake_select_lex(THD *thd, bool first_execution);
   inline bool is_prepared() { return prepared; }
   bool change_result(select_result_interceptor *result,
                      select_result_interceptor *old_result);
@@ -2665,6 +2665,7 @@ struct LEX: public Query_tables_list
       sl->uncacheable|= cause;
       un->uncacheable|= cause;
     }
+    select_lex.uncacheable|= cause;
   }
   void set_trg_event_type_for_tables();
 
