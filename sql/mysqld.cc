@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+   Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1935,7 +1935,8 @@ static void __cdecl kill_server(int sig_ptr)
 
   close_connections();
 #ifdef WITH_WSREP
-  if (WSREP_ON) wsrep_deinit();
+  if (wsrep_inited == 1)
+    wsrep_deinit();
 #endif
   if (sig != MYSQL_KILL_SIGNAL &&
       sig != 0)
@@ -4891,8 +4892,10 @@ will be ignored as the --log-bin option is not defined.");
 
       if (wsrep_before_SE())
       {
+#ifndef EMBEDDED_LIBRARY
         set_ports(); // this is also called in network_init() later but we need
                      // to know mysqld_port now - lp:1071882
+#endif /* !EMBEDDED_LIBRARY */
         wsrep_init_startup(true);
       }
     }
@@ -9746,6 +9749,9 @@ void set_server_version(void)
                      MYSQL_SERVER_SUFFIX_STR, NullS);
 #ifdef EMBEDDED_LIBRARY
   end= strmov(end, "-embedded");
+#endif
+#ifdef WITH_WSREP
+  end= strmov(end, "-wsrep");
 #endif
 #ifndef DBUG_OFF
   if (!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"))

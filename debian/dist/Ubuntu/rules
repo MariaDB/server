@@ -166,11 +166,11 @@ install: build
 	install -m 0755 debian/additions/innotop/innotop $(TMP)/usr/bin/
 	install -m 0644 debian/additions/innotop/innotop.1 $(TMP)/usr/share/man/man1/
 
-	# mariadb-server
+	# mariadb-galera-server
 	install -m 0755 $(BUILDDIR)/scripts/mysqld_safe $(TMP)/usr/bin/mysqld_safe
-	mkdir -p $(TMP)/usr/share/doc/mariadb-server-10.0/examples
+	mkdir -p $(TMP)/usr/share/doc/mariadb-galera-server-10.0/examples
 	# We have a sane my.cnf, cruft not needed (remove my-*.cnf and config-*.cnf)
-	#  $(TMP)/usr/share/mysql/*cnf      $(TMP)/usr/share/doc/mariadb-server-10.0/examples/
+	#  $(TMP)/usr/share/mysql/*cnf      $(TMP)/usr/share/doc/mariadb-galera-server-10.0/examples/
 	rm -vf $(TMP)/usr/share/mysql/my-*.cnf \
 	       $(TMP)/usr/share/mysql/config-*.cnf \
 	       $(TMP)/usr/share/mysql/mi_test_all* \
@@ -182,15 +182,15 @@ install: build
 	install -m 0755 debian/additions/debian-start $(TMP)/etc/mysql/
 	install -m 0755 debian/additions/debian-start.inc.sh $(TMP)/usr/share/mysql/
 
-	install -m 0644 $(builddir)/Docs/INFO_SRC $(TMP)/usr/share/doc/mariadb-server-10.0/INFO_SRC
-	install -m 0644 $(builddir)/Docs/INFO_BIN $(TMP)/usr/share/doc/mariadb-server-10.0/INFO_BIN
+	install -m 0644 $(builddir)/Docs/INFO_SRC $(TMP)/usr/share/doc/mariadb-galera-server-10.0/INFO_SRC
+	install -m 0644 $(builddir)/Docs/INFO_BIN $(TMP)/usr/share/doc/mariadb-galera-server-10.0/INFO_BIN
 
 	# mariadb-test
 	mv $(TMP)/usr/mysql-test	$(TMP)/usr/share/mysql
 
 	# lintian overrides
 	mkdir -p $(TMP)/usr/share/lintian/overrides/
-	cp debian/mariadb-galera-server-10.0.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-server-10.0
+	cp debian/mariadb-galera-server-10.0.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-galera-server-10.0
 
 	# For 5.0 -> 10.0 transition
 	d=$(TMP)/usr/share/mysql-common/internal-use-only/; \
@@ -202,7 +202,7 @@ install: build
 	# install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mysqld
 	# install Apport hook
-	install -D -m 644 debian/mariadb-server-10.0.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.0.py
+	install -D -m 644 debian/mariadb-galera-server-10.0.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.0.py
 
 	autorm=debian/autorm-file;                                      \
 	rm -f $$autorm;                                                 \

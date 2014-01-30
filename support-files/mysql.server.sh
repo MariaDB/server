@@ -52,6 +52,7 @@ datadir=
 # 0 means don't wait at all
 # Negative numbers mean to wait indefinitely
 service_startup_timeout=900
+startup_sleep=1
 
 # Lock directory for RedHat / SuSE.
 lockdir='/var/lock/subsys'
@@ -157,6 +158,7 @@ wait_for_pid () {
   pid="$2"            # process ID of the program operating on the pid-file
   pid_file_path="$3" # path to the PID file.
 
+  sst_progress_file=$datadir/sst_in_progress
   i=0
   avoid_race_condition="by checking again"
 
@@ -194,9 +196,14 @@ wait_for_pid () {
       fi
     fi
 
+    if test -e $sst_progress_file && [ $startup_sleep -ne 10 ];then
+        echo $echo_n "SST in progress, setting sleep higher"
+        startup_sleep=10
+    fi
+
     echo $echo_n ".$echo_c"
     i=`expr $i + 1`
-    sleep 1
+    sleep $startup_sleep
 
   done
 

@@ -1,4 +1,5 @@
 # Copyright (c) 2011, Codership Oy <info@codership.com>.
+# Copyright (c) 2013, Monty Program Ab.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,19 +20,15 @@
 # Set the patch version
 SET(WSREP_PATCH_VERSION "9")
 
-# Obtain patch revision number
-SET(WSREP_PATCH_REVNO $ENV{WSREP_REV})
-IF(NOT WSREP_PATCH_REVNO)
-  EXECUTE_PROCESS(
-    COMMAND bzr revno
-    OUTPUT_VARIABLE WSREP_PATCH_REVNO
-    RESULT_VARIABLE RESULT
-  )
-STRING(REGEX REPLACE "(\r?\n)+$" "" WSREP_PATCH_REVNO "${WSREP_PATCH_REVNO}")
-#FILE(WRITE "wsrep_config" "Debug: WSREP_PATCH_REVNO result: ${RESULT}\n")
-ENDIF()
-IF(NOT WSREP_PATCH_REVNO)
-  SET(WSREP_PATCH_REVNO "XXXX")
+# MariaDB addition: Revision number of the last revision merged from
+# codership branch visible in @@visible_comment.
+# Branch : codership-mysql/5.5
+SET(WSREP_PATCH_REVNO "3928")  # Should be updated on every merge.
+
+# MariaDB: Obtain patch revision number:
+# Update WSREP_PATCH_REVNO if WSREP_REV environment variable is set.
+IF (DEFINED ENV{WSREP_REV})
+  SET(WSREP_PATCH_REVNO $ENV{WSREP_REV})
 ENDIF()
 
 # Obtain wsrep API version
@@ -43,9 +40,17 @@ EXECUTE_PROCESS(
 #FILE(WRITE "wsrep_config" "Debug: WSREP_API_VERSION result: ${RESULT}\n")
 STRING(REGEX REPLACE "(\r?\n)+$" "" WSREP_API_VERSION "${WSREP_API_VERSION}")
 
-SET(WSREP_VERSION
-    "${WSREP_API_VERSION}.${WSREP_PATCH_VERSION}.r${WSREP_PATCH_REVNO}"
-)
+IF(NOT WSREP_PATCH_REVNO)
+  MESSAGE(WARNING "Could not determine bzr revision number, WSREP_VERSION will "
+          "not contain the revision number.")
+  SET(WSREP_VERSION
+      "${WSREP_API_VERSION}.${WSREP_PATCH_VERSION}"
+  )
+ELSE()
+  SET(WSREP_VERSION
+      "${WSREP_API_VERSION}.${WSREP_PATCH_VERSION}.r${WSREP_PATCH_REVNO}"
+  )
+ENDIF()
 
 OPTION(WITH_WSREP "WSREP replication API (to use, e.g. Galera Replication library)" ON)
 IF (WITH_WSREP)

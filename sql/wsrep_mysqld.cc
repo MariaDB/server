@@ -68,6 +68,11 @@ my_bool wsrep_load_data_splitting      = 1; // commit load data every 10K interv
  * End configuration options
  */
 
+/*
+ * Other wsrep global variables.
+ */
+my_bool wsrep_inited                   = 0; // initialized ?
+
 static const wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
 static char         cluster_uuid_str[40]= { 0, };
 static const char*  cluster_status_str[WSREP_VIEW_MAX] =
@@ -459,6 +464,7 @@ extern char* my_bind_addr_str;
 int wsrep_init()
 {
   int rcode= -1;
+  DBUG_ASSERT(wsrep_inited == 0);
 
   wsrep_ready_set(FALSE);
   assert(wsrep_provider);
@@ -483,11 +489,11 @@ int wsrep_init()
     }
   }
 
-  if (strlen(wsrep_provider)== 0 ||
-      !strcmp(wsrep_provider, WSREP_NONE))
+  if (!WSREP_PROVIDER_EXISTS)
   {
     // enable normal operation in case no provider is specified
     wsrep_ready_set(TRUE);
+    wsrep_inited= 1;
     global_system_variables.wsrep_on = 0;
     return 0;
   }
@@ -632,6 +638,8 @@ int wsrep_init()
     WSREP_ERROR("wsrep::init() failed: %d, must shutdown", rcode);
     free(wsrep);
     wsrep = NULL;
+  } else {
+    wsrep_inited= 1;
   }
 
   return rcode;
@@ -662,11 +670,13 @@ void wsrep_init_startup (bool first)
 
 void wsrep_deinit()
 {
+  DBUG_ASSERT(wsrep_inited == 1);
   wsrep_unload(wsrep);
   wsrep= 0;
   provider_name[0]=    '\0';
   provider_version[0]= '\0';
   provider_vendor[0]=  '\0';
+  wsrep_inited= 0;
 }
 
 void wsrep_recover()
@@ -753,8 +763,7 @@ bool wsrep_start_replication()
     if provider is trivial, don't even try to connect,
     but resume local node operation
   */
-  if (strlen(wsrep_provider)== 0 ||
-      !strcmp(wsrep_provider, WSREP_NONE))
+  if (!WSREP_PROVIDER_EXISTS)
   {
     // enable normal operation in case no provider is specified
     wsrep_ready_set(TRUE);

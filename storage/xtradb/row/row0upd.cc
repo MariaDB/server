@@ -2554,7 +2554,7 @@ row_upd_del_mark_clust_rec(
 			break;
 		default:
 			fprintf (stderr, 
-				"WSREP: clust rec referenced FK check fail: %lu", 
+				"WSREP: clust rec referenced FK check fail: %u", 
 				 err);
 			break;
 		}

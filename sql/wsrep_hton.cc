@@ -258,11 +258,13 @@ int wsrep_commit(handlerton *hton, THD *thd, bool all)
         Transaction didn't go through wsrep->pre_commit() so just roll back
         possible changes to clean state.
       */
-      if (wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
-      {
-        DBUG_PRINT("wsrep", ("setting rollback fail"));
-        WSREP_ERROR("settting rollback fail: thd: %llu SQL: %s", 
-                    (long long)thd->real_id, thd->query());
+      if (WSREP_PROVIDER_EXISTS) {
+        if (wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
+        {
+          DBUG_PRINT("wsrep", ("setting rollback fail"));
+          WSREP_ERROR("settting rollback fail: thd: %llu SQL: %s",
+                      (long long)thd->real_id, thd->query());
+        }
       }
       wsrep_cleanup_transaction(thd);
     }

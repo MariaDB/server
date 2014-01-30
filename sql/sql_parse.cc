@@ -1081,8 +1081,19 @@ bool do_command(THD *thd)
     while (thd->wsrep_conflict_state== RETRY_AUTOCOMMIT)
     {
       WSREP_DEBUG("Retry autocommit for: %s\n", thd->wsrep_retry_query);
+      CHARSET_INFO *current_charset = thd->variables.character_set_client;
+      if (!is_supported_parser_charset(current_charset))
+      {
+        /* Do not use non-supported parser character sets */
+        WSREP_WARN("Current client character set is non-supported parser "
+                   "character set: %s", current_charset->csname);
+        thd->variables.character_set_client = &my_charset_latin1;
+        WSREP_WARN("For retry temporally setting character set to : %s",
+                   my_charset_latin1.csname);
+      }
       return_value= dispatch_command(command, thd, thd->wsrep_retry_query,
-				     thd->wsrep_retry_query_len);
+                                     thd->wsrep_retry_query_len);
+      thd->variables.character_set_client = current_charset;
     }
   }
   if (thd->wsrep_retry_query && thd->wsrep_conflict_state != REPLAYING)

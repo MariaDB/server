@@ -128,6 +128,8 @@ bool wsrep_before_SE(); // initialize wsrep before storage
  * @param before wsrep_before_SE() value */
 void wsrep_init_startup(bool before);
 
+// Other wsrep global variables
+extern my_bool     wsrep_inited; // whether wsrep is initialized ?
 
 extern "C" enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd);
 extern "C" enum wsrep_conflict_state wsrep_thd_conflict_state(THD *thd);
@@ -219,9 +221,12 @@ extern wsrep_seqno_t wsrep_locked_seqno;
     WSREP_LOG(sql_print_information, "cluster conflict due to %s for threads:",\
       (bf_abort) ? "high priority abort" : "certification failure"             \
     );                                                                         \
-    if (bf_thd)     WSREP_LOG_CONFLICT_THD(bf_thd, "Winning thread");          \
+    if (bf_thd != NULL) WSREP_LOG_CONFLICT_THD(bf_thd, "Winning thread");      \
     if (victim_thd) WSREP_LOG_CONFLICT_THD(victim_thd, "Victim thread");       \
   }
+
+#define WSREP_PROVIDER_EXISTS                                                  \
+  (wsrep_provider && strncasecmp(wsrep_provider, WSREP_NONE, FN_REFLEN))
 
 extern void wsrep_ready_wait();
 

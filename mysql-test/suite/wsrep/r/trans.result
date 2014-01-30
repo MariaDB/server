@@ -1,0 +1,9 @@
+#
+# MDEV-4222 : Assertion `( ((global_system_variables.wsrep_on) &&
+#            (thd && thd->variables.wsrep_on)) && srep_emulate_bin_log)
+#            || mysql_bin_log .is_open()' fails on SAVEPOINT with
+#            disabled wsrep_provider
+#
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+SAVEPOINT A;
+End of test.
