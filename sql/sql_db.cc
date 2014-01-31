@@ -829,7 +829,7 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
   thd->push_internal_handler(&err_handler);
   if (!thd->killed &&
       !(tables &&
-        mysql_rm_table_no_locks(thd, tables, true, false, true, true)))
+        mysql_rm_table_no_locks(thd, tables, true, false, true, true, false)))
   {
     /*
       We temporarily disable the binary log while dropping the objects

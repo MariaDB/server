@@ -1,4 +1,4 @@
-drop table if exists t1,t2;
+drop table if exists t1,t2,t3;
 CREATE TABLE t2 (a int);
 INSERT INTO t2 VALUES(1),(2),(3);
 #
@@ -97,13 +97,23 @@ CREATE TEMPORARY TABLE t1 AS SELECT a FROM t2;
 CREATE TEMPORARY TABLE IF NOT EXISTS t1(a int, b int) SELECT 1,2 FROM t2;
 Warnings:
 Note	1050	Table 't1' already exists
-create or replace table t1 as select 1;
-show create table t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a int);
+CREATE OR REPLACE TABLE t1 AS SELECT 1;
+SHOW CREATE TABLE t1;
 Table	Create Table
-t1	CREATE TEMPORARY TABLE `t1` (
-  `a` int(11) DEFAULT NULL
+t1	CREATE TABLE `t1` (
+  `1` int(1) NOT NULL DEFAULT '0'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+create table t1 (a int);
+create or replace table t1 as select * from t1;
+ERROR HY000: Table 't1' is specified twice, both as a target for 'CREATE' and as a separate source for data
+create or replace table t1 as select a from (select a from t1) as t3;
+ERROR HY000: Table 't1' is specified twice, both as a target for 'CREATE' and as a separate source for data
+create or replace table t1 as select a from t2 where t2.a in (select a from t1);
+ERROR HY000: Table 't1' is specified twice, both as a target for 'CREATE' and as a separate source for data
+drop table t1;
 #
 # Testing with normal tables
 #
@@ -191,6 +201,15 @@ SELECT * FROM t1 as t1_read;
 ERROR HY000: Table 't1_read' was not locked with LOCK TABLES
 DROP TABLE t1;
 UNLOCK TABLES;
+CREATE OR REPLACE TABLE t1 (a int);
+LOCK TABLE t1 WRITE;
+CREATE OR REPLACE TABLE t1 AS SELECT 1;
+SELECT * from t1;
+1
+1
+SELECT * from t2;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
+DROP TABLE t1;
 #
 # Test also with InnoDB (transactional engine)
 #
@@ -253,6 +272,21 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+create or replace table t1 like t2;
+create or replace table t1 like t1;
+ERROR 42000: Not unique table/alias: 't1'
+drop table t1;
+CREATE TEMPORARY TABLE t1 like t2;
+CREATE OR REPLACE TABLE t1 like t1;
+ERROR 42000: Not unique table/alias: 't1'
+CREATE OR REPLACE TABLE t1 like t1;
+ERROR 42000: Not unique table/alias: 't1'
+drop table t1;
+CREATE TEMPORARY TABLE t1 like t2;
+CREATE OR REPLACE TEMPORARY TABLE t3 like t1;
+CREATE OR REPLACE TEMPORARY TABLE t3 like t3;
+ERROR 42000: Not unique table/alias: 't3'
+drop table t1,t3;
 #
 # Test with prepared statements
 #
@@ -286,8 +320,8 @@ create table if not exists t1 (a int);
 Warnings:
 Note	1050	Table 't1' already exists
 create or replace table t1 (a int);
-ERROR 42S02: Unknown table 'test.t1'
+ERROR 42S02: 'test.t1' is a view
 drop table t1;
-ERROR 42S02: Unknown table 'test.t1'
+ERROR 42S02: 'test.t1' is a view
 drop view t1;
 DROP TABLE t2;

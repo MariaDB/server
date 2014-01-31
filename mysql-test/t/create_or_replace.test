@@ -4,7 +4,7 @@
 
 --source include/have_innodb.inc
 --disable_warnings
-drop table if exists t1,t2;
+drop table if exists t1,t2,t3;
 --enable_warnings
 
 #
@@ -90,10 +90,21 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 CREATE TEMPORARY TABLE t1 AS SELECT a FROM t2;
 CREATE TEMPORARY TABLE IF NOT EXISTS t1(a int, b int) SELECT 1,2 FROM t2;
-create or replace table t1 as select 1;
-show create table t1;
 DROP TABLE t1;
 
+CREATE TABLE t1 (a int);
+CREATE OR REPLACE TABLE t1 AS SELECT 1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+create table t1 (a int);
+--error ER_UPDATE_TABLE_USED
+create or replace table t1 as select * from t1;
+--error ER_UPDATE_TABLE_USED
+create or replace table t1 as select a from (select a from t1) as t3;
+--error ER_UPDATE_TABLE_USED
+create or replace table t1 as select a from t2 where t2.a in (select a from t1);
+drop table t1;
 
 --echo #
 --echo # Testing with normal tables
@@ -156,6 +167,14 @@ SELECT * FROM t1 as t1_read;
 DROP TABLE t1;
 UNLOCK TABLES;
 
+CREATE OR REPLACE TABLE t1 (a int);
+LOCK TABLE t1 WRITE;
+CREATE OR REPLACE TABLE t1 AS SELECT 1;
+SELECT * from t1;
+--error ER_TABLE_NOT_LOCKED
+SELECT * from t2;
+DROP TABLE t1;
+
 --echo #
 --echo # Test also with InnoDB (transactional engine)
 --echo #
@@ -201,6 +220,24 @@ unlock tables;
 show create table t1;
 drop table t1;
 
+create or replace table t1 like t2;
+--error ER_NONUNIQ_TABLE
+create or replace table t1 like t1;
+drop table t1;
+
+CREATE TEMPORARY TABLE t1 like t2;
+--error ER_NONUNIQ_TABLE
+CREATE OR REPLACE TABLE t1 like t1;
+--error ER_NONUNIQ_TABLE
+CREATE OR REPLACE TABLE t1 like t1;
+drop table t1;
+
+CREATE TEMPORARY TABLE t1 like t2;
+CREATE OR REPLACE TEMPORARY TABLE t3 like t1;
+--error ER_NONUNIQ_TABLE
+CREATE OR REPLACE TEMPORARY TABLE t3 like t3;
+drop table t1,t3;
+
 --echo #
 --echo # Test with prepared statements
 --echo #
@@ -222,9 +259,9 @@ drop table t1;
 
 create view t1 as select 1;
 create table if not exists t1 (a int);
---error ER_BAD_TABLE_ERROR
+--error ER_IT_IS_A_VIEW
 create or replace table t1 (a int);
---error ER_BAD_TABLE_ERROR
+--error ER_IT_IS_A_VIEW
 drop table t1;
 drop view t1;
 

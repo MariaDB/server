@@ -258,7 +258,8 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   */
   if (unique_table(thd, table_list, table_list->next_global, 0))
   {
-    my_error(ER_UPDATE_TABLE_USED, MYF(0), table_list->table_name);
+    my_error(ER_UPDATE_TABLE_USED, MYF(0), table_list->table_name,
+             "LOAD DATA");
     DBUG_RETURN(TRUE);
   }
 
