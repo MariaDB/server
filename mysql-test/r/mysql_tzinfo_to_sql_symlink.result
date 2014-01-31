@@ -27,6 +27,7 @@ Warning: Skipping directory 'MYSQLTEST_VARDIR/zoneinfo/posix/posix': to avoid in
 ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
 ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
 # Silent run
+SET SESSION wsrep_replicate_myisam=ON;
 TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
 TRUNCATE TABLE time_zone_transition;
@@ -50,6 +51,7 @@ ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
 #
 # Testing with explicit timezonefile
 #
+SET SESSION wsrep_replicate_myisam=ON;
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('XXX', @time_zone_id);
@@ -59,5 +61,6 @@ INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset,
 #
 # Testing --leap
 #
+SET SESSION wsrep_replicate_myisam=ON;
 TRUNCATE TABLE time_zone_leap_second;
 ALTER TABLE time_zone_leap_second ORDER BY Transition_time;
