@@ -4191,11 +4191,6 @@ extern "C" unsigned long thd_get_thread_id(const MYSQL_THD thd)
   return((unsigned long)thd->thread_id);
 }
 
-extern "C" enum_tx_isolation thd_get_trx_isolation(const MYSQL_THD thd)
-{
-	return thd->tx_isolation;
-}
-
 /**
   Check if THD socket is still connected.
  */
@@ -5059,7 +5054,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       DBUG_PRINT("info", ("table: %s; ha_table_flags: 0x%llx",
                           table->table_name, flags));
 
-      if (table->table->no_replicate && !table->table->s->is_gtid_slave_pos)
+      if (table->table->no_replicate)
       {
         /*
           The statement uses a table that is not replicated.

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -42,7 +42,9 @@ tab_create_graph_create(
 /*====================*/
 	dict_table_t*	table,	/*!< in: table to create, built as a memory data
 				structure */
-	mem_heap_t*	heap);	/*!< in: heap where created */
+	mem_heap_t*	heap,	/*!< in: heap where created */
+	bool		commit);/*!< in: true if the commit node should be
+				added to the query graph */
 /*********************************************************************//**
 Creates an index create graph.
 @return	own: index create node */
@@ -52,15 +54,9 @@ ind_create_graph_create(
 /*====================*/
 	dict_index_t*	index,	/*!< in: index to create, built as a memory data
 				structure */
-	mem_heap_t*	heap);	/*!< in: heap where created */
-/*********************************************************************//**
-*/
-UNIV_INTERN
-ind_node_t*
-ind_insert_stats_graph_create(
-/*==========================*/
-	dict_index_t*	index,
-	mem_heap_t*	heap);
+	mem_heap_t*	heap,	/*!< in: heap where created */
+	bool		commit);/*!< in: true if the commit node should be
+				added to the query graph */
 /***********************************************************//**
 Creates a table. This is a high-level function used in SQL execution graphs.
 @return	query thread to run next or NULL */
@@ -69,13 +65,6 @@ que_thr_t*
 dict_create_table_step(
 /*===================*/
 	que_thr_t*	thr);	/*!< in: query thread */
-/***********************************************************//**
-*/
-UNIV_INTERN
-que_thr_t*
-dict_insert_stats_step(
-/*===================*/
-	que_thr_t*	thr);
 /***********************************************************//**
 Creates an index. This is a high-level function used in SQL execution
 graphs.
@@ -114,13 +103,27 @@ dict_drop_index_tree(
 	mtr_t*	mtr);	/*!< in: mtr having the latch on the record page */
 /****************************************************************//**
 Creates the foreign key constraints system tables inside InnoDB
-at database creation or database start if they are not found or are
+at server bootstrap or server start if they are not found or are
 not of the right form.
 @return	DB_SUCCESS or error code */
 UNIV_INTERN
-ulint
+dberr_t
 dict_create_or_check_foreign_constraint_tables(void);
 /*================================================*/
+/********************************************************************//**
+Generate a foreign key constraint name when it was not named by the user.
+A generated constraint has a name of the format dbname/tablename_ibfk_NUMBER,
+where the numbers start from 1, and are given locally for this table, that is,
+the number is not global, as it used to be before MySQL 4.0.18.  */
+UNIV_INLINE
+dberr_t
+dict_create_add_foreign_id(
+/*=======================*/
+	ulint*		id_nr,	/*!< in/out: number to use in id generation;
+				incremented if used */
+	const char*	name,	/*!< in: table name */
+	dict_foreign_t*	foreign)/*!< in/out: foreign key */
+	__attribute__((nonnull));
 /********************************************************************//**
 Adds foreign key definitions to data dictionary tables in the database. We
 look at table->foreign_list, and also generate names to constraints that were
@@ -130,7 +133,7 @@ given locally for this table, that is, the number is not global, as in the
 old format constraints < 4.0.18 it used to be.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
-ulint
+dberr_t
 dict_create_add_foreigns_to_dictionary(
 /*===================================*/
 	ulint		start_id,/*!< in: if we are actually doing ALTER TABLE
@@ -142,11 +145,46 @@ dict_create_add_foreigns_to_dictionary(
 				so far has no constraints for which the name
 				was generated here */
 	dict_table_t*	table,	/*!< in: table */
-	trx_t*		trx);	/*!< in: transaction */
+	trx_t*		trx)	/*!< in: transaction */
+	__attribute__((nonnull, warn_unused_result));
+/****************************************************************//**
+Creates the tablespaces and datafiles system tables inside InnoDB
+at server bootstrap or server start if they are not found or are
+not of the right form.
+@return	DB_SUCCESS or error code */
+UNIV_INTERN
+dberr_t
+dict_create_or_check_sys_tablespace(void);
+/*=====================================*/
+/********************************************************************//**
+Add a single tablespace definition to the data dictionary tables in the
+database.
+@return	error code or DB_SUCCESS */
+UNIV_INTERN
+dberr_t
+dict_create_add_tablespace_to_dictionary(
+/*=====================================*/
+	ulint		space,		/*!< in: tablespace id */
+	const char*	name,		/*!< in: tablespace name */
+	ulint		flags,		/*!< in: tablespace flags */
+	const char*	path,		/*!< in: tablespace path */
+	trx_t*		trx,		/*!< in: transaction */
+	bool		commit);	/*!< in: if true then commit the
+					transaction */
+/********************************************************************//**
+Add a foreign key definition to the data dictionary tables.
+@return	error code or DB_SUCCESS */
+UNIV_INTERN
+dberr_t
+dict_create_add_foreign_to_dictionary(
+/*==================================*/
+	const char*		name,	/*!< in: table name */
+	const dict_foreign_t*	foreign,/*!< in: foreign key */
+	trx_t*			trx)	/*!< in/out: dictionary transaction */
+	__attribute__((nonnull, warn_unused_result));
 
 /* Table create node structure */
-
-struct tab_node_struct{
+struct tab_node_t{
 	que_common_t	common;	/*!< node type: QUE_NODE_TABLE_CREATE */
 	dict_table_t*	table;	/*!< table to create, built as a memory data
 				structure with dict_mem_... functions */
@@ -175,7 +213,7 @@ struct tab_node_struct{
 
 /* Index create node struct */
 
-struct ind_node_struct{
+struct ind_node_t{
 	que_common_t	common;	/*!< node type: QUE_NODE_INDEX_CREATE */
 	dict_index_t*	index;	/*!< index to create, built as a memory data
 				structure with dict_mem_... functions */
@@ -185,7 +223,6 @@ struct ind_node_struct{
 	ins_node_t*	field_def; /* child node which does the inserts of
 				the field definitions; the row to be inserted
 				is built by the parent node  */
-	ins_node_t*	stats_def;
 	commit_node_t*	commit_node;
 				/* child node which performs a commit after
 				a successful index creation */
@@ -196,7 +233,6 @@ struct ind_node_struct{
 	dict_table_t*	table;	/*!< table which owns the index */
 	dtuple_t*	ind_row;/* index definition row built */
 	ulint		field_no;/* next field definition to insert */
-	ulint		stats_no;
 	mem_heap_t*	heap;	/*!< memory heap used as auxiliary storage */
 };
 
@@ -206,7 +242,6 @@ struct ind_node_struct{
 #define	INDEX_CREATE_INDEX_TREE	3
 #define	INDEX_COMMIT_WORK	4
 #define	INDEX_ADD_TO_CACHE	5
-#define	INDEX_BUILD_STATS_COLS	6
 
 #ifndef UNIV_NONINL
 #include "dict0crea.ic"

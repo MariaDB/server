@@ -140,7 +140,8 @@ extern char *opt_backup_history_logname, *opt_backup_progress_logname,
 extern const char *log_output_str;
 extern const char *log_backup_output_str;
 extern char *mysql_home_ptr, *pidfile_name_ptr;
-extern char glob_hostname[FN_REFLEN], mysql_home[FN_REFLEN];
+extern MYSQL_PLUGIN_IMPORT char glob_hostname[FN_REFLEN];
+extern char mysql_home[FN_REFLEN];
 extern char pidfile_name[FN_REFLEN], system_time_zone[30], *opt_init_file;
 extern char default_logfile_name[FN_REFLEN];
 extern char log_error_file[FN_REFLEN], *opt_tc_log_file;

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1994, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -32,7 +32,7 @@ Created 1/20/1994 Heikki Tuuri
 
 /*******************************************************//**
 Creates a 64-bit integer out of two 32-bit integers.
-@return	created dulint */
+@return	created integer */
 UNIV_INLINE
 ib_uint64_t
 ut_ull_create(

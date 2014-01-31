@@ -250,6 +250,7 @@ sub load_suite_object {
   unless (defined $suites{$suitename}) {
     if (-f "$suitedir/suite.pm") {
       $suite= do "$suitedir/suite.pm";
+      mtr_error("Cannot load $suitedir/suite.pm: $@") if $@;
       unless (ref $suite) {
         my $comment = $suite;
         $suite = My::Suite->new();

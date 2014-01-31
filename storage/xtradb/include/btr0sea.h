@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -68,7 +68,8 @@ UNIV_INLINE
 btr_search_t*
 btr_search_get_info(
 /*================*/
-	dict_index_t*	index);	/*!< in: index */
+	dict_index_t*	index)	/*!< in: index */
+	__attribute__((nonnull));
 /*****************************************************************//**
 Creates and initializes a search info struct.
 @return	own: search info struct */
@@ -141,13 +142,6 @@ btr_search_drop_page_hash_index(
 				s- or x-latched, or an index page
 				for which we know that
 				block->buf_fix_count == 0 */
-/************************************************************************
-Drops a page hash index based on index */
-UNIV_INTERN
-void
-btr_search_drop_page_hash_index_on_index(
-/*=====================================*/
-	dict_index_t*	index);		/* in: record descriptor */
 /********************************************************************//**
 Drops a possible page hash index when a page is evicted from the buffer pool
 or freed in a file segment. */
@@ -201,20 +195,24 @@ btr_search_validate(void);
 #endif /* defined UNIV_AHI_DEBUG || defined UNIV_DEBUG */
 
 /********************************************************************//**
-New functions to control split btr_search_index */
+Returns the adaptive hash index table for a given index key.
+@return the adaptive hash index table for a given index key */
 UNIV_INLINE
 hash_table_t*
 btr_search_get_hash_table(
 /*======================*/
 	const dict_index_t*	index)	/*!< in: index */
-	__attribute__((nonnull,pure,warn_unused_result));
+	__attribute__((pure,warn_unused_result));
 
+/********************************************************************//**
+Returns the adaptive hash index latch for a given index key.
+@return the adaptive hash index latch for a given index key */
 UNIV_INLINE
-rw_lock_t*
+prio_rw_lock_t*
 btr_search_get_latch(
 /*=================*/
 	const dict_index_t*	index)	/*!< in: index */
-	__attribute__((nonnull,pure,warn_unused_result));
+	__attribute__((pure,warn_unused_result));
 
 /*********************************************************************//**
 Returns the AHI partition number corresponding to a given index ID. */
@@ -234,29 +232,45 @@ btr_search_index_init(
 	dict_index_t*	index)	/*!< in: index */
 	__attribute__((nonnull));
 
+/********************************************************************//**
+Latches all adaptive hash index latches in exclusive mode.  */
 UNIV_INLINE
 void
 btr_search_x_lock_all(void);
 /*========================*/
 
+/********************************************************************//**
+Unlatches all adaptive hash index latches in exclusive mode.  */
 UNIV_INLINE
 void
 btr_search_x_unlock_all(void);
 /*==========================*/
 
 #ifdef UNIV_SYNC_DEBUG
+/******************************************************************//**
+Checks if the thread has locked all the adaptive hash index latches in the
+specified mode.
+
+@return true if all latches are locked by the current thread, false
+otherwise.  */
+UNIV_INLINE
+bool
+btr_search_own_all(
+/*===============*/
+	ulint lock_type)
+	__attribute__((warn_unused_result));
 /********************************************************************//**
 Checks if the thread owns any adaptive hash latches in either S or X mode.
-@return	TRUE if the thread owns at least one latch in any mode. */
+@return	true if the thread owns at least one latch in any mode. */
 UNIV_INLINE
-ibool
+bool
 btr_search_own_any(void)
 /*=====================*/
 	 __attribute__((warn_unused_result));
 #endif
 
 /** The search info struct in an index */
-struct btr_search_struct{
+struct btr_search_t{
 	ulint	ref_count;	/*!< Number of blocks in this index tree
 				that have search index built
 				i.e. block->index points to this index.
@@ -305,19 +319,16 @@ struct btr_search_struct{
 #endif /* UNIV_SEARCH_PERF_STAT */
 #ifdef UNIV_DEBUG
 	ulint	magic_n;	/*!< magic number @see BTR_SEARCH_MAGIC_N */
-/** value of btr_search_struct::magic_n, used in assertions */
+/** value of btr_search_t::magic_n, used in assertions */
 # define BTR_SEARCH_MAGIC_N	1112765
 #endif /* UNIV_DEBUG */
 };
 
 /** The hash index system */
-typedef struct btr_search_sys_struct	btr_search_sys_t;
-
-/** The hash index system */
-struct btr_search_sys_struct{
-	hash_table_t**	hash_tables;	/*!< the array of adaptive hash index,
-					tables mapping dtuple_fold values
-					to rec_t pointers on index pages */
+struct btr_search_sys_t{
+	hash_table_t**	hash_tables;	/*!< the array of adaptive hash index
+					tables, mapping dtuple_fold values to
+					rec_t pointers on index pages */
 };
 
 /** The adaptive hash index */

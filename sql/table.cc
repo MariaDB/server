@@ -315,8 +315,6 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     strmov(share->path.str, path);
     share->normalized_path.str=    share->path.str;
     share->normalized_path.length= path_length;
-    /* TEMPORARY FIX: if true, this means this is mysql.gtid_slave_pos table */
-    share->is_gtid_slave_pos= FALSE;
     share->table_category= get_table_category(& share->db, & share->table_name);
     share->open_errno= ENOENT;
     share->cached_row_logging_check= -1;
@@ -1191,7 +1189,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       next_chunk+= str_db_type_length + 2;
     }
 
-    share->set_use_ext_keys_flag(plugin_hton(se_plugin)->flags & HTON_EXTENDED_KEYS);
+    share->set_use_ext_keys_flag(plugin_hton(se_plugin)->flags & HTON_SUPPORTS_EXTENDED_KEYS);
 
     if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, ext_key_parts,

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 2007, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -28,32 +28,37 @@ Created July 18, 2007 Vasil Dimov
 
 const char plugin_author[] = "Oracle Corporation";
 
+#define st_mysql_plugin st_maria_plugin
+
 extern struct st_maria_plugin	i_s_innodb_trx;
-extern struct st_maria_plugin	i_s_innodb_locks;
-extern struct st_maria_plugin	i_s_innodb_lock_waits;
-extern struct st_maria_plugin	i_s_innodb_cmp;
-extern struct st_maria_plugin	i_s_innodb_cmp_reset;
-extern struct st_maria_plugin	i_s_innodb_cmpmem;
-extern struct st_maria_plugin	i_s_innodb_cmpmem_reset;
-extern struct st_maria_plugin	i_s_innodb_sys_tables;
-extern struct st_maria_plugin	i_s_innodb_sys_tablestats;
-extern struct st_maria_plugin	i_s_innodb_sys_indexes;
-extern struct st_maria_plugin   i_s_innodb_sys_columns;
-extern struct st_maria_plugin   i_s_innodb_sys_fields;
-extern struct st_maria_plugin   i_s_innodb_sys_foreign;
-extern struct st_maria_plugin   i_s_innodb_sys_foreign_cols;
-extern struct st_maria_plugin	i_s_innodb_rseg;
-extern struct st_maria_plugin	i_s_innodb_undo_logs;
-extern struct st_maria_plugin	i_s_innodb_sys_stats;
-extern struct st_maria_plugin	i_s_innodb_table_stats;
-extern struct st_maria_plugin	i_s_innodb_index_stats;
-extern struct st_maria_plugin	i_s_innodb_admin_command;
-extern struct st_maria_plugin	i_s_innodb_buffer_pool_pages;
-extern struct st_maria_plugin	i_s_innodb_buffer_pool_pages_index;
-extern struct st_maria_plugin	i_s_innodb_buffer_pool_pages_blob;
-extern struct st_maria_plugin	i_s_innodb_changed_pages;
-extern struct st_maria_plugin	i_s_innodb_buffer_page;
-extern struct st_maria_plugin	i_s_innodb_buffer_page_lru;
-extern struct st_maria_plugin	i_s_innodb_buffer_stats;
+extern struct st_mysql_plugin	i_s_innodb_trx;
+extern struct st_mysql_plugin	i_s_innodb_locks;
+extern struct st_mysql_plugin	i_s_innodb_lock_waits;
+extern struct st_mysql_plugin	i_s_innodb_cmp;
+extern struct st_mysql_plugin	i_s_innodb_cmp_reset;
+extern struct st_mysql_plugin	i_s_innodb_cmp_per_index;
+extern struct st_mysql_plugin	i_s_innodb_cmp_per_index_reset;
+extern struct st_mysql_plugin	i_s_innodb_cmpmem;
+extern struct st_mysql_plugin	i_s_innodb_cmpmem_reset;
+extern struct st_mysql_plugin   i_s_innodb_metrics;
+extern struct st_mysql_plugin	i_s_innodb_ft_default_stopword;
+extern struct st_mysql_plugin	i_s_innodb_ft_deleted;
+extern struct st_mysql_plugin	i_s_innodb_ft_being_deleted;
+extern struct st_mysql_plugin	i_s_innodb_ft_index_cache;
+extern struct st_mysql_plugin	i_s_innodb_ft_index_table;
+extern struct st_mysql_plugin	i_s_innodb_ft_config;
+extern struct st_mysql_plugin	i_s_innodb_buffer_page;
+extern struct st_mysql_plugin	i_s_innodb_buffer_page_lru;
+extern struct st_mysql_plugin	i_s_innodb_buffer_stats;
+extern struct st_mysql_plugin	i_s_innodb_sys_tables;
+extern struct st_mysql_plugin	i_s_innodb_sys_tablestats;
+extern struct st_mysql_plugin	i_s_innodb_sys_indexes;
+extern struct st_mysql_plugin	i_s_innodb_sys_columns;
+extern struct st_mysql_plugin	i_s_innodb_sys_fields;
+extern struct st_mysql_plugin	i_s_innodb_sys_foreign;
+extern struct st_mysql_plugin	i_s_innodb_sys_foreign_cols;
+extern struct st_mysql_plugin	i_s_innodb_sys_tablespaces;
+extern struct st_mysql_plugin	i_s_innodb_sys_datafiles;
+extern struct st_mysql_plugin	i_s_innodb_changed_pages;
 
 #endif /* i_s_h */
