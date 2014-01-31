@@ -470,12 +470,13 @@ enum ha_base_keytype {
 #define HA_ERR_INDEX_COL_TOO_LONG 179    /* Index column length exceeds limit */
 #define HA_ERR_INDEX_CORRUPT      180    /* Index corrupted */
 #define HA_ERR_UNDO_REC_TOO_BIG   181    /* Undo log record too big */
-#define HA_ERR_TABLE_IN_FK_CHECK  182    /* Table being used in foreign key check */
-#define HA_FTS_INVALID_DOCID      183	 /* Invalid InnoDB Doc ID */
+#define HA_FTS_INVALID_DOCID      182	 /* Invalid InnoDB Doc ID */
+#define HA_ERR_TABLE_IN_FK_CHECK  183    /* Table being used in foreign key check */
 #define HA_ERR_ROW_NOT_VISIBLE    184
 #define HA_ERR_ABORTED_BY_USER    185
 #define HA_ERR_DISK_FULL          186
-#define HA_ERR_LAST               186    /* Copy of last error nr */
+#define HA_ERR_INCOMPATIBLE_DEFINITION 187
+#define HA_ERR_LAST               187    /* Copy of last error nr */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)

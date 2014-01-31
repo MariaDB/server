@@ -10,21 +10,29 @@
 @DPATCH@
 --- old/scripts/mysql_system_tables_data.sql	2008-12-04 22:59:44.000000000 +0100
 +++ new/scripts/mysql_system_tables_data.sql	2008-12-04 23:00:07.000000000 +0100
-@@ -31,8 +31,6 @@
- -- Fill "db" table with default grants for anyone to
- -- access database 'test' and 'test_%' if "db" table didn't exist
- CREATE TEMPORARY TABLE tmp_db LIKE db;
+@@ -27,15 +27,6 @@
+ SELECT LOWER( REPLACE((SELECT REPLACE(@@hostname,'_','\_')),'%','\%') )INTO @current_hostname;
+ 
+ 
+--- Fill "db" table with default grants for anyone to
+--- access database 'test' and 'test_%' if "db" table didn't exist
+-CREATE TEMPORARY TABLE tmp_db LIKE db;
 -INSERT INTO tmp_db VALUES ('%','test','','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y');
 -INSERT INTO tmp_db VALUES ('%','test\_%','','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y');
- INSERT INTO db SELECT * FROM tmp_db WHERE @had_db_table=0;
- DROP TABLE tmp_db;
- 
-@@ -44,8 +42,6 @@
- REPLACE INTO tmp_user SELECT @current_hostname,'root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N' FROM dual WHERE LOWER( @current_hostname) != 'localhost';
+-INSERT INTO db SELECT * FROM tmp_db WHERE @had_db_table=0;
+-DROP TABLE tmp_db;
+-
+-
+ -- Fill "user" table with default users allowing root access
+ -- from local machine if "user" table didn't exist before
+ CREATE TEMPORARY TABLE tmp_user LIKE user;
+@@ -43,8 +34,6 @@ INSERT INTO tmp_user VALUES ('localhost'
+ REPLACE INTO tmp_user SELECT @current_hostname,'root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N' FROM dual WHERE @current_hostname != 'localhost';
  REPLACE INTO tmp_user VALUES ('127.0.0.1','root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N');
  REPLACE INTO tmp_user VALUES ('::1','root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N');
 -INSERT INTO tmp_user (host,user) VALUES ('localhost','');
--INSERT INTO tmp_user (host,user) SELECT @current_hostname,'' FROM dual WHERE LOWER(@current_hostname ) != 'localhost';
+-INSERT INTO tmp_user (host,user) SELECT @current_hostname,'' FROM dual WHERE @current_hostname != 'localhost';
  INSERT INTO user SELECT * FROM tmp_user WHERE @had_user_table=0;
  DROP TABLE tmp_user;
  
+

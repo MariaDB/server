@@ -84,11 +84,12 @@ static const char *handler_error_messages[]=
   "Index column length exceeds limit",
   "Index corrupted",
   "Undo record too big",
-  "Table is being used in foreign key check",
   "Invalid InnoDB FTS Doc ID",
+  "Table is being used in foreign key check",
   "Row is not visible by the current transaction",
   "Operation was interrupted by end user (probably kill command?)",
-  "Disk full"
+  "Disk full",
+  "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump and restore the table to fix this"
 };
 
 #endif /* MYSYS_MY_HANDLER_ERRORS_INCLUDED */
