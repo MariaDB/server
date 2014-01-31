@@ -2103,7 +2103,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
   /* mark for close and remove all cached entries */
   thd->push_internal_handler(&err_handler);
   error= mysql_rm_table_no_locks(thd, tables, if_exists, drop_temporary,
-                                 false, false);
+                                 false, false, false);
   thd->pop_internal_handler();
 
   if (error)
@@ -2168,6 +2168,8 @@ static uint32 comment_length(THD *thd, uint32 comment_pos,
   @param  drop_view       Allow to delete VIEW .frm
   @param  dont_log_query  Don't write query to log files. This will also not
                           generate warnings if the handler files doesn't exists
+  @param  dont_free_locks Don't do automatic UNLOCK TABLE if no more locked
+                          tables
 
   @retval  0  ok
   @retval  1  Error
@@ -2190,7 +2192,8 @@ static uint32 comment_length(THD *thd, uint32 comment_pos,
 
 int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool drop_temporary, bool drop_view,
-                            bool dont_log_query)
+                            bool dont_log_query,
+                            bool dont_free_locks)
 {
   TABLE_LIST *table;
   char path[FN_REFLEN + 1], wrong_tables_buff[160], *alias= NULL;
@@ -2204,6 +2207,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   bool trans_tmp_table_deleted= 0, non_trans_tmp_table_deleted= 0;
   bool non_tmp_table_deleted= 0;
   bool is_drop_tmp_if_exists_added= 0;
+  bool one_table= tables->next_local == 0;
+  bool was_view= 0;
   String built_query;
   String built_trans_tmp_query, built_non_trans_tmp_query;
   DBUG_ENTER("mysql_rm_table_no_locks");
@@ -2413,7 +2418,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
     error= 0;
     if ((drop_temporary || !ha_table_exists(thd, db, alias, &table_type) ||
-         (!drop_view && table_type == view_pseudo_hton)))
+         (!drop_view && (was_view= (table_type == view_pseudo_hton)))))
     {
       /*
         One of the following cases happened:
@@ -2544,7 +2549,10 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 err:
   if (wrong_tables.length())
   {
-    if (!foreign_key_error)
+    if (one_table && was_view)
+      my_printf_error(ER_IT_IS_A_VIEW, ER(ER_IT_IS_A_VIEW), MYF(0),
+                      wrong_tables.c_ptr_safe());
+    else if (!foreign_key_error)
       my_printf_error(ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR), MYF(0),
                       wrong_tables.c_ptr_safe());
     else
@@ -2610,7 +2618,8 @@ err:
     */
     if (thd->locked_tables_mode)
     {
-      if (thd->lock && thd->lock->table_count == 0 && non_temp_tables_count > 0)
+      if (thd->lock && thd->lock->table_count == 0 &&
+          non_temp_tables_count > 0 && !dont_free_locks)
       {
         thd->locked_tables_list.unlock_locked_tables(thd);
         goto end;
@@ -4608,8 +4617,8 @@ int create_table_impl(THD *thd,
           call to open_and_lock_tables() when we are using LOCK TABLES.
         */
         (void) trans_rollback_stmt(thd);
-        /* Remove normal table without logging */
-        if (mysql_rm_table_no_locks(thd, &table_list, 0, 0, 0, 1))
+        /* Remove normal table without logging. Keep tables locked */
+        if (mysql_rm_table_no_locks(thd, &table_list, 0, 0, 0, 1, 1))
           goto err;
         /*
           The test of query_tables is to ensure we have any tables in the
@@ -4618,6 +4627,11 @@ int create_table_impl(THD *thd,
         if (thd->lex->query_tables &&
             restart_trans_for_tables(thd, thd->lex->query_tables->next_global))
           goto err;
+        /*
+          We have to log this query, even if it failed later to ensure the
+          drop is done.
+        */
+        thd->variables.option_bits|= OPTION_KEEP_LOG;
       }
       else if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)
         goto warn;
@@ -5084,6 +5098,18 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     res= thd->is_error();
     goto err;
   }
+  /* Ensure we don't try to create something from which we select from */
+  if ((create_info->options & HA_LEX_CREATE_REPLACE) &&
+      !create_info->tmp_table())
+  {
+    TABLE_LIST *duplicate;
+    if ((duplicate= unique_table(thd, table, src_table, 0)))
+    {
+      update_non_unique_table_error(src_table, "CREATE", duplicate);
+      goto err;
+    }
+  }
+
   src_table->table->use_all_columns();
 
   DEBUG_SYNC(thd, "create_table_like_after_open");

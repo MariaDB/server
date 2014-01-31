@@ -2957,8 +2957,24 @@ case SQLCOM_PREPARE:
         /* Got error or warning. Set res to 1 if error */
         if (!(res= thd->is_error()))
           my_ok(thd);                           // CREATE ... IF NOT EXISTS
+        goto end_with_restore_list;
       }
-      else
+
+      /* Ensure we don't try to create something from which we select from */
+      if ((create_info.options & HA_LEX_CREATE_REPLACE) &&
+          !create_info.tmp_table())
+      {
+        TABLE_LIST *duplicate;
+        if ((duplicate= unique_table(thd, lex->query_tables,
+                                     lex->query_tables->next_global,
+                                     0)))
+        {
+          update_non_unique_table_error(lex->query_tables, "CREATE",
+                                        duplicate);
+          res= TRUE;
+          goto end_with_restore_list;
+        }
+      }
       {
         /*
           Remove target table from main select and name resolution
