@@ -21,3 +21,13 @@ This can be obtained in Debian Wheezy by `apt-get install libboost-graph-dev`
 OQGraph requires libjudy - http://judy.sourceforge.net/
 This can be obtained in Debian Wheezy by `apt-get install libjudy-dev`
 
+BUILD (example)
+
+cd path/to/maria/source
+mkdir build   # use symlink to scratch
+cd build    
+CONFIGURE="-DWITH_EXTRA_CHARSETS=complex -DWITH_PLUGIN_ARIA=1 -DWITH_READLINE=1 -DWITH_SSL=bundled -DWITH_MAX=1 -DWITH_EMBEDDED_SERVER=1"
+cmake .. $CONFIGURE     
+make -j5
+mysql-test-run --suite oqgraph
+
