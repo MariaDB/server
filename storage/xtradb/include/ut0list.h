@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2006, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 2006, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -48,9 +48,8 @@ automatically freeing the list node when the item's heap is freed.
 
 #include "mem0mem.h"
 
-typedef struct ib_list_struct ib_list_t;
-typedef struct ib_list_node_struct ib_list_node_t;
-typedef struct ib_list_helper_struct ib_list_helper_t;
+struct ib_list_t;
+struct ib_list_node_t;
 
 /****************************************************************//**
 Create a new list using mem_alloc. Lists created with this function must be
@@ -142,8 +141,17 @@ ib_list_get_last(
 /*=============*/
 	ib_list_t*	list);	/*!< in: list */
 
+/********************************************************************
+Check if list is empty. */
+UNIV_INLINE
+ibool
+ib_list_is_empty(
+/*=============*/
+					/* out: TRUE if empty else  */
+	const ib_list_t*	list);	/* in: list */
+
 /* List. */
-struct ib_list_struct {
+struct ib_list_t {
 	ib_list_node_t*		first;		/*!< first node */
 	ib_list_node_t*		last;		/*!< last node */
 	ibool			is_heap_list;	/*!< TRUE if this list was
@@ -151,7 +159,7 @@ struct ib_list_struct {
 };
 
 /* A list node. */
-struct ib_list_node_struct {
+struct ib_list_node_t {
 	ib_list_node_t*		prev;		/*!< previous node */
 	ib_list_node_t*		next;		/*!< next node */
 	void*			data;		/*!< user data */
@@ -160,7 +168,7 @@ struct ib_list_node_struct {
 /* Quite often, the only additional piece of data you need is the per-item
 memory heap, so we have this generic struct available to use in those
 cases. */
-struct ib_list_helper_struct {
+struct ib_list_helper_t {
 	mem_heap_t*	heap;		/*!< memory heap */
 	void*		data;		/*!< user data */
 };

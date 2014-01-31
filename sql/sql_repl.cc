@@ -3444,7 +3444,6 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   }
   if (need_relay_log_purge)
   {
-    relay_log_purge= 1;
     THD_STAGE_INFO(thd, stage_purging_old_relay_logs);
     if (purge_relay_logs(&mi->rli, thd,
 			 0 /* not only reset, but also reinit */,
@@ -3458,7 +3457,6 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   else
   {
     const char* msg;
-    relay_log_purge= 0;
     /* Relay log is already initialized */
     if (init_relay_log_pos(&mi->rli,
 			   mi->rli.group_relay_log_name,

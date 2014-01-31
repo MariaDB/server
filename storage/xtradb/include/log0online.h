@@ -26,6 +26,7 @@ Online database log parsing for changed page tracking
 
 #include "univ.i"
 #include "os0file.h"
+#include "log0log.h"
 
 /** Single bitmap file information */
 typedef struct log_online_bitmap_file_struct log_online_bitmap_file_t;
@@ -109,9 +110,9 @@ ibool
 log_online_bitmap_iterator_init(
 /*============================*/
 	log_bitmap_iterator_t	*i,		/*!<in/out:  iterator */
-	ib_uint64_t		min_lsn,	/*!<in: start LSN for the
+	lsn_t			min_lsn,	/*!<in: start LSN for the
 						iterator */
-	ib_uint64_t		max_lsn);	/*!<in: end LSN for the
+	lsn_t			max_lsn);	/*!<in: end LSN for the
 						iterator */
 
 /*********************************************************************//**
@@ -138,7 +139,7 @@ struct log_online_bitmap_file_struct {
 	char		name[FN_REFLEN];	/*!< Name with full path */
 	os_file_t	file;			/*!< Handle to opened file */
 	ib_uint64_t	size;			/*!< Size of the file */
-	ib_uint64_t	offset;			/*!< Offset of the next read,
+	os_offset_t	offset;			/*!< Offset of the next read,
 						or count of already-read bytes
 						*/
 };
@@ -147,12 +148,12 @@ struct log_online_bitmap_file_struct {
 struct log_online_bitmap_file_range_struct {
 	size_t	count;					/*!< Number of files */
 	/*!< Dynamically-allocated array of info about individual files */
-	struct {
-		char		name[FN_REFLEN];	/*!< Name of a file */
-		ib_uint64_t	start_lsn;		/*!< Starting LSN of
-						        data in	this file */
-		ulong		seq_num;		/*!< Sequence number of
-							this file */
+	struct files_t {
+		char	name[FN_REFLEN];	/*!< Name of a file */
+		lsn_t	start_lsn;		/*!< Starting LSN of data in
+						this file */
+		ulong	seq_num;		/*!< Sequence number of	this
+						file */
 	}	*files;
 };
 
@@ -171,9 +172,9 @@ struct log_bitmap_iterator_struct
 	ib_uint32_t			bit_offset;	/*!< bit offset inside
 							the current bitmap
 							block */
-	ib_uint64_t			start_lsn;	/*!< Start LSN of the
+	lsn_t				start_lsn;	/*!< Start LSN of the
 							current bitmap block */
-	ib_uint64_t			end_lsn;	/*!< End LSN of the
+	lsn_t				end_lsn;	/*!< End LSN of the
 							current bitmap block */
 	ib_uint32_t			space_id;	/*!< Current block
 							space id */

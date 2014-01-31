@@ -1,0 +1,23 @@
+SET @start_value = @@GLOBAL.innodb_empty_free_list_algorithm;
+SELECT @@GLOBAL.innodb_empty_free_list_algorithm;
+@@GLOBAL.innodb_empty_free_list_algorithm
+backoff
+SELECT @@SESSION.innodb_empty_free_list_algorithm;
+ERROR HY000: Variable 'innodb_empty_free_list_algorithm' is a GLOBAL variable
+SET GLOBAL innodb_empty_free_list_algorithm='legacy';
+SELECT @@GLOBAL.innodb_empty_free_list_algorithm;
+@@GLOBAL.innodb_empty_free_list_algorithm
+legacy
+SET GLOBAL innodb_empty_free_list_algorithm='backoff';
+SELECT @@GLOBAL.innodb_empty_free_list_algorithm;
+@@GLOBAL.innodb_empty_free_list_algorithm
+backoff
+SET GLOBAL innodb_empty_free_list_algorithm=1.1;
+ERROR 42000: Incorrect argument type to variable 'innodb_empty_free_list_algorithm'
+SET GLOBAL innodb_empty_free_list_algorithm=1e1;
+ERROR 42000: Incorrect argument type to variable 'innodb_empty_free_list_algorithm'
+SET GLOBAL innodb_empty_free_list_algorithm=2;
+ERROR 42000: Variable 'innodb_empty_free_list_algorithm' can't be set to the value of '2'
+SET GLOBAL innodb_empty_free_list_algorithm='foo';
+ERROR 42000: Variable 'innodb_empty_free_list_algorithm' can't be set to the value of 'foo'
+SET GLOBAL innodb_empty_free_list_algorithm = @start_value;

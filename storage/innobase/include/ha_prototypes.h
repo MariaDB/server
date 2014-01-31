@@ -183,7 +183,7 @@ innobase_mysql_cmp(
 Log code calls this whenever log has been written and/or flushed up
 to a new position. We use this to notify upper layer of a new commit
 checkpoint when necessary.*/
-extern "C" UNIV_INTERN
+UNIV_INTERN
 void
 innobase_mysql_log_notify(
 /*===============*/

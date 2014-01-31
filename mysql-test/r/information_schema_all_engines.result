@@ -16,27 +16,21 @@ FILES
 GLOBAL_STATUS
 GLOBAL_VARIABLES
 INDEX_STATISTICS
-INNODB_BUFFER_POOL_PAGES
-INNODB_BUFFER_POOL_PAGES_BLOB
-INNODB_BUFFER_POOL_PAGES_INDEX
 INNODB_CHANGED_PAGES
 INNODB_CMP
 INNODB_CMPMEM
 INNODB_CMPMEM_RESET
+INNODB_CMP_PER_INDEX
 INNODB_CMP_RESET
-INNODB_INDEX_STATS
 INNODB_LOCKS
 INNODB_LOCK_WAITS
-INNODB_RSEG
 INNODB_SYS_COLUMNS
 INNODB_SYS_FIELDS
 INNODB_SYS_FOREIGN
 INNODB_SYS_FOREIGN_COLS
 INNODB_SYS_INDEXES
-INNODB_SYS_STATS
 INNODB_SYS_TABLES
 INNODB_SYS_TABLESTATS
-INNODB_TABLE_STATS
 INNODB_TRX
 KEY_CACHES
 KEY_COLUMN_USAGE
@@ -61,7 +55,9 @@ TRIGGERS
 USER_PRIVILEGES
 USER_STATISTICS
 VIEWS
-XTRADB_ADMIN_COMMAND
+XTRADB_INTERNAL_HASH_TABLES
+XTRADB_READ_VIEW
+XTRADB_RSEG
 SELECT t.table_name, c1.column_name
 FROM information_schema.tables t
 INNER JOIN
@@ -92,27 +88,21 @@ FILES	TABLE_SCHEMA
 GLOBAL_STATUS	VARIABLE_NAME
 GLOBAL_VARIABLES	VARIABLE_NAME
 INDEX_STATISTICS	TABLE_SCHEMA
-INNODB_BUFFER_POOL_PAGES	page_type
-INNODB_BUFFER_POOL_PAGES_BLOB	space_id
-INNODB_BUFFER_POOL_PAGES_INDEX	index_id
 INNODB_CHANGED_PAGES	space_id
 INNODB_CMP	page_size
 INNODB_CMPMEM	page_size
 INNODB_CMPMEM_RESET	page_size
+INNODB_CMP_PER_INDEX	database_name
 INNODB_CMP_RESET	page_size
-INNODB_INDEX_STATS	table_schema
 INNODB_LOCKS	lock_id
 INNODB_LOCK_WAITS	requesting_trx_id
-INNODB_RSEG	rseg_id
 INNODB_SYS_COLUMNS	TABLE_ID
 INNODB_SYS_FIELDS	INDEX_ID
 INNODB_SYS_FOREIGN	ID
 INNODB_SYS_FOREIGN_COLS	ID
 INNODB_SYS_INDEXES	INDEX_ID
-INNODB_SYS_STATS	INDEX_ID
-INNODB_SYS_TABLES	SCHEMA
-INNODB_SYS_TABLESTATS	SCHEMA
-INNODB_TABLE_STATS	table_schema
+INNODB_SYS_TABLES	TABLE_ID
+INNODB_SYS_TABLESTATS	TABLE_ID
 INNODB_TRX	trx_id
 KEY_CACHES	KEY_CACHE_NAME
 KEY_COLUMN_USAGE	CONSTRAINT_SCHEMA
@@ -137,7 +127,9 @@ TRIGGERS	TRIGGER_SCHEMA
 USER_PRIVILEGES	GRANTEE
 USER_STATISTICS	USER
 VIEWS	TABLE_SCHEMA
-XTRADB_ADMIN_COMMAND	result_message
+XTRADB_INTERNAL_HASH_TABLES	INTERNAL_HASH_TABLE_NAME
+XTRADB_READ_VIEW	READ_VIEW_UNDO_NUMBER
+XTRADB_RSEG	rseg_id
 SELECT t.table_name, c1.column_name
 FROM information_schema.tables t
 INNER JOIN
@@ -168,27 +160,21 @@ FILES	TABLE_SCHEMA
 GLOBAL_STATUS	VARIABLE_NAME
 GLOBAL_VARIABLES	VARIABLE_NAME
 INDEX_STATISTICS	TABLE_SCHEMA
-INNODB_BUFFER_POOL_PAGES	page_type
-INNODB_BUFFER_POOL_PAGES_BLOB	space_id
-INNODB_BUFFER_POOL_PAGES_INDEX	index_id
 INNODB_CHANGED_PAGES	space_id
 INNODB_CMP	page_size
 INNODB_CMPMEM	page_size
 INNODB_CMPMEM_RESET	page_size
+INNODB_CMP_PER_INDEX	database_name
 INNODB_CMP_RESET	page_size
-INNODB_INDEX_STATS	table_schema
 INNODB_LOCKS	lock_id
 INNODB_LOCK_WAITS	requesting_trx_id
-INNODB_RSEG	rseg_id
 INNODB_SYS_COLUMNS	TABLE_ID
 INNODB_SYS_FIELDS	INDEX_ID
 INNODB_SYS_FOREIGN	ID
 INNODB_SYS_FOREIGN_COLS	ID
 INNODB_SYS_INDEXES	INDEX_ID
-INNODB_SYS_STATS	INDEX_ID
-INNODB_SYS_TABLES	SCHEMA
-INNODB_SYS_TABLESTATS	SCHEMA
-INNODB_TABLE_STATS	table_schema
+INNODB_SYS_TABLES	TABLE_ID
+INNODB_SYS_TABLESTATS	TABLE_ID
 INNODB_TRX	trx_id
 KEY_CACHES	KEY_CACHE_NAME
 KEY_COLUMN_USAGE	CONSTRAINT_SCHEMA
@@ -213,11 +199,13 @@ TRIGGERS	TRIGGER_SCHEMA
 USER_PRIVILEGES	GRANTEE
 USER_STATISTICS	USER
 VIEWS	TABLE_SCHEMA
-XTRADB_ADMIN_COMMAND	result_message
-select 1 as f1 from information_schema.tables  where "ALL_PLUGINS"=
+XTRADB_INTERNAL_HASH_TABLES	INTERNAL_HASH_TABLE_NAME
+XTRADB_READ_VIEW	READ_VIEW_UNDO_NUMBER
+XTRADB_RSEG	rseg_id
+select 1 as "must be 1" from information_schema.tables  where "ACCOUNTS"=
 (select cast(table_name as char)  from information_schema.tables
 order by table_name limit 1) limit 1;
-f1
+must be 1
 1
 select t.table_name, group_concat(t.table_schema, '.', t.table_name),
 count(*) as num1
@@ -249,27 +237,21 @@ FILES	information_schema.FILES	1
 GLOBAL_STATUS	information_schema.GLOBAL_STATUS	1
 GLOBAL_VARIABLES	information_schema.GLOBAL_VARIABLES	1
 INDEX_STATISTICS	information_schema.INDEX_STATISTICS	1
-INNODB_BUFFER_POOL_PAGES	information_schema.INNODB_BUFFER_POOL_PAGES	1
-INNODB_BUFFER_POOL_PAGES_BLOB	information_schema.INNODB_BUFFER_POOL_PAGES_BLOB	1
-INNODB_BUFFER_POOL_PAGES_INDEX	information_schema.INNODB_BUFFER_POOL_PAGES_INDEX	1
 INNODB_CHANGED_PAGES	information_schema.INNODB_CHANGED_PAGES	1
 INNODB_CMP	information_schema.INNODB_CMP	1
 INNODB_CMPMEM	information_schema.INNODB_CMPMEM	1
 INNODB_CMPMEM_RESET	information_schema.INNODB_CMPMEM_RESET	1
+INNODB_CMP_PER_INDEX	information_schema.INNODB_CMP_PER_INDEX	1
 INNODB_CMP_RESET	information_schema.INNODB_CMP_RESET	1
-INNODB_INDEX_STATS	information_schema.INNODB_INDEX_STATS	1
 INNODB_LOCKS	information_schema.INNODB_LOCKS	1
 INNODB_LOCK_WAITS	information_schema.INNODB_LOCK_WAITS	1
-INNODB_RSEG	information_schema.INNODB_RSEG	1
 INNODB_SYS_COLUMNS	information_schema.INNODB_SYS_COLUMNS	1
 INNODB_SYS_FIELDS	information_schema.INNODB_SYS_FIELDS	1
 INNODB_SYS_FOREIGN	information_schema.INNODB_SYS_FOREIGN	1
 INNODB_SYS_FOREIGN_COLS	information_schema.INNODB_SYS_FOREIGN_COLS	1
 INNODB_SYS_INDEXES	information_schema.INNODB_SYS_INDEXES	1
-INNODB_SYS_STATS	information_schema.INNODB_SYS_STATS	1
 INNODB_SYS_TABLES	information_schema.INNODB_SYS_TABLES	1
 INNODB_SYS_TABLESTATS	information_schema.INNODB_SYS_TABLESTATS	1
-INNODB_TABLE_STATS	information_schema.INNODB_TABLE_STATS	1
 INNODB_TRX	information_schema.INNODB_TRX	1
 KEY_CACHES	information_schema.KEY_CACHES	1
 KEY_COLUMN_USAGE	information_schema.KEY_COLUMN_USAGE	1
@@ -294,6 +276,9 @@ TRIGGERS	information_schema.TRIGGERS	1
 USER_PRIVILEGES	information_schema.USER_PRIVILEGES	1
 USER_STATISTICS	information_schema.USER_STATISTICS	1
 VIEWS	information_schema.VIEWS	1
+XTRADB_INTERNAL_HASH_TABLES	information_schema.XTRADB_INTERNAL_HASH_TABLES	1
+XTRADB_READ_VIEW	information_schema.XTRADB_READ_VIEW	1
+XTRADB_RSEG	information_schema.XTRADB_RSEG	1
 +---------------------------------------+
 +---------------------------------------+
 +---------------------------------------+
@@ -314,27 +299,21 @@ Database: information_schema
 | GLOBAL_STATUS                         |
 | GLOBAL_VARIABLES                      |
 | INDEX_STATISTICS                      |
-| INNODB_BUFFER_POOL_PAGES              |
-| INNODB_BUFFER_POOL_PAGES_BLOB         |
-| INNODB_BUFFER_POOL_PAGES_INDEX        |
 | INNODB_CHANGED_PAGES                  |
 | INNODB_CMP                            |
 | INNODB_CMPMEM                         |
 | INNODB_CMPMEM_RESET                   |
+| INNODB_CMP_PER_INDEX                  |
 | INNODB_CMP_RESET                      |
-| INNODB_INDEX_STATS                    |
 | INNODB_LOCKS                          |
 | INNODB_LOCK_WAITS                     |
-| INNODB_RSEG                           |
 | INNODB_SYS_COLUMNS                    |
 | INNODB_SYS_FIELDS                     |
 | INNODB_SYS_FOREIGN                    |
 | INNODB_SYS_FOREIGN_COLS               |
 | INNODB_SYS_INDEXES                    |
-| INNODB_SYS_STATS                      |
 | INNODB_SYS_TABLES                     |
 | INNODB_SYS_TABLESTATS                 |
-| INNODB_TABLE_STATS                    |
 | INNODB_TRX                            |
 | KEY_CACHES                            |
 | KEY_COLUMN_USAGE                      |
@@ -359,7 +338,9 @@ Database: information_schema
 | USER_PRIVILEGES                       |
 | USER_STATISTICS                       |
 | VIEWS                                 |
-| XTRADB_ADMIN_COMMAND                  |
+| XTRADB_INTERNAL_HASH_TABLES           |
+| XTRADB_READ_VIEW                      |
+| XTRADB_RSEG                           |
 +---------------------------------------+
 +---------------------------------------+
 +---------------------------------------+
@@ -380,27 +361,21 @@ Database: INFORMATION_SCHEMA
 | GLOBAL_STATUS                         |
 | GLOBAL_VARIABLES                      |
 | INDEX_STATISTICS                      |
-| INNODB_BUFFER_POOL_PAGES              |
-| INNODB_BUFFER_POOL_PAGES_BLOB         |
-| INNODB_BUFFER_POOL_PAGES_INDEX        |
 | INNODB_CHANGED_PAGES                  |
 | INNODB_CMP                            |
 | INNODB_CMPMEM                         |
 | INNODB_CMPMEM_RESET                   |
+| INNODB_CMP_PER_INDEX                  |
 | INNODB_CMP_RESET                      |
-| INNODB_INDEX_STATS                    |
 | INNODB_LOCKS                          |
 | INNODB_LOCK_WAITS                     |
-| INNODB_RSEG                           |
 | INNODB_SYS_COLUMNS                    |
 | INNODB_SYS_FIELDS                     |
 | INNODB_SYS_FOREIGN                    |
 | INNODB_SYS_FOREIGN_COLS               |
 | INNODB_SYS_INDEXES                    |
-| INNODB_SYS_STATS                      |
 | INNODB_SYS_TABLES                     |
 | INNODB_SYS_TABLESTATS                 |
-| INNODB_TABLE_STATS                    |
 | INNODB_TRX                            |
 | KEY_CACHES                            |
 | KEY_COLUMN_USAGE                      |
@@ -425,7 +400,9 @@ Database: INFORMATION_SCHEMA
 | USER_PRIVILEGES                       |
 | USER_STATISTICS                       |
 | VIEWS                                 |
-| XTRADB_ADMIN_COMMAND                  |
+| XTRADB_INTERNAL_HASH_TABLES           |
+| XTRADB_READ_VIEW                      |
+| XTRADB_RSEG                           |
 +--------------------+
 +--------------------+
 +--------------------+
@@ -434,5 +411,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') AND table_name<>'ndb_binlog_index' AND table_name<>'ndb_apply_status' GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	61
-mysql	28
+information_schema	57
+mysql	30
