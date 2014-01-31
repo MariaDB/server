@@ -44,6 +44,7 @@
 #include "probes_mysql.h"
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_audit.h"
+#include <my_handler_errors.h>
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -3260,7 +3261,7 @@ void handler::print_error(int error, myf errflag)
         }
       }
       else
-	my_error(ER_GET_ERRNO, errflag, error, table_type());
+        my_error(ER_GET_ERRNO, errflag, error, table_type());
       DBUG_VOID_RETURN;
     }
   }
@@ -5181,8 +5182,10 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
                          "", 0, "DISABLED", 8) ? 1 : 0;
     }
     else
+    {
       result= db_type->show_status &&
               db_type->show_status(db_type, thd, stat_print, stat) ? 1 : 0;
+    }
   }
 
   /*

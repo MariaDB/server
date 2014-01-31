@@ -32,3 +32,8 @@ SET(TAOCRYPT_SOURCES		src/aes.cpp src/aestables.cpp src/algebra.cpp src/arc4.cpp
 ADD_CONVENIENCE_LIBRARY(taocrypt ${TAOCRYPT_SOURCES})
 RESTRICT_SYMBOL_EXPORTS(taocrypt)
 
+INSTALL_DEBUG_SYMBOLS(taocrypt)
+IF(MSVC)
+   INSTALL_DEBUG_TARGET(taocrypt DESTINATION ${INSTALL_LIBDIR}/debug)
+ENDIF()
+

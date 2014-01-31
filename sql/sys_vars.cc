@@ -1,5 +1,5 @@
-/* Copyright (c) 2002, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2012, Monty Program Ab
+/* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2012, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1800,7 +1800,7 @@ static Sys_var_ulong Sys_net_retry_count(
        ON_UPDATE(fix_net_retry_count));
 
 static Sys_var_mybool Sys_old_mode(
-       "old", "Use compatible behavior",
+       "old", "Use compatible behavior from previous MariaDB version. See also --old-mode",
        SESSION_VAR(old_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_mybool Sys_old_alter_table(
@@ -2210,9 +2210,13 @@ static Sys_var_charptr Sys_socket(
 static Sys_var_ulong Sys_thread_concurrency(
        "thread_concurrency",
        "Permits the application to give the threads system a hint for "
-       "the desired number of threads that should be run at the same time",
+       "the desired number of threads that should be run at the same time."
+       "This variable has no effect, and is deprecated. "
+       "It will be removed in a future release.",
        READ_ONLY GLOBAL_VAR(concurrency), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 512), DEFAULT(DEFAULT_CONCURRENCY), BLOCK_SIZE(1));
+       VALID_RANGE(1, 512), DEFAULT(DEFAULT_CONCURRENCY), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED(""));
 
 static Sys_var_ulonglong Sys_thread_stack(
        "thread_stack", "The stack size for each thread",
@@ -2628,6 +2632,30 @@ static Sys_var_set Sys_sql_mode(
        SESSION_VAR(sql_mode), CMD_LINE(REQUIRED_ARG),
        sql_mode_names, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_sql_mode), ON_UPDATE(fix_sql_mode));
+
+static const char *old_mode_names[]=
+{
+  "NO_DUP_KEY_WARNINGS_WITH_IGNORE", "NO_PROGRESS_INFO",
+  0
+};
+
+export bool old_mode_string_representation(THD *thd, ulonglong sql_mode,
+                                           LEX_STRING *ls)
+{
+  set_to_string(thd, ls, sql_mode, old_mode_names);
+  return ls->str == 0;
+}
+/*
+  sql_mode should *not* be IN_BINLOG as the slave can't remember this
+  anyway on restart.
+*/
+static Sys_var_set Sys_old_behavior(
+       "old_mode",
+       "Used to emulate old behavior from earlier MariaDB or MySQL versions. "
+       "Syntax: old_mode=mode[,mode[,mode...]]. "
+       "See the manual for the complete list of valid old modes",
+       SESSION_VAR(old_behavior), CMD_LINE(REQUIRED_ARG),
+       old_mode_names, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #define SSL_OPT(X) CMD_LINE(REQUIRED_ARG,X)

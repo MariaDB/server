@@ -27,5 +27,6 @@ SET DEBUG_SYNC= "now SIGNAL m1_cont";
 
 connection master;
 DROP TABLE t1;
+SET DEBUG_SYNC= "RESET";
 
 --source include/rpl_end.inc

@@ -807,7 +807,6 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     keyinfo->ext_key_part_map= 0;
     if (share->use_ext_keys && i)
     {
-      keyinfo->ext_key_part_map= 0;
       for (j= 0; 
            j < first_key_parts && keyinfo->ext_key_parts < MAX_REF_PARTS;
            j++)
@@ -4084,8 +4083,9 @@ bool TABLE_LIST::create_field_translation(THD *thd)
   SELECT_LEX *select= get_single_select();
   List_iterator_fast<Item> it(select->item_list);
   uint field_count= 0;
-  Query_arena *arena= thd->stmt_arena, backup;
+  Query_arena *arena, backup;
   bool res= FALSE;
+  DBUG_ENTER("TABLE_LIST::create_field_translation");
 
   if (thd->stmt_arena->is_conventional() ||
       thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
@@ -4106,7 +4106,7 @@ bool TABLE_LIST::create_field_translation(THD *thd)
   if (field_translation)
   {
     /*
-      Update items in the field translation aftet view have been prepared.
+      Update items in the field translation after view have been prepared.
       It's needed because some items in the select list, like IN subselects,
       might be substituted for optimized ones.
     */
@@ -4119,13 +4119,10 @@ bool TABLE_LIST::create_field_translation(THD *thd)
       field_translation_updated= TRUE;
     }
 
-    return FALSE;
+    DBUG_RETURN(FALSE);
   }
 
-  if (arena->is_conventional())
-    arena= 0;                                   // For easier test
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
+  arena= thd->activate_stmt_arena_if_needed(&backup);
 
   /* Create view fields translation table */
 
@@ -4145,12 +4142,14 @@ bool TABLE_LIST::create_field_translation(THD *thd)
   }
   field_translation= transl;
   field_translation_end= transl + field_count;
+  /* It's safe to cache this table for prepared statements */
+  cacheable_table= 1;
 
 exit:
   if (arena)
     thd->restore_active_arena(arena, &backup);
 
-  return res;
+  DBUG_RETURN(res);
 }
 
 

@@ -497,6 +497,7 @@ void lex_start(THD *thd)
   lex->select_lex.ftfunc_list= &lex->select_lex.ftfunc_list_alloc;
   lex->select_lex.group_list.empty();
   lex->select_lex.order_list.empty();
+  lex->select_lex.gorder_list.empty();
   lex->duplicates= DUP_ERROR;
   lex->ignore= 0;
   lex->spname= NULL;
@@ -2145,14 +2146,15 @@ void st_select_lex_unit::exclude_tree()
   this to 'last' as dependent
 
   SYNOPSIS
-    last - pointer to last st_select_lex struct, before wich all 
+    last - pointer to last st_select_lex struct, before which all 
            st_select_lex have to be marked as dependent
 
   NOTE
     'last' should be reachable from this st_select_lex_node
 */
 
-bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last, Item *dependency)
+bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
+                                      Item *dependency)
 {
 
   DBUG_ASSERT(this != last);
@@ -2344,7 +2346,10 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
       If we need a bigger array, we must allocate a new one.
     */
     if (ref_pointer_array_size >= n_elems)
+    {
+      DBUG_PRINT("info", ("reusing old ref_array"));
       return false;
+    }
   }
   ref_pointer_array= static_cast<Item**>(arena->alloc(sizeof(Item*) * n_elems));
   if (ref_pointer_array != NULL)
@@ -2610,7 +2615,9 @@ bool LEX::can_be_merged()
   // TODO: do not forget implement case when select_lex.table_list.elements==0
 
   /* find non VIEW subqueries/unions */
-  bool selects_allow_merge= select_lex.next_select() == 0;
+  bool selects_allow_merge= (select_lex.next_select() == 0 &&
+                             !(select_lex.uncacheable &
+                               UNCACHEABLE_RAND));
   if (selects_allow_merge)
   {
     for (SELECT_LEX_UNIT *tmp_unit= select_lex.first_inner_unit();
@@ -3346,6 +3353,7 @@ static void fix_prepare_info_in_table_list(THD *thd, TABLE_LIST *tbl)
 void st_select_lex::fix_prepare_information(THD *thd, Item **conds, 
                                             Item **having_conds)
 {
+  DBUG_ENTER("st_select_lex::fix_prepare_information");
   if (!thd->stmt_arena->is_conventional() && first_execution)
   {
     first_execution= 0;
@@ -3374,6 +3382,7 @@ void st_select_lex::fix_prepare_information(THD *thd, Item **conds,
     }
     fix_prepare_info_in_table_list(thd, table_list.first);
   }
+  DBUG_VOID_RETURN;
 }
 
 
@@ -4111,11 +4120,8 @@ void SELECT_LEX::mark_const_derived(bool empty)
 
 bool st_select_lex::save_leaf_tables(THD *thd)
 {
-  Query_arena *arena= thd->stmt_arena, backup;
-  if (arena->is_conventional())
-    arena= 0;                                  
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
 
   List_iterator_fast<TABLE_LIST> li(leaf_tables);
   TABLE_LIST *table;
@@ -4143,10 +4149,7 @@ bool st_select_lex::save_prep_leaf_tables(THD *thd)
     return 0;
 
   Query_arena *arena= thd->stmt_arena, backup;
-  if (arena->is_conventional())
-    arena= 0;                                  
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
+  arena= thd->activate_stmt_arena_if_needed(&backup);
 
   List_iterator_fast<TABLE_LIST> li(leaf_tables);
   TABLE_LIST *table;

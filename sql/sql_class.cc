@@ -1142,6 +1142,7 @@ MYSQL_ERROR* THD::raise_condition(uint sql_errno,
     got_warning= 1;
     break;
   case MYSQL_ERROR::WARN_LEVEL_ERROR:
+    mysql_audit_general(this, MYSQL_AUDIT_GENERAL_ERROR, sql_errno, msg);
     break;
   default:
     DBUG_ASSERT(FALSE);
@@ -2295,6 +2296,7 @@ bool select_result::check_simple_select() const
 static String default_line_term("\n",default_charset_info);
 static String default_escaped("\\",default_charset_info);
 static String default_field_term("\t",default_charset_info);
+static String default_enclosed_and_line_start("", default_charset_info);
 static String default_xml_row_term("<row>", default_charset_info);
 
 sql_exchange::sql_exchange(char *name, bool flag,
@@ -2303,7 +2305,7 @@ sql_exchange::sql_exchange(char *name, bool flag,
 {
   filetype= filetype_arg;
   field_term= &default_field_term;
-  enclosed=   line_start= &my_empty_string;
+  enclosed=   line_start= &default_enclosed_and_line_start;
   line_term=  filetype == FILETYPE_CSV ?
               &default_line_term : &default_xml_row_term;
   escaped=    &default_escaped;

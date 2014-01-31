@@ -1083,8 +1083,10 @@ JOIN::optimize_inner()
     if (select_lex->handle_derived(thd->lex, DT_MERGE))
       DBUG_RETURN(TRUE);  
     table_count= select_lex->leaf_tables.elements;
-    select_lex->update_used_tables();
   }
+  // Update used tables after all handling derived table procedures
+  select_lex->update_used_tables();
+
   /*
     In fact we transform underlying subqueries after their 'prepare' phase and
     before 'optimize' from upper query 'optimize' to allow semijoin
@@ -1163,11 +1165,8 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
       MEMROOT for prepared statements and stored procedures.
     */
 
-    Query_arena *arena= thd->stmt_arena, backup;
-    if (arena->is_conventional())
-      arena= 0;                                   // For easier test
-    else
-      thd->set_n_backup_active_arena(arena, &backup);
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
 
     sel->first_cond_optimization= 0;
 
@@ -2434,6 +2433,7 @@ void JOIN::exec_inner()
         In this case JOIN::exec must check for JOIN::having_value, in the
         same way it checks for JOIN::cond_value.
       */
+      DBUG_ASSERT(error == 0);
       if (cond_value != Item::COND_FALSE &&
           having_value != Item::COND_FALSE &&
           (!conds || conds->val_int()) &&
@@ -2444,16 +2444,15 @@ void JOIN::exec_inner()
              procedure->end_of_records()) : result->send_data(fields_list)> 0))
 	  error= 1;
 	else
-	{
-	  error= (int) result->send_eof();
 	  send_records= ((select_options & OPTION_FOUND_ROWS) ? 1 :
                          thd->sent_row_count);
-	}
       }
       else
-      {
-	error=(int) result->send_eof();
         send_records= 0;
+      if (!error)
+      {
+        join_free();                      // Unlock all cursors
+        error= (int) result->send_eof();
       }
     }
     /* Single select (without union) always returns 0 or 1 row */
@@ -3395,7 +3394,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   stat_ref=(JOIN_TAB**) join->thd->alloc(sizeof(JOIN_TAB*)*
                                          (MAX_TABLES + table_count + 1));
   stat_vector= stat_ref + MAX_TABLES;
-  table_vector=(TABLE**) join->thd->alloc(sizeof(TABLE*)*(table_count*2));
+  table_vector=(TABLE**) join->thd->calloc(sizeof(TABLE*)*(table_count*2));
   join->positions= new (join->thd->mem_root) POSITION[(table_count+1)];
   /*
     best_positions is ok to allocate with alloc() as we copy things to it with
@@ -11449,6 +11448,16 @@ void JOIN::cleanup(bool full)
         {
           tab->cleanup();
         }
+
+        if (tabs_kind == WALK_OPTIMIZATION_TABS && 
+            first_breadth_first_tab(this, WALK_OPTIMIZATION_TABS) != 
+            first_breadth_first_tab(this, WALK_EXECUTION_TABS))
+        {
+          JOIN_TAB *jt= first_breadth_first_tab(this, WALK_EXECUTION_TABS);
+          /* We've walked optimization tabs. do execution ones too */
+          if (jt)
+            jt->cleanup();
+        }
       }
       cleaned= true;
 
@@ -11669,6 +11678,8 @@ static void update_depend_map_for_order(JOIN *join, ORDER *order)
   Remove all constants and check if ORDER only contains simple
   expressions.
 
+  We also remove all duplicate expressions, keeping only the first one.
+
   simple_order is set to 1 if sort_order only uses fields from head table
   and the head table is not a LEFT JOIN table.
 
@@ -11676,9 +11687,10 @@ static void update_depend_map_for_order(JOIN *join, ORDER *order)
   @param first_order		List of SORT or GROUP order
   @param cond			WHERE statement
   @param change_list		Set to 1 if we should remove things from list.
-                               If this is not set, then only simple_order is
-                               calculated.
-  @param simple_order		Set to 1 if we are only using simple expressions
+                                If this is not set, then only simple_order is
+                                calculated.
+  @param simple_order		Set to 1 if we are only using simple
+				expressions.
 
   @return
     Returns new sort order
@@ -11691,7 +11703,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
   if (join->table_count == join->const_tables)
     return change_list ? 0 : first_order;		// No need to sort
 
-  ORDER *order,**prev_ptr;
+  ORDER *order,**prev_ptr, *tmp_order;
   table_map first_table;
   table_map not_const_tables= ~join->const_table_map;
   table_map ref;
@@ -11705,7 +11717,6 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
     first_is_base_table= TRUE;
   }
   
-
   /*
     Cleanup to avoid interference of calls of this function for
     ORDER BY and GROUP BY
@@ -11774,6 +11785,17 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
 	}
       }
     }
+    /* Remove ORDER BY entries that we have seen before */
+    for (tmp_order= first_order;
+         tmp_order != order;
+         tmp_order= tmp_order->next)
+    {
+      if (tmp_order->item[0]->eq(order->item[0],1))
+        break;
+    }
+    if (tmp_order != order)
+      continue;                                // Duplicate order by. Remove
+    
     if (change_list)
       *prev_ptr= order;				// use this entry
     prev_ptr= &order->next;
@@ -15413,7 +15435,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   save_sum_fields|= param->precomputed_group_by;
   DBUG_ENTER("create_tmp_table");
   DBUG_PRINT("enter",
-             ("distinct: %d  save_sum_fields: %d  rows_limit: %lu  group: %d",
+             ("table_alias: '%s'  distinct: %d  save_sum_fields: %d  "
+              "rows_limit: %lu  group: %d", table_alias,
               (int) distinct, (int) save_sum_fields,
               (ulong) rows_limit,test(group)));
 
@@ -15856,23 +15879,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 
     if (!(field->flags & NOT_NULL_FLAG))
     {
-      if (field->flags & GROUP_FLAG && !using_unique_constraint)
-      {
-	/*
-	  We have to reserve one byte here for NULL bits,
-	  as this is updated by 'end_update()'
-	*/
-	*pos++=0;				// Null is stored here
-	recinfo->length=1;
-	recinfo->type=FIELD_NORMAL;
-	recinfo++;
-	bzero((uchar*) recinfo,sizeof(*recinfo));
-      }
-      else
-      {
-	recinfo->null_bit= (uint8)1 << (null_count & 7);
-	recinfo->null_pos= null_count/8;
-      }
+      recinfo->null_bit= (uint8)1 << (null_count & 7);
+      recinfo->null_pos= null_count/8;
       field->move_field(pos,null_flags+null_count/8,
 			(uint8)1 << (null_count & 7));
       null_count++;
@@ -16875,7 +16883,8 @@ free_tmp_table(THD *thd, TABLE *entry)
   MEM_ROOT own_root= entry->mem_root;
   const char *save_proc_info;
   DBUG_ENTER("free_tmp_table");
-  DBUG_PRINT("enter",("table: %s",entry->alias.c_ptr()));
+  DBUG_PRINT("enter",("table: %s  alias: %s",entry->s->table_name.str,
+                      entry->alias.c_ptr()));
 
   save_proc_info=thd->proc_info;
   thd_proc_info(thd, "removing tmp table");
@@ -18841,19 +18850,6 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     goto end;
   }
 
-  /*
-    Copy null bits from group key to table
-    We can't copy all data as the key may have different format
-    as the row data (for example as with VARCHAR keys)
-  */
-  KEY_PART_INFO *key_part;
-  for (group=table->group,key_part=table->key_info[0].key_part;
-       group ;
-       group=group->next,key_part++)
-  {
-    if (key_part->null_bit)
-      memcpy(table->record[0]+key_part->offset, group->buff, 1);
-  }
   init_tmptable_sum_functions(join->sum_funcs);
   if (copy_funcs(join->tmp_table_param.items_to_copy, join->thd))
     DBUG_RETURN(NESTED_LOOP_ERROR);           /* purecov: inspected */
@@ -19507,7 +19503,7 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
         key as a suffix to the secondary keys. If it has continue to check
         the primary key as a suffix.
       */
-      if (!on_pk_suffix &&
+      if (!on_pk_suffix && (table->key_info[idx].ext_key_part_map & 1) &&
           (table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX) &&
           table->s->primary_key != MAX_KEY &&
           table->s->primary_key != idx)
@@ -19531,20 +19527,22 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
                 (((key_part_map) 1) << pk_part_idx)))
             break;
         }
+
         /* Adjust const_key_parts */
         const_key_parts&= (((key_part_map) 1) << pk_part_idx) -1;
 
-         for (; const_key_parts & 1 ; const_key_parts>>= 1)
-           key_part++; 
+        for (; const_key_parts & 1 ; const_key_parts>>= 1)
+          key_part++;
         /*
           Test if the primary key parts were all const (i.e. there's one row).
           The sorting doesn't matter.
         */
-        if (key_part == start+table->key_info[table->s->primary_key].key_parts &&
+        if (key_part ==
+            start+table->key_info[table->s->primary_key].key_parts &&
             reverse == 0)
         {
           key_parts= 0;
-          reverse= 1;
+          reverse= 1;                           // Key is ok to use
           goto ok;
         }
       }
@@ -20129,7 +20127,7 @@ check_reverse_order:
           table->disable_keyread();
         }
       }
-      else if (tab->type != JT_ALL)
+      else if (tab->type != JT_ALL || tab->select->quick)
       {
         /*
           We're about to use a quick access to the table.

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -64,11 +64,6 @@ C_MODE_END
 
 size_t username_char_length= 80;
 
-/**
-   @todo Remove this. It is not safe to use a shared String object.
- */
-String my_empty_string("",default_charset_info);
-
 /*
   For the Items which have only val_str_ascii() method
   and don't have their own "native" val_str(),
@@ -104,7 +99,6 @@ String *Item_str_func::val_str_from_val_str_ascii(String *str, String *str2)
   
   return str2;
 }
-
 
 
 /*
@@ -2757,7 +2751,7 @@ String *Item_func_make_set::val_str(String *str)
   ulonglong bits;
   bool first_found=0;
   Item **ptr=args+1;
-  String *result=&my_empty_string;
+  String *result= make_empty_result();
 
   bits=args[0]->val_int();
   if ((null_value=args[0]->null_value))
@@ -3204,7 +3198,9 @@ String *Item_func_conv::val_str(String *str)
   int to_base= (int) args[2]->val_int();
   int err;
 
+  // Note that abs(INT_MIN) is undefined.
   if (args[0]->null_value || args[1]->null_value || args[2]->null_value ||
+      from_base == INT_MIN || to_base == INT_MIN ||
       abs(to_base) > 36 || abs(to_base) < 2 ||
       abs(from_base) > 36 || abs(from_base) < 2 || !(res->length()))
   {

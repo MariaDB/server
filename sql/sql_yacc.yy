@@ -9562,7 +9562,7 @@ variable_aux:
             if ($$ == NULL)
               MYSQL_YYABORT;
             LEX *lex= Lex;
-            lex->uncacheable(UNCACHEABLE_RAND);
+            lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
             lex->set_var_list.push_back(item);
           }
         | ident_or_text
@@ -9571,7 +9571,7 @@ variable_aux:
             if ($$ == NULL)
               MYSQL_YYABORT;
             LEX *lex= Lex;
-            lex->uncacheable(UNCACHEABLE_RAND);
+            lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
           }
         | '@' opt_var_ident_type ident_or_text opt_component
           {
