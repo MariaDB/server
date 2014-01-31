@@ -260,6 +260,11 @@ ENDIF()
 # Run platform tests
 INCLUDE(configure.cmake)
 
+# Find header files from the bundled libraries
+# (jemalloc, yassl, readline, pcre, etc)
+# before the ones installed in the system
+SET(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
+
 # Common defines and includes
 ADD_DEFINITIONS(-DHAVE_CONFIG_H)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include)
