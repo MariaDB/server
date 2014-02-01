@@ -4597,14 +4597,16 @@ int ha_create_table(THD *thd, const char *path,
 
   error= table.file->ha_create(name, &table, create_info);
 
-  (void) closefrm(&table, 0);
-
   if (error)
   {
-    my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
+    if (!thd->is_error())
+      my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
+    table.file->print_error(error, MYF(ME_JUST_WARNING));
     PSI_CALL_drop_table_share(temp_table, share.db.str, share.db.length,
                               share.table_name.str, share.table_name.length);
   }
+
+  (void) closefrm(&table, 0);
  
 err:
   free_table_share(&share);
