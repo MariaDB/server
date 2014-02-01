@@ -1,5 +1,5 @@
 //
-// $Id$
+// $Id: ha_sphinx.h 3866 2013-05-22 11:54:20Z kevg $
 //
 
 #ifdef USE_PRAGMA_INTERFACE
@@ -7,7 +7,9 @@
 #endif
 
 
-#if MYSQL_VERSION_ID>50100
+#if MYSQL_VERSION_ID>=50515
+#define TABLE_ARG	TABLE_SHARE
+#elif MYSQL_VERSION_ID>50100
 #define TABLE_ARG	st_table_share
 #else
 #define TABLE_ARG	st_table
@@ -47,7 +49,7 @@ protected:
 
 public:
 #if MYSQL_VERSION_ID<50100
-					ha_sphinx ( TABLE_ARG * table_arg );
+					ha_sphinx ( TABLE_ARG * table_arg ); // NOLINT
 #else
 					ha_sphinx ( handlerton * hton, TABLE_ARG * table_arg );
 #endif
@@ -82,14 +84,15 @@ public:
 	int				open ( const char * name, int mode, uint test_if_locked );
 	int				close ();
 
-	int				write_row ( uchar * buf );
-	int				update_row ( const uchar * old_data, uchar * new_data );
-	int				delete_row ( const uchar * buf );
+	int				write_row ( byte * buf );
+	int				update_row ( const byte * old_data, byte * new_data );
+	int				delete_row ( const byte * buf );
+	int				extra ( enum ha_extra_function op );
 
 	int				index_init ( uint keynr, bool sorted ); // 5.1.x
 	int				index_init ( uint keynr ) { return index_init ( keynr, false ); } // 5.0.x
 
-	int				index_end (); 
+	int				index_end ();
 	int				index_read ( byte * buf, const byte * key, uint key_len, enum ha_rkey_function find_flag );
 	int				index_read_idx ( byte * buf, uint idx, const byte * key, uint key_len, enum ha_rkey_function find_flag );
 	int				index_next ( byte * buf );
@@ -121,10 +124,14 @@ public:
 	int				rename_table ( const char * from, const char * to );
 	int				create ( const char * name, TABLE * form, HA_CREATE_INFO * create_info );
 
-	THR_LOCK_DATA **store_lock ( THD * thd, THR_LOCK_DATA ** to, enum thr_lock_type lock_type );
+	THR_LOCK_DATA **		store_lock ( THD * thd, THR_LOCK_DATA ** to, enum thr_lock_type lock_type );
 
 public:
+#if MYSQL_VERSION_ID<50610
 	virtual const COND *	cond_push ( const COND *cond );
+#else
+	virtual const Item *		cond_push ( const Item *cond );
+#endif	
 	virtual void			cond_pop ();
 
 private:
@@ -138,12 +145,15 @@ private:
 	int *			m_dUnboundFields;
 
 private:
-	int				ConnectToSearchd ( const char * sQueryHost, int iQueryPort );
+	int				Connect ( const char * sQueryHost, ushort uPort );
+	int				ConnectAPI ( const char * sQueryHost, int iQueryPort );
+	int				HandleMysqlError ( struct st_mysql * pConn, int iErrCode );
 
 	uint32			UnpackDword ();
 	char *			UnpackString ();
 	bool			UnpackSchema ();
 	bool			UnpackStats ( CSphSEStats * pStats );
+	bool			CheckResponcePtr ( int iLen );
 
 	CSphSEThreadData *	GetTls ();
 };
@@ -160,5 +170,5 @@ int sphinx_showfunc_word_count ( THD *, SHOW_VAR *, char * );
 int sphinx_showfunc_words ( THD *, SHOW_VAR *, char * );
 
 //
-// $Id$
+// $Id: ha_sphinx.h 3866 2013-05-22 11:54:20Z kevg $
 //
