@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -40,6 +40,10 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 #include "fts0vlc.ic"
 #endif
 
+#include <string>
+#include <vector>
+#include <map>
+
 #define FTS_ELEM(t, n, i, j) (t[(i) * n + (j)])
 
 #define RANK_DOWNGRADE		(-1.0F)
@@ -50,13 +54,20 @@ FIXME, this limitation can be removed easily. Need to see
 if we want to enforce such limitation */
 #define MAX_PROXIMITY_ITEM	128
 
+/* Memory used by rbt itself for create and node add */
+#define SIZEOF_RBT_CREATE	sizeof(ib_rbt_t) + sizeof(ib_rbt_node_t) * 2
+#define SIZEOF_RBT_NODE_ADD	sizeof(ib_rbt_node_t)
+
+/*Initial byte length for 'words' in fts_ranking_t */
+#define RANKING_WORDS_INIT_LEN	4
+
 /* Coeffecient to use for normalize relevance ranking. */
 static const double FTS_NORMALIZE_COEFF = 0.0115F;
 
 // FIXME: Need to have a generic iterator that traverses the ilist.
 
-/* For parsing the search phrase */
-static const char* FTS_PHRASE_DELIMITER = "\t ";
+typedef std::map<std::string, ulint>	word_map_t;
+typedef std::vector<std::string>	word_vector_t;
 
 struct fts_word_freq_t;
 
@@ -72,12 +83,20 @@ struct fts_query_t {
 
 	fts_table_t	fts_index_table;/*!< FTS auxiliary index table def */
 
+	ulint		total_size;	/*!< total memory size used by query */
+
 	fts_doc_ids_t*	deleted;	/*!< Deleted doc ids that need to be
 					filtered from the output */
 
 	fts_ast_node_t*	root;		/*!< Abstract syntax tree */
 
 	fts_ast_node_t* cur_node;	/*!< Current tree node */
+
+	word_map_t*	word_map;	/*!< Matched word map for
+					searching by word*/
+
+	word_vector_t*	word_vector;	/*!< Matched word vector for
+					searching by index */
 
 	ib_rbt_t*       doc_ids;	/*!< The current set of matching
 					doc ids, elements are of
@@ -113,7 +132,7 @@ struct fts_query_t {
 
 	doc_id_t	upper_doc_id;	/*!< Highest doc id in doc_ids */
 
-	ibool		boolean_mode;	/*!< TRUE if boolean mode query */
+	bool		boolean_mode;	/*!< TRUE if boolean mode query */
 
 	ib_vector_t*	matched;	/*!< Array of matching documents
 					(fts_match_t) to search for a phrase */
@@ -133,9 +152,7 @@ struct fts_query_t {
 					document, its elements are of type
 					fts_word_freq_t */
 
-	ibool		inited;		/*!< Flag to test whether the query
-					processing has started or not */
-	ibool		multi_exist;	/*!< multiple FTS_EXIST oper */
+	bool		multi_exist;	/*!< multiple FTS_EXIST oper */
 };
 
 /** For phrase matching, first we collect the documents and the positions
@@ -237,7 +254,7 @@ fts_query_index_fetch_nodes(
 Read and filter nodes.
 @return fts_node_t instance */
 static
-void
+dberr_t
 fts_query_filter_doc_ids(
 /*=====================*/
 	fts_query_t*	query,		/*!< in: query instance */
@@ -318,7 +335,7 @@ static
 ulint
 fts_query_terms_in_document(
 /*========================*/
-					/*!< out: DB_SUCCESS if all went well
+					/*!< out: DB_SUCCESS if all go well
 					else error code */
 	fts_query_t*	query,		/*!< in: FTS query state */
 	doc_id_t	doc_id,		/*!< in: the word to check */
@@ -430,22 +447,6 @@ fts_query_lcs(
 #endif
 
 /*******************************************************************//**
-Compare two byte* arrays.
-@return 0 if p1 == p2, < 0 if p1 <  p2, > 0 if p1 >  p2 */
-static
-int
-fts_query_strcmp(
-/*=============*/
-	const void*	p1,		/*!< in: pointer to elem */
-	const void*	p2)		/*!< in: pointer to elem */
-{
-	void* temp = const_cast<void*>(p2);
-
-	return(strcmp(static_cast<const char*>(p1),
-		      *(static_cast <char**>(temp))));
-}
-
-/*******************************************************************//**
 Compare two fts_ranking_t instance on their rank value and doc ids in
 descending order on the rank and ascending order on doc id.
 @return 0 if p1 == p2, < 0 if p1 <  p2, > 0 if p1 >  p2 */
@@ -537,6 +538,127 @@ fts_utf8_strcmp(
 #endif
 
 /*******************************************************************//**
+Create words in ranking */
+static
+void
+fts_ranking_words_create(
+/*=====================*/
+	fts_query_t*	query,		/*!< in: query instance */
+	fts_ranking_t*	ranking)	/*!< in: ranking instance */
+{
+	ranking->words = static_cast<byte*>(
+		mem_heap_zalloc(query->heap, RANKING_WORDS_INIT_LEN));
+	ranking->words_len = RANKING_WORDS_INIT_LEN;
+}
+
+/*
+The optimization here is using a char array(bitmap) to replace words rb tree
+in fts_ranking_t.
+
+It can save lots of memory except in some cases of QUERY EXPANSION.
+
+'word_map' is used as a word dictionary, in which the key is a word, the value
+is a number. In 'fts_ranking_words_add', we first check if the word is in 'word_map'.
+if not, we add it into 'word_map', and give it a position(actually a number).
+then we set the corresponding bit to '1' at the position in the char array 'words'.
+
+'word_vector' is a useful backup of 'word_map', and we can get a word by its position,
+more quickly than searching by value in 'word_map'. we use 'word_vector'
+in 'fts_query_calculate_ranking' and 'fts_expand_query'. In the two functions, we need
+to scan the bitmap 'words', and get a word when a bit is '1', then we get word_freq
+by the word.
+*/
+
+/*******************************************************************//**
+Add a word into ranking */
+static
+void
+fts_ranking_words_add(
+/*==================*/
+	fts_query_t*	query,		/*!< in: query instance */
+	fts_ranking_t*	ranking,	/*!< in: ranking instance */
+	const char*	word)		/*!< in: term/word to add */
+{
+	ulint	pos;
+	ulint	byte_offset;
+	ulint	bit_offset;
+	word_map_t::iterator it;
+
+	/* Note: we suppose the word map and vector are append-only */
+	/* Check if need to add it to word map */
+	it = query->word_map->lower_bound(word);
+	if (it != query->word_map->end()
+	    && !query->word_map->key_comp()(word, it->first)) {
+		pos = it->second;
+	} else {
+		pos = query->word_map->size();
+		query->word_map->insert(it,
+			std::pair<std::string, ulint>(word, pos));
+
+		query->word_vector->push_back(word);
+	}
+
+	/* Check words len */
+	byte_offset = pos / CHAR_BIT;
+	if (byte_offset >= ranking->words_len) {
+		byte*	words = ranking->words;
+		ulint	words_len = ranking->words_len;
+
+		while (byte_offset >= words_len) {
+			words_len *= 2;
+		}
+
+		ranking->words = static_cast<byte*>(
+			mem_heap_zalloc(query->heap, words_len));
+		ut_memcpy(ranking->words, words, ranking->words_len);
+		ranking->words_len = words_len;
+	}
+
+	/* Set ranking words */
+	ut_ad(byte_offset < ranking->words_len);
+	bit_offset = pos % CHAR_BIT;
+	ranking->words[byte_offset] |= 1 << bit_offset;
+}
+
+/*******************************************************************//**
+Get a word from a ranking
+@return true if it's successful */
+static
+bool
+fts_ranking_words_get_next(
+/*=======================*/
+	const	fts_query_t*	query,	/*!< in: query instance */
+	fts_ranking_t*		ranking,/*!< in: ranking instance */
+	ulint*			pos,	/*!< in/out: word start pos */
+	byte**			word)	/*!< in/out: term/word to add */
+{
+	bool	ret = false;
+	ulint	max_pos = ranking->words_len * CHAR_BIT;
+
+	/* Search for next word */
+	while (*pos < max_pos) {
+		ulint	byte_offset = *pos / CHAR_BIT;
+		ulint	bit_offset = *pos % CHAR_BIT;
+
+		if (ranking->words[byte_offset] & (1 << bit_offset)) {
+			ret = true;
+			break;
+		}
+
+		*pos += 1;
+	};
+
+	/* Get next word from word vector */
+	if (ret) {
+		ut_ad(*pos < query->word_vector->size());
+		*word = (byte*)query->word_vector->at((size_t)*pos).c_str();
+		*pos += 1;
+	}
+
+	return ret;
+}
+
+/*******************************************************************//**
 Add a word if it doesn't exist, to the term freq RB tree. We store
 a pointer to the word that is passed in as the argument.
 @return pointer to word */
@@ -569,6 +691,11 @@ fts_query_add_word_freq(
 
 		parent.last = rbt_add_node(
 			query->word_freqs, &parent, &word_freq);
+
+		query->total_size += len
+			+ SIZEOF_RBT_CREATE
+			+ SIZEOF_RBT_NODE_ADD
+			+ sizeof(fts_word_freq_t);
 	}
 
 	return(rbt_value(fts_word_freq_t, parent.last));
@@ -581,6 +708,7 @@ static
 fts_doc_freq_t*
 fts_query_add_doc_freq(
 /*===================*/
+	fts_query_t*	query,		/*!< in: query instance	*/
 	ib_rbt_t*	doc_freqs,	/*!< in: rb tree of fts_doc_freq_t */
 	doc_id_t	doc_id)		/*!< in: doc id to add */
 {
@@ -596,6 +724,9 @@ fts_query_add_doc_freq(
 		doc_freq.doc_id = doc_id;
 
 		parent.last = rbt_add_node(doc_freqs, &parent, &doc_freq);
+
+		query->total_size += SIZEOF_RBT_NODE_ADD
+			+ sizeof(fts_doc_freq_t);
 	}
 
 	return(rbt_value(fts_doc_freq_t, parent.last));
@@ -625,9 +756,12 @@ fts_query_union_doc_id(
 
 		ranking.rank = rank;
 		ranking.doc_id = doc_id;
-		ranking.words = rbt_create(sizeof(byte*), fts_query_strcmp);
+		fts_ranking_words_create(query, &ranking);
 
 		rbt_add_node(query->doc_ids, &parent, &ranking);
+
+		query->total_size += SIZEOF_RBT_NODE_ADD
+			+ sizeof(fts_ranking_t) + RANKING_WORDS_INIT_LEN;
 	}
 }
 
@@ -648,13 +782,12 @@ fts_query_remove_doc_id(
 	/* Check if the doc id is deleted and it's in our set. */
 	if (fts_bsearch(array, 0, size, doc_id) < 0
 	    && rbt_search(query->doc_ids, &parent, &doc_id) == 0) {
-
-		fts_ranking_t*	ranking;
-
-		ranking = rbt_value(fts_ranking_t, parent.last);
-		rbt_free(ranking->words);
-
 		ut_free(rbt_remove_node(query->doc_ids, parent.last));
+
+		ut_ad(query->total_size >
+		      SIZEOF_RBT_NODE_ADD + sizeof(fts_ranking_t));
+		query->total_size -= SIZEOF_RBT_NODE_ADD
+			+ sizeof(fts_ranking_t);
 	}
 }
 
@@ -712,57 +845,69 @@ fts_query_intersect_doc_id(
 	ib_rbt_bound_t	parent;
 	ulint		size = ib_vector_size(query->deleted->doc_ids);
 	fts_update_t*	array = (fts_update_t*) query->deleted->doc_ids->data;
-	fts_ranking_t*	ranking;
+	fts_ranking_t*	ranking= NULL;
+
+	/* There are three types of intersect:
+	   1. '+a': doc_ids is empty, add doc into intersect if it matches 'a'.
+	   2. 'a +b': docs match 'a' is in doc_ids, add doc into intersect
+	      if it matches 'b'. if the doc is also in  doc_ids, then change the
+	      doc's rank, and add 'a' in doc's words.
+	   3. '+a +b': docs matching '+a' is in doc_ids, add doc into intsersect
+	      if it matches 'b' and it's in doc_ids.(multi_exist = true). */
 
 	/* Check if the doc id is deleted and it's in our set */
 	if (fts_bsearch(array, 0, size, doc_id) < 0) {
-		/* If this is the first FTS_EXIST we encountered, all of its
-		value must be in intersect list */
-		if (!query->multi_exist) {
-			fts_ranking_t	new_ranking;
+		fts_ranking_t	new_ranking;
 
-			if (rbt_search(query->doc_ids, &parent, &doc_id) == 0) {
-				ranking = rbt_value(fts_ranking_t, parent.last);
-				rank += (ranking->rank > 0)
-					? ranking->rank : RANK_UPGRADE;
-				if (rank >= 1.0F) {
-					rank = 1.0F;
-				}
-			}
-
-			new_ranking.rank = rank;
-			new_ranking.doc_id = doc_id;
-			new_ranking.words = rbt_create(
-				sizeof(byte*), fts_query_strcmp);
-			ranking = &new_ranking;
-
-			if (rbt_search(query->intersection, &parent,
-				       ranking) != 0) {
-				rbt_add_node(query->intersection,
-					     &parent, ranking);
+		if (rbt_search(query->doc_ids, &parent, &doc_id) != 0) {
+			if (query->multi_exist) {
+				return;
 			} else {
-				rbt_free(new_ranking.words);
+				new_ranking.words = NULL;
 			}
 		} else {
+			ranking = rbt_value(fts_ranking_t, parent.last);
 
-			if (rbt_search(query->doc_ids, &parent, &doc_id) != 0) {
+			/* We've just checked the doc id before */
+			if (ranking->words == NULL) {
+				ut_ad(rbt_search(query->intersection, &parent,
+					ranking) == 0);
 				return;
 			}
 
-			ranking = rbt_value(fts_ranking_t, parent.last);
+			/* Merge rank */
+			rank += ranking->rank;
+			if (rank >= 1.0F) {
+				rank = 1.0F;
+			} else if (rank <= -1.0F) {
+				rank = -1.0F;
+			}
 
-			ranking->rank = rank;
+			/* Take words */
+			new_ranking.words = ranking->words;
+			new_ranking.words_len = ranking->words_len;
+		}
 
-			if (ranking->words != NULL
-			    && rbt_search(query->intersection, &parent,
-					  ranking) != 0) {
-				rbt_add_node(query->intersection, &parent,
-					     ranking);
+		new_ranking.rank = rank;
+		new_ranking.doc_id = doc_id;
 
+		if (rbt_search(query->intersection, &parent,
+			       &new_ranking) != 0) {
+			if (new_ranking.words == NULL) {
+				fts_ranking_words_create(query, &new_ranking);
+
+				query->total_size += RANKING_WORDS_INIT_LEN;
+			} else {
 				/* Note that the intersection has taken
 				ownership of the ranking data. */
 				ranking->words = NULL;
 			}
+
+			rbt_add_node(query->intersection,
+				     &parent, &new_ranking);
+
+			query->total_size += SIZEOF_RBT_NODE_ADD
+				+ sizeof(fts_ranking_t);
 		}
 	}
 }
@@ -773,6 +918,7 @@ static
 void
 fts_query_free_doc_ids(
 /*===================*/
+	fts_query_t*	query,		/*!< in: query instance */
 	ib_rbt_t*	doc_ids)	/*!< in: rb tree to free */
 {
 	const ib_rbt_node_t*	node;
@@ -784,14 +930,21 @@ fts_query_free_doc_ids(
 		ranking = rbt_value(fts_ranking_t, node);
 
 		if (ranking->words) {
-			rbt_free(ranking->words);
 			ranking->words = NULL;
 		}
 
 		ut_free(rbt_remove_node(doc_ids, node));
+
+		ut_ad(query->total_size >
+		      SIZEOF_RBT_NODE_ADD + sizeof(fts_ranking_t));
+		query->total_size -= SIZEOF_RBT_NODE_ADD
+			+ sizeof(fts_ranking_t);
 	}
 
 	rbt_free(doc_ids);
+
+	ut_ad(query->total_size > SIZEOF_RBT_CREATE);
+	query->total_size -= SIZEOF_RBT_CREATE;
 }
 
 /*******************************************************************//**
@@ -808,6 +961,10 @@ fts_query_add_word_to_document(
 	ib_rbt_bound_t		parent;
 	fts_ranking_t*		ranking = NULL;
 
+	if (query->flags == FTS_OPT_RANKING) {
+		return;
+	}
+
 	/* First we search the intersection RB tree as it could have
 	taken ownership of the words rb tree instance. */
 	if (query->intersection
@@ -823,23 +980,7 @@ fts_query_add_word_to_document(
 	}
 
 	if (ranking != NULL) {
-		ulint	len;
-		byte*	term;
-
-		len = ut_strlen((char*) word) + 1;
-
-		term = static_cast<byte*>(mem_heap_alloc(query->heap, len));
-
-		/* Need to copy the NUL character too. */
-		memcpy(term, (char*) word, len);
-
-		/* The current set must have ownership of the RB tree. */
-		ut_a(ranking->words != NULL);
-
-		/* If the word doesn't exist in the words "list" we add it. */
-		if (rbt_search(ranking->words, &parent, term) != 0) {
-			rbt_add_node(ranking->words, &parent, &term);
-		}
+		fts_ranking_words_add(query, ranking, (char*)word);
 	}
 }
 
@@ -874,9 +1015,9 @@ fts_query_check_node(
 
 		word_freqs = rbt_value(fts_word_freq_t, parent.last);
 
-		fts_query_filter_doc_ids(
-			query, token->f_str, word_freqs, node,
-			node->ilist, ilist_size, TRUE);
+		query->error = fts_query_filter_doc_ids(
+					query, token->f_str, word_freqs, node,
+					node->ilist, ilist_size, TRUE);
 	}
 }
 
@@ -940,10 +1081,14 @@ fts_cache_find_wildcard(
 					fts_word_freq_t,
 					freq_parent.last);
 
-				fts_query_filter_doc_ids(
+				query->error = fts_query_filter_doc_ids(
 					query, srch_text.f_str,
 					word_freqs, node,
 					node->ilist, node->ilist_size, TRUE);
+
+				if (query->error != DB_SUCCESS) {
+					return(0);
+				}
 			}
 
 			num_word++;
@@ -976,7 +1121,7 @@ cont_search:
 
 /*****************************************************************//**
 Set difference.
-@return DB_SUCCESS if all went well */
+@return DB_SUCCESS if all go well */
 static __attribute__((nonnull, warn_unused_result))
 dberr_t
 fts_query_difference(
@@ -1007,6 +1152,7 @@ fts_query_difference(
 		const fts_index_cache_t*index_cache;
 		que_t*			graph = NULL;
 		fts_cache_t*		cache = table->fts->cache;
+		dberr_t			error;
 
 		rw_lock_x_lock(&cache->lock);
 
@@ -1023,7 +1169,8 @@ fts_query_difference(
 		} else {
 			nodes = fts_cache_find_word(index_cache, token);
 
-			for (i = 0; nodes && i < ib_vector_size(nodes); ++i) {
+			for (i = 0; nodes && i < ib_vector_size(nodes)
+			     && query->error == DB_SUCCESS; ++i) {
 				const fts_node_t*	node;
 
 				node = static_cast<const fts_node_t*>(
@@ -1035,13 +1182,25 @@ fts_query_difference(
 
 		rw_lock_x_unlock(&cache->lock);
 
+		/* error is passed by 'query->error' */
+		if (query->error != DB_SUCCESS) {
+			ut_ad(query->error == DB_FTS_EXCEED_RESULT_CACHE_LIMIT);
+			return(query->error);
+		}
+
 		/* Setup the callback args for filtering and
 		consolidating the ilist. */
 		fetch.read_arg = query;
 		fetch.read_record = fts_query_index_fetch_nodes;
 
-		query->error = fts_index_fetch_nodes(
+		error = fts_index_fetch_nodes(
 			trx, &graph, &query->fts_index_table, token, &fetch);
+
+		/* DB_FTS_EXCEED_RESULT_CACHE_LIMIT passed by 'query->error' */
+		ut_ad(!(query->error != DB_SUCCESS && error != DB_SUCCESS));
+		if (error != DB_SUCCESS) {
+			query->error = error;
+		}
 
 		fts_que_graph_free(graph);
 	}
@@ -1054,7 +1213,7 @@ fts_query_difference(
 
 /*****************************************************************//**
 Intersect the token doc ids with the current set.
-@return DB_SUCCESS if all went well */
+@return DB_SUCCESS if all go well */
 static __attribute__((nonnull, warn_unused_result))
 dberr_t
 fts_query_intersect(
@@ -1062,7 +1221,6 @@ fts_query_intersect(
 	fts_query_t*		query,	/*!< in: query instance */
 	const fts_string_t*	token)	/*!< in: the token to search */
 {
-	ulint			n_doc_ids = 0;
 	trx_t*			trx = query->trx;
 	dict_table_t*		table = query->index->table;
 
@@ -1073,41 +1231,28 @@ fts_query_intersect(
 		(int) token->f_len, token->f_str);
 #endif
 
-	if (!query->inited) {
-
-		ut_a(rbt_empty(query->doc_ids));
-
-		/* Since this is the first time we need to convert this
-		intersection query into a union query. Otherwise we
-		will end up with an empty set. */
-		query->oper = FTS_NONE;
-		query->inited = TRUE;
-	}
-
-	if (query->doc_ids) {
-		n_doc_ids = rbt_size(query->doc_ids);
-	}
-
-	/* If the words set is not empty or this is the first time. */
-
-	if (!rbt_empty(query->doc_ids) || query->oper == FTS_NONE) {
+	/* If the words set is not empty and multi exist is true,
+	we know the intersection set is empty in advance. */
+	if (!(rbt_empty(query->doc_ids) && query->multi_exist)) {
+		ulint                   n_doc_ids = 0;
 		ulint			i;
 		fts_fetch_t		fetch;
 		const ib_vector_t*	nodes;
 		const fts_index_cache_t*index_cache;
 		que_t*			graph = NULL;
 		fts_cache_t*		cache = table->fts->cache;
+		dberr_t			error;
 
 		ut_a(!query->intersection);
 
-		/* Only if this is not the first time. */
-		if (query->oper != FTS_NONE) {
+		n_doc_ids = rbt_size(query->doc_ids);
 
-			/* Create the rb tree that will hold the doc ids of
-			the intersection. */
-			query->intersection = rbt_create(
-				sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
-		}
+		/* Create the rb tree that will hold the doc ids of
+		the intersection. */
+		query->intersection = rbt_create(
+			sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
+
+		query->total_size += SIZEOF_RBT_CREATE;
 
 		/* This is to avoid decompressing the ilist if the
 		node's ilist doc ids are out of range. */
@@ -1144,7 +1289,8 @@ fts_query_intersect(
 		} else {
 			nodes = fts_cache_find_word(index_cache, token);
 
-			for (i = 0; nodes && i < ib_vector_size(nodes); ++i) {
+			for (i = 0; nodes && i < ib_vector_size(nodes)
+			     && query->error == DB_SUCCESS; ++i) {
 				const fts_node_t*	node;
 
 				node = static_cast<const fts_node_t*>(
@@ -1156,38 +1302,38 @@ fts_query_intersect(
 
 		rw_lock_x_unlock(&cache->lock);
 
+		/* error is passed by 'query->error' */
+		if (query->error != DB_SUCCESS) {
+			ut_ad(query->error == DB_FTS_EXCEED_RESULT_CACHE_LIMIT);
+			return(query->error);
+		}
+
 		/* Setup the callback args for filtering and
 		consolidating the ilist. */
 		fetch.read_arg = query;
 		fetch.read_record = fts_query_index_fetch_nodes;
 
-		query->error = fts_index_fetch_nodes(
+		error = fts_index_fetch_nodes(
 			trx, &graph, &query->fts_index_table, token, &fetch);
+
+		/* DB_FTS_EXCEED_RESULT_CACHE_LIMIT passed by 'query->error' */
+		ut_ad(!(query->error != DB_SUCCESS && error != DB_SUCCESS));
+		if (error != DB_SUCCESS) {
+			query->error = error;
+		}
 
 		fts_que_graph_free(graph);
 
 		if (query->error == DB_SUCCESS) {
-			if (query->oper == FTS_EXIST) {
-
-				/* The size can't increase. */
-				ut_a(rbt_size(query->doc_ids) <= n_doc_ids);
-			}
-
 			/* Make the intesection (rb tree) the current doc id
 			set and free the old set. */
-			if (query->intersection) {
-				fts_query_free_doc_ids(query->doc_ids);
-				query->doc_ids = query->intersection;
-				query->intersection = NULL;
-			}
+			fts_query_free_doc_ids(query, query->doc_ids);
+			query->doc_ids = query->intersection;
+			query->intersection = NULL;
 
-			/* Reset the set operation to intersect. */
-			query->oper = FTS_EXIST;
+			ut_a(!query->multi_exist || (query->multi_exist
+			     && rbt_size(query->doc_ids) <= n_doc_ids));
 		}
-	}
-
-	if (!query->multi_exist) {
-		query->multi_exist = TRUE;
 	}
 
 	return(query->error);
@@ -1195,9 +1341,9 @@ fts_query_intersect(
 
 /*****************************************************************//**
 Query index cache.
-@return DB_SUCCESS if all went well */
+@return DB_SUCCESS if all go well */
 static
-ulint
+dberr_t
 fts_query_cache(
 /*============*/
 	fts_query_t*		query,	/*!< in/out: query instance */
@@ -1227,7 +1373,8 @@ fts_query_cache(
 
 		nodes = fts_cache_find_word(index_cache, token);
 
-		for (i = 0; nodes && i < ib_vector_size(nodes); ++i) {
+		for (i = 0; nodes && i < ib_vector_size(nodes)
+		     && query->error == DB_SUCCESS; ++i) {
 			const fts_node_t*	node;
 
 			node = static_cast<const fts_node_t*>(
@@ -1239,12 +1386,12 @@ fts_query_cache(
 
 	rw_lock_x_unlock(&cache->lock);
 
-	return(DB_SUCCESS);
+	return(query->error);
 }
 
 /*****************************************************************//**
 Set union.
-@return DB_SUCCESS if all went well */
+@return DB_SUCCESS if all go well */
 static __attribute__((nonnull, warn_unused_result))
 dberr_t
 fts_query_union(
@@ -1256,6 +1403,7 @@ fts_query_union(
 	ulint			n_doc_ids = 0;
 	trx_t*			trx = query->trx;
 	que_t*			graph = NULL;
+	dberr_t			error;
 
 	ut_a(query->oper == FTS_NONE || query->oper == FTS_DECR_RATING ||
 	     query->oper == FTS_NEGATE || query->oper == FTS_INCR_RATING);
@@ -1264,8 +1412,6 @@ fts_query_union(
 	fprintf(stderr, "UNION: Searching: '%.*s'\n",
 		(int) token->f_len, token->f_str);
 #endif
-
-	query->error = DB_SUCCESS;
 
 	if (query->doc_ids) {
 		n_doc_ids = rbt_size(query->doc_ids);
@@ -1287,8 +1433,14 @@ fts_query_union(
 	fetch.read_record = fts_query_index_fetch_nodes;
 
 	/* Read the nodes from disk. */
-	query->error = fts_index_fetch_nodes(
+	error = fts_index_fetch_nodes(
 		trx, &graph, &query->fts_index_table, token, &fetch);
+
+	/* DB_FTS_EXCEED_RESULT_CACHE_LIMIT passed by 'query->error' */
+	ut_ad(!(query->error != DB_SUCCESS && error != DB_SUCCESS));
+	if (error != DB_SUCCESS) {
+		query->error = error;
+	}
 
 	fts_que_graph_free(graph);
 
@@ -1302,22 +1454,17 @@ fts_query_union(
 		if (query->doc_ids) {
 			n_doc_ids = rbt_size(query->doc_ids) - n_doc_ids;
 		}
-
-		/* In case there were no matching docs then we reset the
-		state, otherwise intersection will not be able to detect
-		that it's being called for the first time. */
-		if (!rbt_empty(query->doc_ids)) {
-			query->inited = TRUE;
-		}
 	}
 
 	return(query->error);
 }
 
 /*****************************************************************//**
-Depending upon the current query operator process the doc id. */
+Depending upon the current query operator process the doc id.
+return DB_SUCCESS if all go well
+or return DB_FTS_EXCEED_RESULT_CACHE_LIMIT */
 static
-void
+dberr_t
 fts_query_process_doc_id(
 /*=====================*/
 	fts_query_t*	query,		/*!< in: query instance */
@@ -1325,6 +1472,10 @@ fts_query_process_doc_id(
 	fts_rank_t	rank)		/*!< in: if non-zero, it is the
 					rank associated with the doc_id */
 {
+	if (query->flags == FTS_OPT_RANKING) {
+		return(DB_SUCCESS);
+	}
+
 	switch (query->oper) {
 	case FTS_NONE:
 		fts_query_union_doc_id(query, doc_id, rank);
@@ -1355,12 +1506,18 @@ fts_query_process_doc_id(
 	default:
 		ut_error;
 	}
+
+	if (query->total_size > fts_result_cache_limit) {
+		return(DB_FTS_EXCEED_RESULT_CACHE_LIMIT);
+	} else {
+		return(DB_SUCCESS);
+	}
 }
 
 /*****************************************************************//**
 Merge two result sets. */
 static
-void
+dberr_t
 fts_merge_doc_ids(
 /*==============*/
 	fts_query_t*	query,		/*!< in,out: query instance */
@@ -1377,25 +1534,42 @@ fts_merge_doc_ids(
 
 		query->intersection = rbt_create(
 			sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
+
+		query->total_size += SIZEOF_RBT_CREATE;
 	}
 
 	/* Merge the elements to the result set. */
 	for (node = rbt_first(doc_ids); node; node = rbt_next(doc_ids, node)) {
 		fts_ranking_t*		ranking;
+		ulint			pos = 0;
+		byte*			word = NULL;
 
 		ranking = rbt_value(fts_ranking_t, node);
 
-		fts_query_process_doc_id(
-			query, ranking->doc_id, ranking->rank);
+		query->error = fts_query_process_doc_id(
+				query, ranking->doc_id, ranking->rank);
+
+		if (query->error != DB_SUCCESS) {
+			return(query->error);
+		}
+
+		/* Merge words. Don't need to take operator into account. */
+		ut_a(ranking->words);
+		while (fts_ranking_words_get_next(query, ranking, &pos, &word)) {
+			fts_query_add_word_to_document(query, ranking->doc_id,
+						       word);
+		}
 	}
 
 	/* If it is an intersection operation, reset query->doc_ids
 	to query->intersection and free the old result list. */
 	if (query->oper == FTS_EXIST && query->intersection != NULL) {
-		fts_query_free_doc_ids(query->doc_ids);
+		fts_query_free_doc_ids(query, query->doc_ids);
 		query->doc_ids = query->intersection;
 		query->intersection = NULL;
 	}
+
+	return(DB_SUCCESS);
 }
 
 /*****************************************************************//**
@@ -1827,7 +2001,7 @@ fts_query_select(
 /********************************************************************
 Read the rows from the FTS index, that match word and where the
 doc id is between first and last doc id.
-@return DB_SUCCESS if all went well else error code */
+@return DB_SUCCESS if all go well else error code */
 static __attribute__((nonnull, warn_unused_result))
 dberr_t
 fts_query_find_term(
@@ -1967,7 +2141,7 @@ fts_query_sum(
 
 /********************************************************************
 Calculate the total documents that contain a particular word (term).
-@return DB_SUCCESS if all went well else error code */
+@return DB_SUCCESS if all go well else error code */
 static __attribute__((nonnull, warn_unused_result))
 dberr_t
 fts_query_total_docs_containing_term(
@@ -2046,7 +2220,7 @@ fts_query_total_docs_containing_term(
 
 /********************************************************************
 Get the total number of words in a documents.
-@return DB_SUCCESS if all went well else error code */
+@return DB_SUCCESS if all go well else error code */
 static __attribute__((nonnull, warn_unused_result))
 dberr_t
 fts_query_terms_in_document(
@@ -2233,8 +2407,14 @@ static __attribute__((nonnull, warn_unused_result))
 dberr_t
 fts_query_search_phrase(
 /*====================*/
-	fts_query_t*		query,	/*!< in: query instance */
-	ib_vector_t*		tokens)	/*!< in: tokens to search */
+	fts_query_t*		query,		/*!< in: query instance */
+	ib_vector_t*		orig_tokens,	/*!< in: tokens to search,
+						with any stopwords in the
+						original phrase */
+	ib_vector_t*		tokens)		/*!< in: tokens that does
+						not include stopwords and
+						can be used to calculate
+						ranking */
 {
 	ulint			i;
 	fts_get_doc_t		get_doc;
@@ -2275,14 +2455,18 @@ fts_query_search_phrase(
 		if (match->doc_id != 0) {
 
 			query->error = fts_query_match_document(
-				tokens, &get_doc,
+				orig_tokens, &get_doc,
 				match, query->distance, &found);
 
 			if (query->error == DB_SUCCESS && found) {
 				ulint	z;
 
-				fts_query_process_doc_id(query,
+				query->error = fts_query_process_doc_id(query,
 							 match->doc_id, 0);
+				if (query->error != DB_SUCCESS) {
+					goto func_exit;
+				}
+
 				for (z = 0; z < ib_vector_size(tokens); z++) {
 					fts_string_t*   token;
 					token = static_cast<fts_string_t*>(
@@ -2295,6 +2479,7 @@ fts_query_search_phrase(
 		}
 	}
 
+func_exit:
 	/* Free the prepared statement. */
 	if (get_doc.get_document_graph) {
 		fts_que_graph_free(get_doc.get_document_graph);
@@ -2314,17 +2499,21 @@ fts_query_phrase_search(
 	fts_query_t*		query,	/*!< in: query instance */
 	const fts_string_t*	phrase)	/*!< in: token to search */
 {
-	char*			src;
-	char*			state;	/* strtok_r internal state */
 	ib_vector_t*		tokens;
+	ib_vector_t*		orig_tokens;
 	mem_heap_t*		heap = mem_heap_create(sizeof(fts_string_t));
-	char*			utf8 = strdup((char*) phrase->f_str);
+	ulint			len = phrase->f_len;
+	ulint			cur_pos = 0;
 	ib_alloc_t*		heap_alloc;
 	ulint			num_token;
+	CHARSET_INFO*		charset;
+
+	charset = query->fts_index_table.charset;
 
 	heap_alloc = ib_heap_allocator_create(heap);
 
 	tokens = ib_vector_create(heap_alloc, sizeof(fts_string_t), 4);
+	orig_tokens = ib_vector_create(heap_alloc, sizeof(fts_string_t), 4);
 
 	if (query->distance != ULINT_UNDEFINED && query->distance > 0) {
 		query->flags = FTS_PROXIMITY;
@@ -2333,26 +2522,65 @@ fts_query_phrase_search(
 	}
 
 	/* Split the phrase into tokens. */
-	for (src = utf8; /* No op */; src = NULL) {
+	while (cur_pos < len) {
+		fts_cache_t*	cache = query->index->table->fts->cache;
+		ib_rbt_bound_t	parent;
+		ulint		offset;
+		ulint		cur_len;
+		fts_string_t	result_str;
+
+                cur_len = innobase_mysql_fts_get_token(
+                        charset,
+                        reinterpret_cast<const byte*>(phrase->f_str) + cur_pos,
+                        reinterpret_cast<const byte*>(phrase->f_str) + len,
+			&result_str, &offset);
+
+		if (cur_len == 0) {
+			break;
+		}
+
+		cur_pos += cur_len;
+
+		if (result_str.f_n_char == 0) {
+			continue;
+		}
+
 		fts_string_t*	token = static_cast<fts_string_t*>(
 			ib_vector_push(tokens, NULL));
 
-		token->f_str = (byte*) strtok_r(
-			src, FTS_PHRASE_DELIMITER, &state);
+		token->f_str = static_cast<byte*>(
+			mem_heap_alloc(heap, result_str.f_len + 1));
+		ut_memcpy(token->f_str, result_str.f_str, result_str.f_len);
 
-		if (token->f_str) {
+		token->f_len = result_str.f_len;
+		token->f_str[token->f_len] = 0;
+
+		if (cache->stopword_info.cached_stopword
+		    && rbt_search(cache->stopword_info.cached_stopword,
+			       &parent, token) != 0
+		    && result_str.f_n_char >= fts_min_token_size
+		    && result_str.f_n_char <= fts_max_token_size) {
 			/* Add the word to the RB tree so that we can
 			calculate it's frequencey within a document. */
 			fts_query_add_word_freq(query, token->f_str);
-
-			token->f_len = ut_strlen((char*) token->f_str);
 		} else {
 			ib_vector_pop(tokens);
-			break;
+		}
+
+		/* we will start to store all words including stopwords
+		in the "orig_tokens" vector, but skip any leading words
+		that are stopwords */
+		if (!ib_vector_is_empty(tokens)) {
+			fts_string_t*	orig_token = static_cast<fts_string_t*>(
+				ib_vector_push(orig_tokens, NULL));
+
+			orig_token->f_str = token->f_str;
+			orig_token->f_len = token->f_len;
 		}
 	}
 
 	num_token = ib_vector_size(tokens);
+	ut_ad(ib_vector_size(orig_tokens) >= num_token);
 
 	/* Ignore empty strings. */
 	if (num_token > 0) {
@@ -2362,19 +2590,7 @@ fts_query_phrase_search(
 		fts_ast_oper_t	oper = query->oper;
 		que_t*		graph = NULL;
 		ulint		i;
-
-		/* Create the rb tree for storing the words read form disk. */
-		if (!query->inited) {
-
-			/* Since this is the first time, we need to convert
-			this intersection query into a union query. Otherwise
-			we will end up with an empty set. */
-			if (query->oper == FTS_EXIST) {
-				query->oper = FTS_NONE;
-			}
-
-			query->inited = TRUE;
-		}
+		dberr_t		error;
 
 		/* Create the vector for storing matching document ids
 		and the positions of the first token of the phrase. */
@@ -2422,9 +2638,15 @@ fts_query_phrase_search(
 				query->matched = query->match_array[i];
 			}
 
-			fts_index_fetch_nodes(
+			error = fts_index_fetch_nodes(
 				trx, &graph, &query->fts_index_table,
 				token, &fetch);
+
+			/* DB_FTS_EXCEED_RESULT_CACHE_LIMIT passed by 'query->error' */
+			ut_ad(!(query->error != DB_SUCCESS && error != DB_SUCCESS));
+			if (error != DB_SUCCESS) {
+				query->error = error;
+			}
 
 			fts_que_graph_free(graph);
 			graph = NULL;
@@ -2438,12 +2660,15 @@ fts_query_phrase_search(
 
 			/* If any of the token can't be found,
 			no need to continue match */
-			if (ib_vector_is_empty(query->match_array[i])) {
+			if (ib_vector_is_empty(query->match_array[i])
+			    || query->error != DB_SUCCESS) {
 				goto func_exit;
 			}
 		}
 
-		if (num_token == 1
+		/* Just a single word, no need to fetch the original
+		documents to do phrase matching */
+		if (ib_vector_size(orig_tokens) == 1
 		    && !ib_vector_is_empty(query->match_array[0])) {
 			fts_match_t*    match;
 			ulint		n_matched;
@@ -2455,8 +2680,11 @@ fts_query_phrase_search(
 					ib_vector_get(
 						query->match_array[0], i));
 
-				fts_query_process_doc_id(
-					query, match->doc_id, 0);
+				query->error = fts_query_process_doc_id(
+						query, match->doc_id, 0);
+				if (query->error != DB_SUCCESS) {
+					goto func_exit;
+				}
 
 				fts_query_add_word_to_document(
 					query, match->doc_id, token->f_str);
@@ -2484,18 +2712,21 @@ fts_query_phrase_search(
 
 			/* Read the actual text in and search for the phrase. */
 			if (matched) {
-				query->error = DB_SUCCESS;
+				ut_ad(query->error == DB_SUCCESS);
 				query->error = fts_query_search_phrase(
-					query, tokens);
+					query, orig_tokens, tokens);
 			}
 		}
 
 		/* Restore original operation. */
 		query->oper = oper;
+
+		if (query->error != DB_SUCCESS) {
+			goto func_exit;
+		}
 	}
 
 func_exit:
-	free(utf8);
 	mem_heap_free(heap);
 
 	/* Don't need it anymore. */
@@ -2506,7 +2737,7 @@ func_exit:
 
 /*****************************************************************//**
 Find the word and evaluate.
-@return DB_SUCCESS if all went well */
+@return DB_SUCCESS if all go well */
 static __attribute__((nonnull, warn_unused_result))
 dberr_t
 fts_query_execute(
@@ -2578,7 +2809,7 @@ fts_query_get_token(
 /*****************************************************************//**
 Visit every node of the AST. */
 static
-ulint
+dberr_t
 fts_query_visitor(
 /*==============*/
 	fts_ast_oper_t	oper,		/*!< in: current operator */
@@ -2602,11 +2833,8 @@ fts_query_visitor(
 		token.f_str = node->text.ptr;
 		token.f_len = ut_strlen((char*) token.f_str);
 
-		/* "first second third" is treated as first & second
-		& third. Create the rb tree that will hold the doc ids
-		of the intersection. */
-		if (!query->intersection && query->oper == FTS_EXIST) {
-
+		if (query->oper == FTS_EXIST) {
+			ut_ad(query->intersection == NULL);
 			query->intersection = rbt_create(
 				sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
 		}
@@ -2621,10 +2849,8 @@ fts_query_visitor(
 
 		query->collect_positions = FALSE;
 
-		/* Make the intesection (rb tree) the current doc id
-		set and free the old set. */
-		if (query->intersection) {
-			fts_query_free_doc_ids(query->doc_ids);
+		if (query->oper == FTS_EXIST) {
+			fts_query_free_doc_ids(query, query->doc_ids);
 			query->doc_ids = query->intersection;
 			query->intersection = NULL;
 		}
@@ -2649,6 +2875,10 @@ fts_query_visitor(
 		ut_error;
 	}
 
+	if (query->oper == FTS_EXIST) {
+		query->multi_exist = true;
+	}
+
 	return(query->error);
 }
 
@@ -2656,7 +2886,7 @@ fts_query_visitor(
 Process (nested) sub-expression, create a new result set to store the
 sub-expression result by processing nodes under current sub-expression
 list. Merge the sub-expression result with that of parent expression list.
-@return DB_SUCCESS if all went well */
+@return DB_SUCCESS if all  well */
 UNIV_INTERN
 dberr_t
 fts_ast_visit_sub_exp(
@@ -2670,8 +2900,8 @@ fts_ast_visit_sub_exp(
 	ib_rbt_t*		parent_doc_ids;
 	ib_rbt_t*		subexpr_doc_ids;
 	dberr_t			error = DB_SUCCESS;
-	ibool			inited = query->inited;
 	bool			will_be_ignored = false;
+	bool			multi_exist;
 
 	ut_a(node->type == FTS_AST_SUBEXP_LIST);
 
@@ -2691,45 +2921,34 @@ fts_ast_visit_sub_exp(
 	query->doc_ids = rbt_create(sizeof(fts_ranking_t),
 				    fts_ranking_doc_id_cmp);
 
-	/* Reset the query start flag because the sub-expression result
-	set is independent of any previous results. The state flag
-	reset is needed for not making an intersect operation on an empty
-	set in the first call to fts_query_intersect() for the first term. */
-	query->inited = FALSE;
+	query->total_size += SIZEOF_RBT_CREATE;
 
+	multi_exist = query->multi_exist;
+	query->multi_exist = false;
 	/* Process nodes in current sub-expression and store its
 	result set in query->doc_ids we created above. */
 	error = fts_ast_visit(FTS_NONE, node->next, visitor,
 			      arg, &will_be_ignored);
 
 	/* Reinstate parent node state and prepare for merge. */
-	query->inited = inited;
+	query->multi_exist = multi_exist;
 	query->oper = cur_oper;
 	subexpr_doc_ids = query->doc_ids;
 
 	/* Restore current result set. */
 	query->doc_ids = parent_doc_ids;
 
-	if (query->oper == FTS_EXIST && !query->inited) {
-		ut_a(rbt_empty(query->doc_ids));
-		/* Since this is the first time we need to convert this
-		intersection query into a union query. Otherwise we
-		will end up with an empty set. */
-		query->oper = FTS_NONE;
-		query->inited = TRUE;
-	}
-
 	/* Merge the sub-expression result with the parent result set. */
 	if (error == DB_SUCCESS && !rbt_empty(subexpr_doc_ids)) {
-		fts_merge_doc_ids(query, subexpr_doc_ids);
+		error = fts_merge_doc_ids(query, subexpr_doc_ids);
 	}
 
 	if (query->oper == FTS_EXIST) {
-		query->multi_exist = TRUE;
+		query->multi_exist = true;
 	}
 
 	/* Free current result set. Result already merged into parent. */
-	fts_query_free_doc_ids(subexpr_doc_ids);
+	fts_query_free_doc_ids(query, subexpr_doc_ids);
 
 	return(error);
 }
@@ -2808,9 +3027,10 @@ fts_query_find_doc_id(
 
 /*****************************************************************//**
 Read and filter nodes.
-@return fts_node_t instance */
+@return DB_SUCCESS if all go well,
+or return DB_FTS_EXCEED_RESULT_CACHE_LIMIT */
 static
-void
+dberr_t
 fts_query_filter_doc_ids(
 /*=====================*/
 	fts_query_t*	query,		/*!< in: query instance */
@@ -2863,6 +3083,10 @@ fts_query_filter_doc_ids(
 			parent container. */
 			match->positions = ib_vector_create(
 				heap_alloc, sizeof(ulint), 64);
+
+			query->total_size += sizeof(fts_match_t)
+				+ sizeof(ib_vector_t)
+				+ sizeof(ulint) * 64;
 		}
 
 		/* Unpack the positions within the document. */
@@ -2888,7 +3112,7 @@ fts_query_filter_doc_ids(
 
 		/* Add the doc id to the doc freq rb tree, if the doc id
 		doesn't exist it will be created. */
-		doc_freq = fts_query_add_doc_freq(doc_freqs, doc_id);
+		doc_freq = fts_query_add_doc_freq(query, doc_freqs, doc_id);
 
 		/* Avoid duplicating frequency tally. */
 		if (doc_freq->freq == 0) {
@@ -2904,21 +3128,29 @@ fts_query_filter_doc_ids(
 		/* We simply collect the matching documents and the
 		positions here and match later. */
 		if (!query->collect_positions) {
+			/* We ignore error here and will check it later */
 			fts_query_process_doc_id(query, doc_id, 0);
-		}
 
-		/* Add the word to the document's matched RB tree. */
-		fts_query_add_word_to_document(query, doc_id, word);
+			/* Add the word to the document's matched RB tree. */
+			fts_query_add_word_to_document(query, doc_id, word);
+		}
 	}
 
 	/* Some sanity checks. */
 	ut_a(doc_id == node->last_doc_id);
+
+	if (query->total_size > fts_result_cache_limit) {
+		return(DB_FTS_EXCEED_RESULT_CACHE_LIMIT);
+	} else {
+		return(DB_SUCCESS);
+	}
 }
 
 /*****************************************************************//**
-Read the FTS INDEX row. */
+Read the FTS INDEX row.
+@return DB_SUCCESS if all go well. */
 static
-void
+dberr_t
 fts_query_read_node(
 /*================*/
 	fts_query_t*		query,	/*!< in: query instance */
@@ -2932,6 +3164,7 @@ fts_query_read_node(
 	fts_word_freq_t*	word_freq;
 	ibool			skip = FALSE;
 	byte			term[FTS_MAX_WORD_LEN + 1];
+	dberr_t			error = DB_SUCCESS;
 
 	ut_a(query->cur_node->type == FTS_AST_TERM ||
 	     query->cur_node->type == FTS_AST_TEXT);
@@ -3005,9 +3238,9 @@ fts_query_read_node(
 
 		case 4: /* ILIST */
 
-			fts_query_filter_doc_ids(
-				query, word_freq->word, word_freq,
-				&node, data, len, FALSE);
+			error = fts_query_filter_doc_ids(
+					query, word_freq->word, word_freq,
+					&node, data, len, FALSE);
 
 			break;
 
@@ -3021,6 +3254,8 @@ fts_query_read_node(
 
 		ut_a(i == 5);
 	}
+
+	return error;
 }
 
 /*****************************************************************//**
@@ -3047,9 +3282,15 @@ fts_query_index_fetch_nodes(
 
 	ut_a(dfield_len <= FTS_MAX_WORD_LEN);
 
-	fts_query_read_node(query, &key, que_node_get_next(exp));
+	/* Note: we pass error out by 'query->error' */
+	query->error = fts_query_read_node(query, &key, que_node_get_next(exp));
 
-	return(TRUE);
+	if (query->error != DB_SUCCESS) {
+		ut_ad(query->error == DB_FTS_EXCEED_RESULT_CACHE_LIMIT);
+		return(FALSE);
+	} else {
+		return(TRUE);
+	}
 }
 
 /*****************************************************************//**
@@ -3107,27 +3348,22 @@ fts_query_calculate_ranking(
 	const fts_query_t*	query,		/*!< in: query state */
 	fts_ranking_t*		ranking)	/*!< in: Document to rank */
 {
-	const ib_rbt_node_t*	node;
+	ulint	pos = 0;
+	byte*	word = NULL;
 
 	/* At this stage, ranking->rank should not exceed the 1.0
 	bound */
 	ut_ad(ranking->rank <= 1.0 && ranking->rank >= -1.0);
+	ut_ad(query->word_map->size() == query->word_vector->size());
 
-	for (node = rbt_first(ranking->words);
-	     node;
-	     node = rbt_first(ranking->words)) {
-
+	while (fts_ranking_words_get_next(query, ranking, &pos, &word)) {
 		int			ret;
-		const byte*		word;
-		const byte**		wordp;
 		ib_rbt_bound_t		parent;
 		double			weight;
 		fts_doc_freq_t*		doc_freq;
 		fts_word_freq_t*	word_freq;
 
-		wordp = rbt_value(const byte*, node);
-		word = *wordp;
-
+		ut_ad(word != NULL);
 		ret = rbt_search(query->word_freqs, &parent, word);
 
 		/* It must exist. */
@@ -3146,8 +3382,6 @@ fts_query_calculate_ranking(
 		weight = (double) doc_freq->freq * word_freq->idf;
 
 		ranking->rank += (fts_rank_t) (weight * word_freq->idf);
-
-		ut_free(rbt_remove_node(ranking->words, node));
 	}
 }
 
@@ -3157,6 +3391,7 @@ static
 void
 fts_query_add_ranking(
 /*==================*/
+	fts_query_t*		query,		/*!< in: query state */
 	ib_rbt_t*		ranking_tree,	/*!< in: ranking tree */
 	const fts_ranking_t*	new_ranking)	/*!< in: ranking of a document */
 {
@@ -3173,6 +3408,9 @@ fts_query_add_ranking(
 		ut_a(ranking->words == NULL);
 	} else {
 		rbt_add_node(ranking_tree, &parent, new_ranking);
+
+		query->total_size += SIZEOF_RBT_NODE_ADD
+			+ sizeof(fts_ranking_t);
 	}
 }
 
@@ -3213,14 +3451,13 @@ static
 fts_result_t*
 fts_query_prepare_result(
 /*=====================*/
-	const fts_query_t*	query,	/*!< in: Query state */
-	fts_result_t*		result)	/*!< in: result this can contain
-					data from a previous search on
-					another FTS index */
+	fts_query_t*	query,	/*!< in: Query state */
+	fts_result_t*	result)	/*!< in: result this can contain
+				data from a previous search on
+				another FTS index */
 {
 	const ib_rbt_node_t*	node;
-
-	ut_a(rbt_size(query->doc_ids) > 0);
+	bool			result_is_null = false;
 
 	if (result == NULL) {
 		result = static_cast<fts_result_t*>(ut_malloc(sizeof(*result)));
@@ -3229,7 +3466,54 @@ fts_query_prepare_result(
 
 		result->rankings_by_id = rbt_create(
 			sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
+
+		query->total_size += sizeof(fts_result_t) + SIZEOF_RBT_CREATE;
+		result_is_null = true;
 	}
+
+	if (query->flags == FTS_OPT_RANKING) {
+		fts_word_freq_t*	word_freq;
+		ulint		size = ib_vector_size(query->deleted->doc_ids);
+		fts_update_t*	array =
+			(fts_update_t*) query->deleted->doc_ids->data;
+
+		node = rbt_first(query->word_freqs);
+		ut_ad(node);
+		word_freq = rbt_value(fts_word_freq_t, node);
+
+		for (node = rbt_first(word_freq->doc_freqs);
+		     node;
+		     node = rbt_next(word_freq->doc_freqs, node)) {
+			fts_doc_freq_t* doc_freq;
+			fts_ranking_t	ranking;
+
+			doc_freq = rbt_value(fts_doc_freq_t, node);
+
+			/* Don't put deleted docs into result */
+			if (fts_bsearch(array, 0, size, doc_freq->doc_id)
+			    >= 0) {
+				continue;
+			}
+
+			ranking.doc_id = doc_freq->doc_id;
+			ranking.rank = doc_freq->freq * word_freq->idf
+				* word_freq->idf;
+			ranking.words = NULL;
+
+			fts_query_add_ranking(query, result->rankings_by_id,
+					      &ranking);
+
+			if (query->total_size > fts_result_cache_limit) {
+				query->error = DB_FTS_EXCEED_RESULT_CACHE_LIMIT;
+				fts_query_free_result(result);
+				return(NULL);
+			}
+		}
+
+		return(result);
+	}
+
+	ut_a(rbt_size(query->doc_ids) > 0);
 
 	for (node = rbt_first(query->doc_ids);
 	     node;
@@ -3245,11 +3529,24 @@ fts_query_prepare_result(
 		// different FTS indexes.
 
 		/* We don't need these anymore free the resources. */
-		ut_a(rbt_empty(ranking->words));
-		rbt_free(ranking->words);
 		ranking->words = NULL;
 
-		fts_query_add_ranking(result->rankings_by_id, ranking);
+		if (!result_is_null) {
+			fts_query_add_ranking(query, result->rankings_by_id, ranking);
+
+			 if (query->total_size > fts_result_cache_limit) {
+				query->error = DB_FTS_EXCEED_RESULT_CACHE_LIMIT;
+				fts_query_free_result(result);
+				return(NULL);
+                        }
+		}
+	}
+
+	if (result_is_null) {
+		/* Use doc_ids directly */
+		rbt_free(result->rankings_by_id);
+		result->rankings_by_id = query->doc_ids;
+		query->doc_ids = NULL;
 	}
 
 	return(result);
@@ -3261,10 +3558,10 @@ static
 fts_result_t*
 fts_query_get_result(
 /*=================*/
-	const fts_query_t*	query,	/*!< in: query instance */
+	fts_query_t*		query,	/*!< in: query instance */
 	fts_result_t*		result)	/*!< in: result */
 {
-	if (rbt_size(query->doc_ids) > 0) {
+	if (rbt_size(query->doc_ids) > 0 || query->flags == FTS_OPT_RANKING) {
 		/* Copy the doc ids to the result. */
 		result = fts_query_prepare_result(query, result);
 	} else {
@@ -3298,7 +3595,7 @@ fts_query_free(
 	}
 
 	if (query->doc_ids) {
-		fts_query_free_doc_ids(query->doc_ids);
+		fts_query_free_doc_ids(query, query->doc_ids);
 	}
 
 	if (query->word_freqs) {
@@ -3327,6 +3624,14 @@ fts_query_free(
 		mem_heap_free(query->heap);
 	}
 
+	if (query->word_map) {
+		delete query->word_map;
+	}
+
+	if (query->word_vector) {
+		delete query->word_vector;
+	}
+
 	memset(query, 0, sizeof(*query));
 }
 
@@ -3342,12 +3647,13 @@ fts_query_parse(
 {
 	int		error;
 	fts_ast_state_t state;
-	ibool		mode = query->boolean_mode;
+	bool		mode = query->boolean_mode;
 
 	memset(&state, 0x0, sizeof(state));
 
 	/* Setup the scanner to use, this depends on the mode flag. */
 	state.lexer = fts_lexer_create(mode, query_str, query_len);
+	state.charset = query->fts_index_table.charset;
 	error = fts_parse(&state);
 	fts_lexer_free(state.lexer);
 	state.lexer = NULL;
@@ -3363,6 +3669,112 @@ fts_query_parse(
 	return(state.root);
 }
 
+/*******************************************************************//**
+FTS Query optimization
+Set FTS_OPT_RANKING if it is a simple term query */
+static
+void
+fts_query_can_optimize(
+/*===================*/
+	fts_query_t*	query,		/*!< in/out: query instance */
+	uint		flags)		/*!< In: FTS search mode */
+{
+	fts_ast_node_t*	node = query->root;
+
+	if (flags & FTS_EXPAND) {
+		return;
+	}
+
+	/* Check if it has only a term without oper */
+	ut_ad(node->type == FTS_AST_LIST);
+	node = node->list.head;
+	if (node != NULL && node->type == FTS_AST_TERM && node->next == NULL) {
+		query->flags = FTS_OPT_RANKING;
+	}
+}
+
+/*******************************************************************//**
+Pre-process the query string
+1) make it lower case
+2) in boolean mode, if there is '-' or '+' that is immediately proceeded
+and followed by valid word, make it a space
+@return the processed string */
+static
+byte*
+fts_query_str_preprocess(
+/*=====================*/
+	const byte*	query_str,	/*!< in: FTS query */
+	ulint		query_len,	/*!< in: FTS query string len */
+	ulint		*result_len,	/*!< out: result string length */
+	CHARSET_INFO*	charset,	/*!< in: string charset */
+	bool		boolean_mode)	/*!< in: is boolean mode */
+{
+	ulint	cur_pos = 0;
+	ulint	str_len;
+	byte*	str_ptr;
+	bool	in_phrase = false;
+
+	/* Convert the query string to lower case before parsing. We own
+	the ut_malloc'ed result and so remember to free it before return. */
+
+	str_len = query_len * charset->casedn_multiply + 1;
+	str_ptr = static_cast<byte*>(ut_malloc(str_len));
+
+	*result_len = innobase_fts_casedn_str(
+		charset, const_cast<char*>(reinterpret_cast<const char*>(
+			query_str)), query_len,
+		reinterpret_cast<char*>(str_ptr), str_len);
+
+	ut_ad(*result_len < str_len);
+
+	str_ptr[*result_len] = 0;
+
+	/* If it is boolean mode, no need to check for '-/+' */
+	if (!boolean_mode) {
+		return(str_ptr);
+	}
+
+	/* Otherwise, we travese the string to find any '-/+' that are
+	immediately proceeded and followed by valid search word.
+	NOTE: we should not do so for CJK languages, this should
+	be taken care of in our CJK implementation */
+        while (cur_pos < *result_len) {
+                fts_string_t    str;
+                ulint           offset;
+                ulint           cur_len;
+
+                cur_len = innobase_mysql_fts_get_token(
+                        charset, str_ptr + cur_pos, str_ptr + *result_len,
+			&str, &offset);
+
+                if (cur_len == 0) {
+                        break;
+                }
+
+		/* Check if we are in a phrase, if so, no need to do
+		replacement of '-/+'. */
+		for (byte* ptr = str_ptr + cur_pos; ptr < str.f_str; ptr++) {
+			if ((char) (*ptr) == '"' ) {
+				in_phrase = !in_phrase;
+			}
+		}
+
+		/* Find those are not leading '-/+' and also not in a phrase */
+		if (cur_pos > 0 && str.f_str - str_ptr - cur_pos == 1
+		    && !in_phrase) {
+			char*	last_op = reinterpret_cast<char*>(
+						str_ptr + cur_pos);
+
+			if (*last_op == '-' || *last_op == '+') {
+				*last_op = ' ';
+			}
+		}
+
+                cur_pos += cur_len;
+	}
+
+	return(str_ptr);
+}
 
 /*******************************************************************//**
 FTS Query entry point.
@@ -3382,9 +3794,8 @@ fts_query(
 	fts_query_t	query;
 	dberr_t		error = DB_SUCCESS;
 	byte*		lc_query_str;
-	ulint		lc_query_str_len;
 	ulint		result_len;
-	ibool		boolean_mode;
+	bool		boolean_mode;
 	trx_t*		query_trx;
 	CHARSET_INFO*	charset;
 	ulint		start_time_ms;
@@ -3401,7 +3812,6 @@ fts_query(
 
 	query.trx = query_trx;
 	query.index = index;
-	query.inited = FALSE;
 	query.boolean_mode = boolean_mode;
 	query.deleted = fts_doc_ids_create();
 	query.cur_node = NULL;
@@ -3418,12 +3828,17 @@ fts_query(
 	query.fts_index_table.parent = index->table->name;
 	query.fts_index_table.charset = charset;
 
+	query.word_map = new word_map_t;
+	query.word_vector = new word_vector_t;
+	query.error = DB_SUCCESS;
 
 	/* Setup the RB tree that will be used to collect per term
 	statistics. */
 	query.word_freqs = rbt_create_arg_cmp(
 		sizeof(fts_word_freq_t), innobase_fts_string_cmp, 
                 (void*) charset);
+
+	query.total_size += SIZEOF_RBT_CREATE;
 
 	query.total_docs = dict_table_get_n_rows(index->table);
 
@@ -3467,6 +3882,7 @@ fts_query(
 	/* Sort the vector so that we can do a binary search over the ids. */
 	ib_vector_sort(query.deleted->doc_ids, fts_update_doc_id_cmp);
 
+#if 0
 	/* Convert the query string to lower case before parsing. We own
 	the ut_malloc'ed result and so remember to free it before return. */
 
@@ -3481,15 +3897,29 @@ fts_query(
 
 	lc_query_str[result_len] = 0;
 
+#endif
+
+	lc_query_str = fts_query_str_preprocess(
+		query_str, query_len, &result_len, charset, boolean_mode);
+
 	query.heap = mem_heap_create(128);
 
 	/* Create the rb tree for the doc id (current) set. */
 	query.doc_ids = rbt_create(
 		sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
 
+	query.total_size += SIZEOF_RBT_CREATE;
+
 	/* Parse the input query string. */
 	if (fts_query_parse(&query, lc_query_str, result_len)) {
 		fts_ast_node_t*	ast = query.root;
+
+		/* Optimize query to check if it's a single term */
+		fts_query_can_optimize(&query, flags);
+
+		DBUG_EXECUTE_IF("fts_instrument_result_cache_limit",
+			        fts_result_cache_limit = 2048;
+		);
 
 		/* Traverse the Abstract Syntax Tree (AST) and execute
 		the query. */
@@ -3500,11 +3930,13 @@ fts_query(
 		/* If query expansion is requested, extend the search
 		with first search pass result */
 		if (query.error == DB_SUCCESS && (flags & FTS_EXPAND)) {
-			 query.error = fts_expand_query(index, &query);
+			query.error = fts_expand_query(index, &query);
 		}
 
 		/* Calculate the inverse document frequency of the terms. */
-		fts_query_calculate_idf(&query);
+		if (query.error == DB_SUCCESS) {
+			fts_query_calculate_idf(&query);
+		}
 
 		/* Copy the result from the query state, so that we can
 		return it to the caller. */
@@ -3530,6 +3962,15 @@ fts_query(
 			(*result)->rankings_by_id
 				? (int) rbt_size((*result)->rankings_by_id)
 				: -1);
+
+		/* Log memory consumption & result size */
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Full Search Memory: "
+			"%lu (bytes),  Row: %lu .",
+			query.total_size,
+			(*result)->rankings_by_id
+				?  rbt_size((*result)->rankings_by_id)
+				: 0);
 	}
 
 func_exit:
@@ -3608,30 +4049,24 @@ static
 void
 fts_print_doc_id(
 /*=============*/
-	ib_rbt_t*	doc_ids)	/*!< in : tree that stores doc_ids.*/
+	fts_query_t*	query)	/*!< in : tree that stores doc_ids.*/
 {
 	const ib_rbt_node_t*	node;
-	const ib_rbt_node_t*	node_word;
 
 	/* Iterate each member of the doc_id set */
-	for (node = rbt_first(doc_ids);
+	for (node = rbt_first(query->doc_ids);
 	     node;
-	     node = rbt_next(doc_ids, node)) {
+	     node = rbt_next(query->doc_ids, node)) {
 		fts_ranking_t*	ranking;
 		ranking = rbt_value(fts_ranking_t, node);
 
 		fprintf(stderr, "doc_ids info, doc_id: %ld \n",
 			(ulint) ranking->doc_id);
 
-		for (node_word = rbt_first(ranking->words);
-		     node_word;
-		     node_word = rbt_next(ranking->words, node_word)) {
-
-			const byte** value;
-
-			value = rbt_value(const byte*, node_word);
-
-			fprintf(stderr, "doc_ids info, value: %s \n", *value);
+		ulint	pos = 0;
+		byte*	value = NULL;
+		while (fts_ranking_words_get_next(query, ranking, &pos, &value)) {
+			fprintf(stderr, "doc_ids info, value: %s \n", value);
 		}
 	}
 }
@@ -3676,8 +4111,9 @@ fts_expand_query(
 
 	result_doc.charset = index_cache->charset;
 
+	query->total_size += SIZEOF_RBT_CREATE;
 #ifdef UNIV_DEBUG
-	fts_print_doc_id(query->doc_ids);
+	fts_print_doc_id(query);
 #endif
 
 	for (node = rbt_first(query->doc_ids);
@@ -3685,7 +4121,12 @@ fts_expand_query(
 	     node = rbt_next(query->doc_ids, node)) {
 
 		fts_ranking_t*	ranking;
-		const ib_rbt_node_t*	node_word;
+		ulint		pos;
+		byte*		word;
+		ulint		prev_token_size;
+		ulint		estimate_size;
+
+		prev_token_size = rbt_size(result_doc.tokens);
 
 		ranking = rbt_value(fts_ranking_t, node);
 
@@ -3702,16 +4143,15 @@ fts_expand_query(
 
 		/* Remove words that have already been searched in the
 		first pass */
-		for (node_word = rbt_first(ranking->words);
-		     node_word;
-		     node_word = rbt_next(ranking->words, node_word)) {
+		pos = 0;
+		word = NULL;
+		while (fts_ranking_words_get_next(query, ranking, &pos,
+			&word)) {
 			fts_string_t	str;
 			ibool		ret;
-			const byte**	strp;
 
-			strp = rbt_value(const byte*, node_word);
 			/* FIXME: We are discarding a const qualifier here. */
-			str.f_str = (byte*) *strp;
+			str.f_str = word;
 			str.f_len = ut_strlen((const char*) str.f_str);
 			ret = rbt_delete(result_doc.tokens, &str);
 
@@ -3722,6 +4162,18 @@ fts_expand_query(
 					"expansion search.\n", str.f_str,
 					(ulint) ranking->doc_id);
 			}
+		}
+
+		/* Estimate memory used, see fts_process_token and fts_token_t.
+		   We ignore token size here. */
+		estimate_size = (rbt_size(result_doc.tokens) - prev_token_size)
+			* (SIZEOF_RBT_NODE_ADD + sizeof(fts_token_t)
+			+ sizeof(ib_vector_t) + sizeof(ulint) * 32);
+		query->total_size += estimate_size;
+
+		if (query->total_size > fts_result_cache_limit) {
+			error = DB_FTS_EXCEED_RESULT_CACHE_LIMIT;
+			goto	func_exit;
 		}
 	}
 
@@ -3740,6 +4192,7 @@ fts_expand_query(
 		}
 	}
 
+func_exit:
 	fts_doc_free(&result_doc);
 
 	return(error);
@@ -3857,8 +4310,12 @@ fts_phrase_or_proximity_search(
 			if (fts_query_is_in_proximity_range(
 				query, match, &qualified_pos)) {
 				/* If so, mark we find a matching doc */
-				fts_query_process_doc_id(
+				query->error = fts_query_process_doc_id(
 					query, match[0]->doc_id, 0);
+				if (query->error != DB_SUCCESS) {
+					matched = FALSE;
+					goto func_exit;
+				}
 
 				matched = TRUE;
 				for (ulint z = 0; z < num_token; z++) {

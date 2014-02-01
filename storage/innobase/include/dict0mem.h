@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -226,7 +226,7 @@ This could result in rescursive calls and out of stack error eventually.
 DICT_FK_MAX_RECURSIVE_LOAD defines the maximum number of recursive loads,
 when exceeded, the child table will not be loaded. It will be loaded when
 the foreign constraint check needs to be run. */
-#define DICT_FK_MAX_RECURSIVE_LOAD	255
+#define DICT_FK_MAX_RECURSIVE_LOAD	20
 
 /** Similarly, when tables are chained together with foreign key constraints
 with on cascading delete/update clause, delete from parent table could
@@ -916,7 +916,9 @@ struct dict_table_t{
 				the background stats thread will detect this
 				and will eventually quit sooner */
 	byte		stats_bg_flag;
-				/*!< see BG_STAT_* above */
+				/*!< see BG_STAT_* above.
+				Writes are covered by dict_sys->mutex.
+				Dirty reads are possible. */
 				/* @} */
 	/*----------------------*/
 				/**!< The following fields are used by the
