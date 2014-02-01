@@ -3763,6 +3763,9 @@ innobase_end(
 		mysql_mutex_destroy(&pending_checkpoint_mutex);
 	}
 
+        my_free(fts_server_stopword_table);
+        fts_server_stopword_table= NULL;
+
 	DBUG_RETURN(err);
 }
 

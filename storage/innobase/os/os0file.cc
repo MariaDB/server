@@ -1,6 +1,6 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
 
 Portions of this file contain modifications contributed and copyrighted
@@ -640,26 +640,13 @@ os_file_handle_error_cond_exit(
 		to the log. */
 
 		if (should_exit || !on_error_silent) {
-			if (name) {
-				ut_print_timestamp(stderr);
-				fprintf(stderr,
-					"  InnoDB: File name %s\n", name);
-			}
-
-			ut_print_timestamp(stderr);
-			fprintf(stderr, "  InnoDB: File operation call: "
-				"'%s' returned OS error " ULINTPF ".\n",
-				operation, err);
+			ib_logf(IB_LOG_LEVEL_ERROR, "File %s: '%s' returned OS "
+				"error " ULINTPF ".%s", name ? name : "(unknown)",
+				operation, err, should_exit
+				? " Cannot continue operation" : "");
 		}
 
 		if (should_exit) {
-			ut_print_timestamp(stderr);
-			fprintf(stderr, "  InnoDB: Cannot continue "
-				"operation.\n");
-
-			fflush(stderr);
-
-			ut_ad(0);  /* Report call stack, etc only in debug code. */
 			exit(1);
 		}
 	}
@@ -1131,6 +1118,7 @@ os_file_create_simple_func(
 	os_file_t	file;
 	ibool		retry;
 
+	*success = FALSE;
 #ifdef __WIN__
 	DWORD		access;
 	DWORD		create_flag;
@@ -1325,6 +1313,7 @@ os_file_create_simple_no_error_handling_func(
 {
 	os_file_t	file;
 
+	*success = FALSE;
 #ifdef __WIN__
 	DWORD		access;
 	DWORD		create_flag;
@@ -1800,8 +1789,8 @@ Deletes a file if it exists. The file has to be closed before calling this.
 @return	TRUE if success */
 UNIV_INTERN
 bool
-os_file_delete_if_exists(
-/*=====================*/
+os_file_delete_if_exists_func(
+/*==========================*/
 	const char*	name)	/*!< in: file path as a null-terminated
 				string */
 {
@@ -1862,8 +1851,8 @@ Deletes a file. The file has to be closed before calling this.
 @return	TRUE if success */
 UNIV_INTERN
 bool
-os_file_delete(
-/*===========*/
+os_file_delete_func(
+/*================*/
 	const char*	name)	/*!< in: file path as a null-terminated
 				string */
 {
@@ -3358,8 +3347,8 @@ os_file_make_data_dir_path(
 The function os_file_dirname returns a directory component of a
 null-terminated pathname string. In the usual case, dirname returns
 the string up to, but not including, the final '/', and basename
-is the component following the final '/'. Trailing '/' charac­
-ters are not counted as part of the pathname.
+is the component following the final '/'. Trailing '/' characters
+are not counted as part of the pathname.
 
 If path does not contain a slash, dirname returns the string ".".
 
@@ -4085,7 +4074,7 @@ os_aio_get_segment_no_from_slot(
 		seg_len = os_aio_read_array->n_slots
 			/ os_aio_read_array->n_segments;
 
-		segment = 2 + slot->pos / seg_len;
+		segment = (srv_read_only_mode ? 0 : 2) + slot->pos / seg_len;
 	} else {
 		ut_ad(!srv_read_only_mode);
 		ut_a(array == os_aio_write_array);
@@ -5323,7 +5312,7 @@ consecutive_loop:
 
 		if (slot->reserved
 		    && slot != aio_slot
-		    && slot->offset == slot->offset + aio_slot->len
+		    && slot->offset == aio_slot->offset + aio_slot->len
 		    && slot->type == aio_slot->type
 		    && slot->file == aio_slot->file) {
 
