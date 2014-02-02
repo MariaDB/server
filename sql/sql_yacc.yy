@@ -1829,7 +1829,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         object_privilege object_privilege_list user_list user_and_role_list
         rename_list
         clear_privileges flush_options flush_option
-        opt_flush_lock flush_options_list
+        opt_flush_lock flush_lock flush_options_list
         equal optional_braces
         opt_mi_check_type opt_to mi_check_types 
         table_to_table_list table_to_table opt_table_list opt_as
@@ -12779,24 +12779,27 @@ flush_options:
             YYPS->m_lock_type= TL_READ_NO_INSERT;
             YYPS->m_mdl_type= MDL_SHARED_HIGH_PRIO;
           }
-          opt_table_list {}
-          opt_flush_lock {}
+          opt_table_list opt_flush_lock
         | flush_options_list
         ;
 
 opt_flush_lock:
           /* empty */ {}
-        | WITH READ_SYM LOCK_SYM optional_flush_tables_arguments
+        | flush_lock
+        {
+          TABLE_LIST *tables= Lex->query_tables;
+          for (; tables; tables= tables->next_global)
           {
-            TABLE_LIST *tables= Lex->query_tables;
-            Lex->type|= REFRESH_READ_LOCK | $4;
-            for (; tables; tables= tables->next_global)
-            {
-              tables->mdl_request.set_type(MDL_SHARED_NO_WRITE);
-              tables->required_type= FRMTYPE_TABLE; /* Don't try to flush views. */
-              tables->open_type= OT_BASE_ONLY;      /* Ignore temporary tables. */
-            }
+            tables->mdl_request.set_type(MDL_SHARED_NO_WRITE);
+            tables->required_type= FRMTYPE_TABLE; /* Don't try to flush views. */
+            tables->open_type= OT_BASE_ONLY;      /* Ignore temporary tables. */
           }
+        }
+        ;
+
+flush_lock:
+          WITH READ_SYM LOCK_SYM optional_flush_tables_arguments
+          { Lex->type|= REFRESH_READ_LOCK | $4; }
         | FOR_SYM
           {
             if (Lex->query_tables == NULL) // Table list can't be empty
@@ -12804,18 +12807,8 @@ opt_flush_lock:
               my_parse_error(ER(ER_NO_TABLES_USED));
               MYSQL_YYABORT;
             } 
-          }
-          EXPORT_SYM
-          {
-            TABLE_LIST *tables= Lex->query_tables;
             Lex->type|= REFRESH_FOR_EXPORT;
-            for (; tables; tables= tables->next_global)
-            {
-              tables->mdl_request.set_type(MDL_SHARED_NO_WRITE);
-              tables->required_type= FRMTYPE_TABLE; /* Don't try to flush views. */
-              tables->open_type= OT_BASE_ONLY;      /* Ignore temporary tables. */
-            }
-          }
+          } EXPORT_SYM
         ;
 
 flush_options_list:

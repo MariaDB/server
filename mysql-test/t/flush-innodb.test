@@ -267,7 +267,7 @@ DROP TABLE t1;
 --echo # Test 6: Unsupported storage engines.
 --echo #
 
-CREATE TABLE t1(a INT) engine= MyISAM;
+CREATE TABLE t1(a INT) engine= MEMORY;
 --error ER_ILLEGAL_HA
 FLUSH TABLE t1 FOR EXPORT;
 DROP TABLE t1;

@@ -4221,25 +4221,16 @@ end_with_restore_list:
     if (check_global_access(thd,RELOAD_ACL))
       goto error;
 
-    if (first_table && lex->type & REFRESH_READ_LOCK)
+    if (first_table && lex->type & (REFRESH_READ_LOCK|REFRESH_FOR_EXPORT))
     {
       /* Check table-level privileges. */
       if (check_table_access(thd, LOCK_TABLES_ACL | SELECT_ACL, all_tables,
                              FALSE, UINT_MAX, FALSE))
         goto error;
+
       if (flush_tables_with_read_lock(thd, all_tables))
         goto error;
-      my_ok(thd);
-      break;
-    }
-    else if (first_table && lex->type & REFRESH_FOR_EXPORT)
-    {
-      /* Check table-level privileges. */
-      if (check_table_access(thd, LOCK_TABLES_ACL | SELECT_ACL, all_tables,
-                             FALSE, UINT_MAX, FALSE))
-        goto error;
-      if (flush_tables_for_export(thd, all_tables))
-        goto error;
+
       my_ok(thd);
       break;
     }

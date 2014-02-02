@@ -22,6 +22,5 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
                           TABLE_LIST *tables, int *write_to_binlog);
 
 bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables);
-bool flush_tables_for_export(THD *thd, TABLE_LIST *all_tables);
 
 #endif

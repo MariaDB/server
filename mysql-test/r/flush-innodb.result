@@ -155,9 +155,9 @@ UNLOCK TABLES;
 DROP TABLE t1;
 # Test 6: Unsupported storage engines.
 #
-CREATE TABLE t1(a INT) engine= MyISAM;
+CREATE TABLE t1(a INT) engine= MEMORY;
 FLUSH TABLE t1 FOR EXPORT;
-ERROR HY000: Storage engine MyISAM of the table `test`.`t1` doesn't have this option
+ERROR HY000: Storage engine MEMORY of the table `test`.`t1` doesn't have this option
 DROP TABLE t1;
 # Connection con1
 # Connection defalt
