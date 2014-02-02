@@ -6757,7 +6757,7 @@ ER_TABLESPACE_DISCARDED
   eng "Tablespace has been discarded for table '%-.192s'"
 
 ER_INTERNAL_ERROR
-  eng "Internal error: '%-.192s'"
+  eng "Internal error: %-.192s"
 
 ER_INNODB_IMPORT_ERROR
   eng "ALTER TABLE '%-.192s' IMPORT TABLESPACE failed with error %lu : '%s'"
