@@ -1,3 +1,4 @@
+--source include/not_embedded.inc
 #
 # MDEV-5526 Assertion `proxied_user->host.length' fails on GRANT PROXY ON <role>
 #
