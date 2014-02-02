@@ -200,11 +200,6 @@ enum ha_extra_function {
   HA_EXTRA_ATTACH_CHILDREN,
   HA_EXTRA_IS_ATTACHED_CHILDREN,
   HA_EXTRA_DETACH_CHILDREN,
-  /*
-    Prepare table for export
-    (e.g. quiesce the table and write table metadata).
-  */
-  HA_EXTRA_EXPORT,
   HA_EXTRA_DETACH_CHILD,
   /* Inform handler we will force a close as part of flush */
   HA_EXTRA_PREPARE_FOR_FORCED_CLOSE
