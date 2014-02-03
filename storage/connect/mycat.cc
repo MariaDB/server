@@ -259,6 +259,89 @@ uint GetFuncID(const char *func)
   return fnc;
   } // end of GetFuncID
 
+/***********************************************************************/
+/*  OEMColumn: Get table column info for an OEM table.                 */
+/***********************************************************************/
+PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
+  {
+  typedef PQRYRES (__stdcall *XCOLDEF) (PGLOBAL, PVOID, char*, char*, bool);
+  const char *module, *subtype;
+  char    c, getname[40] = "Col";
+#if defined(WIN32)
+  HANDLE  hdll;               /* Handle to the external DLL            */
+#else   // !WIN32
+  void   *hdll;               /* Handle for the loaded shared library  */
+#endif  // !WIN32
+  XCOLDEF coldef = NULL;
+  PQRYRES qrp = NULL;
+
+  module = topt->module;
+  subtype = topt->subtype;
+
+  if (!module || !subtype)
+    return NULL;
+
+  // The exported name is always in uppercase
+  for (int i = 0; ; i++) {
+    c = subtype[i];
+    getname[i + 3] = toupper(c);
+    if (!c) break;
+    } // endfor i
+
+#if defined(WIN32)
+  // Load the Dll implementing the table
+  if (!(hdll = LoadLibrary(module))) {
+    char  buf[256];
+    DWORD rc = GetLastError();
+
+    sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, module);
+    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+                  (LPTSTR)buf, sizeof(buf), NULL);
+    strcat(strcat(g->Message, ": "), buf);
+    return NULL;
+    } // endif hDll
+
+  // Get the function returning an instance of the external DEF class
+  if (!(coldef = (XCOLDEF)GetProcAddress((HINSTANCE)hdll, getname))) {
+    sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), getname);
+    FreeLibrary((HMODULE)hdll);
+    return NULL;
+    } // endif coldef
+#else   // !WIN32
+  const char *error = NULL;
+
+  // Load the desired shared library
+  if (!(hdll = dlopen(Module, RTLD_LAZY))) {
+    error = dlerror();
+    sprintf(g->Message, MSG(SHARED_LIB_ERR), Module, SVP(error));
+    return NULL;
+    } // endif Hdll
+
+  // Get the function returning an instance of the external DEF class
+  if (!(coldef = (XCOLDEF)dlsym(hdll, getname))) {
+    error = dlerror();
+    sprintf(g->Message, MSG(GET_FUNC_ERR), getname, SVP(error));
+    dlclose(hdll);
+    return NULL;
+    } // endif coldef
+#endif  // !WIN32
+
+  // Just in case the external Get function does not set error messages
+  sprintf(g->Message, "Error getting column info from %s", subtype);
+
+  // Get the table column definition
+  qrp = coldef(g, topt, tab, db, info);
+
+#if defined(WIN32)
+  FreeLibrary((HMODULE)hdll);
+#else   // !WIN32
+  dlclose(hdll);
+#endif  // !WIN32
+
+  return qrp;
+  } // end of OEMColumns
+
 /* ------------------------- Class CATALOG --------------------------- */
 
 /***********************************************************************/

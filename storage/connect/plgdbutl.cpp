@@ -1,11 +1,11 @@
 /********** PlgDBUtl Fpe C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: PLGDBUTL                                              */
 /* -------------                                                       */
-/*  Version 3.8                                                        */
+/*  Version 3.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -90,6 +90,7 @@ bool  Initdone = false;
 bool  plugin = false;  // True when called by the XDB plugin handler 
 
 extern "C" {
+extern char  connectini[];
        char  plgxini[_MAX_PATH] = PLGXINI;
        char  plgini[_MAX_PATH] = PLGINI;
 #if defined(WIN32)
@@ -232,6 +233,7 @@ DllExport char *GetIni(int n)
 #if defined(XMSG)
     case 5: return msglang; break;
 #endif   // XMSG
+    case 6: return connectini; break;
 //  default: return plgini;
     } // endswitch GetIni
 
@@ -1329,7 +1331,7 @@ void *PlgDBalloc(PGLOBAL g, void *area, MBLOCK& mp)
   maxsub = (pph->FreeBlk < minsub) ? 0 : pph->FreeBlk - minsub;
   mp.Sub = mp.Size <= ((mp.Sub) ? maxsub : (maxsub >> 2));
 
-  if (trace)
+  if (trace > 1)
     htrc("PlgDBalloc: in %p size=%d used=%d free=%d sub=%d\n",
           arp, mp.Size, pph->To_Free, pph->FreeBlk, mp.Sub);
 
@@ -1372,7 +1374,7 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
 //  assert (mp.Memp != NULL);
 #endif
 
-  if (trace)
+  if (trace > 1)
     htrc("PlgDBrealloc: %p size=%d sub=%d\n", mp.Memp, mp.Size, mp.Sub);
 
   if (newsize == mp.Size)
@@ -1429,7 +1431,7 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
 /***********************************************************************/
 void PlgDBfree(MBLOCK& mp)
   {
-  if (trace)
+  if (trace > 1)
     htrc("PlgDBfree: %p sub=%d size=%d\n", mp.Memp, mp.Sub, mp.Size);
 
   if (!mp.Sub && mp.Memp)
