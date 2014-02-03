@@ -1523,7 +1523,7 @@ void PlugPutOut(PGLOBAL g, FILE *f, short t, void *v, uint n)
       fprintf(f, "%s%s\n", m, (PSZ)v);
       break;
 
-    case TYPE_FLOAT:
+    case TYPE_DOUBLE:
       fprintf(f, "%s%lf\n", m, *(double *)v);
       break;
 

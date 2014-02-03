@@ -42,9 +42,10 @@ int MYSQLtoPLG(char *typname, char *var)
            !stricmp(typname, "text") || !stricmp(typname, "blob"))
     type = TYPE_STRING;
   else if (!stricmp(typname, "double")  || !stricmp(typname, "float") ||
-           !stricmp(typname, "real")    ||
-           !stricmp(typname, "decimal") || !stricmp(typname, "numeric"))
-    type = TYPE_FLOAT;
+           !stricmp(typname, "real"))
+    type = TYPE_DOUBLE;
+  else if (!stricmp(typname, "decimal") || !stricmp(typname, "numeric"))
+    type = TYPE_DECIM;
   else if (!stricmp(typname, "date") || !stricmp(typname, "datetime") ||
            !stricmp(typname, "time") || !stricmp(typname, "timestamp") ||
            !stricmp(typname, "year"))
@@ -95,7 +96,7 @@ enum enum_field_types PLGtoMYSQL(int type, bool dbf, char v)
     case TYPE_SHORT:
       mytype = MYSQL_TYPE_SHORT;
       break;
-    case TYPE_FLOAT:
+    case TYPE_DOUBLE:
       mytype = MYSQL_TYPE_DOUBLE;
       break;
     case TYPE_DATE:
@@ -114,6 +115,13 @@ enum enum_field_types PLGtoMYSQL(int type, bool dbf, char v)
     case TYPE_TINY:
       mytype = MYSQL_TYPE_TINY;
       break;
+    case TYPE_DECIM:
+#if !defined(ALPHA)
+      mytype = MYSQL_TYPE_NEWDECIMAL;
+#else     // ALPHA
+      mytype = MYSQL_TYPE_DECIMAL;
+#endif    // ALPHA
+      break;
     default:
       mytype = MYSQL_TYPE_NULL;
     } // endswitch mytype
@@ -129,7 +137,7 @@ const char *PLGtoMYSQLtype(int type, bool dbf, char v)
   switch (type) {
     case TYPE_INT:      return "INT";
     case TYPE_SHORT:    return "SMALLINT";
-    case TYPE_FLOAT:    return "DOUBLE";
+    case TYPE_DOUBLE:   return "DOUBLE";
     case TYPE_DATE:     return   dbf ? "DATE" : 
                           (v == 'S') ? "TIMESTAMP" :
                           (v == 'D') ? "DATE" :
@@ -138,6 +146,7 @@ const char *PLGtoMYSQLtype(int type, bool dbf, char v)
     case TYPE_STRING:   return v ? "VARCHAR" : "CHAR";
     case TYPE_BIGINT:   return "BIGINT";
     case TYPE_TINY:     return "TINYINT";
+    case TYPE_DECIM:    return "DECIMAL";
     default:            return "CHAR(0)";
     } // endswitch mytype
 
@@ -170,9 +179,11 @@ int MYSQLtoPLG(int mytype, char *var)
 #if !defined(ALPHA)
     case MYSQL_TYPE_NEWDECIMAL:
 #endif   // !ALPHA)
+      type = TYPE_DECIM;
+      break;
     case MYSQL_TYPE_FLOAT:
     case MYSQL_TYPE_DOUBLE:
-      type = TYPE_FLOAT;
+      type = TYPE_DOUBLE;
       break;
     case MYSQL_TYPE_TIMESTAMP:
     case MYSQL_TYPE_DATE:

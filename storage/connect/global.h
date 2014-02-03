@@ -77,12 +77,13 @@
 #define  TYPE_SEMX         0        /* Initial semantic function type? */
 #define  TYPE_ERROR        0
 #define  TYPE_STRING       1
-#define  TYPE_FLOAT        2
+#define  TYPE_DOUBLE       2
 #define  TYPE_SHORT        3
 #define  TYPE_TINY         4
 #define  TYPE_BIGINT       5
 #define  TYPE_LIST         6
 #define  TYPE_INT          7
+#define  TYPE_DECIM        9
 
 #if defined(OS32)
   #define  SYS_STAMP   "OS32"

@@ -862,11 +862,13 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     return fldp;
     } // endif special
 
-  pcf->Prec= 0;
+  pcf->Scale= 0;
   pcf->Opt= (fop) ? (int)fop->opt : 0;
 
   if ((pcf->Length= fp->field_length) < 0)
     pcf->Length= 256;            // BLOB?
+
+  pcf->Precision= pcf->Length;
 
   if (fop) {
     pcf->Offset= (int)fop->offset;
@@ -898,13 +900,17 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 
       // Find if collation name ends by _ci
       if (!strcmp(cp + strlen(cp) - 3, "_ci")) {
-        pcf->Prec= 1;      // Case insensitive
+        pcf->Scale= 1;     // Case insensitive
         pcf->Opt= 0;       // Prevent index opt until it is safe
         } // endif ci
 
       break;
-    case TYPE_FLOAT:
-      pcf->Prec= max(min(fp->decimals(), ((unsigned)pcf->Length - 2)), 0);
+    case TYPE_DOUBLE:
+      pcf->Scale= max(min(fp->decimals(), ((unsigned)pcf->Length - 2)), 0);
+      break;
+    case TYPE_DECIM:
+      pcf->Precision= ((Field_new_decimal*)fp)->precision;
+      pcf->Scale= fp->decimals();
       break;
     case TYPE_DATE:
       // Field_length is only used for DATE columns
@@ -1109,12 +1115,12 @@ PTDB ha_connect::GetTDB(PGLOBAL g)
                        || tdbp->GetAmType() == TYPE_AM_XML)) {
     tp= tdbp;
 //  tp->SetMode(xmod);
-  } else if ((tp= CntGetTDB(g, table_name, xmod, this)))
+  } else if ((tp= CntGetTDB(g, table_name, xmod, this))) {
     valid_query_id= xp->last_query_id;
-  else
+    tp->SetMode(xmod);
+  } else
     printf("GetTDB: %s\n", g->Message);
 
-  tp->SetMode(xmod);
   return tp;
 } // end of GetTDB
 
@@ -1326,7 +1332,7 @@ int ha_connect::MakeRecord(char *buf)
             value->FormatValue(sdvalout, fmt);
             p= sdvalout->GetCharValue();
             break;
-          case TYPE_FLOAT:
+          case TYPE_DOUBLE:
             p= NULL;
             break;
           case TYPE_STRING:
@@ -1422,7 +1428,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
 
         value->Reset();
       } else switch (value->GetType()) {
-        case TYPE_FLOAT:
+        case TYPE_DOUBLE:
           value->SetValue(fp->val_real());
           break;
         case TYPE_DATE:
@@ -2743,8 +2749,10 @@ int ha_connect::delete_all_rows()
 } // end of delete_all_rows
 
 
-bool ha_connect::check_privileges(THD *thd, PTOS options)
+bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
 {
+  const char *db= (dbn && *dbn) ? dbn : NULL;
+
   if (!options->type) {
     if (options->srcdef)
       options->type= "MYSQL";
@@ -2794,7 +2802,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options)
     case TAB_MAC:
     case TAB_WMI:
     case TAB_OEM:
-      return check_access(thd, FILE_ACL, NULL, NULL, NULL, 0, 0);
+      return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
 
     // This is temporary until a solution is found
     case TAB_TBL:
@@ -3020,12 +3028,6 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   if (!g)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
-  if (lock_type != F_UNLCK && check_privileges(thd, options)) {
-    strcpy(g->Message, "This operation requires the FILE privilege");
-    printf("%s\n", g->Message);
-    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
-    } // endif check_privileges
-
   // Action will depend on lock_type
   switch (lock_type) {
     case F_WRLCK:
@@ -3129,7 +3131,17 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
         if (adp)
           // Here we do make the new indexes
-          tdp->MakeIndex(g, adp, true);
+          if (tdp->MakeIndex(g, adp, true) == RC_FX) {
+//#if defined(_DEBUG)
+            // Make it a warning to avoid crash on debug
+            push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 
+                              0, g->Message);
+            rc= 0;
+//#else   // !_DEBUG
+//          my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+//          rc= HA_ERR_INTERNAL_ERROR;
+//#endif  // !DEBUG
+            } // endif MakeIndex
 
         } // endif Mode
 
@@ -3150,6 +3162,14 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     locked= 0;
     DBUG_RETURN(rc);
     } // endif MODE_ANY
+
+  DBUG_ASSERT(table && table->s);
+
+  if (check_privileges(thd, options, table->s->db.str)) {
+    strcpy(g->Message, "This operation requires the FILE privilege");
+    printf("%s\n", g->Message);
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+    } // endif check_privileges
 
   // Table mode depends on the query type
   newmode= CheckMode(g, thd, newmode, &xcheck, &cras);
@@ -3195,9 +3215,6 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       }// endif tdbp
 
     xmod= newmode;
-
-    if (!table)
-      rc= 3;          // Logical error
 
     // Delay open until used fields are known
   } // endif tdbp
@@ -3311,7 +3328,7 @@ filename_to_dbname_and_tablename(const char *filename,
   memcpy(database, d.str, d.length);
   database[d.length]= '\0';
   return false;
-}
+} // end of filename_to_dbname_and_tablename
 
 
 /**
@@ -3369,7 +3386,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   // Now we can work
   pos= share->option_struct;
 
-  if (check_privileges(thd, pos))
+  if (check_privileges(thd, pos, db))
   {
     free_table_share(share);
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
@@ -3508,7 +3525,7 @@ static bool add_fields(PGLOBAL g,
     length= (char*)PlugSubAlloc(g, NULL, 8);
     sprintf(length, "%d", len);
 
-    if (typ == TYPE_FLOAT) {
+    if (typ == TYPE_DOUBLE) {
       decimals= (char*)PlugSubAlloc(g, NULL, 8);
       sprintf(decimals, "%d", min(dec, (min(len, 31) - 1)));
       } // endif dec
@@ -3574,7 +3591,11 @@ static bool add_field(String *sql, const char *field_name, int typ,
       error|= sql->append(',');
       // dec must be < len and < 31
       error|= sql->append_ulonglong(min(dec, (min(len, 31) - 1)));
-      } // endif dec
+    } else if (dec > 0 && !strcmp(type, "DECIMAL")) {
+      error|= sql->append(',');
+      // dec must be < len
+      error|= sql->append_ulonglong(min(dec, len - 1));
+    } // endif dec
 
     error|= sql->append(')');
     } // endif len
@@ -3590,7 +3611,7 @@ static bool add_field(String *sql, const char *field_name, int typ,
   if (dft && *dft) {
     error|= sql->append(" DEFAULT ");
 
-    if (IsTypeChar(typ)) {
+    if (!IsTypeNum(typ)) {
       error|= sql->append("'");
       error|= sql->append_for_single_quote(dft, strlen(dft));
       error|= sql->append("'");
@@ -4086,7 +4107,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     case TAB_TBL:
     case TAB_XCL:
     case TAB_OCCUR:
-      if (!stricmp(tab, create_info->alias) &&
+      if (!src && !stricmp(tab, create_info->alias) &&
          (!db || !stricmp(db, table_s->db.str)))
         sprintf(g->Message, "A %s table cannot refer to itself", topt->type);
       else
@@ -4295,11 +4316,15 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           } else
             typ= plgtyp;
 
-          // Some data sources do not count dec in length (prec)
-          if (typ == TYPE_FLOAT)
-            prec += (dec + 2);        // To be safe
-          else
-            dec= 0;
+          switch (typ) {
+            case TYPE_DOUBLE:
+              // Some data sources do not count dec in length (prec)
+              prec += (dec + 2);        // To be safe
+            case TYPE_DECIM:
+              break;
+            default:
+              dec= 0;
+            } // endswitch typ
 
           } // endif ttp
 #endif   // ODBC_SUPPORT
@@ -4307,7 +4332,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         // Make the arguments as required by add_fields
         if (typ == TYPE_DATE)
           prec= 0;
-        else if (typ == TYPE_FLOAT)
+        else if (typ == TYPE_DOUBLE)
           prec= len;
 
         // Now add the field
@@ -4335,6 +4360,28 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
   return HA_ERR_INTERNAL_ERROR;
 } // end of connect_assisted_discovery
+
+/**
+  Get the database name from a qualified table name.
+*/
+char *ha_connect::GetDBfromName(const char *name)
+{
+  char *db, dbname[128], tbname[128];
+
+  if (filename_to_dbname_and_tablename(name, dbname, sizeof(dbname),
+                                             tbname, sizeof(tbname)))
+    *dbname= 0;
+
+  if (*dbname) {
+    assert(xp && xp->g);
+    db= (char*)PlugSubAlloc(xp->g, NULL, strlen(dbname + 1));
+    strcpy(db, dbname);
+  } else
+    db= NULL;
+
+  return db;
+} // end of GetDBfromName
+
 
 /**
   @brief
@@ -4394,7 +4441,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   } // endif ttp
 
-  if (check_privileges(thd, options))
+  if (check_privileges(thd, options, GetDBfromName(name)))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   if (options->data_charset) {
