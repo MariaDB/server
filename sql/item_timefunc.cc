@@ -1480,12 +1480,42 @@ String *Item_temporal_func::val_str(String *str)
 }
 
 
+bool Item_temporal_hybrid_func::fix_temporal_type(MYSQL_TIME *ltime)
+{
+  if (ltime->time_type < 0) /* MYSQL_TIMESTAMP_NONE, MYSQL_TIMESTAMP_ERROR */
+    return false;
+  switch (field_type())
+  {
+  case MYSQL_TYPE_TIME:
+    ltime->year= ltime->month= ltime->day= 0;
+    ltime->time_type= MYSQL_TIMESTAMP_TIME;
+    return false;
+  case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_TIMESTAMP:
+    ltime->neg= 0;
+    ltime->time_type= MYSQL_TIMESTAMP_DATETIME;
+    return false;
+  case MYSQL_TYPE_DATE:
+    ltime->neg= 0;
+    ltime->hour= ltime->minute= ltime->second= ltime->second_part= 0;
+    ltime->time_type= MYSQL_TIMESTAMP_DATE;
+    return false;
+  case MYSQL_TYPE_STRING: /* DATE_ADD, ADDTIME can return VARCHAR */
+    return false;
+  default:
+    DBUG_ASSERT(0);
+    return true;
+  }
+  return false;
+}
+
+
 String *Item_temporal_hybrid_func::val_str_ascii(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
 
-  if (get_date(&ltime, 0) ||
+  if (get_date(&ltime, 0) || fix_temporal_type(&ltime) ||
       (null_value= my_TIME_to_str(&ltime, str, decimals)))
     return (String *) 0;
 
@@ -2599,16 +2629,18 @@ bool Item_func_add_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   longlong seconds;
   int l_sign= sign, was_cut= 0;
 
-  if (is_date)                        // TIMESTAMP function
+  if (cached_field_type == MYSQL_TYPE_DATETIME)
   {
+    // TIMESTAMP function OR the first argument is DATE/DATETIME/TIMESTAMP
     if (get_arg0_date(&l_time1, 0) || 
         args[1]->get_time(&l_time2) ||
         l_time1.time_type == MYSQL_TIMESTAMP_TIME || 
         l_time2.time_type != MYSQL_TIMESTAMP_TIME)
       return (null_value= 1);
   }
-  else                                // ADDTIME function
+  else
   {
+    // ADDTIME function AND the first argument is TIME
     if (args[0]->get_time(&l_time1) || 
         args[1]->get_time(&l_time2) ||
         l_time2.time_type == MYSQL_TIMESTAMP_DATETIME)
