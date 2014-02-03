@@ -8,140 +8,120 @@ PCRE - Perl-compatible regular expressions
 .SH "PCRE 16-BIT API BASIC FUNCTIONS"
 .rs
 .sp
-.SM
+.nf
 .B pcre16 *pcre16_compile(PCRE_SPTR16 \fIpattern\fP, int \fIoptions\fP,
-.ti +5n
-.B const char **\fIerrptr\fP, int *\fIerroffset\fP,
-.ti +5n
-.B const unsigned char *\fItableptr\fP);
-.PP
+.B "     const char **\fIerrptr\fP, int *\fIerroffset\fP,"
+.B "     const unsigned char *\fItableptr\fP);"
+.sp
 .B pcre16 *pcre16_compile2(PCRE_SPTR16 \fIpattern\fP, int \fIoptions\fP,
-.ti +5n
-.B int *\fIerrorcodeptr\fP,
-.ti +5n
-.B const char **\fIerrptr\fP, int *\fIerroffset\fP,
-.ti +5n
-.B const unsigned char *\fItableptr\fP);
-.PP
+.B "     int *\fIerrorcodeptr\fP,"
+.B "     const char **\fIerrptr\fP, int *\fIerroffset\fP,"
+.B "     const unsigned char *\fItableptr\fP);"
+.sp
 .B pcre16_extra *pcre16_study(const pcre16 *\fIcode\fP, int \fIoptions\fP,
-.ti +5n
-.B const char **\fIerrptr\fP);
-.PP
+.B "     const char **\fIerrptr\fP);"
+.sp
 .B void pcre16_free_study(pcre16_extra *\fIextra\fP);
-.PP
+.sp
 .B int pcre16_exec(const pcre16 *\fIcode\fP, "const pcre16_extra *\fIextra\fP,"
-.ti +5n
-.B "PCRE_SPTR16 \fIsubject\fP," int \fIlength\fP, int \fIstartoffset\fP,
-.ti +5n
-.B int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP);
-.PP
+.B "     PCRE_SPTR16 \fIsubject\fP, int \fIlength\fP, int \fIstartoffset\fP,"
+.B "     int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP);"
+.sp
 .B int pcre16_dfa_exec(const pcre16 *\fIcode\fP, "const pcre16_extra *\fIextra\fP,"
-.ti +5n
-.B "PCRE_SPTR16 \fIsubject\fP," int \fIlength\fP, int \fIstartoffset\fP,
-.ti +5n
-.B int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP,
-.ti +5n
-.B int *\fIworkspace\fP, int \fIwscount\fP);
+.B "     PCRE_SPTR16 \fIsubject\fP, int \fIlength\fP, int \fIstartoffset\fP,"
+.B "     int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP,"
+.B "     int *\fIworkspace\fP, int \fIwscount\fP);"
+.fi
 .
 .
 .SH "PCRE 16-BIT API STRING EXTRACTION FUNCTIONS"
 .rs
 .sp
+.nf
 .B int pcre16_copy_named_substring(const pcre16 *\fIcode\fP,
-.ti +5n
-.B PCRE_SPTR16 \fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, PCRE_SPTR16 \fIstringname\fP,
-.ti +5n
-.B PCRE_UCHAR16 *\fIbuffer\fP, int \fIbuffersize\fP);
-.PP
+.B "     PCRE_SPTR16 \fIsubject\fP, int *\fIovector\fP,"
+.B "     int \fIstringcount\fP, PCRE_SPTR16 \fIstringname\fP,"
+.B "     PCRE_UCHAR16 *\fIbuffer\fP, int \fIbuffersize\fP);"
+.sp
 .B int pcre16_copy_substring(PCRE_SPTR16 \fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, int \fIstringnumber\fP, PCRE_UCHAR16 *\fIbuffer\fP,
-.ti +5n
-.B int \fIbuffersize\fP);
-.PP
+.B "     int \fIstringcount\fP, int \fIstringnumber\fP, PCRE_UCHAR16 *\fIbuffer\fP,"
+.B "     int \fIbuffersize\fP);"
+.sp
 .B int pcre16_get_named_substring(const pcre16 *\fIcode\fP,
-.ti +5n
-.B PCRE_SPTR16 \fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, PCRE_SPTR16 \fIstringname\fP,
-.ti +5n
-.B PCRE_SPTR16 *\fIstringptr\fP);
-.PP
+.B "     PCRE_SPTR16 \fIsubject\fP, int *\fIovector\fP,"
+.B "     int \fIstringcount\fP, PCRE_SPTR16 \fIstringname\fP,"
+.B "     PCRE_SPTR16 *\fIstringptr\fP);"
+.sp
 .B int pcre16_get_stringnumber(const pcre16 *\fIcode\fP,
-.ti +5n
-.B PCRE_SPTR16 \fIname\fP);
-.PP
+.B "     PCRE_SPTR16 \fIname\fP);
+.sp
 .B int pcre16_get_stringtable_entries(const pcre16 *\fIcode\fP,
-.ti +5n
-.B PCRE_SPTR16 \fIname\fP, PCRE_UCHAR16 **\fIfirst\fP, PCRE_UCHAR16 **\fIlast\fP);
-.PP
+.B "     PCRE_SPTR16 \fIname\fP, PCRE_UCHAR16 **\fIfirst\fP, PCRE_UCHAR16 **\fIlast\fP);"
+.sp
 .B int pcre16_get_substring(PCRE_SPTR16 \fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, int \fIstringnumber\fP,
-.ti +5n
-.B PCRE_SPTR16 *\fIstringptr\fP);
-.PP
+.B "     int \fIstringcount\fP, int \fIstringnumber\fP,"
+.B "     PCRE_SPTR16 *\fIstringptr\fP);"
+.sp
 .B int pcre16_get_substring_list(PCRE_SPTR16 \fIsubject\fP,
-.ti +5n
-.B int *\fIovector\fP, int \fIstringcount\fP, "PCRE_SPTR16 **\fIlistptr\fP);"
-.PP
+.B "     int *\fIovector\fP, int \fIstringcount\fP, PCRE_SPTR16 **\fIlistptr\fP);"
+.sp
 .B void pcre16_free_substring(PCRE_SPTR16 \fIstringptr\fP);
-.PP
+.sp
 .B void pcre16_free_substring_list(PCRE_SPTR16 *\fIstringptr\fP);
+.fi
 .
 .
 .SH "PCRE 16-BIT API AUXILIARY FUNCTIONS"
 .rs
 .sp
+.nf
 .B pcre16_jit_stack *pcre16_jit_stack_alloc(int \fIstartsize\fP, int \fImaxsize\fP);
-.PP
+.sp
 .B void pcre16_jit_stack_free(pcre16_jit_stack *\fIstack\fP);
-.PP
+.sp
 .B void pcre16_assign_jit_stack(pcre16_extra *\fIextra\fP,
-.ti +5n
-.B pcre16_jit_callback \fIcallback\fP, void *\fIdata\fP);
-.PP
+.B "     pcre16_jit_callback \fIcallback\fP, void *\fIdata\fP);"
+.sp
 .B const unsigned char *pcre16_maketables(void);
-.PP
+.sp
 .B int pcre16_fullinfo(const pcre16 *\fIcode\fP, "const pcre16_extra *\fIextra\fP,"
-.ti +5n
-.B int \fIwhat\fP, void *\fIwhere\fP);
-.PP
+.B "     int \fIwhat\fP, void *\fIwhere\fP);"
+.sp
 .B int pcre16_refcount(pcre16 *\fIcode\fP, int \fIadjust\fP);
-.PP
+.sp
 .B int pcre16_config(int \fIwhat\fP, void *\fIwhere\fP);
-.PP
+.sp
 .B const char *pcre16_version(void);
-.PP
+.sp
 .B int pcre16_pattern_to_host_byte_order(pcre16 *\fIcode\fP,
-.ti +5n
-.B pcre16_extra *\fIextra\fP, const unsigned char *\fItables\fP);
+.B "     pcre16_extra *\fIextra\fP, const unsigned char *\fItables\fP);"
+.fi
 .
 .
 .SH "PCRE 16-BIT API INDIRECTED FUNCTIONS"
 .rs
 .sp
+.nf
 .B void *(*pcre16_malloc)(size_t);
-.PP
+.sp
 .B void (*pcre16_free)(void *);
-.PP
+.sp
 .B void *(*pcre16_stack_malloc)(size_t);
-.PP
+.sp
 .B void (*pcre16_stack_free)(void *);
-.PP
+.sp
 .B int (*pcre16_callout)(pcre16_callout_block *);
+.fi
 .
 .
 .SH "PCRE 16-BIT API 16-BIT-ONLY FUNCTION"
 .rs
 .sp
+.nf
 .B int pcre16_utf16_to_host_byte_order(PCRE_UCHAR16 *\fIoutput\fP,
-.ti +5n
-.B PCRE_SPTR16 \fIinput\fP, int \fIlength\fP, int *\fIbyte_order\fP,
-.ti +5n
-.B int \fIkeep_boms\fP);
+.B "     PCRE_SPTR16 \fIinput\fP, int \fIlength\fP, int *\fIbyte_order\fP,"
+.B "     int \fIkeep_boms\fP);"
+.fi
 .
 .
 .SH "THE PCRE 16-BIT LIBRARY"

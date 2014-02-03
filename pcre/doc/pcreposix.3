@@ -1,25 +1,22 @@
 .TH PCREPOSIX 3 "09 January 2012" "PCRE 8.30"
 .SH NAME
 PCRE - Perl-compatible regular expressions.
-.SH "SYNOPSIS OF POSIX API"
+.SH "SYNOPSIS"
 .rs
 .sp
 .B #include <pcreposix.h>
 .PP
-.SM
+.nf
 .B int regcomp(regex_t *\fIpreg\fP, const char *\fIpattern\fP,
-.ti +5n
-.B int \fIcflags\fP);
-.PP
+.B "     int \fIcflags\fP);"
+.sp
 .B int regexec(regex_t *\fIpreg\fP, const char *\fIstring\fP,
-.ti +5n
-.B size_t \fInmatch\fP, regmatch_t \fIpmatch\fP[], int \fIeflags\fP);
-.PP
-.B size_t regerror(int \fIerrcode\fP, const regex_t *\fIpreg\fP,
-.ti +5n
-.B char *\fIerrbuf\fP, size_t \fIerrbuf_size\fP);
-.PP
+.B "     size_t \fInmatch\fP, regmatch_t \fIpmatch\fP[], int \fIeflags\fP);"
+.B "     size_t regerror(int \fIerrcode\fP, const regex_t *\fIpreg\fP,"
+.B "     char *\fIerrbuf\fP, size_t \fIerrbuf_size\fP);"
+.sp
 .B void regfree(regex_t *\fIpreg\fP);
+.fi
 .
 .SH DESCRIPTION
 .rs

@@ -1,4 +1,4 @@
-.TH PCRE_COMPILE2 3 "24 June 2012" "PCRE 8.30"
+.TH PCRE_COMPILE2 3 "01 October 2013" "PCRE 8.34"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .SH SYNOPSIS
@@ -6,30 +6,22 @@ PCRE - Perl-compatible regular expressions
 .sp
 .B #include <pcre.h>
 .PP
-.SM
+.nf
 .B pcre *pcre_compile2(const char *\fIpattern\fP, int \fIoptions\fP,
-.ti +5n
-.B int *\fIerrorcodeptr\fP,
-.ti +5n
-.B const char **\fIerrptr\fP, int *\fIerroffset\fP,
-.ti +5n
-.B const unsigned char *\fItableptr\fP);
-.PP
+.B "     int *\fIerrorcodeptr\fP,"
+.B "     const char **\fIerrptr\fP, int *\fIerroffset\fP,"
+.B "     const unsigned char *\fItableptr\fP);"
+.sp
 .B pcre16 *pcre16_compile2(PCRE_SPTR16 \fIpattern\fP, int \fIoptions\fP,
-.ti +5n
-.B int *\fIerrorcodeptr\fP,
-.ti +5n
-.B const char **\fIerrptr\fP, int *\fIerroffset\fP,
-.ti +5n
-.B const unsigned char *\fItableptr\fP);
-.PP
+.B "     int *\fIerrorcodeptr\fP,"
+.B "     const char **\fIerrptr\fP, int *\fIerroffset\fP,"
+.B "     const unsigned char *\fItableptr\fP);"
+.sp
 .B pcre32 *pcre32_compile2(PCRE_SPTR32 \fIpattern\fP, int \fIoptions\fP,
-.ti +5n
-.B int *\fIerrorcodeptr\fP,
-.ti +5n
-.B const char **\fIerrptr\fP, int *\fIerroffset\fP,
-.ti +5n
-.B const unsigned char *\fItableptr\fP);
+.B "     int *\fIerrorcodeptr\fP,£
+.B "     const char **\fIerrptr\fP, int *\fIerroffset\fP,"
+.B "     const unsigned char *\fItableptr\fP);"
+.fi
 .
 .SH DESCRIPTION
 .rs
@@ -64,6 +56,7 @@ The option bits are:
   PCRE_FIRSTLINE          Force matching to be before newline
   PCRE_JAVASCRIPT_COMPAT  JavaScript compatibility
   PCRE_MULTILINE          ^ and $ match newlines within data
+  PCRE_NEVER_UTF          Lock out UTF, e.g. via (*UTF)
   PCRE_NEWLINE_ANY        Recognize any Unicode newline sequence
   PCRE_NEWLINE_ANYCRLF    Recognize CR, LF, and CRLF as newline
                             sequences
@@ -72,6 +65,8 @@ The option bits are:
   PCRE_NEWLINE_LF         Set LF as the newline sequence
   PCRE_NO_AUTO_CAPTURE    Disable numbered capturing paren-
                             theses (named ones available)
+  PCRE_NO_AUTO_POSSESS    Disable auto-possessification
+  PCRE_NO_START_OPTIMIZE  Disable match-time start optimizations
   PCRE_NO_UTF16_CHECK     Do not check the pattern for UTF-16
                             validity (only relevant if
                             PCRE_UTF16 is set)

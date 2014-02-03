@@ -4,7 +4,11 @@ typical). The others require the link size to be 2. */x
 
 <!testsaved8
 
-%-- Generated from: ^[aL](?P<name>(?:[AaLl]+)[^xX-]*?)(?P<other>[\x{150}-\x{250}\x{300}]|[^\x{800}aAs-uS-U\x{d800}-\x{dfff}])++[^#\b\x{500}\x{1000}]{3,5}$
+%-- Generated from: 
+    /^[aL](?P<name>(?:[AaLl]+)[^xX-]*?)(?P<other>[\x{150}-\x{250}\x{300}]|
+      [^\x{800}aAs-uS-U\x{d800}-\x{dfff}])++[^#\b\x{500}\x{1000}]{3,5}$
+      /x
+
     In 16-bit mode with options:  S>testdata/saved16LE-1
                                  FS>testdata/saved16BE-1
     In 32-bit mode with options:  S>testdata/saved32LE-1

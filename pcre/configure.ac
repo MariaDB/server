@@ -9,17 +9,17 @@ dnl The PCRE_PRERELEASE feature is for identifying release candidates. It might
 dnl be defined as -RC2, for example. For real releases, it should be empty.
 
 m4_define(pcre_major, [8])
-m4_define(pcre_minor, [33])
+m4_define(pcre_minor, [34])
 m4_define(pcre_prerelease, [])
-m4_define(pcre_date, [2013-05-28])
+m4_define(pcre_date, [2013-12-15])
 
 # NOTE: The CMakeLists.txt file searches for the above variables in the first
 # 50 lines of this file. Please update that if the variables above are moved.
 
 # Libtool shared library interface versions (current:revision:age)
-m4_define(libpcre_version, [3:1:2])
-m4_define(libpcre16_version, [2:1:2])
-m4_define(libpcre32_version, [0:1:0])
+m4_define(libpcre_version, [3:2:2])
+m4_define(libpcre16_version, [2:2:2])
+m4_define(libpcre32_version, [0:2:0])
 m4_define(libpcreposix_version, [0:2:0])
 m4_define(libpcrecpp_version, [0:0:0])
 
@@ -274,6 +274,12 @@ AC_ARG_WITH(link-size,
             AS_HELP_STRING([--with-link-size=N],
                            [internal link size (2, 3, or 4 allowed; default=2)]),
             , with_link_size=2)
+
+# Handle --with-parens-nest-limit=N
+AC_ARG_WITH(parens-nest-limit,
+            AS_HELP_STRING([--with-parens-nest-limit=N],
+                           [nested parentheses limit (default=250)]),
+            , with_parens_nest_limit=250)
 
 # Handle --with-match-limit=N
 AC_ARG_WITH(match-limit,
@@ -784,6 +790,11 @@ AC_DEFINE_UNQUOTED([POSIX_MALLOC_THRESHOLD], [$with_posix_malloc_threshold], [
   faster than using malloc() for each call. The threshold above which
   the stack is no longer used is defined by POSIX_MALLOC_THRESHOLD.])
 
+AC_DEFINE_UNQUOTED([PARENS_NEST_LIMIT], [$with_parens_nest_limit], [
+  The value of PARENS_NEST_LIMIT specifies the maximum depth of nested
+  parentheses (of any kind) in a pattern. This limits the amount of system
+  stack that is used while compiling a pattern.])
+
 AC_DEFINE_UNQUOTED([MATCH_LIMIT], [$with_match_limit], [
   The value of MATCH_LIMIT determines the default number of times the
   internal match() function can be called during a single execution of
@@ -957,7 +968,7 @@ if test "$enable_pcretest_libreadline" = "yes"; then
   fi
 fi
 
-# Check for valgrind
+# Handle valgrind support
 
 if test "$enable_valgrind" = "yes"; then
   m4_ifdef([PKG_CHECK_MODULES],
@@ -965,7 +976,7 @@ if test "$enable_valgrind" = "yes"; then
            [AC_MSG_ERROR([pkg-config not supported])])
 fi
 
-# test code coverage reporting
+# Handle code coverage reporting support
 if test "$enable_coverage" = "yes"; then
   if test "x$GCC" != "xyes"; then
     AC_MSG_ERROR([Code coverage reports can only be generated when using GCC])
@@ -996,11 +1007,7 @@ if test "$enable_coverage" = "yes"; then
     AC_MSG_ERROR([genhtml not found])
   fi
 
-  AC_DEFINE([SUPPORT_GCOV],[1], [
-    Define to allow pcretest and pcregrep to be linked with gcov, so that they
-    are able to generate code coverage reports.])
-
-  # And add flags needed for gcov
+  # Set flags needed for gcov
   GCOV_CFLAGS="-O0 -ggdb3 -fprofile-arcs -ftest-coverage"
   GCOV_CXXFLAGS="-O0 -ggdb3 -fprofile-arcs -ftest-coverage"
   GCOV_LIBS="-lgcov"
@@ -1075,6 +1082,7 @@ $PACKAGE-$VERSION configuration summary:
     Use stack recursion ............. : ${enable_stack_for_recursion}
     POSIX mem threshold ............. : ${with_posix_malloc_threshold}
     Internal link size .............. : ${with_link_size}
+    Nested parentheses limit ........ : ${with_parens_nest_limit}
     Match limit ..................... : ${with_match_limit}
     Match limit recursion ........... : ${with_match_limit_recursion}
     Build shared libs ............... : ${enable_shared}

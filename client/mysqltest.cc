@@ -8576,7 +8576,7 @@ char *re_eprint(int err)
 {
   static char epbuf[100];
   size_t len __attribute__((unused))=
-          regerror(REG_ITOA|err, (regex_t *)NULL, epbuf, sizeof(epbuf));
+          regerror(err, (regex_t *)NULL, epbuf, sizeof(epbuf));
   assert(len <= sizeof(epbuf));
   return(epbuf);
 }

@@ -425,8 +425,17 @@ for(;;)
     break;
 
     case OP_CREF:
-    case OP_NCREF:
     fprintf(f, "%3d %s", GET2(code,1), priv_OP_names[*code]);
+    break;
+
+    case OP_DNCREF:
+      {
+      pcre_uchar *entry = (pcre_uchar *)re + offset + (GET2(code, 1) * size) +
+        IMM2_SIZE;
+      fprintf(f, " %s Cond ref <", flag);
+      print_puchar(f, entry);
+      fprintf(f, ">%d", GET2(code, 1 + IMM2_SIZE));
+      }
     break;
 
     case OP_RREF:
@@ -437,12 +446,14 @@ for(;;)
       fprintf(f, "    Cond recurse %d", c);
     break;
 
-    case OP_NRREF:
-    c = GET2(code, 1);
-    if (c == RREF_ANY)
-      fprintf(f, "    Cond nrecurse any");
-    else
-      fprintf(f, "    Cond nrecurse %d", c);
+    case OP_DNRREF:
+      {
+      pcre_uchar *entry = (pcre_uchar *)re + offset + (GET2(code, 1) * size) +
+        IMM2_SIZE;
+      fprintf(f, " %s Cond recurse <", flag);
+      print_puchar(f, entry);
+      fprintf(f, ">%d", GET2(code, 1 + IMM2_SIZE));
+      }
     break;
 
     case OP_DEF:
@@ -598,6 +609,20 @@ for(;;)
     ccode = code + priv_OP_lengths[*code];
     goto CLASS_REF_REPEAT;
 
+    case OP_DNREFI:
+    flag = "/i";
+    /* Fall through */
+    case OP_DNREF:
+      {
+      pcre_uchar *entry = (pcre_uchar *)re + offset + (GET2(code, 1) * size) +
+        IMM2_SIZE;
+      fprintf(f, " %s \\k<", flag);
+      print_puchar(f, entry);
+      fprintf(f, ">%d", GET2(code, 1 + IMM2_SIZE));
+      }
+    ccode = code + priv_OP_lengths[*code];
+    goto CLASS_REF_REPEAT;
+
     case OP_CALLOUT:
     fprintf(f, "    %s %d %d %d", priv_OP_names[*code], code[1], GET(code,2),
       GET(code, 2 + LINK_SIZE));
@@ -608,9 +633,9 @@ for(;;)
     print_prop(f, code, "    ", "");
     break;
 
-    /* OP_XCLASS can only occur in UTF or PCRE16 modes. However, there's no
-    harm in having this code always here, and it makes it less messy without
-    all those #ifdefs. */
+    /* OP_XCLASS cannot occur in 8-bit, non-UTF mode. However, there's no harm
+    in having this code always here, and it makes it less messy without all
+    those #ifdefs. */
 
     case OP_CLASS:
     case OP_NCLASS:
@@ -671,26 +696,51 @@ for(;;)
         pcre_uchar ch;
         while ((ch = *ccode++) != XCL_END)
           {
-          if (ch == XCL_PROP)
+          BOOL not = FALSE;
+          const char *notch = "";
+
+          switch(ch)
             {
-            unsigned int ptype = *ccode++;
-            unsigned int pvalue = *ccode++;
-            fprintf(f, "\\p{%s}", get_ucpname(ptype, pvalue));
-            }
-          else if (ch == XCL_NOTPROP)
-            {
-            unsigned int ptype = *ccode++;
-            unsigned int pvalue = *ccode++;
-            fprintf(f, "\\P{%s}", get_ucpname(ptype, pvalue));
-            }
-          else
-            {
+            case XCL_NOTPROP:
+            not = TRUE;
+            notch = "^";
+            /* Fall through */
+
+            case XCL_PROP:
+              {
+              unsigned int ptype = *ccode++;
+              unsigned int pvalue = *ccode++;
+
+              switch(ptype)
+                {
+                case PT_PXGRAPH:
+                fprintf(f, "[:%sgraph:]", notch);
+                break;
+
+                case PT_PXPRINT:
+                fprintf(f, "[:%sprint:]", notch);
+                break;
+
+                case PT_PXPUNCT:
+                fprintf(f, "[:%spunct:]", notch);
+                break;
+
+                default:
+                fprintf(f, "\\%c{%s}", (not? 'P':'p'),
+                  get_ucpname(ptype, pvalue));
+                break;
+                }
+              }
+            break;
+
+            default:
             ccode += 1 + print_char(f, ccode, utf);
             if (ch == XCL_RANGE)
               {
               fprintf(f, "-");
               ccode += 1 + print_char(f, ccode, utf);
               }
+            break;
             }
           }
         }
@@ -710,17 +760,22 @@ for(;;)
         case OP_CRMINPLUS:
         case OP_CRQUERY:
         case OP_CRMINQUERY:
+        case OP_CRPOSSTAR:
+        case OP_CRPOSPLUS:
+        case OP_CRPOSQUERY:
         fprintf(f, "%s", priv_OP_names[*ccode]);
         extra += priv_OP_lengths[*ccode];
         break;
 
         case OP_CRRANGE:
         case OP_CRMINRANGE:
+        case OP_CRPOSRANGE:
         min = GET2(ccode,1);
         max = GET2(ccode,1 + IMM2_SIZE);
         if (max == 0) fprintf(f, "{%u,}", min);
         else fprintf(f, "{%u,%u}", min, max);
         if (*ccode == OP_CRMINRANGE) fprintf(f, "?");
+        else if (*ccode == OP_CRPOSRANGE) fprintf(f, "+");
         extra += priv_OP_lengths[*ccode];
         break;
 

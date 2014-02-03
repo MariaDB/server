@@ -1,5 +1,7 @@
 /-- Tests for the 32-bit library only */
 
+< forbid 8w
+
 /-- Check maximum character size --/
 
 /\x{110000}/
@@ -9,6 +11,16 @@
 /\x{80000000}/
 
 /\x{ffffffff}/
+
+/\x{100000000}/
+
+/\o{17777777777}/
+
+/\o{20000000000}/
+
+/\o{37777777777}/
+
+/\o{40000000000}/
 
 /\x{7fffffff}\x{7fffffff}/I
 

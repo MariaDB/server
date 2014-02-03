@@ -61,6 +61,10 @@
 # 2012-09-08 ChPe added PCRE32 support
 # 2012-10-23 PH added support for VALGRIND and GCOV
 # 2012-12-08 PH added patch from Daniel Richard G to quash some MSVC warnings
+# 2013-07-01 PH realized that the "support" for GCOV was a total nonsense and
+#            so it has been removed.
+# 2013-10-08 PH got rid of the "source" command, which is a bash-ism (use ".")
+# 2013-11-05 PH added support for PARENS_NEST_LIMIT
 
 PROJECT(PCRE C CXX)
 
@@ -106,6 +110,9 @@ CHECK_TYPE_SIZE("unsigned long long"    UNSIGNED_LONG_LONG)
 
 SET(PCRE_LINK_SIZE "2" CACHE STRING
     "Internal link size (2, 3 or 4 allowed). See LINK_SIZE in config.h.in for details.")
+
+SET(PCRE_PARENS_NEST_LIMIT "250" CACHE STRING
+    "Default nested parentheses limit. See PARENS_NEST_LIMIT in config.h.in for details.")
 
 SET(PCRE_MATCH_LIMIT "10000000" CACHE STRING
     "Default limit on internal looping. See MATCH_LIMIT in config.h.in for details.")
@@ -322,6 +329,15 @@ TARGET_LINK_LIBRARIES(pcreposix pcre)
 
 # Executables
 
+# Removed by PH (2008-01-23) because pcredemo shouldn't really be built
+# automatically, and it gave trouble in some environments anyway.
+# ADD_EXECUTABLE(pcredemo pcredemo.c)
+# TARGET_LINK_LIBRARIES(pcredemo pcreposix)
+# IF(NOT BUILD_SHARED_LIBS)
+#     # make sure to not use declspec(dllimport) in static mode on windows
+#         SET_TARGET_PROPERTIES(pcredemo PROPERTIES COMPILE_FLAGS "-DPCRE_STATIC")
+# ENDIF(NOT BUILD_SHARED_LIBS)
+
 IF(PCRE_BUILD_PCREGREP)
   ADD_EXECUTABLE(pcregrep pcregrep.c)
   SET(targets ${targets} pcregrep)
@@ -469,17 +485,25 @@ IF(PCRE_SHOW_REPORT)
   MESSAGE(STATUS "")
   MESSAGE(STATUS "PCRE configuration summary:")
   MESSAGE(STATUS "")
+#  MESSAGE(STATUS "  Install prefix .................. : ${CMAKE_INSTALL_PREFIX}")
   MESSAGE(STATUS "  C compiler ...................... : ${CMAKE_C_COMPILER}")
+#  MESSAGE(STATUS "  C++ compiler .................... : ${CMAKE_CXX_COMPILER}")
   MESSAGE(STATUS "  C compiler flags ................ : ${CMAKE_C_FLAGS}${cfsp}${CMAKE_C_FLAGS_${buildtype}}")
 #  MESSAGE(STATUS "  Enable JIT compiling support .... : ${PCRE_SUPPORT_JIT}")
   MESSAGE(STATUS "  Unicode properties .............. : ${PCRE_SUPPORT_UNICODE_PROPERTIES}")
   MESSAGE(STATUS "  Newline char/sequence ........... : ${PCRE_NEWLINE}")
   MESSAGE(STATUS "  \\R matches only ANYCRLF ......... : ${PCRE_SUPPORT_BSR_ANYCRLF}")
+#  MESSAGE(STATUS "  EBCDIC coding ................... : ${PCRE_EBCDIC}")
+#  MESSAGE(STATUS "  EBCDIC coding with NL=0x25 ...... : ${PCRE_EBCDIC_NL25}")
+#  MESSAGE(STATUS "  Rebuild char tables ............. : ${PCRE_REBUILD_CHARTABLES}")
   MESSAGE(STATUS "  No stack recursion .............. : ${PCRE_NO_RECURSE}")
   MESSAGE(STATUS "  POSIX mem threshold ............. : ${PCRE_POSIX_MALLOC_THRESHOLD}")
   MESSAGE(STATUS "  Internal link size .............. : ${PCRE_LINK_SIZE}")
+  MESSAGE(STATUS "  Parentheses nest limit .......... : ${PCRE_PARENS_NEST_LIMIT}")
   MESSAGE(STATUS "  Match limit ..................... : ${PCRE_MATCH_LIMIT}")
   MESSAGE(STATUS "  Match limit recursion ........... : ${PCRE_MATCH_LIMIT_RECURSION}")
+#  MESSAGE(STATUS "  Build shared libs ............... : ${BUILD_SHARED_LIBS}")
+#  MESSAGE(STATUS "  Build static libs ............... : ${BUILD_STATIC_LIBS}")
   MESSAGE(STATUS "  Build pcregrep .................. : ${PCRE_BUILD_PCREGREP}")
 #  MESSAGE(STATUS "  Enable JIT in pcregrep .......... : ${PCRE_SUPPORT_PCREGREP_JIT}")
   MESSAGE(STATUS "  Buffer size for pcregrep ........ : ${PCREGREP_BUFSIZE}")
