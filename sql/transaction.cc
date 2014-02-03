@@ -422,14 +422,13 @@ bool trans_commit_stmt(THD *thd)
 #endif /* WITH_WSREP */
     res= ha_commit_trans(thd, FALSE);
     if (! thd->in_active_multi_stmt_transaction())
-#ifdef WITH_WSREP
     {
-#endif /* WITH_WSREP */
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+      thd->tx_read_only= thd->variables.tx_read_only;
 #ifdef WITH_WSREP
       wsrep_post_commit(thd, FALSE);
-    }
 #endif /* WITH_WSREP */
+    }
   }
 
     /*
