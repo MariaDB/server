@@ -3141,7 +3141,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   DBUG_ASSERT(thd == current_thd);
 
   if (xtrace)
-    printf("external_lock: this=%p thd=%p xp=%d g=%p lock_type=%d\n",
+    printf("external_lock: this=%p thd=%p xp=%p g=%p lock_type=%d\n",
             this, thd, xp, g, lock_type);
 
   if (!g)
@@ -4920,7 +4920,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     } // endif
 
   if (xtrace)
-    printf("xchk=%d createas=%d\n", g->Xchk, g->Createas);
+    printf("xchk=%p createas=%d\n", g->Xchk, g->Createas);
 
   // To check whether indices have to be made or remade
   if (!g->Xchk) {
