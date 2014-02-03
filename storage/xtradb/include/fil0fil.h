@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -129,6 +130,13 @@ extern fil_addr_t	fil_addr_null;
 #define FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID  34 /*!< starting from 4.1.x this
 					contains the space id of the page */
 #define FIL_PAGE_DATA		38	/*!< start of the data on the page */
+/* Following are used when page compression is used */
+#define FIL_PAGE_COMPRESSED_SIZE 2      /*!< Number of bytes used to store
+ 					actual payload data size on
+ 					compressed pages. */
+#define FIL_PAGE_COMPRESSION_ZLIB 1    /*!< Compressin algorithm ZLIB. */
+#define FIL_PAGE_COMPRESSION_LZ4  2    /*!< Compressin algorithm LZ4. */
+
 /* @} */
 /** File page trailer @{ */
 #define FIL_PAGE_END_LSN_OLD_CHKSUM 8	/*!< the low 4 bytes of this are used
@@ -139,6 +147,7 @@ extern fil_addr_t	fil_addr_null;
 /* @} */
 
 /** File page types (values of FIL_PAGE_TYPE) @{ */
+#define FIL_PAGE_PAGE_COMPRESSED 34354  /*!< Page compressed page */
 #define FIL_PAGE_INDEX		17855	/*!< B-tree node */
 #define FIL_PAGE_UNDO_LOG	2	/*!< Undo log page */
 #define FIL_PAGE_INODE		3	/*!< Index node */
@@ -721,8 +730,8 @@ fil_space_get_n_reserved_extents(
 Reads or writes data. This operation is asynchronous (aio).
 @return DB_SUCCESS, or DB_TABLESPACE_DELETED if we are trying to do
 i/o on a tablespace which does not exist */
-#define fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message) \
-	_fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, NULL)
+#define fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size) \
+	_fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, NULL)
 
 UNIV_INTERN
 dberr_t
@@ -752,7 +761,12 @@ _fil_io(
 				or from where to write; in aio this must be
 				appropriately aligned */
 	void*	message,	/*!< in: message for aio handler if non-sync
-				aio used, else ignored */
+ 				aio used, else ignored */
+	ulint*	write_size,	/*!< in/out: Actual write size initialized
+			       after fist successfull trim
+			       operation for this page and if
+			       initialized we do not trim again if
+			       actual page size does not decrease. */
 	trx_t*	trx)
 	__attribute__((nonnull(8)));
 /**********************************************************************//**
@@ -1017,5 +1031,28 @@ void
 fil_space_set_corrupt(
 /*==================*/
 	ulint	space_id);
+
+/****************************************************************//**
+Acquire fil_system mutex */
+void
+fil_system_enter(void);
+/*==================*/
+/****************************************************************//**
+Release fil_system mutex */
+void
+fil_system_exit(void);
+/*==================*/
+/*******************************************************************//**
+Returns the table space by a given id, NULL if not found. */
+fil_space_t*
+fil_space_get_by_id(
+/*================*/
+	ulint	id);	/*!< in: space id */
+/*******************************************************************//**
+Return space name */
+char*
+fil_space_name(
+/*===========*/
+	fil_space_t*	space);	/*!< in: space */
 
 #endif /* fil0fil_h */

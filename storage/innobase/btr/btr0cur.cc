@@ -1844,7 +1844,7 @@ btr_cur_update_alloc_zip(
 	/* Have a local copy of the variables as these can change
 	dynamically. */
 	bool	log_compressed = page_log_compressed_pages;
-	ulint	compression_level = page_compression_level;
+	ulint	compression_level = page_zip_level;
 	page_t*	page = buf_block_get_frame(block);
 
 	ut_a(page_zip == buf_block_get_page_zip(block));
@@ -4334,7 +4334,7 @@ btr_store_big_rec_extern_fields(
 		heap = mem_heap_create(250000);
 		page_zip_set_alloc(&c_stream, heap);
 
-		err = deflateInit2(&c_stream, page_compression_level,
+		err = deflateInit2(&c_stream, page_zip_level,
 				   Z_DEFLATED, 15, 7, Z_DEFAULT_STRATEGY);
 		ut_a(err == Z_OK);
 	}

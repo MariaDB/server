@@ -36,6 +36,13 @@ Created 11/5/1995 Heikki Tuuri
 /** Flag indicating if the page_cleaner is in active state. */
 extern ibool buf_page_cleaner_is_active;
 
+/** Handled page counters for a single flush */
+struct flush_counters_t {
+	ulint	flushed;	/*!< number of dirty pages flushed */
+	ulint	evicted;	/*!< number of clean pages evicted */
+};
+
+
 /********************************************************************//**
 Remove a block from the flush list of modified blocks.  */
 UNIV_INTERN

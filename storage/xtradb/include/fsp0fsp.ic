@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -63,6 +64,10 @@ fsp_flags_is_valid(
 	ulint	atomic_blobs = FSP_FLAGS_HAS_ATOMIC_BLOBS(flags);
 	ulint	page_ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
 	ulint	unused = FSP_FLAGS_GET_UNUSED(flags);
+	ulint	page_compression = FSP_FLAGS_GET_PAGE_COMPRESSION(flags);
+	ulint	page_compression_level = FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags);
+	ulint	atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(flags);
+	atomic_writes_t awrites = (atomic_writes_t)atomic_writes;
 
 	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure", return(false););
 
@@ -107,6 +112,20 @@ fsp_flags_is_valid(
 #if UNIV_FORMAT_MAX != UNIV_FORMAT_B
 # error "UNIV_FORMAT_MAX != UNIV_FORMAT_B, Add more validations."
 #endif
+
+	/* Page compression level requires page compression and atomic blobs
+	to be set */
+        if (page_compression_level || page_compression) {
+		if (!page_compression || !atomic_blobs) {
+			return(false);
+		}
+	}
+
+	if ((awrites == ATOMIC_WRITES_ON ||
+		(awrites == ATOMIC_WRITES_DEFAULT && srv_use_atomic_writes))
+		&& !atomic_blobs) {
+		return (false);
+	}
 
 	/* The DATA_DIR field can be used for any row type so there is
 	nothing here to validate. */

@@ -2,6 +2,7 @@
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -42,6 +43,8 @@ Created 1/8/1996 Heikki Tuuri
 #include "ut0byte.h"
 #include "trx0types.h"
 #include "row0types.h"
+#include "fsp0fsp.h"
+#include "dict0pagecompress.h"
 
 #ifndef UNIV_HOTBACKUP
 # include "sync0sync.h"
@@ -904,7 +907,14 @@ dict_tf_set(
 	ulint*		flags,		/*!< in/out: table */
 	rec_format_t	format,		/*!< in: file format */
 	ulint		zip_ssize,	/*!< in: zip shift size */
-	bool		remote_path)	/*!< in: table uses DATA DIRECTORY */
+	bool		remote_path,	/*!< in: table uses DATA DIRECTORY
+					*/
+        bool		page_compressed,/*!< in: table uses page compressed
+					pages */
+	ulint		page_compression_level, /*!< in: table page compression
+						 level */
+	ulint		atomic_writes)  /*!< in: table atomic
+					writes option value*/
 	__attribute__((nonnull));
 /********************************************************************//**
 Convert a 32 bit integer table flags to the 32 bit integer that is

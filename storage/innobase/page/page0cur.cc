@@ -1180,7 +1180,7 @@ page_cur_insert_rec_zip_reorg(
 
 	/* Make a local copy as the values can change dynamically. */
 	bool		log_compressed = page_log_compressed_pages;
-	ulint		level = page_compression_level;
+	ulint		level = page_zip_level;
 
 	/* Recompress or reorganize and recompress the page. */
 	if (page_zip_compress(page_zip, page, index, level,

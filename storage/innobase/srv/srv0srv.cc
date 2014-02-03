@@ -3,6 +3,7 @@
 Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
+Copyright (c) 2013, 2014, SkySQL Ab.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -147,21 +148,20 @@ UNIV_INTERN my_bool	srv_use_native_aio = TRUE;
 
 /* If this flag is TRUE, then we will use page compression
 to the pages */
-UNIV_INTERN my_bool     srv_compress_pages              = FALSE;
+UNIV_INTERN my_bool	srv_compress_pages = FALSE;
 /* If this flag is TRUE, then we will use page compression
 only for index pages */
-UNIV_INTERN my_bool     srv_page_compress_index_pages   = FALSE;
-UNIV_INTERN long        srv_trim_pct                    = 100;
-/* Default compression level if page compression is used and no compression
-level is set for the table*/
-UNIV_INTERN long        srv_compress_zlib_level         = 6;
+UNIV_INTERN my_bool	srv_page_compress_index_pages = FALSE;
+UNIV_INTERN long	srv_trim_pct = 100;
 /* If this flag is TRUE, then we will use fallocate(PUCH_HOLE)
 to the pages */
-UNIV_INTERN my_bool     srv_use_trim                    = TRUE;
+UNIV_INTERN my_bool	srv_use_trim = TRUE;
 /* If this flag is TRUE, then we will use posix fallocate for file extentsion */
-UNIV_INTERN my_bool     srv_use_posix_fallocate         = FALSE;
+UNIV_INTERN my_bool	srv_use_posix_fallocate = FALSE;
 /* If this flag is TRUE, then we disable doublewrite buffer */
-UNIV_INTERN my_bool     srv_use_atomic_writes           = FALSE;
+UNIV_INTERN my_bool	srv_use_atomic_writes = FALSE;
+/* If this flag IS TRUE, then we use lz4 to compress/decompress pages */
+UNIV_INTERN my_bool	srv_use_lz4 = FALSE;
 
 #ifdef __WIN__
 /* Windows native condition variables. We use runtime loading / function

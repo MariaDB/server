@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2012, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -254,9 +254,8 @@ extern my_bool srv_use_posix_fallocate;
 /* Use atomic writes i.e disable doublewrite buffer */
 extern my_bool srv_use_atomic_writes;
 
-/* Default zlib compression level */
-extern long srv_compress_zlib_level;
-
+/* If this flag IS TRUE, then we use lz4 to compress/decompress pages */
+extern my_bool srv_use_lz4;
 
 #ifdef __WIN__
 extern ibool	srv_use_native_conditions;

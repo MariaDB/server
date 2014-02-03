@@ -547,7 +547,7 @@ log_online_start_bitmap_file(void)
 							log_bmp_sys->out.name,
 							OS_FILE_CREATE,
 							OS_FILE_READ_WRITE,
-							&success);
+							&success, FALSE);
 	}
 	if (UNIV_UNLIKELY(!success)) {
 
@@ -707,7 +707,7 @@ log_online_read_init(void)
 	log_bmp_sys->out.file
 		= os_file_create_simple_no_error_handling
 		(innodb_file_bmp_key, log_bmp_sys->out.name, OS_FILE_OPEN,
-		 OS_FILE_READ_WRITE, &success);
+			OS_FILE_READ_WRITE, &success, FALSE);
 
 	if (!success) {
 
@@ -1491,7 +1491,7 @@ log_online_open_bitmap_file_read_only(
 							  bitmap_file->name,
 							  OS_FILE_OPEN,
 							  OS_FILE_READ_ONLY,
-							  &success);
+			&success, FALSE);
 	if (UNIV_UNLIKELY(!success)) {
 
 		/* Here and below assume that bitmap file names do not

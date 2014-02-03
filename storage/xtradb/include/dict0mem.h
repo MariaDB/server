@@ -2,6 +2,7 @@
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -125,11 +126,26 @@ This flag prevents older engines from attempting to open the table and
 allows InnoDB to update_create_info() accordingly. */
 #define DICT_TF_WIDTH_DATA_DIR		1
 
+/**
+Width of the page compression flag
+*/
+#define DICT_TF_WIDTH_PAGE_COMPRESSION  1
+#define DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL 4
+
+/**
+Width of atomic writes flag
+DEFAULT=0, ON = 1, OFF = 2
+*/
+#define DICT_TF_WIDTH_ATOMIC_WRITES 2
+
 /** Width of all the currently known table flags */
 #define DICT_TF_BITS	(DICT_TF_WIDTH_COMPACT		\
 			+ DICT_TF_WIDTH_ZIP_SSIZE	\
 			+ DICT_TF_WIDTH_ATOMIC_BLOBS	\
-			+ DICT_TF_WIDTH_DATA_DIR)
+			+ DICT_TF_WIDTH_DATA_DIR        \
+			+ DICT_TF_WIDTH_PAGE_COMPRESSION \
+			+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL \
+			+ DICT_TF_WIDTH_ATOMIC_WRITES)
 
 /** A mask of all the known/used bits in table flags */
 #define DICT_TF_BIT_MASK	(~(~0 << DICT_TF_BITS))
@@ -145,9 +161,18 @@ allows InnoDB to update_create_info() accordingly. */
 /** Zero relative shift position of the DATA_DIR field */
 #define DICT_TF_POS_DATA_DIR		(DICT_TF_POS_ATOMIC_BLOBS	\
 					+ DICT_TF_WIDTH_ATOMIC_BLOBS)
+/** Zero relative shift position of the PAGE_COMPRESSION field */
+#define DICT_TF_POS_PAGE_COMPRESSION	(DICT_TF_POS_DATA_DIR	\
+		                        + DICT_TF_WIDTH_DATA_DIR)
+/** Zero relative shift position of the PAGE_COMPRESSION_LEVEL field */
+#define DICT_TF_POS_PAGE_COMPRESSION_LEVEL	(DICT_TF_POS_PAGE_COMPRESSION	\
+					+ DICT_TF_WIDTH_PAGE_COMPRESSION)
+/** Zero relative shift position of the ATOMIC_WRITES field */
+#define DICT_TF_POS_ATOMIC_WRITES	(DICT_TF_POS_PAGE_COMPRESSION_LEVEL	\
+					+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)
 /** Zero relative shift position of the start of the UNUSED bits */
-#define DICT_TF_POS_UNUSED		(DICT_TF_POS_DATA_DIR		\
-					+ DICT_TF_WIDTH_DATA_DIR)
+#define DICT_TF_POS_UNUSED		(DICT_TF_POS_ATOMIC_WRITES     \
+					+ DICT_TF_WIDTH_ATOMIC_WRITES)
 
 /** Bit mask of the COMPACT field */
 #define DICT_TF_MASK_COMPACT				\
@@ -165,6 +190,18 @@ allows InnoDB to update_create_info() accordingly. */
 #define DICT_TF_MASK_DATA_DIR				\
 		((~(~0 << DICT_TF_WIDTH_DATA_DIR))	\
 		<< DICT_TF_POS_DATA_DIR)
+/** Bit mask of the PAGE_COMPRESSION field */
+#define DICT_TF_MASK_PAGE_COMPRESSION			\
+		((~(~0 << DICT_TF_WIDTH_PAGE_COMPRESSION)) \
+		<< DICT_TF_POS_PAGE_COMPRESSION)
+/** Bit mask of the PAGE_COMPRESSION_LEVEL field */
+#define DICT_TF_MASK_PAGE_COMPRESSION_LEVEL		\
+		((~(~0 << DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)) \
+		<< DICT_TF_POS_PAGE_COMPRESSION_LEVEL)
+/** Bit mask of the ATOMIC_WRITES field */
+#define DICT_TF_MASK_ATOMIC_WRITES		\
+		((~(~0 << DICT_TF_WIDTH_ATOMIC_WRITES)) \
+		<< DICT_TF_POS_ATOMIC_WRITES)
 
 /** Return the value of the COMPACT field */
 #define DICT_TF_GET_COMPACT(flags)			\
@@ -185,6 +222,19 @@ allows InnoDB to update_create_info() accordingly. */
 /** Return the contents of the UNUSED bits */
 #define DICT_TF_GET_UNUSED(flags)			\
 		(flags >> DICT_TF_POS_UNUSED)
+
+/** Return the value of the PAGE_COMPRESSION field */
+#define DICT_TF_GET_PAGE_COMPRESSION(flags)	       \
+		((flags & DICT_TF_MASK_PAGE_COMPRESSION) \
+		>> DICT_TF_POS_PAGE_COMPRESSION)
+/** Return the value of the PAGE_COMPRESSION_LEVEL field */
+#define DICT_TF_GET_PAGE_COMPRESSION_LEVEL(flags)       \
+		((flags & DICT_TF_MASK_PAGE_COMPRESSION_LEVEL)	\
+		>> DICT_TF_POS_PAGE_COMPRESSION_LEVEL)
+/** Return the value of the ATOMIC_WRITES field */
+#define DICT_TF_GET_ATOMIC_WRITES(flags)       \
+		((flags & DICT_TF_MASK_ATOMIC_WRITES)	\
+		>> DICT_TF_POS_ATOMIC_WRITES)
 /* @} */
 
 #ifndef UNIV_INNOCHECKSUM

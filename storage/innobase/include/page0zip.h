@@ -41,7 +41,7 @@ Created June 2005 by Marko Makela
 #include "mem0mem.h"
 
 /* Compression level to be used by zlib. Settable by user. */
-extern ulint	page_compression_level;
+extern uint	page_zip_level;
 
 /* Default compression level. */
 #define DEFAULT_COMPRESSION_LEVEL	6

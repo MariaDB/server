@@ -134,6 +134,7 @@ extern fil_addr_t	fil_addr_null;
  					actual payload data size on
  					compressed pages. */
 #define FIL_PAGE_COMPRESSION_ZLIB 1    /*!< Compressin algorithm ZLIB. */
+#define FIL_PAGE_COMPRESSION_LZ4  2    /*!< Compressin algorithm LZ4. */
 
 /* @} */
 /** File page trailer @{ */

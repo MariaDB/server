@@ -4,7 +4,7 @@ Copyright (c) 2000, 2012, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, SkySQL Ab.
+Copyright (c) 2013, 2014, SkySQL Ab.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -15430,29 +15430,6 @@ innodb_reset_all_monitor_update(
 }
 
 /****************************************************************//**
-Update the system variable innodb_compression_level using the "saved"
-value. This function is registered as a callback with MySQL. */
-static
-void
-innodb_compression_level_update(
-/*============================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
-	const void*			save)	/*!< in: immediate result
-						from check function */
-{
-	/* We have this call back just to avoid confusion between
-	ulong and ulint datatypes. */
-	innobase_compression_level =
-			(*static_cast<const ulong*>(save));
-	page_compression_level =
-			(static_cast<const ulint>(innobase_compression_level));
-}
-
-/****************************************************************//**
 Parse and enable InnoDB monitor counters during server startup.
 User can list the monitor counters/groups to be enable by specifying
 "loose-innodb_monitor_enable=monitor_name1;monitor_name2..."
@@ -16140,11 +16117,11 @@ static MYSQL_SYSVAR_ULONG(replication_delay, srv_replication_delay,
   "innodb_thread_concurrency is reached (0 by default)",
   NULL, NULL, 0, 0, ~0UL, 0);
 
-static MYSQL_SYSVAR_ULONG(compression_level, innobase_compression_level,
+static MYSQL_SYSVAR_UINT(compression_level, page_zip_level,
   PLUGIN_VAR_RQCMDARG,
-  "Compression level used for compressed row format.  0 is no compression"
+  "Compression level used for zlib compression.  0 is no compression"
   ", 1 is fastest, 9 is best compression and default is 6.",
-  NULL, innodb_compression_level_update,
+  NULL, NULL,
   DEFAULT_COMPRESSION_LEVEL, 0, 9, 0);
 
 static MYSQL_SYSVAR_LONG(additional_mem_pool_size, innobase_additional_mem_pool_size,
@@ -16620,11 +16597,6 @@ static MYSQL_SYSVAR_LONG(trim_pct, srv_trim_pct,
   "How many percent of compressed pages should be trimmed",
   NULL, NULL, 100, 0, 100, 0);
 
-static MYSQL_SYSVAR_LONG(compress_zlib_level, srv_compress_zlib_level,
-  PLUGIN_VAR_OPCMDARG ,
-  "Default zlib compression level",
-  NULL, NULL, 6, 0, 9, 0);
-
 static MYSQL_SYSVAR_BOOL(compress_index_pages, srv_page_compress_index_pages,
   PLUGIN_VAR_OPCMDARG,
   "Use page compression for only index pages.",
@@ -16634,6 +16606,12 @@ static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
   PLUGIN_VAR_OPCMDARG,
   "Use trim.",
   NULL, NULL, TRUE);
+
+static MYSQL_SYSVAR_BOOL(use_lz4, srv_use_lz4,
+  PLUGIN_VAR_OPCMDARG ,
+  "Use LZ4 for page compression",
+  NULL, NULL, FALSE);
+
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(additional_mem_pool_size),
@@ -16782,9 +16760,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
 #endif /* UNIV_DEBUG */
   MYSQL_SYSVAR(compress_pages),
   MYSQL_SYSVAR(trim_pct),
-  MYSQL_SYSVAR(compress_zlib_level),
   MYSQL_SYSVAR(compress_index_pages),
   MYSQL_SYSVAR(use_trim),
+  MYSQL_SYSVAR(use_lz4),
   NULL
 };
 

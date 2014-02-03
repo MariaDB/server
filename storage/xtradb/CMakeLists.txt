@@ -284,6 +284,8 @@ SET(INNOBASE_SOURCES
 	buf/buf0flu.cc
 	buf/buf0lru.cc
 	buf/buf0rea.cc
+# TODO: JAN uncomment
+#	buf/buf0mtflu.cc
 	data/data0data.cc
 	data/data0type.cc
 	dict/dict0boot.cc
@@ -297,6 +299,8 @@ SET(INNOBASE_SOURCES
 	eval/eval0eval.cc
 	eval/eval0proc.cc
 	fil/fil0fil.cc
+        fil/fil0pagecompress.cc
+	fil/lz4.c
 	fsp/fsp0fsp.cc
 	fut/fut0fut.cc
 	fut/fut0lst.cc

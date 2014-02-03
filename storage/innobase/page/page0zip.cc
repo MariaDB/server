@@ -69,7 +69,7 @@ UNIV_INTERN mysql_pfs_key_t		page_zip_stat_per_index_mutex_key;
 #endif /* !UNIV_HOTBACKUP */
 
 /* Compression level to be used by zlib. Settable by user. */
-UNIV_INTERN ulint	page_compression_level = 6;
+UNIV_INTERN uint	page_zip_level = DEFAULT_COMPRESSION_LEVEL;
 
 /* Whether or not to log compressed page images to avoid possible
 compression algorithm changes in zlib. */
@@ -4631,7 +4631,7 @@ page_zip_reorganize(
 	mtr_set_log_mode(mtr, log_mode);
 
 	if (!page_zip_compress(page_zip, page, index,
-			       page_compression_level, mtr)) {
+			       page_zip_level, mtr)) {
 
 #ifndef UNIV_HOTBACKUP
 		buf_block_free(temp_block);

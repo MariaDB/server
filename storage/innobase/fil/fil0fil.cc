@@ -5303,7 +5303,7 @@ fil_io(
 	os_offset_t	offset;
 	ibool		ignore_nonexistent_pages;
         ibool		page_compressed = FALSE;
-	ibool		page_compression_level = 0;
+	ulint		page_compression_level = 0;
 
 	is_log = type & OS_FILE_LOG;
 	type = type & ~OS_FILE_LOG;

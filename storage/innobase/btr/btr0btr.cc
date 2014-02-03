@@ -1923,7 +1923,7 @@ btr_page_reorganize(
 	dict_index_t*	index,	/*!< in: record descriptor */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	return(btr_page_reorganize_low(FALSE, page_compression_level,
+	return(btr_page_reorganize_low(FALSE, page_zip_level,
 				       block, index, mtr));
 }
 #endif /* !UNIV_HOTBACKUP */
@@ -1942,7 +1942,7 @@ btr_parse_page_reorganize(
 	buf_block_t*	block,	/*!< in: page to be reorganized, or NULL */
 	mtr_t*		mtr)	/*!< in: mtr or NULL */
 {
-	ulint	level = page_compression_level;
+	ulint	level = page_zip_level;
 
 	ut_ad(ptr && end_ptr);
 
