@@ -1,5 +1,7 @@
 /-- Tests for the 16-bit library with UTF-16 support only */
 
+< forbid W
+
 /bad/8
     \x{d800}
 

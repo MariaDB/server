@@ -1,6 +1,9 @@
-/-- This set of tests is run only with the 8-bit library. It starts with all
-    the tests of the POSIX interface, because that is supported only with the
-    8-bit library. --/
+/-- This set of tests is run only with the 8-bit library. They do not require 
+    UTF-8 or Unicode property support. The file starts with all the tests of
+    the POSIX interface, because that is supported only with the 8-bit library.
+    --/
+    
+< forbid 8W 
 
 /abc/P
     abc
@@ -85,8 +88,11 @@
     a\nb
     ** Failers (too big char) 
     A\x{123}B 
+    A\o{443}B 
   
 /\x{100}/I
+
+/\o{400}/I
 
 /  (?: [\040\t] |  \(
 (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
@@ -294,7 +300,11 @@ not matter. --/
 
 /\h/SI
 
+/\H/SI
+
 /\v/SI
+
+/\V/SI
 
 /\R/SI
 
@@ -325,5 +335,9 @@ not matter. --/
 /\u0100/<JS>
 
 /[\u0100-\u0200]/<JS>
+
+/[^\x00-a]{12,}[^b-\xff]*/BZ
+
+/[^\s]*\s* [^\W]+\W+ [^\d]*?\d0 [^\d\w]{4,6}?\w*A/BZ
 
 /-- End of testinput14 --/
