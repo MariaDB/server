@@ -98,6 +98,8 @@ extern "C" HINSTANCE s_hModule;           // Saved module handle
 
 extern int xtrace;
 
+PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
+
 /***********************************************************************/
 /*  Get a unique enum table type ID.                                   */
 /***********************************************************************/
@@ -264,7 +266,7 @@ uint GetFuncID(const char *func)
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
   {
-  typedef PQRYRES (__stdcall *XCOLDEF) (PGLOBAL, PVOID, char*, char*, bool);
+  typedef PQRYRES (__stdcall *XCOLDEF) (PGLOBAL, void*, char*, char*, bool);
   const char *module, *subtype;
   char    c, getname[40] = "Col";
 #if defined(WIN32)
@@ -312,9 +314,9 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
   const char *error = NULL;
 
   // Load the desired shared library
-  if (!(hdll = dlopen(Module, RTLD_LAZY))) {
+  if (!(hdll = dlopen(module, RTLD_LAZY))) {
     error = dlerror();
-    sprintf(g->Message, MSG(SHARED_LIB_ERR), Module, SVP(error));
+    sprintf(g->Message, MSG(SHARED_LIB_ERR), module, SVP(error));
     return NULL;
     } // endif Hdll
 
