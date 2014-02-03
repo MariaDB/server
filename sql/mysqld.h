@@ -432,6 +432,9 @@ extern PSI_stage_info stage_binlog_waiting_background_tasks;
 extern PSI_stage_info stage_binlog_processing_checkpoint_notify;
 extern PSI_stage_info stage_binlog_stopping_background_thread;
 extern PSI_stage_info stage_waiting_for_work_from_sql_thread;
+extern PSI_stage_info stage_waiting_for_prior_transaction_to_commit;
+extern PSI_stage_info stage_waiting_for_room_in_worker_thread;
+
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 /**
   Statement instrumentation keys (sql).

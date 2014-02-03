@@ -1206,7 +1206,5 @@ public:
   String *val_str(String *);
 };
 
-extern String my_empty_string;
-
 #endif /* ITEM_STRFUNC_INCLUDED */
 

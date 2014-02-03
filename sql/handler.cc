@@ -1308,7 +1308,10 @@ int ha_commit_trans(THD *thd, bool all)
       Free resources and perform other cleanup even for 'empty' transactions.
     */
     if (is_real_trans)
+    {
       thd->transaction.cleanup();
+      thd->wakeup_subsequent_commits(error);
+    }
     DBUG_RETURN(0);
   }
 
@@ -1342,6 +1345,7 @@ int ha_commit_trans(THD *thd, bool all)
                                       thd->variables.lock_wait_timeout))
     {
       ha_rollback_trans(thd, all);
+      thd->wakeup_subsequent_commits(1);
       DBUG_RETURN(1);
     }
 
@@ -1429,6 +1433,7 @@ done:
 err:
   error= 1;                                  /* Transaction was rolled back */
   ha_rollback_trans(thd, all);
+  thd->wakeup_subsequent_commits(error);
 
 end:
   if (rw_trans && mdl_request.ticket)
@@ -1474,8 +1479,12 @@ int ha_commit_one_phase(THD *thd, bool all)
   bool is_real_trans=all || thd->transaction.all.ha_list == 0;
   int res;
   DBUG_ENTER("ha_commit_one_phase");
-  if (is_real_trans && (res= thd->wait_for_prior_commit()))
-    DBUG_RETURN(res);
+  if (is_real_trans)
+  {
+    DEBUG_SYNC(thd, "ha_commit_one_phase");
+    if ((res= thd->wait_for_prior_commit()))
+      DBUG_RETURN(res);
+  }
   res= commit_one_phase_2(thd, all, trans, is_real_trans);
   DBUG_RETURN(res);
 }
@@ -1487,6 +1496,8 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   int error= 0;
   Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
   DBUG_ENTER("commit_one_phase_2");
+  if (is_real_trans)
+    DEBUG_SYNC(thd, "commit_one_phase_2");
   if (ha_info)
   {
     for (; ha_info; ha_info= ha_info_next)
@@ -1599,10 +1610,7 @@ int ha_rollback_trans(THD *thd, bool all)
 
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
-  {
-    thd->wakeup_subsequent_commits(error);
     thd->transaction.cleanup();
-  }
   if (all)
     thd->transaction_rollback_request= FALSE;
 
@@ -3493,7 +3501,7 @@ void handler::print_error(int error, myf errflag)
         }
       }
       else
-	my_error(ER_GET_ERRNO, errflag, error, table_type());
+        my_error(ER_GET_ERRNO, errflag, error, table_type());
       DBUG_VOID_RETURN;
     }
   }
@@ -5564,8 +5572,10 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
                          "", 0, "DISABLED", 8) ? 1 : 0;
     }
     else
+    {
       result= db_type->show_status &&
               db_type->show_status(db_type, thd, stat_print, stat) ? 1 : 0;
+    }
   }
 
   /*
