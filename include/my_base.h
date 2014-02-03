@@ -500,7 +500,8 @@ enum ha_base_keytype {
 #define HA_ERR_ROW_NOT_VISIBLE    187
 #define HA_ERR_ABORTED_BY_USER    188
 #define HA_ERR_DISK_FULL          189
-#define HA_ERR_LAST               189    /* Copy of last error nr */
+#define HA_ERR_INCOMPATIBLE_DEFINITION 190
+#define HA_ERR_LAST               190    /* Copy of last error nr */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)

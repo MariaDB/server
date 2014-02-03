@@ -1794,10 +1794,14 @@ when it try to get the value of TIME_ZONE global variable from master.";
 
       if (mysql_errno(mysql) == ER_UNKNOWN_SYSTEM_VARIABLE)
       {
-        // this is tolerable as OM -> NS is supported
-        mi->report(WARNING_LEVEL, mysql_errno(mysql),
-                   "Notifying master by %s failed with "
-                   "error: %s", query, mysql_error(mysql));
+        /* Ignore this expected error if not a high error level */
+        if (global_system_variables.log_warnings > 1)
+        {
+          // this is tolerable as OM -> NS is supported
+          mi->report(WARNING_LEVEL, mysql_errno(mysql),
+                     "Notifying master by %s failed with "
+                     "error: %s", query, mysql_error(mysql));
+        }
       }
       else
       {
@@ -6197,6 +6201,17 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
           ev->server_id= 0; // don't be ignored by slave SQL thread
           ev->set_artificial_event(); // Don't mess up Exec_Master_Log_Pos
           DBUG_RETURN(ev);
+        }
+
+        /*
+          We have to check sql_slave_killed() here an extra time.
+          Otherwise we may miss a wakeup, since last check was done
+          without holding LOCK_log.
+        */
+        if (sql_slave_killed(rgi))
+        {
+          mysql_mutex_unlock(log_lock);
+          break;
         }
 
         /*
