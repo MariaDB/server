@@ -13,8 +13,6 @@ boys	.txt	282
 boys2	.txt	282
 boyswin	.txt	288
 ALTER TABLE t1 OPTION_LIST='subdir=0';
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
