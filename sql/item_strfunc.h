@@ -1057,6 +1057,15 @@ public:
   const char *func_name() const { return "weight_string"; }
   String *val_str(String *);
   void fix_length_and_dec();
+  bool eq(const Item *item, bool binary_cmp) const
+  {
+    if (!Item_str_func::eq(item, binary_cmp))
+      return false;
+    Item_func_weight_string *that= (Item_func_weight_string *)item;
+    return this->flags == that->flags &&
+           this->nweights == that->nweights &&
+           this->result_length == that->result_length;
+  }
 };
 
 class Item_func_crc32 :public Item_int_func
