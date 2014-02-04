@@ -15,7 +15,6 @@
 
 #include <service_versions.h>
 
-
 /* file reserved for the future use */
-SERVICE_VERSION *logger_service= (void *) VERSION_logger;
+SERVICE_VERSION logger_service= (void *) VERSION_logger;
 
