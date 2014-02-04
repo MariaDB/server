@@ -2048,4 +2048,35 @@ f1	f2	f3	f4
 10	0	0	0
 DROP TABLE t1;
 DROP VIEW v3;
+#
+#  MDEV-5606: range optimizer: "x < y" is sargable, while "y > x" is not
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2(a int);
+insert into t2 select A.a + B.a* 10 + C.a * 100 from t1 A, t1 B, t1 C;
+alter table t2 add key(a);
+# Should have "range checked for each table" for second table:
+explain select * from t1, t2 where t2.a < t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	1000	Range checked for each record (index map: 0x1)
+# Should have "range checked for each table" for second table:
+explain select * from t1, t2 where t1.a > t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	1000	Range checked for each record (index map: 0x1)
+create table t3 (a int primary key, b int);
+insert into t3 select a,a from t1;
+# The second table should use 'range':
+explain select * from t3, t2 where t2.a < t3.b  and t3.a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t2	range	a	a	5	NULL	1	Using where; Using index
+# The second table should use 'range':
+explain select * from t3, t2 where t3.b > t2.a   and t3.a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t2	range	a	a	5	NULL	1	Using where; Using index
+drop table t1,t2,t3;
 set optimizer_switch=@mrr_icp_extra_tmp;
