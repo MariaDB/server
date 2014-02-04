@@ -2943,11 +2943,6 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   }
   unpack_time(min_max, ltime);
 
-  if (!(fuzzy_date & TIME_TIME_ONLY) &&
-      ((null_value= check_date_with_warn(ltime, fuzzy_date,
-                                         MYSQL_TIMESTAMP_ERROR))))
-    return true;
-
   if (compare_as_dates->field_type() == MYSQL_TYPE_DATE)
   {
     ltime->time_type= MYSQL_TIMESTAMP_DATE;
@@ -2958,8 +2953,15 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     ltime->time_type= MYSQL_TIMESTAMP_TIME;
     ltime->hour+= (ltime->month * 32 + ltime->day) * 24;
     ltime->month= ltime->day= 0;
+    if (adjust_time_range_with_warn(ltime,
+                                    std::min<uint>(decimals, TIME_SECOND_PART_DIGITS)))
+      return (null_value= true);
   }
 
+  if (!(fuzzy_date & TIME_TIME_ONLY) &&
+      ((null_value= check_date_with_warn(ltime, fuzzy_date,
+                                         MYSQL_TIMESTAMP_ERROR))))
+    return true;
 
   return (null_value= 0);
 }
@@ -6214,6 +6216,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
     return TRUE;
   }
 
+  bool allows_multi_table_search= true;
   const_item_cache=0;
   for (uint i=1 ; i < arg_count ; i++)
   {
@@ -6225,7 +6228,10 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
       my_error(ER_WRONG_ARGUMENTS, MYF(0), "AGAINST");
       return TRUE;
     }
+    allows_multi_table_search &= 
+      allows_search_on_non_indexed_columns(((Item_field *)item)->field->table);
   }
+
   /*
     Check that all columns come from the same table.
     We've already checked that columns in MATCH are fields so
@@ -6234,7 +6240,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
   if ((used_tables_cache & ~PARAM_TABLE_BIT) != item->used_tables())
     key=NO_SUCH_KEY;
 
-  if (key == NO_SUCH_KEY && !(flags & FT_BOOL))
+  if (key == NO_SUCH_KEY && !allows_multi_table_search)
   {
     my_error(ER_WRONG_ARGUMENTS,MYF(0),"MATCH");
     return TRUE;
@@ -6332,7 +6338,7 @@ bool Item_func_match::fix_index()
   }
 
 err:
-  if (flags & FT_BOOL)
+  if (allows_search_on_non_indexed_columns(table))
   {
     key=NO_SUCH_KEY;
     return 0;

@@ -6988,9 +6988,7 @@ int Intvar_log_event::do_apply_event(rpl_group_info *rgi)
 
   switch (type) {
   case LAST_INSERT_ID_EVENT:
-    thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt= 1;
-    thd->first_successful_insert_id_in_prev_stmt_for_binlog=
-      thd->first_successful_insert_id_in_prev_stmt= val;
+    thd->first_successful_insert_id_in_prev_stmt= val;
     DBUG_PRINT("info",("last_insert_id_event: %ld", (long) val));
     break;
   case INSERT_ID_EVENT:
@@ -7255,7 +7253,7 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
   res= trans_commit(thd); /* Automatically rolls back on error. */
   thd->mdl_context.release_transactional_locks();
 
-  if (sub_id)
+  if (!res && sub_id)
     rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid);
 
   /*

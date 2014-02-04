@@ -886,11 +886,11 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     int cmp= strcmp(group_relay_log_name, event_relay_log_name);
     if (cmp < 0)
     {
-      group_relay_log_pos= event_relay_log_pos;
+      group_relay_log_pos= rgi->future_event_relay_log_pos;
       strmake_buf(group_relay_log_name, event_relay_log_name);
       notify_group_relay_log_name_update();
-    } else if (cmp == 0 && group_relay_log_pos < event_relay_log_pos)
-      group_relay_log_pos= event_relay_log_pos;
+    } else if (cmp == 0 && group_relay_log_pos < rgi->future_event_relay_log_pos)
+      group_relay_log_pos= rgi->future_event_relay_log_pos;
 
     /*
       In the parallel case we need to update the master_log_name here, rather

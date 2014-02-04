@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -62,6 +62,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "row0import.h"
 #include "m_string.h"
 #include "my_sys.h"
+#include "ha_prototypes.h"
 
 /** Provide optional 4.x backwards compatibility for 5.0 and above */
 UNIV_INTERN ibool	row_rollback_on_timeout	= FALSE;
@@ -618,8 +619,8 @@ handle_new_error:
 	case DB_INTERRUPTED:
 	case DB_DICT_CHANGED:
 		if (savept) {
-			/* Roll back the latest, possibly incomplete
-			insertion or update */
+			/* Roll back the latest, possibly incomplete insertion
+			or update */
 
 			trx_rollback_to_savepoint(trx, savept);
 		}
@@ -2521,7 +2522,8 @@ row_table_add_foreign_constraints(
 
 	if (err == DB_SUCCESS) {
 		/* Check that also referencing constraints are ok */
-		err = dict_load_foreigns(name, FALSE, TRUE);
+		err = dict_load_foreigns(name, NULL, false, true,
+					 DICT_ERR_IGNORE_NONE);
 	}
 
 	if (err != DB_SUCCESS) {
@@ -2801,7 +2803,7 @@ row_discard_tablespace_begin(
 		name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	if (table) {
-		dict_stats_wait_bg_to_stop_using_tables(table, NULL, trx);
+		dict_stats_wait_bg_to_stop_using_table(table, trx);
 		ut_a(table->space != TRX_SYS_SPACE);
 		ut_a(table->n_foreign_key_checks_running == 0);
 	}
@@ -2874,13 +2876,13 @@ row_discard_tablespace_end(
 	}
 
 	DBUG_EXECUTE_IF("ib_discard_before_commit_crash",
-			log_make_checkpoint_at(IB_ULONGLONG_MAX, TRUE);
+			log_make_checkpoint_at(LSN_MAX, TRUE);
 			DBUG_SUICIDE(););
 
 	trx_commit_for_mysql(trx);
 
 	DBUG_EXECUTE_IF("ib_discard_after_commit_crash",
-			log_make_checkpoint_at(IB_ULONGLONG_MAX, TRUE);
+			log_make_checkpoint_at(LSN_MAX, TRUE);
 			DBUG_SUICIDE(););
 
 	row_mysql_unlock_data_dictionary(trx);
@@ -3246,7 +3248,7 @@ row_truncate_table_for_mysql(
 	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_EX));
 #endif /* UNIV_SYNC_DEBUG */
 
-	dict_stats_wait_bg_to_stop_using_tables(table, NULL, trx);
+	dict_stats_wait_bg_to_stop_using_table(table, trx);
 
 	/* Check if the table is referenced by foreign key constraints from
 	some other table (not the table itself) */
@@ -3796,8 +3798,8 @@ row_drop_table_for_mysql(
 		tables since we know temp tables do not use persistent
 		stats. */
 		if (!dict_table_is_temporary(table)) {
-			dict_stats_wait_bg_to_stop_using_tables(
-				table, NULL, trx);
+			dict_stats_wait_bg_to_stop_using_table(
+				table, trx);
 		}
 	}
 
@@ -4167,6 +4169,11 @@ check_next_foreign:
 		DICT_TF2_FTS flag set. So keep this out of above
 		dict_table_has_fts_index condition */
 		if (table->fts) {
+			/* Need to set TABLE_DICT_LOCKED bit, since
+			fts_que_graph_free_check_lock would try to acquire
+			dict mutex lock */
+			table->fts->fts_status |= TABLE_DICT_LOCKED;
+
 			fts_free(table);
 		}
 
@@ -4503,13 +4510,30 @@ loop:
 
 		}
 
-		if (row_is_mysql_tmp_table_name(table->name)) {
-			/* There could be an orphan temp table left from
-			interupted alter table rebuild operation */
-			dict_table_close(table, TRUE, FALSE);
-		} else {
-			ut_a(!table->can_be_evicted || table->ibd_file_missing);
+		if (!row_is_mysql_tmp_table_name(table->name)) {
+			/* There could be orphan temp tables left from
+			interrupted alter table. Leave them, and handle
+			the rest.*/
+			if (table->can_be_evicted) {
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Orphan table encountered during "
+					"DROP DATABASE. This is possible if "
+					"'%s.frm' was lost.", table->name);
+			}
+
+			if (table->ibd_file_missing) {
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Missing %s.ibd file for table %s.",
+					table->name, table->name);
+			}
 		}
+
+		dict_table_close(table, TRUE, FALSE);
+
+		/* The dict_table_t object must not be accessed before
+		dict_table_open() or after dict_table_close(). But this is OK
+		if we are holding, the dict_sys->mutex. */
+		ut_ad(mutex_own(&dict_sys->mutex));
 
 		/* Wait until MySQL does not have any queries running on
 		the table */
@@ -4668,6 +4692,7 @@ row_rename_table_for_mysql(
 
 	ut_a(old_name != NULL);
 	ut_a(new_name != NULL);
+	ut_ad(trx->state == TRX_STATE_ACTIVE);
 
 	if (srv_created_new_raw || srv_force_recovery) {
 		fputs("InnoDB: A new raw disk partition was initialized or\n"
@@ -4692,7 +4717,6 @@ row_rename_table_for_mysql(
 	}
 
 	trx->op_info = "renaming table";
-	trx_start_if_not_started_xa(trx);
 
 	old_is_tmp = row_is_mysql_tmp_table_name(old_name);
 	new_is_tmp = row_is_mysql_tmp_table_name(new_name);
@@ -4945,6 +4969,24 @@ row_rename_table_for_mysql(
 		}
 	}
 
+	if (dict_table_has_fts_index(table)
+	    && !dict_tables_have_same_db(old_name, new_name)) {
+		err = fts_rename_aux_tables(table, new_name, trx);
+
+		if (err != DB_SUCCESS && (table->space != 0)) {
+			char*	orig_name = table->name;
+
+			/* If rename fails and table has its own tablespace,
+			we need to call fts_rename_aux_tables again to
+			revert the ibd file rename, which is not under the
+			control of trx. Also notice the parent table name
+			in cache is not changed yet. */
+			table->name = const_cast<char*>(new_name);
+			fts_rename_aux_tables(table, old_name, trx);
+			table->name = orig_name;
+		}
+	}
+
 end:
 	if (err != DB_SUCCESS) {
 		if (err == DB_DUPLICATE_KEY) {
@@ -5003,7 +5045,9 @@ end:
 		an ALTER, not in a RENAME. */
 
 		err = dict_load_foreigns(
-			new_name, FALSE, !old_is_tmp || trx->check_foreigns);
+			new_name, NULL,
+			false, !old_is_tmp || trx->check_foreigns,
+			DICT_ERR_IGNORE_NONE);
 
 		if (err != DB_SUCCESS) {
 			ut_print_timestamp(stderr);
@@ -5052,7 +5096,6 @@ end:
 	}
 
 funct_exit:
-
 	if (table != NULL) {
 		dict_table_close(table, dict_locked, FALSE);
 	}
@@ -5182,6 +5225,7 @@ func_exit:
 				    dtuple_get_nth_field(prev_entry, i))) {
 
 				contains_null = TRUE;
+				break;
 			}
 		}
 

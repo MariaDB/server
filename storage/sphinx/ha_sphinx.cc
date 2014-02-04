@@ -1,10 +1,10 @@
 //
-// $Id: ha_sphinx.cc 3133 2012-03-01 13:47:52Z shodan $
+// $Id: ha_sphinx.cc 4507 2014-01-22 15:24:34Z deogar $
 //
 
 //
-// Copyright (c) 2001-2012, Andrew Aksyonoff
-// Copyright (c) 2008-2012, Sphinx Technologies Inc
+// Copyright (c) 2001-2014, Andrew Aksyonoff
+// Copyright (c) 2008-2014, Sphinx Technologies Inc
 // All rights reserved
 //
 // This program is free software; you can redistribute it and/or modify
@@ -153,7 +153,7 @@ void sphUnalignedWrite ( void * pPtr, const T & tVal )
 #define SPHINXSE_MAX_ALLOC			(16*1024*1024)
 #define SPHINXSE_MAX_KEYWORDSTATS	4096
 
-#define SPHINXSE_VERSION			"2.0.4-release"
+#define SPHINXSE_VERSION			"2.1.5-release"
 
 // FIXME? the following is cut-n-paste from sphinx.h and searchd.cpp
 // cut-n-paste is somewhat simpler that adding dependencies however..
@@ -302,7 +302,11 @@ struct CSphSEShare
 	bool			m_bSphinxQL;	///< is this read-only SphinxAPI table, or write-only SphinxQL table?
 	uint			m_iTableNameLen;
 	uint			m_iUseCount;
+#if MYSQL_VERSION_ID<50610
 	CHARSET_INFO *	m_pTableQueryCharset;
+#else	
+	const CHARSET_INFO *	m_pTableQueryCharset;
+#endif	
 
 	int					m_iTableFields;
 	char **				m_sTableField;
@@ -431,7 +435,11 @@ struct CSphSEThreadData
 	bool				m_bQuery;
 	char				m_sQuery[MAX_QUERY_LEN];
 
+#if MYSQL_VERSION_ID<50610
 	CHARSET_INFO *		m_pQueryCharset;
+#else
+	const CHARSET_INFO *		m_pQueryCharset;
+#endif	
 
 	bool				m_bReplace;		///< are we doing an INSERT or REPLACE
 
@@ -521,7 +529,7 @@ private:
 	int				m_iWeights;
 	ESphMatchMode	m_eMode;
 	ESphRankMode	m_eRanker;
-	const char *			m_sRankExpr;
+	char *			m_sRankExpr;
 	ESphSortOrder	m_eSort;
 	const char *			m_sSortBy;
 	int				m_iMaxMatches;
@@ -552,8 +560,8 @@ private:
 	float			m_fGeoLatitude;
 	float			m_fGeoLongitude;
 
-	const char *		m_sComment;
-	const char *		m_sSelect;
+	char *			m_sComment;
+	char *			m_sSelect;
 
 	struct Override_t
 	{
@@ -626,7 +634,7 @@ bool				sphinx_show_status ( THD * thd );
 //////////////////////////////////////////////////////////////////////////////
 
 static const char	sphinx_hton_name[]		= "SPHINX";
-static const char	sphinx_hton_comment[]	= "Sphinx storage engine";
+static const char	sphinx_hton_comment[]	= "Sphinx storage engine " SPHINXSE_VERSION;
 
 #if MYSQL_VERSION_ID<50100
 handlerton sphinx_hton =
@@ -740,13 +748,12 @@ static int sphinx_done_func ( void * )
 {
 	SPH_ENTER_FUNC();
 
+	int error __attribute__ ((unused)) = 0;
 	if ( sphinx_init )
 	{
 		sphinx_init = 0;
-#ifdef NOT_USED
 		if ( sphinx_open_tables.records )
 			error = 1;
-#endif
 		sphinx_hash_free ( &sphinx_open_tables );
 		pthread_mutex_destroy ( &sphinx_mutex );
 	}
@@ -1002,8 +1009,8 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 	bool bOk = true;
 	bool bQL = false;
 	char * sScheme = NULL;
-	char * sHost = (char*) SPHINXAPI_DEFAULT_HOST;
-	char * sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
+	char * sHost = SPHINXAPI_DEFAULT_HOST;
+	char * sIndex = SPHINXAPI_DEFAULT_INDEX;
 	int iPort = SPHINXAPI_DEFAULT_PORT;
 
 	// parse connection string, if any
@@ -1029,12 +1036,12 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 			sHost--; // reuse last slash
 			iPort = 0;
 			if (!( sIndex = strrchr ( sHost, ':' ) ))
-                          sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
+				sIndex = SPHINXAPI_DEFAULT_INDEX;
 			else
 			{
 				*sIndex++ = '\0';
 				if ( !*sIndex )
-                                  sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
+					sIndex = SPHINXAPI_DEFAULT_INDEX;
 			}
 			bOk = true;
 			break;
@@ -1056,7 +1063,7 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 					if ( sIndex )
 						*sIndex++ = '\0';
 					else
-                                          sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
+						sIndex = SPHINXAPI_DEFAULT_INDEX;
 
 					iPort = atoi(sPort);
 					if ( !iPort )
@@ -1068,7 +1075,7 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 				if ( sIndex )
 					*sIndex++ = '\0';
 				else
-                                  sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
+					sIndex = SPHINXAPI_DEFAULT_INDEX;
 			}
 			bOk = true;
 			break;
@@ -1371,6 +1378,11 @@ static bool myisattr ( char c )
 		c=='_';
 }
 
+static bool myismagic ( char c )
+{
+	return c=='@';
+}
+
 
 bool CSphSEQuery::ParseField ( char * sField )
 {
@@ -1553,8 +1565,8 @@ bool CSphSEQuery::ParseField ( char * sField )
 
 			if ( tFilter.m_eType==SPH_FILTER_RANGE )
 			{
-				tFilter.m_uMinValue = strtoll ( sValue, NULL, 0 );
-				tFilter.m_uMaxValue = strtoll ( p, NULL, 0 );
+				tFilter.m_uMinValue = strtoll ( sValue, NULL, 10 );
+				tFilter.m_uMaxValue = strtoll ( p, NULL, 10 );
 			} else
 			{
 				tFilter.m_fMinValue = (float)atof(sValue);
@@ -1576,13 +1588,13 @@ bool CSphSEQuery::ParseField ( char * sField )
 			tFilter.m_bExclude = ( strcmp ( sName, "!filter" )==0 );
 
 			// get the attr name
-			while ( (*sValue) && !myisattr(*sValue) )
+			while ( (*sValue) && !( myisattr(*sValue) || myismagic(*sValue) ) )
 				sValue++;
 			if ( !*sValue )
 				break;
 
 			tFilter.m_sAttrName = sValue;
-			while ( (*sValue) && myisattr(*sValue) )
+			while ( (*sValue) && ( myisattr(*sValue) || myismagic(*sValue) ) )
 				sValue++;
 			if ( !*sValue )
 				break;
@@ -2333,11 +2345,10 @@ int ha_sphinx::write_row ( byte * )
 		SPH_RET ( ER_OUT_OF_RESOURCES );
 
 	unsigned int uTimeout = 1;
+	mysql_options ( pConn, MYSQL_OPT_CONNECT_TIMEOUT, (const char*)&uTimeout );
+
         my_bool my_true= 1;
-	mysql_options(pConn, MYSQL_OPT_CONNECT_TIMEOUT,
-                      (const char*) &uTimeout);
-        mysql_options(pConn, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
-                      (char*) &my_true);
+        mysql_options(pConn, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, (char*) &my_true);
 
 	if ( !mysql_real_connect ( pConn, m_pShare->m_sHost, "root", "", "", m_pShare->m_iPort, m_pShare->m_sSocket, 0 ) )
 		SPH_RET ( HandleMysqlError ( pConn, ER_CONNECT_TO_FOREIGN_DATA_SOURCE ) );
@@ -2396,11 +2407,10 @@ int ha_sphinx::delete_row ( const byte * )
 		SPH_RET ( ER_OUT_OF_RESOURCES );
 
 	unsigned int uTimeout = 1;
+	mysql_options ( pConn, MYSQL_OPT_CONNECT_TIMEOUT, (const char*)&uTimeout );
+
         my_bool my_true= 1;
-	mysql_options(pConn, MYSQL_OPT_CONNECT_TIMEOUT,
-                      (const char*) &uTimeout);
-        mysql_options(pConn, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
-                      (char*) &my_true);
+        mysql_options(pConn, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, (char*) &my_true);
 
 	if ( !mysql_real_connect ( pConn, m_pShare->m_sHost, "root", "", "", m_pShare->m_iPort, m_pShare->m_sSocket, 0 ) )
 		SPH_RET ( HandleMysqlError ( pConn, ER_CONNECT_TO_FOREIGN_DATA_SOURCE ) );
@@ -2676,12 +2686,16 @@ bool ha_sphinx::UnpackStats ( CSphSEStats * pStats )
 
 
 /// condition pushdown implementation, to properly intercept WHERE clauses on my columns
+#if MYSQL_VERSION_ID<50610
 const COND * ha_sphinx::cond_push ( const COND * cond )
+#else
+const Item * ha_sphinx::cond_push ( const Item *cond )
+#endif
 {
 	// catch the simplest case: query_column="some text"
 	for ( ;; )
 	{
-		if ( cond->type()!=COND::FUNC_ITEM )
+		if ( cond->type()!=Item::FUNC_ITEM )
 			break;
 
 		Item_func * condf = (Item_func *)cond;
@@ -2697,7 +2711,7 @@ const COND * ha_sphinx::cond_push ( const COND * cond )
 		if ( !m_pShare->m_bSphinxQL )
 		{
 			// on non-QL tables, intercept query=value condition for SELECT
-			if (!( args[0]->type()==COND::FIELD_ITEM && args[1]->type()==COND::STRING_ITEM ))
+			if (!( args[0]->type()==Item::FIELD_ITEM && args[1]->type()==Item::STRING_ITEM ))
 				break;
 
 			Item_field * pField = (Item_field *) args[0];
@@ -2713,7 +2727,7 @@ const COND * ha_sphinx::cond_push ( const COND * cond )
 
 		} else
 		{
-			if (!( args[0]->type()==COND::FIELD_ITEM && args[1]->type()==COND::INT_ITEM ))
+			if (!( args[0]->type()==Item::FIELD_ITEM && args[1]->type()==Item::INT_ITEM ))
 				break;
 
 			// on QL tables, intercept id=value condition for DELETE
@@ -3302,6 +3316,9 @@ ha_rows ha_sphinx::records_in_range ( uint, key_range *, key_range * )
 	SPH_RET(3); // low number to force index usage
 }
 
+#if MYSQL_VERSION_ID < 50610
+#define user_defined_key_parts key_parts
+#endif
 
 // create() is called to create a database. The variable name will have the name
 // of the table. When create() is called you do not need to worry about opening
@@ -3370,7 +3387,7 @@ int ha_sphinx::create ( const char * name, TABLE * table, HA_CREATE_INFO * )
 		// check index
 		if (
 			table->s->keys!=1 ||
-			table->key_info[0].user_defined_key_parts != 1 ||
+			table->key_info[0].user_defined_key_parts!=1 ||
 			strcasecmp ( table->key_info[0].key_part[0].field->field_name, table->field[2]->field_name ) )
 		{
 			my_snprintf ( sError, sizeof(sError), "%s: there must be an index on '%s' column",
@@ -3618,5 +3635,5 @@ maria_declare_plugin_end;
 #endif // >50100
 
 //
-// $Id: ha_sphinx.cc 3133 2012-03-01 13:47:52Z shodan $
+// $Id: ha_sphinx.cc 4507 2014-01-22 15:24:34Z deogar $
 //

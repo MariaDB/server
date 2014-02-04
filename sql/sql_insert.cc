@@ -1749,7 +1749,9 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             if (info->ignore &&
                 !table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
             {
-              table->file->print_error(error, MYF(ME_JUST_WARNING));
+              if (!(thd->variables.old_behavior &
+                    OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
+                table->file->print_error(error, MYF(ME_JUST_WARNING));
               goto ok_or_after_trg_err;
             }
             goto err;
@@ -1877,7 +1879,9 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
     if (!info->ignore ||
         table->file->is_fatal_error(error, HA_CHECK_DUP))
       goto err;
-    table->file->print_error(error, MYF(ME_JUST_WARNING));
+    if (!(thd->variables.old_behavior &
+          OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
+      table->file->print_error(error, MYF(ME_JUST_WARNING));
     table->file->restore_auto_increment(prev_insert_id);
     goto ok_or_after_trg_err;
   }
@@ -2428,6 +2432,10 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
       goto error;
     dfield_ptr= copy->default_field;
   }
+
+  /* Ensure we don't use the table list of the original table */
+  copy->pos_in_table_list= 0;
+
   /*
     Make a copy of all fields.
     The copied fields need to point into the copied record. This is done

@@ -2627,7 +2627,7 @@ bool Item_func_add_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   bool is_time= 0;
   long days, microseconds;
   longlong seconds;
-  int l_sign= sign, was_cut= 0;
+  int l_sign= sign;
 
   if (cached_field_type == MYSQL_TYPE_DATETIME)
   {
@@ -2680,16 +2680,7 @@ bool Item_func_add_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   }
   
   ltime->hour+= days*24;
-
-  MYSQL_TIME copy= *ltime;
-  ErrConvTime str(&copy);
-
-  check_time_range(ltime, decimals, &was_cut);
-  if (was_cut)
-    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &str, MYSQL_TIMESTAMP_TIME, NullS);
-
-  return (null_value= 0);
+  return (null_value= adjust_time_range_with_warn(ltime, decimals));
 }
 
 
@@ -2727,7 +2718,7 @@ bool Item_func_timediff::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   DBUG_ASSERT(fixed == 1);
   longlong seconds;
   long microseconds;
-  int l_sign= 1, was_cut= 0;
+  int l_sign= 1;
   MYSQL_TIME l_time1,l_time2,l_time3;
   ErrConvTime str(&l_time3);
 
@@ -2771,12 +2762,7 @@ bool Item_func_timediff::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     return (null_value= 1);
 
   *ltime= l_time3;
-  check_time_range(ltime, decimals, &was_cut);
-
-  if (was_cut)
-    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &str, MYSQL_TIMESTAMP_TIME, NullS);
-  return (null_value= 0);
+  return (null_value= adjust_time_range_with_warn(ltime, decimals));
 }
 
 /**

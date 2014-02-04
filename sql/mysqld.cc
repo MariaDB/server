@@ -3390,7 +3390,6 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   DBUG_ASSERT(str != NULL);
   DBUG_ASSERT(error != 0);
 
-  mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_ERROR, error, str);
   if (MyFlags & ME_JUST_INFO)
   {
     level= Sql_condition::WARN_LEVEL_NOTE;
@@ -3413,6 +3412,8 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
       thd->is_fatal_error= 1;
     (void) thd->raise_condition(error, NULL, level, str);
   }
+  else
+    mysql_audit_general(0, MYSQL_AUDIT_GENERAL_ERROR, error, str);
 
   /* When simulating OOM, skip writing to error log to avoid mtr errors */
   DBUG_EXECUTE_IF("simulate_out_of_memory", DBUG_VOID_RETURN;);
@@ -9414,6 +9415,8 @@ PSI_stage_info stage_binlog_waiting_background_tasks= { 0, "Waiting for backgrou
 PSI_stage_info stage_binlog_processing_checkpoint_notify= { 0, "Processing binlog checkpoint notification", 0};
 PSI_stage_info stage_binlog_stopping_background_thread= { 0, "Stopping binlog background thread", 0};
 PSI_stage_info stage_waiting_for_work_from_sql_thread= { 0, "Waiting for work from SQL thread", 0};
+PSI_stage_info stage_waiting_for_prior_transaction_to_commit= { 0, "Waiting for prior transaction to commit", 0};
+PSI_stage_info stage_waiting_for_room_in_worker_thread= { 0, "Waiting for room in worker thread event queue", 0};
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -9421,6 +9424,12 @@ PSI_stage_info *all_server_stages[]=
 {
   & stage_after_create,
   & stage_allocating_local_table,
+  & stage_alter_inplace,
+  & stage_alter_inplace_commit,
+  & stage_alter_inplace_prepare,
+  & stage_binlog_processing_checkpoint_notify,
+  & stage_binlog_stopping_background_thread,
+  & stage_binlog_waiting_background_tasks,
   & stage_changing_master,
   & stage_checking_master_version,
   & stage_checking_permissions,
@@ -9430,9 +9439,9 @@ PSI_stage_info *all_server_stages[]=
   & stage_closing_tables,
   & stage_connecting_to_master,
   & stage_converting_heap_to_myisam,
+  & stage_copy_to_tmp_table,
   & stage_copying_to_group_table,
   & stage_copying_to_tmp_table,
-  & stage_copy_to_tmp_table,
   & stage_creating_delayed_handler,
   & stage_creating_sort_index,
   & stage_creating_table,
@@ -9481,8 +9490,13 @@ PSI_stage_info *all_server_stages[]=
   & stage_sending_cached_result_to_client,
   & stage_sending_data,
   & stage_setup,
-  & stage_slave_has_read_all_relay_log,
   & stage_show_explain,
+  & stage_slave_has_read_all_relay_log,
+  & stage_slave_waiting_event_from_coordinator,
+  & stage_slave_waiting_worker_queue,
+  & stage_slave_waiting_worker_to_free_events,
+  & stage_slave_waiting_worker_to_release_partition,
+  & stage_slave_waiting_workers_to_exit,
   & stage_sorting,
   & stage_sorting_for_group,
   & stage_sorting_for_order,
@@ -9501,18 +9515,23 @@ PSI_stage_info *all_server_stages[]=
   & stage_user_sleep,
   & stage_verifying_table,
   & stage_waiting_for_delay_list,
+  & stage_waiting_for_gtid_to_be_written_to_binary_log,
   & stage_waiting_for_handler_insert,
   & stage_waiting_for_handler_lock,
   & stage_waiting_for_handler_open,
   & stage_waiting_for_insert,
   & stage_waiting_for_master_to_send_event,
   & stage_waiting_for_master_update,
+  & stage_waiting_for_prior_transaction_to_commit,
+  & stage_waiting_for_query_cache_lock,
+  & stage_waiting_for_relay_log_space,
+  & stage_waiting_for_room_in_worker_thread,
   & stage_waiting_for_slave_mutex_on_exit,
   & stage_waiting_for_slave_thread_to_start,
   & stage_waiting_for_table_flush,
-  & stage_waiting_for_query_cache_lock,
   & stage_waiting_for_the_next_event_in_relay_log,
   & stage_waiting_for_the_slave_thread_to_advance_position,
+  & stage_waiting_for_work_from_sql_thread,
   & stage_waiting_to_finalize_termination,
   & stage_waiting_to_get_readlock
 };

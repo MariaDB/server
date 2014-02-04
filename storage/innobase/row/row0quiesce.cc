@@ -532,10 +532,11 @@ row_quiesce_table_start(
 
 	ut_a(table->id > 0);
 
-	ulint	count = 0;
-
-	while (ibuf_contract_in_background(table->id, TRUE) != 0) {
-		if (!(++count % 20)) {
+	for (ulint count = 0;
+	     ibuf_contract_in_background(table->id, TRUE) != 0
+	     && !trx_is_interrupted(trx);
+	     ++count) {
+		if (!(count % 20)) {
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Merging change buffer entries for '%s'",
 				table_name);
@@ -610,7 +611,7 @@ row_quiesce_table_complete(
 
 	srv_get_meta_data_filename(table, cfg_name, sizeof(cfg_name));
 
-	os_file_delete_if_exists(cfg_name);
+	os_file_delete_if_exists(innodb_file_data_key, cfg_name);
 
 	ib_logf(IB_LOG_LEVEL_INFO,
 		"Deleting the meta-data file '%s'", cfg_name);

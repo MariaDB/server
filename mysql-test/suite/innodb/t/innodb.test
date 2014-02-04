@@ -1,9 +1,3 @@
---source include/not_windows_embedded.inc
-# remove this when
-# Bug#53947 InnoDB: Assertion failure in thread 4224 in file
-#   .\sync\sync0sync.c line 324
-# is fixed
-
 #######################################################################
 #                                                                     #
 # Please, DO NOT TOUCH this file as well as the innodb.result file.   #
@@ -1243,16 +1237,6 @@ create table t1(a int(1) , b int(1)) engine=innodb;
 insert into t1 values ('1111', '3333');
 select distinct concat(a, b) from t1;
 drop table t1;
-
-#
-# BUG#7709 test case - Boolean fulltext query against unsupported 
-#                      engines does not fail
-#
-
-CREATE TABLE t1 ( a char(10) ) ENGINE=InnoDB;
---error 1764
-SELECT a FROM t1 WHERE MATCH (a) AGAINST ('test' IN BOOLEAN MODE);
-DROP TABLE t1;
 
 #
 # check null values #1

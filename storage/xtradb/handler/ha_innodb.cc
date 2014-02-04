@@ -2544,7 +2544,7 @@ ha_innobase::ha_innobase(
 		  HA_BINLOG_ROW_CAPABLE |
 		  HA_CAN_GEOMETRY | HA_PARTIAL_COLUMN_READ |
 		  HA_TABLE_SCAN_ON_INDEX | HA_CAN_FULLTEXT |
-		  HA_CAN_FULLTEXT_EXT),
+		  HA_CAN_FULLTEXT_EXT | HA_CAN_EXPORT),
 	start_of_scan(0),
 	num_write_row(0)
 {}
@@ -3762,6 +3762,9 @@ innobase_end(
 		mysql_cond_destroy(&commit_cond);
 		mysql_mutex_destroy(&pending_checkpoint_mutex);
 	}
+
+        my_free(fts_server_stopword_table);
+        fts_server_stopword_table= NULL;
 
 	DBUG_RETURN(err);
 }
@@ -18213,7 +18216,6 @@ ib_senderrf(
 	ib_uint32_t	code,		/*!< MySQL error code */
 	...)				/*!< Args */
 {
-	char*		str;
 	va_list         args;
 	const char*	format = innobase_get_err_msg(code);
 
@@ -18227,44 +18229,24 @@ ib_senderrf(
 
 	va_start(args, code);
 
-#ifdef __WIN__
-	int		size = _vscprintf(format, args) + 1;
-	str = static_cast<char*>(malloc(size));
-	str[size - 1] = 0x0;
-	vsnprintf(str, size, format, args);
-#elif HAVE_VASPRINTF
-	(void) vasprintf(&str, format, args);
-#else
-	/* Use a fixed length string. */
-	str = static_cast<char*>(malloc(BUFSIZ));
-	my_vsnprintf(str, BUFSIZ, format, args);
-#endif /* __WIN__ */
-
-	Sql_condition::enum_warning_level	l;
-
-	l = Sql_condition::WARN_LEVEL_NOTE;
+	myf	l;
 
 	switch(level) {
 	case IB_LOG_LEVEL_INFO:
+                l = ME_JUST_INFO;
 		break;
 	case IB_LOG_LEVEL_WARN:
-		l = Sql_condition::WARN_LEVEL_WARN;
+                l = ME_JUST_WARNING;
 		break;
 	case IB_LOG_LEVEL_ERROR:
-		/* We can't use push_warning_printf(), it is a hard error. */
-		my_printf_error(code, "%s", MYF(0), str);
-		break;
 	case IB_LOG_LEVEL_FATAL:
-		l = Sql_condition::WARN_LEVEL_END;
+		l = 0;
 		break;
 	}
 
-	if (level != IB_LOG_LEVEL_ERROR) {
-		push_warning_printf(thd, l, code, "InnoDB: %s", str);
-	}
+        my_printv_error(code, format, MYF(l), args);
 
 	va_end(args);
-	free(str);
 
 	if (level == IB_LOG_LEVEL_FATAL) {
 		ut_error;

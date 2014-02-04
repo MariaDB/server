@@ -4265,11 +4265,18 @@ sub run_testcase ($$) {
       #
       foreach my $option ($config->options_in_group("ENV"))
       {
-	# Save old value to restore it before next time
-	$old_env{$option->name()}= $ENV{$option->name()};
+        my ($name, $val)= ($option->name(), $option->value());
 
-	mtr_verbose($option->name(), "=",$option->value());
-	$ENV{$option->name()}= $option->value();
+	# Save old value to restore it before next time
+	$old_env{$name}= $ENV{$name};
+
+        unless (defined $val) {
+          mtr_warning("Uninitialized value for ", $name,
+            ", group [ENV], file ", $current_config_name);
+        } else {
+          mtr_verbose($name, "=", $val);
+          $ENV{$name}= $val;
+        }
       }
     }
 
