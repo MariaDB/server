@@ -119,6 +119,10 @@ enum enum_filetype { FILETYPE_CSV, FILETYPE_XML };
 #define MODE_NO_ENGINE_SUBSTITUTION     (1ULL << 30)
 #define MODE_PAD_CHAR_TO_FULL_LENGTH    (1ULL << 31)
 
+/* Bits for different old style modes */
+#define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	1
+#define OLD_MODE_NO_PROGRESS_INFO			2
+
 extern char internal_table_name[2];
 extern char empty_c_string[1];
 extern LEX_STRING EMPTY_STR;
@@ -498,6 +502,7 @@ typedef struct system_variables
   ulonglong long_query_time;
   ulonglong optimizer_switch;
   sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
+  sql_mode_t old_behavior; ///< which old SQL behaviour should be enabled
   ulonglong option_bits; ///< OPTION_xxx constants, e.g. OPTION_PROFILING
   ulonglong join_buff_space_limit;
   ulonglong log_slow_filter; 
@@ -1681,14 +1686,14 @@ struct wait_for_commit
   bool wakeup_subsequent_commits_running;
 
   void register_wait_for_prior_commit(wait_for_commit *waitee);
-  int wait_for_prior_commit()
+  int wait_for_prior_commit(THD *thd)
   {
     /*
       Quick inline check, to avoid function call and locking in the common case
       where no wakeup is registered, or a registered wait was already signalled.
     */
     if (waiting_for_commit)
-      return wait_for_prior_commit2();
+      return wait_for_prior_commit2(thd);
     else
       return wakeup_error;
   }
@@ -1714,10 +1719,29 @@ struct wait_for_commit
     if (waiting_for_commit)
       unregister_wait_for_prior_commit2();
   }
+  /*
+    Remove a waiter from the list in the waitee. Used to unregister a wait.
+    The caller must be holding the locks of both waiter and waitee.
+  */
+  void remove_from_list(wait_for_commit **next_ptr_ptr)
+  {
+    wait_for_commit *cur;
+
+    while ((cur= *next_ptr_ptr) != NULL)
+    {
+      if (cur == this)
+      {
+        *next_ptr_ptr= this->next_subsequent_commit;
+        break;
+      }
+      next_ptr_ptr= &cur->next_subsequent_commit;
+    }
+    waiting_for_commit= false;
+  }
 
   void wakeup(int wakeup_error);
 
-  int wait_for_prior_commit2();
+  int wait_for_prior_commit2(THD *thd);
   void wakeup_subsequent_commits2(int wakeup_error);
   void unregister_wait_for_prior_commit2();
 
@@ -3571,12 +3595,7 @@ public:
   int wait_for_prior_commit()
   {
     if (wait_for_commit_ptr)
-    {
-      int err= wait_for_commit_ptr->wait_for_prior_commit();
-      if (err)
-        my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
-      return err;
-    }
+      return wait_for_commit_ptr->wait_for_prior_commit(this);
     return 0;
   }
   void wakeup_subsequent_commits(int wakeup_error)

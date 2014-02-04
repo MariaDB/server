@@ -800,7 +800,7 @@ ACL_ROLE::ACL_ROLE(const char * rolename, ulong privileges, MEM_ROOT *root) :
 
 static bool is_invalid_role_name(const char *str)
 {
-  if (strcasecmp(str, "PUBLIC") && strcasecmp(str, "NONE"))
+  if (*str && strcasecmp(str, "PUBLIC") && strcasecmp(str, "NONE"))
     return false;
 
   my_error(ER_INVALID_ROLE, MYF(0), str);
@@ -3388,7 +3388,7 @@ abort:
 }
 
 /**
-  Updates the mysql.roles_mapping table and the acl_roles_mappings hash.
+  Updates the mysql.roles_mapping table
 
   @param table          TABLE to update
   @param user           user name of the grantee
@@ -3436,20 +3436,10 @@ replace_roles_mapping_table(TABLE *table, LEX_STRING *user, LEX_STRING *host,
                             host->str, user->str, role->str));
         goto table_error;
       }
-      /*
-         This should always return something, as the check was performed
-         earlier
-      */
-      my_hash_delete(&acl_roles_mappings, (uchar*)existing);
     }
-    else
+    else if (with_admin)
     {
-      if (revoke_grant)
-        existing->with_admin= false;
-      else
-        existing->with_admin|= with_admin;
-
-      table->field[3]->store(existing->with_admin + 1);
+      table->field[3]->store(!revoke_grant + 1);
 
       if ((error= table->file->ha_update_row(table->record[1], table->record[0])))
       {
@@ -3469,14 +3459,6 @@ replace_roles_mapping_table(TABLE *table, LEX_STRING *user, LEX_STRING *host,
                         host->str, user->str, role->str));
     goto table_error;
   }
-  else
-  {
-    /* allocate a new entry that will go in the hash */
-    ROLE_GRANT_PAIR *hash_entry= new (&acl_memroot) ROLE_GRANT_PAIR;
-    if (hash_entry->init(&acl_memroot, user->str, host->str, role->str, with_admin))
-      DBUG_RETURN(1);
-    my_hash_insert(&acl_roles_mappings, (uchar*) hash_entry);
-  }
 
   /* all ok */
   DBUG_RETURN(0);
@@ -3485,6 +3467,48 @@ table_error:
   DBUG_PRINT("info", ("table error"));
   table->file->print_error(error, MYF(0));
   DBUG_RETURN(1);
+}
+
+
+/**
+  Updates the acl_roles_mappings hash
+
+  @param user           user name of the grantee
+  @param host           host name of the grantee
+  @param role           role name to grant
+  @param with_admin     WITH ADMIN OPTION flag
+  @param existing       the entry in the acl_roles_mappings hash or NULL.
+                        it is never NULL if revoke_grant is true.
+                        it is NULL when a new pair is added, it's not NULL
+                        when an existing pair is updated.
+  @param revoke_grant   true for REVOKE, false for GRANT
+*/
+static int
+update_role_mapping(LEX_STRING *user, LEX_STRING *host, LEX_STRING *role,
+                    bool with_admin, ROLE_GRANT_PAIR *existing, bool revoke_grant)
+{
+  if (revoke_grant)
+  {
+    if (with_admin)
+    {
+      existing->with_admin= false;
+      return 0;
+    }
+    return my_hash_delete(&acl_roles_mappings, (uchar*)existing);
+  }
+
+  if (existing)
+  {
+    existing->with_admin|= with_admin;
+    return 0;
+  }
+
+  /* allocate a new entry that will go in the hash */
+  ROLE_GRANT_PAIR *hash_entry= new (&acl_memroot) ROLE_GRANT_PAIR;
+  if (hash_entry->init(&acl_memroot, user->str, host->str,
+                       role->str, with_admin))
+    return 1;
+  return my_hash_insert(&acl_roles_mappings, (uchar*) hash_entry);
 }
 
 static void
@@ -5844,6 +5868,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
    */
   DBUG_ASSERT(list.elements >= 2);
   bool result= 0;
+  bool create_new_user, no_auto_create_user;
   String wrong_users;
   LEX_USER *user, *granted_role;
   LEX_STRING rolename;
@@ -5859,12 +5884,18 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   DBUG_ASSERT(granted_role->is_role());
   rolename= granted_role->user;
 
-  TABLE_LIST tables;
-  tables.init_one_table(C_STRING_WITH_LEN("mysql"),
-                        C_STRING_WITH_LEN("roles_mapping"),
-                        "roles_mapping", TL_WRITE);
+  create_new_user= test_if_create_new_users(thd);
+  no_auto_create_user= test(thd->variables.sql_mode & MODE_NO_AUTO_CREATE_USER);
 
-  if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
+  TABLE_LIST tables[2];
+  tables[0].init_one_table(C_STRING_WITH_LEN("mysql"),
+                           C_STRING_WITH_LEN("roles_mapping"),
+                           "roles_mapping", TL_WRITE);
+  tables[1].init_one_table(C_STRING_WITH_LEN("mysql"),
+                           C_STRING_WITH_LEN("user"), "user", TL_WRITE);
+  tables[0].next_local= tables[0].next_global= tables+1;
+
+  if (open_and_lock_tables(thd, tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
     DBUG_RETURN(TRUE);                          /* purecov: deadcode */
 
   mysql_rwlock_wrlock(&LOCK_grant);
@@ -5952,6 +5983,27 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     if (!grantee)
       grantee= find_user_exact(hostname.str, username.str);
 
+    if (!grantee && !revoke)
+    {
+      LEX_USER user_combo = *user;
+      user_combo.host = hostname;
+      user_combo.user = username;
+
+      /* create the user if it does not exist */
+      if (replace_user_table(thd, tables[1].table, user_combo, 0,
+                             false, create_new_user,
+                             no_auto_create_user))
+      {
+        append_user(&wrong_users, username.str, hostname.str);
+        result= 1;
+        continue;
+      }
+      grantee= find_user_exact(hostname.str, username.str);
+
+      /* either replace_user_table failed, or we've added the user */
+      DBUG_ASSERT(grantee);
+    }
+
     if (!grantee)
     {
       append_user(&wrong_users, username.str, hostname.str);
@@ -6004,7 +6056,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     }
 
     /* write into the roles_mapping table */
-    if (replace_roles_mapping_table(tables.table,
+    if (replace_roles_mapping_table(tables[0].table,
                                     &username, &hostname, &rolename,
                                     thd->lex->with_admin_option,
                                     hash_entry, revoke))
@@ -6023,6 +6075,8 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       }
       continue;
     }
+    update_role_mapping(&username, &hostname, &rolename,
+                        thd->lex->with_admin_option, hash_entry, revoke);
 
     /*
        Only need to propagate grants when granting/revoking a role to/from
@@ -8323,7 +8377,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
       {
         role= safe_str(get_field(thd->mem_root, role_field));
 
-        if (strcmp(user_from->user.str, role))
+        if (!user_from->is_role() || strcmp(user_from->user.str, role))
           continue;
 
         error= 0;
@@ -8546,7 +8600,6 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   const char *UNINIT_VAR(user);
   const char *UNINIT_VAR(host);
   const char *UNINIT_VAR(role);
-  uint role_not_matched= 1;
   ACL_USER *acl_user= NULL;
   ACL_ROLE *acl_role= NULL;
   ACL_DB *acl_db= NULL;
@@ -8706,11 +8759,10 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 
     if (struct_no == ROLES_MAPPINGS_HASH)
     {
-      role_not_matched= strcmp(user_from->user.str, role);
-      if (role_not_matched &&
+      if (user_from->is_role() ? strcmp(user_from->user.str, role) :
           (strcmp(user_from->user.str, user) ||
            my_strcasecmp(system_charset_info, user_from->host.str, host)))
-      continue;
+        continue;
     }
     else
     {
@@ -8830,14 +8882,14 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
           size_t old_key_length= role_grant_pair->hashkey.length;
           bool oom;
 
-          if (role_not_matched)
-            oom= role_grant_pair->init(&acl_memroot, user_to->user.str,
-                                       user_to->host.str,
-                                       role_grant_pair->r_uname, false);
-          else
+          if (user_to->is_role())
             oom= role_grant_pair->init(&acl_memroot, role_grant_pair->u_uname,
                                        role_grant_pair->u_hname,
                                        user_to->user.str, false);
+          else
+            oom= role_grant_pair->init(&acl_memroot, user_to->user.str,
+                                       user_to->host.str,
+                                       role_grant_pair->r_uname, false);
           if (oom)
             DBUG_RETURN(-1);
 
@@ -9179,6 +9231,10 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
           undo_add_role_user_mapping(grantee, role);
         result= TRUE;
       }
+      else if (grantee)
+             update_role_mapping(&thd->lex->definer->user,
+                                 &thd->lex->definer->host,
+                                 &user_name->user, true, NULL, false);
     }
   }
 
@@ -9243,7 +9299,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
     if (handle_as_role != user_name->is_role())
     {
-      append_user(&wrong_users, tmp_user_name);
+      append_user(&wrong_users, user_name);
       result= TRUE;
       continue;
     }
@@ -9321,20 +9377,20 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
   while ((tmp_user_from= user_list++))
   {
     tmp_user_to= user_list++;
-    if (!(user_from= get_current_user(thd, tmp_user_from, false)) ||
-        user_from->is_role())
+    if (!(user_from= get_current_user(thd, tmp_user_from, false)))
     {
       append_user(&wrong_users, user_from);
       result= TRUE;
       continue;
     }
-    if (!(user_to= get_current_user(thd, tmp_user_to, false)) ||
-        user_to->is_role())
+    if (!(user_to= get_current_user(thd, tmp_user_to, false)))
     {
       append_user(&wrong_users, user_to);
       result= TRUE;
       continue;
     }
+    DBUG_ASSERT(!user_from->is_role());
+    DBUG_ASSERT(!user_to->is_role());
 
     /*
       Search all in-memory structures and grant tables
@@ -9565,6 +9621,8 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
       {
         result= -1; //Something went wrong
       }
+      update_role_mapping(&lex_user->user, &lex_user->host,
+                          &role_grant->user, false, pair, true);
       /*
         Delete from the parent_grantee array of the roles granted,
         the entry pointing to this user_or_role

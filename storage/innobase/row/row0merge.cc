@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -260,14 +260,15 @@ row_merge_buf_add(
 	ulint			bucket = 0;
 	doc_id_t		write_doc_id;
 	ulint			n_row_added = 0;
+	DBUG_ENTER("row_merge_buf_add");
 
 	if (buf->n_tuples >= buf->max_tuples) {
-		return(0);
+		DBUG_RETURN(0);
 	}
 
 	DBUG_EXECUTE_IF(
 		"ib_row_merge_buf_add_two",
-		if (buf->n_tuples >= 2) return(0););
+		if (buf->n_tuples >= 2) DBUG_RETURN(0););
 
 	UNIV_PREFETCH_R(row->fields);
 
@@ -325,18 +326,12 @@ row_merge_buf_add(
 				fts_doc_item_t*	doc_item;
 				byte*		value;
 
-				if (dfield_is_null(field)) {
-					n_row_added = 1;
-					continue;
-				}
-
-				doc_item = static_cast<fts_doc_item_t*>(
-					mem_heap_alloc(
-						buf->heap,
-						sizeof(fts_doc_item_t)));
-
 				/* fetch Doc ID if it already exists
-				in the row, and not supplied by the caller */
+				in the row, and not supplied by the
+				caller. Even if the value column is
+				NULL, we still need to get the Doc
+				ID so to maintain the correct max
+				Doc ID */
 				if (*doc_id == 0) {
 					const dfield_t*	doc_field;
 					doc_field = dtuple_get_nth_field(
@@ -347,13 +342,22 @@ row_merge_buf_add(
 						dfield_get_data(doc_field)));
 
 					if (*doc_id == 0) {
-						fprintf(stderr, "InnoDB FTS: "
-							"User supplied Doc ID "
-							"is zero. Record "
-							"Skipped\n");
-						return(0);
+						ib_logf(IB_LOG_LEVEL_WARN,
+							"FTS Doc ID is zero. "
+							"Record Skipped");
+						DBUG_RETURN(0);
 					}
 				}
+
+				if (dfield_is_null(field)) {
+					n_row_added = 1;
+					continue;
+				}
+
+				doc_item = static_cast<fts_doc_item_t*>(
+					mem_heap_alloc(
+						buf->heap,
+						sizeof(*doc_item)));
 
 				value = static_cast<byte*>(
 					ut_malloc(field->len));
@@ -458,7 +462,7 @@ row_merge_buf_add(
 	/* If this is FTS index, we already populated the sort buffer, return
 	here */
 	if (index->type & DICT_FTS) {
-		return(n_row_added);
+		DBUG_RETURN(n_row_added);
 	}
 
 #ifdef UNIV_DEBUG
@@ -484,7 +488,7 @@ row_merge_buf_add(
 
 	/* Reserve one byte for the end marker of row_merge_block_t. */
 	if (buf->total_size + data_size >= srv_sort_buf_size - 1) {
-		return(0);
+		DBUG_RETURN(0);
 	}
 
 	buf->total_size += data_size;
@@ -499,7 +503,7 @@ row_merge_buf_add(
 		dfield_dup(field++, buf->heap);
 	} while (--n_fields);
 
-	return(n_row_added);
+	DBUG_RETURN(n_row_added);
 }
 
 /*************************************************************//**
@@ -1180,6 +1184,7 @@ row_merge_read_clustered_index(
 	os_event_t		fts_parallel_sort_event = NULL;
 	ibool			fts_pll_sort = FALSE;
 	ib_int64_t		sig_count = 0;
+	DBUG_ENTER("row_merge_read_clustered_index");
 
 	ut_ad((old_table == new_table) == !col_map);
 	ut_ad(!add_cols || col_map);
@@ -1396,13 +1401,26 @@ end_of_index:
 		offsets = rec_get_offsets(rec, clust_index, NULL,
 					  ULINT_UNDEFINED, &row_heap);
 
-		if (online && new_table != old_table) {
-			/* When rebuilding the table online, perform a
-			REPEATABLE READ, so that row_log_table_apply()
-			will not see a newer state of the table when
-			applying the log.  This is mainly to prevent
-			false duplicate key errors, because the log
-			will identify records by the PRIMARY KEY. */
+		if (online) {
+			/* Perform a REPEATABLE READ.
+
+			When rebuilding the table online,
+			row_log_table_apply() must not see a newer
+			state of the table when applying the log.
+			This is mainly to prevent false duplicate key
+			errors, because the log will identify records
+			by the PRIMARY KEY, and also to prevent unsafe
+			BLOB access.
+
+			When creating a secondary index online, this
+			table scan must not see records that have only
+			been inserted to the clustered index, but have
+			not been written to the online_log of
+			index[]. If we performed READ UNCOMMITTED, it
+			could happen that the ADD INDEX reaches
+			ONLINE_INDEX_COMPLETE state between the time
+			the DML thread has updated the clustered index
+			but has not yet accessed secondary index. */
 			ut_ad(trx->read_view);
 
 			if (!read_view_sees_trx_id(
@@ -1445,37 +1463,12 @@ end_of_index:
 			would make it tricky to detect duplicate
 			keys. */
 			continue;
-		} else if (UNIV_LIKELY_NULL(rec_offs_any_null_extern(
-						    rec, offsets))) {
-			/* This is essentially a READ UNCOMMITTED to
-			fetch the most recent version of the record. */
-#if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
-			trx_id_t	trx_id;
-			ulint		trx_id_offset;
-
-			/* It is possible that the record was
-			just inserted and the off-page columns
-			have not yet been written. We will
-			ignore the record if this is the case,
-			because it should be covered by the
-			index->info.online log in that case. */
-
-			trx_id_offset = clust_index->trx_id_offset;
-			if (!trx_id_offset) {
-				trx_id_offset = row_get_trx_id_offset(
-					clust_index, offsets);
-			}
-
-			trx_id = trx_read_trx_id(rec + trx_id_offset);
-			ut_a(trx_rw_is_active(trx_id, NULL));
-			ut_a(trx_undo_trx_id_is_insert(rec + trx_id_offset));
-#endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
-
-			/* When !online, we are holding an X-lock on
-			old_table, preventing any inserts. */
-			ut_ad(online);
-			continue;
 		}
+
+		/* When !online, we are holding a lock on old_table, preventing
+		any inserts that could have written a record 'stub' before
+		writing out off-page columns. */
+		ut_ad(!rec_offs_any_null_extern(rec, offsets));
 
 		/* Build a row based on the clustered index. */
 
@@ -1692,10 +1685,16 @@ all_done:
 	DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Scan Table\n");
 #endif
 	if (fts_pll_sort) {
+		bool	all_exit = false;
+		ulint	trial_count = 0;
+		const ulint max_trial_count = 10000;
+
+		/* Tell all children that parent has done scanning */
 		for (ulint i = 0; i < fts_sort_pll_degree; i++) {
 			psort_info[i].state = FTS_PARENT_COMPLETE;
 		}
 wait_again:
+		/* Now wait all children to report back to be completed */
 		os_event_wait_time_low(fts_parallel_sort_event,
 				       1000000, sig_count);
 
@@ -1706,6 +1705,31 @@ wait_again:
 					fts_parallel_sort_event);
 				goto wait_again;
 			}
+		}
+
+		/* Now all children should complete, wait a bit until
+		they all finish setting the event, before we free everything.
+		This has a 10 second timeout */
+		do {
+			all_exit = true;
+
+			for (ulint j = 0; j < fts_sort_pll_degree; j++) {
+				if (psort_info[j].child_status
+				    != FTS_CHILD_EXITING) {
+					all_exit = false;
+					os_thread_sleep(1000);
+					break;
+				}
+			}
+			trial_count++;
+		} while (!all_exit && trial_count < max_trial_count);
+
+		if (!all_exit) {
+			ut_ad(0);
+			ib_logf(IB_LOG_LEVEL_FATAL,
+				"Not all child sort threads exited"
+				" when creating FTS index '%s'",
+				fts_sort_idx->name);
 		}
 	}
 
@@ -1731,7 +1755,7 @@ wait_again:
 
 	trx->op_info = "";
 
-	return(err);
+	DBUG_RETURN(err);
 }
 
 /** Write a record via buffer 2 and read the next record to buffer N.
@@ -2092,13 +2116,14 @@ row_merge_sort(
 	ulint		num_runs;
 	ulint*		run_offset;
 	dberr_t		error	= DB_SUCCESS;
+	DBUG_ENTER("row_merge_sort");
 
 	/* Record the number of merge runs we need to perform */
 	num_runs = file->offset;
 
 	/* If num_runs are less than 1, nothing to merge */
 	if (num_runs <= 1) {
-		return(error);
+		DBUG_RETURN(error);
 	}
 
 	/* "run_offset" records each run's first offset number */
@@ -2126,24 +2151,7 @@ row_merge_sort(
 
 	mem_free(run_offset);
 
-	return(error);
-}
-
-/*************************************************************//**
-Set blob fields empty */
-static __attribute__((nonnull))
-void
-row_merge_set_blob_empty(
-/*=====================*/
-	dtuple_t*	tuple)	/*!< in/out: data tuple */
-{
-	for (ulint i = 0; i < dtuple_get_n_fields(tuple); i++) {
-		dfield_t*	field = dtuple_get_nth_field(tuple, i);
-
-		if (dfield_is_ext(field)) {
-			dfield_set_data(field, NULL, 0);
-		}
-	}
+	DBUG_RETURN(error);
 }
 
 /*************************************************************//**
@@ -2211,6 +2219,7 @@ row_merge_insert_index_tuples(
 	ulint			foffs = 0;
 	ulint*			offsets;
 	mrec_buf_t*		buf;
+	DBUG_ENTER("row_merge_insert_index_tuples");
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(!(index->type & DICT_FTS));
@@ -2272,52 +2281,31 @@ row_merge_insert_index_tuples(
 
 			if (!n_ext) {
 				/* There are no externally stored columns. */
-			} else if (!dict_index_is_online_ddl(old_index)) {
+			} else {
 				ut_ad(dict_index_is_clust(index));
-				/* Modifications to the table are
-				blocked while we are not rebuilding it
-				or creating indexes. Off-page columns
-				can be fetched safely. */
+				/* Off-page columns can be fetched safely
+				when concurrent modifications to the table
+				are disabled. (Purge can process delete-marked
+				records, but row_merge_read_clustered_index()
+				would have skipped them.)
+
+				When concurrent modifications are enabled,
+				row_merge_read_clustered_index() will
+				only see rows from transactions that were
+				committed before the ALTER TABLE started
+				(REPEATABLE READ).
+
+				Any modifications after the
+				row_merge_read_clustered_index() scan
+				will go through row_log_table_apply().
+				Any modifications to off-page columns
+				will be tracked by
+				row_log_table_blob_alloc() and
+				row_log_table_blob_free(). */
 				row_merge_copy_blobs(
 					mrec, offsets,
 					dict_table_zip_size(old_table),
 					dtuple, tuple_heap);
-			} else {
-				ut_ad(dict_index_is_clust(index));
-
-				ulint	offset = index->trx_id_offset;
-
-				if (!offset) {
-					offset = row_get_trx_id_offset(
-						index, offsets);
-				}
-
-				/* Copy the off-page columns while
-				holding old_index->lock, so
-				that they cannot be freed by
-				a rollback of a fresh insert. */
-				rw_lock_s_lock(&old_index->lock);
-
-				if (row_log_table_is_rollback(
-					    old_index,
-					    trx_read_trx_id(mrec + offset))) {
-					/* The row and BLOB could
-					already be freed. They
-					will be deleted by
-					row_undo_ins_remove_clust_rec
-					when rolling back a fresh
-					insert. So, no need to retrieve
-					the off-page column. */
-					row_merge_set_blob_empty(
-						dtuple);
-				} else {
-					row_merge_copy_blobs(
-						mrec, offsets,
-						dict_table_zip_size(old_table),
-						dtuple, tuple_heap);
-				}
-
-				rw_lock_s_unlock(&old_index->lock);
 			}
 
 			ut_ad(dtuple_validate(dtuple));
@@ -2415,7 +2403,7 @@ err_exit:
 	mem_heap_free(ins_heap);
 	mem_heap_free(heap);
 
-	return(error);
+	DBUG_RETURN(error);
 }
 
 /*********************************************************************//**
@@ -2903,7 +2891,7 @@ row_merge_file_create_low(void)
 	if (fd < 0) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Cannot create temporary merge file");
-		return -1;
+		return (-1);
 	}
 	return(fd);
 }
@@ -3114,40 +3102,26 @@ will not be committed.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
 dberr_t
-row_merge_rename_tables(
-/*====================*/
+row_merge_rename_tables_dict(
+/*=========================*/
 	dict_table_t*	old_table,	/*!< in/out: old table, renamed to
 					tmp_name */
 	dict_table_t*	new_table,	/*!< in/out: new table, renamed to
 					old_table->name */
 	const char*	tmp_name,	/*!< in: new name for old_table */
-	trx_t*		trx)		/*!< in: transaction handle */
+	trx_t*		trx)		/*!< in/out: dictionary transaction */
 {
 	dberr_t		err	= DB_ERROR;
 	pars_info_t*	info;
-	char		old_name[MAX_FULL_NAME_LEN + 1];
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(old_table != new_table);
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_a(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE);
-
-	/* store the old/current name to an automatic variable */
-	if (strlen(old_table->name) + 1 <= sizeof(old_name)) {
-		memcpy(old_name, old_table->name, strlen(old_table->name) + 1);
-	} else {
-		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Too long table name: '%s', max length is %d",
-			old_table->name, MAX_FULL_NAME_LEN);
-		ut_error;
-	}
+	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE
+	      || trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 
 	trx->op_info = "renaming tables";
-
-	DBUG_EXECUTE_IF(
-		"ib_rebuild_cannot_rename",
-		err = DB_ERROR; goto err_exit;);
 
 	/* We use the private SQL parser of Innobase to generate the query
 	graphs needed in updating the dictionary data in system tables. */
@@ -3155,7 +3129,7 @@ row_merge_rename_tables(
 	info = pars_info_create();
 
 	pars_info_add_str_literal(info, "new_name", new_table->name);
-	pars_info_add_str_literal(info, "old_name", old_name);
+	pars_info_add_str_literal(info, "old_name", old_table->name);
 	pars_info_add_str_literal(info, "tmp_name", tmp_name);
 
 	err = que_eval_sql(info,
@@ -3200,11 +3174,12 @@ row_merge_rename_tables(
 	table is in a non-system tablespace where space > 0. */
 	if (err == DB_SUCCESS && new_table->space != TRX_SYS_SPACE) {
 		/* Make pathname to update SYS_DATAFILES. */
-		char* old_path = row_make_new_pathname(new_table, old_name);
+		char* old_path = row_make_new_pathname(
+			new_table, old_table->name);
 
 		info = pars_info_create();
 
-		pars_info_add_str_literal(info, "old_name", old_name);
+		pars_info_add_str_literal(info, "old_name", old_table->name);
 		pars_info_add_str_literal(info, "old_path", old_path);
 		pars_info_add_int4_literal(info, "new_space",
 					   (lint) new_table->space);
@@ -3223,75 +3198,9 @@ row_merge_rename_tables(
 		mem_free(old_path);
 	}
 
-	if (err != DB_SUCCESS) {
-		goto err_exit;
-	}
-
-	/* Generate the redo logs for file operations */
-	fil_mtr_rename_log(old_table->space, old_name,
-			   new_table->space, new_table->name, tmp_name);
-
-	/* What if the redo logs are flushed to disk here?  This is
-	tested with following crash point */
-	DBUG_EXECUTE_IF("bug14669848_precommit", log_buffer_flush_to_disk();
-			DBUG_SUICIDE(););
-
-	/* File operations cannot be rolled back.  So, before proceeding
-	with file operations, commit the dictionary changes.*/
-	trx_commit_for_mysql(trx);
-
-	/* If server crashes here, the dictionary in InnoDB and MySQL
-	will differ.  The .ibd files and the .frm files must be swapped
-	manually by the administrator. No loss of data. */
-	DBUG_EXECUTE_IF("bug14669848", DBUG_SUICIDE(););
-
-	/* Ensure that the redo logs are flushed to disk.  The config
-	innodb_flush_log_at_trx_commit must not affect this. */
-	log_buffer_flush_to_disk();
-
-	/* The following calls will also rename the .ibd data files if
-	the tables are stored in a single-table tablespace */
-
-	err = dict_table_rename_in_cache(old_table, tmp_name, FALSE);
-
-	if (err == DB_SUCCESS) {
-
-		ut_ad(dict_table_is_discarded(old_table)
-		      == dict_table_is_discarded(new_table));
-
-		err = dict_table_rename_in_cache(new_table, old_name, FALSE);
-
-		if (err != DB_SUCCESS) {
-
-			if (dict_table_rename_in_cache(
-					old_table, old_name, FALSE)
-			    != DB_SUCCESS) {
-
-				ib_logf(IB_LOG_LEVEL_ERROR,
-					"Cannot undo the rename in cache "
-					"from %s to %s", old_name, tmp_name);
-			}
-
-			goto err_exit;
-		}
-
-		if (dict_table_is_discarded(new_table)) {
-
-			err = row_import_update_discarded_flag(
-				trx, new_table->id, true, true);
-		}
-	}
-
-	DBUG_EXECUTE_IF("ib_rebuild_cannot_load_fk",
-			err = DB_ERROR; goto err_exit;);
-
-	err = dict_load_foreigns(old_name, FALSE, TRUE);
-
-	if (err != DB_SUCCESS) {
-err_exit:
-		trx->error_state = DB_SUCCESS;
-		trx_rollback_to_savepoint(trx, NULL);
-		trx->error_state = DB_SUCCESS;
+	if (err == DB_SUCCESS && dict_table_is_discarded(new_table)) {
+		err = row_import_update_discarded_flag(
+			trx, new_table->id, true, true);
 	}
 
 	trx->op_info = "";
@@ -3417,7 +3326,7 @@ row_merge_is_index_usable(
 /*********************************************************************//**
 Drop a table. The caller must have ensured that the background stats
 thread is not processing the table. This can be done by calling
-dict_stats_wait_bg_to_stop_using_tables() after locking the dictionary and
+dict_stats_wait_bg_to_stop_using_table() after locking the dictionary and
 before calling this function.
 @return	DB_SUCCESS or error code */
 UNIV_INTERN
@@ -3475,11 +3384,12 @@ row_merge_build_indexes(
 	ulint			i;
 	ulint			j;
 	dberr_t			error;
-	int			tmpfd;
+	int			tmpfd = -1;
 	dict_index_t*		fts_sort_idx = NULL;
 	fts_psort_t*		psort_info = NULL;
 	fts_psort_t*		merge_info = NULL;
 	ib_int64_t		sig_count = 0;
+	DBUG_ENTER("row_merge_build_indexes");
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad((old_table == new_table) == !col_map);
@@ -3493,13 +3403,21 @@ row_merge_build_indexes(
 		os_mem_alloc_large(&block_size));
 
 	if (block == NULL) {
-		return(DB_OUT_OF_MEMORY);
+		DBUG_RETURN(DB_OUT_OF_MEMORY);
 	}
 
 	trx_start_if_not_started_xa(trx);
 
 	merge_files = static_cast<merge_file_t*>(
 		mem_alloc(n_indexes * sizeof *merge_files));
+
+	/* Initialize all the merge file descriptors, so that we
+	don't call row_merge_file_destroy() on uninitialized
+	merge file descriptor */
+
+	for (i = 0; i < n_indexes; i++) {
+		merge_files[i].fd = -1;
+	}
 
 	for (i = 0; i < n_indexes; i++) {
 		if (row_merge_file_create(&merge_files[i]) < 0) {
@@ -3565,41 +3483,16 @@ row_merge_build_indexes(
 
 		if (indexes[i]->type & DICT_FTS) {
 			os_event_t	fts_parallel_merge_event;
-			bool		all_exit = false;
-			ulint		trial_count = 0;
 
 			sort_idx = fts_sort_idx;
-
-			/* Now all children should complete, wait
-			a bit until they all finish using event */
-			while (!all_exit && trial_count < 10000) {
-				all_exit = true;
-
-				for (j = 0; j < fts_sort_pll_degree;
-				     j++) {
-					if (psort_info[j].child_status
-					    != FTS_CHILD_EXITING) {
-						all_exit = false;
-						os_thread_sleep(1000);
-						break;
-					}
-				}
-				trial_count++;
-			}
-
-			if (!all_exit) {
-				ib_logf(IB_LOG_LEVEL_ERROR,
-					"Not all child sort threads exited"
-					" when creating FTS index '%s'",
-					indexes[i]->name);
-			}
 
 			fts_parallel_merge_event
 				= merge_info[0].psort_common->merge_event;
 
 			if (FTS_PLL_MERGE) {
-				trial_count = 0;
-				all_exit = false;
+				ulint	trial_count = 0;
+				bool	all_exit = false;
+
 				os_event_reset(fts_parallel_merge_event);
 				row_fts_start_parallel_merge(merge_info);
 wait_again:
@@ -3763,5 +3656,5 @@ func_exit:
 		}
 	}
 
-	return(error);
+	DBUG_RETURN(error);
 }

@@ -358,6 +358,14 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (derived->merged)
     return FALSE;
 
+  if (dt_select->uncacheable & UNCACHEABLE_RAND)
+  {
+    /* There is random function => fall back to materialization. */
+    derived->change_refs_to_fields();
+    derived->set_materialized_derived();
+    return FALSE;
+  }
+
  if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
      thd->lex->sql_command == SQLCOM_DELETE_MULTI)
    thd->save_prep_leaf_list= TRUE;
@@ -604,11 +612,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
           thd->lex->sql_command == SQLCOM_DELETE_MULTI))))
     DBUG_RETURN(FALSE);
 
-  Query_arena *arena= thd->stmt_arena, backup;
-  if (arena->is_conventional())
-    arena= 0;                                   // For easier test
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
 
   SELECT_LEX *first_select= unit->first_select();
 
@@ -708,7 +713,7 @@ exit:
   {
     TABLE *table= derived->table;
     table->derived_select_number= first_select->select_number;
-    table->s->tmp_table= NON_TRANSACTIONAL_TMP_TABLE;
+    table->s->tmp_table= INTERNAL_TMP_TABLE;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (derived->referencing_view)
       table->grant= derived->grant;

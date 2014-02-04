@@ -595,7 +595,7 @@ static ha_rows find_all_keys(Sort_param *param, SQL_SELECT *select,
   ref_pos= ref_buff;
   quick_select=select && select->quick;
   record=0;
-  *found_rows= 0;
+  *found_rows= pq ? 0 : HA_POS_ERROR; // don't count unless pq is used
   flag= ((file->ha_table_flags() & HA_REC_NOT_IN_SEQ) || quick_select);
   if (flag)
     ref_pos= &file->ref[0];
@@ -714,9 +714,14 @@ static ha_rows find_all_keys(Sort_param *param, SQL_SELECT *select,
 
     if (write_record)
     {
-       ++(*found_rows);
       if (pq)
       {
+        /*
+          only count rows when pq is used - otherwise there might be
+          other filters *after* the filesort, we don't know the final row
+          count here
+        */
+        (*found_rows)++;
         pq->push(ref_pos);
         idx= pq->num_elements();
       }
