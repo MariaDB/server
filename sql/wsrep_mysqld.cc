@@ -1337,6 +1337,13 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
   DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_STATE);
   DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno == WSREP_SEQNO_UNDEFINED);
 
+  if (thd->global_read_lock.can_acquire_protection())
+  {
+    WSREP_DEBUG("Aborting TOI: Global Read-Lock (FTWRL) in place: %s %lu",
+                thd->query(), thd->thread_id);
+    return -1;
+  }
+
   if (wsrep_debug && thd->mdl_context.has_locks())
   {
     WSREP_DEBUG("thread holds MDL locks at TI begin: %s %lu", 

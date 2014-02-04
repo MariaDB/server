@@ -909,6 +909,9 @@ UNIV_INLINE
 ibool
 lock_rec_has_to_wait(
 /*=================*/
+#ifdef WITH_WSREP
+	ibool		for_locking, /*!< is caller locking or releasing */
+#endif /* WITH_WSREP */
 	const trx_t*	trx,	/*!< in: trx of new lock */
 	ulint		type_mode,/*!< in: precise mode of the new lock
 				to set: LOCK_S or LOCK_X, possibly
@@ -983,6 +986,44 @@ lock_rec_has_to_wait(
 			return(FALSE);
 		}
 
+#ifdef WITH_WSREP
+		/* if BF thread is locking and has conflict with another BF
+		   thread, we need to look at trx ordering and lock types */
+		if (for_locking                                    &&
+		    wsrep_thd_is_BF(trx->mysql_thd, FALSE)         &&
+		    wsrep_thd_is_BF(lock2->trx->mysql_thd, TRUE)) {
+
+			if (wsrep_debug) {
+				fprintf(stderr, "\n BF-BF lock conflict \n");
+				lock_rec_print(stderr, lock2);
+			}
+
+			if (wsrep_trx_order_before(trx->mysql_thd, 
+						   lock2->trx->mysql_thd) &&
+			    (type_mode & LOCK_MODE_MASK) == LOCK_X        &&
+			    (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X)
+			{
+				/* exclusive lock conflicts are not accepted */
+				fprintf(stderr, "BF-BF X lock conflict\n");
+				lock_rec_print(stderr, lock2);
+				abort();
+			} else {
+				/* if lock2->index->n_uniq <= 
+				   lock2->index->n_user_defined_cols
+				   operation is on uniq index
+				*/
+				if (wsrep_debug) fprintf(stderr,
+					"BF conflict, modes: %lu %lu, "
+					"idx: %s-%s n_uniq %u n_user %u\n",
+					type_mode, lock2->type_mode,
+					lock2->index->name, 
+					lock2->index->table_name,
+					lock2->index->n_uniq, 
+					lock2->index->n_user_defined_cols);
+				return FALSE;
+			}
+		}
+#endif /* WITH_WSREP */
 		return(TRUE);
 	}
 
@@ -1013,7 +1054,11 @@ lock_has_to_wait(
 			/* If this lock request is for a supremum record
 			then the second bit on the lock bitmap is set */
 
+#ifdef WITH_WSREP
+			return(lock_rec_has_to_wait(FALSE, lock1->trx,
+#else
 			return(lock_rec_has_to_wait(lock1->trx,
+#endif /* WITH_WSREP */
 						    lock1->type_mode, lock2,
 						    lock_rec_get_nth_bit(
 							    lock1, 1)));
@@ -1592,7 +1637,11 @@ lock_rec_other_has_conflicting(
 		if (UNIV_UNLIKELY(heap_no == PAGE_HEAP_NO_SUPREMUM)) {
 
 			do {
-				if (lock_rec_has_to_wait(trx, mode, lock,
+#ifdef WITH_WSREP
+			  if (lock_rec_has_to_wait(TRUE, trx, mode, lock,
+#else
+			  if (lock_rec_has_to_wait(trx, mode, lock,
+#endif /* WITH_WSREP */
 							 TRUE)) {
 #ifdef WITH_WSREP
 					wsrep_kill_victim(trx, lock);
@@ -1605,7 +1654,11 @@ lock_rec_other_has_conflicting(
 		} else {
 
 			do {
-				if (lock_rec_has_to_wait(trx, mode, lock,
+#ifdef WITH_WSREP
+			  if (lock_rec_has_to_wait(TRUE, trx, mode, lock,
+#else
+			  if (lock_rec_has_to_wait(trx, mode, lock,
+#endif /* WITH_WSREP */
 							 FALSE)) {
 #ifdef WITH_WSREP
 					wsrep_kill_victim(trx, lock);

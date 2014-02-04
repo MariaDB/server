@@ -622,11 +622,7 @@ void do_handle_bootstrap(THD *thd)
   if (my_thread_init() || thd->store_globals())
   {
 #ifndef EMBEDDED_LIBRARY
-#ifdef WITH_WSREP
-    close_connection(thd, ER_OUT_OF_RESOURCES, 1);
-#else
     close_connection(thd, ER_OUT_OF_RESOURCES);
-#endif /* WITH_WSREP */
 #endif
     thd->fatal_error();
     goto end;

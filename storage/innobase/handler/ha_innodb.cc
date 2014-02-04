@@ -3469,6 +3469,9 @@ ha_innobase::max_supported_key_length() const
 	is 16 kB; but currently MySQL does not work with keys whose
 	size is > MAX_KEY_LENGTH */
 #ifdef WITH_WSREP
+	/* this may look like obsolete code, but this ifdef is here
+	   just to make sure we will see bzr merge conflict, if Oracle 
+	   changes max key length */
 	return(3500);
 #else
 	return(3500);
@@ -4617,7 +4620,7 @@ wsrep_innobase_mysql_sort(
 
 		tmp_length = charset->coll->strnxfrm(charset, str, str_length,
 						     tmp_str, str_length);
-		DBUG_ASSERT(tmp_length == str_length);
+		DBUG_ASSERT(tmp_length <= str_length);
  
 		break;
 	}
@@ -7443,6 +7446,13 @@ ha_innobase::wsrep_append_keys(
 	} else {
 		ut_a(table->s->keys <= 256);
 		uint i;
+		bool hasPK= false;
+
+		for (i=0; i<table->s->keys && !hasPK; ++i) {
+			KEY*  key_info	= table->key_info + i;
+			if (key_info->flags & HA_NOSAME) hasPK = true;
+		}
+
 		for (i=0; i<table->s->keys; ++i) {
 			uint  len;
 			char  keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
@@ -7463,7 +7473,7 @@ ha_innobase::wsrep_append_keys(
 					   table->s->table_name.str, 
 					   key_info->name);
 			}
-			if (key_info->flags & HA_NOSAME ||
+			if (!hasPK || key_info->flags & HA_NOSAME ||
 			    ((tab &&
 			      dict_table_get_referenced_constraint(tab, idx)) ||
 			     (!tab && referenced_by_foreign_key()))) {

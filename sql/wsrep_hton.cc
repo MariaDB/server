@@ -77,8 +77,13 @@ void wsrep_register_hton(THD* thd, bool all)
       {
         trans_register_ha(thd, all, wsrep_hton);
 
-        /* follow innodb read/write settting */
-        if (i->is_trx_read_write())
+        /* follow innodb read/write settting
+         * but, as an exception: CTAS with empty result set will not be 
+         * replicated unless we declare wsrep hton as read/write here
+	 */
+        if (i->is_trx_read_write() || 
+            (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+             thd->wsrep_exec_mode == LOCAL_STATE))
         {
           thd->ha_data[wsrep_hton->slot].ha_info[all].set_trx_read_write();
         }
