@@ -2330,7 +2330,7 @@ basement_node_gc_all_les(BASEMENTNODE bn,
     while (index < (num_leafentries_before = bn->data_buffer.omt_size())) {
         void* keyp = NULL;
         uint32_t keylen = 0;
-        LEAFENTRY leaf_entry;
+        LEAFENTRY leaf_entry = 0;
         bn->data_buffer.fetch_klpair(index, &leaf_entry, &keylen, &keyp);
         assert_zero(r);
         ft_basement_node_gc_once(

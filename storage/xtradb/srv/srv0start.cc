@@ -1510,7 +1510,10 @@ init_log_online(void)
 
 /* JAN: TODO: */
 /**********************************************************************************/
+#ifdef UNIV_DEBUG
 extern int timediff(struct timeval *g_time, struct timeval *s_time, struct timeval *d_time);
+#endif
+
 extern ibool buf_flush_start(buf_pool_t* buf_pool, buf_flush_t flush_type);
 extern void buf_flush_end(buf_pool_t* buf_pool, buf_flush_t flush_type);
 extern void buf_flush_common(buf_flush_t flush_type, ulint page_count);
@@ -1676,10 +1679,12 @@ int flush_pool_instance(wrk_t *wi)
 	buf_flush_end(wi->wr.buf_pool, wi->wr.flush_type);
 	buf_flush_common(wi->wr.flush_type, wi->result);
 
+#ifdef UNIV_DEBUG
 	gettimeofday(&p_end_time, 0x0);
 	timediff(&p_end_time, &p_start_time, &d_time);
-
 	wi->t_usec = (unsigned long)(d_time.tv_usec+(d_time.tv_sec*1000000));
+#endif
+
 	return 0;
 }
 

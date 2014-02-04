@@ -1436,7 +1436,9 @@ srv_start_wait_for_purge_to_start()
 
 /* JAN: TODO: */
 /**********************************************************************************/
+#ifdef UNIV_DEBUG
 extern int timediff(struct timeval *g_time, struct timeval *s_time, struct timeval *d_time);
+#endif
 extern ibool buf_flush_start(buf_pool_t* buf_pool, enum buf_flush flush_type);
 extern void buf_flush_end(buf_pool_t* buf_pool, enum buf_flush flush_type);
 extern void buf_flush_common(enum buf_flush flush_type, ulint page_count);
@@ -1545,8 +1547,9 @@ int setup_wrk_itm(int items)
 
 int flush_pool_instance(wrk_t *wi)
 {
+#ifdef UNIV_DEBUG
 	struct timeval p_start_time, p_end_time, d_time;
-
+#endif
 	if (!wi) {
 		fprintf(stderr, "work item invalid wi:%p\n", wi);
 		return -1;
@@ -1575,8 +1578,10 @@ int flush_pool_instance(wrk_t *wi)
 		return -1;
 	}
 
+#ifdef UNIV_DEBUG
 	/* Record time taken for the OP in usec */
 	gettimeofday(&p_start_time, 0x0);
+#endif
 
     	if (wi->wr.flush_type == BUF_FLUSH_LRU) {
         	/* srv_LRU_scan_depth can be arbitrarily large value.
@@ -1595,10 +1600,11 @@ int flush_pool_instance(wrk_t *wi)
 	buf_flush_end(wi->wr.buf_pool, wi->wr.flush_type);
 	buf_flush_common(wi->wr.flush_type, wi->result);
 
+#ifdef UNIV_DEBUG
 	gettimeofday(&p_end_time, 0x0);
 	timediff(&p_end_time, &p_start_time, &d_time);
-
 	wi->t_usec = (unsigned long)(d_time.tv_usec+(d_time.tv_sec*1000000));
+#endif
 	return 0;
 }
 
