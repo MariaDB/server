@@ -277,6 +277,10 @@ extern my_bool srv_use_atomic_writes;
 /* If this flag IS TRUE, then we use lz4 to compress/decompress pages */
 extern my_bool srv_use_lz4;
 
+/* Number of flush threads */
+#define MTFLUSH_MAX_WORKER       64
+extern ulint    srv_mtflush_threads;
+
 /** Server undo tablespaces directory, can be absolute path. */
 extern char*	srv_undo_dir;
 

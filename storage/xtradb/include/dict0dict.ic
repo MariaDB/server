@@ -873,7 +873,6 @@ dict_tf_set(
 		(awrites == ATOMIC_WRITES_DEFAULT && srv_use_atomic_writes )) {
 		*flags |= (1 << DICT_TF_POS_ATOMIC_BLOBS);
 	}
-
 }
 
 /********************************************************************//**

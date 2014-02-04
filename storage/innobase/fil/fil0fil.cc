@@ -1280,7 +1280,6 @@ fil_space_create(
 	DBUG_EXECUTE_IF("fil_space_create_failure", return(false););
 
 	ut_a(fil_system);
-	ut_a(fsp_flags_is_valid(flags));
 
 	/* Look for a matching tablespace and if found free it. */
 	do {

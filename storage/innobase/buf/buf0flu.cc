@@ -46,6 +46,7 @@ Created 11/11/1995 Heikki Tuuri
 #include "ibuf0ibuf.h"
 #include "log0log.h"
 #include "os0file.h"
+#include "os0sync.h"
 #include "trx0sys.h"
 #include "srv0mon.h"
 #include "mysql/plugin.h"
@@ -1934,11 +1935,16 @@ buf_flush_LRU(
 /* JAN: TODO: */
 /*******************************************************************//**/
 extern int is_pgcomp_wrk_init_done(void);
-extern int pgcomp_flush_work_items(int buf_pool_inst, int *pages_flushed,
-        int flush_type, int min_n, unsigned long long lsn_limit);
+extern int pgcomp_flush_work_items(
+	int buf_pool_inst,
+	int *pages_flushed,
+        enum buf_flush flush_type,
+	int min_n,
+	lsn_t lsn_limit);
 
 #define	MT_COMP_WATER_MARK	50
 
+#ifdef UNIV_DEBUG
 #include <time.h>
 int timediff(struct timeval *g_time, struct timeval *s_time, struct timeval *d_time)
 {
@@ -1959,8 +1965,15 @@ int timediff(struct timeval *g_time, struct timeval *s_time, struct timeval *d_t
 
 	return 0;
 }
+#endif
 
-static pthread_mutex_t  pgcomp_mtx = PTHREAD_MUTEX_INITIALIZER;
+static os_fast_mutex_t pgcomp_mtx;
+
+void pgcomp_init(void)
+{
+	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &pgcomp_mtx);
+}
+
 /*******************************************************************//**
 Multi-threaded version of buf_flush_list
 */
@@ -1983,7 +1996,10 @@ pgcomp_buf_flush_list(
 {
 	ulint		i;
 	bool		success = true;
+#ifdef UNIV_DEBUG
 	struct timeval p_start_time, p_end_time, d_time;
+#endif
+	int cnt_flush[MTFLUSH_MAX_WORKER];
 
 	if (n_processed) {
 		*n_processed = 0;
@@ -2001,96 +2017,34 @@ pgcomp_buf_flush_list(
 #ifdef UNIV_DEBUG
 	gettimeofday(&p_start_time, 0x0);
 #endif
-	if(is_pgcomp_wrk_init_done() && (min_n > MT_COMP_WATER_MARK)) {
-		int cnt_flush[32];
+	os_fast_mutex_lock(&pgcomp_mtx);
+	pgcomp_flush_work_items(srv_buf_pool_instances,
+                cnt_flush, BUF_FLUSH_LIST,
+                min_n, lsn_limit);
+	os_fast_mutex_unlock(&pgcomp_mtx);
 
-		//stack_trace();
-		pthread_mutex_lock(&pgcomp_mtx);
-		//gettimeofday(&p_start_time, 0x0);
-		//fprintf(stderr, "Calling into wrk-pgcomp [min:%lu]", min_n);
-		pgcomp_flush_work_items(srv_buf_pool_instances,
-					cnt_flush, BUF_FLUSH_LIST,
-					min_n, lsn_limit);
-
-		for (i = 0; i < srv_buf_pool_instances; i++) {
-			if (n_processed) {
-				*n_processed += cnt_flush[i];
-			}
-			if (cnt_flush[i]) {
-				MONITOR_INC_VALUE_CUMULATIVE(
-					MONITOR_FLUSH_BATCH_TOTAL_PAGE,
-					MONITOR_FLUSH_BATCH_COUNT,
-					MONITOR_FLUSH_BATCH_PAGES,
-					cnt_flush[i]);
-
-			}
-		}
-
-		pthread_mutex_unlock(&pgcomp_mtx);
-
-#ifdef UNIV_DEBUG
-		gettimeofday(&p_end_time, 0x0);
-		timediff(&p_end_time, &p_start_time, &d_time);
-		fprintf(stderr, "[1] [*n_processed: (min:%lu)%lu %llu usec]\n", (
-				min_n * srv_buf_pool_instances), *n_processed,
-				(unsigned long long)(d_time.tv_usec+(d_time.tv_sec*1000000)));
-#endif
-		return(success);
-	}
-	/* Flush to lsn_limit in all buffer pool instances */
 	for (i = 0; i < srv_buf_pool_instances; i++) {
-		buf_pool_t*	buf_pool;
-		ulint		page_count = 0;
-
-		buf_pool = buf_pool_from_array(i);
-
-		if (!buf_flush_start(buf_pool, BUF_FLUSH_LIST)) {
-			/* We have two choices here. If lsn_limit was
-			specified then skipping an instance of buffer
-			pool means we cannot guarantee that all pages
-			up to lsn_limit has been flushed. We can
-			return right now with failure or we can try
-			to flush remaining buffer pools up to the
-			lsn_limit. We attempt to flush other buffer
-			pools based on the assumption that it will
-			help in the retry which will follow the
-			failure. */
-			success = false;
-
-			continue;
-		}
-
-		page_count = buf_flush_batch(
-			buf_pool, BUF_FLUSH_LIST, min_n, lsn_limit);
-
-		buf_flush_end(buf_pool, BUF_FLUSH_LIST);
-
-		buf_flush_common(BUF_FLUSH_LIST, page_count);
-
 		if (n_processed) {
-			*n_processed += page_count;
+			*n_processed += cnt_flush[i];
 		}
-
-		if (page_count) {
+		if (cnt_flush[i]) {
 			MONITOR_INC_VALUE_CUMULATIVE(
 				MONITOR_FLUSH_BATCH_TOTAL_PAGE,
 				MONITOR_FLUSH_BATCH_COUNT,
 				MONITOR_FLUSH_BATCH_PAGES,
-				page_count);
+				cnt_flush[i]);
 		}
 	}
-
-#if UNIV_DEBUG
+#ifdef UNIV_DEBUG
 	gettimeofday(&p_end_time, 0x0);
 	timediff(&p_end_time, &p_start_time, &d_time);
-
-	fprintf(stderr, "[2] [*n_processed: (min:%lu)%lu %llu usec]\n", (
-			min_n * srv_buf_pool_instances), *n_processed,
-			(unsigned long long)(d_time.tv_usec+(d_time.tv_sec*1000000)));
+	fprintf(stderr, "%s: [1] [*n_processed: (min:%lu)%lu %llu usec]\n",
+		__FUNCTION__, (min_n * srv_buf_pool_instances), *n_processed,
+		(unsigned long long)(d_time.tv_usec+(d_time.tv_sec*1000000)));
 #endif
 	return(success);
 }
-#endif
+
 /* JAN: TODO: END: */
 
 /*******************************************************************//**
@@ -2292,18 +2246,21 @@ ulint
 pgcomp_buf_flush_LRU_tail(void)
 /*====================*/
 {
+#ifdef UNIV_DEBUG
 	struct  timeval p_start_time, p_end_time, d_time;
+#endif
 	ulint   total_flushed=0, i=0;
 	int cnt_flush[32];
 
-#if UNIV_DEBUG
+#ifdef UNIV_DEBUG
 	gettimeofday(&p_start_time, 0x0);
 #endif
-	assert(is_pgcomp_wrk_init_done());
+	ut_ad(is_pgcomp_wrk_init_done());
 
-	pthread_mutex_lock(&pgcomp_mtx);
+	os_fast_mutex_lock(&pgcomp_mtx);
 	pgcomp_flush_work_items(srv_buf_pool_instances,
 		cnt_flush, BUF_FLUSH_LRU, srv_LRU_scan_depth, 0);
+	os_fast_mutex_unlock(&pgcomp_mtx);
 
 	for (i = 0; i < srv_buf_pool_instances; i++) {
 		if (cnt_flush[i]) {
@@ -2316,8 +2273,6 @@ pgcomp_buf_flush_LRU_tail(void)
 			        cnt_flush[i]);
 		}
 	}
-
-	pthread_mutex_unlock(&pgcomp_mtx);
 
 #if UNIV_DEBUG
 	gettimeofday(&p_end_time, 0x0);
@@ -2894,6 +2849,7 @@ buf_flush_validate(
 }
 
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
+#endif /* !UNIV_HOTBACKUP */
 
 
 #ifdef UNIV_DEBUG

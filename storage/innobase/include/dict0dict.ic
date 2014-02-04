@@ -859,6 +859,10 @@ dict_tf_set(
 	if (awrites != ATOMIC_WRITES_DEFAULT) {
 		*flags |= (atomic_writes << DICT_TF_POS_ATOMIC_WRITES);
 		ut_ad(dict_tf_get_atomic_writes(*flags) == awrites);
+	}
+
+	if (awrites == ATOMIC_WRITES_ON ||
+		(awrites == ATOMIC_WRITES_DEFAULT && srv_use_atomic_writes )) {
 		*flags |= (1 << DICT_TF_POS_ATOMIC_BLOBS);
 	}
 

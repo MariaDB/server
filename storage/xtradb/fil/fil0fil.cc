@@ -1323,7 +1323,6 @@ fil_space_create(
 	DBUG_EXECUTE_IF("fil_space_create_failure", return(false););
 
 	ut_a(fil_system);
-	ut_a(fsp_flags_is_valid(flags));
 
 	/* Look for a matching tablespace and if found free it. */
 	do {
@@ -4989,20 +4988,41 @@ retry:
 
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
+		ulint n_pages = size_after_extend;
 
-		success = os_file_set_size(node->name, node->handle,
-					   (size_after_extend
-					    - file_start_page_no) * page_size);
+		success = os_file_set_size(node->name, node->handle, n_pages * page_size);
+
+		/* Temporal solution: In directFS using atomic writes
+		we must use posix_fallocate to extend the file because
+		pwrite past end of file fails but when compression is
+		used the file pages must be physically initialized with
+		zeroes, thus after file extend with posix_fallocate
+		we still write empty pages to file. */
+		if (success &&
+			srv_use_atomic_writes &&
+			srv_compress_pages) {
+			goto extend_file;
+		}
+
 		mutex_enter(&fil_system->mutex);
+
 		if (success) {
-			node->size += (size_after_extend - start_page_no);
-			space->size += (size_after_extend - start_page_no);
+			node->size += n_pages;
+			space->size += n_pages;
 			os_has_said_disk_full = FALSE;
 		}
-		node->being_extended = FALSE;
+
+		/* If posix_fallocate was used to extent the file space
+		we need to complete the io. Because no actual writes were
+		dispatched read operation is enough here. Without this
+		there will be assertion at shutdown indicating that
+		all IO is not completed. */
+		fil_node_complete_io(node, fil_system, OS_FILE_READ);
 		goto complete_io;
 	}
 #endif
+
+extend_file:
 
 	/* Extend at most 64 pages at a time */
 	buf_size = ut_min(64, size_after_extend - start_page_no) * page_size;
@@ -5057,24 +5077,11 @@ retry:
 
 	space->size += pages_added;
 	node->size += pages_added;
-	node->being_extended = FALSE;
 
-#ifdef HAVE_POSIX_FALLOCATE
-complete_io:
-	/* If posix_fallocate was used to extent the file space
-	we need to complete the io. Because no actual writes were
-	dispatched read operation is enough here. Without this
-	there will be assertion at shutdown indicating that
-	all IO is not completed. */
-	if (srv_use_posix_fallocate) {
-		fil_node_complete_io(node, fil_system, OS_FILE_READ);
-	} else {
-		fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
-	}
-#else
 	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
-#endif
 
+complete_io:
+	node->being_extended = FALSE;
 	*actual_size = space->size;
 
 #ifndef UNIV_HOTBACKUP
