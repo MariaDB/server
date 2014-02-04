@@ -394,10 +394,21 @@ IF(WITH_INNODB)
   SET(WITH_INNOBASE_STORAGE_ENGINE TRUE)
 ENDIF()
 
+# On solaris, reduce symbol visibility, so loader does not mix
+# the same symbols from builtin innodb and from shared one.
+# Only required for old GCC (3.4.3) that does not support hidden visibility
+IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_COMPILER_IS_GNUCC 
+    AND NOT HAVE_VISIBILITY_HIDDEN)
+  SET(LINKER_SCRIPT "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/plugin_exports")
+ELSE()
+  SET(LINKER_SCRIPT)
+ENDIF()
+
 IF(XTRADB_OK)
   MYSQL_ADD_PLUGIN(xtradb ${INNOBASE_SOURCES} STORAGE_ENGINE
     MODULE_ONLY RECOMPILE_FOR_EMBEDDED
-    LINK_LIBRARIES ${ZLIB_LIBRARY})
+    LINK_LIBRARIES ${ZLIB_LIBRARY} ${LINKER_SCRIPT})
 ELSE()
   MESSAGE("Percona XtraDB is not supported on this platform")
 ENDIF()
+
