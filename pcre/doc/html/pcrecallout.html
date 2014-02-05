@@ -77,15 +77,50 @@ independent groups).
 Automatic callouts can be used for tracking the progress of pattern matching.
 The
 <a href="pcretest.html"><b>pcretest</b></a>
-command has an option that sets automatic callouts; when it is used, the output
-indicates how the pattern is matched. This is useful information when you are
-trying to optimize the performance of a particular pattern.
+program has a pattern qualifier (/C) that sets automatic callouts; when it is
+used, the output indicates how the pattern is being matched. This is useful
+information when you are trying to optimize the performance of a particular
+pattern.
 </P>
 <br><a name="SEC3" href="#TOC1">MISSING CALLOUTS</a><br>
 <P>
-You should be aware that, because of optimizations in the way PCRE matches
-patterns by default, callouts sometimes do not happen. For example, if the
-pattern is
+You should be aware that, because of optimizations in the way PCRE compiles and
+matches patterns, callouts sometimes do not happen exactly as you might expect.
+</P>
+<P>
+At compile time, PCRE "auto-possessifies" repeated items when it knows that
+what follows cannot be part of the repeat. For example, a+[bc] is compiled as
+if it were a++[bc]. The <b>pcretest</b> output when this pattern is anchored and
+then applied with automatic callouts to the string "aaaa" is:
+<pre>
+  ---&#62;aaaa
+   +0 ^        ^
+   +1 ^        a+
+   +3 ^   ^    [bc]
+  No match
+</pre>
+This indicates that when matching [bc] fails, there is no backtracking into a+
+and therefore the callouts that would be taken for the backtracks do not occur.
+You can disable the auto-possessify feature by passing PCRE_NO_AUTO_POSSESS
+to <b>pcre_compile()</b>, or starting the pattern with (*NO_AUTO_POSSESS). If
+this is done in <b>pcretest</b> (using the /O qualifier), the output changes to
+this:
+<pre>
+  ---&#62;aaaa
+   +0 ^        ^
+   +1 ^        a+
+   +3 ^   ^    [bc]
+   +3 ^  ^     [bc]
+   +3 ^ ^      [bc]
+   +3 ^^       [bc]
+  No match
+</pre>
+This time, when matching [bc] fails, the matcher backtracks into a+ and tries
+again, repeatedly, until a+ itself fails.
+</P>
+<P>
+Other optimizations that provide fast "no match" results also affect callouts.
+For example, if the pattern is
 <pre>
   ab(?C4)cd
 </pre>
@@ -109,11 +144,11 @@ callouts such as the example above are obeyed.
 <br><a name="SEC4" href="#TOC1">THE CALLOUT INTERFACE</a><br>
 <P>
 During matching, when PCRE reaches a callout point, the external function
-defined by <i>pcre_callout</i> or <i>pcre[16|32]_callout</i> is called
-(if it is set). This applies to both normal and DFA matching. The only
-argument to the callout function is a pointer to a <b>pcre_callout</b>
-or <b>pcre[16|32]_callout</b> block.
-These structures contains the following fields:
+defined by <i>pcre_callout</i> or <i>pcre[16|32]_callout</i> is called (if it is
+set). This applies to both normal and DFA matching. The only argument to the
+callout function is a pointer to a <b>pcre_callout</b> or
+<b>pcre[16|32]_callout</b> block. These structures contains the following
+fields:
 <pre>
   int           <i>version</i>;
   int           <i>callout_number</i>;
@@ -242,7 +277,7 @@ Cambridge CB2 3QH, England.
 </P>
 <br><a name="SEC7" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 03 March 2013
+Last updated: 12 November 2013
 <br>
 Copyright &copy; 1997-2013 University of Cambridge.
 <br>

@@ -1,6 +1,8 @@
 /-- This set of tests is for features that are compatible with all versions of
-    Perl >= 5.10, in non-UTF-8 mode. It should run clean for both the 8-bit and
-    16-bit PCRE libraries. --/
+    Perl >= 5.10, in non-UTF-8 mode. It should run clean for the 8-bit, 16-bit,
+    and 32-bit PCRE libraries. --/
+    
+< forbid 89?=ABCDEFfGILMNPTUWXZ<
 
 /the quick brown fox/
     the quick brown fox
@@ -1483,14 +1485,19 @@
     abc\100\x30
     abc\100\060
     abc\100\60
+    
+/^A\8B\9C$/
+    A8B9C
+    *** Failers
+    A\08B\09C  
+    
+/^(A)(B)(C)(D)(E)(F)(G)(H)(I)\8\9$/
+    ABCDEFGHIHI 
 
-/abc\81/
-    abc\081
-    abc\0\x38\x31
-
-/abc\91/
-    abc\091
-    abc\0\x39\x31
+/^[A\8B\9C]+$/
+    A8B9C
+    *** Failers 
+    A8B9C\x00
 
 /(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)(k)(l)\12\123/
     abcdefghijkllS
@@ -3654,13 +3661,6 @@
 /a*/g
     abbab
 
-/^[a-\d]/
-    abcde
-    -things
-    0digit
-    *** Failers
-    bcdef    
-
 /^[\d-a]/
     abcde
     -things
@@ -4220,9 +4220,6 @@
 /(?=(a))??./
     ab
     bc
-
-/^(?=(a)){0}b(?1)/
-    backgammon
 
 /^(?=(?1))?[az]([abc])d/
     abd 
@@ -5607,5 +5604,66 @@ AbcdCBefgBhiBqz
 /^a*\w{4}/i
     aaaa
     aaa     
+
+/(?(?=ab)ab)/+
+    ca
+    cd 
+
+/(?:(?<n>foo)|(?<n>bar))\k<n>/J
+    foofoo
+    barbar
+
+/(?<n>A)(?:(?<n>foo)|(?<n>bar))\k<n>/J
+    AfooA
+    AbarA  
+    ** Failers 
+    Afoofoo
+    Abarbar
+
+/^(\d+)\s+IN\s+SOA\s+(\S+)\s+(\S+)\s*\(\s*$/
+    1 IN SOA non-sp1 non-sp2(
+
+/^ (?:(?<A>A)|(?'B'B)(?<A>A)) (?('A')x) (?(<B>)y)$/xJ
+    Ax
+    BAxy 
+    
+/^A\xZ/
+    A\0Z 
+
+/^A\o{123}B/
+    A\123B
+
+/ ^ a + + b $ /x
+    aaaab
+    
+/ ^ a + #comment
+  + b $ /x
+    aaaab
+    
+/ ^ a + #comment
+  #comment
+  + b $ /x
+    aaaab
+    
+/ ^ (?> a + ) b $ /x
+    aaaab 
+
+/ ^ ( a + ) + + \w $ /x
+    aaaab 
+
+/(?:a\Kb)*+/+
+    ababc
+
+/(?>a\Kb)*/+
+    ababc
+
+/(?:a\Kb)*/+
+    ababc
+
+/(a\Kb)*+/+
+    ababc
+
+/(a\Kb)*/+
+    ababc
 
 /-- End of testinput1 --/

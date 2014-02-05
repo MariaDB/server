@@ -6,18 +6,16 @@ PCRE - Perl-compatible regular expressions
 .sp
 .B #include <pcre.h>
 .PP
-.SM
+.nf
 .B int pcre_pattern_to_host_byte_order(pcre *\fIcode\fP,
-.ti +5n
-.B pcre_extra *\fIextra\fP, const unsigned char *\fItables\fP);
-.PP
+.B "     pcre_extra *\fIextra\fP, const unsigned char *\fItables\fP);"
+.sp
 .B int pcre16_pattern_to_host_byte_order(pcre16 *\fIcode\fP,
-.ti +5n
-.B pcre16_extra *\fIextra\fP, const unsigned char *\fItables\fP);
-.PP
+.B "     pcre16_extra *\fIextra\fP, const unsigned char *\fItables\fP);"
+.sp
 .B int pcre32_pattern_to_host_byte_order(pcre32 *\fIcode\fP,
-.ti +5n
-.B pcre32_extra *\fIextra\fP, const unsigned char *\fItables\fP);
+.B "     pcre32_extra *\fIextra\fP, const unsigned char *\fItables\fP);"
+.fi
 .
 .SH DESCRIPTION
 .rs

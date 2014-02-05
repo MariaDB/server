@@ -1,5 +1,7 @@
 /-- Tests for the 16-bit library with UTF-16 support only */
 
+< forbid W
+
 /bad/8
     \x{d800}
 Error -10 (bad UTF-16 string) offset=0 reason=1

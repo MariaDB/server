@@ -1,4 +1,4 @@
-.TH PCREPATTERN 3 "26 April 2013" "PCRE 8.33"
+.TH PCREPATTERN 3 "03 December 2013" "PCRE 8.34"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .SH "PCRE REGULAR EXPRESSION DETAILS"
@@ -80,21 +80,37 @@ appearance causes an error.
 .SS "Unicode property support"
 .rs
 .sp
-Another special sequence that may appear at the start of a pattern is
-.sp
-  (*UCP)
-.sp
+Another special sequence that may appear at the start of a pattern is (*UCP).
 This has the same effect as setting the PCRE_UCP option: it causes sequences
 such as \ed and \ew to use Unicode properties to determine character types,
 instead of recognizing only characters with codes less than 128 via a lookup
 table.
 .
 .
+.SS "Disabling auto-possessification"
+.rs
+.sp
+If a pattern starts with (*NO_AUTO_POSSESS), it has the same effect as setting
+the PCRE_NO_AUTO_POSSESS option at compile time. This stops PCRE from making
+quantifiers possessive when what follows cannot match the repeated item. For
+example, by default a+b is treated as a++b. For more details, see the
+.\" HREF
+\fBpcreapi\fP
+.\"
+documentation.
+.
+.
 .SS "Disabling start-up optimizations"
 .rs
 .sp
 If a pattern starts with (*NO_START_OPT), it has the same effect as setting the
-PCRE_NO_START_OPTIMIZE option either at compile or matching time.
+PCRE_NO_START_OPTIMIZE option either at compile or matching time. This disables
+several optimizations for quickly reaching "no match" results. For more
+details, see the
+.\" HREF
+\fBpcreapi\fP
+.\"
+documentation.
 .
 .
 .\" HTML <a name="newlines"></a>
@@ -164,10 +180,10 @@ pattern of the form
   (*LIMIT_RECURSION=d)
 .sp
 where d is any number of decimal digits. However, the value of the setting must
-be less than the value set by the caller of \fBpcre_exec()\fP for it to have
-any effect. In other words, the pattern writer can lower the limit set by the
-programmer, but not raise it. If there is more than one setting of one of these
-limits, the lower value is used.
+be less than the value set (or defaulted) by the caller of \fBpcre_exec()\fP
+for it to have any effect. In other words, the pattern writer can lower the
+limits set by the programmer, but not raise them. If there is more than one
+setting of one of these limits, the lower value is used.
 .
 .
 .SH "EBCDIC CHARACTER CODES"
@@ -257,10 +273,11 @@ In a UTF mode, only ASCII numbers and letters have any special meaning after a
 backslash. All other characters (in particular, those whose codepoints are
 greater than 127) are treated as literals.
 .P
-If a pattern is compiled with the PCRE_EXTENDED option, white space in the
-pattern (other than in a character class) and characters between a # outside
-a character class and the next newline are ignored. An escaping backslash can
-be used to include a white space or # character as part of the pattern.
+If a pattern is compiled with the PCRE_EXTENDED option, most white space in the
+pattern (other than in a character class), and characters between a # outside a
+character class and the next newline, inclusive, are ignored. An escaping
+backslash can be used to include a white space or # character as part of the
+pattern.
 .P
 If you want to remove the special meaning from a sequence of characters, you
 can do so by putting them between \eQ and \eE. This is different from Perl in
@@ -300,7 +317,9 @@ one of the following escape sequences than the binary character it represents:
   \en        linefeed (hex 0A)
   \er        carriage return (hex 0D)
   \et        tab (hex 09)
+  \e0dd      character with octal code 0dd
   \eddd      character with octal code ddd, or back reference
+  \eo{ddd..} character with octal code ddd..
   \exhh      character with hex code hh
   \ex{hhh..} character with hex code hhh.. (non-JavaScript mode)
   \euhhhh    character with hex code hhhh (JavaScript mode only)
@@ -321,47 +340,27 @@ byte are inverted. Thus \ecA becomes hex 01, as in ASCII (A is C1), but because
 the EBCDIC letters are disjoint, \ecZ becomes hex 29 (Z is E9), and other
 characters also generate different values.
 .P
-By default, after \ex, from zero to two hexadecimal digits are read (letters
-can be in upper or lower case). Any number of hexadecimal digits may appear
-between \ex{ and }, but the character code is constrained as follows:
-.sp
-  8-bit non-UTF mode    less than 0x100
-  8-bit UTF-8 mode      less than 0x10ffff and a valid codepoint
-  16-bit non-UTF mode   less than 0x10000
-  16-bit UTF-16 mode    less than 0x10ffff and a valid codepoint
-  32-bit non-UTF mode   less than 0x80000000
-  32-bit UTF-32 mode    less than 0x10ffff and a valid codepoint
-.sp
-Invalid Unicode codepoints are the range 0xd800 to 0xdfff (the so-called
-"surrogate" codepoints), and 0xffef.
-.P
-If characters other than hexadecimal digits appear between \ex{ and }, or if
-there is no terminating }, this form of escape is not recognized. Instead, the
-initial \ex will be interpreted as a basic hexadecimal escape, with no
-following digits, giving a character whose value is zero.
-.P
-If the PCRE_JAVASCRIPT_COMPAT option is set, the interpretation of \ex is
-as just described only when it is followed by two hexadecimal digits.
-Otherwise, it matches a literal "x" character. In JavaScript mode, support for
-code points greater than 256 is provided by \eu, which must be followed by
-four hexadecimal digits; otherwise it matches a literal "u" character.
-Character codes specified by \eu in JavaScript mode are constrained in the same
-was as those specified by \ex in non-JavaScript mode.
-.P
-Characters whose value is less than 256 can be defined by either of the two
-syntaxes for \ex (or by \eu in JavaScript mode). There is no difference in the
-way they are handled. For example, \exdc is exactly the same as \ex{dc} (or
-\eu00dc in JavaScript mode).
-.P
 After \e0 up to two further octal digits are read. If there are fewer than two
 digits, just those that are present are used. Thus the sequence \e0\ex\e07
 specifies two binary zeros followed by a BEL character (code value 7). Make
 sure you supply two digits after the initial zero if the pattern character that
 follows is itself an octal digit.
 .P
-The handling of a backslash followed by a digit other than 0 is complicated.
-Outside a character class, PCRE reads it and any following digits as a decimal
-number. If the number is less than 10, or if there have been at least that many
+The escape \eo must be followed by a sequence of octal digits, enclosed in
+braces. An error occurs if this is not the case. This escape is a recent
+addition to Perl; it provides way of specifying character code points as octal
+numbers greater than 0777, and it also allows octal numbers and back references
+to be unambiguously specified.
+.P
+For greater clarity and unambiguity, it is best to avoid following \e by a
+digit greater than zero. Instead, use \eo{} or \ex{} to specify character
+numbers, and \eg{} to specify back references. The following paragraphs
+describe the old, ambiguous syntax.
+.P
+The handling of a backslash followed by a digit other than 0 is complicated,
+and Perl has changed in recent releases, causing PCRE also to change. Outside a
+character class, PCRE reads the digit and any following digits as a decimal
+number. If the number is less than 8, or if there have been at least that many
 previous capturing left parentheses in the expression, the entire sequence is
 taken as a \fIback reference\fP. A description of how this works is given
 .\" HTML <a href="#backreferences">
@@ -374,12 +373,11 @@ following the discussion of
 parenthesized subpatterns.
 .\"
 .P
-Inside a character class, or if the decimal number is greater than 9 and there
-have not been that many capturing subpatterns, PCRE re-reads up to three octal
-digits following the backslash, and uses them to generate a data character. Any
-subsequent digits stand for themselves. The value of the character is
-constrained in the same way as characters specified in hexadecimal.
-For example:
+Inside a character class, or if the decimal number following \e is greater than
+7 and there have not been that many capturing subpatterns, PCRE handles \e8 and
+\e9 as the literal characters "8" and "9", and otherwise re-reads up to three
+octal digits following the backslash, using them to generate a data character.
+Any subsequent digits stand for themselves. For example:
 .sp
   \e040   is another way of writing an ASCII space
 .\" JOIN
@@ -398,12 +396,51 @@ For example:
   \e377   might be a back reference, otherwise
             the value 255 (decimal)
 .\" JOIN
-  \e81    is either a back reference, or a binary zero
-            followed by the two characters "8" and "1"
+  \e81    is either a back reference, or the two
+            characters "8" and "1"
 .sp
-Note that octal values of 100 or greater must not be introduced by a leading
-zero, because no more than three octal digits are ever read.
+Note that octal values of 100 or greater that are specified using this syntax
+must not be introduced by a leading zero, because no more than three octal
+digits are ever read.
 .P
+By default, after \ex that is not followed by {, from zero to two hexadecimal
+digits are read (letters can be in upper or lower case). Any number of
+hexadecimal digits may appear between \ex{ and }. If a character other than
+a hexadecimal digit appears between \ex{ and }, or if there is no terminating
+}, an error occurs.
+.P
+If the PCRE_JAVASCRIPT_COMPAT option is set, the interpretation of \ex is
+as just described only when it is followed by two hexadecimal digits.
+Otherwise, it matches a literal "x" character. In JavaScript mode, support for
+code points greater than 256 is provided by \eu, which must be followed by
+four hexadecimal digits; otherwise it matches a literal "u" character.
+.P
+Characters whose value is less than 256 can be defined by either of the two
+syntaxes for \ex (or by \eu in JavaScript mode). There is no difference in the
+way they are handled. For example, \exdc is exactly the same as \ex{dc} (or
+\eu00dc in JavaScript mode).
+.
+.
+.SS "Constraints on character values"
+.rs
+.sp
+Characters that are specified using octal or hexadecimal numbers are
+limited to certain values, as follows:
+.sp
+  8-bit non-UTF mode    less than 0x100
+  8-bit UTF-8 mode      less than 0x10ffff and a valid codepoint
+  16-bit non-UTF mode   less than 0x10000
+  16-bit UTF-16 mode    less than 0x10ffff and a valid codepoint
+  32-bit non-UTF mode   less than 0x100000000
+  32-bit UTF-32 mode    less than 0x10ffff and a valid codepoint
+.sp
+Invalid Unicode codepoints are the range 0xd800 to 0xdfff (the so-called
+"surrogate" codepoints), and 0xffef.
+.
+.
+.SS "Escape sequences in character classes"
+.rs
+.sp
 All the sequences that define a single character value can be used both inside
 and outside character classes. In addition, inside a character class, \eb is
 interpreted as the backspace character (hex 08).
@@ -494,11 +531,14 @@ classes. They each match one character of the appropriate type. If the current
 matching point is at the end of the subject string, all of them fail, because
 there is no character to match.
 .P
-For compatibility with Perl, \es does not match the VT character (code 11).
-This makes it different from the the POSIX "space" class. The \es characters
-are HT (9), LF (10), FF (12), CR (13), and space (32). If "use locale;" is
-included in a Perl script, \es may match the VT character. In PCRE, it never
-does.
+For compatibility with Perl, \es did not used to match the VT character (code
+11), which made it different from the the POSIX "space" class. However, Perl
+added VT at release 5.18, and PCRE followed suit at release 8.34. The default
+\es characters are now HT (9), LF (10), VT (11), FF (12), CR (13), and space
+(32), which are defined as white space in the "C" locale. This list may vary if
+locale-specific matching is taking place. For example, in some locales the
+"non-breaking space" character (\exA0) is recognized as white space, and in
+others the VT character is not.
 .P
 A "word" character is an underscore or any character that is a letter or digit.
 By default, the definition of letters and digits is controlled by PCRE's
@@ -513,20 +553,22 @@ in the
 \fBpcreapi\fP
 .\"
 page). For example, in a French locale such as "fr_FR" in Unix-like systems,
-or "french" in Windows, some character codes greater than 128 are used for
+or "french" in Windows, some character codes greater than 127 are used for
 accented letters, and these are then matched by \ew. The use of locales with
 Unicode is discouraged.
 .P
-By default, in a UTF mode, characters with values greater than 128 never match
-\ed, \es, or \ew, and always match \eD, \eS, and \eW. These sequences retain
-their original meanings from before UTF support was available, mainly for
-efficiency reasons. However, if PCRE is compiled with Unicode property support,
-and the PCRE_UCP option is set, the behaviour is changed so that Unicode
-properties are used to determine character types, as follows:
+By default, characters whose code points are greater than 127 never match \ed,
+\es, or \ew, and always match \eD, \eS, and \eW, although this may vary for
+characters in the range 128-255 when locale-specific matching is happening.
+These escape sequences retain their original meanings from before Unicode
+support was available, mainly for efficiency reasons. If PCRE is compiled with
+Unicode property support, and the PCRE_UCP option is set, the behaviour is
+changed so that Unicode properties are used to determine character types, as
+follows:
 .sp
-  \ed  any character that \ep{Nd} matches (decimal digit)
-  \es  any character that \ep{Z} matches, plus HT, LF, FF, CR
-  \ew  any character that \ep{L} or \ep{N} matches, plus underscore
+  \ed  any character that matches \ep{Nd} (decimal digit)
+  \es  any character that matches \ep{Z} or \eh or \ev
+  \ew  any character that matches \ep{L} or \ep{N}, plus underscore
 .sp
 The upper case escapes match the inverse sets of characters. Note that \ed
 matches only decimal digits, whereas \ew matches any Unicode digit, as well as
@@ -536,7 +578,7 @@ is noticeably slower when PCRE_UCP is set.
 .P
 The sequences \eh, \eH, \ev, and \eV are features that were added to Perl at
 release 5.10. In contrast to the other sequences, which match only ASCII
-characters by default, these always match certain high-valued codepoints,
+characters by default, these always match certain high-valued code points,
 whether or not PCRE_UCP is set. The horizontal space characters are:
 .sp
   U+0009     Horizontal tab (HT)
@@ -906,9 +948,9 @@ the "mark" property always have the "extend" grapheme breaking property.
 .sp
 As well as the standard Unicode properties described above, PCRE supports four
 more that make it possible to convert traditional escape sequences such as \ew
-and \es and POSIX character classes to use Unicode properties. PCRE uses these
-non-standard, non-Perl properties internally when PCRE_UCP is set. However,
-they may also be used explicitly. These properties are:
+and \es to use Unicode properties. PCRE uses these non-standard, non-Perl
+properties internally when PCRE_UCP is set. However, they may also be used
+explicitly. These properties are:
 .sp
   Xan   Any alphanumeric character
   Xps   Any POSIX space character
@@ -918,8 +960,9 @@ they may also be used explicitly. These properties are:
 Xan matches characters that have either the L (letter) or the N (number)
 property. Xps matches the characters tab, linefeed, vertical tab, form feed, or
 carriage return, and any other character that has the Z (separator) property.
-Xsp is the same as Xps, except that vertical tab is excluded. Xwd matches the
-same characters as Xan, plus underscore.
+Xsp is the same as Xps; it used to exclude vertical tab, for Perl
+compatibility, but Perl changed, and so PCRE followed at release 8.34. Xwd
+matches the same characters as Xan, plus underscore.
 .P
 There is another non-standard property, Xuc, which matches any character that
 can be represented by a Universal Character Name in C++ and other programming
@@ -1215,7 +1258,9 @@ The minus (hyphen) character can be used to specify a range of characters in a
 character class. For example, [d-m] matches any letter between d and m,
 inclusive. If a minus character is required in a class, it must be escaped with
 a backslash or appear in a position where it cannot be interpreted as
-indicating a range, typically as the first or last character in the class.
+indicating a range, typically as the first or last character in the class, or
+immediately after a range. For example, [b-d-z] matches letters in the range b
+to d, a hyphen character, or z.
 .P
 It is not possible to have the literal character "]" as the end character of a
 range. A pattern such as [W-]46] is interpreted as a class of two characters
@@ -1224,6 +1269,11 @@ range. A pattern such as [W-]46] is interpreted as a class of two characters
 the end of range, so [W-\e]46] is interpreted as a class containing a range
 followed by two other characters. The octal or hexadecimal representation of
 "]" can also be used to end a range.
+.P
+An error is generated if a POSIX character class (see below) or an escape
+sequence other than one that defines a single character appears at a point
+where a range ending character is expected. For example, [z-\exff] is valid,
+but [A-\ed] and [A-[:digit:]] are not.
 .P
 Ranges operate in the collating sequence of character values. They can also be
 used for characters specified numerically, for example [\e000-\e037]. Ranges
@@ -1263,9 +1313,9 @@ something AND NOT ...".
 The only metacharacters that are recognized in character classes are backslash,
 hyphen (only where it can be interpreted as specifying a range), circumflex
 (only at the start), opening square bracket (only when it can be interpreted as
-introducing a POSIX class name - see the next section), and the terminating
-closing square bracket. However, escaping other non-alphanumeric characters
-does no harm.
+introducing a POSIX class name, or for a special compatibility feature - see
+the next two sections), and the terminating closing square bracket. However,
+escaping other non-alphanumeric characters does no harm.
 .
 .
 .SH "POSIX CHARACTER CLASSES"
@@ -1290,15 +1340,17 @@ are:
   lower    lower case letters
   print    printing characters, including space
   punct    printing characters, excluding letters and digits and space
-  space    white space (not quite the same as \es)
+  space    white space (the same as \es from PCRE 8.34)
   upper    upper case letters
   word     "word" characters (same as \ew)
   xdigit   hexadecimal digits
 .sp
-The "space" characters are HT (9), LF (10), VT (11), FF (12), CR (13), and
-space (32). Notice that this list includes the VT character (code 11). This
-makes "space" different to \es, which does not include VT (for Perl
-compatibility).
+The default "space" characters are HT (9), LF (10), VT (11), FF (12), CR (13),
+and space (32). If locale-specific matching is taking place, the list of space
+characters may be different; there may be fewer or more of them. "Space" used
+to be different to \es, which did not include VT, for Perl compatibility.
+However, Perl changed at release 5.18, and PCRE followed at release 8.34.
+"Space" and \es now match the same set of characters.
 .P
 The name "word" is a Perl extension, and "blank" is a GNU extension from Perl
 5.8. Another Perl extension is negation, which is indicated by a ^ character
@@ -1310,11 +1362,11 @@ matches "1", "2", or any non-digit. PCRE (and Perl) also recognize the POSIX
 syntax [.ch.] and [=ch=] where "ch" is a "collating element", but these are not
 supported, and an error is given if they are encountered.
 .P
-By default, in UTF modes, characters with values greater than 128 do not match
-any of the POSIX character classes. However, if the PCRE_UCP option is passed
-to \fBpcre_compile()\fP, some of the classes are changed so that Unicode
-character properties are used. This is achieved by replacing the POSIX classes
-by other sequences, as follows:
+By default, characters with values greater than 128 do not match any of the
+POSIX character classes. However, if the PCRE_UCP option is passed to
+\fBpcre_compile()\fP, some of the classes are changed so that Unicode character
+properties are used. This is achieved by replacing certain POSIX classes by
+other sequences, as follows:
 .sp
   [:alnum:]  becomes  \ep{Xan}
   [:alpha:]  becomes  \ep{L}
@@ -1325,9 +1377,54 @@ by other sequences, as follows:
   [:upper:]  becomes  \ep{Lu}
   [:word:]   becomes  \ep{Xwd}
 .sp
-Negated versions, such as [:^alpha:] use \eP instead of \ep. The other POSIX
-classes are unchanged, and match only characters with code points less than
-128.
+Negated versions, such as [:^alpha:] use \eP instead of \ep. Three other POSIX
+classes are handled specially in UCP mode:
+.TP 10
+[:graph:]
+This matches characters that have glyphs that mark the page when printed. In
+Unicode property terms, it matches all characters with the L, M, N, P, S, or Cf
+properties, except for:
+.sp
+  U+061C           Arabic Letter Mark
+  U+180E           Mongolian Vowel Separator
+  U+2066 - U+2069  Various "isolate"s
+.sp
+.TP 10
+[:print:]
+This matches the same characters as [:graph:] plus space characters that are
+not controls, that is, characters with the Zs property.
+.TP 10
+[:punct:]
+This matches all characters that have the Unicode P (punctuation) property,
+plus those characters whose code points are less than 128 that have the S
+(Symbol) property.
+.P
+The other POSIX classes are unchanged, and match only characters with code
+points less than 128.
+.
+.
+.SH "COMPATIBILITY FEATURE FOR WORD BOUNDARIES"
+.rs
+.sp
+In the POSIX.2 compliant library that was included in 4.4BSD Unix, the ugly
+syntax [[:<:]] and [[:>:]] is used for matching "start of word" and "end of
+word". PCRE treats these items as follows:
+.sp
+  [[:<:]]  is converted to  \eb(?=\ew)
+  [[:>:]]  is converted to  \eb(?<=\ew)
+.sp
+Only these exact character sequences are recognized. A sequence such as
+[a[:<:]b] provokes error for an unrecognized POSIX class name. This support is
+not compatible with Perl. It is provided to help migrations from other
+environments, and is best not used in any new patterns. Note that \eb matches
+at the start and the end of a word (see
+.\" HTML <a href="#smallassertions">
+.\" </a>
+"Simple assertions"
+.\"
+above), and in a Perl-style pattern the preceding or following character
+normally shows which is wanted, without the need for the assertions that are
+used above in order to give exactly the POSIX behaviour.
 .
 .
 .SH "VERTICAL BAR"
@@ -1547,11 +1644,12 @@ conditions,
 .\"
 can be made by name as well as by number.
 .P
-Names consist of up to 32 alphanumeric characters and underscores. Named
-capturing parentheses are still allocated numbers as well as names, exactly as
-if the names were not present. The PCRE API provides function calls for
-extracting the name-to-number translation table from a compiled pattern. There
-is also a convenience function for extracting a captured substring by name.
+Names consist of up to 32 alphanumeric characters and underscores, but must
+start with a non-digit. Named capturing parentheses are still allocated numbers
+as well as names, exactly as if the names were not present. The PCRE API
+provides function calls for extracting the name-to-number translation table
+from a compiled pattern. There is also a convenience function for extracting a
+captured substring by name.
 .P
 By default, a name must be unique within a pattern, but it is possible to relax
 this constraint by setting the PCRE_DUPNAMES option at compile time. (Duplicate
@@ -1577,9 +1675,20 @@ for the first (and in this example, the only) subpattern of that name that
 matched. This saves searching to find which numbered subpattern it was.
 .P
 If you make a back reference to a non-unique named subpattern from elsewhere in
-the pattern, the one that corresponds to the first occurrence of the name is
-used. In the absence of duplicate numbers (see the previous section) this is
-the one with the lowest number. If you use a named reference in a condition
+the pattern, the subpatterns to which the name refers are checked in the order
+in which they appear in the overall pattern. The first one that is set is used
+for the reference. For example, this pattern matches both "foofoo" and
+"barbar" but not "foobar" or "barfoo":
+.sp
+  (?:(?<n>foo)|(?<n>bar))\ek<n>
+.sp
+.P
+If you make a subroutine call to a non-unique named subpattern, the one that
+corresponds to the first occurrence of the name is used. In the absence of
+duplicate numbers (see the previous section) this is the one with the lowest
+number.
+.P
+If you use a named reference in a condition
 test (see the
 .\"
 .\" HTML <a href="#conditions">
@@ -1599,8 +1708,9 @@ documentation.
 \fBWarning:\fP You cannot use different names to distinguish between two
 subpatterns with the same number because PCRE uses only the numbers when
 matching. For this reason, an error is given at compile time if different names
-are given to subpatterns with the same number. However, you can give the same
-name to subpatterns with the same number, even when PCRE_DUPNAMES is not set.
+are given to subpatterns with the same number. However, you can always give the
+same name to subpatterns with the same number, even when PCRE_DUPNAMES is not
+set.
 .
 .
 .SH REPETITION
@@ -2271,12 +2381,7 @@ This makes the fragment independent of the parentheses in the larger pattern.
 .sp
 Perl uses the syntax (?(<name>)...) or (?('name')...) to test for a used
 subpattern by name. For compatibility with earlier versions of PCRE, which had
-this facility before Perl, the syntax (?(name)...) is also recognized. However,
-there is a possible ambiguity with this syntax, because subpattern names may
-consist entirely of digits. PCRE looks first for a named subpattern; if it
-cannot find one and the name consists entirely of digits, PCRE looks for a
-subpattern of that number, which must be greater than zero. Using subpattern
-names that consist entirely of digits is not recommended.
+this facility before Perl, the syntax (?(name)...) is also recognized.
 .P
 Rewriting the above example to use a named subpattern gives this:
 .sp
@@ -2698,8 +2803,13 @@ During matching, when PCRE reaches a callout point, the external function is
 called. It is provided with the number of the callout, the position in the
 pattern, and, optionally, one item of data originally supplied by the caller of
 the matching function. The callout function may cause matching to proceed, to
-backtrack, or to fail altogether. A complete description of the interface to
-the callout function is given in the
+backtrack, or to fail altogether.
+.P
+By default, PCRE implements a number of optimizations at compile time and
+matching time, and one side-effect is that sometimes callouts are skipped. If
+you need all possible callouts to happen, you need to set options that disable
+the relevant optimizations. More details, and a complete description of the
+interface to the callout function, are given in the
 .\" HREF
 \fBpcrecallout\fP
 .\"
@@ -3060,7 +3170,7 @@ example:
 .sp
   ...(*COMMIT)(*PRUNE)...
 .sp
-If there is a matching failure to the right, backtracking onto (*PRUNE) cases
+If there is a matching failure to the right, backtracking onto (*PRUNE) causes
 it to be triggered, and its action is taken. There can never be a backtrack
 onto (*COMMIT).
 .
@@ -3145,6 +3255,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 26 April 2013
+Last updated: 03 December 2013
 Copyright (c) 1997-2013 University of Cambridge.
 .fi

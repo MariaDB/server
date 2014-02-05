@@ -1,5 +1,7 @@
 /-- Tests for the 16-bit library only */
 
+< forbid 8W
+
 /-- Check maximum non-UTF character size --/
 
 /\x{ffff}/
@@ -7,7 +9,9 @@
  0: \x{ffff}
 
 /\x{10000}/
-Failed: character value in \x{...} sequence is too large at offset 8
+Failed: character value in \x{} or \o{} is too large at offset 8
+
+/\o{20000}/
 
 /-- Check character ranges --/
 
