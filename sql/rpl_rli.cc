@@ -1583,6 +1583,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
   if (error)
   {
     trans_rollback_stmt(thd); // if a "statement transaction"
+    /* trans_rollback() also resets OPTION_GTID_BEGIN */
     trans_rollback(thd);      // if a "real transaction"
   }
   m_table_map.clear_tables();

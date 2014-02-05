@@ -860,13 +860,22 @@ The following options may be given as the first argument:
  --skip-slave-start  If set, slave is not autostarted.
  --slave-compressed-protocol 
  Use compression on master/slave protocol
+ --slave-ddl-exec-mode=name 
+ Modes for how replication events should be executed.
+ Legal values are STRICT and IDEMPOTENT (default). In
+ IDEMPOTENT mode, replication will not stop for DDL
+ operations that are idempotent. This means that CREATE
+ TABLE is treated CREATE TABLE OR REPLACE and DROP TABLE
+ is threated as DROP TABLE IF EXISTS. 
  --slave-exec-mode=name 
  Modes for how replication events should be executed.
  Legal values are STRICT (default) and IDEMPOTENT. In
  IDEMPOTENT mode, replication will not stop for operations
- that are idempotent. In STRICT mode, replication will
- stop on any unexpected difference between the master and
- the slave
+ that are idempotent. For example, in row based
+ replication attempts to delete rows that doesn't exist
+ will be ignored.In STRICT mode, replication will stop on
+ any unexpected difference between the master and the
+ slave
  --slave-load-tmpdir=name 
  The location where the slave should put its temporary
  files when replicating a LOAD DATA INFILE command
@@ -1023,7 +1032,7 @@ auto-increment-increment 1
 auto-increment-offset 1
 autocommit TRUE
 automatic-sp-privileges TRUE
-back-log 50
+back-log 150
 big-tables FALSE
 bind-address (No default value)
 binlog-annotate-row-events FALSE
@@ -1226,6 +1235,7 @@ port-open-timeout 0
 preload-buffer-size 32768
 profiling-history-size 15
 progress-report-time 56
+protocol-version 10
 query-alloc-block-size 8192
 query-cache-limit 1048576
 query-cache-min-res-unit 4096
@@ -1264,6 +1274,7 @@ skip-networking FALSE
 skip-show-database FALSE
 skip-slave-start FALSE
 slave-compressed-protocol FALSE
+slave-ddl-exec-mode IDEMPOTENT
 slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
 slave-net-timeout 3600

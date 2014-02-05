@@ -3318,10 +3318,10 @@ err:
 void ha_partition::free_partition_bitmaps()
 {
   /* Initialize the bitmap we use to minimize ha_start_bulk_insert calls */
-  bitmap_free(&m_bulk_insert_started);
-  bitmap_free(&m_locked_partitions);
-  bitmap_free(&m_partitions_to_reset);
-  bitmap_free(&m_key_not_found_partitions);
+  my_bitmap_free(&m_bulk_insert_started);
+  my_bitmap_free(&m_locked_partitions);
+  my_bitmap_free(&m_partitions_to_reset);
+  my_bitmap_free(&m_key_not_found_partitions);
 }
 
 
@@ -3333,14 +3333,14 @@ bool ha_partition::init_partition_bitmaps()
 {
   DBUG_ENTER("ha_partition::init_partition_bitmaps");
   /* Initialize the bitmap we use to minimize ha_start_bulk_insert calls */
-  if (bitmap_init(&m_bulk_insert_started, NULL, m_tot_parts + 1, FALSE))
+  if (my_bitmap_init(&m_bulk_insert_started, NULL, m_tot_parts + 1, FALSE))
     DBUG_RETURN(true);
   bitmap_clear_all(&m_bulk_insert_started);
 
   /* Initialize the bitmap we use to keep track of locked partitions */
-  if (bitmap_init(&m_locked_partitions, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_locked_partitions, NULL, m_tot_parts, FALSE))
   {
-    bitmap_free(&m_bulk_insert_started);
+    my_bitmap_free(&m_bulk_insert_started);
     DBUG_RETURN(true);
   }
   bitmap_clear_all(&m_locked_partitions);
@@ -3349,10 +3349,10 @@ bool ha_partition::init_partition_bitmaps()
     Initialize the bitmap we use to keep track of partitions which may have
     something to reset in ha_reset().
   */
-  if (bitmap_init(&m_partitions_to_reset, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_partitions_to_reset, NULL, m_tot_parts, FALSE))
   {
-    bitmap_free(&m_bulk_insert_started);
-    bitmap_free(&m_locked_partitions);
+    my_bitmap_free(&m_bulk_insert_started);
+    my_bitmap_free(&m_locked_partitions);
     DBUG_RETURN(true);
   }
   bitmap_clear_all(&m_partitions_to_reset);
@@ -3361,11 +3361,11 @@ bool ha_partition::init_partition_bitmaps()
     Initialize the bitmap we use to keep track of partitions which returned
     HA_ERR_KEY_NOT_FOUND from index_read_map.
   */
-  if (bitmap_init(&m_key_not_found_partitions, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_key_not_found_partitions, NULL, m_tot_parts, FALSE))
   {
-    bitmap_free(&m_bulk_insert_started);
-    bitmap_free(&m_locked_partitions);
-    bitmap_free(&m_partitions_to_reset);
+    my_bitmap_free(&m_bulk_insert_started);
+    my_bitmap_free(&m_locked_partitions);
+    my_bitmap_free(&m_partitions_to_reset);
     DBUG_RETURN(true);
   }
   bitmap_clear_all(&m_key_not_found_partitions);

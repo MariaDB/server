@@ -205,7 +205,7 @@ ERROR 42S02: Unknown table 'v100'
 drop view t1;
 ERROR HY000: 'test.t1' is not VIEW
 drop table v1;
-ERROR 42S02: Unknown table 'test.v1'
+ERROR 42S02: 'test.v1' is a view
 drop view v1,v2;
 drop table t1;
 create table t1 (a int);
@@ -931,13 +931,13 @@ ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 'v2
 update v2 set col1 = (select max(col1) from t1);
 ERROR HY000: The definition of table 'v2' prevents operation UPDATE on table 'v2'.
 update v2 set col1 = (select max(col1) from v2);
-ERROR HY000: You can't specify target table 'v2' for update in FROM clause
+ERROR HY000: Table 'v2' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update v2,t2 set v2.col1 = (select max(col1) from v1) where v2.col1 = t2.col1;
 ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 'v2'.
 update t1,t2 set t1.col1 = (select max(col1) from v1) where t1.col1 = t2.col1;
 ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 't1'.
 update v1,t2 set v1.col1 = (select max(col1) from v1) where v1.col1 = t2.col1;
-ERROR HY000: You can't specify target table 'v1' for update in FROM clause
+ERROR HY000: Table 'v1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update t2,v2 set v2.col1 = (select max(col1) from v1) where v2.col1 = t2.col1;
 ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 't2'.
 update t2,t1 set t1.col1 = (select max(col1) from v1) where t1.col1 = t2.col1;
@@ -947,17 +947,17 @@ ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 't2
 update v2,t2 set v2.col1 = (select max(col1) from t1) where v2.col1 = t2.col1;
 ERROR HY000: The definition of table 'v2' prevents operation UPDATE on table 'v2'.
 update t1,t2 set t1.col1 = (select max(col1) from t1) where t1.col1 = t2.col1;
-ERROR HY000: You can't specify target table 't1' for update in FROM clause
+ERROR HY000: Table 't1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update v1,t2 set v1.col1 = (select max(col1) from t1) where v1.col1 = t2.col1;
 ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 'v1'.
 update t2,v2 set v2.col1 = (select max(col1) from t1) where v2.col1 = t2.col1;
-ERROR HY000: You can't specify target table 't2' for update in FROM clause
+ERROR HY000: Table 't2' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update t2,t1 set t1.col1 = (select max(col1) from t1) where t1.col1 = t2.col1;
-ERROR HY000: You can't specify target table 't2' for update in FROM clause
+ERROR HY000: Table 't2' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update t2,v1 set v1.col1 = (select max(col1) from t1) where v1.col1 = t2.col1;
-ERROR HY000: You can't specify target table 't2' for update in FROM clause
+ERROR HY000: Table 't2' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update v2,t2 set v2.col1 = (select max(col1) from v2) where v2.col1 = t2.col1;
-ERROR HY000: You can't specify target table 'v2' for update in FROM clause
+ERROR HY000: Table 'v2' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update t1,t2 set t1.col1 = (select max(col1) from v2) where t1.col1 = t2.col1;
 ERROR HY000: The definition of table 'v2' prevents operation UPDATE on table 't1'.
 update v1,t2 set v1.col1 = (select max(col1) from v2) where v1.col1 = t2.col1;
@@ -975,27 +975,27 @@ ERROR HY000: The definition of table 'v3' prevents operation UPDATE on table 'v3
 update v3 set v3.col1 = (select max(col1) from v2);
 ERROR HY000: The definition of table 'v2' prevents operation UPDATE on table 'v3'.
 update v3 set v3.col1 = (select max(col1) from v3);
-ERROR HY000: You can't specify target table 'v3' for update in FROM clause
+ERROR HY000: Table 'v3' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 delete from v2 where col1 = (select max(col1) from v1);
 ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 'v2'.
 delete from v2 where col1 = (select max(col1) from t1);
 ERROR HY000: The definition of table 'v2' prevents operation DELETE on table 'v2'.
 delete from v2 where col1 = (select max(col1) from v2);
-ERROR HY000: You can't specify target table 'v2' for update in FROM clause
+ERROR HY000: Table 'v2' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete v2 from v2,t2 where (select max(col1) from v1) > 0 and v2.col1 = t2.col1;
 ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 'v2'.
 delete t1 from t1,t2 where (select max(col1) from v1) > 0 and t1.col1 = t2.col1;
 ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 't1'.
 delete v1 from v1,t2 where (select max(col1) from v1) > 0 and v1.col1 = t2.col1;
-ERROR HY000: You can't specify target table 'v1' for update in FROM clause
+ERROR HY000: Table 'v1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete v2 from v2,t2 where (select max(col1) from t1) > 0 and v2.col1 = t2.col1;
 ERROR HY000: The definition of table 'v2' prevents operation DELETE on table 'v2'.
 delete t1 from t1,t2 where (select max(col1) from t1) > 0 and t1.col1 = t2.col1;
-ERROR HY000: You can't specify target table 't1' for update in FROM clause
+ERROR HY000: Table 't1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete v1 from v1,t2 where (select max(col1) from t1) > 0 and v1.col1 = t2.col1;
 ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 'v1'.
 delete v2 from v2,t2 where (select max(col1) from v2) > 0 and v2.col1 = t2.col1;
-ERROR HY000: You can't specify target table 'v2' for update in FROM clause
+ERROR HY000: Table 'v2' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete t1 from t1,t2 where (select max(col1) from v2) > 0 and t1.col1 = t2.col1;
 ERROR HY000: The definition of table 'v2' prevents operation DELETE on table 't1'.
 delete v1 from v1,t2 where (select max(col1) from v2) > 0 and v1.col1 = t2.col1;
@@ -1009,15 +1009,15 @@ ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'v2
 insert into v2 values ((select max(col1) from t1));
 ERROR HY000: The definition of table 'v2' prevents operation INSERT on table 'v2'.
 insert into t1 values ((select max(col1) from t1));
-ERROR HY000: You can't specify target table 't1' for update in FROM clause
+ERROR HY000: Table 't1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into v2 values ((select max(col1) from t1));
 ERROR HY000: The definition of table 'v2' prevents operation INSERT on table 'v2'.
 insert into v2 values ((select max(col1) from v2));
-ERROR HY000: You can't specify target table 'v2' for update in FROM clause
+ERROR HY000: Table 'v2' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into t1 values ((select max(col1) from v2));
 ERROR HY000: The definition of table 'v2' prevents operation INSERT on table 't1'.
 insert into v2 values ((select max(col1) from v2));
-ERROR HY000: You can't specify target table 'v2' for update in FROM clause
+ERROR HY000: Table 'v2' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into v3 (col1) values ((select max(col1) from v1));
 ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'v3'.
 insert into v3 (col1) values ((select max(col1) from t1));

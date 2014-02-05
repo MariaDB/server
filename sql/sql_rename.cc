@@ -84,12 +84,8 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
     for (to_table= 0, ren_table= table_list; ren_table;
          to_table= 1 - to_table, ren_table= ren_table->next_local)
     {
-      int log_table_rename= 0;
-
-      if ((log_table_rename=
-           check_if_log_table(ren_table->db_length, ren_table->db,
-                              ren_table->table_name_length,
-                              ren_table->table_name, 1)))
+      int log_table_rename;
+      if ((log_table_rename= check_if_log_table(ren_table, TRUE, NullS)))
       {
         /*
           as we use log_table_rename as an array index, we need it to start

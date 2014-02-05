@@ -1,5 +1,6 @@
 DROP TABLE IF EXISTS graph_base;
 DROP TABLE IF EXISTS graph;
+call mtr.add_suppression("graph_base is open on delete");
 CREATE TABLE graph_base (
 from_id INT UNSIGNED NOT NULL,
 to_id INT UNSIGNED NOT NULL,

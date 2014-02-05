@@ -110,6 +110,8 @@
 
 /* The following is used to detect a conflict with DISTINCT */
 #define SELECT_ALL              (1ULL << 24)    // SELECT, user, parser
+#define OPTION_GTID_BEGIN       (1ULL << 25)    // GTID BEGIN found in log
+
 /** The following can be set when importing tables in a 'wrong order'
    to suppress foreign key checks */
 #define OPTION_NO_FOREIGN_KEY_CHECKS    (1ULL << 26) // THD, user, binlog
