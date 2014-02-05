@@ -636,6 +636,7 @@
 #define VERSION "@VERSION@"
 #define PROTOCOL_VERSION 10
 
+#define MALLOC_LIBRARY "@MALLOC_LIBRARY@"
 
 /* time_t related defines */
 

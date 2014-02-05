@@ -34,6 +34,5 @@ select * from graph where latch is null;
 select * from graph where latch is null and origid=1;
 select * from graph where latch is null and destid=2;
 
-DROP TABLE graph_base;
 DROP TABLE graph;
-
+DROP TABLE graph_base;

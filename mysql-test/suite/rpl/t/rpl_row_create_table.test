@@ -28,7 +28,8 @@ START SLAVE;
 --source include/rpl_reset.inc
 
 connection master;
-CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t1 (a INT);
+CREATE OR REPLACE TABLE t1 (a INT, b INT);
 CREATE TABLE t2 (a INT, b INT) ENGINE=Merge;
 CREATE TABLE t3 (a INT, b INT) CHARSET=utf8;
 CREATE TABLE t4 (a INT, b INT) ENGINE=Merge CHARSET=utf8;

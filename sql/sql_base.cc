@@ -784,12 +784,18 @@ static void close_open_tables(THD *thd)
                      access the table cache key
 
   @param[in] extra
-                     HA_EXTRA_PREPRE_FOR_DROP if the table is being dropped
-                     HA_EXTRA_PREPARE_FOR_REANME if the table is being renamed
-                     HA_EXTRA_NOT_USED           no drop/rename
-                     In case of drop/reanme the documented behaviour is to
+                     HA_EXTRA_PREPARE_FOR_DROP
+                        - The table is dropped
+                     HA_EXTRA_PREPARE_FOR_RENAME
+                        - The table is renamed
+                     HA_EXTRA_NOT_USED
+                        - The table is marked as closed in the
+                          locked_table_list but kept there so one can call
+                          locked_table_list->reopen_tables() to put it back.
+                          
+                     In case of drop/rename the documented behavior is to
                      implicitly remove the table from LOCK TABLES
-                     list.
+                     list. 
 
   @pre Must be called with an X MDL lock on the table.
 */
@@ -1477,7 +1483,7 @@ void update_non_unique_table_error(TABLE_LIST *update,
       return;
     }
   }
-  my_error(ER_UPDATE_TABLE_USED, MYF(0), update->alias);
+  my_error(ER_UPDATE_TABLE_USED, MYF(0), update->alias, operation);
 }
 
 
@@ -1588,26 +1594,21 @@ TABLE *find_temporary_table(THD *thd,
   thd->temporary_tables list, it's impossible to tell here whether
   we're dealing with an internal or a user temporary table.
 
-  If is_trans is not null, we return the type of the table:
-  either transactional (e.g. innodb) as TRUE or non-transactional
-  (e.g. myisam) as FALSE.
+  @param thd      Thread handler
+  @param table	  Temporary table to be deleted
+  @param is_trans Is set to the type of the table:
+                  transactional (e.g. innodb) as TRUE or non-transactional
+                  (e.g. myisam) as FALSE.
 
   @retval  0  the table was found and dropped successfully.
-  @retval  1  the table was not found in the list of temporary tables
-              of this thread
   @retval -1  the table is in use by a outer query
 */
 
-int drop_temporary_table(THD *thd, TABLE_LIST *table_list, bool *is_trans)
+int drop_temporary_table(THD *thd, TABLE *table, bool *is_trans)
 {
   DBUG_ENTER("drop_temporary_table");
   DBUG_PRINT("tmptable", ("closing table: '%s'.'%s'",
-                          table_list->db, table_list->table_name));
-
-  if (!is_temporary_table(table_list))
-    DBUG_RETURN(1);
-
-  TABLE *table= table_list->table;
+                          table->s->db.str, table->s->table_name.str));
 
   /* Table might be in use by some outer statement. */
   if (table->query_id && table->query_id != thd->query_id)
@@ -1627,9 +1628,9 @@ int drop_temporary_table(THD *thd, TABLE_LIST *table_list, bool *is_trans)
   */
   mysql_lock_remove(thd, thd->lock, table);
   close_temporary_table(thd, table, 1, 1);
-  table_list->table= NULL;
   DBUG_RETURN(0);
 }
+
 
 /*
   unlink from thd->temporary tables and close temporary table
@@ -2612,9 +2613,9 @@ Locked_tables_list::init_locked_tables(THD *thd)
   {
     TABLE_LIST *src_table_list= table->pos_in_table_list;
     char *db, *table_name, *alias;
-    size_t db_len= src_table_list->db_length;
-    size_t table_name_len= src_table_list->table_name_length;
-    size_t alias_len= strlen(src_table_list->alias);
+    size_t db_len=         table->s->db.length;
+    size_t table_name_len= table->s->table_name.length;
+    size_t alias_len=      table->alias.length();
     TABLE_LIST *dst_table_list;
 
     if (! multi_alloc_root(&m_locked_tables_root,
@@ -2624,23 +2625,15 @@ Locked_tables_list::init_locked_tables(THD *thd)
                            &alias, alias_len + 1,
                            NullS))
     {
-      unlock_locked_tables(0);
+      reset();
       return TRUE;
     }
 
-    memcpy(db, src_table_list->db, db_len + 1);
-    memcpy(table_name, src_table_list->table_name, table_name_len + 1);
-    memcpy(alias, src_table_list->alias, alias_len + 1);
-    /**
-      Sic: remember the *actual* table level lock type taken, to
-      acquire the exact same type in reopen_tables().
-      E.g. if the table was locked for write, src_table_list->lock_type is
-      TL_WRITE_DEFAULT, whereas reginfo.lock_type has been updated from
-      thd->update_lock_default.
-    */
+    memcpy(db,         table->s->db.str, db_len + 1);
+    memcpy(table_name, table->s->table_name.str, table_name_len + 1);
+    strmake(alias,     table->alias.ptr(), alias_len);
     dst_table_list->init_one_table(db, db_len, table_name, table_name_len,
-                                   alias,
-                                   src_table_list->table->reginfo.lock_type);
+                                   alias, table->reginfo.lock_type);
     dst_table_list->table= table;
     dst_table_list->mdl_request.ticket= src_table_list->mdl_request.ticket;
 
@@ -2661,7 +2654,7 @@ Locked_tables_list::init_locked_tables(THD *thd)
                                         (m_locked_tables_count+1));
     if (m_reopen_array == NULL)
     {
-      unlock_locked_tables(0);
+      reset();
       return TRUE;
     }
   }
@@ -2682,42 +2675,50 @@ Locked_tables_list::init_locked_tables(THD *thd)
 void
 Locked_tables_list::unlock_locked_tables(THD *thd)
 {
-  if (thd)
+  DBUG_ASSERT(!thd->in_sub_stmt &&
+              !(thd->state_flags & Open_tables_state::BACKUPS_AVAIL));
+  /*
+    Sic: we must be careful to not close open tables if
+    we're not in LOCK TABLES mode: unlock_locked_tables() is
+    sometimes called implicitly, expecting no effect on
+    open tables, e.g. from begin_trans().
+  */
+  if (thd->locked_tables_mode != LTM_LOCK_TABLES)
+    return;
+
+  for (TABLE_LIST *table_list= m_locked_tables;
+       table_list; table_list= table_list->next_global)
   {
-    DBUG_ASSERT(!thd->in_sub_stmt &&
-                !(thd->state_flags & Open_tables_state::BACKUPS_AVAIL));
     /*
-      Sic: we must be careful to not close open tables if
-      we're not in LOCK TABLES mode: unlock_locked_tables() is
-      sometimes called implicitly, expecting no effect on
-      open tables, e.g. from begin_trans().
+      Clear the position in the list, the TABLE object will be
+      returned to the table cache.
     */
-    if (thd->locked_tables_mode != LTM_LOCK_TABLES)
-      return;
-
-    for (TABLE_LIST *table_list= m_locked_tables;
-         table_list; table_list= table_list->next_global)
-    {
-      /*
-        Clear the position in the list, the TABLE object will be
-        returned to the table cache.
-      */
-      if (table_list->table)                    // If not closed
-        table_list->table->pos_in_locked_tables= NULL;
-    }
-    thd->leave_locked_tables_mode();
-
-    DBUG_ASSERT(thd->transaction.stmt.is_empty());
-    close_thread_tables(thd);
-    /*
-      We rely on the caller to implicitly commit the
-      transaction and release transactional locks.
-    */
+    if (table_list->table)                    // If not closed
+      table_list->table->pos_in_locked_tables= NULL;
   }
+  thd->leave_locked_tables_mode();
+
+  DBUG_ASSERT(thd->transaction.stmt.is_empty());
+  close_thread_tables(thd);
+
+  /*
+    We rely on the caller to implicitly commit the
+    transaction and release transactional locks.
+  */
+
   /*
     After closing tables we can free memory used for storing lock
     request for metadata locks and TABLE_LIST elements.
   */
+  reset();
+}
+
+/*
+  Free memory allocated for storing locks
+*/
+
+void Locked_tables_list::reset()
+{
   free_root(&m_locked_tables_root, MYF(0));
   m_locked_tables= NULL;
   m_locked_tables_last= &m_locked_tables;
@@ -2782,6 +2783,7 @@ void Locked_tables_list::unlink_from_list(THD *thd,
       m_locked_tables_last= table_list->prev_global;
     else
       table_list->next_global->prev_global= table_list->prev_global;
+    m_locked_tables_count--;
   }
 }
 
@@ -2835,8 +2837,13 @@ unlink_all_closed_tables(THD *thd, MYSQL_LOCK *lock, size_t reopen_count)
         m_locked_tables_last= table_list->prev_global;
       else
         table_list->next_global->prev_global= table_list->prev_global;
+      m_locked_tables_count--;
     }
   }
+
+  /* If no tables left, do an automatic UNLOCK TABLES */
+  if (thd->lock && thd->lock->table_count == 0)
+    unlock_locked_tables(thd);
 }
 
 
@@ -2907,6 +2914,57 @@ Locked_tables_list::reopen_tables(THD *thd)
     thd->lock= merged_lock;
   }
   return FALSE;
+}
+
+/**
+  Add back a locked table to the locked list that we just removed from it.
+  This is needed in CREATE OR REPLACE TABLE where we are dropping, creating
+  and re-opening a locked table.
+
+  @return 0  0k
+  @return 1  error
+*/
+
+bool Locked_tables_list::restore_lock(THD *thd, TABLE_LIST *dst_table_list,
+                                      TABLE *table, MYSQL_LOCK *lock)
+{
+  MYSQL_LOCK *merged_lock;
+  DBUG_ENTER("restore_lock");
+  DBUG_ASSERT(!strcmp(dst_table_list->table_name, table->s->table_name.str));
+
+  /* Ensure we have the memory to add the table back */
+  if (!(merged_lock= mysql_lock_merge(thd->lock, lock)))
+    DBUG_RETURN(1);
+  thd->lock= merged_lock;
+
+  /* Link to the new table */
+  dst_table_list->table= table;
+  /*
+    The lock type may have changed (normally it should not as create
+    table will lock the table in write mode
+  */
+  dst_table_list->lock_type= table->reginfo.lock_type;
+  table->pos_in_locked_tables= dst_table_list;
+
+  add_back_last_deleted_lock(dst_table_list);
+
+  DBUG_RETURN(0);
+}
+
+/*
+  Add back the last deleted lock structure.
+  This should be followed by a call to reopen_tables() to
+  open the table.
+*/
+
+void Locked_tables_list::add_back_last_deleted_lock(TABLE_LIST *dst_table_list)
+{
+  /* Link the lock back in the locked tables list */
+  dst_table_list->prev_global= m_locked_tables_last;
+  *m_locked_tables_last= dst_table_list;
+  m_locked_tables_last= &dst_table_list->next_global;
+  dst_table_list->next_global= 0;
+  m_locked_tables_count++;
 }
 
 
@@ -4046,9 +4104,9 @@ lock_table_names(THD *thd,
   if (mdl_requests.is_empty())
     DBUG_RETURN(FALSE);
 
-  /* Check if CREATE TABLE was used */
-  create_table= (tables_start && tables_start->open_strategy ==
-                 TABLE_LIST::OPEN_IF_EXISTS);
+  /* Check if CREATE TABLE without REPLACE was used */
+  create_table= (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+                 !(thd->lex->create_info.options & HA_LEX_CREATE_REPLACE));
 
   if (!(flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
   {
@@ -5291,6 +5349,39 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
   }
 
   DBUG_RETURN(thd->decide_logging_format(tables));
+}
+
+
+/*
+  Restart transaction for tables
+
+  This is used when we had to do an implicit commit after tables are opened
+  and want to restart transactions on tables.
+
+  This is used in case of:
+  LOCK TABLES xx
+  CREATE OR REPLACE TABLE xx;
+*/
+
+bool restart_trans_for_tables(THD *thd, TABLE_LIST *table)
+{
+  DBUG_ENTER("restart_trans_for_tables");
+
+  if (!thd->locked_tables_mode)
+    DBUG_RETURN(FALSE);
+
+  for (; table; table= table->next_global)
+  {
+    if (table->placeholder())
+      continue;
+
+    if (check_lock_and_start_stmt(thd, thd->lex, table))
+    {
+      DBUG_ASSERT(0);                           // Should never happen
+      DBUG_RETURN(TRUE);
+    }
+  }
+  DBUG_RETURN(FALSE);
 }
 
 

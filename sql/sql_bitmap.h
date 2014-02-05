@@ -34,7 +34,7 @@ public:
   Bitmap() { init(); }
   Bitmap(const Bitmap& from) { *this=from; }
   explicit Bitmap(uint prefix_to_set) { init(prefix_to_set); }
-  void init() { bitmap_init(&map, buffer, default_width, 0); }
+  void init() { my_bitmap_init(&map, buffer, default_width, 0); }
   void init(uint prefix_to_set) { init(); set_prefix(prefix_to_set); }
   uint length() const { return default_width; }
   Bitmap& operator=(const Bitmap& map2)
@@ -52,7 +52,7 @@ public:
   void intersect(ulonglong map2buff)
   {
     MY_BITMAP map2;
-    bitmap_init(&map2, (uint32 *)&map2buff, sizeof(ulonglong)*8, 0);
+    my_bitmap_init(&map2, (uint32 *)&map2buff, sizeof(ulonglong)*8, 0);
     bitmap_intersect(&map, &map2);
   }
   /* Use highest bit for all bits above sizeof(ulonglong)*8. */
