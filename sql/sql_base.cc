@@ -2948,6 +2948,11 @@ bool Locked_tables_list::restore_lock(THD *thd, TABLE_LIST *dst_table_list,
 
   add_back_last_deleted_lock(dst_table_list);
 
+  table->mdl_ticket->downgrade_lock(table->reginfo.lock_type >=
+                                    TL_WRITE_ALLOW_WRITE ? 
+                                    MDL_SHARED_NO_READ_WRITE :
+                                    MDL_SHARED_READ);
+
   DBUG_RETURN(0);
 }
 
