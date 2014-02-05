@@ -3125,9 +3125,10 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
   DBUG_PRINT("exec_event",("%s(type_code: %d; server_id: %d)",
                            ev->get_type_str(), ev->get_type_code(),
                            ev->server_id));
-  DBUG_PRINT("info", ("thd->options: %s%s; rgi->last_event_start_time: %lu",
+  DBUG_PRINT("info", ("thd->options: '%s%s%s'  rgi->last_event_start_time: %lu",
                       FLAGSTR(thd->variables.option_bits, OPTION_NOT_AUTOCOMMIT),
                       FLAGSTR(thd->variables.option_bits, OPTION_BEGIN),
+                      FLAGSTR(thd->variables.option_bits, OPTION_GTID_BEGIN),
                       (ulong) rgi->last_event_start_time));
 
   /*

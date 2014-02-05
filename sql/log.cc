@@ -1679,6 +1679,7 @@ static int binlog_close_connection(handlerton *hton, THD *thd)
     contain updates to non-transactional tables. Or it can be a flush of
     a statement cache.
  */
+
 static int
 binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
                    Log_event *end_ev, bool all, bool using_stmt,
@@ -1686,6 +1687,7 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
 {
   int error= 0;
   DBUG_ENTER("binlog_flush_cache");
+  DBUG_PRINT("enter", ("end_ev: %p", end_ev));
 
   if ((using_stmt && !cache_mngr->stmt_cache.empty()) ||
       (using_trx && !cache_mngr->trx_cache.empty()))
@@ -1744,9 +1746,10 @@ static inline int
 binlog_commit_flush_stmt_cache(THD *thd, bool all,
                                binlog_cache_mngr *cache_mngr)
 {
+  DBUG_ENTER("binlog_commit_flush_stmt_cache");
   Query_log_event end_evt(thd, STRING_WITH_LEN("COMMIT"),
                           FALSE, TRUE, TRUE, 0);
-  return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, FALSE));
+  DBUG_RETURN(binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, FALSE));
 }
 
 /**
@@ -1761,9 +1764,10 @@ binlog_commit_flush_stmt_cache(THD *thd, bool all,
 static inline int
 binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr)
 {
+  DBUG_ENTER("binlog_commit_flush_trx_cache");
   Query_log_event end_evt(thd, STRING_WITH_LEN("COMMIT"),
                           TRUE, TRUE, TRUE, 0);
-  return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE));
+  DBUG_RETURN(binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE));
 }
 
 /**
@@ -5270,6 +5274,10 @@ int THD::binlog_write_table_map(TABLE *table, bool is_transactional,
                        (long) table, table->s->table_name.str,
                        table->s->table_map_id));
 
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_transactional= 1;
+  
   /* Pre-conditions */
   DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
   DBUG_ASSERT(table->s->table_map_id != ULONG_MAX);
@@ -5287,7 +5295,7 @@ int THD::binlog_write_table_map(TABLE *table, bool is_transactional,
     cache_mngr->get_binlog_cache_log(use_trans_cache(this, is_transactional));
   if (with_annotate && *with_annotate)
   {
-    Annotate_rows_log_event anno(current_thd, is_transactional, false);
+    Annotate_rows_log_event anno(table->in_use, is_transactional, false);
     /* Annotate event should be written not more than once */
     *with_annotate= 0;
     if ((error= anno.write(file)))
@@ -5450,6 +5458,7 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
 
 
 /* Generate a new global transaction ID, and write it to the binlog */
+
 bool
 MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
                                 bool is_transactional, uint64 commit_id)
@@ -5459,6 +5468,16 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   uint32 server_id= thd->variables.server_id;
   uint64 seq_no= thd->variables.gtid_seq_no;
   int err;
+  DBUG_ENTER("write_gtid_event");
+  DBUG_PRINT("enter", ("standalone: %d", standalone));
+  
+  if (thd->variables.option_bits & OPTION_GTID_BEGIN)
+  {
+    DBUG_PRINT("error", ("OPTION_GTID_BEGIN is set. "
+                         "Master and slave will have different GTID values"));
+    /* Reset the flag, as we will write out a GTID anyway */
+    thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
+  }
 
   /*
     Reset the session variable gtid_seq_no, to reduce the risk of accidentally
@@ -5483,7 +5502,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
     seq_no= gtid.seq_no;
   }
   if (err)
-    return true;
+    DBUG_RETURN(true);
 
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,
@@ -5491,10 +5510,10 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
 
   /* Write the event to the binary log. */
   if (gtid_event.write(&mysql_bin_log.log_file))
-    return true;
+    DBUG_RETURN(true);
   status_var_add(thd->status_var.binlog_bytes_written, gtid_event.data_written);
 
-  return false;
+  DBUG_RETURN(false);
 }
 
 
@@ -5676,13 +5695,21 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
 {
   THD *thd= event_info->thd;
   bool error= 1;
-  DBUG_ENTER("MYSQL_BIN_LOG::write(Log_event *)");
   binlog_cache_data *cache_data= 0;
   bool is_trans_cache= FALSE;
   bool using_trans= event_info->use_trans_cache();
   bool direct= event_info->use_direct_logging();
   ulong prev_binlog_id;
+  DBUG_ENTER("MYSQL_BIN_LOG::write(Log_event *)");
   LINT_INIT(prev_binlog_id);
+
+  if (thd->variables.option_bits & OPTION_GTID_BEGIN)
+  {
+    DBUG_PRINT("info", ("OPTION_GTID_BEGIN was set"));
+    /* Wait for commit from binary log before we commit */
+    direct= 0;
+    using_trans= 1;
+  }
 
   if (thd->binlog_evt_union.do_union)
   {
@@ -5731,6 +5758,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
 
     if (direct)
     {
+      DBUG_PRINT("info", ("direct is set"));
       file= &log_file;
       my_org_b_tell= my_b_tell(file);
       mysql_mutex_lock(&LOCK_log);
@@ -7249,16 +7277,17 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
                                          uint64 commit_id)
 {
   binlog_cache_mngr *mngr= entry->cache_mngr;
+  DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_or_stmt");
 
   if (write_gtid_event(entry->thd, false, entry->using_trx_cache, commit_id))
-    return ER_ERROR_ON_WRITE;
+    DBUG_RETURN(ER_ERROR_ON_WRITE);
 
   if (entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
       write_cache(entry->thd, mngr->get_binlog_cache_log(FALSE)))
   {
     entry->error_cache= &mngr->stmt_cache.cache_log;
     entry->commit_errno= errno;
-    return ER_ERROR_ON_WRITE;
+    DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
 
   if (entry->using_trx_cache && !mngr->trx_cache.empty())
@@ -7279,7 +7308,7 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     {
       entry->error_cache= &mngr->trx_cache.cache_log;
       entry->commit_errno= errno;
-      return ER_ERROR_ON_WRITE;
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
     }
   }
 
@@ -7287,7 +7316,7 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   {
     entry->error_cache= NULL;
     entry->commit_errno= errno;
-    return ER_ERROR_ON_WRITE;
+    DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
   status_var_add(entry->thd->status_var.binlog_bytes_written,
                  entry->end_event->data_written);
@@ -7298,7 +7327,7 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     {
       entry->error_cache= NULL;
       entry->commit_errno= errno;
-      return ER_ERROR_ON_WRITE;
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
     }
   }
 
@@ -7306,16 +7335,16 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   {
     entry->error_cache= &mngr->stmt_cache.cache_log;
     entry->commit_errno= errno;
-    return ER_ERROR_ON_READ;
+    DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
   if (mngr->get_binlog_cache_log(TRUE)->error)  // Error on read
   {
     entry->error_cache= &mngr->trx_cache.cache_log;
     entry->commit_errno= errno;
-    return ER_ERROR_ON_READ;
+    DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
 
-  return 0;
+  DBUG_RETURN(0);
 }
 
 

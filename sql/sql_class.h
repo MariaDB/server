@@ -1951,7 +1951,10 @@ public:
   uint in_sub_stmt;
   /* True when opt_userstat_running is set at start of query */
   bool userstat_running;
-  /* True if we want to log all errors */
+  /*
+    True if we have to log all errors. Are set by some engines to temporary
+    force errors to the error log.
+  */
   bool log_all_errors;
 
   /* Do not set socket timeouts for wait_timeout (used with threadpool) */
@@ -2542,12 +2545,12 @@ public:
   */
   LEX_STRING connection_name;
   char       default_master_connection_buff[MAX_CONNECTION_NAME+1];
+  uint8      password; /* 0, 1 or 2 */
+  uint8      failed_com_change_user;
   bool       slave_thread, one_shot_set;
   bool       extra_port;                        /* If extra connection */
 
   bool	     no_errors;
-  uint8      password;
-  uint8      failed_com_change_user;
 
   /**
     Set to TRUE if execution of the current compound statement
@@ -2580,13 +2583,6 @@ public:
   /* for IS NULL => = last_insert_id() fix in remove_eq_conds() */
   bool       substitute_null_with_insert_id;
   bool	     in_lock_tables;
-  /**
-    True if a slave error. Causes the slave to stop. Not the same
-    as the statement execution error (is_error()), since
-    a statement may be expected to return an error, e.g. because
-    it returned an error on master, and this is OK on the slave.
-  */
-  bool       is_slave_error;
   bool       bootstrap, cleanup_done;
 
   /**  is set if some thread specific value(s) used in a statement. */
@@ -2603,6 +2599,20 @@ public:
   /* set during loop of derived table processing */
   bool       derived_tables_processing;
   bool       tablespace_op;	/* This is TRUE in DISCARD/IMPORT TABLESPACE */
+  /* True if we have to log the current statement */
+  bool	     log_current_statement;
+  /**
+    True if a slave error. Causes the slave to stop. Not the same
+    as the statement execution error (is_error()), since
+    a statement may be expected to return an error, e.g. because
+    it returned an error on master, and this is OK on the slave.
+  */
+  bool       is_slave_error;
+  /*
+    In case of a slave, set to the error code the master got when executing
+    the query. 0 if no error on the master.
+  */
+  int	     slave_expected_error;
 
   sp_rcontext *spcont;		// SP runtime context
   sp_cache   *sp_proc_cache;

@@ -1251,7 +1251,8 @@ int ha_commit_trans(THD *thd, bool all)
     the changes are not durable as they might be rolled back if the
     enclosing 'all' transaction is rolled back.
   */
-  bool is_real_trans= all || thd->transaction.all.ha_list == 0;
+  bool is_real_trans= ((all || thd->transaction.all.ha_list == 0) &&
+                       !(thd->variables.option_bits & OPTION_GTID_BEGIN));
   Ha_trx_info *ha_info= trans->ha_list;
   bool need_prepare_ordered, need_commit_ordered;
   my_xid xid;
@@ -1266,7 +1267,7 @@ int ha_commit_trans(THD *thd, bool all)
                  ER(ER_WARNING_NOT_COMPLETE_ROLLBACK)););
 
   DBUG_PRINT("info",
-             ("all: %d thd->in_sub_stmt: %d ha_info: %p is_real_trans: %d",
+             ("all: %d  thd->in_sub_stmt: %d  ha_info: %p  is_real_trans: %d",
               all, thd->in_sub_stmt, ha_info, is_real_trans));
   /*
     We must not commit the normal transaction if a statement
@@ -1471,7 +1472,8 @@ int ha_commit_one_phase(THD *thd, bool all)
     ha_commit_one_phase() can be called with an empty
     transaction.all.ha_list, see why in trans_register_ha()).
   */
-  bool is_real_trans=all || thd->transaction.all.ha_list == 0;
+  bool is_real_trans= ((all || thd->transaction.all.ha_list == 0) &&
+                       !(thd->variables.option_bits & OPTION_GTID_BEGIN));
   int res;
   DBUG_ENTER("ha_commit_one_phase");
   if (is_real_trans && (res= thd->wait_for_prior_commit()))

@@ -5389,6 +5389,10 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
   /* Fetch the type code for the RowsEventT template parameter */
   int const general_type_code= RowsEventT::TYPE_CODE;
 
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_transactional= 1;
+
   /*
     There is no good place to set up the transactional data, so we
     have to do it here.
@@ -5584,6 +5588,10 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
 
   size_t const len= pack_row(table, cols, row_data, record);
 
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_trans= 1;
+
   Rows_log_event* const ev=
     binlog_prepare_pending_rows_event(table, variables.server_id, cols, colcnt,
                                       len, is_trans,
@@ -5616,6 +5624,10 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
                                         before_record);
   size_t const after_size= pack_row(table, cols, after_row,
                                        after_record);
+
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_trans= 1;
 
   /*
     Don't print debug messages when running valgrind since they can
@@ -5659,6 +5671,10 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
 
   size_t const len= pack_row(table, cols, row_data, record);
 
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_trans= 1;
+
   Rows_log_event* const ev=
     binlog_prepare_pending_rows_event(table, variables.server_id, cols, colcnt,
 				      len, is_trans,
@@ -5679,6 +5695,10 @@ int THD::binlog_remove_pending_rows_event(bool clear_maps,
   if (!mysql_bin_log.is_open())
     DBUG_RETURN(0);
 
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_transactional= 1;
+
   mysql_bin_log.remove_pending_rows_event(this, is_transactional);
 
   if (clear_maps)
@@ -5697,6 +5717,10 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
    */
   if (!mysql_bin_log.is_open())
     DBUG_RETURN(0);
+
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_transactional= 1;
 
   /*
     Mark the event as the last event of a statement if the stmt_end
@@ -5944,6 +5968,14 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
   DBUG_PRINT("enter", ("qtype: %s  query: '%-.*s'",
                        show_query_type(qtype), (int) query_len, query_arg));
   DBUG_ASSERT(query_arg && mysql_bin_log.is_open());
+
+  /* If this is withing a BEGIN ... COMMIT group, don't log it */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+  {
+    direct= 0;
+    is_trans= 1;
+  }
+  DBUG_PRINT("info", ("is_trans: %d  direct: %d", is_trans, direct));
 
   if (get_binlog_local_stmt_filter() == BINLOG_FILTER_SET)
   {

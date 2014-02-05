@@ -195,6 +195,8 @@ static bool some_non_temp_table_to_be_updated(THD *thd, TABLE_LIST *tables)
   @param thd    Thread handle.
   @param mask   Bitmask used for the SQL command match.
 
+  @return 0     No implicit commit
+  @return 1     Do a commit
 */
 static bool stmt_causes_implicit_commit(THD *thd, uint mask)
 {
@@ -207,12 +209,22 @@ static bool stmt_causes_implicit_commit(THD *thd, uint mask)
 
   switch (lex->sql_command) {
   case SQLCOM_DROP_TABLE:
-    skip= lex->drop_temporary;
+    skip= (lex->drop_temporary ||
+           (thd->variables.option_bits & OPTION_GTID_BEGIN));
     break;
   case SQLCOM_ALTER_TABLE:
+    /* If ALTER TABLE of non-temporary table, do implicit commit */
+    skip= (lex->create_info.tmp_table());
+    break;
   case SQLCOM_CREATE_TABLE:
-    /* If CREATE TABLE of non-temporary table, do implicit commit */
-    skip= lex->create_info.tmp_table();
+    /*
+      If CREATE TABLE of non-temporary table and the table is not part
+      if a BEGIN GTID ... COMMIT group, do a implicit commit.
+      This ensures that CREATE ... SELECT will in the same GTID group on the
+      master and slave.
+    */
+    skip= (lex->create_info.tmp_table() ||
+           (thd->variables.option_bits & OPTION_GTID_BEGIN));
     break;
   case SQLCOM_SET_OPTION:
     skip= lex->autocommit ? FALSE : TRUE;
@@ -2439,11 +2451,14 @@ mysql_execute_command(THD *thd)
     DBUG_ASSERT(! thd->in_sub_stmt);
     /* Statement transaction still should not be started. */
     DBUG_ASSERT(thd->transaction.stmt.is_empty());
-    /* Commit the normal transaction if one is active. */
-    if (trans_commit_implicit(thd))
-      goto error;
-    /* Release metadata locks acquired in this transaction. */
-    thd->mdl_context.release_transactional_locks();
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      /* Commit the normal transaction if one is active. */
+      if (trans_commit_implicit(thd))
+        goto error;
+      /* Release metadata locks acquired in this transaction. */
+      thd->mdl_context.release_transactional_locks();
+    }
   }
   
 #ifndef DBUG_OFF
@@ -2868,6 +2883,17 @@ case SQLCOM_PREPARE:
       If the table exists, we should either not create it or replace it
     */
     lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
+
+    /*
+      If we are a slave, we should add OR REPLACE if we don't have
+      IF EXISTS. This will help a slave to recover from
+      CREATE TABLE OR EXISTS failures by dropping the table and
+      retrying the create.
+    */
+    if (thd->slave_thread &&
+        slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT &&
+        !(lex->create_info.options & HA_LEX_CREATE_IF_NOT_EXISTS))
+      create_info.options|= HA_LEX_CREATE_REPLACE;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     {
@@ -3659,6 +3685,16 @@ end_with_restore_list:
       /* So that DROP TEMPORARY TABLE gets to binlog at commit/rollback */
       thd->variables.option_bits|= OPTION_KEEP_LOG;
     }
+    /*
+      If we are a slave, we should add IF EXISTS if the query executed
+      on the master without an error. This will help a slave to
+      recover from multi-table DROP TABLE that was aborted in the
+      middle.
+    */
+    if (thd->slave_thread && !thd->slave_expected_error &&
+        slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
+      lex->check_exists= 1;
+
     /* DDL and binlog write order are protected by metadata locks. */
     res= mysql_rm_table(thd, first_table, lex->check_exists,
 			lex->drop_temporary);
@@ -4407,6 +4443,7 @@ end_with_restore_list:
     bool tx_release= (lex->tx_release == TVL_YES ||
                       (thd->variables.completion_type == 2 &&
                        lex->tx_release != TVL_NO));
+
     if (trans_rollback(thd))
       goto error;
     thd->mdl_context.release_transactional_locks();
@@ -5158,12 +5195,15 @@ finish:
   {
     /* No transaction control allowed in sub-statements. */
     DBUG_ASSERT(! thd->in_sub_stmt);
-    /* If commit fails, we should be able to reset the OK status. */
-    thd->get_stmt_da()->set_overwrite_status(true);
-    /* Commit the normal transaction if one is active. */
-    trans_commit_implicit(thd);
-    thd->get_stmt_da()->set_overwrite_status(false);
-    thd->mdl_context.release_transactional_locks();
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      /* If commit fails, we should be able to reset the OK status. */
+      thd->get_stmt_da()->set_overwrite_status(true);
+      /* Commit the normal transaction if one is active. */
+      trans_commit_implicit(thd);
+      thd->get_stmt_da()->set_overwrite_status(false);
+      thd->mdl_context.release_transactional_locks();
+    }
   }
   else if (! thd->in_sub_stmt && ! thd->in_multi_stmt_transaction_mode())
   {
@@ -6106,6 +6146,8 @@ void THD::reset_for_next_command()
   thd->query_start_used= 0;
   thd->query_start_sec_part_used= 0;
   thd->is_fatal_error= thd->time_zone_used= 0;
+  thd->log_current_statement= 0;
+
   /*
     Clear the status flag that are expected to be cleared at the
     beginning of each SQL statement.

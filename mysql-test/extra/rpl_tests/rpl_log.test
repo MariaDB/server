@@ -18,8 +18,12 @@ start slave;
 --source include/wait_for_slave_to_start.inc
 
 let $VERSION=`select version()`;
-
+# Lets run this test in STRICT MODE (DROP TABLE is not DROP TABLE IF EXISTS)
+connection slave;
+set @save_slave_ddl_exec_mode=@@global.slave_ddl_exec_mode;
+set @@global.slave_ddl_exec_mode=STRICT;
 connection master;
+
 eval create table t1(n int not null auto_increment primary key)ENGINE=$engine_type;
 insert into t1 values (NULL);
 drop table t1;
@@ -141,3 +145,5 @@ drop table t1;
 # End of 4.1 tests
 
 sync_slave_with_master;
+set @@global.slave_ddl_exec_mode=@save_slave_ddl_exec_mode;
+connection master;

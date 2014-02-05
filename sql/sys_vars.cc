@@ -2601,10 +2601,22 @@ static Sys_var_enum Slave_exec_mode(
        "Modes for how replication events should be executed. Legal values "
        "are STRICT (default) and IDEMPOTENT. In IDEMPOTENT mode, "
        "replication will not stop for operations that are idempotent. "
+       "For example, in row based replication attempts to delete rows that "
+       "doesn't exist will be ignored."
        "In STRICT mode, replication will stop on any unexpected difference "
        "between the master and the slave",
        GLOBAL_VAR(slave_exec_mode_options), CMD_LINE(REQUIRED_ARG),
        slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_STRICT));
+
+static Sys_var_enum Slave_ddl_exec_mode(
+       "slave_ddl_exec_mode",
+       "Modes for how replication events should be executed. Legal values "
+       "are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode, "
+       "replication will not stop for DDL operations that are idempotent. "
+       "This means that CREATE TABLE is treated CREATE TABLE OR REPLACE and "
+       "DROP TABLE is threated as DROP TABLE IF EXISTS. ",
+       GLOBAL_VAR(slave_ddl_exec_mode_options), CMD_LINE(REQUIRED_ARG),
+       slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_IDEMPOTENT));
 
 static const char *slave_type_conversions_name[]= {"ALL_LOSSY", "ALL_NON_LOSSY", 0};
 static Sys_var_set Slave_type_conversions(
@@ -3174,10 +3186,10 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     return false;
   }
 
-  if (thd->variables.option_bits & OPTION_AUTOCOMMIT &&
-      thd->variables.option_bits & OPTION_NOT_AUTOCOMMIT)
-  { // activating autocommit
-
+  if (test_all_bits(thd->variables.option_bits,
+                    (OPTION_AUTOCOMMIT | OPTION_NOT_AUTOCOMMIT)))
+  {
+    // activating autocommit
     if (trans_commit_stmt(thd) || trans_commit(thd))
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
@@ -3194,16 +3206,17 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
       transaction implicitly at the end (@sa stmt_causes_implicitcommit()).
     */
     thd->variables.option_bits&=
-                 ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT);
+                 ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT |
+                   OPTION_GTID_BEGIN);
     thd->transaction.all.modified_non_trans_table= false;
     thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
     return false;
   }
 
-  if (!(thd->variables.option_bits & OPTION_AUTOCOMMIT) &&
-      !(thd->variables.option_bits & OPTION_NOT_AUTOCOMMIT))
-  { // disabling autocommit
-
+  if ((thd->variables.option_bits &
+       (OPTION_AUTOCOMMIT |OPTION_NOT_AUTOCOMMIT)) == 0)
+  {
+    // disabling autocommit
     thd->transaction.all.modified_non_trans_table= false;
     thd->server_status&= ~SERVER_STATUS_AUTOCOMMIT;
     thd->variables.option_bits|= OPTION_NOT_AUTOCOMMIT;
@@ -3212,6 +3225,7 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
 
   return false; // autocommit value wasn't changed
 }
+
 static Sys_var_bit Sys_autocommit(
        "autocommit", "autocommit",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_AUTOCOMMIT, DEFAULT(TRUE),

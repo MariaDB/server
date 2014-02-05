@@ -4620,6 +4620,14 @@ int create_table_impl(THD *thd,
         /* Remove normal table without logging. Keep tables locked */
         if (mysql_rm_table_no_locks(thd, &table_list, 0, 0, 0, 1, 1))
           goto err;
+
+        /*
+          We have to log this query, even if it failed later to ensure the
+          drop is done.
+        */
+        thd->variables.option_bits|= OPTION_KEEP_LOG;
+        thd->log_current_statement= 1;
+
         /*
           The test of query_tables is to ensure we have any tables in the
           select part
@@ -4627,11 +4635,6 @@ int create_table_impl(THD *thd,
         if (thd->lex->query_tables &&
             restart_trans_for_tables(thd, thd->lex->query_tables->next_global))
           goto err;
-        /*
-          We have to log this query, even if it failed later to ensure the
-          drop is done.
-        */
-        thd->variables.option_bits|= OPTION_KEEP_LOG;
       }
       else if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)
         goto warn;
@@ -4832,6 +4835,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   const char *db= create_table->db;
   const char *table_name= create_table->table_name;
   bool is_trans= FALSE;
+  bool result= 0;
   int create_table_mode;
   TABLE_LIST *pos_in_locked_tables= 0;
   DBUG_ENTER("mysql_create_table");
@@ -4859,7 +4863,10 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   promote_first_timestamp_column(&alter_info->create_list);
   if (mysql_create_table_no_lock(thd, db, table_name, create_info, alter_info,
                                  &is_trans, create_table_mode) > 0)
-    DBUG_RETURN(1);
+  {
+    result= 1;
+    goto err;
+  }
 
   /*
     Check if we are doing CREATE OR REPLACE TABLE under LOCK TABLES
@@ -4877,12 +4884,15 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
   }
 
+err:
   /* In RBR we don't need to log CREATE TEMPORARY TABLE */
   if (thd->is_current_stmt_binlog_format_row() && create_info->tmp_table())
-    DBUG_RETURN(0);
-
-  bool result;
-  result= write_bin_log(thd, TRUE, thd->query(), thd->query_length(), is_trans);
+    DBUG_RETURN(result);
+  /* Write log if no error or if we already deleted a table */
+  if (!result || thd->log_current_statement)
+    if (write_bin_log(thd, result ? FALSE : TRUE, thd->query(),
+                      thd->query_length(), is_trans))
+      result= 1;
   DBUG_RETURN(result);
 }
 
@@ -5079,6 +5089,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   Alter_table_ctx local_alter_ctx; // Not used
   bool res= TRUE;
   bool is_trans= FALSE;
+  bool do_logging= FALSE;
   uint not_used;
   DBUG_ENTER("mysql_create_like_table");
 
@@ -5155,9 +5166,12 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   if ((local_create_info.table= thd->lex->query_tables->table))
     pos_in_locked_tables= local_create_info.table->pos_in_locked_tables;    
 
-  if ((res= (mysql_create_table_no_lock(thd, table->db, table->table_name,
-                                        &local_create_info, &local_alter_info,
-                                        &is_trans, C_ORDINARY_CREATE) > 0)))
+  res= (mysql_create_table_no_lock(thd, table->db, table->table_name,
+                                   &local_create_info, &local_alter_info,
+                                   &is_trans, C_ORDINARY_CREATE) > 0);
+  /* Remember to log if we deleted something */
+  do_logging= thd->log_current_statement;
+  if (res)
     goto err;
 
   /*
@@ -5252,7 +5266,10 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
             /* Restore */
             table->open_strategy= save_open_strategy;
             if (open_res)
+            {
+              res= 1;
               goto err;
+            }
             new_table= TRUE;
           }
         }
@@ -5264,11 +5281,17 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
         {
           int result __attribute__((unused))=
             store_create_info(thd, table, &query,
-                              create_info, FALSE /* show_database */);
+                              create_info, FALSE /* show_database */,
+                              test(create_info->options &
+                                   HA_LEX_CREATE_REPLACE));
 
           DBUG_ASSERT(result == 0); // store_create_info() always return 0
+          do_logging= FALSE;
           if (write_bin_log(thd, TRUE, query.ptr(), query.length()))
+          {
+            res= 1;
             goto err;
+          }
 
           if (new_table)
           {
@@ -5283,17 +5306,20 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
         }
       }
       else                                      // Case 1
-        if (write_bin_log(thd, TRUE, thd->query(), thd->query_length()))
-          goto err;
+        do_logging= TRUE;
     }
     /*
       Case 3 and 4 does nothing under RBR
     */
   }
-  else if (write_bin_log(thd, TRUE, thd->query(), thd->query_length(), is_trans))
-    goto err;
+  else
+    do_logging= TRUE;
 
 err:
+  if (do_logging &&
+      write_bin_log(thd, res ? FALSE : TRUE, thd->query(),
+                    thd->query_length(), is_trans))
+    res= 1;
   DBUG_RETURN(res);
 }
 
