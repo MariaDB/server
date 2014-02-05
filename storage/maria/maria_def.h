@@ -1319,6 +1319,13 @@ MARIA_RECORD_POS _ma_write_init_default(MARIA_HA *info, const uchar *record);
 my_bool _ma_write_abort_default(MARIA_HA *info);
 int maria_delete_table_files(const char *name, myf sync_dir);
 
+/*
+  This cannot be in my_base.h as it clashes with HA_SPATIAL.
+  But it was introduced for Aria engine, and is only used there.
+  So it can safely stay here, only visible to Aria
+*/
+#define HA_RTREE_INDEX	        16384	/* For RTREE search */
+
 C_MODE_START
 #define MARIA_FLUSH_DATA  1
 #define MARIA_FLUSH_INDEX 2

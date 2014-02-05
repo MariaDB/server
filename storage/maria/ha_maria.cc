@@ -1,5 +1,6 @@
 /* Copyright (C) 2004-2008 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
    Copyright (C) 2008-2009 Sun Microsystems, Inc.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1547,7 +1548,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
 {
   int error= 0;
   ulonglong local_testflag= param->testflag;
-  bool optimize_done= !do_optimize, statistics_done= 0;
+  bool optimize_done= !do_optimize, statistics_done= 0, full_repair_done= 0;
   const char *old_proc_info= thd->proc_info;
   char fixed_name[FN_REFLEN];
   MARIA_SHARE *share= file->s;
@@ -1581,7 +1582,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
 
   param->db_name= table->s->db.str;
   param->table_name= table->alias.c_ptr();
-  param->tmpfile_createflag= O_RDWR | O_TRUNC;
+  param->tmpfile_createflag= O_RDWR | O_TRUNC | O_EXCL;
   param->using_global_keycache= 1;
   param->thd= thd;
   param->tmpdir= &mysql_tmpdir_list;
@@ -1651,6 +1652,11 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
     }
     param->testflag= save_testflag | (param->testflag & T_RETRY_WITHOUT_QUICK);
     optimize_done= 1;
+    /*
+      set full_repair_done if we re-wrote all rows and all keys
+      (and thus removed all transid's from the table
+    */
+    full_repair_done= !test(param->testflag & T_QUICK);
   }
   if (!error)
   {
@@ -1674,7 +1680,8 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
     }
   }
   thd_proc_info(thd, "Saving state");
-  if (optimize_done && !error && !(param->testflag & T_NO_CREATE_RENAME_LSN))
+  if (full_repair_done && !error &&
+      !(param->testflag & T_NO_CREATE_RENAME_LSN))
   {
     /* Set trid (needed if the table was moved from another system) */
     share->state.create_trid= trnman_get_min_safe_trid();
@@ -1969,6 +1976,7 @@ int ha_maria::enable_indexes(uint mode)
       */
       param.testflag|= T_NO_CREATE_RENAME_LSN;
     }
+
     param.myf_rw &= ~MY_WAIT_IF_FULL;
     param.sort_buffer_length= THDVAR(thd,sort_buffer_size);
     param.stats_method= (enum_handler_stats_method)THDVAR(thd,stats_method);

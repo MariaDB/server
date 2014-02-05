@@ -145,6 +145,7 @@ public:
     return (option.id != -1) && ((flags & PARSE_EARLY) == parse_flags) &&
            insert_dynamic(array, (uchar*)&option);
   }
+  void do_deprecated_warning(THD *thd);
 
 private:
   virtual bool do_check(THD *thd, set_var *var) = 0;
@@ -158,7 +159,7 @@ private:
   virtual void global_save_default(THD *thd, set_var *var) = 0;
   virtual bool session_update(THD *thd, set_var *var) = 0;
   virtual bool global_update(THD *thd, set_var *var) = 0;
-  void do_deprecated_warning(THD *thd);
+
 protected:
   /**
     A pointer to a value of the variable for SHOW.
@@ -278,11 +279,12 @@ public:
 
 /* For SET ROLE */
 
-class set_var_role: public set_var
+class set_var_role: public set_var_base
 {
+  LEX_STRING role;
+  ulonglong access;
 public:
-  set_var_role(LEX_STRING role_arg) :
-    set_var(OPT_SESSION, NULL, &role_arg, NULL){};
+  set_var_role(LEX_STRING role_arg) : role(role_arg) {}
   int check(THD *thd);
   int update(THD *thd);
 };

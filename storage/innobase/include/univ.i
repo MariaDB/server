@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -44,7 +44,7 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	6
-#define INNODB_VERSION_BUGFIX	10
+#define INNODB_VERSION_BUGFIX	14
 
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
@@ -171,6 +171,7 @@ command. Not tested on Windows. */
 #define UNIV_COMPILE_TEST_FUNCS
 */
 
+#undef UNIV_SYNC_DEBUG
 #if defined(HAVE_valgrind)&& defined(HAVE_VALGRIND_MEMCHECK_H)
 # define UNIV_DEBUG_VALGRIND
 #endif /* HAVE_VALGRIND */
@@ -332,7 +333,7 @@ typedef enum innodb_file_formats_enum innodb_file_formats_t;
 #define UNIV_PAGE_SIZE_SHIFT	srv_page_size_shift
 
 /** The universal page size of the database */
-#define UNIV_PAGE_SIZE		srv_page_size
+#define UNIV_PAGE_SIZE		((ulint) srv_page_size)
 
 /** log2 of smallest compressed page size (1<<10 == 1024 bytes)
 Note: This must never change! */
@@ -433,6 +434,7 @@ macro ULINTPF. */
 # define INT64PF	"%I64d"
 # define UINT64PF	"%I64u"
 # define UINT64PFx	"%016I64u"
+# define DBUG_LSN_PF    "%llu"
 typedef __int64 ib_int64_t;
 typedef unsigned __int64 ib_uint64_t;
 typedef unsigned __int32 ib_uint32_t;
@@ -442,6 +444,7 @@ typedef unsigned __int32 ib_uint32_t;
 # define INT64PF	"%"PRId64
 # define UINT64PF	"%"PRIu64
 # define UINT64PFx	"%016"PRIx64
+# define DBUG_LSN_PF    UINT64PF
 typedef int64_t ib_int64_t;
 typedef uint64_t ib_uint64_t;
 typedef uint32_t ib_uint32_t;
@@ -486,11 +489,11 @@ typedef unsigned long long int	ullint;
 #define ULINT_MAX		((ulint)(-2))
 
 /** Maximum value for ib_uint64_t */
-#define IB_ULONGLONG_MAX	((ib_uint64_t) (~0ULL))
-#define IB_UINT64_MAX		IB_ULONGLONG_MAX
+#define IB_UINT64_MAX		((ib_uint64_t) (~0ULL))
 
 /** The generic InnoDB system object identifier data type */
-typedef ib_uint64_t	ib_id_t;
+typedef ib_uint64_t		ib_id_t;
+#define IB_ID_MAX		IB_UINT64_MAX
 
 /** The 'undefined' value for a ullint */
 #define ULLINT_UNDEFINED        ((ullint)(-1))
@@ -633,6 +636,10 @@ typedef void* os_thread_ret_t;
 			(const void*) (addr), (unsigned) (size), (long)	\
 			(((const char*) _p) - ((const char*) (addr))));	\
 	} while (0)
+# define UNIV_MEM_TRASH(addr, c, size) do {				\
+	ut_d(memset(addr, c, size));					\
+	UNIV_MEM_INVALID(addr, size);					\
+	} while (0)
 #else
 # define UNIV_MEM_VALID(addr, size) do {} while(0)
 # define UNIV_MEM_INVALID(addr, size) do {} while(0)
@@ -644,6 +651,7 @@ typedef void* os_thread_ret_t;
 # define UNIV_MEM_ASSERT_RW(addr, size) do {} while(0)
 # define UNIV_MEM_ASSERT_RW_ABORT(addr, size) do {} while(0)
 # define UNIV_MEM_ASSERT_W(addr, size) do {} while(0)
+# define UNIV_MEM_TRASH(addr, c, size) do {} while(0)
 #endif
 #define UNIV_MEM_ASSERT_AND_FREE(addr, size) do {	\
 	UNIV_MEM_ASSERT_W(addr, size);			\

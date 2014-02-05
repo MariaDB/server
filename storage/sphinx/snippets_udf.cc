@@ -1,10 +1,10 @@
 //
-// $Id: snippets_udf.cc 3508 2012-11-05 11:48:48Z kevg $
+// $Id: snippets_udf.cc 4505 2014-01-22 15:16:21Z deogar $
 //
 
 //
-// Copyright (c) 2001-2012, Andrew Aksyonoff
-// Copyright (c) 2008-2012, Sphinx Technologies Inc
+// Copyright (c) 2001-2014, Andrew Aksyonoff
+// Copyright (c) 2008-2014, Sphinx Technologies Inc
 // All rights reserved
 //
 // This program is free software; you can redistribute it and/or modify
@@ -180,7 +180,7 @@ enum
 #define SPHINXSE_DEFAULT_SCHEME		"sphinx"
 #define SPHINXSE_DEFAULT_HOST		"127.0.0.1"
 #define SPHINXSE_DEFAULT_PORT		9312
-#define SPHINXSE_DEFAULT_INDEX		(char*) "*"
+#define SPHINXSE_DEFAULT_INDEX		"*"
 
 class CSphBuffer
 {
@@ -244,9 +244,9 @@ struct CSphUrl
 	char * m_sBuffer;
 	char * m_sFormatted;
 
-	const char * m_sScheme;
+	char * m_sScheme;
 	char * m_sHost;
-        char * m_sIndex;
+	char * m_sIndex;
 
 	int m_iPort;
 
@@ -254,7 +254,7 @@ struct CSphUrl
 		: m_sBuffer ( NULL )
 		, m_sFormatted ( NULL )
 		, m_sScheme ( SPHINXSE_DEFAULT_SCHEME )
-		, m_sHost ( (char*) SPHINXSE_DEFAULT_HOST )
+		, m_sHost ( SPHINXSE_DEFAULT_HOST )
 		, m_sIndex ( SPHINXSE_DEFAULT_INDEX )
 		, m_iPort ( SPHINXSE_DEFAULT_PORT )
 	{}
@@ -311,12 +311,12 @@ bool CSphUrl::Parse ( const char * sUrl, int iLen )
 			// unix-domain socket
 			m_iPort = 0;
 			if (!( m_sIndex = strrchr ( m_sHost, ':' ) ))
-				m_sIndex = const_cast<char *>(SPHINXSE_DEFAULT_INDEX);
+				m_sIndex = SPHINXSE_DEFAULT_INDEX;
 			else
 			{
 				*m_sIndex++ = '\0';
 				if ( !*m_sIndex )
-					m_sIndex = const_cast<char *>(SPHINXSE_DEFAULT_INDEX);
+					m_sIndex = SPHINXSE_DEFAULT_INDEX;
 			}
 			bOk = true;
 			break;
@@ -336,7 +336,7 @@ bool CSphUrl::Parse ( const char * sUrl, int iLen )
 				if ( m_sIndex )
 					*m_sIndex++ = '\0';
 				else
-					m_sIndex = const_cast<char *>(SPHINXSE_DEFAULT_INDEX);
+					m_sIndex = SPHINXSE_DEFAULT_INDEX;
 
 				m_iPort = atoi(sPort);
 				if ( !m_iPort )
@@ -348,7 +348,7 @@ bool CSphUrl::Parse ( const char * sUrl, int iLen )
 			if ( m_sIndex )
 				*m_sIndex++ = '\0';
 			else
-				m_sIndex = const_cast<char *>(SPHINXSE_DEFAULT_INDEX);
+				m_sIndex = SPHINXSE_DEFAULT_INDEX;
 		}
 
 		bOk = true;
@@ -446,7 +446,7 @@ int CSphUrl::Connect()
 	uint uServerVersion;
 	uint uClientVersion = htonl ( SPHINX_SEARCHD_PROTO );
 	int iSocket = -1;
-	const char * pError = NULL;
+	char * pError = NULL;
 	do
 	{
 		iSocket = socket ( iDomain, SOCK_STREAM, 0 );
@@ -567,6 +567,7 @@ CSphResponse::Read ( int iSocket, int iClientVersion )
 #else
 #define DLLEXPORT 
 #endif
+
 extern "C"
 {
 	DLLEXPORT my_bool sphinx_snippets_init ( UDF_INIT * pUDF, UDF_ARGS * pArgs, char * sMessage );
@@ -640,7 +641,7 @@ struct CSphSnippets
 	}
 
 #define STRING CHECK_TYPE(STRING_RESULT)
-#define INT CHECK_TYPE(INT_RESULT); int iValue =(int) *(long long *)pArgs->args[i]
+#define INT CHECK_TYPE(INT_RESULT); int iValue = *(long long *)pArgs->args[i]
 
 my_bool sphinx_snippets_init ( UDF_INIT * pUDF, UDF_ARGS * pArgs, char * sMessage )
 {
@@ -820,5 +821,5 @@ void sphinx_snippets_deinit ( UDF_INIT * pUDF )
 }
 
 //
-// $Id: snippets_udf.cc 3508 2012-11-05 11:48:48Z kevg $
+// $Id: snippets_udf.cc 4505 2014-01-22 15:16:21Z deogar $
 //

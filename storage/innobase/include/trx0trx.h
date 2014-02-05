@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -190,7 +190,18 @@ UNIV_INTERN
 void
 trx_commit(
 /*=======*/
-	trx_t*	trx);	/*!< in: transaction */
+	trx_t*	trx)	/*!< in/out: transaction */
+	__attribute__((nonnull));
+/****************************************************************//**
+Commits a transaction and a mini-transaction. */
+UNIV_INTERN
+void
+trx_commit_low(
+/*===========*/
+	trx_t*	trx,	/*!< in/out: transaction */
+	mtr_t*	mtr)	/*!< in/out: mini-transaction (will be committed),
+			or NULL if trx made no modifications */
+	__attribute__((nonnull(1)));
 /****************************************************************//**
 Cleans up a transaction at database startup. The cleanup is needed if
 the transaction already got to the middle of a commit when the database
@@ -665,7 +676,7 @@ lock_sys->mutex and sometimes by trx->mutex. */
 struct trx_t{
 	ulint		magic_n;
 
-	ib_mutex_t		mutex;		/*!< Mutex protecting the fields
+	ib_mutex_t	mutex;		/*!< Mutex protecting the fields
 					state and lock
 					(except some fields of lock, which
 					are protected by lock_sys->mutex) */
@@ -823,7 +834,7 @@ struct trx_t{
 					COMMITTED_IN_MEMORY state.
 					Protected by trx_sys_t::mutex
 					when trx->in_rw_trx_list. Initially
-					set to IB_ULONGLONG_MAX. */
+					set to TRX_ID_MAX. */
 
 	time_t		start_time;	/*!< time the trx object was created
 					or the state last time became
@@ -914,7 +925,7 @@ struct trx_t{
 			trx_savepoints;	/*!< savepoints set with SAVEPOINT ...,
 					oldest first */
 	/*------------------------------*/
-	ib_mutex_t		undo_mutex;	/*!< mutex protecting the fields in this
+	ib_mutex_t	undo_mutex;	/*!< mutex protecting the fields in this
 					section (down to undo_no_arr), EXCEPT
 					last_sql_stat_start, which can be
 					accessed only when we know that there

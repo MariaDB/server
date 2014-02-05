@@ -1239,6 +1239,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     got_warning= 1;
     break;
   case Sql_condition::WARN_LEVEL_ERROR:
+    mysql_audit_general(this, MYSQL_AUDIT_GENERAL_ERROR, sql_errno, msg);
     break;
   default:
     DBUG_ASSERT(FALSE);
@@ -2461,6 +2462,7 @@ bool select_result::check_simple_select() const
 static String default_line_term("\n",default_charset_info);
 static String default_escaped("\\",default_charset_info);
 static String default_field_term("\t",default_charset_info);
+static String default_enclosed_and_line_start("", default_charset_info);
 static String default_xml_row_term("<row>", default_charset_info);
 
 sql_exchange::sql_exchange(char *name, bool flag,
@@ -2469,7 +2471,7 @@ sql_exchange::sql_exchange(char *name, bool flag,
 {
   filetype= filetype_arg;
   field_term= &default_field_term;
-  enclosed=   line_start= &my_empty_string;
+  enclosed=   line_start= &default_enclosed_and_line_start;
   line_term=  filetype == FILETYPE_CSV ?
               &default_line_term : &default_xml_row_term;
   escaped=    &default_escaped;
@@ -6202,12 +6204,54 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
   returns immediately.
 */
 int
-wait_for_commit::wait_for_prior_commit2()
+wait_for_commit::wait_for_prior_commit2(THD *thd)
 {
+  PSI_stage_info old_stage;
+  wait_for_commit *loc_waitee;
+
   mysql_mutex_lock(&LOCK_wait_commit);
-  while (waiting_for_commit)
+  DEBUG_SYNC(thd, "wait_for_prior_commit_waiting");
+  thd->ENTER_COND(&COND_wait_commit, &LOCK_wait_commit,
+                  &stage_waiting_for_prior_transaction_to_commit,
+                  &old_stage);
+  while (waiting_for_commit && !thd->check_killed())
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
-  mysql_mutex_unlock(&LOCK_wait_commit);
+  if (!waiting_for_commit)
+  {
+    if (wakeup_error)
+      my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+    goto end;
+  }
+  /*
+    Wait was interrupted by kill. We need to unregister our wait and give the
+    error. But if a wakeup is already in progress, then we must ignore the
+    kill and not give error, otherwise we get inconsistency between waitee and
+    waiter as to whether we succeed or fail (eg. we may roll back but waitee
+    might attempt to commit both us and any subsequent commits waiting for us).
+  */
+  loc_waitee= this->waitee;
+  mysql_mutex_lock(&loc_waitee->LOCK_wait_commit);
+  if (loc_waitee->wakeup_subsequent_commits_running)
+  {
+    /* We are being woken up; ignore the kill and just wait. */
+    mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
+    do
+    {
+      mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
+    } while (waiting_for_commit);
+    goto end;
+  }
+  remove_from_list(&loc_waitee->subsequent_commits_list);
+  mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
+
+  DEBUG_SYNC(thd, "wait_for_prior_commit_killed");
+  wakeup_error= thd->killed_errno();
+  if (!wakeup_error)
+    wakeup_error= ER_QUERY_INTERRUPTED;
+  my_message(wakeup_error, ER(wakeup_error), MYF(0));
+
+end:
+  thd->EXIT_COND(&old_stage);
   waitee= NULL;
   return wakeup_error;
 }
@@ -6295,7 +6339,6 @@ wait_for_commit::unregister_wait_for_prior_commit2()
   if (waiting_for_commit)
   {
     wait_for_commit *loc_waitee= this->waitee;
-    wait_for_commit **next_ptr_ptr, *cur;
     mysql_mutex_lock(&loc_waitee->LOCK_wait_commit);
     if (loc_waitee->wakeup_subsequent_commits_running)
     {
@@ -6313,17 +6356,7 @@ wait_for_commit::unregister_wait_for_prior_commit2()
     else
     {
       /* Remove ourselves from the list in the waitee. */
-      next_ptr_ptr= &loc_waitee->subsequent_commits_list;
-      while ((cur= *next_ptr_ptr) != NULL)
-      {
-        if (cur == this)
-        {
-          *next_ptr_ptr= this->next_subsequent_commit;
-          break;
-        }
-        next_ptr_ptr= &cur->next_subsequent_commit;
-      }
-      waiting_for_commit= false;
+      remove_from_list(&loc_waitee->subsequent_commits_list);
       mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
     }
   }

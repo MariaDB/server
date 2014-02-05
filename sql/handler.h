@@ -248,6 +248,15 @@ enum enum_alter_inplace_result {
 #define HA_CAN_FULLTEXT_EXT              (1LL << 44)
 
 /*
+  Storage engine supports table export using the
+  FLUSH TABLE <table_list> FOR EXPORT statement
+  (meaning, after this statement one can copy table files out of the
+  datadir and later "import" (somehow) in another MariaDB instance)
+ */
+#define HA_CAN_EXPORT                 (1LL << 45)
+
+
+/*
   Set of all binlog flags. Currently only contain the capabilities
   flags.
  */
