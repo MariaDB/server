@@ -1,0 +1,12 @@
+{
+ global:
+   _maria_plugin_interface_version_;
+   _maria_sizeof_struct_st_plugin_;
+   _maria_plugin_declarations_;
+   _mysql_plugin_interface_version_;
+   _mysql_sizeof_struct_st_plugin_;
+   _mysql_plugin_declarations_;
+   *_service;
+ local:
+   *;
+};

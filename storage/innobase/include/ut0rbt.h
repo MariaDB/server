@@ -136,7 +136,7 @@ rbt_create_arg_cmp(
 	size_t		sizeof_value,		/*!< in: size in bytes */
 	ib_rbt_arg_compare
 			compare,		/*!< in: comparator */
-	void*		cmp_arg);		/*!< in: compare fn arg */
+	void*	cmp_arg);		/*!< in: compare fn arg */
 /**********************************************************************//**
 Delete a node from the red black tree, identified by key */
 UNIV_INTERN

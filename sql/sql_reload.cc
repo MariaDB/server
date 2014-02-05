@@ -407,7 +407,8 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 
 
 /**
-  Implementation of FLUSH TABLES <table_list> WITH READ LOCK.
+  Implementation of FLUSH TABLES <table_list> WITH READ LOCK
+  and FLUSH TABLES <table_list> FOR EXPORT
 
   In brief: take exclusive locks, expel tables from the table
   cache, reopen the tables, enter the 'LOCKED TABLES' mode,
@@ -496,33 +497,36 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
     goto error;
   }
 
-  /*
-    Acquire SNW locks on tables to be flushed. Don't acquire global
-    IX and database-scope IX locks on the tables as this will make
-    this statement incompatible with FLUSH TABLES WITH READ LOCK.
-  */
-  if (lock_table_names(thd, all_tables, NULL,
-                       thd->variables.lock_wait_timeout,
-                       MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
-    goto error;
-
-  DEBUG_SYNC(thd,"flush_tables_with_read_lock_after_acquire_locks");
-
-  for (table_list= all_tables; table_list;
-       table_list= table_list->next_global)
+  if (thd->lex->type & REFRESH_READ_LOCK)
   {
-    /* Request removal of table from cache. */
-    tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED,
-                     table_list->db,
-                     table_list->table_name, FALSE);
-    /* Reset ticket to satisfy asserts in open_tables(). */
-    table_list->mdl_request.ticket= NULL;
+    /*
+      Acquire SNW locks on tables to be flushed. Don't acquire global
+      IX and database-scope IX locks on the tables as this will make
+      this statement incompatible with FLUSH TABLES WITH READ LOCK.
+    */
+    if (lock_table_names(thd, all_tables, NULL,
+                         thd->variables.lock_wait_timeout,
+                         MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
+      goto error;
+
+    DEBUG_SYNC(thd,"flush_tables_with_read_lock_after_acquire_locks");
+
+    for (table_list= all_tables; table_list;
+         table_list= table_list->next_global)
+    {
+      /* Request removal of table from cache. */
+      tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED,
+                       table_list->db,
+                       table_list->table_name, FALSE);
+      /* Reset ticket to satisfy asserts in open_tables(). */
+      table_list->mdl_request.ticket= NULL;
+    }
   }
 
   /*
     Before opening and locking tables the below call also waits
     for old shares to go away, so the fact that we don't pass
-    MYSQL_LOCK_IGNORE_FLUSH flag to it is important.
+    MYSQL_OPEN_IGNORE_FLUSH flag to it is important.
     Also we don't pass MYSQL_OPEN_HAS_MDL_LOCK flag as we want
     to open underlying tables if merge table is flushed.
     For underlying tables of the merge the below call has to
@@ -531,11 +535,27 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
   */
   if (open_and_lock_tables(thd, all_tables, FALSE,
                            MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK,
-                           &lock_tables_prelocking_strategy) ||
-      thd->locked_tables_list.init_locked_tables(thd))
-  {
+                           &lock_tables_prelocking_strategy))
     goto error;
+
+  if (thd->lex->type & REFRESH_FOR_EXPORT)
+  {
+    // Check if all storage engines support FOR EXPORT.
+    for (TABLE_LIST *table_list= all_tables; table_list;
+         table_list= table_list->next_global)
+    {
+      if (!(table_list->table->file->ha_table_flags() & HA_CAN_EXPORT))
+      {
+        my_error(ER_ILLEGAL_HA, MYF(0),table_list->table->file->table_type(),
+                 table_list->db, table_list->table_name);
+        return true;
+      }
+    }
   }
+
+  if (thd->locked_tables_list.init_locked_tables(thd))
+    goto error;
+
   thd->variables.option_bits|= OPTION_TABLE_LOCK;
 
   /*

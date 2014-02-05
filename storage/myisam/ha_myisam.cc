@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -667,7 +668,7 @@ ha_myisam::ha_myisam(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg), file(0),
   int_table_flags(HA_NULL_IN_KEY | HA_CAN_FULLTEXT | HA_CAN_SQL_HANDLER |
                   HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
-                  HA_CAN_VIRTUAL_COLUMNS |
+                  HA_CAN_VIRTUAL_COLUMNS | HA_CAN_EXPORT |
                   HA_DUPLICATE_POS | HA_CAN_INDEX_BLOBS | HA_AUTO_PART_KEY |
                   HA_FILE_BASED | HA_CAN_GEOMETRY | HA_NO_TRANSACTIONS |
                   HA_CAN_INSERT_DELAYED | HA_CAN_BIT_FIELD | HA_CAN_RTREEKEYS |
@@ -774,7 +775,7 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
                          true, table))
     {
       /* purecov: begin inspected */
-      my_errno= HA_ERR_CRASHED;
+      my_errno= HA_ERR_INCOMPATIBLE_DEFINITION;
       goto err;
       /* purecov: end */
     }
@@ -1079,7 +1080,7 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
 
   param.db_name=    table->s->db.str;
   param.table_name= table->alias.c_ptr();
-  param.tmpfile_createflag = O_RDWR | O_TRUNC;
+  param.tmpfile_createflag= O_RDWR | O_TRUNC | O_EXCL;
   param.using_global_keycache = 1;
   param.thd= thd;
   param.tmpdir= &mysql_tmpdir_list;

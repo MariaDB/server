@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -53,6 +53,9 @@ static const ulint FTS_OPTIMIZE_INTERVAL_IN_SECS = 300;
 
 /** Server is shutting down, so does we exiting the optimize thread */
 static bool fts_opt_start_shutdown = false;
+
+/** Last time we did check whether system need a sync */
+static ib_time_t	last_check_sync_time;
 
 #if 0
 /** Check each table in round robin to see whether they'd
@@ -242,22 +245,22 @@ static	const char* fts_init_delete_sql =
 	"BEGIN\n"
 	"\n"
 	"INSERT INTO %s_BEING_DELETED\n"
-		"SELECT doc_id FROM %s_DELETED;\n"
+		"SELECT doc_id FROM \"%s_DELETED\";\n"
 	"\n"
 	"INSERT INTO %s_BEING_DELETED_CACHE\n"
-		"SELECT doc_id FROM %s_DELETED_CACHE;\n";
+		"SELECT doc_id FROM \"%s_DELETED_CACHE\";\n";
 
 static const char* fts_delete_doc_ids_sql =
 	"BEGIN\n"
 	"\n"
-	"DELETE FROM %s_DELETED WHERE doc_id = :doc_id1;\n"
-	"DELETE FROM %s_DELETED_CACHE WHERE doc_id = :doc_id2;\n";
+	"DELETE FROM \"%s_DELETED\" WHERE doc_id = :doc_id1;\n"
+	"DELETE FROM \"%s_DELETED_CACHE\" WHERE doc_id = :doc_id2;\n";
 
 static const char* fts_end_delete_sql =
 	"BEGIN\n"
 	"\n"
-	"DELETE FROM %s_BEING_DELETED;\n"
-	"DELETE FROM %s_BEING_DELETED_CACHE;\n";
+	"DELETE FROM \"%s_BEING_DELETED\";\n"
+	"DELETE FROM \"%s_BEING_DELETED_CACHE\";\n";
 
 /**********************************************************************//**
 Initialize fts_zip_t. */
@@ -500,7 +503,7 @@ fts_index_fetch_nodes(
 			"DECLARE CURSOR c IS"
 			" SELECT word, doc_count, first_doc_id, last_doc_id, "
 				"ilist\n"
-			" FROM %s\n"
+			" FROM \"%s\"\n"
 			" WHERE word LIKE :word\n"
 			" ORDER BY first_doc_id;\n"
 			"BEGIN\n"
@@ -824,7 +827,7 @@ fts_index_fetch_words(
 			"DECLARE FUNCTION my_func;\n"
 			"DECLARE CURSOR c IS"
 			" SELECT word\n"
-			" FROM %s\n"
+			" FROM \"%s\"\n"
 			" WHERE word > :word\n"
 			" ORDER BY word;\n"
 			"BEGIN\n"
@@ -984,7 +987,7 @@ fts_table_fetch_doc_ids(
 		info,
 		"DECLARE FUNCTION my_func;\n"
 		"DECLARE CURSOR c IS"
-		" SELECT doc_id FROM %s;\n"
+		" SELECT doc_id FROM \"%s\";\n"
 		"BEGIN\n"
 		"\n"
 		"OPEN c;\n"
@@ -1457,7 +1460,7 @@ fts_optimize_write_word(
 	graph = fts_parse_sql(
 		fts_table,
 		info,
-		"BEGIN DELETE FROM %s WHERE word = :word;");
+		"BEGIN DELETE FROM \"%s\" WHERE word = :word;");
 
 	error = fts_eval_sql(trx, graph);
 
@@ -2813,6 +2816,43 @@ fts_optimize_how_many(
 	return(n_tables);
 }
 
+/**********************************************************************//**
+Check if the total memory used by all FTS table exceeds the maximum limit.
+@return true if a sync is needed, false otherwise */
+static
+bool
+fts_is_sync_needed(
+/*===============*/
+	const ib_vector_t*	tables)		/*!< in: registered tables
+						vector*/
+{
+	ulint		total_memory = 0;
+	double		time_diff = difftime(ut_time(), last_check_sync_time);
+
+	if (fts_need_sync || time_diff < 5) {
+		return(false);
+	}
+
+	last_check_sync_time = ut_time();
+
+	for (ulint i = 0; i < ib_vector_size(tables); ++i) {
+		const fts_slot_t*	slot;
+
+		slot = static_cast<const fts_slot_t*>(
+			ib_vector_get_const(tables, i));
+
+		if (slot->table && slot->table->fts) {
+			total_memory += slot->table->fts->cache->total_size;
+		}
+
+		if (total_memory > fts_max_total_cache_size) {
+			return(true);
+		}
+	}
+
+	return(false);
+}
+
 #if 0
 /*********************************************************************//**
 Check whether a table needs to be optimized. */
@@ -2933,6 +2973,10 @@ fts_optimize_thread(
 
 			/* Timeout ? */
 			if (msg == NULL) {
+				if (fts_is_sync_needed(tables)) {
+					fts_need_sync = true;
+				}
+
 				continue;
 			}
 
@@ -3055,6 +3099,7 @@ fts_optimize_init(void)
 
 	fts_optimize_wq = ib_wqueue_create();
 	ut_a(fts_optimize_wq != NULL);
+	last_check_sync_time = ut_time();
 
 	os_thread_create(fts_optimize_thread, fts_optimize_wq, NULL);
 }

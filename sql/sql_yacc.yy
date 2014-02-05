@@ -1155,6 +1155,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  EXISTS                        /* SQL-2003-R */
 %token  EXIT_SYM
 %token  EXPANSION_SYM
+%token  EXPORT_SYM
 %token  EXTENDED_SYM
 %token  EXTENT_SIZE_SYM
 %token  EXTRACT_SYM                   /* SQL-2003-N */
@@ -1771,7 +1772,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <symbol> keyword keyword_sp
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
-                 admin_option_for_role
+                 admin_option_for_role user_maybe_role
 
 %type <charset>
         opt_collate
@@ -1828,7 +1829,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         object_privilege object_privilege_list user_list user_and_role_list
         rename_list
         clear_privileges flush_options flush_option
-        opt_with_read_lock flush_options_list
+        opt_flush_lock flush_lock flush_options_list
         equal optional_braces
         opt_mi_check_type opt_to mi_check_types 
         table_to_table_list table_to_table opt_table_list opt_as
@@ -10262,7 +10263,7 @@ variable_aux:
             if ($$ == NULL)
               MYSQL_YYABORT;
             LEX *lex= Lex;
-            lex->uncacheable(UNCACHEABLE_RAND);
+            lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
             lex->set_var_list.push_back(item);
           }
         | ident_or_text
@@ -10271,7 +10272,7 @@ variable_aux:
             if ($$ == NULL)
               MYSQL_YYABORT;
             LEX *lex= Lex;
-            lex->uncacheable(UNCACHEABLE_RAND);
+            lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
           }
         | '@' opt_var_ident_type ident_or_text opt_component
           {
@@ -12778,24 +12779,36 @@ flush_options:
             YYPS->m_lock_type= TL_READ_NO_INSERT;
             YYPS->m_mdl_type= MDL_SHARED_HIGH_PRIO;
           }
-          opt_table_list {}
-          opt_with_read_lock {}
+          opt_table_list opt_flush_lock
         | flush_options_list
         ;
 
-opt_with_read_lock:
+opt_flush_lock:
           /* empty */ {}
-        | WITH READ_SYM LOCK_SYM optional_flush_tables_arguments
+        | flush_lock
+        {
+          TABLE_LIST *tables= Lex->query_tables;
+          for (; tables; tables= tables->next_global)
           {
-            TABLE_LIST *tables= Lex->query_tables;
-            Lex->type|= REFRESH_READ_LOCK | $4;
-            for (; tables; tables= tables->next_global)
-            {
-              tables->mdl_request.set_type(MDL_SHARED_NO_WRITE);
-              tables->required_type= FRMTYPE_TABLE; /* Don't try to flush views. */
-              tables->open_type= OT_BASE_ONLY;      /* Ignore temporary tables. */
-            }
+            tables->mdl_request.set_type(MDL_SHARED_NO_WRITE);
+            tables->required_type= FRMTYPE_TABLE; /* Don't try to flush views. */
+            tables->open_type= OT_BASE_ONLY;      /* Ignore temporary tables. */
           }
+        }
+        ;
+
+flush_lock:
+          WITH READ_SYM LOCK_SYM optional_flush_tables_arguments
+          { Lex->type|= REFRESH_READ_LOCK | $4; }
+        | FOR_SYM
+          {
+            if (Lex->query_tables == NULL) // Table list can't be empty
+            {
+              my_parse_error(ER(ER_NO_TABLES_USED));
+              MYSQL_YYABORT;
+            } 
+            Lex->type|= REFRESH_FOR_EXPORT;
+          } EXPORT_SYM
         ;
 
 flush_options_list:
@@ -13916,7 +13929,7 @@ ident_or_text:
         | LEX_HOSTNAME { $$=$1;}
         ;
 
-user:
+user_maybe_role:
           ident_or_text
           {
             if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
@@ -13974,7 +13987,15 @@ user:
           }
         ;
 
-user_or_role: user | current_role;
+user_or_role: user_maybe_role | current_role;
+
+user: user_maybe_role
+         {
+           if ($1->user.str != current_user.str && $1->host.str == 0)
+             $1->host= host_not_specified;
+           $$= $1;
+         }
+         ;
 
 /* Keyword that we allow for identifiers (except SP labels) */
 keyword:
@@ -14131,6 +14152,7 @@ keyword_sp:
         | EVERY_SYM                {}
         | EXCHANGE_SYM             {}
         | EXPANSION_SYM            {}
+        | EXPORT_SYM               {}
         | EXTENDED_SYM             {}
         | EXTENT_SIZE_SYM          {}
         | FAULTS_SYM               {}
