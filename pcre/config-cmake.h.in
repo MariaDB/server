@@ -5,8 +5,8 @@
 #cmakedefine HAVE_SYS_TYPES_H 1
 #cmakedefine HAVE_UNISTD_H 1
 #cmakedefine HAVE_WINDOWS_H 1
-#cmakedefine HAVE_STDINT_H 1
-#cmakedefine HAVE_INTTYPES_H 1
+#cmakedefine HAVE_STDINT_H 1                                                   
+#cmakedefine HAVE_INTTYPES_H 1    
 
 #cmakedefine HAVE_TYPE_TRAITS_H 1
 #cmakedefine HAVE_BITS_TYPE_TRAITS_H 1
@@ -46,6 +46,7 @@
 #define NEWLINE			@NEWLINE@
 #define POSIX_MALLOC_THRESHOLD	@PCRE_POSIX_MALLOC_THRESHOLD@
 #define LINK_SIZE		@PCRE_LINK_SIZE@
+#define PARENS_NEST_LIMIT       @PCRE_PARENS_NEST_LIMIT@
 #define MATCH_LIMIT		@PCRE_MATCH_LIMIT@
 #define MATCH_LIMIT_RECURSION	@PCRE_MATCH_LIMIT_RECURSION@
 #define PCREGREP_BUFSIZE        @PCREGREP_BUFSIZE@

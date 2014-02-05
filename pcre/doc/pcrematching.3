@@ -1,4 +1,4 @@
-.TH PCREMATCHING 3 "08 January 2012" "PCRE 8.30"
+.TH PCREMATCHING 3 "12 November 2013" "PCRE 8.34"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .SH "PCRE MATCHING ALGORITHMS"
@@ -106,6 +106,14 @@ the three strings "caterpillar", "cater", and "cat" that start at the fifth
 character of the subject. The algorithm does not automatically move on to find
 matches that start at later positions.
 .P
+PCRE's "auto-possessification" optimization usually applies to character
+repeats at the end of a pattern (as well as internally). For example, the
+pattern "a\ed+" is compiled as if it were "a\ed++" because there is no point
+even considering the possibility of backtracking into the repeated digits. For
+DFA matching, this means that only one possible match is found. If you really
+do want multiple matches in such cases, either use an ungreedy repeat
+("a\ed+?") or set the PCRE_NO_AUTO_POSSESS option when compiling.
+.P
 There are a number of features of PCRE regular expressions that are not
 supported by the alternative matching algorithm. They are as follows:
 .P
@@ -201,6 +209,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 08 January 2012
+Last updated: 12 November 2013
 Copyright (c) 1997-2012 University of Cambridge.
 .fi

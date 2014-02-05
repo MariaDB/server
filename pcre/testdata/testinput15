@@ -1,5 +1,7 @@
-/-- This set of tests is for UTF-8 support, and is relevant only to the 8-bit 
-    library. --/
+/-- This set of tests is for UTF-8 support but not Unicode property support,
+    and is relevant only to the 8-bit library. --/
+
+< forbid W
 
 /X(\C{3})/8
     X\x{1234}
@@ -47,7 +49,7 @@
 
 /ÃÃÃxxx/8
 
-/ÃÃÃxxx/8?DZSS
+/ÃÃÃxxx/8?DZSSO
 
 /badutf/8
     \xdf

@@ -8,12 +8,10 @@
 /^\x{ffff}?/i
     \x{ffff}
  0: \x{ffff}
- 1: 
 
 /^\x{ffff}*/i
     \x{ffff}
  0: \x{ffff}
- 1: 
 
 /^\x{ffff}{3}/i
     \x{ffff}\x{ffff}\x{ffff}
@@ -22,6 +20,5 @@
 /^\x{ffff}{0,3}/i
     \x{ffff}
  0: \x{ffff}
- 1: 
 
 /-- End of testinput20 --/

@@ -64,10 +64,6 @@ extern "C" {
 #define REG_UNGREEDY  0x0200   /* NOT defined by POSIX; maps to PCRE_UNGREEDY */
 #define REG_UCP       0x0400   /* NOT defined by POSIX; maps to PCRE_UCP */
 
-/*Defined in regex.h */
-#define REG_ATOI        255     /* convert name to number (!) */
-#define REG_ITOA        0400    /* convert number to name (!) */
-
 /* This is not used by PCRE, but by defining it we make it easier
 to slot PCRE into existing programs that make POSIX calls. */
 
