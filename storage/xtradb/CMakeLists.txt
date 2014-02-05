@@ -399,7 +399,7 @@ ENDIF()
 # Only required for old GCC (3.4.3) that does not support hidden visibility
 IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_COMPILER_IS_GNUCC 
     AND NOT HAVE_VISIBILITY_HIDDEN)
-  SET(LINKER_SCRIPT "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/plugin_exports")
+  SET(LINKER_SCRIPT "-Wl,-M${CMAKE_CURRENT_SOURCE_DIR}/plugin_exports")
 ELSE()
   SET(LINKER_SCRIPT)
 ENDIF()
