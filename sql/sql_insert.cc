@@ -3794,7 +3794,8 @@ void select_insert::abort_result_set() {
     */
     changed= (info.copied || info.deleted || info.updated);
     transactional_table= table->file->has_transactions();
-    if (thd->transaction.stmt.modified_non_trans_table)
+    if (thd->transaction.stmt.modified_non_trans_table ||
+        thd->log_current_statement)
     {
         if (!can_rollback_data())
           thd->transaction.all.modified_non_trans_table= TRUE;
@@ -4200,7 +4201,9 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
   query.length(0);      // Have to zero it since constructor doesn't
 
   result= store_create_info(thd, &tmp_table_list, &query, create_info,
-                            /* show_database */ TRUE);
+                            /* show_database */ TRUE,
+                            test(create_info->options &
+                                 HA_LEX_CREATE_REPLACE));
   DBUG_ASSERT(result == 0); /* store_create_info() always return 0 */
 
   if (mysql_bin_log.is_open())
@@ -4270,7 +4273,8 @@ bool select_create::send_eof()
   if (!table->s->tmp_table)
   {
     trans_commit_stmt(thd);
-    trans_commit_implicit(thd);
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+      trans_commit_implicit(thd);
   }
 
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
@@ -4307,6 +4311,7 @@ bool select_create::send_eof()
 
 void select_create::abort_result_set()
 {
+  ulonglong save_option_bits;
   DBUG_ENTER("select_create::abort_result_set");
 
   /* Avoid double calls, could happen in case of out of memory on cleanup */
@@ -4328,11 +4333,18 @@ void select_create::abort_result_set()
     We also roll back the statement regardless of whether the creation
     of the table succeeded or not, since we need to reset the binary
     log state.
+    
+    However if there was an orignal table that was deleted, as part of
+    create or replace table, then we must log the statement.
   */
-  tmp_disable_binlog(thd);
+
+  save_option_bits= thd->variables.option_bits;
+  if (!(thd->log_current_statement))
+    thd->variables.option_bits&= ~OPTION_BIN_LOG;
   select_insert::abort_result_set();
   thd->transaction.stmt.modified_non_trans_table= FALSE;
-  reenable_binlog(thd);
+  thd->variables.option_bits= save_option_bits;
+
   /* possible error of writing binary log is ignored deliberately */
   (void) thd->binlog_flush_pending_rows_event(TRUE, TRUE);
 

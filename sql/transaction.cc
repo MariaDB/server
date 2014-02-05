@@ -251,6 +251,10 @@ bool trans_commit_implicit(THD *thd)
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
 
+  if (thd->variables.option_bits & OPTION_GTID_BEGIN)
+    DBUG_PRINT("error", ("OPTION_GTID_BEGIN is set. "
+                         "Master and slave will have different GTID values"));
+
   if (thd->in_multi_stmt_transaction_mode() ||
       (thd->variables.option_bits & OPTION_TABLE_LOCK))
   {
@@ -302,6 +306,8 @@ bool trans_rollback(THD *thd)
   res= ha_rollback_trans(thd, TRUE);
   (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  /* Reset the binlog transaction marker */
+  thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
   thd->transaction.all.modified_non_trans_table= FALSE;
   thd->lex->start_transaction_opt= 0;
 

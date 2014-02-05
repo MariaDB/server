@@ -352,7 +352,8 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   {
     DBUG_PRINT("info", ("resetting OPTION_BEGIN"));
     thd->variables.option_bits&=
-      ~(ulonglong)(OPTION_NOT_AUTOCOMMIT|OPTION_BEGIN|OPTION_BIN_LOG);
+      ~(ulonglong)(OPTION_NOT_AUTOCOMMIT |OPTION_BEGIN |OPTION_BIN_LOG |
+                   OPTION_GTID_BEGIN);
   }
   else
     thd->variables.option_bits&= ~(ulonglong)OPTION_BIN_LOG;
