@@ -4,13 +4,15 @@ DROP TABLE IF EXISTS graph;
 DROP TABLE IF EXISTS graph2;
 --enable_warnings
 
+--echo Performing OQGraph General test suite for ENGINE=$oqgraph_use_table_type
+
 # Create the backing store
-CREATE TABLE graph_base (
+eval CREATE TABLE graph_base (
     from_id INT UNSIGNED NOT NULL,
     to_id INT UNSIGNED NOT NULL,
     PRIMARY KEY (from_id,to_id),
     INDEX (to_id)
-  ) ENGINE=MyISAM;
+  ) ENGINE= $oqgraph_use_table_type ;
 
 
 CREATE TABLE graph (

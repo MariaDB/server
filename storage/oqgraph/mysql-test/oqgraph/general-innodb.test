@@ -1,0 +1,4 @@
+# This is a maintainer generated file. Generated at Wednesday 5 February  22:26:12 CST 2014.
+-- source include/have_innodb.inc
+--let $oqgraph_use_table_type= innodb
+--source general.inc
