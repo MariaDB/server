@@ -18,10 +18,8 @@ SHOW VARIABLES like 'slave_skip_errors';
 --echo # Bug#58026: massive recursion and crash in regular expression handling
 --echo #
 
---disable_result_log
---error ER_STACK_OVERRUN_NEED_MORE
+--error ER_STACK_OVERRUN_NEED_MORE,ER_REGEXP_ERROR
 SELECT '1' RLIKE RPAD('1', 10000, '(');
---enable_result_log
 
 
 # End of 5.1 tests
