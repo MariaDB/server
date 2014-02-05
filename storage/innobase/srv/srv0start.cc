@@ -1444,6 +1444,7 @@ extern void buf_flush_end(buf_pool_t* buf_pool, enum buf_flush flush_type);
 extern void buf_flush_common(enum buf_flush flush_type, ulint page_count);
 extern ulint buf_flush_batch(buf_pool_t* buf_pool, enum buf_flush flush_type, ulint min_n, lsn_t lsn_limit);
 extern void pgcomp_init(void);
+extern void pgcomp_deinit(void);
 
 typedef enum wrk_status {
 	WRK_ITEM_SET=0,     // wrk-item is set
@@ -3276,6 +3277,9 @@ innobase_shutdown_for_mysql(void)
 #ifdef UNIV_DEBUG
 		fprintf(stderr, "%s:%d os_thread_count:%lu \n", __FUNCTION__, __LINE__, os_thread_count);
 #endif
+
+		/* h. Remove the mutex */
+		pgcomp_deinit();
 
 		os_mutex_enter(os_sync_mutex);
 

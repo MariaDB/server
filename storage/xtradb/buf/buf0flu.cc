@@ -1931,6 +1931,21 @@ buf_flush_wait_batch_end(
 }
 
 /* JAN: TODO: */
+
+void buf_pool_enter_LRU_mutex(
+	buf_pool_t*    buf_pool)
+{
+	ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
+	mutex_enter(&buf_pool->LRU_list_mutex);
+}
+
+void buf_pool_exit_LRU_mutex(
+	buf_pool_t*    buf_pool)
+{
+	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+	mutex_exit(&buf_pool->LRU_list_mutex);
+}
+
 /*******************************************************************//**
 This utility flushes dirty blocks from the end of the LRU list and also
 puts replaceable clean pages from the end of the LRU list to the free
@@ -2053,6 +2068,11 @@ void pgcomp_init(void)
 	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &pgcomp_mtx);
 }
 
+void pgcomp_deinit(void)
+{
+	os_fast_mutex_free(&pgcomp_mtx);
+}
+
 /*******************************************************************//**
 Multi-threaded version of buf_flush_list
 */
@@ -2096,11 +2116,11 @@ pgcomp_buf_flush_list(
 #ifdef UNIV_DEBUG
 	gettimeofday(&p_start_time, 0x0);
 #endif
-	os_fast_mutex_lock(&pgcomp_mtx);
+	// os_fast_mutex_lock(&pgcomp_mtx);
 	pgcomp_flush_work_items(srv_buf_pool_instances,
                 cnt_flush, BUF_FLUSH_LIST,
                 min_n, lsn_limit);
-	os_fast_mutex_unlock(&pgcomp_mtx);
+	// os_fast_mutex_unlock(&pgcomp_mtx);
 
 	for (i = 0; i < srv_buf_pool_instances; i++) {
 		if (n_processed) {

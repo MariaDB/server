@@ -1520,6 +1520,9 @@ extern void buf_flush_common(buf_flush_t flush_type, ulint page_count);
 extern ulint buf_flush_batch(buf_pool_t* buf_pool, buf_flush_t flush_type, ulint min_n, lsn_t lsn_limit, bool limited_lru_scan,
 flush_counters_t* n);
 extern void pgcomp_init(void);
+extern void pgcomp_deinit(void);
+extern void buf_pool_enter_LRU_mutex(buf_pool_t*);
+extern void buf_pool_exit_LRU_mutex(buf_pool_t*);
 
 typedef enum wrk_status {
 	WRK_ITEM_SET=0,     // wrk-item is set
@@ -1554,7 +1557,6 @@ typedef struct wr_tsk {
 	ulint	    min;		//minimum number of pages requested to be flushed
 	lsn_t	    lsn_limit;//lsn limit for the buffer-pool flush operation
 } wr_tsk_t;
- 
 
 typedef struct rd_tsk {
 	void        *page_pool; //list of pages to decompress;
@@ -1665,9 +1667,9 @@ int flush_pool_instance(wrk_t *wi)
         	/* srv_LRU_scan_depth can be arbitrarily large value.
         	 * We cap it with current LRU size.
         	 */
-        	buf_pool_mutex_enter(wi->wr.buf_pool);
+        	buf_pool_enter_LRU_mutex(wi->wr.buf_pool);
         	wi->wr.min = UT_LIST_GET_LEN(wi->wr.buf_pool->LRU);
-        	buf_pool_mutex_exit(wi->wr.buf_pool);
+        	buf_pool_exit_LRU_mutex(wi->wr.buf_pool);
         	wi->wr.min = ut_min(srv_LRU_scan_depth,wi->wr.min);
     	}
 
@@ -3407,7 +3409,19 @@ innobase_shutdown_for_mysql(void)
 		logs_empty_and_mark_files_at_shutdown() and should have
 		already quit or is quitting right now. */
 
+		/* g. Exit the multi threaded flush threads */
+
+		page_comp_io_thread_exit();
+
+#ifdef UNIV_DEBUG
+		fprintf(stderr, "%s:%d os_thread_count:%lu \n", __FUNCTION__, __LINE__, os_thread_count);
+#endif
+
+		/* h. Remove the mutex */
+		pgcomp_deinit();
+
 		os_mutex_enter(os_sync_mutex);
+
 
 		if (os_thread_count == 0) {
 			/* All the threads have exited or are just exiting;

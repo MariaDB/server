@@ -1973,6 +1973,10 @@ void pgcomp_init(void)
 {
 	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &pgcomp_mtx);
 }
+void pgcomp_deinit(void)
+{
+	os_fast_mutex_free(&pgcomp_mtx);
+}
 
 /*******************************************************************//**
 Multi-threaded version of buf_flush_list
