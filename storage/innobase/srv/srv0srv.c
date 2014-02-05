@@ -1214,7 +1214,7 @@ srv_conc_enter_innodb(
 
 #ifdef WITH_WSREP
 	if (wsrep_on(trx->mysql_thd) && 
-	    wsrep_thd_is_brute_force(trx->mysql_thd)) {
+	    wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 		srv_conc_force_enter_innodb(trx);
 		return;
 	}
@@ -1844,7 +1844,7 @@ srv_suspend_mysql_thread(
 
 #ifdef WITH_WSREP
 		if (wsrep_on(trx->mysql_thd) &&
-		    wsrep_thd_is_brute_force(trx->mysql_thd)) {
+		    wsrep_thd_is_BF(trx->mysql_thd, TRUE)) {
 			fprintf(stderr, 
 				"WSREP: BF long lock wait ended after %.f sec\n",
 				wait_time);
@@ -2421,7 +2421,7 @@ wsrep_is_BF_lock_timeout(
 	 srv_slot_t*	slot) /* in: lock slot to check for lock priority */
 {
 	if (wsrep_on(thr_get_trx(slot->thr)->mysql_thd) &&
-	    wsrep_thd_is_brute_force((thr_get_trx(slot->thr))->mysql_thd)) {
+	    wsrep_thd_is_BF((thr_get_trx(slot->thr))->mysql_thd, TRUE)) {
 		fprintf(stderr, "WSREP: BF lock wait long\n");
 		srv_print_innodb_monitor 	= TRUE;
 		srv_print_innodb_lock_monitor 	= TRUE;

@@ -1267,7 +1267,7 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
   DBUG_ASSERT(ticket->get_lock());
 #ifdef WITH_WSREP
   if ((this == &(ticket->get_lock()->m_waiting)) &&
-      wsrep_thd_is_brute_force((void *)(ticket->get_ctx()->get_thd())))
+      wsrep_thd_is_BF((void *)(ticket->get_ctx()->get_thd()), false))
   {
     Ticket_iterator itw(ticket->get_lock()->m_waiting);
     Ticket_iterator itg(ticket->get_lock()->m_granted);
@@ -1278,7 +1278,7 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
 
     while ((waiting= itw++) && !added)
     {
-      if (!wsrep_thd_is_brute_force((void *)(waiting->get_ctx()->get_thd())))
+      if (!wsrep_thd_is_BF((void *)(waiting->get_ctx()->get_thd()), true))
       {
         WSREP_DEBUG("MDL add_ticket inserted before: %lu %s", 
                     wsrep_thd_thread_id(waiting->get_ctx()->get_thd()), 
@@ -1669,7 +1669,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
             ticket->is_incompatible_when_granted(type_arg))
 #ifdef WITH_WSREP
         {
-          if (wsrep_thd_is_brute_force((void *)(requestor_ctx->get_thd())) &&
+          if (wsrep_thd_is_BF((void *)(requestor_ctx->get_thd()), false) &&
               key.mdl_namespace() == MDL_key::GLOBAL)
           {
             WSREP_DEBUG("global lock granted for BF: %lu %s",
@@ -1710,7 +1710,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
 #ifdef WITH_WSREP
   else
   {
-    if (wsrep_thd_is_brute_force((void *)(requestor_ctx->get_thd())) &&
+    if (wsrep_thd_is_BF((void *)(requestor_ctx->get_thd()), false) &&
 	key.mdl_namespace() == MDL_key::GLOBAL)
     {
       WSREP_DEBUG("global lock granted for BF (waiting queue): %lu %s",

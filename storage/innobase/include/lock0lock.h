@@ -799,7 +799,6 @@ lock_rec_get_page_no(
 				record */
 #define LOCK_CONV_BY_OTHER 4096 /*!< this bit is set when the lock is created
 				by other transaction */
-#define WSREP_BF		8192
 #if (LOCK_WAIT|LOCK_GAP|LOCK_REC_NOT_GAP|LOCK_INSERT_INTENTION|LOCK_CONV_BY_OTHER)&LOCK_TYPE_MASK
 # error
 #endif

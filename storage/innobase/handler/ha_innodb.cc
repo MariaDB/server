@@ -12566,8 +12566,7 @@ wsrep_abort_slave_trx(wsrep_seqno_t bf_seqno, wsrep_seqno_t victim_seqno)
 		(long long)bf_seqno, (long long)victim_seqno);
 	abort();
 }
-/*******************************************************************//**
-This function is used to kill one transaction in BF. */
+
 int
 wsrep_innobase_kill_one_trx(
         void  *bf_thd_ptr,       /*!< in: BF thd */

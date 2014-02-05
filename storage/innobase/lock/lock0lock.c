@@ -932,11 +932,6 @@ lock_rec_has_to_wait(
 	if (trx != lock2->trx
 	    && !lock_mode_compatible(LOCK_MODE_MASK & type_mode,
 				     lock_get_mode(lock2))) {
-#ifdef WITH_WSREP
-		if ((type_mode & WSREP_BF) && (lock2->type_mode & WSREP_BF)) {
-			return FALSE;
-		}
-#endif /* WITH_WSREP */
 
 		/* We have somewhat complex rules when gap type record locks
 		cause waits */
@@ -1565,9 +1560,8 @@ lock_rec_other_has_expl_req(
 #ifdef WITH_WSREP
 static void 
 wsrep_kill_victim(trx_t *trx, lock_t *lock) {
-	int bf_this  = wsrep_thd_is_brute_force(trx->mysql_thd);
-	int bf_other = 
-		wsrep_thd_is_brute_force(lock->trx->mysql_thd);
+	my_bool bf_this  = wsrep_thd_is_BF(trx->mysql_thd, FALSE);
+	my_bool bf_other = wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE);
 	if ((bf_this && !bf_other) ||
 		(bf_this && bf_other && wsrep_trx_order_before(
 			trx->mysql_thd, lock->trx->mysql_thd))) {
@@ -1842,11 +1836,6 @@ lock_rec_create(
 	lock->trx = trx;
 
 	lock->type_mode = (type_mode & ~LOCK_TYPE_MASK) | LOCK_REC;
-#ifdef WITH_WSREP
-	if (wsrep_thd_is_brute_force(trx->mysql_thd)) {
-		lock->type_mode |= WSREP_BF;
-	}
-#endif /* WITH_WSREP */
 	lock->index = index;
 
 	lock->un_member.rec_lock.space = space;
@@ -1862,13 +1851,15 @@ lock_rec_create(
 	lock_rec_set_nth_bit(lock, heap_no);
 
 #ifdef WITH_WSREP
-	if (c_lock && wsrep_thd_is_brute_force(trx->mysql_thd)) {
+	if (c_lock && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 		lock_t *hash = c_lock->hash;
 		lock_t *prev = NULL;
 
 		while (hash &&
-		  wsrep_thd_is_brute_force(hash->trx->mysql_thd) &&
-		  wsrep_trx_order_before(hash->trx->mysql_thd, trx->mysql_thd)){
+		       wsrep_thd_is_BF(hash->trx->mysql_thd, TRUE) &&
+		       wsrep_trx_order_before(
+				hash->trx->mysql_thd, trx->mysql_thd)) 
+		{
 			prev = hash;
 			hash = hash->hash;
 		}
@@ -2208,11 +2199,6 @@ lock_rec_lock_fast(
 	      || (LOCK_MODE_MASK & mode) == LOCK_X);
 	ut_ad(mode - (LOCK_MODE_MASK & mode) == LOCK_GAP
 	      || mode - (LOCK_MODE_MASK & mode) == 0
-#ifdef WITH_WSREP
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == 0
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == LOCK_GAP
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == LOCK_REC_NOT_GAP
-#endif /* WITH_WSREP */
 	      || mode - (LOCK_MODE_MASK & mode) == LOCK_REC_NOT_GAP);
 
 	DBUG_EXECUTE_IF("innodb_report_deadlock", return(LOCK_REC_FAIL););
@@ -2297,11 +2283,6 @@ lock_rec_lock_slow(
 	      || (LOCK_MODE_MASK & mode) == LOCK_X);
 	ut_ad(mode - (LOCK_MODE_MASK & mode) == LOCK_GAP
 	      || mode - (LOCK_MODE_MASK & mode) == 0
-#ifdef WITH_WSREP
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == 0
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == LOCK_GAP
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == LOCK_REC_NOT_GAP
-#endif /* WITH_WSREP */
 	      || mode - (LOCK_MODE_MASK & mode) == LOCK_REC_NOT_GAP);
 
 	trx = thr_get_trx(thr);
@@ -2400,17 +2381,7 @@ lock_rec_lock(
 	      || (LOCK_MODE_MASK & mode) == LOCK_X);
 	ut_ad(mode - (LOCK_MODE_MASK & mode) == LOCK_GAP
 	      || mode - (LOCK_MODE_MASK & mode) == LOCK_REC_NOT_GAP
-#ifdef WITH_WSREP
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == 0
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == LOCK_GAP
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == LOCK_REC_NOT_GAP
-#endif /* WITH_WSREP */
 	      || mode - (LOCK_MODE_MASK & mode) == 0);
-#ifdef WITH_WSREP
-	if (wsrep_thd_is_brute_force(thr_get_trx(thr)->mysql_thd)) {
-		mode |= WSREP_BF;
-	}
-#endif
 	/* We try a simplified and faster subroutine for the most
 	common cases */
 	switch (lock_rec_lock_fast(impl, mode, block, heap_no, index, thr)) {
@@ -3845,11 +3816,11 @@ lock_deadlock_recursive(
 #ifdef WITH_WSREP
 				if (wsrep_debug)
 					fputs("WSREP: Deadlock detected\n", stderr);
-				if (wsrep_thd_is_brute_force(start->mysql_thd) &&
-				    wsrep_thd_is_brute_force(
-				        wait_lock->trx->mysql_thd) &&
-				    (start != wait_lock->trx)) {
-
+				if ((start != wait_lock->trx)               &&
+				    wsrep_thd_is_BF(start->mysql_thd, TRUE) &&
+				    wsrep_thd_is_BF(
+					wait_lock->trx->mysql_thd, TRUE))
+				{
 					if (wsrep_trx_order_before(
 					    start->mysql_thd, 
                                             wait_lock->trx->mysql_thd)) {
@@ -3870,8 +3841,9 @@ lock_deadlock_recursive(
 					back it */
 
 #ifdef WITH_WSREP
-					if (!wsrep_thd_is_brute_force(
-					    start->mysql_thd)) {
+					if (!wsrep_thd_is_BF(
+						start->mysql_thd, FALSE)) 
+					{
 						return(LOCK_VICTIM_IS_START);
 					}
 #else
@@ -3879,8 +3851,9 @@ lock_deadlock_recursive(
 #endif
 				}
 #ifdef WITH_WSREP
-				if (wsrep_thd_is_brute_force(
-				    wait_lock->trx->mysql_thd)) {
+				if (wsrep_thd_is_BF(
+					wait_lock->trx->mysql_thd, TRUE)) 
+				{
 					return(LOCK_VICTIM_IS_START);
 				}
 #endif
@@ -4008,7 +3981,7 @@ lock_table_create(
 	lock->un_member.tab_lock.table = table;
 
 #ifdef WITH_WSREP
-	if (c_lock && wsrep_thd_is_brute_force(trx->mysql_thd)) {
+	if (c_lock && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
         	UT_LIST_INSERT_AFTER(
 		    un_member.tab_lock.locks, table->locks, c_lock, lock);
         } else {
@@ -5641,7 +5614,7 @@ lock_rec_insert_check_and_lock(
 
 #ifdef WITH_WSREP
 	if ((c_lock = lock_rec_other_has_conflicting(
-		    LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION | WSREP_BF,
+		    LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION,
 		    block, next_rec_heap_no, trx))) {
 #else
 	if (lock_rec_other_has_conflicting(
@@ -5745,7 +5718,7 @@ lock_rec_convert_impl_to_expl(
 
 			if (rec_get_deleted_flag(rec, rec_offs_comp(offsets))
 #ifdef WITH_WSREP
-			    && !wsrep_thd_is_brute_force(impl_trx->mysql_thd)
+			    && !wsrep_thd_is_BF(impl_trx->mysql_thd, FALSE)
 			    /* BF-BF conflict is possible if advancing into
 			       lock_rec_other_has_conflicting*/
 #endif /* WITH_WSREP */

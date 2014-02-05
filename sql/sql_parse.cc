@@ -7254,7 +7254,7 @@ uint kill_one_thread(THD *thd, ulong id, killed_state kill_signal)
 #ifdef WITH_WSREP
     if (((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
-        !wsrep_thd_is_brute_force((void *)tmp))
+        !wsrep_thd_is_BF((void *)tmp, true))
 #else
     if ((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx))

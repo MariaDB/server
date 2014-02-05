@@ -642,7 +642,7 @@ void wsrep_init_startup (bool first)
 {
   if (wsrep_init()) unireg_abort(1);
 
-  wsrep_thr_lock_init(wsrep_thd_is_brute_force, wsrep_abort_thd,
+  wsrep_thr_lock_init(wsrep_thd_is_BF, wsrep_abort_thd,
                       wsrep_debug, wsrep_convert_LOCK_to_trx, wsrep_on);
 
   /* Skip replication start if no cluster address */

@@ -406,27 +406,51 @@ void wsrep_create_rollbacker()
 }
 
 extern "C"
-int wsrep_thd_is_brute_force(void *thd_ptr)
-{
-  /*
-    Brute force:
-    Appliers and replaying are running in REPL_RECV mode. TOI statements
-    in TOTAL_ORDER mode. Locally committing transaction that has got
-    past wsrep->pre_commit() without error is running in LOCAL_COMMIT mode.
-
-    Everything else is running in LOCAL_STATE and should not be considered
-    brute force.
-   */
-  if (thd_ptr) {
-    switch (((THD *)thd_ptr)->wsrep_exec_mode) {
-    case LOCAL_STATE:  return 0;
-    case REPL_RECV:    return 1;
-    case TOTAL_ORDER:  return 2;
-    case LOCAL_COMMIT: return 3;
-    }
+my_bool wsrep_thd_is_BF(void *thd_ptr, my_bool sync)
+{ 
+  my_bool status = FALSE;
+  if (thd_ptr) 
+  {
+    THD* thd = (THD*)thd_ptr;
+    if (sync) mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    
+    status = ((thd->wsrep_exec_mode == REPL_RECV)    ||
+	      (thd->wsrep_exec_mode == TOTAL_ORDER));
+    if (sync) mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
   }
-  DBUG_ASSERT(0);
-  return 0;
+  return status;
+}
+
+extern "C"
+my_bool wsrep_thd_is_BF_or_commit(void *thd_ptr, my_bool sync)
+{
+  bool status = FALSE;
+  if (thd_ptr) 
+  {
+    THD* thd = (THD*)thd_ptr;
+    if (sync) mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    
+    status = ((thd->wsrep_exec_mode == REPL_RECV)    ||
+	      (thd->wsrep_exec_mode == TOTAL_ORDER)  ||
+	      (thd->wsrep_exec_mode == LOCAL_COMMIT));
+    if (sync) mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  }
+  return status;
+}
+
+extern "C"
+my_bool wsrep_thd_is_local(void *thd_ptr, my_bool sync)
+{
+  bool status = FALSE;
+  if (thd_ptr) 
+  {
+    THD* thd = (THD*)thd_ptr;
+    if (sync) mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+
+    status = (thd->wsrep_exec_mode == LOCAL_STATE);
+    if (sync) mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  }
+  return status;
 }
 
 extern "C"
