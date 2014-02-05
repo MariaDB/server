@@ -324,4 +324,39 @@ ERROR 42S02: 'test.t1' is a view
 drop table t1;
 ERROR 42S02: 'test.t1' is a view
 drop view t1;
+#
+# MDEV-5602 CREATE OR REPLACE obtains stricter locks than the
+# connection had before
+#
+create table t1 (a int);
+lock table t1 write, t2 read;
+select * from information_schema.metadata_lock_info;
+THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
+#	MDL_SHARED_READ	MDL_EXPLICIT	Table metadata lock	test	t2
+create or replace table t1 (i int);
+select * from information_schema.metadata_lock_info;
+THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
+#	MDL_SHARED_READ	MDL_EXPLICIT	Table metadata lock	test	t2
+create or replace table t1 like t2;
+select * from information_schema.metadata_lock_info;
+THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
+#	MDL_SHARED_READ	MDL_EXPLICIT	Table metadata lock	test	t2
+create or replace table t1 select 1 as f1;
+select * from information_schema.metadata_lock_info;
+THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
+#	MDL_SHARED_READ	MDL_EXPLICIT	Table metadata lock	test	t2
+drop table t1;
+unlock tables;
 DROP TABLE t2;

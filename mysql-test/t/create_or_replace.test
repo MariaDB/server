@@ -3,6 +3,7 @@
 #
 
 --source include/have_innodb.inc
+--source include/have_metadata_lock_info.inc
 --disable_warnings
 drop table if exists t1,t2,t3;
 --enable_warnings
@@ -264,6 +265,27 @@ create or replace table t1 (a int);
 --error ER_IT_IS_A_VIEW
 drop table t1;
 drop view t1;
+
+--echo #
+--echo # MDEV-5602 CREATE OR REPLACE obtains stricter locks than the
+--echo # connection had before
+--echo #
+
+create table t1 (a int);
+lock table t1 write, t2 read;
+--replace_column 1 #
+select * from information_schema.metadata_lock_info;
+create or replace table t1 (i int);
+--replace_column 1 #
+select * from information_schema.metadata_lock_info;
+create or replace table t1 like t2;
+--replace_column 1 #
+select * from information_schema.metadata_lock_info;
+create or replace table t1 select 1 as f1;
+--replace_column 1 #
+select * from information_schema.metadata_lock_info;
+drop table t1;
+unlock tables;
 
 #
 # Cleanup

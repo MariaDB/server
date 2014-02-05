@@ -4882,6 +4882,11 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
     if (thd->locked_tables_list.reopen_tables(thd))
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+    else
+    {
+      TABLE *table= pos_in_locked_tables->table;
+      table->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
+    }
   }
 
 err:
@@ -5195,17 +5200,20 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
         don't reopen the table when doing statment logging below.
       */
       table->table= pos_in_locked_tables->table;
+      table->table->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
     }
   }
-
-  /*
-    Ensure that we have an exclusive lock on target table if we are creating
-    non-temporary table.
-  */
-  DBUG_ASSERT((create_info->tmp_table()) ||
-              thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db,
-                                             table->table_name,
-                                             MDL_EXCLUSIVE));
+  else
+  {
+    /*
+      Ensure that we have an exclusive lock on target table if we are creating
+      non-temporary table.
+    */
+    DBUG_ASSERT((create_info->tmp_table()) ||
+                thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db,
+                                               table->table_name,
+                                               MDL_EXCLUSIVE));
+  }
 
   DEBUG_SYNC(thd, "create_table_like_before_binlog");
 
