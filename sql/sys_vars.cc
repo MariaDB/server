@@ -2022,7 +2022,7 @@ static bool fix_optimizer_search_depth(sys_var *self, THD *thd,
 {
   SV *sv= type == OPT_GLOBAL ? &global_system_variables : &thd->variables;
   if (sv->optimizer_search_depth == MAX_TABLES+2)
-    WARN_DEPRECATED(thd, 10, 1, "optimizer-search-depth=63",
+    WARN_DEPRECATED(thd, 10, 2, "optimizer-search-depth=63",
                     "a search depth less than 63");
   return false;
 }
