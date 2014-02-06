@@ -1209,3 +1209,12 @@
   ...
   obj:*/libodbc.so*
 }
+
+{
+  XtraDB uses gcc __thread variables
+  Memcheck:Leak
+  fun:memalign
+  fun:*
+  fun:__tls_get_addr
+}
+
