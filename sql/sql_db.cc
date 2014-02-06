@@ -798,14 +798,8 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
   if ((my_strcasecmp(system_charset_info, MYSQL_SCHEMA_NAME.str, db) == 0))
   {
     for (table= tables; table; table= table->next_local)
-    {
-      if (check_if_log_table(table->db_length, table->db,
-                             table->table_name_length, table->table_name, true))
-      {
-        my_error(ER_BAD_LOG_STATEMENT, MYF(0), "DROP");
+      if (check_if_log_table(table, TRUE, "DROP"))
         goto exit;
-      }
-    }
   }
 
   /* Lock all tables and stored routines about to be dropped. */
@@ -835,7 +829,7 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
   thd->push_internal_handler(&err_handler);
   if (!thd->killed &&
       !(tables &&
-        mysql_rm_table_no_locks(thd, tables, true, false, true, true)))
+        mysql_rm_table_no_locks(thd, tables, true, false, true, true, false)))
   {
     /*
       We temporarily disable the binary log while dropping the objects

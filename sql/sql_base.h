@@ -248,7 +248,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr);
 bool close_temporary_tables(THD *thd);
 TABLE_LIST *unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
                          bool check_alias);
-int drop_temporary_table(THD *thd, TABLE_LIST *table_list, bool *is_trans);
+int drop_temporary_table(THD *thd, TABLE *table, bool *is_trans);
 void close_temporary_table(THD *thd, TABLE *table, bool free_share,
                            bool delete_table);
 void close_temporary(TABLE *table, bool free_share, bool delete_table);
@@ -485,6 +485,8 @@ inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
                               &prelocking_strategy);
 }
 
+
+bool restart_trans_for_tables(THD *thd, TABLE_LIST *table);
 
 /**
   A context of open_tables() function, used to recover

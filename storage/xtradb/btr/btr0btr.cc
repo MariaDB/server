@@ -805,7 +805,7 @@ btr_height_get(
         /* S latches the page */
         root_block = btr_root_block_get(index, RW_S_LATCH, mtr);
 
-        height = btr_page_get_level(buf_block_get_frame(root_block), mtr);
+        height = btr_page_get_level(buf_block_get_frame_fast(root_block), mtr);
 
         /* Release the S latch on the root page. */
         mtr_memo_release(mtr, root_block, MTR_MEMO_PAGE_S_FIX);
@@ -2746,7 +2746,7 @@ btr_attach_half_pages(
 	}
 
 	/* Get the level of the split pages */
-	level = btr_page_get_level(buf_block_get_frame(block), mtr);
+	level = btr_page_get_level(buf_block_get_frame_fast(block), mtr);
 	ut_ad(level
 	      == btr_page_get_level(buf_block_get_frame(new_block), mtr));
 
@@ -3970,8 +3970,8 @@ btr_discard_page(
 
 	/* Decide the page which will inherit the locks */
 
-	left_page_no = btr_page_get_prev(buf_block_get_frame(block), mtr);
-	right_page_no = btr_page_get_next(buf_block_get_frame(block), mtr);
+	left_page_no = btr_page_get_prev(buf_block_get_frame_fast(block), mtr);
+	right_page_no = btr_page_get_next(buf_block_get_frame_fast(block), mtr);
 
 	if (left_page_no != FIL_NULL) {
 		merge_block = btr_block_get(space, zip_size, left_page_no,

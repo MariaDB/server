@@ -352,6 +352,7 @@ MYSQL_CHECK_SSL()
 # Add readline or libedit.
 MYSQL_CHECK_READLINE()
 
+SET(MALLOC_LIBRARY "system")
 CHECK_JEMALLOC()
 
 #

@@ -364,7 +364,7 @@ static Sys_var_ulong Sys_back_log(
        "MySQL can have. This comes into play when the main MySQL thread "
        "gets very many connection requests in a very short time",
        READ_ONLY GLOBAL_VAR(back_log), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 65535), DEFAULT(50), BLOCK_SIZE(1));
+       VALID_RANGE(1, 65535), DEFAULT(150), BLOCK_SIZE(1));
 
 static Sys_var_charptr Sys_basedir(
        "basedir", "Path to installation directory. All paths are "
@@ -593,7 +593,7 @@ static bool check_charset_db(sys_var *self, THD *thd, set_var *var)
 }
 static Sys_var_struct Sys_character_set_database(
        "character_set_database",
-       " The character set used by the default database",
+       "The character set used by the default database",
        SESSION_VAR(collation_database), NO_CMD_LINE,
        offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_charset_db));
@@ -1062,7 +1062,7 @@ static Sys_var_keycache Sys_key_cache_age_threshold(
 static Sys_var_mybool Sys_large_files_support(
        "large_files_support",
        "Whether mysqld was compiled with options for large file support",
-       READ_ONLY GLOBAL_VAR(opt_large_files),
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(opt_large_files),
        NO_CMD_LINE, DEFAULT(sizeof(my_off_t) > 4));
 
 static Sys_var_uint Sys_large_page_size(
@@ -1184,7 +1184,8 @@ static Sys_var_mybool Sys_lower_case_file_system(
        "lower_case_file_system",
        "Case sensitivity of file names on the file system where the "
        "data directory is located",
-       READ_ONLY GLOBAL_VAR(lower_case_file_system), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(lower_case_file_system),
+       NO_CMD_LINE,
        DEFAULT(FALSE));
 
 static Sys_var_uint Sys_lower_case_table_names(
@@ -2145,7 +2146,7 @@ static Sys_var_ulong Sys_preload_buff_size(
 static Sys_var_uint Sys_protocol_version(
        "protocol_version",
        "The version of the client/server protocol used by the MySQL server",
-       READ_ONLY GLOBAL_VAR(protocol_version), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(protocol_version), NO_CMD_LINE,
        VALID_RANGE(0, ~0), DEFAULT(PROTOCOL_VERSION), BLOCK_SIZE(1));
 
 static Sys_var_proxy_user Sys_proxy_user(
@@ -2604,10 +2605,22 @@ static Sys_var_enum Slave_exec_mode(
        "Modes for how replication events should be executed. Legal values "
        "are STRICT (default) and IDEMPOTENT. In IDEMPOTENT mode, "
        "replication will not stop for operations that are idempotent. "
+       "For example, in row based replication attempts to delete rows that "
+       "doesn't exist will be ignored."
        "In STRICT mode, replication will stop on any unexpected difference "
        "between the master and the slave",
        GLOBAL_VAR(slave_exec_mode_options), CMD_LINE(REQUIRED_ARG),
        slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_STRICT));
+
+static Sys_var_enum Slave_ddl_exec_mode(
+       "slave_ddl_exec_mode",
+       "Modes for how replication events should be executed. Legal values "
+       "are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode, "
+       "replication will not stop for DDL operations that are idempotent. "
+       "This means that CREATE TABLE is treated CREATE TABLE OR REPLACE and "
+       "DROP TABLE is threated as DROP TABLE IF EXISTS. ",
+       GLOBAL_VAR(slave_ddl_exec_mode_options), CMD_LINE(REQUIRED_ARG),
+       slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_IDEMPOTENT));
 
 static const char *slave_type_conversions_name[]= {"ALL_LOSSY", "ALL_NON_LOSSY", 0};
 static Sys_var_set Slave_type_conversions(
@@ -2881,7 +2894,8 @@ static Sys_var_mybool Sys_sync_frm(
 static char *system_time_zone_ptr;
 static Sys_var_charptr Sys_system_time_zone(
        "system_time_zone", "The server system time zone",
-       READ_ONLY GLOBAL_VAR(system_time_zone_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(system_time_zone_ptr),
+       NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(system_time_zone));
 
 static Sys_var_ulong Sys_table_def_size(
@@ -3091,26 +3105,36 @@ static Sys_var_mybool Sys_timed_mutexes(
 static char *server_version_ptr;
 static Sys_var_charptr Sys_version(
        "version", "Server version",
-       READ_ONLY GLOBAL_VAR(server_version_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(server_version_ptr),
+       NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(server_version));
 
 static char *server_version_comment_ptr;
 static Sys_var_charptr Sys_version_comment(
        "version_comment", "version_comment",
-       READ_ONLY GLOBAL_VAR(server_version_comment_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(server_version_comment_ptr),
+       NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(MYSQL_COMPILATION_COMMENT));
 
 static char *server_version_compile_machine_ptr;
 static Sys_var_charptr Sys_version_compile_machine(
        "version_compile_machine", "version_compile_machine",
-       READ_ONLY GLOBAL_VAR(server_version_compile_machine_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP
+       GLOBAL_VAR(server_version_compile_machine_ptr), NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(MACHINE_TYPE));
 
 static char *server_version_compile_os_ptr;
 static Sys_var_charptr Sys_version_compile_os(
        "version_compile_os", "version_compile_os",
-       READ_ONLY GLOBAL_VAR(server_version_compile_os_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(server_version_compile_os_ptr),
+       NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(SYSTEM_TYPE));
+
+static char *malloc_library;
+static Sys_var_charptr Sys_malloc_library(
+       "version_malloc_library", "Version of the used malloc library",
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(malloc_library), NO_CMD_LINE,
+       IN_SYSTEM_CHARSET, DEFAULT(MALLOC_LIBRARY));
 
 static Sys_var_ulong Sys_net_wait_timeout(
        "wait_timeout",
@@ -3190,10 +3214,10 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     return false;
   }
 
-  if (thd->variables.option_bits & OPTION_AUTOCOMMIT &&
-      thd->variables.option_bits & OPTION_NOT_AUTOCOMMIT)
-  { // activating autocommit
-
+  if (test_all_bits(thd->variables.option_bits,
+                    (OPTION_AUTOCOMMIT | OPTION_NOT_AUTOCOMMIT)))
+  {
+    // activating autocommit
     if (trans_commit_stmt(thd) || trans_commit(thd))
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
@@ -3210,16 +3234,17 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
       transaction implicitly at the end (@sa stmt_causes_implicitcommit()).
     */
     thd->variables.option_bits&=
-                 ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT);
+                 ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT |
+                   OPTION_GTID_BEGIN);
     thd->transaction.all.modified_non_trans_table= false;
     thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
     return false;
   }
 
-  if (!(thd->variables.option_bits & OPTION_AUTOCOMMIT) &&
-      !(thd->variables.option_bits & OPTION_NOT_AUTOCOMMIT))
-  { // disabling autocommit
-
+  if ((thd->variables.option_bits &
+       (OPTION_AUTOCOMMIT |OPTION_NOT_AUTOCOMMIT)) == 0)
+  {
+    // disabling autocommit
     thd->transaction.all.modified_non_trans_table= false;
     thd->server_status&= ~SERVER_STATUS_AUTOCOMMIT;
     thd->variables.option_bits|= OPTION_NOT_AUTOCOMMIT;
@@ -3228,6 +3253,7 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
 
   return false; // autocommit value wasn't changed
 }
+
 static Sys_var_bit Sys_autocommit(
        "autocommit", "autocommit",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_AUTOCOMMIT, DEFAULT(TRUE),

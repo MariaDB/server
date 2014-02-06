@@ -1518,8 +1518,9 @@ public:
   void unlock_locked_tables(THD *thd);
   ~Locked_tables_list()
   {
-    unlock_locked_tables(0);
+    reset();
   }
+  void reset();
   bool init_locked_tables(THD *thd);
   TABLE_LIST *locked_tables() { return m_locked_tables; }
   void unlink_from_list(THD *thd, TABLE_LIST *table_list,
@@ -1528,6 +1529,9 @@ public:
                                 MYSQL_LOCK *lock,
                                 size_t reopen_count);
   bool reopen_tables(THD *thd);
+  bool restore_lock(THD *thd, TABLE_LIST *dst_table_list, TABLE *table,
+                    MYSQL_LOCK *lock);
+  void add_back_last_deleted_lock(TABLE_LIST *dst_table_list);
 };
 
 
@@ -1971,7 +1975,10 @@ public:
   uint in_sub_stmt;
   /* True when opt_userstat_running is set at start of query */
   bool userstat_running;
-  /* True if we want to log all errors */
+  /*
+    True if we have to log all errors. Are set by some engines to temporary
+    force errors to the error log.
+  */
   bool log_all_errors;
 
   /* Do not set socket timeouts for wait_timeout (used with threadpool) */
@@ -2562,12 +2569,12 @@ public:
   */
   LEX_STRING connection_name;
   char       default_master_connection_buff[MAX_CONNECTION_NAME+1];
+  uint8      password; /* 0, 1 or 2 */
+  uint8      failed_com_change_user;
   bool       slave_thread, one_shot_set;
   bool       extra_port;                        /* If extra connection */
 
   bool	     no_errors;
-  uint8      password;
-  uint8      failed_com_change_user;
 
   /**
     Set to TRUE if execution of the current compound statement
@@ -2600,13 +2607,6 @@ public:
   /* for IS NULL => = last_insert_id() fix in remove_eq_conds() */
   bool       substitute_null_with_insert_id;
   bool	     in_lock_tables;
-  /**
-    True if a slave error. Causes the slave to stop. Not the same
-    as the statement execution error (is_error()), since
-    a statement may be expected to return an error, e.g. because
-    it returned an error on master, and this is OK on the slave.
-  */
-  bool       is_slave_error;
   bool       bootstrap, cleanup_done;
 
   /**  is set if some thread specific value(s) used in a statement. */
@@ -2623,6 +2623,20 @@ public:
   /* set during loop of derived table processing */
   bool       derived_tables_processing;
   bool       tablespace_op;	/* This is TRUE in DISCARD/IMPORT TABLESPACE */
+  /* True if we have to log the current statement */
+  bool	     log_current_statement;
+  /**
+    True if a slave error. Causes the slave to stop. Not the same
+    as the statement execution error (is_error()), since
+    a statement may be expected to return an error, e.g. because
+    it returned an error on master, and this is OK on the slave.
+  */
+  bool       is_slave_error;
+  /*
+    In case of a slave, set to the error code the master got when executing
+    the query. 0 if no error on the master.
+  */
+  int	     slave_expected_error;
 
   sp_rcontext *spcont;		// SP runtime context
   sp_cache   *sp_proc_cache;
@@ -4014,6 +4028,8 @@ class select_create: public select_insert {
   MYSQL_LOCK *m_lock;
   /* m_lock or thd->extra_lock */
   MYSQL_LOCK **m_plock;
+  bool       exit_done;
+
 public:
   select_create (TABLE_LIST *table_arg,
 		 HA_CREATE_INFO *create_info_par,
@@ -4025,7 +4041,7 @@ public:
     create_info(create_info_par),
     select_tables(select_tables_arg),
     alter_info(alter_info_arg),
-    m_plock(NULL)
+    m_plock(NULL), exit_done(0)
     {}
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
 

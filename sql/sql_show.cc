@@ -1041,7 +1041,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   if ((table_list->view ?
        view_store_create_info(thd, table_list, &buffer) :
        store_create_info(thd, table_list, &buffer, NULL,
-                         FALSE /* show_database */)))
+                         FALSE /* show_database */, FALSE)))
     goto exit;
 
   if (table_list->view)
@@ -1526,6 +1526,8 @@ static void append_create_options(THD *thd, String *packet,
                       to tailor the format of the statement.  Can be
                       NULL, in which case only SQL_MODE is considered
                       when building the statement.
+    show_database     Add database name to table name
+    create_or_replace Use CREATE OR REPLACE syntax
 
   NOTE
     Currently always return 0, but might return error code in the
@@ -1536,7 +1538,8 @@ static void append_create_options(THD *thd, String *packet,
  */
 
 int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
-                      HA_CREATE_INFO *create_info_arg, bool show_database)
+                      HA_CREATE_INFO *create_info_arg, bool show_database,
+                      bool create_or_replace)
 {
   List<Item> field_list;
   char tmp[MAX_FIELD_WIDTH], *for_str, buff[128], def_value_buf[MAX_FIELD_WIDTH];
@@ -1569,10 +1572,12 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
 
   restore_record(table, s->default_values); // Get empty record
 
+  packet->append(STRING_WITH_LEN("CREATE "));
+  if (create_or_replace)
+    packet->append(STRING_WITH_LEN("OR REPLACE "));
   if (share->tmp_table)
-    packet->append(STRING_WITH_LEN("CREATE TEMPORARY TABLE "));
-  else
-    packet->append(STRING_WITH_LEN("CREATE TABLE "));
+    packet->append(STRING_WITH_LEN("TEMPORARY "));
+  packet->append(STRING_WITH_LEN("TABLE "));
   if (create_info_arg &&
       (create_info_arg->options & HA_LEX_CREATE_IF_NOT_EXISTS))
     packet->append(STRING_WITH_LEN("IF NOT EXISTS "));
@@ -7681,7 +7686,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
     DBUG_RETURN(0);
   my_bitmap_map* bitmaps=
     (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));
-  bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count,
+  my_bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count,
               FALSE);
   table->read_set= &table->def_read_set;
   bitmap_clear_all(table->read_set);

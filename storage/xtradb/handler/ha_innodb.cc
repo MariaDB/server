@@ -1230,6 +1230,7 @@ normalize_table_name_low(
 	ibool           set_lower_case); /* in: TRUE if we want to set
 					 name to lower case */
 
+#ifdef NOT_USED
 /*************************************************************//**
 Removes old archived transaction log files.
 @return	true on error */
@@ -1255,6 +1256,7 @@ static bool innobase_purge_archive_logs(
 	}
 	return (err != DB_SUCCESS);
 }
+#endif
 
 /*************************************************************//**
 Check for a valid value of innobase_commit_concurrency.

@@ -1,0 +1,4 @@
+# Testing create or replace table in mixed mode.
+
+--source include/have_binlog_format_statement.inc
+--source create_or_replace.inc
