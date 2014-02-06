@@ -140,5 +140,5 @@ slave-bin.000001	#	Query	#	#	use `test`; create table t2 engine=myisam select * 
 slave-bin.000001	#	Gtid	#	#	GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; create or replace table t2 engine=innodb select * from t1
 drop table t1;
-drop table t2;
+drop table t2,t3;
 include/rpl_end.inc

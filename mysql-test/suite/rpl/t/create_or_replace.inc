@@ -132,6 +132,6 @@ connection server_1;
 drop table t1;
 
 # Clean up
-drop table t2;
+drop table t2,t3;
 
 --source include/rpl_end.inc

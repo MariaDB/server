@@ -8252,7 +8252,8 @@ get_best_combination(JOIN *join)
            sub-order
       */
       SJ_MATERIALIZATION_INFO *sjm= cur_pos->table->emb_sj_nest->sj_mat_info;
-      j->records= j->records_read= (ha_rows)(sjm->is_sj_scan? sjm->rows : 1);
+      j->records_read= (sjm->is_sj_scan? sjm->rows : 1);
+      j->records= (ha_rows) j->records_read;
       j->cond_selectivity= 1.0;
       JOIN_TAB *jt;
       JOIN_TAB_RANGE *jt_range;
@@ -11152,7 +11153,7 @@ ha_rows JOIN_TAB::get_examined_rows()
   else
     examined_rows= records_read;
 
-  return examined_rows;
+  return (ha_rows) examined_rows;
 }
 
 
@@ -23306,7 +23307,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
         double examined_rows= tab->get_examined_rows();
 
         eta->rows_set= true;
-        eta->rows= examined_rows;
+        eta->rows= (ha_rows) examined_rows;
 
         /* "filtered"  */
         float f= 0.0; 
