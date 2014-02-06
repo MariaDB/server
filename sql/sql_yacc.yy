@@ -1665,7 +1665,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <num>
         type type_with_opt_collate int_type real_type order_dir lock_option
         udf_type opt_if_exists opt_local opt_table_options table_options
-        table_option opt_if_not_exists opt_no_write_to_binlog
+        table_option opt_if_not_exists create_or_replace opt_no_write_to_binlog
         opt_temporary all_or_any opt_distinct
         opt_ignore_leaves fulltext_options spatial_type union_option
         field_def
@@ -1844,7 +1844,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         statement sp_suid
         sp_c_chistics sp_a_chistics sp_chistic sp_c_chistic xa
         opt_field_or_var_spec fields_or_vars opt_load_data_set_spec
-        view_replace_or_algorithm view_replace
         view_algorithm view_or_trigger_or_sp_or_event
         definer_tail no_definer_tail
         view_suid view_tail view_list_opt view_list view_select
@@ -2342,25 +2341,29 @@ connection_name:
 /* create a table */
 
 create:
-          CREATE opt_table_options TABLE_SYM opt_if_not_exists table_ident
+          create_or_replace opt_table_options TABLE_SYM opt_if_not_exists table_ident
           {
             LEX *lex= thd->lex;
             lex->sql_command= SQLCOM_CREATE_TABLE;
+            if ($1 && $4)
+            {
+               my_error(ER_WRONG_USAGE, MYF(0), "OR REPLACE", "IF NOT EXISTS");
+               MYSQL_YYABORT;
+            }
             if (!lex->select_lex.add_table_to_list(thd, $5, NULL,
                                                    TL_OPTION_UPDATING,
                                                    TL_WRITE, MDL_EXCLUSIVE))
               MYSQL_YYABORT;
-            /*
-              For CREATE TABLE, an non-existing table is not an error.
-              Instruct open_tables() to just take an MDL lock if the
-              table does not exist.
-            */
-            lex->query_tables->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
             lex->alter_info.reset();
             lex->col_list.empty();
             lex->change=NullS;
             bzero((char*) &lex->create_info,sizeof(lex->create_info));
-            lex->create_info.options=$2 | $4;
+            /*
+              For CREATE TABLE we should not open the table even if it exists.
+              If the table exists, we should either not create it or replace it
+            */
+            lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
+            lex->create_info.options= ($1 | $2 | $4);
             lex->create_info.default_table_charset= NULL;
             lex->name.str= 0;
             lex->name.length= 0;
@@ -2429,14 +2432,22 @@ create:
             lex->name= $4;
             lex->create_info.options=$3;
           }
-        | CREATE
+        | create_or_replace
           {
-            Lex->create_view_mode= VIEW_CREATE_NEW;
+            Lex->create_view_mode= ($1 == 0 ? VIEW_CREATE_NEW :
+                                    VIEW_CREATE_OR_REPLACE);
             Lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED;
             Lex->create_view_suid= TRUE;
           }
           view_or_trigger_or_sp_or_event
-          {}
+          {
+            if ($1 && Lex->sql_command != SQLCOM_CREATE_VIEW)
+            {
+               my_error(ER_WRONG_USAGE, MYF(0), "OR REPLACE",
+                       "TRIGGERS / SP / EVENT");
+               MYSQL_YYABORT;
+            }
+          }
         | CREATE USER clear_privileges grant_list
           {
             Lex->sql_command = SQLCOM_CREATE_USER;
@@ -5513,6 +5524,17 @@ opt_if_not_exists:
           {
             Lex->check_exists= TRUE;
             $$=HA_LEX_CREATE_IF_NOT_EXISTS;
+          }
+         ;
+
+create_or_replace:
+          CREATE /* empty */
+          {
+            $$= 0;
+          }
+        | CREATE OR_SYM REPLACE
+          {
+            $$= HA_LEX_CREATE_REPLACE;
           }
          ;
 
@@ -15821,7 +15843,7 @@ view_or_trigger_or_sp_or_event:
           {}
         | no_definer no_definer_tail
           {}
-        | view_replace_or_algorithm definer_opt view_tail
+        | view_algorithm definer_opt view_tail
           {}
         ;
 
@@ -15879,20 +15901,6 @@ definer:
  CREATE VIEW statement parts.
 
 **************************************************************************/
-
-view_replace_or_algorithm:
-          view_replace
-          {}
-        | view_replace view_algorithm
-          {}
-        | view_algorithm
-          {}
-        ;
-
-view_replace:
-          OR_SYM REPLACE
-          { Lex->create_view_mode= VIEW_CREATE_OR_REPLACE; }
-        ;
 
 view_algorithm:
           ALGORITHM_SYM EQ UNDEFINED_SYM

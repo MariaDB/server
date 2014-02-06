@@ -1,0 +1,67 @@
+############## mysql-test\t\slave_ddl_exec_mode_basic.test ####################
+#                                                                             #
+# Variable Name: slave_ddl_exec_mode                                          #
+# Scope: GLOBAL & SESSION                                                     #
+# Access Type: Dynamic                                                        #
+# Data Type: Numeric                                                          #
+# Default Value: 1                                                            #
+# Range: 1 - 65536                                                            #
+#                                                                             #
+#                                                                             #
+# Description: Test Cases of Dynamic System Variable slave_ddl_exec_mode      #
+#              that checks the behavior of this variable in the following ways#
+#              * Default Value                                                #
+#              * Valid & Invalid values                                       #
+#              * Scope & Access method                                        #
+#              * Data Integrity                                               #
+#                                                                             #
+###############################################################################
+
+--source include/not_embedded.inc
+--source include/load_sysvars.inc
+
+######################################################################## 
+#                    START OF slave_ddl_exec_mode TESTS               #
+######################################################################## 
+
+SET @start_value = @@global.slave_ddl_exec_mode;
+
+SELECT @@global.slave_ddl_exec_mode;
+
+SELECT @@slave_ddl_exec_mode = @@GLOBAL.slave_ddl_exec_mode;
+--echo 1 Expected
+
+SELECT COUNT(@@slave_ddl_exec_mode);
+--echo 1 Expected
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@local.slave_ddl_exec_mode);
+--echo Expected error 'Variable is a GLOBAL variable'
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@SESSION.slave_ddl_exec_mode);
+--echo Expected error 'Variable is a GLOBAL variable'
+
+SELECT COUNT(@@GLOBAL.slave_ddl_exec_mode);
+--echo 1 Expected
+
+--Error ER_BAD_FIELD_ERROR
+SELECT slave_ddl_exec_mode = @@SESSION.version;
+--echo Expected error 'Readonly variable'
+
+
+SET @@GLOBAL.slave_ddl_exec_mode=STRICT;
+SELECT @@GLOBAL.slave_ddl_exec_mode;
+
+SET @@GLOBAL.slave_ddl_exec_mode=IDEMPOTENT;
+SELECT @@GLOBAL.slave_ddl_exec_mode;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@GLOBAL.slave_ddl_exec_mode=XXX;
+SELECT @@GLOBAL.slave_ddl_exec_mode;
+
+SET @@global.slave_ddl_exec_mode= @start_value;
+
+######################################################################## 
+#                    END OF slave_ddl_exec_mode TESTS                  #
+######################################################################## 

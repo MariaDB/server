@@ -196,6 +196,7 @@ static void check_unused(THD *thd)
   TABLE *entry;
   TABLE_SHARE *share;
   TDC_iterator tdc_it;
+  DBUG_ENTER("check_unused");
 
   tdc_it.init();
   mysql_mutex_lock(&LOCK_open);
@@ -221,6 +222,7 @@ static void check_unused(THD *thd)
   }
   mysql_mutex_unlock(&LOCK_open);
   tdc_it.deinit();
+  DBUG_VOID_RETURN;
 }
 #else
 #define check_unused(A)

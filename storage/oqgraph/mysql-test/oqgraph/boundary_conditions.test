@@ -4,6 +4,8 @@ DROP TABLE IF EXISTS graph;
 DROP TABLE IF EXISTS graph2;
 --enable_warnings
 
+call mtr.add_suppression("graph_base is open on delete");
+
 CREATE TABLE graph2 (
     latch   VARCHAR(32) NULL,
     origid  BIGINT    UNSIGNED NULL,

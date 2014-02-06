@@ -366,7 +366,8 @@ static DYNAMIC_ARRAY all_options;
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
-my_bool opt_log, opt_slow_log, debug_assert_if_crashed_table= 0, opt_help= 0, opt_abort;
+my_bool opt_log, opt_slow_log, debug_assert_if_crashed_table= 0, opt_help= 0;
+static my_bool opt_abort;
 ulonglong log_output_options;
 my_bool opt_userstat_running;
 my_bool opt_log_queries_not_using_indexes= 0;
@@ -478,6 +479,7 @@ ulong open_files_limit, max_binlog_size;
 ulong slave_trans_retries;
 uint  slave_net_timeout;
 ulong slave_exec_mode_options;
+ulong slave_ddl_exec_mode_options= SLAVE_EXEC_MODE_IDEMPOTENT;
 ulonglong slave_type_conversions_options;
 ulong thread_cache_size=0;
 ulonglong binlog_cache_size=0;
@@ -1964,7 +1966,7 @@ void clean_up(bool print_message)
   // We must call end_slave() as clean_up may have been called during startup
   end_slave();
   if (use_slave_mask)
-    bitmap_free(&slave_error_mask);
+    my_bitmap_free(&slave_error_mask);
 #endif
   stop_handle_manager();
   release_ddl_log();
@@ -2018,7 +2020,7 @@ void clean_up(bool print_message)
   if (defaults_argv)
     free_defaults(defaults_argv);
   free_tmpdir(&mysql_tmpdir_list);
-  bitmap_free(&temp_pool);
+  my_bitmap_free(&temp_pool);
   free_max_user_conn();
   free_global_user_stats();
   free_global_client_stats();
@@ -4252,7 +4254,7 @@ static int init_common_variables()
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
 #if (ENABLE_TEMP_POOL)
-  if (use_temp_pool && bitmap_init(&temp_pool,0,1024,1))
+  if (use_temp_pool && my_bitmap_init(&temp_pool,0,1024,1))
     return 1;
 #else
   use_temp_pool= 0;
@@ -7966,7 +7968,6 @@ static int option_cmp(my_option *a, my_option *b)
         return 1;
     }
   }
-  DBUG_ASSERT(a->name == b->name);
   return 0;
 }
 
@@ -7981,9 +7982,16 @@ static void print_help()
   sys_var_add_options(&all_options, sys_var::PARSE_EARLY);
   add_plugin_options(&all_options, &mem_root);
   sort_dynamic(&all_options, (qsort_cmp) option_cmp);
+  sort_dynamic(&all_options, (qsort_cmp) option_cmp);
   add_terminator(&all_options);
 
   my_print_help((my_option*) all_options.buffer);
+
+  /* Add variables that can be shown but not changed, like version numbers */
+  pop_dynamic(&all_options);
+  sys_var_add_options(&all_options, sys_var::SHOW_VALUE_IN_HELP);
+  sort_dynamic(&all_options, (qsort_cmp) option_cmp);
+  add_terminator(&all_options);
   my_print_variables((my_option*) all_options.buffer);
 
   free_root(&mem_root, MYF(0));
@@ -8944,6 +8952,13 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
         max_binlog_size_var->option.def_value;
     }
   }
+
+  /* Ensure that some variables are not set higher than needed */
+  if (back_log > max_connections)
+    back_log= max_connections;
+  if (thread_cache_size > max_connections)
+    thread_cache_size= max_connections;
+  
   return 0;
 }
 

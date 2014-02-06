@@ -573,7 +573,7 @@ void init_slave_skip_errors(const char* arg)
   const char *p;
   DBUG_ENTER("init_slave_skip_errors");
 
-  if (bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR,0))
+  if (my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR,0))
   {
     fprintf(stderr, "Badly out of memory, please check your system status\n");
     exit(1);
@@ -1047,9 +1047,10 @@ static bool sql_slave_killed(rpl_group_info *rgi)
         "documentation for details).";
 
       DBUG_PRINT("info", ("modified_non_trans_table: %d  OPTION_BEGIN: %d  "
-                          "is_in_group: %d",
+                          "OPTION_KEEP_LOG: %d  is_in_group: %d",
                           thd->transaction.all.modified_non_trans_table,
                           test(thd->variables.option_bits & OPTION_BEGIN),
+                          test(thd->variables.option_bits & OPTION_KEEP_LOG),
                           rli->is_in_group()));
 
       if (rli->abort_slave)
@@ -3128,9 +3129,10 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
   DBUG_PRINT("exec_event",("%s(type_code: %d; server_id: %d)",
                            ev->get_type_str(), ev->get_type_code(),
                            ev->server_id));
-  DBUG_PRINT("info", ("thd->options: %s%s; rgi->last_event_start_time: %lu",
+  DBUG_PRINT("info", ("thd->options: '%s%s%s'  rgi->last_event_start_time: %lu",
                       FLAGSTR(thd->variables.option_bits, OPTION_NOT_AUTOCOMMIT),
                       FLAGSTR(thd->variables.option_bits, OPTION_BEGIN),
+                      FLAGSTR(thd->variables.option_bits, OPTION_GTID_BEGIN),
                       (ulong) rgi->last_event_start_time));
 
   /*
