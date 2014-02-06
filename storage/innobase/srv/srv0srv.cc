@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -162,6 +162,8 @@ UNIV_INTERN my_bool	srv_use_posix_fallocate = FALSE;
 UNIV_INTERN my_bool	srv_use_atomic_writes = FALSE;
 /* If this flag IS TRUE, then we use lz4 to compress/decompress pages */
 UNIV_INTERN my_bool	srv_use_lz4 = FALSE;
+/* Number of threads used for multi-threaded flush */
+UNIV_INTERN long srv_mtflush_threads = 0;
 
 #ifdef __WIN__
 /* Windows native condition variables. We use runtime loading / function

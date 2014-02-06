@@ -70,6 +70,7 @@ Created 2/16/1996 Heikki Tuuri
 # include "sync0sync.h"
 # include "buf0flu.h"
 # include "buf0rea.h"
+# include "buf0mtflu.h"
 # include "dict0boot.h"
 # include "dict0load.h"
 # include "dict0stats_bg.h"
@@ -130,6 +131,8 @@ static ulint		n[SRV_MAX_N_IO_THREADS + 6];
 /** 6 is the ? */
 #define	START_OLD_THREAD_CNT	(SRV_MAX_N_IO_THREADS + 6 + 32)
 static os_thread_id_t	thread_ids[SRV_MAX_N_IO_THREADS + 6 + 32 + MTFLUSH_MAX_WORKER];
+/* Thread contex data for multi-threaded flush */
+void *mtflush_ctx=NULL;
 
 /** We use this mutex to test the return value of pthread_mutex_trylock
    on successful locking. HP-UX does NOT return 0, though Linux et al do. */
@@ -1434,403 +1437,6 @@ srv_start_wait_for_purge_to_start()
 	}
 }
 
-/* JAN: TODO: */
-/**********************************************************************************/
-#ifdef UNIV_DEBUG
-extern int timediff(struct timeval *g_time, struct timeval *s_time, struct timeval *d_time);
-#endif
-extern ibool buf_flush_start(buf_pool_t* buf_pool, enum buf_flush flush_type);
-extern void buf_flush_end(buf_pool_t* buf_pool, enum buf_flush flush_type);
-extern void buf_flush_common(enum buf_flush flush_type, ulint page_count);
-extern ulint buf_flush_batch(buf_pool_t* buf_pool, enum buf_flush flush_type, ulint min_n, lsn_t lsn_limit);
-extern void pgcomp_init(void);
-extern void pgcomp_deinit(void);
-
-typedef enum wrk_status {
-	WRK_ITEM_SET=0,     // wrk-item is set
-	WRK_ITEM_START=1,   // processing of wrk-item has started
-	WRK_ITEM_DONE=2,    // processing is done usually set to SUCCESS/FAILED
-	WRK_ITEM_SUCCESS=2, // Success processing the wrk-item
-	WRK_ITEM_FAILED=3,  // status of failed
-	WRK_ITEM_EXIT=4,
-	WRK_ITEM_STATUS_UNDEFINED
-} wrk_status_t;
-
-typedef enum mt_wrk_tsk {
-	MT_WRK_NONE=0,      // Exit queue-wait
-	MT_WRK_WRITE=1,     // Flush operation
-	MT_WRK_READ=2,      // Decompress operation
-	MT_WRK_UNDEFINED
-} mt_wrk_tsk_t;
-
-typedef enum wthr_status {
-	WTHR_NOT_INIT=0,
-	WTHR_INITIALIZED=1,
-	WTHR_SIG_WAITING=2,
-	WTHR_RUNNING=3,
-	WTHR_NO_WORK=4,
-	WTHR_KILL_IT=5,
-	WTHR_STATUS_UNDEFINED
-} wthr_status_t;
-
-typedef struct wr_tsk {
-	buf_pool_t  *buf_pool;	// buffer-pool instance
-	enum buf_flush flush_type;	// flush-type for buffer-pool flush operation
-	ulint	    min;		//minimum number of pages requested to be flushed
-	lsn_t	    lsn_limit;//lsn limit for the buffer-pool flush operation
-} wr_tsk_t;
- 
-
-typedef struct rd_tsk {
-	void        *page_pool; //list of pages to decompress;
-} rd_tsk_t;
-
-typedef struct wrk_itm
-{
-	mt_wrk_tsk_t tsk;
-	/* based on task-type one of the entries wr_tsk/rd_tsk will be used */
-	wr_tsk_t        wr;         //flush page list
-	rd_tsk_t        rd;         //decompress page list
- 	unsigned long	result; 	//flush pages count
- 	unsigned long	t_usec;		//time-taken in usec
- 	long		id_usr;		//thread-id currently working
-    	wrk_status_t    wi_status;	//flag
- 	struct wrk_itm	*next;
-} wrk_t;
-
-typedef struct thread_sync
-{
-	int  	        wthread_id;
-	os_thread_t 	wthread;
-	ib_wqueue_t	*wq;	// work Queue
-	ib_wqueue_t     *wr_cq;// Write Completion Queue
-	ib_wqueue_t     *rd_cq; // Read Completion Queue
-	wthr_status_t   wt_status;	// Worker Thread status
-	unsigned long	stat_universal_num_processed;
-	unsigned long	stat_cycle_num_processed;
-} thread_sync_t;
-
-/* Global XXX:DD needs to be cleaned */
-ib_wqueue_t 	*wq=NULL, *wr_cq=NULL, *rd_cq=NULL;
-mem_heap_t		*heap_allocated=NULL;
-thread_sync_t 	pc_sync[MTFLUSH_MAX_WORKER];
-static wrk_t 	work_items[MTFLUSH_MAX_WORKER];
-static int 		pgcomp_wrk_initialized = -1;
-ulint srv_mtflush_threads = 0;
-
-int set_pgcomp_wrk_init_done(void)
-{
-	pgcomp_wrk_initialized = 1;
-	return 0;
-}
-
-int is_pgcomp_wrk_init_done(void)
-{
-	return(pgcomp_wrk_initialized == 1);
-}
-
-int setup_wrk_itm(int items)
-{
-	int i;
-	for(i=0; i<items; i++) {
-		work_items[i].rd.page_pool = NULL;
-		work_items[i].wr.buf_pool = NULL;
-		work_items[i].t_usec = 0;
-		work_items[i].result = 0;
-		work_items[i].id_usr = -1;
-		work_items[i].wi_status = WRK_ITEM_STATUS_UNDEFINED;
-		work_items[i].next = &work_items[(i+1)%items];
-	}
-	/* last node should be the tail */
-	work_items[items-1].next = NULL;
-	return 0;
-}
-
-int flush_pool_instance(wrk_t *wi)
-{
-#ifdef UNIV_DEBUG
-	struct timeval p_start_time, p_end_time, d_time;
-#endif
-	if (!wi) {
-		fprintf(stderr, "work item invalid wi:%p\n", wi);
-		return -1;
-	}
-
-	if (!wi->wr.buf_pool) {
-		fprintf(stderr, "work-item wi->buf_pool:%p [likely thread exit]\n",
-                wi->wr.buf_pool);
-		return -1;
-	}
-
-    	wi->t_usec = 0;
-	if (!buf_flush_start(wi->wr.buf_pool, wi->wr.flush_type)) {
-		/* We have two choices here. If lsn_limit was
-		specified then skipping an instance of buffer
-		pool means we cannot guarantee that all pages
-		up to lsn_limit has been flushed. We can
-		return right now with failure or we can try
-		to flush remaining buffer pools up to the
-		lsn_limit. We attempt to flush other buffer
-		pools based on the assumption that it will
-		help in the retry which will follow the
-		failure. */
-		fprintf(stderr, "flush_start Failed, flush_type:%d\n",
-			wi->wr.flush_type);
-		return -1;
-	}
-
-#ifdef UNIV_DEBUG
-	/* Record time taken for the OP in usec */
-	gettimeofday(&p_start_time, 0x0);
-#endif
-
-    	if (wi->wr.flush_type == BUF_FLUSH_LRU) {
-        	/* srv_LRU_scan_depth can be arbitrarily large value.
-        	 * We cap it with current LRU size.
-        	 */
-        	buf_pool_mutex_enter(wi->wr.buf_pool);
-        	wi->wr.min = UT_LIST_GET_LEN(wi->wr.buf_pool->LRU);
-        	buf_pool_mutex_exit(wi->wr.buf_pool);
-        	wi->wr.min = ut_min(srv_LRU_scan_depth,wi->wr.min);
-    	}
-
-	wi->result = buf_flush_batch(wi->wr.buf_pool,
-                                    wi->wr.flush_type,
-                                    wi->wr.min, wi->wr.lsn_limit);
-
-	buf_flush_end(wi->wr.buf_pool, wi->wr.flush_type);
-	buf_flush_common(wi->wr.flush_type, wi->result);
-
-#ifdef UNIV_DEBUG
-	gettimeofday(&p_end_time, 0x0);
-	timediff(&p_end_time, &p_start_time, &d_time);
-	wi->t_usec = (unsigned long)(d_time.tv_usec+(d_time.tv_sec*1000000));
-#endif
-	return 0;
-}
-
-int service_page_comp_io(thread_sync_t * ppc)
-{
-	wrk_t 		*wi = NULL;
-	int 		ret=0;
-
-   	ppc->wt_status = WTHR_SIG_WAITING;
-	wi = (wrk_t *)ib_wqueue_wait(ppc->wq);
-
-	if (wi) {
-		ppc->wt_status = WTHR_RUNNING;
-	} else {
-		fprintf(stderr, "%s:%d work-item is NULL\n", __FILE__, __LINE__);
-		ppc->wt_status = WTHR_NO_WORK;
-		return (0);
-	}
-
-	assert(wi != NULL);
-	wi->id_usr = ppc->wthread;
-
-	switch(wi->tsk) {
-	case MT_WRK_NONE:
-		assert(wi->wi_status == WRK_ITEM_EXIT);
-		wi->wi_status = WRK_ITEM_SUCCESS;
-		ib_wqueue_add(ppc->wr_cq, wi, heap_allocated);
-		break;
-
-	case MT_WRK_WRITE:
-		wi->wi_status = WRK_ITEM_START;
-		/* Process work item */
-		if (0 != (ret = flush_pool_instance(wi))) {
-			fprintf(stderr, "FLUSH op failed ret:%d\n", ret);
-			wi->wi_status = WRK_ITEM_FAILED;
-		}
-		wi->wi_status = WRK_ITEM_SUCCESS;
-		ib_wqueue_add(ppc->wr_cq, wi, heap_allocated);
-		break;
-
-	case MT_WRK_READ:
-		/* Need to also handle the read case */
-		assert(0);
-		/* completed task get added to rd_cq */
-		/* wi->wi_status = WRK_ITEM_SUCCESS;
-		ib_wqueue_add(ppc->rd_cq, wi, heap_allocated);*/
-		break;
-
-	default:
-		/* None other than Write/Read handling planned */
-		assert(0);
-	}
-
-	ppc->wt_status = WTHR_NO_WORK;
-	return(0);
-}
-
-void page_comp_io_thread_exit()
-{
-	ulint i;
-
-	fprintf(stderr, "signal page_comp_io_threads to exit [%lu]\n", srv_buf_pool_instances);
-	for (i=0; i<srv_buf_pool_instances; i++) {
-		work_items[i].wr.buf_pool = NULL;
-		work_items[i].rd.page_pool = NULL;
-		work_items[i].tsk = MT_WRK_NONE;
-		work_items[i].wi_status = WRK_ITEM_EXIT;
-		ib_wqueue_add(wq, (void *)&work_items[i], heap_allocated);
-	}
-}
-
-/******************************************************************//**
-@return a dummy parameter*/
-extern "C" UNIV_INTERN
-os_thread_ret_t
-DECLARE_THREAD(page_comp_io_thread)(
-/*================================*/
-	void * arg)
-{
-	thread_sync_t *ppc_io = ((thread_sync_t *)arg);
-
-	while (srv_shutdown_state != SRV_SHUTDOWN_EXIT_THREADS) {
-		service_page_comp_io(ppc_io);
-		ppc_io->stat_cycle_num_processed = 0;
-	}
-	os_thread_exit(NULL);
-	OS_THREAD_DUMMY_RETURN;
-}
-
-int print_wrk_list(wrk_t *wi_list)
-{
-	wrk_t *wi = wi_list;
-	int i=0;
-
-	if(!wi_list) {
-		fprintf(stderr, "list NULL\n");
-	}
-
-	while(wi) {
-		fprintf(stderr, "-\t[%p]\t[%s]\t[%lu]\t[%luus] > %p\n",
-			wi, (wi->id_usr == -1)?"free":"Busy", wi->result, wi->t_usec, wi->next);
-		wi = wi->next;
-		i++;
-	}
-	fprintf(stderr, "list len: %d\n", i);
-	return 0;
-}
-
-/******************************************************************//**
-@return a dummy parameter*/
-int pgcomp_handler_init(int num_threads, int wrk_cnt, ib_wqueue_t *wq, ib_wqueue_t *wr_cq, ib_wqueue_t *rd_cq)
-{
-	int   	i=0;
-
-	if(is_pgcomp_wrk_init_done()) {
-		fprintf(stderr, "pgcomp_handler_init(): ERROR already initialized\n");
-		return -1;
-	}
-
-	if(!wq || !wr_cq || !rd_cq) {
-		fprintf(stderr, "%s() FAILED wq:%p write-cq:%p read-cq:%p\n",
-                __FUNCTION__, wq, wr_cq, rd_cq);
-		return -1;
-	}
-
-	/* work-item setup */
-	setup_wrk_itm(wrk_cnt);
-
-	/* Mark each of the thread sync entires */
-	for(i=0; i < MTFLUSH_MAX_WORKER; i++) {
-	    pc_sync[i].wthread_id = i;
-	}
-
-	/* Create threads for page-compression-flush */
-	for(i=0; i < num_threads; i++) {
-		pc_sync[i].wthread_id = i;
-		pc_sync[i].wq = wq;
-		pc_sync[i].wr_cq = wr_cq;
-		pc_sync[i].rd_cq = rd_cq;
-
-		os_thread_create(page_comp_io_thread, ((void *)(pc_sync + i)),
-	                				thread_ids + START_OLD_THREAD_CNT + i);
-		pc_sync[i].wthread = (START_OLD_THREAD_CNT + i);
-		pc_sync[i].wt_status = WTHR_INITIALIZED;
-	}
-	set_pgcomp_wrk_init_done();
-	fprintf(stderr, "%s() Worker-Threads created..\n", __FUNCTION__);
-	return 0;
-}
-
-int wrk_thread_stat(thread_sync_t *wthr, unsigned int num_threads)
-{
-	ulong stat_tot=0;
-	ulint i=0;
-	for(i=0; i<num_threads;i++) {
-		stat_tot+=wthr[i].stat_universal_num_processed;
-		fprintf(stderr, "[%d] stat [%lu]\n", wthr[i].wthread_id,
-			wthr[i].stat_universal_num_processed);
-	}
-	fprintf(stderr, "Stat-Total:%lu\n", stat_tot);
-}
-
-int reset_wrk_itm(int items)
-{
-	int i;
-
-	for(i=0;i<items; i++) {
-		work_items[i].id_usr = -1;
-	}
-	return 0;
-}
-
-int pgcomp_flush_work_items(int buf_pool_inst, int *per_pool_pages_flushed,
-                            enum buf_flush flush_type, int min_n, lsn_t lsn_limit)
-{
-	int ret=0, i=0;
-	wrk_t *done_wi;
-
-	for(i=0;i<buf_pool_inst; i++) {
-		work_items[i].tsk = MT_WRK_WRITE;
-		work_items[i].rd.page_pool = NULL;
-		work_items[i].wr.buf_pool = buf_pool_from_array(i);
-		work_items[i].wr.flush_type = (enum buf_flush)flush_type;
-		work_items[i].wr.min = min_n;
-		work_items[i].wr.lsn_limit = lsn_limit;
-		work_items[i].id_usr = -1;
-		work_items[i].next = &work_items[(i+1)%buf_pool_inst];
-		work_items[i].wi_status = WRK_ITEM_SET;
-	}
-	work_items[i-1].next=NULL;
-
-   	for(i=0;i<buf_pool_inst; i++) {
-		ib_wqueue_add(wq, (void *)(&work_items[i]), heap_allocated);
-	}
-
-	/* wait on the completion to arrive */
-   	for(i=0;i<buf_pool_inst; i++) {
-		done_wi = (wrk_t *)ib_wqueue_wait(wr_cq);
-    		//fprintf(stderr, "%s: queue-wait DONE\n", __FUNCTION__);
-		ut_ad(done_wi != NULL);
-	}
-
-	/* collect data/results total pages flushed */
-	for(i=0; i<buf_pool_inst; i++) {
-		if(work_items[i].result == -1) {
-			ret = -1;
-			per_pool_pages_flushed[i] = 0;
-		} else {
-			per_pool_pages_flushed[i] = work_items[i].result;
-		}
-		if((work_items[i].id_usr == -1) &&
-			(work_items[i].wi_status == WRK_ITEM_SET )) {
-        		fprintf(stderr, "**Set/Unused work_item[%d] flush_type=%d\n", i, work_items[i].wr.flush_type);
-           		//assert(0);
-       		}
-	}
-	//wrk_thread_stat(pc_sync, pgc_n_threads);
-
-	/* clear up work-queue for next flush */
-	reset_wrk_itm(buf_pool_inst);
-	return(ret);
-}
-
-/* JAN: TODO: END: */
-
 /********************************************************************
 Starts InnoDB and creates a new database if database files
 are not found and the user wants.
@@ -2986,25 +2592,23 @@ files_checked:
 	}
 
 	if (!srv_read_only_mode) {
-		/* JAN: TODO: */
+
 		if (srv_buf_pool_instances <= MTFLUSH_MAX_WORKER) {
 			srv_mtflush_threads = srv_buf_pool_instances;
 		}
 		/* else we default to 8 worker-threads */
- 		heap_allocated = mem_heap_create(0);
-		ut_a(heap_allocated != NULL);
 
- 		wq = ib_wqueue_create();
- 		wr_cq = ib_wqueue_create();
- 		rd_cq = ib_wqueue_create();
-		pgcomp_init();
- 	   	pgcomp_handler_init(srv_mtflush_threads,
-				    srv_buf_pool_instances,
-				    wq, wr_cq, rd_cq);
+		mtflush_ctx = buf_mtflu_handler_init(srv_mtflush_threads,
+						     srv_buf_pool_instances);
+
+		/* Set up the thread ids */
+		buf_mtflu_set_thread_ids(srv_mtflush_threads,
+					mtflush_ctx,
+					(thread_ids + 6 + 32));
+
 #if UNIV_DEBUG
  		fprintf(stderr, "%s:%d buf-pool-instances:%lu\n", __FILE__, __LINE__, srv_buf_pool_instances);
 #endif
-		/* JAN: TODO: END */
 
 		os_thread_create(buf_flush_page_cleaner_thread, NULL, NULL);
 	}
@@ -3272,14 +2876,11 @@ innobase_shutdown_for_mysql(void)
 
 		/* g. Exit the multi threaded flush threads */
 
-		page_comp_io_thread_exit();
+		buf_mtflu_io_thread_exit();
 
 #ifdef UNIV_DEBUG
 		fprintf(stderr, "%s:%d os_thread_count:%lu \n", __FUNCTION__, __LINE__, os_thread_count);
 #endif
-
-		/* h. Remove the mutex */
-		pgcomp_deinit();
 
 		os_mutex_enter(os_sync_mutex);
 

@@ -259,7 +259,7 @@ extern my_bool srv_use_lz4;
 
 /* Number of flush threads */
 #define MTFLUSH_MAX_WORKER       64
-extern ulint    srv_mtflush_threads;
+extern long    srv_mtflush_threads;
 
 #ifdef __WIN__
 extern ibool	srv_use_native_conditions;
