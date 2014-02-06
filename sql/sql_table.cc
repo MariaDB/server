@@ -5476,7 +5476,7 @@ handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
       if (remove_key)
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-            ER_DUP_KEYNAME, ER(ER_DUP_KEYNAME), key->name.str);
+            ER_DUP_KEYNAME, ER(ER_DUP_KEYNAME), keyname);
         key_it.remove();
         if (key->type == Key::FOREIGN_KEY)
         {
