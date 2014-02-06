@@ -5304,7 +5304,8 @@ handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
           {
             alter_info->flags&= ~Alter_info::ALTER_ADD_COLUMN;
             if (alter_info->key_list.is_empty())
-              alter_info->flags&= ~Alter_info::ALTER_ADD_INDEX;
+              alter_info->flags&= ~(Alter_info::ALTER_ADD_INDEX |
+                                    Alter_info::ADD_FOREIGN_KEY);
           }
           break;
         }
@@ -5379,13 +5380,32 @@ handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
       else /* Alter_drop::KEY */
       {
         uint n_key;
-        for (n_key=0; n_key < table->s->keys; n_key++)
+        if (drop->type != Alter_drop::FOREIGN_KEY)
         {
-          if (my_strcasecmp(system_charset_info,
-                            drop->name, table->key_info[n_key].name) == 0)
+          for (n_key=0; n_key < table->s->keys; n_key++)
           {
-            remove_drop= FALSE;
-            break;
+            if (my_strcasecmp(system_charset_info,
+                  drop->name, table->key_info[n_key].name) == 0)
+            {
+              remove_drop= FALSE;
+              break;
+            }
+          }
+        }
+        else
+        {
+          List <FOREIGN_KEY_INFO> fk_child_key_list;
+          FOREIGN_KEY_INFO *f_key;
+          table->file->get_foreign_key_list(thd, &fk_child_key_list);
+          List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+          while ((f_key= fk_key_it++))
+          {
+            if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
+                  drop->name) == 0)
+            {
+              remove_drop= FALSE;
+              break;
+            }
           }
         }
       }
@@ -5397,7 +5417,8 @@ handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
         drop_it.remove();
         if (alter_info->drop_list.is_empty())
           alter_info->flags&= ~(Alter_info::ALTER_DROP_COLUMN |
-                                Alter_info::ALTER_DROP_INDEX);
+                                Alter_info::ALTER_DROP_INDEX  |
+                                Alter_info::DROP_FOREIGN_KEY);
       }
     }
   }
@@ -5408,6 +5429,7 @@ handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
     Key *key;
     List_iterator<Key> key_it(alter_info->key_list);
     uint n_key;
+    bool remove_key;
     const char *keyname;
     while ((key=key_it++))
     {
@@ -5424,23 +5446,47 @@ handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
         if (keyname == NULL)
           continue;
       }
-      for (n_key=0; n_key < table->s->keys; n_key++)
+      remove_key= FALSE;
+      if (key->type != Key::FOREIGN_KEY)
       {
-        if (my_strcasecmp(system_charset_info,
-              keyname, table->key_info[n_key].name) == 0)
+        for (n_key=0; n_key < table->s->keys; n_key++)
         {
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-              ER_DUP_KEYNAME, ER(ER_DUP_KEYNAME), keyname);
-          key_it.remove();
-          if (key->type == Key::FOREIGN_KEY)
+          if (my_strcasecmp(system_charset_info,
+                keyname, table->key_info[n_key].name) == 0)
           {
-            /* ADD FOREIGN KEY appends two items. */
-            key_it.remove();
+            remove_key= TRUE;
+            break;
           }
-          if (alter_info->key_list.is_empty())
-            alter_info->flags&= ~Alter_info::ALTER_ADD_INDEX;
-          break;
         }
+      }
+      else
+      {
+        List <FOREIGN_KEY_INFO> fk_child_key_list;
+        FOREIGN_KEY_INFO *f_key;
+        table->file->get_foreign_key_list(thd, &fk_child_key_list);
+        List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+        while ((f_key= fk_key_it++))
+        {
+          if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
+                key->name.str) == 0)
+            remove_key= TRUE;
+            break;
+        }
+      }
+      if (remove_key)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+            ER_DUP_KEYNAME, ER(ER_DUP_KEYNAME), key->name.str);
+        key_it.remove();
+        if (key->type == Key::FOREIGN_KEY)
+        {
+          /* ADD FOREIGN KEY appends two items. */
+          key_it.remove();
+        }
+        if (alter_info->key_list.is_empty())
+          alter_info->flags&= ~(Alter_info::ALTER_ADD_INDEX |
+              Alter_info::ADD_FOREIGN_KEY);
+        break;
       }
     }
   }

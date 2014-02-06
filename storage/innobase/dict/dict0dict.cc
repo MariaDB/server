@@ -4238,18 +4238,45 @@ loop:
 		goto loop;
 	}
 
+	if (my_isspace(cs, *ptr)) {
+                ptr1 = dict_accept(cs, ptr, "IF", &success);
+
+                if (success) {
+                        if (!my_isspace(cs, *ptr1)) {
+                                goto loop;
+                        }
+                        ptr1 = dict_accept(cs, ptr1, "NOT", &success);
+                        if (!success) {
+                                goto loop;
+                        }
+                        ptr1 = dict_accept(cs, ptr1, "EXISTS", &success);
+                        if (!success) {
+                                goto loop;
+                        }
+                        ptr = ptr1;
+                }
+	}
+
 	ptr = dict_accept(cs, ptr, "(", &success);
 
 	if (!success) {
-		/* MySQL allows also an index id before the '('; we
-		skip it */
-		ptr = dict_skip_word(cs, ptr, &success);
+                if (constraint_name) {
+		  /* MySQL allows also an index id before the '('; we
+		  skip it */
+		  ptr = dict_skip_word(cs, ptr, &success);
+		  if (!success) {
+			  dict_foreign_report_syntax_err(
+				  name, start_of_latest_foreign, ptr);
+                          return(DB_CANNOT_ADD_CONSTRAINT);
+                  }
+		}
+                else {
+		  while (my_isspace(cs, *ptr)) {
+			  ptr++;
+		  }
 
-		if (!success) {
-			dict_foreign_report_syntax_err(
-				name, start_of_latest_foreign, ptr);
-
-			return(DB_CANNOT_ADD_CONSTRAINT);
+		  ptr = dict_scan_id(cs, ptr, heap,
+				     &constraint_name, FALSE, FALSE);
 		}
 
 		ptr = dict_accept(cs, ptr, "(", &success);
@@ -4723,6 +4750,7 @@ dict_foreign_parse_drop_constraints(
 	char*			str;
 	size_t			len;
 	const char*		ptr;
+        const char*             ptr1;
 	const char*		id;
 	struct charset_info_st*	cs;
 
@@ -4771,6 +4799,16 @@ loop:
 	if (!success) {
 
 		goto syntax_error;
+	}
+
+	ptr1 = dict_accept(cs, ptr, "IF", &success);
+
+	if (success && my_isspace(cs, *ptr1)) {
+	        ptr1 = dict_accept(cs, ptr1, "EXISTS", &success);
+	        if (success) {
+
+                        ptr = ptr1;
+	        }
 	}
 
 	ptr = dict_scan_id(cs, ptr, heap, &id, FALSE, TRUE);
