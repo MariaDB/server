@@ -1283,7 +1283,7 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
       tdbp->Fetched = TRUE;
 
   if ((buf = ((PTDBMY)To_Tdb)->Myc.GetCharField(Rank))) {
-    if (trace)
+    if (trace > 1)
       htrc("MySQL ReadColumn: name=%s buf=%s\n", Name, buf);
 
     // TODO: have a true way to differenciate temporal values

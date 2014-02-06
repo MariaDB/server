@@ -219,9 +219,10 @@ typedef struct _global {            /* Global structure                */
   uint      Sarea_Size;             /* Work area size                  */
   PACTIVITY Activityp, ActivityStart;
   char      Message[MAX_STR];
-  short     Trace;
   int       Createas;               /* To pass info to created table   */
   void     *Xchk;                   /* indexes in create/alter         */
+  short     Alchecked;              /* Checked for ALTER               */
+  short     Trace;
   int       jump_level;
   jmp_buf   jumper[MAX_JUMP + 2];
   } GLOBAL;
