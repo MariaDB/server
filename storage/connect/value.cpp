@@ -1,7 +1,7 @@
 /************* Value C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALUE.CPP  Version 2.3                                       */
+/*  Name: VALUE.CPP  Version 2.4                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2014    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes family functions. */
 /*  These classes contain values of different types. They are used so  */
@@ -1142,7 +1142,11 @@ void TYPVAL<PSZ>::SetValue_psz(PSZ s)
 void TYPVAL<PSZ>::SetValue_pvblk(PVBLK blk, int n)
   {
   // STRBLK's can return a NULL pointer
-  SetValue_psz(blk->GetCharValue(n));
+  PSZ vp = blk->GetCharString(Strp, n);
+
+  if (vp != Strp)
+    SetValue_psz(vp);
+
   } // end of SetValue_pvblk
 
 /***********************************************************************/

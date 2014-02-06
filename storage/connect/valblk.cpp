@@ -1,7 +1,7 @@
 /************ Valblk C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALBLK.CPP  Version 2.0                                      */
+/*  Name: VALBLK.CPP  Version 2.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /*  This file contains the VALBLK and derived classes functions.       */
 /*  Second family is VALBLK, representing simple suballocated arrays   */
@@ -235,6 +235,23 @@ void TYPBLK<TYPE>::Init(PGLOBAL g, bool check)
   Check = check;
   Global = g;
   } // end of Init
+
+/***********************************************************************/
+/*  TYPVAL GetCharString: get string representation of a typed value.  */
+/***********************************************************************/
+template <class TYPE>
+char *TYPBLK<TYPE>::GetCharString(char *p, int n)
+  {
+  sprintf(p, Fmt, Typp[n]);
+  return p;
+  } // end of GetCharString
+
+template <>
+char *TYPBLK<double>::GetCharString(char *p, int n)
+  {
+  sprintf(p, Fmt, Prec, Typp[n]);
+  return p;
+  } // end of GetCharString
 
 /***********************************************************************/
 /*  Set one value in a block.                                          */
@@ -676,6 +693,14 @@ double CHRBLK::GetFloatValue(int n)
   {
   return atof((char *)GetValPtrEx(n));
   } // end of GetFloatValue
+
+/***********************************************************************/
+/*  STRING GetCharString: get string representation of a char value.   */
+/***********************************************************************/
+char *CHRBLK::GetCharString(char *p, int n)
+  {
+  return (char *)GetValPtrEx(n);
+  } // end of GetCharString
 
 /***********************************************************************/
 /*  Set one value in a block.                                          */
@@ -1184,6 +1209,22 @@ bool DATBLK::SetFormat(PGLOBAL g, PSZ fmt, int len, int year)
 
   return false;
   } // end of SetFormat
+
+/***********************************************************************/
+/*  DTVAL GetCharString: get string representation of a date value.    */
+/***********************************************************************/
+char *DATBLK::GetCharString(char *p, int n)
+  {
+  char *vp;
+
+  if (Dvalp) {
+    Dvalp->SetValue(Typp[n]);
+    vp = Dvalp->GetCharString(p);
+  } else
+    vp = TYPBLK<int>::GetCharString(p, n);
+
+  return vp;
+  } // end of GetCharString
 
 /***********************************************************************/
 /*  Set one value in a block from a char string.                       */
