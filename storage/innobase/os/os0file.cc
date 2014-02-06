@@ -2096,7 +2096,7 @@ os_file_set_size(
 			fprintf(stderr, "InnoDB: Error: preallocating file "
 				"space for file \'%s\' failed.  Current size "
 				"%lu, desired size %lu\n",
-				name, current_size, size);
+				name, (long unsigned) current_size, (long unsigned) size);
 			os_file_handle_error_no_exit(name, "posix_fallocate", FALSE);
 			return(FALSE);
 		}

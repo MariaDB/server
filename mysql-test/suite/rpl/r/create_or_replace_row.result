@@ -180,5 +180,5 @@ slave-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 slave-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
 drop table t1;
-drop table t2;
+drop table t2,t3;
 include/rpl_end.inc

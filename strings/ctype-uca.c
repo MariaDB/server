@@ -22467,7 +22467,7 @@ wstr_to_str(char *str, size_t length, my_wc_t *wc, size_t wlength)
 
 static void
 my_charset_loader_error_for_rule(MY_CHARSET_LOADER *loader, 
-                                 const MY_COLL_RULE *r,
+                                 const MY_COLL_RULE *r __attribute__((unused)),
                                  const char *name,
                                  my_wc_t *wc, size_t wlength)
 {
