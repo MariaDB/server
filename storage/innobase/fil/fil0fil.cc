@@ -48,6 +48,7 @@ Created 10/25/1995 Heikki Tuuri
 #include "page0zip.h"
 #include "trx0sys.h"
 #include "row0mysql.h"
+#include "os0file.h"
 #ifndef UNIV_HOTBACKUP
 # include "buf0lru.h"
 # include "ibuf0ibuf.h"
@@ -4860,28 +4861,25 @@ retry:
 
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
-		ulint n_pages = size_after_extend;
+		os_offset_t	start_offset = start_page_no * page_size;
+		os_offset_t	end_offset = (size_after_extend - start_page_no) * page_size;
 
-		success = os_file_set_size(node->name, node->handle,
-			n_pages * page_size);
-
-		/* Temporal solution: In directFS using atomic writes
-		we must use posix_fallocate to extend the file because
-		pwrite past end of file fails but when compression is
-		used the file pages must be physically initialized with
-		zeroes, thus after file extend with posix_fallocate
-		we still write empty pages to file. */
-		if (success &&
-			srv_use_atomic_writes &&
-			srv_compress_pages) {
-			goto extend_file;
+		if (posix_fallocate(node->handle, start_offset, end_offset) == -1) {
+			ib_logf(IB_LOG_LEVEL_ERROR, "preallocating file "
+				"space for file \'%s\' failed.  Current size "
+				INT64PF ", desired size " INT64PF "\n",
+				node->name, start_offset, end_offset);
+			success = FALSE;
+		} else {
+			success = TRUE;
 		}
 
 		mutex_enter(&fil_system->mutex);
 
 		if (success) {
-			node->size += n_pages;
-			space->size += n_pages;
+			node->size += (size_after_extend - start_page_no);
+			space->size += (size_after_extend - start_page_no);
+
 			os_has_said_disk_full = FALSE;
 		}
 
@@ -4894,8 +4892,6 @@ retry:
 		goto complete_io;
 	}
 #endif
-
-extend_file:
 
 	/* Extend at most 64 pages at a time */
 	buf_size = ut_min(64, size_after_extend - start_page_no) * page_size;
