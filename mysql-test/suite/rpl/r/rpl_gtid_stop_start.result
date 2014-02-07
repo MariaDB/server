@@ -14,10 +14,12 @@ master-bin.000002	#
 INSERT INTO t1 VALUES (2);
 FLUSH LOGS;
 INSERT INTO t1 VALUES (3);
+include/save_master_gtid.inc
 show binary logs;
 Log_name	File_size
 master-bin.000002	#
 master-bin.000003	#
+include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -43,6 +45,8 @@ master-bin.000003	#
 master-bin.000004	#
 master-bin.000005	#
 INSERT INTO t1 VALUES(5);
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 a
 1
