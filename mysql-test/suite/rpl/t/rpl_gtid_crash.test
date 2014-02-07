@@ -46,6 +46,7 @@ while ($1)
   dec $1;
 }
 --enable_query_log
+--source include/save_master_gtid.inc
 
 SET SESSION debug_dbug="+d,crash_dispatch_command_before";
 --error 2006,2013
@@ -60,15 +61,14 @@ EOF
 --source include/wait_until_connected_again.inc
 
 --connection server_2
---let $wait_condition= SELECT COUNT(*) = 200 FROM t1 WHERE b=2
---source include/wait_condition.inc
+--source include/sync_with_master_gtid.inc
 
 --connection server_1
 INSERT INTO t1 VALUES (1000, 3);
+--source include/save_master_gtid.inc
 
 --connection server_2
---let $wait_condition= SELECT COUNT(*) = 1 FROM t1 WHERE b=3
---source include/wait_condition.inc
+--source include/sync_with_master_gtid.inc
 
 --connection server_1
 DROP TABLE t1;
@@ -141,6 +141,7 @@ START SLAVE;
 
 --connection server_1
 INSERT INTO t1 VALUES (4);
+--source include/save_master_gtid.inc
 
 --connection server_2
 --source include/wait_until_disconnected.inc
@@ -152,8 +153,7 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
---let $wait_condition= SELECT COUNT(*) = 4 FROM t1
---source include/wait_condition.inc
+--source include/sync_with_master_gtid.inc
 
 # Crash the slave just before committing.
 --source include/stop_slave.inc
@@ -165,6 +165,7 @@ START SLAVE;
 
 --connection server_1
 INSERT INTO t1 VALUES (5);
+--source include/save_master_gtid.inc
 
 --connection server_2
 --source include/wait_until_disconnected.inc
@@ -176,8 +177,7 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
---let $wait_condition= SELECT COUNT(*) = 5 FROM t1
---source include/wait_condition.inc
+--source include/sync_with_master_gtid.inc
 
 # Crash the slave just after committing.
 --source include/stop_slave.inc
@@ -189,6 +189,7 @@ START SLAVE;
 
 --connection server_1
 INSERT INTO t1 VALUES (6);
+--source include/save_master_gtid.inc
 
 --connection server_2
 --source include/wait_until_disconnected.inc
@@ -200,8 +201,7 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
---let $wait_condition= SELECT COUNT(*) = 6 FROM t1
---source include/wait_condition.inc
+--source include/sync_with_master_gtid.inc
 
 # Crash the slave just before updating relay-log.info
 --source include/stop_slave.inc
@@ -213,6 +213,7 @@ START SLAVE;
 
 --connection server_1
 INSERT INTO t1 VALUES (7);
+--source include/save_master_gtid.inc
 
 --connection server_2
 --source include/wait_until_disconnected.inc
@@ -224,8 +225,7 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
---let $wait_condition= SELECT COUNT(*) = 7 FROM t1
---source include/wait_condition.inc
+--source include/sync_with_master_gtid.inc
 
 # Crash the slave just after updating relay-log.info
 --source include/stop_slave.inc
@@ -237,6 +237,7 @@ START SLAVE;
 
 --connection server_1
 INSERT INTO t1 VALUES (8);
+--source include/save_master_gtid.inc
 
 --connection server_2
 --source include/wait_until_disconnected.inc
@@ -248,8 +249,7 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
---let $wait_condition= SELECT COUNT(*) = 8 FROM t1
---source include/wait_condition.inc
+--source include/sync_with_master_gtid.inc
 
 
 # Check that everything was replicated correctly.

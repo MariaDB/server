@@ -39,6 +39,7 @@ FLUSH LOGS;
 INSERT INTO t1 VALUES (2);
 FLUSH LOGS;
 INSERT INTO t1 VALUES (3);
+--source include/save_master_gtid.inc
 --source include/show_binary_logs.inc
 
 # Let the slave mysqld server start again.
@@ -50,8 +51,7 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
---let $wait_condition= SELECT COUNT(*) = 3 FROM t1
---source include/wait_condition.inc
+--source include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 
 
@@ -88,10 +88,10 @@ SHOW BINLOG EVENTS IN 'master-bin.000005' LIMIT 1,1;
 --source include/show_binary_logs.inc
 
 INSERT INTO t1 VALUES(5);
+--source include/save_master_gtid.inc
 
 --connection server_2
---let $wait_condition= SELECT COUNT(*) = 5 FROM t1
---source include/wait_condition.inc
+--source include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 
 --echo *** Test that @@gtid_slave_pos and @@gtid_current_pos are correctly loaded even if slave threads have not started. ***
