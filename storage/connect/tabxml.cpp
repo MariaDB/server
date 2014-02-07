@@ -1314,7 +1314,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   PXNODE TopNode = NULL;
 //PXATTR AttNode = NULL;
 
-  if (trace)
+  if (trace > 1)
     htrc("XML WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
           Name, Tdbp->GetTdb_No(), ColUse, Status);
 

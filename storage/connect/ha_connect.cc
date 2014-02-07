@@ -2043,7 +2043,8 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
   if (tdbp || (tdbp= GetTDB(g))) {
     if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
       sprintf(g->Message, "optimize: Table %s is not indexable", tdbp->GetName());
-      rc= HA_ERR_INTERNAL_ERROR;
+      my_message(ER_INDEX_REBUILD, g->Message, MYF(0));
+      rc= HA_ERR_UNSUPPORTED;
     } else if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, true))) {
       if (rc == RC_INFO) {
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
@@ -4610,7 +4611,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
                    (options->tabname) ? "PROXY" : "DOS";
     type= GetTypeID(options->type);
     sprintf(g->Message, "No table_type. Will be set to %s", options->type);
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+
+    if (sqlcom == SQLCOM_CREATE_TABLE)
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+
   } else if (type == TAB_NIY) {
     sprintf(g->Message, "Unsupported table type %s", options->type);
     my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
@@ -4898,7 +4902,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     
     strcat(strcat(buf, "."), lwt);
     sprintf(g->Message, "No file name. Table will use %s", buf);
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+
+    if (sqlcom == SQLCOM_CREATE_TABLE)
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+
     strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
     PlugSetPath(fn, buf, dbpath);
     
@@ -4908,13 +4915,12 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       else
         sprintf(g->Message, "Error %d creating file %s", errno, fn);
 
-      push_warning(table->in_use, 
-                   Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
     } else
       ::close(h);
     
     if (type == TAB_FMT || options->readonly)
-      push_warning(table->in_use, Sql_condition::WARN_LEVEL_WARN, 0,
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
         "Congratulation, you just created a read-only void table!");
 
     } // endif
@@ -4962,7 +4968,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       } else {
         sprintf(g->Message, "Table type %s is not indexable", options->type);
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-        rc= HA_ERR_INTERNAL_ERROR;
+        rc= HA_ERR_UNSUPPORTED;
       } // endif Indexable
 
       } // endif xdp
@@ -5082,20 +5088,10 @@ bool ha_connect::FileExists(const char *fn)
   return true;
 } // end of FileExists
 
-/**
-  check whether a string option have changed
-  */
-bool ha_connect::SameChar(TABLE *tab, char *opn)
+// Called by SameString and NoFieldOptionChange
+bool ha_connect::CheckString(const char *str1, const char *str2)
 {
-  char *str1, *str2;
-  bool  b1, b2;
-
-  tshp= tab->s;                 // The altered table
-  str1= GetStringOption(opn);
-  tshp= NULL;
-  str2= GetStringOption(opn);
-  b1= (!str1 || !*str1);
-  b2= (!str2 || !*str2);
+  bool  b1= (!str1 || !*str1), b2= (!str2 || !*str2);
 
   if (b1 && b2)
     return true;
@@ -5103,7 +5099,21 @@ bool ha_connect::SameChar(TABLE *tab, char *opn)
     return false;
 
   return true;
-} // end of SameChar
+} // end of CheckString
+
+/**
+  check whether a string option have changed
+  */
+bool ha_connect::SameString(TABLE *tab, char *opn)
+{
+  char *str1, *str2;
+
+  tshp= tab->s;                 // The altered table
+  str1= GetStringOption(opn);
+  tshp= NULL;
+  str2= GetStringOption(opn);
+  return CheckString(str1, str2);
+} // end of SameString
 
 /**
   check whether a Boolean option have changed
@@ -5140,6 +5150,29 @@ bool ha_connect::SameInt(TABLE *tab, char *opn)
 
 } // end of SameInt
 
+/**
+  check whether a field option have changed
+  */
+bool ha_connect::NoFieldOptionChange(TABLE *tab)
+{
+  bool rc= true;
+  ha_field_option_struct *fop1, *fop2;
+  Field* *fld1= table->s->field;
+  Field* *fld2= tab->s->field;
+
+  for (; rc && *fld1 && *fld2; fld1++, fld2++) {
+    fop1= (*fld1)->option_struct;
+    fop2= (*fld2)->option_struct;
+
+    rc= (fop1->offset == fop2->offset &&
+         fop1->fldlen == fop2->fldlen &&
+         CheckString(fop1->dateformat, fop2->dateformat) &&
+         CheckString(fop1->fieldformat, fop2->fieldformat) &&
+         CheckString(fop1->special, fop2->special));
+    } // endfor fld
+
+  return rc;
+} // end of NoFieldOptionChange
 
  /**
     Check if a storage engine supports a particular alter table in-place
@@ -5224,7 +5257,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
     Alter_inplace_info::ALTER_RENAME | index_operations;
 
   if (ha_alter_info->handler_flags & index_operations ||
-      !SameChar(altered_table, "optname") ||
+      !SameString(altered_table, "optname") ||
       !SameBool(altered_table, "sepindex")) {
     if (!IsTypeIndexable(type)) {
       sprintf(g->Message, "Table type %s is not indexable", oldopt->type);
@@ -5258,25 +5291,25 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
 
     } // endif index operation
 
-    if (!SameChar(altered_table, "filename")) {
-      if (!outward) {
-        // Conversion to outward table is only allowed for file based
-        // tables whose file does not exist.
-        tshp= altered_table->s;
-        char *fn= GetStringOption("filename");
-        tshp= NULL;
+  if (!SameString(altered_table, "filename")) {
+    if (!outward) {
+      // Conversion to outward table is only allowed for file based
+      // tables whose file does not exist.
+      tshp= altered_table->s;
+      char *fn= GetStringOption("filename");
+      tshp= NULL;
 
-        if (FileExists(fn)) {
-          strcpy(g->Message, "Operation denied. Table data would be lost.");
-          my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-          DBUG_RETURN(HA_ALTER_ERROR);
-        } else
-          goto fin;
-
+      if (FileExists(fn)) {
+        strcpy(g->Message, "Operation denied. Table data would be lost.");
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        DBUG_RETURN(HA_ALTER_ERROR);
       } else
         goto fin;
 
-      } // endif filename
+    } else
+      goto fin;
+
+    } // endif filename
 
   /* Is there at least one operation that requires copy algorithm? */
   if (ha_alter_info->handler_flags & ~inplace_offline_operations)
@@ -5309,7 +5342,8 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
 #endif // 0
 
   // This was in check_if_incompatible_data
-  if (type == newtyp &&
+  if (NoFieldOptionChange(altered_table) &&
+      type == newtyp && 
       SameInt(altered_table, "lrecl") &&
       SameInt(altered_table, "elements") &&
       SameInt(altered_table, "header") &&
@@ -5321,7 +5355,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
 fin:
   if (idx) {
     // Indexing is only supported inplace
-    my_message(ER_UNKNOWN_ERROR, 
+    my_message(ER_ALTER_OPERATION_NOT_SUPPORTED, 
       "Alter operations not supported together by CONNECT", MYF(0));
     DBUG_RETURN(HA_ALTER_ERROR);
   } else if (outward) {

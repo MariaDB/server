@@ -173,11 +173,13 @@ public:
   bool     GetBooleanOption(char *opname, bool bdef);
   bool     SetBooleanOption(char *opname, bool b);
   int      GetIntegerOption(char *opname);
+  bool     CheckString(const char *str1, const char *str2);
+  bool     SameString(TABLE *tab, char *opn);
   bool     SetIntegerOption(char *opname, int n);
-  bool     SameChar(TABLE *tab, char *opn);
   bool     SameInt(TABLE *tab, char *opn);
   bool     SameBool(TABLE *tab, char *opn);
   bool     FileExists(const char *fn);
+  bool     NoFieldOptionChange(TABLE *tab);
   PFOS     GetFieldOptionStruct(Field *fp);
   void    *GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf);
   PIXDEF   GetIndexInfo(TABLE_SHARE *s= NULL);
