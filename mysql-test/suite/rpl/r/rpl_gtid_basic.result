@@ -197,9 +197,119 @@ CREATE TABLE t1 (a INT PRIMARY KEY);
 SET gtid_seq_no=100;
 INSERT INTO t1 VALUES (1);
 include/start_slave.inc
+include/sync_with_master_gtid.inc
 SELECT * FROM t1;
 a
 1
 Gtid_IO_Pos = '0-1-100'
+*** Test @@LAST_GTID and MASTER_GTID_WAIT() ***
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+include/stop_slave.inc
+SELECT @@last_gtid;
+@@last_gtid
+
+SET gtid_seq_no=110;
+SELECT @@last_gtid;
+@@last_gtid
+
+BEGIN;
+SELECT @@last_gtid;
+@@last_gtid
+
+INSERT INTO t1 VALUES (2);
+SELECT @@last_gtid;
+@@last_gtid
+
+COMMIT;
+SELECT @@last_gtid;
+@@last_gtid
+0-1-110
+SET @pos= '0-1-110';
+SELECT master_gtid_wait(NULL);
+master_gtid_wait(NULL)
+NULL
+SELECT master_gtid_wait('', NULL);
+master_gtid_wait('', NULL)
+0
+SELECT master_gtid_wait(@pos, 0.5);
+master_gtid_wait(@pos, 0.5)
+-1
+SELECT * FROM t1 ORDER BY a;
+a
+SELECT master_gtid_wait(@pos);
+include/start_slave.inc
+master_gtid_wait(@pos)
+0
+SELECT * FROM t1 ORDER BY a;
+a
+2
+include/stop_slave.inc
+SET gtid_domain_id= 1;
+INSERT INTO t1 VALUES (3);
+SET @pos= '1-1-1,0-1-110';
+SELECT master_gtid_wait(@pos, 0);
+master_gtid_wait(@pos, 0)
+-1
+SELECT * FROM t1 WHERE a >= 3;
+a
+SELECT master_gtid_wait(@pos, -1);
+include/start_slave.inc
+master_gtid_wait(@pos, -1)
+0
+SELECT * FROM t1 WHERE a >= 3;
+a
+3
+SELECT master_gtid_wait('1-1-1', 0);
+master_gtid_wait('1-1-1', 0)
+0
+SELECT master_gtid_wait('2-1-1,1-1-4,0-1-110');
+SELECT master_gtid_wait('0-1-1000', 0.5);
+SELECT master_gtid_wait('0-1-2000');
+SELECT master_gtid_wait('2-1-10');
+SELECT master_gtid_wait('2-1-5', 1);
+SELECT master_gtid_wait('2-1-5');
+SELECT master_gtid_wait('2-1-10');
+SELECT master_gtid_wait('2-1-5,1-1-4,0-1-110');
+SELECT master_gtid_wait('2-1-2');
+SELECT master_gtid_wait('1-1-1');
+master_gtid_wait('1-1-1')
+0
+SELECT master_gtid_wait('0-1-109');
+SELECT master_gtid_wait('2-1-2', 0.5);
+master_gtid_wait('2-1-2', 0.5)
+-1
+KILL QUERY 22;
+ERROR 70100: Query execution was interrupted
+SET gtid_domain_id=2;
+SET gtid_seq_no=2;
+INSERT INTO t1 VALUES (4);
+master_gtid_wait('2-1-2')
+0
+KILL CONNECTION 25;
+ERROR HY000: Lost connection to MySQL server during query
+SET gtid_domain_id=1;
+SET gtid_seq_no=4;
+INSERT INTO t1 VALUES (5);
+SET gtid_domain_id=2;
+SET gtid_seq_no=5;
+INSERT INTO t1 VALUES (6);
+master_gtid_wait('2-1-5,1-1-4,0-1-110')
+0
+master_gtid_wait('2-1-1,1-1-4,0-1-110')
+0
+master_gtid_wait('0-1-1000', 0.5)
+-1
+master_gtid_wait('2-1-5', 1)
+0
+master_gtid_wait('0-1-109')
+0
+SET gtid_domain_id=2;
+SET gtid_seq_no=10;
+INSERT INTO t1 VALUES (7);
+master_gtid_wait('2-1-10')
+0
+master_gtid_wait('2-1-10')
+0
 DROP TABLE t1;
 include/rpl_end.inc

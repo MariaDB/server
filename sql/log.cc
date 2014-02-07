@@ -5446,6 +5446,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   }
   if (err)
     return true;
+  thd->last_commit_gtid= gtid;
 
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,
