@@ -34,16 +34,16 @@ create table if not exists mysql.spider_xa_member(
   scheme char(64) not null default '',
   host char(64) not null default '',
   port char(5) not null default '',
-  socket text not null default '',
+  socket text not null,
   username char(64) not null default '',
   password char(64) not null default '',
-  ssl_ca text default null,
-  ssl_capath text default null,
-  ssl_cert text default null,
+  ssl_ca text,
+  ssl_capath text,
+  ssl_cert text,
   ssl_cipher char(64) default null,
-  ssl_key text default null,
+  ssl_key text,
   ssl_verify_server_cert tinyint not null default 0,
-  default_file text default null,
+  default_file text,
   default_group char(64) default null,
   key idx1 (data, format_id, gtrid_length, host)
 ) engine=MyISAM default charset=utf8 collate=utf8_bin;
@@ -55,16 +55,16 @@ create table if not exists mysql.spider_xa_failed_log(
   scheme char(64) not null default '',
   host char(64) not null default '',
   port char(5) not null default '',
-  socket text not null default '',
+  socket text not null,
   username char(64) not null default '',
   password char(64) not null default '',
-  ssl_ca text default null,
-  ssl_capath text default null,
-  ssl_cert text default null,
+  ssl_ca text,
+  ssl_capath text,
+  ssl_cert text,
   ssl_cipher char(64) default null,
-  ssl_key text default null,
+  ssl_key text,
   ssl_verify_server_cert tinyint not null default 0,
-  default_file text default null,
+  default_file text,
   default_group char(64) default null,
   thread_id int default null,
   status char(8) not null default '',
@@ -80,16 +80,16 @@ create table if not exists mysql.spider_tables(
   scheme char(64) default null,
   host char(64) default null,
   port char(5) default null,
-  socket text default null,
+  socket text,
   username char(64) default null,
   password char(64) default null,
-  ssl_ca text default null,
-  ssl_capath text default null,
-  ssl_cert text default null,
+  ssl_ca text,
+  ssl_capath text,
+  ssl_cert text,
   ssl_cipher char(64) default null,
-  ssl_key text default null,
+  ssl_key text,
   ssl_verify_server_cert tinyint not null default 0,
-  default_file text default null,
+  default_file text,
   default_group char(64) default null,
   tgt_db_name char(64) default null,
   tgt_table_name char(64) default null,
@@ -106,16 +106,16 @@ create table if not exists mysql.spider_link_mon_servers(
   scheme char(64) default null,
   host char(64) default null,
   port char(5) default null,
-  socket text default null,
+  socket text,
   username char(64) default null,
   password char(64) default null,
-  ssl_ca text default null,
-  ssl_capath text default null,
-  ssl_cert text default null,
+  ssl_ca text,
+  ssl_capath text,
+  ssl_cert text,
   ssl_cipher char(64) default null,
-  ssl_key text default null,
+  ssl_key text,
   ssl_verify_server_cert tinyint not null default 0,
-  default_file text default null,
+  default_file text,
   default_group char(64) default null,
   primary key (db_name, table_name, link_id, sid)
 ) engine=MyISAM default charset=utf8 collate=utf8_bin;
@@ -250,12 +250,12 @@ begin
     alter table mysql.spider_xa_member
       drop primary key,
       add index idx1 (data, format_id, gtrid_length, host),
-      modify socket text not null default '',
-      modify ssl_ca text default null,
-      modify ssl_capath text default null,
-      modify ssl_cert text default null,
-      modify ssl_key text default null,
-      modify default_file text default null;
+      modify socket text not null,
+      modify ssl_ca text,
+      modify ssl_capath text,
+      modify ssl_cert text,
+      modify ssl_key text,
+      modify default_file text;
   end if;
   select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS
     where TABLE_SCHEMA = 'mysql'
@@ -263,12 +263,12 @@ begin
       AND COLUMN_NAME = 'socket';
   if @col_type = 'char(64)' then
     alter table mysql.spider_tables
-      modify socket text default null,
-      modify ssl_ca text default null,
-      modify ssl_capath text default null,
-      modify ssl_cert text default null,
-      modify ssl_key text default null,
-      modify default_file text default null;
+      modify socket text,
+      modify ssl_ca text,
+      modify ssl_capath text,
+      modify ssl_cert text,
+      modify ssl_key text,
+      modify default_file text;
   end if;
   select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS
     where TABLE_SCHEMA = 'mysql'
@@ -276,12 +276,12 @@ begin
       AND COLUMN_NAME = 'socket';
   if @col_type = 'char(64)' then
     alter table mysql.spider_link_mon_servers
-      modify socket text default null,
-      modify ssl_ca text default null,
-      modify ssl_capath text default null,
-      modify ssl_cert text default null,
-      modify ssl_key text default null,
-      modify default_file text default null;
+      modify socket text,
+      modify ssl_ca text,
+      modify ssl_capath text,
+      modify ssl_cert text,
+      modify ssl_key text,
+      modify default_file text;
   end if;
 end;//
 delimiter ;

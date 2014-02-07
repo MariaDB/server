@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -97,7 +97,7 @@ trx_rollback_to_savepoint_low(
 
 	trx->error_state = DB_SUCCESS;
 
-	if (!trx->read_only) {
+	if (trx->insert_undo || trx->update_undo) {
 		thr = pars_complete_graph_for_exec(roll_node, trx, heap);
 
 		ut_a(thr == que_fork_start_command(
@@ -110,7 +110,7 @@ trx_rollback_to_savepoint_low(
 
 		/* Free the memory reserved by the undo graph. */
 		que_graph_free(static_cast<que_t*>(
-			       roll_node->undo_thr->common.parent));
+				       roll_node->undo_thr->common.parent));
 	}
 
 	if (savept == NULL) {
@@ -628,7 +628,8 @@ trx_rollback_active(
 		as DISCARDED. If it still exists. */
 
 		table = dict_table_open_on_id(
-			trx->table_id, dictionary_locked, FALSE);
+			trx->table_id, dictionary_locked,
+			DICT_TABLE_OP_NORMAL);
 
 		if (table && !dict_table_is_discarded(table)) {
 
@@ -689,31 +690,32 @@ trx_rollback_resurrected(
 	to accidentally clean up a non-recovered transaction here. */
 
 	trx_mutex_enter(trx);
+	bool		is_recovered	= trx->is_recovered;
+	trx_state_t	state		= trx->state;
+	trx_mutex_exit(trx);
 
-	if (!trx->is_recovered) {
-		trx_mutex_exit(trx);
+	if (!is_recovered) {
 		return(FALSE);
 	}
 
-	switch (trx->state) {
+	switch (state) {
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		mutex_exit(&trx_sys->mutex);
-		trx_mutex_exit(trx);
 		fprintf(stderr,
 			"InnoDB: Cleaning up trx with id " TRX_ID_FMT "\n",
 			trx->id);
 		trx_cleanup_at_db_startup(trx);
+		trx_free_for_background(trx);
 		return(TRUE);
 	case TRX_STATE_ACTIVE:
-		trx_mutex_exit(trx);
 		if (all || trx_get_dict_operation(trx) != TRX_DICT_OP_NONE) {
 			mutex_exit(&trx_sys->mutex);
 			trx_rollback_active(trx);
+			trx_free_for_background(trx);
 			return(TRUE);
 		}
 		return(FALSE);
 	case TRX_STATE_PREPARED:
-		trx_mutex_exit(trx);
 		return(FALSE);
 	case TRX_STATE_NOT_STARTED:
 		break;
@@ -1049,7 +1051,8 @@ trx_roll_pop_top_rec(
 	os_thread_get_curr_id(), trx->id, undo->top_undo_no); */
 
 	prev_rec = trx_undo_get_prev_rec(
-		undo_page + offset, undo->hdr_page_no, undo->hdr_offset, mtr);
+		undo_page + offset, undo->hdr_page_no, undo->hdr_offset,
+		true, mtr);
 
 	if (prev_rec == NULL) {
 

@@ -645,6 +645,9 @@ INSERT INTO tmp_proxies_priv VALUES ('localhost', 'root', '', '', TRUE, '', now(
 INSERT INTO proxies_priv SELECT * FROM tmp_proxies_priv WHERE @had_proxies_priv_table=0;
 DROP TABLE tmp_proxies_priv;
 
+# Convering the host name to lower case for existing users
+UPDATE user SET host=LOWER( host ) WHERE LOWER( host ) <> host;
+
 # MDEV-4332 longer user names
 alter table user         modify User         char(80)  binary not null default '';
 alter table db           modify User         char(80)  binary not null default '';

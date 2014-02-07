@@ -94,13 +94,13 @@ public:
 
             injector::transaction::table tbl(share->table, true);
             MY_BITMAP cols;
-            bitmap_init(&cols, NULL, (i + 7) / 8, false);
+            my_bitmap_init(&cols, NULL, (i + 7) / 8, false);
             inj->write_row(::server_id, tbl, &cols, row_data);
 
           or
 
             MY_BITMAP cols;
-            bitmap_init(&cols, NULL, (i + 7) / 8, false);
+            my_bitmap_init(&cols, NULL, (i + 7) / 8, false);
             inj->write_row(::server_id, 
                            injector::transaction::table(share->table, true), 
                            &cols, row_data);

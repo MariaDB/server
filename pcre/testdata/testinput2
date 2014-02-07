@@ -7,6 +7,8 @@
     
     NOTE: This is a non-UTF set of tests. When UTF support is needed, use
     test 5, and if Unicode Property Support is needed, use test 7. --/
+    
+< forbid 8W 
   
 /(a)b|/I
 
@@ -829,7 +831,13 @@
 
 /x++/DZ
 
-/x{1,3}+/DZ
+/x{1,3}+/BZO
+
+/x{1,3}+/BZOi
+
+/[^x]{1,3}+/BZO
+
+/[^x]{1,3}+/BZOi
 
 /(x)*+/DZ
 
@@ -1495,6 +1503,8 @@
     a2b\CA
     ** Failers
     a1b\CZ\CA
+    
+/(?|(?<a>)(?<b>)(?<a>)|(?<a>)(?<b>)(?<a>))/IJ
 
 /^(?P<A>a)(?P<A>b)/IJ
     ab\CA
@@ -1935,10 +1945,7 @@ a random value. /Ix
 /(?<A> (?'B' abc (?(R) (?(R&A)1) (?(R&B)2) X  |  (?1)  (?2)   (?R) ))) /x
     abcabc1Xabc2XabcXabcabc
 
-/(?<A> (?'B' abc (?(R) (?(R&1)1) (?(R&B)2) X  |  (?1)  (?2)   (?R) ))) /x
-
-/(?<1> (?'B' abc (?(R) (?(R&1)1) (?(R&B)2) X  |  (?1)  (?2)   (?R) ))) /x
-    abcabc1Xabc2XabcXabcabc
+/(?<A> (?'B' abc (?(R) (?(R&C)1) (?(R&B)2) X  |  (?1)  (?2)   (?R) ))) /x
 
 /^(?(DEFINE) abc | xyz ) /x
 
@@ -2055,7 +2062,7 @@ a random value. /Ix
 
 /^(a)\g{3/
 
-/^(a)\g{4a}/
+/^(a)\g{aa}/
 
 /^a.b/<lf>
     a\rb
@@ -2510,7 +2517,10 @@ a random value. /Ix
     ** Failers
     ab  
 
-/a(?!)+b/
+/a(?!)b/BZ
+
+/(?!)?a/BZ
+    ab
 
 /a(*FAIL)+b/
 
@@ -2535,7 +2545,9 @@ a random value. /Ix
   abcxypqr\Y  
   
 /(*NO_START_OPT)xyz/C
-  abcxyz 
+  abcxyz
+  
+/(*NO_AUTO_POSSESS)a+b/BZ  
 
 /xyz/CY
   abcxyz 
@@ -3482,6 +3494,8 @@ with \Y. ---/
     
 /a[B-\Nc]/ 
 
+/a[B\Nc]/ 
+
 /(a)(?2){0,1999}?(b)/
 
 /(a)(?(DEFINE)(b))(?2){0,1999}?(?2)/
@@ -3836,5 +3850,199 @@ backtracking verbs. --/
 /(*LIMIT_RECURSION=1000)(a+)*zz/IS-
     aaaaaaaaaaaaaz
     aaaaaaaaaaaaaz\Q10
+
+/-- This test causes a segfault with Perl 5.18.0 --/
+
+/^(?=(a)){0}b(?1)/
+    backgammon
+
+/(?|(?<n>f)|(?<n>b))/JI
+
+/(?<a>abc)(?<a>z)\k<a>()/JDZS
+
+/a*[bcd]/BZ
+
+/[bcd]*a/BZ
+
+/-- A complete set of tests for auto-possessification of character types --/
+
+/\D+\D \D+\d \D+\S \D+\s \D+\W \D+\w \D+. \D+\C \D+\R \D+\H \D+\h \D+\V \D+\v \D+\Z \D+\z \D+$/BZx
+
+/\d+\D \d+\d \d+\S \d+\s \d+\W \d+\w \d+. \d+\C \d+\R \d+\H \d+\h \d+\V \d+\v \d+\Z \d+\z \d+$/BZx
+
+/\S+\D \S+\d \S+\S \S+\s \S+\W \S+\w \S+. \S+\C \S+\R \S+\H \S+\h \S+\V \S+\v \S+\Z \S+\z \S+$/BZx
+
+/\s+\D \s+\d \s+\S \s+\s \s+\W \s+\w \s+. \s+\C \s+\R \s+\H \s+\h \s+\V \s+\v \s+\Z \s+\z \s+$/BZx
+
+/\W+\D \W+\d \W+\S \W+\s \W+\W \W+\w \W+. \W+\C \W+\R \W+\H \W+\h \W+\V \W+\v \W+\Z \W+\z \W+$/BZx
+
+/\w+\D \w+\d \w+\S \w+\s \w+\W \w+\w \w+. \w+\C \w+\R \w+\H \w+\h \w+\V \w+\v \w+\Z \w+\z \w+$/BZx
+
+/\C+\D \C+\d \C+\S \C+\s \C+\W \C+\w \C+. \C+\C \C+\R \C+\H \C+\h \C+\V \C+\v \C+\Z \C+\z \C+$/BZx
+
+/\R+\D \R+\d \R+\S \R+\s \R+\W \R+\w \R+. \R+\C \R+\R \R+\H \R+\h \R+\V \R+\v \R+\Z \R+\z \R+$/BZx
+
+/\H+\D \H+\d \H+\S \H+\s \H+\W \H+\w \H+. \H+\C \H+\R \H+\H \H+\h \H+\V \H+\v \H+\Z \H+\z \H+$/BZx
+
+/\h+\D \h+\d \h+\S \h+\s \h+\W \h+\w \h+. \h+\C \h+\R \h+\H \h+\h \h+\V \h+\v \h+\Z \h+\z \h+$/BZx
+
+/\V+\D \V+\d \V+\S \V+\s \V+\W \V+\w \V+. \V+\C \V+\R \V+\H \V+\h \V+\V \V+\v \V+\Z \V+\z \V+$/BZx
+
+/\v+\D \v+\d \v+\S \v+\s \v+\W \v+\w \v+. \v+\C \v+\R \v+\H \v+\h \v+\V \v+\v \v+\Z \v+\z \v+$/BZx
+
+/ a+\D  a+\d  a+\S  a+\s  a+\W  a+\w  a+.  a+\C  a+\R  a+\H  a+\h  a+\V  a+\v  a+\Z  a+\z  a+$/BZx
+
+/\n+\D \n+\d \n+\S \n+\s \n+\W \n+\w \n+. \n+\C \n+\R \n+\H \n+\h \n+\V \n+\v \n+\Z \n+\z \n+$/BZx
+
+/ .+\D  .+\d  .+\S  .+\s  .+\W  .+\w  .+.  .+\C  .+\R  .+\H  .+\h  .+\V  .+\v  .+\Z  .+\z  .+$/BZx
+
+/ .+\D  .+\d  .+\S  .+\s  .+\W  .+\w  .+.  .+\C  .+\R  .+\H  .+\h  .+\V  .+\v  .+\Z  .+\z  .+$/BZxs
+
+/\D+$  \d+$  \S+$  \s+$  \W+$  \w+$  \C+$  \R+$  \H+$  \h+$  \V+$  \v+$   a+$  \n+$   .+$  .+$/BZxm
+
+/(?=a+)a(a+)++a/BZ
+
+/a+(bb|cc)a+(?:bb|cc)a+(?>bb|cc)a+(?:bb|cc)+a+(aa)a+(?:bb|aa)/BZ
+
+/a+(bb|cc)?#a+(?:bb|cc)??#a+(?:bb|cc)?+#a+(?:bb|cc)*#a+(bb|cc)?a#a+(?:aa)?/BZ
+
+/a+(?:bb)?a#a+(?:|||)#a+(?:|b)a#a+(?:|||)?a/BZ
+
+/[ab]*/BZ
+    aaaa
+
+/[ab]*?/BZ
+    aaaa
+
+/[ab]?/BZ
+    aaaa
+
+/[ab]??/BZ
+    aaaa
+
+/[ab]+/BZ
+    aaaa
+
+/[ab]+?/BZ
+    aaaa
+
+/[ab]{2,3}/BZ
+    aaaa
+
+/[ab]{2,3}?/BZ
+    aaaa
+
+/[ab]{2,}/BZ
+    aaaa
+
+/[ab]{2,}?/BZ
+    aaaa
+
+/\d+\s{0,5}=\s*\S?=\w{0,4}\W*/BZ
+
+/[a-d]{5,12}[e-z0-9]*#[^a-z]+[b-y]*a[2-7]?[^0-9a-z]+/BZ
+
+/[a-z]*\s#[ \t]?\S#[a-c]*\S#[C-G]+?\d#[4-8]*\D#[4-9,]*\D#[!$]{0,5}\w#[M-Xf-l]+\W#[a-c,]?\W/BZ
+
+/a+(aa|bb)*c#a*(bb|cc)*a#a?(bb|cc)*d#[a-f]*(g|hh)*f/BZ
+
+/[a-f]*(g|hh|i)*i#[a-x]{4,}(y{0,6})*y#[a-k]+(ll|mm)+n/BZ
+
+/[a-f]*(?>gg|hh)+#[a-f]*(?>gg|hh)?#[a-f]*(?>gg|hh)*a#[a-f]*(?>gg|hh)*h/BZ
+
+/[a-c]*d/DZS
+
+/[a-c]+d/DZS
+
+/[a-c]?d/DZS
+
+/[a-c]{4,6}d/DZS
+
+/[a-c]{0,6}d/DZS
+
+/-- End of special auto-possessive tests --/
+
+/^A\o{1239}B/
+    A\123B
+
+/^A\oB/
+    
+/^A\x{zz}B/ 
+
+/^A\x{12Z/
+
+/^A\x{/
+
+/[ab]++/BZO
+
+/[^ab]*+/BZO
+
+/a{4}+/BZO
+
+/a{4}+/BZOi
+
+/[a-[:digit:]]+/
+
+/[A-[:digit:]]+/
+
+/[a-[.xxx.]]+/
+
+/[a-[=xxx=]]+/
+
+/[a-[!xxx!]]+/
+
+/[A-[!xxx!]]+/
+    A]]]
+
+/[a-\d]+/
+
+/(?<0abc>xx)/
+
+/(?&1abc)xx(?<1abc>y)/
+
+/(?<ab-cd>xx)/
+
+/(?'0abc'xx)/
+
+/(?P<0abc>xx)/
+
+/\k<5ghj>/
+
+/\k'5ghj'/
+
+/\k{2fgh}/
+
+/(?P=8yuki)/
+
+/\g{4df}/
+
+/(?&1abc)xx(?<1abc>y)/
+
+/(?P>1abc)xx(?<1abc>y)/
+
+/\g'3gh'/
+
+/\g<5fg>/
+
+/(?(<4gh>)abc)/
+
+/(?('4gh')abc)/
+
+/(?(4gh)abc)/
+
+/(?(R&6yh)abc)/
+
+/-- Test the ugly "start or end of word" compatibility syntax --/
+
+/[[:<:]]red[[:>:]]/BZ
+    little red riding hood
+    a /red/ thing 
+    red is a colour
+    put it all on red  
+    ** Failers
+    no reduction
+    Alfred Winifred
+    
+/[a[:<:]] should give error/ 
 
 /-- End of testinput2 --/

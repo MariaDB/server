@@ -1,5 +1,5 @@
 /************ Odbconn C++ Functions Source Code File (.CPP) ************/
-/*  Name: ODBCONN.CPP  Version 1.8                                     */
+/*  Name: ODBCONN.CPP  Version 1.9                                     */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          1998-2013    */
 /*                                                                     */
@@ -78,8 +78,9 @@ static short GetSQLType(int type)
     case TYPE_INT:    tp = SQL_INTEGER;   break;
     case TYPE_DATE:   tp = SQL_TIMESTAMP; break;
     case TYPE_BIGINT: tp = SQL_BIGINT;    break;                //  (-5)
-    case TYPE_FLOAT:  tp = SQL_DOUBLE;    break;
-    case TYPE_TINY :  tp = SQL_TINYINT;   break;
+    case TYPE_DOUBLE: tp = SQL_DOUBLE;    break;
+    case TYPE_TINY:   tp = SQL_TINYINT;   break;
+    case TYPE_DECIM:  tp = SQL_DECIMAL;   break;
     } // endswitch type
 
   return tp;
@@ -98,8 +99,9 @@ static int GetSQLCType(int type)
     case TYPE_INT:    tp = SQL_C_LONG;      break;
     case TYPE_DATE:   tp = SQL_C_TIMESTAMP; break;
     case TYPE_BIGINT: tp = SQL_C_SBIGINT;   break;
-    case TYPE_FLOAT:  tp = SQL_C_DOUBLE;    break;
+    case TYPE_DOUBLE: tp = SQL_C_DOUBLE;    break;
     case TYPE_TINY :  tp = SQL_C_TINYINT;   break;
+    case TYPE_DECIM:  tp = SQL_C_CHAR;      break;
     } // endswitch type
 
   return tp;
@@ -125,8 +127,9 @@ int TranslateSQLType(int stp, int prec, int& len, char& v)
       break;
     case SQL_NUMERIC:                       //    2
     case SQL_DECIMAL:                       //    3
-      type = (prec || len > 20) ? TYPE_FLOAT
-           : (len > 10) ? TYPE_BIGINT : TYPE_INT;
+//    type = (prec || len > 20) ? TYPE_DOUBLE
+//         : (len > 10) ? TYPE_BIGINT : TYPE_INT;
+      type = TYPE_DECIM;
       break;
     case SQL_INTEGER:                       //    4
       type = TYPE_INT;
@@ -141,7 +144,7 @@ int TranslateSQLType(int stp, int prec, int& len, char& v)
     case SQL_FLOAT:                         //    6
     case SQL_REAL:                          //    7
     case SQL_DOUBLE:                        //    8
-      type = TYPE_FLOAT;
+      type = TYPE_DOUBLE;
       break;
     case SQL_DATETIME:                      //    9
 //  case SQL_DATE:                          //    9
@@ -312,9 +315,9 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
     } else if (!maxres)
       maxres = 20000;
 
-//  n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
+//  n = ocp->GetMaxValue(SQL_MAX_CATALOG_NAME_LEN);
 //  length[0] = (n) ? (n + 1) : 0;
-//  n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
+//  n = ocp->GetMaxValue(SQL_MAX_SCHEMA_NAME_LEN);
 //  length[1] = (n) ? (n + 1) : 0;
 //  n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
 //  length[2] = (n) ? (n + 1) : 0;
@@ -425,7 +428,7 @@ PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
   /************************************************************************/
   /*  Keep only the info used by ha_connect::pre_create.                  */
   /************************************************************************/
-  qrp->Colresp = qrp->Colresp->Next->Next;  // Skip Owner and Table names
+  qrp->Colresp = qrp->Colresp->Next->Next;  // Skip Schema and Table names
 
   crpt = qrp->Colresp->Next;                // SQL type
   crpl = crpt->Next->Next;                  // Length
@@ -440,7 +443,7 @@ PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
     crpt->Kdata->SetValue(type, i);
 
     // Some data sources do not count prec in length
-    if (type == TYPE_FLOAT)
+    if (type == TYPE_DOUBLE)
       len += (prec + 2);                    // To be safe
 
     // Could have been changed for blobs or numeric
@@ -588,9 +591,9 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
     if (!maxres)
       maxres = 10000;                 // This is completely arbitrary
 
-//  n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
+//  n = ocp->GetMaxValue(SQL_MAX_CATALOG_NAME_LEN);
 //  length[0] = (n) ? (n + 1) : 0;
-//  n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
+//  n = ocp->GetMaxValue(SQL_MAX_SCHEMA_NAME_LEN);
 //  length[1] = (n) ? (n + 1) : 0;
     n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
     length[2] = (n) ? (n + 1) : 128;
@@ -678,9 +681,9 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
   /************************************************************************/
   n = ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_TABLE);
   maxres = (n) ? (int)n : 250;
-  n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
+  n = ocp->GetMaxValue(SQL_MAX_CATALOG_NAME_LEN);
   length[0] = (n) ? (n + 1) : 128;
-  n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
+  n = ocp->GetMaxValue(SQL_MAX_SCHEMA_NAME_LEN);
   length[1] = (n) ? (n + 1) : 128;
   n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
   length[2] = (n) ? (n + 1) : 128;
@@ -761,11 +764,11 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
   /************************************************************************/
   n = 1 + ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_INDEX);
   maxres = (n) ? (int)n : 32;
-  n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
+  n = ocp->GetMaxValue(SQL_MAX_SCHEMA_NAME_LEN);
   length[1] = (n) ? (n + 1) : 128;
   n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
   length[2] = length[5] = (n) ? (n + 1) : 128;
-  n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
+  n = ocp->GetMaxValue(SQL_MAX_CATALOG_NAME_LEN);
   length[0] = length[4] = (n) ? (n + 1) : length[2];
   n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
   length[7] = (n) ? (n + 1) : 128;
@@ -1648,35 +1651,35 @@ int ODBConn::ExecuteSQL(void)
 /***********************************************************************/
 bool ODBConn::BindParam(ODBCCOL *colp)
   {
-  void   *buf;
-  UWORD   n = colp->GetRank();
-  SWORD   ct, sqlt;
-  UDWORD  len;
-  SQLLEN *strlen = colp->GetStrLen();
-  RETCODE rc;
+  void        *buf;
+  int          buftype = colp->GetResultType();
+  SQLUSMALLINT n = colp->GetRank();
+  SQLSMALLINT  ct, sqlt, dec, nul;
+  SQLULEN      colsize;
+  SQLLEN       len;
+  SQLLEN      *strlen = colp->GetStrLen();
+  SQLRETURN    rc;
 
-#if 0
   try {
-    SWORD   dec, nul;
-    rc = SQLDescribeParam(m_hstmt, n, &sqlt, &len, &dec, &nul);
+    rc = SQLDescribeParam(m_hstmt, n, &sqlt, &colsize, &dec, &nul);
 
     if (!Check(rc))
-      ThrowDBX(rc, m_hstmt);
+      ThrowDBX(rc, "SQLDescribeParam", m_hstmt);
 
   } catch(DBX *x) {
     strcpy(m_G->Message, x->GetErrorMessage(0));
+    colsize = colp->GetPrecision();
+    sqlt = GetSQLType(buftype);
   } // end try/catch
-#endif // 0
 
   buf = colp->GetBuffer(0);
-  len = IsTypeNum(colp->GetResultType()) ? 0 : colp->GetBuflen();
-  ct = GetSQLCType(colp->GetResultType());
-  sqlt = GetSQLType(colp->GetResultType());
-  *strlen = IsTypeNum(colp->GetResultType()) ? 0 : SQL_NTS;
+  len = IsTypeChar(buftype) ? colp->GetBuflen() : 0;
+  ct = GetSQLCType(buftype);
+  *strlen = IsTypeChar(buftype) ? SQL_NTS : 0;
 
   try {
     rc = SQLBindParameter(m_hstmt, n, SQL_PARAM_INPUT, ct, sqlt,
-                          len, 0, buf, 0, strlen);
+                          colsize, dec, buf, len, strlen);
 
     if (!Check(rc))
       ThrowDBX(rc, "SQLBindParameter", m_hstmt);
@@ -2020,7 +2023,6 @@ bool ODBConn::GetDrivers(PQRYRES qrp)
   return rv;
   } // end of GetDrivers
 
-
 /***********************************************************************/
 /*  A helper class to split an optionally qualified table name into    */
 /*  components.                                                        */
@@ -2039,7 +2041,7 @@ class SQLQualifiedName
   {
     S->str= str;
     S->length= length;
-  } // eend of lex_string_set
+  } // end of lex_string_set
 
   void lex_string_shorten_down(MYSQL_LEX_STRING *S, size_t offs)
   {
@@ -2228,7 +2230,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         ((STRBLK*)crp->Kdata)->SetSorted(true);
         } // endif len
 
-      pval[n] = AllocateValue(g, crp->Type, len, 0);
+      pval[n] = AllocateValue(g, crp->Type, len);
       buffer = pval[n]->GetTo_Val();
       vl = vlen + n;
 

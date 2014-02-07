@@ -63,6 +63,7 @@ Memory allocation (code space): 10
   4     End
 ------------------------------------------------------------------
 Capturing subpattern count = 0
+May match empty string
 Options: extended
 No first char
 No need char
@@ -99,15 +100,13 @@ Memory allocation (code space): 14
 ------------------------------------------------------------------
 
 /x{1,3}+/BM 
-Memory allocation (code space): 28
+Memory allocation (code space): 20
 ------------------------------------------------------------------
-  0  11 Bra
-  2   7 Once
-  4     x
-  6     x{0,2}
-  9   7 Ket
- 11  11 Ket
- 13     End
+  0   7 Bra
+  2     x
+  4     x{0,2}+
+  7   7 Ket
+  9     End
 ------------------------------------------------------------------
 
 /(x)*+/BM
@@ -138,7 +137,7 @@ Memory allocation (code space): 142
  39     [bc]+
  57  21 Ket
  59   5 CBra 5
- 62     \w*
+ 62     \w*+
  64   5 Ket
  66  63 Ket
  68  68 Ket
@@ -327,7 +326,7 @@ Memory allocation (code space): 16
 ------------------------------------------------------------------
 
 /\x{110000}/8BM
-Failed: character value in \x{...} sequence is too large at offset 9
+Failed: character value in \x{} or \o{} is too large at offset 9
 
 /[\x{ff}]/8BM
 Memory allocation (code space): 14
@@ -503,7 +502,7 @@ Memory allocation (code space): 24
 Memory allocation (code space): 58
 ------------------------------------------------------------------
   0  26 Bra
-  2     [+\-\p{Nd}]+
+  2     [+\-\p{Nd}]++
  26  26 Ket
  28     End
 ------------------------------------------------------------------
@@ -652,7 +651,7 @@ Memory allocation (code space): 14
 /[[:^alpha:][:^cntrl:]]+/8WB
 ------------------------------------------------------------------
   0  26 Bra
-  2     [ -~\x80-\xff\P{L}]+
+  2     [ -~\x80-\xff\P{L}]++
  26  26 Ket
  28     End
 ------------------------------------------------------------------
@@ -660,7 +659,7 @@ Memory allocation (code space): 14
 /[[:^cntrl:][:^alpha:]]+/8WB
 ------------------------------------------------------------------
   0  26 Bra
-  2     [ -~\x80-\xff\P{L}]+
+  2     [ -~\x80-\xff\P{L}]++
  26  26 Ket
  28     End
 ------------------------------------------------------------------
@@ -668,7 +667,7 @@ Memory allocation (code space): 14
 /[[:alpha:]]+/8WB
 ------------------------------------------------------------------
   0  10 Bra
-  2     [\p{L}]+
+  2     [\p{L}]++
  10  10 Ket
  12     End
 ------------------------------------------------------------------
@@ -676,7 +675,7 @@ Memory allocation (code space): 14
 /[[:^alpha:]\S]+/8WB
 ------------------------------------------------------------------
   0  13 Bra
-  2     [\P{L}\P{Xsp}]+
+  2     [\P{L}\P{Xsp}]++
  13  13 Ket
  15     End
 ------------------------------------------------------------------

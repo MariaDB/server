@@ -3659,8 +3659,8 @@ row_import_for_mysql(
 		row_mysql_unlock_data_dictionary(trx);
 
 		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-			ER_FILE_NOT_FOUND,
-			filepath, err, ut_strerr(err));
+			ER_GET_ERRMSG,
+			err, ut_strerr(err), filepath);
 
 		mem_free(filepath);
 

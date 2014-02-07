@@ -1244,8 +1244,8 @@ Old_rows_log_event::Old_rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
       set_flags(NO_FOREIGN_KEY_CHECKS_F);
   if (thd_arg->variables.option_bits & OPTION_RELAXED_UNIQUE_CHECKS)
       set_flags(RELAXED_UNIQUE_CHECKS_F);
-  /* if bitmap_init fails, caught in is_valid() */
-  if (likely(!bitmap_init(&m_cols,
+  /* if my_bitmap_init fails, caught in is_valid() */
+  if (likely(!my_bitmap_init(&m_cols,
                           m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
                           m_width,
                           false)))
@@ -1259,7 +1259,7 @@ Old_rows_log_event::Old_rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
   }
   else
   {
-    // Needed because bitmap_init() does not set it to null on failure
+    // Needed because my_bitmap_init() does not set it to null on failure
     m_cols.bitmap= 0;
   }
 }
@@ -1313,8 +1313,8 @@ Old_rows_log_event::Old_rows_log_event(const char *buf, uint event_len,
   DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
   m_width = net_field_length(&ptr_after_width);
   DBUG_PRINT("debug", ("m_width=%lu", m_width));
-  /* if bitmap_init fails, catched in is_valid() */
-  if (likely(!bitmap_init(&m_cols,
+  /* if my_bitmap_init fails, catched in is_valid() */
+  if (likely(!my_bitmap_init(&m_cols,
                           m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
                           m_width,
                           false)))
@@ -1327,7 +1327,7 @@ Old_rows_log_event::Old_rows_log_event(const char *buf, uint event_len,
   }
   else
   {
-    // Needed because bitmap_init() does not set it to null on failure
+    // Needed because my_bitmap_init() does not set it to null on failure
     m_cols.bitmap= NULL;
     DBUG_VOID_RETURN;
   }
@@ -1358,8 +1358,8 @@ Old_rows_log_event::Old_rows_log_event(const char *buf, uint event_len,
 Old_rows_log_event::~Old_rows_log_event()
 {
   if (m_cols.bitmap == m_bitbuf) // no my_malloc happened
-    m_cols.bitmap= 0; // so no my_free in bitmap_free
-  bitmap_free(&m_cols); // To pair with bitmap_init().
+    m_cols.bitmap= 0; // so no my_free in my_bitmap_free
+  my_bitmap_free(&m_cols); // To pair with my_bitmap_init().
   my_free(m_rows_buf);
 }
 

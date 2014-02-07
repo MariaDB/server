@@ -366,7 +366,8 @@ static DYNAMIC_ARRAY all_options;
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
-my_bool opt_log, opt_slow_log, debug_assert_if_crashed_table= 0, opt_help= 0, opt_abort;
+my_bool opt_log, opt_slow_log, debug_assert_if_crashed_table= 0, opt_help= 0;
+static my_bool opt_abort;
 ulonglong log_output_options;
 my_bool opt_userstat_running;
 my_bool opt_log_queries_not_using_indexes= 0;
@@ -478,6 +479,7 @@ ulong open_files_limit, max_binlog_size;
 ulong slave_trans_retries;
 uint  slave_net_timeout;
 ulong slave_exec_mode_options;
+ulong slave_ddl_exec_mode_options= SLAVE_EXEC_MODE_IDEMPOTENT;
 ulonglong slave_type_conversions_options;
 ulong thread_cache_size=0;
 ulonglong binlog_cache_size=0;
@@ -1964,7 +1966,7 @@ void clean_up(bool print_message)
   // We must call end_slave() as clean_up may have been called during startup
   end_slave();
   if (use_slave_mask)
-    bitmap_free(&slave_error_mask);
+    my_bitmap_free(&slave_error_mask);
 #endif
   stop_handle_manager();
   release_ddl_log();
@@ -2018,7 +2020,7 @@ void clean_up(bool print_message)
   if (defaults_argv)
     free_defaults(defaults_argv);
   free_tmpdir(&mysql_tmpdir_list);
-  bitmap_free(&temp_pool);
+  my_bitmap_free(&temp_pool);
   free_max_user_conn();
   free_global_user_stats();
   free_global_client_stats();
@@ -3390,7 +3392,6 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   DBUG_ASSERT(str != NULL);
   DBUG_ASSERT(error != 0);
 
-  mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_ERROR, error, str);
   if (MyFlags & ME_JUST_INFO)
   {
     level= Sql_condition::WARN_LEVEL_NOTE;
@@ -3413,6 +3414,8 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
       thd->is_fatal_error= 1;
     (void) thd->raise_condition(error, NULL, level, str);
   }
+  else
+    mysql_audit_general(0, MYSQL_AUDIT_GENERAL_ERROR, error, str);
 
   /* When simulating OOM, skip writing to error log to avoid mtr errors */
   DBUG_EXECUTE_IF("simulate_out_of_memory", DBUG_VOID_RETURN;);
@@ -4251,7 +4254,7 @@ static int init_common_variables()
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
 #if (ENABLE_TEMP_POOL)
-  if (use_temp_pool && bitmap_init(&temp_pool,0,1024,1))
+  if (use_temp_pool && my_bitmap_init(&temp_pool,0,1024,1))
     return 1;
 #else
   use_temp_pool= 0;
@@ -7965,7 +7968,6 @@ static int option_cmp(my_option *a, my_option *b)
         return 1;
     }
   }
-  DBUG_ASSERT(a->name == b->name);
   return 0;
 }
 
@@ -7980,9 +7982,16 @@ static void print_help()
   sys_var_add_options(&all_options, sys_var::PARSE_EARLY);
   add_plugin_options(&all_options, &mem_root);
   sort_dynamic(&all_options, (qsort_cmp) option_cmp);
+  sort_dynamic(&all_options, (qsort_cmp) option_cmp);
   add_terminator(&all_options);
 
   my_print_help((my_option*) all_options.buffer);
+
+  /* Add variables that can be shown but not changed, like version numbers */
+  pop_dynamic(&all_options);
+  sys_var_add_options(&all_options, sys_var::SHOW_VALUE_IN_HELP);
+  sort_dynamic(&all_options, (qsort_cmp) option_cmp);
+  add_terminator(&all_options);
   my_print_variables((my_option*) all_options.buffer);
 
   free_root(&mem_root, MYF(0));
@@ -8943,6 +8952,13 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
         max_binlog_size_var->option.def_value;
     }
   }
+
+  /* Ensure that some variables are not set higher than needed */
+  if (back_log > max_connections)
+    back_log= max_connections;
+  if (thread_cache_size > max_connections)
+    thread_cache_size= max_connections;
+  
   return 0;
 }
 
@@ -9414,6 +9430,8 @@ PSI_stage_info stage_binlog_waiting_background_tasks= { 0, "Waiting for backgrou
 PSI_stage_info stage_binlog_processing_checkpoint_notify= { 0, "Processing binlog checkpoint notification", 0};
 PSI_stage_info stage_binlog_stopping_background_thread= { 0, "Stopping binlog background thread", 0};
 PSI_stage_info stage_waiting_for_work_from_sql_thread= { 0, "Waiting for work from SQL thread", 0};
+PSI_stage_info stage_waiting_for_prior_transaction_to_commit= { 0, "Waiting for prior transaction to commit", 0};
+PSI_stage_info stage_waiting_for_room_in_worker_thread= { 0, "Waiting for room in worker thread event queue", 0};
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -9421,6 +9439,12 @@ PSI_stage_info *all_server_stages[]=
 {
   & stage_after_create,
   & stage_allocating_local_table,
+  & stage_alter_inplace,
+  & stage_alter_inplace_commit,
+  & stage_alter_inplace_prepare,
+  & stage_binlog_processing_checkpoint_notify,
+  & stage_binlog_stopping_background_thread,
+  & stage_binlog_waiting_background_tasks,
   & stage_changing_master,
   & stage_checking_master_version,
   & stage_checking_permissions,
@@ -9430,9 +9454,9 @@ PSI_stage_info *all_server_stages[]=
   & stage_closing_tables,
   & stage_connecting_to_master,
   & stage_converting_heap_to_myisam,
+  & stage_copy_to_tmp_table,
   & stage_copying_to_group_table,
   & stage_copying_to_tmp_table,
-  & stage_copy_to_tmp_table,
   & stage_creating_delayed_handler,
   & stage_creating_sort_index,
   & stage_creating_table,
@@ -9481,8 +9505,13 @@ PSI_stage_info *all_server_stages[]=
   & stage_sending_cached_result_to_client,
   & stage_sending_data,
   & stage_setup,
-  & stage_slave_has_read_all_relay_log,
   & stage_show_explain,
+  & stage_slave_has_read_all_relay_log,
+  & stage_slave_waiting_event_from_coordinator,
+  & stage_slave_waiting_worker_queue,
+  & stage_slave_waiting_worker_to_free_events,
+  & stage_slave_waiting_worker_to_release_partition,
+  & stage_slave_waiting_workers_to_exit,
   & stage_sorting,
   & stage_sorting_for_group,
   & stage_sorting_for_order,
@@ -9501,18 +9530,23 @@ PSI_stage_info *all_server_stages[]=
   & stage_user_sleep,
   & stage_verifying_table,
   & stage_waiting_for_delay_list,
+  & stage_waiting_for_gtid_to_be_written_to_binary_log,
   & stage_waiting_for_handler_insert,
   & stage_waiting_for_handler_lock,
   & stage_waiting_for_handler_open,
   & stage_waiting_for_insert,
   & stage_waiting_for_master_to_send_event,
   & stage_waiting_for_master_update,
+  & stage_waiting_for_prior_transaction_to_commit,
+  & stage_waiting_for_query_cache_lock,
+  & stage_waiting_for_relay_log_space,
+  & stage_waiting_for_room_in_worker_thread,
   & stage_waiting_for_slave_mutex_on_exit,
   & stage_waiting_for_slave_thread_to_start,
   & stage_waiting_for_table_flush,
-  & stage_waiting_for_query_cache_lock,
   & stage_waiting_for_the_next_event_in_relay_log,
   & stage_waiting_for_the_slave_thread_to_advance_position,
+  & stage_waiting_for_work_from_sql_thread,
   & stage_waiting_to_finalize_termination,
   & stage_waiting_to_get_readlock
 };

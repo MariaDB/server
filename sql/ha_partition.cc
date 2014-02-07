@@ -1488,7 +1488,8 @@ bool ha_partition::is_crashed() const
 int ha_partition::prepare_new_partition(TABLE *tbl,
                                         HA_CREATE_INFO *create_info,
                                         handler *file, const char *part_name,
-                                        partition_element *p_elem)
+                                        partition_element *p_elem,
+                                        uint disable_non_uniq_indexes)
 {
   int error;
   DBUG_ENTER("prepare_new_partition");
@@ -1531,6 +1532,7 @@ int ha_partition::prepare_new_partition(TABLE *tbl,
                             m_open_test_lock | HA_OPEN_NO_PSI_CALL)))
     goto error_open;
   DBUG_PRINT("info", ("partition %s opened", part_name));
+
   /*
     Note: if you plan to add another call that may return failure,
     better to do it before external_lock() as cleanup_new_partition()
@@ -1540,6 +1542,9 @@ int ha_partition::prepare_new_partition(TABLE *tbl,
   if ((error= file->ha_external_lock(ha_thd(), F_WRLCK)))
     goto error_external_lock;
   DBUG_PRINT("info", ("partition %s external locked", part_name));
+
+  if (disable_non_uniq_indexes)
+    file->ha_disable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
 
   DBUG_RETURN(0);
 error_external_lock:
@@ -1836,6 +1841,14 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
       on them to prepare them for copy phase and also for later close
       calls
   */
+
+  /*
+     Before creating new partitions check whether indexes are disabled
+     in the  partitions.
+  */
+
+  uint disable_non_uniq_indexes = indexes_are_disabled();
+
   i= 0;
   part_count= 0;
   part_it.rewind();
@@ -1870,11 +1883,13 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
           if ((error= prepare_new_partition(table, create_info,
                                             new_file_array[part],
                                             (const char *)part_name_buff,
-                                            sub_elem)))
+                                            sub_elem,
+                                            disable_non_uniq_indexes)))
           {
             cleanup_new_partition(part_count);
             DBUG_RETURN(error);
           }
+
           m_added_file[part_count++]= new_file_array[part];
         } while (++j < num_subparts);
       }
@@ -1887,11 +1902,13 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
         if ((error= prepare_new_partition(table, create_info,
                                           new_file_array[i],
                                           (const char *)part_name_buff,
-                                          part_elem)))
+                                          part_elem,
+                                          disable_non_uniq_indexes)))
         {
           cleanup_new_partition(part_count);
           DBUG_RETURN(error);
         }
+
         m_added_file[part_count++]= new_file_array[i];
       }
     }
@@ -3301,10 +3318,10 @@ err:
 void ha_partition::free_partition_bitmaps()
 {
   /* Initialize the bitmap we use to minimize ha_start_bulk_insert calls */
-  bitmap_free(&m_bulk_insert_started);
-  bitmap_free(&m_locked_partitions);
-  bitmap_free(&m_partitions_to_reset);
-  bitmap_free(&m_key_not_found_partitions);
+  my_bitmap_free(&m_bulk_insert_started);
+  my_bitmap_free(&m_locked_partitions);
+  my_bitmap_free(&m_partitions_to_reset);
+  my_bitmap_free(&m_key_not_found_partitions);
 }
 
 
@@ -3316,14 +3333,14 @@ bool ha_partition::init_partition_bitmaps()
 {
   DBUG_ENTER("ha_partition::init_partition_bitmaps");
   /* Initialize the bitmap we use to minimize ha_start_bulk_insert calls */
-  if (bitmap_init(&m_bulk_insert_started, NULL, m_tot_parts + 1, FALSE))
+  if (my_bitmap_init(&m_bulk_insert_started, NULL, m_tot_parts + 1, FALSE))
     DBUG_RETURN(true);
   bitmap_clear_all(&m_bulk_insert_started);
 
   /* Initialize the bitmap we use to keep track of locked partitions */
-  if (bitmap_init(&m_locked_partitions, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_locked_partitions, NULL, m_tot_parts, FALSE))
   {
-    bitmap_free(&m_bulk_insert_started);
+    my_bitmap_free(&m_bulk_insert_started);
     DBUG_RETURN(true);
   }
   bitmap_clear_all(&m_locked_partitions);
@@ -3332,10 +3349,10 @@ bool ha_partition::init_partition_bitmaps()
     Initialize the bitmap we use to keep track of partitions which may have
     something to reset in ha_reset().
   */
-  if (bitmap_init(&m_partitions_to_reset, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_partitions_to_reset, NULL, m_tot_parts, FALSE))
   {
-    bitmap_free(&m_bulk_insert_started);
-    bitmap_free(&m_locked_partitions);
+    my_bitmap_free(&m_bulk_insert_started);
+    my_bitmap_free(&m_locked_partitions);
     DBUG_RETURN(true);
   }
   bitmap_clear_all(&m_partitions_to_reset);
@@ -3344,11 +3361,11 @@ bool ha_partition::init_partition_bitmaps()
     Initialize the bitmap we use to keep track of partitions which returned
     HA_ERR_KEY_NOT_FOUND from index_read_map.
   */
-  if (bitmap_init(&m_key_not_found_partitions, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_key_not_found_partitions, NULL, m_tot_parts, FALSE))
   {
-    bitmap_free(&m_bulk_insert_started);
-    bitmap_free(&m_locked_partitions);
-    bitmap_free(&m_partitions_to_reset);
+    my_bitmap_free(&m_bulk_insert_started);
+    my_bitmap_free(&m_locked_partitions);
+    my_bitmap_free(&m_partitions_to_reset);
     DBUG_RETURN(true);
   }
   bitmap_clear_all(&m_key_not_found_partitions);
@@ -7870,7 +7887,10 @@ void ha_partition::print_error(int error, myf errflag)
 
   if ((error == HA_ERR_NO_PARTITION_FOUND) &&
       ! (thd->lex->alter_info.flags & Alter_info::ALTER_TRUNCATE_PARTITION))
-    m_part_info->print_no_partition_found(table);
+  {
+    m_part_info->print_no_partition_found(table, errflag);
+    DBUG_VOID_RETURN;
+  }
   else if (error == HA_ERR_ROW_IN_WRONG_PARTITION)
   {
     /* Should only happen on DELETE or UPDATE! */

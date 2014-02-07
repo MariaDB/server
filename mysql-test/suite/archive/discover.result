@@ -135,4 +135,7 @@ select * from t1;
 a
 flush tables;
 create table t1 (a int) engine=archive;
+ERROR 42S01: Table 't1' already exists
+flush tables;
+create table t1 (a int) engine=archive;
 drop table t1;

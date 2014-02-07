@@ -1,4 +1,4 @@
-.TH PCRESYNTAX 3 "26 April 2013" "PCRE 8.33"
+.TH PCRESYNTAX 3 "12 November 2013" "PCRE 8.34"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .SH "PCRE REGULAR EXPRESSION SYNTAX SUMMARY"
@@ -29,9 +29,14 @@ documentation. This document contains a quick-reference summary of the syntax.
   \en         newline (hex 0A)
   \er         carriage return (hex 0D)
   \et         tab (hex 09)
+  \e0dd       character with octal code 0dd
   \eddd       character with octal code ddd, or backreference
+  \eo{ddd..}  character with octal code ddd..
   \exhh       character with hex code hh
   \ex{hhh..}  character with hex code hhh..
+.sp
+Note that \e0dd is always an octal code, and that \e8 and \e9 are the literal
+characters "8" and "9".
 .
 .
 .SH "CHARACTER TYPES"
@@ -56,9 +61,11 @@ documentation. This document contains a quick-reference summary of the syntax.
   \eW         a "non-word" character
   \eX         a Unicode extended grapheme cluster
 .sp
-In PCRE, by default, \ed, \eD, \es, \eS, \ew, and \eW recognize only ASCII
-characters, even in a UTF mode. However, this can be changed by setting the
-PCRE_UCP option.
+By default, \ed, \es, and \ew match only ASCII characters, even in UTF-8 mode
+or in the 16- bit and 32-bit libraries. However, if locale-specific matching is
+happening, \es and \ew may also match characters with code points in the range
+128-255. If the PCRE_UCP option is set, the behaviour of these escape sequences
+is changed to use Unicode properties and they match many more characters.
 .
 .
 .SH "GENERAL CATEGORY PROPERTIES FOR \ep and \eP"
@@ -115,10 +122,13 @@ PCRE_UCP option.
 .sp
   Xan        Alphanumeric: union of properties L and N
   Xps        POSIX space: property Z or tab, NL, VT, FF, CR
-  Xsp        Perl space: property Z or tab, NL, FF, CR
+  Xsp        Perl space: property Z or tab, NL, VT, FF, CR
   Xuc        Univerally-named character: one that can be
                represented by a Universal Character Name
   Xwd        Perl word: property Xan or underscore
+.sp
+Perl and POSIX space are now the same. Perl added VT to its space character set
+at release 5.18 and PCRE changed at release 8.34.
 .
 .
 .SH "SCRIPT NAMES FOR \ep AND \eP"
@@ -355,6 +365,9 @@ newline-setting options with similar syntax:
   (*UTF32)        set UTF-32 mode: 32-bit library (PCRE_UTF32)
   (*UTF)          set appropriate UTF mode for the library in use
   (*UCP)          set PCRE_UCP (use Unicode properties for \ed etc)
+.sp
+Note that LIMIT_MATCH and LIMIT_RECURSION can only reduce the value of the
+limits set by the caller of pcre_exec(), not increase them.
 .
 .
 .SH "LOOKAHEAD AND LOOKBEHIND ASSERTIONS"
@@ -495,6 +508,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 26 April 2013
+Last updated: 12 November 2013
 Copyright (c) 1997-2013 University of Cambridge.
 .fi

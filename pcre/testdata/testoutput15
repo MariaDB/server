@@ -1,5 +1,7 @@
-/-- This set of tests is for UTF-8 support, and is relevant only to the 8-bit 
-    library. --/
+/-- This set of tests is for UTF-8 support but not Unicode property support,
+    and is relevant only to the 8-bit library. --/
+
+< forbid W
 
 /X(\C{3})/8
     X\x{1234}
@@ -72,7 +74,7 @@ Failed: invalid UTF-8 string at offset 0
 /ÃÃÃxxx/8
 Failed: invalid UTF-8 string at offset 0
 
-/ÃÃÃxxx/8?DZSS
+/ÃÃÃxxx/8?DZSSO
 ------------------------------------------------------------------
         Bra
         \X{c0}\X{c0}\X{c0}xxx
@@ -80,7 +82,7 @@ Failed: invalid UTF-8 string at offset 0
         End
 ------------------------------------------------------------------
 Capturing subpattern count = 0
-Options: utf no_utf_check
+Options: no_auto_possessify utf no_utf_check
 First char = \x{c3}
 Need char = 'x'
 
@@ -508,7 +510,7 @@ No match
 ------------------------------------------------------------------
         Bra
         \x{100}{3}
-        \x{100}?
+        \x{100}?+
         Ket
         End
 ------------------------------------------------------------------
@@ -525,7 +527,7 @@ No set of starting bytes
 ------------------------------------------------------------------
         Bra
         CBra 1
-        \x{100}+
+        \x{100}++
         Alt
         x
         Ket
@@ -562,7 +564,7 @@ Starting byte set: a x \xc4
 ------------------------------------------------------------------
         Bra
         CBra 1
-        \x{100}{0,2}
+        \x{100}{0,2}+
         a
         Alt
         x
@@ -582,7 +584,7 @@ Starting byte set: a x \xc4
         Bra
         CBra 1
         \x{100}
-        \x{100}{0,1}
+        \x{100}{0,1}+
         a
         Alt
         x
@@ -613,7 +615,7 @@ Need char = \x{80}
 ------------------------------------------------------------------
         Bra
         a\x{100}
-        \x{101}*
+        \x{101}*+
         Ket
         End
 ------------------------------------------------------------------
@@ -626,7 +628,7 @@ Need char = \x{80}
 ------------------------------------------------------------------
         Bra
         a\x{100}
-        \x{101}+
+        \x{101}++
         Ket
         End
 ------------------------------------------------------------------
@@ -861,7 +863,7 @@ Options: utf
 No first char
 Need char = 'x'
 Subject length lower bound = 4
-Starting byte set: \x09 \x0a \x0c \x0d \x20 x 
+Starting byte set: \x09 \x0a \x0b \x0c \x0d \x20 x 
 
 /\sxxx\s/I8ST1
 Capturing subpattern count = 0

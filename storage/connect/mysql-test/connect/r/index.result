@@ -37,8 +37,6 @@ SUM(brut)
 # Testing file mapping
 #
 ALTER TABLE t1 MAPPED=yes;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SELECT * FROM t1 LIMIT 10;
 matricule	nom	prenom	sexe	aanais	mmnais	ddentree	ddnom	brut	net	service	sitmat	formation
 5745	ESCOURCHE	BENEDICTE	2	1935	7	1962-12-01	1994-05-01	18345	14275.50	0	M	TECHN

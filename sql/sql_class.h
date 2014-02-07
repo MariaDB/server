@@ -119,6 +119,10 @@ enum enum_filetype { FILETYPE_CSV, FILETYPE_XML };
 #define MODE_NO_ENGINE_SUBSTITUTION     (1ULL << 30)
 #define MODE_PAD_CHAR_TO_FULL_LENGTH    (1ULL << 31)
 
+/* Bits for different old style modes */
+#define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	1
+#define OLD_MODE_NO_PROGRESS_INFO			2
+
 extern char internal_table_name[2];
 extern char empty_c_string[1];
 extern LEX_STRING EMPTY_STR;
@@ -498,6 +502,7 @@ typedef struct system_variables
   ulonglong long_query_time;
   ulonglong optimizer_switch;
   sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
+  sql_mode_t old_behavior; ///< which old SQL behaviour should be enabled
   ulonglong option_bits; ///< OPTION_xxx constants, e.g. OPTION_PROFILING
   ulonglong join_buff_space_limit;
   ulonglong log_slow_filter; 
@@ -1513,8 +1518,9 @@ public:
   void unlock_locked_tables(THD *thd);
   ~Locked_tables_list()
   {
-    unlock_locked_tables(0);
+    reset();
   }
+  void reset();
   bool init_locked_tables(THD *thd);
   TABLE_LIST *locked_tables() { return m_locked_tables; }
   void unlink_from_list(THD *thd, TABLE_LIST *table_list,
@@ -1523,6 +1529,9 @@ public:
                                 MYSQL_LOCK *lock,
                                 size_t reopen_count);
   bool reopen_tables(THD *thd);
+  bool restore_lock(THD *thd, TABLE_LIST *dst_table_list, TABLE *table,
+                    MYSQL_LOCK *lock);
+  void add_back_last_deleted_lock(TABLE_LIST *dst_table_list);
 };
 
 
@@ -1681,14 +1690,14 @@ struct wait_for_commit
   bool wakeup_subsequent_commits_running;
 
   void register_wait_for_prior_commit(wait_for_commit *waitee);
-  int wait_for_prior_commit()
+  int wait_for_prior_commit(THD *thd)
   {
     /*
       Quick inline check, to avoid function call and locking in the common case
       where no wakeup is registered, or a registered wait was already signalled.
     */
     if (waiting_for_commit)
-      return wait_for_prior_commit2();
+      return wait_for_prior_commit2(thd);
     else
       return wakeup_error;
   }
@@ -1714,10 +1723,29 @@ struct wait_for_commit
     if (waiting_for_commit)
       unregister_wait_for_prior_commit2();
   }
+  /*
+    Remove a waiter from the list in the waitee. Used to unregister a wait.
+    The caller must be holding the locks of both waiter and waitee.
+  */
+  void remove_from_list(wait_for_commit **next_ptr_ptr)
+  {
+    wait_for_commit *cur;
+
+    while ((cur= *next_ptr_ptr) != NULL)
+    {
+      if (cur == this)
+      {
+        *next_ptr_ptr= this->next_subsequent_commit;
+        break;
+      }
+      next_ptr_ptr= &cur->next_subsequent_commit;
+    }
+    waiting_for_commit= false;
+  }
 
   void wakeup(int wakeup_error);
 
-  int wait_for_prior_commit2();
+  int wait_for_prior_commit2(THD *thd);
   void wakeup_subsequent_commits2(int wakeup_error);
   void unregister_wait_for_prior_commit2();
 
@@ -1947,7 +1975,10 @@ public:
   uint in_sub_stmt;
   /* True when opt_userstat_running is set at start of query */
   bool userstat_running;
-  /* True if we want to log all errors */
+  /*
+    True if we have to log all errors. Are set by some engines to temporary
+    force errors to the error log.
+  */
   bool log_all_errors;
 
   /* Do not set socket timeouts for wait_timeout (used with threadpool) */
@@ -2538,12 +2569,12 @@ public:
   */
   LEX_STRING connection_name;
   char       default_master_connection_buff[MAX_CONNECTION_NAME+1];
+  uint8      password; /* 0, 1 or 2 */
+  uint8      failed_com_change_user;
   bool       slave_thread, one_shot_set;
   bool       extra_port;                        /* If extra connection */
 
   bool	     no_errors;
-  uint8      password;
-  uint8      failed_com_change_user;
 
   /**
     Set to TRUE if execution of the current compound statement
@@ -2576,13 +2607,6 @@ public:
   /* for IS NULL => = last_insert_id() fix in remove_eq_conds() */
   bool       substitute_null_with_insert_id;
   bool	     in_lock_tables;
-  /**
-    True if a slave error. Causes the slave to stop. Not the same
-    as the statement execution error (is_error()), since
-    a statement may be expected to return an error, e.g. because
-    it returned an error on master, and this is OK on the slave.
-  */
-  bool       is_slave_error;
   bool       bootstrap, cleanup_done;
 
   /**  is set if some thread specific value(s) used in a statement. */
@@ -2599,6 +2623,20 @@ public:
   /* set during loop of derived table processing */
   bool       derived_tables_processing;
   bool       tablespace_op;	/* This is TRUE in DISCARD/IMPORT TABLESPACE */
+  /* True if we have to log the current statement */
+  bool	     log_current_statement;
+  /**
+    True if a slave error. Causes the slave to stop. Not the same
+    as the statement execution error (is_error()), since
+    a statement may be expected to return an error, e.g. because
+    it returned an error on master, and this is OK on the slave.
+  */
+  bool       is_slave_error;
+  /*
+    In case of a slave, set to the error code the master got when executing
+    the query. 0 if no error on the master.
+  */
+  int	     slave_expected_error;
 
   sp_rcontext *spcont;		// SP runtime context
   sp_cache   *sp_proc_cache;
@@ -3571,12 +3609,7 @@ public:
   int wait_for_prior_commit()
   {
     if (wait_for_commit_ptr)
-    {
-      int err= wait_for_commit_ptr->wait_for_prior_commit();
-      if (err)
-        my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
-      return err;
-    }
+      return wait_for_commit_ptr->wait_for_prior_commit(this);
     return 0;
   }
   void wakeup_subsequent_commits(int wakeup_error)
@@ -3995,6 +4028,8 @@ class select_create: public select_insert {
   MYSQL_LOCK *m_lock;
   /* m_lock or thd->extra_lock */
   MYSQL_LOCK **m_plock;
+  bool       exit_done;
+
 public:
   select_create (TABLE_LIST *table_arg,
 		 HA_CREATE_INFO *create_info_par,
@@ -4006,7 +4041,7 @@ public:
     create_info(create_info_par),
     select_tables(select_tables_arg),
     alter_info(alter_info_arg),
-    m_plock(NULL)
+    m_plock(NULL), exit_done(0)
     {}
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
 

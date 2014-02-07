@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*  PLGCNX.H                                                              */
-/*  Copyright to the author: Olivier Bertrand         2000-2012           */
+/*  Copyright to the author: Olivier Bertrand         2000-2014           */
 /*                                                                        */
 /*  This is the connection DLL's declares.                                */
 /**************************************************************************/
@@ -62,6 +62,7 @@ enum INFO {INDX_RC,                  /* Index of PlugDB return code field */
            INDX_SIZE,                /* Index of returned data size field */
            INDX_MAX};                /* Size of info array                */
 
+#ifdef NOT_USED
 /**************************************************************************/
 /*  Internal message types.                                               */
 /**************************************************************************/
@@ -97,9 +98,9 @@ enum VENDOR {VDR_UNKNOWN   = -2,     /* Not known or not connected        */
 /**************************************************************************/
 enum CKEYS {K_ProgMsg, K_Lang, K_ActiveDB, K_Cmax};
 enum LKEYS {K_NBcol, K_NBlin, K_CurPos, K_RC, K_Result, K_Elapsed,
-            K_Continued, K_Maxsize, K_Lmax, K_Maxcol,
+            K_Continued, K_Maxsize, K_Affrows, K_Lmax, K_Maxcol,
             K_Maxres, K_Maxlin, K_NBparm};
-enum NKEYS {K_Type, K_Length, K_Prec, K_DataLen, K_Nmax};
+enum NKEYS {K_Type, K_Length, K_Prec, K_DataLen, K_Unsigned, K_Nmax};
 
 /**************************************************************************/
 /*  Result description structures.                                        */
@@ -157,7 +158,6 @@ typedef struct _ResDesc {
 #define XTRN
 #endif
 
-#ifdef NOT_USED
 //#if !defined(NO_FUNC)
 #ifdef __cplusplus
 extern "C" {
@@ -172,7 +172,7 @@ XTRN bool CNXFUNC(PLGGetCharValue)(CNXKEY, char *, int, int);
 XTRN bool CNXFUNC(PLGGetIntValue)(CNXKEY, int *, int);
 XTRN bool CNXFUNC(PLGGetColValue) (CNXKEY, int *, int, int);
 XTRN bool CNXFUNC(PLGGetMessage)  (CNXKEY, char *, int);
-XTRN bool CNXFUNC(PLGGetHeader)   (CNXKEY, char *, int, int);
+XTRN bool CNXFUNC(PLGGetHeader)   (CNXKEY, char *, int, int, int);
 
 #ifdef __cplusplus
 }

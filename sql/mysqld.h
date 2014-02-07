@@ -96,7 +96,7 @@ extern uint connection_count;
 extern my_bool opt_safe_user_create;
 extern my_bool opt_safe_show_db, opt_local_infile, opt_myisam_use_mmap;
 extern my_bool opt_slave_compressed_protocol, use_temp_pool;
-extern ulong slave_exec_mode_options;
+extern ulong slave_exec_mode_options, slave_ddl_exec_mode_options;
 extern ulong slave_retried_transactions;
 extern ulonglong slave_type_conversions_options;
 extern my_bool read_only, opt_readonly;
@@ -432,6 +432,9 @@ extern PSI_stage_info stage_binlog_waiting_background_tasks;
 extern PSI_stage_info stage_binlog_processing_checkpoint_notify;
 extern PSI_stage_info stage_binlog_stopping_background_thread;
 extern PSI_stage_info stage_waiting_for_work_from_sql_thread;
+extern PSI_stage_info stage_waiting_for_prior_transaction_to_commit;
+extern PSI_stage_info stage_waiting_for_room_in_worker_thread;
+
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 /**
   Statement instrumentation keys (sql).

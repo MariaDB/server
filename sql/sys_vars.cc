@@ -1,5 +1,5 @@
-/* Copyright (c) 2002, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2012, Monty Program Ab
+/* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2012, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -364,7 +364,7 @@ static Sys_var_ulong Sys_back_log(
        "MySQL can have. This comes into play when the main MySQL thread "
        "gets very many connection requests in a very short time",
        READ_ONLY GLOBAL_VAR(back_log), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 65535), DEFAULT(50), BLOCK_SIZE(1));
+       VALID_RANGE(1, 65535), DEFAULT(150), BLOCK_SIZE(1));
 
 static Sys_var_charptr Sys_basedir(
        "basedir", "Path to installation directory. All paths are "
@@ -593,7 +593,7 @@ static bool check_charset_db(sys_var *self, THD *thd, set_var *var)
 }
 static Sys_var_struct Sys_character_set_database(
        "character_set_database",
-       " The character set used by the default database",
+       "The character set used by the default database",
        SESSION_VAR(collation_database), NO_CMD_LINE,
        offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_charset_db));
@@ -1062,7 +1062,7 @@ static Sys_var_keycache Sys_key_cache_age_threshold(
 static Sys_var_mybool Sys_large_files_support(
        "large_files_support",
        "Whether mysqld was compiled with options for large file support",
-       READ_ONLY GLOBAL_VAR(opt_large_files),
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(opt_large_files),
        NO_CMD_LINE, DEFAULT(sizeof(my_off_t) > 4));
 
 static Sys_var_uint Sys_large_page_size(
@@ -1184,7 +1184,8 @@ static Sys_var_mybool Sys_lower_case_file_system(
        "lower_case_file_system",
        "Case sensitivity of file names on the file system where the "
        "data directory is located",
-       READ_ONLY GLOBAL_VAR(lower_case_file_system), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(lower_case_file_system),
+       NO_CMD_LINE,
        DEFAULT(FALSE));
 
 static Sys_var_uint Sys_lower_case_table_names(
@@ -1951,7 +1952,7 @@ static Sys_var_ulong Sys_net_retry_count(
        ON_UPDATE(fix_net_retry_count));
 
 static Sys_var_mybool Sys_old_mode(
-       "old", "Use compatible behavior",
+       "old", "Use compatible behavior from previous MariaDB version. See also --old-mode",
        SESSION_VAR(old_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_mybool Sys_old_alter_table(
@@ -2145,7 +2146,7 @@ static Sys_var_ulong Sys_preload_buff_size(
 static Sys_var_uint Sys_protocol_version(
        "protocol_version",
        "The version of the client/server protocol used by the MySQL server",
-       READ_ONLY GLOBAL_VAR(protocol_version), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(protocol_version), NO_CMD_LINE,
        VALID_RANGE(0, ~0), DEFAULT(PROTOCOL_VERSION), BLOCK_SIZE(1));
 
 static Sys_var_proxy_user Sys_proxy_user(
@@ -2361,9 +2362,13 @@ static Sys_var_charptr Sys_socket(
 static Sys_var_ulong Sys_thread_concurrency(
        "thread_concurrency",
        "Permits the application to give the threads system a hint for "
-       "the desired number of threads that should be run at the same time",
+       "the desired number of threads that should be run at the same time."
+       "This variable has no effect, and is deprecated. "
+       "It will be removed in a future release.",
        READ_ONLY GLOBAL_VAR(concurrency), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 512), DEFAULT(DEFAULT_CONCURRENCY), BLOCK_SIZE(1));
+       VALID_RANGE(1, 512), DEFAULT(DEFAULT_CONCURRENCY), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED(""));
 
 static Sys_var_ulonglong Sys_thread_stack(
        "thread_stack", "The stack size for each thread",
@@ -2600,10 +2605,22 @@ static Sys_var_enum Slave_exec_mode(
        "Modes for how replication events should be executed. Legal values "
        "are STRICT (default) and IDEMPOTENT. In IDEMPOTENT mode, "
        "replication will not stop for operations that are idempotent. "
+       "For example, in row based replication attempts to delete rows that "
+       "doesn't exist will be ignored."
        "In STRICT mode, replication will stop on any unexpected difference "
        "between the master and the slave",
        GLOBAL_VAR(slave_exec_mode_options), CMD_LINE(REQUIRED_ARG),
        slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_STRICT));
+
+static Sys_var_enum Slave_ddl_exec_mode(
+       "slave_ddl_exec_mode",
+       "Modes for how replication events should be executed. Legal values "
+       "are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode, "
+       "replication will not stop for DDL operations that are idempotent. "
+       "This means that CREATE TABLE is treated CREATE TABLE OR REPLACE and "
+       "DROP TABLE is threated as DROP TABLE IF EXISTS. ",
+       GLOBAL_VAR(slave_ddl_exec_mode_options), CMD_LINE(REQUIRED_ARG),
+       slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_IDEMPOTENT));
 
 static const char *slave_type_conversions_name[]= {"ALL_LOSSY", "ALL_NON_LOSSY", 0};
 static Sys_var_set Slave_type_conversions(
@@ -2787,6 +2804,30 @@ static Sys_var_set Sys_sql_mode(
        sql_mode_names, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_sql_mode), ON_UPDATE(fix_sql_mode));
 
+static const char *old_mode_names[]=
+{
+  "NO_DUP_KEY_WARNINGS_WITH_IGNORE", "NO_PROGRESS_INFO",
+  0
+};
+
+export bool old_mode_string_representation(THD *thd, ulonglong sql_mode,
+                                           LEX_STRING *ls)
+{
+  set_to_string(thd, ls, sql_mode, old_mode_names);
+  return ls->str == 0;
+}
+/*
+  sql_mode should *not* be IN_BINLOG as the slave can't remember this
+  anyway on restart.
+*/
+static Sys_var_set Sys_old_behavior(
+       "old_mode",
+       "Used to emulate old behavior from earlier MariaDB or MySQL versions. "
+       "Syntax: old_mode=mode[,mode[,mode...]]. "
+       "See the manual for the complete list of valid old modes",
+       SESSION_VAR(old_behavior), CMD_LINE(REQUIRED_ARG),
+       old_mode_names, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #define SSL_OPT(X) CMD_LINE(REQUIRED_ARG,X)
 #else
@@ -2853,7 +2894,8 @@ static Sys_var_mybool Sys_sync_frm(
 static char *system_time_zone_ptr;
 static Sys_var_charptr Sys_system_time_zone(
        "system_time_zone", "The server system time zone",
-       READ_ONLY GLOBAL_VAR(system_time_zone_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(system_time_zone_ptr),
+       NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(system_time_zone));
 
 static Sys_var_ulong Sys_table_def_size(
@@ -3063,26 +3105,36 @@ static Sys_var_mybool Sys_timed_mutexes(
 static char *server_version_ptr;
 static Sys_var_charptr Sys_version(
        "version", "Server version",
-       READ_ONLY GLOBAL_VAR(server_version_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(server_version_ptr),
+       NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(server_version));
 
 static char *server_version_comment_ptr;
 static Sys_var_charptr Sys_version_comment(
        "version_comment", "version_comment",
-       READ_ONLY GLOBAL_VAR(server_version_comment_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(server_version_comment_ptr),
+       NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(MYSQL_COMPILATION_COMMENT));
 
 static char *server_version_compile_machine_ptr;
 static Sys_var_charptr Sys_version_compile_machine(
        "version_compile_machine", "version_compile_machine",
-       READ_ONLY GLOBAL_VAR(server_version_compile_machine_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP
+       GLOBAL_VAR(server_version_compile_machine_ptr), NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(MACHINE_TYPE));
 
 static char *server_version_compile_os_ptr;
 static Sys_var_charptr Sys_version_compile_os(
        "version_compile_os", "version_compile_os",
-       READ_ONLY GLOBAL_VAR(server_version_compile_os_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(server_version_compile_os_ptr),
+       NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(SYSTEM_TYPE));
+
+static char *malloc_library;
+static Sys_var_charptr Sys_malloc_library(
+       "version_malloc_library", "Version of the used malloc library",
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(malloc_library), NO_CMD_LINE,
+       IN_SYSTEM_CHARSET, DEFAULT(MALLOC_LIBRARY));
 
 static Sys_var_ulong Sys_net_wait_timeout(
        "wait_timeout",
@@ -3162,10 +3214,10 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     return false;
   }
 
-  if (thd->variables.option_bits & OPTION_AUTOCOMMIT &&
-      thd->variables.option_bits & OPTION_NOT_AUTOCOMMIT)
-  { // activating autocommit
-
+  if (test_all_bits(thd->variables.option_bits,
+                    (OPTION_AUTOCOMMIT | OPTION_NOT_AUTOCOMMIT)))
+  {
+    // activating autocommit
     if (trans_commit_stmt(thd) || trans_commit(thd))
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
@@ -3182,16 +3234,17 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
       transaction implicitly at the end (@sa stmt_causes_implicitcommit()).
     */
     thd->variables.option_bits&=
-                 ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT);
+                 ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT |
+                   OPTION_GTID_BEGIN);
     thd->transaction.all.modified_non_trans_table= false;
     thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
     return false;
   }
 
-  if (!(thd->variables.option_bits & OPTION_AUTOCOMMIT) &&
-      !(thd->variables.option_bits & OPTION_NOT_AUTOCOMMIT))
-  { // disabling autocommit
-
+  if ((thd->variables.option_bits &
+       (OPTION_AUTOCOMMIT |OPTION_NOT_AUTOCOMMIT)) == 0)
+  {
+    // disabling autocommit
     thd->transaction.all.modified_non_trans_table= false;
     thd->server_status&= ~SERVER_STATUS_AUTOCOMMIT;
     thd->variables.option_bits|= OPTION_NOT_AUTOCOMMIT;
@@ -3200,6 +3253,7 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
 
   return false; // autocommit value wasn't changed
 }
+
 static Sys_var_bit Sys_autocommit(
        "autocommit", "autocommit",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_AUTOCOMMIT, DEFAULT(TRUE),
