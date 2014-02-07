@@ -86,7 +86,7 @@ typedef enum wthr_status {
 /* Write work task */
 typedef struct wr_tsk {
 	buf_pool_t	*buf_pool;	/*!< buffer-pool instance */
-	enum buf_flush	flush_type;	/*!< flush-type for buffer-pool
+	buf_flush_t	flush_type;	/*!< flush-type for buffer-pool
 					flush operation */
 	ulint		min;		/*!< minimum number of pages
 					requested to be flushed */
@@ -188,6 +188,8 @@ buf_mtflu_flush_pool_instance(
 /*==========================*/
 	wrk_t	*work_item)	/*!< inout: work item to be flushed */
 {
+	flush_counters_t n;
+
 	ut_a(work_item != NULL);
 	ut_a(work_item->wr.buf_pool != NULL);
 
@@ -221,11 +223,14 @@ buf_mtflu_flush_pool_instance(
         	work_item->wr.min = ut_min(srv_LRU_scan_depth,work_item->wr.min);
     	}
 
-	work_item->n_flushed = buf_flush_batch(work_item->wr.buf_pool,
-                                    		work_item->wr.flush_type,
-                                    		work_item->wr.min,
-						work_item->wr.lsn_limit);
+	buf_flush_batch(work_item->wr.buf_pool,
+			work_item->wr.flush_type,
+			work_item->wr.min,
+			work_item->wr.lsn_limit,
+			false,
+			&n);
 
+	work_item->n_flushed = n.flushed;
 
 	buf_flush_end(work_item->wr.buf_pool, work_item->wr.flush_type);
 	buf_flush_common(work_item->wr.flush_type, work_item->n_flushed);
@@ -235,7 +240,7 @@ buf_mtflu_flush_pool_instance(
 
 #ifdef UNIV_DEBUG
 /******************************************************************//**
-Print flush statistics of work items.
+Print flush statistics of work items
 */
 static
 void
@@ -257,6 +262,7 @@ mtflu_print_thread_stat(
 			break; /* No more filled work items */
 		}
  	}
+
  	fprintf(stderr, "MTFLUSH: Stat-Total:%lu\n", stat_tot);
 }
 #endif /* UNIV_DEBUG */
@@ -508,7 +514,7 @@ buf_mtflu_flush_work_items(
 	ulint buf_pool_inst,		/*!< in: Number of buffer pool instances */
 	ulint *per_pool_pages_flushed,	/*!< out: Number of pages
 					flushed/instance */
-	enum buf_flush flush_type,	/*!< in: Type of flush */
+	buf_flush_t flush_type,		/*!< in: Type of flush */
 	ulint min_n,			/*!< in: Wished minimum number of
 					blocks to be flushed */
 	lsn_t lsn_limit)		/*!< in: All blocks whose

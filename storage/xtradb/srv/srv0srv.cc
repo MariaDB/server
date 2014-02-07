@@ -180,6 +180,8 @@ UNIV_INTERN my_bool     srv_use_posix_fallocate         = FALSE;
 UNIV_INTERN my_bool     srv_use_atomic_writes           = FALSE;
 /* If this flag IS TRUE, then we use lz4 to compress/decompress pages */
 UNIV_INTERN my_bool	srv_use_lz4 = FALSE;
+/* Number of threads used for multi-threaded flush */
+UNIV_INTERN long srv_mtflush_threads = 0;
 
 #ifdef __WIN__
 /* Windows native condition variables. We use runtime loading / function
