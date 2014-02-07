@@ -702,6 +702,7 @@ int init_relay_log_info(Relay_log_info* rli, const char* info_fname);
 
 
 extern struct rpl_slave_state rpl_global_gtid_slave_state;
+extern gtid_waiting rpl_global_gtid_waiting;
 
 int rpl_load_gtid_slave_state(THD *thd);
 int event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev);

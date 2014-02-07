@@ -915,6 +915,7 @@ static COMMANDS commands[] = {
   { "MAKE_SET", 0, 0, 0, ""},
   { "MAKEDATE", 0, 0, 0, ""},
   { "MAKETIME", 0, 0, 0, ""},
+  { "MASTER_GTID_WAIT", 0, 0, 0, ""},
   { "MASTER_POS_WAIT", 0, 0, 0, ""},
   { "MAX", 0, 0, 0, ""},
   { "MBRCONTAINS", 0, 0, 0, ""},
