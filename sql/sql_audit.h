@@ -147,7 +147,7 @@ void mysql_audit_general(THD *thd, uint event_subtype,
     mysql_audit_notify(thd, MYSQL_AUDIT_GENERAL_CLASS, event_subtype,
                        error_code, time, user, userlen, msg, msglen,
                        query.str(), query.length(), query.charset(), rows,
-                       thd->db, thd->db_length);
+                       thd ? thd->db : NULL, thd ? thd->db_length : 0);
   }
 }
 
