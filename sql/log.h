@@ -471,6 +471,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     checkpoint arrives - when all have arrived, RESET MASTER will complete.
   */
   bool reset_master_pending;
+  ulong mark_xid_done_waiting;
 
   /* LOCK_log and LOCK_index are inited by init_pthread_objects() */
   mysql_mutex_t LOCK_index;
