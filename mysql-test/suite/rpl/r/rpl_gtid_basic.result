@@ -131,6 +131,7 @@ include/stop_slave.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_3;
 include/start_slave.inc
 DROP TABLE t1,t2;
+include/save_master_gtid.inc
 *** A few more checks for BINLOG_GTID_POS function ***
 SELECT BINLOG_GTID_POS();
 ERROR 42000: Incorrect parameter count in the call to native function 'BINLOG_GTID_POS'
@@ -167,6 +168,7 @@ NULL
 Warnings:
 Warning	1916	Got overflow when converting '18446744073709551616' to INT. Value truncated.
 *** Some tests of @@GLOBAL.gtid_binlog_state ***
+include/sync_with_master_gtid.inc
 include/stop_slave.inc
 SET @old_state= @@GLOBAL.gtid_binlog_state;
 SET GLOBAL gtid_binlog_state = '';
