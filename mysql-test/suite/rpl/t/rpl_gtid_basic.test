@@ -287,7 +287,7 @@ send SELECT master_gtid_wait('0-1-2000');
 send SELECT master_gtid_wait('2-1-10');
 
 --connect (s5,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
-send SELECT master_gtid_wait('2-1-5', 1);
+send SELECT master_gtid_wait('2-1-6', 1);
 
 # This one we will kill also.
 --connect (s6,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
@@ -314,6 +314,7 @@ send SELECT master_gtid_wait('0-1-109');
 # This one should time out.
 SELECT master_gtid_wait('2-1-2', 0.5);
 
+--replace_result $kill1_id KILL_ID
 eval KILL QUERY $kill1_id;
 --connection s3
 --error ER_QUERY_INTERRUPTED
@@ -328,6 +329,7 @@ INSERT INTO t1 VALUES (4);
 reap;
 
 --connection server_2
+--replace_result $kill2_id KILL_ID
 eval KILL CONNECTION $kill2_id;
 
 --connection s6
