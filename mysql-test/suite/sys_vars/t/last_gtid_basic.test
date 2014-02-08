@@ -1,3 +1,5 @@
+--source include/not_embedded.inc
+
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@global.last_gtid;
 

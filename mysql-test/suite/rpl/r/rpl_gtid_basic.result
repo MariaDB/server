@@ -272,7 +272,7 @@ SELECT master_gtid_wait('2-1-1,1-1-4,0-1-110');
 SELECT master_gtid_wait('0-1-1000', 0.5);
 SELECT master_gtid_wait('0-1-2000');
 SELECT master_gtid_wait('2-1-10');
-SELECT master_gtid_wait('2-1-5', 1);
+SELECT master_gtid_wait('2-1-6', 1);
 SELECT master_gtid_wait('2-1-5');
 SELECT master_gtid_wait('2-1-10');
 SELECT master_gtid_wait('2-1-5,1-1-4,0-1-110');
@@ -284,14 +284,14 @@ SELECT master_gtid_wait('0-1-109');
 SELECT master_gtid_wait('2-1-2', 0.5);
 master_gtid_wait('2-1-2', 0.5)
 -1
-KILL QUERY 22;
+KILL QUERY KILL_ID;
 ERROR 70100: Query execution was interrupted
 SET gtid_domain_id=2;
 SET gtid_seq_no=2;
 INSERT INTO t1 VALUES (4);
 master_gtid_wait('2-1-2')
 0
-KILL CONNECTION 25;
+KILL CONNECTION KILL_ID;
 ERROR HY000: Lost connection to MySQL server during query
 SET gtid_domain_id=1;
 SET gtid_seq_no=4;
@@ -305,8 +305,8 @@ master_gtid_wait('2-1-1,1-1-4,0-1-110')
 0
 master_gtid_wait('0-1-1000', 0.5)
 -1
-master_gtid_wait('2-1-5', 1)
-0
+master_gtid_wait('2-1-6', 1)
+-1
 master_gtid_wait('0-1-109')
 0
 SET gtid_domain_id=2;

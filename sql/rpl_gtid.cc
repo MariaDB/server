@@ -1792,7 +1792,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
   bool timed_out= false;
 #ifdef HAVE_REPLICATION
   queue_element elem;
-  uint32_t domain_id= wait_gtid->domain_id;
+  uint32 domain_id= wait_gtid->domain_id;
   uint64 seq_no= wait_gtid->seq_no;
   hash_element *he;
   rpl_slave_state::element *slave_state_elem= NULL;
@@ -1958,10 +1958,6 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
       thd_wait_end(thd);
     }
 
-    if (elem.wakeup_reason == queue_element::DONE)
-      break;
-    takeover= true;
-
     if (thd->killed || timed_out)
     {
       remove_from_wait_hash(he, &elem);
@@ -1975,6 +1971,10 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
         thd->send_kill_message();
       break;
     }
+
+    if (elem.wakeup_reason == queue_element::DONE)
+      break;
+    takeover= true;
   }
 
   if (did_enter_cond)
