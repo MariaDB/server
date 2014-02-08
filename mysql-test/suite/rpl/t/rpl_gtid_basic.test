@@ -139,6 +139,7 @@ eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_3;
 
 connection server_1;
 DROP TABLE t1,t2;
+--source include/save_master_gtid.inc
 
 --echo *** A few more checks for BINLOG_GTID_POS function ***
 --let $valid_binlog_name = query_get_value(SHOW BINARY LOGS,Log_name,1)
@@ -160,6 +161,7 @@ eval SELECT BINLOG_GTID_POS('$valid_binlog_name',18446744073709551616);
 
 --echo *** Some tests of @@GLOBAL.gtid_binlog_state ***
 --connection server_2
+--source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
 
 --connection server_1
