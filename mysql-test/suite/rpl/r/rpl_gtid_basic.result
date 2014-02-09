@@ -99,10 +99,8 @@ a	b
 5	j1a
 *** Now move C to D, after letting it fall a little behind ***
 include/stop_slave.inc
-BEGIN;
 INSERT INTO t2 VALUES (6, "i6b");
 INSERT INTO t2 VALUES (7, "i7b");
-COMMIT;
 include/save_master_gtid.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_4,
 MASTER_USE_GTID=CURRENT_POS;
