@@ -87,11 +87,6 @@ build-stamp: configure
 	cd $(builddir) && $(MAKE) $(MAKE_J) $(AM_EXTRA_MAKEFLAGS)
 
 ifeq ($(findstring nocheck,$(DEB_BUILD_OPTIONS)),)
-	# Don't know why the following is necessary...
-	cp unittest/unit.pl $(builddir)/unittest/
-	cp -r mysql-test/* $(builddir)/mysql-test/
-	cp -r sql/share/* $(builddir)/sql/share/
-	cp -r scripts/*sql $(builddir)/scripts/
 	if [ ! -f testsuite-stamp ] ; then \
 	  cd $(builddir) && $(MAKE) $(MAKE_TEST_TARGET) || $(TESTSUITE_FAIL_CMD) ; \
 	fi
@@ -201,7 +196,15 @@ install: build
 	cp debian/mariadb-server-10.0.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
 	cp debian/additions/debian-start $$d/_etc_mysql_debian-start;
 
-	dh_movefiles
+	autorm=debian/autorm-file;                                      \
+	rm -f $$autorm;                                                 \
+	ignore='';                                                      \
+	for p in $$MARIADB_OPTIONAL_DEBS; do                            \
+	  p=mariadb-$$p;                                            \
+	  dh_movefiles --package=$$p || echo "../$$p*.deb" >> $$autorm; \
+	  ignore="$$ignore --no-package=$$p";                           \
+	done;                                                           \
+	sh -c "dh_movefiles $$ignore"
 
 # Build architecture-independent files here.
 binary-indep: build install
@@ -249,7 +252,7 @@ binary-arch: build install
 	dh_installchangelogs -a
 	dh_strip -a
 	dh_link -a	# .so muss nach .so.1.2.3 installier werden!
-	dh_compress -a
+	dh_compress -a --exclude=INFO_BIN
 	dh_fixperms -a
 	dh_makeshlibs -a
 	dh_makeshlibs -plibmariadbclient18 -V'libmariadbclient18 (>= 5.5.1-1)'

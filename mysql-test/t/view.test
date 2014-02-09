@@ -141,7 +141,7 @@ drop view v100;
 drop view t1;
 
 # try to drop VIEW with DROP TABLE
--- error ER_BAD_TABLE_ERROR
+-- error ER_IT_IS_A_VIEW
 drop table v1;
 
 # try to drop table with DROP VIEW
@@ -2851,7 +2851,7 @@ DROP VIEW IF EXISTS v2;
 CREATE TABLE t1(a INT, b INT);
 
 --error ER_WRONG_STRING_LENGTH
-CREATE DEFINER=1234567890abcdefGHIKL@localhost
+CREATE DEFINER=longer_than_80_456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789@localhost
   VIEW v1 AS SELECT a FROM t1;
 
 --error ER_WRONG_STRING_LENGTH
@@ -4793,6 +4793,130 @@ WHERE a = alias.a );
 
 drop view v1;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-4593: p_s: crash in simplify_joins with delete using subselect
+--echo # from view
+--echo #
+
+create table `t1`(`a` int);
+create table `t2`(`a` int);
+create or replace view `v1` as select `a` from `t1`;
+prepare s from "delete  from `t2` order by (select 1 from `v1`)";
+execute s;
+deallocate prepare s;
+drop view v1;
+drop tables t1,t2;
+
+--echo #
+--echo # MDEV-5034 (duplicate of MDEV-5107):
+--echo # Left Join Yields All Nulls Instead of Appropriate Matches
+--echo #
+  
+ --echo # test #1
+
+CREATE TABLE t1 (state VARCHAR(32), INDEX(state));
+INSERT INTO t1 VALUES ('Indiana'),('Vermont');
+
+CREATE TABLE t2 (state VARCHAR(32));
+INSERT INTO t2 VALUES ('Hawaii'),('Oregon'),('Vermont');
+
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT t1.* FROM t2, t1;
+SELECT * FROM t1 AS outer_t1 LEFT JOIN v1 AS joined_t1
+ON (joined_t1.state = outer_t1.state AND joined_t1.state IN ( SELECT 'Vermont' UNION  SELECT 'Florida' ) );
+
+SELECT * FROM t1 AS outer_t1 LEFT JOIN (SELECT t1.* FROM t2, t1) AS joined_t1 ON (joined_t1.state = outer_t1.state AND joined_t1.state IN ( SELECT 'Vermont' UNION  SELECT 'Florida' ) );
+
+drop view v1;
+drop table t1, t2;
+
+--echo # test #1
+
+CREATE TABLE t1 (a INT, b VARCHAR(1), INDEX(b,a)); 
+INSERT INTO t1 VALUES (4,'p'),(1,'q'),(9,'w'); 
+
+CREATE TABLE t2 (c VARCHAR(1), INDEX(c)); 
+INSERT INTO t2 VALUES ('q'),('a'); 
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT t1a.* FROM t1, t1 AS t1a; 
+SELECT * FROM t2 LEFT JOIN v1 ON ( c=b AND a IN ( 1,6 ) ); 
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT t1a.* FROM t1, t1 AS t1a; 
+SELECT * FROM t2 LEFT JOIN v1 ON ( c=b AND a IN ( 1,6 ) );
+
+drop view v1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-5153: Server crashes in Item_ref::fix_fields on 2nd execution
+--echo # of PS with LEFT JOIN and MERGE view or SELECT SQ
+--echo #
+
+CREATE TABLE t1 (i1 INT, c1 VARCHAR(6)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+
+CREATE TABLE t2 (c2 VARCHAR(6)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('foobar'),('qux');
+
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t1 WHERE ( c1 ) IN ( SELECT c2 FROM t2 ) AND i1 <= 2 ;
+
+PREPARE stmt FROM 'SELECT * FROM t1 LEFT JOIN v1 ON (v1.i1 = t1.i1)';
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+drop view v1;
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t1 WHERE ( c1, c1 ) IN ( SELECT c2, c2 FROM t2 ) AND i1 <= 2 ;
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+deallocate prepare stmt;
+drop view v1;
+drop table t1,t2;
+
+#
+# MDEV-5414: RAND() in a subselect : different behavior in MariaDB and MySQL
+#
+create table t1 (a int);
+insert into t1 values (1),(2);
+
+create view v1 (a,r) as select a,rand() from t1;
+
+
+create table t2 select a, r as r1, r as r2, r as r3 from v1;
+
+select a, r1 = r2, r2 = r3 from t2;
+
+drop view v1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-5515: 2nd execution of a prepared statement returns wrong results
+--echo #
+CREATE TABLE t1 (i1 INT, j1 INT NOT NULL, PRIMARY KEY (i1));
+
+INSERT INTO t1 VALUES (30,300),(40,400);
+
+CREATE TABLE t2 (i2 INT);
+INSERT INTO t2 VALUES (50),(60);
+
+CREATE TABLE t3 (c3 VARCHAR(20), i3 INT);
+INSERT INTO t3 VALUES ('a',10),('b',2);
+
+CREATE TABLE t4 (i4 INT);
+INSERT INTO t4 VALUES (1),(2);
+
+DROP VIEW IF EXISTS v1;
+CREATE VIEW v1 AS select coalesce(j1,i3) AS v1_field1 from t2 join t3 left join t1 on ( i1 = i2 );
+
+CREATE VIEW v2 AS select v1_field1 from t4 join v1;
+
+prepare my_stmt from "select v1_field1 from v2";
+execute my_stmt;
+execute my_stmt;
+deallocate prepare my_stmt;
+
+DROP VIEW v1,v2;
+DROP TABLE t1,t2,t3,t4;
 
 --echo # -----------------------------------------------------------------
 --echo # -- End of 5.3 tests.

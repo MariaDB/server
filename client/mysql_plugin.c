@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 */
 
 #include <m_string.h>
@@ -101,7 +101,7 @@ int main(int argc,char *argv[])
 
   MY_INIT(argv[0]);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
-  plugin_data.name= 0; // initialize name
+  plugin_data.name= 0; /* initialize name                          */
   
   /*
     The following operations comprise the method for enabling or disabling
@@ -655,11 +655,11 @@ static int load_plugin_data(char *plugin_name, char *config_file)
       }
       break;
     }
-    if ((line[0] == '#') || (line[0] == '\n')) // skip comment and blank lines
+    if ((line[0] == '#') || (line[0] == '\n')) /* skip comment and blank lines */
     {
       continue;
     }
-    if (i == -1) // if first pass, read this line as so_name
+    if (i == -1) /* if first pass, read this line as so_name */
     {
       /* Add proper file extension for soname */
       strcat(line, FN_SOEXT);
@@ -707,10 +707,10 @@ error:
 
 static int check_options(int argc, char **argv, char *operation)
 {
-  int i= 0;                    // loop counter
-  int num_found= 0;            // number of options found (shortcut loop)
-  char config_file[FN_REFLEN]; // configuration file name
-  char plugin_name[FN_REFLEN]; // plugin name
+  int i= 0;                    /* loop counter */
+  int num_found= 0;            /* number of options found (shortcut loop) */
+  char config_file[FN_REFLEN]; /* configuration file name */
+  char plugin_name[FN_REFLEN]; /* plugin name */
   
   /* Form prefix strings for the options. */
   const char *basedir_prefix = "--basedir=";

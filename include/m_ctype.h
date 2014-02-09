@@ -23,6 +23,12 @@
 #include <my_attribute.h>
 #include "my_global.h"                          /* uint16, uchar */
 
+enum loglevel {
+   ERROR_LEVEL=       0,
+   WARNING_LEVEL=     1,
+   INFORMATION_LEVEL= 2
+};
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -61,24 +67,47 @@ typedef const struct unicase_info_st MY_UNICASE_INFO;
 typedef const struct uni_ctype_st MY_UNI_CTYPE;
 typedef const struct my_uni_idx_st MY_UNI_IDX;
 
-struct unicase_info_st
+typedef struct unicase_info_char_st
 {
   uint32 toupper;
   uint32 tolower;
   uint32 sort;
+} MY_UNICASE_CHARACTER;
+
+
+struct unicase_info_st
+{
+  my_wc_t maxchar;
+  MY_UNICASE_CHARACTER **page;
 };
 
-extern MY_UNICASE_INFO *const my_unicase_default[256];
-extern MY_UNICASE_INFO *const my_unicase_turkish[256];
-extern MY_UNICASE_INFO *const my_unicase_mysql500[256];
 
-#define MY_UCA_MAX_CONTRACTION 4
-#define MY_UCA_MAX_WEIGHT_SIZE 8
+extern MY_UNICASE_INFO my_unicase_default;
+extern MY_UNICASE_INFO my_unicase_turkish;
+extern MY_UNICASE_INFO my_unicase_mysql500;
+extern MY_UNICASE_INFO my_unicase_unicode520;
+
+#define MY_UCA_MAX_CONTRACTION 6
+/*
+  The DUCET tables in ctype-uca.c are dumped with a limit of 8 weights
+  per character. cs->strxfrm_multiply is set to 8 for all UCA based collations.
+
+  In language-specific UCA collations (with tailorings) we also do not allow
+  a single character to have more than 8 weights to stay with the same
+  strxfrm_multiply limit. Note, contractions are allowed to have twice longer
+  weight strings (up to 16 weights). As a contraction consists of at
+  least 2 characters, this makes sure that strxfrm_multiply ratio of 8
+  is respected.
+*/
+#define MY_UCA_MAX_WEIGHT_SIZE (8+1)               /* Including 0 terminator */
+#define MY_UCA_CONTRACTION_MAX_WEIGHT_SIZE (2*8+1) /* Including 0 terminator */
+#define MY_UCA_WEIGHT_LEVELS   1
 
 typedef struct my_contraction_t
 {
   my_wc_t ch[MY_UCA_MAX_CONTRACTION];   /* Character sequence              */
-  uint16 weight[MY_UCA_MAX_WEIGHT_SIZE];/* Its weight string, 0-terminated */
+  uint16 weight[MY_UCA_CONTRACTION_MAX_WEIGHT_SIZE];/* Its weight string, 0-terminated */
+  my_bool with_context;
 } MY_CONTRACTION;
 
 
@@ -88,6 +117,46 @@ typedef struct my_contraction_list_t
   MY_CONTRACTION *item;  /* List of contractions                         */
   char *flags;           /* Character flags, e.g. "is contraction head") */
 } MY_CONTRACTIONS;
+
+my_bool my_uca_can_be_contraction_head(const MY_CONTRACTIONS *c, my_wc_t wc);
+my_bool my_uca_can_be_contraction_tail(const MY_CONTRACTIONS *c, my_wc_t wc);
+uint16 *my_uca_contraction2_weight(const MY_CONTRACTIONS *c,
+                                   my_wc_t wc1, my_wc_t wc2);
+
+
+/* Collation weights on a single level (e.g. primary, secondary, tertiarty) */
+typedef struct my_uca_level_info_st
+{
+  my_wc_t maxchar;
+  uchar   *lengths;
+  uint16  **weights;
+  MY_CONTRACTIONS contractions;
+} MY_UCA_WEIGHT_LEVEL;
+
+
+typedef struct uca_info_st
+{
+  MY_UCA_WEIGHT_LEVEL level[MY_UCA_WEIGHT_LEVELS];
+
+  /* Logical positions */
+  my_wc_t first_non_ignorable;
+  my_wc_t last_non_ignorable;
+  my_wc_t first_primary_ignorable;
+  my_wc_t last_primary_ignorable;
+  my_wc_t first_secondary_ignorable;
+  my_wc_t last_secondary_ignorable;
+  my_wc_t first_tertiary_ignorable;
+  my_wc_t last_tertiary_ignorable;
+  my_wc_t first_trailing;
+  my_wc_t last_trailing;
+  my_wc_t first_variable;
+  my_wc_t last_variable;
+
+} MY_UCA_INFO;
+
+
+
+extern MY_UCA_INFO my_uca_v400;
 
 
 struct uni_ctype_st
@@ -122,7 +191,7 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
 #define MY_CS_BINSORT	16     /* if binary sort order           */
 #define MY_CS_PRIMARY	32     /* if primary collation           */
 #define MY_CS_STRNXFRM	64     /* if strnxfrm is used for sort   */
-#define MY_CS_UNICODE	128    /* is a charset is full unicode   */
+#define MY_CS_UNICODE	128    /* is a charset is BMP Unicode    */
 #define MY_CS_READY	256    /* if a charset is initialized    */
 #define MY_CS_AVAILABLE	512    /* If either compiled-in or loaded*/
 #define MY_CS_CSSORT	1024   /* if case sensitive sort order   */	
@@ -130,12 +199,72 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
 #define MY_CS_PUREASCII 4096   /* if a charset is pure ascii     */
 #define MY_CS_NONASCII  8192   /* if not ASCII-compatible        */
 #define MY_CS_UNICODE_SUPPLEMENT 16384 /* Non-BMP Unicode characters */
+#define MY_CS_LOWER_SORT 32768 /* If use lower case as weight   */
+#define MY_CS_STRNXFRM_BAD_NWEIGHTS 0x10000 /* strnxfrm ignores "nweights" */
 #define MY_CHARSET_UNDEFINED 0
 
 /* Character repertoire flags */
 #define MY_REPERTOIRE_ASCII      1 /* Pure ASCII            U+0000..U+007F */
 #define MY_REPERTOIRE_EXTENDED   2 /* Extended characters:  U+0080..U+FFFF */
 #define MY_REPERTOIRE_UNICODE30  3 /* ASCII | EXTENDED:     U+0000..U+FFFF */
+
+/* Flags for strxfrm */
+#define MY_STRXFRM_LEVEL1          0x00000001 /* for primary weights   */
+#define MY_STRXFRM_LEVEL2          0x00000002 /* for secondary weights */
+#define MY_STRXFRM_LEVEL3          0x00000004 /* for tertiary weights  */
+#define MY_STRXFRM_LEVEL4          0x00000008 /* fourth level weights  */
+#define MY_STRXFRM_LEVEL5          0x00000010 /* fifth level weights   */
+#define MY_STRXFRM_LEVEL6          0x00000020 /* sixth level weights   */
+#define MY_STRXFRM_LEVEL_ALL       0x0000003F /* Bit OR for the above six */
+#define MY_STRXFRM_NLEVELS         6          /* Number of possible levels*/
+
+#define MY_STRXFRM_PAD_WITH_SPACE  0x00000040 /* if pad result with spaces */
+#define MY_STRXFRM_PAD_TO_MAXLEN   0x00000080 /* if pad tail(for filesort) */
+
+#define MY_STRXFRM_DESC_LEVEL1     0x00000100 /* if desc order for level1 */
+#define MY_STRXFRM_DESC_LEVEL2     0x00000200 /* if desc order for level2 */
+#define MY_STRXFRM_DESC_LEVEL3     0x00000300 /* if desc order for level3 */
+#define MY_STRXFRM_DESC_LEVEL4     0x00000800 /* if desc order for level4 */
+#define MY_STRXFRM_DESC_LEVEL5     0x00001000 /* if desc order for level5 */
+#define MY_STRXFRM_DESC_LEVEL6     0x00002000 /* if desc order for level6 */
+#define MY_STRXFRM_DESC_SHIFT      8
+
+#define MY_STRXFRM_UNUSED_00004000 0x00004000 /* for future extensions     */
+#define MY_STRXFRM_UNUSED_00008000 0x00008000 /* for future extensions     */
+
+#define MY_STRXFRM_REVERSE_LEVEL1  0x00010000 /* if reverse order for level1 */
+#define MY_STRXFRM_REVERSE_LEVEL2  0x00020000 /* if reverse order for level2 */
+#define MY_STRXFRM_REVERSE_LEVEL3  0x00040000 /* if reverse order for level3 */
+#define MY_STRXFRM_REVERSE_LEVEL4  0x00080000 /* if reverse order for level4 */
+#define MY_STRXFRM_REVERSE_LEVEL5  0x00100000 /* if reverse order for level5 */
+#define MY_STRXFRM_REVERSE_LEVEL6  0x00200000 /* if reverse order for level6 */
+#define MY_STRXFRM_REVERSE_SHIFT   16
+
+/*
+   Collation IDs for MariaDB that should not conflict with MySQL.
+   We reserve 256..511, because MySQL will most likely use this range
+   when the range 0..255 is full.
+
+   We use the next 256 IDs starting from 512 and divide
+   them into 8 chunks, 32 collations each, as follows:
+
+   512 + (0..31)    for single byte collations (e.g. latin9)
+   512 + (32..63)   reserved (e.g. for utf32le, or more single byte collations)
+   512 + (64..95)   for utf8
+   512 + (96..127)  for utf8mb4
+   512 + (128..159) for ucs2
+   512 + (160..192) for utf16
+   512 + (192..223) for utf16le
+   512 + (224..255) for utf32
+*/
+#define MY_PAGE2_COLLATION_ID_8BIT     0x200
+#define MY_PAGE2_COLLATION_ID_RESERVED 0x220
+#define MY_PAGE2_COLLATION_ID_UTF8     0x240
+#define MY_PAGE2_COLLATION_ID_UTF8MB4  0x260
+#define MY_PAGE2_COLLATION_ID_UCS2     0x280
+#define MY_PAGE2_COLLATION_ID_UTF16    0x2A0
+#define MY_PAGE2_COLLATION_ID_UTF16LE  0x2C0
+#define MY_PAGE2_COLLATION_ID_UTF32    0x2E0
 
 struct my_uni_idx_st
 {
@@ -170,13 +299,24 @@ enum my_lex_states
 
 struct charset_info_st;
 
+typedef struct my_charset_loader_st
+{
+  char error[128];
+  void *(*once_alloc)(size_t);
+  void *(*malloc)(size_t);
+  void *(*realloc)(void *, size_t);
+  void (*free)(void *);
+  void (*reporter)(enum loglevel, const char *format, ...);
+  int  (*add_collation)(struct charset_info_st *cs);
+} MY_CHARSET_LOADER;
+
 
 extern int (*my_string_stack_guard)(int);
 
 /* See strings/CHARSET_INFO.txt for information about this structure  */
 struct my_collation_handler_st
 {
-  my_bool (*init)(struct charset_info_st *, void *(*alloc)(size_t));
+  my_bool (*init)(struct charset_info_st *, MY_CHARSET_LOADER *);
   /* Collation routines */
   int     (*strnncoll)(CHARSET_INFO *,
 		       const uchar *, size_t, const uchar *, size_t, my_bool);
@@ -184,7 +324,8 @@ struct my_collation_handler_st
                          const uchar *, size_t, const uchar *, size_t,
                          my_bool diff_if_only_endspace_difference);
   size_t     (*strnxfrm)(CHARSET_INFO *,
-                         uchar *, size_t, const uchar *, size_t);
+                         uchar *dst, size_t dstlen, uint nweights,
+                         const uchar *src, size_t srclen, uint flags);
   size_t    (*strnxfrmlen)(CHARSET_INFO *, size_t); 
   my_bool (*like_range)(CHARSET_INFO *,
 			const char *s, size_t s_length,
@@ -227,7 +368,7 @@ typedef size_t (*my_charset_conv_case)(CHARSET_INFO *,
 /* See strings/CHARSET_INFO.txt about information on this structure  */
 struct my_charset_handler_st
 {
-  my_bool (*init)(struct charset_info_st *, void *(*alloc)(size_t));
+  my_bool (*init)(struct charset_info_st *, MY_CHARSET_LOADER *loader);
   /* Multibyte routines */
   uint    (*ismbchar)(CHARSET_INFO *, const char *, const char *);
   uint    (*mbcharlen)(CHARSET_INFO *, uint c);
@@ -290,6 +431,13 @@ struct my_charset_handler_st
 extern MY_CHARSET_HANDLER my_charset_8bit_handler;
 extern MY_CHARSET_HANDLER my_charset_ucs2_handler;
 
+
+/*
+  We define this CHARSET_INFO_DEFINED here to prevent a repeat of the
+  typedef in hash.c, which will cause a compiler error.
+*/
+#define CHARSET_INFO_DEFINED
+
 /* See strings/CHARSET_INFO.txt about information on this structure  */
 struct charset_info_st
 {
@@ -305,11 +453,10 @@ struct charset_info_st
   const uchar *to_lower;
   const uchar *to_upper;
   const uchar *sort_order;
-  const MY_CONTRACTIONS *contractions;
-  const uint16 *const *sort_order_big;
+  MY_UCA_INFO *uca;
   const uint16 *tab_to_uni;
-  MY_UNI_IDX   *tab_from_uni;
-  MY_UNICASE_INFO *const *caseinfo;
+  MY_UNI_IDX  *tab_from_uni;
+  MY_UNICASE_INFO *caseinfo;
   const uchar  *state_map;
   const uchar  *ident_map;
   uint      strxfrm_multiply;
@@ -317,10 +464,11 @@ struct charset_info_st
   uchar     casedn_multiply;
   uint      mbminlen;
   uint      mbmaxlen;
-  uint16    min_sort_char;
-  uint16    max_sort_char; /* For LIKE optimization */
+  my_wc_t   min_sort_char;
+  my_wc_t   max_sort_char; /* For LIKE optimization */
   uchar     pad_char;
   my_bool   escape_with_backslash_is_dangerous;
+  uchar     levels_for_order;
   
   MY_CHARSET_HANDLER *cset;
   MY_COLLATION_HANDLER *coll;
@@ -385,8 +533,9 @@ const uint16 *my_cs_contraction2_weight(CHARSET_INFO *cs, my_wc_t wc1,
                                          my_wc_t wc2);
 
 /* declarations for simple charsets */
-extern size_t my_strnxfrm_simple(CHARSET_INFO *, uchar *, size_t,
-                                 const uchar *, size_t); 
+extern size_t my_strnxfrm_simple(CHARSET_INFO *,
+                                 uchar *dst, size_t dstlen, uint nweights,
+                                 const uchar *src, size_t srclen, uint flags); 
 size_t  my_strnxfrmlen_simple(CHARSET_INFO *, size_t); 
 extern int  my_strnncoll_simple(CHARSET_INFO *, const uchar *, size_t,
 				const uchar *, size_t, my_bool);
@@ -555,23 +704,28 @@ int my_strcasecmp_mb_bin(CHARSET_INFO * cs __attribute__((unused)),
 void my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
                          const uchar *key, size_t len,ulong *nr1, ulong *nr2);
 
+size_t my_strnxfrm_mb(CHARSET_INFO *,
+                      uchar *dst, size_t dstlen, uint nweights,
+                      const uchar *src, size_t srclen, uint flags);
+
 size_t my_strnxfrm_unicode(CHARSET_INFO *,
-                           uchar *dst, size_t dstlen,
-                           const uchar *src, size_t srclen);
+                           uchar *dst, size_t dstlen, uint nweights,
+                           const uchar *src, size_t srclen, uint flags);
+size_t  my_strnxfrmlen_unicode(CHARSET_INFO *, size_t); 
 
 size_t my_strnxfrm_unicode_full_bin(CHARSET_INFO *,
-                                    uchar *dst, size_t dstlen,
-                                    const uchar *src, size_t srclen);
+                                    uchar *dst, size_t dstlen, uint nweights,
+                                    const uchar *src, size_t srclen, uint flags);
 size_t  my_strnxfrmlen_unicode_full_bin(CHARSET_INFO *, size_t); 
 
 int my_wildcmp_unicode(CHARSET_INFO *cs,
                        const char *str, const char *str_end,
                        const char *wildstr, const char *wildend,
                        int escape, int w_one, int w_many,
-                       MY_UNICASE_INFO *const *weights);
+                       MY_UNICASE_INFO *weights);
 
-extern my_bool my_parse_charset_xml(const char *bug, size_t len,
-				    int (*add)(struct charset_info_st *cs));
+extern my_bool my_parse_charset_xml(MY_CHARSET_LOADER *loader,
+                                    const char *buf, size_t buflen);
 extern char *my_strchr(CHARSET_INFO *cs, const char *str, const char *end,
                        pchar c);
 extern size_t my_strcspn(CHARSET_INFO *cs, const char *str, const char *end,
@@ -586,10 +740,24 @@ my_bool my_charset_is_ascii_based(CHARSET_INFO *cs);
 my_bool my_charset_is_8bit_pure_ascii(CHARSET_INFO *cs);
 uint my_charset_repertoire(CHARSET_INFO *cs);
 
+uint my_strxfrm_flag_normalize(uint flags, uint nlevels);
+void my_strxfrm_desc_and_reverse(uchar *str, uchar *strend,
+                                 uint flags, uint level);
+size_t my_strxfrm_pad_desc_and_reverse(CHARSET_INFO *cs,
+                                       uchar *str, uchar *frmend, uchar *strend,
+                                       uint nweights, uint flags, uint level);
+
 my_bool my_charset_is_ascii_compatible(CHARSET_INFO *cs);
+
+const MY_CONTRACTIONS *my_charset_get_contractions(CHARSET_INFO *cs,
+                                                   int level);
 
 extern size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
                               const char* fmt, va_list ap);
+
+uint32 my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
+                  const char *from, uint32 from_length,
+                  CHARSET_INFO *from_cs, uint *errors);
 
 #define	_MY_U	01	/* Upper case */
 #define	_MY_L	02	/* Lower case */
@@ -625,7 +793,8 @@ extern size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
 
 #define my_binary_compare(s)	      ((s)->state  & MY_CS_BINSORT)
 #define use_strnxfrm(s)               ((s)->state  & MY_CS_STRNXFRM)
-#define my_strnxfrm(s, a, b, c, d)    ((s)->coll->strnxfrm((s), (a), (b), (c), (d)))
+#define my_strnxfrm(cs, d, dl, s, sl) \
+   ((cs)->coll->strnxfrm((cs), (d), (dl), (dl), (s), (sl), MY_STRXFRM_PAD_WITH_SPACE))
 #define my_strnncoll(s, a, b, c, d) ((s)->coll->strnncoll((s), (a), (b), (c), (d), 0))
 #define my_like_range(s, a, b, c, d, e, f, g, h, i, j) \
    ((s)->coll->like_range((s), (a), (b), (c), (d), (e), (f), (g), (h), (i), (j)))

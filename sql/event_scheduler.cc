@@ -75,9 +75,9 @@ struct scheduler_param {
 void
 Event_worker_thread::print_warnings(THD *thd, Event_job_data *et)
 {
-  MYSQL_ERROR *err;
+  const Sql_condition *err;
   DBUG_ENTER("evex_print_warnings");
-  if (thd->warning_info->is_empty())
+  if (thd->get_stmt_da()->is_warning_info_empty())
     DBUG_VOID_RETURN;
 
   char msg_buf[10 * STRING_BUFFER_USUAL_SIZE];
@@ -93,7 +93,8 @@ Event_worker_thread::print_warnings(THD *thd, Event_job_data *et)
   prefix.append(et->name.str, et->name.length, system_charset_info);
   prefix.append("] ", 2);
 
-  List_iterator_fast<MYSQL_ERROR> it(thd->warning_info->warn_list());
+  Diagnostics_area::Sql_condition_iterator it=
+    thd->get_stmt_da()->sql_conditions();
   while ((err= it++))
   {
     String err_msg(msg_buf, sizeof(msg_buf), system_charset_info);
@@ -238,6 +239,12 @@ event_scheduler_thread(void *arg)
   my_free(arg);
   if (!res)
     scheduler->run(thd);
+  else
+  {
+    thd->proc_info= "Clearing";
+    net_end(&thd->net);
+    delete thd;
+  }
 
   DBUG_LEAVE;                               // Against gcc warnings
   my_thread_end();
@@ -365,26 +372,26 @@ Event_scheduler::~Event_scheduler()
 }
 
 
-/*
+/**
   Starts the scheduler (again). Creates a new THD and passes it to
   a forked thread. Does not wait for acknowledgement from the new
   thread that it has started. Asynchronous starting. Most of the
   needed initializations are done in the current thread to minimize
   the chance of failure in the spawned thread.
 
-  SYNOPSIS
-    Event_scheduler::start()
+  @param[out] err_no - errno indicating type of error which caused
+                       failure to start scheduler thread.
 
-  RETURN VALUE
-    FALSE  OK
-    TRUE   Error (not reported)
+  @return
+    @retval false Success.
+    @retval true  Error.
 */
 
 bool
-Event_scheduler::start()
+Event_scheduler::start(int *err_no)
 {
   THD *new_thd= NULL;
-  bool ret= FALSE;
+  bool ret= false;
   pthread_t th;
   struct scheduler_param *scheduler_param_value;
   DBUG_ENTER("Event_scheduler::start");
@@ -397,7 +404,7 @@ Event_scheduler::start()
   if (!(new_thd= new THD))
   {
     sql_print_error("Event Scheduler: Cannot initialize the scheduler thread");
-    ret= TRUE;
+    ret= true;
     goto end;
   }
 
@@ -426,21 +433,30 @@ Event_scheduler::start()
   DBUG_PRINT("info", ("Setting state go RUNNING"));
   state= RUNNING;
   DBUG_PRINT("info", ("Forking new thread for scheduler. THD: 0x%lx", (long) new_thd));
-  if (mysql_thread_create(key_thread_event_scheduler,
-                          &th, &connection_attrib, event_scheduler_thread,
-                          (void*)scheduler_param_value))
+  if ((*err_no= mysql_thread_create(key_thread_event_scheduler,
+                                    &th, &connection_attrib,
+                                    event_scheduler_thread,
+                                    (void*)scheduler_param_value)))
   {
     DBUG_PRINT("error", ("cannot create a new thread"));
-    state= INITIALIZED;
-    scheduler_thd= NULL;
-    ret= TRUE;
+    sql_print_error("Event scheduler: Failed to start scheduler,"
+                    " Can not create thread for event scheduler (errno=%d)",
+                    *err_no);
 
     new_thd->proc_info= "Clearing";
-    delete_running_thd(new_thd);
+    DBUG_ASSERT(new_thd->net.buff != 0);
+    net_end(&new_thd->net);
+
+    state= INITIALIZED;
+    scheduler_thd= NULL;
+    delete new_thd;
+
+    delete scheduler_param_value;
+    ret= true;
   }
+
 end:
   UNLOCK_DATA();
-
   DBUG_RETURN(ret);
 }
 
@@ -552,7 +568,20 @@ Event_scheduler::execute_top(Event_queue_element_for_exec *event_name)
   if ((res= mysql_thread_create(key_thread_event_worker,
                                 &th, &connection_attrib, event_worker_thread,
                                 event_name)))
+  {
+    mysql_mutex_lock(&LOCK_global_system_variables);
+    Events::opt_event_scheduler= Events::EVENTS_OFF;
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+
+    sql_print_error("Event_scheduler::execute_top: Can not create event worker"
+                    " thread (errno=%d). Stopping event scheduler", res);
+
+    new_thd->proc_info= "Clearing";
+    DBUG_ASSERT(new_thd->net.buff != 0);
+    net_end(&new_thd->net);
+
     goto error;
+  }
 
   started_events++;
   executed_events++;                            // For SHOW STATUS
@@ -563,10 +592,8 @@ Event_scheduler::execute_top(Event_queue_element_for_exec *event_name)
 error:
   DBUG_PRINT("error", ("Event_scheduler::execute_top() res: %d", res));
   if (new_thd)
-  {
-    new_thd->proc_info= "Clearing";
-    delete_running_thd(new_thd);
-  }
+    delete new_thd;
+
   delete event_name;
   DBUG_RETURN(TRUE);
 }

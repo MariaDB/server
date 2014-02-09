@@ -53,7 +53,7 @@ void Item_geometry_func::fix_length_and_dec()
   collation.set(&my_charset_bin);
   decimals=0;
   max_length= (uint32) 4294967295U;
-  set_persist_maybe_null(1);
+  maybe_null= 1;
 }
 
 
@@ -147,7 +147,7 @@ void Item_func_as_wkt::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length=MAX_BLOB_WIDTH;
-  set_persist_maybe_null(1);
+  maybe_null= 1;
 }
 
 
@@ -500,7 +500,7 @@ String *Item_func_spatial_collection::val_str(String *str)
   }
   if (str->length() > current_thd->variables.max_allowed_packet)
   {
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
 			func_name(), current_thd->variables.max_allowed_packet);

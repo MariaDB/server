@@ -7,7 +7,7 @@
 --source include/have_perfschema.inc
 
 # Set this to enable debugging output
-let $my_socket_debug= 0;
+let $my_socket_debug_dbug= 0;
 
 #
 # Set IP address defaults with respect to IPV6 support

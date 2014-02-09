@@ -30,12 +30,21 @@ struct show_table_contributors_st {
 
   Get permission before editing.
 
-  IMPORTANT: Names should be left in historical order.
-
   Names should be encoded using UTF-8.
 */
 
 struct show_table_contributors_st show_table_contributors[]= {
+  /* MariaDB foundation members, in contribution size order */
+  {"Booking.com", "http://www.booking.com", "Founding member of the MariaDB foundation"},
+  {"SkySQL Ab", "http://www.skysql.com", "Founding member of the MariaDB foundation"},
+  {"Parallels", "http://www.parallels.com/products/plesk", "Founding member of the MariaDB foundation"},
+
+  /* Smaller sponsors, newer per year */
+  {"Jelastic.com", "Russia", "Sponsor of the MariaDB foundation"},
+  {"Planetta.net", "Finland", "Sponsor of the MariaDB foundation"},
+  {"Open query", "Australia", "Sponsor of the MariaDB foundation"},
+
+  /* Individual contributors, names in historical order, newer first */
   {"Ronald Bradford", "Brisbane, Australia", "EFF contribution for UC2006 Auction"},
   {"Sheeri Kritzer", "Boston, Mass. USA", "EFF contribution for UC2006 Auction"},
   {"Mark Shuttleworth", "London, UK.", "EFF contribution for UC2006 Auction"},

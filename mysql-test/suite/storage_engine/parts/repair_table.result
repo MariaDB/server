@@ -74,7 +74,6 @@ ERROR HY000: Failed to read from the .par file
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	Error	Failed to read from the .par file
-test.t1	check	Error	Incorrect information in file: './test/t1.frm'
 test.t1	check	error	Corrupt
 SELECT a,b FROM t1;
 ERROR HY000: Failed to read from the .par file
@@ -83,7 +82,6 @@ ERROR HY000: Failed to read from the .par file
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	repair	Error	Failed to read from the .par file
-test.t1	repair	Error	Incorrect information in file: './test/t1.frm'
 test.t1	repair	error	Corrupt
 DROP TABLE t1, t2;
 call mtr.add_suppression("Got an error from thread_id=.*");

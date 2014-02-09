@@ -550,7 +550,7 @@ int Mrr_ordered_index_reader::init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
 
   KEY *key_info= &file->get_table()->key_info[file->active_index];
   keypar.index_ranges_unique= test(key_info->flags & HA_NOSAME && 
-                                   key_info->key_parts == 
+                                   key_info->user_defined_key_parts == 
                                    my_count_bits(keypar.key_tuple_map));
 
   mrr_iter= seq_funcs->init(seq_init_param, n_ranges, mode);
@@ -1114,6 +1114,7 @@ void DsMrr_impl::close_second_handler()
 {
   if (secondary_file)
   {
+    secondary_file->extra(HA_EXTRA_NO_KEYREAD);
     secondary_file->ha_index_or_rnd_end();
     secondary_file->ha_external_lock(current_thd, F_UNLCK);
     secondary_file->ha_close();
@@ -1493,10 +1494,10 @@ ha_rows DsMrr_impl::dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq,
   @retval FALSE  No
 */
 
-bool key_uses_partial_cols(TABLE *table, uint keyno)
+bool key_uses_partial_cols(TABLE_SHARE *share, uint keyno)
 {
-  KEY_PART_INFO *kp= table->key_info[keyno].key_part;
-  KEY_PART_INFO *kp_end= kp + table->key_info[keyno].key_parts;
+  KEY_PART_INFO *kp= share->key_info[keyno].key_part;
+  KEY_PART_INFO *kp_end= kp + share->key_info[keyno].user_defined_key_parts;
   for (; kp != kp_end; kp++)
   {
     if (!kp->field->part_of_key.is_set(keyno))
@@ -1517,10 +1518,11 @@ bool key_uses_partial_cols(TABLE *table, uint keyno)
   @retval FALSE  Otherwise
 */
 
-bool DsMrr_impl::check_cpk_scan(THD *thd, uint keyno, uint mrr_flags)
+bool DsMrr_impl::check_cpk_scan(THD *thd, TABLE_SHARE *share, uint keyno, 
+                                uint mrr_flags)
 {
   return test((mrr_flags & HA_MRR_SINGLE_POINT) &&
-              keyno == table->s->primary_key && 
+              keyno == share->primary_key && 
               primary_file->primary_key_is_clustered() && 
               optimizer_flag(thd, OPTIMIZER_SWITCH_MRR_SORT_KEYS));
 }
@@ -1556,14 +1558,15 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
   Cost_estimate dsmrr_cost;
   bool res;
   THD *thd= current_thd;
+  TABLE_SHARE *share= primary_file->get_table_share();
 
-  bool doing_cpk_scan= check_cpk_scan(thd, keyno, *flags); 
-  bool using_cpk= test(keyno == table->s->primary_key &&
+  bool doing_cpk_scan= check_cpk_scan(thd, share, keyno, *flags); 
+  bool using_cpk= test(keyno == share->primary_key &&
                        primary_file->primary_key_is_clustered());
   *flags &= ~HA_MRR_IMPLEMENTATION_FLAGS;
   if (!optimizer_flag(thd, OPTIMIZER_SWITCH_MRR) ||
       *flags & HA_MRR_INDEX_ONLY ||
-      (using_cpk && !doing_cpk_scan) || key_uses_partial_cols(table, keyno))
+      (using_cpk && !doing_cpk_scan) || key_uses_partial_cols(share, keyno))
   {
     /* Use the default implementation */
     *flags |= HA_MRR_USE_DEFAULT_IMPL;
@@ -1571,7 +1574,7 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
     return TRUE;
   }
 
-  uint add_len= table->key_info[keyno].key_length + primary_file->ref_length; 
+  uint add_len= share->key_info[keyno].key_length + primary_file->ref_length; 
   *bufsz -= add_len;
   if (get_disk_sweep_mrr_cost(keyno, rows, *flags, bufsz, &dsmrr_cost))
     return TRUE;
@@ -1647,7 +1650,7 @@ int DsMrr_impl::dsmrr_explain_info(uint mrr_mode, char *str, size_t size)
       used_str= rowid_ordered;
 
     uint used_str_len= strlen(used_str);
-    uint copy_len= min(used_str_len, size);
+    uint copy_len= MY_MIN(used_str_len, size);
     memcpy(str, used_str, copy_len);
     return copy_len;
   }
@@ -1708,7 +1711,7 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
   else
   {
     cost->reset();
-    *buffer_size= max(*buffer_size, 
+    *buffer_size= MY_MAX(*buffer_size, 
                       (size_t)(1.2*rows_in_last_step) * elem_size + 
                       primary_file->ref_length + table->key_info[keynr].key_length);
   }

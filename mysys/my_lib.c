@@ -98,8 +98,8 @@ static char *directory_file_name (char * dst, const char *src)
 
   if (src[0] == 0)
     src= (char*) ".";                           /* Use empty as current */
-  end=strmov(dst, src);
-  if (end[-1] != FN_LIBCHAR + 1)
+  end= strnmov(dst, src, FN_REFLEN + 1);
+  if (end[-1] != FN_LIBCHAR)
   {
     *end++= FN_LIBCHAR;                          /* Add last '/' */
     *end='\0';

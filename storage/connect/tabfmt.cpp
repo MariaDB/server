@@ -72,7 +72,7 @@ extern "C" int trace;
 /* CSVColumns: constructs the result blocks containing the description */
 /* of all the columns of a CSV file that will be retrieved by #GetData.*/
 /* Note: the algorithm to set the type is based on the internal values */
-/* of types (TYPE_STRING < TYPE_FLOAT < TYPE_INT) (1 < 2 < 7).         */
+/* of types (TYPE_STRING < TYPE_DOUBLE < TYPE_INT) (1 < 2 < 7).        */
 /* If these values are changed, this will have to be revisited.        */
 /***********************************************************************/
 PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
@@ -93,7 +93,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
   PCOLRES crp;
 
   if (info) {
-    imax = 0;
+    imax = hmax = 0;
     length[0] = 128;
     goto skipit;
     } // endif info
@@ -230,9 +230,9 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
           if (n) {
             len[i] = max(len[i], n);
             type = (digit || (dec && n == 1)) ? TYPE_STRING
-                 : (dec) ? TYPE_FLOAT : TYPE_INT;
+                 : (dec) ? TYPE_DOUBLE : TYPE_INT;
             typ[i] = min(type, typ[i]);
-            prc[i] = max((typ[i] == TYPE_FLOAT) ? (dec - 1) : 0, prc[i]);
+            prc[i] = max((typ[i] == TYPE_DOUBLE) ? (dec - 1) : 0, prc[i]);
             } // endif n
 
           i++;
@@ -310,9 +310,9 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
     if (n) {
       len[i] = max(len[i], n);
       type = (digit || n == 0 || (dec && n == 1)) ? TYPE_STRING
-           : (dec) ? TYPE_FLOAT : TYPE_INT;
+           : (dec) ? TYPE_DOUBLE : TYPE_INT;
       typ[i] = min(type, typ[i]);
-      prc[i]  = max((typ[i] == TYPE_FLOAT) ? (dec - 1) : 0, prc[i]);
+      prc[i]  = max((typ[i] == TYPE_DOUBLE) ? (dec - 1) : 0, prc[i]);
       } // endif n
 
     imax = max(imax, i+1);
@@ -339,11 +339,11 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
   /*  Allocate the structures used to refer to the result set.         */
   /*********************************************************************/
   qrp = PlgAllocResult(g, ncol, imax, IDS_COLUMNS + 3,
-                          buftyp, fldtyp, length, true, false);
-  qrp->Nblin = imax;
-
-  if (info)
+                          buftyp, fldtyp, length, false, false);
+  if (info || !qrp)
     return qrp;
+
+  qrp->Nblin = imax;
 
   /*********************************************************************/
   /*  Now get the results into blocks.                                 */

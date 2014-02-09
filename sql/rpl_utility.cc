@@ -1,6 +1,5 @@
-/*
-   Copyright (c) 2006, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2013, Monty Program Ab.
+/* Copyright (c) 2006, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -43,6 +42,19 @@ int compare(size_t a, size_t b)
  */
 uint32 uint_max(int bits) {
   return (((1UL << (bits - 1)) - 1) << 1) | 1;
+}
+
+
+/**
+  Calculate display length for MySQL56 temporal data types from their metadata.
+  It contains fractional precision in the low 16-bit word.
+*/
+static uint32
+max_display_length_for_temporal2_field(uint32 int_display_length,
+                                       unsigned int metadata)
+{
+  metadata&= 0x00ff;
+  return int_display_length + metadata + (metadata ? 1 : 0);
 }
 
 
@@ -111,11 +123,20 @@ max_display_length_for_field(enum_field_types sql_type, unsigned int metadata)
   case MYSQL_TYPE_TIME:
     return 3;
 
+  case MYSQL_TYPE_TIME2:
+    return max_display_length_for_temporal2_field(MIN_TIME_WIDTH, metadata);
+
   case MYSQL_TYPE_TIMESTAMP:
     return 4;
 
+  case MYSQL_TYPE_TIMESTAMP2:
+    return max_display_length_for_temporal2_field(MAX_DATETIME_WIDTH, metadata);
+
   case MYSQL_TYPE_DATETIME:
     return 8;
+
+  case MYSQL_TYPE_DATETIME2:
+    return max_display_length_for_temporal2_field(MAX_DATETIME_WIDTH, metadata);
 
   case MYSQL_TYPE_BIT:
     /*
@@ -262,11 +283,20 @@ uint32 table_def::calc_field_size(uint col, uchar *master_data) const
   case MYSQL_TYPE_TIME:
     length= 3;
     break;
+  case MYSQL_TYPE_TIME2:
+    length= my_time_binary_length(m_field_metadata[col]);
+    break;
   case MYSQL_TYPE_TIMESTAMP:
     length= 4;
     break;
+  case MYSQL_TYPE_TIMESTAMP2:
+    length= my_timestamp_binary_length(m_field_metadata[col]);
+    break;
   case MYSQL_TYPE_DATETIME:
     length= 8;
+    break;
+  case MYSQL_TYPE_DATETIME2:
+    length= my_datetime_binary_length(m_field_metadata[col]);
     break;
   case MYSQL_TYPE_BIT:
   {
@@ -376,6 +406,7 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
     break;
 
   case MYSQL_TYPE_TIMESTAMP:
+  case MYSQL_TYPE_TIMESTAMP2:
     str->set_ascii(STRING_WITH_LEN("timestamp"));
     break;
 
@@ -393,10 +424,12 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
     break;
 
   case MYSQL_TYPE_TIME:
+  case MYSQL_TYPE_TIME2:
     str->set_ascii(STRING_WITH_LEN("time"));
     break;
 
   case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_DATETIME2:
     str->set_ascii(STRING_WITH_LEN("datetime"));
     break;
 
@@ -615,6 +648,36 @@ can_convert_field_to(Field *field,
     else
       DBUG_RETURN(false);
   }
+  else if (
+            /*
+              Conversion from MariaDB TIMESTAMP(0), TIME(0), DATETIME(0)
+              to the corresponding MySQL56 types is non-lossy.
+            */
+           (metadata == 0 &&
+            ((field->real_type() == MYSQL_TYPE_TIMESTAMP2 &&
+              source_type == MYSQL_TYPE_TIMESTAMP) ||
+             (field->real_type() == MYSQL_TYPE_TIME2 &&
+              source_type == MYSQL_TYPE_TIME) ||
+             (field->real_type() == MYSQL_TYPE_DATETIME2 &&
+              source_type == MYSQL_TYPE_DATETIME))) ||
+            /*
+              Conversion from MySQL56 TIMESTAMP(N), TIME(N), DATETIME(N)
+              to the corresponding MariaDB or MySQL55 types is non-lossy.
+            */
+            (metadata == field->decimals() &&
+             ((field->real_type() == MYSQL_TYPE_TIMESTAMP &&
+              source_type == MYSQL_TYPE_TIMESTAMP2) ||
+             (field->real_type() == MYSQL_TYPE_TIME &&
+              source_type == MYSQL_TYPE_TIME2) ||
+             (field->real_type() == MYSQL_TYPE_DATETIME &&
+              source_type == MYSQL_TYPE_DATETIME2))))
+  {
+    /*
+      TS-TODO: conversion from FSP1>FSP2.
+    */
+    *order_var= -1;
+    DBUG_RETURN(true);
+  }
   else if (!slave_type_conversions_options)
     DBUG_RETURN(false);
 
@@ -739,6 +802,9 @@ can_convert_field_to(Field *field,
   case MYSQL_TYPE_NULL:
   case MYSQL_TYPE_ENUM:
   case MYSQL_TYPE_SET:
+  case MYSQL_TYPE_TIMESTAMP2:
+  case MYSQL_TYPE_DATETIME2:
+  case MYSQL_TYPE_TIME2:
     DBUG_RETURN(false);
   }
   DBUG_RETURN(false);                                 // To keep GCC happy
@@ -780,7 +846,7 @@ table_def::compatible_with(THD *thd, Relay_log_info *rli,
   /*
     We only check the initial columns for the tables.
   */
-  uint const cols_to_check= min(table->s->fields, size());
+  uint const cols_to_check= MY_MIN(table->s->fields, size());
   TABLE *tmp_table= NULL;
 
   for (uint col= 0 ; col < cols_to_check ; ++col)
@@ -879,12 +945,13 @@ TABLE *table_def::create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *
   DBUG_ENTER("table_def::create_conversion_table");
 
   List<Create_field> field_list;
+  TABLE *conv_table= NULL;
   /*
     At slave, columns may differ. So we should create
-    min(columns@master, columns@slave) columns in the
+    MY_MIN(columns@master, columns@slave) columns in the
     conversion table.
   */
-  uint const cols_to_create= min(target_table->s->fields, size());
+  uint const cols_to_create= MY_MIN(target_table->s->fields, size());
   for (uint col= 0 ; col < cols_to_create; ++col)
   {
     Create_field *field_def=
@@ -920,10 +987,15 @@ TABLE *table_def::create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *
       break;
 
     case MYSQL_TYPE_DECIMAL:
-      precision= field_metadata(col);
-      decimals= static_cast<Field_num*>(target_table->field[col])->dec;
-      max_length= field_metadata(col);
-      break;
+      sql_print_error("In RBR mode, Slave received incompatible DECIMAL field "
+                      "(old-style decimal field) from Master while creating "
+                      "conversion table. Please consider changing datatype on "
+                      "Master to new style decimal by executing ALTER command for"
+                      " column Name: %s.%s.%s.",
+                      target_table->s->db.str,
+                      target_table->s->table_name.str,
+                      target_table->field[col]->field_name);
+      goto err;
 
     case MYSQL_TYPE_TINY_BLOB:
     case MYSQL_TYPE_MEDIUM_BLOB:
@@ -939,7 +1011,7 @@ TABLE *table_def::create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *
 
     DBUG_PRINT("debug", ("sql_type: %d, target_field: '%s', max_length: %d, decimals: %d,"
                          " maybe_null: %d, unsigned_flag: %d, pack_length: %u",
-                         type(col), target_table->field[col]->field_name,
+                         binlog_type(col), target_table->field[col]->field_name,
                          max_length, decimals, TRUE, FALSE, pack_length));
     field_def->init_for_tmp_table(type(col),
                                   max_length,
@@ -951,7 +1023,9 @@ TABLE *table_def::create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *
     field_def->interval= interval;
   }
 
-  TABLE *conv_table= create_virtual_tmp_table(thd, field_list);
+  conv_table= create_virtual_tmp_table(thd, field_list);
+
+err:
   if (conv_table == NULL)
     rli->report(ERROR_LEVEL, ER_SLAVE_CANT_CREATE_CONVERSION,
                 ER(ER_SLAVE_CANT_CREATE_CONVERSION),
@@ -993,7 +1067,7 @@ table_def::table_def(unsigned char *types, ulong size,
     int index= 0;
     for (unsigned int i= 0; i < m_size; i++)
     {
-      switch (m_type[i]) {
+      switch (binlog_type(i)) {
       case MYSQL_TYPE_TINY_BLOB:
       case MYSQL_TYPE_BLOB:
       case MYSQL_TYPE_MEDIUM_BLOB:
@@ -1042,6 +1116,11 @@ table_def::table_def(unsigned char *types, ulong size,
         m_field_metadata[i]= x;
         break;
       }
+      case MYSQL_TYPE_TIME2:
+      case MYSQL_TYPE_DATETIME2:
+      case MYSQL_TYPE_TIMESTAMP2:
+        m_field_metadata[i]= field_metadata[index++];
+        break;
       default:
         m_field_metadata[i]= 0;
         break;
@@ -1143,21 +1222,21 @@ bool Deferred_log_events::is_empty()
   return array.elements == 0;
 }
 
-bool Deferred_log_events::execute(Relay_log_info *rli)
+bool Deferred_log_events::execute(rpl_group_info *rgi)
 {
   bool res= false;
+  DBUG_ENTER("Deferred_log_events::execute");
+  DBUG_ASSERT(rgi->deferred_events_collecting);
 
-  DBUG_ASSERT(rli->deferred_events_collecting);
-
-  rli->deferred_events_collecting= false;
+  rgi->deferred_events_collecting= false;
   for (uint i=  0; !res && i < array.elements; i++)
   {
     Log_event *ev= (* (Log_event **)
                     dynamic_array_ptr(&array, i));
-    res= ev->apply_event(rli);
+    res= ev->apply_event(rgi);
   }
-  rli->deferred_events_collecting= true;
-  return res;
+  rgi->deferred_events_collecting= true;
+  DBUG_RETURN(res);
 }
 
 void Deferred_log_events::rewind()

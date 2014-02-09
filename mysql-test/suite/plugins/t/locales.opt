@@ -1,0 +1,3 @@
+--loose-locale
+--plugin-load-add=$LOCALES_SO
+

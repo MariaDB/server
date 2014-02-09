@@ -16,4 +16,4 @@ drop table t1;
 Warnings:
 Warning	2	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
 drop table t1;
-ERROR 42S02: Unknown table 't1'
+ERROR 42S02: Unknown table 'test.t1'

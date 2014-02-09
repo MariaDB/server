@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -31,13 +31,13 @@ Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
 #include "mtr0mtr.h"
+#ifndef UNIV_HOTBACKUP
 #include "buf0flu.h"
 #include "buf0lru.h"
 #include "buf0rea.h"
 
-#ifndef UNIV_HOTBACKUP
 /** A chunk of buffers. The buffer pool is allocated in chunks. */
-struct buf_chunk_struct{
+struct buf_chunk_t{
 	ulint		mem_size;	/*!< allocated size of the chunk */
 	ulint		size;		/*!< size of frames[] and blocks[] */
 	void*		mem;		/*!< pointer to the memory area which
@@ -205,7 +205,7 @@ buf_page_get_state(
 
 #ifdef UNIV_DEBUG
 	switch (state) {
-	case BUF_BLOCK_ZIP_FREE:
+	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
@@ -245,7 +245,7 @@ buf_page_set_state(
 	enum buf_page_state	old_state	= buf_page_get_state(bpage);
 
 	switch (old_state) {
-	case BUF_BLOCK_ZIP_FREE:
+	case BUF_BLOCK_POOL_WATCH:
 		ut_error;
 		break;
 	case BUF_BLOCK_ZIP_PAGE:
@@ -300,9 +300,7 @@ buf_page_in_file(
 	const buf_page_t*	bpage)	/*!< in: pointer to control block */
 {
 	switch (buf_page_get_state(bpage)) {
-	case BUF_BLOCK_ZIP_FREE:
-		/* This is a free page in buf_pool->zip_free[].
-		Such pages should only be accessed by the buddy allocator. */
+	case BUF_BLOCK_POOL_WATCH:
 		ut_error;
 		break;
 	case BUF_BLOCK_ZIP_PAGE:
@@ -339,7 +337,7 @@ buf_page_belongs_to_unzip_LRU(
 Gets the mutex of a block.
 @return	pointer to mutex protecting bpage */
 UNIV_INLINE
-mutex_t*
+ib_mutex_t*
 buf_page_get_mutex(
 /*===============*/
 	const buf_page_t*	bpage)	/*!< in: pointer to control block */
@@ -347,7 +345,7 @@ buf_page_get_mutex(
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 
 	switch (buf_page_get_state(bpage)) {
-	case BUF_BLOCK_ZIP_FREE:
+	case BUF_BLOCK_POOL_WATCH:
 		ut_error;
 		return(NULL);
 	case BUF_BLOCK_ZIP_PAGE:
@@ -362,12 +360,12 @@ buf_page_get_mutex(
 Get the flush type of a page.
 @return	flush type */
 UNIV_INLINE
-enum buf_flush
+buf_flush_t
 buf_page_get_flush_type(
 /*====================*/
 	const buf_page_t*	bpage)	/*!< in: buffer page */
 {
-	enum buf_flush	flush_type = (enum buf_flush) bpage->flush_type;
+	buf_flush_t	flush_type = (buf_flush_t) bpage->flush_type;
 
 #ifdef UNIV_DEBUG
 	switch (flush_type) {
@@ -389,7 +387,7 @@ void
 buf_page_set_flush_type(
 /*====================*/
 	buf_page_t*	bpage,		/*!< in: buffer page */
-	enum buf_flush	flush_type)	/*!< in: flush type */
+	buf_flush_t	flush_type)	/*!< in: flush type */
 {
 	bpage->flush_type = flush_type;
 	ut_ad(buf_page_get_flush_type(bpage) == flush_type);
@@ -419,6 +417,8 @@ buf_page_get_io_fix(
 /*================*/
 	const buf_page_t*	bpage)	/*!< in: pointer to the control block */
 {
+	ut_ad(bpage != NULL);
+
 	enum buf_io_fix	io_fix = (enum buf_io_fix) bpage->io_fix;
 #ifdef UNIV_DEBUG
 	switch (io_fix) {
@@ -664,7 +664,7 @@ buf_block_get_frame(
 	ut_ad(block);
 
 	switch (buf_block_get_state(block)) {
-	case BUF_BLOCK_ZIP_FREE:
+	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
@@ -942,7 +942,7 @@ buf_page_get_newest_modification(
 					page frame */
 {
 	lsn_t		lsn;
-	mutex_t*	block_mutex = buf_page_get_mutex(bpage);
+	ib_mutex_t*	block_mutex = buf_page_get_mutex(bpage);
 
 	mutex_enter(block_mutex);
 
@@ -1309,7 +1309,7 @@ buf_page_release_zip(
 		bpage->buf_fix_count--;
 		mutex_exit(&block->mutex);
 		return;
-	case BUF_BLOCK_ZIP_FREE:
+	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_NOT_USED:
 	case BUF_BLOCK_READY_FOR_USE:
 	case BUF_BLOCK_MEMORY:

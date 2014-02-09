@@ -16,6 +16,7 @@
 /*  Include relevant sections of the operating system header file.     */
 /***********************************************************************/
 #include "my_global.h"
+#include "table.h"       // MySQL table definitions
 #if defined(WIN32)
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
@@ -35,7 +36,6 @@
 /*  plgdbsem.h  is header containing the DB application declarations.  */
 /***********************************************************************/
 #define FRM_VER 6
-#include "table.h"       // MySQL table definitions
 #include "sql_const.h"
 #include "field.h"
 #include "global.h"
@@ -606,6 +606,8 @@ bool TDBPIVOT::OpenDB(PGLOBAL g)
   /*********************************************************************/
 	if (Tdbp->OpenDB(g))
 		return TRUE;
+
+  Use = USE_OPEN;       // Do it now in case we are recursively called
 
   /*********************************************************************/
   /*  Make all required pivot columns for object views.                */

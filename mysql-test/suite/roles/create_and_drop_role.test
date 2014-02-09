@@ -1,0 +1,70 @@
+source include/not_embedded.inc;
+
+connect (mysql, localhost, root,,);
+use mysql;
+
+#test valid syntax
+--error ER_PARSE_ERROR
+create role test_role1@host1;
+--error ER_PARSE_ERROR
+create role test_role2@host2, test_role1@host1;
+
+create role test_role1;
+create role test_role2, test_role3;
+
+--sorted_result
+select user, host, is_role from user where user like 'test%';
+
+drop role test_role1;
+drop role test_role2, test_role3;
+
+create role test_role1;
+--error ER_CANNOT_USER
+create role test_role1;
+--error ER_CANNOT_USER
+create role test_role1, test_role2;
+
+--sorted_result
+select user, host, is_role from user where user like 'test%';
+
+drop role test_role1;
+--error ER_CANNOT_USER
+drop role test_role1;
+--error ER_CANNOT_USER
+drop role test_role1, test_role2;
+
+#test that we can not drop users when calling drop role
+--error ER_CANNOT_USER
+drop role root;
+create user dummy@'';
+--error ER_CANNOT_USER
+drop role dummy;
+drop user dummy@'';
+
+--sorted_result
+select user, host, is_role from user where user like 'test%';
+disconnect mysql;
+connection default;
+
+#
+# MDEV-5520 Connection lost on wrong CREATE ROLE
+#
+--error ER_INVALID_ROLE
+create role '';
+
+#
+# MDEV-5523 Server crashes on DROP USER <rolename>
+#
+create role r1;
+--error ER_CANNOT_USER
+drop user r1;
+drop role r1;
+
+#
+# MDEV-5525 Assertion `status == 0' fails on creating user after granting it role admin option
+# 
+create role r1 with admin u1;
+create user foo@bar;
+drop user foo@bar;
+drop role r1;
+

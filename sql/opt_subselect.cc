@@ -437,9 +437,7 @@ Currently, solution #2 is implemented.
 
 static
 bool subquery_types_allow_materialization(Item_in_subselect *in_subs);
-static bool replace_where_subcondition(JOIN *join, Item **expr, 
-                                       Item *old_cond, Item *new_cond,
-                                       bool do_fix_fields);
+static bool replace_where_subcondition(JOIN *, Item **, Item *, Item *, bool);
 static int subq_sj_candidate_cmp(Item_in_subselect* el1, Item_in_subselect* el2,
                                  void *arg);
 static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred);
@@ -1272,11 +1270,11 @@ void get_delayed_table_estimates(TABLE *table,
    @brief Replaces an expression destructively inside the expression tree of
    the WHERE clase.
 
-   @note Because of current requirements for semijoin flattening, we do not
-   need to recurse here, hence this function will only examine the top-level
-   AND conditions. (see JOIN::prepare, comment starting with "Check if the 
-   subquery predicate can be executed via materialization".
-   
+   @note We substitute AND/OR structure because it was copied by
+   copy_andor_structure and some changes could be done in the copy but
+   should be left permanent, also there could be several layers of AND over
+   AND and OR over OR because ::fix_field() possibly is not called.
+
    @param join The top-level query.
    @param old_cond The expression to be replaced.
    @param new_cond The expression to be substituted.
@@ -1304,12 +1302,18 @@ static bool replace_where_subcondition(JOIN *join, Item **expr,
     Item *item;
     while ((item= li++))
     {
-      if (item == old_cond) 
+      if (item == old_cond)
       {
         li.replace(new_cond);
         if (do_fix_fields)
           new_cond->fix_fields(join->thd, li.ref());
         return FALSE;
+      }
+      else if (item->type() == Item::COND_ITEM)
+      {
+        replace_where_subcondition(join, li.ref(),
+                                   old_cond, new_cond,
+                                   do_fix_fields);
       }
     }
   }
@@ -1525,7 +1529,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   for (tl= (TABLE_LIST*)(parent_lex->table_list.first); tl->next_local; tl= tl->next_local)
   {}
 
-  tl->next_local= subq_lex->leaf_tables.head();
+  tl->next_local= subq_lex->join->tables_list;
 
   /* A theory: no need to re-connect the next_global chain */
 
@@ -1924,10 +1928,24 @@ int pull_out_semijoin_tables(JOIN *join)
       }
     }
     
-    
     table_map pulled_tables= 0;
+    table_map dep_tables= 0;
     if (have_join_nest_children)
       goto skip;
+
+    /*
+      Calculate set of tables within this semi-join nest that have
+      other dependent tables
+    */
+    child_li.rewind();
+    while ((tbl= child_li++))
+    {
+      TABLE *const table= tbl->table;
+      if (table &&
+         (table->reginfo.join_tab->dependent &
+          sj_nest->nested_join->used_tables))
+        dep_tables|= table->reginfo.join_tab->dependent;
+    }
 
     /* Action #1: Mark the constant tables to be pulled out */
     child_li.rewind();
@@ -1979,7 +1997,8 @@ int pull_out_semijoin_tables(JOIN *join)
       child_li.rewind();
       while ((tbl= child_li++))
       {
-        if (tbl->table && !(pulled_tables & tbl->table->map))
+        if (tbl->table && !(pulled_tables & tbl->table->map) &&
+            !(dep_tables & tbl->table->map))
         {
           if (find_eq_ref_candidate(tbl->table, 
                                     sj_nest->nested_join->used_tables & 
@@ -2185,7 +2204,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           double rows= 1.0;
           while ((tableno = tm_it.next_bit()) != Table_map_iterator::BITMAP_END)
             rows *= join->map2table[tableno]->table->quick_condition_rows;
-          sjm->rows= min(sjm->rows, rows);
+          sjm->rows= MY_MIN(sjm->rows, rows);
         }
         memcpy(sjm->positions, join->best_positions + join->const_tables, 
                sizeof(POSITION) * n_tables);
@@ -2380,7 +2399,7 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
           keyuse++;
         } while (keyuse->key == key && keyuse->table == table);
 
-        if (bound_parts == PREV_BITS(uint, keyinfo->key_parts))
+        if (bound_parts == PREV_BITS(uint, keyinfo->user_defined_key_parts))
           return TRUE;
       }
       else
@@ -3544,7 +3563,7 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
     KEY           *tmp_key; /* The only index on the temporary table. */
     uint          tmp_key_parts; /* Number of keyparts in tmp_key. */
     tmp_key= sjm->table->key_info;
-    tmp_key_parts= tmp_key->key_parts;
+    tmp_key_parts= tmp_key->user_defined_key_parts;
     
     /*
       Create/initialize everything we will need to index lookups into the
@@ -3942,7 +3961,6 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, tmpname, tmpname);
   share->blob_field= blob_field;
-  share->blob_ptr_size= portable_sizeof_char_ptr;
   share->table_charset= NULL;
   share->primary_key= MAX_KEY;               // Indicate no primary key
   share->keys_for_keyread.init();
@@ -3994,6 +4012,12 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   }
   if (!table->file)
     goto err;
+
+  if (table->file->set_ha_share_ref(&share->ha_share))
+  {
+    delete table->file;
+    goto err;
+  }
 
   null_count=1;
   
@@ -4064,7 +4088,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     share->max_rows= ~(ha_rows) 0;
   else
     share->max_rows= (ha_rows) (((share->db_type() == heap_hton) ?
-                                 min(thd->variables.tmp_table_size,
+                                 MY_MIN(thd->variables.tmp_table_size,
                                      thd->variables.max_heap_table_size) :
                                  thd->variables.tmp_table_size) /
 			         share->reclength);
@@ -4080,7 +4104,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     table->key_info=keyinfo;
     keyinfo->key_part=key_part_info;
     keyinfo->flags=HA_NOSAME;
-    keyinfo->usable_key_parts= keyinfo->key_parts= 1;
+    keyinfo->usable_key_parts= keyinfo->user_defined_key_parts= 1;
     keyinfo->key_length=0;
     keyinfo->rec_per_key=0;
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
@@ -4114,7 +4138,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   recinfo++;
   if (share->db_type() == TMP_ENGINE_HTON)
   {
-    if (create_internal_tmp_table(table, keyinfo, start_recinfo, &recinfo, 0, 0))
+    if (create_internal_tmp_table(table, keyinfo, start_recinfo, &recinfo, 0))
       goto err;
   }
   if (open_tmp_table(table))
@@ -4234,9 +4258,13 @@ int SJ_TMP_TABLE::sj_weedout_check_row(THD *thd)
     /* create_internal_tmp_table_from_heap will generate error if needed */
     if (!tmp_table->file->is_fatal_error(error, HA_CHECK_DUP))
       DBUG_RETURN(1); /* Duplicate */
+
+    bool is_duplicate;
     if (create_internal_tmp_table_from_heap(thd, tmp_table, start_recinfo,
-                                            &recinfo, error, 1))
+                                            &recinfo, error, 1, &is_duplicate))
       DBUG_RETURN(-1);
+    if (is_duplicate)
+      DBUG_RETURN(1);
   }
   DBUG_RETURN(0);
 }
@@ -5176,7 +5204,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
           0 or 1 record. Examples of both cases:
 
             select * from ot where col in (select ... from it where 2>3) 
-            select * from ot where col in (select min(it.key) from it)
+            select * from ot where col in (select MY_MIN(it.key) from it)
           
           in this case, the subquery predicate has not been setup for
           materialization. In particular, there is no materialized temp.table.
@@ -5214,10 +5242,12 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
           {
             eq_cond= new Item_func_eq(subq_pred->left_expr->element_index(i),
                                       new_sink->row[i]);
-            if (!eq_cond || eq_cond->fix_fields(join->thd, &eq_cond))
+            if (!eq_cond)
               DBUG_RETURN(1);
 
-            (*join_where)= and_items(*join_where, eq_cond);
+            if (!((*join_where)= and_items(*join_where, eq_cond)) ||
+                (*join_where)->fix_fields(join->thd, join_where))
+              DBUG_RETURN(1);
           }
         }
         else
@@ -5232,6 +5262,12 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
           DBUG_RETURN(1);
         table->table= dummy_table;
         table->table->pos_in_table_list= table;
+        /*
+          Note: the table created above may be freed by:
+          1. JOIN_TAB::cleanup(), when the parent join is a regular join.
+          2. cleanup_empty_jtbm_semi_joins(), when the parent join is a
+             degenerate join (e.g. one with "Impossible where").
+        */
         setup_table_map(table->table, table, table->jtbm_table_no);
       }
       else
@@ -5261,6 +5297,42 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
     }
   }
   DBUG_RETURN(FALSE);
+}
+
+
+/*
+  Cleanup non-merged semi-joins (JBMs) that have empty.
+
+  This function is to cleanups for a special case:  
+  Consider a query like 
+
+    select * from t1 where 1=2 AND t1.col IN (select max(..) ... having 1=2)
+
+  For this query, optimization of subquery will short-circuit, and 
+  setup_jtbm_semi_joins() will call create_dummy_tmp_table() so that we have
+  empty, constant temp.table to stand in as materialized temp. table.
+
+  Now, suppose that the upper join is also found to be degenerate. In that
+  case, no JOIN_TAB array will be produced, and hence, JOIN::cleanup() will
+  have a problem with cleaning up empty JTBMs (non-empty ones are cleaned up
+  through Item::cleanup() calls).
+*/
+
+void cleanup_empty_jtbm_semi_joins(JOIN *join)
+{
+  List_iterator<TABLE_LIST> li(*join->join_list);
+  TABLE_LIST *table;
+  while ((table= li++))
+  {
+    if ((table->jtbm_subselect && table->jtbm_subselect->is_jtbm_const_tab))
+    {
+      if (table->table)
+      {
+        free_tmp_table(join->thd, table->table);
+        table->table= NULL;
+      }
+    }
+  }
 }
 
 

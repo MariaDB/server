@@ -33,7 +33,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 {
   {
     { C_STRING_WITH_LEN("THREAD_ID") },
-    { C_STRING_WITH_LEN("int(11)") },
+    { C_STRING_WITH_LEN("bigint(20)") },
     { NULL, 0}
   },
   {
@@ -70,7 +70,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 
 TABLE_FIELD_DEF
 table_ews_by_thread_by_event_name::m_field_def=
-{ 7, field_types };
+{ 7, field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_ews_by_thread_by_event_name::m_share=
@@ -282,7 +282,7 @@ int table_ews_by_thread_by_event_name
       switch(f->field_index)
       {
       case 0: /* THREAD_ID */
-        set_field_ulong(f, m_row.m_thread_internal_id);
+        set_field_ulonglong(f, m_row.m_thread_internal_id);
         break;
       case 1: /* EVENT_NAME */
         m_row.m_event_name.set_field(f);

@@ -1,7 +1,8 @@
 #ifndef MYSYS_MY_HANDLER_ERRORS_INCLUDED
 #define MYSYS_MY_HANDLER_ERRORS_INCLUDED
 
-/* Copyright (c) 2008, 2012, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2013, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -84,11 +85,15 @@ static const char *handler_error_messages[]=
   "Index column length exceeds limit",
   "Index corrupted",
   "Undo record too big",
-  "Table is being used in foreign key check",
   "Invalid InnoDB FTS Doc ID",
+  "Table is being used in foreign key check",
+  "Tablespace already exists",
+  "Too many columns",
+  "Row in wrong partition",
   "Row is not visible by the current transaction",
   "Operation was interrupted by end user (probably kill command?)",
-  "Disk full"
+  "Disk full",
+  "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump and restore the table to fix this"
 };
 
 #endif /* MYSYS_MY_HANDLER_ERRORS_INCLUDED */

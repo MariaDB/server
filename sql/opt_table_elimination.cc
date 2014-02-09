@@ -328,7 +328,7 @@ const size_t Dep_value_table::iterator_size=
   ALIGN_SIZE(sizeof(Dep_value_table::Module_iter));
 
 const size_t Dep_value::iterator_size=
-  max(Dep_value_table::iterator_size, Dep_value_field::iterator_size);
+  MY_MAX(Dep_value_table::iterator_size, Dep_value_field::iterator_size);
 
 
 /*
@@ -441,7 +441,7 @@ const size_t Dep_module_key::iterator_size=
   ALIGN_SIZE(sizeof(Dep_module_key::Value_iter));
 
 const size_t Dep_module::iterator_size=
-  max(Dep_module_expr::iterator_size, Dep_module_key::iterator_size);
+  MY_MAX(Dep_module_expr::iterator_size, Dep_module_key::iterator_size);
 
 
 /*
@@ -609,6 +609,21 @@ void eliminate_tables(JOIN *join)
   /* Find the tables that are referred to from WHERE/HAVING */
   used_tables= (join->conds?  join->conds->used_tables() : 0) | 
                (join->having? join->having->used_tables() : 0);
+
+  /*
+    For "INSERT ... SELECT ... ON DUPLICATE KEY UPDATE column = val"
+    we should also take into account tables mentioned in "val".
+  */
+  if (join->thd->lex->sql_command == SQLCOM_INSERT_SELECT &&
+      join->select_lex == &thd->lex->select_lex)
+  {
+    List_iterator<Item> val_it(thd->lex->value_list);
+    while ((item= val_it++))
+    {
+      DBUG_ASSERT(item->fixed);
+      used_tables |= item->used_tables();
+    }
+  }
   
   /* Add tables referred to from the select list */
   List_iterator<Item> it(join->fields_list);
@@ -892,8 +907,11 @@ bool Dep_analysis_context::run_wave(List<Dep_module> *new_bound_modules)
       iter= module->init_unbound_values_iter(iter_buf);
       while ((value= module->get_next_unbound_value(this, iter)))
       {
-        value->make_bound();
-        new_bound_values.push_back(value);
+        if (!value->is_bound())
+        {
+          value->make_bound();
+          new_bound_values.push_back(value);
+        }
       }
     }
     new_bound_modules->empty();
@@ -1024,7 +1042,7 @@ bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module>
  
   void *buf;
   if (!(buf= current_thd->alloc(bitmap_buffer_size(offset))) ||
-      bitmap_init(&expr_deps, (my_bitmap_map*)buf, offset, FALSE))
+      my_bitmap_init(&expr_deps, (my_bitmap_map*)buf, offset, FALSE))
   {
     DBUG_RETURN(TRUE); /* purecov: inspected */
   }
@@ -1482,7 +1500,7 @@ void check_equality(Dep_analysis_context *ctx, Dep_module_expr **eq_mod,
           collation of the operation differ from the field collation.
         */
         if (field->cmp_type() == STRING_RESULT &&
-            ((Field_str*)field)->charset() != cond->compare_collation())
+            field->charset() != cond->compare_collation())
           return;
       }
     }
@@ -1563,7 +1581,7 @@ Dep_value_table *Dep_analysis_context::create_table_value(TABLE *table)
     if (key->flags & HA_NOSAME)
     {
       Dep_module_key *key_dep;
-      if (!(key_dep= new Dep_module_key(tbl_dep, i, key->key_parts)))
+      if (!(key_dep= new Dep_module_key(tbl_dep, i, key->user_defined_key_parts)))
         return NULL;
       *key_list= key_dep;
       key_list= &(key_dep->next_table_key);
@@ -1740,7 +1758,7 @@ Dep_module* Dep_value_field::get_next_unbound_module(Dep_analysis_context *dac,
     - have this field as a part of them
   */
   while (key_dep && (key_dep->is_applicable() ||
-         !field->part_of_key.is_set(key_dep->keyno)))
+         !field->part_of_key_not_clustered.is_set(key_dep->keyno)))
   {
     key_dep= key_dep->next_table_key;
   }

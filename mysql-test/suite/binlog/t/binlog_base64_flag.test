@@ -161,8 +161,9 @@ call mtr.add_suppression("Slave SQL.*Column 1 of table .test.char128_utf8. canno
 --echo #
 --error ER_SYNTAX_ERROR
 BINLOG '';
+--error ER_BASE64_DECODE_ERROR
 BINLOG '123';
---error ER_SYNTAX_ERROR
+--error ER_BASE64_DECODE_ERROR
 BINLOG '-2079193929';
---error ER_SYNTAX_ERROR
+--error ER_BASE64_DECODE_ERROR
 BINLOG 'xç↓%~∙D╒ƒ╡';

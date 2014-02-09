@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # -*- cperl -*-
 
-# Copyright (c) 2004, 2012, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2012, Monty Program Ab
+# Copyright (c) 2004, 2013, Oracle and/or its affiliates.
+# Copyright (c) 2009, 2013, Monty Program Ab
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -162,31 +162,31 @@ my $path_config_file;           # The generated config file, var/my.cnf
 # executables will be used by the test suite.
 our $opt_vs_config = $ENV{'MTR_VS_CONFIG'};
 
-my $DEFAULT_SUITES= join(',', map { "$_-" } qw(
-    main
-    archive
-    binlog
-    csv
-    federated
-    funcs_1
-    funcs_2
-    handler
-    heap
-    innodb
-    maria
-    multi_source
-    optimizer_unfixed_bugs
-    oqgraph
-    parts
-    percona
-    perfschema
-    plugins
-    rpl
-    sphinx
-    sys_vars
-    unit
-    vcol
-  ));
+my @DEFAULT_SUITES= qw(
+    main-
+    archive-
+    binlog-
+    csv-
+    federated-
+    funcs_1-
+    funcs_2-
+    handler-
+    heap-
+    innodb-
+    innodb_fts-
+    maria-
+    multi_source-
+    optimizer_unfixed_bugs-
+    parts-
+    percona-
+    perfschema-
+    plugins-
+    roles-
+    rpl-
+    sys_vars-
+    unit-
+    vcol-
+  );
 my $opt_suites;
 
 our $opt_verbose= 0;  # Verbose output, enable with --verbose
@@ -377,8 +377,6 @@ sub main {
   # directly before it executes them, like "make test-force-pl" in RPM builds.
   mtr_report("Logging: $0 ", join(" ", @ARGV));
 
-  $DEFAULT_SUITES.=",sequence,sql_discovery,spider,spider/bg" if $source_dist;
-
   command_line_setup();
 
   # --help will not reach here, so now it's safe to assume we have binaries
@@ -389,11 +387,6 @@ sub main {
   }
 
   
-  if (!$opt_suites) {
-    $opt_suites= $DEFAULT_SUITES;
-  }
-  mtr_report("Using suites: $opt_suites") unless @opt_cases;
-
   print "vardir: $opt_vardir\n";
   initialize_servers();
   init_timers();
@@ -414,15 +407,21 @@ sub main {
   {
     # Run the mysqld to find out what features are available
     collect_mysqld_features();
-    mysql_install_db(default_mysqld(), "$opt_vardir/install.db");
   }
   check_ndbcluster_support();
   check_ssl_support();
   check_debug_support();
 
+  if (!$opt_suites) {
+    $opt_suites= join ',', collect_default_suites(@DEFAULT_SUITES);
+  }
+  mtr_report("Using suites: $opt_suites") unless @opt_cases;
+
   mtr_report("Collecting tests...");
   my $tests= collect_test_cases($opt_reorder, $opt_suites, \@opt_cases, \@opt_skip_test_list);
   mark_time_used('collect');
+
+  mysql_install_db(default_mysqld(), "$opt_vardir/install.db") unless using_extern();
 
   if ($opt_dry_run)
   {
@@ -691,7 +690,7 @@ sub run_test_server ($$$) {
 			   mtr_report(" - found '$core_name'",
 				      "($num_saved_cores/$opt_max_save_core)");
 
-			   My::CoreDump->show($core_file, $exe_mysqld);
+			   My::CoreDump->show($core_file, $exe_mysqld, $opt_parallel);
 
 			   if ($num_saved_cores >= $opt_max_save_core) {
 			     mtr_report(" - deleting it, already saved",
@@ -1899,7 +1898,7 @@ sub collect_mysqld_features {
 
   my @list= split '\n', $list;
   mtr_error("Could not find version of MariaDB")
-     unless shift(@list) =~ /^$exe_mysqld\s+Ver\s(\d+)\.(\d+)\.(\d+)(\S*)/;
+     unless shift(@list) =~ /^\Q$exe_mysqld\E\s+Ver\s(\d+)\.(\d+)\.(\d+)(\S*)/;
   $mysql_version_id= $1*10000 + $2*100 + $3;
   $mysql_version_extra= $4;
   mtr_report("MariaDB Version $1.$2.$3$4");
@@ -1960,10 +1959,6 @@ sub collect_mysqld_features_from_running_server ()
       $mysqld_variables{$name}= $value;
     }
   }
-
-  # "Convert" innodb flag
-  $mysqld_variables{'innodb'}= "ON"
-    if ($mysqld_variables{'have_innodb'} eq "YES");
 
   # Parse version
   my $version_str= $mysqld_variables{'version'};
@@ -2077,7 +2072,17 @@ sub executable_setup () {
   }
   else
   {
-    $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mysqltest");
+    if ( defined $ENV{'MYSQL_TEST'} )
+    {
+      $exe_mysqltest=$ENV{'MYSQL_TEST'};
+      print "===========================================================\n";
+      print "WARNING:The mysqltest binary is fetched from $exe_mysqltest\n";
+      print "===========================================================\n";
+    }
+    else
+    {
+      $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mysqltest");
+    }
   }
 
 }
@@ -2488,6 +2493,14 @@ sub environment_setup {
   my $exe_perror= mtr_exe_exists("$bindir/extra$opt_vs_config/perror",
 				 "$path_client_bindir/perror");
   $ENV{'MY_PERROR'}= native_path($exe_perror);
+
+  # ----------------------------------------------------
+  # mysql_tzinfo_to_sql
+  # ----------------------------------------------------
+  my $exe_mysql_tzinfo_to_sql= mtr_exe_exists("$basedir/sql$opt_vs_config/mysql_tzinfo_to_sql",
+                                 "$path_client_bindir/mysql_tzinfo_to_sql",
+                                 "$bindir/sql$opt_vs_config/mysql_tzinfo_to_sql");
+  $ENV{'MYSQL_TZINFO_TO_SQL'}= native_path($exe_mysql_tzinfo_to_sql);
 
   # Create an environment variable to make it possible
   # to detect that valgrind is being used from test cases
@@ -2931,7 +2944,7 @@ sub check_ndbcluster_support {
   mtr_report(" - enabling ndbcluster");
   $ndbcluster_enabled= 1;
   # Add MySQL Cluster test suites
-  $DEFAULT_SUITES.=",ndb,ndb_binlog,rpl_ndb,ndb_rpl,ndb_memcache";
+  push @DEFAULT_SUITES, qw(ndb ndb_binlog rpl_ndb ndb_rpl ndb_memcache);
   return;
 }
 
@@ -3489,6 +3502,7 @@ sub mysql_install_db {
   mtr_add_arg($args, "--skip-plugin-$_") for @optional_plugins;
   # starting from 10.0 bootstrap scripts require InnoDB
   mtr_add_arg($args, "--loose-innodb");
+  mtr_add_arg($args, "--loose-innodb-log-file-size=5M");
   mtr_add_arg($args, "--disable-sync-frm");
   mtr_add_arg($args, "--tmpdir=%s", "$opt_vardir/tmp/");
   mtr_add_arg($args, "--core-file");
@@ -4251,11 +4265,18 @@ sub run_testcase ($$) {
       #
       foreach my $option ($config->options_in_group("ENV"))
       {
-	# Save old value to restore it before next time
-	$old_env{$option->name()}= $ENV{$option->name()};
+        my ($name, $val)= ($option->name(), $option->value());
 
-	mtr_verbose($option->name(), "=",$option->value());
-	$ENV{$option->name()}= $option->value();
+	# Save old value to restore it before next time
+	$old_env{$name}= $ENV{$name};
+
+        unless (defined $val) {
+          mtr_warning("Uninitialized value for ", $name,
+            ", group [ENV], file ", $current_config_name);
+        } else {
+          mtr_verbose($name, "=", $val);
+          $ENV{$name}= $val;
+        }
       }
     }
 
@@ -4767,7 +4788,7 @@ sub extract_warning_lines ($$) {
      qr/slave SQL thread aborted/,
      qr/unknown option '--loose[-_]/,
      qr/unknown variable 'loose[-_]/,
-     qr/Invalid .*old.* table or database name/,
+     #qr/Invalid .*old.* table or database name/,
      qr/Now setting lower_case_table_names to [02]/,
      qr/Setting lower_case_table_names=2/,
      qr/You have forced lower_case_table_names to 0/,
@@ -4808,6 +4829,8 @@ sub extract_warning_lines ($$) {
      qr|feedback plugin: failed to retrieve the MAC address|,
      qr|Plugin 'FEEDBACK' init function returned error|,
      qr|Plugin 'FEEDBACK' registration as a INFORMATION SCHEMA failed|,
+     qr|'log-bin-use-v1-row-events' is MySQL 5.6 compatible option|,
+     qr|InnoDB: Setting thread \d+ nice to \d+ failed, current nice \d+, errno 13|, # setpriority() fails under valgrind
     );
 
   my $matched_lines= [];
@@ -6165,6 +6188,13 @@ sub valgrind_arguments {
     mtr_add_arg($args, "--num-callers=16");
     mtr_add_arg($args, "--suppressions=%s/valgrind.supp", $glob_mysql_test_dir)
       if -f "$glob_mysql_test_dir/valgrind.supp";
+
+    # Ensure the jemalloc works with mysqld
+    if ($mysqld_variables{'version-malloc-library'} ne "system" &&
+        $$exe =~ /mysqld/)
+    {
+      mtr_add_arg($args, "--soname-synonyms=somalloc=NONE" );
+    }
   }
 
   # Add valgrind options, can be overriden by user
@@ -6289,11 +6319,26 @@ sub usage ($) {
     exit;      
   }
 
+  local $"= ','; # for @DEFAULT_SUITES below
+
   print <<HERE;
 
 $0 [ OPTIONS ] [ TESTCASE ]
 
-Options to control what engine/variation to run
+Where test case can be specified as:
+
+testcase[.test]         Runs the test case named 'testcase' from all suits
+path-to-testcase
+[suite.]testcase[,combination]
+
+Examples:
+
+alias
+main.alias              'main' is the name of the suite for the 't' directory.
+rpl.rpl_invoked_features,mix,xtradb_plugin
+suite/rpl/t/rpl.rpl_invoked_features
+
+Options to control what engine/variation to run:
 
   embedded-server       Use the embedded server, i.e. no mysqld daemons
   ps-protocol           Use the binary protocol between client and server
@@ -6356,7 +6401,7 @@ Options to control what test suites or cases to run
   suite[s]=NAME1,..,NAMEN
                         Collect tests in suites from the comma separated
                         list of suite names.
-                        The default is: "$DEFAULT_SUITES"
+                        The default is: "@DEFAULT_SUITES"
   skip-rpl              Skip the replication test cases.
   big-test              Also run tests marked as "big". Repeat this option
                         twice to run only "big" tests.

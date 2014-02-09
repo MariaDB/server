@@ -1,3 +1,4 @@
+call mtr.add_suppression("Invalid .old.. table or database name");
 DROP TABLE IF EXISTS t1, `t``1`, `t 1`;
 drop view if exists v1;
 drop database if exists client_test_db;
@@ -17,15 +18,12 @@ mysql.host                                         OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
-mysql.ndb_binlog_index                             OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
 mysql.servers                                      OK
-mysql.slave_master_info                            OK
-mysql.slave_relay_log_info                         OK
-mysql.slave_worker_info                            OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
@@ -54,15 +52,12 @@ status   : OK
 mysql.innodb_table_stats
 note     : Table does not support optimize, doing recreate + analyze instead
 status   : OK
-mysql.ndb_binlog_index                             OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
 mysql.servers                                      OK
-mysql.slave_master_info                            OK
-mysql.slave_relay_log_info                         OK
-mysql.slave_worker_info                            OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
@@ -85,15 +80,12 @@ mysql.host                                         OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
-mysql.ndb_binlog_index                             OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
 mysql.servers                                      OK
-mysql.slave_master_info                            OK
-mysql.slave_relay_log_info                         OK
-mysql.slave_worker_info                            OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
@@ -120,15 +112,12 @@ status   : OK
 mysql.innodb_table_stats
 note     : Table does not support optimize, doing recreate + analyze instead
 status   : OK
-mysql.ndb_binlog_index                             Table is already up to date
 mysql.plugin                                       Table is already up to date
 mysql.proc                                         Table is already up to date
 mysql.procs_priv                                   Table is already up to date
 mysql.proxies_priv                                 Table is already up to date
+mysql.roles_mapping                                Table is already up to date
 mysql.servers                                      Table is already up to date
-mysql.slave_master_info                            Table is already up to date
-mysql.slave_relay_log_info                         Table is already up to date
-mysql.slave_worker_info                            Table is already up to date
 mysql.table_stats                                  Table is already up to date
 mysql.tables_priv                                  Table is already up to date
 mysql.time_zone                                    Table is already up to date

@@ -1,0 +1,48 @@
+use mysql;
+create role test_role1@host1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '@host1' at line 1
+create role test_role2@host2, test_role1@host1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '@host2, test_role1@host1' at line 1
+create role test_role1;
+create role test_role2, test_role3;
+select user, host, is_role from user where user like 'test%';
+user	host	is_role
+test_role1		Y
+test_role2		Y
+test_role3		Y
+drop role test_role1;
+drop role test_role2, test_role3;
+create role test_role1;
+create role test_role1;
+ERROR HY000: Operation CREATE ROLE failed for 'test_role1'
+create role test_role1, test_role2;
+ERROR HY000: Operation CREATE ROLE failed for 'test_role1'
+select user, host, is_role from user where user like 'test%';
+user	host	is_role
+test_role1		Y
+test_role2		Y
+drop role test_role1;
+drop role test_role1;
+ERROR HY000: Operation DROP ROLE failed for 'test_role1'
+drop role test_role1, test_role2;
+ERROR HY000: Operation DROP ROLE failed for 'test_role1'
+drop role root;
+ERROR HY000: Operation DROP ROLE failed for 'root'
+create user dummy@'';
+drop role dummy;
+ERROR HY000: Operation DROP ROLE failed for 'dummy'
+drop user dummy@'';
+select user, host, is_role from user where user like 'test%';
+user	host	is_role
+create role '';
+ERROR OP000: Invalid role specification ``.
+create role r1;
+drop user r1;
+ERROR HY000: Operation DROP USER failed for 'r1'@'%'
+drop role r1;
+create role r1 with admin u1;
+Warnings:
+Note	1449	The user specified as a definer ('u1'@'%') does not exist
+create user foo@bar;
+drop user foo@bar;
+drop role r1;

@@ -26,6 +26,7 @@
 #include <my_sys.h>
 #include <m_string.h>
 #include <my_getopt.h>
+#include <my_default.h>
 #include <mysql_version.h>
 
 #define load_default_groups mysqld_groups
@@ -33,6 +34,7 @@
 #undef load_default_groups
 
 my_bool opt_mysqld;
+
 const char *config_file="my";			/* Default config file */
 uint verbose= 0, opt_defaults_file_used= 0;
 const char *default_dbug_option="d:t:o,/tmp/my_print_defaults.trace";

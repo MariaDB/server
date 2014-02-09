@@ -62,27 +62,28 @@ rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid)
 
 
 int
-rpl_slave_state::record_and_update_gtid(THD *thd, Relay_log_info *rli)
+rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
 {
   uint64 sub_id;
+  DBUG_ENTER("rpl_slave_state::record_and_update_gtid");
 
   /*
     Update the GTID position, if we have it and did not already update
     it in a GTID transaction.
   */
-  if ((sub_id= rli->gtid_sub_id))
+  if ((sub_id= rgi->gtid_sub_id))
   {
-    rli->gtid_sub_id= 0;
-    if (record_gtid(thd, &rli->current_gtid, sub_id, false, false))
-      return 1;
-    update_state_hash(sub_id, &rli->current_gtid);
+    rgi->gtid_sub_id= 0;
+    if (record_gtid(thd, &rgi->current_gtid, sub_id, false, false))
+      DBUG_RETURN(1);
+    update_state_hash(sub_id, &rgi->current_gtid);
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
 rpl_slave_state::rpl_slave_state()
-  : inited(false), loaded(false)
+  : last_sub_id(0), inited(false), loaded(false)
 {
   my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
                sizeof(uint32), NULL, my_free, HASH_UNIQUE);
@@ -152,6 +153,9 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
   list_elem->seq_no= seq_no;
 
   elem->add(list_elem);
+  if (last_sub_id < sub_id)
+    last_sub_id= sub_id;
+
   return 0;
 }
 
@@ -168,7 +172,6 @@ rpl_slave_state::get_element(uint32 domain_id)
   if (!(elem= (element *)my_malloc(sizeof(*elem), MYF(MY_WME))))
     return NULL;
   elem->list= NULL;
-  elem->last_sub_id= 0;
   elem->domain_id= domain_id;
   if (my_hash_insert(&hash, (uchar *)elem))
   {
@@ -200,17 +203,15 @@ rpl_slave_state::truncate_state_table(THD *thd)
 {
   TABLE_LIST tlist;
   int err= 0;
-  TABLE *table;
 
+  tmp_disable_binlog(thd);
   tlist.init_one_table(STRING_WITH_LEN("mysql"),
                        rpl_gtid_slave_state_table_name.str,
                        rpl_gtid_slave_state_table_name.length,
                        NULL, TL_WRITE);
   if (!(err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
   {
-    table= tlist.table;
-    table->no_replicate= 1;
-    err= table->file->ha_truncate();
+    err= tlist.table->file->ha_truncate();
 
     if (err)
     {
@@ -227,6 +228,7 @@ rpl_slave_state::truncate_state_table(THD *thd)
     thd->mdl_context.release_transactional_locks();
   }
 
+  reenable_binlog(thd);
   return err;
 }
 
@@ -310,14 +312,27 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   element *elem;
   ulonglong thd_saved_option= thd->variables.option_bits;
   Query_tables_list lex_backup;
+  DBUG_ENTER("record_gtid");
+
+  if (unlikely(!loaded))
+  {
+    /*
+      Probably the mysql.gtid_slave_pos table is missing (eg. upgrade) or
+      corrupt.
+
+      We already complained loudly about this, but we can try to continue
+      until the DBA fixes it.
+    */
+    DBUG_RETURN(0);
+  }
 
   if (!in_statement)
-    mysql_reset_thd_for_next_command(thd, 0);
+    mysql_reset_thd_for_next_command(thd);
 
   DBUG_EXECUTE_IF("gtid_inject_record_gtid",
                   {
                     my_error(ER_CANNOT_UPDATE_GTID_STATE, MYF(0));
-                    return 1;
+                    DBUG_RETURN(1);
                   } );
 
   thd->lex->reset_n_backup_query_tables_list(&lex_backup);
@@ -333,10 +348,15 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   if ((err= gtid_check_rpl_slave_state_table(table)))
     goto end;
 
-  table->no_replicate= 1;
   if (!in_transaction)
+  {
+    DBUG_PRINT("info", ("resetting OPTION_BEGIN"));
     thd->variables.option_bits&=
-      ~(ulonglong)(OPTION_NOT_AUTOCOMMIT|OPTION_BEGIN);
+      ~(ulonglong)(OPTION_NOT_AUTOCOMMIT |OPTION_BEGIN |OPTION_BIN_LOG |
+                   OPTION_GTID_BEGIN);
+  }
+  else
+    thd->variables.option_bits&= ~(ulonglong)OPTION_BIN_LOG;
 
   bitmap_set_all(table->write_set);
 
@@ -351,6 +371,14 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     goto end;
   }
 
+  if(opt_bin_log &&
+     (err= mysql_bin_log.bump_seq_no_counter_if_needed(gtid->domain_id,
+                                                       gtid->seq_no)))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    goto end;
+  }
+
   lock();
   if ((elem= get_element(gtid->domain_id)) == NULL)
   {
@@ -359,7 +387,30 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     err= 1;
     goto end;
   }
-  elist= elem->grab_list();
+  if ((elist= elem->grab_list()) != NULL)
+  {
+    /* Delete any old stuff, but keep around the most recent one. */
+    list_element *cur= elist;
+    uint64 best_sub_id= cur->sub_id;
+    list_element **best_ptr_ptr= &elist;
+    while ((next= cur->next))
+    {
+      if (next->sub_id > best_sub_id)
+      {
+        best_sub_id= next->sub_id;
+        best_ptr_ptr= &cur->next;
+      }
+      cur= next;
+    }
+    /*
+      Delete the highest sub_id element from the old list, and put it back as
+      the single-element new list.
+    */
+    cur= *best_ptr_ptr;
+    *best_ptr_ptr= cur->next;
+    cur->next= NULL;
+    elem->list= cur;
+  }
   unlock();
 
   if (!elist)
@@ -381,7 +432,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     DBUG_EXECUTE_IF("gtid_slave_pos_simulate_failed_delete",
                     { err= ENOENT;
                       table->file->print_error(err, MYF(0));
-                      /* `break' does not work in DBUG_EXECUTE_IF */
+                      /* `break' does not work inside DBUG_EXECUTE_IF */
                       goto dbug_break; });
 
     next= elist->next;
@@ -407,11 +458,6 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   }
 IF_DBUG(dbug_break:, )
   table->file->ha_index_end();
-
-  if(!err && opt_bin_log &&
-     (err= mysql_bin_log.bump_seq_no_counter_if_needed(gtid->domain_id,
-                                                       gtid->seq_no)))
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
 
 end:
 
@@ -445,20 +491,17 @@ end:
   }
   thd->lex->restore_backup_query_tables_list(&lex_backup);
   thd->variables.option_bits= thd_saved_option;
-  return err;
+  DBUG_RETURN(err);
 }
 
 
 uint64
-rpl_slave_state::next_subid(uint32 domain_id)
+rpl_slave_state::next_sub_id(uint32 domain_id)
 {
-  uint32 sub_id= 0;
-  element *elem;
+  uint64 sub_id= 0;
 
   lock();
-  elem= get_element(domain_id);
-  if (elem)
-    sub_id= ++elem->last_sub_id;
+  sub_id= ++last_sub_id;
   unlock();
 
   return sub_id;
@@ -681,6 +724,45 @@ gtid_parser_helper(char **ptr, char *end, rpl_gtid *out_gtid)
 }
 
 
+rpl_gtid *
+gtid_parse_string_to_list(const char *str, size_t str_len, uint32 *out_len)
+{
+  char *p= const_cast<char *>(str);
+  char *end= p + str_len;
+  uint32 len= 0, alloc_len= 5;
+  rpl_gtid *list= NULL;
+
+  for (;;)
+  {
+    rpl_gtid gtid;
+
+    if (len >= (((uint32)1 << 28)-1) || gtid_parser_helper(&p, end, &gtid))
+    {
+      my_free(list);
+      return NULL;
+    }
+    if ((!list || len >= alloc_len) &&
+        !(list=
+          (rpl_gtid *)my_realloc(list,
+                                 (alloc_len= alloc_len*2) * sizeof(rpl_gtid),
+                                 MYF(MY_FREE_ON_ERROR|MY_ALLOW_ZERO_PTR))))
+      return NULL;
+    list[len++]= gtid;
+
+    if (p == end)
+      break;
+    if (*p != ',')
+    {
+      my_free(list);
+      return NULL;
+    }
+    ++p;
+  }
+  *out_len= len;
+  return list;
+}
+
+
 /*
   Update the slave replication state with the GTID position obtained from
   master when connecting with old-style (filename,offset) position.
@@ -710,7 +792,7 @@ rpl_slave_state::load(THD *thd, char *state_from_master, size_t len,
     uint64 sub_id;
 
     if (gtid_parser_helper(&state_from_master, end, &gtid) ||
-        !(sub_id= next_subid(gtid.domain_id)) ||
+        !(sub_id= next_sub_id(gtid.domain_id)) ||
         record_gtid(thd, &gtid, sub_id, false, in_statement) ||
         update(gtid.domain_id, gtid.server_id, sub_id, gtid.seq_no))
       return 1;
@@ -757,7 +839,7 @@ rpl_binlog_state::rpl_binlog_state()
 
 
 void
-rpl_binlog_state::reset()
+rpl_binlog_state::reset_nolock()
 {
   uint32 i;
 
@@ -766,12 +848,22 @@ rpl_binlog_state::reset()
   my_hash_reset(&hash);
 }
 
+
+void
+rpl_binlog_state::reset()
+{
+  mysql_mutex_lock(&LOCK_binlog_state);
+  reset_nolock();
+  mysql_mutex_unlock(&LOCK_binlog_state);
+}
+
+
 void rpl_binlog_state::free()
 {
   if (initialized)
   {
     initialized= 0;
-    reset();
+    reset_nolock();
     my_hash_free(&hash);
     mysql_mutex_destroy(&LOCK_binlog_state);
   }
@@ -782,14 +874,20 @@ bool
 rpl_binlog_state::load(struct rpl_gtid *list, uint32 count)
 {
   uint32 i;
+  bool res= false;
 
-  reset();
+  mysql_mutex_lock(&LOCK_binlog_state);
+  reset_nolock();
   for (i= 0; i < count; ++i)
   {
-    if (update(&(list[i]), false))
-      return true;
+    if (update_nolock(&(list[i]), false))
+    {
+      res= true;
+      break;
+    }
   }
-  return false;
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -808,7 +906,7 @@ rpl_binlog_state::~rpl_binlog_state()
   Returns 0 for ok, 1 for error.
 */
 int
-rpl_binlog_state::update(const struct rpl_gtid *gtid, bool strict)
+rpl_binlog_state::update_nolock(const struct rpl_gtid *gtid, bool strict)
 {
   element *elem;
 
@@ -827,11 +925,22 @@ rpl_binlog_state::update(const struct rpl_gtid *gtid, bool strict)
     if (!elem->update_element(gtid))
       return 0;
   }
-  else if (!alloc_element(gtid))
+  else if (!alloc_element_nolock(gtid))
     return 0;
 
   my_error(ER_OUT_OF_RESOURCES, MYF(0));
   return 1;
+}
+
+
+int
+rpl_binlog_state::update(const struct rpl_gtid *gtid, bool strict)
+{
+  int res;
+  mysql_mutex_lock(&LOCK_binlog_state);
+  res= update_nolock(gtid, strict);
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -844,25 +953,30 @@ rpl_binlog_state::update_with_next_gtid(uint32 domain_id, uint32 server_id,
                                         rpl_gtid *gtid)
 {
   element *elem;
+  int res= 0;
 
   gtid->domain_id= domain_id;
   gtid->server_id= server_id;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   if ((elem= (element *)my_hash_search(&hash, (const uchar *)(&domain_id), 0)))
   {
     gtid->seq_no= ++elem->seq_no_counter;
     if (!elem->update_element(gtid))
-      return 0;
+      goto end;
   }
   else
   {
     gtid->seq_no= 1;
-    if (!alloc_element(gtid))
-      return 0;
+    if (!alloc_element_nolock(gtid))
+      goto end;
   }
 
   my_error(ER_OUT_OF_RESOURCES, MYF(0));
-  return 1;
+  res= 1;
+end:
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -908,7 +1022,7 @@ rpl_binlog_state::element::update_element(const rpl_gtid *gtid)
 
 
 int
-rpl_binlog_state::alloc_element(const rpl_gtid *gtid)
+rpl_binlog_state::alloc_element_nolock(const rpl_gtid *gtid)
 {
   element *elem;
   rpl_gtid *lookup_gtid;
@@ -952,7 +1066,9 @@ rpl_binlog_state::check_strict_sequence(uint32 domain_id, uint32 server_id,
                                         uint64 seq_no)
 {
   element *elem;
+  bool res= 0;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   if ((elem= (element *)my_hash_search(&hash,
                                        (const uchar *)(&domain_id), 0)) &&
       elem->last_gtid && elem->last_gtid->seq_no >= seq_no)
@@ -960,9 +1076,10 @@ rpl_binlog_state::check_strict_sequence(uint32 domain_id, uint32 server_id,
     my_error(ER_GTID_STRICT_OUT_OF_ORDER, MYF(0), domain_id, server_id, seq_no,
              elem->last_gtid->domain_id, elem->last_gtid->server_id,
              elem->last_gtid->seq_no);
-    return 1;
+    res= 1;
   }
-  return 0;
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -977,17 +1094,23 @@ int
 rpl_binlog_state::bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no)
 {
   element *elem;
+  int res;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   if ((elem= (element *)my_hash_search(&hash, (const uchar *)(&domain_id), 0)))
   {
     if (elem->seq_no_counter < seq_no)
       elem->seq_no_counter= seq_no;
-    return 0;
+    res= 0;
+    goto end;
   }
 
   /* We need to allocate a new, empty element to remember the next seq_no. */
   if (!(elem= (element *)my_malloc(sizeof(*elem), MYF(MY_WME))))
-    return 1;
+  {
+    res= 1;
+    goto end;
+  }
 
   elem->domain_id= domain_id;
   my_hash_init(&elem->hash, &my_charset_bin, 32,
@@ -996,11 +1119,18 @@ rpl_binlog_state::bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no)
   elem->last_gtid= NULL;
   elem->seq_no_counter= seq_no;
   if (0 == my_hash_insert(&hash, (const uchar *)elem))
-    return 0;
+  {
+    res= 0;
+    goto end;
+  }
 
   my_hash_free(&elem->hash);
   my_free(elem);
-  return 1;
+  res= 1;
+
+end:
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -1016,7 +1146,9 @@ rpl_binlog_state::write_to_iocache(IO_CACHE *dest)
 {
   ulong i, j;
   char buf[21];
+  int res= 0;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   for (i= 0; i < hash.records; ++i)
   {
     size_t res;
@@ -1041,11 +1173,16 @@ rpl_binlog_state::write_to_iocache(IO_CACHE *dest)
       longlong10_to_str(gtid->seq_no, buf, 10);
       res= my_b_printf(dest, "%u-%u-%s\n", gtid->domain_id, gtid->server_id, buf);
       if (res == (size_t) -1)
-        return 1;
+      {
+        res= 1;
+        goto end;
+      }
     }
   }
 
-  return 0;
+end:
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -1056,26 +1193,31 @@ rpl_binlog_state::read_from_iocache(IO_CACHE *src)
   char buf[10+1+10+1+20+1+1];
   char *p, *end;
   rpl_gtid gtid;
+  int res= 0;
 
-  reset();
+  mysql_mutex_lock(&LOCK_binlog_state);
+  reset_nolock();
   for (;;)
   {
-    size_t res= my_b_gets(src, buf, sizeof(buf));
-    if (!res)
+    size_t len= my_b_gets(src, buf, sizeof(buf));
+    if (!len)
       break;
     p= buf;
-    end= buf + res;
-    if (gtid_parser_helper(&p, end, &gtid))
-      return 1;
-    if (update(&gtid, false))
-      return 1;
+    end= buf + len;
+    if (gtid_parser_helper(&p, end, &gtid) ||
+        update_nolock(&gtid, false))
+    {
+      res= 1;
+      break;
+    }
   }
-  return 0;
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
 rpl_gtid *
-rpl_binlog_state::find(uint32 domain_id, uint32 server_id)
+rpl_binlog_state::find_nolock(uint32 domain_id, uint32 server_id)
 {
   element *elem;
   if (!(elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0)))
@@ -1084,14 +1226,28 @@ rpl_binlog_state::find(uint32 domain_id, uint32 server_id)
 }
 
 rpl_gtid *
+rpl_binlog_state::find(uint32 domain_id, uint32 server_id)
+{
+  rpl_gtid *p;
+  mysql_mutex_lock(&LOCK_binlog_state);
+  p= find_nolock(domain_id, server_id);
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return p;
+}
+
+rpl_gtid *
 rpl_binlog_state::find_most_recent(uint32 domain_id)
 {
   element *elem;
+  rpl_gtid *gtid= NULL;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0);
   if (elem && elem->last_gtid)
-    return elem->last_gtid;
-  return NULL;
+    gtid= elem->last_gtid;
+  mysql_mutex_unlock(&LOCK_binlog_state);
+
+  return gtid;
 }
 
 
@@ -1101,8 +1257,10 @@ rpl_binlog_state::count()
   uint32 c= 0;
   uint32 i;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   for (i= 0; i < hash.records; ++i)
     c+= ((element *)my_hash_element(&hash, i))->hash.records;
+  mysql_mutex_unlock(&LOCK_binlog_state);
 
   return c;
 }
@@ -1112,7 +1270,9 @@ int
 rpl_binlog_state::get_gtid_list(rpl_gtid *gtid_list, uint32 list_size)
 {
   uint32 i, j, pos;
+  int res= 0;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   pos= 0;
   for (i= 0; i < hash.records; ++i)
   {
@@ -1135,12 +1295,17 @@ rpl_binlog_state::get_gtid_list(rpl_gtid *gtid_list, uint32 list_size)
         gtid= e->last_gtid;
 
       if (pos >= list_size)
-        return 1;
+      {
+        res= 1;
+        goto end;
+      }
       memcpy(&gtid_list[pos++], gtid, sizeof(*gtid));
     }
   }
 
-  return 0;
+end:
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
@@ -1159,12 +1324,17 @@ rpl_binlog_state::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
 {
   uint32 i;
   uint32 alloc_size, out_size;
+  int res= 0;
 
+  out_size= 0;
+  mysql_mutex_lock(&LOCK_binlog_state);
   alloc_size= hash.records;
   if (!(*list= (rpl_gtid *)my_malloc(alloc_size * sizeof(rpl_gtid),
                                      MYF(MY_WME))))
-    return 1;
-  out_size= 0;
+  {
+    res= 1;
+    goto end;
+  }
   for (i= 0; i < alloc_size; ++i)
   {
     element *e= (element *)my_hash_element(&hash, i);
@@ -1173,8 +1343,10 @@ rpl_binlog_state::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
     memcpy(&((*list)[out_size++]), e->last_gtid, sizeof(rpl_gtid));
   }
 
+end:
+  mysql_mutex_unlock(&LOCK_binlog_state);
   *size= out_size;
-  return 0;
+  return res;
 }
 
 
@@ -1184,6 +1356,7 @@ rpl_binlog_state::append_pos(String *str)
   uint32 i;
   bool first= true;
 
+  mysql_mutex_lock(&LOCK_binlog_state);
   for (i= 0; i < hash.records; ++i)
   {
     element *e= (element *)my_hash_element(&hash, i);
@@ -1191,16 +1364,59 @@ rpl_binlog_state::append_pos(String *str)
         rpl_slave_state_tostring_helper(str, e->last_gtid, &first))
       return true;
   }
+  mysql_mutex_unlock(&LOCK_binlog_state);
 
   return false;
+}
+
+
+bool
+rpl_binlog_state::append_state(String *str)
+{
+  uint32 i, j;
+  bool first= true;
+  bool res= false;
+
+  mysql_mutex_lock(&LOCK_binlog_state);
+  for (i= 0; i < hash.records; ++i)
+  {
+    element *e= (element *)my_hash_element(&hash, i);
+    if (!e->last_gtid)
+    {
+      DBUG_ASSERT(e->hash.records==0);
+      continue;
+    }
+    for (j= 0; j <= e->hash.records; ++j)
+    {
+      const rpl_gtid *gtid;
+      if (j < e->hash.records)
+      {
+        gtid= (rpl_gtid *)my_hash_element(&e->hash, j);
+        if (gtid == e->last_gtid)
+          continue;
+      }
+      else
+        gtid= e->last_gtid;
+
+      if (rpl_slave_state_tostring_helper(str, gtid, &first))
+      {
+        res= true;
+        goto end;
+      }
+    }
+  }
+
+end:
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
 }
 
 
 slave_connection_state::slave_connection_state()
 {
   my_hash_init(&hash, &my_charset_bin, 32,
-               offsetof(rpl_gtid, domain_id), sizeof(uint32), NULL, my_free,
-               HASH_UNIQUE);
+               offsetof(entry, gtid) + offsetof(rpl_gtid, domain_id),
+               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
 }
 
 
@@ -1234,7 +1450,7 @@ slave_connection_state::load(char *slave_request, size_t len)
   char *p, *end;
   uchar *rec;
   rpl_gtid *gtid;
-  const rpl_gtid *gtid2;
+  const entry *e;
 
   reset();
   p= slave_request;
@@ -1243,27 +1459,28 @@ slave_connection_state::load(char *slave_request, size_t len)
     return 0;
   for (;;)
   {
-    if (!(rec= (uchar *)my_malloc(sizeof(*gtid), MYF(MY_WME))))
+    if (!(rec= (uchar *)my_malloc(sizeof(entry), MYF(MY_WME))))
     {
       my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*gtid));
       return 1;
     }
-    gtid= (rpl_gtid *)rec;
+    gtid= &((entry *)rec)->gtid;
     if (gtid_parser_helper(&p, end, gtid))
     {
       my_free(rec);
       my_error(ER_INCORRECT_GTID_STATE, MYF(0));
       return 1;
     }
-    if ((gtid2= (const rpl_gtid *)
+    if ((e= (const entry *)
          my_hash_search(&hash, (const uchar *)(&gtid->domain_id), 0)))
     {
       my_error(ER_DUPLICATE_GTID_DOMAIN, MYF(0), gtid->domain_id,
-               gtid->server_id, (ulonglong)gtid->seq_no, gtid2->domain_id,
-               gtid2->server_id, (ulonglong)gtid2->seq_no, gtid->domain_id);
+               gtid->server_id, (ulonglong)gtid->seq_no, e->gtid.domain_id,
+               e->gtid.server_id, (ulonglong)e->gtid.seq_no, gtid->domain_id);
       my_free(rec);
       return 1;
     }
+    ((entry *)rec)->flags= 0;
     if (my_hash_insert(&hash, rec))
     {
       my_free(rec);
@@ -1319,30 +1536,42 @@ slave_connection_state::load(rpl_slave_state *state,
 }
 
 
+slave_connection_state::entry *
+slave_connection_state::find_entry(uint32 domain_id)
+{
+  return (entry *) my_hash_search(&hash, (const uchar *)(&domain_id), 0);
+}
+
+
 rpl_gtid *
 slave_connection_state::find(uint32 domain_id)
 {
-  return (rpl_gtid *) my_hash_search(&hash, (const uchar *)(&domain_id), 0);
+  entry *e= find_entry(domain_id);
+  if (!e)
+    return NULL;
+  return &e->gtid;
 }
 
 
 int
 slave_connection_state::update(const rpl_gtid *in_gtid)
 {
-  rpl_gtid *new_gtid;
+  entry *e;
   uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
   if (rec)
   {
-    memcpy(rec, in_gtid, sizeof(*in_gtid));
+    e= (entry *)rec;
+    e->gtid= *in_gtid;
     return 0;
   }
 
-  if (!(new_gtid= (rpl_gtid *)my_malloc(sizeof(*new_gtid), MYF(MY_WME))))
+  if (!(e= (entry *)my_malloc(sizeof(*e), MYF(MY_WME))))
     return 1;
-  memcpy(new_gtid, in_gtid, sizeof(*new_gtid));
-  if (my_hash_insert(&hash, (uchar *)new_gtid))
+  e->gtid= *in_gtid;
+  e->flags= 0;
+  if (my_hash_insert(&hash, (uchar *)e))
   {
-    my_free(new_gtid);
+    my_free(e);
     return 1;
   }
 
@@ -1356,7 +1585,7 @@ slave_connection_state::remove(const rpl_gtid *in_gtid)
   uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
 #ifndef DBUG_OFF
   bool err;
-  rpl_gtid *slave_gtid= (rpl_gtid *)rec;
+  rpl_gtid *slave_gtid= &((entry *)rec)->gtid;
   DBUG_ASSERT(rec /* We should never try to remove not present domain_id. */);
   DBUG_ASSERT(slave_gtid->server_id == in_gtid->server_id);
   DBUG_ASSERT(slave_gtid->seq_no == in_gtid->seq_no);
@@ -1365,6 +1594,15 @@ slave_connection_state::remove(const rpl_gtid *in_gtid)
   IF_DBUG(err=, )
     my_hash_delete(&hash, rec);
   DBUG_ASSERT(!err);
+}
+
+
+void
+slave_connection_state::remove_if_present(const rpl_gtid *in_gtid)
+{
+  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
+  if (rec)
+    my_hash_delete(&hash, rec);
 }
 
 
@@ -1385,9 +1623,28 @@ slave_connection_state::append_to_string(String *out_str)
   first= true;
   for (i= 0; i < hash.records; ++i)
   {
-    const rpl_gtid *gtid= (const rpl_gtid *)my_hash_element(&hash, i);
-    if (rpl_slave_state_tostring_helper(out_str, gtid, &first))
+    const entry *e= (const entry *)my_hash_element(&hash, i);
+    if (rpl_slave_state_tostring_helper(out_str, &e->gtid, &first))
       return 1;
   }
+  return 0;
+}
+
+
+int
+slave_connection_state::get_gtid_list(rpl_gtid *gtid_list, uint32 list_size)
+{
+  uint32 i, pos;
+
+  pos= 0;
+  for (i= 0; i < hash.records; ++i)
+  {
+    entry *e;
+    if (pos >= list_size)
+      return 1;
+    e= (entry *)my_hash_element(&hash, i);
+    memcpy(&gtid_list[pos++], &e->gtid, sizeof(e->gtid));
+  }
+
   return 0;
 }

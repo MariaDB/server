@@ -38,16 +38,20 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
     Format = cdp->F;
     Opt = cdp->Opt;
     Long = cdp->Long;
+    Precision = cdp->Precision;
     Buf_Type = cdp->Buf_Type;
     ColUse |= cdp->Flags;       // Used by CONNECT
     Nullable = !!(cdp->Flags & U_NULLS);
+    Unsigned = !!(cdp->Flags & U_UNSIGNED);
   } else {
     Name = NULL;
     memset(&Format, 0, sizeof(FORMAT));
     Opt = 0;
     Long = 0;
+    Precision = 0;
     Buf_Type = TYPE_ERROR;
     Nullable = false;
+    Unsigned = false;
   } // endif cdp
 
   To_Tdb = tdbp;
@@ -163,9 +167,8 @@ bool COLBLK::CheckSort(PTDB tdbp)
 /*  InitValue: prepare a column block for read operation.              */
 /*  Now we use Format.Length for the len parameter to avoid strings    */
 /*  to be truncated when converting from string to coded string.       */
-/*  Added in version 1.5 is the arguments GetPrecision() and Domain    */
-/*  in calling AllocateValue. Domain is used for TYPE_TOKEN only,      */
-/*  but why was GetPrecision() not specified ? To be checked.          */
+/*  Added in version 1.5 is the arguments GetScale() and Domain        */
+/*  in calling AllocateValue. Domain is used for TYPE_DATE only.       */
 /***********************************************************************/
 bool COLBLK::InitValue(PGLOBAL g)
   {
@@ -173,12 +176,11 @@ bool COLBLK::InitValue(PGLOBAL g)
     return false;                       // Already done
 
   // Allocate a Value object
-  if (!(Value = AllocateValue(g, Buf_Type, Format.Length,
-                                 GetPrecision(), GetDomain(),
-                                 (To_Tdb) ? To_Tdb->GetCat() : NULL)))
+  if (!(Value = AllocateValue(g, Buf_Type, Precision,
+                              GetScale(), Unsigned, GetDomain())))
     return true;
 
-  Status = BUF_READY;
+  AddStatus(BUF_READY);
   Value->SetNullable(Nullable);
 
 #ifdef DEBTRACE
@@ -267,7 +269,7 @@ SPCBLK::SPCBLK(PCOLUMN cp)
        : COLBLK((PCOLDEF)NULL, cp->GetTo_Table()->GetTo_Tdb(), 0)
   {
   Name = (char*)cp->GetName();
-  Long = 0;
+  Precision = Long = 0;
   Buf_Type = TYPE_ERROR;
   } // end of SPCBLK constructor
 
@@ -287,7 +289,7 @@ void SPCBLK::WriteColumn(PGLOBAL g)
 /***********************************************************************/
 RIDBLK::RIDBLK(PCOLUMN cp, bool rnm) : SPCBLK(cp)
   {
-  Long = 10;
+  Precision = Long = 10;
   Buf_Type = TYPE_INT;
   Rnm = rnm;
   *Format.Type = 'N';
@@ -310,7 +312,7 @@ void RIDBLK::ReadColumn(PGLOBAL g)
 FIDBLK::FIDBLK(PCOLUMN cp) : SPCBLK(cp)
   {
 //Is_Key = 2; for when the MUL table indexed reading will be implemented.
-  Long = _MAX_PATH;
+  Precision = Long = _MAX_PATH;
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;
@@ -345,13 +347,12 @@ void FIDBLK::ReadColumn(PGLOBAL g)
 TIDBLK::TIDBLK(PCOLUMN cp) : SPCBLK(cp)
   {
 //Is_Key = 2; for when the MUL table indexed reading will be implemented.
-  Long = 64;
+  Precision = Long = 64;
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;
   Format.Prec = 1;          // Case insensitive
-  Constant = (To_Tdb->GetAmType() != TYPE_AM_PLG &&
-              To_Tdb->GetAmType() != TYPE_AM_PLM);
+  Constant = (To_Tdb->GetAmType() != TYPE_AM_TBL);
   Tname = NULL;
   } // end of TIDBLK constructor
 
@@ -364,6 +365,33 @@ void TIDBLK::ReadColumn(PGLOBAL g)
     Tname = (char*)To_Tdb->GetName();
     Value->SetValue_psz(Tname);
     } // endif Tname
+
+  } // end of ReadColumn
+
+/***********************************************************************/
+/*  SIDBLK constructor for the SERVID special column.                  */
+/***********************************************************************/
+SIDBLK::SIDBLK(PCOLUMN cp) : SPCBLK(cp)
+  {
+//Is_Key = 2; for when the MUL table indexed reading will be implemented.
+  Precision = Long = 64;
+  Buf_Type = TYPE_STRING;
+  *Format.Type = 'C';
+  Format.Length = Long;
+  Format.Prec = 1;          // Case insensitive
+  Constant = (To_Tdb->GetAmType() != TYPE_AM_TBL);
+  Sname = NULL;
+  } // end of TIDBLK constructor
+
+/***********************************************************************/
+/*  ReadColumn: what this routine does is to return the server ID.     */
+/***********************************************************************/
+void SIDBLK::ReadColumn(PGLOBAL g)
+  {
+//if (Sname == NULL) {
+    Sname = (char*)To_Tdb->GetServer();
+    Value->SetValue_psz(Sname);
+//  } // endif Sname
 
   } // end of ReadColumn
 

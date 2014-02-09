@@ -27,10 +27,6 @@ start slave 'qqq';
 --error WARN_NO_MASTER_INFO
 stop slave 'qqq';
 --error WARN_NO_MASTER_INFO
-slave 'qqq' start;
---error WARN_NO_MASTER_INFO
-slave 'qqq' stop;
---error WARN_NO_MASTER_INFO
 flush slave 'qqq';
 --error WARN_NO_MASTER_INFO
 reset slave 'qqq';

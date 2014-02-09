@@ -20,12 +20,13 @@
  */
 
 #define FLEX_SCANNER
-
 #if WIN32
 #define __STDC__ 1
 #endif
-
 #include <stdio.h>
+#ifndef WIN32
+#include <unistd.h>
+#endif
 
 
 /* cfront 1.2 defines "c_plusplus" instead of "__cplusplus" */
@@ -47,7 +48,7 @@
 /* The "const" storage-class-modifier is valid. */
 #define YY_USE_CONST
 
-#else  /* ! __cplusplus */
+#else /* ! __cplusplus */
 
 #ifdef __STDC__
 
@@ -131,7 +132,7 @@ extern "C" {
  * int a single C statement (which needs a semi-colon terminator).  This
  * avoids problems with code like:
  *
- *   if ( condition_holds )
+ *  if ( condition_holds )
  *    yyless( 5 );
  *  else
  *    do_something_else();
@@ -161,7 +162,7 @@ struct yy_buffer_state
   FILE *yy_input_file;
 
   char *yy_ch_buf;    /* input buffer */
-  char *yy_buf_pos;    /* current position in input buffer */
+  char *yy_buf_pos;   /* current position in input buffer */
 
   /* Size of input buffer in bytes, not including room for EOB
    * characters.
@@ -220,7 +221,7 @@ int yyleng;
 
 /* Points to current character in buffer. */
 static char *yy_c_buf_p = (char *) 0;
-static int yy_init = 1;    /* whether we need to initialize */
+static int yy_init = 1;   /* whether we need to initialize */
 static int yy_start = 0;  /* start state number */
 
 /* Flag which is used to allow yywrap()'s to do buffer switches
@@ -394,18 +395,21 @@ char *yytext;
 #include <string.h>
 #include "preparse.h"
 
-#define isatty _isatty
+#ifndef fileno
 #define fileno _fileno
+#endif
 #undef  YY_DECL
 #define YY_DECL int yylex YY_PROTO((PDTP ppp))
 #define YYSTATE    ((yy_start-1)/2)
 #undef  YY_INPUT
 #define YY_INPUT(buf,n,m) \
-  {n=(m<strlen(pp->Curp))?m:strlen(pp->Curp);strncpy(buf,pp->Curp,n);pp->Curp+=n;}
+  {n=((int) m< (int) strlen(pp->Curp))? (int) m: (int) strlen(pp->Curp);strncpy(buf,pp->Curp,n);pp->Curp+=n;}
 #if defined(UNIX)
 #undef  yywrap
 #define yywrap  ddwrap
 #endif   /* UNIX */
+int yywrap(void);
+
 static PDTP pp;
 static void MakeParm(int n);
 static void MakeMMDD(int n);
@@ -456,7 +460,7 @@ YY_MALLOC_DECL
   if ( yy_current_buffer->yy_is_interactive ) \
     { \
     int c = getc( yyin ); \
-    result = c == EOF ? 0 : 1; \
+    result = c == (int) EOF ? 0 : 1;             \
     buf[0] = (char) c; \
     } \
   else if ( ((result = fread( buf, 1, max_size, yyin )) == 0) \
@@ -520,10 +524,7 @@ YY_DECL
   if (pp->InFmt) {*pp->InFmt = '\0'; pp->InFmt[pp->Outsize -1] = '\0'; }
   if (pp->OutFmt) {*pp->OutFmt = '\0'; pp->OutFmt[pp->Outsize -1] = '\0'; }
   pp->Curp = pp->Format;
-  if (!yy_init) { /* Restart that stupid Flex otherwise parsing last input */
-    yy_init_buffer( yy_current_buffer, yyin );
-    yy_load_buffer_state();
-    } // endif yy_init
+  yy_init = 1;   /* This is a new input */
 
 
   if ( yy_init )
@@ -533,7 +534,7 @@ YY_DECL
 #endif
 
     if ( ! yy_start )
-      yy_start = 1;  /* first start state */
+      yy_start = 1; /* first start state */
 
     if ( ! yyin )
       yyin = stdin;
@@ -552,7 +553,7 @@ YY_DECL
     yy_init = 0;
     }
 
-  while ( 1 )    /* loops until end-of-file is reached */
+  while ( 1 )   /* loops until end-of-file is reached */
     {
     yy_cp = yy_c_buf_p;
 
@@ -1114,7 +1115,7 @@ static int input()
     }
 
   c = *(unsigned char *) yy_c_buf_p;  /* cast for 8-bit char's */
-  *yy_c_buf_p = '\0';  /* preserve yytext */
+  *yy_c_buf_p = '\0'; /* preserve yytext */
   yy_hold_char = *++yy_c_buf_p;
 
   return c;
@@ -1520,6 +1521,10 @@ void Quotout(char *text)
 
 int yywrap(void)
   {
+  /* Avoid memory leak */
+  if (yy_current_buffer)
+    yy_delete_buffer(yy_current_buffer);
+
   return 1;
   } /* end of yywrap */
 

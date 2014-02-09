@@ -1,10 +1,10 @@
 //
-// $Id: snippets_udf.cc 3508 2012-11-05 11:48:48Z kevg $
+// $Id: snippets_udf.cc 4505 2014-01-22 15:16:21Z deogar $
 //
 
 //
-// Copyright (c) 2001-2012, Andrew Aksyonoff
-// Copyright (c) 2008-2012, Sphinx Technologies Inc
+// Copyright (c) 2001-2014, Andrew Aksyonoff
+// Copyright (c) 2008-2014, Sphinx Technologies Inc
 // All rights reserved
 //
 // This program is free software; you can redistribute it and/or modify
@@ -567,6 +567,7 @@ CSphResponse::Read ( int iSocket, int iClientVersion )
 #else
 #define DLLEXPORT 
 #endif
+
 extern "C"
 {
 	DLLEXPORT my_bool sphinx_snippets_init ( UDF_INIT * pUDF, UDF_ARGS * pArgs, char * sMessage );
@@ -640,7 +641,7 @@ struct CSphSnippets
 	}
 
 #define STRING CHECK_TYPE(STRING_RESULT)
-#define INT CHECK_TYPE(INT_RESULT); int iValue =(int) *(long long *)pArgs->args[i]
+#define INT CHECK_TYPE(INT_RESULT); int iValue = *(long long *)pArgs->args[i]
 
 my_bool sphinx_snippets_init ( UDF_INIT * pUDF, UDF_ARGS * pArgs, char * sMessage )
 {
@@ -820,5 +821,5 @@ void sphinx_snippets_deinit ( UDF_INIT * pUDF )
 }
 
 //
-// $Id: snippets_udf.cc 3508 2012-11-05 11:48:48Z kevg $
+// $Id: snippets_udf.cc 4505 2014-01-22 15:16:21Z deogar $
 //

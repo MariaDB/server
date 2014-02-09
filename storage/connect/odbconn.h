@@ -58,12 +58,13 @@ enum CATINFO {CAT_TAB   =     1,      /* SQLTables                     */
 typedef struct tagCATPARM { 
   CATINFO  Id;                 // Id to indicate function 
   PQRYRES  Qrp;                // Result set pointer
-  PUCHAR   Tab;                 // Table name or pattern
-  PUCHAR   Pat;                 // Table type or column pattern
+  PUCHAR   DB;                 // Database (Schema)
+  PUCHAR   Tab;                // Table name or pattern
+  PUCHAR   Pat;                // Table type or column pattern
   SQLLEN* *Vlen;               // To array of indicator values
   UWORD   *Status;             // To status block
   // For SQLStatistics
-  UWORD    Unique;              // Index type
+  UWORD    Unique;             // Index type
   UWORD    Accuracy;           // For Cardinality and Pages
   // For SQLSpecialColumns 
   UWORD    ColType;
@@ -91,8 +92,7 @@ class DBX : public BLOCK {
   // Implementation (use ThrowDBX to create)
   RETCODE GetRC(void) {return m_RC;}
   PSZ     GetMsg(void) {return m_Msg;}
-  const char *GetErrorMessage(int i)
-  {return (i >=0 && i < MAX_NUM_OF_MSG) ? m_ErrMsg[i] : "No ODBC error";}
+  const char *GetErrorMessage(int i);
 
  protected:
   void    BuildErrorMessage(ODBConn* pdb, HSTMT hstmt = SQL_NULL_HSTMT);
@@ -107,6 +107,7 @@ class DBX : public BLOCK {
 /*  ODBConn class.                                                     */
 /***********************************************************************/
 class ODBConn : public BLOCK {
+  friend class TDBODBC;
   friend class DBX;
   friend PQRYRES GetColumnInfo(PGLOBAL, char*&, char *, int, PVBLK&);
  private:
@@ -127,7 +128,7 @@ class ODBConn : public BLOCK {
 
   // Attributes
  public:
-  char  GetQuoteChar(void) {return m_IDQuoteChar;}
+  char *GetQuoteChar(void) {return m_IDQuoteChar;}
   // Database successfully opened?
   bool  IsOpen(void) {return m_hdbc != SQL_NULL_HDBC;}
   PSZ   GetStringInfo(ushort infotype);
@@ -142,11 +143,13 @@ class ODBConn : public BLOCK {
   int  ExecDirectSQL(char *sql, ODBCCOL *tocols);
   int  Fetch(void);
   int  PrepareSQL(char *sql);
-  bool ExecuteSQL(void);
+  int  ExecuteSQL(void);
   bool BindParam(ODBCCOL *colp);
+  bool ExecSQLcommand(char *sql);
   int  GetCatInfo(CATPARM *cap);
   bool GetDataSources(PQRYRES qrp);
   bool GetDrivers(PQRYRES qrp);
+  PQRYRES GetMetaData(PGLOBAL g, char *dsn, char *src);
 
  public:
   // Set special options
@@ -182,8 +185,9 @@ class ODBConn : public BLOCK {
   DWORD    m_QueryTimeout;
   DWORD    m_UpdateOptions;
   DWORD    m_RowsetSize;
+  char     m_IDQuoteChar[2];
   int      m_Catver;
   PSZ      m_Connect;
   bool     m_Updatable;
-  char     m_IDQuoteChar;
+  bool     m_Transact;
   }; // end of ODBConn class definition

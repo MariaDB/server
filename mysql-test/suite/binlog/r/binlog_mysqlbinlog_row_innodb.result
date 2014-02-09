@@ -2404,7 +2404,7 @@ BEGIN
 ###   @28='1000:01:01' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @29=1000-01-01 00:00:00 /* DATETIME meta=0 nullable=1 is_null=0 */
 ###   @30=75601 /* TIMESTAMP meta=0 nullable=0 is_null=0 */
-###   @31='839:12:57' /* TIME meta=0 nullable=1 is_null=0 */
+###   @31='-838:59:59' /* TIME meta=0 nullable=1 is_null=0 */
 ###   @32=1901 /* YEAR meta=0 nullable=1 is_null=0 */
 ###   @33='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 ###   @34='' /* STRING(0) meta=65024 nullable=1 is_null=0 */
@@ -2766,7 +2766,7 @@ BEGIN
 ###   @28='1000:01:01' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @29=1000-01-01 00:00:00 /* DATETIME meta=0 nullable=1 is_null=0 */
 ###   @30=75601 /* TIMESTAMP meta=0 nullable=0 is_null=0 */
-###   @31='839:12:57' /* TIME meta=0 nullable=1 is_null=0 */
+###   @31='-838:59:59' /* TIME meta=0 nullable=1 is_null=0 */
 ###   @32=1901 /* YEAR meta=0 nullable=1 is_null=0 */
 ###   @33='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 ###   @34='' /* STRING(0) meta=65024 nullable=1 is_null=0 */
@@ -3019,7 +3019,7 @@ BEGIN
 ###   @28='1000:01:01' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @29=1000-01-01 00:00:00 /* DATETIME meta=0 nullable=1 is_null=0 */
 ###   @30=75601 /* TIMESTAMP meta=0 nullable=0 is_null=0 */
-###   @31='839:12:57' /* TIME meta=0 nullable=1 is_null=0 */
+###   @31='-838:59:59' /* TIME meta=0 nullable=1 is_null=0 */
 ###   @32=1901 /* YEAR meta=0 nullable=1 is_null=0 */
 ###   @33='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 ###   @34='' /* STRING(0) meta=65024 nullable=1 is_null=0 */
@@ -3551,7 +3551,7 @@ BEGIN
 ###   @28='1000:01:01' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @29=1000-01-01 00:00:00 /* DATETIME meta=0 nullable=1 is_null=0 */
 ###   @30=75601 /* TIMESTAMP meta=0 nullable=0 is_null=0 */
-###   @31='839:12:57' /* TIME meta=0 nullable=1 is_null=0 */
+###   @31='-838:59:59' /* TIME meta=0 nullable=1 is_null=0 */
 ###   @32=1901 /* YEAR meta=0 nullable=1 is_null=0 */
 ###   @33='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 ###   @34='' /* STRING(0) meta=65024 nullable=1 is_null=0 */

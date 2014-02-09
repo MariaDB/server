@@ -27,26 +27,9 @@ INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/cmake_parse_arguments.cmake)
 # [LINK_LIBRARIES lib1...libN]
 # [DEPENDENCIES target1...targetN]
 
-# Append collections files for the plugin to the common files
-# Make sure we don't copy twice if running cmake again
-
-MACRO(PLUGIN_APPEND_COLLECTIONS plugin)
-  SET(fcopied "${CMAKE_CURRENT_SOURCE_DIR}/tests/collections/FilesCopied")
-  IF(NOT EXISTS ${fcopied})
-    FILE(GLOB collections ${CMAKE_CURRENT_SOURCE_DIR}/tests/collections/*)
-    FOREACH(cfile ${collections})
-      FILE(READ ${cfile} contents)
-      GET_FILENAME_COMPONENT(fname ${cfile} NAME)
-      FILE(APPEND ${CMAKE_SOURCE_DIR}/mysql-test/collections/${fname} "${contents}")
-      FILE(APPEND ${fcopied} "${fname}\n")
-      MESSAGE(STATUS "Appended ${cfile}")
-    ENDFOREACH()
-  ENDIF()
-ENDMACRO()
-
 MACRO(MYSQL_ADD_PLUGIN)
   MYSQL_PARSE_ARGUMENTS(ARG
-    "LINK_LIBRARIES;DEPENDENCIES;MODULE_OUTPUT_NAME;STATIC_OUTPUT_NAME;COMPONENT"
+    "LINK_LIBRARIES;DEPENDENCIES;MODULE_OUTPUT_NAME;STATIC_OUTPUT_NAME;COMPONENT;CONFIG"
     "STORAGE_ENGINE;STATIC_ONLY;MODULE_ONLY;MANDATORY;DEFAULT;DISABLED;RECOMPILE_FOR_EMBEDDED"
     ${ARGN}
   )
@@ -54,7 +37,8 @@ MACRO(MYSQL_ADD_PLUGIN)
   # Add common include directories
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
                     ${CMAKE_SOURCE_DIR}/sql
-                    ${CMAKE_SOURCE_DIR}/regex
+                    ${CMAKE_BINARY_DIR}/pcre
+                    ${CMAKE_SOURCE_DIR}/pcre
                     ${SSL_INCLUDE_DIRS}
                     ${ZLIB_INCLUDE_DIR})
 
@@ -90,7 +74,8 @@ MACRO(MYSQL_ADD_PLUGIN)
     AND NOT ARG_MODULE_ONLY)
      
     SET(WITH_${plugin} 1)
-  ELSEIF(WITHOUT_${plugin}_STORAGE_ENGINE OR WITH_NONE OR ${plugin}_DISABLED)
+  ELSEIF(WITHOUT_${plugin} OR WITHOUT_${plugin}_STORAGE_ENGINE OR
+         WITH_NONE OR ${plugin}_DISABLED)
     SET(WITHOUT_${plugin} 1)
     SET(WITH_${plugin}_STORAGE_ENGINE 0)
     SET(WITH_${plugin} 0)
@@ -143,6 +128,7 @@ MACRO(MYSQL_ADD_PLUGIN)
       IF(ARG_RECOMPILE_FOR_EMBEDDED OR NOT _SKIP_PIC)
         # Recompile some plugins for embedded
         ADD_CONVENIENCE_LIBRARY(${target}_embedded ${SOURCES})
+        RESTRICT_SYMBOL_EXPORTS(${target}_embedded)
         DTRACE_INSTRUMENT(${target}_embedded)   
         IF(ARG_RECOMPILE_FOR_EMBEDDED)
           SET_TARGET_PROPERTIES(${target}_embedded 
@@ -207,7 +193,23 @@ MACRO(MYSQL_ADD_PLUGIN)
     SET_TARGET_PROPERTIES(${target} PROPERTIES 
       OUTPUT_NAME "${ARG_MODULE_OUTPUT_NAME}")  
     # Install dynamic library
-    IF(NOT ARG_COMPONENT)
+    IF(ARG_COMPONENT)
+      IF(CPACK_COMPONENTS_ALL AND NOT CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT})
+        SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} ${ARG_COMPONENT} PARENT_SCOPE)
+        SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_REQUIRES "MariaDB-server" PARENT_SCOPE)
+
+        IF (NOT ARG_CONFIG)
+          SET(ARG_CONFIG "${CMAKE_CURRENT_BINARY_DIR}/${target}.cnf")
+          FILE(WRITE ${ARG_CONFIG} "[mariadb]\nplugin-load-add=${ARG_MODULE_OUTPUT_NAME}.so\n")
+        ENDIF()
+        INSTALL(FILES ${ARG_CONFIG} COMPONENT ${ARG_COMPONENT} DESTINATION ${INSTALL_SYSCONF2DIR})
+
+        # workarounds for cmake issues #13248 and #12864:
+        SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_PROVIDES "cmake_bug_13248" PARENT_SCOPE)
+        SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_OBSOLETES "cmake_bug_13248" PARENT_SCOPE)
+        SET(CPACK_RPM_${ARG_COMPONENT}_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*" PARENT_SCOPE)
+      ENDIF()
+    ELSE()
       SET(ARG_COMPONENT Server)
     ENDIF()
     MYSQL_INSTALL_TARGETS(${target} DESTINATION ${INSTALL_PLUGINDIR} COMPONENT ${ARG_COMPONENT})
@@ -224,6 +226,11 @@ MACRO(MYSQL_ADD_PLUGIN)
 
   IF(BUILD_PLUGIN AND ARG_LINK_LIBRARIES)
     TARGET_LINK_LIBRARIES (${target} ${ARG_LINK_LIBRARIES})
+  ENDIF()
+
+  GET_FILENAME_COMPONENT(subpath ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+  IF(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/mysql-test")
+    INSTALL_MYSQL_TEST("${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/" "plugin/${subpath}")
   ENDIF()
 
 ENDMACRO()

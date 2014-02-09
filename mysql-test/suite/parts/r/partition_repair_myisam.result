@@ -1,4 +1,65 @@
 # REPAIR USE_FRM is not implemented for partitioned tables.
+# Test what happens if we exchange a crashed partition with a table
+SHOW VARIABLES LIKE 'myisam_recover_options';
+Variable_name	Value
+myisam_recover_options	OFF
+CREATE TABLE t (a INT, KEY (a)) ENGINE=MyISAM;
+CREATE TABLE tp (a INT, KEY (a)) ENGINE=MyISAM
+PARTITION BY RANGE (a)
+(PARTITION pCrashed VALUES LESS THAN (15),
+PARTITION pMAX VALUES LESS THAN MAXVALUE);
+INSERT INTO t VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11);
+INSERT INTO tp VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11);
+FLUSH TABLES;
+# replacing tp#P#pCrashed.MYI with a corrupt + unclosed one created by doing:
+# 'create table t1 (a int key(a))' head -c1024 t1.MYI > corrupt_t1.MYI 
+CHECK TABLE tp;
+Table	Op	Msg_type	Msg_text
+test.tp	check	warning	1 client is using or hasn't closed the table properly
+test.tp	check	error	Size of indexfile is: 1024        Should be: 2048
+test.tp	check	warning	Size of datafile is: 77       Should be: 7
+test.tp	check	error	Partition pCrashed returned error
+test.tp	check	error	Corrupt
+ALTER TABLE tp EXCHANGE PARTITION pCrashed WITH TABLE t;
+ERROR HY000: Table './test/tp#P#pCrashed' is marked as crashed and should be repaired
+REPAIR TABLE tp;
+Table	Op	Msg_type	Msg_text
+test.tp	repair	warning	Number of rows changed from 1 to 11
+test.tp	repair	status	OK
+CHECK TABLE tp;
+Table	Op	Msg_type	Msg_text
+test.tp	check	status	OK
+ALTER TABLE tp EXCHANGE PARTITION pCrashed WITH TABLE t;
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+CHECK TABLE tp;
+Table	Op	Msg_type	Msg_text
+test.tp	check	status	OK
+FLUSH TABLES;
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	warning	1 client is using or hasn't closed the table properly
+test.t	check	error	Size of indexfile is: 1024        Should be: 2048
+test.t	check	warning	Size of datafile is: 77       Should be: 7
+test.t	check	error	Corrupt
+ALTER TABLE tp EXCHANGE PARTITION pCrashed WITH TABLE t;
+ERROR HY000: Table './test/t' is marked as crashed and should be repaired
+REPAIR TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	repair	warning	Number of rows changed from 1 to 11
+test.t	repair	status	OK
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+ALTER TABLE tp EXCHANGE PARTITION pCrashed WITH TABLE t;
+CHECK TABLE tp;
+Table	Op	Msg_type	Msg_text
+test.tp	check	status	OK
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t, tp;
 # test of non partitioned myisam for reference
 CREATE TABLE t1_will_crash (a INT, KEY (a)) ENGINE=MyISAM;
 INSERT INTO t1_will_crash VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11);
@@ -209,7 +270,7 @@ PARTITIONS 7;
 SELECT COUNT(*) FROM t1_will_crash;
 COUNT(*)
 33
-SELECT (b % 7) AS partition, COUNT(*) AS rows FROM t1_will_crash GROUP BY (b % 7);
+SELECT (b % 7) AS `partition`, COUNT(*) AS rows FROM t1_will_crash GROUP BY (b % 7);
 partition	rows
 0	2
 1	5
@@ -218,7 +279,7 @@ partition	rows
 4	4
 5	4
 6	8
-SELECT (b % 7) AS partition, b, a, length(c) FROM t1_will_crash ORDER BY partition, b, a;
+SELECT (b % 7) AS `partition`, b, a, length(c) FROM t1_will_crash ORDER BY `partition`, b, a;
 partition	b	a	length(c)
 0	0	 lost	64
 0	7	z lost	64
@@ -282,7 +343,7 @@ test.t1_will_crash	repair	status	OK
 SELECT COUNT(*) FROM t1_will_crash;
 COUNT(*)
 29
-SELECT (b % 7) AS partition, COUNT(*) AS rows FROM t1_will_crash GROUP BY (b % 7);
+SELECT (b % 7) AS `partition`, COUNT(*) AS rows FROM t1_will_crash GROUP BY (b % 7);
 partition	rows
 1	4
 2	5
@@ -290,7 +351,7 @@ partition	rows
 4	4
 5	4
 6	7
-SELECT (b % 7) AS partition, b, a, length(c) FROM t1_will_crash ORDER BY partition, b, a;
+SELECT (b % 7) AS `partition`, b, a, length(c) FROM t1_will_crash ORDER BY `partition`, b, a;
 partition	b	a	length(c)
 1	1	abc	64
 1	8	tuw	64
@@ -366,9 +427,9 @@ Table	Op	Msg_type	Msg_text
 test.t1_will_crash	repair	info	Delete link points outside datafile at 340
 test.t1_will_crash	repair	info	Delete link points outside datafile at 340
 test.t1_will_crash	repair	status	OK
-SELECT (b % 7) AS partition, b, a, length(c) FROM t1_will_crash
+SELECT (b % 7) AS `partition`, b, a, length(c) FROM t1_will_crash
 WHERE (b % 7) = 6
-ORDER BY partition, b, a;
+ORDER BY `partition`, b, a;
 partition	b	a	length(c)
 6	6	jkl	64
 6	13	ooo	64
@@ -385,9 +446,9 @@ FLUSH TABLES;
 # table, depending if one reads via index or direct on datafile.
 # Since crash when reuse of deleted row space, CHECK MEDIUM or EXTENDED
 # is required (MEDIUM is default) to verify correct behavior!
-SELECT (b % 7) AS partition, b, a, length(c) FROM t1_will_crash
+SELECT (b % 7) AS `partition`, b, a, length(c) FROM t1_will_crash
 WHERE (b % 7) = 6
-ORDER BY partition, b, a;
+ORDER BY `partition`, b, a;
 partition	b	a	length(c)
 6	6	jkl	64
 6	13	ooo	64
@@ -396,9 +457,9 @@ partition	b	a	length(c)
 6	97	zzzzzZzzzzz	64
 SET @save_optimizer_switch= @@optimizer_switch;
 SET @@optimizer_switch='derived_merge=off';
-SELECT (b % 7) AS partition, b, a FROM (SELECT b,a FROM t1_will_crash) q
+SELECT (b % 7) AS `partition`, b, a FROM (SELECT b,a FROM t1_will_crash) q
 WHERE (b % 7) = 6
-ORDER BY partition, b, a;
+ORDER BY `partition`, b, a;
 partition	b	a
 6	6	jkl
 6	13	ooo
@@ -422,7 +483,7 @@ test.t1_will_crash	repair	status	OK
 SELECT COUNT(*) FROM t1_will_crash;
 COUNT(*)
 29
-SELECT (b % 7) AS partition, COUNT(*) AS rows FROM t1_will_crash GROUP BY (b % 7);
+SELECT (b % 7) AS `partition`, COUNT(*) AS rows FROM t1_will_crash GROUP BY (b % 7);
 partition	rows
 1	4
 2	4
@@ -430,7 +491,7 @@ partition	rows
 4	4
 5	4
 6	8
-SELECT (b % 7) AS partition, b, a, length(c) FROM t1_will_crash ORDER BY partition, b, a;
+SELECT (b % 7) AS `partition`, b, a, length(c) FROM t1_will_crash ORDER BY `partition`, b, a;
 partition	b	a	length(c)
 1	1	abc	64
 1	8	tuw	64

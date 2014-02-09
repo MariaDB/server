@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -30,7 +30,7 @@
 #include "sp.h"
 #include "sql_select.h"
 
-static int lex_one_token(void *arg, void *yythd);
+static int lex_one_token(void *arg, THD *thd);
 
 /*
   We are using pointer to this variable for distinguishing between assignment
@@ -197,6 +197,7 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
   table->map= 1; //To ensure correct calculation of const item
   table->get_fields_in_item_tree= TRUE;
   table_list->table= table;
+  table_list->cacheable_table= false;
   return FALSE;
 }
 
@@ -447,6 +448,8 @@ void lex_start(THD *thd)
   DBUG_ENTER("lex_start");
 
   lex->thd= lex->unit.thd= thd;
+  
+  DBUG_ASSERT(!lex->explain);
 
   lex->context_stack.empty();
   lex->unit.init_query();
@@ -494,12 +497,13 @@ void lex_start(THD *thd)
   lex->select_lex.ftfunc_list= &lex->select_lex.ftfunc_list_alloc;
   lex->select_lex.group_list.empty();
   lex->select_lex.order_list.empty();
+  lex->select_lex.gorder_list.empty();
+  lex->m_sql_cmd= NULL;
   lex->duplicates= DUP_ERROR;
   lex->ignore= 0;
   lex->spname= NULL;
   lex->sphead= NULL;
   lex->spcont= NULL;
-  lex->m_stmt= NULL;
   lex->proc_list.first= 0;
   lex->escape_used= FALSE;
   lex->query_tables= 0;
@@ -959,9 +963,8 @@ bool consume_comment(Lex_input_stream *lip, int remaining_recursions_permitted)
 				(which can't be followed by a signed number)
 */
 
-int MYSQLlex(void *arg, void *yythd)
+int MYSQLlex(void *arg, THD *thd)
 {
-  THD *thd= (THD *)yythd;
   Lex_input_stream *lip= & thd->m_parser_state->m_lip;
   YYSTYPE *yylval=(YYSTYPE*) arg;
   int token;
@@ -980,7 +983,7 @@ int MYSQLlex(void *arg, void *yythd)
     return token;
   }
 
-  token= lex_one_token(arg, yythd);
+  token= lex_one_token(arg, thd);
 
   switch(token) {
   case WITH:
@@ -991,7 +994,7 @@ int MYSQLlex(void *arg, void *yythd)
       to transform the grammar into a LALR(1) grammar,
       which sql_yacc.yy can process.
     */
-    token= lex_one_token(arg, yythd);
+    token= lex_one_token(arg, thd);
     switch(token) {
     case CUBE_SYM:
       lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, WITH_CUBE_SYM,
@@ -1020,14 +1023,13 @@ int MYSQLlex(void *arg, void *yythd)
   return token;
 }
 
-int lex_one_token(void *arg, void *yythd)
+int lex_one_token(void *arg, THD *thd)
 {
   reg1	uchar c;
   bool comment_closed;
   int	tokval, result_state;
   uint length;
   enum my_lex_states state;
-  THD *thd= (THD *)yythd;
   Lex_input_stream *lip= & thd->m_parser_state->m_lip;
   LEX *lex= thd->lex;
   YYSTYPE *yylval=(YYSTYPE*) arg;
@@ -1521,19 +1523,14 @@ int lex_one_token(void *arg, void *yythd)
 
       lip->save_in_comment_state();
 
-      if (lip->yyPeekn(2) == 'M' && lip->yyPeekn(3) == '!')
+      if (lip->yyPeekn(2) == '!' ||
+          (lip->yyPeekn(2) == 'M' && lip->yyPeekn(3) == '!'))
       {
-        /* Skip MariaDB unique marker */
-        lip->set_echo(FALSE);
-        lip->yySkip();
-        /* The following if will be true */
-      }
-      if (lip->yyPeekn(2) == '!')
-      {
+        bool maria_comment_syntax= lip->yyPeekn(2) == 'M';
         lip->in_comment= DISCARD_COMMENT;
         /* Accept '/' '*' '!', but do not keep this marker. */
         lip->set_echo(FALSE);
-        lip->yySkipn(3);
+        lip->yySkipn(maria_comment_syntax ? 4 : 3);
 
         /*
           The special comment format is very strict:
@@ -1563,7 +1560,14 @@ int lex_one_token(void *arg, void *yythd)
 
           version= (ulong) my_strtoll10(lip->get_ptr(), &end_ptr, &error);
 
-          if (version <= MYSQL_VERSION_ID)
+          /*
+            MySQL-5.7 has new features and might have new SQL syntax that
+            MariaDB-10.0 does not understand. Ignore all versioned comments
+            with MySQL versions in the range 50700-999999, but
+            do not ignore MariaDB specific comments for the same versions.
+          */ 
+          if (version <= MYSQL_VERSION_ID &&
+              (version < 50700 || version > 99999 || maria_comment_syntax))
           {
             /* Accept 'M' 'm' 'm' 'd' 'd' */
             lip->yySkipn(length);
@@ -1747,50 +1751,6 @@ int lex_one_token(void *arg, void *yythd)
 }
 
 
-/**
-  Construct a copy of this object to be used for mysql_alter_table
-  and mysql_create_table.
-
-  Historically, these two functions modify their Alter_info
-  arguments. This behaviour breaks re-execution of prepared
-  statements and stored procedures and is compensated by always
-  supplying a copy of Alter_info to these functions.
-
-  @return You need to use check the error in THD for out
-  of memory condition after calling this function.
-*/
-
-Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
-  :drop_list(rhs.drop_list, mem_root),
-  alter_list(rhs.alter_list, mem_root),
-  key_list(rhs.key_list, mem_root),
-  create_list(rhs.create_list, mem_root),
-  flags(rhs.flags),
-  keys_onoff(rhs.keys_onoff),
-  tablespace_op(rhs.tablespace_op),
-  partition_names(rhs.partition_names, mem_root),
-  num_parts(rhs.num_parts),
-  change_level(rhs.change_level),
-  datetime_field(rhs.datetime_field),
-  error_if_not_empty(rhs.error_if_not_empty)
-{
-  /*
-    Make deep copies of used objects.
-    This is not a fully deep copy - clone() implementations
-    of Alter_drop, Alter_column, Key, foreign_key, Key_part_spec
-    do not copy string constants. At the same length the only
-    reason we make a copy currently is that ALTER/CREATE TABLE
-    code changes input Alter_info definitions, but string
-    constants never change.
-  */
-  list_copy_and_replace_each_value(drop_list, mem_root);
-  list_copy_and_replace_each_value(alter_list, mem_root);
-  list_copy_and_replace_each_value(key_list, mem_root);
-  list_copy_and_replace_each_value(create_list, mem_root);
-  /* partition_names are not deeply copied currently */
-}
-
-
 void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str)
 {
   /*
@@ -1883,9 +1843,11 @@ void st_select_lex::init_query()
   cond_count= between_count= with_wild= 0;
   max_equal_elems= 0;
   ref_pointer_array= 0;
+  ref_pointer_array_size= 0;
   select_n_where_fields= 0;
   select_n_reserved= 0;
   select_n_having_items= 0;
+  n_sum_items= 0;
   n_child_sum_items= 0;
   subquery_in_having= explicit_limit= 0;
   is_item_list_lookup= 0;
@@ -2147,14 +2109,15 @@ void st_select_lex_unit::exclude_tree()
   this to 'last' as dependent
 
   SYNOPSIS
-    last - pointer to last st_select_lex struct, before wich all 
+    last - pointer to last st_select_lex struct, before which all 
            st_select_lex have to be marked as dependent
 
   NOTE
     'last' should be reachable from this st_select_lex_node
 */
 
-bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last, Item *dependency)
+bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
+                                      Item *dependency)
 {
 
   DBUG_ASSERT(this != last);
@@ -2198,12 +2161,13 @@ bool st_select_lex_node::inc_in_sum_expr()           { return 1; }
 uint st_select_lex_node::get_in_sum_expr()           { return 0; }
 TABLE_LIST* st_select_lex_node::get_table_list()     { return 0; }
 List<Item>* st_select_lex_node::get_item_list()      { return 0; }
-TABLE_LIST *st_select_lex_node::add_table_to_list (THD *thd, Table_ident *table,
+TABLE_LIST *st_select_lex_node::add_table_to_list(THD *thd, Table_ident *table,
 						  LEX_STRING *alias,
 						  ulong table_join_options,
 						  thr_lock_type flags,
                                                   enum_mdl_type mdl_type,
 						  List<Index_hint> *hints,
+                                                  List<String> *partition_names,
                                                   LEX_STRING *option)
 {
   return 0;
@@ -2245,6 +2209,11 @@ bool st_select_lex::add_order_to_list(THD *thd, Item *item, bool asc)
   return add_to_list(thd, order_list, item, asc);
 }
 
+
+bool st_select_lex::add_gorder_to_list(THD *thd, Item *item, bool asc)
+{
+  return add_to_list(thd, gorder_list, item, asc);
+}
 
 bool st_select_lex::add_item_to_list(THD *thd, Item *item)
 {
@@ -2316,11 +2285,6 @@ ulong st_select_lex::get_table_join_options()
 
 bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
 {
-  DBUG_ENTER("st_select_lex::setup_ref_array");
-
-  if (ref_pointer_array)
-    DBUG_RETURN(0);
-
   // find_order_in_list() may need some extra space, so multiply by two.
   order_group_num*= 2;
 
@@ -2328,14 +2292,34 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
     We have to create array in prepared statement memory if it is a
     prepared statement
   */
-  ref_pointer_array=
-    (Item **)thd->stmt_arena->alloc(sizeof(Item*) * (n_child_sum_items +
-                                                     item_list.elements +
-                                                     select_n_reserved +
-                                                     select_n_having_items +
-                                                     select_n_where_fields +
-                                                     order_group_num)*5);
-  DBUG_RETURN(ref_pointer_array == 0);
+  Query_arena *arena= thd->stmt_arena;
+  const uint n_elems= (n_sum_items +
+                       n_child_sum_items +
+                       item_list.elements +
+                       select_n_reserved +
+                       select_n_having_items +
+                       select_n_where_fields +
+                       order_group_num) * 5;
+  if (ref_pointer_array != NULL)
+  {
+    /*
+      We need to take 'n_sum_items' into account when allocating the array,
+      and this may actually increase during the optimization phase due to
+      MIN/MAX rewrite in Item_in_subselect::single_value_transformer.
+      In the usual case we can reuse the array from the prepare phase.
+      If we need a bigger array, we must allocate a new one.
+    */
+    if (ref_pointer_array_size >= n_elems)
+    {
+      DBUG_PRINT("info", ("reusing old ref_array"));
+      return false;
+    }
+  }
+  ref_pointer_array= static_cast<Item**>(arena->alloc(sizeof(Item*) * n_elems));
+  if (ref_pointer_array != NULL)
+    ref_pointer_array_size= n_elems;
+
+  return ref_pointer_array == NULL;
 }
 
 
@@ -2558,7 +2542,8 @@ void Query_tables_list::destroy_query_tables_list()
 */
 
 LEX::LEX()
-  :result(0), option_type(OPT_DEFAULT), is_lex_started(0),
+  : explain(NULL),
+    result(0), option_type(OPT_DEFAULT), is_lex_started(0),
    limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
@@ -2594,7 +2579,9 @@ bool LEX::can_be_merged()
   // TODO: do not forget implement case when select_lex.table_list.elements==0
 
   /* find non VIEW subqueries/unions */
-  bool selects_allow_merge= select_lex.next_select() == 0;
+  bool selects_allow_merge= (select_lex.next_select() == 0 &&
+                             !(select_lex.uncacheable &
+                               UNCACHEABLE_RAND));
   if (selects_allow_merge)
   {
     for (SELECT_LEX_UNIT *tmp_unit= select_lex.first_inner_unit();
@@ -3331,6 +3318,7 @@ static void fix_prepare_info_in_table_list(THD *thd, TABLE_LIST *tbl)
 void st_select_lex::fix_prepare_information(THD *thd, Item **conds, 
                                             Item **having_conds)
 {
+  DBUG_ENTER("st_select_lex::fix_prepare_information");
   if (!thd->stmt_arena->is_conventional() && first_execution)
   {
     first_execution= 0;
@@ -3359,6 +3347,7 @@ void st_select_lex::fix_prepare_information(THD *thd, Item **conds,
     }
     fix_prepare_info_in_table_list(thd, table_list.first);
   }
+  DBUG_VOID_RETURN;
 }
 
 
@@ -3501,6 +3490,18 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
         is_correlated_unit|= sl->is_correlated;
         inner_join->select_options= save_options;
         un->thd->lex->current_select= save_select;
+
+        Explain_query *eq;
+        if ((eq= inner_join->thd->lex->explain))
+        {
+          Explain_select *expl_sel;
+          if ((expl_sel= eq->get_select(inner_join->select_lex->select_number)))
+          {
+            sl->set_explain_type(TRUE);
+            expl_sel->select_type= sl->type;
+          }
+        }
+
         if (empty_union_result)
         {
           /*
@@ -3776,10 +3777,7 @@ void SELECT_LEX::mark_as_belong_to_derived(TABLE_LIST *derived)
   TABLE_LIST *tl;
   List_iterator<TABLE_LIST> ti(leaf_tables);
   while ((tl= ti++))
-  {
-    tl->open_type= OT_BASE_ONLY;
     tl->belong_to_derived= derived;
-  }
 }
 
 
@@ -3877,7 +3875,7 @@ void SELECT_LEX::update_used_tables()
   }
   for (ORDER *order= group_list.first; order; order= order->next)
     (*order->item)->update_used_tables();
-  if (!master_unit()->is_union())
+  if (!master_unit()->is_union() || master_unit()->global_parameters != this)
   {
     for (ORDER *order= order_list.first; order; order= order->next)
       (*order->item)->update_used_tables();
@@ -4074,7 +4072,8 @@ void SELECT_LEX::increase_derived_records(ha_rows records)
 void SELECT_LEX::mark_const_derived(bool empty)
 {
   TABLE_LIST *derived= master_unit()->derived;
-  if (!join->thd->lex->describe && derived)
+  /* join == NULL in  DELETE ... RETURNING */
+  if (!(join && join->thd->lex->describe) && derived)
   {
     if (!empty)
       increase_derived_records(1);
@@ -4086,11 +4085,8 @@ void SELECT_LEX::mark_const_derived(bool empty)
 
 bool st_select_lex::save_leaf_tables(THD *thd)
 {
-  Query_arena *arena= thd->stmt_arena, backup;
-  if (arena->is_conventional())
-    arena= 0;                                  
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
 
   List_iterator_fast<TABLE_LIST> li(leaf_tables);
   TABLE_LIST *table;
@@ -4118,10 +4114,7 @@ bool st_select_lex::save_prep_leaf_tables(THD *thd)
     return 0;
 
   Query_arena *arena= thd->stmt_arena, backup;
-  if (arena->is_conventional())
-    arena= 0;                                  
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
+  arena= thd->activate_stmt_arena_if_needed(&backup);
 
   List_iterator_fast<TABLE_LIST> li(leaf_tables);
   TABLE_LIST *table;
@@ -4179,114 +4172,85 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
   return all_merged;
 }
 
+/* 
+  This is used by SHOW EXPLAIN. It assuses query plan has been already 
+  collected into QPF structures and we only need to print it out.
+*/
 
-int print_explain_message_line(select_result_sink *result, 
-                               SELECT_LEX *select_lex,
-                               bool on_the_fly,
-                               uint8 options,
-                               const char *message);
-
-
-int st_select_lex::print_explain(select_result_sink *output, 
-                                 uint8 explain_flags,
-                                 bool *printed_anything)
+int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
+                       bool *printed_anything)
 {
   int res;
-  if (join && join->have_query_plan == JOIN::QEP_AVAILABLE)
+  if (explain && explain->have_query_plan())
   {
-    /*
-      There is a number of reasons join can be marked as degenerate, so all
-      three conditions below can happen simultaneously, or individually:
-    */
-    *printed_anything= TRUE;
-    if (!join->table_count || !join->tables_list || join->zero_result_cause)
-    {
-      /* It's a degenerate join */
-      const char *cause= join->zero_result_cause ? join-> zero_result_cause : 
-                                                   "No tables used";
-      res= join->print_explain(output, explain_flags, TRUE, FALSE, FALSE, 
-                               FALSE, cause);
-    }
-    else
-    {
-      res= join->print_explain(output, explain_flags, TRUE,
-                               join->need_tmp, // need_tmp_table
-                               !join->skip_sort_order && !join->no_order &&
-                               (join->order || join->group_list), // bool need_order
-                               join->select_distinct, // bool distinct
-                               NULL); //const char *message
-    }
-    if (res)
-      goto err;
-
-    for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
-         unit;
-         unit= unit->next_unit())
-    {
-      /* 
-        Display subqueries only if they are not parts of eliminated WHERE/ON
-        clauses.
-      */
-      if (!(unit->item && unit->item->eliminated))
-      {
-        if ((res= unit->print_explain(output, explain_flags, printed_anything)))
-          goto err;
-      }
-    }
+    res= explain->print_explain(output, explain_flags);
+    *printed_anything= true;
   }
   else
   {
-    const char *msg;
-    if (!join)
-      DBUG_ASSERT(0); /* Seems not to be possible */
-
-    /* Not printing anything useful, don't touch *printed_anything here */
-    if (join->have_query_plan == JOIN::QEP_NOT_PRESENT_YET)
-      msg= "Not yet optimized";
-    else
-    {
-      DBUG_ASSERT(join->have_query_plan == JOIN::QEP_DELETED);
-      msg= "Query plan already deleted";
-    }
-    res= print_explain_message_line(output, this, TRUE /* on_the_fly */,
-                                    0, msg);
+    res= 0;
+    *printed_anything= false;
   }
-err:
   return res;
 }
 
 
-int st_select_lex_unit::print_explain(select_result_sink *output, 
-                                      uint8 explain_flags, bool *printed_anything)
+/*
+  Save explain structures of a UNION. The only variable member is whether the 
+  union has "Using filesort".
+
+  There is also save_union_explain_part2() function, which is called before we read
+  UNION's output.
+
+  The reason for it is examples like this:
+
+     SELECT col1 FROM t1 UNION SELECT col2 FROM t2 ORDER BY (select ... from t3 ...)
+
+  Here, the (select ... from t3 ...) subquery must be a child of UNION's
+  st_select_lex. However, it is not connected as child until a very late 
+  stage in execution.
+*/
+
+int st_select_lex_unit::save_union_explain(Explain_query *output)
 {
-  int res= 0;
   SELECT_LEX *first= first_select();
-  
-  if (first && !first->next_select() && !first->join)
-  {
-    /*
-      If there is only one child, 'first', and it has join==NULL, emit "not in
-      EXPLAIN state" error.
-    */
-    const char *msg="Query plan already deleted";
-    res= print_explain_message_line(output, first, TRUE /* on_the_fly */,
-                                    0, msg);
-    return 0;
-  }
+  Explain_union *eu= new (output->mem_root) Explain_union;
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
-  {
-    if ((res= sl->print_explain(output, explain_flags, printed_anything)))
-      break;
-  }
+    eu->add_select(sl->select_number);
 
-  /* Note: fake_select_lex->join may be NULL or non-NULL at this point */
+  eu->fake_select_type= "UNION RESULT";
+  eu->using_filesort= test(global_parameters->order_list.first);
+
+  // Save the UNION node
+  output->add_node(eu);
+
+  if (eu->get_select_id() == 1)
+    output->query_plan_ready();
+
+  return 0;
+}
+
+
+/*
+  @see  st_select_lex_unit::save_union_explain
+*/
+
+int st_select_lex_unit::save_union_explain_part2(Explain_query *output)
+{
+  Explain_union *eu= output->get_union(first_select()->select_number);
   if (fake_select_lex)
   {
-    res= print_fake_select_lex_join(output, TRUE /* on the fly */,
-                                    fake_select_lex, explain_flags);
+    for (SELECT_LEX_UNIT *unit= fake_select_lex->first_inner_unit(); 
+         unit; unit= unit->next_unit())
+    {
+      if (!(unit->item && unit->item->eliminated))
+      {
+        eu->add_child(unit->first_select()->select_number);
+      }
+    }
   }
-  return res;
+  return 0;
 }
 
 
@@ -4304,8 +4268,8 @@ int st_select_lex_unit::print_explain(select_result_sink *output,
 bool LEX::is_partition_management() const
 {
   return (sql_command == SQLCOM_ALTER_TABLE &&
-          (alter_info.flags == ALTER_ADD_PARTITION ||
-           alter_info.flags == ALTER_REORGANIZE_PARTITION));
+          (alter_info.flags ==  Alter_info::ALTER_ADD_PARTITION ||
+           alter_info.flags ==  Alter_info::ALTER_REORGANIZE_PARTITION));
 }
 
 #ifdef MYSQL_SERVER

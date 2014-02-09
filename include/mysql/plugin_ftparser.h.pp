@@ -1,5 +1,6 @@
 #include "plugin.h"
 typedef char my_bool;
+typedef void * MYSQL_PLUGIN;
 #include <mysql/services.h>
 #include <mysql/service_my_snprintf.h>
 extern struct my_snprintf_service_st {
@@ -107,6 +108,60 @@ extern struct thd_timezone_service_st {
 } *thd_timezone_service;
 my_time_t thd_TIME_to_gmt_sec(void* thd, const MYSQL_TIME *ltime, unsigned int *errcode);
 void thd_gmt_sec_to_TIME(void* thd, MYSQL_TIME *ltime, my_time_t t);
+#include <mysql/service_sha1.h>
+extern struct my_sha1_service_st {
+  void (*my_sha1_type)(unsigned char*, const char*, size_t);
+  void (*my_sha1_multi_type)(unsigned char*, ...);
+} *my_sha1_service;
+void my_sha1(unsigned char*, const char*, size_t);
+void my_sha1_multi(unsigned char*, ...);
+#include <mysql/service_logger.h>
+typedef struct logger_handle_st LOGGER_HANDLE;
+extern struct logger_service_st {
+  void (*logger_init_mutexes)();
+  LOGGER_HANDLE* (*open)(const char *path,
+                         unsigned long long size_limit,
+                         unsigned int rotations);
+  int (*close)(LOGGER_HANDLE *log);
+  int (*vprintf)(LOGGER_HANDLE *log, const char *fmt, va_list argptr);
+  int (*printf)(LOGGER_HANDLE *log, const char *fmt, ...);
+  int (*write)(LOGGER_HANDLE *log, const char *buffer, size_t size);
+  int (*rotate)(LOGGER_HANDLE *log);
+} *logger_service;
+  void logger_init_mutexes();
+  LOGGER_HANDLE *logger_open(const char *path,
+                             unsigned long long size_limit,
+                             unsigned int rotations);
+  int logger_close(LOGGER_HANDLE *log);
+  int logger_vprintf(LOGGER_HANDLE *log, const char *fmt, va_list argptr);
+  int logger_printf(LOGGER_HANDLE *log, const char *fmt, ...);
+  int logger_write(LOGGER_HANDLE *log, const char *buffer, size_t size);
+  int logger_rotate(LOGGER_HANDLE *log);
+#include <mysql/service_thd_autoinc.h>
+extern struct thd_autoinc_service_st {
+  void (*thd_get_autoinc_func)(const void* thd,
+                               unsigned long* off, unsigned long* inc);
+} *thd_autoinc_service;
+void thd_get_autoinc(const void* thd,
+                     unsigned long* off, unsigned long* inc);
+#include <mysql/service_thd_error_context.h>
+extern struct thd_error_context_service_st {
+  const char *(*thd_get_error_message_func)(const void* thd);
+  unsigned int (*thd_get_error_number_func)(const void* thd);
+  unsigned long (*thd_get_error_row_func)(const void* thd);
+  void (*thd_inc_error_row_func)(void* thd);
+  char *(*thd_get_error_context_description_func)(void* thd,
+                                                  char *buffer,
+                                                  unsigned int length,
+                                                  unsigned int max_query_length);
+} *thd_error_context_service;
+const char *thd_get_error_message(const void* thd);
+unsigned int thd_get_error_number(const void* thd);
+unsigned long thd_get_error_row(const void* thd);
+void thd_inc_error_row(void* thd);
+char *thd_get_error_context_description(void* thd,
+                                        char *buffer, unsigned int length,
+                                        unsigned int max_query_length);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;
@@ -200,9 +255,7 @@ int thd_sql_command(const void* thd);
 void **thd_ha_data(const void* thd, const struct handlerton *hton);
 void thd_storage_lock_wait(void* thd, long long value);
 int thd_tx_isolation(const void* thd);
-char *thd_security_context(void* thd, char *buffer, unsigned int length,
-                           unsigned int max_query_len);
-void thd_inc_row_count(void* thd);
+int thd_tx_is_read_only(const void* thd);
 int mysql_tmpfile(const char *prefix);
 unsigned long thd_get_thread_id(const void* thd);
 void thd_get_xid(const void* thd, MYSQL_XID *xid);
@@ -212,6 +265,7 @@ void mysql_query_cache_invalidate4(void* thd,
 void *thd_get_ha_data(const void* thd, const struct handlerton *hton);
 void thd_set_ha_data(void* thd, const struct handlerton *hton,
                      const void *ha_data);
+void thd_wakeup_subsequent_commits(void* thd, int wakeup_error);
 enum enum_ftparser_mode
 {
   MYSQL_FTPARSER_SIMPLE_MODE= 0,

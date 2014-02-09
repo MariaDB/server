@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -65,6 +65,15 @@ ibool
 trx_undo_roll_ptr_is_insert(
 /*========================*/
 	roll_ptr_t	roll_ptr);	/*!< in: roll pointer */
+/***********************************************************************//**
+Returns true if the record is of the insert type.
+@return	true if the record was freshly inserted (not updated). */
+UNIV_INLINE
+bool
+trx_undo_trx_id_is_insert(
+/*======================*/
+	const byte*	trx_id)	/*!< in: DB_TRX_ID, followed by DB_ROLL_PTR */
+	__attribute__((nonnull, pure, warn_unused_result));
 #endif /* !UNIV_HOTBACKUP */
 /*****************************************************************//**
 Writes a roll ptr to an index page. In case that the size changes in
@@ -166,6 +175,7 @@ trx_undo_get_prev_rec(
 	trx_undo_rec_t*	rec,	/*!< in: undo record */
 	ulint		page_no,/*!< in: undo log header page number */
 	ulint		offset,	/*!< in: undo log header offset on page */
+	bool		shared,	/*!< in: true=S-latch, false=X-latch */
 	mtr_t*		mtr);	/*!< in: mtr */
 /***********************************************************************//**
 Gets the next record in an undo log.
@@ -285,11 +295,12 @@ undo log reused.
 are: DB_TOO_MANY_CONCURRENT_TRXS DB_OUT_OF_FILE_SPACE DB_READ_ONLY
 DB_OUT_OF_MEMORY */
 UNIV_INTERN
-ulint
+dberr_t
 trx_undo_assign_undo(
 /*=================*/
 	trx_t*		trx,	/*!< in: transaction */
-	ulint		type);	/*!< in: TRX_UNDO_INSERT or TRX_UNDO_UPDATE */
+	ulint		type)	/*!< in: TRX_UNDO_INSERT or TRX_UNDO_UPDATE */
+	__attribute__((nonnull, warn_unused_result));
 /******************************************************************//**
 Sets the state of the undo log segment at a transaction finish.
 @return	undo log segment header page, x-latched */
@@ -404,7 +415,7 @@ trx_undo_mem_free(
 /** Transaction undo log memory object; this is protected by the undo_mutex
 in the corresponding transaction object */
 
-struct trx_undo_struct{
+struct trx_undo_t{
 	/*-----------------------------*/
 	ulint		id;		/*!< undo log slot number within the
 					rollback segment */

@@ -581,7 +581,7 @@ handler t1 open;
 handler t1 read next;
 --error ER_LOCK_OR_ACTIVE_TRANSACTION
 handler t2 close;
---error ER_LOCK_OR_ACTIVE_TRANSACTION
+--error ER_CANT_REOPEN_TABLE
 handler t3 open;
 --echo # After UNLOCK TABLES handlers should be around and
 --echo # we should be able to continue reading through them.
@@ -850,8 +850,7 @@ connection con1;
 connection default;
 --echo #
 --echo # Demonstrate that HANDLER locks and transaction locks
---echo # reside in the same context, and we don't back-off
---echo # when have transaction or handler locks.
+--echo # reside in the same context.
 --echo #
 create table t1 (a int, key a (a));
 insert into t1 (a) values (1), (2), (3), (4), (5);
@@ -872,9 +871,9 @@ let $wait_condition=select count(*)=1 from information_schema.processlist
 --source include/wait_condition.inc
 --echo # --> connection default
 connection default;
+--echo # We back-off on hitting deadlock condition.
 --error ER_LOCK_DEADLOCK
 handler t0 open;
---error ER_LOCK_DEADLOCK
 select * from t0;
 handler t1 open;
 commit;

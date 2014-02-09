@@ -211,9 +211,9 @@ PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info)
   /*  Allocate the structures used to refer to the result set.         */
   /*********************************************************************/
   qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
-                          buftyp, fldtyp, length, true, true);
+                          buftyp, fldtyp, length, false, true);
 
-  if (info)
+  if (info || !qrp)
     return qrp;
 
   /*********************************************************************/
@@ -269,7 +269,7 @@ PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info)
       case CIM_REAL64:
       case CIM_REAL32:
         prec = 2;
-        typ = TYPE_FLOAT;
+        typ = TYPE_DOUBLE;
         lng = 15;
         break;
       case CIM_SINT64:
@@ -480,18 +480,19 @@ bool TDBWMI::Initialize(PGLOBAL g)
 /***********************************************************************/
 void TDBWMI::DoubleSlash(PGLOBAL g)
   {
-  if (To_Filter && strchr(To_Filter, '\\')) {
-    char *buf = (char*)PlugSubAlloc(g, NULL, strlen(To_Filter) * 2);
+  if (To_Filter && strchr(To_Filter->Body, '\\')) {
+    char *body = To_Filter->Body;
+    char *buf = (char*)PlugSubAlloc(g, NULL, strlen(body) * 2);
     int   i = 0, k = 0;
 
     do {
-      if (To_Filter[i] == '\\')
+      if (body[i] == '\\')
         buf[k++] = '\\';
 
-      buf[k++] = To_Filter[i];
-      } while (To_Filter[i++]);
+      buf[k++] = body[i];
+      } while (body[i++]);
 
-    To_Filter = buf;
+    To_Filter->Body = buf;
     } // endif To_Filter
 
   } // end of DoubleSlash
@@ -539,13 +540,13 @@ char *TDBWMI::MakeWQL(PGLOBAL g)
 
   // Below 14 is length of 'select ' + length of ' from ' + 1
   len = (strlen(colist) + strlen(Wclass) + 14);
-  len += (To_Filter ? strlen(To_Filter) + 7 : 0);
+  len += (To_Filter ? strlen(To_Filter->Body) + 7 : 0);
   wql = (char*)PlugSubAlloc(g, NULL, len);
   strcat(strcat(strcpy(wql, "SELECT "), colist), " FROM ");
   strcat(wql, Wclass);
 
   if (To_Filter)
-    strcat(strcat(wql, " WHERE "), To_Filter);
+    strcat(strcat(wql, " WHERE "), To_Filter->Body);
 
   return wql;
   } // end of MakeWQL
@@ -665,6 +666,8 @@ bool TDBWMI::OpenDB(PGLOBAL g)
     return true;
   } else
     DoubleSlash(g);
+
+  Use = USE_OPEN;       // Do it now in case we are recursively called
 
   /*********************************************************************/
   /*  Initialize the WMI processing.                                   */

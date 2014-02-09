@@ -290,6 +290,7 @@
 #cmakedefine HAVE_THR_YIELD 1
 #cmakedefine HAVE_TIME 1
 #cmakedefine HAVE_TIMES 1
+#cmakedefine HAVE_UCONTEXT 1
 #cmakedefine HAVE_VALLOC 1
 #cmakedefine HAVE_VIDATTR 1
 #define HAVE_VIO_READ_BUFF 1
@@ -617,6 +618,7 @@
 #cmakedefine DEFAULT_CHARSET_HOME "@DEFAULT_CHARSET_HOME@"
 #cmakedefine PLUGINDIR "@PLUGINDIR@"
 #cmakedefine DEFAULT_SYSCONFDIR "@DEFAULT_SYSCONFDIR@"
+#cmakedefine DEFAULT_TMPDIR "@DEFAULT_TMPDIR@"
 
 #cmakedefine SO_EXT "@CMAKE_SHARED_MODULE_SUFFIX@"
 
@@ -634,6 +636,7 @@
 #define VERSION "@VERSION@"
 #define PROTOCOL_VERSION 10
 
+#define MALLOC_LIBRARY "@MALLOC_LIBRARY@"
 
 /* time_t related defines */
 

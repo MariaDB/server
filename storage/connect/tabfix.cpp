@@ -327,11 +327,11 @@ BINCOL::BINCOL(BINCOL *col1, PTDB tdbp) : DOSCOL(col1, tdbp)
 /***********************************************************************/
 void BINCOL::ReadColumn(PGLOBAL g)
   {
-  char   *p;
+  char   *p = NULL;
   int     rc;
   PTDBFIX tdbp = (PTDBFIX)To_Tdb;
 
-  if (trace)
+  if (trace > 1)
     htrc("BIN ReadColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
       Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type);
 
@@ -375,7 +375,12 @@ void BINCOL::ReadColumn(PGLOBAL g)
       Value->SetValue(*(double*)p);
       break;
     case 'C':                 // Text
-      Value->SetValue_char(p, Long);
+      if (Value->SetValue_char(p, Long)) {
+        sprintf(g->Message, "Out of range value for column %s at row %d",
+                Name, tdbp->RowNumber(g));
+        PushWarning(g, tdbp);
+        } // endif SetValue_char
+
       break;
     default:
       sprintf(g->Message, MSG(BAD_BIN_FMT), Fmt, Name);

@@ -7,6 +7,9 @@ innodb-trx
 innodb-buffer-pool-stats
 innodb-buffer-page
 innodb-buffer-page-lru
+innodb-sys-foreign
+innodb-sys-foreign-col
+innodb-metrics
 
 [xtradb_plugin]
 ignore-builtin-innodb
@@ -17,8 +20,11 @@ innodb-trx
 innodb-buffer-pool-stats
 innodb-buffer-page
 innodb-buffer-page-lru
+innodb-sys-foreign
+innodb-sys-foreign-col
+innodb-metrics
 
-[xtradb]
+[innodb]
 innodb
 innodb-cmpmem
 innodb-trx
@@ -26,3 +32,6 @@ innodb-metrics
 innodb-buffer-pool-stats
 innodb-buffer-page
 innodb-buffer-page-lru
+innodb-sys-foreign
+innodb-sys-foreign-col
+innodb-metrics

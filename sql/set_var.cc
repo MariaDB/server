@@ -212,7 +212,6 @@ uchar *sys_var::global_value_ptr(THD *thd, LEX_STRING *base)
 
 bool sys_var::check(THD *thd, set_var *var)
 {
-  do_deprecated_warning(thd);
   if ((var->value && do_check(thd, var))
       || (on_check && on_check(this, thd, var)))
   {
@@ -384,7 +383,7 @@ void sys_var::do_deprecated_warning(THD *thd)
       ? ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT
       : ER_WARN_DEPRECATED_SYNTAX;
     if (thd)
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WARN_DEPRECATED_SYNTAX, ER(errmsg),
                           buf1, deprecation_substitute);
     else
@@ -421,7 +420,7 @@ bool throw_bounds_warning(THD *thd, const char *name,
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
     }
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
                         ER(ER_TRUNCATED_WRONG_VALUE), name, buf);
   }
@@ -441,7 +440,7 @@ bool throw_bounds_warning(THD *thd, const char *name, bool fixed, double v)
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
     }
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
                         ER(ER_TRUNCATED_WRONG_VALUE), name, buf);
   }
@@ -546,10 +545,10 @@ int mysql_del_sys_var_chain(sys_var *first)
 {
   int result= 0;
 
-  /* A write lock should be held on LOCK_system_variables_hash */
-
+  mysql_rwlock_wrlock(&LOCK_system_variables_hash);
   for (sys_var *var= first; var; var= var->next)
     result|= my_hash_delete(&system_variable_hash, (uchar*) var);
+  mysql_rwlock_unlock(&LOCK_system_variables_hash);
 
   return result;
 }
@@ -697,6 +696,7 @@ err:
 
 int set_var::check(THD *thd)
 {
+  var->do_deprecated_warning(thd);
   if (var->is_readonly())
   {
     my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), var->name.str, "read only");
@@ -829,26 +829,7 @@ int set_var_user::update(THD *thd)
 int set_var_password::check(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (!user->host.str)
-  {
-    DBUG_ASSERT(thd->security_ctx->priv_host);
-    if (*thd->security_ctx->priv_host != 0)
-    {
-      user->host.str= (char *) thd->security_ctx->priv_host;
-      user->host.length= strlen(thd->security_ctx->priv_host);
-    }
-    else
-    {
-      user->host.str= (char *)"%";
-      user->host.length= 1;
-    }
-  }
-  if (!user->user.str)
-  {
-    DBUG_ASSERT(thd->security_ctx->user);
-    user->user.str= (char *) thd->security_ctx->user;
-    user->user.length= strlen(thd->security_ctx->user);
-  }
+  user= get_current_user(thd, user);
   /* Returns 1 as the function sends error to client */
   return check_change_password(thd, user->host.str, user->user.str,
                                password, strlen(password)) ? 1 : 0;
@@ -867,6 +848,29 @@ int set_var_password::update(THD *thd)
   return 0;
 #endif
 }
+
+/*****************************************************************************
+  Functions to handle SET ROLE
+*****************************************************************************/
+int set_var_role::check(THD *thd)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  int status= acl_check_setrole(thd, role.str, &access);
+  return status;
+#else
+  return 0;
+#endif
+}
+
+int set_var_role::update(THD *thd)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  return acl_setrole(thd, role.str, access);
+#else
+  return 0;
+#endif
+}
+
 
 /*****************************************************************************
   Functions to handle SET NAMES and SET CHARACTER SET

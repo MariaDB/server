@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -44,7 +44,8 @@
 #include <hash.h>
 #include <stdarg.h>
 #include <violite.h>
-#include "my_regex.h" /* Our own version of regex */
+#define PCRE_STATIC 1  /* Important on Windows */
+#include "pcreposix.h" /* pcreposix regex library */
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
 #endif
@@ -63,8 +64,9 @@
 #define SIGNAL_FMT "signal %d"
 #endif
 
+#include <my_context.h>
 static my_bool non_blocking_api_enabled= 0;
-#if !defined(EMBEDDED_LIBRARY)
+#if !defined(EMBEDDED_LIBRARY) && !defined(MY_CONTEXT_DISABLE)
 #define WRAP_NONBLOCK_ENABLED non_blocking_api_enabled
 #include "../tests/nonblock-wrappers.h"
 #endif
@@ -249,12 +251,12 @@ static const char *opt_suite_dir, *opt_overlay_dir;
 static size_t suite_dir_len, overlay_dir_len;
 
 /* Precompiled re's */
-static my_regex_t ps_re;     /* the query can be run using PS protocol */
-static my_regex_t sp_re;     /* the query can be run as a SP */
-static my_regex_t view_re;   /* the query can be run as a view*/
+static regex_t ps_re;     /* the query can be run using PS protocol */
+static regex_t sp_re;     /* the query can be run as a SP */
+static regex_t view_re;   /* the query can be run as a view*/
 
 static void init_re(void);
-static int match_re(my_regex_t *, char *);
+static int match_re(regex_t *, char *);
 static void free_re(void);
 
 static char *get_string(char **to_ptr, char **from_ptr,
@@ -3039,6 +3041,10 @@ void open_file(const char *name)
       5.try in basedir
     */
 
+#ifdef __WIN__
+    fix_win_paths(curname, sizeof(curname));
+#endif
+
     bool in_overlay= opt_overlay_dir &&
                      !strncmp(curname, opt_overlay_dir, overlay_dir_len);
     bool in_suiteir= opt_overlay_dir && !in_overlay &&
@@ -3590,7 +3596,7 @@ void do_remove_file(struct st_command *command)
                      ' ');
 
   DBUG_PRINT("info", ("removing file: %s", ds_filename.str));
-  error= my_delete_allow_opened(ds_filename.str, MYF(disable_warnings ? 0 : MY_WME)) != 0;
+  error= my_delete(ds_filename.str, MYF(disable_warnings ? 0 : MY_WME)) != 0;
   handle_command_error(command, error, my_errno);
   dynstr_free(&ds_filename);
   DBUG_VOID_RETURN;
@@ -5178,11 +5184,17 @@ static st_error global_error_names[] =
   { 0, 0, 0 }
 };
 
-uint get_errcode_from_name(char *error_name, char *error_end)
+#include <my_base.h>
+static st_error handler_error_names[] =
 {
-  /* SQL error as string */
-  st_error *e= global_error_names;
+  { "<No error>", -1U, "" },
+#include <handler_ername.h>
+  { 0, 0, 0 }
+};
 
+uint get_errcode_from_name(const char *error_name, const char *error_end,
+                            st_error *e)
+{
   DBUG_ENTER("get_errcode_from_name");
   DBUG_PRINT("enter", ("error_name: %s", error_name));
 
@@ -5200,15 +5212,26 @@ uint get_errcode_from_name(char *error_name, char *error_end)
       DBUG_RETURN(e->code);
     }
   }
-  if (!e->name)
-    die("Unknown SQL error name '%s'", error_name);
   DBUG_RETURN(0);
 }
 
-const char *get_errname_from_code (uint error_code)
-{
-   st_error *e= global_error_names;
 
+uint get_errcode_from_name(const char *error_name, const char *error_end)
+{
+  uint tmp;
+  if ((tmp= get_errcode_from_name(error_name, error_end,
+                                     global_error_names)))
+    return tmp;
+  if ((tmp= get_errcode_from_name(error_name, error_end,
+                                     handler_error_names)))
+    return tmp;
+  die("Unknown SQL error name '%s'", error_name);
+}
+
+const char *unknown_error= "<Unknown>";
+
+const char *get_errname_from_code (uint error_code, st_error *e)
+{
    DBUG_ENTER("get_errname_from_code");
    DBUG_PRINT("enter", ("error_code: %d", error_code));
 
@@ -5224,8 +5247,17 @@ const char *get_errname_from_code (uint error_code)
      }
    }
    /* Apparently, errors without known names may occur */
-   DBUG_RETURN("<Unknown>");
+   DBUG_RETURN(unknown_error);
 } 
+
+const char *get_errname_from_code(uint error_code)
+{
+  const char *name;
+  if ((name= get_errname_from_code(error_code, global_error_names)) !=
+      unknown_error)
+    return name;
+  return get_errname_from_code(error_code, handler_error_names);
+}
 
 void do_get_errcodes(struct st_command *command)
 {
@@ -5311,7 +5343,7 @@ void do_get_errcodes(struct st_command *command)
     {
       die("The sqlstate definition must start with an uppercase S");
     }
-    else if (*p == 'E' || *p == 'W')
+    else if (*p == 'E' || *p == 'W' || *p == 'H')
     {
       /* Error name string */
 
@@ -5320,9 +5352,9 @@ void do_get_errcodes(struct st_command *command)
       to->type= ERR_ERRNO;
       DBUG_PRINT("info", ("ERR_ERRNO: %d", to->code.errnum));
     }
-    else if (*p == 'e' || *p == 'w')
+    else if (*p == 'e' || *p == 'w' || *p == 'h')
     {
-      die("The error name definition must start with an uppercase E or W");
+      die("The error name definition must start with an uppercase E or W or H");
     }
     else
     {
@@ -5647,6 +5679,10 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
   verbose_msg("Connecting to server %s:%d (socket %s) as '%s'"
               ", connection '%s', attempt %d ...", 
               host, port, sock, user, name, failed_attempts);
+
+  mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
+  mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
+                 "program_name", "mysqltest");
   while(!mysql_real_connect(mysql, host,user, pass, db, port, sock,
                             CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS))
   {
@@ -5747,7 +5783,9 @@ int connect_n_handle_errors(struct st_command *command,
     replace_dynstr_append(ds, command->query);
     dynstr_append_mem(ds, ";\n", 2);
   }
-  
+
+  mysql_options(con, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
+  mysql_options4(con, MYSQL_OPT_CONNECT_ATTR_ADD, "program_name", "mysqltest");
   while (!mysql_real_connect(con, host, user, pass, db, port, sock ? sock: 0,
                           CLIENT_MULTI_STATEMENTS))
   {
@@ -5950,8 +5988,10 @@ void do_connect(struct st_command *command)
   if (opt_connect_timeout)
     mysql_options(con_slot->mysql, MYSQL_OPT_CONNECT_TIMEOUT,
                   (void *) &opt_connect_timeout);
-
-  mysql_options(con_slot->mysql, MYSQL_OPT_NONBLOCK, 0);
+#ifndef MY_CONTEXT_DISABLE
+  if (mysql_options(con_slot->mysql, MYSQL_OPT_NONBLOCK, 0))
+    die("Failed to initialise non-blocking API");
+#endif
   if (opt_compress || con_compress)
     mysql_options(con_slot->mysql, MYSQL_OPT_COMPRESS, NullS);
   mysql_options(con_slot->mysql, MYSQL_OPT_LOCAL_INFILE, 0);
@@ -6482,9 +6522,9 @@ int read_line(char *buf, int size)
       }
       else if ((c == '{' &&
                 (!my_strnncoll_simple(charset_info, (const uchar*) "while", 5,
-                                      (uchar*) buf, min(5, p - buf), 0) ||
+                                      (uchar*) buf, MY_MIN(5, p - buf), 0) ||
                  !my_strnncoll_simple(charset_info, (const uchar*) "if", 2,
-                                      (uchar*) buf, min(2, p - buf), 0))))
+                                      (uchar*) buf, MY_MIN(2, p - buf), 0))))
       {
         /* Only if and while commands can be terminated by { */
         *p++= c;
@@ -6990,8 +7030,9 @@ void usage()
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
   printf("Runs a test against the mysql server and compares output with a results file.\n\n");
   printf("Usage: %s [OPTIONS] [database] < test_file\n", my_progname);
+  print_defaults("my",load_default_groups);
+  puts("");
   my_print_help(my_long_options);
-  printf("  --no-defaults       Don't read default options from any options file.\n");
   my_print_variables(my_long_options);
 }
 
@@ -7245,13 +7286,13 @@ void str_to_file(const char *fname, char *str, int size)
 }
 
 
-void check_regerr(my_regex_t* r, int err)
+void check_regerr(regex_t* r, int err)
 {
   char err_buf[1024];
 
   if (err)
   {
-    my_regerror(err,r,err_buf,sizeof(err_buf));
+    regerror(err,r,err_buf,sizeof(err_buf));
     die("Regex error: %s\n", err_buf);
   }
 }
@@ -8543,19 +8584,18 @@ char *re_eprint(int err)
 {
   static char epbuf[100];
   size_t len __attribute__((unused))=
-          my_regerror(REG_ITOA|err, (my_regex_t *)NULL, epbuf, sizeof(epbuf));
+          regerror(err, (regex_t *)NULL, epbuf, sizeof(epbuf));
   assert(len <= sizeof(epbuf));
   return(epbuf);
 }
 
-void init_re_comp(my_regex_t *re, const char* str)
+void init_re_comp(regex_t *re, const char* str)
 {
-  int err= my_regcomp(re, str, (REG_EXTENDED | REG_ICASE | REG_NOSUB),
-                      &my_charset_latin1);
+  int err= regcomp(re, str, (REG_EXTENDED | REG_ICASE | REG_NOSUB | REG_DOTALL));
   if (err)
   {
     char erbuf[100];
-    int len= my_regerror(err, re, erbuf, sizeof(erbuf));
+    int len= regerror(err, re, erbuf, sizeof(erbuf));
     die("error %s, %d/%d `%s'\n",
 	re_eprint(err), (int)len, (int)sizeof(erbuf), erbuf);
   }
@@ -8600,7 +8640,7 @@ void init_re(void)
 }
 
 
-int match_re(my_regex_t *re, char *str)
+int match_re(regex_t *re, char *str)
 {
   while (my_isspace(charset_info, *str))
     str++;
@@ -8612,7 +8652,7 @@ int match_re(my_regex_t *re, char *str)
     str= comm_end + 2;
   }
   
-  int err= my_regexec(re, str, (size_t)0, NULL, 0);
+  int err= regexec(re, str, (size_t)0, NULL, 0);
 
   if (err == 0)
     return 1;
@@ -8621,7 +8661,7 @@ int match_re(my_regex_t *re, char *str)
 
   {
     char erbuf[100];
-    int len= my_regerror(err, re, erbuf, sizeof(erbuf));
+    int len= regerror(err, re, erbuf, sizeof(erbuf));
     die("error %s, %d/%d `%s'\n",
 	re_eprint(err), (int)len, (int)sizeof(erbuf), erbuf);
   }
@@ -8630,10 +8670,9 @@ int match_re(my_regex_t *re, char *str)
 
 void free_re(void)
 {
-  my_regfree(&ps_re);
-  my_regfree(&sp_re);
-  my_regfree(&view_re);
-  my_regex_end();
+  regfree(&ps_re);
+  regfree(&sp_re);
+  regfree(&view_re);
 }
 
 /****************************************************************************/
@@ -10072,13 +10111,13 @@ void free_replace_regex()
 int reg_replace(char** buf_p, int* buf_len_p, char *pattern,
                 char *replace, char *string, int icase)
 {
-  my_regex_t r;
-  my_regmatch_t *subs;
+  regex_t r;
+  regmatch_t *subs;
   char *replace_end;
   char *buf= *buf_p;
   int len;
   int buf_len, need_buf_len;
-  int cflags= REG_EXTENDED;
+  int cflags= REG_EXTENDED | REG_DOTALL;
   int err_code;
   char *res_p,*str_p,*str_end;
 
@@ -10097,13 +10136,13 @@ int reg_replace(char** buf_p, int* buf_len_p, char *pattern,
   if (icase)
     cflags|= REG_ICASE;
 
-  if ((err_code= my_regcomp(&r,pattern,cflags,&my_charset_latin1)))
+  if ((err_code= regcomp(&r,pattern,cflags)))
   {
     check_regerr(&r,err_code);
     return 1;
   }
 
-  subs= (my_regmatch_t*)my_malloc(sizeof(my_regmatch_t) * (r.re_nsub+1),
+  subs= (regmatch_t*)my_malloc(sizeof(regmatch_t) * (r.re_nsub+1),
                                   MYF(MY_WME+MY_FAE));
 
   *res_p= 0;
@@ -10114,14 +10153,14 @@ int reg_replace(char** buf_p, int* buf_len_p, char *pattern,
   while (!err_code)
   {
     /* find the match */
-    err_code= my_regexec(&r,str_p, r.re_nsub+1, subs,
+    err_code= regexec(&r,str_p, r.re_nsub+1, subs,
                          (str_p == string) ? REG_NOTBOL : 0);
 
     /* if regular expression error (eg. bad syntax, or out of memory) */
     if (err_code && err_code != REG_NOMATCH)
     {
       check_regerr(&r,err_code);
-      my_regfree(&r);
+      regfree(&r);
       return 1;
     }
 
@@ -10234,7 +10273,7 @@ int reg_replace(char** buf_p, int* buf_len_p, char *pattern,
     }
   }
   my_free(subs);
-  my_regfree(&r);
+  regfree(&r);
   *res_p= 0;
   *buf_p= buf;
   *buf_len_p= buf_len;

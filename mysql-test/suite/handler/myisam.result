@@ -582,7 +582,7 @@ select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 drop table if exists t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 create table t1 (a int not null) ENGINE=csv;
 --> client 2
 handler t1 open;
@@ -741,7 +741,7 @@ ERROR HY000: Can't execute the given command because you have active locked tabl
 handler t2 close;
 ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 handler t3 open;
-ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+ERROR HY000: Can't reopen table: 't3'
 # After UNLOCK TABLES handlers should be around and
 # we should be able to continue reading through them.
 unlock tables;
@@ -1044,8 +1044,7 @@ handler t1 close;
 # --> connection default
 #
 # Demonstrate that HANDLER locks and transaction locks
-# reside in the same context, and we don't back-off
-# when have transaction or handler locks.
+# reside in the same context.
 #
 create table t1 (a int, key a (a));
 insert into t1 (a) values (1), (2), (3), (4), (5);
@@ -1065,10 +1064,16 @@ rename table t0 to t3, t1 to t0, t3 to t1;
 # --> connection con1 
 # Waiting for 'rename table ...' to get blocked...
 # --> connection default
+# We back-off on hitting deadlock condition.
 handler t0 open;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 select * from t0;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+a
+1
+2
+3
+4
+5
 handler t1 open;
 commit;
 handler t1 close;
@@ -1803,4 +1808,90 @@ a	b
 4	40
 HANDLER t1 CLOSE;
 DROP TABLE t1;
+#
+# Additional coverage for refactoring which is made as part
+# of fix for bug #27480 "Extend CREATE TEMPORARY TABLES privilege
+# to allow temp table operations".
+#
+# Check that DDL on temporary table properly closes HANDLER cursors
+# for this table belonging to the same connection.
+CREATE TEMPORARY TABLE t1 AS SELECT 1 AS f1;
+# -- CREATE TABLE
+HANDLER t1 OPEN;
+CREATE TEMPORARY TABLE IF NOT EXISTS t1 SELECT 1 AS f1;
+Warnings:
+Note	1050	Table 't1' already exists
+HANDLER t1 READ FIRST;
+ERROR 42S02: Unknown table 't1' in HANDLER
+# -- REPAIR TABLE
+HANDLER t1 OPEN;
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+HANDLER t1 READ FIRST;
+ERROR 42S02: Unknown table 't1' in HANDLER
+# -- ANALYZE TABLE
+HANDLER t1 OPEN;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+HANDLER t1 READ FIRST;
+ERROR 42S02: Unknown table 't1' in HANDLER
+# -- OPTIMIZE TABLE
+HANDLER t1 OPEN;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+HANDLER t1 READ FIRST;
+ERROR 42S02: Unknown table 't1' in HANDLER
+# -- CHECK TABLE
+HANDLER t1 OPEN;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+HANDLER t1 READ FIRST;
+ERROR 42S02: Unknown table 't1' in HANDLER
+# -- ALTER TABLE
+HANDLER t1 OPEN;
+ALTER TABLE t1 ADD COLUMN b INT;
+HANDLER t1 READ FIRST;
+ERROR 42S02: Unknown table 't1' in HANDLER
+# -- CREATE INDEX
+HANDLER t1 OPEN;
+CREATE INDEX b ON t1 (b);
+HANDLER t1 READ FIRST;
+ERROR 42S02: Unknown table 't1' in HANDLER
+# -- DROP INDEX
+HANDLER t1 OPEN;
+DROP INDEX b ON t1;
+HANDLER t1 READ FIRST;
+ERROR 42S02: Unknown table 't1' in HANDLER
+# -- TRUNCATE TABLE
+HANDLER t1 OPEN;
+TRUNCATE TABLE t1;
+HANDLER t1 READ FIRST;
+ERROR 42S02: Unknown table 't1' in HANDLER
+# -- DROP TABLE
+HANDLER t1 OPEN;
+DROP TABLE t1;
+HANDLER t1 READ FIRST;
+ERROR 42S02: Unknown table 't1' in HANDLER
+CREATE TEMPORARY TABLE t1(a INT, b INT, INDEX i(a));
+set global keycache1.key_cache_block_size=2048;
+set global keycache1.key_buffer_size=1*1024*1024;
+set global keycache1.key_buffer_size=1024*1024;
+# -- CACHE INDEX
+HANDLER t1 OPEN;
+CACHE INDEX t1 IN keycache1;
+Table	Op	Msg_type	Msg_text
+test.t1	assign_to_keycache	status	OK
+HANDLER t1 READ FIRST;
+ERROR 42S02: Unknown table 't1' in HANDLER
+# -- LOAD INDEX
+HANDLER t1 OPEN;
+LOAD INDEX INTO CACHE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	preload_keys	status	OK
+HANDLER t1 READ FIRST;
+ERROR 42S02: Unknown table 't1' in HANDLER
 End of 5.1 tests

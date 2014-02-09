@@ -41,6 +41,17 @@ The following options may be given as the first argument:
  Type of BINLOG_CHECKSUM_ALG. Include checksum for log
  events in the binary log. Possible values are NONE and
  CRC32; default is NONE.
+ --binlog-commit-wait-count=# 
+ If non-zero, binlog write will wait at most
+ binlog_commit_wait_usec microseconds for at least this
+ many commits to queue up for group commit to the binlog.
+ This can reduce I/O on the binlog and provide increased
+ opportunity for parallel apply on the slave, but too high
+ a value will decrease commit throughput.
+ --binlog-commit-wait-usec=# 
+ Maximum time, in microseconds, to wait for more commits
+ to queue up for binlog group commit. Only takes effect if
+ the value of binlog_commit_wait_count is non-zero.
  --binlog-direct-non-transactional-updates 
  Causes updates to non-transactional engines using
  statement format to be written directly to binary log.
@@ -149,10 +160,6 @@ The following options may be given as the first argument:
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
- --engine-condition-pushdown 
- Push supported query conditions to the storage engine.
- Deprecated, use --optimizer-switch instead.
- (Defaults to on; use --skip-engine-condition-pushdown to disable.)
  --event-scheduler[=name] 
  Enable the event scheduler. Possible values are ON, OFF,
  and DISABLED (keep the event scheduler completely
@@ -217,6 +224,7 @@ The following options may be given as the first argument:
  Possible values are: SINGLE_PREC_HB - single precision
  height-balanced, DOUBLE_PREC_HB - double precision
  height-balanced.
+ --host-cache-size=# How many host names should be cached to avoid resolving.
  --ignore-builtin-innodb 
  Disable initialization of builtin InnoDB plugin
  --ignore-db-dirs=name 
@@ -323,14 +331,6 @@ The following options may be given as the first argument:
  slave, filesort, filesort_on_disk, full_join, full_scan,
  query_cache, query_cache_miss, tmp_table,
  tmp_table_on_disk
- --log-slow-queries[=name] 
- Enable logging of slow queries (longer than
- --long-query-time) to log file or table. Optional
- argument is a file name for the slow log. If not given,
- 'log-basename'-slow.log will be used. Use
- --log-output=TABLE if you want to have the log in the
- table mysql.slow_log. Deprecated option, use
- --slow-query-log/--slow-query-log-file instead.
  --log-slow-rate-limit=# 
  Write to slow log every #th slow query. Set to 1 to log
  everything. Increase it to reduce the size of the slow or
@@ -340,7 +340,7 @@ The following options may be given as the first argument:
  log if it is open.
  --log-slow-verbosity=name 
  log-slow-verbosity=[value[,value ...]] where value is one
- of 'innodb', 'query_plan'
+ of 'innodb', 'query_plan', 'explain' 
  --log-tc=name       Path to transaction coordinator log (used for
  transactions that affect more than one storage engine,
  when binary log is disabled).
@@ -422,6 +422,8 @@ The following options may be given as the first argument:
  --memlock           Lock mysqld in memory.
  --metadata-locks-cache-size=# 
  Size of unused metadata locks cache
+ --metadata-locks-hash-instances=# 
+ Number of metadata locks hash instances
  --min-examined-row-limit=# 
  Don't write queries to slow log that examine fewer rows
  than that
@@ -466,16 +468,18 @@ The following options may be given as the first argument:
  --net-write-timeout=# 
  Number of seconds to wait for a block to be written to a
  connection before aborting the write
- --old               Use compatible behavior
+ --old               Use compatible behavior from previous MariaDB version.
+ See also --old-mode
  --old-alter-table   Use old, non-optimized alter table
+ --old-mode=name     Used to emulate old behavior from earlier MariaDB or
+ MySQL versions. Syntax: old_mode=mode[,mode[,mode...]].
+ See the manual for the complete list of valid old modes
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
  --old-style-user-limits 
  Enable old-style user limits (before 5.0.3, user
  resources were counted per each user+host vs. per
  account).
- --one-thread        (Deprecated): Only use one thread (for debugging under
- Linux). Use thread-handling=no-threads instead.
  --open-files-limit=# 
  If this is not 0, then mysqld will use this value to
  reserve file descriptors to use with setrlimit(). If this
@@ -535,8 +539,10 @@ The following options may be given as the first argument:
  record samples
  --performance-schema 
  Enable the performance schema.
+ (Defaults to on; use --skip-performance-schema to disable.)
  --performance-schema-accounts-size=# 
- Maximum number of instrumented user@host accounts.
+ Maximum number of instrumented user@host accounts. Use 0
+ to disable, -1 for automated sizing.
  --performance-schema-consumer-events-stages-current 
  Default startup value for the events_stages_current
  consumer.
@@ -577,64 +583,84 @@ The following options may be given as the first argument:
  consumer.
  (Defaults to on; use --skip-performance-schema-consumer-thread-instrumentation to disable.)
  --performance-schema-digests-size=# 
- Size of the statement digest.
+ Size of the statement digest. Use 0 to disable, -1 for
+ automated sizing.
  --performance-schema-events-stages-history-long-size=# 
- Number of rows in EVENTS_STAGES_HISTORY_LONG.
+ Number of rows in EVENTS_STAGES_HISTORY_LONG. Use 0 to
+ disable, -1 for automated sizing.
  --performance-schema-events-stages-history-size=# 
- Number of rows per thread in EVENTS_STAGES_HISTORY.
+ Number of rows per thread in EVENTS_STAGES_HISTORY. Use 0
+ to disable, -1 for automated sizing.
  --performance-schema-events-statements-history-long-size=# 
- Number of rows in EVENTS_STATEMENTS_HISTORY_LONG.
+ Number of rows in EVENTS_STATEMENTS_HISTORY_LONG. Use 0
+ to disable, -1 for automated sizing.
  --performance-schema-events-statements-history-size=# 
  Number of rows per thread in EVENTS_STATEMENTS_HISTORY.
+ Use 0 to disable, -1 for automated sizing.
  --performance-schema-events-waits-history-long-size=# 
- Number of rows in EVENTS_WAITS_HISTORY_LONG.
+ Number of rows in EVENTS_WAITS_HISTORY_LONG. Use 0 to
+ disable, -1 for automated sizing.
  --performance-schema-events-waits-history-size=# 
- Number of rows per thread in EVENTS_WAITS_HISTORY.
+ Number of rows per thread in EVENTS_WAITS_HISTORY. Use 0
+ to disable, -1 for automated sizing.
  --performance-schema-hosts-size=# 
- Maximum number of instrumented hosts.
+ Maximum number of instrumented hosts. Use 0 to disable,
+ -1 for automated sizing.
  --performance-schema-instrument[=name] 
  Default startup value for a performance schema
  instrument.
  --performance-schema-max-cond-classes=# 
  Maximum number of condition instruments.
  --performance-schema-max-cond-instances=# 
- Maximum number of instrumented condition objects.
+ Maximum number of instrumented condition objects. Use 0
+ to disable, -1 for automated sizing.
  --performance-schema-max-file-classes=# 
  Maximum number of file instruments.
  --performance-schema-max-file-handles=# 
  Maximum number of opened instrumented files.
  --performance-schema-max-file-instances=# 
- Maximum number of instrumented files.
+ Maximum number of instrumented files. Use 0 to disable,
+ -1 for automated sizing.
  --performance-schema-max-mutex-classes=# 
  Maximum number of mutex instruments.
  --performance-schema-max-mutex-instances=# 
- Maximum number of instrumented MUTEX objects.
+ Maximum number of instrumented MUTEX objects. Use 0 to
+ disable, -1 for automated sizing.
  --performance-schema-max-rwlock-classes=# 
  Maximum number of rwlock instruments.
  --performance-schema-max-rwlock-instances=# 
- Maximum number of instrumented RWLOCK objects.
+ Maximum number of instrumented RWLOCK objects. Use 0 to
+ disable, -1 for automated sizing.
  --performance-schema-max-socket-classes=# 
  Maximum number of socket instruments.
  --performance-schema-max-socket-instances=# 
- Maximum number of opened instrumented sockets.
+ Maximum number of opened instrumented sockets. Use 0 to
+ disable, -1 for automated sizing.
  --performance-schema-max-stage-classes=# 
  Maximum number of stage instruments.
  --performance-schema-max-statement-classes=# 
  Maximum number of statement instruments.
  --performance-schema-max-table-handles=# 
- Maximum number of opened instrumented tables.
+ Maximum number of opened instrumented tables. Use 0 to
+ disable, -1 for automated sizing.
  --performance-schema-max-table-instances=# 
- Maximum number of instrumented tables.
+ Maximum number of instrumented tables. Use 0 to disable,
+ -1 for automated sizing.
  --performance-schema-max-thread-classes=# 
  Maximum number of thread instruments.
  --performance-schema-max-thread-instances=# 
- Maximum number of instrumented threads.
+ Maximum number of instrumented threads. Use 0 to disable,
+ -1 for automated sizing.
+ --performance-schema-session-connect-attrs-size=# 
+ Size of session attribute string buffer per thread. Use 0
+ to disable, -1 for automated sizing.
  --performance-schema-setup-actors-size=# 
  Maximum number of rows in SETUP_ACTORS.
  --performance-schema-setup-objects-size=# 
  Maximum number of rows in SETUP_OBJECTS.
  --performance-schema-users-size=# 
- Maximum number of instrumented users.
+ Maximum number of instrumented users. Use 0 to disable,
+ -1 for automated sizing.
  --pid-file=name     Pid file used by safe_mysqld
  --plugin-dir=name   Directory for plugins
  --plugin-load=name  Semicolon-separated list of plugins to load, where each
@@ -832,19 +858,24 @@ The following options may be given as the first argument:
  --skip-show-database 
  Don't allow 'SHOW DATABASE' commands
  --skip-slave-start  If set, slave is not autostarted.
- --skip-thread-priority 
- Don't give threads different priorities. This option is
- deprecated because it has no effect; the implied behavior
- is already the default.
  --slave-compressed-protocol 
  Use compression on master/slave protocol
+ --slave-ddl-exec-mode=name 
+ Modes for how replication events should be executed.
+ Legal values are STRICT and IDEMPOTENT (default). In
+ IDEMPOTENT mode, replication will not stop for DDL
+ operations that are idempotent. This means that CREATE
+ TABLE is treated CREATE TABLE OR REPLACE and DROP TABLE
+ is threated as DROP TABLE IF EXISTS. 
  --slave-exec-mode=name 
  Modes for how replication events should be executed.
  Legal values are STRICT (default) and IDEMPOTENT. In
  IDEMPOTENT mode, replication will not stop for operations
- that are idempotent. In STRICT mode, replication will
- stop on any unexpected difference between the master and
- the slave
+ that are idempotent. For example, in row based
+ replication attempts to delete rows that doesn't exist
+ will be ignored.In STRICT mode, replication will stop on
+ any unexpected difference between the master and the
+ slave
  --slave-load-tmpdir=name 
  The location where the slave should put its temporary
  files when replicating a LOAD DATA INFILE command
@@ -854,6 +885,17 @@ The following options may be given as the first argument:
  --slave-net-timeout=# 
  Number of seconds to wait for more data from any
  master/slave connection before aborting the read
+ --slave-parallel-max-queued=# 
+ Limit on how much memory SQL threads should use per
+ parallel replication thread when reading ahead in the
+ relay log looking for opportunities for parallel
+ replication. Only used when --slave-parallel-threads > 0.
+ --slave-parallel-threads=# 
+ Alpha feature, to only be used by developers doing
+ testing! If non-zero, number of threads to spawn to apply
+ in parallel events on the slave that were group-committed
+ on the master or were logged with GTID in different
+ replication domains.
  --slave-skip-errors=name 
  Tells the slave thread to continue replication when a
  query event returns an error from the provided list
@@ -990,12 +1032,14 @@ auto-increment-increment 1
 auto-increment-offset 1
 autocommit TRUE
 automatic-sp-privileges TRUE
-back-log 50
+back-log 150
 big-tables FALSE
 bind-address (No default value)
 binlog-annotate-row-events FALSE
 binlog-cache-size 32768
 binlog-checksum NONE
+binlog-commit-wait-count 0
+binlog-commit-wait-usec 100000
 binlog-direct-non-transactional-updates FALSE
 binlog-format STATEMENT
 binlog-optimize-thread-scheduling TRUE
@@ -1025,7 +1069,6 @@ delayed-insert-limit 100
 delayed-insert-timeout 300
 delayed-queue-size 1000
 div-precision-increment 4
-engine-condition-pushdown FALSE
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0
@@ -1047,6 +1090,7 @@ gtid-strict-mode FALSE
 help TRUE
 histogram-size 0
 histogram-type SINGLE_PREC_HB
+host-cache-size 128
 ignore-builtin-innodb FALSE
 ignore-db-dirs 
 init-connect 
@@ -1096,7 +1140,7 @@ max-allowed-packet 1048576
 max-binlog-cache-size 18446744073709547520
 max-binlog-size 1073741824
 max-binlog-stmt-cache-size 18446744073709547520
-max-connect-errors 10
+max-connect-errors 100
 max-connections 151
 max-delayed-threads 20
 max-error-count 64
@@ -1114,6 +1158,7 @@ max-user-connections 0
 max-write-lock-count 18446744073709551615
 memlock FALSE
 metadata-locks-cache-size 1024
+metadata-locks-hash-instances 8
 min-examined-row-limit 0
 mrr-buffer-size 262144
 multi-range-count 256
@@ -1132,6 +1177,7 @@ net-retry-count 10
 net-write-timeout 60
 old FALSE
 old-alter-table FALSE
+old-mode 
 old-passwords FALSE
 old-style-user-limits FALSE
 optimizer-prune-level 1
@@ -1139,8 +1185,8 @@ optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on
 optimizer-use-condition-selectivity 1
-performance-schema FALSE
-performance-schema-accounts-size 100
+performance-schema TRUE
+performance-schema-accounts-size 10
 performance-schema-consumer-events-stages-current FALSE
 performance-schema-consumer-events-stages-history FALSE
 performance-schema-consumer-events-stages-history-long FALSE
@@ -1153,41 +1199,43 @@ performance-schema-consumer-events-waits-history-long FALSE
 performance-schema-consumer-global-instrumentation TRUE
 performance-schema-consumer-statements-digest TRUE
 performance-schema-consumer-thread-instrumentation TRUE
-performance-schema-digests-size 200
-performance-schema-events-stages-history-long-size 10000
-performance-schema-events-stages-history-size 10
-performance-schema-events-statements-history-long-size 10000
-performance-schema-events-statements-history-size 10
-performance-schema-events-waits-history-long-size 10000
-performance-schema-events-waits-history-size 10
-performance-schema-hosts-size 100
+performance-schema-digests-size 1000
+performance-schema-events-stages-history-long-size 100
+performance-schema-events-stages-history-size 5
+performance-schema-events-statements-history-long-size 100
+performance-schema-events-statements-history-size 5
+performance-schema-events-waits-history-long-size 100
+performance-schema-events-waits-history-size 5
+performance-schema-hosts-size 20
 performance-schema-instrument 
 performance-schema-max-cond-classes 80
-performance-schema-max-cond-instances 1000
+performance-schema-max-cond-instances 836
 performance-schema-max-file-classes 50
 performance-schema-max-file-handles 32768
-performance-schema-max-file-instances 10000
+performance-schema-max-file-instances 1556
 performance-schema-max-mutex-classes 200
-performance-schema-max-mutex-instances 1000000
-performance-schema-max-rwlock-classes 30
-performance-schema-max-rwlock-instances 1000000
+performance-schema-max-mutex-instances 3282
+performance-schema-max-rwlock-classes 40
+performance-schema-max-rwlock-instances 1724
 performance-schema-max-socket-classes 10
-performance-schema-max-socket-instances 1000
+performance-schema-max-socket-instances 179
 performance-schema-max-stage-classes 150
-performance-schema-max-statement-classes 173
-performance-schema-max-table-handles 10000
-performance-schema-max-table-instances 1000
+performance-schema-max-statement-classes 179
+performance-schema-max-table-handles 445
+performance-schema-max-table-instances 445
 performance-schema-max-thread-classes 50
-performance-schema-max-thread-instances 1000
+performance-schema-max-thread-instances 224
+performance-schema-session-connect-attrs-size 512
 performance-schema-setup-actors-size 100
 performance-schema-setup-objects-size 100
-performance-schema-users-size 100
+performance-schema-users-size 5
 plugin-maturity unknown
 port 3306
 port-open-timeout 0
 preload-buffer-size 32768
 profiling-history-size 15
 progress-report-time 56
+protocol-version 10
 query-alloc-block-size 8192
 query-cache-limit 1048576
 query-cache-min-res-unit 4096
@@ -1226,9 +1274,12 @@ skip-networking FALSE
 skip-show-database FALSE
 skip-slave-start FALSE
 slave-compressed-protocol FALSE
+slave-ddl-exec-mode IDEMPOTENT
 slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
 slave-net-timeout 3600
+slave-parallel-max-queued 131072
+slave-parallel-threads 0
 slave-skip-errors (No default value)
 slave-sql-verify-checksum TRUE
 slave-transaction-retries 10

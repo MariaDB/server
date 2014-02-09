@@ -1,5 +1,4 @@
-
-# Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2009, 2013, Oracle and/or its affiliates. All rights reserved.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -141,6 +140,10 @@ IF(UNIX)
 
   SET(CMAKE_REQUIRED_LIBRARIES 
     ${LIBM} ${LIBNSL} ${LIBBIND} ${LIBCRYPT} ${LIBSOCKET} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT} ${LIBRT} ${LIBEXECINFO})
+  # Need explicit pthread for gcc -fsanitize=address
+  IF(CMAKE_USE_PTHREADS_INIT AND CMAKE_C_FLAGS MATCHES "-fsanitize=")
+    SET(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} pthread)
+  ENDIF()
 
   IF(CMAKE_REQUIRED_LIBRARIES)
     LIST(REMOVE_DUPLICATES CMAKE_REQUIRED_LIBRARIES)
@@ -617,6 +620,7 @@ ENDIF()
 
 # check whether time_t is unsigned
 CHECK_C_SOURCE_COMPILES("
+#include <time.h>
 int main()
 {
   int array[(((time_t)-1) > 0) ? 1 : -1];
@@ -1056,3 +1060,4 @@ SET(CMAKE_EXTRA_INCLUDE_FILES)
 CHECK_STRUCT_HAS_MEMBER("struct dirent" d_ino "dirent.h"  STRUCT_DIRENT_HAS_D_INO)
 CHECK_STRUCT_HAS_MEMBER("struct dirent" d_namlen "dirent.h"  STRUCT_DIRENT_HAS_D_NAMLEN)
 SET(SPRINTF_RETURNS_INT 1)
+CHECK_INCLUDE_FILE(ucontext.h HAVE_UCONTEXT_H)

@@ -24,6 +24,7 @@
 #include "mysql/psi/mysql_file.h"          /* MYSQL_FILE */
 #include "sql_list.h"                      /* I_List */
 #include "sql_cmd.h"
+#include <my_rnd.h>
 
 class THD;
 struct handlerton;
@@ -95,7 +96,7 @@ extern uint connection_count;
 extern my_bool opt_safe_user_create;
 extern my_bool opt_safe_show_db, opt_local_infile, opt_myisam_use_mmap;
 extern my_bool opt_slave_compressed_protocol, use_temp_pool;
-extern ulong slave_exec_mode_options;
+extern ulong slave_exec_mode_options, slave_ddl_exec_mode_options;
 extern ulong slave_retried_transactions;
 extern ulonglong slave_type_conversions_options;
 extern my_bool read_only, opt_readonly;
@@ -139,7 +140,8 @@ extern char *opt_backup_history_logname, *opt_backup_progress_logname,
 extern const char *log_output_str;
 extern const char *log_backup_output_str;
 extern char *mysql_home_ptr, *pidfile_name_ptr;
-extern char glob_hostname[FN_REFLEN], mysql_home[FN_REFLEN];
+extern MYSQL_PLUGIN_IMPORT char glob_hostname[FN_REFLEN];
+extern char mysql_home[FN_REFLEN];
 extern char pidfile_name[FN_REFLEN], system_time_zone[30], *opt_init_file;
 extern char default_logfile_name[FN_REFLEN];
 extern char log_error_file[FN_REFLEN], *opt_tc_log_file;
@@ -154,11 +156,11 @@ extern ulong delayed_insert_timeout;
 extern ulong delayed_insert_limit, delayed_queue_size;
 extern ulong delayed_insert_threads, delayed_insert_writes;
 extern ulong delayed_rows_in_use,delayed_insert_errors;
-extern ulong slave_open_temp_tables;
+extern int32 slave_open_temp_tables;
 extern ulonglong query_cache_size;
+extern ulong query_cache_limit;
 extern ulong query_cache_min_res_unit;
 extern ulong slow_launch_threads, slow_launch_time;
-extern ulong table_cache_size, table_def_size;
 extern MYSQL_PLUGIN_IMPORT ulong max_connections;
 extern ulong max_connect_errors, connect_timeout;
 extern my_bool slave_allow_batching;
@@ -177,6 +179,10 @@ extern ulong slave_max_allowed_packet;
 extern ulong opt_binlog_rows_event_max_size;
 extern ulong rpl_recovery_rank, thread_cache_size;
 extern ulong stored_program_cache_size;
+extern ulong opt_slave_parallel_threads;
+extern ulong opt_slave_parallel_max_queued;
+extern ulong opt_binlog_commit_wait_count;
+extern ulong opt_binlog_commit_wait_usec;
 extern ulong back_log;
 extern ulong executed_events;
 extern char language[FN_REFLEN];
@@ -201,6 +207,7 @@ extern handlerton *myisam_hton;
 extern handlerton *heap_hton;
 extern const char *load_default_groups[];
 extern struct my_option my_long_options[];
+int handle_early_options();
 extern int mysqld_server_started, mysqld_server_initialized;
 extern "C" MYSQL_PLUGIN_IMPORT int orig_argc;
 extern "C" MYSQL_PLUGIN_IMPORT char **orig_argv;
@@ -211,7 +218,12 @@ extern LEX_STRING opt_init_connect, opt_init_slave;
 extern int bootstrap_error;
 extern I_List<THD> threads;
 extern char err_shared_dir[];
-extern TYPELIB thread_handling_typelib;
+extern ulong connection_errors_select;
+extern ulong connection_errors_accept;
+extern ulong connection_errors_tcpwrap;
+extern ulong connection_errors_internal;
+extern ulong connection_errors_max_connection;
+extern ulong connection_errors_peer_addr;
 extern ulong log_warnings;
 
 /*
@@ -239,23 +251,22 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_logger, key_LOCK_manager,
   key_LOCK_prepared_stmt_count,
   key_LOCK_rpl_status, key_LOCK_server_started, key_LOCK_status,
-  key_LOCK_table_share, key_LOCK_thd_data,
+  key_LOCK_thd_data,
   key_LOCK_user_conn, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock,
   key_mutex_slave_reporting_capability_err_lock, key_relay_log_info_data_lock,
   key_relay_log_info_log_space_lock, key_relay_log_info_run_lock,
-  key_relay_log_info_sleep_lock,
+  key_rpl_group_info_sleep_lock,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
   key_LOCK_error_messages, key_LOCK_thread_count, key_PARTITION_LOCK_auto_inc;
 extern PSI_mutex_key key_RELAYLOG_LOCK_index;
-extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state;
+extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
+  key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_LOCK_parallel_entry;
 
-extern PSI_mutex_key key_LOCK_stats,
+extern PSI_mutex_key key_TABLE_SHARE_LOCK_share, key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
-  key_LOCK_global_index_stats, key_LOCK_wakeup_ready;
-
-extern PSI_mutex_key key_LOCK_rpl_gtid_state;
+  key_LOCK_global_index_stats, key_LOCK_wakeup_ready, key_LOCK_wait_commit;
 
 extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,
@@ -276,16 +287,20 @@ extern PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_master_info_sleep_cond,
   key_relay_log_info_data_cond, key_relay_log_info_log_space_cond,
   key_relay_log_info_start_cond, key_relay_log_info_stop_cond,
-  key_relay_log_info_sleep_cond,
+  key_rpl_group_info_sleep_cond,
   key_TABLE_SHARE_cond, key_user_level_lock_cond,
   key_COND_thread_count, key_COND_thread_cache, key_COND_flush_thread_cache;
-extern PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready;
+extern PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
+  key_COND_wait_commit;
 extern PSI_cond_key key_RELAYLOG_COND_queue_busy;
 extern PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
+extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool,
+  key_COND_parallel_entry;
 
 extern PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_kill_server, key_thread_main,
-  key_thread_one_connection, key_thread_signal_hand, key_thread_slave_init;
+  key_thread_one_connection, key_thread_signal_hand, key_thread_slave_init,
+  key_rpl_parallel_thread;
 
 extern PSI_file_key key_file_binlog, key_file_binlog_index, key_file_casetest,
   key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
@@ -309,6 +324,9 @@ void init_server_psi_keys();
 */
 extern PSI_stage_info stage_after_create;
 extern PSI_stage_info stage_allocating_local_table;
+extern PSI_stage_info stage_alter_inplace_prepare;
+extern PSI_stage_info stage_alter_inplace;
+extern PSI_stage_info stage_alter_inplace_commit;
 extern PSI_stage_info stage_changing_master;
 extern PSI_stage_info stage_checking_master_version;
 extern PSI_stage_info stage_checking_permissions;
@@ -413,6 +431,10 @@ extern PSI_stage_info stage_slave_waiting_workers_to_exit;
 extern PSI_stage_info stage_binlog_waiting_background_tasks;
 extern PSI_stage_info stage_binlog_processing_checkpoint_notify;
 extern PSI_stage_info stage_binlog_stopping_background_thread;
+extern PSI_stage_info stage_waiting_for_work_from_sql_thread;
+extern PSI_stage_info stage_waiting_for_prior_transaction_to_commit;
+extern PSI_stage_info stage_waiting_for_room_in_worker_thread;
+
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 /**
   Statement instrumentation keys (sql).
@@ -454,7 +476,6 @@ extern uint mysql_data_home_len;
 extern uint mysql_real_data_home_len;
 extern const char *mysql_real_data_home_ptr;
 extern ulong thread_handling;
-extern MYSQL_PLUGIN_IMPORT char  *mysql_data_home;
 extern "C" MYSQL_PLUGIN_IMPORT char server_version[SERVER_VERSION_LENGTH];
 extern MYSQL_PLUGIN_IMPORT char mysql_real_data_home[];
 extern char mysql_unpacked_real_data_home[];
@@ -476,7 +497,6 @@ extern mysql_mutex_t
        LOCK_slave_list, LOCK_active_mi, LOCK_manager,
        LOCK_global_system_variables, LOCK_user_conn,
        LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count;
-extern mysql_mutex_t LOCK_rpl_gtid_state;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count;
 #ifdef HAVE_OPENSSL
 extern mysql_mutex_t LOCK_des_key_file;
@@ -490,6 +510,7 @@ extern mysql_cond_t COND_manager;
 extern int32 thread_running;
 extern int32 thread_count;
 extern my_atomic_rwlock_t thread_running_lock, thread_count_lock;
+extern my_atomic_rwlock_t slave_executed_entries_lock;
 
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
   *opt_ssl_key, *opt_ssl_crl, *opt_ssl_crlpath;
@@ -529,7 +550,6 @@ enum options_mysqld
   OPT_MAX_LONG_DATA_SIZE,
   OPT_PLUGIN_LOAD,
   OPT_PLUGIN_LOAD_ADD,
-  OPT_ONE_THREAD,
   OPT_PFS_INSTRUMENT,
   OPT_POOL_OF_THREADS,
   OPT_REPLICATE_DO_DB,
@@ -543,11 +563,9 @@ enum options_mysqld
   OPT_SERVER_ID,
   OPT_SKIP_HOST_CACHE,
   OPT_SKIP_LOCK,
-  OPT_SKIP_PRIOR,
   OPT_SKIP_RESOLVE,
   OPT_SKIP_STACK_TRACE,
   OPT_SKIP_SYMLINKS,
-  OPT_SLOW_QUERY_LOG,
   OPT_SSL_CA,
   OPT_SSL_CAPATH,
   OPT_SSL_CERT,
@@ -557,6 +575,8 @@ enum options_mysqld
   OPT_SSL_KEY,
   OPT_UPDATE_LOG,
   OPT_WANT_CORE,
+  OPT_MYSQL_COMPATIBILITY,
+  OPT_MYSQL_TO_BE_IMPLEMENTED,
   OPT_which_is_always_the_last
 };
 #endif
@@ -632,6 +652,20 @@ inline void thread_safe_decrement32(int32 *value, my_atomic_rwlock_t *lock)
 {
   my_atomic_rwlock_wrlock(lock);
   (void) my_atomic_add32(value, -1);
+  my_atomic_rwlock_wrunlock(lock);
+}
+
+inline void thread_safe_increment64(int64 *value, my_atomic_rwlock_t *lock)
+{
+  my_atomic_rwlock_wrlock(lock);
+  (void) my_atomic_add64(value, 1);
+  my_atomic_rwlock_wrunlock(lock);
+}
+
+inline void thread_safe_decrement64(int64 *value, my_atomic_rwlock_t *lock)
+{
+  my_atomic_rwlock_wrlock(lock);
+  (void) my_atomic_add64(value, -1);
   my_atomic_rwlock_wrunlock(lock);
 }
 

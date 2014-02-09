@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA  */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA  */
 
 
 #ifndef _my_xml_h
@@ -52,8 +52,15 @@ typedef struct xml_stack_st
   int flags;
   enum my_xml_node_type current_node_type;
   char errstr[128];
-  char attr[128];
-  char *attrend;
+
+  struct {
+    char static_buffer[128];
+    char *buffer;
+    size_t buffer_size;
+    char *start;
+    char *end;
+  } attr;
+
   const char *beg;
   const char *cur;
   const char *end;

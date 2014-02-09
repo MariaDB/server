@@ -73,7 +73,7 @@ RELDEF::RELDEF(void)
 /***********************************************************************/
 TABDEF::TABDEF(void)
   {
-  Owner = NULL;
+  Schema = NULL;
   Desc = NULL;
   Catfunc = FNC_NO;
   Card = 0;
@@ -338,9 +338,9 @@ COLCRT::COLCRT(PSZ name)
   Fmt = NULL;
   Offset = -1;
   Long = -1;
-//Freq = -1;
+  Precision = -1;
   Key = -1;
-  Prec = -1;
+  Scale = -1;
   Opt = -1;
   DataType = '*';
   } // end of COLCRT constructor for table creation
@@ -354,9 +354,9 @@ COLCRT::COLCRT(void)
   Fmt = NULL;
   Offset = 0;
   Long = 0;
-//Freq = 0;
+  Precision = 0;
   Key = 0;
-  Prec = 0;
+  Scale = 0;
   Opt = 0;
   DataType = '*';
   } // end of COLCRT constructor for table & view definition
@@ -383,32 +383,37 @@ int COLDEF::Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff)
   Name = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Name) + 1);
   strcpy(Name, cfp->Name);
 
-  Poff = poff;
-  Buf_Type = cfp->Type;
+  if (!(cfp->Flags & U_SPECIAL)) {
+    Poff = poff;
+    Buf_Type = cfp->Type;
 
-  if ((Clen = GetTypeSize(Buf_Type, cfp->Length)) <= 0) {
-    sprintf(g->Message, MSG(BAD_COL_TYPE), GetTypeName(Buf_Type), Name);
-    return -1;
-    } // endswitch
+    if ((Clen = GetTypeSize(Buf_Type, cfp->Length)) <= 0) {
+      sprintf(g->Message, MSG(BAD_COL_TYPE), GetTypeName(Buf_Type), Name);
+      return -1;
+      } // endswitch
 
-  strcpy(F.Type, GetFormatType(Buf_Type));
-  F.Length = cfp->Length;
-  F.Prec = cfp->Prec;
-  Offset = (cfp->Offset < 0) ? poff : cfp->Offset;
-  Long = cfp->Length;
-  Opt = cfp->Opt;
-  Key = cfp->Key;
-//Freq = cfp->Freq;
+    strcpy(F.Type, GetFormatType(Buf_Type));
+    F.Length = cfp->Length;
+    F.Prec = cfp->Scale;
+    Offset = (cfp->Offset < 0) ? poff : cfp->Offset;
+    Precision = cfp->Precision;
+    Scale = cfp->Scale;
+    Long = cfp->Length;
+    Opt = cfp->Opt;
+    Key = cfp->Key;
+//  Freq = cfp->Freq;
 
-  if (cfp->Remark && *cfp->Remark) {
-    Desc = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Remark) + 1);
-    strcpy(Desc, cfp->Remark);
-    } // endif Remark
+    if (cfp->Remark && *cfp->Remark) {
+      Desc = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Remark) + 1);
+      strcpy(Desc, cfp->Remark);
+      } // endif Remark
 
-  if (cfp->Datefmt) {
-    Decode = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Datefmt) + 1);
-    strcpy(Decode, cfp->Datefmt);
-    } // endif Datefmt
+    if (cfp->Datefmt) {
+      Decode = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Datefmt) + 1);
+      strcpy(Decode, cfp->Datefmt);
+      } // endif Datefmt
+
+    } // endif special
 
   if (cfp->Fieldfmt) {
     Fmt = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Fieldfmt) + 1);
@@ -416,7 +421,7 @@ int COLDEF::Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff)
     } // endif Fieldfmt
 
   Flags = cfp->Flags;
-  return (Flags & U_VIRTUAL) ? 0 : Long;
+  return (Flags & (U_VIRTUAL|U_SPECIAL)) ? 0 : Long;
   } // end of Define
 
 /* ------------------------- End of RelDef --------------------------- */

@@ -20,9 +20,13 @@ SET(MYSQLSERVICES_SOURCES
   thd_alloc_service.c
   thd_wait_service.c
   thd_timezone_service.c
+  thd_autoinc_service.c
+  thd_error_context_service.c
   progress_report_service.c
   debug_sync_service.c
-  kill_statement_service.c)
+  my_sha1_service.c
+  kill_statement_service.c
+  logger_service.c)
 
 ADD_CONVENIENCE_LIBRARY(mysqlservices ${MYSQLSERVICES_SOURCES})
 INSTALL(TARGETS mysqlservices DESTINATION ${INSTALL_LIBDIR} COMPONENT Development)

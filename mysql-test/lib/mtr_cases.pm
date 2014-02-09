@@ -23,7 +23,7 @@ package mtr_cases;
 use strict;
 
 use base qw(Exporter);
-our @EXPORT= qw(collect_option collect_test_cases);
+our @EXPORT= qw(collect_option collect_test_cases collect_default_suites);
 
 use Carp;
 
@@ -61,6 +61,21 @@ use My::Find;
 use My::Suite;
 
 require "mtr_misc.pl";
+
+# locate plugin suites, depending on whether it's a build tree or installed
+my @plugin_suitedirs;
+my $plugin_suitedir_regex;
+my $overlay_regex;
+
+if (-d '../sql') {
+  @plugin_suitedirs= ('storage/*/mysql-test', 'plugin/*/mysql-test');
+  $overlay_regex= '\b(?:storage|plugin)/(\w+)/mysql-test\b';
+} else {
+  @plugin_suitedirs= ('mysql-test/plugin/*');
+  $overlay_regex= '\bmysql-test/plugin/(\w+)\b';
+}
+$plugin_suitedir_regex= $overlay_regex;
+$plugin_suitedir_regex=~ s/\Q(\w+)\E/\\w+/;
 
 # Precompiled regex's for tests to do or skip
 my $do_test_reg;
@@ -117,7 +132,7 @@ sub collect_test_cases ($$$$) {
   if ( @$opt_cases )
   {
     # A list of tests was specified on the command line
-    # Check that the tests specified was found
+    # Check that the tests specified were found
     # in at least one suite
     foreach my $test_name_spec ( @$opt_cases )
     {
@@ -189,30 +204,33 @@ sub collect_test_cases ($$$$) {
 }
 
 
-# Returns (suitename, testname)
+# Returns (suitename, testname, combinations....)
 sub split_testname {
   my ($test_name)= @_;
 
   # If .test file name is used, get rid of directory part
   $test_name= basename($test_name) if $test_name =~ /\.test$/;
 
+  # Then, get the combinations:
+  my ($test_name, @combs) = split /,/, $test_name;
+
   # Now split name on .'s
   my @parts= split(/\./, $test_name);
 
   if (@parts == 1){
     # Only testname given, ex: alias
-    return (undef , $parts[0]);
+    return (undef , $parts[0], @combs);
   } elsif (@parts == 2) {
     # Either testname.test or suite.testname given
     # Ex. main.alias or alias.test
 
     if ($parts[1] eq "test")
     {
-      return (undef , $parts[0]);
+      return (undef , $parts[0], @combs);
     }
     else
     {
-      return ($parts[0], $parts[1]);
+      return ($parts[0], $parts[1], @combs);
     }
   }
 
@@ -232,6 +250,7 @@ sub load_suite_object {
   unless (defined $suites{$suitename}) {
     if (-f "$suitedir/suite.pm") {
       $suite= do "$suitedir/suite.pm";
+      mtr_error("Cannot load $suitedir/suite.pm: $@") if $@;
       unless (ref $suite) {
         my $comment = $suite;
         $suite = My::Suite->new();
@@ -260,12 +279,11 @@ sub load_suite_object {
 
 
 # returns a pair of (suite, suitedir)
-sub load_suite_for_file($) {
+sub suite_for_file($) {
   my ($file) = @_;
-  return load_suite_object($2, $1)
-    if $file =~ m@^(.*/(?:storage|plugin)/\w+/mysql-test/(\w+))/@;
-  return load_suite_object($2, $1) if $file =~ m@^(.*/mysql-test/suite/(\w+))/@;
-  return load_suite_object('main', $1) if $file =~ m@^(.*/mysql-test)/@;
+  return ($2, $1) if $file =~ m@^(.*/$plugin_suitedir_regex/(\w+))/@o;
+  return ($2, $1) if $file =~ m@^(.*/mysql-test/suite/(\w+))/@;
+  return ('main', $1) if $file =~ m@^(.*/mysql-test)/@;
   mtr_error("Cannot determine suite for $file");
 }
 
@@ -313,10 +331,37 @@ sub parse_disabled {
 }
 
 #
+# load suite.pm files from plugin suites
+# collect the list of default plugin suites.
+# XXX currently it does not support nested suites
+#
+sub collect_default_suites(@)
+{
+  use File::Find;
+  my @dirs;
+  find(sub {
+      push @dirs, [$File::Find::topdir, $File::Find::name]
+        if -d and -f "$File::Find::name/suite.pm";
+  }, my_find_dir(dirname($::glob_mysql_test_dir), \@plugin_suitedirs));
+
+  for (@dirs) {
+    my ($plugin_root, $dir) = @$_;
+    my $sname= substr $dir, 1 + length $plugin_root;
+    # ignore overlays here, otherwise we'd need accurate
+    # duplicate detection with overlay support for the default suite list
+    next if $sname eq 'main' or -d "$::glob_mysql_test_dir/suite/$sname";
+    my $s = load_suite_object($sname, $dir);
+    push @_, $sname if $s->is_default();
+  }
+  return @_;
+}
+
+
+#
 # processes one user-specified suite name.
 # it could contain wildcards, e.g engines/*
 #
-sub collect_suite_name
+sub collect_suite_name($$)
 {
   my $suitename= shift;  # Test suite name
   my $opt_cases= shift;
@@ -336,25 +381,22 @@ sub collect_suite_name
     else
     {
       my @dirs = my_find_dir(dirname($::glob_mysql_test_dir),
-                             ["mysql-test/suite",
-                              "storage/*/mysql-test",
-                              "plugin/*/mysql-test"],
-                             [$suitename]);
+                             ["mysql-test/suite", @plugin_suitedirs ],
+                             $suitename);
       #
       # if $suitename contained wildcards, we'll have many suites and
       # their overlays here. Let's group them appropriately.
       #
       for (@dirs) {
-        m@^.*/mysql-test/(?:suite/)?(.*)$@ or confess $_;
+        m@^.*/(?:mysql-test/suite|$plugin_suitedir_regex)/(.*)$@o or confess $_;
         push @{$suites{$1}}, $_;
       }
     }
   } else {
     $suites{$suitename} = [ $::glob_mysql_test_dir,
                             my_find_dir(dirname($::glob_mysql_test_dir),
-                                        ["storage/*/mysql-test",
-                                         "plugin/*/mysql-test"],
-                                        ['main'], NOT_REQUIRED) ];
+                                        [ @plugin_suitedirs ],
+                                        'main', NOT_REQUIRED) ];
   }
 
   my @cases;
@@ -401,7 +443,7 @@ sub collect_one_suite {
     local %file_combinations = ();
     local %file_in_overlay = ();
 
-    confess $_ unless m@/(?:storage|plugin)/(\w+)/mysql-test/[\w/]*\w$@;
+    confess $_ unless m@/$overlay_regex/@o;
     next unless defined $over and ($over eq '' or $over eq $1);
     push @cases, 
     # don't add cases that take *all* data from the parent suite
@@ -499,14 +541,14 @@ sub process_suite {
     # Collect in specified order
     foreach my $test_name_spec ( @$opt_cases )
     {
-      my ($sname, $tname)= split_testname($test_name_spec);
+      my ($sname, $tname, @combs)= split_testname($test_name_spec);
 
       # Check correct suite if suitename is defined
       next if defined $sname and $sname ne $suitename
                              and $sname ne "$basename-";
 
       next unless $all_cases{$tname};
-      push @cases, collect_one_test_case($suite, $all_cases{$tname}, $tname);
+      push @cases, collect_one_test_case($suite, $all_cases{$tname}, $tname, @combs);
     }
   } else {
     for (sort keys %all_cases)
@@ -559,9 +601,9 @@ sub process_opts {
   }
 }
 
-sub make_combinations($@)
+sub make_combinations($$@)
 {
-  my ($test, @combinations) = @_;
+  my ($test, $test_combs, @combinations) = @_;
 
   return ($test) if $test->{'skip'} or not @combinations;
   if ($combinations[0]->{skip}) {
@@ -578,10 +620,18 @@ sub make_combinations($@)
     if (My::Options::is_set($test->{master_opt}, $comb->{comb_opt}) &&
         My::Options::is_set($test->{slave_opt}, $comb->{comb_opt}) ){
 
+      delete $test_combs->{$comb->{name}};
+
       # Add combination name short name
       push @{$test->{combinations}}, $comb->{name};
 
       return ($test);
+    }
+
+    # Skip all other combinations, if this combination is forced
+    if (delete $test_combs->{$comb->{name}}) {
+      @combinations = ($comb); # run the loop below only for this combination
+      last;
     }
   }
 
@@ -635,6 +685,8 @@ sub collect_one_test_case {
   my $suite     =  shift;
   my $tpath     =  shift;
   my $tname     =  shift;
+  my %test_combs = map { $_ => 1 } @_;
+
 
   my $suitename =  $suite->{name};
   my $name      = "$suitename.$tname";
@@ -829,7 +881,11 @@ sub collect_one_test_case {
   my @cases = ($tinfo);
   for my $comb ($suite->{combinations}, @{$file_combinations{$filename}})
   {
-    @cases = map make_combinations($_, @{$comb}), @cases;
+    @cases = map make_combinations($_, \%test_combs, @{$comb}), @cases;
+  }
+  if (keys %test_combs) {
+    mtr_error("Could not run $name with '".(
+        join(',', sort keys %test_combs))."' combination(s)");
   }
 
   for $tinfo (@cases) {
@@ -1033,7 +1089,7 @@ sub get_tags_from_file($$) {
   # for combinations we need to make sure that its suite object is loaded,
   # even if this file does not belong to a current suite!
   my $comb_file = "$suffix.combinations";
-  $suite = load_suite_for_file($comb_file) if $prefix[0] eq '';
+  $suite = load_suite_object(suite_for_file($comb_file)) if $prefix[0] eq '';
   my @comb;
   unless ($suite->{skip}) {
     my $from = "$prefix[0]$comb_file";

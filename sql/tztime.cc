@@ -41,6 +41,8 @@
 #include <my_time.h>
 #include "tztime.h"
 #include <my_sys.h>
+#include <mysql_version.h>
+#include <my_getopt.h>
 #endif
 
 #include "tzfile.h"
@@ -62,6 +64,8 @@
 #define ABBR_ARE_USED
 #endif /* !defined(DBUG_OFF) */
 #endif /* defined(TZINFO2SQL) || defined(TESTTIME) */
+
+#define PROGRAM_VERSION "1.1"
 
 /* Structure describing local time type (e.g. Moscow summer time (MSD)) */
 typedef struct ttinfo
@@ -176,7 +180,7 @@ tz_load(const char *name, TIME_ZONE_INFO *sp, MEM_ROOT *storage)
       uchar buf[sizeof(struct tzhead) + sizeof(my_time_t) * TZ_MAX_TIMES +
                 TZ_MAX_TIMES + sizeof(TRAN_TYPE_INFO) * TZ_MAX_TYPES +
 #ifdef ABBR_ARE_USED
-               max(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1))) +
+               MY_MAX(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1))) +
 #endif
                sizeof(LS_INFO) * TZ_MAX_LEAPS];
     } u;
@@ -405,7 +409,7 @@ prepare_tz_info(TIME_ZONE_INFO *sp, MEM_ROOT *storage)
       Let us choose end_t as point before next time type change or leap
       second correction.
     */
-    end_t= min((next_trans_idx < sp->timecnt) ? sp->ats[next_trans_idx] - 1:
+    end_t= MY_MIN((next_trans_idx < sp->timecnt) ? sp->ats[next_trans_idx] - 1:
                                                 MY_TIME_T_MAX,
                (next_leap_idx < sp->leapcnt) ?
                  sp->lsis[next_leap_idx].ls_trans - 1: MY_TIME_T_MAX);
@@ -1690,7 +1694,8 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
                            MYSQL_OPEN_IGNORE_FLUSH | MYSQL_LOCK_IGNORE_TIMEOUT))
   {
     sql_print_warning("Can't open and lock time zone table: %s "
-                      "trying to live without them", thd->stmt_da->message());
+                      "trying to live without them",
+                      thd->get_stmt_da()->message());
     /* We will try emulate that everything is ok */
     return_val= time_zone_tables_exist= 0;
     goto end_with_setting_default_tz;
@@ -1876,7 +1881,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   uchar types[TZ_MAX_TIMES];
   TRAN_TYPE_INFO ttis[TZ_MAX_TYPES];
 #ifdef ABBR_ARE_USED
-  char chars[max(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1)))];
+  char chars[MY_MAX(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1)))];
 #endif
   /* 
     Used as a temporary tz_info until we decide that we actually want to
@@ -1927,7 +1932,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   field->store((longlong) tzid, TRUE);
   DBUG_ASSERT(field->key_length() <= sizeof(keybuff));
   field->get_key_image(keybuff,
-                       min(field->key_length(), sizeof(keybuff)),
+                       MY_MIN(field->key_length(), sizeof(keybuff)),
                        Field::itRAW);
   if (table->file->ha_index_init(0, 1))
     goto end;
@@ -1960,7 +1965,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   field->store((longlong) tzid, TRUE);
   DBUG_ASSERT(field->key_length() <= sizeof(keybuff));
   field->get_key_image(keybuff,
-                       min(field->key_length(), sizeof(keybuff)),
+                       MY_MIN(field->key_length(), sizeof(keybuff)),
                        Field::itRAW);
   if (table->file->ha_index_init(0, 1))
     goto end;
@@ -2386,7 +2391,6 @@ void Time_zone::adjust_leap_second(MYSQL_TIME *t)
   tables.
 */
 
-
 /*
   Print info about time zone described by TIME_ZONE_INFO struct as
   SQL statements populating mysql.time_zone* tables.
@@ -2471,6 +2475,15 @@ MEM_ROOT tz_storage;
 char fullname[FN_REFLEN + 1];
 char *root_name_end;
 
+/*
+  known file types that exist in the zoneinfo directory that are safe to
+  silently skip
+*/
+const char *known_extensions[]= {
+  ".tab",
+  NullS
+};
+
 
 /*
   Recursively scan zoneinfo directory and print all found time zone
@@ -2479,6 +2492,8 @@ char *root_name_end;
   SYNOPSIS
     scan_tz_dir()
       name_end - pointer to end of path to directory to be searched.
+      symlink_recursion_level   How many symlink directory levels are used
+      verbose			>0 if we should print warnings
 
   DESCRIPTION
     This auxiliary recursive function also uses several global
@@ -2494,13 +2509,14 @@ char *root_name_end;
 
 */
 my_bool
-scan_tz_dir(char * name_end)
+scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
 {
   MY_DIR *cur_dir;
   char *name_end_tmp;
   uint i;
 
-  if (!(cur_dir= my_dir(fullname, MYF(MY_WANT_STAT))))
+  /* Sort directory data, to pass mtr tests on different platforms. */
+  if (!(cur_dir= my_dir(fullname, MYF(MY_WANT_STAT|MY_WANT_SORT))))
     return 1;
 
   name_end= strmake(name_end, "/", FN_REFLEN - (name_end - fullname));
@@ -2514,7 +2530,41 @@ scan_tz_dir(char * name_end)
 
       if (MY_S_ISDIR(cur_dir->dir_entry[i].mystat->st_mode))
       {
-        if (scan_tz_dir(name_end_tmp))
+        my_bool is_symlink;
+        if ((is_symlink= my_is_symlink(fullname)) &&
+            symlink_recursion_level > 0)
+        {
+          /*
+            The timezone definition data in some Linux distributions
+             (e.g. the "timezone-data-2013f" package in Gentoo)
+            may have synlimks like:
+              /usr/share/zoneinfo/posix/ -> /usr/share/zoneinfo/,
+            so the same timezone files are available under two names
+            (e.g. "CET" and "posix/CET").
+
+            We allow one level of symlink recursion for backward
+            compatibility with earlier timezone data packages that have
+            duplicate copies of the same timezone files inside the root
+            directory and the "posix" subdirectory (instead of symlinking).
+            This makes "posix/CET" still available, but helps to avoid
+            following such symlinks infinitely:
+              /usr/share/zoneinfo/posix/posix/posix/.../posix/
+          */
+
+          /*
+            This is a normal case and not critical. only print warning if
+            verbose mode is choosen.
+          */
+          if (verbose > 0)
+          {
+            fflush(stdout);
+            fprintf(stderr, "Warning: Skipping directory '%s': "
+                    "to avoid infinite symlink recursion.\n", fullname);
+          }
+          continue;
+        }
+        if (scan_tz_dir(name_end_tmp, symlink_recursion_level + is_symlink,
+                        verbose))
         {
           my_dirend(cur_dir);
           return 1;
@@ -2526,14 +2576,38 @@ scan_tz_dir(char * name_end)
         if (!tz_load(fullname, &tz_info, &tz_storage))
           print_tz_as_sql(root_name_end + 1, &tz_info);
         else
-          fprintf(stderr,
-                  "Warning: Unable to load '%s' as time zone. Skipping it.\n",
-                  fullname);
+        {
+          /*
+            Some systems (like debian, opensuse etc) have description
+            files (.tab).  We skip these silently if verbose is > 0
+          */
+          const char *current_ext= fn_ext(fullname);
+          my_bool known_ext= 0;
+
+          for (const char **ext= known_extensions ; *ext ; ext++)
+          {
+            if (!strcmp(*ext, current_ext))
+            {
+              known_ext= 1;
+              break;
+            }
+          }
+          if (verbose > 0 || !known_ext)
+          {
+            fflush(stdout);
+            fprintf(stderr,
+                    "Warning: Unable to load '%s' as time zone. Skipping it.\n",
+                    fullname);
+          }
+        }
         free_root(&tz_storage, MYF(0));
       }
       else
+      {
+        fflush(stdout);
         fprintf(stderr, "Warning: '%s' is not regular file or directory\n",
                 fullname);
+      }
     }
   }
 
@@ -2543,33 +2617,114 @@ scan_tz_dir(char * name_end)
 }
 
 
+my_bool opt_leap, opt_verbose;
+
+static const char *load_default_groups[]=
+{ "mysql_tzinfo_to_sql", 0};
+
+static struct my_option my_long_options[] =
+{
+  {"help", '?', "Display this help and exit.", 0, 0, 0, GET_NO_ARG, NO_ARG,
+   0, 0, 0, 0, 0, 0},
+#ifdef DBUG_OFF
+  {"debug", '#', "This is a non-debug version. Catch this and exit",
+   0,0, 0, GET_DISABLED, OPT_ARG, 0, 0, 0, 0, 0, 0},
+#else
+  {"debug", '#', "Output debug log. Often this is 'd:t:o,filename'.",
+   0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
+#endif
+  {"leap", 'l', "Print the leap second information from the given time zone file. By convention, when --leap is used the next argument is the timezonefile",
+   &opt_leap, &opt_leap, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"verbose", 'v', "Write non critical warnings",
+   &opt_verbose, &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"version", 'V', "Output version information and exit.",
+   0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
+  { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
+};
+
+
+C_MODE_START
+static my_bool get_one_option(int optid, const struct my_option *,
+                              char *argument);
+C_MODE_END
+
+static void print_version(void)
+{
+  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname, PROGRAM_VERSION,
+	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
+}
+
+static void print_usage(void)
+{
+  fprintf(stderr, "Usage:\n");
+  fprintf(stderr, " %s [options] timezonedir\n", my_progname);
+  fprintf(stderr, " %s [options] timezonefile timezonename\n", my_progname);
+  print_defaults("my",load_default_groups);
+  puts("");
+  my_print_help(my_long_options);
+  my_print_variables(my_long_options);
+}
+
+
+static my_bool
+get_one_option(int optid, const struct my_option *opt, char *argument)
+{
+  switch(optid) {
+  case '#':
+#ifndef DBUG_OFF
+    DBUG_PUSH(argument ? argument : "d:t:S:i:O,/tmp/mysq_tzinfo_to_sql.trace");
+#endif
+    break;
+  case '?':
+    print_version();
+    puts("");
+    print_usage();
+    exit(0);
+  case 'V':
+    print_version();
+    exit(0);
+  }
+  return 0;
+}
+
+
 int
 main(int argc, char **argv)
 {
+  char **default_argv;
   MY_INIT(argv[0]);
 
-  if (argc != 2 && argc != 3)
+  if (load_defaults("my",load_default_groups,&argc,&argv))
+    exit(1);
+
+  default_argv= argv;
+
+  if ((handle_options(&argc, &argv, my_long_options, get_one_option)))
+    exit(1);
+
+  if ((argc != 1 && argc != 2) || (opt_leap && argc != 1))
   {
-    fprintf(stderr, "Usage:\n");
-    fprintf(stderr, " %s timezonedir\n", argv[0]);
-    fprintf(stderr, " %s timezonefile timezonename\n", argv[0]);
-    fprintf(stderr, " %s --leap timezonefile\n", argv[0]);
+    print_usage();
+    free_defaults(default_argv);
     return 1;
   }
-
-  if (argc == 2)
+  if (argc == 1 && !opt_leap)
   {
-    root_name_end= strmake_buf(fullname, argv[1]);
+    /* Argument is timezonedir */
+
+    root_name_end= strmake_buf(fullname, argv[0]);
 
     printf("TRUNCATE TABLE time_zone;\n");
     printf("TRUNCATE TABLE time_zone_name;\n");
     printf("TRUNCATE TABLE time_zone_transition;\n");
     printf("TRUNCATE TABLE time_zone_transition_type;\n");
 
-    if (scan_tz_dir(root_name_end))
+    if (scan_tz_dir(root_name_end, 0, opt_verbose))
     {
-      fprintf(stderr, "There were fatal errors during processing "
-                      "of zoneinfo directory\n");
+      fflush(stdout);
+      fprintf(stderr,
+              "There were fatal errors during processing "
+              "of zoneinfo directory '%s'\n", fullname);
       return 1;
     }
 
@@ -2580,30 +2735,28 @@ main(int argc, char **argv)
   }
   else
   {
+    /*
+      First argument is timezonefile.
+      The second is timezonename if opt_leap is not given
+    */
     init_alloc_root(&tz_storage, 32768, 0, MYF(0));
 
-    if (strcmp(argv[1], "--leap") == 0)
+    if (tz_load(argv[0], &tz_info, &tz_storage))
     {
-      if (tz_load(argv[2], &tz_info, &tz_storage))
-      {
-        fprintf(stderr, "Problems with zoneinfo file '%s'\n", argv[2]);
-        return 1;
-      }
+      fflush(stdout);
+      fprintf(stderr, "Problems with zoneinfo file '%s'\n", argv[0]);
+      return 1;
+    }
+    if (opt_leap)
       print_tz_leaps_as_sql(&tz_info);
-    }
     else
-    {
-      if (tz_load(argv[1], &tz_info, &tz_storage))
-      {
-        fprintf(stderr, "Problems with zoneinfo file '%s'\n", argv[2]);
-        return 1;
-      }
-      print_tz_as_sql(argv[2], &tz_info);
-    }
+      print_tz_as_sql(argv[1], &tz_info);
 
     free_root(&tz_storage, MYF(0));
   }
 
+  free_defaults(default_argv);
+  my_end(0);
   return 0;
 }
 

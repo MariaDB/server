@@ -197,25 +197,9 @@ drop table t1;
 #
 # Testing regexp
 #
-set collation_connection=utf8mb4_general_ci;
+set names utf8mb4;
 --source include/ctype_regex.inc
-set names utf8mb4;
-
-#
-# Bug #3928 regexp [[:>:]] and UTF-8
-#
-set names utf8mb4;
-
-# This should return TRUE
-select  'вася'  rlike '[[:<:]]вася[[:>:]]';
-select  'вася ' rlike '[[:<:]]вася[[:>:]]';
-select ' вася'  rlike '[[:<:]]вася[[:>:]]';
-select ' вася ' rlike '[[:<:]]вася[[:>:]]';
-
-# This should return FALSE
-select  'васяz' rlike '[[:<:]]вася[[:>:]]';
-select 'zвася'  rlike '[[:<:]]вася[[:>:]]';
-select 'zвасяz' rlike '[[:<:]]вася[[:>:]]';
+--source include/ctype_regex_utf8.inc
 
 #
 # Bug #4555
@@ -1812,8 +1796,7 @@ SHOW CREATE TABLE t2;
 DROP TABLE t1, t2;
 
 --echo #
---echo # Bug#13581962 HIGH MEMORY USAGE ATTEMPT, THEN CRASH WITH 
---echo # LONGTEXT, UNION, USER VARIABLE
+--echo # Bug#13581962 HIGH MEMORY USAGE ATTEMPT, THEN CRASH WITH LONGTEXT, UNION, USER VARIABLE
 --echo # Bug#14096619 UNABLE TO RESTORE DATABASE DUMP
 --echo #
 
@@ -1829,6 +1812,26 @@ DROP TABLE t1;
 --echo #
 --echo # End of 5.5 tests
 --echo #
+
+
+--echo #
+--echo # WL#3664 WEIGHT_STRING
+--echo #
+
+set names utf8mb4;
+--source include/weight_string.inc
+--source include/weight_string_euro.inc
+--source include/weight_string_l1.inc
+
+set @@collation_connection=utf8mb4_bin;
+--source include/weight_string.inc
+--source include/weight_string_euro.inc
+--source include/weight_string_l1.inc
+
+--echo #
+--echo # End of 5.6 tests
+--echo #
+
 
 --echo #
 --echo # End of tests

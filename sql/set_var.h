@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /**
   @file
@@ -60,7 +60,7 @@ public:
   sys_var *next;
   LEX_CSTRING name;
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
-                   READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096 };
+                   READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096, SHOW_VALUE_IN_HELP=8192 };
   /**
     Enumeration type to indicate for a system variable whether
     it will be written to the binlog or not.
@@ -142,9 +142,11 @@ public:
   }
   bool register_option(DYNAMIC_ARRAY *array, int parse_flags)
   {
-    return (option.id != -1) && ((flags & PARSE_EARLY) == parse_flags) &&
-           insert_dynamic(array, (uchar*)&option);
+    return ((((option.id != -1) && ((flags & PARSE_EARLY) == parse_flags)) ||
+             (flags & parse_flags)) &&
+            insert_dynamic(array, (uchar*)&option));
   }
+  void do_deprecated_warning(THD *thd);
 
 private:
   virtual bool do_check(THD *thd, set_var *var) = 0;
@@ -158,7 +160,7 @@ private:
   virtual void global_save_default(THD *thd, set_var *var) = 0;
   virtual bool session_update(THD *thd, set_var *var) = 0;
   virtual bool global_update(THD *thd, set_var *var) = 0;
-  void do_deprecated_warning(THD *thd);
+
 protected:
   /**
     A pointer to a value of the variable for SHOW.
@@ -272,6 +274,18 @@ public:
   set_var_password(LEX_USER *user_arg,char *password_arg)
     :user(user_arg), password(password_arg)
   {}
+  int check(THD *thd);
+  int update(THD *thd);
+};
+
+/* For SET ROLE */
+
+class set_var_role: public set_var_base
+{
+  LEX_STRING role;
+  ulonglong access;
+public:
+  set_var_role(LEX_STRING role_arg) : role(role_arg) {}
   int check(THD *thd);
   int update(THD *thd);
 };

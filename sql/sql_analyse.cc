@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /* Analyse database */
@@ -282,16 +282,16 @@ bool get_ev_num_info(EV_NUM_INFO *ev_info, NUM_INFO *info, const char *num)
   {
     if (((longlong) info->ullval) < 0)
       return 0; // Impossible to store as a negative number
-    ev_info->llval =  -(longlong) max((ulonglong) -ev_info->llval, 
+    ev_info->llval =  -(longlong) MY_MAX((ulonglong) -ev_info->llval, 
 				      info->ullval);
-    ev_info->min_dval = (double) -max(-ev_info->min_dval, info->dval);
+    ev_info->min_dval = (double) -MY_MAX(-ev_info->min_dval, info->dval);
   }
   else		// ulonglong is as big as bigint in MySQL
   {
     if ((check_ulonglong(num, info->integers) == DECIMAL_NUM))
       return 0;
-    ev_info->ullval = (ulonglong) max(ev_info->ullval, info->ullval);
-    ev_info->max_dval =  (double) max(ev_info->max_dval, info->dval);
+    ev_info->ullval = (ulonglong) MY_MAX(ev_info->ullval, info->ullval);
+    ev_info->max_dval =  (double) MY_MAX(ev_info->max_dval, info->dval);
   }
   return 1;
 } // get_ev_num_info
@@ -1040,7 +1040,7 @@ String *field_decimal::avg(String *s, ha_rows rows)
   my_decimal_div(E_DEC_FATAL_ERROR, &avg_val, sum+cur_sum, &num, prec_increment);
   /* TODO remove this after decimal_div returns proper frac */
   my_decimal_round(E_DEC_FATAL_ERROR, &avg_val,
-                   min(sum[cur_sum].frac + prec_increment, DECIMAL_MAX_SCALE),
+                   MY_MIN(sum[cur_sum].frac + prec_increment, DECIMAL_MAX_SCALE),
                    FALSE,&rounded_avg);
   my_decimal2string(E_DEC_FATAL_ERROR, &rounded_avg, 0, 0, '0', s);
   return s;
@@ -1065,7 +1065,7 @@ String *field_decimal::std(String *s, ha_rows rows)
   my_decimal_div(E_DEC_FATAL_ERROR, &tmp, &sum2, &num, prec_increment);
   my_decimal2double(E_DEC_FATAL_ERROR, &tmp, &std_sqr);
   s->set_real(((double) std_sqr <= 0.0 ? 0.0 : sqrt(std_sqr)),
-         min(item->decimals + prec_increment, NOT_FIXED_DEC), my_thd_charset);
+         MY_MIN(item->decimals + prec_increment, NOT_FIXED_DEC), my_thd_charset);
 
   return s;
 }
@@ -1182,7 +1182,7 @@ bool analyse::change_columns(List<Item> &field_list)
   func_items[8] = new Item_proc_string("Std", 255);
   func_items[8]->maybe_null = 1;
   func_items[9] = new Item_proc_string("Optimal_fieldtype",
-				       max(64, output_str_length));
+				       MY_MAX(64, output_str_length));
 
   for (uint i = 0; i < array_elements(func_items); i++)
     field_list.push_back(func_items[i]);

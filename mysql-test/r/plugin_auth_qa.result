@@ -303,7 +303,7 @@ grant_user	test_plugin_server	plug_dest
 CREATE USER plug_dest;
 DROP USER plug_dest;
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug_dest;
-ERROR 42000: Can't find any matching row in the user table
+ERROR 28000: Can't find any matching row in the user table
 DROP USER grant_user;
 GRANT INSERT ON test_user_db.* TO grant_user IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';

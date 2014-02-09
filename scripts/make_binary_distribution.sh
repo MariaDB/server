@@ -312,7 +312,7 @@ fi
 # Note, no legacy "safe_mysqld" link to "mysqld_safe" in 5.1
 
 # Copy readme and license files
-cp README Docs/INSTALL-BINARY  $DEST/
+cp README Docs/INSTALL-BINARY TODO CREDITS $DEST/
 if [ -f COPYING -a -f EXCEPTIONS-CLIENT ] ; then
   cp COPYING EXCEPTIONS-CLIENT $DEST/
 elif [ -f LICENSE.mysql ] ; then

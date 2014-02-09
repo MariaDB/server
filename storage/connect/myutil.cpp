@@ -23,12 +23,13 @@
 #include "plgdbsem.h"
 //#include "value.h"
 //#include "valblk.h"
+#include "myutil.h"
 #define  DLL_EXPORT            // Items are exported from this DLL
 
 /************************************************************************/
 /*  Convert from MySQL type name to PlugDB type number                  */
 /************************************************************************/
-int MYSQLtoPLG(char *typname)
+int MYSQLtoPLG(char *typname, char *var)
   {
   int type;
 
@@ -41,9 +42,10 @@ int MYSQLtoPLG(char *typname)
            !stricmp(typname, "text") || !stricmp(typname, "blob"))
     type = TYPE_STRING;
   else if (!stricmp(typname, "double")  || !stricmp(typname, "float") ||
-           !stricmp(typname, "real")    ||
-           !stricmp(typname, "decimal") || !stricmp(typname, "numeric"))
-    type = TYPE_FLOAT;
+           !stricmp(typname, "real"))
+    type = TYPE_DOUBLE;
+  else if (!stricmp(typname, "decimal") || !stricmp(typname, "numeric"))
+    type = TYPE_DECIM;
   else if (!stricmp(typname, "date") || !stricmp(typname, "datetime") ||
            !stricmp(typname, "time") || !stricmp(typname, "timestamp") ||
            !stricmp(typname, "year"))
@@ -55,13 +57,35 @@ int MYSQLtoPLG(char *typname)
   else
     type = TYPE_ERROR;
 
+  if (var) {
+    // This is to make the difference between CHAR and VARCHAR 
+    if (type == TYPE_STRING && stricmp(typname, "char"))
+      *var = 'V';
+
+    // This is to make the difference between temporal values 
+    if (type == TYPE_DATE) {
+      if (!stricmp(typname, "date"))
+        *var = 'D';
+      else if (!stricmp(typname, "datetime"))
+        *var = 'A';
+      else if (!stricmp(typname, "timestamp"))
+        *var = 'S';
+      else if (!stricmp(typname, "time"))
+        *var = 'T';
+      else if (!stricmp(typname, "year"))
+        *var = 'Y';
+
+      } // endif type
+
+    } // endif var
+
   return type;
   } // end of MYSQLtoPLG
 
 /************************************************************************/
 /*  Convert from PlugDB type to MySQL type number                       */
 /************************************************************************/
-enum enum_field_types PLGtoMYSQL(int type, bool dbf)
+enum enum_field_types PLGtoMYSQL(int type, bool dbf, char v)
   {
   enum enum_field_types mytype;
 
@@ -72,20 +96,31 @@ enum enum_field_types PLGtoMYSQL(int type, bool dbf)
     case TYPE_SHORT:
       mytype = MYSQL_TYPE_SHORT;
       break;
-    case TYPE_FLOAT:
+    case TYPE_DOUBLE:
       mytype = MYSQL_TYPE_DOUBLE;
       break;
     case TYPE_DATE:
-      mytype = (dbf) ? MYSQL_TYPE_DATE : MYSQL_TYPE_DATETIME;
+      mytype = (dbf) ? MYSQL_TYPE_DATE :
+          (v == 'S') ? MYSQL_TYPE_TIMESTAMP :
+          (v == 'D') ? MYSQL_TYPE_NEWDATE :
+          (v == 'T') ? MYSQL_TYPE_TIME :
+          (v == 'Y') ? MYSQL_TYPE_YEAR : MYSQL_TYPE_DATETIME;
       break;
     case TYPE_STRING:
-      mytype = MYSQL_TYPE_VARCHAR;
+      mytype = (v) ? MYSQL_TYPE_VARCHAR : MYSQL_TYPE_STRING;
       break;
     case TYPE_BIGINT:
       mytype = MYSQL_TYPE_LONGLONG;
       break;
     case TYPE_TINY:
       mytype = MYSQL_TYPE_TINY;
+      break;
+    case TYPE_DECIM:
+#if !defined(ALPHA)
+      mytype = MYSQL_TYPE_NEWDECIMAL;
+#else     // ALPHA
+      mytype = MYSQL_TYPE_DECIMAL;
+#endif    // ALPHA
       break;
     default:
       mytype = MYSQL_TYPE_NULL;
@@ -97,26 +132,31 @@ enum enum_field_types PLGtoMYSQL(int type, bool dbf)
 /************************************************************************/
 /*  Convert from PlugDB type to MySQL type name                         */
 /************************************************************************/
-const char *PLGtoMYSQLtype(int type, bool dbf)
+const char *PLGtoMYSQLtype(int type, bool dbf, char v)
   {
   switch (type) {
     case TYPE_INT:      return "INT";
     case TYPE_SHORT:    return "SMALLINT";
-    case TYPE_FLOAT:    return "DOUBLE";
-    case TYPE_DATE:     return dbf ? "DATE" : "DATETIME";
-    case TYPE_STRING:   return "VARCHAR";
+    case TYPE_DOUBLE:   return "DOUBLE";
+    case TYPE_DATE:     return   dbf ? "DATE" : 
+                          (v == 'S') ? "TIMESTAMP" :
+                          (v == 'D') ? "DATE" :
+                          (v == 'T') ? "TIME" :
+                          (v == 'Y') ? "YEAR" : "DATETIME";
+    case TYPE_STRING:   return v ? "VARCHAR" : "CHAR";
     case TYPE_BIGINT:   return "BIGINT";
     case TYPE_TINY:     return "TINYINT";
+    case TYPE_DECIM:    return "DECIMAL";
     default:            return "CHAR(0)";
     } // endswitch mytype
 
   return "CHAR(0)";
-  } // end of PLGtoMYSQL
+  } // end of PLGtoMYSQLtype
 
 /************************************************************************/
 /*  Convert from MySQL type to PlugDB type number                       */
 /************************************************************************/
-int MYSQLtoPLG(int mytype)
+int MYSQLtoPLG(int mytype, char *var)
   {
   int type;
 
@@ -139,9 +179,11 @@ int MYSQLtoPLG(int mytype)
 #if !defined(ALPHA)
     case MYSQL_TYPE_NEWDECIMAL:
 #endif   // !ALPHA)
+      type = TYPE_DECIM;
+      break;
     case MYSQL_TYPE_FLOAT:
     case MYSQL_TYPE_DOUBLE:
-      type = TYPE_FLOAT;
+      type = TYPE_DOUBLE;
       break;
     case MYSQL_TYPE_TIMESTAMP:
     case MYSQL_TYPE_DATE:
@@ -150,7 +192,6 @@ int MYSQLtoPLG(int mytype)
     case MYSQL_TYPE_TIME:
       type = TYPE_DATE;
       break;
-    case MYSQL_TYPE_STRING:
     case MYSQL_TYPE_VAR_STRING:
 #if !defined(ALPHA)
     case MYSQL_TYPE_VARCHAR:
@@ -159,6 +200,8 @@ int MYSQLtoPLG(int mytype)
     case MYSQL_TYPE_TINY_BLOB:
     case MYSQL_TYPE_MEDIUM_BLOB:
     case MYSQL_TYPE_LONG_BLOB:
+      if (var) *var = 'V';
+    case MYSQL_TYPE_STRING:
       type = TYPE_STRING;
       break;
     default:

@@ -25,10 +25,10 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
   )
   
   IF(NOT ARG_COMPONENT)
-    MESSAGE(FATAL_ERROR "No COMPONENT passed to  INSTALL_DEBUG_SYMBOLS")
+    SET(ARG_COMPONENT DebugBinaries)
   ENDIF()
   IF(NOT ARG_INSTALL_LOCATION)
-    MESSAGE(FATAL_ERROR "No INSTALL_LOCATION passed to INSTALL_DEBUG_SYMBOLS")
+    SET(ARG_INSTALL_LOCATION lib)
   ENDIF()
   SET(targets ${ARG_DEFAULT_ARGS})
   FOREACH(target ${targets})
@@ -129,6 +129,36 @@ FUNCTION(INSTALL_SCRIPT)
   )
   INSTALL_MANPAGE(${script})
 ENDFUNCTION()
+
+
+FUNCTION(INSTALL_DOCUMENTATION)
+  MYSQL_PARSE_ARGUMENTS(ARG "COMPONENT" "" ${ARGN})
+  SET(files ${ARG_DEFAULT_ARGS})
+  IF(NOT ARG_COMPONENT)
+    SET(ARG_COMPONENT Server)
+  ENDIF()
+  IF (ARG_COMPONENT MATCHES "Readme")
+    SET(destination ${INSTALL_DOCREADMEDIR})
+  ELSE()
+    SET(destination ${INSTALL_DOCDIR})
+  ENDIF()
+
+  STRING(TOUPPER ${ARG_COMPONENT} COMPUP)
+  IF(CPACK_COMPONENT_${COMPUP}_GROUP)
+    SET(group ${CPACK_COMPONENT_${COMPUP}_GROUP})
+  ELSE()
+    SET(group ${ARG_COMPONENT})
+  ENDIF()
+
+  IF(RPM)
+    SET(destination "${destination}/MariaDB-${group}-${VERSION}")
+  ELSEIF(DEB)
+    SET(destination "${destination}/mariadb-${group}-${MAJOR_VERSION}.${MINOR_VERSION}")
+  ENDIF()
+
+  INSTALL(FILES ${files} DESTINATION ${destination} COMPONENT ${ARG_COMPONENT})
+ENDFUNCTION()
+
 
 # Install symbolic link to CMake target. 
 # the link is created in the same directory as target
@@ -346,3 +376,27 @@ FUNCTION(INSTALL_DEBUG_TARGET target)
   ENDIF()
 ENDFUNCTION()
 
+
+FUNCTION(INSTALL_MYSQL_TEST from to)
+  IF(INSTALL_MYSQLTESTDIR)
+    INSTALL(
+      DIRECTORY ${from}
+      DESTINATION "${INSTALL_MYSQLTESTDIR}/${to}"
+      USE_SOURCE_PERMISSIONS
+      COMPONENT Test
+      PATTERN "var/" EXCLUDE
+      PATTERN "lib/My/SafeProcess" EXCLUDE
+      PATTERN "lib/t*" EXCLUDE
+      PATTERN "CPack" EXCLUDE
+      PATTERN "CMake*" EXCLUDE
+      PATTERN "mtr.out*" EXCLUDE
+      PATTERN ".cvsignore" EXCLUDE
+      PATTERN "*.am" EXCLUDE
+      PATTERN "*.in" EXCLUDE
+      PATTERN "*.vcxproj" EXCLUDE
+      PATTERN "*.vcxproj.filters" EXCLUDE
+      PATTERN "*.vcxproj.user" EXCLUDE
+      PATTERN "CTest" EXCLUDE
+    )
+  ENDIF()
+ENDFUNCTION()

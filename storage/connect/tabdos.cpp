@@ -77,7 +77,7 @@ extern "C" int  trace;
 /*  No conversion of block values (check = true).                      */
 /***********************************************************************/
 PVBLK AllocValBlock(PGLOBAL, void *, int, int, int len = 0, int prec = 0,
-                    bool check = true, bool blank = false);
+                    bool check = true, bool blank = false, bool un = false);
 
 /* --------------------------- Class DOSDEF -------------------------- */
 
@@ -499,7 +499,10 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
       if (!(colp = ColDB(g, kdp->GetName(), 0))) {
         sprintf(g->Message, MSG(INDX_COL_NOTIN), kdp->GetName(), Name);
         goto err;
-        } // endif colp
+      } else if (colp->GetResultType() == TYPE_DECIM) {
+        sprintf(g->Message, "Decimal columns are not indexable yet");
+        goto err;
+      } // endif Type
 
       colp->InitValue(g);
       n = max(n, xdp->GetNparts());
@@ -944,7 +947,7 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
         } // endswitch p
 
     // Set number of decimal digits
-    Dcm = (*p) ? atoi(p) : GetPrecision();
+    Dcm = (*p) ? atoi(p) : GetScale();
     } // endif fmt
 
   if (trace)
@@ -1006,10 +1009,10 @@ bool DOSCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
       if (GetDomain() || ((DTVAL *)value)->IsFormatted())
         goto newval;          // This will make a new value;
 
-    } else if (Buf_Type == TYPE_FLOAT)
+    } else if (Buf_Type == TYPE_DOUBLE)
       // Float values must be written with the correct (column) precision
       // Note: maybe this should be forced by ShowValue instead of this ?
-      value->SetPrec(GetPrecision());
+      value->SetPrec(GetScale());
 
     Value = value;            // Directly access the external value
   } else {
@@ -1047,7 +1050,7 @@ bool DOSCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
 /***********************************************************************/
 void DOSCOL::ReadColumn(PGLOBAL g)
   {
-  char   *p;
+  char   *p = NULL;
   int     i, rc;
   int     field;
   double  dval;
@@ -1087,9 +1090,14 @@ void DOSCOL::ReadColumn(PGLOBAL g)
         case TYPE_SHORT:
         case TYPE_TINY:
         case TYPE_BIGINT:
-          Value->SetValue_char(p, field - Dcm);
+          if (Value->SetValue_char(p, field - Dcm)) {
+            sprintf(g->Message, "Out of range value for column %s at row %d",
+                    Name, tdbp->RowNumber(g));
+            PushWarning(g, tdbp);
+            } // endif SetValue_char
+
           break;
-        case TYPE_FLOAT:
+        case TYPE_DOUBLE:
           Value->SetValue_char(p, field);
           dval = Value->GetFloatValue();
 
@@ -1104,7 +1112,11 @@ void DOSCOL::ReadColumn(PGLOBAL g)
         } // endswitch Buf_Type
 
       else
-        Value->SetValue_char(p, field);
+        if (Value->SetValue_char(p, field)) {
+          sprintf(g->Message, "Out of range value for column %s at row %d",
+                  Name, tdbp->RowNumber(g));
+          PushWarning(g, tdbp);
+          } // endif SetValue_char
 
       break;
     default:
@@ -1198,7 +1210,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
 
           len = sprintf(Buf, fmt, field - i, Value->GetTinyValue());
           break;
-        case TYPE_FLOAT:
+        case TYPE_DOUBLE:
           strcpy(fmt, (Ldz) ? "%0*.*lf" : "%*.*lf");
           sprintf(Buf, fmt, field + ((Nod && Dcm) ? 1 : 0),
                   Dcm, Value->GetFloatValue());

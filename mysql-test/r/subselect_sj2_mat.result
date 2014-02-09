@@ -1096,6 +1096,43 @@ COUNT(*)
 3724
 set optimizer_prune_level=@tmp_951283;
 DROP TABLE t1,t2;
+#
+# Bug mdev-5135: crash on semijoin with nested outer joins
+#
+CREATE TABLE t1 (i1 int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (i2 int, INDEX(i2)) ENGINE=MyISAM;
+CREATE TABLE t3 (i3 int, c varchar(1), INDEX(i3), INDEX(c)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (3,'x'),(4,'y');
+SELECT * FROM t1 WHERE ( 1, 1 ) IN ( 
+SELECT i2, i2 FROM t2 LEFT OUTER JOIN ( 
+t3 AS t3a INNER JOIN t3 AS t3b ON ( t3a.i3 = t3b.i3 ) 
+) ON ( t3a.c = t3b.c ) 
+);
+i1
+DROP TABLE t1,t2,t3;
+DROP TABLE IF EXISTS t1,t2,t3,t4;
+#
+# MDEV-4782: Valgrind warnings (Conditional jump or move depends on uninitialised value) with InnoDB, semijoin
+#
+CREATE TABLE t1 ( t1_pk1 varchar(3), t1_pk2 varchar(52), PRIMARY KEY (t1_pk1,t1_pk2)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('CHN','Chinese'),('USA','English');
+CREATE TABLE t2 ( t2_i int(11), t2_c varchar(52)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (86,'English');
+CREATE TABLE t3 ( t3_i int(11), t3_c varchar(35)) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (3989,'Abilene'),(3873,'Akron');
+create table t4 like t1;
+insert into t4 select * from t1;
+SELECT * FROM t1, t3 WHERE t3_c IN ( SELECT t1_pk2 FROM t4, t2 WHERE t2_c = t1_pk2 AND t2_i >= t3_i ) AND ( t1_pk1 = 'POL' );
+t1_pk1	t1_pk2	t3_i	t3_c
+explain
+SELECT * FROM t1, t3 WHERE t3_c IN ( SELECT t1_pk2 FROM t4, t2 WHERE t2_c = t1_pk2 AND t2_i >= t3_i ) AND ( t1_pk1 = 'POL' );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref	PRIMARY	PRIMARY	5	const	1	Using where; Using index
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Start temporary
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	index	NULL	PRIMARY	59	NULL	2	Using where; Using index; End temporary
+DROP TABLE t1,t2,t3,t4;
 # This must be the last in the file:
 set optimizer_switch=@subselect_sj2_tmp;
 set optimizer_switch=default;
@@ -1377,7 +1414,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 2	MATERIALIZED	t3	hash_ALL	NULL	#hash#$hj	5	test.t2.i2	3	100.00	Using where; Using join buffer (flat, BNLH join)
 Warnings:
-Note	1003	select `test`.`t1`.`i1` AS `i1` from `test`.`t1` semi join (`test`.`t2` join `test`.`t3`) where ((`test`.`t3`.`i3` = `test`.`t2`.`i2`) and (`test`.`t1`.`i1` = `test`.`t2`.`i2`) and (`test`.`t2`.`i2` > 0))
+Note	1003	select `test`.`t1`.`i1` AS `i1` from `test`.`t1` semi join (`test`.`t2` join `test`.`t3`) where ((`test`.`t3`.`i3` = `test`.`t2`.`i2`) and (`test`.`t1`.`i1` = `test`.`t2`.`i2`) and (`test`.`t3`.`i3` > 0))
 SELECT * FROM t1 
 WHERE i1 IN (SELECT i3 FROM t2, t3 WHERE i3 > 0 AND i3 = i2 OR 1=2);
 i1

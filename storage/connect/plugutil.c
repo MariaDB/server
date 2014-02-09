@@ -152,6 +152,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     g->Sarea_Size = worksize;
     g->Trace = 0;
     g->Createas = 0;
+    g->Alchecked = 0;
     g->Activityp = g->ActivityStart = NULL;
     g->Xchk = NULL;
     strcpy(g->Message, "");
@@ -447,7 +448,7 @@ void *PlugAllocMem(PGLOBAL g, uint size)
 /*  Here there should be some verification done such as validity of    */
 /*  the address and size not larger than memory size.                  */
 /***********************************************************************/
-BOOL PlugSubSet(PGLOBAL g, void *memp, uint size)
+BOOL PlugSubSet(PGLOBAL g __attribute__((unused)), void *memp, uint size)
   {
   PPOOLHEADER pph = memp;
 
@@ -510,6 +511,23 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
 #endif
   return (memp);
   } /* end of PlugSubAlloc */
+
+/***********************************************************************/
+/* This routine suballocate a copy of the passed string.               */
+/***********************************************************************/
+char *PlugDup(PGLOBAL g, const char *str)
+  {
+  char  *buf; 
+  size_t len;
+
+  if (str && (len = strlen(str))) {
+    buf = (char*)PlugSubAlloc(g, NULL, len + 1);
+    strcpy(buf, str);
+  } else
+    buf = NULL;
+
+  return(buf);
+  } /* end of PlugDup */
 
 /***********************************************************************/
 /* This routine makes a pointer from an offset to a memory pointer.    */

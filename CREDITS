@@ -1,0 +1,43 @@
+MariaDB is brought to you by the MariaDB foundation, a USA non profit
+organization.
+
+The current main members and sponsors of the MariaDB foundation are:
+
+Booking.com	http://www.booking.com
+SkySQL Ab	http://www.skysql.com
+Parallels       http://www.parallels.com/products/plesk
+
+For a full list of supporters and sponsors see
+https://mariadb.org/en/supporters/
+
+You can also do this by doing SHOW CONTRIBUTORS.
+
+For all corporate memberships and sponsorships please contact the
+MariaDB foundation Board via foundation@mariadb.org.
+
+The MariaDB foundation is responsible for the MariaDB source
+repository, the official MariaDB binaries and http://mariadb.org.
+
+The MariaDB foundation provides also, among other things, the
+following services to the MariaDB community:
+
+- Code reviews and applying patches for MariaDB
+- QA and testing of the MariaDB server
+- Merging MySQL patches into MariaDB
+- Bug fixing in MariaDB (for bugs that affects a large part of the community)
+- Building the official MariaDB binaries
+- Maintaining http://mariadb.org
+
+To be able to do the above we need help from cooperations and individuals!
+
+You can help support MariaDB by be becoming a MariaDB developer or a
+member or sponsor of the MariaDB foundation!
+
+You can get a list of all main authors of MariaDB / MySQL by doing
+SHOW AUTHORS;
+
+You can get a list sponsors and contributors by doing
+SHOW CONTRIBUTORS;
+
+You can read more about the MariaDB foundation at:
+https://mariadb.org/en/foundation/

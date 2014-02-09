@@ -6,8 +6,6 @@
 
 //#include "tabtbl.h"
 
-#define TYPE_AM_PRX  (AMT)129
-
 typedef class PRXDEF *PPRXDEF;
 typedef class TDBPRX *PTDBPRX;
 typedef class XXLCOL *PXXLCOL;
@@ -70,6 +68,7 @@ class DllExport TDBPRX : public TDBASE {
   virtual int   GetRecpos(void) {return Tdbp->GetRecpos();}
 	virtual void  ResetDB(void) {Tdbp->ResetDB();}
 	virtual int   RowNumber(PGLOBAL g, bool b = FALSE);
+  virtual PSZ   GetServer(void) {return (Tdbp) ? Tdbp->GetServer() : (PSZ)"?";}
 
   // Database routines
 	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
@@ -104,6 +103,7 @@ class DllExport PRXCOL : public COLBLK {
   virtual int    GetAmType(void) {return TYPE_AM_PRX;}
 
   // Methods
+  virtual void   Reset(void);
   virtual bool   IsSpecial(void) {return Pseudo;}
   virtual void   ReadColumn(PGLOBAL g);
           bool   Init(PGLOBAL g);

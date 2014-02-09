@@ -51,7 +51,7 @@ execute stmt4;
 prepare stmt4 from 'drop table t2';
 execute stmt4;
 execute stmt4;
-ERROR 42S02: Unknown table 't2'
+ERROR 42S02: Unknown table 'test.t2'
 prepare stmt5 from 'select ? + a from t1';
 set @a=1;
 execute stmt5 using @a;
@@ -526,7 +526,7 @@ FOUND_ROWS()
 deallocate prepare stmt;
 drop table if exists t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 create table t1 (c1 int(11) not null, c2 int(11) not null,
 primary key  (c1,c2), key c2 (c2), key c1 (c1));
 insert into t1 values (200887, 860);
@@ -1201,13 +1201,13 @@ SET @aux= "SELECT COUNT(*)
 prepare my_stmt from @aux;
 execute my_stmt;
 COUNT(*)
-42
+44
 execute my_stmt;
 COUNT(*)
-42
+44
 execute my_stmt;
 COUNT(*)
-42
+44
 deallocate prepare my_stmt;
 drop procedure if exists p1|
 drop table if exists t1|
@@ -2799,48 +2799,48 @@ drop table if exists t2;
 create procedure proc_1() show warnings;
 drop table if exists t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 call proc_1();
 Level	Code	Message
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 drop table if exists t2;
 Warnings:
-Note	1051	Unknown table 't2'
+Note	1051	Unknown table 'test.t2'
 call proc_1();
 Level	Code	Message
-Note	1051	Unknown table 't2'
+Note	1051	Unknown table 'test.t2'
 drop table if exists t1, t2;
 Warnings:
-Note	1051	Unknown table 't1'
-Note	1051	Unknown table 't2'
+Note	1051	Unknown table 'test.t1'
+Note	1051	Unknown table 'test.t2'
 call proc_1();
 Level	Code	Message
-Note	1051	Unknown table 't1'
-Note	1051	Unknown table 't2'
+Note	1051	Unknown table 'test.t1'
+Note	1051	Unknown table 'test.t2'
 drop procedure proc_1;
 create function func_1() returns int begin show warnings; return 1; end|
 ERROR 0A000: Not allowed to return a result set from a function
 prepare abc from "show warnings";
 drop table if exists t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 execute abc;
 Level	Code	Message
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 drop table if exists t2;
 Warnings:
-Note	1051	Unknown table 't2'
+Note	1051	Unknown table 'test.t2'
 execute abc;
 Level	Code	Message
-Note	1051	Unknown table 't2'
+Note	1051	Unknown table 'test.t2'
 drop table if exists t1, t2;
 Warnings:
-Note	1051	Unknown table 't1'
-Note	1051	Unknown table 't2'
+Note	1051	Unknown table 'test.t1'
+Note	1051	Unknown table 'test.t2'
 execute abc;
 Level	Code	Message
-Note	1051	Unknown table 't1'
-Note	1051	Unknown table 't2'
+Note	1051	Unknown table 'test.t1'
+Note	1051	Unknown table 'test.t2'
 deallocate prepare abc;
 set @my_password="password";
 set @my_data="clear text to encode";
@@ -2926,7 +2926,7 @@ i	j
 DROP TABLE t1, t2;
 drop table if exists t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 prepare stmt
 from "create table t1 (c char(100) character set utf8, key (c(10)))";
 execute stmt;
@@ -3996,4 +3996,48 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 deallocate prepare st;
 drop table t1;
+#
+# Bug mdev-5410: crash at the execution of PS with subselect
+#                formed by UNION with global ORDER BY
+#
+CREATE TABLE t1 (a int DEFAULT NULL);
+INSERT INTO t1 VALUES (2), (4);
+CREATE TABLE t2 (b int DEFAULT NULL);
+INSERT INTO t2 VALUES (1), (3);
+PREPARE stmt FROM "
+SELECT c1 FROM (SELECT (SELECT a FROM t1 WHERE t1.a <= t2.b
+                        UNION ALL
+                        SELECT a FROM t1 WHERE t1.a+3<= t2.b
+                        ORDER BY a DESC) AS c1 FROM t2) t3;
+";
+EXECUTE stmt;
+c1
+NULL
+2
+EXECUTE stmt;
+c1
+NULL
+2
+DROP TABLE t1,t2;
+#
+# MDEV-5369: Wrong result (0 instead of NULL) on 2nd execution of 
+# PS with LEFT JOIN, TEMPTABLE view
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (0),(8);
+CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=MyISAM;
+CREATE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
+SELECT SUM(pk) FROM t1 LEFT JOIN v2 ON a = pk;
+SUM(pk)
+NULL
+PREPARE stmt FROM "SELECT SUM(pk) FROM t1 LEFT JOIN v2 ON a = pk";
+EXECUTE stmt;
+SUM(pk)
+NULL
+EXECUTE stmt;
+SUM(pk)
+NULL
+DEALLOCATE PREPARE stmt;
+DROP VIEW v2;
+DROP TABLE t1, t2;
 # End of 5.3 tests

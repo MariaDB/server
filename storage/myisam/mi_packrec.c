@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -685,7 +685,7 @@ static uint find_longest_bitstream(uint16 *table, uint16 *end)
       return OFFSET_TABLE_SIZE;
     }
     length2= find_longest_bitstream(next, end) + 1;
-    length=max(length,length2);
+    length=MY_MAX(length,length2);
   }
   return length;
 }
@@ -1052,7 +1052,7 @@ static void uf_blob(MI_COLUMNDEF *rec, MI_BIT_BUFF *bit_buff,
     }
     decode_bytes(rec,bit_buff,bit_buff->blob_pos,bit_buff->blob_pos+length);
     _mi_store_blob_length((uchar*) to,pack_length,length);
-    memcpy((char*) to+pack_length, &bit_buff->blob_pos, sizeof(char*));
+    memcpy(to+pack_length, &bit_buff->blob_pos, sizeof(char*));
     bit_buff->blob_pos+=length;
   }
 }
@@ -1399,7 +1399,7 @@ uint _mi_pack_get_block_info(MI_INFO *myisam, MI_BIT_BUFF *bit_buff,
   info->filepos=filepos+head_length;
   if (file > 0)
   {
-    info->offset=min(info->rec_len, ref_length - head_length);
+    info->offset=MY_MIN(info->rec_len, ref_length - head_length);
     memcpy(*rec_buff_p, header + head_length, info->offset);
   }
   return 0;

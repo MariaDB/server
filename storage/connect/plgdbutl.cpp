@@ -1,11 +1,11 @@
 /********** PlgDBUtl Fpe C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: PLGDBUTL                                              */
 /* -------------                                                       */
-/*  Version 3.8                                                        */
+/*  Version 3.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -90,6 +90,7 @@ bool  Initdone = false;
 bool  plugin = false;  // True when called by the XDB plugin handler 
 
 extern "C" {
+extern char  connectini[];
        char  plgxini[_MAX_PATH] = PLGXINI;
        char  plgini[_MAX_PATH] = PLGINI;
 #if defined(WIN32)
@@ -127,7 +128,7 @@ void CloseXMLFile(PGLOBAL, PFBLOCK, bool);
 #endif   // DOMDOC_SUPPORT
 
 #ifdef LIBXML2_SUPPORT
-void CloseXML2File(PGLOBAL, PFBLOCK, bool);
+#include "libdoc.h"
 #endif   // LIBXML2_SUPPORT
 
 
@@ -222,7 +223,7 @@ int global_open(GLOBAL *g, int msgid, const char *path, int flags, int mode)
 /**************************************************************************/
 /*  Utility for external callers (such as XDB)                            */
 /**************************************************************************/
-DllExport char *GetIni(int n = 0)
+DllExport char *GetIni(int n)
   {
   switch (n) {
     case 1: return plgxini; break;
@@ -232,6 +233,7 @@ DllExport char *GetIni(int n = 0)
 #if defined(XMSG)
     case 5: return msglang; break;
 #endif   // XMSG
+    case 6: return connectini; break;
 //  default: return plgini;
     } // endswitch GetIni
 
@@ -277,6 +279,18 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
   int      i;
   PCOLRES *pcrp, crp;
   PQRYRES  qrp;
+
+  // Save stack and allocation environment and prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return NULL;
+    } // endif jump_level
+
+  if (setjmp(g->jumper[++g->jump_level]) != 0) {
+    printf("%s\n", g->Message);
+    qrp = NULL;
+    goto fin;
+    } // endif rc
 
   /************************************************************************/
   /*  Allocate the structure used to contain the result set.              */
@@ -330,7 +344,7 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
     // Allocate the Value Block that will contain data
     if (crp->Length || nonull)
       crp->Kdata = AllocValBlock(g, NULL, crp->Type, maxres,
-                                          crp->Length, 0, true, blank);
+                                    crp->Length, 0, true, blank, false);
     else
       crp->Kdata = NULL;
 
@@ -342,6 +356,8 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
 
   *pcrp = NULL;
 
+ fin:
+  g->jump_level--;
   return qrp;
   } // end of PlgAllocResult
 
@@ -730,6 +746,34 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
 
   return (b);
   } /* end of EvalLikePattern */
+
+/***********************************************************************/
+/*  MakeEscape: Escape some characters in a string.                    */
+/***********************************************************************/
+char *MakeEscape(PGLOBAL g, char* str, char q)
+  {
+  char *bufp;
+  int i, k, n = 0, len = (int)strlen(str);
+
+  for (i = 0; i < len; i++)
+    if (str[i] == q || str[i] == '\\')
+      n++;
+
+  if (!n)
+    return str;
+  else
+    bufp = (char*)PlugSubAlloc(g, NULL, len + n + 1);
+
+  for (i = k = 0; i < len; i++) {
+    if (str[i] == q || str[i] == '\\')
+      bufp[k++] = '\\';
+
+    bufp[k++] = str[i];
+    } // endfor i
+
+  bufp[k] = 0;
+  return bufp;
+  } /* end of MakeEscape */
 
 /***********************************************************************/
 /*  PlugConvertConstant: convert a Plug constant to an Xobject.        */
@@ -1287,7 +1331,7 @@ void *PlgDBalloc(PGLOBAL g, void *area, MBLOCK& mp)
   maxsub = (pph->FreeBlk < minsub) ? 0 : pph->FreeBlk - minsub;
   mp.Sub = mp.Size <= ((mp.Sub) ? maxsub : (maxsub >> 2));
 
-  if (trace)
+  if (trace > 1)
     htrc("PlgDBalloc: in %p size=%d used=%d free=%d sub=%d\n",
           arp, mp.Size, pph->To_Free, pph->FreeBlk, mp.Sub);
 
@@ -1330,7 +1374,7 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
 //  assert (mp.Memp != NULL);
 #endif
 
-  if (trace)
+  if (trace > 1)
     htrc("PlgDBrealloc: %p size=%d sub=%d\n", mp.Memp, mp.Size, mp.Sub);
 
   if (newsize == mp.Size)
@@ -1387,7 +1431,7 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
 /***********************************************************************/
 void PlgDBfree(MBLOCK& mp)
   {
-  if (trace)
+  if (trace > 1)
     htrc("PlgDBfree: %p sub=%d size=%d\n", mp.Memp, mp.Sub, mp.Size);
 
   if (!mp.Sub && mp.Memp)
@@ -1404,7 +1448,6 @@ void PlgDBfree(MBLOCK& mp)
   mp.Size = 0;
   } // end of PlgDBfree
 
-#if 0     // Not used yet
 /***********************************************************************/
 /*  Program for sub-allocating one item in a storage area.             */
 /*  Note: This function is equivalent to PlugSubAlloc except that in   */
@@ -1421,8 +1464,8 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
     /*******************************************************************/
     memp = g->Sarea;
 
-  size = ((size + 3) / 4) * 4;       /* Round up size to multiple of 4 */
-//size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
+//size = ((size + 3) / 4) * 4;       /* Round up size to multiple of 4 */
+  size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
   pph = (PPOOLHEADER)memp;
 
 #if defined(DEBTRACE)
@@ -1431,34 +1474,9 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
 #endif
 
   if ((uint)size > pph->FreeBlk) {   /* Not enough memory left in pool */
-    char     *pname = NULL;
-    PACTIVITY ap;
-
-    if (memp == g->Sarea)
-      pname = "Work";
-    else if ((ap = g->Activityp)) {
-      if      (memp == ap->LangRulep)
-        pname = "Rule";
-      else if (memp == ap->Nodep[0])
-        pname = "Dictionary";
-      else if (memp == ap->Nodep[1])
-        pname = "Vartok";
-      else if (memp == ap->Nodep[2])
-        pname = "Lexicon";
-      else if (memp == ap->User_Dictp)
-        pname = "User dictionary";
-      else if (ap->Aptr)
-        pname = "Application";
-
-    } // endif memp
-
-    if (pname)
-      sprintf(g->Message,
-      "Not enough memory in %s area for request of %d (used=%d free=%d)",
-                          pname, size, pph->To_Free, pph->FreeBlk);
-    else
-      sprintf(g->Message, MSG(SUBALLOC_ERROR),
-                          memp, size, pph->To_Free, pph->FreeBlk);
+    sprintf(g->Message,
+    "Not enough memory in Work area for request of %d (used=%d free=%d)",
+            (int) size, pph->To_Free, pph->FreeBlk);
 
 #if defined(DEBTRACE)
  htrc("%s\n", g->Message);
@@ -1479,7 +1497,6 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
 #endif
   return (memp);
   } // end of PlgDBSubAlloc
-#endif // 0  Not used yet
 
 /***********************************************************************/
 /*  PUTOUT: Plug DB object typing routine.                             */
@@ -1508,7 +1525,7 @@ void PlugPutOut(PGLOBAL g, FILE *f, short t, void *v, uint n)
       fprintf(f, "%s%s\n", m, (PSZ)v);
       break;
 
-    case TYPE_FLOAT:
+    case TYPE_DOUBLE:
       fprintf(f, "%s%lf\n", m, *(double *)v);
       break;
 

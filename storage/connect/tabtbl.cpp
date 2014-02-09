@@ -38,6 +38,7 @@
 /***********************************************************************/
 //#include "sql_base.h"
 #include "my_global.h"
+#include "table.h"       // MySQL table definitions
 #if defined(WIN32)
 #include <stdlib.h>
 #include <stdio.h>
@@ -62,7 +63,6 @@
 /***********************************************************************/
 /*  Include application header files:                                  */
 /***********************************************************************/
-#include "table.h"       // MySQL table definitions
 #include "global.h"      // global declarations
 #include "plgdbsem.h"    // DB application declarations
 #include "reldef.h"      // DB definition declares
@@ -109,11 +109,12 @@ TBLDEF::TBLDEF(void)
 /**************************************************************************/
 bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  char   *tablist, *dbname;
+  char   *tablist, *dbname, *def = NULL;
 
   Desc = "Table list table";
   tablist = Cat->GetStringCatInfo(g, "Tablist", "");
   dbname = Cat->GetStringCatInfo(g, "Dbname", "*");
+  def = Cat->GetStringCatInfo(g, "Srcdef", NULL);
   Ntables = 0;
 
   if (*tablist) {
@@ -134,7 +135,7 @@ bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
       } // endif p
 
       // Allocate the TBLIST block for that table
-      tbl = new(g) XTAB(pn);
+      tbl = new(g) XTAB(pn, def);
       tbl->SetQualifier(pdb);
       
       if (trace)
@@ -231,15 +232,27 @@ PCOL TDBTBL::InsertSpecialColumn(PGLOBAL g, PCOL scp)
 bool TDBTBL::InitTableList(PGLOBAL g)
   {
   int     n;
+  uint    sln;
+  char   *scs;
   PTABLE  tp, tabp;
   PCOL    colp;
   PTBLDEF tdp = (PTBLDEF)To_Def;
+  PCATLG  cat = To_Def->GetCat();
+  PHC     hc = ((MYCAT*)cat)->GetHandler();
 
+  scs = hc->get_table()->s->connect_string.str;
+  sln = hc->get_table()->s->connect_string.length;
 //  PlugSetPath(filename, Tdbp->GetFile(g), Tdbp->GetPath());
 
   for (n = 0, tp = tdp->Tablep; tp; tp = tp->GetNext()) {
     if (TestFil(g, To_Filter, tp)) {
       tabp = new(g) XTAB(tp);
+
+      if (tabp->GetSrc()) {
+        // Table list is a list of connections
+        hc->get_table()->s->connect_string.str = (char*)tabp->GetName();
+        hc->get_table()->s->connect_string.length = strlen(tabp->GetName());
+        } // endif Src
 
       // Get the table description block of this table
       if (!(Tdbp = GetSubTable(g, tabp))) {
@@ -269,6 +282,9 @@ bool TDBTBL::InitTableList(PGLOBAL g)
 
     } // endfor tp
 
+  hc->get_table()->s->connect_string.str = scs;
+  hc->get_table()->s->connect_string.length = sln;
+
 //NumTables = n;
   To_Filter = NULL;        // To avoid doing it several times
   return FALSE;
@@ -279,15 +295,18 @@ bool TDBTBL::InitTableList(PGLOBAL g)
 /***********************************************************************/
 bool TDBTBL::TestFil(PGLOBAL g, PFIL filp, PTABLE tabp)
   {
-  char *fil, op[8], tn[NAME_LEN];
+  char *body, *fil, op[8], tn[NAME_LEN];
   bool  neg;
 
   if (!filp)
     return TRUE;
-  else if (strstr(filp, " OR ") || strstr(filp, " AND "))
+  else
+    body = filp->Body;
+
+  if (strstr(body, " OR ") || strstr(body, " AND "))
     return TRUE;               // Not handled yet
   else
-    fil = filp + (*filp == '(' ? 1 : 0);
+    fil = body + (*body == '(' ? 1 : 0);
 
   if (sscanf(fil, "TABID %s", op) != 1)
     return TRUE;               // ignore invalid filter
@@ -364,7 +383,8 @@ int TDBTBL::GetMaxSize(PGLOBAL g)
 void TDBTBL::ResetDB(void)
   {
   for (PCOL colp = Columns; colp; colp = colp->GetNext())
-    if (colp->GetAmType() == TYPE_AM_TABID)
+    if (colp->GetAmType() == TYPE_AM_TABID ||
+        colp->GetAmType() == TYPE_AM_SRVID)
       colp->COLBLK::Reset();
 
   for (PTABLE tabp = Tablist; tabp; tabp = tabp->GetNext())
@@ -476,7 +496,8 @@ int TDBTBL::ReadDB(PGLOBAL g)
 
         // Check and initialize the subtable columns
         for (PCOL cp = Columns; cp; cp = cp->GetNext())
-          if (cp->GetAmType() == TYPE_AM_TABID)
+          if (cp->GetAmType() == TYPE_AM_TABID ||
+              cp->GetAmType() == TYPE_AM_SRVID)
             cp->COLBLK::Reset();
           else if (((PPRXCOL)cp)->Init(g) && !Accept)
             return RC_FX;

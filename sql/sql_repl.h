@@ -46,7 +46,7 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report);
 bool change_master(THD* thd, Master_info* mi, bool *master_info_added);
 bool mysql_show_binlog_events(THD* thd);
 int reset_slave(THD *thd, Master_info* mi);
-int reset_master(THD* thd);
+int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len);
 bool purge_master_logs(THD* thd, const char* to_log);
 bool purge_master_logs_before_date(THD* thd, time_t purge_time);
 bool log_in_use(const char* log_name);
@@ -67,7 +67,9 @@ int log_loaded_block(IO_CACHE* file);
 int init_replication_sys_vars();
 void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos, ushort flags);
 
+#ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state;
+#endif
 void rpl_init_gtid_slave_state();
 void rpl_deinit_gtid_slave_state();
 int gtid_state_from_binlog_pos(const char *name, uint32 pos, String *out_str);

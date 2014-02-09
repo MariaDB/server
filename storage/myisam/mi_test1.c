@@ -439,7 +439,7 @@ static void create_record(uchar *record,uint rownr)
     uint tmp;
     uchar *ptr;;
     sprintf((char*) blob_record,"... row: %d", rownr);
-    strappend((char*) blob_record,max(MAX_REC_LENGTH-rownr,10),' ');
+    strappend((char*) blob_record,MY_MAX(MAX_REC_LENGTH-rownr,10),' ');
     tmp=strlen((char*) blob_record);
     int4store(pos,tmp);
     ptr=blob_record;

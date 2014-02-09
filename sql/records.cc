@@ -189,7 +189,8 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   info->table=table;
   info->forms= &info->table;		/* Only one table */
   
-  if (table->s->tmp_table == NON_TRANSACTIONAL_TMP_TABLE &&
+  if ((table->s->tmp_table == INTERNAL_TMP_TABLE ||
+       table->s->tmp_table == NON_TRANSACTIONAL_TMP_TABLE) &&
       !table->sort.addon_field)
     (void) table->file->extra(HA_EXTRA_MMAP);
   
@@ -371,7 +372,15 @@ static int rr_quick(READ_RECORD *info)
 
 static int rr_index_first(READ_RECORD *info)
 {
-  int tmp= info->table->file->ha_index_first(info->record);
+  int tmp;
+  // tell handler that we are doing an index scan
+  if ((tmp = info->table->file->prepare_index_scan())) 
+  {
+    tmp= rr_handle_error(info, tmp);
+    return tmp;
+  }
+
+  tmp= info->table->file->ha_index_first(info->record);
   info->read_record= rr_index;
   if (tmp)
     tmp= rr_handle_error(info, tmp);

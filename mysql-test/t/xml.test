@@ -673,6 +673,35 @@ SELECT UPDATEXML('<a><c><a>x</a></c></a>','(a)/a','<b />');
 SELECT UPDATEXML('<a><c><a>x</a></c></a>','(a)//a','<b />');
 SELECT ExtractValue('<a><a>aa</a><b>bb</b></a>','(a)/a|(a)/b');
 
+
+--echo #
+--echo # Bug#62429 XML: ExtractValue, UpdateXML max arg length 127 chars
+--echo #
+CREATE TABLE t1 (id INT AUTO_INCREMENT, txt VARCHAR(1000), PRIMARY KEY(id));
+
+INSERT INTO t1 (txt) VALUES
+(CONCAT('<', REPEAT('a',127), '>127</', REPEAT('a',127), '>')),
+(CONCAT('<', REPEAT('a',128), '>128</', REPEAT('a',128), '>')),
+(CONCAT('<', REPEAT('a',63), '><', REPEAT('b',63), '>63/63</', REPEAT('b',63), '></', REPEAT('a',63),'>')),
+(CONCAT('<', REPEAT('a',63), '><', REPEAT('b',64), '>63/64</', REPEAT('b',64), '></', REPEAT('a',63),'>'));
+
+--vertical_results
+SELECT
+  txt,
+  EXTRACTVALUE(txt, CONCAT('/', REPEAT('a', 127))) as a127, 
+  EXTRACTVALUE(txt, CONCAT('/', REPEAT('a', 128))) as a128,
+  EXTRACTVALUE(txt, CONCAT('//', REPEAT('b', 63))) as a63b63, 
+  EXTRACTVALUE(txt, CONCAT('//', REPEAT('b', 64))) as a63b64
+FROM t1;
+SELECT UPDATEXML(txt, CONCAT('//', REPEAT('b', 63)), '63/63+') FROM t1;
+DROP TABLE t1;
+
+# This will call my_str_realloc_mysqld()
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES (CONCAT('<a><', REPEAT('b',128),'>b128</',REPEAT('b',128),'><',REPEAT('c',512),'>c512</',REPEAT('c',512),'></a>'));
+SELECT ExtractValue (a, CONCAT('//',REPEAT('c',512))) AS c512 FROM t1;
+DROP TABLE t1;
+
 --echo #
 --echo # End of 5.5 tests
 --echo #

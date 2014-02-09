@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -89,8 +89,6 @@ extern ibool		buf_debug_prints;/*!< If this is set TRUE, the program
 					prints info whenever read or flush
 					occurs */
 #endif /* UNIV_DEBUG */
-extern ulint srv_buf_pool_write_requests; /*!< variable to count write request
-					  issued */
 extern ulint srv_buf_pool_instances;
 extern ulint srv_buf_pool_curr_size;
 #else /* !UNIV_HOTBACKUP */
@@ -102,13 +100,11 @@ extern buf_block_t*	back_block2;	/*!< second block, for page reorganize */
 #define BUF_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
 
 /** @brief States of a control block
-@see buf_page_struct
+@see buf_page_t
 
 The enumeration values must be 0..7. */
 enum buf_page_state {
-	BUF_BLOCK_ZIP_FREE = 0,		/*!< contains a free
-					compressed page */
-	BUF_BLOCK_POOL_WATCH = 0,	/*!< a sentinel for the buffer pool
+	BUF_BLOCK_POOL_WATCH,		/*!< a sentinel for the buffer pool
 					watch, element of buf_pool->watch[] */
 	BUF_BLOCK_ZIP_PAGE,		/*!< contains a clean
 					compressed page */
@@ -132,7 +128,7 @@ enum buf_page_state {
 
 /** This structure defines information we will fetch from each buffer pool. It
 will be used to print table IO stats */
-struct buf_pool_info_struct{
+struct buf_pool_info_t{
 	/* General buffer pool info */
 	ulint	pool_unique_id;		/*!< Buffer Pool ID */
 	ulint	pool_size;		/*!< Buffer Pool size in pages */
@@ -203,16 +199,12 @@ struct buf_pool_info_struct{
 					interval */
 };
 
-typedef struct buf_pool_info_struct	buf_pool_info_t;
-
 /** The occupied bytes of lists in all buffer pools */
-struct buf_pools_list_size_struct {
+struct buf_pools_list_size_t {
 	ulint	LRU_bytes;		/*!< LRU size in bytes */
 	ulint	unzip_LRU_bytes;	/*!< unzip_LRU size in bytes */
 	ulint	flush_list_bytes;	/*!< flush_list size in bytes */
 };
-
-typedef struct buf_pools_list_size_struct	buf_pools_list_size_t;
 
 #ifndef UNIV_HOTBACKUP
 /********************************************************************//**
@@ -231,9 +223,9 @@ buf_pool_mutex_exit_all(void);
 
 /********************************************************************//**
 Creates the buffer pool.
-@return	own: buf_pool object, NULL if not enough memory or error */
+@return	DB_SUCCESS if success, DB_ERROR if not enough memory or error */
 UNIV_INTERN
-ulint
+dberr_t
 buf_pool_init(
 /*=========*/
 	ulint	size,		/*!< in: Size of the total pool in bytes */
@@ -638,9 +630,12 @@ UNIV_INTERN
 ibool
 buf_page_is_corrupted(
 /*==================*/
+	bool		check_lsn,	/*!< in: true if we need to check the
+					and complain about the LSN */
 	const byte*	read_buf,	/*!< in: a database page */
-	ulint		zip_size);	/*!< in: size of compressed page;
+	ulint		zip_size)	/*!< in: size of compressed page;
 					0 for uncompressed pages */
+	__attribute__((nonnull, warn_unused_result));
 #ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Gets the space id, page offset, and byte offset within page of a
@@ -890,7 +885,7 @@ buf_page_belongs_to_unzip_LRU(
 Gets the mutex of a block.
 @return	pointer to mutex protecting bpage */
 UNIV_INLINE
-mutex_t*
+ib_mutex_t*
 buf_page_get_mutex(
 /*===============*/
 	const buf_page_t*	bpage)	/*!< in: pointer to control block */
@@ -900,7 +895,7 @@ buf_page_get_mutex(
 Get the flush type of a page.
 @return	flush type */
 UNIV_INLINE
-enum buf_flush
+buf_flush_t
 buf_page_get_flush_type(
 /*====================*/
 	const buf_page_t*	bpage)	/*!< in: buffer page */
@@ -912,7 +907,7 @@ void
 buf_page_set_flush_type(
 /*====================*/
 	buf_page_t*	bpage,		/*!< in: buffer page */
-	enum buf_flush	flush_type);	/*!< in: flush type */
+	buf_flush_t	flush_type);	/*!< in: flush type */
 /*********************************************************************//**
 Map a block to a file page. */
 UNIV_INLINE
@@ -1160,7 +1155,7 @@ UNIV_INTERN
 buf_page_t*
 buf_page_init_for_read(
 /*===================*/
-	ulint*		err,	/*!< out: DB_SUCCESS or DB_TABLESPACE_DELETED */
+	dberr_t*	err,	/*!< out: DB_SUCCESS or DB_TABLESPACE_DELETED */
 	ulint		mode,	/*!< in: BUF_READ_IBUF_PAGES_ONLY, ... */
 	ulint		space,	/*!< in: space id */
 	ulint		zip_size,/*!< in: compressed page size, or 0 */
@@ -1172,9 +1167,9 @@ buf_page_init_for_read(
 /********************************************************************//**
 Completes an asynchronous read or write request of a file page to or from
 the buffer pool.
-@return TRUE if successful */
+@return true if successful */
 UNIV_INTERN
-ibool
+bool
 buf_page_io_complete(
 /*=================*/
 	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
@@ -1401,6 +1396,16 @@ buf_get_nth_chunk_block(
 	ulint		n,		/*!< in: nth chunk in the buffer pool */
 	ulint*		chunk_size);	/*!< in: chunk size */
 
+/********************************************************************//**
+Calculate the checksum of a page from compressed table and update the page. */
+UNIV_INTERN
+void
+buf_flush_update_zip_checksum(
+/*==========================*/
+	buf_frame_t*	page,		/*!< in/out: Page to update */
+	ulint		zip_size,	/*!< in: Compressed page size */
+	lsn_t		lsn);		/*!< in: Lsn to stamp on the page */
+
 #endif /* !UNIV_HOTBACKUP */
 
 /** The common buffer control block structure
@@ -1409,10 +1414,10 @@ for compressed and uncompressed frames */
 /** Number of bits used for buffer page states. */
 #define BUF_PAGE_STATE_BITS	3
 
-struct buf_page_struct{
+struct buf_page_t{
 	/** @name General fields
 	None of these bit-fields must be modified without holding
-	buf_page_get_mutex() [buf_block_struct::mutex or
+	buf_page_get_mutex() [buf_block_t::mutex or
 	buf_pool->zip_mutex], since they can be stored in the same
 	machine word.  Some of these fields are additionally protected
 	by buf_pool->mutex. */
@@ -1444,7 +1449,7 @@ struct buf_page_struct{
 	unsigned	flush_type:2;	/*!< if this block is currently being
 					flushed to disk, this tells the
 					flush_type.
-					@see enum buf_flush */
+					@see buf_flush_t */
 	unsigned	io_fix:2;	/*!< type of pending I/O operation;
 					also protected by buf_pool->mutex
 					@see enum buf_io_fix */
@@ -1488,7 +1493,6 @@ struct buf_page_struct{
 					- BUF_BLOCK_FILE_PAGE:	flush_list
 					- BUF_BLOCK_ZIP_DIRTY:	flush_list
 					- BUF_BLOCK_ZIP_PAGE:	zip_clean
-					- BUF_BLOCK_ZIP_FREE:	zip_free[]
 
 					If bpage is part of flush_list
 					then the node pointers are
@@ -1543,7 +1547,7 @@ struct buf_page_struct{
 	/* @} */
 	/** @name LRU replacement algorithm fields
 	These fields are protected by buf_pool->mutex only (not
-	buf_pool->zip_mutex or buf_block_struct::mutex). */
+	buf_pool->zip_mutex or buf_block_t::mutex). */
 	/* @{ */
 
 	UT_LIST_NODE_T(buf_page_t) LRU;
@@ -1573,14 +1577,14 @@ struct buf_page_struct{
 					/*!< this is set to TRUE when
 					fsp frees a page in buffer pool;
 					protected by buf_pool->zip_mutex
-					or buf_block_struct::mutex. */
+					or buf_block_t::mutex. */
 # endif /* UNIV_DEBUG_FILE_ACCESSES || UNIV_DEBUG */
 #endif /* !UNIV_HOTBACKUP */
 };
 
 /** The buffer control block structure */
 
-struct buf_block_struct{
+struct buf_block_t{
 
 	/** @name General fields */
 	/* @{ */
@@ -1604,7 +1608,7 @@ struct buf_block_struct{
 					decompressed LRU list;
 					used in debugging */
 #endif /* UNIV_DEBUG */
-	mutex_t		mutex;		/*!< mutex protecting this block:
+	ib_mutex_t		mutex;		/*!< mutex protecting this block:
 					state (also protected by the buffer
 					pool mutex), io_fix, buf_fix_count,
 					and accessed; we introduce this new
@@ -1663,8 +1667,8 @@ struct buf_block_struct{
 	/** @name Hash search fields
 	These 5 fields may only be modified when we have
 	an x-latch on btr_search_latch AND
-	- we are holding an s-latch or x-latch on buf_block_struct::lock or
-	- we know that buf_block_struct::buf_fix_count == 0.
+	- we are holding an s-latch or x-latch on buf_block_t::lock or
+	- we know that buf_block_t::buf_fix_count == 0.
 
 	An exception to this is when we init or create a page
 	in the buffer pool in buf0buf.cc.
@@ -1722,8 +1726,28 @@ Compute the hash fold value for blocks in buf_pool->zip_hash. */
 #define BUF_POOL_ZIP_FOLD_BPAGE(b) BUF_POOL_ZIP_FOLD((buf_block_t*) (b))
 /* @} */
 
+/** Struct that is embedded in the free zip blocks */
+struct buf_buddy_free_t {
+	union {
+		ulint	size;	/*!< size of the block */
+		byte	bytes[FIL_PAGE_DATA];
+				/*!< stamp[FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID]
+				== BUF_BUDDY_FREE_STAMP denotes a free
+				block. If the space_id field of buddy
+				block != BUF_BUDDY_FREE_STAMP, the block
+				is not in any zip_free list. If the
+				space_id is BUF_BUDDY_FREE_STAMP then
+				stamp[0] will contain the
+				buddy block size. */
+	} stamp;
+
+	buf_page_t	bpage;	/*!< Embedded bpage descriptor */
+	UT_LIST_NODE_T(buf_buddy_free_t) list;
+				/*!< Node of zip_free list */
+};
+
 /** @brief The buffer pool statistics structure. */
-struct buf_pool_stat_struct{
+struct buf_pool_stat_t{
 	ulint	n_page_gets;	/*!< number of page gets performed;
 				also successful searches through
 				the adaptive hash index are
@@ -1752,7 +1776,7 @@ struct buf_pool_stat_struct{
 };
 
 /** Statistics of buddy blocks of a given size. */
-struct buf_buddy_stat_struct {
+struct buf_buddy_stat_t {
 	/** Number of blocks allocated from the buddy system. */
 	ulint		used;
 	/** Number of blocks relocated by the buddy system. */
@@ -1766,13 +1790,13 @@ struct buf_buddy_stat_struct {
 NOTE! The definition appears here only for other modules of this
 directory (buf) to see it. Do not use from outside! */
 
-struct buf_pool_struct{
+struct buf_pool_t{
 
 	/** @name General fields */
 	/* @{ */
-	mutex_t		mutex;		/*!< Buffer pool mutex of this
+	ib_mutex_t		mutex;		/*!< Buffer pool mutex of this
 					instance */
-	mutex_t		zip_mutex;	/*!< Zip mutex of this buffer
+	ib_mutex_t		zip_mutex;	/*!< Zip mutex of this buffer
 					pool instance, protects compressed
 					only pages (of type buf_page_t, not
 					buf_block_t */
@@ -1826,13 +1850,18 @@ struct buf_pool_struct{
 
 	/* @{ */
 
-	mutex_t		flush_list_mutex;/*!< mutex protecting the
+	ib_mutex_t		flush_list_mutex;/*!< mutex protecting the
 					flush list access. This mutex
 					protects flush_list, flush_rbt
 					and bpage::list pointers when
 					the bpage is on flush_list. It
 					also protects writes to
-					bpage::oldest_modification */
+					bpage::oldest_modification and
+					flush_list_hp */
+	const buf_page_t*	flush_list_hp;/*!< "hazard pointer"
+					used during scan of flush_list
+					while doing flush list batch.
+					Protected by flush_list_mutex */
 	UT_LIST_BASE_NODE_T(buf_page_t) flush_list;
 					/*!< base node of the modified block
 					list */
@@ -1918,7 +1947,7 @@ struct buf_pool_struct{
 	UT_LIST_BASE_NODE_T(buf_page_t)	zip_clean;
 					/*!< unmodified compressed pages */
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-	UT_LIST_BASE_NODE_T(buf_page_t) zip_free[BUF_BUDDY_SIZES_MAX];
+	UT_LIST_BASE_NODE_T(buf_buddy_free_t) zip_free[BUF_BUDDY_SIZES_MAX];
 					/*!< buddy free lists */
 
 	buf_page_t*			watch;

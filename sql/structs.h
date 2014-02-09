@@ -89,8 +89,8 @@ struct ha_index_option_struct;
 typedef struct st_key {
   uint	key_length;			/* Tot length of key */
   ulong flags;                          /* dupp key and pack flags */
-  uint	key_parts;			/* How many key_parts */
-  uint	usable_key_parts;		/* Should normally be = key_parts */
+  uint	user_defined_key_parts;	   /* How many key_parts */
+  uint	usable_key_parts; /* Should normally be = user_defined_key_parts */
   uint ext_key_parts;              /* Number of key parts in extended key */
   ulong ext_key_flags;             /* Flags for extended key              */
   key_part_map ext_key_part_map;   /* Bitmap of pk key parts in extension */ 
@@ -190,6 +190,14 @@ typedef int *(*update_var)(THD *, struct st_mysql_show_var *);
 
 typedef struct	st_lex_user {
   LEX_STRING user, host, password, plugin, auth;
+  bool is_role() { return user.str[0] && !host.str[0]; }
+  void set_lex_string(LEX_STRING *l, char *buf)
+  {
+    if (is_role())
+      *l= user;
+    else
+      l->length= strxmov(l->str= buf, user.str, "@", host.str, NullS) - buf;
+  }
 } LEX_USER;
 
 /*
@@ -256,10 +264,10 @@ typedef struct  user_conn {
 
 typedef struct st_user_stats
 {
-  char user[max(USERNAME_LENGTH, LIST_PROCESS_HOST_LEN) + 1];
+  char user[MY_MAX(USERNAME_LENGTH, LIST_PROCESS_HOST_LEN) + 1];
   // Account name the user is mapped to when this is a user from mapped_user.
   // Otherwise, the same value as user.
-  char priv_user[max(USERNAME_LENGTH, LIST_PROCESS_HOST_LEN) + 1];
+  char priv_user[MY_MAX(USERNAME_LENGTH, LIST_PROCESS_HOST_LEN) + 1];
   uint user_name_length;
   uint total_connections;
   uint concurrent_connections;

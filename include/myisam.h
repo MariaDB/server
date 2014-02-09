@@ -29,7 +29,7 @@ extern "C" {
 #include "my_compare.h"
 #include <myisamchk.h>
 #include <mysql/plugin.h>
-
+#include <my_check_opt.h>
 /*
   Limit max keys according to HA_MAX_POSSIBLE_KEY; See myisamchk.h for details
 */
@@ -312,7 +312,6 @@ typedef struct st_mi_bit_buff
   uint error;
 } MI_BIT_BUFF;
 
-
 typedef struct st_sort_info
 {
   /* sync things */
@@ -410,7 +409,7 @@ void mi_disable_non_unique_index(MI_INFO *info, ha_rows rows);
 my_bool mi_test_if_sort_rep(MI_INFO *info, ha_rows rows, ulonglong key_map,
 			    my_bool force);
 
-int mi_init_bulk_insert(MI_INFO *info, ulong cache_size, ha_rows rows);
+int mi_init_bulk_insert(MI_INFO *info, size_t cache_size, ha_rows rows);
 void mi_flush_bulk_insert(MI_INFO *info, uint inx);
 void mi_end_bulk_insert(MI_INFO *info);
 int mi_assign_to_key_cache(MI_INFO *info, ulonglong key_map,

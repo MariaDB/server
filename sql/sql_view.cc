@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 */
 
 #define MYSQL_LEX 1
@@ -39,8 +39,7 @@
 
 const LEX_STRING view_type= { C_STRING_WITH_LEN("VIEW") };
 
-static int mysql_register_view(THD *thd, TABLE_LIST *view,
-			       enum_view_create_mode mode);
+static int mysql_register_view(THD *, TABLE_LIST *, enum_view_create_mode);
 
 /*
   Make a unique name for an anonymous view column
@@ -350,7 +349,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
     while ((item= it++))
     {
       Item_field *field;
-      if ((field= item->filed_for_view_update()))
+      if ((field= item->field_for_view_update()))
       {
         /*
          any_privileges may be reset later by the Item_field::set_field
@@ -432,7 +431,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
 
-  if (open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
+  if (open_temporary_tables(thd, lex->query_tables) ||
+      open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
   {
     view= lex->unlink_first_table(&link_to_local);
     res= TRUE;
@@ -466,60 +466,9 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   }
 
   sp_cache_invalidate();
+  if (sp_process_definer(thd))
+    goto err;
 
-  if (!lex->definer)
-  {
-    /*
-      DEFINER-clause is missing; we have to create default definer in
-      persistent arena to be PS/SP friendly.
-      If this is an ALTER VIEW then the current user should be set as
-      the definer.
-    */
-    Query_arena original_arena;
-    Query_arena *ps_arena = thd->activate_stmt_arena_if_needed(&original_arena);
-
-    if (!(lex->definer= create_default_definer(thd)))
-      res= TRUE;
-
-    if (ps_arena)
-      thd->restore_active_arena(ps_arena, &original_arena);
-
-    if (res)
-      goto err;
-  }
-
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  /*
-    check definer of view:
-      - same as current user
-      - current user has SUPER_ACL
-  */
-  if (lex->definer &&
-      (strcmp(lex->definer->user.str, thd->security_ctx->priv_user) != 0 ||
-       my_strcasecmp(system_charset_info,
-                     lex->definer->host.str,
-                     thd->security_ctx->priv_host) != 0))
-  {
-    if (!(thd->security_ctx->master_access & SUPER_ACL))
-    {
-      my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "SUPER");
-      res= TRUE;
-      goto err;
-    }
-    else
-    {
-      if (!is_acl_user(lex->definer->host.str,
-                       lex->definer->user.str))
-      {
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
-                            ER_NO_SUCH_USER,
-                            ER(ER_NO_SUCH_USER),
-                            lex->definer->user.str,
-                            lex->definer->host.str);
-      }
-    }
-  }
-#endif
   /*
     check that tables are not temporary  and this VIEW do not used in query
     (it is possible with ALTERing VIEW).
@@ -636,7 +585,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       Item *item;
       while ((item= it++))
       {
-        Item_field *fld= item->filed_for_view_update();
+        Item_field *fld= item->field_for_view_update();
         uint priv= (get_column_grant(thd, &view->grant, view->db,
                                      view->table_name, item->name) &
                     VIEW_ANY_ACL);
@@ -665,6 +614,15 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 #endif
 
   res= mysql_register_view(thd, view, mode);
+
+  /*
+    View TABLE_SHARE must be removed from the table definition cache in order to
+    make ALTER VIEW work properly. Otherwise, we would not be able to detect
+    meta-data changes after ALTER VIEW.
+  */
+
+  if (!res)
+    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, view->db, view->table_name, false);
 
   if (mysql_bin_log.is_open())
   {
@@ -874,7 +832,11 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
     goto err;   
   }
 
-  view->file_version= 1;
+  /*
+    version 1 - before 10.0.5
+    version 2 - empty definer_host means a role
+  */
+  view->file_version= 2;
   view->calc_md5(md5);
   if (!(view->md5.str= (char*) thd->memdup(md5, 32)))
   {
@@ -887,7 +849,7 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   if (lex->create_view_algorithm == VIEW_ALGORITHM_MERGE &&
       !lex->can_be_merged())
   {
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_WARN_VIEW_MERGE,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_WARN_VIEW_MERGE,
                  ER(ER_WARN_VIEW_MERGE));
     lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED;
   }
@@ -946,7 +908,7 @@ loop_out:
     fn_format(path_buff, file.str, dir.str, "", MY_UNPACK_FILENAME);
     path.length= strlen(path_buff);
 
-    if (!access(path.str, F_OK))
+    if (ha_table_exists(thd, view->db, view->table_name, NULL))
     {
       if (mode == VIEW_CREATE_NEW)
       {
@@ -1069,18 +1031,15 @@ err:
 bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
                      uint flags)
 {
-  SELECT_LEX *end, *view_select;
+  SELECT_LEX *end, *UNINIT_VAR(view_select);
   LEX *old_lex, *lex;
   Query_arena *arena, backup;
   TABLE_LIST *top_view= table->top_table();
-  bool parse_status;
+  bool UNINIT_VAR(parse_status);
   bool result, view_is_mergeable;
   TABLE_LIST *UNINIT_VAR(view_main_select_tables);
   DBUG_ENTER("mysql_make_view");
   DBUG_PRINT("info", ("table: 0x%lx (%s)", (ulong) table, table->table_name));
-
-  LINT_INIT(parse_status);
-  LINT_INIT(view_select);
 
   if (table->view)
   {
@@ -1134,11 +1093,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     will be TRUE as far as we make new table cache).
   */
   old_lex= thd->lex;
-  arena= thd->stmt_arena;
-  if (arena->is_conventional())
-    arena= 0;
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
+  arena= thd->activate_stmt_arena_if_needed(&backup);
 
   /* init timestamp */
   if (!table->timestamp.str)
@@ -1165,11 +1120,19 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     DBUG_ASSERT(!table->definer.host.str &&
                 !table->definer.user.length &&
                 !table->definer.host.length);
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_VIEW_FRM_NO_USER, ER(ER_VIEW_FRM_NO_USER),
                         table->db, table->table_name);
-    get_default_definer(thd, &table->definer);
+    get_default_definer(thd, &table->definer, false);
   }
+  
+  /*
+    since 10.0.5 definer.host can never be "" for a User, but it's
+    always "" for a Role. Before 10.0.5 it could be "" for a User,
+    but roles didn't exist. file_version helps.
+  */
+  if (!table->definer.host.str[0] && table->file_version < 2)
+    table->definer.host= host_not_specified; // User, not Role
 
   /*
     Initialize view definition context by character set names loaded from
@@ -1293,15 +1256,14 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     TABLE_LIST *view_tables= lex->query_tables;
     TABLE_LIST *view_tables_tail= 0;
     TABLE_LIST *tbl;
-    Security_context *security_ctx;
+    Security_context *security_ctx= 0;
 
     /*
       Check rights to run commands (EXPLAIN SELECT & SHOW CREATE) which show
       underlying tables.
       Skip this step if we are opening view for prelocking only.
     */
-    if (!table->prelocking_placeholder &&
-        (old_lex->sql_command == SQLCOM_SELECT && old_lex->describe))
+    if (!table->prelocking_placeholder && (old_lex->describe))
     {
       /*
         The user we run EXPLAIN as (either the connected user who issued
@@ -1469,6 +1431,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     if (view_select->options & OPTION_TO_QUERY_CACHE)
       old_lex->select_lex.options|= OPTION_TO_QUERY_CACHE;
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (table->view_suid)
     {
       /*
@@ -1476,7 +1439,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
         objects of the view.
       */
       if (!(table->view_sctx= (Security_context *)
-            thd->stmt_arena->alloc(sizeof(Security_context))))
+            thd->stmt_arena->calloc(sizeof(Security_context))))
         goto err;
       security_ctx= table->view_sctx;
     }
@@ -1489,6 +1452,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
       */
       security_ctx= table->security_ctx;
     }
+#endif
 
     /* Assign the context to the tables referenced in the view */
     if (view_tables)
@@ -1566,7 +1530,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
             lex->select_lex.order_list.elements &&
             !table->select_lex->master_unit()->is_union())
         {
-          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                               ER_VIEW_ORDERBY_IGNORED,
                               ER(ER_VIEW_ORDERBY_IGNORED),
                               table->db, table->table_name);
@@ -1664,8 +1628,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     DBUG_RETURN(TRUE);
   }
 
-  if (lock_table_names(thd, views, 0, thd->variables.lock_wait_timeout,
-                       MYSQL_OPEN_SKIP_TEMPORARY))
+  if (lock_table_names(thd, views, 0, thd->variables.lock_wait_timeout, 0))
     DBUG_RETURN(TRUE);
 
   for (view= views; view; view= view->next_local)
@@ -1680,7 +1643,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
       my_snprintf(name, sizeof(name), "%s.%s", view->db, view->table_name);
       if (thd->lex->check_exists)
       {
-	push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 			    ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR),
 			    name);
 	continue;
@@ -1815,7 +1778,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
     if ((key_info->flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME)
     {
       KEY_PART_INFO *key_part= key_info->key_part;
-      KEY_PART_INFO *key_part_end= key_part + key_info->key_parts;
+      KEY_PART_INFO *key_part_end= key_part + key_info->user_defined_key_parts;
 
       /* check that all key parts are used */
       for (;;)
@@ -1824,7 +1787,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
         for (k= trans; k < end_of_trans; k++)
         {
           Item_field *field;
-          if ((field= k->item->filed_for_view_update()) &&
+          if ((field= k->item->field_for_view_update()) &&
               field->field == key_part->field)
             break;
         }
@@ -1846,7 +1809,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
       for (fld= trans; fld < end_of_trans; fld++)
       {
         Item_field *field;
-        if ((field= fld->item->filed_for_view_update()) &&
+        if ((field= fld->item->field_for_view_update()) &&
             field->field == *field_ptr)
           break;
       }
@@ -1860,7 +1823,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
         if (thd->variables.updatable_views_with_limit)
         {
           /* update allowed, but issue warning */
-          push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+          push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                        ER_WARN_VIEW_WITHOUT_KEY, ER(ER_WARN_VIEW_WITHOUT_KEY));
           DBUG_RETURN(FALSE);
         }
@@ -1900,7 +1863,7 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
   for (Field_translator *entry= trans; entry < trans_end; entry++)
   {
     Item_field *fld;
-    if ((fld= entry->item->filed_for_view_update()))
+    if ((fld= entry->item->field_for_view_update()))
       list->push_back(fld);
     else
     {

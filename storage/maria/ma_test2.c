@@ -698,7 +698,7 @@ int main(int argc, char *argv[])
     goto err2;
   }
 
-  for (i=min(2,keys) ; i-- > 0 ;)
+  for (i=MY_MIN(2,keys) ; i-- > 0 ;)
   {
     if (maria_rsame(file,read_record2,(int) i)) goto err;
     if (bcmp(read_record,read_record2,reclength) != 0)

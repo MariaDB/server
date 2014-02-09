@@ -476,6 +476,7 @@ void wt_end()
   my_atomic_rwlock_destroy(&cycle_stats_lock);
   my_atomic_rwlock_destroy(&success_stats_lock);
   my_atomic_rwlock_destroy(&wait_stats_lock);
+  reshash.alloc.constructor= NULL;
   wt_init_done= 0;
   DBUG_VOID_RETURN;
 }
@@ -603,8 +604,6 @@ static int deadlock_search(struct deadlock_arg *arg, WT_THD *blocker,
   DBUG_ENTER("deadlock_search");
   DBUG_PRINT("wt", ("enter: thd=%s, blocker=%s, depth=%u",
                     arg->thd->name, blocker->name, depth));
-
-  LF_REQUIRE_PINS(1);
 
   arg->last_locked_rc= 0;
 
@@ -922,8 +921,6 @@ int wt_thd_will_wait_for(WT_THD *thd, WT_THD *blocker,
   uint i;
   WT_RESOURCE *rc;
   DBUG_ENTER("wt_thd_will_wait_for");
-
-  LF_REQUIRE_PINS(3);
 
   DBUG_PRINT("wt", ("enter: thd=%s, blocker=%s, resid=%lu",
                     thd->name, blocker->name, (ulong)resid->value));

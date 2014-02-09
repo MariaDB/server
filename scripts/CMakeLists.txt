@@ -20,7 +20,7 @@ IF(NOT CMAKE_CROSSCOMPILING)
 ENDIF()
 
 
-# Build mysql_fix_privilege_tables.sql (concatenate 2 sql scripts)
+# Build mysql_fix_privilege_tables.sql (concatenate 3 sql scripts)
 IF(NOT WIN32 OR CMAKE_CROSSCOMPILING)
   FIND_PROGRAM(CAT_EXECUTABLE cat DOC "path to the executable")
   MARK_AS_ADVANCED(CAT_EXECUTABLE)
@@ -172,6 +172,10 @@ ENDIF()
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mysqlbug.sh
   ${CMAKE_CURRENT_BINARY_DIR}/mysqlbug ESCAPE_QUOTES @ONLY)
+  EXECUTE_PROCESS(
+  COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/mysqlbug
+  )
+
 INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/mysqlbug
   DESTINATION ${INSTALL_BINDIR}
   COMPONENT Server
@@ -205,13 +209,16 @@ CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mysql_install_db.sh
   ${CMAKE_CURRENT_BINARY_DIR}/mysql_install_db ESCAPE_QUOTES @ONLY)
   SET(DEST ${INSTALL_SCRIPTDIR})
   SET(EXT)
+  EXECUTE_PROCESS(
+  COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/mysql_install_db
+  )
+
 INSTALL_SCRIPT(
  "${CMAKE_CURRENT_BINARY_DIR}/mysql_install_db"
   DESTINATION ${DEST}
   COMPONENT Server
   )
 ENDIF()
-
 
 SET(prefix "${CMAKE_INSTALL_PREFIX}")
 SET(sysconfdir ${prefix})

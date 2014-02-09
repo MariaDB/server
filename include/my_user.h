@@ -12,7 +12,7 @@
 
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /*
   This is a header for libraries containing functions used in both server and
@@ -26,9 +26,9 @@
 
 C_MODE_START
 
-void parse_user(const char *user_id_str, size_t user_id_len,
-                char *user_name_str, size_t *user_name_len,
-                char *host_name_str, size_t *host_name_len);
+int parse_user(const char *user_id_str, size_t user_id_len,
+               char *user_name_str, size_t *user_name_len,
+               char *host_name_str, size_t *host_name_len);
 
 C_MODE_END
 

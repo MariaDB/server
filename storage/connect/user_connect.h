@@ -28,12 +28,6 @@
 #pragma interface     /* gcc class implementation */
 #endif
 
-#if defined(WIN32)
-#include <sys\timeb.h>
-#else
-#include <sys/timeb.h>
-#endif   // UBUNTU
-
 /*****************************************************************************/
 /*  This is the global structure having all CONNECT information.             */
 /*****************************************************************************/
@@ -68,10 +62,10 @@ public:
   static PCONNECT  to_users;            // To the chain of users
   PCONNECT     next;                    // Next user in chain
   PCONNECT     previous;                // Previous user in chain
-  PGLOBAL      g;                        // The common handle to CONNECT
+  PGLOBAL      g;                       // The common handle to CONNECT
 //char         dbname[32];              // The DBCONNECT database
   query_id_t   last_query_id;           // the latest user query id
-  int          count;                    // if used by several handlers
+  int          count;                   // if used by several handlers
   // Statistics
   ulong        nrd, fnd, nfd;
   ulonglong tb1;

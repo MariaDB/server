@@ -66,7 +66,7 @@ extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's     */
 /*  to have rows filled by blanks to be compatible with QRY blocks.    */
 /***********************************************************************/
 PVBLK AllocValBlock(PGLOBAL, void *, int, int, int, int,
-                    bool check = true, bool blank = true);
+                    bool check = true, bool blank = true, bool un = false);
 
 /***********************************************************************/
 /*  Check whether we have to create/update permanent indexes.          */
@@ -1832,8 +1832,9 @@ int XINDXS::Range(PGLOBAL g, int limit, bool incl)
   /*********************************************************************/
   if (xp->GetType() == TYPE_CONST) {
     kp->Valp->SetValue_pval(xp->GetValue(), !kp->Prefix);
+    k = FastFind(Nval);
 
-    if ((k = FastFind(Nval)) < Num_K)
+    if (k < Num_K || Op != OP_EQ)
       if (limit)
         n = (Mul) ? k : kp->Val_K;
       else 
@@ -2368,7 +2369,6 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   } // endif Mode
 
 #else   // UNIX
-  int    rc = 0;
   int    oflag = O_LARGEFILE;         // Enable file size > 2G
   mode_t pmod = 0;
 
@@ -2394,7 +2394,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   Hfile= global_open(g, MSGID_OPEN_ERROR_AND_STRERROR, filename, oflag, pmod);
 
   if (Hfile == INVALID_HANDLE_VALUE) {
-    rc = errno;
+    /*rc = errno;*/
 #if defined(TRACE)
     printf("Open: %s\n", g->Message);
 #endif   // TRACE
@@ -2753,7 +2753,7 @@ KXYCOL::KXYCOL(PKXBASE kp) : To_Keys(Keys.Memp),
 /***********************************************************************/
 bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   {
-  int len = colp->GetLength(), prec = colp->GetPrecision();
+  int len = colp->GetLength(), prec = colp->GetScale();
 
   // Currently no indexing on NULL columns
   if (colp->IsNullable()) {
@@ -2774,7 +2774,8 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   // Allocate the Value object used when moving items
   Type = colp->GetResultType();
 
-  if (!(Valp = AllocateValue(g, Type, len, colp->GetPrecision())))
+  if (!(Valp = AllocateValue(g, Type, len, colp->GetScale(),
+                                           colp->IsUnsigned())))
     return true;
 
   Klen = Valp->GetClen();
@@ -2798,7 +2799,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   if (Asc)
     IsSorted = colp->GetOpt() < 0;
 
-//MayHaveNulls = colp->HasNulls();
+//SetNulls(colp->IsNullable()); for when null columns will be indexable
   return false;
   } // end of Init
 
@@ -2825,7 +2826,7 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
 #endif
 
   // Allocate the Value object used when moving items
-  Valp = AllocateValue(g, Type, len, prec, NULL);
+  Valp = AllocateValue(g, Type, len, prec, false, NULL);
   Klen = Valp->GetClen();
 
   if (n[2]) {
@@ -2919,7 +2920,7 @@ void KXYCOL::SetValue(PCOL colp, int i)
   assert (Kblp != NULL);
 #endif
 
-  Kblp->SetValue(colp->GetValue(), (int)i);
+  Kblp->SetValue(colp->GetValue(), i);
   } // end of SetValue
 
 /***********************************************************************/
@@ -2957,6 +2958,11 @@ void KXYCOL::InitBinFind(void *vp)
 void KXYCOL::FillValue(PVAL valp)
   {
   valp->SetValue_pvblk(Kblp, Val_K);
+
+  // Set null when applicable (NIY)
+//if (valp->GetNullable())
+//  valp->SetNull(valp->IsZero());
+
   } // end of FillValue
 
 /***********************************************************************/
@@ -2965,7 +2971,7 @@ void KXYCOL::FillValue(PVAL valp)
 int KXYCOL::Compare(int i1, int i2)
   {
   // Do the actual comparison between values.
-  register int k = (int)Kblp->CompVal((int)i1, (int)i2);
+  register int k = Kblp->CompVal(i1, i2);
 
 #ifdef DEBUG2
  htrc("Compare done result=%d\n", k);
@@ -2986,7 +2992,7 @@ int KXYCOL::CompVal(int i)
   htrc("Compare done result=%d\n", k);
   return k;
 #endif
-  return (int)Kblp->CompVal(Valp, (int)i);
+  return Kblp->CompVal(Valp, i);
   } // end of CompVal
 
 /***********************************************************************/
@@ -2995,7 +3001,7 @@ int KXYCOL::CompVal(int i)
 int KXYCOL::CompBval(int i)
   {
   // Do the actual comparison between key values.
-  return (int)Blkp->CompVal(Valp, (int)i);
+  return Blkp->CompVal(Valp, i);
   } // end of CompBval
 
 /***********************************************************************/

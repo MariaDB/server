@@ -75,7 +75,8 @@ typedef struct system_status_var STATUS_VAR;
 #define IS_FILES_EXTRA               37
 
 int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
-                      HA_CREATE_INFO  *create_info_arg, bool show_database);
+                      HA_CREATE_INFO  *create_info_arg, bool show_database,
+                      bool create_or_replace);
 int view_store_create_info(THD *thd, TABLE_LIST *table, String *buff);
 
 int copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table);
@@ -121,7 +122,7 @@ enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table);
 
 /* These functions were under INNODB_COMPATIBILITY_HOOKS */
 int get_quote_char_for_identifier(THD *thd, const char *name, uint length);
-THD *find_thread_by_id(ulong id);
+THD *find_thread_by_id(longlong id, bool query_id= false);
 
 class select_result_explain_buffer;
 /*

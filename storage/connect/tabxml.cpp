@@ -1,9 +1,9 @@
 /************* Tabxml C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABXML                                                */
 /* -------------                                                       */
-/*  Version 2.6                                                        */
+/*  Version 2.7                                                        */
 /*                                                                     */
-/*  Author Olivier BERTRAND          2007 - 2013                       */
+/*  Author Olivier BERTRAND          2007 - 2014                       */
 /*                                                                     */
 /*  This program are the XML tables classes using MS-DOM or libxml2.   */
 /***********************************************************************/
@@ -47,6 +47,7 @@
 #include "xindex.h"
 #include "plgxml.h"
 #include "tabxml.h"
+#include "tabmul.h"
 
 extern "C" {
 extern char version[];
@@ -78,7 +79,9 @@ XMLDEF::XMLDEF(void)
   DefNs = NULL;
   Attrib = NULL;
   Hdattr = NULL;
+  Coltype = 1;
   Limit = 0;
+  Header = 0;
   Xpand = false;
   Usedom = false;
   } // end of XMLDEF constructor
@@ -134,7 +137,8 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     } // endswitch typname
 
   Tabname = Cat->GetStringCatInfo(g, "Name", Name);  // Deprecated
-  Tabname = Cat->GetStringCatInfo(g, "Table_name", Tabname);
+  Tabname = Cat->GetStringCatInfo(g, "Table_name", Tabname); // Deprecated
+  Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
   Rowname = Cat->GetStringCatInfo(g, "Rownode", defrow);
   Colname = Cat->GetStringCatInfo(g, "Colnode", defcol);
   Mulnode = Cat->GetStringCatInfo(g, "Mulnode", "");
@@ -175,7 +179,12 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB XMLDEF::GetTable(PGLOBAL g, MODE m)
   {
-  return new(g) TDBXML(this);
+  PTDBASE tdbp = new(g) TDBXML(this);
+
+  if (Multiple)
+    tdbp = new(g) TDBMUL(tdbp);
+
+  return tdbp;
   } // end of GetTable
 
 /***********************************************************************/
@@ -243,6 +252,7 @@ TDBXML::TDBXML(PXMLDEF tdp) : TDBASE(tdp)
   Void = false;
   Usedom = tdp->Usedom;
   Header = tdp->Header;
+  Multiple = tdp->Multiple;
   Nrow = -1;
   Irow = Header - 1;
   Nsub = 0;
@@ -285,6 +295,7 @@ TDBXML::TDBXML(PTDBXML tdbp) : TDBASE(tdbp)
   Void = tdbp->Void;
   Usedom = tdbp->Usedom;
   Header = tdbp->Header;
+  Multiple = tdbp->Multiple;
   Nrow = tdbp->Nrow;
   Irow = tdbp->Irow;
   Nsub = tdbp->Nsub;
@@ -338,17 +349,14 @@ PCOL TDBXML::InsertSpecialColumn(PGLOBAL g, PCOL colp)
 /***********************************************************************/
 /*  LoadTableFile: Load and parse an XML file.                         */
 /***********************************************************************/
-int TDBXML::LoadTableFile(PGLOBAL g)
+int TDBXML::LoadTableFile(PGLOBAL g, char *filename)
   {
-  char    filename[_MAX_PATH];
   int     rc = RC_OK, type = (Usedom) ? TYPE_FB_XML : TYPE_FB_XML2;
   PFBLOCK fp = NULL;
   PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
 
-  /*********************************************************************/
-  /*  We used the file name relative to recorded datapath.             */
-  /*********************************************************************/
-  PlugSetPath(filename, Xfile, GetPath());
+  if (Docp)
+    return rc;               // Already done
 
   if (trace)
     htrc("TDBXML: loading %s\n", filename);
@@ -397,6 +405,7 @@ int TDBXML::LoadTableFile(PGLOBAL g)
       } else
         rc = (errno == ENOENT) ? RC_NF : RC_INFO;
 
+      // Cannot make a Xblock until document is made
       return rc;
       } // endif Docp
 
@@ -418,9 +427,8 @@ int TDBXML::LoadTableFile(PGLOBAL g)
 /***********************************************************************/
 bool TDBXML::Initialize(PGLOBAL g)
   {
-  char       tabpath[64];
-  int        rc;
-  PXMLCOL   colp;
+  int     rc;
+  PXMLCOL colp;
 
   if (Void)
     return false;
@@ -440,8 +448,13 @@ bool TDBXML::Initialize(PGLOBAL g)
 #else
   if (!Root) {
 #endif
+    char tabpath[64], filename[_MAX_PATH];
+
+    //  We used the file name relative to recorded datapath
+    PlugSetPath(filename, Xfile, GetPath());
+
     // Load or re-use the table file
-    rc = LoadTableFile(g);
+    rc = LoadTableFile(g, filename);
 
     if (rc == RC_OK) {
       // Get root node
@@ -503,6 +516,9 @@ bool TDBXML::Initialize(PGLOBAL g)
           goto error;
           } // endif NewDoc
 
+        //  Now we can link the Xblock
+        To_Xb = Docp->LinkXblock(g, Mode, rc, filename);
+
         // Add a CONNECT comment node
 //      sprintf(buf, MSG(CREATED_PLUGDB), version);
         sprintf(buf, " Created by CONNECT %s ", version);
@@ -547,6 +563,7 @@ bool TDBXML::Initialize(PGLOBAL g)
     else
       Nlist = TabNode->GetChildElements(g);
 
+    Docp->SetNofree(true);       // For libxml2
 #if defined(WIN32)
   } catch(_com_error e) {
     // We come here if a DOM command threw an error
@@ -570,7 +587,7 @@ bool TDBXML::Initialize(PGLOBAL g)
 #endif
   } // end of try-catches
 
-  if (Root && Columns && !Nodedone) {
+  if (Root && Columns && (Multiple || !Nodedone)) {
     // Allocate class nodes to avoid dynamic allocation
     for (colp = (PXMLCOL)Columns; colp; colp = (PXMLCOL)colp->GetNext())
       if (!colp->IsSpecial())            // Not a pseudo column
@@ -663,7 +680,10 @@ void TDBXML::SetNodeAttr(PGLOBAL g, char *attr, PXNODE node)
 int TDBXML::Cardinality(PGLOBAL g)
   {
   if (!g)
-    return (Xpand || Coltype == 2) ? 0 : 1;
+    return (Multiple || Xpand || Coltype == 2) ? 0 : 1;
+
+  if (Multiple)
+    return 10;
 
   if (Nrow < 0)
     if (Initialize(g))
@@ -677,8 +697,13 @@ int TDBXML::Cardinality(PGLOBAL g)
 /***********************************************************************/
 int TDBXML::GetMaxSize(PGLOBAL g)
   {
-  if (MaxSize < 0)
-    MaxSize = Cardinality(g) * ((Xpand) ? Limit : 1);
+  if (MaxSize < 0) {
+    if (!Multiple)
+      MaxSize = Cardinality(g) * ((Xpand) ? Limit : 1);
+    else
+      MaxSize = 10;
+
+  } // endif MaxSize
 
   return MaxSize;
   } // end of GetMaxSize
@@ -892,12 +917,21 @@ int TDBXML::DeleteDB(PGLOBAL g, int irc)
       if ((RowNode = Nlist->GetItem(g, Irow, RowNode)) == NULL) {
         sprintf(g->Message, MSG(MISSING_ROWNODE), Irow);
         return RC_FX;
-      } else
+      } else {
         TabNode->DeleteChild(g, RowNode);
+
+        if (Nlist->DropItem(g, Irow))
+          return RC_FX;
+
+      } // endif RowNode
 
     Changed = true;
   } else if (irc != RC_EF) {
     TabNode->DeleteChild(g, RowNode);
+
+    if (Nlist->DropItem(g, Irow))
+      return RC_FX;
+
     Changed = true;
   } // endif's irc
 
@@ -934,6 +968,34 @@ void TDBXML::CloseDB(PGLOBAL g)
     // Free the document and terminate XML processing
     Docp->CloseDoc(g, To_Xb);
     } // endif docp
+
+  if (Multiple) {
+    // Reset all constants to start a new parse
+    Docp = NULL;
+    Root = NULL;
+    Curp = NULL;
+    DBnode = NULL;
+    TabNode = NULL;
+    RowNode = NULL;
+    ColNode = NULL;
+    Nlist = NULL;
+    Clist = NULL;
+    To_Xb = NULL;
+    Colp = NULL;
+    Changed = false;
+    Checked = false;
+    NextSame = false;
+    NewRow = false;
+    Hasnod = false;
+    Write = false;
+//  Bufdone = false;
+    Nodedone = false;
+    Void = false;
+    Nrow = -1;
+    Irow = Header - 1;
+    Nsub = 0;
+    N = 0;
+    } // endif Multiple
 
   } // end of CloseDB
 
@@ -1151,10 +1213,10 @@ bool XMLCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
       if (GetDomain() || ((DTVAL *)value)->IsFormatted())
         goto newval;          // This will make a new value;
 
-    } else if (Buf_Type == TYPE_FLOAT)
+    } else if (Buf_Type == TYPE_DOUBLE)
       // Float values must be written with the correct (column) precision
       // Note: maybe this should be forced by ShowValue instead of this ?
-      value->SetPrec(GetPrecision());
+      value->SetPrec(GetScale());
 
     Value = value;            // Directly access the external value
   } else {

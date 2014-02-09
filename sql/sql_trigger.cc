@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA */
 
 
 #define MYSQL_LEX 1
@@ -157,7 +157,7 @@ Trigger_creation_ctx::create(THD *thd,
   if (invalid_creation_ctx)
   {
     push_warning_printf(thd,
-                        MYSQL_ERROR::WARN_LEVEL_WARN,
+                        Sql_condition::WARN_LEVEL_WARN,
                         ER_TRG_INVALID_CREATION_CTX,
                         ER(ER_TRG_INVALID_CREATION_CTX),
                         (const char *) db_name,
@@ -329,9 +329,9 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
-                                MYSQL_ERROR::enum_warning_level level,
+                                Sql_condition::enum_warning_level level,
                                 const char* message,
-                                MYSQL_ERROR ** cond_hdl)
+                                Sql_condition ** cond_hdl)
   {
     if (sql_errno != EE_OUTOFMEMORY &&
         sql_errno != ER_OUT_OF_RESOURCES)
@@ -561,7 +561,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   if (result)
     goto end;
 
-  close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED);
+  close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
   /*
     Reopen the table if we were under LOCK TABLES.
     Ignore the return value for now. It's better to
@@ -588,7 +588,7 @@ end:
     with the implicit commit.
   */
   if (thd->locked_tables_mode && tables && lock_upgrade_done)
-    mdl_ticket->downgrade_exclusive_lock(MDL_SHARED_NO_READ_WRITE);
+    mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
 
   /* Restore the query table list. Used only for drop trigger. */
   if (!create)
@@ -663,46 +663,8 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     return 1;
   }
 
-  if (!lex->definer)
-  {
-    /*
-      DEFINER-clause is missing.
-
-      If we are in slave thread, this means that we received CREATE TRIGGER
-      from the master, that does not support definer in triggers. So, we
-      should mark this trigger as non-SUID. Note that this does not happen
-      when we parse triggers' definitions during opening .TRG file.
-      LEX::definer is ignored in that case.
-
-      Otherwise, we should use CURRENT_USER() as definer.
-
-      NOTE: when CREATE TRIGGER statement is allowed to be executed in PS/SP,
-      it will be required to create the definer below in persistent MEM_ROOT
-      of PS/SP.
-    */
-
-    if (!thd->slave_thread)
-    {
-      if (!(lex->definer= create_default_definer(thd)))
-        return 1;
-    }
-  }
-
-  /*
-    If the specified definer differs from the current user, we should check
-    that the current user has SUPER privilege (in order to create trigger
-    under another user one must have SUPER privilege).
-  */
-  
-  if (lex->definer &&
-      (strcmp(lex->definer->user.str, thd->security_ctx->priv_user) ||
-       my_strcasecmp(system_charset_info,
-                     lex->definer->host.str,
-                     thd->security_ctx->priv_host)))
-  {
-    if (check_global_access(thd, SUPER_ACL))
-      return TRUE;
-  }
+  if (sp_process_definer(thd))
+    return 1;
 
   /*
     Let us check if all references to fields in old/new versions of row in
@@ -794,29 +756,14 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
 
   *trg_sql_mode= thd->variables.sql_mode;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (lex->definer && !is_acl_user(lex->definer->host.str,
-                                   lex->definer->user.str))
-  {
-    push_warning_printf(thd,
-                        MYSQL_ERROR::WARN_LEVEL_NOTE,
-                        ER_NO_SUCH_USER,
-                        ER(ER_NO_SUCH_USER),
-                        lex->definer->user.str,
-                        lex->definer->host.str);
-  }
-#endif /* NO_EMBEDDED_ACCESS_CHECKS */
-
-  if (lex->definer)
+  if (lex->sphead->m_chistics->suid != SP_IS_NOT_SUID)
   {
     /* SUID trigger. */
 
     definer_user= lex->definer->user;
     definer_host= lex->definer->host;
 
-    trg_definer->str= trg_definer_holder;
-    trg_definer->length= strxmov(trg_definer->str, definer_user.str, "@",
-                                 definer_host.str, NullS) - trg_definer->str;
+    lex->definer->set_lex_string(trg_definer, trg_definer_holder);
   }
   else
   {
@@ -854,7 +801,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
 
   stmt_query->append(STRING_WITH_LEN("CREATE "));
 
-  if (trg_definer)
+  if (lex->sphead->m_chistics->suid != SP_IS_NOT_SUID)
   {
     /*
       Append definer-clause if the trigger is SUID (a usual trigger in
@@ -1274,7 +1221,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
           DBUG_RETURN(1); // EOM
         }
 
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_TRG_NO_CREATION_CTX,
                             ER(ER_TRG_NO_CREATION_CTX),
                             (const char*) db,
@@ -1458,7 +1405,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
             warning here.
           */
 
-          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_TRG_NO_DEFINER, ER(ER_TRG_NO_DEFINER),
                               (const char*) db,
                               (const char*) sp->m_name.str);
@@ -1731,7 +1678,7 @@ bool add_table_for_trigger(THD *thd,
     if (if_exists)
     {
       push_warning_printf(thd,
-                          MYSQL_ERROR::WARN_LEVEL_NOTE,
+                          Sql_condition::WARN_LEVEL_NOTE,
                           ER_TRG_DOES_NOT_EXIST,
                           ER(ER_TRG_DOES_NOT_EXIST));
 
@@ -2211,6 +2158,37 @@ add_tables_and_routines_for_triggers(THD *thd,
 
 
 /**
+  Check if any of the marked fields are used in the trigger.
+
+  @param used_fields  Bitmap over fields to check
+  @param event_type   Type of event triggers for which we are going to inspect
+  @param action_time  Type of trigger action time we are going to inspect
+*/
+
+bool Table_triggers_list::is_fields_updated_in_trigger(MY_BITMAP *used_fields,
+                                                       trg_event_type event_type,
+                                                       trg_action_time_type action_time)
+{
+  Item_trigger_field *trg_field;
+  sp_head *sp= bodies[event_type][action_time];
+  DBUG_ASSERT(used_fields->n_bits == trigger_table->s->fields);
+
+  for (trg_field= sp->m_trg_table_fields.first; trg_field;
+       trg_field= trg_field->next_trg_field)
+  {
+    /* We cannot check fields which does not present in table. */
+    if (trg_field->field_idx != (uint)-1)
+    {
+      if (bitmap_is_set(used_fields, trg_field->field_idx) &&
+          trg_field->get_settable_routine_parameter())
+        return true;
+    }
+  }
+  return false;
+}
+
+
+/**
   Mark fields of subject table which we read/set in its triggers
   as such.
 
@@ -2302,7 +2280,7 @@ Handle_old_incorrect_sql_modes_hook::process_unknown_string(char *&unknown_key,
 
     DBUG_PRINT("info", ("sql_modes affected by BUG#14090 detected"));
     push_warning_printf(current_thd,
-                        MYSQL_ERROR::WARN_LEVEL_NOTE,
+                        Sql_condition::WARN_LEVEL_NOTE,
                         ER_OLD_FILE_FORMAT,
                         ER(ER_OLD_FILE_FORMAT),
                         (char *)path, "TRIGGER");
@@ -2343,7 +2321,7 @@ process_unknown_string(char *&unknown_key, uchar* base, MEM_ROOT *mem_root,
 
     DBUG_PRINT("info", ("trigger_table affected by BUG#15921 detected"));
     push_warning_printf(current_thd,
-                        MYSQL_ERROR::WARN_LEVEL_NOTE,
+                        Sql_condition::WARN_LEVEL_NOTE,
                         ER_OLD_FILE_FORMAT,
                         ER(ER_OLD_FILE_FORMAT),
                         (char *)path, "TRIGGER");

@@ -31,41 +31,64 @@ struct show_table_authors_st {
 
   Don't be offended if your name is not in here, just add it!
 
-  IMPORTANT: Names should be added in alphabetical order (by last name).
+  Active people in the MariaDB are listed first, active people in MySQL
+  then, not active last.
 
   Names should be encoded using UTF-8.
 */
 
 struct show_table_authors_st show_table_authors[]= {
+  /* Active people on MariaDB */
   { "Michael (Monty) Widenius", "Tusby, Finland",
     "Lead developer and main author" },
-  { "David Axmark", "London, England",
-    "MySQL founder; Small stuff long time ago, Monty ripped it out!" },
   { "Sergei Golubchik", "Kerpen, Germany",
-    "Full-text search, precision math" },
+    "Architect, Full-text search, precision math, plugin framework, merges etc" },
   { "Igor Babaev", "Bellevue, USA", "Optimizer, keycache, core work"},
   { "Sergey Petrunia", "St. Petersburg, Russia", "Optimizer"},
   { "Oleksandr Byelkin", "Lugansk, Ukraine",
     "Query Cache (4.0), Subqueries (4.1), Views (5.0)" },
-  { "Brian (Krow) Aker", "Seattle, WA, USA",
-    "Architecture, archive, federated, bunch of little stuff :)" },
-  { "Marc Alff", "Denver, CO, USA", "Signal, Resignal, Performance schema" },
-  { "Venu Anuganti", "", "Client/server protocol (4.1)" },
+  { "Timour Katchaounov", "Sofia , Bulgaria", "Optimizer"},
   { "Kristian Nielsen", "Copenhagen, Denmark",
-    "General build stuff," },
+    "Replication, Async client prototocol, General buildbot stuff" },
   { "Alexander (Bar) Barkov", "Izhevsk, Russia",
-    "Unicode and character sets (4.1)" },
+    "Unicode and character sets" },
+  { "Alexey Botchkov (Holyfoot)", "Izhevsk, Russia",
+    "GIS extensions, embedded server, precision math"},
+  { "Daniel Bartholomew", "Raleigh, USA", "MariaDB documentation"},
+  { "Colin Charles", "Selangor, Malesia", "MariaDB documentation, talks at a LOT of conferences"},
+  { "Sergey Vojtovich", "Izhevsk, Russia",
+    "initial implementation of plugin architecture, maintained native storage engines (MyISAM, MEMORY, ARCHIVE, etc), rewrite of table cache"},
+  { "Vladislav Vaintroub", "Mannheim, Germany", "MariaDB Java connector, new thread pool, Windows optimizations"},
+  { "Elena Stepanova", "Sankt Petersburg, Russia", "QA, test cases"},
+  { "Georg Richter", "Heidelberg, Germany", "New LGPL C connector, PHP connector"},
+  { "Jan Lindström", "Ylämylly, Finland", "Working on InnoDB"},
+  { "Lixun Peng", "Hangzhou, China", "Multi Source replication" },
+  { "Percona", "CA, USA", "XtraDB, microslow patches, extensions to slow log"},
+
+  /* People working on MySQL code base (not NDB) */
   { "Guilhem Bichot", "Bordeaux, France", "Replication (since 4.0)" },
-  { "Konstantin Osipov", "Moscow, Russia",
-    "Prepared statements (4.1), Cursors (5.0)" },
+  { "Andrei Elkin", "Espoo, Finland", "Replication" },
   { "Dmitri Lenev", "Moscow, Russia",
     "Time zones support (4.1), Triggers (5.0)" },
+  { "Marc Alff", "Denver, CO, USA", "Signal, Resignal, Performance schema" },
+  { "Mikael Ronström", "Stockholm, Sweden",
+    "NDB Cluster, Partitioning, online alter table" },
+  { "Ingo Strüwing", "Berlin, Germany",
+    "Bug fixing in MyISAM, Merge tables etc" },
+  {"Marko Mäkelä", "Helsinki, Finland", "InnoDB core developer"},
+
+  /* People not active anymore */
+  { "David Axmark", "London, England",
+    "MySQL founder; Small stuff long time ago, Monty ripped it out!" },
+  { "Brian (Krow) Aker", "Seattle, WA, USA",
+    "Architecture, archive, blackhole, federated, bunch of little stuff :)" },
+  { "Konstantin Osipov", "Moscow, Russia",
+    "Prepared statements (4.1), Cursors (5.0)" },
+  { "Venu Anuganti", "", "Client/server protocol (4.1)" },
   { "Omer BarNir", "Sunnyvale, CA, USA",
     "Testing (sometimes) and general QA stuff" },
   { "John Birrell", "", "Emulation of pthread_mutex() for OS/2" },
   { "Andreas F. Bobak", "", "AGGREGATE extension to user-defined functions" },
-  { "Alexey Botchkov (Holyfoot)", "Izhevsk, Russia",
-    "GIS extensions (4.1), embedded server (4.1), precision math (5.0)"},
   { "Reggie Burnett", "Nashville, TN, USA", "Windows development, Connectors" },
   { "Kent Boortz", "Orebro, Sweden", "Test platform, and general build stuff" },
   { "Tim Bunce", "", "mysqlhotcopy" },
@@ -81,7 +104,6 @@ struct show_table_authors_st show_table_authors[]= {
   { "Antony T. Curtis", "Norwalk, CA, USA",
     "Parser, port to OS/2, storage engines and some random stuff" },
   { "Yuri Dario", "", "OS/2 port" },
-  { "Andrei Elkin", "Espoo, Finland", "Replication" },
   { "Patrick Galbraith", "Sharon, NH", "Federated Engine, mysqlslap" },
   { "Lenz Grimmer", "Hamburg, Germany",
     "Production (build and release) engineering" },
@@ -96,7 +118,6 @@ struct show_table_authors_st show_table_authors[]= {
   { "Mats Kindahl", "Storvreta, Sweden", "Replication" },
   { "Serge Kozlov", "Velikie Luki, Russia", "Testing - Cluster" },
   { "Hakan Küçükyılmaz", "Walldorf, Germany", "Testing - Server" },
-  { "Greg (Groggy) Lehey", "Uchunga, SA, Australia", "Backup" },
   { "Matthias Leich", "Berlin, Germany", "Testing - Server" },
   { "Arjen Lentz", "Brisbane, Australia",
     "Documentation (2001-2004), Dutch error messages, LOG2()" },
@@ -125,9 +146,7 @@ struct show_table_authors_st show_table_authors[]= {
     "Extended MERGE storage engine to handle INSERT" },
   { "Igor Romanenko", "",
     "mysqldump" },
-  { "Mikael Ronström", "Stockholm, Sweden",
-    "NDB Cluster, Partitioning (5.1), Optimizations" },
-  { "Tõnu Samuel", "",
+  { "Tõnu Samuel", "Estonia",
     "VIO interface, other miscellaneous features" },
   { "Carsten Segieth (Pino)", "Fredersdorf, Germany", "Testing - Server"},
   { "Martin Sköld", "Stockholm, Sweden",
@@ -138,7 +157,6 @@ struct show_table_authors_st show_table_authors[]= {
     "Windows development, Windows NT service"},
   { "Punita Srivastava", "Austin, TX, USA", "Testing - Merlin"},
   { "Alexey Stroganov (Ranger)", "Lugansk, Ukraine", "Testing - Benchmarks"},
-  { "Ingo Strüwing", "Berlin, Germany", "Bug fixing" },
   { "Magnus Svensson", "Öregrund, Sweden",
     "NDB Cluster: Integration into MySQL, test framework" },
   { "Zeev Suraski", "", "FROM_UNIXTIME(), ENCRYPT()" },
@@ -157,7 +175,6 @@ struct show_table_authors_st show_table_authors[]= {
   { "Peter Zaitsev", "Tacoma, WA, USA",
     "SHA1(), AES_ENCRYPT(), AES_DECRYPT(), bug fixing" },
   {"Mark Mark Callaghan", "Texas, USA", "Statistics patches"},
-  {"Percona", "CA, USA", "Microslow patches"},
   {NULL, NULL, NULL}
 };
 

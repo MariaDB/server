@@ -592,6 +592,18 @@ PXNODE DOMNODELIST::GetItem(PGLOBAL g, int n, PXNODE np)
 
   }  // end of GetItem
 
+/******************************************************************/
+/*  Reset the pointer on the deleted item.                        */
+/******************************************************************/
+bool DOMNODELIST::DropItem(PGLOBAL g, int n)
+  {
+  if (Listp == NULL || Listp->length <= n)
+    return true;
+
+//Listp->item[n] = NULL;  La propriété n'a pas de méthode 'set'
+  return false;
+  }  // end of DeleteItem
+
 /* ----------------------- class DOMATTR ------------------------ */
 
 /******************************************************************/
@@ -618,8 +630,8 @@ bool DOMATTR::SetText(PGLOBAL g, char *txtp, int len)
     Len = len;
     } // endif len
 
-  if (!MultiByteToWideChar(CP_ACP, 0, txtp, strlen(txtp) + 1,
-                                      Ws, Len + 1)) {
+  if (!MultiByteToWideChar(CP_UTF8, 0, txtp, strlen(txtp) + 1,
+                                       Ws, Len + 1)) {
     sprintf(g->Message, MSG(WS_CONV_ERR), txtp);
     return true;
     } // endif

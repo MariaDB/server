@@ -1,3 +1,4 @@
+call mtr.add_suppression("Invalid .old.. table or database name");
 drop database if exists `mysqltest1`;
 drop database if exists `mysqltest-1`;
 drop database if exists `#mysql50#mysqltest-1`;
@@ -50,6 +51,10 @@ show tables;
 Tables_in_test
 txu#p#p1
 txu@0023p@0023p1
+insert into `txu@0023p@0023p1` values (2);
+select * from `txu@0023p@0023p1`;
+s1
+2
 select * from `txu#p#p1`;
 s1
 1

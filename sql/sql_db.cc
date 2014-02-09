@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /* create and drop of databases */
@@ -32,6 +32,7 @@
 #include "log_event.h"                   // Query_log_event
 #include "sql_base.h"                    // lock_table_names, tdc_remove_table
 #include "sql_handler.h"                 // mysql_ha_rm_tables
+#include "sql_class.h"
 #include <mysys_err.h>
 #include "sp_head.h"
 #include "sp.h"
@@ -48,13 +49,12 @@
 
 #define MAX_DROP_TABLE_Q_LEN      1024
 
-const char *del_exts[]= {".frm", ".BAK", ".TMD",".opt", NullS};
+const char *del_exts[]= {".BAK", ".TMD",".opt", NullS};
 static TYPELIB deletable_extentions=
 {array_elements(del_exts)-1,"del_exts", del_exts, NULL};
 
-static bool find_db_tables_and_rm_known_files(THD *, MY_DIR *, const char *,
-                                              const char *, TABLE_LIST **,
-                                              bool *);
+static bool find_db_tables_and_rm_known_files(THD *, MY_DIR *, char *,
+                                              const char *, TABLE_LIST **);
 
 long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path);
 static my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error);
@@ -573,7 +573,7 @@ int mysql_create_db(THD *thd, char *db, HA_CREATE_INFO *create_info,
       error= -1;
       goto exit;
     }
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 			ER_DB_CREATE_EXISTS, ER(ER_DB_CREATE_EXISTS), db);
     error= 0;
     goto not_silent;
@@ -757,7 +757,6 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
   char	path[FN_REFLEN + 16];
   MY_DIR *dirp;
   uint length;
-  bool found_other_files= false;
   TABLE_LIST *tables= NULL;
   TABLE_LIST *table;
   Drop_table_error_handler err_handler;
@@ -782,15 +781,14 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
     }
     else
     {
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 			  ER_DB_DROP_EXISTS, ER(ER_DB_DROP_EXISTS), db);
       error= false;
       goto update_binlog;
     }
   }
 
-  if (find_db_tables_and_rm_known_files(thd, dirp, db, path, &tables,
-                                        &found_other_files))
+  if (find_db_tables_and_rm_known_files(thd, dirp, db, path, &tables))
     goto exit;
 
   /*
@@ -800,19 +798,13 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
   if ((my_strcasecmp(system_charset_info, MYSQL_SCHEMA_NAME.str, db) == 0))
   {
     for (table= tables; table; table= table->next_local)
-    {
-      if (check_if_log_table(table->db_length, table->db,
-                             table->table_name_length, table->table_name, true))
-      {
-        my_error(ER_BAD_LOG_STATEMENT, MYF(0), "DROP");
+      if (check_if_log_table(table, TRUE, "DROP"))
         goto exit;
-      }
-    }
   }
 
   /* Lock all tables and stored routines about to be dropped. */
   if (lock_table_names(thd, tables, NULL, thd->variables.lock_wait_timeout,
-                       MYSQL_OPEN_SKIP_TEMPORARY) ||
+                       0) ||
       lock_db_routines(thd, db))
     goto exit;
 
@@ -837,7 +829,7 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
   thd->push_internal_handler(&err_handler);
   if (!thd->killed &&
       !(tables &&
-        mysql_rm_table_no_locks(thd, tables, true, false, true, true)))
+        mysql_rm_table_no_locks(thd, tables, true, false, true, true, false)))
   {
     /*
       We temporarily disable the binary log while dropping the objects
@@ -871,10 +863,7 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
       If the directory is a symbolic link, remove the link first, then
       remove the directory the symbolic link pointed at
     */
-    if (found_other_files)
-      my_error(ER_DB_DROP_RMDIR, MYF(0), path, EEXIST);
-    else
-      error= rm_dir_w_symlink(path, true);
+    error= rm_dir_w_symlink(path, true);
   }
   thd->pop_internal_handler();
 
@@ -985,18 +974,58 @@ exit:
 
 
 static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
-                                              const char *db,
+                                              char *dbname,
                                               const char *path,
-                                              TABLE_LIST **tables,
-                                              bool *found_other_files)
+                                              TABLE_LIST **tables)
 {
   char filePath[FN_REFLEN];
+  LEX_STRING db= { dbname, strlen(dbname) };
   TABLE_LIST *tot_list=0, **tot_list_next_local, **tot_list_next_global;
   DBUG_ENTER("find_db_tables_and_rm_known_files");
   DBUG_PRINT("enter",("path: %s", path));
 
+  /* first, get the list of tables */
+  Dynamic_array<LEX_STRING*> files(dirp->number_of_files);
+  Discovered_table_list tl(thd, &files);
+  if (ha_discover_table_names(thd, &db, dirp, &tl, true))
+    DBUG_RETURN(1);
+
+  /* Now put the tables in the list */
   tot_list_next_local= tot_list_next_global= &tot_list;
 
+  for (size_t idx=0; idx < files.elements(); idx++)
+  {
+    LEX_STRING *table= files.at(idx);
+
+    /* Drop the table nicely */
+    TABLE_LIST *table_list=(TABLE_LIST*)thd->calloc(sizeof(*table_list));
+
+    if (!table_list)
+      DBUG_RETURN(true);
+    table_list->db= db.str;
+    table_list->db_length= db.length;
+    table_list->table_name= table->str;
+    table_list->table_name_length= table->length;
+    table_list->open_type= OT_BASE_ONLY;
+
+    /* To be able to correctly look up the table in the table cache. */
+    if (lower_case_table_names)
+      table_list->table_name_length= my_casedn_str(files_charset_info,
+                                                   table_list->table_name);
+
+    table_list->alias= table_list->table_name;	// If lower_case_table_names=2
+    table_list->mdl_request.init(MDL_key::TABLE, table_list->db,
+                                 table_list->table_name, MDL_EXCLUSIVE,
+                                 MDL_TRANSACTION);
+    /* Link into list */
+    (*tot_list_next_local)= table_list;
+    (*tot_list_next_global)= table_list;
+    tot_list_next_local= &table_list->next_local;
+    tot_list_next_global= &table_list->next_global;
+  }
+  *tables= tot_list;
+
+  /* and at last delete all non-table files */
   for (uint idx=0 ;
        idx < (uint) dirp->number_of_files && !thd->killed ;
        idx++)
@@ -1021,59 +1050,12 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
 	DBUG_PRINT("my",("Archive subdir found: %s", newpath));
 	if ((mysql_rm_arc_files(thd, new_dirp, newpath)) < 0)
 	  DBUG_RETURN(true);
-	continue;
       }
-      *found_other_files= true;
       continue;
     }
     if (!(extension= strrchr(file->name, '.')))
       extension= strend(file->name);
-    if (find_type(extension, &deletable_extentions, FIND_TYPE_NO_PREFIX) <= 0)
-    {
-      if (find_type(extension, ha_known_exts(), FIND_TYPE_NO_PREFIX) <= 0)
-	*found_other_files= true;
-      continue;
-    }
-    /* just for safety we use files_charset_info */
-    if (db && !my_strcasecmp(files_charset_info,
-                             extension, reg_ext))
-    {
-      /* Drop the table nicely */
-      *extension= 0;			// Remove extension
-      TABLE_LIST *table_list=(TABLE_LIST*)
-                              thd->calloc(sizeof(*table_list) + 
-                                          strlen(db) + 1 +
-                                          MYSQL50_TABLE_NAME_PREFIX_LENGTH + 
-                                          strlen(file->name) + 1);
-
-      if (!table_list)
-        DBUG_RETURN(true);
-      table_list->db= (char*) (table_list+1);
-      table_list->db_length= strmov(table_list->db, db) - table_list->db;
-      table_list->table_name= table_list->db + table_list->db_length + 1;
-      table_list->table_name_length= filename_to_tablename(file->name,
-                                       table_list->table_name,
-                                       MYSQL50_TABLE_NAME_PREFIX_LENGTH +
-                                       strlen(file->name) + 1);
-      table_list->open_type= OT_BASE_ONLY;
-
-      /* To be able to correctly look up the table in the table cache. */
-      if (lower_case_table_names)
-        table_list->table_name_length= my_casedn_str(files_charset_info,
-                                                     table_list->table_name);
-
-      table_list->alias= table_list->table_name;	// If lower_case_table_names=2
-      table_list->internal_tmp_table= is_prefix(file->name, tmp_file_prefix);
-      table_list->mdl_request.init(MDL_key::TABLE, table_list->db,
-                                   table_list->table_name, MDL_EXCLUSIVE,
-                                   MDL_TRANSACTION);
-      /* Link into list */
-      (*tot_list_next_local)= table_list;
-      (*tot_list_next_global)= table_list;
-      tot_list_next_local= &table_list->next_local;
-      tot_list_next_global= &table_list->next_global;
-    }
-    else
+    if (find_type(extension, &deletable_extentions, FIND_TYPE_NO_PREFIX) > 0)
     {
       strxmov(filePath, path, "/", file->name, NullS);
       /*
@@ -1088,7 +1070,7 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
       }
     }
   }
-  *tables= tot_list;
+
   DBUG_RETURN(false);
 }
 
@@ -1266,8 +1248,7 @@ static void mysql_change_db_impl(THD *thd,
       we just call THD::reset_db(). Since THD::reset_db() does not releases
       the previous database name, we should do it explicitly.
     */
-    my_free(thd->db);
-
+    thd->set_db(NULL, 0);
     thd->reset_db(new_db_name->str, new_db_name->length);
   }
 
@@ -1483,14 +1464,18 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
   DBUG_PRINT("info",("Use database: %s", new_db_file_name.str));
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  db_access=
-    test_all_bits(sctx->master_access, DB_ACLS) ?
-    DB_ACLS :
-    acl_get(sctx->host,
-            sctx->ip,
-            sctx->priv_user,
-            new_db_file_name.str,
-            FALSE) | sctx->master_access;
+  if (test_all_bits(sctx->master_access, DB_ACLS))
+    db_access= DB_ACLS;
+  else
+  {
+    db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user,
+                        new_db_file_name.str, FALSE) | sctx->master_access;
+    if (sctx->priv_role[0])
+    {
+      /* include a possible currently set role for access */
+      db_access|= acl_get("", "", sctx->priv_role, new_db_file_name.str, FALSE);
+    }
+  }
 
   if (!force_switch &&
       !(db_access & DB_ACLS) &&
@@ -1515,7 +1500,7 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
     {
       /* Throw a warning and free new_db_file_name. */
 
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_BAD_DB_ERROR, ER(ER_BAD_DB_ERROR),
                           new_db_file_name.str);
 

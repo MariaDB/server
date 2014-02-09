@@ -2394,6 +2394,13 @@ REPAIR TABLE m1;
 Table	Op	Msg_type	Msg_text
 test.m1	repair	note	The storage engine for the table doesn't support repair
 DROP TABLE m1, t1;
+create temporary table t1_temp(i int);
+create temporary table tm_temp_temp (i int) engine=merge union=(t1_temp) insert_method=last;
+alter table tm_temp_temp insert_method=first;
+check table tm_temp_temp;
+Table	Op	Msg_type	Msg_text
+test.tm_temp_temp	check	status	OK
+drop temporary table t1_temp, tm_temp_temp;
 End of 5.1 tests
 # 
 # MDEV-4277: Crash inside mi_killed_in_mariadb() with myisammrg
@@ -2883,7 +2890,7 @@ Table	Create Table
 m2	CREATE TEMPORARY TABLE `m2` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
 SELECT * FROM m2;
 c1	c2
 111	121
@@ -2900,7 +2907,7 @@ Table	Create Table
 m1	CREATE TEMPORARY TABLE `m1` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
 SELECT * FROM m1;
 c1	c2
 111	121
@@ -2989,7 +2996,7 @@ Table	Create Table
 m1	CREATE TEMPORARY TABLE `m1` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO m1 VALUES (511, 521);
 SELECT * FROM m1;
 c1	c2
@@ -3040,7 +3047,7 @@ Table	Create Table
 m1	CREATE TEMPORARY TABLE `m1` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
 #
 CREATE TABLE m2 SELECT * FROM m1;
 SHOW CREATE TABLE m2;
@@ -3092,7 +3099,7 @@ Table	Create Table
 m2	CREATE TABLE `m2` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
 SELECT * FROM m2;
 c1	c2
 111	121
@@ -3118,7 +3125,7 @@ Table	Create Table
 m2	CREATE TEMPORARY TABLE `m2` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
 SELECT * FROM m2;
 c1	c2
 111	121
@@ -3288,7 +3295,7 @@ Table	Create Table
 m2	CREATE TEMPORARY TABLE `m2` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
 SELECT * FROM m2;
 c1	c2
 111	121
@@ -3305,7 +3312,7 @@ Table	Create Table
 m1	CREATE TEMPORARY TABLE `m1` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
 SELECT * FROM m1;
 c1	c2
 111	121
@@ -3396,7 +3403,7 @@ Table	Create Table
 m1	CREATE TEMPORARY TABLE `m1` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO m1 VALUES (511, 521);
 SELECT * FROM m1;
 c1	c2
@@ -3447,7 +3454,7 @@ Table	Create Table
 m1	CREATE TEMPORARY TABLE `m1` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
 CREATE TABLE m2 SELECT * FROM m1;
 ERROR HY000: Table 'm2' was not locked with LOCK TABLES
 #
@@ -3492,14 +3499,14 @@ Table	Create Table
 m2	CREATE TEMPORARY TABLE `m2` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
 LOCK TABLE m1 WRITE, m2 WRITE;
 SHOW CREATE TABLE m2;
 Table	Create Table
 m2	CREATE TEMPORARY TABLE `m2` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`t1`,`t2`)
 SELECT * FROM m2;
 c1	c2
 111	121
@@ -3650,85 +3657,85 @@ insert into tmp (b) values (1);
 insert into t1 (a) values (1);
 insert into t3 (b) values (1);
 insert into m1 (a) values ((select max(a) from m1));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from m2));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from t1));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from t2));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from t3, m1));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from t3, m2));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from t3, t1));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from t3, t2));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from tmp, m1));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from tmp, m2));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from tmp, t1));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from tmp, t2));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from v1));
 ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'm1'.
 insert into m1 (a) values ((select max(a) from tmp, v1));
 ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'm1'.
 update m1 set a = ((select max(a) from m1));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from m2));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from t1));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from t2));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from t3, m1));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from t3, m2));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from t3, t1));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from t3, t2));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from tmp, m1));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from tmp, m2));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from tmp, t1));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from tmp, t2));
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from v1));
 ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 'm1'.
 update m1 set a = ((select max(a) from tmp, v1));
 ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 'm1'.
 delete from m1 where a = (select max(a) from m1);
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from m2);
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from t1);
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from t2);
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from t3, m1);
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from t3, m2);
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from t3, t1);
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from t3, t2);
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from tmp, m1);
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from tmp, m2);
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from tmp, t1);
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from tmp, t2);
-ERROR HY000: You can't specify target table 'm1' for update in FROM clause
+ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from v1);
 ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 'm1'.
 delete from m1 where a = (select max(a) from tmp, v1);
@@ -3826,3 +3833,92 @@ test.m1	repair	error	Corrupt
 drop tables m1, t1, t4;
 drop view t3;
 End of 5.5 tests
+#
+# Additional coverage for refactoring which is made as part
+# of fix for bug #27480 "Extend CREATE TEMPORARY TABLES privilege
+# to allow temp table operations".
+# 
+# Check that prelocking works correctly for various variants of
+# merge tables.
+drop table if exists t1, t2, m1;
+drop function if exists f1;
+create table t1 (j int);
+insert into t1 values (1);
+create function f1() returns int return (select count(*) from m1);
+create temporary table t2 (a int) engine=myisam;
+insert into t2 values (1);
+create temporary table m1 (a int) engine=merge union=(t2);
+select f1() from t1;
+f1()
+1
+drop tables t2, m1;
+create table t2 (a int) engine=myisam;
+insert into t2 values (1);
+create table m1 (a int) engine=merge union=(t2);
+select f1() from t1;
+f1()
+1
+drop table m1;
+create temporary table m1 (a int) engine=merge union=(t2);
+select f1() from t1;
+f1()
+1
+drop tables t1, t2, m1;
+drop function f1;
+#
+# Check that REPAIR/CHECK and CHECKSUM statements work correctly
+# for various variants of merge tables.
+create table t1 (a int) engine=myisam;
+insert into t1 values (1);
+create table m1 (a int) engine=merge union=(t1);
+check table m1;
+Table	Op	Msg_type	Msg_text
+test.m1	check	status	OK
+repair table m1;
+Table	Op	Msg_type	Msg_text
+test.m1	repair	note	The storage engine for the table doesn't support repair
+checksum table m1;
+Table	Checksum
+test.m1	3459908756
+drop tables t1, m1;
+create temporary table t1 (a int) engine=myisam;
+insert into t1 values (1);
+create temporary table m1 (a int) engine=merge union=(t1);
+check table m1;
+Table	Op	Msg_type	Msg_text
+test.m1	check	status	OK
+repair table m1;
+Table	Op	Msg_type	Msg_text
+test.m1	repair	note	The storage engine for the table doesn't support repair
+checksum table m1;
+Table	Checksum
+test.m1	3459908756
+drop tables t1, m1;
+create table t1 (a int) engine=myisam;
+insert into t1 values (1);
+create temporary table m1 (a int) engine=merge union=(t1);
+check table m1;
+Table	Op	Msg_type	Msg_text
+test.m1	check	status	OK
+repair table m1;
+Table	Op	Msg_type	Msg_text
+test.m1	repair	note	The storage engine for the table doesn't support repair
+checksum table m1;
+Table	Checksum
+test.m1	3459908756
+drop tables t1, m1;
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS m1;
+DROP TRIGGER IF EXISTS trg1;
+DROP TABLE IF EXISTS q1;
+DROP TABLE IF EXISTS q2;
+CREATE TABLE t1(a INT);
+CREATE TABLE m1(a INT) ENGINE = MERGE UNION (q1, q2);
+CREATE TRIGGER trg1 BEFORE DELETE ON t1
+FOR EACH ROW
+INSERT INTO m1 VALUES (1);
+DELETE FROM t1;
+ERROR HY000: Unable to open underlying table which is differently defined or of non-MyISAM type or doesn't exist
+DROP TRIGGER trg1;
+DROP TABLE t1;
+DROP TABLE m1;

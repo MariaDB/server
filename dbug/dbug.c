@@ -1332,7 +1332,7 @@ void _db_dump_(uint _line_, const char *keyword,
     if (TRACING)
     {
       Indent(cs, cs->level + 1);
-      pos= min(max(cs->level-cs->stack->sub_level,0)*INDENT,80);
+      pos= MY_MIN(MY_MAX(cs->level-cs->stack->sub_level,0)*INDENT,80);
     }
     else
     {
@@ -1642,6 +1642,7 @@ void _db_end_()
 
   cs->stack= &init_settings;
   FreeState(cs, 0);
+  init_done= 0;
 }
 
 
@@ -1737,7 +1738,7 @@ static void Indent(CODE_STATE *cs, int indent)
 {
   int count;
 
-  indent= max(indent-1-cs->stack->sub_level,0)*INDENT;
+  indent= MY_MAX(indent-1-cs->stack->sub_level,0)*INDENT;
   for (count= 0; count < indent ; count++)
   {
     if ((count % INDENT) == 0)

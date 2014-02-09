@@ -50,21 +50,19 @@ children SMALLINT(2) NOT NULL
 ) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='people.csv'
   HEADER=1 SEP_CHAR=';' QUOTED=1 READONLY=yes;
 INSERT INTO t1 VALUES ('BILL','1973-06-30',5);
-ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+ERROR HY000: Table 't1' is read only
 UPDATE t1 SET children=6 WHERE name='BILL';
-ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+ERROR HY000: Table 't1' is read only
 DELETE FROM t1 WHERE name='BILL';
-ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+ERROR HY000: Table 't1' is read only
 TRUNCATE TABLE t1;
-ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+ERROR HY000: Table 't1' is read only
 SELECT * FROM t1;
 name	birth	children
 Archibald	2001-05-17	3
 Nabucho	2003-08-12	2
 RONALD	1980-02-26	4
 ALTER TABLE t1 READONLY=no;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -80,8 +78,6 @@ Nabucho	2003-08-12	2
 RONALD	1980-02-26	4
 BILL	1973-06-30	5
 ALTER TABLE t1 READONLY=1;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -90,7 +86,7 @@ t1	CREATE TABLE `t1` (
   `children` smallint(2) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=CSV `FILE_NAME`='people.csv' `HEADER`=1 `SEP_CHAR`=';' `QUOTED`=1 `READONLY`=1
 INSERT INTO t1 VALUES ('BILL','1973-06-30',5);
-ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+ERROR HY000: Table 't1' is read only
 SELECT * FROM t1;
 name	birth	children
 Archibald	2001-05-17	3

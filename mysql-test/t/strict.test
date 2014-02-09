@@ -188,12 +188,14 @@ INSERT INTO t1 (col1) VALUES (STR_TO_DATE('15.10.2004','%d.%m.%Y'));
 INSERT INTO t1 (col2) VALUES (STR_TO_DATE('15.10.2004 10.15','%d.%m.%Y %H.%i'));
 INSERT INTO t1 (col3) VALUES (STR_TO_DATE('15.10.2004 10.15','%d.%m.%Y %H.%i'));
 
+# Zero year is not a problem for DATE/DATETIME
+INSERT INTO t1 (col1) VALUES(STR_TO_DATE('31.10.0000 15.30','%d.%m.%Y %H.%i'));
+INSERT INTO t1 (col2) VALUES(STR_TO_DATE('31.10.0000 15.30','%d.%m.%Y %H.%i'));
+
 ## Test INSERT with STR_TO_DATE into DATE
 #       All test cases expected to fail should return 
 #       SQLSTATE 22007 <invalid date value>
 
---error 1411
-INSERT INTO t1 (col1) VALUES(STR_TO_DATE('31.10.0000 15.30','%d.%m.%Y %H.%i'));
 --error 1411
 INSERT INTO t1 (col1) VALUES(STR_TO_DATE('31.0.2004 15.30','%d.%m.%Y %H.%i'));
 --error 1411
@@ -214,8 +216,6 @@ INSERT INTO t1 (col1) VALUES(STR_TO_DATE('00.00.0000','%d.%m.%Y'));
 #       SQLSTATE 22007 <invalid datetime value>
 
 --error 1411
-INSERT INTO t1 (col2) VALUES(STR_TO_DATE('31.10.0000 15.30','%d.%m.%Y %H.%i'));
---error 1411
 INSERT INTO t1 (col2) VALUES(STR_TO_DATE('31.0.2004 15.30','%d.%m.%Y %H.%i'));
 --error 1411
 INSERT INTO t1 (col2) VALUES(STR_TO_DATE('0.10.2004 15.30','%d.%m.%Y %H.%i'));
@@ -234,7 +234,7 @@ INSERT INTO t1 (col2) VALUES(STR_TO_DATE('00.00.0000','%d.%m.%Y'));
 #       All test cases expected to fail should return 
 #       SQLSTATE 22007 <invalid datetime value>
 
---error 1411
+--error 1292
 INSERT INTO t1 (col3) VALUES(STR_TO_DATE('31.10.0000 15.30','%d.%m.%Y %H.%i'));
 --error 1411
 INSERT INTO t1 (col3) VALUES(STR_TO_DATE('31.0.2004 15.30','%d.%m.%Y %H.%i'));
@@ -1350,3 +1350,23 @@ select count(*) from t1 where a is null;
 drop table t1;
 
 --echo End of 5.0 tests
+
+--echo #
+--echo # Start of 5.6 tests
+--echo #
+
+--echo #
+--echo # WL#946 TIME/TIMESTAMP/DATETIME with fractional seconds: CAST to DATETIME
+--echo #
+
+--echo #
+--echo # STR_TO_DATE with NO_ZERO_DATE did not return NULL (with warning)
+--echo # in get_date(). Only did in val_str() and val_int().
+SET sql_mode='NO_ZERO_DATE';
+SELECT STR_TO_DATE('2001','%Y'),CONCAT(STR_TO_DATE('2001','%Y')), STR_TO_DATE('2001','%Y')+1, STR_TO_DATE('0','%Y')+1, STR_TO_DATE('0000','%Y')+1; 
+SET sql_mode='NO_ZERO_IN_DATE';
+SELECT STR_TO_DATE('2001','%Y'),CONCAT(STR_TO_DATE('2001','%Y')), STR_TO_DATE('2001','%Y')+1, STR_TO_DATE('0000','%Y')+1; 
+
+--echo #
+--echo # End of 5.6 tests
+--echo #

@@ -84,7 +84,7 @@ IF(FEATURE_SET)
   
   # Update cache with current values, remove engines we do not care about
   # from build.
-  FOREACH(eng ARCHIVE BLACKHOLE FEDERATED INNOBASE PARTITION EXAMPLE)
+  FOREACH(eng ARCHIVE BLACKHOLE FEDERATED INNOBASE PARTITION)
     IF(NOT WITH_${eng}_STORAGE_ENGINE)
       SET(WITHOUT_${eng}_STORAGE_ENGINE ON CACHE BOOL "")
       MARK_AS_ADVANCED(WITHOUT_${eng}_STORAGE_ENGINE)
@@ -103,12 +103,6 @@ ELSEIF(DEB)
   SET(WITH_SSL system CACHE STRING "")
   SET(WITH_ZLIB system CACHE STRING "")
   SET(WITH_LIBWRAP ON)
-  # Note, CONNECT engine should not be compiled statically
-  # because it requires unixODBC and libxml2 as dependencies
-  SET(WITH_ARCHIVE 1)
-  SET(WITH_BLACKHOLE 1)
-  SET(WITH_FEDERATEDX 1)
-  SET(WITH_SPHINX 1)
   SET(HAVE_EMBEDDED_PRIVILEGE_CONTROL ON)
 ELSE()
   SET(WITH_SSL bundled CACHE STRING "")
@@ -154,12 +148,12 @@ IF(UNIX)
       ENDIF()
 
       # Remove libaio dependency from mysqld
-      SET(XTRADB_PREFER_STATIC_LIBAIO 1)
+      #SET(XTRADB_PREFER_STATIC_LIBAIO 1)
 
       # Unfortunately, linking shared libmysqld with static aio
       # does not work,  unless we add also dynamic one. This also means
       # libmysqld.so will depend on libaio.so
-      SET(LIBMYSQLD_SO_EXTRA_LIBS aio)
+      #SET(LIBMYSQLD_SO_EXTRA_LIBS aio)
     ENDIF()
 
     # Enable fast mutexes on Linux
@@ -173,12 +167,12 @@ IF(UNIX)
 
   # Default GCC flags
   IF(CMAKE_COMPILER_IS_GNUCC)
-    SET(COMMON_C_FLAGS               "-g -static-libgcc -fno-omit-frame-pointer -fno-strict-aliasing")
+    SET(COMMON_C_FLAGS               "-g -static-libgcc -fno-omit-frame-pointer -fno-strict-aliasing  -Wno-uninitialized")
     SET(CMAKE_C_FLAGS_DEBUG          "-O ${COMMON_C_FLAGS}")
     SET(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 ${COMMON_C_FLAGS}")
   ENDIF()
   IF(CMAKE_COMPILER_IS_GNUCXX)
-    SET(COMMON_CXX_FLAGS               "-g -static-libgcc -fno-omit-frame-pointer -fno-strict-aliasing")
+    SET(COMMON_CXX_FLAGS               "-g -static-libgcc -fno-omit-frame-pointer -fno-strict-aliasing -Wno-uninitialized")
     SET(CMAKE_CXX_FLAGS_DEBUG          "-O ${COMMON_CXX_FLAGS}")
     SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 ${COMMON_CXX_FLAGS}")
   ENDIF()

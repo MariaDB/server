@@ -162,6 +162,8 @@ class Master_info : public Slave_reporting_capability
     events_queued_since_last_gtid is non-zero.
   */
   rpl_gtid last_queued_gtid;
+  /* Whether last_queued_gtid had the FL_STANDALONE flag set. */
+  bool last_queued_gtid_standalone;
   /*
     When slave IO thread needs to reconnect, gtid_reconnect_event_skip_count
     counts number of events to skip from the first GTID-prefixed event group,
@@ -208,7 +210,7 @@ public:
   bool add_master_info(Master_info *mi, bool write_to_file);
   bool remove_master_info(LEX_STRING *connection_name);
   Master_info *get_master_info(LEX_STRING *connection_name,
-                               MYSQL_ERROR::enum_warning_level warning);
+                               Sql_condition::enum_warning_level warning);
   bool give_error_if_slave_running();
   bool start_all_slaves(THD *thd);
   bool stop_all_slaves(THD *thd);

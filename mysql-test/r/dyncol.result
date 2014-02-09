@@ -562,7 +562,7 @@ select column_get(column_create(1, "2011-04-05 8:46:06.12345678" AS datetime(6))
 column_get(column_create(1, "2011-04-05 8:46:06.12345678" AS datetime(6)), 1 as decimal(32,8))
 20110405084606.12345600
 Warnings:
-Warning	1292	Truncated incorrect datetime value: '2011-04-05 8:46:06.12345678'
+Note	1292	Truncated incorrect datetime value: '2011-04-05 8:46:06.12345678'
 select column_get(column_create(1, NULL as decimal), 1 as decimal(32,10));
 column_get(column_create(1, NULL as decimal), 1 as decimal(32,10))
 NULL
@@ -1036,9 +1036,7 @@ Warnings:
 Warning	1292	Truncated incorrect time value: '2011-13-01 8:46:06.23434'
 select column_get(column_create(1, "2011-02-30 8:46:06.23434" AS CHAR), 1 as time);
 column_get(column_create(1, "2011-02-30 8:46:06.23434" AS CHAR), 1 as time)
-NULL
-Warnings:
-Warning	1292	Truncated incorrect time value: '2011-02-30 8:46:06.23434'
+08:46:06
 select column_get(column_create(1, "2001-02-03"), 1 as time);
 column_get(column_create(1, "2001-02-03"), 1 as time)
 00:20:01
@@ -1404,8 +1402,47 @@ v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VI
 drop view v1;
 drop table t1;
 #
+# MDEV-4811: Assertion `offset < 0x1f' fails in type_and_offset_store 
+# on COLUMN_ADD
+#
+CREATE TABLE t1 (dyn TINYBLOB) ENGINE=MyISAM;
+INSERT INTO t1 SET dyn = COLUMN_CREATE( 40, REPEAT('a', 233), 4, REPEAT('b', 322) );
+Warnings:
+Warning	1265	Data truncated for column 'dyn' at row 1
+SELECT COLUMN_ADD( dyn, 6, REPEAT('x',80), 4, REPEAT('y',215) AS INTEGER ) FROM t1;
+ERROR HY000: Encountered illegal format of dynamic column string
+delete from t1;
+#above test with 10.0 format
+INSERT INTO t1 SET dyn = COLUMN_CREATE( 'a', REPEAT('a', 250), 'b', REPEAT('b', 322) );
+Warnings:
+Warning	1265	Data truncated for column 'dyn' at row 1
+SELECT COLUMN_ADD( dyn, 'c', REPEAT('x',80), 'b', REPEAT('y',215) AS INTEGER ) FROM t1;
+ERROR HY000: Encountered illegal format of dynamic column string
+DROP table t1;
+#
+# MDEV-4812: Valgrind warnings (Invalid write) in
+# dynamic_column_update_many on COLUMN_ADD
+#
+CREATE TABLE t1 (dyncol TINYBLOB) ENGINE=MyISAM;
+INSERT INTO t1 SET dyncol = COLUMN_CREATE( 7, REPEAT('k',487), 209, REPEAT('x',464) );
+Warnings:
+Warning	1265	Data truncated for column 'dyncol' at row 1
+SELECT COLUMN_ADD( dyncol, 7, '22:22:22', 8, REPEAT('x',270) AS CHAR ) FROM t1;
+delete from t1;
+INSERT INTO t1 SET dyncol = COLUMN_CREATE( 'a', REPEAT('k',487), 'b', REPEAT('x',464) );
+Warnings:
+Warning	1265	Data truncated for column 'dyncol' at row 1
+SELECT COLUMN_ADD( dyncol, 'a', '22:22:22', 'c', REPEAT('x',270) AS CHAR ) FROM t1;
+DROP table t1;
+#
 # end of 5.3 tests
 #
+select column_get(column_create(1, "18446744073709552001" as char), 1 as int);
+column_get(column_create(1, "18446744073709552001" as char), 1 as int)
+-1
+Warnings:
+Warning	1918	Encountered illegal value '18446744073709552001' when converting to INT
+Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement
 #
 # test of symbolic names
 #
@@ -1708,3 +1745,13 @@ select hex(column_create(1, "2012-12-21 10:46:06" AS datetime)) as hex,
 column_json(column_create(1, "2012-12-21 10:46:06" AS datetime)) as json;
 hex	json
 00010001000595B90F000060B80A00	{"1":"2012-12-21 10:46:06"}
+#
+# MDEV-4849: Out of memory error and valgrind warnings on COLUMN_ADD
+#
+CREATE TABLE t1 (dyncol tinyblob) ENGINE=MyISAM;
+INSERT INTO t1 SET dyncol = COLUMN_CREATE( 3, REPEAT('a',330), 4, 'x' );
+Warnings:
+Warning	1265	Data truncated for column 'dyncol' at row 1
+SELECT COLUMN_ADD( COLUMN_ADD( dyncol, 1, REPEAT('b',130) ), 3, 'y' ) FROM t1;
+ERROR HY000: Encountered illegal format of dynamic column string
+DROP TABLE t1;

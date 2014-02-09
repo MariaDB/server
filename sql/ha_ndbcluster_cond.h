@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /*
   This file defines the data structures used by engine condition pushdown in
@@ -350,18 +350,18 @@ class Ndb_cond_traverse_context : public Sql_alloc
     skip(0), collation(NULL), rewrite_stack(NULL)
   {
     // Allocate type checking bitmaps   
-    bitmap_init(&expect_mask, 0, 512, FALSE);
-    bitmap_init(&expect_field_type_mask, 0, 512, FALSE);
-    bitmap_init(&expect_field_result_mask, 0, 512, FALSE);
+    my_bitmap_init(&expect_mask, 0, 512, FALSE);
+    my_bitmap_init(&expect_field_type_mask, 0, 512, FALSE);
+    my_bitmap_init(&expect_field_result_mask, 0, 512, FALSE);
 
     if (stack)
       cond_ptr= stack->ndb_cond;
   };
   ~Ndb_cond_traverse_context()
   {
-    bitmap_free(&expect_mask);
-    bitmap_free(&expect_field_type_mask);
-    bitmap_free(&expect_field_result_mask);
+    my_bitmap_free(&expect_mask);
+    my_bitmap_free(&expect_field_type_mask);
+    my_bitmap_free(&expect_field_result_mask);
     if (rewrite_stack) delete rewrite_stack;
   }
   void expect(Item::Type type)

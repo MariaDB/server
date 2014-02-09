@@ -1,3 +1,4 @@
+call mtr.add_suppression("table or database name 't-1'");
 #
 # Check some special create statements.
 #
@@ -2013,8 +2014,17 @@ create table t1 (a int, b int);
 create table t1 (a int, b int) select 2,2;
 --error ER_TABLE_EXISTS_ERROR
 create table t1 like t2;
+--error ER_LOCK_WAIT_TIMEOUT
+create or replace table t1 (a int, b int) select 2,2;
 disconnect user1;
 connection default;
 select * from t1;
 unlock tables;
 drop table t1,t2;
+
+#
+# MDEV-4880 Attempt to create a table without columns produces ER_ILLEGAL_HA instead of ER_TABLE_MUST_HAVE_COLUMNS
+#
+--error ER_TABLE_MUST_HAVE_COLUMNS
+create table t1;
+

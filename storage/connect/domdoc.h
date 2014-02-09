@@ -35,6 +35,7 @@ class DOMDOC : public XMLDOCUMENT {
   // Properties
   virtual short  GetDocType(void) {return TYPE_FB_XML;}
   virtual void  *GetDocPtr(void) {return Docp;}
+  virtual void   SetNofree(bool b) {}   // Only libxml2
 
   // Methods
   virtual bool    Initialize(PGLOBAL g);
@@ -103,8 +104,9 @@ class DOMNODELIST : public XMLNODELIST {
   friend class DOMNODE;
  public:
   // Methods
-  virtual int   GetLength(void) {return Listp->length;}
+  virtual int    GetLength(void) {return Listp->length;}
   virtual PXNODE GetItem(PGLOBAL g, int n, PXNODE np);
+  virtual bool   DropItem(PGLOBAL g, int n);
 
  protected:
   // Constructor

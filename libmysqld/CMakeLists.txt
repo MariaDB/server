@@ -22,7 +22,8 @@ ${CMAKE_SOURCE_DIR}/libmysql
 ${CMAKE_SOURCE_DIR}/libmysqld
 ${CMAKE_SOURCE_DIR}/sql
 ${CMAKE_BINARY_DIR}/sql 
-${CMAKE_SOURCE_DIR}/regex
+${CMAKE_BINARY_DIR}/pcre
+${CMAKE_SOURCE_DIR}/pcre
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${SSL_INTERNAL_INCLUDE_DIRS}
@@ -64,7 +65,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_analyse.cc ../sql/sql_base.cc ../sql/sql_cache.cc 
            ../sql/sql_class.cc ../sql/sql_crypt.cc ../sql/sql_cursor.cc 
            ../sql/sql_db.cc ../sql/sql_delete.cc ../sql/sql_derived.cc 
-           ../sql/sql_do.cc ../sql/sql_error.cc ../sql/sql_handler.cc 
+           ../sql/sql_do.cc ../sql/sql_error.cc ../sql/sql_handler.cc
+            ../sql/sql_get_diagnostics.cc
            ../sql/sql_help.cc ../sql/sql_insert.cc ../sql/datadict.cc
            ../sql/sql_admin.cc ../sql/sql_truncate.cc ../sql/sql_reload.cc
            ../sql/sql_lex.cc ../sql/keycaches.cc
@@ -100,6 +102,9 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_expression_cache.cc
            ../sql/my_apc.cc ../sql/my_apc.h
 	   ../sql/rpl_gtid.cc
+           ../sql/sql_explain.cc ../sql/sql_explain.h
+           ../sql/compat56.cc
+           ../sql/table_cache.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )
@@ -119,7 +124,7 @@ ENDIF()
 
 
 SET(LIBS 
-  dbug strings regex mysys vio 
+  dbug strings mysys mysys_ssl pcre vio 
   ${ZLIB_LIBRARY} ${SSL_LIBRARIES} 
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
   ${MYSQLD_STATIC_PLUGIN_LIBS}
@@ -140,6 +145,8 @@ ENDFOREACH()
 
 MERGE_LIBRARIES(mysqlserver STATIC ${EMBEDDED_LIBS} 
   OUTPUT_NAME ${MYSQLSERVER_OUTPUT_NAME} COMPONENT Development)
+
+INSTALL(FILES embedded_priv.h DESTINATION ${INSTALL_INCLUDEDIR}/private COMPONENT Development)
 
 # Visual Studio users need debug  static library 
 IF(MSVC)

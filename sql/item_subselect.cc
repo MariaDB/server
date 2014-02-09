@@ -1089,7 +1089,7 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
       sprintf(warn_buff, ER(ER_SELECT_REDUCED), select_lex->select_number);
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+      push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
 		   ER_SELECT_REDUCED, warn_buff);
     }
     substitution= select_lex->item_list.head();
@@ -1333,8 +1333,6 @@ Item_exists_subselect::Item_exists_subselect(st_select_lex *select_lex):
   emb_on_expr_nest(NULL), optimizer(0), exists_transformed(0)
 {
   DBUG_ENTER("Item_exists_subselect::Item_exists_subselect");
-  bool val_bool();
-
   init(select_lex, new select_exists_subselect(this));
   max_columns= UINT_MAX;
   null_value= FALSE; //can't be NULL
@@ -1752,13 +1750,22 @@ Item_in_subselect::single_value_transformer(JOIN *join)
     */
     where_item->walk(&Item::remove_dependence_processor, 0,
                      (uchar *) select_lex->outer_select());
+    /*
+      fix_field of substitution item will be done in time of
+      substituting.
+      Note that real_item() should be used instead of
+      original left expression because left_expr can be
+      runtime created Ref item which is deleted at the end
+      of the statement. Thus one of 'substitution' arguments
+      can be broken in case of PS.
+    */ 
     substitution= func->create(left_expr, where_item);
     have_to_be_excluded= 1;
     if (thd->lex->describe)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
       sprintf(warn_buff, ER(ER_SELECT_REDUCED), select_lex->select_number);
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+      push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                    ER_SELECT_REDUCED, warn_buff);
     }
     DBUG_RETURN(false);
@@ -2268,11 +2275,11 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
         DBUG_RETURN(true);
       Item *item_eq=
         new Item_func_eq(new
-                         Item_ref(&select_lex->context,
-                                  (*optimizer->get_cache())->
-                                  addr(i),
-                                  (char *)"<no matter>",
-                                  (char *)in_left_expr_name),
+                         Item_direct_ref(&select_lex->context,
+                                         (*optimizer->get_cache())->
+                                         addr(i),
+                                         (char *)"<no matter>",
+                                         (char *)in_left_expr_name),
                          new
                          Item_ref(&select_lex->context,
                                   select_lex->ref_pointer_array + i,
@@ -2991,7 +2998,7 @@ out:
 bool
 Item_in_subselect::select_in_like_transformer(JOIN *join)
 {
-  Query_arena *arena, backup;
+  Query_arena *arena= 0, backup;
   SELECT_LEX *current= thd->lex->current_select;
   const char *save_where= thd->where;
   bool trans_res= true;
@@ -3013,9 +3020,6 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
     }
   }
 
-  if (changed)
-    DBUG_RETURN(false);
-
   thd->where= "IN/ALL/ANY subquery";
 
   /*
@@ -3026,25 +3030,29 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
     note: we won't need Item_in_optimizer when handling degenerate cases
     like "... IN (SELECT 1)"
   */
+  arena= thd->activate_stmt_arena_if_needed(&backup);
   if (!optimizer)
   {
-    arena= thd->activate_stmt_arena_if_needed(&backup);
     result= (!(optimizer= new Item_in_optimizer(left_expr, this)));
-    if (arena)
-      thd->restore_active_arena(arena, &backup);
     if (result)
-      goto err;
+      goto out;
   }
 
   thd->lex->current_select= current->return_after_parsing();
-  result= (!left_expr->fixed &&
-           left_expr->fix_fields(thd, optimizer->arguments()));
+  result= optimizer->fix_left(thd);
   /* fix_fields can change reference to left_expr, we need reassign it */
   left_expr= optimizer->arguments()[0];
-
   thd->lex->current_select= current;
+
+  if (changed)
+  {
+    trans_res= false;
+    goto out;
+  }
+
+
   if (result)
-    goto err;
+    goto out;
 
   /*
     Both transformers call fix_fields() only for Items created inside them,
@@ -3053,7 +3061,6 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
     of Item, we have to call fix_fields() for it only with original arena to
     avoid memory leack)
   */
-  arena= thd->activate_stmt_arena_if_needed(&backup);
   if (left_expr->cols() == 1)
     trans_res= single_value_transformer(join);
   else
@@ -3068,9 +3075,9 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
     }
     trans_res= row_value_transformer(join);
   }
+out:
   if (arena)
     thd->restore_active_arena(arena, &backup);
-err:
   thd->where= save_where;
   DBUG_RETURN(trans_res);
 }
@@ -3469,6 +3476,7 @@ int subselect_single_select_engine::prepare()
 		    select_lex->order_list.elements +
 		    select_lex->group_list.elements,
 		    select_lex->order_list.first,
+                    false,
 		    select_lex->group_list.first,
 		    select_lex->having,
 		    NULL, select_lex,
@@ -4230,7 +4238,7 @@ void subselect_uniquesubquery_engine::print(String *str)
 {
   KEY *key_info= tab->table->key_info + tab->ref.key;
   str->append(STRING_WITH_LEN("<primary_index_lookup>("));
-  for (uint i= 0; i < key_info->key_parts; i++)
+  for (uint i= 0; i < key_info->user_defined_key_parts; i++)
     tab->ref.items[i]->print(str);
   str->append(STRING_WITH_LEN(" in "));
   str->append(tab->table->s->table_name.str, tab->table->s->table_name.length);
@@ -4677,13 +4685,13 @@ ulonglong subselect_hash_sj_engine::rowid_merge_buff_size(
 */
 
 static my_bool
-bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
+my_bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
 {
   my_bitmap_map *bitmap_buf;
 
   if (!(bitmap_buf= (my_bitmap_map*) alloc_root(mem_root,
                                                 bitmap_buffer_size(n_bits))) ||
-      bitmap_init(map, bitmap_buf, n_bits, FALSE))
+      my_bitmap_init(map, bitmap_buf, n_bits, FALSE))
     return TRUE;
   bitmap_clear_all(map);
   return FALSE;
@@ -4721,9 +4729,9 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
 
   DBUG_ENTER("subselect_hash_sj_engine::init");
 
-  if (bitmap_init_memroot(&non_null_key_parts, tmp_columns->elements,
+  if (my_bitmap_init_memroot(&non_null_key_parts, tmp_columns->elements,
                             thd->mem_root) ||
-      bitmap_init_memroot(&partial_match_key_parts, tmp_columns->elements,
+      my_bitmap_init_memroot(&partial_match_key_parts, tmp_columns->elements,
                             thd->mem_root))
     DBUG_RETURN(TRUE);
 
@@ -4788,7 +4796,8 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
     DBUG_ASSERT(
       tmp_table->s->uniques ||
       tmp_table->key_info->key_length >= tmp_table->file->max_key_length() ||
-      tmp_table->key_info->key_parts > tmp_table->file->max_key_parts());
+      tmp_table->key_info->user_defined_key_parts >
+      tmp_table->file->max_key_parts());
     free_tmp_table(thd, tmp_table);
     tmp_table= NULL;
     delete result;
@@ -4802,7 +4811,7 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
   */
   DBUG_ASSERT(tmp_table->s->keys == 1 &&
               ((Item_in_subselect *) item)->left_expr->cols() ==
-              tmp_table->key_info->key_parts);
+              tmp_table->key_info->user_defined_key_parts);
 
   if (make_semi_join_conds() ||
       /* A unique_engine is used both for complete and partial matching. */
@@ -5444,7 +5453,7 @@ Ordered_key::Ordered_key(uint keyid_arg, TABLE *tbl_arg, Item *search_key_arg,
 Ordered_key::~Ordered_key()
 {
   my_free(key_buff);
-  bitmap_free(&null_key);
+  my_bitmap_free(&null_key);
 }
 
 
@@ -5554,7 +5563,7 @@ bool Ordered_key::alloc_keys_buffers()
     lookup offset.
   */
   /* Notice that max_null_row is max array index, we need count, so +1. */
-  if (bitmap_init(&null_key, NULL, (uint)(max_null_row + 1), FALSE))
+  if (my_bitmap_init(&null_key, NULL, (uint)(max_null_row + 1), FALSE))
     return TRUE;
 
   cur_key_idx= HA_POS_ERROR;
@@ -5993,8 +6002,8 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
   */
   if (!has_covering_null_columns)
   {
-    if (bitmap_init_memroot(&matching_keys, merge_keys_count, thd->mem_root) ||
-        bitmap_init_memroot(&matching_outer_cols, merge_keys_count, thd->mem_root))
+    if (my_bitmap_init_memroot(&matching_keys, merge_keys_count, thd->mem_root) ||
+        my_bitmap_init_memroot(&matching_outer_cols, merge_keys_count, thd->mem_root))
       return TRUE;
 
     /*

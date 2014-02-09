@@ -87,7 +87,16 @@ mysql_handle_derived(LEX *lex, uint phases)
 	 sl && !res;
 	 sl= sl->next_select_in_list())
     {
-      for (TABLE_LIST *cursor= sl->get_table_list();
+      TABLE_LIST *cursor= sl->get_table_list();
+      /*
+        DT_MERGE_FOR_INSERT is not needed for views/derived tables inside
+        subqueries. Views and derived tables of subqueries should be
+        processed normally.
+      */
+      if (phases == DT_MERGE_FOR_INSERT &&
+          cursor && cursor->top_table()->select_lex != &lex->select_lex)
+        continue;
+      for (;
 	   cursor && !res;
 	   cursor= cursor->next_local)
       {
@@ -349,6 +358,14 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (derived->merged)
     return FALSE;
 
+  if (dt_select->uncacheable & UNCACHEABLE_RAND)
+  {
+    /* There is random function => fall back to materialization. */
+    derived->change_refs_to_fields();
+    derived->set_materialized_derived();
+    return FALSE;
+  }
+
  if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
      thd->lex->sql_command == SQLCOM_DELETE_MULTI)
    thd->save_prep_leaf_list= TRUE;
@@ -385,8 +402,6 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
 
     if (dt_select->options & OPTION_SCHEMA_TABLE)
       parent_lex->options |= OPTION_SCHEMA_TABLE;
-
-    parent_lex->cond_count+= dt_select->cond_count;
 
     if (!derived->get_unit()->prepared)
     {
@@ -597,11 +612,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
           thd->lex->sql_command == SQLCOM_DELETE_MULTI))))
     DBUG_RETURN(FALSE);
 
-  Query_arena *arena= thd->stmt_arena, backup;
-  if (arena->is_conventional())
-    arena= 0;                                   // For easier test
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
 
   SELECT_LEX *first_select= unit->first_select();
 
@@ -610,7 +622,17 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   {
     sl->context.outer_context= 0;
     // Prepare underlying views/DT first.
-    sl->handle_derived(lex, DT_PREPARE);
+    if ((res= sl->handle_derived(lex, DT_PREPARE)))
+      goto exit;
+
+    if (derived->outer_join && sl->first_cond_optimization)
+    {
+      /* Mark that table is part of OUTER JOIN and fields may be NULL */
+      for (TABLE_LIST *cursor= (TABLE_LIST*) sl->table_list.first;
+           cursor;
+           cursor= cursor->next_local)
+        cursor->outer_join|= JOIN_TYPE_OUTER;
+    }
   }
 
   unit->derived= derived;
@@ -666,9 +688,9 @@ exit:
   if (derived->view)
   {
     if (thd->is_error() &&
-        (thd->stmt_da->sql_errno() == ER_BAD_FIELD_ERROR ||
-        thd->stmt_da->sql_errno() == ER_FUNC_INEXISTENT_NAME_COLLISION ||
-        thd->stmt_da->sql_errno() == ER_SP_DOES_NOT_EXIST))
+        (thd->get_stmt_da()->sql_errno() == ER_BAD_FIELD_ERROR ||
+        thd->get_stmt_da()->sql_errno() == ER_FUNC_INEXISTENT_NAME_COLLISION ||
+        thd->get_stmt_da()->sql_errno() == ER_SP_DOES_NOT_EXIST))
     {
       thd->clear_error();
       my_error(ER_VIEW_INVALID, MYF(0), derived->db,
@@ -691,7 +713,7 @@ exit:
   {
     TABLE *table= derived->table;
     table->derived_select_number= first_select->select_number;
-    table->s->tmp_table= NON_TRANSACTIONAL_TMP_TABLE;
+    table->s->tmp_table= INTERNAL_TMP_TABLE;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (derived->referencing_view)
       table->grant= derived->grant;
@@ -705,6 +727,10 @@ exit:
     /* Add new temporary table to list of open derived tables */
     table->next= thd->derived_tables;
     thd->derived_tables= table;
+
+    /* If table is used by a left join, mark that any column may be null */
+    if (derived->outer_join)
+      table->maybe_null= 1;
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -812,8 +838,7 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
                                   result->tmp_table_param.start_recinfo,
                                   &result->tmp_table_param.recinfo,
                                   (unit->first_select()->options |
-                                   thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS),
-                                  thd->variables.big_tables))
+                                   thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS)))
       return(TRUE);
   }
   if (open_tmp_table(table))

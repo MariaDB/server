@@ -216,8 +216,9 @@ If one uses sockets to connect to the MySQL server, the server will open and\n\
 read the text file directly. In other cases the client will open the text\n\
 file. The SQL command 'LOAD DATA INFILE' is used to import the rows.\n");
 
-  printf("\nUsage: %s [OPTIONS] database textfile...",my_progname);
+  printf("\nUsage: %s [OPTIONS] database textfile...\n",my_progname);
   print_defaults("my",load_default_groups);
+  puts("");
   my_print_help(my_long_options);
   my_print_variables(my_long_options);
 }
@@ -456,6 +457,9 @@ static MYSQL *db_connect(char *host, char *database,
     mysql_options(mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
 
   mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset);
+  mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
+  mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
+                 "program_name", "mysqlimport");
   if (!(mysql_real_connect(mysql,host,user,passwd,
                            database,opt_mysql_port,opt_mysql_unix_port,
                            0)))

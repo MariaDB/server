@@ -50,9 +50,20 @@ typedef struct _xinfo {
 
 class XCHK : public BLOCK {
 public:
-  XCHK(void) {oldsep= newsep= false; oldpix= newpix= NULL;}
+  XCHK(void) {oldsep= newsep= false; 
+              oldopn= newopn= NULL;
+              oldpix= newpix= NULL;}
+
+  inline char *SetName(PGLOBAL g, char *name) {
+    char *nm= NULL;
+    if (name) {nm= (char*)PlugSubAlloc(g, NULL, strlen(name) + 1);
+               strcpy(nm, name);}
+    return nm;}
+
   bool         oldsep;              // Sepindex before create/alter
   bool         newsep;              // Sepindex after create/alter
+  char        *oldopn;              // Optname before create/alter
+  char        *newopn;              // Optname after create/alter
   PIXDEF       oldpix;              // The indexes before create/alter
   PIXDEF       newpix;              // The indexes after create/alter
 }; // end of class XCHK
@@ -123,12 +134,20 @@ struct ha_field_option_struct
   CONNECT_SHARE is a structure that will be shared among all open handlers.
   This example implements the minimum of what you will probably need.
 */
-typedef struct st_connect_share {
-  char *table_name;
-  uint  table_name_length, use_count;
+class CONNECT_SHARE : public Handler_share {
+public:
   mysql_mutex_t mutex;
   THR_LOCK lock;
-} CONNECT_SHARE;
+  CONNECT_SHARE()
+  {
+    thr_lock_init(&lock);
+  }
+  ~CONNECT_SHARE()
+  {
+    thr_lock_delete(&lock);
+    mysql_mutex_destroy(&mutex);
+  }
+};
 
 typedef class ha_connect *PHC;
 
@@ -139,6 +158,7 @@ class ha_connect: public handler
 {
   THR_LOCK_DATA lock;      ///< MySQL lock
   CONNECT_SHARE *share;        ///< Shared lock info
+  CONNECT_SHARE *get_share();
 
 public:
   ha_connect(handlerton *hton, TABLE_SHARE *table_arg);
@@ -147,25 +167,30 @@ public:
   // CONNECT Implementation
   static   bool connect_init(void);
   static   bool connect_end(void);
+  TABTYPE  GetRealType(PTOS pos);
   char    *GetStringOption(char *opname, char *sdef= NULL);
   PTOS     GetTableOptionStruct(TABLE *table_arg);
   bool     GetBooleanOption(char *opname, bool bdef);
   bool     SetBooleanOption(char *opname, bool b);
   int      GetIntegerOption(char *opname);
   bool     SetIntegerOption(char *opname, int n);
+  bool     SameChar(TABLE *tab, char *opn);
+  bool     SameInt(TABLE *tab, char *opn);
+  bool     SameBool(TABLE *tab, char *opn);
+  bool     FileExists(const char *fn);
   PFOS     GetFieldOptionStruct(Field *fp);
-  void    *GetColumnOption(void *field, PCOLINFO pcf);
-  PIXDEF   GetIndexInfo(void);
+  void    *GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf);
+  PIXDEF   GetIndexInfo(TABLE_SHARE *s= NULL);
   const char *GetDBName(const char *name);
   const char *GetTableName(void);
-  int      GetColNameLen(Field *fp);
-  char    *GetColName(Field *fp);
-  void     AddColName(char *cp, Field *fp);
+//int      GetColNameLen(Field *fp);
+//char    *GetColName(Field *fp);
+//void     AddColName(char *cp, Field *fp);
   TABLE   *GetTable(void) {return table;}
   bool     IsSameIndex(PIXDEF xp1, PIXDEF xp2);
 
   PTDB     GetTDB(PGLOBAL g);
-  bool     OpenTable(PGLOBAL g, bool del= false);
+  int      OpenTable(PGLOBAL g, bool del= false);
   bool     IsOpened(void); 
   int      CloseTable(PGLOBAL g);
   int      MakeRecord(char *buf);
@@ -190,17 +215,19 @@ public:
    */
   const char **bas_ext() const;
 
+ /**
+    Check if a storage engine supports a particular alter table in-place
+    @note Called without holding thr_lock.c lock.
+ */
+ virtual enum_alter_inplace_result
+ check_if_supported_inplace_alter(TABLE *altered_table,
+                                  Alter_inplace_info *ha_alter_info);
+
   /** @brief
     This is a list of flags that indicate what functionality the storage engine
     implements. The current table flags are documented in handler.h
   */
-  ulonglong table_flags() const
-  {
-    return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_HAS_RECORDS |
-            HA_NO_AUTO_INCREMENT | HA_NO_PREFIX_CHAR_KEYS |
-            HA_NO_COPY_ON_ALTER | HA_CAN_VIRTUAL_COLUMNS |
-            HA_NULL_IN_KEY | HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE);
-  }
+  ulonglong table_flags() const;
 
   /** @brief
     This is a bitmap of flags that indicates how the storage engine
@@ -310,6 +337,21 @@ const char *GetValStr(OPVAL vop, bool neg);
  */
  virtual ha_rows records();
 
+ /** 
+   Type of table for caching query
+   CONNECT should not use caching because its tables are external
+   data prone to me modified out of MariaDB
+ */
+ virtual uint8 table_cache_type(void)
+ {
+#if defined(MEMORY_TRACE)
+   // Temporary until bug MDEV-4771 is fixed
+   return HA_CACHE_TBL_NONTRANSACT;
+#else
+   return HA_CACHE_TBL_NOCACHE;
+#endif
+ }
+
  /** @brief
     We implement this in ha_connect.cc; it's a required method.
   */
@@ -391,6 +433,7 @@ const char *GetValStr(OPVAL vop, bool neg);
   void position(const uchar *record);                           ///< required
   int info(uint);                                               ///< required
   int extra(enum ha_extra_function operation);
+  int start_stmt(THD *thd, thr_lock_type lock_type);
   int external_lock(THD *thd, int lock_type);                   ///< required
   int delete_all_rows(void);
   ha_rows records_in_range(uint inx, key_range *min_key,
@@ -419,7 +462,9 @@ const char *GetValStr(OPVAL vop, bool neg);
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
 
 protected:
-  bool check_privileges(THD *thd, PTOS options);
+  bool check_privileges(THD *thd, PTOS options, char *dbn);
+  MODE CheckMode(PGLOBAL g, THD *thd, MODE newmode, bool *chk, bool *cras);
+  char *GetDBfromName(const char *name);
 
   // Members
   static ulong  num;                  // Tracable handler number
@@ -436,7 +481,9 @@ protected:
   XINFO         xinfo;                // The table info structure
   bool          valid_info;           // True if xinfo is valid
   bool          stop;                 // Used when creating index
+  bool          alter;                // True when converting to other engine
   int           indexing;             // Type of indexing for CONNECT
+  int           locked;               // Table lock
   THR_LOCK_DATA lock_data;
 
 public:

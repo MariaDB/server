@@ -63,12 +63,14 @@ typedef struct st_cache_field {
 
 class JOIN_TAB_SCAN;
 
+struct st_explain_bka_type;
 
 /*
   JOIN_CACHE is the base class to support the implementations of 
   - Block Nested Loop (BNL) Join Algorithm,
   - Block Nested Loop Hash (BNLH) Join Algorithm,
   - Batched Key Access (BKA) Join Algorithm.
+
   The first algorithm is supported by the derived class JOIN_CACHE_BNL,
   the second algorithm is supported by the derived class JOIN_CACHE_BNLH,
   while the third algorithm is implemented in two variant supported by
@@ -420,7 +422,7 @@ protected:
   /* Shall calculate how much space is remaining in the join buffer */ 
   virtual size_t rem_space() 
   { 
-    return max(buff_size-(end_pos-buff)-aux_buff_size,0);
+    return MY_MAX(buff_size-(end_pos-buff)-aux_buff_size,0);
   }
 
   /* 
@@ -657,7 +659,7 @@ public:
   enum_nested_loop_state join_records(bool skip_last);
 
   /* Add a comment on the join algorithm employed by the join cache */
-  virtual void print_explain_comment(String *str);
+  virtual void save_explain_data(struct st_explain_bka_type *explain);
 
   THD *thd();
 
@@ -943,7 +945,7 @@ protected:
   */ 
   size_t rem_space() 
   { 
-    return max(last_key_entry-end_pos-aux_buff_size,0);
+    return MY_MAX(last_key_entry-end_pos-aux_buff_size,0);
   }
 
   /* 
@@ -1335,7 +1337,7 @@ public:
   /* Check index condition of the joined table for a record from BKA cache */
   bool skip_index_tuple(range_id_t range_info);
 
-  void print_explain_comment(String *str);
+  void save_explain_data(struct st_explain_bka_type *explain);
 };
 
 
@@ -1426,5 +1428,5 @@ public:
   /* Check index condition of the joined table for a record from BKAH cache */
   bool skip_index_tuple(range_id_t range_info);
 
-  void print_explain_comment(String *str);
+  void save_explain_data(struct st_explain_bka_type *explain);
 };

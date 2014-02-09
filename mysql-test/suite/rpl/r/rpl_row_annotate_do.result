@@ -76,60 +76,60 @@ b VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_bin
 )
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-10
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t1)
-slave-bin.000001	#	Write_rows	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-11
 slave-bin.000001	#	Annotate_rows	1	#	UPDATE t1 SET b = b + 1
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t1)
-slave-bin.000001	#	Update_rows	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Update_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-12
 slave-bin.000001	#	Annotate_rows	1	#	REPLACE t1 VALUES (1,1), (2,2), (3,3)
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t1)
-slave-bin.000001	#	Update_rows	1	#	table_id: #
-slave-bin.000001	#	Write_rows	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Update_rows_v1	1	#	table_id: #
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-13
 slave-bin.000001	#	Annotate_rows	1	#	INSERT INTO t2 VALUES (1,1), (2,2), (3,3)
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t2)
-slave-bin.000001	#	Write_rows	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-14
 slave-bin.000001	#	Annotate_rows	1	#	INSERT INTO t3 VALUES (1,1), (2,2), (3,3)
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t3)
-slave-bin.000001	#	Write_rows	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-15
 slave-bin.000001	#	Annotate_rows	1	#	DELETE t1, t2 FROM t1 INNER JOIN t2 INNER JOIN t3 WHERE t1.a=t2.a AND t2.a=t3.a
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t2)
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t1)
-slave-bin.000001	#	Delete_rows	1	#	table_id: #
-slave-bin.000001	#	Delete_rows	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Delete_rows_v1	1	#	table_id: #
+slave-bin.000001	#	Delete_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-17
 slave-bin.000001	#	Annotate_rows	1	#	INSERT INTO t2 VALUES (1,1), (2,2), (3,3)
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t2)
-slave-bin.000001	#	Write_rows	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-18
 slave-bin.000001	#	Annotate_rows	1	#	DELETE xt1, t2 FROM xt1 INNER JOIN t2 INNER JOIN t3 WHERE xt1.a=t2.a AND t2.a=t3.a
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t2)
-slave-bin.000001	#	Delete_rows	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Delete_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-22
 slave-bin.000001	#	Annotate_rows	1	#	INSERT INTO t5(b) VALUES ('foo'), ('bar'), ('baz')
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t5)
-slave-bin.000001	#	Write_rows	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-23
 slave-bin.000001	#	Annotate_rows	1	#	INSERT INTO t5(b) VALUES ('gås')
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t5)
-slave-bin.000001	#	Write_rows	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-24
 slave-bin.000001	#	Annotate_rows	1	#	INSERT INTO t5(b) VALUES ('gÃ¥s')
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t5)
-slave-bin.000001	#	Write_rows	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Rotate	2	#	slave-bin.000002;pos=4
 # 

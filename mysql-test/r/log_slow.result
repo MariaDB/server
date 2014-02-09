@@ -10,7 +10,6 @@ select @@log_slow_verbosity;
 show variables like "log_slow%";
 Variable_name	Value
 log_slow_filter	admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
-log_slow_queries	ON
 log_slow_rate_limit	1
 log_slow_verbosity	
 set @org_slow_query_log= @@global.slow_query_log;
@@ -56,6 +55,7 @@ last_insert_id	int(11)	NO		NULL
 insert_id	int(11)	NO		NULL	
 server_id	int(10) unsigned	NO		NULL	
 sql_text	mediumtext	NO		NULL	
+thread_id	bigint(21) unsigned	NO		NULL	
 flush slow logs;
 set long_query_time=0.1;
 set log_slow_filter='';

@@ -1,0 +1,14 @@
+{
+ global:
+   _maria_plugin_interface_version_;
+   _maria_sizeof_struct_st_plugin_;
+   _maria_plugin_declarations_;
+   my_snprintf_service;
+   thd_alloc_service;
+   thd_autoinc_service;
+   thd_error_context_service;
+   thd_kill_statement_service;
+   thd_wait_service;
+ local:
+   *;
+};

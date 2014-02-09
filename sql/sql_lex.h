@@ -1,4 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,6 +27,7 @@
 #include "thr_lock.h"                  /* thr_lock_type, TL_UNLOCK */
 #include "mem_root_array.h"
 #include "sql_cmd.h"
+#include "sql_alter.h"                // Alter_info
 
 /* YACC and LEX Definitions */
 
@@ -43,9 +45,6 @@ class Event_parse_data;
 class set_var_base;
 class sys_var;
 class Item_func_match;
-class Alter_drop;
-class Alter_column;
-class Key;
 class File_parser;
 class Key_part_spec;
 
@@ -116,6 +115,7 @@ struct sys_var_with_base
 #include "lex_symbol.h"
 #if MYSQL_LEX
 #include "item_func.h"            /* Cast_target used in sql_yacc.h */
+#include "sql_get_diagnostics.h"  /* Types used in sql_yacc.h */
 #include "sql_yacc.h"
 #define LEX_YYSTYPE YYSTYPE *
 #else
@@ -262,11 +262,6 @@ enum sub_select_type
 enum olap_type 
 {
   UNSPECIFIED_OLAP_TYPE, CUBE_TYPE, ROLLUP_TYPE
-};
-
-enum tablespace_op_type
-{
-  NO_TABLESPACE_OP, DISCARD_TABLESPACE, IMPORT_TABLESPACE
 };
 
 /* 
@@ -512,6 +507,7 @@ public:
 					thr_lock_type flags= TL_UNLOCK,
                                         enum_mdl_type mdl_type= MDL_SHARED_READ,
 					List<Index_hint> *hints= 0,
+                                        List<String> *partition_names= 0,
                                         LEX_STRING *option= 0);
   virtual void set_lock_for_tables(thr_lock_type lock_type) {}
 
@@ -538,7 +534,12 @@ class select_result;
 class JOIN;
 class select_union;
 class Procedure;
+class Explain_query;
 
+void delete_explain_query(LEX *lex);
+void create_explain_query(LEX *lex, MEM_ROOT *mem_root);
+void create_explain_query_if_not_exists(LEX *lex, MEM_ROOT *mem_root);
+bool print_explain_query(LEX *lex, THD *thd, String *str);
 
 class st_select_lex_unit: public st_select_lex_node {
 protected:
@@ -635,7 +636,7 @@ public:
   void print(String *str, enum_query_type query_type);
 
   bool add_fake_select_lex(THD *thd);
-  void init_prepare_fake_select_lex(THD *thd);
+  void init_prepare_fake_select_lex(THD *thd, bool first_execution);
   inline bool is_prepared() { return prepared; }
   bool change_result(select_result_interceptor *result,
                      select_result_interceptor *old_result);
@@ -649,8 +650,9 @@ public:
   friend int subselect_union_engine::exec();
 
   List<Item> *get_unit_column_types();
-  int print_explain(select_result_sink *output, uint8 explain_flags,
-                    bool *printed_anything);
+
+  int save_union_explain(Explain_query *output);
+  int save_union_explain_part2(Explain_query *output);
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
@@ -729,10 +731,11 @@ public:
   const char *type;               /* type of select for EXPLAIN          */
 
   SQL_I_List<ORDER> order_list;   /* ORDER clause */
-  SQL_I_List<ORDER> *gorder_list;
+  SQL_I_List<ORDER> gorder_list;
   Item *select_limit, *offset_limit;  /* LIMIT clause parameters */
   // Arrays of pointers to top elements of all_fields list
   Item **ref_pointer_array;
+  size_t ref_pointer_array_size; // Number of elements in array.
 
   /*
     number of items in select_list and HAVING clause used to get number
@@ -867,12 +870,14 @@ public:
   bool add_group_to_list(THD *thd, Item *item, bool asc);
   bool add_ftfunc_to_list(Item_func_match *func);
   bool add_order_to_list(THD *thd, Item *item, bool asc);
+  bool add_gorder_to_list(THD *thd, Item *item, bool asc);
   TABLE_LIST* add_table_to_list(THD *thd, Table_ident *table,
 				LEX_STRING *alias,
 				ulong table_options,
 				thr_lock_type flags= TL_UNLOCK,
                                 enum_mdl_type mdl_type= MDL_SHARED_READ,
 				List<Index_hint> *hints= 0,
+                                List<String> *partition_names= 0,
                                 LEX_STRING *option= 0);
   TABLE_LIST* get_table_list();
   bool init_nested_join(THD *thd);
@@ -944,6 +949,10 @@ public:
 
   void clear_index_hints(void) { index_hints= NULL; }
   bool is_part_of_union() { return master_unit()->is_union(); }
+  bool is_top_level_node() 
+  { 
+    return (select_number == 1) && !is_part_of_union();
+  }
   bool optimize_unflattened_subqueries(bool const_only);
   /* Set the EXPLAIN type for this subquery. */
   void set_explain_type(bool on_the_fly);
@@ -972,8 +981,7 @@ public:
   bool save_prep_leaf_tables(THD *thd);
 
   bool is_merged_child_of(st_select_lex *ancestor);
-  int print_explain(select_result_sink *output, uint8 explain_flags, 
-                    bool *printed_anything);
+
   /*
     For MODE_ONLY_FULL_GROUP_BY we need to maintain two flags:
      - Non-aggregated fields are used in this select.
@@ -1004,110 +1012,6 @@ inline bool st_select_lex_unit::is_union ()
     first_select()->next_select()->linkage == UNION_TYPE;
 }
 
-#define ALTER_ADD_COLUMN	(1L << 0)
-#define ALTER_DROP_COLUMN	(1L << 1)
-#define ALTER_CHANGE_COLUMN	(1L << 2)
-#define ALTER_ADD_INDEX		(1L << 3)
-#define ALTER_DROP_INDEX	(1L << 4)
-#define ALTER_RENAME		(1L << 5)
-#define ALTER_ORDER		(1L << 6)
-#define ALTER_OPTIONS		(1L << 7)
-#define ALTER_CHANGE_COLUMN_DEFAULT (1L << 8)
-#define ALTER_KEYS_ONOFF        (1L << 9)
-#define ALTER_CONVERT           (1L << 10)
-#define ALTER_RECREATE          (1L << 11)
-#define ALTER_ADD_PARTITION     (1L << 12)
-#define ALTER_DROP_PARTITION    (1L << 13)
-#define ALTER_COALESCE_PARTITION (1L << 14)
-#define ALTER_REORGANIZE_PARTITION (1L << 15)
-#define ALTER_PARTITION          (1L << 16)
-#define ALTER_ADMIN_PARTITION    (1L << 17)
-#define ALTER_TABLE_REORG        (1L << 18)
-#define ALTER_REBUILD_PARTITION  (1L << 19)
-#define ALTER_ALL_PARTITION      (1L << 20)
-#define ALTER_REMOVE_PARTITIONING (1L << 21)
-#define ALTER_FOREIGN_KEY        (1L << 22)
-#define ALTER_TRUNCATE_PARTITION (1L << 23)
-
-enum enum_alter_table_change_level
-{
-  ALTER_TABLE_METADATA_ONLY= 0,
-  ALTER_TABLE_DATA_CHANGED= 1,
-  ALTER_TABLE_INDEX_CHANGED= 2
-};
-
-
-/**
-  Temporary hack to enable a class bound forward declaration
-  of the enum_alter_table_change_level enumeration. To be
-  removed once Alter_info is moved to the sql_alter.h
-  header.
-*/
-class Alter_table_change_level
-{
-private:
-  typedef enum enum_alter_table_change_level enum_type;
-  enum_type value;
-public:
-  void operator = (enum_type v) { value = v; }
-  operator enum_type () { return value; }
-};
-
-
-/**
-  @brief Parsing data for CREATE or ALTER TABLE.
-
-  This structure contains a list of columns or indexes to be created,
-  altered or dropped.
-*/
-
-class Alter_info
-{
-public:
-  List<Alter_drop>              drop_list;
-  List<Alter_column>            alter_list;
-  List<Key>                     key_list;
-  List<Create_field>            create_list;
-  uint                          flags;
-  enum enum_enable_or_disable   keys_onoff;
-  enum tablespace_op_type       tablespace_op;
-  List<char>                    partition_names;
-  uint                          num_parts;
-  enum_alter_table_change_level change_level;
-  Create_field                 *datetime_field;
-  bool                          error_if_not_empty;
-
-
-  Alter_info() :
-    flags(0),
-    keys_onoff(LEAVE_AS_IS),
-    tablespace_op(NO_TABLESPACE_OP),
-    num_parts(0),
-    change_level(ALTER_TABLE_METADATA_ONLY),
-    datetime_field(NULL),
-    error_if_not_empty(FALSE)
-  {}
-
-  void reset()
-  {
-    drop_list.empty();
-    alter_list.empty();
-    key_list.empty();
-    create_list.empty();
-    flags= 0;
-    keys_onoff= LEAVE_AS_IS;
-    tablespace_op= NO_TABLESPACE_OP;
-    num_parts= 0;
-    partition_names.empty();
-    change_level= ALTER_TABLE_METADATA_ONLY;
-    datetime_field= 0;
-    error_if_not_empty= FALSE;
-  }
-  Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root);
-private:
-  Alter_info &operator=(const Alter_info &rhs); // not implemented
-  Alter_info(const Alter_info &rhs);            // not implemented
-};
 
 struct st_sp_chistics
 {
@@ -1190,7 +1094,38 @@ public:
   Sroutine_hash_entry **sroutines_list_own_last;
   uint sroutines_list_own_elements;
 
-  /*
+  /**
+    Locking state of tables in this particular statement.
+
+    If we under LOCK TABLES or in prelocked mode we consider tables
+    for the statement to be "locked" if there was a call to lock_tables()
+    (which called handler::start_stmt()) for tables of this statement
+    and there was no matching close_thread_tables() call.
+
+    As result this state may differ significantly from one represented
+    by Open_tables_state::lock/locked_tables_mode more, which are always
+    "on" under LOCK TABLES or in prelocked mode.
+  */
+  enum enum_lock_tables_state {
+    LTS_NOT_LOCKED = 0,
+    LTS_LOCKED
+  };
+  enum_lock_tables_state lock_tables_state;
+  bool is_query_tables_locked()
+  {
+    return (lock_tables_state == LTS_LOCKED);
+  }
+
+  /**
+    Number of tables which were open by open_tables() and to be locked
+    by lock_tables().
+    Note that we set this member only in some cases, when this value
+    needs to be passed from open_tables() to lock_tables() which are
+    separated by some amount of code.
+  */
+  uint table_count;
+
+   /*
     These constructor and destructor serve for creation/destruction
     of Query_tables_list instances which are used as backup storage.
   */
@@ -2283,6 +2218,89 @@ protected:
   LEX *m_lex;
 };
 
+
+class Delete_plan;
+class SQL_SELECT;
+
+class Explain_query;
+class Explain_update;
+
+/* 
+  Query plan of a single-table UPDATE.
+  (This is actually a plan for single-table DELETE also)
+*/
+
+class Update_plan
+{
+protected:
+  bool impossible_where;
+  bool no_partitions;
+public:
+  /*
+    When single-table UPDATE updates a VIEW, that VIEW's select is still
+    listed as the first child.  When we print EXPLAIN, it looks like a
+    subquery.
+    In order to get rid of it, updating_a_view=TRUE means that first child
+    select should not be shown when printing EXPLAIN.
+  */
+  bool updating_a_view;
+   
+  /* Allocate things there */
+  MEM_ROOT *mem_root;
+
+  TABLE *table;
+  SQL_SELECT *select;
+  uint index;
+  ha_rows scanned_rows;
+  /*
+    Top-level select_lex. Most of its fields are not used, we need it only to
+    get to the subqueries.
+  */
+  SELECT_LEX *select_lex;
+  
+  key_map possible_keys;
+  bool using_filesort;
+  bool using_io_buffer;
+  
+  /* Set this plan to be a plan to do nothing because of impossible WHERE */
+  void set_impossible_where() { impossible_where= true; }
+  void set_no_partitions() { no_partitions= true; }
+
+  void save_explain_data(Explain_query *query);
+  void save_explain_data_intern(Explain_query *query, Explain_update *eu);
+  virtual ~Update_plan() {}
+
+  Update_plan(MEM_ROOT *mem_root_arg) : 
+    impossible_where(false), no_partitions(false), 
+    mem_root(mem_root_arg), 
+    using_filesort(false), using_io_buffer(false)
+  {}
+};
+
+
+/* Query plan of a single-table DELETE */
+class Delete_plan : public Update_plan
+{
+  bool deleting_all_rows;
+public:
+
+  /* Construction functions */
+  Delete_plan(MEM_ROOT *mem_root_arg) : 
+    Update_plan(mem_root_arg), 
+    deleting_all_rows(false)
+  {}
+
+  /* Set this query plan to be a plan to make a call to h->delete_all_rows() */
+  void set_delete_all_rows(ha_rows rows_arg) 
+  { 
+    deleting_all_rows= true;
+    scanned_rows= rows_arg;
+  }
+
+  void save_explain_data(Explain_query *query);
+};
+
+
 /* The state of the lex parsing. This is saved in the THD struct */
 
 struct LEX: public Query_tables_list
@@ -2293,6 +2311,9 @@ struct LEX: public Query_tables_list
   SELECT_LEX *current_select;
   /* list of all SELECT_LEX */
   SELECT_LEX *all_selects_list;
+  
+  /* Query Plan Footprint of a currently running select  */
+  Explain_query *explain;
 
   char *length,*dec,*change;
   LEX_STRING name;
@@ -2375,7 +2396,7 @@ struct LEX: public Query_tables_list
   LEX_STRING relay_log_connection_name;
   USER_RESOURCES mqh;
   LEX_RESET_SLAVE reset_slave_info;
-  ulong type;
+  ulonglong type;
   /* The following is used by KILL */
   killed_state kill_signal;
   killed_type  kill_type;
@@ -2390,7 +2411,7 @@ struct LEX: public Query_tables_list
   */
   nesting_map allow_sum_func;
 
-  Sql_statement *m_stmt;
+  Sql_cmd *m_sql_cmd;
 
   /*
     Usually `expr` rule of yacc is quite reused but some commands better
@@ -2407,7 +2428,6 @@ struct LEX: public Query_tables_list
     this command.
   */
   bool parse_vcol_expr;
-  bool with_persistent_for_clause; // uses PERSISTENT FOR clause (in ANALYZE)
 
   enum SSL_type ssl_type;			/* defined in violite.h */
   enum enum_duplicates duplicates;
@@ -2416,6 +2436,8 @@ struct LEX: public Query_tables_list
   union {
     enum ha_rkey_function ha_rkey_mode;
     enum xa_option_words xa_opt;
+    bool with_admin_option;                     // GRANT role
+    bool with_persistent_for_clause; // uses PERSISTENT FOR clause (in ANALYZE)
   };
   enum enum_var_type option_type;
   enum enum_view_create_mode create_view_mode;
@@ -2453,7 +2475,7 @@ struct LEX: public Query_tables_list
 
   enum enum_yes_no_unknown tx_chain, tx_release;
   bool safe_to_cache_query;
-  bool subqueries, ignore, online;
+  bool subqueries, ignore;
   st_parsing_options parsing_options;
   Alter_info alter_info;
   /*
@@ -2478,6 +2500,7 @@ struct LEX: public Query_tables_list
   bool sp_lex_in_use;	/* Keep track on lex usage in SPs for error handling */
   bool all_privileges;
   bool proxy_priv;
+
   sp_pcontext *spcont;
 
   st_sp_chistics sp_chistics;
@@ -2618,6 +2641,7 @@ struct LEX: public Query_tables_list
       sl->uncacheable|= cause;
       un->uncacheable|= cause;
     }
+    select_lex.uncacheable|= cause;
   }
   void set_trg_event_type_for_tables();
 
@@ -2709,6 +2733,9 @@ struct LEX: public Query_tables_list
     }
     return FALSE;
   }
+
+  int print_explain(select_result_sink *output, uint8 explain_flags,
+                    bool *printed_anything);
 };
 
 
@@ -2884,7 +2911,7 @@ extern void lex_start(THD *thd);
 extern void lex_end(LEX *lex);
 void end_lex_with_single_table(THD *thd, TABLE *table, LEX *old_lex);
 int init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex);
-extern int MYSQLlex(void *arg, void *yythd);
+extern int MYSQLlex(void *arg, THD *thd);
 
 extern void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str);
 

@@ -298,18 +298,15 @@ CREATE TABLE `t1` (
 ) AUTO_INCREMENT=12 DEFAULT CHARSET=latin1;
 INSERT INTO `t1` VALUES (10,'00:00:00','i','i'),(11,'00:00:00','','');
 
-set @old_optimizer_switch          = @@session.optimizer_switch,
-    @old_engine_condition_pushdown = @@session.engine_condition_pushdown;
+set @old_optimizer_switch          = @@session.optimizer_switch;
 
-SET SESSION OPTIMIZER_SWITCH = 'materialization=off,semijoin=off,loosescan=off,firstmatch=off,mrr=on';
-SET SESSION engine_condition_pushdown = 1;
+SET SESSION OPTIMIZER_SWITCH = 'materialization=off,semijoin=off,loosescan=off,firstmatch=off,mrr=on,engine_condition_pushdown=on';
 
  SELECT `time_nokey` G1  FROM t1  WHERE ( `varchar_nokey`  , `varchar_key`  )  IN ( 
 SELECT `varchar_nokey`  , `varchar_nokey`  )  AND `varchar_key`  >= 'c' HAVING G1  ORDER 
 BY `pk`   ;
 
-set @@session.optimizer_switch          = @old_optimizer_switch,
-    @@session.engine_condition_pushdown = @old_engine_condition_pushdown;
+set @@session.optimizer_switch          = @old_optimizer_switch;
 
 DROP TABLE t1;
 
@@ -476,8 +473,8 @@ INSERT INTO t2 VALUES (9,1);
 
 --echo # Enable Index condition pushdown
 --replace_column 1 #
-SELECT @old_icp:=@@engine_condition_pushdown;
-SET SESSION engine_condition_pushdown = 'ON';
+set @old_icp=@@optimizer_switch;
+SET SESSION optimizer_switch="engine_condition_pushdown=on";
 
 --echo
 SELECT pk
@@ -490,7 +487,7 @@ WHERE
      ORDER BY t1.i2 desc);
 
 --echo # Restore old value for Index condition pushdown
-SET SESSION engine_condition_pushdown=@old_icp;
+SET SESSION optimizer_switch=@old_icp;
 
 DROP TABLE t1,t2;
 
@@ -1828,6 +1825,31 @@ WHERE b IS NULL OR a < 'u';
 drop table t1,t2;
 set @@optimizer_switch = @optimizer_switch_MDEV4056;
 
+--echo #
+--echo # MDEV-5103: server crashed on singular Item_equal
+--echo #
+
+CREATE TABLE t1 (
+  a enum('p','r') NOT NULL DEFAULT 'r',
+  b int NOT NULL DEFAULT '0',
+  c char(32) NOT NULL,
+  d varchar(255) NOT NULL,
+  PRIMARY KEY (a, b), UNIQUE KEY idx(a, c)
+);
+INSERT INTO t1 VALUES ('r', 1, 'ad18832202b199728921807033a8a515', '001_cbr643');
+
+CREATE TABLE t2 (
+  a enum('p','r') NOT NULL DEFAULT 'r',
+  b int NOT NULL DEFAULT '0',
+  e datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  PRIMARY KEY (a, b, e)
+);
+INSERT INTO t2 VALUES ('r', 1, '2013-10-05 14:25:30');
+
+SELECT * FROM t1 AS t 
+  WHERE a='r' AND (c,b) NOT IN (SELECT c,b FROM t2 WHERE (c,b)=(t.c,t.b));
+
+DROP TABLE t1, t2;
 --echo #
 --echo # MDEV-3899  Valgrind warnings (blocks are definitely lost) in filesort on IN subquery with SUM and DISTINCT
 --echo #

@@ -96,6 +96,7 @@ bool user_connect::user_init()
 
   // Areasize= 64M because of VEC tables. Should be parameterisable
   g= PlugInit(NULL, 67108864);       
+//g= PlugInit(NULL, 134217728);  // 128M was because of old embedded tests     
 
   // Check whether the initialization is complete
   if (!g || !g->Sarea || PlugSubSet(g, g->Sarea, g->Sarea_Size)
@@ -145,6 +146,7 @@ bool user_connect::CheckCleanup(void)
     PlugSubSet(g, g->Sarea, g->Sarea_Size);
     g->Xchk = NULL;
     g->Createas = 0;
+    g->Alchecked = 0;
     last_query_id= thdp->query_id;
 
     if (xtrace)

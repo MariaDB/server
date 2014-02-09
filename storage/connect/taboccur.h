@@ -3,8 +3,6 @@
 
 #include "tabutil.h"
 
-#define TYPE_AM_OCCUR (AMT)128
-
 typedef class OCCURDEF *POCCURDEF;
 typedef class TDBOCCUR *PTDBOCCUR;
 typedef class OCCURCOL *POCCURCOL;
@@ -137,3 +135,9 @@ class XCOLDEF: public COLDEF {
 	friend class TDBOCCUR;
 	}; // end of class XCOLDEF
 
+
+bool OcrColumns(PGLOBAL g, PQRYRES qrp, const char *col, 
+                       const char *ocr, const char *rank);
+
+bool OcrSrcCols(PGLOBAL g, PQRYRES qrp, const char *col, 
+                       const char *ocr, const char *rank);

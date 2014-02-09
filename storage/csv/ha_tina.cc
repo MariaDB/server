@@ -143,6 +143,7 @@ static void init_tina_psi_keys(void)
 static const char *ha_tina_exts[] = {
   CSV_EXT,
   CSM_EXT,
+  CSN_EXT,
   NullS
 };
 
@@ -1304,7 +1305,7 @@ bool ha_tina::get_write_pos(my_off_t *end_pos, tina_set *closest_hole)
   if (closest_hole == chain_ptr) /* no more chains */
     *end_pos= file_buff->end();
   else
-    *end_pos= min(file_buff->end(), closest_hole->begin);
+    *end_pos= MY_MIN(file_buff->end(), closest_hole->begin);
   return (closest_hole != chain_ptr) && (*end_pos == closest_hole->begin);
 }
 
@@ -1500,7 +1501,7 @@ int ha_tina::repair(THD* thd, HA_CHECK_OPT* check_opt)
   /* Read the file row-by-row. If everything is ok, repair is not needed. */
   while (!(rc= find_current_row(buf)))
   {
-    thd_inc_row_count(thd);
+    thd_inc_error_row(thd);
     rows_repaired++;
     current_position= next_position;
   }
@@ -1541,7 +1542,7 @@ int ha_tina::repair(THD* thd, HA_CHECK_OPT* check_opt)
   /* write repaired file */
   while (1)
   {
-    write_end= min(file_buff->end(), current_position);
+    write_end= MY_MIN(file_buff->end(), current_position);
     if ((write_end - write_begin) &&
         (mysql_file_write(repair_file, (uchar*)file_buff->ptr(),
                           (size_t) (write_end - write_begin), MYF_RW)))
@@ -1714,7 +1715,7 @@ int ha_tina::check(THD* thd, HA_CHECK_OPT* check_opt)
   /* Read the file row-by-row. If everything is ok, repair is not needed. */
   while (!(rc= find_current_row(buf)))
   {
-    thd_inc_row_count(thd);
+    thd_inc_error_row(thd);
     count--;
     current_position= next_position;
   }

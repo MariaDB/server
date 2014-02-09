@@ -32,6 +32,7 @@
 #include "set_var.h"
 #include "sp_head.h"
 #include "sp.h"
+#include "sql_time.h"
 
 /*
 =============================================================================
@@ -55,7 +56,7 @@ static void wrong_precision_error(uint errcode, Item *a,
   char buff[1024];
   String buf(buff, sizeof(buff), system_charset_info);
 
-  my_error(errcode, MYF(0), (uint) min(number, UINT_MAX32),
+  my_error(errcode, MYF(0), (uint) MY_MIN(number, UINT_MAX32),
            item_name(a, &buf), maximum);
 }
 
@@ -1150,6 +1151,19 @@ protected:
 };
 
 
+class Create_func_from_base64 : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_from_base64 s_singleton;
+
+protected:
+  Create_func_from_base64() {}
+  virtual ~Create_func_from_base64() {}
+};
+
+
 class Create_func_from_days : public Create_func_arg1
 {
 public:
@@ -2014,6 +2028,45 @@ protected:
 };
 
 
+class Create_func_regexp_instr : public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_regexp_instr s_singleton;
+
+protected:
+  Create_func_regexp_instr() {}
+  virtual ~Create_func_regexp_instr() {}
+};
+
+
+class Create_func_regexp_replace : public Create_func_arg3
+{
+public:
+  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3);
+
+  static Create_func_regexp_replace s_singleton;
+
+protected:
+  Create_func_regexp_replace() {}
+  virtual ~Create_func_regexp_replace() {}
+};
+
+
+class Create_func_regexp_substr : public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_regexp_substr s_singleton;
+
+protected:
+  Create_func_regexp_substr() {}
+  virtual ~Create_func_regexp_substr() {}
+};
+
+
 class Create_func_radians : public Create_func_arg1
 {
 public:
@@ -2076,19 +2129,6 @@ public:
 protected:
   Create_func_round() {}
   virtual ~Create_func_round() {}
-};
-
-
-class Create_func_row_count : public Create_func_arg0
-{
-public:
-  virtual Item *create_builder(THD *thd);
-
-  static Create_func_row_count s_singleton;
-
-protected:
-  Create_func_row_count() {}
-  virtual ~Create_func_row_count() {}
 };
 
 
@@ -2366,6 +2406,19 @@ public:
 protected:
   Create_func_timediff() {}
   virtual ~Create_func_timediff() {}
+};
+
+
+class Create_func_to_base64 : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_to_base64 s_singleton;
+
+protected:
+  Create_func_to_base64() {}
+  virtual ~Create_func_to_base64() {}
 };
 
 
@@ -3824,6 +3877,16 @@ Create_func_format::create_native(THD *thd, LEX_STRING name,
 }
 
 
+Create_func_from_base64 Create_func_from_base64::s_singleton;
+
+
+Item *
+Create_func_from_base64::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_from_base64(arg1);
+}
+
+
 Create_func_found_rows Create_func_found_rows::s_singleton;
 
 Item*
@@ -4719,6 +4782,33 @@ Create_func_quote::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_regexp_instr Create_func_regexp_instr::s_singleton;
+
+Item*
+Create_func_regexp_instr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_regexp_instr(arg1, arg2);
+}
+
+
+Create_func_regexp_replace Create_func_regexp_replace::s_singleton;
+
+Item*
+Create_func_regexp_replace::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
+{
+  return new (thd->mem_root) Item_func_regexp_replace(arg1, arg2, arg3);
+}
+
+
+Create_func_regexp_substr Create_func_regexp_substr::s_singleton;
+
+Item*
+Create_func_regexp_substr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_regexp_substr(arg1, arg2);
+}
+
+
 Create_func_radians Create_func_radians::s_singleton;
 
 Item*
@@ -4834,18 +4924,6 @@ Create_func_round::create_native(THD *thd, LEX_STRING name,
   }
 
   return func;
-}
-
-
-Create_func_row_count Create_func_row_count::s_singleton;
-
-Item*
-Create_func_row_count::create_builder(THD *thd)
-{
-  DBUG_ENTER("Create_func_row_count::create");
-  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-  thd->lex->safe_to_cache_query= 0;
-  DBUG_RETURN(new (thd->mem_root) Item_func_row_count());
 }
 
 
@@ -5061,6 +5139,15 @@ Item*
 Create_func_timediff::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   return new (thd->mem_root) Item_func_timediff(arg1, arg2);
+}
+
+
+Create_func_to_base64 Create_func_to_base64::s_singleton;
+
+Item*
+Create_func_to_base64::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_to_base64(arg1);
 }
 
 
@@ -5417,6 +5504,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("FLOOR") }, BUILDER(Create_func_floor)},
   { { C_STRING_WITH_LEN("FORMAT") }, BUILDER(Create_func_format)},
   { { C_STRING_WITH_LEN("FOUND_ROWS") }, BUILDER(Create_func_found_rows)},
+  { { C_STRING_WITH_LEN("FROM_BASE64") }, BUILDER(Create_func_from_base64)},
   { { C_STRING_WITH_LEN("FROM_DAYS") }, BUILDER(Create_func_from_days)},
   { { C_STRING_WITH_LEN("FROM_UNIXTIME") }, BUILDER(Create_func_from_unixtime)},
   { { C_STRING_WITH_LEN("GEOMCOLLFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
@@ -5514,12 +5602,14 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("POW") }, BUILDER(Create_func_pow)},
   { { C_STRING_WITH_LEN("POWER") }, BUILDER(Create_func_pow)},
   { { C_STRING_WITH_LEN("QUOTE") }, BUILDER(Create_func_quote)},
+  { { C_STRING_WITH_LEN("REGEXP_INSTR") }, BUILDER(Create_func_regexp_instr)},
+  { { C_STRING_WITH_LEN("REGEXP_REPLACE") }, BUILDER(Create_func_regexp_replace)},
+  { { C_STRING_WITH_LEN("REGEXP_SUBSTR") }, BUILDER(Create_func_regexp_substr)},
   { { C_STRING_WITH_LEN("RADIANS") }, BUILDER(Create_func_radians)},
   { { C_STRING_WITH_LEN("RAND") }, BUILDER(Create_func_rand)},
   { { C_STRING_WITH_LEN("RELEASE_LOCK") }, BUILDER(Create_func_release_lock)},
   { { C_STRING_WITH_LEN("REVERSE") }, BUILDER(Create_func_reverse)},
   { { C_STRING_WITH_LEN("ROUND") }, BUILDER(Create_func_round)},
-  { { C_STRING_WITH_LEN("ROW_COUNT") }, BUILDER(Create_func_row_count)},
   { { C_STRING_WITH_LEN("RPAD") }, BUILDER(Create_func_rpad)},
   { { C_STRING_WITH_LEN("RTRIM") }, BUILDER(Create_func_rtrim)},
   { { C_STRING_WITH_LEN("SEC_TO_TIME") }, BUILDER(Create_func_sec_to_time)},
@@ -5601,6 +5691,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("TIME_FORMAT") }, BUILDER(Create_func_time_format)},
   { { C_STRING_WITH_LEN("TIME_TO_SEC") }, BUILDER(Create_func_time_to_sec)},
   { { C_STRING_WITH_LEN("TOUCHES") }, GEOM_BUILDER(Create_func_touches)},
+  { { C_STRING_WITH_LEN("TO_BASE64") }, BUILDER(Create_func_to_base64)},
   { { C_STRING_WITH_LEN("TO_DAYS") }, BUILDER(Create_func_to_days)},
   { { C_STRING_WITH_LEN("TO_SECONDS") }, BUILDER(Create_func_to_seconds)},
   { { C_STRING_WITH_LEN("UCASE") }, BUILDER(Create_func_ucase)},
@@ -5818,6 +5909,84 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
   }
   }
   return res;
+}
+
+
+static bool
+have_important_literal_warnings(const MYSQL_TIME_STATUS *status)
+{
+  return (status->warnings & ~MYSQL_TIME_NOTE_TRUNCATED) != 0;
+}
+
+
+/**
+  Builder for datetime literals:
+    TIME'00:00:00', DATE'2001-01-01', TIMESTAMP'2001-01-01 00:00:00'.
+  @param thd          The current thread
+  @param str          Character literal
+  @param length       Length of str
+  @param type         Type of literal (TIME, DATE or DATETIME)
+  @param send_error   Whether to generate an error on failure
+*/
+
+Item *create_temporal_literal(THD *thd,
+                              const char *str, uint length,
+                              CHARSET_INFO *cs,
+                              enum_field_types type,
+                              bool send_error)
+{
+  MYSQL_TIME_STATUS status;
+  MYSQL_TIME ltime;
+  Item *item= NULL;
+  ulonglong flags= sql_mode_for_dates(thd);
+
+  switch(type)
+  {
+  case MYSQL_TYPE_DATE:
+  case MYSQL_TYPE_NEWDATE:
+    if (!str_to_datetime(cs, str, length, &ltime, flags, &status) &&
+        ltime.time_type == MYSQL_TIMESTAMP_DATE && !status.warnings)
+      item= new (thd->mem_root) Item_date_literal(&ltime);
+    break;
+  case MYSQL_TYPE_DATETIME:
+    if (!str_to_datetime(cs, str, length, &ltime, flags, &status) &&
+        ltime.time_type == MYSQL_TIMESTAMP_DATETIME &&
+        !have_important_literal_warnings(&status))
+      item= new (thd->mem_root) Item_datetime_literal(&ltime,
+                                                      status.precision);
+    break;
+  case MYSQL_TYPE_TIME:
+    if (!str_to_time(cs, str, length, &ltime, 0, &status) &&
+        ltime.time_type == MYSQL_TIMESTAMP_TIME &&
+        !have_important_literal_warnings(&status))
+      item= new (thd->mem_root) Item_time_literal(&ltime,
+                                                  status.precision);
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+
+  if (item)
+  {
+    if (status.warnings) // e.g. a note on nanosecond truncation
+    {
+      ErrConvString err(str, length, cs);
+      make_truncated_value_warning(current_thd,
+                                   Sql_condition::time_warn_level(status.warnings),
+                                   &err, ltime.time_type, 0);
+    }
+    return item;
+  }
+
+  if (send_error)
+  {
+    const char *typestr=
+      (type == MYSQL_TYPE_DATE) ? "DATE" :
+      (type == MYSQL_TYPE_TIME) ? "TIME" : "DATETIME";
+    ErrConvString err(str, length, thd->variables.character_set_client);
+    my_error(ER_WRONG_VALUE, MYF(0), typestr, err.ptr());
+  }
+  return NULL;
 }
 
 

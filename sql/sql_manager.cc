@@ -110,7 +110,7 @@ pthread_handler_t handle_manager(void *arg __attribute__((unused)))
 
     if (error == ETIMEDOUT || error == ETIME)
     {
-      tdc_flush_unused_tables();
+      tc_purge();
       error = 0;
       reset_flush_time = TRUE;
     }
@@ -140,9 +140,12 @@ void start_handle_manager()
   if (flush_time && flush_time != ~(ulong) 0L)
   {
     pthread_t hThread;
-    if (mysql_thread_create(key_thread_handle_manager,
-                            &hThread, &connection_attrib, handle_manager, 0))
-      sql_print_warning("Can't create handle_manager thread");
+    int error;
+    if ((error= mysql_thread_create(key_thread_handle_manager,
+                                    &hThread, &connection_attrib,
+                                    handle_manager, 0)))
+      sql_print_warning("Can't create handle_manager thread (errno= %d)",
+                        error);
   }
   DBUG_VOID_RETURN;
 }

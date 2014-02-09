@@ -48,7 +48,7 @@ my_bool my_init_dynamic_array2(DYNAMIC_ARRAY *array, uint element_size,
   DBUG_ENTER("my_init_dynamic_array2");
   if (!alloc_increment)
   {
-    alloc_increment=max((8192-MALLOC_OVERHEAD)/element_size,16);
+    alloc_increment=MY_MAX((8192-MALLOC_OVERHEAD)/element_size,16);
     if (init_alloc > 8 && alloc_increment > init_alloc * 2)
       alloc_increment=init_alloc*2;
   }
@@ -321,7 +321,24 @@ void delete_dynamic_element(DYNAMIC_ARRAY *array, uint idx)
           (array->elements-idx)*array->size_of_element);
 }
 
+/*
+  Wrapper around delete_dynamic, calling a FREE function on every
+  element, before releasing the memory
 
+  SYNOPSIS
+    delete_dynamic_with_callback()
+      array
+      f          The function to be called on every element before
+                 deleting the array;
+*/
+void delete_dynamic_with_callback(DYNAMIC_ARRAY *array, FREE_FUNC f) {
+  uint i;
+  char *ptr= (char*) array->buffer;
+  for (i= 0; i < array->elements; i++, ptr+= array->size_of_element) {
+    f(ptr);
+  }
+  delete_dynamic(array);
+}
 /*
   Free unused memory
 
@@ -333,7 +350,7 @@ void delete_dynamic_element(DYNAMIC_ARRAY *array, uint idx)
 
 void freeze_size(DYNAMIC_ARRAY *array)
 {
-  uint elements=max(array->elements,1);
+  uint elements=MY_MAX(array->elements,1);
 
   /*
     Do nothing if we are using a static buffer

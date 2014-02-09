@@ -29,6 +29,7 @@
 #include "ma_key_recover.h"
 #include "ma_recovery_util.h"
 #include "hash.h"
+#include <my_check_opt.h>
 
 struct st_trn_for_recovery /* used only in the REDO phase */
 {
@@ -3679,7 +3680,7 @@ static void print_redo_phase_progress(TRANSLOG_ADDRESS addr)
   cur_offset= LSN_OFFSET(addr);
   local_remainder= (cur_logno == end_logno) ? (end_offset - cur_offset) :
     (((longlong)log_file_size) - cur_offset +
-     max(end_logno - cur_logno - 1, 0) * ((longlong)log_file_size) +
+     MY_MAX(end_logno - cur_logno - 1, 0) * ((longlong)log_file_size) +
      end_offset);
   if (initial_remainder == (ulonglong)(-1))
     initial_remainder= local_remainder;

@@ -16,6 +16,7 @@
 /*  Include relevant section of system dependant header files.         */
 /***********************************************************************/
 #include "my_global.h"
+#include "table.h"       // MySQL table definitions
 #if defined(WIN32)
 #include <stdlib.h>
 #include <stdio.h>
@@ -40,7 +41,6 @@
 /***********************************************************************/
 /*  Include application header files:                                  */
 /***********************************************************************/
-#include "table.h"       // MySQL table definitions
 #include "global.h"
 #include "plgdbsem.h"
 #include "plgcnx.h"                       // For DB types
@@ -193,6 +193,7 @@ bool TDBXCL::OpenDB(PGLOBAL g)
 	if (Tdbp->OpenDB(g))
 		return TRUE;
 
+  Use = USE_OPEN;
 	return FALSE;
   } // end of OpenDB
 
@@ -253,7 +254,7 @@ XCLCOL::XCLCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 void XCLCOL::ReadColumn(PGLOBAL g)
   {
 	if (((PTDBXCL)To_Tdb)->New) {
-		Colp->ReadColumn(g);
+		Colp->Eval(g);
 		strcpy(Cbuf, To_Val->GetCharValue());
 		Cp = Cbuf;
 		} // endif New
@@ -272,9 +273,11 @@ void XCLCOL::ReadColumn(PGLOBAL g)
   } else if (Nullable) {
     Value->Reset();
     Value->SetNull(true);
-  } else
+  } else {
     // Skip that row
 		((PTDBXCL)To_Tdb)->RowFlag = 2;
+    Colp->Reset();
+  } // endif Cp
 	
 	if (Cp && *Cp)
 		// More to come from the same row

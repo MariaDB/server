@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -30,8 +30,9 @@
   and use poll()/select() to wait for them to complete. This way we can get
   a good coverage testing of the non-blocking API as well.
 */
+#include <my_context.h>
 static my_bool non_blocking_api_enabled= 0;
-#if !defined(EMBEDDED_LIBRARY)
+#if !defined(EMBEDDED_LIBRARY) && !defined(MY_CONTEXT_DISABLE)
 #define WRAP_NONBLOCK_ENABLED non_blocking_api_enabled
 #include "nonblock-wrappers.h"
 #endif
@@ -274,7 +275,9 @@ static my_bool check_have_innodb(MYSQL *conn)
   int rc;
   my_bool result;
 
-  rc= mysql_query(conn, "show variables like 'have_innodb'");
+  rc= mysql_query(conn, 
+                  "SELECT (support = 'YES' or support = 'DEFAULT' or support = 'ENABLED') "
+                  "AS `TRUE` FROM information_schema.engines WHERE engine = 'innodb'");
   myquery(rc);
   res= mysql_use_result(conn);
   DIE_UNLESS(res);
@@ -282,7 +285,7 @@ static my_bool check_have_innodb(MYSQL *conn)
   row= mysql_fetch_row(res);
   DIE_UNLESS(row);
 
-  result= strcmp(row[1], "YES") == 0;
+  result= strcmp(row[1], "1") == 0;
   mysql_free_result(res);
   return result;
 }
@@ -582,7 +585,7 @@ static int my_process_stmt_result(MYSQL_STMT *stmt)
     return row_count;
   }
 
-  field_count= min(mysql_num_fields(result), MAX_RES_FIELDS);
+  field_count= MY_MIN(mysql_num_fields(result), MAX_RES_FIELDS);
 
   bzero((char*) buffer, sizeof(buffer));
   bzero((char*) length, sizeof(length));

@@ -20,15 +20,15 @@ where name like 'Wait/Synch/Rwlock/sql/%'
 order by name limit 10;
 NAME	ENABLED	TIMED
 wait/synch/rwlock/sql/LOCK_dboptions	YES	YES
+wait/synch/rwlock/sql/LOCK_flush	YES	YES
 wait/synch/rwlock/sql/LOCK_grant	YES	YES
 wait/synch/rwlock/sql/LOCK_system_variables_hash	YES	YES
 wait/synch/rwlock/sql/LOCK_sys_init_connect	YES	YES
 wait/synch/rwlock/sql/LOCK_sys_init_slave	YES	YES
+wait/synch/rwlock/sql/LOCK_tdc	YES	YES
 wait/synch/rwlock/sql/LOGGER::LOCK_logger	YES	YES
 wait/synch/rwlock/sql/MDL_context::LOCK_waiting_for	YES	YES
 wait/synch/rwlock/sql/MDL_lock::rwlock	YES	YES
-wait/synch/rwlock/sql/Query_cache_query::lock	YES	YES
-wait/synch/rwlock/sql/THR_LOCK_servers	YES	YES
 select * from performance_schema.setup_instruments
 where name like 'Wait/Synch/Cond/sql/%'
   and name not in (
@@ -38,14 +38,14 @@ order by name limit 10;
 NAME	ENABLED	TIMED
 wait/synch/cond/sql/COND_flush_thread_cache	YES	YES
 wait/synch/cond/sql/COND_manager	YES	YES
+wait/synch/cond/sql/COND_parallel_entry	YES	YES
+wait/synch/cond/sql/COND_prepare_ordered	YES	YES
 wait/synch/cond/sql/COND_queue_state	YES	YES
+wait/synch/cond/sql/COND_rpl_thread	YES	YES
+wait/synch/cond/sql/COND_rpl_thread_pool	YES	YES
 wait/synch/cond/sql/COND_server_started	YES	YES
 wait/synch/cond/sql/COND_thread_cache	YES	YES
 wait/synch/cond/sql/COND_thread_count	YES	YES
-wait/synch/cond/sql/Delayed_insert::cond	YES	YES
-wait/synch/cond/sql/Delayed_insert::cond_client	YES	YES
-wait/synch/cond/sql/Event_scheduler::COND_state	YES	YES
-wait/synch/cond/sql/Item_func_sleep::cond	YES	YES
 select * from performance_schema.setup_instruments
 where name='Wait';
 select * from performance_schema.setup_instruments
@@ -72,3 +72,9 @@ LOCK TABLES performance_schema.setup_instruments READ;
 UNLOCK TABLES;
 LOCK TABLES performance_schema.setup_instruments WRITE;
 UNLOCK TABLES;
+
+# Bug#13813193 ASSERTION `TABLE->READ_SET ==
+# &TABLE->DEF_READ_SET' FAILED / MYSQL_UPDATE
+
+UPDATE performance_schema.setup_instruments SET timed='NO'
+ORDER BY RAND();

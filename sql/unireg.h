@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 #include "my_global.h"                          /* ulonglong */
@@ -132,6 +132,10 @@
   The flag means that I_S table uses optimization algorithm.
 */
 #define OPTIMIZE_I_S_TABLE     OPEN_VIEW_FULL*2
+/**
+  This flag is used to instruct tdc_open_view() to check metadata version.
+*/
+#define CHECK_METADATA_VERSION OPEN_TRIGGER_ONLY*2
 
 /*
   The flag means that we need to process trigger files only.
@@ -181,6 +185,7 @@
 */
 enum extra2_frm_value_type {
   EXTRA2_TABLEDEF_VERSION=0,
+  EXTRA2_DEFAULT_PART_ENGINE=1,
 
 #define EXTRA2_ENGINE_IMPORTANT 128
 
@@ -189,7 +194,8 @@ enum extra2_frm_value_type {
 
 int rea_create_table(THD *thd, LEX_CUSTRING *frm,
                      const char *path, const char *db, const char *table_name,
-                     HA_CREATE_INFO *create_info, handler *file);
+                     HA_CREATE_INFO *create_info, handler *file,
+                     bool no_ha_create_table);
 LEX_CUSTRING build_frm_image(THD *thd, const char *table,
                              HA_CREATE_INFO *create_info,
                              List<Create_field> &create_fields,

@@ -117,6 +117,7 @@ class TBTBLK : public TIDBLK {
 #if !defined(__BORLANDC__)
   // Avoid warning C4291 by defining a matching dummy delete operator
   void operator delete(void *, TIDBLK*) {}
+  void operator delete(void *, size_t size) {}
 #endif
 
  protected:
@@ -163,3 +164,6 @@ class DllExport TDBTBM : public TDBTBL {
   int   Nrc;                  // Number of remote connections
   int   Nlc;                  // Number of local connections
   }; // end of class TDBTBM
+
+
+pthread_handler_t ThreadOpen(void *p);

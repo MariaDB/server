@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -142,6 +142,11 @@ bool trans_begin(THD *thd, uint flags)
   }
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+
+  /*
+    The following set should not be needed as the flag should always be 0
+    when we come here.  We should at some point change this to an assert.
+  */
   thd->transaction.all.modified_non_trans_table= FALSE;
 
   if (res)
@@ -246,6 +251,10 @@ bool trans_commit_implicit(THD *thd)
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
 
+  if (thd->variables.option_bits & OPTION_GTID_BEGIN)
+    DBUG_PRINT("error", ("OPTION_GTID_BEGIN is set. "
+                         "Master and slave will have different GTID values"));
+
   if (thd->in_multi_stmt_transaction_mode() ||
       (thd->variables.option_bits & OPTION_TABLE_LOCK))
   {
@@ -297,8 +306,56 @@ bool trans_rollback(THD *thd)
   res= ha_rollback_trans(thd, TRUE);
   (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  /* Reset the binlog transaction marker */
+  thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
   thd->transaction.all.modified_non_trans_table= FALSE;
   thd->lex->start_transaction_opt= 0;
+
+  DBUG_RETURN(test(res));
+}
+
+
+/**
+  Implicitly rollback the current transaction, typically
+  after deadlock was discovered.
+
+  @param thd     Current thread
+
+  @retval False Success
+  @retval True  Failure
+
+  @note ha_rollback_low() which is indirectly called by this
+        function will mark XA transaction for rollback by
+        setting appropriate RM error status if there was
+        transaction rollback request.
+*/
+
+bool trans_rollback_implicit(THD *thd)
+{
+  int res;
+  DBUG_ENTER("trans_rollback_implict");
+
+  /*
+    Always commit/rollback statement transaction before manipulating
+    with the normal one.
+    Don't perform rollback in the middle of sub-statement, wait till
+    its end.
+  */
+  DBUG_ASSERT(thd->transaction.stmt.is_empty() && !thd->in_sub_stmt);
+
+  thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+  DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
+  res= ha_rollback_trans(thd, true);
+  /*
+    We don't reset OPTION_BEGIN flag below to simulate implicit start
+    of new transacton in @@autocommit=1 mode. This is necessary to
+    preserve backward compatibility.
+  */
+  thd->variables.option_bits&= ~(OPTION_KEEP_LOG);
+  thd->transaction.all.modified_non_trans_table= false;
+
+  /* Rollback should clear transaction_rollback_request flag. */
+  DBUG_ASSERT(! thd->transaction_rollback_request);
 
   DBUG_RETURN(test(res));
 }
@@ -379,8 +436,6 @@ bool trans_rollback_stmt(THD *thd)
   if (thd->transaction.stmt.ha_list)
   {
     ha_rollback_trans(thd, FALSE);
-    if (thd->transaction_rollback_request && !thd->in_sub_stmt)
-      ha_rollback_trans(thd, TRUE);
     if (! thd->in_active_multi_stmt_transaction())
     {
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
@@ -524,7 +579,7 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_STRING name)
   else if (((thd->variables.option_bits & OPTION_KEEP_LOG) ||
             thd->transaction.all.modified_non_trans_table) &&
            !thd->slave_thread)
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
                  ER(ER_WARNING_NOT_COMPLETE_ROLLBACK));
 
@@ -815,7 +870,7 @@ bool trans_xa_rollback(THD *thd)
       ha_commit_or_rollback_by_xid(thd->lex->xid, 0);
       xid_cache_delete(xs);
     }
-    DBUG_RETURN(thd->stmt_da->is_error());
+    DBUG_RETURN(thd->get_stmt_da()->is_error());
   }
 
   if (xa_state != XA_IDLE && xa_state != XA_PREPARED && xa_state != XA_ROLLBACK_ONLY)

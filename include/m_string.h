@@ -73,10 +73,12 @@ extern "C" {
 #endif
 
 /*
-  my_str_malloc() and my_str_free() are assigned to implementations in
-  strings/alloc.c, but can be overridden in the calling program.
+  my_str_malloc(), my_str_realloc() and my_str_free() are assigned to
+  implementations in strings/alloc.c, but can be overridden in
+  the calling program.
  */
 extern void *(*my_str_malloc)(size_t);
+extern void *(*my_str_realloc)(void *, size_t);
 extern void (*my_str_free)(void *);
 
 #if defined(HAVE_STPCPY) && MY_GNUC_PREREQ(3, 4) && !defined(__INTEL_COMPILER)
@@ -168,7 +170,7 @@ size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
   (DBL_DIG + 2) significant digits + sign + "." + ("e-NNN" or
   MAX_DECPT_FOR_F_FORMAT zeros for cases when |x|<1 and the 'f' format is used).
 */
-#define MY_GCVT_MAX_FIELD_WIDTH (DBL_DIG + 4 + max(5, MAX_DECPT_FOR_F_FORMAT)) \
+#define MY_GCVT_MAX_FIELD_WIDTH (DBL_DIG + 4 + MY_MAX(5, MAX_DECPT_FOR_F_FORMAT)) \
 
 extern char *llstr(longlong value,char *buff);
 extern char *ullstr(longlong value,char *buff);

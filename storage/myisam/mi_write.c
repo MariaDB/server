@@ -55,6 +55,10 @@ int mi_write(MI_INFO *info, uchar *record)
   DBUG_EXECUTE_IF("myisam_pretend_crashed_table_on_usage",
                   mi_print_error(info->s, HA_ERR_CRASHED);
                   DBUG_RETURN(my_errno= HA_ERR_CRASHED););
+
+  /* it's always a bug to try to write a record with the deleted flag set */
+  DBUG_ASSERT(info->s->data_file_type != STATIC_RECORD || *record);
+
   if (share->options & HA_OPTION_READ_ONLY_DATA)
   {
     DBUG_RETURN(my_errno=EACCES);
@@ -962,7 +966,7 @@ static int keys_free(uchar *key, TREE_FREE mode, bulk_insert_param *param)
 }
 
 
-int mi_init_bulk_insert(MI_INFO *info, ulong cache_size, ha_rows rows)
+int mi_init_bulk_insert(MI_INFO *info, size_t cache_size, ha_rows rows)
 {
   MYISAM_SHARE *share=info->s;
   MI_KEYDEF *key=share->keyinfo;
@@ -970,7 +974,7 @@ int mi_init_bulk_insert(MI_INFO *info, ulong cache_size, ha_rows rows)
   uint i, num_keys, total_keylength;
   ulonglong key_map;
   DBUG_ENTER("_mi_init_bulk_insert");
-  DBUG_PRINT("enter",("cache_size: %lu", cache_size));
+  DBUG_PRINT("enter",("cache_size: %lu", (ulong) cache_size));
 
   DBUG_ASSERT(!info->bulk_insert &&
 	      (!rows || rows >= MI_MIN_ROWS_TO_USE_BULK_INSERT));
@@ -988,11 +992,11 @@ int mi_init_bulk_insert(MI_INFO *info, ulong cache_size, ha_rows rows)
   }
 
   if (num_keys==0 ||
-      num_keys * MI_MIN_SIZE_BULK_INSERT_TREE > cache_size)
+      num_keys * (size_t) MI_MIN_SIZE_BULK_INSERT_TREE > cache_size)
     DBUG_RETURN(0);
 
   if (rows && rows*total_keylength < cache_size)
-    cache_size= (ulong)rows;
+    cache_size= (size_t) rows;
   else
     cache_size/=total_keylength*16;
 

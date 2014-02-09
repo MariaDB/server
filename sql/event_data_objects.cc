@@ -608,7 +608,7 @@ Event_timed::load_from_row(THD *thd, TABLE *table)
                                        table, &creation_ctx))
   {
     push_warning_printf(thd,
-                        MYSQL_ERROR::WARN_LEVEL_WARN,
+                        Sql_condition::WARN_LEVEL_WARN,
                         ER_EVENT_INVALID_CREATION_CTX,
                         ER(ER_EVENT_INVALID_CREATION_CTX),
                         (const char *) dbname.str,
@@ -1337,7 +1337,7 @@ Event_job_data::execute(THD *thd, bool drop)
 
   DBUG_ENTER("Event_job_data::execute");
 
-  mysql_reset_thd_for_next_command(thd, 0);
+  mysql_reset_thd_for_next_command(thd);
 
   /*
     MySQL parser currently assumes that current database is either

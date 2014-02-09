@@ -189,6 +189,12 @@ int rr_sequential(READ_RECORD *info);
 int rr_sequential_and_unpack(READ_RECORD *info);
 
 
+#include "sql_explain.h"
+
+/**************************************************************************************
+ * New EXPLAIN structures END
+ *************************************************************************************/
+
 class JOIN_CACHE;
 class SJ_TMP_TABLE;
 class JOIN_TAB_RANGE;
@@ -243,7 +249,8 @@ typedef struct st_join_table {
   JOIN_TAB_RANGE *bush_children;
   
   /* Special content for EXPLAIN 'Extra' column or NULL if none */
-  const char	*info;
+  enum explain_extra_tag info;
+
   /* 
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
     column, or 0 if there is no info.
@@ -310,8 +317,9 @@ typedef struct st_join_table {
   uint          used_null_fields;
   uint          used_uneven_bit_fields;
   enum join_type type;
-  bool		cached_eq_ref_table,eq_ref_table,not_used_in_distinct;
-  bool		sorted;
+  bool          cached_eq_ref_table,eq_ref_table;
+  bool          shortcut_for_distinct;
+  bool          sorted;
   /* 
     If it's not 0 the number stored this field indicates that the index
     scan has been chosen to access the table data and we expect to scan 
@@ -527,6 +535,7 @@ typedef struct st_join_table {
             !(used_sjm_lookup_tables & ~emb_sj_nest->sj_inner_tables));
   }
 
+  void remove_redundant_bnl_scan_conds();
 } JOIN_TAB;
 
 
@@ -1110,6 +1119,12 @@ public:
     restore_no_rows_in_result() in ::reinit()
   */
   bool no_rows_in_result_called;
+
+  /**
+    This is set if SQL_CALC_ROWS was calculated by filesort()
+    and should be taken from the appropriate JOIN_TAB
+  */
+  bool filesort_found_rows;
   
   /**
     Copy of this JOIN to be used with temporary tables.
@@ -1164,6 +1179,11 @@ public:
   bool cleaned;
   DYNAMIC_ARRAY keyuse;
   Item::cond_result cond_value, having_value;
+  /**
+    Impossible where after reading const tables 
+    (set in make_join_statistics())
+  */
+  bool impossible_where; 
   List<Item> all_fields; ///< to store all fields that used in query
   ///Above list changed to use temporary table
   List<Item> tmp_all_fields1, tmp_all_fields2, tmp_all_fields3;
@@ -1319,11 +1339,27 @@ public:
     pre_sort_join_tab= NULL;
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
+
+    filesort_found_rows= false;
+    exec_saved_explain= false;
+    /* 
+      The following is needed because JOIN::cleanup(true) may be called for 
+      joins for which JOIN::optimize was aborted with an error before a proper
+      query plan was produced
+    */
+    table_access_tabs= NULL; 
   }
 
+  /*
+    TRUE <=> There was a JOIN::exec() call, which saved this JOIN's EXPLAIN.
+    The idea is that we also save at the end of JOIN::optimize(), but that
+    might not be the final plan.
+  */
+  bool exec_saved_explain;
+
   int prepare(Item ***rref_pointer_array, TABLE_LIST *tables, uint wind_num,
-	      COND *conds, uint og_num, ORDER *order, ORDER *group,
-	      Item *having, ORDER *proc_param, SELECT_LEX *select,
+	      COND *conds, uint og_num, ORDER *order, bool skip_order_by,
+              ORDER *group, Item *having, ORDER *proc_param, SELECT_LEX *select,
 	      SELECT_LEX_UNIT *unit);
   bool prepare_stage2();
   int optimize();
@@ -1445,11 +1481,11 @@ public:
   {
     return (unit->item && unit->item->is_in_predicate());
   }
-
-  int print_explain(select_result_sink *result, uint8 explain_flags,
-                     bool on_the_fly,
-                     bool need_tmp_table, bool need_order,
-                     bool distinct,const char *message);
+  void save_explain_data(Explain_query *output, bool can_overwrite,
+                         bool need_tmp_table, bool need_order, bool distinct);
+  int save_explain_data_intern(Explain_query *output, bool need_tmp_table,
+                               bool need_order, bool distinct,
+                               const char *message);
 private:
   /**
     TRUE if the query contains an aggregate function but has no GROUP
@@ -1805,11 +1841,14 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
                                SELECT_LEX *select_lex, uint8 select_options);
 
 uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
-                         ha_rows limit, bool *need_sort, bool *reverse);
+                         ha_rows limit, ha_rows *scanned_limit, 
+                         bool *need_sort, bool *reverse);
 ORDER *simple_remove_const(ORDER *order, COND *where);
 bool const_expression_in_where(COND *cond, Item *comp_item,
                                Field *comp_field= NULL,
                                Item **const_item= NULL);
+bool cond_is_datetime_is_null(Item *cond);
+bool cond_has_datetime_is_null(Item *cond);
 
 /* Table elimination entry point function */
 void eliminate_tables(JOIN *join);
@@ -1818,6 +1857,29 @@ void eliminate_tables(JOIN *join);
 void push_index_cond(JOIN_TAB *tab, uint keyno);
 
 #define OPT_LINK_EQUAL_FIELDS    1
+
+/* EXPLAIN-related utility functions */
+int print_explain_message_line(select_result_sink *result, 
+                               uint8 options,
+                               uint select_number,
+                               const char *select_type,
+                               ha_rows *rows,
+                               const char *message);
+void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res);
+int print_explain_row(select_result_sink *result,
+                      uint8 options,
+                      uint select_number,
+                      const char *select_type,
+                      const char *table_name,
+                      const char *partitions,
+                      enum join_type jtype,
+                      const char *possible_keys,
+                      const char *index,
+                      const char *key_len,
+                      const char *ref,
+                      ha_rows *rows,
+                      const char *extra);
+void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line);
 
 /****************************************************************************
   Temporary table support for SQL Runtime
@@ -1831,16 +1893,18 @@ void push_index_cond(JOIN_TAB *tab, uint keyno);
 TABLE *create_tmp_table(THD *thd,TMP_TABLE_PARAM *param,List<Item> &fields,
 			ORDER *group, bool distinct, bool save_sum_fields,
 			ulonglong select_options, ha_rows rows_limit,
-			const char* alias, bool do_not_open=FALSE);
+			const char* alias, bool do_not_open=FALSE,
+                        bool keep_row_order= FALSE);
 void free_tmp_table(THD *thd, TABLE *entry);
 bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
                                          TMP_ENGINE_COLUMNDEF *start_recinfo,
                                          TMP_ENGINE_COLUMNDEF **recinfo, 
-                                         int error, bool ignore_last_dupp_key_error);
+                                         int error, bool ignore_last_dupp_key_error,
+                                         bool *is_duplicate);
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
                                TMP_ENGINE_COLUMNDEF *start_recinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo, 
-                               ulonglong options, my_bool big_tables);
+                               ulonglong options);
 bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
 double prev_record_reads(POSITION *positions, uint idx, table_map found_ref);

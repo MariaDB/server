@@ -466,6 +466,7 @@ typedef struct st_maria_share
   my_bool changed,			/* If changed since lock */
     global_changed,			/* If changed since open */
     not_flushed;
+  my_bool internal_table;               /* Internal tmp table */
   my_bool lock_key_trees;               /* If we have to lock trees on read */
   my_bool non_transactional_concurrent_insert;
   my_bool delay_key_write;
@@ -567,7 +568,6 @@ typedef struct st_maria_block_scan
   ulonglong row_changes;
 } MARIA_BLOCK_SCAN;
 
-//typedef ICP_RESULT (*index_cond_func_t)(void *param);
 
 struct st_maria_handler
 {
@@ -930,9 +930,10 @@ extern PSI_thread_key key_thread_checkpoint, key_thread_find_all_keys,
 extern PSI_file_key key_file_translog, key_file_kfile, key_file_dfile,
                     key_file_control, key_file_tmp;
 
-extern PSI_stage_info stage_waiting_for_a_resource;
-
 #endif
+
+/* Note that PSI_stage_info globals must always be declared. */
+extern PSI_stage_info stage_waiting_for_a_resource;
 
 /* This is used by _ma_calc_xxx_key_length och _ma_store_key */
 typedef struct st_maria_s_param
@@ -1317,6 +1318,13 @@ void _ma_remap_file(MARIA_HA *info, my_off_t size);
 MARIA_RECORD_POS _ma_write_init_default(MARIA_HA *info, const uchar *record);
 my_bool _ma_write_abort_default(MARIA_HA *info);
 int maria_delete_table_files(const char *name, myf sync_dir);
+
+/*
+  This cannot be in my_base.h as it clashes with HA_SPATIAL.
+  But it was introduced for Aria engine, and is only used there.
+  So it can safely stay here, only visible to Aria
+*/
+#define HA_RTREE_INDEX	        16384	/* For RTREE search */
 
 C_MODE_START
 #define MARIA_FLUSH_DATA  1

@@ -44,12 +44,16 @@ static const char *get_os_version_name(OSVERSIONINFOEX *ver)
   DWORD major = ver->dwMajorVersion;
   DWORD minor = ver->dwMinorVersion;
 
+  if (major == 6 && minor == 3)
+  {
+    return (ver->wProductType == VER_NT_WORKSTATION)?
+      "Windows 8.1":"Windows Server 2012 R2";    
+  } 
   if (major == 6 && minor == 2)
   {
     return (ver->wProductType == VER_NT_WORKSTATION)?
       "Windows 8":"Windows Server 2012";    
   }
-  
   if (major == 6 && minor == 1)
   {
     return (ver->wProductType == VER_NT_WORKSTATION)?
@@ -389,7 +393,6 @@ int calculate_server_uid(char *dest)
 {
   uchar rawbuf[2 + 6];
   uchar shabuf[SHA1_HASH_SIZE];
-  SHA1_CONTEXT ctx;
 
   int2store(rawbuf, mysqld_port);
   if (my_gethwaddr(rawbuf + 2))
@@ -398,9 +401,7 @@ int calculate_server_uid(char *dest)
     return 1;
   }
 
-  mysql_sha1_reset(&ctx);
-  mysql_sha1_input(&ctx, rawbuf, sizeof(rawbuf));
-  mysql_sha1_result(&ctx, shabuf);
+  compute_sha1_hash((uint8*) shabuf, (char*) rawbuf, sizeof(rawbuf));
 
   assert(base64_needed_encoded_length(sizeof(shabuf)) <= SERVER_UID_SIZE);
   base64_encode(shabuf, sizeof(shabuf), dest);

@@ -83,13 +83,16 @@ int select_union::send_data(List<Item> &values)
       */
       return -1;
     }
+    bool is_duplicate= FALSE;
     /* create_internal_tmp_table_from_heap will generate error if needed */
     if (table->file->is_fatal_error(write_err, HA_CHECK_DUP) &&
         create_internal_tmp_table_from_heap(thd, table,
                                             tmp_table_param.start_recinfo, 
                                             &tmp_table_param.recinfo,
-                                            write_err, 1))
+                                            write_err, 1, &is_duplicate))
       return 1;
+    if (is_duplicate)
+      return -1;
   }
   return 0;
 }
@@ -126,6 +129,7 @@ bool select_union::flush()
       table_alias        name of the temporary table
       bit_fields_as_long convert bit fields to ulonglong
       create_table       whether to physically create result table
+      keep_row_order     keep rows in order as they were inserted
 
   DESCRIPTION
     Create a temporary table that is used to store the result of a UNION,
@@ -140,7 +144,8 @@ bool
 select_union::create_result_table(THD *thd_arg, List<Item> *column_types,
                                   bool is_union_distinct, ulonglong options,
                                   const char *alias,
-                                  bool bit_fields_as_long, bool create_table)
+                                  bool bit_fields_as_long, bool create_table,
+                                  bool keep_row_order)
 {
   DBUG_ASSERT(table == 0);
   tmp_table_param.init();
@@ -150,7 +155,7 @@ select_union::create_result_table(THD *thd_arg, List<Item> *column_types,
   if (! (table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                  (ORDER*) 0, is_union_distinct, 1,
                                  options, HA_POS_ERROR, alias,
-                                 !create_table)))
+                                 !create_table, keep_row_order)))
     return TRUE;
 
   table->keys_in_use_for_query.clear_all();
@@ -188,13 +193,15 @@ void select_union::cleanup()
   SYNOPSIS
     st_select_lex_unit::init_prepare_fake_select_lex()
     thd		- thread handler
+    first_execution - TRUE at the first execution of the union 
 
   RETURN
     options of SELECT
 */
 
 void
-st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg) 
+st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg,
+                                                  bool first_execution) 
 {
   thd_arg->lex->current_select= fake_select_lex;
   fake_select_lex->table_list.link_in_list(&result_table_list,
@@ -202,7 +209,13 @@ st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg)
   fake_select_lex->context.table_list= 
     fake_select_lex->context.first_name_resolution_table= 
     fake_select_lex->get_table_list();
-  if (!fake_select_lex->first_execution)
+  /*
+    The flag fake_select_lex->first_execution indicates whether this is
+    called at the first execution of the statement, while first_execution
+    shows whether this is called at the first execution of the union that
+    may form just a subselect.
+  */    
+  if (!fake_select_lex->first_execution && first_execution)
   {
     for (ORDER *order= global_parameters->order_list.first;
          order;
@@ -322,6 +335,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
                                sl->group_list.elements,
                                can_skip_order_by ?
                                NULL : sl->order_list.first,
+                               can_skip_order_by,
                                sl->group_list.first,
                                sl->having,
                                (is_union_select ? NULL :
@@ -475,7 +489,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       {
         /* Validate the global parameters of this union */
 
-	init_prepare_fake_select_lex(thd);
+	init_prepare_fake_select_lex(thd, TRUE);
         /* Should be done only once (the only item_list per statement) */
         DBUG_ASSERT(fake_select_lex->join == 0);
 	if (!(fake_select_lex->join= new JOIN(thd, item_list, thd->variables.option_bits,
@@ -505,7 +519,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
 		  0, 0,
                   global_parameters->order_list.elements, // og_num
                   global_parameters->order_list.first,    // order
-		  NULL, NULL, NULL,
+                  false, NULL, NULL, NULL,
 		  fake_select_lex, this);
 	fake_select_lex->table_list.empty();
       }
@@ -616,7 +630,9 @@ bool st_select_lex_unit::exec()
   SELECT_LEX *select_cursor=first_select();
   ulonglong add_rows=0;
   ha_rows examined_rows= 0;
+  bool first_execution= !executed;
   DBUG_ENTER("st_select_lex_unit::exec");
+  bool was_executed= executed;
 
   if (executed && !uncacheable && !describe)
     DBUG_RETURN(FALSE);
@@ -625,6 +641,11 @@ bool st_select_lex_unit::exec()
     item->make_const();
   
   saved_error= optimize();
+  
+  create_explain_query_if_not_exists(thd->lex, thd->mem_root);
+
+  if (!saved_error && !was_executed)
+    save_union_explain(thd->lex->explain);
 
   if (uncacheable || !item || !item->assigned() || describe)
   {
@@ -632,6 +653,10 @@ bool st_select_lex_unit::exec()
     {
       ha_rows records_at_start= 0;
       thd->lex->current_select= sl;
+      if (sl != &thd->lex->select_lex)
+        fake_select_lex->uncacheable|= sl->uncacheable;
+      else
+        fake_select_lex->uncacheable= 0;
 
       {
         set_limit(sl);
@@ -711,7 +736,7 @@ bool st_select_lex_unit::exec()
           Stop execution of the remaining queries in the UNIONS, and produce
           the current result.
         */
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT,
                             ER(ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
                             thd->accessed_rows_and_keys,
@@ -738,7 +763,7 @@ bool st_select_lex_unit::exec()
     if (!thd->is_fatal_error)				// Check if EOM
     {
       set_limit(global_parameters);
-      init_prepare_fake_select_lex(thd);
+      init_prepare_fake_select_lex(thd, first_execution);
       JOIN *join= fake_select_lex->join;
       if (!join)
       {
@@ -772,6 +797,9 @@ bool st_select_lex_unit::exec()
         */
         if (!fake_select_lex->ref_pointer_array)
           fake_select_lex->n_child_sum_items+= global_parameters->n_sum_items;
+        
+        if (!was_executed)
+          save_union_explain_part2(thd->lex->explain);
 
         saved_error= mysql_select(thd, &fake_select_lex->ref_pointer_array,
                               &result_table_list,

@@ -1,0 +1,1 @@
+--tokudb --plugin-load-add=$HA_TOKUDB_SO

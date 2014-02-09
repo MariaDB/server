@@ -1,5 +1,5 @@
 /************ Odbconn C++ Functions Source Code File (.CPP) ************/
-/*  Name: ODBCONN.CPP  Version 1.6                                     */
+/*  Name: ODBCONN.CPP  Version 1.9                                     */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          1998-2013    */
 /*                                                                     */
@@ -13,6 +13,7 @@
 #if defined(WIN32)
 //nclude <io.h>
 //nclude <fcntl.h>
+#include <direct.h>                      // for getcwd
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif
@@ -40,6 +41,7 @@
 #include "plgcnx.h"                       // For DB types
 #include "resource.h"
 #include "valblk.h"
+#include "osutil.h"
 
 
 #if defined(WIN32)
@@ -75,8 +77,10 @@ static short GetSQLType(int type)
     case TYPE_SHORT:  tp = SQL_SMALLINT;  break;
     case TYPE_INT:    tp = SQL_INTEGER;   break;
     case TYPE_DATE:   tp = SQL_TIMESTAMP; break;
-    case TYPE_BIGINT: tp = SQL_BIGINT;    break;                    //  (-5)
-    case TYPE_FLOAT:  tp = SQL_DOUBLE;    break;
+    case TYPE_BIGINT: tp = SQL_BIGINT;    break;                //  (-5)
+    case TYPE_DOUBLE: tp = SQL_DOUBLE;    break;
+    case TYPE_TINY:   tp = SQL_TINYINT;   break;
+    case TYPE_DECIM:  tp = SQL_DECIMAL;   break;
     } // endswitch type
 
   return tp;
@@ -95,7 +99,9 @@ static int GetSQLCType(int type)
     case TYPE_INT:    tp = SQL_C_LONG;      break;
     case TYPE_DATE:   tp = SQL_C_TIMESTAMP; break;
     case TYPE_BIGINT: tp = SQL_C_SBIGINT;   break;
-    case TYPE_FLOAT:  tp = SQL_C_DOUBLE;    break;
+    case TYPE_DOUBLE: tp = SQL_C_DOUBLE;    break;
+    case TYPE_TINY :  tp = SQL_C_TINYINT;   break;
+    case TYPE_DECIM:  tp = SQL_C_CHAR;      break;
     } // endswitch type
 
   return tp;
@@ -104,36 +110,41 @@ static int GetSQLCType(int type)
 /***********************************************************************/
 /*  TranslateSQLType: translate a SQL Type to a PLG type.              */
 /***********************************************************************/
-int TranslateSQLType(int stp, int prec, int& len)
+int TranslateSQLType(int stp, int prec, int& len, char& v)
   {
   int type;
 
   switch (stp) {
-    case SQL_CHAR:                          //    1
     case SQL_VARCHAR:                       //   12
+      v = 'V';
+    case SQL_CHAR:                          //    1
       type = TYPE_STRING;
       break;
     case SQL_LONGVARCHAR:                   //  (-1)
+      v = 'V';
       type = TYPE_STRING;
-      len = min(abs(len), 255);
+      len = min(abs(len), 256);
       break;
     case SQL_NUMERIC:                       //    2
     case SQL_DECIMAL:                       //    3
-      type = (prec) ? TYPE_FLOAT
-           : (len > 10) ? TYPE_BIGINT : TYPE_INT;
+//    type = (prec || len > 20) ? TYPE_DOUBLE
+//         : (len > 10) ? TYPE_BIGINT : TYPE_INT;
+      type = TYPE_DECIM;
       break;
     case SQL_INTEGER:                       //    4
       type = TYPE_INT;
       break;
     case SQL_SMALLINT:                      //    5
+      type = TYPE_SHORT;
+      break;
     case SQL_TINYINT:                       //  (-6)
     case SQL_BIT:                           //  (-7)
-      type = TYPE_SHORT;
+      type = TYPE_TINY;
       break;
     case SQL_FLOAT:                         //    6
     case SQL_REAL:                          //    7
     case SQL_DOUBLE:                        //    8
-      type = TYPE_FLOAT;
+      type = TYPE_DOUBLE;
       break;
     case SQL_DATETIME:                      //    9
 //  case SQL_DATE:                          //    9
@@ -166,16 +177,45 @@ int TranslateSQLType(int stp, int prec, int& len)
   return type;
   } // end of TranslateSQLType
 
+#if defined(PROMPT_OK)
 /***********************************************************************/
-/*  ODBConn static members initialization.                             */
+/*  ODBCCheckConnection: Check completeness of connection string.      */
 /***********************************************************************/
-//HENV ODBConn::m_henv = SQL_NULL_HENV;
-//int  ODBConn::m_nAlloc = 0;        // per-Appl reference to HENV above
+char *ODBCCheckConnection(PGLOBAL g, char *dsn, int cop)
+  {
+  char    *newdsn, dir[_MAX_PATH], buf[_MAX_PATH];
+  int      rc;
+  DWORD    options = ODBConn::openReadOnly;
+  ODBConn *ocp = new(g) ODBConn(g, NULL);
+
+  (void) getcwd(dir, sizeof(dir) - 1);
+
+  switch (cop) {
+    case 1: options |= ODBConn::forceOdbcDialog; break;
+    case 2: options |= ODBConn::noOdbcDialog;    break;
+    } // endswitch cop
+
+  if (ocp->Open(dsn, options) < 1)
+    newdsn = NULL;
+  else
+    newdsn = ocp->GetConnect();
+
+  (void) getcwd(buf, sizeof(buf) - 1);
+
+  // Some data sources change the current directory
+  if (strcmp(dir, buf))
+    rc = chdir(dir);
+
+  ocp->Close();
+  return newdsn;         // Return complete connection string
+  } // end of ODBCCheckConnection
+#endif   // PROMPT_OK
 
 /***********************************************************************/
 /*  Allocate the structure used to refer to the result set.            */
 /***********************************************************************/
-static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *tab, PQRYRES qrp)
+static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *db, 
+                                        char *tab, PQRYRES qrp)
   {
   size_t   i, m, n;
   CATPARM *cap;
@@ -183,22 +223,40 @@ static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *tab, PQRYRES qrp)
 #if defined(_DEBUG)
   assert(qrp);
 #endif
+
+  // Save stack and allocation environment and prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return NULL;
+    } // endif jump_level
+
+  if (setjmp(g->jumper[++g->jump_level]) != 0) {
+    printf("%s\n", g->Message);
+    cap = NULL;
+    goto fin;
+    } // endif rc
+
   m = (size_t)qrp->Maxres;
   n = (size_t)qrp->Nbcol;
   cap = (CATPARM *)PlugSubAlloc(g, NULL, sizeof(CATPARM));
   memset(cap, 0, sizeof(CATPARM));
   cap->Id = fid;
   cap->Qrp = qrp;
+  cap->DB = (PUCHAR)db;
   cap->Tab = (PUCHAR)tab;
-  cap->Vlen = (SQLLEN* *)PlugSubAlloc(g, NULL, n * sizeof(SDWORD *));
+  cap->Vlen = (SQLLEN* *)PlugSubAlloc(g, NULL, n * sizeof(SQLLEN *));
 
   for (i = 0; i < n; i++)
-    cap->Vlen[i] = (SQLLEN *)PlugSubAlloc(g, NULL, m * sizeof(SDWORD));
+    cap->Vlen[i] = (SQLLEN *)PlugSubAlloc(g, NULL, m * sizeof(SQLLEN));
 
   cap->Status = (UWORD *)PlugSubAlloc(g, NULL, m * sizeof(UWORD));
+
+ fin:
+  g->jump_level--;
   return cap;
   } // end of AllocCatInfo
 
+#if 0
 /***********************************************************************/
 /*  Check for nulls and reset them to Null (?) values.                 */
 /***********************************************************************/
@@ -220,29 +278,26 @@ static void ResetNullValues(CATPARM *cap)
         crp->Kdata->Reset(n);
 
   } // end of ResetNullValues
+#endif
 
 /***********************************************************************/
 /*  ODBCColumns: constructs the result blocks containing all columns   */
 /*  of an ODBC table that will be retrieved by GetData commands.       */
-/*  Note: The first two columns (Qualifier, Owner) are ignored.        */
 /***********************************************************************/
-PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
-                                          char *colpat, bool info)
+PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
+                               char *colpat, int maxres, bool info)
   {
-  static int  buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
-                          TYPE_STRING, TYPE_SHORT, TYPE_STRING,
-                          TYPE_INT,    TYPE_INT,   TYPE_SHORT,
-                          TYPE_SHORT,  TYPE_SHORT, TYPE_STRING};
-  static XFLD fldtyp[] = {FLD_QUALIF, FLD_OWNER,  FLD_TABNAME,
-                          FLD_NAME,   FLD_TYPE,   FLD_TYPENAME,
-                          FLD_PREC,   FLD_LENGTH, FLD_SCALE,
-                          FLD_RADIX,  FLD_NULL,   FLD_REM};
-  static unsigned int length[] = {0, 0, 0, 0, 6, 20, 10, 10, 6, 6, 6, 128};
+  int  buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING, TYPE_STRING,
+                   TYPE_SHORT,  TYPE_STRING, TYPE_INT,    TYPE_INT,
+                   TYPE_SHORT,  TYPE_SHORT,  TYPE_SHORT,  TYPE_STRING};
+  XFLD fldtyp[] = {FLD_CAT,   FLD_SCHEM,    FLD_TABNAME, FLD_NAME,
+                   FLD_TYPE,  FLD_TYPENAME, FLD_PREC,    FLD_LENGTH,
+                   FLD_SCALE, FLD_RADIX,    FLD_NULL,    FLD_REM};
+  unsigned int length[] = {0, 0, 0, 0, 6, 0, 10, 10, 6, 6, 6, 0};
   int      n, ncol = 12;
-  int      maxres;
   PQRYRES  qrp;
   CATPARM *cap;
-  ODBConn *ocp;
+  ODBConn *ocp = NULL;
 
   /************************************************************************/
   /*  Do an evaluation of the result size.                                */
@@ -250,18 +305,22 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
   if (!info) {
     ocp = new(g) ODBConn(g, NULL);
 
-    if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
+    if (ocp->Open(dsn, 10) < 1)  // openReadOnly + noODBCdialog
       return NULL;
 
-    // We fix a MySQL limit because some data sources return 32767
-    n = ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_TABLE);
-    maxres = (n) ? min(n, 4096) : 4096;
-    n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
-    length[0] = (n) ? (n + 1) : 128;
-    n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
-    length[1] = (n) ? (n + 1) : 128;
-    n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
-    length[2] = (n) ? (n + 1) : 128;
+    if (table && !strchr(table, '%')) {
+      // We fix a MySQL limit because some data sources return 32767
+      n = ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_TABLE);
+      maxres = (n) ? min(n, 4096) : 4096;
+    } else if (!maxres)
+      maxres = 20000;
+
+//  n = ocp->GetMaxValue(SQL_MAX_CATALOG_NAME_LEN);
+//  length[0] = (n) ? (n + 1) : 0;
+//  n = ocp->GetMaxValue(SQL_MAX_SCHEMA_NAME_LEN);
+//  length[1] = (n) ? (n + 1) : 0;
+//  n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
+//  length[2] = (n) ? (n + 1) : 0;
     n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
     length[3] = (n) ? (n + 1) : 128;
   } else {                 // Info table
@@ -270,6 +329,8 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
     length[1] = 128;
     length[2] = 128;
     length[3] = 128;
+    length[5] = 30;
+    length[11] = 255;
   } // endif ocp
 
   if (trace)
@@ -280,15 +341,17 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_COLUMNS,
-                          buftyp, fldtyp, length, true, true);
+                          buftyp, fldtyp, length, false, true);
 
-  if (info)                      // Info table
+  if (info || !qrp)                      // Info table
     return qrp;
 
   if (trace)
     htrc("Getting col results ncol=%d\n", qrp->Nbcol);
 
-  cap = AllocCatInfo(g, CAT_COL, table, qrp);
+  if (!(cap = AllocCatInfo(g, CAT_COL, db, table, qrp)))
+    return NULL;
+
   cap->Pat = (PUCHAR)colpat;
 
   /************************************************************************/
@@ -296,7 +359,7 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
   /************************************************************************/
   if ((n = ocp->GetCatInfo(cap)) >= 0) {
     qrp->Nblin = n;
-    ResetNullValues(cap);
+//  ResetNullValues(cap);
 
     if (trace)
       htrc("Columns: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
@@ -304,11 +367,25 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
   } else
     qrp = NULL;
 
+  /* Cleanup */
+  ocp->Close();
+
   /************************************************************************/
   /*  Return the result pointer for use by GetData routines.              */
   /************************************************************************/
   return qrp;
   } // end of ODBCColumns
+
+/**************************************************************************/
+/*  ODBCSrcCols: constructs the result blocks containing the              */
+/*  description of all the columns of a Srcdef option.                    */
+/**************************************************************************/
+PQRYRES ODBCSrcCols(PGLOBAL g, char *dsn, char *src)
+  {
+  ODBConn *ocp = new(g) ODBConn(g, NULL);
+
+  return ocp->GetMetaData(g, dsn, src);
+  } // end of ODBCSrcCols
 
 #if 0
 /**************************************************************************/
@@ -336,7 +413,7 @@ PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
   /**********************************************************************/
   /*  Get the information about the ODBC table columns.                 */
   /**********************************************************************/
-  if ((qrp = ODBCColumns(g, ocp, dsn, tab, NULL)) && ocp)
+  if ((qrp = ODBCColumns(g, ocp, dsn, NULL, tab, 0, NULL)) && ocp)
     dsn = ocp->GetConnect();        // Complete connect string
 
   /************************************************************************/
@@ -351,7 +428,7 @@ PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
   /************************************************************************/
   /*  Keep only the info used by ha_connect::pre_create.                  */
   /************************************************************************/
-  qrp->Colresp = qrp->Colresp->Next->Next;  // Skip Owner and Table names
+  qrp->Colresp = qrp->Colresp->Next->Next;  // Skip Schema and Table names
 
   crpt = qrp->Colresp->Next;                // SQL type
   crpl = crpt->Next->Next;                  // Length
@@ -366,7 +443,7 @@ PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
     crpt->Kdata->SetValue(type, i);
 
     // Some data sources do not count prec in length
-    if (type == TYPE_FLOAT)
+    if (type == TYPE_DOUBLE)
       len += (prec + 2);                    // To be safe
 
     // Could have been changed for blobs or numeric
@@ -385,17 +462,63 @@ PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
 #endif // 0
 
 /*************************************************************************/
+/*  ODBCDrivers: constructs the result blocks containing all ODBC        */
+/*  drivers available on the local host.                                 */
+/*  Called with info=true to have result column names.                   */
+/*************************************************************************/
+PQRYRES ODBCDrivers(PGLOBAL g, int maxres, bool info)
+  {
+  int      buftyp[] = {TYPE_STRING, TYPE_STRING};
+  XFLD     fldtyp[] = {FLD_NAME, FLD_REM};
+  unsigned int length[] = {128, 256};
+  int      ncol = 2;
+  PQRYRES  qrp;
+  ODBConn *ocp = NULL;
+
+  /************************************************************************/
+  /*  Do an evaluation of the result size.                                */
+  /************************************************************************/
+  if (!info) {
+    ocp = new(g) ODBConn(g, NULL);
+
+    if (!maxres)
+      maxres = 256;         // Estimated max number of drivers
+
+  } else
+    maxres = 0;
+
+  if (trace)
+    htrc("ODBCDrivers: max=%d len=%d\n", maxres, length[0]);
+
+  /************************************************************************/
+  /*  Allocate the structures used to refer to the result set.            */
+  /************************************************************************/
+  qrp = PlgAllocResult(g, ncol, maxres, IDS_DRIVER, 
+                          buftyp, fldtyp, length, false, true);
+
+  /************************************************************************/
+  /*  Now get the results into blocks.                                    */
+  /************************************************************************/
+  if (!info && qrp && ocp->GetDrivers(qrp))
+    qrp = NULL;
+
+  /************************************************************************/
+  /*  Return the result pointer for use by GetData routines.              */
+  /************************************************************************/
+  return qrp;
+  } // end of ODBCDrivers
+
+/*************************************************************************/
 /*  ODBCDataSources: constructs the result blocks containing all ODBC    */
 /*  data sources available on the local host.                            */
 /*  Called with info=true to have result column names.                   */
 /*************************************************************************/
-PQRYRES ODBCDataSources(PGLOBAL g, bool info)
+PQRYRES ODBCDataSources(PGLOBAL g, int maxres, bool info)
   {
-  static int  buftyp[] = {TYPE_STRING, TYPE_STRING};
-  static XFLD fldtyp[] = {FLD_NAME, FLD_REM};
-  static unsigned int length[] = {0, 256};
+  int      buftyp[] = {TYPE_STRING, TYPE_STRING};
+  XFLD     fldtyp[] = {FLD_NAME, FLD_REM};
+  unsigned int length[] = {0, 256};
   int      n = 0, ncol = 2;
-  int      maxres;
   PQRYRES  qrp;
   ODBConn *ocp = NULL;
 
@@ -406,7 +529,10 @@ PQRYRES ODBCDataSources(PGLOBAL g, bool info)
     ocp = new(g) ODBConn(g, NULL);
     n = ocp->GetMaxValue(SQL_MAX_DSN_LENGTH);
     length[0] = (n) ? (n + 1) : 256;
-    maxres = 512;           // Estimated max number of data sources
+
+    if (!maxres)
+      maxres = 512;         // Estimated max number of data sources
+
   } else {
     length[0] = 256;
     maxres = 0;
@@ -419,12 +545,12 @@ PQRYRES ODBCDataSources(PGLOBAL g, bool info)
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_DSRC, 
-                          buftyp, fldtyp, length, true, true);
+                          buftyp, fldtyp, length, false, true);
 
   /************************************************************************/
   /*  Now get the results into blocks.                                    */
   /************************************************************************/
-  if (!info && ocp->GetDataSources(qrp))
+  if (!info && qrp && ocp->GetDataSources(qrp))
     qrp = NULL;
 
   /************************************************************************/
@@ -433,68 +559,22 @@ PQRYRES ODBCDataSources(PGLOBAL g, bool info)
   return qrp;
   } // end of ODBCDataSources
 
-/*************************************************************************/
-/*  ODBCDrivers: constructs the result blocks containing all ODBC        */
-/*  drivers available on the local host.                                 */
-/*  Called with info=true to have result column names.                   */
-/*************************************************************************/
-PQRYRES ODBCDrivers(PGLOBAL g, bool info)
+/**************************************************************************/
+/*  ODBCTables: constructs the result blocks containing all tables in     */
+/*  an ODBC database that will be retrieved by GetData commands.          */
+/**************************************************************************/
+PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
+                              int maxres, bool info)
   {
-  static int  buftyp[] = {TYPE_STRING, TYPE_STRING};
-  static XFLD fldtyp[] = {FLD_NAME, FLD_REM};
-  static unsigned int length[] = {128, 256};
-  int      ncol = 2;
-  int      maxres;
-  PQRYRES  qrp;
-  ODBConn *ocp = NULL;
-
-  /************************************************************************/
-  /*  Do an evaluation of the result size.                                */
-  /************************************************************************/
-  if (!info) {
-    ocp = new(g) ODBConn(g, NULL);
-    maxres = 256;           // Estimated max number of drivers
-  } else
-    maxres = 0;
-
-  if (trace)
-    htrc("ODBCDrivers: max=%d len=%d\n", maxres, length[0]);
-
-  /************************************************************************/
-  /*  Allocate the structures used to refer to the result set.            */
-  /************************************************************************/
-  qrp = PlgAllocResult(g, ncol, maxres, IDS_DRIVER, 
-                          buftyp, fldtyp, length, true, true);
-
-  /************************************************************************/
-  /*  Now get the results into blocks.                                    */
-  /************************************************************************/
-  if (!info && ocp->GetDrivers(qrp))
-    qrp = NULL;
-
-  /************************************************************************/
-  /*  Return the result pointer for use by GetData routines.              */
-  /************************************************************************/
-  return qrp;
-  } // end of ODBCDrivers
-
-/***********************************************************************/
-/*  ODBCTables: constructs the result blocks containing all tables in  */
-/*  an ODBC database that will be retrieved by GetData commands.       */
-/*  Note: The first two columns (Qualifier, Owner) are ignored.        */
-/***********************************************************************/
-PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
-  {
-  static int  buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
-                         TYPE_STRING, TYPE_STRING};
-  static XFLD fldtyp[] = {FLD_QUALIF, FLD_OWNER, FLD_NAME,
-                          FLD_TYPE,   FLD_REM};
-  static unsigned int length[] = {0, 0, 0, 16, 128};
+  int      buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
+                       TYPE_STRING, TYPE_STRING};
+  XFLD     fldtyp[] = {FLD_CAT,  FLD_SCHEM, FLD_NAME,
+                       FLD_TYPE, FLD_REM};
+  unsigned int length[] = {0, 0, 0, 16, 0};
   int      n, ncol = 5;
-  int     maxres;
   PQRYRES  qrp;
   CATPARM *cap;
-  ODBConn *ocp;
+  ODBConn *ocp = NULL;
 
   /************************************************************************/
   /*  Do an evaluation of the result size.                                */
@@ -508,11 +588,13 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
     if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
       return NULL;
 
-    maxres = 512;                       // This is completely arbitrary
-    n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
-    length[0] = (n) ? (n + 1) : 128;
-    n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
-    length[1] = (n) ? (n + 1) : 128;
+    if (!maxres)
+      maxres = 10000;                 // This is completely arbitrary
+
+//  n = ocp->GetMaxValue(SQL_MAX_CATALOG_NAME_LEN);
+//  length[0] = (n) ? (n + 1) : 0;
+//  n = ocp->GetMaxValue(SQL_MAX_SCHEMA_NAME_LEN);
+//  length[1] = (n) ? (n + 1) : 0;
     n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
     length[2] = (n) ? (n + 1) : 128;
   } else {
@@ -520,6 +602,7 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
     length[0] = 128;
     length[1] = 128;
     length[2] = 128;
+    length[4] = 255;
   } // endif info
 
   if (trace)
@@ -529,12 +612,14 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_TABLES, buftyp,
-                                        fldtyp, length, true, true);
+                                        fldtyp, length, false, true);
 
-  if (info)
+  if (info || !qrp)
     return qrp;
 
-  cap = AllocCatInfo(g, CAT_TAB, tabpat, qrp);
+  if (!(cap = AllocCatInfo(g, CAT_TAB, db, tabpat, qrp)))
+    return NULL;
+
 //cap->Pat = (PUCHAR)tabtyp;
 
   if (trace)
@@ -545,7 +630,7 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
   /************************************************************************/
   if ((n = ocp->GetCatInfo(cap)) >= 0) {
     qrp->Nblin = n;
-    ResetNullValues(cap);
+//  ResetNullValues(cap);
 
     if (trace)
       htrc("Tables: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
@@ -596,9 +681,9 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
   /************************************************************************/
   n = ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_TABLE);
   maxres = (n) ? (int)n : 250;
-  n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
+  n = ocp->GetMaxValue(SQL_MAX_CATALOG_NAME_LEN);
   length[0] = (n) ? (n + 1) : 128;
-  n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
+  n = ocp->GetMaxValue(SQL_MAX_SCHEMA_NAME_LEN);
   length[1] = (n) ? (n + 1) : 128;
   n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
   length[2] = (n) ? (n + 1) : 128;
@@ -613,19 +698,19 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
   /*  Allocate the structure used to refer to the result set.             */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_PKEY,
-                          buftyp, NULL, length, true, true);
+                          buftyp, NULL, length, false, true);
 
   if (trace)
     htrc("Getting pkey results ncol=%d\n", qrp->Nbcol);
 
-  cap = AllocCatInfo(g, CAT_KEY, table, qrp);
+  cap = AllocCatInfo(g, CAT_KEY, NULL, table, qrp);
 
   /************************************************************************/
   /*  Now get the results into blocks.                                    */
   /************************************************************************/
   if ((n = ocp->GetCatInfo(cap)) >= 0) {
     qrp->Nblin = n;
-    ResetNullValues(cap);
+//  ResetNullValues(cap);
 
     if (trace)
       htrc("PrimaryKeys: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
@@ -679,11 +764,11 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
   /************************************************************************/
   n = 1 + ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_INDEX);
   maxres = (n) ? (int)n : 32;
-  n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
+  n = ocp->GetMaxValue(SQL_MAX_SCHEMA_NAME_LEN);
   length[1] = (n) ? (n + 1) : 128;
   n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
   length[2] = length[5] = (n) ? (n + 1) : 128;
-  n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
+  n = ocp->GetMaxValue(SQL_MAX_CATALOG_NAME_LEN);
   length[0] = length[4] = (n) ? (n + 1) : length[2];
   n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
   length[7] = (n) ? (n + 1) : 128;
@@ -695,12 +780,12 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
   /*  Allocate the structure used to refer to the result set.             */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_STAT,
-                          buftyp, NULL, length, true, true);
+                          buftyp, NULL, length, false, true);
 
   if (trace)
     htrc("Getting stat results ncol=%d\n", qrp->Nbcol);
 
-  cap = AllocCatInfo(g, CAT_STAT, pat, qrp);
+  cap = AllocCatInfo(g, CAT_STAT, NULL, pat, qrp);
   cap->Unique = (un < 0) ? SQL_INDEX_UNIQUE : (UWORD)un;
   cap->Accuracy = (acc < 0) ? SQL_QUICK : (UWORD)acc;
 
@@ -709,7 +794,7 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
   /************************************************************************/
   if ((n = ocp->GetCatInfo(cap)) >= 0) {
     qrp->Nblin = n;
-    ResetNullValues(cap);
+//  ResetNullValues(cap);
 
     if (trace)
       htrc("Statistics: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
@@ -796,6 +881,17 @@ void DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
 
   } // end of BuildErrorMessage
 
+const char *DBX::GetErrorMessage(int i)
+  {
+    if (i < 0 || i >= MAX_NUM_OF_MSG)
+      return "No ODBC error";
+    else if (m_ErrMsg[i])
+      return m_ErrMsg[i];
+    else
+      return (m_Msg) ? m_Msg : "Unknown error";
+
+  } // end of GetErrorMessage
+
 /***********************************************************************/
 /*  ODBConn construction/destruction.                                  */
 /***********************************************************************/
@@ -814,8 +910,9 @@ ODBConn::ODBConn(PGLOBAL g, TDBODBC *tdbp)
   m_Catver = (tdbp) ? tdbp->Catver : 0;
   m_Connect = NULL;
   m_Updatable = true;
-//m_Transactions = false;
-  m_IDQuoteChar = '\'';
+  m_Transact = false;
+  m_IDQuoteChar[0] = '"';
+  m_IDQuoteChar[1] = 0;
 //*m_ErrMsg = '\0';
   } // end of ODBConn
 
@@ -833,7 +930,7 @@ bool ODBConn::Check(RETCODE rc)
   {
   switch (rc) {
     case SQL_SUCCESS_WITH_INFO:
-      if (trace > 1) {
+      if (trace) {
         DBX x(rc);
 
         x.BuildErrorMessage(this, m_hstmt);
@@ -954,17 +1051,17 @@ int ODBConn::Open(PSZ ConnectString, DWORD options)
 
   // Allocate the HDBC and make connection
   try {
-    PSZ ver;
+    /*PSZ ver;*/
 
     AllocConnect(options);
-    ver = GetStringInfo(SQL_ODBC_VER);
+    /*ver = GetStringInfo(SQL_ODBC_VER);*/
 
     if (Connect(options)) {
       strcpy(g->Message, MSG(CONNECT_CANCEL));
       return 0;
       } // endif
 
-    ver = GetStringInfo(SQL_DRIVER_ODBC_VER);
+    /*ver = GetStringInfo(SQL_DRIVER_ODBC_VER);*/
   } catch(DBX *xp) {
 //    strcpy(g->Message, xp->m_ErrMsg[0]);
     strcpy(g->Message, xp->GetErrorMessage(0));
@@ -1057,15 +1154,15 @@ bool ODBConn::Connect(DWORD Options)
   if (hWnd == NULL)
     hWnd = GetDesktopWindow();
 #else   // !WIN32
-  HWND    hWnd = NULL;
+  HWND    hWnd = (HWND)1;
 #endif  // !WIN32
   PGLOBAL& g = m_G;
   PDBUSER dup = PlgGetUser(g);
 
-  if (Options & noOdbcDialog || dup->Remote)
+//if (Options & noOdbcDialog || dup->Remote)
     wConnectOption = SQL_DRIVER_NOPROMPT;
-  else if (Options & forceOdbcDialog)
-    wConnectOption = SQL_DRIVER_PROMPT;
+//else if (Options & forceOdbcDialog)
+//  wConnectOption = SQL_DRIVER_PROMPT;
 
   rc = SQLDriverConnect(m_hdbc, hWnd, (PUCHAR)m_Connect,
                         SQL_NTS, ConnOut, MAX_CONNECT_LEN,
@@ -1174,20 +1271,13 @@ void ODBConn::GetConnectInfo()
                                      SQL_MODE_READ_ONLY);
 #endif   // 0
 
-  // Cache the quote char to use when constructing SQL
-  char QuoteChar[2];
-
+  // Get the quote char to use when constructing SQL
   rc = SQLGetInfo(m_hdbc, SQL_IDENTIFIER_QUOTE_CHAR,
-                  QuoteChar, sizeof(QuoteChar), &nResult);
-
-  if (Check(rc) && nResult == 1)
-    m_IDQuoteChar = QuoteChar[0];
-  else
-    m_IDQuoteChar = ' ';
+                  m_IDQuoteChar, sizeof(m_IDQuoteChar), &nResult);
 
   if (trace)
-    htrc("DBMS: %s, Version: %s",
-         GetStringInfo(SQL_DBMS_NAME), GetStringInfo(SQL_DBMS_VER));
+    htrc("DBMS: %s, Version: %s, rc=%d\n",
+         GetStringInfo(SQL_DBMS_NAME), GetStringInfo(SQL_DBMS_VER), rc);
 
   } // end of GetConnectInfo
 
@@ -1200,26 +1290,24 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
   void    *buffer;
   bool     b;
   UWORD    n;
-  SWORD    ncol, len, tp;
-  SQLLEN   afrw;
+  SWORD    len, tp, ncol = 0;
   ODBCCOL *colp;
   RETCODE  rc;
   HSTMT    hstmt;
-
-//m_Recset = new(m_G) RECSET(this);
-//ASSERT(m_Recset);
 
   try {
     b = false;
 
     if (m_hstmt) {
-      RETCODE  rc;
-
 //    All this did not seems to make sense and was been commented out
 //    if (IsOpen())
 //      Close(SQL_CLOSE);
 
       rc = SQLFreeStmt(m_hstmt, SQL_CLOSE);
+
+      if (trace && !Check(rc))
+        htrc("Error: SQLFreeStmt rc=%d\n", rc);
+
       hstmt = m_hstmt;
       m_hstmt = NULL;
       ThrowDBX(MSG(SEQUENCE_ERROR));
@@ -1237,26 +1325,44 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
     if (trace)
       htrc("ExecDirect hstmt=%p %.64s\n", hstmt, sql);
 
-    do {
-      rc = SQLExecDirect(hstmt, (PUCHAR)sql, SQL_NTS);
-      } while (rc == SQL_STILL_EXECUTING);
-
-    if (!Check(rc))
-      ThrowDBX(rc, "SQLExecDirect", hstmt);
-
-    do {
-      rc = SQLNumResultCols(hstmt, &ncol);
-      } while (rc == SQL_STILL_EXECUTING);
-
-    if (ncol == 0) {
-      // Update or Delete statement
-      rc = SQLRowCount(hstmt, &afrw);
+    if (m_Tdb->Srcdef) {
+      // Be sure this is a query returning a result set
+      do {
+        rc = SQLPrepare(hstmt, (PUCHAR)sql, SQL_NTS);
+        } while (rc == SQL_STILL_EXECUTING);
 
       if (!Check(rc))
-        ThrowDBX(rc, "SQLRowCount", hstmt);
+        ThrowDBX(rc, "SQLPrepare", hstmt);
 
-      return afrw;
-      } // endif ncol
+      if (!Check(rc = SQLNumResultCols(hstmt, &ncol)))
+        ThrowDBX(rc, "SQLNumResultCols", hstmt);
+
+      if (ncol == 0) {
+        strcpy(g->Message, "This Srcdef does not return a result set");
+        return -1;
+        } // endif ncol
+
+      // Ok, now we can proceed
+      do {
+        rc = SQLExecute(hstmt);
+        } while (rc == SQL_STILL_EXECUTING);
+
+      if (!Check(rc))
+        ThrowDBX(rc, "SQLExecute", hstmt);
+
+    } else {
+      do {
+        rc = SQLExecDirect(hstmt, (PUCHAR)sql, SQL_NTS);
+        } while (rc == SQL_STILL_EXECUTING);
+
+      if (!Check(rc))
+        ThrowDBX(rc, "SQLExecDirect", hstmt);
+
+      do {
+        rc = SQLNumResultCols(hstmt, &ncol);
+        } while (rc == SQL_STILL_EXECUTING);
+
+    } // endif Srcdef
 
     for (n = 0, colp = tocols; colp; colp = (PODBCCOL)colp->GetNext())
       if (!colp->IsSpecial())
@@ -1336,7 +1442,6 @@ int ODBConn::GetResultSize(char *sql, ODBCCOL *colp)
       } // endfor n
 
   } catch(DBX *x) {
-//    strcpy(m_G->Message, x->m_ErrMsg[0]);
     strcpy(m_G->Message, x->GetErrorMessage(0));
     
     if (trace)
@@ -1405,9 +1510,32 @@ int ODBConn::PrepareSQL(char *sql)
   {
   PGLOBAL& g = m_G;
   bool     b;
+  UINT     txn = 0;
   SWORD    nparm;
   RETCODE  rc;
   HSTMT    hstmt;
+
+  if (m_Tdb->GetMode() != MODE_READ) {
+    // Does the data source support transactions
+    rc = SQLGetInfo(m_hdbc, SQL_TXN_CAPABLE, &txn, 0, NULL);
+
+    if (Check(rc) && txn != SQL_TC_NONE) try {
+      rc = SQLSetConnectAttr(m_hdbc, SQL_ATTR_AUTOCOMMIT,
+                                     SQL_AUTOCOMMIT_OFF, SQL_IS_UINTEGER);
+      
+      if (!Check(rc))
+        ThrowDBX(SQL_INVALID_HANDLE, "SQLSetConnectAttr");
+
+      m_Transact = true;
+    } catch(DBX *x) {
+      if (trace)
+        for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
+          htrc(x->m_ErrMsg[i]);
+
+      strcpy(g->Message, x->GetErrorMessage(0));
+    } // end try/catch
+
+    } // endif Mode
 
   try {
     b = false;
@@ -1417,14 +1545,16 @@ int ODBConn::PrepareSQL(char *sql)
 
       hstmt = m_hstmt;
       m_hstmt = NULL;
-      ThrowDBX(MSG(SEQUENCE_ERROR));
-    } else {
-      rc = SQLAllocStmt(m_hdbc, &hstmt);
 
-      if (!Check(rc))
-        ThrowDBX(SQL_INVALID_HANDLE, "SQLAllocStmt");
+      if (m_Tdb->GetAmType() != TYPE_AM_XDBC)
+        ThrowDBX(MSG(SEQUENCE_ERROR));
 
-    } // endif hstmt
+      } // endif m_hstmt
+
+    rc = SQLAllocStmt(m_hdbc, &hstmt);
+
+    if (!Check(rc))
+      ThrowDBX(SQL_INVALID_HANDLE, "SQLAllocStmt");
 
     OnSetOptions(hstmt);
     b = true;
@@ -1448,13 +1578,19 @@ int ODBConn::PrepareSQL(char *sql)
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
         htrc(x->m_ErrMsg[i]);
 
-    strcpy(m_G->Message, x->GetErrorMessage(0));
+    strcpy(g->Message, x->GetErrorMessage(0));
 
     if (b)
       SQLCancel(hstmt);
 
     rc = SQLFreeStmt(hstmt, SQL_DROP);
     m_hstmt = NULL;
+
+    if (m_Transact) {
+      rc = SQLEndTran(SQL_HANDLE_DBC, m_hdbc, SQL_ROLLBACK);
+      m_Transact = false;
+      } // endif m_Transact
+
     return -1;
   } // end try/catch
 
@@ -1463,27 +1599,51 @@ int ODBConn::PrepareSQL(char *sql)
   } // end of PrepareSQL
 
 /***********************************************************************/
-/*  Bind a parameter for inserting.                                    */
+/*  Execute a prepared statement.                                      */
 /***********************************************************************/
-bool ODBConn::ExecuteSQL(void)
+int ODBConn::ExecuteSQL(void)
   {
-  RETCODE rc;
+  PGLOBAL& g = m_G;
+  SWORD    ncol = 0;
+  RETCODE  rc;
+  SQLLEN   afrw = -1;
 
   try {
-    rc = SQLExecute(m_hstmt);
+    do {
+      rc = SQLExecute(m_hstmt);
+      } while (rc == SQL_STILL_EXECUTING);
 
     if (!Check(rc))
       ThrowDBX(rc, "SQLExecute", m_hstmt);
+
+    if (!Check(rc = SQLNumResultCols(m_hstmt, &ncol)))
+      ThrowDBX(rc, "SQLNumResultCols", m_hstmt);
+
+    if (ncol) {
+      // This should never happen while inserting
+      strcpy(g->Message, "Logical error while inserting");
+    } else {
+      // Insert, Update or Delete statement
+      if (!Check(rc = SQLRowCount(m_hstmt, &afrw)))
+        ThrowDBX(rc, "SQLRowCount", m_hstmt);
+
+    } // endif ncol
 
   } catch(DBX *x) {
     strcpy(m_G->Message, x->GetErrorMessage(0));
     SQLCancel(m_hstmt);
     rc = SQLFreeStmt(m_hstmt, SQL_DROP);
     m_hstmt = NULL;
-    return true;
+
+    if (m_Transact) {
+      rc = SQLEndTran(SQL_HANDLE_DBC, m_hdbc, SQL_ROLLBACK);
+      m_Transact = false;
+      } // endif m_Transact
+
+    afrw = -1;
   } // end try/catch
 
-  return false;
+  return (int)afrw;
   } // end of ExecuteSQL
 
 /***********************************************************************/
@@ -1491,36 +1651,35 @@ bool ODBConn::ExecuteSQL(void)
 /***********************************************************************/
 bool ODBConn::BindParam(ODBCCOL *colp)
   {
-  void   *buf;
-  UWORD   n = colp->GetRank();
-  SWORD   ct, sqlt;
-  UDWORD  len;
-  SQLLEN *strlen = colp->GetStrLen();
-  RETCODE rc;
+  void        *buf;
+  int          buftype = colp->GetResultType();
+  SQLUSMALLINT n = colp->GetRank();
+  SQLSMALLINT  ct, sqlt, dec, nul;
+  SQLULEN      colsize;
+  SQLLEN       len;
+  SQLLEN      *strlen = colp->GetStrLen();
+  SQLRETURN    rc;
 
-#if 0
   try {
-    SWORD   dec, nul;
-    rc = SQLDescribeParam(m_hstmt, n, &sqlt, &len, &dec, &nul);
+    rc = SQLDescribeParam(m_hstmt, n, &sqlt, &colsize, &dec, &nul);
 
     if (!Check(rc))
-      ThrowDBX(rc, m_hstmt);
+      ThrowDBX(rc, "SQLDescribeParam", m_hstmt);
 
   } catch(DBX *x) {
     strcpy(m_G->Message, x->GetErrorMessage(0));
+    colsize = colp->GetPrecision();
+    sqlt = GetSQLType(buftype);
   } // end try/catch
-#endif // 0
 
   buf = colp->GetBuffer(0);
-//  len = colp->GetBuflen();
-  len = IsTypeNum(colp->GetResultType()) ? 0 : colp->GetBuflen();
-  ct = GetSQLCType(colp->GetResultType());
-  sqlt = GetSQLType(colp->GetResultType());
-  *strlen = IsTypeNum(colp->GetResultType()) ? 0 : SQL_NTS;
+  len = IsTypeChar(buftype) ? colp->GetBuflen() : 0;
+  ct = GetSQLCType(buftype);
+  *strlen = IsTypeChar(buftype) ? SQL_NTS : 0;
 
   try {
     rc = SQLBindParameter(m_hstmt, n, SQL_PARAM_INPUT, ct, sqlt,
-                          len, 0, buf, 0, strlen);
+                          colsize, dec, buf, len, strlen);
 
     if (!Check(rc))
       ThrowDBX(rc, "SQLBindParameter", m_hstmt);
@@ -1535,6 +1694,239 @@ bool ODBConn::BindParam(ODBCCOL *colp)
 
   return false;
   } // end of BindParam
+
+/***********************************************************************/
+/*  Execute an SQL command.                                            */
+/***********************************************************************/
+bool ODBConn::ExecSQLcommand(char *sql)
+  {
+  char     cmd[16];
+  bool     b, rcd = false;
+  UINT     txn = 0;
+  PGLOBAL& g = m_G;
+  SWORD    ncol = 0;
+  SQLLEN   afrw;
+  RETCODE  rc;
+  HSTMT    hstmt;
+
+  try {
+    b = FALSE;
+
+    // Check whether we should use transaction
+    if (sscanf(sql, " %15s ", cmd) == 1) {
+      if (!stricmp(cmd, "INSERT") || !stricmp(cmd, "UPDATE") ||
+          !stricmp(cmd, "DELETE") || !stricmp(cmd, "REPLACE")) {
+        // Does the data source support transactions
+        rc = SQLGetInfo(m_hdbc, SQL_TXN_CAPABLE, &txn, 0, NULL);
+    
+        if (Check(rc) && txn != SQL_TC_NONE) {
+          rc = SQLSetConnectAttr(m_hdbc, SQL_ATTR_AUTOCOMMIT,
+                                 SQL_AUTOCOMMIT_OFF, SQL_IS_UINTEGER);
+        
+          if (!Check(rc))
+            ThrowDBX(SQL_INVALID_HANDLE, "SQLSetConnectAttr");
+    
+          m_Transact = TRUE;
+          } // endif txn
+
+        } // endif cmd
+
+      } // endif sql
+
+    // Allocate the statement handle
+    rc = SQLAllocStmt(m_hdbc, &hstmt);
+
+    if (!Check(rc))
+      ThrowDBX(SQL_INVALID_HANDLE, "SQLAllocStmt");
+
+    OnSetOptions(hstmt);
+    b = true;
+
+    if (trace)
+      htrc("ExecSQLcommand hstmt=%p %.64s\n", hstmt, sql);
+
+    // Proceed with command execution
+    do {
+      rc = SQLExecDirect(hstmt, (PUCHAR)sql, SQL_NTS);
+      } while (rc == SQL_STILL_EXECUTING);
+
+    if (!Check(rc))
+      ThrowDBX(rc, "SQLExecDirect", hstmt);
+
+    // Check whether this is a query returning a result set
+    if (!Check(rc = SQLNumResultCols(hstmt, &ncol)))
+      ThrowDBX(rc, "SQLNumResultCols", hstmt);
+
+    if (!ncol) {
+      if (!Check(SQLRowCount(hstmt, &afrw)))
+        ThrowDBX(rc, "SQLRowCount", hstmt);
+
+      m_Tdb->AftRows = (int)afrw;
+      strcpy(g->Message, "Affected rows");
+    } else {
+      m_Tdb->AftRows = (int)ncol;
+      strcpy(g->Message, "Result set column number");
+    } // endif ncol
+
+  } catch(DBX *x) {
+		if (trace)
+			for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
+				htrc(x->m_ErrMsg[i]);
+
+    sprintf(g->Message, "Remote: %s", x->GetErrorMessage(0));
+
+    if (b)
+      SQLCancel(hstmt);
+
+    m_Tdb->AftRows = -1;
+    rcd = true;
+  } // end try/catch
+
+  if (!Check(rc = SQLFreeStmt(hstmt, SQL_CLOSE)))
+    sprintf(g->Message, "SQLFreeStmt: rc=%d", rc);
+
+  if (m_Transact) {
+    // Terminate the transaction
+    if (!Check(rc = SQLEndTran(SQL_HANDLE_DBC, m_hdbc, 
+                       (rcd) ? SQL_ROLLBACK : SQL_COMMIT)))
+      sprintf(g->Message, "SQLEndTran: rc=%d", rc);
+
+    if (!Check(rc = SQLSetConnectAttr(m_hdbc, SQL_ATTR_AUTOCOMMIT,
+               (SQLPOINTER)SQL_AUTOCOMMIT_ON, SQL_IS_UINTEGER)))
+      sprintf(g->Message, "SQLSetConnectAttr: rc=%d", rc);
+
+    m_Transact = false;
+    } // endif m_Transact
+
+  return rcd;
+  } // end of ExecSQLcommand
+
+/**************************************************************************/
+/*  GetMetaData: constructs the result blocks containing the              */
+/*  description of all the columns of an SQL command.                     */
+/**************************************************************************/
+PQRYRES ODBConn::GetMetaData(PGLOBAL g, char *dsn, char *src)
+  {
+  static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_INT,
+                          TYPE_SHORT,  TYPE_SHORT};
+  static XFLD fldtyp[] = {FLD_NAME,  FLD_TYPE, FLD_PREC,
+                          FLD_SCALE, FLD_NULL};
+  static unsigned int length[] = {0, 6, 10, 6, 6};
+  unsigned char cn[60];
+  int     qcol = 5;
+  short   nl, type, prec, nul, cns = (short)sizeof(cn);
+  PQRYRES qrp = NULL;
+  PCOLRES crp;
+  USHORT  i;
+  SQLULEN n;
+  SWORD   ncol;
+  RETCODE rc;
+  HSTMT   hstmt;
+
+  if (Open(dsn, 10) < 1)   // openReadOnly + noOdbcDialog
+    return NULL;
+
+  try {
+    rc = SQLAllocStmt(m_hdbc, &hstmt);
+
+    if (!Check(rc))
+      ThrowDBX(SQL_INVALID_HANDLE, "SQLAllocStmt");
+
+    OnSetOptions(hstmt);
+
+    do {
+      rc = SQLPrepare(hstmt, (PUCHAR)src, SQL_NTS);
+//    rc = SQLExecDirect(hstmt, (PUCHAR)src, SQL_NTS);
+      } while (rc == SQL_STILL_EXECUTING);
+
+    if (!Check(rc))
+      ThrowDBX(rc, "SQLExecDirect", hstmt);
+
+    do {
+      rc = SQLNumResultCols(hstmt, &ncol);
+      } while (rc == SQL_STILL_EXECUTING);
+
+    if (!Check(rc))
+      ThrowDBX(rc, "SQLNumResultCols", hstmt);
+
+    if (ncol) for (i = 1; i <= ncol; i++) {
+      do {
+        rc = SQLDescribeCol(hstmt, i, NULL, 0, &nl, NULL, NULL, NULL, NULL); 
+        } while (rc == SQL_STILL_EXECUTING);
+
+      if (!Check(rc))
+        ThrowDBX(rc, "SQLDescribeCol", hstmt);
+
+      length[0] = max(length[0], (UINT)nl);
+      } // endfor i
+
+  } catch(DBX *x) {
+    strcpy(g->Message, x->GetErrorMessage(0));
+    goto err;
+  } // end try/catch
+
+  if (!ncol) {
+    strcpy(g->Message, "Invalid Srcdef");
+    goto err;
+    } // endif ncol
+
+  /************************************************************************/
+  /*  Allocate the structures used to refer to the result set.            */
+  /************************************************************************/
+  if (!(qrp = PlgAllocResult(g, qcol, ncol, IDS_COLUMNS + 3,
+                             buftyp, fldtyp, length, false, true)))
+    return NULL;
+
+  // Some columns must be renamed
+  for (i = 0, crp = qrp->Colresp; crp; crp = crp->Next)
+    switch (++i) {
+      case 3: crp->Name = "Precision"; break;
+      case 4: crp->Name = "Scale";     break;
+      case 5: crp->Name = "Nullable";  break;
+      } // endswitch i
+
+  /************************************************************************/
+  /*  Now get the results into blocks.                                    */
+  /************************************************************************/
+  try {
+    for (i = 0; i < ncol; i++) {
+      do {
+        rc = SQLDescribeCol(hstmt, i+1, cn, cns, &nl, &type, &n, &prec, &nul); 
+        } while (rc == SQL_STILL_EXECUTING);
+
+      if (!Check(rc))
+        ThrowDBX(rc, "SQLDescribeCol", hstmt);
+      else
+        qrp->Nblin++;
+
+      crp = qrp->Colresp;                    // Column_Name
+      crp->Kdata->SetValue((char*)cn, i);
+      crp = crp->Next;                       // Data_Type
+      crp->Kdata->SetValue(type, i);
+      crp = crp->Next;                       // Precision (length)
+      crp->Kdata->SetValue((int)n, i);
+      crp = crp->Next;                       // Scale
+      crp->Kdata->SetValue(prec, i);
+      crp = crp->Next;                       // Nullable
+      crp->Kdata->SetValue(nul, i);
+      } // endfor i
+
+  } catch(DBX *x) {
+    strcpy(g->Message, x->GetErrorMessage(0));
+    qrp = NULL;
+  } // end try/catch
+
+  /* Cleanup */
+ err:
+  SQLCancel(hstmt);
+  rc = SQLFreeStmt(hstmt, SQL_DROP);
+  Close();
+
+  /************************************************************************/
+  /*  Return the result pointer for use by GetData routines.              */
+  /************************************************************************/
+  return qrp;
+  } // end of GetMetaData
 
 /***********************************************************************/
 /*  Get the list of Data Sources and set it in qrp.                    */
@@ -1576,7 +1968,6 @@ bool ODBConn::GetDataSources(PQRYRES qrp)
     rv = true;
   } // end try/catch
 
-//SQLFreeEnv(m_henv);
   Close();
   return rv;
   } // end of GetDataSources
@@ -1628,19 +2019,115 @@ bool ODBConn::GetDrivers(PQRYRES qrp)
     rv = true;
   } // end try/catch
 
-//SQLFreeEnv(m_henv);
   Close();
   return rv;
   } // end of GetDrivers
+
+/***********************************************************************/
+/*  A helper class to split an optionally qualified table name into    */
+/*  components.                                                        */
+/*  These formats are understood:                                      */
+/*    "CatalogName.SchemaName.TableName"                               */
+/*    "SchemaName.TableName"                                           */
+/*    "TableName"                                                      */
+/***********************************************************************/
+class SQLQualifiedName
+{
+  static const uint max_parts= 3;          // Catalog.Schema.Table
+  MYSQL_LEX_STRING m_part[max_parts];
+  char m_buf[512];
+
+  void lex_string_set(MYSQL_LEX_STRING *S, char *str, size_t length)
+  {
+    S->str= str;
+    S->length= length;
+  } // end of lex_string_set
+
+  void lex_string_shorten_down(MYSQL_LEX_STRING *S, size_t offs)
+  {
+    DBUG_ASSERT(offs <= S->length);
+    S->str+= offs;
+    S->length-= offs;
+  } // end of lex_string_shorten_down
+
+  /*********************************************************************/
+  /*  Find the rightmost '.' delimiter and return the length           */
+  /*  of the qualifier, including the rightmost '.' delimier.          */
+  /*  For example, for the string {"a.b.c",5} it will return 4,        */
+  /*  which is the length of the qualifier "a.b."                      */
+  /*********************************************************************/
+  size_t lex_string_find_qualifier(MYSQL_LEX_STRING *S)
+  {
+    size_t i;
+    for (i= S->length; i > 0; i--)
+    {
+      if (S->str[i - 1] == '.')
+      {
+        S->str[i - 1]= '\0';
+        return i;
+      }
+    }
+    return 0;
+  } // end of lex_string_find_qualifier
+
+public:
+  /*********************************************************************/
+  /*  Initialize to the given optionally qualified name.               */
+  /*  NULL pointer in "name" is supported.                             */
+  /*  name qualifier has precedence over schema.                       */
+  /*********************************************************************/
+  SQLQualifiedName(CATPARM *cap)
+  {
+    const char *name = (const char *)cap->Tab;
+    char       *db = (char *)cap->DB;
+    size_t      len, i;
+
+    // Initialize the parts
+    for (i = 0 ; i < max_parts; i++)
+      lex_string_set(&m_part[i], NULL, 0);
+
+    if (name) {
+      // Initialize the first (rightmost) part
+      lex_string_set(&m_part[0], m_buf,
+                     strmake(m_buf, name, sizeof(m_buf) - 1) - m_buf);
+  
+      // Initialize the other parts, if exist. 
+      for (i= 1; i < max_parts; i++) {
+        if (!(len= lex_string_find_qualifier(&m_part[i - 1])))
+          break;
+  
+        lex_string_set(&m_part[i], m_part[i - 1].str, len - 1);
+        lex_string_shorten_down(&m_part[i - 1], len);
+        } // endfor i
+
+      } // endif name
+
+    // If it was not specified, set schema as the passed db name
+    if (db && !m_part[1].length)
+      lex_string_set(&m_part[1], db, strlen(db));
+
+  } // end of SQLQualifiedName
+
+  SQLCHAR *ptr(uint i)
+  {
+    DBUG_ASSERT(i < max_parts);
+    return (SQLCHAR *) (m_part[i].length ? m_part[i].str : NULL);
+  } // end of ptr
+
+  size_t length(uint i)
+  {
+    DBUG_ASSERT(i < max_parts);
+    return m_part[i].length;
+  } // end of length
+
+}; // end of class SQLQualifiedName
 
 /***********************************************************************/
 /*  Allocate recset and call SQLTables, SQLColumns or SQLPrimaryKeys.  */
 /***********************************************************************/
 int ODBConn::GetCatInfo(CATPARM *cap)
   {
-#if defined(NEWMSG) || defined(XMSG)
   PGLOBAL& g = m_G;
-#endif   // NEWMSG  ||         XMSG
   void    *buffer;
   int      i, irc;
   bool     b;
@@ -1648,10 +2135,11 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   UWORD    n;
   SWORD    ncol, len, tp;
   SQLULEN  crow;
+  PQRYRES  qrp = cap->Qrp;
   PCOLRES  crp;
-  RETCODE  rc;
+  RETCODE  rc = 0;
   HSTMT    hstmt = NULL;
-  SQLLEN  *vl, *vlen;
+  SQLLEN  *vl, *vlen = NULL;
   PVAL    *pval = NULL;
 
   try {
@@ -1668,30 +2156,15 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 
     b = true;
 
-    if ((m_RowsetSize = cap->Qrp->Maxres) > 0) {
-      if (m_Catver) {
-        // Attempt to set rowset size.
-        // In case of failure reset it to 0 to use Fetch.
-        if (m_Catver == 3)          // ODBC Ver 3
-          rc = SQLSetStmtAttr(hstmt, SQL_ATTR_ROW_ARRAY_SIZE,
-                                    (SQLPOINTER)m_RowsetSize, 0);
-        else
-          rc = SQLSetStmtOption(hstmt, SQL_ROWSET_SIZE, m_RowsetSize);
+    // Currently m_Catver should be always 0 here
+    assert(!m_Catver);     // This may be temporary
 
-        if (!Check(rc))
-          m_RowsetSize = 1;        // don't attempt it again
-//        ThrowDBX(rc, hstmt);      // Temporary
-
-        if (m_Catver == 3) {        // ODBC Ver 3
-          rc = SQLSetStmtAttr(hstmt, SQL_ATTR_ROW_STATUS_PTR, cap->Status, 0);
-          rc = SQLSetStmtAttr(hstmt, SQL_ATTR_ROWS_FETCHED_PTR, &crow, 0);
-          } // endif m_Catver
-
-      } else  // ORABUG
-        m_RowsetSize = 1;
-
-    } else
+    if (qrp->Maxres > 0)
+      m_RowsetSize = 1;
+    else
       ThrowDBX("0-sized result");
+
+    SQLQualifiedName name(cap);
 
     // Now do call the proper ODBC API
     switch (cap->Id) {
@@ -1699,27 +2172,37 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 //      rc = SQLSetStmtAttr(hstmt, SQL_ATTR_METADATA_ID,
 //                                (SQLPOINTER)false, 0);
         fnc = "SQLTables";
-        rc = SQLTables(hstmt, NULL, 0, NULL, 0, cap->Tab, SQL_NTS,
-                                                cap->Pat, SQL_NTS);
+        rc = SQLTables(hstmt, name.ptr(2), name.length(2),
+                              name.ptr(1), name.length(1),
+                              name.ptr(0), name.length(0),
+                              cap->Pat, SQL_NTS);
         break;
       case CAT_COL:
 //      rc = SQLSetStmtAttr(hstmt, SQL_ATTR_METADATA_ID,
 //                                (SQLPOINTER)true, 0);
         fnc = "SQLColumns";
-        rc = SQLColumns(hstmt, NULL, 0, NULL, 0, cap->Tab, SQL_NTS,
-                                                 cap->Pat, SQL_NTS);
+        rc = SQLColumns(hstmt, name.ptr(2), name.length(2),
+                               name.ptr(1), name.length(1),
+                               name.ptr(0), name.length(0),
+                               cap->Pat, SQL_NTS);
         break;
       case CAT_KEY:
         fnc = "SQLPrimaryKeys";
-        rc = SQLPrimaryKeys(hstmt, NULL, 0, NULL, 0, cap->Tab, SQL_NTS);
+        rc = SQLPrimaryKeys(hstmt, name.ptr(2), name.length(2),
+                                   name.ptr(1), name.length(1),
+                                   name.ptr(0), name.length(0));
         break;
       case CAT_STAT:
         fnc = "SQLStatistics";
-        rc = SQLStatistics(hstmt, NULL, 0, NULL, 0, cap->Tab, SQL_NTS,
+        rc = SQLStatistics(hstmt, name.ptr(2), name.length(2),
+                                  name.ptr(1), name.length(1),
+                                  name.ptr(0), name.length(0),
                                   cap->Unique, cap->Accuracy);
         break;
       case CAT_SPC:
         ThrowDBX("SQLSpecialColumns not available yet");
+      default:
+        ThrowDBX("Invalid SQL function id");
       } // endswitch infotype
 
     if (!Check(rc))
@@ -1728,33 +2211,28 @@ int ODBConn::GetCatInfo(CATPARM *cap)
     rc = SQLNumResultCols(hstmt, &ncol);
 
     // n because we no more ignore the first column
-    if ((n = (UWORD)cap->Qrp->Nbcol) > (UWORD)ncol)
+    if ((n = (UWORD)qrp->Nbcol) > (UWORD)ncol)
       ThrowDBX(MSG(COL_NUM_MISM));
 
-    if (m_RowsetSize == 1 && cap->Qrp->Maxres > 1) {
-      pval = (PVAL *)PlugSubAlloc(m_G, NULL, n * sizeof(PVAL));
-      vlen = (SQLLEN *)PlugSubAlloc(m_G, NULL, n * sizeof(SDWORD *));
-      } // endif
+    // Unconditional to handle STRBLK's
+    pval = (PVAL *)PlugSubAlloc(g, NULL, n * sizeof(PVAL));
+    vlen = (SQLLEN *)PlugSubAlloc(g, NULL, n * sizeof(SQLLEN));
 
     // Now bind the column buffers
-    for (n = 0, crp = cap->Qrp->Colresp; crp; crp = crp->Next) {
-      if (pval) {
-        pval[n] = AllocateValue(m_G, crp->Kdata->GetType(),
-                                     crp->Kdata->GetVlen(), 0);
-        buffer = pval[n]->GetTo_Val();
-        vl = vlen + n;
-      } else {
-        buffer = crp->Kdata->GetValPointer();
-        vl = cap->Vlen[n];
-      } // endif pval
-
-      len = GetTypeSize(crp->Type, crp->Clen);
-      tp = GetSQLCType(crp->Type);
-
-      if (tp == SQL_TYPE_NULL) {
-        sprintf(m_G->Message, MSG(INV_COLUMN_TYPE), crp->Type, crp->Name);
-        ThrowDBX(m_G->Message);
+    for (n = 0, crp = qrp->Colresp; crp; crp = crp->Next) {
+      if ((tp = GetSQLCType(crp->Type)) == SQL_TYPE_NULL) {
+        sprintf(g->Message, MSG(INV_COLUMN_TYPE), crp->Type, crp->Name);
+        ThrowDBX(g->Message);
         } // endif tp
+
+      if (!(len = GetTypeSize(crp->Type, crp->Length))) {
+        len = 255;           // for STRBLK's
+        ((STRBLK*)crp->Kdata)->SetSorted(true);
+        } // endif len
+
+      pval[n] = AllocateValue(g, crp->Type, len);
+      buffer = pval[n]->GetTo_Val();
+      vl = vlen + n;
 
       // n + 1 because column numbers begin with 1
       rc = SQLBindCol(hstmt, n + 1, tp, buffer, len, vl);
@@ -1768,42 +2246,61 @@ int ODBConn::GetCatInfo(CATPARM *cap)
     fnc = "SQLFetch";
 
     // Now fetch the result
-    if (m_Catver != 3) {
-      if (m_RowsetSize > 1) {
-        fnc = "SQLExtendedFetch";
-        rc = SQLExtendedFetch(hstmt, SQL_FETCH_NEXT, 1, &crow, cap->Status);
-      } else if (pval) {
-        for (n = 0; n < cap->Qrp->Maxres; n++) {
-          if ((rc = SQLFetch(hstmt)) != SQL_SUCCESS)
-            break;
+    // Extended fetch cannot be used because of STRBLK's
+    for (i = 0; i < qrp->Maxres; i++) {
+      if ((rc = SQLFetch(hstmt)) == SQL_NO_DATA_FOUND)
+        break;
+      else if (rc != SQL_SUCCESS) {
+        if (trace > 1 || (trace && rc != SQL_SUCCESS_WITH_INFO)) {
+          UCHAR   msg[SQL_MAX_MESSAGE_LENGTH + 1];
+          UCHAR   state[SQL_SQLSTATE_SIZE + 1];
+          RETCODE erc;
+          SDWORD  native;
 
-          for (i = 0, crp = cap->Qrp->Colresp; crp; i++, crp = crp->Next) {
-            crp->Kdata->SetValue(pval[i], n);
-            cap->Vlen[i][n] = vlen[i];
-            } // endfor crp
+          htrc("SQLFetch: row %d rc=%d\n", i+1, rc);
+          erc = SQLError(m_henv, m_hdbc, hstmt, state, &native, msg,
+                         SQL_MAX_MESSAGE_LENGTH - 1, &len);
 
-          } // endfor n
+          if (rc != SQL_INVALID_HANDLE)
+            // Skip non-errors
+            for (n = 0; n < MAX_NUM_OF_MSG
+                 && (erc == SQL_SUCCESS || erc == SQL_SUCCESS_WITH_INFO)
+                 && strcmp((char*)state, "00000"); n++) {
+              htrc("%s: %s, Native=%d\n", state, msg, native);
+              erc = SQLError(m_henv, m_hdbc, hstmt, state, &native,
+                             msg, SQL_MAX_MESSAGE_LENGTH - 1, &len);
+              } // endfor n
 
-        if ((crow = n) && rc == SQL_NO_DATA)
-          rc = SQL_SUCCESS;
+          } // endif trace
 
-      } else {
-        rc = SQLFetch(hstmt);
-        crow = 1;
-      } // endif's
+        if (rc != SQL_SUCCESS_WITH_INFO)
+          qrp->BadLines++;
 
-    } else    // ODBC Ver 3
-      rc = SQLFetch(hstmt);
+        } // endif rc
 
-//  if (!Check(rc))
+      for (n = 0, crp = qrp->Colresp; crp; n++, crp = crp->Next) {
+        pval[n]->SetNull(vlen[n] == SQL_NULL_DATA);
+        crp->Kdata->SetValue(pval[n], i);
+        cap->Vlen[n][i] = vlen[n];
+        } // endfor crp
+
+      } // endfor i
+
+    if ((crow = i) && (rc == SQL_NO_DATA || rc == SQL_SUCCESS_WITH_INFO))
+      rc = SQL_SUCCESS;
+
     if (rc == SQL_NO_DATA_FOUND) {
       if (cap->Pat)
-        sprintf(m_G->Message, MSG(NO_TABCOL_DATA), cap->Tab, cap->Pat);
+        sprintf(g->Message, MSG(NO_TABCOL_DATA), cap->Tab, cap->Pat);
       else
-        sprintf(m_G->Message, MSG(NO_TAB_DATA), cap->Tab);
+        sprintf(g->Message, MSG(NO_TAB_DATA), cap->Tab);
 
-      ThrowDBX(m_G->Message);
-    } else if (rc != SQL_SUCCESS)
+      ThrowDBX(g->Message);
+    } else if (rc == SQL_SUCCESS) {
+      if ((rc = SQLFetch(hstmt)) != SQL_NO_DATA_FOUND)
+        qrp->Truncated = true; 
+
+    } else
       ThrowDBX(rc, fnc, hstmt);
 
     irc = (int)crow;
@@ -1812,7 +2309,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
         htrc(x->m_ErrMsg[i]);
 
-    strcpy(m_G->Message, x->GetErrorMessage(0));
+    strcpy(g->Message, x->GetErrorMessage(0));
     irc = -1;
   } // end try/catch
 
@@ -1833,27 +2330,6 @@ void ODBConn::Close()
   {
   RETCODE rc;
 
-#if 0
-  // Close any open recordsets
-  AfxLockGlobals(CRIT_ODBC);
-  TRY
-  {
-    while (!m_listRecordsets.IsEmpty())
-    {
-      CRecordset* pSet = (CRecordset*)m_listRecordsets.GetHead();
-      pSet->Close();  // will implicitly remove from list
-      pSet->m_pDatabase = NULL;
-    }
-  }
-  CATCH_ALL(e)
-  {
-    AfxUnlockGlobals(CRIT_ODBC);
-    THROW_LAST();
-  }
-  END_CATCH_ALL
-  AfxUnlockGlobals(CRIT_ODBC);
-#endif // 0
-
   if (m_hstmt) {
     // Is required for multiple tables
     rc = SQLFreeStmt(m_hstmt, SQL_DROP);
@@ -1861,240 +2337,31 @@ void ODBConn::Close()
     } // endif m_hstmt
 
   if (m_hdbc != SQL_NULL_HDBC) {
-    rc = SQLDisconnect(m_hdbc);
-    rc = SQLFreeConnect(m_hdbc);
-    m_hdbc = SQL_NULL_HDBC;
+    if (m_Transact) {
+      rc = SQLEndTran(SQL_HANDLE_DBC, m_hdbc, SQL_COMMIT);
+      m_Transact = false;
+      } // endif m_Transact
 
-//  AfxLockGlobals(CRIT_ODBC);
-//  ASSERT(m_nAlloc != 0);
-//  m_nAlloc--;
-//  AfxUnlockGlobals(CRIT_ODBC);
+    rc = SQLDisconnect(m_hdbc);
+
+    if (trace && rc != SQL_SUCCESS)
+      htrc("Error: SQLDisconnect rc=%d\n", rc);
+
+    rc = SQLFreeConnect(m_hdbc);
+
+    if (trace && rc != SQL_SUCCESS)
+      htrc("Error: SQLFreeConnect rc=%d\n", rc);
+
+    m_hdbc = SQL_NULL_HDBC;
     } // endif m_hdbc
 
   if (m_henv != SQL_NULL_HENV) {
-    if (trace) {
-      RETCODE rc = SQLFreeEnv(m_henv);
-        
-      if (rc != SQL_SUCCESS) // Nothing we can do
-        htrc("Error: SQLFreeEnv failure ignored in Close\n");
-          
-    } else
-      SQLFreeEnv(m_henv);
+    rc = SQLFreeEnv(m_henv);
 
-      m_henv = SQL_NULL_HENV;
+    if (trace && rc != SQL_SUCCESS)   // Nothing we can do
+      htrc("Error: SQLFreeEnv failure ignored in Close\n");
+          
+    m_henv = SQL_NULL_HENV;
     } // endif m_henv
 
   } // end of Close
-
-#if 0
-// Silently disconnect and free all ODBC resources.
-// Don't throw any exceptions
-void ODBConn::Free()
-  {
-  // Trap failures upon close
-  try {
-    Close();
-  } catch(DBX*) {
-    // Nothing we can do
-    if (trace)
-      htrc("Error: exception by Close ignored in Free\n");
-
-//  DELETE_EXCEPTION(x);
-  } // endcatch
-
-  // free henv if refcount goes to 0
-//AfxLockGlobals(CRIT_ODBC);
-  if (m_henv != SQL_NULL_HENV) {
-    ASSERT(m_nAlloc >= 0);
-
-    if (m_nAlloc == 0) {
-      // free last connection - release HENV
-      if (trace) {
-        RETCODE rc = SQLFreeEnv(m_henv);
-        
-        if (rc != SQL_SUCCESS) // Nothing we can do
-          htrc("Error: SQLFreeEnv failure ignored in Free\n");
-          
-      } else
-        SQLFreeEnv(m_henv);
-
-      m_henv = SQL_NULL_HENV;
-      } // endif m_nAlloc
-    } // endif m_henv
-//AfxUnlockGlobals(CRIT_ODBC);
-  } // end of Free
-
-//////////////////////////////////////////////////////////////////////////////
-// CRecordset helpers
-
-//id AFXAPI AfxSetCurrentRecord(int* plCurrentRecord, int nRows, RETCODE nRetCode);
-//id AFXAPI AfxSetRecordCount(int* plRecordCount, int lCurrentRecord,
-//bool bEOFSeen, RETCODE nRetCode);
-
-/***********************************************************************/
-/*  RECSET class implementation                                        */
-/***********************************************************************/
-RECSET::RECSET(ODBConn *dbcp)
-  {
-  m_pDB = dbcp;
-  m_hstmt = SQL_NULL_HSTMT;
-  m_OpenType = snapshot;
-  m_Options = none;
-
-#if 0
-  m_lOpen = AFX_RECORDSET_STATUS_UNKNOWN;
-  m_nEditMode = noMode;
-  m_nDefaultType = snapshot;
-
-  m_bAppendable = false;
-  m_bUpdatable = false;
-  m_bScrollable = false;
-  m_bRecordsetDb = false;
-  m_bRebindParams = false;
-  m_bLongBinaryColumns = false;
-  m_nLockMode = optimistic;
-  m_dwInitialGetDataLen = 0;
-  m_rgODBCFieldInfos = NULL;
-  m_rgFieldInfos = NULL;
-  m_rgRowStatus = NULL;
-  m_dwRowsetSize = 25;
-  m_dwAllocatedRowsetSize = 0;
-
-  m_nFields = 0;
-  m_nParams = 0;
-  m_nFieldsBound = 0;
-  m_lCurrentRecord = AFX_CURRENT_RECORD_UNDEFINED;
-  m_lRecordCount = 0;
-  m_bUseUpdateSQL = false;
-  m_bUseODBCCursorLib = false;
-  m_nResultCols = -1;
-  m_bCheckCacheForDirtyFields = true;
-
-  m_pbFieldFlags = NULL;
-  m_pbParamFlags = NULL;
-  m_plParamLength = NULL;
-  m_pvFieldProxy = NULL;
-  m_pvParamProxy = NULL;
-  m_nProxyFields = 0;
-  m_nProxyParams = 0;
-
-  m_hstmtUpdate = SQL_NULL_HSTMT;
-#endif // 0
-  } // end of RECSET constructor
-
-RECSET::~RECSET()
-  {
-  try {
-    if (m_hstmt) {
-      if (trace && (m_dwOptions & useMultiRowFetch)) {
-        htrc("WARNING: Close called implicitly from destructor\n");
-        htrc("Use of multi row fetch requires explicit call\n");
-        htrc("to Close or memory leaks will result\n");
-        } // endif trace
-
-      Close();
-      } // endif m_hstmt
-
-//  if (m_bRecordsetDb)
-//    delete m_pDB;                  ??????
-
-    m_pDB = NULL;
-  } catch(DBX*) {
-    // Nothing we can do
-    if (trace)
-      htrc("Error: Exception ignored in ~RECSET\n");
-
-  } // endtry/catch
-
-  } // end of ~RECSET
-
-/***********************************************************************/
-/*  Open: this function does the following:                            */
-/*        Allocates the hstmt,                                         */
-/*        Bind columns,                                                */
-/*        Execute the SQL statement                                    */
-/***********************************************************************/
-bool RECSET::Open(PSZ sql, uint Type, DWORD options)
-  {
-  ASSERT(m_pDB && m_pDB->IsOpen());
-  ASSERT(Type == DB_USE_DEFAULT_TYPE || Type == dynaset ||
-         Type == snapshot || Type == forwardOnly || Type == dynamic);
-//ASSERT(!(options & readOnly && options & appendOnly));
-
-  // Cache state info and allocate hstmt
-  SetState(Type, sql, options);
-
-  try {
-    if (m_hstmt) {
-      if (IsOpen())
-        Close(SQL_CLOSE);
-
-    } else {
-      RETCODE rc = SQLAllocStmt(m_pDB->m_hdbc, &m_hstmt);
-
-      if (!Check(rc))
-        ThrowDBException(SQL_INVALID_HANDLE);
-
-    } // endif m_hstmt
-
-    m_pDB->OnSetOptions(m_hstmt);
-
-    // Allocate the field/param status arrays, if necessary
-//  bool bUnbound = false;
-
-//  if (m_nFields > 0 || m_nParams > 0)
-//    AllocStatusArrays();
-//  else
-//    bUnbound = true;
-
-    // Build SQL and prep/execute or just execute direct
-//  BuildSQL(sql);
-    PrepareAndExecute(sql);
-
-    // Cache some field info and prepare the rowset
-    AllocAndCacheFieldInfo();
-    AllocRowset();
-
-    // If late binding, still need to allocate status arrays
-//  if (bUnbound && (m_nFields > 0 || m_nParams > 0))
-//    AllocStatusArrays();
-
-  } catch(DBX *x) {
-    Close(SQL_DROP);
-//    strcpy(m_pDB->m_G->Message, x->GetErrorMessage[0]);
-    strcpy(m_pDB->m_G->Message, x->GetErrorMessage(0));
-    return true;
-  } // endtry/catch
-
-  return false;
-  } // end of Open
-
-/***********************************************************************/
-/*  Close a hstmt.                                                     */
-/***********************************************************************/
-void RECSET::Close(SWORD option)
-  {
-  if (m_hstmt != SQL_NULL_HSTMT) {
-    RETCODE rc = SQLFreeStmt(m_hstmt, option);
-
-    if (option == SQL_DROP)
-      m_hstmt = SQL_NULL_HSTMT;
-
-    } // endif m_hstmt
-
-#if 0
-  m_lOpen = RECORDSET_STATUS_CLOSED;
-  m_bBOF = true;
-  m_bEOF = true;
-  m_bDeleted = false;
-  m_bAppendable = false;
-  m_bUpdatable = false;
-  m_bScrollable = false;
-  m_bRebindParams = false;
-  m_bLongBinaryColumns = false;
-  m_nLockMode = optimistic;
-  m_nFieldsBound = 0;
-  m_nResultCols = -1;
-#endif // 0
-  } // end of Close
-#endif // 0

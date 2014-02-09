@@ -69,6 +69,7 @@ class XMLDOCUMENT : public BLOCK {
   // Properties
   virtual short   GetDocType(void) = 0;
   virtual void   *GetDocPtr(void) = 0;
+  virtual void    SetNofree(bool b) = 0;
 
   // Methods
   virtual bool    Initialize(PGLOBAL) = 0;
@@ -146,6 +147,7 @@ class XMLNODELIST : public BLOCK {
   // Properties
   virtual int    GetLength(void) = 0;
   virtual PXNODE GetItem(PGLOBAL, int, PXNODE = NULL) = 0;
+  virtual bool   DropItem(PGLOBAL, int) = 0;
 
  protected:
   // Constructor

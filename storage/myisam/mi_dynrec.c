@@ -118,7 +118,8 @@ int mi_munmap_file(MI_INFO *info)
 {
   int ret;
   DBUG_ENTER("mi_unmap_file");
-  if ((ret= my_munmap(info->s->file_map, (size_t) info->s->mmaped_length)))
+  if ((ret= my_munmap((void*) info->s->file_map,
+                      (size_t) info->s->mmaped_length)))
     DBUG_RETURN(ret);
   info->s->file_read= mi_nommap_pread;
   info->s->file_write= mi_nommap_pwrite;
@@ -865,7 +866,7 @@ static int update_dynamic_record(MI_INFO *info, my_off_t filepos, uchar *record,
 	uint tmp=MY_ALIGN(reclength - length + 3 +
 			  test(reclength >= 65520L),MI_DYN_ALIGN_SIZE);
 	/* Don't create a block bigger than MI_MAX_BLOCK_LENGTH */
-	tmp= min(length+tmp, MI_MAX_BLOCK_LENGTH)-length;
+	tmp= MY_MIN(length+tmp, MI_MAX_BLOCK_LENGTH)-length;
 	/* Check if we can extend this block */
 	if (block_info.filepos + block_info.block_len ==
 	    info->state->data_file_length &&
@@ -1780,15 +1781,21 @@ int _mi_read_rnd_dynamic_record(MI_INFO *info, uchar *buf,
     if (b_type & (BLOCK_DELETED | BLOCK_ERROR | BLOCK_SYNC_ERROR |
 		  BLOCK_FATAL_ERROR))
     {
-      if ((b_type & (BLOCK_DELETED | BLOCK_SYNC_ERROR))
-	  && skip_deleted_blocks)
+      if ((b_type & (BLOCK_DELETED | BLOCK_SYNC_ERROR)))
       {
-	filepos=block_info.filepos+block_info.block_len;
-	block_info.second_read=0;
-	continue;		/* Search after next_record */
-      }
-      if (b_type & (BLOCK_DELETED | BLOCK_SYNC_ERROR))
-      {
+        if (skip_deleted_blocks)
+        {
+          filepos=block_info.filepos+block_info.block_len;
+          block_info.second_read=0;
+          continue;		/* Search after next_record */
+        }
+        /*
+          If we're not on the first block of a record and
+          the block is marked as deleted or out of sync,
+          something's gone wrong: the record is damaged.
+        */
+        if (block_of_record != 0)
+          goto panic;
 	my_errno=HA_ERR_RECORD_DELETED;
 	info->lastpos=block_info.filepos;
 	info->nextpos=block_info.filepos+block_info.block_len;

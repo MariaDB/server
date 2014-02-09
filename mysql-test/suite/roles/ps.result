@@ -1,0 +1,1 @@
+PREPARE stmt FROM 'SET ROLE NONE';

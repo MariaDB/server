@@ -16,7 +16,8 @@
 INCLUDE_DIRECTORIES(
 ${CMAKE_SOURCE_DIR}/include 
 ${CMAKE_SOURCE_DIR}/sql 
-${CMAKE_SOURCE_DIR}/regex 
+${CMAKE_BINARY_DIR}/pcre 
+${CMAKE_SOURCE_DIR}/pcre 
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql
@@ -25,7 +26,6 @@ ${CMAKE_BINARY_DIR}/sql
 SET(GEN_SOURCES
 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h 
 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
 ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h 
 )
 
@@ -37,7 +37,7 @@ IF(SSL_DEFINES)
 ENDIF()
 
 SET (SQL_SOURCE
-              ../sql-common/client.c derror.cc des_key_file.cc
+              ../sql-common/client.c compat56.cc derror.cc des_key_file.cc
                discover.cc ../libmysql/errmsg.c field.cc  field_conv.cc 
                filesort_utils.cc
                filesort.cc gstream.cc sha2.cc
@@ -59,7 +59,8 @@ SET (SQL_SOURCE
                sp_rcontext.cc spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc 
                sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc sql_crypt.h 
                sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc sql_do.cc 
-               sql_error.cc sql_handler.cc sql_help.cc sql_insert.cc sql_lex.cc 
+               sql_error.cc sql_handler.cc sql_get_diagnostics.cc
+               sql_help.cc sql_insert.cc sql_lex.cc 
                sql_list.cc sql_load.cc sql_manager.cc
                sql_parse.cc sql_bootstrap.cc sql_bootstrap.h
                sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc 
@@ -81,6 +82,7 @@ SET (SQL_SOURCE
                sql_reload.cc sql_cmd.h
 
                # added in MariaDB:
+               sql_explain.h sql_explain.cc
                sql_lifo_buffer.h sql_join_cache.h sql_join_cache.cc
                create_options.cc multi_range_read.cc
                opt_index_cond_pushdown.cc opt_subselect.cc
@@ -89,7 +91,9 @@ SET (SQL_SOURCE
 			   threadpool_common.cc 
 			   ../sql-common/mysql_async.c
                my_apc.cc my_apc.h
-               rpl_gtid.cc
+               rpl_gtid.cc rpl_parallel.cc
+               table_cache.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 			   )
@@ -107,8 +111,8 @@ ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 ADD_DEPENDENCIES(sql GenServerSource)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
-  mysys dbug strings vio regex
-  ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
+  mysys mysys_ssl dbug strings vio pcre ${LIBJEMALLOC}
+  ${LIBWRAP} ${LIBCRYPT} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT}
   ${SSL_LIBRARIES})
 
 IF(WIN32)
@@ -142,7 +146,7 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
     # incremental appears to crash from time to time,if used with /DEF option
     SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS "${mysqld_link_flags} /DEF:mysqld.def /INCREMENTAL:NO")
 
-    FOREACH (CORELIB sql mysys dbug strings)
+    FOREACH (CORELIB sql mysys mysys_ssl dbug strings)
       GET_TARGET_PROPERTY(LOC ${CORELIB} LOCATION)
       FILE(TO_NATIVE_PATH ${LOC} LOC)
       SET (LIB_LOCATIONS ${LIB_LOCATIONS} ${LOC}) 
@@ -172,7 +176,7 @@ ENDIF()
 # On Solaris, some extra effort is required in order to get dtrace probes
 # from static libraries
 DTRACE_INSTRUMENT_STATIC_LIBS(mysqld 
- "sql;mysys;${MYSQLD_STATIC_PLUGIN_LIBS}")
+ "sql;mysys;mysys_ssl;${MYSQLD_STATIC_PLUGIN_LIBS}")
  
 
 SET(WITH_MYSQLD_LDFLAGS "" CACHE STRING "Additional linker flags for mysqld")
@@ -225,7 +229,7 @@ ADD_CUSTOM_COMMAND(
 
 MYSQL_ADD_EXECUTABLE(mysql_tzinfo_to_sql tztime.cc COMPONENT Server)
 SET_TARGET_PROPERTIES(mysql_tzinfo_to_sql PROPERTIES COMPILE_FLAGS "-DTZINFO2SQL")
-TARGET_LINK_LIBRARIES(mysql_tzinfo_to_sql mysys)
+TARGET_LINK_LIBRARIES(mysql_tzinfo_to_sql mysys mysys_ssl)
 
 ADD_CUSTOM_TARGET( 
         GenServerSource

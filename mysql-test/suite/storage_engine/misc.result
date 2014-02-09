@@ -42,6 +42,8 @@ db	User	NULL	NULL
 event	db	NULL	NULL
 event	name	NULL	NULL
 func	name	NULL	NULL
+gtid_slave_pos	domain_id	NULL	NULL
+gtid_slave_pos	sub_id	NULL	NULL
 help_category	help_category_id	NULL	NULL
 help_category	name	NULL	NULL
 help_keyword	help_keyword_id	NULL	NULL
@@ -56,7 +58,12 @@ index_stats	db_name	NULL	NULL
 index_stats	index_name	NULL	NULL
 index_stats	prefix_arity	NULL	NULL
 index_stats	table_name	NULL	NULL
-ndb_binlog_index	epoch	NULL	NULL
+innodb_index_stats	database_name	NULL	NULL
+innodb_index_stats	index_name	NULL	NULL
+innodb_index_stats	stat_name	NULL	NULL
+innodb_index_stats	table_name	NULL	NULL
+innodb_table_stats	database_name	NULL	NULL
+innodb_table_stats	table_name	NULL	NULL
 plugin	name	NULL	NULL
 proc	db	NULL	NULL
 proc	name	NULL	NULL
@@ -70,6 +77,9 @@ proxies_priv	Host	NULL	NULL
 proxies_priv	Proxied_host	NULL	NULL
 proxies_priv	Proxied_user	NULL	NULL
 proxies_priv	User	NULL	NULL
+roles_mapping	Host	NULL	NULL
+roles_mapping	Role	NULL	NULL
+roles_mapping	User	NULL	NULL
 servers	Server_name	NULL	NULL
 table_stats	db_name	NULL	NULL
 table_stats	table_name	NULL	NULL

@@ -1,7 +1,7 @@
 /************** Table C++ Functions Source Code File (.CPP) ************/
-/*  Name: TABLE.CPP  Version 2.6                                       */
+/*  Name: TABLE.CPP  Version 2.7                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2014    */
 /*                                                                     */
 /*  This file contains the TBX, TDB and OPJOIN classes functions.      */
 /***********************************************************************/
@@ -263,6 +263,17 @@ PCATLG TDBASE::GetCat(void)
   }  // end of GetCat
 
 /***********************************************************************/
+/*  Return the pointer on the charset of this table.                   */
+/***********************************************************************/
+CHARSET_INFO *TDBASE::data_charset(void)
+  {
+  // If no DATA_CHARSET is specified, we assume that character
+  // set of the remote data is the same with CHARACTER SET 
+  // definition of the SQL column.
+  return m_data_charset ? m_data_charset : &my_charset_bin;
+  } // end of data_charset
+
+/***********************************************************************/
 /*  Return the datapath of the DB this table belongs to.               */
 /***********************************************************************/
 PSZ TDBASE::GetPath(void)
@@ -307,15 +318,17 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
       /*****************************************************************/
       if (cp)
         colp = cp;
-      else
+      else if (!(cdp->Flags & U_SPECIAL))
         colp = MakeCol(g, cdp, cprec, i);
+      else if (Mode == MODE_READ)
+        colp = InsertSpcBlk(g, cdp);
 
       if (trace)
         htrc("colp=%p\n", colp);
       
       if (name || num)
         break;
-      else if (colp)
+      else if (colp && !colp->IsSpecial())
         cprec = colp;
 
       } // endif Name
@@ -339,30 +352,35 @@ PCOL TDBASE::InsertSpecialColumn(PGLOBAL g, PCOL colp)
 /***********************************************************************/
 /*  Make a special COLBLK to insert in a table.                        */
 /***********************************************************************/
-PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLUMN cp)
+PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
   {
-  char *name = (char*)cp->GetName();
-  PCOL  colp;
+//char *name = cdp->GetName();
+  char   *name = cdp->GetFmt();
+  PCOLUMN cp;
+  PCOL    colp;
 
-  if (!strcmp(name, "FILEID")) {
-//    !strcmp(name, "SERVID")) {
+  cp= new(g) COLUMN(cdp->GetName());
+  cp->SetTo_Table(To_Table);
+
+  if (!stricmp(name, "FILEID") ||
+      !stricmp(name, "SERVID")) {
     if (!To_Def || !(To_Def->GetPseudo() & 2)) {
       sprintf(g->Message, MSG(BAD_SPEC_COLUMN));
       return NULL;
       } // endif Pseudo
 
-//  if (!strcmp(name, "FILEID"))
+    if (!stricmp(name, "FILEID"))
       colp = new(g) FIDBLK(cp);
-//  else
-//    colp = new(g) SIDBLK(cp);
+    else
+      colp = new(g) SIDBLK(cp);
 
-  } else if (!strcmp(name, "TABID")) {
+  } else if (!stricmp(name, "TABID")) {
     colp = new(g) TIDBLK(cp);
-//} else if (!strcmp(name, "CONID")) {
+//} else if (!stricmp(name, "CONID")) {
 //  colp = new(g) CIDBLK(cp);
-  } else if (!strcmp(name, "ROWID")) {
+  } else if (!stricmp(name, "ROWID")) {
     colp = new(g) RIDBLK(cp, false);
-  } else if (!strcmp(name, "ROWNUM")) {
+  } else if (!stricmp(name, "ROWNUM")) {
       colp = new(g) RIDBLK(cp, true);
   } else {
     sprintf(g->Message, MSG(BAD_SPECIAL_COL), name);
@@ -471,6 +489,16 @@ bool TDBCAT::Initialize(PGLOBAL g)
   if (!(Qrp = GetResult(g)))
     return true;
 
+  if (Qrp->Truncated) {
+    sprintf(g->Message, "Result limited to %d lines", Qrp->Maxres);
+    PushWarning(g, this);
+    } // endif Truncated
+
+  if (Qrp->BadLines) {
+    sprintf(g->Message, "%d bad lines in result", Qrp->BadLines);
+    PushWarning(g, this);
+    } // endif Badlines
+
 	Init = true;
 	return false;
 	} // end of Initialize
@@ -481,10 +509,11 @@ bool TDBCAT::Initialize(PGLOBAL g)
 int TDBCAT::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
-    if (Initialize(g))
-      return -1;
+//  if (Initialize(g))
+//    return -1;
 
-    MaxSize = Qrp->Nblin;
+//  MaxSize = Qrp->Nblin;
+    MaxSize = 10;             // To make MariaDB happy
     } // endif MaxSize
 
   return MaxSize;
@@ -517,6 +546,7 @@ bool TDBCAT::OpenDB(PGLOBAL g)
   if (Initialize(g))
     return true;
 
+  Use = USE_OPEN;
   return InitCol(g);
   } // end of OpenDB
 
@@ -547,6 +577,15 @@ bool TDBCAT::InitCol(PGLOBAL g)
 
   return false;
   } // end of InitCol
+
+/***********************************************************************/
+/*  SetRecpos: Replace the table at the specified position.            */
+/***********************************************************************/
+bool TDBCAT::SetRecpos(PGLOBAL g, int recpos) 
+  {
+  N = recpos - 1;
+  return false;
+  } // end of SetRecpos
 
 /***********************************************************************/
 /*  Data Base read routine for CAT access method.                      */

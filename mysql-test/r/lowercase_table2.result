@@ -129,6 +129,8 @@ show tables like 'T1%';
 Tables_in_test (T1%)
 T1
 alter table t1 add index (A);
+Warnings:
+Note	1831	Duplicate index 'A_2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 show tables like 't1%';
 Tables_in_test (t1%)
 t1
@@ -272,7 +274,7 @@ Database	Table	In_use	Name_locked
 test	t_bug44738_uppercase	0	0
 # So attempt to create table with the same name should fail.
 create table t_bug44738_UPPERCASE (i int);
-ERROR HY000: Can't find file: './test/t_bug44738_uppercase.MYI' (errno: 2 "No such file or directory")
+ERROR 42S01: Table 't_bug44738_uppercase' already exists
 # And should succeed after FLUSH TABLES.
 flush tables;
 create table t_bug44738_UPPERCASE (i int);

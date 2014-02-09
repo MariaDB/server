@@ -1,5 +1,6 @@
 /*
-   Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,8 +40,8 @@ static bool do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db,
 static TABLE_LIST *reverse_table_list(TABLE_LIST *table_list);
 
 /*
-  Every second entry in the table_list is the original name and every
-  second entry is the new name.
+  Every two entries in the table_list form a pair of original name and
+  the new name.
 */
 
 bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
@@ -83,12 +84,8 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
     for (to_table= 0, ren_table= table_list; ren_table;
          to_table= 1 - to_table, ren_table= ren_table->next_local)
     {
-      int log_table_rename= 0;
-
-      if ((log_table_rename=
-           check_if_log_table(ren_table->db_length, ren_table->db,
-                              ren_table->table_name_length,
-                              ren_table->table_name, 1)))
+      int log_table_rename;
+      if ((log_table_rename= check_if_log_table(ren_table, TRUE, NullS)))
       {
         /*
           as we use log_table_rename as an array index, we need it to start
@@ -144,7 +141,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
   }
 
   if (lock_table_names(thd, table_list, 0, thd->variables.lock_wait_timeout,
-                       MYSQL_OPEN_SKIP_TEMPORARY))
+                       0))
     goto err;
 
   error=0;
@@ -296,7 +293,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
             and handler's data and report about failure to rename table.
           */
           (void) mysql_rename_table(hton, new_db, new_alias,
-                                    ren_table->db, old_alias, 0);
+                                    ren_table->db, old_alias, NO_FK_CHECKS);
         }
       }
     }

@@ -1,7 +1,7 @@
 /************** PlgDBSem H Declares Source Code File (.H) **************/
-/*  Name: PLGDBSEM.H  Version 3.5                                      */
+/*  Name: PLGDBSEM.H  Version 3.6                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /*  This file contains the PlugDB++ application type definitions.      */
 /***********************************************************************/
@@ -106,12 +106,20 @@ enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_DOM   =  80,        /* DOM access method type no     */
           TYPE_AM_DIR   =  90,        /* DIR access method type no     */
           TYPE_AM_ODBC  = 100,        /* ODBC access method type no    */
+          TYPE_AM_XDBC  = 101,        /* XDBC access method type no    */
           TYPE_AM_OEM   = 110,        /* OEM access method type no     */
           TYPE_AM_TBL   = 115,        /* TBL access method type no     */
           TYPE_AM_PIVOT = 120,        /* PIVOT access method type no   */
           TYPE_AM_SRC   = 121,        /* PIVOT multiple column type no */
           TYPE_AM_FNC   = 122,        /* PIVOT source column type no   */
+          TYPE_AM_XCOL  = 124,        /* XCOL access method type no    */
+          TYPE_AM_XML   = 127,        /* XML access method type no     */
+          TYPE_AM_OCCUR = 128,        /* OCCUR access method type no   */
+          TYPE_AM_PRX   = 129,        /* PROXY access method type no   */
           TYPE_AM_XTB   = 130,        /* SYS table access method type  */
+          TYPE_AM_BLK   = 131,        /* BLK access method type no     */
+          TYPE_AM_ZIP   = 132,        /* ZIP access method type no     */
+          TYPE_AM_ZLIB  = 133,        /* ZLIB access method type no    */
           TYPE_AM_MAC   = 137,        /* MAC table access method type  */
           TYPE_AM_WMI   = 139,        /* WMI table access method type  */
           TYPE_AM_XCL   = 140,        /* SYS column access method type */
@@ -122,7 +130,8 @@ enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_DMY   = 172,        /* DMY Dummy tables am type no   */
           TYPE_AM_SET   = 180,        /* SET Set tables am type no     */
           TYPE_AM_MYSQL = 192,        /* MYSQL access method type no   */
-          TYPE_AM_CAT   = 193,        /* Catalog access method type no */
+          TYPE_AM_MYX   = 193,        /* MYSQL EXEC access method type */
+          TYPE_AM_CAT   = 195,        /* Catalog access method type no */
           TYPE_AM_OUT   = 200};       /* Output relations (storage)    */
 
 enum RECFM {RECFM_NAF   =    -2,      /* Not a file                    */
@@ -151,12 +160,14 @@ enum ALGMOD {AMOD_AUTO =  0,          /* PLG chooses best algorithm    */
 #define    NAM_LEN          128
 #endif // !0
 
-enum MODE {MODE_ANY     =  0,         /* Unspecified mode              */
+enum MODE {MODE_ERROR   = -1,         /* Invalid mode                  */
+           MODE_ANY     =  0,         /* Unspecified mode              */
            MODE_READ    = 10,         /* Input/Output mode             */
            MODE_WRITE   = 20,         /* Input/Output mode             */
            MODE_UPDATE  = 30,         /* Input/Output mode             */
            MODE_INSERT  = 40,         /* Input/Output mode             */
-           MODE_DELETE  = 50};        /* Input/Output mode             */
+           MODE_DELETE  = 50,         /* Input/Output mode             */
+           MODE_ALTER   = 60};        /* alter mode                    */
 
 #if !defined(RC_OK_DEFINED)
 #define RC_OK_DEFINED
@@ -319,7 +330,10 @@ enum COLUSE {U_P         = 0x01,      /* the projection list.          */
              U_VAR       = 0x10,      /* a VARCHAR column              */
              U_VIRTUAL   = 0x20,      /* a VIRTUAL column              */
              U_NULLS     = 0x40,      /* The column may have nulls     */
-             U_IS_NULL   = 0x80};     /* The column has a null value   */
+             U_IS_NULL   = 0x80,      /* The column has a null value   */
+             U_SPECIAL   = 0x100,     /* The column is special         */
+             U_UNSIGNED  = 0x200,     /* The column type is unsigned   */
+             U_ZEROFILL  = 0x400};    /* The column is zero filled     */
 
 /***********************************************************************/
 /*  DB description class and block pointer definitions.                */
@@ -483,11 +497,12 @@ enum XFLD {FLD_NO       =  0,         /* Not a field definition item   */
            FLD_CHARSET  = 10,         /* Field collation               */
            FLD_KEY      = 11,         /* Field key property            */
            FLD_DEFAULT  = 12,         /* Field default value           */
-           FLD_PRIV     = 13,         /* Field priviledges             */
-           FLD_DATEFMT  = 14,         /* Field date format             */
-           FLD_QUALIF   = 15,         /* Table qualifier               */
-           FLD_OWNER    = 16,         /* Table owner                   */
-           FLD_TABNAME  = 17};        /* Column Table name             */
+           FLD_EXTRA    = 13,         /* Field extra info              */
+           FLD_PRIV     = 14,         /* Field priviledges             */
+           FLD_DATEFMT  = 15,         /* Field date format             */
+           FLD_CAT      = 16,         /* Table catalog                 */
+           FLD_SCHEM    = 17,         /* Table schema                  */
+           FLD_TABNAME  = 18};        /* Column Table name             */
 
 /***********************************************************************/
 /*  Result of last SQL noconv query.                                   */
@@ -535,8 +550,6 @@ PPARM    Vcolist(PGLOBAL, PTDB, PSZ, bool);
 void     PlugPutOut(PGLOBAL, FILE *, short, void *, uint);
 void     PlugLineDB(PGLOBAL, PSZ, short, void *, uint);
 char    *PlgGetDataPath(PGLOBAL g);
-void    *PlgDBalloc(PGLOBAL, void *, MBLOCK&);
-void    *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
 void     AddPointer(PTABS, void *);
 PDTP     MakeDateFormat(PGLOBAL, PSZ, bool, bool, int);
 int      ExtractDate(char *, PDTP, int, int val[6]);
@@ -544,9 +557,10 @@ int      ExtractDate(char *, PDTP, int, int val[6]);
 /**************************************************************************/
 /*  Allocate the result structure that will contain result data.          */
 /**************************************************************************/
-PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
-                       int *buftyp, XFLD *fldtyp, 
-                       unsigned int *length, bool blank, bool nonull);
+DllExport PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
+                                 int *buftyp, XFLD *fldtyp, 
+                                 unsigned int *length, 
+                                 bool blank, bool nonull);
 
 /***********************************************************************/
 /*  Exported utility routines.                                         */
@@ -561,11 +575,17 @@ DllExport PDBUSER PlgGetUser(PGLOBAL g);
 DllExport PCATLG  PlgGetCatalog(PGLOBAL g, bool jump = true);
 DllExport bool    PlgSetXdbPath(PGLOBAL g, PSZ, PSZ, char *, int, char *, int);
 DllExport void    PlgDBfree(MBLOCK&);
+DllExport void   *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size);
+DllExport void   *PlgDBalloc(PGLOBAL, void *, MBLOCK&);
+DllExport void   *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
 //lExport PSZ     GetIniString(PGLOBAL, void *, LPCSTR, LPCSTR, LPCSTR, LPCSTR);
 //lExport int     GetIniSize(char *, char *, char *, char *);
 //lExport bool    WritePrivateProfileInt(LPCSTR, LPCSTR, int, LPCSTR);
 DllExport void    NewPointer(PTABS, void *, void *);
-
+DllExport char    *GetIni(int n= 0);
+DllExport void    SetTrc(void);
+DllExport char   *GetListOption(PGLOBAL, const char *, const char *, 
+                                         const char *def=NULL);
 
 #define MSGID_NONE                         0
 #define MSGID_CANNOT_OPEN                  1
@@ -579,5 +599,6 @@ FILE *global_fopen(GLOBAL *g, int msgid, const char *path, const char *mode);
 int global_open(GLOBAL *g, int msgid, const char *filename, int flags);
 int global_open(GLOBAL *g, int msgid, const char *filename, int flags, int mode);
 DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir);
+char *MakeEscape(PGLOBAL g, char* str, char q);
 
-bool PushWarning(PGLOBAL, PTDBASE);
+DllExport bool PushWarning(PGLOBAL, PTDBASE, int level = 1);

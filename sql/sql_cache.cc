@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2012, Monty Program Ab.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -336,6 +336,7 @@ TODO list:
 #include "sql_acl.h"                            // SELECT_ACL
 #include "sql_base.h"                           // TMP_TABLE_KEY_EXTRA
 #include "debug_sync.h"                         // DEBUG_SYNC
+#include "sql_table.h"
 #ifdef HAVE_QUERY_CACHE
 #include <m_ctype.h>
 #include <my_dir.h>
@@ -345,6 +346,7 @@ TODO list:
 #include "probes_mysql.h"
 #include "log_slow.h"
 #include "transaction.h"
+#include "strfunc.h"
 
 const uchar *query_state_map;
 
@@ -1175,7 +1177,7 @@ void Query_cache::end_of_result(THD *thd)
     DBUG_VOID_RETURN;
 
   /* Ensure that only complete results are cached. */
-  DBUG_ASSERT(thd->stmt_da->is_eof());
+  DBUG_ASSERT(thd->get_stmt_da()->is_eof());
 
   if (thd->killed)
   {
@@ -1223,7 +1225,7 @@ void Query_cache::end_of_result(THD *thd)
     }
     last_result_block= header->result()->prev;
     allign_size= ALIGN_SIZE(last_result_block->used);
-    len= max(query_cache.min_allocation_unit, allign_size);
+    len= MY_MAX(query_cache.min_allocation_unit, allign_size);
     if (last_result_block->length >= query_cache.min_allocation_unit + len)
       query_cache.split_block(last_result_block,len);
 
@@ -1318,17 +1320,17 @@ ulong Query_cache::resize(ulong query_cache_size_arg)
     {
       BLOCK_LOCK_WR(block);
       Query_cache_query *query= block->query();
-      if (query && query->writer())
+      if (query->writer())
       {
         /*
-           Drop the writer; this will cancel any attempts to store 
+           Drop the writer; this will cancel any attempts to store
            the processed statement associated with this writer.
          */
         query->writer()->first_query_block= NULL;
         query->writer(0);
         refused++;
       }
-      BLOCK_UNLOCK_WR(block);
+      query->unlock_n_destroy();
       block= block->next;
     } while (block != queries_blocks);
   }
@@ -1636,6 +1638,41 @@ send_data_in_chunks(NET *net, const uchar *packet, ulong len)
   return FALSE;
 }
 #endif
+
+
+/**
+   Build a normalized table name suitable for query cache engine callback
+
+   This consist of normalized directory '/' normalized_file_name 
+   followed by suffix.
+   Suffix is needed for partitioned tables.
+*/
+
+size_t build_normalized_name(char *buff, size_t bufflen,
+                             const char *db, size_t db_len,
+                             const char *table_name, size_t table_len,
+                             size_t suffix_len)
+{
+  uint errors;
+  size_t length;
+  char *pos= buff, *end= buff+bufflen;
+  DBUG_ENTER("build_normalized_name");
+
+  (*pos++)= FN_LIBCHAR;
+  length= strconvert(system_charset_info, db, db_len,
+                     &my_charset_filename, pos, bufflen - 3,
+                     &errors);
+ pos+= length;
+ (*pos++)= FN_LIBCHAR;
+ length= strconvert(system_charset_info, table_name, table_len,
+                    &my_charset_filename, pos, (uint) (end - pos),
+                    &errors);
+ pos+= length;
+ if (pos + suffix_len < end)
+   pos= strmake(pos, table_name + table_len, suffix_len);
+ 
+ DBUG_RETURN((size_t) (pos - buff));
+}
 
 
 /*
@@ -2013,35 +2050,55 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
     }
 #endif /*!NO_EMBEDDED_ACCESS_CHECKS*/
     engine_data= table->engine_data();
-    if (table->callback() &&
-        !(*table->callback())(thd, table->db(),
-                              table->key_length(),
-                              &engine_data))
+    if (table->callback()) 
     {
-      DBUG_PRINT("qcache", ("Handler does not allow caching for %s.%s",
-			    table_list.db, table_list.alias));
-      BLOCK_UNLOCK_RD(query_block);
-      if (engine_data != table->engine_data())
+      char qcache_se_key_name[FN_REFLEN + 10];
+      uint qcache_se_key_len, db_length= strlen(table->db());
+      engine_data= table->engine_data();
+
+      qcache_se_key_len= build_normalized_name(qcache_se_key_name,
+                                               sizeof(qcache_se_key_name),
+                                               table->db(),
+                                               db_length,
+                                               table->table(),
+                                               table->key_length() -
+                                               db_length - 2 -
+                                               table->suffix_length(),
+                                               table->suffix_length());
+   
+      if (!(*table->callback())(thd, qcache_se_key_name,
+                                qcache_se_key_len, &engine_data))
       {
-        DBUG_PRINT("qcache",
-                   ("Handler require invalidation queries of %s.%s %lu-%lu",
-                    table_list.db, table_list.alias,
-                    (ulong) engine_data, (ulong) table->engine_data()));
-        invalidate_table_internal(thd,
-                                  (uchar *) table->db(),
-                                  table->key_length());
-      }
-      else
-      {
+        DBUG_PRINT("qcache", ("Handler does not allow caching for %.*s",
+                              qcache_se_key_len, qcache_se_key_name));
+        BLOCK_UNLOCK_RD(query_block);
+        if (engine_data != table->engine_data())
+        {
+          DBUG_PRINT("qcache",
+                     ("Handler require invalidation queries of %.*s %lu-%lu",
+                      qcache_se_key_len, qcache_se_key_name,
+                      (ulong) engine_data, (ulong) table->engine_data()));
+          invalidate_table_internal(thd,
+                                    (uchar *) table->db(),
+                                    table->key_length());
+        }
+        else
+        {
+          /*
+            As this can change from call to call, don't reset set
+            thd->lex->safe_to_cache_query
+          */
+          thd->query_cache_is_applicable= 0;      // Query can't be cached
+        }
         /*
-          As this can change from call to call, don't reset set
-          thd->lex->safe_to_cache_query
+          End the statement transaction potentially started by engine.
+          Currently our engines do not request rollback from callbacks.
+          If this is going to change code needs to be reworked.
         */
-        thd->query_cache_is_applicable= 0;      // Query can't be cached
+        DBUG_ASSERT(! thd->transaction_rollback_request);
+        trans_rollback_stmt(thd);
+        goto err_unlock;				// Parse query
       }
-      /* End the statement transaction potentially started by engine. */
-      trans_rollback_stmt(thd);
-      goto err_unlock;				// Parse query
     }
     else
       DBUG_PRINT("qcache", ("handler allow caching %s,%s",
@@ -2080,9 +2137,13 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
   }
 #endif /*!EMBEDDED_LIBRARY*/
 
-  thd->limit_found_rows = query->found_rows();
+  thd->set_sent_row_count(thd->limit_found_rows = query->found_rows());
   thd->status_var.last_query_cost= 0.0;
   thd->query_plan_flags= (thd->query_plan_flags & ~QPLAN_QC_NO) | QPLAN_QC;
+  if (!thd->get_sent_row_count())
+    status_var_increment(thd->status_var.empty_queries);
+  else
+    status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
 
   /*
     End the statement transaction potentially started by an
@@ -2091,8 +2152,8 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
     response, we can't handle it anyway.
   */
   (void) trans_commit_stmt(thd);
-  if (!thd->stmt_da->is_set())
-    thd->stmt_da->disable_status();
+  if (!thd->get_stmt_da()->is_set())
+    thd->get_stmt_da()->disable_status();
 
   BLOCK_UNLOCK_RD(query_block);
   MYSQL_QUERY_CACHE_HIT(thd->query(), (ulong) thd->limit_found_rows);
@@ -2898,7 +2959,7 @@ Query_cache::write_block_data(ulong data_len, uchar* data,
   DBUG_ENTER("Query_cache::write_block_data");
   DBUG_PRINT("qcache", ("data: %ld, header: %ld, all header: %ld",
 		      data_len, header_len, all_headers_len));
-  Query_cache_block *block= allocate_block(max(align_len,
+  Query_cache_block *block= allocate_block(MY_MAX(align_len,
                                            min_allocation_unit),1, 0);
   if (block != 0)
   {
@@ -2953,7 +3014,7 @@ Query_cache::append_result_data(Query_cache_block **current_block,
   ulong append_min = get_min_append_result_data_size();
   if (last_block_free_space < data_len &&
       append_next_free_block(last_block,
-			     max(tail, append_min)))
+			     MY_MAX(tail, append_min)))
     last_block_free_space = last_block->length - last_block->used;
   // If no space in last block (even after join) allocate new block
   if (last_block_free_space < data_len)
@@ -2981,7 +3042,7 @@ Query_cache::append_result_data(Query_cache_block **current_block,
   // Now finally write data to the last block
   if (success && last_block_free_space > 0)
   {
-    ulong to_copy = min(data_len,last_block_free_space);
+    ulong to_copy = MY_MIN(data_len,last_block_free_space);
     DBUG_PRINT("qcache", ("use free space %lub at block 0x%lx to copy %lub",
 			last_block_free_space, (ulong)last_block, to_copy));
     memcpy((uchar*) last_block + last_block->used, data, to_copy);
@@ -3069,8 +3130,8 @@ inline ulong Query_cache::get_min_first_result_data_size()
   if (queries_in_cache < QUERY_CACHE_MIN_ESTIMATED_QUERIES_NUMBER)
     return min_result_data_size;
   ulong avg_result = (query_cache_size - free_memory) / queries_in_cache;
-  avg_result = min(avg_result, query_cache_limit);
-  return max(min_result_data_size, avg_result);
+  avg_result = MY_MIN(avg_result, query_cache_limit);
+  return MY_MAX(min_result_data_size, avg_result);
 }
 
 inline ulong Query_cache::get_min_append_result_data_size()
@@ -3102,7 +3163,7 @@ my_bool Query_cache::allocate_data_chain(Query_cache_block **result_block,
     ulong len= data_len + all_headers_len;
     ulong align_len= ALIGN_SIZE(len);
 
-    if (!(new_block= allocate_block(max(min_size, align_len),
+    if (!(new_block= allocate_block(MY_MAX(min_size, align_len),
 				    min_result_data_size == 0,
 				    all_headers_len + min_result_data_size)))
     {
@@ -3111,7 +3172,7 @@ my_bool Query_cache::allocate_data_chain(Query_cache_block **result_block,
     }
 
     new_block->n_tables = 0;
-    new_block->used = min(len, new_block->length);
+    new_block->used = MY_MIN(len, new_block->length);
     new_block->type = Query_cache_block::RES_INCOMPLETE;
     new_block->next = new_block->prev = new_block;
     Query_cache_result *header = new_block->result();
@@ -3152,11 +3213,9 @@ void Query_cache::invalidate_table(THD *thd, TABLE_LIST *table_list)
     invalidate_table(thd, table_list->table);	// Table is open
   else
   {
-    char key[MAX_DBKEY_LENGTH];
+    const char *key;
     uint key_length;
-
-    key_length= create_table_def_key(key, table_list->db,
-                                     table_list->table_name);
+    key_length= get_table_def_key(table_list, &key);
 
     // We don't store temporary tables => no key_length+=4 ...
     invalidate_table(thd, (uchar *)key, key_length);
@@ -3269,18 +3328,17 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
     (*block_table)->n= n;
     if (tables_used->view)
     {
-      char key[MAX_DBKEY_LENGTH];
+      const char *key;
       uint key_length;
       DBUG_PRINT("qcache", ("view: %s  db: %s",
                             tables_used->view_name.str,
                             tables_used->view_db.str));
-      key_length= create_table_def_key(key, tables_used->view_db.str,
-                                       tables_used->view_name.str);
+      key_length= get_table_def_key(tables_used, &key);
       /*
         There are not callback function for for VIEWs
       */
       if (!insert_table(key_length, key, (*block_table),
-                        tables_used->view_db.length + 1,
+                        tables_used->view_db.length + 1, 0,
                         HA_CACHE_TBL_NONTRANSACT, 0, 0, TRUE))
         DBUG_RETURN(0);
       /*
@@ -3301,7 +3359,7 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
       if (!insert_table(tables_used->table->s->table_cache_key.length,
                         tables_used->table->s->table_cache_key.str,
                         (*block_table),
-                        tables_used->db_length,
+                        tables_used->db_length, 0,
                         tables_used->table->file->table_cache_type(),
                         tables_used->callback_func,
                         tables_used->engine_data,
@@ -3364,9 +3422,10 @@ my_bool Query_cache::register_all_tables(THD *thd,
 */
 
 my_bool
-Query_cache::insert_table(uint key_len, char *key,
+Query_cache::insert_table(uint key_len, const char *key,
 			  Query_cache_block_table *node,
-			  uint32 db_length, uint8 cache_type,
+			  uint32 db_length, uint8 suffix_length_arg,
+                          uint8 cache_type,
                           qc_engine_callback callback,
                           ulonglong engine_data,
                           my_bool hash)
@@ -3441,6 +3500,7 @@ Query_cache::insert_table(uint key_len, char *key,
     char *db= header->db();
     header->table(db + db_length + 1);
     header->key_length(key_len);
+    header->suffix_length(suffix_length_arg);
     header->type(cache_type);
     header->callback(callback);
     header->engine_data(engine_data);
@@ -3517,7 +3577,7 @@ Query_cache::allocate_block(ulong len, my_bool not_less, ulong min)
   DBUG_PRINT("qcache", ("len %lu, not less %d, min %lu",
              len, not_less,min));
 
-  if (len >= min(query_cache_size, query_cache_limit))
+  if (len >= MY_MIN(query_cache_size, query_cache_limit))
   {
     DBUG_PRINT("qcache", ("Query cache hase only %lu memory and limit %lu",
 			query_cache_size, query_cache_limit));
@@ -4078,13 +4138,13 @@ my_bool Query_cache::ask_handler_allowance(THD *thd,
       continue;
     handler= table->file;
     if (!handler->register_query_cache_table(thd,
-                                             table->s->table_cache_key.str,
-					     table->s->table_cache_key.length,
+                                             table->s->normalized_path.str,
+                                             table->s->normalized_path.length,
 					     &tables_used->callback_func,
 					     &tables_used->engine_data))
     {
-      DBUG_PRINT("qcache", ("Handler does not allow caching for %s.%s",
-			    tables_used->db, tables_used->alias));
+      DBUG_PRINT("qcache", ("Handler does not allow caching for %s",
+                            table->s->normalized_path.str));
       /*
         As this can change from call to call, don't reset set
         thd->lex->safe_to_cache_query
@@ -4256,11 +4316,11 @@ my_bool Query_cache::move_by_type(uchar **border,
     size_t key_length;
     key=query_cache_query_get_key((uchar*) block, &key_length, 0);
     my_hash_first(&queries, (uchar*) key, key_length, &record_idx);
-    // Move table of used tables 
-    memmove((char*) new_block->table(0), (char*) block->table(0),
-	   ALIGN_SIZE(n_tables*sizeof(Query_cache_block_table)));
     block->query()->unlock_n_destroy();
     block->destroy();
+    // Move table of used tables
+    memmove((char*) new_block->table(0), (char*) block->table(0),
+	   ALIGN_SIZE(n_tables*sizeof(Query_cache_block_table)));
     new_block->init(len);
     new_block->type=Query_cache_block::QUERY;
     new_block->used=used;
@@ -4503,7 +4563,7 @@ uint Query_cache::filename_2_table_key (char *key, const char *path,
   DBUG_PRINT("qcache", ("table '%-.*s.%s'", *db_length, dbname, filename));
 
   DBUG_RETURN((uint) (strmake(strmake(key, dbname,
-                                      min(*db_length, NAME_LEN)) + 1,
+                                      MY_MIN(*db_length, NAME_LEN)) + 1,
                               filename, NAME_LEN) - key) + 1);
 }
 

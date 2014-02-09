@@ -711,6 +711,9 @@ a INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
 b INT, c INT, d DATE NOT NULL, e VARCHAR(1),
 KEY (c), KEY (d), KEY k2(b), KEY k3(b), KEY k4(b)
 );
+Warnings:
+Note	1831	Duplicate index 'k3' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
+Note	1831	Duplicate index 'k4' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
 INSERT INTO t1 (b,c,d,e) VALUES
 (6,5,'2006-05-25','y'),(1,5,'2008-01-23','t'),
 (6,5,'2007-06-18','d'),(4,5,'1900-01-01','r'),
@@ -852,6 +855,33 @@ select 1 from t1 where b <= 1 and a <> '';
 1
 drop table t1;
 #
+# MDEV-4778: Incorrect results from Aria/MyISAM SELECT using index with prefix length on TEXT column
+# 
+CREATE TABLE t1 (
+c1 TEXT       ,
+c2 VARCHAR(2) ,
+INDEX idx1 (c2,c1(2)),
+INDEX idx2 (c2,c1(1))
+);
+INSERT INTO t1 (c1,c2) VALUES ('aa','x'), ('a' ,'y');
+SELECT * FROM t1 IGNORE INDEX(idx1,idx2) WHERE (c1='aa' AND c2='x') OR (c1='a'  AND c2='y');
+c1	c2
+aa	x
+a	y
+EXPLAIN
+SELECT * FROM t1 FORCE INDEX(idx1)       WHERE (c1='aa' AND c2='x') OR (c1='a'  AND c2='y');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx1	idx1	10	NULL	2	Using index condition; Using where
+SELECT * FROM t1 FORCE INDEX(idx1)       WHERE (c1='aa' AND c2='x') OR (c1='a'  AND c2='y');
+c1	c2
+aa	x
+a	y
+SELECT * FROM t1 FORCE INDEX(idx2)       WHERE (c1='aa' AND c2='x') OR (c1='a'  AND c2='y');
+c1	c2
+aa	x
+a	y
+DROP TABLE t1;
+#
 # BUG#920132: Assert trx->n_active_thrs == 1 failed at que0que.c line 1050 
 #
 CREATE TABLE t1 ( a INT )
@@ -880,5 +910,30 @@ OR a = c
 ORDER BY e;
 a	b	c	d	e
 DROP TABLE t1,t2,t3;
+#
+# MDEV-5337: Wrong result in mariadb 5.5.32 with ORDER BY + LIMIT when index_condition_pushdown=on
+# MDEV-5512: Wrong result (WHERE clause ignored) with multiple clauses using Percona-XtraDB engine
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (pk int primary key, 
+key1 char(32),
+key2 char(32),
+key(key1),
+key(key2)
+) engine=innodb;
+insert into t2 select 
+A.a+10*B.a+100*C.a,
+concat('rare-', A.a+10*B.a),
+concat('rare-', A.a+10*B.a)
+from
+t1 A, t1 B, t1 C;
+update t2 set key1='frequent-val' where pk between 100 and 350;
+select * from t2 ignore key(PRIMARY) 
+where key1='frequent-val' and key2 between 'rare-400' and 'rare-450' order by pk limit 2;
+pk	key1	key2
+141	frequent-val	rare-41
+142	frequent-val	rare-42
+drop table t1, t2;
 set optimizer_switch=@innodb_icp_tmp;
 set storage_engine= @save_storage_engine;

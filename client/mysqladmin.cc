@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /* maintaince of mysql databases */
 
@@ -23,7 +23,8 @@
 #include <sys/stat.h>
 #include <mysql.h>
 #include <sql_common.h>
-#include <welcome_copyright_notice.h>           /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
+#include <welcome_copyright_notice.h>
+#include <my_rnd.h>
 
 #define ADMIN_VERSION "9.1"
 #define MAX_MYSQL_VAR 512
@@ -369,6 +370,9 @@ int main(int argc,char *argv[])
   if (opt_default_auth && *opt_default_auth)
     mysql_options(&mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
 
+  mysql_options(&mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
+  mysql_options4(&mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
+                 "program_name", "mysqladmin");
   if (sql_connect(&mysql, option_wait))
   {
     /*
@@ -1226,9 +1230,10 @@ static void usage(void)
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
   puts("Administration program for the mysqld daemon.");
   printf("Usage: %s [OPTIONS] command command....\n", my_progname);
+  print_defaults("my",load_default_groups);
+  puts("");
   my_print_help(my_long_options);
   my_print_variables(my_long_options);
-  print_defaults("my",load_default_groups);
   puts("\nWhere command is a one or more of: (Commands may be shortened)\n\
   create databasename	  Create a new database\n\
   debug			  Instruct server to write debug information to log\n\

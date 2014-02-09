@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include <mysql.h>
+#include <hash.h>
 
 extern const char	*unknown_sqlstate;
 extern const char	*cant_connect_sqlstate;
@@ -41,6 +42,8 @@ struct st_mysql_options_extention {
                           const char *proc_info,
                           uint proc_info_length);
   struct mysql_async_context *async_context;
+  HASH connection_attributes;
+  size_t connection_attributes_length;
 };
 
 typedef struct st_mysql_methods
@@ -114,6 +117,7 @@ int mysql_client_plugin_init();
 void mysql_client_plugin_deinit();
 struct st_mysql_client_plugin;
 extern struct st_mysql_client_plugin *mysql_client_builtins[];
+uchar * send_client_connect_attrs(MYSQL *mysql, uchar *buf);
 
 /* Non-blocking client API. */
 void my_context_install_suspend_resume_hook(struct mysql_async_context *b,

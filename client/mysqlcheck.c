@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2001, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2011, Monty Program Ab.
+   Copyright (c) 2001, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 /* By Jani Tolonen, 2001-04-20, MySQL Development Team */
 
-#define CHECK_VERSION "2.7.1"
+#define CHECK_VERSION "2.7.2-MariaDB"
 
 #include "client_priv.h"
 #include <m_ctype.h>
@@ -250,6 +250,7 @@ static void usage(void)
   puts("http://kb.askmonty.org/v/mysqlcheck for latest information about");
   puts("this program.");
   print_defaults("my", load_default_groups);
+  puts("");
   my_print_help(my_long_options);
   my_print_variables(my_long_options);
   DBUG_VOID_RETURN;
@@ -685,6 +686,8 @@ static int rebuild_table(char *name)
     fprintf(stderr, "Error: %s\n", mysql_error(sock));
     rc= 1;
   }
+  if (verbose)
+    printf("%-50s %s\n", name, rc ? "FAILED" : "FIXED");
   my_free(query);
   DBUG_RETURN(rc);
 }
@@ -784,8 +787,8 @@ static int handle_request_for_tables(char *tables, uint length)
 
     org= ptr= strmov(strmov(query, op), " TABLE ");
     ptr= fix_table_name(ptr, tables);
-    strmake(table_name_buff, org, min((int) sizeof(table_name_buff)-1,
-                                      (int) (ptr - org)));
+    strmake(table_name_buff, org, MY_MIN((int) sizeof(table_name_buff)-1,
+                                         (int) (ptr - org)));
     table_name= table_name_buff;
     ptr= strxmov(ptr, " ", options, NullS);
     query_length= (uint) (ptr - query);
@@ -850,7 +853,7 @@ static void print_result()
             insert_dynamic(&tables4rebuild, (uchar*) prev);
         }
         else
-          insert_dynamic(&tables4repair, (uchar*) prev);
+          insert_dynamic(&tables4repair, prev);
       }
       found_error=0;
       table_rebuild=0;
@@ -873,28 +876,9 @@ static void print_result()
         printf("%s\n%-9s: %s", row[0], row[2], row[3]);
       if (opt_auto_repair && strcmp(row[2],"note"))
       {
-        const char *alter_txt= strstr(row[3], "ALTER TABLE");
         found_error=1;
-        if (alter_txt)
-        {
+        if (opt_auto_repair && strstr(row[3], "ALTER TABLE") != NULL)
           table_rebuild=1;
-          if (!strncmp(row[3], KEY_PARTITIONING_CHANGED_STR,
-                       strlen(KEY_PARTITIONING_CHANGED_STR)) &&
-              strstr(alter_txt, "PARTITION BY"))
-          {
-            if (strlen(alter_txt) >= MAX_ALTER_STR_SIZE)
-            {
-              printf("Error: Alter command too long (>= %d),"
-                     " please do \"%s\" or dump/reload to fix it!\n",
-                     MAX_ALTER_STR_SIZE,
-                     alter_txt);
-              table_rebuild= 0;
-              prev_alter[0]= 0;
-            }
-            else
-              strcpy(prev_alter, alter_txt);
-          }
-        }
       }
     }
     else
@@ -908,12 +892,12 @@ static void print_result()
     if (table_rebuild)
     {
       if (prev_alter[0])
-        insert_dynamic(&alter_table_cmds, (uchar*) prev_alter);
+        insert_dynamic(&alter_table_cmds, prev_alter);
       else
-        insert_dynamic(&tables4rebuild, (uchar*) prev);
+        insert_dynamic(&tables4rebuild, prev);
     }
     else
-      insert_dynamic(&tables4repair, (uchar*) prev);
+      insert_dynamic(&tables4repair, prev);
   }
   mysql_free_result(res);
   DBUG_VOID_RETURN;
@@ -951,6 +935,9 @@ static int dbConnect(char *host, char *user, char *passwd)
     mysql_options(&mysql_connection, MYSQL_DEFAULT_AUTH, opt_default_auth);
 
   mysql_options(&mysql_connection, MYSQL_SET_CHARSET_NAME, default_charset);
+  mysql_options(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
+  mysql_options4(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_ADD,
+                 "program_name", "mysqlcheck");
   if (!(sock = mysql_real_connect(&mysql_connection, host, user, passwd,
          NULL, opt_mysql_port, opt_mysql_unix_port, 0)))
   {
@@ -1031,8 +1018,8 @@ int main(int argc, char **argv)
                              64, MYF(0)) ||
        my_init_dynamic_array(&tables4rebuild, sizeof(char)*(NAME_LEN*2+2),16,
                              64, MYF(0)) ||
-       my_init_dynamic_array(&alter_table_cmds, MAX_ALTER_STR_SIZE, 0,
-                             1, MYF(0))))
+       my_init_dynamic_array(&alter_table_cmds, MAX_ALTER_STR_SIZE, 0, 1,
+                             MYF(0))))
     goto end;
 
   if (opt_alldbs)

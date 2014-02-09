@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1994, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,6 +25,12 @@ Created 1/30/1994 Heikki Tuuri
 
 #ifndef ut0dbg_h
 #define ut0dbg_h
+
+#ifdef UNIV_INNOCHECKSUM
+#define ut_a		assert
+#define ut_ad		assert
+#define ut_error	assert(0)
+#else /* !UNIV_INNOCHECKSUM */
 
 #include "univ.i"
 #include <stdlib.h>
@@ -55,49 +61,8 @@ ut_dbg_assertion_failed(
 	ulint		line)	/*!< in: line number of the assertion */
 	UNIV_COLD __attribute__((nonnull(2)));
 
-
-#define UT_DBG_USE_ABORT
-
-
-#ifndef UT_DBG_USE_ABORT
-/** A null pointer that will be dereferenced to trigger a memory trap */
-extern ulint*	ut_dbg_null_ptr;
-#endif
-
-#if defined(UNIV_SYNC_DEBUG) || !defined(UT_DBG_USE_ABORT)
-/** If this is set to TRUE by ut_dbg_assertion_failed(), all threads
-will stop at the next ut_a() or ut_ad(). */
-extern ibool	ut_dbg_stop_threads;
-
-/*************************************************************//**
-Stop a thread after assertion failure. */
-UNIV_INTERN
-void
-ut_dbg_stop_thread(
-/*===============*/
-	const char*	file,
-	ulint		line);
-#endif
-
-#ifdef UT_DBG_USE_ABORT
 /** Abort the execution. */
-#ifdef _WIN32
-# define UT_DBG_PANIC __debugbreak()
-#else
 # define UT_DBG_PANIC abort()
-#endif
-/** Stop threads (null operation) */
-# define UT_DBG_STOP do {} while (0)
-#else /* UT_DBG_USE_ABORT */
-/** Abort the execution. */
-# define UT_DBG_PANIC					\
-	if (*(ut_dbg_null_ptr)) ut_dbg_null_ptr = NULL
-/** Stop threads in ut_a(). */
-# define UT_DBG_STOP do						\
-	if (UNIV_UNLIKELY(ut_dbg_stop_threads)) {		\
-		ut_dbg_stop_thread(__FILE__, (ulint) __LINE__);	\
-	} while (0)
-#endif /* UT_DBG_USE_ABORT */
 
 /** Abort execution if EXPR does not evaluate to nonzero.
 @param EXPR	assertion expression that should hold */
@@ -107,7 +72,6 @@ ut_dbg_stop_thread(
 				__FILE__, (ulint) __LINE__);	\
 		UT_DBG_PANIC;					\
 	}							\
-	UT_DBG_STOP;						\
 } while (0)
 
 /** Abort execution. */
@@ -139,10 +103,10 @@ ut_dbg_stop_thread(
 #include <sys/resource.h>
 
 /** structure used for recording usage statistics */
-typedef struct speedo_struct {
+struct speedo_t {
 	struct rusage	ru;	/*!< getrusage() result */
 	struct timeval	tv;	/*!< gettimeofday() result */
-} speedo_t;
+};
 
 /*******************************************************************//**
 Resets a speedo (records the current time in it). */
@@ -162,5 +126,7 @@ speedo_show(
 	const speedo_t*	speedo);	/*!< in: speedo */
 
 #endif /* UNIV_COMPILE_TEST_FUNCS */
+
+#endif /* !UNIV_INNOCHECKSUM */
 
 #endif

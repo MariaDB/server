@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation                         /* gcc class implementation */
 #endif
@@ -393,7 +393,7 @@ bool Select_materialize::send_result_set_metadata(List<Item> &list, uint flags)
   if (create_result_table(unit->thd, unit->get_unit_column_types(),
                           FALSE,
                           thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS,
-                          "", FALSE, TRUE))
+                          "", FALSE, TRUE, TRUE))
     return TRUE;
 
   materialized_cursor= new (&table->mem_root)

@@ -188,3 +188,9 @@ class SRCCOL : public PRXCOL {
 
   // Members
   }; // end of class SRCCOL
+
+PQRYRES PivotColumns(PGLOBAL g, const char *tab,   const char *src,
+                                const char *picol, const char *fncol,
+                                const char *host,  const char *db,   
+                                const char *user,  const char *pwd,  
+                                int port);

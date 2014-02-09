@@ -256,7 +256,7 @@ handler t1 read a=(1);
 a	b
 handler t1 read a next;
 a	b
-16	ccc
+14	aaa
 handler t1 close;
 handler t1 open;
 prepare stmt from 'handler t1 read a=(?) limit ?,?';
@@ -563,7 +563,7 @@ HANDLER t1 READ `primary` = (1, 1000);
 no1	no2
 HANDLER t1 READ `primary` NEXT;
 no1	no2
-2	8
+2	6
 DROP TABLE t1;
 create table t1 (c1 int);
 insert into t1 values (14397);
@@ -583,7 +583,7 @@ select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 drop table if exists t1;
 Warnings:
-Note	1051	Unknown table 't1'
+Note	1051	Unknown table 'test.t1'
 create table t1 (a int not null) ENGINE=csv;
 --> client 2
 handler t1 open;
@@ -743,7 +743,7 @@ ERROR HY000: Can't execute the given command because you have active locked tabl
 handler t2 close;
 ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 handler t3 open;
-ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+ERROR HY000: Can't reopen table: 't3'
 # After UNLOCK TABLES handlers should be around and
 # we should be able to continue reading through them.
 unlock tables;
@@ -1048,8 +1048,7 @@ handler t1 close;
 # --> connection default
 #
 # Demonstrate that HANDLER locks and transaction locks
-# reside in the same context, and we don't back-off
-# when have transaction or handler locks.
+# reside in the same context.
 #
 create table t1 (a int, key a (a));
 insert into t1 (a) values (1), (2), (3), (4), (5);
@@ -1069,10 +1068,16 @@ rename table t0 to t3, t1 to t0, t3 to t1;
 # --> connection con1 
 # Waiting for 'rename table ...' to get blocked...
 # --> connection default
+# We back-off on hitting deadlock condition.
 handler t0 open;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 select * from t0;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+a
+1
+2
+3
+4
+5
 handler t1 open;
 commit;
 handler t1 close;

@@ -18,27 +18,25 @@
 #define SQL_SIGNAL_H
 
 /**
-  Signal_common represents the common properties of the SIGNAL and RESIGNAL
-  statements.
+  Sql_cmd_common_signal represents the common properties of the
+  SIGNAL and RESIGNAL statements.
 */
-class Signal_common : public Sql_statement
+class Sql_cmd_common_signal : public Sql_cmd
 {
 protected:
   /**
     Constructor.
-    @param lex the LEX structure for this statement.
     @param cond the condition signaled if any, or NULL.
     @param set collection of signal condition item assignments.
   */
-  Signal_common(LEX *lex,
-                const sp_cond_type_t *cond,
-                const Set_signal_information& set)
-    : Sql_statement(lex),
+  Sql_cmd_common_signal(const sp_condition_value *cond,
+                        const Set_signal_information& set)
+    : Sql_cmd(),
       m_cond(cond),
       m_set_signal_information(set)
   {}
 
-  virtual ~Signal_common()
+  virtual ~Sql_cmd_common_signal()
   {}
 
   /**
@@ -49,9 +47,9 @@ protected:
     @param level the level to assign
     @param sqlcode the sql code to assign
   */
-  static void assign_defaults(MYSQL_ERROR *cond,
+  static void assign_defaults(Sql_condition *cond,
                               bool set_level_code,
-                              MYSQL_ERROR::enum_warning_level level,
+                              Sql_condition::enum_warning_level level,
                               int sqlcode);
 
   /**
@@ -60,7 +58,7 @@ protected:
     @param thd the current thread.
     @param cond the condition to update.
   */
-  void eval_defaults(THD *thd, MYSQL_ERROR *cond);
+  void eval_defaults(THD *thd, Sql_condition *cond);
 
   /**
     Evaluate each signal condition items for this statement.
@@ -68,7 +66,7 @@ protected:
     @param cond the condition to update.
     @return 0 on success.
   */
-  int eval_signal_informations(THD *thd, MYSQL_ERROR *cond);
+  int eval_signal_informations(THD *thd, Sql_condition *cond);
 
   /**
     Raise a SQL condition.
@@ -76,13 +74,13 @@ protected:
     @param cond the condition to raise.
     @return false on success.
   */
-  bool raise_condition(THD *thd, MYSQL_ERROR *cond);
+  bool raise_condition(THD *thd, Sql_condition *cond);
 
   /**
     The condition to signal or resignal.
     This member is optional and can be NULL (RESIGNAL).
   */
-  const sp_cond_type_t *m_cond;
+  const sp_condition_value *m_cond;
 
   /**
     Collection of 'SET item = value' assignments in the
@@ -92,60 +90,56 @@ protected:
 };
 
 /**
-  Signal_statement represents a SIGNAL statement.
+  Sql_cmd_signal represents a SIGNAL statement.
 */
-class Signal_statement : public Signal_common
+class Sql_cmd_signal : public Sql_cmd_common_signal
 {
 public:
   /**
     Constructor, used to represent a SIGNAL statement.
-    @param lex the LEX structure for this statement.
     @param cond the SQL condition to signal (required).
     @param set the collection of signal informations to signal.
   */
-  Signal_statement(LEX *lex,
-                const sp_cond_type_t *cond,
-                const Set_signal_information& set)
-    : Signal_common(lex, cond, set)
+  Sql_cmd_signal(const sp_condition_value *cond,
+                 const Set_signal_information& set)
+    : Sql_cmd_common_signal(cond, set)
   {}
 
-  virtual ~Signal_statement()
+  virtual ~Sql_cmd_signal()
   {}
 
-  /**
-    Execute a SIGNAL statement at runtime.
-    @param thd the current thread.
-    @return false on success.
-  */
+  virtual enum_sql_command sql_command_code() const
+  {
+    return SQLCOM_SIGNAL;
+  }
+
   virtual bool execute(THD *thd);
 };
 
 /**
-  Resignal_statement represents a RESIGNAL statement.
+  Sql_cmd_resignal represents a RESIGNAL statement.
 */
-class Resignal_statement : public Signal_common
+class Sql_cmd_resignal : public Sql_cmd_common_signal
 {
 public:
   /**
     Constructor, used to represent a RESIGNAL statement.
-    @param lex the LEX structure for this statement.
     @param cond the SQL condition to resignal (optional, may be NULL).
     @param set the collection of signal informations to resignal.
   */
-  Resignal_statement(LEX *lex,
-                     const sp_cond_type_t *cond,
-                     const Set_signal_information& set)
-    : Signal_common(lex, cond, set)
+  Sql_cmd_resignal(const sp_condition_value *cond,
+                   const Set_signal_information& set)
+    : Sql_cmd_common_signal(cond, set)
   {}
 
-  virtual ~Resignal_statement()
+  virtual ~Sql_cmd_resignal()
   {}
 
-  /**
-    Execute a RESIGNAL statement at runtime.
-    @param thd the current thread.
-    @return 0 on success.
-  */
+  virtual enum_sql_command sql_command_code() const
+  {
+    return SQLCOM_RESIGNAL;
+  }
+
   virtual bool execute(THD *thd);
 };
 

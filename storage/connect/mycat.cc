@@ -98,6 +98,8 @@ extern "C" HINSTANCE s_hModule;           // Saved module handle
 
 extern int xtrace;
 
+PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
+
 /***********************************************************************/
 /*  Get a unique enum table type ID.                                   */
 /***********************************************************************/
@@ -172,21 +174,6 @@ bool IsTypeNullable(TABTYPE type)
   {
   bool nullable;
 
-#if 0
-  switch (type) {                      
-    case TAB_ODBC:
-    case TAB_MYSQL:
-    case TAB_TBL:
-    case TAB_INI:
-    case TAB_XML:
-      nullable= true;
-      break;
-    default:
-      nullable= false;
-      break;
-    } // endswitch type
-#endif // 0
-
   switch (type) {                      
     case TAB_MAC:
     case TAB_DIR:
@@ -223,6 +210,31 @@ bool IsTypeFixed(TABTYPE type)
   } // end of IsTypeFixed
 
 /***********************************************************************/
+/*  Return true for table types with fix length records.               */
+/***********************************************************************/
+bool IsTypeIndexable(TABTYPE type)
+  {
+  bool idx;
+
+  switch (type) {                      
+    case TAB_DOS:
+    case TAB_CSV:
+    case TAB_FMT:
+    case TAB_FIX:
+    case TAB_BIN:
+    case TAB_VEC:
+    case TAB_DBF:
+      idx= true;
+      break;
+    default:
+      idx= false;
+      break;
+    } // endswitch type
+
+  return idx;
+  } // end of IsTypeIndexable
+
+/***********************************************************************/
 /*  Get a unique enum catalog function ID.                             */
 /***********************************************************************/
 uint GetFuncID(const char *func)
@@ -248,6 +260,89 @@ uint GetFuncID(const char *func)
 
   return fnc;
   } // end of GetFuncID
+
+/***********************************************************************/
+/*  OEMColumn: Get table column info for an OEM table.                 */
+/***********************************************************************/
+PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
+  {
+  typedef PQRYRES (__stdcall *XCOLDEF) (PGLOBAL, void*, char*, char*, bool);
+  const char *module, *subtype;
+  char    c, getname[40] = "Col";
+#if defined(WIN32)
+  HANDLE  hdll;               /* Handle to the external DLL            */
+#else   // !WIN32
+  void   *hdll;               /* Handle for the loaded shared library  */
+#endif  // !WIN32
+  XCOLDEF coldef = NULL;
+  PQRYRES qrp = NULL;
+
+  module = topt->module;
+  subtype = topt->subtype;
+
+  if (!module || !subtype)
+    return NULL;
+
+  // The exported name is always in uppercase
+  for (int i = 0; ; i++) {
+    c = subtype[i];
+    getname[i + 3] = toupper(c);
+    if (!c) break;
+    } // endfor i
+
+#if defined(WIN32)
+  // Load the Dll implementing the table
+  if (!(hdll = LoadLibrary(module))) {
+    char  buf[256];
+    DWORD rc = GetLastError();
+
+    sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, module);
+    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+                  (LPTSTR)buf, sizeof(buf), NULL);
+    strcat(strcat(g->Message, ": "), buf);
+    return NULL;
+    } // endif hDll
+
+  // Get the function returning an instance of the external DEF class
+  if (!(coldef = (XCOLDEF)GetProcAddress((HINSTANCE)hdll, getname))) {
+    sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), getname);
+    FreeLibrary((HMODULE)hdll);
+    return NULL;
+    } // endif coldef
+#else   // !WIN32
+  const char *error = NULL;
+
+  // Load the desired shared library
+  if (!(hdll = dlopen(module, RTLD_LAZY))) {
+    error = dlerror();
+    sprintf(g->Message, MSG(SHARED_LIB_ERR), module, SVP(error));
+    return NULL;
+    } // endif Hdll
+
+  // Get the function returning an instance of the external DEF class
+  if (!(coldef = (XCOLDEF)dlsym(hdll, getname))) {
+    error = dlerror();
+    sprintf(g->Message, MSG(GET_FUNC_ERR), getname, SVP(error));
+    dlclose(hdll);
+    return NULL;
+    } // endif coldef
+#endif  // !WIN32
+
+  // Just in case the external Get function does not set error messages
+  sprintf(g->Message, "Error getting column info from %s", subtype);
+
+  // Get the table column definition
+  qrp = coldef(g, topt, tab, db, info);
+
+#if defined(WIN32)
+  FreeLibrary((HMODULE)hdll);
+#else   // !WIN32
+  dlclose(hdll);
+#endif  // !WIN32
+
+  return qrp;
+  } // end of OEMColumns
 
 /* ------------------------- Class CATALOG --------------------------- */
 
@@ -383,7 +478,7 @@ int MYCAT::GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size)
 /***********************************************************************/
 char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 	{
-	char *sval, *s= Hc->GetStringOption(what, sdef);
+	char *sval= NULL, *s= Hc->GetStringOption(what, sdef);
 	
 	if (s) {
 		sval= (char*)PlugSubAlloc(g, NULL, strlen(s) + 1);
@@ -408,8 +503,7 @@ char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 
       } // endif FileType
 
-  } else
-		sval = NULL;
+  } // endif s
 
 	return sval;
 	}	// end of GetStringCatInfo
@@ -425,6 +519,8 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
   TABTYPE  tc;
   PCOLDEF  cdp, lcdp= NULL, tocols= NULL;
 	PCOLINFO pcf= (PCOLINFO)PlugSubAlloc(g, NULL, sizeof(COLINFO));
+
+  memset(pcf, 0, sizeof(COLINFO));
 
   // Get a unique char identifier for type
   tc= (defp->Catfunc == FNC_NO) ? GetTypeID(type) : TAB_PRX;
@@ -467,9 +563,9 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
         break;
 			} // endswitch tc
 
-		do {
-			field= Hc->GetColumnOption(field, pcf);
-			} while (field && (*pcf->Name =='*' /*|| pcf->Flags & U_VIRTUAL*/));
+//		do {
+			field= Hc->GetColumnOption(g, field, pcf);
+//    } while (field && (*pcf->Name =='*' /*|| pcf->Flags & U_VIRTUAL*/));
 
 		if (tc == TAB_DBF && pcf->Type == TYPE_DATE && !pcf->Datefmt) {
 			// DBF date format defaults to 'YYYMMDD'

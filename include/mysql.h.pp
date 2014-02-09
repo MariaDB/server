@@ -49,6 +49,9 @@ enum enum_field_types { MYSQL_TYPE_DECIMAL, MYSQL_TYPE_TINY,
    MYSQL_TYPE_DATETIME, MYSQL_TYPE_YEAR,
    MYSQL_TYPE_NEWDATE, MYSQL_TYPE_VARCHAR,
    MYSQL_TYPE_BIT,
+   MYSQL_TYPE_TIMESTAMP2,
+   MYSQL_TYPE_DATETIME2,
+   MYSQL_TYPE_TIME2,
                         MYSQL_TYPE_NEWDECIMAL=246,
    MYSQL_TYPE_ENUM=247,
    MYSQL_TYPE_SET=248,
@@ -267,6 +270,11 @@ enum mysql_option
   MYSQL_OPT_SSL_KEY, MYSQL_OPT_SSL_CERT,
   MYSQL_OPT_SSL_CA, MYSQL_OPT_SSL_CAPATH, MYSQL_OPT_SSL_CIPHER,
   MYSQL_OPT_SSL_CRL, MYSQL_OPT_SSL_CRLPATH,
+  MYSQL_OPT_CONNECT_ATTR_RESET, MYSQL_OPT_CONNECT_ATTR_ADD,
+  MYSQL_OPT_CONNECT_ATTR_DELETE,
+  MYSQL_SERVER_PUBLIC_KEY,
+  MYSQL_ENABLE_CLEARTEXT_PLUGIN,
+  MYSQL_OPT_CAN_HANDLE_EXPIRED_PASSWORDS,
   MYSQL_PROGRESS_CALLBACK=5999,
   MYSQL_OPT_NONBLOCK,
   MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY
@@ -544,6 +552,8 @@ int mysql_list_processes_cont(MYSQL_RES **ret, MYSQL *mysql,
                                                   int status);
 int mysql_options(MYSQL *mysql,enum mysql_option option,
           const void *arg);
+int mysql_options4(MYSQL *mysql,enum mysql_option option,
+                   const void *arg1, const void *arg2);
 void mysql_free_result(MYSQL_RES *result);
 int mysql_free_result_start(MYSQL_RES *result);
 int mysql_free_result_cont(MYSQL_RES *result, int status);
