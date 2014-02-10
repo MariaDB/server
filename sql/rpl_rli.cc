@@ -37,6 +37,8 @@ static int count_relay_log_space(Relay_log_info* rli);
    domain).
 */
 rpl_slave_state rpl_global_gtid_slave_state;
+/* Object used for MASTER_GTID_WAIT(). */
+gtid_waiting rpl_global_gtid_waiting;
 
 
 // Defined in slave.cc
@@ -56,7 +58,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    is_fake(FALSE),
 #endif
    group_master_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
-   last_master_timestamp(0), slave_skip_counter(0),
+   last_master_timestamp(0), sql_thread_caught_up(true), slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
    inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
@@ -1287,9 +1289,14 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
       (probably ok - except in some very rare cases, only consequence
       is that value may take some time to display in
       Seconds_Behind_Master - not critical).
+
+      In parallel replication, we take care to not set last_master_timestamp
+      backwards, in case of out-of-order calls here.
     */
     if (!(event_creation_time == 0 &&
-          IF_DBUG(debug_not_change_ts_if_art_event > 0, 1)))
+          IF_DBUG(debug_not_change_ts_if_art_event > 0, 1)) &&
+        !(rgi->is_parallel_exec && event_creation_time <= last_master_timestamp)
+        )
         last_master_timestamp= event_creation_time;
   }
   DBUG_VOID_RETURN;
@@ -1312,9 +1319,9 @@ rpl_load_gtid_slave_state(THD *thd)
   uint32 i;
   DBUG_ENTER("rpl_load_gtid_slave_state");
 
-  rpl_global_gtid_slave_state.lock();
+  mysql_mutex_lock(&rpl_global_gtid_slave_state.LOCK_slave_state);
   bool loaded= rpl_global_gtid_slave_state.loaded;
-  rpl_global_gtid_slave_state.unlock();
+  mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
   if (loaded)
     DBUG_RETURN(0);
 
@@ -1414,10 +1421,10 @@ rpl_load_gtid_slave_state(THD *thd)
     }
   }
 
-  rpl_global_gtid_slave_state.lock();
+  mysql_mutex_lock(&rpl_global_gtid_slave_state.LOCK_slave_state);
   if (rpl_global_gtid_slave_state.loaded)
   {
-    rpl_global_gtid_slave_state.unlock();
+    mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
     goto end;
   }
 
@@ -1429,7 +1436,7 @@ rpl_load_gtid_slave_state(THD *thd)
                                                  tmp_entry.sub_id,
                                                  tmp_entry.gtid.seq_no)))
     {
-      rpl_global_gtid_slave_state.unlock();
+      mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto end;
     }
@@ -1442,14 +1449,14 @@ rpl_load_gtid_slave_state(THD *thd)
         mysql_bin_log.bump_seq_no_counter_if_needed(entry->gtid.domain_id,
                                                     entry->gtid.seq_no))
     {
-      rpl_global_gtid_slave_state.unlock();
+      mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto end;
     }
   }
 
   rpl_global_gtid_slave_state.loaded= true;
-  rpl_global_gtid_slave_state.unlock();
+  mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
 
   err= 0;                                       /* Clear HA_ERR_END_OF_FILE */
 

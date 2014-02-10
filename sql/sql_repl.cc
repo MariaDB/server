@@ -3966,6 +3966,20 @@ rpl_deinit_gtid_slave_state()
 }
 
 
+void
+rpl_init_gtid_waiting()
+{
+  rpl_global_gtid_waiting.init();
+}
+
+
+void
+rpl_deinit_gtid_waiting()
+{
+  rpl_global_gtid_waiting.destroy();
+}
+
+
 /*
   Format the current GTID state as a string, for returning the value of
   @@global.gtid_slave_pos.

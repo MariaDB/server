@@ -866,6 +866,7 @@ PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
   key_LOCK_global_index_stats,
   key_LOCK_wakeup_ready, key_LOCK_wait_commit;
+PSI_mutex_key key_LOCK_gtid_waiting;
 
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
@@ -911,6 +912,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_global_index_stats, "LOCK_global_index_stats", PSI_FLAG_GLOBAL},
   { &key_LOCK_wakeup_ready, "THD::LOCK_wakeup_ready", 0},
   { &key_LOCK_wait_commit, "wait_for_commit::LOCK_wait_commit", 0},
+  { &key_LOCK_gtid_waiting, "gtid_waiting::LOCK_gtid_waiting", 0},
   { &key_LOCK_thd_data, "THD::LOCK_thd_data", 0},
   { &key_LOCK_user_conn, "LOCK_user_conn", PSI_FLAG_GLOBAL},
   { &key_LOCK_uuid_short_generator, "LOCK_uuid_short_generator", PSI_FLAG_GLOBAL},
@@ -982,6 +984,7 @@ PSI_cond_key key_RELAYLOG_COND_queue_busy;
 PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_prepare_ordered;
+PSI_cond_key key_COND_wait_gtid;
 
 static PSI_cond_info all_server_conds[]=
 {
@@ -1026,7 +1029,8 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_rpl_thread, "COND_rpl_thread", 0},
   { &key_COND_rpl_thread_pool, "COND_rpl_thread_pool", 0},
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
-  { &key_COND_prepare_ordered, "COND_prepare_ordered", 0}
+  { &key_COND_prepare_ordered, "COND_prepare_ordered", 0},
+  { &key_COND_wait_gtid, "COND_wait_gtid", 0}
 };
 
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
@@ -1941,6 +1945,7 @@ static void mysqld_exit(int exit_code)
     but if a kill -15 signal was sent, the signal thread did
     spawn the kill_server_thread thread, which is running concurrently.
   */
+  rpl_deinit_gtid_waiting();
   rpl_deinit_gtid_slave_state();
   wait_for_signal_thread_to_end();
   mysql_audit_finalize();
@@ -4400,6 +4405,7 @@ static int init_thread_environment()
 
 #ifdef HAVE_REPLICATION
   rpl_init_gtid_slave_state();
+  rpl_init_gtid_waiting();
 #endif
 
   DBUG_RETURN(0);
@@ -9432,6 +9438,8 @@ PSI_stage_info stage_binlog_stopping_background_thread= { 0, "Stopping binlog ba
 PSI_stage_info stage_waiting_for_work_from_sql_thread= { 0, "Waiting for work from SQL thread", 0};
 PSI_stage_info stage_waiting_for_prior_transaction_to_commit= { 0, "Waiting for prior transaction to commit", 0};
 PSI_stage_info stage_waiting_for_room_in_worker_thread= { 0, "Waiting for room in worker thread event queue", 0};
+PSI_stage_info stage_master_gtid_wait_primary= { 0, "Waiting in MASTER_GTID_WAIT() (primary waiter)", 0};
+PSI_stage_info stage_master_gtid_wait= { 0, "Waiting in MASTER_GTID_WAIT()", 0};
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -9548,7 +9556,9 @@ PSI_stage_info *all_server_stages[]=
   & stage_waiting_for_the_slave_thread_to_advance_position,
   & stage_waiting_for_work_from_sql_thread,
   & stage_waiting_to_finalize_termination,
-  & stage_waiting_to_get_readlock
+  & stage_waiting_to_get_readlock,
+  & stage_master_gtid_wait_primary,
+  & stage_master_gtid_wait
 };
 
 PSI_socket_key key_socket_tcpip, key_socket_unix, key_socket_client_connection;

@@ -1696,6 +1696,33 @@ static Sys_var_gtid_binlog_state Sys_gtid_binlog_state(
        GLOBAL_VAR(opt_gtid_binlog_state_dummy), NO_CMD_LINE);
 
 
+static Sys_var_last_gtid Sys_last_gtid(
+       "last_gtid", "The GTID of the last commit (if binlogging was enabled), "
+       "or the empty string if none.",
+       READ_ONLY sys_var::ONLY_SESSION, NO_CMD_LINE);
+
+
+uchar *
+Sys_var_last_gtid::session_value_ptr(THD *thd, LEX_STRING *base)
+{
+  char buf[10+1+10+1+20+1];
+  String str(buf, sizeof(buf), system_charset_info);
+  char *p;
+  bool first= true;
+
+  str.length(0);
+  if ((thd->last_commit_gtid.seq_no > 0 &&
+       rpl_slave_state_tostring_helper(&str, &thd->last_commit_gtid, &first)) ||
+      !(p= thd->strmake(str.ptr(), str.length())))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return NULL;
+  }
+
+  return (uchar *)p;
+}
+
+
 static bool
 check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
 {
