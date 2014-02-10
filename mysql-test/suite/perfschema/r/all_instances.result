@@ -37,6 +37,7 @@ wait/synch/mutex/mysys/THR_LOCK_threads
 wait/synch/mutex/mysys/TMPDIR_mutex
 wait/synch/mutex/sql/Cversion_lock
 wait/synch/mutex/sql/Event_scheduler::LOCK_scheduler_state
+wait/synch/mutex/sql/gtid_waiting::LOCK_gtid_waiting
 wait/synch/mutex/sql/hash_filo::lock
 wait/synch/mutex/sql/LOCK_active_mi
 wait/synch/mutex/sql/LOCK_audit_mask

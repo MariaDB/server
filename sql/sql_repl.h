@@ -70,6 +70,8 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos, ushort flags);
 extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state;
 void rpl_init_gtid_slave_state();
 void rpl_deinit_gtid_slave_state();
+void rpl_init_gtid_waiting();
+void rpl_deinit_gtid_waiting();
 int gtid_state_from_binlog_pos(const char *name, uint32 pos, String *out_str);
 int rpl_append_gtid_state(String *dest, bool use_binlog);
 int rpl_load_gtid_state(slave_connection_state *state, bool use_binlog);
