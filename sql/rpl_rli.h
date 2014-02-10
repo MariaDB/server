@@ -221,6 +221,12 @@ public:
   bool sql_force_rotate_relay;
 
   time_t last_master_timestamp;
+  /*
+    The SQL driver thread sets this true while it is waiting at the end of the
+    relay log for more events to arrive. SHOW SLAVE STATUS uses this to report
+    Seconds_Behind_Master as zero while the SQL thread is so waiting.
+  */
+  bool sql_thread_caught_up;
 
   void clear_until_condition();
 
@@ -702,6 +708,7 @@ int init_relay_log_info(Relay_log_info* rli, const char* info_fname);
 
 
 extern struct rpl_slave_state rpl_global_gtid_slave_state;
+extern gtid_waiting rpl_global_gtid_waiting;
 
 int rpl_load_gtid_slave_state(THD *thd);
 int event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev);

@@ -1,0 +1,11 @@
+--source include/not_embedded.inc
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@global.last_gtid;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET GLOBAL last_gtid= 10;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET SESSION last_gtid= 20;
+
+SELECT @@session.last_gtid;

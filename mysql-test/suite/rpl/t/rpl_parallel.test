@@ -424,7 +424,7 @@ SET debug_sync='now WAIT_FOR t2_killed';
 # Now we can allow T1 to proceed.
 SET debug_sync='now SIGNAL t1_cont';
 
---let $slave_sql_errno= 1317,1963
+--let $slave_sql_errno= 1317,1964
 --source include/wait_for_slave_sql_error.inc
 STOP SLAVE IO_THREAD;
 SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
@@ -557,7 +557,7 @@ SET debug_sync='now WAIT_FOR t2_killed';
 # Now we can allow T1 to proceed.
 SET debug_sync='now SIGNAL t1_cont';
 
---let $slave_sql_errno= 1317,1963
+--let $slave_sql_errno= 1317,1964
 --source include/wait_for_slave_sql_error.inc
 SELECT * FROM t3 WHERE a >= 40 ORDER BY a;
 
@@ -695,7 +695,7 @@ SET debug_sync='now WAIT_FOR t2_killed';
 # Now we can allow T1 to proceed.
 SET debug_sync='now SIGNAL t1_cont';
 
---let $slave_sql_errno= 1317,1963
+--let $slave_sql_errno= 1317,1964
 --source include/wait_for_slave_sql_error.inc
 SELECT * FROM t3 WHERE a >= 50 ORDER BY a;
 
@@ -892,7 +892,7 @@ SET debug_sync='now WAIT_FOR t3_killed';
 # Now we can allow T1 to proceed.
 SET debug_sync='now SIGNAL t1_cont';
 
---let $slave_sql_errno= 1317,1927,1963
+--let $slave_sql_errno= 1317,1927,1964
 --source include/wait_for_slave_sql_error.inc
 STOP SLAVE IO_THREAD;
 SELECT * FROM t3 WHERE a >= 60 ORDER BY a;
@@ -992,7 +992,7 @@ eval KILL $thd_id;
 SET debug_sync='now WAIT_FOR wait_queue_killed';
 SET debug_sync='now SIGNAL query_cont';
 
---let $slave_sql_errno= 1317,1927,1963
+--let $slave_sql_errno= 1317,1927,1964
 --source include/wait_for_slave_sql_error.inc
 STOP SLAVE IO_THREAD;
 SELECT * FROM t3 WHERE a >= 70 ORDER BY a;

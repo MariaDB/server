@@ -2239,3 +2239,53 @@ public:
   }
   uchar *global_value_ptr(THD *thd, LEX_STRING *base);
 };
+
+
+/**
+  Class for @@session.last_gtid.
+*/
+class Sys_var_last_gtid: public sys_var
+{
+public:
+  Sys_var_last_gtid(const char *name_arg,
+          const char *comment, int flag_args, CMD_LINE getopt)
+    : sys_var(&all_sys_vars, name_arg, comment, flag_args, 0, getopt.id,
+              getopt.arg_type, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
+              NULL, NULL, NULL)
+  {
+    option.var_type= GET_STR;
+  }
+  bool do_check(THD *thd, set_var *var)
+  {
+    DBUG_ASSERT(false);
+    return true;
+  }
+  bool session_update(THD *thd, set_var *var)
+  {
+    DBUG_ASSERT(false);
+    return true;
+  }
+  bool global_update(THD *thd, set_var *var)
+  {
+    DBUG_ASSERT(false);
+    return true;
+  }
+  bool check_update_type(Item_result type) {
+    DBUG_ASSERT(false);
+    return false;
+  }
+  void session_save_default(THD *thd, set_var *var)
+  {
+    DBUG_ASSERT(false);
+  }
+  void global_save_default(THD *thd, set_var *var)
+  {
+    DBUG_ASSERT(false);
+  }
+  uchar *session_value_ptr(THD *thd, LEX_STRING *base);
+  uchar *global_value_ptr(THD *thd, LEX_STRING *base)
+  {
+    DBUG_ASSERT(false);
+    return NULL;
+  }
+};

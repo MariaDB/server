@@ -55,6 +55,7 @@ void set_thd_stage_info(void *thd,
   (thd)->enter_stage(& stage, NULL, __func__, __FILE__, __LINE__)
 
 #include "my_apc.h"
+#include "rpl_gtid.h"
 
 class Reprepare_observer;
 class Relay_log_info;
@@ -3661,6 +3662,12 @@ private:
    */
   LEX_STRING invoker_user;
   LEX_STRING invoker_host;
+
+  /* Protect against add/delete of temporary tables in parallel replication */
+  void rgi_lock_temporary_tables();
+  void rgi_unlock_temporary_tables();
+  bool rgi_have_temporary_tables();
+public:
   /*
     Flag, mutex and condition for a thread to wait for a signal from another
     thread.
@@ -3671,12 +3678,12 @@ private:
   bool wakeup_ready;
   mysql_mutex_t LOCK_wakeup_ready;
   mysql_cond_t COND_wakeup_ready;
+  /*
+     The GTID assigned to the last commit. If no GTID was assigned to any commit
+     so far, this is indicated by last_commit_gtid.seq_no == 0.
+  */
+  rpl_gtid last_commit_gtid;
 
-  /* Protect against add/delete of temporary tables in parallel replication */
-  void rgi_lock_temporary_tables();
-  void rgi_unlock_temporary_tables();
-  bool rgi_have_temporary_tables();
-public:
   inline void lock_temporary_tables()
   {
     if (rgi_slave)

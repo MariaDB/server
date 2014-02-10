@@ -79,6 +79,7 @@ RESET MASTER;
 INSERT INTO t1 VALUES (2);
 # And this will be GTID 0-1-2
 INSERT INTO t1 VALUES (4);
+--source include/save_master_gtid.inc
 
 --connection slave
 SET sql_log_bin = 0;
@@ -110,8 +111,7 @@ RESET MASTER;
 SET GLOBAL gtid_slave_pos = "0-1-1";
 
 START SLAVE;
---let $wait_condition= SELECT COUNT(*) = 4 FROM t1
---source include/wait_condition.inc
+--source include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 
 --echo *** MDEV-4688: Empty value of @@GLOBAL.gtid_slave_pos ***
@@ -125,6 +125,7 @@ SELECT * FROM t1 ORDER BY a;
 --connection master
 # This will be GTID 0-1-3
 INSERT INTO t1 VALUES (5);
+--source include/save_master_gtid.inc
 
 --connection slave
 SET @old_dbug= @@GLOBAL.debug_dbug;
@@ -141,8 +142,7 @@ SELECT @@GLOBAL.gtid_slave_pos;
 SELECT * FROM t1 ORDER BY a;
 SET GLOBAL debug_dbug= @old_dbug;
 START SLAVE SQL_THREAD;
---let $wait_condition= SELECT COUNT(*) = 5 FROM t1
---source include/wait_condition.inc
+--source include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 
 
@@ -167,10 +167,10 @@ START SLAVE;
 
 --connection master
 INSERT INTO t1 VALUES (6);
+--source include/save_master_gtid.inc
 
 --connection slave
---let $wait_condition= SELECT COUNT(*) = 6 FROM t1
---source include/wait_condition.inc
+--source include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 
 
