@@ -115,8 +115,10 @@ SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 include/start_slave.inc
 include/stop_slave.inc
+SET debug_sync = "RESET";
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
+SET debug_sync = "RESET";
 DROP function foo;
 DROP TABLE t3;
 include/rpl_end.inc

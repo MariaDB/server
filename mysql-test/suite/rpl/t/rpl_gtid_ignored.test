@@ -131,6 +131,7 @@ SELECT * FROM t1 ORDER BY a;
 DROP TABLE t1;
 SET GLOBAL gtid_strict_mode= @old_gtid_strict_mode;
 --connection server_2
+SET debug_sync = "RESET";
 SET GLOBAL gtid_strict_mode= @old_gtid_strict_mode;
 
 --source include/rpl_end.inc

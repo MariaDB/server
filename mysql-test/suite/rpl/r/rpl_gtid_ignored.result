@@ -66,5 +66,6 @@ a
 9
 DROP TABLE t1;
 SET GLOBAL gtid_strict_mode= @old_gtid_strict_mode;
+SET debug_sync = "RESET";
 SET GLOBAL gtid_strict_mode= @old_gtid_strict_mode;
 include/rpl_end.inc
