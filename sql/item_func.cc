@@ -3991,6 +3991,34 @@ err:
 }
 
 
+longlong Item_master_gtid_wait::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  longlong result= 0;
+
+  if (args[0]->null_value)
+  {
+    null_value= 1;
+    return 0;
+  }
+
+  null_value=0;
+#ifdef HAVE_REPLICATION
+  THD* thd= current_thd;
+  longlong timeout_us;
+  String *gtid_pos = args[0]->val_str(&value);
+
+  if (arg_count==2 && !args[1]->null_value)
+    timeout_us= (longlong)(1e6*args[1]->val_real());
+  else
+    timeout_us= (longlong)-1;
+
+  result= rpl_global_gtid_waiting.wait_for_pos(thd, gtid_pos, timeout_us);
+#endif
+  return result;
+}
+
+
 /**
   Enables a session to wait on a condition until a timeout or a network
   disconnect occurs.

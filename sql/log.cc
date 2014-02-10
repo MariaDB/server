@@ -2933,7 +2933,7 @@ const char *MYSQL_LOG::generate_name(const char *log_name,
 
 
 MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
-  :reset_master_pending(false),
+  :reset_master_pending(false), mark_xid_done_waiting(0),
    bytes_written(0), file_id(1), open_count(1),
    group_commit_queue(0), group_commit_queue_busy(FALSE),
    num_commits(0), num_group_commits(0),
@@ -3749,6 +3749,31 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log,
   const char* save_name;
   DBUG_ENTER("reset_logs");
 
+  if (!is_relay_log)
+  {
+    if (init_state && !is_empty_state())
+    {
+      my_error(ER_BINLOG_MUST_BE_EMPTY, MYF(0));
+      DBUG_RETURN(1);
+    }
+
+    /*
+      Mark that a RESET MASTER is in progress.
+      This ensures that a binlog checkpoint will not try to write binlog
+      checkpoint events, which would be useless (as we are deleting the binlog
+      anyway) and could deadlock, as we are holding LOCK_log.
+
+      Wait for any mark_xid_done() calls that might be already running to
+      complete (mark_xid_done_waiting counter to drop to zero); we need to
+      do this before we take the LOCK_log to not deadlock.
+    */
+    mysql_mutex_lock(&LOCK_xid_list);
+    reset_master_pending= true;
+    while (mark_xid_done_waiting > 0)
+      mysql_cond_wait(&COND_xid_list, &LOCK_xid_list);
+    mysql_mutex_unlock(&LOCK_xid_list);
+  }
+
   if (thd)
     ha_reset_logs(thd);
   /*
@@ -3760,24 +3785,6 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log,
 
   if (!is_relay_log)
   {
-    if (init_state && !is_empty_state())
-    {
-      my_error(ER_BINLOG_MUST_BE_EMPTY, MYF(0));
-      mysql_mutex_unlock(&LOCK_index);
-      mysql_mutex_unlock(&LOCK_log);
-      DBUG_RETURN(1);
-    }
-
-    /*
-      Mark that a RESET MASTER is in progress.
-      This ensures that a binlog checkpoint will not try to write binlog
-      checkpoint events, which would be useless (as we are deleting the binlog
-      anyway) and could deadlock, as we are holding LOCK_log.
-    */
-    mysql_mutex_lock(&LOCK_xid_list);
-    reset_master_pending= true;
-    mysql_mutex_unlock(&LOCK_xid_list);
-
     /*
       We are going to nuke all binary log files.
       Without binlog, we cannot XA recover prepared-but-not-committed
@@ -5446,6 +5453,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   }
   if (err)
     return true;
+  thd->last_commit_gtid= gtid;
 
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,
@@ -8833,9 +8841,13 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
     locks in the opposite order.
   */
 
+  ++mark_xid_done_waiting;
   mysql_mutex_unlock(&LOCK_xid_list);
   mysql_mutex_lock(&LOCK_log);
   mysql_mutex_lock(&LOCK_xid_list);
+  --mark_xid_done_waiting;
+  if (unlikely(reset_master_pending))
+    mysql_cond_signal(&COND_xid_list);
   /* We need to reload current_binlog_id due to release/re-take of lock. */
   current= current_binlog_id;
 

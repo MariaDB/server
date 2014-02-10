@@ -37,6 +37,8 @@ static int count_relay_log_space(Relay_log_info* rli);
    domain).
 */
 rpl_slave_state rpl_global_gtid_slave_state;
+/* Object used for MASTER_GTID_WAIT(). */
+gtid_waiting rpl_global_gtid_waiting;
 
 
 // Defined in slave.cc
@@ -1317,9 +1319,9 @@ rpl_load_gtid_slave_state(THD *thd)
   uint32 i;
   DBUG_ENTER("rpl_load_gtid_slave_state");
 
-  rpl_global_gtid_slave_state.lock();
+  mysql_mutex_lock(&rpl_global_gtid_slave_state.LOCK_slave_state);
   bool loaded= rpl_global_gtid_slave_state.loaded;
-  rpl_global_gtid_slave_state.unlock();
+  mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
   if (loaded)
     DBUG_RETURN(0);
 
@@ -1419,10 +1421,10 @@ rpl_load_gtid_slave_state(THD *thd)
     }
   }
 
-  rpl_global_gtid_slave_state.lock();
+  mysql_mutex_lock(&rpl_global_gtid_slave_state.LOCK_slave_state);
   if (rpl_global_gtid_slave_state.loaded)
   {
-    rpl_global_gtid_slave_state.unlock();
+    mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
     goto end;
   }
 
@@ -1434,7 +1436,7 @@ rpl_load_gtid_slave_state(THD *thd)
                                                  tmp_entry.sub_id,
                                                  tmp_entry.gtid.seq_no)))
     {
-      rpl_global_gtid_slave_state.unlock();
+      mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto end;
     }
@@ -1447,14 +1449,14 @@ rpl_load_gtid_slave_state(THD *thd)
         mysql_bin_log.bump_seq_no_counter_if_needed(entry->gtid.domain_id,
                                                     entry->gtid.seq_no))
     {
-      rpl_global_gtid_slave_state.unlock();
+      mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto end;
     }
   }
 
   rpl_global_gtid_slave_state.loaded= true;
-  rpl_global_gtid_slave_state.unlock();
+  mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
 
   err= 0;                                       /* Clear HA_ERR_END_OF_FILE */
 
