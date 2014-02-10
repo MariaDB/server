@@ -101,17 +101,27 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #endif /* UNIV_DEBUG */
 #include "fts0priv.h"
 #include "page0zip.h"
+
+#define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
+
+#ifdef MYSQL_DYNAMIC_PLUGIN
+#define tc_size 400
+#define tdc_size 400
+#endif
+
+#include "ha_innodb.h"
+#include "i_s.h"
+#include "xtradb_i_s.h"
+
+# ifndef MYSQL_PLUGIN_IMPORT
+#  define MYSQL_PLUGIN_IMPORT /* nothing */
+# endif /* MYSQL_PLUGIN_IMPORT */
+
 #ifdef WITH_WSREP
 #include "dict0priv.h"
 #include "../storage/innobase/include/ut0byte.h"
 #include <wsrep_mysqld.h>
-#include <my_md5.h>
-#if defined(HAVE_YASSL)
-#include "my_config.h"
-#include "md5.hpp"
-#elif defined(HAVE_OPENSSL)
-#include <openssl/md5.h>
-#endif
+#include <wsrep_md5.h>
 
 extern my_bool wsrep_certify_nonPK;
 class  binlog_trx_data;
@@ -158,22 +168,6 @@ wsrep_dict_foreign_find_index(
 	ulint		check_null);
 
 #endif /* WITH_WSREP */
-
-#define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
-
-#ifdef MYSQL_DYNAMIC_PLUGIN
-#define tc_size 400
-#define tdc_size 400
-#endif
-
-#include "ha_innodb.h"
-#include "i_s.h"
-#include "xtradb_i_s.h"
-
-# ifndef MYSQL_PLUGIN_IMPORT
-#  define MYSQL_PLUGIN_IMPORT /* nothing */
-# endif /* MYSQL_PLUGIN_IMPORT */
-
 /** to protect innobase_open_files */
 static mysql_mutex_t innobase_share_mutex;
 /** to force correct commit order in binlog */

@@ -85,9 +85,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "ha_prototypes.h"
 #include "ut0mem.h"
 #include "ibuf0ibuf.h"
-#ifdef WITH_WSREP
-#include "../storage/innobase/include/ut0byte.h"
-#endif /* WITH_WSREP */
 #include "dict0dict.h"
 #include "srv0mon.h"
 #include "api0api.h"
@@ -118,17 +115,10 @@ this program; if not, write to the Free Software Foundation, Inc.,
 # endif /* MYSQL_PLUGIN_IMPORT */
 
 #ifdef WITH_WSREP
-#include <wsrep_mysqld.h>
-#include <my_md5.h>
-#if defined(HAVE_YASSL)
-#include "my_config.h"
-#include "md5.hpp"
-#elif defined(HAVE_OPENSSL)
-#include <openssl/md5.h>
-#endif
-
-
 #include "dict0priv.h"
+#include "../storage/innobase/include/ut0byte.h"
+#include <wsrep_mysqld.h>
+#include <wsrep_md5.h>
 
 extern my_bool wsrep_certify_nonPK;
 class  binlog_trx_data;
