@@ -141,5 +141,6 @@ INSERT INTO t1 VALUES (31, REPEAT("x", 4100));
 
 
 DROP TABLE t1, t2;
+SET debug_sync = "RESET";
 SET GLOBAL max_binlog_size= @old_max_binlog_size;
 SET GLOBAL innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;

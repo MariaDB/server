@@ -1020,10 +1020,12 @@ SET GLOBAL slave_parallel_threads=10;
 
 --connection server_2
 --source include/stop_slave.inc
+SET debug_sync = "RESET";
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 --source include/start_slave.inc
 
 --connection server_1
+SET debug_sync = "RESET";
 DROP function foo;
 DROP TABLE t1,t2,t3;
 
