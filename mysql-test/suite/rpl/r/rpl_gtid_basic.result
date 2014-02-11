@@ -61,7 +61,13 @@ include/stop_slave.inc
 INSERT INTO t1 VALUES (5, "m1a");
 INSERT INTO t2 VALUES (5, "i1a");
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
+MASTER_USE_GTID=SLAVE_POS;
+SET GLOBAL sql_slave_skip_counter=1;
+ERROR HY000: When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position.
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
 MASTER_USE_GTID=CURRENT_POS;
+SET GLOBAL sql_slave_skip_counter=10;
+ERROR HY000: When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position.
 include/start_slave.inc
 SELECT * FROM t1 ORDER BY a;
 a	b

@@ -6217,6 +6217,16 @@ void Binlog_checkpoint_log_event::pack_info(THD *thd, Protocol *protocol)
 {
   protocol->store(binlog_file_name, binlog_file_len, &my_charset_bin);
 }
+
+
+Log_event::enum_skip_reason
+Binlog_checkpoint_log_event::do_shall_skip(rpl_group_info *rgi)
+{
+  enum_skip_reason reason= Log_event::do_shall_skip(rgi);
+  if (reason == EVENT_SKIP_COUNT)
+    reason= EVENT_SKIP_NOT;
+  return reason;
+}
 #endif
 
 
@@ -6775,6 +6785,16 @@ Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
     const_cast<Relay_log_info*>(rli)->abort_slave= true;
   }
   return ret;
+}
+
+
+Log_event::enum_skip_reason
+Gtid_list_log_event::do_shall_skip(rpl_group_info *rgi)
+{
+  enum_skip_reason reason= Log_event::do_shall_skip(rgi);
+  if (reason == EVENT_SKIP_COUNT)
+    reason= EVENT_SKIP_NOT;
+  return reason;
 }
 
 
