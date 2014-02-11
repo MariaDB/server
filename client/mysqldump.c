@@ -4805,7 +4805,7 @@ static int do_stop_slave_sql(MYSQL *mysql_con)
       {
         char query[160];
         if (multi_source)
-          sprintf(query, "STOP SLAVE \"%.80s\" SQL_THREAD", row[0]);
+          sprintf(query, "STOP SLAVE '%.80s' SQL_THREAD", row[0]);
         else
           strmov(query, "STOP SLAVE SQL_THREAD");
 
@@ -4877,7 +4877,7 @@ static int do_show_slave_status(MYSQL *mysql_con)
                 "recovery from (the master of this slave)\n--\n\n");
 
       if (multi_source)
-        fprintf(md_result_file, "%sCHANGE MASTER \"%.80s\" TO ",
+        fprintf(md_result_file, "%sCHANGE MASTER '%.80s' TO ",
                 comment_prefix, row[0]);
       else
         fprintf(md_result_file, "%sCHANGE MASTER TO ", comment_prefix);
@@ -4925,7 +4925,7 @@ static int do_start_slave_sql(MYSQL *mysql_con)
       {
         char query[160];
         if (multi_source)
-          sprintf(query, "START SLAVE \"%.80s\"", row[0]);
+          sprintf(query, "START SLAVE '%.80s'", row[0]);
         else
           strmov(query, "START SLAVE");
 
