@@ -101,7 +101,6 @@ set default_master_connection = '';
 show tables in db;
 Tables_in_db
 t1
-t2
 drop database db;
 set global sql_slave_skip_counter = 0;
 set global max_relay_log_size = 1073741824;
