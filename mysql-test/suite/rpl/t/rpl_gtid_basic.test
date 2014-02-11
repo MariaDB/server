@@ -69,7 +69,15 @@ save_master_pos;
 connection server_4;
 --replace_result $MASTER_MYPORT MASTER_PORT
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
+     MASTER_USE_GTID=SLAVE_POS;
+# Test that sql_slave_skip_counter is prevented in GTID mode.
+--error ER_SLAVE_SKIP_NOT_IN_GTID
+SET GLOBAL sql_slave_skip_counter=1;
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
      MASTER_USE_GTID=CURRENT_POS;
+--error ER_SLAVE_SKIP_NOT_IN_GTID
+SET GLOBAL sql_slave_skip_counter=10;
 --source include/start_slave.inc
 sync_with_master;
 SELECT * FROM t1 ORDER BY a;

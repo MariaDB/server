@@ -3057,6 +3057,7 @@ public:
   bool is_valid() const { return binlog_file_name != 0; }
 #ifdef MYSQL_SERVER
   bool write(IO_CACHE* file);
+  enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -3274,6 +3275,7 @@ public:
   bool to_packet(String *packet);
   bool write(IO_CACHE *file);
   virtual int do_apply_event(rpl_group_info *rgi);
+  enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
   static bool peek(const char *event_start, uint32 event_len,
                    uint8 checksum_alg,
