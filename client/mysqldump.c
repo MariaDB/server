@@ -4826,10 +4826,10 @@ static int add_stop_slave(void)
   if (opt_comments)
     fprintf(md_result_file,
             "\n--\n-- stop slave statement to make a recovery dump)\n--\n\n");
-  fprintf(md_result_file, "STOP SLAVE;\n");
-#ifdef WHEN_55_CAN_HANDLE_LONG_VERSION_STRINGS
-  fprintf(md_result_file, "/*M!100000 STOP ALL SLAVES */;\n");
-#endif
+  if (multi_source)
+    fprintf(md_result_file, "STOP ALL SLAVES;\n");
+  else
+    fprintf(md_result_file, "STOP SLAVE;\n");
   return(0);
 }
 
@@ -4838,7 +4838,10 @@ static int add_slave_statements(void)
   if (opt_comments)
     fprintf(md_result_file,
             "\n--\n-- start slave statement to make a recovery dump)\n--\n\n");
-  fprintf(md_result_file, "START SLAVE;\n");
+  if (multi_source)
+    fprintf(md_result_file, "START ALL SLAVES;\n");
+  else
+    fprintf(md_result_file, "START SLAVE;\n");
   return(0);
 }
 
