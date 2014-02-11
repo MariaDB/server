@@ -2390,7 +2390,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 	ulint	next_loop_time = ut_time_ms() + 1000;
 	ulint	n_flushed = 0;
 	ulint	last_activity = srv_get_activity_count();
-	ulint	n_lru=0, n_pgc_flush=0, n_pgc_batch=0;
+	ulint	n_lru=0;
 
 	ut_ad(!srv_read_only_mode);
 
@@ -2429,17 +2429,12 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 #endif
 
 			/* Flush pages from flush_list if required */
-			n_flushed += n_pgc_flush = page_cleaner_flush_pages_if_needed();
+			n_flushed += page_cleaner_flush_pages_if_needed();
 
-#ifdef UNIV_DEBUG
-			if (n_pgc_flush) {
-				fprintf(stderr,"n_pgc_flush:%lu ",n_pgc_flush);
-			}
-#endif
 		} else {
-			n_pgc_batch = n_flushed = page_cleaner_do_flush_batch(
-							PCT_IO(100),
-							LSN_MAX);
+			n_flushed = page_cleaner_do_flush_batch(
+				PCT_IO(100),
+				LSN_MAX);
 
 			if (n_flushed) {
 				MONITOR_INC_VALUE_CUMULATIVE(
@@ -2448,21 +2443,11 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 					MONITOR_FLUSH_BACKGROUND_PAGES,
 					n_flushed);
 			}
-#ifdef UNIV_DEBUG
-			if (n_pgc_batch) {
-				fprintf(stderr,"n_pgc_batch:%lu ",n_pgc_batch);
-			}
-#endif
 		}
-#ifdef UNIV_DEBUG
-		if (n_lru || n_pgc_flush || n_pgc_batch) {
-			fprintf(stderr,"\n");
-			n_lru = n_pgc_flush = n_pgc_batch = 0;
-		}
-#endif
 	}
 
 	ut_ad(srv_shutdown_state > 0);
+
 	if (srv_fast_shutdown == 2) {
 		/* In very fast shutdown we simulate a crash of
 		buffer pool. We are not required to do any flushing */

@@ -1863,8 +1863,10 @@ buf_flush_start(
 
 		/* There is already a flush batch of the same type running */
 
-		fprintf(stderr, "Error: flush_type %d n_flush %lu init_flush\n",
+#ifdef UNIV_DEBUG
+		fprintf(stderr, "Error: flush_type %d n_flush %lu init_flush %lu\n",
 			flush_type, buf_pool->n_flush[flush_type], buf_pool->init_flush[flush_type]);
+#endif
 
 		mutex_exit(&buf_pool->flush_state_mutex);
 

@@ -18,6 +18,9 @@
 INCLUDE(CheckFunctionExists)
 INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckCSourceRuns)
+INCLUDE(lz4)
+
+MYSQL_CHECK_LZ4()
 
 # OS tests
 IF(UNIX)
@@ -293,7 +296,6 @@ SET(INNOBASE_SOURCES
 	eval/eval0proc.cc
 	fil/fil0fil.cc
         fil/fil0pagecompress.cc
-	fil/lz4.c
 	fsp/fsp0fsp.cc
 	fut/fut0fut.cc
 	fut/fut0lst.cc

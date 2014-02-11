@@ -548,7 +548,7 @@ buf_mtflu_flush_work_items(
 			if((int)done_wi->id_usr == -1 &&
 			   done_wi->wi_status == WRK_ITEM_SET ) {
 				fprintf(stderr,
-					"**Set/Unused work_item[%lu] flush_type=%lu\n",
+					"**Set/Unused work_item[%lu] flush_type=%d\n",
 					i,
 					done_wi->wr.flush_type);
 				ut_a(0);

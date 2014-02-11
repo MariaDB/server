@@ -54,12 +54,12 @@ dict_tf_verify_flags(
 	DBUG_EXECUTE_IF("dict_tf_verify_flags_failure",
 			return(ULINT_UNDEFINED););
 
-	ut_ad(!table_unused);
-	ut_ad(!fsp_unused);
-	ut_ad(page_ssize == 0 || page_ssize != 0); /* silence compiler */
-	ut_ad(compact == 0 || compact == 1); /* silence compiler */
-	ut_ad(data_dir == 0 || data_dir == 1); /* silence compiler */
-	ut_ad(post_antelope == 0 || post_antelope == 1); /* silence compiler */
+	ut_a(!table_unused);
+	ut_a(!fsp_unused);
+	ut_a(page_ssize == 0 || page_ssize != 0); /* silence compiler */
+	ut_a(compact == 0 || compact == 1); /* silence compiler */
+	ut_a(data_dir == 0 || data_dir == 1); /* silence compiler */
+	ut_a(post_antelope == 0 || post_antelope == 1); /* silence compiler */
 
 	if (ssize != zip_ssize) {
 		fprintf(stderr,

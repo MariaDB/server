@@ -17968,10 +17968,12 @@ static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
   "Use trim.",
   NULL, NULL, TRUE);
 
+#ifdef HAVE_LZ4
 static MYSQL_SYSVAR_BOOL(use_lz4, srv_use_lz4,
   PLUGIN_VAR_OPCMDARG ,
   "Use LZ4 for page compression",
   NULL, NULL, FALSE);
+#endif /* HAVE_LZ4 */
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_block_size),
