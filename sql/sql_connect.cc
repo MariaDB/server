@@ -1299,7 +1299,7 @@ end_thread:
     if (thd->userstat_running)
       update_global_user_stats(thd, create_user, time(NULL));
 
-    if (MYSQL_CALLBACK_ELSE(thread_scheduler, end_thread, (thd, 1), 0))
+    if (MYSQL_CALLBACK_ELSE(thd->scheduler, end_thread, (thd, 1), 0))
       return;                                 // Probably no-threads
 
     /*
