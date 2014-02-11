@@ -39,7 +39,7 @@
 ** 10 Jun 2003: SET NAMES and --no-set-names by Alexander Barkov
 */
 
-#define DUMP_VERSION "10.14"
+#define DUMP_VERSION "10.15"
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -137,6 +137,12 @@ static uint opt_slave_data;
 static uint my_end_arg;
 static char * opt_mysql_unix_port=0;
 static int   first_error=0;
+/*
+  multi_source is 0 if old server or 2 if server that support multi source 
+  This is choosen this was as multi_source has 2 extra columns first in
+  SHOW ALL SLAVES STATUS.
+*/
+static uint multi_source= 0;
 static DYNAMIC_STRING extended_row;
 #include <sslopt-vars.h>
 FILE *md_result_file= 0;
@@ -4735,7 +4741,8 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos)
   }
   else
   {
-    if (mysql_query_with_error_report(mysql_con, &master, "SHOW MASTER STATUS"))
+    if (mysql_query_with_error_report(mysql_con, &master,
+                                      "SHOW MASTER STATUS"))
       return 1;
 
     row= mysql_fetch_row(master);
@@ -4780,29 +4787,37 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos)
 static int do_stop_slave_sql(MYSQL *mysql_con)
 {
   MYSQL_RES *slave;
-  /* We need to check if the slave sql is running in the first place */
-  if (mysql_query_with_error_report(mysql_con, &slave, "SHOW SLAVE STATUS"))
+  MYSQL_ROW row;
+
+  if (mysql_query_with_error_report(mysql_con, &slave,
+                                    multi_source ?
+                                    "SHOW ALL SLAVES STATUS" :
+                                    "SHOW SLAVE STATUS"))
     return(1);
-  else
+
+  /* Loop over all slaves */
+  while ((row= mysql_fetch_row(slave)))
   {
-    MYSQL_ROW row= mysql_fetch_row(slave);
-    if (row && row[11])
+    if (row[11 + multi_source])
     {
       /* if SLAVE SQL is not running, we don't stop it */
-      if (!strcmp(row[11],"No"))
+      if (strcmp(row[11 + multi_source], "No"))
       {
-        mysql_free_result(slave);
-        /* Silently assume that they don't have the slave running */
-        return(0);
+        char query[160];
+        if (multi_source)
+          sprintf(query, "STOP SLAVE \"%.80s\" SQL_THREAD", row[0]);
+        else
+          strmov(query, "STOP SLAVE SQL_THREAD");
+
+        if (mysql_query_with_error_report(mysql_con, 0, query))
+        {
+          mysql_free_result(slave);
+          return 1;
+        }
       }
     }
   }
   mysql_free_result(slave);
-
-  /* now, stop slave if running */
-  if (mysql_query_with_error_report(mysql_con, 0, "STOP SLAVE SQL_THREAD"))
-    return(1);
-
   return(0);
 }
 
@@ -4812,6 +4827,9 @@ static int add_stop_slave(void)
     fprintf(md_result_file,
             "\n--\n-- stop slave statement to make a recovery dump)\n--\n\n");
   fprintf(md_result_file, "STOP SLAVE;\n");
+#ifdef WHEN_55_CAN_HANDLE_LONG_VERSION_STRINGS
+  fprintf(md_result_file, "/*M!100000 STOP ALL SLAVES */;\n");
+#endif
   return(0);
 }
 
@@ -4827,9 +4845,14 @@ static int add_slave_statements(void)
 static int do_show_slave_status(MYSQL *mysql_con)
 {
   MYSQL_RES *UNINIT_VAR(slave);
+  MYSQL_ROW row;
   const char *comment_prefix=
     (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
-  if (mysql_query_with_error_report(mysql_con, &slave, "SHOW SLAVE STATUS"))
+
+  if (mysql_query_with_error_report(mysql_con, &slave,
+                                    multi_source ?
+                                    "SHOW ALL SLAVES STATUS" :
+                                    "SHOW SLAVE STATUS"))
   {
     if (!ignore_errors)
     {
@@ -4839,10 +4862,10 @@ static int do_show_slave_status(MYSQL *mysql_con)
     mysql_free_result(slave);
     return 1;
   }
-  else
+
+  while ((row= mysql_fetch_row(slave)))
   {
-    MYSQL_ROW row= mysql_fetch_row(slave);
-    if (row && row[9] && row[21])
+    if (row[9 + multi_source] && row[21 + multi_source])
     {
       /* SHOW MASTER STATUS reports file and position */
       if (opt_comments)
@@ -4850,54 +4873,70 @@ static int do_show_slave_status(MYSQL *mysql_con)
                 "\n--\n-- Position to start replication or point-in-time "
                 "recovery from (the master of this slave)\n--\n\n");
 
-      fprintf(md_result_file, "%sCHANGE MASTER TO ", comment_prefix);
-
+      if (multi_source)
+        fprintf(md_result_file, "%sCHANGE MASTER \"%.80s\" TO ",
+                comment_prefix, row[0]);
+      else
+        fprintf(md_result_file, "%sCHANGE MASTER TO ", comment_prefix);
+      
       if (opt_include_master_host_port)
       {
-        if (row[1])
-          fprintf(md_result_file, "MASTER_HOST='%s', ", row[1]);
+        if (row[1 + multi_source])
+          fprintf(md_result_file, "MASTER_HOST='%s', ", row[1 + multi_source]);
         if (row[3])
-          fprintf(md_result_file, "MASTER_PORT=%s, ", row[3]);
+          fprintf(md_result_file, "MASTER_PORT=%s, ", row[3 + multi_source]);
       }
       fprintf(md_result_file,
-              "MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n", row[9], row[21]);
+              "MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n",
+              row[9 + multi_source], row[21 + multi_source]);
 
       check_io(md_result_file);
     }
-    mysql_free_result(slave);
   }
+  mysql_free_result(slave);
   return 0;
 }
 
 static int do_start_slave_sql(MYSQL *mysql_con)
 {
   MYSQL_RES *slave;
+  MYSQL_ROW row;
+  int error= 0;
+  DBUG_ENTER("do_start_slave_sql");
+
   /* We need to check if the slave sql is stopped in the first place */
-  if (mysql_query_with_error_report(mysql_con, &slave, "SHOW SLAVE STATUS"))
-    return(1);
-  else
+  if (mysql_query_with_error_report(mysql_con, &slave,
+                                    multi_source ?
+                                    "SHOW ALL SLAVES STATUS" :
+                                    "SHOW SLAVE STATUS"))
+    DBUG_RETURN(1);
+
+  while ((row= mysql_fetch_row(slave)))
   {
-    MYSQL_ROW row= mysql_fetch_row(slave);
-    if (row && row[11])
+    DBUG_PRINT("info", ("Connection: '%s'  status: '%s'",
+                        multi_source ? row[0] : "", row[11 + multi_source]));
+    if (row[11 + multi_source])
     {
       /* if SLAVE SQL is not running, we don't start it */
-      if (!strcmp(row[11],"Yes"))
+      if (strcmp(row[11 + multi_source], "Yes"))
       {
-        mysql_free_result(slave);
-        /* Silently assume that they don't have the slave running */
-        return(0);
+        char query[160];
+        if (multi_source)
+          sprintf(query, "START SLAVE \"%.80s\"", row[0]);
+        else
+          strmov(query, "START SLAVE");
+
+        if (mysql_query_with_error_report(mysql_con, 0, query))
+        {
+          fprintf(stderr, "%s: Error: Unable to start slave '%s'\n",
+                  my_progname_short, multi_source ? row[0] : "");
+          error= 1;
+        }
       }
     }
   }
   mysql_free_result(slave);
-
-  /* now, start slave if stopped */
-  if (mysql_query_with_error_report(mysql_con, 0, "START SLAVE"))
-  {
-    fprintf(stderr, "%s: Error: Unable to start slave\n", my_progname_short);
-    return 1;
-  }
-  return(0);
+  DBUG_RETURN(error);
 }
 
 
@@ -5574,6 +5613,10 @@ int main(int argc, char **argv)
   }
   if (!path)
     write_header(md_result_file, *argv);
+
+  /* Check if the server support multi source */
+  if (mysql_get_server_version(mysql) >= 100000)
+    multi_source= 2;
 
   if (opt_slave_data && do_stop_slave_sql(mysql))
     goto err;
