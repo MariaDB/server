@@ -28,6 +28,7 @@ drop table t1;
 
 --connection server_2
 drop table t2;
+--save_master_pos
 
 --connection server_3
 --sync_with_master 0,'m2'

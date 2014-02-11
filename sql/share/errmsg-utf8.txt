@@ -6555,3 +6555,5 @@ ER_CHANGE_SLAVE_PARALLEL_THREADS_ACTIVE
 	eng "Cannot change @@slave_parallel_threads while another change is in progress"
 ER_PRIOR_COMMIT_FAILED
 	eng "Commit failed due to failure of an earlier commit on which this one depends"
+ER_SLAVE_SKIP_NOT_IN_GTID
+	eng "When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."
