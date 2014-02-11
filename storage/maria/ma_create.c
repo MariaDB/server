@@ -371,7 +371,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       after the row pointer
     */
     pointer= maria_get_pointer_length((ci->data_file_length /
-                                       maria_block_size) * 2, 3) + 1;
+                                       maria_block_size) * 2, 4) + 1;
     set_if_smaller(pointer, BLOCK_RECORD_POINTER_SIZE);
 
     if (!max_rows)
