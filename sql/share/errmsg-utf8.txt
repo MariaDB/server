@@ -7065,3 +7065,5 @@ ER_PRIOR_COMMIT_FAILED
 	eng "Commit failed due to failure of an earlier commit on which this one depends"
 ER_IT_IS_A_VIEW 42S02
         eng "'%-.192s' is a view"
+ER_SLAVE_SKIP_NOT_IN_GTID
+	eng "When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."
