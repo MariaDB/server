@@ -18169,7 +18169,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(trim_pct),
   MYSQL_SYSVAR(compress_index_pages),
   MYSQL_SYSVAR(use_trim),
+#ifdef HAVE_LZ4
   MYSQL_SYSVAR(use_lz4),
+#endif
   NULL
 };
 
