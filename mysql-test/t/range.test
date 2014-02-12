@@ -1638,3 +1638,25 @@ UPDATE v3 SET f3=0, f4=4 WHERE f2=68 ORDER BY f1;
 SELECT * FROM v3;
 DROP TABLE t1;
 DROP VIEW v3;
+
+--echo #
+--echo #  MDEV-5606: range optimizer: "x < y" is sargable, while "y > x" is not
+--echo #
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2(a int);
+insert into t2 select A.a + B.a* 10 + C.a * 100 from t1 A, t1 B, t1 C;
+alter table t2 add key(a);
+--echo # Should have "range checked for each table" for second table:
+explain select * from t1, t2 where t2.a < t1.a;
+--echo # Should have "range checked for each table" for second table:
+explain select * from t1, t2 where t1.a > t2.a;
+
+create table t3 (a int primary key, b int);
+insert into t3 select a,a from t1;
+--echo # The second table should use 'range':
+explain select * from t3, t2 where t2.a < t3.b  and t3.a=1;
+--echo # The second table should use 'range':
+explain select * from t3, t2 where t3.b > t2.a   and t3.a=1;
+drop table t1,t2,t3;
+
