@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -645,6 +645,24 @@ dict_tf_is_valid(
 		}
 	}
 
+	if (atomic_writes) {
+
+		if(atomic_writes < 0 || atomic_writes > ATOMIC_WRITES_OFF) {
+
+			fprintf(stderr,
+				"InnoDB: Error: table flags are %ld in the data dictionary and are corrupted\n"
+				"InnoDB: Error: data dictionary flags are\n"
+				"InnoDB: compact %ld atomic_blobs %ld\n"
+				"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
+				"InnoDB: page_compression %ld page_compression_level %ld\n"
+				"InnoDB: atomic_writes %ld\n",
+				flags, compact, atomic_blobs, unused, data_dir, zip_ssize,
+				page_compression, page_compression_level, atomic_writes
+			);
+			return(false);
+		}
+	}
+
 	/* CREATE TABLE ... DATA DIRECTORY is supported for any row format,
 	so the DATA_DIR flag is compatible with all other table flags. */
 
@@ -670,7 +688,8 @@ dict_sys_tables_type_validate(
 	ulint	page_compression = DICT_TF_GET_PAGE_COMPRESSION(type);
 	ulint	page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(type);
 	ulint	atomic_writes = DICT_TF_GET_ATOMIC_WRITES(type);
-	atomic_writes_t awrites = (atomic_writes_t)atomic_writes;
+
+	ut_a(atomic_writes >= 0 && atomic_writes <= ATOMIC_WRITES_OFF);
 
 	/* The low order bit of SYS_TABLES.TYPE is always set to 1.
 	If the format is UNIV_FORMAT_B or higher, this field is the same
@@ -744,16 +763,6 @@ dict_sys_tables_type_validate(
 			fprintf(stderr, "InnoDB Error: SYS_TABLES::TYPE=%lu, page_compression %lu page_compression_level %lu\n"
 				"InnoDB: Error: atomic_blobs %lu\n",
 				type, page_compression, page_compression_level, atomic_blobs);
-			return(ULINT_UNDEFINED);
-		}
-	}
-
-	if (awrites == ATOMIC_WRITES_ON ||
-		(awrites == ATOMIC_WRITES_DEFAULT && srv_use_atomic_writes)) {
-		if (!atomic_blobs) {
-			fprintf(stderr, "InnoDB Error: SYS_TABLES::TYPE=%lu, atomic_writes %lu atomic_blobs %lu\n",
-				type, atomic_writes, atomic_blobs);
-
 			return(ULINT_UNDEFINED);
 		}
 	}
@@ -871,16 +880,8 @@ dict_tf_set(
 		ut_ad(dict_tf_get_page_compression_level(*flags) == page_compression_level);
 	}
 
-	if (awrites != ATOMIC_WRITES_DEFAULT) {
-		*flags |= (atomic_writes << DICT_TF_POS_ATOMIC_WRITES);
-		ut_ad(dict_tf_get_atomic_writes(*flags) == awrites);
-	}
-
-	if (awrites == ATOMIC_WRITES_ON ||
-		(awrites == ATOMIC_WRITES_DEFAULT && srv_use_atomic_writes )) {
-		*flags |= (atomic_writes << DICT_TF_POS_ATOMIC_WRITES)
-		       | (1 << DICT_TF_POS_ATOMIC_BLOBS);
-	}
+	*flags |= (atomic_writes << DICT_TF_POS_ATOMIC_WRITES);
+	ut_ad(dict_tf_get_atomic_writes(*flags) == awrites);
 
 	if (use_data_dir) {
 		*flags |= (1 << DICT_TF_POS_DATA_DIR);

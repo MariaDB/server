@@ -304,7 +304,7 @@ mtflush_service_io(
 	switch(work_item->tsk) {
 	case MT_WRK_NONE:
 		ut_a(work_item->wi_status == WRK_ITEM_EXIT);
-		work_item->wi_status = WRK_ITEM_SUCCESS;
+		work_item->wi_status = WRK_ITEM_EXIT;
 		ib_wqueue_add(mtflush_io->wr_cq, work_item, mtflush_io->wheap);
 		break;
 
@@ -425,11 +425,17 @@ buf_mtflu_io_thread_exit(void)
 
 		work_item = (wrk_t *)ib_wqueue_timedwait(mtflush_io->wr_cq, 50000);
 
-		if (work_item) {
+		/* If we receive reply to work item and it's status is exit,
+		thead has processed this message and existed */
+		if (work_item && work_item->wi_status == WRK_ITEM_EXIT) {
 			i++;
 		}
 	}
 
+	/* Wait about 1/2 sec to allow threads really exit */
+	os_thread_sleep(50000);
+
+	ut_a(ib_wqueue_is_empty(mtflush_io->wq));
 	ut_a(ib_wqueue_is_empty(mtflush_io->wr_cq));
 	ut_a(ib_wqueue_is_empty(mtflush_io->rd_cq));
 
@@ -438,10 +444,10 @@ buf_mtflu_io_thread_exit(void)
 	ib_wqueue_free(mtflush_io->wr_cq);
 	ib_wqueue_free(mtflush_io->rd_cq);
 
+	os_fast_mutex_free(&mtflush_mtx);
+
 	/* Free heap */
 	mem_heap_free(mtflush_io->wheap);
-
-	os_fast_mutex_free(&mtflush_mtx);
 }
 
 /******************************************************************//**
