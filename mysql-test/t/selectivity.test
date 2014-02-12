@@ -750,3 +750,25 @@ SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE SQL_MODE != '';
 
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 
+--echo #
+--echo # Bug mdev-5630: always true conjunctive condition   
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+set use_stat_tables = 'preferably';
+set optimizer_use_condition_selectivity = 3;
+
+CREATE TABLE t1 (a int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (10);
+
+CREATE TABLE t2 (id int, flag char(1), INDEX(id)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (100,'0'),(101,'1');
+
+ANALYZE TABLE t1, t2;
+
+SELECT * FROM t1, t2 WHERE id = a AND ( a = 16 OR flag AND a != 6 );
+
+DROP TABLE t1,t2;
+
+set use_stat_tables=@save_use_stat_tables;
+
