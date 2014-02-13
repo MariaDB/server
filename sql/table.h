@@ -609,6 +609,7 @@ struct TABLE_SHARE
       Protects ref_count and m_flush_tickets.
     */
     mysql_mutex_t LOCK_table_share;
+    mysql_cond_t COND_release;
     TABLE_SHARE *next, **prev;            /* Link to unused shares */
     uint ref_count;                       /* How many TABLE objects uses this */
     /**

@@ -87,7 +87,6 @@ mysql_mutex_t LOCK_open;
 
 static mysql_mutex_t LOCK_unused_shares;
 static mysql_rwlock_t LOCK_tdc; /**< Protects tdc_hash. */
-static mysql_rwlock_t LOCK_flush; /**< Sync tc_purge() and tdc_remove_table(). */
 my_atomic_rwlock_t LOCK_tdc_atomics; /**< Protects tdc_version. */
 
 #ifdef HAVE_PSI_INTERFACE
@@ -100,11 +99,17 @@ static PSI_mutex_info all_tc_mutexes[]=
   { &key_TABLE_SHARE_LOCK_table_share, "TABLE_SHARE::tdc.LOCK_table_share", 0 }
 };
 
-static PSI_rwlock_key key_rwlock_LOCK_tdc, key_rwlock_LOCK_flush;
+static PSI_rwlock_key key_rwlock_LOCK_tdc;
 static PSI_rwlock_info all_tc_rwlocks[]=
 {
-  { &key_rwlock_LOCK_tdc, "LOCK_tdc", PSI_FLAG_GLOBAL },
-  { &key_rwlock_LOCK_flush, "LOCK_flush", PSI_FLAG_GLOBAL }
+  { &key_rwlock_LOCK_tdc, "LOCK_tdc", PSI_FLAG_GLOBAL }
+};
+
+
+static PSI_cond_key key_TABLE_SHARE_COND_release;
+static PSI_cond_info all_tc_conds[]=
+{
+  { &key_TABLE_SHARE_COND_release, "TABLE_SHARE::tdc.COND_release", 0 }
 };
 
 
@@ -118,6 +123,9 @@ static void init_tc_psi_keys(void)
 
   count= array_elements(all_tc_rwlocks);
   mysql_rwlock_register(category, all_tc_rwlocks, count);
+
+  count= array_elements(all_tc_conds);
+  mysql_cond_register(category, all_tc_conds, count);
 }
 #endif
 
@@ -197,12 +205,10 @@ void tc_purge(bool mark_flushed)
     }
   }
   tdc_it.deinit();
-  mysql_rwlock_rdlock(&LOCK_flush);
   mysql_mutex_unlock(&LOCK_open);
 
   while ((table= purge_tables.pop_front()))
     intern_close_table(table);
-  mysql_rwlock_unlock(&LOCK_flush);
 }
 
 
@@ -257,10 +263,8 @@ void tc_add_table(THD *thd, TABLE *table)
     {
       purge_table->s->tdc.free_tables.remove(purge_table);
       tc_remove_table(purge_table);
-      mysql_rwlock_rdlock(&LOCK_flush);
       mysql_mutex_unlock(&LOCK_open);
       intern_close_table(purge_table);
-      mysql_rwlock_unlock(&LOCK_flush);
     }
     else
       mysql_mutex_unlock(&LOCK_open);
@@ -361,11 +365,9 @@ bool tc_release_table(TABLE *table)
 
 purge:
   tc_remove_table(table);
-  mysql_rwlock_rdlock(&LOCK_flush);
   mysql_mutex_unlock(&LOCK_open);
   table->in_use= 0;
   intern_close_table(table);
-  mysql_rwlock_unlock(&LOCK_flush);
   return true;
 }
 
@@ -394,6 +396,7 @@ static int tdc_delete_share_from_hash(TABLE_SHARE *share)
   mysql_mutex_lock(&share->tdc.LOCK_table_share);
   if (--share->tdc.ref_count)
   {
+    mysql_cond_broadcast(&share->tdc.COND_release);
     mysql_mutex_unlock(&share->tdc.LOCK_table_share);
     mysql_rwlock_unlock(&LOCK_tdc);
     DBUG_RETURN(1);
@@ -453,7 +456,6 @@ int tdc_init(void)
   mysql_mutex_init(key_LOCK_unused_shares, &LOCK_unused_shares,
                    MY_MUTEX_INIT_FAST);
   mysql_rwlock_init(key_rwlock_LOCK_tdc, &LOCK_tdc);
-  mysql_rwlock_init(key_rwlock_LOCK_flush, &LOCK_flush);
   my_atomic_rwlock_init(&LOCK_tdc_atomics);
   oldest_unused_share= &end_of_unused_share;
   end_of_unused_share.tdc.prev= &oldest_unused_share;
@@ -501,7 +503,6 @@ void tdc_deinit(void)
     tdc_inited= false;
     my_hash_free(&tdc_hash);
     my_atomic_rwlock_destroy(&LOCK_tdc_atomics);
-    mysql_rwlock_destroy(&LOCK_flush);
     mysql_rwlock_destroy(&LOCK_tdc);
     mysql_mutex_destroy(&LOCK_unused_shares);
     mysql_mutex_destroy(&LOCK_open);
@@ -567,6 +568,7 @@ void tdc_init_share(TABLE_SHARE *share)
   DBUG_ENTER("tdc_init_share");
   mysql_mutex_init(key_TABLE_SHARE_LOCK_table_share,
                    &share->tdc.LOCK_table_share, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_TABLE_SHARE_COND_release, &share->tdc.COND_release, 0);
   share->tdc.m_flush_tickets.empty();
   share->tdc.all_tables.empty();
   share->tdc.free_tables.empty();
@@ -588,6 +590,7 @@ void tdc_deinit_share(TABLE_SHARE *share)
   DBUG_ASSERT(share->tdc.m_flush_tickets.is_empty());
   DBUG_ASSERT(share->tdc.all_tables.is_empty());
   DBUG_ASSERT(share->tdc.free_tables.is_empty());
+  mysql_cond_destroy(&share->tdc.COND_release);
   mysql_mutex_destroy(&share->tdc.LOCK_table_share);
   DBUG_VOID_RETURN;
 }
@@ -825,6 +828,7 @@ void tdc_release_share(TABLE_SHARE *share)
   if (share->tdc.ref_count > 1)
   {
     share->tdc.ref_count--;
+    mysql_cond_broadcast(&share->tdc.COND_release);
     mysql_mutex_unlock(&share->tdc.LOCK_table_share);
     DBUG_VOID_RETURN;
   }
@@ -950,6 +954,7 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
   if ((share= tdc_delete_share(db, table_name)))
   {
     I_P_List <TABLE, TABLE_share> purge_tables;
+    uint my_refs= 1;
 
     mysql_mutex_lock(&LOCK_open);
     /*
@@ -971,28 +976,52 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
     if (kill_delayed_threads)
       kill_delayed_threads_for_table(share);
 
-#ifndef DBUG_OFF
-    if (remove_type == TDC_RT_REMOVE_NOT_OWN)
+    if (remove_type == TDC_RT_REMOVE_NOT_OWN ||
+        remove_type == TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE)
     {
       TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
       while ((table= it++))
+      {
+        my_refs++;
         DBUG_ASSERT(table->in_use == thd);
+      }
     }
-#endif
-
-    mysql_rwlock_rdlock(&LOCK_flush);
+    DBUG_ASSERT(share->tdc.all_tables.is_empty() || remove_type != TDC_RT_REMOVE_ALL);
     mysql_mutex_unlock(&LOCK_open);
 
     while ((table= purge_tables.pop_front()))
       intern_close_table(table);
-    mysql_rwlock_unlock(&LOCK_flush);
 
-    DBUG_ASSERT(share->tdc.all_tables.is_empty() || remove_type != TDC_RT_REMOVE_ALL);
+    if (remove_type != TDC_RT_REMOVE_UNUSED)
+    {
+      /*
+        Even though current thread holds exclusive metadata lock on this share
+        (asserted above), concurrent FLUSH TABLES threads may be in process of
+        closing unused table instances belonging to this share. E.g.:
+        thr1 (FLUSH TABLES): table= share->tdc.free_tables.pop_front();
+        thr1 (FLUSH TABLES): share->tdc.all_tables.remove(table);
+        thr2 (ALTER TABLE): tdc_remove_table();
+        thr1 (FLUSH TABLES): intern_close_table(table);
+
+        Current remove type assumes that all table instances (except for those
+        that are owned by current thread) must be closed before
+        thd_remove_table() returns. Wait for such tables now.
+
+        intern_close_table() decrements ref_count and signals COND_release. When
+        ref_count drops down to number of references owned by current thread
+        waiting is completed.
+
+        Unfortunately TABLE_SHARE::wait_for_old_version() cannot be used here
+        because it waits for all table instances, whereas we have to wait only
+        for those that are not owned by current thread.
+      */
+      mysql_mutex_lock(&share->tdc.LOCK_table_share);
+      while (share->tdc.ref_count > my_refs)
+        mysql_cond_wait(&share->tdc.COND_release, &share->tdc.LOCK_table_share);
+      mysql_mutex_unlock(&share->tdc.LOCK_table_share);
+    }
+
     tdc_release_share(share);
-
-    /* Wait for concurrent threads to free unused objects. */
-    mysql_rwlock_wrlock(&LOCK_flush);
-    mysql_rwlock_unlock(&LOCK_flush);
 
     found= true;
   }
