@@ -64,11 +64,11 @@ static int64 tdc_version;  /* Increments on each reload */
 static int64 last_table_id;
 static bool tdc_inited;
 
-static uint tc_count; /**< Number of TABLE objects in table cache. */
+static int32 tc_count; /**< Number of TABLE objects in table cache. */
 
 
 /**
-  Protects tc_count, TABLE_SHARE::tdc.free_tables, TABLE_SHARE::tdc.all_tables,
+  Protects TABLE_SHARE::tdc.free_tables, TABLE_SHARE::tdc.all_tables,
   TABLE::in_use.
 */
 
@@ -122,8 +122,8 @@ static void init_tc_psi_keys(void)
 
 
 /*
-  Auxiliary routines for manipulating with per-share used/unused and
-  global unused lists of TABLE objects and tc_count counter.
+  Auxiliary routines for manipulating with per-share all/unused lists
+  and tc_count counter.
   Responsible for preserving invariants between those lists, counter
   and TABLE::in_use member.
   In fact those routines implement sort of implicit table cache as
@@ -133,13 +133,31 @@ static void init_tc_psi_keys(void)
 
 /**
   Get number of TABLE objects (used and unused) in table cache.
-
-  @todo Protect tc_count so it is read atomically.
 */
 
 uint tc_records(void)
 {
-  return tc_count;
+  uint count;
+  my_atomic_rwlock_rdlock(&LOCK_tdc_atomics);
+  count= my_atomic_load32(&tc_count);
+  my_atomic_rwlock_rdunlock(&LOCK_tdc_atomics);
+  return count;
+}
+
+
+/**
+  Remove TABLE object from table cache.
+
+  - decrement tc_count
+  - remove object from TABLE_SHARE::tdc.all_tables
+*/
+
+static void tc_remove_table(TABLE *table)
+{
+  my_atomic_rwlock_wrlock(&LOCK_tdc_atomics);
+  my_atomic_add32(&tc_count, -1);
+  my_atomic_rwlock_wrunlock(&LOCK_tdc_atomics);
+  table->s->tdc.all_tables.remove(table);
 }
 
 
@@ -171,9 +189,8 @@ void tc_purge(void)
   {
     while ((table= share->tdc.free_tables.pop_front()))
     {
-      share->tdc.all_tables.remove(table);
+      tc_remove_table(table);
       purge_tables.push_front(table);
-      tc_count--;
     }
   }
   tdc_it.deinit();
@@ -247,47 +264,48 @@ static void check_unused(THD *thd)
 
 void tc_add_table(THD *thd, TABLE *table)
 {
+  bool need_purge;
   DBUG_ASSERT(table->in_use == thd);
   mysql_mutex_lock(&LOCK_open);
   table->s->tdc.all_tables.push_front(table);
+  mysql_mutex_unlock(&LOCK_open);
+
   /* If we have too many TABLE instances around, try to get rid of them */
-  if (tc_count == tc_size)
+  my_atomic_rwlock_wrlock(&LOCK_tdc_atomics);
+  need_purge= my_atomic_add32(&tc_count, 1) >= (int32) tc_size;
+  my_atomic_rwlock_wrunlock(&LOCK_tdc_atomics);
+
+  if (need_purge)
   {
+    TABLE *purge_table= 0;
+    TABLE_SHARE *share;
     TDC_iterator tdc_it;
-    mysql_mutex_unlock(&LOCK_open);
 
     tdc_it.init();
     mysql_mutex_lock(&LOCK_open);
-    if (tc_count == tc_size)
+    while ((share= tdc_it.next()))
     {
-      TABLE *purge_table= 0;
-      TABLE_SHARE *share;
-      while ((share= tdc_it.next()))
-      {
-        TABLE_SHARE::TABLE_list::Iterator it(share->tdc.free_tables);
-        TABLE *entry;
-        while ((entry= it++))
-          if (!purge_table || entry->tc_time < purge_table->tc_time)
-            purge_table= entry;
-      }
-      if (purge_table)
-      {
-        tdc_it.deinit();
-        purge_table->s->tdc.free_tables.remove(purge_table);
-        purge_table->s->tdc.all_tables.remove(purge_table);
-        mysql_rwlock_rdlock(&LOCK_flush);
-        mysql_mutex_unlock(&LOCK_open);
-        intern_close_table(purge_table);
-        mysql_rwlock_unlock(&LOCK_flush);
-        check_unused(thd);
-        return;
-      }
+      TABLE_SHARE::TABLE_list::Iterator it(share->tdc.free_tables);
+      TABLE *entry;
+      while ((entry= it++))
+        if (!purge_table || entry->tc_time < purge_table->tc_time)
+          purge_table= entry;
     }
     tdc_it.deinit();
+
+    if (purge_table)
+    {
+      purge_table->s->tdc.free_tables.remove(purge_table);
+      tc_remove_table(purge_table);
+      mysql_rwlock_rdlock(&LOCK_flush);
+      mysql_mutex_unlock(&LOCK_open);
+      intern_close_table(purge_table);
+      mysql_rwlock_unlock(&LOCK_flush);
+      check_unused(thd);
+    }
+    else
+      mysql_mutex_unlock(&LOCK_open);
   }
-  /* Nothing to evict, increment tc_count. */
-  tc_count++;
-  mysql_mutex_unlock(&LOCK_open);
 }
 
 
@@ -359,25 +377,32 @@ bool tc_release_table(TABLE *table)
   DBUG_ASSERT(table->in_use);
   DBUG_ASSERT(table->file);
 
+  if (table->needs_reopen() || tc_records() > tc_size)
+  {
+    mysql_mutex_lock(&LOCK_open);
+    table->in_use= 0;
+    goto purge;
+  }
+
   table->tc_time= my_interval_timer();
 
   mysql_mutex_lock(&LOCK_open);
   table->in_use= 0;
-  if (table->s->has_old_version() || table->needs_reopen() || tc_count > tc_size)
-  {
-    tc_count--;
-    table->s->tdc.all_tables.remove(table);
-    mysql_rwlock_rdlock(&LOCK_flush);
-    mysql_mutex_unlock(&LOCK_open);
-    intern_close_table(table);
-    mysql_rwlock_unlock(&LOCK_flush);
-    return true;
-  }
+  if (table->s->has_old_version())
+    goto purge;
   /* Add table to the list of unused TABLE objects for this share. */
   table->s->tdc.free_tables.push_front(table);
   mysql_mutex_unlock(&LOCK_open);
   check_unused(thd);
   return false;
+
+purge:
+  tc_remove_table(table);
+  mysql_rwlock_rdlock(&LOCK_flush);
+  mysql_mutex_unlock(&LOCK_open);
+  intern_close_table(table);
+  mysql_rwlock_unlock(&LOCK_flush);
+  return true;
 }
 
 
@@ -987,8 +1012,7 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
 
     while ((table= share->tdc.free_tables.pop_front()))
     {
-      share->tdc.all_tables.remove(table);
-      tc_count--;
+      tc_remove_table(table);
       purge_tables.push_front(table);
     }
     mysql_rwlock_rdlock(&LOCK_flush);
@@ -1052,7 +1076,7 @@ ulong tdc_refresh_version(void)
 {
   my_atomic_rwlock_rdlock(&LOCK_tdc_atomics);
   ulong v= my_atomic_load64(&tdc_version);
-  my_atomic_rwlock_wrunlock(&LOCK_tdc_atomics);
+  my_atomic_rwlock_rdunlock(&LOCK_tdc_atomics);
   return v;
 }
 
