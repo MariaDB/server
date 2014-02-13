@@ -888,7 +888,7 @@ dict_tf_set(
 	}
 
 	*flags |= (atomic_writes << DICT_TF_POS_ATOMIC_WRITES);
-	ut_ad(dict_tf_get_atomic_writes(*flags) == awrites);
+	ut_a(dict_tf_get_atomic_writes(*flags) == awrites);
 
 	if (use_data_dir) {
 		*flags |= (1 << DICT_TF_POS_DATA_DIR);

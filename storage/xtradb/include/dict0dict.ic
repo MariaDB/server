@@ -896,7 +896,7 @@ dict_tf_set(
 	}
 
 	*flags |= (atomic_writes << DICT_TF_POS_ATOMIC_WRITES);
-	ut_ad(dict_tf_get_atomic_writes(*flags) == awrites);
+	ut_a(dict_tf_get_atomic_writes(*flags) == awrites);
 }
 
 /********************************************************************//**
