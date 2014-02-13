@@ -147,9 +147,6 @@ Currently we support native aio on windows and linux */
 UNIV_INTERN my_bool	srv_use_native_aio = TRUE;
 
 /* If this flag is TRUE, then we will use page compression
-to the pages */
-UNIV_INTERN my_bool	srv_compress_pages = FALSE;
-/* If this flag is TRUE, then we will use page compression
 only for index pages */
 UNIV_INTERN my_bool	srv_page_compress_index_pages = FALSE;
 UNIV_INTERN long	srv_trim_pct = 100;
@@ -163,7 +160,7 @@ UNIV_INTERN my_bool	srv_use_atomic_writes = FALSE;
 /* If this flag IS TRUE, then we use lz4 to compress/decompress pages */
 UNIV_INTERN my_bool	srv_use_lz4 = FALSE;
 /* Number of threads used for multi-threaded flush */
-UNIV_INTERN long srv_mtflush_threads = 0;
+UNIV_INTERN long srv_mtflush_threads = MTFLUSH_DEFAULT_WORKER;
 
 #ifdef __WIN__
 /* Windows native condition variables. We use runtime loading / function

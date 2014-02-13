@@ -256,9 +256,6 @@ extern ibool	srv_use_native_conditions;
 #endif /* __WIN__ */
 #endif /* !UNIV_HOTBACKUP */
 
-/* Is page compression used */
-extern my_bool srv_compress_pages;
-
 /* Is page compression used only for index pages */
 extern my_bool srv_page_compress_index_pages;
 
@@ -279,6 +276,7 @@ extern my_bool srv_use_lz4;
 
 /* Number of flush threads */
 #define MTFLUSH_MAX_WORKER       64
+#define MTFLUSH_DEFAULT_WORKER   8
 extern long    srv_mtflush_threads;
 
 /** Server undo tablespaces directory, can be absolute path. */

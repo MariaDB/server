@@ -6208,6 +6208,7 @@ os_file_trim(
 	ulint		len)  /*!< in: length of area     */
 {
 
+#define SECT_SIZE 512
 	size_t trim_len = UNIV_PAGE_SIZE - len;
 	os_offset_t off = slot->offset + len;
 
@@ -6239,6 +6240,7 @@ os_file_trim(
 
 #ifdef __linux__
 #if defined(FALLOC_FL_PUNCH_HOLE) && defined (FALLOC_FL_KEEP_SIZE)
+	trim_len = (trim_len & ~(SECT_SIZE - 1)) + SECT_SIZE;
 	int ret = fallocate(file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, trim_len);
 
 	if (ret) {
@@ -6307,7 +6309,6 @@ os_file_trim(
 	}
 #endif
 
-#define SECT_SIZE 512
 	srv_stats.page_compression_trim_sect512.add((trim_len / SECT_SIZE));
 	srv_stats.page_compression_trim_sect4096.add((trim_len / (SECT_SIZE*8)));
 	srv_stats.page_compressed_trim_op.inc();

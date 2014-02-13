@@ -9769,14 +9769,6 @@ ha_innobase::check_table_options(
 
 	/* Check page compression requirements */
 	if (options->page_compressed) {
-		if (!srv_compress_pages) {
-			push_warning(
-				thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: PAGE_COMPRESSED requires"
-				"innodb_compress_pages not enabled");
-			return "PAGE_COMPRESSED";
-		}
 
 		if (row_format == ROW_TYPE_COMPRESSED) {
 			push_warning(
@@ -16587,11 +16579,6 @@ static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
   NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG */
 
-static MYSQL_SYSVAR_BOOL(compress_pages, srv_compress_pages,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Use page compression.",
-  NULL, NULL, FALSE);
-
 static MYSQL_SYSVAR_LONG(trim_pct, srv_trim_pct,
   PLUGIN_VAR_OPCMDARG ,
   "How many percent of compressed pages should be trimmed",
@@ -16613,6 +16600,15 @@ static MYSQL_SYSVAR_BOOL(use_lz4, srv_use_lz4,
   "Use LZ4 for page compression",
   NULL, NULL, FALSE);
 #endif /* HAVE_LZ4 */
+
+static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
+  PLUGIN_VAR_RQCMDARG,
+  "Number of multi-threaded flush threads",
+  NULL, NULL,
+  MTFLUSH_DEFAULT_WORKER, /* Default setting */
+  1,                      /* Minimum setting */
+  MTFLUSH_MAX_WORKER,     /* Max setting */
+  0);
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(additional_mem_pool_size),
@@ -16759,13 +16755,13 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
 #endif /* UNIV_DEBUG */
-  MYSQL_SYSVAR(compress_pages),
   MYSQL_SYSVAR(trim_pct),
   MYSQL_SYSVAR(compress_index_pages),
   MYSQL_SYSVAR(use_trim),
 #ifdef HAVE_LZ4
   MYSQL_SYSVAR(use_lz4),
 #endif
+  MYSQL_SYSVAR(mtflush_threads),
   NULL
 };
 

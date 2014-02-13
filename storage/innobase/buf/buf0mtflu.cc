@@ -272,7 +272,7 @@ mtflush_service_io(
 {
 	wrk_t		*work_item = NULL;
 	ulint		n_flushed=0;
-	ib_time_t	max_wait_usecs = 5000000;
+	ib_time_t	max_wait_usecs = 50000;
 
    	mtflush_io->wt_status = WTHR_SIG_WAITING;
 	work_item = (wrk_t *)ib_wqueue_timedwait(mtflush_io->wq, max_wait_usecs);
@@ -300,7 +300,8 @@ mtflush_service_io(
 		ut_a(work_item->wi_status == WRK_ITEM_EXIT);
 		work_item->wi_status = WRK_ITEM_EXIT;
 		ib_wqueue_add(mtflush_io->wr_cq, work_item, mtflush_io->wheap);
-		break;
+		mtflush_io->wt_status = WTHR_KILL_IT;
+        return;
 
 	case MT_WRK_WRITE:
 		work_item->wi_status = WRK_ITEM_START;
@@ -346,11 +347,11 @@ DECLARE_THREAD(mtflush_io_thread)(
 #ifdef UNIV_DEBUG
 	ib_uint64_t   stat_universal_num_processed = 0;
 	ib_uint64_t   stat_cycle_num_processed = 0;
-	wrk_t*		work_item = mtflush_io[0].work_item;
+	wrk_t*	      work_item = mtflush_io[0].work_item;
 	ulint i;
 #endif
 
-	while (srv_shutdown_state != SRV_SHUTDOWN_EXIT_THREADS) {
+	while (TRUE) {
 		mtflush_service_io(mtflush_io);
 
 #ifdef UNIV_DEBUG
@@ -365,12 +366,9 @@ DECLARE_THREAD(mtflush_io_thread)(
 			stat_cycle_num_processed);
 		mtflu_print_thread_stat(work_item);
 #endif
-	}
-
-	/* This should make sure that all current work items are
-	processed before threads exit. */
-	while (!ib_wqueue_is_empty(mtflush_io->wq)) {
-		mtflush_service_io(mtflush_io);
+		if (mtflush_io->wt_status == WTHR_KILL_IT) {
+			break;
+		}
 	}
 
 	os_thread_exit(NULL);
@@ -385,16 +383,21 @@ void
 buf_mtflu_io_thread_exit(void)
 /*==========================*/
 {
-	ulint i;
+	long i;
 	thread_sync_t* mtflush_io = mtflush_ctx;
 
 	ut_a(mtflush_io != NULL);
 
-	fprintf(stderr, "signal page_comp_io_threads to exit [%lu]\n",
+	/* Confirm if the io-thread KILL is in progress, bailout */
+	if (mtflush_io->wt_status == WTHR_KILL_IT) {
+		return;
+	}
+
+	fprintf(stderr, "signal mtflush_io_threads to exit [%lu]\n",
 		srv_buf_pool_instances);
 
 	/* Send one exit work item/thread */
-	for (i=0; i < srv_buf_pool_instances; i++) {
+	for (i=0; i < srv_mtflush_threads; i++) {
 		mtflush_io->work_item[i].wr.buf_pool = NULL;
 		mtflush_io->work_item[i].rd.page_pool = NULL;
 		mtflush_io->work_item[i].tsk = MT_WRK_NONE;
@@ -407,14 +410,14 @@ buf_mtflu_io_thread_exit(void)
 
 	/* Wait until all work items on a work queue are processed */
 	while(!ib_wqueue_is_empty(mtflush_io->wq)) {
-		/* Wait about 1/2 sec */
-		os_thread_sleep(50000);
+		/* Wait */
+		os_thread_sleep(500000);
 	}
 
 	ut_a(ib_wqueue_is_empty(mtflush_io->wq));
 
 	/* Collect all work done items */
-	for (i=0; i < srv_buf_pool_instances;) {
+	for (i=0; i < srv_mtflush_threads;) {
 		wrk_t* work_item;
 
 		work_item = (wrk_t *)ib_wqueue_timedwait(mtflush_io->wr_cq, 50000);
@@ -558,11 +561,13 @@ buf_mtflu_flush_work_items(
 
 			if((int)done_wi->id_usr == -1 &&
 			   done_wi->wi_status == WRK_ITEM_SET ) {
+#ifdef UNIV_DEBUG
 				fprintf(stderr,
 					"**Set/Unused work_item[%lu] flush_type=%d\n",
 					i,
 					done_wi->wr.flush_type);
 				ut_ad(0);
+#endif
 			}
 
 			n_flushed+= done_wi->n_flushed;
