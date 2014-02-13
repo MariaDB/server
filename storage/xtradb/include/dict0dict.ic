@@ -1024,8 +1024,6 @@ dict_tf_to_sys_tables_type(
 			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL
 			 | DICT_TF_MASK_ATOMIC_WRITES);
 
-	ut_a(dict_sys_tables_type_validate(type, 0));
-
 	return(type);
 }
 
