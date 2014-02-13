@@ -481,8 +481,6 @@ TABLE_CATEGORY get_table_category(const LEX_STRING *db,
 struct TABLE_share;
 struct All_share_tables;
 
-extern ulong tdc_refresh_version(void);
-
 typedef struct st_table_field_type
 {
   LEX_STRING name;
@@ -623,6 +621,8 @@ struct TABLE_SHARE
     */
     All_share_tables_list all_tables;
     TABLE_list free_tables;
+    ulong version;
+    bool flushed;
   } tdc;
 
   LEX_CUSTRING tabledef_version;
@@ -668,7 +668,6 @@ struct TABLE_SHARE
   key_map keys_for_keyread;
   ha_rows min_rows, max_rows;		/* create information */
   ulong   avg_row_length;		/* create information */
-  ulong   version;
   ulong   mysql_version;		/* 0 if .frm is created before 5.0 */
   ulong   reclength;			/* Recordlength */
   /* Stored record length. No generated-only virtual fields are included */
@@ -845,12 +844,6 @@ struct TABLE_SHARE
   inline ulong get_table_def_version()
   {
     return table_map_id;
-  }
-
-  /** Is this table share being expelled from the table definition cache?  */
-  inline bool has_old_version() const
-  {
-    return version != tdc_refresh_version();
   }
 
   /**
