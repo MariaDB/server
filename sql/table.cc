@@ -3805,7 +3805,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   bool result= TRUE;
 
   /*
-    To protect used_tables list from being concurrently modified
+    To protect all_tables list from being concurrently modified
     while we are iterating through it we acquire LOCK_open.
     This does not introduce deadlocks in the deadlock detector
     because we won't try to acquire LOCK_open while
@@ -3832,7 +3832,8 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
 
   while ((table= tables_it++))
   {
-    if (table->in_use && gvisitor->inspect_edge(&table->in_use->mdl_context))
+    DBUG_ASSERT(table->in_use && tdc.flushed);
+    if (gvisitor->inspect_edge(&table->in_use->mdl_context))
     {
       goto end_leave_node;
     }
@@ -3841,7 +3842,8 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   tables_it.rewind();
   while ((table= tables_it++))
   {
-    if (table->in_use && table->in_use->mdl_context.visit_subgraph(gvisitor))
+    DBUG_ASSERT(table->in_use && tdc.flushed);
+    if (table->in_use->mdl_context.visit_subgraph(gvisitor))
     {
       goto end_leave_node;
     }
@@ -3890,7 +3892,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   MDL_wait::enum_wait_status wait_status;
 
   mysql_mutex_assert_owner(&tdc.LOCK_table_share);
-  DBUG_ASSERT(has_old_version());
+  DBUG_ASSERT(tdc.flushed);
 
   tdc.m_flush_tickets.push_front(&ticket);
 
