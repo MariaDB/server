@@ -177,10 +177,11 @@ install: build
 	       $(TMP)/usr/share/mysql/mysql-log-rotate \
 	       $(TMP)/usr/share/mysql/mysql.server \
 	       $(TMP)/usr/share/mysql/binary-configure
-	nm -n $(BUILDDIR)/sql/mysqld |gzip -9 > $(TMP)/usr/share/doc/mariadb-server-10.0/mysqld.sym.gz
+	nm -n $(BUILDDIR)/sql/mysqld |gzip -9 > $(TMP)/usr/share/doc/mariadb-galera-server-10.0/mysqld.sym.gz
 	install -m 0755 debian/additions/echo_stderr $(TMP)/usr/share/mysql/
 	install -m 0755 debian/additions/debian-start $(TMP)/etc/mysql/
 	install -m 0755 debian/additions/debian-start.inc.sh $(TMP)/usr/share/mysql/
+	install -m 0644 Docs/README-wsrep $(TMP)/usr/share/doc/mariadb-galera-server-10.0/README-wsrep
 
 	install -m 0644 $(builddir)/Docs/INFO_SRC $(TMP)/usr/share/doc/mariadb-galera-server-10.0/INFO_SRC
 	install -m 0644 $(builddir)/Docs/INFO_BIN $(TMP)/usr/share/doc/mariadb-galera-server-10.0/INFO_BIN
@@ -190,7 +191,9 @@ install: build
 
 	# lintian overrides
 	mkdir -p $(TMP)/usr/share/lintian/overrides/
+	cp debian/mysql-common.lintian-overrides      $(TMP)/usr/share/lintian/overrides/mysql-common
 	cp debian/mariadb-galera-server-10.0.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-galera-server-10.0
+	cp debian/mariadb-client-10.0.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-client-10.0
 
 	# For 5.0 -> 10.0 transition
 	d=$(TMP)/usr/share/mysql-common/internal-use-only/; \

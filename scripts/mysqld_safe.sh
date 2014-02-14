@@ -233,7 +233,7 @@ wsrep_recover_position() {
 
   log_notice "WSREP: Running position recovery with --log_error=$wr_logfile"
 
-  eval_log_error $mysqld_cmd --log_error=$wr_logfile --wsrep-recover
+  eval_log_error "$mysqld_cmd --log_error=$wr_logfile --wsrep-recover"
 
   local rp="$(grep 'WSREP: Recovered position:' $wr_logfile)"
   if [ -z "$rp" ]; then
