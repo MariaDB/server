@@ -1,0 +1,19 @@
+--source include/have_wsrep.inc
+
+--echo
+--echo # MDEV#5534: mysql_tzinfo_to_sql generates wrong query
+--echo #
+--echo # Testing wsrep_replicate_myisam variable.
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_replicate_myisam;
+SELECT @@global.wsrep_replicate_myisam;
+
+--error ER_GLOBAL_VARIABLE
+SET SESSION wsrep_replicate_myisam= ON;
+SET GLOBAL wsrep_replicate_myisam= ON;
+
+# Reset it back.
+SET GLOBAL wsrep_replicate_myisam= OFF;
+
+--echo # End of test.
