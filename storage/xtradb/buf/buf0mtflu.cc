@@ -282,12 +282,12 @@ mtflush_service_io(
 	ulint		n_flushed=0;
 
    	mtflush_io->wt_status = WTHR_SIG_WAITING;
-	work_item = (wrk_t *)ib_wqueue_timedwait(mtflush_io->wq, MT_WAIT_IN_USECS);
+	work_item = (wrk_t *)ib_wqueue_wait(mtflush_io->wq);
 
 	if (work_item) {
 		mtflush_io->wt_status = WTHR_RUNNING;
 	} else {
-		/* Because of timeout this thread did not get any work */
+		/* Thread did not get any work */
 		mtflush_io->wt_status = WTHR_NO_WORK;
 		return;
 	}
@@ -557,7 +557,7 @@ buf_mtflu_flush_work_items(
 
 	/* wait on the completion to arrive */
    	for(i=0; i< buf_pool_inst;) {
-		done_wi = (wrk_t *)ib_wqueue_timedwait(mtflush_ctx->wr_cq, MT_WAIT_IN_USECS);
+		done_wi = (wrk_t *)ib_wqueue_wait(mtflush_ctx->wr_cq);
 
 		if (done_wi != NULL) {
 			if(done_wi->n_flushed == 0) {
