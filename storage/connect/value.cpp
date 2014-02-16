@@ -2091,13 +2091,13 @@ bool DTVAL::FormatValue(PVAL vp, char *fmt)
   char      *buf = (char*)vp->GetTo_Val();       // Should be big enough
   struct tm tm, *ptm = GetGmTime(&tm);
 
-  if (trace)
+  if (trace > 1)
     htrc("FormatValue: ptm=%p len=%d\n", ptm, vp->GetValLen());
 
   if (ptm) {
     size_t n = strftime(buf, vp->GetValLen(), fmt, ptm);
 
-    if (trace)
+    if (trace > 1)
       htrc("strftime: n=%d buf=%s\n", n, (n) ? buf : "???");
 
     return (n == 0);

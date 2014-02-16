@@ -593,13 +593,13 @@ TABTYPE ha_connect::GetRealType(PTOS pos)
 */
 ulonglong ha_connect::table_flags() const
 {
-  ulonglong   flags= HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ |
+  ulonglong   flags= HA_CAN_VIRTUAL_COLUMNS | HA_REC_NOT_IN_SEQ |
                      HA_NO_AUTO_INCREMENT | HA_NO_PREFIX_CHAR_KEYS |
-                     HA_HAS_RECORDS | HA_CAN_VIRTUAL_COLUMNS |
                      HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
 //                   HA_NULL_IN_KEY |    not implemented yet
-                     HA_DUPLICATE_KEY_NOT_IN_ORDER |
-                     HA_MUST_USE_TABLE_CONDITION_PUSHDOWN;
+//                   HA_FAST_KEY_READ |  causes error when sorting (???)
+                     HA_NO_TRANSACTIONS | HA_DUPLICATE_KEY_NOT_IN_ORDER |
+                     HA_NO_BLOBS | HA_MUST_USE_TABLE_CONDITION_PUSHDOWN;
   ha_connect *hp= (ha_connect*)this;
   PTOS        pos= hp->GetTableOptionStruct(table);
 
@@ -608,6 +608,9 @@ ulonglong ha_connect::table_flags() const
     
     if (IsFileType(type))
       flags|= HA_FILE_BASED;
+
+    if (IsExactType(type))
+      flags|= (HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT);
 
     // No data change on ALTER for outward tables
     if (!IsFileType(type) || hp->FileExists(pos->filename))
@@ -2298,6 +2301,9 @@ int ha_connect::index_end()
 {
   DBUG_ENTER("index_end");
   active_index= MAX_KEY;
+#if defined(MRRBKA_SUPPORT)
+  ds_mrr.dsmrr_close();
+#endif   // MRRBKA_SUPPORT
   DBUG_RETURN(rnd_end());
 } // end of index_end
 
@@ -2564,6 +2570,9 @@ int ha_connect::rnd_end()
 //  if (tdbp && xp->last_query_id == valid_query_id)
 //    rc= CloseTable(xp->g);
 
+#if defined(MRRBKA_SUPPORT)
+  ds_mrr.dsmrr_close();
+#endif   // MRRBKA_SUPPORT
   DBUG_RETURN(rc);
 } // end of rnd_end
 
@@ -5391,6 +5400,76 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
 } // end of check_if_incompatible_data
 
 
+#if defined(MRRBKA_SUPPORT)
+#error This is not implemented yet
+/****************************************************************************
+ * CONNECT MRR implementation: use DS-MRR
+   This is just copied from myisam
+ ***************************************************************************/
+
+int ha_connect::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
+                                     uint n_ranges, uint mode, 
+                                     HANDLER_BUFFER *buf)
+{
+  return ds_mrr.dsmrr_init(this, seq, seq_init_param, n_ranges, mode, buf);
+} // end of multi_range_read_init
+
+int ha_connect::multi_range_read_next(range_id_t *range_info)
+{
+  return ds_mrr.dsmrr_next(range_info);
+} // end of multi_range_read_next
+
+ha_rows ha_connect::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
+                                               void *seq_init_param, 
+                                               uint n_ranges, uint *bufsz,
+                                               uint *flags, Cost_estimate *cost)
+{
+  /*
+    This call is here because there is no location where this->table would
+    already be known.
+    TODO: consider moving it into some per-query initialization call.
+  */
+  ds_mrr.init(this, table);
+
+  // MMR is implemented for "local" file based tables only
+  if (!IsFileType(GetRealType(GetTableOptionStruct(table))))
+    *flags |= HA_MRR_USE_DEFAULT_IMPL;
+
+  return ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges, bufsz,
+                                 flags, cost);
+} // end of multi_range_read_info_const
+
+ha_rows ha_connect::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
+                                         uint key_parts, uint *bufsz, 
+                                         uint *flags, Cost_estimate *cost)
+{
+  ds_mrr.init(this, table);
+  return ds_mrr.dsmrr_info(keyno, n_ranges, keys, key_parts, bufsz, flags, cost);
+} // end of multi_range_read_info
+
+
+int ha_connect::multi_range_read_explain_info(uint mrr_mode, char *str, 
+                                             size_t size)
+{
+  return ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
+} // end of multi_range_read_explain_info
+
+/* CONNECT MRR implementation ends */
+
+#if 0
+// Does this make sens for CONNECT?
+Item *ha_connect::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
+{
+  pushed_idx_cond_keyno= keyno_arg;
+  pushed_idx_cond= idx_cond_arg;
+  in_range_check_pushed_down= TRUE;
+  if (active_index == pushed_idx_cond_keyno)
+    mi_set_index_cond_func(file, handler_index_cond_check, this);
+  return NULL;
+}
+#endif // 0
+#endif   // MRRBKA_SUPPORT
+
 struct st_mysql_storage_engine connect_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -5404,10 +5483,10 @@ maria_declare_plugin(connect)
   PLUGIN_LICENSE_GPL,
   connect_init_func,                            /* Plugin Init */
   connect_done_func,                            /* Plugin Deinit */
-  0x0001,                                       /* version number (0.1) */
+  0x0102,                                       /* version number (1.02) */
   NULL,                                         /* status variables */
   NULL,                                         /* system variables */
-  "0.1",                                        /* string version */
+  "1.02",                                        /* string version */
   MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }
 maria_declare_plugin_end;

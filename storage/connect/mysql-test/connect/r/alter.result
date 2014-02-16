@@ -21,8 +21,8 @@ DROP INDEX xd ON t1;
 ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	NULL	NULL	NULL	NULL		XPLUG		
-t1	1	xd	1	d	NULL	NULL	NULL	NULL		XPLUG		
+t1	1	xc	1	c	A	NULL	NULL	NULL		XPLUG		
+t1	1	xd	1	d	A	NULL	NULL	NULL		XPLUG		
 ALTER TABLE t1 DROP INDEX xc, DROP INDEX xd;
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -182,8 +182,8 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	NULL	NULL	NULL	NULL		XPLUG		
-t1	1	xd	1	d	NULL	NULL	NULL	NULL		XPLUG		
+t1	1	xc	1	c	A	NULL	NULL	NULL		XPLUG		
+t1	1	xd	1	d	A	NULL	NULL	NULL		XPLUG		
 SELECT * FROM t1;
 c	d
 1	One
@@ -214,8 +214,8 @@ line
 ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	NULL	NULL	NULL	NULL		XPLUG		
-t1	1	xd	1	d	NULL	NULL	NULL	NULL		XPLUG		
+t1	1	xc	1	c	A	NULL	NULL	NULL		XPLUG		
+t1	1	xd	1	d	A	NULL	NULL	NULL		XPLUG		
 SELECT d FROM t1 WHERE c = 2;
 d
 Two

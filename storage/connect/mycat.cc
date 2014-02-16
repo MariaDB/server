@@ -168,6 +168,29 @@ bool IsFileType(TABTYPE type)
   } // end of IsFileType
 
 /***********************************************************************/
+/*  Return true for table types returning exact row count.             */
+/***********************************************************************/
+bool IsExactType(TABTYPE type)
+  {
+  bool exact;
+
+  switch (type) {                      
+    case TAB_FIX:
+    case TAB_BIN:
+    case TAB_DBF:
+//  case TAB_XML:     depends on Multiple || Xpand || Coltype
+    case TAB_VEC:
+      exact= true;
+      break;
+    default:
+      exact= false;
+      break;
+    } // endswitch type
+
+  return exact;
+  } // end of IsExactType
+
+/***********************************************************************/
 /*  Return true for table types accepting null fields.                 */
 /***********************************************************************/
 bool IsTypeNullable(TABTYPE type)
