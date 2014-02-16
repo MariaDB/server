@@ -283,8 +283,11 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
   if (!port)
     port = mysqld_port;
 
-  query = (char *)PlugSubAlloc(g, NULL, strlen(srcdef) + 9);
-  strcat(strcpy(query, srcdef), " LIMIT 0");
+  if (!strnicmp(srcdef, "select ", 7)) { 
+    query = (char *)PlugSubAlloc(g, NULL, strlen(srcdef) + 9);
+    strcat(strcpy(query, srcdef), " LIMIT 0");
+  } else
+    query = (char *)srcdef;
 
   // Open a MySQL connection for this table
   if (myc.Open(g, host, db, user, pwd, port))

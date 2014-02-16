@@ -853,7 +853,7 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
   else            // assume standard MySQL date format
     fmt = "%4d-%2d-%2d %2d:%2d:%2d";
 
-  if (trace)
+  if (trace > 1)
     htrc("ExtractDate: dts=%s fmt=%s defy=%d\n", dts, fmt, defy);
 
   // Set default values for time only use
@@ -935,7 +935,7 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
 
     } // endfor i
 
-  if (trace)
+  if (trace > 1)
     htrc("numval=%d val=(%d,%d,%d,%d,%d,%d)\n",
           numval, val[0], val[1], val[2], val[3], val[4], val[5]); 
 

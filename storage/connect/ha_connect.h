@@ -243,7 +243,7 @@ public:
   */
   ulong index_flags(uint inx, uint part, bool all_parts) const
   {
-    return HA_READ_NEXT | HA_READ_RANGE;
+    return HA_READ_NEXT | HA_READ_RANGE | HA_READ_ORDER;
   }
 
   /** @brief
@@ -494,4 +494,28 @@ public:
   char   *index_file_name;
   uint    int_table_flags;            // Inherited from MyISAM
   bool    enable_activate_all_index;  // Inherited from MyISAM
+
+#if defined(MRRBKA_SUPPORT)
+  /**
+   * Multi Range Read interface
+   */
+  int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
+                            uint n_ranges, uint mode, HANDLER_BUFFER *buf);
+  int multi_range_read_next(range_id_t *range_info);
+  ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
+                                      void *seq_init_param, 
+                                      uint n_ranges, uint *bufsz,
+                                      uint *flags, Cost_estimate *cost);
+  ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
+                                uint key_parts, uint *bufsz, 
+                                uint *flags, Cost_estimate *cost);
+  int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
+
+  int reset(void) {ds_mrr.dsmrr_close(); return 0;}
+
+  /* Index condition pushdown implementation */
+//  Item *idx_cond_push(uint keyno, Item* idx_cond);
+private:
+  DsMrr_impl ds_mrr;
+#endif   // MRRBKA_SUPPORT
 };  // end of ha_connect class definition
