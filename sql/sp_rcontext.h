@@ -450,7 +450,7 @@ public:
   int close(THD *thd);
 
   my_bool is_open()
-  { return test(server_side_cursor); }
+  { return MY_TEST(server_side_cursor); }
 
   int fetch(THD *, List<sp_variable> *vars);
 

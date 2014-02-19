@@ -408,7 +408,7 @@ public:
       new_max=arg->max_value; flag_max=arg->max_flag;
     }
     return new SEL_ARG(field, part, new_min, new_max, flag_min, flag_max,
-		       test(maybe_flag && arg->maybe_flag));
+                       MY_TEST(maybe_flag && arg->maybe_flag));
   }
   SEL_ARG *clone_first(SEL_ARG *arg)
   {						// min <= X < arg->min
@@ -3223,7 +3223,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     Assume that if the user is using 'limit' we will only need to scan
     limit rows if we are using a key
   */
-  DBUG_RETURN(records ? test(quick) : -1);
+  DBUG_RETURN(records ? MY_TEST(quick) : -1);
 }
 
 /****************************************************************************
@@ -3782,8 +3782,8 @@ typedef struct st_part_prune_param
   int last_subpart_partno; /* Same as above for supartitioning */
 
   /*
-    is_part_keypart[i] == test(keypart #i in partitioning index is a member
-                               used in partitioning)
+    is_part_keypart[i] == MY_TEST(keypart #i in partitioning index is a member
+                                  used in partitioning)
     Used to maintain current values of cur_part_fields and cur_subpart_fields
   */
   my_bool *is_part_keypart;
@@ -3974,7 +3974,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
     res == 1 => some used partitions => retval=FALSE
     res == -1 - we jump over this line to all_used:
   */
-  retval= test(!res);
+  retval= MY_TEST(!res);
   goto end;
 
 all_used:
@@ -4607,7 +4607,7 @@ process_next_key_part:
         ppar->mark_full_partition_used(ppar->part_info, part_id);
         found= TRUE;
       }
-      res= test(found);
+      res= MY_TEST(found);
     }
     /*
       Restore the "used partitions iterator" to the default setting that
@@ -5649,7 +5649,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
     }
   }
 
-  i= n_index_scans - test(cpk_scan != NULL) + 1;
+  i= n_index_scans - MY_TEST(cpk_scan != NULL) + 1;
 
   if (!(common->search_scans =
 	(INDEX_SCAN_INFO **) alloc_root (param->mem_root,
@@ -5719,7 +5719,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
   if (!(common->best_intersect=
 	(INDEX_SCAN_INFO **) alloc_root (param->mem_root,
                                          sizeof(INDEX_SCAN_INFO *) *
-                                         (i + test(cpk_scan != NULL)))))
+                                         (i + MY_TEST(cpk_scan != NULL)))))
     return TRUE;
 
   size_t calc_cost_buff_size=
@@ -6571,8 +6571,8 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
   SEL_ARG *sel_arg, *tuple_arg= NULL;
   key_part_map keypart_map= 0;
   bool cur_covered;
-  bool prev_covered= test(bitmap_is_set(&info->covered_fields,
-                                        key_part->fieldnr-1));
+  bool prev_covered= MY_TEST(bitmap_is_set(&info->covered_fields,
+                                           key_part->fieldnr - 1));
   key_range min_range;
   key_range max_range;
   min_range.key= key_val;
@@ -6586,8 +6586,8 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
        sel_arg= sel_arg->next_key_part)
   {
     DBUG_PRINT("info",("sel_arg step"));
-    cur_covered= test(bitmap_is_set(&info->covered_fields,
-                                    key_part[sel_arg->part].fieldnr-1));
+    cur_covered= MY_TEST(bitmap_is_set(&info->covered_fields,
+                                       key_part[sel_arg->part].fieldnr - 1));
     if (cur_covered != prev_covered)
     {
       /* create (part1val, ..., part{n-1}val) tuple. */
@@ -10681,12 +10681,12 @@ get_quick_select(PARAM *param,uint idx,SEL_ARG *key_tree, uint mrr_flags,
   if (param->table->key_info[param->real_keynr[idx]].flags & HA_SPATIAL)
     quick=new QUICK_RANGE_SELECT_GEOM(param->thd, param->table,
                                       param->real_keynr[idx],
-                                      test(parent_alloc),
+                                      MY_TEST(parent_alloc),
                                       parent_alloc, &create_err);
   else
     quick=new QUICK_RANGE_SELECT(param->thd, param->table,
                                  param->real_keynr[idx],
-                                 test(parent_alloc), NULL, &create_err);
+                                 MY_TEST(parent_alloc), NULL, &create_err);
 
   if (quick)
   {
@@ -11681,7 +11681,7 @@ int QUICK_RANGE_SELECT::get_next_prefix(uint prefix_length,
 
     result= file->read_range_first(last_range->min_keypart_map ? &start_key : 0,
 				   last_range->max_keypart_map ? &end_key : 0,
-                                   test(last_range->flag & EQ_RANGE),
+                                   MY_TEST(last_range->flag & EQ_RANGE),
 				   TRUE);
     if (last_range->flag == (UNIQUE_RANGE | EQ_RANGE))
       last_range= 0;			// Stop searching

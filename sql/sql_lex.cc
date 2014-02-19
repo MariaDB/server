@@ -299,7 +299,7 @@ Lex_input_stream::reset(char *buffer, unsigned int length)
   m_cpp_utf8_processed_ptr= NULL;
   next_state= MY_LEX_START;
   found_semicolon= NULL;
-  ignore_space= test(m_thd->variables.sql_mode & MODE_IGNORE_SPACE);
+  ignore_space= MY_TEST(m_thd->variables.sql_mode & MODE_IGNORE_SPACE);
   stmt_prepare_mode= FALSE;
   multi_statements= TRUE;
   in_comment=NO_COMMENT;
@@ -3073,7 +3073,7 @@ TABLE_LIST *LEX::unlink_first_table(bool *link_to_local)
     /*
       and from local list if it is not empty
     */
-    if ((*link_to_local= test(select_lex.table_list.first)))
+    if ((*link_to_local= MY_TEST(select_lex.table_list.first)))
     {
       select_lex.context.table_list= 
         select_lex.context.first_name_resolution_table= first->next_local;
@@ -3824,7 +3824,7 @@ void SELECT_LEX::update_used_tables()
     do
     {
       bool maybe_null;
-      if ((maybe_null= test(embedding->outer_join)))
+      if ((maybe_null= MY_TEST(embedding->outer_join)))
       {
 	tl->table->maybe_null= maybe_null;
         break;
@@ -3901,37 +3901,40 @@ void st_select_lex::update_correlated_cache()
   while ((tl= ti++))
   {
     if (tl->on_expr)
-      is_correlated|= test(tl->on_expr->used_tables() & OUTER_REF_TABLE_BIT);
+      is_correlated|= MY_TEST(tl->on_expr->used_tables() & OUTER_REF_TABLE_BIT);
     for (TABLE_LIST *embedding= tl->embedding ; embedding ;
          embedding= embedding->embedding)
     {
       if (embedding->on_expr)
-        is_correlated|= test(embedding->on_expr->used_tables() &
-                            OUTER_REF_TABLE_BIT);
+        is_correlated|= MY_TEST(embedding->on_expr->used_tables() &
+                                OUTER_REF_TABLE_BIT);
     }
   }
 
   if (join->conds)
-    is_correlated|= test(join->conds->used_tables() & OUTER_REF_TABLE_BIT);
+    is_correlated|= MY_TEST(join->conds->used_tables() & OUTER_REF_TABLE_BIT);
 
   if (join->having)
-    is_correlated|= test(join->having->used_tables() & OUTER_REF_TABLE_BIT);
+    is_correlated|= MY_TEST(join->having->used_tables() & OUTER_REF_TABLE_BIT);
 
   if (join->tmp_having)
-    is_correlated|= test(join->tmp_having->used_tables() & OUTER_REF_TABLE_BIT);
+    is_correlated|= MY_TEST(join->tmp_having->used_tables() &
+                            OUTER_REF_TABLE_BIT);
 
   Item *item;
   List_iterator_fast<Item> it(join->fields_list);
   while ((item= it++))
-    is_correlated|= test(item->used_tables() & OUTER_REF_TABLE_BIT);
+    is_correlated|= MY_TEST(item->used_tables() & OUTER_REF_TABLE_BIT);
 
   for (ORDER *order= group_list.first; order; order= order->next)
-    is_correlated|= test((*order->item)->used_tables() & OUTER_REF_TABLE_BIT);
+    is_correlated|= MY_TEST((*order->item)->used_tables() &
+                            OUTER_REF_TABLE_BIT);
 
   if (!master_unit()->is_union())
   {
     for (ORDER *order= order_list.first; order; order= order->next)
-      is_correlated|= test((*order->item)->used_tables() & OUTER_REF_TABLE_BIT);
+      is_correlated|= MY_TEST((*order->item)->used_tables() &
+                              OUTER_REF_TABLE_BIT);
   }
 
   if (!is_correlated)
@@ -4220,7 +4223,7 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
     eu->add_select(sl->select_number);
 
   eu->fake_select_type= "UNION RESULT";
-  eu->using_filesort= test(global_parameters->order_list.first);
+  eu->using_filesort= MY_TEST(global_parameters->order_list.first);
 
   // Save the UNION node
   output->add_node(eu);

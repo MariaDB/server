@@ -209,7 +209,7 @@ size_t sf_malloc_usable_size(void *ptr, my_bool *is_thread_specific)
 {
   struct st_irem *irem= (struct st_irem *)ptr - 1;
   DBUG_ENTER("sf_malloc_usable_size");
-  *is_thread_specific= test(irem->flags & MY_THREAD_SPECIFIC);
+  *is_thread_specific= MY_TEST(irem->flags & MY_THREAD_SPECIFIC);
   DBUG_PRINT("exit", ("size: %lu  flags: %lu", (ulong) irem->datasize,
                       (ulong)irem->flags));
   DBUG_RETURN(irem->datasize);

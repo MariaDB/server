@@ -1047,7 +1047,7 @@ int main(int argc, char **argv)
     for (i = 0; i < alter_table_cmds.elements ; i++)
       run_query((char*) dynamic_array_ptr(&alter_table_cmds, i));
   }
-  ret= test(first_error);
+  ret= MY_TEST(first_error);
 
  end:
   dbDisconnect(current_host);

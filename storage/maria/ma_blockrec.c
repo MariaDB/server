@@ -2367,7 +2367,7 @@ static my_bool extent_to_bitmap_blocks(MARIA_HA *info,
       DBUG_PRINT("error", ("page: %lu  page_count: %u  tail: %u  length: %ld  data_length: %ld",
                            (ulong) block->page,
                            (block->page_count & ~TAIL_BIT),
-                           (uint) test(block->page_count & TAIL_BIT),
+                           (uint) MY_TEST(block->page_count & TAIL_BIT),
                            (ulong) ((block->page + (page_count & ~TAIL_BIT)) *
                                     share->block_size),
                            (ulong) share->state.state.data_file_length));

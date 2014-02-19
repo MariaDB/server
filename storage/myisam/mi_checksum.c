@@ -23,7 +23,7 @@ ha_checksum mi_checksum(MI_INFO *info, const uchar *buf)
   const uchar *record= buf;
   MI_COLUMNDEF *column= info->s->rec;
   MI_COLUMNDEF *column_end= column+ info->s->base.fields;
-  my_bool skip_null_bits= test(info->s->options & HA_OPTION_NULL_FIELDS);
+  my_bool skip_null_bits= MY_TEST(info->s->options & HA_OPTION_NULL_FIELDS);
 
   for ( ; column != column_end ; buf+= column++->length)
   {

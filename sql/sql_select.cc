@@ -1766,7 +1766,7 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
 
   /* Perform FULLTEXT search before all regular searches */
   if (!(select_options & SELECT_DESCRIBE))
-    init_ftfuncs(thd, select_lex, test(order));
+    init_ftfuncs(thd, select_lex, MY_TEST(order));
 
   if (optimize_unflattened_subqueries())
     DBUG_RETURN(1);
@@ -2279,7 +2279,7 @@ JOIN::reinit()
   }
 
   if (!(select_options & SELECT_DESCRIBE))
-    init_ftfuncs(thd, select_lex, test(order));
+    init_ftfuncs(thd, select_lex, MY_TEST(order));
 
   DBUG_RETURN(0);
 }
@@ -2602,7 +2602,7 @@ void JOIN::exec_inner()
         curr_join->const_tables != curr_join->table_count)
     {
       JOIN_TAB *first_tab= curr_join->join_tab + curr_join->const_tables;
-      first_tab->sorted= test(first_tab->loosescan_match_tab);
+      first_tab->sorted= MY_TEST(first_tab->loosescan_match_tab);
     }
 
     Procedure *save_proc= curr_join->procedure;
@@ -2782,7 +2782,7 @@ void JOIN::exec_inner()
           curr_join->const_tables != curr_join->table_count)
       {
         JOIN_TAB *first_tab= curr_join->join_tab + curr_join->const_tables;
-        first_tab->sorted= test(first_tab->loosescan_match_tab);
+        first_tab->sorted= MY_TEST(first_tab->loosescan_match_tab);
       }
       tmp_error= -1;
       if (setup_sum_funcs(curr_join->thd, curr_join->sum_funcs) ||
@@ -4982,8 +4982,8 @@ sort_keyuse(KEYUSE *a,KEYUSE *b)
   if (a->keypart != b->keypart)
     return (int) (a->keypart - b->keypart);
   // Place const values before other ones
-  if ((res= test((a->used_tables & ~OUTER_REF_TABLE_BIT)) -
-       test((b->used_tables & ~OUTER_REF_TABLE_BIT))))
+  if ((res= MY_TEST((a->used_tables & ~OUTER_REF_TABLE_BIT)) -
+       MY_TEST((b->used_tables & ~OUTER_REF_TABLE_BIT))))
     return res;
   /* Place rows that are not 'OPTIMIZE_REF_OR_NULL' first */
   return (int) ((a->optimize & KEY_OPTIMIZE_REF_OR_NULL) -
@@ -5766,7 +5766,7 @@ best_access_path(JOIN      *join,
       }
       else
       {
-        found_constraint= test(found_part);
+        found_constraint= MY_TEST(found_part);
         loose_scan_opt.check_ref_access_part1(s, key, start_key, found_part);
 
         /* Check if we found full key */
@@ -5775,7 +5775,7 @@ best_access_path(JOIN      *join,
         {                                         /* use eq key */
           max_key_part= (uint) ~0;
           if ((key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME ||
-	      test(key_flags & HA_EXT_NOSAME))
+              MY_TEST(key_flags & HA_EXT_NOSAME))
           {
             tmp = prev_record_reads(join->positions, idx, found_ref);
             records=1.0;
@@ -5906,7 +5906,7 @@ best_access_path(JOIN      *join,
             */
             if (table->quick_keys.is_set(key) && !found_ref &&          //(C1)
                 table->quick_key_parts[key] == max_key_part &&          //(C2)
-                table->quick_n_ranges[key] == 1+test(ref_or_null_part)) //(C3)
+                table->quick_n_ranges[key] == 1 + MY_TEST(ref_or_null_part)) //(C3)
             {
               tmp= records= (double) table->quick_rows[key];
             }
@@ -6000,8 +6000,8 @@ best_access_path(JOIN      *join,
                   table->quick_key_parts[key] <= max_key_part &&
                   const_part &
                     ((key_part_map)1 << table->quick_key_parts[key]) &&
-                  table->quick_n_ranges[key] == 1 + test(ref_or_null_part &
-                                                         const_part) &&
+                  table->quick_n_ranges[key] == 1 + MY_TEST(ref_or_null_part &
+                                                            const_part) &&
                   records > (double) table->quick_rows[key])
               {
                 tmp= records= (double) table->quick_rows[key];
@@ -6192,8 +6192,8 @@ best_access_path(JOIN      *join,
       best_key= 0;
       /* range/index_merge/ALL/index access method are "independent", so: */
       best_ref_depends_map= 0;
-      best_uses_jbuf= test(!disable_jbuf && !((s->table->map & 
-                                               join->outer_join)));
+      best_uses_jbuf= MY_TEST(!disable_jbuf && !((s->table->map &
+                                                  join->outer_join)));
     }
   }
 
@@ -6358,7 +6358,7 @@ choose_plan(JOIN *join, table_map join_tables)
   uint prune_level=  join->thd->variables.optimizer_prune_level;
   uint use_cond_selectivity= 
          join->thd->variables.optimizer_use_condition_selectivity;
-  bool straight_join= test(join->select_options & SELECT_STRAIGHT_JOIN);
+  bool straight_join= MY_TEST(join->select_options & SELECT_STRAIGHT_JOIN);
   DBUG_ENTER("choose_plan");
 
   join->cur_embedding_map= 0;
@@ -8482,7 +8482,7 @@ static bool are_tables_local(JOIN_TAB *jtab, table_map used_tables)
     table_map local_tables= jtab->emb_sj_nest->nested_join->used_tables |
                             jtab->join->const_table_map |
                             OUTER_REF_TABLE_BIT;
-    return !test(used_tables & ~local_tables);
+    return !MY_TEST(used_tables & ~local_tables);
   }
 
   /* 
@@ -8619,7 +8619,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
              !are_tables_local(j, keyuse->val->used_tables())) 
 	 keyuse++;                              	/* Skip other parts */ 
 
-      uint maybe_null= test(keyinfo->key_part[i].null_bit);
+      uint maybe_null= MY_TEST(keyinfo->key_part[i].null_bit);
       j->ref.items[i]=keyuse->val;		// Save for cond removal
       j->ref.cond_guards[i]= keyuse->cond_guard;
       if (keyuse->null_rejecting) 
@@ -8673,7 +8673,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   else if (!((keyparts == keyinfo->user_defined_key_parts && 
               ((key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME)) ||
 	     (keyparts > keyinfo->user_defined_key_parts &&   // true only for extended keys 
-              test(key_flags & HA_EXT_NOSAME) &&
+              MY_TEST(key_flags & HA_EXT_NOSAME) &&
               keyparts == keyinfo->ext_key_parts)) ||
 	    null_ref_key)
   {
@@ -8796,7 +8796,7 @@ JOIN::make_simple_join(JOIN *parent, TABLE *temp_table)
       functions are handled.
     */
     // the temporary table was explicitly requested
-    DBUG_ASSERT(test(select_options & OPTION_BUFFER_RESULT));
+    DBUG_ASSERT(MY_TEST(select_options & OPTION_BUFFER_RESULT));
     // the temporary table does not have a grouping expression
     DBUG_ASSERT(!temp_table->group); 
   }
@@ -10403,7 +10403,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
         ((options & SELECT_DESCRIBE) || !tab->cache->init()))
     {
       tab->icp_other_tables_ok= FALSE;
-      return (2-test(!prev_cache));
+      return (2 - MY_TEST(!prev_cache));
     }
     goto no_join_cache;
   case JT_SYSTEM:
@@ -10438,7 +10438,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
           ((options & SELECT_DESCRIBE) || !tab->cache->init()))
       {
         tab->icp_other_tables_ok= FALSE;        
-        return (4-test(!prev_cache));
+        return (4 - MY_TEST(!prev_cache));
       }
       goto no_join_cache;
     }
@@ -10457,7 +10457,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
           prev_cache= 0;
         if ((tab->cache= new JOIN_CACHE_BKA(join, tab, flags, prev_cache)) &&
             ((options & SELECT_DESCRIBE) || !tab->cache->init()))
-          return (6-test(!prev_cache));
+          return (6 - MY_TEST(!prev_cache));
         goto no_join_cache;
       }
       else
@@ -10468,7 +10468,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
             ((options & SELECT_DESCRIBE) || !tab->cache->init()))
 	{
          tab->idx_cond_fact_out= FALSE;
-          return (8-test(!prev_cache));
+          return (8 - MY_TEST(!prev_cache));
         }
         goto no_join_cache;
       }
@@ -10563,7 +10563,7 @@ restart:
                                                          no_jbuf_after,
                                                          idx,
                                                          prev_tab);
-      tab->use_join_cache= test(tab->used_join_cache_level);
+      tab->use_join_cache= MY_TEST(tab->used_join_cache_level);
       /*
         psergey-merge: todo: raise the question that this is really stupid that
         we can first allocate a join buffer, then decide not to use it and free
@@ -10693,7 +10693,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
   uint i;
   DBUG_ENTER("make_join_readinfo");
 
-  bool statistics= test(!(join->select_options & SELECT_DESCRIBE));
+  bool statistics= MY_TEST(!(join->select_options & SELECT_DESCRIBE));
   bool sorted= 1;
 
   join->complex_firstmatch_tables= table_map(0);
@@ -11191,7 +11191,7 @@ bool JOIN_TAB::preread_init()
 
   /* init ftfuns for just initialized derived table */
   if (table->fulltext_searched)
-    init_ftfuncs(join->thd, join->select_lex, test(join->order));
+    init_ftfuncs(join->thd, join->select_lex, MY_TEST(join->order));
 
   return FALSE;
 }
@@ -11247,12 +11247,12 @@ bool TABLE_REF::tmp_table_index_lookup_init(THD *thd,
     Item *item= it.next();
     DBUG_ASSERT(item);
     items[i]= item;
-    int null_count= test(cur_key_part->field->real_maybe_null());
+    int null_count= MY_TEST(cur_key_part->field->real_maybe_null());
     *ref_key= new store_key_item(thd, cur_key_part->field,
                                  /* TIMOUR:
                                     the NULL byte is taken into account in
                                     cur_key_part->store_length, so instead of
-                                    cur_ref_buff + test(maybe_null), we could
+                                    cur_ref_buff + MY_TEST(maybe_null), we could
                                     use that information instead.
                                  */
                                  cur_ref_buff + null_count,
@@ -12983,7 +12983,7 @@ Item *eliminate_item_equal(COND *cond, COND_EQUAL *upper_levels,
         item= NULL; /* Don't produce equality */
     }
     
-    bool produce_equality= test(item == field_item);
+    bool produce_equality= MY_TEST(item == field_item);
     if (!item_const && field_sjm && field_sjm != current_sjm)
     {
       /* Entering an SJM nest */
@@ -13601,7 +13601,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
   NESTED_JOIN *nested_join;
   TABLE_LIST *prev_table= 0;
   List_iterator<TABLE_LIST> li(*join_list);
-  bool straight_join= test(join->select_options & SELECT_STRAIGHT_JOIN);
+  bool straight_join= MY_TEST(join->select_options & SELECT_STRAIGHT_JOIN);
   DBUG_ENTER("simplify_joins");
 
   /* 
@@ -14224,7 +14224,7 @@ optimize_cond(JOIN *join, COND *conds,
     DBUG_EXECUTE("where", print_where(conds, "original", QT_ORDINARY););
     conds= build_equal_items(join, conds, NULL, join_list, 
                              ignore_on_conds, cond_equal,
-                             test(flags & OPT_LINK_EQUAL_FIELDS));
+                             MY_TEST(flags & OPT_LINK_EQUAL_FIELDS));
     DBUG_EXECUTE("where",print_where(conds,"after equal_items", QT_ORDINARY););
 
     /* change field = field to field = const for each found field = const */
@@ -15446,7 +15446,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
              ("table_alias: '%s'  distinct: %d  save_sum_fields: %d  "
               "rows_limit: %lu  group: %d", table_alias,
               (int) distinct, (int) save_sum_fields,
-              (ulong) rows_limit,test(group)));
+              (ulong) rows_limit, MY_TEST(group)));
 
   thd->inc_status_created_tmp_tables();
   thd->query_plan_flags|= QPLAN_TMP_TABLE;
@@ -15992,7 +15992,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     table->group=group;				/* Table is grouped by key */
     param->group_buff=group_buff;
     share->keys=1;
-    share->uniques= test(using_unique_constraint);
+    share->uniques= MY_TEST(using_unique_constraint);
     table->key_info= table->s->key_info= keyinfo;
     table->keys_in_use_for_query.set_bit(0);
     share->keys_in_use.set_bit(0);
@@ -16046,7 +16046,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 
 	if (!(cur_group->field= field->new_key_field(thd->mem_root,table,
                                                      group_buff +
-                                                     test(maybe_null),
+                                                     MY_TEST(maybe_null),
                                                      field->null_ptr,
                                                      field->null_bit)))
 	  goto err; /* purecov: inspected */
@@ -16102,7 +16102,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     null_pack_length-=hidden_null_pack_length;
     keyinfo->user_defined_key_parts=
       ((field_count-param->hidden_field_count)+
-       (share->uniques ? test(null_pack_length) : 0));
+       (share->uniques ? MY_TEST(null_pack_length) : 0));
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     table->distinct= 1;
     share->keys= 1;
@@ -17514,7 +17514,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
 
   if (select_cond)
   {
-    select_cond_result= test(select_cond->val_int());
+    select_cond_result= MY_TEST(select_cond->val_int());
 
     /* check for errors evaluating the condition */
     if (join->thd->is_error())
@@ -17899,7 +17899,7 @@ join_read_const_table(JOIN_TAB *tab, POSITION *pos)
     (*tab->on_expr_ref)->update_used_tables();
     DBUG_ASSERT((*tab->on_expr_ref)->const_item());
 #endif
-    if ((table->null_row= test((*tab->on_expr_ref)->val_int() == 0)))
+    if ((table->null_row= MY_TEST((*tab->on_expr_ref)->val_int() == 0)))
       mark_as_null_row(table);  
   }
   if (!table->null_row)
@@ -21353,7 +21353,7 @@ test_if_subpart(ORDER *a,ORDER *b)
     else
       return 0;
   }
-  return test(!b);
+  return MY_TEST(!b);
 }
 
 /**

@@ -225,7 +225,7 @@ handler::multi_range_read_init(RANGE_SEQ_IF *seq_funcs, void *seq_init_param,
   DBUG_ENTER("handler::multi_range_read_init");
   mrr_iter= seq_funcs->init(seq_init_param, n_ranges, mode);
   mrr_funcs= *seq_funcs;
-  mrr_is_output_sorted= test(mode & HA_MRR_SORTED);
+  mrr_is_output_sorted= MY_TEST(mode & HA_MRR_SORTED);
   mrr_have_range= FALSE;
   DBUG_RETURN(0);
 }
@@ -292,7 +292,7 @@ scan_it_again:
                                  &mrr_cur_range.start_key : 0,
                                mrr_cur_range.end_key.keypart_map ?
                                  &mrr_cur_range.end_key : 0,
-                               test(mrr_cur_range.range_flag & EQ_RANGE),
+                               MY_TEST(mrr_cur_range.range_flag & EQ_RANGE),
                                mrr_is_output_sorted);
       if (result != HA_ERR_END_OF_FILE)
         break;
@@ -549,12 +549,12 @@ int Mrr_ordered_index_reader::init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
   keypar= *key_par_arg;
 
   KEY *key_info= &file->get_table()->key_info[file->active_index];
-  keypar.index_ranges_unique= test(key_info->flags & HA_NOSAME && 
-                                   key_info->user_defined_key_parts == 
-                                   my_count_bits(keypar.key_tuple_map));
+  keypar.index_ranges_unique= MY_TEST(key_info->flags & HA_NOSAME &&
+                                      key_info->user_defined_key_parts ==
+                                      my_count_bits(keypar.key_tuple_map));
 
   mrr_iter= seq_funcs->init(seq_init_param, n_ranges, mode);
-  is_mrr_assoc=    !test(mode & HA_MRR_NO_ASSOCIATION);
+  is_mrr_assoc= !MY_TEST(mode & HA_MRR_NO_ASSOCIATION);
   mrr_funcs= *seq_funcs;
   source_exhausted= FALSE;
   if (support_scan_interruptions)
@@ -578,7 +578,7 @@ int Mrr_ordered_rndpos_reader::init(handler *h_arg,
   file= h_arg;
   index_reader= index_reader_arg;
   rowid_buffer= buf;
-  is_mrr_assoc= !test(mode & HA_MRR_NO_ASSOCIATION);
+  is_mrr_assoc= !MY_TEST(mode & HA_MRR_NO_ASSOCIATION);
   index_reader_exhausted= FALSE;
   index_reader_needs_refill= TRUE;
   return 0;
@@ -817,7 +817,7 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
     has not been called, so set the owner handler here as well.
   */
   primary_file= h_arg;
-  is_mrr_assoc=    !test(mode & HA_MRR_NO_ASSOCIATION);
+  is_mrr_assoc= !MY_TEST(mode & HA_MRR_NO_ASSOCIATION);
 
   strategy_exhausted= FALSE;
   
@@ -867,7 +867,7 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
   if (do_sort_keys)
   {
     /* Pre-calculate some parameters of key sorting */
-    keypar.use_key_pointers= test(mode & HA_MRR_MATERIALIZED_KEYS);
+    keypar.use_key_pointers= MY_TEST(mode & HA_MRR_MATERIALIZED_KEYS);
     seq_funcs->get_key_info(seq_init_param, &keypar.key_tuple_length, 
                             &keypar.key_tuple_map);
     keypar.key_size_in_keybuf= keypar.use_key_pointers? 
@@ -996,7 +996,7 @@ use_default_impl:
        so small that it can accomodate one rowid and one index tuple)
     */
     if ((res= primary_file->ha_rnd_end()) || 
-        (res= primary_file->ha_index_init(keyno, test(mode & HA_MRR_SORTED))))
+        (res= primary_file->ha_index_init(keyno, MY_TEST(mode & HA_MRR_SORTED))))
     {
       DBUG_RETURN(res);
     }
@@ -1521,10 +1521,10 @@ bool key_uses_partial_cols(TABLE_SHARE *share, uint keyno)
 bool DsMrr_impl::check_cpk_scan(THD *thd, TABLE_SHARE *share, uint keyno, 
                                 uint mrr_flags)
 {
-  return test((mrr_flags & HA_MRR_SINGLE_POINT) &&
-              keyno == share->primary_key && 
-              primary_file->primary_key_is_clustered() && 
-              optimizer_flag(thd, OPTIMIZER_SWITCH_MRR_SORT_KEYS));
+  return MY_TEST((mrr_flags & HA_MRR_SINGLE_POINT) &&
+                 keyno == share->primary_key &&
+                 primary_file->primary_key_is_clustered() &&
+                 optimizer_flag(thd, OPTIMIZER_SWITCH_MRR_SORT_KEYS));
 }
 
 
@@ -1561,8 +1561,8 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
   TABLE_SHARE *share= primary_file->get_table_share();
 
   bool doing_cpk_scan= check_cpk_scan(thd, share, keyno, *flags); 
-  bool using_cpk= test(keyno == share->primary_key &&
-                       primary_file->primary_key_is_clustered());
+  bool using_cpk= MY_TEST(keyno == share->primary_key &&
+                          primary_file->primary_key_is_clustered());
   *flags &= ~HA_MRR_IMPLEMENTATION_FLAGS;
   if (!optimizer_flag(thd, OPTIMIZER_SWITCH_MRR) ||
       *flags & HA_MRR_INDEX_ONLY ||
@@ -1685,7 +1685,7 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
   double index_read_cost;
 
   elem_size= primary_file->ref_length + 
-             sizeof(void*) * (!test(flags & HA_MRR_NO_ASSOCIATION));
+             sizeof(void*) * (!MY_TEST(flags & HA_MRR_NO_ASSOCIATION));
   max_buff_entries = *buffer_size / elem_size;
 
   if (!max_buff_entries)

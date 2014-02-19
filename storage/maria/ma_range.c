@@ -276,7 +276,7 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
   }
   DBUG_PRINT("info",("keynr: %d  offset: %g  max_keynr: %d  nod: %d  flag: %d",
 		     keynr,offset,max_keynr,page.node,flag));
-  DBUG_RETURN((keynr+offset)/(max_keynr+test(page.node)));
+  DBUG_RETURN((keynr + offset) / (max_keynr + MY_TEST(page.node)));
 err:
   DBUG_PRINT("exit",("Error: %d",my_errno));
   DBUG_RETURN (-1.0);

@@ -112,9 +112,10 @@ void *my_malloc(size_t size, myf my_flags)
   }
   else
   {
-    MALLOC_STORE_SIZE(point, void*, size, test(my_flags & MY_THREAD_SPECIFIC));
+    MALLOC_STORE_SIZE(point, void*, size,
+                      MY_TEST(my_flags & MY_THREAD_SPECIFIC));
     update_malloc_size(size + MALLOC_PREFIX_SIZE,
-                       test(my_flags & MY_THREAD_SPECIFIC));
+                       MY_TEST(my_flags & MY_THREAD_SPECIFIC));
     DBUG_EXECUTE_IF("simulate_out_of_memory",
                     {
                       /* my_free() handles memory accounting */
@@ -158,7 +159,7 @@ void *my_realloc(void *oldpoint, size_t size, myf my_flags)
     Test that the new and old area are the same, if not MY_THREAD_MOVE is
     given
   */
-  DBUG_ASSERT((test(my_flags & MY_THREAD_SPECIFIC) == old_flags) ||
+  DBUG_ASSERT((MY_TEST(my_flags & MY_THREAD_SPECIFIC) == old_flags) ||
               (my_flags & MY_THREAD_MOVE));
   if ((point= sf_realloc(MALLOC_FIX_POINTER_FOR_FREE(oldpoint),
                          size + MALLOC_PREFIX_SIZE, my_flags)) == NULL)
@@ -177,13 +178,14 @@ void *my_realloc(void *oldpoint, size_t size, myf my_flags)
   }
   else
   {
-    MALLOC_STORE_SIZE(point, void*, size, test(my_flags & MY_THREAD_SPECIFIC));
-    if (test(my_flags & MY_THREAD_SPECIFIC) != old_flags)
+    MALLOC_STORE_SIZE(point, void*, size,
+                      MY_TEST(my_flags & MY_THREAD_SPECIFIC));
+    if (MY_TEST(my_flags & MY_THREAD_SPECIFIC) != old_flags)
     {
       /* memory moved between system and thread specific */
       update_malloc_size(-(longlong) old_size - MALLOC_PREFIX_SIZE, old_flags);
       update_malloc_size((longlong) size + MALLOC_PREFIX_SIZE,
-                         test(my_flags & MY_THREAD_SPECIFIC));
+                         MY_TEST(my_flags & MY_THREAD_SPECIFIC));
     }
     else
       update_malloc_size((longlong)size - (longlong)old_size, old_flags);

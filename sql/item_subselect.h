@@ -566,7 +566,7 @@ public:
     if ( pushed_cond_guards)
       pushed_cond_guards[i]= v;
   }
-  bool have_guarded_conds() { return test(pushed_cond_guards); }
+  bool have_guarded_conds() { return MY_TEST(pushed_cond_guards); }
 
   Item_func_not_all *upper_item; // point on NOT/NOP before ALL/SOME subquery
 
@@ -621,7 +621,7 @@ public:
   int get_identifier();
 
   bool test_strategy(uchar strategy)
-  { return test(in_strategy & strategy); }
+  { return MY_TEST(in_strategy & strategy); }
 
   /**
     Test that the IN strategy was chosen for execution. This is so
@@ -641,7 +641,7 @@ public:
   }
 
   bool is_set_strategy()
-  { return test(in_strategy & SUBS_STRATEGY_CHOSEN); }
+  { return MY_TEST(in_strategy & SUBS_STRATEGY_CHOSEN); }
 
   bool has_strategy()
   { return in_strategy != SUBS_NOT_TRANSFORMED; }

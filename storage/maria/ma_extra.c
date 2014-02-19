@@ -58,7 +58,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     {
       reinit_io_cache(&info->rec_cache,READ_CACHE,0,
 		      (pbool) (info->lock_type != F_UNLCK),
-		      (pbool) test(info->update & HA_STATE_ROW_CHANGED)
+                      (pbool) MY_TEST(info->update & HA_STATE_ROW_CHANGED)
 		      );
     }
     info->update= ((info->update & HA_STATE_CHANGED) | HA_STATE_NEXT_FOUND |
@@ -122,7 +122,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     {
       reinit_io_cache(&info->rec_cache, READ_CACHE, info->cur_row.nextpos,
 		      (pbool) (info->lock_type != F_UNLCK),
-		      (pbool) test(info->update & HA_STATE_ROW_CHANGED));
+                      (pbool) MY_TEST(info->update & HA_STATE_ROW_CHANGED));
       info->update&= ~HA_STATE_ROW_CHANGED;
       if (share->non_transactional_concurrent_insert)
 	info->rec_cache.end_of_file= info->state->data_file_length;
@@ -316,7 +316,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     /* Fall trough */
   case HA_EXTRA_PREPARE_FOR_RENAME:
   {
-    my_bool do_flush= test(function != HA_EXTRA_PREPARE_FOR_DROP);
+    my_bool do_flush= MY_TEST(function != HA_EXTRA_PREPARE_FOR_DROP);
     my_bool save_global_changed;
     enum flush_type type;
     /*

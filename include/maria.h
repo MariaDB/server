@@ -69,8 +69,8 @@ extern "C" {
 #if MARIA_MAX_KEY > MARIA_KEYMAP_BITS
 #define maria_is_key_active(_keymap_,_keyno_) \
                             (((_keyno_) < MARIA_KEYMAP_BITS) ? \
-                             test((_keymap_) & (1ULL << (_keyno_))) : \
-                             test((_keymap_) & MARIA_KEYMAP_HIGH_MASK))
+                             MY_TEST((_keymap_) & (1ULL << (_keyno_))) : \
+                             MY_TEST((_keymap_) & MARIA_KEYMAP_HIGH_MASK))
 #define maria_set_key_active(_keymap_,_keyno_) \
                             (_keymap_)|= (((_keyno_) < MARIA_KEYMAP_BITS) ? \
                                           (1ULL << (_keyno_)) : \
@@ -81,14 +81,14 @@ extern "C" {
                                           (~ (0ULL)) /*ignore*/ )
 #else
 #define maria_is_key_active(_keymap_,_keyno_) \
-                            test((_keymap_) & (1ULL << (_keyno_)))
+                            MY_TEST((_keymap_) & (1ULL << (_keyno_)))
 #define maria_set_key_active(_keymap_,_keyno_) \
                             (_keymap_)|= (1ULL << (_keyno_))
 #define maria_clear_key_active(_keymap_,_keyno_) \
                             (_keymap_)&= (~ (1ULL << (_keyno_)))
 #endif
 #define maria_is_any_key_active(_keymap_) \
-                            test((_keymap_))
+                            MY_TEST((_keymap_))
 #define maria_is_all_keys_active(_keymap_,_keys_) \
                             ((_keymap_) == maria_get_mask_all_keys_active(_keys_))
 #define maria_set_all_keys_active(_keymap_,_keys_) \

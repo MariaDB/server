@@ -535,7 +535,7 @@ int _ma_decrement_open_count(MARIA_HA *info, my_bool lock_tables)
     if (!lock_error && !my_disable_locking && lock_tables)
       lock_error=maria_lock_database(info,old_lock);
   }
-  DBUG_RETURN(test(lock_error || write_error));
+  DBUG_RETURN(MY_TEST(lock_error || write_error));
 }
 
 

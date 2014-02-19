@@ -1049,8 +1049,8 @@ static bool sql_slave_killed(rpl_group_info *rgi)
       DBUG_PRINT("info", ("modified_non_trans_table: %d  OPTION_BEGIN: %d  "
                           "OPTION_KEEP_LOG: %d  is_in_group: %d",
                           thd->transaction.all.modified_non_trans_table,
-                          test(thd->variables.option_bits & OPTION_BEGIN),
-                          test(thd->variables.option_bits & OPTION_KEEP_LOG),
+                          MY_TEST(thd->variables.option_bits & OPTION_BEGIN),
+                          MY_TEST(thd->variables.option_bits & OPTION_KEEP_LOG),
                           rli->is_in_group()));
 
       if (rli->abort_slave)
@@ -3223,7 +3223,7 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
     "skipped because event skip counter was non-zero"
   };
   DBUG_PRINT("info", ("OPTION_BEGIN: %d  IN_STMT: %d  IN_TRANSACTION: %d",
-                      test(thd->variables.option_bits & OPTION_BEGIN),
+                      MY_TEST(thd->variables.option_bits & OPTION_BEGIN),
                       rli->get_flag(Relay_log_info::IN_STMT),
                       rli->get_flag(Relay_log_info::IN_TRANSACTION)));
   DBUG_PRINT("skip_event", ("%s event was %s",

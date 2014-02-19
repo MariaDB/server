@@ -5651,7 +5651,7 @@ int flush_partitioned_key_cache_blocks(PARTITIONED_KEY_CACHE_CB *keycache,
     if ((type == FLUSH_KEEP || type == FLUSH_FORCE_WRITE) &&
         !((*dirty_part_map) & ((ulonglong) 1 << i)))
       continue;
-    err|= test(flush_simple_key_cache_blocks(partition, file, 0, type));
+    err|= MY_TEST(flush_simple_key_cache_blocks(partition, file, 0, type));
   }
   *dirty_part_map= 0;
 

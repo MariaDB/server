@@ -68,8 +68,8 @@ extern "C" {
 
 #define mi_is_key_active(_keymap_,_keyno_) \
                             (((_keyno_) < MI_KEYMAP_BITS) ? \
-                             test((_keymap_) & (1ULL << (_keyno_))) : \
-                             test((_keymap_) & MI_KEYMAP_HIGH_MASK))
+                             MY_TEST((_keymap_) & (1ULL << (_keyno_))) : \
+                             MY_TEST((_keymap_) & MI_KEYMAP_HIGH_MASK))
 #define mi_set_key_active(_keymap_,_keyno_) \
                             (_keymap_)|= (((_keyno_) < MI_KEYMAP_BITS) ? \
                                           (1ULL << (_keyno_)) : \
@@ -82,7 +82,7 @@ extern "C" {
 #else
 
 #define mi_is_key_active(_keymap_,_keyno_) \
-                            test((_keymap_) & (1ULL << (_keyno_)))
+                            MY_TEST((_keymap_) & (1ULL << (_keyno_)))
 #define mi_set_key_active(_keymap_,_keyno_) \
                             (_keymap_)|= (1ULL << (_keyno_))
 #define mi_clear_key_active(_keymap_,_keyno_) \
@@ -91,7 +91,7 @@ extern "C" {
 #endif
 
 #define mi_is_any_key_active(_keymap_) \
-                            test((_keymap_))
+                            MY_TEST((_keymap_))
 #define mi_is_all_keys_active(_keymap_,_keys_) \
                             ((_keymap_) == mi_get_mask_all_keys_active(_keys_))
 #define mi_set_all_keys_active(_keymap_,_keys_) \

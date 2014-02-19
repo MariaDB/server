@@ -1562,7 +1562,7 @@ static my_bool translog_close_log_file(TRANSLOG_FILE *file)
   }
   rc|= mysql_file_close(file->handler.file, MYF(MY_WME));
   my_free(file);
-  return test(rc);
+  return MY_TEST(rc);
 }
 
 
@@ -8232,9 +8232,9 @@ my_bool translog_is_file(uint file_no)
 {
   MY_STAT stat_buff;
   char path[FN_REFLEN];
-  return (test(mysql_file_stat(key_file_translog,
-                               translog_filename_by_fileno(file_no, path),
-                               &stat_buff, MYF(0))));
+  return (MY_TEST(mysql_file_stat(key_file_translog,
+                                  translog_filename_by_fileno(file_no, path),
+                                  &stat_buff, MYF(0))));
 }
 
 
@@ -8529,8 +8529,8 @@ my_bool translog_purge(TRANSLOG_ADDRESS low)
       {
         char path[FN_REFLEN], *file_name;
         file_name= translog_filename_by_fileno(i, path);
-        rc= test(mysql_file_delete(key_file_translog,
-                                   file_name, MYF(MY_WME)));
+        rc= MY_TEST(mysql_file_delete(key_file_translog,
+                                      file_name, MYF(MY_WME)));
       }
     }
     if (unlikely(rc == 1))
@@ -8592,8 +8592,8 @@ my_bool translog_purge_at_flush()
     char path[FN_REFLEN], *file_name;
     DBUG_PRINT("info", ("purge file %lu\n", (ulong) i));
     file_name= translog_filename_by_fileno(i, path);
-    rc= test(mysql_file_delete(key_file_translog,
-                               file_name, MYF(MY_WME)));
+    rc= MY_TEST(mysql_file_delete(key_file_translog,
+                                  file_name, MYF(MY_WME)));
   }
 
   mysql_mutex_unlock(&log_descriptor.purger_lock);

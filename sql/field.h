@@ -67,7 +67,7 @@ enum Derivation
 #define MY_REPERTOIRE_NUMERIC   MY_REPERTOIRE_ASCII
 
 /* The length of the header part for each virtual column in the .frm file */
-#define FRM_VCOL_HEADER_SIZE(b) (3 + test(b))
+#define FRM_VCOL_HEADER_SIZE(b) (3 + MY_TEST(b))
 
 class Count_distinct_field;
 
@@ -616,7 +616,7 @@ public:
       null_ptr[row_offset].
     */
     return (table->null_row ? TRUE :
-            null_ptr ? test(null_ptr[row_offset] & null_bit) : 0);
+            null_ptr ? MY_TEST(null_ptr[row_offset] & null_bit) : 0);
   }
   inline bool is_real_null(my_ptrdiff_t row_offset= 0) const
     { return null_ptr ? (null_ptr[row_offset] & null_bit ? 1 : 0) : 0; }
@@ -624,8 +624,7 @@ public:
   {
     if (!null_ptr)
       return 0;
-    return test(record[(uint) (null_ptr -table->record[0])] &
-		null_bit);
+    return MY_TEST(record[(uint) (null_ptr - table->record[0])] & null_bit);
   }
   inline void set_null(my_ptrdiff_t row_offset= 0)
     { if (null_ptr) null_ptr[row_offset]|= null_bit; }
@@ -1054,7 +1053,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   virtual bool str_needs_quotes() { return TRUE; }
   uint is_equal(Create_field *new_field);
-  bool eq_cmp_as_binary() { return test(flags & BINARY_FLAG); }
+  bool eq_cmp_as_binary() { return MY_TEST(flags & BINARY_FLAG); }
   virtual uint length_size() { return 0; }
   double pos_in_interval(Field *min, Field *max)
   {
@@ -1654,7 +1653,7 @@ public:
                            const char *field_name_arg,
                            TABLE_SHARE *share, uint dec_arg) :
   Field_timestamp(ptr_arg,
-                  MAX_DATETIME_WIDTH + dec_arg + test(dec_arg), null_ptr_arg,
+                  MAX_DATETIME_WIDTH + dec_arg + MY_TEST(dec_arg), null_ptr_arg,
                   null_bit_arg, unireg_check_arg, field_name_arg, share),
   dec(dec_arg)
   {
@@ -1865,8 +1864,8 @@ public:
   Field_time_with_dec(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
                       enum utype unireg_check_arg, const char *field_name_arg,
                       uint dec_arg)
-    :Field_time(ptr_arg, MIN_TIME_WIDTH + dec_arg + test(dec_arg), null_ptr_arg,
-                null_bit_arg, unireg_check_arg, field_name_arg),
+    :Field_time(ptr_arg, MIN_TIME_WIDTH + dec_arg + MY_TEST(dec_arg),
+                null_ptr_arg, null_bit_arg, unireg_check_arg, field_name_arg),
      dec(dec_arg)
   {
     DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
@@ -2022,7 +2021,7 @@ public:
   Field_datetime_with_dec(uchar *ptr_arg, uchar *null_ptr_arg,
                           uchar null_bit_arg, enum utype unireg_check_arg,
                           const char *field_name_arg, uint dec_arg)
-    :Field_datetime(ptr_arg, MAX_DATETIME_WIDTH + dec_arg + test(dec_arg),
+    :Field_datetime(ptr_arg, MAX_DATETIME_WIDTH + dec_arg + MY_TEST(dec_arg),
                     null_ptr_arg, null_bit_arg, unireg_check_arg,
                     field_name_arg), dec(dec_arg)
   {
@@ -2649,9 +2648,9 @@ public:
   {
     DBUG_ASSERT(ptr == a || ptr == b);
     if (ptr == a)
-      return Field_bit::key_cmp(b, bytes_in_rec+test(bit_len));
+      return Field_bit::key_cmp(b, bytes_in_rec + MY_TEST(bit_len));
     else
-      return Field_bit::key_cmp(a, bytes_in_rec+test(bit_len)) * -1;
+      return Field_bit::key_cmp(a, bytes_in_rec + MY_TEST(bit_len)) * -1;
   }
   int cmp_binary_offset(uint row_offset)
   { return cmp_offset(row_offset); }

@@ -86,7 +86,7 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   full_size= size;
   if (min_dupl_count_arg)
     full_size+= sizeof(element_count);
-  with_counters= test(min_dupl_count_arg);
+  with_counters= MY_TEST(min_dupl_count_arg);
   my_b_clear(&file);
   init_tree(&tree, (ulong) (max_in_memory_size / 16), 0, size, comp_func,
             NULL, comp_func_fixed_arg, MYF(MY_THREAD_SPECIFIC));

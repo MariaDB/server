@@ -660,7 +660,7 @@ static void save_insert_query_plan(THD* thd, TABLE_LIST *table_list)
   thd->lex->explain->add_insert_plan(explain);
   
   /* See Update_plan::updating_a_view for details */
-  bool skip= test(table_list->view);
+  bool skip= MY_TEST(table_list->view);
 
   /* Save subquery children */
   for (SELECT_LEX_UNIT *unit= thd->lex->select_lex.first_inner_unit();
@@ -1933,7 +1933,7 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
       if (table_list)
       {
         table_list= table_list->top_table();
-        view= test(table_list->view);
+        view= MY_TEST(table_list->view);
       }
       if (view)
       {
@@ -4211,8 +4211,8 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
 
   result= store_create_info(thd, &tmp_table_list, &query, create_info,
                             /* show_database */ TRUE,
-                            test(create_info->options &
-                                 HA_LEX_CREATE_REPLACE));
+                            MY_TEST(create_info->options &
+                                    HA_LEX_CREATE_REPLACE));
   DBUG_ASSERT(result == 0); /* store_create_info() always return 0 */
 
   if (mysql_bin_log.is_open())

@@ -1629,7 +1629,7 @@ static int initialize_key_and_col_info(TABLE_SHARE* table_share, TABLE* table, K
     }
 
 
-    for (uint i = 0; i < table_share->keys + test(hidden_primary_key); i++) {
+    for (uint i = 0; i < table_share->keys + MY_TEST(hidden_primary_key); i++) {
         //
         // do the cluster/primary key filtering calculations
         //
@@ -1672,7 +1672,7 @@ exit:
 }
 
 bool ha_tokudb::can_replace_into_be_fast(TABLE_SHARE* table_share, KEY_AND_COL_INFO* kc_info, uint pk) {
-    uint curr_num_DBs = table_share->keys + test(hidden_primary_key);
+    uint curr_num_DBs = table_share->keys + MY_TEST(hidden_primary_key);
     bool ret_val;
     if (curr_num_DBs == 1) {
         ret_val = true;
@@ -1860,7 +1860,7 @@ int ha_tokudb::initialize_share(
         share->try_table_lock = false;
     }
 
-    share->num_DBs = table_share->keys + test(hidden_primary_key);
+    share->num_DBs = table_share->keys + MY_TEST(hidden_primary_key);
 
     error = 0;
 exit:
@@ -2935,7 +2935,7 @@ DBT *ha_tokudb::pack_key(
 {
     TOKUDB_DBUG_ENTER("ha_tokudb::pack_key");
 #if TOKU_INCLUDE_EXTENDED_KEYS
-    if (keynr != primary_key && !test(hidden_primary_key)) {
+    if (keynr != primary_key && !MY_TEST(hidden_primary_key)) {
         DBUG_RETURN(pack_ext_key(key, keynr, buff, key_ptr, key_length, inf_byte));
     }
 #endif
@@ -3360,7 +3360,7 @@ void ha_tokudb::start_bulk_insert(ha_rows rows, uint flags) {
     abort_loader = false;
     
     rw_rdlock(&share->num_DBs_lock);
-    uint curr_num_DBs = table->s->keys + test(hidden_primary_key);
+    uint curr_num_DBs = table->s->keys + MY_TEST(hidden_primary_key);
     num_DBs_locked_in_bulk = true;
     lock_count = 0;
     
@@ -3875,7 +3875,7 @@ void ha_tokudb::set_main_dict_put_flags(
     ) 
 {
     uint32_t old_prelock_flags = 0;
-    uint curr_num_DBs = table->s->keys + test(hidden_primary_key);
+    uint curr_num_DBs = table->s->keys + MY_TEST(hidden_primary_key);
     bool in_hot_index = share->num_DBs > curr_num_DBs;
     bool using_ignore_flag_opt = do_ignore_flag_optimization(
             thd, table, share->replace_into_fast);
@@ -3919,7 +3919,7 @@ int ha_tokudb::insert_row_to_main_dictionary(uchar* record, DBT* pk_key, DBT* pk
     int error = 0;
     uint32_t put_flags = mult_put_flags[primary_key];
     THD *thd = ha_thd();
-    uint curr_num_DBs = table->s->keys + test(hidden_primary_key);
+    uint curr_num_DBs = table->s->keys + MY_TEST(hidden_primary_key);
 
     assert(curr_num_DBs == 1);
     
@@ -4129,7 +4129,7 @@ int ha_tokudb::write_row(uchar * record) {
             // for #4633
             // if we have a duplicate key error, let's check the primary key to see
             // if there is a duplicate there. If so, set last_dup_key to the pk
-            if (error == DB_KEYEXIST && !test(hidden_primary_key) && last_dup_key != primary_key) {
+            if (error == DB_KEYEXIST && !MY_TEST(hidden_primary_key) && last_dup_key != primary_key) {
                 int r = share->file->getf_set(
                     share->file, 
                     txn, 
@@ -5954,7 +5954,7 @@ int ha_tokudb::info(uint flag) {
     TOKUDB_DBUG_ENTER("ha_tokudb::info %p %d %lld", this, flag, (long long) share->rows);
     int error;
     DB_TXN* txn = NULL;
-    uint curr_num_DBs = table->s->keys + test(hidden_primary_key);
+    uint curr_num_DBs = table->s->keys + MY_TEST(hidden_primary_key);
     DB_BTREE_STAT64 dict_stats;
 
     for (uint i=0; i < table->s->keys; i++)
@@ -6461,7 +6461,7 @@ THR_LOCK_DATA **ha_tokudb::store_lock(THD * thd, THR_LOCK_DATA ** to, enum thr_l
         // if creating a hot index
         if (thd_sql_command(thd)== SQLCOM_CREATE_INDEX && get_create_index_online(thd)) {
             rw_rdlock(&share->num_DBs_lock);
-            if (share->num_DBs == (table->s->keys + test(hidden_primary_key))) {
+            if (share->num_DBs == (table->s->keys + MY_TEST(hidden_primary_key))) {
                 lock_type = TL_WRITE_ALLOW_WRITE;
             }
             lock.type = lock_type;
@@ -7690,7 +7690,7 @@ int ha_tokudb::tokudb_add_index(
     //
     // number of DB files we have open currently, before add_index is executed
     //
-    uint curr_num_DBs = table_arg->s->keys + test(hidden_primary_key);
+    uint curr_num_DBs = table_arg->s->keys + MY_TEST(hidden_primary_key);
 
     //
     // get the row type to use for the indexes we're adding
@@ -8030,7 +8030,7 @@ To add indexes, make sure no transactions touch the table.", share->table_name);
 // Closes added indexes in case of error in error path of add_index and alter_table_phase2
 //
 void ha_tokudb::restore_add_index(TABLE* table_arg, uint num_of_keys, bool incremented_numDBs, bool modified_DBs) {
-    uint curr_num_DBs = table_arg->s->keys + test(hidden_primary_key);
+    uint curr_num_DBs = table_arg->s->keys + MY_TEST(hidden_primary_key);
     uint curr_index = 0;
 
     //
@@ -8251,7 +8251,7 @@ int ha_tokudb::delete_all_rows_internal() {
     error = txn_begin(db_env, 0, &txn, 0, ha_thd());
     if (error) { goto cleanup; }
 
-    curr_num_DBs = table->s->keys + test(hidden_primary_key);
+    curr_num_DBs = table->s->keys + MY_TEST(hidden_primary_key);
     for (uint i = 0; i < curr_num_DBs; i++) {
         error = share->key_file[i]->pre_acquire_fileops_lock(
             share->key_file[i], 

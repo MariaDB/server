@@ -2469,7 +2469,7 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
     cached_table_flags= table_flags();
   }
   reset_statistics();
-  internal_tmp_table= test(test_if_locked & HA_OPEN_INTERNAL_TABLE);
+  internal_tmp_table= MY_TEST(test_if_locked & HA_OPEN_INTERNAL_TABLE);
   DBUG_RETURN(error);
 }
 
