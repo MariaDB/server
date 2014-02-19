@@ -4585,10 +4585,6 @@ found:
 
 		ut_ad(slot->page_buf);
 
-		/* Write buffer full of zeros, this is needed for trim,
-		can't really avoid this now. */
-		memset(slot->page_buf, 0, len);
-
 		tmp = fil_compress_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf, len, page_compression_level, &real_len);
 
 		/* If compression succeeded, set up the length and buffer */
@@ -6210,6 +6206,8 @@ os_file_trim(
 
 #define SECT_SIZE 512
 	size_t trim_len = UNIV_PAGE_SIZE - len;
+	// len here should be alligned to sector size
+	ut_a(trim_len == ((trim_len + SECT_SIZE-1) & ~(SECT_SIZE-1)));
 	os_offset_t off = slot->offset + len;
 
 	// Nothing to do if trim length is zero or if actual write
