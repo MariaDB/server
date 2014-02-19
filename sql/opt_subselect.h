@@ -168,7 +168,7 @@ public:
     }
   }
 
-  bool have_a_case() { return test(handled_sj_equalities); }
+  bool have_a_case() { return MY_TEST(handled_sj_equalities); }
 
   void check_ref_access_part1(JOIN_TAB *s, uint key, KEYUSE *start_key, 
                               table_map found_part)

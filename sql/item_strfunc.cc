@@ -4784,7 +4784,7 @@ String *Item_dyncol_get::val_str(String *str_result)
     goto null;
   case DYN_COL_INT:
   case DYN_COL_UINT:
-    str_result->set_int(val.x.long_value, test(val.type == DYN_COL_UINT),
+    str_result->set_int(val.x.long_value, MY_TEST(val.type == DYN_COL_UINT),
                        &my_charset_latin1);
     break;
   case DYN_COL_DOUBLE:

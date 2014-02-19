@@ -406,7 +406,7 @@ static int _ma_find_writepos(MARIA_HA *info,
   {
     /* No deleted blocks;  Allocate a new block */
     *filepos=info->state->data_file_length;
-    if ((tmp=reclength+3 + test(reclength >= (65520-3))) <
+    if ((tmp= reclength + 3 + MY_TEST(reclength >= (65520 - 3))) <
 	info->s->base.min_block_length)
       tmp= info->s->base.min_block_length;
     else
@@ -849,7 +849,7 @@ static my_bool update_dynamic_record(MARIA_HA *info, MARIA_RECORD_POS filepos,
       if (length < reclength)
       {
 	uint tmp=MY_ALIGN(reclength - length + 3 +
-			  test(reclength >= 65520L),MARIA_DYN_ALIGN_SIZE);
+                          MY_TEST(reclength >= 65520L), MARIA_DYN_ALIGN_SIZE);
 	/* Don't create a block bigger than MARIA_MAX_BLOCK_LENGTH */
 	tmp= MY_MIN(length+tmp, MARIA_MAX_BLOCK_LENGTH)-length;
 	/* Check if we can extend this block */
@@ -1014,7 +1014,7 @@ uint _ma_rec_pack(MARIA_HA *info, register uchar *to,
 	    pos++;
 	}
 	new_length=(uint) (end-pos);
-	if (new_length +1 + test(column->length > 255 && new_length > 127)
+        if (new_length + 1 + MY_TEST(column->length > 255 && new_length > 127)
 	    < length)
 	{
 	  if (column->length > 255 && new_length > 127)
@@ -1138,7 +1138,7 @@ my_bool _ma_rec_check(MARIA_HA *info,const uchar *record, uchar *rec_buff,
 	    pos++;
 	}
 	new_length=(uint) (end-pos);
-	if (new_length +1 + test(column->length > 255 && new_length > 127)
+        if (new_length + 1 + MY_TEST(column->length > 255 && new_length > 127)
 	    < length)
 	{
 	  if (!(flag & bit))
@@ -1191,7 +1191,7 @@ my_bool _ma_rec_check(MARIA_HA *info,const uchar *record, uchar *rec_buff,
       to+= length;
   }
   if (packed_length != (uint) (to - rec_buff) +
-      test(info->s->calc_checksum) || (bit != 1 && (flag & ~(bit - 1))))
+      MY_TEST(info->s->calc_checksum) || (bit != 1 && (flag & ~(bit - 1))))
     goto err;
   if (with_checksum && ((uchar) checksum != (uchar) *to))
   {

@@ -2969,9 +2969,9 @@ static bool update_user_table(THD *thd, TABLE *table,
 static bool test_if_create_new_users(THD *thd)
 {
   Security_context *sctx= thd->security_ctx;
-  bool create_new_users= test(sctx->master_access & INSERT_ACL) ||
+  bool create_new_users= MY_TEST(sctx->master_access & INSERT_ACL) ||
                          (!opt_safe_user_create &&
-                          test(sctx->master_access & CREATE_USER_ACL));
+                          MY_TEST(sctx->master_access & CREATE_USER_ACL));
   if (!create_new_users)
   {
     TABLE_LIST tl;
@@ -5084,7 +5084,8 @@ static int update_role_table_columns(GRANT_TABLE *merged,
       now those roles were dropped or had their privileges revoked).
       we need to remove this GRANT_TABLE
     */
-    DBUG_EXECUTE_IF("role_merge_stats", role_column_merges+= test(merged->cols););
+    DBUG_EXECUTE_IF("role_merge_stats",
+                    role_column_merges+= MY_TEST(merged->cols););
     my_hash_delete(&column_priv_hash,(uchar*) merged);
     return 4;
   }
@@ -5109,7 +5110,7 @@ static bool merge_role_table_and_column_privileges(ACL_ROLE *grantee,
                         const char *db, const char *tname, role_hash_t *rhash)
 {
   Dynamic_array<GRANT_TABLE *> grants;
-  DBUG_ASSERT(test(db) == test(tname)); // both must be set, or neither
+  DBUG_ASSERT(MY_TEST(db) == MY_TEST(tname)); // both must be set, or neither
 
   /*
     first, collect table/column privileges granted to
@@ -5232,7 +5233,7 @@ static bool merge_role_routine_grant_privileges(ACL_ROLE *grantee,
 {
   ulong update_flags= 0;
 
-  DBUG_ASSERT(test(db) == test(tname)); // both must be set, or neither
+  DBUG_ASSERT(MY_TEST(db) == MY_TEST(tname)); // both must be set, or neither
 
   DBUG_EXECUTE_IF("role_merge_stats", role_routine_merges++;);
 
@@ -5530,8 +5531,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     else
       error=replace_user_table(thd, tables[0].table, *Str,
                                0, revoke_grant, create_new_users,
-                               test(thd->variables.sql_mode &
-                                    MODE_NO_AUTO_CREATE_USER));
+                               MY_TEST(thd->variables.sql_mode &
+                                       MODE_NO_AUTO_CREATE_USER));
     if (error)
     {
       result= TRUE;				// Remember error
@@ -5738,8 +5739,8 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
     /* Create user if needed */
     error=replace_user_table(thd, tables[0].table, *Str,
 			     0, revoke_grant, create_new_users,
-                             test(thd->variables.sql_mode &
-                                  MODE_NO_AUTO_CREATE_USER));
+                             MY_TEST(thd->variables.sql_mode &
+                                     MODE_NO_AUTO_CREATE_USER));
     if (error)
     {
       result= TRUE;				// Remember error
@@ -5885,7 +5886,8 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   rolename= granted_role->user;
 
   create_new_user= test_if_create_new_users(thd);
-  no_auto_create_user= test(thd->variables.sql_mode & MODE_NO_AUTO_CREATE_USER);
+  no_auto_create_user= MY_TEST(thd->variables.sql_mode &
+                               MODE_NO_AUTO_CREATE_USER);
 
   TABLE_LIST tables[2];
   tables[0].init_one_table(C_STRING_WITH_LEN("mysql"),
@@ -6203,8 +6205,8 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     else
     if (replace_user_table(thd, tables[0].table, *Str,
                            (!db ? rights : 0), revoke_grant, create_new_users,
-                           test(thd->variables.sql_mode &
-                                MODE_NO_AUTO_CREATE_USER)))
+                           MY_TEST(thd->variables.sql_mode &
+                                   MODE_NO_AUTO_CREATE_USER)))
       result= -1;
     else if (db)
     {
@@ -6633,7 +6635,7 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
 
   for (tl= tables; number-- ; tl= tl->next_global)
   {
-    sctx = test(tl->security_ctx) ? tl->security_ctx : thd->security_ctx;
+    sctx= MY_TEST(tl->security_ctx) ? tl->security_ctx : thd->security_ctx;
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&tl->grant.m_internal,
@@ -6888,7 +6890,7 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
   GRANT_INFO *grant;
   const char *db_name;
   const char *table_name;
-  Security_context *sctx= test(table_ref->security_ctx) ?
+  Security_context *sctx= MY_TEST(table_ref->security_ctx) ?
                           table_ref->security_ctx : thd->security_ctx;
 
   if (table_ref->view || table_ref->field_translation)
@@ -11474,7 +11476,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     db + passwd_len + 1 : 0;
 
   if (passwd == NULL ||
-      passwd + passwd_len + test(db) > (char *)net->read_pos + pkt_len)
+      passwd + passwd_len + MY_TEST(db) > (char*) net->read_pos + pkt_len)
     return packet_error;
 
   /* strlen() can't be easily deleted without changing protocol */

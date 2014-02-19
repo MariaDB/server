@@ -166,15 +166,15 @@ int simple_read_write_test()
                  PAGECACHE_PLAIN_PAGE,
                  PAGECACHE_LOCK_LEFT_UNLOCKED,
                  0);
-  ok((res= test(memcmp(buffr, buffw, TEST_PAGE_SIZE) == 0)),
+  ok((res= MY_TEST(memcmp(buffr, buffw, TEST_PAGE_SIZE) == 0)),
      "Simple write-read page ");
   if (flush_pagecache_blocks(&pagecache, &file1, FLUSH_FORCE_WRITE))
   {
     diag("Got error during flushing pagecache\n");
     exit(1);
   }
-  ok((res&= test(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
-                           simple_read_write_test_file))),
+  ok((res&= MY_TEST(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
+                              simple_read_write_test_file))),
      "Simple write-read page file");
   if (res)
     reset_file(&file1, file1_name);
@@ -225,7 +225,7 @@ int simple_read_change_write_read_test()
                  PAGECACHE_PLAIN_PAGE,
                  PAGECACHE_LOCK_LEFT_UNLOCKED,
                  0);
-  ok((res= test(memcmp(buffr, buffw, TEST_PAGE_SIZE) == 0)),
+  ok((res= MY_TEST(memcmp(buffr, buffw, TEST_PAGE_SIZE) == 0)),
      "Simple read-change-write-read page ");
   DBUG_ASSERT(pagecache.blocks_changed == 1);
   if (flush_pagecache_blocks(&pagecache, &file1, FLUSH_FORCE_WRITE))
@@ -234,8 +234,8 @@ int simple_read_change_write_read_test()
     exit(1);
   }
   DBUG_ASSERT(pagecache.blocks_changed == 0);
-  ok((res2= test(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
-                           simple_read_change_write_read_test_file))),
+  ok((res2= MY_TEST(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
+                              simple_read_change_write_read_test_file))),
      "Simple read-change-write-read page file");
   if (res && res2)
     reset_file(&file1, file1_name);
@@ -299,8 +299,8 @@ int simple_pin_test()
     res= 0;
     goto err;
   }
-  ok((res= test(test_file(file1, file1_name, TEST_PAGE_SIZE*2, TEST_PAGE_SIZE*2,
-                           simple_pin_test_file1))),
+  ok((res= MY_TEST(test_file(file1, file1_name, TEST_PAGE_SIZE * 2,
+                             TEST_PAGE_SIZE * 2, simple_pin_test_file1))),
      "Simple pin page file with pin");
   pagecache_unlock(&pagecache,
                    &file1,
@@ -314,8 +314,8 @@ int simple_pin_test()
     res= 0;
     goto err;
   }
-  ok((res&= test(test_file(file1, file1_name, TEST_PAGE_SIZE*2, TEST_PAGE_SIZE,
-                           simple_pin_test_file2))),
+  ok((res&= MY_TEST(test_file(file1, file1_name, TEST_PAGE_SIZE * 2,
+                              TEST_PAGE_SIZE, simple_pin_test_file2))),
      "Simple pin page result file");
   if (res)
     reset_file(&file1, file1_name);
@@ -378,8 +378,8 @@ int simple_pin_test2()
     res= 0;
     goto err;
   }
-  ok((res= test(test_file(file1, file1_name, TEST_PAGE_SIZE*2, TEST_PAGE_SIZE*2,
-                           simple_pin_test_file1))),
+  ok((res= MY_TEST(test_file(file1, file1_name, TEST_PAGE_SIZE * 2,
+                             TEST_PAGE_SIZE * 2, simple_pin_test_file1))),
      "Simple pin page file with pin 2");
 
   /* Test that a normal flush goes through */
@@ -401,8 +401,8 @@ int simple_pin_test2()
     res= 0;
     goto err;
   }
-  ok((res&= test(test_file(file1, file1_name, TEST_PAGE_SIZE*2, TEST_PAGE_SIZE,
-                           simple_pin_test_file2))),
+  ok((res&= MY_TEST(test_file(file1, file1_name, TEST_PAGE_SIZE * 2,
+                              TEST_PAGE_SIZE, simple_pin_test_file2))),
      "Simple pin page result file 2");
   if (res)
     reset_file(&file1, file1_name);
@@ -451,8 +451,8 @@ int simple_pin_no_lock_test()
     res= 0;
     goto err;
   }
-  ok((res= test(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
-                           simple_pin_no_lock_test_file1))),
+  ok((res= MY_TEST(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
+                             simple_pin_no_lock_test_file1))),
      "Simple pin (no lock) page file with pin 2");
   pagecache_unlock(&pagecache,
                    &file1,
@@ -466,8 +466,8 @@ int simple_pin_no_lock_test()
     res= 0;
     goto err;
   }
-  ok((res&= test(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
-                           simple_pin_no_lock_test_file2))),
+  ok((res&= MY_TEST(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
+                              simple_pin_no_lock_test_file2))),
      "Simple pin (no lock) page result file 2");
 
   bfill(buffw, TEST_PAGE_SIZE, '\6');
@@ -486,8 +486,8 @@ int simple_pin_no_lock_test()
     res= 0;
     goto err;
   }
-  ok((res= test(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
-                           simple_pin_no_lock_test_file2))),
+  ok((res= MY_TEST(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
+                             simple_pin_no_lock_test_file2))),
      "Simple pin (no lock) page file with pin 3");
   pagecache_unpin_by_link(&pagecache, link, 0);
   if (flush_pagecache_blocks(&pagecache, &file1, FLUSH_FORCE_WRITE))
@@ -496,8 +496,8 @@ int simple_pin_no_lock_test()
     res= 0;
     goto err;
   }
-  ok((res&= test(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
-                           simple_pin_no_lock_test_file3))),
+  ok((res&= MY_TEST(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
+                              simple_pin_no_lock_test_file3))),
      "Simple pin (no lock) page result file 3");
   if (res)
     reset_file(&file1, file1_name);
@@ -536,8 +536,8 @@ int simple_delete_forget_test()
   pagecache_delete(&pagecache, &file1, 0,
                    PAGECACHE_LOCK_WRITE, 0);
   flush_pagecache_blocks(&pagecache, &file1, FLUSH_FORCE_WRITE);
-  ok((res= test(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
-                          simple_delete_forget_test_file))),
+  ok((res= MY_TEST(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
+                             simple_delete_forget_test_file))),
      "Simple delete-forget page file");
   if (res)
     reset_file(&file1, file1_name);
@@ -583,8 +583,8 @@ int simple_delete_flush_test()
     exit(1);
   }
   flush_pagecache_blocks(&pagecache, &file1, FLUSH_FORCE_WRITE);
-  ok((res= test(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
-                          simple_delete_flush_test_file))),
+  ok((res= MY_TEST(test_file(file1, file1_name, TEST_PAGE_SIZE, TEST_PAGE_SIZE,
+                             simple_delete_flush_test_file))),
      "Simple delete flush (link) page file");
   if (res)
     reset_file(&file1, file1_name);
@@ -665,8 +665,8 @@ int simple_big_test()
   ok(1, "Simple big file random read");
   flush_pagecache_blocks(&pagecache, &file1, FLUSH_FORCE_WRITE);
 
-  ok((res= test(test_file(file1, file1_name, PCACHE_SIZE*2, TEST_PAGE_SIZE,
-                          desc))),
+  ok((res= MY_TEST(test_file(file1, file1_name, PCACHE_SIZE * 2, TEST_PAGE_SIZE,
+                             desc))),
      "Simple big file");
   if (res)
     reset_file(&file1, file1_name);

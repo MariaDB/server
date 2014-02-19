@@ -273,7 +273,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
   int kfile,open_mode,save_errno;
   uint i,j,len,errpos,head_length,base_pos,keys, realpath_err,
     key_parts,unique_key_parts,fulltext_keys,uniques;
-  uint internal_table= test(open_flags & HA_OPEN_INTERNAL_TABLE);
+  uint internal_table= MY_TEST(open_flags & HA_OPEN_INTERNAL_TABLE);
   size_t info_length;
   char name_buff[FN_REFLEN], org_name[FN_REFLEN], index_name[FN_REFLEN],
        data_name[FN_REFLEN];
@@ -731,7 +731,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
                          share->base.is_nulls_extended +
                          share->base.null_bytes +
                          share->base.pack_bytes +
-                         test(share->options & HA_OPTION_CHECKSUM));
+                         MY_TEST(share->options & HA_OPTION_CHECKSUM));
     share->kfile.file= kfile;
 
     if (open_flags & HA_OPEN_COPY)

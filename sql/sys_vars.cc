@@ -2102,7 +2102,7 @@ static bool fix_optimizer_switch(sys_var *self, THD *thd,
 {
   SV *sv= (type == OPT_GLOBAL) ? &global_system_variables : &thd->variables;
   sv->engine_condition_pushdown=
-    test(sv->optimizer_switch & OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN);
+    MY_TEST(sv->optimizer_switch & OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN);
   return false;
 }
 static Sys_var_flagset Sys_optimizer_switch(
@@ -4578,7 +4578,7 @@ static Sys_var_mybool Sys_query_cache_strip_comments(
 
 static ulonglong in_transaction(THD *thd)
 {
-  return test(thd->in_active_multi_stmt_transaction());
+  return MY_TEST(thd->in_active_multi_stmt_transaction());
 }
 static Sys_var_session_special Sys_in_transaction(
        "in_transaction", "Whether there is an active transaction",

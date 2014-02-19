@@ -344,7 +344,7 @@ int case_stmt_action_when(LEX *lex, Item *when, bool simple)
     (jump_if_not from instruction 2 to 5, 5 to 8 ... in the example)
   */
 
-  return !test(i) ||
+  return !MY_TEST(i) ||
          sp->push_backpatch(i, ctx->push_label(current_thd, empty_lex_str, 0)) ||
          sp->add_cont_backpatch(i) ||
          sp->add_instr(i);
@@ -362,7 +362,7 @@ int case_stmt_action_then(LEX *lex)
   sp_pcontext *ctx= lex->spcont;
   uint ip= sp->instructions();
   sp_instr_jump *i = new sp_instr_jump(ip, ctx);
-  if (!test(i) || sp->add_instr(i))
+  if (!MY_TEST(i) || sp->add_instr(i))
     return 1;
 
   /*

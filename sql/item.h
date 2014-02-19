@@ -1462,7 +1462,7 @@ public:
   {
     if (is_expensive_cache < 0)
       is_expensive_cache= walk(&Item::is_expensive_processor, 0, (uchar*)0);
-    return test(is_expensive_cache);
+    return MY_TEST(is_expensive_cache);
   }
   virtual Field::geometry_type get_geometry_type() const
     { return Field::GEOM_GEOMETRY; };
@@ -2400,7 +2400,7 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   Item_num *neg() { value= -value; return this; }
   uint decimal_precision() const
-  { return (uint)(max_length - test(value < 0)); }
+  { return (uint) (max_length - MY_TEST(value < 0)); }
   bool eq(const Item *, bool binary_cmp) const;
   bool check_partition_func_processor(uchar *bool_arg) { return FALSE;}
   bool check_vcol_func_processor(uchar *arg) { return FALSE;}
@@ -4225,7 +4225,7 @@ public:
   virtual void store(Item *item);
   virtual bool cache_value()= 0;
   bool basic_const_item() const
-  { return test(example && example->basic_const_item());}
+  { return MY_TEST(example && example->basic_const_item()); }
   virtual void clear() { null_value= TRUE; value_cached= FALSE; }
   bool is_null() { return null_value; }
   virtual bool is_expensive()

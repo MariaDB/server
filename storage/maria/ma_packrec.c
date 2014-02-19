@@ -146,9 +146,9 @@ my_bool _ma_once_init_pack_row(MARIA_SHARE *share, File dfile)
   share->options|= HA_OPTION_READ_ONLY_DATA;
   return (_ma_read_pack_info(share, dfile,
                              (pbool)
-                             test(!(share->options &
-                                    (HA_OPTION_PACK_RECORD |
-                                     HA_OPTION_TEMP_COMPRESS_RECORD)))));
+                             MY_TEST(!(share->options &
+                                       (HA_OPTION_PACK_RECORD |
+                                        HA_OPTION_TEMP_COMPRESS_RECORD)))));
 }
 
 

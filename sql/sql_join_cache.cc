@@ -222,8 +222,8 @@ void JOIN_CACHE::calc_record_fields()
   for (; tab != join_tab ; tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
   {	    
     tab->calc_used_field_length(FALSE);
-    flag_fields+= test(tab->used_null_fields || tab->used_uneven_bit_fields);
-    flag_fields+= test(tab->table->maybe_null);
+    flag_fields+= MY_TEST(tab->used_null_fields || tab->used_uneven_bit_fields);
+    flag_fields+= MY_TEST(tab->table->maybe_null);
     fields+= tab->used_fields;
     blobs+= tab->used_blobs;
   }
@@ -736,7 +736,7 @@ void JOIN_CACHE::set_constants()
 uint JOIN_CACHE::get_record_max_affix_length()
 {
   uint len= get_prefix_length() +
-            test(with_match_flag) + 
+            MY_TEST(with_match_flag) +
             size_of_fld_ofs * data_field_count;
   return len;
 }
@@ -1012,7 +1012,7 @@ int JOIN_CACHE::realloc_buffer()
 {
   int rc;
   free();
-  rc= test(!(buff= (uchar*) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))));
+  rc= MY_TEST(!(buff= (uchar*) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))));
   reset(TRUE);
   return rc;   	
 }
@@ -1766,7 +1766,7 @@ uint JOIN_CACHE::read_flag_fields()
   CACHE_FIELD *copy_end= copy+flag_fields;
   if (with_match_flag)
   {
-    copy->str[0]= test((Match_flag) pos[0] == MATCH_FOUND);
+    copy->str[0]= MY_TEST((Match_flag) pos[0] == MATCH_FOUND);
     pos+= copy->length;
     copy++;    
   } 
@@ -2520,7 +2520,7 @@ enum_nested_loop_state JOIN_CACHE::join_null_complements(bool skip_last)
   if (!records)
     DBUG_RETURN(NESTED_LOOP_OK);
   
-  cnt= records - (is_key_access() ? 0 : test(skip_last));
+  cnt= records - (is_key_access() ? 0 : MY_TEST(skip_last));
 
   /* This function may be called only for inner tables of outer joins */ 
   DBUG_ASSERT(join_tab->first_inner);
@@ -2570,7 +2570,7 @@ finish:
 
 void JOIN_CACHE::save_explain_data(struct st_explain_bka_type *explain)
 {
-  explain->incremental= test(prev_cache);
+  explain->incremental= MY_TEST(prev_cache);
 
   switch (get_join_alg()) {
   case BNL_JOIN_ALG:
@@ -2792,7 +2792,7 @@ int JOIN_CACHE_HASHED::realloc_buffer()
 {
   int rc;
   free();
-  rc= test(!(buff= (uchar*) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))));
+  rc= MY_TEST(!(buff= (uchar*) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))));
   init_hash_table();
   reset(TRUE);
   return rc;   	
@@ -3472,7 +3472,7 @@ bool JOIN_CACHE_BNL::prepare_look_for_matches(bool skip_last)
   if (!records)
     return TRUE;
   reset(FALSE);
-  rem_records= records-test(skip_last);
+  rem_records= records - MY_TEST(skip_last);
   return rem_records == 0;
 }
 
@@ -4588,7 +4588,7 @@ int JOIN_CACHE_BKAH::init()
 {
   bool check_only_first_match= join_tab->check_only_first_match();
 
-  no_association= test(mrr_mode & HA_MRR_NO_ASSOCIATION);
+  no_association= MY_TEST(mrr_mode & HA_MRR_NO_ASSOCIATION);
 
   RANGE_SEQ_IF rs_funcs= { bka_range_seq_key_info,
                            bkah_range_seq_init,

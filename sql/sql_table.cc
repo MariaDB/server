@@ -3802,7 +3802,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  with length (unlike blobs, where ft code takes data length from a
 	  data prefix, ignoring column->length).
 	*/
-	column->length=test(f_is_blob(sql_field->pack_flag));
+        column->length= MY_TEST(f_is_blob(sql_field->pack_flag));
       }
       else
       {
@@ -5290,8 +5290,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
           int result __attribute__((unused))=
             store_create_info(thd, table, &query,
                               create_info, FALSE /* show_database */,
-                              test(create_info->options &
-                                   HA_LEX_CREATE_REPLACE));
+                              MY_TEST(create_info->options &
+                                      HA_LEX_CREATE_REPLACE));
 
           DBUG_ASSERT(result == 0); // store_create_info() always return 0
           do_logging= FALSE;
@@ -7385,7 +7385,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
       key= new Key(key_type, key_name, strlen(key_name),
                    &key_create_info,
-                   test(key_info->flags & HA_GENERATED_KEY),
+                   MY_TEST(key_info->flags & HA_GENERATED_KEY),
                    key_parts, key_info->option_list, FALSE);
       new_key_list.push_back(key);
     }
@@ -8987,7 +8987,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   DBUG_ENTER("copy_data_between_tables");
 
   /* Two or 3 stages; Sorting, copying data and update indexes */
-  thd_progress_init(thd, 2 + test(order));
+  thd_progress_init(thd, 2 + MY_TEST(order));
 
   if (mysql_trans_prepare_alter_copy_data(thd))
     DBUG_RETURN(-1);
@@ -9488,7 +9488,7 @@ static bool check_engine(THD *thd, const char *db_name,
   handlerton **new_engine= &create_info->db_type;
   handlerton *req_engine= *new_engine;
   bool no_substitution=
-        test(thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION);
+        MY_TEST(thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION);
   if (!(*new_engine= ha_checktype(thd, ha_legacy_type(req_engine),
                                   no_substitution, 1)))
     DBUG_RETURN(true);

@@ -1454,7 +1454,7 @@ static int check_dynamic_record(HA_CHECK *param, MARIA_HA *info, int extend,
         if (param->testflag & (T_EXTEND | T_MEDIUM | T_VERBOSE))
         {
           if (_ma_rec_check(info,record, info->rec_buff,block_info.rec_len,
-                            test(share->calc_checksum), checksum))
+                            MY_TEST(share->calc_checksum), checksum))
           {
             _ma_check_print_error(param,"Found wrong packed record at %s",
                                   llstr(start_recpos,llbuff));
@@ -2385,7 +2385,7 @@ static int initialize_variables_for_repair(HA_CHECK *param,
 
   sort_param->sort_info= sort_info;
   sort_param->fix_datafile= ! rep_quick;
-  sort_param->calc_checksum= test(param->testflag & T_CALC_CHECKSUM);
+  sort_param->calc_checksum= MY_TEST(param->testflag & T_CALC_CHECKSUM);
   sort_info->info= sort_info->new_info= info;
   sort_info->param= param;
   set_data_file_type(sort_info, info->s);
@@ -2395,8 +2395,9 @@ static int initialize_variables_for_repair(HA_CHECK *param,
   info->rec_cache.file= info->dfile.file;
   info->update= (short) (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
 
-  if (protect_against_repair_crash(info, param, !test(param->testflag &
-                                                      T_CREATE_MISSING_KEYS)))
+  if (protect_against_repair_crash(info, param,
+                                   !MY_TEST(param->testflag &
+                                            T_CREATE_MISSING_KEYS)))
     return 1;
 
   /* calculate max_records */
@@ -3836,7 +3837,7 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
       if (keyseg[i].flag & HA_SPACE_PACK)
 	sort_param.key_length+=get_pack_length(keyseg[i].length);
       if (keyseg[i].flag & (HA_BLOB_PART | HA_VAR_LENGTH_PART))
-	sort_param.key_length+=2 + test(keyseg[i].length >= 127);
+        sort_param.key_length+= 2 + MY_TEST(keyseg[i].length >= 127);
       if (keyseg[i].flag & HA_NULL_PART)
 	sort_param.key_length++;
     }
@@ -4405,7 +4406,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
       if (keyseg->flag & HA_SPACE_PACK)
         sort_param[i].key_length+=get_pack_length(keyseg->length);
       if (keyseg->flag & (HA_BLOB_PART | HA_VAR_LENGTH_PART))
-        sort_param[i].key_length+=2 + test(keyseg->length >= 127);
+        sort_param[i].key_length+= 2 + MY_TEST(keyseg->length >= 127);
       if (keyseg->flag & HA_NULL_PART)
         sort_param[i].key_length++;
     }
@@ -4424,7 +4425,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
   sort_info.total_keys=i;
   sort_param[0].master= 1;
   sort_param[0].fix_datafile= ! rep_quick;
-  sort_param[0].calc_checksum= test(param->testflag & T_CALC_CHECKSUM);
+  sort_param[0].calc_checksum= MY_TEST(param->testflag & T_CALC_CHECKSUM);
 
   if (!maria_ftparser_alloc_param(info))
     goto err;
@@ -5225,7 +5226,7 @@ static int sort_get_next_record(MARIA_SORT_PARAM *sort_param)
                             sort_param->find_length,
                             (param->testflag & T_QUICK) &&
                             sort_param->calc_checksum &&
-                            test(share->calc_checksum), checksum))
+                            MY_TEST(share->calc_checksum), checksum))
 	  {
 	    _ma_check_print_info(param,"Found wrong packed record at %s",
 				llstr(sort_param->start_recpos,llbuff));
@@ -5413,7 +5414,7 @@ int _ma_sort_write_record(MARIA_SORT_PARAM *sort_param)
 
       do
       {
-	block_length=reclength+ 3 + test(reclength >= (65520-3));
+        block_length= reclength + 3 + MY_TEST(reclength >= (65520 - 3));
 	if (block_length < share->base.min_block_length)
 	  block_length=share->base.min_block_length;
 	info->update|=HA_STATE_WRITE_AT_END;
@@ -6412,7 +6413,7 @@ static ha_checksum maria_byte_checksum(const uchar *buf, uint length)
   const uchar *end=buf+length;
   for (crc=0; buf != end; buf++)
     crc=((crc << 1) + *buf) +
-      test(crc & (((ha_checksum) 1) << (8*sizeof(ha_checksum)-1)));
+      MY_TEST(crc & (((ha_checksum) 1) << (8 * sizeof(ha_checksum) - 1)));
   return crc;
 }
 

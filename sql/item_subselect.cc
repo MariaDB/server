@@ -3399,7 +3399,7 @@ bool subselect_union_engine::is_executed() const
 bool subselect_union_engine::no_rows()
 {
   /* Check if we got any rows when reading UNION result from temp. table: */
-  return test(!unit->fake_select_lex->join->send_records);
+  return MY_TEST(!unit->fake_select_lex->join->send_records);
 }
 
 
@@ -5241,8 +5241,8 @@ int subselect_hash_sj_engine::exec()
   /* The subquery should be optimized, and materialized only once. */
   DBUG_ASSERT(materialize_join->optimized && !is_materialized);
   materialize_join->exec();
-  if ((res= test(materialize_join->error || thd->is_fatal_error ||
-                 thd->is_error())))
+  if ((res= MY_TEST(materialize_join->error || thd->is_fatal_error ||
+                    thd->is_error())))
     goto err;
 
   /*
@@ -5325,7 +5325,7 @@ int subselect_hash_sj_engine::exec()
       count_pm_keys= count_partial_match_columns - count_null_only_columns +
                      (nn_key_parts ? 1 : 0);
 
-    choose_partial_match_strategy(test(nn_key_parts),
+    choose_partial_match_strategy(MY_TEST(nn_key_parts),
                                   has_covering_null_row,
                                   &partial_match_key_parts);
     DBUG_ASSERT(strategy == PARTIAL_MATCH_MERGE ||
@@ -6300,7 +6300,7 @@ bool subselect_rowid_merge_engine::partial_match()
     Do not add the non_null_key, since it was already processed above.
   */
   bitmap_clear_all(&matching_outer_cols);
-  for (uint i= test(non_null_key); i < merge_keys_count; i++)
+  for (uint i= MY_TEST(non_null_key); i < merge_keys_count; i++)
   {
     DBUG_ASSERT(merge_keys[i]->get_column_count() == 1);
     if (merge_keys[i]->get_search_key(0)->null_value)
@@ -6317,7 +6317,7 @@ bool subselect_rowid_merge_engine::partial_match()
     nullable columns (above we guarantee there is a match for the non-null
     coumns), the result is UNKNOWN.
   */
-  if (count_nulls_in_search_key == merge_keys_count - test(non_null_key))
+  if (count_nulls_in_search_key == merge_keys_count - MY_TEST(non_null_key))
   {
     res= TRUE;
     goto end;

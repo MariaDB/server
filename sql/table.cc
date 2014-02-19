@@ -819,8 +819,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
                                          keyinfo->comment.length);
       strpos+= keyinfo->comment.length;
     } 
-    DBUG_ASSERT(test(keyinfo->flags & HA_USES_COMMENT) == 
-               (keyinfo->comment.length > 0));
+    DBUG_ASSERT(MY_TEST(keyinfo->flags & HA_USES_COMMENT) ==
+                (keyinfo->comment.length > 0));
   }
 
   share->keys= keys; // do it *after* all key_info's are initialized
@@ -2889,9 +2889,9 @@ partititon_err:
   else if (outparam->file)
   {
     handler::Table_flags flags= outparam->file->ha_table_flags();
-    outparam->no_replicate= ! test(flags & (HA_BINLOG_STMT_CAPABLE
-                                            | HA_BINLOG_ROW_CAPABLE))
-                            || test(flags & HA_HAS_OWN_BINLOGGING);
+    outparam->no_replicate= ! MY_TEST(flags & (HA_BINLOG_STMT_CAPABLE
+                                               | HA_BINLOG_ROW_CAPABLE))
+                            || MY_TEST(flags & HA_HAS_OWN_BINLOGGING);
   }
   else
   {
@@ -3253,7 +3253,7 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   /* header */
   fileinfo[0]=(uchar) 254;
   fileinfo[1]= 1;
-  fileinfo[2]= FRM_VER+3+ test(create_info->varchar);
+  fileinfo[2]= FRM_VER + 3 + MY_TEST(create_info->varchar);
 
   fileinfo[3]= (uchar) ha_legacy_type(
         ha_checktype(thd,ha_legacy_type(create_info->db_type),0,0));
@@ -3272,8 +3272,8 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   */
   for (i= 0; i < keys; i++)
   {
-    DBUG_ASSERT(test(key_info[i].flags & HA_USES_COMMENT) == 
-               (key_info[i].comment.length > 0));
+    DBUG_ASSERT(MY_TEST(key_info[i].flags & HA_USES_COMMENT) ==
+                (key_info[i].comment.length > 0));
     if (key_info[i].flags & HA_USES_COMMENT)
       key_comment_total_bytes += 2 + key_info[i].comment.length;
   }
@@ -6183,9 +6183,9 @@ bool TABLE::is_filled_at_execution()
     do not have a corresponding table reference. Such tables are filled
     during execution.
   */
-  return test(!pos_in_table_list ||
-              pos_in_table_list->jtbm_subselect || 
-              pos_in_table_list->is_active_sjm());
+  return MY_TEST(!pos_in_table_list ||
+                 pos_in_table_list->jtbm_subselect ||
+                 pos_in_table_list->is_active_sjm());
 }
 
 

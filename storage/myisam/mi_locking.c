@@ -646,7 +646,7 @@ int _mi_decrement_open_count(MI_INFO *info)
     if (!lock_error && !my_disable_locking)
       lock_error=mi_lock_database(info,old_lock);
   }
-  return test(lock_error || write_error);
+  return MY_TEST(lock_error || write_error);
 }
 
 

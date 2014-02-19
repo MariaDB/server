@@ -749,7 +749,7 @@ static void print_set_option(IO_CACHE* file, uint32 bits_changed,
   {
     if (*need_comma)
       my_b_write(file, ", ", 2);
-    my_b_printf(file,"%s=%d", name, test(flags & option));
+    my_b_printf(file, "%s=%d", name, MY_TEST(flags & option));
     *need_comma= 1;
   }
 }
@@ -1089,7 +1089,7 @@ my_bool Log_event::need_checksum()
         (checksum_alg != BINLOG_CHECKSUM_ALG_OFF) :
         ((binlog_checksum_options != BINLOG_CHECKSUM_ALG_OFF) &&
          (cache_type == Log_event::EVENT_NO_CACHE)) ?
-        test(binlog_checksum_options) : FALSE);
+        MY_TEST(binlog_checksum_options) : FALSE);
 
   /*
     FD calls the methods before data_written has been calculated.
