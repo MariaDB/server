@@ -90,7 +90,7 @@ PATENT RIGHTS GRANT:
 #ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 #if TOKU_INCLUDE_ALTER_56
 
-#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
+#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 101099
 #define TOKU_ALTER_RENAME ALTER_RENAME
 #elif 50600 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699
 #define TOKU_ALTER_RENAME ALTER_RENAME
