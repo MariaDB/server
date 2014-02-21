@@ -6206,9 +6206,10 @@ os_file_trim(
 
 #define SECT_SIZE 512
 	size_t trim_len = UNIV_PAGE_SIZE - len;
-	// len here should be alligned to sector size
-	ut_a(trim_len == ((trim_len + SECT_SIZE-1) & ~(SECT_SIZE-1)));
 	os_offset_t off = slot->offset + len;
+	// len here should be alligned to sector size
+	ut_a((trim_len % SECT_SIZE) == 0);
+	ut_a((len % SECT_SIZE) == 0);
 
 	// Nothing to do if trim length is zero or if actual write
 	// size is initialized and it is smaller than current write size.

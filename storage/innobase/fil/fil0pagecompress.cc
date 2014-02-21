@@ -188,9 +188,13 @@ fil_compress_page(
 #endif /* UNIV_DEBUG */
 
 	write_size+=header_len;
+
+#define SECT_SIZE 512
+
 	/* Actual write needs to be alligned on block size */
-	if (write_size % OS_FILE_LOG_BLOCK_SIZE) {
-		write_size = (write_size + (OS_FILE_LOG_BLOCK_SIZE - (write_size % OS_FILE_LOG_BLOCK_SIZE)));
+	if (write_size % SECT_SIZE) {
+		write_size = (write_size + SECT_SIZE-1) & ~(SECT_SIZE-1);
+		ut_a((write_size % SECT_SIZE) == 0);
 	}
 
 #ifdef UNIV_DEBUG
@@ -199,7 +203,6 @@ fil_compress_page(
 		space_id, fil_space_name(space), len, write_size);
 #endif
 
-#define SECT_SIZE 512
 
 	srv_stats.page_compression_saved.add((len - write_size));
 	if ((len - write_size) > 0) {
