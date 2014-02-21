@@ -6239,7 +6239,6 @@ os_file_trim(
 
 #ifdef __linux__
 #if defined(FALLOC_FL_PUNCH_HOLE) && defined (FALLOC_FL_KEEP_SIZE)
-	trim_len = (trim_len & ~(SECT_SIZE - 1)) + SECT_SIZE;
 	int ret = fallocate(file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, trim_len);
 
 	if (ret) {
