@@ -2369,6 +2369,8 @@ retry_share:
   {
     if (share->tdc.flushed)
     {
+      DBUG_PRINT("info", ("Found old share version: %lu  current: %lu",
+                          share->tdc.version, tdc_refresh_version()));
       /*
         We already have an MDL lock. But we have encountered an old
         version of table in the table definition cache which is possible
