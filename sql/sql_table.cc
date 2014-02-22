@@ -5096,6 +5096,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   bool is_trans= FALSE;
   bool do_logging= FALSE;
   uint not_used;
+  int create_res;
   DBUG_ENTER("mysql_create_like_table");
 
   /*
@@ -5171,9 +5172,10 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   if ((local_create_info.table= thd->lex->query_tables->table))
     pos_in_locked_tables= local_create_info.table->pos_in_locked_tables;    
 
-  res= (mysql_create_table_no_lock(thd, table->db, table->table_name,
-                                   &local_create_info, &local_alter_info,
-                                   &is_trans, C_ORDINARY_CREATE) > 0);
+  res= ((create_res=
+         mysql_create_table_no_lock(thd, table->db, table->table_name,
+                                    &local_create_info, &local_alter_info,
+                                    &is_trans, C_ORDINARY_CREATE)) > 0);
   /* Remember to log if we deleted something */
   do_logging= thd->log_current_statement;
   if (res)
@@ -5232,7 +5234,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
            Case    Target    Source Write to binary log
            ==== ========= ========= ==============================
            1       normal    normal Original statement
-           2       normal temporary Generated statement
+           2       normal temporary Generated statement if the table
+                                    was created.
            3    temporary    normal Nothing
            4    temporary temporary Nothing
            ==== ========= ========= ==============================
@@ -5247,39 +5250,39 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
         Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
         bool new_table= FALSE; // Whether newly created table is open.
 
-        /*
-          The condition avoids a crash as described in BUG#48506. Other
-          binlogging problems related to CREATE TABLE IF NOT EXISTS LIKE
-          when the existing object is a view will be solved by BUG 47442.
-        */
-        if (!table->view)
+        if (create_res != 0)
         {
-          if (!table->table)
-          {
-            TABLE_LIST::enum_open_strategy save_open_strategy;
-            int open_res;
-            /* Force the newly created table to be opened */
-            save_open_strategy= table->open_strategy;
-            table->open_strategy= TABLE_LIST::OPEN_NORMAL;
+          /*
+            Table or view with same name already existed and we where using
+            IF EXISTS. Continue without logging anything.
+          */
+          goto err;
+        }
+        if (!table->table)
+        {
+          TABLE_LIST::enum_open_strategy save_open_strategy;
+          int open_res;
+          /* Force the newly created table to be opened */
+          save_open_strategy= table->open_strategy;
+          table->open_strategy= TABLE_LIST::OPEN_NORMAL;
 
-            /*
-              In order for store_create_info() to work we need to open
-              destination table if it is not already open (i.e. if it
-              has not existed before). We don't need acquire metadata
-              lock in order to do this as we already hold exclusive
-              lock on this table. The table will be closed by
-              close_thread_table() at the end of this branch.
-            */
-            open_res= open_table(thd, table, thd->mem_root, &ot_ctx);
-            /* Restore */
-            table->open_strategy= save_open_strategy;
-            if (open_res)
-            {
-              res= 1;
-              goto err;
-            }
-            new_table= TRUE;
+          /*
+            In order for store_create_info() to work we need to open
+            destination table if it is not already open (i.e. if it
+            has not existed before). We don't need acquire metadata
+            lock in order to do this as we already hold exclusive
+            lock on this table. The table will be closed by
+            close_thread_table() at the end of this branch.
+          */
+          open_res= open_table(thd, table, thd->mem_root, &ot_ctx);
+          /* Restore */
+          table->open_strategy= save_open_strategy;
+          if (open_res)
+          {
+            res= 1;
+            goto err;
           }
+          new_table= TRUE;
         }
         /*
           We have to re-test if the table was a view as the view may not
