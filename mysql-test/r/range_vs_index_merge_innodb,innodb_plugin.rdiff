@@ -1,5 +1,5 @@
---- ./r/range_vs_index_merge_innodb.result	2012-11-21 19:35:14.000000000 +0100
-+++ ./r/range_vs_index_merge_innodb,innodb_plugin.reject	2012-11-21 20:56:00.000000000 +0100
+--- ./r/range_vs_index_merge_innodb.result	2014-02-24 23:52:36.050552475 +0400
++++ ./r/range_vs_index_merge_innodb,innodb_plugin.reject	2014-02-24 23:55:59.338560727 +0400
 @@ -50,14 +50,14 @@
  WHERE (Population >= 100000 OR Name LIKE 'P%') AND Country='CAN' OR
  (Population < 100000 OR Name Like 'T%') AND Country='ARG';
@@ -222,10 +222,10 @@
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 -1	SIMPLE	City	range	Name	Name	35	NULL	71	Using index condition
 +1	SIMPLE	City	range	Name	Name	35	NULL	71	Using where
+ set @tmp_range_vs_index_merge=@@optimizer_switch;
+ set optimizer_switch='extended_keys=off';
  EXPLAIN
- SELECT * FROM City
- WHERE ((Population > 101000 AND Population < 102000) OR
-@@ -818,7 +818,7 @@
+@@ -820,7 +820,7 @@
  ID BETWEEN 3500 AND 3800) AND Country='FIN'
          AND (Name BETWEEN 'P' AND 'T' OR ID BETWEEN 4000 AND 4300);
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -234,7 +234,7 @@
  SELECT * FROM City USE INDEX ()
  WHERE ((Population > 101000 AND Population < 102000) OR
  ID BETWEEN 3790 AND 3800) AND Country='USA'
-@@ -950,14 +950,14 @@
+@@ -952,14 +952,14 @@
  ID BETWEEN 3500 AND 3800) AND Country='USA'
          AND (Name LIKE 'P%' OR ID BETWEEN 4000 AND 4300);
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -251,7 +251,7 @@
  SELECT * FROM City USE INDEX ()
  WHERE ((Population > 101000 AND Population < 11000) OR
  ID BETWEEN 3500 AND 3800) AND Country='USA'
-@@ -1077,7 +1077,7 @@
+@@ -1080,7 +1080,7 @@
  (Name='Samara' AND Country='RUS') OR  
  (Name='Seattle' AND Country='USA');
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -260,7 +260,7 @@
  SELECT Name, Country, Population FROM City WHERE
  (Name='Manila' AND Country='PHL') OR
  (Name='Addis Abeba' AND Country='ETH') OR          
-@@ -1164,7 +1164,7 @@
+@@ -1167,7 +1167,7 @@
  (Name='Samara' AND Country='RUS') OR  
  (Name='Seattle' AND Country='USA');
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -269,7 +269,7 @@
  SELECT Name, Country, Population FROM City WHERE
  (Name='Manila' AND Country='PHL') OR
  (Name='Addis Abeba' AND Country='ETH') OR          
-@@ -1346,7 +1346,7 @@
+@@ -1349,7 +1349,7 @@
  AND (Population >= 100000 AND Population < 120000)
  ORDER BY Population LIMIT 5;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
