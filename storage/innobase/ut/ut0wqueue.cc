@@ -162,6 +162,38 @@ ib_wqueue_timedwait(
 }
 
 /********************************************************************
+Return first item on work queue or NULL if queue is empty
+@return work item or NULL */
+void*
+ib_wqueue_nowait(
+/*=============*/
+	ib_wqueue_t*	wq)		/*<! in: work queue */
+{
+	ib_list_node_t*	node = NULL;
+
+	mutex_enter(&wq->mutex);
+
+	if(!ib_list_is_empty(wq->items)) {
+		node = ib_list_get_first(wq->items);
+
+		if (node) {
+			ib_list_remove(wq->items, node);
+
+		}
+	}
+
+	/* We must reset the event when the list
+	gets emptied. */
+	if(ib_list_is_empty(wq->items)) {
+		os_event_reset(wq->event);
+	}
+
+	mutex_exit(&wq->mutex);
+
+	return (node ? node->data : NULL);
+}
+
+/********************************************************************
 Check if queue is empty. */
 
 ibool
