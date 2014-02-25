@@ -19,6 +19,7 @@
 
 #include "my_global.h"                          /* my_bool */
 #include "my_sys.h"                             // pthread_mutex_t
+#include "m_string.h"                           // LEX_CUSTRING
 
 class Alter_info;
 class Create_field;

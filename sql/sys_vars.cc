@@ -4327,7 +4327,7 @@ static Sys_var_ulong Sys_progress_report_time(
        "Seconds between sending progress reports to the client for "
        "time-consuming statements. Set to 0 to disable progress reporting.",
        SESSION_VAR(progress_report_time), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(56), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX), DEFAULT(5), BLOCK_SIZE(1));
 
 const char *use_stat_tables_modes[] =
            {"NEVER", "COMPLEMENTARY", "PREFERABLY", 0};

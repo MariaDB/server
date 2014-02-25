@@ -2716,7 +2716,8 @@ int ha_federatedx::read_range_next()
 int ha_federatedx::index_next(uchar *buf)
 {
   DBUG_ENTER("ha_federatedx::index_next");
-  DBUG_RETURN(read_next(buf, stored_result));
+  int retval=read_next(buf, stored_result);
+  DBUG_RETURN(retval);
 }
 
 
@@ -2871,7 +2872,8 @@ int ha_federatedx::rnd_next(uchar *buf)
     */
     DBUG_RETURN(1);
   }
-  DBUG_RETURN(read_next(buf, stored_result));
+  int retval=read_next(buf, stored_result);
+  DBUG_RETURN(retval);
 }
 
 
@@ -2942,10 +2944,11 @@ void ha_federatedx::position(const uchar *record __attribute__ ((unused)))
 {
   DBUG_ENTER("ha_federatedx::position");
 
-  bzero(ref, ref_length);
-
   if (!stored_result)
+  {
+    bzero(ref, ref_length);
     DBUG_VOID_RETURN;
+  }
 
   if (txn->acquire(share, TRUE, &io))
     DBUG_VOID_RETURN;

@@ -5283,6 +5283,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
         if (!(*join_where)->fixed)
           (*join_where)->fix_fields(join->thd, join_where);
       }
+      table->table->maybe_null= test(join->mixed_implicit_grouping);
     }
 
     if ((nested_join= table->nested_join))
@@ -5313,9 +5314,9 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
   through Item::cleanup() calls).
 */
 
-void cleanup_empty_jtbm_semi_joins(JOIN *join)
+void cleanup_empty_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list)
 {
-  List_iterator<TABLE_LIST> li(*join->join_list);
+  List_iterator<TABLE_LIST> li(*join_list);
   TABLE_LIST *table;
   while ((table= li++))
   {
@@ -5326,6 +5327,10 @@ void cleanup_empty_jtbm_semi_joins(JOIN *join)
         free_tmp_table(join->thd, table->table);
         table->table= NULL;
       }
+    }
+    else if (table->nested_join && table->sj_subq_pred)
+    {
+      cleanup_empty_jtbm_semi_joins(join, &table->nested_join->join_list);
     }
   }
 }
