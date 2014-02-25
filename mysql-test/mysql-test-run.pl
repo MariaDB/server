@@ -4812,6 +4812,10 @@ sub extract_warning_lines ($$) {
      qr|feedback plugin: failed to retrieve the MAC address|,
      qr|Plugin 'FEEDBACK' init function returned error|,
      qr|Plugin 'FEEDBACK' registration as a INFORMATION SCHEMA failed|,
+
+     # Galera-related warnings.
+     qr|WSREP:.*down context.*|,
+     qr|WSREP: Failed to send state UUID:.*|,
     );
 
   my $matched_lines= [];

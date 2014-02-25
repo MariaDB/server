@@ -224,6 +224,14 @@ INSERT INTO global_suppressions VALUES
  ("Slave I/O: The slave I/O thread stops because a fatal error is encountered when it tried to SET @master_binlog_checksum on master.*"),
  ("Slave I/O: Get master BINLOG_CHECKSUM failed with error.*"),
  ("Slave I/O: Notifying master by SET @master_binlog_checksum= @@global.binlog_checksum failed with error.*"),
+
+ /*
+   Galera-related warnings.
+ */
+ ("WSREP: Could not open saved state file for reading: .*"),
+ ("WSREP: last inactive check more than .* skipping check"),
+ ("WSREP: Gap in state sequence. Need state transfer."),
+ ("WSREP: Failed to prepare for incremental state transfer: .*"),
  ("THE_LAST_SUPPRESSION")||
 
 
