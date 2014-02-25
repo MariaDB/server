@@ -1677,17 +1677,28 @@ bool Item_name_const::is_null()
 Item_name_const::Item_name_const(Item *name_arg, Item *val):
     value_item(val), name_item(name_arg)
 {
-  if (!(valid_args= name_item->basic_const_item() &&
-                    (value_item->basic_const_item() ||
-                     ((value_item->type() == FUNC_ITEM) &&
-                      ((((Item_func *) value_item)->functype() ==
-                         Item_func::COLLATE_FUNC) ||
-                      ((((Item_func *) value_item)->functype() ==
-                         Item_func::NEG_FUNC) &&
-                      (((Item_func *) value_item)->key_item()->type() !=
-                         FUNC_ITEM)))))))
-    my_error(ER_WRONG_ARGUMENTS, MYF(0), "NAME_CONST");
   Item::maybe_null= TRUE;
+  valid_args= true;
+  if (!name_item->basic_const_item())
+    goto err;
+
+  if (value_item->basic_const_item())
+    return; // ok
+
+  if (value_item->type() == FUNC_ITEM)
+  {
+    Item_func *value_func= (Item_func *) value_item;
+    if (value_func->functype() != Item_func::COLLATE_FUNC &&
+        value_func->functype() != Item_func::NEG_FUNC)
+      goto err;
+
+    if (value_func->key_item()->basic_const_item())
+      return; // ok
+  }
+
+err:
+  valid_args= false;
+  my_error(ER_WRONG_ARGUMENTS, MYF(0), "NAME_CONST");
 }
 
 
@@ -5230,8 +5241,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   if (any_privileges)
   {
     char *db, *tab;
-    db= cached_table->get_db_name();
-    tab= cached_table->get_table_name();
+    db=  field->table->s->db.str;
+    tab= field->table->s->table_name.str;
     if (!(have_privileges= (get_column_grant(thd, &field->table->grant,
                                              db, tab, field_name) &
                             VIEW_ANY_ACL)))
@@ -5252,7 +5263,12 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     marker= thd->lex->current_select->cur_pos_in_select_list;
   }
 mark_non_agg_field:
-  if (fixed && thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY)
+  /*
+    table->pos_in_table_list can be 0 when fixing partition functions
+    or virtual fields.
+  */
+  if (fixed && (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY) &&
+      field->table->pos_in_table_list)
   {
     /*
       Mark selects according to presence of non aggregated fields.
@@ -5265,7 +5281,7 @@ mark_non_agg_field:
       (the current level) or a stub added by non-SELECT queries.
     */
     SELECT_LEX *select_lex= cached_table ? 
-      cached_table->select_lex : context->select_lex;
+      cached_table->select_lex : field->table->pos_in_table_list->select_lex;
     if (!thd->lex->in_sum_func)
       select_lex->set_non_agg_field_used(true);
     else
@@ -8234,7 +8250,7 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 
       if (context->error_processor == &view_error_processor)
       {
-        TABLE_LIST *view= cached_table->top_table();
+        TABLE_LIST *view= field_arg->table->pos_in_table_list->top_table();
         push_warning_printf(field_arg->table->in_use,
                             MYSQL_ERROR::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_VIEW_FIELD,

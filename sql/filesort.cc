@@ -36,6 +36,7 @@
 #include "opt_range.h"                          // SQL_SELECT
 #include "log_slow.h"
 #include "debug_sync.h"
+#include "sql_base.h"
 
 /// How to write record_ref.
 #define WRITE_REF(file,from) \
@@ -332,6 +333,14 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   {
     int kill_errno= thd->killed_errno();
     DBUG_ASSERT(thd->is_error() || kill_errno || thd->killed == ABORT_QUERY);
+
+    /*
+      We replace the table->sort at the end.
+      Hence calling free_io_cache to make sure table->sort.io_cache
+      used for QUICK_INDEX_MERGE_SELECT is free.
+    */
+    free_io_cache(table);
+
     my_printf_error(ER_FILSORT_ABORT,
                     "%s: %s",
                     MYF(0),
@@ -356,6 +365,10 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
 #ifdef SKIP_DBUG_IN_FILESORT
   DBUG_POP();			/* Ok to DBUG */
 #endif
+
+  /* table->sort.io_cache should be free by this time */
+  DBUG_ASSERT(NULL == table->sort.io_cache);
+
   memcpy(&table->sort, &table_sort, sizeof(FILESORT_INFO));
   DBUG_PRINT("exit",("num_rows: %ld", (long) num_rows));
   MYSQL_FILESORT_DONE(error, num_rows);
@@ -411,6 +424,84 @@ static uchar *read_buffpek_from_file(IO_CACHE *buffpek_pointers, uint count,
 }
 
 #ifndef DBUG_OFF
+
+/* Buffer where record is returned */
+char dbug_print_row_buff[512];
+
+/* Temporary buffer for printing a column */
+char dbug_print_row_buff_tmp[512];
+
+/*
+  Print table's current row into a buffer and return a pointer to it.
+
+  This is intended to be used from gdb:
+  
+    (gdb) p dbug_print_table_row(table)
+      $33 = "SUBQUERY2_t1(col_int_key,col_varchar_nokey)=(7,c)"
+    (gdb)
+
+  Only columns in table->read_set are printed
+*/
+
+const char* dbug_print_table_row(TABLE *table)
+{
+  Field **pfield;
+  String tmp(dbug_print_row_buff_tmp,
+             sizeof(dbug_print_row_buff_tmp),&my_charset_bin);
+
+  String output(dbug_print_row_buff, sizeof(dbug_print_row_buff),
+                &my_charset_bin);
+
+  output.length(0);
+  output.append(table->alias);
+  output.append("(");
+  bool first= true;
+
+  for (pfield= table->field; *pfield ; pfield++)
+  {
+    if (table->read_set && !bitmap_is_set(table->read_set, (*pfield)->field_index))
+      continue;
+    
+    if (first)
+      first= false;
+    else
+      output.append(",");
+
+    output.append((*pfield)->field_name? (*pfield)->field_name: "NULL");
+  }
+
+  output.append(")=(");
+
+  first= true;
+  for (pfield= table->field; *pfield ; pfield++)
+  {
+    Field *field=  *pfield;
+
+    if (table->read_set && !bitmap_is_set(table->read_set, (*pfield)->field_index))
+      continue;
+
+    if (first)
+      first= false;
+    else
+      output.append(",");
+
+    if (field->is_null())
+      output.append("NULL");
+    else
+    {
+      if (field->type() == MYSQL_TYPE_BIT)
+        (void) field->val_int_as_str(&tmp, 1);
+      else
+        field->val_str(&tmp);
+      output.append(tmp.ptr(), tmp.length());
+    }
+  }
+  output.append(")");
+  
+  return output.c_ptr_safe();
+}
+
+
 /*
   Print a text, SQL-like record representation into dbug trace.
 
@@ -459,6 +550,7 @@ static void dbug_print_record(TABLE *table, bool print_rowid)
   fprintf(DBUG_FILE, "\n");
   DBUG_UNLOCK_FILE;
 }
+
 #endif 
 
 /**
@@ -565,6 +657,7 @@ static ha_rows find_all_keys(SORTPARAM *param, SQL_SELECT *select,
       DBUG_RETURN(HA_POS_ERROR);
   }
 
+  DEBUG_SYNC(thd, "after_index_merge_phase1");
   for (;;)
   {
     if (quick_select)
@@ -652,12 +745,17 @@ static ha_rows find_all_keys(SORTPARAM *param, SQL_SELECT *select,
       make_sortkey(param, next_sort_key, ref_pos);
       next_sort_key+= param->rec_length;
     }
-    else
-      file->unlock_row();
 
     /* It does not make sense to read more keys in case of a fatal error */
     if (thd->is_error())
       break;
+
+    /*
+      We need to this after checking the error as the transaction may have
+      rolled back in case of a deadlock
+    */
+    if (!write_record)
+      file->unlock_row();
   }
   if (!quick_select)
   {
@@ -802,8 +900,6 @@ static void make_sortkey(register SORTPARAM *param,
       {
         CHARSET_INFO *cs=item->collation.collation;
         char fill_char= ((cs->state & MY_CS_BINSORT) ? (char) 0 : ' ');
-        int diff;
-        uint sort_field_length;
 
         if (maybe_null)
           *to++=1;
@@ -831,25 +927,13 @@ static void make_sortkey(register SORTPARAM *param,
           break;
         }
         length= res->length();
-        sort_field_length= sort_field->length - sort_field->suffix_length;
-        diff=(int) (sort_field_length - length);
-        if (diff < 0)
-        {
-          diff=0;
-          length= sort_field_length;
-        }
-        if (sort_field->suffix_length)
-        {
-          /* Store length last in result_string */
-          store_length(to + sort_field_length, length,
-                       sort_field->suffix_length);
-        }
         if (sort_field->need_strxnfrm)
         {
           char *from=(char*) res->ptr();
           uint tmp_length __attribute__((unused));
           if ((uchar*) from == to)
           {
+            DBUG_ASSERT(sort_field->length >= length);
             set_if_smaller(length,sort_field->length);
             memcpy(param->tmp_buffer,from,length);
             from=param->tmp_buffer;
@@ -860,6 +944,22 @@ static void make_sortkey(register SORTPARAM *param,
         }
         else
         {
+          uint diff;
+          uint sort_field_length= sort_field->length -
+            sort_field->suffix_length;
+          if (sort_field_length < length)
+          {
+            diff= 0;
+            length= sort_field_length;
+          }
+          else
+            diff= sort_field_length - length;
+          if (sort_field->suffix_length)
+          {
+            /* Store length last in result_string */
+            store_length(to + sort_field_length, length,
+                         sort_field->suffix_length);
+          }
           my_strnxfrm(cs,(uchar*)to,length,(const uchar*)res->ptr(),length);
           cs->cset->fill(cs, (char *)to+length,diff,fill_char);
         }

@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2005, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab
+   Copyright (c) 2005, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1355,6 +1355,16 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
   {
     ret= 0;
     goto err;
+  }
+
+  if (plugin->plugin_dl && global_system_variables.log_warnings >= 9)
+  {
+    void *sym= dlsym(plugin->plugin_dl->handle,
+                     plugin->plugin_dl->mariaversion ?
+                       maria_plugin_declarations_sym : plugin_declarations_sym);
+    DBUG_ASSERT(sym);
+    sql_print_information("Plugin %s loaded at %p",
+                          plugin->name.str, sym);
   }
 
   if (plugin_type_initialize[plugin->plugin->type])

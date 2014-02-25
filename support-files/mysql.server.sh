@@ -148,72 +148,10 @@ parse_server_arguments() {
 		    datadir_set=1
 	;;
       --pid-file=*) mysqld_pid_file_path=`echo "$arg" | sed -e 's/^[^=]*=//'` ;;
+      --socket=*) socket=`echo "$arg" | sed -e 's/^[^=]*=//'` ;;
       --service-startup-timeout=*) service_startup_timeout=`echo "$arg" | sed -e 's/^[^=]*=//'` ;;
     esac
   done
-}
-
-wait_for_pid () {
-  verb="$1"           # created | removed
-  pid="$2"            # process ID of the program operating on the pid-file
-  pid_file_path="$3" # path to the PID file.
-
-  sst_progress_file=$datadir/sst_in_progress
-  i=0
-  avoid_race_condition="by checking again"
-
-  while test $i -ne $service_startup_timeout ; do
-
-    case "$verb" in
-      'created')
-        # wait for a PID-file to pop into existence.
-        test -s "$pid_file_path" && i='' && break
-        ;;
-      'removed')
-        # wait for this PID-file to disappear
-        test ! -s "$pid_file_path" && i='' && break
-        ;;
-      *)
-        echo "wait_for_pid () usage: wait_for_pid created|removed pid pid_file_path"
-        exit 1
-        ;;
-    esac
-
-    # if server isn't running, then pid-file will never be updated
-    if test -n "$pid"; then
-      if kill -0 "$pid" 2>/dev/null; then
-        :  # the server still runs
-      else
-        # The server may have exited between the last pid-file check and now.  
-        if test -n "$avoid_race_condition"; then
-          avoid_race_condition=""
-          continue  # Check again.
-        fi
-
-        # there's nothing that will affect the file.
-        log_failure_msg "The server quit without updating PID file ($pid_file_path)."
-        return 1  # not waiting any more.
-      fi
-    fi
-
-    if test -e $sst_progress_file && [ $startup_sleep -ne 10 ];then
-        echo $echo_n "SST in progress, setting sleep higher"
-        startup_sleep=10
-    fi
-
-    echo $echo_n ".$echo_c"
-    i=`expr $i + 1`
-    sleep $startup_sleep
-
-  done
-
-  if test -z "$i" ; then
-    log_success_msg
-    return 0
-  else
-    log_failure_msg
-    return 1
-  fi
 }
 
 # Get arguments from the my.cnf file,
@@ -273,6 +211,75 @@ fi
 
 parse_server_arguments `$print_defaults $extra_args mysqld server mysql_server mysql.server`
 
+# wait for the pid file to disappear
+wait_for_gone () {
+  pid="$1"           # process ID of the program operating on the pid-file
+  pid_file_path="$2" # path to the PID file.
+
+  i=0
+  crash_protection="by checking again"
+
+  while test $i -ne $service_startup_timeout ; do
+
+    if kill -0 "$pid" 2>/dev/null; then
+      :  # the server still runs
+    else
+      if test ! -s "$pid_file_path"; then
+        # no server process and no pid-file? great, we're done!
+        log_success_msg
+        return 0
+      fi
+
+      # pid-file exists, the server process doesn't.
+      # it must've crashed, and mysqld_safe will restart it
+      if test -n "$crash_protection"; then
+        crash_protection=""
+        sleep 5
+        continue  # Check again.
+      fi
+
+      # Cannot help it
+      log_failure_msg "The server quit without updating PID file ($pid_file_path)."
+      return 1  # not waiting any more.
+    fi
+
+    echo $echo_n ".$echo_c"
+    i=`expr $i + 1`
+    sleep 1
+
+  done
+
+  log_failure_msg
+  return 1
+}
+
+wait_for_ready () {
+
+  test -n "$socket" && sockopt="--socket=$socket"
+
+  sst_progress_file=$datadir/sst_in_progress
+  i=0
+  while test $i -ne $service_startup_timeout ; do
+
+    if $bindir/mysqladmin $sockopt ping >/dev/null 2>&1; then
+      log_success_msg
+      return 0
+    fi
+
+    if test -e $sst_progress_file && [ $startup_sleep -ne 10 ];then
+      echo $echo_n "SST in progress, setting sleep higher"
+      startup_sleep=10
+    fi
+
+    echo $echo_n ".$echo_c"
+    i=`expr $i + 1`
+    sleep $startup_sleep
+
+  done
+
+  log_failure_msg
+  return 1
+}
 #
 # Set pid file if not given
 #
@@ -299,7 +306,7 @@ case "$mode" in
       # Give extra arguments to mysqld with the my.cnf file. This script
       # may be overwritten at next upgrade.
       $bindir/mysqld_safe --datadir="$datadir" --pid-file="$mysqld_pid_file_path" $other_args >/dev/null 2>&1 &
-      wait_for_pid created "$!" "$mysqld_pid_file_path"; return_value=$?
+      wait_for_ready; return_value=$?
 
       # Make lock for RedHat / SuSE
       if test -w "$lockdir"
@@ -326,7 +333,7 @@ case "$mode" in
         echo $echo_n "Shutting down MySQL"
         kill $mysqld_pid
         # mysqld should remove the pid file when it exits, so wait for it.
-        wait_for_pid removed "$mysqld_pid" "$mysqld_pid_file_path"; return_value=$?
+        wait_for_gone $mysqld_pid "$mysqld_pid_file_path"; return_value=$?
       else
         log_failure_msg "MySQL server process #$mysqld_pid is not running!"
         rm "$mysqld_pid_file_path"
@@ -397,6 +404,33 @@ case "$mode" in
       fi
     fi
     ;;
+  'configtest')
+    # Safeguard (relative paths, core dumps..)
+    cd $basedir
+    echo $echo_n "Testing MySQL configuration syntax"
+    daemon=$bindir/mysqld
+    if test -x $libexecdir/mysqld
+    then
+      daemon=$libexecdir/mysqld
+    elif test -x $sbindir/mysqld
+    then
+      daemon=$sbindir/mysqld
+    elif test -x `which mysqld`
+    then
+      daemon=`which mysqld`
+    else
+      log_failure_msg "Unable to locate the mysqld binary!"
+      exit 1
+    fi
+    help_out=`$daemon --help 2>&1`; r=$?
+    if test "$r" != 0 ; then
+      log_failure_msg "$help_out"
+      log_failure_msg "There are syntax errors in the server configuration. Please fix them!"
+    else
+      log_success_msg "Syntax OK"
+    fi
+    exit $r
+    ;;
   'bootstrap')
       # Bootstrap the cluster, start the first node
       # that initiate the cluster
@@ -406,7 +440,7 @@ case "$mode" in
   *)
       # usage
       basename=`basename "$0"`
-      echo "Usage: $basename  {start|stop|restart|reload|force-reload|status|bootstrap}  [ MySQL server options ]"
+      echo "Usage: $basename  {start|stop|restart|reload|force-reload|status|configtest|bootstrap}  [ MySQL server options ]"
       exit 1
     ;;
 esac

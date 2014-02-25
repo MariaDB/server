@@ -1,4 +1,4 @@
-/* Copyright (c) 2004, 2011, Oracle and/or its affiliates.
+/* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -2350,7 +2350,6 @@ int ha_federated::delete_row(const uchar *buf)
   DBUG_RETURN(0);
 }
 
-
 /*
   Positions an index cursor to the index specified in the handle. Fetches the
   row if available. If the key value is null, begin at the first key of the
@@ -2745,7 +2744,8 @@ void ha_federated::position(const uchar *record __attribute__ ((unused)))
 {
   DBUG_ENTER("ha_federated::position");
   
-  DBUG_ASSERT(stored_result);
+  if (!stored_result)
+    DBUG_VOID_RETURN;
 
   position_called= TRUE;
   /* Store result set address. */

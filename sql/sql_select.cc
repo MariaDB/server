@@ -663,7 +663,7 @@ JOIN::prepare(Item ***rref_pointer_array,
     aggregate functions in the SELECT list is a MySQL exptenstion that
     is allowed only if the ONLY_FULL_GROUP_BY sql mode is not set.
   */
-  bool mixed_implicit_grouping= false;
+  mixed_implicit_grouping= false;
   if ((~thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY) &&
       select_lex->with_sum_func && !group_list)
   {
@@ -702,7 +702,7 @@ JOIN::prepare(Item ***rref_pointer_array,
       Note: this loop doesn't touch tables inside merged semi-joins, because
       subquery-to-semijoin conversion has not been done yet. This is intended.
     */
-    if (mixed_implicit_grouping)
+    if (mixed_implicit_grouping && tbl->table)
       tbl->table->maybe_null= 1;
   }
 
@@ -3214,13 +3214,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 #endif
 
     DBUG_EXECUTE_IF("bug11747970_raise_error",
-                    {
-                      if (!error)
-                      {
-                        my_error(ER_UNKNOWN_ERROR, MYF(0));
-                        goto error;
-                      }
-                    });
+                    { join->thd->killed= KILL_QUERY_HARD; });
     if (error)
     {
       table->file->print_error(error, MYF(0));
@@ -3609,7 +3603,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   join->impossible_where= false;
   if (conds && const_count)
   { 
+    conds->update_used_tables();
     conds= remove_eq_conds(join->thd, conds, &join->cond_value);
+    join->select_lex->where= conds;
     if (join->cond_value == Item::COND_FALSE)
     {
       join->impossible_where= true;
@@ -10848,7 +10844,7 @@ void JOIN::cleanup(bool full)
   }
   if (full)
   {
-    cleanup_empty_jtbm_semi_joins(this);
+    cleanup_empty_jtbm_semi_joins(this, join_list);
     /* 
       Ensure that the following delete_elements() would not be called
       twice for the same list.
@@ -20434,7 +20430,7 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
   if (!order_item->fixed &&
       (order_item->fix_fields(thd, order->item) ||
        (order_item= *order->item)->check_cols(1) ||
-       thd->is_fatal_error))
+       thd->is_error()))
     return TRUE; /* Wrong field. */
 
   uint el= all_fields.elements;
