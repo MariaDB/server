@@ -148,7 +148,7 @@ use dbt3_s001;
 set use_stat_tables='preferably';
 analyze table lineitem persistent for columns() indexes (i_l_receiptdate);
 set debug_sync='RESET';
-select * from mysql.index_stats where table_name='lineitem' order by index_name;
+select * from mysql.index_stats where table_name='lineitem' order by index_name, prefix_arity;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 dbt3_s001	lineitem	PRIMARY	1	4.0033
 dbt3_s001	lineitem	PRIMARY	2	1.0000
