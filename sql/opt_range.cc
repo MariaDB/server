@@ -10603,8 +10603,13 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
     if (param->table->field[fieldnr]->key_length() != kp->length)
       return FALSE;
   }
-
-  if (key_part == key_part_end)
+  
+  /*
+    If there are equalities for all key parts, it is a ROR scan. If there are
+    equalities all keyparts and even some of key parts from "Extended Key"
+    index suffix, it is a ROR-scan, too.
+  */
+  if (key_part >= key_part_end)
     return TRUE;
 
   key_part= table_key->key_part + nparts;
