@@ -782,6 +782,14 @@ The following options may be given as the first argument:
  is already the default.
  --slave-compressed-protocol 
  Use compression on master/slave protocol
+ --slave-domain-parallel-threads=# 
+ Maximum number of parallel threads to use on slave for
+ events in a single replication domain. When using
+ multiple domains, this can be used to limit a single
+ domain from grabbing all threads and thus stalling other
+ domains. The default of 0 means to allow a domain to grab
+ as many threads as it wants, up to the value of
+ slave_parallel_threads.
  --slave-exec-mode=name 
  Modes for how replication events should be executed.
  Legal values are STRICT (default) and IDEMPOTENT. In
@@ -1155,6 +1163,7 @@ skip-networking FALSE
 skip-show-database FALSE
 skip-slave-start FALSE
 slave-compressed-protocol FALSE
+slave-domain-parallel-threads 0
 slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
 slave-net-timeout 3600

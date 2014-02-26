@@ -177,6 +177,7 @@ extern ulong opt_binlog_rows_event_max_size;
 extern ulong rpl_recovery_rank, thread_cache_size;
 extern ulong stored_program_cache_size;
 extern ulong opt_slave_parallel_threads;
+extern ulong opt_slave_domain_parallel_threads;
 extern ulong opt_slave_parallel_max_queued;
 extern ulong opt_binlog_commit_wait_count;
 extern ulong opt_binlog_commit_wait_usec;
@@ -284,8 +285,9 @@ extern PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
   key_COND_wait_commit;
 extern PSI_cond_key key_RELAYLOG_COND_queue_busy;
 extern PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
-extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool,
-  key_COND_parallel_entry;
+extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_queue,
+  key_COND_rpl_thread_pool,
+  key_COND_parallel_entry, key_COND_group_commit_orderer;
 extern PSI_cond_key key_COND_wait_gtid;
 
 extern PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,

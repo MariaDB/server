@@ -546,6 +546,7 @@ ulong rpl_recovery_rank=0;
 ulong stored_program_cache_size= 0;
 
 ulong opt_slave_parallel_threads= 0;
+ulong opt_slave_domain_parallel_threads= 0;
 ulong opt_binlog_commit_wait_count= 0;
 ulong opt_binlog_commit_wait_usec= 0;
 ulong opt_slave_parallel_max_queued= 131072;
@@ -895,8 +896,10 @@ PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
   key_COND_wait_commit;
 PSI_cond_key key_RELAYLOG_COND_queue_busy;
 PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
-PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool,
-  key_COND_parallel_entry, key_COND_prepare_ordered;
+PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
+  key_COND_rpl_thread_pool,
+  key_COND_parallel_entry, key_COND_group_commit_orderer,
+  key_COND_prepare_ordered;
 PSI_cond_key key_COND_wait_gtid;
 
 static PSI_cond_info all_server_conds[]=
@@ -941,8 +944,10 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_thread_cache, "COND_thread_cache", PSI_FLAG_GLOBAL},
   { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL},
   { &key_COND_rpl_thread, "COND_rpl_thread", 0},
+  { &key_COND_rpl_thread_queue, "COND_rpl_thread_queue", 0},
   { &key_COND_rpl_thread_pool, "COND_rpl_thread_pool", 0},
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
+  { &key_COND_group_commit_orderer, "COND_group_commit_orderer", 0},
   { &key_COND_prepare_ordered, "COND_prepare_ordered", 0},
   { &key_COND_wait_gtid, "COND_wait_gtid", 0}
 };
