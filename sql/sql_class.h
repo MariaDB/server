@@ -1656,8 +1656,8 @@ struct wait_for_commit
 {
   /*
     The LOCK_wait_commit protects the fields subsequent_commits_list and
-    wakeup_subsequent_commits_running (for a waitee), and the flag
-    waiting_for_commit and associated COND_wait_commit (for a waiter).
+    wakeup_subsequent_commits_running (for a waitee), and the pointer
+    waiterr and associated COND_wait_commit (for a waiter).
   */
   mysql_mutex_t LOCK_wait_commit;
   mysql_cond_t COND_wait_commit;
@@ -1665,7 +1665,13 @@ struct wait_for_commit
   wait_for_commit *subsequent_commits_list;
   /* Link field for entries in subsequent_commits_list. */
   wait_for_commit *next_subsequent_commit;
-  /* Our waitee, if we did register_wait_for_prior_commit(), else NULL. */
+  /*
+    Our waitee, if we did register_wait_for_prior_commit(), and were not
+    yet woken up. Else NULL.
+
+    When this is cleared for wakeup, the COND_wait_commit condition is
+    signalled.
+  */
   wait_for_commit *waitee;
   /*
     Generic pointer for use by the transaction coordinator to optimise the
@@ -1676,12 +1682,6 @@ struct wait_for_commit
     used by another transaction coordinator for similar purposes.
   */
   void *opaque_pointer;
-  /*
-    The waiting_for_commit flag is cleared when a waiter has been woken
-    up. The COND_wait_commit condition is signalled when this has been
-    cleared.
-  */
-  bool waiting_for_commit;
   /* The wakeup error code from the waitee. 0 means no error. */
   int wakeup_error;
   /*
@@ -1697,10 +1697,14 @@ struct wait_for_commit
       Quick inline check, to avoid function call and locking in the common case
       where no wakeup is registered, or a registered wait was already signalled.
     */
-    if (waiting_for_commit)
+    if (waitee)
       return wait_for_prior_commit2(thd);
     else
+    {
+      if (wakeup_error)
+        my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
       return wakeup_error;
+    }
   }
   void wakeup_subsequent_commits(int wakeup_error)
   {
@@ -1721,7 +1725,7 @@ struct wait_for_commit
   }
   void unregister_wait_for_prior_commit()
   {
-    if (waiting_for_commit)
+    if (waitee)
       unregister_wait_for_prior_commit2();
   }
   /*
@@ -1741,7 +1745,7 @@ struct wait_for_commit
       }
       next_ptr_ptr= &cur->next_subsequent_commit;
     }
-    waiting_for_commit= false;
+    waitee= NULL;
   }
 
   void wakeup(int wakeup_error);
@@ -1752,6 +1756,7 @@ struct wait_for_commit
 
   wait_for_commit();
   ~wait_for_commit();
+  void reinit();
 };
 
 
