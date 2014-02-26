@@ -56,13 +56,14 @@ Modified 06/02/2014 Jan Lindström jan.lindstrom@skysql.com
 
 /* Work item status */
 typedef enum wrk_status {
-	WRK_ITEM_SET=0,		/*!< Work item is set */
+	WRK_ITEM_UNSET=0,	/*!< Work item is not set */
 	WRK_ITEM_START=1,	/*!< Processing of work item has started */
 	WRK_ITEM_DONE=2,	/*!< Processing is done usually set to
 				SUCCESS/FAILED */
 	WRK_ITEM_SUCCESS=2,	/*!< Work item successfully processed */
 	WRK_ITEM_FAILED=3,	/*!< Work item process failed */
 	WRK_ITEM_EXIT=4,	/*!< Exiting */
+	WRK_ITEM_SET=5,		/*!< Work item is set */
 	WRK_ITEM_STATUS_UNDEFINED
 } wrk_status_t;
 
@@ -181,9 +182,7 @@ buf_mtflu_flush_pool_instance(
 		pools based on the assumption that it will
 		help in the retry which will follow the
 		failure. */
-#ifdef UNIV_DEBUG
-		fprintf(stderr, "flush start failed.\n");
-#endif
+		fprintf(stderr, "InnoDB: Note: buf flush start failed there is already active flush for this buffer pool.\n");
 		return 0;
 	}
 
@@ -262,12 +261,10 @@ mtflush_service_io(
         return;
 
 	case MT_WRK_WRITE:
+		ut_a(work_item->wi_status == WRK_ITEM_SET);
 		work_item->wi_status = WRK_ITEM_START;
 		/* Process work item */
 		if (0 == (n_flushed = buf_mtflu_flush_pool_instance(work_item))) {
-#ifdef UNIV_DEBUG
-			fprintf(stderr, "No pages flushed\n");
-#endif
 			work_item->wi_status = WRK_ITEM_FAILED;
 		}
 		work_item->wi_status = WRK_ITEM_SUCCESS;
@@ -346,7 +343,7 @@ buf_mtflu_io_thread_exit(void)
 {
 	long i;
 	thread_sync_t* mtflush_io = mtflush_ctx;
-	wrk_t* work_item;
+	wrk_t* work_item = NULL;
 
 	ut_a(mtflush_io != NULL);
 
@@ -384,7 +381,7 @@ buf_mtflu_io_thread_exit(void)
 
 	/* Collect all work done items */
 	for (i=0; i < srv_mtflush_threads;) {
-		wrk_t* work_item;
+		wrk_t* work_item = NULL;
 
 		work_item = (wrk_t *)ib_wqueue_timedwait(mtflush_io->wr_cq, MT_WAIT_IN_USECS);
 
@@ -487,9 +484,8 @@ buf_mtflu_flush_work_items(
 					number does not exceed min_n) */
 {
 	ulint n_flushed=0, i;
-	wrk_t *done_wi;
 	mem_heap_t* work_heap;
-	wrk_t* work_item;
+	wrk_t* work_item=NULL;
 
 	/* Allocate heap where all work items used and queue
 	node items areallocated */
@@ -514,6 +510,7 @@ buf_mtflu_flush_work_items(
 
 	/* wait on the completion to arrive */
    	for(i=0; i< buf_pool_inst;) {
+		wrk_t *done_wi = NULL;
 		done_wi = (wrk_t *)ib_wqueue_wait(mtflush_ctx->wr_cq);
 
 		if (done_wi != NULL) {
