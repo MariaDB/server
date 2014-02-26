@@ -709,8 +709,12 @@ public:
   /* Function returns 1 on overflow and -1 on fatal errors */
   int save_in_field_no_warnings(Field *field, bool no_conversions);
   virtual int save_in_field(Field *field, bool no_conversions);
-  virtual void save_org_in_field(Field *field)
+  virtual void save_org_in_field(Field *field,
+                                 fast_field_copier data
+                                 __attribute__ ((__unused__)))
   { (void) save_in_field(field, 1); }
+  virtual fast_field_copier setup_fast_field_copier(Field *field)
+  { return NULL; }
   virtual int save_safe_in_field(Field *field)
   { return save_in_field(field, 1); }
   virtual bool send(Protocol *protocol, String *str);
@@ -946,7 +950,7 @@ public:
     save_val() is method of val_* family which stores value in the given
     field.
   */
-  virtual void save_val(Field *to) { save_org_in_field(to); }
+  virtual void save_val(Field *to) { save_org_in_field(to, NULL); }
   /*
     save_result() is method of val*result() family which stores value in
     the given field.
@@ -2070,7 +2074,8 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   void make_field(Send_field *tmp_field);
   int save_in_field(Field *field,bool no_conversions);
-  void save_org_in_field(Field *field);
+  void save_org_in_field(Field *field, fast_field_copier optimizer_data);
+  fast_field_copier setup_fast_field_copier(Field *field);
   table_map used_tables() const;
   table_map all_used_tables() const; 
   enum Item_result result_type () const
@@ -3099,7 +3104,9 @@ public:
   bool fix_fields(THD *, Item **);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   int save_in_field(Field *field, bool no_conversions);
-  void save_org_in_field(Field *field);
+  void save_org_in_field(Field *field, fast_field_copier optimizer_data);
+  fast_field_copier setup_fast_field_copier(Field *field)
+  { return (*ref)->setup_fast_field_copier(field); }
   enum Item_result result_type () const { return (*ref)->result_type(); }
   enum_field_types field_type() const   { return (*ref)->field_type(); }
   Field *get_tmp_table_field()
@@ -3328,7 +3335,8 @@ public:
   bool is_null();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool send(Protocol *protocol, String *buffer);
-  void save_org_in_field(Field *field)
+  void save_org_in_field(Field *field,
+                         fast_field_copier data __attribute__ ((__unused__)))
   {
     save_val(field);
   }
@@ -3525,7 +3533,8 @@ public:
     return Item_direct_ref::get_date(ltime, fuzzydate);
   }
   bool send(Protocol *protocol, String *buffer);
-  void save_org_in_field(Field *field)
+  void save_org_in_field(Field *field,
+                         fast_field_copier data __attribute__ ((__unused__)))
   {
     if (check_null_ref())
       field->set_null();
@@ -3591,7 +3600,7 @@ public:
   {}
   void save_in_result_field(bool no_conversions)
   {
-    outer_ref->save_org_in_field(result_field);
+    outer_ref->save_org_in_field(result_field, NULL);
   }
   bool fix_fields(THD *, Item **);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);

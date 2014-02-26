@@ -18804,7 +18804,16 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   for (group=table->group ; group ; group=group->next)
   {
     Item *item= *group->item;
-    item->save_org_in_field(group->field);
+    if (group->fast_field_copier_setup != group->field)
+    {
+      DBUG_PRINT("info", ("new setup 0x%lx -> 0x%lx",
+                          (ulong)group->fast_field_copier_setup,
+                          (ulong)group->field));
+      group->fast_field_copier_setup= group->field;
+      group->fast_field_copier_func=
+        item->setup_fast_field_copier(group->field);
+    }
+    item->save_org_in_field(group->field, group->fast_field_copier_func);
     /* Store in the used key if the field was 0 */
     if (item->maybe_null)
       group->buff[-1]= (char) group->field->is_null();

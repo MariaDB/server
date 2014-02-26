@@ -75,6 +75,8 @@ struct ha_field_option_struct;
 
 struct st_cache_field;
 int field_conv(Field *to,Field *from);
+int field_conv_incompatible(Field *to,Field *from);
+bool memcpy_field_possible(Field *to, Field *from);
 int truncate_double(double *nr, uint field_length, uint dec,
                     bool unsigned_flag, double max_value);
 longlong double_to_longlong(double nr, bool unsigned_flag, bool *error);
@@ -2463,7 +2465,7 @@ public:
   uint max_packed_col_length(uint max_length);
   void free() { value.free(); }
   inline void clear_temporary() { bzero((uchar*) &value,sizeof(value)); }
-  friend int field_conv(Field *to,Field *from);
+  friend int field_conv_incompatible(Field *to,Field *from);
   uint size_of() const { return sizeof(*this); }
   bool has_charset(void) const
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
