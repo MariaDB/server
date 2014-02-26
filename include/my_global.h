@@ -1214,11 +1214,4 @@ static inline double rint(double x)
 #define HAVE_EXTERNAL_CLIENT
 #endif /* EMBEDDED_LIBRARY */
 
-/*
-  Define default tmpdir if not already set.
-*/
-#if !defined(DEFAULT_TMPDIR)
-#define DEFAULT_TMPDIR P_tmpdir
-#endif
-
 #endif /* my_global_h */

@@ -1166,6 +1166,23 @@ SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE SQL_MODE != '';
 TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_MANIPULATION	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	ACTION_ORDER	ACTION_CONDITION	ACTION_STATEMENT	ACTION_ORIENTATION	ACTION_TIMING	ACTION_REFERENCE_OLD_TABLE	ACTION_REFERENCE_NEW_TABLE	ACTION_REFERENCE_OLD_ROW	ACTION_REFERENCE_NEW_ROW	CREATED	SQL_MODE	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 #
+# Bug mdev-5630: always true conjunctive condition   
+#                when optimizer_use_condition_selectivity=3
+#
+set use_stat_tables = 'preferably';
+set optimizer_use_condition_selectivity = 3;
+CREATE TABLE t1 (a int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (10);
+CREATE TABLE t2 (id int, flag char(1), INDEX(id)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (100,'0'),(101,'1');
+ANALYZE TABLE t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+test.t2	analyze	status	OK
+SELECT * FROM t1, t2 WHERE id = a AND ( a = 16 OR flag AND a != 6 );
+a	id	flag
+DROP TABLE t1,t2;
+#
 # Bug mdev-4429: join with  range condition whose selectivity == 0   
 #                when optimizer_use_condition_selectivity=3
 #

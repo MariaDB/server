@@ -8015,8 +8015,8 @@ retest:
       /* wait time or next goal */
       set_timespec_nsec(abstime, flush_interval - time_spent);
       mysql_cond_timedwait(&log_descriptor.new_goal_cond,
-                             &log_descriptor.log_flush_lock,
-                             &abstime);
+                           &log_descriptor.log_flush_lock,
+                           &abstime);
       mysql_mutex_unlock(&log_descriptor.log_flush_lock);
       DBUG_PRINT("info", ("retest conditions"));
       goto retest;
