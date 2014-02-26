@@ -1609,6 +1609,49 @@ static Sys_var_ulong Sys_slave_parallel_threads(
        ON_UPDATE(fix_slave_parallel_threads));
 
 
+static bool
+check_slave_domain_parallel_threads(sys_var *self, THD *thd, set_var *var)
+{
+  bool running;
+
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running)
+    return true;
+
+  return false;
+}
+
+static bool
+fix_slave_domain_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
+{
+  bool running;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
+  return running ? true : false;
+}
+
+
+static Sys_var_ulong Sys_slave_domain_parallel_threads(
+       "slave_domain_parallel_threads",
+       "Maximum number of parallel threads to use on slave for events in a "
+       "single replication domain. When using multiple domains, this can be "
+       "used to limit a single domain from grabbing all threads and thus "
+       "stalling other domains. The default of 0 means to allow a domain to "
+       "grab as many threads as it wants, up to the value of "
+       "slave_parallel_threads.",
+       GLOBAL_VAR(opt_slave_domain_parallel_threads), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(check_slave_domain_parallel_threads),
+       ON_UPDATE(fix_slave_domain_parallel_threads));
+
+
 static Sys_var_ulong Sys_slave_parallel_max_queued(
        "slave_parallel_max_queued",
        "Limit on how much memory SQL threads should use per parallel "
