@@ -1479,14 +1479,27 @@ end:
 }
 
 
-rpl_group_info::rpl_group_info(Relay_log_info *rli_)
-  : rli(rli_), thd(0), gtid_sub_id(0), wait_commit_sub_id(0),
-    wait_commit_group_info(0), wait_start_sub_id(0), parallel_entry(0),
-    deferred_events(NULL), m_annotate_event(0), tables_to_lock(0),
-    tables_to_lock_count(0), trans_retries(0), last_event_start_time(0),
-    is_parallel_exec(false), is_error(false),
-    row_stmt_start_timestamp(0), long_find_row_note_printed(false)
+void
+rpl_group_info::reinit(Relay_log_info *rli)
 {
+  this->rli= rli;
+  tables_to_lock= NULL;
+  tables_to_lock_count= 0;
+  trans_retries= 0;
+  last_event_start_time= 0;
+  is_error= false;
+  row_stmt_start_timestamp= 0;
+  long_find_row_note_printed= false;
+  did_mark_start_commit= false;
+  commit_orderer.reinit();
+}
+
+rpl_group_info::rpl_group_info(Relay_log_info *rli)
+  : thd(0), gtid_sub_id(0), wait_commit_sub_id(0),
+    wait_commit_group_info(0), parallel_entry(0),
+    deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false)
+{
+  reinit(rli);
   bzero(&current_gtid, sizeof(current_gtid));
   mysql_mutex_init(key_rpl_group_info_sleep_lock, &sleep_lock,
                    MY_MUTEX_INIT_FAST);
@@ -1707,6 +1720,42 @@ void rpl_group_info::slave_close_thread_tables(THD *thd)
 
   clear_tables_to_lock();
   DBUG_VOID_RETURN;
+}
+
+
+
+static void
+mark_start_commit_inner(rpl_parallel_entry *e, group_commit_orderer *gco)
+{
+  uint64 count= ++e->count_committing_event_groups;
+  if (gco->next_gco && gco->next_gco->wait_count == count)
+    mysql_cond_broadcast(&gco->next_gco->COND_group_commit_orderer);
+}
+
+
+void
+rpl_group_info::mark_start_commit_no_lock()
+{
+  if (did_mark_start_commit)
+    return;
+  mark_start_commit_inner(parallel_entry, gco);
+  did_mark_start_commit= true;
+}
+
+
+void
+rpl_group_info::mark_start_commit()
+{
+  rpl_parallel_entry *e;
+
+  if (did_mark_start_commit)
+    return;
+
+  e= this->parallel_entry;
+  mysql_mutex_lock(&e->LOCK_parallel_entry);
+  mark_start_commit_inner(e, gco);
+  mysql_mutex_unlock(&e->LOCK_parallel_entry);
+  did_mark_start_commit= true;
 }
 
 

@@ -6118,14 +6118,23 @@ bool THD::rgi_have_temporary_tables()
 }
 
 
+void
+wait_for_commit::reinit()
+{
+  subsequent_commits_list= NULL;
+  next_subsequent_commit= NULL;
+  waitee= NULL;
+  opaque_pointer= NULL;
+  wakeup_error= 0;
+  wakeup_subsequent_commits_running= false;
+}
+
+
 wait_for_commit::wait_for_commit()
-  : subsequent_commits_list(0), next_subsequent_commit(0), waitee(0),
-    opaque_pointer(0),
-    waiting_for_commit(false), wakeup_error(0),
-    wakeup_subsequent_commits_running(false)
 {
   mysql_mutex_init(key_LOCK_wait_commit, &LOCK_wait_commit, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wait_commit, &COND_wait_commit, 0);
+  reinit();
 }
 
 
@@ -6173,7 +6182,7 @@ wait_for_commit::wakeup(int wakeup_error)
 
   */
   mysql_mutex_lock(&LOCK_wait_commit);
-  waiting_for_commit= false;
+  waitee= NULL;
   this->wakeup_error= wakeup_error;
   /*
     Note that it is critical that the mysql_cond_signal() here is done while
@@ -6205,9 +6214,8 @@ wait_for_commit::wakeup(int wakeup_error)
 void
 wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
 {
-  waiting_for_commit= true;
-  wakeup_error= 0;
   DBUG_ASSERT(!this->waitee /* No prior registration allowed */);
+  wakeup_error= 0;
   this->waitee= waitee;
 
   mysql_mutex_lock(&waitee->LOCK_wait_commit);
@@ -6217,7 +6225,7 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
     see comments on wakeup_subsequent_commits2() for details.
   */
   if (waitee->wakeup_subsequent_commits_running)
-    waiting_for_commit= false;
+    this->waitee= NULL;
   else
   {
     /*
@@ -6247,9 +6255,9 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
   thd->ENTER_COND(&COND_wait_commit, &LOCK_wait_commit,
                   &stage_waiting_for_prior_transaction_to_commit,
                   &old_stage);
-  while (waiting_for_commit && !thd->check_killed())
+  while ((loc_waitee= this->waitee) && !thd->check_killed())
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
-  if (!waiting_for_commit)
+  if (!loc_waitee)
   {
     if (wakeup_error)
       my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
@@ -6262,7 +6270,6 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
     waiter as to whether we succeed or fail (eg. we may roll back but waitee
     might attempt to commit both us and any subsequent commits waiting for us).
   */
-  loc_waitee= this->waitee;
   mysql_mutex_lock(&loc_waitee->LOCK_wait_commit);
   if (loc_waitee->wakeup_subsequent_commits_running)
   {
@@ -6271,21 +6278,29 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
     do
     {
       mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
-    } while (waiting_for_commit);
+    } while (this->waitee);
+    if (wakeup_error)
+      my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
     goto end;
   }
   remove_from_list(&loc_waitee->subsequent_commits_list);
   mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
+  this->waitee= NULL;
 
-  DEBUG_SYNC(thd, "wait_for_prior_commit_killed");
   wakeup_error= thd->killed_errno();
   if (!wakeup_error)
     wakeup_error= ER_QUERY_INTERRUPTED;
   my_message(wakeup_error, ER(wakeup_error), MYF(0));
+  thd->EXIT_COND(&old_stage);
+  /*
+    Must do the DEBUG_SYNC() _after_ exit_cond(), as DEBUG_SYNC is not safe to
+    use within enter_cond/exit_cond.
+  */
+  DEBUG_SYNC(thd, "wait_for_prior_commit_killed");
+  return wakeup_error;
 
 end:
   thd->EXIT_COND(&old_stage);
-  waitee= NULL;
   return wakeup_error;
 }
 
@@ -6368,10 +6383,11 @@ wait_for_commit::wakeup_subsequent_commits2(int wakeup_error)
 void
 wait_for_commit::unregister_wait_for_prior_commit2()
 {
+  wait_for_commit *loc_waitee;
+
   mysql_mutex_lock(&LOCK_wait_commit);
-  if (waiting_for_commit)
+  if ((loc_waitee= this->waitee))
   {
-    wait_for_commit *loc_waitee= this->waitee;
     mysql_mutex_lock(&loc_waitee->LOCK_wait_commit);
     if (loc_waitee->wakeup_subsequent_commits_running)
     {
@@ -6383,7 +6399,7 @@ wait_for_commit::unregister_wait_for_prior_commit2()
         See comments on wakeup_subsequent_commits2() for more details.
       */
       mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
-      while (waiting_for_commit)
+      while (this->waitee)
         mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
     }
     else
@@ -6391,10 +6407,10 @@ wait_for_commit::unregister_wait_for_prior_commit2()
       /* Remove ourselves from the list in the waitee. */
       remove_from_list(&loc_waitee->subsequent_commits_list);
       mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
+      this->waitee= NULL;
     }
   }
   mysql_mutex_unlock(&LOCK_wait_commit);
-  this->waitee= NULL;
 }
 
 

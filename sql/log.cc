@@ -6710,13 +6710,15 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   */
   wfc= orig_entry->thd->wait_for_commit_ptr;
   orig_entry->queued_by_other= false;
-  if (wfc && wfc->waiting_for_commit)
+  if (wfc && wfc->waitee)
   {
     mysql_mutex_lock(&wfc->LOCK_wait_commit);
     /* Do an extra check here, this time safely under lock. */
-    if (wfc->waiting_for_commit)
+    if (wfc->waitee)
     {
       PSI_stage_info old_stage;
+      wait_for_commit *loc_waitee;
+
       /*
         By setting wfc->opaque_pointer to our own entry, we mark that we are
         ready to commit, but waiting for another transaction to commit before
@@ -6727,21 +6729,20 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
         queued_by_other flag is set.
       */
       wfc->opaque_pointer= orig_entry;
+      DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior");
       orig_entry->thd->ENTER_COND(&wfc->COND_wait_commit,
                                   &wfc->LOCK_wait_commit,
                                   &stage_waiting_for_prior_transaction_to_commit,
                                   &old_stage);
-      DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior");
-      while (wfc->waiting_for_commit && !orig_entry->thd->check_killed())
+      while ((loc_waitee= wfc->waitee) && !orig_entry->thd->check_killed())
         mysql_cond_wait(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit);
       wfc->opaque_pointer= NULL;
       DBUG_PRINT("info", ("After waiting for prior commit, queued_by_other=%d",
                  orig_entry->queued_by_other));
 
-      if (wfc->waiting_for_commit)
+      if (loc_waitee)
       {
         /* Wait terminated due to kill. */
-        wait_for_commit *loc_waitee= wfc->waitee;
         mysql_mutex_lock(&loc_waitee->LOCK_wait_commit);
         if (loc_waitee->wakeup_subsequent_commits_running ||
             orig_entry->queued_by_other)
@@ -6751,13 +6752,14 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           do
           {
             mysql_cond_wait(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit);
-          } while (wfc->waiting_for_commit);
+          } while (wfc->waitee);
         }
         else
         {
           /* We were killed, so remove us from the list of waitee. */
           wfc->remove_from_list(&loc_waitee->subsequent_commits_list);
           mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
+          wfc->waitee= NULL;
 
           orig_entry->thd->EXIT_COND(&old_stage);
           /* Interrupted by kill. */
@@ -6773,12 +6775,11 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     }
     else
       mysql_mutex_unlock(&wfc->LOCK_wait_commit);
-
-    if (wfc->wakeup_error)
-    {
-      my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
-      DBUG_RETURN(-1);
-    }
+  }
+  if (wfc && wfc->wakeup_error)
+  {
+    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+    DBUG_RETURN(-1);
   }
 
   /*
@@ -9110,7 +9111,7 @@ start_binlog_background_thread()
                                 array_elements(all_binlog_threads));
 #endif
 
-  if (mysql_thread_create(key_thread_binlog, &th, NULL,
+  if (mysql_thread_create(key_thread_binlog, &th, &connection_attrib,
                           binlog_background_thread, NULL))
     return 1;
 
