@@ -3460,6 +3460,11 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
       table->reginfo.impossible_range= 1;
       goto free_alloc;
     }  
+    else if (tree->type == SEL_TREE::ALWAYS)
+    {
+      rows= table_records;
+      goto free_alloc;
+    }        
     else if (tree->type == SEL_TREE::MAYBE)
     {
       rows= table_records;
