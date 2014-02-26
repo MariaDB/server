@@ -481,6 +481,7 @@ private:
 
 struct rpl_group_info
 {
+  rpl_group_info *next;             /* For free list in rpl_parallel_thread */
   Relay_log_info *rli;
   THD *thd;
   /*
@@ -510,14 +511,15 @@ struct rpl_group_info
   uint64 wait_commit_sub_id;
   rpl_group_info *wait_commit_group_info;
   /*
-    If non-zero, the event group must wait for this sub_id to be committed
-    before the execution of the event group is allowed to start.
+    This holds a pointer to a struct that keeps track of the need to wait
+    for the previous batch of event groups to reach the commit stage, before
+    this batch can start to execute.
 
     (When we execute in parallel the transactions that group committed
     together on the master, we still need to wait for any prior transactions
-    to have commtted).
+    to have reached the commit stage).
   */
-  uint64 wait_start_sub_id;
+  group_commit_orderer *gco;
 
   struct rpl_parallel_entry *parallel_entry;
 
@@ -567,18 +569,22 @@ struct rpl_group_info
   char future_event_master_log_name[FN_REFLEN];
   bool is_parallel_exec;
   bool is_error;
+  /*
+    Set true when we signalled that we reach the commit phase. Used to avoid
+    counting one event group twice.
+  */
+  bool did_mark_start_commit;
 
-private:
   /*
     Runtime state for printing a note when slave is taking
     too long while processing a row event.
    */
   time_t row_stmt_start_timestamp;
   bool long_find_row_note_printed;
-public:
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
+  void reinit(Relay_log_info *rli);
 
   /* 
      Returns true if the argument event resides in the containter;
@@ -661,6 +667,8 @@ public:
   void clear_tables_to_lock();
   void cleanup_context(THD *, bool);
   void slave_close_thread_tables(THD *);
+  void mark_start_commit_no_lock();
+  void mark_start_commit();
 
   time_t get_row_stmt_start_timestamp()
   {
