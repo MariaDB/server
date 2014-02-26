@@ -330,7 +330,7 @@ run_slave_init_thread()
   pthread_t th;
 
   slave_init_thread_running= true;
-  if (mysql_thread_create(key_thread_slave_init, &th, NULL,
+  if (mysql_thread_create(key_thread_slave_init, &th, &connection_attrib,
                           handle_slave_init, NULL))
   {
     sql_print_error("Failed to create thread while initialising slave");
@@ -4526,7 +4526,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
   }
 
   if (opt_slave_parallel_threads > 0)
-    rli->parallel.wait_for_done();
+    rli->parallel.wait_for_done(thd);
 
   /* Thread stopped. Print the current replication position to the log */
   {
@@ -4552,7 +4552,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
     get the correct position printed.)
   */
   if (opt_slave_parallel_threads > 0)
-    rli->parallel.wait_for_done();
+    rli->parallel.wait_for_done(thd);
 
   /*
     Some events set some playgrounds, which won't be cleared because thread
