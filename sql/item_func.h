@@ -1740,7 +1740,9 @@ public:
   {
     return save_in_field(field, no_conversions, 1);
   }
-  void save_org_in_field(Field *field) { (void)save_in_field(field, 1, 0); }
+  void save_org_in_field(Field *field,
+                         fast_field_copier data __attribute__ ((__unused__)))
+    { (void)save_in_field(field, 1, 0); }
   bool register_field_in_read_map(uchar *arg);
   bool register_field_in_bitmap(uchar *arg);
   bool set_entry(THD *thd, bool create_if_not_exists);

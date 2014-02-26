@@ -5903,13 +5903,51 @@ static int save_field_in_field(Field *from, bool *null_value,
 }
 
 
+static int memcpy_field_value(Field *to, Field *from)
+{
+  if (to->ptr != from->ptr)
+    memcpy(to->ptr,from->ptr, to->pack_length());
+  return 0;
+}
+
+fast_field_copier Item_field::setup_fast_field_copier(Field *to)
+{
+  DBUG_ENTER("Item_field::setup_fast_field_copier");
+  DBUG_RETURN(memcpy_field_possible(to, field) ?
+              &memcpy_field_value :
+              &field_conv_incompatible);
+}
+
+
 /**
   Set a field's value from a item.
 */
 
-void Item_field::save_org_in_field(Field *to)
+void Item_field::save_org_in_field(Field *to,
+                                   fast_field_copier fast_field_copier_func)
 {
-  save_field_in_field(field, &null_value, to, TRUE);
+  DBUG_ENTER("Item_field::save_org_in_field");
+  DBUG_PRINT("enter", ("setup: 0x%lx  data: 0x%lx",
+                       (ulong) to, (ulong) fast_field_copier_func));
+  if (fast_field_copier_func)
+  {
+    if (field->is_null())
+    {
+      null_value= TRUE;
+      set_field_to_null_with_conversions(to, TRUE);
+      DBUG_VOID_RETURN;
+    }
+    to->set_notnull();
+    if (to == field)
+    {
+      null_value= 0;
+      DBUG_VOID_RETURN;
+    }
+    (*fast_field_copier_func)(to, field);
+  }
+  else
+    save_field_in_field(field, &null_value, to, TRUE);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -7430,9 +7468,9 @@ int Item_ref::save_in_field(Field *to, bool no_conversions)
 }
 
 
-void Item_ref::save_org_in_field(Field *field)
+void Item_ref::save_org_in_field(Field *field, fast_field_copier optimizer_data)
 {
-  (*ref)->save_org_in_field(field);
+  (*ref)->save_org_in_field(field, optimizer_data);
 }
 
 

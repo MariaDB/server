@@ -194,10 +194,20 @@ private:
 
 /* Order clause list element */
 
+typedef int (*fast_field_copier)(Field *to, Field *from);
+
+
 typedef struct st_order {
   struct st_order *next;
   Item	 **item;			/* Point at item in select fields */
   Item	 *item_ptr;			/* Storage for initial item */
+  /*
+    Reference to the function we are trying to optimize copy to
+    a temporary table
+  */
+  fast_field_copier fast_field_copier_func;
+  /* Field for which above optimizer function setup */
+  Field  *fast_field_copier_setup;
   int    counter;                       /* position in SELECT list, correct
                                            only if counter_used is true*/
   bool	 asc;				/* true if ascending */
