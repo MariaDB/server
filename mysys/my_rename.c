@@ -27,19 +27,18 @@ int my_rename(const char *from, const char *to, myf MyFlags)
   DBUG_ENTER("my_rename");
   DBUG_PRINT("my",("from %s to %s MyFlags %lu", from, to, MyFlags));
 
-#if defined(HAVE_RENAME)
 #if defined(__WIN__)
-  /*
-    On windows we can't rename over an existing file:
-    Remove any conflicting files:
-  */
-  (void) my_delete(to, MYF(0));
-#endif
+  if (!MoveFileEx(from, to, MOVEFILE_COPY_ALLOWED |
+                            MOVEFILE_REPLACE_EXISTING))
+  {
+    my_osmaperr(GetLastError());
+#elif defined(HAVE_RENAME)
   if (rename(from,to))
+  {
 #else
   if (link(from, to) || unlink(from))
-#endif
   {
+#endif
     my_errno=errno;
     error = -1;
     if (MyFlags & (MY_FAE+MY_WME))
