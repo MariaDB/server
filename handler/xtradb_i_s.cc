@@ -552,6 +552,8 @@ i_s_xtradb_rseg_fill(
 	for(int i=0; i < TRX_SYS_N_RSEGS; i++)
 	{
 	  rseg = trx_sys->rseg_array[i];
+	  if (!rseg)
+	    continue;
 
 	  table->field[0]->store(rseg->id);
 	  table->field[1]->store(rseg->space);

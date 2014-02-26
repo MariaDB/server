@@ -913,9 +913,9 @@ log_block_checksum_is_ok_or_old_format(
 		return(TRUE);
 	}
 
-	if (srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32 ||
-	    srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB ||
-	    srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_NONE) {
+	if (srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32 ||
+	    srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB ||
+	    srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_NONE) {
 
 		const char*	algo = NULL;
 
@@ -958,8 +958,8 @@ log_block_checksum_is_ok_or_old_format(
 			"so we intentionally assert here.");
 	}
 
-	ut_ad(srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_CRC32 ||
-	      srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_INNODB);
+	ut_ad(srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_CRC32 ||
+	      srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_INNODB);
 
 	if (block_checksum == LOG_NO_CHECKSUM_MAGIC ||
 	    block_checksum == log_block_calc_checksum_crc32(block) ||

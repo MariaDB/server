@@ -227,7 +227,6 @@ mutex_exit_func(
 	/* Wake up any high priority waiters first.  */
 	if (mutex->high_priority_waiters != 0) {
 
-		mutex->high_priority_waiters = 0;
 		os_event_set(mutex->high_priority_event);
 		sync_array_object_signalled();
 
