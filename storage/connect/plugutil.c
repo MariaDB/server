@@ -153,6 +153,9 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     g->Trace = 0;
     g->Createas = 0;
     g->Alchecked = 0;
+#if defined(MRRBKA_SUPPORT)
+    g->Mrr = 0;
+#endif   // MRRBKA_SUPPORT
     g->Activityp = g->ActivityStart = NULL;
     g->Xchk = NULL;
     strcpy(g->Message, "");

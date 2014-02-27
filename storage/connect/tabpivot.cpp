@@ -405,7 +405,7 @@ bool TDBPIVOT::GetSourceTable(PGLOBAL g)
       strcat(colist, Picol);
   
       // Now we know how much was suballocated
-      PlugSubAlloc(g, NULL, strlen(colist));
+      PlugSubAlloc(g, NULL, strlen(colist) + 1);
   
       // Locate the source string (size is not known yet)
       Tabsrc = (char*)PlugSubAlloc(g, NULL, 0);
@@ -423,7 +423,7 @@ bool TDBPIVOT::GetSourceTable(PGLOBAL g)
         strcat(strcat(Tabsrc, " ORDER BY "), colist);
 
       // Now we know how much was suballocated
-      PlugSubAlloc(g, NULL, strlen(Tabsrc));
+      PlugSubAlloc(g, NULL, strlen(Tabsrc) + 1);
       } // endif !GBdone
 
   } else if (!Tabsrc) {

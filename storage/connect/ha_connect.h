@@ -243,8 +243,12 @@ public:
   */
   ulong index_flags(uint inx, uint part, bool all_parts) const
   {
-    return HA_READ_NEXT | HA_READ_RANGE | HA_READ_ORDER;
-  }
+    return HA_READ_NEXT | HA_READ_RANGE | HA_READ_ORDER
+#if defined(MRRBKA_SUPPORT)
+         | HA_KEYREAD_ONLY
+#endif   // MRRBKA_SUPPORT
+      ;
+  } // end of index_flags
 
   /** @brief
     unireg.cc will call max_supported_record_length(), max_supported_keys(),
@@ -484,6 +488,7 @@ protected:
   bool          valid_info;           // True if xinfo is valid
   bool          stop;                 // Used when creating index
   bool          alter;                // True when converting to other engine
+  bool          mrr;                  // True when getting index positions
   int           indexing;             // Type of indexing for CONNECT
   int           locked;               // Table lock
   THR_LOCK_DATA lock_data;
