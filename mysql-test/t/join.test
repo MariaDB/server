@@ -1185,3 +1185,18 @@ SELECT t1.a FROM t1 NATURAL STRAIGHT_JOIN t2 ORDER BY t1.a;
 SELECT t1.a FROM t1 NATURAL STRAIGHT_JOIN t2 ORDER BY t1.a;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-5635: join of a const table with non-const tables
+--echo # 
+
+CREATE TABLE t1 (a varchar(3) NOT NULL) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo');
+
+CREATE TABLE t2 (b varchar(3), c varchar(3), INDEX(b)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('bar', 'bar'),( 'qux', 'qux');
+
+SELECT STRAIGHT_JOIN * FROM t1, t2 AS t2_1, t2 AS t2_2
+  WHERE t2_2.c = t2_1.c AND t2_2.b = t2_1.b AND ( a IS NULL OR t2_1.c = a );                  
+
+DROP TABLE t1,t2;
