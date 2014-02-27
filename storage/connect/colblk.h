@@ -49,6 +49,9 @@ class DllExport COLBLK : public XOBJECT {
           void    AddColUse(ushort u) {ColUse |= u;}
           void    AddStatus(ushort u) {Status |= u;}
           void    SetNext(PCOL cp) {Next = cp;}
+#if defined(MRRBKA_SUPPORT)
+          PXCOL   GetKcol(void) {return To_Kcol;}
+#endif   // MRRBKA_SUPPORT
           void    SetKcol(PXCOL kcp) {To_Kcol = kcp;}
           PCOLDEF GetCdp(void) {return Cdp;}
           PSZ     GetDomain(void) {return (Cdp) ? Cdp->Decode : NULL;}

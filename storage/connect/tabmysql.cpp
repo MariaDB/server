@@ -1144,9 +1144,6 @@ MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PSZ am)
   ColUse = U_P;
   Nullable = !IS_NOT_NULL(fld->flags);
 
-  if (Buf_Type == TYPE_DECIM)
-    Precision = ((Field_new_decimal*)fld)->precision;
-
   // Set additional MySQL access method information for column.
   Bind = NULL;
   To_Val = NULL;

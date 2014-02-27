@@ -57,7 +57,7 @@ extern int xtrace;
 /*  Routines called internally by semantic routines.                   */
 /***********************************************************************/
 void  CntEndDB(PGLOBAL);
-RCODE EvalColumns(PGLOBAL g, PTDB tdbp);
+RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool mrr= false);
 
 /***********************************************************************/
 /*  MySQL routines called externally by semantic routines.             */
@@ -187,7 +187,7 @@ bool CntInfo(PGLOBAL g, PTDB tp, PXF info)
 /***********************************************************************/
 PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
   {
-  int      rc;
+  int     rc;
   PTDB    tdbp;
   PTABLE  tabp;
   PDBUSER dup= PlgGetUser(g);
@@ -237,7 +237,8 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
                                         bool del, PHC h)
   {
   char   *p;
-  int     i, n;
+  int     i, n, rc;
+  bool    rcop= true;
   PCOL    colp;
 //PCOLUMN cp;
   PDBUSER dup= PlgGetUser(g);
@@ -251,7 +252,15 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     return true;
     } // endif tdbp
 
-//tdbp->SetMode(mode);      done in ha_connect::GetTDB
+  // Save stack and allocation environment and prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return true;
+    } // endif jump_level
+
+  if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
+    goto err;
+    } // endif rc
 
   if (!c1) {
     if (mode == MODE_INSERT)
@@ -273,7 +282,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
     if (!colp) {
       sprintf(g->Message, "Column %s not found in %s", p, tdbp->GetName());
-      return true;
+      goto err;
       } // endif colp
 
     n= strlen(p) + 1;
@@ -281,12 +290,12 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
   for (i= 0, colp= tdbp->GetColumns(); colp; i++, colp= colp->GetNext()) {
     if (colp->InitValue(g))
-      return true;
+      goto err;
 
     if (mode == MODE_INSERT)
       // Allow type conversion
       if (colp->SetBuffer(g, colp->GetValue(), true, false))
-        return true;
+        goto err;
 
     colp->AddColUse(U_P);           // For PLG tables
     } // endfor colp
@@ -301,7 +310,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
     if (!(utp= (PTDBASE)tdbp->Duplicate(g))) {
       sprintf(g->Message, MSG(INV_UPDT_TABLE), tdbp->GetName());
-      return true;
+      goto err;
       } // endif tp
 
     if (!c2)
@@ -315,10 +324,10 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
     for (i= 0, colp= utp->GetColumns(); colp; i++, colp= colp->GetNext()) {
       if (colp->InitValue(g))
-        return true;
+        goto err;
 
       if (colp->SetBuffer(g, colp->GetValue(), true, false))
-        return true;
+        goto err;
 
       } // endfor colp
 
@@ -350,13 +359,17 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
   if (mode != MODE_ANY && mode != MODE_ALTER) {
     if (tdbp->OpenDB(g)) {
       printf("%s\n", g->Message);
-      return true;
+      goto err;
     } else
       tdbp->SetNext(NULL);
 
   } // endif mode
 
-  return false;
+  rcop= false;
+
+ err:
+  g->jump_level--;
+  return rcop;
   } // end of CntOpenTable
 
 /***********************************************************************/
@@ -374,7 +387,7 @@ bool CntRewindTable(PGLOBAL g, PTDB tdbp)
 /***********************************************************************/
 /*  Evaluate all columns after a record is read.                       */
 /***********************************************************************/
-RCODE  EvalColumns(PGLOBAL g, PTDB tdbp)
+RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool mrr)
   {
   RCODE rc= RC_OK;
   PCOL  colp;
@@ -402,7 +415,11 @@ RCODE  EvalColumns(PGLOBAL g, PTDB tdbp)
       colp->Reset();
 
       // Virtual columns are computed by MariaDB
+#if defined(MRRBKA_SUPPORT)
+      if (!colp->GetColUse(U_VIRTUAL) && (!mrr || colp->GetKcol()))
+#else   // !MRRBKA_SUPPORT
       if (!colp->GetColUse(U_VIRTUAL))
+#endif  // !MRRBKA_SUPPORT
         if (colp->Eval(g))
           rc= RC_FX;
 
@@ -680,7 +697,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id)
 /*  IndexRead: fetch a record having the index value.                  */
 /***********************************************************************/
 RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
-                   const void *key, int len)
+                   const void *key, int len, bool mrr)
   {
   char   *kp= (char*)key;
   int     n;
@@ -757,7 +774,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   xbp->SetNth(0);
 
   if ((rc= (RCODE)tdbp->ReadDB(g)) == RC_OK)
-    rc= EvalColumns(g, tdbp);
+    rc= EvalColumns(g, tdbp, mrr);
 
   return rc;
   } // end of CntIndexRead

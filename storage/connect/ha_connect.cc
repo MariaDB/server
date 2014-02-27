@@ -481,6 +481,7 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   creat_query_id= (table && table->in_use) ? table->in_use->query_id : 0;
   stop= false;
   alter= false;
+  mrr= false;
   indexing= -1;
   locked= 0;
   data_file_name= NULL;
@@ -1357,10 +1358,20 @@ int ha_connect::MakeRecord(char *buf)
     if (bitmap_is_set(map, fp->field_index) || alter) {
       // This is a used field, fill the buffer with value
       for (colp= tdbp->GetColumns(); colp; colp= colp->GetNext())
+#if defined(MRRBKA_SUPPORT)
+        if ((!mrr || colp->GetKcol()) &&
+            !stricmp(colp->GetName(), (char*)fp->field_name))
+          break;
+#else   // !MRRBKA_SUPPORT
         if (!stricmp(colp->GetName(), (char*)fp->field_name))
           break;
+#endif  // !MRRBKA_SUPPORT
 
       if (!colp) {
+#if defined(MRRBKA_SUPPORT)
+        if (mrr)
+          continue;
+#endif   // MRRBKA_SUPPORT
         printf("Column %s not found\n", fp->field_name);
         dbug_tmp_restore_column_map(table->write_set, org_bitmap);
         DBUG_RETURN(HA_ERR_WRONG_IN_RECORD);
@@ -2020,9 +2031,17 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
   PGLOBAL g= (xp) ? xp->g : NULL;
 
   // Try to set the database environment
-  if (g)
+  if (g) {
     rc= (CntCheckDB(g, this, name)) ? (-2) : 0;
-  else
+#if defined(MRRBKA_SUPPORT)
+    if (g->Mrr) {
+      // This should only happen for the mrr secondary handler
+      mrr= true;
+      g->Mrr= false;
+    } else
+      mrr= false;
+#endif   // MRRBKA_SUPPORT
+  } else
     rc= HA_ERR_INTERNAL_ERROR;
 
   DBUG_RETURN(rc);
@@ -2317,7 +2336,7 @@ int ha_connect::ReadIndexed(uchar *buf, OPVAL op, const uchar *key, uint key_len
 
 //statistic_increment(ha_read_key_count, &LOCK_status);
 
-  switch (CntIndexRead(xp->g, tdbp, op, key, (int)key_len)) {
+  switch (CntIndexRead(xp->g, tdbp, op, key, (int)key_len, mrr)) {
     case RC_OK:
       xp->fnd++;
       rc= MakeRecord((char*)buf);
@@ -5401,7 +5420,7 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
 
 
 #if defined(MRRBKA_SUPPORT)
-#error This is not implemented yet
+//#error This is not implemented yet
 /****************************************************************************
  * CONNECT MRR implementation: use DS-MRR
    This is just copied from myisam
@@ -5433,10 +5452,12 @@ ha_rows ha_connect::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
 
   // MMR is implemented for "local" file based tables only
   if (!IsFileType(GetRealType(GetTableOptionStruct(table))))
-    *flags |= HA_MRR_USE_DEFAULT_IMPL;
+    *flags|= HA_MRR_USE_DEFAULT_IMPL;
 
-  return ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges, bufsz,
-                                 flags, cost);
+  ha_rows rows= ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges,
+                                        bufsz, flags, cost);
+  xp->g->Mrr= !(*flags & HA_MRR_USE_DEFAULT_IMPL);
+  return rows;
 } // end of multi_range_read_info_const
 
 ha_rows ha_connect::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
@@ -5444,7 +5465,15 @@ ha_rows ha_connect::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                          uint *flags, Cost_estimate *cost)
 {
   ds_mrr.init(this, table);
-  return ds_mrr.dsmrr_info(keyno, n_ranges, keys, key_parts, bufsz, flags, cost);
+
+  // MMR is implemented for "local" file based tables only
+  if (!IsFileType(GetRealType(GetTableOptionStruct(table))))
+    *flags|= HA_MRR_USE_DEFAULT_IMPL;
+
+  ha_rows rows= ds_mrr.dsmrr_info(keyno, n_ranges, keys, key_parts, bufsz, 
+                                  flags, cost);
+  xp->g->Mrr= !(*flags & HA_MRR_USE_DEFAULT_IMPL);
+  return rows;
 } // end of multi_range_read_info
 
 
