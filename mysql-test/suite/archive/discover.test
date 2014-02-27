@@ -125,10 +125,10 @@ create table t1 (a int) engine=archive;
 select * from t1;
 flush tables;
 remove_file $mysqld_datadir/test/t1.ARZ;
---error ER_TABLE_EXISTS_ERROR
 create table t1 (a int) engine=archive;
 remove_file $mysqld_datadir/test/t1.frm;
 flush tables;
+--error ER_TABLE_EXISTS_ERROR
 create table t1 (a int) engine=archive;
 drop table t1;
 
