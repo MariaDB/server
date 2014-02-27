@@ -315,11 +315,15 @@ int table_events_waits_common::make_socket_object_columns(volatile PFS_events_wa
     uint port;
     char port_str[128];
     char ip_str[INET6_ADDRSTRLEN+1];
-    uint ip_len= 0;
+    /*
+      "ip_length" was "ip_len" originally.
+      but it conflicted with some macro on AIX. Renamed.
+    */
+    uint ip_length= 0;
     port_str[0]= ':';
 
     /* Get the IP address and port number */
-    ip_len= pfs_get_socket_address(ip_str, sizeof(ip_str), &port,
+    ip_length= pfs_get_socket_address(ip_str, sizeof(ip_str), &port,
                                    &safe_socket->m_sock_addr,
                                    safe_socket->m_addr_len);
 
@@ -327,15 +331,15 @@ int table_events_waits_common::make_socket_object_columns(volatile PFS_events_wa
     int port_len= int10_to_str(port, (port_str+1), 10) - port_str + 1;
 
     /* OBJECT NAME */
-    m_row.m_object_name_length= ip_len + port_len;
+    m_row.m_object_name_length= ip_length + port_len;
 
     if (unlikely((m_row.m_object_name_length == 0) ||
                  (m_row.m_object_name_length > sizeof(m_row.m_object_name))))
       return 1;
 
     char *name= m_row.m_object_name;
-    memcpy(name, ip_str, ip_len);
-    memcpy(name + ip_len, port_str, port_len);
+    memcpy(name, ip_str, ip_length);
+    memcpy(name + ip_length, port_str, port_len);
   }
   else
   {
