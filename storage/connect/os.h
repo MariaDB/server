@@ -9,6 +9,12 @@ typedef off_t off64_t;
 #define O_LARGEFILE 0
 #endif
 
+#ifdef _AIX
+#ifndef O_LARGEFILE
+#define O_LARGEFILE 0
+#endif
+#endif
+
 #if defined(WIN32)
 typedef __int64 BIGINT;
 #else   // !WIN32

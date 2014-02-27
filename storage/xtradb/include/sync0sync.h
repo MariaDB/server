@@ -198,10 +198,10 @@ necessary only if the memory block containing it is freed. */
 	pfs_mutex_enter_nowait_func((M), __FILE__, __LINE__)
 
 # define mutex_enter_first(M)					\
-	pfs_mutex_enter_func((M), __FILE__, __LINE__, HIGH_PRIO)
+	pfs_mutex_enter_func((M), __FILE__, __LINE__, IB_HIGH_PRIO)
 
 # define mutex_enter_last(M)					\
-	pfs_mutex_enter_func((M), __FILE__, __LINE__, LOW_PRIO)
+	pfs_mutex_enter_func((M), __FILE__, __LINE__, IB_LOW_PRIO)
 
 # define mutex_exit(M)	pfs_mutex_exit_func(M)
 
@@ -230,10 +230,10 @@ original non-instrumented functions */
 	mutex_enter_nowait_func((M), __FILE__, __LINE__)
 
 # define mutex_enter_first(M)	\
-	mutex_enter_func((M), __FILE__, __LINE__, HIGH_PRIO)
+	mutex_enter_func((M), __FILE__, __LINE__, IB_HIGH_PRIO)
 
 # define mutex_enter_last(M)	\
-	mutex_enter_func((M), __FILE__, __LINE__, LOW_PRIO)
+	mutex_enter_func((M), __FILE__, __LINE__, IB_LOW_PRIO)
 
 # define mutex_exit(M)	mutex_exit_func(M)
 
@@ -325,8 +325,8 @@ directly. Locks a priority mutex for the current thread. If the mutex is
 reserved the function spins a preset time (controlled by SYNC_SPIN_ROUNDS)
 waiting for the mutex before suspending the thread. If the thread is suspended,
 the priority argument value determines the relative order for its wake up.  Any
-HIGH_PRIO waiters will be woken up before any LOW_PRIO waiters.  In case of
-DEFAULT_PRIO, the relative priority will be set according to
+IB_HIGH_PRIO waiters will be woken up before any IB_LOW_PRIO waiters.  In case of
+IB_DEFAULT_PRIO, the relative priority will be set according to
 srv_current_thread_priority.  */
 UNIV_INLINE
 void
@@ -336,7 +336,7 @@ mutex_enter_func(
 	const char*		file_name,	/*!< in: file name where
 						locked */
 	ulint			line,		/*!< in: line where locked */
-	enum ib_sync_priority	priority = DEFAULT_PRIO);
+	enum ib_sync_priority	priority = IB_DEFAULT_PRIO);
 						/*!<in: mutex acquisition
 						priority */
 /********************************************************************//**
@@ -453,7 +453,7 @@ pfs_mutex_enter_func(
 	const char*		file_name,	/*!< in: file name where
 						locked */
 	ulint			line,		/*!< in: line where locked */
-	enum ib_sync_priority	priority = DEFAULT_PRIO);
+	enum ib_sync_priority	priority = IB_DEFAULT_PRIO);
 						/*!<in: mutex acquisition
 						priority */
 /********************************************************************//**

@@ -8144,7 +8144,7 @@ static int mysql_init_variables(void)
   my_atomic_rwlock_init(&thread_running_lock);
   my_atomic_rwlock_init(&thread_count_lock);
   my_atomic_rwlock_init(&statistics_lock);
-  my_atomic_rwlock_init(slave_executed_entries_lock);
+  my_atomic_rwlock_init(&slave_executed_entries_lock);
   strmov(server_version, MYSQL_SERVER_VERSION);
   threads.empty();
   thread_cache.empty();

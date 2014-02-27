@@ -99,7 +99,8 @@ public:
   void *data;                  /* scheduler-specific data structure */
 };
 
-#if !defined(EMBEDDED_LIBRARY)
+#undef HAVE_POOL_OF_THREADS
+#if !defined(EMBEDDED_LIBRARY) && !defined(_AIX)
 #define HAVE_POOL_OF_THREADS 1
 void pool_of_threads_scheduler(scheduler_functions* func,
    ulong *arg_max_connections,
