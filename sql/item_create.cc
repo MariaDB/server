@@ -3197,6 +3197,13 @@ Create_func_binlog_gtid_pos Create_func_binlog_gtid_pos::s_singleton;
 Item*
 Create_func_binlog_gtid_pos::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
+#ifdef HAVE_REPLICATION
+  if (!mysql_bin_log.is_open())
+#endif
+  {
+    my_error(ER_NO_BINARY_LOGGING, MYF(0));
+    return NULL;
+  }
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   return new (thd->mem_root) Item_func_binlog_gtid_pos(arg1, arg2);
 }
