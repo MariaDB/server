@@ -277,7 +277,12 @@ extern my_bool srv_use_lz4;
 /* Number of flush threads */
 #define MTFLUSH_MAX_WORKER       64
 #define MTFLUSH_DEFAULT_WORKER   8
+
+/* Number of threads used for multi-threaded flush */
 extern long    srv_mtflush_threads;
+
+/* If this flag is TRUE, then we will use multi threaded flush. */
+extern my_bool	srv_use_mtflush;
 
 /** Server undo tablespaces directory, can be absolute path. */
 extern char*	srv_undo_dir;

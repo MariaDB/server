@@ -151,7 +151,7 @@ ib_list_is_empty(
 	const ib_list_t*	list);	/* in: list */
 
 /********************************************************************
-Get number of items on list. 
+Get number of items on list.
 @return number of items on list */
 UNIV_INLINE
 ulint

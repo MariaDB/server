@@ -257,7 +257,12 @@ extern my_bool srv_use_lz4;
 /* Number of flush threads */
 #define MTFLUSH_MAX_WORKER       64
 #define MTFLUSH_DEFAULT_WORKER   8
+
+/* Number of threads used for multi-threaded flush */
 extern long    srv_mtflush_threads;
+
+/* If this flag is TRUE, then we will use multi threaded flush. */
+extern my_bool	srv_use_mtflush;
 
 #ifdef __WIN__
 extern ibool	srv_use_native_conditions;

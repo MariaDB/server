@@ -134,6 +134,7 @@ typedef struct thread_sync
 
 static int		mtflush_work_initialized = -1;
 static os_fast_mutex_t	mtflush_mtx;
+static os_fast_mutex_t	mtflush_mtx_wait;
 static thread_sync_t*   mtflush_ctx=NULL;
 
 /******************************************************************//**
@@ -180,7 +181,9 @@ buf_mtflu_flush_pool_instance(
 		pools based on the assumption that it will
 		help in the retry which will follow the
 		failure. */
+#ifdef UNIV_DEBUG
 		fprintf(stderr, "InnoDB: Note: buf flush start failed there is already active flush for this buffer pool.\n");
+#endif
 		return 0;
 	}
 
@@ -223,11 +226,15 @@ mtflush_service_io(
 
    	mtflush_io->wt_status = WTHR_SIG_WAITING;
 
+	/* TODO: Temporal fix for the hang bug. This needs a real fix. */
+	os_fast_mutex_lock(&mtflush_mtx_wait);
 	work_item = (wrk_t *)ib_wqueue_nowait(mtflush_io->wq);
 
 	if (work_item == NULL) {
 		work_item = (wrk_t *)ib_wqueue_wait(mtflush_io->wq);
 	}
+
+	os_fast_mutex_unlock(&mtflush_mtx_wait);
 
 	if (work_item) {
 		mtflush_io->wt_status = WTHR_RUNNING;
@@ -235,6 +242,10 @@ mtflush_service_io(
 		/* Thread did not get any work */
 		mtflush_io->wt_status = WTHR_NO_WORK;
 		return;
+	}
+
+	if (work_item->wi_status != WRK_ITEM_EXIT) {
+		work_item->wi_status = WRK_ITEM_SET;
 	}
 
 	work_item->id_usr = os_thread_get_curr_id();
@@ -253,7 +264,7 @@ mtflush_service_io(
 		work_item->wi_status = WRK_ITEM_EXIT;
 		ib_wqueue_add(mtflush_io->wr_cq, work_item, work_item->wheap);
 		mtflush_io->wt_status = WTHR_KILL_IT;
-        return;
+		break;
 
 	case MT_WRK_WRITE:
 		ut_a(work_item->wi_status == WRK_ITEM_SET);
@@ -273,9 +284,9 @@ mtflush_service_io(
 	default:
 		/* None other than Write/Read handling planned */
 		ut_a(0);
+		break;
 	}
 
-	mtflush_io->wt_status = WTHR_NO_WORK;
 }
 
 /******************************************************************//**
@@ -289,6 +300,7 @@ DECLARE_THREAD(mtflush_io_thread)(
 	void * arg)
 {
 	thread_sync_t *mtflush_io = ((thread_sync_t *)arg);
+	ulint n_timeout = 0;
 #ifdef UNIV_DEBUG
 	ib_uint64_t   stat_universal_num_processed = 0;
 	ib_uint64_t   stat_cycle_num_processed = 0;
@@ -296,7 +308,31 @@ DECLARE_THREAD(mtflush_io_thread)(
 #endif
 
 	while (TRUE) {
+#ifdef UNIV_DEBUG
+ 		fprintf(stderr, "InnoDB: Note. Thread %lu work queue len %lu return queue len %lu\n",
+ 					os_thread_get_curr_id(),
+ 					ib_wqueue_len(mtflush_io->wq),
+ 					ib_wqueue_len(mtflush_io->wr_cq));
+#endif /* UNIV_DEBUG */
+
 		mtflush_service_io(mtflush_io);
+
+#ifdef UNIV_DEBUG
+		if (mtflush_io->wt_status == WTHR_NO_WORK) {
+			n_timeout++;
+
+			if (n_timeout > 10) {
+				fprintf(stderr, "InnoDB: Note: Thread %lu has not received "
+					" work queue len %lu return queue len %lu\n",
+					os_thread_get_curr_id(),
+					ib_wqueue_len(mtflush_io->wq),
+					ib_wqueue_len(mtflush_io->wr_cq));
+				n_timeout = 0;
+			}
+		} else {
+			n_timeout = 0;
+		}
+#endif /* UNIV_DEBUG */
 
 		if (mtflush_io->wt_status == WTHR_KILL_IT) {
 			break;
@@ -379,6 +415,7 @@ buf_mtflu_io_thread_exit(void)
 	ib_wqueue_free(mtflush_io->rd_cq);
 
 	os_fast_mutex_free(&mtflush_mtx);
+	os_fast_mutex_free(&mtflush_mtx_wait);
 
 	/* Free heap */
 	mem_heap_free(mtflush_io->wheap);
@@ -400,6 +437,7 @@ buf_mtflu_handler_init(
 	ib_wqueue_t*	mtflush_read_comp_queue;
 
 	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &mtflush_mtx);
+	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &mtflush_mtx_wait);
 
 	/* Create heap, work queue, write completion queue, read
 	completion queue for multi-threaded flush, and init
@@ -465,16 +503,15 @@ buf_mtflu_flush_work_items(
 	node items areallocated */
 	work_heap = mem_heap_create(0);
 	work_item = (wrk_t*)mem_heap_alloc(work_heap, sizeof(wrk_t)*buf_pool_inst);
+	memset(work_item, 0, sizeof(wrk_t)*buf_pool_inst);
 
 	for(i=0;i<buf_pool_inst; i++) {
 		work_item[i].tsk = MT_WRK_WRITE;
-		work_item[i].rd.page_pool = NULL;
 		work_item[i].wr.buf_pool = buf_pool_from_array(i);
 		work_item[i].wr.flush_type = flush_type;
 		work_item[i].wr.min = min_n;
 		work_item[i].wr.lsn_limit = lsn_limit;
-		work_item[i].id_usr = -1;
-		work_item[i].wi_status = WRK_ITEM_SET;
+		work_item[i].wi_status = WRK_ITEM_UNSET;
 		work_item[i].wheap = work_heap;
 
 		ib_wqueue_add(mtflush_ctx->wq,
@@ -490,14 +527,18 @@ buf_mtflu_flush_work_items(
 		if (done_wi != NULL) {
 			per_pool_pages_flushed[i] = done_wi->n_flushed;
 
-			if((int)done_wi->id_usr == -1 &&
-			   done_wi->wi_status == WRK_ITEM_SET ) {
+#ifdef UNIV_DEBUG
+			/* TODO: Temporal fix for hang. This is really a bug. */
+			if((int)done_wi->id_usr == 0 &&
+				(done_wi->wi_status == WRK_ITEM_SET ||
+					done_wi->wi_status == WRK_ITEM_UNSET)) {
 				fprintf(stderr,
 					"**Set/Unused work_item[%lu] flush_type=%d\n",
 					i,
 					done_wi->wr.flush_type);
 				ut_a(0);
 			}
+#endif
 
 			n_flushed+= done_wi->n_flushed;
 			i++;

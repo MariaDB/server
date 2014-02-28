@@ -205,3 +205,20 @@ ib_wqueue_is_empty(
 {
 	return(ib_list_is_empty(wq->items));
 }
+
+/********************************************************************
+Get number of items on queue.
+@return number of items on queue */
+ulint
+ib_wqueue_len(
+/*==========*/
+	ib_wqueue_t*	wq)		/*<! in: work queue */
+{
+	ulint len = 0;
+
+	mutex_enter(&wq->mutex);
+	len = ib_list_len(wq->items);
+	mutex_exit(&wq->mutex);
+
+        return(len);
+}

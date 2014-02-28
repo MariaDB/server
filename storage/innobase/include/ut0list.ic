@@ -58,3 +58,23 @@ ib_list_is_empty(
 {
 	return(!(list->first || list->last));
 }
+
+/********************************************************************
+Get number of items on list.
+@return number of items on list */
+UNIV_INLINE
+ulint
+ib_list_len(
+/*========*/
+	const ib_list_t*	list)		/*<! in: list */
+{
+	ulint len = 0;
+	ib_list_node_t* node = list->first;
+
+	while(node) {
+		len++;
+		node = node->next;
+	}
+
+	return (len);
+}

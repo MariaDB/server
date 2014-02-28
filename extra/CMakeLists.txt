@@ -72,10 +72,24 @@ IF(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
 ENDIF()
 ENDIF()
 
+IF(WITH_INNOBASE_STORAGE_ENGINE)
+  # Add path to the InnoDB headers
+  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include)
+  # We use the InnoDB code directly in case the code changes.
+  ADD_DEFINITIONS("-DUNIV_INNOCHECKSUM")
+  SET(INNOBASE_SOURCES
+      ../storage/innobase/buf/buf0checksum.cc
+      ../storage/innobase/ut/ut0crc32.cc
+      ../storage/innobase/ut/ut0ut.cc
+     )
+  MYSQL_ADD_EXECUTABLE(innochecksum innochecksum.cc ${INNOBASE_SOURCES})
+  TARGET_LINK_LIBRARIES(innochecksum mysys mysys_ssl)
+ENDIF()
+
 MYSQL_ADD_EXECUTABLE(replace replace.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(replace mysys)
+
 IF(UNIX)
-  MYSQL_ADD_EXECUTABLE(innochecksum innochecksum.c)
 
   MYSQL_ADD_EXECUTABLE(resolve_stack_dump resolve_stack_dump.c)
   TARGET_LINK_LIBRARIES(resolve_stack_dump mysys)

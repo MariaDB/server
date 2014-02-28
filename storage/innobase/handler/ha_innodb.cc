@@ -16610,6 +16610,11 @@ static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
   MTFLUSH_MAX_WORKER,     /* Max setting */
   0);
 
+static MYSQL_SYSVAR_BOOL(use_mtflush, srv_use_mtflush,
+  PLUGIN_VAR_OPCMDARG ,
+  "Use multi-threaded flush. Default TRUE.",
+  NULL, NULL, TRUE);
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(additional_mem_pool_size),
   MYSQL_SYSVAR(api_trx_level),
@@ -16762,6 +16767,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(use_lz4),
 #endif
   MYSQL_SYSVAR(mtflush_threads),
+  MYSQL_SYSVAR(use_mtflush),
   NULL
 };
 

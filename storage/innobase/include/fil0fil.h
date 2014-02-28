@@ -1008,6 +1008,8 @@ Release fil_system mutex */
 void
 fil_system_exit(void);
 /*==================*/
+
+#ifndef UNIV_INNOCHECKSUM
 /*******************************************************************//**
 Returns the table space by a given id, NULL if not found. */
 fil_space_t*
@@ -1020,5 +1022,5 @@ char*
 fil_space_name(
 /*===========*/
 	fil_space_t*	space);	/*!< in: space */
-
+#endif
 #endif /* fil0fil_h */

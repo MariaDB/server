@@ -2719,19 +2719,23 @@ files_checked:
 
 	if (!srv_read_only_mode) {
 
-		/* Start multi-threaded flush threads */
-		mtflush_ctx = buf_mtflu_handler_init(srv_mtflush_threads,
-						     srv_buf_pool_instances);
+		if (srv_use_mtflush) {
+			/* Start multi-threaded flush threads */
+			mtflush_ctx = buf_mtflu_handler_init(
+				srv_mtflush_threads,
+				srv_buf_pool_instances);
 
-		/* Set up the thread ids */
-		buf_mtflu_set_thread_ids(srv_mtflush_threads,
-					mtflush_ctx,
-					(thread_ids + 6 + SRV_MAX_N_PURGE_THREADS));
-
+			/* Set up the thread ids */
+			buf_mtflu_set_thread_ids(
+				srv_mtflush_threads,
+				mtflush_ctx,
+				(thread_ids + 6 + SRV_MAX_N_PURGE_THREADS));
 #if UNIV_DEBUG
- 		fprintf(stderr, "InnoDB: Note: %s:%d buf-pool-instances:%lu mtflush_threads %lu\n",
-			__FILE__, __LINE__, srv_buf_pool_instances, srv_mtflush_threads);
+			fprintf(stderr, "InnoDB: Note: %s:%d buf-pool-instances:%lu mtflush_threads %lu\n",
+				__FILE__, __LINE__, srv_buf_pool_instances, srv_mtflush_threads);
 #endif
+		}
+
 
 		os_thread_create(buf_flush_page_cleaner_thread, NULL, NULL);
 	}
@@ -3004,9 +3008,12 @@ innobase_shutdown_for_mysql(void)
 		logs_empty_and_mark_files_at_shutdown() and should have
 		already quit or is quitting right now. */
 
-		/* g. Exit the multi threaded flush threads */
 
-		buf_mtflu_io_thread_exit();
+		if (srv_use_mtflush) {
+			/* g. Exit the multi threaded flush threads */
+
+			buf_mtflu_io_thread_exit();
+		}
 
 #ifdef UNIV_DEBUG
 		fprintf(stderr, "InnoDB: Note: %s:%d os_thread_count:%lu \n", __FUNCTION__, __LINE__, os_thread_count);

@@ -105,7 +105,7 @@ ib_wqueue_nowait(
 
 
 /********************************************************************
-Get number of items on queue. 
+Get number of items on queue.
 @return number of items on queue */
 ulint
 ib_wqueue_len(
