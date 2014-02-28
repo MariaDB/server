@@ -9,7 +9,8 @@
 /***********************************************************************/
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
-#include "my_global.h"
+#include <my_global.h>
+#include <m_string.h>
 #if defined(WIN32)
 //nclude <io.h>
 //nclude <fcntl.h>

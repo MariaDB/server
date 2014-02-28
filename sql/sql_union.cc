@@ -647,6 +647,9 @@ bool st_select_lex_unit::exec()
   if (!saved_error && !was_executed)
     save_union_explain(thd->lex->explain);
 
+  if (saved_error)
+    DBUG_RETURN(saved_error);
+
   if (uncacheable || !item || !item->assigned() || describe)
   {
     for (SELECT_LEX *sl= select_cursor; sl; sl= sl->next_select())

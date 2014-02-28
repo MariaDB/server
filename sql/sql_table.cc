@@ -2389,7 +2389,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         This handles the case where a "DROP" was executed and a regular
         table "may be" dropped as drop_temporary is FALSE and error is
         TRUE. If the error was FALSE a temporary table was dropped and
-        regardless of the status of drop_tempoary a "DROP TEMPORARY"
+        regardless of the status of drop_temporary a "DROP TEMPORARY"
         must be used.
       */
       if (!dont_log_query)
@@ -2417,15 +2417,15 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
     error= 0;
-    if ((drop_temporary || !ha_table_exists(thd, db, alias, &table_type) ||
-         (!drop_view && (was_view= (table_type == view_pseudo_hton)))))
+    if (drop_temporary ||
+        (ha_table_exists(thd, db, alias, &table_type) == 0 && table_type == 0) ||
+        (!drop_view && (was_view= (table_type == view_pseudo_hton))))
     {
       /*
         One of the following cases happened:
           . "DROP TEMPORARY" but a temporary table was not found.
-          . "DROP" but table was not found on disk and table can't be
-            created from engine.
-          . ./sql/datadict.cc +32 /Alfranio - TODO: We need to test this.
+          . "DROP" but table was not found
+          . "DROP TABLE" statement, but it's a view. 
       */
       if (if_exists)
       {

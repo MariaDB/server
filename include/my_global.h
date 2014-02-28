@@ -1240,18 +1240,10 @@ static inline double rint(double x)
 #define HAVE_EXTERNAL_CLIENT
 #endif /* EMBEDDED_LIBRARY */
 
-/*
-  Define default tmpdir if not already set.
-*/
-#if !defined(DEFAULT_TMPDIR)
-#define DEFAULT_TMPDIR P_tmpdir
-#endif
-
 /* Workaround for _LARGE_FILES and _LARGE_FILE_API incompatibility on AIX */
 #if defined(_AIX) && defined(_LARGE_FILE_API)
 #undef _LARGE_FILE_API
 #undef __GNUG__
 #endif
-
 
 #endif /* my_global_h */

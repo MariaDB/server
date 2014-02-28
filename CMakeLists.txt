@@ -329,8 +329,15 @@ SET(PLUGINDIR "${DEFAULT_MYSQL_HOME}/${INSTALL_PLUGINDIR}")
 IF(INSTALL_SYSCONFDIR)
   SET(DEFAULT_SYSCONFDIR "${INSTALL_SYSCONFDIR}")
 ENDIF()
+
+OPTION(TMPDIR
+"PATH to MySQL TMP dir. If unspecified, defaults to P_tmpdir in <stdio.h>" OFF)
 IF(TMPDIR)
-  SET(DEFAULT_TMPDIR "${TMPDIR}")
+  # Quote it, to make it a const char string.
+  SET(DEFAULT_TMPDIR "\"${TMPDIR}\"")
+ELSE()
+  # Do not quote it, to refer to the P_tmpdir macro in <stdio.h>.
+  SET(DEFAULT_TMPDIR "P_tmpdir")
 ENDIF()
 
 # Run platform tests
@@ -418,6 +425,7 @@ IF(NOT WITHOUT_SERVER)
     ADD_SUBDIRECTORY(internal)
   ENDIF()
   ADD_SUBDIRECTORY(packaging/rpm-uln)
+  ADD_SUBDIRECTORY(packaging/rpm-oel)
 ENDIF()
 
 IF(UNIX)
