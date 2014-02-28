@@ -2603,7 +2603,7 @@ files_checked:
 			buf_mtflu_set_thread_ids(
 				srv_mtflush_threads,
 				mtflush_ctx,
-				(thread_ids + 6 + SRV_MAX_N_PURGE_THREADS));
+				(thread_ids + 6 + 32));
 
 #if UNIV_DEBUG
 			fprintf(stderr, "InnoDB: Note: %s:%d buf-pool-instances:%lu mtflush_threads %lu\n",
