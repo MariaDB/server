@@ -1960,8 +1960,8 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
                   });
 
   if (global_system_variables.log_warnings > 1)
-    sql_print_information("Start binlog_dump to slave_server(%d), pos(%s, %lu)",
-                          (int)thd->variables.server_id, log_ident, (ulong)pos);
+    sql_print_information("Start binlog_dump to slave_server(%lu), pos(%s, %lu)",
+                          thd->variables.server_id, log_ident, (ulong)pos);
   if (RUN_HOOK(binlog_transmit, transmit_start, (thd, flags, log_ident, pos)))
   {
     errmsg= "Failed to run hook 'transmit_start'";

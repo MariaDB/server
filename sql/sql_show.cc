@@ -4835,6 +4835,11 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             if (fill_schema_table_names(thd, tables, db_name, table_name))
               continue;
           }
+          else if (schema_table_idx == SCH_TRIGGERS &&
+                   db_name == &INFORMATION_SCHEMA_NAME)
+          {
+            continue;
+          }
           else
           {
             if (!(table_open_method & ~OPEN_FRM_ONLY) &&

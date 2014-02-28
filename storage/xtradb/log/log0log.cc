@@ -237,6 +237,86 @@ log_check_tracking_margin(
 	return tracked_lsn_age + lsn_advance > log_sys->max_checkpoint_age;
 }
 
+/** Extends the log buffer.
+@param[in] len	requested minimum size in bytes */
+static
+void
+log_buffer_extend(
+	ulint	len)
+{
+	ulint	move_start;
+	ulint	move_end;
+	byte	tmp_buf[OS_FILE_LOG_BLOCK_SIZE];
+
+	mutex_enter(&(log_sys->mutex));
+
+	while (log_sys->is_extending) {
+		/* Another thread is trying to extend already.
+		Needs to wait for. */
+		mutex_exit(&(log_sys->mutex));
+
+		log_buffer_flush_to_disk();
+
+		mutex_enter(&(log_sys->mutex));
+
+		if (srv_log_buffer_size > len / UNIV_PAGE_SIZE) {
+			/* Already extended enough by the others */
+			mutex_exit(&(log_sys->mutex));
+			return;
+		}
+	}
+
+	log_sys->is_extending = true;
+
+	while (log_sys->n_pending_writes != 0
+	       || ut_calc_align_down(log_sys->buf_free,
+				     OS_FILE_LOG_BLOCK_SIZE)
+		  != ut_calc_align_down(log_sys->buf_next_to_write,
+					OS_FILE_LOG_BLOCK_SIZE)) {
+		/* Buffer might have >1 blocks to write still. */
+		mutex_exit(&(log_sys->mutex));
+
+		log_buffer_flush_to_disk();
+
+		mutex_enter(&(log_sys->mutex));
+	}
+
+	move_start = ut_calc_align_down(
+		log_sys->buf_free,
+		OS_FILE_LOG_BLOCK_SIZE);
+	move_end = log_sys->buf_free;
+
+	/* store the last log block in buffer */
+	ut_memcpy(tmp_buf, log_sys->buf + move_start,
+		  move_end - move_start);
+
+	log_sys->buf_free -= move_start;
+	log_sys->buf_next_to_write -= move_start;
+
+	/* reallocate log buffer */
+	srv_log_buffer_size = len / UNIV_PAGE_SIZE + 1;
+	mem_free(log_sys->buf_ptr);
+	log_sys->buf_ptr = static_cast<byte*>(
+		mem_zalloc(LOG_BUFFER_SIZE + OS_FILE_LOG_BLOCK_SIZE));
+	log_sys->buf = static_cast<byte*>(
+		ut_align(log_sys->buf_ptr, OS_FILE_LOG_BLOCK_SIZE));
+	log_sys->buf_size = LOG_BUFFER_SIZE;
+	log_sys->max_buf_free = log_sys->buf_size / LOG_BUF_FLUSH_RATIO
+		- LOG_BUF_FLUSH_MARGIN;
+
+	/* restore the last log block */
+	ut_memcpy(log_sys->buf, tmp_buf, move_end - move_start);
+
+	ut_ad(log_sys->is_extending);
+	log_sys->is_extending = false;
+
+	mutex_exit(&(log_sys->mutex));
+
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"innodb_log_buffer_size was extended to %lu.",
+		LOG_BUFFER_SIZE);
+}
+
 /************************************************************//**
 Opens the log for log_write_low. The log must be closed with log_close.
 @return	start lsn of the log record */
@@ -253,10 +333,37 @@ log_open(
 	ulint	dummy;
 #endif /* UNIV_LOG_ARCHIVE */
 	ulint	count			= 0;
+	ulint	tcount			= 0;
 
-	ut_a(len < log->buf_size / 2);
+	if (len >= log->buf_size / 2) {
+		DBUG_EXECUTE_IF("ib_log_buffer_is_short_crash",
+				DBUG_SUICIDE(););
+
+		/* log_buffer is too small. try to extend instead of crash. */
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"The transaction log size is too large"
+			" for innodb_log_buffer_size (%lu >= %lu / 2). "
+			"Trying to extend it.",
+			len, LOG_BUFFER_SIZE);
+
+		log_buffer_extend((len + 1) * 2);
+	}
 loop:
 	ut_ad(!recv_no_log_write);
+
+	if (log->is_extending) {
+
+		mutex_exit(&(log->mutex));
+
+		/* Log buffer size is extending. Writing up to the next block
+		should wait for the extending finished. */
+
+		os_thread_sleep(100000);
+
+		ut_ad(++count < 50);
+
+		goto loop;
+	}
 
 	/* Calculate an upper limit for the space the string may take in the
 	log buffer */
@@ -275,21 +382,6 @@ loop:
 		srv_stats.log_waits.inc();
 
 		ut_ad(++count < 50);
-
-		mutex_enter(&(log->mutex));
-
-		goto loop;
-	}
-
-	if (log_check_tracking_margin(len_upper_limit) && (++count < 50)) {
-
-		/* This log write would violate the untracked LSN free space
-		margin.  Limit this to 50 retries as there might be situations
-		where we have no choice but to proceed anyway, i.e. if the log
-		is about to be overflown, log tracking or not. */
-		mutex_exit(&(log->mutex));
-
-		os_thread_sleep(10000);
 
 		mutex_enter(&(log->mutex));
 
@@ -319,6 +411,22 @@ loop:
 		}
 	}
 #endif /* UNIV_LOG_ARCHIVE */
+
+	if (log_check_tracking_margin(len_upper_limit) &&
+		(++tcount + count < 50)) {
+
+		/* This log write would violate the untracked LSN free space
+		margin.  Limit this to 50 retries as there might be situations
+		where we have no choice but to proceed anyway, i.e. if the log
+		is about to be overflown, log tracking or not. */
+		mutex_exit(&(log->mutex));
+
+		os_thread_sleep(10000);
+
+		mutex_enter(&(log->mutex));
+
+		goto loop;
+	}
 
 #ifdef UNIV_LOG_DEBUG
 	log->old_buf_free = log->buf_free;
@@ -845,6 +953,7 @@ log_init(void)
 		ut_align(log_sys->buf_ptr, OS_FILE_LOG_BLOCK_SIZE));
 
 	log_sys->buf_size = LOG_BUFFER_SIZE;
+	log_sys->is_extending = false;
 
 	log_sys->max_buf_free = log_sys->buf_size / LOG_BUF_FLUSH_RATIO
 		- LOG_BUF_FLUSH_MARGIN;

@@ -1700,8 +1700,8 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`c`,`d`),
   CONSTRAINT `c1` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON DELETE NO ACTION,
   CONSTRAINT `c2` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON UPDATE NO ACTION,
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON UPDATE NO ACTION,
-  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON UPDATE NO ACTION
+  CONSTRAINT `f3` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON UPDATE NO ACTION,
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON UPDATE NO ACTION
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t2;
 DROP TABLE t1;
@@ -2561,6 +2561,8 @@ KEY idx2 (f2,f4)
 ) ENGINE=InnoDB;
 LOAD DATA INFILE '../../std_data/intersect-bug50389.tsv' INTO TABLE t1;
 ANALYZE TABLE t1;
+set @tmp_innodb_mysql= @@optimizer_switch;
+set optimizer_switch='extended_keys=off';
 SELECT * FROM t1 WHERE f1 IN
 (3305028,3353871,3772880,3346860,4228206,3336022,
 3470988,3305175,3329875,3817277,3856380,3796193,
@@ -2584,6 +2586,7 @@ EXPLAIN SELECT * FROM t1 WHERE f1 IN
 AND f5 = 'abcdefghijklmnopwrst' AND f2 = 1221457 AND f4 = 0 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index_merge	PRIMARY,idx1,idx2	idx2,idx1,PRIMARY	7,60,4	NULL	1	Using intersect(idx2,idx1,PRIMARY); Using where
+set optimizer_switch=@tmp_innodb_mysql;
 DROP TABLE t1;
 #
 # Bug#51431 Wrong sort order after import of dump file

@@ -144,7 +144,7 @@ disconnect con1;
 disconnect con2;
 set debug_sync='RESET';
 
-select * from mysql.index_stats where table_name='lineitem' order by index_name;
+select * from mysql.index_stats where table_name='lineitem' order by index_name, prefix_arity;
 
 #
 # Test for parallel statistics collection and update (innodb)
@@ -217,7 +217,7 @@ connection con2;
 set debug_sync='open_and_process_table WAIT_FOR parker';
 set debug_sync='statistics_read_start SIGNAL go1 WAIT_FOR go2';
 use dbt3_s001;
---send select * from mysql.index_stats, lineitem where index_name= 'i_l_shipdate' and l_orderkey=1 and l_partkey=68
+--send select * from mysql.index_stats, lineitem where index_name= 'i_l_shipdate' and l_orderkey=1 and l_partkey=68 order by prefix_arity;
 
 connection con1;
 --disable_result_log
