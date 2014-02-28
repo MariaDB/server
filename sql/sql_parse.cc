@@ -6663,6 +6663,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
   order->free_me=0;
   order->used=0;
   order->counter_used= 0;
+  order->fast_field_copier_setup= 0; 
   list.link_in_list(order, &order->next);
   DBUG_RETURN(0);
 }
