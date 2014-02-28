@@ -67,12 +67,22 @@ check_pid_and_port()
 MAGIC_FILE="$WSREP_SST_OPT_DATA/rsync_sst_complete"
 rm -rf "$MAGIC_FILE"
 
-SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd -P)
-WSREP_LOG_DIR=${WSREP_LOG_DIR:-$($SCRIPT_DIR/my_print_defaults --defaults-file "$WSREP_SST_OPT_CONF" mysqld server mysqld-5.5 \
-	| grep -- '--innodb[-_]log[-_]group[-_]home[-_]dir=' | cut -b 29- )}
-if [ -n "${WSREP_LOG_DIR:-""}" ]; then
+WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
+
+# if WSREP_LOG_DIR env. variable is not set, try to get it from my.cnf
+if [ -z "$WSREP_LOG_DIR" ]; then
+    SCRIPT_DIR="$(cd $(dirname "$0"); pwd -P)"
+    WSREP_LOG_DIR=$($SCRIPT_DIR/my_print_defaults --defaults-file \
+                   "$WSREP_SST_OPT_CONF" mysqld server mysqld-5.5 \
+                    | grep -- '--innodb[-_]log[-_]group[-_]home[-_]dir=' \
+                    | cut -b 29- )
+fi
+
+if [ -n "$WSREP_LOG_DIR" ]; then
+    # handle both relative and absolute paths
     WSREP_LOG_DIR=$(cd $WSREP_SST_OPT_DATA; mkdir -p "$WSREP_LOG_DIR"; cd $WSREP_LOG_DIR; pwd -P)
 else
+    # default to datadir
     WSREP_LOG_DIR=$(cd $WSREP_SST_OPT_DATA; pwd -P)
 fi
 
@@ -158,7 +168,7 @@ then
         find . -maxdepth 1 -mindepth 1 -type d -print0 | xargs -I{} -0 -P $count \
              rsync --owner --group --perms --links --specials \
              --ignore-times --inplace --recursive --delete --quiet \
-	     $WHOLE_FILE_OPT --exclude '*/ib_logfile*' "$WSREP_SST_OPT_DATA"/{}/ \
+             $WHOLE_FILE_OPT --exclude '*/ib_logfile*' "$WSREP_SST_OPT_DATA"/{}/ \
              rsync://$WSREP_SST_OPT_ADDR/{} >&2 || RC=$?
 
         popd >/dev/null
@@ -208,8 +218,6 @@ then
     trap "exit 3"  INT TERM ABRT
     trap cleanup_joiner EXIT
 
-    MYUID=$(id -u)
-    MYGID=$(id -g)
     RSYNC_CONF="$WSREP_SST_OPT_DATA/$MODULE.conf"
 
 cat << EOF > "$RSYNC_CONF"
@@ -217,8 +225,6 @@ pid file = $RSYNC_PID
 use chroot = no
 read only = no
 timeout = 300
-uid = $MYUID
-gid = $MYGID
 [$MODULE]
     path = $WSREP_SST_OPT_DATA
 [$MODULE-log_dir]

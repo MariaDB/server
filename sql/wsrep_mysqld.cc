@@ -126,7 +126,7 @@ static void wsrep_log_cb(wsrep_log_level_t level, const char *msg) {
     sql_print_error("WSREP: %s", msg);
     break;
   case WSREP_LOG_DEBUG:
-    if (wsrep_debug) sql_print_information ("[Debug] WSREP: %s", msg);
+    sql_print_information ("[Debug] WSREP: %s", msg);
   default:
     break;
   }

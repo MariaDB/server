@@ -4883,7 +4883,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
 
   mysql_mutex_lock(&LOCK_thread_count);
   wsrep_running_threads++;
-  mysql_cond_signal(&COND_thread_count);
+  mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
   processor(thd);
@@ -4893,7 +4893,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
   mysql_mutex_lock(&LOCK_thread_count);
   wsrep_running_threads--;
   WSREP_DEBUG("wsrep running threads now: %lu", wsrep_running_threads);
-  mysql_cond_signal(&COND_thread_count);
+  mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
   // Note: We can't call THD destructor without crashing

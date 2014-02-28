@@ -1769,6 +1769,10 @@ row_ins_scan_sec_index_for_duplicate(
 				lock_type, block, rec, index, offsets, thr);
 		} else {
 
+#ifdef WITH_WSREP
+		  /* appliers don't need dupkey checks */
+		  if (!wsrep_thd_is_BF(thr_get_trx(thr)->mysql_thd, 0))
+#endif /* WITH_WSREP */
 			err = row_ins_set_shared_rec_lock(
 				lock_type, block, rec, index, offsets, thr);
 		}

@@ -1178,6 +1178,7 @@ public:
     for (uint i=0; i < m_tot_parts; i++)
       m_file[i]->ha_start_of_new_statement();
   }
+  virtual int wsrep_db_type() const;
 #endif /* WITH_WSREP */
 };
 

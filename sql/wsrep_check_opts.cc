@@ -303,19 +303,6 @@ check_opts (int const argc, const char* const argv[], struct opt opts[])
         }
     }
 
-    long long query_cache_size, query_cache_type;
-    if ((err = get_long_long (opts[QUERY_CACHE_SIZE], &query_cache_size, 10)))
-        return err;
-    if ((err = get_long_long (opts[QUERY_CACHE_TYPE], &query_cache_type, 10)))
-        return err;
-
-    if (0 != query_cache_size && 0 != query_cache_type)
-    {
-        WSREP_ERROR ("Query cache is not supported (size=%lld type=%lld)",
-                     query_cache_size, query_cache_type);
-        rcode = EINVAL;
-    }
-
     bool locked_in_memory;
     err = get_bool (opts[LOCKED_IN_MEMORY], &locked_in_memory);
     if (err) { WSREP_ERROR("get_bool error: %s", strerror(err)); return err; }
