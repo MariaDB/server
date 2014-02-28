@@ -34,14 +34,6 @@ Online database log parsing for changed page tracking
 #include "trx0sys.h"
 #include "ut0rbt.h"
 
-#ifdef __WIN__
-/* error LNK2001: unresolved external symbol _debug_sync_C_callback_ptr */
-# define DEBUG_SYNC_C(dummy) ((void) 0)
-#else
-# include "m_string.h" /* for my_sys.h */
-# include "my_sys.h" /* DEBUG_SYNC_C */
-#endif
-
 enum { FOLLOW_SCAN_SIZE = 4 * (UNIV_PAGE_SIZE_MAX) };
 
 #ifdef UNIV_PFS_MUTEX
