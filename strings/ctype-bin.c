@@ -276,18 +276,17 @@ void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
                            const uchar *key, size_t len,
                            ulong *nr1, ulong *nr2)
 {
-  const uchar *pos = key;
   
   /*
      Remove trailing spaces. We have to do this to be able to compare
     'A ' and 'A' as identical
   */
-  key= skip_trailing_space(key, len);
+  const uchar *end = skip_trailing_space(key, len);
 
-  for (; pos < (uchar*) key ; pos++)
+  for (; key < end ; key++)
   {
     nr1[0]^=(ulong) ((((uint) nr1[0] & 63)+nr2[0]) * 
-	     ((uint)*pos)) + (nr1[0] << 8);
+	     ((uint)*key)) + (nr1[0] << 8);
     nr2[0]+=3;
   }
 }
@@ -296,14 +295,12 @@ void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
 void my_hash_sort_bin(CHARSET_INFO *cs __attribute__((unused)),
 		      const uchar *key, size_t len,ulong *nr1, ulong *nr2)
 {
-  const uchar *pos = key;
+  const uchar *end = key + len;
   
-  key+= len;
-  
-  for (; pos < (uchar*) key ; pos++)
+  for (; key < end ; key++)
   {
     nr1[0]^=(ulong) ((((uint) nr1[0] & 63)+nr2[0]) * 
-	     ((uint)*pos)) + (nr1[0] << 8);
+	     ((uint)*key)) + (nr1[0] << 8);
     nr2[0]+=3;
   }
 }
