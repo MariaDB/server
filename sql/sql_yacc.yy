@@ -15192,6 +15192,11 @@ current_role:
 grant_role:
           ident_or_text
           {
+            if ($1.length == 0)
+            {
+              my_error(ER_INVALID_ROLE, MYF(0), "");
+              MYSQL_YYABORT;
+            }
             if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
               MYSQL_YYABORT;
             $$->user = $1;
