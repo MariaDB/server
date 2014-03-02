@@ -247,8 +247,9 @@ public:
   int delete_table(const char *from);
   int create(const char *name, TABLE *form,
              HA_CREATE_INFO *create_info);                      ///< required
-  bool check_if_incompatible_data(HA_CREATE_INFO *info,
-                                  uint table_changes);
+  enum_alter_inplace_result
+  check_if_supported_inplace_alter(TABLE* altered_table,
+                                   Alter_inplace_info* ha_alter_info);
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
                              enum thr_lock_type lock_type);     ///< required
