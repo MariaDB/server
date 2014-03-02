@@ -188,6 +188,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   my_b_clear(&buffpek_pointers);
   buffpek=0;
   error= 1;
+  *found_rows= HA_POS_ERROR;
 
   param.init_for_filesort(sortlength(thd, sortorder, s_length,
                                      &multi_byte_charset),
