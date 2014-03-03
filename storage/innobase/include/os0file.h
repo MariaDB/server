@@ -354,7 +354,7 @@ to original un-instrumented file I/O APIs */
 
 # define os_file_close(file)	os_file_close_func(file)
 
-# define os_aio(type, mode, name, file, buf, offset, n, message1, message2, write_size) \
+# define os_aio(type, mode, name, file, buf, offset, n, message1, message2, write_size, page_compression, page_compression_level) \
 	os_aio_func(type, mode, name, file, buf, offset, n,		\
 		message1, message2, write_size, page_compression, page_compression_level)
 
