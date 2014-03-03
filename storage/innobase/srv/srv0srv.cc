@@ -152,7 +152,7 @@ UNIV_INTERN my_bool	srv_page_compress_index_pages = FALSE;
 UNIV_INTERN long	srv_trim_pct = 100;
 /* If this flag is TRUE, then we will use fallocate(PUCH_HOLE)
 to the pages */
-UNIV_INTERN my_bool	srv_use_trim = TRUE;
+UNIV_INTERN my_bool	srv_use_trim = FALSE;
 /* If this flag is TRUE, then we will use posix fallocate for file extentsion */
 UNIV_INTERN my_bool	srv_use_posix_fallocate = FALSE;
 /* If this flag is TRUE, then we disable doublewrite buffer */
@@ -162,7 +162,7 @@ UNIV_INTERN my_bool	srv_use_lz4                     = FALSE;
 /* Number of threads used for multi-threaded flush */
 UNIV_INTERN long srv_mtflush_threads = MTFLUSH_DEFAULT_WORKER;
 /* If this flag is TRUE, then we will use multi threaded flush. */
-UNIV_INTERN my_bool	srv_use_mtflush                 = TRUE;
+UNIV_INTERN my_bool	srv_use_mtflush                 = FALSE;
 
 #ifdef __WIN__
 /* Windows native condition variables. We use runtime loading / function

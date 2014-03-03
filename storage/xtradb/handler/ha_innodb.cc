@@ -17952,8 +17952,8 @@ static MYSQL_SYSVAR_BOOL(compress_index_pages, srv_page_compress_index_pages,
 
 static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
   PLUGIN_VAR_OPCMDARG,
-  "Use trim.",
-  NULL, NULL, TRUE);
+  "Use trim. Default FALSE.",
+  NULL, NULL, FALSE);
 
 #ifdef HAVE_LZ4
 static MYSQL_SYSVAR_BOOL(use_lz4, srv_use_lz4,
@@ -17973,8 +17973,8 @@ static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
 
 static MYSQL_SYSVAR_BOOL(use_mtflush, srv_use_mtflush,
   PLUGIN_VAR_OPCMDARG ,
-  "Use multi-threaded flush. Default TRUE.",
-  NULL, NULL, TRUE);
+  "Use multi-threaded flush. Default FALSE.",
+  NULL, NULL, FALSE);
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_block_size),
