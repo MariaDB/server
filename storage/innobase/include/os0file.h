@@ -1212,7 +1212,7 @@ os_aio_windows_handle(
 			       actual page size does not decrease. */
 	ibool		page_compression, /*!< in: is page compression used
 					  on this file space */
-	ulint		page_compression_level) /*!< page compression
+	ulint		page_compression_level); /*!< page compression
 						 level to be used */
 #endif
 
