@@ -5188,7 +5188,7 @@ os_aio_windows_handle(
 			break;
 		case OS_FILE_READ:
 			ret_val = os_file_read(slot->file, slot->buf,
-				 slot->control.Offset, slot->control.OffsetHigh, slot->len);
+				slot->offset, slot->len);
 			break;
 		default:
 			ut_error;
@@ -6311,12 +6311,12 @@ os_file_trim(
 			FALSE, __FILE__, __LINE__);
 
 		if (slot->write_size) {
-			slot->write_size = 0;
+			*slot->write_size = 0;
 		}
 		return (FALSE);
 	} else {
 		if (slot->write_size) {
-			slot->write_size = len;
+			*slot->write_size = len;
 		}
 	}
 #endif
