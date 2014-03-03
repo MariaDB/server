@@ -1,4 +1,4 @@
-# Copyright (c) 2011, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2011, 2013, Oracle and/or its affiliates. All rights reserved.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -31,4 +31,8 @@ IF(WIN32)
     LINK_LIBRARIES Secur32
     MODULE_ONLY COMPONENT SharedLibraries)
 
+  #INSTALL_DEBUG_SYMBOLS(auth_win_client)
+  #IF(MSVC)
+  #   INSTALL_DEBUG_TARGET(auth_win_client DESTINATION ${INSTALL_LIBDIR}/debug)
+  #ENDIF()
 ENDIF(WIN32)

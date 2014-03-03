@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -105,7 +105,7 @@ fts_config_get_value(
 		fts_table,
 		info,
 		"DECLARE FUNCTION my_func;\n"
-		"DECLARE CURSOR c IS SELECT value FROM %s"
+		"DECLARE CURSOR c IS SELECT value FROM \"%s\""
 		" WHERE key = :name;\n"
 		"BEGIN\n"
 		""
@@ -221,7 +221,7 @@ fts_config_set_value(
 
 	graph = fts_parse_sql(
 		fts_table, info,
-		"BEGIN UPDATE %s SET value = :value WHERE key = :name;");
+		"BEGIN UPDATE \"%s\" SET value = :value WHERE key = :name;");
 
 	trx->op_info = "setting FTS config value";
 
@@ -246,7 +246,7 @@ fts_config_set_value(
 		graph = fts_parse_sql(
 			fts_table, info,
 			"BEGIN\n"
-			"INSERT INTO %s VALUES(:name, :value);");
+			"INSERT INTO \"%s\" VALUES(:name, :value);");
 
 		trx->op_info = "inserting FTS config value";
 
@@ -481,7 +481,7 @@ fts_config_increment_value(
 	graph = fts_parse_sql(
 		fts_table, info,
 		"DECLARE FUNCTION my_func;\n"
-		"DECLARE CURSOR c IS SELECT value FROM %s"
+		"DECLARE CURSOR c IS SELECT value FROM \"%s\""
 		" WHERE key = :name FOR UPDATE;\n"
 		"BEGIN\n"
 		""

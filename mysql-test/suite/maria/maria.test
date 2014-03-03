@@ -632,6 +632,9 @@ drop table t1,t2;
 create table t1 ( a tinytext, b char(1), index idx (a(1),b) );
 insert into t1 values (null,''), (null,'');
 explain select count(*) from t1 where a is null;
+insert into t1 values(1,'a');
+explain select count(*) from t1 where a is null;
+explain select count(*) from t1 where a = 'a';
 select count(*) from t1 where a is null;
 drop table t1;
 

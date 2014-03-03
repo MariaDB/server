@@ -399,7 +399,7 @@ static void do_field_int(Copy_field *copy)
 {
   longlong value= copy->from_field->val_int();
   copy->to_field->store(value,
-                        test(copy->from_field->flags & UNSIGNED_FLAG));
+                        MY_TEST(copy->from_field->flags & UNSIGNED_FLAG));
 }
 
 static void do_field_real(Copy_field *copy)
@@ -823,40 +823,76 @@ Copy_field::get_copy_func(Field *to,Field *from)
   return do_field_eq;
 }
 
+/**
+  Check if it is possible just copy value of the fields
+
+  @param to              The field to copy to
+  @param from            The field to copy from
+
+  @retval TRUE - it is possible to just copy value of 'from' to 'to'.
+  @retval FALSE - conversion is needed
+*/
+
+bool memcpy_field_possible(Field *to,Field *from)
+{
+  const enum_field_types to_real_type= to->real_type();
+  const enum_field_types from_real_type= from->real_type();
+  const enum_field_types to_type= from->type();
+  return (to_real_type == from_real_type &&
+          !(to->flags & BLOB_FLAG && to->table->copy_blobs) &&
+          to->pack_length() == from->pack_length() &&
+          !(to->flags & UNSIGNED_FLAG && !(from->flags & UNSIGNED_FLAG)) &&
+          to->decimals() == from->decimals() &&
+          to_real_type != MYSQL_TYPE_ENUM &&
+          to_real_type != MYSQL_TYPE_SET &&
+          to_real_type != MYSQL_TYPE_BIT &&
+          (to_real_type != MYSQL_TYPE_NEWDECIMAL ||
+           to->field_length == from->field_length) &&
+          from->charset() == to->charset() &&
+          (!sql_mode_for_dates(to->table->in_use) ||
+           (to_type != MYSQL_TYPE_DATE &&
+            to_type != MYSQL_TYPE_DATETIME)) &&
+          (from_real_type != MYSQL_TYPE_VARCHAR ||
+           ((Field_varstring*)from)->length_bytes ==
+           ((Field_varstring*)to)->length_bytes));
+}
+
 
 /** Simple quick field convert that is called on insert. */
 
 int field_conv(Field *to,Field *from)
 {
-  if (to->real_type() == from->real_type() &&
-      !(to->flags & BLOB_FLAG && to->table->copy_blobs))
-  {
-    if (to->pack_length() == from->pack_length() &&
-        !(to->flags & UNSIGNED_FLAG && !(from->flags & UNSIGNED_FLAG)) &&
-        to->decimals() == from->decimals() &&
-	to->real_type() != MYSQL_TYPE_ENUM &&
-	to->real_type() != MYSQL_TYPE_SET &&
-        to->real_type() != MYSQL_TYPE_BIT &&
-        (to->real_type() != MYSQL_TYPE_NEWDECIMAL ||
-         to->field_length == from->field_length) &&
-        from->charset() == to->charset() &&
-        (!sql_mode_for_dates(to->table->in_use) ||
-         (to->type() != MYSQL_TYPE_DATE &&
-          to->type() != MYSQL_TYPE_DATETIME)) &&
-        (from->real_type() != MYSQL_TYPE_VARCHAR ||
-         ((Field_varstring*)from)->length_bytes ==
-          ((Field_varstring*)to)->length_bytes))
-    {						// Identical fields
-      /*
-        This may happen if one does 'UPDATE ... SET x=x'
-        The test is here mostly for valgrind, but can also be relevant
-        if memcpy() is implemented with prefetch-write
-       */
-      if (to->ptr != from->ptr)
-        memcpy(to->ptr,from->ptr,to->pack_length());
-      return 0;
-    }
+  if (memcpy_field_possible(to, from))
+  {						// Identical fields
+    /*
+      This may happen if one does 'UPDATE ... SET x=x'
+      The test is here mostly for valgrind, but can also be relevant
+      if memcpy() is implemented with prefetch-write
+    */
+    if (to->ptr != from->ptr)
+      memcpy(to->ptr, from->ptr, to->pack_length());
+    return 0;
   }
+  return field_conv_incompatible(to, from);
+}
+
+
+/**
+  Copy value of the field with conversion.
+
+  @note Impossibility of simple copy should be checked before this call.
+
+  @param to              The field to copy to
+  @param from            The field to copy from
+
+  @retval TRUE ERROR
+  @retval FALSE OK
+*/
+
+int field_conv_incompatible(Field *to, Field *from)
+{
+  const enum_field_types to_real_type= to->real_type();
+  const enum_field_types from_real_type= from->real_type();
   if (to->flags & BLOB_FLAG)
   {						// Be sure the value is stored
     Field_blob *blob=(Field_blob*) to;
@@ -867,21 +903,22 @@ int field_conv(Field *to,Field *from)
     */
     if (to->table->copy_blobs ||
         (!blob->value.is_alloced() &&
-         from->real_type() != MYSQL_TYPE_STRING &&
-         from->real_type() != MYSQL_TYPE_VARCHAR))
+         from_real_type != MYSQL_TYPE_STRING &&
+         from_real_type != MYSQL_TYPE_VARCHAR))
       blob->value.copy();
     return blob->store(blob->value.ptr(),blob->value.length(),from->charset());
   }
-  if (from->real_type() == MYSQL_TYPE_ENUM &&
-      to->real_type() == MYSQL_TYPE_ENUM &&
+  if (from_real_type == MYSQL_TYPE_ENUM &&
+      to_real_type == MYSQL_TYPE_ENUM &&
       from->val_int() == 0)
   {
     ((Field_enum *)(to))->store_type(0);
     return 0;
   }
-  if (from->result_type() == REAL_RESULT)
+  Item_result from_result_type= from->result_type();
+  if (from_result_type == REAL_RESULT)
     return to->store(from->val_real());
-  if (from->result_type() == DECIMAL_RESULT)
+  if (from_result_type == DECIMAL_RESULT)
   {
     my_decimal buff;
     return to->store_decimal(from->val_decimal(&buff));
@@ -894,10 +931,10 @@ int field_conv(Field *to,Field *from)
     else
       return to->store_time_dec(&ltime, from->decimals());
   }
-  if ((from->result_type() == STRING_RESULT &&
+  if ((from_result_type == STRING_RESULT &&
             (to->result_type() == STRING_RESULT ||
-             (from->real_type() != MYSQL_TYPE_ENUM &&
-              from->real_type() != MYSQL_TYPE_SET))) ||
+             (from_real_type != MYSQL_TYPE_ENUM &&
+              from_real_type != MYSQL_TYPE_SET))) ||
            to->type() == MYSQL_TYPE_DECIMAL)
   {
     char buff[MAX_FIELD_WIDTH];
@@ -911,5 +948,5 @@ int field_conv(Field *to,Field *from)
     */
     return to->store(result.c_ptr_quick(),result.length(),from->charset());
   }
-  return to->store(from->val_int(), test(from->flags & UNSIGNED_FLAG));
+  return to->store(from->val_int(), MY_TEST(from->flags & UNSIGNED_FLAG));
 }

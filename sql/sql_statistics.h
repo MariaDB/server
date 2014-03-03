@@ -354,7 +354,7 @@ public:
 
   bool is_null(uint stat_field_no)
   {
-    return test(column_stat_nulls & (1 << stat_field_no));
+    return MY_TEST(column_stat_nulls & (1 << stat_field_no));
   }
 
   double get_nulls_ratio()

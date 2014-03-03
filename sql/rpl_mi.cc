@@ -547,7 +547,7 @@ file '%s')", fname);
   mi->rli.is_relay_log_recovery= FALSE;
   // now change cache READ -> WRITE - must do this before flush_master_info
   reinit_io_cache(&mi->file, WRITE_CACHE, 0L, 0, 1);
-  if ((error=test(flush_master_info(mi, TRUE, TRUE))))
+  if ((error= MY_TEST(flush_master_info(mi, TRUE, TRUE))))
     sql_print_error("Failed to flush master info file");
   mysql_mutex_unlock(&mi->data_lock);
   DBUG_RETURN(error);

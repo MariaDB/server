@@ -200,7 +200,7 @@ bool check_global_access(THD *thd, ulong want_access, bool no_errors= false);
 
 inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
-  return test(cs->mbminlen == 1);
+  return MY_TEST(cs->mbminlen == 1);
 }
 
 

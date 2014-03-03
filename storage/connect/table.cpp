@@ -1,7 +1,7 @@
 /************** Table C++ Functions Source Code File (.CPP) ************/
-/*  Name: TABLE.CPP  Version 2.6                                       */
+/*  Name: TABLE.CPP  Version 2.7                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2014    */
 /*                                                                     */
 /*  This file contains the TBX, TDB and OPJOIN classes functions.      */
 /***********************************************************************/
@@ -261,6 +261,17 @@ PCATLG TDBASE::GetCat(void)
   {
   return (To_Def) ? To_Def->GetCat() : NULL;
   }  // end of GetCat
+
+/***********************************************************************/
+/*  Return the pointer on the charset of this table.                   */
+/***********************************************************************/
+CHARSET_INFO *TDBASE::data_charset(void)
+  {
+  // If no DATA_CHARSET is specified, we assume that character
+  // set of the remote data is the same with CHARACTER SET 
+  // definition of the SQL column.
+  return m_data_charset ? m_data_charset : &my_charset_bin;
+  } // end of data_charset
 
 /***********************************************************************/
 /*  Return the datapath of the DB this table belongs to.               */

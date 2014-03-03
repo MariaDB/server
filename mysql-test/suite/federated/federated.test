@@ -6,6 +6,7 @@ connection master;
 #
 --error 1
 CREATE TABLE t1 (a INT) ENGINE=FEDERATED CONNECTION='non_existing';
+--replace_result "Not owner" "Operation not permitted"
 SHOW WARNINGS;
 
 #

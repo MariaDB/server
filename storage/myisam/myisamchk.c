@@ -814,7 +814,7 @@ static void get_options(register int *argc,register char ***argv)
 static int myisamchk(HA_CHECK *param, char * filename)
 {
   int error,lock_type,recreate;
-  int rep_quick= test(param->testflag & (T_QUICK | T_FORCE_UNIQUENESS));
+  int rep_quick= MY_TEST(param->testflag & (T_QUICK | T_FORCE_UNIQUENESS));
   MI_INFO *info;
   File datafile;
   char llbuff[22],llbuff2[22];
@@ -1128,7 +1128,8 @@ static int myisamchk(HA_CHECK *param, char * filename)
 	if ((info->s->options & (HA_OPTION_PACK_RECORD |
 				 HA_OPTION_COMPRESS_RECORD)) ||
 	    (param->testflag & (T_EXTEND | T_MEDIUM)))
-	  error|=chk_data_link(param, info, test(param->testflag & T_EXTEND));
+          error|= chk_data_link(param, info,
+                                MY_TEST(param->testflag & T_EXTEND));
 	error|=flush_blocks(param, share->key_cache, share->kfile,
                             &share->dirty_part_map);
 	(void) end_io_cache(&param->read_cache);
@@ -1152,7 +1153,7 @@ static int myisamchk(HA_CHECK *param, char * filename)
   if ((param->testflag & T_AUTO_INC) ||
       ((param->testflag & T_REP_ANY) && info->s->base.auto_key))
     update_auto_increment_key(param, info,
-			      (my_bool) !test(param->testflag & T_AUTO_INC));
+                              (my_bool) !MY_TEST(param->testflag & T_AUTO_INC));
 
   if (!(param->testflag & T_DESCRIPT))
   {

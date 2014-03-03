@@ -8,140 +8,119 @@ PCRE - Perl-compatible regular expressions
 .SH "PCRE 32-BIT API BASIC FUNCTIONS"
 .rs
 .sp
-.SM
+.nf
 .B pcre32 *pcre32_compile(PCRE_SPTR32 \fIpattern\fP, int \fIoptions\fP,
-.ti +5n
-.B const char **\fIerrptr\fP, int *\fIerroffset\fP,
-.ti +5n
-.B const unsigned char *\fItableptr\fP);
-.PP
+.B "     const char **\fIerrptr\fP, int *\fIerroffset\fP,"
+.B "     const unsigned char *\fItableptr\fP);"
+.sp
 .B pcre32 *pcre32_compile2(PCRE_SPTR32 \fIpattern\fP, int \fIoptions\fP,
-.ti +5n
-.B int *\fIerrorcodeptr\fP,
-.ti +5n
-.B const char **\fIerrptr\fP, int *\fIerroffset\fP,
-.ti +5n
-.B const unsigned char *\fItableptr\fP);
-.PP
+.B "     int *\fIerrorcodeptr\fP,"
+.B "     const unsigned char *\fItableptr\fP);"
+.sp
 .B pcre32_extra *pcre32_study(const pcre32 *\fIcode\fP, int \fIoptions\fP,
-.ti +5n
-.B const char **\fIerrptr\fP);
-.PP
+.B "     const char **\fIerrptr\fP);"
+.sp
 .B void pcre32_free_study(pcre32_extra *\fIextra\fP);
-.PP
+.sp
 .B int pcre32_exec(const pcre32 *\fIcode\fP, "const pcre32_extra *\fIextra\fP,"
-.ti +5n
-.B "PCRE_SPTR32 \fIsubject\fP," int \fIlength\fP, int \fIstartoffset\fP,
-.ti +5n
-.B int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP);
-.PP
+.B "     PCRE_SPTR32 \fIsubject\fP, int \fIlength\fP, int \fIstartoffset\fP,"
+.B "     int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP);"
+.sp
 .B int pcre32_dfa_exec(const pcre32 *\fIcode\fP, "const pcre32_extra *\fIextra\fP,"
-.ti +5n
-.B "PCRE_SPTR32 \fIsubject\fP," int \fIlength\fP, int \fIstartoffset\fP,
-.ti +5n
-.B int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP,
-.ti +5n
-.B int *\fIworkspace\fP, int \fIwscount\fP);
+.B "     PCRE_SPTR32 \fIsubject\fP, int \fIlength\fP, int \fIstartoffset\fP,"
+.B "     int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP,"
+.B "     int *\fIworkspace\fP, int \fIwscount\fP);"
+.fi
 .
 .
 .SH "PCRE 32-BIT API STRING EXTRACTION FUNCTIONS"
 .rs
 .sp
+.nf
 .B int pcre32_copy_named_substring(const pcre32 *\fIcode\fP,
-.ti +5n
-.B PCRE_SPTR32 \fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, PCRE_SPTR32 \fIstringname\fP,
-.ti +5n
-.B PCRE_UCHAR32 *\fIbuffer\fP, int \fIbuffersize\fP);
-.PP
+.B "     PCRE_SPTR32 \fIsubject\fP, int *\fIovector\fP,"
+.B "     int \fIstringcount\fP, PCRE_SPTR32 \fIstringname\fP,"
+.B "     PCRE_UCHAR32 *\fIbuffer\fP, int \fIbuffersize\fP);"
+.sp
 .B int pcre32_copy_substring(PCRE_SPTR32 \fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, int \fIstringnumber\fP, PCRE_UCHAR32 *\fIbuffer\fP,
-.ti +5n
-.B int \fIbuffersize\fP);
-.PP
+.B "     int \fIstringcount\fP, int \fIstringnumber\fP, PCRE_UCHAR32 *\fIbuffer\fP,"
+.B "     int \fIbuffersize\fP);"
+.sp
 .B int pcre32_get_named_substring(const pcre32 *\fIcode\fP,
-.ti +5n
-.B PCRE_SPTR32 \fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, PCRE_SPTR32 \fIstringname\fP,
-.ti +5n
-.B PCRE_SPTR32 *\fIstringptr\fP);
-.PP
+.B "     PCRE_SPTR32 \fIsubject\fP, int *\fIovector\fP,"
+.B "     int \fIstringcount\fP, PCRE_SPTR32 \fIstringname\fP,"
+.B "     PCRE_SPTR32 *\fIstringptr\fP);"
+.sp
 .B int pcre32_get_stringnumber(const pcre32 *\fIcode\fP,
-.ti +5n
-.B PCRE_SPTR32 \fIname\fP);
-.PP
+.B "     PCRE_SPTR32 \fIname\fP);"
+.sp
 .B int pcre32_get_stringtable_entries(const pcre32 *\fIcode\fP,
-.ti +5n
-.B PCRE_SPTR32 \fIname\fP, PCRE_UCHAR32 **\fIfirst\fP, PCRE_UCHAR32 **\fIlast\fP);
-.PP
+.B "     PCRE_SPTR32 \fIname\fP, PCRE_UCHAR32 **\fIfirst\fP, PCRE_UCHAR32 **\fIlast\fP);"
+.sp
 .B int pcre32_get_substring(PCRE_SPTR32 \fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, int \fIstringnumber\fP,
-.ti +5n
-.B PCRE_SPTR32 *\fIstringptr\fP);
-.PP
+.B "     int \fIstringcount\fP, int \fIstringnumber\fP,"
+.B "     PCRE_SPTR32 *\fIstringptr\fP);"
+.sp
 .B int pcre32_get_substring_list(PCRE_SPTR32 \fIsubject\fP,
-.ti +5n
-.B int *\fIovector\fP, int \fIstringcount\fP, "PCRE_SPTR32 **\fIlistptr\fP);"
-.PP
+.B "     int *\fIovector\fP, int \fIstringcount\fP, PCRE_SPTR32 **\fIlistptr\fP);"
+.sp
 .B void pcre32_free_substring(PCRE_SPTR32 \fIstringptr\fP);
-.PP
+.sp
 .B void pcre32_free_substring_list(PCRE_SPTR32 *\fIstringptr\fP);
+.fi
 .
 .
 .SH "PCRE 32-BIT API AUXILIARY FUNCTIONS"
 .rs
 .sp
+.nf
 .B pcre32_jit_stack *pcre32_jit_stack_alloc(int \fIstartsize\fP, int \fImaxsize\fP);
-.PP
+.sp
 .B void pcre32_jit_stack_free(pcre32_jit_stack *\fIstack\fP);
-.PP
+.sp
 .B void pcre32_assign_jit_stack(pcre32_extra *\fIextra\fP,
-.ti +5n
-.B pcre32_jit_callback \fIcallback\fP, void *\fIdata\fP);
-.PP
+.B "     pcre32_jit_callback \fIcallback\fP, void *\fIdata\fP);"
+.sp
 .B const unsigned char *pcre32_maketables(void);
-.PP
+.sp
 .B int pcre32_fullinfo(const pcre32 *\fIcode\fP, "const pcre32_extra *\fIextra\fP,"
-.ti +5n
-.B int \fIwhat\fP, void *\fIwhere\fP);
-.PP
+.B "     int \fIwhat\fP, void *\fIwhere\fP);"
+.sp
 .B int pcre32_refcount(pcre32 *\fIcode\fP, int \fIadjust\fP);
-.PP
+.sp
 .B int pcre32_config(int \fIwhat\fP, void *\fIwhere\fP);
-.PP
+.sp
 .B const char *pcre32_version(void);
-.PP
+.sp
 .B int pcre32_pattern_to_host_byte_order(pcre32 *\fIcode\fP,
-.ti +5n
-.B pcre32_extra *\fIextra\fP, const unsigned char *\fItables\fP);
+.B "     pcre32_extra *\fIextra\fP, const unsigned char *\fItables\fP);"
+.fi
 .
 .
 .SH "PCRE 32-BIT API INDIRECTED FUNCTIONS"
 .rs
 .sp
+.nf
 .B void *(*pcre32_malloc)(size_t);
-.PP
+.sp
 .B void (*pcre32_free)(void *);
-.PP
+.sp
 .B void *(*pcre32_stack_malloc)(size_t);
-.PP
+.sp
 .B void (*pcre32_stack_free)(void *);
-.PP
+.sp
 .B int (*pcre32_callout)(pcre32_callout_block *);
+.fi
 .
 .
 .SH "PCRE 32-BIT API 32-BIT-ONLY FUNCTION"
 .rs
 .sp
+.nf
 .B int pcre32_utf32_to_host_byte_order(PCRE_UCHAR32 *\fIoutput\fP,
-.ti +5n
-.B PCRE_SPTR32 \fIinput\fP, int \fIlength\fP, int *\fIbyte_order\fP,
-.ti +5n
-.B int \fIkeep_boms\fP);
+.B "     PCRE_SPTR32 \fIinput\fP, int \fIlength\fP, int *\fIbyte_order\fP,"
+.B "     int \fIkeep_boms\fP);"
+.fi
 .
 .
 .SH "THE PCRE 32-BIT LIBRARY"

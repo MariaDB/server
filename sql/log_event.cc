@@ -17,6 +17,7 @@
 
 
 #include "sql_priv.h"
+#include "mysqld_error.h"
 
 #ifndef MYSQL_CLIENT
 #include "my_global.h" // REQUIRED by log_event.h > m_string.h > my_bitmap.h
@@ -749,7 +750,7 @@ static void print_set_option(IO_CACHE* file, uint32 bits_changed,
   {
     if (*need_comma)
       my_b_write(file, ", ", 2);
-    my_b_printf(file,"%s=%d", name, test(flags & option));
+    my_b_printf(file, "%s=%d", name, MY_TEST(flags & option));
     *need_comma= 1;
   }
 }
@@ -1089,7 +1090,7 @@ my_bool Log_event::need_checksum()
         (checksum_alg != BINLOG_CHECKSUM_ALG_OFF) :
         ((binlog_checksum_options != BINLOG_CHECKSUM_ALG_OFF) &&
          (cache_type == Log_event::EVENT_NO_CACHE)) ?
-        test(binlog_checksum_options) : FALSE);
+        MY_TEST(binlog_checksum_options) : FALSE);
 
   /*
     FD calls the methods before data_written has been calculated.
@@ -2465,6 +2466,14 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
     else
     {
       my_b_printf(file, "###   @%lu=", (ulong)i + 1);
+      size_t fsize= td->calc_field_size((uint)i, (uchar*) value);
+      if (value + fsize > m_rows_end)
+      {
+        my_b_printf(file, "***Corrupted replication event was detected."
+                    " Not printing the value***\n");
+        value+= fsize;
+        return 0;
+      }
       size_t size= log_event_print_value(file, value,
                                          td->type(i), td->field_metadata(i),
                                          typestr, sizeof(typestr));
@@ -3984,6 +3993,8 @@ bool test_if_equal_repl_errors(int expected_error, int actual_error)
   case ER_AUTOINC_READ_FAILED:
     return (actual_error == ER_AUTOINC_READ_FAILED ||
             actual_error == HA_ERR_AUTOINC_ERANGE);
+  case ER_UNKNOWN_TABLE:
+    return actual_error == ER_IT_IS_A_VIEW;
   default:
     break;
   }
@@ -4018,6 +4029,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   rpl_gtid gtid;
   Relay_log_info const *rli= rgi->rli;
   Rpl_filter *rpl_filter= rli->mi->rpl_filter;
+  bool current_stmt_is_commit;
   DBUG_ENTER("Query_log_event::do_apply_event");
 
   /*
@@ -4044,7 +4056,9 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   DBUG_PRINT("info", ("log_pos: %lu", (ulong) log_pos));
 
   clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
-  if (strcmp("COMMIT", query) == 0 && rgi->tables_to_lock)
+  current_stmt_is_commit= is_commit();
+
+  if (current_stmt_is_commit && rgi->tables_to_lock)
   {
     /*
       Cleaning-up the last statement context:
@@ -4093,9 +4107,11 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     thd->variables.pseudo_thread_id= thread_id;		// for temp tables
     DBUG_PRINT("query",("%s", thd->query()));
 
-    if (ignored_error_code((expected_error= error_code)) ||
-	!unexpected_error_code(expected_error))
+    if (!(expected_error= error_code) ||
+        ignored_error_code(expected_error) ||
+        !unexpected_error_code(expected_error))
     {
+      thd->slave_expected_error= expected_error;
       if (flags2_inited)
         /*
           all bits of thd->variables.option_bits which are 1 in OPTIONS_WRITTEN_TO_BIN_LOG
@@ -4197,12 +4213,13 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         Record any GTID in the same transaction, so slave state is
         transactionally consistent.
       */
-      if (strcmp("COMMIT", query) == 0 && (sub_id= rgi->gtid_sub_id))
+      if (current_stmt_is_commit && (sub_id= rgi->gtid_sub_id))
       {
         /* Clear the GTID from the RLI so we don't accidentally reuse it. */
         rgi->gtid_sub_id= 0;
 
         gtid= rgi->current_gtid;
+        thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
         if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false))
         {
           rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
@@ -4232,6 +4249,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
            concurrency_error_code(expected_error)))
       {
         thd->variables.option_bits|= OPTION_MASTER_SQL_ERROR;
+        thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
       }
       /* Execute the query (note that we bypass dispatch_command()) */
       Parser_state parser_state;
@@ -4395,8 +4413,7 @@ Default database: '%s'. Query: '%s'",
       to shutdown trying to finish incomplete events group.
     */
     DBUG_EXECUTE_IF("stop_slave_middle_group",
-                    if (strcmp("COMMIT", query) != 0 &&
-                        strcmp("BEGIN", query) != 0)
+                    if (!current_stmt_is_commit && is_begin() == 0)
                     {
                       if (thd->transaction.all.modified_non_trans_table)
                         const_cast<Relay_log_info*>(rli)->abort_slave= 1;
@@ -4457,7 +4474,7 @@ Query_log_event::do_shall_skip(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Query_log_event::do_shall_skip");
-  DBUG_PRINT("debug", ("query: %s; q_len: %d", query, q_len));
+  DBUG_PRINT("debug", ("query: '%s'  q_len: %d", query, q_len));
   DBUG_ASSERT(query && q_len > 0);
   DBUG_ASSERT(thd == rgi->thd);
 
@@ -4473,13 +4490,13 @@ Query_log_event::do_shall_skip(rpl_group_info *rgi)
   {
     if (is_begin())
     {
-      thd->variables.option_bits|= OPTION_BEGIN;
+      thd->variables.option_bits|= OPTION_BEGIN | OPTION_GTID_BEGIN;
       DBUG_RETURN(Log_event::continue_group(rgi));
     }
 
     if (is_commit() || is_rollback())
     {
-      thd->variables.option_bits&= ~OPTION_BEGIN;
+      thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_GTID_BEGIN);
       DBUG_RETURN(Log_event::EVENT_SKIP_COUNT);
     }
   }
@@ -5535,11 +5552,22 @@ int Load_log_event::copy_log_event(const char *buf, ulong event_len,
   fields = (char*)field_lens + num_fields;
   table_name  = fields + field_block_len;
   db = table_name + table_name_len + 1;
+  DBUG_EXECUTE_IF ("simulate_invalid_address",
+                   db_len = data_len;);
   fname = db + db_len + 1;
+  if ((db_len > data_len) || (fname > buf_end))
+    goto err;
   fname_len = (uint) strlen(fname);
+  if ((fname_len > data_len) || (fname + fname_len > buf_end))
+    goto err;
   // null termination is accomplished by the caller doing buf[event_len]=0
 
   DBUG_RETURN(0);
+
+err:
+  // Invalid event.
+  table_name = 0;
+  DBUG_RETURN(1);
 }
 
 
@@ -5906,6 +5934,7 @@ error:
   thd->reset_query();
   thd->get_stmt_da()->set_overwrite_status(true);
   thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_GTID_BEGIN);
   thd->get_stmt_da()->set_overwrite_status(false);
   close_thread_tables(thd);
   /*
@@ -6208,6 +6237,16 @@ void Binlog_checkpoint_log_event::pack_info(THD *thd, Protocol *protocol)
 {
   protocol->store(binlog_file_name, binlog_file_len, &my_charset_bin);
 }
+
+
+Log_event::enum_skip_reason
+Binlog_checkpoint_log_event::do_shall_skip(rpl_group_info *rgi)
+{
+  enum_skip_reason reason= Log_event::do_shall_skip(rgi);
+  if (reason == EVENT_SKIP_COUNT)
+    reason= EVENT_SKIP_NOT;
+  return reason;
+}
 #endif
 
 
@@ -6408,8 +6447,7 @@ Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
   {
     if (*need_dummy_event)
       return Query_log_event::dummy_event(packet, ev_offset, checksum_alg);
-    else
-      return 0;
+    return 0;
   }
 
   *need_dummy_event= true;
@@ -6456,10 +6494,16 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
                                                  this->server_id, this->seq_no))
       return 1;
   }
+
+  DBUG_ASSERT((thd->variables.option_bits & OPTION_GTID_BEGIN) == 0);
   if (flags2 & FL_STANDALONE)
     return 0;
 
   /* Execute this like a BEGIN query event. */
+  thd->variables.option_bits|= OPTION_BEGIN | OPTION_GTID_BEGIN;
+  DBUG_PRINT("info", ("Set OPTION_GTID_BEGIN"));
+  trans_begin(thd, 0);
+
   thd->set_query_and_id(gtid_begin_string, sizeof(gtid_begin_string)-1,
                         &my_charset_bin, next_query_id());
   Parser_state parser_state;
@@ -6764,6 +6808,16 @@ Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
 }
 
 
+Log_event::enum_skip_reason
+Gtid_list_log_event::do_shall_skip(rpl_group_info *rgi)
+{
+  enum_skip_reason reason= Log_event::do_shall_skip(rgi);
+  if (reason == EVENT_SKIP_COUNT)
+    reason= EVENT_SKIP_NOT;
+  return reason;
+}
+
+
 void
 Gtid_list_log_event::pack_info(THD *thd, Protocol *protocol)
 {
@@ -6988,9 +7042,7 @@ int Intvar_log_event::do_apply_event(rpl_group_info *rgi)
 
   switch (type) {
   case LAST_INSERT_ID_EVENT:
-    thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt= 1;
-    thd->first_successful_insert_id_in_prev_stmt_for_binlog=
-      thd->first_successful_insert_id_in_prev_stmt= val;
+    thd->first_successful_insert_id_in_prev_stmt= val;
     DBUG_PRINT("info",("last_insert_id_event: %ld", (long) val));
     break;
   case INSERT_ID_EVENT:
@@ -7252,10 +7304,11 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
   /* For a slave Xid_log_event is COMMIT */
   general_log_print(thd, COM_QUERY,
                     "COMMIT /* implicit, from Xid_log_event */");
+  thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
   res= trans_commit(thd); /* Automatically rolls back on error. */
   thd->mdl_context.release_transactional_locks();
 
-  if (sub_id)
+  if (!res && sub_id)
     rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid);
 
   /*
@@ -7273,7 +7326,7 @@ Xid_log_event::do_shall_skip(rpl_group_info *rgi)
   if (rgi->rli->slave_skip_counter > 0)
   {
     DBUG_ASSERT(!rgi->rli->get_flag(Relay_log_info::IN_TRANSACTION));
-    thd->variables.option_bits&= ~OPTION_BEGIN;
+    thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_GTID_BEGIN);
     DBUG_RETURN(Log_event::EVENT_SKIP_COUNT);
   }
   DBUG_RETURN(Log_event::do_shall_skip(rgi));
@@ -9114,8 +9167,8 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
       set_flags(NO_FOREIGN_KEY_CHECKS_F);
   if (thd_arg->variables.option_bits & OPTION_RELAXED_UNIQUE_CHECKS)
       set_flags(RELAXED_UNIQUE_CHECKS_F);
-  /* if bitmap_init fails, caught in is_valid() */
-  if (likely(!bitmap_init(&m_cols,
+  /* if my_bitmap_init fails, caught in is_valid() */
+  if (likely(!my_bitmap_init(&m_cols,
                           m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
                           m_width,
                           false)))
@@ -9129,7 +9182,7 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
   }
   else
   {
-    // Needed because bitmap_init() does not set it to null on failure
+    // Needed because my_bitmap_init() does not set it to null on failure
     m_cols.bitmap= 0;
   }
 }
@@ -9230,8 +9283,8 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
   DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
   m_width = net_field_length(&ptr_after_width);
   DBUG_PRINT("debug", ("m_width=%lu", m_width));
-  /* if bitmap_init fails, catched in is_valid() */
-  if (likely(!bitmap_init(&m_cols,
+  /* if my_bitmap_init fails, catched in is_valid() */
+  if (likely(!my_bitmap_init(&m_cols,
                           m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
                           m_width,
                           false)))
@@ -9244,7 +9297,7 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
   }
   else
   {
-    // Needed because bitmap_init() does not set it to null on failure
+    // Needed because my_bitmap_init() does not set it to null on failure
     m_cols.bitmap= NULL;
     DBUG_VOID_RETURN;
   }
@@ -9256,8 +9309,8 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
   {
     DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
 
-    /* if bitmap_init fails, caught in is_valid() */
-    if (likely(!bitmap_init(&m_cols_ai,
+    /* if my_bitmap_init fails, caught in is_valid() */
+    if (likely(!my_bitmap_init(&m_cols_ai,
                             m_width <= sizeof(m_bitbuf_ai)*8 ? m_bitbuf_ai : NULL,
                             m_width,
                             false)))
@@ -9271,7 +9324,7 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
     }
     else
     {
-      // Needed because bitmap_init() does not set it to null on failure
+      // Needed because my_bitmap_init() does not set it to null on failure
       m_cols_ai.bitmap= 0;
       DBUG_VOID_RETURN;
     }
@@ -9302,8 +9355,8 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
 Rows_log_event::~Rows_log_event()
 {
   if (m_cols.bitmap == m_bitbuf) // no my_malloc happened
-    m_cols.bitmap= 0; // so no my_free in bitmap_free
-  bitmap_free(&m_cols); // To pair with bitmap_init().
+    m_cols.bitmap= 0; // so no my_free in my_bitmap_free
+  my_bitmap_free(&m_cols); // To pair with my_bitmap_init().
   my_free(m_rows_buf);
   my_free(m_extra_row_data);
 }
@@ -11962,8 +12015,8 @@ Update_rows_log_event::Update_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
 
 void Update_rows_log_event::init(MY_BITMAP const *cols)
 {
-  /* if bitmap_init fails, caught in is_valid() */
-  if (likely(!bitmap_init(&m_cols_ai,
+  /* if my_bitmap_init fails, caught in is_valid() */
+  if (likely(!my_bitmap_init(&m_cols_ai,
                           m_width <= sizeof(m_bitbuf_ai)*8 ? m_bitbuf_ai : NULL,
                           m_width,
                           false)))
@@ -11982,8 +12035,8 @@ void Update_rows_log_event::init(MY_BITMAP const *cols)
 Update_rows_log_event::~Update_rows_log_event()
 {
   if (m_cols_ai.bitmap == m_bitbuf_ai) // no my_malloc happened
-    m_cols_ai.bitmap= 0; // so no my_free in bitmap_free
-  bitmap_free(&m_cols_ai); // To pair with bitmap_init().
+    m_cols_ai.bitmap= 0; // so no my_free in my_bitmap_free
+  my_bitmap_free(&m_cols_ai); // To pair with my_bitmap_init().
 }
 
 

@@ -2602,6 +2602,8 @@ create table t1 (a int, b int) select 2,2;
 ERROR 42S01: Table 't1' already exists
 create table t1 like t2;
 ERROR 42S01: Table 't1' already exists
+create or replace table t1 (a int, b int) select 2,2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 select * from t1;
 a	b
 1	1

@@ -115,6 +115,20 @@ public:
   virtual const char *table_type() const { return hton_name(ht)->str; }
 #endif
 
+  my_bool register_query_cache_table(THD *thd, char *table_key,
+                                     uint key_length,
+                                     qc_engine_callback
+                                     *engine_callback,
+                                     ulonglong *engine_data)
+  {
+    /* 
+      Do not put data from OQGRAPH tables into query cache (because there 
+      is no way to tell whether the data in the backing table has changed or 
+      not)
+    */
+    return FALSE;
+  }
+
 private:
   int oqgraph_check_table_structure (TABLE *table_arg);
 

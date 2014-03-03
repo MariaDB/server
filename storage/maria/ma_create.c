@@ -209,7 +209,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
         options|= HA_OPTION_NULL_FIELDS;        /* Use ma_checksum() */
 
         /* We must test for 257 as length includes pack-length */
-        if (test(column->length >= 257))
+        if (MY_TEST(column->length >= 257))
 	{
 	  long_varchar_count++;
           max_field_lengths++;
@@ -308,7 +308,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   pack_bytes= (packed + 7) / 8;
   if (pack_reclength != INT_MAX32)
     pack_reclength+= reclength+pack_bytes +
-      test(test_all_bits(options, HA_OPTION_CHECKSUM | HA_OPTION_PACK_RECORD));
+      MY_TEST(test_all_bits(options, HA_OPTION_CHECKSUM |
+                                     HA_OPTION_PACK_RECORD));
   min_pack_length+= pack_bytes;
   /* Calculate min possible row length for rows-in-block */
   extra_header_size= MAX_FIXED_HEADER_SIZE;
@@ -371,7 +372,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       after the row pointer
     */
     pointer= maria_get_pointer_length((ci->data_file_length /
-                                       maria_block_size) * 2, 3) + 1;
+                                       maria_block_size) * 2, 4) + 1;
     set_if_smaller(pointer, BLOCK_RECORD_POINTER_SIZE);
 
     if (!max_rows)
@@ -730,7 +731,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   share.base.records=ci->max_rows;
   share.base.reloc=  ci->reloc_rows;
   share.base.reclength=real_reclength;
-  share.base.pack_reclength=reclength+ test(options & HA_OPTION_CHECKSUM);
+  share.base.pack_reclength= reclength + MY_TEST(options & HA_OPTION_CHECKSUM);
   share.base.max_pack_length=pack_reclength;
   share.base.min_pack_length=min_pack_length;
   share.base.pack_bytes= pack_bytes;
@@ -1033,7 +1034,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       remember if the data file was created or not, to know if Recovery can
       do it or not, in the future
     */
-    log_data[0]= test(flags & HA_DONT_TOUCH_DATA);
+    log_data[0]= MY_TEST(flags & HA_DONT_TOUCH_DATA);
     int2store(log_data + 1, kfile_size_before_extension);
     int2store(log_data + 1 + 2, share.base.keystart);
     log_array[TRANSLOG_INTERNAL_PARTS + 0].str= (uchar *)name;

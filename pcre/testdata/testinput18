@@ -1,5 +1,7 @@
-/-- This set of tests is for UTF-16 and UTF-32 support, and is relevant only to the
-    16- and 32-bit library. --/
+/-- This set of tests is for UTF-16 and UTF-32 support, and is relevant only to
+    the 16- and 32-bit libraries. --/
+    
+< forbid W 
 
 /ÃÃÃxxx/8?DZSS
 

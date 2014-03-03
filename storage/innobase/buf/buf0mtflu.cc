@@ -89,7 +89,7 @@ typedef enum wthr_status {
 /* Write work task */
 typedef struct wr_tsk {
 	buf_pool_t	*buf_pool;	/*!< buffer-pool instance */
-	enum buf_flush	flush_type;	/*!< flush-type for buffer-pool
+	buf_flush_t	flush_type;	/*!< flush-type for buffer-pool
 					flush operation */
 	ulint		min;		/*!< minimum number of pages
 					requested to be flushed */
@@ -487,7 +487,7 @@ buf_mtflu_flush_work_items(
 	ulint buf_pool_inst,		/*!< in: Number of buffer pool instances */
 	ulint *per_pool_pages_flushed,	/*!< out: Number of pages
 					flushed/instance */
-	enum buf_flush flush_type,	/*!< in: Type of flush */
+	buf_flush_t flush_type,		/*!< in: Type of flush */
 	ulint min_n,			/*!< in: Wished minimum number of
 					blocks to be flushed */
 	lsn_t lsn_limit)		/*!< in: All blocks whose

@@ -763,7 +763,7 @@ int main(int argc, char *argv[])
       records=0;
       for (j++ ; j < k ; j++)
 	records+=key1[j];
-      if ((long) range_records < (long) records*7/10-2 ||
+      if ((long) range_records < (long) records*6/10-2 ||
 	  (long) range_records > (long) records*14/10+2)
       {
 	printf("maria_records_range for key: %d returned %lu; Should be about %lu\n",

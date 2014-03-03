@@ -3,14 +3,14 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 MESSAGE(STATUS "Configuring OQGraph")
 FIND_PACKAGE(Boost)
 IF(NOT Boost_FOUND)
-   MESSAGE(STATUS "Boost not found")
+   MESSAGE(STATUS "Boost not found. OQGraph will not be compiled")
   RETURN()
 ENDIF()
 INCLUDE_DIRECTORIES(BEFORE ${Boost_INCLUDE_DIRS})
 
 FIND_PACKAGE(Judy)
 IF(NOT Judy_FOUND)
-  MESSAGE(STATUS "Judy not found")
+  MESSAGE(STATUS "Judy not found. OQGraph will not be compiled")
   RETURN()
 ENDIF()
 INCLUDE_DIRECTORIES(${Judy_INCLUDE_DIR})
@@ -51,8 +51,10 @@ IF(BOOST_OK)
                    oqgraph_shim.cc oqgraph_thunk.cc oqgraph_judy.cc
                    STORAGE_ENGINE
                    MODULE_ONLY
+                   RECOMPILE_FOR_EMBEDDED
                    COMPONENT oqgraph-engine
                    LINK_LIBRARIES ${Judy_LIBRARIES})
+  MESSAGE(STATUS "OQGraph OK")
 ELSE(BOOST_OK)
-  MESSAGE(STATUS "Requisites for OQGraph not met")
+  MESSAGE(STATUS "Requisites for OQGraph not met. OQGraph will not be compiled")
 ENDIF(BOOST_OK)

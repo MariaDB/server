@@ -106,9 +106,9 @@ uint calc_week(MYSQL_TIME *l_time, uint week_behaviour, uint *year)
   uint days;
   ulong daynr=calc_daynr(l_time->year,l_time->month,l_time->day);
   ulong first_daynr=calc_daynr(l_time->year,1,1);
-  bool monday_first= test(week_behaviour & WEEK_MONDAY_FIRST);
-  bool week_year= test(week_behaviour & WEEK_YEAR);
-  bool first_weekday= test(week_behaviour & WEEK_FIRST_WEEKDAY);
+  bool monday_first= MY_TEST(week_behaviour & WEEK_MONDAY_FIRST);
+  bool week_year= MY_TEST(week_behaviour & WEEK_YEAR);
+  bool first_weekday= MY_TEST(week_behaviour & WEEK_FIRST_WEEKDAY);
 
   uint weekday=calc_weekday(first_daynr, !monday_first);
   *year=l_time->year;
@@ -229,6 +229,20 @@ check_date_with_warn(const MYSQL_TIME *ltime, ulonglong fuzzy_date,
   return false;
 }
 
+
+bool
+adjust_time_range_with_warn(MYSQL_TIME *ltime, uint dec)
+{
+  MYSQL_TIME copy= *ltime;
+  ErrConvTime str(&copy);
+  int warnings= 0;
+  if (check_time_range(ltime, dec, &warnings))
+    return true;
+  if (warnings)
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                                 &str, MYSQL_TIMESTAMP_TIME, NullS);
+  return false;
+}
 
 /*
   Convert a string to 8-bit representation,

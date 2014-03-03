@@ -1,7 +1,7 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2011, Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -67,7 +67,7 @@ enum Derivation
 #define MY_REPERTOIRE_NUMERIC   MY_REPERTOIRE_ASCII
 
 /* The length of the header part for each virtual column in the .frm file */
-#define FRM_VCOL_HEADER_SIZE(b) (3 + test(b))
+#define FRM_VCOL_HEADER_SIZE(b) (3 + MY_TEST(b))
 
 class Count_distinct_field;
 
@@ -75,6 +75,8 @@ struct ha_field_option_struct;
 
 struct st_cache_field;
 int field_conv(Field *to,Field *from);
+int field_conv_incompatible(Field *to,Field *from);
+bool memcpy_field_possible(Field *to, Field *from);
 int truncate_double(double *nr, uint field_length, uint dec,
                     bool unsigned_flag, double max_value);
 longlong double_to_longlong(double nr, bool unsigned_flag, bool *error);
@@ -616,7 +618,7 @@ public:
       null_ptr[row_offset].
     */
     return (table->null_row ? TRUE :
-            null_ptr ? test(null_ptr[row_offset] & null_bit) : 0);
+            null_ptr ? MY_TEST(null_ptr[row_offset] & null_bit) : 0);
   }
   inline bool is_real_null(my_ptrdiff_t row_offset= 0) const
     { return null_ptr ? (null_ptr[row_offset] & null_bit ? 1 : 0) : 0; }
@@ -624,8 +626,7 @@ public:
   {
     if (!null_ptr)
       return 0;
-    return test(record[(uint) (null_ptr -table->record[0])] &
-		null_bit);
+    return MY_TEST(record[(uint) (null_ptr - table->record[0])] & null_bit);
   }
   inline void set_null(my_ptrdiff_t row_offset= 0)
     { if (null_ptr) null_ptr[row_offset]|= null_bit; }
@@ -1054,7 +1055,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   virtual bool str_needs_quotes() { return TRUE; }
   uint is_equal(Create_field *new_field);
-  bool eq_cmp_as_binary() { return test(flags & BINARY_FLAG); }
+  bool eq_cmp_as_binary() { return MY_TEST(flags & BINARY_FLAG); }
   virtual uint length_size() { return 0; }
   double pos_in_interval(Field *min, Field *max)
   {
@@ -1654,7 +1655,7 @@ public:
                            const char *field_name_arg,
                            TABLE_SHARE *share, uint dec_arg) :
   Field_timestamp(ptr_arg,
-                  MAX_DATETIME_WIDTH + dec_arg + test(dec_arg), null_ptr_arg,
+                  MAX_DATETIME_WIDTH + dec_arg + MY_TEST(dec_arg), null_ptr_arg,
                   null_bit_arg, unireg_check_arg, field_name_arg, share),
   dec(dec_arg)
   {
@@ -1865,8 +1866,8 @@ public:
   Field_time_with_dec(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
                       enum utype unireg_check_arg, const char *field_name_arg,
                       uint dec_arg)
-    :Field_time(ptr_arg, MIN_TIME_WIDTH + dec_arg + test(dec_arg), null_ptr_arg,
-                null_bit_arg, unireg_check_arg, field_name_arg),
+    :Field_time(ptr_arg, MIN_TIME_WIDTH + dec_arg + MY_TEST(dec_arg),
+                null_ptr_arg, null_bit_arg, unireg_check_arg, field_name_arg),
      dec(dec_arg)
   {
     DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
@@ -2022,7 +2023,7 @@ public:
   Field_datetime_with_dec(uchar *ptr_arg, uchar *null_ptr_arg,
                           uchar null_bit_arg, enum utype unireg_check_arg,
                           const char *field_name_arg, uint dec_arg)
-    :Field_datetime(ptr_arg, MAX_DATETIME_WIDTH + dec_arg + test(dec_arg),
+    :Field_datetime(ptr_arg, MAX_DATETIME_WIDTH + dec_arg + MY_TEST(dec_arg),
                     null_ptr_arg, null_bit_arg, unireg_check_arg,
                     field_name_arg), dec(dec_arg)
   {
@@ -2401,18 +2402,6 @@ public:
   {
     store_length(ptr, packlength, number);
   }
-
-  /**
-     Return the packed length plus the length of the data. 
-
-     This is used to determine the size of the data plus the 
-     packed length portion in the row data.
-
-     @returns The length in the row plus the size of the data.
-  */
-  uint32 get_packed_size(const uchar *ptr_arg)
-    {return packlength + get_length(ptr_arg, packlength);}
-
   inline uint32 get_length(uint row_offset= 0)
   { return get_length(ptr+row_offset, this->packlength); }
   uint32 get_length(const uchar *ptr, uint packlength);
@@ -2464,7 +2453,7 @@ public:
   uint max_packed_col_length(uint max_length);
   void free() { value.free(); }
   inline void clear_temporary() { bzero((uchar*) &value,sizeof(value)); }
-  friend int field_conv(Field *to,Field *from);
+  friend int field_conv_incompatible(Field *to,Field *from);
   uint size_of() const { return sizeof(*this); }
   bool has_charset(void) const
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
@@ -2649,9 +2638,9 @@ public:
   {
     DBUG_ASSERT(ptr == a || ptr == b);
     if (ptr == a)
-      return Field_bit::key_cmp(b, bytes_in_rec+test(bit_len));
+      return Field_bit::key_cmp(b, bytes_in_rec + MY_TEST(bit_len));
     else
-      return Field_bit::key_cmp(a, bytes_in_rec+test(bit_len)) * -1;
+      return Field_bit::key_cmp(a, bytes_in_rec + MY_TEST(bit_len)) * -1;
   }
   int cmp_binary_offset(uint row_offset)
   { return cmp_offset(row_offset); }

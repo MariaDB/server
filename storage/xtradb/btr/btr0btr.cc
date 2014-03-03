@@ -805,7 +805,7 @@ btr_height_get(
         /* S latches the page */
         root_block = btr_root_block_get(index, RW_S_LATCH, mtr);
 
-        height = btr_page_get_level(buf_block_get_frame(root_block), mtr);
+        height = btr_page_get_level(buf_block_get_frame_fast(root_block), mtr);
 
         /* Release the S latch on the root page. */
         mtr_memo_release(mtr, root_block, MTR_MEMO_PAGE_S_FIX);
@@ -1844,6 +1844,8 @@ btr_page_reorganize_low(
 #endif /* !UNIV_HOTBACKUP */
 	temp_page = temp_block->frame;
 
+	MONITOR_INC(MONITOR_INDEX_REORG_ATTEMPTS);
+
 	/* Copy the old page to temporary space */
 	buf_frame_copy(temp_page, page);
 
@@ -1992,6 +1994,8 @@ func_exit:
 			mach_write_to_1(log_ptr, z_level);
 			mlog_close(mtr, log_ptr + 1);
 		}
+
+		MONITOR_INC(MONITOR_INDEX_REORG_SUCCESSFUL);
 	}
 #endif /* !UNIV_HOTBACKUP */
 
@@ -2746,7 +2750,7 @@ btr_attach_half_pages(
 	}
 
 	/* Get the level of the split pages */
-	level = btr_page_get_level(buf_block_get_frame(block), mtr);
+	level = btr_page_get_level(buf_block_get_frame_fast(block), mtr);
 	ut_ad(level
 	      == btr_page_get_level(buf_block_get_frame(new_block), mtr));
 
@@ -3615,6 +3619,8 @@ btr_compress(
 	space = dict_index_get_space(index);
 	zip_size = dict_table_zip_size(index->table);
 
+	MONITOR_INC(MONITOR_INDEX_MERGE_ATTEMPTS);
+
 	left_page_no = btr_page_get_prev(page, mtr);
 	right_page_no = btr_page_get_next(page, mtr);
 
@@ -3848,6 +3854,9 @@ func_exit:
 			page_rec_get_nth(merge_block->frame, nth_rec),
 			merge_block, cursor);
 	}
+
+	MONITOR_INC(MONITOR_INDEX_MERGE_SUCCESSFUL);
+
 	DBUG_RETURN(TRUE);
 
 err_exit:
@@ -3968,10 +3977,12 @@ btr_discard_page(
 	space = dict_index_get_space(index);
 	zip_size = dict_table_zip_size(index->table);
 
+	MONITOR_INC(MONITOR_INDEX_DISCARD);
+
 	/* Decide the page which will inherit the locks */
 
-	left_page_no = btr_page_get_prev(buf_block_get_frame(block), mtr);
-	right_page_no = btr_page_get_next(buf_block_get_frame(block), mtr);
+	left_page_no = btr_page_get_prev(buf_block_get_frame_fast(block), mtr);
+	right_page_no = btr_page_get_next(buf_block_get_frame_fast(block), mtr);
 
 	if (left_page_no != FIL_NULL) {
 		merge_block = btr_block_get(space, zip_size, left_page_no,

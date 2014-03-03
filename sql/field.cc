@@ -1774,7 +1774,7 @@ int Field_num::store_decimal(const my_decimal *val)
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   int err= 0;
   longlong i= convert_decimal2longlong(val, unsigned_flag, &err);
-  return test(err | store(i, unsigned_flag));
+  return MY_TEST(err | store(i, unsigned_flag));
 }
 
 
@@ -1926,7 +1926,7 @@ int Field::store_time_dec(MYSQL_TIME *ltime, uint dec)
 
 bool Field::optimize_range(uint idx, uint part)
 {
-  return test(table->file->index_flags(idx, part, 1) & HA_READ_RANGE);
+  return MY_TEST(table->file->index_flags(idx, part, 1) & HA_READ_RANGE);
 }
 
 
@@ -8487,7 +8487,7 @@ int Field_bit::store_decimal(const my_decimal *val)
 {
   int err= 0;
   longlong i= convert_decimal2longlong(val, 1, &err);
-  return test(err | store(i, TRUE));
+  return MY_TEST(err | store(i, TRUE));
 }
 
 
@@ -8776,7 +8776,7 @@ Field_bit::unpack(uchar *to, const uchar *from, const uchar *from_end,
   if (param_data == 0 ||
       ((from_bit_len == bit_len) && (from_len == bytes_in_rec)))
   {
-    if (from + bytes_in_rec + test(bit_len) > from_end)
+    if (from + bytes_in_rec + MY_TEST(bit_len) > from_end)
       return 0;                                 // Error in data
 
     if (bit_len > 0)
@@ -8931,7 +8931,7 @@ void Create_field::create_length_to_internal_length(void)
     {
       pack_length= length / 8;
       /* We need one extra byte to store the bits we save among the null bits */
-      key_length= pack_length + test(length & 7);
+      key_length= pack_length + MY_TEST(length & 7);
     }
     break;
   case MYSQL_TYPE_NEWDECIMAL:

@@ -137,11 +137,11 @@ struct fts_cache_t {
 					intialization, it has different
 					SYNC level as above cache lock */
 
-	ib_mutex_t		optimize_lock;	/*!< Lock for OPTIMIZE */
+	ib_mutex_t	optimize_lock;	/*!< Lock for OPTIMIZE */
 
-	ib_mutex_t		deleted_lock;	/*!< Lock covering deleted_doc_ids */
+	ib_mutex_t	deleted_lock;	/*!< Lock covering deleted_doc_ids */
 
-	ib_mutex_t		doc_id_lock;	/*!< Lock covering Doc ID */
+	ib_mutex_t	doc_id_lock;	/*!< Lock covering Doc ID */
 
 	ib_vector_t*	deleted_doc_ids;/*!< Array of deleted doc ids, each
 					element is of type fts_update_t */
@@ -237,6 +237,7 @@ struct fts_fetch_t {
 	fts_sql_callback
 			read_record;	/*!< Callback for reading index
 					record */
+	ulint		total_memory;	/*!< Total memory used */
 };
 
 /** For horizontally splitting an FTS auxiliary index */

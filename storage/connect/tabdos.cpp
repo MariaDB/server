@@ -499,7 +499,10 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
       if (!(colp = ColDB(g, kdp->GetName(), 0))) {
         sprintf(g->Message, MSG(INDX_COL_NOTIN), kdp->GetName(), Name);
         goto err;
-        } // endif colp
+      } else if (colp->GetResultType() == TYPE_DECIM) {
+        sprintf(g->Message, "Decimal columns are not indexable yet");
+        goto err;
+      } // endif Type
 
       colp->InitValue(g);
       n = max(n, xdp->GetNparts());
@@ -944,7 +947,7 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
         } // endswitch p
 
     // Set number of decimal digits
-    Dcm = (*p) ? atoi(p) : GetPrecision();
+    Dcm = (*p) ? atoi(p) : GetScale();
     } // endif fmt
 
   if (trace)
@@ -1006,10 +1009,10 @@ bool DOSCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
       if (GetDomain() || ((DTVAL *)value)->IsFormatted())
         goto newval;          // This will make a new value;
 
-    } else if (Buf_Type == TYPE_FLOAT)
+    } else if (Buf_Type == TYPE_DOUBLE)
       // Float values must be written with the correct (column) precision
       // Note: maybe this should be forced by ShowValue instead of this ?
-      value->SetPrec(GetPrecision());
+      value->SetPrec(GetScale());
 
     Value = value;            // Directly access the external value
   } else {
@@ -1094,7 +1097,7 @@ void DOSCOL::ReadColumn(PGLOBAL g)
             } // endif SetValue_char
 
           break;
-        case TYPE_FLOAT:
+        case TYPE_DOUBLE:
           Value->SetValue_char(p, field);
           dval = Value->GetFloatValue();
 
@@ -1207,7 +1210,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
 
           len = sprintf(Buf, fmt, field - i, Value->GetTinyValue());
           break;
-        case TYPE_FLOAT:
+        case TYPE_DOUBLE:
           strcpy(fmt, (Ldz) ? "%0*.*lf" : "%*.*lf");
           sprintf(Buf, fmt, field + ((Nod && Dcm) ? 1 : 0),
                   Dcm, Value->GetFloatValue());

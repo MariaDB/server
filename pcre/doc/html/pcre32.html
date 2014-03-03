@@ -42,126 +42,125 @@ man page, in case the conversion went wrong.
 <br><a name="SEC1" href="#TOC1">PCRE 32-BIT API BASIC FUNCTIONS</a><br>
 <P>
 <b>pcre32 *pcre32_compile(PCRE_SPTR32 <i>pattern</i>, int <i>options</i>,</b>
-<b>const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
-<b>const unsigned char *<i>tableptr</i>);</b>
-</P>
-<P>
+<b>     const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
+<b>     const unsigned char *<i>tableptr</i>);</b>
+<br>
+<br>
 <b>pcre32 *pcre32_compile2(PCRE_SPTR32 <i>pattern</i>, int <i>options</i>,</b>
-<b>int *<i>errorcodeptr</i>,</b>
-<b>const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
-<b>const unsigned char *<i>tableptr</i>);</b>
-</P>
-<P>
+<b>     int *<i>errorcodeptr</i>,</b>
+<b>     const unsigned char *<i>tableptr</i>);</b>
+<br>
+<br>
 <b>pcre32_extra *pcre32_study(const pcre32 *<i>code</i>, int <i>options</i>,</b>
-<b>const char **<i>errptr</i>);</b>
-</P>
-<P>
+<b>     const char **<i>errptr</i>);</b>
+<br>
+<br>
 <b>void pcre32_free_study(pcre32_extra *<i>extra</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int pcre32_exec(const pcre32 *<i>code</i>, const pcre32_extra *<i>extra</i>,</b>
-<b>PCRE_SPTR32 <i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
-<b>int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>);</b>
-</P>
-<P>
+<b>     PCRE_SPTR32 <i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
+<b>     int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>);</b>
+<br>
+<br>
 <b>int pcre32_dfa_exec(const pcre32 *<i>code</i>, const pcre32_extra *<i>extra</i>,</b>
-<b>PCRE_SPTR32 <i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
-<b>int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>,</b>
-<b>int *<i>workspace</i>, int <i>wscount</i>);</b>
+<b>     PCRE_SPTR32 <i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
+<b>     int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>,</b>
+<b>     int *<i>workspace</i>, int <i>wscount</i>);</b>
 </P>
 <br><a name="SEC2" href="#TOC1">PCRE 32-BIT API STRING EXTRACTION FUNCTIONS</a><br>
 <P>
 <b>int pcre32_copy_named_substring(const pcre32 *<i>code</i>,</b>
-<b>PCRE_SPTR32 <i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, PCRE_SPTR32 <i>stringname</i>,</b>
-<b>PCRE_UCHAR32 *<i>buffer</i>, int <i>buffersize</i>);</b>
-</P>
-<P>
+<b>     PCRE_SPTR32 <i>subject</i>, int *<i>ovector</i>,</b>
+<b>     int <i>stringcount</i>, PCRE_SPTR32 <i>stringname</i>,</b>
+<b>     PCRE_UCHAR32 *<i>buffer</i>, int <i>buffersize</i>);</b>
+<br>
+<br>
 <b>int pcre32_copy_substring(PCRE_SPTR32 <i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, int <i>stringnumber</i>, PCRE_UCHAR32 *<i>buffer</i>,</b>
-<b>int <i>buffersize</i>);</b>
-</P>
-<P>
+<b>     int <i>stringcount</i>, int <i>stringnumber</i>, PCRE_UCHAR32 *<i>buffer</i>,</b>
+<b>     int <i>buffersize</i>);</b>
+<br>
+<br>
 <b>int pcre32_get_named_substring(const pcre32 *<i>code</i>,</b>
-<b>PCRE_SPTR32 <i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, PCRE_SPTR32 <i>stringname</i>,</b>
-<b>PCRE_SPTR32 *<i>stringptr</i>);</b>
-</P>
-<P>
+<b>     PCRE_SPTR32 <i>subject</i>, int *<i>ovector</i>,</b>
+<b>     int <i>stringcount</i>, PCRE_SPTR32 <i>stringname</i>,</b>
+<b>     PCRE_SPTR32 *<i>stringptr</i>);</b>
+<br>
+<br>
 <b>int pcre32_get_stringnumber(const pcre32 *<i>code</i>,</b>
-<b>PCRE_SPTR32 <i>name</i>);</b>
-</P>
-<P>
+<b>     PCRE_SPTR32 <i>name</i>);</b>
+<br>
+<br>
 <b>int pcre32_get_stringtable_entries(const pcre32 *<i>code</i>,</b>
-<b>PCRE_SPTR32 <i>name</i>, PCRE_UCHAR32 **<i>first</i>, PCRE_UCHAR32 **<i>last</i>);</b>
-</P>
-<P>
+<b>     PCRE_SPTR32 <i>name</i>, PCRE_UCHAR32 **<i>first</i>, PCRE_UCHAR32 **<i>last</i>);</b>
+<br>
+<br>
 <b>int pcre32_get_substring(PCRE_SPTR32 <i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, int <i>stringnumber</i>,</b>
-<b>PCRE_SPTR32 *<i>stringptr</i>);</b>
-</P>
-<P>
+<b>     int <i>stringcount</i>, int <i>stringnumber</i>,</b>
+<b>     PCRE_SPTR32 *<i>stringptr</i>);</b>
+<br>
+<br>
 <b>int pcre32_get_substring_list(PCRE_SPTR32 <i>subject</i>,</b>
-<b>int *<i>ovector</i>, int <i>stringcount</i>, PCRE_SPTR32 **<i>listptr</i>);</b>
-</P>
-<P>
+<b>     int *<i>ovector</i>, int <i>stringcount</i>, PCRE_SPTR32 **<i>listptr</i>);</b>
+<br>
+<br>
 <b>void pcre32_free_substring(PCRE_SPTR32 <i>stringptr</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void pcre32_free_substring_list(PCRE_SPTR32 *<i>stringptr</i>);</b>
 </P>
 <br><a name="SEC3" href="#TOC1">PCRE 32-BIT API AUXILIARY FUNCTIONS</a><br>
 <P>
 <b>pcre32_jit_stack *pcre32_jit_stack_alloc(int <i>startsize</i>, int <i>maxsize</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void pcre32_jit_stack_free(pcre32_jit_stack *<i>stack</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void pcre32_assign_jit_stack(pcre32_extra *<i>extra</i>,</b>
-<b>pcre32_jit_callback <i>callback</i>, void *<i>data</i>);</b>
-</P>
-<P>
+<b>     pcre32_jit_callback <i>callback</i>, void *<i>data</i>);</b>
+<br>
+<br>
 <b>const unsigned char *pcre32_maketables(void);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int pcre32_fullinfo(const pcre32 *<i>code</i>, const pcre32_extra *<i>extra</i>,</b>
-<b>int <i>what</i>, void *<i>where</i>);</b>
-</P>
-<P>
+<b>     int <i>what</i>, void *<i>where</i>);</b>
+<br>
+<br>
 <b>int pcre32_refcount(pcre32 *<i>code</i>, int <i>adjust</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int pcre32_config(int <i>what</i>, void *<i>where</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>const char *pcre32_version(void);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int pcre32_pattern_to_host_byte_order(pcre32 *<i>code</i>,</b>
-<b>pcre32_extra *<i>extra</i>, const unsigned char *<i>tables</i>);</b>
+<b>     pcre32_extra *<i>extra</i>, const unsigned char *<i>tables</i>);</b>
 </P>
 <br><a name="SEC4" href="#TOC1">PCRE 32-BIT API INDIRECTED FUNCTIONS</a><br>
 <P>
 <b>void *(*pcre32_malloc)(size_t);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void (*pcre32_free)(void *);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void *(*pcre32_stack_malloc)(size_t);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void (*pcre32_stack_free)(void *);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int (*pcre32_callout)(pcre32_callout_block *);</b>
 </P>
 <br><a name="SEC5" href="#TOC1">PCRE 32-BIT API 32-BIT-ONLY FUNCTION</a><br>
 <P>
 <b>int pcre32_utf32_to_host_byte_order(PCRE_UCHAR32 *<i>output</i>,</b>
-<b>PCRE_SPTR32 <i>input</i>, int <i>length</i>, int *<i>byte_order</i>,</b>
-<b>int <i>keep_boms</i>);</b>
+<b>     PCRE_SPTR32 <i>input</i>, int <i>length</i>, int *<i>byte_order</i>,</b>
+<b>     int <i>keep_boms</i>);</b>
 </P>
 <br><a name="SEC6" href="#TOC1">THE PCRE 32-BIT LIBRARY</a><br>
 <P>

@@ -1,4 +1,4 @@
-# Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2009, 2013, Oracle and/or its affiliates. All rights reserved.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -74,7 +74,7 @@ ENDIF()
 
 IF(WITH_EMBEDDED_SERVER)
  SET(TEST_EMBEDDED  ${MTR_FORCE} --comment=embedded  --timer  --embedded-server 
-   --skip-rpl --skip-ndbcluster $(EXP))
+   --skip-rpl --skip-ndbcluster ${EXP})
 ELSE()
  SET(TEST_EMBEDDED echo "Can not test embedded, not compiled in")
 ENDIF()

@@ -61,7 +61,7 @@ void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
   mem_root->free= mem_root->used= mem_root->pre_alloc= 0;
   mem_root->min_malloc= 32;
   mem_root->block_size= (block_size - ALLOC_ROOT_MIN_BLOCK_SIZE) & ~1;
-  if (test(my_flags & MY_THREAD_SPECIFIC))
+  if (MY_TEST(my_flags & MY_THREAD_SPECIFIC))
     mem_root->block_size|= 1;
 
   mem_root->error_handler= 0;

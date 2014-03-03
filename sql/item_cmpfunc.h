@@ -1,7 +1,7 @@
 #ifndef ITEM_CMPFUNC_INCLUDED
 #define ITEM_CMPFUNC_INCLUDED
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2011, Monty Program Ab
+   Copyright (c) 2009, 2011, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -388,7 +388,7 @@ public:
     Item_func::print_op(str, query_type);
   }
 
-  bool is_null() { return test(args[0]->is_null() || args[1]->is_null()); }
+  bool is_null() { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
   bool is_bool_func() { return 1; }
   CHARSET_INFO *compare_collation() { return cmp.cmp_collation.collation; }
   uint decimal_precision() const { return 1; }
@@ -874,7 +874,7 @@ public:
   /* Compare values number pos1 and pos2 for equality */
   bool compare_elems(uint pos1, uint pos2)
   {
-    return test(compare(collation, base + pos1*size, base + pos2*size));
+    return MY_TEST(compare(collation, base + pos1 * size, base + pos2 * size));
   }
   virtual Item_result result_type()= 0;
 };
@@ -1838,7 +1838,7 @@ public:
   bool contains(Field *field);
   Item* get_first(struct st_join_table *context, Item *field);
   /** Get number of field items / references to field items in this object */   
-  uint n_field_items() { return equal_items.elements-test(with_const); }
+  uint n_field_items() { return equal_items.elements - MY_TEST(with_const); }
   void merge(Item_equal *item);
   bool merge_with_check(Item_equal *equal_item, bool save_merged);
   void merge_into_list(List<Item_equal> *list, bool save_merged,

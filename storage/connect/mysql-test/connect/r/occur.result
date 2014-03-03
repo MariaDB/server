@@ -193,6 +193,8 @@ Kevin	8
 Lisbeth	2
 Mary	2
 ALTER TABLE xpet MODIFY number INT NOT NULL;
+Warnings:
+Warning	1105	This is an outward table, table data were not modified.
 SELECT * FROM xpet;
 name	race	number
 John	dog	2

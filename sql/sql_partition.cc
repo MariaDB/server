@@ -651,7 +651,7 @@ static bool create_full_part_field_array(THD *thd, TABLE *table,
     result= TRUE;
     goto end;
   }
-  if (bitmap_init(&part_info->full_part_field_set, bitmap_buf,
+  if (my_bitmap_init(&part_info->full_part_field_set, bitmap_buf,
                   table->s->fields, FALSE))
   {
     mem_alloc_error(table->s->fields);
@@ -1230,9 +1230,9 @@ static bool set_up_partition_bitmaps(THD *thd, partition_info *part_info)
     mem_alloc_error(bitmap_bytes * 2);
     DBUG_RETURN(TRUE);
   }
-  bitmap_init(&part_info->read_partitions, bitmap_buf, bitmap_bits, FALSE);
+  my_bitmap_init(&part_info->read_partitions, bitmap_buf, bitmap_bits, FALSE);
   /* Use the second half of the allocated buffer for lock_partitions */
-  bitmap_init(&part_info->lock_partitions, bitmap_buf + (bitmap_bytes / 4),
+  my_bitmap_init(&part_info->lock_partitions, bitmap_buf + (bitmap_bytes / 4),
               bitmap_bits, FALSE);
   part_info->bitmaps_are_initialized= TRUE;
   part_info->set_partition_bitmaps(NULL);
@@ -3308,7 +3308,7 @@ uint32 get_list_array_idx_for_endpoint(partition_info *part_info,
     }
     else 
     {
-      DBUG_RETURN(list_index + test(left_endpoint ^ include_endpoint));
+      DBUG_RETURN(list_index + MY_TEST(left_endpoint ^ include_endpoint));
     }
   } while (max_list_index >= min_list_index);
 notfound:
@@ -5225,6 +5225,8 @@ that are reorganised.
     }
     else if (alter_info->flags & Alter_info::ALTER_REBUILD_PARTITION)
     {
+      set_engine_all_partitions(tab_part_info,
+                                tab_part_info->default_engine_type);
       if (set_part_state(alter_info, tab_part_info, PART_CHANGED))
       {
         my_error(ER_DROP_PARTITION_NON_EXISTENT, MYF(0), "REBUILD");
@@ -5781,7 +5783,7 @@ static bool mysql_change_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
   if (mysql_trans_commit_alter_copy_data(thd))
     error= 1;                                /* The error has been reported */
 
-  DBUG_RETURN(test(error));
+  DBUG_RETURN(MY_TEST(error));
 }
 
 
@@ -7890,7 +7892,7 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
         index-in-ordered-array-of-list-constants (for LIST) space.
       */
       store_key_image_to_rec(field, min_value, field_len);
-      bool include_endp= !test(flags & NEAR_MIN);
+      bool include_endp= !MY_TEST(flags & NEAR_MIN);
       part_iter->part_nums.start= get_endpoint(part_info, 1, include_endp);
       if (!can_match_multiple_values && part_info->part_expr->null_value)
       {
@@ -7925,7 +7927,7 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
   else
   {
     store_key_image_to_rec(field, max_value, field_len);
-    bool include_endp= !test(flags & NEAR_MAX);
+    bool include_endp= !MY_TEST(flags & NEAR_MAX);
     part_iter->part_nums.end= get_endpoint(part_info, 0, include_endp);
     if (check_zero_dates &&
         !zero_in_start_date &&
@@ -8092,8 +8094,8 @@ int get_part_iter_for_interval_via_walking(partition_info *part_info,
   if ((ulonglong)b - (ulonglong)a == ~0ULL)
     DBUG_RETURN(-1);
 
-  a += test(flags & NEAR_MIN);
-  b += test(!(flags & NEAR_MAX));
+  a+= MY_TEST(flags & NEAR_MIN);
+  b+= MY_TEST(!(flags & NEAR_MAX));
   ulonglong n_values= b - a;
 
   /*

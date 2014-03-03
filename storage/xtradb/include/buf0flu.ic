@@ -137,14 +137,16 @@ buf_flush_recv_note_modification(
 #endif /* !UNIV_HOTBACKUP */
 
 /******************************************************************//**
-Check if a flush list flush is in progress for any buffer pool instance for
-heuristic purposes.
-@return true if flush list flush is in progress  */
+Check if a flush list flush is in progress for any buffer pool instance, or if
+all the instances are clean, for heuristic purposes.
+@return true if flush list flush is in progress or buffer pool is clean */
 UNIV_INLINE
 bool
 buf_flush_flush_list_in_progress(void)
 /*==================================*/
 {
+	bool	all_clean = true;
+
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
 
 		const buf_pool_t* buf_pool = buf_pool_from_array(i);
@@ -153,6 +155,13 @@ buf_flush_flush_list_in_progress(void)
 
 			return(true);
 		}
+
+		if (all_clean) {
+
+			all_clean = (UT_LIST_GET_LEN(buf_pool->flush_list)
+				     == 0);
+		}
+
 	}
-	return(false);
+	return(all_clean);
 }

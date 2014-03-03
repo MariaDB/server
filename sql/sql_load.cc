@@ -258,7 +258,8 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   */
   if (unique_table(thd, table_list, table_list->next_global, 0))
   {
-    my_error(ER_UPDATE_TABLE_USED, MYF(0), table_list->table_name);
+    my_error(ER_UPDATE_TABLE_USED, MYF(0), table_list->table_name,
+             "LOAD DATA");
     DBUG_RETURN(TRUE);
   }
 
@@ -461,7 +462,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   }
 
   thd_proc_info(thd, "reading file");
-  if (!(error=test(read_info.error)))
+  if (!(error= MY_TEST(read_info.error)))
   {
     table->next_number_field=table->found_next_number_field;
     if (ignore ||
@@ -904,7 +905,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     thd->get_stmt_da()->inc_current_row_for_warning();
 continue_loop:;
   }
-  DBUG_RETURN(test(read_info.error));
+  DBUG_RETURN(MY_TEST(read_info.error));
 }
 
 
@@ -1129,7 +1130,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     thd->get_stmt_da()->inc_current_row_for_warning();
 continue_loop:;
   }
-  DBUG_RETURN(test(read_info.error));
+  DBUG_RETURN(MY_TEST(read_info.error));
 }
 
 
@@ -1297,7 +1298,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     thd->get_stmt_da()->inc_current_row_for_warning();
     continue_loop:;
   }
-  DBUG_RETURN(test(read_info.error) || thd->is_error());
+  DBUG_RETURN(MY_TEST(read_info.error) || thd->is_error());
 } /* load xml end */
 
 

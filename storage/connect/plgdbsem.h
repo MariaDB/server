@@ -1,7 +1,7 @@
 /************** PlgDBSem H Declares Source Code File (.H) **************/
-/*  Name: PLGDBSEM.H  Version 3.5                                      */
+/*  Name: PLGDBSEM.H  Version 3.6                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /*  This file contains the PlugDB++ application type definitions.      */
 /***********************************************************************/
@@ -166,7 +166,8 @@ enum MODE {MODE_ERROR   = -1,         /* Invalid mode                  */
            MODE_WRITE   = 20,         /* Input/Output mode             */
            MODE_UPDATE  = 30,         /* Input/Output mode             */
            MODE_INSERT  = 40,         /* Input/Output mode             */
-           MODE_DELETE  = 50};        /* Input/Output mode             */
+           MODE_DELETE  = 50,         /* Input/Output mode             */
+           MODE_ALTER   = 60};        /* alter mode                    */
 
 #if !defined(RC_OK_DEFINED)
 #define RC_OK_DEFINED
@@ -549,8 +550,6 @@ PPARM    Vcolist(PGLOBAL, PTDB, PSZ, bool);
 void     PlugPutOut(PGLOBAL, FILE *, short, void *, uint);
 void     PlugLineDB(PGLOBAL, PSZ, short, void *, uint);
 char    *PlgGetDataPath(PGLOBAL g);
-void    *PlgDBalloc(PGLOBAL, void *, MBLOCK&);
-void    *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
 void     AddPointer(PTABS, void *);
 PDTP     MakeDateFormat(PGLOBAL, PSZ, bool, bool, int);
 int      ExtractDate(char *, PDTP, int, int val[6]);
@@ -558,9 +557,10 @@ int      ExtractDate(char *, PDTP, int, int val[6]);
 /**************************************************************************/
 /*  Allocate the result structure that will contain result data.          */
 /**************************************************************************/
-PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
-                       int *buftyp, XFLD *fldtyp, 
-                       unsigned int *length, bool blank, bool nonull);
+DllExport PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
+                                 int *buftyp, XFLD *fldtyp, 
+                                 unsigned int *length, 
+                                 bool blank, bool nonull);
 
 /***********************************************************************/
 /*  Exported utility routines.                                         */
@@ -576,12 +576,16 @@ DllExport PCATLG  PlgGetCatalog(PGLOBAL g, bool jump = true);
 DllExport bool    PlgSetXdbPath(PGLOBAL g, PSZ, PSZ, char *, int, char *, int);
 DllExport void    PlgDBfree(MBLOCK&);
 DllExport void   *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size);
+DllExport void   *PlgDBalloc(PGLOBAL, void *, MBLOCK&);
+DllExport void   *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
 //lExport PSZ     GetIniString(PGLOBAL, void *, LPCSTR, LPCSTR, LPCSTR, LPCSTR);
 //lExport int     GetIniSize(char *, char *, char *, char *);
 //lExport bool    WritePrivateProfileInt(LPCSTR, LPCSTR, int, LPCSTR);
 DllExport void    NewPointer(PTABS, void *, void *);
 DllExport char    *GetIni(int n= 0);
 DllExport void    SetTrc(void);
+DllExport char   *GetListOption(PGLOBAL, const char *, const char *, 
+                                         const char *def=NULL);
 
 #define MSGID_NONE                         0
 #define MSGID_CANNOT_OPEN                  1
@@ -597,4 +601,4 @@ int global_open(GLOBAL *g, int msgid, const char *filename, int flags, int mode)
 DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir);
 char *MakeEscape(PGLOBAL g, char* str, char q);
 
-bool PushWarning(PGLOBAL, PTDBASE, int level = 1);
+DllExport bool PushWarning(PGLOBAL, PTDBASE, int level = 1);

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2011, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, SkySQL Ab.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2014, SkySQL Ab.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -88,13 +88,6 @@ buf_flush_page_try(
 	buf_block_t*	block)		/*!< in/out: buffer control block */
 	__attribute__((nonnull, warn_unused_result));
 # endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
-/********************************************************************//**
-Flush a batch of writes to the datafiles that have already been
-written by the OS. */
-UNIV_INTERN
-void
-buf_flush_sync_datafiles(void);
-/*==========================*/
 /*******************************************************************//**
 This utility flushes dirty blocks from the end of the flush list of
 all buffer pool instances.
@@ -137,7 +130,7 @@ void
 buf_flush_wait_batch_end(
 /*=====================*/
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
-	enum buf_flush	type);		/*!< in: BUF_FLUSH_LRU
+	buf_flush_t	type);		/*!< in: BUF_FLUSH_LRU
 					or BUF_FLUSH_LIST */
 /******************************************************************//**
 Waits until a flush batch of the given type ends. This is called by
@@ -148,7 +141,7 @@ void
 buf_flush_wait_batch_end_wait_only(
 /*===============================*/
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
-	enum buf_flush	type);		/*!< in: BUF_FLUSH_LRU
+	buf_flush_t	type);		/*!< in: BUF_FLUSH_LRU
 					or BUF_FLUSH_LIST */
 /********************************************************************//**
 This function should be called at a mini-transaction commit, if a page was
@@ -249,8 +242,20 @@ buf_flush_page(
 /*===========*/
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
 	buf_page_t*	bpage,		/*!< in: buffer control block */
-	buf_flush	flush_type)	/*!< in: type of flush */
+	buf_flush_t	flush_type,	/*!< in: type of flush */
+	bool		sync)		/*!< in: true if sync IO request */
 	__attribute__((nonnull));
+/********************************************************************//**
+Returns true if the block is modified and ready for flushing.
+@return	true if can flush immediately */
+UNIV_INTERN
+bool
+buf_flush_ready_for_flush(
+/*======================*/
+	buf_page_t*	bpage,	/*!< in: buffer control block, must be
+				buf_page_in_file(bpage) */
+	buf_flush_t	flush_type)/*!< in: type of flush */
+	__attribute__((warn_unused_result));
 
 #ifdef UNIV_DEBUG
 /******************************************************************//**
@@ -281,7 +286,7 @@ ibool
 buf_flush_start(
 /*============*/
 	buf_pool_t*	buf_pool,	/*!< buffer pool instance */
-	enum buf_flush	flush_type);	/*!< in: BUF_FLUSH_LRU
+	buf_flush_t	flush_type);	/*!< in: BUF_FLUSH_LRU
 					or BUF_FLUSH_LIST */
 /******************************************************************//**
 End a buffer flush batch for LRU or flush list */
@@ -289,15 +294,16 @@ void
 buf_flush_end(
 /*==========*/
 	buf_pool_t*	buf_pool,	/*!< buffer pool instance */
-	enum buf_flush	flush_type);	/*!< in: BUF_FLUSH_LRU
+	buf_flush_t	flush_type);	/*!< in: BUF_FLUSH_LRU
 					or BUF_FLUSH_LIST */
 /******************************************************************//**
 Gather the aggregated stats for both flush list and LRU list flushing */
 void
 buf_flush_common(
 /*=============*/
-	enum buf_flush	flush_type,	/*!< in: type of flush */
+	buf_flush_t	flush_type,	/*!< in: type of flush */
 	ulint		page_count);	/*!< in: number of pages flushed */
+
 /*******************************************************************//**
 This utility flushes dirty blocks from the end of the LRU list or flush_list.
 NOTE 1: in the case of an LRU flush the calling thread may own latches to
@@ -309,7 +315,7 @@ ulint
 buf_flush_batch(
 /*============*/
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
-	enum buf_flush	flush_type,	/*!< in: BUF_FLUSH_LRU or
+	buf_flush_t	flush_type,	/*!< in: BUF_FLUSH_LRU or
 					BUF_FLUSH_LIST; if BUF_FLUSH_LIST,
 					then the caller must not own any
 					latches on pages */

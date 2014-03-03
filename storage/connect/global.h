@@ -77,12 +77,13 @@
 #define  TYPE_SEMX         0        /* Initial semantic function type? */
 #define  TYPE_ERROR        0
 #define  TYPE_STRING       1
-#define  TYPE_FLOAT        2
+#define  TYPE_DOUBLE       2
 #define  TYPE_SHORT        3
 #define  TYPE_TINY         4
 #define  TYPE_BIGINT       5
 #define  TYPE_LIST         6
 #define  TYPE_INT          7
+#define  TYPE_DECIM        9
 
 #if defined(OS32)
   #define  SYS_STAMP   "OS32"
@@ -218,9 +219,10 @@ typedef struct _global {            /* Global structure                */
   uint      Sarea_Size;             /* Work area size                  */
   PACTIVITY Activityp, ActivityStart;
   char      Message[MAX_STR];
-  short     Trace;
   int       Createas;               /* To pass info to created table   */
   void     *Xchk;                   /* indexes in create/alter         */
+  short     Alchecked;              /* Checked for ALTER               */
+  short     Trace;
   int       jump_level;
   jmp_buf   jumper[MAX_JUMP + 2];
   } GLOBAL;

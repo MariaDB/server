@@ -146,6 +146,7 @@ bool user_connect::CheckCleanup(void)
     PlugSubSet(g, g->Sarea, g->Sarea_Size);
     g->Xchk = NULL;
     g->Createas = 0;
+    g->Alchecked = 0;
     last_query_id= thdp->query_id;
 
     if (xtrace)

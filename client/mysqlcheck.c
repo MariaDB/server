@@ -250,6 +250,7 @@ static void usage(void)
   puts("http://kb.askmonty.org/v/mysqlcheck for latest information about");
   puts("this program.");
   print_defaults("my", load_default_groups);
+  puts("");
   my_print_help(my_long_options);
   my_print_variables(my_long_options);
   DBUG_VOID_RETURN;
@@ -1046,7 +1047,7 @@ int main(int argc, char **argv)
     for (i = 0; i < alter_table_cmds.elements ; i++)
       run_query((char*) dynamic_array_ptr(&alter_table_cmds, i));
   }
-  ret= test(first_error);
+  ret= MY_TEST(first_error);
 
  end:
   dbDisconnect(current_host);

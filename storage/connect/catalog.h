@@ -41,7 +41,8 @@ typedef struct _colinfo {
   int    Offset;
   int    Length;
   int    Key;
-  int    Prec;
+  int    Precision;
+  int    Scale;
   int    Opt;
   char  *Remark;
   char  *Datefmt;

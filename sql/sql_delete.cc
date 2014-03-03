@@ -140,7 +140,7 @@ void Update_plan::save_explain_data_intern(Explain_query *query,
       explain->jtype= JT_NEXT;
   }
 
-  explain->using_where= test(select && select->cond);
+  explain->using_where= MY_TEST(select && select->cond);
   explain->using_filesort= using_filesort;
   explain->using_io_buffer= using_io_buffer;
 
@@ -252,7 +252,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   table->map=1;
   query_plan.select_lex= &thd->lex->select_lex;
   query_plan.table= table;
-  query_plan.updating_a_view= test(table_list->view);
+  query_plan.updating_a_view= MY_TEST(table_list->view);
 
   if (mysql_prepare_delete(thd, table_list, select_lex->with_wild,
                                             select_lex->item_list, &conds))
@@ -291,7 +291,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_RETURN(TRUE);
 
   const_cond= (!conds || conds->const_item());
-  safe_update=test(thd->variables.option_bits & OPTION_SAFE_UPDATES);
+  safe_update= MY_TEST(thd->variables.option_bits & OPTION_SAFE_UPDATES);
   if (safe_update && const_cond)
   {
     my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,

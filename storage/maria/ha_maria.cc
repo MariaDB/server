@@ -1,5 +1,6 @@
 /* Copyright (C) 2004-2008 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
    Copyright (C) 2008-2009 Sun Microsystems, Inc.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -723,8 +724,8 @@ int maria_check_definition(MARIA_KEYDEF *t1_keyinfo,
     {
        DBUG_PRINT("error", ("Key %d has different definition", i));
        DBUG_PRINT("error", ("t1_fulltext= %d, t2_fulltext=%d",
-                            test(t1_keyinfo[i].flag & HA_FULLTEXT),
-                            test(t2_keyinfo[i].flag & HA_FULLTEXT)));
+                            MY_TEST(t1_keyinfo[i].flag & HA_FULLTEXT),
+                            MY_TEST(t2_keyinfo[i].flag & HA_FULLTEXT)));
        DBUG_RETURN(1);
     }
     if (t1_keyinfo[i].flag & HA_SPATIAL && t2_keyinfo[i].flag & HA_SPATIAL)
@@ -734,8 +735,8 @@ int maria_check_definition(MARIA_KEYDEF *t1_keyinfo,
     {
        DBUG_PRINT("error", ("Key %d has different definition", i));
        DBUG_PRINT("error", ("t1_spatial= %d, t2_spatial=%d",
-                            test(t1_keyinfo[i].flag & HA_SPATIAL),
-                            test(t2_keyinfo[i].flag & HA_SPATIAL)));
+                            MY_TEST(t1_keyinfo[i].flag & HA_SPATIAL),
+                            MY_TEST(t2_keyinfo[i].flag & HA_SPATIAL)));
        DBUG_RETURN(1);
     }
     if (t1_keyinfo[i].keysegs != t2_keyinfo[i].keysegs ||
@@ -1333,7 +1334,7 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
                                  share->pack.header_length, 1, MYF(MY_WME))))
       {
         error= maria_chk_data_link(&param, file,
-                                   test(param.testflag & T_EXTEND));
+                                   MY_TEST(param.testflag & T_EXTEND));
         end_io_cache(&(param.read_cache));
       }
       param.testflag= old_testflag;
@@ -1547,7 +1548,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
 {
   int error= 0;
   ulonglong local_testflag= param->testflag;
-  bool optimize_done= !do_optimize, statistics_done= 0;
+  bool optimize_done= !do_optimize, statistics_done= 0, full_repair_done= 0;
   const char *old_proc_info= thd->proc_info;
   char fixed_name[FN_REFLEN];
   MARIA_SHARE *share= file->s;
@@ -1581,7 +1582,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
 
   param->db_name= table->s->db.str;
   param->table_name= table->alias.c_ptr();
-  param->tmpfile_createflag= O_RDWR | O_TRUNC;
+  param->tmpfile_createflag= O_RDWR | O_TRUNC | O_EXCL;
   param->using_global_keycache= 1;
   param->thd= thd;
   param->tmpdir= &mysql_tmpdir_list;
@@ -1626,7 +1627,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
         thd_proc_info(thd, buf);
         param->testflag|= T_REP_PARALLEL;
         error= maria_repair_parallel(param, file, fixed_name,
-                                     test(param->testflag & T_QUICK));
+                                     MY_TEST(param->testflag & T_QUICK));
         /* to reset proc_info, as it was pointing to local buffer */
         thd_proc_info(thd, "Repair done");
       }
@@ -1635,7 +1636,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
         thd_proc_info(thd, "Repair by sorting");
         param->testflag|= T_REP_BY_SORT;
         error= maria_repair_by_sort(param, file, fixed_name,
-                                    test(param->testflag & T_QUICK));
+                                    MY_TEST(param->testflag & T_QUICK));
       }
       if (error && file->create_unique_index_by_sort && 
           share->state.dupp_key != MAX_KEY)
@@ -1647,10 +1648,15 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       thd_proc_info(thd, "Repair with keycache");
       param->testflag &= ~(T_REP_BY_SORT | T_REP_PARALLEL);
       error= maria_repair(param, file, fixed_name,
-                          test(param->testflag & T_QUICK));
+                          MY_TEST(param->testflag & T_QUICK));
     }
     param->testflag= save_testflag | (param->testflag & T_RETRY_WITHOUT_QUICK);
     optimize_done= 1;
+    /*
+      set full_repair_done if we re-wrote all rows and all keys
+      (and thus removed all transid's from the table
+    */
+    full_repair_done= !MY_TEST(param->testflag & T_QUICK);
   }
   if (!error)
   {
@@ -1674,7 +1680,8 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
     }
   }
   thd_proc_info(thd, "Saving state");
-  if (optimize_done && !error && !(param->testflag & T_NO_CREATE_RENAME_LSN))
+  if (full_repair_done && !error &&
+      !(param->testflag & T_NO_CREATE_RENAME_LSN))
   {
     /* Set trid (needed if the table was moved from another system) */
     share->state.create_trid= trnman_get_min_safe_trid();
@@ -1969,6 +1976,7 @@ int ha_maria::enable_indexes(uint mode)
       */
       param.testflag|= T_NO_CREATE_RENAME_LSN;
     }
+
     param.myf_rw &= ~MY_WAIT_IF_FULL;
     param.sort_buffer_length= THDVAR(thd,sort_buffer_size);
     param.stats_method= (enum_handler_stats_method)THDVAR(thd,stats_method);
@@ -2116,7 +2124,7 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
       }
       else
       {
-        my_bool all_keys= test(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
+        my_bool all_keys= MY_TEST(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
         maria_disable_indexes_for_rebuild(file, rows, all_keys);
       }
       if (share->now_transactional)
@@ -3292,7 +3300,7 @@ static int maria_rollback(handlerton *hton __attribute__ ((unused)),
 
 bool maria_flush_logs(handlerton *hton)
 {
-  return test(translog_purge_at_flush());
+  return MY_TEST(translog_purge_at_flush());
 }
 
 

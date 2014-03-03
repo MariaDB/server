@@ -115,3 +115,4 @@ master-bin.000006	#
 DROP TABLE t1, t2;
 SET GLOBAL max_binlog_size= @old_max_binlog_size;
 SET GLOBAL innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;
+SET debug_sync = 'reset';

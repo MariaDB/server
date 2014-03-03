@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2009, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -66,11 +66,6 @@ typedef enum {
 
 /** Operations that can currently be buffered. */
 extern ibuf_use_t	ibuf_use;
-
-#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-/** Flag to control insert buffer debugging. */
-extern uint		ibuf_debug;
-#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
 /** The insert buffer control structure */
 extern ibuf_t*		ibuf;
@@ -413,9 +408,9 @@ ibuf_count_get(
 #endif
 /******************************************************************//**
 Looks if the insert buffer is empty.
-@return	TRUE if empty */
+@return	true if empty */
 UNIV_INTERN
-ibool
+bool
 ibuf_is_empty(void);
 /*===============*/
 /******************************************************************//**

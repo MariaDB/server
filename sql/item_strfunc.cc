@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -64,11 +64,6 @@ C_MODE_END
 #include "sql_statistics.h"
 
 size_t username_char_length= 80;
-
-/**
-   @todo Remove this. It is not safe to use a shared String object.
- */
-String my_empty_string("",default_charset_info);
 
 /*
   For the Items which have only val_str_ascii() method
@@ -1168,6 +1163,7 @@ String *Item_func_reverse::val_str(String *str)
       if ((l= my_ismbchar(res->charset(),ptr,end)))
       {
         tmp-= l;
+        DBUG_ASSERT(tmp >= tmp_value.ptr());
         memcpy(tmp,ptr,l);
         ptr+= l;
       }
@@ -2097,18 +2093,35 @@ String *Item_func_trim::val_str(String *str)
   ptr= (char*) res->ptr();
   end= ptr+res->length();
   r_ptr= remove_str->ptr();
-  while (ptr+remove_length <= end && !memcmp(ptr,r_ptr,remove_length))
-    ptr+=remove_length;
 #ifdef USE_MB
   if (use_mb(res->charset()))
   {
+    while (ptr + remove_length <= end)
+    {
+      uint num_bytes= 0;
+      while (num_bytes < remove_length)
+      {
+        uint len;
+        if ((len= my_ismbchar(res->charset(), ptr + num_bytes, end)))
+          num_bytes+= len;
+        else
+          ++num_bytes;
+      }
+      if (num_bytes != remove_length)
+        break;
+      if (memcmp(ptr, r_ptr, remove_length))
+        break;
+      ptr+= remove_length;
+    }
     char *p=ptr;
     register uint32 l;
  loop:
     while (ptr + remove_length < end)
     {
-      if ((l=my_ismbchar(res->charset(), ptr,end))) ptr+=l;
-      else ++ptr;
+      if ((l= my_ismbchar(res->charset(), ptr,end)))
+        ptr+= l;
+      else
+        ++ptr;
     }
     if (ptr + remove_length == end && !memcmp(ptr,r_ptr,remove_length))
     {
@@ -2121,6 +2134,8 @@ String *Item_func_trim::val_str(String *str)
   else
 #endif /* USE_MB */
   {
+    while (ptr+remove_length <= end && !memcmp(ptr,r_ptr,remove_length))
+      ptr+=remove_length;
     while (ptr + remove_length <= end &&
 	   !memcmp(end-remove_length,r_ptr,remove_length))
       end-=remove_length;
@@ -2839,7 +2854,7 @@ String *Item_func_make_set::val_str(String *str)
   ulonglong bits;
   bool first_found=0;
   Item **ptr=args+1;
-  String *result=&my_empty_string;
+  String *result= make_empty_result();
 
   bits=args[0]->val_int();
   if ((null_value=args[0]->null_value))
@@ -3286,7 +3301,9 @@ String *Item_func_conv::val_str(String *str)
   int to_base= (int) args[2]->val_int();
   int err;
 
+  // Note that abs(INT_MIN) is undefined.
   if (args[0]->null_value || args[1]->null_value || args[2]->null_value ||
+      from_base == INT_MIN || to_base == INT_MIN ||
       abs(to_base) > 36 || abs(to_base) < 2 ||
       abs(from_base) > 36 || abs(from_base) < 2 || !(res->length()))
   {
@@ -4787,7 +4804,7 @@ String *Item_dyncol_get::val_str(String *str_result)
     goto null;
   case DYN_COL_INT:
   case DYN_COL_UINT:
-    str_result->set_int(val.x.long_value, test(val.type == DYN_COL_UINT),
+    str_result->set_int(val.x.long_value, MY_TEST(val.type == DYN_COL_UINT),
                        &my_charset_latin1);
     break;
   case DYN_COL_DOUBLE:

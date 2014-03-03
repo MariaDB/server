@@ -9,6 +9,11 @@
 #ifndef DENA_AUTO_FILE_HPP
 #define DENA_AUTO_FILE_HPP
 
+/* Workaround for _LARGE_FILES and _LARGE_FILE_API incompatibility on AIX */
+#if defined(_AIX) && defined(_LARGE_FILE_API)
+#undef _LARGE_FILE_API
+#endif
+
 #include <unistd.h>
 #include <sys/types.h>
 #include <dirent.h>

@@ -86,6 +86,7 @@ extern mysql_pfs_key_t	fts_bg_threads_mutex_key;
 extern mysql_pfs_key_t	fts_delete_mutex_key;
 extern mysql_pfs_key_t	fts_optimize_mutex_key;
 extern mysql_pfs_key_t	fts_doc_id_mutex_key;
+extern mysql_pfs_key_t	fts_pll_tokenize_mutex_key;
 extern mysql_pfs_key_t	hash_table_mutex_key;
 extern mysql_pfs_key_t	ibuf_bitmap_mutex_key;
 extern mysql_pfs_key_t	ibuf_mutex_key;
@@ -198,10 +199,10 @@ necessary only if the memory block containing it is freed. */
 	pfs_mutex_enter_nowait_func((M), __FILE__, __LINE__)
 
 # define mutex_enter_first(M)					\
-	pfs_mutex_enter_func((M), __FILE__, __LINE__, HIGH_PRIO)
+	pfs_mutex_enter_func((M), __FILE__, __LINE__, IB_HIGH_PRIO)
 
 # define mutex_enter_last(M)					\
-	pfs_mutex_enter_func((M), __FILE__, __LINE__, LOW_PRIO)
+	pfs_mutex_enter_func((M), __FILE__, __LINE__, IB_LOW_PRIO)
 
 # define mutex_exit(M)	pfs_mutex_exit_func(M)
 
@@ -230,10 +231,10 @@ original non-instrumented functions */
 	mutex_enter_nowait_func((M), __FILE__, __LINE__)
 
 # define mutex_enter_first(M)	\
-	mutex_enter_func((M), __FILE__, __LINE__, HIGH_PRIO)
+	mutex_enter_func((M), __FILE__, __LINE__, IB_HIGH_PRIO)
 
 # define mutex_enter_last(M)	\
-	mutex_enter_func((M), __FILE__, __LINE__, LOW_PRIO)
+	mutex_enter_func((M), __FILE__, __LINE__, IB_LOW_PRIO)
 
 # define mutex_exit(M)	mutex_exit_func(M)
 
@@ -325,8 +326,8 @@ directly. Locks a priority mutex for the current thread. If the mutex is
 reserved the function spins a preset time (controlled by SYNC_SPIN_ROUNDS)
 waiting for the mutex before suspending the thread. If the thread is suspended,
 the priority argument value determines the relative order for its wake up.  Any
-HIGH_PRIO waiters will be woken up before any LOW_PRIO waiters.  In case of
-DEFAULT_PRIO, the relative priority will be set according to
+IB_HIGH_PRIO waiters will be woken up before any IB_LOW_PRIO waiters.  In case of
+IB_DEFAULT_PRIO, the relative priority will be set according to
 srv_current_thread_priority.  */
 UNIV_INLINE
 void
@@ -336,7 +337,7 @@ mutex_enter_func(
 	const char*		file_name,	/*!< in: file name where
 						locked */
 	ulint			line,		/*!< in: line where locked */
-	enum ib_sync_priority	priority = DEFAULT_PRIO);
+	enum ib_sync_priority	priority = IB_DEFAULT_PRIO);
 						/*!<in: mutex acquisition
 						priority */
 /********************************************************************//**
@@ -357,7 +358,7 @@ NOTE! Use the corresponding macro in the header file, not this function
 directly. Tries to lock the mutex for the current thread. If the lock is not
 acquired immediately, returns with return value 1.
 @return	0 if succeed, 1 if not */
-UNIV_INTERN
+UNIV_INLINE
 ulint
 mutex_enter_nowait_func(
 /*====================*/
@@ -453,7 +454,7 @@ pfs_mutex_enter_func(
 	const char*		file_name,	/*!< in: file name where
 						locked */
 	ulint			line,		/*!< in: line where locked */
-	enum ib_sync_priority	priority = DEFAULT_PRIO);
+	enum ib_sync_priority	priority = IB_DEFAULT_PRIO);
 						/*!<in: mutex acquisition
 						priority */
 /********************************************************************//**
@@ -888,6 +889,7 @@ or row lock! */
 #define SYNC_LOG		170
 #define SYNC_LOG_FLUSH_ORDER	147
 #define SYNC_RECV		168
+#define SYNC_FTS_TOKENIZE	167
 #define SYNC_FTS_CACHE_INIT	166	/* Used for FTS cache initialization */
 #define SYNC_FTS_BG_THREADS	165
 #define SYNC_FTS_OPTIMIZE       164     // FIXME: is this correct number, test
@@ -977,12 +979,11 @@ struct ib_prio_mutex_t {
 					word etc. for the priority mutex  */
 	os_event_t	high_priority_event; /* High priority wait array
 					event */
-	volatile ulint	high_priority_waiters; /* Set to 1 if there are (or
-					may be) threads that asked for this
-					mutex to be acquired with high priority
-					in the global wait array for this mutex
-					to be released.  Otherwise, this is
-					0.  */
+	volatile ulint	high_priority_waiters; /* Number of threads that asked
+					for this mutex to be acquired with high
+					priority in the global wait array
+					waiting for this mutex to be
+					released. */
 };
 
 /** Constant determining how long spin wait is continued before suspending

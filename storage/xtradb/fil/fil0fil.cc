@@ -5014,6 +5014,7 @@ retry:
 		dispatched read operation is enough here. Without this
 		there will be assertion at shutdown indicating that
 		all IO is not completed. */
+
 		fil_node_complete_io(node, fil_system, OS_FILE_READ);
 		goto complete_io;
 	}

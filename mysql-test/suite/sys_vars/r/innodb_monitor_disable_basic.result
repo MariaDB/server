@@ -168,8 +168,12 @@ compress_pages_page_compressed	disabled
 compress_page_compressed_trim_op	disabled
 compress_page_compressed_trim_op_saved	disabled
 compress_pages_page_decompressed	disabled
-index_splits	disabled
-index_merges	disabled
+index_page_splits	disabled
+index_page_merge_attempts	disabled
+index_page_merge_successful	disabled
+index_page_reorg_attempts	disabled
+index_page_reorg_successful	disabled
+index_page_discards	disabled
 adaptive_hash_searches	disabled
 adaptive_hash_searches_btree	disabled
 adaptive_hash_pages_added	disabled

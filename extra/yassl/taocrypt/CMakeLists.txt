@@ -1,4 +1,4 @@
-# Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2006, 2013, Oracle and/or its affiliates. All rights reserved.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -31,4 +31,9 @@ SET(TAOCRYPT_SOURCES		src/aes.cpp src/aestables.cpp src/algebra.cpp src/arc4.cpp
 
 ADD_CONVENIENCE_LIBRARY(taocrypt ${TAOCRYPT_SOURCES})
 RESTRICT_SYMBOL_EXPORTS(taocrypt)
+
+INSTALL_DEBUG_SYMBOLS(taocrypt)
+IF(MSVC)
+   INSTALL_DEBUG_TARGET(taocrypt DESTINATION ${INSTALL_LIBDIR}/debug)
+ENDIF()
 

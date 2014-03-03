@@ -52,6 +52,12 @@ log/log0log\.c : passing arg 1 of `atomic_add_64_nv' from incompatible pointer t
 log/log0online\.c : passing arg 1 of `atomic_add_64_nv' from incompatible pointer type
 
 #
+# Xtradb engine
+#
+storage/xtradb/handler/ha_innodb\.cc: ignoring return value of
+storage/xtradb/row/row0log\.cc: ignoring return value of
+
+#
 # bdb is not critical to keep up to date
 #
 .*/bdb/.* : .*discards qualifiers from pointer target type.*
@@ -172,6 +178,15 @@ vio/viosslfactories\.c: discards ~const~ qualifier from pointer target type
 # jemalloc
 #
 jemalloc/src/jemalloc\.c: always_inline function might not be inlinable
+jemalloc/src/jemalloc\.c: set but not used
+
+#
+# Connect engine
+#
+storage/connect/connect\.cc: might be clobbered by ~longjmp~
+storage/connect/filamvct\.cpp: ignoring return value of
+storage/connect/filamvct\.cpp: might be clobbered by ~longjmp~
+storage/connect/xindex\.cpp: ignoring return value of
 
 #
 # Unexplanable (?) stuff

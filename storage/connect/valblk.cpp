@@ -1,7 +1,7 @@
 /************ Valblk C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALBLK.CPP  Version 2.0                                      */
+/*  Name: VALBLK.CPP  Version 2.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /*  This file contains the VALBLK and derived classes functions.       */
 /*  Second family is VALBLK, representing simple suballocated arrays   */
@@ -57,6 +57,7 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
 
   switch (type) {
     case TYPE_STRING:
+    case TYPE_DECIM:
       if (len)
         blkp = new(g) CHRBLK(mp, nval, len, prec, blank);
       else
@@ -87,7 +88,7 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
         blkp = new(g) TYPBLK<longlong>(mp, nval, type);
 
       break;
-    case TYPE_FLOAT:
+    case TYPE_DOUBLE:
       blkp = new(g) TYPBLK<double>(mp, nval, type, prec);
       break;
     case TYPE_TINY:
@@ -236,6 +237,23 @@ void TYPBLK<TYPE>::Init(PGLOBAL g, bool check)
   } // end of Init
 
 /***********************************************************************/
+/*  TYPVAL GetCharString: get string representation of a typed value.  */
+/***********************************************************************/
+template <class TYPE>
+char *TYPBLK<TYPE>::GetCharString(char *p, int n)
+  {
+  sprintf(p, Fmt, Typp[n]);
+  return p;
+  } // end of GetCharString
+
+template <>
+char *TYPBLK<double>::GetCharString(char *p, int n)
+  {
+  sprintf(p, Fmt, Prec, Typp[n]);
+  return p;
+  } // end of GetCharString
+
+/***********************************************************************/
 /*  Set one value in a block.                                          */
 /***********************************************************************/
 template <class TYPE>
@@ -342,6 +360,21 @@ ulonglong TYPBLK<longlong>::MaxVal(void) {return INT_MAX64;}
 
 template <>
 ulonglong TYPBLK<ulonglong>::MaxVal(void) {return ULONGLONG_MAX;}
+
+template <>
+void TYPBLK<double>::SetValue(PSZ p, int n)
+  {
+  ChkIndx(n);
+
+  if (Check) {
+    PGLOBAL& g = Global;
+    strcpy(g->Message, MSG(BAD_SET_STRING));
+    longjmp(g->jumper[g->jump_level], Type);
+    } // endif Check
+
+  Typp[n] = atof(p);
+  SetNull(n, false);
+  } // end of SetValue
 
 /***********************************************************************/
 /*  Set one value in a block from an array of characters.              */
@@ -660,6 +693,14 @@ double CHRBLK::GetFloatValue(int n)
   {
   return atof((char *)GetValPtrEx(n));
   } // end of GetFloatValue
+
+/***********************************************************************/
+/*  STRING GetCharString: get string representation of a char value.   */
+/***********************************************************************/
+char *CHRBLK::GetCharString(char *p, int n)
+  {
+  return (char *)GetValPtrEx(n);
+  } // end of GetCharString
 
 /***********************************************************************/
 /*  Set one value in a block.                                          */
@@ -1163,11 +1204,27 @@ DATBLK::DATBLK(void *mp, int nval) : TYPBLK<int>(mp, nval, TYPE_INT)
 /***********************************************************************/
 bool DATBLK::SetFormat(PGLOBAL g, PSZ fmt, int len, int year)
   {
-  if (!(Dvalp = AllocateValue(g, TYPE_DATE, len, year, fmt)))
+  if (!(Dvalp = AllocateValue(g, TYPE_DATE, len, year, false, fmt)))
     return true;
 
   return false;
   } // end of SetFormat
+
+/***********************************************************************/
+/*  DTVAL GetCharString: get string representation of a date value.    */
+/***********************************************************************/
+char *DATBLK::GetCharString(char *p, int n)
+  {
+  char *vp;
+
+  if (Dvalp) {
+    Dvalp->SetValue(Typp[n]);
+    vp = Dvalp->GetCharString(p);
+  } else
+    vp = TYPBLK<int>::GetCharString(p, n);
+
+  return vp;
+  } // end of GetCharString
 
 /***********************************************************************/
 /*  Set one value in a block from a char string.                       */

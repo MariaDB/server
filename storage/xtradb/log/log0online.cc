@@ -34,14 +34,6 @@ Online database log parsing for changed page tracking
 #include "trx0sys.h"
 #include "ut0rbt.h"
 
-#ifdef __WIN__
-/* error LNK2001: unresolved external symbol _debug_sync_C_callback_ptr */
-# define DEBUG_SYNC_C(dummy) ((void) 0)
-#else
-# include "m_string.h" /* for my_sys.h */
-# include "my_sys.h" /* DEBUG_SYNC_C */
-#endif
-
 enum { FOLLOW_SCAN_SIZE = 4 * (UNIV_PAGE_SIZE_MAX) };
 
 #ifdef UNIV_PFS_MUTEX
@@ -1782,7 +1774,7 @@ log_online_purge_changed_page_bitmaps(
 		mutex_enter(&log_bmp_sys->mutex);
 	}
 
-	if (!log_online_setup_bitmap_file_range(&bitmap_files, 0, lsn)) {
+	if (!log_online_setup_bitmap_file_range(&bitmap_files, 0, LSN_MAX)) {
 		if (srv_track_changed_pages) {
 			mutex_exit(&log_bmp_sys->mutex);
 		}
@@ -1797,8 +1789,19 @@ log_online_purge_changed_page_bitmaps(
 	}
 
 	for (i = 0; i < bitmap_files.count; i++) {
-		if (bitmap_files.files[i].seq_num == 0
-		    || bitmap_files.files[i].start_lsn >= lsn) {
+
+		/* We consider the end LSN of the current bitmap, derived from
+		the start LSN of the subsequent bitmap file, to determine
+		whether to remove the current bitmap.  Note that bitmap_files
+		does not contain an entry for the bitmap past the given LSN so
+		we must check the boundary conditions as well.  For example,
+		consider 1_0.xdb and 2_10.xdb and querying LSN 5.  bitmap_files
+		will only contain 1_0.xdb and we must not delete it since it
+		represents LSNs 0-9. */
+		if ((i + 1 == bitmap_files.count
+		     || bitmap_files.files[i + 1].seq_num == 0
+		     || bitmap_files.files[i + 1].start_lsn > lsn)
+		    && (lsn != LSN_MAX)) {
 
 			break;
 		}

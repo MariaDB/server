@@ -1,6 +1,6 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
@@ -769,29 +769,16 @@ os_file_handle_error_cond_exit(
 		to the log. */
 
 		if (should_exit || !on_error_silent) {
-			if (name) {
-				ut_print_timestamp(stderr);
-				fprintf(stderr,
-					"  InnoDB: File name %s\n", name);
-			}
-
-			ut_print_timestamp(stderr);
-			fprintf(stderr, "  InnoDB: File operation call: "
-				"'%s' returned OS error " ULINTPF ".\n",
-				operation, err);
+			ib_logf(IB_LOG_LEVEL_ERROR, "File %s: '%s' returned OS "
+				"error " ULINTPF ".%s", name ? name : "(unknown)",
+				operation, err, should_exit
+				? " Cannot continue operation" : "");
 		}
 
 		fprintf(stderr,
 			" InnoDB: at file %s and at line %ld\n", file, line);
 
 		if (should_exit) {
-			ut_print_timestamp(stderr);
-			fprintf(stderr, "  InnoDB: Cannot continue "
-				"operation.\n");
-
-			fflush(stderr);
-
-			ut_ad(0);  /* Report call stack, etc only in debug code. */
 			exit(1);
 		}
 	}
@@ -1267,6 +1254,7 @@ os_file_create_simple_func(
 	os_file_t	file;
 	ibool		retry;
 
+	*success = FALSE;
 #ifdef __WIN__
 	DWORD		access;
 	DWORD		create_flag;
@@ -1464,6 +1452,7 @@ os_file_create_simple_no_error_handling_func(
 	os_file_t	file;
 	atomic_writes_t awrites = (atomic_writes_t) atomic_writes;
 
+	*success = FALSE;
 #ifdef __WIN__
 	DWORD		access;
 	DWORD		create_flag;
@@ -1633,18 +1622,32 @@ os_file_set_nocache(
 	}
 #elif defined(O_DIRECT)
 	if (fcntl(fd, F_SETFL, O_DIRECT) == -1) {
-		int	errno_save = errno;
-
-		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Failed to set O_DIRECT on file %s: %s: %s, "
-			"continuing anyway",
-			file_name, operation_name, strerror(errno_save));
-
+		int		errno_save = errno;
+		static bool	warning_message_printed = false;
 		if (errno_save == EINVAL) {
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"O_DIRECT is known to result in 'Invalid "
-				"argument' on Linux on tmpfs, see MySQL "
-				"Bug#26662");
+			if (!warning_message_printed) {
+				warning_message_printed = true;
+# ifdef UNIV_LINUX
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Failed to set O_DIRECT on file "
+					"%s: %s: %s, continuing anyway. "
+					"O_DIRECT is known to result "
+					"in 'Invalid argument' on Linux on "
+					"tmpfs, see MySQL Bug#26662.",
+					file_name, operation_name,
+					strerror(errno_save));
+# else /* UNIV_LINUX */
+				goto short_warning;
+# endif /* UNIV_LINUX */
+			}
+		} else {
+# ifndef UNIV_LINUX
+short_warning:
+# endif
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Failed to set O_DIRECT on file %s: %s: %s, "
+				"continuing anyway.",
+				file_name, operation_name, strerror(errno_save));
 		}
 	}
 #endif /* defined(UNIV_SOLARIS) && defined(DIRECTIO_ON) */
@@ -1812,9 +1815,9 @@ os_file_create_func(
 
 			if (on_error_no_exit) {
 				retry = os_file_handle_error_no_exit(
-					name, operation, on_error_silent);
+					name, operation, on_error_silent, __FILE__, __LINE__);
 			} else {
-				retry = os_file_handle_error(name, operation);
+				retry = os_file_handle_error(name, operation, __FILE__, __LINE__);
 			}
 		} else {
 			*success = TRUE;
@@ -1977,8 +1980,8 @@ Deletes a file if it exists. The file has to be closed before calling this.
 @return	TRUE if success */
 UNIV_INTERN
 bool
-os_file_delete_if_exists(
-/*=====================*/
+os_file_delete_if_exists_func(
+/*==========================*/
 	const char*	name)	/*!< in: file path as a null-terminated
 				string */
 {
@@ -2039,8 +2042,8 @@ Deletes a file. The file has to be closed before calling this.
 @return	TRUE if success */
 UNIV_INTERN
 bool
-os_file_delete(
-/*===========*/
+os_file_delete_func(
+/*================*/
 	const char*	name)	/*!< in: file path as a null-terminated
 				string */
 {
@@ -2291,6 +2294,7 @@ os_file_set_size(
 				"%lu, desired size %lu\n",
 				name, current_size, size);
 			os_file_handle_error_no_exit(name, "posix_fallocate", FALSE, __FILE__, __LINE__);
+
 			return(FALSE);
 		}
 		return(TRUE);
@@ -3545,8 +3549,8 @@ os_file_make_data_dir_path(
 The function os_file_dirname returns a directory component of a
 null-terminated pathname string. In the usual case, dirname returns
 the string up to, but not including, the final '/', and basename
-is the component following the final '/'. Trailing '/' charac­
-ters are not counted as part of the pathname.
+is the component following the final '/'. Trailing '/' characters
+are not counted as part of the pathname.
 
 If path does not contain a slash, dirname returns the string ".".
 
@@ -4281,7 +4285,7 @@ os_aio_get_segment_no_from_slot(
 		seg_len = os_aio_read_array->n_slots
 			/ os_aio_read_array->n_segments;
 
-		segment = 2 + slot->pos / seg_len;
+		segment = (srv_read_only_mode ? 0 : 2) + slot->pos / seg_len;
 	} else {
 		ut_ad(!srv_read_only_mode);
 		ut_a(array == os_aio_write_array);
@@ -4945,7 +4949,8 @@ try_again:
 				retval = os_aio_windows_handle(
 					ULINT_UNDEFINED, slot->pos,
 					&dummy_mess1, &dummy_mess2,
-					&dummy_type);
+					&dummy_type,
+					write_size, page_compression, page_compression_level);
 
 				return(retval);
 			}
@@ -5002,7 +5007,16 @@ os_aio_windows_handle(
 				parameters are valid and can be used to
 				restart the operation, for example */
 	void**	message2,
-	ulint*	type)		/*!< out: OS_FILE_WRITE or ..._READ */
+	ulint*	type,		/*!< out: OS_FILE_WRITE or ..._READ */
+	ulint*		write_size,/*!< in/out: Actual write size initialized
+			       after fist successfull trim
+			       operation for this page and if
+			       initialized we do not trim again if
+			       actual page size does not decrease. */
+	ibool		page_compression, /*!< in: is page compression used
+					  on this file space */
+	ulint		page_compression_level) /*!< page compression
+						 level to be used */
 {
 	ulint		orig_seg	= segment;
 	os_aio_array_t*	array;

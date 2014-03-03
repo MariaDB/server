@@ -661,7 +661,7 @@ err:
   if (maria_log_remove(maria_data_root))
     exit(1);
 
-  return(test(exit_status()));
+  return(MY_TEST(exit_status()));
 }
 
 #include "../ma_check_standalone.h"

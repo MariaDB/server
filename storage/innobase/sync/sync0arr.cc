@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -123,7 +123,7 @@ struct sync_array_t {
 	ulint		n_cells;	/*!< number of cells in the
 					wait array */
 	sync_cell_t*	array;		/*!< pointer to wait array */
-	ib_mutex_t		mutex;		/*!< possible database mutex
+	ib_mutex_t	mutex;		/*!< possible database mutex
 					protecting this data structure */
 	os_ib_mutex_t	os_mutex;	/*!< Possible operating system mutex
 					protecting the data structure.
@@ -304,9 +304,10 @@ sync_cell_get_event(
 
 /******************************************************************//**
 Reserves a wait array cell for waiting for an object.
-The event of the cell is reset to nonsignalled state. */
+The event of the cell is reset to nonsignalled state.
+@return true if free cell is found, otherwise false */
 UNIV_INTERN
-void
+bool
 sync_array_reserve_cell(
 /*====================*/
 	sync_array_t*	arr,	/*!< in: wait array */
@@ -365,13 +366,12 @@ sync_array_reserve_cell(
 
 			cell->thread = os_thread_get_curr_id();
 
-			return;
+			return(true);
 		}
 	}
 
-	ut_error; /* No free cell found */
-
-	return;
+	/* No free cell found */
+	return false;
 }
 
 /******************************************************************//**
@@ -570,10 +570,6 @@ sync_array_deadlock_step(
 	new_cell = sync_array_find_thread(arr, thread);
 
 	if (new_cell == start) {
-		/* Stop running of other threads */
-
-		ut_dbg_stop_threads = TRUE;
-
 		/* Deadlock */
 		fputs("########################################\n"
 		      "DEADLOCK of threads detected!\n", stderr);
@@ -978,11 +974,15 @@ sync_array_print_long_waits(
 
 		sync_array_t*	arr = sync_wait_array[i];
 
+		sync_array_enter(arr);
+
 		if (sync_array_print_long_waits_low(
 				arr, waiter, sema, &noticed)) {
 
 			fatal = TRUE;
 		}
+
+		sync_array_exit(arr);
 	}
 
 	if (noticed) {
@@ -1077,7 +1077,7 @@ sync_array_init(
 
 	ut_a(sync_wait_array == NULL);
 	ut_a(srv_sync_array_size > 0);
-	ut_a(n_threads > srv_sync_array_size);
+	ut_a(n_threads > 0);
 
 	sync_array_size = srv_sync_array_size;
 

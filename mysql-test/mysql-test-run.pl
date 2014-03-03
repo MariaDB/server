@@ -174,6 +174,7 @@ my @DEFAULT_SUITES= qw(
     heap-
     innodb-
     innodb_fts-
+    innodb_zip-
     maria-
     multi_source-
     optimizer_unfixed_bugs-
@@ -4265,11 +4266,18 @@ sub run_testcase ($$) {
       #
       foreach my $option ($config->options_in_group("ENV"))
       {
-	# Save old value to restore it before next time
-	$old_env{$option->name()}= $ENV{$option->name()};
+        my ($name, $val)= ($option->name(), $option->value());
 
-	mtr_verbose($option->name(), "=",$option->value());
-	$ENV{$option->name()}= $option->value();
+	# Save old value to restore it before next time
+	$old_env{$name}= $ENV{$name};
+
+        unless (defined $val) {
+          mtr_warning("Uninitialized value for ", $name,
+            ", group [ENV], file ", $current_config_name);
+        } else {
+          mtr_verbose($name, "=", $val);
+          $ENV{$name}= $val;
+        }
       }
     }
 
@@ -6181,6 +6189,13 @@ sub valgrind_arguments {
     mtr_add_arg($args, "--num-callers=16");
     mtr_add_arg($args, "--suppressions=%s/valgrind.supp", $glob_mysql_test_dir)
       if -f "$glob_mysql_test_dir/valgrind.supp";
+
+    # Ensure the jemalloc works with mysqld
+    if ($mysqld_variables{'version-malloc-library'} ne "system" &&
+        $$exe =~ /mysqld/)
+    {
+      mtr_add_arg($args, "--soname-synonyms=somalloc=NONE" );
+    }
   }
 
   # Add valgrind options, can be overriden by user
@@ -6311,7 +6326,20 @@ sub usage ($) {
 
 $0 [ OPTIONS ] [ TESTCASE ]
 
-Options to control what engine/variation to run
+Where test case can be specified as:
+
+testcase[.test]         Runs the test case named 'testcase' from all suits
+path-to-testcase
+[suite.]testcase[,combination]
+
+Examples:
+
+alias
+main.alias              'main' is the name of the suite for the 't' directory.
+rpl.rpl_invoked_features,mix,xtradb_plugin
+suite/rpl/t/rpl.rpl_invoked_features
+
+Options to control what engine/variation to run:
 
   embedded-server       Use the embedded server, i.e. no mysqld daemons
   ps-protocol           Use the binary protocol between client and server
