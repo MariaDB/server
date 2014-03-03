@@ -1204,16 +1204,7 @@ os_aio_windows_handle(
 				parameters are valid and can be used to
 				restart the operation, for example */
 	void**	message2,
-	ulint*	type,		/*!< out: OS_FILE_WRITE or ..._READ */
-	ulint*		write_size,/*!< in/out: Actual write size initialized
-			       after fist successfull trim
-			       operation for this page and if
-			       initialized we do not trim again if
-			       actual page size does not decrease. */
-	ibool		page_compression, /*!< in: is page compression used
-					  on this file space */
-	ulint		page_compression_level); /*!< page compression
-						 level to be used */
+	ulint*	type);		/*!< out: OS_FILE_WRITE or ..._READ */
 #endif
 
 /**********************************************************************//**

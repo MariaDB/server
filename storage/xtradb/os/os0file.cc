@@ -5090,16 +5090,7 @@ os_aio_windows_handle(
 				restart the operation, for example */
 	void**	message2,
 	ulint*	type,		/*!< out: OS_FILE_WRITE or ..._READ */
-	ulint*	space_id,
-	ulint*		write_size,/*!< in/out: Actual write size initialized
-			       after fist successfull trim
-			       operation for this page and if
-			       initialized we do not trim again if
-			       actual page size does not decrease. */
-	ibool		page_compression, /*!< in: is page compression used
-					  on this file space */
-	ulint		page_compression_level) /*!< page compression
-						 level to be used */
+	ulint*	space_id)
 {
 	ulint		orig_seg	= segment;
 	os_aio_slot_t*	slot;
@@ -5186,7 +5177,7 @@ os_aio_windows_handle(
 
 		switch (slot->type) {
 		case OS_FILE_WRITE:
-			if (slot->message1 && page_compression && slot->page_buf) {
+			if (slot->message1 && slot->page_compression && slot->page_buf) {
 				ret_val = os_file_write(slot->name, slot->file, slot->page_buf,
 					slot->control.Offset, slot->control.OffsetHigh, slot->len);
 			} else {
@@ -5222,7 +5213,7 @@ os_aio_windows_handle(
 		ret_val = ret && len == slot->len;
 	}
 
-	if (slot->message1 && page_compression) {
+	if (slot->message1 && slot->page_compression) {
 		// We allocate memory for page compressed buffer if and only
 		// if it is not yet allocated.
 		if (slot->page_buf == NULL) {
