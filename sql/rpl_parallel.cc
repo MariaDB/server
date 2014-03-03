@@ -173,6 +173,7 @@ signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi)
   rgi->is_error= true;
   rgi->cleanup_context(thd, true);
   rgi->rli->abort_slave= true;
+  rgi->rli->stop_for_until= false;
   mysql_mutex_lock(rgi->rli->relay_log.get_log_lock());
   mysql_mutex_unlock(rgi->rli->relay_log.get_log_lock());
   rgi->rli->relay_log.signal_update();
@@ -1122,7 +1123,7 @@ rpl_parallel::find(uint32 domain_id)
 
 
 void
-rpl_parallel::wait_for_done(THD *thd)
+rpl_parallel::wait_for_done(THD *thd, Relay_log_info *rli)
 {
   struct rpl_parallel_entry *e;
   rpl_parallel_thread *rpt;
@@ -1152,9 +1153,13 @@ rpl_parallel::wait_for_done(THD *thd)
       started executing yet. So we set e->stop_count here and use it to
       decide in the worker threads whether to continue executing an event
       group or whether to skip it, when force_abort is set.
+
+      If we stop due to reaching the START SLAVE UNTIL condition, then we
+      need to continue executing any queued events up to that point.
     */
     e->force_abort= true;
-    e->stop_count= e->count_committing_event_groups;
+    e->stop_count= rli->stop_for_until ?
+      e->count_queued_event_groups : e->count_committing_event_groups;
     mysql_mutex_unlock(&e->LOCK_parallel_entry);
     for (j= 0; j < e->rpl_thread_max; ++j)
     {
@@ -1186,6 +1191,30 @@ rpl_parallel::wait_for_done(THD *thd)
         mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
       }
     }
+  }
+}
+
+
+/*
+  This function handles the case where the SQL driver thread reached the
+  START SLAVE UNTIL position; we stop queueing more events but continue
+  processing remaining, already queued events; then use executes manual
+  STOP SLAVE; then this function signals to worker threads that they
+  should stop the processing of any remaining queued events.
+*/
+void
+rpl_parallel::stop_during_until()
+{
+  struct rpl_parallel_entry *e;
+  uint32 i;
+
+  for (i= 0; i < domain_hash.records; ++i)
+  {
+    e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);
+    mysql_mutex_lock(&e->LOCK_parallel_entry);
+    if (e->force_abort)
+      e->stop_count= e->count_committing_event_groups;
+    mysql_mutex_unlock(&e->LOCK_parallel_entry);
   }
 }
 
