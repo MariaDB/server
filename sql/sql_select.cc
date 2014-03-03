@@ -19492,7 +19492,7 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
     for (; const_key_parts & 1 ; const_key_parts>>= 1)
       key_part++; 
 
-    if (key_part == key_part_end)
+    if (key_part >= key_part_end)
     {
       /* 
         We are at the end of the key. Check if the engine has the primary
