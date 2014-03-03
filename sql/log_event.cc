@@ -6649,7 +6649,7 @@ Gtid_list_log_event::write(IO_CACHE *file)
 int
 Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
 {
-  Relay_log_info const *rli= rgi->rli;
+  Relay_log_info *rli= const_cast<Relay_log_info*>(rgi->rli);
   int ret;
   if (gl_flags & FLAG_IGN_GTIDS)
   {
@@ -6669,10 +6669,11 @@ Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
   {
     char str_buf[128];
     String str(str_buf, sizeof(str_buf), system_charset_info);
-    const_cast<Relay_log_info*>(rli)->until_gtid_pos.to_string(&str);
+    rli->until_gtid_pos.to_string(&str);
     sql_print_information("Slave SQL thread stops because it reached its"
                           " UNTIL master_gtid_pos %s", str.c_ptr_safe());
-    const_cast<Relay_log_info*>(rli)->abort_slave= true;
+    rli->abort_slave= true;
+    rli->stop_for_until= true;
   }
   return ret;
 }
