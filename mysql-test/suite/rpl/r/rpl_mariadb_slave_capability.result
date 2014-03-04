@@ -62,6 +62,32 @@ slave-relay-bin.000007	#	Query	#	#	# Dummy ev
 slave-relay-bin.000007	#	Table_map	#	#	table_id: # (test.t1)
 slave-relay-bin.000007	#	Write_rows	#	#	table_id: # flags: STMT_END_F
 slave-relay-bin.000007	#	Query	#	#	COMMIT
+*** MDEV-5754: MySQL 5.5 slaves cannot replicate from MariaDB 10.0 ***
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+INSERT INTO t2 VALUES (1);
+SET debug_sync='now WAIT_FOR master_queued1';
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+INSERT INTO t2 VALUES (2);
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+SET debug_sync='RESET';
+SET debug_sync='RESET';
+SET debug_sync='RESET';
+show binlog events in 'master-bin.000003' from <binlog_start> limit 0, 8;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+master-bin.000003	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000003	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000003	#	Xid	#	#	COMMIT /* XID */
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+master-bin.000003	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000003	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000003	#	Xid	#	#	COMMIT /* XID */
+SELECT * FROM t2 ORDER BY a;
+a
+1
+2
 # Test that slave which cannot tolerate holes in binlog stream but
 # knows the event does not get dummy event
 include/stop_slave.inc
@@ -95,5 +121,5 @@ select @@global.replicate_annotate_row_events;
 set @@global.debug_dbug= @old_slave_dbug;
 Clean up.
 set @@global.binlog_checksum = @old_master_binlog_checksum;
-DROP TABLE t1;
+DROP TABLE t1, t2;
 include/rpl_end.inc
