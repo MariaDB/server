@@ -6518,24 +6518,22 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
     return 0;
 
   /* Execute this like a BEGIN query event. */
-  thd->variables.option_bits|= OPTION_BEGIN | OPTION_GTID_BEGIN;
+  thd->variables.option_bits|= OPTION_GTID_BEGIN;
   DBUG_PRINT("info", ("Set OPTION_GTID_BEGIN"));
-  trans_begin(thd, 0);
-
   thd->set_query_and_id(gtid_begin_string, sizeof(gtid_begin_string)-1,
                         &my_charset_bin, next_query_id());
-  Parser_state parser_state;
-  if (!parser_state.init(thd, thd->query(), thd->query_length()))
+  thd->lex->sql_command= SQLCOM_BEGIN;
+  thd->is_slave_error= 0;
+  status_var_increment(thd->status_var.com_stat[thd->lex->sql_command]);
+  if (trans_begin(thd, 0))
   {
-    mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
-    /* Finalize server status flags after executing a statement. */
-    thd->update_server_status();
-    log_slow_statement(thd);
-    if (unlikely(thd->is_fatal_error))
-      thd->is_slave_error= 1;
-    else if (likely(!thd->is_slave_error))
-      general_log_write(thd, COM_QUERY, thd->query(), thd->query_length());
+    DBUG_PRINT("error", ("trans_begin() failed"));
+    thd->is_slave_error= 1;
   }
+  thd->update_stats();
+
+  if (likely(!thd->is_slave_error))
+    general_log_write(thd, COM_QUERY, thd->query(), thd->query_length());
 
   thd->reset_query();
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
