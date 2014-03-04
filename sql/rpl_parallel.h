@@ -222,10 +222,10 @@ struct rpl_parallel {
   ~rpl_parallel();
   void reset();
   rpl_parallel_entry *find(uint32 domain_id);
-  void wait_for_done(THD *thd);
+  void wait_for_done(THD *thd, Relay_log_info *rli);
+  void stop_during_until();
   bool workers_idle();
-  bool do_event(rpl_group_info *serial_rgi, Log_event *ev,
-                ulonglong event_size);
+  int do_event(rpl_group_info *serial_rgi, Log_event *ev, ulonglong event_size);
 };
 
 
