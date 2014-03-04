@@ -3449,13 +3449,17 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 
     update_state_of_relay_log(rli, ev);
 
-    /*
-      Execute queries in parallel, except if slave_skip_counter is set,
-      as it's is easier to skip queries in single threaded mode.
-    */
-
-    if (opt_slave_parallel_threads > 0 && rli->slave_skip_counter == 0)
-      DBUG_RETURN(rli->parallel.do_event(serial_rgi, ev, event_size));
+    if (opt_slave_parallel_threads > 0)
+    {
+      int res= rli->parallel.do_event(serial_rgi, ev, event_size);
+      if (res >= 0)
+        DBUG_RETURN(res);
+      /*
+        Else we proceed to execute the event non-parallel.
+        This is the case for pre-10.0 events without GTID, and for handling
+        slave_skip_counter.
+      */
+    }
 
     /*
       For GTID, allocate a new sub_id for the given domain_id.
