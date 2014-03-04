@@ -1972,3 +1972,45 @@ drop database mysqltest;
 #
 # End of 5.5 tests
 #
+# 
+# MDEV-5723: mysqldump -uroot unusable for multi-database operations, checks all databases
+# 
+drop database if exists db1;
+create database db1;
+use db1;
+create table t1 (a int);
+create table t2 (a int);
+create table t3 (a int);
+create database mysqltest;
+use mysqltest;
+create table t1 (a int);
+create table t2 (a int);
+create table t3 (a int);
+flush tables;
+flush status;
+SELECT 
+LOGFILE_GROUP_NAME, FILE_NAME, TOTAL_EXTENTS, INITIAL_SIZE, ENGINE, EXTRA 
+FROM 
+INFORMATION_SCHEMA.FILES 
+WHERE 
+FILE_TYPE = 'UNDO LOG' AND FILE_NAME IS NOT NULL AND 
+LOGFILE_GROUP_NAME IN (SELECT DISTINCT LOGFILE_GROUP_NAME 
+FROM INFORMATION_SCHEMA.FILES 
+WHERE 
+FILE_TYPE = 'DATAFILE' AND 
+TABLESPACE_NAME IN (SELECT DISTINCT TABLESPACE_NAME 
+FROM INFORMATION_SCHEMA.PARTITIONS 
+WHERE TABLE_SCHEMA IN ('db1')
+)
+) 
+GROUP BY 
+LOGFILE_GROUP_NAME, FILE_NAME, ENGINE 
+ORDER BY 
+LOGFILE_GROUP_NAME;
+LOGFILE_GROUP_NAME	FILE_NAME	TOTAL_EXTENTS	INITIAL_SIZE	ENGINE	EXTRA
+# This must have Opened_tables=3, not 6.
+show status like 'Opened_tables';
+Variable_name	Value
+Opened_tables	3
+drop database mysqltest;
+drop database db1;

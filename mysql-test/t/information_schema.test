@@ -1816,5 +1816,61 @@ drop database mysqltest;
 --echo # End of 5.5 tests
 --echo #
 
+--echo # 
+--echo # MDEV-5723: mysqldump -uroot unusable for multi-database operations, checks all databases
+--echo # 
+
+--disable_warnings
+drop database if exists db1;
+--enable_warnings
+
+connect (con1,localhost,root,,);
+connection con1;
+
+create database db1;
+use db1;
+create table t1 (a int);
+create table t2 (a int);
+create table t3 (a int);
+
+create database mysqltest;
+use mysqltest;
+create table t1 (a int);
+create table t2 (a int);
+create table t3 (a int);
+
+flush tables;
+flush status;
+
+SELECT 
+  LOGFILE_GROUP_NAME, FILE_NAME, TOTAL_EXTENTS, INITIAL_SIZE, ENGINE, EXTRA 
+FROM 
+  INFORMATION_SCHEMA.FILES 
+WHERE 
+  FILE_TYPE = 'UNDO LOG' AND FILE_NAME IS NOT NULL AND 
+  LOGFILE_GROUP_NAME IN (SELECT DISTINCT LOGFILE_GROUP_NAME 
+                         FROM INFORMATION_SCHEMA.FILES 
+                         WHERE 
+                           FILE_TYPE = 'DATAFILE' AND 
+                           TABLESPACE_NAME IN (SELECT DISTINCT TABLESPACE_NAME 
+                                               FROM INFORMATION_SCHEMA.PARTITIONS 
+                                               WHERE TABLE_SCHEMA IN ('db1')
+                                              )
+                        ) 
+GROUP BY 
+  LOGFILE_GROUP_NAME, FILE_NAME, ENGINE 
+ORDER BY 
+  LOGFILE_GROUP_NAME;
+
+--echo # This must have Opened_tables=3, not 6.
+show status like 'Opened_tables';
+
+drop database mysqltest;
+drop database db1;
+
+connection default;
+disconnect con1;
+
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc
+
