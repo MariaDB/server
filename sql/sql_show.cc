@@ -8021,9 +8021,21 @@ static bool do_fill_table(THD *thd,
   Warning_info *wi_saved= thd->warning_info;
 
   thd->warning_info= &wi;
-
-  bool res= table_list->schema_table->fill_table(
-    thd, table_list, join_table->select_cond);
+  
+  Item *item= join_table->select_cond;
+  if (join_table->cache_select &&
+      join_table->cache_select->cond)
+  {
+    /*
+      If join buffering is used, we should use the condition that is attached
+      to the join cache. Cache condition has a part of WHERE that can be
+      checked when we're populating this table.
+      join_tab->select_cond is of no interest, because it only has conditions
+      that depend on both this table and previous tables in the join order.
+    */
+    item= join_table->cache_select->cond;
+  }
+  bool res= table_list->schema_table->fill_table(thd, table_list, item);
 
   thd->warning_info= wi_saved;
 
