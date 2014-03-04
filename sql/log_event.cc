@@ -3648,9 +3648,14 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
     DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
                 checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
 
-  /* Currently we only need to replace GTID event. */
-  DBUG_ASSERT(data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
-  if (data_len != LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
+  /*
+    Currently we only need to replace GTID event.
+    The length of GTID differs depending on whether it contains commit id.
+  */
+  DBUG_ASSERT(data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN ||
+              data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2);
+  if (data_len != LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN &&
+      data_len != LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2)
     return 1;
 
   flags= uint2korr(p + FLAGS_OFFSET);
@@ -3663,9 +3668,22 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
   int4store(q + Q_EXEC_TIME_OFFSET, 0);
   q[Q_DB_LEN_OFFSET]= 0;
   int2store(q + Q_ERR_CODE_OFFSET, 0);
-  int2store(q + Q_STATUS_VARS_LEN_OFFSET, 0);
-  q[Q_DATA_OFFSET]= 0;                    /* Zero terminator for empty db */
-  q+= Q_DATA_OFFSET + 1;
+  if (data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
+  {
+    int2store(q + Q_STATUS_VARS_LEN_OFFSET, 0);
+    q[Q_DATA_OFFSET]= 0;                    /* Zero terminator for empty db */
+    q+= Q_DATA_OFFSET + 1;
+  }
+  else
+  {
+    DBUG_ASSERT(data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2);
+    /* Put in an empty time_zone_str to take up the extra 2 bytes. */
+    int2store(q + Q_STATUS_VARS_LEN_OFFSET, 2);
+    q[Q_DATA_OFFSET]= Q_TIME_ZONE_CODE;
+    q[Q_DATA_OFFSET+1]= 0;           /* Zero length for empty time_zone_str */
+    q[Q_DATA_OFFSET+2]= 0;                  /* Zero terminator for empty db */
+    q+= Q_DATA_OFFSET + 3;
+  }
   memcpy(q, "BEGIN", 5);
 
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
@@ -6669,7 +6687,7 @@ Gtid_list_log_event::write(IO_CACHE *file)
 int
 Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
 {
-  Relay_log_info const *rli= rgi->rli;
+  Relay_log_info *rli= const_cast<Relay_log_info*>(rgi->rli);
   int ret;
   if (gl_flags & FLAG_IGN_GTIDS)
   {
@@ -6689,10 +6707,11 @@ Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
   {
     char str_buf[128];
     String str(str_buf, sizeof(str_buf), system_charset_info);
-    const_cast<Relay_log_info*>(rli)->until_gtid_pos.to_string(&str);
+    rli->until_gtid_pos.to_string(&str);
     sql_print_information("Slave SQL thread stops because it reached its"
                           " UNTIL master_gtid_pos %s", str.c_ptr_safe());
-    const_cast<Relay_log_info*>(rli)->abort_slave= true;
+    rli->abort_slave= true;
+    rli->stop_for_until= true;
   }
   return ret;
 }
