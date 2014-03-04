@@ -237,7 +237,7 @@ not_to_recover:
 		*err = _fil_io(OS_FILE_READ | wake_later
 			      | ignore_nonexistent_pages,
 			      sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
-			      ((buf_block_t*) bpage)->frame, bpage, 0, trx);
+			      ((buf_block_t*) bpage)->frame, bpage, &bpage->write_size, trx);
 	}
 
 	if (sync) {

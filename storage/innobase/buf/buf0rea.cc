@@ -185,7 +185,7 @@ buf_read_page_low(
 		*err = fil_io(OS_FILE_READ | wake_later
 			      | ignore_nonexistent_pages,
 			      sync, space, zip_size, offset, 0, zip_size,
-			      bpage->zip.data, bpage, 0);
+			      bpage->zip.data, bpage, &bpage->write_size);
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
 

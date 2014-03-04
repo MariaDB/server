@@ -2821,7 +2821,7 @@ try_again:
 
 	if (ret && len == n) {
 		if (fil_page_is_compressed((byte *)buf)) {
-		        fil_decompress_page(NULL, (byte *)buf, len);
+		        fil_decompress_page(NULL, (byte *)buf, len, NULL);
 		}
 		return(TRUE);
 	}
@@ -2836,7 +2836,7 @@ try_again:
 
 	if ((ulint) ret == n) {
 		if (fil_page_is_compressed((byte *)buf)) {
-		        fil_decompress_page(NULL, (byte *)buf, n);
+		        fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
 
 		return(TRUE);
@@ -5164,7 +5164,7 @@ os_aio_windows_handle(
 
 	        if (slot->type == OS_FILE_READ) {
 			if (fil_page_is_compressed(slot->buf)) {
-				fil_decompress_page(slot->page_buf, slot->buf, slot->len);
+				fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
 			}
 		} else {
 			if (slot->page_compress_success && fil_page_is_compressed(slot->page_buf)) {
@@ -5278,7 +5278,7 @@ retry:
 
 				if (slot->type == OS_FILE_READ) {
 					if (fil_page_is_compressed(slot->buf)) {
-						fil_decompress_page(slot->page_buf, slot->buf, slot->len);
+						fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
 					}
 				} else {
 					if (slot->page_compress_success &&
@@ -6219,7 +6219,9 @@ os_file_trim(
 		"  InnoDB: [Warning] fallocate not supported on this installation."
 		"  InnoDB: Disabling fallocate for now.");
 	os_fallocate_failed = TRUE;
-	slot->write_size = NULL;
+	if (slot->write_size) {
+		*slot->write_size = 0;
+	}
 
 #endif /* HAVE_FALLOCATE ... */
 

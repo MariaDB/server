@@ -226,7 +226,9 @@ fil_decompress_page(
 	byte*           page_buf,      /*!< in: preallocated buffer or NULL */
 	byte*           buf,           /*!< out: buffer from which to read; in aio
 				       this must be appropriately aligned */
-        ulint           len)           /*!< in: length of output buffer.*/
+        ulint           len,           /*!< in: length of output buffer.*/
+	ulint*		write_size)    /*!< in/out: Actual payload size of
+				       the compressed data. */
 {
         int err = 0;
         ulint actual_size = 0;
@@ -275,6 +277,12 @@ fil_decompress_page(
 			actual_size, fil_get_compression_alg_name(compression_alg));
 		fflush(stderr);
 		ut_error;
+	}
+
+	/* Store actual payload size of the compressed data. This pointer
+	points to buffer pool. */
+	if (write_size) {
+		*write_size = actual_size;
 	}
 
 	if (compression_alg == FIL_PAGE_COMPRESSION_ZLIB) {
