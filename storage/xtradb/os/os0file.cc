@@ -1805,6 +1805,9 @@ os_file_create_func(
 		} else {
 			*success = TRUE;
 			retry = FALSE;
+			if (srv_use_native_aio && ((attributes & FILE_FLAG_OVERLAPPED) != 0)) {
+				ut_a(CreateIoCompletionPort(file, completion_port, 0, 0));
+			}
 		}
 
 	} while (retry);
