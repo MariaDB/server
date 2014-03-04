@@ -16786,15 +16786,17 @@ static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
   NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG */
 
+/*
 static MYSQL_SYSVAR_LONG(trim_pct, srv_trim_pct,
   PLUGIN_VAR_OPCMDARG ,
   "How many percent of compressed pages should be trimmed",
   NULL, NULL, 100, 0, 100, 0);
+*/
 
 static MYSQL_SYSVAR_BOOL(compress_index_pages, srv_page_compress_index_pages,
   PLUGIN_VAR_OPCMDARG,
-  "Use page compression for only index pages.",
-  NULL, NULL, FALSE);
+  "Use page compression for only index pages. Default TRUE.",
+  NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
   PLUGIN_VAR_OPCMDARG,
@@ -16974,7 +16976,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
 #endif /* UNIV_DEBUG */
-  MYSQL_SYSVAR(trim_pct),
+  // MYSQL_SYSVAR(trim_pct),
   MYSQL_SYSVAR(compress_index_pages),
   MYSQL_SYSVAR(use_trim),
 #ifdef HAVE_LZ4

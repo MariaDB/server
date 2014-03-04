@@ -17934,10 +17934,12 @@ static MYSQL_SYSVAR_BOOL(use_stacktrace, srv_use_stacktrace,
   "Print stacktrace on long semaphore wait (off by default supported only on linux)",
   NULL, NULL, FALSE);
 
+/*
 static MYSQL_SYSVAR_LONG(trim_pct, srv_trim_pct,
   PLUGIN_VAR_OPCMDARG ,
   "How many percent of compressed pages should be trimmed",
   NULL, NULL, 100, 0, 100, 0);
+*/
 
 static MYSQL_SYSVAR_UINT(compression_level, page_zip_level,
   PLUGIN_VAR_RQCMDARG,
@@ -17947,8 +17949,8 @@ static MYSQL_SYSVAR_UINT(compression_level, page_zip_level,
 
 static MYSQL_SYSVAR_BOOL(compress_index_pages, srv_page_compress_index_pages,
   PLUGIN_VAR_OPCMDARG,
-  "Use page compression for only index pages.",
-  NULL, NULL, FALSE);
+  "Use page compression for only index pages. Default TRUE.",
+  NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
   PLUGIN_VAR_OPCMDARG,
@@ -18166,7 +18168,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(fake_changes),
   MYSQL_SYSVAR(locking_fake_changes),
   MYSQL_SYSVAR(use_stacktrace),
-  MYSQL_SYSVAR(trim_pct),
+  // MYSQL_SYSVAR(trim_pct),
   MYSQL_SYSVAR(compress_index_pages),
   MYSQL_SYSVAR(use_trim),
 #ifdef HAVE_LZ4

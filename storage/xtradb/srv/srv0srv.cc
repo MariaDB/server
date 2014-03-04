@@ -163,7 +163,7 @@ UNIV_INTERN my_bool	srv_use_native_aio = TRUE;
 
 /* If this flag is TRUE, then we will use page compression
 only for index pages */
-UNIV_INTERN my_bool     srv_page_compress_index_pages   = FALSE;
+UNIV_INTERN my_bool     srv_page_compress_index_pages   = TRUE;
 UNIV_INTERN long        srv_trim_pct                    = 100;
 /* Default compression level if page compression is used and no compression
 level is set for the table*/
