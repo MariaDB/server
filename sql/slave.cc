@@ -615,7 +615,14 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
   if (thread_mask & (SLAVE_SQL|SLAVE_FORCE_ALL))
   {
     DBUG_PRINT("info",("Terminating SQL thread"));
-    mi->rli.abort_slave=1;
+    if (opt_slave_parallel_threads > 0 &&
+        mi->rli.abort_slave && mi->rli.stop_for_until)
+    {
+      mi->rli.stop_for_until= false;
+      mi->rli.parallel.stop_during_until();
+    }
+    else
+      mi->rli.abort_slave=1;
     if ((error=terminate_slave_thread(mi->rli.sql_driver_thd, sql_lock,
                                       &mi->rli.stop_cond,
                                       &mi->rli.slave_running,
@@ -3427,6 +3434,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         message about error in query execution to be printed.
       */
       rli->abort_slave= 1;
+      rli->stop_for_until= true;
       mysql_mutex_unlock(&rli->data_lock);
       delete ev;
       DBUG_RETURN(1);
@@ -3454,13 +3462,17 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 
     update_state_of_relay_log(rli, ev);
 
-    /*
-      Execute queries in parallel, except if slave_skip_counter is set,
-      as it's is easier to skip queries in single threaded mode.
-    */
-
-    if (opt_slave_parallel_threads > 0 && rli->slave_skip_counter == 0)
-      DBUG_RETURN(rli->parallel.do_event(serial_rgi, ev, event_size));
+    if (opt_slave_parallel_threads > 0)
+    {
+      int res= rli->parallel.do_event(serial_rgi, ev, event_size);
+      if (res >= 0)
+        DBUG_RETURN(res);
+      /*
+        Else we proceed to execute the event non-parallel.
+        This is the case for pre-10.0 events without GTID, and for handling
+        slave_skip_counter.
+      */
+    }
 
     /*
       For GTID, allocate a new sub_id for the given domain_id.
@@ -4371,6 +4383,7 @@ pthread_handler_t handle_slave_sql(void *arg)
     Seconds_Behind_Master grows. No big deal.
   */
   rli->abort_slave = 0;
+  rli->stop_for_until= false;
   mysql_mutex_unlock(&rli->run_lock);
   mysql_cond_broadcast(&rli->start_cond);
 
@@ -4542,7 +4555,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
   }
 
   if (opt_slave_parallel_threads > 0)
-    rli->parallel.wait_for_done(thd);
+    rli->parallel.wait_for_done(thd, rli);
 
   /* Thread stopped. Print the current replication position to the log */
   {
@@ -4568,7 +4581,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
     get the correct position printed.)
   */
   if (opt_slave_parallel_threads > 0)
-    rli->parallel.wait_for_done(thd);
+    rli->parallel.wait_for_done(thd, rli);
 
   /*
     Some events set some playgrounds, which won't be cleared because thread

@@ -262,6 +262,7 @@ public:
   */
   volatile bool inited;
   volatile bool abort_slave;
+  volatile bool stop_for_until;
   volatile uint slave_running;
 
   /* 

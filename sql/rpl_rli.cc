@@ -60,7 +60,8 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    group_master_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
    last_master_timestamp(0), sql_thread_caught_up(true), slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
-   inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
+   inited(0), abort_slave(0), stop_for_until(0),
+   slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
    m_flags(0)
 {

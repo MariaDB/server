@@ -3123,12 +3123,15 @@ public:
     <td>flags</td>
     <td>1 byte bitfield</td>
     <td>Bit 0 set indicates stand-alone event (no terminating COMMIT)</td>
+    <td>Bit 1 set indicates group commit, and that commit id exists</td>
   </tr>
 
   <tr>
-    <td>Reserved</td>
-    <td>6 bytes</td>
-    <td>Reserved bytes, set to 0. Maybe be used for future expansion.</td>
+    <td>Reserved (no group commit) / commit id (group commit) (see flags bit 1)</td>
+    <td>6 bytes / 8 bytes</td>
+    <td>Reserved bytes, set to 0. Maybe be used for future expansion (no
+        group commit). OR commit id, same for all GTIDs in the same group
+        commit (see flags bit 1).</td>
   </tr>
   </table>
 
