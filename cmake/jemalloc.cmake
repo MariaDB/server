@@ -46,7 +46,7 @@ ELSE()
 ENDIF()
 
 SET(WITH_JEMALLOC ${WITH_JEMALLOC_DEFAULT} CACHE STRING
-    "Which jemalloc to use (possible values are 'no', 'bundled', 'system', 'yes' (system if possible, otherwise bundled)")
+    "Which jemalloc to use. Possible values are 'no', 'bundled', 'system', 'yes' (system if possible, otherwise bundled)")
 
 MACRO (CHECK_JEMALLOC)
   IF(WITH_JEMALLOC STREQUAL "system" OR WITH_JEMALLOC STREQUAL "yes")

@@ -26,6 +26,14 @@ show create table se;
 --error ER_GET_ERRNO
 show create table seq_1_to_15_step_0;
 
+#
+# MDEV-5735 Selecting from SEQUENCE table with negative number hangs server
+#
+--error ER_NO_SUCH_TABLE
+show create table `seq_-1_to_15`;
+--error ER_NO_SUCH_TABLE
+show create table `seq_1_to_+2`;
+
 # simple select
 select * from seq_1_to_15_step_2;
 select * from seq_1_to_15;

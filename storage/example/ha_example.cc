@@ -906,84 +906,84 @@ int ha_example::create(const char *name, TABLE *table_arg,
 
 
 /**
-  check_if_incompatible_data() called if ALTER TABLE can't detect otherwise
-  if new and old definition are compatible
+  check_if_supported_inplace_alter() is used to ask the engine whether
+  it can execute this ALTER TABLE statement in place or the server needs to
+  create a new table and copy th data over.
 
-  @details If there are no other explicit signs like changed number of
-  fields this function will be called by compare_tables()
-  (sql/sql_tables.cc) to decide should we rewrite whole table or only .frm
-  file.
+  The engine may answer that the inplace alter is not supported or,
+  if supported, whether the server should protect the table from concurrent
+  accesses. Return values are
 
+    HA_ALTER_INPLACE_NOT_SUPPORTED
+    HA_ALTER_INPLACE_EXCLUSIVE_LOCK
+    HA_ALTER_INPLACE_SHARED_LOCK
+    etc
 */
 
-bool ha_example::check_if_incompatible_data(HA_CREATE_INFO *info,
-                                            uint table_changes)
+enum_alter_inplace_result
+ha_example::check_if_supported_inplace_alter(TABLE* altered_table,
+                                             Alter_inplace_info* ha_alter_info)
 {
-  ha_table_option_struct *param_old, *param_new;
-  DBUG_ENTER("ha_example::check_if_incompatible_data");
-  /*
-    This example shows how custom engine specific table and field
-    options can be accessed from this function to be compared.
-  */
-  param_new= info->option_struct;
-  DBUG_PRINT("info", ("new strparam: '%-.64s'  ullparam: %llu  enumparam: %u  "
-                      "boolparam: %u",
-                      (param_new->strparam ? param_new->strparam : "<NULL>"),
-                      param_new->ullparam, param_new->enumparam,
-                      param_new->boolparam));
+  HA_CREATE_INFO *info= ha_alter_info->create_info;
+  DBUG_ENTER("ha_example::check_if_supported_inplace_alter");
 
-  param_old= table->s->option_struct;
-  DBUG_PRINT("info", ("old strparam: '%-.64s'  ullparam: %llu  enumparam: %u  "
-                      "boolparam: %u",
-                      (param_old->strparam ? param_old->strparam : "<NULL>"),
-                      param_old->ullparam, param_old->enumparam,
-                      param_old->boolparam));
-
-  /*
-    check important parameters:
-    for this example engine, we'll assume that changing ullparam or
-    boolparam requires a table to be rebuilt, while changing strparam
-    or enumparam - does not.
-
-    For debugging purposes we'll announce this to the user
-    (don't do it in production!)
-
-  */
-  if (param_new->ullparam != param_old->ullparam)
+  if (ha_alter_info->handler_flags & Alter_inplace_info::CHANGE_CREATE_OPTION)
   {
-    push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
-                        ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: ULL %llu -> %llu",
-                        param_old->ullparam, param_new->ullparam);
-    DBUG_RETURN(COMPATIBLE_DATA_NO);
-  }
+    /*
+      This example shows how custom engine specific table and field
+      options can be accessed from this function to be compared.
+    */
+    ha_table_option_struct *param_new= info->option_struct;
+    ha_table_option_struct *param_old= table->s->option_struct;
 
-  if (param_new->boolparam != param_old->boolparam)
-  {
-    push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
-                        ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: YESNO %u -> %u",
-                        param_old->boolparam, param_new->boolparam);
-    DBUG_RETURN(COMPATIBLE_DATA_NO);
-  }
+    /*
+      check important parameters:
+      for this example engine, we'll assume that changing ullparam or
+      boolparam requires a table to be rebuilt, while changing strparam
+      or enumparam - does not.
 
-  for (uint i= 0; i < table->s->fields; i++)
-  {
-    ha_field_option_struct *f_old, *f_new;
-    f_old= table->s->field[i]->option_struct;
-    DBUG_ASSERT(f_old);
-    if (info->fields_option_struct[i])
+      For debugging purposes we'll announce this to the user
+      (don't do it in production!)
+
+    */
+    if (param_new->ullparam != param_old->ullparam)
     {
-      f_new= info->fields_option_struct[i];
       push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
-                          ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: Field %`s COMPLEX '%s' -> '%s'",
-                          table->s->field[i]->field_name,
-                          f_old->complex_param_to_parse_it_in_engine,
-                          f_new->complex_param_to_parse_it_in_engine);
+                          ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: ULL %llu -> %llu",
+                          param_old->ullparam, param_new->ullparam);
+      DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
     }
-    else
-      DBUG_PRINT("info", ("old field %i did not changed", i));
+
+    if (param_new->boolparam != param_old->boolparam)
+    {
+      push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
+                          ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: YESNO %u -> %u",
+                          param_old->boolparam, param_new->boolparam);
+      DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+    }
   }
 
-  DBUG_RETURN(COMPATIBLE_DATA_YES);
+  if (ha_alter_info->handler_flags & Alter_inplace_info::ALTER_COLUMN_OPTION)
+  {
+    for (uint i= 0; i < table->s->fields; i++)
+    {
+      ha_field_option_struct *f_old= table->s->field[i]->option_struct;
+      ha_field_option_struct *f_new= info->fields_option_struct[i];
+      DBUG_ASSERT(f_old);
+      if (f_new)
+      {
+        push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
+                            ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: Field %`s COMPLEX '%s' -> '%s'",
+                            table->s->field[i]->field_name,
+                            f_old->complex_param_to_parse_it_in_engine,
+                            f_new->complex_param_to_parse_it_in_engine);
+      }
+      else
+        DBUG_PRINT("info", ("old field %i did not changed", i));
+    }
+  }
+
+  DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
 }
 
 

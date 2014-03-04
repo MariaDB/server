@@ -5894,9 +5894,6 @@ static bool fill_alter_inplace_info(THD *thd,
 
     if (new_field)
     {
-      ha_alter_info->create_info->fields_option_struct[f_ptr - table->field]=
-        new_field->option_struct;
-
       /* Field is not dropped. Evaluate changes bitmap for it. */
 
       /*
@@ -6008,6 +6005,15 @@ static bool fill_alter_inplace_info(THD *thd,
       if (new_field->column_format() != field->column_format())
         ha_alter_info->handler_flags|=
           Alter_inplace_info::ALTER_COLUMN_COLUMN_FORMAT;
+
+      if (engine_options_differ(field->option_struct, new_field->option_struct,
+                                table->file->ht->field_options))
+      {
+        ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_OPTION;
+        ha_alter_info->create_info->fields_option_struct[f_ptr - table->field]=
+          new_field->option_struct;
+      }
+
     }
     else
     {

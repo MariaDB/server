@@ -153,6 +153,7 @@ INCLUDE(readline)
 INCLUDE(libutils)
 INCLUDE(dtrace)
 INCLUDE(jemalloc)
+INCLUDE(pcre)
 INCLUDE(ctest)
 INCLUDE(plugin)
 INCLUDE(install_macros)
@@ -362,6 +363,8 @@ MYSQL_CHECK_READLINE()
 SET(MALLOC_LIBRARY "system")
 CHECK_JEMALLOC()
 
+CHECK_PCRE()
+
 #
 # Setup maintainer mode options. Platform checks are
 # not run with the warning options as to not perturb fragile checks
@@ -397,7 +400,6 @@ ADD_SUBDIRECTORY(include)
 ADD_SUBDIRECTORY(dbug)
 ADD_SUBDIRECTORY(strings)
 ADD_SUBDIRECTORY(vio)
-ADD_SUBDIRECTORY(pcre)
 ADD_SUBDIRECTORY(mysys)
 ADD_SUBDIRECTORY(mysys_ssl)
 ADD_SUBDIRECTORY(libmysql)

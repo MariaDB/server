@@ -3311,17 +3311,15 @@ static
 void my_hash_sort_ucs2_bin(CHARSET_INFO *cs __attribute__((unused)),
 			   const uchar *key, size_t len,ulong *nr1, ulong *nr2)
 {
-  const uchar *pos = key;
-  
-  key+= len;
+  const uchar *end = key + len;
 
-  while (key > pos+1 && key[-1] == ' ' && key[-2] == '\0')
-    key-= 2;
+  while (end > key+1 && end[-1] == ' ' && end[-2] == '\0')
+    end-= 2;
 
-  for (; pos < (uchar*) key ; pos++)
+  for (; key < (uchar*) end ; key++)
   {
     nr1[0]^=(ulong) ((((uint) nr1[0] & 63)+nr2[0]) * 
-	     ((uint)*pos)) + (nr1[0] << 8);
+	     ((uint)*key)) + (nr1[0] << 8);
     nr2[0]+=3;
   }
 }

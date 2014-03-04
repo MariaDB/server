@@ -121,7 +121,7 @@ SET @OLD_SQL_MODE=@@SQL_MODE;
 SET SQL_MODE='IGNORE_BAD_TABLE_OPTIONS';
 
 --echo #illegal value fixed
-CREATE TABLE t1 (a int) ENGINE=example ULL=10000000000000000000 one_or_two='ttt' YESNO=SSS;
+CREATE TABLE t1 (a int, b int) ENGINE=example ULL=10000000000000000000 one_or_two='ttt' YESNO=SSS;
 show create table t1;
 
 --echo #alter table
