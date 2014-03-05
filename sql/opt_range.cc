@@ -7967,7 +7967,8 @@ static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param,COND *cond)
       value= cond_func->arg_count > 1 ? cond_func->arguments()[1] : NULL;
       if (value && value->is_expensive())
         DBUG_RETURN(0);
-      ftree= get_full_func_mm_tree(param, cond_func, field_item, value, inv);
+      if (!cond_func->arguments()[0]->real_item()->const_item())
+        ftree= get_full_func_mm_tree(param, cond_func, field_item, value, inv);
     }
     /*
       Even if get_full_func_mm_tree() was executed above and did not
@@ -7992,7 +7993,8 @@ static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param,COND *cond)
       value= cond_func->arguments()[0];
       if (value && value->is_expensive())
         DBUG_RETURN(0);
-      ftree= get_full_func_mm_tree(param, cond_func, field_item, value, inv);
+      if (!cond_func->arguments()[1]->real_item()->const_item())
+        ftree= get_full_func_mm_tree(param, cond_func, field_item, value, inv);
     }
   }
 
@@ -10629,8 +10631,13 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
     if (param->table->field[fieldnr]->key_length() != kp->length)
       return FALSE;
   }
-
-  if (key_part == key_part_end)
+  
+  /*
+    If there are equalities for all key parts, it is a ROR scan. If there are
+    equalities all keyparts and even some of key parts from "Extended Key"
+    index suffix, it is a ROR-scan, too.
+  */
+  if (key_part >= key_part_end)
     return TRUE;
 
   key_part= table_key->key_part + nparts;
