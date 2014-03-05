@@ -1,0 +1,21 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # MDEV#5790: SHOW GLOBAL STATUS LIKE does not show the correct list of
+--echo # variables when using "_"
+--echo #
+
+CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*");
+
+--replace_column 2 #
+SHOW VARIABLES LIKE 'wsrep%';
+
+--echo
+--replace_column 2 #
+SHOW VARIABLES LIKE 'wsrep_%';
+
+--echo # Should show nothing.
+SHOW VARIABLES LIKE 'x';
+
+--echo # End of test.
+
