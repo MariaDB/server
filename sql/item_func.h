@@ -160,7 +160,7 @@ public:
   void count_decimal_length();
   inline bool get_arg0_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   {
-    return (null_value=args[0]->get_date(ltime, fuzzy_date));
+    return (null_value=args[0]->get_date_with_conversion(ltime, fuzzy_date));
   }
   void count_datetime_length(Item **item, uint nitems);
   bool count_string_result_length(enum_field_types field_type,

@@ -33,7 +33,7 @@ NTService::NTService()
 
     //time-out variables
     nStartTimeOut    = 15000;
-    nStopTimeOut     = 86400000;
+    nStopTimeOut     = SECONDS_IN_24H * 1000;
     nPauseTimeOut    = 5000;
     nResumeTimeOut   = 5000;
 

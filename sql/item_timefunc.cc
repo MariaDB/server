@@ -1484,27 +1484,52 @@ bool Item_temporal_hybrid_func::fix_temporal_type(MYSQL_TIME *ltime)
 {
   if (ltime->time_type < 0) /* MYSQL_TIMESTAMP_NONE, MYSQL_TIMESTAMP_ERROR */
     return false;
+
+  if (ltime->time_type != MYSQL_TIMESTAMP_TIME)
+    goto date_or_datetime_value;
+
+  /* Convert TIME to DATE or DATETIME */
+  switch (field_type())
+  {
+  case MYSQL_TYPE_DATE:
+  case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_TIMESTAMP:
+    {
+      MYSQL_TIME tmp;
+      if (time_to_datetime_with_warn(current_thd, ltime, &tmp, 0))
+        return (null_value= true);
+      *ltime= tmp;
+      if (field_type() == MYSQL_TYPE_DATE)
+        datetime_to_date(ltime);
+      return false;
+    }
+  case MYSQL_TYPE_TIME:
+  case MYSQL_TYPE_STRING: /* DATE_ADD, ADDTIME can return VARCHAR */
+    return false;
+  default:
+    DBUG_ASSERT(0);
+    return (null_value= true);
+  }
+
+date_or_datetime_value:
+  /* Convert DATE or DATETIME to TIME, DATE, or DATETIME */
   switch (field_type())
   {
   case MYSQL_TYPE_TIME:
-    ltime->year= ltime->month= ltime->day= 0;
-    ltime->time_type= MYSQL_TIMESTAMP_TIME;
+    datetime_to_time(ltime);
     return false;
   case MYSQL_TYPE_DATETIME:
   case MYSQL_TYPE_TIMESTAMP:
-    ltime->neg= 0;
-    ltime->time_type= MYSQL_TIMESTAMP_DATETIME;
+    date_to_datetime(ltime);
     return false;
   case MYSQL_TYPE_DATE:
-    ltime->neg= 0;
-    ltime->hour= ltime->minute= ltime->second= ltime->second_part= 0;
-    ltime->time_type= MYSQL_TIMESTAMP_DATE;
+    datetime_to_date(ltime);
     return false;
   case MYSQL_TYPE_STRING: /* DATE_ADD, ADDTIME can return VARCHAR */
     return false;
   default:
     DBUG_ASSERT(0);
-    return true;
+    return (null_value= true);
   }
   return false;
 }
@@ -2190,8 +2215,10 @@ longlong Item_extract::val_int()
   long neg;
   int is_time_flag = date_value ? 0 : TIME_TIME_ONLY;
 
-  if (get_arg0_date(&ltime, is_time_flag))
+  // Not using get_arg0_date to avoid automatic TIME to DATETIME conversion
+  if ((null_value= args[0]->get_date(&ltime, is_time_flag)))
     return 0;
+
   neg= ltime.neg ? -1 : 1;
 
   DBUG_ASSERT(ltime.time_type != MYSQL_TIMESTAMP_TIME ||  ltime.day == 0);
@@ -2512,26 +2539,7 @@ bool Item_datetime_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   if (decimals < TIME_SECOND_PART_DIGITS)
     my_time_trunc(ltime, decimals);
 
-  /*
-    ltime is valid MYSQL_TYPE_TIME (according to fuzzy_date).
-    But not every valid TIME value is a valid DATETIME value!
-  */
-  if (ltime->time_type == MYSQL_TIMESTAMP_TIME)
-  {
-    if (ltime->neg)
-    {
-      ErrConvTime str(ltime);
-      make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                   &str, MYSQL_TIMESTAMP_DATETIME, 0);
-      return (null_value= 1);
-    }
-    
-    uint day= ltime->hour/24;
-    ltime->hour %= 24;
-    ltime->month= day / 31;
-    ltime->day= day % 31;
-  }
-
+  DBUG_ASSERT(ltime->time_type != MYSQL_TIMESTAMP_TIME);
   ltime->time_type= MYSQL_TIMESTAMP_DATETIME;
   return 0;
 }
@@ -2665,9 +2673,9 @@ bool Item_func_add_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   if (!is_time && ltime->neg)
     return (null_value= 1);
 
-  days= (long)(seconds/86400L);
+  days= (long) (seconds / SECONDS_IN_24H);
 
-  calc_time_from_sec(ltime, (long)(seconds%86400L), microseconds);
+  calc_time_from_sec(ltime, (long)(seconds % SECONDS_IN_24H), microseconds);
 
   ltime->time_type= is_time ? MYSQL_TIMESTAMP_TIME : MYSQL_TIMESTAMP_DATETIME;
 
@@ -2850,8 +2858,12 @@ longlong Item_func_timestamp_diff::val_int()
   int neg= 1;
 
   null_value= 0;  
-  if (args[0]->get_date(&ltime1, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE) ||
-      args[1]->get_date(&ltime2, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
+  if (args[0]->get_date_with_conversion(&ltime1,
+                                        TIME_NO_ZERO_DATE |
+                                        TIME_NO_ZERO_IN_DATE) ||
+      args[1]->get_date_with_conversion(&ltime2,
+                                        TIME_NO_ZERO_DATE |
+                                        TIME_NO_ZERO_IN_DATE))
     goto null_date;
 
   if (calc_time_diff(&ltime2,&ltime1, 1,
@@ -2921,9 +2933,9 @@ longlong Item_func_timestamp_diff::val_int()
   case INTERVAL_MONTH:
     return months*neg;
   case INTERVAL_WEEK:          
-    return seconds/86400L/7L*neg;
+    return seconds / SECONDS_IN_24H / 7L * neg;
   case INTERVAL_DAY:		
-    return seconds/86400L*neg;
+    return seconds / SECONDS_IN_24H * neg;
   case INTERVAL_HOUR:		
     return seconds/3600L*neg;
   case INTERVAL_MINUTE:		

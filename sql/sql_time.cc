@@ -1036,8 +1036,8 @@ null_date:
 */
 
 bool
-calc_time_diff(MYSQL_TIME *l_time1, MYSQL_TIME *l_time2, int l_sign, longlong *seconds_out,
-               long *microseconds_out)
+calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
+               int l_sign, longlong *seconds_out, long *microseconds_out)
 {
   long days;
   bool neg;
@@ -1063,7 +1063,7 @@ calc_time_diff(MYSQL_TIME *l_time1, MYSQL_TIME *l_time2, int l_sign, longlong *s
 			       (uint) l_time2->day);
   }
 
-  microseconds= ((longlong)days*86400LL +
+  microseconds= ((longlong)days * SECONDS_IN_24H +
                  (longlong)(l_time1->hour*3600L +
                             l_time1->minute*60L +
                             l_time1->second) -
@@ -1132,4 +1132,146 @@ void time_to_daytime_interval(MYSQL_TIME *ltime)
   ltime->day= ltime->hour / 24;
   ltime->hour%= 24;
   ltime->time_type= MYSQL_TIMESTAMP_NONE;
+}
+
+
+/*** Conversion from TIME to DATETIME ***/
+
+/*
+  Simple case: TIME is within normal 24 hours internal.
+  Mix DATE part of ldate and TIME part of ltime together.
+*/
+static void
+mix_date_and_time_simple(MYSQL_TIME *ldate, const MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(ldate->time_type == MYSQL_TIMESTAMP_DATE ||
+              ldate->time_type == MYSQL_TIMESTAMP_DATETIME);
+  ldate->hour= ltime->hour;
+  ldate->minute= ltime->minute;
+  ldate->second= ltime->second;
+  ldate->second_part= ltime->second_part;
+  ldate->time_type= MYSQL_TIMESTAMP_DATETIME;
+}
+
+
+/*
+  Complex case: TIME is negative or outside of the 24 hour interval.
+*/
+static void
+mix_date_and_time_complex(MYSQL_TIME *ldate, const MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(ldate->time_type == MYSQL_TIMESTAMP_DATE ||
+              ldate->time_type == MYSQL_TIMESTAMP_DATETIME);
+  longlong seconds;
+  long days, useconds;
+  int sign= ltime->neg ? 1 : -1;
+  ldate->neg= calc_time_diff(ldate, ltime, sign, &seconds, &useconds);
+
+  DBUG_ASSERT(!ldate->neg);
+  DBUG_ASSERT(ldate->year > 0);
+
+  days= (long) (seconds / SECONDS_IN_24H);
+  calc_time_from_sec(ldate, seconds % SECONDS_IN_24H, useconds);
+  get_date_from_daynr(days, &ldate->year, &ldate->month, &ldate->day);
+  ldate->time_type= MYSQL_TIMESTAMP_DATETIME;
+}
+
+
+/**
+  Mix a date value and a time value.
+
+  @param  IN/OUT  ldate  Date value.
+  @param          ltime  Time value.
+*/
+static void
+mix_date_and_time(MYSQL_TIME *to, const MYSQL_TIME *from)
+{
+  if (!from->neg && from->hour < 24)
+    mix_date_and_time_simple(to, from);
+  else
+    mix_date_and_time_complex(to, from);
+}
+
+
+/**
+  Get current date in DATE format
+*/
+static void
+set_current_date(THD *thd, MYSQL_TIME *to)
+{
+  thd->variables.time_zone->gmt_sec_to_TIME(to, thd->query_start());
+  thd->time_zone_used= 1;
+  datetime_to_date(to);
+}
+
+
+/**
+  5.5 compatible conversion from TIME to DATETIME
+*/
+static bool
+time_to_datetime_old(THD *thd, const MYSQL_TIME *from, MYSQL_TIME *to)
+{
+  DBUG_ASSERT(from->time_type == MYSQL_TIMESTAMP_TIME);
+
+  if (from->neg)
+    return true;
+
+  /* Set the date part */
+  uint day= from->hour / 24;
+  to->day= day % 31;
+  to->month= day / 31;
+  to->year= 0;
+  /* Set the time part */
+  to->hour= from->hour % 24;
+  to->minute= from->minute;
+  to->second= from->second;
+  to->second_part= from->second_part;
+  /* set sign and type */
+  to->neg= 0;
+  to->time_type= MYSQL_TIMESTAMP_DATETIME;
+  return false;
+}
+
+
+/**
+  Convert time to datetime.
+
+  The time value is added to the current datetime value.
+  @param  IN  ltime    Time value to convert from.
+  @param  OUT ltime2   Datetime value to convert to.
+*/
+bool
+time_to_datetime(THD *thd, const MYSQL_TIME *from, MYSQL_TIME *to)
+{
+  if (thd->variables.old_mode)
+    return time_to_datetime_old(thd, from, to);
+  set_current_date(thd, to);
+  mix_date_and_time(to, from);
+  return false;
+}
+
+
+bool
+time_to_datetime_with_warn(THD *thd,
+                           const MYSQL_TIME *from, MYSQL_TIME *to,
+                           ulonglong fuzzydate)
+{
+  int warn= 0;
+  DBUG_ASSERT(from->time_type == MYSQL_TIMESTAMP_TIME);
+  /*
+    After time_to_datetime() we need to do check_date(), as
+    the caller may want TIME_NO_ZERO_DATE or TIME_NO_ZERO_IN_DATE.
+    Note, the SQL standard time->datetime conversion mode always returns
+    a valid date based on CURRENT_DATE. So we need to do check_date()
+    only in the old mode.
+  */
+  if (time_to_datetime(thd, from, to) ||
+      (thd->variables.old_mode && check_date(to, fuzzydate, &warn)))
+  {
+    ErrConvTime str(from);
+    make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                                 &str, MYSQL_TIMESTAMP_DATETIME, 0); 
+    return true;
+  }
+  return false;
 }

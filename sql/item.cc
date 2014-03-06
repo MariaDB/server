@@ -234,6 +234,35 @@ bool Item::val_bool()
 }
 
 
+/**
+  Get date/time/datetime.
+  Optionally extend TIME result to DATETIME.
+*/
+bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  /*
+    Some TIME type items return error when trying to do get_date()
+    without TIME_TIME_ONLY set (e.g. Item_field for Field_time).
+    In the SQL standard time->datetime conversion mode we add TIME_TIME_ONLY.
+    In the legacy time->datetime conversion mode we do not add TIME_TIME_ONLY
+    and leave it to get_date() to check date.
+  */
+  ulonglong time_flag= (field_type() == MYSQL_TYPE_TIME &&
+                       !current_thd->variables.old_mode) ? TIME_TIME_ONLY : 0;
+  if (get_date(ltime, fuzzydate | time_flag))
+    return true;
+  if (ltime->time_type == MYSQL_TIMESTAMP_TIME &&
+      !(fuzzydate & TIME_TIME_ONLY))
+  {
+    MYSQL_TIME tmp;
+    if (time_to_datetime_with_warn(current_thd, ltime, &tmp, fuzzydate))
+      return null_value= true;
+    *ltime= tmp;
+  }
+  return false;
+}
+
+
 /*
   For the items which don't have its own fast val_str_ascii()
   implementation we provide a generic slower version,
@@ -8779,6 +8808,25 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
 {
   Item_result res_type=item_cmp_type(field->result_type(),
 				     item->result_type());
+  /*
+    We have to check field->cmp_type() instead of res_type,
+    as result_type() - and thus res_type - can never be TIME_RESULT (yet).
+  */
+  if (field->cmp_type() == TIME_RESULT)
+  {
+    MYSQL_TIME field_time, item_time;
+    if (field->type() == MYSQL_TYPE_TIME)
+    {
+      field->get_time(&field_time);
+      item->get_time(&item_time);
+    }
+    else
+    {
+      field->get_date(&field_time, TIME_INVALID_DATES);
+      item->get_date(&item_time, TIME_INVALID_DATES);
+    }
+    return my_time_compare(&field_time, &item_time);
+  }
   if (res_type == STRING_RESULT)
   {
     char item_buff[MAX_FIELD_WIDTH];
@@ -8827,25 +8875,6 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
       return 0;
     field_val= field->val_decimal(&field_buf);
     return my_decimal_cmp(field_val, item_val);
-  }
-  /*
-    We have to check field->cmp_type() instead of res_type,
-    as result_type() - and thus res_type - can never be TIME_RESULT (yet).
-  */
-  if (field->cmp_type() == TIME_RESULT)
-  {
-    MYSQL_TIME field_time, item_time;
-    if (field->type() == MYSQL_TYPE_TIME)
-    {
-      field->get_time(&field_time);
-      item->get_time(&item_time);
-    }
-    else
-    {
-      field->get_date(&field_time, TIME_INVALID_DATES);
-      item->get_date(&item_time, TIME_INVALID_DATES);
-    }
-    return my_time_compare(&field_time, &item_time);
   }
   /*
     The patch for Bug#13463415 started using this function for comparing
