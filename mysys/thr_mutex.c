@@ -174,12 +174,12 @@ static int safe_mutex_lazy_init_deadlock_detection(safe_mutex_t *mp)
              128,
              offsetof(safe_mutex_deadlock_t, id),
              sizeof(mp->id),
-             0, 0, HASH_UNIQUE);
+             0, 0, 0, HASH_UNIQUE);
   my_hash_init2(mp->used_mutex, 64, &my_charset_bin,
              128,
              offsetof(safe_mutex_t, id),
              sizeof(mp->id),
-             0, 0, HASH_UNIQUE);
+             0, 0, 0, HASH_UNIQUE);
   return 0;
 }
 

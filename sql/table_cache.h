@@ -40,6 +40,7 @@ extern void tdc_unlock_share(TABLE_SHARE *share);
 extern TABLE_SHARE *tdc_acquire_share(THD *thd, const char *db,
                                       const char *table_name,
                                       const char *key, uint key_length,
+                                      my_hash_value_type hash_value,
                                       uint flags, TABLE **out_table);
 extern void tdc_release_share(TABLE_SHARE *share);
 extern bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
@@ -88,7 +89,9 @@ static inline TABLE_SHARE *tdc_acquire_share(THD *thd, const char *db,
                                              const char *key,
                                              uint key_length, uint flags)
 {
-  return tdc_acquire_share(thd, db, table_name, key, key_length, flags, 0);
+  return tdc_acquire_share(thd, db, table_name, key, key_length,
+                           my_hash_sort(&my_charset_bin, (uchar*) key,
+                                        key_length), flags, 0);
 }
 
 
@@ -120,7 +123,8 @@ static inline TABLE_SHARE *tdc_acquire_share_shortlived(THD *thd, TABLE_LIST *tl
 {
   const char *key;
   uint        key_length= get_table_def_key(tl, &key);
-  return tdc_acquire_share(thd, tl->db, tl->table_name, key, key_length, flags);
+  return tdc_acquire_share(thd, tl->db, tl->table_name, key, key_length,
+                           tl->mdl_request.key.tc_hash_value(), flags, 0);
 }
 
 

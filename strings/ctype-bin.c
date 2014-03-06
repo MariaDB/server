@@ -276,7 +276,9 @@ void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
                            const uchar *key, size_t len,
                            ulong *nr1, ulong *nr2)
 {
-  
+  ulong tmp1= *nr1;
+  ulong tmp2= *nr2;
+
   /*
      Remove trailing spaces. We have to do this to be able to compare
     'A ' and 'A' as identical
@@ -285,10 +287,13 @@ void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
 
   for (; key < end ; key++)
   {
-    nr1[0]^=(ulong) ((((uint) nr1[0] & 63)+nr2[0]) * 
-	     ((uint)*key)) + (nr1[0] << 8);
-    nr2[0]+=3;
+    tmp1^= (ulong) ((((uint) tmp1 & 63) + tmp2) *
+                    ((uint) *key)) + (tmp1 << 8);
+    tmp2+= 3;
   }
+
+  *nr1= tmp1;
+  *nr2= tmp2;
 }
 
 
@@ -296,13 +301,18 @@ void my_hash_sort_bin(CHARSET_INFO *cs __attribute__((unused)),
 		      const uchar *key, size_t len,ulong *nr1, ulong *nr2)
 {
   const uchar *end = key + len;
-  
+  ulong tmp1= *nr1;
+  ulong tmp2= *nr2;
+
   for (; key < end ; key++)
   {
-    nr1[0]^=(ulong) ((((uint) nr1[0] & 63)+nr2[0]) * 
-	     ((uint)*key)) + (nr1[0] << 8);
-    nr2[0]+=3;
+    tmp1^= (ulong) ((((uint) tmp1 & 63) + tmp2) *
+                    ((uint) *key)) + (tmp1 << 8);
+    tmp2+= 3;
   }
+
+  *nr1= tmp1;
+  *nr2= tmp2;
 }
 
 

@@ -664,15 +664,13 @@ void tdc_unlock_share(TABLE_SHARE *share)
 */
 
 TABLE_SHARE *tdc_acquire_share(THD *thd, const char *db, const char *table_name,
-                               const char *key, uint key_length, uint flags,
+                               const char *key, uint key_length,
+                               my_hash_value_type hash_value, uint flags,
                                TABLE **out_table)
 {
   TABLE_SHARE *share;
   bool was_unused;
-  my_hash_value_type hash_value;
   DBUG_ENTER("tdc_acquire_share");
-
-  hash_value= my_calc_hash(&tdc_hash, (uchar*) key, key_length);
 
   mysql_rwlock_rdlock(&LOCK_tdc);
   share= (TABLE_SHARE*) my_hash_search_using_hash_value(&tdc_hash, hash_value,

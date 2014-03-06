@@ -2296,7 +2296,9 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
 retry_share:
 
   share= tdc_acquire_share(thd, table_list->db, table_list->table_name,
-                           key, key_length, gts_flags, &table);
+                           key, key_length,
+                           table_list->mdl_request.key.tc_hash_value(),
+                           gts_flags, &table);
 
   if (!share)
   {
