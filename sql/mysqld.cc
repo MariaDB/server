@@ -4912,7 +4912,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
     // at server shutdown
   }
 
-#if 0
+  my_thread_end();
   if (thread_handling > SCHEDULER_ONE_THREAD_PER_CONNECTION)
   {
     mysql_mutex_lock(&LOCK_thread_count);
@@ -4920,8 +4920,6 @@ pthread_handler_t start_wsrep_THD(void *arg)
     thread_count--;
     mysql_mutex_unlock(&LOCK_thread_count);
   }
-#endif
-  my_thread_end();
   return(NULL);
 }
 

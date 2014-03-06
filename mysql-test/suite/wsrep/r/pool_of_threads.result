@@ -1,0 +1,8 @@
+
+#
+# MDEV#5687: Maria doesn't shutdown following upgrade to 5.5.35-galera
+#
+SELECT @@GLOBAL.thread_handling;
+@@GLOBAL.thread_handling
+pool-of-threads
+# End of test.
