@@ -1273,6 +1273,7 @@ static my_bool setup_one_fetch_function(MYSQL_BIND *, MYSQL_FIELD *field);
 #define RESET_LONG_DATA 2
 #define RESET_STORE_RESULT 4
 #define RESET_CLEAR_ERROR 8
+#define RESET_ALL_BUFFERS 16
 
 static my_bool reset_stmt_handle(MYSQL_STMT *stmt, uint flags);
 
@@ -4615,6 +4616,14 @@ static my_bool reset_stmt_handle(MYSQL_STMT *stmt, uint flags)
             *mysql->unbuffered_fetch_owner= TRUE;
           mysql->status= MYSQL_STATUS_READY;
         }
+        if (flags & RESET_ALL_BUFFERS)
+        {
+          /* mysql_stmt_next_result will flush all pending
+             result sets 
+          */
+          while (mysql_more_results(mysql) &&
+                 mysql_stmt_next_result(stmt) == 0);
+        }
       }
       if (flags & RESET_SERVER_SIDE)
       {
@@ -4679,27 +4688,18 @@ my_bool STDCALL mysql_stmt_close(MYSQL_STMT *stmt)
   {
     mysql->stmts= list_delete(mysql->stmts, &stmt->list);
     /*
-      Clear NET error state: if the following commands come through
-      successfully, connection will still be usable for other commands.
+     Clear NET error state: if the following commands come through
+     successfully, connection will still be usable for other commands.
     */
     net_clear_error(&mysql->net);
+
     if ((int) stmt->state > (int) MYSQL_STMT_INIT_DONE)
     {
       uchar buff[MYSQL_STMT_HEADER];             /* 4 bytes - stmt id */
 
-      if (mysql->unbuffered_fetch_owner == &stmt->unbuffered_fetch_cancelled)
-        mysql->unbuffered_fetch_owner= 0;
-      if (mysql->status != MYSQL_STATUS_READY)
-      {
-        /*
-          Flush result set of the connection. If it does not belong
-          to this statement, set a warning.
-        */
-        (*mysql->methods->flush_use_result)(mysql, TRUE);
-        if (mysql->unbuffered_fetch_owner)
-          *mysql->unbuffered_fetch_owner= TRUE;
-        mysql->status= MYSQL_STATUS_READY;
-      }
+      if ((rc= reset_stmt_handle(stmt, RESET_ALL_BUFFERS | RESET_CLEAR_ERROR)))
+        return rc;
+
       int4store(buff, stmt->stmt_id);
       if ((rc= stmt_command(mysql, COM_STMT_CLOSE, buff, 4, stmt)))
       {
@@ -4731,7 +4731,7 @@ my_bool STDCALL mysql_stmt_reset(MYSQL_STMT *stmt)
   /* Reset the client and server sides of the prepared statement */
   DBUG_RETURN(reset_stmt_handle(stmt,
                                 RESET_SERVER_SIDE | RESET_LONG_DATA |
-                                RESET_CLEAR_ERROR));
+                                RESET_ALL_BUFFERS | RESET_CLEAR_ERROR));
 }
 
 /*
@@ -4842,7 +4842,6 @@ int STDCALL mysql_next_result(MYSQL *mysql)
 
   DBUG_RETURN(-1);				/* No more results */
 }
-
 
 int STDCALL mysql_stmt_next_result(MYSQL_STMT *stmt)
 {
