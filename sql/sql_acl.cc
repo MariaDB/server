@@ -1085,7 +1085,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   table->use_all_columns();
   (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER), 50, 100, MYF(0));
   (void) my_hash_init2(&acl_roles,50, &my_charset_utf8_bin,
-                       0,0,0, (my_hash_get_key) acl_role_get_key,
+                       0, 0, 0, (my_hash_get_key) acl_role_get_key, 0,
                        (void (*)(void *))free_acl_role, 0);
 
   username_char_length= MY_MIN(table->field[1]->char_length(),
@@ -1427,8 +1427,8 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     table->use_all_columns();
     /* account for every role mapping */
 
-    (void) my_hash_init2(&acl_roles_mappings, 50, system_charset_info,
-                         0,0,0, (my_hash_get_key) acl_role_map_get_key, 0,0);
+    (void) my_hash_init2(&acl_roles_mappings, 50, system_charset_info, 0, 0, 0,
+                         (my_hash_get_key) acl_role_map_get_key, 0, 0, 0);
     MEM_ROOT temp_root;
     init_alloc_root(&temp_root, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
     while (!(read_record_info.read_record(&read_record_info)))
@@ -3734,8 +3734,8 @@ public:
   bool ok() { return privs != 0 || cols != 0; }
   void init_hash()
   {
-    my_hash_init2(&hash_columns, 4, system_charset_info,
-                  0, 0, 0, (my_hash_get_key) get_key_column, 0, 0);
+    my_hash_init2(&hash_columns, 4, system_charset_info, 0, 0, 0,
+                  (my_hash_get_key) get_key_column, 0, 0, 0);
   }
 };
 
