@@ -371,49 +371,35 @@ DROP TABLE t1;
 #
 # TIME literals in no-zero date context
 #
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 SELECT TO_DAYS(TIME'00:00:00');
 TO_DAYS(TIME'00:00:00')
-NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '00:00:00'
+730884
 SELECT TO_SECONDS(TIME'00:00:00');
 TO_SECONDS(TIME'00:00:00')
-NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '00:00:00'
+63148377600
 SELECT DAYOFYEAR(TIME'00:00:00');
 DAYOFYEAR(TIME'00:00:00')
-NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '00:00:00'
+34
 SELECT WEEK(TIME'00:00:00');
 WEEK(TIME'00:00:00')
-NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '00:00:00'
+4
 SELECT YEARWEEK(TIME'00:00:00');
 YEARWEEK(TIME'00:00:00')
-NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '00:00:00'
+200104
 SELECT WEEKDAY(TIME'00:00:00');
 WEEKDAY(TIME'00:00:00')
-NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '00:00:00'
+5
 SELECT CONVERT_TZ(TIME'00:00:00','+00:00','+01:00');
 CONVERT_TZ(TIME'00:00:00','+00:00','+01:00')
-NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '00:00:00'
+2001-02-03 01:00:00
 SELECT DATE_ADD(TIME'00:00:00', INTERVAL 1 HOUR);
 DATE_ADD(TIME'00:00:00', INTERVAL 1 HOUR)
 01:00:00
 SELECT TIMESTAMPDIFF(SECOND,TIME'00:00:00', TIME'00:00:00');
 TIMESTAMPDIFF(SECOND,TIME'00:00:00', TIME'00:00:00')
-NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '00:00:00'
+0
+SET timestamp=DEFAULT;
 #
 # Testing Item_func::fix_fields()
 #

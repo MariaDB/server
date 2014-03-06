@@ -77,6 +77,9 @@ extern uchar days_in_month[];
 #define MYSQL_TIME_WARN_HAVE_WARNINGS(x) MY_TEST((x) & MYSQL_TIME_WARN_WARNINGS)
 #define MYSQL_TIME_WARN_HAVE_NOTES(x) MY_TEST((x) & MYSQL_TIME_WARN_NOTES)
 
+/* Usefull constants */
+#define SECONDS_IN_24H 86400L
+
 /* Limits for the TIME data type */
 #define TIME_MAX_HOUR 838
 #define TIME_MAX_MINUTE 59

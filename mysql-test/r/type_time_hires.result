@@ -1,3 +1,4 @@
+SET timestamp=UNIX_TIMESTAMP('2001-02-03 10:20:30');
 drop table if exists t1, t2, t3;
 create table t1 (a time(7));
 ERROR 42000: Too big precision 7 specified for 'a'. Maximum is 6.
@@ -194,8 +195,8 @@ f5_time	11:14:17.76543
 f6_time	11:14:17.765432
 select cast(f0_time as time(4)) time4_f0_time, cast(f1_time as datetime(3)) datetime3_f1_time, cast(f2_time as date) date_f2_time, cast(f4_time as double) double_f3_time, cast(f4_time as decimal(40,5)) decimal5_f4_time, cast(f5_time as signed) bigint_f5_time, cast(f6_time as char(255)) varchar_f6_time from t1;
 time4_f0_time	11:14:17.0000
-datetime3_f1_time	0000-00-00 11:14:17.700
-date_f2_time	0000-00-00
+datetime3_f1_time	2001-02-03 11:14:17.700
+date_f2_time	2001-02-03
 double_f3_time	111417.7654
 decimal5_f4_time	111417.76540
 bigint_f5_time	111417
@@ -208,8 +209,8 @@ Code	1265
 Message	Data truncated for column 'date_f2_time' at row 1
 select * from t2;
 time4_f0_time	11:14:17.0000
-datetime3_f1_time	0000-00-00 11:14:17.700
-date_f2_time	0000-00-00
+datetime3_f1_time	2001-02-03 11:14:17.700
+date_f2_time	2001-02-03
 double_f3_time	111417.765
 decimal5_f4_time	111417.76540
 bigint_f5_time	111417
@@ -221,13 +222,20 @@ Code	1265
 Message	Data truncated for column 'date_f2_time' at row 1
 select * from t1;
 time4_f0_time	11:14:17.0000
-datetime3_f1_time	0000-00-00 11:14:17.700
-date_f2_time	0000-00-00
+datetime3_f1_time	2001-02-03 11:14:17.700
+date_f2_time	2001-02-03
 double_f3_time	111417.765
 decimal5_f4_time	111417.76540
 bigint_f5_time	111417
 varchar_f6_time	11:14:17.765432
 alter table t1 modify time4_f0_time time(0), modify datetime3_f1_time time(1), modify date_f2_time time(2), modify double_f3_time time(3), modify decimal5_f4_time time(4), modify bigint_f5_time time(5), modify varchar_f6_time time(6);
+Warnings:
+Level	Note
+Code	1265
+Message	Data truncated for column 'datetime3_f1_time' at row 1
+Level	Note
+Code	1265
+Message	Data truncated for column 'date_f2_time' at row 1
 select * from t1;
 time4_f0_time	11:14:17
 datetime3_f1_time	11:14:17.7
@@ -238,6 +246,13 @@ bigint_f5_time	11:14:17.00000
 varchar_f6_time	11:14:17.765432
 delete from t1;
 insert t1 select * from t2;
+Warnings:
+Level	Note
+Code	1265
+Message	Data truncated for column 'datetime3_f1_time' at row 1
+Level	Note
+Code	1265
+Message	Data truncated for column 'date_f2_time' at row 1
 select * from t1;
 time4_f0_time	11:14:17
 datetime3_f1_time	11:14:17.7
@@ -301,6 +316,7 @@ a	b
 04:05:06.000000	04:05:06.789100
 drop view v1;
 drop table t1, t2;
+SET timestamp=DEFAULT;
 create table t1 (a time(4) not null, key(a));
 insert into t1 values ('1:2:3.001'),('1:2:3'), ('-00:00:00.6'),('-00:00:00.7'),('-00:00:00.8'),('-00:00:00.9'),('-00:00:01.0'),('-00:00:01.1'),('-00:00:01.000000'),('-00:00:01.100001'),('-00:00:01.000002'),('-00:00:01.090000');
 select * from t1 order by a;

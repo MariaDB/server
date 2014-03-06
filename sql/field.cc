@@ -4636,14 +4636,24 @@ int Field_timestamp::store_TIME_with_warning(THD *thd, MYSQL_TIME *l_time,
 }
 
 
+static bool
+copy_or_convert_to_datetime(THD *thd, const MYSQL_TIME *from, MYSQL_TIME *to)
+{
+  if (from->time_type == MYSQL_TIMESTAMP_TIME)
+    return time_to_datetime(thd, from, to);
+  *to= *from;
+  return false;
+}
+
+
 int Field_timestamp::store_time_dec(MYSQL_TIME *ltime, uint dec)
 {
   int unused;
-  MYSQL_TIME l_time= *ltime;
   ErrConvTime str(ltime);
   THD *thd= get_thd();
-
-  bool valid= !check_date(&l_time, pack_time(&l_time) != 0,
+  MYSQL_TIME l_time;
+  bool valid= !copy_or_convert_to_datetime(thd, ltime, &l_time) &&
+              !check_date(&l_time, pack_time(&l_time) != 0,
                           (thd->variables.sql_mode & MODE_NO_ZERO_DATE) |
                                        MODE_NO_ZERO_IN_DATE, &unused);
 
@@ -5201,15 +5211,28 @@ int Field_temporal_with_date::store(longlong nr, bool unsigned_val)
 
 int Field_temporal_with_date::store_time_dec(MYSQL_TIME *ltime, uint dec)
 {
-  int error = 0, have_smth_to_conv= 1;
-  MYSQL_TIME l_time= *ltime;
+  int error= 0, have_smth_to_conv= 1;
   ErrConvTime str(ltime);
+  MYSQL_TIME l_time;
+
+  if (copy_or_convert_to_datetime(get_thd(), ltime, &l_time))
+  {
+    /*
+      Set have_smth_to_conv and error in a way to have
+      store_TIME_with_warning do bzero().
+    */
+    have_smth_to_conv= false;
+    error= MYSQL_TIME_WARN_OUT_OF_RANGE;
+    goto store;
+  }
+
   /*
     We don't perform range checking here since values stored in TIME
     structure always fit into DATETIME range.
   */
   have_smth_to_conv= !check_date(&l_time, pack_time(&l_time) != 0,
                                  sql_mode_for_dates(current_thd), &error);
+store:
   return store_TIME_with_warning(&l_time, &str, error, have_smth_to_conv);
 }
 

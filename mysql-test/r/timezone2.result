@@ -315,16 +315,14 @@ End of 5.1 tests
 #
 # MDEV-4653 Wrong result for CONVERT_TZ(TIME('00:00:00'),'+00:00','+7:5')
 #
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 SELECT CONVERT_TZ(TIME('00:00:00'),'+00:00','+7:5');
 CONVERT_TZ(TIME('00:00:00'),'+00:00','+7:5')
-NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '00:00:00'
+2001-02-03 07:05:00
 SELECT CONVERT_TZ(TIME('2010-01-01 00:00:00'),'+00:00','+7:5');
 CONVERT_TZ(TIME('2010-01-01 00:00:00'),'+00:00','+7:5')
-NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '00:00:00'
+2001-02-03 07:05:00
+SET timestamp=DEFAULT;
 #
 # MDEV-5506 safe_mutex: Trying to lock unitialized mutex at safemalloc.c on server shutdown after SELECT with CONVERT_TZ
 #

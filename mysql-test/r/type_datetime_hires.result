@@ -1,3 +1,4 @@
+SET timestamp=UNIX_TIMESTAMP('2001-02-03 10:20:30');
 drop table if exists t1, t2, t3;
 create table t1 (a datetime(7));
 ERROR 42000: Too big precision 7 specified for 'a'. Maximum is 6.
@@ -197,7 +198,7 @@ bigint_f5_datetime	20101112111417
 varchar_f6_datetime	2010-11-12 11:14:17.765432
 alter table t1 modify time4_f0_datetime datetime(0), modify datetime3_f1_datetime datetime(1), modify date_f2_datetime datetime(2), modify double_f3_datetime datetime(3), modify decimal5_f4_datetime datetime(4), modify bigint_f5_datetime datetime(5), modify varchar_f6_datetime datetime(6);
 select * from t1;
-time4_f0_datetime	0000-00-00 11:14:17
+time4_f0_datetime	2001-02-03 11:14:17
 datetime3_f1_datetime	2010-11-12 11:14:17.7
 date_f2_datetime	2010-11-12 00:00:00.00
 double_f3_datetime	2010-11-12 11:14:17.766
@@ -207,7 +208,7 @@ varchar_f6_datetime	2010-11-12 11:14:17.765432
 delete from t1;
 insert t1 select * from t2;
 select * from t1;
-time4_f0_datetime	0000-00-00 11:14:17
+time4_f0_datetime	2001-02-03 11:14:17
 datetime3_f1_datetime	2010-11-12 11:14:17.7
 date_f2_datetime	2010-11-12 00:00:00.00
 double_f3_datetime	2010-11-12 11:14:17.765
@@ -262,6 +263,7 @@ a	b
 2011-01-02 03:04:06.234500	2011-01-02 03:04:06.234561
 drop view v1;
 drop table t1, t2;
+SET timestamp=DEFAULT;
 CREATE TABLE t1 (
 taken datetime(5) NOT NULL DEFAULT '0000-00-00 00:00:00',
 id int(11) NOT NULL DEFAULT '0',
