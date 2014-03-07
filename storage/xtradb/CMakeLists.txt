@@ -406,9 +406,10 @@ ENDIF()
 
 IF(XTRADB_OK)
   MYSQL_ADD_PLUGIN(xtradb ${INNOBASE_SOURCES} STORAGE_ENGINE
-    MODULE_ONLY RECOMPILE_FOR_EMBEDDED
+    DEFAULT
+    RECOMPILE_FOR_EMBEDDED
     LINK_LIBRARIES ${ZLIB_LIBRARY} ${LINKER_SCRIPT})
 ELSE()
-  MESSAGE("Percona XtraDB is not supported on this platform")
+  MESSAGE(FATAL_ERROR "Percona XtraDB is not supported on this platform")
 ENDIF()
 
