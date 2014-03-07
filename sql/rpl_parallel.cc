@@ -705,6 +705,11 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
     pool->changing= false;
     mysql_mutex_unlock(&LOCK_active_mi);
   }
+
+  mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
+  mysql_cond_broadcast(&pool->COND_rpl_thread_pool);
+  mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
+
   return 0;
 
 err:
