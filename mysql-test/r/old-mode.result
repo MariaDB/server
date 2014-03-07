@@ -22,6 +22,7 @@ Id	User	Host	db	Command	Time	State	Info
 #
 # MDEV-5372 Make "CAST(time_expr AS DATETIME)" compatible with the SQL Standard)
 #
+set @@old_mode=zero_date_time_cast;
 SELECT CAST(TIME'-10:30:30' AS DATETIME);
 CAST(TIME'-10:30:30' AS DATETIME)
 NULL

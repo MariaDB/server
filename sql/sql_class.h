@@ -121,8 +121,9 @@ enum enum_filetype { FILETYPE_CSV, FILETYPE_XML };
 #define MODE_PAD_CHAR_TO_FULL_LENGTH    (1ULL << 31)
 
 /* Bits for different old style modes */
-#define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	1
-#define OLD_MODE_NO_PROGRESS_INFO			2
+#define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	(1 << 0)
+#define OLD_MODE_NO_PROGRESS_INFO			(1 << 1)
+#define OLD_MODE_ZERO_DATE_TIME_CAST                    (1 << 2)
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];

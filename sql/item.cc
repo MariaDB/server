@@ -248,7 +248,8 @@ bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
     and leave it to get_date() to check date.
   */
   ulonglong time_flag= (field_type() == MYSQL_TYPE_TIME &&
-                       !current_thd->variables.old_mode) ? TIME_TIME_ONLY : 0;
+           !(current_thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)) ?
+           TIME_TIME_ONLY : 0;
   if (get_date(ltime, fuzzydate | time_flag))
     return true;
   if (ltime->time_type == MYSQL_TIMESTAMP_TIME &&

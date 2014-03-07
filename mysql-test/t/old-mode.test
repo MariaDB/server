@@ -29,7 +29,7 @@ SHOW PROCESSLIST;
 --echo #
 --echo # MDEV-5372 Make "CAST(time_expr AS DATETIME)" compatible with the SQL Standard)
 --echo #
-# Checking that "mysqld --old" exposes the 5.5 conversion behaviour
+set @@old_mode=zero_date_time_cast;
 SELECT CAST(TIME'-10:30:30' AS DATETIME);
 SELECT CAST(TIME'10:20:30' AS DATETIME);
 SELECT CAST(TIME'830:20:30' AS DATETIME);
@@ -53,12 +53,12 @@ SELECT a, CAST(a AS DATETIME), TO_DAYS(a) FROM t1;
 DROP TABLE t1;
 # Note, it was actually a bug that TO_DAYS('830:20:30') returned NULL
 # for a column, while 3 for an expression. We won't fix this,
-# it's "mysqld --old" anyway.
+# it's "old_mode" anyway.
 SELECT TO_DAYS(TIME'-10:20:30');
 SELECT TO_DAYS(TIME'10:20:30');
 SELECT TO_DAYS(TIME'830:20:30');
 
-# This is to cover Item_temporal_hybrid_func::fix_temporal_type in --old mode:
+# This is to cover Item_temporal_hybrid_func::fix_temporal_type in old_mode:
 CREATE TABLE t1 (a DATETIME, b TIME);
 INSERT INTO t1 VALUES (NULL, '00:20:12');
 INSERT INTO t1 VALUES (NULL, '-00:20:12');
