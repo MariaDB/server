@@ -1243,7 +1243,7 @@ time_to_datetime_old(THD *thd, const MYSQL_TIME *from, MYSQL_TIME *to)
 bool
 time_to_datetime(THD *thd, const MYSQL_TIME *from, MYSQL_TIME *to)
 {
-  if (thd->variables.old_mode)
+  if (thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)
     return time_to_datetime_old(thd, from, to);
   set_current_date(thd, to);
   mix_date_and_time(to, from);
@@ -1266,7 +1266,8 @@ time_to_datetime_with_warn(THD *thd,
     only in the old mode.
   */
   if (time_to_datetime(thd, from, to) ||
-      (thd->variables.old_mode && check_date(to, fuzzydate, &warn)))
+      ((thd->variables.old_behavior && OLD_MODE_ZERO_DATE_TIME_CAST) &&
+        check_date(to, fuzzydate, &warn)))
   {
     ErrConvTime str(from);
     make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,

@@ -168,8 +168,11 @@ SELECT @@global.old_mode;
 SET @@global.old_mode = 2;
 SELECT @@global.old_mode;
 
---Error ER_WRONG_VALUE_FOR_VAR
 SET @@global.old_mode = 4;
+SELECT @@global.old_mode;
+
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.old_mode = 8;
 SELECT @@global.old_mode;
 
 # use of decimal values

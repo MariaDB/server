@@ -2876,7 +2876,9 @@ static Sys_var_set Sys_sql_mode(
 
 static const char *old_mode_names[]=
 {
-  "NO_DUP_KEY_WARNINGS_WITH_IGNORE", "NO_PROGRESS_INFO",
+  "NO_DUP_KEY_WARNINGS_WITH_IGNORE",
+  "NO_PROGRESS_INFO",
+  "ZERO_DATE_TIME_CAST",
   0
 };
 
