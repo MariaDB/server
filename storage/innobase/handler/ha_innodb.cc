@@ -9907,7 +9907,7 @@ ha_innobase::check_table_options(
 				HA_WRONG_CREATE_OPTION,
 				"InnoDB: invalid PAGE_COMPRESSION_LEVEL = %lu."
 				" Valid values are [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]",
-				create_info->key_block_size);
+				options->page_compression_level);
 			return "PAGE_COMPRESSION_LEVEL";
 		}
 	}
@@ -16795,8 +16795,8 @@ static MYSQL_SYSVAR_LONG(trim_pct, srv_trim_pct,
 
 static MYSQL_SYSVAR_BOOL(compress_index_pages, srv_page_compress_index_pages,
   PLUGIN_VAR_OPCMDARG,
-  "Use page compression for only index pages. Default TRUE.",
-  NULL, NULL, TRUE);
+  "Use page compression also for index pages. Default FALSE.",
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
   PLUGIN_VAR_OPCMDARG,

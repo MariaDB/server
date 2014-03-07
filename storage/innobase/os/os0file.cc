@@ -4464,14 +4464,12 @@ found:
 	slot->page_compression = page_compression;
 
 	/* If the space is page compressed and this is write operation
-	   and if either only index pages compression is disabled or
-	   page is index page and only index pages compression is enabled then
-	   we compress the page */
+	   and either index compression is enabled or page is not a index
+	   page then we compress the page */
 	if (message1 &&
 	    type == OS_FILE_WRITE &&
 	    page_compression &&
-	    (srv_page_compress_index_pages == false ||
-	     (srv_page_compress_index_pages == true &&  fil_page_is_index_page(slot->buf)))) {
+	     (srv_page_compress_index_pages == true || !fil_page_is_index_page(slot->buf))) {
 		ulint           real_len = len;
 		byte*           tmp = NULL;
 
