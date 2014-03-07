@@ -44,6 +44,8 @@ extern "C" {
 
 typedef uint my_hash_value_type;
 typedef uchar *(*my_hash_get_key)(const uchar *,size_t*,my_bool);
+typedef my_hash_value_type (*my_hash_function)(const CHARSET_INFO *,
+                                               const uchar *, size_t);
 typedef void (*my_hash_free_key)(void *);
 typedef my_bool (*my_hash_walk_action)(void *,void *);
 
@@ -54,6 +56,7 @@ typedef struct st_hash {
   uint flags;
   DYNAMIC_ARRAY array;				/* Place for hash_keys */
   my_hash_get_key get_key;
+  my_hash_function hash_function;
   void (*free)(void *);
   CHARSET_INFO *charset;
 } HASH;
@@ -61,10 +64,11 @@ typedef struct st_hash {
 /* A search iterator state */
 typedef uint HASH_SEARCH_STATE;
 
-#define my_hash_init(A,B,C,D,E,F,G,H) my_hash_init2(A,0,B,C,D,E,F,G,H)
+#define my_hash_init(A,B,C,D,E,F,G,H) my_hash_init2(A,0,B,C,D,E,F,0,G,H)
 my_bool my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
                       ulong default_array_elements, size_t key_offset,
                       size_t key_length, my_hash_get_key get_key,
+                      my_hash_function hash_function,
                       void (*free_element)(void*),
                       uint flags);
 void my_hash_free(HASH *tree);
@@ -74,8 +78,9 @@ uchar *my_hash_search(const HASH *info, const uchar *key, size_t length);
 uchar *my_hash_search_using_hash_value(const HASH *info,
                                        my_hash_value_type hash_value,
                                        const uchar *key, size_t length);
-my_hash_value_type my_calc_hash(const HASH *info,
+my_hash_value_type my_hash_sort(const CHARSET_INFO *cs,
                                 const uchar *key, size_t length);
+#define my_calc_hash(A, B, C) my_hash_sort((A)->charset, B, C)
 uchar *my_hash_first(const HASH *info, const uchar *key, size_t length,
                      HASH_SEARCH_STATE *state);
 uchar *my_hash_first_from_hash_value(const HASH *info,

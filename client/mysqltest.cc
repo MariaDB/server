@@ -8945,7 +8945,7 @@ int main(int argc, char **argv)
   my_init_dynamic_array(&q_lines, sizeof(struct st_command*), 1024, 1024, MYF(0));
 
   if (my_hash_init2(&var_hash, 64, charset_info,
-                 128, 0, 0, get_var_key, var_free, MYF(0)))
+                 128, 0, 0, get_var_key, 0, var_free, MYF(0)))
     die("Variable hash initialization failed");
 
   var_set_string("MYSQL_SERVER_VERSION", MYSQL_SERVER_VERSION);
