@@ -1435,7 +1435,8 @@ rpl_load_gtid_slave_state(THD *thd)
     if ((err= rpl_global_gtid_slave_state.update(tmp_entry.gtid.domain_id,
                                                  tmp_entry.gtid.server_id,
                                                  tmp_entry.sub_id,
-                                                 tmp_entry.gtid.seq_no)))
+                                                 tmp_entry.gtid.seq_no,
+                                                 NULL)))
     {
       mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
       my_error(ER_OUT_OF_RESOURCES, MYF(0));

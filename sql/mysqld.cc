@@ -553,6 +553,7 @@ ulong opt_slave_domain_parallel_threads= 0;
 ulong opt_binlog_commit_wait_count= 0;
 ulong opt_binlog_commit_wait_usec= 0;
 ulong opt_slave_parallel_max_queued= 131072;
+my_bool opt_gtid_ignore_duplicates= FALSE;
 
 const double log_10[] = {
   1e000, 1e001, 1e002, 1e003, 1e004, 1e005, 1e006, 1e007, 1e008, 1e009,
@@ -987,7 +988,7 @@ PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
   key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
   key_COND_prepare_ordered;
-PSI_cond_key key_COND_wait_gtid;
+PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 
 static PSI_cond_info all_server_conds[]=
 {
@@ -1035,7 +1036,8 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
   { &key_COND_group_commit_orderer, "COND_group_commit_orderer", 0},
   { &key_COND_prepare_ordered, "COND_prepare_ordered", 0},
-  { &key_COND_wait_gtid, "COND_wait_gtid", 0}
+  { &key_COND_wait_gtid, "COND_wait_gtid", 0},
+  { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0}
 };
 
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,

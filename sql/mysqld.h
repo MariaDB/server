@@ -184,6 +184,7 @@ extern ulong opt_slave_domain_parallel_threads;
 extern ulong opt_slave_parallel_max_queued;
 extern ulong opt_binlog_commit_wait_count;
 extern ulong opt_binlog_commit_wait_usec;
+extern my_bool opt_gtid_ignore_duplicates;
 extern ulong back_log;
 extern ulong executed_events;
 extern char language[FN_REFLEN];
@@ -299,7 +300,7 @@ extern PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_queue,
   key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer;
-extern PSI_cond_key key_COND_wait_gtid;
+extern PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 
 extern PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_kill_server, key_thread_main,

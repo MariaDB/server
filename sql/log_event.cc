@@ -4440,7 +4440,7 @@ Default database: '%s'. Query: '%s'",
 
 end:
   if (sub_id && !thd->is_slave_error)
-    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid);
+    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid, rli);
 
   /*
     Probably we have set thd->query, thd->db, thd->catalog to point to places
@@ -6806,7 +6806,8 @@ Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
                                                         sub_id_list[i],
                                                         false, false)))
         return ret;
-      rpl_global_gtid_slave_state.update_state_hash(sub_id_list[i], &list[i]);
+      rpl_global_gtid_slave_state.update_state_hash(sub_id_list[i], &list[i],
+                                                    NULL);
     }
   }
   ret= Log_event::do_apply_event(rgi);
@@ -7326,7 +7327,7 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
   thd->mdl_context.release_transactional_locks();
 
   if (!res && sub_id)
-    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid);
+    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid, rli);
 
   /*
     Increment the global status commit count variable
