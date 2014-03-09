@@ -1819,6 +1819,54 @@ static Sys_var_ulong Sys_slave_parallel_max_queued(
        "--slave-parallel-threads > 0.",
        GLOBAL_VAR(opt_slave_parallel_max_queued), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0,2147483647), DEFAULT(131072), BLOCK_SIZE(1));
+
+
+static bool
+check_gtid_ignore_duplicates(sys_var *self, THD *thd, set_var *var)
+{
+  bool running;
+
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running)
+    return true;
+
+  return false;
+}
+
+static bool
+fix_gtid_ignore_duplicates(sys_var *self, THD *thd, enum_var_type type)
+{
+  bool running;
+  bool err= false;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running)
+    err= true;
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
+  /* ToDo: Isn't there a race here? I need to change the variable only under the LOCK_active_mi, and only if running is false. */
+  return err;
+}
+
+
+static Sys_var_mybool Sys_gtid_ignore_duplicates(
+       "gtid_ignore_duplicates",
+       "When set, different master connections in multi-source replication are "
+       "allowed to receive and process event groups with the same GTID (when "
+       "using GTID mode). Only one will be applied, any others will be "
+       "ignored. Within a given replication domain, just the sequence number "
+       "will be used to decide whether a given GTID has been already applied; "
+       "this means it is the responsibility of the user to ensure that GTID "
+       "sequence numbers are strictly increasing.",
+       GLOBAL_VAR(opt_gtid_ignore_duplicates), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(check_gtid_ignore_duplicates),
+       ON_UPDATE(fix_gtid_ignore_duplicates));
 #endif
 
 

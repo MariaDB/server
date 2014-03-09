@@ -202,7 +202,7 @@ handle_rpl_parallel_thread(void *arg)
   struct rpl_parallel_thread::queued_event *events;
   bool group_standalone= true;
   bool in_event_group= false;
-  bool group_skip_for_stop= false;
+  bool skip_event_group= false;
   rpl_group_info *group_rgi= NULL;
   group_commit_orderer *gco, *tmp_gco;
   uint64 event_gtid_sub_id= 0;
@@ -385,13 +385,13 @@ handle_rpl_parallel_thread(void *arg)
             point where we can safely stop. So set a flag that will cause us
             to skip, rather than execute, the following events.
           */
-          group_skip_for_stop= true;
+          skip_event_group= true;
         }
         else
-          group_skip_for_stop= false;
+          skip_event_group= false;
 
         if (unlikely(entry->stop_on_error_sub_id <= rgi->wait_commit_sub_id))
-          group_skip_for_stop= true;
+          skip_event_group= true;
         else if (rgi->wait_commit_sub_id > entry->last_committed_sub_id)
         {
           /*
@@ -420,6 +420,16 @@ handle_rpl_parallel_thread(void *arg)
           thd->wait_for_commit_ptr->wakeup_subsequent_commits(err);
         }
         thd->wait_for_commit_ptr= &rgi->commit_orderer;
+
+        if (opt_gtid_ignore_duplicates)
+        {
+          int res=
+            rpl_global_gtid_slave_state.check_duplicate_gtid(&rgi->current_gtid,
+                                                             rgi->rli);
+          /* ToDo: Handle res==-1 error. */
+          if (!res)
+            skip_event_group= true;
+        }
       }
 
       group_ending= event_type == XID_EVENT ||
@@ -438,7 +448,7 @@ handle_rpl_parallel_thread(void *arg)
         processing between the event groups as a simple way to ensure that
         everything is stopped and cleaned up correctly.
       */
-      if (!rgi->is_error && !group_skip_for_stop)
+      if (!rgi->is_error && !skip_event_group)
         err= rpt_handle_event(events, rpt);
       else
         err= thd->wait_for_prior_commit();
@@ -464,7 +474,7 @@ handle_rpl_parallel_thread(void *arg)
         rgi->next= rgis_to_free;
         rgis_to_free= rgi;
         group_rgi= rgi= NULL;
-        group_skip_for_stop= false;
+        skip_event_group= false;
         DEBUG_SYNC(thd, "rpl_parallel_end_of_group");
       }
 
@@ -526,7 +536,7 @@ handle_rpl_parallel_thread(void *arg)
       mysql_mutex_lock(&rpt->LOCK_rpl_thread);
       rpt->free_rgi(group_rgi);
       group_rgi= NULL;
-      group_skip_for_stop= false;
+      skip_event_group= false;
     }
     if (!in_event_group)
     {

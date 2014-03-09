@@ -91,6 +91,8 @@ struct gtid_waiting {
 };
 
 
+class Relay_log_info;
+
 /*
   Replication slave state.
 
@@ -131,6 +133,19 @@ struct rpl_slave_state
     uint64 min_wait_seq_no;
     mysql_cond_t COND_wait_gtid;
 
+    /*
+      For --gtid-ignore-duplicates. The Relay_log_info that currently owns
+      this domain, and the number of worker threads that are active in it.
+
+      The idea is that only one of multiple master connections is allowed to
+      actively apply events for a given domain. Other connections must either
+      discard the events (if the seq_no in GTID shows they have already been
+      applied), or wait to see if the current owner will apply it.
+    */
+    const Relay_log_info *owner_rli;
+    uint32 owner_count;
+    mysql_cond_t COND_gtid_ignore_duplicates;
+
     list_element *grab_list() { list_element *l= list; list= NULL; return l; }
     void add(list_element *l)
     {
@@ -155,7 +170,8 @@ struct rpl_slave_state
   void deinit();
   void truncate_hash();
   ulong count() const { return hash.records; }
-  int update(uint32 domain_id, uint32 server_id, uint64 sub_id, uint64 seq_no);
+  int update(uint32 domain_id, uint32 server_id, uint64 sub_id,
+             uint64 seq_no, const Relay_log_info *rli);
   int truncate_state_table(THD *thd);
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                   bool in_transaction, bool in_statement);
@@ -171,8 +187,10 @@ struct rpl_slave_state
   element *get_element(uint32 domain_id);
   int put_back_list(uint32 domain_id, list_element *list);
 
-  void update_state_hash(uint64 sub_id, rpl_gtid *gtid);
+  void update_state_hash(uint64 sub_id, rpl_gtid *gtid,
+                         const Relay_log_info *rli);
   int record_and_update_gtid(THD *thd, struct rpl_group_info *rgi);
+  int check_duplicate_gtid(rpl_gtid *gtid, const Relay_log_info *rli);
 };
 
 

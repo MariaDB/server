@@ -33,7 +33,8 @@ const LEX_STRING rpl_gtid_slave_state_table_name=
 
 
 void
-rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid)
+rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid,
+                                   const Relay_log_info *rli)
 {
   int err;
   /*
@@ -44,7 +45,7 @@ rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid)
     it is even committed.
   */
   mysql_mutex_lock(&LOCK_slave_state);
-  err= update(gtid->domain_id, gtid->server_id, sub_id, gtid->seq_no);
+  err= update(gtid->domain_id, gtid->server_id, sub_id, gtid->seq_no, rli);
   mysql_mutex_unlock(&LOCK_slave_state);
   if (err)
   {
@@ -76,9 +77,93 @@ rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
     rgi->gtid_sub_id= 0;
     if (record_gtid(thd, &rgi->current_gtid, sub_id, false, false))
       DBUG_RETURN(1);
-    update_state_hash(sub_id, &rgi->current_gtid);
+    update_state_hash(sub_id, &rgi->current_gtid, rgi->rli);
   }
   DBUG_RETURN(0);
+}
+
+
+/*
+  Check GTID event execution when --gtid-ignore-duplicates.
+
+  The idea with --gtid-ignore-duplicates is that we allow multiple master
+  connections (in multi-source replication) to all receive the same GTIDs and
+  event groups. Only one instance of each is applied; we use the sequence
+  number in the GTID to decide whether a GTID has already been applied.
+
+  So if the seq_no of a GTID (or a higher sequence number) has already been
+  applied, then the event should be skipped. If not then the event should be
+  applied.
+
+  To avoid two master connections tring to apply the same event
+  simultaneously, only one is allowed to work in any given domain at any point
+  in time. The associated Relay_log_info object is called the owner of the
+  domain (and there can be multiple parallel worker threads working in that
+  domain for that Relay_log_info). Any other Relay_log_info/master connection
+  must wait for the domain to become free, or for their GTID to have been
+  applied, before being allowed to proceed.
+
+  Returns:
+    0  This GTID is already applied, it should be skipped.
+    1  The GTID is not yet applied; this rli is now the owner, and must apply
+       the event and release the domain afterwards.
+   -1  Error (out of memory to allocate a new element for the domain).
+*/
+int
+rpl_slave_state::check_duplicate_gtid(rpl_gtid *gtid, const Relay_log_info *rli)
+{
+  uint32 domain_id= gtid->domain_id;
+  uint32 seq_no= gtid->seq_no;
+  rpl_slave_state::element *elem;
+  int res;
+
+  mysql_mutex_lock(&LOCK_slave_state);
+  if (!(elem= get_element(domain_id)))
+  {
+    res= -1;
+    goto err;
+  }
+  /*
+    Note that the elem pointer does not change once inserted in the hash. So
+    we can re-use the pointer without looking it up again in the hash after
+    each lock release and re-take.
+  */
+
+  /* ToDo: Make this wait killable. */
+  for (;;)
+  {
+    if (elem->highest_seq_no >= seq_no)
+    {
+      /* This sequence number is already applied, ignore it. */
+      res= 0;
+      break;
+    }
+    if (!elem->owner_rli)
+    {
+      /* The domain became free, grab it and apply the event. */
+      elem->owner_rli= rli;
+      elem->owner_count= 1;
+      res= 1;
+      break;
+    }
+    if (elem->owner_rli == rli)
+    {
+      /* Already own this domain, increment reference count and apply event. */
+      ++elem->owner_count;
+      res= 1;
+      break;
+    }
+    /*
+      Someone else is currently processing this GTID (or an earlier one).
+      Wait for them to complete (or fail), and then check again.
+    */
+    mysql_cond_wait(&elem->COND_gtid_ignore_duplicates,
+                    &LOCK_slave_state);
+  }
+
+err:
+  mysql_mutex_unlock(&LOCK_slave_state);
+  return res;
 }
 
 
@@ -87,6 +172,7 @@ rpl_slave_state_free_element(void *arg)
 {
   struct rpl_slave_state::element *elem= (struct rpl_slave_state::element *)arg;
   mysql_cond_destroy(&elem->COND_wait_gtid);
+  mysql_cond_destroy(&elem->COND_gtid_ignore_duplicates);
   my_free(elem);
 }
 
@@ -147,7 +233,7 @@ rpl_slave_state::deinit()
 
 int
 rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
-                        uint64 seq_no)
+                        uint64 seq_no, const Relay_log_info *rli)
 {
   element *elem= NULL;
   list_element *list_elem= NULL;
@@ -168,6 +254,20 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
     mysql_mutex_assert_owner(&LOCK_slave_state);
     elem->gtid_waiter= NULL;
     mysql_cond_broadcast(&elem->COND_wait_gtid);
+  }
+
+  if (opt_gtid_ignore_duplicates && rli)
+  {
+    uint32 count= elem->owner_count;
+    DBUG_ASSERT(count > 0);
+    DBUG_ASSERT(elem->owner_rli == rli);
+    --count;
+    elem->owner_count= count;
+    if (count == 0)
+    {
+      elem->owner_rli= NULL;
+      mysql_cond_broadcast(&elem->COND_gtid_ignore_duplicates);
+    }
   }
 
   if (!(list_elem= (list_element *)my_malloc(sizeof(*list_elem), MYF(MY_WME))))
@@ -199,7 +299,11 @@ rpl_slave_state::get_element(uint32 domain_id)
   elem->domain_id= domain_id;
   elem->highest_seq_no= 0;
   elem->gtid_waiter= NULL;
+  elem->owner_rli= NULL;
+  elem->owner_count= 0;
   mysql_cond_init(key_COND_wait_gtid, &elem->COND_wait_gtid, 0);
+  mysql_cond_init(key_COND_gtid_ignore_duplicates,
+                  &elem->COND_gtid_ignore_duplicates, 0);
   if (my_hash_insert(&hash, (uchar *)elem))
   {
     my_free(elem);
@@ -821,7 +925,7 @@ rpl_slave_state::load(THD *thd, char *state_from_master, size_t len,
     if (gtid_parser_helper(&state_from_master, end, &gtid) ||
         !(sub_id= next_sub_id(gtid.domain_id)) ||
         record_gtid(thd, &gtid, sub_id, false, in_statement) ||
-        update(gtid.domain_id, gtid.server_id, sub_id, gtid.seq_no))
+        update(gtid.domain_id, gtid.server_id, sub_id, gtid.seq_no, NULL))
       return 1;
     if (state_from_master == end)
       break;
