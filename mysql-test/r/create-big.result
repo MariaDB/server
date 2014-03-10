@@ -161,7 +161,9 @@ create table t1 (i int);
 set @a:=0;
 set debug_sync='create_table_select_before_check_if_exists SIGNAL parked WAIT_FOR go';
 create table if not exists t1 select 1 as i;;
-create trigger t1_bi before insert on t1 for each row set @a:=1;
+set debug_sync='now WAIT_FOR parked';
+create trigger t1_bi before insert on t1 for each row set @a:=1;;
+set debug_sync='now SIGNAL go';
 Warnings:
 Note	1050	Table 't1' already exists
 select @a;
