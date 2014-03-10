@@ -39,6 +39,7 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
     Opt = cdp->Opt;
     Long = cdp->Long;
     Precision = cdp->Precision;
+    Freq = cdp->Freq;
     Buf_Type = cdp->Buf_Type;
     ColUse |= cdp->Flags;       // Used by CONNECT
     Nullable = !!(cdp->Flags & U_NULLS);
@@ -49,6 +50,7 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
     Opt = 0;
     Long = 0;
     Precision = 0;
+    Freq = 0;
     Buf_Type = TYPE_ERROR;
     Nullable = false;
     Unsigned = false;

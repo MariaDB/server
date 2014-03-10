@@ -122,7 +122,7 @@ class DllExport ZIXFAM : public ZBKFAM {
   // No additional Members
   }; // end of class ZIXFAM
 
-#ifdef NOT_USED
+#if defined(BLK_INDX)
 /***********************************************************************/
 /*  This is the DOS/UNIX Access Method class declaration for PlugDB    */
 /*  fixed/variable files compressed using the zlib library functions.  */
@@ -166,6 +166,6 @@ class DllExport ZLBFAM : public BLKFAM {
   int      *Zlenp;            // Pointer to block length
   bool      Optimized;        // true when opt file is available
   }; // end of class ZLBFAM
-#endif // NOT_USED
+#endif   // BLK_INDX
 
 #endif // __FILAMZIP_H

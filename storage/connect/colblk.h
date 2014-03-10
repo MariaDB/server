@@ -36,6 +36,10 @@ class DllExport COLBLK : public XOBJECT {
   virtual int     GetAmType() {return TYPE_AM_ERROR;}
   virtual void    SetOk(void) {Status |= BUF_EMPTY;}
   virtual PTDB    GetTo_Tdb(void) {return To_Tdb;}
+#if defined(BLK_INDX)
+  virtual int     GetClustered(void) {return 0;}
+  virtual int			IsClustered(void) {return FALSE;}
+#endif   // BLK_INDX
           PCOL    GetNext(void) {return Next;}
           PSZ     GetName(void) {return Name;}
           int     GetIndex(void) {return Index;}
@@ -76,7 +80,9 @@ class DllExport COLBLK : public XOBJECT {
   virtual void    WriteColumn(PGLOBAL g);
   virtual void    Print(PGLOBAL g, FILE *, uint);
   virtual void    Print(PGLOBAL g, char *, uint);
+#if defined(BLK_INDX)
   virtual bool    VarSize(void) {return false;}
+#endif   // BLK_INDX
   virtual bool    IsColInside(PCOL colp) {return this == colp;}
           bool    InitValue(PGLOBAL g);
 
@@ -94,6 +100,7 @@ class DllExport COLBLK : public XOBJECT {
   int     Buf_Type;            // Data type
   int     Long;                // Internal length in table
   int     Precision;           // Column length (as for ODBC)
+  int     Freq;                // Evaluated ceiling of distinct values
   FORMAT  Format;              // Output format
   ushort  ColUse;              // Column usage
   ushort  Status;              // Column read status

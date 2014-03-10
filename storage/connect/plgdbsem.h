@@ -29,6 +29,10 @@ enum BLKTYP {TYPE_TABLE      = 50,    /* Table Name/Srcdef/... Block   */
 //           TYPE_OPVAL      = 52,    /* Operator value (OPVAL)        */
              TYPE_TDB        = 53,    /* Table Description Block       */
              TYPE_COLBLK     = 54,    /* Column Description Block      */
+#if defined(BLK_INDX)
+             TYPE_FILTER     = 55,    /* Filter Description Block      */
+             TYPE_ARRAY      = 63,    /* General array type            */
+#endif   // BLK_INDX
              TYPE_PSZ        = 64,    /* Pointer to String ended by 0  */
              TYPE_SQL        = 65,    /* Pointer to SQL block          */
              TYPE_XOBJECT    = 69,    /* Extended DB object            */
@@ -144,21 +148,19 @@ enum RECFM {RECFM_NAF   =    -2,      /* Not a file                    */
             RECFM_PLG   =     5,      /* Table accessed via PLGconn    */
             RECFM_DBF   =     6};     /* DBase formatted file          */
 
-#if 0
 enum MISC {DB_TABNO     =     1,      /* DB routines in Utility Table  */
            MAX_MULT_KEY =    10,      /* Max multiple key number       */
            NAM_LEN      =   128,      /* Length of col and tab names   */
            ARRAY_SIZE   =    50,      /* Default array block size      */
-           MAXRES       =   500,      /* Default maximum result lines  */
-           MAXLIN       = 10000,      /* Default maximum data lines    */
+//         MAXRES       =   500,      /* Default maximum result lines  */
+//         MAXLIN       = 10000,      /* Default maximum data lines    */
            MAXBMP       =    32};     /* Default XDB2 max bitmap size  */
 
+#if 0
 enum ALGMOD {AMOD_AUTO =  0,          /* PLG chooses best algorithm    */
              AMOD_SQL  =  1,          /* Use SQL algorithm             */
              AMOD_QRY  =  2};         /* Use QUERY algorithm           */
-#else   // !0
-#define    NAM_LEN          128
-#endif // !0
+#endif // 0
 
 enum MODE {MODE_ERROR   = -1,         /* Invalid mode                  */
            MODE_ANY     =  0,         /* Unspecified mode              */
@@ -342,7 +344,7 @@ typedef class XTAB       *PTABLE;
 typedef class COLUMN     *PCOLUMN;
 typedef class XOBJECT    *PXOB;
 typedef class COLBLK     *PCOL;
-typedef class TBX        *PTBX;
+//pedef class TBX        *PTBX;
 typedef class TDB        *PTDB;
 typedef       void       *PSQL;          // Not used
 typedef class TDBASE     *PTDBASE;
@@ -376,6 +378,9 @@ typedef class COLDEF     *PCOLDEF;
 typedef class CONSTANT   *PCONST;
 typedef class VALUE      *PVAL;
 typedef class VALBLK     *PVBLK;
+#if defined(BLK_INDX)
+typedef class FILTER     *PFIL;
+#endif   // BLK_INDX
 
 typedef struct _fblock   *PFBLOCK;
 typedef struct _mblock   *PMBLOCK;
@@ -431,7 +436,9 @@ typedef struct {                       /* User application block       */
 //int        Maxres;                   /* Result Max nb of lines       */
 //int        Maxtmp;                   /* Intermediate tables Maxres   */
 //int        Maxlin;                   /* Query Max nb of data lines   */
-//int        Maxbmp;                   /* Maximum XDB2 bitmap size     */
+#if defined(BLK_INDX)
+  int        Maxbmp;                   /* Maximum XDB2 bitmap size     */
+#endif   // BLK_INDX
   int        Check;                    /* General level of checking    */
   int        Numlines;                 /* Number of lines involved     */
 //ALGMOD     AlgChoice;                /* Choice of algorithm mode     */
@@ -480,6 +487,38 @@ typedef struct _tabs {
   PTABPTR P1;
   PTABADR P3;
   } TABS;
+
+#if defined(BLK_INDX)
+/***********************************************************************/
+/*  Argument of expression, function, filter etc. (Xobject)            */
+/***********************************************************************/
+typedef struct _arg {              /* Argument                         */
+  PXOB    To_Obj;                  /* To the argument object           */
+  PVAL    Value;                   /* Argument value                   */
+  bool    Conv;                    /* TRUE if conversion is required   */
+  } ARGBLK, *PARG;
+
+typedef struct _oper {             /* Operator                         */
+  PSZ     Name;                    /* The input/output operator name   */
+  OPVAL   Val;                     /* Operator numeric value           */
+  int     Mod;                     /* The modificator                  */
+  } OPER, *POPER;
+
+#if 0
+/***********************************************************************/
+/*  Definitions and table of Scalar Functions.                         */
+/***********************************************************************/
+typedef struct _sfdsc {            /* Scalar function description block*/
+  char    Name[16];                /* Scalar function name             */
+  EVAL    EvalType;                /* Type of Init and Eval functions  */
+  OPVAL   Op;                      /* Equivalent operator number       */
+  int     R_Type;                  /* Result Type                      */
+  int     R_Length;                /* Result Length                    */
+  int     R_Prec;                  /* Result Precision                 */
+  int     Numarg;                  /* Number of arguments              */
+  } SFDSC, *PSFDSC;
+#endif // 0
+#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  Following definitions are used to define table fields (columns).   */

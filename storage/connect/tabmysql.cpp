@@ -527,8 +527,8 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g)
 
   strcat(strcat(strcat(strcat(Query, " FROM "), tk), Tabname), tk);
 
-  if (To_Filter)
-    strcat(strcat(Query, " WHERE "), To_Filter->Body);
+  if (To_CondFil)
+    strcat(strcat(Query, " WHERE "), To_CondFil->Body);
 
   if (trace)
     htrc("Query=%s\n", Query);
@@ -1395,11 +1395,11 @@ PCMD TDBMYEXC::MakeCMD(PGLOBAL g)
   {
   PCMD xcmd = NULL;
 
-  if (To_Filter) {
+  if (To_CondFil) {
     if (Cmdcol) {
-      if (!stricmp(Cmdcol, To_Filter->Body) &&
-          (To_Filter->Op == OP_EQ || To_Filter->Op == OP_IN)) {
-        xcmd = To_Filter->Cmds;
+      if (!stricmp(Cmdcol, To_CondFil->Body) &&
+          (To_CondFil->Op == OP_EQ || To_CondFil->Op == OP_IN)) {
+        xcmd = To_CondFil->Cmds;
       } else
         strcpy(g->Message, "Invalid command specification filter");
 

@@ -1,11 +1,11 @@
 /************* TabFix C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABFIX                                                */
 /* -------------                                                       */
-/*  Version 4.8                                                        */
+/*  Version 4.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -45,6 +45,10 @@
 #include "filamfix.h"
 #include "filamdbf.h"
 #include "tabfix.h"      // TDBFIX, FIXCOL classes declares
+#if defined(BLK_INDX)
+#include "array.h"
+#include "blkfil.h"
+#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -123,10 +127,52 @@ PCOL TDBFIX::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 /*  Remake the indexes after the table was modified.                   */
 /***********************************************************************/
-int TDBFIX::ResetTableOpt(PGLOBAL g, bool dox)
+int TDBFIX::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
   {
+#if defined(BLK_INDX)
+  int prc, rc = RC_OK;
+
+  To_Filter = NULL;                     // Disable filtering
+//To_BlkIdx = NULL;                     // and block filtering
+  To_BlkFil = NULL;                     // and index filtering
   RestoreNrec();                        // May have been modified
-  return TDBDOS::ResetTableOpt(g, dox);
+  MaxSize = -1;                        // Size must be recalculated
+  Cardinal = -1;                       // as well as Cardinality
+
+  if (dop) {
+    Columns = NULL;                     // Not used anymore
+    Txfp->Reset();
+//  OldBlk = CurBlk = -1;
+//  ReadBlks = CurNum = Rbuf = Modif = 0;
+    Use = USE_READY;                    // So the table can be reopened
+    Mode = MODE_ANY;                    // Just to be clean
+    rc = MakeBlockValues(g);            // Redo optimization
+    } // endif dop
+
+  if (dox && (rc == RC_OK || rc == RC_INFO)) {
+    // Remake eventual indexes
+    Columns = NULL;                     // Not used anymore
+    Txfp->Reset();                      // New start
+    Use = USE_READY;                    // So the table can be reopened
+    Mode = MODE_READ;                   // New mode
+    prc = rc;
+
+    if (!(PlgGetUser(g)->Check & CHK_OPT)) {
+      // After the table was modified the indexes
+      // are invalid and we should mark them as such...
+      rc = ((PDOSDEF)To_Def)->InvalidateIndex(g);
+    } else
+      // ... or we should remake them.
+      rc = MakeIndex(g, NULL, FALSE);
+
+    rc = (rc == RC_INFO) ? prc : rc;
+    } // endif dox
+
+  return rc;
+#else   // !BLK_INDX    
+  RestoreNrec();                        // May have been modified
+  return TDBDOS::ResetTableOpt(g, dop, dox);
+#endif  // !BLK_INDX
   } // end of ResetTableOpt
 
 /***********************************************************************/
@@ -163,8 +209,17 @@ int TDBFIX::Cardinality(PGLOBAL g)
 /***********************************************************************/
 int TDBFIX::GetMaxSize(PGLOBAL g)
   {
-  if (MaxSize < 0)
+  if (MaxSize < 0) {
     MaxSize = Cardinality(g);
+#if defined(BLK_INDX)
+    if (MaxSize > 0 && (To_BlkFil = InitBlockFilter(g, To_Filter))
+                    && !To_BlkFil->Correlated()) {
+      // Use BlockTest to reduce the estimated size
+      MaxSize = Txfp->MaxBlkSize(g, MaxSize);
+      ResetBlockFilter(g);
+      } // endif To_BlkFil
+#endif   // BLK_INDX
+    } // endif MaxSize
 
   return MaxSize;
   } // end of GetMaxSize
@@ -246,6 +301,9 @@ bool TDBFIX::OpenDB(PGLOBAL g)
     else
       Txfp->Rewind();       // see comment in Work.log
 
+#if defined(BLK_INDX)
+    ResetBlockFilter(g);
+#endif   // BLK_INDX
     return false;
     } // endif use
 
@@ -276,6 +334,13 @@ bool TDBFIX::OpenDB(PGLOBAL g)
   /*  Initialize To_Line at the beginning of the block buffer.         */
   /*********************************************************************/
   To_Line = Txfp->GetBuf();                       // For WriteDB
+
+#if defined(BLK_INDX)
+  /*********************************************************************/
+  /*  Allocate the block filter tree if evaluation is possible.        */
+  /*********************************************************************/
+  To_BlkFil = InitBlockFilter(g, To_Filter);
+#endif   // BLK_INDX
 
   if (trace)
     htrc("OpenDos: R%hd mode=%d\n", Tdb_No, Mode);

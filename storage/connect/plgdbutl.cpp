@@ -382,7 +382,9 @@ PDBUSER PlgMakeUser(PGLOBAL g)
 //#endif
 //dbuserp->Maxres = MAXRES;
 //dbuserp->Maxlin = MAXLIN;
-//dbuserp->Maxbmp = MAXBMP;
+#if defined(BLK_INDX)
+  dbuserp->Maxbmp = MAXBMP;
+#endif   // BLK_INDX
 //dbuserp->AlgChoice = AMOD_AUTO;
   dbuserp->UseTemp = TMP_AUTO;
   dbuserp->Check = CHK_ALL;

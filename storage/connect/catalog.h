@@ -44,6 +44,7 @@ typedef struct _colinfo {
   int    Precision;
   int    Scale;
   int    Opt;
+  int    Freq;
   char  *Remark;
   char  *Datefmt;
   char  *Fieldfmt;

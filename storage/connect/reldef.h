@@ -38,7 +38,7 @@ class DllExport RELDEF : public BLOCK {      // Relation definition block
   void    SetCat(PCATLG cat) { Cat=cat; }
 
   // Methods
-  virtual bool DeleteTableFile(PGLOBAL g) {return true;}
+//virtual bool DeleteTableFile(PGLOBAL g) {return true;}
   virtual bool Indexable(void) {return false;}
   virtual bool Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am) = 0;
   virtual PTDB GetTable(PGLOBAL g, MODE mode) = 0;
@@ -116,7 +116,7 @@ class DllExport OEMDEF : public TABDEF {                  /* OEM table */
   virtual AMT  GetDefType(void) {return TYPE_AM_OEM;}
 
   // Methods
-  virtual bool DeleteTableFile(PGLOBAL g);
+//virtual bool DeleteTableFile(PGLOBAL g);
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
 
@@ -148,6 +148,7 @@ class DllExport COLCRT : public BLOCK { /* Column description block             
   PSZ  GetDecode(void) {return Decode;}
   PSZ  GetFmt(void) {return Fmt;}
   int  GetOpt(void) {return Opt;}
+  int  GetFreq(void) {return Freq;}
   int  GetLong(void) {return Long;}
   int  GetPrecision(void) {return Precision;}
   int  GetOffset(void) {return Offset;}
@@ -165,6 +166,7 @@ class DllExport COLCRT : public BLOCK { /* Column description block             
   int     Precision;          /* Logical column length                 */
   int     Scale;              /* Decimals for float/decimal values     */
   int     Opt;                /* 0:Not 1:clustered 2:sorted-asc 3:desc */
+  int     Freq;               /* Estimated number of different values  */
   char    DataType;           /* Internal data type (C, N, F, T)       */
   }; // end of COLCRT
 
@@ -188,10 +190,36 @@ class DllExport COLDEF : public COLCRT { /* Column description block            
   int     GetClen(void) {return Clen;}
   int     GetType(void) {return Buf_Type;}
   int     GetPoff(void) {return Poff;}
+#if defined(BLK_INDX)
+  void   *GetMin(void) {return To_Min;}
+  void    SetMin(void *minp) {To_Min = minp;}
+  void   *GetMax(void) {return To_Max;}
+  void    SetMax(void *maxp) {To_Max = maxp;}
+  bool    GetXdb2(void) {return Xdb2;}
+  void    SetXdb2(bool b) {Xdb2 = b;}
+  void   *GetBmap(void) {return To_Bmap;}
+  void    SetBmap(void *bmp) {To_Bmap = bmp;}
+  void   *GetDval(void) {return To_Dval;}
+  void    SetDval(void *dvp) {To_Dval = dvp;}
+  int     GetNdv(void) {return Ndv;}
+  void    SetNdv(int ndv) {Ndv = ndv;}
+  int     GetNbm(void) {return Nbm;}
+  void    SetNbm(int nbm) {Nbm = nbm;}
+#endif   // BLK_INDX
   int     Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff);
   void    Define(PGLOBAL g, PCOL colp);
 
  protected:
+#if defined(BLK_INDX)
+  void   *To_Min;              /* Point to array of block min values   */
+  void   *To_Max;              /* Point to array of block max values   */
+  int    *To_Pos;              /* Point to array of block positions    */
+  bool    Xdb2;                /* TRUE if to be optimized by XDB2      */
+  void   *To_Bmap;             /* To array of block bitmap values      */
+  void   *To_Dval;             /* To array of column distinct values   */
+  int     Ndv;                 /* Number of distinct values            */
+  int     Nbm;                 /* Number of ULONG in bitmap (XDB2)     */
+#endif   // BLK_INDX
   int     Buf_Type;            /* Internal data type                   */
   int     Clen;                /* Internal data size in chars (bytes)  */
   int     Poff;                /* Calculated offset for Packed tables  */

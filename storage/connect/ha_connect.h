@@ -334,8 +334,11 @@ public:
    condition stack.
  */ 
 virtual const COND *cond_push(const COND *cond);
-PFIL  CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond);
+PCFIL CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond);
 const char *GetValStr(OPVAL vop, bool neg);
+#if defined(BLK_INDX)
+PFIL  CondFilter(PGLOBAL g, Item *cond);
+#endif   // BLK_INDX
 
  /**
    Number of rows in table. It will only be called if

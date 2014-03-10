@@ -68,7 +68,7 @@ class DllExport XOBJECT : public BLOCK {
   virtual bool   CheckLocal(PTDB) {return true;}
   virtual int    CheckSpcCol(PTDB, int) {return 2;}
   virtual bool   CheckSort(PTDB) {return false;}
-  virtual bool   VerifyColumn(PTBX txp) {return false;}
+  virtual bool   VerifyColumn(PTDB txp) {return false;}
   virtual bool   VerifyTdb(PTDB& tdbp) {return false;}
   virtual bool   IsColInside(PCOL colp) {return false;}
 
@@ -123,10 +123,12 @@ class DllExport CONSTANT : public XOBJECT {
   virtual bool   SetFormat(PGLOBAL g, FORMAT& fmt)
                  {return Value->SetConstFormat(g, fmt);}
   virtual int    CheckSpcCol(PTDB, int) {return 1;}
-//        void   Convert(PGLOBAL g, int newtype);
+#if defined(BLK_INDX)
+          void   Convert(PGLOBAL g, int newtype);
+#endif   // BLK_INDX
 //        bool   Rephrase(PGLOBAL g, PSZ work);
           void   SetValue(PVAL vp) {Value = vp;}
-  virtual bool   VerifyColumn(PTBX txp) {return true;}
+  virtual bool   VerifyColumn(PTDB txp) {return true;}
   virtual bool   VerifyTdb(PTDB& tdbp) {return true;}
   virtual void   Print(PGLOBAL g, FILE *, uint);
   virtual void   Print(PGLOBAL g, char *, uint);

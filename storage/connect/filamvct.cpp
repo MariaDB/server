@@ -1,11 +1,11 @@
 /*********** File AM Vct C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMVCT                                              */
 /* -------------                                                       */
-/*  Version 2.4                                                        */
+/*  Version 2.5                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -249,13 +249,20 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
 /***********************************************************************/
 int VCTFAM::MaxBlkSize(PGLOBAL g, int s)
   {
-  int  savcur = CurBlk;
+  int rc = RC_OK, savcur = CurBlk;
   int size;
 
   // Roughly estimate the table size as the sum of blocks
   // that can contain good rows
   for (size = 0, CurBlk = 0; CurBlk < Block; CurBlk++)
+#if defined(BLK_INDX)
+    if ((rc = Tdbp->TestBlock(g)) == RC_OK)
+      size += (CurBlk == Block - 1) ? Last : Nrec;
+    else if (rc == RC_EF)
+      break;
+#else   // !BLK_INDX
     size += (CurBlk == Block - 1) ? Last : Nrec;
+#endif  // !BLK_INDX
 
   CurBlk = savcur;
   return size;
@@ -572,8 +579,24 @@ int VCTFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     CurNum = 0;
 
+#if defined(BLK_INDX)
+   next:
+#endif   // BLK_INDX
     if (++CurBlk == Block)
       return RC_EF;                        // End of file
+
+#if defined(BLK_INDX)
+    /*******************************************************************/
+    /*  Before reading a new block, check whether block optimizing     */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        goto next;
+      } // endswitch rc
+#endif   // BLK_INDX
 
     num_there++;
     } // endif CurNum

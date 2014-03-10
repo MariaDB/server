@@ -37,7 +37,7 @@ class DllExport VCTDEF : public DOSDEF {  /* Logical table description */
 
  protected:
   // Specific file erase routine for vertical tables
-  virtual bool Erase(char *filename);
+//virtual bool Erase(char *filename);
           int  MakeFnPattern(char *fpat);
 
   // Members

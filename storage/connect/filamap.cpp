@@ -1,11 +1,11 @@
 /*********** File AM Map C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMAP                                               */
 /* -------------                                                       */
-/*  Version 1.4                                                        */
+/*  Version 1.5                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -322,8 +322,30 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     /*  Record file position in case of UPDATE or DELETE.              */
     /*******************************************************************/
-    Fpos = Mempos;
-    CurBlk = (int)Rows++;
+#if defined(BLK_INDX)
+    int rc;
+
+   next:
+#endif   // BLK_INDX
+		Fpos = Mempos;
+		CurBlk = (int)Rows++;
+
+#if defined(BLK_INDX)
+    /*******************************************************************/
+    /*  Check whether optimization on ROWID                            */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        // Skip this record
+        if ((rc = SkipRecord(g, FALSE)) != RC_OK)
+          return rc;
+
+        goto next;
+      } // endswitch rc
+#endif   // BLK_INDX
   } else
     Placed = false;
 
@@ -491,7 +513,11 @@ MBKFAM::MBKFAM(PDOSDEF tdp) : MAPFAM(tdp)
   Block = tdp->GetBlock();
   Last = tdp->GetLast();
   Nrec = tdp->GetElemt();
+#if defined(BLK_INDX)
   BlkPos = tdp->GetTo_Pos();
+#else   // !BLK_INDX
+  BlkPos = NULL;
+#endif  // !BLK_INDX
   CurNum = Nrec;
   } // end of MBKFAM standard constructor
 
@@ -537,6 +563,7 @@ int MBKFAM::GetRowID(void)
 /***********************************************************************/
 int MBKFAM::ReadBuffer(PGLOBAL g)
   {
+#if defined(BLK_INDX)
   int len;
 
   /*********************************************************************/
@@ -554,9 +581,21 @@ int MBKFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     CurNum = 0;                                                       
                                                                        
+   next:
     if (++CurBlk >= Block)                                           
       return RC_EF;                                                   
                                                                        
+    /*******************************************************************/
+    /*  Before reading a new block, check whether block optimization   */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        goto next;
+      } // endswitch rc
+	  
     Fpos = Mempos = Memory + BlkPos[CurBlk];
   } // endif's
 
@@ -568,6 +607,10 @@ int MBKFAM::ReadBuffer(PGLOBAL g)
   memcpy(Tdbp->GetLine(), Fpos, len);
   Tdbp->GetLine()[len] = '\0';
   return RC_OK;
+#else   // !BLK_POS
+  strcpy(g->Message, "This AM cannot be used in this version");
+  return RC_FX;
+#endif  // !BLK_POS
   } // end of ReadBuffer
 
 /***********************************************************************/
@@ -657,10 +700,26 @@ int MPXFAM::ReadBuffer(PGLOBAL g)
     /*  New block.                                                     */
     /*******************************************************************/
     CurNum = 0;                                                       
-                                                                       
+
+#if defined(BLK_INDX)
+   next:
+#endif   // BLK_INDX
     if (++CurBlk >= Block)                                           
       return RC_EF;                                                   
                                                                        
+#if defined(BLK_INDX)
+    /*******************************************************************/
+    /*  Before reading a new block, check whether block optimization   */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        goto next;
+      } // endswitch rc
+#endif   // BLK_INDX
+
     Fpos = Mempos = Headlen + Memory + CurBlk * Blksize;
   } // endif's
 

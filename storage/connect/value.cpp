@@ -83,12 +83,41 @@ int DTVAL::Shift = 0;
 /*  Routines called externally.                                        */
 /***********************************************************************/
 bool PlugEvalLike(PGLOBAL, LPCSTR, LPCSTR, bool);
+
 #if !defined(WIN32)
 extern "C" {
 PSZ strupr(PSZ s);
 PSZ strlwr(PSZ s);
 }
 #endif   // !WIN32
+
+#if defined(BLK_INDX)
+/***********************************************************************/
+/*  Returns the bitmap representing the conditions that must not be    */
+/*  met when returning from TestValue for a given operator.            */
+/*  Bit one is EQ, bit 2 is LT, and bit 3 is GT.                       */
+/***********************************************************************/
+BYTE OpBmp(PGLOBAL g, OPVAL opc)
+  {
+  BYTE bt;
+
+  switch (opc) {
+    case OP_IN:
+    case OP_EQ: bt = 0x06; break;
+    case OP_NE: bt = 0x01; break;
+    case OP_GT: bt = 0x03; break;
+    case OP_GE: bt = 0x02; break;
+    case OP_LT: bt = 0x05; break;
+    case OP_LE: bt = 0x04; break;
+    case OP_EXIST: bt = 0x00; break;
+    default:
+      sprintf(g->Message, MSG(BAD_FILTER_OP), opc);
+      longjmp(g->jumper[g->jump_level], TYPE_ARRAY);
+    } // endswitch opc
+
+  return bt;
+  } // end of OpBmp
+#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  Get a long long number from its character representation.          */
@@ -277,7 +306,7 @@ const char *GetFmt(int type, bool un)
   return fmt;
   } // end of GetFmt
 
-#if 0
+#if defined(BLK_INDX)
 /***********************************************************************/
 /*  ConvertType: what this function does is to determine the type to   */
 /*  which should be converted a value so no precision would be lost.   */
@@ -324,7 +353,7 @@ int ConvertType(int target, int type, CONV kind, bool match)
     } // endswitch kind
 
   } // end of ConvertType
-#endif // 0
+#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  AllocateConstant: allocates a constant Value.                      */
@@ -422,7 +451,7 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
   return valp;
   } // end of AllocateValue
 
-#if 0
+#if defined(BLK_INDX)
 /***********************************************************************/
 /*  Allocate a constant Value converted to newtype.                    */
 /*  Can also be used to copy a Value eventually converted.             */
@@ -490,7 +519,7 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
   valp->SetGlobal(g);
   return valp;
   } // end of AllocateValue
-#endif // 0
+#endif   // BLK_INDX
 
 /* -------------------------- Class VALUE ---------------------------- */
 
@@ -526,6 +555,20 @@ const char *VALUE::GetXfmt(void)
 
   return fmt;
   } // end of GetFmt
+
+#if defined(BLK_INDX)
+/***********************************************************************/
+/*  Returns a BYTE indicating the comparison between two values.       */
+/*  Bit 1 indicates equality, Bit 2 less than, and Bit3 greater than.  */
+/*  More than 1 bit can be set only in the case of TYPE_LIST.          */
+/***********************************************************************/
+BYTE VALUE::TestValue(PVAL vp)
+  {
+  int n = CompareValue(vp);
+
+  return (n > 0) ? 0x04 : (n < 0) ? 0x02 : 0x01;
+  } // end of TestValue
+#endif   // BLK_INDX
 
 /* -------------------------- Class TYPVAL ---------------------------- */
 
@@ -896,6 +939,26 @@ bool TYPVAL<TYPE>::IsEqual(PVAL vp, bool chktype)
     return (Tval == GetTypedValue(vp));
 
   } // end of IsEqual
+
+#if defined(BLK_INDX)
+/***********************************************************************/
+/*  Compare values and returns 1, 0 or -1 according to comparison.     */
+/*  This function is used for evaluation of numeric filters.           */
+/***********************************************************************/
+template <class TYPE>
+int TYPVAL<TYPE>::CompareValue(PVAL vp)
+  {
+//assert(vp->GetType() == Type);
+
+  // Process filtering on numeric values.
+  TYPE n = GetTypedValue(vp);
+
+//if (trace)
+//	htrc(" Comparing: val=%d,%d\n", Tval, n);
+
+  return (Tval > n) ? 1 : (Tval < n) ? (-1) : 0;
+  } // end of CompareValue
+#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
@@ -1347,6 +1410,34 @@ bool TYPVAL<PSZ>::IsEqual(PVAL vp, bool chktype)
 
   } // end of IsEqual
 
+#if defined(BLK_INDX)
+/***********************************************************************/
+/*  Compare values and returns 1, 0 or -1 according to comparison.     */
+/*  This function is used for evaluation of numeric filters.           */
+/***********************************************************************/
+int TYPVAL<PSZ>::CompareValue(PVAL vp)
+  {
+  int n;
+//assert(vp->GetType() == Type);
+
+	if (trace)
+		htrc(" Comparing: val='%s','%s'\n", Strp, vp->GetCharValue());
+
+  // Process filtering on character strings.
+  if (Ci || vp->IsCi())
+	  n = stricmp(Strp, vp->GetCharValue());
+	else
+	  n = strcmp(Strp, vp->GetCharValue());
+
+#if defined(WIN32)
+  if (n == _NLSCMPERROR)
+    return n;                        // Here we should raise an error
+#endif   // WIN32
+
+  return (n > 0) ? 1 : (n < 0) ? -1 : 0;
+  } // end of CompareValue
+#endif   // BLK_INDX
+
 /***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
 /*  constructed from its own value formated using the fmt format.      */
@@ -1572,6 +1663,25 @@ bool DECVAL::IsEqual(PVAL vp, bool chktype)
 
   return !strcmp(Strp, vp->GetCharString(buf));
   } // end of IsEqual
+
+#if defined(BLK_INDX)
+/***********************************************************************/
+/*  Compare values and returns 1, 0 or -1 according to comparison.     */
+/*  This function is used for evaluation of numeric filters.           */
+/***********************************************************************/
+int DECVAL::CompareValue(PVAL vp)
+  {
+//assert(vp->GetType() == Type);
+
+  // Process filtering on numeric values.
+  double f = atof(Strp), n = vp->GetFloatValue();
+
+//if (trace)
+//	htrc(" Comparing: val=%d,%d\n", f, n);
+
+  return (f > n) ? 1 : (f < n) ? (-1) : 0;
+  } // end of CompareValue
+#endif   // BLK_INDX
 
 #if 0
 /***********************************************************************/

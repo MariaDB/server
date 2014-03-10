@@ -87,7 +87,7 @@ class DllExport TDBTBL : public TDBPRX {
  protected:
   // Internal functions
   bool  InitTableList(PGLOBAL g);
-  bool  TestFil(PGLOBAL g, PFIL filp, PTABLE tabp);
+  bool  TestFil(PGLOBAL g, PCFIL filp, PTABLE tabp);
 
   // Members
   PTABLE  Tablist;              // Points to the table list
@@ -152,7 +152,7 @@ class DllExport TDBTBM : public TDBTBL {
  protected:
   // Internal functions
 //bool  InitTableList(PGLOBAL g);
-//bool  TestFil(PGLOBAL g, PFIL filp, PTABLE tabp);
+//bool  TestFil(PGLOBAL g, PCFIL filp, PTABLE tabp);
   bool  OpenTables(PGLOBAL g);
   int   ReadNextRemote(PGLOBAL g);
 

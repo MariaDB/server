@@ -46,8 +46,10 @@ DllExport char *GetFormatType(int);
 DllExport int   GetFormatType(char);
 DllExport bool  IsTypeChar(int type);
 DllExport bool  IsTypeNum(int type);
-//lExport int   ConvertType(int, int, CONV, bool match = false);
-//lExport PVAL  AllocateValue(PGLOBAL, PVAL, int = TYPE_VOID, int = 0);
+#if defined(BLK_INDX)
+DllExport int   ConvertType(int, int, CONV, bool match = false);
+DllExport PVAL  AllocateValue(PGLOBAL, PVAL, int = TYPE_VOID, int = 0);
+#endif   // BLK_INDX
 DllExport PVAL  AllocateValue(PGLOBAL, int, int len = 0, int prec = 0,
                               bool uns = false, PSZ fmt = NULL);
 DllExport ulonglong CharToNumber(char *, int, ulonglong, bool, 
@@ -95,6 +97,11 @@ class DllExport VALUE : public BLOCK {
   virtual bool   SetValue_pval(PVAL valp, bool chktype = false) = 0;
   virtual bool   SetValue_char(char *p, int n) = 0;
   virtual void   SetValue_psz(PSZ s) = 0;
+#if defined(BLK_INDX)
+  virtual void   SetValue_bool(bool b) {assert(FALSE);}
+  virtual int    CompareValue(PVAL vp) = 0;
+  virtual BYTE   TestValue(PVAL vp);
+#endif   // BLK_INDX
   virtual void   SetValue(char c) {assert(false);}
   virtual void   SetValue(uchar c) {assert(false);}
   virtual void   SetValue(short i) {assert(false);}
@@ -163,6 +170,10 @@ class DllExport TYPVAL : public VALUE {
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
   virtual bool   SetValue_char(char *p, int n);
   virtual void   SetValue_psz(PSZ s);
+#if defined(BLK_INDX)
+  virtual void   SetValue_bool(bool b) {Tval = (b) ? 1 : 0;}
+  virtual int    CompareValue(PVAL vp);
+#endif   // BLK_INDX
   virtual void   SetValue(char c) {Tval = (TYPE)c; Null = false;}
   virtual void   SetValue(uchar c) {Tval = (TYPE)c; Null = false;}
   virtual void   SetValue(short i) {Tval = (TYPE)i; Null = false;}
@@ -242,6 +253,9 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual void   SetValue(ulonglong n);
   virtual void   SetValue(double f);
   virtual void   SetBinValue(void *p);
+#if defined(BLK_INDX)
+  virtual int    CompareValue(PVAL vp);
+#endif   // BLK_INDX
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
@@ -280,6 +294,9 @@ class DllExport DECVAL: public TYPVAL<PSZ> {
   virtual char  *ShowValue(char *buf, int);
 //virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);
+#if defined(BLK_INDX)
+  virtual int    CompareValue(PVAL vp);
+#endif   // BLK_INDX
 //virtual bool   FormatValue(PVAL vp, char *fmt);
 //virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
 

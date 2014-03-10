@@ -36,27 +36,6 @@ extern "C" int trace;       // The general trace value
 void NewPointer(PTABS, void *, void *);
 void AddPointer(PTABS, void *);
 
-/* ---------------------------- class TBX ---------------------------- */
-
-/***********************************************************************/
-/*  TBX public constructors.                                           */
-/***********************************************************************/
-TBX::TBX(void)
-  {
-  Use = USE_NO;
-  To_Orig = NULL;
-  To_Filter = NULL;
-  } // end of TBX constructor
-
-TBX::TBX(PTBX txp)
-  {
-  Use = txp->Use;
-  To_Orig = txp;
-  To_Filter = NULL;
-  } // end of TBX copy constructor
-
-// Methods
-
 /* ---------------------------- class TDB ---------------------------- */
 
 /***********************************************************************/
@@ -64,6 +43,12 @@ TBX::TBX(PTBX txp)
 /***********************************************************************/
 TDB::TDB(PTABDEF tdp) : Tdb_No(++Tnum)
   {
+  Use = USE_NO;
+  To_Orig = NULL;
+#if defined(BLK_INDX)
+  To_Filter = NULL;
+#endif   // BLK_FILTER
+  To_CondFil = NULL;
   Next = NULL;
   Name = (tdp) ? tdp->GetName() : NULL;
   To_Table = NULL;
@@ -72,8 +57,14 @@ TDB::TDB(PTABDEF tdp) : Tdb_No(++Tnum)
   Mode = MODE_READ;
   } // end of TDB standard constructor
 
-TDB::TDB(PTDB tdbp) : TBX(tdbp), Tdb_No(++Tnum)
+TDB::TDB(PTDB tdbp) : Tdb_No(++Tnum)
   {
+  Use = tdbp->Use;
+  To_Orig = tdbp;
+#if defined(BLK_INDX)
+  To_Filter = NULL;
+#endif   // BLK_FILTER
+  To_CondFil = NULL;
   Next = NULL;
   Name = tdbp->Name;
   To_Table = tdbp->To_Table;
@@ -179,7 +170,7 @@ int TDB::RowNumber(PGLOBAL g, bool b)
   return 0;
   } // end of RowNumber
 
-PTBX TDB::Copy(PTABS t)
+PTDB TDB::Copy(PTABS t)
   {
   PTDB    tp, tdb1, tdb2 = NULL, outp = NULL;
 //PGLOBAL g = t->G;        // Is this really useful ???
@@ -398,7 +389,7 @@ PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
 /***********************************************************************/
 /*  ResetTableOpt: Wrong for this table type.                          */
 /***********************************************************************/
-int TDBASE::ResetTableOpt(PGLOBAL g, bool dox)
+int TDBASE::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
 {
   strcpy(g->Message, "This table is not indexable");
   return RC_INFO;

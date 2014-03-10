@@ -459,9 +459,12 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
       if (Compressed == 1)
         txfp = new(g) ZIPFAM(this);
       else {
+#if defined(BLK_INDX)
+        txfp = new(g) ZLBFAM(this);
+#else   // !BLK_INDX
         strcpy(g->Message, "Compress 2 not supported yet");
-//      txfp = new(g) ZLBFAM(defp);
         return NULL;
+#endif  // !BLK_INDX
         } // endelse
 #else   // !ZIP_SUPPORT
         strcpy(g->Message, "Compress not supported");
@@ -1272,6 +1275,7 @@ CSVCOL::CSVCOL(CSVCOL *col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   Fldnum = col1->Fldnum;
   } // end of CSVCOL copy constructor
 
+#if defined(BLK_INDX)
 /***********************************************************************/
 /*  VarSize: This function tells UpdateDB whether or not the block     */
 /*  optimization file must be redone if this column is updated, even   */
@@ -1290,6 +1294,7 @@ bool CSVCOL::VarSize(void)
     return false;
 
   } // end VarSize
+#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  ReadColumn: call DOSCOL::ReadColumn after having set the offet     */

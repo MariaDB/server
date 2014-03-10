@@ -112,7 +112,9 @@ class CSVCOL : public DOSCOL {
   virtual int    GetAmType() {return TYPE_AM_CSV;}
 
   // Methods
+#if defined(BLK_INDX)
   virtual bool   VarSize(void);
+#endif   // BLK_INDX
   virtual void   ReadColumn(PGLOBAL g);
   virtual void   WriteColumn(PGLOBAL g);
 //        void   Print(FILE *, uint);

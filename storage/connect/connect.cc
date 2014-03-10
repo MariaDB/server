@@ -433,7 +433,7 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool mrr)
 /***********************************************************************/
 /*  ReadNext: Read next record sequentially.                           */
 /***********************************************************************/
-RCODE  CntReadNext(PGLOBAL g, PTDB tdbp)
+RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
   {
   RCODE rc;
 
@@ -449,8 +449,21 @@ RCODE  CntReadNext(PGLOBAL g, PTDB tdbp)
     ((PTDBASE)tdbp)->SetKindex(NULL);
     } // endif index
 
+  // Save stack and allocation environment and prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return RC_FX;
+    } // endif jump_level
+
+  if ((setjmp(g->jumper[++g->jump_level])) != 0) {
+    rc= RC_FX;
+    goto err;
+    } // endif rc
+
   while ((rc= (RCODE)tdbp->ReadDB(g)) == RC_NF) ;
-  
+
+ err:
+  g->jump_level--;
   return (rc != RC_OK) ? rc : EvalColumns(g, tdbp);
   } // end of CntReadNext
 
@@ -578,7 +591,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
   tbxp= (TDBDOX*)tdbp;
   tbxp->SetKindex(NULL);
   tbxp->To_Key_Col= NULL;
-  rc= tbxp->ResetTableOpt(g, ((PTDBASE)tdbp)->GetDef()->Indexable());
+  rc= tbxp->ResetTableOpt(g, false, ((PTDBASE)tdbp)->GetDef()->Indexable());
 
  err:
   if (xtrace > 1)

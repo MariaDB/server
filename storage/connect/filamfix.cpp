@@ -1,11 +1,11 @@
 /*********** File AM Fix C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMFIX                                              */
 /* -------------                                                       */
-/*  Version 1.4                                                        */
+/*  Version 1.5                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -168,9 +168,24 @@ int FIXFAM::ReadBuffer(PGLOBAL g)
       CurNum = 0;
       Tdbp->SetLine(To_Buf);
 
+#if defined(BLK_INDX)
+   next:
+#endif   // BLK_INDX
       if (++CurBlk >= Block)
         return RC_EF;
 
+#if defined(BLK_INDX)
+      /*****************************************************************/
+      /*  Before reading a new block, check whether block indexing     */
+      /*  can be done, as well as for join as for local filtering.     */
+      /*****************************************************************/
+      switch (Tdbp->TestBlock(g)) {
+        case RC_EF:
+          return RC_EF;
+        case RC_NF:
+          goto next;
+        } // endswitch rc
+#endif   // BLK_INDX
      } // endif's
 
     if (OldBlk == CurBlk) {
@@ -1028,9 +1043,24 @@ int BGXFAM::ReadBuffer(PGLOBAL g)
       CurNum = 0;
       Tdbp->SetLine(To_Buf);
 
+#if defined(BLK_INDX)
+     next:
+#endif   // BLK_INDX
       if (++CurBlk >= Block)
         return RC_EF;
 
+#if defined(BLK_INDX)
+      /*****************************************************************/
+      /*  Before reading a new block, check whether block optimization */
+      /*  can be done, as well as for join as for local filtering.     */
+      /*****************************************************************/
+      switch (Tdbp->TestBlock(g)) {
+        case RC_EF:
+          return RC_EF;
+        case RC_NF:
+          goto next;
+        } // endswitch rc
+#endif   // BLK_INDX
      } // endif's
 
     if (OldBlk == CurBlk) {
