@@ -147,9 +147,6 @@ bool user_connect::CheckCleanup(void)
     g->Xchk = NULL;
     g->Createas = 0;
     g->Alchecked = 0;
-#if defined(MRRBKA_SUPPORT)
-    g->Mrr = 0;
-#endif   // MRRBKA_SUPPORT
     last_query_id= thdp->query_id;
 
     if (xtrace)

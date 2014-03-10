@@ -85,8 +85,6 @@ class DllExport COLUMN: public XOBJECT {  // Column Name/Qualifier block.
   virtual bool   Compare(PXOB) {assert(false); return false;}
   virtual bool   SetFormat(PGLOBAL, FORMAT&);
   virtual bool   Eval(PGLOBAL) {assert(false); return true;}
-  virtual int    CheckSpcCol(PTDB, int) {assert(false); return 2;}
-  virtual bool   CheckSort(PTDB) {assert(false); return false;}
 
  private:
   // Members

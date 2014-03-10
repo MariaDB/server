@@ -87,7 +87,7 @@ class DllExport TDBTBL : public TDBPRX {
  protected:
   // Internal functions
   bool  InitTableList(PGLOBAL g);
-  bool  TestFil(PGLOBAL g, PFIL filp, PTABLE tabp);
+  bool  TestFil(PGLOBAL g, PCFIL filp, PTABLE tabp);
 
   // Members
   PTABLE  Tablist;              // Points to the table list
@@ -133,26 +133,17 @@ class DllExport TDBTBM : public TDBTBL {
   // Constructor
   TDBTBM(PTBLDEF tdp = NULL);
 
-  // Implementation
-//virtual AMT  GetAmType(void) {return TYPE_AM_TBL;}
-
   // Methods
   virtual void ResetDB(void);
-//virtual int  GetRecpos(void) {return Rows;}
-//virtual int  GetBadLines(void) {return (int)Nbc;}
 
   // Database routines
-//virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual int  GetMaxSize(PGLOBAL g) {return 10;} // Temporary
   virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
-//virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL scp);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
 
  protected:
   // Internal functions
-//bool  InitTableList(PGLOBAL g);
-//bool  TestFil(PGLOBAL g, PFIL filp, PTABLE tabp);
   bool  OpenTables(PGLOBAL g);
   int   ReadNextRemote(PGLOBAL g);
 
@@ -164,6 +155,5 @@ class DllExport TDBTBM : public TDBTBL {
   int   Nrc;                  // Number of remote connections
   int   Nlc;                  // Number of local connections
   }; // end of class TDBTBM
-
 
 pthread_handler_t ThreadOpen(void *p);

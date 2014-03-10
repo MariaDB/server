@@ -68,7 +68,6 @@ class TDBOCCUR : public TDBPRX {
 
  protected:
   // Members
-//PTDBASE   Tdbp;										// To the source table or view
   LPCSTR    Tabname;								// Name of source table
 	char     *Colist;                 // Source column list
 	char     *Xcolumn;								// Occurence column name

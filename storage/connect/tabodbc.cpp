@@ -408,7 +408,7 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
 
   // Below 14 is length of 'select ' + length of ' from ' + 1
   len = (strlen(colist) + strlen(buf) + 14);
-  len += (To_Filter ? strlen(To_Filter->Body) + 7 : 0);
+  len += (To_CondFil ? strlen(To_CondFil->Body) + 7 : 0);
 
   if (Catalog && *Catalog)
     catp = Catalog;
@@ -441,8 +441,8 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
 
   strcat(sql, tabname);
 
-  if (To_Filter)
-    strcat(strcat(sql, " WHERE "), To_Filter->Body);
+  if (To_CondFil)
+    strcat(strcat(sql, " WHERE "), To_CondFil->Body);
 
   return sql;
   } // end of MakeSQL
@@ -1229,11 +1229,11 @@ PCMD TDBXDBC::MakeCMD(PGLOBAL g)
   {
   PCMD xcmd = NULL;
 
-  if (To_Filter) {
+  if (To_CondFil) {
     if (Cmdcol) {
-      if (!stricmp(Cmdcol, To_Filter->Body) &&
-          (To_Filter->Op == OP_EQ || To_Filter->Op == OP_IN)) {
-        xcmd = To_Filter->Cmds;
+      if (!stricmp(Cmdcol, To_CondFil->Body) &&
+          (To_CondFil->Op == OP_EQ || To_CondFil->Op == OP_IN)) {
+        xcmd = To_CondFil->Cmds;
       } else
         strcpy(g->Message, "Invalid command specification filter");
 

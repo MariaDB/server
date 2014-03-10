@@ -83,6 +83,7 @@ int DTVAL::Shift = 0;
 /*  Routines called externally.                                        */
 /***********************************************************************/
 bool PlugEvalLike(PGLOBAL, LPCSTR, LPCSTR, bool);
+
 #if !defined(WIN32)
 extern "C" {
 PSZ strupr(PSZ s);
@@ -277,55 +278,6 @@ const char *GetFmt(int type, bool un)
   return fmt;
   } // end of GetFmt
 
-#if 0
-/***********************************************************************/
-/*  ConvertType: what this function does is to determine the type to   */
-/*  which should be converted a value so no precision would be lost.   */
-/*  This can be a numeric type if num is true or non numeric if false. */
-/*  Note: this is an ultra simplified version of this function that    */
-/*  should become more and more complex as new types are added.        */
-/*  Not evaluated types (TYPE_VOID or TYPE_UNDEF) return false from    */
-/*  IsType... functions so match does not prevent correct setting.     */
-/***********************************************************************/
-int ConvertType(int target, int type, CONV kind, bool match)
-  {
-  switch (kind) {
-    case CNV_CHAR:
-      if (match && (!IsTypeChar(target) || !IsTypeChar(type)))
-        return TYPE_ERROR;
-
-      return TYPE_STRING;
-    case CNV_NUM:
-      if (match && (!IsTypeNum(target) || !IsTypeNum(type)))
-        return TYPE_ERROR;
-
-      return (target == TYPE_DOUBLE || type == TYPE_DOUBLE) ? TYPE_DOUBLE
-           : (target == TYPE_DATE   || type == TYPE_DATE)   ? TYPE_DATE
-           : (target == TYPE_BIGINT || type == TYPE_BIGINT) ? TYPE_BIGINT
-           : (target == TYPE_INT    || type == TYPE_INT)    ? TYPE_INT
-           : (target == TYPE_SHORT  || type == TYPE_SHORT)  ? TYPE_SHORT
-                                                            : TYPE_TINY;
-    default:
-      if (target == TYPE_ERROR || target == type)
-        return type;
-
-      if (match && ((IsTypeChar(target) && !IsTypeChar(type)) ||
-                    (IsTypeNum(target) && !IsTypeNum(type))))
-        return TYPE_ERROR;
-
-      return (target == TYPE_DOUBLE || type == TYPE_DOUBLE) ? TYPE_DOUBLE
-           : (target == TYPE_DATE   || type == TYPE_DATE)   ? TYPE_DATE
-           : (target == TYPE_BIGINT || type == TYPE_BIGINT) ? TYPE_BIGINT
-           : (target == TYPE_INT    || type == TYPE_INT)    ? TYPE_INT
-           : (target == TYPE_SHORT  || type == TYPE_SHORT)  ? TYPE_SHORT
-           : (target == TYPE_STRING || type == TYPE_STRING) ? TYPE_STRING
-           : (target == TYPE_TINY   || type == TYPE_TINY)   ? TYPE_TINY
-                                                            : TYPE_ERROR;
-    } // endswitch kind
-
-  } // end of ConvertType
-#endif // 0
-
 /***********************************************************************/
 /*  AllocateConstant: allocates a constant Value.                      */
 /***********************************************************************/
@@ -421,76 +373,6 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
   valp->SetGlobal(g);
   return valp;
   } // end of AllocateValue
-
-#if 0
-/***********************************************************************/
-/*  Allocate a constant Value converted to newtype.                    */
-/*  Can also be used to copy a Value eventually converted.             */
-/***********************************************************************/
-PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
-  {
-  PSZ  p, sp;
-  bool un = (uns < 0) ? false : (uns > 0) ? true : valp->IsUnsigned();
-
-  if (newtype == TYPE_VOID)  // Means allocate a value of the same type
-    newtype = valp->GetType();
-
-  switch (newtype) {
-    case TYPE_STRING:
-      p = (PSZ)PlugSubAlloc(g, NULL, 1 + valp->GetValLen());
-
-      if ((sp = valp->GetCharString(p)) != p)
-        strcpy (p, sp);
-
-      valp = new(g) TYPVAL<PSZ>(g, p, valp->GetValLen(), valp->GetValPrec());
-      break;
-    case TYPE_SHORT:
-      if (un)
-        valp = new(g) TYPVAL<ushort>(valp->GetUShortValue(), 
-                                     TYPE_SHORT, 0, true);
-      else
-        valp = new(g) TYPVAL<short>(valp->GetShortValue(), TYPE_SHORT);
-
-      break;
-    case TYPE_INT: 
-      if (un)
-        valp = new(g) TYPVAL<uint>(valp->GetUIntValue(), TYPE_INT, 0, true);
-      else
-        valp = new(g) TYPVAL<int>(valp->GetIntValue(), TYPE_INT);
-
-      break;
-    case TYPE_BIGINT: 
-      if (un)
-        valp = new(g) TYPVAL<ulonglong>(valp->GetUBigintValue(), 
-                                        TYPE_BIGINT, 0, true);
-      else
-        valp = new(g) TYPVAL<longlong>(valp->GetBigintValue(), TYPE_BIGINT);
-
-      break;
-    case TYPE_DATE:
-      valp = new(g) DTVAL(g, valp->GetIntValue());
-      break;
-    case TYPE_DOUBLE:
-      valp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_DOUBLE,
-                                   valp->GetValPrec());
-      break;
-    case TYPE_TINY:  
-      if (un)
-        valp = new(g) TYPVAL<uchar>(valp->GetUTinyValue(), 
-                                    TYPE_TINY, 0, true);
-      else
-        valp = new(g) TYPVAL<char>(valp->GetTinyValue(), TYPE_TINY);
-
-      break;
-    default:
-      sprintf(g->Message, MSG(BAD_VALUE_TYPE), newtype);
-      return NULL;
-    } // endswitch type
-
-  valp->SetGlobal(g);
-  return valp;
-  } // end of AllocateValue
-#endif // 0
 
 /* -------------------------- Class VALUE ---------------------------- */
 

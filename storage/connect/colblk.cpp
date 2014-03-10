@@ -36,7 +36,6 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
   if ((Cdp = cdp)) {
     Name = cdp->Name;
     Format = cdp->F;
-    Opt = cdp->Opt;
     Long = cdp->Long;
     Precision = cdp->Precision;
     Buf_Type = cdp->Buf_Type;
@@ -46,7 +45,6 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
   } else {
     Name = NULL;
     memset(&Format, 0, sizeof(FORMAT));
-    Opt = 0;
     Long = 0;
     Precision = 0;
     Buf_Type = TYPE_ERROR;
@@ -123,14 +121,6 @@ bool COLBLK::SetFormat(PGLOBAL g, FORMAT& fmt)
   } // end of SetFormat
 
 /***********************************************************************/
-/*  CheckColumn:  a column descriptor is found, say it by returning 1. */
-/***********************************************************************/
-int COLBLK::CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &p, int &ag)
-  {
-  return 1;
-  } // end of CheckColumn
-
-/***********************************************************************/
 /*  Eval:  get the column value from the last read record or from a    */
 /*  matching Index column if there is one.                             */
 /***********************************************************************/
@@ -153,15 +143,6 @@ bool COLBLK::Eval(PGLOBAL g)
 
   return false;
   } // end of Eval
-
-/***********************************************************************/
-/*  CheckSort:                                                         */
-/*  Used to check that a table is involved in the sort list items.     */
-/***********************************************************************/
-bool COLBLK::CheckSort(PTDB tdbp)
-  {
-  return (tdbp == To_Tdb);
-  } // end of CheckSort
 
 /***********************************************************************/
 /*  InitValue: prepare a column block for read operation.              */

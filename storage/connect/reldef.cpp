@@ -204,6 +204,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   return xdefp;
   } // end of GetXdef
 
+#if 0
 /***********************************************************************/
 /*  DeleteTableFile: Delete an OEM table file if applicable.           */
 /***********************************************************************/
@@ -214,6 +215,7 @@ bool OEMDEF::DeleteTableFile(PGLOBAL g)
 
   return (Pxdef) ? Pxdef->DeleteTableFile(g) : true;
   } // end of DeleteTableFile
+#endif // 0
 
 /***********************************************************************/
 /*  Define: initialize the table definition block from XDB file.       */
@@ -286,7 +288,6 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
         txfp = new(g) ZIPFAM(defp);
       else {
         strcpy(g->Message, "Compress 2 not supported yet");
-//      txfp = new(g) ZLBFAM(defp);
         return NULL;
       } // endelse
 #else   // !ZIP_SUPPORT
@@ -341,7 +342,6 @@ COLCRT::COLCRT(PSZ name)
   Precision = -1;
   Key = -1;
   Scale = -1;
-  Opt = -1;
   DataType = '*';
   } // end of COLCRT constructor for table creation
 
@@ -357,7 +357,6 @@ COLCRT::COLCRT(void)
   Precision = 0;
   Key = 0;
   Scale = 0;
-  Opt = 0;
   DataType = '*';
   } // end of COLCRT constructor for table & view definition
 
@@ -399,9 +398,7 @@ int COLDEF::Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff)
     Precision = cfp->Precision;
     Scale = cfp->Scale;
     Long = cfp->Length;
-    Opt = cfp->Opt;
     Key = cfp->Key;
-//  Freq = cfp->Freq;
 
     if (cfp->Remark && *cfp->Remark) {
       Desc = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Remark) + 1);

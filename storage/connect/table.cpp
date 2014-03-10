@@ -36,27 +36,6 @@ extern "C" int trace;       // The general trace value
 void NewPointer(PTABS, void *, void *);
 void AddPointer(PTABS, void *);
 
-/* ---------------------------- class TBX ---------------------------- */
-
-/***********************************************************************/
-/*  TBX public constructors.                                           */
-/***********************************************************************/
-TBX::TBX(void)
-  {
-  Use = USE_NO;
-  To_Orig = NULL;
-  To_Filter = NULL;
-  } // end of TBX constructor
-
-TBX::TBX(PTBX txp)
-  {
-  Use = txp->Use;
-  To_Orig = txp;
-  To_Filter = NULL;
-  } // end of TBX copy constructor
-
-// Methods
-
 /* ---------------------------- class TDB ---------------------------- */
 
 /***********************************************************************/
@@ -64,6 +43,9 @@ TBX::TBX(PTBX txp)
 /***********************************************************************/
 TDB::TDB(PTABDEF tdp) : Tdb_No(++Tnum)
   {
+  Use = USE_NO;
+  To_Orig = NULL;
+  To_CondFil = NULL;
   Next = NULL;
   Name = (tdp) ? tdp->GetName() : NULL;
   To_Table = NULL;
@@ -72,8 +54,11 @@ TDB::TDB(PTABDEF tdp) : Tdb_No(++Tnum)
   Mode = MODE_READ;
   } // end of TDB standard constructor
 
-TDB::TDB(PTDB tdbp) : TBX(tdbp), Tdb_No(++Tnum)
+TDB::TDB(PTDB tdbp) : Tdb_No(++Tnum)
   {
+  Use = tdbp->Use;
+  To_Orig = tdbp;
+  To_CondFil = NULL;
   Next = NULL;
   Name = tdbp->Name;
   To_Table = tdbp->To_Table;
@@ -81,92 +66,6 @@ TDB::TDB(PTDB tdbp) : TBX(tdbp), Tdb_No(++Tnum)
   Degree = tdbp->Degree;
   Mode = tdbp->Mode;
   } // end of TDB copy constructor
-
-/***********************************************************************/
-/*  OpenTable: Call AM open routine.                                   */
-/***********************************************************************/
-bool TDB::OpenTable(PGLOBAL g, PSQL sqlp, MODE mode)
-  {
-  if (trace)
-    htrc("Open Tdb_No=%d use=%d type=%d tdb.Mode=%d mode=%d\n",
-               Tdb_No, Use, GetAmType(), Mode, mode);
-
-  switch (Use) {
-    case USE_LIN:
-      /*****************************************************************/
-      /*  If table is read/only, only MODE_READ is allowed.            */
-      /*****************************************************************/
-      if (IsReadOnly() && mode != MODE_READ) {
-        strcpy(g->Message, MSG(READ_ONLY));
-        return true;
-        } // endif ReadOnly
-
-      /*****************************************************************/
-      /*  This could be done in any order.                             */
-      /*  Note: for not Read only first table in open in that mode.    */
-      /*****************************************************************/
-      if (Next)
-        Next->OpenTable(g, sqlp, MODE_READ);
-
-      Mode = mode;
-
-      /*****************************************************************/
-      /*  Pre-opening is done, allocate select buffers now.            */
-      /*****************************************************************/
-      Use = USE_READY;
-      break;
-
-    case USE_READY:
-      /*****************************************************************/
-      /*  This is to open files in reverse order.                      */
-      /*****************************************************************/
-      if (Next)
-        if (Next->OpenTable(g, sqlp, mode))
-          return true;
-
-      /*****************************************************************/
-      /*  This was moved after filter conversion so filtering can be   */
-      /*  done when making index tables for DOS files.                 */
-      /*  Also it was moved after allocating select buffers so some    */
-      /*  data can be pre-read during open to allow storage sorting.   */
-      /*****************************************************************/
-      if (OpenDB(g))                       // Do open the table file
-        return true;
-
-      Use = USE_OPEN;
-      break;
-
-    case USE_OPEN:
-      /*****************************************************************/
-      /*  Table is already open.                                       */
-      /*  Call open routine that will just "rewind" the files.         */
-      /*****************************************************************/
-      if (OpenDB(g))                       // Rewind the table file
-        return true;
-
-      break;
-
-    default:
-      sprintf(g->Message, MSG(TDB_USE_ERROR), Use);
-      return true;
-    } // endswitch Use
-
-  return false;
-  } // end of OpenTable
-
-/***********************************************************************/
-/*  CloseTable: Close a table of any AM type.                          */
-/***********************************************************************/
-void TDB::CloseTable(PGLOBAL g)
-  {
-  if (trace)
-    htrc("CloseTable: tdb_no %d use=%d amtype=%d am.Mode=%d\n",
-                      Tdb_No, Use, GetAmType(), Mode);
-
-  CloseDB(g);
-  Use = USE_READY;              // x'7FFD'
-  Mode = MODE_ANY;
-  } // end of CloseTable
 
 // Methods
 
@@ -179,7 +78,7 @@ int TDB::RowNumber(PGLOBAL g, bool b)
   return 0;
   } // end of RowNumber
 
-PTBX TDB::Copy(PTABS t)
+PTDB TDB::Copy(PTABS t)
   {
   PTDB    tp, tdb1, tdb2 = NULL, outp = NULL;
 //PGLOBAL g = t->G;        // Is this really useful ???

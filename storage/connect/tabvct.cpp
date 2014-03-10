@@ -1,11 +1,11 @@
 /************* TabVct C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABVCT                                                */
 /* -------------                                                       */
-/*  Version 3.7                                                        */
+/*  Version 3.8                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -118,6 +118,7 @@ bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   return false;
   } // end of DefineAM
 
+#if 0
 /***********************************************************************/
 /*  Erase: This was made a separate routine because a strange thing    */
 /*  happened when DeleteTablefile was defined for the VCTDEF class:    */
@@ -157,6 +158,7 @@ bool VCTDEF::Erase(char *filename)
 
   return rc;                                  // Return true if error
   } // end of Erase
+#endif // 0
 
 /***********************************************************************/
 /*  Prepare the column file name pattern for a split table.            */
@@ -231,7 +233,8 @@ PTDB VCTDEF::GetTable(PGLOBAL g, MODE mode)
   /*********************************************************************/
   if (mode != MODE_INSERT)
     if (tdbp->GetBlockValues(g))
-      return NULL;
+      PushWarning(g, (PTDBASE)tdbp);
+//    return NULL;            // causes a crash when deleting index
 
   return tdbp;
   } // end of GetTable

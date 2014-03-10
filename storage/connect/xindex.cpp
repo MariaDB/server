@@ -1792,7 +1792,8 @@ int XINDEX::FastFind(int nv)
 XINDXS::XINDXS(PTDBDOS tdbp, PIXDEF xdp, PXLOAD pxp, PCOL *cp, PXOB *xp)
       : XINDEX(tdbp, xdp, pxp, cp, xp)
   {
-  Srtd = To_Cols[0]->GetOpt() < 0;          // ?????
+//Srtd = To_Cols[0]->GetOpt() < 0;          // ?????
+  Srtd = false;
   } // end of XINDXS constructor
 
 /***********************************************************************/
@@ -2797,7 +2798,8 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
 
   // Store this information to avoid sorting when already done
   if (Asc)
-    IsSorted = colp->GetOpt() < 0;
+//  IsSorted = colp->GetOpt() < 0;
+    IsSorted = false;
 
 //SetNulls(colp->IsNullable()); for when null columns will be indexable
   return false;

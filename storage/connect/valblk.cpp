@@ -40,7 +40,8 @@
 #include "plgdbsem.h"
 #include "valblk.h"
 
-#define CheckBlanks     assert(!Blanks);
+#define CheckBlanks      assert(!Blanks);
+#define CheckParms(V, N) ChkIndx(N); ChkTyp(V);
 
 /***********************************************************************/
 /*  AllocValBlock: allocate a VALBLK according to type.                */

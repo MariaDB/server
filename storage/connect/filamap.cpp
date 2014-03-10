@@ -322,8 +322,8 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     /*  Record file position in case of UPDATE or DELETE.              */
     /*******************************************************************/
-    Fpos = Mempos;
-    CurBlk = (int)Rows++;
+		Fpos = Mempos;
+		CurBlk = (int)Rows++;
   } else
     Placed = false;
 
@@ -491,7 +491,7 @@ MBKFAM::MBKFAM(PDOSDEF tdp) : MAPFAM(tdp)
   Block = tdp->GetBlock();
   Last = tdp->GetLast();
   Nrec = tdp->GetElemt();
-  BlkPos = tdp->GetTo_Pos();
+  BlkPos = NULL;
   CurNum = Nrec;
   } // end of MBKFAM standard constructor
 
@@ -537,37 +537,8 @@ int MBKFAM::GetRowID(void)
 /***********************************************************************/
 int MBKFAM::ReadBuffer(PGLOBAL g)
   {
-  int len;
-
-  /*********************************************************************/
-  /*  Sequential block reading when Placed is not true.                */
-  /*********************************************************************/
-  if (Placed) {
-    Placed = false;
-  } else if (Mempos >= Top) {        // Are we at the end of the memory
-    return RC_EF;
-  } else if (++CurNum < Nrec) {                                           
-    Fpos = Mempos;
-  } else {                                                            
-    /*******************************************************************/
-    /*  New block.                                                     */
-    /*******************************************************************/
-    CurNum = 0;                                                       
-                                                                       
-    if (++CurBlk >= Block)                                           
-      return RC_EF;                                                   
-                                                                       
-    Fpos = Mempos = Memory + BlkPos[CurBlk];
-  } // endif's
-
-  // Immediately calculate next position (Used by DeleteDB)
-  while (*Mempos++ != '\n') ;        // What about Unix ???
-
-  // Set caller line buffer
-  len = (Mempos - Fpos) - Ending;
-  memcpy(Tdbp->GetLine(), Fpos, len);
-  Tdbp->GetLine()[len] = '\0';
-  return RC_OK;
+  strcpy(g->Message, "This AM cannot be used in this version");
+  return RC_FX;
   } // end of ReadBuffer
 
 /***********************************************************************/
@@ -657,7 +628,7 @@ int MPXFAM::ReadBuffer(PGLOBAL g)
     /*  New block.                                                     */
     /*******************************************************************/
     CurNum = 0;                                                       
-                                                                       
+
     if (++CurBlk >= Block)                                           
       return RC_EF;                                                   
                                                                        
