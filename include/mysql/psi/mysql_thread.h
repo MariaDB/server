@@ -518,7 +518,7 @@ typedef struct st_mysql_cond mysql_cond_t;
   @c mysql_cond_timedwait is a drop-in replacement
   for @c pthread_cond_timedwait.
 */
-#if defined(HAVE_PSI_INTERFACE) || defined(SAFE_MUTEX)
+#ifdef HAVE_PSI_COND_INTERFACE
   #define mysql_cond_timedwait(C, M, W) \
     inline_mysql_cond_timedwait(C, M, W, __FILE__, __LINE__)
 #else
@@ -1171,7 +1171,7 @@ static inline int inline_mysql_cond_timedwait(
   mysql_cond_t *that,
   mysql_mutex_t *mutex,
   const struct timespec *abstime
-#if defined(HAVE_PSI_INTERFACE) || defined(SAFE_MUTEX)
+#ifdef HAVE_PSI_COND_INTERFACE
   , const char *src_file, uint src_line
 #endif
   )
