@@ -48,7 +48,6 @@ class WMIDEF : public TABDEF {            /* Logical table description */
   // Methods
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE m);
-  virtual bool DeleteTableFile(PGLOBAL g) {return true;}
 
  protected:
   // Members

@@ -252,8 +252,6 @@ ha_create_table_option connect_table_option_list[]=
 ha_create_table_option connect_field_option_list[]=
 {
   HA_FOPTION_NUMBER("FLAG", offset, (ulonglong) -1, 0, INT_MAX32, 1),
-  HA_FOPTION_NUMBER("FREQUENCY", freq, 0, 0, INT_MAX32, 1), // not used
-  HA_FOPTION_NUMBER("OPT_VALUE", opt, 0, 0, 2, 1),  // used for indexing
   HA_FOPTION_NUMBER("FIELD_LENGTH", fldlen, 0, 0, INT_MAX32, 1),
   HA_FOPTION_STRING("DATE_FORMAT", dateformat),
   HA_FOPTION_STRING("FIELD_FORMAT", fieldformat),
@@ -331,11 +329,9 @@ DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir)
   delete_table method in handler.cc
 */
 static const char *ha_connect_exts[]= {
-  ".dos", ".fix", ".csv",".bin", ".fmt", ".dbf", ".xml", ".ini", ".vec",
+  ".dos", ".fix", ".csv", ".bin", ".fmt", ".dbf", ".xml", ".ini", ".vec",
   ".dnx", ".fnx", ".bnx", ".vnx", ".dbx",
-  NULL
-};
-
+  NULL};
 
 /**
   @brief
@@ -453,7 +449,7 @@ static handler* connect_create_handler(handlerton *hton,
   handler *h= new (mem_root) ha_connect(hton, table);
 
   if (xtrace)
-    printf("New CONNECT %p, table: %s\n",
+    htrc("New CONNECT %p, table: %s\n",
                          h, table ? table->table_name.str : "<null>");
 
   return h;
@@ -500,7 +496,7 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
 ha_connect::~ha_connect(void)
 {
   if (xtrace)
-    printf("Delete CONNECT %p, table: %s, xp=%p count=%d\n", this,
+    htrc("Delete CONNECT %p, table: %s, xp=%p count=%d\n", this,
                          table ? table->s->table_name.str : "<null>",
                          xp, xp ? xp->count : 0);
 
@@ -923,7 +919,6 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     } // endif special
 
   pcf->Scale= 0;
-  pcf->Opt= (fop) ? (int)fop->opt : 0;
 
   if ((pcf->Length= fp->field_length) < 0)
     pcf->Length= 256;            // BLOB?
@@ -932,12 +927,10 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 
   if (fop) {
     pcf->Offset= (int)fop->offset;
-//  pcf->Freq= fop->freq;
     pcf->Datefmt= (char*)fop->dateformat;
     pcf->Fieldfmt= (char*)fop->fieldformat;
   } else {
     pcf->Offset= -1;
-//  pcf->Freq= 0;
     pcf->Datefmt= NULL;
     pcf->Fieldfmt= NULL;
   } // endif fop
@@ -961,7 +954,6 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
       // Find if collation name ends by _ci
       if (!strcmp(cp + strlen(cp) - 3, "_ci")) {
         pcf->Scale= 1;     // Case insensitive
-        pcf->Opt= 0;       // Prevent index opt until it is safe
         } // endif ci
 
       break;
@@ -1046,7 +1038,7 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
 
   for (int n= 0; (unsigned)n < s->keynames.count; n++) {
     if (xtrace)
-      printf("Getting created index %d info\n", n + 1);
+      htrc("Getting created index %d info\n", n + 1);
 
     // Find the index to describe
     kp= s->key_info[n];
@@ -1182,7 +1174,7 @@ PTDB ha_connect::GetTDB(PGLOBAL g)
     valid_query_id= xp->last_query_id;
     tp->SetMode(xmod);
   } else
-    printf("GetTDB: %s\n", g->Message);
+    htrc("GetTDB: %s\n", g->Message);
 
   return tp;
 } // end of GetTDB
@@ -1197,7 +1189,7 @@ int ha_connect::OpenTable(PGLOBAL g, bool del)
 
   // Double test to be on the safe side
   if (!g || !table) {
-    printf("OpenTable logical error; g=%p table=%p\n", g, table);
+    htrc("OpenTable logical error; g=%p table=%p\n", g, table);
     return HA_ERR_INITIALIZATION;
     } // endif g
 
@@ -1278,9 +1270,8 @@ int ha_connect::OpenTable(PGLOBAL g, bool del)
       PIXDEF oldpix= GetIndexInfo();
       } // endif xmod
 
-//  tdbp->SetOrig((PTBX)table);  // used by CheckCond
   } else
-    printf("OpenTable: %s\n", g->Message);
+    htrc("OpenTable: %s\n", g->Message);
 
   if (rc) {
     tdbp= NULL;
@@ -1334,7 +1325,7 @@ int ha_connect::MakeRecord(char *buf)
   DBUG_ENTER("ha_connect::MakeRecord");
 
   if (xtrace > 1)
-    printf("Maps: read=%08X write=%08X vcol=%08X defr=%08X defw=%08X\n",
+    htrc("Maps: read=%08X write=%08X vcol=%08X defr=%08X defw=%08X\n",
             *table->read_set->bitmap, *table->write_set->bitmap,
             *table->vcol_set->bitmap,
             *table->def_read_set.bitmap, *table->def_write_set.bitmap);
@@ -1358,21 +1349,11 @@ int ha_connect::MakeRecord(char *buf)
     if (bitmap_is_set(map, fp->field_index) || alter) {
       // This is a used field, fill the buffer with value
       for (colp= tdbp->GetColumns(); colp; colp= colp->GetNext())
-#if defined(MRRBKA_SUPPORT)
-        if ((!mrr || colp->GetKcol()) &&
-            !stricmp(colp->GetName(), (char*)fp->field_name))
-          break;
-#else   // !MRRBKA_SUPPORT
         if (!stricmp(colp->GetName(), (char*)fp->field_name))
           break;
-#endif  // !MRRBKA_SUPPORT
 
       if (!colp) {
-#if defined(MRRBKA_SUPPORT)
-        if (mrr)
-          continue;
-#endif   // MRRBKA_SUPPORT
-        printf("Column %s not found\n", fp->field_name);
+        htrc("Column %s not found\n", fp->field_name);
         dbug_tmp_restore_column_map(table->write_set, org_bitmap);
         DBUG_RETURN(HA_ERR_WRONG_IN_RECORD);
         } // endif colp
@@ -1487,7 +1468,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
           break;
 
       if (!colp) {
-        printf("Column %s not found\n", fp->field_name);
+        htrc("Column %s not found\n", fp->field_name);
         rc= HA_ERR_WRONG_IN_RECORD;
         goto err;
       } else
@@ -1612,16 +1593,16 @@ const char *ha_connect::GetValStr(OPVAL vop, bool neg)
       val= (neg) ? " NOT IN (" : " IN (";
       break;
     case OP_NULL:
-      val= " IS NULL";
+      val= (neg) ? " IS NOT NULL" : " IS NULL";
       break;
     case OP_LIKE:
       val= " LIKE ";
       break;
     case OP_XX:
-      val= " BETWEEN ";
+      val= (neg) ? " NOT BETWEEN " : " BETWEEN ";
       break;
     case OP_EXIST:
-      val= " EXISTS ";
+      val= (neg) ? " NOT EXISTS " : " EXISTS ";
       break;
     case OP_AND:
       val= " AND ";
@@ -1657,21 +1638,20 @@ const char *ha_connect::GetValStr(OPVAL vop, bool neg)
 
 
 /***********************************************************************/
-/*  Check the WHERE condition and return an ODBC/WQL filter.           */
+/*  Check the WHERE condition and return a MYSQL/ODBC/WQL filter.      */
 /***********************************************************************/
-PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
+PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
 {
   char *body= filp->Body;
   unsigned int i;
   bool  ismul= false, x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC);
-  PPARM pfirst= NULL, pprec= NULL, pp[2]= {NULL, NULL};
   OPVAL vop= OP_XX;
 
   if (!cond)
     return NULL;
 
   if (xtrace)
-    printf("Cond type=%d\n", cond->type());
+    htrc("Cond type=%d\n", cond->type());
 
   if (cond->type() == COND::COND_ITEM) {
     char      *p1, *p2;
@@ -1681,7 +1661,7 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
       return NULL;
 
     if (xtrace)
-      printf("Cond: Ftype=%d name=%s\n", cond_item->functype(),
+      htrc("Cond: Ftype=%d name=%s\n", cond_item->functype(),
                                          cond_item->func_name());
 
     switch (cond_item->functype()) {
@@ -1728,7 +1708,7 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
     Item*     *args= condf->arguments();
 
     if (xtrace)
-      printf("Func type=%d argnum=%d\n", condf->functype(),
+      htrc("Func type=%d argnum=%d\n", condf->functype(),
                                          condf->argument_count());
 
 //  neg= condf->
@@ -1742,8 +1722,10 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
       case Item_func::GE_FUNC: vop= OP_GE;  break;
       case Item_func::GT_FUNC: vop= OP_GT;  break;
       case Item_func::IN_FUNC: vop= OP_IN;
+      case Item_func::BETWEEN: 
+        ismul= true;
         neg= ((Item_func_opt_neg *)condf)->negated;
-      case Item_func::BETWEEN: ismul= true; break;
+        break;
       default: return NULL;
       } // endswitch functype
 
@@ -1757,11 +1739,11 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
 
     for (i= 0; i < condf->argument_count(); i++) {
       if (xtrace)
-        printf("Argtype(%d)=%d\n", i, args[i]->type());
+        htrc("Argtype(%d)=%d\n", i, args[i]->type());
 
       if (i >= 2 && !ismul) {
         if (xtrace)
-          printf("Unexpected arg for vop=%d\n", vop);
+          htrc("Unexpected arg for vop=%d\n", vop);
 
         continue;
         } // endif i
@@ -1793,8 +1775,8 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
           fnm= pField->field->field_name;
 
         if (xtrace) {
-          printf("Field index=%d\n", pField->field->field_index);
-          printf("Field name=%s\n", pField->field->field_name);
+          htrc("Field index=%d\n", pField->field->field_index);
+          htrc("Field name=%s\n", pField->field->field_name);
           } // endif xtrace
 
         // IN and BETWEEN clauses should be col VOP list
@@ -1815,7 +1797,7 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
         String *res, tmp(buff, sizeof(buff), &my_charset_bin);
         Item_basic_constant *pval= (Item_basic_constant *)args[i];
 
-        switch (args[i]->type()) {
+        switch (args[i]->real_type()) {
           case COND::STRING_ITEM:
           case COND::INT_ITEM:
           case COND::REAL_ITEM:
@@ -1832,7 +1814,7 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
           return NULL;                      // To be clarified
 
         if (xtrace)
-          printf("Value=%.*s\n", res->length(), res->ptr());
+          htrc("Value=%.*s\n", res->length(), res->ptr());
 
         // IN and BETWEEN clauses should be col VOP list
         if (!i && (x || ismul))
@@ -1877,7 +1859,7 @@ PFIL ha_connect::CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond)
 
   } else {
     if (xtrace)
-      printf("Unsupported condition\n");
+      htrc("Unsupported condition\n");
 
     return NULL;
   } // endif's type
@@ -1912,32 +1894,33 @@ const COND *ha_connect::cond_push(const COND *cond)
   if (tdbp) {
     AMT  tty= tdbp->GetAmType();
     bool x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC); 
+    bool b= (tty == TYPE_AM_WMI || tty == TYPE_AM_ODBC  ||
+             tty == TYPE_AM_TBL || tty == TYPE_AM_MYSQL || 
+             tty == TYPE_AM_PLG || x);
 
-    if (tty == TYPE_AM_WMI || tty == TYPE_AM_ODBC ||
-        tty == TYPE_AM_TBL || tty == TYPE_AM_MYSQL || 
-        tty == TYPE_AM_PLG || x) {
+    if (b) {
       PGLOBAL& g= xp->g;
-      PFIL filp= (PFIL)PlugSubAlloc(g, NULL, sizeof(FILTER));
+      PCFIL    filp= (PCFIL)PlugSubAlloc(g, NULL, sizeof(CONDFIL));
 
       filp->Body= (char*)PlugSubAlloc(g, NULL, (x) ? 128 : 0);
       *filp->Body= 0;
       filp->Op= OP_XX;
       filp->Cmds= NULL;
-
+    
       if (CheckCond(g, filp, tty, (Item *)cond)) {
         if (xtrace)
-          printf("cond_push: %s\n", filp->Body);
-
+          htrc("cond_push: %s\n", filp->Body);
+    
         if (!x)
           PlugSubAlloc(g, NULL, strlen(filp->Body) + 1);
         else
-          cond= NULL;            // Does this work?
-
-        tdbp->SetFilter(filp);
+          cond= NULL;             // Does this work?
+    
+        tdbp->SetCondFil(filp);
       } else if (x && cond)
-        tdbp->SetFilter(filp);   // Wrong filter
+        tdbp->SetCondFil(filp);   // Wrong filter
 
-      } // endif tty
+      } // endif b
 
     } // endif tdbp
 
@@ -2019,7 +2002,7 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
   DBUG_ENTER("ha_connect::open");
 
   if (xtrace)
-     printf("open: name=%s mode=%d test=%u\n", name, mode, test_if_locked);
+     htrc("open: name=%s mode=%d test=%u\n", name, mode, test_if_locked);
 
   if (!(share= get_share()))
     DBUG_RETURN(1);
@@ -2031,17 +2014,9 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
   PGLOBAL g= (xp) ? xp->g : NULL;
 
   // Try to set the database environment
-  if (g) {
+  if (g)
     rc= (CntCheckDB(g, this, name)) ? (-2) : 0;
-#if defined(MRRBKA_SUPPORT)
-    if (g->Mrr) {
-      // This should only happen for the mrr secondary handler
-      mrr= true;
-      g->Mrr= false;
-    } else
-      mrr= false;
-#endif   // MRRBKA_SUPPORT
-  } else
+  else
     rc= HA_ERR_INTERNAL_ERROR;
 
   DBUG_RETURN(rc);
@@ -2062,7 +2037,7 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
   tdbp= GetTDB(g);
   dup->Check |= CHK_OPT;
 
-  if (tdbp || (tdbp= GetTDB(g))) {
+  if (tdbp) {
     if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
       sprintf(g->Message, "optimize: Table %s is not indexable", tdbp->GetName());
       my_message(ER_INDEX_REBUILD, g->Message, MYF(0));
@@ -2179,7 +2154,7 @@ int ha_connect::write_row(uchar *buf)
   // Return result code from write operation
   if (CntWriteRow(g, tdbp)) {
     DBUG_PRINT("write_row", ("%s", g->Message));
-    printf("write_row: %s\n", g->Message);
+    htrc("write_row: %s\n", g->Message);
     rc= HA_ERR_INTERNAL_ERROR;
     } // endif RC
 
@@ -2216,7 +2191,7 @@ int ha_connect::update_row(const uchar *old_data, uchar *new_data)
   DBUG_ENTER("ha_connect::update_row");
 
   if (xtrace > 1)
-    printf("update_row: old=%s new=%s\n", old_data, new_data);
+    htrc("update_row: old=%s new=%s\n", old_data, new_data);
 
   // Check values for possible change in indexed column
   if ((rc= CheckRecord(g, old_data, new_data)))
@@ -2224,7 +2199,7 @@ int ha_connect::update_row(const uchar *old_data, uchar *new_data)
 
   if (CntUpdateRow(g, tdbp)) {
     DBUG_PRINT("update_row", ("%s", g->Message));
-    printf("update_row CONNECT: %s\n", g->Message);
+    htrc("update_row CONNECT: %s\n", g->Message);
     rc= HA_ERR_INTERNAL_ERROR;
     } // endif RC
 
@@ -2258,7 +2233,7 @@ int ha_connect::delete_row(const uchar *buf)
 
   if (CntDeleteRow(xp->g, tdbp, false)) {
     rc= HA_ERR_INTERNAL_ERROR;
-    printf("delete_row CONNECT: %s\n", xp->g->Message);
+    htrc("delete_row CONNECT: %s\n", xp->g->Message);
     } // endif DeleteRow
 
   DBUG_RETURN(rc);
@@ -2275,7 +2250,7 @@ int ha_connect::index_init(uint idx, bool sorted)
   DBUG_ENTER("index_init");
 
   if (xtrace)
-    printf("index_init: this=%p idx=%u sorted=%d\n", this, idx, sorted);
+    htrc("index_init: this=%p idx=%u sorted=%d\n", this, idx, sorted);
 
   if ((rc= rnd_init(0)))
     return rc;
@@ -2291,7 +2266,7 @@ int ha_connect::index_init(uint idx, bool sorted)
 
   if (indexing <= 0) {
     DBUG_PRINT("index_init", ("%s", g->Message));
-    printf("index_init CONNECT: %s\n", g->Message);
+    htrc("index_init CONNECT: %s\n", g->Message);
     active_index= MAX_KEY;
     rc= HA_ERR_INTERNAL_ERROR;
   } else {
@@ -2307,7 +2282,7 @@ int ha_connect::index_init(uint idx, bool sorted)
   } // endif indexing
 
   if (xtrace)
-    printf("index_init: rc=%d indexing=%d active_index=%d\n", 
+    htrc("index_init: rc=%d indexing=%d active_index=%d\n", 
             rc, indexing, active_index);
 
   DBUG_RETURN(rc);
@@ -2320,9 +2295,6 @@ int ha_connect::index_end()
 {
   DBUG_ENTER("index_end");
   active_index= MAX_KEY;
-#if defined(MRRBKA_SUPPORT)
-  ds_mrr.dsmrr_close();
-#endif   // MRRBKA_SUPPORT
   DBUG_RETURN(rnd_end());
 } // end of index_end
 
@@ -2350,13 +2322,13 @@ int ha_connect::ReadIndexed(uchar *buf, OPVAL op, const uchar *key, uint key_len
       break;
     default:          // Read error
       DBUG_PRINT("ReadIndexed", ("%s", xp->g->Message));
-      printf("ReadIndexed: %s\n", xp->g->Message);
+      htrc("ReadIndexed: %s\n", xp->g->Message);
       rc= HA_ERR_INTERNAL_ERROR;
       break;
     } // endswitch RC
 
   if (xtrace > 1)
-    printf("ReadIndexed: op=%d rc=%d\n", op, rc);
+    htrc("ReadIndexed: op=%d rc=%d\n", op, rc);
 
   table->status= (rc == RC_OK) ? 0 : STATUS_NOT_FOUND;
   return rc;
@@ -2399,7 +2371,7 @@ int ha_connect::index_read(uchar * buf, const uchar * key, uint key_len,
     } // endswitch find_flag
 
   if (xtrace > 1)
-    printf("%p index_read: op=%d\n", this, op);
+    htrc("%p index_read: op=%d\n", this, op);
 
   if (indexing > 0)
     rc= ReadIndexed(buf, op, key, key_len);
@@ -2542,7 +2514,7 @@ int ha_connect::rnd_init(bool scan)
     } // endif xmod
 
   if (xtrace)
-    printf("rnd_init: this=%p scan=%d xmod=%d alter=%d\n", 
+    htrc("rnd_init: this=%p scan=%d xmod=%d alter=%d\n", 
             this, scan, xmod, alter);
 
   if (!g || !table || xmod == MODE_INSERT)
@@ -2589,9 +2561,6 @@ int ha_connect::rnd_end()
 //  if (tdbp && xp->last_query_id == valid_query_id)
 //    rc= CloseTable(xp->g);
 
-#if defined(MRRBKA_SUPPORT)
-  ds_mrr.dsmrr_close();
-#endif   // MRRBKA_SUPPORT
   DBUG_RETURN(rc);
 } // end of rnd_end
 
@@ -2637,22 +2606,23 @@ int ha_connect::rnd_next(uchar *buf)
       rc= HA_ERR_RECORD_DELETED;
       break;
     default:            // Read error
-      printf("rnd_next CONNECT: %s\n", xp->g->Message);
+      htrc("rnd_next CONNECT: %s\n", xp->g->Message);
       rc= (records()) ? HA_ERR_INTERNAL_ERROR : HA_ERR_END_OF_FILE;
       break;
     } // endswitch RC
 
-#ifndef DBUG_OFF
-  if (rc || !(xp->nrd++ % 16384)) {
+  if (xtrace > 1 && (rc || !(xp->nrd++ % 16384))) {
     ulonglong tb2= my_interval_timer();
     double elapsed= (double) (tb2 - xp->tb1) / 1000000000ULL;
     DBUG_PRINT("rnd_next", ("rc=%d nrd=%u fnd=%u nfd=%u sec=%.3lf\n",
                              rc, (uint)xp->nrd, (uint)xp->fnd,
                              (uint)xp->nfd, elapsed));
+    htrc("rnd_next: rc=%d nrd=%u fnd=%u nfd=%u sec=%.3lf\n",
+                             rc, (uint)xp->nrd, (uint)xp->fnd,
+                             (uint)xp->nfd, elapsed);
     xp->tb1= tb2;
     xp->fnd= xp->nfd= 0;
     } // endif nrd
-#endif
 
   table->status= (!rc) ? 0 : STATUS_NOT_FOUND;
   DBUG_RETURN(rc);
@@ -2766,7 +2736,7 @@ int ha_connect::info(uint flag)
   DBUG_ENTER("ha_connect::info");
 
   if (xtrace)
-    printf("%p In info: flag=%u valid_info=%d\n", this, flag, valid_info);
+    htrc("%p In info: flag=%u valid_info=%d\n", this, flag, valid_info);
 
   if (!valid_info) {
     // tdbp must be available to get updated info
@@ -2879,7 +2849,7 @@ int ha_connect::delete_all_rows()
 
   if (!(rc= OpenTable(g))) {
     if (CntDeleteRow(g, tdbp, true)) {
-      printf("%s\n", g->Message);
+      htrc("%s\n", g->Message);
       rc= HA_ERR_INTERNAL_ERROR;
       } // endif
 
@@ -2989,8 +2959,8 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
 {
   if (xtrace) {
     LEX_STRING *query_string= thd_query_string(thd);
-    printf("%p check_mode: cmdtype=%d\n", this, thd_sql_command(thd));
-    printf("Cmd=%.*s\n", (int) query_string->length, query_string->str);
+    htrc("%p check_mode: cmdtype=%d\n", this, thd_sql_command(thd));
+    htrc("Cmd=%.*s\n", (int) query_string->length, query_string->str);
     } // endif xtrace
 
   // Next code is temporarily replaced until sql_command is set
@@ -3040,7 +3010,7 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
         newmode= MODE_ALTER;
         break;
       default:
-        printf("Unsupported sql_command=%d", thd_sql_command(thd));
+        htrc("Unsupported sql_command=%d", thd_sql_command(thd));
         strcpy(g->Message, "CONNECT Unsupported command");
         my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
         newmode= MODE_ERROR;
@@ -3085,7 +3055,7 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
         newmode= MODE_ALTER;
         break;
       default:
-        printf("Unsupported sql_command=%d", thd_sql_command(thd));
+        htrc("Unsupported sql_command=%d", thd_sql_command(thd));
         strcpy(g->Message, "CONNECT Unsupported command");
         my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
         newmode= MODE_ERROR;
@@ -3095,7 +3065,7 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
   } // endif's newmode
 
   if (xtrace)
-    printf("New mode=%d\n", newmode);
+    htrc("New mode=%d\n", newmode);
 
   return newmode;
 } // end of check_mode
@@ -3170,7 +3140,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   DBUG_ASSERT(thd == current_thd);
 
   if (xtrace)
-    printf("external_lock: this=%p thd=%p xp=%p g=%p lock_type=%d\n",
+    htrc("external_lock: this=%p thd=%p xp=%p g=%p lock_type=%d\n",
             this, thd, xp, g, lock_type);
 
   if (!g)
@@ -3309,7 +3279,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
   if (check_privileges(thd, options, table->s->db.str)) {
     strcpy(g->Message, "This operation requires the FILE privilege");
-    printf("%s\n", g->Message);
+    htrc("%s\n", g->Message);
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
     } // endif check_privileges
 
@@ -3343,18 +3313,18 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
   if (xtrace) {
 #if 0
-    printf("xcheck=%d cras=%d\n", xcheck, cras);
+    htrc("xcheck=%d cras=%d\n", xcheck, cras);
 
     if (xcheck)
-      printf("oldsep=%d oldpix=%p\n",
+      htrc("oldsep=%d oldpix=%p\n",
               ((PCHK)g->Xchk)->oldsep, ((PCHK)g->Xchk)->oldpix);
 #endif // 0
-    printf("Calling CntCheckDB db=%s cras=%d\n", GetDBName(NULL), cras);
+    htrc("Calling CntCheckDB db=%s cras=%d\n", GetDBName(NULL), cras);
     } // endif xtrace
 
   // Set or reset the good database environment
   if (CntCheckDB(g, this, GetDBName(NULL))) {
-    printf("%p external_lock: %s\n", this, g->Message);
+    htrc("%p external_lock: %s\n", this, g->Message);
     rc= HA_ERR_INTERNAL_ERROR;
   // This can NOT be called without open called first, but
   // the table can have been closed since then
@@ -3375,7 +3345,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   } // endif tdbp
 
   if (xtrace)
-    printf("external_lock: rc=%d\n", rc);
+    htrc("external_lock: rc=%d\n", rc);
 
   DBUG_RETURN(rc);
 } // end of external_lock
@@ -3517,10 +3487,10 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
 
   if (xtrace) {
     if (to)
-      printf("rename_table: this=%p thd=%p sqlcom=%d from=%s to=%s\n", 
+      htrc("rename_table: this=%p thd=%p sqlcom=%d from=%s to=%s\n", 
               this, thd, sqlcom, name, to);
     else
-      printf("delete_table: this=%p thd=%p sqlcom=%d name=%s\n",
+      htrc("delete_table: this=%p thd=%p sqlcom=%d name=%s\n",
               this, thd, sqlcom, name);
 
     } // endif xtrace
@@ -3625,7 +3595,7 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
     index_init(inx, false);
 
   if (xtrace)
-    printf("records_in_range: inx=%d indexing=%d\n", inx, indexing);
+    htrc("records_in_range: inx=%d indexing=%d\n", inx, indexing);
 
   if (indexing > 0) {
     int          nval;
@@ -4626,7 +4596,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   table= table_arg;         // Used by called functions
 
   if (xtrace)
-    printf("create: this=%p thd=%p xp=%p g=%p sqlcom=%d name=%s\n",
+    htrc("create: this=%p thd=%p xp=%p g=%p sqlcom=%d name=%s\n",
            this, thd, xp, g, sqlcom, GetTableName());
 
   // CONNECT engine specific table options:
@@ -4954,7 +4924,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     } // endif
 
   if (xtrace)
-    printf("xchk=%p createas=%d\n", g->Xchk, g->Createas);
+    htrc("xchk=%p createas=%d\n", g->Xchk, g->Createas);
 
   // To check whether indices have to be made or remade
   if (!g->Xchk) {
@@ -4985,7 +4955,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           cat->SetDataPath(g, table_arg->s->db.str);
     
           if ((rc= optimize(table->in_use, NULL))) {
-            printf("Create rc=%d %s\n", rc, g->Message);
+            htrc("Create rc=%d %s\n", rc, g->Message);
             my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
             rc= HA_ERR_INTERNAL_ERROR;
           } else
@@ -5025,7 +4995,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       g->Xchk= NULL;
 
     if (xtrace && g->Xchk)
-      printf("oldsep=%d newsep=%d oldpix=%p newpix=%p\n",
+      htrc("oldsep=%d newsep=%d oldpix=%p newpix=%p\n",
               xcp->oldsep, xcp->newsep, xcp->oldpix, xcp->newpix);
 
 //  if (g->Xchk && 
@@ -5306,7 +5276,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
     tshp= NULL;
 
     if (xtrace && g->Xchk)
-      printf(
+      htrc(
         "oldsep=%d newsep=%d oldopn=%s newopn=%s oldpix=%p newpix=%p\n",
               xcp->oldsep, xcp->newsep, 
               SVP(xcp->oldopn), SVP(xcp->newopn), 
@@ -5418,86 +5388,6 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
   DBUG_RETURN(COMPATIBLE_DATA_NO);
 } // end of check_if_incompatible_data
 
-
-#if defined(MRRBKA_SUPPORT)
-//#error This is not implemented yet
-/****************************************************************************
- * CONNECT MRR implementation: use DS-MRR
-   This is just copied from myisam
- ***************************************************************************/
-
-int ha_connect::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
-                                     uint n_ranges, uint mode, 
-                                     HANDLER_BUFFER *buf)
-{
-  return ds_mrr.dsmrr_init(this, seq, seq_init_param, n_ranges, mode, buf);
-} // end of multi_range_read_init
-
-int ha_connect::multi_range_read_next(range_id_t *range_info)
-{
-  return ds_mrr.dsmrr_next(range_info);
-} // end of multi_range_read_next
-
-ha_rows ha_connect::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
-                                               void *seq_init_param, 
-                                               uint n_ranges, uint *bufsz,
-                                               uint *flags, Cost_estimate *cost)
-{
-  /*
-    This call is here because there is no location where this->table would
-    already be known.
-    TODO: consider moving it into some per-query initialization call.
-  */
-  ds_mrr.init(this, table);
-
-  // MMR is implemented for "local" file based tables only
-  if (!IsFileType(GetRealType(GetTableOptionStruct(table))))
-    *flags|= HA_MRR_USE_DEFAULT_IMPL;
-
-  ha_rows rows= ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges,
-                                        bufsz, flags, cost);
-  xp->g->Mrr= !(*flags & HA_MRR_USE_DEFAULT_IMPL);
-  return rows;
-} // end of multi_range_read_info_const
-
-ha_rows ha_connect::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
-                                         uint key_parts, uint *bufsz, 
-                                         uint *flags, Cost_estimate *cost)
-{
-  ds_mrr.init(this, table);
-
-  // MMR is implemented for "local" file based tables only
-  if (!IsFileType(GetRealType(GetTableOptionStruct(table))))
-    *flags|= HA_MRR_USE_DEFAULT_IMPL;
-
-  ha_rows rows= ds_mrr.dsmrr_info(keyno, n_ranges, keys, key_parts, bufsz, 
-                                  flags, cost);
-  xp->g->Mrr= !(*flags & HA_MRR_USE_DEFAULT_IMPL);
-  return rows;
-} // end of multi_range_read_info
-
-
-int ha_connect::multi_range_read_explain_info(uint mrr_mode, char *str, 
-                                             size_t size)
-{
-  return ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
-} // end of multi_range_read_explain_info
-
-/* CONNECT MRR implementation ends */
-
-#if 0
-// Does this make sens for CONNECT?
-Item *ha_connect::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
-{
-  pushed_idx_cond_keyno= keyno_arg;
-  pushed_idx_cond= idx_cond_arg;
-  in_range_check_pushed_down= TRUE;
-  if (active_index == pushed_idx_cond_keyno)
-    mi_set_index_cond_func(file, handler_index_cond_check, this);
-  return NULL;
-}
-#endif // 0
-#endif   // MRRBKA_SUPPORT
 
 struct st_mysql_storage_engine connect_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };

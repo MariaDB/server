@@ -187,6 +187,7 @@ PTDB XMLDEF::GetTable(PGLOBAL g, MODE m)
   return tdbp;
   } // end of GetTable
 
+#if 0
 /***********************************************************************/
 /*  DeleteTableFile: Delete XML table files using platform API.        */
 /***********************************************************************/
@@ -208,6 +209,7 @@ bool XMLDEF::DeleteTableFile(PGLOBAL g)
 
   return rc;                                  // Return true if error
   } // end of DeleteTableFile
+#endif // 0
 
 /* ------------------------- TDBXML Class ---------------------------- */
 

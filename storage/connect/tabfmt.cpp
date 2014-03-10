@@ -460,7 +460,6 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
         txfp = new(g) ZIPFAM(this);
       else {
         strcpy(g->Message, "Compress 2 not supported yet");
-//      txfp = new(g) ZLBFAM(defp);
         return NULL;
         } // endelse
 #else   // !ZIP_SUPPORT
@@ -1271,25 +1270,6 @@ CSVCOL::CSVCOL(CSVCOL *col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   {
   Fldnum = col1->Fldnum;
   } // end of CSVCOL copy constructor
-
-/***********************************************************************/
-/*  VarSize: This function tells UpdateDB whether or not the block     */
-/*  optimization file must be redone if this column is updated, even   */
-/*  it is not sorted or clustered. This applies to a blocked table,    */
-/*  because if it is updated using a temporary file, the block size    */
-/*  may be modified.                                                   */
-/***********************************************************************/
-bool CSVCOL::VarSize(void)
-  {
-  PTXF txfp = ((PTDBCSV)To_Tdb)->Txfp;
-
-  if (txfp->IsBlocked() && txfp->GetUseTemp())
-    // Blocked table using a temporary file
-    return true;
-  else
-    return false;
-
-  } // end VarSize
 
 /***********************************************************************/
 /*  ReadColumn: call DOSCOL::ReadColumn after having set the offet     */

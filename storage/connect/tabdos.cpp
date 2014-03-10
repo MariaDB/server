@@ -1,11 +1,11 @@
 /************* TabDos C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABDOS                                                */
 /* -------------                                                       */
-/*  Version 4.8                                                        */
+/*  Version 4.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -58,26 +58,11 @@
 #include "tabfix.h"
 #include "tabmul.h"
 
-#define PLGINI    "plugdb.ini"          // Configuration settings file
-
-#if defined(UNIX)
-#define _fileno fileno
-#define _O_RDONLY O_RDONLY
-#endif
-
 /***********************************************************************/
 /*  DB static variables.                                               */
 /***********************************************************************/
 int num_read, num_there, num_eq[2];                 // Statistics
-extern "C" char plgini[_MAX_PATH];
 extern "C" int  trace;
-
-/***********************************************************************/
-/*  Min and Max blocks contains zero ended fields (blank = false).     */
-/*  No conversion of block values (check = true).                      */
-/***********************************************************************/
-PVBLK AllocValBlock(PGLOBAL, void *, int, int, int len = 0, int prec = 0,
-                    bool check = true, bool blank = false, bool un = false);
 
 /* --------------------------- Class DOSDEF -------------------------- */
 
@@ -96,7 +81,6 @@ DOSDEF::DOSDEF(void)
   Huge = false;
   Accept = false;
   Eof = false;
-  To_Pos = NULL;
   Compressed = 0;
   Lrecl = 0;
   AvgLen = 0;
@@ -109,6 +93,50 @@ DOSDEF::DOSDEF(void)
 //Mtime = 0;
   } // end of DOSDEF constructor
 
+/***********************************************************************/
+/*  DefineAM: define specific AM block values from XDB file.           */
+/***********************************************************************/
+bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
+  {
+  char   buf[8];
+  bool   map = (am && (*am == 'M' || *am == 'm'));
+  LPCSTR dfm = (am && (*am == 'F' || *am == 'f')) ? "F"
+             : (am && (*am == 'B' || *am == 'b')) ? "B"
+             : (am && !stricmp(am, "DBF"))        ? "D" : "V";
+
+  Desc = Fn = Cat->GetStringCatInfo(g, "Filename", NULL);
+  Ofn = Cat->GetStringCatInfo(g, "Optname", Fn);
+  Cat->GetCharCatInfo("Recfm", (PSZ)dfm, buf, sizeof(buf));
+  Recfm = (toupper(*buf) == 'F') ? RECFM_FIX :
+          (toupper(*buf) == 'B') ? RECFM_BIN :
+          (toupper(*buf) == 'D') ? RECFM_DBF : RECFM_VAR;
+  Lrecl = Cat->GetIntCatInfo("Lrecl", 0);
+
+  if (Recfm != RECFM_DBF)
+    Compressed = Cat->GetIntCatInfo("Compressed", 0);
+
+  Mapped = Cat->GetBoolCatInfo("Mapped", map);
+  Block = Cat->GetIntCatInfo("Blocks", 0);
+  Last = Cat->GetIntCatInfo("Last", 0);
+  Ending = Cat->GetIntCatInfo("Ending", CRLF);
+
+  if (Recfm == RECFM_FIX || Recfm == RECFM_BIN) {
+    Huge = Cat->GetBoolCatInfo("Huge", Cat->GetDefHuge());
+    Padded = Cat->GetBoolCatInfo("Padded", false);
+    Blksize = Cat->GetIntCatInfo("Blksize", 0);
+    Eof = (Cat->GetIntCatInfo("EOF", 0) != 0);
+  } else if (Recfm == RECFM_DBF) {
+    Maxerr = Cat->GetIntCatInfo("Maxerr", 0);
+    Accept = (Cat->GetIntCatInfo("Accept", 0) != 0);
+    ReadMode = Cat->GetIntCatInfo("Readmode", 0);
+  } else // (Recfm == RECFM_VAR)
+    AvgLen = Cat->GetIntCatInfo("Avglen", 0);
+
+  // Ignore wrong Index definitions for catalog commands
+  return (Cat->GetIndexInfo(g, this) /*&& !Cat->GetCatFnc()*/);
+  } // end of DefineAM
+
+#if 0
 /***********************************************************************/
 /*  DeleteTableFile: Delete DOS/UNIX table files using platform API.   */
 /*  If the table file is protected (declared as read/only) we still    */
@@ -147,6 +175,7 @@ bool DOSDEF::Erase(char *filename)
 
   return rc;                                  // Return true if error
   } // end of Erase
+#endif // 0
 
 /***********************************************************************/
 /*  DeleteIndexFile: Delete DOS/UNIX index file(s) using platform API. */
@@ -222,49 +251,6 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
   } // end of DeleteIndexFile
 
 /***********************************************************************/
-/*  DefineAM: define specific AM block values from XDB file.           */
-/***********************************************************************/
-bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
-  {
-  char   buf[8];
-  bool   map = (am && (*am == 'M' || *am == 'm'));
-  LPCSTR dfm = (am && (*am == 'F' || *am == 'f')) ? "F"
-             : (am && (*am == 'B' || *am == 'b')) ? "B"
-             : (am && !stricmp(am, "DBF"))        ? "D" : "V";
-
-  Desc = Fn = Cat->GetStringCatInfo(g, "Filename", NULL);
-  Ofn = Cat->GetStringCatInfo(g, "Optname", Fn);
-  Cat->GetCharCatInfo("Recfm", (PSZ)dfm, buf, sizeof(buf));
-  Recfm = (toupper(*buf) == 'F') ? RECFM_FIX :
-          (toupper(*buf) == 'B') ? RECFM_BIN :
-          (toupper(*buf) == 'D') ? RECFM_DBF : RECFM_VAR;
-  Lrecl = Cat->GetIntCatInfo("Lrecl", 0);
-
-  if (Recfm != RECFM_DBF)
-    Compressed = Cat->GetIntCatInfo("Compressed", 0);
-
-  Mapped = Cat->GetBoolCatInfo("Mapped", map);
-  Block = Cat->GetIntCatInfo("Blocks", 0);
-  Last = Cat->GetIntCatInfo("Last", 0);
-  Ending = Cat->GetIntCatInfo("Ending", CRLF);
-
-  if (Recfm == RECFM_FIX || Recfm == RECFM_BIN) {
-    Huge = Cat->GetBoolCatInfo("Huge", Cat->GetDefHuge());
-    Padded = Cat->GetBoolCatInfo("Padded", false);
-    Blksize = Cat->GetIntCatInfo("Blksize", 0);
-    Eof = (Cat->GetIntCatInfo("EOF", 0) != 0);
-  } else if (Recfm == RECFM_DBF) {
-    Maxerr = Cat->GetIntCatInfo("Maxerr", 0);
-    Accept = (Cat->GetIntCatInfo("Accept", 0) != 0);
-    ReadMode = Cat->GetIntCatInfo("Readmode", 0);
-  } else // (Recfm == RECFM_VAR)
-    AvgLen = Cat->GetIntCatInfo("Avglen", 0);
-
-  // Ignore wrong Index definitions for catalog commands
-  return (Cat->GetIndexInfo(g, this) /*&& !Cat->GetCatFnc()*/);
-  } // end of DefineAM
-
-/***********************************************************************/
 /*  InvalidateIndex: mark all indexes as invalid.                      */
 /***********************************************************************/
 bool DOSDEF::InvalidateIndex(PGLOBAL g)
@@ -311,28 +297,31 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
       txfp = new(g) BGXFAM(this);
     else if (map)
       txfp = new(g) MPXFAM(this);
+    else if (Compressed) {
 #if defined(ZIP_SUPPORT)
-    else if (Compressed)
       txfp = new(g) ZIXFAM(this);
-#endif   // ZIP_SUPPORT
-    else
+#else   // !ZIP_SUPPORT
+      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+      return NULL;
+#endif  // !ZIP_SUPPORT
+    } else
       txfp = new(g) FIXFAM(this);
 
     tdbp = new(g) TDBFIX(this, txfp);
   } else {
-#if defined(ZIP_SUPPORT)
     if (Compressed) {
+#if defined(ZIP_SUPPORT)
       if (Compressed == 1)
         txfp = new(g) ZIPFAM(this);
       else {
         strcpy(g->Message, "Compress 2 not supported yet");
-//      txfp = new(g) ZLBFAM(defp);
         return NULL;
       } // endelse
-
-    } else
-#endif   // ZIP_SUPPORT
-    if (map)
+#else   // !ZIP_SUPPORT
+      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+      return NULL;
+#endif  // !ZIP_SUPPORT
+    } else if (map)
       txfp = new(g) MAPFAM(this);
     else
       txfp = new(g) DOSFAM(this);
@@ -730,10 +719,17 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /*  Table already open, just replace it at its beginning.          */
     /*******************************************************************/
-    Txfp->Rewind();         // see comment in Work.log
+    if (!To_Kindex) {
+      Txfp->Rewind();       // see comment in Work.log
 
-    if (SkipHeader(g))
-      return true;
+      if (SkipHeader(g))
+        return TRUE;
+
+    } else
+      /*****************************************************************/
+      /*  Table is to be accessed through a sorted index table.        */
+      /*****************************************************************/
+      To_Kindex->Reset();
 
     return false;
     } // endif use
@@ -927,7 +923,6 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
   Deplac = cdp->GetOffset();
   Long = cdp->GetLong();
   To_Val = NULL;
-
   OldVal = NULL;                  // Currently used only in MinMax
   Ldz = false;
   Nod = false;
@@ -970,28 +965,6 @@ DOSCOL::DOSCOL(DOSCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
   OldVal = col1->OldVal;
   Buf = col1->Buf;
   } // end of DOSCOL copy constructor
-
-/***********************************************************************/
-/*  VarSize: This function tells UpdateDB whether or not the block     */
-/*  optimization file must be redone if this column is updated, even   */
-/*  it is not sorted or clustered. This applies to the last column of  */
-/*  a variable length table that is blocked, because if it is updated  */
-/*  using a temporary file, the block size may be modified.            */
-/***********************************************************************/
-bool DOSCOL::VarSize(void)
-  {
-  PTDBDOS tdbp = (PTDBDOS)To_Tdb;
-  PTXF    txfp = tdbp->Txfp;
-
-  if (Cdp && !Cdp->GetNext()               // Must be the last column
-          && tdbp->Ftype == RECFM_VAR      // of a DOS variable length
-          && txfp->Blocked                 // blocked table
-          && txfp->GetUseTemp())           // using a temporary file.
-    return true;
-  else
-    return false;
-
-  } // end VarSize
 
 /***********************************************************************/
 /*  SetBuffer: prepare a column block for write operation.             */
@@ -1151,6 +1124,13 @@ void DOSCOL::WriteColumn(PGLOBAL g)
     htrc("Lrecl=%d deplac=%d int=%d\n", tdbp->Lrecl, Deplac, Long);
 
   field = Long;
+	len = (signed)strlen(tdbp->To_Line);
+
+	if (tdbp->GetAmType() == TYPE_AM_DOS && len > tdbp->Lrecl) {
+		sprintf(g->Message, "Line size %d is bigger than lrecl %d",
+						len, tdbp->Lrecl);
+    longjmp(g->jumper[g->jump_level], 32);
+    } // endif
 
   if (tdbp->Ftype == RECFM_VAR && tdbp->Mode == MODE_UPDATE) {
     len = (signed)strlen(tdbp->To_Line);

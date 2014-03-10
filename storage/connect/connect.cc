@@ -415,11 +415,7 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool mrr)
       colp->Reset();
 
       // Virtual columns are computed by MariaDB
-#if defined(MRRBKA_SUPPORT)
-      if (!colp->GetColUse(U_VIRTUAL) && (!mrr || colp->GetKcol()))
-#else   // !MRRBKA_SUPPORT
       if (!colp->GetColUse(U_VIRTUAL))
-#endif  // !MRRBKA_SUPPORT
         if (colp->Eval(g))
           rc= RC_FX;
 
@@ -433,7 +429,7 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool mrr)
 /***********************************************************************/
 /*  ReadNext: Read next record sequentially.                           */
 /***********************************************************************/
-RCODE  CntReadNext(PGLOBAL g, PTDB tdbp)
+RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
   {
   RCODE rc;
 
@@ -449,8 +445,21 @@ RCODE  CntReadNext(PGLOBAL g, PTDB tdbp)
     ((PTDBASE)tdbp)->SetKindex(NULL);
     } // endif index
 
+  // Save stack and allocation environment and prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return RC_FX;
+    } // endif jump_level
+
+  if ((setjmp(g->jumper[++g->jump_level])) != 0) {
+    rc= RC_FX;
+    goto err;
+    } // endif rc
+
   while ((rc= (RCODE)tdbp->ReadDB(g)) == RC_NF) ;
-  
+
+ err:
+  g->jump_level--;
   return (rc != RC_OK) ? rc : EvalColumns(g, tdbp);
   } // end of CntReadNext
 
@@ -572,7 +581,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
     return 0;
 
   if (xtrace > 1)
-    printf("About to reset opt\n");
+    printf("About to reset indexes\n");
 
   // Make all the eventual indexes
   tbxp= (TDBDOX*)tdbp;

@@ -122,8 +122,6 @@ struct ha_table_option_struct {
 struct ha_field_option_struct
 {
   ulonglong offset;
-  ulonglong freq;      // Not used by this version
-  ulonglong opt;       // Not used by this version
   ulonglong fldlen;
   const char *dateformat;
   const char *fieldformat;
@@ -243,11 +241,7 @@ public:
   */
   ulong index_flags(uint inx, uint part, bool all_parts) const
   {
-    return HA_READ_NEXT | HA_READ_RANGE | HA_READ_ORDER
-#if defined(MRRBKA_SUPPORT)
-         | HA_KEYREAD_ONLY
-#endif   // MRRBKA_SUPPORT
-      ;
+    return HA_READ_NEXT | HA_READ_RANGE | HA_READ_ORDER | HA_KEYREAD_ONLY;
   } // end of index_flags
 
   /** @brief
@@ -334,7 +328,7 @@ public:
    condition stack.
  */ 
 virtual const COND *cond_push(const COND *cond);
-PFIL  CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond);
+PCFIL CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond);
 const char *GetValStr(OPVAL vop, bool neg);
 
  /**
@@ -424,6 +418,9 @@ const char *GetValStr(OPVAL vop, bool neg);
   */
 //int index_last(uchar *buf);
 
+  /* Index condition pushdown implementation */
+//Item *idx_cond_push(uint keyno, Item* idx_cond);
+
   /** @brief
     Unlike index_init(), rnd_init() can be called two consecutive times
     without rnd_end() in between (it only makes sense if scan=1). In this
@@ -499,28 +496,4 @@ public:
   char   *index_file_name;
   uint    int_table_flags;            // Inherited from MyISAM
   bool    enable_activate_all_index;  // Inherited from MyISAM
-
-#if defined(MRRBKA_SUPPORT)
-  /**
-   * Multi Range Read interface
-   */
-  int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
-                            uint n_ranges, uint mode, HANDLER_BUFFER *buf);
-  int multi_range_read_next(range_id_t *range_info);
-  ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
-                                      void *seq_init_param, 
-                                      uint n_ranges, uint *bufsz,
-                                      uint *flags, Cost_estimate *cost);
-  ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
-                                uint key_parts, uint *bufsz, 
-                                uint *flags, Cost_estimate *cost);
-  int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
-
-  int reset(void) {ds_mrr.dsmrr_close(); return 0;}
-
-  /* Index condition pushdown implementation */
-//  Item *idx_cond_push(uint keyno, Item* idx_cond);
-private:
-  DsMrr_impl ds_mrr;
-#endif   // MRRBKA_SUPPORT
 };  // end of ha_connect class definition

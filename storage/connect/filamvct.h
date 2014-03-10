@@ -40,7 +40,6 @@ class DllExport VCTFAM : public FIXFAM {
 
   // Methods
   virtual void Reset(void);
-  virtual int  MaxBlkSize(PGLOBAL g, int s);
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual bool InitInsert(PGLOBAL g);
   virtual void ResetBuffer(PGLOBAL g) {}
@@ -74,11 +73,11 @@ class DllExport VCTFAM : public FIXFAM {
   char   *Colfn;            // Pattern for column file names (VER)
   char   *Tempat;           // Pattern for temp file names (VER)
   int    *Clens;            // Pointer to col size array
-  int    *Deplac;            // Pointer to col start position array
+  int    *Deplac;           // Pointer to col start position array
   bool   *Isnum;            // Pointer to buffer type isnum result
   bool    AddBlock;         // True when adding new blocks on Insert
   bool    Split;            // true: split column file vector format
-  int     Header;            // 0: no, 1: separate, 2: in data file
+  int     Header;           // 0: no, 1: separate, 2: in data file
   int     MaxBlk;           // Max number of blocks (True vector format)
   int     Bsize;            // Because Nrec can be modified
   int     Ncol;             // The number of columns;
@@ -164,7 +163,7 @@ class DllExport VECFAM : public VCTFAM {
   FILE*   *T_Streams;           // Points to temp file structure array
   PFBLOCK *To_Fbs;              // Pointer to file block array
   PFBLOCK *T_Fbs;               // Pointer to temp file block array
-  void*   *To_Bufs;              // Pointer to col val block array
+  void*   *To_Bufs;             // Pointer to col val block array
   bool     InitUpdate;          // Used to initialize updating
   }; // end of class VECFAM
 
@@ -189,7 +188,7 @@ class DllExport VMPFAM : public VCMFAM {
 
   // Database routines
   virtual bool OpenTableFile(PGLOBAL g);
-  virtual int   DeleteRecords(PGLOBAL g, int irc);
+  virtual int  DeleteRecords(PGLOBAL g, int irc);
   virtual void CloseTableFile(PGLOBAL g);
 
  protected:
@@ -220,7 +219,7 @@ class BGVFAM : public VCTFAM {
   // Database routines
   virtual bool OpenTableFile(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
-  virtual int   DeleteRecords(PGLOBAL g, int irc);
+  virtual int  DeleteRecords(PGLOBAL g, int irc);
   virtual void CloseTableFile(PGLOBAL g);
   virtual void Rewind(void);
 
@@ -233,11 +232,11 @@ class BGVFAM : public VCTFAM {
           bool BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req);
           bool BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req);
   virtual bool MakeEmptyFile(PGLOBAL g, char *fn);
-  virtual  bool OpenTempFile(PGLOBAL g);
+  virtual bool OpenTempFile(PGLOBAL g);
   virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
   virtual bool CleanUnusedSpace(PGLOBAL g);
-  virtual  bool SetBlockInfo(PGLOBAL g);
-  virtual  int  GetBlockInfo(PGLOBAL g);
+  virtual bool SetBlockInfo(PGLOBAL g);
+  virtual int  GetBlockInfo(PGLOBAL g);
 
   // Members
   HANDLE  Hfile;                // Handle to big file
