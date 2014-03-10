@@ -1094,6 +1094,8 @@ INSERT INTO t3 VALUES (103, rand());
 INSERT INTO t3 VALUES (104, rand());
 INSERT INTO t3 VALUES (105, rand());
 
+--save_master_pos
+
 --connection server_2
 --sync_with_master
 --source include/stop_slave.inc
