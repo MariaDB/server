@@ -5976,6 +5976,10 @@ static void test_bind_date_conv(uint row_count)
   MYSQL_TIME   tm[4];
   ulong        second_part;
   uint         year, month, day, hour, minute, sec;
+  uint         now_year= 1990, now_month= 3, now_day= 13;
+
+  rc= mysql_query(mysql, "SET timestamp=UNIX_TIMESTAMP('1990-03-13')");
+  myquery(rc);
 
   stmt= mysql_simple_prepare(mysql, "INSERT INTO test_date VALUES(?, ?, ?, ?)");
   check_stmt(stmt);
@@ -6076,9 +6080,15 @@ static void test_bind_date_conv(uint row_count)
                 i, tm[i].year, tm[i].month, tm[i].day,
                 tm[i].hour, tm[i].minute, tm[i].second,
                 tm[i].second_part);
-      DIE_UNLESS(tm[i].year == 0 || tm[i].year == year+count);
-      DIE_UNLESS(tm[i].month == 0 || tm[i].month == month+count);
-      DIE_UNLESS(tm[i].day == 0 || tm[i].day == day+count);
+      DIE_UNLESS(tm[i].year == 0 || tm[i].year == year + count ||
+                 (tm[i].year == now_year &&
+                  my_bind[i].buffer_type == MYSQL_TYPE_TIME));
+      DIE_UNLESS(tm[i].month == 0 || tm[i].month == month + count ||
+                 (tm[i].month == now_month &&
+                  my_bind[i].buffer_type == MYSQL_TYPE_TIME));
+      DIE_UNLESS(tm[i].day == 0 || tm[i].day == day + count ||
+                 (tm[i].day == now_day &&
+                  my_bind[i].buffer_type == MYSQL_TYPE_TIME));
 
       DIE_UNLESS(tm[i].hour == 0 || tm[i].hour == hour+count);
       DIE_UNLESS(tm[i].minute == 0 || tm[i].minute == minute+count);

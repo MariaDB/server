@@ -24,7 +24,7 @@ innodb-sys-foreign
 innodb-sys-foreign-col
 innodb-metrics
 
-[innodb]
+[xtradb]
 innodb
 innodb-cmpmem
 innodb-trx

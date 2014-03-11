@@ -195,6 +195,7 @@ DROP TABLE t1;
 --echo #
 --echo # TIME literals in no-zero date context
 --echo #
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 SELECT TO_DAYS(TIME'00:00:00');
 SELECT TO_SECONDS(TIME'00:00:00');
 SELECT DAYOFYEAR(TIME'00:00:00');
@@ -204,6 +205,7 @@ SELECT WEEKDAY(TIME'00:00:00');
 SELECT CONVERT_TZ(TIME'00:00:00','+00:00','+01:00');
 SELECT DATE_ADD(TIME'00:00:00', INTERVAL 1 HOUR);
 SELECT TIMESTAMPDIFF(SECOND,TIME'00:00:00', TIME'00:00:00');
+SET timestamp=DEFAULT;
 
 --echo #
 --echo # Testing Item_func::fix_fields()

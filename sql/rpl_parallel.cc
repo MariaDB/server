@@ -705,6 +705,11 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
     pool->changing= false;
     mysql_mutex_unlock(&LOCK_active_mi);
   }
+
+  mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
+  mysql_cond_broadcast(&pool->COND_rpl_thread_pool);
+  mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
+
   return 0;
 
 err:
@@ -789,9 +794,10 @@ rpl_parallel_thread::get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
       return NULL;
     }
     rgi->is_parallel_exec = true;
-    if ((rgi->deferred_events_collecting= rli->mi->rpl_filter->is_on()))
-      rgi->deferred_events= new Deferred_log_events(rli);
   }
+  if ((rgi->deferred_events_collecting= rli->mi->rpl_filter->is_on()) &&
+      !rgi->deferred_events)
+    rgi->deferred_events= new Deferred_log_events(rli);
   if (event_group_new_gtid(rgi, gtid_ev))
   {
     free_rgi(rgi);
@@ -810,11 +816,6 @@ rpl_parallel_thread::free_rgi(rpl_group_info *rgi)
   mysql_mutex_assert_owner(&LOCK_rpl_thread);
   DBUG_ASSERT(rgi->commit_orderer.waitee == NULL);
   rgi->free_annotate_event();
-  if (rgi->deferred_events)
-  {
-    delete rgi->deferred_events;
-    rgi->deferred_events= NULL;
-  }
   rgi->next= rgi_free_list;
   rgi_free_list= rgi;
 }

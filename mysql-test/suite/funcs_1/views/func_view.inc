@@ -151,6 +151,8 @@
 #
 #
 
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
+
 --disable_warnings
 DROP TABLE IF EXISTS t1_selects, t1_modes, t1_values;
 DROP VIEW  IF EXISTS v1;
@@ -1359,3 +1361,5 @@ while ($select_id)
 --enable_ps_protocol
 
 DROP TABLE t1_selects, t1_modes, t1_values;
+
+SET timestamp=DEFAULT;
