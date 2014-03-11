@@ -8,6 +8,12 @@ ERROR 42000: This table type requires a primary key
 SHOW WARNINGS;
 Level	Code	Message
 Error	1173	This table type requires a primary key
+CREATE TABLE T1(A INTEGER NOT NULL, B INTEGER,
+UNIQUE KEY(A,B)) ENGINE=INNODB;
+ERROR 42000: This table type requires a primary key
+SHOW WARNINGS;
+Level	Code	Message
+Error	1173	This table type requires a primary key
 CREATE TABLE T1(A INTEGER NOT NULL PRIMARY KEY) ENGINE=INNODB;
 SHOW CREATE TABLE T1;
 Table	Create Table
