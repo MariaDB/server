@@ -383,6 +383,9 @@ UNIV_INTERN ibool	srv_print_innodb_lock_monitor	= FALSE;
 UNIV_INTERN ibool	srv_print_innodb_tablespace_monitor = FALSE;
 UNIV_INTERN ibool	srv_print_innodb_table_monitor = FALSE;
 
+/** If this flag is set tables without primary key are not allowed */
+UNIV_INTERN my_bool	srv_force_primary_key		= FALSE;
+
 /* Array of English strings describing the current state of an
 i/o handler thread */
 

@@ -2544,6 +2544,7 @@ ha_innobase::ha_innobase(
 		  HA_BINLOG_ROW_CAPABLE |
 		  HA_CAN_GEOMETRY | HA_PARTIAL_COLUMN_READ |
 		  HA_TABLE_SCAN_ON_INDEX | HA_CAN_FULLTEXT |
+		  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0 ) |
 		  HA_CAN_FULLTEXT_EXT | HA_CAN_EXPORT),
 	start_of_scan(0),
 	num_write_row(0)
@@ -4624,12 +4625,19 @@ ha_innobase::table_flags() const
 	/* Need to use tx_isolation here since table flags is (also)
 	called before prebuilt is inited. */
 	ulong const tx_isolation = thd_tx_isolation(ha_thd());
+	handler::Table_flags flags = int_table_flags;
 
-	if (tx_isolation <= ISO_READ_COMMITTED) {
-		return(int_table_flags);
+	if (srv_force_primary_key) {
+		flags |= HA_REQUIRE_PRIMARY_KEY;
+	} else {
+		flags &= ~HA_REQUIRE_PRIMARY_KEY;
 	}
 
-	return(int_table_flags | HA_BINLOG_STMT_CAPABLE);
+	if (tx_isolation <= ISO_READ_COMMITTED) {
+		return(flags);
+	}
+
+	return(flags | HA_BINLOG_STMT_CAPABLE);
 }
 
 /****************************************************************//**
@@ -17729,6 +17737,12 @@ static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
   NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG */
 
+static MYSQL_SYSVAR_BOOL(force_primary_key,
+  srv_force_primary_key,
+  PLUGIN_VAR_OPCMDARG,
+  "Do not allow to create table without primary key (off by default)",
+  NULL, NULL, FALSE);
+
 const char *corrupt_table_action_names[]=
 {
   "assert", /* 0 */
@@ -17951,6 +17965,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(fake_changes),
   MYSQL_SYSVAR(locking_fake_changes),
   MYSQL_SYSVAR(use_stacktrace),
+  MYSQL_SYSVAR(force_primary_key),
   NULL
 };
 
