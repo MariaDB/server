@@ -212,6 +212,16 @@ The following options may be given as the first argument:
  multiple masters), each independent source server must
  use a distinct domain_id. For simple tree-shaped
  replication topologies, it can be left at its default, 0.
+ --gtid-ignore-duplicates 
+ When set, different master connections in multi-source
+ replication are allowed to receive and process event
+ groups with the same GTID (when using GTID mode). Only
+ one will be applied, any others will be ignored. Within a
+ given replication domain, just the sequence number will
+ be used to decide whether a given GTID has been already
+ applied; this means it is the responsibility of the user
+ to ensure that GTID sequence numbers are strictly
+ increasing.
  --gtid-strict-mode  Enforce strict seq_no ordering of events in the binary
  log. Slave stops with an error if it encounters an event
  that would cause it to generate an out-of-order binlog if
@@ -1094,6 +1104,7 @@ gdb FALSE
 general-log FALSE
 group-concat-max-len 1024
 gtid-domain-id 0
+gtid-ignore-duplicates FALSE
 gtid-strict-mode FALSE
 help TRUE
 histogram-size 0

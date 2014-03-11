@@ -4440,7 +4440,7 @@ Default database: '%s'. Query: '%s'",
 
 end:
   if (sub_id && !thd->is_slave_error)
-    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid, rli);
+    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid, rgi);
 
   /*
     Probably we have set thd->query, thd->db, thd->catalog to point to places
@@ -7327,7 +7327,7 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
   thd->mdl_context.release_transactional_locks();
 
   if (!res && sub_id)
-    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid, rli);
+    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid, rgi);
 
   /*
     Increment the global status commit count variable

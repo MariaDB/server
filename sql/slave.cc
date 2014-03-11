@@ -3508,18 +3508,46 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       */
     }
 
-    /*
-      For GTID, allocate a new sub_id for the given domain_id.
-      The sub_id must be allocated in increasing order of binlog order.
-    */
-    if (typ == GTID_EVENT &&
-        event_group_new_gtid(serial_rgi, static_cast<Gtid_log_event *>(ev)))
+    if (typ == GTID_EVENT)
     {
-      sql_print_error("Error reading relay log event: %s",
-                      "slave SQL thread aborted because of out-of-memory error");
-      mysql_mutex_unlock(&rli->data_lock);
-      delete ev;
-      DBUG_RETURN(1);
+      Gtid_log_event *gev= static_cast<Gtid_log_event *>(ev);
+
+      /*
+        For GTID, allocate a new sub_id for the given domain_id.
+        The sub_id must be allocated in increasing order of binlog order.
+      */
+      if (event_group_new_gtid(serial_rgi, gev))
+      {
+        sql_print_error("Error reading relay log event: %s", "slave SQL thread "
+                        "aborted because of out-of-memory error");
+        mysql_mutex_unlock(&rli->data_lock);
+        delete ev;
+        DBUG_RETURN(1);
+      }
+
+      if (opt_gtid_ignore_duplicates)
+      {
+        serial_rgi->current_gtid.domain_id= gev->domain_id;
+        serial_rgi->current_gtid.server_id= gev->server_id;
+        serial_rgi->current_gtid.seq_no= gev->seq_no;
+        int res= rpl_global_gtid_slave_state.check_duplicate_gtid
+          (&serial_rgi->current_gtid, serial_rgi);
+        if (res < 0)
+        {
+          sql_print_error("Error processing GTID event: %s", "slave SQL "
+                          "thread aborted because of out-of-memory error");
+          mysql_mutex_unlock(&rli->data_lock);
+          delete ev;
+          DBUG_RETURN(1);
+        }
+        /*
+          If we need to skip this event group (because the GTID was already
+          applied), then do it using the code for slave_skip_counter, which
+          is able to handle skipping until the end of the event group.
+        */
+        if (!res)
+          rli->slave_skip_counter= 1;
+      }
     }
 
     serial_rgi->future_event_relay_log_pos= rli->future_event_relay_log_pos;

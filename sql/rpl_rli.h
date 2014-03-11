@@ -575,6 +575,20 @@ struct rpl_group_info
     counting one event group twice.
   */
   bool did_mark_start_commit;
+  enum {
+    GTID_DUPLICATE_NULL=0,
+    GTID_DUPLICATE_IGNORE=1,
+    GTID_DUPLICATE_OWNER=2
+  };
+  /*
+    When --gtid-ignore-duplicates, this is set to one of the above three
+    values:
+    GTID_DUPLICATE_NULL    - Not using --gtid-ignore-duplicates.
+    GTID_DUPLICATE_IGNORE  - This gtid already applied, skip the event group.
+    GTID_DUPLICATE_OWNER   - We are the current owner of the domain, and must
+                             apply the event group and then release the domain.
+  */
+  uint8 gtid_ignore_duplicate_state;
 
   /*
     Runtime state for printing a note when slave is taking

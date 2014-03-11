@@ -92,6 +92,7 @@ struct gtid_waiting {
 
 
 class Relay_log_info;
+struct rpl_group_info;
 
 /*
   Replication slave state.
@@ -171,7 +172,7 @@ struct rpl_slave_state
   void truncate_hash();
   ulong count() const { return hash.records; }
   int update(uint32 domain_id, uint32 server_id, uint64 sub_id,
-             uint64 seq_no, const Relay_log_info *rli);
+             uint64 seq_no, rpl_group_info *rgi);
   int truncate_state_table(THD *thd);
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                   bool in_transaction, bool in_statement);
@@ -187,10 +188,10 @@ struct rpl_slave_state
   element *get_element(uint32 domain_id);
   int put_back_list(uint32 domain_id, list_element *list);
 
-  void update_state_hash(uint64 sub_id, rpl_gtid *gtid,
-                         const Relay_log_info *rli);
+  void update_state_hash(uint64 sub_id, rpl_gtid *gtid, rpl_group_info *rgi);
   int record_and_update_gtid(THD *thd, struct rpl_group_info *rgi);
-  int check_duplicate_gtid(rpl_gtid *gtid, const Relay_log_info *rli);
+  int check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi);
+  void release_domain_owner(rpl_group_info *rgi);
 };
 
 
