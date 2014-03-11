@@ -441,6 +441,7 @@ extern PSI_stage_info stage_waiting_for_prior_transaction_to_commit;
 extern PSI_stage_info stage_waiting_for_room_in_worker_thread;
 extern PSI_stage_info stage_master_gtid_wait_primary;
 extern PSI_stage_info stage_master_gtid_wait;
+extern PSI_stage_info stage_gtid_wait_other_connection;
 
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 /**

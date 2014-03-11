@@ -9447,6 +9447,7 @@ PSI_stage_info stage_waiting_for_prior_transaction_to_commit= { 0, "Waiting for 
 PSI_stage_info stage_waiting_for_room_in_worker_thread= { 0, "Waiting for room in worker thread event queue", 0};
 PSI_stage_info stage_master_gtid_wait_primary= { 0, "Waiting in MASTER_GTID_WAIT() (primary waiter)", 0};
 PSI_stage_info stage_master_gtid_wait= { 0, "Waiting in MASTER_GTID_WAIT()", 0};
+PSI_stage_info stage_gtid_wait_other_connection= { 0, "Waiting for other master connection to process GTID received on multiple master connections", 0};
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -9565,7 +9566,8 @@ PSI_stage_info *all_server_stages[]=
   & stage_waiting_to_finalize_termination,
   & stage_waiting_to_get_readlock,
   & stage_master_gtid_wait_primary,
-  & stage_master_gtid_wait
+  & stage_master_gtid_wait,
+  & stage_gtid_wait_other_connection
 };
 
 PSI_socket_key key_socket_tcpip, key_socket_unix, key_socket_client_connection;

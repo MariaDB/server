@@ -1,0 +1,13 @@
+SET @save_gtid_ignore_duplicates= @@GLOBAL.gtid_ignore_duplicates;
+SELECT @@GLOBAL.gtid_ignore_duplicates as 'must be zero because of default';
+must be zero because of default
+0
+SELECT @@SESSION.gtid_ignore_duplicates  as 'no session var';
+ERROR HY000: Variable 'gtid_ignore_duplicates' is a GLOBAL variable
+SET GLOBAL gtid_ignore_duplicates= FALSE;
+SET GLOBAL gtid_ignore_duplicates= DEFAULT;
+SET GLOBAL gtid_ignore_duplicates= TRUE;
+SELECT @@GLOBAL.gtid_ignore_duplicates;
+@@GLOBAL.gtid_ignore_duplicates
+1
+SET GLOBAL gtid_ignore_duplicates = @save_gtid_ignore_duplicates;

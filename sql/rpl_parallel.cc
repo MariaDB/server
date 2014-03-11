@@ -425,10 +425,22 @@ handle_rpl_parallel_thread(void *arg)
         {
           int res=
             rpl_global_gtid_slave_state.check_duplicate_gtid(&rgi->current_gtid,
-                                                             rgi->rli);
-          /* ToDo: Handle res==-1 error. */
-          if (!res)
+                                                             rgi);
+          if (res < 0)
+          {
+            /* Error. */
+            slave_output_error_info(rgi->rli, thd);
+            signal_error_to_sql_driver_thread(thd, rgi);
+          }
+          else if (!res)
+          {
+            /* GTID already applied by another master connection, skip. */
             skip_event_group= true;
+          }
+          else
+          {
+            /* We have to apply the event. */
+          }
         }
       }
 

@@ -1493,6 +1493,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
   row_stmt_start_timestamp= 0;
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
+  gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   commit_orderer.reinit();
 }
 
@@ -1630,6 +1631,13 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
   */
   thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
   thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
+
+  /*
+    Ensure we always release the domain for others to process, when using
+    --gtid-ignore-duplicates.
+  */
+  if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL)
+    rpl_global_gtid_slave_state.release_domain_owner(this);
 
   /*
     Reset state related to long_find_row notes in the error log:

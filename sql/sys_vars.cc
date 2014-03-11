@@ -1839,18 +1839,14 @@ static bool
 fix_gtid_ignore_duplicates(sys_var *self, THD *thd, enum_var_type type)
 {
   bool running;
-  bool err= false;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   running= master_info_index->give_error_if_slave_running();
   mysql_mutex_unlock(&LOCK_active_mi);
-  if (running)
-    err= true;
   mysql_mutex_lock(&LOCK_global_system_variables);
 
-  /* ToDo: Isn't there a race here? I need to change the variable only under the LOCK_active_mi, and only if running is false. */
-  return err;
+  return running ? true : false;
 }
 
 
