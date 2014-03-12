@@ -1518,6 +1518,7 @@ public:
                    MYF(MY_THREAD_SPECIFIC));
   }
   void unlock_locked_tables(THD *thd);
+  void unlock_locked_table(THD *thd, MDL_ticket *mdl_ticket);
   ~Locked_tables_list()
   {
     reset();

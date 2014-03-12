@@ -203,6 +203,42 @@ select * from t1 order by a,i;
 drop table t1,t3;
 
 --echo #
+--echo # Test the meta data locks are freed properly
+--echo #
+
+create database mysqltest2;
+
+drop table if exists test.t1,mysqltest2.t2;
+create table test.t1 (i int);
+create table mysqltest2.t2 like test.t1;
+lock table test.t1 write, mysqltest2.t2 write;
+select * from information_schema.metadata_lock_info;
+--error ER_TABLE_MUST_HAVE_COLUMNS
+create or replace table test.t1;
+show tables;
+select * from information_schema.metadata_lock_info;
+--error ER_TABLE_MUST_HAVE_COLUMNS
+create or replace table mysqltest2.t2;
+select * from information_schema.metadata_lock_info;
+create table t1 (i int);
+drop table t1;
+
+create table test.t1 (i int);
+create table mysqltest2.t2 like test.t1;
+lock table test.t1 write, mysqltest2.t2 write;
+select * from information_schema.metadata_lock_info;
+--error ER_DUP_FIELDNAME
+create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
+show tables;
+select * from information_schema.metadata_lock_info;
+--error ER_DUP_FIELDNAME
+create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
+select * from information_schema.metadata_lock_info;
+create table t1 (i int);
+drop table t1;
+drop database mysqltest2;
+
+--echo #
 --echo # Testing CREATE .. LIKE
 --echo #
 

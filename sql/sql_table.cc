@@ -4627,6 +4627,7 @@ int create_table_impl(THD *thd,
         */
         thd->variables.option_bits|= OPTION_KEEP_LOG;
         thd->log_current_statement= 1;
+        create_info->table_was_deleted= 1;
 
         /*
           The test of query_tables is to ensure we have any tables in the
@@ -4838,19 +4839,23 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   bool result= 0;
   int create_table_mode;
   TABLE_LIST *pos_in_locked_tables= 0;
+  MDL_ticket *mdl_ticket= 0;
   DBUG_ENTER("mysql_create_table");
 
   DBUG_ASSERT(create_table == thd->lex->query_tables);
 
   /* Open or obtain an exclusive metadata lock on table being created  */
-  if (open_and_lock_tables(thd, thd->lex->query_tables, FALSE, 0))
+  if (open_and_lock_tables(thd, create_table, FALSE, 0))
   {
     /* is_error() may be 0 if table existed and we generated a warning */
     DBUG_RETURN(thd->is_error());
   }
   /* The following is needed only in case of lock tables */
-  if ((create_info->table= thd->lex->query_tables->table))
+  if ((create_info->table= create_table->table))
+  {
     pos_in_locked_tables= create_info->table->pos_in_locked_tables;
+    mdl_ticket= create_table->table->mdl_ticket;
+  }
   
   /* Got lock. */
   DEBUG_SYNC(thd, "locked_table_name");
@@ -4895,9 +4900,19 @@ err:
     DBUG_RETURN(result);
   /* Write log if no error or if we already deleted a table */
   if (!result || thd->log_current_statement)
+  {
+    if (result && create_info->table_was_deleted)
+    {
+      /*
+        Possible locked table was dropped. We should remove meta data locks
+        associated with it and do UNLOCK_TABLES if no more locked tables.
+      */
+      thd->locked_tables_list.unlock_locked_table(thd, mdl_ticket);
+    }    
     if (write_bin_log(thd, result ? FALSE : TRUE, thd->query(),
                       thd->query_length(), is_trans))
       result= 1;
+  }
   DBUG_RETURN(result);
 }
 

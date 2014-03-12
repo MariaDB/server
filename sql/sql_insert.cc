@@ -4343,7 +4343,7 @@ void select_create::abort_result_set()
     of the table succeeded or not, since we need to reset the binary
     log state.
     
-    However if there was an orignal table that was deleted, as part of
+    However if there was an original table that was deleted, as part of
     create or replace table, then we must log the statement.
   */
 
@@ -4357,6 +4357,12 @@ void select_create::abort_result_set()
   /* possible error of writing binary log is ignored deliberately */
   (void) thd->binlog_flush_pending_rows_event(TRUE, TRUE);
 
+  if (create_info->table_was_deleted)
+  {
+    /* Unlock locked table that was dropped by CREATE */
+    thd->locked_tables_list.unlock_locked_table(thd,
+                                                create_info->mdl_ticket);
+  }
   if (m_plock)
   {
     mysql_unlock_tables(thd, *m_plock);

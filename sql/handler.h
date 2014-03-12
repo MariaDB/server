@@ -1621,6 +1621,7 @@ struct HA_CREATE_INFO
   TABLE *table;
   TABLE_LIST *pos_in_locked_tables;
   MDL_ticket *mdl_ticket;
+  bool table_was_deleted;
 
   bool tmp_table() { return options & HA_LEX_CREATE_TMP_TABLE; }
 };
