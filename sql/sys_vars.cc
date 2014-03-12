@@ -1758,10 +1758,11 @@ fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
 
 static Sys_var_ulong Sys_slave_parallel_threads(
        "slave_parallel_threads",
-       "Alpha feature, to only be used by developers doing testing! "
        "If non-zero, number of threads to spawn to apply in parallel events "
        "on the slave that were group-committed on the master or were logged "
-       "with GTID in different replication domains.",
+       "with GTID in different replication domains. Note that these threads "
+       "are in addition to the IO and SQL threads, which are always created "
+       "by a replication slave",
        GLOBAL_VAR(opt_slave_parallel_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
