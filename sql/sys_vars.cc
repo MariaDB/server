@@ -4586,7 +4586,7 @@ const char *use_stat_tables_modes[] =
 static Sys_var_enum Sys_optimizer_use_stat_tables(
        "use_stat_tables",
        "Specifies how to use system statistics tables. Possible values are "
-       "NEVER, COMPLEMENTARY, PREVERABLY",
+       "NEVER, COMPLEMENTARY, PREFERABLY",
        SESSION_VAR(use_stat_tables), CMD_LINE(REQUIRED_ARG),
        use_stat_tables_modes, DEFAULT(0));
 
