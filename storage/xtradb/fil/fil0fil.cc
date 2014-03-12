@@ -5488,6 +5488,8 @@ _fil_io(
 		srv_stats.data_written.add(len);
 		if (fil_page_is_index_page((byte *)buf)) {
 			srv_stats.index_pages_written.inc();
+		} else {
+			srv_stats.non_index_pages_written.inc();
 		}
 	}
 

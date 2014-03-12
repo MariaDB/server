@@ -111,6 +111,8 @@ struct srv_stats_t {
 	ulint_ctr_64_t          page_compression_trim_sect4096;
 	/* Number of index pages written */
 	ulint_ctr_64_t          index_pages_written;
+	/* Number of non index pages written */
+	ulint_ctr_64_t          non_index_pages_written;
 	/* Number of pages compressed with page compression */
         ulint_ctr_64_t          pages_page_compressed;
 	/* Number of TRIM operations induced by page compression */
@@ -255,12 +257,6 @@ extern my_bool	srv_use_native_aio;
 extern ibool	srv_use_native_conditions;
 #endif /* __WIN__ */
 #endif /* !UNIV_HOTBACKUP */
-
-/* Is page compression used only for index pages */
-extern my_bool srv_page_compress_index_pages;
-
-/* Frequency of trim operations */
-extern long srv_trim_pct;
 
 /* Use trim operation */
 extern my_bool srv_use_trim;
@@ -1109,6 +1105,8 @@ struct export_var_t{
 	ib_int64_t innodb_page_compression_trim_sect4096;/*!< Number of 4K byte TRIM
 						by page compression */
 	ib_int64_t innodb_index_pages_written;  /*!< Number of index pages
+						written */
+	ib_int64_t innodb_non_index_pages_written;  /*!< Number of non index pages
 						written */
 	ib_int64_t innodb_pages_page_compressed;/*!< Number of pages
 						compressed by page compression */

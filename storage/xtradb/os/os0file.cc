@@ -4580,12 +4580,8 @@ found:
 	slot->page_compression = page_compression;
 
 	/* If the space is page compressed and this is write operation
-	   and either index compression is enabled or page is not a index
-	   page then we compress the page */
-	if (message1 &&
-	    type == OS_FILE_WRITE &&
-	    page_compression &&
-	     (srv_page_compress_index_pages == true || !fil_page_is_index_page(slot->buf))) {
+	   then we compress the page */
+	if (message1 && type == OS_FILE_WRITE && page_compression ) {
 		ulint           real_len = len;
 		byte*           tmp = NULL;
 

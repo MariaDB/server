@@ -711,6 +711,8 @@ static SHOW_VAR innodb_status_variables[]= {
    (char*) &export_vars.innodb_page_compression_trim_sect4096,    SHOW_LONGLONG},
   {"num_index_pages_written",
    (char*) &export_vars.innodb_index_pages_written,       SHOW_LONGLONG},
+  {"num_non_index_pages_written",
+   (char*) &export_vars.innodb_non_index_pages_written,       SHOW_LONGLONG},
   {"num_pages_page_compressed",
    (char*) &export_vars.innodb_pages_page_compressed,     SHOW_LONGLONG},
   {"num_page_compressed_trim_op",
@@ -16786,18 +16788,6 @@ static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
   NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG */
 
-/*
-static MYSQL_SYSVAR_LONG(trim_pct, srv_trim_pct,
-  PLUGIN_VAR_OPCMDARG ,
-  "How many percent of compressed pages should be trimmed",
-  NULL, NULL, 100, 0, 100, 0);
-*/
-
-static MYSQL_SYSVAR_BOOL(compress_index_pages, srv_page_compress_index_pages,
-  PLUGIN_VAR_OPCMDARG,
-  "Use page compression also for index pages. Default FALSE.",
-  NULL, NULL, FALSE);
-
 static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
   PLUGIN_VAR_OPCMDARG,
   "Use trim. Default FALSE.",
@@ -16976,8 +16966,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
 #endif /* UNIV_DEBUG */
-  // MYSQL_SYSVAR(trim_pct),
-  MYSQL_SYSVAR(compress_index_pages),
   MYSQL_SYSVAR(use_trim),
 #ifdef HAVE_LZ4
   MYSQL_SYSVAR(use_lz4),

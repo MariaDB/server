@@ -161,10 +161,6 @@ use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 UNIV_INTERN my_bool	srv_use_native_aio = TRUE;
 
-/* If this flag is TRUE, then we will use page compression
-only for index pages */
-UNIV_INTERN my_bool     srv_page_compress_index_pages   = FALSE;
-UNIV_INTERN long        srv_trim_pct                    = 100;
 /* Default compression level if page compression is used and no compression
 level is set for the table*/
 UNIV_INTERN long        srv_compress_zlib_level         = 6;
@@ -515,6 +511,7 @@ UNIV_INTERN ib_uint64_t srv_page_compression_saved      = 0;
 UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect512       = 0;
 UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect4096      = 0;
 UNIV_INTERN ib_uint64_t srv_index_pages_written         = 0;
+UNIV_INTERN ib_uint64_t srv_non_index_pages_written     = 0;
 UNIV_INTERN ib_uint64_t srv_pages_page_compressed       = 0;
 UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op     = 0;
 UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op_saved     = 0;
@@ -1866,6 +1863,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_page_compression_trim_sect512 = srv_stats.page_compression_trim_sect512;
 	export_vars.innodb_page_compression_trim_sect4096 = srv_stats.page_compression_trim_sect4096;
 	export_vars.innodb_index_pages_written = srv_stats.index_pages_written;
+	export_vars.innodb_non_index_pages_written = srv_stats.non_index_pages_written;
 	export_vars.innodb_pages_page_compressed = srv_stats.pages_page_compressed;
 	export_vars.innodb_page_compressed_trim_op = srv_stats.page_compressed_trim_op;
 	export_vars.innodb_page_compressed_trim_op_saved = srv_stats.page_compressed_trim_op_saved;
