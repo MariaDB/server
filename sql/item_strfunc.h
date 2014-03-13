@@ -1174,6 +1174,7 @@ public:
   String *val_str(String *);
   void fix_length_and_dec()
   {
+    max_length= MAX_BLOB_WIDTH;
     maybe_null= 1;
     collation.set(&my_charset_bin);
     decimals= 0;

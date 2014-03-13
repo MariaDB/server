@@ -1755,3 +1755,16 @@ Warning	1265	Data truncated for column 'dyncol' at row 1
 SELECT COLUMN_ADD( COLUMN_ADD( dyncol, 1, REPEAT('b',130) ), 3, 'y' ) FROM t1;
 ERROR HY000: Encountered illegal format of dynamic column string
 DROP TABLE t1;
+#
+#MDEV-5840: group_concat( column_json(dynamic_column )) return empty
+#result
+#
+create table t1 (dyn blob);
+insert into t1 values (column_create('name1','value1','name2','value2'));
+select group_concat(cast(column_json(dyn) as char)) from t1;
+group_concat(cast(column_json(dyn) as char))
+{"name1":"value1","name2":"value2"}
+drop table t1;
+#
+# end of 10.0 tests
+#
