@@ -66,6 +66,7 @@
   An instrumented mutex structure.
   @sa mysql_mutex_t
 */
+
 struct st_mysql_mutex
 {
   /** The real mutex. */
@@ -95,6 +96,15 @@ struct st_mysql_mutex
   @sa mysql_mutex_destroy
 */
 typedef struct st_mysql_mutex mysql_mutex_t;
+
+/* How to access the pthread_mutex in mysql_mutex_t */
+#ifdef SAFE_MUTEX
+#define mysql_mutex_real_mutex(A) &(A)->m_mutex.mutex
+#elif defined(MY_PTHREAD_FASTMUTEX)
+#define mysql_mutex_real_mutex(A) &(A)->m_mutex.mutex
+#else
+#define mysql_mutex_real_mutex(A) &(A)->m_mutex
+#endif
 
 /**
   An instrumented rwlock structure.
