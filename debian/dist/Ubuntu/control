@@ -162,12 +162,14 @@ Description: MariaDB database core server files
 Package: mariadb-test-10.0
 Section: database
 Architecture: any
-Depends: mariadb-server-10.0 (= ${source:Version}), mariadb-client-10.0 (= ${source:Version})
+Depends: mariadb-galera-server-10.0 (= ${source:Version}), mariadb-client-10.0 (= ${source:Version})
+Suggests: patch
 Conflicts: mariadb-test (<< ${source:Version}),
     mariadb-test-5.1, mariadb-test-5.2, mariadb-test-5.3,
     mariadb-server-5.5 (<< 5.5.33), mariadb-galera-server-5.5 (<< 5.5.33)
 Replaces: mariadb-test (<< ${source:Version}),
-    mariadb-test-5.1, mariadb-test-5.2, mariadb-test-5.3
+    mariadb-test-5.1, mariadb-test-5.2, mariadb-test-5.3,
+    mariadb-test-5.5
 Description: MariaDB database regression test suite
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -182,12 +184,12 @@ Suggests: tinyca, mailx, mariadb-test
 Recommends: libhtml-template-perl
 Pre-Depends: mariadb-common, adduser (>= 3.40), debconf
 Depends: mariadb-client-10.0 (>= ${source:Version}), libdbi-perl, perl (>= 5.6), ${shlibs:Depends}, ${misc:Depends}, psmisc, passwd, lsb-base (>= 3.0-10), mariadb-server-core-10.0 (>= ${binary:Version}), galera (>=25.2)
-Provides: mariadb-galera-server, mariadb-server, mysql-server, virtual-mysql-server
+Provides: mariadb-server, mysql-server, virtual-mysql-server, mariadb-galera-server
 Conflicts: mariadb-server (<< ${source:Version}), mysql-server (<< ${source:Version}), mariadb-galera-server (<< ${source:Version}),
     mysql-server-4.1, mysql-server-5.0, mysql-server-5.1, mysql-server-5.5,
     mariadb-server-5.1, mariadb-server-5.2, mariadb-server-5.3,
     mariadb-tokudb-engine-5.5, mariadb-tokudb-engine-10.0
-Replaces:  mariadb-galera-server (<< ${source:Version}), mariadb-server (<< ${source:Version}), mysql-server (<< ${source:Version}),
+Replaces: mariadb-server (<< ${source:Version}), mysql-server (<< ${source:Version}), mariadb-galera-server (<< ${source:Version}),
     mysql-server-4.1, mysql-server-5.0, mysql-server-5.1, mysql-server-5.5,
     mariadb-server-5.1, mariadb-server-5.2, mariadb-server-5.3,
     libmariadbclient16 (<< 5.3.4), libmariadbclient-dev (<< 5.5.0),

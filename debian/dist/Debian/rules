@@ -87,11 +87,6 @@ build-stamp: configure
 	cd $(builddir) && $(MAKE) $(MAKE_J) $(AM_EXTRA_MAKEFLAGS)
 
 ifeq ($(findstring nocheck,$(DEB_BUILD_OPTIONS)),)
-	# Don't know why the following is necessary...
-	cp unittest/unit.pl $(builddir)/unittest/
-	cp -r mysql-test/* $(builddir)/mysql-test/
-	cp -r sql/share/* $(builddir)/sql/share/
-	cp -r scripts/*sql $(builddir)/scripts/
 	if [ ! -f testsuite-stamp ] ; then \
 	  cd $(builddir) && $(MAKE) $(MAKE_TEST_TARGET) || $(TESTSUITE_FAIL_CMD) ; \
 	fi
@@ -181,7 +176,6 @@ install: build
 	install -m 0755 debian/additions/echo_stderr $(TMP)/usr/share/mysql/
 	install -m 0755 debian/additions/debian-start $(TMP)/etc/mysql/
 	install -m 0755 debian/additions/debian-start.inc.sh $(TMP)/usr/share/mysql/
-	install -m 0644 Docs/README-wsrep $(TMP)/usr/share/doc/mariadb-galera-server-10.0/README-wsrep
 
 	install -m 0644 $(builddir)/Docs/INFO_SRC $(TMP)/usr/share/doc/mariadb-galera-server-10.0/INFO_SRC
 	install -m 0644 $(builddir)/Docs/INFO_BIN $(TMP)/usr/share/doc/mariadb-galera-server-10.0/INFO_BIN

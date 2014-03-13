@@ -87,11 +87,6 @@ build-stamp: configure
 	cd $(builddir) && $(MAKE) $(MAKE_J) $(AM_EXTRA_MAKEFLAGS)
 
 ifeq ($(findstring nocheck,$(DEB_BUILD_OPTIONS)),)
-	# Don't know why the following is necessary...
-	cp unittest/unit.pl $(builddir)/unittest/
-	cp -r mysql-test/* $(builddir)/mysql-test/
-	cp -r sql/share/* $(builddir)/sql/share/
-	cp -r scripts/*sql $(builddir)/scripts/
 	if [ ! -f testsuite-stamp ] ; then \
 	  cd $(builddir) && $(MAKE) $(MAKE_TEST_TARGET) || $(TESTSUITE_FAIL_CMD) ; \
 	fi
