@@ -190,9 +190,7 @@ install: build
 
 	# lintian overrides
 	mkdir -p $(TMP)/usr/share/lintian/overrides/
-	cp debian/mysql-common.lintian-overrides      $(TMP)/usr/share/lintian/overrides/mysql-common
 	cp debian/mariadb-galera-server-5.5.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-galera-server-5.5
-	cp debian/mariadb-client-5.5.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-client-5.5
 
 	# For 5.0 -> 5.5 transition
 	d=$(TMP)/usr/share/mysql-common/internal-use-only/; \
