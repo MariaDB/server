@@ -3168,7 +3168,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         }
       }
 
-      if (optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE))
+      if (optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE) &&
+          head->stat_records() != 0)
       {
         /* Try creating index_merge/ROR-union scan. */
         SEL_IMERGE *imerge;
