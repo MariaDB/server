@@ -4363,6 +4363,30 @@ DROP TABLE t1,t2,t_empty;
 
 --echo End of 5.1 tests
 
+--echo #
+--echo # Bug#45227: Lost HAVING clause led to a wrong result.
+--echo #
+CREATE TABLE `CC` (
+  `int_nokey` int(11) NOT NULL,
+  `int_key` int(11) NOT NULL,
+  `varchar_key` varchar(1) NOT NULL,
+  `varchar_nokey` varchar(1) NOT NULL,
+  KEY `int_key` (`int_key`),
+  KEY `varchar_key` (`varchar_key`)
+);
+INSERT INTO `CC` VALUES
+(0,8,'q','q'),(5,8,'m','m'),(7,3,'j','j'),(1,2,'z','z'),(8,2,'a','a'),(2,6,'',''),(1,8,'e'
+,'e'),(8,9,'t','t'),(5,2,'q','q'),(4,6,'b','b'),(5,5,'w','w'),(3,2,'m','m'),(0,4,'x','x'),
+(8,9,'',''),(0,6,'w','w'),(4,5,'x','x'),(0,0,'e','e'),(0,0,'e','e'),(2,8,'p','p'),(0,0,'x'
+,'x');
+EXPLAIN SELECT `varchar_nokey` G1  FROM CC  WHERE `int_nokey` AND `int_key`  <= 4
+  HAVING G1  ORDER  BY `varchar_key` LIMIT  6   ;
+
+SELECT `varchar_nokey` G1  FROM CC  WHERE `int_nokey` AND `int_key`  <= 4
+  HAVING G1  ORDER  BY `varchar_key` LIMIT  6   ;
+
+DROP TABLE CC;
+--echo # End of test#45227
 --echo #                    
 --echo # BUG#776274: substitution of a single row table
 --echo #                    
@@ -4445,6 +4469,14 @@ SELECT * FROM view_t1;
 DROP TABLE t1;
 DROP VIEW view_t1;
 --echo # End of test  BUG#63020
+
+--echo #
+--echo # Bug #13571700 TINYBLOB NOT NULL, CRASH IN PROTOCOL::NET_STORE_DATA
+--echo #
+
+CREATE TABLE t1 (a TINYBLOB NOT NULL);
+SELECT a, COUNT(*) FROM t1 WHERE 0;
+DROP TABLE t1;
 
 SET optimizer_switch=@save_optimizer_switch;
 
