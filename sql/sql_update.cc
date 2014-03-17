@@ -502,7 +502,7 @@ int mysql_update(THD *thd,
   if (used_key_is_modified || order ||
       partition_key_modified(table, table->write_set))
   {
-    if (order && (need_sort || used_key_is_modified))
+    if (order && need_sort)
       query_plan.using_filesort= true;
     else
       query_plan.using_io_buffer= true;
