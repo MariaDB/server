@@ -73,7 +73,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	0.31	Using where; Using temporary; Using filesort
 1	PRIMARY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	Using where
-1	PRIMARY	supplier	ALL	PRIMARY,i_s_nationkey	NULL	NULL	NULL	10	80.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.partsupp.ps_suppkey	1	100.00	Using where
 1	PRIMARY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	Using where
 2	DEPENDENT SUBQUERY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where
 2	DEPENDENT SUBQUERY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	
@@ -114,7 +114,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where; Using temporary; Using filesort
 1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	2.08	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	Using where
-1	PRIMARY	supplier	ALL	PRIMARY,i_s_nationkey	NULL	NULL	NULL	10	80.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.partsupp.ps_suppkey	1	100.00	Using where
 1	PRIMARY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	Using where
 2	DEPENDENT SUBQUERY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where
 2	DEPENDENT SUBQUERY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	
@@ -164,7 +164,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	supplier	index	PRIMARY	PRIMARY	4	NULL	10	100.00	
 1	PRIMARY	<derived3>	ref	key0	key0	5	dbt3_s001.supplier.s_suppkey	10	100.00	Using where
 3	DERIVED	lineitem	range	i_l_shipdate	i_l_shipdate	4	NULL	228	100.00	Using where; Using temporary; Using filesort
-2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	228	100.00	
+2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	227	100.00	
 4	DERIVED	lineitem	range	i_l_shipdate	i_l_shipdate	4	NULL	228	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	select `dbt3_s001`.`supplier`.`s_suppkey` AS `s_suppkey`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`revenue0`.`total_revenue` AS `total_revenue` from `dbt3_s001`.`supplier` join `dbt3_s001`.`revenue0` where ((`revenue0`.`supplier_no` = `dbt3_s001`.`supplier`.`s_suppkey`) and (`revenue0`.`total_revenue` = (select max(`revenue0`.`total_revenue`) from `dbt3_s001`.`revenue0`))) order by `dbt3_s001`.`supplier`.`s_suppkey`
@@ -357,13 +357,13 @@ and o_orderkey = l_orderkey
 group by c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice
 order by o_totalprice desc, o_orderdate;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	orders	ALL	PRIMARY,i_o_custkey	NULL	NULL	NULL	1500	100.00	Using where; Using temporary; Using filesort
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	dbt3_s001.orders.o_orderkey	1	100.00	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	6005	0.00	Using temporary; Using filesort
+1	PRIMARY	orders	eq_ref	PRIMARY,i_o_custkey	PRIMARY	4	<subquery2>.l_orderkey	1	100.00	Using where
 1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.orders.o_custkey	1	100.00	
-1	PRIMARY	lineitem	ref	PRIMARY,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey_quantity	4	dbt3_s001.orders.o_orderkey	4	100.00	Using index
+1	PRIMARY	lineitem	ref	PRIMARY,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	<subquery2>.l_orderkey	4	100.00	
 2	MATERIALIZED	lineitem	index	NULL	PRIMARY	8	NULL	6005	100.00	
 Warnings:
-Note	1003	select `dbt3_s001`.`customer`.`c_name` AS `c_name`,`dbt3_s001`.`customer`.`c_custkey` AS `c_custkey`,`dbt3_s001`.`orders`.`o_orderkey` AS `o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE` AS `o_orderdate`,`dbt3_s001`.`orders`.`o_totalprice` AS `o_totalprice`,sum(`dbt3_s001`.`lineitem`.`l_quantity`) AS `sum(l_quantity)` from  <materialize> (select `dbt3_s001`.`lineitem`.`l_orderkey` from `dbt3_s001`.`lineitem` group by `dbt3_s001`.`lineitem`.`l_orderkey` having (sum(`dbt3_s001`.`lineitem`.`l_quantity`) > 250)) join `dbt3_s001`.`customer` join `dbt3_s001`.`orders` join `dbt3_s001`.`lineitem` where ((`dbt3_s001`.`customer`.`c_custkey` = `dbt3_s001`.`orders`.`o_custkey`) and (`<subquery2>`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey`) and (`dbt3_s001`.`lineitem`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey`)) group by `dbt3_s001`.`customer`.`c_name`,`dbt3_s001`.`customer`.`c_custkey`,`dbt3_s001`.`orders`.`o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE`,`dbt3_s001`.`orders`.`o_totalprice` order by `dbt3_s001`.`orders`.`o_totalprice` desc,`dbt3_s001`.`orders`.`o_orderDATE`
+Note	1003	select `dbt3_s001`.`customer`.`c_name` AS `c_name`,`dbt3_s001`.`customer`.`c_custkey` AS `c_custkey`,`dbt3_s001`.`orders`.`o_orderkey` AS `o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE` AS `o_orderdate`,`dbt3_s001`.`orders`.`o_totalprice` AS `o_totalprice`,sum(`dbt3_s001`.`lineitem`.`l_quantity`) AS `sum(l_quantity)` from  <materialize> (select `dbt3_s001`.`lineitem`.`l_orderkey` from `dbt3_s001`.`lineitem` group by `dbt3_s001`.`lineitem`.`l_orderkey` having (sum(`dbt3_s001`.`lineitem`.`l_quantity`) > 250)) join `dbt3_s001`.`customer` join `dbt3_s001`.`orders` join `dbt3_s001`.`lineitem` where ((`dbt3_s001`.`customer`.`c_custkey` = `dbt3_s001`.`orders`.`o_custkey`) and (`dbt3_s001`.`orders`.`o_orderkey` = `<subquery2>`.`l_orderkey`) and (`dbt3_s001`.`lineitem`.`l_orderkey` = `<subquery2>`.`l_orderkey`)) group by `dbt3_s001`.`customer`.`c_name`,`dbt3_s001`.`customer`.`c_custkey`,`dbt3_s001`.`orders`.`o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE`,`dbt3_s001`.`orders`.`o_totalprice` order by `dbt3_s001`.`orders`.`o_totalprice` desc,`dbt3_s001`.`orders`.`o_orderDATE`
 select 
 c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, sum(l_quantity)
 from customer, orders, lineitem
@@ -798,9 +798,10 @@ explain extended
 select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	0	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	0.00	
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where ((`test`.`t2`.`b` = `test`.`t1`.`a`) and (`test`.`t1`.`a` > 3))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where ((`test`.`t1`.`a` > 3))
 select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
 a
 drop table t1,t2;
@@ -1165,6 +1166,76 @@ Warnings:
 Note	1003	select `test`.`t1`.`i1` AS `i1` from `test`.`t1` semi join (`test`.`t2` left join `test`.`t3` on((`test`.`t3`.`c3` = 'b'))) where 0
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 DROP TABLE t1,t2,t3;
+set use_stat_tables=@save_use_stat_tables;
+#
+# Bug mdev-5191: performance degradation due to a suboptimal chosen plan   
+#                when optimizer_use_condition_selectivity=3
+#
+set use_stat_tables = 'preferably';
+set @@RAND_SEED1=810763568, @@RAND_SEED2=600681772;
+set TIMESTAMP=1394806993;
+create table t1 (a int, b int) engine=myisam;
+insert t1 values (rand()*1e5, rand()*1e5);
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+create table t2 (c int, d int, key(c), key(d)) engine=myisam;
+insert t2 select floor(rand()*1e5/2)*2, floor(rand()*1e5/3)*3 from t1;
+analyze table t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+test.t2	analyze	status	Table is already up to date
+set optimizer_use_condition_selectivity=1;
+explain extended 
+select * from t1, t2, t1 as t3
+where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	262144	100.00	Using where
+1	SIMPLE	t2	ref	c,d	c	5	test.t1.b	5	100.00	
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	262144	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t1` `t3` where ((`test`.`t2`.`c` = `test`.`t1`.`b`) and (`test`.`t3`.`a` = `test`.`t2`.`d`) and (`test`.`t3`.`b` < 5) and (`test`.`t1`.`a` < 2000))
+select * from t1, t2, t1 as t3
+where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+a	b	c	d	a	b
+1495	89366	89366	28296	28296	3
+961	24512	24512	85239	85239	4
+1063	89366	89366	28296	28296	3
+221	56120	56120	28296	28296	3
+set optimizer_use_condition_selectivity=3;
+explain extended
+select * from t1, t2, t1 as t3
+where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	262144	0.00	Using where
+1	SIMPLE	t2	ref	c,d	d	5	test.t3.a	7	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	262144	2.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t1` `t3` where ((`test`.`t1`.`b` = `test`.`t2`.`c`) and (`test`.`t2`.`d` = `test`.`t3`.`a`) and (`test`.`t3`.`b` < 5) and (`test`.`t1`.`a` < 2000))
+select * from t1, t2, t1 as t3
+where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+a	b	c	d	a	b
+961	24512	24512	85239	85239	4
+1495	89366	89366	28296	28296	3
+1063	89366	89366	28296	28296	3
+221	56120	56120	28296	28296	3
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+drop table t1,t2;
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
 SET SESSION STORAGE_ENGINE=DEFAULT;
