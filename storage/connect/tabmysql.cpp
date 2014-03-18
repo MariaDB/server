@@ -1034,7 +1034,7 @@ int TDBMYSQL::WriteDB(PGLOBAL g)
   // Statement was not prepared, we must construct and execute
   // an insert query for each line to insert
   int  rc;
-  char buf[32];
+  char buf[64];
 
   strcpy(Qbuf, Query);
 

@@ -62,6 +62,7 @@
 /*  DB static variables.                                               */
 /***********************************************************************/
 extern int num_read, num_there, num_eq[];                 // Statistics
+extern "C" int  trace;
 
 /* ------------------------------------------------------------------- */
 
@@ -203,9 +204,8 @@ bool ZIPFAM::AllocateBuffer(PGLOBAL g)
   Buflen = Lrecl + 2;                     // Lrecl does not include CRLF
 //Buflen *= ((Mode == MODE_DELETE) ? DOS_BUFF_LEN : 1);    NIY
 
-#ifdef DEBTRACE
- htrc("SubAllocating a buffer of %d bytes\n", Buflen);
-#endif
+  if (trace)
+    htrc("SubAllocating a buffer of %d bytes\n", Buflen);
 
   To_Buf = (char*)PlugSubAlloc(g, NULL, Buflen);
 
@@ -331,9 +331,9 @@ int ZIPFAM::ReadBuffer(PGLOBAL g)
   } else
     rc = Zerror(g);
 
-#ifdef DEBTRACE
- htrc(" Read: '%s' rc=%d\n", To_Buf, rc);
-#endif
+  if (trace > 1)
+    htrc(" Read: '%s' rc=%d\n", To_Buf, rc);
+
   return rc;
   } // end of ReadBuffer
 
@@ -373,9 +373,8 @@ void ZIPFAM::CloseTableFile(PGLOBAL g)
   {
   int rc = gzclose(Zfile);
 
-#ifdef DEBTRACE
- htrc("ZIP CloseDB: closing %s rc=%d\n", To_File, rc);
-#endif
+  if (trace)
+    htrc("ZIP CloseDB: closing %s rc=%d\n", To_File, rc);
 
   Zfile = NULL;            // So we can know whether table is open
 //To_Fb->Count = 0;        // Avoid double closing by PlugCloseAll
@@ -599,9 +598,8 @@ void ZBKFAM::CloseTableFile(PGLOBAL g)
   } else
     rc = gzclose(Zfile);
 
-#ifdef DEBTRACE
- htrc("ZIP CloseDB: closing %s rc=%d\n", To_File, rc);
-#endif
+  if (trace)
+    htrc("ZIP CloseDB: closing %s rc=%d\n", To_File, rc);
 
   Zfile = NULL;            // So we can know whether table is open
 //To_Fb->Count = 0;        // Avoid double closing by PlugCloseAll

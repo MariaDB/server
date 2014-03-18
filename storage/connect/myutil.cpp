@@ -58,12 +58,8 @@ int MYSQLtoPLG(char *typname, char *var)
     type = TYPE_ERROR;
 
   if (var) {
-    // This is to make the difference between CHAR and VARCHAR 
-    if (type == TYPE_STRING && stricmp(typname, "char"))
-      *var = 'V';
-
-    // This is to make the difference between temporal values 
     if (type == TYPE_DATE) {
+      // This is to make the difference between temporal values 
       if (!stricmp(typname, "date"))
         *var = 'D';
       else if (!stricmp(typname, "datetime"))
@@ -75,7 +71,11 @@ int MYSQLtoPLG(char *typname, char *var)
       else if (!stricmp(typname, "year"))
         *var = 'Y';
 
-      } // endif type
+    } else if (type == TYPE_STRING && stricmp(typname, "char"))
+      // This is to make the difference between CHAR and VARCHAR 
+      *var = 'V';
+    else
+      *var = 0;
 
     } // endif var
 
@@ -200,12 +200,30 @@ int MYSQLtoPLG(int mytype, char *var)
     case MYSQL_TYPE_TINY_BLOB:
     case MYSQL_TYPE_MEDIUM_BLOB:
     case MYSQL_TYPE_LONG_BLOB:
-      if (var) *var = 'V';
     case MYSQL_TYPE_STRING:
       type = TYPE_STRING;
       break;
     default:
       type = TYPE_ERROR;
+    } // endswitch mytype
+
+  if (var) switch (mytype) {
+    // This is to make the difference between CHAR and VARCHAR 
+    case MYSQL_TYPE_VAR_STRING:
+#if !defined(ALPHA)
+    case MYSQL_TYPE_VARCHAR:
+#endif   // !ALPHA)
+    case MYSQL_TYPE_BLOB:
+    case MYSQL_TYPE_TINY_BLOB:
+    case MYSQL_TYPE_MEDIUM_BLOB:
+    case MYSQL_TYPE_LONG_BLOB: *var = 'V'; break;
+    // This is to make the difference between temporal values 
+    case MYSQL_TYPE_TIMESTAMP: *var = 'S'; break;
+    case MYSQL_TYPE_DATE:      *var = 'D'; break;
+    case MYSQL_TYPE_DATETIME:  *var = 'A'; break;
+    case MYSQL_TYPE_YEAR:      *var = 'Y'; break;
+    case MYSQL_TYPE_TIME:      *var = 'T'; break;
+    default:                   *var = 0;
     } // endswitch mytype
 
   return type;

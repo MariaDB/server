@@ -37,8 +37,6 @@
 /*    IBM Linker                                                       */
 /*                                                                     */
 /***********************************************************************/
-//efine DEBTRACE 3
-//efine DEBTRACE2
 
 /***********************************************************************/
 /*                                                                     */
@@ -83,7 +81,6 @@
 extern HINSTANCE s_hModule;                   /* Saved module handle    */
 #endif   // WIN32
 
-extern char plgini[];
 extern int  trace;
 
 #if defined(XMSG)

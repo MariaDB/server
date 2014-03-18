@@ -1066,7 +1066,7 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
   } // endif Buf_Type
 
   if (g->Trace) {
-    char buf[32];
+    char buf[64];
 
     htrc("ODBC Column %s: rows=%d buf=%p type=%d value=%s\n",
       Name, tdbp->Rows, Bufp, Buf_Type, Value->GetCharString(buf));

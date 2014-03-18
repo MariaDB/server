@@ -95,7 +95,7 @@ Warning	1105	This is an outward table, table data were not modified.
 SELECT * FROM t2;
 line
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Created by CONNECT Version 1.02.0001 February 03, 2014 -->
+<!-- Created by CONNECT Version 1.02.0002 March 16, 2014 -->
 <t1>
 	<row>
 		<TH>c</TH>
@@ -131,7 +131,7 @@ t1	CREATE TABLE `t1` (
 SELECT * FROM t2;
 line
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Created by CONNECT Version 1.02.0001 February 03, 2014 -->
+<!-- Created by CONNECT Version 1.02.0002 March 16, 2014 -->
 <t1>
 	<row d="One">
 		<c>1</c>

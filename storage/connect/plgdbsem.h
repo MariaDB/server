@@ -512,6 +512,7 @@ typedef  struct _colres {
   int     Prec;                    /* Precision                        */
   int     Flag;                    /* Flag option value                */
   XFLD    Fld;                     /* Type of field info               */
+  char    Var;                     /* Type added information           */
   } COLRES;
 
 #if defined(WIN32) && !defined(NOEX)
