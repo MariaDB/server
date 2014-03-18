@@ -555,7 +555,7 @@ template <>
 bool TYPVAL<double>::SetValue_char(char *p, int n)
   {
   if (p) {
-    char buf[32];
+    char buf[64];
 
     for (; n > 0 && *p == ' '; p++) 
       n--;
@@ -957,7 +957,7 @@ bool TYPVAL<PSZ>::SetValue_pval(PVAL valp, bool chktype)
   if (chktype && (valp->GetType() != Type || valp->GetSize() > Len))
     return true;
 
-  char buf[32];
+  char buf[64];
 
   if (!(Null = valp->IsNull() && Nullable))
     strncpy(Strp, valp->GetCharString(buf), Len);
@@ -1126,7 +1126,7 @@ void TYPVAL<PSZ>::SetValue(ulonglong n)
 /***********************************************************************/
 void TYPVAL<PSZ>::SetValue(double f)
   {
-  char    *p, buf[32];
+  char    *p, buf[64];
   PGLOBAL& g = Global;
   int      k = sprintf(buf, "%lf", f);
 
@@ -1220,7 +1220,7 @@ bool TYPVAL<PSZ>::IsEqual(PVAL vp, bool chktype)
   else if (Null || vp->IsNull())
     return false;
 
-  char buf[32];
+  char buf[64];
 
   if (Ci || vp->IsCi())
     return !stricmp(Strp, vp->GetCharString(buf));
@@ -1351,7 +1351,7 @@ bool DECVAL::SetValue_pval(PVAL valp, bool chktype)
   if (chktype && (valp->GetType() != Type || valp->GetSize() > Len))
     return true;
 
-  char buf[32];
+  char buf[64];
 
   if (!(Null = valp->IsNull() && Nullable))
     strncpy(Strp, valp->GetCharString(buf), Len);
@@ -1450,7 +1450,7 @@ bool DECVAL::IsEqual(PVAL vp, bool chktype)
   else if (Null || vp->IsNull())
     return false;
 
-  char buf[32];
+  char buf[64];
 
   return !strcmp(Strp, vp->GetCharString(buf));
   } // end of IsEqual

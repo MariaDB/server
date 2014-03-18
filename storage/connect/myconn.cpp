@@ -295,7 +295,7 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
 
   // Send the source command to MySQL
   if (myc.ExecSQL(g, query, &w) == RC_OK)
-    qrp = myc.GetResult(g);
+    qrp = myc.GetResult(g, true);
 
   myc.Close();
   return qrp;
@@ -676,7 +676,7 @@ MYSQL_FIELD *MYSQLC::GetNextField(void)
 /***********************************************************************/
 PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
   {
-  char        *fmt;
+  char        *fmt, v;
   int          n;
   bool         uns;
   PCOLRES     *pcrp, crp;
@@ -705,7 +705,6 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
   qrp->Nblin = 0;
   qrp->Cursor = 0;
 
-
 //for (fld = mysql_fetch_field(m_Res); fld;
 //     fld = mysql_fetch_field(m_Res)) {
   for (fld = GetNextField(); fld; fld = GetNextField()) {
@@ -718,17 +717,19 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
     crp->Name = (char*)PlugSubAlloc(g, NULL, fld->name_length + 1);
     strcpy(crp->Name, fld->name);
 
-    if ((crp->Type = MYSQLtoPLG(fld->type)) == TYPE_ERROR) {
+    if ((crp->Type = MYSQLtoPLG(fld->type, &v)) == TYPE_ERROR) {
       sprintf(g->Message, "Type %d not supported for column %s",
                           fld->type, crp->Name);
       return NULL;
     } else if (crp->Type == TYPE_DATE && !pdb)
       // For direct MySQL connection, display the MySQL date string
       crp->Type = TYPE_STRING;
+    else
+      crp->Var = v;
 
     crp->Prec = (crp->Type == TYPE_DOUBLE || crp->Type == TYPE_DECIM)
               ? fld->decimals : 0;
-    crp->Length = fld->max_length;
+    crp->Length = max(fld->length, fld->max_length);
     crp->Clen = GetTypeSize(crp->Type, crp->Length);
     uns = (fld->flags & (UNSIGNED_FLAG | ZEROFILL_FLAG)) ? true : false;
 

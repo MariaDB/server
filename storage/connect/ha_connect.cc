@@ -108,9 +108,6 @@
 #include "sql_parse.h"
 #include "sql_base.h"
 #include <sys/stat.h>
-#if defined(NEW_WAY)
-#include "sql_table.h"
-#endif   // NEW_WAY
 #undef  OFFSET
 
 #define NOPARSE
@@ -143,43 +140,32 @@
 #include "myutil.h"
 #include "preparse.h"
 #include "inihandl.h"
+#if defined(LIBXML2_SUPPORT)
+#include "libdoc.h"
+#endif   // LIBXML2_SUPPORT
+#include "taboccur.h"
+#include "tabpivot.h"
 
-#define PLGXINI     "plgcnx.ini"       /* Configuration settings file  */
 #define my_strupr(p)    my_caseup_str(default_charset_info, (p));
 #define my_strlwr(p)    my_casedn_str(default_charset_info, (p));
 #define my_stricmp(a,b) my_strcasecmp(default_charset_info, (a), (b))
 
-#ifdef LIBXML2_SUPPORT
-#include "libdoc.h"
-#endif   // LIBXML2_SUPPORT
-
-#include "taboccur.h"
-#include "tabpivot.h"
-
-
-/***********************************************************************/
-/*  DB static variables.                                               */
-/***********************************************************************/
-extern "C" char  plgxini[];
-extern "C" char  plgini[];
-extern "C" char  nmfile[];
-extern "C" char  pdebug[];
 
 /***********************************************************************/
 /*  Initialize the ha_connect static members.                          */
 /***********************************************************************/
-#define CONNECT_INI "connect.ini"
+//efine CONNECT_INI "connect.ini"
 extern "C" {
-       char  connectini[_MAX_PATH]= CONNECT_INI;
-       char  version[]= "Version 1.02.0001 February 03, 2014";
+       char version[]= "Version 1.02.0002 March 16, 2014";
 
 #if defined(XMSG)
-       char  msglang[];            // Default message language
+       char msglang[];            // Default message language
 #endif
        int  trace= 0;              // The general trace value
 } // extern "C"
 
-int   xtrace= 0;
+static int xtrace= 0;
+
 ulong ha_connect::num= 0;
 //int  DTVAL::Shift= 0;
 
@@ -192,14 +178,22 @@ static PCONNECT GetUser(THD *thd, PCONNECT xp);
 static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
 
 static handler *connect_create_handler(handlerton *hton,
-                                   TABLE_SHARE *table,
-                                   MEM_ROOT *mem_root);
+                                       TABLE_SHARE *table,
+                                       MEM_ROOT *mem_root);
 
 static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
                                       HA_CREATE_INFO *info);
 
-handlerton *connect_hton;
+static void update_connect_xtrace(MYSQL_THD thd,
+                                  struct st_mysql_sys_var *var,
+                                  void *var_ptr, const void *save)
+{
+  xtrace= *(int *)save;
+//xtrace= *(int *)var_ptr= *(int *)save;
+} // end of update_connect_xtrace
+
+                                  handlerton *connect_hton;
 
 /**
   CREATE TABLE option list (table options)
@@ -340,31 +334,15 @@ static const char *ha_connect_exts[]= {
 static int connect_init_func(void *p)
 {
   DBUG_ENTER("connect_init_func");
-  char dir[_MAX_PATH - sizeof(CONNECT_INI) - 1];
+
+  sql_print_information("CONNECT: %s", version);
+
+  // xtrace is now a system variable
+  trace= xtrace;
 
 #ifdef LIBXML2_SUPPORT
   XmlInitParserLib();
 #endif   // LIBXML2_SUPPORT
-
-  /* Build connect.ini file name */
-  my_getwd(dir, sizeof(dir) - 1, MYF(0));
-  snprintf(connectini, sizeof(connectini), "%s%s", dir, CONNECT_INI);
-  sql_print_information("CONNECT: %s=%s", CONNECT_INI, connectini);
-
-  if ((xtrace= GetPrivateProfileInt("CONNECT", "Trace", 0, connectini)))
-  {
-    sql_print_information("CONNECT: xtrace=%d", xtrace);
-    sql_print_information("CONNECT: plgini=%s", plgini);
-    sql_print_information("CONNECT: plgxini=%s", plgxini);
-    sql_print_information("CONNECT: nmfile=%s", nmfile);
-    sql_print_information("CONNECT: pdebug=%s", pdebug);
-    sql_print_information("CONNECT: version=%s", version);
-    trace= xtrace;
-  } // endif xtrace
-
-#if !defined(WIN32)
-  PROFILE_Close(connectini);
-#endif   // !WIN32
 
   init_connect_psi_keys();
 
@@ -593,6 +571,7 @@ ulonglong ha_connect::table_flags() const
   ulonglong   flags= HA_CAN_VIRTUAL_COLUMNS | HA_REC_NOT_IN_SEQ |
                      HA_NO_AUTO_INCREMENT | HA_NO_PREFIX_CHAR_KEYS |
                      HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
+                     HA_PARTIAL_COLUMN_READ |
 //                   HA_NULL_IN_KEY |    not implemented yet
 //                   HA_FAST_KEY_READ |  causes error when sorting (???)
                      HA_NO_TRANSACTIONS | HA_DUPLICATE_KEY_NOT_IN_ORDER |
@@ -966,7 +945,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
       break;
     case TYPE_DATE:
       // Field_length is only used for DATE columns
-      if (fop->fldlen)
+      if (fop && fop->fldlen)
         pcf->Length= (int)fop->fldlen;
       else { 
         int len;
@@ -2957,7 +2936,7 @@ bool ha_connect::IsSameIndex(PIXDEF xp1, PIXDEF xp2)
 MODE ha_connect::CheckMode(PGLOBAL g, THD *thd, 
                            MODE newmode, bool *chk, bool *cras)
 {
-  if (xtrace) {
+  if ((trace= xtrace)) {
     LEX_STRING *query_string= thd_query_string(thd);
     htrc("%p check_mode: cmdtype=%d\n", this, thd_sql_command(thd));
     htrc("Cmd=%.*s\n", (int) query_string->length, query_string->str);
@@ -3142,7 +3121,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   if (xtrace)
     htrc("external_lock: this=%p thd=%p xp=%p g=%p lock_type=%d\n",
             this, thd, xp, g, lock_type);
-
+  
   if (!g)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
@@ -3648,83 +3627,6 @@ static char *encode(PGLOBAL g, char *cnm)
   @return
     Return 0 if ok
 */
-#if defined(NEW_WAY)
-static bool add_fields(PGLOBAL g,
-                       THD *thd,
-                       Alter_info *alter_info,
-                       char *name,
-                       int typ, int len, int dec,
-                       uint type_modifier,
-                       char *rem,
-//                     CHARSET_INFO *cs,
-//                     void *vcolinfo,
-//                     engine_option_value *create_options,
-                       int flg,
-                       bool dbf,
-                       char v)
-{
-  register Create_field *new_field;
-  char *length, *decimals= NULL;
-  enum_field_types type;
-//Virtual_column_info *vcol_info= (Virtual_column_info *)vcolinfo;
-  engine_option_value *crop;
-  LEX_STRING *comment;
-  LEX_STRING *field_name;
-
-  DBUG_ENTER("ha_connect::add_fields");
-
-  if (len) {
-    if (!v && typ == TYPE_STRING && len > 255)
-      v= 'V';     // Change CHAR to VARCHAR
-
-    length= (char*)PlugSubAlloc(g, NULL, 8);
-    sprintf(length, "%d", len);
-
-    if (typ == TYPE_DOUBLE) {
-      decimals= (char*)PlugSubAlloc(g, NULL, 8);
-      sprintf(decimals, "%d", min(dec, (min(len, 31) - 1)));
-      } // endif dec
-
-  } else
-    length= NULL;
-
-  if (!rem)
-    rem= "";
-
-  type= PLGtoMYSQL(typ, dbf, v);
-  comment= thd->make_lex_string(rem, strlen(rem));
-  field_name= thd->make_lex_string(name, strlen(name));
-
-  switch (v) {
-    case 'Z': type_modifier|= ZEROFILL_FLAG;
-    case 'U': type_modifier|= UNSIGNED_FLAG; break;
-    } // endswitch v
-
-  if (flg) {
-    engine_option_value *start= NULL, *end= NULL;
-    LEX_STRING *flag= thd->make_lex_string("flag", 4);
-
-    crop= new(thd->mem_root) engine_option_value(*flag, (ulonglong)flg,
-                                                 &start, &end, thd->mem_root);
-  } else                               
-    crop= NULL;
-
-  if (check_string_char_length(field_name, "", NAME_CHAR_LEN,
-                               system_charset_info, 1)) {
-    my_error(ER_TOO_LONG_IDENT, MYF(0), field_name->str); /* purecov: inspected */
-    DBUG_RETURN(1);       /* purecov: inspected */
-    } // endif field_name
-
-  if (!(new_field= new Create_field()) ||
-        new_field->init(thd, field_name->str, type, length, decimals,
-                        type_modifier, NULL, NULL, comment, NULL,
-                        NULL, NULL, 0, NULL, crop, true))
-    DBUG_RETURN(1);
-
-  alter_info->create_list.push_back(new_field);
-  DBUG_RETURN(0);
-} // end of add_fields
-#else   // !NEW_WAY
 static bool add_field(String *sql, const char *field_name, int typ,
                       int len, int dec, uint tm, const char *rem,
                       char *dft, char *xtra, int flag, bool dbf, char v)
@@ -3738,7 +3640,7 @@ static bool add_field(String *sql, const char *field_name, int typ,
   error|= sql->append("` ");
   error|= sql->append(type);
 
-  if (len) {
+  if (len && typ != TYPE_DATE) {
     error|= sql->append('(');
     error|= sql->append_ulonglong(len);
 
@@ -3794,7 +3696,6 @@ static bool add_field(String *sql, const char *field_name, int typ,
   error|= sql->append(',');
   return error;
 } // end of add_field
-#endif  // !NEW_WAY
 
 /**
   Initialise the table share with the new columns.
@@ -3802,110 +3703,6 @@ static bool add_field(String *sql, const char *field_name, int typ,
   @return
     Return 0 if ok
 */
-#if defined(NEW_WAY)
-//static bool sql_unusable_for_discovery(THD *thd, const char *sql);
-
-static int init_table_share(THD *thd, 
-                            TABLE_SHARE *table_s, 
-                            HA_CREATE_INFO *create_info, 
-                            Alter_info *alter_info)
-{
-  KEY         *not_used_1;
-  uint         not_used_2;
-  int          rc= 0;
-  handler     *file;
-  LEX_CUSTRING frm= {0,0};
-
-  DBUG_ENTER("init_table_share");
-
-#if 0
-  ulonglong saved_mode= thd->variables.sql_mode;
-  CHARSET_INFO *old_cs= thd->variables.character_set_client;
-  Parser_state parser_state;
-  char *sql_copy;
-  LEX *old_lex;
-  Query_arena *arena, backup;
-  LEX tmp_lex;
-
-  /*
-    Ouch. Parser may *change* the string it's working on.
-    Currently (2013-02-26) it is used to permanently disable
-    conditional comments.
-    Anyway, let's copy the caller's string...
-  */
-  if (!(sql_copy= thd->strmake(sql, sql_length)))
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-
-  if (parser_state.init(thd, sql_copy, sql_length))
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-
-  thd->variables.sql_mode= MODE_NO_ENGINE_SUBSTITUTION | MODE_NO_DIR_IN_CREATE;
-  thd->variables.character_set_client= system_charset_info;
-  old_lex= thd->lex;
-  thd->lex= &tmp_lex;
-
-  arena= thd->stmt_arena;
-
-  if (arena->is_conventional())
-    arena= 0;
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
-
-  lex_start(thd);
-
-  if ((error= parse_sql(thd, & parser_state, NULL)))
-    goto ret;
-
-  if (table_s->sql_unusable_for_discovery(thd, NULL)) {
-    my_error(ER_SQL_DISCOVER_ERROR, MYF(0), plugin_name(db_plugin)->str,
-             db.str, table_name.str, sql_copy);
-    goto ret;
-    } // endif unusable
-
-  thd->lex->create_info.db_type= plugin_data(db_plugin, handlerton *);
-
-  if (tabledef_version.str)
-    thd->lex->create_info.tabledef_version= tabledef_version;
-#endif // 0
-
-  tmp_disable_binlog(thd);
-
-  file= mysql_create_frm_image(thd, table_s->db.str, table_s->table_name.str,
-                               create_info, alter_info, C_ORDINARY_CREATE, 
-                               &not_used_1, &not_used_2, &frm);
-  if (file)
-    delete file;
-  else
-    rc= OPEN_FRM_CORRUPTED;
-
-  if (!rc && frm.str) {
-    table_s->option_list= 0;     // cleanup existing options ...
-    table_s->option_struct= 0;   // ... if it's an assisted discovery
-    rc= table_s->init_from_binary_frm_image(thd, true, frm.str, frm.length);
-    } // endif frm
-
-//ret:
-  my_free(const_cast<uchar*>(frm.str));
-  reenable_binlog(thd);
-#if 0
-  lex_end(thd->lex);
-  thd->lex= old_lex;
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
-  thd->variables.sql_mode= saved_mode;
-  thd->variables.character_set_client= old_cs;
-#endif // 0
-
-  if (thd->is_error() || rc) {
-    thd->clear_error();
-    my_error(ER_NO_SUCH_TABLE, MYF(0), table_s->db.str, 
-                                       table_s->table_name.str);
-    DBUG_RETURN(HA_ERR_NOT_A_TABLE);
-  } else
-    DBUG_RETURN(0);
-
-} // end of init_table_share
-#else   // !NEW_WAY
 static int init_table_share(THD* thd, 
                             TABLE_SHARE *table_s, 
                             HA_CREATE_INFO *create_info,
@@ -3997,23 +3794,6 @@ static int init_table_share(THD* thd,
   return table_s->init_from_sql_statement_string(thd, true,
                                                  sql->ptr(), sql->length());
 } // end of init_table_share
-#endif  // !NEW_WAY
-
-// Add an option to the create_info option list 
-static void add_option(THD* thd, HA_CREATE_INFO *create_info, 
-                       const char *opname, const char *opval)
-{
-#if defined(NEW_WAY)
-  LEX_STRING *opn= thd->make_lex_string(opname, strlen(opname));
-  LEX_STRING *val= thd->make_lex_string(opval, strlen(opval));
-  engine_option_value *pov, **start= &create_info->option_list, *end= NULL;
-
-  for (pov= *start; pov; pov= pov->next)
-    end= pov;
-
-  pov= new(thd->mem_root) engine_option_value(*opn, *val, false, start, &end);
-#endif   // NEW_WAY
-} // end of add_option
 
 // Used to check whether a MYSQL table is created on itself
 static bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host, 
@@ -4068,15 +3848,10 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   PCONNECT    xp= NULL;
   PGLOBAL     g= GetPlug(thd, xp);
   PTOS        topt= table_s->option_struct;
-#if defined(NEW_WAY)
-//CHARSET_INFO *cs;
-  Alter_info  alter_info;
-#else   // !NEW_WAY
   char        buf[1024];
   String      sql(buf, sizeof(buf), system_charset_info);
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
-#endif  // !NEW_WAY
 
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
@@ -4133,7 +3908,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     ttp= GetTypeID(topt->type);
     sprintf(g->Message, "No table_type. Was set to %s", topt->type);
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
-    add_option(thd, create_info, "table_type", topt->type);
   } else if (ttp == TAB_NIY) {
     sprintf(g->Message, "Unsupported table type %s", topt->type);
     my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
@@ -4166,9 +3940,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     } else if (ttp != TAB_ODBC || !(fnc & (FNC_TABLE | FNC_COL)))
       tab= table_s->table_name.str;              // Default value
 
-#if defined(NEW_WAY)
-//  add_option(thd, create_info, "tabname", tab);
-#endif   // NEW_WAY
     } // endif tab
 
   switch (ttp) {
@@ -4400,20 +4171,16 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         len= crp->Length;
         dec= crp->Prec;
         flg= crp->Flag;
+        v= crp->Var;
      
         if (!len && typ == TYPE_STRING)
           len= 256;      // STRBLK's have 0 length
 
-#if defined(NEW_WAY)
-        // Now add the field
-        rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
-                       NOT_NULL_FLAG, "", flg, dbf, 0);
-#else   // !NEW_WAY
         // Now add the field
         if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG,
-                      NULL, NULL, NULL, flg, dbf, 0))
+                      NULL, NULL, NULL, flg, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
-#endif  // !NEW_WAY
+
       } // endfor crp
 
     } else              // Not a catalog table
@@ -4422,12 +4189,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         tm= NOT_NULL_FLAG;
         cnm= (char*)"noname";
         dft= xtra= NULL;
-#if defined(NEW_WAY)
-        rem= "";
-//      cs= NULL;
-#else   // !NEW_WAY
         rem= NULL;
-#endif  // !NEW_WAY
 
         for (crp= qrp->Colresp; crp; crp= crp->Next)
           switch (crp->Fld) {
@@ -4504,23 +4266,14 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           prec= len;
 
         // Now add the field
-#if defined(NEW_WAY)
-        rc= add_fields(g, thd, &alter_info, cnm, typ, prec, dec,
-                       tm, rem, 0, dbf, v);
-#else   // !NEW_WAY
         if (add_field(&sql, cnm, typ, prec, dec, tm, rem, dft, xtra,
                       0, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
-#endif  // !NEW_WAY
         } // endfor i
 
-#if defined(NEW_WAY)
-    rc= init_table_share(thd, table_s, create_info, &alter_info);
-#else   // !NEW_WAY
     if (!rc)
       rc= init_table_share(thd, table_s, create_info, &sql);
 //    rc= init_table_share(thd, table_s, create_info, dsn, &sql);
-#endif   // !NEW_WAY
 
     return rc;
     } // endif ok
@@ -5392,6 +5145,15 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
 struct st_mysql_storage_engine connect_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
+static MYSQL_SYSVAR_INT(xtrace, xtrace,
+       PLUGIN_VAR_RQCMDARG, "Console trace value.",
+       NULL, update_connect_xtrace, 0, 0, INT_MAX, 1);
+
+static struct st_mysql_sys_var* connect_system_variables[]= {
+  MYSQL_SYSVAR(xtrace),
+  NULL
+};
+
 maria_declare_plugin(connect)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -5404,8 +5166,8 @@ maria_declare_plugin(connect)
   connect_done_func,                            /* Plugin Deinit */
   0x0102,                                       /* version number (1.02) */
   NULL,                                         /* status variables */
-  NULL,                                         /* system variables */
-  "1.02",                                        /* string version */
+  connect_system_variables,                     /* system variables */
+  "1.02",                                       /* string version */
   MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }
 maria_declare_plugin_end;

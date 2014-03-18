@@ -76,6 +76,8 @@
 char *strerror(int num);
 #endif   // UNIX
 
+extern "C" int  trace;
+
 /***********************************************************************/
 /*  Char VCT column blocks are right filled with blanks (blank = true) */
 /*  Conversion of block values allowed conditionally for insert only.  */
@@ -287,10 +289,9 @@ PCOL TDBVCT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 bool TDBVCT::OpenDB(PGLOBAL g)
   {
-#ifdef DEBTRACE
- htrc("VCT OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d\n",
-  this, Tdb_No, Use, To_Key_Col, Mode);
-#endif
+  if (trace)
+    htrc("VCT OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d\n",
+         this, Tdb_No, Use, To_Key_Col, Mode);
 
   if (Use == USE_OPEN) {
     /*******************************************************************/
@@ -338,12 +339,10 @@ bool TDBVCT::OpenDB(PGLOBAL g)
 /***********************************************************************/
 int TDBVCT::ReadDB(PGLOBAL g)
   {
-#ifdef DEBTRACE
- fprintf(debug,
-  "VCT ReadDB: R%d Mode=%d CurBlk=%d CurNum=%d key=%p link=%p Kindex=%p\n",
-  GetTdb_No(), Mode, Txfp->CurBlk, Txfp->CurNum,
-  To_Key_Col, To_Link, To_Kindex);
-#endif
+  if (trace)
+    htrc("VCT ReadDB: R%d Mode=%d CurBlk=%d CurNum=%d key=%p link=%p Kindex=%p\n",
+         GetTdb_No(), Mode, Txfp->CurBlk, Txfp->CurNum,
+         To_Key_Col, To_Link, To_Kindex);
 
   if (To_Kindex) {
     /*******************************************************************/
@@ -518,15 +517,13 @@ void VCTCOL::ReadColumn(PGLOBAL g)
   {
   PTXF txfp = ((PTDBVCT)To_Tdb)->Txfp;
 
-#if defined(_DEBUG) || defined(DEBTRACE)
+#if defined(_DEBUG)
   assert (!To_Kcol);
 #endif
 
-#ifdef DEBTRACE
- fprintf(debug,
-   "VCT ReadColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
-  Name, To_Tdb->GetTdb_No(), ColUse, Status, Buf_Type);
-#endif
+  if (trace > 1)
+    htrc("VCT ReadColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
+         Name, To_Tdb->GetTdb_No(), ColUse, Status, Buf_Type);
 
   if (ColBlk != txfp->CurBlk)
     ReadBlock(g);
@@ -552,11 +549,9 @@ void VCTCOL::WriteColumn(PGLOBAL g)
   {
   PTXF txfp = ((PTDBVCT)To_Tdb)->Txfp;;
 
-#ifdef DEBTRACE
- fprintf(debug,
-   "VCT WriteColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
-  Name, To_Tdb->GetTdb_No(), ColUse, Status, Buf_Type);
-#endif
+  if (trace > 1)
+    htrc("VCT WriteColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
+         Name, To_Tdb->GetTdb_No(), ColUse, Status, Buf_Type);
 
   ColBlk = txfp->CurBlk;
   ColPos = txfp->CurNum;

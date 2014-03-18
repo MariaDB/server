@@ -23,6 +23,8 @@
 #include "xindex.h"
 #include "xtable.h"
 
+extern "C" int  trace;
+
 /***********************************************************************/
 /*  COLBLK protected constructor.                                      */
 /***********************************************************************/
@@ -72,9 +74,8 @@ COLBLK::COLBLK(PCOL col1, PTDB tdbp)
 //To_Orig = col1;
   To_Tdb = tdbp;
 
-#ifdef DEBTRACE
- htrc(" copying COLBLK %s from %p to %p\n", Name, col1, this);
-#endif
+  if (trace > 1)
+    htrc(" copying COLBLK %s from %p to %p\n", Name, col1, this);
 
   if (tdbp)
     // Attach the new column to the table block
@@ -112,10 +113,9 @@ bool COLBLK::SetFormat(PGLOBAL g, FORMAT& fmt)
   {
   fmt = Format;
 
-#ifdef DEBTRACE
- htrc("COLBLK: %p format=%c(%d,%d)\n", 
-   this, *fmt.Type, fmt.Length, fmt.Prec);
-#endif
+  if (trace > 1)
+    htrc("COLBLK: %p format=%c(%d,%d)\n", 
+         this, *fmt.Type, fmt.Length, fmt.Prec);
 
   return false;
   } // end of SetFormat
@@ -126,9 +126,8 @@ bool COLBLK::SetFormat(PGLOBAL g, FORMAT& fmt)
 /***********************************************************************/
 bool COLBLK::Eval(PGLOBAL g)
   {
-#ifdef DEBTRACE
- htrc("Col Eval: %s status=%.4X\n", Name, Status);
-#endif
+  if (trace > 1)
+    htrc("Col Eval: %s status=%.4X\n", Name, Status);
 
   if (!GetStatus(BUF_READ)) {
 //  if (To_Tdb->IsNull())
@@ -164,10 +163,9 @@ bool COLBLK::InitValue(PGLOBAL g)
   AddStatus(BUF_READY);
   Value->SetNullable(Nullable);
 
-#ifdef DEBTRACE
- htrc(" colp=%p type=%d value=%p coluse=%.4X status=%.4X\n",
-  this, Buf_Type, Value, ColUse, Status);
-#endif
+  if (trace > 1)
+    htrc(" colp=%p type=%d value=%p coluse=%.4X status=%.4X\n",
+         this, Buf_Type, Value, ColUse, Status);
 
   return false;
   } // end of InitValue

@@ -60,6 +60,7 @@
 /*  DB static external variables.                                      */
 /***********************************************************************/
 extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's     */
+extern "C" int  trace;
 
 /***********************************************************************/
 /*  Last two parameters are true to enable type checking, and last one */
@@ -267,10 +268,7 @@ int XINDEX::Qcompare(int *i1, int *i2)
     if ((k = kcp->Compare(*i1, *i2)))
       break;
 
-#ifdef DEBTRACE
-  num_comp++;
-#endif
-
+//num_comp++;
   return k;
   } // end of Qcompare
 
@@ -1801,10 +1799,7 @@ XINDXS::XINDXS(PTDBDOS tdbp, PIXDEF xdp, PXLOAD pxp, PCOL *cp, PXOB *xp)
 /***********************************************************************/
 int XINDXS::Qcompare(int *i1, int *i2)
   {
-#ifdef DEBTRACE
-  num_comp++;
-#endif
-
+//num_comp++;
   return To_KeyCol->Compare(*i1, *i2);
   } // end of Qcompare
 
@@ -2320,11 +2315,9 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     return true;
     } // endif Hfile
 
-#ifdef DEBTRACE
- fprintf(debug,
- " access=%p share=%p creation=%d handle=%p fn=%s\n",
-  access, share, creation, Hfile, filename);
-#endif
+  if (trace)
+    htrc(" access=%p share=%p creation=%d handle=%p fn=%s\n",
+         access, share, creation, Hfile, filename);
 
   if (mode == MODE_INSERT) {
     /*******************************************************************/
@@ -2767,10 +2760,9 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
     Prefix = true;
     } // endif kln
 
-#ifdef DEBTRACE
- htrc("KCOL(%p) Init: col=%s n=%d type=%d sm=%d\n",
-  this, colp->GetName(), n, colp->GetResultType(), sm);
-#endif
+  if (trace)
+    htrc("KCOL(%p) Init: col=%s n=%d type=%d sm=%d\n",
+         this, colp->GetName(), n, colp->GetResultType(), sm);
 
   // Allocate the Value object used when moving items
   Type = colp->GetResultType();
@@ -2822,10 +2814,9 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
 
   Type = colp->GetResultType();
 
-#ifdef DEBTRACE
- htrc("MapInit(%p): colp=%p type=%d n=%d len=%d m=%p\n",
-  this, colp, Type, n[0], len, m);
-#endif
+ if (trace)
+   htrc("MapInit(%p): colp=%p type=%d n=%d len=%d m=%p\n",
+        this, colp, Type, n[0], len, m);
 
   // Allocate the Value object used when moving items
   Valp = AllocateValue(g, Type, len, prec, false, NULL);

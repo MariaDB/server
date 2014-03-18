@@ -80,9 +80,6 @@ extern pthread_mutex_t parmut;
 #endif  // !WIN32
 #endif  //  THREAD
 
-#define PLGINI      "plugdb.ini"       /* Configuration settings file  */
-#define PLGXINI     "plgcnx.ini"       /* Configuration settings file  */
-
 /***********************************************************************/
 /*  DB static variables.                                               */
 /***********************************************************************/
@@ -90,26 +87,12 @@ bool  Initdone = false;
 bool  plugin = false;  // True when called by the XDB plugin handler 
 
 extern "C" {
-extern char  connectini[];
-       char  plgxini[_MAX_PATH] = PLGXINI;
-       char  plgini[_MAX_PATH] = PLGINI;
-#if defined(WIN32)
-       char  nmfile[_MAX_PATH] = ".\\Log\\plugdb.out";
-       char  pdebug[_MAX_PATH] = ".\\Log\\plgthread.out";
-
-       HINSTANCE s_hModule;           // Saved module handle
-#else   // !WIN32
-       char  nmfile[_MAX_PATH] = "./Log/plugdb.out";
-       char  pdebug[_MAX_PATH] = "./Log/plgthread.out";
-#endif  // !WIN32
-
 #if defined(XMSG)
        char  msglang[16] = "ENGLISH";      // Default language
 #endif
+extern int  trace;
+extern char version[];
 } // extern "C"
-
-extern "C" int  trace;
-extern "C" char version[];
 
 // The debug trace used by the main thread
        FILE *pfile = NULL;
@@ -218,27 +201,6 @@ int global_open(GLOBAL *g, int msgid, const char *path, int flags, int mode)
   }
   return h;
 }
-
-
-/**************************************************************************/
-/*  Utility for external callers (such as XDB)                            */
-/**************************************************************************/
-DllExport char *GetIni(int n)
-  {
-  switch (n) {
-    case 1: return plgxini; break;
-    case 2: return nmfile;  break;
-    case 3: return pdebug;  break;
-    case 4: return version; break;
-#if defined(XMSG)
-    case 5: return msglang; break;
-#endif   // XMSG
-    case 6: return connectini; break;
-//  default: return plgini;
-    } // endswitch GetIni
-
-  return plgini;
-  } // end of GetIni
 
 DllExport void SetTrc(void)
   {
@@ -427,137 +389,8 @@ char *PlgGetDataPath(PGLOBAL g)
   {
   PCATLG cat = PlgGetCatalog(g, false);
 
-//if (!cat)
-//  return GetIniString(g, NULL, "DataBase", "DataPath", "", plgini);
-
   return (cat) ? cat->GetDataPath() : NULL;
   } // end of PlgGetDataPath
-
-#if 0
-/***********************************************************************/
-/*  PlgGetXdbPath: sets the fully qualified file name of a database    */
-/*  description file in lgn and the new datapath in dp.                */
-/*  New database description file is a Configuration Settings file     */
-/*  that will be used and updated in case of DB modifications such     */
-/*  as Insert into a VCT file. Look for it and use it if found.        */
-/*  By default the configuration file is DataPath\name.xdb but the     */
-/*  configuration file name may also be specified in Plugdb.ini.       */
-/***********************************************************************/
-bool PlgSetXdbPath(PGLOBAL g, PSZ dbname, PSZ dbpath,
-                              char *lgn,  int lgsize,
-                              char *path, int psize)
-  {
-  char *dp, datapath[_MAX_PATH], ft[_MAX_EXT] = ".xdb";
-  int   n;
-
-  if (path) {
-    dp = path;
-    n = psize;
-  } else {
-    dp = datapath;
-    n = sizeof(datapath);
-  } // endif path
-
-  GetPrivateProfileString("DataBase", "DataPath", "", dp, n, plgini);
-
-  if (trace)
-    htrc("PlgSetXdbPath: path=%s\n", dp);
-
-  if (dbpath) {
-    char fn[_MAX_FNAME];
-
-    strcpy(lgn, dbpath);
-    _splitpath(lgn, NULL, NULL, fn, NULL);
-
-    if (!*fn)       // Old style use command
-      strcat(lgn, dbname);
-
-    _splitpath(lgn, NULL, NULL, dbname, NULL);  // Extract DB name
-  } else if (strcspn(dbname, ":/\\.") < strlen(dbname)) {
-    // dbname name contains the path name of the XDB file
-    strcpy(lgn, dbname);
-    _splitpath(lgn, NULL, NULL, dbname, NULL);  // Extract DB name
-  } else
-    /*******************************************************************/
-    /*  New database description file is a Configuration Settings file */
-    /*  that will be used and updated in case of DB modifications such */
-    /*  as Insert into a VCT file. Look for it and use it if found.    */
-    /*  By default the configuration file is DataPath\name.xdb but the */
-    /*  configuration file name may also be specified in Plugdb.ini.   */
-    /*******************************************************************/
-    GetPrivateProfileString("DBnames", dbname, "", lgn, lgsize, plgini);
-
-  if (*lgn) {
-#if !defined(UNIX)
-    char drive[_MAX_DRIVE];
-    char direc[_MAX_DIR];
-#endif
-    char fname[_MAX_FNAME];
-    char ftype[_MAX_EXT];
-
-    _splitpath(lgn, NULL, NULL, fname, ftype);
-
-    if (!*ftype)
-      strcat(lgn, ft);
-    else if (!stricmp(ftype, ".var")) {
-      strcpy(g->Message, MSG(NO_MORE_VAR));
-      return true;
-      } // endif ftype
-
-    // Given DB description path may be relative to data path
-    PlugSetPath(lgn, lgn, dp);
-
-    // New data path is the path of the configuration setting file
-#if !defined(UNIX)
-    _splitpath(lgn, drive, direc, NULL, NULL);
-    _makepath(dp, drive, direc, "", "");
-#else
-//#error This must be tested for trailing slash
-    _splitpath(lgn, NULL, dp, NULL, NULL);
-#endif
-  } else {
-    // Try dbname[.ext] in the current directory
-    strcpy(lgn, dbname);
-
-    if (!strchr(dbname, '.'))
-      strcat(lgn, ft);
-
-    PlugSetPath(lgn, lgn, dp);
-  } // endif lgn
-
-  if (trace)
-    htrc("PlgSetXdbPath: new DB description file=%s\n", lgn);
-
-  return false;
-  } // end of PlgSetXdbPath
-#endif // 0
-
-/***********************************************************************/
-/*  Extract from a path name the required component.                   */
-/*  This function assumes there is enough space in the buffer.         */
-/***********************************************************************/
-#if 0
-char *ExtractFromPath(PGLOBAL g, char *pBuff, char *FileName, OPVAL op)
-  {
-  char *drive = NULL, *direc = NULL, *fname = NULL, *ftype = NULL;
-
-  switch (op) {           // Determine which part to extract
-#if !defined(UNIX)
-    case OP_FDISK: drive = pBuff; break;
-#endif   // !UNIX
-    case OP_FPATH: direc = pBuff; break;
-    case OP_FNAME: fname = pBuff; break;
-    case OP_FTYPE: ftype = pBuff; break;
-    default:
-      sprintf(g->Message, MSG(INVALID_OPER), op, "ExtractFromPath");
-      return NULL;
-    } // endswitch op
-
-  // Now do the extraction
-  _splitpath(FileName, drive, direc, fname, ftype);
-  return pBuff;
-  } // end of PlgExtractFromPath
-#endif
 
 /***********************************************************************/
 /*  Check the occurence and matching of a pattern against a string.    */
@@ -1468,19 +1301,17 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
   size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
   pph = (PPOOLHEADER)memp;
 
-#if defined(DEBTRACE)
- htrc("PlgDBSubAlloc: memp=%p size=%d used=%d free=%d\n",
-  memp, size, pph->To_Free, pph->FreeBlk);
-#endif
+  if (trace > 1)
+    htrc("PlgDBSubAlloc: memp=%p size=%d used=%d free=%d\n",
+         memp, size, pph->To_Free, pph->FreeBlk);
 
   if ((uint)size > pph->FreeBlk) {   /* Not enough memory left in pool */
     sprintf(g->Message,
     "Not enough memory in Work area for request of %d (used=%d free=%d)",
             (int) size, pph->To_Free, pph->FreeBlk);
 
-#if defined(DEBTRACE)
- htrc("%s\n", g->Message);
-#endif
+    if (trace)
+      htrc("%s\n", g->Message);
 
     return NULL;
     } // endif size
@@ -1491,10 +1322,11 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
   memp = MakePtr(memp, pph->To_Free);   // Points to suballocated block
   pph->To_Free += size;                 // New offset of pool free block
   pph->FreeBlk -= size;                 // New size   of pool free block
-#if defined(DEBTRACE)
- htrc("Done memp=%p used=%d free=%d\n",
-  memp, pph->To_Free, pph->FreeBlk);
-#endif
+
+  if (trace > 1)
+    htrc("Done memp=%p used=%d free=%d\n",
+         memp, pph->To_Free, pph->FreeBlk);
+
   return (memp);
   } // end of PlgDBSubAlloc
 
