@@ -296,8 +296,7 @@ typedef struct st_join_table {
   */
   double        read_time;
   
-  /* psergey-todo: make the below have type double, like POSITION::records_read? */
-  ha_rows       records_read;
+  double        records_read;
   
   /* The selectivity of the conditions that can be pushed to the table */ 
   double        cond_selectivity;  

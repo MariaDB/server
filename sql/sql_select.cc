@@ -5565,9 +5565,23 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
 /* Estimate of the number matching candidates in the joined table */
 
 inline
-ha_rows matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint)
+double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
+                                     uint use_cond_selectivity)
 {
-  ha_rows records= s->found_records;
+  ha_rows records;
+  double dbl_records;
+
+  if (use_cond_selectivity > 1)
+  {
+    TABLE *table= s->table;
+    double sel= table->cond_selectivity;
+    double table_records= table->stat_records();
+    dbl_records= table_records * sel;
+    return dbl_records;
+  }
+
+  records = s->found_records;
+
   /*
     If there is a filtering condition on the table (i.e. ref analyzer found
     at least one "table.keyXpartY= exprZ", where exprZ refers only to tables
@@ -5587,7 +5601,8 @@ ha_rows matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint)
   if (s->table->quick_condition_rows != s->found_records)
     records= s->table->quick_condition_rows;
 
-  return records;
+  dbl_records= records;
+  return dbl_records;
 }
 
 
@@ -5630,6 +5645,7 @@ best_access_path(JOIN      *join,
                  POSITION *loose_scan_pos)
 {
   THD *thd= join->thd;
+  uint use_cond_selectivity= thd->variables.optimizer_use_condition_selectivity;
   KEYUSE *best_key=         0;
   uint best_max_key_part=   0;
   my_bool found_constraint= 0;
@@ -6061,7 +6077,8 @@ best_access_path(JOIN      *join,
   {
     double join_sel= 0.1;
     /* Estimate the cost of  the hash join access to the table */
-    ha_rows rnd_records= matching_candidates_in_table(s, found_constraint);
+    double rnd_records= matching_candidates_in_table(s, found_constraint,
+                                                     use_cond_selectivity);
 
     tmp= s->quick ? s->quick->read_time : s->scan_time();
     tmp+= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
@@ -6073,7 +6090,7 @@ best_access_path(JOIN      *join,
     best_time= tmp + 
                (record_count*join_sel) / TIME_FOR_COMPARE * rnd_records;
     best= tmp;
-    records= rows2double(rnd_records);
+    records= rnd_records;
     best_key= hj_start_key;
     best_ref_depends_map= 0;
     best_uses_jbuf= TRUE;
@@ -6120,7 +6137,8 @@ best_access_path(JOIN      *join,
       !(s->table->force_index && best_key && !s->quick) &&               // (4)
       !(best_key && s->table->pos_in_table_list->jtbm_subselect))        // (5)
   {                                             // Check full join
-    ha_rows rnd_records= matching_candidates_in_table(s, found_constraint);
+    double rnd_records= matching_candidates_in_table(s, found_constraint,
+                                                      use_cond_selectivity);
 
     /*
       Range optimizer never proposes a RANGE if it isn't better
@@ -6193,7 +6211,7 @@ best_access_path(JOIN      *join,
         will ensure that this will be used
       */
       best= tmp;
-      records= rows2double(rnd_records);
+      records= rnd_records;
       best_key= 0;
       /* range/index_merge/ALL/index access method are "independent", so: */
       best_ref_depends_map= 0;
@@ -7298,6 +7316,10 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       keyuse++;
     } while (keyuse->table == table && keyuse->key == key);
   }
+  else
+  {
+    sel= 1;
+  }
     
   /* 
     If the field f from the table is equal to a field from one the
@@ -8312,7 +8334,7 @@ get_best_combination(JOIN *join)
       Save records_read in JOIN_TAB so that select_describe()/etc don't have
       to access join->best_positions[]. 
     */
-    j->records_read= (ha_rows)join->best_positions[tablenr].records_read;
+    j->records_read= join->best_positions[tablenr].records_read;
     j->cond_selectivity= join->best_positions[tablenr].cond_selectivity;
     join->map2table[j->table->tablenr]= j;
 
