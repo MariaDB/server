@@ -173,3 +173,39 @@ DROP TABLE t1, t1;
 ERROR 42000: Not unique table/alias: 't1'
 UNLOCK TABLES;
 DROP TABLE t1;
+#
+# BUG#34750: Print database name in Unknown Table error message
+#
+
+# Test error message when droping table/view
+DROP TABLE table1;
+ERROR 42S02: Unknown table 'test.table1'
+DROP TABLE table1,table2;
+ERROR 42S02: Unknown table 'test.table1,test.table2'
+DROP VIEW view1,view2,view3,view4;
+ERROR 42S02: Unknown table 'test.view1,test.view2,test.view3,test.view4'
+
+DROP TABLE IF EXISTS table1;
+Warnings:
+Note	1051	Unknown table 'test.table1'
+DROP TABLE IF EXISTS table1,table2;
+Warnings:
+Note	1051	Unknown table 'test.table1'
+Note	1051	Unknown table 'test.table2'
+DROP VIEW IF EXISTS view1,view2,view3,view4;
+Warnings:
+Note	1051	Unknown table 'test.view1'
+Note	1051	Unknown table 'test.view2'
+Note	1051	Unknown table 'test.view3'
+Note	1051	Unknown table 'test.view4'
+
+# Test error message when trigger does not find table
+CREATE TABLE table1(a int);
+CREATE TABLE table2(b int);
+CREATE TRIGGER trg1 AFTER INSERT ON table1
+FOR EACH ROW
+INSERT INTO table2 SELECT t.notable.*;
+INSERT INTO table1 VALUES (1);
+ERROR 42S02: Unknown table 't.notable'
+DROP TABLE table1,table2;
+# End BUG#34750

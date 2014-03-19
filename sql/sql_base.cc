@@ -8322,9 +8322,16 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
     meaningful message than ER_BAD_TABLE_ERROR.
   */
   if (!table_name)
-    my_message(ER_NO_TABLES_USED, ER(ER_NO_TABLES_USED), MYF(0));
+    my_error(ER_NO_TABLES_USED, MYF(0));
+  else if (!db_name && !thd->db)
+    my_error(ER_NO_DB_ERROR, MYF(0));
   else
-    my_error(ER_BAD_TABLE_ERROR, MYF(0), table_name);
+  {
+    char name[FN_REFLEN];
+    my_snprintf(name, sizeof(name), "%s.%s",
+                db_name ? db_name : thd->db, table_name);
+    my_error(ER_BAD_TABLE_ERROR, MYF(0), name);
+  }
 
   DBUG_RETURN(TRUE);
 }

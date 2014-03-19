@@ -1944,7 +1944,7 @@ insert into table_25411_b select new.*;
 select * from table_25411_a;
 a
 insert into table_25411_a values (1);
-ERROR 42S02: Unknown table 'new'
+ERROR 42S02: Unknown table 'test.new'
 select * from table_25411_a;
 a
 1
