@@ -2052,6 +2052,19 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   DBUG_RETURN(error);
 }
 
+
+void binlog_reset_cache(THD *thd)
+{
+  binlog_cache_mngr *const cache_mngr= 
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  DBUG_ENTER("binlog_reset_cache");
+  thd->binlog_remove_pending_rows_event(TRUE, TRUE);
+  cache_mngr->reset(true, true);
+  thd->clear_binlog_table_maps();
+  DBUG_VOID_RETURN;
+}
+
+
 void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::set_write_error");

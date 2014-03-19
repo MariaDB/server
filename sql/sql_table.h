@@ -240,6 +240,9 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
 int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool drop_temporary, bool drop_view,
                             bool log_query, bool dont_free_locks);
+bool log_drop_table(THD *thd, const char *db_name, size_t db_name_length,
+                    const char *table_name, size_t table_name_length,
+                    bool temporary_table);
 bool quick_rm_table(THD *thd, handlerton *base, const char *db,
                     const char *table_name, uint flags);
 void close_cached_table(THD *thd, TABLE *table);

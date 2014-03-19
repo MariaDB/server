@@ -742,6 +742,7 @@ struct TABLE_SHARE
   bool is_view;
   bool deleting;                        /* going to delete this table */
   bool can_cmp_whole_record;
+  bool table_creation_was_logged;
   ulong table_map_id;                   /* for row-based replication */
 
   /*
