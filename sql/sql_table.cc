@@ -2560,6 +2560,18 @@ err:
     error= 1;
   }
 
+  /*
+    We are always logging drop of temporary tables.
+    The reason is to handle the following case:
+    - Use statement based replication
+    - CREATE TEMPORARY TABLE foo (logged)
+    - set row based replication
+    - DROP TEMPORAY TABLE foo    (needs to be logged)
+    This should be fixed so that we remember if creation of the
+    temporary table was logged and only log it if the creation was
+    logged.
+  */
+
   if (non_trans_tmp_table_deleted ||
       trans_tmp_table_deleted || non_tmp_table_deleted)
   {
@@ -4628,6 +4640,7 @@ int create_table_impl(THD *thd,
         thd->variables.option_bits|= OPTION_KEEP_LOG;
         thd->log_current_statement= 1;
         create_info->table_was_deleted= 1;
+        DBUG_EXECUTE_IF("send_kill_after_delete", thd->killed= KILL_QUERY; );
 
         /*
           The test of query_tables is to ensure we have any tables in the
@@ -4769,6 +4782,7 @@ int create_table_impl(THD *thd,
 err:
   THD_STAGE_INFO(thd, stage_after_create);
   delete file;
+  DBUG_PRINT("exit", ("return: %d", error));
   DBUG_RETURN(error);
 
 warn:
@@ -5262,7 +5276,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
         char buf[2048];
         String query(buf, sizeof(buf), system_charset_info);
         query.length(0);  // Have to zero it since constructor doesn't
-        Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
+        Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN |
+                                  MYSQL_OPEN_IGNORE_KILLED);
         bool new_table= FALSE; // Whether newly created table is open.
 
         if (create_res != 0)
@@ -5271,6 +5286,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
             Table or view with same name already existed and we where using
             IF EXISTS. Continue without logging anything.
           */
+          do_logging= 0;
           goto err;
         }
         if (!table->table)
@@ -5316,6 +5332,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
           if (write_bin_log(thd, TRUE, query.ptr(), query.length()))
           {
             res= 1;
+            do_logging= 0;
             goto err;
           }
 
