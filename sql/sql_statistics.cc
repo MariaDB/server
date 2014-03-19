@@ -529,6 +529,8 @@ public:
       store_stat_fields();
       if ((err= stat_file->ha_write_row(record[0])))
 	return TRUE;
+      /* Make change permanent and avoid 'table is marked as crashed' errors */
+      table->file->extra(HA_EXTRA_FLUSH);
     } 
     return FALSE;
   }
