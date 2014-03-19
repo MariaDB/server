@@ -4535,7 +4535,7 @@ static int merge_role_privileges(ACL_ROLE *, ACL_ROLE *, void *);
 */
 static void propagate_role_grants(ACL_ROLE *role,
                                   enum PRIVS_TO_MERGE::what what,
-                                  const char *db, const char *name)
+                                  const char *db= 0, const char *name= 0)
 {
 
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -5188,6 +5188,8 @@ static int update_role_routines(GRANT_NAME *merged, GRANT_NAME **first,
   if (!first)
     return 0;
 
+  DBUG_EXECUTE_IF("role_merge_stats", role_routine_merges++;);
+
   if (merged == NULL)
   {
     /*
@@ -5233,8 +5235,6 @@ static bool merge_role_routine_grant_privileges(ACL_ROLE *grantee,
   ulong update_flags= 0;
 
   DBUG_ASSERT(MY_TEST(db) == MY_TEST(tname)); // both must be set, or neither
-
-  DBUG_EXECUTE_IF("role_merge_stats", role_routine_merges++;);
 
   Dynamic_array<GRANT_NAME *> grants; 
 
@@ -6232,7 +6232,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     if (Str->is_role())
       propagate_role_grants(find_acl_role(Str->user.str),
                             db ? PRIVS_TO_MERGE::DB : PRIVS_TO_MERGE::GLOBAL,
-                            db, 0);
+                            db);
   }
   mysql_mutex_unlock(&acl_cache->lock);
 
@@ -8638,7 +8638,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     if (drop)
     {
       /* all grants must be revoked from this role by now. propagate this */
-      propagate_role_grants(acl_role, PRIVS_TO_MERGE::ALL, 0, 0);
+      propagate_role_grants(acl_role, PRIVS_TO_MERGE::ALL);
 
       // delete the role from cross-reference arrays
       for (uint i=0; i < acl_role->role_grants.elements; i++)
@@ -9645,7 +9645,7 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
     */
     if (lex_user->is_role())
     {
-      propagate_role_grants((ACL_ROLE *)user_or_role, PRIVS_TO_MERGE::ALL, 0, 0);
+      propagate_role_grants((ACL_ROLE *)user_or_role, PRIVS_TO_MERGE::ALL);
     }
   }
 
