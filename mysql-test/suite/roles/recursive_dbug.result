@@ -46,7 +46,7 @@ role9	role6	NO
 role9	role7	NO
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	0
+Debug_role_merges_global	11
 Debug_role_merges_db	0
 Debug_role_merges_table	0
 Debug_role_merges_column	0
@@ -54,7 +54,7 @@ Debug_role_merges_routine	0
 grant select on *.* to role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	8
+Debug_role_merges_global	19
 Debug_role_merges_db	0
 Debug_role_merges_table	0
 Debug_role_merges_column	0
@@ -102,7 +102,7 @@ role9
 revoke select on *.* from role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	0
 Debug_role_merges_table	0
 Debug_role_merges_column	0
@@ -118,7 +118,7 @@ set role none;
 grant select on mysql.* to role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	8
 Debug_role_merges_table	0
 Debug_role_merges_column	0
@@ -156,7 +156,7 @@ GRANT role9 TO 'role10'
 revoke select on mysql.* from role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	0
 Debug_role_merges_column	0
@@ -167,7 +167,7 @@ set role none;
 grant select on mysql.roles_mapping to role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	8
 Debug_role_merges_column	0
@@ -205,7 +205,7 @@ GRANT role9 TO 'role10'
 revoke select on mysql.roles_mapping from role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	16
 Debug_role_merges_column	0
@@ -216,7 +216,7 @@ set role none;
 grant select(User) on mysql.roles_mapping to role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	24
 Debug_role_merges_column	8
@@ -256,7 +256,7 @@ GRANT role9 TO 'role10'
 grant select(Host) on mysql.roles_mapping to role3;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	30
 Debug_role_merges_column	14
@@ -294,7 +294,7 @@ GRANT role9 TO 'role10'
 revoke select(User) on mysql.roles_mapping from role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	38
 Debug_role_merges_column	22
@@ -307,7 +307,7 @@ count(concat(Host))
 revoke select(Host) on mysql.roles_mapping from role3;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	44
 Debug_role_merges_column	28
@@ -320,7 +320,7 @@ create function fn1() returns char(10) return "fn1";
 grant execute on procedure test.pr1 to role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	44
 Debug_role_merges_column	28
@@ -336,7 +336,7 @@ ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test.
 grant execute on function test.fn1 to role5;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	44
 Debug_role_merges_column	28
@@ -347,7 +347,7 @@ fn1
 revoke execute on procedure test.pr1 from role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	44
 Debug_role_merges_column	28
@@ -360,7 +360,7 @@ fn1
 revoke execute on function test.fn1 from role5;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	44
 Debug_role_merges_column	28
@@ -373,7 +373,7 @@ drop function fn1;
 grant select on mysql.roles_mapping to role3;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	50
 Debug_role_merges_column	28
@@ -381,7 +381,7 @@ Debug_role_merges_routine	26
 grant select on mysql.roles_mapping to role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	53
 Debug_role_merges_column	28
@@ -389,7 +389,7 @@ Debug_role_merges_routine	26
 revoke select on mysql.roles_mapping from role3;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	54
 Debug_role_merges_column	28
@@ -397,7 +397,7 @@ Debug_role_merges_routine	26
 revoke select on mysql.roles_mapping from role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	16
 Debug_role_merges_table	62
 Debug_role_merges_column	28
@@ -405,7 +405,7 @@ Debug_role_merges_routine	26
 grant select on mysql.* to role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	24
 Debug_role_merges_table	62
 Debug_role_merges_column	28
@@ -413,7 +413,7 @@ Debug_role_merges_routine	26
 grant select on test.* to role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	32
 Debug_role_merges_table	62
 Debug_role_merges_column	28
@@ -421,7 +421,7 @@ Debug_role_merges_routine	26
 revoke select on mysql.* from role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	40
 Debug_role_merges_table	62
 Debug_role_merges_column	28
@@ -429,7 +429,7 @@ Debug_role_merges_routine	26
 revoke select on test.* from role1;
 show status like 'debug%';
 Variable_name	Value
-Debug_role_merges_global	16
+Debug_role_merges_global	27
 Debug_role_merges_db	48
 Debug_role_merges_table	62
 Debug_role_merges_column	28
