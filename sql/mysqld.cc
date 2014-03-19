@@ -479,7 +479,9 @@ ulong open_files_limit, max_binlog_size;
 ulong slave_trans_retries;
 uint  slave_net_timeout;
 ulong slave_exec_mode_options;
+#ifdef RBR_TRIGGERS
 ulong slave_run_triggers_for_rbr= 0;
+#endif //RBR_TRIGGERS
 ulong slave_ddl_exec_mode_options= SLAVE_EXEC_MODE_IDEMPOTENT;
 ulonglong slave_type_conversions_options;
 ulong thread_cache_size=0;

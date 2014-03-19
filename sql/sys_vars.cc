@@ -2737,6 +2737,7 @@ static Sys_var_enum Slave_ddl_exec_mode(
        GLOBAL_VAR(slave_ddl_exec_mode_options), CMD_LINE(REQUIRED_ARG),
        slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_IDEMPOTENT));
 
+#ifdef RBR_TRIGGERS
 static const char *slave_run_triggers_for_rbr_names[]=
   {"NO", "YES", "LOGGING", 0};
 static Sys_var_enum Slave_run_triggers_for_rbr(
@@ -2751,6 +2752,7 @@ static Sys_var_enum Slave_run_triggers_for_rbr(
        GLOBAL_VAR(slave_run_triggers_for_rbr), CMD_LINE(REQUIRED_ARG),
        slave_run_triggers_for_rbr_names,
        DEFAULT(SLAVE_RUN_TRIGGERS_FOR_RBR_NO));
+#endif //RBR_TRIGGERS
 
 static const char *slave_type_conversions_name[]= {"ALL_LOSSY", "ALL_NON_LOSSY", 0};
 static Sys_var_set Slave_type_conversions(
