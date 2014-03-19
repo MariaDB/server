@@ -6367,7 +6367,10 @@ get_innobase_type_from_mysql_type(
 	case MYSQL_TYPE_LONG_BLOB:
 		return(DATA_BLOB);
 	case MYSQL_TYPE_NULL:
-		return(DATA_FIXBINARY);
+		/* MySQL currently accepts "NULL" datatype, but will
+		reject such datatype in the next release. We will cope
+		with it and not trigger assertion failure in 5.1 */
+		break;
 	default:
 		ut_error;
 	}
