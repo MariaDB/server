@@ -50,9 +50,14 @@ drop table if exists t1;
 create or replace table t1 (a int primary key) select a from t2;
 
 create table t1 (a int);
-# This should be logged as we will delete t1
+# This should as a delete as we will delete t1
 --error ER_DUP_ENTRY
 create or replace table t1 (a int primary key) select a from t2;
+
+# Same with temporary table
+create temporary table t9 (a int);
+--error ER_DUP_ENTRY
+create or replace temporary table t9 (a int primary key) select a from t2;
 
 --echo binlog from server 1
 --source include/show_binlog_events.inc
@@ -62,7 +67,14 @@ sync_with_master;
 show tables;
 connection server_1;
 
+--let $binlog_start=query_get_value(SHOW MASTER STATUS, Position, 1)
+create table t1 (a int);
+--error ER_DUP_FIELDNAME
+create or replace table t1 (a int, a int) select * from t2;
+--source include/show_binlog_events.inc
+
 drop table if exists t1,t2;
+drop temporary table if exists t9;
 
 --echo #
 --echo # Ensure that CREATE are run as CREATE OR REPLACE on slave
@@ -131,7 +143,34 @@ sync_with_master;
 connection server_1;
 drop table t1;
 
+--echo #
+--echo # Check logging of drop temporary table
+--echo #
+
+drop temporary table t3;
+
+--let $binlog_start=query_get_value(SHOW MASTER STATUS, Position, 1)
+
+set @org_binlog_format=@@binlog_format;
+set binlog_format="STATEMENT";
+create temporary table t5 (a int);
+drop temporary table t5;
+set binlog_format="ROW";
+create temporary table t6 (a int);
+drop temporary table t6;
+set binlog_format="STATEMENT";
+create temporary table t7 (a int);
+set binlog_format="ROW";
+drop temporary table t7;
+create temporary table t8 (a int);
+--error ER_TEMP_TABLE_PREVENTS_SWITCH_OUT_OF_RBR
+set binlog_format="STATEMENT";
+drop temporary table t8;
+set @@binlog_format=@org_binlog_format;
+
+--source include/show_binlog_events.inc
+
 # Clean up
-drop table t2,t3;
+drop table t2;
 
 --source include/rpl_end.inc

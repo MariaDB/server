@@ -3960,6 +3960,7 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
         */
         DBUG_ASSERT(0);
       }
+      DBUG_ASSERT(create_table->table == create_info->table);
     }
   }
   else
@@ -4247,6 +4248,8 @@ bool select_create::send_eof()
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
       trans_commit_implicit(thd);
   }
+  else if (!thd->is_current_stmt_binlog_format_row())
+    table->s->table_creation_was_logged= 1;
 
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
@@ -4310,8 +4313,7 @@ void select_create::abort_result_set()
   */
 
   save_option_bits= thd->variables.option_bits;
-  if (!(thd->log_current_statement))
-    thd->variables.option_bits&= ~OPTION_BIN_LOG;
+  thd->variables.option_bits&= ~OPTION_BIN_LOG;
   select_insert::abort_result_set();
   thd->transaction.stmt.modified_non_trans_table= FALSE;
   thd->variables.option_bits= save_option_bits;
@@ -4334,11 +4336,21 @@ void select_create::abort_result_set()
 
   if (table)
   {
+    bool tmp_table= table->s->tmp_table;
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
     table->auto_increment_field_not_null= FALSE;
     drop_open_table(thd, table, create_table->db, create_table->table_name);
     table=0;                                    // Safety
+    if (thd->log_current_statement)
+    {
+      /* Remove logging of drop, create + insert rows */
+      binlog_reset_cache(thd);
+      /* Original table was deleted. We have to log it */
+      log_drop_table(thd, create_table->db, create_table->db_length,
+                     create_table->table_name, create_table->table_name_length,
+                     tmp_table);
+    }
   }
   DBUG_VOID_RETURN;
 }
