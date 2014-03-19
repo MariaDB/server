@@ -1925,16 +1925,9 @@ int ha_cassandra::write_dynamic_row(uint count,
 void ha_cassandra::free_dynamic_row(DYNAMIC_COLUMN_VALUE **vals,
                                     LEX_STRING **names)
 {
-  if (*vals)
-  {
-    my_free(*vals);
-    *vals= 0;
-  }
-  if (*names)
-  {
-    my_free(*names);
-    *names= 0;
-  }
+  mariadb_dyncol_unpack_free(*names, *vals);
+  *vals= 0;
+  *names= 0;
 }
 
 int ha_cassandra::write_row(uchar *buf)

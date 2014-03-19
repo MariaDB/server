@@ -220,6 +220,9 @@ mariadb_dyncol_unpack(DYNAMIC_COLUMN *str,
                       uint *count,
                       MYSQL_LEX_STRING **names, DYNAMIC_COLUMN_VALUE **vals);
 
+void mariadb_dyncol_unpack_free(MYSQL_LEX_STRING *names,
+                                DYNAMIC_COLUMN_VALUE *vals);
+
 int mariadb_dyncol_column_cmp_named(const MYSQL_LEX_STRING *s1,
                                     const MYSQL_LEX_STRING *s2);
 

@@ -248,6 +248,7 @@ mariadb_dyncol_val_str
 mariadb_dyncol_val_long
 mariadb_dyncol_val_double
 mariadb_dyncol_unpack
+mariadb_dyncol_unpack_free
 mariadb_dyncol_column_cmp_named
 mariadb_dyncol_column_count
 mariadb_dyncol_prepare_decimal
