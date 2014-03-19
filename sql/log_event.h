@@ -4340,7 +4340,7 @@ protected:
   bool process_triggers(trg_event_type event,
                         trg_action_time_type time_type,
                         bool old_row_is_record1);
-#endif
+#endif //defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 
 private:
 
