@@ -4317,6 +4317,18 @@ err:
 }
 
 /**
+  Free arrays allocated by mariadb_dyncol_unpack()
+
+  @param names           Where to put names (should be free by user)
+  @param vals            Where to put values (should be free by user)
+*/
+void mariadb_dyncol_unpack_free(LEX_STRING *names, DYNAMIC_COLUMN_VALUE *vals)
+{
+  my_free(names);
+  my_free(vals);
+}
+
+/**
   Get not NULL column count
 
   @param str             The packed string
