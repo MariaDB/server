@@ -656,6 +656,12 @@ static void mark_temp_tables_as_free_for_reuse(THD *thd)
 {
   DBUG_ENTER("mark_temp_tables_as_free_for_reuse");
 
+  if (thd->query_id == 0)
+  {
+    /* Thread has not executed any statement and has not used any tmp tables */
+    DBUG_VOID_RETURN;
+  }
+  
   thd->lock_temporary_tables();
   for (TABLE *table= thd->temporary_tables ; table ; table= table->next)
   {
