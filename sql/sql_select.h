@@ -1119,12 +1119,6 @@ public:
     restore_no_rows_in_result() in ::reinit()
   */
   bool no_rows_in_result_called;
-
-  /**
-    This is set if SQL_CALC_ROWS was calculated by filesort()
-    and should be taken from the appropriate JOIN_TAB
-  */
-  bool filesort_found_rows;
   
   /**
     Copy of this JOIN to be used with temporary tables.
@@ -1341,7 +1335,6 @@ public:
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
 
-    filesort_found_rows= false;
     exec_saved_explain= false;
     /* 
       The following is needed because JOIN::cleanup(true) may be called for 
