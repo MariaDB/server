@@ -727,7 +727,7 @@ static bool initialized=0;
 static bool allow_all_hosts=1;
 static HASH acl_check_hosts, column_priv_hash, proc_priv_hash, func_priv_hash;
 static DYNAMIC_ARRAY acl_wild_hosts;
-static hash_filo *acl_cache;
+static Hash_filo<acl_entry> *acl_cache;
 static uint grant_version=0; /* Version of priv tables. incremented by acl_load */
 static ulong get_access(TABLE *form,uint fieldnr, uint *next_field=0);
 static bool check_is_role(TABLE *form);
@@ -924,7 +924,7 @@ my_bool acl_init(bool dont_read_acl_tables)
   my_bool return_val;
   DBUG_ENTER("acl_init");
 
-  acl_cache= new hash_filo(ACL_CACHE_SIZE, 0, 0,
+  acl_cache= new Hash_filo<acl_entry>(ACL_CACHE_SIZE, 0, 0,
                            (my_hash_get_key) acl_entry_get_key,
                            (my_hash_free_key) free,
                            &my_charset_utf8_bin);
@@ -2182,8 +2182,7 @@ ulong acl_get(const char *host, const char *ip,
   key_length= (size_t) (end-key);
 
   mysql_mutex_lock(&acl_cache->lock);
-  if (!db_is_pattern && (entry=(acl_entry*) acl_cache->search((uchar*) key,
-                                                              key_length)))
+  if (!db_is_pattern && (entry=acl_cache->search((uchar*) key, key_length)))
   {
     db_access=entry->access;
     mysql_mutex_unlock(&acl_cache->lock);
