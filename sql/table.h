@@ -1234,6 +1234,10 @@ public:
   bool get_fields_in_item_tree;      /* Signal to fix_field */
   bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
+#ifdef HAVE_REPLICATION
+  /* used in RBR Triggers */
+  bool master_had_triggers;
+#endif
 
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
@@ -1362,6 +1366,10 @@ public:
   ulong actual_key_flags(KEY *keyinfo);
   int update_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
+
+  void prepare_triggers_for_insert_stmt_or_event();
+  bool prepare_triggers_for_delete_stmt_or_event();
+  bool prepare_triggers_for_update_stmt_or_event();
 };
 
 

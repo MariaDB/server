@@ -3994,6 +3994,10 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   created= TRUE;
   cond_selectivity= 1.0;
   cond_selectivity_sampling_explain= NULL;
+#ifdef HAVE_REPLICATION
+  /* used in RBR Triggers */
+  master_had_triggers= 0;
+#endif
 
   /* Catch wrong handling of the auto_increment_field_not_null. */
   DBUG_ASSERT(!auto_increment_field_not_null);
@@ -6655,6 +6659,81 @@ int TABLE::update_default_fields()
   DBUG_RETURN(res);
 }
 
+
+/*
+  Prepare triggers  for INSERT-like statement.
+
+  SYNOPSIS
+    prepare_triggers_for_insert_stmt_or_event()
+
+  NOTE
+    Prepare triggers for INSERT-like statement by marking fields
+    used by triggers and inform handlers that batching of UPDATE/DELETE 
+    cannot be done if there are BEFORE UPDATE/DELETE triggers.
+*/
+
+void TABLE::prepare_triggers_for_insert_stmt_or_event()
+{
+  if (triggers)
+  {
+    if (triggers->has_triggers(TRG_EVENT_DELETE,
+                               TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER DELETE triggers that might access to
+        subject table and therefore might need delete to be done
+        immediately. So we turn-off the batching.
+      */
+      (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
+    }
+    if (triggers->has_triggers(TRG_EVENT_UPDATE,
+                               TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER UPDATE triggers that might access to subject
+        table and therefore might need update to be done immediately.
+        So we turn-off the batching.
+      */
+      (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
+    }
+  }
+}
+
+
+bool TABLE::prepare_triggers_for_delete_stmt_or_event()
+{
+  if (triggers &&
+      triggers->has_triggers(TRG_EVENT_DELETE,
+                             TRG_ACTION_AFTER))
+  {
+    /*
+      The table has AFTER DELETE triggers that might access to subject table
+      and therefore might need delete to be done immediately. So we turn-off
+      the batching.
+    */
+    (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+
+bool TABLE::prepare_triggers_for_update_stmt_or_event()
+{
+  if (triggers &&
+      triggers->has_triggers(TRG_EVENT_UPDATE,
+                             TRG_ACTION_AFTER))
+  {
+    /*
+      The table has AFTER UPDATE triggers that might access to subject
+      table and therefore might need update to be done immediately.
+      So we turn-off the batching.
+    */ 
+    (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
+    return TRUE;
+  }
+  return FALSE;
+}
 
 /*
   @brief Reset const_table flag

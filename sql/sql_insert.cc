@@ -373,48 +373,6 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
   return 0;
 }
 
-/*
-  Prepare triggers  for INSERT-like statement.
-
-  SYNOPSIS
-    prepare_triggers_for_insert_stmt()
-      table   Table to which insert will happen
-
-  NOTE
-    Prepare triggers for INSERT-like statement by marking fields
-    used by triggers and inform handlers that batching of UPDATE/DELETE 
-    cannot be done if there are BEFORE UPDATE/DELETE triggers.
-*/
-
-void prepare_triggers_for_insert_stmt(TABLE *table)
-{
-  if (table->triggers)
-  {
-    if (table->triggers->has_triggers(TRG_EVENT_DELETE,
-                                      TRG_ACTION_AFTER))
-    {
-      /*
-        The table has AFTER DELETE triggers that might access to 
-        subject table and therefore might need delete to be done 
-        immediately. So we turn-off the batching.
-      */ 
-      (void) table->file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
-    }
-    if (table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                      TRG_ACTION_AFTER))
-    {
-      /*
-        The table has AFTER UPDATE triggers that might access to subject 
-        table and therefore might need update to be done immediately. 
-        So we turn-off the batching.
-      */ 
-      (void) table->file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
-    }
-  }
-  table->mark_columns_needed_for_insert();
-}
-
-
 /**
   Upgrade table-level lock of INSERT statement to TL_WRITE if
   a more concurrent lock is infeasible for some reason. This is
@@ -902,7 +860,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
-  prepare_triggers_for_insert_stmt(table);
+  table->prepare_triggers_for_insert_stmt_or_event();
+  table->mark_columns_needed_for_insert();
 
 
   if (table_list->prepare_where(thd, 0, TRUE) ||
@@ -3537,7 +3496,10 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
         table_list->prepare_check_option(thd));
 
   if (!res)
-     prepare_triggers_for_insert_stmt(table);
+  {
+     table->prepare_triggers_for_insert_stmt_or_event();
+     table->mark_columns_needed_for_insert();
+  }
 
   DBUG_RETURN(res);
 }
