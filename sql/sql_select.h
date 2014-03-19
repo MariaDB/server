@@ -288,7 +288,7 @@ typedef struct st_join_table {
   double        read_time;
   
   /* Copy of POSITION::records_read, set by get_best_combination() */
-  double       records_read;
+  double        records_read;
   
   /* The selectivity of the conditions that can be pushed to the table */ 
   double        cond_selectivity;  
