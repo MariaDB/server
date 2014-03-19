@@ -3630,7 +3630,7 @@ maria_declare_plugin(sphinx)
 	sphinx_status_vars,
 	NULL,
         SPHINXSE_VERSION, // string version
-	MariaDB_PLUGIN_MATURITY_EXPERIMENTAL
+	MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;
 
