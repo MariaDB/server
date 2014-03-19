@@ -2288,6 +2288,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   for (table= tables; table; table= table->next_local)
   {
     bool is_trans= 0;
+    bool table_creation_was_logged= 1;
     char *db=table->db;
     size_t db_length= table->db_length;
     handlerton *table_type= 0;
@@ -2316,6 +2317,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       error= 1;
     else
     {
+      table_creation_was_logged= table->table->s->table_creation_was_logged;
       if ((error= drop_temporary_table(thd, table->table, &is_trans)) == -1)
       {
         DBUG_ASSERT(thd->in_sub_stmt);
@@ -2336,7 +2338,10 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           . "DROP" was executed but a temporary table was affected (.i.e
           !error).
       */
-      if (!dont_log_query)
+#ifndef DONT_LOG_DROP_OF_TEMPORARY_TABLES
+      table_creation_was_logged= 1;
+#endif
+      if (!dont_log_query && table_creation_was_logged)
       {
         /*
           If there is an error, we don't know the type of the engine
@@ -2657,6 +2662,43 @@ err:
   }
 
 end:
+  DBUG_RETURN(error);
+}
+
+/**
+  Log the drop of a table.
+
+  @param thd	           Thread handler
+  @param db_name           Database name
+  @param table_name        Table name
+  @param temporary_table   1 if table was a temporary table
+
+  This code is only used in the case of failed CREATE OR REPLACE TABLE
+  when the original table was dropped but we could not create the new one.
+*/
+
+bool log_drop_table(THD *thd, const char *db_name, size_t db_name_length,
+                    const char *table_name, size_t table_name_length,
+                    bool temporary_table)
+{
+  char buff[NAME_LEN*2 + 80];
+  String query(buff, sizeof(buff), system_charset_info);
+  bool error;
+  DBUG_ENTER("log_drop_table");
+
+  query.length(0);
+  query.append(STRING_WITH_LEN("DROP "));
+  if (temporary_table)
+    query.append(STRING_WITH_LEN("TEMPORARY "));
+  query.append(STRING_WITH_LEN("TABLE IF EXISTS "));
+  append_identifier(thd, &query, db_name, db_name_length);
+  query.append(".");
+  append_identifier(thd, &query, table_name, table_name_length);
+  query.append(STRING_WITH_LEN("/* Generated to handle "
+                               "failed CREATE OR REPLACE */"));
+  error= thd->binlog_query(THD::STMT_QUERY_TYPE,
+                           query.ptr(), query.length(),
+                           FALSE, FALSE, temporary_table, 0);
   DBUG_RETURN(error);
 }
 
@@ -4590,6 +4632,7 @@ int create_table_impl(THD *thd,
     TABLE *tmp_table;
     if ((tmp_table= find_temporary_table(thd, db, table_name)))
     {
+      bool table_creation_was_logged= tmp_table->s->table_creation_was_logged;
       if (create_info->options & HA_LEX_CREATE_REPLACE)
       {
         bool is_trans;
@@ -4606,6 +4649,19 @@ int create_table_impl(THD *thd,
       {
         my_error(ER_TABLE_EXISTS_ERROR, MYF(0), alias);
         goto err;
+      }
+      /*
+        We have to log this query, even if it failed later to ensure the
+        drop is done.
+      */
+#ifndef DONT_LOG_DROP_OF_TEMPORARY_TABLES
+      table_creation_was_logged= 1;
+#endif
+      if (table_creation_was_logged)
+      {
+        thd->variables.option_bits|= OPTION_KEEP_LOG;
+        thd->log_current_statement= 1;
+        create_info->table_was_deleted= 1;
       }
     }
   }
@@ -4720,6 +4776,7 @@ int create_table_impl(THD *thd,
       goto err;
   }
 
+  create_info->table= 0;
   if (!frm_only && create_info->tmp_table())
   {
     /*
@@ -4740,6 +4797,7 @@ int create_table_impl(THD *thd,
       *is_trans= table->file->has_transactions();
 
     thd->thread_specific_used= TRUE;
+    create_info->table= table;                  // Store pointer to table
   }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   else if (thd->work_part_info && frm_only)
@@ -4912,6 +4970,7 @@ err:
   /* In RBR we don't need to log CREATE TEMPORARY TABLE */
   if (thd->is_current_stmt_binlog_format_row() && create_info->tmp_table())
     DBUG_RETURN(result);
+
   /* Write log if no error or if we already deleted a table */
   if (!result || thd->log_current_statement)
   {
@@ -4922,7 +4981,15 @@ err:
         associated with it and do UNLOCK_TABLES if no more locked tables.
       */
       thd->locked_tables_list.unlock_locked_table(thd, mdl_ticket);
-    }    
+    }
+    else if (!result && create_info->tmp_table() && create_info->table)
+    {
+      /*
+        Remember that tmp table creation was logged so that we know if
+        we should log a delete of it.
+      */
+      create_info->table->s->table_creation_was_logged= 1;
+    }
     if (write_bin_log(thd, result ? FALSE : TRUE, thd->query(),
                       thd->query_length(), is_trans))
       result= 1;
@@ -5356,13 +5423,38 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     */
   }
   else
+  {
+    DBUG_PRINT("info",
+               ("res: %d  tmp_table: %d  create_info->table: %p",
+                res, create_info->tmp_table(), local_create_info.table));
+    if (!res && create_info->tmp_table() && local_create_info.table)
+    {
+      /*
+        Remember that tmp table creation was logged so that we know if
+        we should log a delete of it.
+      */
+      local_create_info.table->s->table_creation_was_logged= 1;
+    }
     do_logging= TRUE;
+  }
 
 err:
-  if (do_logging &&
-      write_bin_log(thd, res ? FALSE : TRUE, thd->query(),
-                    thd->query_length(), is_trans))
-    res= 1;
+  if (do_logging)
+  {
+    if (res && create_info->table_was_deleted)
+    {
+      /*
+        Table was not deleted. Original table was deleted.
+        We have to log it.
+      */
+      log_drop_table(thd, table->db, table->db_length,
+                     table->table_name, table->table_name_length,
+                     create_info->tmp_table());
+    }
+    else if (write_bin_log(thd, res ? FALSE : TRUE, thd->query(),
+                           thd->query_length(), is_trans))
+      res= 1;
+  }
   DBUG_RETURN(res);
 }
 
@@ -8718,6 +8810,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
         mysql_lock_remove(thd, thd->lock, table);
       }
     }
+    new_table->s->table_creation_was_logged=
+      table->s->table_creation_was_logged;
     /* Remove link to old table and rename the new one */
     close_temporary_table(thd, table, true, true);
     /* Should pass the 'new_name' as we store table name in the cache */

@@ -256,6 +256,7 @@ static bool recreate_temporary_table(THD *thd, TABLE *table)
   bool error= TRUE;
   TABLE_SHARE *share= table->s;
   handlerton *table_type= table->s->db_type();
+  TABLE *new_table;
   DBUG_ENTER("recreate_temporary_table");
 
   table->file->info(HA_STATUS_AUTO | HA_STATUS_NO_LOCK);
@@ -266,11 +267,13 @@ static bool recreate_temporary_table(THD *thd, TABLE *table)
   dd_recreate_table(thd, share->db.str, share->table_name.str,
                     share->normalized_path.str);
 
-  if (open_table_uncached(thd, table_type, share->path.str, share->db.str,
-                          share->table_name.str, true, true))
+  if ((new_table= open_table_uncached(thd, table_type, share->path.str,
+                                      share->db.str,
+                                      share->table_name.str, true, true)))
   {
     error= FALSE;
     thd->thread_specific_used= TRUE;
+    new_table->s->table_creation_was_logged= share->table_creation_was_logged;
   }
   else
     rm_temporary_table(table_type, share->path.str);
