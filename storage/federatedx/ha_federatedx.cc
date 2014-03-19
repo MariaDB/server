@@ -3653,6 +3653,6 @@ maria_declare_plugin(federatedx)
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
   "2.1",                      /* string version */
-  MariaDB_PLUGIN_MATURITY_BETA /* maturity */
+  MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;

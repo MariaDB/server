@@ -394,7 +394,7 @@ maria_declare_plugin(feedback)
   NULL,
   feedback::settings,
   "1.1",
-  MariaDB_PLUGIN_MATURITY_BETA
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
 #endif
