@@ -5321,6 +5321,13 @@ static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
   return !changed; // don't recurse into the subgraph if privs didn't change
 }
 
+static bool merge_one_role_privileges(ACL_ROLE *grantee)
+{
+  PRIVS_TO_MERGE data= { PRIVS_TO_MERGE::ALL, 0, 0 };
+  grantee->counter= 1;
+  return merge_role_privileges(0, grantee, &data);
+}
+
 /*****************************************************************
   End of the role privilege propagation and graph traversal code
 ******************************************************************/
@@ -6083,8 +6090,8 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
        Only need to propagate grants when granting/revoking a role to/from
        a role
     */
-    if (role_as_user)
-      propagate_role_grants(role_as_user, PRIVS_TO_MERGE::ALL, 0, 0);
+    if (role_as_user && merge_one_role_privileges(role_as_user) == 0)
+      propagate_role_grants(role_as_user, PRIVS_TO_MERGE::ALL);
   }
 
   mysql_mutex_unlock(&acl_cache->lock);
