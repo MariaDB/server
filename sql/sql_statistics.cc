@@ -346,6 +346,8 @@ protected:
     if ((err= stat_file->ha_update_row(record[1], record[0])) &&
          err != HA_ERR_RECORD_IS_THE_SAME)
       return TRUE;
+    /* Make change permanent and avoid 'table is marked as crashed' errors */
+    stat_file->extra(HA_EXTRA_FLUSH);
     return FALSE;
   }
 
@@ -530,7 +532,7 @@ public:
       if ((err= stat_file->ha_write_row(record[0])))
 	return TRUE;
       /* Make change permanent and avoid 'table is marked as crashed' errors */
-      table->file->extra(HA_EXTRA_FLUSH);
+      stat_file->extra(HA_EXTRA_FLUSH);
     } 
     return FALSE;
   }
@@ -585,6 +587,8 @@ public:
     int err;
     if ((err= stat_file->ha_delete_row(record[0])))
       return TRUE;
+    /* Make change permanent and avoid 'table is marked as crashed' errors */
+    stat_file->extra(HA_EXTRA_FLUSH);
     return FALSE;
   } 
 };
