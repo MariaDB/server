@@ -4555,15 +4555,23 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case MYSQL_TYPE_DATETIME:
       case MYSQL_TYPE_YEAR:
       case MYSQL_TYPE_NEWDATE:
-      case MYSQL_TYPE_VARCHAR:
       case MYSQL_TYPE_LONGLONG:
       case MYSQL_TYPE_TINY:
-        break;                     // Ok
-      case MYSQL_TYPE_VAR_STRING:
-      case MYSQL_TYPE_STRING:
       case MYSQL_TYPE_DECIMAL:
       case MYSQL_TYPE_NEWDECIMAL:
       case MYSQL_TYPE_INT24:
+        break;                     // Ok
+      case MYSQL_TYPE_VARCHAR:
+      case MYSQL_TYPE_VAR_STRING:
+      case MYSQL_TYPE_STRING:
+        if (!fp->field_length) {
+          sprintf(g->Message, "Unsupported 0 length for column %s",
+                              fp->field_name);
+          rc= HA_ERR_INTERNAL_ERROR;
+          my_printf_error(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+          DBUG_RETURN(rc);
+          } // endif fp
+
         break;                     // To be checked
       case MYSQL_TYPE_BIT:
       case MYSQL_TYPE_NULL:
@@ -4579,9 +4587,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         sprintf(g->Message, "Unsupported type for column %s",
                             fp->field_name);
         rc= HA_ERR_INTERNAL_ERROR;
-        my_printf_error(ER_UNKNOWN_ERROR,
-                        "Unsupported type for column '%s'",
-                        MYF(0), fp->field_name);
+        my_printf_error(ER_UNKNOWN_ERROR, g->Message, MYF(0));
         DBUG_RETURN(rc);
         break;
       } // endswitch type

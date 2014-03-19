@@ -948,7 +948,9 @@ void DOSFAM::CloseTableFile(PGLOBAL g)
 /***********************************************************************/
 void DOSFAM::Rewind(void)
   {
-  rewind(Stream);
+  if (Stream)  // Can be NULL when making index on void table
+    rewind(Stream);
+
   Rows = 0;
   OldBlk = CurBlk = -1;
   } // end of Rewind
