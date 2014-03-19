@@ -378,7 +378,7 @@ static int connect_done_func(void *p)
 #endif   // LIBXML2_SUPPORT
 
 #if !defined(WIN32)
-  PROFILE_End();
+//PROFILE_End();                Causes signal 11
 #endif   // !WIN32
 
   for (pc= user_connect::to_users; pc; pc= pn) {
