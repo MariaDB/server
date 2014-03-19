@@ -703,16 +703,8 @@ int mysql_update(THD *thd,
 
   transactional_table= table->file->has_transactions();
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
-  if (table->triggers &&
-      table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                    TRG_ACTION_AFTER))
+  if (table->prepare_triggers_for_update_stmt_or_event())
   {
-    /*
-      The table has AFTER UPDATE triggers that might access to subject 
-      table and therefore might need update to be done immediately. 
-      So we turn-off the batching.
-    */ 
-    (void) table->file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
     will_batch= FALSE;
   }
   else
@@ -1610,17 +1602,7 @@ int multi_update::prepare(List<Item> &not_used_values,
       table->no_keyread=1;
       table->covering_keys.clear_all();
       table->pos_in_table_list= tl;
-      if (table->triggers &&
-          table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                        TRG_ACTION_AFTER))
-      {
-	/*
-           The table has AFTER UPDATE triggers that might access to subject 
-           table and therefore might need update to be done immediately. 
-           So we turn-off the batching.
-	*/ 
-	(void) table->file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
-      }
+      table->prepare_triggers_for_update_stmt_or_event();
     }
   }
 

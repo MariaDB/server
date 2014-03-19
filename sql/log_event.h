@@ -4049,7 +4049,9 @@ public:
   enum 
   {
     TM_NO_FLAGS = 0U,
-    TM_BIT_LEN_EXACT_F = (1U << 0)
+    TM_BIT_LEN_EXACT_F = (1U << 0),
+    // MariaDB flags (we starts from the other end)
+    TM_BIT_HAS_TRIGGERS_F= (1U << 14)
   };
 
   flag_set get_flags(flag_set flag) const { return m_flags & flag; }
@@ -4254,6 +4256,10 @@ public:
 
   const uchar* get_extra_row_data() const   { return m_extra_row_data; }
 
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+  virtual uint8 get_trg_event_map()= 0;
+#endif
+
 protected:
   /* 
      The constructors are protected since you're supposed to inherit
@@ -4307,6 +4313,7 @@ protected:
   uchar    *m_extra_row_data;   /* Pointer to extra row data if any */
                                 /* If non null, first byte is length */
 
+
   /* helper functions */
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
@@ -4315,6 +4322,7 @@ protected:
   uchar    *m_key;      /* Buffer to keep key value during searches */
   KEY      *m_key_info; /* Pointer to KEY info for m_key_nr */
   uint      m_key_nr;   /* Key number */
+  bool master_had_triggers;     /* set after tables opening */
 
   int find_key(); // Find a best key to use in find_row()
   int find_row(rpl_group_info *);
@@ -4329,6 +4337,9 @@ protected:
     return ::unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
                                    &m_curr_row_end, &m_master_reclength, m_rows_end);
   }
+  bool process_triggers(trg_event_type event,
+                        trg_action_time_type time_type,
+                        bool old_row_is_record1);
 #endif
 
 private:
@@ -4433,6 +4444,10 @@ public:
   }
 #endif
 
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+  uint8 get_trg_event_map();
+#endif
+
 private:
   virtual Log_event_type get_general_type_code() { return (Log_event_type)TYPE_CODE; }
 
@@ -4507,6 +4522,10 @@ public:
     return Rows_log_event::is_valid() && m_cols_ai.bitmap;
   }
 
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+  uint8 get_trg_event_map();
+#endif
+
 protected:
   virtual Log_event_type get_general_type_code() { return (Log_event_type)TYPE_CODE; }
 
@@ -4571,7 +4590,11 @@ public:
                                   cols, fields, before_record);
   }
 #endif
-  
+
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+  uint8 get_trg_event_map();
+#endif
+
 protected:
   virtual Log_event_type get_general_type_code() { return (Log_event_type)TYPE_CODE; }
 
