@@ -1,5 +1,5 @@
 #
-# Check CREATE OR REPLACE ALTER TABLE
+# Check CREATE OR REPLACE TABLE
 #
 
 --source include/have_innodb.inc
