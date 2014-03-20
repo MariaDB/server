@@ -3514,6 +3514,8 @@ double get_column_range_cardinality(Field *field,
         Histogram *hist= &col_stats->histogram;
         if (hist->is_available())
         {
+          store_key_image_to_rec(field, (uchar *) min_endp->key,
+                                 min_endp->length);
           double pos= field->pos_in_interval(col_stats->min_value,
                                              col_stats->max_value);
           res= col_non_nulls * 
