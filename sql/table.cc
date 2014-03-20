@@ -3805,13 +3805,14 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
 
   /*
     To protect all_tables list from being concurrently modified
-    while we are iterating through it we acquire LOCK_open.
+    while we are iterating through it we increment tdc.all_tables_refs.
     This does not introduce deadlocks in the deadlock detector
-    because we won't try to acquire LOCK_open while
+    because we won't try to acquire tdc.LOCK_table_share while
     holding a write-lock on MDL_lock::m_rwlock.
   */
-  if (gvisitor->m_lock_open_count++ == 0)
-    mysql_mutex_lock(&LOCK_open);
+  mysql_mutex_lock(&tdc.LOCK_table_share);
+  tdc.all_tables_refs++;
+  mysql_mutex_unlock(&tdc.LOCK_table_share);
 
   All_share_tables_list::Iterator tables_it(tdc.all_tables);
 
@@ -3854,8 +3855,10 @@ end_leave_node:
   gvisitor->leave_node(src_ctx);
 
 end:
-  if (gvisitor->m_lock_open_count-- == 1)
-    mysql_mutex_unlock(&LOCK_open);
+  mysql_mutex_lock(&tdc.LOCK_table_share);
+  if (!--tdc.all_tables_refs)
+    mysql_cond_broadcast(&tdc.COND_release);
+  mysql_mutex_unlock(&tdc.LOCK_table_share);
 
   return result;
 }

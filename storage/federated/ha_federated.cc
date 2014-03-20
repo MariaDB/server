@@ -3119,14 +3119,6 @@ int ha_federated::real_connect()
   String sql_query(buffer, sizeof(buffer), &my_charset_bin);
   DBUG_ENTER("ha_federated::real_connect");
 
-  /* 
-    Bug#25679
-    Ensure that we do not hold the LOCK_open mutex while attempting
-    to establish Federated connection to guard against a trivial
-    Denial of Service scenerio.
-  */
-  mysql_mutex_assert_not_owner(&LOCK_open);
-
   DBUG_ASSERT(mysql == NULL);
 
   if (!(mysql= mysql_init(NULL)))

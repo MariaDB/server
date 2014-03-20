@@ -262,7 +262,7 @@ uint get_table_def_key(const TABLE_LIST *table_list, const char **key)
   NOTES
     One gets only a list of tables for which one has any kind of privilege.
     db and table names are allocated in result struct, so one doesn't need
-    a lock on LOCK_open when traversing the return list.
+    a lock when traversing the return list.
 
   RETURN VALUES
     NULL	Error (Probably OOM)
@@ -308,13 +308,13 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild)
 		  share->db.str)+1,
 	   share->table_name.str);
     (*start_list)->in_use= 0;
-    mysql_mutex_lock(&LOCK_open);
+    mysql_mutex_lock(&share->tdc.LOCK_table_share);
     TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
     TABLE *table;
     while ((table= it++))
       if (table->in_use)
         ++(*start_list)->in_use;
-    mysql_mutex_unlock(&LOCK_open);
+    mysql_mutex_unlock(&share->tdc.LOCK_table_share);
     (*start_list)->locked= 0;                   /* Obsolete. */
     start_list= &(*start_list)->next;
     *start_list=0;
@@ -335,7 +335,6 @@ void intern_close_table(TABLE *table)
                         table->s ? table->s->db.str : "?",
                         table->s ? table->s->table_name.str : "?",
                         (long) table));
-  mysql_mutex_assert_not_owner(&LOCK_open);
 
   free_io_cache(table);
   delete table->triggers;
@@ -368,7 +367,7 @@ void free_io_cache(TABLE *table)
 
    @param share Table share.
 
-   @pre Caller should have LOCK_open mutex.
+   @pre Caller should have TABLE_SHARE::tdc.LOCK_table_share mutex.
 */
 
 void kill_delayed_threads_for_table(TABLE_SHARE *share)
@@ -376,7 +375,7 @@ void kill_delayed_threads_for_table(TABLE_SHARE *share)
   TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
   TABLE *tab;
 
-  mysql_mutex_assert_owner(&LOCK_open);
+  mysql_mutex_assert_owner(&share->tdc.LOCK_table_share);
 
   if (!delayed_insert_threads)
     return;
@@ -774,8 +773,6 @@ static void mark_used_tables_as_free_for_reuse(THD *thd, TABLE *table)
 
 static void close_open_tables(THD *thd)
 {
-  mysql_mutex_assert_not_owner(&LOCK_open);
-
   DBUG_PRINT("info", ("thd->open_tables: 0x%lx", (long) thd->open_tables));
 
   while (thd->open_tables)
@@ -822,7 +819,6 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
 
   memcpy(key, share->table_cache_key.str, key_length);
 
-  mysql_mutex_assert_not_owner(&LOCK_open);
   for (TABLE **prev= &thd->open_tables; *prev; )
   {
     TABLE *table= *prev;
@@ -1018,7 +1014,6 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
                         table->s->table_name.str, (long) table));
   DBUG_ASSERT(table->key_read == 0);
   DBUG_ASSERT(!table->file || table->file->inited == handler::NONE);
-  mysql_mutex_assert_not_owner(&LOCK_open);
 
   /*
     The metadata lock must be released after giving back
@@ -1049,7 +1044,10 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
     table->file->ha_reset();
   }
 
-  /* Do this *before* entering the LOCK_open critical section. */
+  /*
+    Do this *before* entering the TABLE_SHARE::tdc.LOCK_table_share
+    critical section.
+  */
   if (table->file != NULL)
     table->file->unbind_psi();
 

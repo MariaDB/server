@@ -519,17 +519,7 @@ public:
 
   virtual bool inspect_edge(MDL_context *dest) = 0;
   virtual ~MDL_wait_for_graph_visitor();
-  MDL_wait_for_graph_visitor() :m_lock_open_count(0) {}
-public:
-  /**
-   XXX, hack: During deadlock search, we may need to
-   inspect TABLE_SHAREs and acquire LOCK_open. Since
-   LOCK_open is not a recursive mutex, count here how many
-   times we "took" it (but only take and release once).
-   Not using a native recursive mutex or rwlock in 5.5 for
-   LOCK_open since it has significant performance impacts.
-  */
-  uint m_lock_open_count;
+  MDL_wait_for_graph_visitor() {}
 };
 
 /**
@@ -979,10 +969,6 @@ extern "C" unsigned long thd_get_thread_id(const MYSQL_THD thd);
   is gone.
 */
 extern "C" int thd_is_connected(MYSQL_THD thd);
-
-#ifndef DBUG_OFF
-extern mysql_mutex_t LOCK_open;
-#endif
 
 
 /*

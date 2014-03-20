@@ -70,13 +70,6 @@ static int32 tc_count; /**< Number of TABLE objects in table cache. */
 
 
 /**
-  Protects TABLE_SHARE::tdc.free_tables, TABLE_SHARE::tdc.all_tables.
-*/
-
-mysql_mutex_t LOCK_open;
-
-
-/**
   Protects unused shares list.
 
   TABLE_SHARE::tdc.prev
@@ -90,11 +83,9 @@ static mysql_rwlock_t LOCK_tdc; /**< Protects tdc_hash. */
 my_atomic_rwlock_t LOCK_tdc_atomics; /**< Protects tdc_version. */
 
 #ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key key_LOCK_open, key_LOCK_unused_shares,
-                     key_TABLE_SHARE_LOCK_table_share;
+static PSI_mutex_key key_LOCK_unused_shares, key_TABLE_SHARE_LOCK_table_share;
 static PSI_mutex_info all_tc_mutexes[]=
 {
-  { &key_LOCK_open, "LOCK_open", PSI_FLAG_GLOBAL },
   { &key_LOCK_unused_shares, "LOCK_unused_shares", PSI_FLAG_GLOBAL },
   { &key_TABLE_SHARE_LOCK_table_share, "TABLE_SHARE::tdc.LOCK_table_share", 0 }
 };
@@ -171,6 +162,33 @@ static void tc_remove_table(TABLE *table)
 
 
 /**
+  Wait for MDL deadlock detector to complete traversing tdc.all_tables.
+
+  Must be called before updating TABLE_SHARE::tdc.all_tables.
+*/
+
+static void tc_wait_for_mdl_deadlock_detector(TABLE_SHARE *share)
+{
+  while (share->tdc.all_tables_refs)
+    mysql_cond_wait(&share->tdc.COND_release, &share->tdc.LOCK_table_share);
+}
+
+
+/**
+  Get last element of tdc.free_tables.
+*/
+
+static TABLE *tc_free_tables_back(TABLE_SHARE *share)
+{
+  TABLE_SHARE::TABLE_list::Iterator it(share->tdc.free_tables);
+  TABLE *entry, *last= 0;
+   while ((entry= it++))
+     last= entry;
+  return last;
+}
+
+
+/**
   Free all unused TABLE objects.
 
   While locked:
@@ -193,9 +211,11 @@ void tc_purge(bool mark_flushed)
   TABLE_SHARE::TABLE_list purge_tables;
 
   tdc_it.init();
-  mysql_mutex_lock(&LOCK_open);
   while ((share= tdc_it.next()))
   {
+    mysql_mutex_lock(&share->tdc.LOCK_table_share);
+    tc_wait_for_mdl_deadlock_detector(share);
+
     if (mark_flushed)
       share->tdc.flushed= true;
     while ((table= share->tdc.free_tables.pop_front()))
@@ -203,9 +223,9 @@ void tc_purge(bool mark_flushed)
       tc_remove_table(table);
       purge_tables.push_front(table);
     }
+    mysql_mutex_unlock(&share->tdc.LOCK_table_share);
   }
   tdc_it.deinit();
-  mysql_mutex_unlock(&LOCK_open);
 
   while ((table= purge_tables.pop_front()))
     intern_close_table(table);
@@ -232,9 +252,10 @@ void tc_add_table(THD *thd, TABLE *table)
 {
   bool need_purge;
   DBUG_ASSERT(table->in_use == thd);
-  mysql_mutex_lock(&LOCK_open);
+  mysql_mutex_lock(&table->s->tdc.LOCK_table_share);
+  tc_wait_for_mdl_deadlock_detector(table->s);
   table->s->tdc.all_tables.push_front(table);
-  mysql_mutex_unlock(&LOCK_open);
+  mysql_mutex_unlock(&table->s->tdc.LOCK_table_share);
 
   /* If we have too many TABLE instances around, try to get rid of them */
   my_atomic_rwlock_wrlock(&LOCK_tdc_atomics);
@@ -243,31 +264,48 @@ void tc_add_table(THD *thd, TABLE *table)
 
   if (need_purge)
   {
-    TABLE *purge_table= 0;
+    TABLE_SHARE *purge_share= 0;
     TABLE_SHARE *share;
+    TABLE *entry;
+    ulonglong purge_time;
     TDC_iterator tdc_it;
 
     tdc_it.init();
-    mysql_mutex_lock(&LOCK_open);
     while ((share= tdc_it.next()))
     {
-      TABLE_SHARE::TABLE_list::Iterator it(share->tdc.free_tables);
-      TABLE *entry;
-      while ((entry= it++))
-        if (!purge_table || entry->tc_time < purge_table->tc_time)
-          purge_table= entry;
+      mysql_mutex_lock(&share->tdc.LOCK_table_share);
+      if ((entry= tc_free_tables_back(share)) &&
+          (!purge_share || entry->tc_time < purge_time))
+      {
+          purge_share= share;
+          purge_time= entry->tc_time;
+      }
+      mysql_mutex_unlock(&share->tdc.LOCK_table_share);
     }
-    tdc_it.deinit();
 
-    if (purge_table)
+    if (purge_share)
     {
-      purge_table->s->tdc.free_tables.remove(purge_table);
-      tc_remove_table(purge_table);
-      mysql_mutex_unlock(&LOCK_open);
-      intern_close_table(purge_table);
+      mysql_mutex_lock(&purge_share->tdc.LOCK_table_share);
+      tc_wait_for_mdl_deadlock_detector(purge_share);
+      tdc_it.deinit();
+      /*
+        It may happen that oldest table was acquired meanwhile. In this case
+        just go ahead, number of objects in table cache will normalize
+        eventually.
+      */
+      if ((entry= tc_free_tables_back(purge_share)) &&
+          entry->tc_time == purge_time)
+      {
+        entry->s->tdc.free_tables.remove(entry);
+        tc_remove_table(entry);
+        mysql_mutex_unlock(&purge_share->tdc.LOCK_table_share);
+        intern_close_table(entry);
+      }
+      else
+        mysql_mutex_unlock(&purge_share->tdc.LOCK_table_share);
     }
     else
-      mysql_mutex_unlock(&LOCK_open);
+      tdc_it.deinit();
   }
 }
 
@@ -292,9 +330,9 @@ static TABLE *tc_acquire_table(THD *thd, TABLE_SHARE *share)
 {
   TABLE *table;
 
-  mysql_mutex_lock(&LOCK_open);
+  mysql_mutex_lock(&share->tdc.LOCK_table_share);
   table= share->tdc.free_tables.pop_front();
-  mysql_mutex_unlock(&LOCK_open);
+  mysql_mutex_unlock(&share->tdc.LOCK_table_share);
 
   if (table)
   {
@@ -328,7 +366,7 @@ static TABLE *tc_acquire_table(THD *thd, TABLE_SHARE *share)
   @note Another thread may mark share for purge any moment (even
   after version check). It means to-be-purged object may go to
   unused lists. This other thread is expected to call tc_purge(),
-  which is synchronized with us on LOCK_open.
+  which is synchronized with us on TABLE_SHARE::tdc.LOCK_table_share.
 
   @return
     @retval true  object purged
@@ -342,17 +380,17 @@ bool tc_release_table(TABLE *table)
 
   if (table->needs_reopen() || tc_records() > tc_size)
   {
-    mysql_mutex_lock(&LOCK_open);
+    mysql_mutex_lock(&table->s->tdc.LOCK_table_share);
     goto purge;
   }
 
   table->tc_time= my_interval_timer();
 
-  mysql_mutex_lock(&LOCK_open);
+  mysql_mutex_lock(&table->s->tdc.LOCK_table_share);
   if (table->s->tdc.flushed)
     goto purge;
   /*
-    in_use doesn't really need protection of LOCK_open, but must be reset after
+    in_use doesn't really need mutex protection, but must be reset after
     checking tdc.flushed and before this table appears in free_tables.
     Resetting in_use is needed only for print_cached_tables() and
     list_open_tables().
@@ -360,12 +398,13 @@ bool tc_release_table(TABLE *table)
   table->in_use= 0;
   /* Add table to the list of unused TABLE objects for this share. */
   table->s->tdc.free_tables.push_front(table);
-  mysql_mutex_unlock(&LOCK_open);
+  mysql_mutex_unlock(&table->s->tdc.LOCK_table_share);
   return false;
 
 purge:
+  tc_wait_for_mdl_deadlock_detector(table->s);
   tc_remove_table(table);
-  mysql_mutex_unlock(&LOCK_open);
+  mysql_mutex_unlock(&table->s->tdc.LOCK_table_share);
   table->in_use= 0;
   intern_close_table(table);
   return true;
@@ -446,13 +485,6 @@ int tdc_init(void)
   init_tc_psi_keys();
 #endif
   tdc_inited= true;
-  mysql_mutex_init(key_LOCK_open, &LOCK_open, MY_MUTEX_INIT_FAST);
-  mysql_mutex_record_order(&LOCK_active_mi, &LOCK_open);
-  /*
-    We must have LOCK_open before LOCK_global_system_variables because
-    LOCK_open is held while sql_plugin.cc::intern_sys_var_ptr() is called.
-  */
-  mysql_mutex_record_order(&LOCK_open, &LOCK_global_system_variables);
   mysql_mutex_init(key_LOCK_unused_shares, &LOCK_unused_shares,
                    MY_MUTEX_INIT_FAST);
   mysql_rwlock_init(key_rwlock_LOCK_tdc, &LOCK_tdc);
@@ -505,7 +537,6 @@ void tdc_deinit(void)
     my_atomic_rwlock_destroy(&LOCK_tdc_atomics);
     mysql_rwlock_destroy(&LOCK_tdc);
     mysql_mutex_destroy(&LOCK_unused_shares);
-    mysql_mutex_destroy(&LOCK_open);
   }
   DBUG_VOID_RETURN;
 }
@@ -575,6 +606,7 @@ void tdc_init_share(TABLE_SHARE *share)
   tdc_assign_new_table_id(share);
   share->tdc.version= tdc_refresh_version();
   share->tdc.flushed= false;
+  share->tdc.all_tables_refs= 0;
   DBUG_VOID_RETURN;
 }
 
@@ -590,6 +622,7 @@ void tdc_deinit_share(TABLE_SHARE *share)
   DBUG_ASSERT(share->tdc.m_flush_tickets.is_empty());
   DBUG_ASSERT(share->tdc.all_tables.is_empty());
   DBUG_ASSERT(share->tdc.free_tables.is_empty());
+  DBUG_ASSERT(share->tdc.all_tables_refs == 0);
   mysql_cond_destroy(&share->tdc.COND_release);
   mysql_mutex_destroy(&share->tdc.LOCK_table_share);
   DBUG_VOID_RETURN;
@@ -826,7 +859,8 @@ void tdc_release_share(TABLE_SHARE *share)
   if (share->tdc.ref_count > 1)
   {
     share->tdc.ref_count--;
-    mysql_cond_broadcast(&share->tdc.COND_release);
+    if (!share->is_view)
+      mysql_cond_broadcast(&share->tdc.COND_release);
     mysql_mutex_unlock(&share->tdc.LOCK_table_share);
     DBUG_VOID_RETURN;
   }
@@ -954,13 +988,14 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
     I_P_List <TABLE, TABLE_share> purge_tables;
     uint my_refs= 1;
 
-    mysql_mutex_lock(&LOCK_open);
+    mysql_mutex_lock(&share->tdc.LOCK_table_share);
+    tc_wait_for_mdl_deadlock_detector(share);
     /*
-      Set share's version to zero in order to ensure that it gets
+      Mark share flushed in order to ensure that it gets
       automatically deleted once it is no longer referenced.
 
       Note that code in TABLE_SHARE::wait_for_old_version() assumes that
-      incrementing of refresh_version is followed by purge of unused table
+      marking share flushed is followed by purge of unused table
       shares.
     */
     if (remove_type != TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE)
@@ -985,7 +1020,7 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
       }
     }
     DBUG_ASSERT(share->tdc.all_tables.is_empty() || remove_type != TDC_RT_REMOVE_ALL);
-    mysql_mutex_unlock(&LOCK_open);
+    mysql_mutex_unlock(&share->tdc.LOCK_table_share);
 
     while ((table= purge_tables.pop_front()))
       intern_close_table(table);
