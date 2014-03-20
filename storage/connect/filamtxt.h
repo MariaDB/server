@@ -39,10 +39,10 @@ class DllExport TXTFAM : public BLOCK {
   virtual int   GetNextPos(void) = 0;
   virtual PTXF  Duplicate(PGLOBAL g) = 0;
   virtual bool  GetUseTemp(void) {return false;}
-  virtual  int   GetDelRows(void) {return DelRows;}
+  virtual int   GetDelRows(void) {return DelRows;}
           int   GetCurBlk(void) {return CurBlk;}
           void  SetTdbp(PTDBDOS tdbp) {Tdbp = tdbp;}
-          int    GetBlock(void) {return Block;}
+          int   GetBlock(void) {return Block;}
           void  SetBlkPos(int *bkp) {BlkPos = bkp;}
           void  SetNrec(int n) {Nrec = n;}
           char *GetBuf(void) {return To_Buf;}
@@ -59,7 +59,7 @@ class DllExport TXTFAM : public BLOCK {
   virtual int   GetNerr(void) {return 0;}
   virtual int   GetRowID(void) = 0;
   virtual bool  RecordPos(PGLOBAL g) = 0;
-  virtual bool  SetPos(PGLOBAL g, int recpos) = 0; 
+  virtual bool  SetPos(PGLOBAL g, int recpos) = 0;
   virtual int   SkipRecord(PGLOBAL g, bool header) = 0;
   virtual bool  OpenTableFile(PGLOBAL g) = 0;
   virtual bool  DeferReading(void) {IsRead = false; return true;}
@@ -71,19 +71,19 @@ class DllExport TXTFAM : public BLOCK {
 
  protected:
   // Members
-  PTDBDOS Tdbp;               // To table class
+  PTDBDOS Tdbp;              // To table class
   PSZ     To_File;           // Points to table file name
   PFBLOCK To_Fb;             // Pointer to file block
-  bool    Placed;             // true if Recpos was externally set
+  bool    Placed;            // true if Recpos was externally set
   bool    IsRead;            // false for deferred reading
   bool    Blocked;           // true if using blocked I/O
   char   *To_Buf;            // Points to I/O buffer
   void   *DelBuf;            // Buffer used to move lines in Delete
   int    *BlkPos;            // To array of block positions
-  int     BlkLen;             // Current block length
+  int     BlkLen;            // Current block length
   int     Buflen;            // Buffer length
   int     Dbflen;            // Delete buffer length
-  int     Rows;               // Number of rows read so far
+  int     Rows;              // Number of rows read so far
   int     DelRows;           // Number of deleted rows
   int     Headlen;           // Number of bytes in header
   int     Lrecl;             // Logical Record Length
@@ -93,14 +93,14 @@ class DllExport TXTFAM : public BLOCK {
   int     OldBlk;            // Index of last read block
   int     CurBlk;            // Index of current block
   int     CurNum;            // Current buffer line number
-  int     ReadBlks;           // Number of blocks read (selected)
+  int     ReadBlks;          // Number of blocks read (selected)
   int     Rbuf;              // Number of lines read in buffer
   int     Modif;             // Number of modified lines in block
   int     Blksize;           // Size of padded blocks
-  int     Ending;             // Length of line end
-  bool    Padded;             // true if fixed size blocks are padded
+  int     Ending;            // Length of line end
+  bool    Padded;            // true if fixed size blocks are padded
   bool    Eof;               // true if an EOF (0xA) character exists
-  char   *CrLf;               // End of line character(s)
+  char   *CrLf;              // End of line character(s)
   }; // end of class TXTFAM
 
 /***********************************************************************/
@@ -129,12 +129,12 @@ class DllExport DOSFAM : public TXTFAM {
   virtual bool  AllocateBuffer(PGLOBAL g);
   virtual int   GetRowID(void);
   virtual bool  RecordPos(PGLOBAL g);
-  virtual bool  SetPos(PGLOBAL g, int recpos); 
+  virtual bool  SetPos(PGLOBAL g, int recpos);
   virtual int   SkipRecord(PGLOBAL g, bool header);
   virtual bool  OpenTableFile(PGLOBAL g);
   virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);
-  virtual int    DeleteRecords(PGLOBAL g, int irc);
+  virtual int   DeleteRecords(PGLOBAL g, int irc);
   virtual void  CloseTableFile(PGLOBAL g);
   virtual void  Rewind(void);
 
@@ -178,7 +178,7 @@ class DllExport BLKFAM : public DOSFAM {
   virtual bool  AllocateBuffer(PGLOBAL g);
   virtual int   GetRowID(void);
   virtual bool  RecordPos(PGLOBAL g);
-  virtual bool  SetPos(PGLOBAL g, int recpos); 
+  virtual bool  SetPos(PGLOBAL g, int recpos);
   virtual int   SkipRecord(PGLOBAL g, bool header);
   virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);

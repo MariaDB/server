@@ -170,7 +170,7 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
   if ((h = global_open(g, MSGID_CANNOT_OPEN, filename, O_RDONLY)) == -1
       || !_filelength(h)) {
     // Consider this is a void table
-    Last = Nrec; 
+    Last = Nrec;
     Block = 0;
 
     if (h != -1)
@@ -179,7 +179,7 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
     return n;
   } else if (Header == 3)
     k = lseek(h, -(int)sizeof(VECHEADER), SEEK_END);
-    
+
   if ((k = read(h, &vh, sizeof(vh))) != sizeof(vh)) {
     sprintf(g->Message, "Error reading header file %s", filename);
     n = -1;
@@ -187,7 +187,7 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
     sprintf(g->Message, "MaxRec=%d doesn't match MaxBlk=%d Nrec=%d",
                         vh.MaxRec, MaxBlk, Nrec);
     n = -1;
-  } else {     
+  } else {
     Block = (vh.NumRec > 0) ? (vh.NumRec + Nrec - 1) / Nrec : 0;
     Last  = (vh.NumRec + Nrec - 1) % Nrec + 1;
   } // endif s
@@ -255,14 +255,10 @@ int VCTFAM::MaxBlkSize(PGLOBAL g, int s)
   // Roughly estimate the table size as the sum of blocks
   // that can contain good rows
   for (size = 0, CurBlk = 0; CurBlk < Block; CurBlk++)
-#if defined(BLK_INDX)
     if ((rc = Tdbp->TestBlock(g)) == RC_OK)
       size += (CurBlk == Block - 1) ? Last : Nrec;
     else if (rc == RC_EF)
       break;
-#else   // !BLK_INDX
-    size += (CurBlk == Block - 1) ? Last : Nrec;
-#endif  // !BLK_INDX
 
   CurBlk = savcur;
   return size;
@@ -288,20 +284,20 @@ int VCTFAM::Cardinality(PGLOBAL g)
       PSZ     savfn = To_File;
       int    len, clen, card = -1;
       PCOLDEF cdp = Tdbp->GetDef()->GetCols();
- 
+
       if (!Colfn) {
         // Prepare the column file name pattern
         Colfn = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
         Ncol = ((VCTDEF*)Tdbp->GetDef())->MakeFnPattern(Colfn);
         } // endif Colfn
- 
+
       // Use the first column file to calculate the cardinality
       clen = cdp->GetClen();
       sprintf(filename, Colfn, 1);
       To_File = filename;
       len = GetFileLength(g);
       To_File = savfn;
- 
+
       if (len >= 0) {
         if (!(len % clen))
           card = len / clen;           // Fixed length file
@@ -313,7 +309,7 @@ int VCTFAM::Cardinality(PGLOBAL g)
 
       } else
         card = 0;
-  
+
       // Set number of blocks for later use
       Block = (card > 0) ? (card + Nrec - 1) / Nrec : 0;
       Last = (card + Nrec - 1) % Nrec + 1;
@@ -453,7 +449,7 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
     return ResetTableSize(g, 0, Nrec);
 
   num_read = num_there = num_write = 0;
-  
+
   //  Allocate the table and column block buffer
   return AllocateBuffer(g);
   } // end of OpenTableFile
@@ -579,13 +575,10 @@ int VCTFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     CurNum = 0;
 
-#if defined(BLK_INDX)
    next:
-#endif   // BLK_INDX
     if (++CurBlk == Block)
       return RC_EF;                        // End of file
 
-#if defined(BLK_INDX)
     /*******************************************************************/
     /*  Before reading a new block, check whether block optimizing     */
     /*  can be done, as well as for join as for local filtering.       */
@@ -596,7 +589,6 @@ int VCTFAM::ReadBuffer(PGLOBAL g)
       case RC_NF:
         goto next;
       } // endswitch rc
-#endif   // BLK_INDX
 
     num_there++;
     } // endif CurNum
@@ -724,7 +716,7 @@ int VCTFAM::WriteBuffer(PGLOBAL g)
 int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
   {
   bool eof = false;
-  
+
   if (trace)
     htrc("VCT DeleteDB: rc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
           irc, UseTemp, Fpos, Tpos, Spos);
@@ -734,7 +726,7 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
     /*  EOF: position Fpos at the end-of-file position.                */
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
-    
+
     if (trace)
       htrc("Fpos placed at file end=%d\n", Fpos);
 
@@ -1134,10 +1126,10 @@ bool VCTFAM::ResetTableSize(PGLOBAL g, int block, int last)
       PVCTDEF defp = (PVCTDEF)Tdbp->GetDef();
       LPCSTR  name = Tdbp->GetName();
       PCATLG  cat = PlgGetCatalog(g);
-  
+
       defp->SetBlock(Block);
       defp->SetLast(Last);
-  
+
       if (!cat->SetIntCatInfo("Blocks", Block) ||
           !cat->SetIntCatInfo("Last", Last)) {
         sprintf(g->Message, MSG(UPDATE_ERROR), "Header");
@@ -1230,7 +1222,7 @@ bool VCTFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
   /*  Calculate the offset and size of the block to write.             */
   /*********************************************************************/
   if (MaxBlk)                               // File has Vector format
-    len = Headlen 
+    len = Headlen
         + Nrec * (colp->Deplac * MaxBlk + colp->Clen * colp->ColBlk);
   else                                      // Old VCT format
     len = Nrec * (colp->Deplac + Lrecl * colp->ColBlk);
@@ -1253,7 +1245,7 @@ bool VCTFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
                             (size_t)colp->Clen, n, T_Stream)) {
     sprintf(g->Message, MSG(WRITE_STRERROR),
             (UseTemp) ? To_Fbt->Fname : To_File, strerror(errno));
-            
+
     if (trace)
       htrc("Write error: %s\n", strerror(errno));
 
@@ -1590,7 +1582,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
     /*  EOF: position Fpos at the top of map position.                 */
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
-    
+
     if (trace)
       htrc("Fpos placed at file top=%p\n", Fpos);
 
@@ -2176,7 +2168,7 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
     /*  EOF: position Fpos at the end-of-file position.                */
     /*******************************************************************/
     Fpos = Cardinality(g);
-    
+
     if (trace)
       htrc("Fpos placed at file end=%d\n", Fpos);
 
@@ -2594,7 +2586,7 @@ bool VECFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
 
     sprintf(fn, (UseTemp) ? Tempat : Colfn, colp->Index);
     sprintf(g->Message, MSG(WRITE_STRERROR), fn, strerror(errno));
-    
+
     if (trace)
       htrc("Write error: %s\n", strerror(errno));
 
@@ -2866,7 +2858,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
     /*  EOF: position Fpos at the top of map position.                 */
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
-    
+
     if (trace)
       htrc("Fpos placed at file top=%p\n", Fpos);
 
@@ -3052,7 +3044,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
       } // endelse brc
 
     sprintf(g->Message, MSG(READ_ERROR), To_File, buf);
-    
+
     if (trace)
       htrc("BIGREAD: %s\n", g->Message);
 
@@ -3066,7 +3058,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
     const char *fn = (h == Hfile) ? To_File : "Tempfile";
 
     sprintf(g->Message, MSG(READ_ERROR), fn, strerror(errno));
-    
+
     if (trace)
       htrc("BIGREAD: nbr=%d len=%d errno=%d %s\n",
                      nbr, len, errno, g->Message);
@@ -3120,7 +3112,7 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
     const char *fn = (h == Hfile) ? To_File : "Tempfile";
 
     sprintf(g->Message, MSG(WRITE_STRERROR), fn, strerror(errno));
-    
+
     if (trace)
       htrc("BIGWRITE: nbw=%d len=%d errno=%d %s\n",
                       nbw, len, errno, g->Message);
@@ -3173,17 +3165,17 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
     // Consider this is a void table
     if (trace)
       htrc("Void table h=%d\n", h);
-      
-    Last = Nrec; 
+
+    Last = Nrec;
     Block = 0;
 
     if (h != INVALID_HANDLE_VALUE)
       CloseFileHandle(h);
 
     return n;
-  } else if (Header == 3) 
+  } else if (Header == 3)
     /*b = */ BigSeek(g, h, -(BIGINT)sizeof(vh), true);
-    
+
   if (BigRead(g, h, &vh, sizeof(vh))) {
     sprintf(g->Message, "Error reading header file %s", filename);
     n = -1;
@@ -3194,10 +3186,10 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
   } else {
     Block = (vh.NumRec > 0) ? (vh.NumRec + Nrec - 1) / Nrec : 0;
     Last  = (vh.NumRec + Nrec - 1) % Nrec + 1;
-    
+
     if (trace)
       htrc("Block=%d Last=%d\n", Block, Last);
-      
+
   } // endif's
 
   CloseFileHandle(h);
@@ -3338,7 +3330,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
 
   if (h == -1)
     return true;
-    
+
   pos = (BIGINT)n + (BIGINT)MaxBlk * (BIGINT)Blksize - (BIGINT)1;
 
   if (trace)
@@ -3779,7 +3771,7 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
     /*  EOF: position Fpos at the end-of-file position.                */
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
-    
+
     if (trace)
       htrc("Fpos placed at file end=%d\n", Fpos);
 

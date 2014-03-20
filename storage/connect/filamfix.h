@@ -1,7 +1,7 @@
 /************** FilAMFix H Declares Source Code File (.H) **************/
-/*  Name: FILAMFIX.H    Version 1.2                                    */
+/*  Name: FILAMFIX.H    Version 1.3                                    */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005 - 2012  */
+/*  (C) Copyright to the author Olivier BERTRAND          2005 - 2014  */
 /*                                                                     */
 /*  This file contains the FIX file access method classes declares.    */
 /***********************************************************************/
@@ -31,7 +31,7 @@ class DllExport FIXFAM : public BLKFAM {
 
   // Methods
   virtual int  Cardinality(PGLOBAL g) {return TXTFAM::Cardinality(g);}
-  virtual int  MaxBlkSize(PGLOBAL g, int s) 
+  virtual int  MaxBlkSize(PGLOBAL g, int s)
                 {return TXTFAM::MaxBlkSize(g, s);}
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual void ResetBuffer(PGLOBAL g);
@@ -64,7 +64,6 @@ class BGXFAM : public FIXFAM {
                   {return (PTXF)new(g) BGXFAM(this);}
 
   // Methods
-//virtual void  Reset(void);
   virtual int   Cardinality(PGLOBAL g);
   virtual bool  OpenTableFile(PGLOBAL g);
   virtual int   ReadBuffer(PGLOBAL g);
@@ -84,7 +83,6 @@ class BGXFAM : public FIXFAM {
   // Members
   HANDLE  Hfile;               // Handle(descriptor) to big file
   HANDLE  Tfile;               // Handle(descriptor) to big temp file
-//BIGINT  Xpos;                // Current file position
   }; // end of class BGXFAM
 
 #endif // __FILAMFIX_H

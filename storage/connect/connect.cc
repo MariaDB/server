@@ -343,7 +343,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
 //tdbp->SetMode(mode);
 
-  if (del && ((PTDBASE)tdbp)->GetFtype() != RECFM_NAF) {  
+  if (del && ((PTDBASE)tdbp)->GetFtype() != RECFM_NAF) {
     // To avoid erasing the table when doing a partial delete
     // make a fake Next
     PDOSDEF ddp= new(g) DOSDEF;
@@ -415,11 +415,7 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool mrr)
       colp->Reset();
 
       // Virtual columns are computed by MariaDB
-#if defined(MRRBKA_SUPPORT)
       if (!colp->GetColUse(U_VIRTUAL) && (!mrr || colp->GetKcol()))
-#else   // !MRRBKA_SUPPORT
-      if (!colp->GetColUse(U_VIRTUAL))
-#endif  // !MRRBKA_SUPPORT
         if (colp->Eval(g))
           rc= RC_FX;
 
@@ -533,7 +529,7 @@ RCODE  CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all)
 
   if (((PTDBASE)tdbp)->GetDef()->Indexable() && all)
     ((PTDBDOS)tdbp)->Cardinal= 0;
- 
+
   // Return result code from delete operation
   // Note: if all, this call will be done when closing the table
   rc= (RCODE)tdbp->DeleteDB(g, (all) ? RC_FX : RC_OK);
@@ -581,7 +577,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
 //if (!((PTDBDOX)tdbp)->GetModified())
 //  return 0;
 
-  if (tdbp->GetMode() == MODE_READ || tdbp->GetMode() == MODE_ANY) 
+  if (tdbp->GetMode() == MODE_READ || tdbp->GetMode() == MODE_ANY)
     return 0;
 
   if (xtrace > 1)
@@ -677,15 +673,15 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id)
   // Allocate the pseudo constants that will contain the key values
   tdbp->To_Link= (PXOB*)PlugSubAlloc(g, NULL, tdbp->Knum * sizeof(PXOB));
 
-  for (k= 0, kdp= (XKPDEF*)xdp->GetToKeyParts(); 
+  for (k= 0, kdp= (XKPDEF*)xdp->GetToKeyParts();
        kdp; k++, kdp= (XKPDEF*)kdp->Next) {
     cdp= tdbp->Key(k)->GetCdp();
-    valp= AllocateValue(g, cdp->GetType(), cdp->GetLength()); 
+    valp= AllocateValue(g, cdp->GetType(), cdp->GetLength());
     tdbp->To_Link[k]= new(g) CONSTANT(valp);
     } // endfor k
 
   // Make the index on xdp
-  if (!xdp->IsAuto()) {     
+  if (!xdp->IsAuto()) {
     if (dfp->Huge)
       pxp= new(g) XHUGE;
     else
@@ -740,10 +736,10 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   if (key) {
     for (n= 0; n < tdbp->Knum; n++) {
       colp= (PCOL)tdbp->To_Key_Col[n];
-    
+
       if (colp->GetColUse(U_NULLS))
         kp++;                   // Skip null byte
-    
+
       valp= tdbp->To_Link[n]->GetValue();
 
       if (!valp->IsTypeNum()) {
@@ -769,7 +765,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
         valp->SetBinValue((void*)kp);
 
       kp+= valp->GetClen();
-    
+
       if (len == kp - (char*)key) {
         n++;
         break;
@@ -825,19 +821,19 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
   for (b= false, i= 0; i < 2; i++) {
     p= kp= key[i];
-                                                                         
+
     if (kp) {
       for (n= 0; n < tdbp->Knum; n++) {
         if (kmap[i] & (key_part_map)(1 << n)) {
           if (b == true)
             // Cannot do indexing with missing intermediate key
-            return -1;      
+            return -1;
 
           colp= (PCOL)tdbp->To_Key_Col[n];
-    
+
           if (colp->GetColUse(U_NULLS))
             p++;                   // Skip null byte  ???
-    
+
           valp= tdbp->To_Link[n]->GetValue();
 
           if (!valp->IsTypeNum()) {
@@ -850,7 +846,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
           if (rcb) {
             if (tdbp->RowNumber(g))
-              sprintf(g->Message, 
+              sprintf(g->Message,
                       "Out of range value for column %s at row %d",
                       colp->GetName(), tdbp->RowNumber(g));
             else
@@ -869,7 +865,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
             } // endif xtrace
 
           p+= valp->GetClen();
-    
+
           if (len[i] == (unsigned)(p - kp)) {
             n++;
             break;

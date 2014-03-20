@@ -168,13 +168,10 @@ int FIXFAM::ReadBuffer(PGLOBAL g)
       CurNum = 0;
       Tdbp->SetLine(To_Buf);
 
-#if defined(BLK_INDX)
    next:
-#endif   // BLK_INDX
       if (++CurBlk >= Block)
         return RC_EF;
 
-#if defined(BLK_INDX)
       /*****************************************************************/
       /*  Before reading a new block, check whether block indexing     */
       /*  can be done, as well as for join as for local filtering.     */
@@ -185,7 +182,6 @@ int FIXFAM::ReadBuffer(PGLOBAL g)
         case RC_NF:
           goto next;
         } // endswitch rc
-#endif   // BLK_INDX
      } // endif's
 
     if (OldBlk == CurBlk) {
@@ -1043,13 +1039,10 @@ int BGXFAM::ReadBuffer(PGLOBAL g)
       CurNum = 0;
       Tdbp->SetLine(To_Buf);
 
-#if defined(BLK_INDX)
      next:
-#endif   // BLK_INDX
       if (++CurBlk >= Block)
         return RC_EF;
 
-#if defined(BLK_INDX)
       /*****************************************************************/
       /*  Before reading a new block, check whether block optimization */
       /*  can be done, as well as for join as for local filtering.     */
@@ -1060,7 +1053,7 @@ int BGXFAM::ReadBuffer(PGLOBAL g)
         case RC_NF:
           goto next;
         } // endswitch rc
-#endif   // BLK_INDX
+
      } // endif's
 
     if (OldBlk == CurBlk) {

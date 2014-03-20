@@ -45,10 +45,8 @@
 #include "filamfix.h"
 #include "filamdbf.h"
 #include "tabfix.h"      // TDBFIX, FIXCOL classes declares
-#if defined(BLK_INDX)
 #include "array.h"
 #include "blkfil.h"
-#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -129,7 +127,6 @@ PCOL TDBFIX::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 int TDBFIX::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
   {
-#if defined(BLK_INDX)
   int prc, rc = RC_OK;
 
   To_Filter = NULL;                     // Disable filtering
@@ -169,10 +166,6 @@ int TDBFIX::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
     } // endif dox
 
   return rc;
-#else   // !BLK_INDX    
-  RestoreNrec();                        // May have been modified
-  return TDBDOS::ResetTableOpt(g, dop, dox);
-#endif  // !BLK_INDX
   } // end of ResetTableOpt
 
 /***********************************************************************/
@@ -211,14 +204,14 @@ int TDBFIX::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
     MaxSize = Cardinality(g);
-#if defined(BLK_INDX)
+
     if (MaxSize > 0 && (To_BlkFil = InitBlockFilter(g, To_Filter))
                     && !To_BlkFil->Correlated()) {
       // Use BlockTest to reduce the estimated size
       MaxSize = Txfp->MaxBlkSize(g, MaxSize);
       ResetBlockFilter(g);
       } // endif To_BlkFil
-#endif   // BLK_INDX
+
     } // endif MaxSize
 
   return MaxSize;
@@ -301,9 +294,7 @@ bool TDBFIX::OpenDB(PGLOBAL g)
     else
       Txfp->Rewind();       // see comment in Work.log
 
-#if defined(BLK_INDX)
     ResetBlockFilter(g);
-#endif   // BLK_INDX
     return false;
     } // endif use
 
@@ -335,12 +326,10 @@ bool TDBFIX::OpenDB(PGLOBAL g)
   /*********************************************************************/
   To_Line = Txfp->GetBuf();                       // For WriteDB
 
-#if defined(BLK_INDX)
   /*********************************************************************/
   /*  Allocate the block filter tree if evaluation is possible.        */
   /*********************************************************************/
   To_BlkFil = InitBlockFilter(g, To_Filter);
-#endif   // BLK_INDX
 
   if (trace)
     htrc("OpenDos: R%hd mode=%d\n", Tdb_No, Mode);

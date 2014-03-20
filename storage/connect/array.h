@@ -51,7 +51,7 @@ class DllExport ARRAY : public XOBJECT, public CSORT { // Array descblock
   virtual int   Qcompare(int *, int *);
   virtual bool  Compare(PXOB) {assert(FALSE); return FALSE;}
   virtual bool  SetFormat(PGLOBAL, FORMAT&) {assert(FALSE); return FALSE;}
-  virtual int   CheckSpcCol(PTDB, int) {return 0;}
+//virtual int   CheckSpcCol(PTDB, int) {return 0;}
   virtual void  Print(PGLOBAL g, FILE *f, UINT n);
   virtual void  Print(PGLOBAL g, char *ps, UINT z);
           void  Empty(void);

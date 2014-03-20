@@ -1,11 +1,11 @@
 /*********** File AM Zip C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMZIP                                              */
 /* -------------                                                       */
-/*  Version 1.4                                                        */
+/*  Version 1.5                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -306,15 +306,12 @@ int ZIPFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     /*  Record file position in case of UPDATE or DELETE.              */
     /*******************************************************************/
-#if defined(BLK_INDX)
    next:
-#endif   // BLK_INDX
     if (RecordPos(g))
       return RC_FX;
 
     CurBlk = Rows++;                        // Update RowID
 
-#if defined(BLK_INDX)
     /*******************************************************************/
     /*  Check whether optimization on ROWID                            */
     /*  can be done, as well as for join as for local filtering.       */
@@ -329,7 +326,7 @@ int ZIPFAM::ReadBuffer(PGLOBAL g)
 
         goto next;
       } // endswitch rc
-#endif   // BLK_INDX
+
   } else
     Placed = false;
 
@@ -423,11 +420,7 @@ ZBKFAM::ZBKFAM(PDOSDEF tdp) : ZIPFAM(tdp)
   CurLine = NULL;
   NxtLine = NULL;
   Closing = false;
-#if defined(BLK_INDX)
   BlkPos = tdp->GetTo_Pos();
-#else   // !BLK_INDX
-  BlkPos = NULL;
-#endif  // !BLK_INDX
   } // end of ZBKFAM standard constructor
 
 ZBKFAM::ZBKFAM(PZBKFAM txfp) : ZIPFAM(txfp)
@@ -448,14 +441,10 @@ int ZBKFAM::MaxBlkSize(PGLOBAL g, int s)
   // Roughly estimate the table size as the sum of blocks
   // that can contain good rows
   for (size = 0, CurBlk = 0; CurBlk < Block; CurBlk++)
-#if defined(BLK_INDX)
     if ((rc = Tdbp->TestBlock(g)) == RC_OK)
       size += (CurBlk == Block - 1) ? Last : Nrec;
     else if (rc == RC_EF)
       break;
-#else   // !BLK_INDX
-    size += (CurBlk == Block - 1) ? Last : Nrec;
-#endif  // !BLK_INDX
 
   CurBlk = savcur;
   return size;
@@ -540,7 +529,6 @@ int ZBKFAM::SkipRecord(PGLOBAL g, bool header)
 /***********************************************************************/
 int ZBKFAM::ReadBuffer(PGLOBAL g)
   {
-#if defined(BLK_INDX)
   int     n, skip, rc = RC_OK;
 
   /*********************************************************************/
@@ -615,10 +603,6 @@ int ZBKFAM::ReadBuffer(PGLOBAL g)
     rc = Zerror(g);
 
   return rc;
-#else   // !BLK_POS
-  strcpy(g->Message, "This AM cannot be used in this version");
-  return RC_FX;
-#endif  // !BLK_POS
   } // end of ReadBuffer
 
 /***********************************************************************/
@@ -830,7 +814,6 @@ int ZIXFAM::ReadBuffer(PGLOBAL g)
   CurNum = 0;
   Tdbp->SetLine(To_Buf);
 
-#if defined(BLK_INDX)
   int skip = 0;
 
  next:
@@ -856,7 +839,6 @@ int ZIXFAM::ReadBuffer(PGLOBAL g)
         return Zerror(g);
 
       } // endfor i
-#endif   // BLK_INDX
 
   if (!(n = gzread(Zfile, To_Buf, Buflen))) {
     rc = RC_EF;
@@ -903,7 +885,6 @@ int ZIXFAM::WriteBuffer(PGLOBAL g)
   return RC_OK;
   } // end of WriteBuffer
 
-#if defined(BLK_INDX)
 /* --------------------------- Class ZLBFAM -------------------------- */
 
 /***********************************************************************/
@@ -1420,5 +1401,5 @@ void ZLBFAM::Rewind(void)
 //OldBlk = -1;
 //Rbuf = 0;        commented out in case we reuse last read block
   } // end of Rewind
-#endif   // BLK_INDX
+
 /* ------------------------ End of ZipFam ---------------------------- */

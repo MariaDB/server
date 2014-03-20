@@ -26,20 +26,15 @@
 
 enum BLKTYP {TYPE_TABLE      = 50,    /* Table Name/Srcdef/... Block   */
              TYPE_COLUMN     = 51,    /* Column Name/Qualifier Block   */
-//           TYPE_OPVAL      = 52,    /* Operator value (OPVAL)        */
              TYPE_TDB        = 53,    /* Table Description Block       */
              TYPE_COLBLK     = 54,    /* Column Description Block      */
-#if defined(BLK_INDX)
              TYPE_FILTER     = 55,    /* Filter Description Block      */
              TYPE_ARRAY      = 63,    /* General array type            */
-#endif   // BLK_INDX
              TYPE_PSZ        = 64,    /* Pointer to String ended by 0  */
              TYPE_SQL        = 65,    /* Pointer to SQL block          */
              TYPE_XOBJECT    = 69,    /* Extended DB object            */
              TYPE_COLCRT     = 71,    /* Column creation block         */
              TYPE_CONST      = 72,    /* Constant                      */
-//           TYPE_INDEXDEF   = 73,    /* Index definition block        */
-//           TYPE_OPER       = 74,    /* Operator block (OPER)         */
 
 /*-------------------- type tokenized string --------------------------*/
              TYPE_DATE       =  8,    /* Timestamp                     */
@@ -344,9 +339,7 @@ typedef class XTAB       *PTABLE;
 typedef class COLUMN     *PCOLUMN;
 typedef class XOBJECT    *PXOB;
 typedef class COLBLK     *PCOL;
-//pedef class TBX        *PTBX;
 typedef class TDB        *PTDB;
-typedef       void       *PSQL;          // Not used
 typedef class TDBASE     *PTDBASE;
 typedef class TDBDOS     *PTDBDOS;
 typedef class TDBFIX     *PTDBFIX;
@@ -378,9 +371,7 @@ typedef class COLDEF     *PCOLDEF;
 typedef class CONSTANT   *PCONST;
 typedef class VALUE      *PVAL;
 typedef class VALBLK     *PVBLK;
-#if defined(BLK_INDX)
 typedef class FILTER     *PFIL;
-#endif   // BLK_INDX
 
 typedef struct _fblock   *PFBLOCK;
 typedef struct _mblock   *PMBLOCK;
@@ -418,43 +409,26 @@ typedef struct _mblock {               /* Memory block                 */
 /*  The QUERY application User Block.                                  */
 /***********************************************************************/
 typedef struct {                       /* User application block       */
-//void      *Act2;                     /* RePoint to activity block    */
-//short      LineLen;                  /* Current output line len      */
   NAME       Name;                     /* User application name        */
-//NAME       Password;                 /* User application password    */
-//PSZ        UserFile;                 /* User application filename    */
   char       Server[17];               /* Server name                  */
   char       DBName[17];               /* Current database name        */
-//char       Host[65];                 /* Caller's host name           */
-//char       User[17];                 /* Caller's user name           */
-//uint       Granted;                  /* Grant bitmap                 */
   PCATLG     Catalog;                  /* To CATALOG class             */
   PQRYRES    Result;                   /* To query result blocks       */
   PFBLOCK    Openlist;                 /* To file/map open list        */
   PMBLOCK    Memlist;                  /* To memory block list         */
   PXUSED     Xlist;                    /* To used index list           */
-//int        Maxres;                   /* Result Max nb of lines       */
-//int        Maxtmp;                   /* Intermediate tables Maxres   */
-//int        Maxlin;                   /* Query Max nb of data lines   */
-#if defined(BLK_INDX)
   int        Maxbmp;                   /* Maximum XDB2 bitmap size     */
-#endif   // BLK_INDX
   int        Check;                    /* General level of checking    */
   int        Numlines;                 /* Number of lines involved     */
-//ALGMOD     AlgChoice;                /* Choice of algorithm mode     */
-//AREADEF    DescArea;                 /* Table desc. area size        */
   USETEMP    UseTemp;                  /* Use temporary file           */
-//int        Curtype;                  /* 0: static else: dynamic      */
   int        Vtdbno;                   /* Used for TDB number setting  */
   bool       Remote;                   /* true: if remotely called     */
-//bool       NotFinal;                 /* true: for intermediate table */
   bool       Proginfo;                 /* true: return progress info   */
   bool       Subcor;                   /* Used for Progress info       */
   size_t     ProgMax;                  /* Used for Progress info       */
   size_t     ProgCur;                  /* Used for Progress info       */
   size_t     ProgSav;                  /* Used for Progress info       */
   LPCSTR     Step;                     /* Execution step name          */
-//char       Work[_MAX_PATH];          /* Local work path              */
   } DBUSERBLK, *PDBUSER;
 
 /***********************************************************************/
@@ -488,7 +462,6 @@ typedef struct _tabs {
   PTABADR P3;
   } TABS;
 
-#if defined(BLK_INDX)
 /***********************************************************************/
 /*  Argument of expression, function, filter etc. (Xobject)            */
 /***********************************************************************/
@@ -503,22 +476,6 @@ typedef struct _oper {             /* Operator                         */
   OPVAL   Val;                     /* Operator numeric value           */
   int     Mod;                     /* The modificator                  */
   } OPER, *POPER;
-
-#if 0
-/***********************************************************************/
-/*  Definitions and table of Scalar Functions.                         */
-/***********************************************************************/
-typedef struct _sfdsc {            /* Scalar function description block*/
-  char    Name[16];                /* Scalar function name             */
-  EVAL    EvalType;                /* Type of Init and Eval functions  */
-  OPVAL   Op;                      /* Equivalent operator number       */
-  int     R_Type;                  /* Result Type                      */
-  int     R_Length;                /* Result Length                    */
-  int     R_Prec;                  /* Result Precision                 */
-  int     Numarg;                  /* Number of arguments              */
-  } SFDSC, *PSFDSC;
-#endif // 0
-#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  Following definitions are used to define table fields (columns).   */
@@ -597,8 +554,8 @@ int      ExtractDate(char *, PDTP, int, int val[6]);
 /*  Allocate the result structure that will contain result data.          */
 /**************************************************************************/
 DllExport PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
-                                 int *buftyp, XFLD *fldtyp, 
-                                 unsigned int *length, 
+                                 int *buftyp, XFLD *fldtyp,
+                                 unsigned int *length,
                                  bool blank, bool nonull);
 
 /***********************************************************************/
@@ -617,13 +574,10 @@ DllExport void    PlgDBfree(MBLOCK&);
 DllExport void   *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size);
 DllExport void   *PlgDBalloc(PGLOBAL, void *, MBLOCK&);
 DllExport void   *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
-//lExport PSZ     GetIniString(PGLOBAL, void *, LPCSTR, LPCSTR, LPCSTR, LPCSTR);
-//lExport int     GetIniSize(char *, char *, char *, char *);
-//lExport bool    WritePrivateProfileInt(LPCSTR, LPCSTR, int, LPCSTR);
 DllExport void    NewPointer(PTABS, void *, void *);
 DllExport char    *GetIni(int n= 0);
 DllExport void    SetTrc(void);
-DllExport char   *GetListOption(PGLOBAL, const char *, const char *, 
+DllExport char   *GetListOption(PGLOBAL, const char *, const char *,
                                          const char *def=NULL);
 
 #define MSGID_NONE                         0

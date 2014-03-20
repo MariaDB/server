@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2013
+/* Copyright (C) Olivier Bertrand 2004 - 2014
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@ typedef struct _xinfo {
 
 class XCHK : public BLOCK {
 public:
-  XCHK(void) {oldsep= newsep= false; 
+  XCHK(void) {oldsep= newsep= false;
               oldopn= newopn= NULL;
               oldpix= newpix= NULL;}
 
@@ -71,7 +71,7 @@ public:
 typedef class XCHK *PCHK;
 typedef class user_connect *PCONNECT;
 typedef struct ha_table_option_struct TOS, *PTOS;
-typedef struct ha_field_option_struct FOS, *PFOS; 
+typedef struct ha_field_option_struct FOS, *PFOS;
 
 extern handlerton *connect_hton;
 
@@ -122,8 +122,8 @@ struct ha_table_option_struct {
 struct ha_field_option_struct
 {
   ulonglong offset;
-  ulonglong freq;      // Not used by this version
-  ulonglong opt;       // Not used by this version
+  ulonglong freq;
+  ulonglong opt;
   ulonglong fldlen;
   const char *dateformat;
   const char *fieldformat;
@@ -193,7 +193,7 @@ public:
 
   PTDB     GetTDB(PGLOBAL g);
   int      OpenTable(PGLOBAL g, bool del= false);
-  bool     IsOpened(void); 
+  bool     IsOpened(void);
   int      CloseTable(PGLOBAL g);
   int      MakeRecord(char *buf);
   int      ScanRecord(PGLOBAL g, uchar *buf);
@@ -243,11 +243,7 @@ public:
   */
   ulong index_flags(uint inx, uint part, bool all_parts) const
   {
-    return HA_READ_NEXT | HA_READ_RANGE | HA_READ_ORDER
-#if defined(MRRBKA_SUPPORT)
-         | HA_KEYREAD_ONLY
-#endif   // MRRBKA_SUPPORT
-      ;
+    return HA_READ_NEXT | HA_READ_RANGE | HA_READ_ORDER | HA_KEYREAD_ONLY;
   } // end of index_flags
 
   /** @brief
@@ -325,20 +321,18 @@ public:
    @note
    The pushed conditions form a stack (from which one can remove the
    last pushed condition using cond_pop).
-   The table handler filters out rows using (pushed_cond1 AND pushed_cond2 
+   The table handler filters out rows using (pushed_cond1 AND pushed_cond2
    AND ... AND pushed_condN)
    or less restrictive condition, depending on handler's capabilities.
 
    handler->ha_reset() call empties the condition stack.
    Calls to rnd_init/rnd_end, index_init/index_end etc do not affect the
    condition stack.
- */ 
+ */
 virtual const COND *cond_push(const COND *cond);
 PCFIL CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond);
 const char *GetValStr(OPVAL vop, bool neg);
-#if defined(BLK_INDX)
 PFIL  CondFilter(PGLOBAL g, Item *cond);
-#endif   // BLK_INDX
 
  /**
    Number of rows in table. It will only be called if
@@ -346,7 +340,7 @@ PFIL  CondFilter(PGLOBAL g, Item *cond);
  */
  virtual ha_rows records();
 
- /** 
+ /**
    Type of table for caching query
    CONNECT should not use caching because its tables are external
    data prone to me modified out of MariaDB
@@ -427,6 +421,9 @@ PFIL  CondFilter(PGLOBAL g, Item *cond);
   */
 //int index_last(uchar *buf);
 
+  /* Index condition pushdown implementation */
+//Item *idx_cond_push(uint keyno, Item* idx_cond);
+
   /** @brief
     Unlike index_init(), rnd_init() can be called two consecutive times
     without rnd_end() in between (it only makes sense if scan=1). In this
@@ -470,6 +467,28 @@ PFIL  CondFilter(PGLOBAL g, Item *cond);
                              enum thr_lock_type lock_type);     ///< required
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
 
+  /**
+   * Multi Range Read interface
+   */
+  int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
+                            uint n_ranges, uint mode, HANDLER_BUFFER *buf);
+  int multi_range_read_next(range_id_t *range_info);
+  ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
+                                      void *seq_init_param,
+                                      uint n_ranges, uint *bufsz,
+                                      uint *flags, Cost_estimate *cost);
+  ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
+                                uint key_parts, uint *bufsz,
+                                uint *flags, Cost_estimate *cost);
+  int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
+
+  int reset(void) {ds_mrr.dsmrr_close(); return 0;}
+
+  /* Index condition pushdown implementation */
+//  Item *idx_cond_push(uint keyno, Item* idx_cond);
+private:
+  DsMrr_impl ds_mrr;
+
 protected:
   bool check_privileges(THD *thd, PTOS options, char *dbn);
   MODE CheckMode(PGLOBAL g, THD *thd, MODE newmode, bool *chk, bool *cras);
@@ -497,33 +516,9 @@ protected:
   THR_LOCK_DATA lock_data;
 
 public:
-  TABLE_SHARE  *tshp;                 // Used by called tables 
+  TABLE_SHARE  *tshp;                 // Used by called tables
   char   *data_file_name;
   char   *index_file_name;
   uint    int_table_flags;            // Inherited from MyISAM
   bool    enable_activate_all_index;  // Inherited from MyISAM
-
-#if defined(MRRBKA_SUPPORT)
-  /**
-   * Multi Range Read interface
-   */
-  int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
-                            uint n_ranges, uint mode, HANDLER_BUFFER *buf);
-  int multi_range_read_next(range_id_t *range_info);
-  ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
-                                      void *seq_init_param, 
-                                      uint n_ranges, uint *bufsz,
-                                      uint *flags, Cost_estimate *cost);
-  ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
-                                uint key_parts, uint *bufsz, 
-                                uint *flags, Cost_estimate *cost);
-  int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
-
-  int reset(void) {ds_mrr.dsmrr_close(); return 0;}
-
-  /* Index condition pushdown implementation */
-//  Item *idx_cond_push(uint keyno, Item* idx_cond);
-private:
-  DsMrr_impl ds_mrr;
-#endif   // MRRBKA_SUPPORT
 };  // end of ha_connect class definition

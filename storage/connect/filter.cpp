@@ -68,7 +68,7 @@ PPARM MakeParm(PGLOBAL g, PXOB xp)
 bool   PlugEvalLike(PGLOBAL, LPCSTR, LPCSTR, bool);
 //bool  ReadSubQuery(PGLOBAL, PSUBQ);
 //PSUBQ OpenSubQuery(PGLOBAL, PSQL);
-void   PlugCloseDB(PGLOBAL, PSQL);
+//void  PlugCloseDB(PGLOBAL, PSQL);
 BYTE   OpBmp(PGLOBAL g, OPVAL opc);
 PARRAY MakeValueArray(PGLOBAL g, PPARM pp);
 
@@ -201,6 +201,7 @@ FILTER::FILTER(PFIL fil1)
   Test[1] = fil1->Test[1];
   } // end of FILTER copy constructor
 
+#if 0
 /***********************************************************************/
 /*  Linearize:  Does the linearization of the filter tree:             */
 /*    Independent filters (not implied in OR/NOT) will be separated    */
@@ -388,7 +389,6 @@ int FILTER::RefNum(PSQL sqlp)
   return n;
   } // end of RefNum
 
-#if 0
 /***********************************************************************/
 /*  CheckSubQuery: see SUBQUERY::CheckSubQuery for comment.            */
 /***********************************************************************/
@@ -747,7 +747,6 @@ bool FILTER::CheckHaving(PGLOBAL g, PSQL sqlp)
   sqlp->SetOk(FALSE);
   return FALSE;
   } // end of CheckHaving
-#endif // 0
 
 /***********************************************************************/
 /*  Used while building a table index. This function split the filter  */
@@ -924,6 +923,7 @@ int FILTER::CheckSpcCol(PTDB tdbp, int n)
 
   return max(n1, n2);
   } // end of CheckSpcCol
+#endif // 0
 
 /***********************************************************************/
 /*  Reset the filter arguments to non evaluated yet.                   */

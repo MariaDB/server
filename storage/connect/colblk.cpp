@@ -1,7 +1,7 @@
 /************* Colblk C++ Functions Source Code File (.CPP) ************/
-/*  Name: COLBLK.CPP  Version 2.0                                      */
+/*  Name: COLBLK.CPP  Version 2.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /*  This file contains the COLBLK class functions.                     */
 /***********************************************************************/
@@ -117,20 +117,12 @@ bool COLBLK::SetFormat(PGLOBAL g, FORMAT& fmt)
   fmt = Format;
 
 #ifdef DEBTRACE
- htrc("COLBLK: %p format=%c(%d,%d)\n", 
+ htrc("COLBLK: %p format=%c(%d,%d)\n",
    this, *fmt.Type, fmt.Length, fmt.Prec);
 #endif
 
   return false;
   } // end of SetFormat
-
-/***********************************************************************/
-/*  CheckColumn:  a column descriptor is found, say it by returning 1. */
-/***********************************************************************/
-int COLBLK::CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &p, int &ag)
-  {
-  return 1;
-  } // end of CheckColumn
 
 /***********************************************************************/
 /*  Eval:  get the column value from the last read record or from a    */
@@ -155,15 +147,6 @@ bool COLBLK::Eval(PGLOBAL g)
 
   return false;
   } // end of Eval
-
-/***********************************************************************/
-/*  CheckSort:                                                         */
-/*  Used to check that a table is involved in the sort list items.     */
-/***********************************************************************/
-bool COLBLK::CheckSort(PTDB tdbp)
-  {
-  return (tdbp == To_Tdb);
-  } // end of CheckSort
 
 /***********************************************************************/
 /*  InitValue: prepare a column block for read operation.              */

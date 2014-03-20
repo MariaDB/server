@@ -1,7 +1,7 @@
 /************** FilAmZip H Declares Source Code File (.H) **************/
-/*  Name: FILAMZIP.H    Version 1.1                                    */
+/*  Name: FILAMZIP.H    Version 1.2                                    */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /*  This file contains the GZIP access method classes declares.        */
 /***********************************************************************/
@@ -122,7 +122,6 @@ class DllExport ZIXFAM : public ZBKFAM {
   // No additional Members
   }; // end of class ZIXFAM
 
-#if defined(BLK_INDX)
 /***********************************************************************/
 /*  This is the DOS/UNIX Access Method class declaration for PlugDB    */
 /*  fixed/variable files compressed using the zlib library functions.  */
@@ -166,6 +165,5 @@ class DllExport ZLBFAM : public BLKFAM {
   int      *Zlenp;            // Pointer to block length
   bool      Optimized;        // true when opt file is available
   }; // end of class ZLBFAM
-#endif   // BLK_INDX
 
 #endif // __FILAMZIP_H

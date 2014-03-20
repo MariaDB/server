@@ -36,8 +36,6 @@ class DllExport VCTDEF : public DOSDEF {  /* Logical table description */
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
 
  protected:
-  // Specific file erase routine for vertical tables
-//virtual bool Erase(char *filename);
           int  MakeFnPattern(char *fpat);
 
   // Members
@@ -103,7 +101,7 @@ class DllExport VCTCOL : public DOSCOL {
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
   virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-  virtual void SetOk(void); 
+  virtual void SetOk(void);
 
  protected:
   virtual void ReadBlock(PGLOBAL g);

@@ -322,15 +322,12 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     /*  Record file position in case of UPDATE or DELETE.              */
     /*******************************************************************/
-#if defined(BLK_INDX)
     int rc;
 
    next:
-#endif   // BLK_INDX
-		Fpos = Mempos;
-		CurBlk = (int)Rows++;
+    Fpos = Mempos;
+    CurBlk = (int)Rows++;
 
-#if defined(BLK_INDX)
     /*******************************************************************/
     /*  Check whether optimization on ROWID                            */
     /*  can be done, as well as for join as for local filtering.       */
@@ -345,7 +342,6 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
 
         goto next;
       } // endswitch rc
-#endif   // BLK_INDX
   } else
     Placed = false;
 
@@ -486,7 +482,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
 void MAPFAM::CloseTableFile(PGLOBAL g)
   {
   PlugCloseFile(g, To_Fb);
-  To_Fb = NULL;              // To get correct file size in Cardinality 
+  To_Fb = NULL;              // To get correct file size in Cardinality
 
 #ifdef DEBTRACE
  htrc("MAP Close: closing %s count=%d\n",
@@ -513,11 +509,7 @@ MBKFAM::MBKFAM(PDOSDEF tdp) : MAPFAM(tdp)
   Block = tdp->GetBlock();
   Last = tdp->GetLast();
   Nrec = tdp->GetElemt();
-#if defined(BLK_INDX)
   BlkPos = tdp->GetTo_Pos();
-#else   // !BLK_INDX
-  BlkPos = NULL;
-#endif  // !BLK_INDX
   CurNum = Nrec;
   } // end of MBKFAM standard constructor
 
@@ -537,9 +529,7 @@ void MBKFAM::Reset(void)
 /***********************************************************************/
 int MBKFAM::Cardinality(PGLOBAL g)
   {
-  // Should not be called in this version
-  return (g) ? -1 : 0;
-//return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
+  return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
   } // end of Cardinality
 
 /***********************************************************************/
@@ -563,7 +553,6 @@ int MBKFAM::GetRowID(void)
 /***********************************************************************/
 int MBKFAM::ReadBuffer(PGLOBAL g)
   {
-#if defined(BLK_INDX)
   int len;
 
   /*********************************************************************/
@@ -573,18 +562,18 @@ int MBKFAM::ReadBuffer(PGLOBAL g)
     Placed = false;
   } else if (Mempos >= Top) {        // Are we at the end of the memory
     return RC_EF;
-  } else if (++CurNum < Nrec) {                                           
+  } else if (++CurNum < Nrec) {
     Fpos = Mempos;
-  } else {                                                            
+  } else {
     /*******************************************************************/
     /*  New block.                                                     */
     /*******************************************************************/
-    CurNum = 0;                                                       
-                                                                       
+    CurNum = 0;
+
    next:
-    if (++CurBlk >= Block)                                           
-      return RC_EF;                                                   
-                                                                       
+    if (++CurBlk >= Block)
+      return RC_EF;
+
     /*******************************************************************/
     /*  Before reading a new block, check whether block optimization   */
     /*  can be done, as well as for join as for local filtering.       */
@@ -595,7 +584,7 @@ int MBKFAM::ReadBuffer(PGLOBAL g)
       case RC_NF:
         goto next;
       } // endswitch rc
-	  
+
     Fpos = Mempos = Memory + BlkPos[CurBlk];
   } // endif's
 
@@ -607,10 +596,6 @@ int MBKFAM::ReadBuffer(PGLOBAL g)
   memcpy(Tdbp->GetLine(), Fpos, len);
   Tdbp->GetLine()[len] = '\0';
   return RC_OK;
-#else   // !BLK_POS
-  strcpy(g->Message, "This AM cannot be used in this version");
-  return RC_FX;
-#endif  // !BLK_POS
   } // end of ReadBuffer
 
 /***********************************************************************/
@@ -693,21 +678,18 @@ int MPXFAM::ReadBuffer(PGLOBAL g)
     Placed = false;
   } else if (Mempos >= Top) {        // Are we at the end of the memory
     return RC_EF;
-  } else if (++CurNum < Nrec) {                                           
+  } else if (++CurNum < Nrec) {
     Fpos = Mempos;
-  } else {                                                            
+  } else {
     /*******************************************************************/
     /*  New block.                                                     */
     /*******************************************************************/
-    CurNum = 0;                                                       
+    CurNum = 0;
 
-#if defined(BLK_INDX)
    next:
-#endif   // BLK_INDX
-    if (++CurBlk >= Block)                                           
-      return RC_EF;                                                   
-                                                                       
-#if defined(BLK_INDX)
+    if (++CurBlk >= Block)
+      return RC_EF;
+
     /*******************************************************************/
     /*  Before reading a new block, check whether block optimization   */
     /*  can be done, as well as for join as for local filtering.       */
@@ -718,7 +700,6 @@ int MPXFAM::ReadBuffer(PGLOBAL g)
       case RC_NF:
         goto next;
       } // endswitch rc
-#endif   // BLK_INDX
 
     Fpos = Mempos = Headlen + Memory + CurBlk * Blksize;
   } // endif's

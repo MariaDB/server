@@ -301,9 +301,7 @@ bool TDBVCT::OpenDB(PGLOBAL g)
       To_Kindex->Reset();
 
     Txfp->Rewind();
-#if defined(BLK_INDX)
     ResetBlockFilter(g);
-#endif   // BLK_INDX
     return false;
     } // endif Use
 
@@ -325,12 +323,10 @@ bool TDBVCT::OpenDB(PGLOBAL g)
   // This was not done in previous version
   Use = USE_OPEN;       // Do it now in case we are recursively called
 
-#if defined(BLK_INDX)
   /*********************************************************************/
   /*  Allocate the block filter tree if evaluation is possible.        */
   /*********************************************************************/
   To_BlkFil = InitBlockFilter(g, To_Filter);
-#endif   // BLK_INDX
 
   /*********************************************************************/
   /*  Reset buffer access according to indexing and to mode.           */

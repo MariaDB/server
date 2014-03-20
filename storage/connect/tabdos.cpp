@@ -57,12 +57,8 @@
 #include "tabdos.h"
 #include "tabfix.h"
 #include "tabmul.h"
-#if defined(BLK_INDX)
 #include "array.h"
 #include "blkfil.h"
-//nclude "token.h"
-//#include "scalfnc.h"
-#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -70,7 +66,6 @@
 int num_read, num_there, num_eq[2];                 // Statistics
 extern "C" int  trace;
 
-#if defined(BLK_INDX)
 /***********************************************************************/
 /*  Size of optimize file header.                                      */
 /***********************************************************************/
@@ -82,7 +77,6 @@ extern "C" int  trace;
 /***********************************************************************/
 PVBLK AllocValBlock(PGLOBAL, void *, int, int, int len = 0, int prec = 0,
                     bool check = TRUE, bool blank = FALSE, bool un = FALSE);
-#endif   // BLK_INDX
 
 /* --------------------------- Class DOSDEF -------------------------- */
 
@@ -101,11 +95,9 @@ DOSDEF::DOSDEF(void)
   Huge = false;
   Accept = false;
   Eof = false;
-#if defined(BLK_INDX)
   To_Pos = NULL;
   Optimized = 0;
   AllocBlks = 0;
-#endif   // BLK_INDX
   Compressed = 0;
   Lrecl = 0;
   AvgLen = 0;
@@ -115,7 +107,6 @@ DOSDEF::DOSDEF(void)
   Maxerr = 0;
   ReadMode = 0;
   Ending = 0;
-//Mtime = 0;
   } // end of DOSDEF constructor
 
 /***********************************************************************/
@@ -161,97 +152,6 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   return (Cat->GetIndexInfo(g, this) /*&& !Cat->GetCatFnc()*/);
   } // end of DefineAM
 
-#if 0
-#if defined(BLK_INDX)
-/***********************************************************************/
-/*  DeleteTableFile: Delete DOS/UNIX table files using platform API.   */
-/*  If the table file is protected (declared as read/only) we still    */
-/*  erase the the eventual optimize and index files but return TRUE.   */
-/***********************************************************************/
-bool DOSDEF::DeleteTableFile(PGLOBAL g)
-  {
-  char    filename[_MAX_PATH];
-  bool    rc, irc, orc = FALSE;
-  PIXDEF  pxd;
-  PCOLDEF cdp = NULL;
-
-  /*********************************************************************/
-  /*  Check for potential optimization. These tests are done           */
-  /*  because Optimized is set to 1 only after the first use of an     */
-  /*  optimized table and can be 0 if it has not been used yet.        */
-  /*********************************************************************/
-  if (!Optimized)
-    for (cdp = To_Cols; cdp; cdp = cdp->GetNext())
-      if (cdp->GetOpt())
-        break;
-
-  if (IsOptimized() || cdp || (Recfm == RECFM_VAR && Elemt > 1 && Block))
-    if (!GetOptFileName(g, filename))
-#if defined(WIN32)
-      orc = !DeleteFile(filename);
-#else    // UNIX
-      orc = remove(filename);
-#endif   // WIN32
-
-  // Now delete the table file itself if not protected
-  if (!IsReadOnly()) {
-    rc = Erase(filename);
-  } else
-    rc = true;
-
-  // Delete eventual index file(s)
-  if ((pxd = To_Indx)) {
-    To_Indx = NULL;                           // So file can be erase
-    irc = DeleteIndexFile(g, pxd);
-  } else
-    irc = false;
-
-  return rc || orc || irc;                    // Return TRUE if error
-  } // end of DeleteTableFile
-
-#else   // !BLK_INDX
-/***********************************************************************/
-/*  DeleteTableFile: Delete DOS/UNIX table files using platform API.   */
-/*  If the table file is protected (declared as read/only) we still    */
-/*  erase the the eventual optimize and index files but return true.   */
-/***********************************************************************/
-bool DOSDEF::DeleteTableFile(PGLOBAL g)
-  {
-  char    filename[_MAX_PATH];
-  bool    rc = false;
-
-  // Now delete the table file itself if not protected
-  if (!IsReadOnly()) {
-    rc = Erase(filename);
-  } else
-    rc =true;
-
-  return rc;                               // Return true if error
-  } // end of DeleteTableFile
-#endif  // !BLK_INDX
-
-/***********************************************************************/
-/*  Erase: This was made a separate routine because a strange thing    */
-/*  happened when DeleteTablefile was defined for the VCTDEF class:    */
-/*  when called from Catalog, the DOSDEF routine was still called even */
-/*  when the class was VCTDEF. It also minimizes the specific code.    */
-/***********************************************************************/
-bool DOSDEF::Erase(char *filename)
-  {
-  bool rc;
-
-  PlugSetPath(filename, Fn, GetPath());
-#if defined(WIN32)
-  rc = !DeleteFile(filename);
-#else    // UNIX
-  rc = remove(filename);
-#endif   // UNIX
-
-  return rc;                                  // Return true if error
-  } // end of Erase
-#endif // 0
-
-#if defined(BLK_INDX)
 /***********************************************************************/
 /*  Get the full path/name of the optization file.                     */
 /***********************************************************************/
@@ -308,7 +208,6 @@ void DOSDEF::RemoveOptValues(PGLOBAL g)
 
   Optimized = 0;
   } // end of RemoveOptValues
-#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  DeleteIndexFile: Delete DOS/UNIX index file(s) using platform API. */
@@ -323,7 +222,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
     return false;           // No index
 
   // If true indexes are in separate files
-  sep = Cat->GetBoolCatInfo("SepIndex", false); 
+  sep = Cat->GetBoolCatInfo("SepIndex", false);
 
   if (!sep && pxdf) {
     strcpy(g->Message, MSG(NO_RECOV_SPACE));
@@ -446,14 +345,9 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 #if defined(ZIP_SUPPORT)
       if (Compressed == 1)
         txfp = new(g) ZIPFAM(this);
-      else {
-#if defined(BLK_INDX)
+      else
         txfp = new(g) ZLBFAM(this);
-#else   // !BLK_INDX
-        strcpy(g->Message, "Compress 2 not supported yet");
-        return NULL;
-#endif  // !BLK_INDX
-      } // endelse
+
 #else   // !ZIP_SUPPORT
       sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
       return NULL;
@@ -470,7 +364,6 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 
   if (Multiple)
     tdbp = new(g) TDBMUL(tdbp);
-#if defined(BLK_INDX)
   else
     /*******************************************************************/
     /*  For block tables, get eventually saved optimization values.    */
@@ -501,7 +394,6 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
         } // endif Optimized
 
       } // endif Recfm
-#endif   // BLK_INDX
 
   return tdbp;
   } // end of GetTable
@@ -522,13 +414,11 @@ TDBDOS::TDBDOS(PDOSDEF tdp, PTXF txfp) : TDBASE(tdp)
   Ftype = tdp->Recfm;
   To_Line = NULL;
   Cardinal = -1;
-#if defined(BLK_INDX)
 //To_BlkIdx = NULL;
   To_BlkFil = NULL;
   SavFil = NULL;
 //Xeval = 0;
   Beval = 0;
-#endif   // BLK_INDX
   } // end of TDBDOS standard constructor
 
 TDBDOS::TDBDOS(PGLOBAL g, PTDBDOS tdbp) : TDBASE(tdbp)
@@ -539,13 +429,11 @@ TDBDOS::TDBDOS(PGLOBAL g, PTDBDOS tdbp) : TDBASE(tdbp)
   Ftype = tdbp->Ftype;
   To_Line = tdbp->To_Line;
   Cardinal = tdbp->Cardinal;
-#if defined(BLK_INDX)
 //To_BlkIdx = tdbp->To_BlkIdx;
   To_BlkFil = tdbp->To_BlkFil;
   SavFil = tdbp->SavFil;
 //Xeval = tdbp->Xeval;
   Beval = tdbp->Beval;
-#endif   // BLK_INDX
   } // end of TDBDOS copy constructor
 
 // Method
@@ -595,7 +483,6 @@ int TDBDOS::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
   MaxSize = -1;                        // Size must be recalculated
   Cardinal = -1;                       // as well as Cardinality
 
-#if defined(BLK_INDX)
   PTXF xp = Txfp;
 
   To_Filter = NULL;                     // Disable filtering
@@ -628,7 +515,6 @@ int TDBDOS::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
     Mode = MODE_ANY;                    // Just to be clean
     rc = MakeBlockValues(g);            // Redo optimization
     } // endif dop
-#endif   // BLK_INDX
 
   if (dox && (rc == RC_OK || rc == RC_INFO)) {
     // Remake eventual indexes
@@ -649,15 +535,12 @@ int TDBDOS::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
       // ... or we should remake them.
       rc = MakeIndex(g, NULL, false);
 
-#if defined(BLK_INDX)
     rc = (rc == RC_INFO) ? prc : rc;
-#endif   // BLK_INDX
     } // endif dox
 
   return rc;
   } // end of ResetTableOpt
 
-#if defined(BLK_INDX)
 /***********************************************************************/
 /*  Calculate the block sizes so block I/O can be used and also the    */
 /*  Min/Max values for clustered/sorted table columns.                 */
@@ -732,9 +615,9 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
 //      savmin = cdp->GetBmap();
 //      cdp->SetBmap(PlugSubAlloc(g, NULL, block * sizeof(int)));
 
-				if (trace)
-					htrc("Dval(%p) Bmap(%p) col(%d) %s Block=%d lg=%d\n",
-							cdp->GetDval(), cdp->GetBmap(), i, cdp->GetName(), block, lg);
+        if (trace)
+          htrc("Dval(%p) Bmap(%p) col(%d) %s Block=%d lg=%d\n",
+              cdp->GetDval(), cdp->GetBmap(), i, cdp->GetName(), block, lg);
 
         // colp will be initialized with proper Dval VALBLK
         colp = (PDOSCOL)MakeCol(g, cdp, colp, i);
@@ -750,9 +633,9 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
         cdp->SetMin(PlugSubAlloc(g, NULL, block * lg));
         cdp->SetMax(PlugSubAlloc(g, NULL, block * lg));
 
-				if (trace)
-					htrc("min(%p) max(%p) col(%d) %s Block=%d lg=%d\n",
-							cdp->GetMin(), cdp->GetMax(), i, cdp->GetName(), block, lg);
+        if (trace)
+          htrc("min(%p) max(%p) col(%d) %s Block=%d lg=%d\n",
+              cdp->GetMin(), cdp->GetMax(), i, cdp->GetName(), block, lg);
 
         // colp will be initialized with proper opt VALBLK's
         colp = (PDOSCOL)MakeCol(g, cdp, colp, i);
@@ -918,8 +801,8 @@ bool TDBDOS::SaveBlockValues(PGLOBAL g)
             "wb", (int)errno, filename);
     strcat(strcat(g->Message, ": "), strerror(errno));
 
-		if (trace)
-			htrc("%s\n", g->Message);
+    if (trace)
+      htrc("%s\n", g->Message);
 
     return TRUE;
     } // endif opfile
@@ -1049,7 +932,7 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
         PlugSetPath(filename, defp->Fn, GetPath());
         h = open(filename, _O_RDONLY);
         flen = (h == -1 && errno == ENOENT) ? 0 : _filelength(h);
-				defp->SetOptimized((flen) ? 0 : 1);
+        defp->SetOptimized((flen) ? 0 : 1);
 
         if (h != -1)
           close(h);
@@ -1313,7 +1196,7 @@ PBF TDBDOS::InitBlockFilter(PGLOBAL g, PFIL filp)
 
   int  i, op = filp->GetOpc(), opm = filp->GetOpm(), n = 0;
   bool cnv[2];
-	PCOL colp;
+  PCOL colp;
   PXOB arg[2] = {NULL,NULL};
   PBF *fp = NULL, bfp = NULL;
 
@@ -1324,23 +1207,23 @@ PBF TDBDOS::InitBlockFilter(PGLOBAL g, PFIL filp)
     case OP_GE:
     case OP_LT:
     case OP_LE:
-			if (! opm) {
+      if (! opm) {
         for (i = 0; i < 2; i++) {
           arg[i] = filp->Arg(i);
           cnv[i] = filp->Conv(i);
-					}	// endfor i
-			  
-				bfp = CheckBlockFilari(g, arg, op, cnv); 
-        break;
-				} // endif !opm
+          } // endfor i
 
-			// if opm, pass thru
+        bfp = CheckBlockFilari(g, arg, op, cnv);
+        break;
+        } // endif !opm
+
+      // if opm, pass thru
     case OP_IN:
       if (filp->GetArgType(0) == TYPE_COLBLK &&
           filp->GetArgType(1) == TYPE_ARRAY) {
         arg[0] = filp->Arg(0);
         arg[1] = filp->Arg(1);
-				colp = (PCOL)arg[0];
+        colp = (PCOL)arg[0];
 
         if (colp->GetTo_Tdb() == this) {
           // Block evaluation is possible for...
@@ -1352,7 +1235,7 @@ PBF TDBDOS::InitBlockFilter(PGLOBAL g, PFIL filp)
 //              ((RIDBLK*)arg[0])->GetRnm())
               bfp = new(g) BLKSPCIN(g, this, op, opm, arg, Txfp->Nrec);
 
-          } else if (blk && Txfp->Nrec > 1 &&	colp->IsClustered())
+          } else if (blk && Txfp->Nrec > 1 && colp->IsClustered())
             // Clustered column and constant array
             if (colp->GetClustered() == 2)
               bfp = new(g) BLKFILIN2(g, this, op, opm, arg);
@@ -1363,39 +1246,39 @@ PBF TDBDOS::InitBlockFilter(PGLOBAL g, PFIL filp)
 
 #if 0
       } else if (filp->GetArgType(0) == TYPE_SCALF &&
-								 filp->GetArgType(1) == TYPE_ARRAY) {
+                 filp->GetArgType(1) == TYPE_ARRAY) {
         arg[0] = filp->Arg(0);
         arg[1] = filp->Arg(1);
 
         if (((PSCALF)arg[0])->GetOp() == OP_ROW &&
-						arg[1]->GetResultType() == TYPE_LIST) {
-					PARRAY  par = (PARRAY)arg[1];
-					LSTVAL *vlp = (LSTVAL*)par->GetValue();
+            arg[1]->GetResultType() == TYPE_LIST) {
+          PARRAY  par = (PARRAY)arg[1];
+          LSTVAL *vlp = (LSTVAL*)par->GetValue();
 
-					((SFROW*)arg[0])->GetParms(n);
+          ((SFROW*)arg[0])->GetParms(n);
 
-					if (n != vlp->GetN())
-						return NULL;
-					else
-						n = par->GetNval();
+          if (n != vlp->GetN())
+            return NULL;
+          else
+            n = par->GetNval();
 
-					arg[1] = new(g) CONSTANT(vlp);
-					fp = (PBF*)PlugSubAlloc(g, NULL, n * sizeof(PBF));
-					cnv[0] = cnv[1] = FALSE;
+          arg[1] = new(g) CONSTANT(vlp);
+          fp = (PBF*)PlugSubAlloc(g, NULL, n * sizeof(PBF));
+          cnv[0] = cnv[1] = FALSE;
 
-					if (op == OP_IN)
-						op = OP_EQ;
+          if (op == OP_IN)
+            op = OP_EQ;
 
-					for (i = 0; i < n; i++) {
-						par->GetNthValue(vlp, i);
-		      
-						if (!(fp[i] = CheckBlockFilari(g, arg, op, cnv)))
-							return NULL;
+          for (i = 0; i < n; i++) {
+            par->GetNthValue(vlp, i);
 
-						} // endfor i
-		      
+            if (!(fp[i] = CheckBlockFilari(g, arg, op, cnv)))
+              return NULL;
+
+            } // endfor i
+
           bfp = new(g) BLKFILLOG(this, (opm == 2 ? OP_AND : OP_OR), fp, n);
-					} // endif ROW
+          } // endif ROW
 #endif // 0
 
       } // endif Type
@@ -1403,7 +1286,7 @@ PBF TDBDOS::InitBlockFilter(PGLOBAL g, PFIL filp)
       break;
     case OP_AND:
     case OP_OR:
-			fp = (PBF*)PlugSubAlloc(g, NULL, 2 * sizeof(PBF));
+      fp = (PBF*)PlugSubAlloc(g, NULL, 2 * sizeof(PBF));
       fp[0] = InitBlockFilter(g, (PFIL)(filp->Arg(0)));
       fp[1] = InitBlockFilter(g, (PFIL)(filp->Arg(1)));
 
@@ -1412,7 +1295,7 @@ PBF TDBDOS::InitBlockFilter(PGLOBAL g, PFIL filp)
 
       break;
     case OP_NOT:
-			fp = (PBF*)PlugSubAlloc(g, NULL, sizeof(PBF));
+      fp = (PBF*)PlugSubAlloc(g, NULL, sizeof(PBF));
 
       if ((*fp = InitBlockFilter(g, (PFIL)(filp->Arg(0)))))
         bfp = new(g) BLKFILLOG(this, op, fp, 1);
@@ -1436,8 +1319,8 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
 //PXOB   *xarg1, *xarg2 = NULL, xp[2];
   int     i, ctype = TYPE_ERROR, n = 0, type[2] = {0,0};
   bool    conv = FALSE, xdb2 = FALSE, ok = FALSE;
-	PXOB   *xarg2 = NULL, xp[2];
-	PCOL    colp;
+  PXOB   *xarg2 = NULL, xp[2];
+  PCOL    colp;
 //LSTVAL *vlp = NULL;
 //SFROW  *sfr[2];
   PBF    *fp = NULL, bfp = NULL;
@@ -1450,7 +1333,7 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
         break;
       case TYPE_COLBLK:
         conv = cnv[i];
-				colp = (PCOL)arg[i];
+        colp = (PCOL)arg[i];
 
         if (colp->GetTo_Tdb() == this) {
           if (colp->GetAmType() == TYPE_AM_ROWID) {
@@ -1461,7 +1344,7 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
               type[i] = 5;
 
           } else if (Txfp->Blocked && Txfp->Nrec > 1 &&
-										 colp->IsClustered()) {
+                     colp->IsClustered()) {
             type[i] = 2;
             xdb2 = colp->GetClustered() == 2;
             } // endif Clustered
@@ -1477,9 +1360,9 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
         break;
 //    case TYPE_SCALF:
 //      if (((PSCALF)arg[i])->GetOp() == OP_ROW) {
-//    		sfr[i] = (SFROW*)arg[i];
+//        sfr[i] = (SFROW*)arg[i];
 //        type[i] = 7;
-//				} // endif Op
+//        } // endif Op
 
 //      break;
       default:
@@ -1513,10 +1396,10 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
       arg[1] = *xp;
 
       switch (op) {
-        case OP_GT:	op = OP_LT;	break;
-        case OP_GE:	op = OP_LE;	break;
-        case OP_LT:	op = OP_GT;	break;
-        case OP_LE:	op = OP_GE;	break;
+        case OP_GT: op = OP_LT; break;
+        case OP_GE: op = OP_LE; break;
+        case OP_LT: op = OP_GT; break;
+        case OP_LE: op = OP_GE; break;
         } // endswitch op
 
       } // endif
@@ -1538,7 +1421,7 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
       bfp = new(g) BLKSPCARI(this, op, arg, Txfp->Nrec);
 
 #if 0
-	} else if (n == 8 || n == 14) {
+  } else if (n == 8 || n == 14) {
     if (n == 8 && ctype != TYPE_LIST) {
       // Should never happen
       strcpy(g->Message, "Block opt: bad constant");
@@ -1551,41 +1434,41 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
       arg[1] = arg[0];
 
       switch (op) {
-        case OP_GT:	op = OP_LT;	break;
-        case OP_GE:	op = OP_LE;	break;
-        case OP_LT:	op = OP_GT;	break;
-        case OP_LE:	op = OP_GE;	break;
+        case OP_GT: op = OP_LT; break;
+        case OP_GE: op = OP_LE; break;
+        case OP_LT: op = OP_GT; break;
+        case OP_LE: op = OP_GE; break;
         } // endswitch op
 
       } // endif
 
-		xarg1 = sfr[0]->GetParms(n1);
+    xarg1 = sfr[0]->GetParms(n1);
 
-		if (n == 8) {
-			vlp = (LSTVAL*)arg[1]->GetValue();
-			n2 = vlp->GetN();
-			xp[1] = new(g) CONSTANT((PVAL)NULL);
-		} else
-			xarg2 = sfr[1]->GetParms(n2);
+    if (n == 8) {
+      vlp = (LSTVAL*)arg[1]->GetValue();
+      n2 = vlp->GetN();
+      xp[1] = new(g) CONSTANT((PVAL)NULL);
+    } else
+      xarg2 = sfr[1]->GetParms(n2);
 
-		if (n1 != n2)
-			return NULL;						 // Should we flag an error ?
+    if (n1 != n2)
+      return NULL;             // Should we flag an error ?
 
-		fp = (PBF*)PlugSubAlloc(g, NULL, n1 * sizeof(PBF));
+    fp = (PBF*)PlugSubAlloc(g, NULL, n1 * sizeof(PBF));
 
-		for (i = 0; i < n1; i++) {
-			xp[0] = xarg1[i];
+    for (i = 0; i < n1; i++) {
+      xp[0] = xarg1[i];
 
-			if (n == 8) 
-				((CONSTANT*)xp[1])->SetValue(vlp->GetSubVal(i));
-			else
-				xp[1] = xarg2[i];
+      if (n == 8)
+        ((CONSTANT*)xp[1])->SetValue(vlp->GetSubVal(i));
+      else
+        xp[1] = xarg2[i];
 
-			b[0] = b[1] = (xp[0]->GetResultType() != xp[1]->GetResultType());
-			ok |= ((fp[i] = CheckBlockFilari(g, xp, op, b)) != NULL);
-			} // endfor i
+      b[0] = b[1] = (xp[0]->GetResultType() != xp[1]->GetResultType());
+      ok |= ((fp[i] = CheckBlockFilari(g, xp, op, b)) != NULL);
+      } // endfor i
 
-		if (ok)
+    if (ok)
       bfp = new(g) BLKFILLOG(this, OP_AND, fp, n1);
 #endif // 0
 
@@ -1647,21 +1530,20 @@ int TDBDOS::TestBlock(PGLOBAL g)
         // Before suppressing the filter for the block(s) it is
         // necessary to reset the filtered columns to NOT_READ
         // so their new values are retrieved by the SELECT list.
-				if (To_Filter) // Can be NULL when externally called (XDB)
-	        To_Filter->Reset();
+        if (To_Filter) // Can be NULL when externally called (XDB)
+          To_Filter->Reset();
 
         SavFil = To_Filter;
         To_Filter = NULL; // So remove filter
       } // endswitch Beval
 
-		if (trace)
-			htrc("BF Eval Beval=%d\n", Beval);
+    if (trace)
+      htrc("BF Eval Beval=%d\n", Beval);
 
     } // endif To_BlkFil
 
   return rc;
   } // end of TestBlock
-#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  Check whether we have to create/update permanent indexes.          */
@@ -1888,7 +1770,7 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
 
       if (trace)
         htrc(" Filen=%d min_rec=%d\n", len, rec);
-              
+
       MaxSize = (len + rec - 1) / rec;
 
       if (trace)
@@ -1959,9 +1841,7 @@ bool TDBDOS::OpenDB(PGLOBAL g)
       /*****************************************************************/
       To_Kindex->Reset();
 
-#if defined(BLK_INDX)
     ResetBlockFilter(g);
-#endif   // BLK_INDX
     return false;
     } // endif use
 
@@ -1997,12 +1877,10 @@ bool TDBDOS::OpenDB(PGLOBAL g)
 
   Use = USE_OPEN;       // Do it now in case we are recursively called
 
-#if defined(BLK_INDX)
   /*********************************************************************/
   /*  Allocate the block filter tree if evaluation is possible.        */
   /*********************************************************************/
   To_BlkFil = InitBlockFilter(g, To_Filter);
-#endif   // BLK_INDX
 
   /*********************************************************************/
   /*  Allocate the line buffer plus a null character.                  */
@@ -2161,8 +2039,6 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
   Deplac = cdp->GetOffset();
   Long = cdp->GetLong();
   To_Val = NULL;
-
-#if defined(BLK_INDX)
   Clustered = 0;
   Sorted = 0;
   Ndv = 0;                // Currently used only for XDB2
@@ -2196,7 +2072,6 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
     } // endif Clustered
 
     } // endif Opt
-#endif   // BLK_INDX
 
   OldVal = NULL;                  // Currently used only in MinMax
   Ldz = false;
@@ -2239,7 +2114,6 @@ DOSCOL::DOSCOL(DOSCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
   Dcm = col1->Dcm;
   OldVal = col1->OldVal;
   Buf = col1->Buf;
-#if defined(BLK_INDX)
   Clustered = col1->Clustered;
   Sorted = col1->Sorted;
   Min = col1->Min;
@@ -2248,10 +2122,8 @@ DOSCOL::DOSCOL(DOSCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
   Dval = col1->Dval;
   Ndv = col1->Ndv;
   Nbm = col1->Nbm;
-#endif   // BLK_INDX
   } // end of DOSCOL copy constructor
 
-#if defined(BLK_INDX)
 /***********************************************************************/
 /*  VarSize: This function tells UpdateDB whether or not the block     */
 /*  optimization file must be redone if this column is updated, even   */
@@ -2273,7 +2145,6 @@ bool DOSCOL::VarSize(void)
     return false;
 
   } // end VarSize
-#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  SetBuffer: prepare a column block for write operation.             */
@@ -2433,11 +2304,11 @@ void DOSCOL::WriteColumn(PGLOBAL g)
     htrc("Lrecl=%d deplac=%d int=%d\n", tdbp->Lrecl, Deplac, Long);
 
   field = Long;
-	len = (signed)strlen(tdbp->To_Line);
+  len = (signed)strlen(tdbp->To_Line);
 
-	if (tdbp->GetAmType() == TYPE_AM_DOS && len > tdbp->Lrecl) {
-		sprintf(g->Message, "Line size %d is bigger than lrecl %d",
-						len, tdbp->Lrecl);
+  if (tdbp->GetAmType() == TYPE_AM_DOS && len > tdbp->Lrecl) {
+    sprintf(g->Message, "Line size %d is bigger than lrecl %d",
+            len, tdbp->Lrecl);
     longjmp(g->jumper[g->jump_level], 32);
     } // endif
 
@@ -2558,7 +2429,6 @@ void DOSCOL::WriteColumn(PGLOBAL g)
 
   } // end of WriteColumn
 
-#if defined(BLK_INDX)
 /***********************************************************************/
 /*  SetMinMax: Calculate minimum and maximum values for one block.     */
 /*  Note: TYPE_STRING is stored and processed with zero ended strings  */
@@ -2696,7 +2566,6 @@ bool DOSCOL::AddDistinctValue(PGLOBAL g)
 
   return FALSE;
   } // end of AddDistinctValue
-#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  Make file output of a Dos column descriptor block.                 */

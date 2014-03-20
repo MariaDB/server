@@ -36,15 +36,13 @@ class DllExport COLBLK : public XOBJECT {
   virtual int     GetAmType() {return TYPE_AM_ERROR;}
   virtual void    SetOk(void) {Status |= BUF_EMPTY;}
   virtual PTDB    GetTo_Tdb(void) {return To_Tdb;}
-#if defined(BLK_INDX)
   virtual int     GetClustered(void) {return 0;}
-  virtual int			IsClustered(void) {return FALSE;}
-#endif   // BLK_INDX
+  virtual int     IsClustered(void) {return FALSE;}
           PCOL    GetNext(void) {return Next;}
           PSZ     GetName(void) {return Name;}
           int     GetIndex(void) {return Index;}
-          int     GetOpt(void) {return Opt;}
           ushort  GetColUse(void) {return ColUse;}
+          int     GetOpt(void) {return Opt;}
           ushort  GetColUse(ushort u) {return (ColUse & u);}
           ushort  GetStatus(void) {return Status;}
           ushort  GetStatus(ushort u) {return (Status & u);}
@@ -53,9 +51,7 @@ class DllExport COLBLK : public XOBJECT {
           void    AddColUse(ushort u) {ColUse |= u;}
           void    AddStatus(ushort u) {Status |= u;}
           void    SetNext(PCOL cp) {Next = cp;}
-#if defined(MRRBKA_SUPPORT)
           PXCOL   GetKcol(void) {return To_Kcol;}
-#endif   // MRRBKA_SUPPORT
           void    SetKcol(PXCOL kcp) {To_Kcol = kcp;}
           PCOLDEF GetCdp(void) {return Cdp;}
           PSZ     GetDomain(void) {return (Cdp) ? Cdp->Decode : NULL;}
@@ -64,15 +60,12 @@ class DllExport COLBLK : public XOBJECT {
           bool    IsUnsigned(void) {return Unsigned;}
           bool    IsNullable(void) {return Nullable;}
           void    SetNullable(bool b) {Nullable = b;}
-                  
-  // Methods      
+
+  // Methods
   virtual void    Reset(void);
   virtual bool    Compare(PXOB xp);
   virtual bool    SetFormat(PGLOBAL, FORMAT&);
-  virtual int     CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &xp, int &ag);
   virtual bool    IsSpecial(void) {return false;}
-  virtual int     CheckSpcCol(PTDB tdbp, int n) {return 2;}
-  virtual bool    CheckSort(PTDB tdbp);
   virtual bool    Eval(PGLOBAL g);
   virtual bool    SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
   virtual void    SetTo_Val(PVAL valp) {}
@@ -80,10 +73,7 @@ class DllExport COLBLK : public XOBJECT {
   virtual void    WriteColumn(PGLOBAL g);
   virtual void    Print(PGLOBAL g, FILE *, uint);
   virtual void    Print(PGLOBAL g, char *, uint);
-#if defined(BLK_INDX)
   virtual bool    VarSize(void) {return false;}
-#endif   // BLK_INDX
-  virtual bool    IsColInside(PCOL colp) {return this == colp;}
           bool    InitValue(PGLOBAL g);
 
  protected:
@@ -160,8 +150,6 @@ class DllExport FIDBLK : public SPCBLK {
 
   // Methods
   virtual void Reset(void) {}       // This is a pseudo constant column
-  virtual int  CheckSpcCol(PTDB tdbp, int n) 
-  {return (n == 2 && tdbp == To_Tdb) ? 1 : 2;}
   virtual void ReadColumn(PGLOBAL g);
 
  protected:
@@ -181,8 +169,6 @@ class DllExport TIDBLK : public SPCBLK {
 
   // Methods
   virtual void Reset(void) {}       // This is a pseudo constant column
-  virtual int  CheckSpcCol(PTDB tdbp, int n)
-              {return (n == 3 && tdbp == To_Tdb) ? 1 : 2;}
   virtual void ReadColumn(PGLOBAL g);
 
  protected:
@@ -206,8 +192,6 @@ class DllExport SIDBLK : public SPCBLK {
 
   // Methods
   virtual void Reset(void) {}       // This is a pseudo constant column
-  virtual int  CheckSpcCol(PTDB tdbp, int n)
-              {return (n == 3 && tdbp == To_Tdb) ? 1 : 2;}
   virtual void ReadColumn(PGLOBAL g);
 
  protected:

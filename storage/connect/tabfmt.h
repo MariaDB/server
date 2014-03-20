@@ -1,14 +1,13 @@
 /*************** TabFmt H Declares Source Code File (.H) ***************/
-/*  Name: TABFMT.H    Version 2.3                                      */
+/*  Name: TABFMT.H    Version 2.4                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2014    */
 /*                                                                     */
 /*  This file contains the CSV and FMT classes declares.               */
 /***********************************************************************/
 #include "xtable.h"                     // Base class declares
 #include "tabdos.h"
 
-//pedef struct _tabdesc  *PTABD;        // For friend setting
 typedef class  TDBFMT    *PTDBFMT;
 
 /***********************************************************************/
@@ -90,8 +89,8 @@ class TDBCSV : public TDBDOS {
   int   Nerr;              // Number of bad records
   int   Maxerr;            // Maximum number of bad records
   int   Quoted;            // Quoting level for quoted fields
-  bool  Accept;             // true if bad lines are accepted
-  bool  Header;             // true if first line contains column headers
+  bool  Accept;            // true if bad lines are accepted
+  bool  Header;            // true if first line contains column headers
   char  Sep;               // Separator
   char  Qot;               // Quoting character
   }; // end of class TDBCSV
@@ -112,12 +111,9 @@ class CSVCOL : public DOSCOL {
   virtual int    GetAmType() {return TYPE_AM_CSV;}
 
   // Methods
-#if defined(BLK_INDX)
   virtual bool   VarSize(void);
-#endif   // BLK_INDX
   virtual void   ReadColumn(PGLOBAL g);
   virtual void   WriteColumn(PGLOBAL g);
-//        void   Print(FILE *, uint);
 
  protected:
   // Default constructor not to be used
@@ -178,15 +174,15 @@ class TDBCCL : public TDBCAT {
   TDBCCL(PCSVDEF tdp);
 
  protected:
-	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+  // Specific routines
+  virtual PQRYRES GetResult(PGLOBAL g);
 
   // Members
   char   *Fn;                     // The CSV file (path) name
   bool    Hdr;                    // true if first line contains headers
   int     Mxr;                    // Maximum number of bad records
   int     Qtd;                    // Quoting level for quoted fields
-  char    Sep;                    // Separator for standard CSV files 
+  char    Sep;                    // Separator for standard CSV files
   }; // end of class TDBCCL
 
 /* ------------------------- End of TabFmt.H ------------------------- */

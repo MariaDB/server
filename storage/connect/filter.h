@@ -53,25 +53,25 @@ class DllExport FILTER : public XOBJECT { /* Filter description block  */
   virtual bool   Init(PGLOBAL);
   virtual bool   Eval(PGLOBAL);
   virtual bool   SetFormat(PGLOBAL, FORMAT&) {return TRUE;}      // NUY
-  virtual int    CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &xp, int &ag);
-  virtual int    RefNum(PSQL);
-  virtual PXOB   SetSelect(PGLOBAL, PSQL, bool) {return NULL;}   // NUY
+//virtual int    CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &xp, int &ag);
+//virtual int    RefNum(PSQL);
+//virtual PXOB   SetSelect(PGLOBAL, PSQL, bool) {return NULL;}   // NUY
 //virtual PXOB   CheckSubQuery(PGLOBAL, PSQL);
-  virtual bool   CheckLocal(PTDB);
-  virtual int    CheckSpcCol(PTDB tdbp, int n);
+//virtual bool   CheckLocal(PTDB);
+//virtual int    CheckSpcCol(PTDB tdbp, int n);
   virtual void   Print(PGLOBAL g, FILE *f, UINT n);
   virtual void   Print(PGLOBAL g, char *ps, UINT z);
-          PFIL   Linearize(bool nosep);
-          PFIL   Link(PGLOBAL g, PFIL fil2);
-          PFIL   RemoveLastSep(void);
+//        PFIL   Linearize(bool nosep);
+//        PFIL   Link(PGLOBAL g, PFIL fil2);
+//        PFIL   RemoveLastSep(void);
 //        PFIL   SortJoin(PGLOBAL g);
 //        bool   FindJoinFilter(POPJOIN opj, PFIL fprec, bool teq,
 //               bool tek, bool tk2, bool tc2, bool tix, bool thx);
 //        bool   CheckHaving(PGLOBAL g, PSQL sqlp);
           bool   Convert(PGLOBAL g, bool having);
-          int    SplitFilter(PFIL *fp);
-          int    SplitFilter(PFIL *fp, PTDB tp, int n);
-          PFIL   LinkFilter(PGLOBAL g, PFIL fp2);
+//        int    SplitFilter(PFIL *fp);
+//        int    SplitFilter(PFIL *fp, PTDB tp, int n);
+//        PFIL   LinkFilter(PGLOBAL g, PFIL fp2);
 //        PFIL   Copy(PTABS t);
 
  protected:

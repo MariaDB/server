@@ -448,7 +448,6 @@ template <>
 uchar TYPBLK<uchar>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetUTinyValue(n);}
 
-#if defined(BLK_INDX)
 /***********************************************************************/
 /*  Set one value in a block if val is less than the current value.    */
 /***********************************************************************/
@@ -478,7 +477,6 @@ void TYPBLK<TYPE>::SetMax(PVAL valp, int n)
     tmin = tval;
 
   } // end of SetMax
-#endif   // BLK_INDX
 
 #if 0
 /***********************************************************************/
@@ -812,7 +810,6 @@ void CHRBLK::SetValue(PVBLK pv, int n1, int n2)
   SetNull(n1, b);
   } // end of SetValue
 
-#if defined(BLK_INDX)
 /***********************************************************************/
 /*  Set one value in a block if val is less than the current value.    */
 /***********************************************************************/
@@ -842,7 +839,6 @@ void CHRBLK::SetMax(PVAL valp, int n)
     memcpy(bp, vp, Long);
 
   } // end of SetMax
-#endif   // BLK_INDX
 
 #if 0
 /***********************************************************************/
@@ -1166,7 +1162,6 @@ void STRBLK::SetValue(char *sp, uint len, int n)
   Strp[n] = p;
   } // end of SetValue
 
-#if defined(BLK_INDX)
 /***********************************************************************/
 /*  Set one value in a block if val is less than the current value.    */
 /***********************************************************************/
@@ -1194,7 +1189,6 @@ void STRBLK::SetMax(PVAL valp, int n)
     SetValue(valp, n);
 
   } // end of SetMax
-#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  Move one value from i to j.                                        */
@@ -1335,7 +1329,6 @@ void DATBLK::SetValue(PSZ p, int n)
 
   } // end of SetValue
 
-#if defined(BLK_INDX)
 /* -------------------------- Class MBVALS --------------------------- */
 
 /***********************************************************************/
@@ -1379,7 +1372,6 @@ void MBVALS::Free(void)
   PlgDBfree(Mblk);
   Vblk = NULL;
   } // end of Free
-#endif   // BLK_INDX
 
 /* ------------------------- End of Valblk --------------------------- */
 

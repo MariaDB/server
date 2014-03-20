@@ -1,7 +1,7 @@
 /*************** RelDef H Declares Source Code File (.H) ***************/
-/*  Name: RELDEF.H  Version 1.3                                        */
+/*  Name: RELDEF.H  Version 1.4                                        */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2014    */
 /*                                                                     */
 /*  This file contains the DEF classes definitions.                    */
 /***********************************************************************/
@@ -38,7 +38,6 @@ class DllExport RELDEF : public BLOCK {      // Relation definition block
   void    SetCat(PCATLG cat) { Cat=cat; }
 
   // Methods
-//virtual bool DeleteTableFile(PGLOBAL g) {return true;}
   virtual bool Indexable(void) {return false;}
   virtual bool Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am) = 0;
   virtual PTDB GetTable(PGLOBAL g, MODE mode) = 0;
@@ -70,7 +69,7 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
   void    SetNext(PTABDEF tdfp) {Next = tdfp;}
   int     GetMultiple(void) {return Multiple;}
   int     GetPseudo(void) {return Pseudo;}
-  PSZ     GetPath(void) 
+  PSZ     GetPath(void)
             {return (Database) ? (PSZ)Database : Cat->GetDataPath();}
   bool    SepIndex(void) {return Cat->GetBoolCatInfo("SepIndex", false);}
   bool    IsReadOnly(void) {return Read_Only;}
@@ -116,7 +115,6 @@ class DllExport OEMDEF : public TABDEF {                  /* OEM table */
   virtual AMT  GetDefType(void) {return TYPE_AM_OEM;}
 
   // Methods
-//virtual bool DeleteTableFile(PGLOBAL g);
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
 
@@ -190,7 +188,6 @@ class DllExport COLDEF : public COLCRT { /* Column description block            
   int     GetClen(void) {return Clen;}
   int     GetType(void) {return Buf_Type;}
   int     GetPoff(void) {return Poff;}
-#if defined(BLK_INDX)
   void   *GetMin(void) {return To_Min;}
   void    SetMin(void *minp) {To_Min = minp;}
   void   *GetMax(void) {return To_Max;}
@@ -205,12 +202,10 @@ class DllExport COLDEF : public COLCRT { /* Column description block            
   void    SetNdv(int ndv) {Ndv = ndv;}
   int     GetNbm(void) {return Nbm;}
   void    SetNbm(int nbm) {Nbm = nbm;}
-#endif   // BLK_INDX
   int     Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff);
   void    Define(PGLOBAL g, PCOL colp);
 
  protected:
-#if defined(BLK_INDX)
   void   *To_Min;              /* Point to array of block min values   */
   void   *To_Max;              /* Point to array of block max values   */
   int    *To_Pos;              /* Point to array of block positions    */
@@ -219,7 +214,6 @@ class DllExport COLDEF : public COLCRT { /* Column description block            
   void   *To_Dval;             /* To array of column distinct values   */
   int     Ndv;                 /* Number of distinct values            */
   int     Nbm;                 /* Number of ULONG in bitmap (XDB2)     */
-#endif   // BLK_INDX
   int     Buf_Type;            /* Internal data type                   */
   int     Clen;                /* Internal data size in chars (bytes)  */
   int     Poff;                /* Calculated offset for Packed tables  */

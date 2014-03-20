@@ -911,7 +911,7 @@ bool XINDEX::Init(PGLOBAL g)
 #endif   // TRACE
 
   // The test on ID was suppressed because MariaDB can change an index ID
-  // when other indexes are added or deleted 
+  // when other indexes are added or deleted
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
 #if defined(TRACE)
@@ -1152,7 +1152,7 @@ bool XINDEX::Init(PGLOBAL g)
     // Position the memory base at the offset of this index
     mbase += noff[id].Low;
     } // endif id
-    
+
   //  Now start the mapping process.
   nv = (int*)mbase;
   mbase += NZ * sizeof(int);
@@ -1163,7 +1163,7 @@ bool XINDEX::Init(PGLOBAL g)
 #endif   // TRACE
 
   // The test on ID was suppressed because MariaDB can change an index ID
-  // when other indexes are added or deleted 
+  // when other indexes are added or deleted
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     // Not this index
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
@@ -1359,7 +1359,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
 #endif   // TRACE
 
   // The test on ID was suppressed because MariaDB can change an index ID
-  // when other indexes are added or deleted 
+  // when other indexes are added or deleted
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
 #if defined(TRACE)
@@ -1450,7 +1450,7 @@ int XINDEX::Range(PGLOBAL g, int limit, bool incl)
       n = k;
 //      if (limit)
 //        n = (Mul) ? k : kp->Val_K;
-//      else 
+//      else
 //        n = (Mul) ? Pof[kp->Val_K + 1] - k : 1;
 
   } else {
@@ -1792,7 +1792,7 @@ int XINDEX::FastFind(int nv)
 XINDXS::XINDXS(PTDBDOS tdbp, PIXDEF xdp, PXLOAD pxp, PCOL *cp, PXOB *xp)
       : XINDEX(tdbp, xdp, pxp, cp, xp)
   {
-  Srtd = To_Cols[0]->GetOpt() < 0;          // ?????
+  Srtd = To_Cols[0]->GetOpt() == 2;
   } // end of XINDXS constructor
 
 /***********************************************************************/
@@ -1837,7 +1837,7 @@ int XINDXS::Range(PGLOBAL g, int limit, bool incl)
     if (k < Num_K || Op != OP_EQ)
       if (limit)
         n = (Mul) ? k : kp->Val_K;
-      else 
+      else
         n = (Mul) ? Pof[kp->Val_K + 1] - k : 1;
 
   } else {
@@ -1940,18 +1940,18 @@ int XINDXS::Fetch(PGLOBAL g)
       /*  Look for the first key equal to the link column values       */
       /*  and return its rank whithin the index table.                 */
       /*****************************************************************/
-      if (To_KeyCol->InitFind(g, To_Vals[0]))                       
-        return -1;                 // No more constant values     
-      else                                                         
-        Nth++;                                                     
-                                                                   
-#if defined(TRACE)                                                 
-        printf("Fetch: Looking for new value\n");                   
-#endif   // TRACE                                                   
-                                                                   
-      Cur_K = FastFind(1);                                         
-                                                                   
-      if (Cur_K >= Num_K)                                           
+      if (To_KeyCol->InitFind(g, To_Vals[0]))
+        return -1;                 // No more constant values
+      else
+        Nth++;
+
+#if defined(TRACE)
+        printf("Fetch: Looking for new value\n");
+#endif   // TRACE
+
+      Cur_K = FastFind(1);
+
+      if (Cur_K >= Num_K)
         // Rank not whithin index table, signal record not found
         return -2;
       else if (Mul)
@@ -2048,7 +2048,7 @@ int XINDXS::FastFind(int nk)
 XLOAD::XLOAD(void)
   {
   Hfile = INVALID_HANDLE_VALUE;
-#if defined(WIN32) && defined(XMAP)    
+#if defined(WIN32) && defined(XMAP)
   ViewBase = NULL;
 #endif   // WIN32  &&         XMAP
   NewOff.Val = 0LL;
@@ -2124,7 +2124,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
       return true;
       } // endif
-    
+
     NewOff.Low = (int)ftell(Xfile);
   } else if (mode == MODE_WRITE) {
     if (id >= 0) {
@@ -2147,7 +2147,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
       return true;
       } // endif
-    
+
   } // endif mode
 
   return false;
@@ -2358,14 +2358,14 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       } // endif rc
 
     // Position the cursor at the offset of this index
-    rc = SetFilePointer(Hfile, noff[id].Low, 
+    rc = SetFilePointer(Hfile, noff[id].Low,
                        (PLONG)&noff[id].High, FILE_BEGIN);
 
     if (rc == INVALID_SET_FILE_POINTER) {
       sprintf(g->Message, MSG(FUNC_ERRNO), GetLastError(), "SetFilePointer");
       return true;
       } // endif
-    
+
   } // endif Mode
 
 #else   // UNIX
@@ -2414,7 +2414,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Seek");
       return true;
       } // endif
-    
+
   } else if (mode == MODE_WRITE) {
     if (id >= 0) {
       // New not sep index file. Write the header.
@@ -2434,7 +2434,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Hseek");
       return true;
       } // endif
-    
+
   } // endif mode
 #endif  // UNIX
 
@@ -2572,7 +2572,7 @@ void XHUGE::Close(char *fn, int id)
     CloseFileHandle(Hfile);
     Hfile = CreateFile(fn, GENERIC_READ | GENERIC_WRITE, 0, NULL,
                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-                       
+
     if (Hfile != INVALID_HANDLE_VALUE)
       if (SetFilePointer(Hfile, id * sizeof(IOFF), NULL, FILE_BEGIN)
               != INVALID_SET_FILE_POINTER) {
@@ -2585,7 +2585,7 @@ void XHUGE::Close(char *fn, int id)
 #else   // !WIN32
   if (id >= 0 && fn) {
     fcntl(Hfile, F_SETFD, O_WRONLY);
-    
+
     if (lseek(Hfile, id * sizeof(IOFF), SEEK_SET))
       write(Hfile, &NewOff, sizeof(IOFF));
 
@@ -2723,7 +2723,7 @@ int XXROW::FastFind(int nk)
 /***********************************************************************/
 /*  KXYCOL public constructor.                                         */
 /***********************************************************************/
-KXYCOL::KXYCOL(PKXBASE kp) : To_Keys(Keys.Memp), 
+KXYCOL::KXYCOL(PKXBASE kp) : To_Keys(Keys.Memp),
         To_Bkeys(Bkeys.Memp), Kof((CPINT&)Koff.Memp)
   {
   Next = NULL;
@@ -2797,7 +2797,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
 
   // Store this information to avoid sorting when already done
   if (Asc)
-    IsSorted = colp->GetOpt() < 0;
+    IsSorted = colp->GetOpt() == 2;
 
 //SetNulls(colp->IsNullable()); for when null columns will be indexable
   return false;

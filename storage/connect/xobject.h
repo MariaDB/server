@@ -1,7 +1,7 @@
 /*************** Xobject H Declares Source Code File (.H) **************/
-/*  Name: XOBJECT.H    Version 2.3                                     */
+/*  Name: XOBJECT.H    Version 2.4                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /*  This file contains the XOBJECT and derived classes declares.       */
 /***********************************************************************/
@@ -60,17 +60,6 @@ class DllExport XOBJECT : public BLOCK {
   virtual bool   Init(PGLOBAL) {return false;}
   virtual bool   Eval(PGLOBAL) {return false;}
   virtual bool   SetFormat(PGLOBAL, FORMAT&) = 0;
-  virtual int    CheckColumn(PGLOBAL, PSQL, PXOB &, int &) {return 0;}
-  virtual int    RefNum(PSQL) {return 0;}
-  virtual void   AddTdb(PSQL, PTDB *, int&) {}
-  virtual PXOB   SetSelect(PGLOBAL, PSQL, bool) {return this;}
-  virtual PXOB   CheckSubQuery(PGLOBAL, PSQL) {return this;}
-  virtual bool   CheckLocal(PTDB) {return true;}
-  virtual int    CheckSpcCol(PTDB, int) {return 2;}
-  virtual bool   CheckSort(PTDB) {return false;}
-  virtual bool   VerifyColumn(PTDB txp) {return false;}
-  virtual bool   VerifyTdb(PTDB& tdbp) {return false;}
-  virtual bool   IsColInside(PCOL colp) {return false;}
 
  protected:
   PVAL Value;    // The current value of the object.
@@ -97,7 +86,6 @@ class DllExport XVOID : public XOBJECT {
   // Methods
   virtual bool   Compare(PXOB xp) {return xp->GetType() == TYPE_VOID;}
   virtual bool   SetFormat(PGLOBAL, FORMAT&) {return true;}
-  virtual int    CheckSpcCol(PTDB, int) {return 0;}
   }; // end of class XVOID
 
 
@@ -122,14 +110,8 @@ class DllExport CONSTANT : public XOBJECT {
   virtual bool   Compare(PXOB xp);
   virtual bool   SetFormat(PGLOBAL g, FORMAT& fmt)
                  {return Value->SetConstFormat(g, fmt);}
-  virtual int    CheckSpcCol(PTDB, int) {return 1;}
-#if defined(BLK_INDX)
           void   Convert(PGLOBAL g, int newtype);
-#endif   // BLK_INDX
-//        bool   Rephrase(PGLOBAL g, PSZ work);
           void   SetValue(PVAL vp) {Value = vp;}
-  virtual bool   VerifyColumn(PTDB txp) {return true;}
-  virtual bool   VerifyTdb(PTDB& tdbp) {return true;}
   virtual void   Print(PGLOBAL g, FILE *, uint);
   virtual void   Print(PGLOBAL g, char *, uint);
   }; // end of class CONSTANT

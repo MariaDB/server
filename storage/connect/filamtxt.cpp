@@ -214,7 +214,7 @@ int TXTFAM::Cardinality(PGLOBAL g)
       } // endif Padded
 
       if (trace)
-        htrc(" Computed max_K=%d Filen=%d lrecl=%d\n", 
+        htrc(" Computed max_K=%d Filen=%d lrecl=%d\n",
               card, len, Lrecl);
 
     } else
@@ -241,14 +241,10 @@ int TXTFAM::MaxBlkSize(PGLOBAL g, int s)
   // Roughly estimate the table size as the sum of blocks
   // that can contain good rows
   for (size = 0, CurBlk = 0; CurBlk < Block; CurBlk++)
-#if defined(BLK_INDX)
     if ((rc = Tdbp->TestBlock(g)) == RC_OK)
       size += (CurBlk == blm1) ? last : Nrec;
     else if (rc == RC_EF)
       break;
-#else   // !BLK_INDX
-    size += (CurBlk == blm1) ? last : Nrec;
-#endif  // !BLK_INDX
 
   CurBlk = savcur;
   return size;
@@ -544,24 +540,21 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
 
   if (trace > 1)
     htrc("ReadBuffer: Tdbp=%p To_Line=%p Placed=%d\n",
-                      Tdbp, Tdbp->To_Line, Placed); 
+                      Tdbp, Tdbp->To_Line, Placed);
 
   if (!Placed) {
     /*******************************************************************/
     /*  Record file position in case of UPDATE or DELETE.              */
     /*******************************************************************/
-#if defined(BLK_INDX)
    next:
-#endif   // BLK_INDX
     if (RecordPos(g))
       return RC_FX;
 
     CurBlk = (int)Rows++;
 
      if (trace > 1)
-      htrc("ReadBuffer: CurBlk=%d\n", CurBlk); 
+      htrc("ReadBuffer: CurBlk=%d\n", CurBlk);
 
-#if defined(BLK_INDX)
    /*******************************************************************/
     /*  Check whether optimization on ROWID                            */
     /*  can be done, as well as for join as for local filtering.       */
@@ -576,7 +569,7 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
 
         goto next;
       } // endswitch rc
-#endif   // BLK_INDX
+
   } else
     Placed = false;
 
@@ -1019,11 +1012,7 @@ BLKFAM::BLKFAM(PDOSDEF tdp) : DOSFAM(tdp)
   Last = tdp->GetLast();
   Nrec = tdp->GetElemt();
   Closing = false;
-#if defined(BLK_INDX)
   BlkPos = tdp->GetTo_Pos();
-#else   // !BLK_INDX
-  BlkPos = NULL;
-#endif  // !BLK_INDX
   CurLine = NULL;
   NxtLine = NULL;
   OutBuf = NULL;
@@ -1069,14 +1058,10 @@ int BLKFAM::MaxBlkSize(PGLOBAL g, int s)
   // Roughly estimate the table size as the sum of blocks
   // that can contain good rows
   for (size = 0, CurBlk = 0; CurBlk < Block; CurBlk++)
-#if defined(BLK_INDX)
     if ((rc = Tdbp->TestBlock(g)) == RC_OK)
       size += (CurBlk == Block - 1) ? Last : Nrec;
     else if (rc == RC_EF)
       break;
-#else   // !BLK_INDX
-    size += (CurBlk == Block - 1) ? Last : Nrec;
-#endif  // !BLK_INDX
 
   CurBlk = savcur;
   return size;
@@ -1187,7 +1172,6 @@ int BLKFAM::SkipRecord(PGLOBAL g, bool header)
 /***********************************************************************/
 int BLKFAM::ReadBuffer(PGLOBAL g)
   {
-#if defined(BLK_INDX)
   int i, n, rc = RC_OK;
 
   /*********************************************************************/
@@ -1291,10 +1275,6 @@ int BLKFAM::ReadBuffer(PGLOBAL g)
   // Store the current record file position for Delete and Update
   Fpos = BlkPos[CurBlk] + CurLine - To_Buf;
   return rc;
-#else   // !BLK_POS
-  strcpy(g->Message, "This AM cannot be used in this version");
-  return RC_FX;
-#endif  // !BLK_POS
   } // end of ReadBuffer
 
 /***********************************************************************/

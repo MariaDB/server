@@ -374,18 +374,7 @@ PDBUSER PlgMakeUser(PGLOBAL g)
     } // endif dbuserp
 
   memset(dbuserp, 0, sizeof(DBUSERBLK));
-//dbuserp->Act2 = g->Activityp;
-//#if defined(UNIX)
-//  dbuserp->LineLen = 160;
-//#else
-//  dbuserp->LineLen = 78;
-//#endif
-//dbuserp->Maxres = MAXRES;
-//dbuserp->Maxlin = MAXLIN;
-#if defined(BLK_INDX)
   dbuserp->Maxbmp = MAXBMP;
-#endif   // BLK_INDX
-//dbuserp->AlgChoice = AMOD_AUTO;
   dbuserp->UseTemp = TMP_AUTO;
   dbuserp->Check = CHK_ALL;
   strcpy(dbuserp->Server, "CONNECT");

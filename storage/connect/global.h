@@ -23,12 +23,12 @@
 #define XML_SUPPORT 1
 #endif
 
-#if defined(XMSG) 
+#if defined(XMSG)
 // Definition used to read messages from message file.
 #include "msgid.h"
 #define MSG(I)   PlugReadMessage(NULL, MSG_##I, #I)
 #define STEP(I)  PlugReadMessage(g, MSG_##I, #I)
-#elif defined(NEWMSG) 
+#elif defined(NEWMSG)
 // Definition used to get messages from resource.
 #include "msgid.h"
 #define MSG(I)   PlugGetMessage(NULL, MSG_##I)
@@ -222,9 +222,7 @@ typedef struct _global {            /* Global structure                */
   int       Createas;               /* To pass info to created table   */
   void     *Xchk;                   /* indexes in create/alter         */
   short     Alchecked;              /* Checked for ALTER               */
-#if defined(MRRBKA_SUPPORT)
   short     Mrr;                    /* True when doing mrr             */
-#endif   // MRRBKA_SUPPORT
   short     Trace;
   int       jump_level;
   jmp_buf   jumper[MAX_JUMP + 2];

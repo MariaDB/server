@@ -10,9 +10,6 @@ typedef class XMLDEF *PXMLDEF;
 typedef class TDBXML *PTDBXML;
 typedef class XMLCOL *PXMLCOL;
 
-// These functions are exported from the Extended.dll
-//PTABDEF __stdcall GetXML(PGLOBAL g, void *memp);
-
 /* --------------------------- XML classes --------------------------- */
 
 /***********************************************************************/
@@ -30,7 +27,6 @@ class DllExport XMLDEF : public TABDEF {  /* Logical table description */
   // Methods
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE m);
-//virtual bool DeleteTableFile(PGLOBAL g);
 
  protected:
   // Members
@@ -53,7 +49,6 @@ class DllExport XMLDEF : public TABDEF {  /* Logical table description */
   }; // end of XMLDEF
 
 #if defined(INCLUDE_TDBXML)
-
 /***********************************************************************/
 /*  This is the class declaration for the simple XML tables.           */
 /***********************************************************************/
@@ -174,15 +169,15 @@ class XMLCOL : public COLBLK {
   XMLCOL(void) : COLBLK(1) {}
 
   // Members
-  PXLIST  Nl;              
-  PXLIST  Nlx;            
-  PXNODE  ColNode;        
-  PXNODE  ValNode;        
-  PXNODE  Cxnp;            
-  PXNODE  Vxnp;            
-  PXATTR  Vxap;            
-  PXATTR  AttNode;            
-  PTDBXML Tdbp;                          
+  PXLIST  Nl;
+  PXLIST  Nlx;
+  PXNODE  ColNode;
+  PXNODE  ValNode;
+  PXNODE  Cxnp;
+  PXNODE  Vxnp;
+  PXATTR  Vxap;
+  PXATTR  AttNode;
+  PTDBXML Tdbp;
   char   *Valbuf;                 // To the node value buffer
   char   *Xname;                  // The node or attribute name
   char*  *Nodes;                  // The intermediate nodes
@@ -242,5 +237,4 @@ class XPOSCOL : public XMLCOLX {
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
   }; // end of class XPOSCOL
-
 #endif // INCLUDE_TDBXML

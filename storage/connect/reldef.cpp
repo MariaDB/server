@@ -1,11 +1,11 @@
 /************* RelDef CPP Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: REFDEF                                                */
 /* -------------                                                       */
-/*  Version 1.3                                                        */
+/*  Version 1.4                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -286,14 +286,8 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
 #if defined(ZIP_SUPPORT)
       if (cmpr == 1)
         txfp = new(g) ZIPFAM(defp);
-      else {
-#if defined(BLK_INDX)
+      else
         txfp = new(g) ZLBFAM(defp);
-#else   // !BLK_INDX
-        strcpy(g->Message, "Compress 2 not supported yet");
-#endif  // !BLK_INDX
-        return NULL;
-      } // endelse
 #else   // !ZIP_SUPPORT
       strcpy(g->Message, "Compress not supported");
       return NULL;
@@ -375,7 +369,6 @@ COLCRT::COLCRT(void)
 /***********************************************************************/
 COLDEF::COLDEF(void) : COLCRT()
   {
-#if defined(BLK_INDX)
   To_Min = NULL;
   To_Max = NULL;
   To_Pos = NULL;
@@ -384,7 +377,6 @@ COLDEF::COLDEF(void) : COLCRT()
   To_Dval = NULL;
   Ndv = 0;
   Nbm = 0;
-#endif   // BLK_INDX
   Buf_Type = TYPE_ERROR;
   Clen = 0;
   Poff = 0;

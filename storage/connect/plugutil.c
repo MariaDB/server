@@ -2,11 +2,11 @@
 /*                                                                     */
 /* PROGRAM NAME: PLUGUTIL                                              */
 /* -------------                                                       */
-/*  Version 2.7                                                        */
+/*  Version 2.8                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1993-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1993-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -142,7 +142,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
   PGLOBAL g;
 
   if (trace > 1)
-    htrc("PlugInit: Language='%s'\n", 
+    htrc("PlugInit: Language='%s'\n",
           ((!Language) ? "Null" : (char*)Language));
 
   if (!(g = malloc(sizeof(GLOBAL)))) {
@@ -153,9 +153,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     g->Trace = 0;
     g->Createas = 0;
     g->Alchecked = 0;
-#if defined(MRRBKA_SUPPORT)
     g->Mrr = 0;
-#endif   // MRRBKA_SUPPORT
     g->Activityp = g->ActivityStart = NULL;
     g->Xchk = NULL;
     strcpy(g->Message, "");
@@ -296,7 +294,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
     case '/':
       break;
     default:
-      // This supposes that defdir ends with a SLASH 
+      // This supposes that defdir ends with a SLASH
       strcpy(direc, strcat(defdir, direc));
     } // endswitch
 
@@ -319,13 +317,13 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
 /***********************************************************************/
 /*  PlugGetMessage: get a message from the message file.               */
 /***********************************************************************/
-char *PlugReadMessage(PGLOBAL g, int mid, char *m) 
+char *PlugReadMessage(PGLOBAL g, int mid, char *m)
   {
   char  msgfile[_MAX_PATH], msgid[32], buff[256];
   char *msg;
   FILE *mfile = NULL;
 
-  GetPrivateProfileString("Message", msglang, "Message\\english.msg", 
+  GetPrivateProfileString("Message", msglang, "Message\\english.msg",
                                      msgfile, _MAX_PATH, plgini);
 
   if (!(mfile = fopen(msgfile, "rt"))) {
@@ -375,7 +373,7 @@ char *PlugReadMessage(PGLOBAL g, int mid, char *m)
 /***********************************************************************/
 /*  PlugGetMessage: get a message from the resource string table.      */
 /***********************************************************************/
-char *PlugGetMessage(PGLOBAL g, int mid) 
+char *PlugGetMessage(PGLOBAL g, int mid)
   {
   char *msg;
 
@@ -440,7 +438,7 @@ void *PlugAllocMem(PGLOBAL g, uint size)
       htrc("Memory of %u allocated at %p\n", size, areap);
     else
       htrc("PlugAllocMem: %s\n", g->Message);
-      
+
     } // endif trace
 
   return (areap);
@@ -520,7 +518,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
 /***********************************************************************/
 char *PlugDup(PGLOBAL g, const char *str)
   {
-  char  *buf; 
+  char  *buf;
   size_t len;
 
   if (str && (len = strlen(str))) {

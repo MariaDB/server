@@ -1,11 +1,11 @@
 /************* TabFmt C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABFMT                                                */
 /* -------------                                                       */
-/*  Version 3.8                                                        */
+/*  Version 3.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2013  */
+/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2014  */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -145,7 +145,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
       n = strlen(buf) + 1;
       buf[n - 2] = '\0';
 #if defined(UNIX)
-      // The file can be imported from Windows 
+      // The file can be imported from Windows
       if (buf[n - 3] == '\r')
         buf[n - 3] = 0;
 #endif   // UNIX
@@ -202,7 +202,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
       n = strlen(buf);
       buf[n - 1] = '\0';
 #if defined(UNIX)
-      // The file can be imported from Windows 
+      // The file can be imported from Windows
       if (buf[n - 2] == '\r')
         buf[n - 2] = 0;
 #endif   // UNIX
@@ -392,7 +392,7 @@ CSVDEF::CSVDEF(void)
   Fmtd = Accept = Header = false;
   Maxerr = 0;
   Quoted = -1;
-  Sep = ','; 
+  Sep = ',';
   Qot = '\0';
   }  // end of CSVDEF constructor
 
@@ -458,14 +458,9 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
 #if defined(ZIP_SUPPORT)
       if (Compressed == 1)
         txfp = new(g) ZIPFAM(this);
-      else {
-#if defined(BLK_INDX)
+      else
         txfp = new(g) ZLBFAM(this);
-#else   // !BLK_INDX
-        strcpy(g->Message, "Compress 2 not supported yet");
-        return NULL;
-#endif  // !BLK_INDX
-        } // endelse
+
 #else   // !ZIP_SUPPORT
         strcpy(g->Message, "Compress not supported");
         return NULL;
@@ -597,7 +592,7 @@ int TDBCSV::EstimatedLength(PGLOBAL g)
   {
   if (trace)
     htrc("EstimatedLength: Fields=%d Columns=%p\n", Fields, Columns);
-     
+
   if (!Fields) {
     PCSVCOL colp;
 
@@ -1081,7 +1076,7 @@ PCOL TDBFMT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 int TDBFMT::EstimatedLength(PGLOBAL g)
   {
   // This is rather stupid !!!
-  return ((PDOSDEF)To_Def)->GetEnding() + (int)((Lrecl / 10) + 1);   
+  return ((PDOSDEF)To_Def)->GetEnding() + (int)((Lrecl / 10) + 1);
   } // end of EstimatedLength
 
 /***********************************************************************/
@@ -1275,7 +1270,6 @@ CSVCOL::CSVCOL(CSVCOL *col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   Fldnum = col1->Fldnum;
   } // end of CSVCOL copy constructor
 
-#if defined(BLK_INDX)
 /***********************************************************************/
 /*  VarSize: This function tells UpdateDB whether or not the block     */
 /*  optimization file must be redone if this column is updated, even   */
@@ -1294,7 +1288,6 @@ bool CSVCOL::VarSize(void)
     return false;
 
   } // end VarSize
-#endif   // BLK_INDX
 
 /***********************************************************************/
 /*  ReadColumn: call DOSCOL::ReadColumn after having set the offet     */
@@ -1422,7 +1415,7 @@ TDBCCL::TDBCCL(PCSVDEF tdp) : TDBCAT(tdp)
   Hdr = tdp->Header;
   Mxr = tdp->Maxerr;
   Qtd = tdp->Quoted;
-  Sep = tdp->Sep;     
+  Sep = tdp->Sep;
   } // end of TDBCCL constructor
 
 /***********************************************************************/
@@ -1431,6 +1424,6 @@ TDBCCL::TDBCCL(PCSVDEF tdp) : TDBCAT(tdp)
 PQRYRES TDBCCL::GetResult(PGLOBAL g)
   {
   return CSVColumns(g, Fn, Sep, Qtd, Hdr, Mxr, false);
-	} // end of GetResult
+  } // end of GetResult
 
 /* ------------------------ End of TabFmt ---------------------------- */

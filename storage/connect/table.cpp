@@ -45,9 +45,7 @@ TDB::TDB(PTABDEF tdp) : Tdb_No(++Tnum)
   {
   Use = USE_NO;
   To_Orig = NULL;
-#if defined(BLK_INDX)
   To_Filter = NULL;
-#endif   // BLK_FILTER
   To_CondFil = NULL;
   Next = NULL;
   Name = (tdp) ? tdp->GetName() : NULL;
@@ -61,9 +59,7 @@ TDB::TDB(PTDB tdbp) : Tdb_No(++Tnum)
   {
   Use = tdbp->Use;
   To_Orig = tdbp;
-#if defined(BLK_INDX)
   To_Filter = NULL;
-#endif   // BLK_FILTER
   To_CondFil = NULL;
   Next = NULL;
   Name = tdbp->Name;
@@ -72,92 +68,6 @@ TDB::TDB(PTDB tdbp) : Tdb_No(++Tnum)
   Degree = tdbp->Degree;
   Mode = tdbp->Mode;
   } // end of TDB copy constructor
-
-/***********************************************************************/
-/*  OpenTable: Call AM open routine.                                   */
-/***********************************************************************/
-bool TDB::OpenTable(PGLOBAL g, PSQL sqlp, MODE mode)
-  {
-  if (trace)
-    htrc("Open Tdb_No=%d use=%d type=%d tdb.Mode=%d mode=%d\n",
-               Tdb_No, Use, GetAmType(), Mode, mode);
-
-  switch (Use) {
-    case USE_LIN:
-      /*****************************************************************/
-      /*  If table is read/only, only MODE_READ is allowed.            */
-      /*****************************************************************/
-      if (IsReadOnly() && mode != MODE_READ) {
-        strcpy(g->Message, MSG(READ_ONLY));
-        return true;
-        } // endif ReadOnly
-
-      /*****************************************************************/
-      /*  This could be done in any order.                             */
-      /*  Note: for not Read only first table in open in that mode.    */
-      /*****************************************************************/
-      if (Next)
-        Next->OpenTable(g, sqlp, MODE_READ);
-
-      Mode = mode;
-
-      /*****************************************************************/
-      /*  Pre-opening is done, allocate select buffers now.            */
-      /*****************************************************************/
-      Use = USE_READY;
-      break;
-
-    case USE_READY:
-      /*****************************************************************/
-      /*  This is to open files in reverse order.                      */
-      /*****************************************************************/
-      if (Next)
-        if (Next->OpenTable(g, sqlp, mode))
-          return true;
-
-      /*****************************************************************/
-      /*  This was moved after filter conversion so filtering can be   */
-      /*  done when making index tables for DOS files.                 */
-      /*  Also it was moved after allocating select buffers so some    */
-      /*  data can be pre-read during open to allow storage sorting.   */
-      /*****************************************************************/
-      if (OpenDB(g))                       // Do open the table file
-        return true;
-
-      Use = USE_OPEN;
-      break;
-
-    case USE_OPEN:
-      /*****************************************************************/
-      /*  Table is already open.                                       */
-      /*  Call open routine that will just "rewind" the files.         */
-      /*****************************************************************/
-      if (OpenDB(g))                       // Rewind the table file
-        return true;
-
-      break;
-
-    default:
-      sprintf(g->Message, MSG(TDB_USE_ERROR), Use);
-      return true;
-    } // endswitch Use
-
-  return false;
-  } // end of OpenTable
-
-/***********************************************************************/
-/*  CloseTable: Close a table of any AM type.                          */
-/***********************************************************************/
-void TDB::CloseTable(PGLOBAL g)
-  {
-  if (trace)
-    htrc("CloseTable: tdb_no %d use=%d amtype=%d am.Mode=%d\n",
-                      Tdb_No, Use, GetAmType(), Mode);
-
-  CloseDB(g);
-  Use = USE_READY;              // x'7FFD'
-  Mode = MODE_ANY;
-  } // end of CloseTable
 
 // Methods
 
@@ -259,7 +169,7 @@ PCATLG TDBASE::GetCat(void)
 CHARSET_INFO *TDBASE::data_charset(void)
   {
   // If no DATA_CHARSET is specified, we assume that character
-  // set of the remote data is the same with CHARACTER SET 
+  // set of the remote data is the same with CHARACTER SET
   // definition of the SQL column.
   return m_data_charset ? m_data_charset : &my_charset_bin;
   } // end of data_charset
@@ -316,7 +226,7 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
 
       if (trace)
         htrc("colp=%p\n", colp);
-      
+
       if (name || num)
         break;
       else if (colp && !colp->IsSpecial())
@@ -409,7 +319,7 @@ void TDBASE::SetKindex(PKXBASE kxp)
 /***********************************************************************/
 /*  SetRecpos: Replace the table at the specified position.            */
 /***********************************************************************/
-bool TDBASE::SetRecpos(PGLOBAL g, int recpos) 
+bool TDBASE::SetRecpos(PGLOBAL g, int recpos)
   {
   strcpy(g->Message, MSG(SETRECPOS_NIY));
   return true;
@@ -474,8 +384,8 @@ PCOL TDBCAT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 bool TDBCAT::Initialize(PGLOBAL g)
   {
-	if (Init)
-		return false;
+  if (Init)
+    return false;
 
   if (!(Qrp = GetResult(g)))
     return true;
@@ -490,9 +400,9 @@ bool TDBCAT::Initialize(PGLOBAL g)
     PushWarning(g, this);
     } // endif Badlines
 
-	Init = true;
-	return false;
-	} // end of Initialize
+  Init = true;
+  return false;
+  } // end of Initialize
 
 /***********************************************************************/
 /*  CAT: Get the number of properties.                                 */
@@ -572,7 +482,7 @@ bool TDBCAT::InitCol(PGLOBAL g)
 /***********************************************************************/
 /*  SetRecpos: Replace the table at the specified position.            */
 /***********************************************************************/
-bool TDBCAT::SetRecpos(PGLOBAL g, int recpos) 
+bool TDBCAT::SetRecpos(PGLOBAL g, int recpos)
   {
   N = recpos - 1;
   return false;

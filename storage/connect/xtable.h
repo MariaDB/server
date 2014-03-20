@@ -62,10 +62,8 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   inline  PCOL   GetColumns(void) {return Columns;}
   inline  int    GetDegree(void) {return Degree;}
   inline  MODE   GetMode(void) {return Mode;}
-#if defined(BLK_INDX)
   inline  PFIL   GetFilter(void) {return To_Filter;}
   inline  void   SetFilter(PFIL fp) {To_Filter = fp;}
-#endif   // BLK_INDX
   inline  void   SetOrig(PTDB txp) {To_Orig = txp;}
   inline  void   SetUse(TUSE n) {Use = n;}
   inline  void   SetCondFil(PCFIL cfp) {To_CondFil = cfp;}
@@ -95,7 +93,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   virtual PTDB   Duplicate(PGLOBAL g) {return NULL;}
   virtual PTDB   CopyOne(PTABS t) {return this;}
   virtual PTDB   Copy(PTABS t);
-  virtual void   PrintAM(FILE *f, char *m) 
+  virtual void   PrintAM(FILE *f, char *m)
                   {fprintf(f, "%s AM(%d)\n",  m, GetAmType());}
   virtual void   Print(PGLOBAL g, FILE *f, uint n);
   virtual void   Print(PGLOBAL g, char *ps, uint z);
@@ -112,17 +110,11 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   virtual void   CloseDB(PGLOBAL) = 0;
   virtual int    CheckWrite(PGLOBAL g) {return 0;}
 
-  // Database routines
-  bool OpenTable(PGLOBAL g, PSQL sqlp, MODE mode);
-  void CloseTable(PGLOBAL g);
-
  protected:
   // Members
   PTDB   To_Orig;      // Pointer to original if it is a copy
   TUSE   Use;
-#if defined(BLK_INDX)
   PFIL   To_Filter;
-#endif   // BLK_INDX
   PCFIL  To_CondFil;   // To condition filter structure
   static int Tnum;     // Used to generate Tdb_no's
   const  int Tdb_No;   // GetTdb_No() is always 0 for OPJOIN
@@ -217,7 +209,7 @@ class DllExport TDBCAT : public TDBASE {
   virtual int  GetRecpos(void) {return N;}
   virtual int  GetProgCur(void) {return N;}
   virtual int  RowNumber(PGLOBAL g, bool b = false) {return N + 1;}
-  virtual bool SetRecpos(PGLOBAL g, int recpos); 
+  virtual bool SetRecpos(PGLOBAL g, int recpos);
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
@@ -235,9 +227,9 @@ class DllExport TDBCAT : public TDBASE {
           bool InitCol(PGLOBAL g);
 
   // Members
-  PQRYRES Qrp;           
+  PQRYRES Qrp;
   int     N;                  // Row number
-  bool    Init;          
+  bool    Init;
   }; // end of class TDBCAT
 
 /***********************************************************************/

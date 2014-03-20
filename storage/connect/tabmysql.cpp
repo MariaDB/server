@@ -107,7 +107,7 @@ bool MYSQLDEF::GetServerInfo(PGLOBAL g, const char *server_name)
     } // endif server_name
 
   // get_server_by_name() clones the server if exists and allocates
-	// copies of strings in the supplied mem_root
+  // copies of strings in the supplied mem_root
   if (!(server= get_server_by_name(mem, server_name, &server_buffer))) {
     DBUG_PRINT("info", ("get_server_by_name returned > 0 error condition!"));
     /* need to come up with error handling */
@@ -179,7 +179,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
     // connection name of either "server" or "server/table"
     // ok, so we do a little parsing, but not completely!
     if ((Tabname= strchr(url, '/'))) {
-      // If there is a single '/' in the connection string, 
+      // If there is a single '/' in the connection string,
       // this means the user is specifying a table name
       *Tabname++= '\0';
 
@@ -188,7 +188,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
         return true;
 
     } else
-      // Otherwise, straight server name, 
+      // Otherwise, straight server name,
       // use tablename of federatedx table as remote table name
       Tabname= Name;
 
@@ -259,7 +259,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
           } // endif /
 
         } // endif Tabname
-        
+
       } // endif database
 
     if ((sport = strchr(Hostname, ':')))
@@ -267,7 +267,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
 
     // For unspecified values, get the values of old style options
     // but only if called from MYSQLDEF, else set them to NULL
-    Portnumber = (sport && sport[0]) ? atoi(sport) 
+    Portnumber = (sport && sport[0]) ? atoi(sport)
                : (b) ? Cat->GetIntCatInfo("Port", GetDefaultPort()) : 0;
 
     if (Username[0] == 0)
@@ -310,7 +310,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     // Normal case of specific MYSQL table
     url = Cat->GetStringCatInfo(g, "Connect", NULL);
 
-    if (!url || !*url) { 
+    if (!url || !*url) {
       // Not using the connection URL
       Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
       Database = Cat->GetStringCatInfo(g, "Database", "*");
@@ -326,7 +326,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Bind = !!Cat->GetIntCatInfo("Bind", 0);
     Delayed = !!Cat->GetIntCatInfo("Delayed", 0);
   } else {
-    // MYSQL access from a PROXY table 
+    // MYSQL access from a PROXY table
     Database = Cat->GetStringCatInfo(g, "Database", "*");
     Isview = Cat->GetBoolCatInfo("View", FALSE);
 
@@ -334,7 +334,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Remove_tshp(Cat);
     url = Cat->GetStringCatInfo(g, "Connect", NULL);
 
-    if (!url || !*url) { 
+    if (!url || !*url) {
       Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
       Username = Cat->GetStringCatInfo(g, "User", "*");
       Password = Cat->GetStringCatInfo(g, "Password", NULL);
@@ -433,7 +433,7 @@ TDBMYSQL::TDBMYSQL(PGLOBAL g, PTDBMY tdbp) : TDBASE(tdbp)
   Tabname = tdbp->Tabname;
   Srcdef = tdbp->Srcdef;
   User = tdbp->User;
-  Pwd =  tdbp->Pwd; 
+  Pwd =  tdbp->Pwd;
   Qrystr = tdbp->Qrystr;
   Quoted = tdbp->Quoted;
   Port = tdbp->Port;
@@ -573,7 +573,7 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
     strcpy(g->Message, "Prepared statements not used (not supported)");
     PushWarning(g, this);
     Prep = FALSE;
-#endif  // !MYSQL_PREPARED_STATEMENTS 
+#endif  // !MYSQL_PREPARED_STATEMENTS
     } // endif Prep
 
   for (colp = Columns; colp; colp = colp->GetNext()) {
@@ -1041,13 +1041,13 @@ int TDBMYSQL::WriteDB(PGLOBAL g)
   // Make the Insert command value list
   for (PCOL colp = Columns; colp; colp = colp->GetNext()) {
     if (!colp->GetValue()->IsNull()) {
-      if (colp->GetResultType() == TYPE_STRING || 
+      if (colp->GetResultType() == TYPE_STRING ||
           colp->GetResultType() == TYPE_DATE)
         strcat(Qbuf, "'");
 
       strcat(Qbuf, colp->GetValue()->GetCharString(buf));
 
-      if (colp->GetResultType() == TYPE_STRING || 
+      if (colp->GetResultType() == TYPE_STRING ||
           colp->GetResultType() == TYPE_DATE)
         strcat(Qbuf, "'");
 
@@ -1069,7 +1069,7 @@ int TDBMYSQL::DeleteDB(PGLOBAL g, int irc)
   {
   if (irc == RC_FX)
     // Send the DELETE (all) command to the remote table
-    return (SendCommand(g) == RC_FX) ? RC_FX : RC_OK;              
+    return (SendCommand(g) == RC_FX) ? RC_FX : RC_OK;
   else
     return RC_OK;                 // Ignore
 
@@ -1334,7 +1334,7 @@ void MYSQLCOL::WriteColumn(PGLOBAL g)
 /***********************************************************************/
 /*  Implementation of the TDBMYEXC class.                              */
 /***********************************************************************/
-TDBMYEXC::TDBMYEXC(PMYDEF tdp) : TDBMYSQL(tdp) 
+TDBMYEXC::TDBMYEXC(PMYDEF tdp) : TDBMYSQL(tdp)
 {
   Cmdlist = NULL;
   Cmdcol = NULL;
@@ -1486,7 +1486,7 @@ int TDBMYEXC::ReadDB(PGLOBAL g)
   if (Cmdlist) {
     // Process query to send
     int rc;
-  
+
     do {
       Query = Cmdlist->Cmd;
 
@@ -1506,7 +1506,7 @@ int TDBMYEXC::ReadDB(PGLOBAL g)
         case RC_INFO:
           Shw = true;
         } // endswitch rc
-  
+
       Cmdlist = (Nerr > Mxr) ? NULL : Cmdlist->Next;
       } while (rc == RC_INFO);
 
@@ -1603,11 +1603,11 @@ void MYXCOL::WriteColumn(PGLOBAL g)
 /***********************************************************************/
 TDBMCL::TDBMCL(PMYDEF tdp) : TDBCAT(tdp)
   {
-  Host = tdp->Hostname;  
-  Db   = tdp->Database;    
-  Tab  = tdp->Tabname;    
-  User = tdp->Username;  
-  Pwd  = tdp->Password;   
+  Host = tdp->Hostname;
+  Db   = tdp->Database;
+  Tab  = tdp->Tabname;
+  User = tdp->Username;
+  Pwd  = tdp->Password;
   Port = tdp->Portnumber;
   } // end of TDBMCL constructor
 
@@ -1617,4 +1617,4 @@ TDBMCL::TDBMCL(PMYDEF tdp) : TDBCAT(tdp)
 PQRYRES TDBMCL::GetResult(PGLOBAL g)
   {
   return MyColumns(g, Host, Db, User, Pwd, Tab, NULL, Port, false);
-	} // end of GetResult
+  } // end of GetResult
