@@ -616,12 +616,14 @@ struct TABLE_SHARE
   struct
   {
     /**
-      Protects ref_count and m_flush_tickets.
+      Protects ref_count, m_flush_tickets, all_tables, free_tables, flushed,
+      all_tables_refs.
     */
     mysql_mutex_t LOCK_table_share;
     mysql_cond_t COND_release;
     TABLE_SHARE *next, **prev;            /* Link to unused shares */
     uint ref_count;                       /* How many TABLE objects uses this */
+    uint all_tables_refs;                 /* Number of refs to all_tables */
     /**
       List of tickets representing threads waiting for the share to be flushed.
     */

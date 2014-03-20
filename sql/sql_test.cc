@@ -88,9 +88,9 @@ static void print_cached_tables(void)
   puts("DB             Table                            Version  Thread  Open  Lock");
 
   tdc_it.init();
-  mysql_mutex_lock(&LOCK_open);
   while ((share= tdc_it.next()))
   {
+    mysql_mutex_lock(&share->tdc.LOCK_table_share);
     TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
     while ((entry= it++))
     {
@@ -102,8 +102,8 @@ static void print_cached_tables(void)
              in_use ? lock_descriptions[(int)entry->reginfo.lock_type] :
                       "Not in use");
     }
+    mysql_mutex_unlock(&share->tdc.LOCK_table_share);
   }
-  mysql_mutex_unlock(&LOCK_open);
   tdc_it.deinit();
   printf("\nCurrent refresh version: %ld\n", tdc_refresh_version());
   fflush(stdout);

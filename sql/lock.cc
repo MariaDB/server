@@ -790,7 +790,6 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
   @param thd         Thread handle.
   @param db          The database name.
 
-  This function cannot be called while holding LOCK_open mutex.
   To avoid deadlocks, we do not try to obtain exclusive metadata
   locks in LOCK TABLES mode, since in this mode there may be
   other metadata locks already taken by the current connection,
@@ -842,9 +841,7 @@ bool lock_schema_name(THD *thd, const char *db)
   @param name        Object name in the schema.
 
   This function assumes that no metadata locks were acquired
-  before calling it. Additionally, it cannot be called while
-  holding LOCK_open mutex. Both these invariants are enforced by
-  asserts in MDL_context::acquire_locks().
+  before calling it. It is enforced by asserts in MDL_context::acquire_locks().
   To avoid deadlocks, we do not try to obtain exclusive metadata
   locks in LOCK TABLES mode, since in this mode there may be
   other metadata locks already taken by the current connection,
