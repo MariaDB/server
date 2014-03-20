@@ -1,5 +1,9 @@
 --source include/have_stat_tables.inc
 
+--disable_warnings
+drop table if exists t1,t2,t3;
+--enable_warnings
+
 select @@global.use_stat_tables;
 select @@session.use_stat_tables;
 
@@ -857,5 +861,32 @@ select * from t1, t2, t1 as t3
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-5917: EITS: different order of predicates in IN (...) causes different estimates
+--echo #
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2 (col1 int);
+--echo # one value in 1..100 range
+insert into t2 select A.a + B.a*10 from t1 A, t1 B;
+--echo # ten values in 100...200 range
+insert into t2 select 100 + A.a + B.a*10 from t1 A, t1 B, t1 C;
+
+set histogram_type='SINGLE_PREC_HB';
+set histogram_size=100;
+set optimizer_use_condition_selectivity=4;
+analyze table t2 persistent for all;
+
+--echo # The following two must have the same in 'Extra' column:
+explain extended select * from t2 where col1 IN (20, 180);
+explain extended select * from t2 where col1 IN (180, 20);
+
+drop table t1, t2;
+
+set histogram_type=@save_histogram_type;
+set histogram_size=@save_histogram_size;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 
 set use_stat_tables=@save_use_stat_tables;
