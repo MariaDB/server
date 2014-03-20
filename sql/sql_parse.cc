@@ -4642,6 +4642,10 @@ create_sp_error:
           open_and_lock_tables(thd, all_tables, TRUE, 0))
        goto error;
 
+      if (check_routine_access(thd, EXECUTE_ACL, lex->spname->m_db.str,
+                               lex->spname->m_name.str, TRUE, FALSE))
+        goto error;
+
       /*
         By this moment all needed SPs should be in cache so no need to look 
         into DB. 
@@ -4691,11 +4695,6 @@ create_sp_error:
 	  thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
 	}
 
-	if (check_routine_access(thd, EXECUTE_ACL,
-				 sp->m_db.str, sp->m_name.str, TRUE, FALSE))
-	{
-	  goto error;
-	}
 	select_limit= thd->variables.select_limit;
 	thd->variables.select_limit= HA_POS_ERROR;
 
