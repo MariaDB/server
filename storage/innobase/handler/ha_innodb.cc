@@ -16771,8 +16771,6 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 
 		WSREP_DEBUG("kill query for: %ld",
 			    wsrep_thd_thread_id(thd));
-		wsrep_thd_UNLOCK(thd);
-		wsrep_thd_awake(thd, signal);
 		WSREP_DEBUG("kill trx QUERY_COMMITTING for %llu", 
 			    victim_trx->id);
 
@@ -16789,6 +16787,8 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 			case WSREP_WARNING:
 				WSREP_DEBUG("cancel commit warning: %llu",
 					    victim_trx->id);
+				wsrep_thd_UNLOCK(thd);
+				wsrep_thd_awake(thd, signal);
 				DBUG_RETURN(1);
 				break;
 			case WSREP_OK:
@@ -16806,6 +16806,8 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 				break;
 			}
 		}
+		wsrep_thd_UNLOCK(thd);
+		wsrep_thd_awake(thd, signal);
 		break;
 	case QUERY_EXEC:
 		/* it is possible that victim trx is itself waiting for some 
