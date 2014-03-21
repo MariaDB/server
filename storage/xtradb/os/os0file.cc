@@ -6234,7 +6234,7 @@ os_file_trim(
 		    *slot->write_size > 0 &&
 		    len >= *slot->write_size)) {
 
-#ifdef UNIV_DEBUG
+#ifdef UNIV_PAGECOMPRESS_DEBUG
 		fprintf(stderr, "Note: TRIM: write_size %lu trim_len %lu len %lu\n",
 			*slot->write_size, trim_len, len);
 #endif

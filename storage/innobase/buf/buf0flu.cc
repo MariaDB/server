@@ -2461,7 +2461,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 
 			/* Flush pages from end of LRU if required */
 			n_lru = n_flushed = buf_flush_LRU_tail();
-#ifdef UNIV_DEBUG
+#ifdef UNIV_MTFLUSH_DEBUG
 			if (n_lru) {
 				fprintf(stderr,"n_lru:%lu ",n_lru);
 			}

@@ -106,11 +106,11 @@ fil_compress_page(
 		level = page_zip_level;
 	}
 
-#ifdef UNIV_DEBUG
+#ifdef UNIV_PAGECOMPRESS_DEBUG
 	fprintf(stderr,
 		"InnoDB: Note: Preparing for compress for space %lu name %s len %lu\n",
 		space_id, fil_space_name(space), len);
-#endif /* UNIV_DEBUG */
+#endif /* UNIV_PAGECOMPRESS_DEBUG */
 
 	write_size = UNIV_PAGE_SIZE - header_len;
 
@@ -126,6 +126,7 @@ fil_compress_page(
 				"InnoDB: Warning: Compression failed for space %lu name %s len %lu rt %d write %lu\n",
 				space_id, fil_space_name(space), len, err, write_size);
 
+			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
 			return (buf);
 		}
@@ -140,6 +141,7 @@ fil_compress_page(
 				"InnoDB: Warning: Compression failed for space %lu name %s len %lu rt %d write %lu\n",
 				space_id, fil_space_name(space), len, err, write_size);
 
+			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
 			return (buf);
 		}
@@ -197,11 +199,11 @@ fil_compress_page(
 		ut_a((write_size % SECT_SIZE) == 0);
 	}
 
-#ifdef UNIV_DEBUG
+#ifdef UNIV_PAGECOMPRESS_DEBUG
 	fprintf(stderr,
 		"InnoDB: Note: Compression succeeded for space %lu name %s len %lu out_len %lu\n",
 		space_id, fil_space_name(space), len, write_size);
-#endif
+#endif /* UNIV_PAGECOMPRESS_DEBUG */
 
 
 	srv_stats.page_compression_saved.add((len - write_size));
@@ -209,7 +211,7 @@ fil_compress_page(
 		srv_stats.page_compression_trim_sect512.add(((len - write_size) / SECT_SIZE));
 		srv_stats.page_compression_trim_sect4096.add(((len - write_size) / (SECT_SIZE*8)));
 	}
-	//srv_stats.page_compressed_trim_op.inc();
+
 	srv_stats.pages_page_compressed.inc();
 	*out_len = write_size;
 
@@ -258,10 +260,10 @@ fil_decompress_page(
 
 	// If no buffer was given, we need to allocate temporal buffer
 	if (page_buf == NULL) {
-#ifdef UNIV_DEBUG
+#ifdef UNIV_PAGECOMPRESS_DEBUG
 		fprintf(stderr,
 			"InnoDB: Note: FIL: Compression buffer not given, allocating...\n");
-#endif /* UNIV_DEBUG */
+#endif /* UNIV_PAGECOMPRESS_DEBUG */
 		in_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
 	} else {
 		in_buf = page_buf;
@@ -287,11 +289,11 @@ fil_decompress_page(
 
 	if (compression_alg == FIL_PAGE_COMPRESSION_ZLIB) {
 
-#ifdef UNIV_DEBUG
+#ifdef UNIV_PAGECOMPRESS_DEBUG
 		fprintf(stderr,
 			"InnoDB: Note: Preparing for decompress for len %lu\n",
 			actual_size);
-#endif /* UNIV_DEBUG */
+#endif /* UNIV_PAGECOMPRESS_DEBUG */
 
 		err= uncompress(in_buf, &len, buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE, (unsigned long)actual_size);
 
@@ -310,11 +312,11 @@ fil_decompress_page(
 			ut_error;
 		}
 
-#ifdef UNIV_DEBUG
+#ifdef UNIV_PAGECOMPRESS_DEBUG
 		fprintf(stderr,
 			"InnoDB: Note: Decompression succeeded for len %lu \n",
 			len);
-#endif /* UNIV_DEBUG */
+#endif /* UNIV_PAGECOMPRESS_DEBUG */
 #ifdef HAVE_LZ4
 	} else if (compression_alg == FIL_PAGE_COMPRESSION_LZ4) {
 		err = LZ4_decompress_fast((const char *)buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE, (char *)in_buf, UNIV_PAGE_SIZE);

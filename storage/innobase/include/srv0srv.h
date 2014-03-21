@@ -121,6 +121,8 @@ struct srv_stats_t {
         ulint_ctr_64_t          page_compressed_trim_op_saved;
 	/* Number of pages decompressed with page compression */
         ulint_ctr_64_t          pages_page_decompressed;
+	/* Number of page compression errors */
+	ulint_ctr_64_t          pages_page_compression_error;
 
 	/** Number of data read in total (in bytes) */
 	ulint_ctr_1_t		data_read;
@@ -908,6 +910,8 @@ struct export_var_t{
 	ib_int64_t innodb_pages_page_decompressed;/*!< Number of pages
 						decompressed by page
 						compression */
+	ib_int64_t innodb_pages_page_compression_error;/*!< Number of page
+						compression errors */
 };
 
 /** Thread slot in the thread table.  */

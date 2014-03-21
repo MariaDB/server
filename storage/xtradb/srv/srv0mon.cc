@@ -926,6 +926,11 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_PAGE_DECOMPRESSED},
 
+	{"compress_pages_page_compression_error", "compression",
+	 "Number of page compression errors",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_PAGE_COMPRESSION_ERROR},
+
 	/* ========== Counters for Index ========== */
 	{"module_index", "index", "Index Manager",
 	 MONITOR_MODULE,
@@ -1870,6 +1875,9 @@ srv_mon_process_existing_counter(
 		break;
         case MONITOR_OVLD_PAGES_PAGE_DECOMPRESSED:
 		value = srv_stats.pages_page_decompressed;
+		break;
+        case MONITOR_OVLD_PAGES_PAGE_COMPRESSION_ERROR:
+		value = srv_stats.pages_page_compression_error;
 		break;
 
 	default:

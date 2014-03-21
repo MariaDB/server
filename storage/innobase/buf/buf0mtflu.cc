@@ -195,7 +195,7 @@ buf_mtflu_flush_pool_instance(
 		pools based on the assumption that it will
 		help in the retry which will follow the
 		failure. */
-#ifdef UNIV_DEBUG
+#ifdef UNIV_MTFLUSH_DEBUG
 		fprintf(stderr, "InnoDB: Note: buf flush start failed there is already active flush for this buffer pool.\n");
 #endif
 		return 0;
@@ -330,12 +330,12 @@ DECLARE_THREAD(mtflush_io_thread)(
 
 	while (TRUE) {
 
-#ifdef UNIV_DEBUG
+#ifdef UNIV_MTFLUSH_DEBUG
  		fprintf(stderr, "InnoDB: Note. Thread %lu work queue len %lu return queue len %lu\n",
  					os_thread_get_curr_id(),
  					ib_wqueue_len(mtflush_io->wq),
  					ib_wqueue_len(mtflush_io->wr_cq));
-#endif /* UNIV_DEBUG */
+#endif /* UNIV_MTFLUSH_DEBUG */
 
 		mtflush_service_io(mtflush_io, this_thread_data);
 
@@ -374,7 +374,7 @@ buf_mtflu_io_thread_exit(void)
 
 	mtflush_io->gwt_status = WTHR_KILL_IT;
 
-	fprintf(stderr, "signal mtflush_io_threads to exit [%lu]\n",
+	fprintf(stderr, "InnoDB: [Note]: Signal mtflush_io_threads to exit [%lu]\n",
 		srv_mtflush_threads);
 
 	/* Send one exit work item/thread */
@@ -544,6 +544,7 @@ buf_mtflu_flush_work_items(
 		if (done_wi != NULL) {
 			per_pool_pages_flushed[i] = done_wi->n_flushed;
 
+#if UNIV_DEBUG
 			if((int)done_wi->id_usr == 0 &&
 				(done_wi->wi_status == WRK_ITEM_SET ||
 					done_wi->wi_status == WRK_ITEM_UNSET)) {
@@ -553,6 +554,7 @@ buf_mtflu_flush_work_items(
 					done_wi->wr.flush_type);
 				ut_a(0);
 			}
+#endif
 
 			n_flushed+= done_wi->n_flushed;
 			i++;
@@ -621,7 +623,7 @@ buf_mtflu_flush_list(
 				cnt_flush[i]);
 		}
 	}
-#ifdef UNIV_DEBUG
+#ifdef UNIV_MTFLUSH_DEBUG
 	fprintf(stderr, "%s: [1] [*n_processed: (min:%lu)%lu ]\n",
 		__FUNCTION__, (min_n * srv_buf_pool_instances), *n_processed);
 #endif
@@ -663,7 +665,7 @@ buf_mtflu_flush_LRU_tail(void)
 		}
 	}
 
-#if UNIV_DEBUG
+#if UNIV_MTFLUSH_DEBUG
 	fprintf(stderr, "[1] [*n_processed: (min:%lu)%lu ]\n", (
 			srv_LRU_scan_depth * srv_buf_pool_instances), total_flushed);
 #endif

@@ -721,7 +721,7 @@ buf_flush_write_complete(
 
 	buf_pool->n_flush[flush_type]--;
 
-#ifdef UNIV_DEBUG
+#ifdef UNIV_MTFLUSH_DEBUG
 	fprintf(stderr, "n pending flush %lu\n",
 		buf_pool->n_flush[flush_type]);
 #endif
@@ -1863,7 +1863,7 @@ buf_flush_start(
 
 		/* There is already a flush batch of the same type running */
 
-#ifdef UNIV_DEBUG
+#ifdef UNIV_PAGECOMPRESS_DEBUG
 		fprintf(stderr, "Error: flush_type %d n_flush %lu init_flush %lu\n",
 			flush_type, buf_pool->n_flush[flush_type], buf_pool->init_flush[flush_type]);
 #endif
@@ -2732,7 +2732,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 
 		/* Flush pages from end of LRU if required */
 		n_lru = n_flushed = buf_flush_LRU_tail();
-#ifdef UNIV_DEBUG
+#ifdef UNIV_MTFLUSH_DEBUG
 		if (n_lru) {
 			fprintf(stderr,"n_lru:%lu ",n_lru);
 		}
@@ -2743,7 +2743,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 
 			/* Flush pages from flush_list if required */
 			n_flushed += n_pgc_flush = page_cleaner_flush_pages_if_needed();
-#ifdef UNIV_DEBUG
+#ifdef UNIV_MTFLUSH_DEBUG
 			if (n_pgc_flush) {
 				fprintf(stderr,"n_pgc_flush:%lu ",n_pgc_flush);
 			}
@@ -2760,16 +2760,16 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 					MONITOR_FLUSH_BACKGROUND_PAGES,
 					n_flushed);
 			}
-#ifdef UNIV_DEBUG
+#ifdef UNIV_MTFLUSH_DEBUG
 			if (n_pgc_batch) {
 				fprintf(stderr,"n_pgc_batch:%lu ",n_pgc_batch);
 			}
 #endif
 		}
 
-#ifdef UNIV_DEBUG
+#ifdef UNIV_MTFLUSH_DEBUG
 		if (n_lru || n_pgc_flush || n_pgc_batch) {
-			fprintf(stderr,"\n");
+			fprintf1(stderr,"\n");
 			n_lru = n_pgc_flush = n_pgc_batch = 0;
 		}
 #endif
