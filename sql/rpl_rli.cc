@@ -1489,7 +1489,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
   tables_to_lock_count= 0;
   trans_retries= 0;
   last_event_start_time= 0;
-  is_error= false;
+  worker_error= 0;
   row_stmt_start_timestamp= 0;
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
