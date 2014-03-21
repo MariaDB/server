@@ -303,6 +303,7 @@ void **thd_ha_data(const void* thd, const struct handlerton *hton);
 void thd_storage_lock_wait(void* thd, long long value);
 int thd_tx_isolation(const void* thd);
 int thd_tx_is_read_only(const void* thd);
+int thd_rpl_is_parallel(const void* thd);
 int mysql_tmpfile(const char *prefix);
 unsigned long thd_get_thread_id(const void* thd);
 void thd_get_xid(const void* thd, MYSQL_XID *xid);

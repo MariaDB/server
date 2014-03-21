@@ -761,11 +761,51 @@ a	b
 110	1
 111	2
 112	3
+***MDEV-5914: Parallel replication deadlock due to InnoDB lock conflicts ***
+include/stop_slave.inc
+CREATE TABLE t4 (a INT PRIMARY KEY, b INT, KEY b_idx(b)) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+UPDATE t4 SET b=NULL WHERE a=6;
+SET debug_sync='now WAIT_FOR master_queued1';
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+DELETE FROM t4 WHERE b <= 3;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+SET debug_sync='RESET';
+include/start_slave.inc
+include/stop_slave.inc
+SELECT * FROM t4 ORDER BY a;
+a	b
+1	NULL
+3	NULL
+4	4
+5	NULL
+6	NULL
+DELETE FROM t4;
+INSERT INTO t4 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+INSERT INTO t4 VALUES (7, NULL);
+SET debug_sync='now WAIT_FOR master_queued1';
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+DELETE FROM t4 WHERE b <= 3;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+SET debug_sync='RESET';
+include/start_slave.inc
+SELECT * FROM t4 ORDER BY a;
+a	b
+1	NULL
+3	NULL
+4	4
+5	NULL
+6	6
+7	NULL
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
 SET DEBUG_SYNC= 'RESET';
 DROP function foo;
-DROP TABLE t1,t2,t3;
+DROP TABLE t1,t2,t3,t4;
 SET DEBUG_SYNC= 'RESET';
 include/rpl_end.inc

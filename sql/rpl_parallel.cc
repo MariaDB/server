@@ -242,6 +242,39 @@ handle_rpl_parallel_thread(void *arg)
   thd_proc_info(thd, "Waiting for work from main SQL threads");
   thd->set_time();
   thd->variables.lock_wait_timeout= LONG_TIMEOUT;
+  /*
+    For now, we need to run the replication parallel worker threads in
+    READ COMMITTED. This is needed because gap locks are not symmetric.
+    For example, a gap lock from a DELETE blocks an insert intention lock,
+    but not vice versa. So an INSERT followed by DELETE can group commit
+    on the master, but if we are unlucky with thread scheduling we can
+    then deadlock on the slave because the INSERT ends up waiting for a
+    gap lock from the DELETE (and the DELETE in turn waits for the INSERT
+    in wait_for_prior_commit()). See also MDEV-5914.
+
+    It should be mostly safe to run in READ COMMITTED in the slave anyway.
+    The commit order is already fixed from on the master, so we do not
+    risk logging into the binlog in an incorrect order between worker
+    threads (one that would cause different results if executed on a
+    lower-level slave that uses this slave as a master). The only
+    potential problem is with transactions run in a different master
+    connection (using multi-source replication), or run directly on the
+    slave by an application; when using READ COMMITTED we are not
+    guaranteed serialisability of binlogged statements.
+
+    In practice, this is unlikely to be an issue. In GTID mode, such
+    parallel transactions from multi-source or application must in any
+    case use a different replication domain, in which case binlog order
+    by definition must be independent between the different domain. Even
+    in non-GTID mode, normally one will assume that the external
+    transactions are not conflicting with those applied by the slave, so
+    that isolation level should make no difference. It would be rather
+    strange if the result of applying query events from one master would
+    depend on the timing and nature of other queries executed from
+    different multi-source connections or done directly on the slave by
+    an application. Still, something to be aware of.
+  */
+  thd->variables.tx_isolation= ISO_READ_COMMITTED;
 
   mysql_mutex_lock(&rpt->LOCK_rpl_thread);
   rpt->thd= thd;
@@ -306,6 +339,7 @@ handle_rpl_parallel_thread(void *arg)
         PSI_stage_info old_stage;
         uint64 wait_count;
 
+        thd->tx_isolation= (enum_tx_isolation)thd->variables.tx_isolation;
         in_event_group= true;
         /*
           If the standalone flag is set, then this event group consists of a
