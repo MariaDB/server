@@ -670,6 +670,12 @@ spin_loop:
 
 	sync_array_wait_event(sync_arr, index);
 
+	if (prio_mutex) {
+
+		os_atomic_decrement_ulint(&prio_mutex->high_priority_waiters,
+					  1);
+	}
+
 	goto mutex_loop;
 }
 
