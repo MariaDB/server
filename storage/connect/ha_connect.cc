@@ -3144,17 +3144,18 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
     // This is unlocking, do it by closing the table
     if (xp->CheckQueryID() && sqlcom != SQLCOM_UNLOCK_TABLES
-                           && sqlcom != SQLCOM_LOCK_TABLES)
-      rc= 2;          // Logical error ???
-//  else if (g->Xchk && (sqlcom == SQLCOM_CREATE_INDEX || 
-//                       sqlcom == SQLCOM_DROP_INDEX)) {
-    else if (g->Xchk) { 
+                           && sqlcom != SQLCOM_LOCK_TABLES
+                           && sqlcom != SQLCOM_DROP_TABLE) {
+      sprintf(g->Message, "external_lock: unexpected command %d", sqlcom);
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+      DBUG_RETURN(0);
+    } else if (g->Xchk) { 
       if (!tdbp) {
         if (!(tdbp= GetTDB(g)))
           DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
         else if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
           sprintf(g->Message, "external_lock: Table %s is not indexable", tdbp->GetName());
-//        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+//        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);  causes assert error
           push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
           DBUG_RETURN(0);
           } // endif Indexable
