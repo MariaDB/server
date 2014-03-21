@@ -694,6 +694,7 @@ STOP SLAVE IO_THREAD;
 SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL slave_parallel_max_queued= @old_max_queued;
 INSERT INTO t3 VALUES (82,0);
+SET binlog_format=@old_format;
 SET debug_sync='RESET';
 include/start_slave.inc
 SELECT * FROM t3 WHERE a >= 80 ORDER BY a;
@@ -726,6 +727,40 @@ SELECT * FROM t3 WHERE a >= 100 ORDER BY a;
 a	b
 106	#
 107	#
+*** MDEV-5921: In parallel replication, an error is not correctly signalled to the next transaction ***
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+INSERT INTO t3 VALUES (110, 1);
+SELECT * FROM t3 WHERE a >= 110 ORDER BY a;
+a	b
+110	1
+SET sql_log_bin=0;
+INSERT INTO t3 VALUES (111, 666);
+SET sql_log_bin=1;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+INSERT INTO t3 VALUES (111, 2);
+SET debug_sync='now WAIT_FOR master_queued1';
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+INSERT INTO t3 VALUES (112, 3);
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+SET debug_sync='RESET';
+include/wait_for_slave_sql_error.inc [errno=1062]
+include/wait_for_slave_sql_to_stop.inc
+SELECT * FROM t3 WHERE a >= 110 ORDER BY a;
+a	b
+110	1
+111	666
+SET sql_log_bin=0;
+DELETE FROM t3 WHERE a=111 AND b=666;
+SET sql_log_bin=1;
+START SLAVE SQL_THREAD;
+SELECT * FROM t3 WHERE a >= 110 ORDER BY a;
+a	b
+110	1
+111	2
+112	3
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc

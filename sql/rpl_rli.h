@@ -569,7 +569,7 @@ struct rpl_group_info
   */
   char future_event_master_log_name[FN_REFLEN];
   bool is_parallel_exec;
-  bool is_error;
+  int worker_error;
   /*
     Set true when we signalled that we reach the commit phase. Used to avoid
     counting one event group twice.
