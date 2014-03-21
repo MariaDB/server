@@ -2500,10 +2500,13 @@ int ha_connect::rnd_init(bool scan)
     DBUG_RETURN(HA_ERR_INITIALIZATION);
 
   // Do not close the table if it was opened yet (locked?)
-  if (IsOpened())
-    DBUG_RETURN(0);
-//  CloseTable(g);  Was done before making things done twice
-  else if (xp->CheckQuery(valid_query_id))
+  if (IsOpened()) {
+    if (tdbp->OpenDB(g))      // Rewind table 
+      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+    else
+      DBUG_RETURN(0);
+
+  } else if (xp->CheckQuery(valid_query_id))
     tdbp= NULL;       // Not valid anymore
 
   // When updating, to avoid skipped update, force the table

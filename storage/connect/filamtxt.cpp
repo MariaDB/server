@@ -887,7 +887,8 @@ int DOSFAM::RenameTempFile(PGLOBAL g)
   // This loop is necessary because, in case of join,
   // To_File can have been open several times.
   for (PFBLOCK fb = PlgGetUser(g)->Openlist; fb; fb = fb->Next)
-    rc = PlugCloseFile(g, fb);
+    if (fb == To_Fb || fb == To_Fbt)
+      rc = PlugCloseFile(g, fb);
 
   tempname = (char*)To_Fbt->Fname;
   PlugSetPath(filename, To_File, Tdbp->GetPath());
