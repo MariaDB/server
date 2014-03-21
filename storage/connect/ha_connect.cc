@@ -4572,7 +4572,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           sprintf(g->Message, "Unsupported 0 length for column %s",
                               fp->field_name);
           rc= HA_ERR_INTERNAL_ERROR;
-          my_printf_error(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+          my_printf_error(ER_UNKNOWN_ERROR, 
+                          "Unsupported 0 length for column %s", 
+                          MYF(0), fp->field_name);
           DBUG_RETURN(rc);
           } // endif fp
 
@@ -4591,15 +4593,16 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         sprintf(g->Message, "Unsupported type for column %s",
                             fp->field_name);
         rc= HA_ERR_INTERNAL_ERROR;
-        my_printf_error(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        my_printf_error(ER_UNKNOWN_ERROR, "Unsupported type for column %s",
+                        MYF(0), fp->field_name);
         DBUG_RETURN(rc);
         break;
       } // endswitch type
 
     if ((fp)->real_maybe_null() && !IsTypeNullable(type)) {
       my_printf_error(ER_UNKNOWN_ERROR, 
-                "Table type %s does not support nullable columns",
-                MYF(0), options->type);
+                      "Table type %s does not support nullable columns",
+                      MYF(0), options->type);
       DBUG_RETURN(HA_ERR_UNSUPPORTED);
       } // endif !nullable
 
