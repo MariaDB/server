@@ -143,34 +143,22 @@
 #include "myutil.h"
 #include "preparse.h"
 #include "inihandl.h"
+#if defined(LIBXML2_SUPPORT)
+#include "libdoc.h"
+#endif   // LIBXML2_SUPPORT
+#include "taboccur.h"
+#include "tabpivot.h"
 
-#define PLGXINI     "plgcnx.ini"       /* Configuration settings file  */
 #define my_strupr(p)    my_caseup_str(default_charset_info, (p));
 #define my_strlwr(p)    my_casedn_str(default_charset_info, (p));
 #define my_stricmp(a,b) my_strcasecmp(default_charset_info, (a), (b))
 
-#ifdef LIBXML2_SUPPORT
-#include "libdoc.h"
-#endif   // LIBXML2_SUPPORT
-
-#include "taboccur.h"
-#include "tabpivot.h"
-
-
-/***********************************************************************/
-/*  DB static variables.                                               */
-/***********************************************************************/
-extern "C" char  plgxini[];
-extern "C" char  plgini[];
-extern "C" char  nmfile[];
-extern "C" char  pdebug[];
 
 /***********************************************************************/
 /*  Initialize the ha_connect static members.                          */
 /***********************************************************************/
-#define CONNECT_INI "connect.ini"
+//efine CONNECT_INI "connect.ini"
 extern "C" {
-       char  connectini[_MAX_PATH]= CONNECT_INI;
        char  version[]= "Version 1.02.0001 February 03, 2014";
 
 #if defined(XMSG)
@@ -179,7 +167,8 @@ extern "C" {
        int  trace= 0;              // The general trace value
 } // extern "C"
 
-int   xtrace= 0;
+static int xtrace= 0;
+
 ulong ha_connect::num= 0;
 //int  DTVAL::Shift= 0;
 
@@ -198,6 +187,14 @@ static handler *connect_create_handler(handlerton *hton,
 static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
                                       HA_CREATE_INFO *info);
+
+static void update_connect_xtrace(MYSQL_THD thd,
+                                  struct st_mysql_sys_var *var,
+                                  void *var_ptr, const void *save)
+{
+  xtrace= *(int *)save;
+//xtrace= *(int *)var_ptr= *(int *)save;
+} // end of update_connect_xtrace
 
 handlerton *connect_hton;
 
@@ -342,31 +339,15 @@ static const char *ha_connect_exts[]= {
 static int connect_init_func(void *p)
 {
   DBUG_ENTER("connect_init_func");
-  char dir[_MAX_PATH - sizeof(CONNECT_INI) - 1];
+
+  sql_print_information("CONNECT: %s", version);
+
+  // xtrace is now a system variable
+  trace= xtrace;
 
 #ifdef LIBXML2_SUPPORT
   XmlInitParserLib();
 #endif   // LIBXML2_SUPPORT
-
-  /* Build connect.ini file name */
-  my_getwd(dir, sizeof(dir) - 1, MYF(0));
-  snprintf(connectini, sizeof(connectini), "%s%s", dir, CONNECT_INI);
-  sql_print_information("CONNECT: %s=%s", CONNECT_INI, connectini);
-
-  if ((xtrace= GetPrivateProfileInt("CONNECT", "Trace", 0, connectini)))
-  {
-    sql_print_information("CONNECT: xtrace=%d", xtrace);
-    sql_print_information("CONNECT: plgini=%s", plgini);
-    sql_print_information("CONNECT: plgxini=%s", plgxini);
-    sql_print_information("CONNECT: nmfile=%s", nmfile);
-    sql_print_information("CONNECT: pdebug=%s", pdebug);
-    sql_print_information("CONNECT: version=%s", version);
-    trace= xtrace;
-  } // endif xtrace
-
-#if !defined(WIN32)
-  PROFILE_Close(connectini);
-#endif   // !WIN32
 
   init_connect_psi_keys();
 
@@ -402,7 +383,7 @@ static int connect_done_func(void *p)
 #endif   // LIBXML2_SUPPORT
 
 #if !defined(WIN32)
-  PROFILE_End();
+//PROFILE_End();                Causes signal 11
 #endif   // !WIN32
 
   for (pc= user_connect::to_users; pc; pc= pn) {
@@ -595,6 +576,7 @@ ulonglong ha_connect::table_flags() const
   ulonglong   flags= HA_CAN_VIRTUAL_COLUMNS | HA_REC_NOT_IN_SEQ |
                      HA_NO_AUTO_INCREMENT | HA_NO_PREFIX_CHAR_KEYS |
                      HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
+                     HA_PARTIAL_COLUMN_READ |
 //                   HA_NULL_IN_KEY |    not implemented yet
 //                   HA_FAST_KEY_READ |  causes error when sorting (???)
                      HA_NO_TRANSACTIONS | HA_DUPLICATE_KEY_NOT_IN_ORDER |
@@ -972,7 +954,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
       break;
     case TYPE_DATE:
       // Field_length is only used for DATE columns
-      if (fop->fldlen)
+      if (fop && fop->fldlen)
         pcf->Length= (int)fop->fldlen;
       else {
         int len;
@@ -3938,7 +3920,7 @@ static bool add_field(String *sql, const char *field_name, int typ,
   error|= sql->append("` ");
   error|= sql->append(type);
 
-  if (len) {
+  if (len && typ != TYPE_DATE) {
     error|= sql->append('(');
     error|= sql->append_ulonglong(len);
 
@@ -4600,6 +4582,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         len= crp->Length;
         dec= crp->Prec;
         flg= crp->Flag;
+        v= crp->Var;
 
         if (!len && typ == TYPE_STRING)
           len= 256;      // STRBLK's have 0 length
@@ -4607,11 +4590,11 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #if defined(NEW_WAY)
         // Now add the field
         rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
-                       NOT_NULL_FLAG, "", flg, dbf, 0);
+                       NOT_NULL_FLAG, "", flg, dbf, v);
 #else   // !NEW_WAY
         // Now add the field
         if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG,
-                      NULL, NULL, NULL, flg, dbf, 0))
+                      NULL, NULL, NULL, flg, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
       } // endfor crp
@@ -5002,15 +4985,23 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case MYSQL_TYPE_DATETIME:
       case MYSQL_TYPE_YEAR:
       case MYSQL_TYPE_NEWDATE:
-      case MYSQL_TYPE_VARCHAR:
       case MYSQL_TYPE_LONGLONG:
       case MYSQL_TYPE_TINY:
-        break;                     // Ok
-      case MYSQL_TYPE_VAR_STRING:
-      case MYSQL_TYPE_STRING:
       case MYSQL_TYPE_DECIMAL:
       case MYSQL_TYPE_NEWDECIMAL:
       case MYSQL_TYPE_INT24:
+        break;                     // Ok
+      case MYSQL_TYPE_VARCHAR:
+      case MYSQL_TYPE_VAR_STRING:
+      case MYSQL_TYPE_STRING:
+        if (!fp->field_length) {
+          sprintf(g->Message, "Unsupported 0 length for column %s",
+                              fp->field_name);
+          rc= HA_ERR_INTERNAL_ERROR;
+          my_printf_error(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+          DBUG_RETURN(rc);
+          } // endif fp
+
         break;                     // To be checked
       case MYSQL_TYPE_BIT:
       case MYSQL_TYPE_NULL:
@@ -5026,9 +5017,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         sprintf(g->Message, "Unsupported type for column %s",
                             fp->field_name);
         rc= HA_ERR_INTERNAL_ERROR;
-        my_printf_error(ER_UNKNOWN_ERROR,
-                        "Unsupported type for column '%s'",
-                        MYF(0), fp->field_name);
+        my_printf_error(ER_UNKNOWN_ERROR, g->Message, MYF(0));
         DBUG_RETURN(rc);
         break;
       } // endswitch type
@@ -5669,6 +5658,15 @@ Item *ha_connect::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
 struct st_mysql_storage_engine connect_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
+static MYSQL_SYSVAR_INT(xtrace, xtrace,
+       PLUGIN_VAR_RQCMDARG, "Console trace value.",
+       NULL, update_connect_xtrace, 0, 0, INT_MAX, 1);
+
+static struct st_mysql_sys_var* connect_system_variables[]= {
+  MYSQL_SYSVAR(xtrace),
+  NULL
+};
+
 maria_declare_plugin(connect)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -5681,7 +5679,7 @@ maria_declare_plugin(connect)
   connect_done_func,                            /* Plugin Deinit */
   0x0103,                                       /* version number (1.03) */
   NULL,                                         /* status variables */
-  NULL,                                         /* system variables */
+  connect_system_variables,                     /* system variables */
   "1.03",                                       /* string version */
   MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }

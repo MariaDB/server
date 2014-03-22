@@ -555,7 +555,7 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
      if (trace > 1)
       htrc("ReadBuffer: CurBlk=%d\n", CurBlk);
 
-   /*******************************************************************/
+   /********************************************************************/
     /*  Check whether optimization on ROWID                            */
     /*  can be done, as well as for join as for local filtering.       */
     /*******************************************************************/
@@ -995,7 +995,9 @@ void DOSFAM::CloseTableFile(PGLOBAL g)
 /***********************************************************************/
 void DOSFAM::Rewind(void)
   {
-  rewind(Stream);
+  if (Stream)  // Can be NULL when making index on void table
+    rewind(Stream);
+
   Rows = 0;
   OldBlk = CurBlk = -1;
   } // end of Rewind

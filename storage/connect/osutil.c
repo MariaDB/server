@@ -78,8 +78,8 @@ void _splitpath(LPCSTR name, LPSTR drive, LPSTR dir, LPSTR fn, LPSTR ft)
   LPCSTR p2, p = name;
 
 #ifdef DEBTRACE
- fprintf(debug,"SplitPath: name=%s [%s (%d)]\n",
-  XSTR(name), XSTR(__FILE__), __LINE__);
+ htrc("SplitPath: name=%s [%s (%d)]\n", 
+   XSTR(name), XSTR(__FILE__), __LINE__);
 #endif
 
   if (drive) *drive = '\0';
@@ -100,7 +100,7 @@ void _splitpath(LPCSTR name, LPSTR drive, LPSTR dir, LPSTR fn, LPSTR ft)
     if (fn) strcpy(fn, p);
 
 #ifdef DEBTRACE
- fprintf(debug,"SplitPath: name=%s drive=%s dir=%s filename=%s type=%s [%s(%d)]\n",
+ htrc("SplitPath: name=%s drive=%s dir=%s filename=%s type=%s [%s(%d)]\n",
   XSTR(name), XSTR(drive), XSTR(dir), XSTR(fn), XSTR(ft), __FILE__, __LINE__);
 #endif
   } /* end of _splitpath */

@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2012
+/* Copyright (C) Olivier Bertrand 2004 - 2014
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
 */
 
 /****************************************************************************/
-/*  Author: Olivier Bertrand  --  bertrandop@gmail.com  --  2004-2012      */
+/*  Author: Olivier Bertrand  --  bertrandop@gmail.com  --  2004-2014       */
 /****************************************************************************/
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation        // gcc: Class implementation
@@ -47,8 +47,7 @@
 #include "user_connect.h"
 #include "mycat.h"
 
-extern "C" char  plgxini[];
-extern int xtrace;
+extern "C" int trace;
 
 /****************************************************************************/
 /*  Initialize the user_connect static member.                              */
@@ -150,7 +149,7 @@ bool user_connect::CheckCleanup(void)
     g->Mrr = 0;
     last_query_id= thdp->query_id;
 
-    if (xtrace)
+    if (trace)
       printf("=====> Begin new query %llu\n", last_query_id);
 
     return true;

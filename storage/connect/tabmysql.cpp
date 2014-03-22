@@ -1,11 +1,11 @@
 /************* TabMySQL C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABMYSQL                                               */
 /* -------------                                                        */
-/*  Version 1.7                                                         */
+/*  Version 1.8                                                         */
 /*                                                                      */
 /* AUTHOR:                                                              */
 /* -------                                                              */
-/*  Olivier BERTRAND                                      2007-2013     */
+/*  Olivier BERTRAND                                      2007-2014     */
 /*                                                                      */
 /* WHAT THIS PROGRAM DOES:                                              */
 /* -----------------------                                              */
@@ -1034,7 +1034,7 @@ int TDBMYSQL::WriteDB(PGLOBAL g)
   // Statement was not prepared, we must construct and execute
   // an insert query for each line to insert
   int  rc;
-  char buf[32];
+  char buf[64];
 
   strcpy(Qbuf, Query);
 

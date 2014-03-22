@@ -1,7 +1,7 @@
 /***************** Xindex C++ Class Xindex Code (.CPP) *****************/
-/*  Name: XINDEX.CPP  Version 2.8                                      */
+/*  Name: XINDEX.CPP  Version 2.9                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2014    */
 /*                                                                     */
 /*  This file contains the class XINDEX implementation code.           */
 /***********************************************************************/
@@ -60,6 +60,7 @@
 /*  DB static external variables.                                      */
 /***********************************************************************/
 extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's     */
+extern "C" int  trace;
 
 /***********************************************************************/
 /*  Last two parameters are true to enable type checking, and last one */
@@ -267,10 +268,7 @@ int XINDEX::Qcompare(int *i1, int *i2)
     if ((k = kcp->Compare(*i1, *i2)))
       break;
 
-#ifdef DEBTRACE
-  num_comp++;
-#endif
-
+//num_comp++;
   return k;
   } // end of Qcompare
 
@@ -761,11 +759,11 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   n[4] = Incr;                // Increment of record positions
   n[5] = Nblk; n[6] = Sblk;
 
-#if defined(TRACE)
-  printf("Saving index %s\n", Xdp->GetName());
-  printf("ID=%d Nk=%d nof=%d Num_K=%d Incr=%d Nblk=%d Sblk=%d\n",
-    ID, Nk, nof, Num_K, Incr, Nblk, Sblk);
-#endif   // TRACE
+  if (trace) {
+    htrc("Saving index %s\n", Xdp->GetName());
+    htrc("ID=%d Nk=%d nof=%d Num_K=%d Incr=%d Nblk=%d Sblk=%d\n",
+          ID, Nk, nof, Num_K, Incr, Nblk, Sblk);
+    } // endif trace
 
   size = X->Write(g, n, NZ, sizeof(int), rc);
   dup->ProgCur = 1;
@@ -804,9 +802,8 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     dup->ProgCur += 5;
     } // endfor kcp
 
-#if defined(TRACE)
-  printf("Index %s saved, Size=%d\n", Xdp->GetName(), Size);
-#endif   // TRACE
+  if (trace)
+    htrc("Index %s saved, Size=%d\n", Xdp->GetName(), size);
 
  end:
   X->Close(fn, id);
@@ -891,9 +888,8 @@ bool XINDEX::Init(PGLOBAL g)
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
 
-#if defined(TRACE)
-  printf("Index %s file: %s\n", Xdp->GetName(), fn);
-#endif   // TRACE
+  if (trace)
+    htrc("Index %s file: %s\n", Xdp->GetName(), fn);
 
   /*********************************************************************/
   /*  Open the index file and check its validity.                      */
@@ -905,18 +901,18 @@ bool XINDEX::Init(PGLOBAL g)
   if (X->Read(g, nv, NZ, sizeof(int)))
     goto err;
 
-#if defined(TRACE)
-  printf("nv=%d %d %d %d %d %d %d\n",
-    nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
-#endif   // TRACE
+  if (trace)
+    htrc("nv=%d %d %d %d %d %d %d\n",
+          nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
 
   // The test on ID was suppressed because MariaDB can change an index ID
   // when other indexes are added or deleted
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
-#if defined(TRACE)
-    printf("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
-#endif   // TRACE
+
+    if (trace)
+      htrc("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
+
     goto err;
     } // endif
 
@@ -1135,9 +1131,8 @@ bool XINDEX::Init(PGLOBAL g)
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
 
-#if defined(TRACE)
-  printf("Index %s file: %s\n", Xdp->GetName(), fn);
-#endif   // TRACE
+  if (trace)
+    htrc("Index %s file: %s\n", Xdp->GetName(), fn);
 
   /*********************************************************************/
   /*  Get a view on the part of the index file containing this index.  */
@@ -1157,19 +1152,19 @@ bool XINDEX::Init(PGLOBAL g)
   nv = (int*)mbase;
   mbase += NZ * sizeof(int);
 
-#if defined(TRACE)
-  printf("nv=%d %d %d %d %d %d %d\n",
-    nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
-#endif   // TRACE
+  if (trace)
+    htrc("nv=%d %d %d %d %d %d %d\n",
+          nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
 
   // The test on ID was suppressed because MariaDB can change an index ID
   // when other indexes are added or deleted
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     // Not this index
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
-#if defined(TRACE)
-    printf("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
-#endif   // TRACE
+
+    if (trace)
+      htrc("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
+
     goto err;
     } // endif nv
 
@@ -1336,9 +1331,8 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
 
-#if defined(TRACE)
-  printf("Index %s file: %s\n", Xdp->GetName(), fn);
-#endif   // TRACE
+  if (trace)
+    htrc("Index %s file: %s\n", Xdp->GetName(), fn);
 
   /*********************************************************************/
   /*  Open the index file and check its validity.                      */
@@ -1354,17 +1348,17 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
   if (X->Read(g, nv, NZ, sizeof(int)))
     goto err;
 
-#if defined(TRACE)
-  printf("nv=%d %d %d %d\n", nv[0], nv[1], nv[2], nv[3]);
-#endif   // TRACE
+  if (trace)
+    htrc("nv=%d %d %d %d\n", nv[0], nv[1], nv[2], nv[3]);
 
   // The test on ID was suppressed because MariaDB can change an index ID
   // when other indexes are added or deleted
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
-#if defined(TRACE)
-    printf("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
-#endif   // TRACE
+
+    if (trace)
+      htrc("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
+
     goto err;
     } // endif
 
@@ -1597,9 +1591,8 @@ int XINDEX::Fetch(PGLOBAL g)
       break;
     case OP_SAME:                 // Read next same
       // Logically the key values should be the same as before
-#if defined(TRACE)
-      printf("looking for next same value\n");
-#endif   // TRACE
+      if (trace > 1)
+        htrc("looking for next same value\n");
 
       if (NextVal(true)) {
         Op = OP_EQ;
@@ -1634,9 +1627,9 @@ int XINDEX::Fetch(PGLOBAL g)
 
         Nth++;
 
-#if defined(TRACE)
-        printf("Fetch: Looking for new value\n");
-#endif   // TRACE
+        if (trace > 1)
+          htrc("Fetch: Looking for new value\n");
+
         Cur_K = FastFind(Nval);
 
         if (Cur_K >= Num_K)
@@ -1800,10 +1793,7 @@ XINDXS::XINDXS(PTDBDOS tdbp, PIXDEF xdp, PXLOAD pxp, PCOL *cp, PXOB *xp)
 /***********************************************************************/
 int XINDXS::Qcompare(int *i1, int *i2)
   {
-#ifdef DEBTRACE
-  num_comp++;
-#endif
-
+//num_comp++;
   return To_KeyCol->Compare(*i1, *i2);
   } // end of Qcompare
 
@@ -1915,9 +1905,8 @@ int XINDXS::Fetch(PGLOBAL g)
       Op = OP_NEXT;
       break;
     case OP_SAME:                 // Read next same
-#if defined(TRACE)
-//      printf("looking for next same value\n");
-#endif   // TRACE
+      if (trace > 1)
+        htrc("looking for next same value\n");
 
       if (!Mul || NextVal(true)) {
         Op = OP_EQ;
@@ -1945,9 +1934,8 @@ int XINDXS::Fetch(PGLOBAL g)
       else
         Nth++;
 
-#if defined(TRACE)
-        printf("Fetch: Looking for new value\n");
-#endif   // TRACE
+      if (trace > 1)
+        htrc("Fetch: Looking for new value\n");
 
       Cur_K = FastFind(1);
 
@@ -2110,9 +2098,9 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     } // endswitch mode
 
   if (!(Xfile= global_fopen(g, MSGID_OPEN_ERROR_AND_STRERROR, filename, pmod))) {
-#if defined(TRACE)
-    printf("Open: %s\n", g->Message);
-#endif   // TRACE
+    if (trace)
+      htrc("Open: %s\n", g->Message);
+
     return true;
     } // endif Xfile
 
@@ -2274,9 +2262,8 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     return true;
     } // endif
 
-#if defined(TRACE)
- printf( "Xopen: filename=%s mode=%d\n", filename, mode);
-#endif   // TRACE
+  if (trace)
+    htrc(" Xopen: filename=%s mode=%d\n", filename, mode);
 
 #if defined(WIN32)
   LONG  high = 0;
@@ -2319,11 +2306,9 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     return true;
     } // endif Hfile
 
-#ifdef DEBTRACE
- fprintf(debug,
- " access=%p share=%p creation=%d handle=%p fn=%s\n",
-  access, share, creation, Hfile, filename);
-#endif
+  if (trace)
+    htrc(" access=%p share=%p creation=%d handle=%p fn=%s\n",
+         access, share, creation, Hfile, filename);
 
   if (mode == MODE_INSERT) {
     /*******************************************************************/
@@ -2395,16 +2380,15 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 
   if (Hfile == INVALID_HANDLE_VALUE) {
     /*rc = errno;*/
-#if defined(TRACE)
-    printf("Open: %s\n", g->Message);
-#endif   // TRACE
+    if (trace)
+      htrc("Open: %s\n", g->Message);
+
     return true;
     } // endif Hfile
 
-#if defined(TRACE)
-  printf(" rc=%d oflag=%p mode=%d handle=%d fn=%s\n",
+  if (trace)
+    htrc(" rc=%d oflag=%p mode=%d handle=%d fn=%s\n",
            rc, oflag, mode, Hfile, filename);
-#endif   // TRACE
 
   if (mode == MODE_INSERT) {
     /*******************************************************************/
@@ -2461,15 +2445,15 @@ bool XHUGE::Seek(PGLOBAL g, int low, int high, int origin)
 
   if (lseek64(Hfile, pos, origin) < 0) {
     sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
-#if defined(TRACE)
-    printf("lseek64 error %d\n", errno);
-#endif   // TRACE
+
+    if (trace)
+      htrc("lseek64 error %d\n", errno);
+
     return true;
     } // endif lseek64
 
-#if defined(TRACE)
-  printf("Seek: low=%d high=%d\n", low, high);
-#endif   // TRACE
+  if (trace)
+    htrc("Seek: low=%d high=%d\n", low, high);
 #endif // UNIX
 
   return false;
@@ -2507,15 +2491,15 @@ bool XHUGE::Read(PGLOBAL g, void *buf, int n, int size)
 #else    // UNIX
   ssize_t count = (ssize_t)(n * size);
 
-#if defined(TRACE)
-  printf("Hfile=%d n=%d size=%d count=%d\n", Hfile, n, size, count);
-#endif   // TRACE
+  if (trace)
+    htrc("Hfile=%d n=%d size=%d count=%d\n", Hfile, n, size, count);
 
   if (read(Hfile, buf, count) != count) {
     sprintf(g->Message, MSG(READ_ERROR), "Index file", strerror(errno));
-#if defined(TRACE)
-    printf("read error %d\n", errno);
-#endif   // TRACE
+
+    if (trace)
+      htrc("read error %d\n", errno);
+
     rc = true;
     } // endif nbr
 #endif   // UNIX
@@ -2766,10 +2750,9 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
     Prefix = true;
     } // endif kln
 
-#ifdef DEBTRACE
- htrc("KCOL(%p) Init: col=%s n=%d type=%d sm=%d\n",
-  this, colp->GetName(), n, colp->GetResultType(), sm);
-#endif
+  if (trace)
+    htrc("KCOL(%p) Init: col=%s n=%d type=%d sm=%d\n",
+         this, colp->GetName(), n, colp->GetResultType(), sm);
 
   // Allocate the Value object used when moving items
   Type = colp->GetResultType();
@@ -2820,10 +2803,9 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
 
   Type = colp->GetResultType();
 
-#ifdef DEBTRACE
- htrc("MapInit(%p): colp=%p type=%d n=%d len=%d m=%p\n",
-  this, colp, Type, n[0], len, m);
-#endif
+ if (trace)
+   htrc("MapInit(%p): colp=%p type=%d n=%d len=%d m=%p\n",
+        this, colp, Type, n[0], len, m);
 
   // Allocate the Value object used when moving items
   Valp = AllocateValue(g, Type, len, prec, false, NULL);
@@ -2973,9 +2955,8 @@ int KXYCOL::Compare(int i1, int i2)
   // Do the actual comparison between values.
   register int k = Kblp->CompVal(i1, i2);
 
-#ifdef DEBUG2
- htrc("Compare done result=%d\n", k);
-#endif
+  if (trace > 2)
+    htrc("Compare done result=%d\n", k);
 
   return (Asc) ? k : -k;
   } // end of Compare
@@ -2986,13 +2967,14 @@ int KXYCOL::Compare(int i1, int i2)
 int KXYCOL::CompVal(int i)
   {
   // Do the actual comparison between numerical values.
-#ifdef DEBUG2
-  register int k = (int)Kblp->CompVal(Valp, (int)i);
+  if (trace > 2) {
+    register int k = (int)Kblp->CompVal(Valp, (int)i);
 
-  htrc("Compare done result=%d\n", k);
-  return k;
-#endif
-  return Kblp->CompVal(Valp, i);
+    htrc("Compare done result=%d\n", k);
+    return k;
+  } else
+    return Kblp->CompVal(Valp, i);
+
   } // end of CompVal
 
 /***********************************************************************/

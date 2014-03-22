@@ -16,7 +16,7 @@
 /***********************************************************************/
 
 /***********************************************************************/
-/*  Include relevant MariaDB header file.                  */
+/*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
 
@@ -1351,7 +1351,7 @@ void CSVCOL::ReadColumn(PGLOBAL g)
 /***********************************************************************/
 void CSVCOL::WriteColumn(PGLOBAL g)
   {
-  char   *p, buf[32];
+  char   *p, buf[64];
   int     flen;
   PTDBCSV tdbp = (PTDBCSV)To_Tdb;
 
