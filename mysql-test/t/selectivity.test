@@ -889,4 +889,27 @@ set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 
+
+--echo #
+--echo # Bug mdev-5931: no where condition after constant table row substitution 
+--echo #                with optimizer_use_condition_selectivity=3
+--echo #
+
+CREATE TABLE t1 (a varchar(3), b varchar(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo', 'foo');
+
+CREATE TABLE t2 (c INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1), (2);
+
+set optimizer_use_condition_selectivity=3;
+
+EXPLAIN EXTENDED
+SELECT * FROM t1, t2 WHERE c >= 0 OR a = b ;
+
+SELECT * FROM t1, t2 WHERE c >= 0 OR a = b ;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1,t2;
+
 set use_stat_tables=@save_use_stat_tables;
