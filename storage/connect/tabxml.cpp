@@ -1326,14 +1326,11 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   if (Value != To_Val)
     Value->SetValue_pval(To_Val, false);    // Convert the updated value
 
-  if (Value->IsNull())
-    return;
-
   /*********************************************************************/
   /*  If a check pass was done while updating, all node contruction    */
   /*  has been already one.                                            */
   /*********************************************************************/
-  if (Status && Tdbp->Checked) {
+  if (Status && Tdbp->Checked && !Value->IsNull()) {
     assert (ColNode != NULL);
     assert ((Type ? (void *)ValNode : (void *)AttNode) != NULL);
     goto fin;
@@ -1345,6 +1342,12 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   /*********************************************************************/
   if (Tdbp->CheckRow(g, Nod || Tdbp->Colname))
     longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+
+  /*********************************************************************/
+  /*  Null values are represented by no node.                          */
+  /*********************************************************************/
+  if (Value->IsNull())
+    return;
 
   /*********************************************************************/
   /*  Find the column and value nodes to update or insert.             */

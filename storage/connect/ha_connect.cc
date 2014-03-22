@@ -2702,10 +2702,13 @@ int ha_connect::rnd_init(bool scan)
     DBUG_RETURN(HA_ERR_INITIALIZATION);
 
   // Do not close the table if it was opened yet (locked?)
-  if (IsOpened())
-    DBUG_RETURN(0);
-//  CloseTable(g);  Was done before making things done twice
-  else if (xp->CheckQuery(valid_query_id))
+  if (IsOpened()) {
+    if (tdbp->OpenDB(g))      // Rewind table
+      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+    else
+      DBUG_RETURN(0);
+
+  } else if (xp->CheckQuery(valid_query_id))
     tdbp= NULL;       // Not valid anymore
 
   // When updating, to avoid skipped update, force the table
@@ -3347,17 +3350,18 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
     // This is unlocking, do it by closing the table
     if (xp->CheckQueryID() && sqlcom != SQLCOM_UNLOCK_TABLES
-                           && sqlcom != SQLCOM_LOCK_TABLES)
-      rc= 2;          // Logical error ???
-//  else if (g->Xchk && (sqlcom == SQLCOM_CREATE_INDEX ||
-//                       sqlcom == SQLCOM_DROP_INDEX)) {
-    else if (g->Xchk) {
+                           && sqlcom != SQLCOM_LOCK_TABLES
+                           && sqlcom != SQLCOM_DROP_TABLE) {
+      sprintf(g->Message, "external_lock: unexpected command %d", sqlcom);
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+      DBUG_RETURN(0);
+    } else if (g->Xchk) {
       if (!tdbp) {
         if (!(tdbp= GetTDB(g)))
           DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
         else if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
           sprintf(g->Message, "external_lock: Table %s is not indexable", tdbp->GetName());
-//        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+//        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);  causes assert error
           push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
           DBUG_RETURN(0);
           } // endif Indexable
@@ -4998,7 +5002,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           sprintf(g->Message, "Unsupported 0 length for column %s",
                               fp->field_name);
           rc= HA_ERR_INTERNAL_ERROR;
-          my_printf_error(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+          my_printf_error(ER_UNKNOWN_ERROR,
+                          "Unsupported 0 length for column %s",
+                          MYF(0), fp->field_name);
           DBUG_RETURN(rc);
           } // endif fp
 
@@ -5017,15 +5023,16 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         sprintf(g->Message, "Unsupported type for column %s",
                             fp->field_name);
         rc= HA_ERR_INTERNAL_ERROR;
-        my_printf_error(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        my_printf_error(ER_UNKNOWN_ERROR, "Unsupported type for column %s",
+                        MYF(0), fp->field_name);
         DBUG_RETURN(rc);
         break;
       } // endswitch type
 
     if ((fp)->real_maybe_null() && !IsTypeNullable(type)) {
       my_printf_error(ER_UNKNOWN_ERROR,
-                "Table type %s does not support nullable columns",
-                MYF(0), options->type);
+                      "Table type %s does not support nullable columns",
+                      MYF(0), options->type);
       DBUG_RETURN(HA_ERR_UNSUPPORTED);
       } // endif !nullable
 
