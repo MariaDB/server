@@ -1330,6 +1330,28 @@ drop table t1, t2;
 set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+#
+# Bug mdev-5931: no where condition after constant table row substitution 
+#                with optimizer_use_condition_selectivity=3
+#
+CREATE TABLE t1 (a varchar(3), b varchar(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo', 'foo');
+CREATE TABLE t2 (c INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1), (2);
+set optimizer_use_condition_selectivity=3;
+EXPLAIN EXTENDED
+SELECT * FROM t1, t2 WHERE c >= 0 OR a = b ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	select 'foo' AS `a`,'foo' AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where 1
+SELECT * FROM t1, t2 WHERE c >= 0 OR a = b ;
+a	b	c
+foo	foo	1
+foo	foo	2
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+DROP TABLE t1,t2;
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
 SET SESSION STORAGE_ENGINE=DEFAULT;
