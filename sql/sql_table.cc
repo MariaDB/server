@@ -4666,7 +4666,7 @@ int create_table_impl(THD *thd,
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d",
                        db, table_name, internal_tmp_table));
 
-  if (!my_use_symdir || (thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE))
+  if (thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE)
   {
     if (create_info->data_file_name)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
