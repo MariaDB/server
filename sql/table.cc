@@ -3440,10 +3440,11 @@ uint calculate_key_len(TABLE *table, uint key, const uchar *buf,
 
   SYNPOSIS
     check_db_name()
-    org_name		Name of database and length
+    org_name		Name of database
 
   NOTES
-    If lower_case_table_names is set then database is converted to lower case
+    If lower_case_table_names is set to 1 then database name is converted
+    to lower case
 
   RETURN
     0	ok
@@ -3465,13 +3466,12 @@ bool check_db_name(LEX_STRING *org_name)
   if (!name_length || name_length > NAME_LEN)
     return 1;
 
-  if (lower_case_table_names && name != any_db)
-    my_casedn_str(files_charset_info, name);
-
+  if (lower_case_table_names == 1 && name != any_db)
+    org_name->length= my_casedn_str(files_charset_info, name);
   if (db_name_is_in_ignore_db_dirs_list(name))
     return 1;
 
-  return check_table_name(name, name_length, check_for_path_chars);
+  return check_table_name(name, org_name->length, check_for_path_chars);
 }
 
 

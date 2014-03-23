@@ -1372,9 +1372,7 @@ retry:
     /* Skip if table alias does not match. */
     if (check_alias)
     {
-      if (lower_case_table_names ?
-          my_strcasecmp(files_charset_info, t_alias, res->alias) :
-          strcmp(t_alias, res->alias))
+      if (my_strcasecmp(table_alias_charset, t_alias, res->alias))
         goto next;
     }
 
