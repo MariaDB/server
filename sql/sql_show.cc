@@ -1009,9 +1009,10 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 
   {
     /*
-      Use open_tables() directly rather than open_normal_and_derived_tables().
-      This ensures that close_thread_tables() is not called if open tables fails
-      and the error is ignored. This allows us to handle broken views nicely.
+      Use open_tables() directly rather than
+      open_normal_and_derived_tables().  This ensures that
+      close_thread_tables() is not called if open tables fails and the
+      error is ignored. This allows us to handle broken views nicely.
     */
     uint counter;
     Show_create_error_handler view_error_suppressor(thd, table_list);
@@ -1105,7 +1106,8 @@ exit:
   DBUG_RETURN(error);
 }
 
-bool mysqld_show_create_db(THD *thd, char *dbname,
+bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
+                           LEX_STRING *orig_dbname,
                            HA_CREATE_INFO *create_info)
 {
   char buff[2048];
@@ -1123,32 +1125,32 @@ bool mysqld_show_create_db(THD *thd, char *dbname,
   if (test_all_bits(sctx->master_access, DB_ACLS))
     db_access=DB_ACLS;
   else
-    db_access= (acl_get(sctx->host, sctx->ip, sctx->priv_user, dbname, 0) |
+    db_access= (acl_get(sctx->host, sctx->ip, sctx->priv_user, dbname->str, 0) |
 		sctx->master_access);
-  if (!(db_access & DB_ACLS) && check_grant_db(thd,dbname))
+  if (!(db_access & DB_ACLS) && check_grant_db(thd,dbname->str))
   {
     status_var_increment(thd->status_var.access_denied_errors);
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
-             sctx->priv_user, sctx->host_or_ip, dbname);
+             sctx->priv_user, sctx->host_or_ip, dbname->str);
     general_log_print(thd,COM_INIT_DB,ER(ER_DBACCESS_DENIED_ERROR),
-                      sctx->priv_user, sctx->host_or_ip, dbname);
+                      sctx->priv_user, sctx->host_or_ip, orig_dbname->str);
     DBUG_RETURN(TRUE);
   }
 #endif
-  if (is_infoschema_db(dbname))
+  if (is_infoschema_db(dbname->str))
   {
-    dbname= INFORMATION_SCHEMA_NAME.str;
+    *dbname= INFORMATION_SCHEMA_NAME;
     create.default_table_charset= system_charset_info;
   }
   else
   {
-    if (check_db_dir_existence(dbname))
+    if (check_db_dir_existence(dbname->str))
     {
-      my_error(ER_BAD_DB_ERROR, MYF(0), dbname);
+      my_error(ER_BAD_DB_ERROR, MYF(0), dbname->str);
       DBUG_RETURN(TRUE);
     }
 
-    load_db_opt_by_name(thd, dbname, &create);
+    load_db_opt_by_name(thd, dbname->str, &create);
   }
   List<Item> field_list;
   field_list.push_back(new Item_empty_string("Database",NAME_CHAR_LEN));
@@ -1159,12 +1161,12 @@ bool mysqld_show_create_db(THD *thd, char *dbname,
     DBUG_RETURN(TRUE);
 
   protocol->prepare_for_resend();
-  protocol->store(dbname, strlen(dbname), system_charset_info);
+  protocol->store(orig_dbname->str, orig_dbname->length, system_charset_info);
   buffer.length(0);
   buffer.append(STRING_WITH_LEN("CREATE DATABASE "));
   if (create_options & HA_LEX_CREATE_IF_NOT_EXISTS)
     buffer.append(STRING_WITH_LEN("/*!32312 IF NOT EXISTS*/ "));
-  append_identifier(thd, &buffer, dbname, strlen(dbname));
+  append_identifier(thd, &buffer, dbname->str, dbname->length);
 
   if (create.default_table_charset)
   {

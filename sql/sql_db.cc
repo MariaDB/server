@@ -78,6 +78,29 @@ typedef struct my_dbopt_st
 } my_dbopt_t;
 
 
+/**
+  Return TRUE if db1_name is equal to db2_name, FALSE otherwise.
+
+  The function allows to compare database names according to the MariaDB
+  rules. The database names db1 and db2 are equal if:
+     - db1 is NULL and db2 is NULL;
+     or
+     - db1 is not-NULL, db2 is not-NULL, db1 is equal to db2 in
+     table_alias_charset
+
+  This is the same rules as we use for filenames.
+*/
+
+static inline bool
+cmp_db_names(const char *db1_name,
+             const char *db2_name)
+{
+  return ((!db1_name && !db2_name) ||
+          (db1_name && db2_name &&
+           my_strcasecmp(table_alias_charset, db1_name, db2_name) == 0));
+}
+
+
 /*
   Function we use in the creation of our hash to get key.
 */
@@ -159,8 +182,7 @@ bool my_dboptions_cache_init(void)
   if (!dboptions_init)
   {
     dboptions_init= 1;
-    error= my_hash_init(&dboptions, lower_case_table_names ?
-                        &my_charset_bin : system_charset_info,
+    error= my_hash_init(&dboptions, table_alias_charset,
                         32, 0, 0, (my_hash_get_key) dboptions_get_key,
                         free_dbopt,0);
   }
@@ -192,8 +214,7 @@ void my_dbopt_cleanup(void)
 {
   mysql_rwlock_wrlock(&LOCK_dboptions);
   my_hash_free(&dboptions);
-  my_hash_init(&dboptions, lower_case_table_names ? 
-               &my_charset_bin : system_charset_info,
+  my_hash_init(&dboptions, table_alias_charset,
                32, 0, 0, (my_hash_get_key) dboptions_get_key,
                free_dbopt,0);
   mysql_rwlock_unlock(&LOCK_dboptions);
@@ -762,7 +783,6 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
   Drop_table_error_handler err_handler;
   DBUG_ENTER("mysql_rm_db");
 
-
   if (lock_schema_name(thd, db))
     DBUG_RETURN(true);
 
@@ -966,7 +986,7 @@ exit:
     SELECT DATABASE() in the future). For this we free() thd->db and set
     it to 0.
   */
-  if (thd->db && !strcmp(thd->db, db) && !error)
+  if (thd->db && cmp_db_names(thd->db, db) && !error)
     mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
   my_dirend(dirp);
   DBUG_RETURN(error);
@@ -992,6 +1012,13 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
 
   /* Now put the tables in the list */
   tot_list_next_local= tot_list_next_global= &tot_list;
+
+  if (lower_case_table_names)
+  {
+    /* Change database name to lower case for comparision */
+    db.str= thd->strmake(db.str, db.length);
+    db.length= my_casedn_str(files_charset_info, db.str);
+  }
 
   for (size_t idx=0; idx < files.elements(); idx++)
   {
@@ -1296,27 +1323,6 @@ static void backup_current_db_name(THD *thd,
     strmake(saved_db_name->str, thd->db, saved_db_name->length - 1);
     saved_db_name->length= thd->db_length;
   }
-}
-
-
-/**
-  Return TRUE if db1_name is equal to db2_name, FALSE otherwise.
-
-  The function allows to compare database names according to the MySQL
-  rules. The database names db1 and db2 are equal if:
-     - db1 is NULL and db2 is NULL;
-     or
-     - db1 is not-NULL, db2 is not-NULL, db1 is equal (ignoring case) to
-       db2 in system character set (UTF8).
-*/
-
-static inline bool
-cmp_db_names(const char *db1_name,
-             const char *db2_name)
-{
-  return ((!db1_name && !db2_name) ||
-          (db1_name && db2_name &&
-           my_strcasecmp(system_charset_info, db1_name, db2_name) == 0));
 }
 
 

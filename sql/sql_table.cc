@@ -5132,7 +5132,7 @@ mysql_rename_table(handlerton *base, const char *old_db,
   char from[FN_REFLEN + 1], to[FN_REFLEN + 1],
     lc_from[FN_REFLEN + 1], lc_to[FN_REFLEN + 1];
   char *from_base= from, *to_base= to;
-  char tmp_name[SAFE_NAME_LEN+1];
+  char tmp_name[SAFE_NAME_LEN+1], tmp_db_name[SAFE_NAME_LEN+1];
   handler *file;
   int error=0;
   ulonglong save_bits= thd->variables.option_bits;
@@ -5169,13 +5169,19 @@ mysql_rename_table(handlerton *base, const char *old_db,
   {
     strmov(tmp_name, old_name);
     my_casedn_str(files_charset_info, tmp_name);
-    build_table_filename(lc_from, sizeof(lc_from) - 1, old_db, tmp_name, "",
-                         flags & FN_FROM_IS_TMP);
+    strmov(tmp_db_name, old_db);
+    my_casedn_str(files_charset_info, tmp_db_name);
+
+    build_table_filename(lc_from, sizeof(lc_from) - 1, tmp_db_name, tmp_name,
+                         "", flags & FN_FROM_IS_TMP);
     from_base= lc_from;
 
     strmov(tmp_name, new_name);
     my_casedn_str(files_charset_info, tmp_name);
-    build_table_filename(lc_to, sizeof(lc_to) - 1, new_db, tmp_name, "",
+    strmov(tmp_db_name, new_db);
+    my_casedn_str(files_charset_info, tmp_db_name);
+
+    build_table_filename(lc_to, sizeof(lc_to) - 1, tmp_db_name, tmp_name, "",
                          flags & FN_TO_IS_TMP);
     to_base= lc_to;
   }

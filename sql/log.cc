@@ -542,25 +542,19 @@ int check_if_log_table(const TABLE_LIST *table,
 {
   int result= 0;
   if (table->db_length == 5 &&
-      !(lower_case_table_names ?
-        my_strcasecmp(system_charset_info, table->db, "mysql") :
-        strcmp(table->db, "mysql")))
+      !my_strcasecmp(table_alias_charset, table->db, "mysql"))
   {
     const char *table_name= table->table_name;
 
     if (table->table_name_length == 11 &&
-        !(lower_case_table_names ?
-          my_strcasecmp(system_charset_info,
-                        table_name, "general_log") :
-          strcmp(table_name, "general_log")))
+        !my_strcasecmp(table_alias_charset, table_name, "general_log"))
     {
       result= QUERY_LOG_GENERAL;
       goto end;
     }
 
-    if (table->table_name_length == 8 && !(lower_case_table_names ?
-      my_strcasecmp(system_charset_info, table_name, "slow_log") :
-      strcmp(table_name, "slow_log")))
+    if (table->table_name_length == 8 &&
+        !my_strcasecmp(table_alias_charset, table_name, "slow_log"))
     {
       result= QUERY_LOG_SLOW;
       goto end;

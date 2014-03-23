@@ -237,6 +237,7 @@ our $opt_fast= 0;
 our $opt_force= 0;
 our $opt_mem= $ENV{'MTR_MEM'};
 our $opt_clean_vardir= $ENV{'MTR_CLEAN_VARDIR'};
+our $opt_use_copy= 0;
 
 our $opt_gcov;
 our $opt_gcov_src_dir;
@@ -1143,6 +1144,7 @@ sub command_line_setup {
 	     # skip-im is deprecated and silently ignored
 	     'skip-im'                  => \&ignore_option,
              'staging-run'              => \$opt_staging_run,
+             'use-copy'                 => \$opt_use_copy,
 
              # Specify ports
 	     'build-thread|mtr-build-thread=i' => \$opt_build_thread,
@@ -2684,7 +2686,7 @@ sub setup_vardir() {
   {
     $plugindir="$opt_vardir/plugins";
     mkpath($plugindir);
-    if (IS_WINDOWS && !$opt_embedded_server)
+    if (IS_WINDOWS && !$opt_embedded_server || $opt_use_copy)
     {
       for (<$bindir/storage/*$opt_vs_config/*.dll>,
            <$bindir/plugin/*$opt_vs_config/*.dll>,
