@@ -2052,9 +2052,11 @@ void binlog_reset_cache(THD *thd)
   binlog_cache_mngr *const cache_mngr= 
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
   DBUG_ENTER("binlog_reset_cache");
-  thd->binlog_remove_pending_rows_event(TRUE, TRUE);
-  cache_mngr->reset(true, true);
-  thd->clear_binlog_table_maps();
+  if (cache_mngr)
+  {
+    thd->binlog_remove_pending_rows_event(TRUE, TRUE);
+    cache_mngr->reset(true, true);
+  }
   DBUG_VOID_RETURN;
 }
 
