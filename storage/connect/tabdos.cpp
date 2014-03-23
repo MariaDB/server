@@ -1124,13 +1124,6 @@ void DOSCOL::WriteColumn(PGLOBAL g)
     htrc("Lrecl=%d deplac=%d int=%d\n", tdbp->Lrecl, Deplac, Long);
 
   field = Long;
-	len = (signed)strlen(tdbp->To_Line);
-
-	if (tdbp->GetAmType() == TYPE_AM_DOS && len > tdbp->Lrecl) {
-		sprintf(g->Message, "Line size %d is bigger than lrecl %d",
-						len, tdbp->Lrecl);
-    longjmp(g->jumper[g->jump_level], 32);
-    } // endif
 
   if (tdbp->Ftype == RECFM_VAR && tdbp->Mode == MODE_UPDATE) {
     len = (signed)strlen(tdbp->To_Line);
