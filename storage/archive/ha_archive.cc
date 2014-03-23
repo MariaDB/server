@@ -104,7 +104,6 @@
   >5.1.15 - v.3
 */
 
-
 /* The file extension */
 #define ARZ ".ARZ"               // The data file
 #define ARN ".ARN"               // Files used during an optimize call
@@ -171,14 +170,14 @@ static void init_archive_psi_keys(void)
   const char* category= "archive";
   int count;
 
-  if (PSI_server == NULL)
+  if (!PSI_server)
     return;
-
+  
   count= array_elements(all_archive_mutexes);
-  PSI_server->register_mutex(category, all_archive_mutexes, count);
+  mysql_mutex_register(category, all_archive_mutexes, count);
 
   count= array_elements(all_archive_files);
-  PSI_server->register_file(category, all_archive_files, count);
+  mysql_file_register(category, all_archive_files, count);
 }
 
 #endif /* HAVE_PSI_INTERFACE */
@@ -765,7 +764,10 @@ int ha_archive::create(const char *name, TABLE *table_arg,
   /* 
     We reuse name_buff since it is available.
   */
-  if (create_info->data_file_name && create_info->data_file_name[0] != '#')
+#ifdef HAVE_READLINK
+  if (my_use_symdir &&
+      create_info->data_file_name &&
+      create_info->data_file_name[0] != '#')
   {
     DBUG_PRINT("ha_archive", ("archive will create stream file %s", 
                         create_info->data_file_name));
@@ -776,10 +778,27 @@ int ha_archive::create(const char *name, TABLE *table_arg,
               MY_REPLACE_EXT | MY_UNPACK_FILENAME);
   }
   else
+#endif /* HAVE_READLINK */
   {
+    if (create_info->data_file_name)
+    {
+      push_warning_printf(table_arg->in_use, Sql_condition::WARN_LEVEL_WARN,
+                          WARN_OPTION_IGNORED,
+                          ER_DEFAULT(WARN_OPTION_IGNORED),
+                          "DATA DIRECTORY");
+    }
     fn_format(name_buff, name, "", ARZ,
               MY_REPLACE_EXT | MY_UNPACK_FILENAME);
     linkname[0]= 0;
+  }
+
+  /* Archive engine never uses INDEX DIRECTORY. */
+  if (create_info->index_file_name)
+  {
+    push_warning_printf(table_arg->in_use, Sql_condition::WARN_LEVEL_WARN,
+                        WARN_OPTION_IGNORED,
+                        ER_DEFAULT(WARN_OPTION_IGNORED),
+                        "INDEX DIRECTORY");
   }
 
   /*
