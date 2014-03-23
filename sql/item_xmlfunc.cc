@@ -2600,16 +2600,24 @@ my_xpath_parse(MY_XPATH *xpath, const char *str, const char *strend)
 
 void Item_xml_str_func::fix_length_and_dec()
 {
+  max_length= MAX_BLOB_WIDTH;
+  agg_arg_charsets_for_comparison(collation, args, arg_count);
+}
+
+
+bool Item_xml_str_func::fix_fields(THD *thd, Item **ref)
+{
   String *xp, tmp;
   MY_XPATH xpath;
   int rc;
 
+  if (Item_str_func::fix_fields(thd, ref))
+    return true;
+  
   status_var_increment(current_thd->status_var.feature_xml);
 
   nodeset_func= 0;
 
-  if (agg_arg_charsets_for_comparison(collation, args, arg_count))
-    return;
 
   if (collation.collation->mbminlen > 1)
   {
@@ -2617,23 +2625,23 @@ void Item_xml_str_func::fix_length_and_dec()
     my_printf_error(ER_UNKNOWN_ERROR,
                     "Character set '%s' is not supported by XPATH",
                     MYF(0), collation.collation->csname);
-    return;
+    return true;
   }
 
   if (!args[1]->const_item())
   {
     my_printf_error(ER_UNKNOWN_ERROR,
                     "Only constant XPATH queries are supported", MYF(0));
-    return;
+    return true;
   }
 
   if (!(xp= args[1]->val_str(&tmp)))
-    return;
+    return false; // Will return NULL
   my_xpath_init(&xpath);
   xpath.cs= collation.collation;
   xpath.debug= 0;
-  xpath.pxml= &pxml;
-  pxml.set_charset(collation.collation);
+  xpath.pxml= xml.parsed();
+  xml.set_charset(collation.collation);
 
   rc= my_xpath_parse(&xpath, xp->ptr(), xp->ptr() + xp->length());
 
@@ -2643,13 +2651,24 @@ void Item_xml_str_func::fix_length_and_dec()
     set_if_smaller(clen, 32);
     my_printf_error(ER_UNKNOWN_ERROR, "XPATH syntax error: '%.*s'",
                     MYF(0), clen, xpath.lasttok.beg);
-    return;
+    return true;
   }
 
-  nodeset_func= xpath.item;
-  if (nodeset_func)
-    nodeset_func->fix_fields(current_thd, &nodeset_func);
-  max_length= MAX_BLOB_WIDTH;
+  /*
+     Parsing XML is a heavy operation, so if the first argument is constant,
+     then parse XML only one time and cache the parsed representation
+     together with raw text representation.
+
+     Note, we cannot cache the entire function result even if
+     the first and the second arguments are constants, because
+     the XPath expression may have user and SP variable references,
+     so the function result can vary between executions.
+  */
+  if ((args[0]->const_item() && get_xml(&xml, true)) ||
+      !(nodeset_func= xpath.item))
+    return false; // Will return NULL
+
+  return nodeset_func->fix_fields(thd, &nodeset_func);
 }
 
 
@@ -2780,25 +2799,24 @@ int xml_leave(MY_XML_PARSER *st,const char *attr, size_t len)
   Parse raw XML
 
   SYNOPSYS
-    
 
   RETURN
-    Currently pointer to parsed XML on success
-    0 on parse error
+    false on success
+    true on error
 */
-String *Item_xml_str_func::parse_xml(String *raw_xml, String *parsed_xml_buf)
+bool Item_xml_str_func::XML::parse()
 {
   MY_XML_PARSER p;
   MY_XML_USER_DATA user_data;
   int rc;
 
-  parsed_xml_buf->length(0);
+  m_parsed_buf.length(0);
 
   /* Prepare XML parser */
   my_xml_parser_create(&p);
   p.flags= MY_XML_FLAG_RELATIVE_NAMES | MY_XML_FLAG_SKIP_TEXT_NORMALIZATION;
   user_data.level= 0;
-  user_data.pxml= parsed_xml_buf;
+  user_data.pxml= &m_parsed_buf;
   user_data.parent= 0;
   my_xml_set_enter_handler(&p, xml_enter);
   my_xml_set_value_handler(&p, xml_value);
@@ -2807,10 +2825,10 @@ String *Item_xml_str_func::parse_xml(String *raw_xml, String *parsed_xml_buf)
 
   /* Add root node */
   p.current_node_type= MY_XML_NODE_TAG;
-  xml_enter(&p, raw_xml->ptr(), 0);
+  xml_enter(&p, m_raw_ptr->ptr(), 0);
 
   /* Execute XML parser */
-  if ((rc= my_xml_parse(&p, raw_xml->ptr(), raw_xml->length())) != MY_XML_OK)
+  if ((rc= my_xml_parse(&p, m_raw_ptr->ptr(), m_raw_ptr->length())) != MY_XML_OK)
   {
     char buf[128];
     my_snprintf(buf, sizeof(buf)-1, "parse error at line %d pos %lu: %s",
@@ -2820,10 +2838,41 @@ String *Item_xml_str_func::parse_xml(String *raw_xml, String *parsed_xml_buf)
     push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WRONG_VALUE,
                         ER(ER_WRONG_VALUE), "XML", buf);
+    m_raw_ptr= (String *) 0;
   }
   my_xml_parser_free(&p);
 
-  return rc == MY_XML_OK ? parsed_xml_buf : 0;
+  return rc != MY_XML_OK;
+}
+
+
+/*
+  Parse the raw XML from the given source,
+  optionally cache the raw XML,
+  remember the pointer to the raw XML.
+*/
+bool Item_xml_str_func::XML::parse(String *raw_xml, bool cache)
+{
+  m_raw_ptr= raw_xml;
+  if (cache)
+  {
+    m_cached= true;
+    if (m_raw_ptr != &m_raw_buf && m_raw_buf.copy(*m_raw_ptr))
+    {
+      m_raw_ptr= (String *) 0;
+      return true;
+    }
+    m_raw_ptr= &m_raw_buf;
+  }
+  return parse();
+}
+
+
+const MY_XML_NODE *Item_xml_str_func::XML::node(uint idx)
+{
+  const MY_XML_NODE *nodebeg= (MY_XML_NODE*) m_parsed_buf.ptr();
+  DBUG_ASSERT(idx < m_parsed_buf.length() / sizeof (MY_XML_NODE));
+  return nodebeg + idx;
 }
 
 
@@ -2831,10 +2880,8 @@ String *Item_func_xml_extractvalue::val_str(String *str)
 {
   String *res;
   null_value= 0;
-  if (!nodeset_func ||
-      !(res= args[0]->val_str(str)) || 
-      !parse_xml(res, &pxml) ||
-      !(res= nodeset_func->val_str(&tmp_value)))
+  if (!nodeset_func || get_xml(&xml) ||
+      !(res= nodeset_func->val_str(str)))
   {
     null_value= 1;
     return 0;
@@ -2843,22 +2890,37 @@ String *Item_func_xml_extractvalue::val_str(String *str)
 }
 
 
+bool Item_func_xml_update::collect_result(String *str,
+                                          const MY_XML_NODE *cut,
+                                          const String *replace)
+{
+  uint offs= cut->type == MY_XML_NODE_TAG ? 1 : 0;
+  const char *end= cut->tagend + offs;
+  str->length(0);
+  str->set_charset(collation.collation);
+  return
+    /* Put the XML part preceeding the replaced piece */
+    str->append(xml.raw()->ptr(), cut->beg - xml.raw()->ptr() - offs) ||
+    /* Put the replacement */
+    str->append(replace->ptr(), replace->length()) ||
+    /* Put the XML part following the replaced piece */
+    str->append(end, xml.raw()->ptr() + xml.raw()->length() - end);
+}
+
+
 String *Item_func_xml_update::val_str(String *str)
 {
-  String *res, *nodeset, *rep;
+  String *nodeset, *rep;
 
   null_value= 0;
-  if (!nodeset_func || 
-      !(res= args[0]->val_str(str)) ||
+  if (!nodeset_func || get_xml(&xml) ||
       !(rep= args[2]->val_str(&tmp_value3)) ||
-      !parse_xml(res, &pxml) ||
       !(nodeset= nodeset_func->val_nodeset(&tmp_value2)))
   {
     null_value= 1;
     return 0;
   }
 
-  MY_XML_NODE *nodebeg= (MY_XML_NODE*) pxml.ptr();
   MY_XPATH_FLT *fltbeg= (MY_XPATH_FLT*) nodeset->ptr();
   MY_XPATH_FLT *fltend= (MY_XPATH_FLT*) (nodeset->ptr() + nodeset->length());
 
@@ -2866,10 +2928,10 @@ String *Item_func_xml_update::val_str(String *str)
   if (fltend - fltbeg != 1)
   {
     /* TODO: perhaps add a warning that more than one tag selected */
-    return res;
+    return xml.raw();
   }
 
-  nodebeg+= fltbeg->num;
+  const MY_XML_NODE *nodebeg= xml.node(fltbeg->num);
 
   if (!nodebeg->level)
   {
@@ -2881,12 +2943,5 @@ String *Item_func_xml_update::val_str(String *str)
     return rep;
   }
 
-  tmp_value.length(0);
-  tmp_value.set_charset(collation.collation);
-  uint offs= nodebeg->type == MY_XML_NODE_TAG ? 1 : 0;
-  tmp_value.append(res->ptr(), nodebeg->beg - res->ptr() - offs);
-  tmp_value.append(rep->ptr(), rep->length());
-  const char *end= nodebeg->tagend + offs;
-  tmp_value.append(end, res->ptr() + res->length() - end);
-  return &tmp_value;
+  return collect_result(str, nodebeg, rep) ? (String *) NULL : str;
 }

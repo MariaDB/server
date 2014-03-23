@@ -26,11 +26,55 @@
 #endif
 
 
+typedef struct my_xml_node_st MY_XML_NODE;
+
+
 class Item_xml_str_func: public Item_str_func
 {
 protected:
-  String tmp_value, pxml;
+  /*
+    A helper class to store raw and parsed XML.
+  */
+  class XML
+  {
+    bool m_cached;
+    String *m_raw_ptr;   // Pointer to text representation
+    String m_raw_buf;    // Cached text representation
+    String m_parsed_buf; // Array of MY_XML_NODEs, pointing to raw_buffer
+    bool parse();
+    void reset()
+    {
+      m_cached= false;
+      m_raw_ptr= (String *) 0;
+    }
+  public:
+    XML() { reset(); }
+    void set_charset(CHARSET_INFO *cs) { m_parsed_buf.set_charset(cs); }
+    String *raw() { return m_raw_ptr; }
+    String *parsed() { return &m_parsed_buf; }
+    const MY_XML_NODE *node(uint idx);
+    bool cached() { return m_cached; }
+    bool parse(String *raw, bool cache);
+    bool parse(Item *item, bool cache)
+    {
+      String *res;
+      if (!(res= item->val_str(&m_raw_buf)))
+      {
+        m_raw_ptr= (String *) 0;
+        m_cached= cache;
+        return true;
+      }
+      return parse(res, cache);
+    }
+  };
   Item *nodeset_func;
+  XML xml;
+  bool get_xml(XML *xml, bool cache= false)
+  {
+    if (!cache && xml->cached())
+      return xml->raw() == 0;
+    return xml->parse(args[0], cache);
+  }
 public:
   Item_xml_str_func(Item *a, Item *b): 
     Item_str_func(a,b) 
@@ -42,8 +86,12 @@ public:
   {
     maybe_null= TRUE;
   }
+  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
-  String *parse_xml(String *raw_xml, String *parsed_xml_buf);
+  bool const_item() const
+  {
+    return const_item_cache && (!nodeset_func || nodeset_func->const_item());
+  }
   bool check_vcol_func_processor(uchar *int_arg) 
   {
     return trace_unsupported_by_check_vcol_func_processor(func_name());
@@ -63,6 +111,9 @@ public:
 class Item_func_xml_update: public Item_xml_str_func
 {
   String tmp_value2, tmp_value3;
+  bool collect_result(String *str,
+                      const MY_XML_NODE *cut,
+                      const String *replace);
 public:
   Item_func_xml_update(Item *a,Item *b,Item *c) :Item_xml_str_func(a,b,c) {}
   const char *func_name() const { return "updatexml"; }

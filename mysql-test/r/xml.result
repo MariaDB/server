@@ -1214,3 +1214,41 @@ DROP TABLE t1;
 #
 # End of 5.5 tests
 #
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-5689 ExtractValue(xml, 'substring(/x,/y)') crashes
+#
+SELECT ExtractValue('<a><b>abc</b><c>2</c><d>1</d></a>','substring(/a/b,..)') AS e;
+e
+
+SELECT ExtractValue('<a><b>abc</b><c>2</c><d>1</d></a>','substring(/a/b,/a/c)') AS e;
+e
+bc
+SELECT ExtractValue('<a><b>abc</b><c>2</c><d>1</d></a>','substring(/a/b,/a/d)') AS e;
+e
+abc
+SELECT ExtractValue('<a><b>abc</b><c>2</c><d>1</d></a>','substring(/a/b,/a/c,/a/d)') AS e;
+e
+b
+SELECT ExtractValue('<a><b>abc</b><c>2</c><d>1</d></a>','substring(/a/b,/a/d,/a/c)') AS e;
+e
+ab
+#
+# MDEV-5709 ExtractValue() with XPath variable references returns wrong result
+#
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1'),(2,'b2');
+SELECT *,IF(@i:=c1,ExtractValue('<a><b>b1</b><b>b2</b></a>','//b[$@i]'),0) AS xpath FROM t1;
+c1	c2	xpath
+1	b1	b1
+2	b2	b2
+SELECT * FROM t1 WHERE c2=IF(@i:=c1,ExtractValue('<a><b>b1</b><b>b2</b></a>','//b[$@i]'),0);
+c1	c2
+1	b1
+2	b2
+DROP TABLE t1;
+#
+# End of 10.0 tests
+#
