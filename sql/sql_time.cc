@@ -921,6 +921,9 @@ bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
     my_bool neg= 0;
     enum enum_mysql_timestamp_type time_type= ltime->time_type;
 
+    if ((ulong) interval.day > MAX_DAY_NUMBER)
+      goto invalid_date;
+
     if (time_type != MYSQL_TIMESTAMP_TIME)
       ltime->day+= calc_daynr(ltime->year, ltime->month, 1) - 1;
 
