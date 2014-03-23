@@ -1,0 +1,20 @@
+#
+# Test's for CREATE OR REPLACE with tokudb
+#
+
+--disable_warnings
+drop table if exists t1,t2,t3;
+--enable_warnings
+
+#
+# MDEV-5930 Server crashes in thd_get_ha_data on CREATE OR REPLACE TABLE
+#
+
+CREATE TABLE t1 (a INT) engine=myisam;
+CREATE TABLE t2 (a INT) ENGINE=TokuDB;
+CREATE OR REPLACE TABLE t3 AS SELECT * FROM t2;
+CREATE OR REPLACE TABLE t1 AS SELECT * FROM t2;
+lock table t1 write,t2 read;
+CREATE OR REPLACE TABLE t1 AS SELECT * FROM t2;
+unlock tables;
+drop table t1,t2,t3;

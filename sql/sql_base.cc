@@ -5426,9 +5426,6 @@ bool restart_trans_for_tables(THD *thd, TABLE_LIST *table)
 {
   DBUG_ENTER("restart_trans_for_tables");
 
-  if (!thd->locked_tables_mode)
-    DBUG_RETURN(FALSE);
-
   for (; table; table= table->next_global)
   {
     if (table->placeholder())

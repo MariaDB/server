@@ -4302,7 +4302,7 @@ void select_create::abort_result_set()
     table->auto_increment_field_not_null= FALSE;
     drop_open_table(thd, table, create_table->db, create_table->table_name);
     table=0;                                    // Safety
-    if (thd->log_current_statement)
+    if (thd->log_current_statement && mysql_bin_log.is_open())
     {
       /* Remove logging of drop, create + insert rows */
       binlog_reset_cache(thd);
@@ -4314,4 +4314,3 @@ void select_create::abort_result_set()
   }
   DBUG_VOID_RETURN;
 }
-
