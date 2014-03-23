@@ -559,3 +559,21 @@ select 5.0 div 2.0;
 select 5.0 div 2;
 select 5 div 2.0;
 select 5.9 div 2, 1.23456789e3 DIV 2, 1.23456789e9 DIV 2, 1.23456789e19 DIV 2;
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-5781 Item_sum_std::val_real(): Assertion `nr >= 0.0' fails on query with STDDEV_POP, ROUND and variable
+--echo #
+SELECT STDDEV_POP(ROUND(0,@A:=2009)) FROM (SELECT 1 UNION SELECT 2) fake_table;
+
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
