@@ -3590,7 +3590,8 @@ static bool copy_up_file_and_fill(IO_CACHE *index_file, my_off_t offset)
     if (!bytes_read)
       break;					// end of file
     mysql_file_seek(file, offset-init_offset, MY_SEEK_SET, MYF(0));
-    if (mysql_file_write(file, io_buf, bytes_read, MYF(MY_WME | MY_NABP)))
+    if (mysql_file_write(file, io_buf, bytes_read,
+                         MYF(MY_WME | MY_NABP | MY_WAIT_IF_FULL)))
       goto err;
   }
   /* The following will either truncate the file or fill the end with \n' */

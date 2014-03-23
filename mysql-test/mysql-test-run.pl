@@ -2686,7 +2686,7 @@ sub setup_vardir() {
   {
     $plugindir="$opt_vardir/plugins";
     mkpath($plugindir);
-    if (IS_WINDOWS && !$opt_embedded_server || $opt_use_copy)
+    if (IS_WINDOWS && !$opt_embedded_server)
     {
       for (<$bindir/storage/*$opt_vs_config/*.dll>,
            <$bindir/plugin/*$opt_vs_config/*.dll>,
@@ -2708,7 +2708,14 @@ sub setup_vardir() {
            <$bindir/sql/*.so>)
       {
         my $pname=basename($_);
-        symlink rel2abs($_), "$plugindir/$pname";
+        if ($opt_use_copy)
+        {
+          copy rel2abs($_), "$plugindir/$pname";
+        }
+        else
+        {
+          symlink rel2abs($_), "$plugindir/$pname";
+        }
         set_plugin_var($pname);
       }
     }
@@ -6416,6 +6423,9 @@ Options to control what test suites or cases to run
   skip-test-list=FILE   Skip the tests listed in FILE. Each line in the file
                         is an entry and should be formatted as: 
                         <TESTNAME> : <COMMENT>
+  use-copy              Copy plugins instead of symlinking them. This is
+                        only useful when running on a system that doesn't
+                        support symlinks.
 
 Options that specify ports
 
