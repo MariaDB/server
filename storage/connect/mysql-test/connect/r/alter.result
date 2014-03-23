@@ -21,8 +21,8 @@ DROP INDEX xd ON t1;
 ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	A	NULL	NULL	NULL		XPLUG		
-t1	1	xd	1	d	A	NULL	NULL	NULL		XPLUG		
+t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX		
+t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX		
 ALTER TABLE t1 DROP INDEX xc, DROP INDEX xd;
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -95,7 +95,7 @@ Warning	1105	This is an outward table, table data were not modified.
 SELECT * FROM t2;
 line
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Created by CONNECT Version 1.02.0001 February 03, 2014 -->
+<!-- Created by CONNECT Version 1.02.0002 March 16, 2014 -->
 <t1>
 	<row>
 		<TH>c</TH>
@@ -131,7 +131,7 @@ t1	CREATE TABLE `t1` (
 SELECT * FROM t2;
 line
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Created by CONNECT Version 1.02.0001 February 03, 2014 -->
+<!-- Created by CONNECT Version 1.02.0002 March 16, 2014 -->
 <t1>
 	<row d="One">
 		<c>1</c>
@@ -182,8 +182,8 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	A	NULL	NULL	NULL		XPLUG		
-t1	1	xd	1	d	A	NULL	NULL	NULL		XPLUG		
+t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX		
+t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX		
 SELECT * FROM t1;
 c	d
 1	One
@@ -214,8 +214,8 @@ line
 ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	A	NULL	NULL	NULL		XPLUG		
-t1	1	xd	1	d	A	NULL	NULL	NULL		XPLUG		
+t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX		
+t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX		
 SELECT d FROM t1 WHERE c = 2;
 d
 Two

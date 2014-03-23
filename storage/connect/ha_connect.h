@@ -130,6 +130,19 @@ struct ha_field_option_struct
   char *special;
 };
 
+/*
+  index options can be declared similarly
+  using the ha_index_option_struct structure.
+
+  Their values can be specified in the CREATE TABLE per index:
+  CREATE TABLE ( field ..., .., INDEX .... *here*, ... )
+*/
+struct ha_index_option_struct
+{
+  bool kindx;
+  bool mapped;
+};
+
 /** @brief
   CONNECT_SHARE is a structure that will be shared among all open handlers.
   This example implements the minimum of what you will probably need.
@@ -210,7 +223,7 @@ public:
     The name of the index type that will be used for display.
     Don't implement this method unless you really have indexes.
    */
-  const char *index_type(uint inx) { return "XPLUG"; }
+  const char *index_type(uint inx) { return "XINDEX"; }
 
   /** @brief
     The file extensions.

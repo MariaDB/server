@@ -159,7 +159,7 @@
 /***********************************************************************/
 //efine CONNECT_INI "connect.ini"
 extern "C" {
-       char  version[]= "Version 1.02.0001 February 03, 2014";
+       char  version[]= "Version 1.02.0002 March 16, 2014";
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -256,6 +256,18 @@ ha_create_table_option connect_field_option_list[]=
   HA_FOPTION_STRING("FIELD_FORMAT", fieldformat),
   HA_FOPTION_STRING("SPECIAL", special),
   HA_FOPTION_END
+};
+
+/*
+  CREATE TABLE option list (index options)
+
+  These can be specified in the CREATE TABLE per index:
+  CREATE TABLE ( field ..., .., INDEX .... *here*, ... )
+*/
+ha_create_table_option connect_index_option_list[]=
+{
+  HA_IOPTION_BOOL("DYN", kindx, 0),
+  HA_IOPTION_BOOL("MAPPED", mapped, 0),
 };
 
 /***********************************************************************/

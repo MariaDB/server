@@ -5,6 +5,8 @@
 /*                                                                     */
 /*  This file contains the FILTER and derived classes declares.        */
 /***********************************************************************/
+#ifndef __FILTER__
+#define __FILTER__
 
 /***********************************************************************/
 /*  Include required application header files                          */
@@ -170,3 +172,5 @@ class FILTERTRUE : public FILTERX {
   virtual void Reset(void);
   virtual bool Eval(PGLOBAL);
   }; // end of class FILTERTRUE
+
+#endif // __FILTER__
