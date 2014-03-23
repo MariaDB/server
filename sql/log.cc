@@ -2049,8 +2049,8 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
 
 void binlog_reset_cache(THD *thd)
 {
-  binlog_cache_mngr *const cache_mngr= 
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= opt_bin_log ? 
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton) : 0;
   DBUG_ENTER("binlog_reset_cache");
   if (cache_mngr)
   {

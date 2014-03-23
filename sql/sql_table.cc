@@ -2686,6 +2686,9 @@ bool log_drop_table(THD *thd, const char *db_name, size_t db_name_length,
   bool error;
   DBUG_ENTER("log_drop_table");
 
+  if (!mysql_bin_log.is_open())
+    DBUG_RETURN(0);
+  
   query.length(0);
   query.append(STRING_WITH_LEN("DROP "));
   if (temporary_table)
@@ -4759,11 +4762,10 @@ int create_table_impl(THD *thd,
         DBUG_EXECUTE_IF("send_kill_after_delete", thd->killed= KILL_QUERY; );
 
         /*
-          The test of query_tables is to ensure we have any tables in the
-          select part
+          Restart statement transactions for the case of CREATE ... SELECT.
         */
-        if (thd->lex->query_tables &&
-            restart_trans_for_tables(thd, thd->lex->query_tables->next_global))
+        if (thd->lex->select_lex.item_list.elements &&
+            restart_trans_for_tables(thd, thd->lex->query_tables))
           goto err;
       }
       else if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)

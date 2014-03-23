@@ -231,8 +231,13 @@ drop table t1;
 create table t1 (i int) engine=InnoDB;
 create table t3 (i int) engine=InnoDB;
 insert into t3 values(1),(2),(3);
-lock table t1 write, t2 write, t3 write;
+create table t4 (i int) engine=InnoDB;
+insert into t4 values(1);
+lock table t1 write, t2 write, t3 write, t4 write;
 create or replace table t1 (a int, i int) engine=innodb select t2.a,t3.i from t2,t3;
+select * from t4;
+i
+1
 unlock tables;
 select * from t1 order by a,i;
 a	i
@@ -245,7 +250,7 @@ a	i
 3	1
 3	2
 3	3
-drop table t1,t3;
+drop table t1,t3,t4;
 #
 # Test the meta data locks are freed properly
 #
