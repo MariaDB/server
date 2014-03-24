@@ -5605,7 +5605,6 @@ int spider_db_bulk_bulk_insert(
 ) {
   int error_num = 0, first_insert_link_idx = -1, tmp_error_num;
   int roop_count2;
-  SPIDER_RESULT_LIST *result_list = &spider->result_list;
   SPIDER_SHARE *share = spider->share;
   SPIDER_CONN *conn, *first_insert_conn = NULL;
   TABLE *table = spider->get_table();
@@ -5645,6 +5644,7 @@ int spider_db_bulk_bulk_insert(
     if (conn->conn_kind != SPIDER_CONN_KIND_MYSQL)
     {
       uint roop_count;
+      SPIDER_RESULT_LIST *result_list = &spider->result_list;
       DBUG_PRINT("info",("spider conn=%p", conn));
       DBUG_PRINT("info",("spider result_list->hs_upd_rows=%llu",
         result_list->hs_upd_rows));
@@ -6584,9 +6584,9 @@ int spider_db_bulk_direct_update(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     if (!spider_bit_is_set(spider->do_hs_direct_update, roop_count))
     {
+#endif
       if (!counted)
       {
-#endif
         *update_rows = spider->conns[roop_count]->db_conn->affected_rows();
         DBUG_PRINT("info", ("spider update_rows = %u", *update_rows));
         counted = TRUE;
@@ -9953,7 +9953,9 @@ int spider_db_bulk_open_handler(
   int link_idx
 ) {
   int error_num = 0;
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   bool opening_index = FALSE;
+#endif
   DBUG_ENTER("spider_db_bulk_open_handler");
   DBUG_PRINT("info",("spider spider=%p", spider));
   DBUG_PRINT("info",("spider conn=%p", conn));

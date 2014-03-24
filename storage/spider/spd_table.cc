@@ -4323,10 +4323,12 @@ SPIDER_SHARE *spider_get_share(
         &result_list->tmp_table_created,
           sizeof(uchar) * share->link_bitmap_size,
 #ifdef HA_CAN_BULK_ACCESS
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
         &result_list->hs_r_bulk_open_index,
           sizeof(uchar) * share->link_bitmap_size,
         &result_list->hs_w_bulk_open_index,
           sizeof(uchar) * share->link_bitmap_size,
+#endif
 #endif
         &result_list->sql_kind_backup, sizeof(uint) * share->link_count,
         &spider->dbton_handler,
@@ -4762,10 +4764,12 @@ SPIDER_SHARE *spider_get_share(
         &result_list->tmp_table_created,
           sizeof(uchar) * share->link_bitmap_size,
 #ifdef HA_CAN_BULK_ACCESS
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
         &result_list->hs_r_bulk_open_index,
           sizeof(uchar) * share->link_bitmap_size,
         &result_list->hs_w_bulk_open_index,
           sizeof(uchar) * share->link_bitmap_size,
+#endif
 #endif
         &result_list->sql_kind_backup, sizeof(uint) * share->link_count,
         &spider->dbton_handler,
@@ -8049,8 +8053,13 @@ int spider_discover_table_structure(
     {
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     }
+#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE_COMMENT
+    if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
+      FALSE, TRUE, info, NULL, NULL)))
+#else
     if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
       FALSE, TRUE, info, NULL)))
+#endif
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
