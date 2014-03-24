@@ -3847,12 +3847,12 @@ void spider_free_tmp_thd(
   THD *thd
 ) {
   DBUG_ENTER("spider_free_tmp_thd");
+  thd->cleanup();
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   thd->reset_globals();
 #else
   thd->restore_globals();
 #endif
-  thd->cleanup();
   delete thd;
   DBUG_VOID_RETURN;
 }
