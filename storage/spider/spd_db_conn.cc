@@ -1205,7 +1205,7 @@ void spider_db_append_xid_str(
   DBUG_ENTER("spider_db_append_xid_str");
 
   format_id_length =
-    my_sprintf(format_id, (format_id, "0x%lx", xid->formatID));
+    my_sprintf(format_id, (format_id, "%lu", xid->formatID));
   spider_db_append_hex_string(tmp_str, (uchar *) xid->data, xid->gtrid_length);
 /*
   tmp_str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);

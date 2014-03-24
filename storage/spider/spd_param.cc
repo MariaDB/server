@@ -2838,6 +2838,29 @@ static MYSQL_SYSVAR_STR(
   SPIDER_DETAIL_VERSION
 );
 
+/*
+  0: server_id + thread_id
+  1: server_id + thread_id + query_id
+ */
+static MYSQL_THDVAR_UINT(
+  internal_xa_id_type, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "The type of internal_xa id", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  0, /* def */
+  0, /* min */
+  1, /* max */
+  0 /* blk */
+);
+
+uint spider_param_internal_xa_id_type(
+  THD *thd
+) {
+  DBUG_ENTER("spider_param_internal_xa_id_type");
+  DBUG_RETURN(THDVAR(thd, internal_xa_id_type));
+}
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -2966,6 +2989,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(general_log),
   MYSQL_SYSVAR(log_result_errors),
   MYSQL_SYSVAR(version),
+  MYSQL_SYSVAR(internal_xa_id_type),
   NULL
 };
 

@@ -1626,10 +1626,11 @@ int spider_internal_start_trx(
 ) {
   int error_num;
   SPIDER_TRX *trx = spider->trx;
-  bool sync_autocommit = spider_param_sync_autocommit(trx->thd);
-  bool sync_time_zone = spider_param_sync_time_zone(trx->thd);
+  THD *thd = trx->thd;
+  bool sync_autocommit = spider_param_sync_autocommit(thd);
+  bool sync_time_zone = spider_param_sync_time_zone(thd);
   double ping_interval_at_trx_start =
-    spider_param_ping_interval_at_trx_start(trx->thd);
+    spider_param_ping_interval_at_trx_start(thd);
   bool xa_lock = FALSE;
   time_t tmp_time = (time_t) time((time_t*) 0);
   DBUG_ENTER("spider_internal_start_trx");
@@ -1646,19 +1647,19 @@ int spider_internal_start_trx(
     if (!trx->trx_consistent_snapshot)
     {
       trx->use_consistent_snapshot =
-        spider_param_use_consistent_snapshot(trx->thd);
-      trx->internal_xa = spider_param_internal_xa(trx->thd);
-      trx->internal_xa_snapshot = spider_param_internal_xa_snapshot(trx->thd);
+        spider_param_use_consistent_snapshot(thd);
+      trx->internal_xa = spider_param_internal_xa(thd);
+      trx->internal_xa_snapshot = spider_param_internal_xa_snapshot(thd);
     }
   }
   if (
-    (error_num = spider_check_and_set_sql_log_off(trx->thd, conn,
+    (error_num = spider_check_and_set_sql_log_off(thd, conn,
       &spider->need_mons[link_idx])) ||
     (sync_time_zone &&
-      (error_num = spider_check_and_set_time_zone(trx->thd, conn,
+      (error_num = spider_check_and_set_time_zone(thd, conn,
         &spider->need_mons[link_idx]))) ||
     (sync_autocommit &&
-      (error_num = spider_check_and_set_autocommit(trx->thd, conn,
+      (error_num = spider_check_and_set_autocommit(thd, conn,
         &spider->need_mons[link_idx])))
   )
     goto error;
@@ -1682,11 +1683,11 @@ int spider_internal_start_trx(
   if (!trx->trx_start)
   {
     if (
-      trx->thd->transaction.xid_state.xa_state == XA_ACTIVE &&
+      thd->transaction.xid_state.xa_state == XA_ACTIVE &&
       spider_param_support_xa()
     ) {
       trx->trx_xa = TRUE;
-      thd_get_xid(trx->thd, (MYSQL_XID*) &trx->xid);
+      thd_get_xid(thd, (MYSQL_XID*) &trx->xid);
     }
 
     if (
@@ -1697,19 +1698,27 @@ int spider_internal_start_trx(
     ) {
       trx->trx_xa = TRUE;
       trx->xid.formatID = 1;
-      trx->xid.gtrid_length
-        = my_sprintf(trx->xid.data,
-        (trx->xid.data, "%lx", thd_get_thread_id(trx->thd)));
+      if (spider_param_internal_xa_id_type(thd) == 0)
+      {
+        trx->xid.gtrid_length
+          = my_sprintf(trx->xid.data,
+          (trx->xid.data, "%lx", thd_get_thread_id(thd)));
+      } else {
+        trx->xid.gtrid_length
+          = my_sprintf(trx->xid.data,
+          (trx->xid.data, "%lx%016llx", thd_get_thread_id(thd),
+            thd->query_id));
+      }
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
       trx->xid.bqual_length
         = my_sprintf(trx->xid.data + trx->xid.gtrid_length,
         (trx->xid.data + trx->xid.gtrid_length, "%lx",
-        trx->thd->variables.server_id));
+        thd->variables.server_id));
 #else
       trx->xid.bqual_length
         = my_sprintf(trx->xid.data + trx->xid.gtrid_length,
         (trx->xid.data + trx->xid.gtrid_length, "%x",
-        trx->thd->server_id));
+        thd->server_id));
 #endif
 
       trx->internal_xid_state.xa_state = XA_ACTIVE;
@@ -1729,9 +1738,9 @@ int spider_internal_start_trx(
       trx->trx_consistent_snapshot ? "TRUE" : "FALSE"));
     if (!trx->trx_consistent_snapshot)
     {
-      trans_register_ha(trx->thd, FALSE, spider_hton_ptr);
-      if (thd_test_options(trx->thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-        trans_register_ha(trx->thd, TRUE, spider_hton_ptr);
+      trans_register_ha(thd, FALSE, spider_hton_ptr);
+      if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+        trans_register_ha(thd, TRUE, spider_hton_ptr);
     }
     trx->trx_start = TRUE;
     trx->trx_xa_prepared = FALSE;
@@ -1741,7 +1750,7 @@ int spider_internal_start_trx(
   DBUG_PRINT("info",("spider conn->semi_trx_chk = %d", conn->semi_trx_chk));
   DBUG_PRINT("info",("spider conn->table_lock = %d", conn->table_lock));
   DBUG_PRINT("info",("spider conn->autocommit = %d", conn->autocommit));
-  DBUG_PRINT("info",("spider semi_trx = %d", spider_param_semi_trx(trx->thd)));
+  DBUG_PRINT("info",("spider semi_trx = %d", spider_param_semi_trx(thd)));
   conn->semi_trx = FALSE;
   if (conn->table_lock == 3)
   {
@@ -1758,7 +1767,7 @@ int spider_internal_start_trx(
         (!conn->queued_autocommit && conn->autocommit == 1) ||
         (conn->queued_autocommit && conn->queued_autocommit_val == TRUE)
       ) &&
-      spider_param_semi_trx(trx->thd)
+      spider_param_semi_trx(thd)
     ) {
       DBUG_PRINT("info",("spider semi_trx is set"));
       conn->semi_trx = TRUE;
@@ -1767,7 +1776,7 @@ int spider_internal_start_trx(
     conn->disable_xa = FALSE;
   } else if (
     !trx->trx_consistent_snapshot &&
-    !thd_test_options(trx->thd, OPTION_BEGIN) &&
+    !thd_test_options(thd, OPTION_BEGIN) &&
     sync_autocommit &&
     conn->semi_trx_chk &&
     !conn->table_lock &&
@@ -1775,14 +1784,14 @@ int spider_internal_start_trx(
       (!conn->queued_autocommit && conn->autocommit == 1) ||
       (conn->queued_autocommit && conn->queued_autocommit_val == TRUE)
     ) &&
-    spider_param_semi_trx(trx->thd)
+    spider_param_semi_trx(thd)
   ) {
     DBUG_PRINT("info",("spider semi_trx is set"));
     spider_conn_queue_start_transaction(conn);
     conn->semi_trx = TRUE;
   } else if (
     !trx->trx_consistent_snapshot &&
-    thd_test_options(trx->thd, OPTION_BEGIN)
+    thd_test_options(thd, OPTION_BEGIN)
   ) {
     DBUG_PRINT("info",("spider start transaction"));
     spider_conn_queue_start_transaction(conn);
