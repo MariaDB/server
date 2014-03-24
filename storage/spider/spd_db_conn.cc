@@ -8026,10 +8026,27 @@ int spider_db_open_item_int(
   {
     char tmp_buf[MAX_FIELD_WIDTH];
     spider_string tmp_str(tmp_buf, MAX_FIELD_WIDTH, str->charset());
+    String *tmp_str2;
     tmp_str.init_calc_mem(127);
-    if (str->append(*item->val_str(tmp_str.get_str())))
+    if (!(tmp_str2 = item->val_str(tmp_str.get_str())))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     tmp_str.mem_calc();
+#ifdef SPIDER_ITEM_HAS_CMP_TYPE
+    DBUG_PRINT("info",("spider cmp_type=%u", item->cmp_type()));
+    if (item->cmp_type() == TIME_RESULT)
+    {
+      if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN * 2 + tmp_str2->length()))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+      str->append(*tmp_str2);
+      str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+    } else {
+#endif
+      if (str->append(*tmp_str2))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+#ifdef SPIDER_ITEM_HAS_CMP_TYPE
+    }
+#endif
   }
   DBUG_RETURN(0);
 }

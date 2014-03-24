@@ -9438,11 +9438,6 @@ int ha_spider::direct_update_rows_init(
       }
       result_list.direct_order_limit = TRUE;
     }
-
-    if ((error_num = spider_check_trx_and_get_conn(thd, this, TRUE)))
-    {
-      DBUG_RETURN(error_num);
-    }
     trx->direct_update_count++;
     DBUG_PRINT("info",("spider OK"));
     DBUG_RETURN(0);
@@ -9480,6 +9475,10 @@ int ha_spider::direct_update_rows_init(
       DBUG_PRINT("info",("spider FALSE by pk_update"));
       do_direct_update = FALSE;
       DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    }
+    if ((error_num = spider_check_trx_and_get_conn(thd, this, TRUE)))
+    {
+      DBUG_RETURN(error_num);
     }
 #endif
     trx->direct_update_count++;
@@ -9728,11 +9727,6 @@ int ha_spider::direct_delete_rows_init(
       }
       result_list.direct_order_limit = TRUE;
     }
-
-    if ((error_num = spider_check_trx_and_get_conn(thd, this, TRUE)))
-    {
-      DBUG_RETURN(error_num);
-    }
     trx->direct_delete_count++;
     DBUG_PRINT("info",("spider OK"));
     DBUG_RETURN(0);
@@ -9750,6 +9744,12 @@ int ha_spider::direct_delete_rows_init(
 #endif
     do_direct_update
   ) {
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+    if ((error_num = spider_check_trx_and_get_conn(thd, this, TRUE)))
+    {
+      DBUG_RETURN(error_num);
+    }
+#endif
     trx->direct_delete_count++;
     DBUG_PRINT("info",("spider OK"));
     DBUG_RETURN(0);
