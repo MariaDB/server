@@ -3540,7 +3540,10 @@ int spider_handlersocket_share::init()
 
   if (
     (error_num = create_table_names_str()) ||
-    (error_num = create_column_name_str())
+    (
+      spider_share->table_share &&
+      (error_num = create_column_name_str())
+    )
   ) {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
