@@ -8,7 +8,6 @@
  */
 
 #ifndef __WIN__
-#include <sys/types.h>
 #include <sys/un.h>
 #endif
 
