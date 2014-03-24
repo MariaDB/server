@@ -9312,6 +9312,8 @@ int spider_db_udf_copy_tables(
       {
         tmp_spider = &spider[roop_count];
         tmp_conn = tmp_spider->conns[0];
+        /* disable transaction */
+        spider_conn_clear_queue_at_commit(tmp_conn);
         if (!tmp_conn->trx_start)
         {
           if (spider_db_ping(tmp_spider, tmp_conn, 0))
@@ -9334,6 +9336,8 @@ int spider_db_udf_copy_tables(
       {
         tmp_spider = &spider[roop_count];
         tmp_conn = tmp_spider->conns[0];
+        /* disable transaction */
+        spider_conn_clear_queue_at_commit(tmp_conn);
         spider_db_handler *tmp_dbton_hdl =
           tmp_spider->dbton_handler[tmp_conn->dbton_id];
         if ((error_num = tmp_dbton_hdl->insert_lock_tables_list(tmp_conn, 0)))

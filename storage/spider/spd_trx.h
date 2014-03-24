@@ -208,6 +208,10 @@ int spider_xa_rollback_by_xid(
   XID* xid
 );
 
+void spider_copy_table_free_trx_conn(
+  SPIDER_TRX *trx
+);
+
 int spider_end_trx(
   SPIDER_TRX *trx,
   SPIDER_CONN *conn

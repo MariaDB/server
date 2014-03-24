@@ -473,6 +473,7 @@ typedef struct st_spider_transaction
   bool               trx_start;
   bool               trx_xa;
   bool               trx_consistent_snapshot;
+  bool               trx_xa_prepared;
 
   bool               use_consistent_snapshot;
   bool               internal_xa;

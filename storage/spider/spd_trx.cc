@@ -1692,7 +1692,8 @@ int spider_internal_start_trx(
     if (
       !trx->trx_xa &&
       trx->internal_xa &&
-      (!trx->trx_consistent_snapshot || trx->internal_xa_snapshot == 3)
+      (!trx->trx_consistent_snapshot || trx->internal_xa_snapshot == 3) &&
+      spider->sql_command != SQLCOM_LOCK_TABLES
     ) {
       trx->trx_xa = TRUE;
       trx->xid.formatID = 1;
@@ -1714,18 +1715,11 @@ int spider_internal_start_trx(
       trx->internal_xid_state.xa_state = XA_ACTIVE;
       trx->internal_xid_state.xid.set(&trx->xid);
       trx->internal_xid_state.in_thd = 1;
-      while ((error_num = spider_xa_lock(&trx->internal_xid_state)))
+      if ((error_num = spider_xa_lock(&trx->internal_xid_state)))
       {
-        if (error_num != ER_SPIDER_XA_LOCKED_NUM)
-          goto error;
-        else if (trx->xid.formatID == 0)
-        {
+        if (error_num == ER_SPIDER_XA_LOCKED_NUM)
           my_message(error_num, ER_SPIDER_XA_LOCKED_STR, MYF(0));
-          goto error;
-        }
-        /* retry */
-        trx->xid.formatID++;
-        trx->internal_xid_state.xid.set(&trx->xid);
+        goto error;
       }
       xa_lock = TRUE;
     } else
@@ -1740,6 +1734,7 @@ int spider_internal_start_trx(
         trans_register_ha(trx->thd, TRUE, spider_hton_ptr);
     }
     trx->trx_start = TRUE;
+    trx->trx_xa_prepared = FALSE;
   }
 
   DBUG_PRINT("info",("spider sync_autocommit = %d", sync_autocommit));
@@ -2005,12 +2000,11 @@ int spider_internal_xa_rollback(
   Open_tables_backup open_tables_backup;
 #endif
   bool server_lost = FALSE;
-  bool prepared = (thd->transaction.xid_state.xa_state == XA_PREPARED);
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
   DBUG_ENTER("spider_internal_xa_rollback");
 
-  if (prepared)
+  if (trx->trx_xa_prepared)
   {
     /*
       select
@@ -2088,7 +2082,7 @@ int spider_internal_xa_rollback(
       {
         if (conn->disable_xa)
         {
-          if (conn->table_lock != 3 && !prepared)
+          if (conn->table_lock != 3 && !trx->trx_xa_prepared)
           {
             if (
               !conn->server_lost &&
@@ -2103,7 +2097,7 @@ int spider_internal_xa_rollback(
           if (!conn->server_lost)
           {
             if (
-              !prepared &&
+              !trx->trx_xa_prepared &&
               (tmp_error_num = spider_db_xa_end(conn, &trx->xid))
             ) {
               if (
@@ -2157,7 +2151,7 @@ int spider_internal_xa_rollback(
     goto error_in_rollback;
 
   if (
-    prepared &&
+    trx->trx_xa_prepared &&
     !server_lost
   ) {
     /*
@@ -3144,21 +3138,24 @@ int spider_commit(
     {
       if (trx->trx_xa)
       {
-        if (
-          trx->internal_xa &&
-          (error_num = spider_internal_xa_prepare(
-            thd, trx, table_xa, table_xa_member, TRUE))
-        ) {
+        if (trx->internal_xa && !trx->trx_xa_prepared)
+        {
+          if (
+            (error_num = spider_internal_xa_prepare(
+              thd, trx, table_xa, table_xa_member, TRUE))
+          ) {
 /*
-          if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-          {
+            if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+            {
 */
-            /* rollback for semi_trx */
-            spider_rollback(hton, thd, all);
+              /* rollback for semi_trx */
+              spider_rollback(hton, thd, all);
 /*
+            }
+*/
+            DBUG_RETURN(error_num);
           }
-*/
-          DBUG_RETURN(error_num);
+          trx->trx_xa_prepared = TRUE;
         }
         int tmp_error_num;
         if (
@@ -3303,6 +3300,7 @@ int spider_xa_prepare(
       if ((error_num = spider_internal_xa_prepare(
         thd, trx, table_xa, table_xa_member, FALSE)))
         goto error;
+      trx->trx_xa_prepared = TRUE;
     }
   }
 
@@ -3370,6 +3368,26 @@ int spider_xa_rollback_by_xid(
 error:
 error_get_trx:
   DBUG_RETURN(error_num);
+}
+
+void spider_copy_table_free_trx_conn(
+  SPIDER_TRX *trx
+) {
+  SPIDER_CONN *conn;
+  DBUG_ENTER("spider_copy_table_free_trx_conn");
+  if ((conn = spider_tree_first(trx->join_trx_top)))
+  {
+    do {
+      spider_end_trx(trx, conn);
+      conn->join_trx = 0;
+    } while ((conn = spider_tree_next(conn)));
+    trx->join_trx_top = NULL;
+  }
+  spider_reuse_trx_ha(trx);
+  spider_free_trx_conn(trx, FALSE);
+  trx->trx_consistent_snapshot = FALSE;
+  spider_merge_mem_calc(trx, FALSE);
+  DBUG_VOID_RETURN;
 }
 
 int spider_end_trx(
