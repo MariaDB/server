@@ -46,6 +46,7 @@ extern HASH *spd_db_att_xid_cache;
 extern struct charset_info_st *spd_charset_utf8_bin;
 
 extern handlerton *spider_hton_ptr;
+extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 pthread_mutex_t spider_thread_id_mutex;
 ulonglong spider_thread_id = 1;
 
@@ -216,18 +217,15 @@ int spider_free_trx_another_conn(
   bool lock
 ) {
   int error_num, tmp_error_num;
-  int roop_count = 0, need_mon = 0;
+  int roop_count = 0;
   SPIDER_CONN *conn;
-  ha_spider tmp_spider;
   DBUG_ENTER("spider_free_trx_another_conn");
-  tmp_spider.conns = &conn;
-  tmp_spider.need_mons = &need_mon;
+  trx->tmp_spider->conns = &conn;
   error_num = 0;
   while ((conn = (SPIDER_CONN*) my_hash_element(&trx->trx_another_conn_hash,
     roop_count)))
   {
-    tmp_spider.trx = trx;
-    if (lock && (tmp_error_num = spider_db_unlock_tables(&tmp_spider, 0)))
+    if (lock && (tmp_error_num = spider_db_unlock_tables(trx->tmp_spider, 0)))
       error_num = tmp_error_num;
     spider_free_conn_from_trx(trx, conn, TRUE, TRUE, &roop_count);
   }
@@ -355,20 +353,16 @@ int spider_trx_all_unlock_tables(
   SPIDER_TRX *trx
 ) {
   int error_num;
-  int roop_count = 0, need_mon = 0;
+  int roop_count = 0;
   THD *thd = trx->thd;
   SPIDER_CONN *conn;
-  ha_spider tmp_spider;
   DBUG_ENTER("spider_trx_all_unlock_tables");
   SPIDER_BACKUP_DASTATUS;
-  memset((void*)&tmp_spider, 0, sizeof(ha_spider));
-  tmp_spider.conns = &conn;
-  tmp_spider.need_mons = &need_mon;
+  trx->tmp_spider->conns = &conn;
   while ((conn = (SPIDER_CONN*) my_hash_element(&trx->trx_conn_hash,
     roop_count)))
   {
-    tmp_spider.trx = trx;
-    if ((error_num = spider_db_unlock_tables(&tmp_spider, 0)))
+    if ((error_num = spider_db_unlock_tables(trx->tmp_spider, 0)))
     {
       SPIDER_CONN_RESTORE_DASTATUS_AND_RESET_ERROR_NUM;
       if (error_num)
@@ -1052,6 +1046,36 @@ int spider_free_trx_alloc(
 ) {
   int roop_count;
   DBUG_ENTER("spider_free_trx_alloc");
+  if (trx->tmp_spider)
+  {
+    for (roop_count = 0; roop_count < SPIDER_DBTON_SIZE; ++roop_count)
+    {
+      if (trx->tmp_spider->dbton_handler[roop_count])
+      {
+        delete trx->tmp_spider->dbton_handler[roop_count];
+        trx->tmp_spider->dbton_handler[roop_count] = NULL;
+      }
+    }
+    if (trx->tmp_spider->result_list.sqls)
+    {
+      delete [] trx->tmp_spider->result_list.sqls;
+      trx->tmp_spider->result_list.sqls = NULL;
+    }
+    delete trx->tmp_spider;
+    trx->tmp_spider = NULL;
+  }
+  if (trx->tmp_share)
+  {
+    for (roop_count = 0; roop_count < SPIDER_DBTON_SIZE; ++roop_count)
+    {
+      if (trx->tmp_share->dbton_share[roop_count])
+      {
+        delete trx->tmp_share->dbton_share[roop_count];
+        trx->tmp_share->dbton_share[roop_count] = NULL;
+      }
+    }
+    spider_free_tmp_share_alloc(trx->tmp_share);
+  }
   spider_db_udf_free_set_names(trx);
   for (roop_count = spider_param_udf_table_lock_mutex_count() - 1;
     roop_count >= 0; roop_count--)
@@ -1103,6 +1127,7 @@ int spider_free_trx_alloc(
     trx->trx_alter_table_hash.array.max_element *
     trx->trx_alter_table_hash.array.size_of_element);
   my_hash_free(&trx->trx_alter_table_hash);
+  free_root(&trx->mem_root, MYF(0));
   DBUG_RETURN(0);
 }
 
@@ -1111,8 +1136,9 @@ SPIDER_TRX *spider_get_trx(
   bool regist_allocated_thds,
   int *error_num
 ) {
-  int roop_count = 0;
+  int roop_count = 0, roop_count2;
   SPIDER_TRX *trx;
+  SPIDER_SHARE *tmp_share;
   pthread_mutex_t *udf_table_mutexes;
   DBUG_ENTER("spider_get_trx");
 
@@ -1124,12 +1150,15 @@ SPIDER_TRX *spider_get_trx(
     if (!(trx = (SPIDER_TRX *)
       spider_bulk_malloc(NULL, 56, MYF(MY_WME | MY_ZEROFILL),
         &trx, sizeof(*trx),
+        &tmp_share, sizeof(SPIDER_SHARE),
         &udf_table_mutexes, sizeof(pthread_mutex_t) *
           spider_param_udf_table_lock_mutex_count(),
         NullS))
     )
       goto error_alloc_trx;
 
+    SPD_INIT_ALLOC_ROOT(&trx->mem_root, 4096, 0, MYF(MY_WME));
+    trx->tmp_share = tmp_share;
     trx->udf_table_mutexes = udf_table_mutexes;
 
     for (roop_count = 0;
@@ -1266,6 +1295,79 @@ SPIDER_TRX *spider_get_trx(
 
     if (thd)
     {
+      spider_set_tmp_share_pointer(trx->tmp_share, trx->tmp_connect_info,
+        trx->tmp_connect_info_length, trx->tmp_long, trx->tmp_longlong);
+      if (
+        spider_set_connect_info_default(
+          trx->tmp_share,
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+          NULL,
+          NULL,
+#endif
+          NULL
+        ) ||
+        spider_set_connect_info_default_db_table(
+          trx->tmp_share,
+          "", 0,
+          "", 0
+        ) ||
+        spider_create_conn_keys(trx->tmp_share)
+      ) {
+        goto error_set_connect_info_default;
+      }
+
+      if (!(trx->tmp_spider = new (&trx->mem_root) ha_spider()))
+      {
+        goto error_alloc_spider;
+      }
+      trx->tmp_spider->need_mons = &trx->tmp_need_mon;
+      trx->tmp_spider->share = trx->tmp_share;
+      trx->tmp_spider->trx = trx;
+      trx->tmp_spider->dbton_handler = trx->tmp_dbton_handler;
+      if (!(trx->tmp_spider->result_list.sqls =
+        new spider_string[trx->tmp_share->link_count]))
+      {
+        goto error_init_result_list_sql;
+      }
+      for (roop_count2 = 0; roop_count2 < (int) trx->tmp_share->link_count;
+        ++roop_count2)
+      {
+        trx->tmp_spider->result_list.sqls[roop_count2].init_calc_mem(121);
+        trx->tmp_spider->result_list.sqls[roop_count2].set_charset(
+          trx->tmp_share->access_charset);
+      }
+
+      for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; ++roop_count2)
+      {
+        if (!spider_dbton[roop_count2].init)
+          continue;
+
+        if (!(trx->tmp_share->dbton_share[roop_count2] =
+          spider_dbton[roop_count2].create_db_share(trx->tmp_share)))
+        {
+          goto error_create_db_share;
+        }
+        if (trx->tmp_share->dbton_share[roop_count2]->init())
+        {
+          delete trx->tmp_share->dbton_share[roop_count2];
+          trx->tmp_share->dbton_share[roop_count2] = NULL;
+          goto error_create_db_share;
+        }
+
+        if (!(trx->tmp_spider->dbton_handler[roop_count2] =
+          spider_dbton[roop_count2].create_db_handler(trx->tmp_spider,
+            trx->tmp_share->dbton_share[roop_count2])))
+        {
+          goto error_create_db_share;
+        }
+        if (trx->tmp_spider->dbton_handler[roop_count2]->init())
+        {
+          delete trx->tmp_spider->dbton_handler[roop_count2];
+          trx->tmp_spider->dbton_handler[roop_count2] = NULL;
+          goto error_create_db_share;
+        }
+      }
+
       if (regist_allocated_thds)
       {
         pthread_mutex_lock(&spider_allocated_thds_mutex);
@@ -1298,6 +1400,37 @@ SPIDER_TRX *spider_get_trx(
   DBUG_RETURN(trx);
 
 error_allocated_thds_insert:
+error_alloc_spider:
+error_create_db_share:
+  if (thd)
+  {
+    delete [] trx->tmp_spider->result_list.sqls;
+    trx->tmp_spider->result_list.sqls = NULL;
+  }
+error_init_result_list_sql:
+  if (thd)
+  {
+    delete trx->tmp_spider;
+    trx->tmp_spider = NULL;
+    for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; ++roop_count2)
+    {
+      if (trx->tmp_spider->dbton_handler[roop_count2])
+      {
+        delete trx->tmp_spider->dbton_handler[roop_count2];
+        trx->tmp_spider->dbton_handler[roop_count2] = NULL;
+      }
+      if (trx->tmp_share->dbton_share[roop_count2])
+      {
+        delete trx->tmp_share->dbton_share[roop_count2];
+        trx->tmp_share->dbton_share[roop_count2] = NULL;
+      }
+    }
+  }
+error_set_connect_info_default:
+  if (thd)
+  {
+    spider_free_tmp_share_alloc(trx->tmp_share);
+  }
   spider_free_mem_calc(trx,
     trx->trx_ha_hash_id,
     trx->trx_ha_hash.array.max_element *
@@ -1363,6 +1496,7 @@ error_init_hash:
       pthread_mutex_destroy(&trx->udf_table_mutexes[roop_count]);
   }
 error_init_udf_table_mutex:
+  free_root(&trx->mem_root, MYF(0));
   spider_free(NULL, trx, MYF(0));
 error_alloc_trx:
   *error_num = HA_ERR_OUT_OF_MEM;
@@ -3410,17 +3544,15 @@ int spider_end_trx(
   SPIDER_CONN *conn
 ) {
   int error_num = 0, need_mon = 0;
-  ha_spider tmp_spider;
   DBUG_ENTER("spider_end_trx");
-  tmp_spider.conns = &conn;
   if (conn->table_lock == 3)
   {
+    trx->tmp_spider->conns = &conn;
     conn->table_lock = 0;
     conn->disable_reconnect = FALSE;
-    tmp_spider.trx = trx;
     if (
       !conn->server_lost &&
-      (error_num = spider_db_unlock_tables(&tmp_spider, 0))
+      (error_num = spider_db_unlock_tables(trx->tmp_spider, 0))
     ) {
       if (error_num == ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM)
         error_num = 0;

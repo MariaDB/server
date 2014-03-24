@@ -13,7 +13,7 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#define SPIDER_DETAIL_VERSION "3.1.16"
+#define SPIDER_DETAIL_VERSION "3.1.17"
 #define SPIDER_HEX_VERSION 0x0301
 
 #if MYSQL_VERSION_ID < 50500
@@ -583,6 +583,18 @@ typedef struct st_spider_transaction
   longlong           current_alloc_mem_buffer[SPIDER_MEM_CALC_LIST_NUM];
   ulonglong          alloc_mem_count_buffer[SPIDER_MEM_CALC_LIST_NUM];
   ulonglong          free_mem_count_buffer[SPIDER_MEM_CALC_LIST_NUM];
+
+  MEM_ROOT           mem_root;
+
+  /* for transaction level query */
+  SPIDER_SHARE       *tmp_share;
+  char               *tmp_connect_info[SPIDER_TMP_SHARE_CHAR_PTR_COUNT];
+  uint               tmp_connect_info_length[SPIDER_TMP_SHARE_UINT_COUNT];
+  long               tmp_long[SPIDER_TMP_SHARE_LONG_COUNT];
+  longlong           tmp_longlong[SPIDER_TMP_SHARE_LONGLONG_COUNT];
+  ha_spider          *tmp_spider;
+  int                tmp_need_mon;
+  spider_db_handler  *tmp_dbton_handler[SPIDER_DBTON_SIZE];
 } SPIDER_TRX;
 
 typedef struct st_spider_share

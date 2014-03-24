@@ -5683,45 +5683,17 @@ int spider_close_connection(
   handlerton* hton,
   THD* thd
 ) {
-  int roop_count = 0, need_mon = 0;
+  int roop_count = 0;
   SPIDER_CONN *conn;
   SPIDER_TRX *trx;
-  ha_spider tmp_spider;
-  SPIDER_SHARE tmp_share;
-  char *tmp_connect_info[SPIDER_TMP_SHARE_CHAR_PTR_COUNT];
-  uint tmp_connect_info_length[SPIDER_TMP_SHARE_UINT_COUNT];
-  long tmp_long[SPIDER_TMP_SHARE_LONG_COUNT];
-  longlong tmp_longlong[SPIDER_TMP_SHARE_LONGLONG_COUNT];
-  spider_db_handler *dbton_handler[SPIDER_DBTON_SIZE];
-  char buf[MAX_FIELD_WIDTH];
-  spider_string tmp_str(buf, MAX_FIELD_WIDTH, &my_charset_bin);
   DBUG_ENTER("spider_close_connection");
-  tmp_str.init_calc_mem(121);
   if (!(trx = (SPIDER_TRX*) *thd_ha_data(thd, spider_hton_ptr)))
     DBUG_RETURN(0); /* transaction is not started */
 
-  memset(&tmp_share, 0, sizeof(SPIDER_SHARE));
-  memset(&tmp_connect_info, 0,
-    sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT);
-  memset(tmp_connect_info_length, 0,
-    sizeof(uint) * SPIDER_TMP_SHARE_UINT_COUNT);
-  memset(tmp_long, 0, sizeof(long) * SPIDER_TMP_SHARE_LONG_COUNT);
-  memset(tmp_longlong, 0, sizeof(longlong) * SPIDER_TMP_SHARE_LONGLONG_COUNT);
-  spider_set_tmp_share_pointer(&tmp_share, (char **) &tmp_connect_info,
-    tmp_connect_info_length, tmp_long, tmp_longlong);
-  tmp_share.link_count = 0;
-  tmp_spider.conns = &conn;
-  tmp_spider.need_mons = &need_mon;
-  tmp_spider.trx = trx;
-  tmp_spider.result_list.sqls = &tmp_str;
-  tmp_spider.share = &tmp_share;
-  tmp_spider.dbton_handler = dbton_handler;
-  memset(dbton_handler, 0, sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE);
+  trx->tmp_spider->conns = &conn;
   while ((conn = (SPIDER_CONN*) my_hash_element(&trx->trx_conn_hash,
     roop_count)))
   {
-    bool error = FALSE;
-    tmp_share.access_charset = conn->access_charset;
     SPIDER_BACKUP_DASTATUS;
     DBUG_PRINT("info",("spider conn->table_lock=%d", conn->table_lock));
     if (conn->table_lock > 0)
@@ -5730,31 +5702,12 @@ int spider_close_connection(
         conn->disable_reconnect = FALSE;
       if (conn->table_lock != 2)
       {
-        if (!tmp_spider.dbton_handler[conn->dbton_id])
-        {
-          if (!(tmp_spider.dbton_handler[conn->dbton_id] =
-            spider_dbton[conn->dbton_id].create_db_handler(&tmp_spider,
-            NULL)))
-          {
-            error = TRUE;
-          }
-          if (!error && tmp_spider.dbton_handler[conn->dbton_id]->init())
-          {
-            error = TRUE;
-          }
-        }
-        if (!error)
-          spider_db_unlock_tables(&tmp_spider, 0);
+        spider_db_unlock_tables(trx->tmp_spider, 0);
       }
       conn->table_lock = 0;
     }
     roop_count++;
     SPIDER_CONN_RESTORE_DASTATUS;
-  }
-  for (roop_count = 0; roop_count < SPIDER_DBTON_SIZE; ++roop_count)
-  {
-    if (tmp_spider.dbton_handler[roop_count])
-      delete tmp_spider.dbton_handler[roop_count];
   }
 
   spider_rollback(spider_hton_ptr, thd, TRUE);

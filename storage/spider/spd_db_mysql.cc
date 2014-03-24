@@ -4865,7 +4865,8 @@ int spider_mysql_handler::init()
       __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
       &link_for_hash,
         sizeof(SPIDER_LINK_FOR_HASH) * share->link_count,
-      &minimum_select_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
+      &minimum_select_bitmap,
+        table ? sizeof(uchar) * no_bytes_in_map(table->read_set) : 0,
       NullS))
   ) {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);

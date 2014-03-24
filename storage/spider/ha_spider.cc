@@ -1112,6 +1112,8 @@ THR_LOCK_DATA **ha_spider::store_lock(
       sql_command == SQLCOM_LOCK_TABLES ||
       (spider_param_lock_exchange(thd) == 1 && share->semi_table_lock))
     {
+      DBUG_PRINT("info",("spider lock exchange route"));
+      DBUG_PRINT("info",("spider lock_type=%u", this->lock_type));
       if (
         (
           this->lock_type == TL_READ ||
@@ -1145,6 +1147,8 @@ THR_LOCK_DATA **ha_spider::store_lock(
         }
       }
     } else {
+      DBUG_PRINT("info",("spider default lock route"));
+      DBUG_PRINT("info",("spider lock_type=%u", this->lock_type));
       if (
         this->lock_type == TL_READ ||
         this->lock_type == TL_READ_NO_INSERT ||
