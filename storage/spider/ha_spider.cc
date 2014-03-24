@@ -813,10 +813,10 @@ int ha_spider::check_access_kind(
   sql_command = thd_sql_command(thd);
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-  maybe_do_hs_direct_update = FALSE;
 #endif
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  maybe_do_hs_direct_update = FALSE;
   memset(do_hs_direct_update, 0, share->link_bitmap_size);
 #endif
 #endif
@@ -9347,11 +9347,13 @@ int ha_spider::direct_update_rows_init(
 
   DBUG_PRINT("info",("spider offset_limit=%lld", offset_limit));
   DBUG_PRINT("info",("spider mode=%u", mode));
+  DBUG_PRINT("info",("spider sql_command=%u", sql_command));
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   DBUG_PRINT("info",("spider maybe_do_hs_direct_update=%s",
     maybe_do_hs_direct_update ? "TRUE" : "FALSE"));
-  DBUG_PRINT("info",("spider sql_command=%u", sql_command));
   DBUG_PRINT("info",("spider hs_pushed_ret_fields_num=%zu",
     hs_pushed_ret_fields_num));
+#endif
   DBUG_PRINT("info",("spider do_direct_update=%s",
     do_direct_update ? "TRUE" : "FALSE"));
   if (
@@ -12547,7 +12549,7 @@ int ha_spider::append_direct_update_set_hs_part()
 #endif
 #endif
 
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 int ha_spider::append_dup_update_pushdown_sql_part(
   const char *alias,
   uint alias_length

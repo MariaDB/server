@@ -845,7 +845,7 @@ public:
   int append_direct_update_set_hs_part();
 #endif
 #endif
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int append_dup_update_pushdown_sql_part(
     const char *alias,
     uint alias_length

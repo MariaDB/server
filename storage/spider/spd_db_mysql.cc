@@ -5717,10 +5717,12 @@ int spider_mysql_handler::append_direct_update_set_part()
 int spider_mysql_handler::append_direct_update_set(
   spider_string *str
 ) {
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   uint field_name_length;
   SPIDER_SHARE *share = spider->share;
 #ifndef DBUG_OFF
   TABLE *table = spider->get_table();
+#endif
 #endif
   DBUG_ENTER("spider_mysql_handler::append_direct_update_set");
   if (
@@ -5737,6 +5739,7 @@ int spider_mysql_handler::append_direct_update_set(
   if (
     (spider->direct_update_kinds & SPIDER_SQL_KIND_SQL)
   ) {
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     size_t roop_count;
     Field *field;
     if (str->reserve(SPIDER_SQL_SET_LEN))
@@ -5788,6 +5791,9 @@ int spider_mysql_handler::append_direct_update_set(
       str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
     }
     str->length(str->length() - SPIDER_SQL_COMMA_LEN);
+#else
+    DBUG_ASSERT(0);
+#endif
   }
   DBUG_RETURN(0);
 }
