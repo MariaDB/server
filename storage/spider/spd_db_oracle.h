@@ -870,7 +870,8 @@ public:
     KEY_PART_INFO *key_part,
     const key_range *key,
     const uchar **ptr,
-    bool key_eq
+    bool key_eq,
+    bool tgt_final
   );
   int append_is_null(
     ulong sql_type,
@@ -880,7 +881,8 @@ public:
     KEY_PART_INFO *key_part,
     const key_range *key,
     const uchar **ptr,
-    bool key_eq
+    bool key_eq,
+    bool tgt_final
   );
   int append_where_terminator_part(
     ulong sql_type,

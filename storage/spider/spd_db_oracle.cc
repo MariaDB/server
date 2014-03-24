@@ -6618,7 +6618,8 @@ int spider_oracle_handler::append_is_null_part(
   KEY_PART_INFO *key_part,
   const key_range *key,
   const uchar **ptr,
-  bool key_eq
+  bool key_eq,
+  bool tgt_final
 ) {
   int error_num;
   spider_string *str, *str_part = NULL, *str_part2 = NULL;
@@ -6645,7 +6646,7 @@ int spider_oracle_handler::append_is_null_part(
       DBUG_RETURN(0);
   }
   error_num = append_is_null(sql_type, str, str_part, str_part2,
-    key_part, key, ptr, key_eq);
+    key_part, key, ptr, key_eq, tgt_final);
   DBUG_RETURN(error_num);
 }
 
@@ -6657,7 +6658,8 @@ int spider_oracle_handler::append_is_null(
   KEY_PART_INFO *key_part,
   const key_range *key,
   const uchar **ptr,
-  bool key_eq
+  bool key_eq,
+  bool tgt_final
 ) {
   DBUG_ENTER("spider_oracle_handler::append_is_null");
   DBUG_PRINT("info",("spider this=%p", this));

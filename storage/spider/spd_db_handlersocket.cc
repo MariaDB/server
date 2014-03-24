@@ -4331,7 +4331,8 @@ int spider_handlersocket_handler::append_is_null_part(
   KEY_PART_INFO *key_part,
   const key_range *key,
   const uchar **ptr,
-  bool key_eq
+  bool key_eq,
+  bool tgt_final
 ) {
   int error_num;
   spider_string *str;
@@ -4349,7 +4350,7 @@ int spider_handlersocket_handler::append_is_null_part(
       DBUG_RETURN(0);
   }
   error_num = append_is_null(sql_type, str, NULL, NULL, key_part, key, ptr,
-    key_eq);
+    key_eq, tgt_final);
   DBUG_RETURN(error_num);
 }
 
@@ -4361,7 +4362,8 @@ int spider_handlersocket_handler::append_is_null(
   KEY_PART_INFO *key_part,
   const key_range *key,
   const uchar **ptr,
-  bool key_eq
+  bool key_eq,
+  bool tgt_final
 ) {
   DBUG_ENTER("spider_handlersocket_handler::append_is_null");
   DBUG_PRINT("info",("spider this=%p", this));

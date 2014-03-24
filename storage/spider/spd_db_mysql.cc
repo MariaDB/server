@@ -6682,7 +6682,8 @@ int spider_mysql_handler::append_is_null_part(
   KEY_PART_INFO *key_part,
   const key_range *key,
   const uchar **ptr,
-  bool key_eq
+  bool key_eq,
+  bool tgt_final
 ) {
   int error_num;
   spider_string *str, *str_part = NULL, *str_part2 = NULL;
@@ -6709,7 +6710,7 @@ int spider_mysql_handler::append_is_null_part(
       DBUG_RETURN(0);
   }
   error_num = append_is_null(sql_type, str, str_part, str_part2,
-    key_part, key, ptr, key_eq);
+    key_part, key, ptr, key_eq, tgt_final);
   DBUG_RETURN(error_num);
 }
 
@@ -6721,32 +6722,54 @@ int spider_mysql_handler::append_is_null(
   KEY_PART_INFO *key_part,
   const key_range *key,
   const uchar **ptr,
-  bool key_eq
+  bool key_eq,
+  bool tgt_final
 ) {
   DBUG_ENTER("spider_mysql_handler::append_is_null");
   DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_PRINT("info",("spider key_eq=%s", key_eq ? "TRUE" : "FALSE"));
   if (key_part->null_bit)
   {
     if (*(*ptr)++)
     {
       if (sql_type == SPIDER_SQL_TYPE_HANDLER)
       {
-        str = str_part;
         if (
           key_eq ||
           key->flag == HA_READ_KEY_EXACT ||
           key->flag == HA_READ_KEY_OR_NEXT
         ) {
-          if (str->reserve(SPIDER_SQL_IS_NULL_LEN))
+          if (tgt_final)
+          {
+            if (str->reserve(SPIDER_SQL_EQUAL_LEN))
+              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+            str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
+          }
+          str = str_part;
+          if (str->reserve(SPIDER_SQL_NULL_LEN))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          str->q_append(SPIDER_SQL_IS_NULL_STR, SPIDER_SQL_IS_NULL_LEN);
+          str->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
         } else {
-          str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
-          ha_next_pos = str->length();
-          if (str->reserve(SPIDER_SQL_FIRST_LEN))
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          str->q_append(SPIDER_SQL_FIRST_STR, SPIDER_SQL_FIRST_LEN);
-          spider->result_list.ha_read_kind = 1;
+          if (str_part->length() == SPIDER_SQL_OPEN_PAREN_LEN)
+          {
+            str = str_part;
+            /* first index column */
+            str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
+            ha_next_pos = str->length();
+            if (str->reserve(SPIDER_SQL_FIRST_LEN))
+              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+            str->q_append(SPIDER_SQL_FIRST_STR, SPIDER_SQL_FIRST_LEN);
+            spider->result_list.ha_read_kind = 1;
+          } else if (tgt_final)
+          {
+            if (str->reserve(SPIDER_SQL_GT_LEN))
+              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+            str->q_append(SPIDER_SQL_GT_STR, SPIDER_SQL_GT_LEN);
+            str = str_part;
+            if (str->reserve(SPIDER_SQL_NULL_LEN))
+              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+            str->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
+          }
         }
         str = str_part2;
       }
