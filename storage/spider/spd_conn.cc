@@ -2874,10 +2874,15 @@ void *spider_bg_sts_action(
     if (spider.search_link_idx == -1)
     {
       spider_trx_set_link_idx_for_all(&spider);
+/*
       spider.search_link_idx = spider_conn_next_link_idx(
         thd, share->link_statuses, share->access_balances,
         spider.conn_link_idx, spider.search_link_idx, share->link_count,
         SPIDER_LINK_STATUS_OK);
+*/
+      spider.search_link_idx = spider_conn_first_link_idx(thd,
+        share->link_statuses, share->access_balances, spider.conn_link_idx,
+        share->link_count, SPIDER_LINK_STATUS_OK);
     }
     if (spider.search_link_idx >= 0)
     {
@@ -2893,6 +2898,7 @@ void *spider_bg_sts_action(
             &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
           pthread_mutex_unlock(&spider_global_trx_mutex);
+/*
           if (
             error_num &&
             share->monitoring_kind[spider.search_link_idx] &&
@@ -2915,8 +2921,10 @@ void *spider_bg_sts_action(
               );
             lex_end(thd->lex);
           }
+*/
+          spider.search_link_idx = -1;
         }
-        if (conns[spider.search_link_idx])
+        if (spider.search_link_idx != -1 && conns[spider.search_link_idx])
         {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           if (spider_get_sts(share, spider.search_link_idx,
@@ -2931,6 +2939,7 @@ void *spider_bg_sts_action(
             2, HA_STATUS_CONST | HA_STATUS_VARIABLE))
 #endif
           {
+/*
             if (
               share->monitoring_kind[spider.search_link_idx] &&
               need_mons[spider.search_link_idx]
@@ -2952,6 +2961,7 @@ void *spider_bg_sts_action(
                 );
               lex_end(thd->lex);
             }
+*/
             spider.search_link_idx = -1;
           }
         }
@@ -3256,10 +3266,15 @@ void *spider_bg_crd_action(
     if (spider.search_link_idx == -1)
     {
       spider_trx_set_link_idx_for_all(&spider);
+/*
       spider.search_link_idx = spider_conn_next_link_idx(
         thd, share->link_statuses, share->access_balances,
         spider.conn_link_idx, spider.search_link_idx, share->link_count,
         SPIDER_LINK_STATUS_OK);
+*/
+      spider.search_link_idx = spider_conn_first_link_idx(thd,
+        share->link_statuses, share->access_balances, spider.conn_link_idx,
+        share->link_count, SPIDER_LINK_STATUS_OK);
     }
     if (spider.search_link_idx >= 0)
     {
@@ -3275,6 +3290,7 @@ void *spider_bg_crd_action(
             &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
           pthread_mutex_unlock(&spider_global_trx_mutex);
+/*
           if (
             error_num &&
             share->monitoring_kind[spider.search_link_idx] &&
@@ -3297,8 +3313,10 @@ void *spider_bg_crd_action(
               );
             lex_end(thd->lex);
           }
+*/
+          spider.search_link_idx = -1;
         }
-        if (conns[spider.search_link_idx])
+        if (spider.search_link_idx != -1 && conns[spider.search_link_idx])
         {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           if (spider_get_crd(share, spider.search_link_idx,
@@ -3313,6 +3331,7 @@ void *spider_bg_crd_action(
             2))
 #endif
           {
+/*
             if (
               share->monitoring_kind[spider.search_link_idx] &&
               need_mons[spider.search_link_idx]
@@ -3334,6 +3353,7 @@ void *spider_bg_crd_action(
                 );
               lex_end(thd->lex);
             }
+*/
             spider.search_link_idx = -1;
           }
         }

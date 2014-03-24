@@ -7713,8 +7713,23 @@ bool spider_check_direct_order_limit(
 
     longlong direct_order_limit = spider_param_direct_order_limit(thd,
       share->direct_order_limit);
+    DBUG_PRINT("info",("spider direct_order_limit=%lld", direct_order_limit));
     if (direct_order_limit)
     {
+      DBUG_PRINT("info",("spider first_check=%s",
+        first_check ? "TRUE" : "FALSE"));
+      DBUG_PRINT("info",("spider (select_lex->options & OPTION_FOUND_ROWS)=%s",
+        (select_lex->options & OPTION_FOUND_ROWS) ? "TRUE" : "FALSE"));
+      DBUG_PRINT("info",("spider direct_aggregate=%s",
+        spider->result_list.direct_aggregate ? "TRUE" : "FALSE"));
+      DBUG_PRINT("info",("spider select_lex->group_list.elements=%u",
+        select_lex->group_list.elements));
+      DBUG_PRINT("info",("spider select_lex->with_sum_func=%s",
+        select_lex->with_sum_func ? "TRUE" : "FALSE"));
+      DBUG_PRINT("info",("spider select_lex->having=%s",
+        select_lex->having ? "TRUE" : "FALSE"));
+      DBUG_PRINT("info",("spider select_lex->order_list.elements=%u",
+        select_lex->order_list.elements));
       if (
         !first_check ||
         !select_lex->explicit_limit ||

@@ -4403,12 +4403,12 @@ int ha_spider::read_multi_range_first_internal(
 #ifdef HA_MRR_USE_DEFAULT_IMPL
         (error_num = spider_db_append_key_where(
           &mrr_cur_range.start_key,
-          test(mrr_cur_range.range_flag & EQ_RANGE) ?
+          SPIDER_TEST(mrr_cur_range.range_flag & EQ_RANGE) ?
           NULL : &mrr_cur_range.end_key, this))
 #else
         (error_num = spider_db_append_key_where(
           &multi_range_curr->start_key,
-          test(multi_range_curr->range_flag & EQ_RANGE) ?
+          SPIDER_TEST(multi_range_curr->range_flag & EQ_RANGE) ?
           NULL : &multi_range_curr->end_key, this))
 #endif
       )
@@ -4849,9 +4849,9 @@ int ha_spider::read_multi_range_first_internal(
         !(sql_kinds & SPIDER_SQL_KIND_HS) &&
 #endif
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-        test(mrr_cur_range.range_flag & EQ_RANGE)
+        SPIDER_TEST(mrr_cur_range.range_flag & EQ_RANGE)
 #else
-        test(multi_range_curr->range_flag & EQ_RANGE)
+        SPIDER_TEST(multi_range_curr->range_flag & EQ_RANGE)
 #endif
       ) {
         if (
@@ -4966,11 +4966,11 @@ int ha_spider::read_multi_range_first_internal(
         {
           if (
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-            !test(mrr_cur_range.range_flag & EQ_RANGE) ||
+            !SPIDER_TEST(mrr_cur_range.range_flag & EQ_RANGE) ||
             result_list.tmp_table_join_key_part_map !=
               mrr_cur_range.start_key.keypart_map
 #else
-            !test(multi_range_curr->range_flag & EQ_RANGE) ||
+            !SPIDER_TEST(multi_range_curr->range_flag & EQ_RANGE) ||
             result_list.tmp_table_join_key_part_map !=
               multi_range_curr->start_key.keypart_map
 #endif
@@ -5138,12 +5138,12 @@ int ha_spider::read_multi_range_first_internal(
 #ifdef HA_MRR_USE_DEFAULT_IMPL
             (error_num = spider_db_append_key_where(
               &mrr_cur_range.start_key,
-              test(mrr_cur_range.range_flag & EQ_RANGE) ?
+              SPIDER_TEST(mrr_cur_range.range_flag & EQ_RANGE) ?
               NULL : &mrr_cur_range.end_key, this))
 #else
             (error_num = spider_db_append_key_where(
               &multi_range_curr->start_key,
-              test(multi_range_curr->range_flag & EQ_RANGE) ?
+              SPIDER_TEST(multi_range_curr->range_flag & EQ_RANGE) ?
               NULL : &multi_range_curr->end_key, this))
 #endif
           )
@@ -5813,12 +5813,12 @@ int ha_spider::read_multi_range_next(
 #ifdef HA_MRR_USE_DEFAULT_IMPL
         (error_num = spider_db_append_key_where(
           &mrr_cur_range.start_key,
-          test(mrr_cur_range.range_flag & EQ_RANGE) ?
+          SPIDER_TEST(mrr_cur_range.range_flag & EQ_RANGE) ?
           NULL : &mrr_cur_range.end_key, this))
 #else
         (error_num = spider_db_append_key_where(
           &multi_range_curr->start_key,
-          test(multi_range_curr->range_flag & EQ_RANGE) ?
+          SPIDER_TEST(multi_range_curr->range_flag & EQ_RANGE) ?
           NULL : &multi_range_curr->end_key, this))
 #endif
       )
@@ -6270,9 +6270,9 @@ int ha_spider::read_multi_range_next(
         !(sql_kinds & SPIDER_SQL_KIND_HS) &&
 #endif
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-        test(mrr_cur_range.range_flag & EQ_RANGE)
+        SPIDER_TEST(mrr_cur_range.range_flag & EQ_RANGE)
 #else
-        test(multi_range_curr->range_flag & EQ_RANGE)
+        SPIDER_TEST(multi_range_curr->range_flag & EQ_RANGE)
 #endif
       ) {
         if (
@@ -6388,11 +6388,11 @@ int ha_spider::read_multi_range_next(
         {
           if (
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-            !test(mrr_cur_range.range_flag & EQ_RANGE) ||
+            !SPIDER_TEST(mrr_cur_range.range_flag & EQ_RANGE) ||
             result_list.tmp_table_join_key_part_map !=
               mrr_cur_range.start_key.keypart_map
 #else
-            !test(multi_range_curr->range_flag & EQ_RANGE) ||
+            !SPIDER_TEST(multi_range_curr->range_flag & EQ_RANGE) ||
             result_list.tmp_table_join_key_part_map !=
               multi_range_curr->start_key.keypart_map
 #endif
@@ -6555,12 +6555,12 @@ int ha_spider::read_multi_range_next(
 #ifdef HA_MRR_USE_DEFAULT_IMPL
             (error_num = spider_db_append_key_where(
               &mrr_cur_range.start_key,
-              test(mrr_cur_range.range_flag & EQ_RANGE) ?
+              SPIDER_TEST(mrr_cur_range.range_flag & EQ_RANGE) ?
               NULL : &mrr_cur_range.end_key, this))
 #else
             (error_num = spider_db_append_key_where(
               &multi_range_curr->start_key,
-              test(multi_range_curr->range_flag & EQ_RANGE) ?
+              SPIDER_TEST(multi_range_curr->range_flag & EQ_RANGE) ?
               NULL : &multi_range_curr->end_key, this))
 #endif
           )

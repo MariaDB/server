@@ -99,6 +99,12 @@
 #define SPIDER_WARN_LEVEL_NOTE            MYSQL_ERROR::WARN_LEVEL_NOTE
 #endif
 
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100009
+#define SPIDER_TEST(A) MY_TEST(A)
+#else
+#define SPIDER_TEST(A) test(A)
+#endif
+
 #if MYSQL_VERSION_ID >= 50500
 #define SPIDER_HAS_HASH_VALUE_TYPE
 #endif

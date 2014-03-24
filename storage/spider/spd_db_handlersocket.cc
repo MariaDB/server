@@ -3262,10 +3262,15 @@ int spider_db_handlersocket_util::open_item_func(
         func_name_length = strlen(func_name);
         DBUG_PRINT("info",("spider func_name = %s", func_name));
         DBUG_PRINT("info",("spider func_name_length = %d", func_name_length));
-        if (str->reserve(SPIDER_SQL_MBR_LEN + func_name_length +
-          SPIDER_SQL_OPEN_PAREN_LEN))
+        if (str->reserve(
+#ifndef SPIDER_ITEM_GEOFUNC_NAME_HAS_MBR
+          SPIDER_SQL_MBR_LEN +
+#endif
+          func_name_length + SPIDER_SQL_OPEN_PAREN_LEN))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+#ifndef SPIDER_ITEM_GEOFUNC_NAME_HAS_MBR
         str->q_append(SPIDER_SQL_MBR_STR, SPIDER_SQL_MBR_LEN);
+#endif
         str->q_append(func_name, func_name_length);
         str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
       }

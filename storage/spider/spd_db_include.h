@@ -36,6 +36,10 @@
 #define SPIDER_HAS_DECIMAL_OPERATION_RESULTS_VALUE_TYPE
 #endif
 
+#if defined(MARIADB_BASE_VERSION)
+#define SPIDER_ITEM_GEOFUNC_NAME_HAS_MBR
+#endif
+
 class spider_db_conn;
 typedef spider_db_conn SPIDER_DB_CONN;
 class spider_db_result;

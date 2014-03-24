@@ -9025,16 +9025,19 @@ int spider_db_udf_ping_table(
   bool use_where,
   longlong limit
 ) {
-  int error_num, need_mon = 0;
-  uint tmp_conn_link_idx = 0;
-  ha_spider spider;
+  int error_num;
   DBUG_ENTER("spider_db_udf_ping_table");
   if (!pthread_mutex_trylock(&table_mon_list->monitor_mutex))
   {
+    int need_mon = 0;
+    uint tmp_conn_link_idx = 0;
+    ha_spider spider;
+    uchar db_request_phase = 0;
     spider.share = share;
     spider.trx = trx;
     spider.need_mons = &need_mon;
     spider.conn_link_idx = &tmp_conn_link_idx;
+    spider.db_request_phase = &db_request_phase;
     pthread_mutex_lock(&conn->mta_conn_mutex);
     SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
     conn->need_mon = &need_mon;
