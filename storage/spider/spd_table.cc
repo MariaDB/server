@@ -43,6 +43,9 @@
 #include "spd_malloc.h"
 
 ulong *spd_db_att_thread_id;
+#ifdef XID_CACHE_IS_SPLITTED
+uint *spd_db_att_xid_cache_split_num;
+#endif
 pthread_mutex_t *spd_db_att_LOCK_xid_cache;
 HASH *spd_db_att_xid_cache;
 struct charset_info_st *spd_charset_utf8_bin;
@@ -6040,6 +6043,16 @@ int spider_db_init(
   HMODULE current_module = GetModuleHandle(NULL);
   spd_db_att_thread_id = (ulong *)
     GetProcAddress(current_module, "?thread_id@@3KA");
+#ifdef XID_CACHE_IS_SPLITTED
+  spd_db_att_xid_cache_split_num = (uint *)
+    GetProcAddress(current_module,
+      "?opt_xid_cache_split_num@@3IA");
+  spd_db_att_LOCK_xid_cache = *((pthread_mutex_t **)
+    GetProcAddress(current_module,
+      "?LOCK_xid_cache@@3PAUst_mysql_mutex@@A"));
+  spd_db_att_xid_cache = *((HASH **)
+    GetProcAddress(current_module, "?xid_cache@@3PAUst_hash@@A"));
+#else
   spd_db_att_LOCK_xid_cache = (pthread_mutex_t *)
 #if MYSQL_VERSION_ID < 50500
     GetProcAddress(current_module,
@@ -6050,6 +6063,7 @@ int spider_db_init(
 #endif
   spd_db_att_xid_cache = (HASH *)
     GetProcAddress(current_module, "?xid_cache@@3Ust_hash@@A");
+#endif
   spd_charset_utf8_bin = (struct charset_info_st *)
     GetProcAddress(current_module, "my_charset_utf8_bin");
   spd_defaults_extra_file = (const char **)
@@ -6058,8 +6072,14 @@ int spider_db_init(
     GetProcAddress(current_module, "my_defaults_file");
 #else
   spd_db_att_thread_id = &thread_id;
+#ifdef XID_CACHE_IS_SPLITTED
+  spd_db_att_xid_cache_split_num = &opt_xid_cache_split_num;
+  spd_db_att_LOCK_xid_cache = LOCK_xid_cache;
+  spd_db_att_xid_cache = xid_cache;
+#else
   spd_db_att_LOCK_xid_cache = &LOCK_xid_cache;
   spd_db_att_xid_cache = &xid_cache;
+#endif
   spd_charset_utf8_bin = &my_charset_utf8_bin;
   spd_defaults_extra_file = &my_defaults_extra_file;
   spd_defaults_file = &my_defaults_file;
