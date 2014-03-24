@@ -2934,6 +2934,32 @@ my_bool spider_param_dry_access()
   DBUG_RETURN(spider_dry_access);
 }
 
+/*
+ -1 :use table parameter
+  0 :fast
+  1 :correct delete row number
+ */
+static MYSQL_THDVAR_INT(
+  delete_all_rows_type, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "The type of delete_all_rows", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  1, /* max */
+  0 /* blk */
+);
+
+int spider_param_delete_all_rows_type(
+  THD *thd,
+  int delete_all_rows_type
+) {
+  DBUG_ENTER("spider_param_delete_all_rows_type");
+  DBUG_RETURN(THDVAR(thd, delete_all_rows_type) == -1 ?
+    delete_all_rows_type : THDVAR(thd, delete_all_rows_type));
+}
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -3066,6 +3092,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(internal_xa_id_type),
   MYSQL_SYSVAR(casual_read),
   MYSQL_SYSVAR(dry_access),
+  MYSQL_SYSVAR(delete_all_rows_type),
   NULL
 };
 

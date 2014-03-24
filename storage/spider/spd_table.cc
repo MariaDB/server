@@ -1793,6 +1793,7 @@ int spider_parse_connect_info(
   share->force_bulk_delete = -1;
 #endif
   share->casual_read = -1;
+  share->delete_all_rows_type = -1;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   for (roop_count = 4; roop_count > 0; roop_count--)
@@ -1930,6 +1931,7 @@ int spider_parse_connect_info(
             2147483647);
           SPIDER_PARAM_INT_WITH_MAX("ctp", crd_type, 0, 2);
           SPIDER_PARAM_DOUBLE("cwg", crd_weight, 1);
+          SPIDER_PARAM_INT_WITH_MAX("dat", delete_all_rows_type, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX("ddi", direct_dup_insert, 0, 1);
           SPIDER_PARAM_STR_LIST("dff", tgt_default_files);
           SPIDER_PARAM_STR_LIST("dfg", tgt_default_groups);
@@ -2262,6 +2264,8 @@ int spider_parse_connect_info(
         case 20:
           SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
             "monitoring_server_id", monitoring_sid, 0, 4294967295LL);
+          SPIDER_PARAM_INT_WITH_MAX(
+            "delete_all_rows_type", delete_all_rows_type, 0, 1);
           error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
           my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
             MYF(0), tmp_ptr);
@@ -3441,6 +3445,14 @@ int spider_set_connect_info_default(
 #endif
   if (share->casual_read == -1)
     share->casual_read = 0;
+  if (share->delete_all_rows_type == -1)
+  {
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+    share->delete_all_rows_type = 1;
+#else
+    share->delete_all_rows_type = 0;
+#endif
+  }
   if (share->bka_mode == -1)
     share->bka_mode = 1;
   if (!share->bka_engine)

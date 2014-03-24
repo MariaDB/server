@@ -379,3 +379,7 @@ int spider_param_casual_read(
   int casual_read
 );
 my_bool spider_param_dry_access();
+int spider_param_delete_all_rows_type(
+  THD *thd,
+  int delete_all_rows_type
+);

@@ -9994,6 +9994,8 @@ int ha_spider::delete_all_rows()
   backup_error_status();
   DBUG_ENTER("ha_spider::delete_all_rows");
   DBUG_PRINT("info",("spider this=%p", this));
+  if (spider_param_delete_all_rows_type(thd, share->delete_all_rows_type))
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   if (spider_param_read_only_mode(thd, share->read_only_mode))
   {
     my_printf_error(ER_SPIDER_READ_ONLY_NUM, ER_SPIDER_READ_ONLY_STR, MYF(0),

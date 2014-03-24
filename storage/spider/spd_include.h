@@ -759,6 +759,7 @@ typedef struct st_spider_share
   int                force_bulk_delete;
 #endif
   int                casual_read;
+  int                delete_all_rows_type;
 
   int                bka_mode;
   char               *bka_engine;
