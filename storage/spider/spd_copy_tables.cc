@@ -719,7 +719,7 @@ int spider_udf_copy_tables_create_table_list(
       &copy_tables->link_idxs[1],
         sizeof(int) * copy_tables->link_idx_count[1],
       &tmp_name_ptr, sizeof(char) * (
-        spider_table_name_length * 2 + copy_tables->database_length + 2
+        spider_table_name_length * 2 + copy_tables->database_length + 3
       ),
       NullS))
   ) {
