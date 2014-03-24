@@ -8101,10 +8101,30 @@ int ha_spider::info(
             pthread_mutex_lock(&share->sts_mutex);
           if (difftime(tmp_time, share->sts_get_time) >= sts_interval)
           {
-            if (
-              (error_num = spider_check_trx_and_get_conn(ha_thd(), this,
-                FALSE)) ||
-              (error_num = spider_get_sts(share, search_link_idx, tmp_time,
+            if ((error_num = spider_check_trx_and_get_conn(ha_thd(), this,
+              FALSE)))
+            {
+              if (!share->sts_init)
+              {
+                if (
+                  spider_init_error_table ||
+                  (spider_init_error_table =
+                    spider_get_init_error_table(trx, share, TRUE))
+                ) {
+                  spider_init_error_table->init_error = error_num;
+                  if ((spider_init_error_table->init_error_with_message =
+                    thd->is_error()))
+                    strmov(spider_init_error_table->init_error_msg,
+                      spider_stmt_da_message(thd));
+                  spider_init_error_table->init_error_time =
+                    (time_t) time((time_t*) 0);
+                }
+                share->init_error = TRUE;
+                share->init = TRUE;
+              }
+              DBUG_RETURN(check_error_mode(error_num));
+            }
+            if ((error_num = spider_get_sts(share, search_link_idx, tmp_time,
                 this, sts_interval, sts_mode,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
                 sts_sync,
@@ -8546,6 +8566,10 @@ int ha_spider::check_crd()
   }
   if (crd_mode == 3)
     crd_mode = 1;
+  if ((error_num = spider_check_trx_and_get_conn(ha_thd(), this, FALSE)))
+  {
+    DBUG_RETURN(check_error_mode(error_num));
+  }
   dbton_id = share->sql_dbton_ids[search_link_idx];
   dbton_hdl = dbton_handler[dbton_id];
   crd_mode = dbton_hdl->crd_mode_exchange(crd_mode);

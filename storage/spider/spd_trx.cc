@@ -3425,8 +3425,6 @@ int spider_check_trx_and_get_conn(
     DBUG_PRINT("info",("spider semi_table_lock = %d",
       spider_param_semi_table_lock(thd, share->semi_table_lock)));
     DBUG_PRINT("info",("spider first_byte = %d", first_byte));
-    DBUG_PRINT("info",("spider link_status = %ld",
-      share->link_statuses[spider->conn_link_idx[spider->search_link_idx]]));
     if (
       !trx_ha ||
       trx_ha->wait_for_reusing ||
@@ -3618,6 +3616,8 @@ int spider_check_trx_and_get_conn(
 #endif
       }
     } else {
+      DBUG_PRINT("info",("spider link_status = %ld",
+        share->link_statuses[spider->conn_link_idx[spider->search_link_idx]]));
       for (
         roop_count = spider_conn_link_idx_next(share->link_statuses,
           spider->conn_link_idx, -1, share->link_count,
