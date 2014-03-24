@@ -2745,6 +2745,13 @@ int spider_db_fetch_table(
       {
         if (!row->is_null())
           spider->multi_range_hit_point = row->val_int();
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+        else if (result_list->direct_aggregate)
+        {
+          table->status = STATUS_NOT_FOUND;
+          DBUG_RETURN(HA_ERR_END_OF_FILE);
+        }
+#endif
         else
           DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
         row->next();
@@ -2926,6 +2933,13 @@ int spider_db_fetch_key(
     DBUG_PRINT("info", ("spider mrr_with_cnt"));
     if (!row->is_null())
       spider->multi_range_hit_point = row->val_int();
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+    else if (result_list->direct_aggregate)
+    {
+      table->status = STATUS_NOT_FOUND;
+      DBUG_RETURN(HA_ERR_END_OF_FILE);
+    }
+#endif
     else
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     row->next();
@@ -3026,6 +3040,13 @@ int spider_db_fetch_minimum_columns(
     DBUG_PRINT("info", ("spider mrr_with_cnt"));
     if (!row->is_null())
       spider->multi_range_hit_point = row->val_int();
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+    else if (result_list->direct_aggregate)
+    {
+      table->status = STATUS_NOT_FOUND;
+      DBUG_RETURN(HA_ERR_END_OF_FILE);
+    }
+#endif
     else
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     row->next();
