@@ -90,7 +90,10 @@ TABLE *spider_open_sys_table(
     if (!(table = spider_sys_open_table(thd, &tables, open_tables_backup)))
 #endif
     {
-      *error_num = my_errno;
+      my_printf_error(ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM,
+        ER_SPIDER_CANT_OPEN_SYS_TABLE_STR, MYF(0),
+        "mysql", table_name);
+      *error_num = ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM;
       DBUG_RETURN(NULL);
     }
 #if MYSQL_VERSION_ID < 50500
@@ -117,7 +120,10 @@ TABLE *spider_open_sys_table(
       table, FALSE)
     ) {
       release_table_share(table_share, RELEASE_NORMAL);
-      *error_num = my_errno;
+      my_printf_error(ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM,
+        ER_SPIDER_CANT_OPEN_SYS_TABLE_STR, MYF(0),
+        "mysql", table_name);
+      *error_num = ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM;
       goto error;
     }
   }
@@ -1913,7 +1919,6 @@ int spider_sys_update_tables_link_status(
       SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup, need_lock,
       &error_num))
   ) {
-    my_error(error_num, MYF(0));
     goto error;
   }
   if ((error_num = spider_update_tables_link_status(table_tables,
@@ -1952,7 +1957,6 @@ int spider_sys_log_tables_link_failed(
       SPIDER_SYS_LINK_FAILED_TABLE_NAME_LEN, TRUE, &open_tables_backup,
       need_lock, &error_num))
   ) {
-    my_error(error_num, MYF(0));
     goto error;
   }
   empty_record(table_tables);
@@ -1992,7 +1996,6 @@ int spider_sys_log_xa_failed(
       SPIDER_SYS_XA_FAILED_TABLE_NAME_LEN, TRUE, &open_tables_backup,
       need_lock, &error_num))
   ) {
-    my_error(error_num, MYF(0));
     goto error;
   }
   empty_record(table_tables);

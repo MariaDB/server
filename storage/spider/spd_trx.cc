@@ -1907,6 +1907,8 @@ int spider_internal_xa_commit(
   if ((conn = spider_tree_first(trx->join_trx_top)))
   {
     do {
+      if (conn->bg_search)
+        spider_bg_conn_break(conn, NULL);
       DBUG_PRINT("info",("spider conn=%p", conn));
       DBUG_PRINT("info",("spider conn->join_trx=%u", conn->join_trx));
       if (conn->join_trx)
@@ -2087,6 +2089,8 @@ int spider_internal_xa_rollback(
   if ((conn = spider_tree_first(trx->join_trx_top)))
   {
     do {
+      if (conn->bg_search)
+        spider_bg_conn_break(conn, NULL);
       if (conn->join_trx)
       {
         if (conn->disable_xa)
@@ -2271,6 +2275,8 @@ int spider_internal_xa_prepare(
   if ((conn = spider_tree_first(trx->join_trx_top)))
   {
     do {
+      if (conn->bg_search)
+        spider_bg_conn_break(conn, NULL);
       if (conn->disable_xa)
       {
         if (conn->table_lock != 3)

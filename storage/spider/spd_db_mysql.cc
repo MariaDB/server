@@ -109,6 +109,8 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 #define SPIDER_SQL_SHOW_TABLE_STATUS_LEN sizeof(SPIDER_SQL_SHOW_TABLE_STATUS_STR) - 1
 #define SPIDER_SQL_SELECT_TABLES_STATUS_STR "select `table_rows`,`avg_row_length`,`data_length`,`max_data_length`,`index_length`,`auto_increment`,`create_time`,`update_time`,`check_time` from `information_schema`.`tables` where `table_schema` = "
 #define SPIDER_SQL_SELECT_TABLES_STATUS_LEN sizeof(SPIDER_SQL_SELECT_TABLES_STATUS_STR) - 1
+#define SPIDER_SQL_SHOW_WARNINGS_STR "show warnings"
+#define SPIDER_SQL_SHOW_WARNINGS_LEN sizeof(SPIDER_SQL_SHOW_WARNINGS_STR) - 1
 
 #ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
 #define SPIDER_SQL_SHOW_COLUMNS_STR "show columns from "
@@ -1553,6 +1555,8 @@ int spider_db_mysql::exec_query(
       conn->tgt_host, db_conn->thread_id, current_thd->thread_id,
       db_conn->affected_rows, db_conn->insert_id,
       db_conn->server_status, db_conn->warning_count);
+    if (spider_param_log_result_errors() >= 3)
+      print_warnings(l_time);
   } else if (spider_param_log_result_errors() >= 4)
   {
     time_t cur_time = (time_t) time((time_t*) 0);
@@ -1631,6 +1635,78 @@ bool spider_db_mysql::is_xa_nota_error(
     );
   DBUG_PRINT("info",("spider xa_nota=%s", xa_nota ? "TRUE" : "FALSE"));
   DBUG_RETURN(xa_nota);
+}
+
+void spider_db_mysql::print_warnings(
+  struct tm *l_time
+) {
+  DBUG_ENTER("spider_db_mysql::print_warnings");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (db_conn->status == MYSQL_STATUS_READY)
+  {
+#if MYSQL_VERSION_ID < 50500
+    if (!(db_conn->last_used_con->server_status & SERVER_MORE_RESULTS_EXISTS))
+#else
+    if (!(db_conn->server_status & SERVER_MORE_RESULTS_EXISTS))
+#endif
+    {
+/*
+      pthread_mutex_lock(&conn->mta_conn_mutex);
+      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+*/
+      if (!mysql_real_query(db_conn, SPIDER_SQL_SHOW_WARNINGS_STR,
+        SPIDER_SQL_SHOW_WARNINGS_LEN))
+      {
+        MYSQL_RES *res;
+        MYSQL_ROW row = NULL;
+        uint num_fields;
+        if (
+          !(res = mysql_store_result(db_conn)) ||
+          !(row = mysql_fetch_row(res))
+        ) {
+          if (mysql_errno(db_conn))
+          {
+            if (res)
+              mysql_free_result(res);
+/*
+            SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+            pthread_mutex_unlock(&conn->mta_conn_mutex);
+*/
+            DBUG_VOID_RETURN;
+          }
+          /* no record is ok */
+        }
+/*
+        SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+        pthread_mutex_unlock(&conn->mta_conn_mutex);
+*/
+        num_fields = mysql_num_fields(res);
+        if (num_fields != 3)
+        {
+          mysql_free_result(res);
+          DBUG_VOID_RETURN;
+        }
+        while (row)
+        {
+          fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] "
+            "from [%s] %ld to %ld: %s %s %s\n",
+            l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+            l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+            conn->tgt_host, db_conn->thread_id,
+            current_thd->thread_id, row[0], row[1], row[2]);
+          row = mysql_fetch_row(res);
+        }
+        if (res)
+          mysql_free_result(res);
+      } else {
+/*
+        SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+        pthread_mutex_unlock(&conn->mta_conn_mutex);
+*/
+      }
+    }
+  }
+  DBUG_VOID_RETURN;
 }
 
 spider_db_result *spider_db_mysql::store_result(
