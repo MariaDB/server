@@ -70,6 +70,18 @@ int spider_free_conn(
   SPIDER_CONN *conn
 );
 
+int spider_check_and_get_casual_read_conn(
+  THD *thd,
+  ha_spider *spider,
+  int link_idx
+);
+
+int spider_check_and_init_casual_read(
+  THD *thd,
+  ha_spider *spider,
+  int link_idx
+);
+
 void spider_conn_queue_connect(
   SPIDER_SHARE *share,
   SPIDER_CONN *conn,

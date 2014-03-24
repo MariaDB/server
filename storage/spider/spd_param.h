@@ -374,3 +374,7 @@ uint spider_param_log_result_error_with_sql();
 uint spider_param_internal_xa_id_type(
   THD *thd
 );
+int spider_param_casual_read(
+  THD *thd,
+  int casual_read
+);

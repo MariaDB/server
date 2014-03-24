@@ -2887,6 +2887,33 @@ uint spider_param_internal_xa_id_type(
   DBUG_RETURN(THDVAR(thd, internal_xa_id_type));
 }
 
+/*
+ -1 :use table parameter
+  0 :OFF
+  1 :automatic channel
+  2-63 :use custom channel
+ */
+static MYSQL_THDVAR_INT(
+  casual_read, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "Read casually if it is possible", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  63, /* max */
+  0 /* blk */
+);
+
+int spider_param_casual_read(
+  THD *thd,
+  int casual_read
+) {
+  DBUG_ENTER("spider_param_casual_read");
+  DBUG_RETURN(THDVAR(thd, casual_read) == -1 ?
+    casual_read : THDVAR(thd, casual_read));
+}
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -3017,6 +3044,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(log_result_error_with_sql),
   MYSQL_SYSVAR(version),
   MYSQL_SYSVAR(internal_xa_id_type),
+  MYSQL_SYSVAR(casual_read),
   NULL
 };
 

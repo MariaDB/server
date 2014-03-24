@@ -153,6 +153,7 @@ ha_spider::ha_spider(
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
   result_list.direct_aggregate = FALSE;
 #endif
+  result_list.casual_read = NULL;
   DBUG_VOID_RETURN;
 }
 
@@ -256,6 +257,7 @@ ha_spider::ha_spider(
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
   result_list.direct_aggregate = FALSE;
 #endif
+  result_list.casual_read = NULL;
   ref_length = sizeof(SPIDER_POSITION);
   DBUG_VOID_RETURN;
 }
@@ -1670,6 +1672,7 @@ int ha_spider::reset()
     }
 */
     memset(need_mons, 0, sizeof(int) * share->link_count);
+    memset(result_list.casual_read, 0, sizeof(int) * share->link_count);
     rm_bulk_tmp_table();
     for (roop_count = share->link_count - 1; roop_count >= 0; roop_count--)
     {
@@ -2132,6 +2135,9 @@ int ha_spider::index_read_map_internal(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
     if (result_list.bgs_phase > 0)
     {
+      if ((error_num = spider_check_and_init_casual_read(trx->thd, this,
+        roop_count)))
+        DBUG_RETURN(error_num);
       if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
         TRUE, FALSE, (roop_count != link_ok))))
       {
@@ -2616,6 +2622,9 @@ int ha_spider::index_read_last_map_internal(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
     if (result_list.bgs_phase > 0)
     {
+      if ((error_num = spider_check_and_init_casual_read(trx->thd, this,
+        roop_count)))
+        DBUG_RETURN(error_num);
       if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
         TRUE, FALSE, (roop_count != link_ok))))
       {
@@ -3074,6 +3083,9 @@ int ha_spider::index_first_internal(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
       if (result_list.bgs_phase > 0)
       {
+        if ((error_num = spider_check_and_init_casual_read(trx->thd, this,
+          roop_count)))
+          DBUG_RETURN(error_num);
         if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
           TRUE, FALSE, (roop_count != link_ok))))
         {
@@ -3450,6 +3462,9 @@ int ha_spider::index_last_internal(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
       if (result_list.bgs_phase > 0)
       {
+        if ((error_num = spider_check_and_init_casual_read(trx->thd, this,
+          roop_count)))
+          DBUG_RETURN(error_num);
         if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
           TRUE, FALSE, (roop_count != link_ok))))
         {
@@ -3885,6 +3900,9 @@ int ha_spider::read_range_first_internal(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
     if (result_list.bgs_phase > 0)
     {
+      if ((error_num = spider_check_and_init_casual_read(trx->thd, this,
+        roop_count)))
+        DBUG_RETURN(error_num);
       if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
         TRUE, FALSE, (roop_count != link_ok))))
       {
@@ -4467,6 +4485,9 @@ int ha_spider::read_multi_range_first_internal(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
         if (result_list.bgs_phase > 0)
         {
+          if ((error_num = spider_check_and_init_casual_read(trx->thd, this,
+            roop_count)))
+            DBUG_RETURN(error_num);
           error_num = spider_bg_conn_search(this, roop_count, roop_start,
             TRUE, FALSE, (roop_count != link_ok));
           if (
@@ -5239,6 +5260,9 @@ int ha_spider::read_multi_range_first_internal(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
         if (result_list.bgs_phase > 0)
         {
+          if ((error_num = spider_check_and_init_casual_read(trx->thd, this,
+            roop_count)))
+            DBUG_RETURN(error_num);
           if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
             TRUE, FALSE, (roop_count != link_ok))))
           {
@@ -5813,6 +5837,9 @@ int ha_spider::read_multi_range_next(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
         if (result_list.bgs_phase > 0)
         {
+          if ((error_num = spider_check_and_init_casual_read(trx->thd, this,
+            roop_count)))
+            DBUG_RETURN(error_num);
           error_num = spider_bg_conn_search(this, roop_count, roop_start,
             TRUE, FALSE, (roop_count != link_ok));
           if (
@@ -6595,6 +6622,9 @@ int ha_spider::read_multi_range_next(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
         if (result_list.bgs_phase > 0)
         {
+          if ((error_num = spider_check_and_init_casual_read(trx->thd, this,
+            roop_count)))
+            DBUG_RETURN(error_num);
           if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
             TRUE, FALSE, (roop_count != link_ok))))
           {
@@ -7213,6 +7243,9 @@ int ha_spider::rnd_next_internal(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
       if (result_list.bgs_phase > 0)
       {
+        if ((error_num = spider_check_and_init_casual_read(trx->thd, this,
+          roop_count)))
+          DBUG_RETURN(error_num);
         if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
           TRUE, FALSE, (roop_count != link_ok))))
         {
@@ -7796,6 +7829,9 @@ int ha_spider::ft_read_internal(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
       if (result_list.bgs_phase > 0)
       {
+        if ((error_num = spider_check_and_init_casual_read(trx->thd, this,
+          roop_count)))
+          DBUG_RETURN(error_num);
         if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
           TRUE, FALSE, (roop_count != link_ok))))
         {
@@ -8689,6 +8725,14 @@ int ha_spider::pre_records()
   {
     DBUG_RETURN(0);
   }
+  THD *thd = trx->thd;
+  if (
+    spider_param_sync_autocommit(thd) &&
+    (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+  ) {
+    result_list.casual_read[search_link_idx] =
+      spider_param_casual_read(thd, share->casual_read);
+  }
   if ((error_num = spider_db_show_records(this, search_link_idx, TRUE)))
   {
     DBUG_RETURN(check_error_mode(error_num));
@@ -8707,6 +8751,17 @@ ha_rows ha_spider::records()
   {
     use_pre_records = FALSE;
     DBUG_RETURN(0);
+  }
+  if (!use_pre_records)
+  {
+    THD *thd = trx->thd;
+    if (
+      spider_param_sync_autocommit(thd) &&
+      (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+    ) {
+      result_list.casual_read[search_link_idx] =
+        spider_param_casual_read(thd, share->casual_read);
+    }
   }
   if ((error_num = spider_db_show_records(this, search_link_idx, FALSE)))
   {

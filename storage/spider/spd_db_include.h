@@ -1637,6 +1637,7 @@ typedef struct st_spider_result_list
   longlong                first_read;
   longlong                second_read;
   int                     set_split_read_count;
+  int                     *casual_read;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   /* 0:nomal 1:store 2:store end */
   volatile

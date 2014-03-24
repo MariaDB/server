@@ -233,6 +233,7 @@ void spider_free_conn_from_trx(
       ) {
         /* conn_recycle_mode == 1 */
         *conn->conn_key = '0';
+        conn->casual_read_base_conn = NULL;
         if (
           conn->quick_target &&
           spider_db_free_result((ha_spider *) conn->quick_target, FALSE)
@@ -1097,6 +1098,91 @@ int spider_free_conn(
   DBUG_PRINT("info", ("spider conn=%p", conn));
   spider_free_conn_alloc(conn);
   spider_free(spider_current_trx, conn, MYF(0));
+  DBUG_RETURN(0);
+}
+
+int spider_check_and_get_casual_read_conn(
+  THD *thd,
+  ha_spider *spider,
+  int link_idx
+) {
+  int error_num;
+  DBUG_ENTER("spider_check_and_get_casual_read_conn");
+  if (spider->result_list.casual_read[link_idx])
+  {
+    SPIDER_CONN *conn = spider->conns[link_idx];
+    if (conn->casual_read_query_id != thd->query_id)
+    {
+      conn->casual_read_query_id = thd->query_id;
+      conn->casual_read_current_id = 2;
+    }
+    if (spider->result_list.casual_read[link_idx] == 1)
+    {
+      spider->result_list.casual_read[link_idx] = conn->casual_read_current_id;
+      ++conn->casual_read_current_id;
+      if (conn->casual_read_current_id > 63)
+      {
+        conn->casual_read_current_id = 2;
+      }
+    }
+    char first_byte_bak = *spider->conn_keys[link_idx];
+    *spider->conn_keys[link_idx] =
+      '0' + spider->result_list.casual_read[link_idx];
+    if (
+      !(spider->conns[link_idx] =
+        spider_get_conn(spider->share, link_idx,
+          spider->conn_keys[link_idx], spider->trx,
+          spider, FALSE, TRUE, SPIDER_CONN_KIND_MYSQL,
+          &error_num))
+    ) {
+      *spider->conn_keys[link_idx] = first_byte_bak;
+      DBUG_RETURN(error_num);
+    }
+    *spider->conn_keys[link_idx] = first_byte_bak;
+    spider->conns[link_idx]->casual_read_base_conn = conn;
+    conn = spider->conns[link_idx];
+    spider_check_and_set_autocommit(thd, conn, NULL);
+  }
+  DBUG_RETURN(0);
+}
+
+int spider_check_and_init_casual_read(
+  THD *thd,
+  ha_spider *spider,
+  int link_idx
+) {
+  int error_num;
+  SPIDER_RESULT_LIST *result_list = &spider->result_list;
+  SPIDER_SHARE *share = spider->share;
+  DBUG_ENTER("spider_check_and_init_casual_read");
+  if (
+    spider_param_sync_autocommit(thd) &&
+    (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
+    (
+      result_list->direct_order_limit
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+      || result_list->direct_aggregate
+#endif
+    )
+  ) {
+    if (!result_list->casual_read[link_idx])
+    {
+      result_list->casual_read[link_idx] =
+        spider_param_casual_read(thd, share->casual_read);
+    }
+    if ((error_num = spider_check_and_get_casual_read_conn(thd, spider,
+      link_idx)))
+    {
+      DBUG_RETURN(error_num);
+    }
+    SPIDER_CONN *conn = spider->conns[link_idx];
+    if (
+      conn->casual_read_base_conn &&
+      (error_num = spider_create_conn_thread(conn))
+    ) {
+      DBUG_RETURN(error_num);
+    }
+  }
   DBUG_RETURN(0);
 }
 

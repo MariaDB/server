@@ -1792,6 +1792,7 @@ int spider_parse_connect_info(
 #ifdef HA_CAN_FORCE_BULK_DELETE
   share->force_bulk_delete = -1;
 #endif
+  share->casual_read = -1;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   for (roop_count = 4; roop_count > 0; roop_count--)
@@ -1921,6 +1922,7 @@ int spider_parse_connect_info(
 #endif
           SPIDER_PARAM_DOUBLE("civ", crd_interval, 0);
           SPIDER_PARAM_INT_WITH_MAX("cmd", crd_mode, 0, 3);
+          SPIDER_PARAM_INT_WITH_MAX("csr", casual_read, 0, 63);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           SPIDER_PARAM_INT_WITH_MAX("csy", crd_sync, 0, 2);
 #endif
@@ -2111,6 +2113,7 @@ int spider_parse_connect_info(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
           SPIDER_PARAM_LONG_LIST_WITH_MAX("use_hs_read", use_hs_reads, 0, 1);
 #endif
+          SPIDER_PARAM_INT_WITH_MAX("casual_read", casual_read, 0, 63);
           error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
           my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
             MYF(0), tmp_ptr);
@@ -3436,6 +3439,8 @@ int spider_set_connect_info_default(
   if (share->force_bulk_delete == -1)
     share->force_bulk_delete = 0;
 #endif
+  if (share->casual_read == -1)
+    share->casual_read = 0;
   if (share->bka_mode == -1)
     share->bka_mode = 1;
   if (!share->bka_engine)
@@ -4331,6 +4336,7 @@ SPIDER_SHARE *spider_get_share(
 #endif
 #endif
         &result_list->sql_kind_backup, sizeof(uint) * share->link_count,
+        &result_list->casual_read, sizeof(int) * share->link_count,
         &spider->dbton_handler,
           sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE,
         NullS))
@@ -4772,6 +4778,7 @@ SPIDER_SHARE *spider_get_share(
 #endif
 #endif
         &result_list->sql_kind_backup, sizeof(uint) * share->link_count,
+        &result_list->casual_read, sizeof(int) * share->link_count,
         &spider->dbton_handler,
           sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE,
         NullS))

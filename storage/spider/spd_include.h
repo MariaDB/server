@@ -13,7 +13,7 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#define SPIDER_DETAIL_VERSION "3.1.11"
+#define SPIDER_DETAIL_VERSION "3.1.12"
 #define SPIDER_HEX_VERSION 0x0301
 
 #if MYSQL_VERSION_ID < 50500
@@ -264,6 +264,9 @@ typedef struct st_spider_conn
   uint               opened_handlers;
   ulonglong          conn_id;
   ulonglong          connection_id;
+  query_id_t         casual_read_query_id;
+  uint               casual_read_current_id;
+  st_spider_conn     *casual_read_base_conn;
   pthread_mutex_t    mta_conn_mutex;
   volatile bool      mta_conn_mutex_lock_already;
   volatile bool      mta_conn_mutex_unlock_later;
@@ -738,6 +741,7 @@ typedef struct st_spider_share
 #ifdef HA_CAN_FORCE_BULK_DELETE
   int                force_bulk_delete;
 #endif
+  int                casual_read;
 
   int                bka_mode;
   char               *bka_engine;

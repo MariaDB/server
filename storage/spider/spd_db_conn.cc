@@ -5177,29 +5177,42 @@ int spider_db_show_records(
   bool pre_call
 ) {
   int error_num;
-  SPIDER_CONN *conn = spider->conns[link_idx];
+  THD *thd = spider->trx->thd;
+  SPIDER_CONN *conn;
   DBUG_ENTER("spider_db_show_records");
   if (pre_call)
   {
-    if (spider_param_bgs_mode(spider->trx->thd, spider->share->bgs_mode))
+    if (spider_param_bgs_mode(thd, spider->share->bgs_mode))
     {
+      if ((error_num = spider_check_and_get_casual_read_conn(thd, spider,
+        link_idx)))
+      {
+        DBUG_RETURN(error_num);
+      }
+      conn = spider->conns[link_idx];
       if (!(error_num = spider_create_conn_thread(conn)))
       {
         spider_bg_conn_simple_action(conn, SPIDER_BG_SIMPLE_RECORDS, FALSE,
           spider, link_idx, (int *) &spider->result_list.bgs_error);
       }
     } else {
+      conn = spider->conns[link_idx];
       error_num = spider->dbton_handler[conn->dbton_id]->show_records(
         link_idx
       );
     }
   } else {
+    conn = spider->conns[link_idx];
     if (spider->use_pre_records)
     {
-      if (spider_param_bgs_mode(spider->trx->thd, spider->share->bgs_mode))
+      if (spider_param_bgs_mode(thd, spider->share->bgs_mode))
       {
         spider_bg_conn_wait(conn);
         error_num = spider->result_list.bgs_error;
+        if (conn->casual_read_base_conn)
+        {
+          spider->conns[link_idx] = conn->casual_read_base_conn;
+        }
       } else {
         error_num = 0;
       }
