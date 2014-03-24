@@ -7489,7 +7489,7 @@ longlong spider_split_read_param(
       /* This case must select by one shot */
       DBUG_PRINT("info",("spider cancel split read"));
       result_list->split_read_base = 9223372036854775807LL;
-      result_list->semi_split_read = 9223372036854775807LL;
+      result_list->semi_split_read = 0;
       result_list->semi_split_read_limit = 9223372036854775807LL;
       result_list->first_read = 9223372036854775807LL;
       result_list->second_read = 9223372036854775807LL;
