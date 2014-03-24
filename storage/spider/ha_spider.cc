@@ -8002,6 +8002,9 @@ int ha_spider::info(
   DBUG_ENTER("ha_spider::info");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider flag=%x", flag));
+#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
+  auto_inc_temporary = FALSE;
+#endif
   sql_command = thd_sql_command(thd);
   if (
     sql_command == SQLCOM_DROP_TABLE ||
@@ -8012,8 +8015,12 @@ int ha_spider::info(
     {
       if (share->auto_increment_value)
         stats.auto_increment_value = share->auto_increment_value;
-      else
+      else {
         stats.auto_increment_value = 1;
+#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
+        auto_inc_temporary = TRUE;
+#endif
+      }
     }
     DBUG_RETURN(0);
   }
@@ -8796,6 +8803,19 @@ bool ha_spider::need_info_for_auto_inc()
 }
 #endif
 
+#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
+bool ha_spider::can_use_for_auto_inc_init()
+{
+  DBUG_ENTER("ha_spider::can_use_for_auto_inc_init");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_PRINT("info",("spider return=%s", (
+    !auto_inc_temporary
+  ) ? "TRUE" : "FALSE"));
+  DBUG_RETURN((
+    !auto_inc_temporary
+  ));
+}
+#endif
 
 int ha_spider::update_auto_increment()
 {

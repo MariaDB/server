@@ -173,6 +173,9 @@ public:
 #ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
   bool               info_auto_called;
 #endif
+#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
+  bool               auto_inc_temporary;
+#endif
   int                bulk_size;
   int                direct_dup_insert;
   int                store_error_num;
@@ -510,6 +513,9 @@ public:
   uint8 table_cache_type();
 #ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
   bool need_info_for_auto_inc();
+#endif
+#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
+  bool can_use_for_auto_inc_init();
 #endif
   int update_auto_increment();
   void get_auto_increment(
